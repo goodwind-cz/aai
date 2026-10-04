@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: f9e36e323b536790961444eb426b47666d085b3d6d912dc4b2bd8bc4c0d4e8e3
+frozen_sha256: eddae52802c9ffe6007d444c1165a6fc9bed87cede997614a9330824b4e83337
 ceremony_level: 3
 links:
   requirement: null
@@ -230,14 +230,20 @@ command is a `gh pr merge` AND a lane marker is present. A lane marker means:
 When no lane marker is present, the gate runs today's code, so it produces
 today's bytes, whether or not a policy exists. When a lane marker is present,
 the hook:
-1. Resolves the PR exactly as gate 2b already does.
-2. Runs `merge-policy.mjs --check`.
-3. Allows the merge only when the result is `allowed` AND the allowed lane's
+1. Refuses `--auto` and `--admin` outright (validation-round1 NB-1: either
+   lets GitHub merge a later, unjudged head, or bypasses branch protections
+   the lane path never checked).
+2. Resolves the PR exactly as gate 2b already does, then resolves that PR's
+   current head (`gh pr view <n> --json headRefOid`) and requires the command
+   to carry `--match-head-commit <that head>` — so the merge can only ever
+   land the exact head this invocation is about to judge, never a later push.
+3. Runs `merge-policy.mjs --check`.
+4. Allows the merge only when the result is `allowed` AND the allowed lane's
    own marker is among the markers that are set. The existing sweep check
    (gate 2b) still runs after that.
 
 Any other outcome produces today's article-7 deny text plus one line,
-`merge-policy: <verdict line>`, and exit 2. A missing node or a missing
+`merge-policy: <verdict line>`, and exit 2. A missing node, gh or a missing
 evaluator also falls back to today's deny. The lane path can only ever add an
 allow; it never turns today's deny into an allow on error.
 
@@ -263,11 +269,14 @@ Lane-level deny codes: `kind_not_in_lane`, `intake_type`,
 `roadmap_capability`, `ceremony_exceeds`, `requester_approval_missing`,
 `validation_not_pass`, `review_not_pass`, `pr_body_missing`.
 
-Validate codes: `parse_error`, `unknown_key`, `missing_key`,
+Validate codes: `parse_error`, `unknown_key`, `missing_key`, `duplicate_key`,
 `duplicate_lane`, `undefined_kind`, `empty_globs`, `bad_marker`,
 `duplicate_marker`, `decision_missing`, `decision_unsigned`,
 `decision_ambiguous`, `signer_mismatch`, `reaches_inconsistent`,
 `public_effect_not_opted_in`, `requester_missing`, `bad_ceremony`.
+`duplicate_key` is a repeated top-level key, a repeated `deploy`/`requires`
+sub-key, or a repeated lane key (including a second `requires:` block) —
+validation-round1 B2, disclosed via `spec-amend.mjs`.
 
 ### P11 — Constitution article 7 (how the amendment is handled)
 
@@ -480,6 +489,15 @@ substitutions against the identifiers that the Implementation plan mandates.
 | TEST-1530 | Spec-AC-22 | integration | tests/skills/test-aai-merge-policy.sh | PROFILES core list line, DOCS_AI_CANON.list line, suite-map maps the evaluator (select-suites on that one path prints no FULL_RUN and selects aai-merge-policy); layer-profiles suite exits 0 | sed:s/  - \.aai\/scripts\/merge-policy\.mjs/  - .aai\/scripts\/merge-policy-x.mjs/ | green |
 | TEST-1531 | Spec-AC-22 | integration | tests/skills/test-aai-prompt-diet.sh | JUSTIFIED_ADDITIONS carries an entry naming configurable-merge-policy-lanes and TEST-012 pin equals the new sum; suite exits 0 | sed:s/configurable-merge-policy-lanes/configurable-merge-policy-lanez/ | green |
 | TEST-1532 | Spec-AC-23 | unit | tests/skills/test-aai-merge-policy.sh | CHANGELOG has a line starting with the unreleased heading prefix whose entry body names merge-policy.yaml, --validate and the standing authorization removal | sed:s/merge-policy\.mjs --validate/merge-policy.mjs --check/ | green |
+| TEST-1533 | Spec-AC-11 | integration | tests/skills/test-aai-merge-policy.sh | validation-round1 B1: `--check --pr <n>` with NO --spec/--intake/--state resolves ceremony/intake_type/ref from STATE current_focus (spec_path/primary_path) and allows a qualifying internal-standing ride | sed:s/function resolveCurrentFocusPaths/function resolveCurrentFocusPathsX/ | green |
+| TEST-1534 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: a boolean-typed scalar (production_on_merge) accepts only true/false, bare or quoted; True/yes is parse_error, never a silent false reroute | sed:s/function parseBooleanScalar/function parseBooleanScalarX/ | green |
+| TEST-1535 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: deploy.preview and merge_reaches reject out-of-set values (PUBLIC, publik, Nothing) as parse_error | sed:s/if \(!DEPLOY_PREVIEW_ENUM\.has\(v\)\) return/if (false) return/ | green |
+| TEST-1536 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: a repeated requires: block or a repeated lane scalar key is duplicate_key, not last-writer-wins | sed:s/seenLaneKeys\.has\('requires'\)/false \&\& seenLaneKeys.has('requires')/ | green |
+| TEST-1537 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: a lane missing a required field (marker) is missing_key | sed:s/for \(const rk of REQUIRED_LANE_KEYS\)/for (const rk of [])/ | green |
+| TEST-1538 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 B2: an explicitly-written max_ceremony outside 0-3 is bad_ceremony | sed:s/lane\.max_ceremony <= 3/lane.max_ceremony <= 30/ | green |
+| TEST-1539 | Spec-AC-12 | unit | tests/skills/test-aai-merge-policy.sh | validation-round1 NB-7: an absent version is missing_key; a version other than 1 is parse_error | sed:s/policy\.version !== 1/policy.version !== 2/ | green |
+| TEST-1540 | Spec-AC-11 | integration | tests/skills/test-aai-merge-policy.sh | validation-round1 NB-2: readRideCeremony fails closed to 3 on a quoted/non-canonical ceremony_level, and an explicit --spec that does not exist never falls back to --intake | sed:s/if \(!\['0', '1', '2', '3'\]\.includes\(cl\[1\]\)\) return 3/if (false) return 3/ | green |
+| TEST-1541 | Spec-AC-14 | integration | tests/skills/test-aai-hooks-overlay.sh | validation-round1 B1/NB-1: the hook lane path, with no AAI_SWEEP_* vars in a normal session, resolves intake_types from STATE current_focus and allows a qualifying ride naming --match-head-commit; --auto/--admin and a missing/mismatched --match-head-commit are refused | sed:s/LANE_MATCH_HEAD_ERE='--match-head-commit\[\[:space:\]\]\+\(\[0-9a-fA-F\]\+\)'/LANE_MATCH_HEAD_ERE='nomatch'/ | green |
 
 RED observation plan: each row is first seen failing on the pre-change tree,
 where the evaluator does not exist or the text is not yet written. The RED log

@@ -495,10 +495,15 @@ PROCESS
      old scoped prose exception) — the project-owned, owner-signed
      `docs/ai/merge-policy.yaml` is the single source of truth, never prose:
      run `node .aai/scripts/merge-policy.mjs --check --pr <n>`.
-     On a first line starting `MERGE-POLICY allowed lane=<id> marker=<NAME>
-     decision_ref=<ref>`, this step MAY run `gh pr merge --squash` with that
+     On a first line starting `MERGE-POLICY allowed pr=<n> lane=<id>
+     marker=<NAME> decision_ref=<ref> merge_reaches=<v>`, this step MAY run
+     `gh pr merge --squash --match-head-commit <headRefOid>` with that
      lane's own marker set on that one command (`<NAME>=1` — NEVER
-     `AAI_OPERATOR_MERGE`, which stays the operator's alone). Cite the
+     `AAI_OPERATOR_MERGE`, which stays the operator's alone), where
+     `<headRefOid>` is the PR's current head (the same `headRefOid` the
+     `gh pr view` call above would report). NEVER add `--auto` or `--admin`:
+     either lets GitHub merge a later, unjudged head or bypasses branch
+     protections outright, and the hook lane path refuses both. Cite the
      `decision_ref` the allowed line names in the merge report. Any other
      verdict (`denied`, `no_policy`, or no `docs/ai/merge-policy.yaml` at the
      base commit) means the hard rule above stands unchanged; a `denied`

@@ -929,7 +929,10 @@ test_012_growth_sum_matches_ledger() {
   # 1:1 (TEST-1372). configurable-merge-policy-lanes (TEST-1531, Spec-AC-22)
   # adds +90 B (SKILL_PR.prompt.md +72, SKILL_SHIP.prompt.md +18), measured
   # against base 64f2595f, credited 1:1 so the pin moves 50333 -> 50423.
-  local want_growth=50423
+  # Then 50423 -> 50633: configurable-merge-policy-lanes validation-round1
+  # remediation NB-1/NB-4 (+354 B, SKILL_PR.prompt.md 35467 -> 35821); the
+  # pre-scope 144 B headroom absorbs 144 of it, 210 B credited 1:1.
+  local want_growth=50633
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

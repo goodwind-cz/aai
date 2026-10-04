@@ -1118,6 +1118,7 @@ JSONL
   echo "a docs change" > "$repo/docs/changed.md"
   (cd "$repo" && git add -A && git commit -q -m head) >/dev/null 2>&1 || return 1
   head="$(cd "$repo" && git rev-parse HEAD)"
+  T1520_HEAD="$head"
   # PR 71: everything holds. PR 72: CI failed (an evaluator denial).
   printf '{"number":71,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-71.json"
   printf '{"number":72,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"FAILURE"}],"body":""}\n' "$base" "$head" > "$d/pr-72.json"
@@ -1130,6 +1131,10 @@ JSONL
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$d/gh-argv.log"
 if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.json" ]; then
+  if printf '%s\n' "\$*" | grep -qF -- '-q .headRefOid'; then
+    sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
+    exit 0
+  fi
   cat "$d/pr-\${3}.json"; exit 0
 fi
 exit 1
@@ -1170,10 +1175,11 @@ test_1520_lane_marker_path() {
   t1520_build_fixture "$T1520_D" || { log_fail "TEST-1520 fixture build failed"; return; }
   HOOK_PATH="$T1520_D/bin:$PATH"
   local X=AAI_LANEX1520_MERGE Y=AAI_LANEY1520_MERGE
+  local MHC="--match-head-commit $T1520_HEAD"
 
   # Allowed: lane X's own marker, from the environment or as a command prefix.
-  t1520_case "env marker X" 0 no - "gh pr merge 71 --squash" "$X=1"
-  t1520_case "prefix marker X" 0 no - "$X=1 gh pr merge 71 --squash"
+  t1520_case "env marker X" 0 no - "gh pr merge 71 --squash $MHC" "$X=1"
+  t1520_case "prefix marker X" 0 no - "$X=1 gh pr merge 71 --squash $MHC"
   # Positive control: the allows above really consulted the evaluator.
   if ! grep -q '^pr view 71 --json' "$T1520_D/gh-argv.log" 2>/dev/null; then
     log_info "TEST-1520: the stub gh never saw 'pr view 71 --json' -- the evaluator did not run"
@@ -1181,11 +1187,21 @@ test_1520_lane_marker_path() {
   fi
 
   # Spec-AC-14 denials.
-  t1520_case "no marker" 2 no - "gh pr merge 71 --squash"
-  t1520_case "marker Y only" 2 yes "lane=lane-x" "gh pr merge 71 --squash" "$Y=1"
-  t1520_case "prefix marker Y only" 2 yes "lane=lane-x" "$Y=1 gh pr merge 71 --squash"
-  t1520_case "evaluator denial" 2 yes "reason=ci_not_green" "gh pr merge 72 --squash" "$X=1"
+  t1520_case "no marker" 2 no - "gh pr merge 71 --squash $MHC"
+  t1520_case "marker Y only" 2 yes "lane=lane-x" "gh pr merge 71 --squash $MHC" "$Y=1"
+  t1520_case "prefix marker Y only" 2 yes "lane=lane-x" "$Y=1 gh pr merge 71 --squash $MHC"
+  t1520_case "evaluator denial" 2 yes "reason=ci_not_green" "gh pr merge 72 --squash $MHC" "$X=1"
   t1520_case "git merge with marker X" 2 yes - "git merge feature-x" "$X=1"
+
+  # NB-1: --auto/--admin refused outright, and --match-head-commit required
+  # (and must equal PR 71's real head) before the evaluator even runs. The
+  # lane marker is set in the ENVIRONMENT here, so lane_path() DOES run and
+  # DOES set LANE_VERDICT (want_line=yes), unlike the "no marker"/"marker
+  # value not 1" cases above where lane_path is never even entered.
+  t1520_case "auto flag refused" 2 yes "not permitted on the merge-policy lane" "gh pr merge 71 --auto $MHC" "$X=1"
+  t1520_case "admin flag refused" 2 yes "not permitted on the merge-policy lane" "gh pr merge 71 --admin $MHC" "$X=1"
+  t1520_case "missing match-head-commit" 2 yes "requires --match-head-commit $T1520_HEAD" "gh pr merge 71 --squash" "$X=1"
+  t1520_case "mismatched match-head-commit" 2 yes "does not match PR 71's head" "gh pr merge 71 --squash --match-head-commit 0000000000000000000000000000000000000f" "$X=1"
 
   # Bypass attempts (each must deny, never allow).
   t1520_case "marker in an earlier command" 2 no - "$X=1 true && gh pr merge 71"
@@ -1194,7 +1210,7 @@ test_1520_lane_marker_path() {
   t1520_case "prefix then chained merge" 2 yes - "$X=1 gh pr merge 71; gh pr merge 72"
   t1520_case "command substitution" 2 yes - "gh pr merge \$(echo 72)" "$X=1"
   t1520_case "other repo via -R" 2 yes - "gh pr merge 71 -R other/repo" "$X=1"
-  t1520_case "non-marker prefix assignment" 2 yes - "GH_REPO=other/repo $X=1 gh pr merge 71" 
+  t1520_case "non-marker prefix assignment" 2 yes - "GH_REPO=other/repo $X=1 gh pr merge 71"
   t1520_case "marker value not 1" 2 no - "gh pr merge 71" "$X=yes"
   t1520_case "operator marker as prefix is not a lane marker" 2 no - "AAI_OPERATOR_MERGE=1 gh pr merge 71"
   # The payload's cwd is a DIFFERENT repository: the evaluator would judge
@@ -1206,12 +1222,12 @@ test_1520_lane_marker_path() {
   T1520_CWD=""
   # Evaluator missing from the project: today's deny plus the line.
   mv "$T1520_D/repo/.aai/scripts/merge-policy.mjs" "$T1520_D/merge-policy.mjs.away"
-  t1520_case "evaluator missing" 2 yes - "gh pr merge 71" "$X=1"
+  t1520_case "evaluator missing" 2 yes - "gh pr merge 71 $MHC" "$X=1"
   mv "$T1520_D/merge-policy.mjs.away" "$T1520_D/repo/.aai/scripts/merge-policy.mjs"
   # Evaluator crash: a non-zero exit is never read as an allow.
   mv "$T1520_D/repo/.aai/scripts/merge-policy.mjs" "$T1520_D/merge-policy.mjs.real"
   printf '%s\n' 'console.log("MERGE-POLICY allowed pr=71 lane=lane-x marker=AAI_LANEX1520_MERGE decision_ref=x merge_reaches=nothing"); process.exit(1);' > "$T1520_D/repo/.aai/scripts/merge-policy.mjs"
-  t1520_case "evaluator crash after an allowed line" 2 yes - "gh pr merge 71" "$X=1"
+  t1520_case "evaluator crash after an allowed line" 2 yes - "gh pr merge 71 $MHC" "$X=1"
   mv "$T1520_D/merge-policy.mjs.real" "$T1520_D/repo/.aai/scripts/merge-policy.mjs"
   # node absent with a lane marker in the environment: the payload cannot
   # even be parsed, so a merge-shaped payload is denied, never allowed.
@@ -1219,13 +1235,116 @@ test_1520_lane_marker_path() {
   minp="$(minimal_path "$T1520_D/nonode-bin" cat grep sed bash git tr head)"
   local save_path="$HOOK_PATH"
   HOOK_PATH="$T1520_D/bin:$minp"
-  t1520_case "node absent" 2 yes - "gh pr merge 71" "$X=1"
+  t1520_case "node absent" 2 yes - "gh pr merge 71 $MHC" "$X=1"
   HOOK_PATH="$save_path"
   # After all of it the real allow still works (the fixture was restored).
-  t1520_case "env marker X again" 0 no - "gh pr merge 71" "$X=1"
+  t1520_case "env marker X again" 0 no - "gh pr merge 71 $MHC" "$X=1"
 
   [[ $T1520_OK -eq 1 ]] && log_pass "TEST-1520 (Spec-AC-14) lane marker X (environment or NAME=1 prefix) is allowed by the evaluator; no marker, marker Y, an evaluator denial, git merge and every bypass shape deny with the article-7 text" \
                         || log_fail "TEST-1520 merge gate lane path"
+}
+
+# TEST-1541 (validation-round1 B1/NB-1): the hook lane path, in a NORMAL
+# session (no AAI_SWEEP_SPEC/INTAKE/STATE exported at all), resolves ride
+# inputs from STATE current_focus on its own -- merge-policy.mjs's own
+# default, reached with no --spec/--intake/--state forwarded by the hook
+# either. Also proves NB-1's --match-head-commit end to end through the real
+# hook adapter (not just the evaluator's own CLI, TEST-1533).
+test_1541_hook_default_ride_inputs_from_state() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-1541 $ADAPTER does not exist"; return; }
+  local d repo base head
+  d="$(new_fixture)"
+  repo="$d/repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs" "$d/bin"
+  (cd "$repo" && git init -q && git checkout -q -b main 2>/dev/null \
+     && git config user.email "hooks-1541@example.com" && git config user.name "AAI Hooks 1541") >/dev/null 2>&1 \
+    || { log_fail "TEST-1541 fixture repo init failed"; return; }
+  copy_merge_layer "$repo" || { log_fail "TEST-1541 fixture copy failed"; return; }
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1541
+    decision_ref: t1541-ride@2026-10-04T00:00:00Z
+    decision_match: "MERGE LANE t1541"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_T1541_MERGE
+    requires:
+      intake_types: [change]
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1541-ride","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1541 approved"}
+JSONL
+  cat > "$repo/docs/intake-1541.md" <<'MD'
+---
+id: ride-1541
+type: change
+---
+
+# intake
+MD
+  cat > "$repo/docs/spec-1541.md" <<'MD'
+---
+id: spec-test1541
+type: spec
+ceremony_level: 2
+---
+
+# Spec
+MD
+  echo "base" > "$repo/docs/base.md"
+  (cd "$repo" && git add -A && git commit -q -m base) >/dev/null 2>&1
+  base="$(cd "$repo" && git rev-parse HEAD)"
+  echo "a docs change" > "$repo/docs/changed-1541.md"
+  (cd "$repo" && git add -A && git commit -q -m head) >/dev/null 2>&1
+  head="$(cd "$repo" && git rev-parse HEAD)"
+  cat > "$repo/docs/ai/STATE.yaml" <<'YAML'
+current_focus:
+  type: intake_change
+  ref_id: ride-1541
+  primary_path: docs/intake-1541.md
+  spec_path: docs/spec-1541.md
+YAML
+  printf '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1541-ride","payload":{"pr":90,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted"}}\n' >> "$repo/docs/ai/EVENTS.jsonl"
+  printf '{"number":90,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-90.json"
+  cat > "$d/bin/gh" <<GHSTUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$d/gh-argv.log"
+if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.json" ]; then
+  if printf '%s\n' "\$*" | grep -qF -- '-q .headRefOid'; then
+    sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
+    exit 0
+  fi
+  cat "$d/pr-\${3}.json"; exit 0
+fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+  HOOK_PATH="$d/bin:$PATH"
+
+  # NORMAL session: no AAI_SWEEP_SPEC/INTAKE/STATE exported anywhere, only
+  # the lane marker. The hook forwards nothing extra to merge-policy.mjs, so
+  # this proves merge-policy.mjs's OWN STATE current_focus default, reached
+  # end to end through the real hook adapter.
+  local pl err
+  pl="$d/payload.json"
+  payload_file "$pl" "gh pr merge 90 --squash --match-head-commit $head" "$repo"
+  run_adapter "$PROJECT_ROOT/$ADAPTER" "$repo" "$pl" "$d/err" AAI_T1541_MERGE=1
+  err="$(cat "$d/err")"
+  if [[ "$ADAPTER_RC" -ne 0 ]]; then
+    log_fail "TEST-1541: expected the hook to allow with no AAI_SWEEP_* vars, got exit $ADAPTER_RC: $err"
+    return
+  fi
+  if ! grep -q '^pr view 90 --json' "$d/gh-argv.log" 2>/dev/null; then
+    log_fail "TEST-1541: the stub gh never saw 'pr view 90 --json' -- the evaluator did not run"
+    return
+  fi
+
+  log_pass "TEST-1541 (validation-round1 B1/NB-1) the hook lane path, with no AAI_SWEEP_* vars in a normal session, resolves intake_types from STATE current_focus and allows a qualifying ride naming --match-head-commit"
 }
 
 main() {
@@ -1256,6 +1375,7 @@ main() {
   test_020_merge_gate_branch_and_url_targets
   test_1502_no_marker_bytes_equal_base
   test_1520_lane_marker_path
+  test_1541_hook_default_ride_inputs_from_state
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

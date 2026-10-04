@@ -4,34 +4,18 @@
 // owner-signed merge policy (docs/ai/merge-policy.yaml), SPEC-DRAFT
 // spec-configurable-merge-policy-lanes.
 //
-// THIS IS A PARTIAL BUILD (batch 4 of a multi-batch TDD ride). Batch 1
-// implemented Spec-AC-01 (no_policy), Spec-AC-03 (base-only reads) and
-// Spec-AC-04 (GUARD_PATHS). Batch 2 added Spec-AC-05 (classifyFiles order:
-// guard, then architecture, then kind), Spec-AC-06 (globToRegExp semantics,
-// proven through --classify) and Spec-AC-07 (requesterApproved). Batch 3
-// added Spec-AC-08 (ciGreen, the real per-entry CheckRun/StatusContext
-// predicate), Spec-AC-09 (runSweepCheck spawns lane-gate.mjs --sweep-check;
-// no `requires` key may disable CI or the sweep check) and Spec-AC-11
-// (ceremony_exceeds via readRideCeremony, DEFAULT_MAX_CEREMONY = 2). This
-// batch 4 added Spec-AC-10 (public_effect_not_opted_in), Spec-AC-12 (deploy
-// consistency/reaches_inconsistent, duplicate_lane, undefined_kind,
-// requester_missing) and Spec-AC-13 (MARKER_RE-backed bad_marker/
-// duplicate_marker). It also fixed the main-guard shape at the bottom of
-// this file (unresolved `pathToFileURL` comparison broke
-// tests/skills/test-aai-doctor.sh TEST-439 through a symlinked checkout;
-// replaced with the same `realOrResolve` realpath shape
-// .aai/scripts/aai-doctor.mjs already uses). THIS batch (5) adds Spec-AC-15
-// (the remaining `requires` keys: intake_types, exclude_roadmap_capability,
-// validation_pass, review_pass, pr_body_contains — evaluateLane's real
-// predicate replaces the permissive stub), Spec-AC-16 (pr_not_open/
-// api_unavailable/base_unavailable — already structurally correct from
-// batch 1's P10 data-flow ordering; this batch adds its own TEST coverage)
-// and Spec-AC-17 (the output contract — first lane in file order wins,
-// already the lane loop's own shape). The file's PUBLIC CONTRACT (exported
-// names, CLI modes, exit codes, printed line shapes) is written to the full
-// spec so later batches build ON this skeleton rather than restructure it.
-// Still open for a later batch: the hook lane path (AC-02/AC-14) and the
-// repo policy/prompts/doctor/constitution migration (AC-18..23).
+// Implements the full P1-P10 contract: closed-shape policy parsing
+// (parsePolicy), policy-wide validation (validatePolicy — decision binding,
+// deploy consistency/opt-ins, duplicate/missing keys, marker shape),
+// base-only reads (readAtBase), P5 classification (classifyFiles,
+// globToRegExp), P6 requester approval (requesterApproved), P8 ride inputs
+// (readRideCeremony, readIntakeMeta, defaulting to STATE current_focus when
+// no --spec/--intake/--state is given — Spec-AC-18/validation-round1 B1),
+// P7/P9 CI and sweep-check gates (ciGreen, runSweepCheck) and the P10
+// output/exit contract. The hook lane path (claude-hook-gate.sh) and the
+// repo policy/prompts/doctor/constitution migration (Spec-AC-02/14/18..23)
+// are implemented alongside this file; see docs/specs/
+// SPEC-DRAFT-spec-configurable-merge-policy-lanes.md for the full mapping.
 //
 // Modes:
 //   --check --pr <n> [--repo-root <dir>] [--debug-inputs]
@@ -71,6 +55,16 @@ export const GUARD_PATHS = [
   '.aai/scripts/lib/cli-pipe-guard.mjs',
   '.aai/scripts/lib/pr-sweep.mjs',
   '.aai/scripts/lib/roadmap-model.mjs',
+  // validation-round1 NB-3: not an `import`, so the closure probe (TEST-1507)
+  // never finds these on its own — lane-gate.mjs SPAWNS select-suites.mjs
+  // (runSelectSuites) and both of them READ these two config files directly
+  // (profilesCore, the docs-audit.yaml protected_paths_l3 reader). A PR
+  // editing any of the four changes the --sweep-check verdict exactly as
+  // editing lane-gate.mjs itself would, so they guard the same way.
+  '.aai/scripts/select-suites.mjs',
+  'tests/skills/suite-map.yaml',
+  'docs/ai/docs-audit.yaml',
+  '.aai/system/PROFILES.yaml',
 ];
 
 export const MARKER_RE = /^AAI_[A-Z0-9_]+_MERGE$/;
@@ -146,6 +140,29 @@ const LANE_SCALAR_KEYS = [
   'allow_public_side_effect', 'max_ceremony', 'marker', 'requester_logins',
 ];
 
+// validation-round1 B2 — every lane must carry these (missing_key); max_ceremony
+// and requires are the only genuinely optional lane keys (P1: "optional; absent
+// means 2" / "optional ride conditions"), and requester_logins is required only
+// WHEN merge_reaches is not `nothing` (P6 — requester_missing, not missing_key).
+const REQUIRED_LANE_KEYS = [
+  'decision_ref', 'decision_match', 'signed_by', 'kinds', 'merge_reaches', 'marker',
+];
+
+// validation-round1 B2 — the only two genuinely closed-set scalar enums P1
+// defines. Any OTHER value (`PUBLIC`, `publik`, a typo) is a `parse_error`,
+// same discipline as every other closed-shape violation in this parser —
+// never a value that silently reads as neither member of the set.
+const DEPLOY_PREVIEW_ENUM = new Set(['none', 'private', 'public']);
+const MERGE_REACHES_ENUM = new Set(['nothing', 'preview', 'production']);
+
+// validation-round1 B2 — boolean-typed keys get the STRICT parse
+// (parseBooleanScalar below) instead of the generic parseScalar: a quoted or
+// non-canonical value (`"true"` is fine; `True`, `yes`, `publik`) must never
+// silently become a string that a later `=== true` predicate reads as false.
+const BOOLEAN_REQUIRES_KEYS = new Set([
+  'exclude_roadmap_capability', 'validation_pass', 'review_pass',
+]);
+
 // Spec-AC-15 — the full `requires` allowlist (P1): any key outside these
 // five is `unknown_key`, the same closed-shape discipline as every other
 // policy key. Spec-AC-09's `ci`/`sweep_check` prohibition falls out of this
@@ -156,14 +173,29 @@ const ALLOWED_REQUIRES_KEYS = new Set([
   'review_pass', 'pr_body_contains',
 ]);
 
+// parseBooleanScalar(raw) -> true | false | undefined (invalid) —
+// validation-round1 B2. P1 allows quoting, but a boolean-typed field accepts
+// ONLY the canonical `true`/`false` token, bare or quoted — never a case
+// variant, a yes/no word, or any other value that would otherwise silently
+// read as the OPPOSITE of its real intent under a later `=== true` check.
+function parseBooleanScalar(raw) {
+  const s = String(raw).trim();
+  const unquoted = ((s.startsWith('"') && s.endsWith('"') && s.length >= 2)
+    || (s.startsWith("'") && s.endsWith("'") && s.length >= 2))
+    ? s.slice(1, -1)
+    : s;
+  if (unquoted === 'true') return true;
+  if (unquoted === 'false') return false;
+  return undefined;
+}
+
 // parsePolicy(text) -> { policy } | { errors }. Closed shape, P1. The parse-
-// time errors (parse_error, unknown_key, empty_globs) are detected here;
-// duplicate_lane, undefined_kind, bad_marker, duplicate_marker,
-// reaches_inconsistent, public_effect_not_opted_in and requester_missing are
-// structural but policy-wide, so they are detected in validatePolicy once a
-// full `policy` object exists (Spec-AC-10/12/13). `missing_key` and
-// `bad_ceremony` are declared Validate codes with no Test Plan row in this
-// spec — intentionally unimplemented; TODO if a later AC ever needs them.
+// time errors (parse_error, unknown_key, empty_globs, duplicate_key,
+// missing_key) are detected here; duplicate_lane, undefined_kind, bad_marker,
+// duplicate_marker, reaches_inconsistent, public_effect_not_opted_in,
+// requester_missing and bad_ceremony are structural but policy-wide, so they
+// are detected in validatePolicy once a full `policy` object exists
+// (Spec-AC-10/12/13, validation-round1 B2).
 export function parsePolicy(text) {
   let lines;
   try {
@@ -179,6 +211,7 @@ export function parsePolicy(text) {
     lanes: [],
   };
   let i = 0;
+  const seenTop = new Set();
   try {
     while (i < lines.length) {
       const { indent, content } = lines[i];
@@ -187,6 +220,8 @@ export function parsePolicy(text) {
       if (!kv) return { errors: [{ lane: '-', code: 'parse_error' }] };
       const { key, rest } = kv;
       if (!TOP_KEYS.has(key)) return { errors: [{ lane: '-', code: 'unknown_key' }] };
+      if (seenTop.has(key)) return { errors: [{ lane: '-', code: 'duplicate_key' }] };
+      seenTop.add(key);
 
       if (key === 'version') {
         policy.version = parseScalar(rest);
@@ -197,10 +232,21 @@ export function parsePolicy(text) {
       if (key === 'deploy') {
         i += 1;
         const block = {};
+        const seenDeploy = new Set();
         while (i < lines.length && lines[i].indent === 2) {
           const kv2 = splitKV(lines[i].content);
           if (!kv2 || !DEPLOY_KEYS.has(kv2.key)) return { errors: [{ lane: '-', code: 'unknown_key' }] };
-          block[kv2.key] = parseScalar(kv2.rest);
+          if (seenDeploy.has(kv2.key)) return { errors: [{ lane: '-', code: 'duplicate_key' }] };
+          seenDeploy.add(kv2.key);
+          if (kv2.key === 'production_on_merge') {
+            const b = parseBooleanScalar(kv2.rest);
+            if (b === undefined) return { errors: [{ lane: '-', code: 'parse_error' }] };
+            block[kv2.key] = b;
+          } else {
+            const v = parseScalar(kv2.rest);
+            if (!DEPLOY_PREVIEW_ENUM.has(v)) return { errors: [{ lane: '-', code: 'parse_error' }] };
+            block[kv2.key] = v;
+          }
           i += 1;
         }
         policy.deploy = {
@@ -245,29 +291,56 @@ export function parsePolicy(text) {
           if (!kvId || kvId.key !== 'id') return { errors: [{ lane: '-', code: 'parse_error' }] };
           const lane = { id: parseScalar(kvId.rest) };
           i += 1;
+          const seenLaneKeys = new Set();
           while (i < lines.length && lines[i].indent === 4) {
             const kv3 = splitKV(lines[i].content);
             if (!kv3) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
             if (kv3.key === 'requires') {
+              if (seenLaneKeys.has('requires')) return { errors: [{ lane: lane.id, code: 'duplicate_key' }] };
+              seenLaneKeys.add('requires');
               i += 1;
               const requires = {};
+              const seenRequires = new Set();
               while (i < lines.length && lines[i].indent === 6) {
                 const kv4 = splitKV(lines[i].content);
                 if (!kv4) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
                 if (!ALLOWED_REQUIRES_KEYS.has(kv4.key)) {
                   return { errors: [{ lane: lane.id, code: 'unknown_key' }] };
                 }
-                requires[kv4.key] = kv4.rest.trim().startsWith('[')
-                  ? parseFlowList(kv4.rest)
-                  : parseScalar(kv4.rest);
+                if (seenRequires.has(kv4.key)) return { errors: [{ lane: lane.id, code: 'duplicate_key' }] };
+                seenRequires.add(kv4.key);
+                if (BOOLEAN_REQUIRES_KEYS.has(kv4.key)) {
+                  const b = parseBooleanScalar(kv4.rest);
+                  if (b === undefined) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
+                  requires[kv4.key] = b;
+                } else {
+                  requires[kv4.key] = kv4.rest.trim().startsWith('[')
+                    ? parseFlowList(kv4.rest)
+                    : parseScalar(kv4.rest);
+                }
                 i += 1;
               }
               lane.requires = requires;
               continue;
             }
             if (!LANE_SCALAR_KEYS.includes(kv3.key)) return { errors: [{ lane: lane.id, code: 'unknown_key' }] };
-            lane[kv3.key] = kv3.rest.trim().startsWith('[') ? parseFlowList(kv3.rest) : parseScalar(kv3.rest);
+            if (seenLaneKeys.has(kv3.key)) return { errors: [{ lane: lane.id, code: 'duplicate_key' }] };
+            seenLaneKeys.add(kv3.key);
+            if (kv3.key === 'merge_reaches') {
+              const v = parseScalar(kv3.rest);
+              if (!MERGE_REACHES_ENUM.has(v)) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
+              lane[kv3.key] = v;
+            } else if (kv3.key === 'allow_public_side_effect') {
+              const b = parseBooleanScalar(kv3.rest);
+              if (b === undefined) return { errors: [{ lane: lane.id, code: 'parse_error' }] };
+              lane[kv3.key] = b;
+            } else {
+              lane[kv3.key] = kv3.rest.trim().startsWith('[') ? parseFlowList(kv3.rest) : parseScalar(kv3.rest);
+            }
             i += 1;
+          }
+          for (const rk of REQUIRED_LANE_KEYS) {
+            if (lane[rk] === undefined) return { errors: [{ lane: lane.id, code: 'missing_key' }] };
           }
           if (!Array.isArray(lane.kinds)) lane.kinds = lane.kinds != null ? [lane.kinds] : [];
           if (!Array.isArray(lane.requester_logins)) {
@@ -282,6 +355,8 @@ export function parsePolicy(text) {
   } catch {
     return { errors: [{ lane: '-', code: 'parse_error' }] };
   }
+  if (policy.version == null) return { errors: [{ lane: '-', code: 'missing_key' }] };
+  if (policy.version !== 1) return { errors: [{ lane: '-', code: 'parse_error' }] };
   return { policy };
 }
 
@@ -340,9 +415,13 @@ function computeImpliedReach(deploy) {
 // validatePolicy(policy, decisionsText) — P2 (decision binding), P7 (deploy
 // consistency + public-effect opt-ins, Spec-AC-10/12) and the structural
 // codes duplicate_lane/undefined_kind/requester_missing (Spec-AC-12) plus
-// bad_marker/duplicate_marker (Spec-AC-13, MARKER_RE). Every failing
-// predicate pushes its own error — a lane can carry more than one error
-// line, matching P10 ("one INVALID line per error").
+// bad_marker/duplicate_marker (Spec-AC-13, MARKER_RE) and bad_ceremony
+// (validation-round1 B2 — an explicitly-written max_ceremony outside 0-3).
+// Every failing predicate pushes its own error — a lane can carry more than
+// one error line, matching P10 ("one INVALID line per error").
+// parse_error/unknown_key/empty_globs/duplicate_key/missing_key are caught
+// earlier, in parsePolicy, before a `policy` object this function could run
+// against even exists.
 export function validatePolicy(policy, decisionsText) {
   const errors = [];
   const kindIds = new Set((policy.kinds || []).map((k) => k.id));
@@ -383,6 +462,15 @@ export function validatePolicy(policy, decisionsText) {
     if (lane.merge_reaches !== 'nothing'
         && (!Array.isArray(lane.requester_logins) || lane.requester_logins.length === 0)) {
       errors.push({ lane: id, code: 'requester_missing' });
+    }
+
+    // validation-round1 B2 — `max_ceremony` is optional, but WHEN written it
+    // must be one of the four real ceremony levels (canon 0-3); a stray
+    // string or an out-of-range integer must never silently widen or narrow
+    // what the lane covers.
+    if (lane.max_ceremony !== undefined
+        && !(Number.isInteger(lane.max_ceremony) && lane.max_ceremony >= 0 && lane.max_ceremony <= 3)) {
+      errors.push({ lane: id, code: 'bad_ceremony' });
     }
 
     const res = resolveDecision(lane, decisionsText);
@@ -481,10 +569,7 @@ export function classifyFiles(files, policy) {
 }
 
 // ---------------------------------------------------------------------------
-// Predicates not owned by this batch — permissive stubs, each named after
-// the Spec-AC whose later batch replaces the body. None of these may ever
-// turn a FUTURE batch's genuine denial into a false allow; they only ever
-// avoid blocking THIS batch's own (unrelated) fixtures.
+// Requester approval and CI-green predicates (P6, P7/Spec-AC-08).
 // ---------------------------------------------------------------------------
 
 // requesterApproved(reviews, logins, headOid) — P6, Spec-AC-07. Only
@@ -547,6 +632,44 @@ export function ciGreen(rollup) {
   return true;
 }
 
+// resolveCurrentFocusPaths(statePath) -> { specPath, primaryPath } —
+// validation-round1 B1 (P8 "defaulting to STATE current_focus"). The SAME
+// indentation-scoped current_focus block read as lane-gate.mjs's own
+// resolveDefaultSpecFromState (agree with it: this repeats its exact
+// mechanics rather than diverging) — but lane-gate.mjs never needs an
+// intake default for its own purposes, so this also returns
+// current_focus.primary_path, which SKILL_PR step 6's documented
+// no-flags invocation needs for intake_type/ref (readIntakeMeta, below).
+// Values are the raw frontmatter strings, resolved against `root` by the
+// caller; `null` for a missing/unreadable STATE, a missing current_focus
+// block, or a field whose value is the literal `null`.
+function resolveCurrentFocusPaths(statePath) {
+  const out = { specPath: null, primaryPath: null };
+  if (!statePath || !existsSync(statePath)) return out;
+  let text;
+  try {
+    text = readFileSync(statePath, 'utf8');
+  } catch {
+    return out;
+  }
+  let inFocus = false;
+  for (const raw of text.split('\n')) {
+    if (!raw.trim()) continue;
+    const indent = raw.length - raw.trimStart().length;
+    const line = raw.trim();
+    if (indent === 0) {
+      inFocus = /^current_focus\s*:/.test(line);
+      continue;
+    }
+    if (!inFocus || indent !== 2) continue;
+    const sm = line.match(/^spec_path\s*:\s*(\S+)/);
+    if (sm && sm[1] !== 'null') out.specPath = sm[1];
+    const pm = line.match(/^primary_path\s*:\s*(\S+)/);
+    if (pm && pm[1] !== 'null') out.primaryPath = pm[1];
+  }
+  return out;
+}
+
 // readRideCeremony(root, specPath, intakePath) -> integer — P8, Spec-AC-11.
 // An INDEPENDENT reader (never a call into lane-gate.mjs's own, unexported
 // readCeremonyLevel) that must still AGREE with the ceremony_level value
@@ -554,8 +677,21 @@ export function ciGreen(rollup) {
 // spec, when resolvable, always wins over the intake (same precedence as
 // lane-gate.mjs). Canon: an absent `ceremony_level` field is implicit 2; a
 // ride whose spec and intake cannot be resolved AT ALL counts as ceremony 3.
+//
+// validation-round1 NB-2 (S2 seam divergence): an EXPLICITLY given --spec
+// that does not exist is a broken reference, never a spec-less ride —
+// falling back to the intake there could silently downgrade a spec'd ride,
+// the exact bot-review concern lane-gate.mjs's own readCeremonyLevel already
+// disclaims. Fail closed (ceremony 3) instead of falling through to intake.
+// A ceremony_level value that is PRESENT but not one of the four canonical
+// digits ('0'..'3' — a quoted `"3"`, the word `three`, a trailing comment)
+// also fails closed to 3, never the absent-field default of 2 — agreeing
+// with lane-gate.mjs's own ok=false-on-anything-else contract rather than
+// reading "present but garbage" as "absent".
 export function readRideCeremony(root, specPath, intakePath) {
-  const candidates = [specPath, intakePath].filter(Boolean).map((p) => resolve(root, p));
+  const specAbs = specPath ? resolve(root, specPath) : null;
+  if (specAbs && !existsSync(specAbs)) return 3;
+  const candidates = [specAbs, intakePath ? resolve(root, intakePath) : null].filter(Boolean);
   const source = candidates.find((p) => existsSync(p));
   if (!source) return 3; // canon: a ride with no resolvable spec/intake is ceremony 3
   let body;
@@ -565,8 +701,9 @@ export function readRideCeremony(root, specPath, intakePath) {
     return 3;
   }
   const fm = body.match(/^---\n([\s\S]*?)\n---/);
-  const cl = fm ? fm[1].match(/^ceremony_level:\s*(\d+)\s*$/m) : null;
+  const cl = fm ? fm[1].match(/^ceremony_level:\s*(\S+)\s*$/m) : null;
   if (!cl) return 2; // canon: absent ceremony_level is implicit 2
+  if (!['0', '1', '2', '3'].includes(cl[1])) return 3; // NB-2: non-canonical value fails closed, agreeing with lane-gate
   return Number(cl[1]);
 }
 
@@ -871,16 +1008,31 @@ function runCheck(opts) {
     exit(EXIT_DENIED);
   }
 
-  const sweepDeny = runSweepCheck(root, pr, { spec: opts.spec, intake: opts.intake, state: opts.state });
+  // validation-round1 B1 (P8 "defaulting to STATE current_focus"): the
+  // documented no-flags invocation (SKILL_PR step 6; the hook lane path with
+  // no AAI_SWEEP_* in its environment) passes neither --spec nor --intake.
+  // Resolve both from STATE current_focus THEN, same guard lane-gate.mjs's
+  // own --sweep-check default uses (resolveDefaultSpecFromState) — an
+  // explicitly-given flag always wins; the default only ever fires when
+  // BOTH are absent, so it never second-guesses a caller who named one.
+  const statePath = opts.state ? resolve(root, opts.state) : resolve(root, 'docs/ai/STATE.yaml');
+  let rideSpec = opts.spec;
+  let rideIntake = opts.intake;
+  if (!rideSpec && !rideIntake) {
+    const defaults = resolveCurrentFocusPaths(statePath);
+    if (defaults.specPath) rideSpec = defaults.specPath;
+    if (defaults.primaryPath) rideIntake = defaults.primaryPath;
+  }
+
+  const sweepDeny = runSweepCheck(root, pr, { spec: rideSpec, intake: rideIntake, state: opts.state });
   if (sweepDeny) {
     console.log(`MERGE-POLICY denied pr=${pr} reason=${sweepDeny}`);
     exit(EXIT_DENIED);
   }
 
-  const ceremony = readRideCeremony(root, opts.spec, opts.intake);
-  const intakeMeta = readIntakeMeta(root, opts.intake);
+  const ceremony = readRideCeremony(root, rideSpec, rideIntake);
+  const intakeMeta = readIntakeMeta(root, rideIntake);
   const roadmapCapabilities = readRoadmapCapabilitiesAtBase(root, base);
-  const statePath = opts.state ? resolve(root, opts.state) : resolve(root, 'docs/ai/STATE.yaml');
   const validationStatus = readStateStatus(statePath, 'last_validation');
   const reviewStatus = readStateStatus(statePath, 'code_review');
 

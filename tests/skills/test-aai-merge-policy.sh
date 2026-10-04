@@ -470,6 +470,16 @@ closure.add('.aai/scripts/lane-gate.mjs');
 closure.add('.aai/scripts/merge-policy.mjs');
 closure.add('.aai/scripts/claude-hook-gate.sh');
 closure.add(POLICY_PATH);
+// validation-round1 NB-3: lane-gate.mjs SPAWNS select-suites.mjs
+// (runSelectSuites, a child process -- not an `import`, so the closure walk
+// above never finds it) and both of them READ these two config files
+// directly (profilesCore / the docs-audit.yaml protected_paths_l3 reader).
+// Editing any of the four changes the --sweep-check verdict exactly as
+// editing lane-gate.mjs itself would, so GUARD_PATHS must cover them too.
+closure.add('.aai/scripts/select-suites.mjs');
+closure.add('tests/skills/suite-map.yaml');
+closure.add('docs/ai/docs-audit.yaml');
+closure.add('.aai/system/PROFILES.yaml');
 
 const guardSet = new Set(GUARD_PATHS);
 const missing = [...closure].filter((p) => !guardSet.has(p));
@@ -2251,6 +2261,373 @@ test_1532_changelog_unreleased_entry() {
     || log_fail "TEST-1532 CHANGELOG unreleased heading"
 }
 
+# --- TEST-1533 (Spec-AC-18/11, validation-round1 B1) ------------------------
+# P8's "defaulting to STATE current_focus": the documented no-flags
+# invocation (`merge-policy.mjs --check --pr <n>`, SKILL_PR step 6 / the hook
+# lane path with no AAI_SWEEP_* set) must resolve spec/intake from STATE
+# current_focus.spec_path/primary_path, the same way lane-gate.mjs's own
+# resolveDefaultSpecFromState does, and allow a qualifying internal-standing
+# ride on that default alone.
+test_1533_default_ride_inputs_from_state() {
+  log_info "TEST-1533: --check --pr <n> with NO --spec/--intake/--state resolves ride inputs from STATE current_focus and allows a qualifying internal-standing ride"
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cp "$PROJECT_ROOT/docs/ai/merge-policy.yaml" "$repo/docs/ai/merge-policy.yaml"
+  grep -F 'wave-2-roadmap' "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$repo/docs/ai/decisions.jsonl"
+  local nrec; nrec="$(wc -l < "$repo/docs/ai/decisions.jsonl" | tr -d ' ')"
+  if [[ "$nrec" -lt 3 ]]; then
+    log_fail "TEST-1533: fixture precondition failed -- expected >=3 live wave-2-roadmap records, got $nrec"
+    return
+  fi
+  write_intake "$repo/docs/intake-1533.md" "ride-1533" "change"
+  cat > "$repo/docs/spec-1533.md" <<'MD'
+---
+id: spec-test1533
+type: spec
+ceremony_level: 2
+---
+
+# Spec
+MD
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed-1533.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  write_sweep_record "$repo" 70
+
+  # STATE.yaml at the DEFAULT path (no --state given): current_focus names
+  # the spec/intake this evaluator must resolve on its own, same as
+  # lane-gate.mjs's own resolveDefaultSpecFromState reads.
+  cat > "$repo/docs/ai/STATE.yaml" <<'YAML'
+current_focus:
+  type: intake_change
+  ref_id: ride-1533
+  primary_path: docs/intake-1533.md
+  spec_path: docs/spec-1533.md
+last_validation:
+  status: pass
+code_review:
+  status: pass
+YAML
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":70,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"plan carries a Residual risk"}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  # The documented no-flags invocation (SKILL_PR step 6 / the hook lane path
+  # with no AAI_SWEEP_* in its environment), with --debug-inputs to also
+  # prove the resolved inputs themselves (ceremony/intake_type/ref), not only
+  # the final verdict.
+  run_check "$repo" "$ghbin" 70 --debug-inputs
+  assert_payload_has_line "$OUT" "ceremony=2 intake_type=change ref=ride-1533" \
+    "TEST-1533: expected ceremony=2 intake_type=change ref=ride-1533 resolved from STATE current_focus with no flags, got: $OUT"
+  assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=70 lane=internal-standing marker=AAI_INTERNAL_STANDING_MERGE decision_ref=wave-2-roadmap@2026-09-12T19:56:52Z merge_reaches=nothing" \
+    "TEST-1533: expected the conforming internal ride allowed with NO flags, got: $OUT"
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-1533: expected exit 0 with no flags, got $RC: $OUT"
+
+  log_pass "TEST-1533: merge-policy.mjs --check --pr <n> with no ride flags defaults to STATE current_focus and allows a qualifying internal-standing ride"
+}
+
+# --- TEST-1534 (validation-round1 B2) ---------------------------------------
+# Boolean-typed scalars accept ONLY the canonical true/false token (bare or
+# quoted); a case variant, a yes/no word, or any other value is a
+# parse_error -- never a value that silently reads as "not true" while the
+# author intended "true" (the quoted-production_on_merge/opt-in bypass the
+# validator found).
+test_1534_boolean_scalar_strictness() {
+  log_info "TEST-1534: boolean-typed scalars accept only true/false (bare or quoted); True/yes/publik-shaped non-canonical values are parse_error, never a silently-false reroute"
+  local case_name policy_body expect_ok
+  for case_name in quoted_true_production_on_merge bad_true_case bad_yes_word quoted_false_ok; do
+    mk
+    case "$case_name" in
+      quoted_true_production_on_merge)
+        policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: "true"\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1534-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1534 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: production\n    allow_public_side_effect: true\n    marker: AAI_T1534A_MERGE\n    requester_logins: [requester-login]\n'
+        expect_ok=1
+        ;;
+      bad_true_case)
+        policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: True\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1534-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1534 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1534A_MERGE\n'
+        expect_ok=0
+        ;;
+      bad_yes_word)
+        policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: yes\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1534-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1534 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1534A_MERGE\n'
+        expect_ok=0
+        ;;
+      quoted_false_ok)
+        policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: "false"\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1534-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1534 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1534A_MERGE\n'
+        expect_ok=1
+        ;;
+    esac
+    printf '%s' "$policy_body" > "$TEST_DIR/policy-$case_name.yaml"
+    cat > "$TEST_DIR/decisions-$case_name.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1534-a","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1534 a approved"}
+JSONL
+    local out rc
+    # --validate reads decisions.jsonl from --repo-root's own docs/ai/ path;
+    # point --repo-root at a scratch dir carrying exactly that layout.
+    mkdir -p "$TEST_DIR/root-$case_name/docs/ai"
+    cp "$TEST_DIR/policy-$case_name.yaml" "$TEST_DIR/root-$case_name/docs/ai/merge-policy.yaml"
+    cp "$TEST_DIR/decisions-$case_name.jsonl" "$TEST_DIR/root-$case_name/docs/ai/decisions.jsonl"
+    out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-$case_name" 2>&1)" && rc=0 || rc=$?
+    if [[ "$expect_ok" -eq 1 ]]; then
+      [[ "$rc" -eq 0 ]] || log_fail "TEST-1534 [$case_name]: expected VALID (exit 0), got $rc: $out"
+      assert_payload_has_line "$out" "VALID lanes=1" "TEST-1534 [$case_name]: expected VALID lanes=1, got: $out"
+    else
+      [[ "$rc" -eq 1 ]] || log_fail "TEST-1534 [$case_name]: expected INVALID (exit 1), got $rc: $out"
+      assert_payload_contains "$out" "code=parse_error" "TEST-1534 [$case_name]: expected parse_error, got: $out"
+    fi
+  done
+
+  log_pass "TEST-1534: boolean fields accept only true/false (quoted forms normalized, not rejected); any other value (True, yes) is parse_error, never a silent reroute"
+}
+
+# --- TEST-1535 (validation-round1 B2) ---------------------------------------
+# The two closed-set enums P1 defines (deploy.preview, lane.merge_reaches)
+# reject any out-of-set value as parse_error -- never a value that silently
+# satisfies (or silently fails to satisfy) a later string comparison such as
+# `deploy.preview === 'public'` (the PUBLIC/publik opt-in bypass).
+test_1535_enum_rejection() {
+  log_info "TEST-1535: deploy.preview and merge_reaches reject out-of-set values as parse_error (PUBLIC/publik/typo'd merge_reaches)"
+  local case_name policy_body
+  for case_name in preview_uppercase preview_typo merge_reaches_typo; do
+    mk
+    case "$case_name" in
+      preview_uppercase)
+        policy_body=$'version: 1\ndeploy:\n  preview: PUBLIC\n  production_on_merge: false\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1535-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1535 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: preview\n    marker: AAI_T1535A_MERGE\n'
+        ;;
+      preview_typo)
+        policy_body=$'version: 1\ndeploy:\n  preview: publik\n  production_on_merge: false\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1535-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1535 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: preview\n    marker: AAI_T1535A_MERGE\n'
+        ;;
+      merge_reaches_typo)
+        policy_body=$'version: 1\ndeploy:\n  preview: none\n  production_on_merge: false\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1535-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1535 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: Nothing\n    marker: AAI_T1535A_MERGE\n'
+        ;;
+    esac
+    mkdir -p "$TEST_DIR/root-$case_name/docs/ai"
+    printf '%s' "$policy_body" > "$TEST_DIR/root-$case_name/docs/ai/merge-policy.yaml"
+    local out rc
+    out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-$case_name" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-1535 [$case_name]: expected INVALID (exit 1), got $rc: $out"
+    assert_payload_contains "$out" "code=parse_error" "TEST-1535 [$case_name]: expected parse_error, got: $out"
+  done
+
+  log_pass "TEST-1535: an out-of-enum deploy.preview or merge_reaches value is parse_error, never silently misread as neither member of its set"
+}
+
+# --- TEST-1536 (validation-round1 B2) ---------------------------------------
+# A repeated `requires:` block, or a repeated lane scalar key, is
+# duplicate_key invalid -- never last-writer-wins (a second, empty `requires:`
+# block silently wiping a first one that carried real conditions).
+test_1536_duplicate_key() {
+  log_info "TEST-1536: a repeated requires: block or a repeated lane key is duplicate_key, not last-writer-wins"
+  local case_name policy_body
+  for case_name in duplicate_requires duplicate_lane_key; do
+    mk
+    case "$case_name" in
+      duplicate_requires)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1536-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1536 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1536A_MERGE\n    requires:\n      validation_pass: true\n    requires:\n      pr_body_contains: "x"\n'
+        ;;
+      duplicate_lane_key)
+        policy_body=$'version: 1\nkinds:\n  - id: docs\n    globs: ["docs/**"]\nlanes:\n  - id: lane-a\n    decision_ref: t1536-a@2026-10-04T00:00:00Z\n    decision_match: "MERGE LANE t1536 a"\n    signed_by: owner-login\n    kinds: [docs]\n    merge_reaches: nothing\n    marker: AAI_T1536A_MERGE\n    marker: AAI_T1536B_MERGE\n'
+        ;;
+    esac
+    mkdir -p "$TEST_DIR/root-$case_name/docs/ai"
+    printf '%s' "$policy_body" > "$TEST_DIR/root-$case_name/docs/ai/merge-policy.yaml"
+    local out rc
+    out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-$case_name" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-1536 [$case_name]: expected INVALID (exit 1), got $rc: $out"
+    assert_payload_contains "$out" "code=duplicate_key" "TEST-1536 [$case_name]: expected duplicate_key, got: $out"
+  done
+
+  log_pass "TEST-1536: a repeated requires: block or lane key is duplicate_key invalid, never last-writer-wins"
+}
+
+# --- TEST-1537 (validation-round1 B2) ---------------------------------------
+# missing_key -- a lane omitting one of its required fields (decision_ref,
+# decision_match, signed_by, kinds, merge_reaches, marker) is invalid, rather
+# than silently defaulting/normalizing into some other, less legible code.
+test_1537_missing_key() {
+  log_info "TEST-1537: a lane missing a required field (marker) is missing_key"
+  mk
+  mkdir -p "$TEST_DIR/root/docs/ai"
+  cat > "$TEST_DIR/root/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-a
+    decision_ref: t1537-a@2026-10-04T00:00:00Z
+    decision_match: "MERGE LANE t1537 a"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+YAML
+  local out rc
+  out="$(node "$MP" --validate --repo-root "$TEST_DIR/root" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-1537: expected INVALID (exit 1), got $rc: $out"
+  assert_payload_contains "$out" "code=missing_key" "TEST-1537: expected missing_key, got: $out"
+
+  log_pass "TEST-1537: a lane with no marker (a required key) is missing_key"
+}
+
+# --- TEST-1538 (validation-round1 B2) ---------------------------------------
+# bad_ceremony -- an explicitly-written max_ceremony outside the four real
+# ceremony levels (0-3) is invalid; max_ceremony is otherwise optional.
+test_1538_bad_ceremony() {
+  log_info "TEST-1538: an explicitly-written max_ceremony outside 0-3 is bad_ceremony"
+  local case_name max_line
+  for case_name in non_numeric out_of_range; do
+    mk
+    mkdir -p "$TEST_DIR/root-$case_name/docs/ai"
+    [[ "$case_name" == "non_numeric" ]] && max_line="    max_ceremony: heavy"
+    [[ "$case_name" == "out_of_range" ]] && max_line="    max_ceremony: 9"
+    cat > "$TEST_DIR/root-$case_name/docs/ai/merge-policy.yaml" <<YAML
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-a
+    decision_ref: t1538-a@2026-10-04T00:00:00Z
+    decision_match: "MERGE LANE t1538 a"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_T1538A_MERGE
+$max_line
+YAML
+    local out rc
+    out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-$case_name" 2>&1)" && rc=0 || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-1538 [$case_name]: expected INVALID (exit 1), got $rc: $out"
+    assert_payload_contains "$out" "code=bad_ceremony" "TEST-1538 [$case_name]: expected bad_ceremony, got: $out"
+  done
+
+  log_pass "TEST-1538: a non-numeric or out-of-range max_ceremony is bad_ceremony"
+}
+
+# --- TEST-1539 (validation-round1 NB-7) -------------------------------------
+# `version` is checked: absent is missing_key, present-but-not-1 is
+# parse_error -- never silently accepted (the spec's version:1 line is a
+# forward-compat guard against a v2 schema this evaluator does not speak).
+test_1539_version_checked() {
+  log_info "TEST-1539: an absent version is missing_key; a version other than 1 is parse_error"
+  mk
+  mkdir -p "$TEST_DIR/root-absent/docs/ai"
+  cat > "$TEST_DIR/root-absent/docs/ai/merge-policy.yaml" <<'YAML'
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-a
+    decision_ref: t1539-a@2026-10-04T00:00:00Z
+    decision_match: "MERGE LANE t1539 a"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_T1539A_MERGE
+YAML
+  local out rc
+  out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-absent" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-1539 [absent]: expected INVALID (exit 1), got $rc: $out"
+  assert_payload_contains "$out" "code=missing_key" "TEST-1539 [absent]: expected missing_key, got: $out"
+
+  mkdir -p "$TEST_DIR/root-v2/docs/ai"
+  sed 's/^kinds:/version: 2\nkinds:/' "$TEST_DIR/root-absent/docs/ai/merge-policy.yaml" > "$TEST_DIR/root-v2/docs/ai/merge-policy.yaml"
+  out="$(node "$MP" --validate --repo-root "$TEST_DIR/root-v2" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-1539 [v2]: expected INVALID (exit 1), got $rc: $out"
+  assert_payload_contains "$out" "code=parse_error" "TEST-1539 [v2]: expected parse_error, got: $out"
+
+  log_pass "TEST-1539: version absent is missing_key; version != 1 is parse_error"
+}
+
+# --- TEST-1540 (validation-round1 NB-2) -------------------------------------
+# The S2 seam: readRideCeremony must agree with lane-gate.mjs's own
+# readCeremonyLevel on non-canonical values -- a quoted/word ceremony_level
+# fails closed (3), and an explicitly-given --spec that does not exist never
+# falls back to --intake (lane-gate.mjs's own documented fail-closed rule).
+test_1540_ceremony_fails_closed_like_lane_gate() {
+  log_info "TEST-1540: a quoted or word ceremony_level fails closed to 3 (never the absent-field default of 2); an explicit --spec that is missing never falls back to --intake"
+  mk
+  cat > "$TEST_DIR/spec-quoted.md" <<'MD'
+---
+id: spec-test1540-quoted
+type: spec
+ceremony_level: "3"
+---
+
+# Spec
+MD
+  cat > "$TEST_DIR/intake-fallback.md" <<'MD'
+---
+id: ride-1540
+type: change
+ceremony_level: 0
+---
+
+# intake
+MD
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-ceremony
+    decision_ref: test1540-ride@2026-10-04T00:00:00Z
+    decision_match: "MERGE LANE test1540"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_CEREMONY1540_MERGE
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1540-ride","ts":"2026-10-04T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1540 approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  write_sweep_record "$repo" 80
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":80,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  # Quoted ceremony_level fails closed to 3 (no max_ceremony on the lane ->
+  # ceremony_exceeds), never the absent-field default of 2 (which would be
+  # <= DEFAULT_MAX_CEREMONY=2 and wrongly allow).
+  run_check "$repo" "$ghbin" 80 --spec "$TEST_DIR/spec-quoted.md" --debug-inputs
+  assert_payload_has_line "$OUT" "ceremony=3 intake_type=- ref=-" \
+    "TEST-1540 [quoted]: expected ceremony=3 for a quoted ceremony_level, got: $OUT"
+  assert_payload_has_line "$OUT" "lane=lane-ceremony reason=ceremony_exceeds" \
+    "TEST-1540 [quoted]: expected ceremony_exceeds, got: $OUT"
+  [[ "$RC" -eq 3 ]] || log_fail "TEST-1540 [quoted]: expected exit 3, got $RC: $OUT"
+
+  # An explicit --spec that does not exist never falls back to --intake
+  # (lane-gate.mjs's own readCeremonyLevel rule) -- even though the intake
+  # here declares ceremony_level 0, the ride still counts as ceremony 3.
+  run_check "$repo" "$ghbin" 80 --spec "$TEST_DIR/spec-missing-1540.md" --intake "$TEST_DIR/intake-fallback.md" --debug-inputs
+  assert_payload_has_line "$OUT" "ceremony=3 intake_type=change ref=ride-1540" \
+    "TEST-1540 [missing-spec-no-fallback]: expected ceremony=3 (no intake fallback), got: $OUT"
+  assert_payload_has_line "$OUT" "lane=lane-ceremony reason=ceremony_exceeds" \
+    "TEST-1540 [missing-spec-no-fallback]: expected ceremony_exceeds, got: $OUT"
+  [[ "$RC" -eq 3 ]] || log_fail "TEST-1540 [missing-spec-no-fallback]: expected exit 3, got $RC: $OUT"
+
+  log_pass "TEST-1540: readRideCeremony fails closed to 3 on a non-canonical ceremony_level and never falls back from an explicitly-missing --spec to --intake, agreeing with lane-gate.mjs"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2283,6 +2660,14 @@ main() {
   test_1527_prompts_defer_to_evaluator
   test_1530_companion_wiring
   test_1532_changelog_unreleased_entry
+  test_1533_default_ride_inputs_from_state
+  test_1534_boolean_scalar_strictness
+  test_1535_enum_rejection
+  test_1536_duplicate_key
+  test_1537_missing_key
+  test_1538_bad_ceremony
+  test_1539_version_checked
+  test_1540_ceremony_fails_closed_like_lane_gate
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view

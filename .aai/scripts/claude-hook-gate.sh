@@ -181,6 +181,15 @@ LANE_ASSIGNS_ERE='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+
 LANE_SOLE_MERGE_ERE='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'
 LANE_REPO_FLAG_ERE='[[:space:]](-R|--repo)'
 LANE_ALLOWED_ERE='^MERGE-POLICY allowed pr=([0-9]+) lane=[^[:space:]]+ marker=([A-Z0-9_]+) '
+# validation-round1 NB-1: --auto lets GitHub merge a LATER head than the one
+# this lane path is about to verify; --admin bypasses branch protections
+# outright. Neither is permitted on the lane path (the operator path,
+# AAI_OPERATOR_MERGE=1, is the human's own decision and is unaffected).
+LANE_BAD_FLAG_ERE='(^|[[:space:]])(-A|--auto|--admin)([[:space:]]|$)'
+# --match-head-commit's value, gh's own flag for refusing to merge a head
+# other than the one named (used here to pin the lane path to the exact PR
+# head this invocation resolves below, NB-1).
+LANE_MATCH_HEAD_ERE='--match-head-commit[[:space:]]+([0-9a-fA-F]+)'
 
 # Marker names set to 1 in the environment. compgen -e lists exported NAMES
 # only, so a value carrying an embedded "AAI_X_MERGE=1" line cannot forge one.
@@ -233,6 +242,11 @@ lane_path() {
     LANE_VERDICT="lane path refused: lane markers cover gh pr merge only"
     return
   fi
+  # 1b. --auto/--admin refused outright (NB-1, above).
+  if [[ $MERGE_SEG =~ $LANE_BAD_FLAG_ERE ]]; then
+    LANE_VERDICT="lane path refused: --auto and --admin are not permitted on the merge-policy lane -- merge the exact head with --match-head-commit"
+    return
+  fi
   # 2. Every leading assignment must itself be a lane marker set to 1
   #    (GH_REPO=... or any other prefix could retarget what merges).
   pre="$(lane_merge_prefix)" || pre=""
@@ -248,13 +262,18 @@ lane_path() {
     LANE_VERDICT="lane path refused: a --repo or URL target is not this project's PR"
     return
   fi
-  # 4. Tooling. Missing node or evaluator is today's deny, never an allow.
+  # 4. Tooling. Missing node, evaluator or gh is today's deny, never an
+  #    allow (gh is also needed below, step 6b, to resolve the exact head).
   if ! command -v node >/dev/null 2>&1; then
     LANE_VERDICT="evaluator unavailable: node not found"
     return
   fi
   if [ ! -f "$ROOT/.aai/scripts/merge-policy.mjs" ]; then
     LANE_VERDICT="evaluator unavailable: .aai/scripts/merge-policy.mjs not found"
+    return
+  fi
+  if ! command -v gh >/dev/null 2>&1; then
+    LANE_VERDICT="evaluator unavailable: gh not found"
     return
   fi
   # 5. The Bash command runs in the payload's cwd; it must be the same
@@ -279,6 +298,24 @@ lane_path() {
   LANE_PR="$(merge_target_pr 2>/dev/null)" || LANE_PR=""
   if ! [[ $LANE_PR =~ ^[0-9]+$ ]]; then
     LANE_VERDICT="lane path refused: could not resolve the PR this command merges"
+    return
+  fi
+  # 6b. NB-1: the lane path may only ever merge the EXACT head this
+  #     invocation is about to verify. Resolved independently via gh (the
+  #     same call merge-policy.mjs's own getPrJson makes), so a stale or
+  #     absent --match-head-commit is caught before the evaluator even runs.
+  LANE_HEAD="$(cd "$ROOT" 2>/dev/null && gh pr view "$LANE_PR" --json headRefOid -q .headRefOid 2>/dev/null)"
+  if ! [[ $LANE_HEAD =~ ^[0-9a-fA-F]+$ ]]; then
+    LANE_VERDICT="lane path refused: could not resolve the head commit of PR $LANE_PR"
+    return
+  fi
+  if [[ $MERGE_SEG =~ $LANE_MATCH_HEAD_ERE ]]; then
+    if [ "${BASH_REMATCH[1]}" != "$LANE_HEAD" ]; then
+      LANE_VERDICT="lane path refused: --match-head-commit ${BASH_REMATCH[1]} does not match PR $LANE_PR's head ($LANE_HEAD)"
+      return
+    fi
+  else
+    LANE_VERDICT="lane path refused: the merge-policy lane requires --match-head-commit $LANE_HEAD"
     return
   fi
   # 7. The evaluator decides; the allowed lane's OWN marker must be set.
