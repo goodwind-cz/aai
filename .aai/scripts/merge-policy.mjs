@@ -136,6 +136,18 @@ const YAML_RESERVED_RE = /^(?:true|false|yes|no|on|off|y|n|null)$/i;
 // eslint-disable-next-line no-control-regex
 const NO_CANONICAL_SPELLING_RE = /["\\\u0000-\u001f\u007f]/;
 
+// DECISION_REF_RE — validation-round6 NB-1: decision_ref is parse-rejected
+// unless it matches the P2 `<ref_id>@<ISO8601Z>` shape exactly, with a
+// SAFE_BARE ref_id that cannot itself contain `@` (so the string carries
+// exactly one `@`, the P2 separator) and no whitespace or `=` anywhere.
+// This is the root-cause fix: runCheck's printed line puts decision_ref's
+// value verbatim right after `marker=` and before `merge_reaches=`
+// (:1429-1430), so whatever shape this regex allows is also exactly what
+// claude-hook-gate.sh's field-exact LANE_ALLOWED_ERE must be able to read
+// unambiguously as that one field, never as data that could be misread as
+// a later `marker=`/`decision_ref=` occurrence.
+const DECISION_REF_RE = /^[A-Za-z_][A-Za-z0-9_./:+-]*@\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+
 // stripTrailingComment(line) — the ONE comment rule, shared by
 // textualNormalize and the parser so the two can never disagree about
 // where a value ends: a `#` starts a comment only when it is outside
@@ -569,10 +581,12 @@ function parsePolicyLoose(text) {
               if (list === null) return fail(lane.id, 'parse_error');
               requires[kv4.key] = list;
             } else {
-              // pr_body_contains: a non-empty string (an empty needle is
-              // `"".includes("")` === true for every body — R2-B2).
+              // pr_body_contains: a non-empty, non-whitespace-only string
+              // (an empty or all-whitespace needle matches — or near-always
+              // matches — every real PR body, proving nothing — NB-4,
+              // validation round 6, mirrors the N4 decision_match rule).
               const v = parseStrictScalar(kv4.rest);
-              if (typeof v !== 'string' || v === '') return fail(lane.id, 'parse_error');
+              if (typeof v !== 'string' || v.trim() === '') return fail(lane.id, 'parse_error');
               requires[kv4.key] = v;
             }
             i += 1;
@@ -601,14 +615,28 @@ function parsePolicyLoose(text) {
           // rule above — an empty needle ('' .includes('') === true)
           // matches every decision record's text at the bound ref@ts,
           // proving nothing about which decision authorizes this lane.
+          // NB-4 (validation round 6): a whitespace-only needle is the
+          // same shape — ' '.includes repeats against almost any real
+          // decision text — so it is parse_error too, not merely a bare
+          // empty string.
           const scalar = parseStrictScalar(kv3.rest);
           if (scalar === PARSE_FAIL) return fail(lane.id, 'parse_error');
-          if (scalar === '') return fail(lane.id, 'parse_error');
+          if (typeof scalar !== 'string' || scalar.trim() === '') return fail(lane.id, 'parse_error');
+          lane[kv3.key] = scalar;
+        } else if (kv3.key === 'decision_ref') {
+          // NB-1 (validation round 6): decision_ref is parse-rejected
+          // unless it matches the P2 `<ref_id>@<ISO8601Z>` shape with a
+          // SAFE_BARE ref_id (DECISION_REF_RE above) — root-cause closure
+          // for the hook-side marker-spoof vector, independent of how
+          // strict the shell-side ERE is.
+          const scalar = parseStrictScalar(kv3.rest);
+          if (scalar === PARSE_FAIL) return fail(lane.id, 'parse_error');
+          if (typeof scalar !== 'string' || !DECISION_REF_RE.test(scalar)) return fail(lane.id, 'parse_error');
           lane[kv3.key] = scalar;
         } else {
-          // decision_ref, signed_by, max_ceremony, marker — scalar-typed: a
-          // `[`/`{` value is parse_error (R4-B1a: `marker: [X]` used to be
-          // read as the list ["X"], dodging duplicate_marker).
+          // signed_by, max_ceremony, marker — scalar-typed: a `[`/`{`
+          // value is parse_error (R4-B1a: `marker: [X]` used to be read as
+          // the list ["X"], dodging duplicate_marker).
           const scalar = parseStrictScalar(kv3.rest);
           if (scalar === PARSE_FAIL) return fail(lane.id, 'parse_error');
           lane[kv3.key] = scalar;
@@ -1042,7 +1070,14 @@ const LANE_GATE_PATH = resolve(SELF_DIR, 'lane-gate.mjs');
 export function sweepCheckAllowed(rc, stdout, pr) {
   if (rc !== 0) return false;
   const firstLine = String(stdout || '').split('\n')[0] || '';
-  return new RegExp(`^SWEEP-CHECK allowed pr=${pr}(?:[^0-9]|$)`).test(firstLine);
+  // NB-4 (validation round 6): `pr=` must bind a WHOLE numeric token, not
+  // merely a numeric prefix — the old `(?:[^0-9]|$)` tail let `pr=7x`
+  // count for PR 7 (`x` is "not a digit", so the alternation was
+  // satisfied without the match ever reaching a token boundary). Capture
+  // the full digit run and compare it to `pr` as a string so `pr=70`
+  // never counts for PR 7 either.
+  const m = /^SWEEP-CHECK allowed pr=(\d+)(?:\s|$)/.exec(firstLine);
+  return !!m && m[1] === String(pr);
 }
 
 export function runSweepCheck(root, pr, rideOpts) {
@@ -1096,8 +1131,11 @@ function readIntakeMeta(root, intakePath) {
 // lib/roadmap-model.mjs — reused, not re-implemented) takes a file path, not
 // text, so the base-commit text is handed to it through a scratch file,
 // removed again straight after. `null` means "no usable roadmap at base"
-// (absent, or carries a structural error) — exclude_roadmap_capability never
-// denies on that absence, only on an actual capability match.
+// (absent, or carries a structural error) — N2 (code review, HEAD
+// f47f8861): exclude_roadmap_capability now DENIES fail-closed
+// (roadmap_unreadable) on that absence rather than silently skipping the
+// condition, since an unreadable roadmap proves nothing about which
+// capabilities it would have excluded.
 function readRoadmapCapabilitiesAtBase(root, oid) {
   let text;
   try {

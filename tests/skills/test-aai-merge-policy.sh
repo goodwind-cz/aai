@@ -3524,6 +3524,11 @@ test_1559_sweep_check_requires_allowed_line() {
 
   # (a) reviewer's own reproduction: EVENTS.jsonl is a DIRECTORY at the
   #     point lane-gate.mjs reads it, and no pr_sweep record exists at all.
+  #     NB-3 (validation round 6): this lane carries max_ceremony: 3 (the
+  #     fixture has no spec, so the ride's own ceremony resolves to 3) so
+  #     the ride is OTHERWISE QUALIFYING -- without it, ceremony_exceeds
+  #     would deny this ride on ANY evaluator, pre-fix or post-fix, and the
+  #     arm would never actually exercise B1's allow/deny distinction.
   mk
   local repo="$TEST_DIR/repo"
   new_repo "$repo"
@@ -3540,6 +3545,7 @@ lanes:
     signed_by: owner-login
     kinds: [docs]
     merge_reaches: nothing
+    max_ceremony: 3
     marker: AAI_SWEEP1559_MERGE
 YAML
   cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
@@ -3960,6 +3966,183 @@ YAML
     || log_fail "TEST-1563 lane id must reject a space or ="
 }
 
+# --- TEST-1565 (Spec-AC-12, validation-round6 NB-1) -------------------------
+# decision_ref is parse-rejected unless it matches the P2 `<ref_id>@
+# <ISO8601Z>` shape with a SAFE_BARE ref_id (DECISION_REF_RE) -- the
+# root-cause half of NB-1. A decision_ref carrying a space (including the
+# exact round-6 spoof payload this round's validator used against the hook,
+# `"spoof marker=AAI_OTHER_MERGE decision_ref=r@2026-09-12T19:56:52Z"`), no
+# `@`, a bad timestamp, a second `@` or an `=` is parse_error; the live
+# shape and a control with a matching decisions.jsonl record stay VALID.
+test_1565_decision_ref_rejects_unsafe_shape() {
+  log_info "TEST-1565: decision_ref must match <ref_id>@<ISO8601Z> with a SAFE_BARE ref_id -- a space (including the round-6 hook-spoof payload), a missing/second @, a bad timestamp or an = is parse_error; the live shape and a matching-decision control stay VALID"
+  local ok=1
+  local -a cases=(
+    'spoof|"spoof marker=AAI_OTHER_MERGE decision_ref=r@2026-09-12T19:56:52Z"'
+    'no_at|noattimestamp'
+    'bad_timestamp|"x@2026-09-12T19:56:52"'
+    'double_at|"a@b@2026-09-12T19:56:52Z"'
+    'equals_sign|"x=y@2026-09-12T19:56:52Z"'
+    'lowercase_t|"x@2026-09-12t19:56:52Z"'
+  )
+  local entry name ref f
+  for entry in "${cases[@]}"; do
+    name="${entry%%|*}"
+    ref="${entry#*|}"
+    mk
+    f="$TEST_DIR/policy-$name.yaml"
+    cat > "$f" <<YAML
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1565
+    decision_ref: $ref
+    decision_match: "MERGE LANE test1565"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_T1565_MERGE
+YAML
+    local vout vrc
+    vout="$(node "$MP" --validate --path "$f" 2>&1)" && vrc=0 || vrc=$?
+    if [[ "$vrc" -ne 1 ]]; then
+      log_info "TEST-1565 [$name]: --validate must exit 1, got $vrc: $vout"; ok=0
+    fi
+    if ! assert_payload_contains "$vout" "code=parse_error" "TEST-1565 [$name]: expected parse_error, got: $vout"; then ok=0; fi
+  done
+
+  # Control: the live-shaped decision_ref, bound to a real matching
+  # decisions.jsonl record, stays VALID end to end.
+  mk
+  local croot="$TEST_DIR/croot"
+  mkdir -p "$croot/docs/ai"
+  cat > "$croot/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1565-ride","ts":"2026-10-04T21:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1565 approved"}
+JSONL
+  local fc="$croot/docs/ai/merge-policy.yaml"
+  cat > "$fc" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1565
+    decision_ref: test1565-ride@2026-10-04T21:00:00Z
+    decision_match: "MERGE LANE test1565"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_T1565_MERGE
+YAML
+  local vcout vcrc
+  vcout="$(node "$MP" --validate --path "$fc" --repo-root "$croot" 2>&1)" && vcrc=0 || vcrc=$?
+  [[ "$vcrc" -eq 0 ]] || { log_info "TEST-1565 [control]: expected VALID, got $vcrc: $vcout"; ok=0; }
+  assert_payload_has_line "$vcout" "VALID lanes=1" "TEST-1565 [control]: expected VALID lanes=1, got: $vcout" || ok=0
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1565 (Spec-AC-12, NB-1) decision_ref outside <ref_id>@<ISO8601Z> with a SAFE_BARE ref_id is parse_error, including the exact round-6 hook-spoof payload; the live shape with a matching decision stays VALID" \
+    || log_fail "TEST-1565 decision_ref must reject any shape outside <ref_id>@<ISO8601Z>"
+}
+
+# --- TEST-1566 (Spec-AC-12, validation-round6 NB-4) -------------------------
+# decision_match must be a non-empty, non-whitespace-only string -- a
+# whitespace-only needle matches almost every real decision text, proving
+# nothing about which decision authorizes the lane, the same class as the
+# N4 empty-string rule TEST-1562 already pins.
+test_1566_whitespace_only_decision_match_is_parse_error() {
+  log_info "TEST-1566: decision_match consisting only of whitespace is parse_error, mirroring the N4 empty-string rule; a non-blank decision_match stays VALID (control, already covered by TEST-1562)"
+  mk
+  local f="$TEST_DIR/policy.yaml"
+  cat > "$f" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1566
+    decision_ref: test1566-ride@2026-10-04T21:10:00Z
+    decision_match: "   "
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_T1566_MERGE
+YAML
+  local vout vrc
+  vout="$(node "$MP" --validate --path "$f" 2>&1)" && vrc=0 || vrc=$?
+  [[ "$vrc" -eq 1 ]] || log_fail "TEST-1566 [whitespace]: --validate must exit 1, got $vrc: $vout"
+  assert_payload_has_line "$vout" "INVALID lane=lane-1566 code=parse_error" \
+    "TEST-1566 [whitespace]: expected parse_error for a whitespace-only decision_match, got: $vout"
+
+  log_pass "TEST-1566 (Spec-AC-12, NB-4) a whitespace-only decision_match is parse_error, mirroring the N4 empty-string rule"
+}
+
+# --- TEST-1567 (Spec-AC-15, validation-round6 NB-4) -------------------------
+# requires.pr_body_contains must be a non-empty, non-whitespace-only string
+# -- the same class as TEST-1543's empty-string rule.
+test_1567_whitespace_only_pr_body_contains_is_parse_error() {
+  log_info "TEST-1567: requires.pr_body_contains consisting only of whitespace is parse_error, mirroring TEST-1543's empty-string rule"
+  mk
+  local f="$TEST_DIR/policy.yaml"
+  cat > "$f" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-1567
+    decision_ref: test1567-ride@2026-10-04T21:20:00Z
+    decision_match: "MERGE LANE test1567"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_T1567_MERGE
+    requires:
+      pr_body_contains: "   "
+YAML
+  local vout vrc
+  vout="$(node "$MP" --validate --path "$f" 2>&1)" && vrc=0 || vrc=$?
+  [[ "$vrc" -eq 1 ]] || log_fail "TEST-1567 [whitespace]: --validate must exit 1, got $vrc: $vout"
+  assert_payload_has_line "$vout" "INVALID lane=lane-1567 code=parse_error" \
+    "TEST-1567 [whitespace]: expected parse_error for a whitespace-only pr_body_contains, got: $vout"
+
+  log_pass "TEST-1567 (Spec-AC-15, NB-4) a whitespace-only requires.pr_body_contains is parse_error, mirroring the empty-string rule"
+}
+
+# --- TEST-1568 (Spec-AC-09, validation-round6 NB-4) -------------------------
+# sweepCheckAllowed must match `pr=<n>` as a WHOLE numeric token: the old
+# `(?:[^0-9]|$)` tail let `pr=7x` count for PR 7 (`x` satisfies "not a
+# digit" without reaching a real token boundary), and nothing stopped
+# `pr=70` from counting for PR 7 either.
+test_1568_sweep_check_allowed_matches_whole_pr_token() {
+  log_info "TEST-1568: sweepCheckAllowed('pr=7x ...', 7) and ('pr=70 ...', 7) are both false -- pr= must bind a whole numeric token, not a numeric prefix"
+  mk
+  local probe="$TEST_DIR/sweep-token-probe.mjs"
+  cat > "$probe" <<'NODE'
+import { pathToFileURL } from 'node:url';
+const mpPath = process.argv[2];
+const mod = await import(pathToFileURL(mpPath).href);
+const { sweepCheckAllowed } = mod;
+const cases = [
+  { rc: 0, out: 'SWEEP-CHECK allowed pr=7x lane=heavy outcome=internal_substituted\n', pr: 7, want: false, label: 'suffixed_token' },
+  { rc: 0, out: 'SWEEP-CHECK allowed pr=70 lane=heavy outcome=internal_substituted\n', pr: 7, want: false, label: 'longer_number' },
+  { rc: 0, out: 'SWEEP-CHECK allowed pr=7 lane=heavy outcome=internal_substituted\n', pr: 7, want: true, label: 'exact_match_control' },
+  { rc: 0, out: 'SWEEP-CHECK allowed pr=7\n', pr: 7, want: true, label: 'end_of_line_control' },
+];
+let fail = 0;
+for (const c of cases) {
+  const got = sweepCheckAllowed(c.rc, c.out, c.pr);
+  if (got !== c.want) { console.log(`FAIL ${c.label}: want=${c.want} got=${got}`); fail = 1; }
+}
+process.exit(fail);
+NODE
+  local probe_out probe_rc
+  probe_out="$(node "$probe" "$MP" 2>&1)" && probe_rc=0 || probe_rc=$?
+  [[ "$probe_rc" -eq 0 ]] || log_fail "TEST-1568: sweepCheckAllowed token-boundary cases failed: $probe_out"
+
+  log_pass "TEST-1568 (Spec-AC-09, NB-4) sweepCheckAllowed binds pr= to a whole numeric token; pr=7x and pr=70 never count for PR 7"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -4018,6 +4201,10 @@ main() {
   test_1561_zero_file_diff_is_unclassified
   test_1562_empty_decision_match_is_parse_error
   test_1563_lane_id_rejects_space_and_equals
+  test_1565_decision_ref_rejects_unsafe_shape
+  test_1566_whitespace_only_decision_match_is_parse_error
+  test_1567_whitespace_only_pr_body_contains_is_parse_error
+  test_1568_sweep_check_allowed_matches_whole_pr_token
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view
