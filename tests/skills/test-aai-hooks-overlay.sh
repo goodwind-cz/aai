@@ -939,6 +939,295 @@ GHSTUB
                   || log_fail "TEST-597 merge gate branch/URL target resolution"
 }
 
+# --- Merge-policy lane path (spec-configurable-merge-policy-lanes) ----------
+# Shared helpers for TEST-1502 / TEST-1520. Every adapter run below goes
+# through `env -i` with an explicit, minimal environment so that no
+# AAI_*_MERGE variable from the developer's own shell can leak in and turn a
+# "no lane marker" case into a marker case (or the reverse).
+
+# copy_merge_layer <dir> — the live evaluator, lane-gate.mjs and every lib
+# module either imports, so the adapter's `$ROOT/.aai/scripts/...` calls find
+# real code inside the fixture.
+copy_merge_layer() {
+  local d="$1" f
+  mkdir -p "$d/.aai/scripts/lib" || return 1
+  for f in merge-policy.mjs lane-gate.mjs lib/cli-pipe-guard.mjs lib/pr-sweep.mjs lib/roadmap-model.mjs; do
+    cp "$PROJECT_ROOT/.aai/scripts/$f" "$d/.aai/scripts/$f" || return 1
+  done
+}
+
+# payload_file <out> <command> [cwd] — a PreToolUse payload written to a real
+# file (no live pipe for the adapter's `cat` to race against, see TEST-004).
+payload_file() {
+  node -e 'const o = { hook_event_name: "PreToolUse", tool_name: "Bash",
+      tool_input: { command: process.argv[2] } };
+    if (process.argv[3]) o.cwd = process.argv[3];
+    require("fs").writeFileSync(process.argv[1], JSON.stringify(o));' "$1" "$2" "${3:-}"
+}
+
+# run_adapter <adapter> <root> <payload> <errfile> [VAR=value ...] — runs the
+# merge gate under `env -i`, stderr into <errfile>; sets ADAPTER_RC.
+run_adapter() {
+  local adapter="$1" root="$2" payload="$3" errfile="$4"
+  shift 4
+  ADAPTER_RC=0
+  (cd "$root" && env -i PATH="$HOOK_PATH" HOME="${HOME:-/tmp}" CLAUDE_PROJECT_DIR="$root" "$@" \
+     bash "$adapter" merge < "$payload" > /dev/null 2> "$errfile") || ADAPTER_RC=$?
+}
+
+# TEST-1502 (Spec-AC-02): with NO lane marker the merge gate is byte-identical
+# to the adapter at the base commit of this ride. The golden is regenerated on
+# every run from `git show <base>:<adapter>` (never committed, so it cannot
+# drift from the code it pins), and compared — stderr bytes plus exit code —
+# over the 8-payload matrix (4 merge commands x with/without
+# AAI_OPERATOR_MERGE=1), once with and once without a policy file, plus
+# negative controls that look marker-ish but are not lane markers.
+T1502_BASE_SHA="64f2595f28c0a9a781150c8f549579d0d9b8c61c"
+test_1502_no_marker_bytes_equal_base() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-1502 $ADAPTER does not exist"; return; }
+  if ! git cat-file -e "${T1502_BASE_SHA}^{commit}" 2>/dev/null; then
+    log_fail "TEST-1502 base commit $T1502_BASE_SHA is not a local object (a full-history checkout is required to regenerate the golden)"
+    return
+  fi
+  local ok=1 d variant repo i op pl cmd n_cmp=0 n_deny=0 n_allow=0 rc_base rc_live
+  d="$(new_fixture)"
+  git show "${T1502_BASE_SHA}:${ADAPTER}" > "$d/base-adapter.sh" || { log_fail "TEST-1502 could not read the base adapter"; return; }
+  mkdir -p "$d/bin"
+  cat > "$d/bin/gh" <<'GHSTUB'
+#!/usr/bin/env bash
+# no positional target -> the current-branch PR is 43 (no sweep record)
+if [ "$1" = "pr" ] && [ "$2" = "view" ] && [ "${3:-}" = "--json" ]; then echo "43"; exit 0; fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+  HOOK_PATH="$d/bin:$PATH"
+
+  local cmds=(
+    "git merge feature-x"
+    "gh pr merge 42 --squash"
+    "gh pr merge --squash"
+    "git -C ../wt merge feat-x"
+    # negative controls: marker-looking text that is NOT a lane marker
+    "echo AAI_X1502_MERGE=1 && gh pr merge 42"
+    "AAI_X1502_MERGE=0 gh pr merge 42"
+  )
+  for variant in no-policy with-policy; do
+    repo="$d/$variant"
+    mkdir -p "$repo/docs/ai"
+    copy_merge_layer "$repo" || { log_fail "TEST-1502 fixture copy failed"; return; }
+    printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1502-ride","payload":{"pr":42,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted"}}' > "$repo/docs/ai/EVENTS.jsonl"
+    if [[ "$variant" == "with-policy" ]]; then
+      cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-x
+    decision_ref: t1502-x@2026-10-03T22:00:00Z
+    decision_match: "MERGE LANE t1502"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_X1502_MERGE
+    max_ceremony: 3
+YAML
+    fi
+    i=0
+    for cmd in "${cmds[@]}"; do
+      i=$((i+1))
+      pl="$d/payload-$variant-$i.json"
+      payload_file "$pl" "$cmd" "$repo"
+      for op in unset set env-zero; do
+        local extra=()
+        case "$op" in
+          set) extra=(AAI_OPERATOR_MERGE=1) ;;
+          env-zero) extra=(AAI_X1502_MERGE=0) ;;
+        esac
+        run_adapter "$d/base-adapter.sh" "$repo" "$pl" "$d/err-base" ${extra[@]+"${extra[@]}"}; rc_base=$ADAPTER_RC
+        run_adapter "$PROJECT_ROOT/$ADAPTER" "$repo" "$pl" "$d/err-live" ${extra[@]+"${extra[@]}"}; rc_live=$ADAPTER_RC
+        n_cmp=$((n_cmp+1))
+        [[ "$rc_base" -eq 2 ]] && n_deny=$((n_deny+1))
+        [[ "$rc_base" -eq 0 ]] && n_allow=$((n_allow+1))
+        if [[ "$rc_base" -ne "$rc_live" ]]; then
+          log_info "TEST-1502 [$variant op=$op] '$cmd': exit $rc_live, base adapter exits $rc_base"
+          ok=0
+        fi
+        if ! cmp -s "$d/err-base" "$d/err-live"; then
+          log_info "TEST-1502 [$variant op=$op] '$cmd': stderr differs from the base adapter"
+          log_info "  base: $(head -c 300 "$d/err-base")"
+          log_info "  live: $(head -c 300 "$d/err-live")"
+          ok=0
+        fi
+      done
+    done
+  done
+  # Positive control: the matrix really exercised both verdicts (a compare
+  # of two empty outputs proves nothing).
+  [[ "$n_cmp" -eq 36 ]] || { log_info "TEST-1502: expected 36 comparisons, ran $n_cmp"; ok=0; }
+  [[ "$n_deny" -ge 1 && "$n_allow" -ge 1 ]] \
+    || { log_info "TEST-1502: matrix did not exercise both deny ($n_deny) and allow ($n_allow)"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-1502 (Spec-AC-02) with no lane marker the merge gate's stderr bytes and exit code equal the base-commit adapter's ($n_cmp payloads, with and without a policy file)" \
+                  || log_fail "TEST-1502 no-marker merge gate is not byte-identical to the base adapter"
+}
+
+# TEST-1520 (Spec-AC-14): the lane path. A real git fixture whose BASE commit
+# carries a policy with lane-y (code) then lane-x (docs), a stub gh serving
+# per-PR JSON, the real evaluator and the real lane-gate, and valid pr_sweep
+# records. Lane X's marker — from the environment or as a leading NAME=1
+# assignment on the merge command — allows; everything else denies with the
+# article-7 text plus a `merge-policy:` line.
+t1520_build_fixture() {
+  local d="$1" repo="$1/repo" base head pr
+  mkdir -p "$repo/docs/ai" "$repo/src" "$d/bin"
+  (cd "$repo" && git init -q && git checkout -q -b main 2>/dev/null \
+     && git config user.email "hooks-1520@example.com" && git config user.name "AAI Hooks 1520") >/dev/null 2>&1 || return 1
+  copy_merge_layer "$repo" || return 1
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+  - id: code
+    globs: ["src/**"]
+lanes:
+  - id: lane-y
+    decision_ref: t1520-y@2026-10-03T22:00:00Z
+    decision_match: "MERGE LANE t1520 y"
+    signed_by: owner-login
+    kinds: [code]
+    merge_reaches: nothing
+    marker: AAI_LANEY1520_MERGE
+    max_ceremony: 3
+  - id: lane-x
+    decision_ref: t1520-x@2026-10-03T22:01:00Z
+    decision_match: "MERGE LANE t1520 x"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    marker: AAI_LANEX1520_MERGE
+    max_ceremony: 3
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1520-y","ts":"2026-10-03T22:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1520 y approved"}
+{"type":"hitl_decision","ref_id":"t1520-x","ts":"2026-10-03T22:01:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE t1520 x approved"}
+JSONL
+  echo "base" > "$repo/docs/base.md"
+  (cd "$repo" && git add -A && git commit -q -m base) >/dev/null 2>&1 || return 1
+  base="$(cd "$repo" && git rev-parse HEAD)"
+  echo "a docs change" > "$repo/docs/changed.md"
+  (cd "$repo" && git add -A && git commit -q -m head) >/dev/null 2>&1 || return 1
+  head="$(cd "$repo" && git rev-parse HEAD)"
+  # PR 71: everything holds. PR 72: CI failed (an evaluator denial).
+  printf '{"number":71,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-71.json"
+  printf '{"number":72,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"FAILURE"}],"body":""}\n' "$base" "$head" > "$d/pr-72.json"
+  # Sweep records: working tree only, never committed (a committed copy
+  # would enter the PR diff).
+  for pr in 71 72; do
+    printf '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1520-ride","payload":{"pr":%s,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted"}}\n' "$pr" >> "$repo/docs/ai/EVENTS.jsonl"
+  done
+  cat > "$d/bin/gh" <<GHSTUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$d/gh-argv.log"
+if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.json" ]; then
+  cat "$d/pr-\${3}.json"; exit 0
+fi
+exit 1
+GHSTUB
+  chmod +x "$d/bin/gh"
+}
+
+# t1520_case <label> <want_rc> <want_policy_line:yes|no> <needle|-> <command> [VAR=value ...]
+t1520_case() {
+  local label="$1" want_rc="$2" want_line="$3" needle="$4" cmd="$5" err
+  shift 5
+  payload_file "$T1520_D/payload.json" "$cmd" "${T1520_CWD:-$T1520_D/repo}"
+  run_adapter "$PROJECT_ROOT/$ADAPTER" "$T1520_D/repo" "$T1520_D/payload.json" "$T1520_D/err" "$@"
+  err="$(cat "$T1520_D/err")"
+  if [[ "$ADAPTER_RC" -ne "$want_rc" ]]; then
+    log_info "TEST-1520 [$label]: exit $ADAPTER_RC (want $want_rc): $err"
+    T1520_OK=0
+    return
+  fi
+  if [[ "$want_rc" -eq 2 ]]; then
+    assert_payload_contains "$err" "Merge denied: constitution article 7" "TEST-1520 [$label]: deny lacks the article-7 text: $err" || T1520_OK=0
+    if [[ "$want_line" == "yes" ]]; then
+      assert_payload_line_matches "$err" '^merge-policy: ' "TEST-1520 [$label]: deny lacks a merge-policy line: $err" || T1520_OK=0
+    else
+      assert_payload_not_contains "$err" "merge-policy:" "TEST-1520 [$label]: unexpected merge-policy line: $err" || T1520_OK=0
+    fi
+  fi
+  if [[ "$needle" != "-" ]]; then
+    assert_payload_contains "$err" "$needle" "TEST-1520 [$label]: stderr does not name '$needle': $err" || T1520_OK=0
+  fi
+}
+
+test_1520_lane_marker_path() {
+  [[ -f "$ADAPTER" ]] || { log_fail "TEST-1520 $ADAPTER does not exist"; return; }
+  T1520_D="$(new_fixture)"
+  T1520_OK=1
+  T1520_CWD=""
+  t1520_build_fixture "$T1520_D" || { log_fail "TEST-1520 fixture build failed"; return; }
+  HOOK_PATH="$T1520_D/bin:$PATH"
+  local X=AAI_LANEX1520_MERGE Y=AAI_LANEY1520_MERGE
+
+  # Allowed: lane X's own marker, from the environment or as a command prefix.
+  t1520_case "env marker X" 0 no - "gh pr merge 71 --squash" "$X=1"
+  t1520_case "prefix marker X" 0 no - "$X=1 gh pr merge 71 --squash"
+  # Positive control: the allows above really consulted the evaluator.
+  if ! grep -q '^pr view 71 --json' "$T1520_D/gh-argv.log" 2>/dev/null; then
+    log_info "TEST-1520: the stub gh never saw 'pr view 71 --json' -- the evaluator did not run"
+    T1520_OK=0
+  fi
+
+  # Spec-AC-14 denials.
+  t1520_case "no marker" 2 no - "gh pr merge 71 --squash"
+  t1520_case "marker Y only" 2 yes "lane=lane-x" "gh pr merge 71 --squash" "$Y=1"
+  t1520_case "prefix marker Y only" 2 yes "lane=lane-x" "$Y=1 gh pr merge 71 --squash"
+  t1520_case "evaluator denial" 2 yes "reason=ci_not_green" "gh pr merge 72 --squash" "$X=1"
+  t1520_case "git merge with marker X" 2 yes - "git merge feature-x" "$X=1"
+
+  # Bypass attempts (each must deny, never allow).
+  t1520_case "marker in an earlier command" 2 no - "$X=1 true && gh pr merge 71"
+  t1520_case "marker inside a quoted string" 2 no - "echo \"$X=1 gh pr merge 71\""
+  t1520_case "chained second merge" 2 yes - "gh pr merge 71 && gh pr merge 72" "$X=1"
+  t1520_case "prefix then chained merge" 2 yes - "$X=1 gh pr merge 71; gh pr merge 72"
+  t1520_case "command substitution" 2 yes - "gh pr merge \$(echo 72)" "$X=1"
+  t1520_case "other repo via -R" 2 yes - "gh pr merge 71 -R other/repo" "$X=1"
+  t1520_case "non-marker prefix assignment" 2 yes - "GH_REPO=other/repo $X=1 gh pr merge 71" 
+  t1520_case "marker value not 1" 2 no - "gh pr merge 71" "$X=yes"
+  t1520_case "operator marker as prefix is not a lane marker" 2 no - "AAI_OPERATOR_MERGE=1 gh pr merge 71"
+  # The payload's cwd is a DIFFERENT repository: the evaluator would judge
+  # this project's PR 71 while gh merges the other repo's PR 71.
+  mkdir -p "$T1520_D/other"
+  (cd "$T1520_D/other" && git init -q) >/dev/null 2>&1
+  T1520_CWD="$T1520_D/other"
+  t1520_case "cwd in another repository" 2 yes - "gh pr merge 71" "$X=1"
+  T1520_CWD=""
+  # Evaluator missing from the project: today's deny plus the line.
+  mv "$T1520_D/repo/.aai/scripts/merge-policy.mjs" "$T1520_D/merge-policy.mjs.away"
+  t1520_case "evaluator missing" 2 yes - "gh pr merge 71" "$X=1"
+  mv "$T1520_D/merge-policy.mjs.away" "$T1520_D/repo/.aai/scripts/merge-policy.mjs"
+  # Evaluator crash: a non-zero exit is never read as an allow.
+  mv "$T1520_D/repo/.aai/scripts/merge-policy.mjs" "$T1520_D/merge-policy.mjs.real"
+  printf '%s\n' 'console.log("MERGE-POLICY allowed pr=71 lane=lane-x marker=AAI_LANEX1520_MERGE decision_ref=x merge_reaches=nothing"); process.exit(1);' > "$T1520_D/repo/.aai/scripts/merge-policy.mjs"
+  t1520_case "evaluator crash after an allowed line" 2 yes - "gh pr merge 71" "$X=1"
+  mv "$T1520_D/merge-policy.mjs.real" "$T1520_D/repo/.aai/scripts/merge-policy.mjs"
+  # node absent with a lane marker in the environment: the payload cannot
+  # even be parsed, so a merge-shaped payload is denied, never allowed.
+  local minp
+  minp="$(minimal_path "$T1520_D/nonode-bin" cat grep sed bash git tr head)"
+  local save_path="$HOOK_PATH"
+  HOOK_PATH="$T1520_D/bin:$minp"
+  t1520_case "node absent" 2 yes - "gh pr merge 71" "$X=1"
+  HOOK_PATH="$save_path"
+  # After all of it the real allow still works (the fixture was restored).
+  t1520_case "env marker X again" 0 no - "gh pr merge 71" "$X=1"
+
+  [[ $T1520_OK -eq 1 ]] && log_pass "TEST-1520 (Spec-AC-14) lane marker X (environment or NAME=1 prefix) is allowed by the evaluator; no marker, marker Y, an evaluator denial, git merge and every bypass shape deny with the article-7 text" \
+                        || log_fail "TEST-1520 merge gate lane path"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -965,6 +1254,8 @@ main() {
   test_018_merge_gate_capability_absent_allows
   test_019_merge_gate_tooling_present_unresolvable_denies
   test_020_merge_gate_branch_and_url_targets
+  test_1502_no_marker_bytes_equal_base
+  test_1520_lane_marker_path
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
