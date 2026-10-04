@@ -104,10 +104,10 @@ RUN
      (omit when none)
    - "Merging stays operator-only — review the PR above and merge it
      yourself when ready."
-   UNDER A STANDING AUTHORIZATION (SKILL_PR step 6: an owner-signed
-   `hitl_decision` in docs/ai/decisions.jsonl whose every condition this ride
-   meets) merge per that step and report the record cited; otherwise
-   /aai-ship's own run ends here. It never releases.
+   UNDER A LANE MERGE (SKILL_PR step 6: `merge-policy.mjs --check --pr <n>`
+   allows a lane under docs/ai/merge-policy.yaml) merge per that step and
+   report the decision_ref cited; any other verdict leaves merging to the
+   operator. Otherwise /aai-ship's own run ends here. It never releases.
 7. Report the same summary as step 6 as the run's final output.
 
 STRICT RULES
@@ -118,5 +118,5 @@ STRICT RULES
   waivers are NEVER auto-answered. A post-freeze spec amendment is NOT one
   of them: `--signoff none` (default 5), never a question.
 - No PASS without executable evidence; no pull request without validation
-  PASS and the satisfied review gate. Merging is operator-only unless an
-  owner-signed standing authorization covers the ride (SKILL_PR step 6).
+  PASS and the satisfied review gate. Merging is operator-only unless
+  merge-policy.mjs allows a lane for the ride (SKILL_PR step 6).

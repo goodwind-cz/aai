@@ -1976,6 +1976,213 @@ JSON
   log_pass "TEST-1524: the first lane in file order whose conditions hold wins, in both orderings; a fully denied PR prints no_lane_matched plus exactly one lane=.. reason=.. line per lane evaluated"
 }
 
+# --- TEST-1525 (Spec-AC-18) ---------------------------------------------------
+# This repository's OWN docs/ai/merge-policy.yaml, read live (never a copy --
+# the Evidence contract requires this test run against the real files), must
+# validate against the real docs/ai/decisions.jsonl and carry the exact field
+# values Spec-AC-18 names for the migrated internal-standing lane.
+test_1525_live_policy_validates() {
+  log_info "TEST-1525: the live docs/ai/merge-policy.yaml validates against the live decisions ledger (exit 0), and its one lane carries every field value Spec-AC-18 names"
+  local out rc
+  out="$(node "$MP" --validate --repo-root "$PROJECT_ROOT" 2>&1)" && rc=0 || rc=$?
+  if [[ "$rc" -ne 0 || "$out" != "VALID lanes=1" ]]; then
+    log_info "TEST-1525: expected 'VALID lanes=1' exit 0, got rc=$rc: $out"
+    log_fail "TEST-1525 live merge-policy.yaml validates"
+    return
+  fi
+
+  local policy="$PROJECT_ROOT/docs/ai/merge-policy.yaml"
+  local ok=1
+  grep -qF "id: internal-standing" "$policy" \
+    || { log_info "TEST-1525: missing lane id internal-standing"; ok=0; }
+  grep -qF "decision_ref: wave-2-roadmap@2026-09-12T19:56:52Z" "$policy" \
+    || { log_info "TEST-1525: missing decision_ref wave-2-roadmap@2026-09-12T19:56:52Z"; ok=0; }
+  grep -qF 'decision_match: "STANDING MERGE AUTHORIZATION"' "$policy" \
+    || { log_info "TEST-1525: missing decision_match STANDING MERGE AUTHORIZATION"; ok=0; }
+  grep -qF "merge_reaches: nothing" "$policy" \
+    || { log_info "TEST-1525: missing merge_reaches nothing"; ok=0; }
+  grep -qF "max_ceremony" "$policy" \
+    && { log_info "TEST-1525: max_ceremony must be absent (implicit DEFAULT_MAX_CEREMONY=2)"; ok=0; }
+  grep -qF "validation_pass: true" "$policy" \
+    || { log_info "TEST-1525: missing requires.validation_pass true"; ok=0; }
+  grep -qF "review_pass: true" "$policy" \
+    || { log_info "TEST-1525: missing requires.review_pass true"; ok=0; }
+  grep -qF 'pr_body_contains: "Residual"' "$policy" \
+    || { log_info "TEST-1525: missing requires.pr_body_contains Residual"; ok=0; }
+  grep -qF "intake_types: [change, issue, techdebt, hotfix]" "$policy" \
+    || { log_info "TEST-1525: missing requires.intake_types [change, issue, techdebt, hotfix]"; ok=0; }
+  grep -qF "exclude_roadmap_capability: true" "$policy" \
+    || { log_info "TEST-1525: missing requires.exclude_roadmap_capability true"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1525: the live policy validates and internal-standing carries every Spec-AC-18 field value" \
+    || log_fail "TEST-1525 live internal-standing field values"
+}
+
+# --- TEST-1526 (Spec-AC-18) ---------------------------------------------------
+# A scratch base commit per case carries a COPY of this repository's own
+# live docs/ai/merge-policy.yaml and the live wave-2-roadmap hitl_decision
+# records (copied verbatim via grep from the real docs/ai/decisions.jsonl --
+# TEST-1525 already pins that these live bytes validate). A conforming
+# internal ride is allowed; five more each violate exactly one condition of
+# the migrated internal-standing lane and deny with their own reason --
+# including the two HITL-2 tightenings (an architecture-glob hooks path, and
+# the GUARD_PATHS-backed policy_touched case is already covered by
+# TEST-1506/1507, so this row exercises roadmap_capability/ceremony_exceeds/
+# validation_not_pass/pr_body_missing/architecture instead).
+test_1526_live_policy_fixture() {
+  log_info "TEST-1526: a fixture base carrying the live merge-policy.yaml and the live wave-2-roadmap records -- a conforming internal ride is allowed, and a capability ride, a ceremony-3 ride, a validation fail, a body without Residual and a hooks-path change each deny with their own reason"
+  local case_name
+  for case_name in allowed capability ceremony3 validation_fail body_missing hooks_path; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs" "$repo/hooks"
+    cp "$PROJECT_ROOT/docs/ai/merge-policy.yaml" "$repo/docs/ai/merge-policy.yaml"
+    grep -F 'wave-2-roadmap' "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$repo/docs/ai/decisions.jsonl"
+    local nrec; nrec="$(wc -l < "$repo/docs/ai/decisions.jsonl" | tr -d ' ')"
+    if [[ "$nrec" -lt 3 ]]; then
+      log_fail "TEST-1526 [$case_name]: fixture precondition failed -- expected >=3 live wave-2-roadmap records copied from the real ledger, got $nrec"
+      continue
+    fi
+
+    if [[ "$case_name" == "capability" ]]; then
+      cat > "$repo/docs/ai/roadmap.yaml" <<'YAML'
+pairs:
+  - capability: ride-1526
+    status: planned
+YAML
+    fi
+
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+
+    if [[ "$case_name" == "hooks_path" ]]; then
+      echo "#!/bin/sh" > "$repo/hooks/pre-commit"
+    else
+      echo "a docs change ($case_name)" > "$repo/docs/changed-$case_name.md"
+    fi
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 70
+
+    local body="plan carries a Residual risk"
+    [[ "$case_name" == "body_missing" ]] && body="no matching literal here"
+    write_intake "$TEST_DIR/intake.md" "ride-1526" "change"
+    local vstatus="pass"
+    [[ "$case_name" == "validation_fail" ]] && vstatus="fail"
+    write_state "$TEST_DIR/STATE.yaml" "$vstatus" "pass"
+
+    local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+    cat > "$json" <<JSON
+{"number":70,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"$body"}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    # bash-3.2 trap: an empty `local arr=()` expanded as "${arr[@]}" under
+    # `set -u` is "unbound variable" on this platform's /bin/bash (fixed only
+    # in bash 4.4+) -- branch on the one optional flag directly instead of
+    # building an args array (docs/knowledge/LEARNED.md bash-3.2 traps).
+    if [[ "$case_name" == "ceremony3" ]]; then
+      cat > "$TEST_DIR/spec3.md" <<'MD'
+---
+id: spec-test1526
+type: spec
+ceremony_level: 3
+---
+
+# Spec
+MD
+      run_check "$repo" "$ghbin" 70 --intake "$TEST_DIR/intake.md" --state "$TEST_DIR/STATE.yaml" --spec "$TEST_DIR/spec3.md"
+    else
+      run_check "$repo" "$ghbin" 70 --intake "$TEST_DIR/intake.md" --state "$TEST_DIR/STATE.yaml"
+    fi
+
+    case "$case_name" in
+      allowed)
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=70 lane=internal-standing marker=AAI_INTERNAL_STANDING_MERGE decision_ref=wave-2-roadmap@2026-09-12T19:56:52Z merge_reaches=nothing" \
+          "TEST-1526 [$case_name]: expected the conforming internal ride allowed, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1526 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+      capability)
+        assert_payload_has_line "$OUT" "lane=internal-standing reason=roadmap_capability" \
+          "TEST-1526 [$case_name]: expected reason=roadmap_capability, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1526 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      ceremony3)
+        assert_payload_has_line "$OUT" "lane=internal-standing reason=ceremony_exceeds" \
+          "TEST-1526 [$case_name]: expected reason=ceremony_exceeds, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1526 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      validation_fail)
+        assert_payload_has_line "$OUT" "lane=internal-standing reason=validation_not_pass" \
+          "TEST-1526 [$case_name]: expected reason=validation_not_pass, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1526 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      body_missing)
+        assert_payload_has_line "$OUT" "lane=internal-standing reason=pr_body_missing" \
+          "TEST-1526 [$case_name]: expected reason=pr_body_missing, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1526 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      hooks_path)
+        assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=70 reason=architecture path=hooks/pre-commit" \
+          "TEST-1526 [$case_name]: expected reason=architecture naming hooks/pre-commit, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1526 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+    esac
+  done
+
+  log_pass "TEST-1526: the live internal-standing lane allows a conforming internal ride and denies a capability ride, a ceremony-3 ride, a validation fail, a body without Residual and a hooks-path change, each with its own reason"
+}
+
+# --- TEST-1527 (Spec-AC-19) ---------------------------------------------------
+# One path now: SKILL_PR.prompt.md step 6 no longer carries the STANDING
+# AUTHORIZATION prose exception or the wave-2-roadmap ref literal, and
+# instructs merge-policy.mjs --check --pr with the lane marker and
+# decision_ref citation; AGENTS.md closeout and SKILL_SHIP step 6 name
+# merge-policy.mjs instead of standing authorization; the hooks TEST-012
+# literals (AAI_OPERATOR_MERGE, guardrail, not a security boundary, NEVER
+# merge, operator) all survive unchanged.
+test_1527_prompts_defer_to_evaluator() {
+  log_info "TEST-1527: SKILL_PR/AGENTS.md/SKILL_SHIP defer to merge-policy.mjs; the old STANDING AUTHORIZATION prose and wave-2-roadmap ref are gone; the hooks TEST-012 literals survive"
+  local skill_pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  local agents="$PROJECT_ROOT/.aai/AGENTS.md"
+  local skill_ship="$PROJECT_ROOT/.aai/SKILL_SHIP.prompt.md"
+  local ok=1 n
+
+  n="$(grep -cF 'wave-2-roadmap' "$skill_pr")"
+  [[ "$n" -eq 0 ]] || { log_info "TEST-1527: SKILL_PR.prompt.md still names ref wave-2-roadmap ($n occurrences)"; ok=0; }
+  n="$(grep -cF 'STANDING AUTHORIZATION' "$skill_pr")"
+  [[ "$n" -eq 0 ]] || { log_info "TEST-1527: SKILL_PR.prompt.md still carries the STANDING AUTHORIZATION paragraph ($n occurrences)"; ok=0; }
+
+  grep -qF 'merge-policy.mjs --check --pr' "$skill_pr" \
+    || { log_info "TEST-1527: SKILL_PR.prompt.md step 6 does not instruct merge-policy.mjs --check --pr"; ok=0; }
+  grep -qiF 'marker' "$skill_pr" \
+    || { log_info "TEST-1527: SKILL_PR.prompt.md step 6 does not mention the lane marker"; ok=0; }
+  grep -qF 'decision_ref' "$skill_pr" \
+    || { log_info "TEST-1527: SKILL_PR.prompt.md step 6 does not cite decision_ref"; ok=0; }
+
+  grep -qF 'merge-policy.mjs' "$agents" \
+    || { log_info "TEST-1527: AGENTS.md closeout does not name merge-policy.mjs"; ok=0; }
+  grep -qF 'merge-policy.mjs' "$skill_ship" \
+    || { log_info "TEST-1527: SKILL_SHIP.prompt.md step 6 does not name merge-policy.mjs"; ok=0; }
+
+  # The hooks TEST-012 literals (test-aai-hooks-overlay.sh test_012_skill_pr_marker)
+  grep -qF 'AAI_OPERATOR_MERGE' "$skill_pr" \
+    || { log_info "TEST-1527: AAI_OPERATOR_MERGE no longer documented in SKILL_PR.prompt.md"; ok=0; }
+  grep -qi 'guardrail' "$skill_pr" \
+    || { log_info "TEST-1527: guardrail framing missing from SKILL_PR.prompt.md"; ok=0; }
+  grep -qi 'not a security boundary' "$skill_pr" \
+    || { log_info "TEST-1527: not-a-security-boundary honesty missing from SKILL_PR.prompt.md"; ok=0; }
+  grep -qF 'NEVER merge' "$skill_pr" \
+    || { log_info "TEST-1527: the NEVER-merge boundary text no longer survives in SKILL_PR.prompt.md"; ok=0; }
+  grep -qi 'operator' "$skill_pr" \
+    || { log_info "TEST-1527: operator wording missing from SKILL_PR.prompt.md"; ok=0; }
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1527: SKILL_PR/AGENTS.md/SKILL_SHIP defer to merge-policy.mjs; TEST-012 literals intact" \
+    || log_fail "TEST-1527 prompts defer to the evaluator"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2003,6 +2210,9 @@ main() {
   test_1521_requires_keys
   test_1522_pr_state_and_api_errors
   test_1524_output_contract
+  test_1525_live_policy_validates
+  test_1526_live_policy_fixture
+  test_1527_prompts_defer_to_evaluator
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view

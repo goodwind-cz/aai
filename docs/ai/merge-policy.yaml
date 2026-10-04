@@ -1,0 +1,36 @@
+# docs/ai/merge-policy.yaml — absent file = operator-only merge, unchanged.
+#
+# This repository's own policy (SPEC-DRAFT spec-configurable-merge-policy-
+# lanes, Spec-AC-18). It migrates the 2026-09-12 standing merge authorization
+# (ref_id wave-2-roadmap, docs/ai/decisions.jsonl) into one lane,
+# internal-standing, read by .aai/scripts/merge-policy.mjs. See that spec's
+# Notes section for the condition-by-condition mapping, and HITL-2 for the
+# two intentional tightenings this migration accepts over the original
+# prose: GUARD_PATHS now denies policy_touched on an internal ride that
+# edits the merge machinery itself, and "visible to downstream consumers" is
+# expressed as the architecture globs below rather than left as a judgment
+# call.
+version: 1
+deploy:
+  preview: none
+  production_on_merge: false
+architecture:
+  - id: consumer-facing
+    globs: ["hooks/**", "install.sh", "install.ps1", ".aai/scripts/install-pre-commit-hook.*", ".aai/scripts/aai-sync.*", ".github/**"]
+kinds:
+  - id: repo
+    globs: ["**"]
+lanes:
+  - id: internal-standing
+    decision_ref: wave-2-roadmap@2026-09-12T19:56:52Z
+    decision_match: "STANDING MERGE AUTHORIZATION"
+    signed_by: ales_holubec.net
+    kinds: [repo]
+    merge_reaches: nothing
+    marker: AAI_INTERNAL_STANDING_MERGE
+    requires:
+      intake_types: [change, issue, techdebt, hotfix]
+      exclude_roadmap_capability: true
+      validation_pass: true
+      review_pass: true
+      pr_body_contains: "Residual"

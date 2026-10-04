@@ -491,18 +491,20 @@ PROCESS
    - NEVER merge. `gh pr merge` is FORBIDDEN in this skill, in the loop, and in
      any subagent it spawns. Merging is an operator-only action performed by a
      human after their own review. Do not enable auto-merge either.
-   - STANDING AUTHORIZATION (scoped exception, never a default): when
-     docs/ai/decisions.jsonl carries an owner-signed `hitl_decision` granting a
-     standing merge authorization for THIS repository, this step MAY run
-     `gh pr merge --squash` (setting the operator marker on that one command)
-     ONLY for a ride meeting EVERY condition the record names. The record of
-     2026-09-12 (ref wave-2-roadmap) names: an internal ride (fix, chore,
-     guard, harness, test) at ceremony 2 or below; validation AND code review
-     both recorded pass; CI fully green on the final head; every bot review
-     thread answered AND resolved; residuals disclosed in the PR body. A
-     capability ride, any public or external side effect, or ceremony 3 is
-     NEVER covered. Cite the record in the merge report. Absent such a record,
-     or on any unmet condition, the hard rule above stands unchanged.
+   - LANE MERGE (SPEC-DRAFT spec-configurable-merge-policy-lanes; replaces the
+     old scoped prose exception) — the project-owned, owner-signed
+     `docs/ai/merge-policy.yaml` is the single source of truth, never prose:
+     run `node .aai/scripts/merge-policy.mjs --check --pr <n>`.
+     On a first line starting `MERGE-POLICY allowed lane=<id> marker=<NAME>
+     decision_ref=<ref>`, this step MAY run `gh pr merge --squash` with that
+     lane's own marker set on that one command (`<NAME>=1` — NEVER
+     `AAI_OPERATOR_MERGE`, which stays the operator's alone). Cite the
+     `decision_ref` the allowed line names in the merge report. Any other
+     verdict (`denied`, `no_policy`, or no `docs/ai/merge-policy.yaml` at the
+     base commit) means the hard rule above stands unchanged; a `denied`
+     verdict's `lane=<id> reason=<code>` lines name why each lane was
+     rejected, which belongs in the merge report alongside the verdict line,
+     never silently dropped.
    - SWEEP CHECK (Spec-AC-34), runs even without the hook overlay: before
      `gh pr merge`, `node .aai/scripts/lane-gate.mjs --sweep-check --pr <n>`
      must exit 0, or step 5d's `pr_sweep` record is missing/wrong -- fix, retry.
@@ -526,8 +528,8 @@ STRICT RULES
 - No `git add -A`, no `git add .`, no `git commit -a`.
 - No force-push unless the operator explicitly asks for it by name.
 - Do not rewrite history of a pushed branch.
-- Do not merge, approve, or enable auto-merge — operator-only, except a merge
-  covered by step 6's recorded standing authorization.
+- Do not merge, approve, or enable auto-merge — operator-only, except a lane
+  merge step 6's merge-policy.mjs check allows.
 - If the staged-vs-scope audit cannot be made clean, STOP and report.
 
 FINAL OUTPUT
