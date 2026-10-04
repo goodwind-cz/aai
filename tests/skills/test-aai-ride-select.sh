@@ -754,7 +754,7 @@ YAML
 test_718_validate_shipped_regression() {
   log_info "Test: validate over the shipped docs/ai/roadmap.yaml still prints the identical summary after the relaxation (TEST-718)..."
   [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-718: the shipped roadmap must still validate: $(err)"
-  [ "$(out)" = "roadmap OK: 11 pair(s), 4 wave-2 item(s)" ] \
+  [ "$(out)" = "roadmap OK: 12 pair(s), 4 wave-2 item(s)" ] \
     || log_fail "TEST-718: the summary line must be byte-identical, got: $(out)"
   log_pass "the shipped roadmap still validates with the identical summary line (TEST-718)"
 }
@@ -1943,7 +1943,7 @@ test_1302_budget_block_stays_strict() {
   [ "$(run validate --roadmap "$TEST_DIR/t1302-two.yaml")" = "2" ] || log_fail "TEST-1302: maintenance_per_capability 2 must exit 2"
   grep -q 'must be 1' "$TEST_DIR/err" || log_fail "TEST-1302: the value refusal must say must be 1: $(err)"
   [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-1302: the shipped roadmap must validate: $(err)"
-  [ "$(out)" = "roadmap OK: 11 pair(s), 4 wave-2 item(s)" ] || log_fail "TEST-1302: the shipped summary must be byte-identical, got: $(out)"
+  [ "$(out)" = "roadmap OK: 12 pair(s), 4 wave-2 item(s)" ] || log_fail "TEST-1302: the shipped summary must be byte-identical, got: $(out)"
   log_pass "empty, duplicate and non-1 budget blocks still exit 2; shipped summary unchanged (TEST-1302)"
 }
 
