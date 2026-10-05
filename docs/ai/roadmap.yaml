@@ -6,8 +6,6 @@
 #   budget.maintenance_per_capability: 1
 #   pairs: ordered; each has capability, maintenance (both slugs), status planned|active|done
 #   wave_2: slugs deferred by the owner (not gated, listed so `next` can say what follows)
-budget:
-  maintenance_per_capability: 1
 pairs:
   - capability: live-agent-dashboard-served-locally
     maintenance: roadmap-driven-ride-selection-with-budget
@@ -43,6 +41,8 @@ pairs:
     maintenance: operator-waiver-unblocks-pr
     status: done
   - capability: configurable-merge-policy-lanes
+    status: done
+  - capability: roadmap-maintenance-budget-advisory
     status: planned
 wave_2:
   - standardized-backlog-drain
