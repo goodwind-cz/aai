@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-05T23:34:22.870Z
+Generated: 2026-10-05T23:34:59.267Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0208 | specs | implementing | 18 done | docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md |
 
 ## Canonical layer (0)
 
@@ -55,7 +54,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (489)
+## Done (491)
 
 | ID | Type | Path |
 |---|---|---|
@@ -257,6 +256,7 @@ _None._
 | CHANGE-0200 | issues | docs/issues/CHANGE-0200-downstream-rides-ask-no-governance-questions.md |
 | CHANGE-0201 | issues | docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md |
 | CHANGE-0202 | issues | docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md |
+| CHANGE-0203 | issues | docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -546,17 +546,17 @@ _None._
 | SPEC-0205 | specs | docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md |
 | SPEC-0206 | specs | docs/specs/SPEC-0206-spec-ci-test-selection-narrowing-and-sharding.md |
 | SPEC-0207 | specs | docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md |
+| SPEC-0208 | specs | docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| CHANGE-0203 | issues | docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

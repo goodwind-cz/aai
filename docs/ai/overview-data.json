@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-05T23:34:11.192Z",
+  "generatedAt": "2026-10-05T23:34:30.652Z",
   "project": "aai",
   "counts": {
-    "delivered": 277,
-    "in_progress": 16,
+    "delivered": 278,
+    "in_progress": 15,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -49,19 +49,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "roadmap-maintenance-budget-advisory",
-      "title": "Change Request: Advisory maintenance budget on the roadmap",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md",
-      "closed_on": null,
-      "agent_minutes": 548,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-roadmap-maintenance-budget-advisory-20261005T231640Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -221,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "roadmap-maintenance-budget-advisory",
+      "title": "Change Request: Advisory maintenance budget on the roadmap",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md",
+      "closed_on": "2026-10-05",
+      "agent_minutes": 548,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-roadmap-maintenance-budget-advisory-20261005T231640Z.md"
+    },
     {
       "ref": "configurable-merge-policy-lanes",
       "title": "RFC (Decision Proposal): Configurable merge policy — owner-defined merge lanes",
@@ -3849,6 +3849,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "roadmap-maintenance-budget-advisory",
+          "title": "Change Request: Advisory maintenance budget on the roadmap",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md",
+          "closed_on": "2026-10-05",
+          "agent_minutes": 548,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-roadmap-maintenance-budget-advisory-20261005T231640Z.md"
+        },
         {
           "ref": "configurable-merge-policy-lanes",
           "title": "RFC (Decision Proposal): Configurable merge policy — owner-defined merge lanes",

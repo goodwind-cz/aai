@@ -2,15 +2,17 @@
 id: spec-roadmap-maintenance-budget-advisory
 type: spec
 number: 208
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 4f1a2d147b39252258fea5286c128748309f8d2525c9d8f90be5fb458bffbe1b
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 0c75abc9960a5597725676e6c0d209151dae8398
 ---
 
 # Spec — an advisory maintenance budget: the roadmap proposes maintenance, never requires it
