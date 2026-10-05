@@ -450,15 +450,18 @@ test_1315_off() {
 # --- TEST-1316 (Spec-AC-05): refusal matrix --------------------------------------
 # refuses <want_rc> <label> <args...> — one edit call against $MR/$MD; the exit
 # code must match, the roadmap sha256 and the directory listing must not move.
+# REFUSES_LABEL_PREFIX names the TEST id in refuses()'s own log_fail messages;
+# each caller sets it before use (default kept for test_1316's original calls).
+REFUSES_LABEL_PREFIX="TEST-1316"
 refuses() {
   local want="$1" label="$2"; shift 2
   local b_sha b_list a_list rc
   b_sha="$(sha "$MR")"; b_list="$(listing "$MROOT")"
   rc="$(run_edit "$@" --roadmap "$MR" --docs "$MD")"
-  [ "$rc" = "$want" ] || log_fail "TEST-1316 ($label): expected exit $want, got $rc: $(err)"
-  [ "$(sha "$MR")" = "$b_sha" ] || log_fail "TEST-1316 ($label): the roadmap bytes changed"
+  [ "$rc" = "$want" ] || log_fail "$REFUSES_LABEL_PREFIX ($label): expected exit $want, got $rc: $(err)"
+  [ "$(sha "$MR")" = "$b_sha" ] || log_fail "$REFUSES_LABEL_PREFIX ($label): the roadmap bytes changed"
   a_list="$(listing "$MROOT")"
-  [ "$a_list" = "$b_list" ] || log_fail "TEST-1316 ($label): a file appeared or vanished next to the roadmap"
+  [ "$a_list" = "$b_list" ] || log_fail "$REFUSES_LABEL_PREFIX ($label): a file appeared or vanished next to the roadmap"
 }
 test_1316_refusal_matrix() {
   log_info "Test: every verb's invalid input exits 1 or 2 with the roadmap sha256 and directory listing unchanged; the certification arm really wrote and restored (TEST-1316)..."
@@ -763,7 +766,7 @@ YAML
 }
 
 # --- TEST-1323 (Spec-AC-09, seam S2): dispatch gate vs CLI gate ------------------
-mk_dispatch_project() { # <name> <budget:yes|no>
+mk_dispatch_project() { # <name> <budget:yes|no|advisory>
   local d="$TEST_DIR/$1"
   [[ -n "$d" && "$d" = /* ]] || log_fail "mk_dispatch_project: fixture path not absolute: '$d'"
   rm -rf "$d"
@@ -773,6 +776,7 @@ mk_dispatch_project() { # <name> <budget:yes|no>
   : > "$d/docs/ai/decisions.jsonl"
   {
     [ "$2" = "yes" ] && printf 'budget:\n  maintenance_per_capability: 1\n'
+    [ "$2" = "advisory" ] && printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\n'
     printf 'pairs:\n  - capability: cap-a\n    status: planned\n'
   } > "$d/docs/ai/roadmap.yaml"
   cat > "$d/docs/specs/SPEC-0001-fx.md" <<MD
@@ -1234,6 +1238,249 @@ test_1337_orchestration_untouched() {
   log_pass "ORCHESTRATION.prompt.md equals its merge-base blob $base (TEST-1337)"
 }
 
+# ============================ Slice D (spec-roadmap-maintenance-budget-advisory):
+# writer (D10) and seams (D11, D13) — TEST-1631..1638 (TEST-1644/AC-18 is
+# Batch 5's scope: tests/skills/suite-map.yaml) ====================================
+
+# --- TEST-1631 (Spec-AC-10): budget advisory --threshold writes the block --------
+test_1631_budget_advisory_transitions() {
+  log_info "Test: roadmap-edit budget advisory --threshold writes the two-line block from off, on and another advisory threshold; validate and show agree (TEST-1631)..."
+  local d; d="$(fx_dir t1631)"; local R="$d/roadmap.yaml" D="$d/docs"
+  fxc "$D" cap-a draft
+  write_expect "$d/expect-advisory9.yaml" <<'YAML'
+budget:
+  mode: advisory
+  maintenance_threshold: 9
+pairs:
+  - capability: cap-a
+    status: planned
+YAML
+  # from off
+  printf 'pairs:\n  - capability: cap-a\n    status: planned\n' > "$R"
+  [ "$(run_edit budget advisory --threshold 9 --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1631 (from off): must exit 0: $(err)"
+  same_bytes "$R" "$d/expect-advisory9.yaml" || log_fail "TEST-1631 (from off): must insert exactly the advisory block before pairs, pair lines unchanged; got: $(cat "$R")"
+  [ "$(run_select validate --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1631 (from off): validate must accept: $(cat "$TEST_DIR/serr")"
+  [ "$(run_select show --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1631 (from off): show must exit 0"
+  local first_line1631; first_line1631="$(head -1 "$TEST_DIR/sout")"
+  [ "$first_line1631" = 'maintenance budget: advisory (threshold 9)' ] || log_fail "TEST-1631 (from off): show must report threshold 9, got: $(cat "$TEST_DIR/sout")"
+  # from on
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-a\n    status: planned\n' > "$R"
+  [ "$(run_edit budget advisory --threshold 9 --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1631 (from on): must exit 0: $(err)"
+  same_bytes "$R" "$d/expect-advisory9.yaml" || log_fail "TEST-1631 (from on): must replace the 1:1 block with the advisory one; got: $(cat "$R")"
+  [ "$(run_select validate --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1631 (from on): validate must accept: $(cat "$TEST_DIR/serr")"
+  # from advisory 4 to advisory 9 (threshold-first line order on read)
+  printf 'budget:\n  maintenance_threshold: 4\n  mode: advisory\npairs:\n  - capability: cap-a\n    status: planned\n' > "$R"
+  [ "$(run_edit budget advisory --threshold 9 --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1631 (from advisory 4): must exit 0: $(err)"
+  same_bytes "$R" "$d/expect-advisory9.yaml" || log_fail "TEST-1631 (from advisory 4): must replace the old threshold; got: $(cat "$R")"
+  [ "$(run_select validate --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1631 (from advisory 4): validate must accept: $(cat "$TEST_DIR/serr")"
+  log_pass "budget advisory --threshold writes from off, on and another advisory threshold; validate and show agree (TEST-1631)"
+}
+
+# --- TEST-1632 (Spec-AC-10): budget off from advisory -----------------------------
+test_1632_budget_off_from_advisory() {
+  log_info "Test: budget off from advisory removes the block, validate accepts, show reports off (TEST-1632)..."
+  local d; d="$(fx_dir t1632)"; local R="$d/roadmap.yaml" D="$d/docs"
+  fxc "$D" cap-a draft
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 6\npairs:\n  - capability: cap-a\n    status: planned\n' > "$R"
+  [ "$(run_edit budget off --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1632: budget off must exit 0: $(err)"
+  write_expect "$d/expect.yaml" <<'YAML'
+pairs:
+  - capability: cap-a
+    status: planned
+YAML
+  same_bytes "$R" "$d/expect.yaml" || log_fail "TEST-1632: budget off must remove exactly the advisory block; got: $(cat "$R")"
+  [ "$(run_select validate --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1632: validate must accept: $(cat "$TEST_DIR/serr")"
+  [ "$(run_select show --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1632: show must exit 0"
+  local first_line1632; first_line1632="$(head -1 "$TEST_DIR/sout")"
+  [ "$first_line1632" = 'maintenance budget: off' ] || log_fail "TEST-1632: show must report off, got: $(cat "$TEST_DIR/sout")"
+  log_pass "budget off from advisory removes the block cleanly (TEST-1632)"
+}
+
+# --- TEST-1633 (Spec-AC-10): budget on from advisory -------------------------------
+test_1633_budget_on_from_advisory() {
+  log_info "Test: budget on from advisory leaves exactly maintenance_per_capability 1, validate accepts, show reports on (TEST-1633)..."
+  local d; d="$(fx_dir t1633)"; local R="$d/roadmap.yaml" D="$d/docs"
+  fxc "$D" cap-a draft
+  printf 'budget:\n  maintenance_threshold: 6\n  mode: advisory\npairs:\n  - capability: cap-a\n    status: planned\n' > "$R"
+  [ "$(run_edit budget on --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1633: budget on must exit 0: $(err)"
+  write_expect "$d/expect.yaml" <<'YAML'
+budget:
+  maintenance_per_capability: 1
+pairs:
+  - capability: cap-a
+    status: planned
+YAML
+  same_bytes "$R" "$d/expect.yaml" || log_fail "TEST-1633: budget on must leave exactly the 1:1 block; got: $(cat "$R")"
+  [ "$(run_select validate --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1633: validate must accept: $(cat "$TEST_DIR/serr")"
+  [ "$(run_select show --roadmap "$R" --docs "$D")" = "0" ] || log_fail "TEST-1633: show must exit 0"
+  local first_line1633; first_line1633="$(head -1 "$TEST_DIR/sout")"
+  [ "$first_line1633" = 'maintenance budget: on' ] || log_fail "TEST-1633: show must report on, got: $(cat "$TEST_DIR/sout")"
+  log_pass "budget on from advisory leaves exactly the 1:1 block (TEST-1633)"
+}
+
+# --- TEST-1634 (Spec-AC-10): --threshold usage refusal matrix ---------------------
+test_1634_budget_threshold_usage() {
+  log_info "Test: every --threshold/advisory usage error exits 2 with the roadmap byte-identical and no new file (TEST-1634)..."
+  local d; d="$(fx_dir t1634)"; MROOT="$d"; MR="$d/roadmap.yaml"; MD="$d/docs"
+  fxc "$MD" cap-a draft
+  printf 'pairs:\n  - capability: cap-a\n    status: planned\n' > "$MR"
+  REFUSES_LABEL_PREFIX="TEST-1634"
+  refuses 2 "advisory without --threshold" budget advisory
+  refuses 2 "threshold zero"               budget advisory --threshold 0
+  refuses 2 "threshold decimal"            budget advisory --threshold 1.5
+  refuses 2 "threshold negative"           budget advisory --threshold -2
+  refuses 2 "threshold leading zero"       budget advisory --threshold 05
+  refuses 2 "threshold non-numeric"        budget advisory --threshold abc
+  refuses 2 "threshold with budget on"     budget on --threshold 5
+  refuses 2 "threshold with budget off"    budget off --threshold 5
+  refuses 2 "threshold with add"           add --ref cap-new --threshold 5
+  refuses 2 "budget bad state"             budget sometimes --threshold 5
+  log_pass "every --threshold/advisory usage error exits 2, roadmap byte-identical, no file left behind (TEST-1634)"
+}
+
+# --- TEST-1635 (Spec-AC-10): repeat-state refusals are byte-identical -------------
+test_1635_budget_repeat_refusals() {
+  log_info "Test: budget advisory at its own threshold refuses byte-identical; on-when-on and off-when-off keep today's messages (TEST-1635)..."
+  local d; d="$(fx_dir t1635)"; MROOT="$d"; MR="$d/roadmap.yaml"; MD="$d/docs"
+  fxc "$MD" cap-a draft
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 4\npairs:\n  - capability: cap-a\n    status: planned\n' > "$MR"
+  REFUSES_LABEL_PREFIX="TEST-1635"
+  refuses 1 "advisory same threshold" budget advisory --threshold 4
+  grep -q 'already advisory (threshold 4)' "$TEST_DIR/err" || log_fail "TEST-1635: the refusal must name the already-advisory threshold, got: $(err)"
+  # control: a DIFFERENT threshold from the same advisory state is not a repeat
+  [ "$(run_edit budget advisory --threshold 5 --roadmap "$MR" --docs "$MD")" = "0" ] || log_fail "TEST-1635: control — a different threshold must exit 0: $(err)"
+  printf 'pairs:\n  - capability: cap-a\n    status: planned\n' > "$MR"
+  refuses 1 "off when off" budget off
+  grep -q 'already off' "$TEST_DIR/err" || log_fail "TEST-1635: budget off when off must keep today's message, got: $(err)"
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-a\n    status: planned\n' > "$MR"
+  refuses 1 "on when on" budget on
+  grep -q 'already on' "$TEST_DIR/err" || log_fail "TEST-1635: budget on when on must keep today's message, got: $(err)"
+  log_pass "budget advisory repeat-threshold refusal is byte-identical; on/off repeat refusals keep today's messages (TEST-1635)"
+}
+
+# --- TEST-1636 (Spec-AC-11): ship-append and advance under advisory equal off -----
+test_1636_ship_and_advance_advisory_equals_off() {
+  log_info "Test: in advisory ship-append writes and advance ignores the maintenance half, matching the off fixture exactly (TEST-1636)..."
+  local d; d="$(fx_dir t1636)"; local D="$d/docs"
+  local R_off="$d/off.yaml" R_adv="$d/adv.yaml"
+  printf 'pairs:\n  - capability: cap-a\n    status: planned\n  - capability: cap-b\n    status: planned\nwave_2:\n  - later-thing\n' > "$R_off"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: planned\n  - capability: cap-b\n    status: planned\nwave_2:\n  - later-thing\n' > "$R_adv"
+  fx_doc "$D" chg-ship change draft
+  fx_doc "$D" iss-ship issue draft
+  local I="$D/issues/CHANGE-DRAFT-chg-ship.md"
+  # a change intake appends an active pair identically in both postures
+  [ "$(run_edit ship-append --ref chg-ship --intake "$I" --roadmap "$R_off" --docs "$D")" = "0" ] || log_fail "TEST-1636 (off): ship-append must exit 0: $(err)"
+  [ "$(out)" = "roadmap: appended chg-ship" ] || log_fail "TEST-1636 (off): expected 'roadmap: appended chg-ship', got: $(out)"
+  [ "$(run_edit ship-append --ref chg-ship --intake "$I" --roadmap "$R_adv" --docs "$D")" = "0" ] || log_fail "TEST-1636 (advisory): ship-append must exit 0: $(err)"
+  [ "$(out)" = "roadmap: appended chg-ship" ] || log_fail "TEST-1636 (advisory): expected 'roadmap: appended chg-ship', got: $(out)"
+  diff <(grep -vE '^budget:|^  mode: advisory|^  maintenance_threshold:' "$R_adv") "$R_off" > /dev/null \
+    || log_fail "TEST-1636: the appended pairs must be identical in advisory and off apart from the budget block; off=$(cat "$R_off") advisory=$(cat "$R_adv")"
+  # an issue intake is a named no-op, byte-identical, in both postures
+  local before_off before_adv
+  before_off="$(sha "$R_off")"; before_adv="$(sha "$R_adv")"
+  local I2="$D/issues/CHANGE-DRAFT-iss-ship.md"
+  [ "$(run_edit ship-append --ref iss-ship --intake "$I2" --roadmap "$R_off" --docs "$D")" = "0" ] || log_fail "TEST-1636 (off, issue): must exit 0: $(err)"
+  grep -q 'maintenance' "$TEST_DIR/out" || log_fail "TEST-1636 (off, issue): must name the maintenance reason, got: $(out)"
+  [ "$(sha "$R_off")" = "$before_off" ] || log_fail "TEST-1636 (off, issue): must leave the roadmap byte-identical"
+  [ "$(run_edit ship-append --ref iss-ship --intake "$I2" --roadmap "$R_adv" --docs "$D")" = "0" ] || log_fail "TEST-1636 (advisory, issue): must exit 0: $(err)"
+  grep -q 'maintenance' "$TEST_DIR/out" || log_fail "TEST-1636 (advisory, issue): must name the maintenance reason, got: $(out)"
+  [ "$(sha "$R_adv")" = "$before_adv" ] || log_fail "TEST-1636 (advisory, issue): must leave the roadmap byte-identical"
+  # advance: a done capability flips even though its bound maintenance half is draft, in both postures
+  local R2_off="$d/adv2.yaml" R2_adv="$d/off2.yaml"
+  fxc "$D" cap-c done
+  fx_doc "$D" maint-c issue draft
+  printf 'pairs:\n  - capability: cap-c\n    maintenance: maint-c\n    status: active\n' > "$R2_off"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-c\n    maintenance: maint-c\n    status: active\n' > "$R2_adv"
+  [ "$(run_edit advance --ref cap-c --roadmap "$R2_off" --docs "$D")" = "0" ] || log_fail "TEST-1636 (off, advance): must exit 0: $(err)"
+  grep -q 'status: done' "$R2_off" || log_fail "TEST-1636 (off, advance): must flip the pair to done even though the maintenance half is draft; got: $(cat "$R2_off")"
+  [ "$(run_edit advance --ref cap-c --roadmap "$R2_adv" --docs "$D")" = "0" ] || log_fail "TEST-1636 (advisory, advance): must exit 0: $(err)"
+  grep -q 'status: done' "$R2_adv" || log_fail "TEST-1636 (advisory, advance): must flip the pair to done exactly as off; got: $(cat "$R2_adv")"
+  log_pass "ship-append and advance behave exactly as off under advisory (TEST-1636)"
+}
+
+# --- TEST-1637 (Spec-AC-12, seam S3): nothing-left-behind under advisory ----------
+test_1637_nlb_seam_advisory() {
+  log_info "Test: seam — nothing-left-behind reports no paired maintenance half under advisory, one under on, and the invalid-roadmap control is unchanged (TEST-1637)..."
+  local NLB="$PROJECT_ROOT/.aai/scripts/nothing-left-behind.mjs" kind root open budget_block
+  for kind in off on advisory invalid; do
+    root="$TEST_DIR/t1637-$kind"
+    [[ -n "$root" && "$root" = /* ]] || log_fail "TEST-1637: fixture path must be non-empty and absolute"
+    rm -rf "$root"; mkdir -p "$root/docs/ai" "$root/docs/issues"
+    case "$kind" in
+      off) budget_block='' ;;
+      on) budget_block=$'budget:\n  maintenance_per_capability: 1\n' ;;
+      advisory) budget_block=$'budget:\n  mode: advisory\n  maintenance_threshold: 50\n' ;;
+      invalid) budget_block=$'budget:\n  maintenance_per_capability: 2\n' ;;
+    esac
+    printf '%spairs:\n  - capability: nlb-cap\n    maintenance: nlb-maint\n    status: done\n' "$budget_block" > "$root/docs/ai/roadmap.yaml"
+    fx_doc "$root/docs" nlb-cap change done
+    fx_doc "$root/docs" nlb-maint issue draft
+    ( cd "$root" && git init -q -b main && git config user.email nlb1637@example.com && git config user.name nlb1637 && git add -A && git commit -q -m "feat: nlb-cap ships" ) \
+      || log_fail "TEST-1637 ($kind): fixture git init/commit must succeed (a CI runner has no default git identity)"
+    node "$NLB" --ref nlb-cap --root "$root" --json > "$TEST_DIR/nlb-$kind.json" 2> "$TEST_DIR/nlb-$kind.err" || true
+    open="$(jval "$TEST_DIR/nlb-$kind.json" docs_open)"
+    case "$kind" in
+      off|advisory)
+        [ "$open" = "0" ] || log_fail "TEST-1637 ($kind): docs_open must be 0, got $open: $(cat "$TEST_DIR/nlb-$kind.json")" ;;
+      on)
+        [ "$open" = "1" ] || log_fail "TEST-1637 ($kind): docs_open must be 1, got $open: $(cat "$TEST_DIR/nlb-$kind.json")"
+        grep -q 'paired maintenance half' "$TEST_DIR/nlb-$kind.json" || log_fail "TEST-1637 ($kind): must name the paired maintenance half" ;;
+      invalid)
+        [ "$open" = "1" ] || log_fail "TEST-1637 (invalid): the pre-existing line-scan must still pair on any top-level budget: line, got $open: $(cat "$TEST_DIR/nlb-$kind.json")"
+        grep -q 'paired maintenance half' "$TEST_DIR/nlb-$kind.json" || log_fail "TEST-1637 (invalid): must still name the paired maintenance half" ;;
+    esac
+  done
+  log_pass "nothing-left-behind pairs on posture on only; advisory joins off, the invalid-roadmap line-scan control is unchanged (TEST-1637)"
+}
+
+# --- TEST-1638 (Spec-AC-13, seams S2/S4): dispatch gate + loadRoadmap pairs -------
+# load_pairs_json <roadmap-path> — JSON of loadRoadmap(p).roadmap.pairs, via the
+# REAL lib/roadmap-model.mjs (no second parser)
+load_pairs_json() {
+  node -e '
+    import(process.argv[1]).then(({ loadRoadmap }) => {
+      const loaded = loadRoadmap(process.argv[2]);
+      process.stdout.write(JSON.stringify(loaded.roadmap ? loaded.roadmap.pairs : { error: loaded.error }));
+    });
+  ' "$PROJECT_ROOT/.aai/scripts/lib/roadmap-model.mjs" "$1"
+}
+test_1638_dispatch_and_pairs_seam() {
+  log_info "Test: seam — dispatch buildSnapshot candidate gate.admitted under advisory equals the CLI gate and the off verdict; loadRoadmap pairs equal advisory vs off (TEST-1638)..."
+  local kind d cli_rc snap admitted consulted admitted_no admitted_advisory
+  for kind in no advisory; do
+    d="$(mk_dispatch_project "t1638-$kind" "$kind")"
+    cli_rc=0
+    ( cd "$d" && node .aai/scripts/ride-select.mjs gate --ref fixture-ride --intake docs/issues/CHANGE-0002-fx.md ) > "$TEST_DIR/cli.out" 2>&1 || cli_rc=$?
+    ( cd "$d" && node --input-type=module -e '
+      import { buildSnapshot } from "./.aai/scripts/orchestration-dispatch.mjs";
+      import path from "node:path";
+      const root = process.argv[1];
+      const { snapshot, problems } = buildSnapshot(path.join(root, "docs/ai/STATE.yaml"), root);
+      if (!snapshot) { process.stdout.write("problems:" + problems.join(",")); process.exit(0); }
+      const c = (snapshot.open_intakes || []).find((x) => x.ref_id === process.argv[2]);
+      process.stdout.write(c && c.gate ? `${c.gate.admitted} ${c.gate.consulted}` : "none");
+    ' "$d" fixture-ride ) > "$TEST_DIR/snap.out" 2>&1 || log_fail "TEST-1638 ($kind): buildSnapshot probe crashed: $(cat "$TEST_DIR/snap.out")"
+    snap="$(cat "$TEST_DIR/snap.out")"
+    [[ "$snap" != "none" && "$snap" != problems:* ]] || log_fail "TEST-1638 ($kind): the fixture intake was not an open-intake candidate: $snap"
+    admitted="${snap%% *}"; consulted="${snap##* }"
+    [[ "$consulted" == "true" ]] || log_fail "TEST-1638 ($kind): the roadmap is present, so consulted must be true, got $consulted"
+    [[ "$cli_rc" -eq 0 && "$admitted" == "true" ]] || log_fail "TEST-1638 ($kind): the advisory/off CLI gate must admit an off-roadmap issue (cli=$cli_rc admitted=$admitted): $(cat "$TEST_DIR/cli.out")"
+    [ "$kind" = "no" ] && admitted_no="$admitted" || admitted_advisory="$admitted"
+  done
+  [ "$admitted_no" = "$admitted_advisory" ] || log_fail "TEST-1638: the advisory candidate gate verdict must equal the off verdict, got advisory=$admitted_advisory off=$admitted_no"
+
+  # loadRoadmap pairs equal for the advisory and off variant of one roadmap
+  local off_json adv_json
+  printf 'pairs:\n  - capability: cap-a\n    maintenance: cap-b\n    status: active\n  - capability: cap-c\n    status: planned\n' > "$TEST_DIR/t1638-off.yaml"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    maintenance: cap-b\n    status: active\n  - capability: cap-c\n    status: planned\n' > "$TEST_DIR/t1638-adv.yaml"
+  off_json="$(load_pairs_json "$TEST_DIR/t1638-off.yaml")" || log_fail "TEST-1638: loadRoadmap over the off fixture must not crash: $off_json"
+  adv_json="$(load_pairs_json "$TEST_DIR/t1638-adv.yaml")" || log_fail "TEST-1638: loadRoadmap over the advisory fixture must not crash: $adv_json"
+  [ "$off_json" = "$adv_json" ] || log_fail "TEST-1638: loadRoadmap pairs must be identical for off and advisory, off=$off_json advisory=$adv_json"
+  log_pass "dispatch candidate gate agrees under advisory, equals off; loadRoadmap pairs equal off vs advisory (TEST-1638)"
+}
+
+# TEST-1644 (Spec-AC-18, suite-map) is Batch 5's scope — not implemented here.
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$SELECT" ] || log_fail "ride-select missing: $SELECT"
@@ -1269,6 +1516,14 @@ main() {
   test_1339_userguide_examples_replay
   test_1340_first_run_prose
   test_1337_orchestration_untouched
+  test_1631_budget_advisory_transitions
+  test_1632_budget_off_from_advisory
+  test_1633_budget_on_from_advisory
+  test_1634_budget_threshold_usage
+  test_1635_budget_repeat_refusals
+  test_1636_ship_and_advance_advisory_equals_off
+  test_1637_nlb_seam_advisory
+  test_1638_dispatch_and_pairs_seam
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

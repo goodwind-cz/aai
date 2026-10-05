@@ -62,6 +62,11 @@ import { scanAuditDocs } from './lib/docs-audit-core.mjs';
 // it — the SAME line-engine state.mjs itself uses, not a second reader.
 import { readScalar } from './lib/state-engine.mjs';
 import { splitLines } from './lib/state-core.mjs';
+// D11 (spec-roadmap-maintenance-budget-advisory): the SAME parser
+// ride-select.mjs and roadmap-edit.mjs already share, never a second one —
+// readRoadmapPairs below consults it first and only falls back to its own
+// line-scan when the roadmap does not parse at all.
+import { loadRoadmap } from './lib/roadmap-model.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DOCS_AUDIT = path.join(SELF_DIR, 'docs-audit.mjs');
@@ -187,8 +192,16 @@ function isCeremonyContentMatch(finding) {
 // Absent file degrades to [] SILENTLY (D5 edge case: "a roadmap that is
 // absent — the paired-half class must stay silent, not crash").
 function readRoadmapPairs(root) {
+  const p = path.join(root, 'docs', 'ai', 'roadmap.yaml');
+  // D11: once the roadmap PARSES, posture decides pairing — advisory and off
+  // are both "no 1:1 pairing" (structurally equal, D2). Only an INVALID
+  // roadmap falls through to the line-scan below, which predates loadRoadmap
+  // and still answers for a malformed file (unchanged behavior).
+  const loaded = loadRoadmap(p);
+  if (!loaded.error && loaded.roadmap.posture !== 'on') return [];
+  if (!loaded.error) return loaded.roadmap.pairs;
   let text;
-  try { text = fs.readFileSync(path.join(root, 'docs', 'ai', 'roadmap.yaml'), 'utf8'); } catch { return []; }
+  try { text = fs.readFileSync(p, 'utf8'); } catch { return []; }
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const pairs = [];
   let inPairs = false;

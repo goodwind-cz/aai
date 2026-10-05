@@ -6,7 +6,9 @@
 //   node .aai/scripts/roadmap-edit.mjs move        --ref <slug> --to <n>
 //   node .aai/scripts/roadmap-edit.mjs done        --ref <slug>
 //   node .aai/scripts/roadmap-edit.mjs drop        --ref <slug>
-//   node .aai/scripts/roadmap-edit.mjs budget      on|off
+//   node .aai/scripts/roadmap-edit.mjs budget      on|advisory|off [--threshold <n>]
+//        (advisory requires --threshold <n>, a bare positive integer — SPEC
+//        roadmap-maintenance-budget-advisory D10)
 //   node .aai/scripts/roadmap-edit.mjs off         --confirm
 //   node .aai/scripts/roadmap-edit.mjs ship-append --ref <slug> --intake <path>
 //   node .aai/scripts/roadmap-edit.mjs advance     --ref <slug>
@@ -44,12 +46,15 @@ function usage(msg) { process.stderr.write(`roadmap-edit: ${msg}\n`); process.ex
 function refuse(msg) { process.stderr.write(`roadmap-edit: REFUSED — ${msg}\n`); process.exit(1); }
 function noop(msg) { process.stdout.write(`${msg}\n`); process.exit(0); }
 
+// D10 (spec-roadmap-maintenance-budget-advisory): a bare positive integer —
+// no quotes, no leading zero, no decimal, no sign, no trailing text.
+const THRESHOLD_RE = /^[1-9]\d*$/;
 function parseArgs(argv) {
-  const a = { verb: argv[0], roadmap: path.join(ROOT, 'docs/ai/roadmap.yaml'), docs: path.join(ROOT, 'docs'), ref: null, at: null, to: null, intake: null, confirm: false, state: null };
+  const a = { verb: argv[0], roadmap: path.join(ROOT, 'docs/ai/roadmap.yaml'), docs: path.join(ROOT, 'docs'), ref: null, at: null, to: null, intake: null, confirm: false, state: null, threshold: null };
   const need = (k, v) => { if (v === undefined || v.startsWith('--')) usage(`${k} requires a value`); return v; };
   let first = 1;
   if (a.verb === 'budget') {
-    if (argv[1] !== 'on' && argv[1] !== 'off') usage('usage: roadmap-edit.mjs budget <on|off>');
+    if (!['on', 'advisory', 'off'].includes(argv[1])) usage('usage: roadmap-edit.mjs budget <on|advisory|off> [--threshold <n>]');
     a.state = argv[1]; first = 2;
   }
   for (let i = first; i < argv.length; i += 1) {
@@ -61,6 +66,7 @@ function parseArgs(argv) {
     else if (k === '--confirm') { a.confirm = true; }
     else if (k === '--to') { const n = need(k, v); if (!/^[1-9]\d*$/.test(n)) usage('--to must be a positive integer'); a.to = Number(n); i += 1; }
     else if (k === '--at') { const n = need(k, v); if (!/^[1-9]\d*$/.test(n)) usage('--at must be a positive integer'); a.at = Number(n); i += 1; }
+    else if (k === '--threshold') { const n = need(k, v); if (!THRESHOLD_RE.test(n)) usage('--threshold must be a positive integer'); a.threshold = Number(n); i += 1; }
     else usage(`unknown argument ${k}`);
   }
   if (!VERBS.includes(a.verb)) usage(`usage: roadmap-edit.mjs <${VERBS.join('|')}> [flags]`);
@@ -73,6 +79,8 @@ function parseArgs(argv) {
   if (a.to !== null && a.verb !== 'move') usage('--to belongs to move');
   if (a.confirm && a.verb !== 'off') usage('--confirm belongs to off');
   if (a.intake && a.verb !== 'ship-append') usage('--intake belongs to ship-append');
+  if (a.threshold !== null && !(a.verb === 'budget' && a.state === 'advisory')) usage('--threshold belongs to budget advisory');
+  if (a.verb === 'budget' && a.state === 'advisory' && a.threshold === null) usage('budget advisory requires --threshold <n>');
   return a;
 }
 
@@ -143,10 +151,18 @@ function removeBudget(text) { // the whole `budget:` section, up to the next top
   for (let i = h + 1; i < next; i += 1) if (/^ {2}\S/.test(lines[i])) e = i + 1;
   return render([...lines.slice(0, h), ...lines.slice(e)]);
 }
-function addBudget(text) { // the block goes directly before `pairs:`
-  const lines = toLines(text);
+function hasBudget(text) { // D10: does this text already carry a top-level budget: section?
+  return toLines(text).some((l) => TOP_KEY.test(l) && TOP_KEY.exec(l)[1] === 'budget');
+}
+// setBudgetBlock(text, body) — replace or insert the whole `budget:` section
+// with the given body lines (already correctly indented), directly before
+// `pairs:`. Any EXISTING budget section (1:1 or advisory) is removed first,
+// so a transition between non-off postures never leaves two `budget:` keys.
+function setBudgetBlock(text, body) {
+  const base = hasBudget(text) ? removeBudget(text) : text;
+  const lines = toLines(base);
   const p = lines.findIndex((l) => TOP_KEY.test(l) && TOP_KEY.exec(l)[1] === 'pairs');
-  return render([...lines.slice(0, p), 'budget:', '  maintenance_per_capability: 1', ...lines.slice(p)]);
+  return render([...lines.slice(0, p), 'budget:', ...body, ...lines.slice(p)]);
 }
 function docStatus(docsDir, ref) { // frontmatter status of the document whose id is ref, or null
   for (const sub of DOC_DIRS) {
@@ -274,14 +290,20 @@ function cmdDrop(a) {
 
 function cmdBudget(a) {
   const { original, rm } = loadCurrent(a);
-  if (a.state === 'on') {
-    if (rm.budget) refuse('the maintenance budget is already on');
-    return commitEdit(a, original, true, addBudget(toText(original)), 'roadmap: maintenance budget on — the gate now enforces the 1:1 pairing');
-  }
-  if (!rm.budget) refuse('the maintenance budget is already off');
   const text = toText(original);
-  const stripped = removeBudget(text);
-  return commitEdit(a, original, true, stripped, 'roadmap: maintenance budget off — maintenance: lines stay but are inert');
+  if (a.state === 'on') {
+    if (rm.posture === 'on') refuse('the maintenance budget is already on');
+    return commitEdit(a, original, true, setBudgetBlock(text, ['  maintenance_per_capability: 1']), 'roadmap: maintenance budget on — the gate now enforces the 1:1 pairing');
+  }
+  if (a.state === 'off') {
+    if (rm.posture === 'off') refuse('the maintenance budget is already off');
+    const stripped = hasBudget(text) ? removeBudget(text) : text;
+    return commitEdit(a, original, true, stripped, 'roadmap: maintenance budget off — maintenance: lines stay but are inert');
+  }
+  // advisory (D10)
+  if (rm.posture === 'advisory' && rm.advisory.maintenance_threshold === a.threshold) refuse(`the maintenance budget is already advisory (threshold ${a.threshold})`);
+  const body = [`  mode: advisory`, `  maintenance_threshold: ${a.threshold}`];
+  return commitEdit(a, original, true, setBudgetBlock(text, body), `roadmap: maintenance budget advisory (threshold ${a.threshold}) — next proposes maintenance, the gate never refuses for it`);
 }
 
 function cmdOff(a) {
