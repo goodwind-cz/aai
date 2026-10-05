@@ -325,6 +325,7 @@ suites:
       - .aai/scripts/ride-select.mjs
       - .aai/scripts/roadmap-propose.mjs
       - .aai/scripts/lib/roadmap-model.mjs
+      - .aai/scripts/follow-ups.mjs
       - docs/ai/roadmap.yaml
 
   # aai-roadmap also asserts the prose and docs that wire the skill in (SHIP, PR,

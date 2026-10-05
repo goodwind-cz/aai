@@ -444,7 +444,7 @@ unexpected internal error.
 /aai-roadmap reorder
 ```
 
-**Note:** Every question is a menu with a recommended default. The actions are show, add, reorder, harvest, done, drop, budget (on or off) and off. See [Roadmap: when and how](#roadmap-when-and-how) for three worked examples.
+**Note:** Every question is a menu with a recommended default. The actions are show, add, reorder, harvest, done, drop, budget (on, advisory or off) and off. See [Roadmap: when and how](#roadmap-when-and-how) for worked examples.
 
 ### 3. Development Workflows
 
@@ -2183,6 +2183,7 @@ The roadmap is an ordered list of the capabilities your project builds next. It 
 | No roadmap | Do nothing (the default) | Nothing is ordered and nothing is consulted; every ride is admitted as before |
 | Roadmap without a budget | `/aai-roadmap add` | The list orders the work; `/aai-ship` with no argument takes the next item; rides are never refused for being out of order |
 | Roadmap with a budget | `/aai-roadmap add` first, then `/aai-roadmap budget` and pick on | As above, plus every capability is paired 1:1 with one maintenance ride, and the gate refuses a maintenance ride whose capability has not started and an off-roadmap fix |
+| Roadmap with an advisory budget | `/aai-roadmap add` first, then `/aai-roadmap budget` and pick advisory, with a threshold | As without a budget, plus `/aai-ship` with no argument may answer `propose_maintenance` once waiting maintenance reaches the threshold or relates to the capability just closed; the gate never refuses for it |
 
 What the skill runs underneath: each menu action is one script call (`ride-select.mjs show`, `roadmap-edit.mjs add|move|done|drop|budget|off`, `roadmap-propose.mjs harvest|write`), and every write is checked by `ride-select.mjs validate` and undone if it fails.
 
@@ -2220,6 +2221,17 @@ You want every capability paired with one maintenance ride (the 1:1 budget) so t
 ```
 
 With the budget on, `/aai-ship` for a maintenance ride whose capability has not started is refused with the reason, and an off-roadmap fix is sent to the backlog; you can override once with a stated reason, which is logged. Add more capabilities with `/aai-roadmap add` (or let `/aai-roadmap harvest` rank candidates from your drafts); switch the budget off again with `/aai-roadmap budget` (the pairing lines stay in the file, inactive, so switching back loses nothing). To drop the roadmap entirely, `/aai-roadmap off` asks for confirmation and recommends keeping it.
+
+### Example 4: an advisory budget
+
+You want a reminder when maintenance is piling up, but never a refusal:
+
+```
+/aai-roadmap budget       # pick "advisory"; accept the recommended threshold
+/aai-ship                 # no argument: takes the next item, or a proposal
+```
+
+`/aai-roadmap budget` runs `ride-select.mjs waiting --json` first and offers its `recommended_threshold` as the default, then writes `mode: advisory` and `maintenance_threshold` into the roadmap. The gate behaves exactly as without a budget — nothing is ever refused. When waiting maintenance (open P1/P2 follow-ups and open issue/techdebt intakes) reaches the threshold, or an open follow-up references the capability you most recently closed, `/aai-ship` with no argument answers `propose_maintenance` instead of the usual next item; it offers one menu with two options — (1, recommended) ride the proposed item, or (2) continue with what `/aai-ship` would otherwise have taken — and asks nothing else. The gate never refuses for it, and the proposal repeats on the next `/aai-ship` until it is acted on or the trigger clears.
 
 ---
 

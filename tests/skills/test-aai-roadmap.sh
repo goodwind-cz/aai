@@ -1050,20 +1050,20 @@ test_1333_userguide_section() {
   local sec; sec="$(awk '/^## Roadmap: when and how$/{f=1; next} f && /^## /{exit} f' "$G")"
   printf '%s\n' "$sec" > "$TEST_DIR/roadmap-section.md"
   local h3; h3="$(grep -c '^### ' "$TEST_DIR/roadmap-section.md" || true)"
-  [ "$h3" = "3" ] || log_fail "TEST-1333: the section needs exactly three H3 worked examples, found $h3"
+  [ "$h3" = "4" ] || log_fail "TEST-1333: the section needs exactly four H3 worked examples (advisory budget added, Spec-AC-17), found $h3"
   local want
-  for want in 'no roadmap' 'without a budget' 'with a budget'; do
+  for want in 'no roadmap' 'without a budget' 'with a budget' 'an advisory budget'; do
     grep -qi "^### .*$want" "$TEST_DIR/roadmap-section.md" || log_fail "TEST-1333: an H3 example must be about '$want'"
   done
   # each example block names a skill invocation
   awk 'BEGIN{n=0} /^### /{n++} n>0{print > ("'"$TEST_DIR"'/ex" n ".md")}' "$TEST_DIR/roadmap-section.md"
   local i
-  for i in 1 2 3; do
+  for i in 1 2 3 4; do
     [ -f "$TEST_DIR/ex$i.md" ] || log_fail "TEST-1333: example $i missing"
     if ! grep -qE '/aai-(roadmap|ship)' "$TEST_DIR/ex$i.md"; then log_fail "TEST-1333: example $i must show an /aai-roadmap or /aai-ship invocation"; fi
   done
   grep -qF 'docs/USER_GUIDE.md#roadmap-when-and-how' "$R" || log_fail "TEST-1333: README must link docs/USER_GUIDE.md#roadmap-when-and-how"
-  log_pass "USER_GUIDE roadmap section has TOC, three examples with invocations; README links it (TEST-1333)"
+  log_pass "USER_GUIDE roadmap section has TOC, four examples with invocations; README links it (TEST-1333)"
 }
 
 # --- TEST-1334 (Spec-AC-15): product doc ---------------------------------------------
@@ -1479,7 +1479,101 @@ test_1638_dispatch_and_pairs_seam() {
   log_pass "dispatch candidate gate agrees under advisory, equals off; loadRoadmap pairs equal off vs advisory (TEST-1638)"
 }
 
-# TEST-1644 (Spec-AC-18, suite-map) is Batch 5's scope — not implemented here.
+# --- TEST-1639 (Spec-AC-14): SKILL_ROADMAP action 7, three-posture menu ----------
+test_1639_skill_roadmap_advisory_menu() {
+  log_info "Test: SKILL_ROADMAP action 7 names on, advisory and off, the advisory command, waiting --json and recommended_threshold (TEST-1639)..."
+  local S="$PROJECT_ROOT/.aai/SKILL_ROADMAP.prompt.md" action7
+  action7="$(region "$S" '^7\. budget' '^8\. ')"
+  [ -n "$action7" ] || log_fail "TEST-1639: SKILL_ROADMAP action 7 not found"
+  printf '%s\n' "$action7" > "$TEST_DIR/action7.txt"
+  file_has "$TEST_DIR/action7.txt" 'budget on' || log_fail "TEST-1639: action 7 must still name budget on"
+  file_has "$TEST_DIR/action7.txt" 'budget off' || log_fail "TEST-1639: action 7 must still name budget off"
+  file_has "$TEST_DIR/action7.txt" 'budget advisory' || log_fail "TEST-1639: action 7 must name budget advisory"
+  file_has "$TEST_DIR/action7.txt" 'roadmap-edit.mjs budget advisory --threshold' || log_fail "TEST-1639: action 7 must name the advisory command roadmap-edit.mjs budget advisory --threshold"
+  file_has "$TEST_DIR/action7.txt" 'ride-select.mjs waiting --json' || log_fail "TEST-1639: action 7 must name ride-select.mjs waiting --json"
+  file_has "$TEST_DIR/action7.txt" 'recommended_threshold' || log_fail "TEST-1639: action 7 must name recommended_threshold"
+  [ "$(run_suite test-aai-roadmap.sh test_1329_skill_action_map)" = "0" ] || log_fail "TEST-1639: TEST-1329 must stay green: $(tail -5 "$TEST_DIR/suite-out")"
+  [ "$(run_suite test-aai-ride-select.sh test_744_no_automatic_invocation_site)" = "0" ] || log_fail "TEST-1639: TEST-1330 (test_744) must stay green: $(tail -5 "$TEST_DIR/suite-out")"
+  log_pass "SKILL_ROADMAP action 7 offers on, advisory and off with the advisory command, waiting --json and recommended_threshold (TEST-1639)"
+}
+
+# --- TEST-1640 (Spec-AC-15): SKILL_SHIP INPUT propose_maintenance relay ----------
+test_1640_skill_ship_propose_maintenance_relay() {
+  log_info "Test: SKILL_SHIP INPUT relays propose_maintenance as one two-option menu and asks nothing else (TEST-1640)..."
+  local SH="$PROJECT_ROOT/.aai/SKILL_SHIP.prompt.md" input
+  input="$(region "$SH" '^INPUT' '^AUTOPILOT DEFAULTS')"
+  [ -n "$input" ] || log_fail "TEST-1640: SKILL_SHIP INPUT section not found"
+  printf '%s\n' "$input" > "$TEST_DIR/input.txt"
+  file_has "$TEST_DIR/input.txt" 'propose_maintenance' || log_fail "TEST-1640: INPUT must name propose_maintenance"
+  file_has "$TEST_DIR/input.txt" 'candidates' || log_fail "TEST-1640: INPUT must name candidates"
+  file_has "$TEST_DIR/input.txt" 'alternative' || log_fail "TEST-1640: INPUT must name alternative"
+  file_has "$TEST_DIR/input.txt" 'ONE menu' || log_fail "TEST-1640: INPUT must say it offers ONE menu"
+  file_has "$TEST_DIR/input.txt" 'recommended' || log_fail "TEST-1640: INPUT must name a recommended option"
+  file_has "$TEST_DIR/input.txt" 'asking nothing' || log_fail "TEST-1640: INPUT must say it asks nothing else"
+  [ "$(run_suite test-aai-roadmap.sh test_1331_ship_wiring)" = "0" ] || log_fail "TEST-1640: TEST-1331 must stay green: $(tail -5 "$TEST_DIR/suite-out")"
+  [ "$(run_suite test-aai-roadmap.sh test_1338_noarg_ship_rides_roadmap_item)" = "0" ] || log_fail "TEST-1640: TEST-1338 must stay green: $(tail -5 "$TEST_DIR/suite-out")"
+  log_pass "SKILL_SHIP INPUT relays propose_maintenance as one two-option menu, asking nothing else (TEST-1640)"
+}
+
+# --- TEST-1642 (Spec-AC-17): USER_GUIDE advisory posture row + Example 4 ---------
+test_1642_userguide_advisory_posture_and_example4() {
+  log_info "Test: USER_GUIDE roadmap section gains an advisory posture row and Example 4; the /aai-roadmap note lists budget (on, advisory or off) (TEST-1642)..."
+  local G="$PROJECT_ROOT/docs/USER_GUIDE.md"
+  local sec; sec="$(awk '/^## Roadmap: when and how$/{f=1; next} f && /^## /{exit} f' "$G")"
+  printf '%s\n' "$sec" > "$TEST_DIR/roadmap-section.md"
+  grep -qE '^\|.*[Aa]dvisory.*\|' "$TEST_DIR/roadmap-section.md" || log_fail "TEST-1642: the posture table must carry an advisory row"
+  grep -qxF -- '### Example 4: an advisory budget' "$TEST_DIR/roadmap-section.md" || log_fail "TEST-1642: the section must carry '### Example 4: an advisory budget'"
+  local ex4; ex4="$(awk '/^### Example 4: an advisory budget$/{f=1; next} f && /^### /{exit} f' "$TEST_DIR/roadmap-section.md")"
+  [ -n "$ex4" ] || log_fail "TEST-1642: Example 4 body must be non-empty"
+  case "$ex4" in *'/aai-roadmap budget'*) ;; *) log_fail "TEST-1642: Example 4 must name /aai-roadmap budget" ;; esac
+  case "$ex4" in *'/aai-ship'*) ;; *) log_fail "TEST-1642: Example 4 must name /aai-ship" ;; esac
+  grep -qF -- 'budget (on, advisory or off)' "$G" || log_fail "TEST-1642: the /aai-roadmap note must list budget (on, advisory or off)"
+  [ "$(run_suite test-aai-roadmap.sh test_1333_userguide_section)" = "0" ] || log_fail "TEST-1642: TEST-1333 must stay green: $(tail -5 "$TEST_DIR/suite-out")"
+  log_pass "USER_GUIDE gains the advisory posture row, Example 4, and the updated budget note; TEST-1333 stays green (TEST-1642)"
+}
+
+# --- TEST-1643 (Spec-AC-17): product doc, three postures worked -----------------
+test_1643_product_doc_three_postures() {
+  log_info "Test: docs/product/roadmap.md names mode: advisory, maintenance_threshold, propose_maintenance, ride-select.mjs waiting and carries one worked example per posture (TEST-1643)..."
+  local P="$PROJECT_ROOT/docs/product/roadmap.md" k
+  for k in 'mode: advisory' 'maintenance_threshold' 'propose_maintenance' 'ride-select.mjs waiting'; do
+    grep -qF -- "$k" "$P" || log_fail "TEST-1643: docs/product/roadmap.md must name '$k'"
+  done
+  local sec; sec="$(awk '/^## Worked examples$/{f=1; next} f && /^## /{exit} f' "$P")"
+  [ -n "$sec" ] || log_fail "TEST-1643: docs/product/roadmap.md must carry a '## Worked examples' section"
+  printf '%s\n' "$sec" > "$TEST_DIR/worked-examples.md"
+  local h3; h3="$(grep -c '^### ' "$TEST_DIR/worked-examples.md" || true)"
+  [ "$h3" = "3" ] || log_fail "TEST-1643: Worked examples needs exactly three H3 postures, found $h3"
+  local p2
+  for p2 in 'Off' 'On' 'Advisory'; do
+    grep -qx "### $p2" "$TEST_DIR/worked-examples.md" || log_fail "TEST-1643: Worked examples must have a '### $p2' posture"
+  done
+  [ "$(run_suite test-aai-roadmap.sh test_1334_product_doc)" = "0" ] || log_fail "TEST-1643: TEST-1334 must stay green: $(tail -5 "$TEST_DIR/suite-out")"
+  log_pass "docs/product/roadmap.md names the advisory vocabulary and carries one worked example per posture (TEST-1643)"
+}
+
+# --- TEST-1644 (Spec-AC-18): suite-map lists follow-ups.mjs under aai-ride-select --
+test_1644_suite_map_followups_under_ride_select() {
+  log_info "Test: suite-map lists .aai/scripts/follow-ups.mjs inside the aai-ride-select block, read by block not a file-wide grep (TEST-1644)..."
+  local M="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  local block; block="$(awk '/^  aai-ride-select:$/{f=1; next} f && /^  [a-zA-Z0-9_-]+:$/{exit} f' "$M")"
+  [ -n "$block" ] || log_fail "TEST-1644: aai-ride-select block not found"
+  printf '%s\n' "$block" > "$TEST_DIR/aai-ride-select-block.txt"
+  grep -qF -- '.aai/scripts/follow-ups.mjs' "$TEST_DIR/aai-ride-select-block.txt" || log_fail "TEST-1644: .aai/scripts/follow-ups.mjs must be listed inside the aai-ride-select block"
+  # independent re-derivation of the block's line range (never trust one awk alone)
+  local line_no next_key
+  line_no="$(awk '/^  aai-ride-select:$/{print NR; exit}' "$M")"
+  [ -n "$line_no" ] || log_fail "TEST-1644: aai-ride-select: key line not found"
+  next_key="$(awk -v start="$line_no" 'NR>start && /^  [a-zA-Z0-9_-]+:$/{print NR; exit}' "$M")"
+  [ -n "$next_key" ] || log_fail "TEST-1644: next suite key after aai-ride-select not found"
+  sed -n "${line_no},${next_key}p" "$M" > "$TEST_DIR/aai-ride-select-range.txt"
+  grep -qF -- '.aai/scripts/follow-ups.mjs' "$TEST_DIR/aai-ride-select-range.txt" || log_fail "TEST-1644: the independent line-range re-derivation must also find follow-ups.mjs inside the block"
+  # functional: a diff touching only follow-ups.mjs selects aai-ride-select
+  printf '%s\n' ".aai/scripts/follow-ups.mjs" > "$TEST_DIR/changed.txt"
+  node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from "$TEST_DIR/changed.txt" --repo-root "$PROJECT_ROOT" > "$TEST_DIR/sel.txt" 2>&1 || true
+  grep -q '^SELECTED aai-ride-select ' "$TEST_DIR/sel.txt" || log_fail "TEST-1644: a follow-ups.mjs diff must SELECT aai-ride-select, got: $(cat "$TEST_DIR/sel.txt")"
+  log_pass "suite-map lists follow-ups.mjs inside the aai-ride-select block; a diff of it selects the suite (TEST-1644)"
+}
 
 main() {
   echo "=== $TEST_NAME ==="
@@ -1524,6 +1618,11 @@ main() {
   test_1636_ship_and_advance_advisory_equals_off
   test_1637_nlb_seam_advisory
   test_1638_dispatch_and_pairs_seam
+  test_1639_skill_roadmap_advisory_menu
+  test_1640_skill_ship_propose_maintenance_relay
+  test_1642_userguide_advisory_posture_and_example4
+  test_1643_product_doc_three_postures
+  test_1644_suite_map_followups_under_ride_select
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

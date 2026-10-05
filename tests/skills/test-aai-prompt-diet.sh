@@ -952,7 +952,12 @@ test_012_growth_sum_matches_ledger() {
   # exactly three things" sentence scoped to the auto-merge/merge-queue
   # concern); zero headroom standing, credited 1:1 (ledger key
   # configurable-merge-policy-lanes-round11-b1).
-  local want_growth=51242
+  # Then 51242 -> 51978: roadmap-maintenance-budget-advisory Spec-AC-14/15
+  # D12 (+736 B: SKILL_ROADMAP.prompt.md 3020 -> 3434, +414 B, the advisory
+  # budget pick; SKILL_SHIP.prompt.md 7714 -> 8036, +322 B, the
+  # propose_maintenance one-menu relay); zero headroom standing, credited 1:1
+  # (ledger key roadmap-maintenance-budget-advisory).
+  local want_growth=51978
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2441,6 +2446,94 @@ test_1531_merge_policy_lanes_growth_ledgered() {
     || log_fail "TEST-1531 (Spec-AC-22) configurable-merge-policy-lanes ledger entry"
 }
 
+# TEST-1641 (Spec-AC-16, spec-roadmap-maintenance-budget-advisory) — the
+# roadmap-maintenance-budget-advisory ledger entry credits exactly the
+# measured growth of SKILL_ROADMAP.prompt.md and SKILL_SHIP.prompt.md (D12),
+# and the TEST-012 checkpoint moves by the same amount (checked via the
+# whole-suite run, not re-derived here).
+test_1641_roadmap_advisory_growth_ledgered() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-1641 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 lead sum=0 f now verdict_msg
+  local ledger_key='roadmap-maintenance-budget-advisory'
+  local prefix=0 prefix_closed=0 last_idx=$(( ${#JUSTIFIED_ADDITIONS[@]} - 1 )) idx=0 entry_idx=-1
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    if [[ "$prefix_closed" -eq 0 ]]; then
+      prefix=$(( prefix + ${_e%% *} ))
+    fi
+    # Exact match on the entry's own ref field (a substring match would also
+    # agree with a future ride's mutation of the slug).
+    local ref="${_e#* }"; ref="${ref%% *}"
+    if [[ "$ref" == "$ledger_key" ]]; then
+      entry="$_e"; n=$((n + 1)); prefix_closed=1; entry_idx=$idx
+    fi
+    idx=$(( idx + 1 ))
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-1641: JUSTIFIED_ADDITIONS carries $n entries whose ref field is exactly '$ledger_key' (want exactly 1)"
+    return
+  fi
+  if [[ "$entry_idx" -ne "$last_idx" ]]; then
+    log_info "TEST-1641: the entry sits at index $entry_idx of $last_idx -- later rides have appended their own credits since; the prefix pin below is what holds"
+  fi
+  lead="${entry%% *}"
+  if ! [[ "$lead" =~ ^-?[0-9]+$ ]]; then
+    log_fail "TEST-1641: the entry's leading bytes field '$lead' is not numeric"
+    return
+  fi
+  local base=''
+  if [[ "$entry" =~ against\ ([0-9a-f]{7,40}) ]]; then
+    base="${BASH_REMATCH[1]}"
+    git cat-file -e "${base}^{commit}" 2>/dev/null || base=""
+  else
+    log_info "TEST-1641: the ledger entry does not name the base commit it measured against"
+    ok=0
+  fi
+  local re base_size
+  for f in .aai/SKILL_ROADMAP.prompt.md:SKILL_ROADMAP.prompt.md .aai/SKILL_SHIP.prompt.md:SKILL_SHIP.prompt.md; do
+    local path="${f%%:*}" name="${f##*:}"
+    re="${name//./\\.} ([0-9]+) -> ([0-9]+)"
+    if [[ "$entry" =~ $re ]]; then
+      now=$(/usr/bin/wc -c < "$PROJECT_ROOT/$path" | tr -d ' ')
+      sum=$(( sum + BASH_REMATCH[2] - BASH_REMATCH[1] ))
+      if verdict_msg=$(diet_credit_verdict "TEST-1641 $name" $(( BASH_REMATCH[2] - BASH_REMATCH[1] )) "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$now"); then
+        [[ -n "$verdict_msg" ]] && log_info "$verdict_msg"
+      else
+        log_info "$verdict_msg"
+        ok=0
+      fi
+      if [[ -n "$base" ]]; then
+        if git cat-file -e "$base:$path" 2>/dev/null; then
+          base_size=$(git cat-file -s "$base:$path")
+        else
+          base_size=0
+        fi
+        if [[ "$base_size" -ne "${BASH_REMATCH[1]}" ]]; then
+          log_info "TEST-1641: $name records before=${BASH_REMATCH[1]} but its base blob is $base_size B"
+          ok=0
+        fi
+      else
+        log_info "TEST-1641: base-blob comparison SKIPPED -- the named base commit is not in this checkout"
+      fi
+    else
+      log_info "TEST-1641: the ledger entry does not record '$name <before> -> <after>'"
+      ok=0
+    fi
+  done
+  if [[ "$sum" -ne "$lead" ]]; then
+    log_info "TEST-1641: per-file deltas sum to $sum B but the entry credits $lead B"
+    ok=0
+  fi
+  if [[ "$prefix" -ne $(( 51242 + lead )) ]]; then
+    log_info "TEST-1641: ledger prefix through this entry=$prefix (want 51242 + $lead = $(( 51242 + lead )))"
+    ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-1641 (Spec-AC-16) roadmap-maintenance-budget-advisory growth $lead B is measured per file and credited 1:1, pin 51242 -> $prefix" \
+    || log_fail "TEST-1641 (Spec-AC-16) roadmap-maintenance-budget-advisory ledger entry"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2496,6 +2589,7 @@ main() {
   test_028_windows_prompt_credit
   test_1372_amendment_class_partition_credited
   test_1531_merge_policy_lanes_growth_ledgered
+  test_1641_roadmap_advisory_growth_ledgered
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

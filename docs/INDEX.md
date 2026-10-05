@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-05T18:46:26.747Z
+Generated: 2026-10-05T20:54:34.926Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-roadmap-maintenance-budget-advisory | specs | implementing | 13 done, 5 planned | docs/specs/SPEC-DRAFT-spec-roadmap-maintenance-budget-advisory.md |
+| spec-roadmap-maintenance-budget-advisory | specs | implementing | 18 done | docs/specs/SPEC-DRAFT-spec-roadmap-maintenance-budget-advisory.md |
 
 ## Canonical layer (0)
 
