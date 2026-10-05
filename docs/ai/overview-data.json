@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T13:01:59.324Z",
+  "generatedAt": "2026-10-05T23:33:36.503Z",
   "project": "aai",
   "counts": {
     "delivered": 277,
@@ -57,11 +57,11 @@
       "status": "draft",
       "path": "docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md",
       "closed_on": null,
-      "agent_minutes": null,
+      "agent_minutes": 548,
       "token_total": null,
-      "spec": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-roadmap-maintenance-budget-advisory.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-roadmap-maintenance-budget-advisory-20261005T231640Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
