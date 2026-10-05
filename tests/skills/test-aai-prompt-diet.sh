@@ -932,7 +932,11 @@ test_012_growth_sum_matches_ledger() {
   # Then 50423 -> 50633: configurable-merge-policy-lanes validation-round1
   # remediation NB-1/NB-4 (+354 B, SKILL_PR.prompt.md 35467 -> 35821); the
   # pre-scope 144 B headroom absorbs 144 of it, 210 B credited 1:1.
-  local want_growth=50633
+  # Then 50633 -> 50754: configurable-merge-policy-lanes code review round 7
+  # N7 remediation (+121 B, SKILL_PR.prompt.md 35821 -> 35942, the lane-merge
+  # command gains its required PR number); zero headroom standing, credited
+  # 1:1 (ledger key configurable-merge-policy-lanes-r7).
+  local want_growth=50754
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

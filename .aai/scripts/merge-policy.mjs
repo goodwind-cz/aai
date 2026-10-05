@@ -875,11 +875,18 @@ export function globToRegExp(glob) {
 
 // classifyFiles(files, policy) — guard paths first, then architecture, then
 // kinds (P5, Spec-AC-05). Returns { denyReason, path } on the first
-// PR-level deny, or { kinds: Set<kindId> } naming every kind at least one
-// changed file matched. Architecture always overrides a kind match on the
-// same path (the `if (archHit) return` below runs before the kind lookup).
-// The glob engine itself (globToRegExp, Spec-AC-06) is proven through the
-// --classify authoring aid's 10-row glob table.
+// PR-level deny, or { kinds: Set<kindId>, fileKinds: Map<path, Set<kindId>> }
+// on success: `kinds` names every kind at least one changed file matched
+// (PR-level union, kept for callers that only need "did anything match
+// kind X"); `fileKinds` names, per path, EVERY kind that path matches —
+// code review B1 (round 7): a path can match more than one kind glob, and
+// "a lane covers a path when at least one kind the path matches is listed
+// in the lane's kinds" (P5) means evaluateLane needs the full per-path set,
+// not just the first kind the old `break`-on-first-match loop happened to
+// record. Architecture always overrides a kind match on the same path (the
+// `if (archHit) return` below runs before the kind lookup). The glob engine
+// itself (globToRegExp, Spec-AC-06) is proven through the --classify
+// authoring aid's 10-row glob table.
 export function classifyFiles(files, policy) {
   // N3 (code review, HEAD f47f8861): getChangedFiles's own zero-file
   // sentinel (an empty diff) is represented as the single path '-' — the
@@ -892,20 +899,22 @@ export function classifyFiles(files, policy) {
     if (GUARD_PATHS.includes(f)) return { denyReason: 'policy_touched', path: f };
   }
   const kinds = new Set();
+  const fileKinds = new Map();
   for (const f of files) {
     let archHit = false;
     for (const a of policy.architecture) {
       if ((a.globs || []).some((g) => globToRegExp(g).test(f))) { archHit = true; break; }
     }
     if (archHit) return { denyReason: 'architecture', path: f };
-    let kindId = null;
+    const matched = new Set();
     for (const k of policy.kinds || []) {
-      if ((k.globs || []).some((g) => globToRegExp(g).test(f))) { kindId = k.id; break; }
+      if ((k.globs || []).some((g) => globToRegExp(g).test(f))) matched.add(k.id);
     }
-    if (kindId === null) return { denyReason: 'unclassified', path: f };
-    kinds.add(kindId);
+    if (matched.size === 0) return { denyReason: 'unclassified', path: f };
+    for (const k of matched) kinds.add(k);
+    fileKinds.set(f, matched);
   }
-  return { kinds };
+  return { kinds, fileKinds };
 }
 
 // ---------------------------------------------------------------------------
@@ -1209,10 +1218,27 @@ function readStateStatus(statePath, blockName) {
 // `requires` key is optional, and an unmet NON-declared key never denies. A
 // lane with no max_ceremony is capped at DEFAULT_MAX_CEREMONY (P7: ceremony
 // 3 is covered only when `max_ceremony: 3` is written explicitly).
+//
+// kind_not_in_lane (code review B1, round 7): P5 — "a lane covers a path
+// when at least one kind the path matches is listed in the lane's kinds" —
+// is a per-PATH rule, and the spec amendment folded into P5 makes the
+// PR-level consequence explicit: a lane is eligible only when it covers
+// EVERY changed path. Judging coverage over the PR's union of matched
+// kinds (the old `kinds.some(...)` check below) let a single qualifying
+// file drag an entire mixed PR through a narrow lane. ctx.fileKinds is
+// classifyFiles's per-path kind-set map (insertion order == the diff's own
+// file order), so this walks paths in that same deterministic order and
+// denies on the FIRST uncovered one, naming it (P10's kind_not_in_lane line
+// now carries `path=<p>`) so the denial is actionable without a re-run.
 export function evaluateLane(lane, ctx) {
   const kinds = Array.isArray(lane.kinds) ? lane.kinds : [];
-  if (!kinds.some((k) => ctx.kinds.has(k))) {
-    return { ok: false, reason: 'kind_not_in_lane' };
+  const kindSet = new Set(kinds);
+  for (const [path, matched] of ctx.fileKinds) {
+    let covered = false;
+    for (const k of matched) {
+      if (kindSet.has(k)) { covered = true; break; }
+    }
+    if (!covered) return { ok: false, reason: 'kind_not_in_lane', path };
   }
   const req = lane.requires || {};
   // R2-B2: a DECLARED intake_types condition denies when its value is not
@@ -1296,11 +1322,23 @@ function getPrJson(root, pr) {
   return JSON.parse(raw);
 }
 
+// getChangedFiles (code review B2, round 7): `-z` disables git's default
+// `core.quotePath` C-style quoting/escaping of a path carrying a byte
+// >= 0x80, a quote, a backslash, a tab or a newline, and NUL-terminates
+// each entry instead of newline-separating them, so a literal newline
+// INSIDE a path can never be misread as an entry separator. Without `-z`
+// a non-ASCII or quote-bearing path comes back as the quoted/escaped
+// STRING `".github/workflows/d\303\251ploy.yml"`, not the real repo-
+// relative path — an anchored architecture glob then never matches it
+// (misread-then-allow), while a catch-all `**` kind still does. No
+// `.trim()` here on purpose: a real path may legitimately carry leading or
+// trailing whitespace, and trimming it would be exactly the same
+// real-bytes-corruption bug in a different shape.
 function getChangedFiles(root, base, head) {
-  const out = execFileSync('git', ['diff', '--name-only', '--no-renames', `${base}...${head}`], {
+  const out = execFileSync('git', ['diff', '-z', '--name-only', '--no-renames', `${base}...${head}`], {
     cwd: root, encoding: 'utf8',
   });
-  const files = out.split('\n').map((s) => s.trim()).filter(Boolean);
+  const files = out.split('\u0000').filter(Boolean);
   return files.length ? files : ['-'];
 }
 
@@ -1445,7 +1483,7 @@ function runCheck(opts) {
   }
 
   const ctx = {
-    kinds: classification.kinds, reviews: prJson.reviews, headOid: head,
+    fileKinds: classification.fileKinds, reviews: prJson.reviews, headOid: head,
     body: prJson.body || '', ceremony,
     intakeType: intakeMeta.type, rideRef: intakeMeta.ref,
     roadmapCapabilities, validationStatus, reviewStatus,
@@ -1455,7 +1493,11 @@ function runCheck(opts) {
   for (const lane of policy.lanes) {
     const verdict = evaluateLane(lane, ctx);
     if (verdict.ok) { allowedLane = lane; break; }
-    laneLines.push(`lane=${lane.id} reason=${verdict.reason}`);
+    // P10 amendment (code review B1, round 7): the kind_not_in_lane line
+    // carries the first changed path that lane does not cover, so the
+    // denial names the specific gap without a re-run under --debug-inputs.
+    const pathSuffix = verdict.path !== undefined ? ` path=${verdict.path}` : '';
+    laneLines.push(`lane=${lane.id} reason=${verdict.reason}${pathSuffix}`);
   }
 
   if (!allowedLane) {

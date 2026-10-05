@@ -1985,7 +1985,7 @@ JSON
           "TEST-1524 [$case_name]: expected no_lane_matched, got: $OUT"
         local lane_id
         for lane_id in lane-x lane-y lane-z; do
-          assert_payload_has_line "$OUT" "lane=$lane_id reason=kind_not_in_lane" \
+          assert_payload_has_line "$OUT" "lane=$lane_id reason=kind_not_in_lane path=docs/changed-$case_name.md" \
             "TEST-1524 [$case_name]: expected exactly one lane line for $lane_id, got: $OUT"
         done
         local line_count=0 out_line
@@ -4143,6 +4143,323 @@ NODE
   log_pass "TEST-1568 (Spec-AC-09, NB-4) sweepCheckAllowed binds pr= to a whole numeric token; pr=7x and pr=70 never count for PR 7"
 }
 
+# --- TEST-1569 (Spec-AC-05/P5, code review round 7 B1) ----------------------
+# evaluateLane judges lane coverage per CHANGED PATH, never over the PR's
+# union of matched kinds: a content-only lane must deny a mixed content+code
+# PR, classifyFiles must record EVERY kind a path matches (not just the
+# first), and a two-file PR through this repository's own live catch-all
+# policy must still allow -- the fix must never touch the one shape the lane
+# exists to permit.
+test_1569_lane_coverage_is_per_path() {
+  log_info "TEST-1569: a content-only lane denies a mixed content+code PR (kind_not_in_lane naming the uncovered path), allows an all-content PR, allows a path that matches two kinds when only the second is in the lane, and the live catch-all internal-standing lane still allows a multi-file PR"
+  local case_name
+  for case_name in mixed_denied content_only_allowed dual_kind_allowed live_catchall_multi_file; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/content" "$repo/src"
+
+    case "$case_name" in
+      mixed_denied|content_only_allowed)
+        cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: content
+    globs: ["content/**"]
+  - id: code
+    globs: ["src/**"]
+lanes:
+  - id: content-lane
+    decision_ref: test1569-content@2026-10-05T00:00:00Z
+    decision_match: "MERGE LANE test1569 content"
+    signed_by: owner-login
+    kinds: [content]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_CONTENT1569_MERGE
+YAML
+        cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1569-content","ts":"2026-10-05T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1569 content approved"}
+JSONL
+        ;;
+      dual_kind_allowed)
+        # `content` is declared FIRST and also matches content/special.md --
+        # the pre-fix classifyFiles broke at the first glob match per file,
+        # recording only `content` for this path and losing `special`
+        # entirely. The lane only lists `special`, so the pre-fix code
+        # denies kind_not_in_lane even though the path genuinely matches a
+        # kind the lane lists.
+        cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: content
+    globs: ["content/**"]
+  - id: special
+    globs: [content/special.md]
+lanes:
+  - id: special-lane
+    decision_ref: test1569-special@2026-10-05T00:00:00Z
+    decision_match: "MERGE LANE test1569 special"
+    signed_by: owner-login
+    kinds: [special]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_SPECIAL1569_MERGE
+YAML
+        cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1569-special","ts":"2026-10-05T00:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1569 special approved"}
+JSONL
+        ;;
+      live_catchall_multi_file)
+        cp "$PROJECT_ROOT/docs/ai/merge-policy.yaml" "$repo/docs/ai/merge-policy.yaml"
+        grep -F 'wave-2-roadmap' "$PROJECT_ROOT/docs/ai/decisions.jsonl" > "$repo/docs/ai/decisions.jsonl"
+        local nrec; nrec="$(wc -l < "$repo/docs/ai/decisions.jsonl" | tr -d ' ')"
+        [[ "$nrec" -ge 3 ]] || { log_fail "TEST-1569 [$case_name]: fixture precondition failed -- expected >=3 live wave-2-roadmap records, got $nrec"; continue; }
+        cat > "$repo/docs/ai/roadmap.yaml" <<'YAML'
+pairs:
+  - capability: an-unrelated-capability
+    status: done
+YAML
+        ;;
+    esac
+
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+
+    case "$case_name" in
+      mixed_denied)
+        echo "a content change" > "$repo/content/a.md"
+        echo "a code change" > "$repo/src/app.js"
+        ;;
+      content_only_allowed)
+        echo "a content change" > "$repo/content/a.md"
+        echo "another content change" > "$repo/content/b.md"
+        ;;
+      dual_kind_allowed)
+        echo "special content" > "$repo/content/special.md"
+        ;;
+      live_catchall_multi_file)
+        echo "doc change 1 ($case_name)" > "$repo/docs/changed-1569-a.md"
+        echo "doc change 2 ($case_name)" > "$repo/docs/changed-1569-b.md"
+        ;;
+    esac
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+
+    local pr=80
+    write_sweep_record "$repo" "$pr"
+
+    local body=""
+    if [[ "$case_name" == "live_catchall_multi_file" ]]; then
+      body="plan carries a Residual risk"
+      write_intake "$TEST_DIR/intake.md" "ride-1569" "change"
+      write_state "$TEST_DIR/STATE.yaml" "pass" "pass"
+    fi
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":$pr,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"$body"}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    if [[ "$case_name" == "live_catchall_multi_file" ]]; then
+      run_check "$repo" "$ghbin" "$pr" --intake "$TEST_DIR/intake.md" --state "$TEST_DIR/STATE.yaml"
+    else
+      run_check "$repo" "$ghbin" "$pr"
+    fi
+
+    case "$case_name" in
+      mixed_denied)
+        # Diff order is path-sorted: content/a.md (covered) before
+        # src/app.js (uncovered) -- the first uncovered path wins.
+        assert_payload_has_line "$OUT" "lane=content-lane reason=kind_not_in_lane path=src/app.js" \
+          "TEST-1569 [$case_name]: expected the mixed PR denied naming the uncovered code path, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1569 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      content_only_allowed)
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=$pr lane=content-lane marker=AAI_CONTENT1569_MERGE decision_ref=test1569-content@2026-10-05T00:00:00Z merge_reaches=nothing" \
+          "TEST-1569 [$case_name]: expected the all-content PR allowed, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1569 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+      dual_kind_allowed)
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=$pr lane=special-lane marker=AAI_SPECIAL1569_MERGE decision_ref=test1569-special@2026-10-05T00:00:00Z merge_reaches=nothing" \
+          "TEST-1569 [$case_name]: expected the dual-kind path allowed via its SECOND matched kind, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1569 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+      live_catchall_multi_file)
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=$pr lane=internal-standing marker=AAI_INTERNAL_STANDING_MERGE decision_ref=wave-2-roadmap@2026-09-12T19:56:52Z merge_reaches=nothing" \
+          "TEST-1569 [$case_name]: expected the live catch-all policy to still allow a qualifying two-file internal ride, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1569 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+    esac
+  done
+
+  log_pass "TEST-1569 (Spec-AC-05/P5, B1) lane coverage is judged per changed path: a mixed PR denies naming the uncovered path, an all-content PR allows, a path matching two kinds allows via its second kind, and the live catch-all policy still allows a multi-file ride"
+}
+
+# --- TEST-1570 (Spec-AC-05, code review round 7 B2) -------------------------
+# getChangedFiles must read git's `-z` NUL-separated output, not the default
+# newline-separated, C-quoted-on-demand form -- a non-ASCII or quote/
+# backslash-bearing path comes back QUOTED AND ESCAPED without `-z`, so it
+# never matches the real glob it should, and architecture's "even when a
+# kind glob also matches" guarantee (P5) silently stops applying to it.
+test_1570_changed_files_reads_real_bytes() {
+  log_info "TEST-1570: a non-ASCII or quote-bearing path under an architecture glob still denies architecture; a space- or backslash-bearing path still classifies on its real bytes; a GUARD_PATHS file alongside a non-ASCII sibling still denies policy_touched"
+  local case_name
+  for case_name in non_ascii_architecture quoted_architecture space_path backslash_path guard_with_nonascii_sibling; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/.github/workflows" "$repo/src"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+architecture:
+  - id: consumer-facing
+    globs: [".github/**"]
+kinds:
+  - id: repo
+    globs: ["**"]
+lanes:
+  - id: lane-1570
+    decision_ref: test1570-ride@2026-10-05T01:00:00Z
+    decision_match: "MERGE LANE test1570"
+    signed_by: owner-login
+    kinds: [repo]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_LANE1570_MERGE
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1570-ride","ts":"2026-10-05T01:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1570 approved"}
+JSONL
+    echo "readme" > "$repo/src/readme.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+
+    # Exotic paths are committed via `git update-index --cacheinfo`, never
+    # through the shell/filesystem: a literal newline byte in a path is
+    # valid inside a git tree entry (NUL-terminated, not newline-terminated)
+    # but may not even be creatable as a real file on every filesystem this
+    # suite runs on (LEARNED: creating files with newline/quote names in
+    # fixtures must use printf-built names, not literals the shell
+    # re-parses -- this sidesteps the filesystem argument entirely).
+    local blob; blob="$(printf 'x' | git -C "$repo" hash-object -w --stdin)"
+    local expect_reason="" expect_path=""
+    case "$case_name" in
+      non_ascii_architecture)
+        local p; p="$(printf '.github/workflows/d\xc3\xa9ploy.yml')"
+        (cd "$repo" && git update-index --add --cacheinfo "100644,$blob,$p")
+        expect_reason="architecture"; expect_path="$p"
+        ;;
+      quoted_architecture)
+        local p; p="$(printf '.github/workflows/a"b.yml')"
+        (cd "$repo" && git update-index --add --cacheinfo "100644,$blob,$p")
+        expect_reason="architecture"; expect_path="$p"
+        ;;
+      space_path)
+        local p; p="$(printf 'src/weird file.js')"
+        (cd "$repo" && git update-index --add --cacheinfo "100644,$blob,$p")
+        ;;
+      backslash_path)
+        local p; p="$(printf 'src/weird\\\\slash.js')"
+        (cd "$repo" && git update-index --add --cacheinfo "100644,$blob,$p")
+        ;;
+      guard_with_nonascii_sibling)
+        local sibling; sibling="$(printf 'src/sibling-d\xc3\xa9.js')"
+        (cd "$repo" && git update-index --add --cacheinfo "100644,$blob,.aai/scripts/merge-policy.mjs")
+        (cd "$repo" && git update-index --add --cacheinfo "100644,$blob,$sibling")
+        expect_reason="policy_touched"; expect_path=".aai/scripts/merge-policy.mjs"
+        ;;
+    esac
+    (cd "$repo" && git commit -q -m "head ($case_name)") >/dev/null 2>&1
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 80
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":80,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+    run_check "$repo" "$ghbin" 80
+
+    case "$case_name" in
+      non_ascii_architecture|quoted_architecture|guard_with_nonascii_sibling)
+        assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=80 reason=$expect_reason path=$expect_path" \
+          "TEST-1570 [$case_name]: expected reason=$expect_reason naming the real-bytes path, got: $OUT"
+        [[ "$RC" -eq 3 ]] || log_fail "TEST-1570 [$case_name]: expected exit 3, got $RC: $OUT"
+        ;;
+      space_path|backslash_path)
+        # The catch-all `repo` kind covers it either way -- this case
+        # proves the real path reaches classification intact (no misread),
+        # not that it is denied.
+        assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=80 lane=lane-1570 marker=AAI_LANE1570_MERGE decision_ref=test1570-ride@2026-10-05T01:00:00Z merge_reaches=nothing" \
+          "TEST-1570 [$case_name]: expected the space/backslash path to classify and allow normally, got: $OUT"
+        [[ "$RC" -eq 0 ]] || log_fail "TEST-1570 [$case_name]: expected exit 0, got $RC: $OUT"
+        ;;
+    esac
+  done
+
+  log_pass "TEST-1570 (Spec-AC-05, B2) getChangedFiles reads git's real path bytes via -z: a non-ASCII or quote-bearing path under an architecture glob still denies architecture, a space/backslash path still classifies normally, and a GUARD_PATHS path still denies policy_touched alongside a non-ASCII sibling"
+}
+
+# --- TEST-1571 (Spec-AC-19, code review round 7 N7) -------------------------
+# SKILL_PR.prompt.md step 6's documented lane-merge command must itself pass
+# claude-hook-gate.sh's lane_check_merge_shape allow-list (TEST-1549) -- the
+# prose and the hook's real contract must never drift. This parses the
+# command text out of the prompt (so a future edit that reintroduces the
+# branch-implicit form fails HERE, not just when an agent follows it live)
+# and feeds it through the hook's own shape-checking function.
+test_1571_skill_pr_merge_command_passes_hook_shape() {
+  log_info "TEST-1571: SKILL_PR.prompt.md step 6's quoted 'gh pr merge ...' command, with <n> and <headRefOid> substituted, passes claude-hook-gate.sh's lane_check_merge_shape allow-list"
+  local skill_pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  local line
+  # pipe-free: `grep -oE ... | head -n1` is the ratcheted early-closing-
+  # reader shape (tests/skills/test-aai-hygiene-pack.sh TEST-003) -- take
+  # everything before the first newline of grep's own (unpiped) output
+  # instead.
+  local all_matches; all_matches="$(grep -oE 'gh pr merge [^\`]+--match-head-commit <headRefOid>' "$skill_pr")"
+  line="${all_matches%%$'\n'*}"
+  if [[ -z "$line" ]]; then
+    log_fail "TEST-1571: could not find SKILL_PR.prompt.md's documented 'gh pr merge ... --match-head-commit <headRefOid>' command text"
+    return
+  fi
+  # A bare PR number is required (TEST-1549); the old documented form had
+  # none. Fail loudly and specifically rather than let a substitution typo
+  # pass silently.
+  if [[ "$line" != *"gh pr merge <n>"* ]]; then
+    log_fail "TEST-1571: SKILL_PR.prompt.md's documented command does not start 'gh pr merge <n>' (no PR number): $line"
+    return
+  fi
+
+  local real_head="0123456789abcdef0123456789abcdef01234567"
+  local merge_seg="${line//<n>/71}"
+  merge_seg="${merge_seg//<headRefOid>/$real_head}"
+
+  mk
+  local probe="$TEST_DIR/shape-probe.sh"
+  cat > "$probe" <<'BASH'
+#!/usr/bin/env bash
+set -u
+MERGE_SEG="$1"
+LANE_VERDICT=""
+BASH
+  grep -n '^lane_check_merge_shape()' "$PROJECT_ROOT/.aai/scripts/claude-hook-gate.sh" >/dev/null \
+    || { log_fail "TEST-1571: lane_check_merge_shape not found in claude-hook-gate.sh"; return; }
+  awk '/^lane_check_merge_shape\(\) \{/,/^}/' "$PROJECT_ROOT/.aai/scripts/claude-hook-gate.sh" >> "$probe"
+  printf '\nlane_check_merge_shape\nrc=$?\nif [ "$rc" -ne 0 ]; then echo "REFUSED: $LANE_VERDICT"; fi\nexit $rc\n' >> "$probe"
+  chmod +x "$probe"
+
+  local out rc
+  out="$(bash "$probe" "$merge_seg" 2>&1)" && rc=0 || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    log_fail "TEST-1571: SKILL_PR's documented command '$merge_seg' was REFUSED by lane_check_merge_shape: $out"
+    return
+  fi
+
+  log_pass "TEST-1571 (Spec-AC-19, N7) SKILL_PR.prompt.md's documented lane-merge command, as written, passes the hook's own allow-list shape check"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -4205,6 +4522,9 @@ main() {
   test_1566_whitespace_only_decision_match_is_parse_error
   test_1567_whitespace_only_pr_body_contains_is_parse_error
   test_1568_sweep_check_allowed_matches_whole_pr_token
+  test_1569_lane_coverage_is_per_path
+  test_1570_changed_files_reads_real_bytes
+  test_1571_skill_pr_merge_command_passes_hook_shape
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view

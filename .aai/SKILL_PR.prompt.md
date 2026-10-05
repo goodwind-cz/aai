@@ -497,7 +497,9 @@ PROCESS
      run `node .aai/scripts/merge-policy.mjs --check --pr <n>`.
      On a first line starting `MERGE-POLICY allowed pr=<n> lane=<id>
      marker=<NAME> decision_ref=<ref> merge_reaches=<v>`, this step MAY run
-     `gh pr merge --squash --match-head-commit <headRefOid>` with that
+     `gh pr merge <n> --squash --match-head-commit <headRefOid>` (the PR
+     number is required — the hook's lane allow-list refuses the
+     branch-implicit form with no number) with that
      lane's own marker set on that one command (`<NAME>=1` — NEVER
      `AAI_OPERATOR_MERGE`, which stays the operator's alone), where
      `<headRefOid>` is the PR's current head (the same `headRefOid` the
