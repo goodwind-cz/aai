@@ -27,6 +27,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+# Strict merge-queue gh-graphql stub (B1 remediation, validation round 11,
+# Spec-AC-16/Spec-AC-25) -- shared with test-aai-merge-policy.sh so both
+# suites pin the identical argv the evaluator sends.
+# shellcheck source=lib/gh-merge-queue-stub.sh
+. "$SCRIPT_DIR/lib/gh-merge-queue-stub.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
@@ -1127,25 +1132,7 @@ JSONL
   for pr in 71 72; do
     printf '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1520-ride","payload":{"pr":%s,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted"}}\n' "$pr" >> "$repo/docs/ai/EVENTS.jsonl"
   done
-  cat > "$d/bin/gh" <<GHSTUB
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >> "$d/gh-argv.log"
-if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.json" ]; then
-  case "\$*" in
-    *'-q .headRefOid'*)
-      sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
-      exit 0
-      ;;
-  esac
-  cat "$d/pr-\${3}.json"; exit 0
-fi
-if [ "\${1:-}" = "api" ] && [ "\${2:-}" = "graphql" ]; then
-  echo '{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":false}}}}'
-  exit 0
-fi
-exit 1
-GHSTUB
-  chmod +x "$d/bin/gh"
+  write_merge_queue_gh_stub "$d"
 }
 
 # t1520_case <label> <want_rc> <want_policy_line:yes|no> <needle|-> <command> [VAR=value ...]
@@ -1317,25 +1304,7 @@ current_focus:
 YAML
   printf '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1541-ride","payload":{"pr":90,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted"}}\n' >> "$repo/docs/ai/EVENTS.jsonl"
   printf '{"number":90,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-90.json"
-  cat > "$d/bin/gh" <<GHSTUB
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >> "$d/gh-argv.log"
-if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.json" ]; then
-  case "\$*" in
-    *'-q .headRefOid'*)
-      sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
-      exit 0
-      ;;
-  esac
-  cat "$d/pr-\${3}.json"; exit 0
-fi
-if [ "\${1:-}" = "api" ] && [ "\${2:-}" = "graphql" ]; then
-  echo '{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":false}}}}'
-  exit 0
-fi
-exit 1
-GHSTUB
-  chmod +x "$d/bin/gh"
+  write_merge_queue_gh_stub "$d"
   HOOK_PATH="$d/bin:$PATH"
 
   # NORMAL session: no AAI_SWEEP_SPEC/INTAKE/STATE exported anywhere, only
@@ -1463,25 +1432,7 @@ t1551_fixture() {
     '  primary_path: docs/intake-1551.md' '  spec_path: docs/spec-1551.md' > "$repo/docs/ai/STATE.yaml"
   printf '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1551-ride","payload":{"pr":92,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted"}}\n' >> "$repo/docs/ai/EVENTS.jsonl"
   printf '{"number":92,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-92.json"
-  cat > "$d/bin/gh" <<GHSTUB
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >> "$d/gh-argv.log"
-if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.json" ]; then
-  case "\$*" in
-    *'-q .headRefOid'*)
-      sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p' "$d/pr-\${3}.json"
-      exit 0
-      ;;
-  esac
-  cat "$d/pr-\${3}.json"; exit 0
-fi
-if [ "\${1:-}" = "api" ] && [ "\${2:-}" = "graphql" ]; then
-  echo '{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":false}}}}'
-  exit 0
-fi
-exit 1
-GHSTUB
-  chmod +x "$d/bin/gh"
+  write_merge_queue_gh_stub "$d"
   T1551_HEAD="$head"
 }
 

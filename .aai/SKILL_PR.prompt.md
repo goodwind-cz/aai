@@ -505,8 +505,9 @@ PROCESS
      `<headRefOid>` is the PR's current head (the same `headRefOid` the
      `gh pr view` call above would report). NEVER add `--auto` or `--admin`:
      either lets GitHub merge a later, unjudged head or bypasses branch
-     protections outright, and the hook lane path refuses both. An `allowed`
-     verdict already proves exactly three things: `mergeStateStatus=CLEAN`,
+     protections outright, and the hook lane path refuses both. For the
+     auto-merge/merge-queue concern specifically, an `allowed` verdict
+     already proves exactly three things: `mergeStateStatus=CLEAN`,
      no auto-merge request already pending, and the PR's base does not
      require a merge queue (`isMergeQueueEnabled=false`, read live via a
      second `gh api graphql` call — round-10 remediation of Codex P1's

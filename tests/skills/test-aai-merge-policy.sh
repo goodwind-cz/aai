@@ -53,6 +53,10 @@ TEST_NAME="aai-merge-policy"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+# Strict merge-queue gh-graphql stub helper (B1 remediation, validation
+# round 11): merge_queue_graphql_argv, shared with test-aai-hooks-overlay.sh.
+# shellcheck source=lib/gh-merge-queue-stub.sh
+. "$SCRIPT_DIR/lib/gh-merge-queue-stub.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
@@ -112,12 +116,28 @@ head_sha() { (cd "$1" && git rev-parse HEAD); }
 # `gh api graphql ...` (the merge-queue read -- B1 remediation, validation
 # round 10, Spec-AC-16 amendment) answers a canned
 # `{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":<mq_enabled>}}}}`
-# response (false unless the 4th arg is literally "true") and logs the argv
-# too; anything else exits 1 (this evaluator's --check must only ever call
-# `pr view` and this one `api graphql` read, Spec-AC-16).
+# response (false unless the 4th arg is literally "true") ONLY when the
+# call's argv is EXACTLY what getMergeQueueEnabled sends for the PR number
+# <json_file> itself declares (its own `"number"` field -- the same number
+# `gh pr view` serves and `--check --pr` was invoked with, by fixture
+# construction) -- the full query text, `owner={owner}`, `name={repo}`,
+# `pr=<that number>`. Validation round 11 B1: the prior version answered
+# ANY `api graphql ...` call unconditionally, so a mutation retargeting the
+# read (another PR's number, another repo's owner, a different query
+# field) survived every test using this stub. Any other graphql argv now
+# denies loudly (STUB-DENY on stderr) rather than answering; any call that
+# is neither `pr view` nor `api graphql` still exits 1 as before.
 build_gh_stub() {
   local bin_dir="$1" json_file="$2" log_file="$3" mq_enabled="${4:-false}"
   mkdir -p "$bin_dir"
+  local number_field expected_pr
+  # No pipe into grep/head here on purpose (TEST-102,
+  # tests/skills/lib/pipe-grep-q-ratchet.sh): each fixture's json_file has
+  # exactly one `"number":<n>` field (its own `gh pr view` payload), so one
+  # plain grep -o plus a parameter-expansion strip is enough.
+  number_field="$(grep -o '"number":[0-9]\+' "$json_file")"
+  expected_pr="${number_field#*:}"
+  merge_queue_graphql_argv "$expected_pr" > "$bin_dir/.expected-graphql-argv"
   cat > "$bin_dir/gh" <<STUBEOF
 #!/usr/bin/env bash
 {
@@ -130,8 +150,13 @@ if [[ "\${1:-}" == "pr" && "\${2:-}" == "view" ]]; then
   exit 0
 fi
 if [[ "\${1:-}" == "api" && "\${2:-}" == "graphql" ]]; then
-  echo '{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":$mq_enabled}}}}'
-  exit 0
+  __expected="\$(cat "$bin_dir/.expected-graphql-argv" 2>/dev/null)"
+  if [[ "\$*" == "\$__expected" ]]; then
+    echo '{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":$mq_enabled}}}}'
+    exit 0
+  fi
+  printf 'STUB-DENY: unexpected graphql argv: %s\n' "\$*" >&2
+  exit 1
 fi
 exit 1
 STUBEOF
@@ -1793,7 +1818,7 @@ JSON
 
 # --- TEST-1523 (Spec-AC-16) --------------------------------------------------
 test_1523_gh_argv_only_pr_view() {
-  log_info "TEST-1523: across repeated --check calls (allowed and denied), plus --classify and --validate, every logged gh invocation on the stub's shared log is either a 'pr view' call or the one 'api graphql' merge-queue read (Spec-AC-16 amendment, round 10 B1 remediation)"
+  log_info "TEST-1523: across repeated --check calls (allowed and denied), plus --classify and --validate, every logged gh invocation on the stub's shared log is either a 'pr view' call or the one 'api graphql' merge-queue read -- and the graphql read fires EXACTLY once per --check call that reaches the queue gate, zero times when an earlier gate denies first (Spec-AC-16 amendment, round 11 B1 remediation)"
   mk
   local repo="$TEST_DIR/repo"
   new_repo "$repo"
@@ -1851,7 +1876,7 @@ JSON
     | PATH="$ghbin:$PATH" node "$MP" --classify --path "$repo/docs/ai/merge-policy.yaml" --files-from - --repo-root "$repo" >/dev/null 2>&1
   PATH="$ghbin:$PATH" node "$MP" --validate --repo-root "$repo" >/dev/null 2>&1
 
-  local log_content="" bad_line="" saw_pr_view=0 saw_graphql=0
+  local log_content="" bad_line="" pr_view_count=0 graphql_count=0
   if [[ -f "$log" ]]; then
     log_content="$(cat "$log")"
   fi
@@ -1859,14 +1884,19 @@ JSON
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     case "$line" in
-      "ARGS: pr view "*) saw_pr_view=1 ;;
-      "ARGS: api graphql "*) saw_graphql=1 ;;
+      "ARGS: pr view "*) pr_view_count=$((pr_view_count + 1)) ;;
+      "ARGS: api graphql "*) graphql_count=$((graphql_count + 1)) ;;
       *) bad_line="$line" ;;
     esac
   done <<< "$log_content"
   [[ -z "$bad_line" ]] || log_fail "TEST-1523: found a gh invocation that was neither 'pr view' nor 'api graphql': $bad_line"
-  [[ "$saw_pr_view" -eq 1 ]] || log_fail "TEST-1523: expected at least one 'pr view' invocation (positive control), got none"
-  [[ "$saw_graphql" -eq 1 ]] || log_fail "TEST-1523: expected at least one 'api graphql' invocation from the allowed call (positive control), got none"
+  # Two --check calls above: pr=50 reaches the queue gate (allowed), pr=51
+  # denies pr_not_open BEFORE ever reaching it -- so exactly 2 pr-view calls
+  # (one per --check) and exactly 1 graphql call (only pr=50's), never 0
+  # (the stub would never even be asked) and never 2+ (a double-call
+  # regression, or the denied call wrongly reaching the gate).
+  [[ "$pr_view_count" -eq 2 ]] || log_fail "TEST-1523: expected exactly 2 'pr view' invocations (one per --check call), got $pr_view_count"
+  [[ "$graphql_count" -eq 1 ]] || log_fail "TEST-1523: expected exactly 1 'api graphql' invocation (only the --check call that reaches the queue gate may issue it; the pr_not_open denial on pr=51 must short-circuit before it), got $graphql_count"
 
   log_pass "TEST-1523: every gh invocation this evaluator makes, across allowed and denied --check calls plus --classify/--validate, is either 'pr view' or the one 'api graphql' merge-queue read"
 }

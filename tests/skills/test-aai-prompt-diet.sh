@@ -947,7 +947,12 @@ test_012_growth_sum_matches_ledger() {
   # precisely what an allowed verdict proves instead of the round-9
   # overclaim); zero headroom standing, credited 1:1 (ledger key
   # configurable-merge-policy-lanes-round10).
-  local want_growth=51184
+  # Then 51184 -> 51242: configurable-merge-policy-lanes validation round 11
+  # NB-1 remediation (+58 B, SKILL_PR.prompt.md 36372 -> 36430, the "proves
+  # exactly three things" sentence scoped to the auto-merge/merge-queue
+  # concern); zero headroom standing, credited 1:1 (ledger key
+  # configurable-merge-policy-lanes-round11-b1).
+  local want_growth=51242
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
