@@ -2785,3 +2785,4 @@
 {"v":1,"ts":"2026-10-05T05:03:41Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-configurable-merge-policy-lanes","payload":{"commit":"bcdc1077e45683416b097945ab6e11cd1fd557f0"}}
 {"v":1,"ts":"2026-10-05T08:22:19Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":560,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-05T09:00:42Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":560,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-05T11:57:23Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"configurable-merge-policy-lanes","payload":{"pr":430,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"752210375843a96734ceaac024724f7b9b9a5a8b"}}
