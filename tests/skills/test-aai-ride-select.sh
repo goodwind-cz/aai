@@ -2271,6 +2271,414 @@ test_1605_empty_block_and_regression() {
   log_pass "empty budget block message unchanged; TEST-1301/TEST-1302 still pass (TEST-1605)"
 }
 
+# --- Advisory next/gate (Spec-AC-03..06, TEST-1606..1620) --------------------
+# D2/D9: gate under advisory is structurally the off gate (rm.budget stays
+# null); D3..D6: next proposes maintenance under a threshold or a related
+# trigger. Every fixture passes its OWN --ledger/--events/--docs; none reads
+# the live repository.
+
+# write_1606_roadmap <path> <budget-lines|''> — SAME 3-pair body every time,
+# so the only difference between the advisory/off/on runs is the budget block.
+write_1606_roadmap() {
+  {
+    [ -n "${2:-}" ] && printf '%b' "$2"
+    printf 'pairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: active\n  - capability: cap-c\n    status: planned\n'
+  } > "$1"
+}
+gate_at_ev() { # $1=roadmap $2=docs $3=ref $4=eventsPath [extra args]
+  local r="$1" docs="$2" ref="$3" ev="$4"; shift 4
+  run gate --ref "$ref" --roadmap "$r" --docs "$docs" --events "$ev" "$@"
+}
+
+test_1606_gate_advisory_equals_off() {
+  log_info "Test: gate on an advisory roadmap equals gate on the same roadmap without a budget, byte for byte, over a 7-case ref matrix (TEST-1606)..."
+  local d="$TEST_DIR/t1606"; mkdir -p "$d/docs"
+  # cap-a's own DOCUMENT is still implementing although its PAIR is already
+  # marked done (a hand-run close that never flipped the pair) — this is the
+  # "ref in a done pair" case, distinct from "done ref" (chg-done) below.
+  propose_write_doc "$d/docs" cap-a change implementing
+  propose_write_doc "$d/docs" cap-b change implementing
+  propose_write_doc "$d/docs" cap-c change draft
+  propose_write_doc "$d/docs" iss-off issue draft
+  propose_write_doc "$d/docs" chg-off change draft
+  propose_write_doc "$d/docs" chg-done change done
+
+  local adv="$d/roadmap-advisory.yaml" off="$d/roadmap-off.yaml" on="$d/roadmap-on.yaml"
+  write_1606_roadmap "$adv" 'budget:\n  mode: advisory\n  maintenance_threshold: 50\n'
+  write_1606_roadmap "$off" ''
+  write_1606_roadmap "$on" 'budget:\n  maintenance_per_capability: 1\n'
+
+  local refs="cap-a cap-c chg-done ghost-ref iss-off chg-off" r
+  for r in $refs; do
+    rm -f "$d/ev-adv.jsonl" "$d/ev-off.jsonl"
+    local eadv oadv sadv eoff ooff soff evadv evoff
+    eadv="$(gate_at_ev "$adv" "$d/docs" "$r" "$d/ev-adv.jsonl")"; oadv="$(out)"; sadv="$(err)"
+    evadv=""; [ -f "$d/ev-adv.jsonl" ] && evadv="$(cat "$d/ev-adv.jsonl")"
+    eoff="$(gate_at_ev "$off" "$d/docs" "$r" "$d/ev-off.jsonl")"; ooff="$(out)"; soff="$(err)"
+    evoff=""; [ -f "$d/ev-off.jsonl" ] && evoff="$(cat "$d/ev-off.jsonl")"
+    [ "$eadv" = "$eoff" ] || log_fail "TEST-1606: exit code differs for $r: advisory=$eadv off=$eoff"
+    [ "$oadv" = "$ooff" ] || log_fail "TEST-1606: stdout differs for $r: advisory=[$oadv] off=[$ooff]"
+    [ "$sadv" = "$soff" ] || log_fail "TEST-1606: stderr differs for $r: advisory=[$sadv] off=[$soff]"
+    [ "$evadv" = "$evoff" ] || log_fail "TEST-1606: EVENTS bytes differ for $r"
+  done
+
+  # 7th case: the out-of-order ref cap-c with --override — admitted directly
+  # in both postures (off/advisory never rank), so --override is never
+  # consulted and no EVENTS line is written in either.
+  rm -f "$d/ev-adv.jsonl" "$d/ev-off.jsonl"
+  local eadv oadv eoff ooff
+  eadv="$(gate_at_ev "$adv" "$d/docs" cap-c "$d/ev-adv.jsonl" --override "owner wants it now")"; oadv="$(out)"
+  eoff="$(gate_at_ev "$off" "$d/docs" cap-c "$d/ev-off.jsonl" --override "owner wants it now")"; ooff="$(out)"
+  [ "$eadv" = "0" ] || log_fail "TEST-1606: advisory must ADMIT cap-c with --override: $(err)"
+  [ "$eoff" = "0" ] || log_fail "TEST-1606: off must ADMIT cap-c with --override: $(err)"
+  [ "$oadv" = "$ooff" ] || log_fail "TEST-1606: stdout differs for cap-c --override: [$oadv] vs [$ooff]"
+  [ ! -f "$d/ev-adv.jsonl" ] || log_fail "TEST-1606: an admit must write no EVENTS line (advisory, --override)"
+  [ ! -f "$d/ev-off.jsonl" ] || log_fail "TEST-1606: an admit must write no EVENTS line (off, --override)"
+
+  # positive control: the SAME out-of-order ref IS refused under the 1:1 budget
+  [ "$(run gate --ref cap-c --roadmap "$on" --docs "$d/docs" --events "$d/ev-on.jsonl")" = "1" ] \
+    || log_fail "TEST-1606: control — the 1:1-budget roadmap must refuse the out-of-order ref cap-c"
+  grep -q 'pair ahead' "$TEST_DIR/err" || log_fail "TEST-1606: control refusal must say pair ahead: $(err)"
+  log_pass "gate on advisory equals gate on off byte for byte over the ref matrix; on-budget control still refuses out-of-order (TEST-1606)"
+}
+
+# adv_roadmap <path> <threshold> — one capability-only pair, documented, so
+# `next`'s off-equivalent answer is a plain ref (never file-intake/bind).
+adv_roadmap() {
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: %s\npairs:\n  - capability: zz-cap\n    status: planned\n' "$2" > "$1"
+}
+fu_add() { # $1=ledger $2=id $3=ref $4=severity
+  [ -f "$1" ] || : > "$1"   # add requires an existing (even empty) ledger file
+  node "$FOLLOWUPS" add --ledger "$1" --id "$2" --ref "$3" --severity "$4" \
+    --what "t" --why "t" --source "t" > "$TEST_DIR/fuout" 2> "$TEST_DIR/fuerr" \
+    || log_fail "fu_add($2) failed: $(cat "$TEST_DIR/fuerr")"
+}
+fu_close() { # $1=ledger $2=id [$3=status]
+  node "$FOLLOWUPS" close --ledger "$1" --id "$2" --resolved-by x --status "${3:-done}" > "$TEST_DIR/fuout" 2> "$TEST_DIR/fuerr" \
+    || log_fail "fu_close($2) failed: $(cat "$TEST_DIR/fuerr")"
+}
+events_closes() { # $1=path $2=ts $3=ref — append one work_item_closed record
+  printf '{"v":1,"ts":"%s","actor":"fixture","event":"work_item_closed","ref":"%s","payload":{}}\n' "$2" "$3" >> "$1"
+}
+next_at() { # $1=roadmap $2=docs $3=ledger $4=events [extra args, e.g. --json]
+  local r="$1" docs="$2" ledger="$3" ev="$4"; shift 4
+  run next --roadmap "$r" --docs "$docs" --ledger "$ledger" --events "$ev" "$@"
+}
+
+test_1607_threshold_fires_at_count() {
+  log_info "Test: waiting maintenance AT the threshold fires reason threshold (TEST-1607)..."
+  local d="$TEST_DIR/t1607"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  adv_roadmap "$roadmap" 4
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1607-a cap-other P2
+  fu_add "$ledger" fu-t1607-b cap-other P2
+  propose_write_doc "$docs" iss-t1607 issue draft
+  propose_write_doc "$docs" td-t1607 techdebt draft
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1607: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1607: must propose maintenance, got: $(out)"
+  grep -qF '"reason":"threshold"' "$TEST_DIR/out" || log_fail "TEST-1607: reason must be threshold, got: $(out)"
+  grep -qF '"waiting":{"count":4,"threshold":4}' "$TEST_DIR/out" || log_fail "TEST-1607: waiting must be count 4 of threshold 4, got: $(out)"
+  log_pass "waiting maintenance at the threshold fires reason threshold (TEST-1607)"
+}
+
+test_1608_one_below_threshold_equals_off() {
+  log_info "Test: waiting maintenance one below the threshold prints exactly the off answer, json and text, no stderr (TEST-1608)..."
+  local d="$TEST_DIR/t1608"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" off="$d/roadmap-off.yaml"
+  adv_roadmap "$roadmap" 5
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$off"
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1608-a cap-other P2
+  fu_add "$ledger" fu-t1608-b cap-other P2
+  propose_write_doc "$docs" iss-t1608 issue draft
+  propose_write_doc "$docs" td-t1608 techdebt draft
+  local flag
+  for flag in --json x; do
+    local ej oj sj eo oo so
+    if [ "$flag" = "--json" ]; then
+      ej="$(next_at "$roadmap" "$docs" "$ledger" "$d/ev1.jsonl" --json)"; oj="$(out)"; sj="$(err)"
+      eo="$(run next --roadmap "$off" --docs "$docs" --json)"; oo="$(out)"; so="$(err)"
+    else
+      ej="$(next_at "$roadmap" "$docs" "$ledger" "$d/ev2.jsonl")"; oj="$(out)"; sj="$(err)"
+      eo="$(run next --roadmap "$off" --docs "$docs")"; oo="$(out)"; so="$(err)"
+    fi
+    [ "$ej" = "$eo" ] || log_fail "TEST-1608: exit differs (flag=$flag): adv=$ej off=$eo"
+    [ "$oj" = "$oo" ] || log_fail "TEST-1608: stdout differs (flag=$flag): [$oj] vs [$oo]"
+    [ -z "$sj" ] || log_fail "TEST-1608: advisory stderr must be empty (flag=$flag): $sj"
+    [ -z "$so" ] || log_fail "TEST-1608: off stderr must be empty (flag=$flag): $so"
+  done
+  log_pass "waiting maintenance one below the threshold equals the off answer, json and text, no stderr (TEST-1608)"
+}
+
+test_1609_p3_never_counts() {
+  log_info "Test: open P3 follow-ups never count toward waiting maintenance (TEST-1609)..."
+  local d="$TEST_DIR/t1609"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" off="$d/roadmap-off.yaml"
+  adv_roadmap "$roadmap" 5
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$off"
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1609-a cap-other P2
+  fu_add "$ledger" fu-t1609-b cap-other P2
+  propose_write_doc "$docs" iss-t1609 issue draft
+  propose_write_doc "$docs" td-t1609 techdebt draft
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do fu_add "$ledger" "fu-t1609-p3-$i" cap-other P3; done
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1609: next must exit 0: $(err)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1609: off next must exit 0"
+  local off_out; off_out="$(out)"
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events2.jsonl" --json)" = "0" ] || log_fail "TEST-1609: next (rerun) must exit 0"
+  [ "$(out)" = "$off_out" ] || log_fail "TEST-1609: ten open P3 follow-ups must never push waiting to the threshold, got: $(out)"
+  # sanity check on fixture counts: exactly 0 P1 and 2 P2 are open (never the ten P3)
+  node "$FOLLOWUPS" list --ledger "$ledger" --status open --json > "$TEST_DIR/fuout" 2> "$TEST_DIR/fuerr" \
+    || log_fail "TEST-1609: follow-ups list failed: $(cat "$TEST_DIR/fuerr")"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const p1 = j.items.filter((i) => i.severity === "P1").length;
+    const p2 = j.items.filter((i) => i.severity === "P2").length;
+    if (p1 !== 0 || p2 !== 2) { console.error("p1=" + p1 + " p2=" + p2); process.exit(1); }
+  ' "$TEST_DIR/fuout" || log_fail "TEST-1609: fixture sanity check failed (expected P1 0, P2 2)"
+  log_pass "open P3 follow-ups never count toward waiting maintenance (TEST-1609)"
+}
+
+test_1610_closed_followups_never_count() {
+  log_info "Test: closed/dropped P1/P2 follow-ups never count; reopening one makes it fire (TEST-1610)..."
+  local d="$TEST_DIR/t1610"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  adv_roadmap "$roadmap" 5
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1610-a cap-other P2
+  fu_add "$ledger" fu-t1610-b cap-other P2
+  propose_write_doc "$docs" iss-t1610 issue draft
+  propose_write_doc "$docs" td-t1610 techdebt draft
+  fu_add "$ledger" fu-t1610-c cap-other P2
+  fu_add "$ledger" fu-t1610-d cap-other P2
+  fu_add "$ledger" fu-t1610-e cap-other P1
+  fu_close "$ledger" fu-t1610-c done
+  fu_close "$ledger" fu-t1610-d done
+  fu_close "$ledger" fu-t1610-e dropped
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1610: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" && log_fail "TEST-1610: closed/dropped items must not push waiting to the threshold: $(out)"
+  # positive control: reopening one makes it count again, reaching the threshold
+  node "$FOLLOWUPS" reopen --ledger "$ledger" --id fu-t1610-c --reason "still open" > /dev/null 2>&1 \
+    || log_fail "TEST-1610: reopen failed"
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events2.jsonl" --json)" = "0" ] || log_fail "TEST-1610: next (reopened) must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1610: reopening fu-t1610-c must make the threshold fire, got: $(out)"
+  log_pass "closed/dropped follow-ups never count; reopening one restores the count (TEST-1610)"
+}
+
+test_1611_terminal_intakes_never_count() {
+  log_info "Test: terminal-status issue/techdebt intakes never count; an implementing one does (TEST-1611)..."
+  local d="$TEST_DIR/t1611"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  adv_roadmap "$roadmap" 5
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1611-a cap-other P2
+  fu_add "$ledger" fu-t1611-b cap-other P2
+  propose_write_doc "$docs" iss-t1611 issue draft
+  propose_write_doc "$docs" td-t1611 techdebt draft
+  propose_write_doc "$docs" done-t1611 issue done
+  propose_write_doc "$docs" deferred-t1611 issue deferred
+  propose_write_doc "$docs" rejected-t1611 techdebt rejected
+  propose_write_doc "$docs" superseded-t1611 issue superseded
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1611: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" && log_fail "TEST-1611: terminal-status intakes must not push waiting to the threshold: $(out)"
+  propose_write_doc "$docs" impl-t1611 issue implementing
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events2.jsonl" --json)" = "0" ] || log_fail "TEST-1611: next (plus implementing) must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1611: an implementing issue intake must make the threshold fire, got: $(out)"
+  log_pass "terminal-status intakes never count; a non-terminal one makes the threshold fire (TEST-1611)"
+}
+
+test_1612_change_intakes_never_count() {
+  log_info "Test: draft change-type intakes never count toward waiting maintenance (TEST-1612)..."
+  local d="$TEST_DIR/t1612"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  # threshold 4: if the three change-type docs below counted too, W would be
+  # 7 and this would still fire (uninformative); at 4 it fires ONLY if they
+  # are excluded, so the exact waiting count proves the exclusion.
+  adv_roadmap "$roadmap" 4
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1612-a cap-other P2
+  fu_add "$ledger" fu-t1612-b cap-other P2
+  propose_write_doc "$docs" iss-t1612 issue draft
+  propose_write_doc "$docs" td-t1612 techdebt draft
+  propose_write_doc "$docs" chg1-t1612 change draft
+  propose_write_doc "$docs" chg2-t1612 change draft
+  propose_write_doc "$docs" chg3-t1612 change draft
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1612: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1612: with the three change docs excluded, waiting must reach the threshold, got: $(out)"
+  grep -qF '"waiting":{"count":4,"threshold":4}' "$TEST_DIR/out" || log_fail "TEST-1612: waiting must be count 4 of threshold 4 (change docs excluded), got: $(out)"
+  grep -qF 'chg1-t1612' "$TEST_DIR/out" && log_fail "TEST-1612: a change-type intake must never appear as a candidate: $(out)"
+  log_pass "draft change-type intakes never count toward waiting maintenance (TEST-1612)"
+}
+
+test_1613_related_fires() {
+  log_info "Test: an open P1/P2 follow-up referencing the most recently closed capability fires reason related (TEST-1613)..."
+  local d="$TEST_DIR/t1613"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-b change draft
+  events_closes "$events" "2026-10-01T00:00:00Z" cap-a
+  fu_add "$ledger" fu-t1613-rel cap-a P2
+  fu_add "$ledger" fu-t1613-unrel cap-zzz P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1613: next must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1613: reason must be related, got: $(out)"
+  grep -qF '"capability":"cap-a"' "$TEST_DIR/out" || log_fail "TEST-1613: capability must be cap-a, got: $(out)"
+  grep -qF '"capability_source":"events"' "$TEST_DIR/out" || log_fail "TEST-1613: capability_source must be events, got: $(out)"
+  grep -qF '"candidates":[{"kind":"follow_up","id":"fu-t1613-rel"' "$TEST_DIR/out" \
+    || log_fail "TEST-1613: candidates must be exactly the cap-a follow-up, got: $(out)"
+  grep -qF 'fu-t1613-unrel' "$TEST_DIR/out" && log_fail "TEST-1613: the unrelated follow-up must not appear in candidates: $(out)"
+  log_pass "a related open follow-up fires reason related with capability and source (TEST-1613)"
+}
+
+test_1614_related_negations_equal_off() {
+  log_info "Test: every related negation prints exactly the off answer (threshold not reached) (TEST-1614)..."
+  local d="$TEST_DIR/t1614"; mkdir -p "$d"
+  local roadmap="$d/roadmap.yaml" off="$d/roadmap-off.yaml" docs="$d/docs" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: planned\n' > "$roadmap"
+  printf 'pairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: planned\n' > "$off"
+  propose_write_doc "$docs" cap-b change draft
+  events_closes "$events" "2026-10-01T00:00:00Z" cap-a
+  events_closes "$events" "2026-09-01T00:00:00Z" cap-z
+
+  # case 1: no follow-up at all for cap-a
+  local ledger1="$d/ledger1.jsonl"
+  fu_add "$ledger1" fu-t1614-other cap-zzz P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger1" "$events" --json)" = "0" ] || log_fail "TEST-1614: case1 next must exit 0: $(err)"
+  local adv1; adv1="$(out)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1614: case1 off must exit 0"
+  [ "$adv1" = "$(out)" ] || log_fail "TEST-1614: case1 (no related follow-up) must equal off, got: $adv1 vs $(out)"
+
+  # case 2: only a P3 references cap-a
+  local ledger2="$d/ledger2.jsonl"
+  fu_add "$ledger2" fu-t1614-p3 cap-a P3
+  [ "$(next_at "$roadmap" "$docs" "$ledger2" "$events" --json)" = "0" ] || log_fail "TEST-1614: case2 next must exit 0: $(err)"
+  local adv2; adv2="$(out)"
+  [ "$adv2" = "$(run next --roadmap "$off" --docs "$docs" --json >/dev/null; out)" ] \
+    || log_fail "TEST-1614: case2 (only a P3 references cap-a) must equal off, got: $adv2"
+
+  # case 3: the cap-a reference is closed (done)
+  local ledger3="$d/ledger3.jsonl"
+  fu_add "$ledger3" fu-t1614-closed cap-a P2
+  fu_close "$ledger3" fu-t1614-closed done
+  [ "$(next_at "$roadmap" "$docs" "$ledger3" "$events" --json)" = "0" ] || log_fail "TEST-1614: case3 next must exit 0: $(err)"
+  local adv3; adv3="$(out)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1614: case3 off must exit 0"
+  [ "$adv3" = "$(out)" ] || log_fail "TEST-1614: case3 (cap-a reference closed) must equal off, got: $adv3 vs $(out)"
+
+  # case 4: the follow-up references an OLDER closed capability (cap-z), not the most recent (cap-a)
+  local ledger4="$d/ledger4.jsonl"
+  fu_add "$ledger4" fu-t1614-old cap-z P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger4" "$events" --json)" = "0" ] || log_fail "TEST-1614: case4 next must exit 0: $(err)"
+  local adv4; adv4="$(out)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1614: case4 off must exit 0"
+  [ "$adv4" = "$(out)" ] || log_fail "TEST-1614: case4 (follow-up references an older closed capability) must equal off, got: $adv4 vs $(out)"
+  log_pass "every related negation (none, P3-only, closed, older-capability) equals the off answer (TEST-1614)"
+}
+
+test_1615_related_wins_over_threshold() {
+  log_info "Test: when both triggers fire the reason is related (TEST-1615)..."
+  local d="$TEST_DIR/t1615"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-b change draft
+  events_closes "$events" "2026-10-01T00:00:00Z" cap-a
+  fu_add "$ledger" fu-t1615-rel cap-a P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1615: next must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1615: reason must be related even though threshold also fires, got: $(out)"
+  grep -qF '"candidates":[{"kind":"follow_up","id":"fu-t1615-rel"' "$TEST_DIR/out" \
+    || log_fail "TEST-1615: candidates must be only the related follow-up, not every counted item, got: $(out)"
+  log_pass "when both triggers fire the reason is related, with only related candidates (TEST-1615)"
+}
+
+test_1616_latest_event_wins() {
+  log_info "Test: the capability with the LATEST work_item_closed ts wins, not the earliest (TEST-1616)..."
+  local d="$TEST_DIR/t1616"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: done\n  - capability: cap-c\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-c change draft
+  events_closes "$events" "2026-10-01T10:00:00Z" cap-b
+  events_closes "$events" "2026-10-01T11:00:00Z" cap-a
+  fu_add "$ledger" fu-t1616-b cap-b P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1616: next (ref to cap-b) must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" && log_fail "TEST-1616: cap-b is not the latest closed capability, related must not fire: $(out)"
+  local ledger2="$d/ledger2.jsonl"
+  fu_add "$ledger2" fu-t1616-a cap-a P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger2" "$events" --json)" = "0" ] || log_fail "TEST-1616: next (ref to cap-a) must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1616: cap-a (latest closed, 11:00) must fire related, got: $(out)"
+  grep -qF '"capability":"cap-a"' "$TEST_DIR/out" || log_fail "TEST-1616: capability must be cap-a, got: $(out)"
+  log_pass "the capability with the latest work_item_closed ts wins (TEST-1616)"
+}
+
+test_1617_tie_goes_to_later_pair() {
+  log_info "Test: a timestamp tie goes to the pair listed later in the roadmap (TEST-1617)..."
+  local d="$TEST_DIR/t1617"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: done\n  - capability: cap-c\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-c change draft
+  events_closes "$events" "2026-10-01T10:00:00Z" cap-a
+  events_closes "$events" "2026-10-01T10:00:00Z" cap-b
+  fu_add "$ledger" fu-t1617-b cap-b P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1617: next must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1617: a same-ts tie must resolve to cap-b (listed later), got: $(out)"
+  grep -qF '"capability":"cap-b"' "$TEST_DIR/out" || log_fail "TEST-1617: capability must be cap-b (listed later), got: $(out)"
+  log_pass "a timestamp tie resolves to the pair listed later in the roadmap (TEST-1617)"
+}
+
+test_1618_roadmap_order_fallback() {
+  log_info "Test: with no matching event, C falls back to the last done pair in roadmap order (TEST-1618)..."
+  local d="$TEST_DIR/t1618"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: done\n  - capability: cap-c\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-c change draft
+  fu_add "$ledger" fu-t1618-b cap-b P2
+  # absent EVENTS path
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/no-such-events.jsonl" --json)" = "0" ] || log_fail "TEST-1618: next (absent events) must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1618: absent EVENTS must still resolve C via roadmap order (cap-b), got: $(out)"
+  grep -qF '"capability":"cap-b"' "$TEST_DIR/out" || log_fail "TEST-1618: capability must be cap-b, got: $(out)"
+  grep -qF '"capability_source":"roadmap_order"' "$TEST_DIR/out" || log_fail "TEST-1618: capability_source must be roadmap_order, got: $(out)"
+  # EVENTS present but its only close refs are spec-cap-a (prefixed, never matches) and an off-roadmap ref
+  local events2="$d/events2.jsonl"
+  events_closes "$events2" "2026-10-01T00:00:00Z" spec-cap-a
+  events_closes "$events2" "2026-10-01T00:00:00Z" off-roadmap-ref
+  local ledger2="$d/ledger2.jsonl"
+  fu_add "$ledger2" fu-t1618-b2 cap-b P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger2" "$events2" --json)" = "0" ] || log_fail "TEST-1618: next (non-matching events) must exit 0: $(err)"
+  grep -qF '"capability":"cap-b"' "$TEST_DIR/out" || log_fail "TEST-1618: a spec-prefixed ref must never match; C must still be cap-b, got: $(out)"
+  grep -qF '"capability_source":"roadmap_order"' "$TEST_DIR/out" || log_fail "TEST-1618: capability_source must stay roadmap_order, got: $(out)"
+  log_pass "with no matching event C falls back to the last done pair in roadmap order (TEST-1618)"
+}
+
+test_1619_events_beats_roadmap_order() {
+  log_info "Test: an EVENTS close record wins over an undone-by-event-but-done pair earlier in the roadmap (TEST-1619)..."
+  local d="$TEST_DIR/t1619"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: done\n  - capability: cap-c\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-c change draft
+  # cap-a (listed first) has an EVENTS close; cap-b (listed second, done without an event) does not
+  events_closes "$events" "2026-10-01T00:00:00Z" cap-a
+  fu_add "$ledger" fu-t1619-a cap-a P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1619: next must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1619: related must fire for cap-a: $(out)"
+  grep -qF '"capability":"cap-a"' "$TEST_DIR/out" || log_fail "TEST-1619: capability must be cap-a (the one WITH an EVENTS close), got: $(out)"
+  grep -qF '"capability_source":"events"' "$TEST_DIR/out" || log_fail "TEST-1619: capability_source must be events, got: $(out)"
+  log_pass "an EVENTS close record wins over a later-in-roadmap done pair with no event (TEST-1619)"
+}
+
+test_1620_no_done_pair_no_events_related_cannot_fire() {
+  log_info "Test: with no done pair and no EVENTS, related cannot fire even when a follow-up references the planned last capability (TEST-1620)..."
+  local d="$TEST_DIR/t1620"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" off="$d/roadmap-off.yaml"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: planned\n  - capability: cap-b\n    status: planned\n' > "$roadmap"
+  printf 'pairs:\n  - capability: cap-a\n    status: planned\n  - capability: cap-b\n    status: planned\n' > "$off"
+  fu_add "$ledger" fu-t1620-b cap-b P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/no-such-events.jsonl" --json)" = "0" ] || log_fail "TEST-1620: next must exit 0: $(err)"
+  local adv; adv="$(out)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1620: off next must exit 0"
+  [ "$adv" = "$(out)" ] || log_fail "TEST-1620: with no done pair and no events, related cannot fire; must equal off, got: $adv vs $(out)"
+  log_pass "with no done pair and no EVENTS, related cannot fire; equals off (TEST-1620)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -2365,6 +2773,21 @@ main() {
   test_1603_mode_and_threshold_duplicates_refuse
   test_1604_combined_and_unknown_key_refuse
   test_1605_empty_block_and_regression
+  test_1606_gate_advisory_equals_off
+  test_1607_threshold_fires_at_count
+  test_1608_one_below_threshold_equals_off
+  test_1609_p3_never_counts
+  test_1610_closed_followups_never_count
+  test_1611_terminal_intakes_never_count
+  test_1612_change_intakes_never_count
+  test_1613_related_fires
+  test_1614_related_negations_equal_off
+  test_1615_related_wins_over_threshold
+  test_1616_latest_event_wins
+  test_1617_tie_goes_to_later_pair
+  test_1618_roadmap_order_fallback
+  test_1619_events_beats_roadmap_order
+  test_1620_no_done_pair_no_events_related_cannot_fire
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
