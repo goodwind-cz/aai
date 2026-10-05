@@ -7,9 +7,12 @@
 //
 //   node .aai/scripts/ride-select.mjs validate [--roadmap <p>]
 //   node .aai/scripts/ride-select.mjs next     [--roadmap <p>] [--docs <dir>] [--json]
+//        [--ledger <p>] [--events <p>]   (advisory posture only; D3..D7)
 //   node .aai/scripts/ride-select.mjs gate --ref <slug> [--intake <path>] [--roadmap <p>]
 //        [--docs <dir>] [--events <p>] [--override "<reason>"]
 //   node .aai/scripts/ride-select.mjs show     [--roadmap <p>] [--docs <dir>] [--json]
+//   node .aai/scripts/ride-select.mjs waiting  [--docs <dir>] [--ledger <p>] [--json]
+//        (D8: read-only, needs no roadmap, works in every posture)
 //
 // The roadmap FILE is the posture switch. gate with NO roadmap file (absent path)
 // ADMITS with one line, "roadmap absent ... not consulted", writing nothing:
@@ -17,8 +20,12 @@
 // unreadable or invalid REFUSES. With a roadmap, DENY BY DEFAULT: gate exits 0
 // only when the ref may start now; every refusal names ONE reason and its
 // remedy. Exit: 0 admit · 1 refuse · 2 usage/invalid (validate/next unchanged).
-// The maintenance budget is opt-in: no `budget:` key = no 1:1 pairing and no
-// ranked refusals; `show` prints which posture a roadmap is in.
+// The maintenance budget has three postures: off (no `budget:` key, no 1:1
+// pairing, no ranked refusals), on (1:1 pairing) and advisory (`next`
+// PROPOSES a maintenance ride on a threshold or related trigger but never
+// binds, and `gate` behaves exactly like off — SPEC
+// roadmap-maintenance-budget-advisory D2/D5/D9); `show` prints which posture
+// a roadmap is in.
 //
 // Roadmap shape is CLOSED (see docs/ai/roadmap.yaml header); a line-level
 // parser for exactly that shape, no YAML library, anything else is invalid.
@@ -136,12 +143,21 @@ function followUpCandidate(f) {
 function intakeCandidate(it) {
   return { kind: 'intake', id: it.id, type: it.type, status: it.status, path: it.path };
 }
+// D6 — candidate ordering: P1 follow-ups, then P2 follow-ups (each in the
+// fold's own order — oldest first, id tiebreak, since Array#sort is stable
+// and w.followUps/related already carry that order from loadRegistry), then
+// intakes (already id-ordered by openIntakes). Capped at CANDIDATE_CAP.
+const SEVERITY_RANK = { P1: 0, P2: 1 };
+const CANDIDATE_CAP = 5;
 // D6 — candidates: for `related`, only the related follow-ups; for
-// `threshold`, every counted item. (Severity ranking and the 5-item cap are
-// batch-3 refinements, Spec-AC-07 — not yet exercised by Spec-AC-04/05/06.)
+// `threshold`, every counted item.
 function buildCandidates(reason, related, w) {
-  if (reason === 'related') return related.map(followUpCandidate);
-  return [...w.followUps.map(followUpCandidate), ...w.intakes.map(intakeCandidate)];
+  const followUps = reason === 'related' ? related : w.followUps;
+  const rankedFollowUps = [...followUps].sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+  const items = reason === 'related'
+    ? rankedFollowUps.map(followUpCandidate)
+    : [...rankedFollowUps.map(followUpCandidate), ...w.intakes.map(intakeCandidate)];
+  return items.slice(0, CANDIDATE_CAP);
 }
 
 function usage(msg) { process.stderr.write(`ride-select: ${msg}\n`); process.exit(2); }
@@ -162,7 +178,7 @@ function parseArgs(argv) {
     else if (k === '--json') { a.json = true; }
     else usage(`unknown argument ${k}`);
   }
-  if (!['validate', 'next', 'gate', 'show'].includes(a.cmd)) usage('usage: ride-select.mjs <validate|next|gate|show> [flags]');
+  if (!['validate', 'next', 'gate', 'show', 'waiting'].includes(a.cmd)) usage('usage: ride-select.mjs <validate|next|gate|show|waiting> [flags]');
   return a;
 }
 
@@ -339,12 +355,21 @@ function cmdShow(a, loaded) {
   const rm = loaded.roadmap;
   const n = pickNext(rm, a.docs);
   if (a.json) {
-    process.stdout.write(JSON.stringify({ roadmap: a.roadmap, budget: Boolean(rm.budget), next: nextView(n), pairs: rm.pairs, wave_2: rm.wave_2 }) + '\n');
+    // D9: the advisory key is inserted right after `budget` only when the
+    // roadmap IS advisory — on/off keep the exact shape they always had.
+    const payload = { roadmap: a.roadmap, budget: Boolean(rm.budget) };
+    if (rm.advisory) payload.advisory = { maintenance_threshold: rm.advisory.maintenance_threshold };
+    payload.next = nextView(n);
+    payload.pairs = rm.pairs;
+    payload.wave_2 = rm.wave_2;
+    process.stdout.write(JSON.stringify(payload) + '\n');
     process.exit(0);
   }
   const open = rm.pairs.filter((p) => p.status !== 'done');
   const lines = [
-    rm.budget ? 'maintenance budget: on' : 'maintenance budget: off',
+    rm.budget
+      ? 'maintenance budget: on'
+      : (rm.advisory ? `maintenance budget: advisory (threshold ${rm.advisory.maintenance_threshold})` : 'maintenance budget: off'),
     `next: ${n ? (n.action ? `${n.action} ${n.ref || n.capability}` : n.ref) : 'none (wave 1 complete)'}`,
     `done: ${rm.pairs.length - open.length} of ${rm.pairs.length}`,
     `planned/active: ${open.map((p) => `${p.capability} (${p.status})`).join(', ') || 'none'}`,
@@ -354,8 +379,30 @@ function cmdShow(a, loaded) {
   process.exit(0);
 }
 
+// D8 — `waiting`: a read-only query over the SAME waitingMaintenance() the
+// advisory `next` branch uses, so the two can never disagree about W. Needs
+// no roadmap (works in every posture, and with none at all); writes nothing.
+// recommended_threshold is "five more than are waiting today", so advisory
+// does not fire on the very first call over an existing backlog.
+function cmdWaiting(a) {
+  const w = waitingMaintenance(a.docs, a.ledger);
+  if (w.unreadable) usage(`ledger not readable: ${a.ledger} (${w.unreadable.code}: ${w.unreadable.message})`);
+  const p1 = w.followUps.filter((f) => f.severity === 'P1').length;
+  const p2 = w.followUps.filter((f) => f.severity === 'P2').length;
+  const issue = w.intakes.filter((i) => i.type === 'issue').length;
+  const techdebt = w.intakes.filter((i) => i.type === 'techdebt').length;
+  const recommended_threshold = Math.max(5, w.count + 5);
+  if (a.json) {
+    process.stdout.write(`${JSON.stringify({ count: w.count, follow_ups: { P1: p1, P2: p2 }, intakes: { issue, techdebt }, recommended_threshold })}\n`);
+  } else {
+    process.stdout.write(`waiting maintenance: ${w.count} (follow-ups P1 ${p1}, P2 ${p2}; intakes issue ${issue}, techdebt ${techdebt}) — recommended threshold ${recommended_threshold}\n`);
+  }
+  process.exit(0);
+}
+
 function main() {
   const a = parseArgs(process.argv.slice(2));
+  if (a.cmd === 'waiting') cmdWaiting(a);
   const loaded = loadRoadmap(a.roadmap);
   if (a.cmd === 'show') cmdShow(a, loaded);
 
