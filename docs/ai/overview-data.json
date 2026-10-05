@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T23:33:36.503Z",
+  "generatedAt": "2026-10-05T23:34:11.192Z",
   "project": "aai",
   "counts": {
     "delivered": 277,
@@ -59,7 +59,7 @@
       "closed_on": null,
       "agent_minutes": 548,
       "token_total": null,
-      "spec": "docs/specs/SPEC-DRAFT-spec-roadmap-maintenance-budget-advisory.md",
+      "spec": "docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md",
       "validation": null,
       "review": "docs/ai/reviews/review-roadmap-maintenance-budget-advisory-20261005T231640Z.md"
     },

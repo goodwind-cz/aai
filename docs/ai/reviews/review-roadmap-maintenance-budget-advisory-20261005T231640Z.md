@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 6e257659..ee1b7e65 (branch change/roadmap-maintenance-budget-advisory, worktree)"
-  spec: docs/specs/SPEC-DRAFT-spec-roadmap-maintenance-budget-advisory.md
+  spec: docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -48,7 +48,7 @@ review:
 
 - STATE: `worktree.user_decision: worktree`, branch `change/roadmap-maintenance-budget-advisory`, base `main`.
 - `git status --porcelain` clean at head `ee1b7e65`; one scope: `git diff 6e257659..ee1b7e65` (7 commits, 19 files, +2484/-89).
-- Spec: `docs/specs/SPEC-DRAFT-spec-roadmap-maintenance-budget-advisory.md` (frozen, three post-freeze contract amendments for validation round-1 NB1/NB2/B1, tracked by `fu-amend-roadmap-maintenance-budg-024dad`; one measurement amendment for TEST-1611). `spec-amend list --strict` exit 0.
+- Spec: `docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md` (frozen, three post-freeze contract amendments for validation round-1 NB1/NB2/B1, tracked by `fu-amend-roadmap-maintenance-budg-024dad`; one measurement amendment for TEST-1611). `spec-amend list --strict` exit 0.
 - Coaching check: the dispatch named scope, refs and inputs only; it did not characterize findings or exclude areas.
 
 ## What was executed (reviewer's own runs, head ee1b7e65)
