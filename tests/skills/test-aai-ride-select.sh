@@ -73,6 +73,7 @@ write_doc() { # $1=slug $2=type $3=status [$4=extra frontmatter line]
 run() { node "$ENGINE" "$@" > "$TEST_DIR/out" 2> "$TEST_DIR/err"; echo $?; }
 out() { cat "$TEST_DIR/out"; }
 err() { cat "$TEST_DIR/err"; }
+sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
 
 # --- roadmap-propose.mjs harvest fixtures (Spec-AC-06..11) -------------------
 # Every harvest test gets its OWN docs dir (pNNNdocs), roadmap path, ledger
@@ -2105,6 +2106,171 @@ test_1310_write_seed_has_no_budget() {
   log_pass "write seeds a budget-free roadmap that validates and never proposes bind (TEST-1310)"
 }
 
+# --- Advisory maintenance budget (SPEC roadmap-maintenance-budget-advisory,
+# TEST-1600..1644) — D1/D2: a third posture, a two-line block (mode +
+# maintenance_threshold) parsed by the SAME loadRoadmap. This file covers
+# Spec-AC-01/02 only (TEST-1600..1605); later ACs land in later TDD runs.
+
+test_1600_validate_accepts_advisory_block() {
+  log_info "Test: an advisory budget block validates exit 0 in either line order, threshold 1 and 12 (TEST-1600)..."
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$TEST_DIR/t1600-mode-first.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1600-mode-first.yaml")" = "0" ] || log_fail "TEST-1600: mode-first advisory block must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 1 pair(s), 0 wave-2 item(s)" ] || log_fail "TEST-1600: mode-first summary wrong: $(out)"
+  printf 'budget:\n  maintenance_threshold: 5\n  mode: advisory\npairs:\n  - capability: cap-a\n    status: planned\n' > "$TEST_DIR/t1600-threshold-first.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1600-threshold-first.yaml")" = "0" ] || log_fail "TEST-1600: threshold-first advisory block must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 1 pair(s), 0 wave-2 item(s)" ] || log_fail "TEST-1600: threshold-first summary wrong: $(out)"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-a\n    status: planned\n  - capability: cap-b\n    status: planned\nwave_2:\n  - later-thing\n' > "$TEST_DIR/t1600-threshold-1.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1600-threshold-1.yaml")" = "0" ] || log_fail "TEST-1600: threshold 1 must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 2 pair(s), 1 wave-2 item(s)" ] || log_fail "TEST-1600: threshold 1 summary wrong: $(out)"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 12\npairs:\n  - capability: cap-a\n    status: planned\n' > "$TEST_DIR/t1600-threshold-12.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1600-threshold-12.yaml")" = "0" ] || log_fail "TEST-1600: threshold 12 must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 1 pair(s), 0 wave-2 item(s)" ] || log_fail "TEST-1600: threshold 12 summary wrong: $(out)"
+  log_pass "advisory block validates in either line order with threshold 1 and 12 (TEST-1600)"
+}
+
+test_1601_threshold_shapes_refuse() {
+  log_info "Test: every invalid maintenance_threshold shape exits 2 naming it, file unchanged (TEST-1601)..."
+  local f="$TEST_DIR/t1601.yaml" before after
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 0\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold 0 must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: threshold 0 refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: threshold 0 must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: -3\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold -3 must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: threshold -3 refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: threshold -3 must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1.5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold 1.5 must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: threshold 1.5 refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: threshold 1.5 must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 05\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: leading-zero threshold must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: leading-zero refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: leading-zero must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: "5"\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: double-quoted threshold must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: double-quoted refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: double-quoted must leave the file unchanged"
+  printf "budget:\n  mode: advisory\n  maintenance_threshold: '5'\npairs:\n  - capability: cap-a\n    status: planned\n" > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: single-quoted threshold must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: single-quoted refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: single-quoted must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold:\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: empty threshold value must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: empty-value refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: empty value must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 5 # inline comment\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: inline-comment threshold must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: inline-comment refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: inline comment must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold line missing must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: missing-line refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: missing line must leave the file unchanged"
+  log_pass "every invalid maintenance_threshold shape exits 2 naming it, file unchanged (TEST-1601)"
+}
+
+test_1602_mode_shapes_refuse() {
+  log_info "Test: every invalid budget.mode shape exits 2 naming it, file unchanged (TEST-1602)..."
+  local f="$TEST_DIR/t1602.yaml" before after
+  printf 'budget:\n  mode: on\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: mode on must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: mode-on refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: mode on must leave the file unchanged"
+  printf 'budget:\n  mode: off\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: mode off must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: mode-off refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: mode off must leave the file unchanged"
+  printf 'budget:\n  mode: Advisory\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: mode Advisory must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: mode-Advisory refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: mode Advisory must leave the file unchanged"
+  printf 'budget:\n  mode: "advisory"\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: quoted mode must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: quoted-mode refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: quoted mode must leave the file unchanged"
+  printf 'budget:\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: threshold without any mode line must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: mode-missing refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: mode-missing must leave the file unchanged"
+  log_pass "every invalid budget.mode shape exits 2 naming it, file unchanged (TEST-1602)"
+}
+
+test_1603_mode_and_threshold_duplicates_refuse() {
+  log_info "Test: mode or maintenance_threshold appearing twice exits 2 naming appears twice (TEST-1603)..."
+  local f="$TEST_DIR/t1603.yaml" before after
+  printf 'budget:\n  mode: advisory\n  mode: advisory\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1603: mode twice (same value) must exit 2: $(out) $(err)"
+  grep -q 'budget.mode appears twice' "$TEST_DIR/err" || log_fail "TEST-1603: mode-twice refusal must say appears twice: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1603: mode twice must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  mode: on\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1603: mode twice (different values) must exit 2: $(out) $(err)"
+  grep -q 'budget.mode appears twice' "$TEST_DIR/err" || log_fail "TEST-1603: mode-twice-different refusal must say appears twice: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1603: mode twice (different) must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 5\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1603: threshold twice (same value) must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold appears twice' "$TEST_DIR/err" || log_fail "TEST-1603: threshold-twice refusal must say appears twice: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1603: threshold twice must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 5\n  maintenance_threshold: 7\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1603: threshold twice (different values) must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold appears twice' "$TEST_DIR/err" || log_fail "TEST-1603: threshold-twice-different refusal must say appears twice: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1603: threshold twice (different) must leave the file unchanged"
+  log_pass "duplicated budget.mode and budget.maintenance_threshold exit 2 naming appears twice (TEST-1603)"
+}
+
+test_1604_combined_and_unknown_key_refuse() {
+  log_info "Test: mode/threshold combined with maintenance_per_capability, and an unknown budget key, both exit 2 (TEST-1604)..."
+  local f="$TEST_DIR/t1604.yaml" before after
+  printf 'budget:\n  maintenance_per_capability: 1\n  mode: advisory\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1604: mode+threshold combined with maintenance_per_capability must exit 2: $(out) $(err)"
+  grep -q 'cannot be combined' "$TEST_DIR/err" || log_fail "TEST-1604: combined refusal must say cannot be combined: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1604: combined (mode+threshold) must leave the file unchanged"
+  printf 'budget:\n  maintenance_per_capability: 1\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1604: threshold alone combined with maintenance_per_capability must exit 2: $(out) $(err)"
+  grep -q 'cannot be combined' "$TEST_DIR/err" || log_fail "TEST-1604: combined (threshold alone) refusal must say cannot be combined: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1604: combined (threshold alone) must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1604: an unknown key inside budget must exit 2: $(out) $(err)"
+  grep -q 'does not fit the closed roadmap shape' "$TEST_DIR/err" || log_fail "TEST-1604: unknown-key refusal must be the closed-shape message: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1604: unknown key must leave the file unchanged"
+  log_pass "combined forms and an unknown budget key both exit 2 (TEST-1604)"
+}
+
+test_1605_empty_block_and_regression() {
+  log_info "Test: an empty budget block keeps today's exact message; TEST-1301/TEST-1302 selectors stay green (TEST-1605)..."
+  local f="$TEST_DIR/t1605.yaml" before after
+  printf 'budget:\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1605: an empty budget block must exit 2: $(out) $(err)"
+  [ "$(err)" = "ride-select: invalid roadmap $f: budget: block present but maintenance_per_capability is missing" ] \
+    || log_fail "TEST-1605: the empty-block message must stay byte-identical, got: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1605: empty block must leave the file unchanged"
+  test_1301_validate_accepts_no_budget
+  test_1302_budget_block_stays_strict
+  log_pass "empty budget block message unchanged; TEST-1301/TEST-1302 still pass (TEST-1605)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -2193,6 +2359,12 @@ main() {
   test_1308_next_json_carries_path
   test_1309_show
   test_1310_write_seed_has_no_budget
+  test_1600_validate_accepts_advisory_block
+  test_1601_threshold_shapes_refuse
+  test_1602_mode_shapes_refuse
+  test_1603_mode_and_threshold_duplicates_refuse
+  test_1604_combined_and_unknown_key_refuse
+  test_1605_empty_block_and_regression
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
