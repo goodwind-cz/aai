@@ -2791,3 +2791,4 @@
 {"v":1,"ts":"2026-10-05T14:41:20Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-roadmap-maintenance-budget-advisory","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-10-05T14:58:13Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-roadmap-maintenance-budget-advisory/Spec-AC-01","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-05T14:58:13Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-roadmap-maintenance-budget-advisory/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-05T23:22:26Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":562,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
