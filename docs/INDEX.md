@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-05T04:43:51.962Z
+Generated: 2026-10-05T04:44:45.325Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -19,7 +19,7 @@ _None._
 
 _None._
 
-## Product (31)
+## Product (32)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -31,6 +31,7 @@ _None._
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
+| configurable-merge-policy-lanes | configurable-merge-policy-lanes | 1 | docs/product/configurable-merge-policy-lanes.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
