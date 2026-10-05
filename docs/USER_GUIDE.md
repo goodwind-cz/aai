@@ -2739,6 +2739,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Owner-defined merge lanes
+
+By default an AAI agent never merges a pull request; merging is the operator's job. A repository owner can now write down, in one project-owned file, which kinds of pull requests the agent may merge on its own, for example "a change that only touches content or design files, with green CI, a recorded bot sweep and the requester's GitHub approval". Each such rule is a lane, and each lane must point at a decision the owner signed. Anything outside every lane, and anything touching architecture (containers, dependencies, migrations, CI, credentials) as the owner defines it, still goes to the operator. With no policy file, nothing changes.
+
+[Product doc](product/configurable-merge-policy-lanes.md) · [Spec](specs/SPEC-0207-spec-configurable-merge-policy-lanes.md)
+
 ### Downstream autopilot: rides ask nothing until the merge
 
 In a project that vendors AAI, `/aai-intake` and `/aai-ship` are the two entry points. A ride taken from them now runs intake, planning, implementation, tests, validation, review and product documentation without asking the owner about two things that belong to the canonical repository's own governance: a capability roadmap the project never wrote, and an owner signature on a specification amendment made mid-ride. The one human checkpoint stays at the merge.

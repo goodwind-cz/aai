@@ -1,7 +1,7 @@
 ---
 id: configurable-merge-policy-lanes
 type: rfc
-number: null
+number: 15
 status: accepted
 links:
   spec: null

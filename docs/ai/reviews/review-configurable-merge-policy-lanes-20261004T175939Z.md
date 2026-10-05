@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 64f2595f..f47f8861 (branch feat/configurable-merge-policy-lanes, 16 commits, 28 files)"
-  spec: docs/specs/SPEC-DRAFT-spec-configurable-merge-policy-lanes.md
+  spec: docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -61,7 +61,7 @@ review:
 ## Scope and preflight
 
 - Diff: `git diff 64f2595f..f47f8861`, worktree `/Users/ales/Projects/aai-feat-configurable-merge-policy-lanes`, branch `feat/configurable-merge-policy-lanes`, HEAD f47f8861 (verified). The working tree's only extra changes are uncommitted appends to `docs/ai/EVENTS.jsonl` and `docs/ai/tests/test-runs.jsonl`, both telemetry and outside the reviewed range.
-- Spec: frozen SPEC-DRAFT-spec-configurable-merge-policy-lanes.md (ceremony 3) and accepted RFC-DRAFT-configurable-merge-policy-lanes.md. The owner decisions for this ref are in decisions.jsonl: 2026-10-03T15:30:00Z, and the 2026-10-04 menu answers for rounds 4 and 5. All 12 spec amendments are disclosed under the additive-with-disclosure convention.
+- Spec: frozen SPEC-0207-spec-configurable-merge-policy-lanes.md (ceremony 3) and accepted RFC-0015-configurable-merge-policy-lanes.md. The owner decisions for this ref are in decisions.jsonl: 2026-10-03T15:30:00Z, and the 2026-10-04 menu answers for rounds 4 and 5. All 12 spec amendments are disclosed under the additive-with-disclosure convention.
 - Coaching check: the dispatch did not characterize findings, pre-rate severity or exclude any area.
 
 ## Evidence I ran myself (AAI_ROLE unset for suites)

@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 64f2595f..74805d63 (branch feat/configurable-merge-policy-lanes, 22 commits, 31 files)"
-  spec: docs/specs/SPEC-DRAFT-spec-configurable-merge-policy-lanes.md
+  spec: docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md
   spec_compliance:
     verdict: pass
     ac_walk:

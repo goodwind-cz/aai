@@ -28,7 +28,7 @@ fine — it is the marker a cut leaves on top.
 - **Migration step:** author a `docs/ai/merge-policy.yaml` lane bound to an owner-signed `hitl_decision` (`decision_ref: <ref_id>@<ts>`, `decision_match` naming the record) that lists the kinds, requester logins and conditions the lane allows; `aai-doctor` CAT-19 warns on an orphaned prose STANDING AUTHORIZATION record with no matching lane and names the remedy. The file must be in one canonical spelling (fixed key order, two-space indentation, one quoting rule; comments and blank lines are free): any other spelling of the same content is `noncanonical line=<n>`, and `node .aai/scripts/merge-policy.mjs --canonical` prints the form to copy.
 - This repository's own `docs/ai/merge-policy.yaml` migrates the 2026-09-12 standing authorization (`ref_id: wave-2-roadmap`) into lane `internal-standing`, with the same conditions (internal ride, ceremony <= 2, validation and review pass, CI green, the sweep check, residuals disclosed) plus the tightening that a ride touching the merge-policy machinery itself (`GUARD_PATHS`) now goes to the operator.
 - `docs/CONSTITUTION.md` article 7 (operator-only merge) is amended to v2, 2026-10-03: the sole sanctioned exception is now a lane merge that `.aai/scripts/merge-policy.mjs` allows under an owner-signed policy.
-- configurable-merge-policy-lanes / SPEC-DRAFT-spec-configurable-merge-policy-lanes.md.
+- configurable-merge-policy-lanes / SPEC-0207-spec-configurable-merge-policy-lanes.md.
 
 ## [unreleased] — perf: the full skill-suite sweep runs on four runners in parallel (#428)
 

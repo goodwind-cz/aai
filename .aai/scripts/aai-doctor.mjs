@@ -604,7 +604,7 @@ function catMergePolicy(root, scriptDir) {
     const orphan = findOrphanedStandingAuthorization(root);
     if (!orphan) return null; // nothing adopted, nothing to diagnose
     return cat('CAT-19', 'Merge Policy', 'WARN',
-      `an owner-signed STANDING MERGE AUTHORIZATION record is orphaned (ref_id ${orphan.ref_id || '?'}, ts ${orphan.ts || '?'}) -- no docs/ai/merge-policy.yaml exists to carry it; author a lane (SPEC-DRAFT spec-configurable-merge-policy-lanes Notes) or the exception stops applying`);
+      `an owner-signed STANDING MERGE AUTHORIZATION record is orphaned (ref_id ${orphan.ref_id || '?'}, ts ${orphan.ts || '?'}) -- no docs/ai/merge-policy.yaml exists to carry it; author a lane (docs/product/configurable-merge-policy-lanes.md; print the accepted shape with merge-policy.mjs --canonical) or the exception stops applying`);
   }
   const script = path.join(scriptDir, 'merge-policy.mjs');
   if (!fs.existsSync(script)) {

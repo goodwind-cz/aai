@@ -15,7 +15,7 @@
 // output/exit contract. The hook lane path (claude-hook-gate.sh) and the
 // repo policy/prompts/doctor/constitution migration (Spec-AC-02/14/18..23)
 // are implemented alongside this file; see docs/specs/
-// SPEC-DRAFT-spec-configurable-merge-policy-lanes.md for the full mapping.
+// SPEC-0207-spec-configurable-merge-policy-lanes.md for the full mapping.
 //
 // Modes:
 //   --check --pr <n> [--repo-root <dir>] [--debug-inputs]

@@ -1,15 +1,15 @@
 ---
 id: spec-configurable-merge-policy-lanes
 type: spec
-number: null
+number: 207
 status: implementing
 mutation_gate: v1
-frozen_sha256: 047b5078a100fedab2d597d4555db9d9b30e635fac007c7758279adedbd699a1
+frozen_sha256: 88a29053f1339bf4bdabed642f29e0861f064f2d380420514b6d640fed3e6076
 ceremony_level: 3
 links:
   requirement: null
-  rfc: docs/rfc/RFC-DRAFT-configurable-merge-policy-lanes.md
-  intake: docs/rfc/RFC-DRAFT-configurable-merge-policy-lanes.md
+  rfc: docs/rfc/RFC-0015-configurable-merge-policy-lanes.md
+  intake: docs/rfc/RFC-0015-configurable-merge-policy-lanes.md
   pr: []
   commits: []
 ---
@@ -19,7 +19,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: RFC `configurable-merge-policy-lanes` (accepted), docs/rfc/RFC-DRAFT-configurable-merge-policy-lanes.md
+- Requirement: RFC `configurable-merge-policy-lanes` (accepted), docs/rfc/RFC-0015-configurable-merge-policy-lanes.md
 - Source issue: GitHub goodwind-cz/aai#429
 - Owner decisions: the RFC's "Decisions (owner, 2026-10-03)" D1 to D4, and the
   `hitl_decision` with `ref_id: configurable-merge-policy-lanes` at
@@ -404,7 +404,7 @@ own amendment path is used.
 - User decision: undecided
 - Base ref: main at 64f2595f
 - Worktree branch/path: suggested `change/configurable-merge-policy-lanes` at `/Users/ales/Projects/aai-merge-policy`
-- Inline review scope: .aai/scripts/merge-policy.mjs, .aai/scripts/claude-hook-gate.sh, .aai/scripts/aai-doctor.mjs, .aai/SKILL_PR.prompt.md, .aai/SKILL_SHIP.prompt.md, .aai/AGENTS.md, .aai/SKILL_DOCTOR.prompt.md, .aai/system/PROFILES.yaml, .aai/system/DOCS_AI_CANON.list, docs/CONSTITUTION.md, docs/ai/merge-policy.yaml, tests/skills/test-aai-merge-policy.sh, tests/skills/test-aai-hooks-overlay.sh, tests/skills/test-aai-doctor.sh, tests/skills/test-aai-constitution.sh, tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh, tests/skills/suite-map.yaml, CHANGELOG.md, docs/specs/SPEC-DRAFT-spec-configurable-merge-policy-lanes.md
+- Inline review scope: .aai/scripts/merge-policy.mjs, .aai/scripts/claude-hook-gate.sh, .aai/scripts/aai-doctor.mjs, .aai/SKILL_PR.prompt.md, .aai/SKILL_SHIP.prompt.md, .aai/AGENTS.md, .aai/SKILL_DOCTOR.prompt.md, .aai/system/PROFILES.yaml, .aai/system/DOCS_AI_CANON.list, docs/CONSTITUTION.md, docs/ai/merge-policy.yaml, tests/skills/test-aai-merge-policy.sh, tests/skills/test-aai-hooks-overlay.sh, tests/skills/test-aai-doctor.sh, tests/skills/test-aai-constitution.sh, tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh, tests/skills/suite-map.yaml, CHANGELOG.md, docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md
 
 ## Implementation strategy
 - Strategy: tdd
