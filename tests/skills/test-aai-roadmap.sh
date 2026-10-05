@@ -1331,6 +1331,9 @@ test_1634_budget_threshold_usage() {
   refuses 2 "threshold negative"           budget advisory --threshold -2
   refuses 2 "threshold leading zero"       budget advisory --threshold 05
   refuses 2 "threshold non-numeric"        budget advisory --threshold abc
+  # NB1 (validation round 1): above Number.MAX_SAFE_INTEGER must be refused,
+  # never silently rounded (Number("9007199254740993") reads back as ...992).
+  refuses 2 "threshold above MAX_SAFE_INTEGER" budget advisory --threshold 9007199254740993
   refuses 2 "threshold with budget on"     budget on --threshold 5
   refuses 2 "threshold with budget off"    budget off --threshold 5
   refuses 2 "threshold with add"           add --ref cap-new --threshold 5
@@ -1504,12 +1507,19 @@ test_1640_skill_ship_propose_maintenance_relay() {
   input="$(region "$SH" '^INPUT' '^AUTOPILOT DEFAULTS')"
   [ -n "$input" ] || log_fail "TEST-1640: SKILL_SHIP INPUT section not found"
   printf '%s\n' "$input" > "$TEST_DIR/input.txt"
+  tr '\n' ' ' < "$TEST_DIR/input.txt" | tr -s ' ' > "$TEST_DIR/input-flat.txt"
   file_has "$TEST_DIR/input.txt" 'propose_maintenance' || log_fail "TEST-1640: INPUT must name propose_maintenance"
   file_has "$TEST_DIR/input.txt" 'candidates' || log_fail "TEST-1640: INPUT must name candidates"
   file_has "$TEST_DIR/input.txt" 'alternative' || log_fail "TEST-1640: INPUT must name alternative"
   file_has "$TEST_DIR/input.txt" 'ONE menu' || log_fail "TEST-1640: INPUT must say it offers ONE menu"
   file_has "$TEST_DIR/input.txt" 'recommended' || log_fail "TEST-1640: INPUT must name a recommended option"
   file_has "$TEST_DIR/input.txt" 'asking nothing' || log_fail "TEST-1640: INPUT must say it asks nothing else"
+  # B1 (round-1 validation): option (2)'s `alternative` must be routed to the
+  # next/file-intake handling above, never to the "printed verbatim, then ask
+  # for the need and stop" catch-all clause below it. Pin both the exact
+  # routing phrase and the absence of the old ambiguous "below" linkage.
+  file_has "$TEST_DIR/input-flat.txt" 'alternative`, handled exactly as if `next --json` had answered it directly' || log_fail "TEST-1640: option (2) must route alternative exactly as if next --json had answered it directly (the next/file-intake handling above)"
+  ! grep -qF -- 'other answer below' "$TEST_DIR/input-flat.txt" || log_fail "TEST-1640: option (2) must not be linked to the catch-all stop clause via 'other answer below'"
   [ "$(run_suite test-aai-roadmap.sh test_1331_ship_wiring)" = "0" ] || log_fail "TEST-1640: TEST-1331 must stay green: $(tail -5 "$TEST_DIR/suite-out")"
   [ "$(run_suite test-aai-roadmap.sh test_1338_noarg_ship_rides_roadmap_item)" = "0" ] || log_fail "TEST-1640: TEST-1338 must stay green: $(tail -5 "$TEST_DIR/suite-out")"
   log_pass "SKILL_SHIP INPUT relays propose_maintenance as one two-option menu, asking nothing else (TEST-1640)"

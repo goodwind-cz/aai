@@ -34,7 +34,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { parseFrontmatter, DOC_TYPE_ENUM, TERMINAL_DOC_STATUS } from './lib/docs-model.mjs';
+import { parseFrontmatter, DOC_TYPE_ENUM, TERMINAL_DOC_STATUS, extractDocIds } from './lib/docs-model.mjs';
 import { SLUG, MAINT_TYPES, roadmapAbsent, loadRoadmap } from './lib/roadmap-model.mjs';
 import { loadRegistry } from './follow-ups.mjs';
 
@@ -71,7 +71,13 @@ function openIntakes(docsDir) {
     if (!fm || !OPEN_INTAKE_TYPES.has(fm.type)) continue;
     const status = fm.status || null;
     if (status !== null && TERMINAL_DOC_STATUS.has(status)) continue;
-    out.push({ kind: 'intake', id: fm.id, type: fm.type, status, path: p });
+    // NB2 (validation round 1): a doc with no frontmatter `id` must not
+    // yield a candidate with no id (D6's candidate shape, and the text form
+    // printing a trailing empty id). Derive it the SAME way the docs model
+    // does elsewhere (docs-audit-core.mjs, generate-docs-index.mjs): the
+    // numbered-filename primary from extractDocIds, else the filename stem.
+    const id = fm.id ?? (extractDocIds(n)?.primary ?? n.replace(/\.md$/i, ''));
+    out.push({ kind: 'intake', id, type: fm.type, status, path: p });
   }
   out.sort((a, b) => (a.id < b.id ? -1 : (a.id > b.id ? 1 : 0)));
   return out;

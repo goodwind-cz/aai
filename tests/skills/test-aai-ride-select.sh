@@ -2180,6 +2180,18 @@ test_1601_threshold_shapes_refuse() {
   [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold line missing must exit 2: $(out) $(err)"
   grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: missing-line refusal must name maintenance_threshold: $(err)"
   after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: missing line must leave the file unchanged"
+  # NB1 (validation round 1): a shape-valid digit string above
+  # Number.MAX_SAFE_INTEGER must be refused, never silently rounded by
+  # Number(bthr) (9007199254740993 reads back as ...992).
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 9007199254740993\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold above MAX_SAFE_INTEGER must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: above-MAX_SAFE_INTEGER refusal must name maintenance_threshold: $(err)"
+  grep -q '9007199254740993' "$TEST_DIR/err" || log_fail "TEST-1601: above-MAX_SAFE_INTEGER refusal must quote the exact over-cap digit string, not a rounded one: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: above-MAX_SAFE_INTEGER must leave the file unchanged"
+  # The cap itself (Number.MAX_SAFE_INTEGER, 9007199254740991) must still validate.
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 9007199254740991\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  [ "$(run validate --roadmap "$f")" = "0" ] || log_fail "TEST-1601: threshold AT MAX_SAFE_INTEGER must validate: $(out) $(err)"
   log_pass "every invalid maintenance_threshold shape exits 2 naming it, file unchanged (TEST-1601)"
 }
 
@@ -3001,6 +3013,40 @@ test_1630_show_advisory() {
   log_pass "show prints the advisory posture line and json key; TEST-1309 still passes (TEST-1630)"
 }
 
+# --- TEST-1645 (Spec-AC-08, validation round 1 NB2): an issue/techdebt doc --
+# with no frontmatter `id` still counts toward W, and its candidate gets a
+# derived (non-empty) id instead of a hole in the shape.
+test_1645_intake_without_id_gets_derived_id() {
+  log_info "Test: an issue doc with no frontmatter id still counts and gets a derived candidate id, never an empty one (TEST-1645)..."
+  local d="$TEST_DIR/t1645"; mkdir -p "$d/docs/issues"
+  adv_roadmap "$d/roadmap.yaml" 1
+  propose_write_doc "$d/docs" zz-cap change draft
+  # No `id:` line at all — the exact shape NB2 named.
+  printf -- '---\nnumber: null\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n\n# no id\n' \
+    > "$d/docs/issues/ISSUE-DRAFT-t1645-no-id.md"
+  [ "$(next_at "$d/roadmap.yaml" "$d/docs" "$d/ledger.jsonl" "$d/events.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-1645: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1645: must propose maintenance, got: $(out)"
+  local id; id="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(j.candidates.length ? (j.candidates[0].id ?? "__NULL__") : "__EMPTY__");
+  ' "$TEST_DIR/out")"
+  [ -n "$id" ] || log_fail "TEST-1645: candidate id must not be empty"
+  [ "$id" != "__NULL__" ] || log_fail "TEST-1645: candidate id must not be null/undefined: $(out)"
+  [ "$id" != "__EMPTY__" ] || log_fail "TEST-1645: must yield at least one candidate: $(out)"
+  [ "$id" = "ISSUE-DRAFT-t1645-no-id" ] \
+    || log_fail "TEST-1645: id-less doc must derive its id from the filename stem (docs-model convention), got: $id"
+  # The text form must not print a trailing/doubled comma around the hole
+  # the original report reproduced ("...: fu-x-one, fu-x-two, ").
+  [ "$(next_at "$d/roadmap.yaml" "$d/docs" "$d/ledger.jsonl" "$d/events2.jsonl")" = "0" ] \
+    || log_fail "TEST-1645: text-form next must exit 0: $(err)"
+  case "$(out)" in
+    *", "$'\n'*|*", "$) log_fail "TEST-1645: text form must not trail with an empty id after a comma: $(out)" ;;
+  esac
+  grep -qF 'ISSUE-DRAFT-t1645-no-id' "$TEST_DIR/out" || log_fail "TEST-1645: text form must name the derived id, got: $(out)"
+  log_pass "an id-less issue doc counts and gets a derived candidate id (TEST-1645)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -3120,6 +3166,7 @@ main() {
   test_1628_waiting_counts_and_recommended_threshold
   test_1629_waiting_unreadable_and_absent_ledger
   test_1630_show_advisory
+  test_1645_intake_without_id_gets_derived_id
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

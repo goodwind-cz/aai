@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 893e6ef7936038a71a86e43d7c75d0c4060751b9998f8a8d5a679160c104070f
+frozen_sha256: 4f1a2d147b39252258fea5286c128748309f8d2525c9d8f90be5fb458bffbe1b
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md
@@ -112,7 +112,12 @@ stays with the operator.
   INVALID (validate exit 2, never defaulted): `mode` without
   `maintenance_threshold`; `maintenance_threshold` without `mode`; a threshold
   that is not `^[1-9][0-9]*$` (0, negative, decimal, leading zero, quoted,
-  empty, trailing text or inline comment); a `mode` value other than the bare
+  empty, trailing text or inline comment); a threshold above
+  `Number.MAX_SAFE_INTEGER` (9007199254740991) — a shape-valid digit string
+  past that point is read back as a different, rounded value once `Number()`
+  runs, so the parser and `roadmap-edit.mjs --threshold` compare the raw
+  digit string (via `BigInt`) and refuse before any conversion, never round
+  silently (validation round 1 NB1); a `mode` value other than the bare
   word `advisory` (including `on`, `off`, `Advisory`, a quoted `"advisory"`);
   `mode` or `maintenance_threshold` appearing twice; either key combined with
   `maintenance_per_capability`; any other key inside `budget:`. An empty
@@ -161,7 +166,10 @@ stays with the operator.
   follow-ups, each in the fold's own order (oldest first, id tiebreak), then
   intakes by id in codepoint order; at most 5. A follow-up candidate is
   `{"kind":"follow_up","id","severity","ref","finding"}`; an intake candidate is
-  `{"kind":"intake","id","type","status","path"}`. Without `--json` it prints
+  `{"kind":"intake","id","type","status","path"}` — `id` is NEVER absent: an
+  intake doc with no frontmatter `id` derives it the same way the docs model
+  does elsewhere (`extractDocIds`'s numbered-filename primary, else the
+  filename stem; validation round 1 NB2). Without `--json` it prints
   three lines: `maintenance proposed (<reason>): <id>[, <id>...]`,
   `waiting: <W> of threshold <T>; most recently closed capability: <C or none>`,
   `or continue with: <the off posture's one-line answer>`. Exit 0 always. It
@@ -328,7 +336,7 @@ Article 2 (simplicity): one parser extended, no new script, no new `.aai` file.
 | Spec-AC-04 | WHEN waiting maintenance reaches the threshold next SHALL propose with reason threshold and one below SHALL equal off; P3 closed terminal and change items SHALL never count | done | TEST-1607..1612 PASS (docs/ai/tdd/green-20261005T152430Z.log); mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{07,08,09,10,11,12}.txt | — | D3 D5 |
 | Spec-AC-05 | WHEN an open P1 or P2 follow-up references the most recently closed capability next SHALL propose with reason related; each negation SHALL equal off; related SHALL win over threshold | done | TEST-1613..1615 PASS (docs/ai/tdd/green-20261005T152430Z.log); mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{13,14,15}.txt | — | D4 D5 |
 | Spec-AC-06 | The most recently closed capability SHALL follow D4 events first with tie to the later pair and roadmap order fallback | done | TEST-1616..1620 PASS (docs/ai/tdd/green-20261005T152430Z.log); mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{16,17,18,19,20}.txt | — | D4 |
-| Spec-AC-07 | The proposal SHALL keep the D6 shape and alternative equal to off, never bind, order and cap candidates, degrade per D7, and leave on and off next unaffected | done | TEST-1621..1627 PASS (docs/ai/tdd/green-20261005T163341Z.log); RED docs/ai/tdd/red-20261005T163332Z.log; mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{21,22,23,24,25,26,27}.txt | — | D6 D7 |
+| Spec-AC-07 | The proposal SHALL keep the D6 shape and alternative equal to off, never bind, order and cap candidates, degrade per D7, and leave on and off next unaffected; an intake candidate's `id` is NEVER absent (validation round 1 NB2) | done | TEST-1621..1627, TEST-1645 PASS (docs/ai/tdd/green-20261005T163341Z.log); RED docs/ai/tdd/red-20261005T163332Z.log; mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{21,22,23,24,25,26,27,45}.txt | — | D6 D7 |
 | Spec-AC-08 | ride-select waiting SHALL report counts and recommended_threshold max of 5 and W plus 5 read-only in every posture and exit 2 on an unreadable ledger | done | TEST-1628, TEST-1629 PASS (docs/ai/tdd/green-20261005T163341Z.log); RED docs/ai/tdd/red-20261005T163332Z.log; mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{28,29}.txt | — | D8 |
 | Spec-AC-09 | show SHALL print the advisory posture line and json advisory key while on and off show stay unchanged | done | TEST-1630 PASS (docs/ai/tdd/green-20261005T163341Z.log); RED docs/ai/tdd/red-20261005T163332Z.log; mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1630.txt | — | D9 |
 | Spec-AC-10 | roadmap-edit budget advisory with threshold SHALL make each D10 transition and every refusal SHALL leave the roadmap byte-identical | done | TEST-1631..1635 PASS (docs/ai/tdd/green-20261005T175857Z-ac10-13.log); RED docs/ai/tdd/red-20261005T175851Z-ac10-13.log; mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{31,32,33,34,35}.txt | — | D10 |
@@ -346,7 +354,7 @@ Article 2 (simplicity): one parser extended, no new script, no new `.aai` file.
 Slices (one TDD run each, about three ACs per run):
 - A — parser and gate: Spec-AC-01, 02, 03, 09 (TEST-1600..1606, TEST-1630).
 - B — advisory `next`: Spec-AC-04, 05, 06 (TEST-1607..1620).
-- C — proposal shape, `waiting`, degrade: Spec-AC-07, 08 (TEST-1621..1629).
+- C — proposal shape, `waiting`, degrade: Spec-AC-07, 08 (TEST-1621..1629, TEST-1645).
 - D — writer and seams: Spec-AC-10, 11, 12, 13, 18 (TEST-1631..1638, TEST-1644).
 - E — prompts, docs, governance: Spec-AC-14, 15, 16, 17 (TEST-1639..1643).
 
@@ -440,7 +448,7 @@ removed, captured in the same test, never against a stored string.
 | Test ID  | Spec-AC    | Type        | File path (expected)                  | Description | Mutation | Status  |
 |----------|------------|-------------|---------------------------------------|-------------|----------|---------|
 | TEST-1600 | Spec-AC-01 | integration | tests/skills/test-aai-ride-select.sh | advisory block with mode first, with threshold first, threshold 1 and threshold 12: validate exit 0 with the roadmap OK summary each | `sed:s/if \(!rm\.budget && bmode !== 'advisory'\)/if (!rm.budget)/` in .aai/scripts/lib/roadmap-model.mjs | green |
-| TEST-1601 | Spec-AC-02 | integration | tests/skills/test-aai-ride-select.sh | threshold 0, -3, 1.5, 05, quoted "5", quoted '5', empty value, 5 with an inline comment, threshold line missing: exit 2, stderr names maintenance_threshold, sha256 unchanged | `sed:s/!THRESHOLD_RE\.test\(bthr \?\? ''\)/false/` in .aai/scripts/lib/roadmap-model.mjs | green |
+| TEST-1601 | Spec-AC-02 | integration | tests/skills/test-aai-ride-select.sh | threshold 0, -3, 1.5, 05, quoted "5", quoted '5', empty value, 5 with an inline comment, threshold line missing, and (validation round 1 NB1) a shape-valid threshold above Number.MAX_SAFE_INTEGER (9007199254740993): exit 2, stderr names maintenance_threshold and the exact over-cap digit string (never a rounded one), sha256 unchanged; the cap value itself (9007199254740991) still validates | `sed:s/BigInt\(bthr\) > BigInt\(Number\.MAX_SAFE_INTEGER\)/false/` in .aai/scripts/lib/roadmap-model.mjs | green |
 | TEST-1602 | Spec-AC-02 | integration | tests/skills/test-aai-ride-select.sh | mode on, mode off, mode Advisory, mode quoted "advisory", threshold without any mode line: exit 2, stderr names budget.mode, sha256 unchanged | `sed:s/bmode !== 'advisory'\)/false)/` in .aai/scripts/lib/roadmap-model.mjs | green |
 | TEST-1603 | Spec-AC-02 | integration | tests/skills/test-aai-ride-select.sh | mode twice and maintenance_threshold twice (same and different values): exit 2 naming appears twice | `sed:s/if \(bmode !== null\) return \{ error: 'budget\.mode appears twice' \};//` in .aai/scripts/lib/roadmap-model.mjs | green |
 | TEST-1604 | Spec-AC-02 | integration | tests/skills/test-aai-ride-select.sh | maintenance_per_capability 1 together with mode advisory and threshold, and together with threshold alone: exit 2 naming cannot be combined; an unknown key threshold 5 inside budget exits 2 with the closed-shape message | `sed:s/if \(rm\.budget && \(bmode/if (false && (bmode/` in .aai/scripts/lib/roadmap-model.mjs | green |
@@ -473,19 +481,20 @@ removed, captured in the same test, never against a stored string.
 | TEST-1631 | Spec-AC-10 | integration | tests/skills/test-aai-roadmap.sh | budget advisory --threshold 9 from off, from on and from advisory 4: one budget block with exactly mode advisory and maintenance_threshold 9 before pairs, every pair line unchanged, validate exit 0, show prints advisory (threshold 9) | `sed:s/const base = hasBudget\(text\) \? removeBudget\(text\) : text;/const base = text;/` in .aai/scripts/roadmap-edit.mjs | green |
 | TEST-1632 | Spec-AC-10 | integration | tests/skills/test-aai-roadmap.sh | budget off from advisory removes the block, validate exit 0, show prints maintenance budget: off | `sed:s/if \(rm\.posture === 'off'\) refuse/if (!rm.budget) refuse/` in .aai/scripts/roadmap-edit.mjs | green |
 | TEST-1633 | Spec-AC-10 | integration | tests/skills/test-aai-roadmap.sh | budget on from advisory leaves exactly maintenance_per_capability 1, validate exit 0, show prints maintenance budget: on | `sed:s/if \(rm\.posture === 'on'\) refuse/if (rm.posture !== 'off') refuse/` in .aai/scripts/roadmap-edit.mjs | green |
-| TEST-1634 | Spec-AC-10 | integration | tests/skills/test-aai-roadmap.sh | usage refusals exit 2 with sha256 and directory listing unchanged: budget advisory without --threshold; --threshold 0, 1.5, -2, 05, abc; --threshold with budget on, budget off and add; budget sometimes | `sed:s/if \(a\.verb === 'budget' && a\.state === 'advisory' && a\.threshold === null\)/if (false)/` in .aai/scripts/roadmap-edit.mjs | green |
+| TEST-1634 | Spec-AC-10 | integration | tests/skills/test-aai-roadmap.sh | usage refusals exit 2 with sha256 and directory listing unchanged: budget advisory without --threshold; --threshold 0, 1.5, -2, 05, abc; --threshold with budget on, budget off and add; budget sometimes; (validation round 1 NB1) --threshold above Number.MAX_SAFE_INTEGER (9007199254740993) | `sed:s/BigInt\(n\) > BigInt\(Number\.MAX_SAFE_INTEGER\)/false/` in .aai/scripts/roadmap-edit.mjs | green |
 | TEST-1635 | Spec-AC-10 | integration | tests/skills/test-aai-roadmap.sh | budget advisory --threshold 4 when already advisory 4 exits 1 byte-identical; budget on when on and budget off when off still exit 1 with today's messages | `sed:s/if \(rm\.posture === 'advisory' && rm\.advisory\.maintenance_threshold === a\.threshold\) refuse/if (false) refuse/` in .aai/scripts/roadmap-edit.mjs | green |
 | TEST-1636 | Spec-AC-11 | integration | tests/skills/test-aai-roadmap.sh | advisory fixture: ship-append of a change intake prints roadmap: appended and adds an active pair; ship-append of an issue intake is a named no-op; advance flips a pair whose capability doc is done while its bound maintenance doc is draft; each matches the off fixture result | `sed:s/if \(!rm\.budget\) rm\.advisory = \{ maintenance_threshold: Number\(bthr\) \};/if (!rm.budget) { rm.advisory = { maintenance_threshold: Number(bthr) }; rm.budget = { maintenance_per_capability: 1 }; }/` in .aai/scripts/lib/roadmap-model.mjs | green |
 | TEST-1637 | Spec-AC-12 | integration | tests/skills/test-aai-roadmap.sh | seam: pair binding a draft maintenance doc; nothing-left-behind json docs_open has no paired-half entry under advisory, one under on, and one for an invalid roadmap that carries a budget line (unchanged control) | `sed:s/loaded\.roadmap\.posture !== 'on'/false/` in .aai/scripts/nothing-left-behind.mjs | green |
 | TEST-1638 | Spec-AC-13 | integration | tests/skills/test-aai-roadmap.sh | seam: buildSnapshot candidate gate admitted for an off-roadmap issue intake equals the CLI gate exit-0 verdict on the advisory root and equals the off root, consulted true; loadRoadmap pairs json equal for the advisory and off variants | `sed:s/rm\.posture = rm\.budget \? 'on' : \(rm\.advisory \? 'advisory' : 'off'\);/rm.posture = rm.budget ? 'on' : 'off'; if (rm.advisory) rm.budget = rm.advisory;/` in .aai/scripts/lib/roadmap-model.mjs | green |
 | TEST-1639 | Spec-AC-14 | unit | tests/skills/test-aai-roadmap.sh | SKILL_ROADMAP action 7 names on, advisory and off, roadmap-edit.mjs budget advisory --threshold, ride-select.mjs waiting --json and recommended_threshold; TEST-1329 and TEST-1330 selectors exit 0 | `sed:s/budget advisory --threshold/budget advisory/` in .aai/SKILL_ROADMAP.prompt.md | green |
-| TEST-1640 | Spec-AC-15 | unit | tests/skills/test-aai-roadmap.sh | SKILL_SHIP INPUT names propose_maintenance, candidates, alternative, one menu, recommended and no other question; TEST-1331 and TEST-1338 selectors exit 0 | `sed:s/propose_maintenance/propose-maintenance/` in .aai/SKILL_SHIP.prompt.md | green |
+| TEST-1640 | Spec-AC-15 | unit | tests/skills/test-aai-roadmap.sh | SKILL_SHIP INPUT names propose_maintenance, candidates, alternative, one menu, recommended and no other question; TEST-1331 and TEST-1338 selectors exit 0; (validation round 1 B1) option (2)'s alternative is routed exactly as if next --json had answered it directly, never to the printed-verbatim/stop catch-all via the old ambiguous "any other answer below" link | `sed:s/handled exactly as if\s+`next --json` had answered it directly \(a `next` with a `path` is\s+ridden as that path; a `file-intake` is ridden as the need, per the\s+rules above\); any other answer/handled exactly as any other answer below; any other answer/` in .aai/SKILL_SHIP.prompt.md | green |
 | TEST-1641 | Spec-AC-16 | integration | tests/skills/test-aai-prompt-diet.sh | the ledger entry for roadmap-maintenance-budget-advisory equals the measured byte growth of SKILL_ROADMAP and SKILL_SHIP, the TEST-012 checkpoint moves by the same amount, and the whole suite exits 0 | `sed:s/\nJUSTIFIED_ADDITIONS\+=\( "[0-9]* roadmap-maintenance-budget-advisory[^\n]*//` in tests/skills/lib/prompt-diet-ledger.sh | green |
 | TEST-1642 | Spec-AC-17 | unit | tests/skills/test-aai-roadmap.sh | USER_GUIDE roadmap section has an advisory posture table row and an Example 4: an advisory budget H3 naming /aai-roadmap budget and /aai-ship; the /aai-roadmap note lists budget (on, advisory or off); TEST-1333 selector exits 0 | `sed:s/### Example 4: an advisory budget/### Example 4/` in docs/USER_GUIDE.md | green |
 | TEST-1643 | Spec-AC-17 | unit | tests/skills/test-aai-roadmap.sh | docs/product/roadmap.md names mode: advisory, maintenance_threshold, propose_maintenance and ride-select.mjs waiting and carries one worked example per posture (off, on, advisory) | `sed:s/mode: advisory/mode: sometimes/g` in docs/product/roadmap.md | green |
 | TEST-1644 | Spec-AC-18 | unit | tests/skills/test-aai-roadmap.sh | suite-map.yaml lists .aai/scripts/follow-ups.mjs inside the aai-ride-select block (read by block, not by a file-wide grep) | `patch:docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1644.patch` removes the follow-ups.mjs line from the aai-ride-select block of tests/skills/suite-map.yaml | green |
+| TEST-1645 | Spec-AC-07 | integration | tests/skills/test-aai-ride-select.sh | (validation round 1 NB2) an issue doc with no frontmatter `id` still counts toward W and yields an intake candidate whose id is derived from the filename (extractDocIds primary, else the filename stem), never empty/null; the text form names the derived id with no trailing empty-id comma | `sed:s/const id = fm\.id \?\? \(extractDocIds\(n\)\?\.primary \?\? n\.replace\(\/\\\.md\$\/i, ..\)\);/const id = fm.id;/` in .aai/scripts/ride-select.mjs | green |
 
-Counts: 45 rows; 40 integration, 5 unit. Seams crossed by executing the real
+Counts: 46 rows; 41 integration, 5 unit. Seams crossed by executing the real
 consumer: S1 (TEST-1606, TEST-1636), S2 and S4 (TEST-1638), S3 (TEST-1637),
 S5 (TEST-1607..1629 run the real follow-ups fold over a ledger written by the
 real `follow-ups.mjs add`/`close`).

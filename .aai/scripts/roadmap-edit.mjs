@@ -66,7 +66,7 @@ function parseArgs(argv) {
     else if (k === '--confirm') { a.confirm = true; }
     else if (k === '--to') { const n = need(k, v); if (!/^[1-9]\d*$/.test(n)) usage('--to must be a positive integer'); a.to = Number(n); i += 1; }
     else if (k === '--at') { const n = need(k, v); if (!/^[1-9]\d*$/.test(n)) usage('--at must be a positive integer'); a.at = Number(n); i += 1; }
-    else if (k === '--threshold') { const n = need(k, v); if (!THRESHOLD_RE.test(n)) usage('--threshold must be a positive integer'); a.threshold = Number(n); i += 1; }
+    else if (k === '--threshold') { const n = need(k, v); if (!THRESHOLD_RE.test(n)) usage('--threshold must be a positive integer'); if (BigInt(n) > BigInt(Number.MAX_SAFE_INTEGER)) usage(`--threshold must not exceed Number.MAX_SAFE_INTEGER (${Number.MAX_SAFE_INTEGER})`); a.threshold = Number(n); i += 1; }
     else usage(`unknown argument ${k}`);
   }
   if (!VERBS.includes(a.verb)) usage(`usage: roadmap-edit.mjs <${VERBS.join('|')}> [flags]`);

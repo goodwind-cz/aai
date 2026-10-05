@@ -69,6 +69,12 @@ export function loadRoadmap(p) {
     if (!rm.budget && bmode === null && bthr === null) return { error: 'budget: block present but maintenance_per_capability is missing' };
     if (!rm.budget && bmode !== 'advisory') return { error: `budget.mode must be the bare word "advisory", got ${JSON.stringify(bmode)}` };
     if (!rm.budget && !THRESHOLD_RE.test(bthr ?? '')) return { error: `budget.maintenance_threshold must match ^[1-9][0-9]*$, got ${JSON.stringify(bthr ?? null)}` };
+    // NB1 (validation round 1): a shape-valid digit string above
+    // Number.MAX_SAFE_INTEGER silently rounds once `Number(bthr)` reads it
+    // (e.g. 9007199254740993 reads back as ...992) — compare the RAW DIGIT
+    // STRING via BigInt, never the already-lossy Number, before it is ever
+    // converted.
+    if (!rm.budget && BigInt(bthr) > BigInt(Number.MAX_SAFE_INTEGER)) return { error: `budget.maintenance_threshold must not exceed Number.MAX_SAFE_INTEGER (${Number.MAX_SAFE_INTEGER}), got ${bthr}` };
     if (rm.budget && rm.budget.maintenance_per_capability !== 1) return { error: `budget.maintenance_per_capability must be 1 (owner decision), got ${rm.budget.maintenance_per_capability}` };
     if (!rm.budget) rm.advisory = { maintenance_threshold: Number(bthr) };
   }

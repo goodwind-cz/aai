@@ -957,7 +957,14 @@ test_012_growth_sum_matches_ledger() {
   # budget pick; SKILL_SHIP.prompt.md 7714 -> 8036, +322 B, the
   # propose_maintenance one-menu relay); zero headroom standing, credited 1:1
   # (ledger key roadmap-maintenance-budget-advisory).
-  local want_growth=51978
+  # Then 51978 -> 52109: roadmap-maintenance-budget-advisory validation
+  # round 1 B1 remediation (+131 B, SKILL_SHIP.prompt.md 8036 -> 8167) --
+  # option (2)'s `alternative` routing is corrected to say it is handled
+  # exactly as if `next --json` had answered it directly, instead of the
+  # ambiguous "any other answer below" link that fell through to the
+  # printed-verbatim/stop catch-all; zero headroom standing, credited 1:1
+  # (ledger key roadmap-maintenance-budget-advisory-round1-b1).
+  local want_growth=52109
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
