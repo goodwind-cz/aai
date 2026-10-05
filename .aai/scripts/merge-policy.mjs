@@ -870,7 +870,22 @@ export function globToRegExp(glob) {
     re += ESCAPE_RE.test(c) ? '\\' + c : c;
     i += 1;
   }
-  return new RegExp(`^${re}$`);
+  // validation round 8 V8-B1: without the `s` (dotAll) flag, `.` -- what
+  // `**` and a bare catch-all compile to above -- does NOT match a JS line
+  // terminator (LF, CR, U+2028, U+2029), while `[^/]*`/`[^/]` (what `*`/`?`
+  // compile to) DO match one. Round 7's `-z` fix (getChangedFiles, below)
+  // is what first handed this function a changed path's REAL bytes
+  // (previously such a path arrived C-quoted and matched no glob at all,
+  // denying unclassified by accident). Once the real bytes flowed through,
+  // a path whose line-terminator byte sat where an architecture glob
+  // reached it through `**` silently escaped the P5 architecture deny
+  // while a kind glob written with `*` still matched the same bytes. The
+  // `s` flag makes every compiled token -- `.`, `[^/]*`, `[^/]` alike --
+  // treat a line terminator as an ordinary non-slash character, so a path
+  // is classified the same way regardless of which byte happens to sit
+  // under which glob token (TEST-1572; mutation: dropping this flag must
+  // redden it).
+  return new RegExp(`^${re}$`, 's');
 }
 
 // classifyFiles(files, policy) — guard paths first, then architecture, then
@@ -1326,8 +1341,14 @@ function getPrJson(root, pr) {
 // `core.quotePath` C-style quoting/escaping of a path carrying a byte
 // >= 0x80, a quote, a backslash, a tab or a newline, and NUL-terminates
 // each entry instead of newline-separating them, so a literal newline
-// INSIDE a path can never be misread as an entry separator. Without `-z`
-// a non-ASCII or quote-bearing path comes back as the quoted/escaped
+// INSIDE a path can never be misread as an ENTRY SEPARATOR by this split.
+// CORRECTED (validation round 8 V8-B1): that is the only thing the claim
+// above ever covered. Handing the real bytes onward does not make them
+// safe everywhere else they travel — `globToRegExp`'s RegExp misread one
+// of those same bytes one layer down (the `s` flag above fixes that), and
+// a verdict line that echoes a path verbatim can still carry one of these
+// bytes into stdout (escapeForLine, below, fixes that). Without `-z` a
+// non-ASCII or quote-bearing path comes back as the quoted/escaped
 // STRING `".github/workflows/d\303\251ploy.yml"`, not the real repo-
 // relative path — an anchored architecture glob then never matches it
 // (misread-then-allow), while a catch-all `**` kind still does. No
@@ -1347,6 +1368,31 @@ function getChangedFiles(root, base, head) {
 // code carries no `line`, so this is a no-op for them.
 function lineSuffix(e) {
   return e.line !== undefined ? ` line=${e.line}` : '';
+}
+
+// escapeForLine(s) (validation round 8 V8-B1 follow-on): a `path=<p>` value
+// in a verdict/reason line is a changed path's REAL bytes (getChangedFiles
+// above, B2 round 7) — attacker-influenced, since it is whatever the PR's
+// own diff contains. P10's output contract promises exactly one line per
+// lane/verdict; a raw LF, CR, U+2028 or U+2029 inside that path would end
+// the line early (or, under a terminal/log reader, read as extra FORGED
+// `MERGE-POLICY allowed ...` / `lane=... reason=...` lines appended right
+// after the real one). `claude-hook-gate.sh` itself is unaffected (it
+// reads only the first line and still requires rc 0), but a human or
+// another agent reading the denial text could be misled. JSON-style
+// escape only the bytes that could do that -- \n \r \t and a \uXXXX
+// fallback for every other C0/C1 control and DEL, plus the two Unicode
+// line/paragraph separators -- and leave everything else (quotes,
+// backslashes, non-ASCII bytes) exactly as B2 fixed it to be: real bytes,
+// not re-quoted (TEST-1570's non_ascii_architecture/quoted_architecture
+// cases pin that this must NOT also escape `"` or non-ASCII bytes).
+function escapeForLine(s) {
+  return String(s).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, (ch) => {
+    if (ch === '\n') return '\\n';
+    if (ch === '\r') return '\\r';
+    if (ch === '\t') return '\\t';
+    return `\\u${ch.codePointAt(0).toString(16).padStart(4, '0')}`;
+  });
 }
 
 function printLaneErrors(errors) {
@@ -1395,7 +1441,7 @@ function runCheck(opts) {
   }
   const guardCheck = classifyFiles(files, { architecture: [], kinds: [] });
   if (guardCheck.denyReason === 'policy_touched') {
-    console.log(`MERGE-POLICY denied pr=${pr} reason=policy_touched path=${guardCheck.path}`);
+    console.log(`MERGE-POLICY denied pr=${pr} reason=policy_touched path=${escapeForLine(guardCheck.path)}`);
     exit(EXIT_DENIED);
   }
 
@@ -1441,7 +1487,7 @@ function runCheck(opts) {
 
   const classification = classifyFiles(files, policy);
   if (classification.denyReason) {
-    console.log(`MERGE-POLICY denied pr=${pr} reason=${classification.denyReason} path=${classification.path}`);
+    console.log(`MERGE-POLICY denied pr=${pr} reason=${classification.denyReason} path=${escapeForLine(classification.path)}`);
     exit(EXIT_DENIED);
   }
 
@@ -1496,7 +1542,7 @@ function runCheck(opts) {
     // P10 amendment (code review B1, round 7): the kind_not_in_lane line
     // carries the first changed path that lane does not cover, so the
     // denial names the specific gap without a re-run under --debug-inputs.
-    const pathSuffix = verdict.path !== undefined ? ` path=${verdict.path}` : '';
+    const pathSuffix = verdict.path !== undefined ? ` path=${escapeForLine(verdict.path)}` : '';
     laneLines.push(`lane=${lane.id} reason=${verdict.reason}${pathSuffix}`);
   }
 
