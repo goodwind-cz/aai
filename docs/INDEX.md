@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-05T12:48:46.128Z
+Generated: 2026-10-05T13:02:05.013Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -555,7 +555,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| roadmap-maintenance-budget-advisory (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-roadmap-maintenance-budget-advisory.md |
+| CHANGE-0203 | issues | docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

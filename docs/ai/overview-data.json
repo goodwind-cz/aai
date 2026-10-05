@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-05T05:03:48.998Z",
+  "generatedAt": "2026-10-05T13:01:59.324Z",
   "project": "aai",
   "counts": {
     "delivered": 277,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -43,6 +43,19 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "roadmap-maintenance-budget-advisory",
+      "title": "Change Request: Advisory maintenance budget on the roadmap",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
