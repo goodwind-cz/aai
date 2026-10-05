@@ -505,7 +505,10 @@ PROCESS
      `<headRefOid>` is the PR's current head (the same `headRefOid` the
      `gh pr view` call above would report). NEVER add `--auto` or `--admin`:
      either lets GitHub merge a later, unjudged head or bypasses branch
-     protections outright, and the hook lane path refuses both. Cite the
+     protections outright, and the hook lane path refuses both. An `allowed`
+     verdict already proves `mergeStateStatus=CLEAN` with no auto-merge
+     already pending, so a required merge queue can never make this bare
+     command silently enable auto-merge behind the lane's back. Cite the
      `decision_ref` the allowed line names in the merge report. Any other
      verdict (`denied`, `no_policy`, or no `docs/ai/merge-policy.yaml` at the
      base commit) means the hard rule above stands unchanged; a `denied`

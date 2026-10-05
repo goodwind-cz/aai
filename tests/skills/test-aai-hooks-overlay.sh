@@ -1120,8 +1120,8 @@ JSONL
   head="$(cd "$repo" && git rev-parse HEAD)"
   T1520_HEAD="$head"
   # PR 71: everything holds. PR 72: CI failed (an evaluator denial).
-  printf '{"number":71,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-71.json"
-  printf '{"number":72,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"FAILURE"}],"body":""}\n' "$base" "$head" > "$d/pr-72.json"
+  printf '{"number":71,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-71.json"
+  printf '{"number":72,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"FAILURE"}],"body":""}\n' "$base" "$head" > "$d/pr-72.json"
   # Sweep records: working tree only, never committed (a committed copy
   # would enter the PR diff).
   for pr in 71 72; do
@@ -1312,7 +1312,7 @@ current_focus:
   spec_path: docs/spec-1541.md
 YAML
   printf '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1541-ride","payload":{"pr":90,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted"}}\n' >> "$repo/docs/ai/EVENTS.jsonl"
-  printf '{"number":90,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-90.json"
+  printf '{"number":90,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-90.json"
   cat > "$d/bin/gh" <<GHSTUB
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$d/gh-argv.log"
@@ -1454,7 +1454,7 @@ t1551_fixture() {
   printf '%s\n' 'current_focus:' '  type: intake_change' '  ref_id: ride-1551' \
     '  primary_path: docs/intake-1551.md' '  spec_path: docs/spec-1551.md' > "$repo/docs/ai/STATE.yaml"
   printf '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1551-ride","payload":{"pr":92,"lane":"heavy","reviewer_bots":"none","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted"}}\n' >> "$repo/docs/ai/EVENTS.jsonl"
-  printf '{"number":92,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-92.json"
+  printf '{"number":92,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"%s","headRefOid":"%s","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}\n' "$base" "$head" > "$d/pr-92.json"
   cat > "$d/bin/gh" <<GHSTUB
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$d/gh-argv.log"

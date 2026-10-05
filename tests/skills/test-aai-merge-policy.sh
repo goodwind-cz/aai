@@ -166,7 +166,7 @@ test_1501_no_policy() {
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":1,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$base","reviews":[],"statusCheckRollup":[],"body":""}
+{"number":1,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$base","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -238,7 +238,7 @@ YAML
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":2,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+{"number":2,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -313,7 +313,7 @@ YAML
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":3,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+{"number":3,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -360,7 +360,7 @@ JSONL
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":4,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+{"number":4,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -409,7 +409,7 @@ test_1506_guard_paths_denied() {
 
     local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
     cat > "$json" <<JSON
-{"number":5,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+{"number":5,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
 
@@ -551,7 +551,7 @@ JSONL
 
     local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
     cat > "$json" <<JSON
-{"number":6,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+{"number":6,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
 
@@ -690,7 +690,7 @@ JSONL
 
     local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
     cat > "$json" <<JSON
-{"number":7,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":$reviews,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+{"number":7,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":$reviews,"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
 
@@ -753,7 +753,7 @@ JSONL
 
     local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
     cat > "$json" <<JSON
-{"number":8,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":$rollup,"body":""}
+{"number":8,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":$rollup,"body":""}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
 
@@ -810,7 +810,7 @@ JSONL
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":9,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":9,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -952,7 +952,7 @@ JSONL
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":12,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+{"number":12,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -1017,7 +1017,7 @@ JSONL
 
     local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
     cat > "$json" <<JSON
-{"number":10,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":10,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
 
@@ -1121,7 +1121,7 @@ JSONL
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":11,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":11,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -1539,7 +1539,7 @@ JSONL
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":13,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
+{"number":13,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"state":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -1650,7 +1650,7 @@ YAML
 
     local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
     cat > "$json" <<JSON
-{"number":30,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"$body"}
+{"number":30,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"$body"}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
 
@@ -1732,7 +1732,7 @@ JSONL
     case "$case_name" in
       closed_state)
         cat > "$json" <<JSON
-{"number":40,"state":"CLOSED","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+{"number":40,"state":"CLOSED","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[],"body":""}
 JSON
         build_gh_stub "$ghbin" "$json" "$log"
         run_check "$repo" "$ghbin" 40
@@ -1741,7 +1741,7 @@ JSON
         ;;
       draft)
         cat > "$json" <<JSON
-{"number":40,"state":"OPEN","isDraft":true,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+{"number":40,"state":"OPEN","isDraft":true,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[],"body":""}
 JSON
         build_gh_stub "$ghbin" "$json" "$log"
         run_check "$repo" "$ghbin" 40
@@ -1768,7 +1768,7 @@ STUBEOF
         ;;
       bad_base_oid)
         cat > "$json" <<JSON
-{"number":40,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+{"number":40,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[],"body":""}
 JSON
         build_gh_stub "$ghbin" "$json" "$log"
         run_check "$repo" "$ghbin" 40
@@ -1819,7 +1819,7 @@ JSONL
   local ghbin="$TEST_DIR/gh-bin" log="$TEST_DIR/gh-argv.log"
   local json_ok="$TEST_DIR/pr-ok.json" json_closed="$TEST_DIR/pr-closed.json"
   cat > "$json_ok" <<JSON
-{"number":50,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":50,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json_ok" "$log"
   run_check "$repo" "$ghbin" 50
@@ -1828,7 +1828,7 @@ JSON
   [[ "$RC" -eq 0 ]] || log_fail "TEST-1523: expected exit 0 on the first call, got $RC: $OUT"
 
   cat > "$json_closed" <<JSON
-{"number":51,"state":"CLOSED","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[],"body":""}
+{"number":51,"state":"CLOSED","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json_closed" "$log"
   run_check "$repo" "$ghbin" 51
@@ -1964,7 +1964,7 @@ JSONL
 
     local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
     cat > "$json" <<JSON
-{"number":$pr,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":$pr,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
     run_check "$repo" "$ghbin" "$pr"
@@ -2112,7 +2112,7 @@ YAML
 
     local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
     cat > "$json" <<JSON
-{"number":70,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"$body"}
+{"number":70,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"$body"}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
 
@@ -2346,7 +2346,7 @@ YAML
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":70,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"plan carries a Residual risk"}
+{"number":70,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"plan carries a Residual risk"}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -2645,7 +2645,7 @@ JSONL
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":80,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":80,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -2796,7 +2796,7 @@ MD
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":95,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":95,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -3160,7 +3160,7 @@ test_1550_scalar_key_list_marker_refused() {
   write_state "$TEST_DIR/STATE.yaml" "fail" "fail"
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":70,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":70,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
   run_check "$repo" "$ghbin" 70 --intake "$TEST_DIR/intake.md" --state "$TEST_DIR/STATE.yaml"
@@ -3562,7 +3562,7 @@ JSONL
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":11,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":11,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -3606,7 +3606,7 @@ JSONL
 
   local ghbin2="$TEST_DIR/gh-bin2" json2="$TEST_DIR/pr2.json" log2="$TEST_DIR/gh2.log"
   cat > "$json2" <<JSON
-{"number":12,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base2","headRefOid":"$head2","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":12,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base2","headRefOid":"$head2","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin2" "$json2" "$log2"
 
@@ -3723,7 +3723,7 @@ MD
 
     local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
     cat > "$json" <<JSON
-{"number":40,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":40,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
 
@@ -3807,7 +3807,7 @@ JSONL
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   # headRefOid === baseRefOid -- git diff base...head is empty.
   cat > "$json" <<JSON
-{"number":50,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$base","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":50,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$base","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
 
@@ -4259,7 +4259,7 @@ YAML
 
     local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
     cat > "$json" <<JSON
-{"number":$pr,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"$body"}
+{"number":$pr,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":"$body"}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
 
@@ -4378,7 +4378,7 @@ JSONL
 
     local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
     cat > "$json" <<JSON
-{"number":80,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":80,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
     run_check "$repo" "$ghbin" 80
@@ -4569,7 +4569,7 @@ JSONL
 
     local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
     cat > "$json" <<JSON
-{"number":81,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":81,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
     build_gh_stub "$ghbin" "$json" "$log"
     run_check "$repo" "$ghbin" 81
@@ -4632,7 +4632,7 @@ JSONL
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON
-{"number":81,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+{"number":81,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
 JSON
   build_gh_stub "$ghbin" "$json" "$log"
   run_check "$repo" "$ghbin" 81
@@ -4648,6 +4648,161 @@ JSON
   [[ "$RC" -eq 3 ]] || log_fail "TEST-1573: expected exit 3, got $RC: $OUT"
 
   log_pass "TEST-1573 (Spec-AC-05/Spec-AC-17) a denied path carrying line terminators and a forged verdict payload is escaped onto its own single line -- the real output never grows extra fabricated lines"
+}
+
+# --- TEST-1574 (Spec-AC-24, Codex review PR #430 P1) ------------------------
+# ciGreen only proves every entry PRESENT in statusCheckRollup is green -- it
+# says nothing about a REQUIRED check that has not reported yet, or a branch
+# that requires a merge queue. GitHub's own mergeStateStatus already judges
+# exactly that ("mergeable and passing commit status" for CLEAN; every other
+# enum member names a reason it is not), so `--check` reads it as a second,
+# independent gate rather than re-deriving the same judgement from the rollup
+# this evaluator already has. Enum values confirmed live against gh v2.93.0's
+# own GraphQL schema (2026-10-05): BEHIND, BLOCKED, CLEAN, DIRTY, HAS_HOOKS,
+# UNKNOWN, UNSTABLE. DRAFT is not a live member of this schema (the isDraft
+# field, already checked earlier as reason=pr_not_open, is GitHub's actual
+# draft signal) but the gate still fails closed on it, and on any OTHER
+# unrecognized string, the same as a missing field -- CLEAN is the only
+# value ever read as "proceed".
+test_1574_merge_state_not_clean() {
+  log_info "TEST-1574: mergeStateStatus BEHIND, BLOCKED, DIRTY, HAS_HOOKS, UNKNOWN, UNSTABLE and an omitted field each deny merge_state_not_clean naming the state; CLEAN passes this gate (control, fixture reaches allowed)"
+  local case_name
+  for case_name in behind blocked dirty has_hooks unknown unstable missing_field clean_control; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-mss
+    decision_ref: test1574-ride@2026-10-05T05:00:00Z
+    decision_match: "MERGE LANE test1574"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_MSS1574_MERGE
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1574-ride","ts":"2026-10-05T05:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1574 approved"}
+JSONL
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 97
+
+    local mss_field want_state
+    case "$case_name" in
+      behind) mss_field='"mergeStateStatus":"BEHIND",'; want_state="BEHIND" ;;
+      blocked) mss_field='"mergeStateStatus":"BLOCKED",'; want_state="BLOCKED" ;;
+      dirty) mss_field='"mergeStateStatus":"DIRTY",'; want_state="DIRTY" ;;
+      has_hooks) mss_field='"mergeStateStatus":"HAS_HOOKS",'; want_state="HAS_HOOKS" ;;
+      unknown) mss_field='"mergeStateStatus":"UNKNOWN",'; want_state="UNKNOWN" ;;
+      unstable) mss_field='"mergeStateStatus":"UNSTABLE",'; want_state="UNSTABLE" ;;
+      missing_field) mss_field=''; want_state="missing" ;;
+      clean_control) mss_field='"mergeStateStatus":"CLEAN",'; want_state="" ;;
+    esac
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":97,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],${mss_field}"autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    run_check "$repo" "$ghbin" 97
+
+    if [[ "$case_name" == "clean_control" ]]; then
+      assert_payload_not_contains "$OUT" "reason=merge_state_not_clean" \
+        "TEST-1574 [$case_name]: CLEAN must never deny merge_state_not_clean, got: $OUT"
+      assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=97 lane=lane-mss marker=AAI_MSS1574_MERGE decision_ref=test1574-ride@2026-10-05T05:00:00Z merge_reaches=nothing" \
+        "TEST-1574 [$case_name]: expected the fixture to reach allowed once mergeStateStatus is CLEAN, got: $OUT"
+      [[ "$RC" -eq 0 ]] || log_fail "TEST-1574 [$case_name]: expected exit 0, got $RC: $OUT"
+    else
+      assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=97 reason=merge_state_not_clean state=$want_state" \
+        "TEST-1574 [$case_name]: expected reason=merge_state_not_clean state=$want_state, got: $OUT"
+      [[ "$RC" -eq 3 ]] || log_fail "TEST-1574 [$case_name]: expected exit 3, got $RC: $OUT"
+    fi
+  done
+
+  log_pass "TEST-1574 (Spec-AC-24) mergeStateStatus gates --check: BEHIND, BLOCKED, DIRTY, HAS_HOOKS, UNKNOWN, UNSTABLE and an omitted field each deny merge_state_not_clean naming the state, fail closed; only CLEAN passes this gate"
+}
+
+# --- TEST-1575 (Spec-AC-24, Codex review PR #430 P1) ------------------------
+# A merge-queue / "Enable auto-merge" request already pending on the PR
+# outlives this one --check call: GitHub will complete that merge LATER, the
+# moment its own conditions are satisfied, without ever re-running
+# merge-policy.mjs. Reading mergeStateStatus=CLEAN as "safe to issue gh pr
+# merge now" while ignoring a live autoMergeRequest would let an earlier,
+# unjudged auto-merge request complete behind this evaluator's back.
+test_1575_auto_merge_pending() {
+  log_info "TEST-1575: a pending autoMergeRequest denies auto_merge_pending even when mergeStateStatus is CLEAN; a null autoMergeRequest passes this gate (control, fixture reaches allowed)"
+  local case_name
+  for case_name in pending_request no_request; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-amr
+    decision_ref: test1575-ride@2026-10-05T05:30:00Z
+    decision_match: "MERGE LANE test1575"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_AMR1575_MERGE
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1575-ride","ts":"2026-10-05T05:30:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1575 approved"}
+JSONL
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 98
+
+    local amr_field
+    case "$case_name" in
+      pending_request) amr_field='{"enabledBy":{"login":"some-bot"},"mergeMethod":"SQUASH"}' ;;
+      no_request) amr_field='null' ;;
+    esac
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":98,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":$amr_field,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    run_check "$repo" "$ghbin" 98
+
+    if [[ "$case_name" == "no_request" ]]; then
+      assert_payload_not_contains "$OUT" "reason=auto_merge_pending" \
+        "TEST-1575 [$case_name]: a null autoMergeRequest must never deny auto_merge_pending, got: $OUT"
+      assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=98 lane=lane-amr marker=AAI_AMR1575_MERGE decision_ref=test1575-ride@2026-10-05T05:30:00Z merge_reaches=nothing" \
+        "TEST-1575 [$case_name]: expected the fixture to reach allowed with no pending auto-merge request, got: $OUT"
+      [[ "$RC" -eq 0 ]] || log_fail "TEST-1575 [$case_name]: expected exit 0, got $RC: $OUT"
+    else
+      assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=98 reason=auto_merge_pending" \
+        "TEST-1575 [$case_name]: expected reason=auto_merge_pending, got: $OUT"
+      [[ "$RC" -eq 3 ]] || log_fail "TEST-1575 [$case_name]: expected exit 3, got $RC: $OUT"
+    fi
+  done
+
+  log_pass "TEST-1575 (Spec-AC-24) a pending autoMergeRequest denies auto_merge_pending even though mergeStateStatus is CLEAN -- a request already queued to merge later must never be read as safe-to-merge-now; a null request passes this gate"
 }
 
 main() {
@@ -4717,6 +4872,8 @@ main() {
   test_1571_skill_pr_merge_command_passes_hook_shape
   test_1572_dotall_line_terminator_architecture_deny
   test_1573_denied_path_output_stays_one_line
+  test_1574_merge_state_not_clean
+  test_1575_auto_merge_pending
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view

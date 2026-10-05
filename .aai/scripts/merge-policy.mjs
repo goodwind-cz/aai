@@ -1330,7 +1330,8 @@ function parseArgs(argv) {
 }
 
 function getPrJson(root, pr) {
-  const fields = 'number,state,isDraft,baseRefName,baseRefOid,headRefOid,reviews,statusCheckRollup,body';
+  const fields = 'number,state,isDraft,baseRefName,baseRefOid,headRefOid,reviews,statusCheckRollup,'
+    + 'mergeStateStatus,mergeable,autoMergeRequest,body';
   const raw = execFileSync('gh', ['pr', 'view', String(pr), '--json', fields], {
     cwd: root, encoding: 'utf8',
   });
@@ -1493,6 +1494,41 @@ function runCheck(opts) {
 
   if (!ciGreen(prJson.statusCheckRollup)) {
     console.log(`MERGE-POLICY denied pr=${pr} reason=ci_not_green`);
+    exit(EXIT_DENIED);
+  }
+
+  // mergeStateStatus gate (Codex review, PR #430 P1): ciGreen above only
+  // judges the entries PRESENT in statusCheckRollup -- it proves nothing
+  // about a REQUIRED check that has not reported yet, or a branch that
+  // requires a merge queue. `gh pr merge` (even with no --auto) can still
+  // ENABLE auto-merge instead of merging immediately in exactly that shape,
+  // and the PR then merges later without this evaluator ever running again.
+  // GitHub's own mergeStateStatus already judges this directly, so it is
+  // read as a second, independent PR-level gate rather than re-derived from
+  // the rollup. Enum confirmed LIVE against gh v2.93.0's own GraphQL schema
+  // (2026-10-05, `gh api graphql -f query='{ __type(name: "MergeStateStatus")
+  // { enumValues { name } } }'`): BEHIND, BLOCKED, CLEAN, DIRTY, HAS_HOOKS,
+  // UNKNOWN, UNSTABLE. DRAFT is not a live member of that schema (the real
+  // draft signal is the `isDraft` field already denied above as
+  // reason=pr_not_open) -- but this gate still fails closed on it, and on
+  // any other unrecognized string, exactly like a missing field. CLEAN
+  // ("mergeable and passing commit status") is the ONLY value ever read as
+  // "proceed"; every other value denies, naming the state (escaped like
+  // every other printed value).
+  if (prJson.mergeStateStatus !== 'CLEAN') {
+    const state = (prJson.mergeStateStatus === undefined || prJson.mergeStateStatus === null)
+      ? 'missing' : prJson.mergeStateStatus;
+    console.log(`MERGE-POLICY denied pr=${pr} reason=merge_state_not_clean state=${escapeForLine(state)}`);
+    exit(EXIT_DENIED);
+  }
+  // autoMergeRequest gate: a merge-queue / "Enable auto-merge" request
+  // already pending on the PR outlives this one --check call -- GitHub
+  // completes it LATER, the moment ITS OWN conditions are met, without ever
+  // re-running merge-policy.mjs. mergeStateStatus=CLEAN alone does not rule
+  // this out (an auto-merge request can sit on an otherwise-clean PR), so
+  // an already-pending request denies regardless of mergeStateStatus.
+  if (prJson.autoMergeRequest) {
+    console.log(`MERGE-POLICY denied pr=${pr} reason=auto_merge_pending`);
     exit(EXIT_DENIED);
   }
 

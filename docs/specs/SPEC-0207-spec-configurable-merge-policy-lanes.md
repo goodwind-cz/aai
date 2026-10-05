@@ -4,7 +4,7 @@ type: spec
 number: 207
 status: done
 mutation_gate: v1
-frozen_sha256: 88a29053f1339bf4bdabed642f29e0861f064f2d380420514b6d640fed3e6076
+frozen_sha256: 76bb62f578e7b13561634bef93622e627b1273ff1f4a60e19269e98850773a5a
 ceremony_level: 3
 links:
   requirement: null
@@ -363,7 +363,10 @@ lines and exits 1 on a parse-time error.
 
 PR-level deny codes: `api_unavailable`, `pr_not_open`, `base_unavailable`,
 `policy_invalid`, `policy_touched`, `architecture`, `unclassified`,
-`ci_not_green`, `sweep_check_failed`, `no_lane_matched`.
+`ci_not_green`, `merge_state_not_clean`, `auto_merge_pending`,
+`sweep_check_failed`, `no_lane_matched`. (`merge_state_not_clean` and
+`auto_merge_pending` added by the Codex-review (PR #430 P1) amendment below —
+Spec-AC-24.)
 
 Lane-level deny codes: `kind_not_in_lane`, `intake_type`,
 `roadmap_unreadable`, `roadmap_capability`, `ceremony_exceeds`,
@@ -504,7 +507,7 @@ string gives `empty_globs`. A CRLF policy file is normalised before the parse.
 
 ## Acceptance Criteria Mapping
 - Maps to: RFC Proposal items 1 to 5, the RFC's added design points, Risks, and owner decisions D1 to D4.
-- Spec-AC-01..23 below. Each is verified by the TEST rows in the Test Plan.
+- Spec-AC-01..24 below. Each is verified by the TEST rows in the Test Plan.
 - Verification: `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-merge-policy.sh`, plus the named suites per row.
 
 ## Constitution deviations
@@ -548,6 +551,7 @@ string gives `empty_globs`. A CRLF policy file is normalised before the parse.
 | Spec-AC-21 | docs/CONSTITUTION.md article 7 names lane merges allowed by .aai/scripts/merge-policy.mjs under an owner-signed docs/ai/merge-policy.yaml as the sole sanctioned exception, still contains operator-only, and the ratification line reads v2, 2026-10-03; tests/skills/test-aai-constitution.sh exits 0 | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1529.log TEST-1529 mutation-gate PASS | — | P11, HITL-1: the PR body must ask the owner to ratify by merging |
 | Spec-AC-22 | .aai/system/PROFILES.yaml lists .aai/scripts/merge-policy.mjs under core; .aai/system/DOCS_AI_CANON.list lists merge-policy.yaml; tests/skills/suite-map.yaml maps the evaluator and the new suite so select-suites.mjs prints no FULL_RUN for that path; the prompt-diet ledger carries an entry for this ref and TEST-012 is re-pinned; test-aai-layer-profiles.sh and test-aai-prompt-diet.sh exit 0 | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1530.log, docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1531.log TEST-1530/1531 mutation-gate PASS | — | companion obligations; PROFILES/DOCS_AI_CANON/suite-map rows were already in place from batches 1-7, TEST-1530 verifies them as a regression guard |
 | Spec-AC-23 | CHANGELOG.md carries a `## [unreleased] — ` heading for this capability whose body names docs/ai/merge-policy.yaml, merge-policy.mjs --validate, and the breaking removal of the prose standing authorization with its migration step | done | docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1532.log TEST-1532 mutation-gate PASS | — | Article 5 disclosure |
+| Spec-AC-24 | WHEN `gh pr view`'s `mergeStateStatus` for the PR is anything other than `CLEAN` (including a missing field) THEN `--check` exits 3 with reason=merge_state_not_clean naming the state (`missing` when the field is absent/null); WHEN `autoMergeRequest` is already set (a merge-queue / "Enable auto-merge" request pending on the PR) THEN `--check` exits 3 with reason=auto_merge_pending, even when mergeStateStatus is CLEAN; a PR with mergeStateStatus CLEAN and no autoMergeRequest passes both gates unaffected | done | docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1574.log docs/ai/tdd/configurable-merge-policy-lanes-red-TEST-1575.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1574.log docs/ai/tdd/configurable-merge-policy-lanes-green-TEST-1575.log TEST-1574 TEST-1575 mutation-gate PASS | — | Codex external review on PR #430 (P1): `gh pr merge` with no `--auto` can still silently ENABLE auto-merge under a required merge queue or an unreported required check; ciGreen alone cannot detect this (it only judges rollup entries that are PRESENT). mergeStateStatus enum confirmed live against gh v2.93.0's own GraphQL schema, 2026-10-05: BEHIND, BLOCKED, CLEAN, DIRTY, HAS_HOOKS, UNKNOWN, UNSTABLE allow-listing only CLEAN; DRAFT is handled earlier by the existing isDraft check and is not a live enum member on this schema, but still fails closed the same as any other non-CLEAN value |
 
 ## Test Plan
 
@@ -635,6 +639,8 @@ substitutions against the identifiers that the Implementation plan mandates.
 | TEST-1571 | Spec-AC-19 | integration | tests/skills/test-aai-merge-policy.sh | code review round 7 N7: SKILL_PR.prompt.md step 6's documented lane-merge command, with `<n>`/`<headRefOid>` substituted, is parsed out of the prompt text and run through claude-hook-gate.sh's own lane_check_merge_shape allow-list (TEST-1549) -- the pre-fix command (no PR number) was refused by the hook it documents | sed:s/gh pr merge <n> --squash --match-head-commit <headRefOid>` \(the PR\n     number is required — the hook's lane allow-list refuses the\n     branch-implicit form with no number\) with that/gh pr merge --squash --match-head-commit <headRefOid>` with that/ | green |
 | TEST-1572 | Spec-AC-05 | integration | tests/skills/test-aai-merge-policy.sh | validation round 8 V8-B1: globToRegExp's compiled RegExp needed the `s` (dotAll) flag -- without it, a changed path's LF, CR, U+2028 or U+2029 failed to match an architecture glob reached through `**` while a kind glob written with `*` still matched the same bytes, letting the PR bypass the P5 architecture deny; reproduced for all four line-terminator bytes under `.github/**`+`**/*.yml` and for the RFC's own `migrations/**`+content example | sed:s/, 's'\);/);/ | green |
 | TEST-1573 | Spec-AC-05 | integration | tests/skills/test-aai-merge-policy.sh | validation round 8 V8-B1 INFO: a denied path is echoed verbatim in its verdict/reason line (round 7 B2) -- escaping a line terminator or other control byte before printing it keeps P10's one-line-per-lane contract even when the path carries a forged `MERGE-POLICY allowed`/`lane=...` payload; the denial still prints exactly the expected number of physical lines | sed:s/path=\${escapeForLine\(verdict\.path\)}/path=\${verdict.path}/ | green |
+| TEST-1574 | Spec-AC-24 | integration | tests/skills/test-aai-merge-policy.sh | Codex review (PR #430 P1): mergeStateStatus BEHIND, BLOCKED, DIRTY, HAS_HOOKS, UNKNOWN, UNSTABLE and an omitted field each deny merge_state_not_clean naming the state (missing when absent); CLEAN passes this gate and the fixture reaches allowed (control) | sed:s/if \(prJson\.mergeStateStatus !== 'CLEAN'\) \{/if (false) {/ | green |
+| TEST-1575 | Spec-AC-24 | integration | tests/skills/test-aai-merge-policy.sh | Codex review (PR #430 P1): an already-pending autoMergeRequest denies auto_merge_pending even though mergeStateStatus is CLEAN; a null autoMergeRequest passes this gate and the fixture reaches allowed (control) | sed:s/if \(prJson\.autoMergeRequest\) \{/if (false) {/ | green |
 
 RED observation plan: each row is first seen failing on the pre-change tree,
 where the evaluator does not exist or the text is not yet written. The RED log
