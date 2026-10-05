@@ -1,6 +1,6 @@
 # AAI Constitution
 
-Proposed for ratification by: project owner (ales@holubec.net) — ratifies by merging the introducing PR; v1, 2026-07-16
+Proposed for ratification by: project owner (ales@holubec.net) — ratifies by merging the introducing PR; v2, 2026-10-03
 
 Short, ratified principles (spec-kit pattern, RES-0001 P2 rec 10). Articles
 DISTILL the canonical guides — one sentence plus a pointer to the
@@ -23,7 +23,7 @@ Amendments bump the version and re-ratify.
 
 6. Single-writer state — docs/ai/STATE.yaml has exactly one single writer, the transactional CLI .aai/scripts/state.mjs; never hand-edit it. (see: .aai/AGENTS.md Canonical sources — runtime state writer)
 
-7. Operator-only merge — the agent never merges; the PR ceremony ends at `gh pr create` and merging is operator-only. (see: .aai/AGENTS.md How to run, step 3; .aai/SKILL_PR.prompt.md)
+7. Operator-only merge — the agent never merges; the PR ceremony ends at `gh pr create` and merging is operator-only, except a lane merge that `.aai/scripts/merge-policy.mjs` allows under an owner-signed `docs/ai/merge-policy.yaml`, the sole sanctioned exception. (see: .aai/AGENTS.md How to run, step 3; .aai/SKILL_PR.prompt.md)
 
 ## Deviations (accountable exceptions)
 

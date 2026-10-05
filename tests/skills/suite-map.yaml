@@ -640,6 +640,13 @@ suites:
       - .aai/scripts/ledger-merge.mjs
       - .aai/system/PROFILES.yaml
 
+  aai-merge-policy:
+    globs:
+      - .aai/scripts/merge-policy.mjs
+      - .aai/scripts/lane-gate.mjs
+      - .aai/scripts/claude-hook-gate.sh
+      - docs/ai/merge-policy.yaml
+
   aai-metrics:
     globs:
       - .aai/scripts/metrics-flush.mjs

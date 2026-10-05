@@ -43,9 +43,10 @@ To update the AAI layer from a template worktree, see .aai/scripts/aai-sync.(sh|
    - Follow the referenced prompt file exactly.
 
 3) Closeout: when Validation and Code Review PASS, open the PR via /aai-pr
-   (.aai/SKILL_PR.prompt.md). The agent merges only under an owner-signed
-   standing merge authorization recorded in docs/ai/decisions.jsonl and
-   scoped in SKILL_PR step 6; otherwise merging is operator-only.
+   (.aai/SKILL_PR.prompt.md). The agent merges only when
+   `node .aai/scripts/merge-policy.mjs --check --pr <n>` allows a lane under
+   the owner-signed docs/ai/merge-policy.yaml, as scoped in SKILL_PR step 6;
+   otherwise merging is operator-only.
 
 ### Canonical test invocation
 

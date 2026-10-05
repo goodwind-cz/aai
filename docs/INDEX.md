@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-03T14:53:00.557Z
+Generated: 2026-10-05T14:03:21.173Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (31)
+## Product (32)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -29,6 +29,7 @@ _None._
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
+| configurable-merge-policy-lanes | configurable-merge-policy-lanes | 1 | docs/product/configurable-merge-policy-lanes.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
@@ -53,7 +54,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (487)
+## Done (489)
 
 | ID | Type | Path |
 |---|---|---|
@@ -332,6 +333,7 @@ _None._
 | RFC-0011 | rfc | docs/rfc/RFC-0011-delta-spec-lifecycle.md |
 | RFC-0013 | rfc | docs/rfc/RFC-0013-friction-record-v2-redaction.md |
 | RFC-0014 | rfc | docs/rfc/RFC-0014-unattended-rides-human-gate-at-merge.md |
+| RFC-0015 | rfc | docs/rfc/RFC-0015-configurable-merge-policy-lanes.md |
 | RES-0001 | specs | docs/specs/RES-0001-aai-competitive-gap-and-model-efficiency.md |
 | RES-0002 | specs | docs/specs/RES-0002-mechanical-context-offload-to-cheap-tier.md |
 | RES-0003 | specs | docs/specs/RES-0003-polydao-graph-loop-ideas-for-aai.md |
@@ -542,16 +544,18 @@ _None._
 | SPEC-0204 | specs | docs/specs/SPEC-0204-spec-a-check-cannot-tell-silence-from-a-verdict.md |
 | SPEC-0205 | specs | docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md |
 | SPEC-0206 | specs | docs/specs/SPEC-0206-spec-ci-test-selection-narrowing-and-sharding.md |
+| SPEC-0207 | specs | docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
+| CHANGE-0203 | issues | docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -616,4 +620,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-03 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-05 — counts above use this date for overdue checks.

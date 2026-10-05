@@ -350,8 +350,15 @@ test_1208_default_roadmap_refuses_off_roadmap() {
   write_doc zz-offroadmap-fix issue draft
   local rc
   rc="$(run gate --ref zz-offroadmap-fix --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-zz-offroadmap-fix.md" --docs "$TEST_DIR/docs" --events "$TEST_DIR/events1208.jsonl")" || true
-  [ "$rc" = "1" ] || log_fail "TEST-1208: the default (shipped) roadmap must refuse an off-roadmap fix with exit 1, got $rc: $(out) $(err)"
-  grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1208: must say REFUSED: $(err)"
+  # The shipped roadmap is read on the default path either way; what it then
+  # decides follows its own budget posture (CHANGE-0201: the budget is opt-in).
+  if grep -q '^budget:' "$SHIPPED"; then
+    [ "$rc" = "1" ] || log_fail "TEST-1208: the shipped roadmap carries a budget, so it must refuse an off-roadmap fix with exit 1, got $rc: $(out) $(err)"
+    grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1208: must say REFUSED: $(err)"
+  else
+    [ "$rc" = "0" ] || log_fail "TEST-1208: the shipped roadmap carries no budget, so it must admit an off-roadmap fix, got $rc: $(out) $(err)"
+    grep -q "no maintenance budget" "$TEST_DIR/out" "$TEST_DIR/err" || log_fail "TEST-1208: the admission must come from the shipped roadmap's budget posture: $(out) $(err)"
+  fi
   log_pass "default roadmap path still governs (TEST-1208)"
 }
 
@@ -628,8 +635,11 @@ test_583_gate_refuses_undocumented_ref() {
   else
     [ "$(run gate --ref maint-t583 --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" != "0" ] \
       || log_fail "TEST-583: the fixture ref maint-t583 must not be admissible against the LIVE roadmap: $(err)"
-    grep -qi "not on the roadmap" "$TEST_DIR/err" \
-      || log_fail "TEST-583: the live refusal must say the fixture ref is not on the roadmap: $(err)"
+    # With a budget the live gate refuses an off-roadmap ref; without one
+    # (CHANGE-0201) roadmap order no longer refuses it and the refusal comes
+    # from the missing document instead. Either way it must be refused.
+    grep -qiE "not on the roadmap|no document resolves" "$TEST_DIR/err" \
+      || log_fail "TEST-583: the live refusal must say the fixture ref is off the roadmap or has no document: $(err)"
   fi
   log_pass "TEST-583: gate refuses an undocumented roadmap ref (capability or maintenance), naming the ref and the missing document, and admits once the document exists; live roadmap unaffected"
 }
@@ -754,7 +764,7 @@ YAML
 test_718_validate_shipped_regression() {
   log_info "Test: validate over the shipped docs/ai/roadmap.yaml still prints the identical summary after the relaxation (TEST-718)..."
   [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-718: the shipped roadmap must still validate: $(err)"
-  [ "$(out)" = "roadmap OK: 11 pair(s), 4 wave-2 item(s)" ] \
+  [ "$(out)" = "roadmap OK: 13 pair(s), 4 wave-2 item(s)" ] \
     || log_fail "TEST-718: the summary line must be byte-identical, got: $(out)"
   log_pass "the shipped roadmap still validates with the identical summary line (TEST-718)"
 }
@@ -1943,7 +1953,7 @@ test_1302_budget_block_stays_strict() {
   [ "$(run validate --roadmap "$TEST_DIR/t1302-two.yaml")" = "2" ] || log_fail "TEST-1302: maintenance_per_capability 2 must exit 2"
   grep -q 'must be 1' "$TEST_DIR/err" || log_fail "TEST-1302: the value refusal must say must be 1: $(err)"
   [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-1302: the shipped roadmap must validate: $(err)"
-  [ "$(out)" = "roadmap OK: 11 pair(s), 4 wave-2 item(s)" ] || log_fail "TEST-1302: the shipped summary must be byte-identical, got: $(out)"
+  [ "$(out)" = "roadmap OK: 13 pair(s), 4 wave-2 item(s)" ] || log_fail "TEST-1302: the shipped summary must be byte-identical, got: $(out)"
   log_pass "empty, duplicate and non-1 budget blocks still exit 2; shipped summary unchanged (TEST-1302)"
 }
 

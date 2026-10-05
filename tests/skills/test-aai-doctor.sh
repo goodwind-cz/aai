@@ -636,9 +636,9 @@ test_015_json_shape() {
       const die = (m) => { console.error(m); process.exit(1); };
       if (typeof j.root !== "string") die("root missing/wrong type");
       if (typeof j.generatedAt !== "string") die("generatedAt missing/wrong type");
-      if (!Array.isArray(j.categories) || j.categories.length !== 18) die("categories: want array of 18, got " + (j.categories && j.categories.length));
+      if (!Array.isArray(j.categories) || j.categories.length !== 19) die("categories: want array of 19, got " + (j.categories && j.categories.length));
       const wantIds = [];
-      for (let i = 1; i <= 18; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
+      for (let i = 1; i <= 19; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
       const gotIds = j.categories.map(c => c.id);
       if (JSON.stringify(gotIds) !== JSON.stringify(wantIds)) die("category ids: " + JSON.stringify(gotIds));
       for (const c of j.categories) {
@@ -655,7 +655,7 @@ test_015_json_shape() {
       if (typeof j.issues !== "number") die("issues not a number");
       if (typeof j.exit !== "number") die("exit not a number");
     });
-  ' && log_pass "TEST-015 --json emits the documented shape (18 categories, CAT-01..18, CAT-14/15/16 carry detail)" \
+  ' && log_pass "TEST-015 --json emits the documented shape (19 categories on this repo -- CAT-01..18 plus CAT-19 Merge Policy, now that docs/ai/merge-policy.yaml exists here -- CAT-14/15/16 carry detail)" \
     || log_fail "TEST-015 --json shape"
 }
 
@@ -2511,6 +2511,152 @@ test_812_cat18_guard_wiring() {
     || log_fail "TEST-812 CAT-18 guard wiring"
 }
 
+# --- TEST-1528 (configurable-merge-policy-lanes Spec-AC-20) ----------------
+# CAT-19 Merge Policy: absent docs/ai/merge-policy.yaml with no orphaned
+# standing-authorization record is NOT REPORTED at all (no CAT-19 line, no
+# CAT-19 id under --json); a valid policy is PASS lanes=N; an invalid one is
+# WARN naming its validate code(s); an absent policy plus an owner-signed
+# hitl_decision whose text contains STANDING MERGE AUTHORIZATION is WARN
+# naming the record. Doctor runs the REAL .aai/scripts/merge-policy.mjs
+# (found next to the real aai-doctor.mjs this suite invokes directly, same
+# seam CAT-18's t812 helpers rely on) against each fixture's docs/ai/ files.
+t1528_repo() {
+  local d="$TMP_ROOT/$1"
+  rm -rf "$d"; mkdir -p "$d/docs/ai"
+  git -C "$d" init -q -b main
+  git -C "$d" config user.email "test@example.invalid"; git -C "$d" config user.name "AAI Test"
+  git -C "$d" commit -q --allow-empty -m init
+  printf '%s' "$d"
+}
+t1528_line() { node "$DOCTOR" --root "$1" 2>&1 | grep '^CAT-19' || true; }
+
+test_1528_cat19_merge_policy() {
+  local ok=1 d line
+
+  # 1. absent policy, no orphaned record -> not reported at all
+  d="$(t1528_repo t1528-absent-clean)"
+  line="$(t1528_line "$d")"
+  if [[ -n "$line" ]]; then
+    log_info "TEST-1528 absent clean: expected no CAT-19 line, got: $line"; ok=0
+  fi
+  local jout
+  jout="$(node "$DOCTOR" --root "$d" --json 2>&1)"
+  if [[ "$jout" == *'"id": "CAT-19"'* ]]; then
+    log_info "TEST-1528 absent clean --json: unexpectedly carries CAT-19"; ok=0
+  fi
+
+  # 2. valid policy -> PASS lanes=1; --json carries CAT-19
+  d="$(t1528_repo t1528-valid)"
+  cat > "$d/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: repo
+    globs: ["**"]
+lanes:
+  - id: allow-all
+    decision_ref: t1528ref@2026-01-01T00:00:00Z
+    decision_match: approved
+    signed_by: someone
+    kinds: [repo]
+    merge_reaches: nothing
+    marker: AAI_T1528_MERGE
+YAML
+  cat > "$d/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1528ref","ts":"2026-01-01T00:00:00Z","owner_signoff":true,"actor":"someone","decision":"approved"}
+JSONL
+  line="$(t1528_line "$d")"
+  if [[ "$line" != "CAT-19 PASS"* || "$line" != *"lanes=1"* ]]; then
+    log_info "TEST-1528 valid: expected 'CAT-19 PASS' naming lanes=1, got: ${line:-<no CAT-19 line>}"; ok=0
+  fi
+  jout="$(node "$DOCTOR" --root "$d" --json 2>&1)"
+  if [[ "$jout" != *'"id": "CAT-19"'* ]]; then
+    log_info "TEST-1528 valid --json: missing \"id\": \"CAT-19\""; ok=0
+  fi
+
+  # 3. invalid policy -> WARN naming the validate code
+  d="$(t1528_repo t1528-invalid)"
+  cat > "$d/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+bogus_top_key: true
+kinds:
+  - id: repo
+    globs: ["**"]
+lanes: []
+YAML
+  line="$(t1528_line "$d")"
+  if [[ "$line" != "CAT-19 WARN"* || "$line" != *"unknown_key"* ]]; then
+    log_info "TEST-1528 invalid: expected 'CAT-19 WARN' naming unknown_key, got: ${line:-<no CAT-19 line>}"; ok=0
+  fi
+
+  # 4. absent policy, orphaned STANDING MERGE AUTHORIZATION record -> WARN
+  #    naming it
+  d="$(t1528_repo t1528-orphan)"
+  cat > "$d/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"wave-2-roadmap","ts":"2026-09-12T19:56:52Z","owner_signoff":true,"actor":"someone","decision":"STANDING MERGE AUTHORIZATION for INTERNAL rides"}
+JSONL
+  line="$(t1528_line "$d")"
+  if [[ "$line" != "CAT-19 WARN"* || "$line" != *"STANDING MERGE AUTHORIZATION"* || "$line" != *"wave-2-roadmap"* ]]; then
+    log_info "TEST-1528 orphan: expected 'CAT-19 WARN' naming the orphaned wave-2-roadmap record, got: ${line:-<no CAT-19 line>}"; ok=0
+  fi
+  # an owner_signoff:false record is not a signed record -- still not reported
+  d="$(t1528_repo t1528-unsigned)"
+  cat > "$d/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"wave-2-roadmap","ts":"2026-09-12T19:56:52Z","owner_signoff":false,"actor":"someone","decision":"STANDING MERGE AUTHORIZATION for INTERNAL rides"}
+JSONL
+  line="$(t1528_line "$d")"
+  if [[ -n "$line" ]]; then
+    log_info "TEST-1528 unsigned: an owner_signoff:false record must not be reported as orphaned, got: $line"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1528 CAT-19 merge policy: absent-clean not reported, valid PASS lanes=1, invalid WARN naming its code, an orphaned signed STANDING MERGE AUTHORIZATION record WARNs by name while an unsigned one stays unreported, --json carries CAT-19" \
+    || log_fail "TEST-1528 CAT-19 merge policy"
+}
+
+# --- TEST-1558 (configurable-merge-policy-lanes Spec-AC-20, remediation round 5)
+# A policy that parses but is not in the P1 canonical form (here: a quoted
+# string where the canonical spelling is bare) is CAT-19 WARN naming
+# code=noncanonical AND the one command that prints the canonical form
+# (merge-policy.mjs --canonical), so the owner has the fix, not just the
+# finding. Control: the same policy in canonical form is CAT-19 PASS.
+test_1558_cat19_noncanonical_names_canonical_mode() {
+  local ok=1 d line
+  d="$(t1528_repo t1558-noncanonical)"
+  cat > "$d/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: repo
+    globs: ["**"]
+lanes:
+  - id: allow-all
+    decision_ref: t1558ref@2026-01-01T00:00:00Z
+    decision_match: "approved"
+    signed_by: someone
+    kinds: [repo]
+    merge_reaches: nothing
+    marker: AAI_T1558_MERGE
+YAML
+  cat > "$d/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"t1558ref","ts":"2026-01-01T00:00:00Z","owner_signoff":true,"actor":"someone","decision":"approved"}
+JSONL
+  line="$(t1528_line "$d")"
+  if [[ "$line" != "CAT-19 WARN"* || "$line" != *"code=noncanonical line=8"* ]]; then
+    log_info "TEST-1558 noncanonical: expected 'CAT-19 WARN' naming code=noncanonical line=8, got: ${line:-<no CAT-19 line>}"; ok=0
+  fi
+  if [[ "$line" != *"merge-policy.mjs --canonical"* ]]; then
+    log_info "TEST-1558 noncanonical: expected the WARN to name merge-policy.mjs --canonical, got: ${line:-<no CAT-19 line>}"; ok=0
+  fi
+  # control: the canonical spelling of the same policy is PASS
+  sed -e 's/decision_match: "approved"/decision_match: approved/' "$d/docs/ai/merge-policy.yaml" > "$d/docs/ai/merge-policy.yaml.new"
+  mv "$d/docs/ai/merge-policy.yaml.new" "$d/docs/ai/merge-policy.yaml"
+  line="$(t1528_line "$d")"
+  if [[ "$line" != "CAT-19 PASS"* ]]; then
+    log_info "TEST-1558 canonical control: expected 'CAT-19 PASS', got: ${line:-<no CAT-19 line>}"; ok=0
+  fi
+
+  [[ $ok -eq 1 ]] && log_pass "TEST-1558 CAT-19: a noncanonical policy WARNs naming code=noncanonical and merge-policy.mjs --canonical; its canonical spelling is PASS" \
+    || log_fail "TEST-1558 CAT-19 noncanonical names --canonical"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2579,6 +2725,8 @@ main() {
   test_619_cat17_declined_is_not_an_issue
   test_620_cat17_declaration_never_over_reads
   test_812_cat18_guard_wiring
+  test_1528_cat19_merge_policy
+  test_1558_cat19_noncanonical_names_canonical_mode
   test_439_argv1_guard_resolves_symlinks
 
   echo ""

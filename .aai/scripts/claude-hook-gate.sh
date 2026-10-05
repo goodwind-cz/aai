@@ -10,7 +10,10 @@
 #
 # Usage: claude-hook-gate.sh <gate>
 #   commit      PreToolUse Bash(git commit*)            -> run pre-commit-checks.sh
-#   merge       PreToolUse Bash(git merge*|gh pr merge*) -> deny unless AAI_OPERATOR_MERGE=1
+#   merge       PreToolUse Bash(git merge*|gh pr merge*) -> deny unless AAI_OPERATOR_MERGE=1,
+#               or a lane marker is set and .aai/scripts/merge-policy.mjs
+#               allows that marker's lane (the evaluator decides; see P9
+#               of spec-configurable-merge-policy-lanes)
 #   state-dump  PreToolUse Bash(yaml.dump/safe_dump writes touching STATE.yaml)
 #                                                        -> deny, point to state.mjs
 #   stop-nudge  Stop event                               -> wrap-up reminder, NEVER blocks
@@ -32,6 +35,10 @@
 #       a record). When that tooling itself is absent there is nothing to
 #       resolve or check, which is an ordinary capability-absent case and
 #       falls open like every other one.
+#       A SECOND deliberate exception: once a merge-policy lane marker is
+#       set, every lane-path failure (missing node or evaluator, evaluator
+#       error, unparseable command) denies -- the lane path may only ever
+#       add an allow, never turn an error into one.
 #
 # HONESTY NOTE: this is a guardrail against habit, not a security boundary —
 # an agent inside the session could unset the hook or set the env marker.
@@ -63,6 +70,400 @@ if command -v node >/dev/null 2>&1; then
     });' 2>/dev/null || true)"
 fi
 
+# ---------------------------------------------------------------------------
+# Merge gate helpers (used only by the `merge)` case below).
+# ---------------------------------------------------------------------------
+
+# merge_target_pr — the ONE PR-resolution routine of the merge gate (gate 2b,
+# Spec-AC-34, issue 338), shared by gate 2b and the merge-policy lane path so
+# both judge the same PR. Reads $MERGE_SEG, $CMD and $ROOT; prints the PR
+# number (or nothing when it is capability-absent-unresolvable). Called as
+# `PR="$(merge_target_pr)"`: a genuinely-unresolvable target prints its deny
+# text on stderr and `exit 2`s the command-substitution subshell, which the
+# caller turns into its own deny.
+merge_target_pr() {
+  # Strip a value-taking flag's value WHOLE, including a quoted phrase
+  # carrying embedded spaces (`--subject "fix 123"`) -- the single
+  # bare-token pattern alone (third -e below) only ever consumed up to
+  # the first space inside the quotes, leaving a stray `123"` behind
+  # that then read as a (wrong) positional target. Quoted forms first
+  # (double, then single), bare token last, so an already-stripped
+  # quoted value is never re-matched by the bare-token pass.
+  PR_SEARCH="$(printf '%s' "$MERGE_SEG" | sed -E \
+    -e 's/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+"[^"]*"//g' \
+    -e "s/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+'[^']*'//g" \
+    -e 's/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+[^[:space:]]+//g')"
+  # NB-2 (validation-round2): a quoted bare number (`gh pr merge "385"`)
+  # is not a bare token under the digit scan below, so it fell through to
+  # branch resolution and was judged against a DIFFERENT PR's record.
+  # Strip quotes ONLY around a token that is nothing but digits -- never a
+  # quoted PHRASE that happens to contain one (`--subject "fix 123"` is
+  # already gone whole, above; this rule still protects any OTHER quoted
+  # phrase — validation-round1 B2's own control, still armed).
+  PR_SEARCH="$(printf '%s' "$PR_SEARCH" | sed -E "s/\"([0-9]+)\"/ \1 /g; s/'([0-9]+)'/ \1 /g")"
+  # Drop the "gh pr merge" prefix, then every remaining boolean flag
+  # (-A/--auto, --admin, -d/--delete-branch, --disable-auto, -m/--merge,
+  # -r/--rebase, -s/--squash, or any future one), leaving only bare
+  # positional tokens. The first one, if any, is the target.
+  TARGET_SEARCH="$(printf '%s' "$PR_SEARCH" | sed -E 's/^[[:space:]]*gh[[:space:]]+pr[[:space:]]+merge//')"
+  TARGET_SEARCH="$(printf '%s' "$TARGET_SEARCH" | sed -E 's/(^|[[:space:]])-[A-Za-z0-9-]+//g')"
+  TARGET="$(printf '%s' "$TARGET_SEARCH" | tr -s '[:space:]' '\n' | grep -v '^$' | head -1)"
+  PR=""
+  if printf '%s' "$TARGET" | grep -Eq '^[0-9]+$'; then
+    PR="$TARGET"
+  elif [ -n "$TARGET" ]; then
+    # A non-numeric target (<url> | <branch>) needs `gh pr view <target>`
+    # to resolve — same capability-before-deny split as the bare-command
+    # case below: no `gh` at all means nothing can resolve it (fall
+    # through, allow); `gh` present but unable to name a PR for THIS
+    # target means the tool looked and genuinely could not (deny).
+    if command -v gh >/dev/null 2>&1; then
+      PR="$(cd "$ROOT" 2>/dev/null && gh pr view "$TARGET" --json number -q .number 2>/dev/null || true)"
+      printf '%s' "$PR" | grep -Eq '^[0-9]+$' || PR=""
+      if [ -z "$PR" ]; then
+        {
+          echo "Merge denied: could not resolve a PR for target \"$TARGET\"."
+          echo "Command: $CMD"
+          echo "'gh pr view $TARGET --json number' did not resolve one (Spec-AC-34, issue"
+          echo "338) -- this gate refuses to guess rather than allow a merge it cannot check"
+          echo "a sweep record for."
+        } >&2
+        exit 2
+      fi
+    fi
+  fi
+  if [ -z "$PR" ] && [ -z "$TARGET" ] && command -v gh >/dev/null 2>&1; then
+    PR="$(cd "$ROOT" 2>/dev/null && gh pr view --json number -q .number 2>/dev/null || true)"
+    printf '%s' "$PR" | grep -Eq '^[0-9]+$' || PR=""
+    if [ -z "$PR" ]; then
+      {
+        echo "Merge denied: could not determine which PR this merge command targets."
+        echo "Command: $CMD"
+        echo "No positional PR number, and 'gh pr view --json number' (current branch) did"
+        echo "not resolve one either (Spec-AC-34, issue 338) -- this gate refuses to guess"
+        echo "rather than allow a merge it cannot check a sweep record for."
+        echo "Run 'gh pr merge <N> ...' naming the PR explicitly, or merge from a branch"
+        echo "with exactly one open PR."
+      } >&2
+      exit 2
+    fi
+  fi
+  printf '%s' "$PR"
+}
+
+# merge_deny_article7 — constitution article 7's deny text (bytes unchanged
+# since before the lane path existed; spec-configurable-merge-policy-lanes
+# Spec-AC-02 pins them against the base-commit adapter). The lane path adds
+# exactly one `merge-policy: <verdict>` line; with no lane marker
+# LANE_VERDICT is empty and nothing is added.
+merge_deny_article7() {
+  echo "Merge denied: constitution article 7 (operator-only merge) — the agent never merges;"
+  echo "the PR ceremony ends at 'gh pr create' (.aai/SKILL_PR.prompt.md step 6)."
+  echo "If the OPERATOR explicitly directed this merge, run it with AAI_OPERATOR_MERGE=1."
+  echo "(Guardrail, not a security boundary — setting the marker without operator direction"
+  echo "is a constitution violation.)"
+  [ -z "${LANE_VERDICT:-}" ] || echo "merge-policy: $LANE_VERDICT"
+}
+
+# --- Merge-policy lane path (spec-configurable-merge-policy-lanes P9) -------
+# A lane marker is a variable named ^AAI_[A-Z0-9_]+_MERGE$ (never
+# AAI_OPERATOR_MERGE) with the value 1, set in this hook's environment or as
+# a leading NAME=1 assignment of the `gh pr merge` command segment. Without
+# one, none of the code below changes what the gate does. With one, the lane
+# path can only ever ADD an allow: every refusal, error or missing tool ends
+# in today's article-7 deny plus one `merge-policy:` line. The decision is
+# .aai/scripts/merge-policy.mjs's (`--check`); this file only parses the
+# command and compares the allowed lane's marker with the markers set.
+LANE_NL='
+'
+LANE_MARKER_ERE='^AAI_[A-Z0-9_]+_MERGE$'
+LANE_ASSIGNS_ERE='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*$'
+LANE_SOLE_MERGE_ERE='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'
+# NB-1 (validation round 6; round 5's `lane=.*` was itself the hazard it
+# tried to close). FULL-LINE anchored (`^`...`$`) and FIELD-EXACT: every
+# field value is pinned to the shape merge-policy.mjs's own parser now
+# enforces at parse time (no whitespace, no `=` in a lane id or
+# decision_ref — DECISION_REF_RE; MARKER_RE for the marker; the
+# merge_reaches enum) in the exact field order runCheck's own console.log
+# writes (`:1429-1430`): pr= lane= marker= decision_ref= merge_reaches=,
+# nothing else, nowhere else. A greedy `lane=.*` (round 5) relied on ERE
+# backtracking always preferring the LAST " marker=...decision_ref="
+# occurrence — true only as long as every field some OTHER value could
+# carry stayed whitespace-free; decision_ref had no such shape check yet,
+# so a quoted decision_ref value carrying its own " marker=<other>
+# decision_ref=..." text shifted which "marker=" the greedy match landed
+# on (validation round 6 NB-1). Closed from both ends: merge-policy.mjs
+# now parse-rejects any decision_ref outside `<ref_id>@<ISO8601Z>` (no
+# space, no `=`, DECISION_REF_RE), and this ERE no longer uses `.*`
+# anywhere — a line that does not match this exact shape, byte for byte,
+# refuses, full stop.
+LANE_ALLOWED_ERE='^MERGE-POLICY allowed pr=([0-9]+) lane=([^[:space:]=]+) marker=(AAI_[A-Z0-9_]+_MERGE) decision_ref=([^[:space:]=]+) merge_reaches=(nothing|preview|production)$'
+# --match-head-commit's value, gh's own flag for refusing to merge a head
+# other than the one named (used here to pin the lane path to the exact PR
+# head this invocation resolves below, NB-1).
+LANE_MATCH_HEAD_ERE='--match-head-commit[[:space:]]+([0-9a-fA-F]+)'
+
+# R2-B1 (validation-round2): a deny-list keyed on flag spelling
+# (LANE_BAD_FLAG_ERE/LANE_REPO_FLAG_ERE, dropped here) is bypassed by
+# quoting a flag ('--admin') and by gh's own pflag parser, which accepts
+# `--admin=<bool>`/`--auto=<bool>` as real flags -- the regex never saw
+# those spellings as --auto/--admin at all. lane_check_merge_shape (below)
+# replaces both with an ALLOW-LIST over the merge segment's own tokens: the
+# only shapes a lane merge may ever take are a bare PR number, one of
+# --squash/--merge/--rebase, an optional --delete-branch, and exactly one
+# --match-head-commit <value> -- every other token, including any
+# --flag=value spelling, refuses closed.
+
+# Marker names set to 1 in the environment. compgen -e lists exported NAMES
+# only, so a value carrying an embedded "AAI_X_MERGE=1" line cannot forge one.
+lane_env_markers() {
+  local n
+  for n in $(compgen -e 2>/dev/null); do
+    [[ $n =~ $LANE_MARKER_ERE ]] || continue
+    [ "$n" != "AAI_OPERATOR_MERGE" ] || continue
+    [ "${!n:-}" = "1" ] && printf '%s\n' "$n"
+  done
+  return 0
+}
+
+# The text between the last command separator before the FIRST
+# `gh pr merge` and that `gh` (empty output + rc 1 when there is none).
+lane_merge_prefix() {
+  local re="(^|[;&|(${LANE_NL}])([^;&|(${LANE_NL}]*)gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|\$)"
+  [[ $CMD =~ $re ]] || return 1
+  printf '%s' "${BASH_REMATCH[2]}"
+}
+
+# Marker names given as leading NAME=1 assignments of the merge segment. A
+# prefix that is not purely NAME=VALUE words (`echo "AAI_X_MERGE=1 ...`) is
+# not an assignment and yields nothing.
+lane_prefix_markers() {
+  local pre w words
+  pre="$(lane_merge_prefix)" || return 0
+  [[ $pre =~ $LANE_ASSIGNS_ERE ]] || return 0
+  read -r -a words <<< "$pre"
+  for w in ${words[@]+"${words[@]}"}; do
+    [ "${w%%=*}" != "AAI_OPERATOR_MERGE" ] || continue
+    [ "${w#*=}" = "1" ] || continue
+    [[ ${w%%=*} =~ $LANE_MARKER_ERE ]] && printf '%s\n' "${w%%=*}"
+  done
+  return 0
+}
+
+# lane_check_merge_shape — R2-B1: an ALLOW-LIST over the `gh pr merge`
+# segment's own tokens (reads/writes $MERGE_SEG and $LANE_VERDICT; returns
+# 1 and sets LANE_VERDICT on any refusal, 0 when every token is recognized).
+# A quote character or a backslash anywhere in the segment refuses outright
+# -- gh never sees them (the invoking shell strips them before gh's argv),
+# so a quoted '--admin' or "--auto" reads here as the LITERAL bytes
+# '--admin'/"--auto", which match no allowed token below and would refuse
+# anyway, but the explicit check is the documented contract, not an
+# accident of what the token loop happens to reject. Every token after
+# `gh pr merge` must be exactly one of: a bare PR number (digits only, at
+# most once), one of --squash/--merge/--rebase (at most once),
+# --delete-branch (at most once), or --match-head-commit followed by a
+# non-empty hex value (at most once) -- gh's own --flag=value spelling
+# (e.g. --admin=true, --auto=1, a second --match-head-commit=...) is
+# refused by the leading `*=*` case before any flag name is even compared,
+# so no future addition to this list can be bypassed the same way. Whether
+# --match-head-commit is present at all, and whether its value equals the
+# PR head this invocation resolves, stays lane_path's own job (step 6b
+# below already requires it and checks the value against that resolved
+# head byte for byte); this function only validates the SHAPE of what is
+# here -- a short or mismatched value still reaches step 6b and is denied
+# there, by equality, not by this function guessing a length.
+lane_check_merge_shape() {
+  case "$MERGE_SEG" in
+    *\'*)
+      LANE_VERDICT="lane path refused: a quote character is not permitted on the merge-policy lane"
+      return 1 ;;
+    *\"*)
+      LANE_VERDICT="lane path refused: a quote character is not permitted on the merge-policy lane"
+      return 1 ;;
+    *\\*)
+      LANE_VERDICT="lane path refused: a backslash is not permitted on the merge-policy lane"
+      return 1 ;;
+  esac
+  local rest tokens tok have_pr have_mode have_delete have_match idx
+  rest="$(printf '%s' "$MERGE_SEG" | sed -E 's/^[[:space:]]*gh[[:space:]]+pr[[:space:]]+merge//')"
+  read -r -a tokens <<< "$rest"
+  have_pr=0; have_mode=0; have_delete=0; have_match=0
+  idx=0
+  while [ "$idx" -lt "${#tokens[@]}" ]; do
+    tok="${tokens[$idx]}"
+    idx=$((idx + 1))
+    case "$tok" in
+      *=*)
+        LANE_VERDICT="lane path refused: $tok is not permitted on the merge-policy lane"
+        return 1 ;;
+      --match-head-commit)
+        if [ "$have_match" -ne 0 ]; then
+          LANE_VERDICT="lane path refused: --match-head-commit is not permitted more than once on the merge-policy lane"
+          return 1
+        fi
+        tok="${tokens[$idx]:-}"
+        idx=$((idx + 1))
+        if [ -z "$tok" ] || [[ $tok == *[!0-9a-fA-F]* ]]; then
+          LANE_VERDICT="lane path refused: --match-head-commit requires a hex commit value"
+          return 1
+        fi
+        have_match=1 ;;
+      --squash|--merge|--rebase)
+        if [ "$have_mode" -ne 0 ]; then
+          LANE_VERDICT="lane path refused: $tok is not permitted on the merge-policy lane"
+          return 1
+        fi
+        have_mode=1 ;;
+      --delete-branch)
+        if [ "$have_delete" -ne 0 ]; then
+          LANE_VERDICT="lane path refused: --delete-branch is not permitted more than once on the merge-policy lane"
+          return 1
+        fi
+        have_delete=1 ;;
+      *[!0-9]*|'')
+        LANE_VERDICT="lane path refused: ${tok:-<empty>} is not permitted on the merge-policy lane"
+        return 1 ;;
+      *)
+        if [ "$have_pr" -ne 0 ]; then
+          LANE_VERDICT="lane path refused: $tok is not permitted on the merge-policy lane"
+          return 1
+        fi
+        have_pr=1 ;;
+    esac
+  done
+  # P9 step 1: "one bare PR number" -- the branch-implicit form (no number,
+  # relying on merge_target_pr's branch fallback) used to be accepted here,
+  # letting the lane merge whatever PR the fallback resolves from $ROOT's
+  # branch even though gh itself runs in the payload cwd, which may be a
+  # linked worktree on a different branch (validation-round3 NB-1).
+  if [ "$have_pr" -eq 0 ]; then
+    LANE_VERDICT="lane path refused: a PR number is required on the merge-policy lane"
+    return 1
+  fi
+  return 0
+}
+
+# lane_path — sets LANE_ALLOWED=1, or LANE_VERDICT to the reason it did not.
+lane_path() {
+  local pre w words pcwd root_git cwd_git mp_out mp_rc mp_line want_marker
+  # 1. The command must be ONE simple `gh pr merge`: no separator, pipe,
+  #    substitution, redirection or newline, so the PR the evaluator judges
+  #    is the only thing the command can merge.
+  case "$CMD" in
+    *"$LANE_NL"*|*[\;\&\|\`\$\(\)\<\>\\]*)
+      LANE_VERDICT="lane path refused: the command must be a single gh pr merge, with no chaining, substitution or redirection"
+      return ;;
+  esac
+  if ! [[ $CMD =~ $LANE_SOLE_MERGE_ERE ]]; then
+    LANE_VERDICT="lane path refused: lane markers cover gh pr merge only"
+    return
+  fi
+  # 1b/3. R2-B1: an allow-list over the merge segment's own tokens (--auto,
+  #    --admin, -R/--repo, a URL target, --flag=value, quoting -- anything
+  #    not on the fixed token set lane_check_merge_shape recognizes) replaces
+  #    the two deny-list regexes this used to be (LANE_BAD_FLAG_ERE,
+  #    LANE_REPO_FLAG_ERE) -- a deny-list keyed on flag spelling is bypassed
+  #    by exactly those two tricks (validation-round2).
+  lane_check_merge_shape || return
+  # 2. Every leading assignment must itself be a lane marker set to 1
+  #    (GH_REPO=... or any other prefix could retarget what merges).
+  pre="$(lane_merge_prefix)" || pre=""
+  read -r -a words <<< "$pre"
+  for w in ${words[@]+"${words[@]}"}; do
+    if ! [[ ${w%%=*} =~ $LANE_MARKER_ERE ]] || [ "${w%%=*}" = "AAI_OPERATOR_MERGE" ] || [ "${w#*=}" != "1" ]; then
+      LANE_VERDICT="lane path refused: leading assignment ${w%%=*} is not a lane marker"
+      return
+    fi
+  done
+  # 4. Tooling. Missing node, evaluator or gh is today's deny, never an
+  #    allow (gh is also needed below, step 6b, to resolve the exact head).
+  if ! command -v node >/dev/null 2>&1; then
+    LANE_VERDICT="evaluator unavailable: node not found"
+    return
+  fi
+  if [ ! -f "$ROOT/.aai/scripts/merge-policy.mjs" ]; then
+    LANE_VERDICT="evaluator unavailable: .aai/scripts/merge-policy.mjs not found"
+    return
+  fi
+  if ! command -v gh >/dev/null 2>&1; then
+    LANE_VERDICT="evaluator unavailable: gh not found"
+    return
+  fi
+  # 5. The Bash command runs in the payload's cwd; it must be the same
+  #    repository (same git common dir, so linked worktrees qualify) as the
+  #    project the evaluator judges.
+  pcwd="$(printf '%s' "$PAYLOAD" | node -e '
+    let d = "";
+    process.stdin.on("data", (c) => { d += c; });
+    process.stdin.on("end", () => {
+      try { const j = JSON.parse(d); process.stdout.write(String(j.cwd || "")); } catch (e) { /* none */ }
+    });' 2>/dev/null || true)"
+  root_git="$(cd "$ROOT" 2>/dev/null && cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P)" || root_git=""
+  cwd_git=""
+  if [ -n "$pcwd" ]; then
+    cwd_git="$(cd "$pcwd" 2>/dev/null && cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P)" || cwd_git=""
+  fi
+  if [ -z "$root_git" ] || [ "$root_git" != "$cwd_git" ]; then
+    LANE_VERDICT="lane path refused: the command's cwd (${pcwd:-unknown}) is not this project's repository"
+    return
+  fi
+  # 6. The PR, resolved exactly as gate 2b resolves it.
+  LANE_PR="$(merge_target_pr 2>/dev/null)" || LANE_PR=""
+  if ! [[ $LANE_PR =~ ^[0-9]+$ ]]; then
+    LANE_VERDICT="lane path refused: could not resolve the PR this command merges"
+    return
+  fi
+  # 6b. NB-1: the lane path may only ever merge the EXACT head this
+  #     invocation is about to verify. Resolved independently via gh (the
+  #     same call merge-policy.mjs's own getPrJson makes), so a stale or
+  #     absent --match-head-commit is caught before the evaluator even runs.
+  LANE_HEAD="$(cd "$ROOT" 2>/dev/null && gh pr view "$LANE_PR" --json headRefOid -q .headRefOid 2>/dev/null)"
+  if ! [[ $LANE_HEAD =~ ^[0-9a-fA-F]+$ ]]; then
+    LANE_VERDICT="lane path refused: could not resolve the head commit of PR $LANE_PR"
+    return
+  fi
+  if [[ $MERGE_SEG =~ $LANE_MATCH_HEAD_ERE ]]; then
+    if [ "${BASH_REMATCH[1]}" != "$LANE_HEAD" ]; then
+      LANE_VERDICT="lane path refused: --match-head-commit ${BASH_REMATCH[1]} does not match PR $LANE_PR's head ($LANE_HEAD)"
+      return
+    fi
+  else
+    LANE_VERDICT="lane path refused: the merge-policy lane requires --match-head-commit $LANE_HEAD"
+    return
+  fi
+  # 7. The evaluator decides; the allowed lane's OWN marker must be set.
+  MP_EXTRA=()
+  [ -n "${AAI_SWEEP_SPEC:-}" ] && MP_EXTRA+=(--spec "$AAI_SWEEP_SPEC")
+  [ -n "${AAI_SWEEP_INTAKE:-}" ] && MP_EXTRA+=(--intake "$AAI_SWEEP_INTAKE")
+  [ -n "${AAI_SWEEP_STATE:-}" ] && MP_EXTRA+=(--state "$AAI_SWEEP_STATE")
+  mp_out="$(cd "$ROOT" 2>/dev/null && node "$ROOT/.aai/scripts/merge-policy.mjs" --check --pr "$LANE_PR" --repo-root "$ROOT" ${MP_EXTRA[@]+"${MP_EXTRA[@]}"} 2>/dev/null)"
+  mp_rc=$?
+  mp_line="${mp_out%%"$LANE_NL"*}"
+  if [ "$mp_rc" -eq 0 ] && [[ $mp_line =~ $LANE_ALLOWED_ERE ]] \
+     && [ "${BASH_REMATCH[1]}" = "$LANE_PR" ]; then
+    want_marker="${BASH_REMATCH[3]}"
+    case "$LANE_NL$LANE_MARKERS$LANE_NL" in
+      *"$LANE_NL$want_marker$LANE_NL"*) LANE_ALLOWED=1; return ;;
+    esac
+    LANE_VERDICT="$mp_line (lane marker $want_marker is not set)"
+    return
+  fi
+  LANE_VERDICT="${mp_line:-evaluator gave no verdict} (exit $mp_rc)"
+}
+
+# Without node the payload cannot be parsed at all (CMD is empty and every
+# gate falls open). When a lane marker is set in the environment that
+# fail-open would be the lane path turning an error into an allow, so a
+# merge-shaped payload is denied instead. No marker: nothing changes.
+lane_nonode_guard() {
+  command -v node >/dev/null 2>&1 && return 0
+  [ -n "$(lane_env_markers)" ] || return 0
+  case "$PAYLOAD" in *merge*) ;; *) return 0 ;; esac
+  LANE_VERDICT="evaluator unavailable: node not found (the command could not be read)"
+  merge_deny_article7 >&2
+  exit 2
+}
+
 case "$GATE" in
 
   commit)
@@ -81,17 +482,23 @@ case "$GATE" in
     ;;
 
   merge)
-    # Mirror gate 2: constitution article 7 — operator-only merge (strict).
-    [ -n "$CMD" ] || exit 0
+    # Mirror gate 2: constitution article 7 — operator-only merge (strict),
+    # with the one sanctioned exception: a merge-policy lane (spec-
+    # configurable-merge-policy-lanes P9; helpers above). No lane marker =
+    # exactly the gate as it was (Spec-AC-02 pins the bytes).
+    [ -n "$CMD" ] || { lane_nonode_guard; exit 0; }
     printf '%s' "$CMD" | grep -Eq '(^|[;&|[:space:]])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^-;&|[:space:]][^[:space:]]*)?)*[[:space:]]+merge([[:space:]]|$)|(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)' || exit 0
+    # The `gh pr merge` segment, if any (gate 2b below and the lane path).
+    MERGE_SEG="$(printf '%s' "$CMD" | grep -oE 'gh[[:space:]]+pr[[:space:]]+merge([[:space:]][^;&|]*)?' | head -1)"
+    LANE_ALLOWED=""
+    LANE_VERDICT=""
+    LANE_MARKERS=""
     if [ "${AAI_OPERATOR_MERGE:-}" != "1" ]; then
-      {
-        echo "Merge denied: constitution article 7 (operator-only merge) — the agent never merges;"
-        echo "the PR ceremony ends at 'gh pr create' (.aai/SKILL_PR.prompt.md step 6)."
-        echo "If the OPERATOR explicitly directed this merge, run it with AAI_OPERATOR_MERGE=1."
-        echo "(Guardrail, not a security boundary — setting the marker without operator direction"
-        echo "is a constitution violation.)"
-      } >&2
+      LANE_MARKERS="$(lane_env_markers; lane_prefix_markers)"
+      [ -z "$LANE_MARKERS" ] || lane_path
+    fi
+    if [ "${AAI_OPERATOR_MERGE:-}" != "1" ] && [ "$LANE_ALLOWED" != "1" ]; then
+      merge_deny_article7 >&2
       exit 2
     fi
     # Mirror gate 2b (Spec-AC-34, GitHub issue 338): a `gh pr merge <N>`
@@ -153,74 +560,9 @@ case "$GATE" in
     # --match-head-commit — gh's full value-flag set for this subcommand, not
     # just -R/--repo) and every remaining boolean flag, the first surviving
     # bare token is the TARGET, in whichever of the three forms it takes.
-    MERGE_SEG="$(printf '%s' "$CMD" | grep -oE 'gh[[:space:]]+pr[[:space:]]+merge([[:space:]][^;&|]*)?' | head -1)"
     if [ -n "$MERGE_SEG" ]; then
-      # Strip a value-taking flag's value WHOLE, including a quoted phrase
-      # carrying embedded spaces (`--subject "fix 123"`) -- the single
-      # bare-token pattern alone (third -e below) only ever consumed up to
-      # the first space inside the quotes, leaving a stray `123"` behind
-      # that then read as a (wrong) positional target. Quoted forms first
-      # (double, then single), bare token last, so an already-stripped
-      # quoted value is never re-matched by the bare-token pass.
-      PR_SEARCH="$(printf '%s' "$MERGE_SEG" | sed -E \
-        -e 's/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+"[^"]*"//g' \
-        -e "s/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+'[^']*'//g" \
-        -e 's/(^|[[:space:]])(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)[[:space:]]+[^[:space:]]+//g')"
-      # NB-2 (validation-round2): a quoted bare number (`gh pr merge "385"`)
-      # is not a bare token under the digit scan below, so it fell through to
-      # branch resolution and was judged against a DIFFERENT PR's record.
-      # Strip quotes ONLY around a token that is nothing but digits -- never a
-      # quoted PHRASE that happens to contain one (`--subject "fix 123"` is
-      # already gone whole, above; this rule still protects any OTHER quoted
-      # phrase — validation-round1 B2's own control, still armed).
-      PR_SEARCH="$(printf '%s' "$PR_SEARCH" | sed -E "s/\"([0-9]+)\"/ \1 /g; s/'([0-9]+)'/ \1 /g")"
-      # Drop the "gh pr merge" prefix, then every remaining boolean flag
-      # (-A/--auto, --admin, -d/--delete-branch, --disable-auto, -m/--merge,
-      # -r/--rebase, -s/--squash, or any future one), leaving only bare
-      # positional tokens. The first one, if any, is the target.
-      TARGET_SEARCH="$(printf '%s' "$PR_SEARCH" | sed -E 's/^[[:space:]]*gh[[:space:]]+pr[[:space:]]+merge//')"
-      TARGET_SEARCH="$(printf '%s' "$TARGET_SEARCH" | sed -E 's/(^|[[:space:]])-[A-Za-z0-9-]+//g')"
-      TARGET="$(printf '%s' "$TARGET_SEARCH" | tr -s '[:space:]' '\n' | grep -v '^$' | head -1)"
-      PR=""
-      if printf '%s' "$TARGET" | grep -Eq '^[0-9]+$'; then
-        PR="$TARGET"
-      elif [ -n "$TARGET" ]; then
-        # A non-numeric target (<url> | <branch>) needs `gh pr view <target>`
-        # to resolve — same capability-before-deny split as the bare-command
-        # case below: no `gh` at all means nothing can resolve it (fall
-        # through, allow); `gh` present but unable to name a PR for THIS
-        # target means the tool looked and genuinely could not (deny).
-        if command -v gh >/dev/null 2>&1; then
-          PR="$(cd "$ROOT" 2>/dev/null && gh pr view "$TARGET" --json number -q .number 2>/dev/null || true)"
-          printf '%s' "$PR" | grep -Eq '^[0-9]+$' || PR=""
-          if [ -z "$PR" ]; then
-            {
-              echo "Merge denied: could not resolve a PR for target \"$TARGET\"."
-              echo "Command: $CMD"
-              echo "'gh pr view $TARGET --json number' did not resolve one (Spec-AC-34, issue"
-              echo "338) -- this gate refuses to guess rather than allow a merge it cannot check"
-              echo "a sweep record for."
-            } >&2
-            exit 2
-          fi
-        fi
-      fi
-      if [ -z "$PR" ] && [ -z "$TARGET" ] && command -v gh >/dev/null 2>&1; then
-        PR="$(cd "$ROOT" 2>/dev/null && gh pr view --json number -q .number 2>/dev/null || true)"
-        printf '%s' "$PR" | grep -Eq '^[0-9]+$' || PR=""
-        if [ -z "$PR" ]; then
-          {
-            echo "Merge denied: could not determine which PR this merge command targets."
-            echo "Command: $CMD"
-            echo "No positional PR number, and 'gh pr view --json number' (current branch) did"
-            echo "not resolve one either (Spec-AC-34, issue 338) -- this gate refuses to guess"
-            echo "rather than allow a merge it cannot check a sweep record for."
-            echo "Run 'gh pr merge <N> ...' naming the PR explicitly, or merge from a branch"
-            echo "with exactly one open PR."
-          } >&2
-          exit 2
-        fi
-      fi
+      # PR resolution: merge_target_pr (above), shared with the lane path.
+      PR="$(merge_target_pr)" || exit 2
       # PR is still empty here only when there was no resolvable positional
       # target AND no `gh` on PATH to try resolving one -- capability absent,
       # not a verdict; fall through to the unconditional exit 0 below.

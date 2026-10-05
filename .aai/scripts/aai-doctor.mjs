@@ -566,6 +566,67 @@ function catGuardWiring(root) {
   return cat('CAT-18', 'Guard Wiring', 'WARN', warns.join('; ') + (passes.length ? `; wired: ${passes.join('; ')}` : ''));
 }
 
+// --- CAT-19 Merge Policy (SPEC-DRAFT spec-configurable-merge-policy-lanes) --
+// Doctor reads the WORKING-TREE policy file -- this is an authoring health
+// check; the evaluator's own `--check` (base-commit reads only, P3) is the
+// merge-time authority. Absent policy with no orphaned 2026-09-12 standing
+// authorization record is NOT REPORTED at all (returns null, filtered out
+// below): a project that never adopted this capability has nothing to
+// diagnose. Absent policy WITH an owner-signed hitl_decision whose decision
+// text names the old 2026-09-12 phrase (the exact literal is not quoted
+// again here -- mutation-run.mjs's --sed applies to the FIRST occurrence
+// only, and a comment restating it verbatim would catch a mutation meant
+// for the real predicate below) is the Article 5 mitigation (Spec-AC-20):
+// after a sync drops the old prose exception, that record is orphaned --
+// nothing reads it any more -- so doctor names it and the remedy.
+function findOrphanedStandingAuthorization(root) {
+  const text = readText(root, 'docs/ai/decisions.jsonl');
+  if (text === null) return null;
+  for (const line of text.split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    let rec;
+    try {
+      rec = JSON.parse(t);
+    } catch {
+      continue; // malformed line -- ignored, same discipline as every other JSONL reader in this repo
+    }
+    if (rec && rec.type === 'hitl_decision' && rec.owner_signoff === true
+        && typeof rec.decision === 'string' && rec.decision.includes('STANDING MERGE AUTHORIZATION')) {
+      return rec;
+    }
+  }
+  return null;
+}
+
+function catMergePolicy(root, scriptDir) {
+  if (!exists(root, 'docs/ai/merge-policy.yaml')) {
+    const orphan = findOrphanedStandingAuthorization(root);
+    if (!orphan) return null; // nothing adopted, nothing to diagnose
+    return cat('CAT-19', 'Merge Policy', 'WARN',
+      `an owner-signed STANDING MERGE AUTHORIZATION record is orphaned (ref_id ${orphan.ref_id || '?'}, ts ${orphan.ts || '?'}) -- no docs/ai/merge-policy.yaml exists to carry it; author a lane (docs/product/configurable-merge-policy-lanes.md; print the accepted shape with merge-policy.mjs --canonical) or the exception stops applying`);
+  }
+  const script = path.join(scriptDir, 'merge-policy.mjs');
+  if (!fs.existsSync(script)) {
+    return cat('CAT-19', 'Merge Policy', 'WARN', 'docs/ai/merge-policy.yaml exists but .aai/scripts/merge-policy.mjs is missing -- run /aai-update');
+  }
+  const res = run(process.execPath, [script, '--validate', '--repo-root', root], root);
+  const out = `${res.stdout || ''}${res.stderr || ''}`;
+  if (res.status === 0) {
+    const m = out.match(/VALID lanes=(\d+)/);
+    return cat('CAT-19', 'Merge Policy', 'PASS', `valid, lanes=${m ? m[1] : '?'}`);
+  }
+  const codes = out.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('INVALID'));
+  // A noncanonical policy (P1 textual canonical form) names the one command
+  // that prints the form the file must take, so the owner can copy it.
+  const fix = codes.some((l) => l.includes('code=noncanonical'))
+    ? '; print the canonical form with: node .aai/scripts/merge-policy.mjs --canonical'
+    : '';
+  return cat('CAT-19', 'Merge Policy', 'WARN', codes.length
+    ? codes.join('; ') + fix
+    : `merge-policy.mjs --validate failed: ${out.trim().slice(0, 200) || 'no output'}`);
+}
+
 // The literal the AAI reference-transaction hook body writes to stderr when it
 // refuses (install-pre-commit-hook.sh's AAI_REF_GUARD_MSG here-doc). SEAM-1:
 // one contract across two files — the installer emits it, this probe reads it.
@@ -1020,7 +1081,8 @@ export function runDoctor(root, scriptDir) {
     catAgentCliProbe(root),
     catGitRefGuard(root),
     catGuardWiring(root),
-  ];
+    catMergePolicy(root, scriptDir),
+  ].filter(Boolean); // CAT-19 returns null (not reported) when nothing was ever adopted
 }
 
 function main() {
