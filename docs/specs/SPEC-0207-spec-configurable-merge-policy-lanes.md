@@ -11,7 +11,7 @@ links:
   rfc: docs/rfc/RFC-0015-configurable-merge-policy-lanes.md
   intake: docs/rfc/RFC-0015-configurable-merge-policy-lanes.md
   pr:
-    - TBD
+    - 430
   commits:
     - bcdc1077e45683416b097945ab6e11cd1fd557f0
 ---
