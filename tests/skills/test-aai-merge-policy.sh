@@ -107,11 +107,16 @@ commit_all() {
 
 head_sha() { (cd "$1" && git rev-parse HEAD); }
 
-# build_gh_stub <bin_dir> <json_file> <log_file> — on `gh pr view <n> --json
-# ...` cats <json_file> and logs the argv; anything else exits 1 (this
-# evaluator's --check must only ever call `pr view`, Spec-AC-16).
+# build_gh_stub <bin_dir> <json_file> <log_file> [mq_enabled=false] — on
+# `gh pr view <n> --json ...` cats <json_file> and logs the argv; on
+# `gh api graphql ...` (the merge-queue read -- B1 remediation, validation
+# round 10, Spec-AC-16 amendment) answers a canned
+# `{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":<mq_enabled>}}}}`
+# response (false unless the 4th arg is literally "true") and logs the argv
+# too; anything else exits 1 (this evaluator's --check must only ever call
+# `pr view` and this one `api graphql` read, Spec-AC-16).
 build_gh_stub() {
-  local bin_dir="$1" json_file="$2" log_file="$3"
+  local bin_dir="$1" json_file="$2" log_file="$3" mq_enabled="${4:-false}"
   mkdir -p "$bin_dir"
   cat > "$bin_dir/gh" <<STUBEOF
 #!/usr/bin/env bash
@@ -122,6 +127,10 @@ build_gh_stub() {
 } >> "$log_file"
 if [[ "\${1:-}" == "pr" && "\${2:-}" == "view" ]]; then
   cat "$json_file"
+  exit 0
+fi
+if [[ "\${1:-}" == "api" && "\${2:-}" == "graphql" ]]; then
+  echo '{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":$mq_enabled}}}}'
   exit 0
 fi
 exit 1
@@ -1784,7 +1793,7 @@ JSON
 
 # --- TEST-1523 (Spec-AC-16) --------------------------------------------------
 test_1523_gh_argv_only_pr_view() {
-  log_info "TEST-1523: across repeated --check calls (allowed and denied), plus --classify and --validate, every logged gh invocation on the stub's shared log is a 'pr view' call"
+  log_info "TEST-1523: across repeated --check calls (allowed and denied), plus --classify and --validate, every logged gh invocation on the stub's shared log is either a 'pr view' call or the one 'api graphql' merge-queue read (Spec-AC-16 amendment, round 10 B1 remediation)"
   mk
   local repo="$TEST_DIR/repo"
   new_repo "$repo"
@@ -1842,7 +1851,7 @@ JSON
     | PATH="$ghbin:$PATH" node "$MP" --classify --path "$repo/docs/ai/merge-policy.yaml" --files-from - --repo-root "$repo" >/dev/null 2>&1
   PATH="$ghbin:$PATH" node "$MP" --validate --repo-root "$repo" >/dev/null 2>&1
 
-  local log_content="" bad_line=""
+  local log_content="" bad_line="" saw_pr_view=0 saw_graphql=0
   if [[ -f "$log" ]]; then
     log_content="$(cat "$log")"
   fi
@@ -1850,13 +1859,16 @@ JSON
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     case "$line" in
-      "ARGS: pr view "*) : ;;
+      "ARGS: pr view "*) saw_pr_view=1 ;;
+      "ARGS: api graphql "*) saw_graphql=1 ;;
       *) bad_line="$line" ;;
     esac
   done <<< "$log_content"
-  [[ -z "$bad_line" ]] || log_fail "TEST-1523: found a gh invocation that was not 'pr view': $bad_line"
+  [[ -z "$bad_line" ]] || log_fail "TEST-1523: found a gh invocation that was neither 'pr view' nor 'api graphql': $bad_line"
+  [[ "$saw_pr_view" -eq 1 ]] || log_fail "TEST-1523: expected at least one 'pr view' invocation (positive control), got none"
+  [[ "$saw_graphql" -eq 1 ]] || log_fail "TEST-1523: expected at least one 'api graphql' invocation from the allowed call (positive control), got none"
 
-  log_pass "TEST-1523: every gh invocation this evaluator makes, across allowed and denied --check calls plus --classify/--validate, starts with 'pr view'"
+  log_pass "TEST-1523: every gh invocation this evaluator makes, across allowed and denied --check calls plus --classify/--validate, is either 'pr view' or the one 'api graphql' merge-queue read"
 }
 
 # --- TEST-1524 (Spec-AC-17) --------------------------------------------------
@@ -4652,16 +4664,17 @@ JSON
 
 # --- TEST-1574 (Spec-AC-24, Codex review PR #430 P1) ------------------------
 # ciGreen only proves every entry PRESENT in statusCheckRollup is green -- it
-# says nothing about a REQUIRED check that has not reported yet, or a branch
-# that requires a merge queue. GitHub's own mergeStateStatus already judges
-# exactly that ("mergeable and passing commit status" for CLEAN; every other
-# enum member names a reason it is not), so `--check` reads it as a second,
-# independent gate rather than re-deriving the same judgement from the rollup
-# this evaluator already has. Enum values confirmed live against gh v2.93.0's
-# own GraphQL schema (2026-10-05): BEHIND, BLOCKED, CLEAN, DIRTY, HAS_HOOKS,
-# UNKNOWN, UNSTABLE. DRAFT is not a live member of this schema (the isDraft
-# field, already checked earlier as reason=pr_not_open, is GitHub's actual
-# draft signal) but the gate still fails closed on it, and on any OTHER
+# says nothing about a REQUIRED check that has not reported yet. GitHub's own
+# mergeStateStatus already judges exactly that ("mergeable and passing commit
+# status" for CLEAN; every other enum member names a reason it is not), so
+# `--check` reads it as a second, independent gate rather than re-deriving
+# the same judgement from the rollup this evaluator already has. Enum values
+# confirmed live against gh v2.93.0's own GraphQL schema (2026-10-05):
+# BEHIND, BLOCKED, CLEAN, DIRTY, HAS_HOOKS, UNKNOWN, UNSTABLE, and DRAFT
+# (deprecated but still a live enum member -- validation round 10 NB-1
+# corrected the earlier claim here that it was not). The isDraft field,
+# already checked earlier as reason=pr_not_open, is GitHub's actual draft
+# signal, but this gate still fails closed on DRAFT too, and on any OTHER
 # unrecognized string, the same as a missing field -- CLEAN is the only
 # value ever read as "proceed".
 test_1574_merge_state_not_clean() {
@@ -4805,6 +4818,287 @@ JSON
   log_pass "TEST-1575 (Spec-AC-24) a pending autoMergeRequest denies auto_merge_pending even though mergeStateStatus is CLEAN -- a request already queued to merge later must never be read as safe-to-merge-now; a null request passes this gate"
 }
 
+# --- TEST-1576 (Spec-AC-25, validation round 10 B1 -- merge-queue half of
+# Codex P1) ------------------------------------------------------------------
+# mergeStateStatus=CLEAN plus no pending autoMergeRequest still does not rule
+# out a base branch that REQUIRES a merge queue: on such a branch the
+# documented bare `gh pr merge <n> --squash --match-head-commit <h>` goes
+# through GitHub's enablePullRequestAutoMerge mutation even when CLEAN, and
+# the PR merges LATER, when the queue completes it, without this evaluator
+# ever running again. getMergeQueueEnabled reads isMergeQueueEnabled live
+# via a second `gh api graphql` call; this case pins that a `true` reading
+# denies reason=merge_queue_required, and a `false` reading (the control)
+# still reaches allowed.
+test_1576_merge_queue_required() {
+  log_info "TEST-1576: isMergeQueueEnabled true denies merge_queue_required even though mergeStateStatus is CLEAN and no autoMergeRequest is pending; isMergeQueueEnabled false passes this gate (control, fixture reaches allowed)"
+  local case_name
+  for case_name in queue_required queue_disabled_control; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-mq
+    decision_ref: test1576-ride@2026-10-05T08:30:00Z
+    decision_match: "MERGE LANE test1576"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_MQ1576_MERGE
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1576-ride","ts":"2026-10-05T08:30:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1576 approved"}
+JSONL
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 99
+
+    local mq_enabled
+    case "$case_name" in
+      queue_required) mq_enabled="true" ;;
+      queue_disabled_control) mq_enabled="false" ;;
+    esac
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":99,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log" "$mq_enabled"
+
+    run_check "$repo" "$ghbin" 99
+
+    if [[ "$case_name" == "queue_disabled_control" ]]; then
+      assert_payload_not_contains "$OUT" "reason=merge_queue_required" \
+        "TEST-1576 [$case_name]: isMergeQueueEnabled false must never deny merge_queue_required, got: $OUT"
+      assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=99 lane=lane-mq marker=AAI_MQ1576_MERGE decision_ref=test1576-ride@2026-10-05T08:30:00Z merge_reaches=nothing" \
+        "TEST-1576 [$case_name]: expected the fixture to reach allowed with the merge queue disabled, got: $OUT"
+      [[ "$RC" -eq 0 ]] || log_fail "TEST-1576 [$case_name]: expected exit 0, got $RC: $OUT"
+    else
+      assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=99 reason=merge_queue_required" \
+        "TEST-1576 [$case_name]: expected reason=merge_queue_required, got: $OUT"
+      [[ "$RC" -eq 3 ]] || log_fail "TEST-1576 [$case_name]: expected exit 3, got $RC: $OUT"
+    fi
+  done
+
+  log_pass "TEST-1576 (Spec-AC-25, B1 remediation) isMergeQueueEnabled=true denies merge_queue_required even though mergeStateStatus is CLEAN and no auto-merge is pending -- a required queue would otherwise defer the merge past this evaluator; isMergeQueueEnabled=false passes this gate"
+}
+
+# --- TEST-1577 (Spec-AC-25, validation round 10 B1) -------------------------
+# A failed, empty, or short-shaped graphql read must deny fail closed exactly
+# like a missing mergeStateStatus -- never be read as "queue not required".
+# All three shapes (the gh call itself exiting non-zero, a response with no
+# `repository` key, and a response missing `isMergeQueueEnabled` under an
+# otherwise-present pullRequest) throw inside getMergeQueueEnabled and are
+# caught by the SAME try/catch in runCheck, so one mutation disabling that
+# catch's deny reddens all three uniformly.
+test_1577_merge_queue_unknown_fails_closed() {
+  log_info "TEST-1577: a graphql call that exits non-zero, returns no repository data, or omits isMergeQueueEnabled from an otherwise-present pullRequest each deny merge_queue_unknown, fail closed"
+  local case_name
+  for case_name in graphql_exits_nonzero empty_data missing_field; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-mqu
+    decision_ref: test1577-ride@2026-10-05T08:45:00Z
+    decision_match: "MERGE LANE test1577"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_MQU1577_MERGE
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1577-ride","ts":"2026-10-05T08:45:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1577 approved"}
+JSONL
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 100
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":100,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN","autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+    mkdir -p "$ghbin"
+    local graphql_body
+    case "$case_name" in
+      graphql_exits_nonzero) graphql_body='exit 1' ;;
+      empty_data) graphql_body="echo '{\"data\":{}}'" ;;
+      missing_field) graphql_body="echo '{\"data\":{\"repository\":{\"pullRequest\":{}}}}'" ;;
+    esac
+    cat > "$ghbin/gh" <<STUBEOF
+#!/usr/bin/env bash
+{
+  printf 'ARGS:'
+  for a in "\$@"; do printf ' %s' "\$a"; done
+  printf '\n'
+} >> "$log"
+if [[ "\${1:-}" == "pr" && "\${2:-}" == "view" ]]; then
+  cat "$json"
+  exit 0
+fi
+if [[ "\${1:-}" == "api" && "\${2:-}" == "graphql" ]]; then
+  $graphql_body
+  exit 0
+fi
+exit 1
+STUBEOF
+    chmod +x "$ghbin/gh"
+
+    run_check "$repo" "$ghbin" 100
+
+    assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=100 reason=merge_queue_unknown" \
+      "TEST-1577 [$case_name]: expected reason=merge_queue_unknown, got: $OUT"
+    [[ "$RC" -eq 3 ]] || log_fail "TEST-1577 [$case_name]: expected exit 3, got $RC: $OUT"
+  done
+
+  log_pass "TEST-1577 (Spec-AC-25, B1 remediation) a failing, empty, or short-shaped merge-queue read denies reason=merge_queue_unknown -- fail closed, never read as queue-not-required"
+}
+
+# --- TEST-1578 (Spec-AC-24 amendment, validation round 10 NB-2) ------------
+# NB-2: a missing `autoMergeRequest` key (gh did not return the field at
+# all) used to read as falsy and pass through -- asymmetric with
+# mergeStateStatus' own fail-closed missing-field handling. It must now deny
+# auto_merge_pending exactly like a missing mergeStateStatus denies
+# merge_state_not_clean; an explicit `null` (the field present, no request)
+# still passes this gate unaffected (control).
+test_1578_auto_merge_request_missing_key_denies() {
+  log_info "TEST-1578: a wholly-absent autoMergeRequest key denies auto_merge_pending (NB-2 fail-closed fix); an explicit null still passes this gate (control, fixture reaches allowed)"
+  local case_name
+  for case_name in key_missing key_present_null_control; do
+    mk
+    local repo="$TEST_DIR/repo"
+    new_repo "$repo"
+    mkdir -p "$repo/docs/ai" "$repo/docs"
+    cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-amrk
+    decision_ref: test1578-ride@2026-10-05T09:00:00Z
+    decision_match: "MERGE LANE test1578"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_AMRK1578_MERGE
+YAML
+    cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1578-ride","ts":"2026-10-05T09:00:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1578 approved"}
+JSONL
+    echo "base doc" > "$repo/docs/base.md"
+    commit_all "$repo" "base ($case_name)"
+    local base; base="$(head_sha "$repo")"
+    echo "a docs change" > "$repo/docs/changed-$case_name.md"
+    commit_all "$repo" "head ($case_name)"
+    local head; head="$(head_sha "$repo")"
+    write_sweep_record "$repo" 101
+
+    local amr_clause
+    case "$case_name" in
+      key_missing) amr_clause='' ;;
+      key_present_null_control) amr_clause='"autoMergeRequest":null,' ;;
+    esac
+
+    local ghbin="$TEST_DIR/gh-bin-$case_name" json="$TEST_DIR/pr-$case_name.json" log="$TEST_DIR/gh-$case_name.log"
+    cat > "$json" <<JSON
+{"number":101,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":"CLEAN",${amr_clause}"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+    build_gh_stub "$ghbin" "$json" "$log"
+
+    run_check "$repo" "$ghbin" 101
+
+    if [[ "$case_name" == "key_present_null_control" ]]; then
+      assert_payload_not_contains "$OUT" "reason=auto_merge_pending" \
+        "TEST-1578 [$case_name]: an explicit null autoMergeRequest must never deny auto_merge_pending, got: $OUT"
+      assert_payload_has_line "$OUT" "MERGE-POLICY allowed pr=101 lane=lane-amrk marker=AAI_AMRK1578_MERGE decision_ref=test1578-ride@2026-10-05T09:00:00Z merge_reaches=nothing" \
+        "TEST-1578 [$case_name]: expected the fixture to reach allowed with autoMergeRequest explicitly null, got: $OUT"
+      [[ "$RC" -eq 0 ]] || log_fail "TEST-1578 [$case_name]: expected exit 0, got $RC: $OUT"
+    else
+      assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=101 reason=auto_merge_pending" \
+        "TEST-1578 [$case_name]: expected reason=auto_merge_pending with the key wholly absent, got: $OUT"
+      [[ "$RC" -eq 3 ]] || log_fail "TEST-1578 [$case_name]: expected exit 3, got $RC: $OUT"
+    fi
+  done
+
+  log_pass "TEST-1578 (Spec-AC-24 amendment, NB-2 fix) a wholly-absent autoMergeRequest key now fails closed like a missing mergeStateStatus does; an explicit null still passes this gate"
+}
+
+# --- TEST-1579 (Spec-AC-24 amendment, validation round 10 NB-3 coverage) ---
+# NB-3: TEST-1574 covered an OMITTED mergeStateStatus field but never an
+# EXPLICIT `null` value. The code already folds both into state=missing
+# (`=== undefined || === null`), but nothing exercised the null shape
+# directly -- this closes that coverage gap as a plain regression pin, no
+# behavior change.
+test_1579_merge_state_null_denies_as_missing() {
+  log_info "TEST-1579: an explicit null mergeStateStatus (as opposed to an omitted field, already covered by TEST-1574) denies merge_state_not_clean state=missing (NB-3 coverage)"
+  mk
+  local repo="$TEST_DIR/repo"
+  new_repo "$repo"
+  mkdir -p "$repo/docs/ai" "$repo/docs"
+  cat > "$repo/docs/ai/merge-policy.yaml" <<'YAML'
+version: 1
+kinds:
+  - id: docs
+    globs: ["docs/**"]
+lanes:
+  - id: lane-mssn
+    decision_ref: test1579-ride@2026-10-05T09:15:00Z
+    decision_match: "MERGE LANE test1579"
+    signed_by: owner-login
+    kinds: [docs]
+    merge_reaches: nothing
+    max_ceremony: 3
+    marker: AAI_MSSN1579_MERGE
+YAML
+  cat > "$repo/docs/ai/decisions.jsonl" <<'JSONL'
+{"type":"hitl_decision","ref_id":"test1579-ride","ts":"2026-10-05T09:15:00Z","owner_signoff":true,"actor":"owner-login","decision":"MERGE LANE test1579 approved"}
+JSONL
+  echo "base doc" > "$repo/docs/base.md"
+  commit_all "$repo" "base"
+  local base; base="$(head_sha "$repo")"
+  echo "a docs change" > "$repo/docs/changed.md"
+  commit_all "$repo" "head"
+  local head; head="$(head_sha "$repo")"
+  write_sweep_record "$repo" 102
+
+  local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
+  cat > "$json" <<JSON
+{"number":102,"state":"OPEN","isDraft":false,"baseRefName":"main","baseRefOid":"$base","headRefOid":"$head","reviews":[],"mergeStateStatus":null,"autoMergeRequest":null,"statusCheckRollup":[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"}],"body":""}
+JSON
+  build_gh_stub "$ghbin" "$json" "$log"
+
+  run_check "$repo" "$ghbin" 102
+
+  assert_payload_has_line "$OUT" "MERGE-POLICY denied pr=102 reason=merge_state_not_clean state=missing" \
+    "TEST-1579: expected reason=merge_state_not_clean state=missing with an explicit null, got: $OUT"
+  [[ "$RC" -eq 3 ]] || log_fail "TEST-1579: expected exit 3, got $RC: $OUT"
+
+  log_pass "TEST-1579 (Spec-AC-24 amendment, NB-3 coverage) an explicit null mergeStateStatus denies merge_state_not_clean state=missing, same as an omitted field"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -4874,6 +5168,10 @@ main() {
   test_1573_denied_path_output_stays_one_line
   test_1574_merge_state_not_clean
   test_1575_auto_merge_pending
+  test_1576_merge_queue_required
+  test_1577_merge_queue_unknown_fails_closed
+  test_1578_auto_merge_request_missing_key_denies
+  test_1579_merge_state_null_denies_as_missing
   # 1523 last: it asserts over its OWN gh-argv log, built from calls this
   # function makes itself (standalone-runnable), not a suite-wide shared log.
   test_1523_gh_argv_only_pr_view

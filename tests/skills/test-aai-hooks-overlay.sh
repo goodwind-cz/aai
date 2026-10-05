@@ -1139,6 +1139,10 @@ if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.jso
   esac
   cat "$d/pr-\${3}.json"; exit 0
 fi
+if [ "\${1:-}" = "api" ] && [ "\${2:-}" = "graphql" ]; then
+  echo '{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":false}}}}'
+  exit 0
+fi
 exit 1
 GHSTUB
   chmod +x "$d/bin/gh"
@@ -1325,6 +1329,10 @@ if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.jso
   esac
   cat "$d/pr-\${3}.json"; exit 0
 fi
+if [ "\${1:-}" = "api" ] && [ "\${2:-}" = "graphql" ]; then
+  echo '{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":false}}}}'
+  exit 0
+fi
 exit 1
 GHSTUB
   chmod +x "$d/bin/gh"
@@ -1466,6 +1474,10 @@ if [ "\${1:-}" = "pr" ] && [ "\${2:-}" = "view" ] && [ -f "$d/pr-\${3:-none}.jso
       ;;
   esac
   cat "$d/pr-\${3}.json"; exit 0
+fi
+if [ "\${1:-}" = "api" ] && [ "\${2:-}" = "graphql" ]; then
+  echo '{"data":{"repository":{"pullRequest":{"isMergeQueueEnabled":false}}}}'
+  exit 0
 fi
 exit 1
 GHSTUB

@@ -1330,12 +1330,46 @@ function parseArgs(argv) {
 }
 
 function getPrJson(root, pr) {
+  // NB-4 (validation round 10): `mergeable` was fetched but never read by
+  // any gate below -- dropped rather than kept as dead data on the wire.
   const fields = 'number,state,isDraft,baseRefName,baseRefOid,headRefOid,reviews,statusCheckRollup,'
-    + 'mergeStateStatus,mergeable,autoMergeRequest,body';
+    + 'mergeStateStatus,autoMergeRequest,body';
   const raw = execFileSync('gh', ['pr', 'view', String(pr), '--json', fields], {
     cwd: root, encoding: 'utf8',
   });
   return JSON.parse(raw);
+}
+
+// getMergeQueueEnabled(root, pr) -- B1 remediation (validation round 10):
+// `gh pr view --json` has NO merge-queue field at all (verified against the
+// gh v2.93.0 CLI's own --json field list, mergequeue.log) -- the only place
+// a PR's merge-queue requirement is visible is the live GraphQL schema's
+// `PullRequest.isMergeQueueEnabled` (confirmed live 2026-10-05:
+// `gh api graphql -f query='{__type(name:"PullRequest"){fields{name}}}'`
+// lists it; true means THIS pr's base currently requires a queue for it).
+// This is a SECOND gh call, not folded into getPrJson's `pr view`, because
+// that command has no equivalent field to ask for. `{owner}`/`{repo}` are
+// gh's own placeholder expansion, resolved from the git remote at `cwd`
+// -- the identical repo-resolution context `gh pr view` above already
+// relies on implicitly -- never derived from PR-controlled text (title,
+// body, branch name). Spec-AC-16 amendment (round 10): the stub gh in
+// tests now answers exactly this one additional call shape, nothing else.
+function getMergeQueueEnabled(root, pr) {
+  const query = 'query($owner:String!,$name:String!,$pr:Int!){repository(owner:$owner,name:$name)'
+    + '{pullRequest(number:$pr){isMergeQueueEnabled}}}';
+  const raw = execFileSync('gh', [
+    'api', 'graphql',
+    '-f', `query=${query}`,
+    '-F', 'owner={owner}',
+    '-F', 'name={repo}',
+    '-F', `pr=${pr}`,
+  ], { cwd: root, encoding: 'utf8' });
+  const parsed = JSON.parse(raw);
+  const enabled = parsed?.data?.repository?.pullRequest?.isMergeQueueEnabled;
+  if (typeof enabled !== 'boolean') {
+    throw new Error('merge-policy: isMergeQueueEnabled missing from graphql response');
+  }
+  return enabled;
 }
 
 // getChangedFiles (code review B2, round 7): `-z` disables git's default
@@ -1499,22 +1533,22 @@ function runCheck(opts) {
 
   // mergeStateStatus gate (Codex review, PR #430 P1): ciGreen above only
   // judges the entries PRESENT in statusCheckRollup -- it proves nothing
-  // about a REQUIRED check that has not reported yet, or a branch that
-  // requires a merge queue. `gh pr merge` (even with no --auto) can still
-  // ENABLE auto-merge instead of merging immediately in exactly that shape,
-  // and the PR then merges later without this evaluator ever running again.
-  // GitHub's own mergeStateStatus already judges this directly, so it is
-  // read as a second, independent PR-level gate rather than re-derived from
-  // the rollup. Enum confirmed LIVE against gh v2.93.0's own GraphQL schema
+  // about a REQUIRED check that has not reported yet. GitHub's own
+  // mergeStateStatus already judges this directly, so it is read as a
+  // second, independent PR-level gate rather than re-derived from the
+  // rollup. Enum confirmed LIVE against gh v2.93.0's own GraphQL schema
   // (2026-10-05, `gh api graphql -f query='{ __type(name: "MergeStateStatus")
   // { enumValues { name } } }'`): BEHIND, BLOCKED, CLEAN, DIRTY, HAS_HOOKS,
-  // UNKNOWN, UNSTABLE. DRAFT is not a live member of that schema (the real
-  // draft signal is the `isDraft` field already denied above as
-  // reason=pr_not_open) -- but this gate still fails closed on it, and on
-  // any other unrecognized string, exactly like a missing field. CLEAN
+  // UNKNOWN, UNSTABLE, and DRAFT (deprecated but still a live member --
+  // validation round 10 NB-1 corrected the earlier claim that it was not).
+  // The real draft signal is the `isDraft` field already denied above as
+  // reason=pr_not_open, but this gate still fails closed on DRAFT too, and
+  // on any other unrecognized string, exactly like a missing field. CLEAN
   // ("mergeable and passing commit status") is the ONLY value ever read as
   // "proceed"; every other value denies, naming the state (escaped like
-  // every other printed value).
+  // every other printed value). This gate alone does NOT rule out a
+  // required merge queue deferring the merge -- that is the separate
+  // isMergeQueueEnabled gate below.
   if (prJson.mergeStateStatus !== 'CLEAN') {
     const state = (prJson.mergeStateStatus === undefined || prJson.mergeStateStatus === null)
       ? 'missing' : prJson.mergeStateStatus;
@@ -1527,8 +1561,35 @@ function runCheck(opts) {
   // re-running merge-policy.mjs. mergeStateStatus=CLEAN alone does not rule
   // this out (an auto-merge request can sit on an otherwise-clean PR), so
   // an already-pending request denies regardless of mergeStateStatus.
-  if (prJson.autoMergeRequest) {
+  // NB-2 (validation round 10): a MISSING `autoMergeRequest` key (gh did
+  // not return the field at all, as opposed to returning it as `null`)
+  // reads as unknown, not as "no request" -- it must fail closed exactly
+  // like a missing mergeStateStatus does, not silently pass through
+  // truthiness on `undefined`.
+  if (!('autoMergeRequest' in prJson) || prJson.autoMergeRequest) {
     console.log(`MERGE-POLICY denied pr=${pr} reason=auto_merge_pending`);
+    exit(EXIT_DENIED);
+  }
+  // isMergeQueueEnabled gate (B1 remediation, validation round 10): the
+  // merge-queue half of Codex P1. mergeStateStatus=CLEAN plus no pending
+  // autoMergeRequest still does not rule out a base branch that REQUIRES a
+  // merge queue -- on such a branch the documented bare
+  // `gh pr merge <n> --squash --match-head-commit <h>` (SKILL_PR step 6)
+  // goes through GitHub's `enablePullRequestAutoMerge` mutation even when
+  // CLEAN, and the PR merges LATER, when the queue completes it, without
+  // this evaluator ever running again -- possibly after the base policy
+  // itself has changed. getMergeQueueEnabled reads this directly; any
+  // failure to read it (gh error, no data, missing field) denies fail
+  // closed rather than assuming the queue is not required.
+  let mergeQueueEnabled;
+  try {
+    mergeQueueEnabled = getMergeQueueEnabled(root, pr);
+  } catch {
+    console.log(`MERGE-POLICY denied pr=${pr} reason=merge_queue_unknown`);
+    exit(EXIT_DENIED);
+  }
+  if (mergeQueueEnabled) {
+    console.log(`MERGE-POLICY denied pr=${pr} reason=merge_queue_required`);
     exit(EXIT_DENIED);
   }
 

@@ -506,9 +506,12 @@ PROCESS
      `gh pr view` call above would report). NEVER add `--auto` or `--admin`:
      either lets GitHub merge a later, unjudged head or bypasses branch
      protections outright, and the hook lane path refuses both. An `allowed`
-     verdict already proves `mergeStateStatus=CLEAN` with no auto-merge
-     already pending, so a required merge queue can never make this bare
-     command silently enable auto-merge behind the lane's back. Cite the
+     verdict already proves exactly three things: `mergeStateStatus=CLEAN`,
+     no auto-merge request already pending, and the PR's base does not
+     require a merge queue (`isMergeQueueEnabled=false`, read live via a
+     second `gh api graphql` call — round-10 remediation of Codex P1's
+     merge-queue half; a merge-queue-required base now denies
+     reason=merge_queue_required before this step ever runs). Cite the
      `decision_ref` the allowed line names in the merge report. Any other
      verdict (`denied`, `no_policy`, or no `docs/ai/merge-policy.yaml` at the
      base commit) means the hard rule above stands unchanged; a `denied`
