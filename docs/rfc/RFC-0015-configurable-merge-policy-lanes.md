@@ -2,11 +2,13 @@
 id: configurable-merge-policy-lanes
 type: rfc
 number: 15
-status: accepted
+status: done
 links:
   spec: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - bcdc1077e45683416b097945ab6e11cd1fd557f0
 ---
 
 # RFC (Decision Proposal): Configurable merge policy — owner-defined merge lanes

@@ -2777,3 +2777,9 @@
 {"v":1,"ts":"2026-10-04T23:55:41Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"configurable-merge-policy-lanes","payload":{"status":"pass","hash":"6ab139017fad4f2cd56e9557dd0c42d9617003b04348bf8dcd04644e1506fc62"}}
 {"v":1,"ts":"2026-10-04T23:55:59Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"configurable-merge-policy-lanes","payload":{"status":"pass","hash":"064273e2ac20187660bde91a410c9ed7755f859ffdb276f27936380b43673b5b"}}
 {"v":1,"ts":"2026-10-05T04:42:56Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"configurable-merge-policy-lanes","payload":{"status":"pass","hash":"c42074e3a52a1935422855073c8652641e283f1e5e1c6b183e25f6d03bd7fd3c"}}
+{"v":1,"ts":"2026-10-05T05:03:41Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"configurable-merge-policy-lanes","payload":{"from":"accepted","to":"done"}}
+{"v":1,"ts":"2026-10-05T05:03:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"configurable-merge-policy-lanes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-05T05:03:41Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"configurable-merge-policy-lanes","payload":{"commit":"bcdc1077e45683416b097945ab6e11cd1fd557f0"}}
+{"v":1,"ts":"2026-10-05T05:03:41Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-configurable-merge-policy-lanes","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-05T05:03:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-configurable-merge-policy-lanes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-05T05:03:41Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-configurable-merge-policy-lanes","payload":{"commit":"bcdc1077e45683416b097945ab6e11cd1fd557f0"}}

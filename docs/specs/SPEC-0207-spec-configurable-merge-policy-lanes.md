@@ -2,7 +2,7 @@
 id: spec-configurable-merge-policy-lanes
 type: spec
 number: 207
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 88a29053f1339bf4bdabed642f29e0861f064f2d380420514b6d640fed3e6076
 ceremony_level: 3
@@ -10,8 +10,10 @@ links:
   requirement: null
   rfc: docs/rfc/RFC-0015-configurable-merge-policy-lanes.md
   intake: docs/rfc/RFC-0015-configurable-merge-policy-lanes.md
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - bcdc1077e45683416b097945ab6e11cd1fd557f0
 ---
 
 # Spec — An owner-signed merge policy decides which pull requests the agent may merge

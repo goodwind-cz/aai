@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-05T04:45:22.671Z",
+  "generatedAt": "2026-10-05T05:03:48.998Z",
   "project": "aai",
   "counts": {
-    "delivered": 276,
+    "delivered": 277,
     "in_progress": 15,
     "releases": 1,
     "tokens_total": 74203136
@@ -208,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "configurable-merge-policy-lanes",
+      "title": "RFC (Decision Proposal): Configurable merge policy — owner-defined merge lanes",
+      "type": "rfc",
+      "status": "done",
+      "path": "docs/rfc/RFC-0015-configurable-merge-policy-lanes.md",
+      "closed_on": "2026-10-05",
+      "agent_minutes": 1684,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-configurable-merge-policy-lanes-20261005T042709Z.md"
+    },
     {
       "ref": "ci-test-selection-narrowing-and-sharding",
       "title": "Tech Debt: CI runs the full 103-suite sweep on 40% of PRs, and runs it on one runner",
@@ -3823,6 +3836,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "configurable-merge-policy-lanes",
+          "title": "RFC (Decision Proposal): Configurable merge policy — owner-defined merge lanes",
+          "type": "rfc",
+          "status": "done",
+          "path": "docs/rfc/RFC-0015-configurable-merge-policy-lanes.md",
+          "closed_on": "2026-10-05",
+          "agent_minutes": 1684,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-configurable-merge-policy-lanes-20261005T042709Z.md"
+        },
         {
           "ref": "ci-test-selection-narrowing-and-sharding",
           "title": "Tech Debt: CI runs the full 103-suite sweep on 40% of PRs, and runs it on one runner",
