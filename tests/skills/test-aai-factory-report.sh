@@ -1455,8 +1455,10 @@ JSONL
   # NB-7 REPAIR DIRECTIVE: on a mismatch here, fix generate-factory-report.mjs
   # (the generator), NEVER this re-derivation. The whole point of a shadow
   # model independent of the generator is that it computes scope_cost from
-  # docs/ai/METRICS.jsonl using ONLY the canonical normalizeRole/
-  # extractUsageTotal/CANONICAL_ROLES primitives (D3) — pasting the
+  # docs/ai/METRICS.jsonl using ONLY an independently expressed final-summary
+  # shape check plus the canonical normalizeRole/extractUsageTotal/
+  # CANONICAL_ROLES primitives (D3) — importing the generator's record
+  # predicate here would make lifecycle exclusion tautological; pasting the
   # generator's new rule in here to make a red arm green converts this into a
   # tautology and silently retires every finding it exists to catch. The one
   # legitimate reason to edit the block below is a genuine bug IN the
@@ -1472,7 +1474,12 @@ JSONL
       const rides = [];
       for (const l of lines) {
         let row; try { row = JSON.parse(l); } catch { continue; }
-        if (row && row.ref_id) rides.push(row);
+        const hasSummaryShape = row && typeof row.ref_id === "string" && row.ref_id.length > 0
+          && typeof row.date_utc === "string" && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(row.date_utc)
+          && !Object.hasOwn(row, "event")
+          && (Object.hasOwn(row, "title") || Array.isArray(row.agent_runs)
+            || (row.totals && typeof row.totals === "object") || Object.hasOwn(row, "verdict"));
+        if (hasSummaryShape) rides.push(row);
       }
       const shadow = [];
       let expectedMissingDur = 0;
@@ -1934,6 +1941,31 @@ JSONL
   log_pass "factory report renders per-ride verdict-source + cost-basis and the field-vs-marker KPI; legacy ride shown n/a, never zero (TEST-042)"
 }
 
+# --- TEST-043: lifecycle telemetry is not a flushed ride ---------------------
+test_043_lifecycle_record_excluded() {
+  log_info "Test: a worktree lifecycle record sharing a ref with its final metrics summary is excluded, leaving exactly one fully populated ride (TEST-043)..."
+  local d; d="$(mk_repo t043)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"event":"worktree_create","date_utc":"2026-07-06","ref_id":"SAME-REF","worktree":"/tmp/example"}
+{"date_utc":"2026-07-06","ref_id":"SAME-REF","title":"Final summary","agent_runs":[{"role":"Planning","duration_seconds":30}],"totals":{"agent_duration_seconds":30},"verdict":"PASS"}
+JSONL
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const rows = m.scope_cost.scopes.filter((s) => s.ref === "SAME-REF");
+    if (m.counts.rides !== 1 || rows.length !== 1 || rows[0].runs_total !== 1 || rows[0].agent_seconds !== 30) {
+      console.log(JSON.stringify({ rides: m.counts.rides, rows })); process.exit(1);
+    }
+    console.log("OK");
+  ' "$DJ")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "lifecycle telemetry was counted as a ride: $result"
+  log_pass "worktree lifecycle telemetry is excluded and the final summary is counted once (TEST-043)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027; followup-registry TEST-028..029; scope-cost TEST-031..037,039)"
   echo "  + followups-cli-hardening TEST-040; operator-waiver-unblocks-pr TEST-041"
@@ -1978,6 +2010,7 @@ main() {
   test_037_scope_cost_html_parity
   test_039_scope_cost_product_doc_pins
   test_042_verdict_provenance
+  test_043_lifecycle_record_excluded
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

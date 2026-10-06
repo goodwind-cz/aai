@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-10-06T19:30:45.036Z",
+  "generatedAt": "2026-10-06T19:46:59.805Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 153,
+    "rides": 152,
     "delivered": 499,
     "active_weeks": 15,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (499 closes vs 153 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "note": "\"delivered\" counts every work_item_closed event (499 closes vs 152 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
     "delivered_total": 499,
     "delivered_per_week_avg": 33.3,
     "delivered_by_week": {
@@ -3370,11 +3370,6 @@
       },
       {
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
-        "busy_seconds": null,
-        "remediation_runs": null
-      },
-      {
-        "ref": "worktree-lacks-vendored-aai-layer-downstream",
         "busy_seconds": 19008,
         "remediation_runs": 4
       }
@@ -4201,7 +4196,7 @@
       "flagged": 126,
       "rate_pct": 67
     },
-    "na_reliability": 27,
+    "na_reliability": 26,
     "remediation_distribution": {
       "0": 85,
       "1": 14,
@@ -4213,13 +4208,13 @@
       "7": 1,
       "8": 2,
       "15": 1,
-      "n/a": 27
+      "n/a": 26
     },
     "avg_validation_fails": 0.3,
     "avg_review_fails": 0.1,
     "verdict_mix": {
       "PASS": 139,
-      "null": 14
+      "null": 13
     },
     "review_events": 26,
     "review_verdict_note": "per-review pass/fail lives only in prose run notes and is not mechanically derived; only ride verdict + code_review_completed count are shown"
@@ -4236,7 +4231,7 @@
     "field_derived": 15,
     "marker_derived": 2,
     "mixed": 0,
-    "no_basis": 136,
+    "no_basis": 135,
     "rides": [
       {
         "ref": "DEBT-0001",
@@ -4992,11 +4987,6 @@
         "ref": "roadmap-maintenance-budget-advisory",
         "verdict_source": "field",
         "cost_basis": "total-blended"
-      },
-      {
-        "ref": "worktree-lacks-vendored-aai-layer-downstream",
-        "verdict_source": null,
-        "cost_basis": null
       },
       {
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
@@ -6385,7 +6375,7 @@
         "id": "fu-gitforwindows-shell-drive-rel",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "gitForWindowsShell treats a drive-relative MSYS exec-path as absolute, so the derived sh.exe path resolves against the current working drive",
         "status": "open"
       },
@@ -6393,7 +6383,7 @@
         "id": "fu-frozen-mutation-cells-unusable",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "frozen Mutation cells are written at spec-freeze without ever being executed, and 8 of the 10 exercised in this ride were unusable as frozen",
         "status": "open"
       },
@@ -6401,7 +6391,7 @@
         "id": "fu-nearmiss-vocab-column-name-only",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "the Spec-AC-10 status-vocabulary widening gates on column-NAME reuse (AC plus Status plus Review-By or Evidence), not on the table actually being a spec-AC table",
         "status": "open"
       },
@@ -11114,27 +11104,14 @@
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
-      },
-      {
-        "ref": "worktree-lacks-vendored-aai-layer-downstream",
-        "date_utc": null,
-        "runs_total": 0,
-        "elapsed_wall_seconds": null,
-        "agent_seconds": null,
-        "roles": [],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 0,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
       }
     ]
   },
   "notes": [
     "NOTE 7 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
     "NOTE 24 agent_run(s) had a role that matched no canonical role — bucketed as Other",
-    "NOTE 27 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
-    "NOTE 59 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
+    "NOTE 58 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 5 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
     "NOTE 27 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"
