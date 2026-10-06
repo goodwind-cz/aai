@@ -2,15 +2,17 @@
 id: spec-worktree-lacks-vendored-aai-layer-downstream
 type: spec
 number: 209
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: cbfe7035185fb936b4ca7d78d624b81b0042e7bb20aa86cab9df4ee2ecb5e2b1
 ceremony_level: 2
 links:
   requirement: worktree-lacks-vendored-aai-layer-downstream
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 5f5fb10a
 ---
 
 # Spec — Seed the installed AAI layer before entering a downstream worktree
@@ -87,14 +89,14 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN setup seeds a downstream checkout the system SHALL copy the installed infrastructure inventory and bytes for core and extended profiles, including all four installed skill roots and the pin. | done | docs/ai/tdd/worktree-lacks-vendored-aai-layer-downstream-refactor.log | — | Exclusions in D2 |
-| Spec-AC-02 | WHEN seeding succeeds the worktree SHALL execute its own canonical state initializer and state check with exit 0. | done | docs/ai/tdd/worktree-lacks-vendored-aai-layer-downstream-refactor.log | — | No live STATE carry |
-| Spec-AC-03 | WHEN the source, target, ignore safety or copy operation is invalid the system SHALL report a named reason, return nonzero and stop before recording setup success or dispatching a role. | done | docs/ai/tdd/worktree-lacks-vendored-aai-layer-downstream-refactor.log | — | Test both helper and prompt ordering |
-| Spec-AC-04 | WHEN the destination tracks its AAI files the system SHALL preserve those files byte-for-byte, including branch-local changes, and permit initialization. | done | docs/ai/tdd/worktree-lacks-vendored-aai-layer-downstream-refactor.log | — | Never overwrite tracked files |
-| Spec-AC-05 | WHEN infrastructure is seeded the system SHALL leave every newly copied file ignored and untracked and SHALL copy zero excluded runtime files. | done | docs/ai/tdd/worktree-lacks-vendored-aai-layer-downstream-refactor.log | — | Includes staging probe |
-| Spec-AC-06 | WHEN invoked from bash or Windows PowerShell 5.1 or pwsh 7 the shared seeder SHALL satisfy the same downstream success and refusal behavior without creating symlinks. | deferred | docs/ai/tdd/worktree-lacks-vendored-aai-layer-downstream-pwsh-green.log; docs/ai/tdd/worktree-lacks-vendored-aai-layer-downstream-validation.log | 2026-10-20 | Pre-PR Bash real downstream and macOS pwsh evidence passed; neither proves native Windows. Windows PowerShell 5.1 and pwsh 7 Pester fixture checks are required in PR CI before merge; see the measurement amendment below. |
-| Spec-AC-07 | WHEN the origin is updated after seeding the worktree SHALL retain its independent installed snapshot; identical reruns SHALL succeed unchanged and conflicting reruns SHALL refuse without replacing existing files. | done | docs/ai/tdd/worktree-lacks-vendored-aai-layer-downstream-refactor.log | — | No automatic cross-worktree update |
-| Spec-AC-08 | WHEN core profile distribution and test selection run the helper SHALL be installed, selected for regression, and accounted for by the profile and prompt-growth ledgers. | done | docs/ai/tdd/worktree-lacks-vendored-aai-layer-downstream-refactor.log | — | V3 profiles and prompt-diet-final logs also pass |
+| Spec-AC-01 | WHEN setup seeds a downstream checkout the system SHALL copy the installed infrastructure inventory and bytes for core and extended profiles, including all four installed skill roots and the pin. | done | docs/ai/reports/VALIDATION-20261006T181711Z-worktree-lacks-vendored-aai-layer-downstream.md; TEST-001/002 | — | Exclusions in D2 |
+| Spec-AC-02 | WHEN seeding succeeds the worktree SHALL execute its own canonical state initializer and state check with exit 0. | done | docs/ai/reports/VALIDATION-20261006T181711Z-worktree-lacks-vendored-aai-layer-downstream.md; TEST-003 | — | No live STATE carry |
+| Spec-AC-03 | WHEN the source, target, ignore safety or copy operation is invalid the system SHALL report a named reason, return nonzero and stop before recording setup success or dispatching a role. | done | docs/ai/reports/VALIDATION-20261006T181711Z-worktree-lacks-vendored-aai-layer-downstream.md; TEST-004/005 | — | Test both helper and prompt ordering |
+| Spec-AC-04 | WHEN the destination tracks its AAI files the system SHALL preserve those files byte-for-byte, including branch-local changes, and permit initialization. | done | docs/ai/reports/VALIDATION-20261006T181711Z-worktree-lacks-vendored-aai-layer-downstream.md; TEST-006 | — | Never overwrite tracked files |
+| Spec-AC-05 | WHEN infrastructure is seeded the system SHALL leave every newly copied file ignored and untracked and SHALL copy zero excluded runtime files. | done | docs/ai/reports/VALIDATION-20261006T181711Z-worktree-lacks-vendored-aai-layer-downstream.md; TEST-007 | — | Includes staging probe |
+| Spec-AC-06 | WHEN invoked from bash or Windows PowerShell 5.1 or pwsh 7 the shared seeder SHALL satisfy the same downstream success and refusal behavior without creating symlinks. | deferred | docs/ai/reports/VALIDATION-20261006T181711Z-worktree-lacks-vendored-aai-layer-downstream.md; TEST-008 | 2026-10-20 | Pre-PR Bash real downstream and macOS pwsh evidence passed; neither proves native Windows. Windows PowerShell 5.1 and pwsh 7 Pester fixture checks are required in PR CI before merge; see the measurement amendment below. |
+| Spec-AC-07 | WHEN the origin is updated after seeding the worktree SHALL retain its independent installed snapshot; identical reruns SHALL succeed unchanged and conflicting reruns SHALL refuse without replacing existing files. | done | docs/ai/reports/VALIDATION-20261006T181711Z-worktree-lacks-vendored-aai-layer-downstream.md; TEST-009 | — | No automatic cross-worktree update |
+| Spec-AC-08 | WHEN core profile distribution and test selection run the helper SHALL be installed, selected for regression, and accounted for by the profile and prompt-growth ledgers. | done | docs/ai/reports/VALIDATION-20261006T181711Z-worktree-lacks-vendored-aai-layer-downstream.md; TEST-010 | — | V3 profiles and prompt-diet-final logs also pass |
 
 ## Implementation plan
 

@@ -2,10 +2,12 @@
 id: worktree-lacks-vendored-aai-layer-downstream
 type: issue
 number: 93
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 5f5fb10a
 ---
 
 # Issue — In a downstream project a new worktree has no `.aai/` layer and no skills, so the worktree flow breaks at its first step

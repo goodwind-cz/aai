@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-06T19:29:20.831Z
+Generated: 2026-10-06T19:31:01.654Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0209 | specs | implementing | 7 done, 1 deferred | docs/specs/SPEC-0209-spec-worktree-lacks-vendored-aai-layer-downstream.md |
 
 ## Canonical layer (0)
 
@@ -55,7 +54,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (491)
+## Done (493)
 
 | ID | Type | Path |
 |---|---|---|
@@ -322,6 +321,7 @@ _None._
 | ISSUE-0089 | issues | docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md |
 | ISSUE-0090 | issues | docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md |
 | ISSUE-0092 | issues | docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md |
+| ISSUE-0093 | issues | docs/issues/ISSUE-0093-worktree-lacks-vendored-aai-layer-downstream.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -548,10 +548,11 @@ _None._
 | SPEC-0206 | specs | docs/specs/SPEC-0206-spec-ci-test-selection-narrowing-and-sharding.md |
 | SPEC-0207 | specs | docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md |
 | SPEC-0208 | specs | docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md |
+| SPEC-0209 | specs | docs/specs/SPEC-0209-spec-worktree-lacks-vendored-aai-layer-downstream.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -569,7 +570,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| ISSUE-0093 | issues | docs/issues/ISSUE-0093-worktree-lacks-vendored-aai-layer-downstream.md |
 
 ## Deferred (whole-doc) (0)
 

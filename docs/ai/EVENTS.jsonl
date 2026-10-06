@@ -2821,3 +2821,9 @@
 {"v":1,"ts":"2026-10-06T17:03:34Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"worktree-lacks-vendored-aai-layer-downstream","payload":{"status":"pass","hash":"87be17863d532de0d9aa3e7dbde477b1310ada839e00ccfebb3130389de708c3"}}
 {"v":1,"ts":"2026-10-06T17:09:46Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"worktree-lacks-vendored-aai-layer-downstream","payload":{"status":"pass","hash":"87be17863d532de0d9aa3e7dbde477b1310ada839e00ccfebb3130389de708c3"}}
 {"v":1,"ts":"2026-10-06T18:47:55Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"worktree-lacks-vendored-aai-layer-downstream","payload":{"status":"pass","hash":"87be17863d532de0d9aa3e7dbde477b1310ada839e00ccfebb3130389de708c3"}}
+{"v":1,"ts":"2026-10-06T19:30:39Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"worktree-lacks-vendored-aai-layer-downstream","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-06T19:30:39Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"worktree-lacks-vendored-aai-layer-downstream","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-06T19:30:39Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"worktree-lacks-vendored-aai-layer-downstream","payload":{"commit":"5f5fb10a"}}
+{"v":1,"ts":"2026-10-06T19:30:39Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-worktree-lacks-vendored-aai-layer-downstream","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-06T19:30:39Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-worktree-lacks-vendored-aai-layer-downstream","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-06T19:30:39Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-worktree-lacks-vendored-aai-layer-downstream","payload":{"commit":"5f5fb10a"}}
