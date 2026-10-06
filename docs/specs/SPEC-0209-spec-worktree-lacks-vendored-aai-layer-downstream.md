@@ -10,7 +10,7 @@ links:
   requirement: worktree-lacks-vendored-aai-layer-downstream
   rfc: null
   pr:
-    - TBD
+    - 433
   commits:
     - 5f5fb10a
 ---
