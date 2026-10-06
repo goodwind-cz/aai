@@ -95,4 +95,18 @@ Describe 'worktree seed PowerShell parity' {
     $LASTEXITCODE | Should -Not -Be 0
     (Get-FileHash -Algorithm SHA256 -LiteralPath $pin).Hash | Should -Be $before
   }
+
+  It 'TEST-011 resolves the source repository root from a subdirectory' {
+    $prompt = [IO.File]::ReadAllText((Join-Path $Root '.aai/SKILL_WORKTREE.prompt.md'))
+    $match = [regex]::Match($prompt, '(?m)^\s*\$AaiSourceRoot = .+$')
+    $match.Success | Should -BeTrue
+    $capture = [scriptblock]::Create($match.Value.Trim() + "`n`$AaiSourceRoot")
+    $subdir = Join-Path $Source 'nested/setup-directory'
+    New-Item -ItemType Directory -Force -Path $subdir | Out-Null
+    Push-Location -LiteralPath $subdir
+    try { $resolved = & $capture } finally { Pop-Location }
+    $expectedRoot = (& git -C $Source rev-parse --show-toplevel)
+    $LASTEXITCODE | Should -Be 0
+    $resolved | Should -Be $expectedRoot
+  }
 }

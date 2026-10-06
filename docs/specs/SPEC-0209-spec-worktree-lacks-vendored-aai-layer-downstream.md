@@ -73,7 +73,7 @@ map as follows. Commands and evidence keys refer to the Verification section.
 | Requirement | Spec-AC | Verification | Observable and evidence |
 |---|---|---|---|
 | Same installed layer, skills, version and profile | Spec-AC-01 | V1, TEST-001 and TEST-002 | Real core and extended installations reproduce missing layer before seed; seed returns 0; installed file inventory and SHA-256 bytes match, including AAI_PIN; V1 log |
-| First AAI command succeeds | Spec-AC-02 | V1, TEST-003 | Seeded worktree executes check-state --repair then check-state with exit 0 and stamped STATE; V1 log |
+| First AAI command succeeds | Spec-AC-02 | V1, TEST-003 and TEST-011 | Seeded worktree executes check-state --repair then check-state with exit 0 and stamped STATE; setup resolves the source repository root even when invoked from a subdirectory; V1 log |
 | Never dispatch into an incomplete worktree | Spec-AC-03 | V1, TEST-004 and TEST-005 | Named nonzero refusal; origin STATE unchanged; no success decision or dispatch marker; V1 log |
 | Source repository still works | Spec-AC-04 | V1, TEST-006 | Tracked branch-local layer bytes survive unchanged; seed exit 0; state initializer runs; V1 log |
 | Never accidentally track the vendored layer | Spec-AC-05 | V1, TEST-007 | Every seeded untracked file remains ignored and absent from git add -A index; runtime sentinels absent; V1 log |
@@ -232,6 +232,7 @@ each changes the named behavior, never the test or fixture assertions.
 | TEST-008 | Spec-AC-06 | integration | tests/skills/test-aai-worktree-seed.sh | Real Bash downstream fixture exercises shared Node seeder on spaced paths; local pwsh Pester fixture exercises sync/worktree/seed/init, refusal and no links; native Windows Pester runs are PR CI evidence | patch:docs/ai/tdd/spec-worktree-lacks-vendored-aai-layer-downstream/mutation-TEST-008.patch | green |
 | TEST-009 | Spec-AC-07 | integration | tests/skills/test-aai-worktree-seed.sh | Identical rerun unchanged; mutate origin file/pin and target file independently, assert opposite side unchanged; reseed conflict nonzero and destination preserved | patch:docs/ai/tdd/spec-worktree-lacks-vendored-aai-layer-downstream/mutation-TEST-009.patch | green |
 | TEST-010 | Spec-AC-08 | contract | tests/skills/test-aai-worktree-seed.sh | Core distribution, suite selection and prompt ledger credit include this helper/change; run existing profile/diet suites | patch:docs/ai/tdd/spec-worktree-lacks-vendored-aai-layer-downstream/mutation-TEST-010.patch | green |
+| TEST-011 | Spec-AC-02 | integration | tests/skills/test-aai-worktree-seed.sh; tests/skills/aai-worktree-seed.Tests.ps1 | Invoke the prompt's source-root capture from a repository subdirectory and require both Bash and PowerShell forms to resolve the Git top level | docs/ai/tdd/spec-worktree-lacks-vendored-aai-layer-downstream/red-TEST-011-subdirectory-source-root.md | green |
 
 ## Verification
 

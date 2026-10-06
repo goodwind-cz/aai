@@ -160,7 +160,7 @@ Create a new worktree for a feature/task.
 
    Bash, after `git worktree add` succeeds:
    ```bash
-   AAI_SOURCE_ROOT="$(pwd -P)"
+   AAI_SOURCE_ROOT="$(git rev-parse --show-toplevel)"
    [[ -n "$worktree_path" && "$worktree_path" = /* ]] || exit 1
    AAI_TARGET_ROOT="$(cd "$worktree_path" && pwd -P)"
    # AAI_WORKTREE_SEED_GATE_BEGIN
@@ -180,7 +180,7 @@ Create a new worktree for a feature/task.
    PowerShell, after `git worktree add` succeeds (Windows PowerShell 5.1 and
    pwsh 7; quote paths containing spaces):
    ```powershell
-   $AaiSourceRoot = (Resolve-Path .).Path
+   $AaiSourceRoot = (Resolve-Path -LiteralPath (& git rev-parse --show-toplevel)).Path
    $AaiTargetRoot = (Resolve-Path $worktree_path).Path
    # AAI_WORKTREE_PS_SEED_GATE_BEGIN
    & node (Join-Path $AaiSourceRoot '.aai/scripts/worktree-seed.mjs') --source $AaiSourceRoot --target $AaiTargetRoot

@@ -271,8 +271,22 @@ test_010_distribution() {
   echo 'PASS: TEST-010 distribution contracts'
 }
 
+test_011_subdirectory_source_root() {
+  local capture subdir resolved
+  capture="$(grep -E '^   AAI_SOURCE_ROOT=' "$ROOT/.aai/SKILL_WORKTREE.prompt.md" | sed 's/^   //' | head -1)"
+  [[ -n "$capture" ]] || fail TEST-011 'Bash source-root capture absent from prompt'
+  subdir="$SOURCE/nested/setup-directory"
+  run mkdir -p "$subdir"
+  resolved="$(cd "$subdir" && eval "$capture" && printf '%s' "$AAI_SOURCE_ROOT")"
+  [[ "$(cd "$resolved" && pwd -P)" == "$(cd "$SOURCE" && pwd -P)" ]] \
+    || fail TEST-011 "Bash setup from a subdirectory resolved source as $resolved"
+  grep -qF '$AaiSourceRoot = (Resolve-Path -LiteralPath (& git rev-parse --show-toplevel)).Path' "$ROOT/.aai/SKILL_WORKTREE.prompt.md" \
+    || fail TEST-011 'PowerShell source-root capture does not use the Git top level'
+  echo 'PASS: TEST-011 subdirectory source root'
+}
+
 case "$SELECTED" in
-  '') test_001_core; test_002_extended; test_003_initializer; test_004_safety; test_005_gate; test_006_tracked; test_007_ignored; test_008_spaces; test_009_drift; test_010_distribution ;;
+  '') test_001_core; test_002_extended; test_003_initializer; test_004_safety; test_005_gate; test_006_tracked; test_007_ignored; test_008_spaces; test_009_drift; test_010_distribution; test_011_subdirectory_source_root ;;
   TEST-001|test_001_core) test_001_core ;;
   TEST-002|test_002_extended) test_002_extended ;;
   TEST-003|test_003_initializer) test_003_initializer ;;
@@ -283,5 +297,6 @@ case "$SELECTED" in
   TEST-008|test_008_spaces) test_008_spaces ;;
   TEST-009|test_009_drift) test_009_drift ;;
   TEST-010|test_010_distribution) test_010_distribution ;;
+  TEST-011|test_011_subdirectory_source_root) test_011_subdirectory_source_root ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac
