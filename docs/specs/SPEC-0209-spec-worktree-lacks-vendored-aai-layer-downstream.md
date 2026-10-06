@@ -4,7 +4,7 @@ type: spec
 number: 209
 status: done
 mutation_gate: v1
-frozen_sha256: cbfe7035185fb936b4ca7d78d624b81b0042e7bb20aa86cab9df4ee2ecb5e2b1
+frozen_sha256: 1948f469ad2d6cd88848dd7947507f696e3c15ea099dce30f66b4edc7b8d2cab
 ceremony_level: 2
 links:
   requirement: worktree-lacks-vendored-aai-layer-downstream
