@@ -1,11 +1,17 @@
 # docs/ai/roadmap.yaml — machine form of docs/project-sessions/2026-09-05-capability-roadmap.md
 # Read by .aai/scripts/ride-select.mjs (validate | next | gate). Owner decisions:
-# capability-roadmap-drives-rides, maintenance-budget-one-to-one (hitl_decision, 2026-09-05).
+# capability-roadmap-drives-rides (2026-09-05); the 1:1 maintenance budget was switched off
+# 2026-10-05 and to advisory (threshold 95) 2026-10-06 (hitl_decision, ref
+# roadmap-maintenance-budget-advisory).
 #
 # SHAPE (closed; anything else is invalid and the gate fails closed):
-#   budget.maintenance_per_capability: 1
-#   pairs: ordered; each has capability, maintenance (both slugs), status planned|active|done
+#   budget: absent (off) | maintenance_per_capability: 1 (on, 1:1) |
+#           mode: advisory + maintenance_threshold: <n> (advisory, never blocks)
+#   pairs: ordered; each has capability, optional maintenance (slug), status planned|active|done
 #   wave_2: slugs deferred by the owner (not gated, listed so `next` can say what follows)
+budget:
+  mode: advisory
+  maintenance_threshold: 95
 pairs:
   - capability: live-agent-dashboard-served-locally
     maintenance: roadmap-driven-ride-selection-with-budget

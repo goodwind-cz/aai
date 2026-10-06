@@ -357,7 +357,9 @@ test_1208_default_roadmap_refuses_off_roadmap() {
   rc="$(run gate --ref zz-offroadmap-fix --intake "$TEST_DIR/docs/issues/CHANGE-DRAFT-zz-offroadmap-fix.md" --docs "$TEST_DIR/docs" --events "$TEST_DIR/events1208.jsonl")" || true
   # The shipped roadmap is read on the default path either way; what it then
   # decides follows its own budget posture (CHANGE-0201: the budget is opt-in).
-  if grep -q '^budget:' "$SHIPPED"; then
+  # Only the 1:1 budget (maintenance_per_capability) refuses; advisory (CHANGE-0203)
+  # and no budget both admit.
+  if grep -q '^  maintenance_per_capability:' "$SHIPPED"; then
     [ "$rc" = "1" ] || log_fail "TEST-1208: the shipped roadmap carries a budget, so it must refuse an off-roadmap fix with exit 1, got $rc: $(out) $(err)"
     grep -q "REFUSED" "$TEST_DIR/err" || log_fail "TEST-1208: must say REFUSED: $(err)"
   else
