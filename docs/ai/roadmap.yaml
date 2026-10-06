@@ -6,6 +6,9 @@
 #   budget.maintenance_per_capability: 1
 #   pairs: ordered; each has capability, maintenance (both slugs), status planned|active|done
 #   wave_2: slugs deferred by the owner (not gated, listed so `next` can say what follows)
+budget:
+  mode: advisory
+  maintenance_threshold: 95
 pairs:
   - capability: live-agent-dashboard-served-locally
     maintenance: roadmap-driven-ride-selection-with-budget
