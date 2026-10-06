@@ -272,15 +272,20 @@ test_010_distribution() {
 }
 
 test_011_subdirectory_source_root() {
-  local capture subdir resolved
-  capture="$(grep -E '^   AAI_SOURCE_ROOT=' "$ROOT/.aai/SKILL_WORKTREE.prompt.md" | sed 's/^   //' | head -1)"
+  local capture subdir resolved expected prior
+  capture="$(awk '/^   AAI_SOURCE_ROOT=/{sub(/^   /, ""); print; exit}' "$ROOT/.aai/SKILL_WORKTREE.prompt.md")"
   [[ -n "$capture" ]] || fail TEST-011 'Bash source-root capture absent from prompt'
   subdir="$SOURCE/nested/setup-directory"
   run mkdir -p "$subdir"
-  resolved="$(cd "$subdir" && eval "$capture" && printf '%s' "$AAI_SOURCE_ROOT")"
-  [[ "$(cd "$resolved" && pwd -P)" == "$(cd "$SOURCE" && pwd -P)" ]] \
+  prior="$PWD"
+  cd "$subdir"
+  eval "$capture"
+  resolved="$AAI_SOURCE_ROOT"
+  cd "$prior"
+  expected="$(git -C "$SOURCE" rev-parse --show-toplevel)"
+  [[ "$resolved" == "$expected" ]] \
     || fail TEST-011 "Bash setup from a subdirectory resolved source as $resolved"
-  grep -qF '$AaiSourceRoot = (Resolve-Path -LiteralPath (& git rev-parse --show-toplevel)).Path' "$ROOT/.aai/SKILL_WORKTREE.prompt.md" \
+  grep -F '$AaiSourceRoot = (Resolve-Path -LiteralPath (& git rev-parse --show-toplevel)).Path' "$ROOT/.aai/SKILL_WORKTREE.prompt.md" >/dev/null \
     || fail TEST-011 'PowerShell source-root capture does not use the Git top level'
   echo 'PASS: TEST-011 subdirectory source root'
 }
