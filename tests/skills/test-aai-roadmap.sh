@@ -1389,7 +1389,7 @@ test_1636_ship_and_advance_advisory_equals_off() {
   grep -q 'maintenance' "$TEST_DIR/out" || log_fail "TEST-1636 (advisory, issue): must name the maintenance reason, got: $(out)"
   [ "$(sha "$R_adv")" = "$before_adv" ] || log_fail "TEST-1636 (advisory, issue): must leave the roadmap byte-identical"
   # advance: a done capability flips even though its bound maintenance half is draft, in both postures
-  local R2_off="$d/adv2.yaml" R2_adv="$d/off2.yaml"
+  local R2_off="$d/off2.yaml" R2_adv="$d/adv2.yaml"
   fxc "$D" cap-c done
   fx_doc "$D" maint-c issue draft
   printf 'pairs:\n  - capability: cap-c\n    maintenance: maint-c\n    status: active\n' > "$R2_off"

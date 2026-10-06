@@ -4,7 +4,7 @@ type: spec
 number: 208
 status: done
 mutation_gate: v1
-frozen_sha256: 4f1a2d147b39252258fea5286c128748309f8d2525c9d8f90be5fb458bffbe1b
+frozen_sha256: 2c319567099682c70f3e768abff536456c461df4653e4ad449531a2dc20cd0bc
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md
@@ -142,12 +142,17 @@ stays with the operator.
   A follow-up with a missing or unknown severity never counts. Owner sign-off
   items (`fu-amend-*`, P2) count like any P2: the intake's definition is kept
   literally; excluding them is offered as HITL-2. Read-only: neither the
-  ledger nor any document is written.
+  ledger nor any document is written. A malformed non-comment `--ledger` line
+  (`loadRegistry`'s own `malformed`/`notes`) and an unreadable `<docs>/issues/*.md`
+  entry (permissions, transient I/O, a directory named with a `.md` suffix)
+  are each excluded from the count exactly as before (D7 names them instead
+  of dropping them with no trace).
 - D4 — Most recently closed capability (`C`). Among the roadmap's pair
   capabilities, the one with the latest `ts` of a `work_item_closed` record in
   `--events` (default docs/ai/EVENTS.jsonl) whose `ref` equals the capability
   exactly (a `spec-<slug>` ref does not match); timestamps are compared with
-  `Date.parse`, an unparseable `ts` or malformed line is skipped; a tie goes to
+  `Date.parse`, an unparseable `ts` or malformed line is skipped (D7 names the
+  exclusion by count and kind); a tie goes to
   the pair listed later in the roadmap. When no pair capability has such a
   record (or the events file is absent or unreadable), `C` is the LAST pair in
   roadmap order whose roadmap `status` is `done`; with no done pair, `C` is
@@ -160,7 +165,7 @@ stays with the operator.
   `off` posture prints for the same roadmap and docs (stdout bytes and exit
   code).
 - D6 — Proposal shape. `next --json` prints one line, keys in this order:
-  `{"action":"propose_maintenance","reason":"related|threshold","capability":<C or null>,"capability_source":<source or null>,"waiting":{"count":W,"threshold":T},"candidates":[...],"alternative":<the object off would print>}`.
+  `{"action":"propose_maintenance","reason":"related|threshold","capability":<C or null>,"capability_source":<source or null>,"waiting":{"count":W,"threshold":T},"candidates":[...],"alternative":<the object off would print>,"degraded":[...]}`.
   `alternative` is the exact object the `off` posture's `next --json` prints for
   the same inputs (a `next`/`path` object, a `file-intake` object, or the
   `wave_1: complete` object). Candidates: for `related`, only the related
@@ -171,7 +176,12 @@ stays with the operator.
   `{"kind":"intake","id","type","status","path"}` — `id` is NEVER absent: an
   intake doc with no frontmatter `id` derives it the same way the docs model
   does elsewhere (`extractDocIds`'s numbered-filename primary, else the
-  filename stem; validation round 1 NB2). Without `--json` it prints
+  filename stem; validation round 1 NB2). `degraded` (D7, appended 2026-10-06
+  as a disclosed contract amendment — PR #431 bot findings) is a string array,
+  one entry per excluded reason, empty when the count behind this proposal
+  was clean; it is the LAST key, after `alternative`, so a consumer reading
+  only the keys this spec originally named still sees its exact prefix.
+  Without `--json` it prints
   three lines: `maintenance proposed (<reason>): <id>[, <id>...]`,
   `waiting: <W> of threshold <T>; most recently closed capability: <C or none>`,
   `or continue with: <the off posture's one-line answer>`. Exit 0 always. It
@@ -179,13 +189,28 @@ stays with the operator.
 - D7 — Degrade. In advisory, an unreadable `--ledger` (not ENOENT) makes `next`
   print the off answer unchanged on stdout, exit 0, and one stderr line
   starting `ride-select: advisory not evaluated — `. An absent ledger is an
-  empty registry (intakes still count). In `on` and `off`, `next` reads neither
-  the ledger nor the events file (outputs byte-identical whatever those flags
-  point at).
+  empty registry (intakes still count). A SEPARATE, narrower class of
+  degradation never aborts the advisory count the way an unreadable `--ledger`
+  does: a malformed non-comment `decisions.jsonl` line, an unreadable
+  `<docs>/issues/*.md` entry, or a malformed/invalid `work_item_closed` record
+  in `--events`. Each is excluded from `W`/`C` exactly as before this
+  sub-clause (counts, triggers and exit codes are unchanged) but is now named —
+  one `ride-select: degraded: <reason>` stderr line per reason (ledger/intake
+  reasons name the path and OS error code; events reasons name the file, a
+  count and a kind), printed whenever advisory evaluation runs, whether or not
+  a trigger ends up firing — and, only when `next --json` goes on to print a
+  `propose_maintenance` proposal, the SAME reasons populate that proposal's
+  `degraded` array (D6). `waiting --json` (D8) carries the same reasons in its
+  own `degraded` key, always present (empty array when clean). In `on` and
+  `off`, `next` reads neither the ledger nor the events file (outputs
+  byte-identical whatever those flags point at, with no `degraded` key).
 - D8 — `ride-select.mjs waiting [--docs <dir>] [--ledger <p>] [--json]` — a
   read-only query that needs no roadmap and works in every posture. JSON:
-  `{"count":W,"follow_ups":{"P1":a,"P2":b},"intakes":{"issue":c,"techdebt":d},"recommended_threshold":max(5, W + 5)}`;
-  text: one line naming the same numbers. Unreadable ledger: exit 2 with the
+  `{"count":W,"follow_ups":{"P1":a,"P2":b},"intakes":{"issue":c,"techdebt":d},"recommended_threshold":max(5, W + 5),"degraded":[...]}`
+  (`degraded` per D7, always present, empty when clean);
+  text: one line naming the same numbers (text form carries no degraded
+  line beyond the stderr output D7 already specifies). Unreadable ledger:
+  exit 2 with the
   reason (it is an explicit query, not a gate). The recommended threshold is
   "five more than are waiting today", so advisory does not fire on the very
   first call over an existing backlog (intake constraint: the default is
@@ -327,6 +352,16 @@ Article 2 (simplicity): one parser extended, no new script, no new `.aai` file.
   `.aai/scripts/follow-ups.mjs` under the `aai-ride-select` suite, so a change
   to the fold that advisory now reads re-runs these tests. Verification:
   TEST-1644.
+- Spec-AC-19 (D7 broadened, PR #431 bot findings — disclosed 2026-10-06 as a
+  contract amendment to this frozen spec): a malformed non-comment
+  `decisions.jsonl` line, an unreadable `<docs>/issues/*.md` entry, and a
+  malformed/invalid `work_item_closed` record in `--events` SHALL each be
+  named — one `ride-select: degraded: <reason>` stderr line per reason,
+  whether or not a trigger fires — and SHALL populate a trailing `degraded`
+  json array on `waiting --json` (always present) and on a firing `next
+  --json` proposal (D6's last key); counts, triggers and exit codes SHALL be
+  unchanged, and a clean input SHALL keep `degraded: []` with no stderr.
+  Verification: TEST-1646..1649.
 
 ## Acceptance Criteria Status
 
@@ -350,6 +385,7 @@ Article 2 (simplicity): one parser extended, no new script, no new `.aai` file.
 | Spec-AC-16 | The diet ledger SHALL credit the measured prompt growth and prompt-diet SHALL pass | done | TEST-1641 PASS (tests/skills/test-aai-prompt-diet.sh exit 0); mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1641.txt | — | companion obligation |
 | Spec-AC-17 | USER_GUIDE and the roadmap product doc SHALL describe three postures with a worked example each | done | TEST-1642, TEST-1643 PASS (docs/ai/tdd/green-20261005T200506Z-ac14-18.log); RED docs/ai/tdd/red-20261005T200506Z-ac14-18.log; mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1642.txt, mutation-TEST-1643.txt | — | AC-006 |
 | Spec-AC-18 | suite-map SHALL list follow-ups.mjs under the aai-ride-select suite | done | TEST-1644 PASS (docs/ai/tdd/green-20261005T200506Z-ac14-18.log); RED docs/ai/tdd/red-20261005T200506Z-ac14-18.log; mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1644.txt | — | suite selection |
+| Spec-AC-19 | A malformed ledger line, an unreadable intake entry and a malformed/invalid EVENTS close record SHALL each be named (stderr + a trailing `degraded` json array), never dropped with no trace, with counts/triggers/exit codes unchanged and a clean input keeping `degraded: []` | done | TEST-1646..1649 PASS (env -u AAI_ROLE bash tests/skills/test-aai-ride-select.sh); mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{46,47,48,49}.txt | — | D7 (broadened, PR #431 bot findings) |
 
 ## Implementation plan
 
@@ -359,6 +395,8 @@ Slices (one TDD run each, about three ACs per run):
 - C — proposal shape, `waiting`, degrade: Spec-AC-07, 08 (TEST-1621..1629, TEST-1645).
 - D — writer and seams: Spec-AC-10, 11, 12, 13, 18 (TEST-1631..1638, TEST-1644).
 - E — prompts, docs, governance: Spec-AC-14, 15, 16, 17 (TEST-1639..1643).
+- F — degrade disclosure (PR #431 bot findings, 2026-10-06): Spec-AC-19
+  (TEST-1646..1649).
 
 Files:
 - .aai/scripts/lib/roadmap-model.mjs — D1, D2.
@@ -495,8 +533,12 @@ removed, captured in the same test, never against a stored string.
 | TEST-1643 | Spec-AC-17 | unit | tests/skills/test-aai-roadmap.sh | docs/product/roadmap.md names mode: advisory, maintenance_threshold, propose_maintenance and ride-select.mjs waiting and carries one worked example per posture (off, on, advisory) | `sed:s/mode: advisory/mode: sometimes/g` in docs/product/roadmap.md | green |
 | TEST-1644 | Spec-AC-18 | unit | tests/skills/test-aai-roadmap.sh | suite-map.yaml lists .aai/scripts/follow-ups.mjs inside the aai-ride-select block (read by block, not by a file-wide grep) | `patch:docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1644.patch` removes the follow-ups.mjs line from the aai-ride-select block of tests/skills/suite-map.yaml | green |
 | TEST-1645 | Spec-AC-07 | integration | tests/skills/test-aai-ride-select.sh | (validation round 1 NB2) an issue doc with no frontmatter `id` still counts toward W and yields an intake candidate whose id is derived from the filename (extractDocIds primary, else the filename stem), never empty/null; the text form names the derived id with no trailing empty-id comma | `sed:s/const id = fm\.id \?\? \(extractDocIds\(n\)\?\.primary \?\? n\.replace\(\/\\\.md\$\/i, ..\)\);/const id = fm.id;/` in .aai/scripts/ride-select.mjs | green |
+| TEST-1646 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | (PR #431 bot finding, Codex 4190003343) a malformed non-comment `decisions.jsonl` line (one meant to record a P1 follow-up) degrades `waiting --json` with a stderr `ride-select: degraded:` line and a non-empty `degraded` json entry naming the exclusion; the count is unaffected (still the 2 valid follow-ups) | `sed:s/if \(reg\.malformed\) \{/if (false) {/` in .aai/scripts/ride-select.mjs | green |
+| TEST-1647 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | (PR #431 bot finding, Codex 4190003349) an unreadable `issues/*.md` intake entry — a directory named with a `.md` suffix (EISDIR) and a chmod 000 file (EACCES) — degrades `waiting --json` with one path+code stderr line each and two `degraded` json entries; only the one readable intake counts | `sed:s/catch \(err\) \{ degraded\.push\(/catch (err) { false && degraded.push(/` in .aai/scripts/ride-select.mjs | green |
+| TEST-1648 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | (PR #431 bot finding, Codex 4190003356) a malformed JSON line and an invalid `work_item_closed` record (unparseable `ts`) in `--events` each degrade `next --json` with a stderr line naming the file, count and kind, and a `degraded` json entry; `C` still falls back to `roadmap_order` correctly | `sed:s/if \(invalidCloseRecords\) degraded\.push\(/if (false) degraded.push(/` in .aai/scripts/ride-select.mjs | green |
+| TEST-1649 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | clean-input control: a clean ledger/docs/events fixture reports `degraded: []` on both `waiting --json` and a firing `next --json` proposal, with no stderr; the proposal keeps D6's exact key order (`degraded` last) | `sed:s/let malformedLines = 0;/let malformedLines = 1;/` in .aai/scripts/ride-select.mjs | green |
 
-Counts: 46 rows; 41 integration, 5 unit. Seams crossed by executing the real
+Counts: 50 rows; 45 integration, 5 unit. Seams crossed by executing the real
 consumer: S1 (TEST-1606, TEST-1636), S2 and S4 (TEST-1638), S3 (TEST-1637),
 S5 (TEST-1607..1629 run the real follow-ups fold over a ledger written by the
 real `follow-ups.mjs add`/`close`).
@@ -595,7 +637,7 @@ Open items in the same neighbourhood, NOT CLOSED, and why (from
   its mutation.
 - One full sweep before close (`AAI_TEST_TIMEOUT=3000`).
 - PASS criteria: all TEST-xxx green, all Spec-AC terminal, a RED record for
-  each of the 45 rows under
+  each of the 50 rows under
   `docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/`.
 
 ## Evidence contract

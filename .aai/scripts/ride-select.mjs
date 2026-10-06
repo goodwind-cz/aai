@@ -59,14 +59,27 @@ const OPEN_INTAKE_TYPES = new Set(['issue', 'techdebt']);
 // TERMINAL_DOC_STATUS is a superset (adds 'legacy'/'current', vocabulary
 // issue/techdebt intakes never carry), so behavior for D3's own cases is
 // unchanged.
-function openIntakes(docsDir) {
+// `degraded` (D-DEGRADE, bot findings on PR #431) collects named reasons an
+// entry was excluded from the fold below; it is appended to, never read, by
+// this function — the caller decides what to do with it (stderr line, JSON
+// key). An unreadable `issues/*.md` entry (permissions, a directory named
+// with a `.md` suffix, transient I/O) used to vanish from W with no trace;
+// now it is named (path + error code) instead of silently dropped.
+function openIntakes(docsDir, degraded = []) {
   const dir = path.join(docsDir, 'issues');
-  let names; try { names = fs.readdirSync(dir); } catch { return []; }
+  let names;
+  try { names = fs.readdirSync(dir); }
+  catch (err) {
+    if (err && err.code !== 'ENOENT') degraded.push(`${dir}: unreadable (${err.code}: ${err.message})`);
+    return [];
+  }
   const out = [];
   for (const n of names) {
     if (!n.endsWith('.md')) continue;
     const p = path.join(dir, n);
-    let content; try { content = fs.readFileSync(p, 'utf8'); } catch { continue; }
+    let content;
+    try { content = fs.readFileSync(p, 'utf8'); }
+    catch (err) { degraded.push(`${p}: unreadable (${err.code}: ${err.message})`); continue; }
     const fm = parseFrontmatter(content);
     if (!fm || !OPEN_INTAKE_TYPES.has(fm.type)) continue;
     const status = fm.status || null;
@@ -88,12 +101,20 @@ function openIntakes(docsDir) {
 // with a missing/unknown severity never counts (WAITING_SEVERITIES.has is
 // false for both). An unreadable ledger (not ENOENT) is reported, never
 // silently folded into "empty" (D7); an absent ledger IS an empty registry
-// (intakes still count).
-function waitingMaintenance(docsDir, ledgerPath) {
+// (intakes still count). A malformed non-comment ledger LINE (including one
+// meant to record a P1/P2 follow-up) is not fatal — loadRegistry already
+// excludes it and names it in `notes` (an `EXCLUDED N malformed ...` line);
+// that note is propagated into `degraded` verbatim rather than re-parsed, so
+// the count's understatement is disclosed instead of presented as complete.
+function waitingMaintenance(docsDir, ledgerPath, degraded = []) {
   const reg = loadRegistry(ledgerPath);
   if (reg.unreadable) return { unreadable: reg.unreadable, count: 0, followUps: [], intakes: [] };
+  if (reg.malformed) {
+    const note = reg.notes.find((n) => n.startsWith('EXCLUDED')) || `${reg.malformed} malformed decision ledger line(s) excluded`;
+    degraded.push(`${ledgerPath}: ${note}`);
+  }
   const followUps = reg.items.filter((i) => !i.closed && WAITING_SEVERITIES.has(i.severity));
-  const intakes = openIntakes(docsDir);
+  const intakes = openIntakes(docsDir, degraded);
   return { unreadable: null, count: followUps.length + intakes.length, followUps, intakes };
 }
 
@@ -108,19 +129,34 @@ function waitingMaintenance(docsDir, ledgerPath) {
 // null — not an object with null fields — when C cannot be decided at all,
 // so a caller can write `closed ? ... : fallback` instead of null-checking
 // capability on every read.
-function lastClosedCapability(rm, eventsPath) {
-  let raw; try { raw = fs.readFileSync(eventsPath, 'utf8'); } catch { raw = ''; }
+// `degraded` (D-DEGRADE, bot findings on PR #431) names, by COUNT + KIND
+// (not per-line — EVENTS.jsonl can be large), an unreadable --events file
+// and malformed/invalid work_item_closed records this scan excluded; a
+// skipped record can change which capability C resolves to (or its
+// source), so the fallback to roadmap order stays but is no longer silent.
+function lastClosedCapability(rm, eventsPath, degraded = []) {
+  let raw;
+  try { raw = fs.readFileSync(eventsPath, 'utf8'); }
+  catch (err) {
+    if (err && err.code !== 'ENOENT') degraded.push(`${eventsPath}: unreadable (${err.code}: ${err.message})`);
+    raw = '';
+  }
   const closedTs = new Map();
+  let malformedLines = 0;
+  let invalidCloseRecords = 0;
   for (const line of raw.split(/\r?\n/)) {
     const t0 = line.trim();
     if (t0 === '') continue;
-    let rec; try { rec = JSON.parse(t0); } catch { continue; }
-    if (!rec || rec.event !== 'work_item_closed' || typeof rec.ref !== 'string' || typeof rec.ts !== 'string') continue;
+    let rec; try { rec = JSON.parse(t0); } catch { malformedLines += 1; continue; }
+    if (!rec || typeof rec !== 'object' || rec.event !== 'work_item_closed') continue;
+    if (typeof rec.ref !== 'string' || typeof rec.ts !== 'string') { invalidCloseRecords += 1; continue; }
     const t = Date.parse(rec.ts);
-    if (Number.isNaN(t)) continue;
+    if (Number.isNaN(t)) { invalidCloseRecords += 1; continue; }
     const prev = closedTs.get(rec.ref);
     if (prev === undefined || t > prev) closedTs.set(rec.ref, t);
   }
+  if (malformedLines) degraded.push(`${eventsPath}: ${malformedLines} malformed JSON line(s) excluded from close-record scan`);
+  if (invalidCloseRecords) degraded.push(`${eventsPath}: ${invalidCloseRecords} invalid work_item_closed record(s) excluded (missing/invalid ref or ts)`);
   let best = null;
   for (const [i, pr] of rm.pairs.entries()) {
     const t = closedTs.get(pr.capability);
@@ -390,16 +426,25 @@ function cmdShow(a, loaded) {
 // no roadmap (works in every posture, and with none at all); writes nothing.
 // recommended_threshold is "five more than are waiting today", so advisory
 // does not fire on the very first call over an existing backlog.
+function reportDegraded(degraded) {
+  for (const reason of degraded) process.stderr.write(`ride-select: degraded: ${reason}\n`);
+}
 function cmdWaiting(a) {
-  const w = waitingMaintenance(a.docs, a.ledger);
+  const degraded = [];
+  const w = waitingMaintenance(a.docs, a.ledger, degraded);
   if (w.unreadable) usage(`ledger not readable: ${a.ledger} (${w.unreadable.code}: ${w.unreadable.message})`);
+  reportDegraded(degraded);
   const p1 = w.followUps.filter((f) => f.severity === 'P1').length;
   const p2 = w.followUps.filter((f) => f.severity === 'P2').length;
   const issue = w.intakes.filter((i) => i.type === 'issue').length;
   const techdebt = w.intakes.filter((i) => i.type === 'techdebt').length;
   const recommended_threshold = Math.max(5, w.count + 5);
   if (a.json) {
-    process.stdout.write(`${JSON.stringify({ count: w.count, follow_ups: { P1: p1, P2: p2 }, intakes: { issue, techdebt }, recommended_threshold })}\n`);
+    // D-DEGRADE: `degraded` is appended at the END of the key order so an
+    // existing consumer reading a prefix of this object sees nothing new;
+    // empty array on a clean input (byte-identical key SET, not a removed
+    // key — disclosed as a contract amendment, SPEC-0208).
+    process.stdout.write(`${JSON.stringify({ count: w.count, follow_ups: { P1: p1, P2: p2 }, intakes: { issue, techdebt }, recommended_threshold, degraded })}\n`);
   } else {
     process.stdout.write(`waiting maintenance: ${w.count} (follow-ups P1 ${p1}, P2 ${p2}; intakes issue ${issue}, techdebt ${techdebt}) — recommended threshold ${recommended_threshold}\n`);
   }
@@ -501,11 +546,16 @@ function main() {
           : n.ref);
 
     if (rm.posture === 'advisory') {
-      const w = waitingMaintenance(a.docs, a.ledger);
+      const degraded = [];
+      const w = waitingMaintenance(a.docs, a.ledger, degraded);
       if (w.unreadable) {
         process.stderr.write(`ride-select: advisory not evaluated — ${w.unreadable.code}: ${w.unreadable.message} (${a.ledger})\n`);
       } else {
-        const closed = lastClosedCapability(rm, a.events);
+        const closed = lastClosedCapability(rm, a.events, degraded);
+        // The counting/resolution above must never degrade silently
+        // (bot findings on PR #431): report every excluded reason on stderr
+        // whether or not a trigger below ends up firing.
+        reportDegraded(degraded);
         const { reason, related } = adviseMaintenance(rm, w, closed);
         if (reason) {
           const proposal = {
@@ -516,6 +566,10 @@ function main() {
             waiting: { count: w.count, threshold: rm.advisory.maintenance_threshold },
             candidates: buildCandidates(reason, related, w),
             alternative: offJson,
+            // D-DEGRADE: appended at the END of D6's key order (disclosed,
+            // SPEC-0208 contract amendment) so an existing consumer reading
+            // a key prefix is unaffected; empty on a clean input.
+            degraded,
           };
           if (a.json) { process.stdout.write(`${JSON.stringify(proposal)}\n`); process.exit(0); }
           // Non-json text form (D6's three lines) lands with Spec-AC-07

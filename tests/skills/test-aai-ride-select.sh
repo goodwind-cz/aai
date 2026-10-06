@@ -2716,7 +2716,7 @@ test_1621_proposal_shape_and_alternative() {
   cp "$TEST_DIR/out" "$da/adv.json"
   node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    const expected = ["action","reason","capability","capability_source","waiting","candidates","alternative"];
+    const expected = ["action","reason","capability","capability_source","waiting","candidates","alternative","degraded"];
     if (JSON.stringify(Object.keys(j)) !== JSON.stringify(expected)) { console.error("keys=" + JSON.stringify(Object.keys(j))); process.exit(1); }
   ' "$da/adv.json" || log_fail "TEST-1621 case a: proposal key order must be D6's exact order"
   [ "$(run next --roadmap "$da/off.yaml" --docs "$da/docs" --json)" = "0" ] || log_fail "TEST-1621 case a: off next must exit 0"
@@ -3047,6 +3047,107 @@ test_1645_intake_without_id_gets_derived_id() {
   log_pass "an id-less issue doc counts and gets a derived candidate id (TEST-1645)"
 }
 
+# --- TEST-1646..1649 (Spec-AC-19, D7 — bot findings on PR #431): advisory ----
+# counting/resolution must never degrade SILENTLY. A PARTIAL exclusion
+# (one bad ledger line, one bad intake entry, one bad events record) — as
+# opposed to D7's existing whole-file-unreadable `--ledger` case — is now
+# named on stderr (`ride-select: degraded: <reason>`) and, for `waiting
+# --json`/a firing `next --json` proposal, in a trailing `degraded` array.
+# Counts, triggers and exit codes are UNCHANGED (TEST-1649 is the control).
+
+test_1646_degrade_on_malformed_ledger_line() {
+  log_info "Test: a malformed decision-ledger line degrades waiting with a stderr line and a json degraded entry; the count stays exactly the valid follow-ups (TEST-1646)..."
+  local d="$TEST_DIR/t1646"; mkdir -p "$d/docs"
+  local ledger="$d/ledger.jsonl"
+  fu_add "$ledger" fu-t1646-p1 cap-other P1
+  fu_add "$ledger" fu-t1646-p2 cap-other P2
+  # A line clearly MEANT to record a P1 follow-up, corrupted (truncated —
+  # unparseable JSON, loadRegistry's own `malformed` count).
+  printf '{"v":1,"ts":"2026-10-06T00:00:00.000Z","event":"follow_up_opened","id":"fu-t1646-broken","severity":"P1"\n' >> "$ledger"
+  [ "$(run waiting --docs "$d/docs" --ledger "$ledger" --json)" = "0" ] || log_fail "TEST-1646: waiting must exit 0: $(err)"
+  grep -qF '"count":2' "$TEST_DIR/out" || log_fail "TEST-1646: the malformed line must not change the count (still 2 valid follow-ups), got: $(out)"
+  grep -qF 'ride-select: degraded:' "$TEST_DIR/err" || log_fail "TEST-1646: stderr must emit a degraded line, got: $(err)"
+  grep -qF 'malformed decision ledger line' "$TEST_DIR/err" || log_fail "TEST-1646: stderr must name the malformed ledger line, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (!Array.isArray(j.degraded) || j.degraded.length < 1) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+    if (!j.degraded.some((r) => r.includes("malformed decision ledger line"))) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1646: json degraded must name the malformed ledger line, got: $(out)"
+  log_pass "a malformed ledger line degrades waiting with a stderr line and a json degraded entry (TEST-1646)"
+}
+
+test_1647_degrade_on_unreadable_intake() {
+  log_info "Test: an unreadable intake entry (a directory named *.md, a chmod 000 file) degrades waiting with path+code stderr lines and json entries; only the readable intake counts (TEST-1647)..."
+  local d="$TEST_DIR/t1647"; mkdir -p "$d/docs/issues"
+  propose_write_doc "$d/docs" iss-t1647-ok issue draft
+  mkdir -p "$d/docs/issues/weird-t1647.md"   # a directory named with a .md suffix
+  local badfile="$d/docs/issues/ISSUE-DRAFT-t1647-noperm.md"
+  printf -- '---\nid: ISSUE-DRAFT-t1647-noperm\nnumber: null\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n\n# t\n' > "$badfile"
+  chmod 000 "$badfile"
+  trap "chmod 644 '$badfile' 2>/dev/null || true" RETURN
+  [ "$(run waiting --docs "$d/docs" --ledger "$d/ledger.jsonl" --json)" = "0" ] || log_fail "TEST-1647: waiting must exit 0: $(err)"
+  grep -qF '"count":1' "$TEST_DIR/out" || log_fail "TEST-1647: only the one readable intake must count, got: $(out)"
+  # Match on the basename, never the full $TEST_DIR path: mktemp built it
+  # from $TMPDIR, which on macOS carries a trailing slash, so the shell
+  # variable and the engine's own (path-module-normalized) error string
+  # can disagree on a doubled slash despite naming the identical file.
+  grep -qF 'weird-t1647.md: unreadable' "$TEST_DIR/err" || log_fail "TEST-1647: stderr must name the directory-named-.md path, got: $(err)"
+  grep -qF 'ISSUE-DRAFT-t1647-noperm.md: unreadable' "$TEST_DIR/err" || log_fail "TEST-1647: stderr must name the chmod 000 path, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const named = (s) => j.degraded.some((r) => r.includes(s));
+    if (!Array.isArray(j.degraded) || j.degraded.length < 2) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+    if (!named("weird-t1647.md") || !named("ISSUE-DRAFT-t1647-noperm.md")) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1647: json degraded must name both unreadable intake paths, got: $(out)"
+  log_pass "unreadable intake entries degrade waiting with path+code stderr lines and json entries (TEST-1647)"
+}
+
+test_1648_degrade_on_malformed_events_close_record() {
+  log_info "Test: a malformed JSON line and an invalid work_item_closed record in --events degrade next with stderr lines and a json degraded entry, the roadmap_order fallback staying correct (TEST-1648)..."
+  local d="$TEST_DIR/t1648"; mkdir -p "$d/docs"
+  local roadmap="$d/roadmap.yaml" ledger="$d/ledger.jsonl" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-t1648\n    status: done\n' > "$roadmap"
+  fu_add "$ledger" fu-t1648-p2 cap-other P2
+  printf 'not json at all\n' > "$events"
+  printf '{"v":1,"ts":"not-a-timestamp","actor":"fixture","event":"work_item_closed","ref":"cap-t1648","payload":{}}\n' >> "$events"
+  [ "$(next_at "$roadmap" "$d/docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1648: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1648: threshold must fire, got: $(out)"
+  grep -qF '"capability":"cap-t1648"' "$TEST_DIR/out" || log_fail "TEST-1648: C must still fall back to roadmap order despite the excluded events, got: $(out)"
+  grep -qF '"capability_source":"roadmap_order"' "$TEST_DIR/out" || log_fail "TEST-1648: capability_source must be roadmap_order, got: $(out)"
+  grep -qF "$events: 1 malformed JSON line(s)" "$TEST_DIR/err" || log_fail "TEST-1648: stderr must name the malformed events line, got: $(err)"
+  grep -qF "$events: 1 invalid work_item_closed record(s)" "$TEST_DIR/err" || log_fail "TEST-1648: stderr must name the invalid close record, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const named = (s) => j.degraded.some((r) => r.includes(s));
+    if (!Array.isArray(j.degraded) || j.degraded.length !== 2) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+    if (!named("malformed JSON line") || !named("invalid work_item_closed record")) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1648: json degraded must name both excluded events reasons, got: $(out)"
+  log_pass "malformed/invalid EVENTS close records degrade next with stderr and json entries, fallback stays correct (TEST-1648)"
+}
+
+test_1649_degrade_clean_control() {
+  log_info "Test: clean ledger/docs/events report degraded: [] with no stderr, on both waiting and a firing next proposal (TEST-1649)..."
+  local d="$TEST_DIR/t1649"; mkdir -p "$d/docs"
+  local ledger="$d/ledger.jsonl"
+  fu_add "$ledger" fu-t1649-p2 cap-other P2
+  [ "$(run waiting --docs "$d/docs" --ledger "$ledger" --json)" = "0" ] || log_fail "TEST-1649: waiting must exit 0: $(err)"
+  grep -qF '"degraded":[]' "$TEST_DIR/out" || log_fail "TEST-1649: a clean ledger must report degraded: [], got: $(out)"
+  [ -z "$(err)" ] || log_fail "TEST-1649: a clean ledger must emit no stderr, got: $(err)"
+
+  local roadmap="$d/roadmap.yaml"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-t1649\n    status: done\n' > "$roadmap"
+  [ "$(next_at "$roadmap" "$d/docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1649: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1649: threshold must fire on a clean fixture, got: $(out)"
+  [ -z "$(err)" ] || log_fail "TEST-1649: a clean fixture must emit no stderr, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const expected = ["action","reason","capability","capability_source","waiting","candidates","alternative","degraded"];
+    if (JSON.stringify(Object.keys(j)) !== JSON.stringify(expected)) { console.error("keys=" + JSON.stringify(Object.keys(j))); process.exit(1); }
+    if (!Array.isArray(j.degraded) || j.degraded.length !== 0) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1649: a clean proposal must keep D6's key order with an empty degraded array, got: $(out)"
+  log_pass "a clean ledger/docs/events report degraded: [] with no stderr (TEST-1649)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -3167,6 +3268,10 @@ main() {
   test_1629_waiting_unreadable_and_absent_ledger
   test_1630_show_advisory
   test_1645_intake_without_id_gets_derived_id
+  test_1646_degrade_on_malformed_ledger_line
+  test_1647_degrade_on_unreadable_intake
+  test_1648_degrade_on_malformed_events_close_record
+  test_1649_degrade_clean_control
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
