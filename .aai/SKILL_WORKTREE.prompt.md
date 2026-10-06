@@ -144,24 +144,65 @@ Create a new worktree for a feature/task.
 
    # Determine worktree path (sibling directory)
    repo_name=$(basename $(git rev-parse --show-toplevel))
-   worktree_path="../${repo_name}-${task_name//\//-}"
+   worktree_path="$(git rev-parse --show-toplevel)/../${repo_name}-${task_name//\//-}"
 
    # Create worktree
    git worktree add "$worktree_path" -b "$task_name" "$base_branch"
    ```
 
-4. **Initialize AAI State in Worktree**
+4. **Seed the installed layer, then initialize AAI State in Worktree**
 
-   Seed via the CANONICAL INITIALIZER — never `cp` the template by hand (a raw
+   Capture the absolute origin and linked-worktree paths before changing
+   directories. The shared Node command copies this checkout's installed
+   version/profile and skills. A failure stops setup before STATE, the
+   registry/success report, or any role dispatch. Both bash and PowerShell
+   invoke the same helper; neither runs sync or fetch here.
+
+   Bash, after `git worktree add` succeeds:
+   ```bash
+   AAI_SOURCE_ROOT="$(pwd -P)"
+   [[ -n "$worktree_path" && "$worktree_path" = /* ]] || exit 1
+   AAI_TARGET_ROOT="$(cd "$worktree_path" && pwd -P)"
+   # AAI_WORKTREE_SEED_GATE_BEGIN
+   set -e
+   if ! node "$AAI_SOURCE_ROOT/.aai/scripts/worktree-seed.mjs" --source "$AAI_SOURCE_ROOT" --target "$AAI_TARGET_ROOT"; then
+     echo "WORKTREE SETUP STOPPED: installed AAI seed failed" >&2
+     exit 1
+   fi
+   [[ -n "$AAI_TARGET_ROOT" && "$AAI_TARGET_ROOT" = /* ]] || exit 1
+   cd "$AAI_TARGET_ROOT"
+   mkdir -p docs/ai
+   [ -f docs/ai/STATE.yaml ] && mv docs/ai/STATE.yaml docs/ai/STATE.yaml.pre-worktree
+   node .aai/scripts/check-state.mjs --repair
+   # AAI_WORKTREE_SEED_GATE_END
+   ```
+
+   PowerShell, after `git worktree add` succeeds (Windows PowerShell 5.1 and
+   pwsh 7; quote paths containing spaces):
+   ```powershell
+   $AaiSourceRoot = (Resolve-Path .).Path
+   $AaiTargetRoot = (Resolve-Path $worktree_path).Path
+   # AAI_WORKTREE_PS_SEED_GATE_BEGIN
+   & node (Join-Path $AaiSourceRoot '.aai/scripts/worktree-seed.mjs') --source $AaiSourceRoot --target $AaiTargetRoot
+   if ($LASTEXITCODE -ne 0) { throw 'WORKTREE SETUP STOPPED: installed AAI seed failed' }
+   Set-Location -LiteralPath $AaiTargetRoot
+   New-Item -ItemType Directory -Force -Path 'docs/ai' | Out-Null
+   if (Test-Path 'docs/ai/STATE.yaml') { Move-Item -LiteralPath 'docs/ai/STATE.yaml' -Destination 'docs/ai/STATE.yaml.pre-worktree' }
+   & node '.aai/scripts/check-state.mjs' --repair
+   if ($LASTEXITCODE -ne 0) { throw 'WORKTREE SETUP STOPPED: state initializer failed' }
+   # AAI_WORKTREE_PS_SEED_GATE_END
+   ```
+
+   This is an independent installed snapshot. Updating the origin does not
+   update existing worktrees; run `/aai-update` inside each worktree explicitly.
+   Reseeding from a changed origin refuses conflicts; it is not an updater.
+
+   Initialize via the CANONICAL INITIALIZER — never `cp` the template by hand (a raw
    copy ships `updated_at_utc: TEMPLATE_PLACEHOLDER` and an empty work item —
    an invalid STATE that only fails later, at first dispatch).
    ```bash
-   cd "$worktree_path"
-   mkdir -p docs/ai
-   # Preserve any checked-out runtime state, then let check-state CREATE a
-   # fresh STATE from .aai/templates/STATE_TEMPLATE.yaml with a REAL timestamp:
-   [ -f docs/ai/STATE.yaml ] && mv docs/ai/STATE.yaml docs/ai/STATE.yaml.pre-worktree
-   node .aai/scripts/check-state.mjs --repair   # prints CREATED: ... stamped
+   # The prior block has already seeded the layer, moved into the worktree,
+   # and run check-state --repair to stamp a fresh STATE.
    # These writes target the NEW worktree's OWN docs/ai/STATE.yaml (the `cd`
    # above), never the originating tree's — a distinct file, so this is not
    # the D1 sole-agent carve (no dispatch, AAI_ROLE unset). Running this

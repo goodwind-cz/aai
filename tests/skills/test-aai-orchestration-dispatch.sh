@@ -647,10 +647,23 @@ test_005_flush_arm_and_independence() {
   jassert "$OUT" 'o.rule === "14" && o.role === "Metrics Flush" && o.suggested_tier === "mechanical"'
   jassert "$OUT" 'o.system_prompt === ".aai/METRICS_FLUSH.prompt.md"'
 
+  # Worktree creation uses this ledger too, but cannot satisfy the final flush.
+  printf '{"timestamp":"2026-07-01T00:00:00Z","event":"worktree_create","ref_id":"CHANGE-0001","path":"/tmp/worktree"}\n' >> "$d/docs/ai/METRICS.jsonl"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "(a2) worktree_create must still dispatch Metrics Flush (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "14" && o.role === "Metrics Flush" && o.state_summary.flushed === false'
+
   # (b) ref PRESENT in the ledger -> no_action exit 3.
   printf '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}\n' >> "$d/docs/ai/METRICS.jsonl"
   run_dispatch "$d"
   [[ "$EC" == 3 ]] || log_fail "(b) flushed ref must be no_action exit 3 (got $EC): $(cat "$OUT")"
+  jassert "$OUT" 'o.verdict === "no_action" && o.rule === "14"'
+
+  # Historical final summaries used a full UTC timestamp. They are already
+  # flushed just like today's date-only form, without another dispatch.
+  printf '{"date_utc":"2026-07-04T10:04:21Z","ref_id":"CHANGE-0001","title":"Historical final summary","agent_runs":[],"totals":{},"verdict":"PASS"}\n' > "$d/docs/ai/METRICS.jsonl"
+  run_dispatch "$d"
+  [[ "$EC" == 3 ]] || log_fail "(b2) historical timestamp summary must be no_action exit 3 (got $EC): $(cat "$OUT")"
   jassert "$OUT" 'o.verdict === "no_action" && o.rule === "14"'
 
   # (c) Validation dispatch carries validator_independence with the LAST

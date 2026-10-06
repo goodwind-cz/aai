@@ -22,6 +22,12 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: seed the installed AAI layer into linked worktrees
+
+- Worktree setup copies the origin checkout's installed AAI engine, skills, profile, and pin before running the target's state initializer. It refuses unsafe or conflicting destinations and preserves tracked branch files.
+- Each worktree owns its snapshot. Updating the origin does not update an existing worktree; run `/aai-update` in that worktree to update it explicitly.
+- ISSUE-0093 / SPEC-0209.
+
 ## [unreleased] — feat: an advisory roadmap budget proposes maintenance instead of requiring it (CHANGE-0203)
 
 - **Third budget posture.** `docs/ai/roadmap.yaml` accepts `budget: { mode: advisory, maintenance_threshold: <n> }` next to the 1:1 `maintenance_per_capability: 1` (on) and no block (off). Advisory never requires a maintenance half and never blocks: `gate` answers exactly as off.

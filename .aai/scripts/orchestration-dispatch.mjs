@@ -62,6 +62,7 @@ import { findBlock, readScalar, indentOf, unquoteScalar, agentRunsFor, lastImple
 import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/prompt-hash.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
+import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
 
@@ -997,7 +998,7 @@ export function buildSnapshot(statePath, root) {
   };
   if (problems.length > 0) return { snapshot: null, problems };
 
-  // Rule-14 "already flushed" probe: focus ref present in the ledger.
+  // Rule-14 "already flushed" probe: a final ride summary, not lifecycle telemetry.
   let flushed = false;
   const metricsPath = path.resolve(root, 'docs/ai/METRICS.jsonl');
   if (focusRef && fs.existsSync(metricsPath)) {
@@ -1005,7 +1006,8 @@ export function buildSnapshot(statePath, root) {
       const t = line.trim();
       if (t === '' || t.startsWith('#')) continue;
       try {
-        if (JSON.parse(t).ref_id === focusRef) { flushed = true; break; }
+        const record = JSON.parse(t);
+        if (isMetricsFlushRecord(record) && record.ref_id === focusRef) { flushed = true; break; }
       } catch { /* unparseable ledger line: best-effort probe, skip */ }
     }
   }

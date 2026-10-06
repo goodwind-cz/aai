@@ -61,6 +61,8 @@ on:
     branches: [main]
     paths:
       - '.aai/scripts/**.ps1'
+      - '.aai/scripts/worktree-seed.mjs'
+      - '.aai/SKILL_WORKTREE.prompt.md'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
       - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
@@ -70,6 +72,8 @@ on:
   pull_request:
     paths:
       - '.aai/scripts/**.ps1'
+      - '.aai/scripts/worktree-seed.mjs'
+      - '.aai/SKILL_WORKTREE.prompt.md'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
       - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
@@ -768,6 +772,10 @@ jobs:
           if ($elapsed -gt 600) { Write-Host "FAIL: elapsed ${elapsed}s exceeds the 600s ceiling"; $fail++ }
           if ($skipLines -ne $result.SkippedCount) { Write-Host "FAIL: AAI-WIN-SKIP line count ($skipLines) != Pester SkippedCount ($($result.SkippedCount))"; $fail++ }
           if ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }
+          $seedCases = @($result.Tests | Where-Object { $_.ExpandedPath -like 'worktree seed PowerShell parity.TEST-008*' })
+          if ($seedCases.Count -ne 3 -or @($seedCases | Where-Object { $_.Result -ne 'Passed' }).Count -ne 0) {
+            Write-Host "FAIL: TEST-008 worktree seed must pass all 3 cases under Windows PowerShell 5.1 (found $($seedCases.Count))"; $fail++
+          }
           if ($fail -gt 0) { Write-Error "Pester gate failed under Windows PowerShell 5.1 ($fail check(s))"; exit 1 }
           Write-Host "PESTER OK (Windows PowerShell 5.1): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"
 
@@ -802,6 +810,10 @@ jobs:
           if ($elapsed -gt 600) { Write-Host "FAIL: elapsed ${elapsed}s exceeds the 600s ceiling"; $fail++ }
           if ($skipLines -ne $result.SkippedCount) { Write-Host "FAIL: AAI-WIN-SKIP line count ($skipLines) != Pester SkippedCount ($($result.SkippedCount))"; $fail++ }
           if ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }
+          $seedCases = @($result.Tests | Where-Object { $_.ExpandedPath -like 'worktree seed PowerShell parity.TEST-008*' })
+          if ($seedCases.Count -ne 3 -or @($seedCases | Where-Object { $_.Result -ne 'Passed' }).Count -ne 0) {
+            Write-Host "FAIL: TEST-008 worktree seed must pass all 3 cases under pwsh 7 on Windows (found $($seedCases.Count))"; $fail++
+          }
           if ($fail -gt 0) { Write-Error "Pester gate failed under pwsh 7 ($fail check(s))"; exit 1 }
           Write-Host "PESTER OK (pwsh 7): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"
 

@@ -14,6 +14,7 @@ import {
   detectNearMissAcTable, parseRequirementsSection,
 } from './docs-model.mjs';
 import { guardConfigPresent } from './guard-config.mjs';
+import { isMetricsFlushRecord, metricsFlushDateToTs } from './metrics-flush-record.mjs';
 
 // CONFIG_PATH stays here (audit-core owns its scan root); the PRESENCE probe
 // that flips enforced vs report-only mode is the SHARED one from
@@ -553,15 +554,9 @@ function deliveryCommitsForId(root, id) {
   return hashes;
 }
 
-// #134 — normalize a METRICS `date_utc` (YYYY-MM-DD, no clock) to the LAST
-// instant of that day so it compares against a full ISO-8601-Z event `ts` as a
-// correct total order. Anchoring to end-of-day makes a same-day reopen NOT
-// strictly newer than the flush: supersession then requires a reopen on a
-// strictly LATER day, keeping the guardrail bias toward flagging a genuine
-// false-open. A malformed/absent date yields '' (no METRICS-derived delivery
-// time — falls back to the event-derived timestamp, never throws).
-const FLUSH_DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
-const flushDateToTs = (d) => (typeof d === 'string' && FLUSH_DATE_ONLY_RE.test(d)) ? `${d}T23:59:59.999Z` : '';
+// Date-only summaries represent the end of their day for supersession;
+// historical timestamped summaries retain their exact delivery instant.
+const flushDateToTs = metricsFlushDateToTs;
 
 // spec-ac-table-premature-flip-recurs D1 — D2(c) as ONE function with TWO
 // consumers: falseOpenEvidence below (the audit's own arm, unchanged in
@@ -706,7 +701,7 @@ function falseOpenEvidence(root, doc, events) {
   // test-aai-metrics TEST-020). Uses the same idRef roll-up boundary the event
   // arms use.
   const metricsFlushes = readMetricsFlushes(root);
-  let metricsFlushDate = '';   // latest matching flush date (YYYY-MM-DD) or ''
+  let metricsFlushDate = '';   // latest matching flush date or UTC timestamp, or ''
   let metricsFlushHit = false;
   if (doc.id) {
     for (const [ref, date] of metricsFlushes) {
@@ -783,7 +778,7 @@ export function readEvents(root) {
   return events;
 }
 
-// #133 / D1/D4 — a Map of every `ref_id` recorded in docs/ai/METRICS.jsonl to
+// #133 / D1/D4 — a Map of every final flush `ref_id` in docs/ai/METRICS.jsonl to
 // its latest flush `date_utc` (or null when a record carries none). The ledger
 // is JSONL with a leading `#`-comment preamble, so blank and `#`-prefixed lines
 // are skipped and each JSON.parse is guarded — a missing file, a comment-only
@@ -793,7 +788,7 @@ export function readEvents(root) {
 // (#133 x #134): without it a flush-only doc has no delivery time and ANY
 // reopen — even one predating the flush — would wrongly supersede it.
 export function readMetricsFlushes(root) {
-  const flushes = new Map();   // ref_id -> latest date_utc (YYYY-MM-DD) | null
+  const flushes = new Map();   // ref_id -> latest date_utc (date or UTC timestamp) | null
   const p = path.join(root, METRICS_PATH);
   if (!fs.existsSync(p)) return flushes;
   for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
@@ -801,13 +796,15 @@ export function readMetricsFlushes(root) {
     if (!t || t.startsWith('#')) continue;
     try {
       const rec = JSON.parse(t);
-      if (!rec || rec.ref_id == null) continue;
+      if (!isMetricsFlushRecord(rec)) continue;
       const rid = String(rec.ref_id);
       const date = (rec.date_utc != null) ? String(rec.date_utc) : null;
       const prev = flushes.has(rid) ? flushes.get(rid) : null;
-      // keep the latest flush date for a re-flushed ref (lexical max on the
-      // YYYY-MM-DD form); a dateless record never overwrites a dated one.
-      flushes.set(rid, (prev && date) ? (date > prev ? date : prev) : (date ?? prev));
+      // Compare normalized instants: a date-only flush is the end of its day,
+      // while a historical timestamp has second-level precision.
+      flushes.set(rid, (prev && date)
+        ? (flushDateToTs(date) > flushDateToTs(prev) ? date : prev)
+        : (date ?? prev));
     } catch { /* tolerate a malformed flush line */ }
   }
   return flushes;
