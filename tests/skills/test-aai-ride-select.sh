@@ -3148,6 +3148,103 @@ test_1649_degrade_clean_control() {
   log_pass "a clean ledger/docs/events report degraded: [] with no stderr (TEST-1649)"
 }
 
+# --- TEST-1650..1653 (Spec-AC-19, validation round 3 B-1/NB-1/NB-2): -------
+# the non-firing advisory `next` clause, control-char escaping, and the two
+# previously-untested unreadable-whole-source branches.
+
+test_1650_degrade_disclosed_on_nonfiring_next() {
+  log_info "Test: a NON-firing advisory next (threshold held above the visible W by an excluded input) still discloses the exclusion on stderr, while stdout equals the off answer byte-for-byte (TEST-1650, B-1)..."
+  local d="$TEST_DIR/t1650"; mkdir -p "$d/docs/issues"
+  local roadmap="$d/roadmap.yaml" offroadmap="$d/off-roadmap.yaml" ledger="$d/ledger.jsonl" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 9\npairs:\n  - capability: zz-cap\n    status: planned\n' > "$roadmap"
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$offroadmap"
+  propose_write_doc "$d/docs" zz-cap change draft
+  fu_add "$ledger" fu-t1650-p2 cap-other P2
+  local badfile="$d/docs/issues/ISSUE-DRAFT-t1650-noperm.md"
+  printf -- '---\nid: ISSUE-DRAFT-t1650-noperm\nnumber: null\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n\n# t\n' > "$badfile"
+  chmod 000 "$badfile"
+  trap "chmod 644 '$badfile' 2>/dev/null || true" RETURN
+
+  [ "$(run next --roadmap "$offroadmap" --docs "$d/docs" --ledger "$ledger" --events "$events")" = "0" ] \
+    || log_fail "TEST-1650: off control must exit 0: $(err)"
+  local offstdout; offstdout="$(out)"
+  [ -z "$(err)" ] || log_fail "TEST-1650: the off control itself must emit no stderr: $(err)"
+
+  [ "$(next_at "$roadmap" "$d/docs" "$ledger" "$events")" = "0" ] || log_fail "TEST-1650: advisory next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" && log_fail "TEST-1650: this fixture must NOT fire (threshold held above W by the exclusion), got: $(out)"
+  [ "$(out)" = "$offstdout" ] || log_fail "TEST-1650: a non-firing advisory next's stdout must equal the off answer byte-for-byte; advisory=[$(out)] off=[$offstdout]"
+  grep -qF 'ride-select: degraded:' "$TEST_DIR/err" || log_fail "TEST-1650: a non-firing advisory next must still disclose the exclusion on stderr, got: $(err)"
+  grep -qF 'ISSUE-DRAFT-t1650-noperm.md: unreadable' "$TEST_DIR/err" || log_fail "TEST-1650: stderr must name the excluded path, got: $(err)"
+  log_pass "a non-firing advisory next discloses the excluded input on stderr while stdout stays byte-identical to off (TEST-1650)"
+}
+
+test_1651_degrade_reason_escapes_control_chars() {
+  log_info "Test: a control character (newline) embedded in a degraded path stays on exactly ONE physical stderr line, with no forged second 'ride-select: degraded:' line; the json degraded array keeps the raw, unescaped reason (TEST-1651, NB-1)..."
+  local d="$TEST_DIR/t1651"; mkdir -p "$d/docs/issues"
+  local nl=$'\n'
+  local evilname="evil${nl}ride-select: degraded: FAKE.md"
+  mkdir -p "$d/docs/issues/$evilname"
+  [ "$(run waiting --docs "$d/docs" --ledger "$d/ledger.jsonl" --json)" = "0" ] || log_fail "TEST-1651: waiting must exit 0: $(err)"
+  local nlines; nlines="$(wc -l < "$TEST_DIR/err" | tr -d ' ')"
+  [ "$nlines" = "1" ] || log_fail "TEST-1651: a newline-named path must still yield exactly one physical stderr line, got $nlines line(s): $(err)"
+  local nstarts; nstarts="$(grep -c '^ride-select: degraded:' "$TEST_DIR/err")"
+  [ "$nstarts" = "1" ] || log_fail "TEST-1651: must be exactly one degraded-prefixed line, no forged second one, got $nstarts: $(err)"
+  grep -qF 'FAKE.md: unreadable' "$TEST_DIR/err" || log_fail "TEST-1651: the one escaped line must still name the forged tail text, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const hit = j.degraded.find((r) => r.includes("FAKE.md"));
+    if (!hit) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+    if (!hit.includes("\n")) { console.error("the json reason must keep the RAW newline (JSON form unchanged), got: " + JSON.stringify(hit)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1651: json degraded form must be unchanged (raw reason, real newline), got: $(out)"
+  log_pass "a control character in a degraded path stays on one stderr line, forging nothing; the json form is unchanged (TEST-1651)"
+}
+
+test_1652_degrade_on_unreadable_issues_dir() {
+  log_info "Test: an unreadable <docs>/issues DIRECTORY (as opposed to one unreadable entry inside it) degrades waiting with a stderr line and a json degraded entry (TEST-1652, NB-2)..."
+  local d="$TEST_DIR/t1652"; mkdir -p "$d/docs/issues"
+  chmod 000 "$d/docs/issues"
+  trap "chmod 755 '$d/docs/issues' 2>/dev/null || true" RETURN
+  local rc; rc="$(run waiting --docs "$d/docs" --ledger "$d/ledger.jsonl" --json)"
+  # Restore BEFORE any assertion below can log_fail (which exits the whole
+  # script): an EXIT-trap `rm -rf "$TEST_DIR"` cannot list a still-chmod-000
+  # directory to remove it (unlike a chmod-000 FILE, where only the PARENT's
+  # permissions govern unlink), so a leftover 000 directory would survive.
+  chmod 755 "$d/docs/issues"
+  [ "$rc" = "0" ] || log_fail "TEST-1652: waiting must exit 0: $(err)"
+  grep -qF '"count":0' "$TEST_DIR/out" || log_fail "TEST-1652: an unreadable issues dir must fold to zero intakes, got: $(out)"
+  grep -qF 'ride-select: degraded:' "$TEST_DIR/err" || log_fail "TEST-1652: stderr must emit a degraded line, got: $(err)"
+  grep -qF 'issues: unreadable' "$TEST_DIR/err" || log_fail "TEST-1652: stderr must name the issues directory as unreadable, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (!Array.isArray(j.degraded) || !j.degraded.some((r) => r.includes("issues: unreadable"))) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1652: json degraded must name the unreadable issues directory, got: $(out)"
+  log_pass "an unreadable issues directory degrades waiting with a stderr line and a json degraded entry (TEST-1652)"
+}
+
+test_1653_degrade_on_unreadable_events_file() {
+  log_info "Test: an unreadable --events FILE (as opposed to a malformed/invalid record inside it) degrades a firing next with a stderr line and a json degraded entry, the roadmap_order fallback staying correct (TEST-1653, NB-2)..."
+  local d="$TEST_DIR/t1653"; mkdir -p "$d/docs"
+  local roadmap="$d/roadmap.yaml" ledger="$d/ledger.jsonl" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-t1653\n    status: done\n' > "$roadmap"
+  fu_add "$ledger" fu-t1653-p2 cap-other P2
+  printf 'junk' > "$events"
+  chmod 000 "$events"
+  trap "chmod 644 '$events' 2>/dev/null || true" RETURN
+  local rc; rc="$(next_at "$roadmap" "$d/docs" "$ledger" "$events" --json)"
+  chmod 644 "$events"
+  [ "$rc" = "0" ] || log_fail "TEST-1653: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1653: threshold must fire, got: $(out)"
+  grep -qF '"capability":"cap-t1653"' "$TEST_DIR/out" || log_fail "TEST-1653: C must still fall back to roadmap order despite the unreadable events file, got: $(out)"
+  grep -qF '"capability_source":"roadmap_order"' "$TEST_DIR/out" || log_fail "TEST-1653: capability_source must be roadmap_order, got: $(out)"
+  grep -qF 'ride-select: degraded:' "$TEST_DIR/err" || log_fail "TEST-1653: stderr must emit a degraded line, got: $(err)"
+  grep -qF "$events: unreadable" "$TEST_DIR/err" || log_fail "TEST-1653: stderr must name the unreadable events file, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (!Array.isArray(j.degraded) || !j.degraded.some((r) => r.includes("unreadable"))) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1653: json degraded must name the unreadable events file, got: $(out)"
+  log_pass "an unreadable --events file degrades a firing next with a stderr line and a json degraded entry, fallback stays correct (TEST-1653)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -3272,6 +3369,10 @@ main() {
   test_1647_degrade_on_unreadable_intake
   test_1648_degrade_on_malformed_events_close_record
   test_1649_degrade_clean_control
+  test_1650_degrade_disclosed_on_nonfiring_next
+  test_1651_degrade_reason_escapes_control_chars
+  test_1652_degrade_on_unreadable_issues_dir
+  test_1653_degrade_on_unreadable_events_file
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

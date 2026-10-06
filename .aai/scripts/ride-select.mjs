@@ -70,7 +70,11 @@ function openIntakes(docsDir, degraded = []) {
   let names;
   try { names = fs.readdirSync(dir); }
   catch (err) {
-    if (err && err.code !== 'ENOENT') degraded.push(`${dir}: unreadable (${err.code}: ${err.message})`);
+    // NB-3 (validation round 3): err.message for an fs error already starts
+    // with err.code (libuv's own formatting), so prepending it again used to
+    // print it twice ("unreadable (EISDIR: EISDIR: ...)"); err.message alone
+    // carries it once.
+    if (err && err.code !== 'ENOENT') degraded.push(`${dir}: unreadable (${err.message})`);
     return [];
   }
   const out = [];
@@ -79,7 +83,7 @@ function openIntakes(docsDir, degraded = []) {
     const p = path.join(dir, n);
     let content;
     try { content = fs.readFileSync(p, 'utf8'); }
-    catch (err) { degraded.push(`${p}: unreadable (${err.code}: ${err.message})`); continue; }
+    catch (err) { degraded.push(`${p}: unreadable (${err.message})`); continue; }
     const fm = parseFrontmatter(content);
     if (!fm || !OPEN_INTAKE_TYPES.has(fm.type)) continue;
     const status = fm.status || null;
@@ -138,7 +142,9 @@ function lastClosedCapability(rm, eventsPath, degraded = []) {
   let raw;
   try { raw = fs.readFileSync(eventsPath, 'utf8'); }
   catch (err) {
-    if (err && err.code !== 'ENOENT') degraded.push(`${eventsPath}: unreadable (${err.code}: ${err.message})`);
+    // NB-3: see the matching comment in openIntakes above — err.message
+    // already carries err.code once.
+    if (err && err.code !== 'ENOENT') degraded.push(`${eventsPath}: unreadable (${err.message})`);
     raw = '';
   }
   const closedTs = new Map();
@@ -426,8 +432,32 @@ function cmdShow(a, loaded) {
 // no roadmap (works in every posture, and with none at all); writes nothing.
 // recommended_threshold is "five more than are waiting today", so advisory
 // does not fire on the very first call over an existing backlog.
+// NB-1 (validation round 3): a reason string built from a path (or a ledger
+// note) can itself carry a newline/CR/line-or-paragraph-separator/other
+// control character — a directory literally named with one, or a malformed
+// line quoted verbatim. Printed raw, that splits ONE reason across multiple
+// physical stderr lines, and a tail crafted to look like
+// "ride-select: degraded: ..." reads as a SECOND, forged entry (D7/AC-19's
+// "one ... stderr line per reason" contract). Escape control chars for the
+// STDERR line only — the `degraded` json array keeps the raw reason, which
+// JSON.stringify already escapes correctly on its own.
+// The two reserved separator code points are built from plain decimal
+// numbers (String.fromCharCode) rather than spelled out as a hex escape
+// token in this source — a hex-style token naming them has, before now,
+// been silently turned into the literal character by the editing/generation
+// pipeline (the docs-model-nul-escape class of self-inflicted corruption).
+const LINE_PARA_SEPARATORS = String.fromCharCode(8232) + String.fromCharCode(8233);
+const CONTROL_CHAR_RE = new RegExp('[' + '\\x00-\\x1f\\x7f' + LINE_PARA_SEPARATORS + ']', 'g');
+function escapeControlChars(s) {
+  const named = { 9: '\\t', 10: '\\n', 13: '\\r' };
+  return String(s).replace(CONTROL_CHAR_RE, (ch) => {
+    const code = ch.codePointAt(0);
+    if (named[code] !== undefined) return named[code];
+    return code <= 0xff ? ('\\x' + code.toString(16).padStart(2, '0')) : ('\\u' + code.toString(16).padStart(4, '0'));
+  });
+}
 function reportDegraded(degraded) {
-  for (const reason of degraded) process.stderr.write(`ride-select: degraded: ${reason}\n`);
+  for (const reason of degraded) process.stderr.write(`ride-select: degraded: ${escapeControlChars(reason)}\n`);
 }
 function cmdWaiting(a) {
   const degraded = [];
@@ -441,9 +471,11 @@ function cmdWaiting(a) {
   const recommended_threshold = Math.max(5, w.count + 5);
   if (a.json) {
     // D-DEGRADE: `degraded` is appended at the END of the key order so an
-    // existing consumer reading a prefix of this object sees nothing new;
-    // empty array on a clean input (byte-identical key SET, not a removed
-    // key — disclosed as a contract amendment, SPEC-0208).
+    // existing consumer reading a key PREFIX of this object sees nothing
+    // new; the key SET gains exactly one key (`degraded`, NB-3: this used to
+    // say "byte-identical key SET", which is wrong — adding the key is the
+    // whole point), empty array on a clean input — disclosed as a contract
+    // amendment, SPEC-0208.
     process.stdout.write(`${JSON.stringify({ count: w.count, follow_ups: { P1: p1, P2: p2 }, intakes: { issue, techdebt }, recommended_threshold, degraded })}\n`);
   } else {
     process.stdout.write(`waiting maintenance: ${w.count} (follow-ups P1 ${p1}, P2 ${p2}; intakes issue ${issue}, techdebt ${techdebt}) — recommended threshold ${recommended_threshold}\n`);

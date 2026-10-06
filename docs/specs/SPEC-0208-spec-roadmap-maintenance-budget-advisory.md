@@ -4,7 +4,7 @@ type: spec
 number: 208
 status: done
 mutation_gate: v1
-frozen_sha256: 2c319567099682c70f3e768abff536456c461df4653e4ad449531a2dc20cd0bc
+frozen_sha256: c78e55b321a87a0f1bc5be259767eb43573c06703eca14901710da9e7e4675a6
 ceremony_level: 2
 links:
   requirement: docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md
@@ -353,15 +353,22 @@ Article 2 (simplicity): one parser extended, no new script, no new `.aai` file.
   to the fold that advisory now reads re-runs these tests. Verification:
   TEST-1644.
 - Spec-AC-19 (D7 broadened, PR #431 bot findings — disclosed 2026-10-06 as a
-  contract amendment to this frozen spec): a malformed non-comment
-  `decisions.jsonl` line, an unreadable `<docs>/issues/*.md` entry, and a
-  malformed/invalid `work_item_closed` record in `--events` SHALL each be
-  named — one `ride-select: degraded: <reason>` stderr line per reason,
-  whether or not a trigger fires — and SHALL populate a trailing `degraded`
-  json array on `waiting --json` (always present) and on a firing `next
-  --json` proposal (D6's last key); counts, triggers and exit codes SHALL be
-  unchanged, and a clean input SHALL keep `degraded: []` with no stderr.
-  Verification: TEST-1646..1649.
+  contract amendment to this frozen spec; widened 2026-10-06 in validation
+  round 3 remediation to name three gaps the round found, each already true
+  of the shipped code but previously untested/unspecified): a malformed
+  non-comment `decisions.jsonl` line, an unreadable `<docs>/issues/*.md`
+  entry (including the whole `issues` directory itself being unreadable),
+  and a malformed/invalid `work_item_closed` record in `--events` (including
+  `--events` itself being unreadable) SHALL each be named — one
+  `ride-select: degraded: <reason>` stderr line per reason, whether or not a
+  trigger fires, with any newline/CR/line-or-paragraph-separator/other
+  control character in the reason escaped so it never splits one reason
+  across more than one physical stderr line or forges a second
+  `ride-select: degraded:` line — and SHALL populate a trailing `degraded`
+  json array (carrying the RAW, unescaped reason) on `waiting --json`
+  (always present) and on a firing `next --json` proposal (D6's last key);
+  counts, triggers and exit codes SHALL be unchanged, and a clean input
+  SHALL keep `degraded: []` with no stderr. Verification: TEST-1646..1653.
 
 ## Acceptance Criteria Status
 
@@ -385,7 +392,7 @@ Article 2 (simplicity): one parser extended, no new script, no new `.aai` file.
 | Spec-AC-16 | The diet ledger SHALL credit the measured prompt growth and prompt-diet SHALL pass | done | TEST-1641 PASS (tests/skills/test-aai-prompt-diet.sh exit 0); mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1641.txt | — | companion obligation |
 | Spec-AC-17 | USER_GUIDE and the roadmap product doc SHALL describe three postures with a worked example each | done | TEST-1642, TEST-1643 PASS (docs/ai/tdd/green-20261005T200506Z-ac14-18.log); RED docs/ai/tdd/red-20261005T200506Z-ac14-18.log; mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1642.txt, mutation-TEST-1643.txt | — | AC-006 |
 | Spec-AC-18 | suite-map SHALL list follow-ups.mjs under the aai-ride-select suite | done | TEST-1644 PASS (docs/ai/tdd/green-20261005T200506Z-ac14-18.log); RED docs/ai/tdd/red-20261005T200506Z-ac14-18.log; mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1644.txt | — | suite selection |
-| Spec-AC-19 | A malformed ledger line, an unreadable intake entry and a malformed/invalid EVENTS close record SHALL each be named (stderr + a trailing `degraded` json array), never dropped with no trace, with counts/triggers/exit codes unchanged and a clean input keeping `degraded: []` | done | TEST-1646..1649 PASS (env -u AAI_ROLE bash tests/skills/test-aai-ride-select.sh); mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{46,47,48,49}.txt | — | D7 (broadened, PR #431 bot findings) |
+| Spec-AC-19 | A malformed ledger line, an unreadable intake entry/directory and a malformed/invalid/unreadable EVENTS close source SHALL each be named (stderr, control-char-escaped, one line per reason, whether or not a trigger fires + a trailing `degraded` json array carrying the raw reason), never dropped with no trace, with counts/triggers/exit codes unchanged and a clean input keeping `degraded: []` | done | TEST-1646..1653 PASS (env -u AAI_ROLE bash tests/skills/test-aai-ride-select.sh); mutation docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-16{46,47,48,49,50,51,52,53}.txt | — | D7 (broadened, PR #431 bot findings; widened validation round 3 remediation) |
 
 ## Implementation plan
 
@@ -395,8 +402,8 @@ Slices (one TDD run each, about three ACs per run):
 - C — proposal shape, `waiting`, degrade: Spec-AC-07, 08 (TEST-1621..1629, TEST-1645).
 - D — writer and seams: Spec-AC-10, 11, 12, 13, 18 (TEST-1631..1638, TEST-1644).
 - E — prompts, docs, governance: Spec-AC-14, 15, 16, 17 (TEST-1639..1643).
-- F — degrade disclosure (PR #431 bot findings, 2026-10-06): Spec-AC-19
-  (TEST-1646..1649).
+- F — degrade disclosure (PR #431 bot findings, 2026-10-06; widened in
+  validation round 3 remediation): Spec-AC-19 (TEST-1646..1653).
 
 Files:
 - .aai/scripts/lib/roadmap-model.mjs — D1, D2.
@@ -537,8 +544,12 @@ removed, captured in the same test, never against a stored string.
 | TEST-1647 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | (PR #431 bot finding, Codex 4190003349) an unreadable `issues/*.md` intake entry — a directory named with a `.md` suffix (EISDIR) and a chmod 000 file (EACCES) — degrades `waiting --json` with one path+code stderr line each and two `degraded` json entries; only the one readable intake counts | `sed:s/catch \(err\) \{ degraded\.push\(/catch (err) { false && degraded.push(/` in .aai/scripts/ride-select.mjs | green |
 | TEST-1648 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | (PR #431 bot finding, Codex 4190003356) a malformed JSON line and an invalid `work_item_closed` record (unparseable `ts`) in `--events` each degrade `next --json` with a stderr line naming the file, count and kind, and a `degraded` json entry; `C` still falls back to `roadmap_order` correctly | `sed:s/if \(invalidCloseRecords\) degraded\.push\(/if (false) degraded.push(/` in .aai/scripts/ride-select.mjs | green |
 | TEST-1649 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | clean-input control: a clean ledger/docs/events fixture reports `degraded: []` on both `waiting --json` and a firing `next --json` proposal, with no stderr; the proposal keeps D6's exact key order (`degraded` last) | `sed:s/let malformedLines = 0;/let malformedLines = 1;/` in .aai/scripts/ride-select.mjs | green |
+| TEST-1650 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | (validation round 3 B-1) a NON-firing advisory `next` (maintenance_threshold held above the visible W by one excluded chmod-000 intake) still discloses the exclusion on stderr; stdout equals the off answer byte-for-byte | `patch:docs/ai/tdd/spec-roadmap-maintenance-budget-advisory/mutation-TEST-1650.patch` moves `reportDegraded(degraded);` from before the `adviseMaintenance` call to inside the `if (reason)` block in .aai/scripts/ride-select.mjs | green |
+| TEST-1651 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | (validation round 3 NB-1) a control character (newline) embedded in a degraded path stays on exactly one physical stderr line, with no forged second `ride-select: degraded:` line; the json `degraded` array keeps the raw (unescaped) reason | `sed:s/escapeControlChars\(reason\)/reason/` in .aai/scripts/ride-select.mjs | green |
+| TEST-1652 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | (validation round 3 NB-2) an unreadable `<docs>/issues` DIRECTORY itself (as opposed to one unreadable entry inside it) degrades `waiting --json` with a stderr line and a `degraded` json entry | `` sed:s/if \(err && err\.code !== 'ENOENT'\) degraded\.push\(\`\${dir}: unreadable/if (false) degraded.push(`${dir}: unreadable/ `` in .aai/scripts/ride-select.mjs | green |
+| TEST-1653 | Spec-AC-19 | integration | tests/skills/test-aai-ride-select.sh | (validation round 3 NB-2) an unreadable `--events` FILE itself (as opposed to a malformed/invalid record inside it) degrades a firing `next --json` with a stderr line and a `degraded` json entry; `C` still falls back to `roadmap_order` | `` sed:s/if \(err && err\.code !== 'ENOENT'\) degraded\.push\(\`\${eventsPath}: unreadable/if (false) degraded.push(`${eventsPath}: unreadable/ `` in .aai/scripts/ride-select.mjs | green |
 
-Counts: 50 rows; 45 integration, 5 unit. Seams crossed by executing the real
+Counts: 54 rows; 49 integration, 5 unit. Seams crossed by executing the real
 consumer: S1 (TEST-1606, TEST-1636), S2 and S4 (TEST-1638), S3 (TEST-1637),
 S5 (TEST-1607..1629 run the real follow-ups fold over a ledger written by the
 real `follow-ups.mjs add`/`close`).
