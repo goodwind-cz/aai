@@ -107,6 +107,6 @@ Describe 'worktree seed PowerShell parity' {
     try { $resolved = & $capture } finally { Pop-Location }
     $expectedRoot = (& git -C $Source rev-parse --show-toplevel)
     $LASTEXITCODE | Should -Be 0
-    $resolved | Should -Be $expectedRoot
+    (Resolve-Path -LiteralPath $resolved).Path | Should -Be (Resolve-Path -LiteralPath $expectedRoot).Path
   }
 }
