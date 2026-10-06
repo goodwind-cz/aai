@@ -7,9 +7,12 @@
 //
 //   node .aai/scripts/ride-select.mjs validate [--roadmap <p>]
 //   node .aai/scripts/ride-select.mjs next     [--roadmap <p>] [--docs <dir>] [--json]
+//        [--ledger <p>] [--events <p>]   (advisory posture only; D3..D7)
 //   node .aai/scripts/ride-select.mjs gate --ref <slug> [--intake <path>] [--roadmap <p>]
 //        [--docs <dir>] [--events <p>] [--override "<reason>"]
 //   node .aai/scripts/ride-select.mjs show     [--roadmap <p>] [--docs <dir>] [--json]
+//   node .aai/scripts/ride-select.mjs waiting  [--docs <dir>] [--ledger <p>] [--json]
+//        (D8: read-only, needs no roadmap, works in every posture)
 //
 // The roadmap FILE is the posture switch. gate with NO roadmap file (absent path)
 // ADMITS with one line, "roadmap absent ... not consulted", writing nothing:
@@ -17,8 +20,12 @@
 // unreadable or invalid REFUSES. With a roadmap, DENY BY DEFAULT: gate exits 0
 // only when the ref may start now; every refusal names ONE reason and its
 // remedy. Exit: 0 admit · 1 refuse · 2 usage/invalid (validate/next unchanged).
-// The maintenance budget is opt-in: no `budget:` key = no 1:1 pairing and no
-// ranked refusals; `show` prints which posture a roadmap is in.
+// The maintenance budget has three postures: off (no `budget:` key, no 1:1
+// pairing, no ranked refusals), on (1:1 pairing) and advisory (`next`
+// PROPOSES a maintenance ride on a threshold or related trigger but never
+// binds, and `gate` behaves exactly like off — SPEC
+// roadmap-maintenance-budget-advisory D2/D5/D9); `show` prints which posture
+// a roadmap is in.
 //
 // Roadmap shape is CLOSED (see docs/ai/roadmap.yaml header); a line-level
 // parser for exactly that shape, no YAML library, anything else is invalid.
@@ -27,8 +34,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { parseFrontmatter, DOC_TYPE_ENUM } from './lib/docs-model.mjs';
+import { parseFrontmatter, DOC_TYPE_ENUM, TERMINAL_DOC_STATUS, extractDocIds } from './lib/docs-model.mjs';
 import { SLUG, MAINT_TYPES, roadmapAbsent, loadRoadmap } from './lib/roadmap-model.mjs';
+import { loadRegistry } from './follow-ups.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -36,24 +44,189 @@ const STARTED = new Set(['implementing', 'done']);
 // Words in a slug that mark maintenance when the intake type does not already.
 const MAINT_WORDS = /(^|-)(fix|guard|harness|hygiene|tripwire|flake|refactor|cleanup|lint|chore|test|ci)(-|$)/;
 
+// --- advisory maintenance budget (SPEC roadmap-maintenance-budget-advisory,
+// D3..D6) — the roadmap PROPOSES maintenance, never requires it. These
+// constants and functions are read-only: waitingMaintenance never writes the
+// decisions ledger, lastClosedCapability never writes EVENTS.
+const WAITING_SEVERITIES = new Set(['P1', 'P2']);
+const OPEN_INTAKE_TYPES = new Set(['issue', 'techdebt']);
+// D3's closed-status vocabulary (done/deferred/rejected/superseded) is the
+// SAME literal lib/docs-model.mjs already owns as TERMINAL_DOC_STATUS
+// (test-aai-golden-flow.sh TEST-008 pins that exact comma-separated literal
+// to exactly one file, as a forked-canon guard) — restamp, measurement-class,
+// disclosed in docs/ai/decisions.jsonl: a locally-declared CLOSED_INTAKE_
+// STATUSES set would have reintroduced the fork TEST-008 exists to catch.
+// TERMINAL_DOC_STATUS is a superset (adds 'legacy'/'current', vocabulary
+// issue/techdebt intakes never carry), so behavior for D3's own cases is
+// unchanged.
+// `degraded` (D-DEGRADE, bot findings on PR #431) collects named reasons an
+// entry was excluded from the fold below; it is appended to, never read, by
+// this function — the caller decides what to do with it (stderr line, JSON
+// key). An unreadable `issues/*.md` entry (permissions, a directory named
+// with a `.md` suffix, transient I/O) used to vanish from W with no trace;
+// now it is named (path + error code) instead of silently dropped.
+function openIntakes(docsDir, degraded = []) {
+  const dir = path.join(docsDir, 'issues');
+  let names;
+  try { names = fs.readdirSync(dir); }
+  catch (err) {
+    // NB-3 (validation round 3): err.message for an fs error already starts
+    // with err.code (libuv's own formatting), so prepending it again used to
+    // print it twice ("unreadable (EISDIR: EISDIR: ...)"); err.message alone
+    // carries it once.
+    if (err && err.code !== 'ENOENT') degraded.push(`${dir}: unreadable (${err.message})`);
+    return [];
+  }
+  const out = [];
+  for (const n of names) {
+    if (!n.endsWith('.md')) continue;
+    const p = path.join(dir, n);
+    let content;
+    try { content = fs.readFileSync(p, 'utf8'); }
+    catch (err) { degraded.push(`${p}: unreadable (${err.message})`); continue; }
+    const fm = parseFrontmatter(content);
+    if (!fm || !OPEN_INTAKE_TYPES.has(fm.type)) continue;
+    const status = fm.status || null;
+    if (status !== null && TERMINAL_DOC_STATUS.has(status)) continue;
+    // NB2 (validation round 1): a doc with no frontmatter `id` must not
+    // yield a candidate with no id (D6's candidate shape, and the text form
+    // printing a trailing empty id). Derive it the SAME way the docs model
+    // does elsewhere (docs-audit-core.mjs, generate-docs-index.mjs): the
+    // numbered-filename primary from extractDocIds, else the filename stem.
+    const id = fm.id ?? (extractDocIds(n)?.primary ?? n.replace(/\.md$/i, ''));
+    out.push({ kind: 'intake', id, type: fm.type, status, path: p });
+  }
+  out.sort((a, b) => (a.id < b.id ? -1 : (a.id > b.id ? 1 : 0)));
+  return out;
+}
+
+// D3 — waiting maintenance (W): open P1/P2 follow-ups (read-only fold over
+// --ledger) plus open issue/techdebt intakes. P3 never counts; a follow-up
+// with a missing/unknown severity never counts (WAITING_SEVERITIES.has is
+// false for both). An unreadable ledger (not ENOENT) is reported, never
+// silently folded into "empty" (D7); an absent ledger IS an empty registry
+// (intakes still count). A malformed non-comment ledger LINE (including one
+// meant to record a P1/P2 follow-up) is not fatal — loadRegistry already
+// excludes it and names it in `notes` (an `EXCLUDED N malformed ...` line);
+// that note is propagated into `degraded` verbatim rather than re-parsed, so
+// the count's understatement is disclosed instead of presented as complete.
+function waitingMaintenance(docsDir, ledgerPath, degraded = []) {
+  const reg = loadRegistry(ledgerPath);
+  if (reg.unreadable) return { unreadable: reg.unreadable, count: 0, followUps: [], intakes: [] };
+  if (reg.malformed) {
+    const note = reg.notes.find((n) => n.startsWith('EXCLUDED')) || `${reg.malformed} malformed decision ledger line(s) excluded`;
+    degraded.push(`${ledgerPath}: ${note}`);
+  }
+  const followUps = reg.items.filter((i) => !i.closed && WAITING_SEVERITIES.has(i.severity));
+  const intakes = openIntakes(docsDir, degraded);
+  return { unreadable: null, count: followUps.length + intakes.length, followUps, intakes };
+}
+
+// D4 — most recently closed capability (C). Among the roadmap's pair
+// capabilities, the one with the latest `ts` of a `work_item_closed` record
+// in --events whose `ref` equals the capability EXACTLY (a `spec-<slug>` ref
+// never matches, by construction of the exact-equality lookup below); a tie
+// goes to the pair listed later in the roadmap (the tie-break index below
+// compares ROADMAP PAIR POSITION, not event line order). Falls back to the
+// last `done` pair in roadmap order when no pair capability has such a
+// record (or the events file is absent/unreadable/malformed-only). Returns
+// null — not an object with null fields — when C cannot be decided at all,
+// so a caller can write `closed ? ... : fallback` instead of null-checking
+// capability on every read.
+// `degraded` (D-DEGRADE, bot findings on PR #431) names, by COUNT + KIND
+// (not per-line — EVENTS.jsonl can be large), an unreadable --events file
+// and malformed/invalid work_item_closed records this scan excluded; a
+// skipped record can change which capability C resolves to (or its
+// source), so the fallback to roadmap order stays but is no longer silent.
+function lastClosedCapability(rm, eventsPath, degraded = []) {
+  let raw;
+  try { raw = fs.readFileSync(eventsPath, 'utf8'); }
+  catch (err) {
+    // NB-3: see the matching comment in openIntakes above — err.message
+    // already carries err.code once.
+    if (err && err.code !== 'ENOENT') degraded.push(`${eventsPath}: unreadable (${err.message})`);
+    raw = '';
+  }
+  const closedTs = new Map();
+  let malformedLines = 0;
+  let invalidCloseRecords = 0;
+  for (const line of raw.split(/\r?\n/)) {
+    const t0 = line.trim();
+    if (t0 === '') continue;
+    let rec; try { rec = JSON.parse(t0); } catch { malformedLines += 1; continue; }
+    if (!rec || typeof rec !== 'object' || rec.event !== 'work_item_closed') continue;
+    if (typeof rec.ref !== 'string' || typeof rec.ts !== 'string') { invalidCloseRecords += 1; continue; }
+    const t = Date.parse(rec.ts);
+    if (Number.isNaN(t)) { invalidCloseRecords += 1; continue; }
+    const prev = closedTs.get(rec.ref);
+    if (prev === undefined || t > prev) closedTs.set(rec.ref, t);
+  }
+  if (malformedLines) degraded.push(`${eventsPath}: ${malformedLines} malformed JSON line(s) excluded from close-record scan`);
+  if (invalidCloseRecords) degraded.push(`${eventsPath}: ${invalidCloseRecords} invalid work_item_closed record(s) excluded (missing/invalid ref or ts)`);
+  let best = null;
+  for (const [i, pr] of rm.pairs.entries()) {
+    const t = closedTs.get(pr.capability);
+    if (t === undefined) continue;
+    if (!best || t > best.t || (t === best.t && i > best.i)) best = { cap: pr.capability, t, i };
+  }
+  if (best) return { capability: best.cap, source: 'events' };
+  const done = rm.pairs.filter((p) => p.status === 'done');
+  if (done.length) return { capability: done[done.length - 1].capability, source: 'roadmap_order' };
+  return null;
+}
+
+// D5 — triggers. `related` wins over `threshold` when both fire (the more
+// specific reason). `closed` is the lastClosedCapability() result (null or
+// { capability, source }).
+function adviseMaintenance(rm, w, closed) {
+  const related = closed ? w.followUps.filter((f) => f.ref_id === closed.capability) : [];
+  const thresholdFired = w.count >= rm.advisory.maintenance_threshold;
+  const reason = related.length ? 'related' : (thresholdFired ? 'threshold' : null);
+  return { reason, related, thresholdFired };
+}
+
+function followUpCandidate(f) {
+  return { kind: 'follow_up', id: f.id, severity: f.severity, ref: f.ref_id, finding: f.finding };
+}
+function intakeCandidate(it) {
+  return { kind: 'intake', id: it.id, type: it.type, status: it.status, path: it.path };
+}
+// D6 — candidate ordering: P1 follow-ups, then P2 follow-ups (each in the
+// fold's own order — oldest first, id tiebreak, since Array#sort is stable
+// and w.followUps/related already carry that order from loadRegistry), then
+// intakes (already id-ordered by openIntakes). Capped at CANDIDATE_CAP.
+const SEVERITY_RANK = { P1: 0, P2: 1 };
+const CANDIDATE_CAP = 5;
+// D6 — candidates: for `related`, only the related follow-ups; for
+// `threshold`, every counted item.
+function buildCandidates(reason, related, w) {
+  const followUps = reason === 'related' ? related : w.followUps;
+  const rankedFollowUps = [...followUps].sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+  const items = reason === 'related'
+    ? rankedFollowUps.map(followUpCandidate)
+    : [...rankedFollowUps.map(followUpCandidate), ...w.intakes.map(intakeCandidate)];
+  return items.slice(0, CANDIDATE_CAP);
+}
+
 function usage(msg) { process.stderr.write(`ride-select: ${msg}\n`); process.exit(2); }
 function refuse(msg) { process.stderr.write(`ride-select: REFUSED — ${msg}\n`); process.exit(1); }
 
 function parseArgs(argv) {
-  const a = { cmd: argv[0], roadmap: path.join(ROOT, 'docs/ai/roadmap.yaml'), docs: path.join(ROOT, 'docs'), events: path.join(ROOT, 'docs/ai/EVENTS.jsonl'), ref: null, intake: null, override: null, json: false };
+  const a = { cmd: argv[0], roadmap: path.join(ROOT, 'docs/ai/roadmap.yaml'), docs: path.join(ROOT, 'docs'), events: path.join(ROOT, 'docs/ai/EVENTS.jsonl'), ledger: path.join(ROOT, 'docs/ai/decisions.jsonl'), ref: null, intake: null, override: null, json: false };
   const need = (k, v) => { if (v === undefined || v.startsWith('--')) usage(`${k} requires a value`); return v; };
   for (let i = 1; i < argv.length; i += 1) {
     const k = argv[i]; const v = argv[i + 1];
     if (k === '--roadmap') { a.roadmap = need(k, v); i += 1; }
     else if (k === '--docs') { a.docs = need(k, v); i += 1; }
     else if (k === '--events') { a.events = need(k, v); i += 1; }
+    else if (k === '--ledger') { a.ledger = need(k, v); i += 1; }
     else if (k === '--ref') { a.ref = need(k, v); i += 1; }
     else if (k === '--intake') { a.intake = need(k, v); i += 1; }
     else if (k === '--override') { a.override = need(k, v); i += 1; }
     else if (k === '--json') { a.json = true; }
     else usage(`unknown argument ${k}`);
   }
-  if (!['validate', 'next', 'gate', 'show'].includes(a.cmd)) usage('usage: ride-select.mjs <validate|next|gate|show> [flags]');
+  if (!['validate', 'next', 'gate', 'show', 'waiting'].includes(a.cmd)) usage('usage: ride-select.mjs <validate|next|gate|show|waiting> [flags]');
   return a;
 }
 
@@ -230,12 +403,21 @@ function cmdShow(a, loaded) {
   const rm = loaded.roadmap;
   const n = pickNext(rm, a.docs);
   if (a.json) {
-    process.stdout.write(JSON.stringify({ roadmap: a.roadmap, budget: Boolean(rm.budget), next: nextView(n), pairs: rm.pairs, wave_2: rm.wave_2 }) + '\n');
+    // D9: the advisory key is inserted right after `budget` only when the
+    // roadmap IS advisory — on/off keep the exact shape they always had.
+    const payload = { roadmap: a.roadmap, budget: Boolean(rm.budget) };
+    if (rm.advisory) payload.advisory = { maintenance_threshold: rm.advisory.maintenance_threshold };
+    payload.next = nextView(n);
+    payload.pairs = rm.pairs;
+    payload.wave_2 = rm.wave_2;
+    process.stdout.write(JSON.stringify(payload) + '\n');
     process.exit(0);
   }
   const open = rm.pairs.filter((p) => p.status !== 'done');
   const lines = [
-    rm.budget ? 'maintenance budget: on' : 'maintenance budget: off',
+    rm.budget
+      ? 'maintenance budget: on'
+      : (rm.advisory ? `maintenance budget: advisory (threshold ${rm.advisory.maintenance_threshold})` : 'maintenance budget: off'),
     `next: ${n ? (n.action ? `${n.action} ${n.ref || n.capability}` : n.ref) : 'none (wave 1 complete)'}`,
     `done: ${rm.pairs.length - open.length} of ${rm.pairs.length}`,
     `planned/active: ${open.map((p) => `${p.capability} (${p.status})`).join(', ') || 'none'}`,
@@ -245,8 +427,65 @@ function cmdShow(a, loaded) {
   process.exit(0);
 }
 
+// D8 — `waiting`: a read-only query over the SAME waitingMaintenance() the
+// advisory `next` branch uses, so the two can never disagree about W. Needs
+// no roadmap (works in every posture, and with none at all); writes nothing.
+// recommended_threshold is "five more than are waiting today", so advisory
+// does not fire on the very first call over an existing backlog.
+// NB-1 (validation round 3): a reason string built from a path (or a ledger
+// note) can itself carry a newline/CR/line-or-paragraph-separator/other
+// control character — a directory literally named with one, or a malformed
+// line quoted verbatim. Printed raw, that splits ONE reason across multiple
+// physical stderr lines, and a tail crafted to look like
+// "ride-select: degraded: ..." reads as a SECOND, forged entry (D7/AC-19's
+// "one ... stderr line per reason" contract). Escape control chars for the
+// STDERR line only — the `degraded` json array keeps the raw reason, which
+// JSON.stringify already escapes correctly on its own.
+// The two reserved separator code points are built from plain decimal
+// numbers (String.fromCharCode) rather than spelled out as a hex escape
+// token in this source — a hex-style token naming them has, before now,
+// been silently turned into the literal character by the editing/generation
+// pipeline (the docs-model-nul-escape class of self-inflicted corruption).
+const LINE_PARA_SEPARATORS = String.fromCharCode(8232) + String.fromCharCode(8233);
+const CONTROL_CHAR_RE = new RegExp('[' + '\\x00-\\x1f\\x7f' + LINE_PARA_SEPARATORS + ']', 'g');
+function escapeControlChars(s) {
+  const named = { 9: '\\t', 10: '\\n', 13: '\\r' };
+  return String(s).replace(CONTROL_CHAR_RE, (ch) => {
+    const code = ch.codePointAt(0);
+    if (named[code] !== undefined) return named[code];
+    return code <= 0xff ? ('\\x' + code.toString(16).padStart(2, '0')) : ('\\u' + code.toString(16).padStart(4, '0'));
+  });
+}
+function reportDegraded(degraded) {
+  for (const reason of degraded) process.stderr.write(`ride-select: degraded: ${escapeControlChars(reason)}\n`);
+}
+function cmdWaiting(a) {
+  const degraded = [];
+  const w = waitingMaintenance(a.docs, a.ledger, degraded);
+  if (w.unreadable) usage(`ledger not readable: ${a.ledger} (${w.unreadable.code}: ${w.unreadable.message})`);
+  reportDegraded(degraded);
+  const p1 = w.followUps.filter((f) => f.severity === 'P1').length;
+  const p2 = w.followUps.filter((f) => f.severity === 'P2').length;
+  const issue = w.intakes.filter((i) => i.type === 'issue').length;
+  const techdebt = w.intakes.filter((i) => i.type === 'techdebt').length;
+  const recommended_threshold = Math.max(5, w.count + 5);
+  if (a.json) {
+    // D-DEGRADE: `degraded` is appended at the END of the key order so an
+    // existing consumer reading a key PREFIX of this object sees nothing
+    // new; the key SET gains exactly one key (`degraded`, NB-3: this used to
+    // say "byte-identical key SET", which is wrong — adding the key is the
+    // whole point), empty array on a clean input — disclosed as a contract
+    // amendment, SPEC-0208.
+    process.stdout.write(`${JSON.stringify({ count: w.count, follow_ups: { P1: p1, P2: p2 }, intakes: { issue, techdebt }, recommended_threshold, degraded })}\n`);
+  } else {
+    process.stdout.write(`waiting maintenance: ${w.count} (follow-ups P1 ${p1}, P2 ${p2}; intakes issue ${issue}, techdebt ${techdebt}) — recommended threshold ${recommended_threshold}\n`);
+  }
+  process.exit(0);
+}
+
 function main() {
   const a = parseArgs(process.argv.slice(2));
+  if (a.cmd === 'waiting') cmdWaiting(a);
   const loaded = loadRoadmap(a.roadmap);
   if (a.cmd === 'show') cmdShow(a, loaded);
 
@@ -310,35 +549,74 @@ function main() {
     // D5: an exhausted roadmap (no unfinished pair) offers the harvest
     // instead of only naming wave_2 — still exit 0, never a prompt or write.
     const harvestCommand = 'node .aai/scripts/roadmap-propose.mjs harvest --direction "<one sentence of owner direction>"';
-    if (!n) {
-      process.stdout.write(a.json
-        ? JSON.stringify({ next: null, wave_1: 'complete', wave_2: rm.wave_2, harvest_command: harvestCommand }) + '\n'
-        : `wave 1 complete — wave 2 candidates: ${rm.wave_2.join(', ') || 'none'} — harvest a new slate: ${harvestCommand}\n`);
-      process.exit(0);
-    }
     // D4: a started capability with an unbound maintenance slot proposes the
-    // bind instead of ever printing a null/empty ref.
-    if (n.action === 'bind') {
+    // bind instead of ever printing a null/empty ref. Checked first: `bind`
+    // only ever comes from nextRide (the 1:1-budget posture), never from
+    // nextNoBudget (off/advisory), so it is unrelated to the advisory branch
+    // below and never appears inside offJson.
+    if (n && n.action === 'bind') {
       process.stdout.write(a.json
         ? JSON.stringify({ action: 'bind', capability: n.capability, command: n.command }) + '\n'
         : `${n.capability}: maintenance slot unbound — ${n.command}\n`);
       process.exit(0);
     }
-    // NB-6 (round 2): a bound maintenance ref with no document yet (e.g.
-    // bound from an open follow-up id) — stop short of proposing it; name
-    // the blocker instead of a ref `gate` will only refuse.
-    // NB-1 (round 3): the twin gap on the capability half — a wave_2 or
-    // friction candidate `write` just promoted has no document either.
-    if (n.action === 'file-intake') {
-      const humanText = n.half === 'capability'
-        ? `${n.ref}: this pair's capability has no document yet — file its intake before this pair can be ridden\n`
-        : `${n.ref}: bound as the maintenance half of ${n.capability} but no document resolves for it yet — file its intake before this pair's maintenance half can be ridden\n`;
-      process.stdout.write(a.json
-        ? JSON.stringify({ action: 'file-intake', ref: n.ref, capability: n.capability, half: n.half }) + '\n'
-        : humanText);
-      process.exit(0);
+    // The exact object/line the OFF posture (and, structurally, the advisory
+    // posture when neither trigger fires — D5) prints for these same inputs.
+    // Shared by (a) the plain print path below and (b) the advisory
+    // proposal's `alternative` field, so the two can never drift (D6).
+    const offJson = !n
+      ? { next: null, wave_1: 'complete', wave_2: rm.wave_2, harvest_command: harvestCommand }
+      : (n.action === 'file-intake'
+          ? { action: 'file-intake', ref: n.ref, capability: n.capability, half: n.half }
+          : { next: n.ref, half: n.half, pair: n.pair, path: n.path });
+    const offText = !n
+      ? `wave 1 complete — wave 2 candidates: ${rm.wave_2.join(', ') || 'none'} — harvest a new slate: ${harvestCommand}`
+      : (n.action === 'file-intake'
+          ? (n.half === 'capability'
+              ? `${n.ref}: this pair's capability has no document yet — file its intake before this pair can be ridden`
+              : `${n.ref}: bound as the maintenance half of ${n.capability} but no document resolves for it yet — file its intake before this pair's maintenance half can be ridden`)
+          : n.ref);
+
+    if (rm.posture === 'advisory') {
+      const degraded = [];
+      const w = waitingMaintenance(a.docs, a.ledger, degraded);
+      if (w.unreadable) {
+        process.stderr.write(`ride-select: advisory not evaluated — ${w.unreadable.code}: ${w.unreadable.message} (${a.ledger})\n`);
+      } else {
+        const closed = lastClosedCapability(rm, a.events, degraded);
+        // The counting/resolution above must never degrade silently
+        // (bot findings on PR #431): report every excluded reason on stderr
+        // whether or not a trigger below ends up firing.
+        reportDegraded(degraded);
+        const { reason, related } = adviseMaintenance(rm, w, closed);
+        if (reason) {
+          const proposal = {
+            action: 'propose_maintenance',
+            reason,
+            capability: closed ? closed.capability : null,
+            capability_source: closed ? closed.source : null,
+            waiting: { count: w.count, threshold: rm.advisory.maintenance_threshold },
+            candidates: buildCandidates(reason, related, w),
+            alternative: offJson,
+            // D-DEGRADE: appended at the END of D6's key order (disclosed,
+            // SPEC-0208 contract amendment) so an existing consumer reading
+            // a key prefix is unaffected; empty on a clean input.
+            degraded,
+          };
+          if (a.json) { process.stdout.write(`${JSON.stringify(proposal)}\n`); process.exit(0); }
+          // Non-json text form (D6's three lines) lands with Spec-AC-07
+          // (TEST-1625) — not yet exercised by Spec-AC-04/05/06, which only
+          // assert the --json path when a trigger fires.
+          const ids = proposal.candidates.map((c) => c.id).join(', ');
+          process.stdout.write(`maintenance proposed (${reason}): ${ids}\nwaiting: ${w.count} of threshold ${rm.advisory.maintenance_threshold}; most recently closed capability: ${closed ? closed.capability : 'none'}\nor continue with: ${offText}\n`);
+          process.exit(0);
+        }
+      }
     }
-    process.stdout.write(a.json ? JSON.stringify({ next: n.ref, half: n.half, pair: n.pair, path: n.path }) + '\n' : `${n.ref}\n`);
+
+    // off posture, OR advisory with no trigger (or an unreadable --ledger,
+    // D7), OR on posture past the `bind` check above — same print path.
+    process.stdout.write(a.json ? `${JSON.stringify(offJson)}\n` : `${offText}\n`);
     process.exit(0);
   }
 

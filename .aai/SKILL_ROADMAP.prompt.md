@@ -29,12 +29,18 @@ ACTIONS (command = what runs underneath; <slug> = a kebab-case work-item ref)
 6. drop — `node .aai/scripts/roadmap-edit.mjs drop --ref <slug>`; menu
    default: keep. The last remaining pair cannot be dropped: use `off`.
 7. budget on — `node .aai/scripts/roadmap-edit.mjs budget on`; budget off —
-   `node .aai/scripts/roadmap-edit.mjs budget off`. Say it in one line: off =
-   the roadmap only orders work; on = every capability needs one paired
-   maintenance ride (1:1) and the gate refuses out-of-order rides.
-   Recommended default: leave the budget as it is. With no roadmap, `budget
-   on` has nothing to switch: offer "add a first capability" (action 2) as the
-   recommended option, then `budget on`; never surface a bare REFUSED.
+   `node .aai/scripts/roadmap-edit.mjs budget off`; budget advisory — run
+   `node .aai/scripts/ride-select.mjs waiting --json` first and offer its
+   `recommended_threshold` as the default, then
+   `node .aai/scripts/roadmap-edit.mjs budget advisory --threshold <n>`. Say it
+   in one line: off = the roadmap only orders work; on = every capability
+   needs one paired maintenance ride (1:1) and the gate refuses out-of-order
+   rides; advisory = `next` proposes a maintenance ride once waiting work
+   reaches the threshold or relates to the capability just closed, and the
+   gate never refuses for it. Recommended default: leave the budget as it is.
+   With no roadmap, `budget on`/`budget advisory` have nothing to switch:
+   offer "add a first capability" (action 2) as the recommended option, then
+   the budget pick; never surface a bare REFUSED.
 8. off — `node .aai/scripts/roadmap-edit.mjs off --confirm` removes the
    roadmap; the ride gate then admits everything again. Menu default: keep
    the roadmap.

@@ -43,7 +43,7 @@ pairs:
   - capability: configurable-merge-policy-lanes
     status: done
   - capability: roadmap-maintenance-budget-advisory
-    status: planned
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

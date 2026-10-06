@@ -13,9 +13,15 @@ INPUT
   a `next` with a `path` is ridden as if that path had been passed; a
   `file-intake` is ridden as the need, topic = the `ref` slug's words, and
   step 1 files that intake with frontmatter `id: <ref>` (the roadmap slug
-  wins over the topic-derived slug of DURABLE DOC IDENTITY); any other
-  answer (non-zero exit, `next: null`, `bind`) is printed verbatim, then ask
-  for the need and stop.
+  wins over the topic-derived slug of DURABLE DOC IDENTITY); a
+  `propose_maintenance` answer offers ONE menu, two options, asking nothing
+  else: (1, recommended) ride its first `candidates` entry — an `intake`
+  candidate by its `path`, a `follow_up` candidate as the need with topic =
+  its `finding`; (2) continue with `alternative`, handled exactly as if
+  `next --json` had answered it directly (a `next` with a `path` is
+  ridden as that path; a `file-intake` is ridden as the need, per the
+  rules above); any other answer (non-zero exit, `next: null`, `bind`)
+  is printed verbatim, then ask for the need and stop.
 - Unattended (opt-in, never default): the caller passes `unattended=true`
   plus `--intake <path to an existing document>`. Unattended NEVER accepts a
   free-text need — it never authors an intake document (D5); a free-text need

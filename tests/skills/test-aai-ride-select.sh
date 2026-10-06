@@ -73,6 +73,11 @@ write_doc() { # $1=slug $2=type $3=status [$4=extra frontmatter line]
 run() { node "$ENGINE" "$@" > "$TEST_DIR/out" 2> "$TEST_DIR/err"; echo $?; }
 out() { cat "$TEST_DIR/out"; }
 err() { cat "$TEST_DIR/err"; }
+sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
+# dirhash <dir> — a stable hash of a whole directory tree's file CONTENTS
+# (path-sorted), so a `waiting` call that is supposed to be read-only can be
+# proven not to have touched anything under it (Spec-AC-08).
+dirhash() { find "$1" -type f 2>/dev/null | LC_ALL=C sort | xargs -- shasum -a 256 2>/dev/null | shasum -a 256 | cut -d' ' -f1; }
 
 # --- roadmap-propose.mjs harvest fixtures (Spec-AC-06..11) -------------------
 # Every harvest test gets its OWN docs dir (pNNNdocs), roadmap path, ledger
@@ -2105,6 +2110,1141 @@ test_1310_write_seed_has_no_budget() {
   log_pass "write seeds a budget-free roadmap that validates and never proposes bind (TEST-1310)"
 }
 
+# --- Advisory maintenance budget (SPEC roadmap-maintenance-budget-advisory,
+# TEST-1600..1644) — D1/D2: a third posture, a two-line block (mode +
+# maintenance_threshold) parsed by the SAME loadRoadmap. This file covers
+# Spec-AC-01/02 only (TEST-1600..1605); later ACs land in later TDD runs.
+
+test_1600_validate_accepts_advisory_block() {
+  log_info "Test: an advisory budget block validates exit 0 in either line order, threshold 1 and 12 (TEST-1600)..."
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$TEST_DIR/t1600-mode-first.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1600-mode-first.yaml")" = "0" ] || log_fail "TEST-1600: mode-first advisory block must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 1 pair(s), 0 wave-2 item(s)" ] || log_fail "TEST-1600: mode-first summary wrong: $(out)"
+  printf 'budget:\n  maintenance_threshold: 5\n  mode: advisory\npairs:\n  - capability: cap-a\n    status: planned\n' > "$TEST_DIR/t1600-threshold-first.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1600-threshold-first.yaml")" = "0" ] || log_fail "TEST-1600: threshold-first advisory block must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 1 pair(s), 0 wave-2 item(s)" ] || log_fail "TEST-1600: threshold-first summary wrong: $(out)"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-a\n    status: planned\n  - capability: cap-b\n    status: planned\nwave_2:\n  - later-thing\n' > "$TEST_DIR/t1600-threshold-1.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1600-threshold-1.yaml")" = "0" ] || log_fail "TEST-1600: threshold 1 must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 2 pair(s), 1 wave-2 item(s)" ] || log_fail "TEST-1600: threshold 1 summary wrong: $(out)"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 12\npairs:\n  - capability: cap-a\n    status: planned\n' > "$TEST_DIR/t1600-threshold-12.yaml"
+  [ "$(run validate --roadmap "$TEST_DIR/t1600-threshold-12.yaml")" = "0" ] || log_fail "TEST-1600: threshold 12 must validate: $(err)"
+  [ "$(out)" = "roadmap OK: 1 pair(s), 0 wave-2 item(s)" ] || log_fail "TEST-1600: threshold 12 summary wrong: $(out)"
+  log_pass "advisory block validates in either line order with threshold 1 and 12 (TEST-1600)"
+}
+
+test_1601_threshold_shapes_refuse() {
+  log_info "Test: every invalid maintenance_threshold shape exits 2 naming it, file unchanged (TEST-1601)..."
+  local f="$TEST_DIR/t1601.yaml" before after
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 0\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold 0 must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: threshold 0 refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: threshold 0 must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: -3\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold -3 must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: threshold -3 refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: threshold -3 must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1.5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold 1.5 must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: threshold 1.5 refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: threshold 1.5 must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 05\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: leading-zero threshold must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: leading-zero refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: leading-zero must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: "5"\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: double-quoted threshold must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: double-quoted refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: double-quoted must leave the file unchanged"
+  printf "budget:\n  mode: advisory\n  maintenance_threshold: '5'\npairs:\n  - capability: cap-a\n    status: planned\n" > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: single-quoted threshold must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: single-quoted refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: single-quoted must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold:\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: empty threshold value must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: empty-value refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: empty value must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 5 # inline comment\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: inline-comment threshold must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: inline-comment refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: inline comment must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold line missing must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: missing-line refusal must name maintenance_threshold: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: missing line must leave the file unchanged"
+  # NB1 (validation round 1): a shape-valid digit string above
+  # Number.MAX_SAFE_INTEGER must be refused, never silently rounded by
+  # Number(bthr) (9007199254740993 reads back as ...992).
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 9007199254740993\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1601: threshold above MAX_SAFE_INTEGER must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold' "$TEST_DIR/err" || log_fail "TEST-1601: above-MAX_SAFE_INTEGER refusal must name maintenance_threshold: $(err)"
+  grep -q '9007199254740993' "$TEST_DIR/err" || log_fail "TEST-1601: above-MAX_SAFE_INTEGER refusal must quote the exact over-cap digit string, not a rounded one: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1601: above-MAX_SAFE_INTEGER must leave the file unchanged"
+  # The cap itself (Number.MAX_SAFE_INTEGER, 9007199254740991) must still validate.
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 9007199254740991\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  [ "$(run validate --roadmap "$f")" = "0" ] || log_fail "TEST-1601: threshold AT MAX_SAFE_INTEGER must validate: $(out) $(err)"
+  log_pass "every invalid maintenance_threshold shape exits 2 naming it, file unchanged (TEST-1601)"
+}
+
+test_1602_mode_shapes_refuse() {
+  log_info "Test: every invalid budget.mode shape exits 2 naming it, file unchanged (TEST-1602)..."
+  local f="$TEST_DIR/t1602.yaml" before after
+  printf 'budget:\n  mode: on\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: mode on must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: mode-on refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: mode on must leave the file unchanged"
+  printf 'budget:\n  mode: off\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: mode off must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: mode-off refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: mode off must leave the file unchanged"
+  printf 'budget:\n  mode: Advisory\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: mode Advisory must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: mode-Advisory refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: mode Advisory must leave the file unchanged"
+  printf 'budget:\n  mode: "advisory"\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: quoted mode must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: quoted-mode refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: quoted mode must leave the file unchanged"
+  printf 'budget:\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1602: threshold without any mode line must exit 2: $(out) $(err)"
+  grep -q 'budget.mode' "$TEST_DIR/err" || log_fail "TEST-1602: mode-missing refusal must name budget.mode: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1602: mode-missing must leave the file unchanged"
+  log_pass "every invalid budget.mode shape exits 2 naming it, file unchanged (TEST-1602)"
+}
+
+test_1603_mode_and_threshold_duplicates_refuse() {
+  log_info "Test: mode or maintenance_threshold appearing twice exits 2 naming appears twice (TEST-1603)..."
+  local f="$TEST_DIR/t1603.yaml" before after
+  printf 'budget:\n  mode: advisory\n  mode: advisory\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1603: mode twice (same value) must exit 2: $(out) $(err)"
+  grep -q 'budget.mode appears twice' "$TEST_DIR/err" || log_fail "TEST-1603: mode-twice refusal must say appears twice: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1603: mode twice must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  mode: on\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1603: mode twice (different values) must exit 2: $(out) $(err)"
+  grep -q 'budget.mode appears twice' "$TEST_DIR/err" || log_fail "TEST-1603: mode-twice-different refusal must say appears twice: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1603: mode twice (different) must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 5\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1603: threshold twice (same value) must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold appears twice' "$TEST_DIR/err" || log_fail "TEST-1603: threshold-twice refusal must say appears twice: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1603: threshold twice must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 5\n  maintenance_threshold: 7\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1603: threshold twice (different values) must exit 2: $(out) $(err)"
+  grep -q 'maintenance_threshold appears twice' "$TEST_DIR/err" || log_fail "TEST-1603: threshold-twice-different refusal must say appears twice: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1603: threshold twice (different) must leave the file unchanged"
+  log_pass "duplicated budget.mode and budget.maintenance_threshold exit 2 naming appears twice (TEST-1603)"
+}
+
+test_1604_combined_and_unknown_key_refuse() {
+  log_info "Test: mode/threshold combined with maintenance_per_capability, and an unknown budget key, both exit 2 (TEST-1604)..."
+  local f="$TEST_DIR/t1604.yaml" before after
+  printf 'budget:\n  maintenance_per_capability: 1\n  mode: advisory\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1604: mode+threshold combined with maintenance_per_capability must exit 2: $(out) $(err)"
+  grep -q 'cannot be combined' "$TEST_DIR/err" || log_fail "TEST-1604: combined refusal must say cannot be combined: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1604: combined (mode+threshold) must leave the file unchanged"
+  printf 'budget:\n  maintenance_per_capability: 1\n  maintenance_threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1604: threshold alone combined with maintenance_per_capability must exit 2: $(out) $(err)"
+  grep -q 'cannot be combined' "$TEST_DIR/err" || log_fail "TEST-1604: combined (threshold alone) refusal must say cannot be combined: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1604: combined (threshold alone) must leave the file unchanged"
+  printf 'budget:\n  mode: advisory\n  threshold: 5\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1604: an unknown key inside budget must exit 2: $(out) $(err)"
+  grep -q 'does not fit the closed roadmap shape' "$TEST_DIR/err" || log_fail "TEST-1604: unknown-key refusal must be the closed-shape message: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1604: unknown key must leave the file unchanged"
+  log_pass "combined forms and an unknown budget key both exit 2 (TEST-1604)"
+}
+
+test_1605_empty_block_and_regression() {
+  log_info "Test: an empty budget block keeps today's exact message; TEST-1301/TEST-1302 selectors stay green (TEST-1605)..."
+  local f="$TEST_DIR/t1605.yaml" before after
+  printf 'budget:\npairs:\n  - capability: cap-a\n    status: planned\n' > "$f"
+  before="$(sha "$f")"
+  [ "$(run validate --roadmap "$f")" = "2" ] || log_fail "TEST-1605: an empty budget block must exit 2: $(out) $(err)"
+  [ "$(err)" = "ride-select: invalid roadmap $f: budget: block present but maintenance_per_capability is missing" ] \
+    || log_fail "TEST-1605: the empty-block message must stay byte-identical, got: $(err)"
+  after="$(sha "$f")"; [ "$before" = "$after" ] || log_fail "TEST-1605: empty block must leave the file unchanged"
+  test_1301_validate_accepts_no_budget
+  test_1302_budget_block_stays_strict
+  log_pass "empty budget block message unchanged; TEST-1301/TEST-1302 still pass (TEST-1605)"
+}
+
+# --- Advisory next/gate (Spec-AC-03..06, TEST-1606..1620) --------------------
+# D2/D9: gate under advisory is structurally the off gate (rm.budget stays
+# null); D3..D6: next proposes maintenance under a threshold or a related
+# trigger. Every fixture passes its OWN --ledger/--events/--docs; none reads
+# the live repository.
+
+# write_1606_roadmap <path> <budget-lines|''> — SAME 3-pair body every time,
+# so the only difference between the advisory/off/on runs is the budget block.
+write_1606_roadmap() {
+  {
+    [ -n "${2:-}" ] && printf '%b' "$2"
+    printf 'pairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: active\n  - capability: cap-c\n    status: planned\n'
+  } > "$1"
+}
+gate_at_ev() { # $1=roadmap $2=docs $3=ref $4=eventsPath [extra args]
+  local r="$1" docs="$2" ref="$3" ev="$4"; shift 4
+  run gate --ref "$ref" --roadmap "$r" --docs "$docs" --events "$ev" "$@"
+}
+
+test_1606_gate_advisory_equals_off() {
+  log_info "Test: gate on an advisory roadmap equals gate on the same roadmap without a budget, byte for byte, over a 7-case ref matrix (TEST-1606)..."
+  local d="$TEST_DIR/t1606"; mkdir -p "$d/docs"
+  # cap-a's own DOCUMENT is still implementing although its PAIR is already
+  # marked done (a hand-run close that never flipped the pair) — this is the
+  # "ref in a done pair" case, distinct from "done ref" (chg-done) below.
+  propose_write_doc "$d/docs" cap-a change implementing
+  propose_write_doc "$d/docs" cap-b change implementing
+  propose_write_doc "$d/docs" cap-c change draft
+  propose_write_doc "$d/docs" iss-off issue draft
+  propose_write_doc "$d/docs" chg-off change draft
+  propose_write_doc "$d/docs" chg-done change done
+
+  local adv="$d/roadmap-advisory.yaml" off="$d/roadmap-off.yaml" on="$d/roadmap-on.yaml"
+  write_1606_roadmap "$adv" 'budget:\n  mode: advisory\n  maintenance_threshold: 50\n'
+  write_1606_roadmap "$off" ''
+  write_1606_roadmap "$on" 'budget:\n  maintenance_per_capability: 1\n'
+
+  local refs="cap-a cap-c chg-done ghost-ref iss-off chg-off" r
+  for r in $refs; do
+    rm -f "$d/ev-adv.jsonl" "$d/ev-off.jsonl"
+    local eadv oadv sadv eoff ooff soff evadv evoff
+    eadv="$(gate_at_ev "$adv" "$d/docs" "$r" "$d/ev-adv.jsonl")"; oadv="$(out)"; sadv="$(err)"
+    evadv=""; [ -f "$d/ev-adv.jsonl" ] && evadv="$(cat "$d/ev-adv.jsonl")"
+    eoff="$(gate_at_ev "$off" "$d/docs" "$r" "$d/ev-off.jsonl")"; ooff="$(out)"; soff="$(err)"
+    evoff=""; [ -f "$d/ev-off.jsonl" ] && evoff="$(cat "$d/ev-off.jsonl")"
+    [ "$eadv" = "$eoff" ] || log_fail "TEST-1606: exit code differs for $r: advisory=$eadv off=$eoff"
+    [ "$oadv" = "$ooff" ] || log_fail "TEST-1606: stdout differs for $r: advisory=[$oadv] off=[$ooff]"
+    [ "$sadv" = "$soff" ] || log_fail "TEST-1606: stderr differs for $r: advisory=[$sadv] off=[$soff]"
+    [ "$evadv" = "$evoff" ] || log_fail "TEST-1606: EVENTS bytes differ for $r"
+  done
+
+  # 7th case: the out-of-order ref cap-c with --override — admitted directly
+  # in both postures (off/advisory never rank), so --override is never
+  # consulted and no EVENTS line is written in either.
+  rm -f "$d/ev-adv.jsonl" "$d/ev-off.jsonl"
+  local eadv oadv eoff ooff
+  eadv="$(gate_at_ev "$adv" "$d/docs" cap-c "$d/ev-adv.jsonl" --override "owner wants it now")"; oadv="$(out)"
+  eoff="$(gate_at_ev "$off" "$d/docs" cap-c "$d/ev-off.jsonl" --override "owner wants it now")"; ooff="$(out)"
+  [ "$eadv" = "0" ] || log_fail "TEST-1606: advisory must ADMIT cap-c with --override: $(err)"
+  [ "$eoff" = "0" ] || log_fail "TEST-1606: off must ADMIT cap-c with --override: $(err)"
+  [ "$oadv" = "$ooff" ] || log_fail "TEST-1606: stdout differs for cap-c --override: [$oadv] vs [$ooff]"
+  [ ! -f "$d/ev-adv.jsonl" ] || log_fail "TEST-1606: an admit must write no EVENTS line (advisory, --override)"
+  [ ! -f "$d/ev-off.jsonl" ] || log_fail "TEST-1606: an admit must write no EVENTS line (off, --override)"
+
+  # positive control: the SAME out-of-order ref IS refused under the 1:1 budget
+  [ "$(run gate --ref cap-c --roadmap "$on" --docs "$d/docs" --events "$d/ev-on.jsonl")" = "1" ] \
+    || log_fail "TEST-1606: control — the 1:1-budget roadmap must refuse the out-of-order ref cap-c"
+  grep -q 'pair ahead' "$TEST_DIR/err" || log_fail "TEST-1606: control refusal must say pair ahead: $(err)"
+  log_pass "gate on advisory equals gate on off byte for byte over the ref matrix; on-budget control still refuses out-of-order (TEST-1606)"
+}
+
+# adv_roadmap <path> <threshold> — one capability-only pair, documented, so
+# `next`'s off-equivalent answer is a plain ref (never file-intake/bind).
+adv_roadmap() {
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: %s\npairs:\n  - capability: zz-cap\n    status: planned\n' "$2" > "$1"
+}
+fu_add() { # $1=ledger $2=id $3=ref $4=severity
+  [ -f "$1" ] || : > "$1"   # add requires an existing (even empty) ledger file
+  node "$FOLLOWUPS" add --ledger "$1" --id "$2" --ref "$3" --severity "$4" \
+    --what "t" --why "t" --source "t" > "$TEST_DIR/fuout" 2> "$TEST_DIR/fuerr" \
+    || log_fail "fu_add($2) failed: $(cat "$TEST_DIR/fuerr")"
+}
+fu_close() { # $1=ledger $2=id [$3=status]
+  node "$FOLLOWUPS" close --ledger "$1" --id "$2" --resolved-by x --status "${3:-done}" > "$TEST_DIR/fuout" 2> "$TEST_DIR/fuerr" \
+    || log_fail "fu_close($2) failed: $(cat "$TEST_DIR/fuerr")"
+}
+events_closes() { # $1=path $2=ts $3=ref — append one work_item_closed record
+  printf '{"v":1,"ts":"%s","actor":"fixture","event":"work_item_closed","ref":"%s","payload":{}}\n' "$2" "$3" >> "$1"
+}
+next_at() { # $1=roadmap $2=docs $3=ledger $4=events [extra args, e.g. --json]
+  local r="$1" docs="$2" ledger="$3" ev="$4"; shift 4
+  run next --roadmap "$r" --docs "$docs" --ledger "$ledger" --events "$ev" "$@"
+}
+
+test_1607_threshold_fires_at_count() {
+  log_info "Test: waiting maintenance AT the threshold fires reason threshold (TEST-1607)..."
+  local d="$TEST_DIR/t1607"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  adv_roadmap "$roadmap" 4
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1607-a cap-other P2
+  fu_add "$ledger" fu-t1607-b cap-other P2
+  propose_write_doc "$docs" iss-t1607 issue draft
+  propose_write_doc "$docs" td-t1607 techdebt draft
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1607: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1607: must propose maintenance, got: $(out)"
+  grep -qF '"reason":"threshold"' "$TEST_DIR/out" || log_fail "TEST-1607: reason must be threshold, got: $(out)"
+  grep -qF '"waiting":{"count":4,"threshold":4}' "$TEST_DIR/out" || log_fail "TEST-1607: waiting must be count 4 of threshold 4, got: $(out)"
+  log_pass "waiting maintenance at the threshold fires reason threshold (TEST-1607)"
+}
+
+test_1608_one_below_threshold_equals_off() {
+  log_info "Test: waiting maintenance one below the threshold prints exactly the off answer, json and text, no stderr (TEST-1608)..."
+  local d="$TEST_DIR/t1608"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" off="$d/roadmap-off.yaml"
+  adv_roadmap "$roadmap" 5
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$off"
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1608-a cap-other P2
+  fu_add "$ledger" fu-t1608-b cap-other P2
+  propose_write_doc "$docs" iss-t1608 issue draft
+  propose_write_doc "$docs" td-t1608 techdebt draft
+  local flag
+  for flag in --json x; do
+    local ej oj sj eo oo so
+    if [ "$flag" = "--json" ]; then
+      ej="$(next_at "$roadmap" "$docs" "$ledger" "$d/ev1.jsonl" --json)"; oj="$(out)"; sj="$(err)"
+      eo="$(run next --roadmap "$off" --docs "$docs" --json)"; oo="$(out)"; so="$(err)"
+    else
+      ej="$(next_at "$roadmap" "$docs" "$ledger" "$d/ev2.jsonl")"; oj="$(out)"; sj="$(err)"
+      eo="$(run next --roadmap "$off" --docs "$docs")"; oo="$(out)"; so="$(err)"
+    fi
+    [ "$ej" = "$eo" ] || log_fail "TEST-1608: exit differs (flag=$flag): adv=$ej off=$eo"
+    [ "$oj" = "$oo" ] || log_fail "TEST-1608: stdout differs (flag=$flag): [$oj] vs [$oo]"
+    [ -z "$sj" ] || log_fail "TEST-1608: advisory stderr must be empty (flag=$flag): $sj"
+    [ -z "$so" ] || log_fail "TEST-1608: off stderr must be empty (flag=$flag): $so"
+  done
+  log_pass "waiting maintenance one below the threshold equals the off answer, json and text, no stderr (TEST-1608)"
+}
+
+test_1609_p3_never_counts() {
+  log_info "Test: open P3 follow-ups never count toward waiting maintenance (TEST-1609)..."
+  local d="$TEST_DIR/t1609"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" off="$d/roadmap-off.yaml"
+  adv_roadmap "$roadmap" 5
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$off"
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1609-a cap-other P2
+  fu_add "$ledger" fu-t1609-b cap-other P2
+  propose_write_doc "$docs" iss-t1609 issue draft
+  propose_write_doc "$docs" td-t1609 techdebt draft
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do fu_add "$ledger" "fu-t1609-p3-$i" cap-other P3; done
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1609: next must exit 0: $(err)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1609: off next must exit 0"
+  local off_out; off_out="$(out)"
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events2.jsonl" --json)" = "0" ] || log_fail "TEST-1609: next (rerun) must exit 0"
+  [ "$(out)" = "$off_out" ] || log_fail "TEST-1609: ten open P3 follow-ups must never push waiting to the threshold, got: $(out)"
+  # sanity check on fixture counts: exactly 0 P1 and 2 P2 are open (never the ten P3)
+  node "$FOLLOWUPS" list --ledger "$ledger" --status open --json > "$TEST_DIR/fuout" 2> "$TEST_DIR/fuerr" \
+    || log_fail "TEST-1609: follow-ups list failed: $(cat "$TEST_DIR/fuerr")"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const p1 = j.items.filter((i) => i.severity === "P1").length;
+    const p2 = j.items.filter((i) => i.severity === "P2").length;
+    if (p1 !== 0 || p2 !== 2) { console.error("p1=" + p1 + " p2=" + p2); process.exit(1); }
+  ' "$TEST_DIR/fuout" || log_fail "TEST-1609: fixture sanity check failed (expected P1 0, P2 2)"
+  log_pass "open P3 follow-ups never count toward waiting maintenance (TEST-1609)"
+}
+
+test_1610_closed_followups_never_count() {
+  log_info "Test: closed/dropped P1/P2 follow-ups never count; reopening one makes it fire (TEST-1610)..."
+  local d="$TEST_DIR/t1610"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  adv_roadmap "$roadmap" 5
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1610-a cap-other P2
+  fu_add "$ledger" fu-t1610-b cap-other P2
+  propose_write_doc "$docs" iss-t1610 issue draft
+  propose_write_doc "$docs" td-t1610 techdebt draft
+  fu_add "$ledger" fu-t1610-c cap-other P2
+  fu_add "$ledger" fu-t1610-d cap-other P2
+  fu_add "$ledger" fu-t1610-e cap-other P1
+  fu_close "$ledger" fu-t1610-c done
+  fu_close "$ledger" fu-t1610-d done
+  fu_close "$ledger" fu-t1610-e dropped
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1610: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" && log_fail "TEST-1610: closed/dropped items must not push waiting to the threshold: $(out)"
+  # positive control: reopening one makes it count again, reaching the threshold
+  node "$FOLLOWUPS" reopen --ledger "$ledger" --id fu-t1610-c --reason "still open" > /dev/null 2>&1 \
+    || log_fail "TEST-1610: reopen failed"
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events2.jsonl" --json)" = "0" ] || log_fail "TEST-1610: next (reopened) must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1610: reopening fu-t1610-c must make the threshold fire, got: $(out)"
+  log_pass "closed/dropped follow-ups never count; reopening one restores the count (TEST-1610)"
+}
+
+test_1611_terminal_intakes_never_count() {
+  log_info "Test: terminal-status issue/techdebt intakes never count; an implementing one does (TEST-1611)..."
+  local d="$TEST_DIR/t1611"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  adv_roadmap "$roadmap" 5
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1611-a cap-other P2
+  fu_add "$ledger" fu-t1611-b cap-other P2
+  propose_write_doc "$docs" iss-t1611 issue draft
+  propose_write_doc "$docs" td-t1611 techdebt draft
+  propose_write_doc "$docs" done-t1611 issue done
+  propose_write_doc "$docs" deferred-t1611 issue deferred
+  propose_write_doc "$docs" rejected-t1611 techdebt rejected
+  propose_write_doc "$docs" superseded-t1611 issue superseded
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1611: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" && log_fail "TEST-1611: terminal-status intakes must not push waiting to the threshold: $(out)"
+  propose_write_doc "$docs" impl-t1611 issue implementing
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events2.jsonl" --json)" = "0" ] || log_fail "TEST-1611: next (plus implementing) must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1611: an implementing issue intake must make the threshold fire, got: $(out)"
+  log_pass "terminal-status intakes never count; a non-terminal one makes the threshold fire (TEST-1611)"
+}
+
+test_1612_change_intakes_never_count() {
+  log_info "Test: draft change-type intakes never count toward waiting maintenance (TEST-1612)..."
+  local d="$TEST_DIR/t1612"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  # threshold 4: if the three change-type docs below counted too, W would be
+  # 7 and this would still fire (uninformative); at 4 it fires ONLY if they
+  # are excluded, so the exact waiting count proves the exclusion.
+  adv_roadmap "$roadmap" 4
+  propose_write_doc "$docs" zz-cap change draft
+  fu_add "$ledger" fu-t1612-a cap-other P2
+  fu_add "$ledger" fu-t1612-b cap-other P2
+  propose_write_doc "$docs" iss-t1612 issue draft
+  propose_write_doc "$docs" td-t1612 techdebt draft
+  propose_write_doc "$docs" chg1-t1612 change draft
+  propose_write_doc "$docs" chg2-t1612 change draft
+  propose_write_doc "$docs" chg3-t1612 change draft
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1612: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1612: with the three change docs excluded, waiting must reach the threshold, got: $(out)"
+  grep -qF '"waiting":{"count":4,"threshold":4}' "$TEST_DIR/out" || log_fail "TEST-1612: waiting must be count 4 of threshold 4 (change docs excluded), got: $(out)"
+  grep -qF 'chg1-t1612' "$TEST_DIR/out" && log_fail "TEST-1612: a change-type intake must never appear as a candidate: $(out)"
+  log_pass "draft change-type intakes never count toward waiting maintenance (TEST-1612)"
+}
+
+test_1613_related_fires() {
+  log_info "Test: an open P1/P2 follow-up referencing the most recently closed capability fires reason related (TEST-1613)..."
+  local d="$TEST_DIR/t1613"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-b change draft
+  events_closes "$events" "2026-10-01T00:00:00Z" cap-a
+  fu_add "$ledger" fu-t1613-rel cap-a P2
+  fu_add "$ledger" fu-t1613-unrel cap-zzz P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1613: next must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1613: reason must be related, got: $(out)"
+  grep -qF '"capability":"cap-a"' "$TEST_DIR/out" || log_fail "TEST-1613: capability must be cap-a, got: $(out)"
+  grep -qF '"capability_source":"events"' "$TEST_DIR/out" || log_fail "TEST-1613: capability_source must be events, got: $(out)"
+  grep -qF '"candidates":[{"kind":"follow_up","id":"fu-t1613-rel"' "$TEST_DIR/out" \
+    || log_fail "TEST-1613: candidates must be exactly the cap-a follow-up, got: $(out)"
+  grep -qF 'fu-t1613-unrel' "$TEST_DIR/out" && log_fail "TEST-1613: the unrelated follow-up must not appear in candidates: $(out)"
+  log_pass "a related open follow-up fires reason related with capability and source (TEST-1613)"
+}
+
+test_1614_related_negations_equal_off() {
+  log_info "Test: every related negation prints exactly the off answer (threshold not reached) (TEST-1614)..."
+  local d="$TEST_DIR/t1614"; mkdir -p "$d"
+  local roadmap="$d/roadmap.yaml" off="$d/roadmap-off.yaml" docs="$d/docs" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: planned\n' > "$roadmap"
+  printf 'pairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: planned\n' > "$off"
+  propose_write_doc "$docs" cap-b change draft
+  events_closes "$events" "2026-10-01T00:00:00Z" cap-a
+  events_closes "$events" "2026-09-01T00:00:00Z" cap-z
+
+  # case 1: no follow-up at all for cap-a
+  local ledger1="$d/ledger1.jsonl"
+  fu_add "$ledger1" fu-t1614-other cap-zzz P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger1" "$events" --json)" = "0" ] || log_fail "TEST-1614: case1 next must exit 0: $(err)"
+  local adv1; adv1="$(out)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1614: case1 off must exit 0"
+  [ "$adv1" = "$(out)" ] || log_fail "TEST-1614: case1 (no related follow-up) must equal off, got: $adv1 vs $(out)"
+
+  # case 2: only a P3 references cap-a
+  local ledger2="$d/ledger2.jsonl"
+  fu_add "$ledger2" fu-t1614-p3 cap-a P3
+  [ "$(next_at "$roadmap" "$docs" "$ledger2" "$events" --json)" = "0" ] || log_fail "TEST-1614: case2 next must exit 0: $(err)"
+  local adv2; adv2="$(out)"
+  [ "$adv2" = "$(run next --roadmap "$off" --docs "$docs" --json >/dev/null; out)" ] \
+    || log_fail "TEST-1614: case2 (only a P3 references cap-a) must equal off, got: $adv2"
+
+  # case 3: the cap-a reference is closed (done)
+  local ledger3="$d/ledger3.jsonl"
+  fu_add "$ledger3" fu-t1614-closed cap-a P2
+  fu_close "$ledger3" fu-t1614-closed done
+  [ "$(next_at "$roadmap" "$docs" "$ledger3" "$events" --json)" = "0" ] || log_fail "TEST-1614: case3 next must exit 0: $(err)"
+  local adv3; adv3="$(out)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1614: case3 off must exit 0"
+  [ "$adv3" = "$(out)" ] || log_fail "TEST-1614: case3 (cap-a reference closed) must equal off, got: $adv3 vs $(out)"
+
+  # case 4: the follow-up references an OLDER closed capability (cap-z), not the most recent (cap-a)
+  local ledger4="$d/ledger4.jsonl"
+  fu_add "$ledger4" fu-t1614-old cap-z P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger4" "$events" --json)" = "0" ] || log_fail "TEST-1614: case4 next must exit 0: $(err)"
+  local adv4; adv4="$(out)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1614: case4 off must exit 0"
+  [ "$adv4" = "$(out)" ] || log_fail "TEST-1614: case4 (follow-up references an older closed capability) must equal off, got: $adv4 vs $(out)"
+  log_pass "every related negation (none, P3-only, closed, older-capability) equals the off answer (TEST-1614)"
+}
+
+test_1615_related_wins_over_threshold() {
+  log_info "Test: when both triggers fire the reason is related (TEST-1615)..."
+  local d="$TEST_DIR/t1615"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-b change draft
+  events_closes "$events" "2026-10-01T00:00:00Z" cap-a
+  fu_add "$ledger" fu-t1615-rel cap-a P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1615: next must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1615: reason must be related even though threshold also fires, got: $(out)"
+  grep -qF '"candidates":[{"kind":"follow_up","id":"fu-t1615-rel"' "$TEST_DIR/out" \
+    || log_fail "TEST-1615: candidates must be only the related follow-up, not every counted item, got: $(out)"
+  log_pass "when both triggers fire the reason is related, with only related candidates (TEST-1615)"
+}
+
+test_1616_latest_event_wins() {
+  log_info "Test: the capability with the LATEST work_item_closed ts wins, not the earliest (TEST-1616)..."
+  local d="$TEST_DIR/t1616"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: done\n  - capability: cap-c\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-c change draft
+  events_closes "$events" "2026-10-01T10:00:00Z" cap-b
+  events_closes "$events" "2026-10-01T11:00:00Z" cap-a
+  fu_add "$ledger" fu-t1616-b cap-b P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1616: next (ref to cap-b) must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" && log_fail "TEST-1616: cap-b is not the latest closed capability, related must not fire: $(out)"
+  local ledger2="$d/ledger2.jsonl"
+  fu_add "$ledger2" fu-t1616-a cap-a P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger2" "$events" --json)" = "0" ] || log_fail "TEST-1616: next (ref to cap-a) must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1616: cap-a (latest closed, 11:00) must fire related, got: $(out)"
+  grep -qF '"capability":"cap-a"' "$TEST_DIR/out" || log_fail "TEST-1616: capability must be cap-a, got: $(out)"
+  log_pass "the capability with the latest work_item_closed ts wins (TEST-1616)"
+}
+
+test_1617_tie_goes_to_later_pair() {
+  log_info "Test: a timestamp tie goes to the pair listed later in the roadmap (TEST-1617)..."
+  local d="$TEST_DIR/t1617"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: done\n  - capability: cap-c\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-c change draft
+  events_closes "$events" "2026-10-01T10:00:00Z" cap-a
+  events_closes "$events" "2026-10-01T10:00:00Z" cap-b
+  fu_add "$ledger" fu-t1617-b cap-b P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1617: next must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1617: a same-ts tie must resolve to cap-b (listed later), got: $(out)"
+  grep -qF '"capability":"cap-b"' "$TEST_DIR/out" || log_fail "TEST-1617: capability must be cap-b (listed later), got: $(out)"
+  log_pass "a timestamp tie resolves to the pair listed later in the roadmap (TEST-1617)"
+}
+
+test_1618_roadmap_order_fallback() {
+  log_info "Test: with no matching event, C falls back to the last done pair in roadmap order (TEST-1618)..."
+  local d="$TEST_DIR/t1618"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: done\n  - capability: cap-c\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-c change draft
+  fu_add "$ledger" fu-t1618-b cap-b P2
+  # absent EVENTS path
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/no-such-events.jsonl" --json)" = "0" ] || log_fail "TEST-1618: next (absent events) must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1618: absent EVENTS must still resolve C via roadmap order (cap-b), got: $(out)"
+  grep -qF '"capability":"cap-b"' "$TEST_DIR/out" || log_fail "TEST-1618: capability must be cap-b, got: $(out)"
+  grep -qF '"capability_source":"roadmap_order"' "$TEST_DIR/out" || log_fail "TEST-1618: capability_source must be roadmap_order, got: $(out)"
+  # EVENTS present but its only close refs are spec-cap-a (prefixed, never matches) and an off-roadmap ref
+  local events2="$d/events2.jsonl"
+  events_closes "$events2" "2026-10-01T00:00:00Z" spec-cap-a
+  events_closes "$events2" "2026-10-01T00:00:00Z" off-roadmap-ref
+  local ledger2="$d/ledger2.jsonl"
+  fu_add "$ledger2" fu-t1618-b2 cap-b P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger2" "$events2" --json)" = "0" ] || log_fail "TEST-1618: next (non-matching events) must exit 0: $(err)"
+  grep -qF '"capability":"cap-b"' "$TEST_DIR/out" || log_fail "TEST-1618: a spec-prefixed ref must never match; C must still be cap-b, got: $(out)"
+  grep -qF '"capability_source":"roadmap_order"' "$TEST_DIR/out" || log_fail "TEST-1618: capability_source must stay roadmap_order, got: $(out)"
+  log_pass "with no matching event C falls back to the last done pair in roadmap order (TEST-1618)"
+}
+
+test_1619_events_beats_roadmap_order() {
+  log_info "Test: an EVENTS close record wins over an undone-by-event-but-done pair earlier in the roadmap (TEST-1619)..."
+  local d="$TEST_DIR/t1619"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: done\n  - capability: cap-b\n    status: done\n  - capability: cap-c\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$docs" cap-c change draft
+  # cap-a (listed first) has an EVENTS close; cap-b (listed second, done without an event) does not
+  events_closes "$events" "2026-10-01T00:00:00Z" cap-a
+  fu_add "$ledger" fu-t1619-a cap-a P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1619: next must exit 0: $(err)"
+  grep -qF '"reason":"related"' "$TEST_DIR/out" || log_fail "TEST-1619: related must fire for cap-a: $(out)"
+  grep -qF '"capability":"cap-a"' "$TEST_DIR/out" || log_fail "TEST-1619: capability must be cap-a (the one WITH an EVENTS close), got: $(out)"
+  grep -qF '"capability_source":"events"' "$TEST_DIR/out" || log_fail "TEST-1619: capability_source must be events, got: $(out)"
+  log_pass "an EVENTS close record wins over a later-in-roadmap done pair with no event (TEST-1619)"
+}
+
+test_1620_no_done_pair_no_events_related_cannot_fire() {
+  log_info "Test: with no done pair and no EVENTS, related cannot fire even when a follow-up references the planned last capability (TEST-1620)..."
+  local d="$TEST_DIR/t1620"; mkdir -p "$d"
+  local ledger="$d/ledger.jsonl" docs="$d/docs" roadmap="$d/roadmap.yaml" off="$d/roadmap-off.yaml"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-a\n    status: planned\n  - capability: cap-b\n    status: planned\n' > "$roadmap"
+  printf 'pairs:\n  - capability: cap-a\n    status: planned\n  - capability: cap-b\n    status: planned\n' > "$off"
+  fu_add "$ledger" fu-t1620-b cap-b P2
+  [ "$(next_at "$roadmap" "$docs" "$ledger" "$d/no-such-events.jsonl" --json)" = "0" ] || log_fail "TEST-1620: next must exit 0: $(err)"
+  local adv; adv="$(out)"
+  [ "$(run next --roadmap "$off" --docs "$docs" --json)" = "0" ] || log_fail "TEST-1620: off next must exit 0"
+  [ "$adv" = "$(out)" ] || log_fail "TEST-1620: with no done pair and no events, related cannot fire; must equal off, got: $adv vs $(out)"
+  log_pass "with no done pair and no EVENTS, related cannot fire; equals off (TEST-1620)"
+}
+
+# --- Proposal shape, waiting, show, degrade (Spec-AC-07..09, TEST-1621..1630) -
+# D6's exact key order and the shared off helper (so `alternative` cannot
+# drift), D6's severity/cap candidate ordering, D7's degrade, D8's read-only
+# `waiting` query and D9's `show` advisory line/key.
+
+test_1621_proposal_shape_and_alternative() {
+  log_info "Test: the proposal carries D6's exact key order and alternative deep-equals the off next --json for all three alternative kinds (TEST-1621)..."
+  local d="$TEST_DIR/t1621"; mkdir -p "$d"
+
+  # case A: next-with-path (a documented, not-yet-started capability-only pair)
+  local da="$d/a" ledgerA="$d/a-ledger.jsonl"
+  mkdir -p "$da/docs"
+  adv_roadmap "$da/roadmap.yaml" 2
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$da/off.yaml"
+  propose_write_doc "$da/docs" zz-cap change draft
+  fu_add "$ledgerA" fu-t1621a-1 cap-other P2
+  fu_add "$ledgerA" fu-t1621a-2 cap-other P2
+  [ "$(next_at "$da/roadmap.yaml" "$da/docs" "$ledgerA" "$da/events.jsonl" --json)" = "0" ] || log_fail "TEST-1621 case a: next must exit 0: $(err)"
+  cp "$TEST_DIR/out" "$da/adv.json"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const expected = ["action","reason","capability","capability_source","waiting","candidates","alternative","degraded"];
+    if (JSON.stringify(Object.keys(j)) !== JSON.stringify(expected)) { console.error("keys=" + JSON.stringify(Object.keys(j))); process.exit(1); }
+  ' "$da/adv.json" || log_fail "TEST-1621 case a: proposal key order must be D6's exact order"
+  [ "$(run next --roadmap "$da/off.yaml" --docs "$da/docs" --json)" = "0" ] || log_fail "TEST-1621 case a: off next must exit 0"
+  cp "$TEST_DIR/out" "$da/off.json"
+  node -e '
+    const adv = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const off = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
+    if (JSON.stringify(adv.alternative) !== JSON.stringify(off)) { console.error("alt=" + JSON.stringify(adv.alternative) + " off=" + JSON.stringify(off)); process.exit(1); }
+  ' "$da/adv.json" "$da/off.json" || log_fail "TEST-1621 case a: alternative must deep-equal the off next --json object (next-with-path)"
+
+  # case B: file-intake (same shape, but the capability has no document yet)
+  local db="$d/b" ledgerB="$d/b-ledger.jsonl"
+  mkdir -p "$db/docs"
+  adv_roadmap "$db/roadmap.yaml" 2
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$db/off.yaml"
+  fu_add "$ledgerB" fu-t1621b-1 cap-other P2
+  fu_add "$ledgerB" fu-t1621b-2 cap-other P2
+  [ "$(next_at "$db/roadmap.yaml" "$db/docs" "$ledgerB" "$db/events.jsonl" --json)" = "0" ] || log_fail "TEST-1621 case b: next must exit 0: $(err)"
+  cp "$TEST_DIR/out" "$db/adv.json"
+  [ "$(run next --roadmap "$db/off.yaml" --docs "$db/docs" --json)" = "0" ] || log_fail "TEST-1621 case b: off next must exit 0"
+  cp "$TEST_DIR/out" "$db/off.json"
+  node -e '
+    const adv = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const off = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
+    if (adv.alternative.action !== "file-intake") { console.error("not file-intake: " + JSON.stringify(adv.alternative)); process.exit(1); }
+    if (JSON.stringify(adv.alternative) !== JSON.stringify(off)) { console.error("alt=" + JSON.stringify(adv.alternative) + " off=" + JSON.stringify(off)); process.exit(1); }
+  ' "$db/adv.json" "$db/off.json" || log_fail "TEST-1621 case b: alternative must deep-equal the off next --json object (file-intake)"
+
+  # case C: all-done (wave_1 complete)
+  local dc="$d/c" ledgerC="$d/c-ledger.jsonl"
+  mkdir -p "$dc/docs"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 2\npairs:\n  - capability: cap-a\n    status: done\nwave_2:\n  - later-thing\n' > "$dc/roadmap.yaml"
+  printf 'pairs:\n  - capability: cap-a\n    status: done\nwave_2:\n  - later-thing\n' > "$dc/off.yaml"
+  fu_add "$ledgerC" fu-t1621c-1 cap-other P2
+  fu_add "$ledgerC" fu-t1621c-2 cap-other P2
+  [ "$(next_at "$dc/roadmap.yaml" "$dc/docs" "$ledgerC" "$dc/events.jsonl" --json)" = "0" ] || log_fail "TEST-1621 case c: next must exit 0: $(err)"
+  cp "$TEST_DIR/out" "$dc/adv.json"
+  [ "$(run next --roadmap "$dc/off.yaml" --docs "$dc/docs" --json)" = "0" ] || log_fail "TEST-1621 case c: off next must exit 0"
+  cp "$TEST_DIR/out" "$dc/off.json"
+  node -e '
+    const adv = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const off = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
+    if (adv.alternative.wave_1 !== "complete") { console.error("not wave_1 complete: " + JSON.stringify(adv.alternative)); process.exit(1); }
+    if (JSON.stringify(adv.alternative) !== JSON.stringify(off)) { console.error("alt=" + JSON.stringify(adv.alternative) + " off=" + JSON.stringify(off)); process.exit(1); }
+  ' "$dc/adv.json" "$dc/off.json" || log_fail "TEST-1621 case c: alternative must deep-equal the off next --json object (wave_1 complete)"
+
+  log_pass "proposal keys match D6 order and alternative equals off for all three kinds (TEST-1621)"
+}
+
+test_1622_advisory_never_binds() {
+  log_info "Test: advisory next never prints action bind, firing or not; the on variant of the same fixture does (positive control) (TEST-1622)..."
+  local d="$TEST_DIR/t1622"; mkdir -p "$d/docs"
+  local ledger="$d/ledger.jsonl" roadmap_adv="$d/adv.yaml" roadmap_on="$d/on.yaml"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 2\npairs:\n  - capability: zz-cap\n    status: planned\n' > "$roadmap_adv"
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: zz-cap\n    status: planned\n' > "$roadmap_on"
+  propose_write_doc "$d/docs" zz-cap change implementing
+
+  # trigger NOT firing (no counted items)
+  [ "$(next_at "$roadmap_adv" "$d/docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1622: advisory (not firing) next must exit 0: $(err)"
+  grep -qF '"action":"bind"' "$TEST_DIR/out" && log_fail "TEST-1622: advisory (not firing) must never print action bind: $(out)"
+
+  # trigger firing
+  fu_add "$ledger" fu-t1622-a cap-other P2
+  fu_add "$ledger" fu-t1622-b cap-other P2
+  [ "$(next_at "$roadmap_adv" "$d/docs" "$ledger" "$d/events2.jsonl" --json)" = "0" ] || log_fail "TEST-1622: advisory (firing) next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1622: advisory must fire for this fixture, got: $(out)"
+  grep -qF '"action":"bind"' "$TEST_DIR/out" && log_fail "TEST-1622: advisory (firing) must never print action bind: $(out)"
+
+  # positive control: the SAME fixture under the on (1:1) posture DOES print bind
+  [ "$(run next --roadmap "$roadmap_on" --docs "$d/docs" --json)" = "0" ] || log_fail "TEST-1622: on-variant next must exit 0: $(err)"
+  grep -qF '"action":"bind"' "$TEST_DIR/out" || log_fail "TEST-1622: on-variant must print action bind as a positive control, got: $(out)"
+  log_pass "advisory never prints action bind, firing or not; the on variant does (TEST-1622)"
+}
+
+test_1623_candidate_order_by_severity() {
+  log_info "Test: candidates rank P1 before P2 (fold order within each), then intakes by id, cap 5 (TEST-1623)..."
+  local d="$TEST_DIR/t1623"; mkdir -p "$d"
+
+  # case 1: 1 P1 + 4 P2 + 2 intakes at threshold 3 -> exactly 5 candidates, P1 first then P2 oldest-first
+  local d1="$d/1"
+  local ledger1="$d1/ledger.jsonl" docs1="$d1/docs"
+  mkdir -p "$docs1"
+  adv_roadmap "$d1/roadmap.yaml" 3
+  propose_write_doc "$docs1" zz-cap change draft
+  fu_add "$ledger1" fu-t1623-p1 cap-other P1
+  fu_add "$ledger1" fu-t1623-p2a cap-other P2
+  fu_add "$ledger1" fu-t1623-p2b cap-other P2
+  fu_add "$ledger1" fu-t1623-p2c cap-other P2
+  fu_add "$ledger1" fu-t1623-p2d cap-other P2
+  propose_write_doc "$docs1" iss-t1623-1 issue draft
+  propose_write_doc "$docs1" td-t1623-1 techdebt draft
+  [ "$(next_at "$d1/roadmap.yaml" "$docs1" "$ledger1" "$d1/events.jsonl" --json)" = "0" ] || log_fail "TEST-1623: case1 next must exit 0: $(err)"
+  local ids1; ids1="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(j.candidates.map((c) => c.id).join(","));
+  ' "$TEST_DIR/out")"
+  [ "$ids1" = "fu-t1623-p1,fu-t1623-p2a,fu-t1623-p2b,fu-t1623-p2c,fu-t1623-p2d" ] \
+    || log_fail "TEST-1623: case1 candidate order/cap wrong, got: $ids1"
+
+  # case 2: 1 P1 + 1 P2 + 2 intakes at threshold 3 -> all 4, order P1, P2, intakes by id
+  local d2="$d/2"
+  local ledger2="$d2/ledger.jsonl" docs2="$d2/docs"
+  mkdir -p "$docs2"
+  adv_roadmap "$d2/roadmap.yaml" 3
+  propose_write_doc "$docs2" zz-cap change draft
+  fu_add "$ledger2" fu-t1623b-p1 cap-other P1
+  fu_add "$ledger2" fu-t1623b-p2 cap-other P2
+  propose_write_doc "$docs2" zz-t1623b-issue issue draft
+  propose_write_doc "$docs2" aa-t1623b-techdebt techdebt draft
+  [ "$(next_at "$d2/roadmap.yaml" "$docs2" "$ledger2" "$d2/events.jsonl" --json)" = "0" ] || log_fail "TEST-1623: case2 next must exit 0: $(err)"
+  local ids2; ids2="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(j.candidates.map((c) => c.id).join(","));
+  ' "$TEST_DIR/out")"
+  [ "$ids2" = "fu-t1623b-p1,fu-t1623b-p2,aa-t1623b-techdebt,zz-t1623b-issue" ] \
+    || log_fail "TEST-1623: case2 order (P1, P2, intakes by id) wrong, got: $ids2"
+  log_pass "candidates rank P1 before P2 and intakes by id, capped at 5 (TEST-1623)"
+}
+
+test_1624_candidate_cap_five() {
+  log_info "Test: candidates are capped at 5 even when more items are waiting (TEST-1624)..."
+  local d="$TEST_DIR/t1624"; mkdir -p "$d/docs"
+  local ledger="$d/ledger.jsonl" roadmap="$d/roadmap.yaml"
+  adv_roadmap "$roadmap" 3
+  propose_write_doc "$d/docs" zz-cap change draft
+  local i
+  for i in 1 2 3 4 5 6; do fu_add "$ledger" "fu-t1624-$i" cap-other P2; done
+  propose_write_doc "$d/docs" iss-t1624 issue draft
+  propose_write_doc "$d/docs" td-t1624 techdebt draft
+  [ "$(next_at "$roadmap" "$d/docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1624: next must exit 0: $(err)"
+  grep -qF '"waiting":{"count":8,"threshold":3}' "$TEST_DIR/out" || log_fail "TEST-1624: waiting must be count 8 of threshold 3, got: $(out)"
+  local n; n="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(String(j.candidates.length));
+  ' "$TEST_DIR/out")"
+  [ "$n" = "5" ] || log_fail "TEST-1624: candidates must be capped at exactly 5, got: $n ($(out))"
+  log_pass "candidates are capped at exactly 5 regardless of how many are waiting (TEST-1624)"
+}
+
+test_1625_text_form_three_lines() {
+  log_info "Test: next without --json on a firing fixture prints exactly D6's three lines (TEST-1625)..."
+  local d="$TEST_DIR/t1625"; mkdir -p "$d/docs"
+  local ledger="$d/ledger.jsonl" roadmap="$d/roadmap.yaml" off="$d/off.yaml"
+  adv_roadmap "$roadmap" 2
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$off"
+  propose_write_doc "$d/docs" zz-cap change draft
+  fu_add "$ledger" fu-t1625-a cap-other P2
+  fu_add "$ledger" fu-t1625-b cap-other P2
+  [ "$(next_at "$roadmap" "$d/docs" "$ledger" "$d/events.jsonl")" = "0" ] || log_fail "TEST-1625: next must exit 0: $(err)"
+  cp "$TEST_DIR/out" "$d/adv.txt"
+  local n_lines; n_lines="$(wc -l < "$d/adv.txt" | tr -d ' ')"
+  [ "$n_lines" = "3" ] || log_fail "TEST-1625: must print exactly three lines, got $n_lines: $(cat "$d/adv.txt")"
+  local line1 line2 line3
+  line1="$(sed -n '1p' "$d/adv.txt")"
+  line2="$(sed -n '2p' "$d/adv.txt")"
+  line3="$(sed -n '3p' "$d/adv.txt")"
+  case "$line1" in
+    'maintenance proposed (threshold): '*) : ;;
+    *) log_fail "TEST-1625: line 1 wrong: $line1" ;;
+  esac
+  case "$line2" in
+    'waiting: '*) : ;;
+    *) log_fail "TEST-1625: line 2 wrong: $line2" ;;
+  esac
+  case "$line3" in
+    'or continue with: '*) : ;;
+    *) log_fail "TEST-1625: line 3 wrong: $line3" ;;
+  esac
+  [ "$(run next --roadmap "$off" --docs "$d/docs")" = "0" ] || log_fail "TEST-1625: off (text) next must exit 0"
+  local off_text; off_text="$(out)"
+  local last_line; last_line="$line3"
+  [ "$last_line" = "or continue with: $off_text" ] || log_fail "TEST-1625: line 3 must end with the off text answer, got [$last_line] vs off=[$off_text]"
+  log_pass "the text form prints exactly D6's three lines, the third ending with the off answer (TEST-1625)"
+}
+
+test_1626_degrade_on_unreadable_ledger() {
+  log_info "Test: an unreadable --ledger degrades next to the off answer with a stderr note; an absent ledger still counts intakes (TEST-1626)..."
+  local d="$TEST_DIR/t1626"; mkdir -p "$d/docs"
+  local roadmap="$d/roadmap.yaml" off="$d/off.yaml" baddir="$d/ledger-is-a-dir"
+  mkdir -p "$baddir"
+  adv_roadmap "$roadmap" 3
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$off"
+  propose_write_doc "$d/docs" zz-cap change draft
+  [ "$(next_at "$roadmap" "$d/docs" "$baddir" "$d/events.jsonl")" = "0" ] || log_fail "TEST-1626: next with an unreadable ledger must still exit 0: $(err)"
+  local adv_out; adv_out="$(out)"
+  local adv_err; adv_err="$(err)"
+  [ "$(run next --roadmap "$off" --docs "$d/docs")" = "0" ] || log_fail "TEST-1626: off next must exit 0"
+  [ "$adv_out" = "$(out)" ] || log_fail "TEST-1626: stdout must equal the off answer, got: $adv_out vs $(out)"
+  case "$adv_err" in
+    "ride-select: advisory not evaluated — "*) : ;;
+    *) log_fail "TEST-1626: stderr must start 'ride-select: advisory not evaluated — ', got: $adv_err" ;;
+  esac
+
+  # absent ledger path + three draft issues at threshold 3: fires, counting intakes only
+  local d2="$d/absent"
+  local ledger2="$d2/no-such-ledger.jsonl"
+  mkdir -p "$d2/docs"
+  local roadmap2="$d2/roadmap.yaml"
+  adv_roadmap "$roadmap2" 3
+  propose_write_doc "$d2/docs" zz-cap change draft
+  propose_write_doc "$d2/docs" iss-t1626-1 issue draft
+  propose_write_doc "$d2/docs" iss-t1626-2 issue draft
+  propose_write_doc "$d2/docs" iss-t1626-3 issue draft
+  [ "$(next_at "$roadmap2" "$d2/docs" "$ledger2" "$d2/events.jsonl" --json)" = "0" ] || log_fail "TEST-1626: next (absent ledger) must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1626: an absent ledger must still count the three draft issue intakes and fire, got: $(out)"
+  [ -z "$(err)" ] || log_fail "TEST-1626: an absent ledger (ENOENT) must not degrade (no stderr), got: $(err)"
+  log_pass "an unreadable ledger degrades to the off answer; an absent one still counts intakes (TEST-1626)"
+}
+
+test_1627_on_off_unaffected_by_ledger_events() {
+  log_info "Test: on/off next ignores --ledger/--events entirely, even when they point at directories (TEST-1627)..."
+  local d="$TEST_DIR/t1627"; mkdir -p "$d/docs"
+  local baddir="$d/not-a-file"; mkdir -p "$baddir"
+  propose_write_doc "$d/docs" zz-cap change draft
+
+  local off="$d/off.yaml" on="$d/on.yaml"
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$off"
+  printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: zz-cap\n    status: planned\n' > "$on"
+
+  local r
+  for r in "$off" "$on"; do
+    [ "$(run next --roadmap "$r" --docs "$d/docs" --json)" = "0" ] || log_fail "TEST-1627: $r baseline next must exit 0: $(err)"
+    local base_out; base_out="$(out)"
+    local base_err; base_err="$(err)"
+    [ "$(run next --roadmap "$r" --docs "$d/docs" --ledger "$baddir" --events "$baddir" --json)" = "0" ] \
+      || log_fail "TEST-1627: $r next with directory --ledger/--events must still exit 0: $(err)"
+    [ "$base_out" = "$(out)" ] || log_fail "TEST-1627: $r stdout must be unaffected by --ledger/--events, got: $base_out vs $(out)"
+    [ "$base_err" = "$(err)" ] || log_fail "TEST-1627: $r stderr must be unaffected by --ledger/--events (both empty), got: [$base_err] vs [$(err)]"
+  done
+  log_pass "on/off next ignores --ledger/--events entirely (TEST-1627)"
+}
+
+test_1628_waiting_counts_and_recommended_threshold() {
+  log_info "Test: waiting --json reports D8's counts and recommended_threshold = max(5, W+5), read-only, with no roadmap present (TEST-1628)..."
+  local d="$TEST_DIR/t1628"; mkdir -p "$d/docs/issues"
+  local ledger="$d/ledger.jsonl"
+  fu_add "$ledger" fu-t1628-p1 cap-other P1
+  fu_add "$ledger" fu-t1628-p2a cap-other P2
+  fu_add "$ledger" fu-t1628-p2b cap-other P2
+  propose_write_doc "$d/docs" iss-t1628-1 issue draft
+  propose_write_doc "$d/docs" iss-t1628-2 issue draft
+  propose_write_doc "$d/docs" td-t1628-1 techdebt draft
+  local ledger_before; ledger_before="$(sha "$ledger")"
+  local docs_before; docs_before="$(dirhash "$d/docs")"
+  [ "$(run waiting --docs "$d/docs" --ledger "$ledger" --json)" = "0" ] || log_fail "TEST-1628: waiting must exit 0: $(err)"
+  grep -qF '"count":6' "$TEST_DIR/out" || log_fail "TEST-1628: count must be 6, got: $(out)"
+  grep -qF '"follow_ups":{"P1":1,"P2":2}' "$TEST_DIR/out" || log_fail "TEST-1628: follow_ups must be P1 1 P2 2, got: $(out)"
+  grep -qF '"intakes":{"issue":2,"techdebt":1}' "$TEST_DIR/out" || log_fail "TEST-1628: intakes must be issue 2 techdebt 1, got: $(out)"
+  grep -qF '"recommended_threshold":11' "$TEST_DIR/out" || log_fail "TEST-1628: recommended_threshold must be 11 (max(5, 6+5)), got: $(out)"
+  local ledger_after; ledger_after="$(sha "$ledger")"
+  local docs_after; docs_after="$(dirhash "$d/docs")"
+  [ "$ledger_before" = "$ledger_after" ] || log_fail "TEST-1628: waiting must never write the ledger"
+  [ "$docs_before" = "$docs_after" ] || log_fail "TEST-1628: waiting must never write the docs tree"
+
+  # floor: with zero waiting items recommended_threshold is still at least 5
+  local d2="$d/empty"; mkdir -p "$d2/docs"
+  local ledger2="$d2/ledger.jsonl"
+  : > "$ledger2"
+  [ "$(run waiting --docs "$d2/docs" --ledger "$ledger2" --json)" = "0" ] || log_fail "TEST-1628: waiting (empty) must exit 0: $(err)"
+  grep -qF '"count":0' "$TEST_DIR/out" || log_fail "TEST-1628: count must be 0 with nothing waiting, got: $(out)"
+  grep -qF '"recommended_threshold":5' "$TEST_DIR/out" || log_fail "TEST-1628: recommended_threshold must floor at 5, got: $(out)"
+  log_pass "waiting reports D8's counts, recommended_threshold, and never writes (TEST-1628)"
+}
+
+test_1629_waiting_unreadable_and_absent_ledger() {
+  log_info "Test: waiting exits 2 naming an unreadable ledger; an absent ledger exits 0 counting intakes only (TEST-1629)..."
+  local d="$TEST_DIR/t1629"; mkdir -p "$d/docs"
+  local baddir="$d/ledger-is-a-dir"; mkdir -p "$baddir"
+  [ "$(run waiting --docs "$d/docs" --ledger "$baddir" --json)" = "2" ] || log_fail "TEST-1629: waiting with a directory ledger must exit 2: $(out) $(err)"
+  grep -q "$baddir" "$TEST_DIR/err" || log_fail "TEST-1629: the exit-2 refusal must name the ledger path, got: $(err)"
+
+  propose_write_doc "$d/docs" iss-t1629-1 issue draft
+  propose_write_doc "$d/docs" iss-t1629-2 issue draft
+  [ "$(run waiting --docs "$d/docs" --ledger "$d/no-such-ledger.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-1629: waiting with an absent ledger must exit 0: $(err)"
+  grep -qF '"count":2' "$TEST_DIR/out" || log_fail "TEST-1629: an absent ledger must still count intakes, got: $(out)"
+  grep -qF '"follow_ups":{"P1":0,"P2":0}' "$TEST_DIR/out" || log_fail "TEST-1629: an absent ledger folds to zero follow-ups, got: $(out)"
+  log_pass "waiting exits 2 on an unreadable ledger; an absent ledger counts intakes only (TEST-1629)"
+}
+
+test_1630_show_advisory() {
+  log_info "Test: show prints the advisory line and json carries the advisory key; on/off show stays unchanged (TEST-1630)..."
+  local d="$TEST_DIR/t1630"; mkdir -p "$d/docs"
+  local roadmap="$d/roadmap.yaml"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 7\npairs:\n  - capability: cap-a\n    status: planned\n' > "$roadmap"
+  propose_write_doc "$d/docs" cap-a change draft
+  [ "$(run show --roadmap "$roadmap" --docs "$d/docs")" = "0" ] || log_fail "TEST-1630: show must exit 0: $(err)"
+  [ "$(sed -n '1p' "$TEST_DIR/out")" = "maintenance budget: advisory (threshold 7)" ] \
+    || log_fail "TEST-1630: show first line wrong, got: $(sed -n '1p' "$TEST_DIR/out")"
+  [ "$(run show --roadmap "$roadmap" --docs "$d/docs" --json)" = "0" ] || log_fail "TEST-1630: show --json must exit 0: $(err)"
+  grep -qF '"budget":false' "$TEST_DIR/out" || log_fail "TEST-1630: show --json must keep budget false, got: $(out)"
+  grep -qF '"advisory":{"maintenance_threshold":7}' "$TEST_DIR/out" || log_fail "TEST-1630: show --json must carry the advisory key, got: $(out)"
+  test_1309_show
+  log_pass "show prints the advisory posture line and json key; TEST-1309 still passes (TEST-1630)"
+}
+
+# --- TEST-1645 (Spec-AC-08, validation round 1 NB2): an issue/techdebt doc --
+# with no frontmatter `id` still counts toward W, and its candidate gets a
+# derived (non-empty) id instead of a hole in the shape.
+test_1645_intake_without_id_gets_derived_id() {
+  log_info "Test: an issue doc with no frontmatter id still counts and gets a derived candidate id, never an empty one (TEST-1645)..."
+  local d="$TEST_DIR/t1645"; mkdir -p "$d/docs/issues"
+  adv_roadmap "$d/roadmap.yaml" 1
+  propose_write_doc "$d/docs" zz-cap change draft
+  # No `id:` line at all — the exact shape NB2 named.
+  printf -- '---\nnumber: null\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n\n# no id\n' \
+    > "$d/docs/issues/ISSUE-DRAFT-t1645-no-id.md"
+  [ "$(next_at "$d/roadmap.yaml" "$d/docs" "$d/ledger.jsonl" "$d/events.jsonl" --json)" = "0" ] \
+    || log_fail "TEST-1645: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1645: must propose maintenance, got: $(out)"
+  local id; id="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(j.candidates.length ? (j.candidates[0].id ?? "__NULL__") : "__EMPTY__");
+  ' "$TEST_DIR/out")"
+  [ -n "$id" ] || log_fail "TEST-1645: candidate id must not be empty"
+  [ "$id" != "__NULL__" ] || log_fail "TEST-1645: candidate id must not be null/undefined: $(out)"
+  [ "$id" != "__EMPTY__" ] || log_fail "TEST-1645: must yield at least one candidate: $(out)"
+  [ "$id" = "ISSUE-DRAFT-t1645-no-id" ] \
+    || log_fail "TEST-1645: id-less doc must derive its id from the filename stem (docs-model convention), got: $id"
+  # The text form must not print a trailing/doubled comma around the hole
+  # the original report reproduced ("...: fu-x-one, fu-x-two, ").
+  [ "$(next_at "$d/roadmap.yaml" "$d/docs" "$d/ledger.jsonl" "$d/events2.jsonl")" = "0" ] \
+    || log_fail "TEST-1645: text-form next must exit 0: $(err)"
+  case "$(out)" in
+    *", "$'\n'*|*", "$) log_fail "TEST-1645: text form must not trail with an empty id after a comma: $(out)" ;;
+  esac
+  grep -qF 'ISSUE-DRAFT-t1645-no-id' "$TEST_DIR/out" || log_fail "TEST-1645: text form must name the derived id, got: $(out)"
+  log_pass "an id-less issue doc counts and gets a derived candidate id (TEST-1645)"
+}
+
+# --- TEST-1646..1649 (Spec-AC-19, D7 — bot findings on PR #431): advisory ----
+# counting/resolution must never degrade SILENTLY. A PARTIAL exclusion
+# (one bad ledger line, one bad intake entry, one bad events record) — as
+# opposed to D7's existing whole-file-unreadable `--ledger` case — is now
+# named on stderr (`ride-select: degraded: <reason>`) and, for `waiting
+# --json`/a firing `next --json` proposal, in a trailing `degraded` array.
+# Counts, triggers and exit codes are UNCHANGED (TEST-1649 is the control).
+
+test_1646_degrade_on_malformed_ledger_line() {
+  log_info "Test: a malformed decision-ledger line degrades waiting with a stderr line and a json degraded entry; the count stays exactly the valid follow-ups (TEST-1646)..."
+  local d="$TEST_DIR/t1646"; mkdir -p "$d/docs"
+  local ledger="$d/ledger.jsonl"
+  fu_add "$ledger" fu-t1646-p1 cap-other P1
+  fu_add "$ledger" fu-t1646-p2 cap-other P2
+  # A line clearly MEANT to record a P1 follow-up, corrupted (truncated —
+  # unparseable JSON, loadRegistry's own `malformed` count).
+  printf '{"v":1,"ts":"2026-10-06T00:00:00.000Z","event":"follow_up_opened","id":"fu-t1646-broken","severity":"P1"\n' >> "$ledger"
+  [ "$(run waiting --docs "$d/docs" --ledger "$ledger" --json)" = "0" ] || log_fail "TEST-1646: waiting must exit 0: $(err)"
+  grep -qF '"count":2' "$TEST_DIR/out" || log_fail "TEST-1646: the malformed line must not change the count (still 2 valid follow-ups), got: $(out)"
+  grep -qF 'ride-select: degraded:' "$TEST_DIR/err" || log_fail "TEST-1646: stderr must emit a degraded line, got: $(err)"
+  grep -qF 'malformed decision ledger line' "$TEST_DIR/err" || log_fail "TEST-1646: stderr must name the malformed ledger line, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (!Array.isArray(j.degraded) || j.degraded.length < 1) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+    if (!j.degraded.some((r) => r.includes("malformed decision ledger line"))) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1646: json degraded must name the malformed ledger line, got: $(out)"
+  log_pass "a malformed ledger line degrades waiting with a stderr line and a json degraded entry (TEST-1646)"
+}
+
+test_1647_degrade_on_unreadable_intake() {
+  log_info "Test: an unreadable intake entry (a directory named *.md, a chmod 000 file) degrades waiting with path+code stderr lines and json entries; only the readable intake counts (TEST-1647)..."
+  local d="$TEST_DIR/t1647"; mkdir -p "$d/docs/issues"
+  propose_write_doc "$d/docs" iss-t1647-ok issue draft
+  mkdir -p "$d/docs/issues/weird-t1647.md"   # a directory named with a .md suffix
+  local badfile="$d/docs/issues/ISSUE-DRAFT-t1647-noperm.md"
+  printf -- '---\nid: ISSUE-DRAFT-t1647-noperm\nnumber: null\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n\n# t\n' > "$badfile"
+  chmod 000 "$badfile"
+  trap "chmod 644 '$badfile' 2>/dev/null || true" RETURN
+  [ "$(run waiting --docs "$d/docs" --ledger "$d/ledger.jsonl" --json)" = "0" ] || log_fail "TEST-1647: waiting must exit 0: $(err)"
+  grep -qF '"count":1' "$TEST_DIR/out" || log_fail "TEST-1647: only the one readable intake must count, got: $(out)"
+  # Match on the basename, never the full $TEST_DIR path: mktemp built it
+  # from $TMPDIR, which on macOS carries a trailing slash, so the shell
+  # variable and the engine's own (path-module-normalized) error string
+  # can disagree on a doubled slash despite naming the identical file.
+  grep -qF 'weird-t1647.md: unreadable' "$TEST_DIR/err" || log_fail "TEST-1647: stderr must name the directory-named-.md path, got: $(err)"
+  grep -qF 'ISSUE-DRAFT-t1647-noperm.md: unreadable' "$TEST_DIR/err" || log_fail "TEST-1647: stderr must name the chmod 000 path, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const named = (s) => j.degraded.some((r) => r.includes(s));
+    if (!Array.isArray(j.degraded) || j.degraded.length < 2) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+    if (!named("weird-t1647.md") || !named("ISSUE-DRAFT-t1647-noperm.md")) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1647: json degraded must name both unreadable intake paths, got: $(out)"
+  log_pass "unreadable intake entries degrade waiting with path+code stderr lines and json entries (TEST-1647)"
+}
+
+test_1648_degrade_on_malformed_events_close_record() {
+  log_info "Test: a malformed JSON line and an invalid work_item_closed record in --events degrade next with stderr lines and a json degraded entry, the roadmap_order fallback staying correct (TEST-1648)..."
+  local d="$TEST_DIR/t1648"; mkdir -p "$d/docs"
+  local roadmap="$d/roadmap.yaml" ledger="$d/ledger.jsonl" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-t1648\n    status: done\n' > "$roadmap"
+  fu_add "$ledger" fu-t1648-p2 cap-other P2
+  printf 'not json at all\n' > "$events"
+  printf '{"v":1,"ts":"not-a-timestamp","actor":"fixture","event":"work_item_closed","ref":"cap-t1648","payload":{}}\n' >> "$events"
+  [ "$(next_at "$roadmap" "$d/docs" "$ledger" "$events" --json)" = "0" ] || log_fail "TEST-1648: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1648: threshold must fire, got: $(out)"
+  grep -qF '"capability":"cap-t1648"' "$TEST_DIR/out" || log_fail "TEST-1648: C must still fall back to roadmap order despite the excluded events, got: $(out)"
+  grep -qF '"capability_source":"roadmap_order"' "$TEST_DIR/out" || log_fail "TEST-1648: capability_source must be roadmap_order, got: $(out)"
+  grep -qF "$events: 1 malformed JSON line(s)" "$TEST_DIR/err" || log_fail "TEST-1648: stderr must name the malformed events line, got: $(err)"
+  grep -qF "$events: 1 invalid work_item_closed record(s)" "$TEST_DIR/err" || log_fail "TEST-1648: stderr must name the invalid close record, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const named = (s) => j.degraded.some((r) => r.includes(s));
+    if (!Array.isArray(j.degraded) || j.degraded.length !== 2) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+    if (!named("malformed JSON line") || !named("invalid work_item_closed record")) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1648: json degraded must name both excluded events reasons, got: $(out)"
+  log_pass "malformed/invalid EVENTS close records degrade next with stderr and json entries, fallback stays correct (TEST-1648)"
+}
+
+test_1649_degrade_clean_control() {
+  log_info "Test: clean ledger/docs/events report degraded: [] with no stderr, on both waiting and a firing next proposal (TEST-1649)..."
+  local d="$TEST_DIR/t1649"; mkdir -p "$d/docs"
+  local ledger="$d/ledger.jsonl"
+  fu_add "$ledger" fu-t1649-p2 cap-other P2
+  [ "$(run waiting --docs "$d/docs" --ledger "$ledger" --json)" = "0" ] || log_fail "TEST-1649: waiting must exit 0: $(err)"
+  grep -qF '"degraded":[]' "$TEST_DIR/out" || log_fail "TEST-1649: a clean ledger must report degraded: [], got: $(out)"
+  [ -z "$(err)" ] || log_fail "TEST-1649: a clean ledger must emit no stderr, got: $(err)"
+
+  local roadmap="$d/roadmap.yaml"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-t1649\n    status: done\n' > "$roadmap"
+  [ "$(next_at "$roadmap" "$d/docs" "$ledger" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-1649: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1649: threshold must fire on a clean fixture, got: $(out)"
+  [ -z "$(err)" ] || log_fail "TEST-1649: a clean fixture must emit no stderr, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const expected = ["action","reason","capability","capability_source","waiting","candidates","alternative","degraded"];
+    if (JSON.stringify(Object.keys(j)) !== JSON.stringify(expected)) { console.error("keys=" + JSON.stringify(Object.keys(j))); process.exit(1); }
+    if (!Array.isArray(j.degraded) || j.degraded.length !== 0) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1649: a clean proposal must keep D6's key order with an empty degraded array, got: $(out)"
+  log_pass "a clean ledger/docs/events report degraded: [] with no stderr (TEST-1649)"
+}
+
+# --- TEST-1650..1653 (Spec-AC-19, validation round 3 B-1/NB-1/NB-2): -------
+# the non-firing advisory `next` clause, control-char escaping, and the two
+# previously-untested unreadable-whole-source branches.
+
+test_1650_degrade_disclosed_on_nonfiring_next() {
+  log_info "Test: a NON-firing advisory next (threshold held above the visible W by an excluded input) still discloses the exclusion on stderr, while stdout equals the off answer byte-for-byte (TEST-1650, B-1)..."
+  local d="$TEST_DIR/t1650"; mkdir -p "$d/docs/issues"
+  local roadmap="$d/roadmap.yaml" offroadmap="$d/off-roadmap.yaml" ledger="$d/ledger.jsonl" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 9\npairs:\n  - capability: zz-cap\n    status: planned\n' > "$roadmap"
+  printf 'pairs:\n  - capability: zz-cap\n    status: planned\n' > "$offroadmap"
+  propose_write_doc "$d/docs" zz-cap change draft
+  fu_add "$ledger" fu-t1650-p2 cap-other P2
+  local badfile="$d/docs/issues/ISSUE-DRAFT-t1650-noperm.md"
+  printf -- '---\nid: ISSUE-DRAFT-t1650-noperm\nnumber: null\ntype: issue\nstatus: draft\nlinks:\n  pr: []\n---\n\n# t\n' > "$badfile"
+  chmod 000 "$badfile"
+  trap "chmod 644 '$badfile' 2>/dev/null || true" RETURN
+
+  [ "$(run next --roadmap "$offroadmap" --docs "$d/docs" --ledger "$ledger" --events "$events")" = "0" ] \
+    || log_fail "TEST-1650: off control must exit 0: $(err)"
+  local offstdout; offstdout="$(out)"
+  [ -z "$(err)" ] || log_fail "TEST-1650: the off control itself must emit no stderr: $(err)"
+
+  [ "$(next_at "$roadmap" "$d/docs" "$ledger" "$events")" = "0" ] || log_fail "TEST-1650: advisory next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" && log_fail "TEST-1650: this fixture must NOT fire (threshold held above W by the exclusion), got: $(out)"
+  [ "$(out)" = "$offstdout" ] || log_fail "TEST-1650: a non-firing advisory next's stdout must equal the off answer byte-for-byte; advisory=[$(out)] off=[$offstdout]"
+  grep -qF 'ride-select: degraded:' "$TEST_DIR/err" || log_fail "TEST-1650: a non-firing advisory next must still disclose the exclusion on stderr, got: $(err)"
+  grep -qF 'ISSUE-DRAFT-t1650-noperm.md: unreadable' "$TEST_DIR/err" || log_fail "TEST-1650: stderr must name the excluded path, got: $(err)"
+  log_pass "a non-firing advisory next discloses the excluded input on stderr while stdout stays byte-identical to off (TEST-1650)"
+}
+
+test_1651_degrade_reason_escapes_control_chars() {
+  log_info "Test: a control character (newline) embedded in a degraded path stays on exactly ONE physical stderr line, with no forged second 'ride-select: degraded:' line; the json degraded array keeps the raw, unescaped reason (TEST-1651, NB-1)..."
+  local d="$TEST_DIR/t1651"; mkdir -p "$d/docs/issues"
+  local nl=$'\n'
+  local evilname="evil${nl}ride-select: degraded: FAKE.md"
+  mkdir -p "$d/docs/issues/$evilname"
+  [ "$(run waiting --docs "$d/docs" --ledger "$d/ledger.jsonl" --json)" = "0" ] || log_fail "TEST-1651: waiting must exit 0: $(err)"
+  local nlines; nlines="$(wc -l < "$TEST_DIR/err" | tr -d ' ')"
+  [ "$nlines" = "1" ] || log_fail "TEST-1651: a newline-named path must still yield exactly one physical stderr line, got $nlines line(s): $(err)"
+  local nstarts; nstarts="$(grep -c '^ride-select: degraded:' "$TEST_DIR/err")"
+  [ "$nstarts" = "1" ] || log_fail "TEST-1651: must be exactly one degraded-prefixed line, no forged second one, got $nstarts: $(err)"
+  grep -qF 'FAKE.md: unreadable' "$TEST_DIR/err" || log_fail "TEST-1651: the one escaped line must still name the forged tail text, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const hit = j.degraded.find((r) => r.includes("FAKE.md"));
+    if (!hit) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+    if (!hit.includes("\n")) { console.error("the json reason must keep the RAW newline (JSON form unchanged), got: " + JSON.stringify(hit)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1651: json degraded form must be unchanged (raw reason, real newline), got: $(out)"
+  log_pass "a control character in a degraded path stays on one stderr line, forging nothing; the json form is unchanged (TEST-1651)"
+}
+
+test_1652_degrade_on_unreadable_issues_dir() {
+  log_info "Test: an unreadable <docs>/issues DIRECTORY (as opposed to one unreadable entry inside it) degrades waiting with a stderr line and a json degraded entry (TEST-1652, NB-2)..."
+  local d="$TEST_DIR/t1652"; mkdir -p "$d/docs/issues"
+  chmod 000 "$d/docs/issues"
+  trap "chmod 755 '$d/docs/issues' 2>/dev/null || true" RETURN
+  local rc; rc="$(run waiting --docs "$d/docs" --ledger "$d/ledger.jsonl" --json)"
+  # Restore BEFORE any assertion below can log_fail (which exits the whole
+  # script): an EXIT-trap `rm -rf "$TEST_DIR"` cannot list a still-chmod-000
+  # directory to remove it (unlike a chmod-000 FILE, where only the PARENT's
+  # permissions govern unlink), so a leftover 000 directory would survive.
+  chmod 755 "$d/docs/issues"
+  [ "$rc" = "0" ] || log_fail "TEST-1652: waiting must exit 0: $(err)"
+  grep -qF '"count":0' "$TEST_DIR/out" || log_fail "TEST-1652: an unreadable issues dir must fold to zero intakes, got: $(out)"
+  grep -qF 'ride-select: degraded:' "$TEST_DIR/err" || log_fail "TEST-1652: stderr must emit a degraded line, got: $(err)"
+  grep -qF 'issues: unreadable' "$TEST_DIR/err" || log_fail "TEST-1652: stderr must name the issues directory as unreadable, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (!Array.isArray(j.degraded) || !j.degraded.some((r) => r.includes("issues: unreadable"))) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1652: json degraded must name the unreadable issues directory, got: $(out)"
+  log_pass "an unreadable issues directory degrades waiting with a stderr line and a json degraded entry (TEST-1652)"
+}
+
+test_1653_degrade_on_unreadable_events_file() {
+  log_info "Test: an unreadable --events FILE (as opposed to a malformed/invalid record inside it) degrades a firing next with a stderr line and a json degraded entry, the roadmap_order fallback staying correct (TEST-1653, NB-2)..."
+  local d="$TEST_DIR/t1653"; mkdir -p "$d/docs"
+  local roadmap="$d/roadmap.yaml" ledger="$d/ledger.jsonl" events="$d/events.jsonl"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 1\npairs:\n  - capability: cap-t1653\n    status: done\n' > "$roadmap"
+  fu_add "$ledger" fu-t1653-p2 cap-other P2
+  printf 'junk' > "$events"
+  chmod 000 "$events"
+  trap "chmod 644 '$events' 2>/dev/null || true" RETURN
+  local rc; rc="$(next_at "$roadmap" "$d/docs" "$ledger" "$events" --json)"
+  chmod 644 "$events"
+  [ "$rc" = "0" ] || log_fail "TEST-1653: next must exit 0: $(err)"
+  grep -qF '"action":"propose_maintenance"' "$TEST_DIR/out" || log_fail "TEST-1653: threshold must fire, got: $(out)"
+  grep -qF '"capability":"cap-t1653"' "$TEST_DIR/out" || log_fail "TEST-1653: C must still fall back to roadmap order despite the unreadable events file, got: $(out)"
+  grep -qF '"capability_source":"roadmap_order"' "$TEST_DIR/out" || log_fail "TEST-1653: capability_source must be roadmap_order, got: $(out)"
+  grep -qF 'ride-select: degraded:' "$TEST_DIR/err" || log_fail "TEST-1653: stderr must emit a degraded line, got: $(err)"
+  grep -qF "$events: unreadable" "$TEST_DIR/err" || log_fail "TEST-1653: stderr must name the unreadable events file, got: $(err)"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (!Array.isArray(j.degraded) || !j.degraded.some((r) => r.includes("unreadable"))) { console.error("degraded=" + JSON.stringify(j.degraded)); process.exit(1); }
+  ' "$TEST_DIR/out" || log_fail "TEST-1653: json degraded must name the unreadable events file, got: $(out)"
+  log_pass "an unreadable --events file degrades a firing next with a stderr line and a json degraded entry, fallback stays correct (TEST-1653)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$ENGINE" ] || log_fail "engine missing: $ENGINE"
@@ -2193,6 +3333,46 @@ main() {
   test_1308_next_json_carries_path
   test_1309_show
   test_1310_write_seed_has_no_budget
+  test_1600_validate_accepts_advisory_block
+  test_1601_threshold_shapes_refuse
+  test_1602_mode_shapes_refuse
+  test_1603_mode_and_threshold_duplicates_refuse
+  test_1604_combined_and_unknown_key_refuse
+  test_1605_empty_block_and_regression
+  test_1606_gate_advisory_equals_off
+  test_1607_threshold_fires_at_count
+  test_1608_one_below_threshold_equals_off
+  test_1609_p3_never_counts
+  test_1610_closed_followups_never_count
+  test_1611_terminal_intakes_never_count
+  test_1612_change_intakes_never_count
+  test_1613_related_fires
+  test_1614_related_negations_equal_off
+  test_1615_related_wins_over_threshold
+  test_1616_latest_event_wins
+  test_1617_tie_goes_to_later_pair
+  test_1618_roadmap_order_fallback
+  test_1619_events_beats_roadmap_order
+  test_1620_no_done_pair_no_events_related_cannot_fire
+  test_1621_proposal_shape_and_alternative
+  test_1622_advisory_never_binds
+  test_1623_candidate_order_by_severity
+  test_1624_candidate_cap_five
+  test_1625_text_form_three_lines
+  test_1626_degrade_on_unreadable_ledger
+  test_1627_on_off_unaffected_by_ledger_events
+  test_1628_waiting_counts_and_recommended_threshold
+  test_1629_waiting_unreadable_and_absent_ledger
+  test_1630_show_advisory
+  test_1645_intake_without_id_gets_derived_id
+  test_1646_degrade_on_malformed_ledger_line
+  test_1647_degrade_on_unreadable_intake
+  test_1648_degrade_on_malformed_events_close_record
+  test_1649_degrade_clean_control
+  test_1650_degrade_disclosed_on_nonfiring_next
+  test_1651_degrade_reason_escapes_control_chars
+  test_1652_degrade_on_unreadable_issues_dir
+  test_1653_degrade_on_unreadable_events_file
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"

@@ -22,6 +22,14 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: an advisory roadmap budget proposes maintenance instead of requiring it (CHANGE-0203)
+
+- **Third budget posture.** `docs/ai/roadmap.yaml` accepts `budget: { mode: advisory, maintenance_threshold: <n> }` next to the 1:1 `maintenance_per_capability: 1` (on) and no block (off). Advisory never requires a maintenance half and never blocks: `gate` answers exactly as off.
+- **Proposals, not obligations.** In advisory, `ride-select next` returns `propose_maintenance` when open P1/P2 follow-ups plus open DEBT/ISSUE intakes reach the threshold, or when an open P1/P2 follow-up names the most recently closed capability; otherwise it returns the off answer. P3 follow-ups never count.
+- **Strict shape.** Any unknown key, quoted or leading-zero number, threshold above `Number.MAX_SAFE_INTEGER`, unknown mode, duplicate key or a mix with `maintenance_per_capability` is invalid (exit 2), never defaulted. On and off behave byte-for-byte as before.
+- **Tools.** New read-only `ride-select.mjs waiting` reports the counts and a recommended threshold; `roadmap-edit.mjs budget advisory --threshold <n>`; `/aai-roadmap budget` offers on / advisory / off; `/aai-ship` relays a proposal as one two-option menu. `nothing-left-behind` now reads the roadmap through the shared parser.
+- This repository's live roadmap stays budget-off (owner decision 2026-10-05). roadmap-maintenance-budget-advisory / CHANGE-0203.
+
 ## [unreleased] — feat: an owner-signed merge policy replaces the prose standing merge authorization (breaking, goodwind-cz/aai#429)
 
 - **Breaking for a downstream project that relied on the prose STANDING AUTHORIZATION.** `docs/ai/merge-policy.yaml` (`node .aai/scripts/merge-policy.mjs --validate` must print `VALID lanes=N`) is now the one source of truth for which pull requests the agent may merge; the merge hook, `SKILL_PR` and `SKILL_SHIP` all defer to `.aai/scripts/merge-policy.mjs --check --pr <n>` instead of the prose exception, which is removed. A project with no `docs/ai/merge-policy.yaml` keeps today's operator-only behaviour unchanged.

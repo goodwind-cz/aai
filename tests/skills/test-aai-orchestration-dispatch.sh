@@ -4658,6 +4658,11 @@ test_567_rule_4a_single_retarget() {  # TEST-567 / Spec-AC-29
   # fixture silently again.
   mkdir -p "$d/.aai/scripts/lib"
   cp "$PROJECT_ROOT/.aai/scripts/ride-select.mjs" "$d/.aai/scripts/ride-select.mjs"
+  # spec-roadmap-maintenance-budget-advisory D3: ride-select.mjs now also
+  # imports loadRegistry from follow-ups.mjs (a sibling, not under lib/) —
+  # same ERR_MODULE_NOT_FOUND trap the comment above already describes for
+  # lib/docs-model.mjs, one level up.
+  cp "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" "$d/.aai/scripts/follow-ups.mjs"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   cat > "$d/docs/ai/roadmap.yaml" <<YAML
 budget:
