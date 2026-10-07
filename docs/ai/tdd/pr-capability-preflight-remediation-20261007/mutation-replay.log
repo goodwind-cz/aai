@@ -1,0 +1,12 @@
+RED TEST-001: still reddens (tests/skills/test-aai-pr-preflight.sh test_001)
+RED TEST-002: still reddens (tests/skills/test-aai-pr-preflight.sh test_002)
+RED TEST-003: still reddens (tests/skills/test-aai-pr-preflight.sh test_003)
+RED TEST-004: still reddens (tests/skills/test-aai-pr-preflight.sh test_004)
+RED TEST-005: still reddens (tests/skills/test-aai-pr-preflight.sh test_005)
+INCONCLUSIVE TEST-006: could not apply the recorded mutation (Command failed: git -C /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-mutation-MLlSuY/clone apply /private/tmp/aai-pr-capability-preflight/docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.patch
+error: patch failed: .aai/SKILL_PR.prompt.md:58
+error: .aai/SKILL_PR.prompt.md: patch does not apply
+)
+RED TEST-007: still reddens (tests/skills/test-aai-pr-preflight.sh test_007)
+RED TEST-008: still reddens (tests/skills/test-aai-pr-preflight.sh test_008)
+mutation-run --replay: 7/7 attempted records still redden (1 inconclusive of 8 total, 0 re-stamped)

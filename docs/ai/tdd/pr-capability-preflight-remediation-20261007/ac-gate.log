@@ -1,0 +1,6 @@
+## Close Gate — spec-pr-capability-preflight
+
+GATE PASS: AC Status table complete (every row terminal, every done row evidenced, every Review-By valid).
+## AC-Flip Check — spec-pr-capability-preflight
+
+AC-FLIP PASS: no done row claims delivery ahead of the close flip.

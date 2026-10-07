@@ -2,9 +2,9 @@
 id: spec-pr-capability-preflight
 type: spec
 number: 210
-status: done
+status: implementing
 mutation_gate: v1
-frozen_sha256: 04dd230905c4d53b36cce42a4af90e1038eb74266cf6996fa2ba59a72a865449
+frozen_sha256: 5c85553607f11d46ffe9ec9461be47d04cc9e98b6e5f0cd47ff081bdcec9de60
 ceremony_level: 2
 links:
   requirement: pr-capability-preflight
@@ -40,7 +40,7 @@ SPEC-FROZEN: true
 - User decision: undecided
 - Base ref: main
 - Worktree branch/path: decided by Implementation Preparation
-- Inline review scope: .aai/scripts/pr-preflight.mjs .aai/SKILL_PR.prompt.md .aai/system/PROFILES.yaml tests/skills/test-aai-pr-preflight.sh tests/skills/aai-pr-preflight.Tests.ps1 tests/skills/suite-map.yaml tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-hygiene-pack.sh docs/issues/CHANGE-0204-pr-capability-preflight.md docs/specs/SPEC-0210-spec-pr-capability-preflight.md docs/USER_GUIDE.md CHANGELOG.md
+- Inline review scope: .aai/scripts/pr-preflight.mjs .aai/SKILL_PR.prompt.md .aai/system/PROFILES.yaml tests/skills/test-aai-pr-preflight.sh tests/skills/aai-pr-preflight.Tests.ps1 tests/skills/suite-map.yaml tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-hygiene-pack.sh tests/skills/test-aai-ride-select.sh docs/issues/CHANGE-0204-pr-capability-preflight.md docs/specs/SPEC-0210-spec-pr-capability-preflight.md docs/USER_GUIDE.md CHANGELOG.md
 - Code review required: true; review the explicit paths above plus scoped evidence, including both compatibility and refusal behavior. Do not include unrelated umbrella or roadmap changes as implementation delivery.
 
 ## Scope
@@ -56,9 +56,9 @@ All verification commands run from the repository root. Define `V` as `bash .aai
 | AC-001 | Spec-AC-01 | V, TEST-001 | Valid explicit identity is returned; missing/mismatched/ambiguous identity exits 2 before provider calls; fixture call log and JSON in scoped TDD log |
 | AC-002 | Spec-AC-02 | V, TEST-002 | Azure read_verified with create_permission unknown; exact allowed probe argv and environment observed |
 | AC-003 | Spec-AC-03 | V, TEST-003..005 | Each refusal has its specified code, operation and remedy, no secret output; hung probe terminates within bound |
-| AC-004 | Spec-AC-04 | V, TEST-006 | Prompt orders CLI before numbered/staged/committed/pushed writes; actual refusal preserves fixture snapshots |
+| AC-004 | Spec-AC-04 | V, TEST-006 | Prompt binds readiness to origin used by platform/push (null only if origin absent), orders CLI before writes; multiple-remote/null fixture distinguishes routes and refusal preserves snapshots |
 | AC-005 | Spec-AC-05 | V, TEST-007; existing pr-platform suite | GitHub read_verified and generic capability_not_applicable retain provider routes |
-| AC-006 | Spec-AC-06 | V, TEST-008; profile and diet suites | New script classified core, selected-suite mapping includes it; measured additions entry and TEST-012 checkpoint match |
+| AC-006 | Spec-AC-06 | V, TEST-008; profile and diet suites; ride-select companion suite | Classification/selection and measured additions match; clone stderr is captured while failures throw; structured next selections and independent shipped summary counts hold |
 
 ## Constitution deviations
 
@@ -68,12 +68,12 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN identity is missing or inconsistent the CLI SHALL refuse before any provider call. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-01; TEST-001 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
-| Spec-AC-02 | WHEN Azure read probes succeed the CLI SHALL report read_verified and unknown create permission. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-02; TEST-002 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
-| Spec-AC-03 | WHEN a prerequisite or probe fails the CLI SHALL return a bounded, named refusal and remedy without disclosing credentials. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-03; TEST-003..005 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
-| Spec-AC-04 | WHEN readiness refuses the ceremony SHALL stop before lifecycle or Git writes. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-04; TEST-006 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
-| Spec-AC-05 | WHEN GitHub or a generic provider is selected the CLI SHALL preserve its declared readiness and ceremony route. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-05; TEST-007 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
-| Spec-AC-06 | WHEN the new vendored script and prompt text are shipped their classification, suite selection and byte accounting SHALL be complete. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-06; TEST-008 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-01 | WHEN identity is missing or inconsistent the CLI SHALL refuse before any provider call. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-01; TEST-001; docs/ai/tdd/pr-capability-preflight-remediation-20261007/preflight-green.log | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-02 | WHEN Azure read probes succeed the CLI SHALL report read_verified and unknown create permission. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-02; TEST-002; docs/ai/tdd/pr-capability-preflight-remediation-20261007/preflight-green.log | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-03 | WHEN a prerequisite or probe fails the CLI SHALL return a bounded, named refusal and remedy without disclosing credentials. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-03; TEST-003..005; docs/ai/tdd/pr-capability-preflight-remediation-20261007/preflight-green.log | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-04 | WHEN readiness refuses the ceremony SHALL stop before lifecycle or Git writes. | done | docs/ai/tdd/pr-capability-preflight-remediation-20261007/preflight-green.log; TEST-006 | — | Maker proof: origin binding and multiple-remote/null controls, preserved snapshots; fresh independent revalidation pending. Historical validation remains unchanged. |
+| Spec-AC-05 | WHEN GitHub or a generic provider is selected the CLI SHALL preserve its declared readiness and ceremony route. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-05; TEST-007; docs/ai/tdd/pr-capability-preflight-remediation-20261007/preflight-green.log | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-06 | WHEN the new vendored script and prompt text are shipped their classification, suite selection and byte accounting SHALL be complete. | done | docs/ai/tdd/pr-capability-preflight-remediation-20261007/preflight-green.log; docs/ai/tdd/pr-capability-preflight-remediation-20261007/ride-green.log; docs/ai/tdd/pr-capability-preflight-remediation-20261007/diet-green.log | — | Maker proof: all affected suites GREEN, shallow/captured-stderr control and independent shipped counts. Fresh independent validation and native PS5.1 CI reproof pending; historical reports unchanged. |
 
 ## Implementation plan
 
@@ -95,7 +95,7 @@ Each subprocess has default timeout 10000 ms, override integer 100..60000 ms for
 
 ### Ceremony and distribution seams
 
-After branch hygiene/pin/session lock and existing read-only gates, derive the input from the actual checkout, resolved remote and explicit source/target/provider repository intent. Invoke the CLI in PRECONDITIONS before PROCESS step 1b and any index/lifecycle/Git write. Nonzero means STOP with the safe diagnostic; release the held session lock through its existing release command. Branch pin/session lock runtime writes are existing precondition coordination and are outside the STATE/index/HEAD/reservation preservation snapshot; no document close/status flip is allowed before readiness. The result is an observation at invocation time, not a reusable create authorization. No preflight result is hand-written into STATE.
+After branch hygiene/pin/session lock and existing read-only gates, derive the input from the actual checkout, origin (remote_name null only when origin is absent) and explicit source/target/provider repository intent. Invoke the CLI in PRECONDITIONS before PROCESS step 1b and any index/lifecycle/Git write. Nonzero means STOP with the safe diagnostic; release the held session lock through its existing release command. Branch pin/session lock runtime writes are existing precondition coordination and are outside the STATE/index/HEAD/reservation preservation snapshot; no document close/status flip is allowed before readiness. The result is an observation at invocation time, not a reusable create authorization. No preflight result is hand-written into STATE.
 
 The prompt is agent-executed prose, so tests can assert ordering and run the exact described CLI with refused/success fixtures, but cannot prove an arbitrary future agent follows the prose. Record that residual seam risk in validation; do not label text inspection as a fully executed ceremony.
 
@@ -112,13 +112,15 @@ Mutation cells name behavior-removal patch artifacts to be produced in the dispo
 | TEST-003 | Spec-AC-03 | integration | tests/skills/test-aai-pr-preflight.sh | Missing executable/extension/auth/network/ambiguous denial/malformed outputs return distinct code/remedy/operation and never trigger install or create | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.patch | green |
 | TEST-004 | Spec-AC-03 | integration | tests/skills/test-aai-pr-preflight.sh | Hung probe bounded at 1000 ms, <=3000 ms observed, later probes absent and child no longer running; invalid timeout refuses before spawn | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.patch | green |
 | TEST-005 | Spec-AC-03 | integration | tests/skills/test-aai-pr-preflight.sh | Actual invoked provider emits credential-like synthetic markers/remote userinfo; output contains none, safe diagnostic exists; positive invocation controls and 1 MiB cap refusal | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.patch | green |
-| TEST-006 | Spec-AC-04 | integration | tests/skills/test-aai-pr-preflight.sh | Prompt orders actual CLI before numbering/stage/commit/close/push; refused real CLI fixture preserves STATE bytes/index tree/HEAD/local+remote reservation refs; success proves fixture probe reachable | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.patch | green |
+| TEST-006 | Spec-AC-04 | integration | tests/skills/test-aai-pr-preflight.sh | Prompt binds readiness to ceremony origin, with null only when absent; multiple-remote/null controls; orders actual CLI before numbering/stage/commit/close/push; refused real CLI fixture preserves STATE bytes/index tree/HEAD/local+remote reservation refs; success proves fixture probe reachable | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.patch | green |
 | TEST-007 | Spec-AC-05 | integration | tests/skills/test-aai-pr-preflight.sh | GitHub host/repository exact binding, missing auth refusal, generic/none no client calls and named fallback; original Azure/GitHub classification unchanged | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.patch | green |
-| TEST-008 | Spec-AC-06 | integration | tests/skills/test-aai-pr-preflight.sh | Core profile and suite-map select real new script; diet ledger addition and checkpoint match actual prompt diff | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-008.patch | green |
+| TEST-008 | Spec-AC-06 | integration | tests/skills/test-aai-pr-preflight.sh | Core/profile selection and diet measurement; explicit captured clone stderr, portable benign-note control, failing clone and shallow baseline-absent positive controls | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-008.patch | green |
 
 Review remediation stays within the existing rows: TEST-001 proves real direct/symlink CLI output and exit parity; TEST-002 emits a successful Azure Unicode JSON response split inside a UTF-8 character and proves READ_VERIFIED; byte/time caps remain unchanged. The existing Pester arm also runs canonical Bash on POSIX with the scratch override unset, using an os.tmpdir-based portable default and private per-run fixtures; native Linux evidence must be read from CI, not inferred from macOS.
 
 Remediation coverage includes negative inherited prompt flags on captured Git/Azure/GitHub probes, legacy vs-ssh.visualstudio.com v3 identity, generic credential marker positive controls, LF/CRLF prompt fixtures and a real shallow checkout with the historic baseline object absent. TEST-008 measures canonical LF bytes against the immutable baseline36430 bytes (bdeb425c040ada918dd97e5b878b71e420bad83a), without fetching history.
+
+Final PR CI companion remediation extends tests/skills/test-aai-ride-select.sh TEST-002: consume next --json; a deterministic related proposal validates the candidate menu and gates its alternative; file-intake/bind/complete are structured actions, never prose refs. TEST-718 and TEST-1302 retain exact summary assertions using independent counts of the current shipped pairs and wave-2 rows, avoiding a moving 13-pair literal. This does not change the selection engine or waive the existing amendment follow-up. Native Windows PowerShell 5.1 GREEN for the captured-clone boundary remains pending fresh CI; local portable proof does not attest that platform.
 
 Patch intentions in order: bypass identity mismatch refusal; allow extension absence through to repos; map unknown provider failure to success; remove subprocess timeout; forward raw stderr; delete prompt preflight invocation; allow GitHub repository mismatch; remove new script core classification. Implementation creates each exact patch before GREEN and proves it bites. A changed mutation measurement is disclosed through the existing amendment writer.
 

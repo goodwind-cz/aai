@@ -1,0 +1,7 @@
+{
+  ".aai/SKILL_PR.prompt.md": "7dbd75147ecb8661be07119524f94b69a2c4ae40f534db27d82b5956f5eeec4e",
+  "tests/skills/test-aai-pr-preflight.sh": "d46b236262f6d8b7cc9cffc280649e60cafeaba5fb292c68dfec7290ca36787d",
+  "tests/skills/test-aai-ride-select.sh": "e76b950217a8dda61c2bccd1b2186f1566ae9a344dfcb7954f0f0acb167fb9cd",
+  "tests/skills/lib/prompt-diet-ledger.sh": "8e59bf37c51a114dceb0c6613ddc4527660efe9540677a3c3b3c79a556cd6d28",
+  "tests/skills/test-aai-prompt-diet.sh": "70d5377eef6044b020b611bbdf2b57dae80d5a33546dddf7773873448dc451cb"
+}

@@ -1,0 +1,9 @@
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+fatal: repository '/private/tmp/aai-pr434-remediation-scratch/fixtures/fixture-eS6GaU/nonexistent-repository' does not exist
+FAIL: TEST-008 successful clone stderr is captured at boundary
++ actual - expected
+
++ 'Note: switching to detached fixture.\n'
+- ''
+

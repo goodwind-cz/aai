@@ -1,0 +1,4 @@
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+INFO: TEST-008 shallow=true baseline_object_absent=true LF_CRLF_bytes_equal=true
+PASS: TEST-008 pr-capability-preflight

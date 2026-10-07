@@ -964,7 +964,7 @@ test_012_growth_sum_matches_ledger() {
   # ambiguous "any other answer below" link that fell through to the
   # printed-verbatim/stop catch-all; zero headroom standing, credited 1:1
   # (ledger key roadmap-maintenance-budget-advisory-round1-b1).
-  local want_growth=55452
+  local want_growth=55539
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

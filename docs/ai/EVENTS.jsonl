@@ -2843,3 +2843,5 @@
 {"v":1,"ts":"2026-10-07T20:22:14Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-capability-preflight","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-07T20:22:14Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-pr-capability-preflight","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-07T20:22:14Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-pr-capability-preflight","payload":{"commit":"227ca445e2e828cb428d7e537f2cf791fa9c2a91"}}
+{"v":1,"ts":"2026-10-07T20:35:08Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"pr-capability-preflight","payload":{"from":"done","to":"implementing"}}
+{"v":1,"ts":"2026-10-07T20:35:08Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-capability-preflight","payload":{"from":"done","to":"implementing"}}

@@ -2,7 +2,7 @@
 id: pr-capability-preflight
 type: change
 number: 204
-status: done
+status: implementing
 links:
   spec: null
   rfc: downstream-pr-ceremony-reliability

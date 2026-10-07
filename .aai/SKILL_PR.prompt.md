@@ -54,10 +54,11 @@ PRECONDITIONS (all must hold before any git write)
 - PROVIDER READINESS — after the read-only gates above, before PROCESS 1b or
   any numbering, document close/status change, staging, commit or push, write
   `<preflight-input.json>` in private temporary storage: schema_version 1,
-  absolute repo_root from the actual checkout, selected remote_name (null only
-  for explicit local-only intent), current source_branch, and explicit
+  absolute repo_root from the actual checkout; remote_name is `origin` when origin exists, otherwise null
+  (null only when origin is absent). This binds readiness to the origin-based
+  platform probes and push below. Include current source_branch and explicit
   target_branch. Bind Azure organization_url/project/repository or GitHub
-  owner/name repository to the actual selected Git remote; do not guess intent.
+  owner/name repository to origin; do not guess intent.
   Run `node .aai/scripts/pr-preflight.mjs --input <preflight-input.json> --json`.
   Nonzero means STOP before lifecycle/Git writes; print its safe diagnostic and
   release the held lock: `node .aai/scripts/lib/session-lock.mjs release --pid "$PPID"`.
