@@ -2828,3 +2828,10 @@
 {"v":1,"ts":"2026-10-06T19:30:39Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-worktree-lacks-vendored-aai-layer-downstream","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-06T19:30:39Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-worktree-lacks-vendored-aai-layer-downstream","payload":{"commit":"5f5fb10a"}}
 {"v":1,"ts":"2026-10-06T20:54:05Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"worktree-lacks-vendored-aai-layer-downstream","payload":{"pr":433,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"9f365c7a8867707bbee2151b0313accb6597c918"}}
+{"v":1,"ts":"2026-10-07T11:29:20Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-capability-preflight","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-07T13:34:01Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pr-capability-preflight/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-07T13:34:01Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pr-capability-preflight/Spec-AC-02","payload":{"from":"planned","to":"blocked"}}
+{"v":1,"ts":"2026-10-07T13:34:01Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pr-capability-preflight/Spec-AC-03","payload":{"from":"planned","to":"blocked"}}
+{"v":1,"ts":"2026-10-07T13:34:01Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pr-capability-preflight/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-07T13:34:01Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pr-capability-preflight/Spec-AC-05","payload":{"from":"planned","to":"blocked"}}
+{"v":1,"ts":"2026-10-07T13:34:01Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pr-capability-preflight/Spec-AC-06","payload":{"from":"planned","to":"done"}}

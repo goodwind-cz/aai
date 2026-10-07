@@ -202,6 +202,7 @@ core:
   - .aai/scripts/nothing-left-behind.mjs
   - .aai/scripts/orchestration-mode.mjs
   - .aai/scripts/pr-platform.mjs
+  - .aai/scripts/pr-preflight.mjs
   - .aai/scripts/pre-commit-checks.ps1
   - .aai/scripts/pre-commit-checks.sh
   - .aai/scripts/pre-compact-save.ps1

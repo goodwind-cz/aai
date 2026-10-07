@@ -2952,3 +2952,9 @@ The factory's self-improvement loop (RFC-0012) had complete infrastructure and z
 [Product doc](product/friction-capture-default-on.md) · [Spec](specs/SPEC-0088-spec-friction-capture-default-on.md)
 
 <!-- AAI:USERGUIDE-ROLLUP:END -->
+
+## PR provider readiness
+
+The PR ceremony checks the selected repository before numbering documents, staging, committing or pushing. It reads Azure client/installed azure-devops extension/repository access, or GitHub client/authentication/repository access. It never installs extensions or acquires credentials. A failure stops the ceremony with a named remedy. Successful repository read access leaves permission to create a future PR unknown.
+
+For an explicit check, put schema version 1, absolute `repo_root`, selected `remote_name`, current `source_branch` and a distinct `target_branch` in a UTF-8 JSON file. Azure also requires `organization_url`, `project` and `repository`; GitHub requires `repository` as owner/name. Run `node .aai/scripts/pr-preflight.mjs --input <file> --json`. The timeout defaults to 10000 ms per probe; `--timeout-ms` accepts 100 through 60000. Exit codes: 0 read verified or generic/local fallback, 2 identity refusal, 3 capability/access refusal, 124 timeout. A null remote explicitly selects the existing local-only route. Generic routes report their automation limitation and invoke neither provider client.

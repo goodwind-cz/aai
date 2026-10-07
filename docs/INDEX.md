@@ -1,17 +1,18 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-06T20:54:16.287Z
+Generated: 2026-10-07T13:59:31.942Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-pr-capability-preflight | specs | implementing | 3 done, 3 blocked | docs/specs/SPEC-DRAFT-spec-pr-capability-preflight.md |
 
 ## Canonical layer (0)
 
@@ -552,13 +553,14 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (16)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
+| pr-capability-preflight (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-pr-capability-preflight.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -570,6 +572,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
+| downstream-pr-ceremony-reliability (unnumbered draft) | rfc | docs/rfc/RFC-DRAFT-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -582,9 +585,13 @@ _None._
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 | SPEC-0209 | Spec-AC-06 | 2026-10-20 | Pre-PR Bash real downstream and macOS pwsh evidence passed; neither proves native Windows. Windows PowerShell 5.1 and pwsh 7 Pester fixture checks are required in PR CI before merge; see the measurement amendment below. |
 
-## Blocked items (per-AC, across all specs) (0)
+## Blocked items (per-AC, across all specs) (3)
 
-_None._
+| Source Doc | AC | Review-By | Notes |
+|---|---|---|---|
+| spec-pr-capability-preflight | Spec-AC-02 | 2026-10-14 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
+| spec-pr-capability-preflight | Spec-AC-03 | 2026-10-14 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
+| spec-pr-capability-preflight | Spec-AC-05 | 2026-10-14 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
 
 ## Broken references (0)
 
@@ -624,4 +631,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-06 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-07 — counts above use this date for overdue checks.

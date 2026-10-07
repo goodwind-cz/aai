@@ -22,6 +22,12 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: check PR provider readiness before ceremony writes (pr-capability-preflight)
+
+- Check repository identity and provider read access before PR numbering, staging, commit and push.
+- Bound noninteractive probes and return safe, named refusal remedies.
+- Preserve GitHub and generic/local routes; future PR create permission stays unknown.
+
 ## [unreleased] — fix: seed the installed AAI layer into linked worktrees
 
 - Worktree setup copies the origin checkout's installed AAI engine, skills, profile, and pin before running the target's state initializer. It refuses unsafe or conflicting destinations and preserves tracked branch files.

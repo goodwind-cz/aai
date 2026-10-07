@@ -18,8 +18,11 @@ PRECONDITIONS (all must hold before any git write)
   verbatim; do not stage, commit, or push. The guard fails closed when the
   current branch is the base branch, is detached, or does not correspond to
   the current `current_focus.ref_id`. No `docs/ai/STATE.yaml` at all (a fresh
-  hand-implementation clone): `node .aai/scripts/check-state.mjs --repair`,
-  then `node .aai/scripts/state.mjs set-focus --type <type> --ref <ref-id> --path <primary-path>`.
+  hand-implementation clone): execute PROVIDER READINESS below first. A
+  missing STATE is initialized only after readiness succeeds:
+  `node .aai/scripts/check-state.mjs --repair`, then
+  `node .aai/scripts/state.mjs set-focus --type <type> --ref <ref-id> --path <primary-path>`.
+  Restart PRECONDITIONS after initialization; never repair a refused checkout.
   On exit 0, also run `node .aai/scripts/branch-guard.mjs --pin` (CHANGE-0180
   D4): records this session's branch+HEAD so steps 4a/4c/5 can re-check below
   that no concurrent session moved it before each write. Also claim the
@@ -48,6 +51,19 @@ PRECONDITIONS (all must hold before any git write)
   ARE the authority to commit, push and open the pull request; no separate
   confirmation is asked here. The human confirmation moves to the merge — the
   pull request this ceremony opens IS the surface that confirmation waits at.
+- PROVIDER READINESS — after the read-only gates above, before PROCESS 1b or
+  any numbering, document close/status change, staging, commit or push, write
+  `<preflight-input.json>` in private temporary storage: schema_version 1,
+  absolute repo_root from the actual checkout, selected remote_name (null only
+  for explicit local-only intent), current source_branch, and explicit
+  target_branch. Bind Azure organization_url/project/repository or GitHub
+  owner/name repository to the actual selected Git remote; do not guess intent.
+  Run `node .aai/scripts/pr-preflight.mjs --input <preflight-input.json> --json`.
+  Nonzero means STOP before lifecycle/Git writes; print its safe diagnostic and
+  release the held lock: `node .aai/scripts/lib/session-lock.mjs release --pid "$PPID"`.
+  Exit 0 means repository read_verified or the named GENERIC MODE fallback;
+  create_permission stays unknown. This observation is valid at invocation
+  time only; do not write it into STATE or reuse it as create authorization.
 If any precondition fails, STOP and report which gate is open.
 
 PROCESS
