@@ -10,7 +10,7 @@ links:
   requirement: pr-capability-preflight
   rfc: downstream-pr-ceremony-reliability
   pr:
-    - TBD
+    - 434
   commits:
     - 227ca445e2e828cb428d7e537f2cf791fa9c2a91
 ---
