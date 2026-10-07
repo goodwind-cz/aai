@@ -53,7 +53,7 @@ pairs:
   - capability: downstream-pr-ceremony-reliability
     status: active
   - capability: pr-capability-preflight
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

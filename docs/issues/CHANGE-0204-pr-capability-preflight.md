@@ -2,12 +2,14 @@
 id: pr-capability-preflight
 type: change
 number: 204
-status: draft
+status: done
 links:
   spec: null
   rfc: downstream-pr-ceremony-reliability
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 227ca445e2e828cb428d7e537f2cf791fa9c2a91
 ---
 
 # Noninteractive provider readiness before PR writes

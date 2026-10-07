@@ -2,15 +2,17 @@
 id: spec-pr-capability-preflight
 type: spec
 number: 210
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 04dd230905c4d53b36cce42a4af90e1038eb74266cf6996fa2ba59a72a865449
 ceremony_level: 2
 links:
   requirement: pr-capability-preflight
   rfc: downstream-pr-ceremony-reliability
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 227ca445e2e828cb428d7e537f2cf791fa9c2a91
 ---
 
 # Noninteractive provider readiness before PR writes
@@ -66,12 +68,12 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN identity is missing or inconsistent the CLI SHALL refuse before any provider call. | done | docs/ai/tdd/pr-capability-preflight-green.log; docs/ai/tdd/pr-capability-preflight-mutation-replay.log | — | Shared local contract verified; independent validation/review pending. |
-| Spec-AC-02 | WHEN Azure read probes succeed the CLI SHALL report read_verified and unknown create permission. | blocked | docs/ai/tdd/pr-capability-preflight-green.log; docs/ai/tdd/pr-capability-preflight-mutation-replay.log; docs/ai/tdd/pr-capability-preflight-windows.log | 2026-10-21 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
-| Spec-AC-03 | WHEN a prerequisite or probe fails the CLI SHALL return a bounded, named refusal and remedy without disclosing credentials. | blocked | docs/ai/tdd/pr-capability-preflight-green.log; docs/ai/tdd/pr-capability-preflight-mutation-replay.log; docs/ai/tdd/pr-capability-preflight-windows.log | 2026-10-21 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
-| Spec-AC-04 | WHEN readiness refuses the ceremony SHALL stop before lifecycle or Git writes. | done | docs/ai/tdd/pr-capability-preflight-green.log; docs/ai/tdd/pr-capability-preflight-mutation-replay.log | — | Shared local contract verified; independent validation/review pending. |
-| Spec-AC-05 | WHEN GitHub or a generic provider is selected the CLI SHALL preserve its declared readiness and ceremony route. | blocked | docs/ai/tdd/pr-capability-preflight-green.log; docs/ai/tdd/pr-capability-preflight-mutation-replay.log; docs/ai/tdd/pr-capability-preflight-windows.log | 2026-10-21 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
-| Spec-AC-06 | WHEN the new vendored script and prompt text are shipped their classification, suite selection and byte accounting SHALL be complete. | done | docs/ai/tdd/pr-capability-preflight-green.log; docs/ai/tdd/pr-capability-preflight-mutation-replay.log | — | Shared local contract verified; independent validation/review pending. |
+| Spec-AC-01 | WHEN identity is missing or inconsistent the CLI SHALL refuse before any provider call. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-01; TEST-001 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-02 | WHEN Azure read probes succeed the CLI SHALL report read_verified and unknown create permission. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-02; TEST-002 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-03 | WHEN a prerequisite or probe fails the CLI SHALL return a bounded, named refusal and remedy without disclosing credentials. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-03; TEST-003..005 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-04 | WHEN readiness refuses the ceremony SHALL stop before lifecycle or Git writes. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-04; TEST-006 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-05 | WHEN GitHub or a generic provider is selected the CLI SHALL preserve its declared readiness and ceremony route. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-05; TEST-007 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
+| Spec-AC-06 | WHEN the new vendored script and prompt text are shipped their classification, suite selection and byte accounting SHALL be complete. | done | docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md, Original intent and coverage row Spec-AC-06; TEST-008 | — | Independent validation and dual-verdict review PASS; native matrix bound to d223eb06. |
 
 ## Implementation plan
 

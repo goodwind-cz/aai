@@ -12,3 +12,6 @@ Schvaluji
 
 ## Assumptions
 This authorizes the scoped CI snapshot commit and push and workflow dispatch. It does not waive native proof, validation, review or authorize merge. The unfinished scope remains implementing. The autonomous inventory companion amendment still owes owner sign-off at the merge checkpoint.
+
+## Approved telemetry correction
+The owner subsequently answered "SCHVALUIJI" to the explicit one-time exception allowing `usage_capture=none` to be added to the first TDD run's STATE note. The CLI cannot amend that note. Only the observation marker was added; tokens, timing, verdicts and source files were preserved. This permits continuing the gated PR ceremony and does not authorize merge.
