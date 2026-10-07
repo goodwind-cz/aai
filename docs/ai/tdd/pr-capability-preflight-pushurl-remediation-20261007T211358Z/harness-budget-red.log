@@ -1,0 +1,29 @@
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+FAIL: TEST-007 CLI must finish within harness bound
++ actual - expected
+
++ Error: spawnSync /opt/homebrew/Cellar/node/26.8.2/bin/node ETIMEDOUT
++     at Object.spawnSync (node:internal/child_process:1144:20)
++     at spawnSync (node:child_process:928:24)
++     at run ([stdin]:71:34)
++     at [stdin]:138:26
++     at runScriptInThisContext (node:internal/vm:219:10)
++     at node:internal/process/execution:485:12
++     at [stdin]-wrapper:6:24
++     at runScriptInContext (node:internal/process/execution:483:60)
++     at evalFunction (node:internal/process/execution:317:30)
++     at evalTypeScript (node:internal/process/execution:329:3) {
++   code: 'ETIMEDOUT',
++   errno: -60,
++   path: '/opt/homebrew/Cellar/node/26.8.2/bin/node',
++   spawnargs: [
++     '/private/var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-iso-wrap.ENY3EC/wt/.aai/scripts/pr-preflight.mjs',
++     '--input',
++     '/private/tmp/aai-pr434-remediation-scratch/fixtures/fixture-Vdum0K/input.json',
++     '--json'
++   ],
++   syscall: 'spawnSync /opt/homebrew/Cellar/node/26.8.2/bin/node'
++ }
+- undefined
+

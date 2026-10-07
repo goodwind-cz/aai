@@ -1,0 +1,122 @@
+{
+  "observed_at_utc": "2026-10-07T21:10:44Z",
+  "head": "609832744c202805234da8a09e40c5d3bb171308",
+  "ci_merge": "b54ef37424d6edb510c2b04640274daac25db43e",
+  "evidence": [
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ac-corpus.json",
+      "bytes": 482,
+      "sha256": "828af2ff3458615ae41dab327ba7a9c6bcfbc0d2e56b85b27182eb052040517b"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ac-gate.log",
+      "bytes": 155,
+      "sha256": "851921ea752bd9da9463fa5ce1d875309762918a773a7e9d7779a687f17832be"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013349041.log",
+      "bytes": 78964,
+      "sha256": "4a6990e05c096839d1b874f45ac9057bcff41e5418e88513c4ca63d919fbd54c"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log",
+      "bytes": 35553,
+      "sha256": "1ebf134671556cf91a84f33508f3d9e2f6080dcb935d9ad67674512aab287bf9"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log",
+      "bytes": 37741,
+      "sha256": "9c1935a880396681974f448ea37fd3402ee5ae9ccaccae2eebe60f3f8efb839f"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log",
+      "bytes": 41333,
+      "sha256": "31931ced076c5124c37dc5b0f413c399dc684b72d239d024ce8cf86a94b14f3c"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log",
+      "bytes": 36059,
+      "sha256": "22082a7e6b990ffec3c66aad8850c98d724d597126a86ecca3f8caec89721092"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/exits.txt",
+      "bytes": 100,
+      "sha256": "500fc5e20d6e38ff69d3a0080de4b3ceb3714ea61cf65a0594c46a1f39bc8a07"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/hygiene-pack.log",
+      "bytes": 24527,
+      "sha256": "7492a57208c91aa63c17194d1bb151f5b67341db898e52f099ba6bc65e7e53d6"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/layer-profiles.log",
+      "bytes": 4050,
+      "sha256": "7403781c7e0e08a474a778dfca668d52b857926c8e1187ae8a6dad68b0894d4d"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/live-audit.log",
+      "bytes": 6954,
+      "sha256": "3bd181f92ad94b03e440f74abd152ea3a6be5a43f898f1e6dd7c986622654247"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/mutation.log",
+      "bytes": 716,
+      "sha256": "3c810b6697362bd54d5b46d239c94de9ef7d4f00037df4356d6ad1640df75cf4"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log",
+      "bytes": 64724,
+      "sha256": "30e5341bd7343ef954c8421d72a78c3809453bd04e241fb02794628d98172559"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/pr-platform.log",
+      "bytes": 4421,
+      "sha256": "4e5a15b82e09ab60f861ea4a24ce77ad2518e7704d5c98a8262502cd4d68ee68"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/pr-preflight.log",
+      "bytes": 3568,
+      "sha256": "b2c881f401bb6b365f13a32a763a4d53ef353337e2d69390ac5ca926c17f7638"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/prompt-diet.log",
+      "bytes": 8084,
+      "sha256": "7c89a40976ef33d3048235760eff63c588396fa7b7f4e3a934d5afc4abe82e3f"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/pushurl-repro.cjs",
+      "bytes": 3127,
+      "sha256": "597379287eb4cc555822d57125e52d26f2e8d625da40f4b24f75917f941bc482"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/pushurl-repro.log",
+      "bytes": 1709,
+      "sha256": "9ebdf31bb0c796a0663f2441896dc68d9d16dc93cd081c3d74c8ecd693bb6a45"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/reaper.log",
+      "bytes": 336,
+      "sha256": "f272a93c0cacd344dd4ffc1bc7b3941fa1e604029cdc7137f263e4ce454a21cc"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/red-check.log",
+      "bytes": 68,
+      "sha256": "bfd52c33b1987afd12fd22f13e1996068c84ea65ff42e0f0fddc762d1607fed9"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ride-select.log",
+      "bytes": 26859,
+      "sha256": "89846a7357959185a4b32fa415286f1d6f40650eb7504a2bf9e2d259a9128d9f"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/spec-lint.log",
+      "bytes": 188,
+      "sha256": "f5d9ef5c5d62ecf083734faca3483bbf532688ef3e248d9883ca70c052f42989"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/tree-manifest.json",
+      "bytes": 11146,
+      "sha256": "71dd02b0665b8421f94343c0e0d8331fcf6a39504dfa52fb91a26b67c24f06cd"
+    }
+  ]
+}

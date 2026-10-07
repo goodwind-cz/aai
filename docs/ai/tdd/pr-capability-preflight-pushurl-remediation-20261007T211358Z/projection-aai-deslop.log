@@ -1,0 +1,38 @@
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+Testing: aai-deslop
+====================
+PASS TEST-001 no-scope / unknown-flag / ambiguous-scope all fail closed at exit 2, usage names both flags
+PASS TEST-002 diff scope reports exactly the unnamed added symbol; context line excluded; explicit + missing --base both fall back to working tree; a diverged main resolves to range mode and discloses the open dirty-worktree caveat
+PASS TEST-003 wide scope covers both extractor kinds correctly; shared-file row byte-identical across scopes (one engine)
+PASS TEST-004 corpus status-bucket counts + STATE read-only/absent/truncated all handled
+PASS TEST-005 fixture tree byte-identical and path-identical after both scopes run
+PASS TEST-006 exit 0 (clean / with-candidates / empty-input-set), exit 2 only for usage errors, source-proven
+PASS TEST-007 empty diff exits 0 with the literal rerun-with-all note (prompt offers --all, no terminal stop wording); a non-empty diff outside the scanned surface and a deletion-only diff each get their own honest treatment, never 'empty diff'
+PASS TEST-008 suppressed == 3 in both forms; both carry all four disclosure sentences (including the residual-class TEXT-NOT-A-FLAG line)
+PASS TEST-009 prompt Scope contracts (<=90 lines, ask-and-stop, both tokens, engine lines, scope-bound rule, no false default, no inverted bound)
+  TEST-010 baseline (not asserted): real-repo --all candidates=63 suppressed=796
+PASS TEST-010 real-repo --all scope exits 0 with well-formed header + LIMITS (candidates=63, not pinned)
+PASS TEST-011 tests/skills/test-aai-advisory-skills.sh exits 0 after the deslop prompt rewrite
+PASS TEST-012 prompt-diet ledger true-up (suite green, entry names both files)
+PASS TEST-013 governance companions (PROFILES extended entry, suite-map row, full test registration)
+PASS TEST-014 no description surface claims diff-only; catalog regeneration matches committed content (not stale) and is idempotent (generated in a mirror, PROJECT_ROOT untouched)
+PASS TEST-015 cli-flag precision: CSS custom property, git()/direct-execFileSync/cmd-passthrough/local-array-indirection external-tool arguments and comment-only occurrences all excluded (.mjs); node self-invoke and genuine own-flags in real code survive under both scopes; the .sh external-tool exclusion is command-word/position-based so a script's own flag sitting BEFORE, or beside only in a comment/string, an external mention always survives, while a real (possibly $(...)-nested) invocation genuinely AFTER the command word is still excluded
+PASS TEST-016 --all scope invoked from the wrong cwd degrades with a NOTE instead of a silent zero-candidate clean bill
+PASS TEST-017 --diff in a non-git cwd surfaces the git failure explicitly, distinct from an empty-diff clean scan
+PASS TEST-018 a --base range diff that fails outright (no merge base between two unrelated histories) surfaces an explicit git-failure NOTE rather than reading as a clean empty-diff scan
+PASS TEST-019 a diff whose only change is a COMPLETE file deletion (+++ /dev/null) is preserved as touched, never misread as an empty diff
+PASS TEST-020 a stale/unreadable STATE.yaml focus path is never silently dropped: a fully-stale corpus degrades to the named EMPTY-corpus note, a partially-stale corpus names the skipped path while the readable document still suppresses
+PASS TEST-021 a flag-shaped token following --base (--json, --all) is rejected as a usage error rather than silently consumed as the ref
+PASS TEST-022 the widened corpus rule the code applies and the rule the header/json state are the same rule, in the populated AND the empty branch
+PASS TEST-023 a done change document suppresses the symbol it names, a draft one does not; the three real-tree symbols are gone and each is genuinely named in a corpus document outside docs/specs
+PASS TEST-024 a findings document never suppresses the symbols it names; the real adjudication table is relocated out of the corpus with a pointer left behind and the prompt states the convention
+PASS TEST-025 an unreadable --all corpus document is named with the --diff path's own sentence; a fully-unreadable corpus degrades to the named EMPTY-corpus note, both at exit 0
+PASS TEST-026 document accounting balances on a fixture covering every bucket, on the real repository, under --diff with an unreadable STATE-named document and under --all on a corpus empty by filter that also carries an unreadable member; the header prints every bucket on its own whole line; --diff carries the same excluded key set
+PASS TEST-028 the deslop prompt, product doc and engine header state the new corpus rule; SPEC-0132 carries a dated Correction plus superseded pointers with history unchanged; the released CHANGELOG section is byte-unchanged; docs-audit and spec-lint are clean
+  Test: the released-CHANGELOG section comparison (TEST-028) reddens on a one-byte edit inside the released section of a SCRATCH copy, and stays clean on an untouched copy (TEST-447)...
+PASS TEST-447 the released-CHANGELOG section comparison reddens on a one-byte edit inside the released section, stays clean on an untouched copy, and ignores an edit outside the section
+PASS TEST-030 all four deslop-corpus-honesty registry follow-ups are closed
+PASS TEST-031 an unreadable corpus directory is named in notes, in requirement_corpus.unreadable_dirs and in the header as outside the accounting; the readable half still suppresses; an empty corpus caused by one says so; an absent directory is not reported; every run exits 0
+
+All tests passed!

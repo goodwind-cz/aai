@@ -1,0 +1,68 @@
+{
+  "anyMutation": true,
+  "productDocGate": {
+    "userVisible": false,
+    "severity": "none"
+  },
+  "usageCaptureGate": {
+    "severity": "none",
+    "roles": []
+  },
+  "evidencePathGate": {
+    "severity": "none",
+    "unresolved": [],
+    "resolutionRoot": "/private/tmp/aai-pr434-remediation-scratch/checkout"
+  },
+  "mutationGate": {
+    "severity": "refuse",
+    "dial": "enforce",
+    "offending": [
+      {
+        "spec": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+        "exitCode": 5,
+        "rows": [
+          "OFFENDING TEST-001: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.txt",
+          "OFFENDING TEST-002: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.txt",
+          "OFFENDING TEST-003: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.txt",
+          "OFFENDING TEST-004: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.txt",
+          "OFFENDING TEST-005: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.txt",
+          "OFFENDING TEST-007: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.txt",
+          "OFFENDING TEST-008: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-008.txt"
+        ]
+      }
+    ],
+    "notices": [],
+    "reason": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md: OFFENDING TEST-001: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.txt; OFFENDING TEST-002: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.txt; OFFENDING TEST-003: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.txt; OFFENDING TEST-004: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.txt; OFFENDING TEST-005: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.txt; OFFENDING TEST-007: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.txt; OFFENDING TEST-008: missing record at docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-008.txt"
+  },
+  "stateReconcile": {
+    "severity": "none",
+    "reason": null,
+    "statePath": "/private/tmp/aai-pr434-remediation-scratch/checkout/docs/ai/STATE.yaml",
+    "commands": []
+  },
+  "productDocUpdate": null,
+  "plan": [
+    {
+      "ref": "pr-capability-preflight",
+      "rel": "docs/issues/CHANGE-0204-pr-capability-preflight.md",
+      "from": "done",
+      "to": "done",
+      "needsFlip": false,
+      "needsPr": false,
+      "needsCommit": true,
+      "needsClosedEvent": false,
+      "needsAcEvidence": true
+    },
+    {
+      "ref": "spec-pr-capability-preflight",
+      "rel": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+      "from": "done",
+      "to": "done",
+      "needsFlip": false,
+      "needsPr": false,
+      "needsCommit": true,
+      "needsClosedEvent": false,
+      "needsAcEvidence": true
+    }
+  ]
+}

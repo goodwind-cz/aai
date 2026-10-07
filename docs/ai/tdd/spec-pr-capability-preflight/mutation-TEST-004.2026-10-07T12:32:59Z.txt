@@ -1,0 +1,45 @@
+mutation_record: v1
+spec_id: spec-pr-capability-preflight
+test_id: TEST-004
+suite: tests/skills/test-aai-pr-preflight.sh
+selector: test_004
+target: .aai/scripts/pr-preflight.mjs
+mutation: patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.2026-10-07T12:32:59Z.patch
+base_commit: bdeb425c040ada918dd97e5b878b71e420bad83a
+tree_hash: 945af7b85ddbccc6567b0a053214480bb05af41c27663d166fd8eb78c7c7b899
+run_at_utc: 2026-10-07T12:32:59Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-004 CLI must finish within harness bound
+selector_honoured: yes
+target_sha256: 2a0c8bfd2c816eb7fd70c357c87d128c86912b4814dc8d6fc9047a9d09ae4130
+---
+FAIL: TEST-004 CLI must finish within harness bound
++ actual - expected
+
++ Error: spawnSync /opt/homebrew/Cellar/node/26.8.2/bin/node ETIMEDOUT
++     at Object.spawnSync (node:internal/child_process:1144:20)
++     at spawnSync (node:child_process:928:24)
++     at run ([stdin]:63:34)
++     at [stdin]:92:11
++     at runScriptInThisContext (node:internal/vm:219:10)
++     at node:internal/process/execution:485:12
++     at [stdin]-wrapper:6:24
++     at runScriptInContext (node:internal/process/execution:483:60)
++     at evalFunction (node:internal/process/execution:317:30)
++     at evalTypeScript (node:internal/process/execution:329:3) {
++   code: 'ETIMEDOUT',
++   errno: -60,
++   path: '/opt/homebrew/Cellar/node/26.8.2/bin/node',
++   spawnargs: [
++     '/private/var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-mutation-kBPHAH/clone/.aai/scripts/pr-preflight.mjs',
++     '--input',
++     '/private/tmp/aai-pr-preflight-scratch/fixture-DO1J2Z/input.json',
++     '--json',
++     '--timeout-ms',
++     '200'
++   ],
++   syscall: 'spawnSync /opt/homebrew/Cellar/node/26.8.2/bin/node'
++ }
+- undefined
+

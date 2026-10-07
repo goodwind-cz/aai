@@ -13,7 +13,7 @@ const result = { schema_version: 1, platform: null, repository: null,
   outcome: 'refused', code: null, operation: null, remedy: null,
   create_permission: 'unknown' };
 const remedies = {
-  IDENTITY_INVALID: 'Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.',
+  IDENTITY_INVALID: 'Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to that remote.',
   CLIENT_MISSING: 'Make the named provider client available on PATH, then rerun readiness.',
   EXTENSION_MISSING: 'Ask the operator to provide a working installed azure-devops extension, then rerun readiness.',
   AUTH_FAILED: 'Ask the operator to repair authentication for the named repository and rerun readiness.',
@@ -162,13 +162,7 @@ async function identity(input, opts) {
   let remote = null;
   if (input.remote_name !== null) {
     if (!text(input.remote_name) || input.remote_name.startsWith('-')) invalid();
-    const fetch = (await local(['remote','get-url','--all','--',input.remote_name])).split(/\r?\n/);
-    const push = (await local(['remote','get-url','--push','--all','--',input.remote_name])).split(/\r?\n/);
-    // get-url expands insteadOf/pushInsteadOf. Conservative endpoint equality
-    // keeps the provider read bound to the repository a later named-remote push uses.
-    if (fetch.length !== 1 || push.length !== 1 || !text(fetch[0]) || fetch[0] !== push[0])
-      invalid('git.push-destination');
-    remote = fetch[0];
+    remote = await local(['remote','get-url','--',input.remote_name]); if (!remote) invalid();
   }
   result.platform = remote === null ? 'none' : classify(extractHost(remote));
   const host = extractHost(remote);

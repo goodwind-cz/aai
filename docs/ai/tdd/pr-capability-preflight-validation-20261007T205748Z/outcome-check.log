@@ -1,0 +1,3 @@
+OUTCOME-CHECK: outcome OUT-004 result is violated
+OUTCOME-CHECK: outcome OUT-005 result is unknown
+OUTCOME-CHECK: outcome OUT-006 result is unknown

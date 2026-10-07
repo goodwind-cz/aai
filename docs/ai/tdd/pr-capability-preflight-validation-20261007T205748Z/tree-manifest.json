@@ -1,0 +1,309 @@
+{
+  "observed_at_utc": "2026-10-07T21:03:43.941939+00:00",
+  "base": "bdeb425c040ada918dd97e5b878b71e420bad83a",
+  "head": "609832744c202805234da8a09e40c5d3bb171308",
+  "files": [
+    {
+      "path": ".aai/SKILL_PR.prompt.md",
+      "bytes": 37717,
+      "sha256": "7dbd75147ecb8661be07119524f94b69a2c4ae40f534db27d82b5956f5eeec4e"
+    },
+    {
+      "path": ".aai/scripts/pr-preflight.mjs",
+      "bytes": 17548,
+      "sha256": "9d77b01a0c27de8ef865d493a9e35a418f42b31ec49b699197d5c73c0d855bd3"
+    },
+    {
+      "path": ".aai/system/PROFILES.yaml",
+      "bytes": 14042,
+      "sha256": "143748780c90255c7cf446e73236ed83c2cff38ec767c282e89a46aca97ac9b4"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 439124,
+      "sha256": "264cd86dd3d386fdf025585c42b2e077b184a23a0a0f94f2c68350e8dce2df23"
+    },
+    {
+      "path": "docs/INDEX.md",
+      "bytes": 48481,
+      "sha256": "abef75167abe9f48a7a81b9bd9ef9eb9c1ed653320b3072ce588f297854dcd08"
+    },
+    {
+      "path": "docs/USER_GUIDE.md",
+      "bytes": 138475,
+      "sha256": "8f2313a81921d5ac9923141268f25fb3f6149e21f1055fc33fb012b02b11a9bb"
+    },
+    {
+      "path": "docs/ai/EVENTS.jsonl",
+      "bytes": 542591,
+      "sha256": "04230c0e9928ec89be65bb8b22dddce1be5fd1569629c3ef26cdfaf954b26870"
+    },
+    {
+      "path": "docs/ai/METRICS.jsonl",
+      "bytes": 576232,
+      "sha256": "554849862fdc544e70beb085117f84a2a8f7a7f688cbed24446b21fbc8b1828e"
+    },
+    {
+      "path": "docs/ai/decisions.jsonl",
+      "bytes": 1164232,
+      "sha256": "c33a007fc3a18d1c22910572e982c8971f9815a4f9c0872ff61cb6e108981c4a"
+    },
+    {
+      "path": "docs/ai/factory-report-data.json",
+      "bytes": 325455,
+      "sha256": "ba5c3686526ce2bf15cf05889e1d8a9e3230a0514afe6f10a4dc9d0296c00b85"
+    },
+    {
+      "path": "docs/ai/factory-report.html",
+      "bytes": 144572,
+      "sha256": "d492291c3d0ee7548c8a40ab81b9a1ae21365ff6f46acb6a42e9dba923a58450"
+    },
+    {
+      "path": "docs/ai/overview-data.json",
+      "bytes": 301051,
+      "sha256": "c2dbecc965ca7a0b9989843e36a56c30fc0892806d2978cc047da427454afd50"
+    },
+    {
+      "path": "docs/ai/overview.html",
+      "bytes": 118377,
+      "sha256": "c6735d2b73454cb757bfab368ec0e9d92f8937f14a5b515a765068941a7bd856"
+    },
+    {
+      "path": "docs/ai/reports/REMEDIATION-20261007T204234Z-pr-capability-preflight-final-ci.md",
+      "bytes": 5997,
+      "sha256": "c5c3279185541ac5588159d0c13aa9f16981bb53ff65dc071a3b4f9c24a626bf"
+    },
+    {
+      "path": "docs/ai/reports/REMEDIATION-20261007T204234Z-pr-capability-preflight-result.md",
+      "bytes": 4158,
+      "sha256": "efe950793f39df64bda8577eecb891b6664c58566dd3836bd2c1c0d37701eff9"
+    },
+    {
+      "path": "docs/ai/reports/RESULT-20261007T180720Z-pr-capability-preflight-corrected.md",
+      "bytes": 3266,
+      "sha256": "b98de4f9f6ba816d78f1c5a9793c4104d1d207925120e60b698529dfebc4ab72"
+    },
+    {
+      "path": "docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md",
+      "bytes": 23150,
+      "sha256": "79ff30b900d0de93133787181b5f6244a1807aebf2816384c05d91f943f96c90"
+    },
+    {
+      "path": "docs/ai/reviews/result-20261007T165159Z-pr-capability-preflight.md",
+      "bytes": 1708,
+      "sha256": "0592780d5260a873343bcf08c2c653038d028fdf0b4b2702e811ab9e6cd81e3d"
+    },
+    {
+      "path": "docs/ai/reviews/result-20261007T183041Z-pr-capability-preflight-corrected.md",
+      "bytes": 1963,
+      "sha256": "f05bd0109c94c660ac6964dfc5d4de8d7dea3a7046bcd39dbc81e709f1db6739"
+    },
+    {
+      "path": "docs/ai/reviews/review-20261007T165159Z-pr-capability-preflight.md",
+      "bytes": 11178,
+      "sha256": "a37d7e92616c6ed40c4e7079999e4f877354f02bb1a505e13bdbd0c0dbfd68c1"
+    },
+    {
+      "path": "docs/ai/reviews/review-20261007T183041Z-pr-capability-preflight-corrected.md",
+      "bytes": 10742,
+      "sha256": "2af66df565609c146df5a8ee42097155277504fe64167de8b19edd8741a853c0"
+    },
+    {
+      "path": "docs/ai/roadmap.yaml",
+      "bytes": 2499,
+      "sha256": "15627c1f8e91dbeb9c07dc3fb9e839a81c81856b245f2f7256cd8af7132bbcd6"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/ac-gate.log",
+      "bytes": 273,
+      "sha256": "99db5c489926750faefc144f2097a32e267e0a97ffccd7484003b6aaf2f9dfea"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/clone-control-red.log",
+      "bytes": 484,
+      "sha256": "bc3552f41fc857a81ff85bacc1dca09b154fec374e8e7230c73b8b31470f7104"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/clone-red.log",
+      "bytes": 346,
+      "sha256": "d505e17a3ab243d58fc7f15a6bcacfcf0a39d2fb07575917a44811ef9efb930c"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/diet-green.log",
+      "bytes": 8084,
+      "sha256": "7c89a40976ef33d3048235760eff63c588396fa7b7f4e3a934d5afc4abe82e3f"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/historical-mutation-TEST-006.patch",
+      "bytes": 637,
+      "sha256": "c990482e2968d5e2ae0062b4b569b9f3d5873c49aa1e6e042e8c28b4902c7edb"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/historical-mutation-TEST-006.txt",
+      "bytes": 654,
+      "sha256": "74c2e04c96420be82de59fa6ba9ca3348056fd9194e393313b35d1b6d4b107a4"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/mutation-replay-final.log",
+      "bytes": 716,
+      "sha256": "3c810b6697362bd54d5b46d239c94de9ef7d4f00037df4356d6ad1640df75cf4"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/mutation-replay.log",
+      "bytes": 1014,
+      "sha256": "f6578b700e41cd57c86f761df61a4f554af413cb97b659d2447b7258a19ecd99"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/mutation006.log",
+      "bytes": 171,
+      "sha256": "bdae26bc6adf89a60dbdf28fdc204ce9d79b6deb91abf0d9a91c0edd7e5a0563"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log",
+      "bytes": 116947,
+      "sha256": "0306c0a4dfd037838d3c2b367eabfee63bc544e2cb9ed5ce80a58d69814d4f7a"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/platform-green.log",
+      "bytes": 4421,
+      "sha256": "4e5a15b82e09ab60f861ea4a24ce77ad2518e7704d5c98a8262502cd4d68ee68"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/preflight-green.log",
+      "bytes": 3568,
+      "sha256": "c8dc458e0b61a747dcb111946fe3684bccba4985615f98c251e7fd73b6a71293"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/remote-red.log",
+      "bytes": 272,
+      "sha256": "f41e26d4aac1b83c0d37abc4eb0113a53a006345fa54c470cec66456a4b5d8b6"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/ride-green.log",
+      "bytes": 26859,
+      "sha256": "89846a7357959185a4b32fa415286f1d6f40650eb7504a2bf9e2d259a9128d9f"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/ride-red.log",
+      "bytes": 374,
+      "sha256": "841b6d46bd57f2958a309d637c336383e772d26af46c10c384f2873b60eefcda"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/source-hashes.json",
+      "bytes": 543,
+      "sha256": "8717e2f9583ccbec05852da7c9f2f026d39426179cc732e3a6538da92bb025f9"
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-remediation-20261007/summary-red.log",
+      "bytes": 88,
+      "sha256": "3b3e141cc30a087cb370dc9fe32736a557db9f0042e58ec9420672837059ceb7"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.patch",
+      "bytes": 619,
+      "sha256": "9b496577d77164cf0ec8dff3315a3889254e717d547ede93308393e57e8e5c6a"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.txt",
+      "bytes": 707,
+      "sha256": "55f4a916b79ffd77de6aefe23c9e02634579d0ca8704d97114bcd38ec533e522"
+    },
+    {
+      "path": "docs/ai/tests/test-runs.jsonl",
+      "bytes": 137492,
+      "sha256": "c37c463c1b2dcc5ed8806995341f294206f73422ecd75f3e5d3c4133c28c80e6"
+    },
+    {
+      "path": "docs/decisions/DECISION-pr-capability-preflight-ci-snapshot.md",
+      "bytes": 1145,
+      "sha256": "dea662b1f2e4f662a849508d3de46c164835f5a91c2d407af0bbde8af04b16a6"
+    },
+    {
+      "path": "docs/decisions/DECISION-pr-capability-preflight.md",
+      "bytes": 502,
+      "sha256": "2782dc156d15c369214f6691a5791ee6f085828d9f4e59836aa863e7ffd6c73e"
+    },
+    {
+      "path": "docs/issues/CHANGE-0204-pr-capability-preflight.md",
+      "bytes": 3644,
+      "sha256": "5103c792b1773650e6122e91fb58cd15ae8760e8ec3c9dc5642423b618a45460"
+    },
+    {
+      "path": "docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md",
+      "bytes": 17098,
+      "sha256": "f609dca515f97901c7ed6d96fb410c7dcd634c9b0d7fba8d3a4dc3d50ab5d3ae"
+    },
+    {
+      "path": "docs/skill-catalog-data.json",
+      "bytes": 25292,
+      "sha256": "14cc49ec3da7cc26a9c1849cd6d4dd5be4c9f9085c6042d91ee508558f70b1d7"
+    },
+    {
+      "path": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+      "bytes": 22439,
+      "sha256": "75bd28bad2ba6d0047bf82f8d49f41fd6bce51865bfb305127e514947185afbb"
+    },
+    {
+      "path": "tests/skills/aai-pr-preflight.Tests.ps1",
+      "bytes": 4396,
+      "sha256": "1a65b3789720d80167b3bd5ecbc52af1f79b789848334f85d38f2447673b079b"
+    },
+    {
+      "path": "tests/skills/lib/prompt-diet-ledger.sh",
+      "bytes": 128688,
+      "sha256": "8e59bf37c51a114dceb0c6613ddc4527660efe9540677a3c3b3c79a556cd6d28"
+    },
+    {
+      "path": "tests/skills/suite-map.yaml",
+      "bytes": 37682,
+      "sha256": "635aa199f67d9fecaf4f77c61f923aeb1c0c336601a45440d4db1043de4beeaa"
+    },
+    {
+      "path": "tests/skills/test-aai-hygiene-pack.sh",
+      "bytes": 325009,
+      "sha256": "bd0f9a7c6f391fc9e4681e5e56847cb2d40a477ac1650fdae94b2deb9cc4e03a"
+    },
+    {
+      "path": "tests/skills/test-aai-pr-preflight.sh",
+      "bytes": 26109,
+      "sha256": "d46b236262f6d8b7cc9cffc280649e60cafeaba5fb292c68dfec7290ca36787d"
+    },
+    {
+      "path": "tests/skills/test-aai-prompt-diet.sh",
+      "bytes": 131653,
+      "sha256": "70d5377eef6044b020b611bbdf2b57dae80d5a33546dddf7773873448dc451cb"
+    },
+    {
+      "path": "tests/skills/test-aai-ride-select.sh",
+      "bytes": 238592,
+      "sha256": "e76b950217a8dda61c2bccd1b2186f1566ae9a344dfcb7954f0f0acb167fb9cd"
+    }
+  ],
+  "ledger_prefixes": [
+    {
+      "path": "docs/ai/EVENTS.jsonl",
+      "base_bytes": 539542,
+      "head_bytes": 542591,
+      "base_exact_prefix": true
+    },
+    {
+      "path": "docs/ai/METRICS.jsonl",
+      "base_bytes": 568927,
+      "head_bytes": 576232,
+      "base_exact_prefix": true
+    },
+    {
+      "path": "docs/ai/decisions.jsonl",
+      "base_bytes": 1157508,
+      "head_bytes": 1164232,
+      "base_exact_prefix": true
+    },
+    {
+      "path": "docs/ai/tests/test-runs.jsonl",
+      "base_bytes": 136348,
+      "head_bytes": 137492,
+      "base_exact_prefix": true
+    }
+  ],
+  "git_status": ""
+}

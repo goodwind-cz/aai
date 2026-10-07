@@ -1,0 +1,20 @@
+{
+  "observed_at_utc": "2026-10-07T21:00:32.847Z",
+  "files": 214,
+  "opted": 208,
+  "rows": [
+    {
+      "file": "docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md",
+      "ac": "Spec-AC-10",
+      "status": "deferred",
+      "review_by": "2026-10-17"
+    },
+    {
+      "file": "docs/specs/SPEC-0209-spec-worktree-lacks-vendored-aai-layer-downstream.md",
+      "ac": "Spec-AC-06",
+      "status": "deferred",
+      "review_by": "2026-10-20"
+    }
+  ],
+  "failures": []
+}

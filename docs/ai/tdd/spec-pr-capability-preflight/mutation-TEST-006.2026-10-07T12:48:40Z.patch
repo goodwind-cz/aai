@@ -1,0 +1,10 @@
+--- a/.aai/SKILL_PR.prompt.md
++++ b/.aai/SKILL_PR.prompt.md
+@@ -55,7 +55,6 @@
+   for explicit local-only intent), current source_branch, and explicit
+   target_branch. Bind Azure organization_url/project/repository or GitHub
+   owner/name repository to the actual selected Git remote; do not guess intent.
+-  Run `node .aai/scripts/pr-preflight.mjs --input <preflight-input.json> --json`.
+   Nonzero means STOP before lifecycle/Git writes; print its safe diagnostic and
+   release the held lock: `node .aai/scripts/lib/session-lock.mjs release --pid "$PPID"`.
+   Exit 0 means repository read_verified or the named GENERIC MODE fallback;
