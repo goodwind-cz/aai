@@ -19,6 +19,8 @@ fs.mkdirSync(repo); fs.mkdirSync(bin);
 function git(...args) { return execFileSync('git',args,{cwd:repo,encoding:'utf8',stdio:['ignore','pipe','pipe'],env:{...process.env,AAI_GIT_WRITE:'1',GIT_CONFIG_NOSYSTEM:'1'}}).trim(); }
 git('init','-q'); git('config','user.name','Fixture'); git('config','user.email','fixture@example.invalid');
 fs.writeFileSync(path.join(repo,'file'),'base'); git('add','file'); git('commit','-qm','base'); git('branch','-M','change/pr-capability-preflight');
+const realGit=execFileSync(process.platform==='win32'?'where':'which',[process.platform==='win32'?'git.exe':'git'],{encoding:'utf8'}).split(/\r?\n/)[0].trim();
+const gitLog=path.join(tmp,'git-calls.jsonl');
 const log = path.join(tmp,'calls.jsonl'), pidFile = path.join(tmp,'pid');
 const azArgs = [
  ['--version'],
@@ -29,9 +31,10 @@ const ghArgs = [['--version'],['auth','status','--hostname','github.com'],['repo
 // A strict stub compares the entire argument vector and environment before answering.
 const stub = path.join(tmp,'client.cjs');
 fs.writeFileSync(stub,`const fs=require('fs'); const name=process.argv[2],args=process.argv.slice(3),mode=process.env.FIX_MODE;
+if(name==='git'){fs.appendFileSync(process.env.FIX_GIT_LOG,JSON.stringify({args,GIT_TERMINAL_PROMPT:process.env.GIT_TERMINAL_PROMPT,GH_PROMPT_DISABLED:process.env.GH_PROMPT_DISABLED})+'\\n');const r=require('child_process').spawnSync(process.env.FIX_REAL_GIT,args,{stdio:'inherit',env:process.env});process.exit(r.status===null?95:r.status);}
 const allowed=JSON.parse(process.env.FIX_ALLOWED)[name];
 const step=allowed.findIndex(x=>JSON.stringify(x)===JSON.stringify(args));
-fs.appendFileSync(process.env.FIX_LOG,JSON.stringify({name,args,env:{AZURE_EXTENSION_USE_DYNAMIC_INSTALL:process.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL,AZURE_CORE_NO_COLOR:process.env.AZURE_CORE_NO_COLOR,GH_HOST:process.env.GH_HOST,AZ_INSTALLER:process.env.AZ_INSTALLER}})+'\\n');
+fs.appendFileSync(process.env.FIX_LOG,JSON.stringify({name,args,env:{AZURE_EXTENSION_USE_DYNAMIC_INSTALL:process.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL,AZURE_CORE_NO_COLOR:process.env.AZURE_CORE_NO_COLOR,GH_HOST:process.env.GH_HOST,GIT_TERMINAL_PROMPT:process.env.GIT_TERMINAL_PROMPT,GH_PROMPT_DISABLED:process.env.GH_PROMPT_DISABLED,AZ_INSTALLER:process.env.AZ_INSTALLER}})+'\\n');
 if(step<0) {console.error('DENIED unexpected argv');process.exit(91);}
 if(name==='az'&&process.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL!=='no')process.exit(92);
 let gotInput=false; process.stdin.on('data',()=>{gotInput=true}); process.stdin.on('end',()=>{
@@ -62,15 +65,15 @@ function install(name) {
    fs.writeFileSync(path.join(bin,name),'#!/bin/sh\nexec "'+process.execPath+'" "'+stub+'" '+name+' "$@"\n',{mode:0o755});
  }
 }
-install('az'); install('gh');
+install('az'); install('gh'); install('git');
 let input = {schema_version:1,repo_root:repo,remote_name:'origin',source_branch:'change/pr-capability-preflight',target_branch:'main',organization_url:'https://dev.azure.com/Org',project:'Project 雪',repository:'Repo Name'};
 let host='github.com';
 function azure(url='https://dev.azure.com/Org/Project%20%E9%9B%AA/_git/Repo%20Name') {try{git('remote','remove','origin')}catch{} git('remote','add','origin',url);}
 function github(h='github.com') {host=h; azure('https://'+h+'/Org/Repo.git'); input={schema_version:1,repo_root:repo,remote_name:'origin',source_branch:'change/pr-capability-preflight',target_branch:'main',repository:'Org/Repo'}; ghArgs[1][3]=h;}
 function calls() {return fs.existsSync(log)?fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];}
 function run(mode='ok',extra=[],override={}) {
- fs.writeFileSync(log,''); const file=path.join(tmp,'input.json'); fs.writeFileSync(file,JSON.stringify(input));
- const env={...process.env,PATH:bin+path.delimiter+process.env.PATH,FIX_MODE:mode,FIX_ALLOWED:JSON.stringify({az:azArgs,gh:ghArgs}),FIX_LOG:log,FIX_PID:pidFile,FIX_HOST:host,AAI_NATIVE_NODE:process.execPath,AAI_NATIVE_STUB:stub,...override};
+ fs.writeFileSync(log,''); fs.writeFileSync(gitLog,''); const file=path.join(tmp,'input.json'); fs.writeFileSync(file,JSON.stringify(input));
+ const env={...process.env,PATH:bin+path.delimiter+process.env.PATH,FIX_MODE:mode,FIX_REAL_GIT:realGit,FIX_GIT_LOG:gitLog,FIX_ALLOWED:JSON.stringify({az:azArgs,gh:ghArgs}),FIX_LOG:log,FIX_PID:pidFile,FIX_HOST:host,AAI_NATIVE_NODE:process.execPath,AAI_NATIVE_STUB:stub,...override};
  const start=Date.now(); const r=spawnSync(process.execPath,[cli,'--input',file,'--json',...extra],{env,encoding:'utf8',timeout:4000,maxBuffer:2000000});
  assert.equal(r.error,undefined,'CLI must finish within harness bound');
  let json; try{json=JSON.parse(r.stdout)}catch{assert.fail('one parseable JSON result required: '+String(r.stdout).slice(0,200));}
@@ -85,7 +88,7 @@ try {
   for(const change of [{source_branch:'other'},{target_branch:input.source_branch},{repository:'Other'},{project:'Other'},{organization_url:'https://dev.azure.com/Other'},{remote_name:'missing'},{schema_version:2},{surprise:true},{target_branch:''},{source_branch:'bad..branch'},{repo_root:'relative'}])refusal(change);
   const saved=input.target_branch;delete input.target_branch;expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0);input.target_branch=saved;
   git('checkout','--detach','-q');expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0);git('checkout','-q','change/pr-capability-preflight');
-  for(const url of ['git@ssh.dev.azure.com:v3/Org/Project%20%E9%9B%AA/Repo%20Name','https://Org.visualstudio.com/Project%20%E9%9B%AA/_git/Repo%20Name']){azure(url);expect(run(),0,'READ_VERIFIED');}
+  for(const url of ['git@ssh.dev.azure.com:v3/Org/Project%20%E9%9B%AA/Repo%20Name','https://Org.visualstudio.com/Project%20%E9%9B%AA/_git/Repo%20Name','Org@vs-ssh.visualstudio.com:v3/Org/Project%20%E9%9B%AA/Repo%20Name']){azure(url);expect(run(),0,'READ_VERIFIED');}
   azure('https://dev.azure.com/Org/Project/_git/Repo/extra');expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0);
   github();expect(run(),0,'READ_VERIFIED');
   for(const args of [['--json'],['--unknown'],['--timeout-ms','200','--timeout-ms','200']]) {expect(run('ok',args),2,'IDENTITY_INVALID');assert.equal(calls().length,0);}
@@ -98,6 +101,7 @@ try {
   fs.appendFileSync(wrapper,'\r\necho unexpected');assert.equal(spawnSync(process.execPath,['--input-type=module','-e',importCode,wrapper],{encoding:'utf8'}).status,3,'unknown batch text refused');
   const r=run();expect(r,0,'READ_VERIFIED');assert.equal(r.json.outcome,'read_verified');assert.deepEqual(calls().map(c=>c.args),azArgs);console.log('INFO: TEST-002 '+JSON.stringify({result:r.json,calls:calls()}));assert.equal(process.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL,parentDynamicInstall);
   assert.ok(calls().every(c=>c.env.AZURE_CORE_NO_COLOR==='true'));
+  expect(run('ok',[],{GIT_TERMINAL_PROMPT:'1',GH_PROMPT_DISABLED:'0'}),0,'READ_VERIFIED');assert.ok(calls().every(c=>c.env.GIT_TERMINAL_PROMPT==='0'&&c.env.GH_PROMPT_DISABLED==='1'));const gitProbes=fs.readFileSync(gitLog,'utf8').trim().split('\n').map(JSON.parse);assert.ok(gitProbes.length>=6,'Git identity probes reached');assert.ok(gitProbes.every(c=>c.GIT_TERMINAL_PROMPT==='0'&&c.GH_PROMPT_DISABLED==='1')); 
   if(process.platform==='win32'){const liveWrapper=path.join(bin,'az.cmd'),original=fs.readFileSync(liveWrapper,'utf8');assert.ok(calls().every(c=>c.env.AZ_INSTALLER==='MSI'));fs.writeFileSync(liveWrapper,original.replace('AZ_INSTALLER=MSI','AZ_INSTALLER=ZIP'));expect(run(),0,'READ_VERIFIED');assert.ok(calls().every(c=>c.env.AZ_INSTALLER==='ZIP'));fs.appendFileSync(liveWrapper,'\r\necho unexpected');expect(run(),3,'ACCESS_UNKNOWN');assert.equal(calls().length,0,'unknown cmd never executed');fs.writeFileSync(liveWrapper,original);}
   expect(run('extension'),3,'EXTENSION_MISSING');assert.equal(calls().length,2,'no repos without extension');
   expect(run('mismatch'),3,'PROVIDER_RESULT_INVALID');assert.equal(calls().length,3);
@@ -114,7 +118,8 @@ try {
   azure('https://user:ghp_REMOTE_SYNTHETIC@dev.azure.com/Org/Project%20%E9%9B%AA/_git/Repo%20Name');const r=run('secrets');expect(r,3,'ACCESS_UNKNOWN');assert.equal(calls().length,3,'secret emitter reached');assert.doesNotMatch(r.stdout+r.stderr,/ghp_|sk_live_|AKIA|user:/);assert.ok(r.stderr.includes('ACCESS_UNKNOWN'));
   const large=run('overflow');expect(large,3,'PROVIDER_RESULT_INVALID');assert.equal(calls().length,1);assert.ok(large.stdout.length<10000);
  } else if(id==='006') {
-  const prompt=fs.readFileSync(path.join(root,'.aai/SKILL_PR.prompt.md'),'utf8');const invocation=prompt.indexOf('node .aai/scripts/pr-preflight.mjs --input <preflight-input.json> --json');assert.ok(invocation>=0,'actual readiness invocation exists');assert.ok(invocation<prompt.indexOf('PROCESS\n'),'readiness in PRECONDITIONS');assert.match(prompt,/missing STATE.*readiness succeeds/s,'fresh STATE initialization follows readiness');assert.match(prompt,/release --pid/);assert.match(prompt,/Nonzero.*STOP/);
+  const rawPrompt=fs.readFileSync(path.join(root,'.aai/SKILL_PR.prompt.md'),'utf8');function assertPrompt(raw){const prompt=raw.replace(/\r\n/g,'\n');const invocation=prompt.indexOf('node .aai/scripts/pr-preflight.mjs --input <preflight-input.json> --json');assert.ok(invocation>=0,'actual readiness invocation exists');assert.ok(invocation<prompt.indexOf('PROCESS\n'),'readiness in PRECONDITIONS');assert.match(prompt,/missing STATE.*readiness succeeds/s,'fresh STATE initialization follows readiness');assert.match(prompt,/release --pid/);assert.match(prompt,/Nonzero.*STOP/);}
+  for(const newline of ['\n','\r\n']){const fixture=path.join(tmp,'prompt-fixture.md');fs.writeFileSync(fixture,rawPrompt.replace(/\r?\n/g,newline));assertPrompt(fs.readFileSync(fixture,'utf8'));}
   fs.mkdirSync(path.join(repo,'docs/ai'),{recursive:true});fs.writeFileSync(path.join(repo,'docs/ai/STATE.yaml'),'sentinel state');git('update-ref','refs/aai/reservations/local',git('rev-parse','HEAD'));git('update-ref','refs/remotes/origin/aai-reservations',git('rev-parse','HEAD'));
   const snapshot=()=>JSON.stringify([fs.existsSync(path.join(repo,'docs/ai/STATE.yaml'))?fs.readFileSync(path.join(repo,'docs/ai/STATE.yaml'),'hex'):null,git('write-tree'),git('rev-parse','HEAD'),git('for-each-ref','--format=%(refname) %(objectname)','refs/aai','refs/remotes')]);const before=snapshot();expect(run('extension'),3,'EXTENSION_MISSING');assert.equal(calls().length,2);assert.equal(snapshot(),before,'refusal preserves state/index/head/reservations');expect(run(),0,'READ_VERIFIED');assert.equal(calls().length,3);
   const stateFile=path.join(repo,'docs/ai/STATE.yaml');fs.unlinkSync(stateFile);const absent=snapshot();
@@ -122,14 +127,17 @@ try {
   expect(freshCeremony('extension'),3,'EXTENSION_MISSING');assert.equal(fs.existsSync(stateFile),false,'refusal leaves missing STATE absent');assert.equal(snapshot(),absent);expect(freshCeremony('ok'),0,'READ_VERIFIED');assert.equal(fs.existsSync(stateFile),true);assert.equal(calls().length,3,'success path reached provider then STATE initialization');
 
  } else if(id==='007') {
-  github('enterprise.github.com');expect(run(),0,'READ_VERIFIED');assert.deepEqual(calls().map(c=>c.args),ghArgs);assert.ok(calls().every(c=>c.env.GH_HOST===host));expect(run('gh-auth'),3,'AUTH_FAILED');assert.equal(calls().length,2);expect(run('mismatch'),3,'PROVIDER_RESULT_INVALID');
+  github('enterprise.github.com');expect(run('ok',[],{GIT_TERMINAL_PROMPT:'1',GH_PROMPT_DISABLED:'0'}),0,'READ_VERIFIED');assert.ok(calls().every(c=>c.env.GIT_TERMINAL_PROMPT==='0'&&c.env.GH_PROMPT_DISABLED==='1'));assert.deepEqual(calls().map(c=>c.args),ghArgs);assert.ok(calls().every(c=>c.env.GH_HOST===host));expect(run('gh-auth'),3,'AUTH_FAILED');assert.equal(calls().length,2);expect(run('mismatch'),3,'PROVIDER_RESULT_INVALID');
   delete input.repository;azure('https://gitlab.com/Org/Repo.git');const r=run();expect(r,0,'CAPABILITY_NOT_APPLICABLE');assert.equal(calls().length,0);assert.match(r.json.remedy,/GENERIC MODE/);
+  for(const suffix of ['?access_token=SYNTHETIC_QUERY_CREDENTIAL','#SYNTHETIC_FRAGMENT_CREDENTIAL']){azure('https://user:SYNTHETIC_USERINFO_CREDENTIAL@gitlab.com/Org/Repo.git'+suffix);const clean=run();expect(clean,0,'CAPABILITY_NOT_APPLICABLE');assert.equal(calls().length,0);assert.equal(clean.json.repository.remote,'https://gitlab.com/Org/Repo.git');assert.doesNotMatch(clean.stdout+clean.stderr,/SYNTHETIC_|access_token|user:/);}
   git('remote','remove','origin');input.remote_name=null;expect(run(),0,'CAPABILITY_NOT_APPLICABLE');assert.equal(calls().length,0);
  } else if(id==='008') {
   const profiles=fs.readFileSync(path.join(root,'.aai/system/PROFILES.yaml'),'utf8');const core=profiles.split(/^core:\s*$/m)[1].split(/^\S/m)[0];assert.match(core,/  - \.aai\/scripts\/pr-preflight\.mjs/,'new script core');
   const changed=path.join(tmp,'changed.txt');fs.writeFileSync(changed,'.aai/scripts/pr-preflight.mjs\n');const selected=spawnSync(process.execPath,[path.join(root,'.aai/scripts/select-suites.mjs'),'--files-from',changed],{cwd:root,encoding:'utf8'});assert.equal(selected.status,0);assert.match(selected.stdout,/aai-pr-preflight/,'suite selected for actual script');
-  const ledger=fs.readFileSync(path.join(root,'tests/skills/lib/prompt-diet-ledger.sh'),'utf8');const entry=ledger.match(/JUSTIFIED_ADDITIONS\+=\( "(\d+) pr-capability-preflight /);assert.ok(entry,'measured ledger entry');const base=execFileSync('git',['show','bdeb425c040ada918dd97e5b878b71e420bad83a:.aai/SKILL_PR.prompt.md'],{cwd:root});assert.equal(Number(entry[1]),fs.statSync(path.join(root,'.aai/SKILL_PR.prompt.md')).size-base.length,'actual prompt growth');
+  const ledger=fs.readFileSync(path.join(root,'tests/skills/lib/prompt-diet-ledger.sh'),'utf8');const entry=ledger.match(/JUSTIFIED_ADDITIONS\+=\( "(\d+) pr-capability-preflight /);assert.ok(entry,'measured ledger entry');// Immutable LF blob bdeb425c040ada918dd97e5b878b71e420bad83a:.aai/SKILL_PR.prompt.md measured36430 bytes. No historical object is required.
+  const baselineBytes=36430,lf=fs.readFileSync(path.join(root,'.aai/SKILL_PR.prompt.md'),'utf8').replace(/\r\n/g,'\n');const measured=raw=>Buffer.byteLength(raw.replace(/\r\n/g,'\n'),'utf8');assert.equal(measured(lf),measured(lf.replace(/\n/g,'\r\n')),'LF/CRLF canonical accounting parity');assert.equal(Number(entry[1]),measured(lf)-baselineBytes,'actual normalized prompt growth');
   const diet=fs.readFileSync(path.join(root,'tests/skills/test-aai-prompt-diet.sh'),'utf8');assert.match(diet,new RegExp('local want_growth='+String(54252+Number(entry[1]))));
+  if(!process.env.AAI_PREFLIGHT_SHALLOW_PROOF){const shallow=path.join(tmp,'shallow');execFileSync(realGit,['clone','--quiet','--depth','1',require('url').pathToFileURL(root).href,shallow],{env:{...process.env,AAI_GIT_WRITE:'1'}});assert.equal(execFileSync(realGit,['rev-parse','--is-shallow-repository'],{cwd:shallow,encoding:'utf8'}).trim(),'true');assert.notEqual(spawnSync(realGit,['cat-file','-e','bdeb425c040ada918dd97e5b878b71e420bad83a'],{cwd:shallow,stdio:'ignore'}).status,0,'historical baseline unavailable');for(const rel of ['.aai/SKILL_PR.prompt.md','tests/skills/test-aai-pr-preflight.sh'])fs.copyFileSync(path.join(root,rel),path.join(shallow,rel));const src=fs.readFileSync(path.join(root,'tests/skills/test-aai-pr-preflight.sh'),'utf8');const matrix=src.match(/AAI_PREFLIGHT_MATRIX'\r?\n([\s\S]*?)\r?\nAAI_PREFLIGHT_MATRIX/)[1],matrixFile=path.join(tmp,'shallow-matrix.cjs');fs.writeFileSync(matrixFile,matrix);const proof=spawnSync(process.execPath,[matrixFile,shallow,'008'],{encoding:'utf8',timeout:10000,env:{...process.env,AAI_PREFLIGHT_SHALLOW_PROOF:'1'}});assert.equal(proof.status,0,'shallow TEST008: '+proof.stdout+proof.stderr);assert.match(proof.stdout,/PASS: TEST-008/);console.log('INFO: TEST-008 shallow=true baseline_object_absent=true LF_CRLF_bytes_equal=true');}
  }
  console.log('PASS: TEST-'+id+' pr-capability-preflight');
 } catch(e) {console.error('FAIL: TEST-'+id+' '+e.message);process.exitCode=1;}

@@ -74,6 +74,7 @@ function windowsAzure(env) {
 // descendants are terminated too. Windows taskkill /T /F targets the process
 // tree by numeric pid; no provider argument enters a command string.
 function probe(bin, args, { cwd, env, timeout, operation, provider = true }) {
+  env = { ...env, GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1' };
   return new Promise((resolve, reject) => {
     let stdout = '', stderr = '', bytes = 0, refusal = null;
     let child;
@@ -126,7 +127,7 @@ function azureIdentity(remote) {
   const host = extractHost(remote), p = remoteParts(remote);
   let org, project, repository;
   if (host === 'dev.azure.com' && p.length === 4 && p[2] === '_git') [org, project, , repository] = p;
-  else if (host === 'ssh.dev.azure.com' && p.length === 4 && p[0] === 'v3') [, org, project, repository] = p;
+  else if ((host === 'ssh.dev.azure.com' || host === 'vs-ssh.visualstudio.com') && p.length === 4 && p[0] === 'v3') [, org, project, repository] = p;
   else if (host?.endsWith('.visualstudio.com') && p.length === 3 && p[1] === '_git') { org = host.slice(0, -'.visualstudio.com'.length); [project, , repository] = p; }
   else if (host?.endsWith('.visualstudio.com') && p.length === 4 && p[0] === 'DefaultCollection' && p[2] === '_git') { org = host.slice(0, -'.visualstudio.com'.length); [, project, , repository] = p; }
   else invalid();
@@ -175,7 +176,9 @@ async function identity(input, opts) {
     result.repository = { host, repository };
   } else {
     if (['organization_url','project','repository'].some(key => input[key] !== undefined)) invalid();
-    result.repository = remote === null ? null : { remote: sanitize(remote) };
+    // Generic identity is display-only: credentials and URL query/fragment never leave this boundary.
+    let safeRemote = remote === null ? null : sanitize(remote).split(/[?#]/, 1)[0];
+    result.repository = remote === null ? null : { remote: safeRemote };
   }
   Object.assign(result, { remote_name: input.remote_name, source_branch: branch, target_branch: input.target_branch, head_sha: await local(['rev-parse','--verify','HEAD']) });
 }
