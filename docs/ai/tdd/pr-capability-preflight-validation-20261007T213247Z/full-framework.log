@@ -1,0 +1,23 @@
+
+AAI Skills Test Framework
+=========================
+
+[0;34m[INFO][0m Setting up results directory: /private/tmp/aai-pr434-validation-pushurl-scratch/tests/skills/results/test-20261007-213403
+[0;34m[INFO][0m Checking system dependencies...
+[0;32m[PASS][0m Dependencies checked
+[0;34m[INFO][0m Isolation: every suite runs isolated in a disposable git checkout (its own .git, D1) seeded from the working tree
+[0;34m[INFO][0m Concurrency: suites run one at a time (AAI_TEST_PARALLEL=1)
+[0;34m[INFO][0m Discovering skill tests...
+[0;34m[INFO][0m Found 104 test(s)
+[0;34m[INFO][0m 
+[0;34m[INFO][0m Running tests...
+[0;34m[INFO][0m 
+[ 1/104] aai-advisory-skills  [0;32mPASS[0m (7.0s)
+[ 2/104] aai-antigravity-project-skills [0;32mPASS[0m (0.0s)
+[ 3/104] aai-bootstrap        [0;32mPASS[0m (5.0s)
+[ 4/104] aai-branch-guard     [0;32mPASS[0m (9.0s)
+[ 5/104] aai-canon            [0;32mPASS[0m (5.0s)
+[ 6/104] aai-ceremony-levels  [0;32mPASS[0m (92.0s)
+[ 7/104] aai-check-state      [0;32mPASS[0m (2.0s)
+[ 8/104] aai-close-reconcile  [0;32mPASS[0m (14.0s)
+[ 9/104] aai-close-work-item  Terminated: 15

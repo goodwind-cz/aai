@@ -1,0 +1,21 @@
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+INFO: TEST-001 direct_symlink_exit_output_equal=true
+INFO: TEST-001 {"result":{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"58e4f9ff5a0d3c55664492a4b1eccaa1ff6a250c","outcome":"read_verified","code":"READ_VERIFIED","operation":"azure.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"calls":[{"name":"az","args":["--version"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["extension","show","--name","azure-devops","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["repos","show","--organization","https://dev.azure.com/Org","--project","Project 雪","--repository","Repo Name","--detect","false","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}}]}
+INFO: TEST-001 pushurl_divergent_multiple_rewrite_refused=true ordinary_single_positive=true
+PASS: TEST-001 pr-capability-preflight
+INFO: TEST-002 {"result":{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"650c23c77c82196076ace8159020a62ca63ebb3d","outcome":"read_verified","code":"READ_VERIFIED","operation":"azure.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"calls":[{"name":"az","args":["--version"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["extension","show","--name","azure-devops","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["repos","show","--organization","https://dev.azure.com/Org","--project","Project 雪","--repository","Repo Name","--detect","false","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}}]}
+INFO: TEST-002 split_utf8_read_verified=true split_fixture_reached=true
+PASS: TEST-002 pr-capability-preflight
+PASS: TEST-003 pr-capability-preflight
+INFO: TEST-004 elapsed_ms=1528 child_alive=false later_probes=0
+PASS: TEST-004 pr-capability-preflight
+PASS: TEST-005 pr-capability-preflight
+INFO: TEST-006 alternate_read_verified=true null_bypasses_origin=true ceremony_origin_refused=true
+PASS: TEST-006 pr-capability-preflight
+INFO: CLI_BOUND {"test":"007","sequence":1,"mode":"ok","timeout_ms":105000,"elapsed_ms":5895,"error_code":null,"signal":null,"git_probes":7,"provider_steps":["gh.--version","gh.auth","gh.repo"],"stdout_bytes":467}
+INFO: TEST-007 bounded_identity_delay_ms=5896 read_verified=true
+PASS: TEST-007 pr-capability-preflight
+INFO: TEST-008 benign_note_captured=true genuine_clone_failure_throws=true note_control_shallow=true
+INFO: TEST-008 shallow=true baseline_object_absent=true LF_CRLF_bytes_equal=true
+PASS: TEST-008 pr-capability-preflight

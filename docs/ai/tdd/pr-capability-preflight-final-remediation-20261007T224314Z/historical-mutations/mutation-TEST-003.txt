@@ -1,0 +1,20 @@
+mutation_record: v1
+spec_id: spec-pr-capability-preflight
+test_id: TEST-003
+suite: tests/skills/test-aai-pr-preflight.sh
+selector: test_003
+target: .aai/scripts/pr-preflight.mjs
+mutation: patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.patch
+base_commit: bdeb425c040ada918dd97e5b878b71e420bad83a
+tree_hash: 2547c6303fd5a0c5f25e105a760a5798f0c7de6870b1fb083674b3d3cff0edcf
+run_at_utc: 2026-10-07T12:52:15Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-003 exit ACCESS_UNKNOWN
+selector_honoured: yes
+target_sha256: 13d92495ee042d711e6d461c68972b431d641f1779976280715ebd2793256bc4
+---
+FAIL: TEST-003 exit ACCESS_UNKNOWN
+
+0 !== 3
+

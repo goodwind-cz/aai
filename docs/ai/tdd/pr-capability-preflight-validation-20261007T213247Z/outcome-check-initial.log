@@ -1,0 +1,1 @@
+OUTCOME-CHECK: scope sources are unbound: pass --intake and --spec, or run where .aai/STATE.yaml holds a current_focus on pr-capability-preflight

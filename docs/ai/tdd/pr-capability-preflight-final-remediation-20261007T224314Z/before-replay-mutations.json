@@ -1,0 +1,146 @@
+[
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-001.patch",
+    "bytes": 687,
+    "sha256": "52241527588dce1e57642876e016d5f44fa6dc476f6bd14c1ff5c6b254ef76f5"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-001.txt",
+    "bytes": 667,
+    "sha256": "aaf61b9fa3adc17f672be769b20a0546af81eada414677a4f1410de6f7f67b9b"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-002.patch",
+    "bytes": 837,
+    "sha256": "b176cc21daf09ef30bffbba8ecae2c720f2a5915e810651cff231ac43f9a5491"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-002.txt",
+    "bytes": 669,
+    "sha256": "8c6e718b31e8c91c1c0311f2fd6eff56374d1d55f61faed8ed0619a55c42aa15"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.2026-10-07T12:32:21Z.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.patch",
+    "bytes": 1032,
+    "sha256": "b5c64d1fc41c0c9a9a2556f6ea92d3eb77d1de2130e830849d443ae302b6be9f"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.2026-10-07T12:32:21Z.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.txt",
+    "bytes": 661,
+    "sha256": "f338364201e914bba90639692ccb75dc7377cd168c53242e3f13e0fade3012ef"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.patch",
+    "bytes": 843,
+    "sha256": "265dae588c30855648e6c4bce056d2f7cfe7d524b1780fd3e70073deb1c0b652"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.txt",
+    "bytes": 640,
+    "sha256": "ad496427ca12e4f30b1e8cdf36efd35f607782ef6a1114b8aee2d55b240ccf51"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.2026-10-07T12:32:59Z.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.patch",
+    "bytes": 613,
+    "sha256": "6f861129eedcf21a5f671d2c31832f5bdc090b75db24462ace16e1f1e1c2044f"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.2026-10-07T12:32:59Z.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.txt",
+    "bytes": 1738,
+    "sha256": "51f480bc444e801c3e645baad6dc7f1eaf4530ccd1d8bbf50b98ee2baeeac35f"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-004.patch",
+    "bytes": 613,
+    "sha256": "6f861129eedcf21a5f671d2c31832f5bdc090b75db24462ace16e1f1e1c2044f"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-004.txt",
+    "bytes": 1719,
+    "sha256": "19b25a6cb5f7cc9de38f57fe04e7df736ea1bd88de713933ed747718e3ff2c3b"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-005.patch",
+    "bytes": 796,
+    "sha256": "b1f8208dcf9c28a83898bc207cb07cf5f0e15b3b788636324a7bd4d7257d9e4e"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-005.txt",
+    "bytes": 1524,
+    "sha256": "c4cfee0c1ffbeb78b040589a4d54c78e3b9ef64912bddc8ff3c26f3243df7eed"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.2026-10-07T12:48:40Z.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.2026-10-07T12-48-40Z.patch",
+    "bytes": 637,
+    "sha256": "965b47e3e7e9acf203ef4c67aad196924cf076225f1d0aef5ee4f99a5bbed6f8"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.2026-10-07T12:48:40Z.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.2026-10-07T12-48-40Z.txt",
+    "bytes": 675,
+    "sha256": "2072050569b5f7be5dd51c4e2c918f1da86c403013f1d0148558c0e92bc46ee9"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.2026-10-07T13:31:13Z.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.2026-10-07T13-31-13Z.patch",
+    "bytes": 619,
+    "sha256": "9b496577d77164cf0ec8dff3315a3889254e717d547ede93308393e57e8e5c6a"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.2026-10-07T13:31:13Z.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.2026-10-07T13-31-13Z.txt",
+    "bytes": 675,
+    "sha256": "747a1c9e8a345942bd1589132b59383daa5d870c5a6751992eae345daea6db82"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.patch",
+    "bytes": 619,
+    "sha256": "9b496577d77164cf0ec8dff3315a3889254e717d547ede93308393e57e8e5c6a"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.txt",
+    "bytes": 707,
+    "sha256": "55f4a916b79ffd77de6aefe23c9e02634579d0ca8704d97114bcd38ec533e522"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-007.patch",
+    "bytes": 1259,
+    "sha256": "5cb7ee0e5754d4ae20e924b69fc1c68e1ca73dfc94027abc88e35ce937d666c8"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-007.txt",
+    "bytes": 658,
+    "sha256": "2c384b169252cca904ebaedb4ff433b094c71208021c4bbdf3f6b65a588bb055"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-008.patch",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-008.patch",
+    "bytes": 354,
+    "sha256": "e758ab13211490e9c3f3cac5c057193020c75483fa12bf28d382311d763075ad"
+  },
+  {
+    "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-008.txt",
+    "preserved_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-008.txt",
+    "bytes": 618,
+    "sha256": "614147e8ce8562b9dd174c6d93f78dcd5b59bf556281bfee4b2ebe609700f796"
+  }
+]

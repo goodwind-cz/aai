@@ -1,0 +1,18 @@
+mutation_record: v1
+spec_id: spec-pr-capability-preflight
+test_id: TEST-006
+suite: tests/skills/test-aai-pr-preflight.sh
+selector: test_006
+target: .aai/SKILL_PR.prompt.md
+mutation: patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.patch
+base_commit: 2d215ede5a5611caf7e55f1dc866b255bc010b80
+tree_hash: 77934f7cac827736776ac3d11627e566417ee8f8819d331f5caec256b226ed76
+run_at_utc: 2026-10-07T20:51:32Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-006 actual readiness invocation exists
+selector_honoured: yes
+target_sha256: 7dbd75147ecb8661be07119524f94b69a2c4ae40f534db27d82b5956f5eeec4e
+---
+INFO: scratch_override=unset platform=darwin uid=501
+FAIL: TEST-006 actual readiness invocation exists

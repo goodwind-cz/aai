@@ -1,0 +1,454 @@
+﻿2026-10-07T21:32:27.5744683Z Current runner version: '2.337.0'
+2026-10-07T21:32:27.5768790Z ##[group]Runner Image Provisioner
+2026-10-07T21:32:27.5769652Z Hosted Compute Agent
+2026-10-07T21:32:27.5770267Z Version: 20260901.588
+2026-10-07T21:32:27.5770973Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-07T21:32:27.5771732Z Build Date: 2026-09-01T19:56:44Z
+2026-10-07T21:32:27.5772468Z Worker ID: {866218f5-6726-4914-b21a-66d6ddcf76e2}
+2026-10-07T21:32:27.5773190Z Azure Region: centralus
+2026-10-07T21:32:27.5773764Z ##[endgroup]
+2026-10-07T21:32:27.5775659Z ##[group]Operating System
+2026-10-07T21:32:27.5776394Z Ubuntu
+2026-10-07T21:32:27.5777013Z 24.04.5
+2026-10-07T21:32:27.5777542Z LTS
+2026-10-07T21:32:27.5778053Z ##[endgroup]
+2026-10-07T21:32:27.5778640Z ##[group]Runner Image
+2026-10-07T21:32:27.5779236Z Image: ubuntu-24.04
+2026-10-07T21:32:27.5779871Z Version: 20260927.320.1
+2026-10-07T21:32:27.5781186Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260927.320/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-07T21:32:27.5782778Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260927.320
+2026-10-07T21:32:27.5783729Z ##[endgroup]
+2026-10-07T21:32:27.5785101Z ##[group]GITHUB_TOKEN Permissions
+2026-10-07T21:32:27.5787338Z Contents: read
+2026-10-07T21:32:27.5788098Z Metadata: read
+2026-10-07T21:32:27.5788707Z ##[endgroup]
+2026-10-07T21:32:27.5791183Z Secret source: Actions
+2026-10-07T21:32:27.5792264Z Cache mode: write
+2026-10-07T21:32:27.5792947Z Prepare workflow directory
+2026-10-07T21:32:27.6188614Z Prepare all required actions
+2026-10-07T21:32:27.6242169Z Getting action download info
+2026-10-07T21:32:27.9184491Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-07T21:32:27.9995571Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2026-10-07T21:32:28.1863643Z Complete job name: skill test suite (full framework, via test-framework.sh) (2)
+2026-10-07T21:32:28.2688811Z ##[group]Run actions/checkout@v4
+2026-10-07T21:32:28.2689753Z with:
+2026-10-07T21:32:28.2690198Z   fetch-depth: 0
+2026-10-07T21:32:28.2690669Z   repository: goodwind-cz/aai
+2026-10-07T21:32:28.2694887Z   token: ***
+2026-10-07T21:32:28.2695327Z   ssh-strict: true
+2026-10-07T21:32:28.2695769Z   ssh-user: git
+2026-10-07T21:32:28.2696218Z   persist-credentials: true
+2026-10-07T21:32:28.2696703Z   clean: true
+2026-10-07T21:32:28.2697155Z   sparse-checkout-cone-mode: true
+2026-10-07T21:32:28.2697682Z   fetch-tags: false
+2026-10-07T21:32:28.2698125Z   show-progress: true
+2026-10-07T21:32:28.2698572Z   lfs: false
+2026-10-07T21:32:28.2698980Z   submodules: false
+2026-10-07T21:32:28.2699432Z   set-safe-directory: true
+2026-10-07T21:32:28.2699942Z   allow-unsafe-pr-checkout: false
+2026-10-07T21:32:28.2700707Z env:
+2026-10-07T21:32:28.2701124Z   AAI_TEST_PARALLEL: 4
+2026-10-07T21:32:28.2701578Z ##[endgroup]
+2026-10-07T21:32:28.3729351Z Syncing repository: goodwind-cz/aai
+2026-10-07T21:32:28.3731571Z ##[group]Getting Git version info
+2026-10-07T21:32:28.3732419Z Working directory is '/home/runner/work/aai/aai'
+2026-10-07T21:32:28.3733601Z [command]/usr/bin/git version
+2026-10-07T21:32:28.3801715Z git version 2.55.0
+2026-10-07T21:32:28.3825975Z ##[endgroup]
+2026-10-07T21:32:28.3841037Z Temporarily overriding HOME='/home/runner/work/_temp/b3fa7d4f-ba6e-4142-835e-71d761618b92' before making global git config changes
+2026-10-07T21:32:28.3842653Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-07T21:32:28.3846584Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/aai/aai
+2026-10-07T21:32:28.3895292Z Deleting the contents of '/home/runner/work/aai/aai'
+2026-10-07T21:32:28.3898653Z ##[group]Initializing the repository
+2026-10-07T21:32:28.3904432Z [command]/usr/bin/git init /home/runner/work/aai/aai
+2026-10-07T21:32:28.4001414Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-07T21:32:28.4003127Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-07T21:32:28.4005448Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-07T21:32:28.4006780Z hint: call:
+2026-10-07T21:32:28.4007467Z hint:
+2026-10-07T21:32:28.4008345Z hint: 	git config --global init.defaultBranch <name>
+2026-10-07T21:32:28.4009405Z hint:
+2026-10-07T21:32:28.4010329Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-07T21:32:28.4011836Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-07T21:32:28.4013085Z hint:
+2026-10-07T21:32:28.4013791Z hint: 	git branch -m <name>
+2026-10-07T21:32:28.4014854Z hint:
+2026-10-07T21:32:28.4015857Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-07T21:32:28.4017414Z Initialized empty Git repository in /home/runner/work/aai/aai/.git/
+2026-10-07T21:32:28.4023808Z [command]/usr/bin/git remote add origin https://github.com/goodwind-cz/aai
+2026-10-07T21:32:28.4070375Z ##[endgroup]
+2026-10-07T21:32:28.4071648Z ##[group]Disabling automatic garbage collection
+2026-10-07T21:32:28.4074171Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-07T21:32:28.4107790Z ##[endgroup]
+2026-10-07T21:32:28.4108910Z ##[group]Setting up auth
+2026-10-07T21:32:28.4115244Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-07T21:32:28.4149286Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-07T21:32:28.4503148Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-07T21:32:28.4541631Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-07T21:32:28.4806487Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-07T21:32:28.4843175Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T21:32:28.5068760Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-07T21:32:28.5109252Z ##[endgroup]
+2026-10-07T21:32:28.5110135Z ##[group]Fetching the repository
+2026-10-07T21:32:28.5120304Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +53efac930f5d90ff9063185cbfb0684b80fa7514:refs/remotes/pull/434/merge
+2026-10-07T21:32:33.9797015Z From https://github.com/goodwind-cz/aai
+2026-10-07T21:32:33.9799215Z  * [new branch]        change/amendment-signature-asks-the-owner-too-often -> origin/change/amendment-signature-asks-the-owner-too-often
+2026-10-07T21:32:33.9802673Z  * [new branch]        change/downstream-rides-ask-no-governance-questions -> origin/change/downstream-rides-ask-no-governance-questions
+2026-10-07T21:32:33.9807545Z  * [new branch]        change/original-request-outcome-backcheck -> origin/change/original-request-outcome-backcheck
+2026-10-07T21:32:33.9810747Z  * [new branch]        change/pr-capability-preflight           -> origin/change/pr-capability-preflight
+2026-10-07T21:32:33.9813769Z  * [new branch]        change/roadmap-serves-downstream-projects -> origin/change/roadmap-serves-downstream-projects
+2026-10-07T21:32:33.9817153Z  * [new branch]        chore/close-userguide-catalog-item       -> origin/chore/close-userguide-catalog-item
+2026-10-07T21:32:33.9820484Z  * [new branch]        chore/intake-routing-tables-owner-and-seam -> origin/chore/intake-routing-tables-owner-and-seam
+2026-10-07T21:32:33.9823747Z  * [new branch]        chore/release-v2026.09.25                -> origin/chore/release-v2026.09.25
+2026-10-07T21:32:33.9826622Z  * [new branch]        chore/release-v2026.09.28                -> origin/chore/release-v2026.09.28
+2026-10-07T21:32:33.9829332Z  * [new branch]        chore/wave-3-intakes                     -> origin/chore/wave-3-intakes
+2026-10-07T21:32:33.9832767Z  * [new branch]        cursor/feedback-triage-missing-output-dir-a7ce -> origin/cursor/feedback-triage-missing-output-dir-a7ce
+2026-10-07T21:32:33.9836617Z  * [new branch]        cursor/gpt-6-pricing-family-67e6         -> origin/cursor/gpt-6-pricing-family-67e6
+2026-10-07T21:32:33.9840260Z  * [new branch]        cursor/mutation-clone-fidelity-windows-eol-a7ce -> origin/cursor/mutation-clone-fidelity-windows-eol-a7ce
+2026-10-07T21:32:33.9844596Z  * [new branch]        cursor/mutation-clone-windows-run-chain-5e0a -> origin/cursor/mutation-clone-windows-run-chain-5e0a
+2026-10-07T21:32:33.9848224Z  * [new branch]        cursor/polydao-graph-loop-ideas-fa9c     -> origin/cursor/polydao-graph-loop-ideas-fa9c
+2026-10-07T21:32:33.9851796Z  * [new branch]        cursor/pricing-missing-models-and-refresh-94d5 -> origin/cursor/pricing-missing-models-and-refresh-94d5
+2026-10-07T21:32:33.9855888Z  * [new branch]        cursor/prompts-invoke-wsl-bash-on-windows-a7ce -> origin/cursor/prompts-invoke-wsl-bash-on-windows-a7ce
+2026-10-07T21:32:33.9859774Z  * [new branch]        cursor/strategy-unscoped-from-current-focus-a7ce -> origin/cursor/strategy-unscoped-from-current-focus-a7ce
+2026-10-07T21:32:33.9862938Z  * [new branch]        exp-0113-phase1                          -> origin/exp-0113-phase1
+2026-10-07T21:32:33.9865881Z  * [new branch]        feat/antigravity-cli-skill-paths         -> origin/feat/antigravity-cli-skill-paths
+2026-10-07T21:32:33.9868965Z  * [new branch]        feat/canon-is-a-build-artifact           -> origin/feat/canon-is-a-build-artifact
+2026-10-07T21:32:33.9872286Z  * [new branch]        feat/cheap-model-in-practice             -> origin/feat/cheap-model-in-practice
+2026-10-07T21:32:33.9876116Z  * [new branch]        feat/dev-progress-hub                    -> origin/feat/dev-progress-hub
+2026-10-07T21:32:33.9879488Z  * [new branch]        feat/feedback-upsert-review              -> origin/feat/feedback-upsert-review
+2026-10-07T21:32:33.9882419Z  * [new branch]        feat/friction-channel-sweep              -> origin/feat/friction-channel-sweep
+2026-10-07T21:32:33.9886069Z  * [new branch]        feat/learned-append-gate                 -> origin/feat/learned-append-gate
+2026-10-07T21:32:33.9889312Z  * [new branch]        feat/original-request-outcome-backcheck  -> origin/feat/original-request-outcome-backcheck
+2026-10-07T21:32:33.9892504Z  * [new branch]        feat/pr-post-open-review-sweep           -> origin/feat/pr-post-open-review-sweep
+2026-10-07T21:32:33.9895770Z  * [new branch]        feat/product-docs-enforced               -> origin/feat/product-docs-enforced
+2026-10-07T21:32:33.9898667Z  * [new branch]        feat/prompt-hash-telemetry               -> origin/feat/prompt-hash-telemetry
+2026-10-07T21:32:33.9901609Z  * [new branch]        feat/roadmap-takes-direction             -> origin/feat/roadmap-takes-direction
+2026-10-07T21:32:33.9904869Z  * [new branch]        feat/role-output-contracts               -> origin/feat/role-output-contracts
+2026-10-07T21:32:33.9907647Z  * [new branch]        feat/universality-proof                  -> origin/feat/universality-proof
+2026-10-07T21:32:33.9911110Z  * [new branch]        feature/remote-orchestration             -> origin/feature/remote-orchestration
+2026-10-07T21:32:33.9915150Z  * [new branch]        fix/canonical-provenance-archived-sources -> origin/fix/canonical-provenance-archived-sources
+2026-10-07T21:32:33.9918537Z  * [new branch]        fix/closeout-display-id-match            -> origin/fix/closeout-display-id-match
+2026-10-07T21:32:33.9921962Z  * [new branch]        fix/feedback-pipeline-discoverability    -> origin/fix/feedback-pipeline-discoverability
+2026-10-07T21:32:33.9925547Z  * [new branch]        fix/gate-checks-declared-mutation        -> origin/fix/gate-checks-declared-mutation
+2026-10-07T21:32:33.9928830Z  * [new branch]        fix/growth-pins-dont-wall-the-corpus     -> origin/fix/growth-pins-dont-wall-the-corpus
+2026-10-07T21:32:33.9933869Z  * [new branch]        fix/worktree-lacks-vendored-aai-layer-downstream-wt -> origin/fix/worktree-lacks-vendored-aai-layer-downstream-wt
+2026-10-07T21:32:33.9938847Z  * [new branch]        main                                     -> origin/main
+2026-10-07T21:32:33.9941217Z  * [new branch]        research/polydao-verdicts                -> origin/research/polydao-verdicts
+2026-10-07T21:32:33.9943532Z  * [new tag]           v2026.07.04                              -> v2026.07.04
+2026-10-07T21:32:33.9945681Z  * [new tag]           v2026.07.20                              -> v2026.07.20
+2026-10-07T21:32:33.9947517Z  * [new tag]           v2026.07.22                              -> v2026.07.22
+2026-10-07T21:32:33.9949322Z  * [new tag]           v2026.07.24                              -> v2026.07.24
+2026-10-07T21:32:33.9951173Z  * [new tag]           v2026.07.26                              -> v2026.07.26
+2026-10-07T21:32:33.9952979Z  * [new tag]           v2026.07.28                              -> v2026.07.28
+2026-10-07T21:32:33.9954973Z  * [new tag]           v2026.07.28.1                            -> v2026.07.28.1
+2026-10-07T21:32:33.9956777Z  * [new tag]           v2026.07.29                              -> v2026.07.29
+2026-10-07T21:32:33.9958543Z  * [new tag]           v2026.07.30                              -> v2026.07.30
+2026-10-07T21:32:33.9960324Z  * [new tag]           v2026.08.01                              -> v2026.08.01
+2026-10-07T21:32:33.9962109Z  * [new tag]           v2026.08.02                              -> v2026.08.02
+2026-10-07T21:32:33.9963901Z  * [new tag]           v2026.08.03                              -> v2026.08.03
+2026-10-07T21:32:33.9965853Z  * [new tag]           v2026.08.03.2                            -> v2026.08.03.2
+2026-10-07T21:32:33.9967678Z  * [new tag]           v2026.08.04                              -> v2026.08.04
+2026-10-07T21:32:33.9970127Z  * [new tag]           v2026.08.05                              -> v2026.08.05
+2026-10-07T21:32:33.9971978Z  * [new tag]           v2026.08.07                              -> v2026.08.07
+2026-10-07T21:32:33.9973765Z  * [new tag]           v2026.08.08                              -> v2026.08.08
+2026-10-07T21:32:33.9976073Z  * [new tag]           v2026.08.11                              -> v2026.08.11
+2026-10-07T21:32:33.9977879Z  * [new tag]           v2026.08.12                              -> v2026.08.12
+2026-10-07T21:32:33.9979649Z  * [new tag]           v2026.08.13                              -> v2026.08.13
+2026-10-07T21:32:33.9981475Z  * [new tag]           v2026.08.13.2                            -> v2026.08.13.2
+2026-10-07T21:32:33.9983337Z  * [new tag]           v2026.08.14                              -> v2026.08.14
+2026-10-07T21:32:33.9985451Z  * [new tag]           v2026.08.16                              -> v2026.08.16
+2026-10-07T21:32:33.9987253Z  * [new tag]           v2026.08.23                              -> v2026.08.23
+2026-10-07T21:32:33.9989024Z  * [new tag]           v2026.08.27                              -> v2026.08.27
+2026-10-07T21:32:33.9990799Z  * [new tag]           v2026.08.29                              -> v2026.08.29
+2026-10-07T21:32:33.9992563Z  * [new tag]           v2026.09.01                              -> v2026.09.01
+2026-10-07T21:32:33.9994484Z  * [new tag]           v2026.09.06                              -> v2026.09.06
+2026-10-07T21:32:33.9996274Z  * [new tag]           v2026.09.08                              -> v2026.09.08
+2026-10-07T21:32:33.9998070Z  * [new tag]           v2026.09.09                              -> v2026.09.09
+2026-10-07T21:32:33.9999844Z  * [new tag]           v2026.09.21                              -> v2026.09.21
+2026-10-07T21:32:34.0001617Z  * [new tag]           v2026.09.25                              -> v2026.09.25
+2026-10-07T21:32:34.0003387Z  * [new tag]           v2026.09.28                              -> v2026.09.28
+2026-10-07T21:32:34.0005308Z  * [new tag]           v2026.09.30                              -> v2026.09.30
+2026-10-07T21:32:34.0007278Z  * [new tag]           v2026.10.02                              -> v2026.10.02
+2026-10-07T21:32:34.0009185Z  * [new ref]           53efac930f5d90ff9063185cbfb0684b80fa7514 -> pull/434/merge
+2026-10-07T21:32:34.0011629Z  * [new tag]           test-fixture-pre-f2-close-work-item      -> test-fixture-pre-f2-close-work-item
+2026-10-07T21:32:34.0014351Z  * [new tag]           test-fixture-pre-f3-guard                -> test-fixture-pre-f3-guard
+2026-10-07T21:32:34.0018306Z ##[endgroup]
+2026-10-07T21:32:34.0019817Z ##[group]Determining the checkout info
+2026-10-07T21:32:34.0021497Z ##[endgroup]
+2026-10-07T21:32:34.0022438Z [command]/usr/bin/git sparse-checkout disable
+2026-10-07T21:32:34.0025706Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-07T21:32:34.0029021Z ##[group]Checking out the ref
+2026-10-07T21:32:34.0030547Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/434/merge
+2026-10-07T21:32:34.2068729Z Note: switching to 'refs/remotes/pull/434/merge'.
+2026-10-07T21:32:34.2069476Z 
+2026-10-07T21:32:34.2069978Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-07T21:32:34.2071081Z changes and commit them, and you can discard any commits you make in this
+2026-10-07T21:32:34.2072142Z state without impacting any branches by switching back to a branch.
+2026-10-07T21:32:34.2072735Z 
+2026-10-07T21:32:34.2073150Z If you want to create a new branch to retain commits you create, you may
+2026-10-07T21:32:34.2074130Z do so (now or later) by using -c with the switch command. Example:
+2026-10-07T21:32:34.2074986Z 
+2026-10-07T21:32:34.2075236Z   git switch -c <new-branch-name>
+2026-10-07T21:32:34.2075640Z 
+2026-10-07T21:32:34.2075885Z Or undo this operation with:
+2026-10-07T21:32:34.2076250Z 
+2026-10-07T21:32:34.2076447Z   git switch -
+2026-10-07T21:32:34.2076738Z 
+2026-10-07T21:32:34.2077523Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-07T21:32:34.2078268Z 
+2026-10-07T21:32:34.2079078Z HEAD is now at 53efac93 Merge 627ee4449fe7fe46037ea92e1252832bfab1644f into bdeb425c040ada918dd97e5b878b71e420bad83a
+2026-10-07T21:32:34.2081549Z ##[endgroup]
+2026-10-07T21:32:34.2125378Z [command]/usr/bin/git log -1 --format=%H
+2026-10-07T21:32:34.2154948Z 53efac930f5d90ff9063185cbfb0684b80fa7514
+2026-10-07T21:32:34.2496635Z ##[group]Run actions/setup-node@v4
+2026-10-07T21:32:34.2497010Z with:
+2026-10-07T21:32:34.2497281Z   node-version: 20
+2026-10-07T21:32:34.2497554Z   always-auth: false
+2026-10-07T21:32:34.2497828Z   check-latest: false
+2026-10-07T21:32:34.2500714Z   token: ***
+2026-10-07T21:32:34.2500966Z env:
+2026-10-07T21:32:34.2501212Z   AAI_TEST_PARALLEL: 4
+2026-10-07T21:32:34.2501482Z ##[endgroup]
+2026-10-07T21:32:34.3899367Z Attempting to download 20...
+2026-10-07T21:32:34.4006328Z (node:2297) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-07T21:32:34.4007367Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-07T21:32:35.1828290Z Acquiring 20.20.2 - x64 from https://github.com/actions/node-versions/releases/download/20.20.2-23521894959/node-20.20.2-linux-x64.tar.gz
+2026-10-07T21:32:35.6759789Z Extracting ...
+2026-10-07T21:32:35.6881783Z [command]/usr/bin/tar xz --strip 1 --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/d469b25e-0a5e-4094-b40c-144bcf564fbe -f /home/runner/work/_temp/ecc8da95-516a-442a-b4f7-febbfefea615
+2026-10-07T21:32:36.6846654Z Adding to the cache ...
+2026-10-07T21:32:38.7750635Z ##[group]Environment details
+2026-10-07T21:32:38.9931950Z node: v20.20.2
+2026-10-07T21:32:38.9932401Z npm: 10.8.2
+2026-10-07T21:32:38.9932927Z yarn: 1.22.22
+2026-10-07T21:32:38.9933625Z ##[endgroup]
+2026-10-07T21:32:39.0158779Z ##[group]Run set -euo pipefail
+2026-10-07T21:32:39.0159222Z [36;1mset -euo pipefail[0m
+2026-10-07T21:32:39.0159587Z [36;1mprintf '%s\n' "$SHARD_PLAN" > shard-plan.txt[0m
+2026-10-07T21:32:39.0160183Z [36;1mbash tests/skills/lib/shard-plan-check.sh --check shard-plan.txt tests/skills >/dev/null[0m
+2026-10-07T21:32:39.0160948Z [36;1mif [ "2" = "all" ]; then[0m
+2026-10-07T21:32:39.0161300Z [36;1m  bash tests/skills/test-framework.sh[0m
+2026-10-07T21:32:39.0161640Z [36;1melse[0m
+2026-10-07T21:32:39.0162048Z [36;1m  SUITES="$(bash tests/skills/lib/shard-plan-check.sh --extract 2 shard-plan.txt)"[0m
+2026-10-07T21:32:39.0162513Z [36;1m  args=()[0m
+2026-10-07T21:32:39.0162782Z [36;1m  for s in $SUITES; do[0m
+2026-10-07T21:32:39.0163092Z [36;1m    args+=(--skill "$s")[0m
+2026-10-07T21:32:39.0163371Z [36;1m  done[0m
+2026-10-07T21:32:39.0163686Z [36;1m  bash tests/skills/test-framework.sh "${args[@]}"[0m
+2026-10-07T21:32:39.0164037Z [36;1mfi[0m
+2026-10-07T21:32:39.0413721Z shell: /usr/bin/bash -e {0}
+2026-10-07T21:32:39.0414078Z env:
+2026-10-07T21:32:39.0414677Z   AAI_TEST_PARALLEL: 4
+2026-10-07T21:32:39.0430324Z   SHARD_PLAN: SHARD 1 aai-learned-append weight=434
+SHARD 1 aai-hygiene-pack weight=313
+SHARD 1 aai-ceremony-levels weight=120
+SHARD 1 aai-feedback-upsert weight=91
+SHARD 1 aai-mutation-gate weight=82
+SHARD 1 aai-suite-isolation weight=77
+SHARD 1 aai-doc-numbering weight=43
+SHARD 1 aai-orchestration-dispatch weight=39
+SHARD 1 aai-git-ref-guard weight=28
+SHARD 1 aai-roadmap weight=22
+SHARD 1 aai-hooks-overlay weight=18
+SHARD 1 aai-factory-report weight=12
+SHARD 1 aai-outcome-backcheck weight=10
+SHARD 1 aai-canon weight=7
+SHARD 1 aai-spec-tools weight=6
+SHARD 1 aai-heartbeat weight=5
+SHARD 1 aai-role-output weight=5
+SHARD 1 aai-docs-canon weight=4
+SHARD 1 aai-check-state weight=3
+SHARD 1 aai-issues weight=3
+SHARD 1 aai-redact weight=3
+SHARD 1 aai-session-lock weight=2
+SHARD 1 aai-pricing weight=1
+SHARD 1 aai-runtime-file weight=1
+SHARD 1 aai-userguide-drift weight=1
+SHARD 2 aai-merge-policy weight=434
+SHARD 2 aai-delta-stage3 weight=278
+SHARD 2 aai-run-tests weight=135
+SHARD 2 aai-friction weight=93
+SHARD 2 aai-sweep-parallel weight=91
+SHARD 2 aai-release weight=81
+SHARD 2 aai-delta-stage2 weight=56
+SHARD 2 aai-follow-ups weight=37
+SHARD 2 aai-pr-waiver weight=27
+SHARD 2 aai-friction-capture-points weight=19
+SHARD 2 aai-ride-select weight=18
+SHARD 2 aai-debug-gate weight=10
+SHARD 2 aai-pr-platform weight=10
+SHARD 2 aai-docs-lock weight=7
+SHARD 2 aai-tdd-evidence weight=6
+SHARD 2 aai-learned-routing weight=5
+SHARD 2 aai-test-canon weight=5
+SHARD 2 aai-orchestration-mode weight=4
+SHARD 2 aai-docs-hub weight=3
+SHARD 2 aai-layer-drift weight=3
+SHARD 2 aai-token-capture weight=3
+SHARD 2 aai-antigravity-project-skills weight=1
+SHARD 2 aai-implementation-mode weight=1
+SHARD 2 aai-prompt-hash weight=1
+SHARD 2 aai-share weight=1
+SHARD 2 aai-userguide-rollup weight=1
+SHARD 3 aai-pr-preflight weight=434
+SHARD 3 aai-sync-seed weight=234
+SHARD 3 aai-doctor weight=149
+SHARD 3 aai-doc-number-reservation weight=97
+SHARD 3 aai-friction-wiring weight=91
+SHARD 3 aai-golden-flow weight=81
+SHARD 3 aai-ledger-merge weight=66
+SHARD 3 aai-deslop weight=40
+SHARD 3 aai-update-check weight=32
+SHARD 3 aai-state weight=27
+SHARD 3 aai-intake weight=17
+SHARD 3 aai-constitution weight=11
+SHARD 3 aai-win-fallback weight=10
+SHARD 3 aai-hitl-channel weight=6
+SHARD 3 aai-routine weight=6
+SHARD 3 aai-bootstrap weight=5
+SHARD 3 aai-prompt-diet weight=5
+SHARD 3 aai-delta-stage1 weight=4
+SHARD 3 aai-verify-gate weight=4
+SHARD 3 aai-orphan-sweep weight=3
+SHARD 3 aai-dashboard weight=2
+SHARD 3 aai-reconcile-telemetry weight=2
+SHARD 3 aai-pipe-safe weight=1
+SHARD 3 aai-prune-stale-briefs weight=1
+SHARD 3 aai-suite-select weight=1
+SHARD 3 aai-validator-isolation weight=1
+SHARD 4 aai-worktree-seed weight=434
+SHARD 4 aai-docs-audit weight=161
+SHARD 4 aai-repo-tripwire weight=155
+SHARD 4 aai-close-work-item weight=112
+SHARD 4 aai-hitl-propagation weight=93
+SHARD 4 aai-metrics weight=89
+SHARD 4 aai-layer-profiles weight=69
+SHARD 4 aai-secrets-preflight weight=52
+SHARD 4 aai-spec-lint weight=39
+SHARD 4 aai-spec-amend weight=28
+SHARD 4 aai-live-serve weight=19
+SHARD 4 aai-close-reconcile weight=15
+SHARD 4 aai-live-status weight=13
+SHARD 4 aai-advisory-skills weight=9
+SHARD 4 aai-branch-guard weight=9
+SHARD 4 aai-update weight=6
+SHARD 4 aai-lightweight-lane weight=5
+SHARD 4 aai-unattended weight=5
+SHARD 4 aai-overview weight=4
+SHARD 4 aai-feedback-triage weight=3
+SHARD 4 aai-product-docs weight=3
+SHARD 4 aai-feedback-status weight=2
+SHARD 4 aai-downstream-autopilot weight=1
+SHARD 4 aai-planning-probes weight=1
+SHARD 4 aai-r-guard weight=1
+SHARD 4 aai-tdd weight=1
+SHARD 4 aai-worktree weight=1
+SHARDS count=4 suites=104
+2026-10-07T21:32:39.0443212Z ##[endgroup]
+2026-10-07T21:32:39.2067263Z 
+2026-10-07T21:32:39.2072127Z AAI Skills Test Framework
+2026-10-07T21:32:39.2072641Z =========================
+2026-10-07T21:32:39.2072913Z 
+2026-10-07T21:32:39.2095694Z [0;34m[INFO][0m Setting up results directory: /home/runner/work/aai/aai/tests/skills/results/test-20261007-213239
+2026-10-07T21:32:39.2108960Z [0;34m[INFO][0m Checking system dependencies...
+2026-10-07T21:32:39.3839419Z [0;32m[PASS][0m Dependencies checked
+2026-10-07T21:32:39.4480951Z [0;34m[INFO][0m Isolation: every suite runs isolated in a disposable git checkout (its own .git, D1) seeded from the working tree
+2026-10-07T21:32:39.4483693Z [0;34m[INFO][0m Concurrency: up to 4 suite(s) run at a time (AAI_TEST_PARALLEL=4). Set AAI_TEST_PARALLEL=1 for the serial execution model.
+2026-10-07T21:32:39.4484969Z [0;34m[INFO][0m Discovering skill tests...
+2026-10-07T21:32:39.4499721Z [0;34m[INFO][0m Found 26 test(s)
+2026-10-07T21:32:39.4500109Z [0;34m[INFO][0m 
+2026-10-07T21:32:39.4500461Z [0;34m[INFO][0m Running tests...
+2026-10-07T21:33:51.3236604Z [0;34m[INFO][0m 
+2026-10-07T21:33:51.3237836Z [ 1/26] aai-friction         [0;32mPASS[0m (70.0s)
+2026-10-07T21:34:11.0366365Z [ 2/26] aai-merge-policy     [0;32mPASS[0m (90.0s)
+2026-10-07T21:34:24.8198427Z [ 3/26] aai-delta-stage3     [0;31mFAIL[0m (104.0s) [tripwire NOT ATTESTED — suite exited 1 before completing]
+2026-10-07T21:34:24.8200324Z --- Error Details (aai-delta-stage3) ---
+2026-10-07T21:34:24.8201547Z --- failure lines (whole log) ---
+2026-10-07T21:34:24.8264909Z 29:FAIL: Expected 'Verdict: CLEAN' in /tmp/aai-docs-audit-test.IX0fLG/silence-live-1349.log
+2026-10-07T21:34:24.8266063Z 30:FAIL: TEST-007: sibling suite failed: test-aai-docs-audit.sh
+2026-10-07T21:34:24.8286672Z --- tail (last 30 lines) ---
+2026-10-07T21:34:24.8298805Z === Test: aai-delta-stage3 (spec-delta-stage-3 / RFC-0011 delta-spec lifecycle) ===
+2026-10-07T21:34:24.8299852Z INFO: Checking dependencies...
+2026-10-07T21:34:24.8300426Z PASS: Dependencies checked
+2026-10-07T21:34:24.8341916Z INFO: TEST-001: delta-merge applies ADDED/MODIFIED/REMOVED; untouched lines byte-identical (int)...
+2026-10-07T21:34:24.8365994Z PASS: TEST-001: ADDED->004 (retired 003 not reused), MODIFIED body+title+Provenance, REMOVED tombstone; untouched lines byte-identical
+2026-10-07T21:34:24.8386010Z INFO: TEST-002: fail-closed on violation / missing doc / absent id / title collision; ZERO writes (int)...
+2026-10-07T21:34:24.8397406Z PASS: TEST-002: all four fail-closed preconditions exit non-zero, name the reason, leave the canonical byte-unchanged
+2026-10-07T21:34:24.8405323Z INFO: TEST-003: a second delta-merge for the same spec is byte-identical (int)...
+2026-10-07T21:34:24.8406823Z PASS: TEST-003: second run byte-identical; ADDED not re-appended; REMOVED-already-gone a clean no-op
+2026-10-07T21:34:24.8408907Z INFO: TEST-008: MODIFIED adjacent to REMOVED — tombstone survives a byte-idempotent re-run (int)...
+2026-10-07T21:34:24.8411405Z PASS: TEST-008: tombstone adjacent to a modified block survives; second run byte-identical
+2026-10-07T21:34:24.8413001Z INFO: TEST-009: retired NNN not reused by a later ADDED across specs (int)...
+2026-10-07T21:34:24.8414492Z PASS: TEST-009: ADDED took REQ-SPROCKETS-003; retired 002 never reused
+2026-10-07T21:34:24.8416523Z INFO: TEST-010: cross-spec — modifying the block before a tombstone preserves it (int)...
+2026-10-07T21:34:24.8420059Z PASS: TEST-010: SPEC-A's tombstone survives a later SPEC-B modification of the preceding block
+2026-10-07T21:34:24.8422023Z INFO: TEST-006: SKILL_PR documents the delta-merge ceremony step; no stage-N token on edited .aai surfaces (unit)...
+2026-10-07T21:34:24.8424960Z PASS: TEST-006: SKILL_PR carries the post-allocation, fail-closed, no-op-documented merge step; taxonomy clean
+2026-10-07T21:34:24.8426985Z INFO: TEST-007: delta-stage1 + delta-stage2 + spec-lint + docs-audit suites pass; strict repo audit CLEAN (int)...
+2026-10-07T21:34:24.8428377Z Testing aai-docs-audit skill (engine + fixtures)
+2026-10-07T21:34:24.8429242Z INFO: Checking dependencies...
+2026-10-07T21:34:24.8430024Z PASS: Dependencies checked
+2026-10-07T21:34:24.8430731Z INFO: Setting up fixture repo...
+2026-10-07T21:34:24.8431456Z PASS: Fixture repo ready
+2026-10-07T21:34:24.8433098Z INFO: Test: --check --strict over the live tree exits 0 and every near-miss document it names is dispositioned in the spec (TEST-1351)...
+2026-10-07T21:34:24.8435294Z PASS: Every near-miss document over the live corpus is dispositioned, and --check --strict still exits 0
+2026-10-07T21:34:24.8437485Z INFO: Test: the docs-audit headline carries the near-miss count split into blocking and report-only, and it equals the section count (TEST-1348)...
+2026-10-07T21:34:24.8439445Z PASS: The near-miss count is part of what the headline SAYS, and it agrees with the section
+2026-10-07T21:34:24.8441678Z INFO: Test: the Verdict line names the unreadable AC tables when any exist, stays bare CLEAN when none do, and keeps the literal 'Verdict: CLEAN' substring either way (TEST-1349)...
+2026-10-07T21:34:24.8443815Z FAIL: Expected 'Verdict: CLEAN' in /tmp/aai-docs-audit-test.IX0fLG/silence-live-1349.log
+2026-10-07T21:34:24.8445386Z FAIL: TEST-007: sibling suite failed: test-aai-docs-audit.sh
+2026-10-07T21:34:24.8446430Z --- end aai-delta-stage3 ---
+2026-10-07T21:34:51.7433833Z [ 4/26] aai-run-tests        [0;32mPASS[0m (131.0s)
+2026-10-07T21:35:13.7410814Z [ 5/26] aai-delta-stage2     [0;32mPASS[0m (48.0s)
+2026-10-07T21:35:20.8535829Z [ 6/26] aai-release          [0;32mPASS[0m (69.0s)
+2026-10-07T21:35:23.6447219Z [ 7/26] aai-sweep-parallel   [0;32mPASS[0m (90.0s)
+2026-10-07T21:35:26.5180570Z [ 8/26] aai-follow-ups       [0;32mPASS[0m (33.0s)
+2026-10-07T21:35:37.3626941Z [ 9/26] aai-debug-gate       [0;32mPASS[0m (9.0s)
+2026-10-07T21:35:40.9390664Z [10/26] aai-friction-capture-points [0;32mPASS[0m (19.0s)
+2026-10-07T21:35:44.0552173Z [11/26] aai-pr-waiver        [0;32mPASS[0m (29.0s)
+2026-10-07T21:35:49.0384491Z [12/26] aai-pr-platform      [0;32mPASS[0m (10.0s)
+2026-10-07T21:35:49.5515695Z [13/26] aai-docs-lock        [0;32mPASS[0m (7.0s)
+2026-10-07T21:35:52.9152342Z [14/26] aai-tdd-evidence     [0;32mPASS[0m (8.0s)
+2026-10-07T21:35:55.0736457Z [15/26] aai-learned-routing  [0;32mPASS[0m (4.0s)
+2026-10-07T21:35:56.5926592Z [16/26] aai-test-canon       [0;32mPASS[0m (5.0s)
+2026-10-07T21:35:57.8177224Z [17/26] aai-orchestration-mode [0;32mPASS[0m (4.0s)
+2026-10-07T21:35:58.5260448Z [18/26] aai-ride-select      [0;32mPASS[0m (33.0s)
+2026-10-07T21:35:59.0677603Z [19/26] aai-docs-hub         [0;32mPASS[0m (2.0s)
+2026-10-07T21:36:00.3857022Z [20/26] aai-antigravity-project-skills [0;32mPASS[0m (0.0s)
+2026-10-07T21:36:00.7872443Z [21/26] aai-implementation-mode [0;32mPASS[0m (0.0s)
+2026-10-07T21:36:01.3163688Z [22/26] aai-layer-drift      [0;32mPASS[0m (3.0s)
+2026-10-07T21:36:02.3511095Z [23/26] aai-share            [0;32mPASS[0m (0.0s)
+2026-10-07T21:36:02.7552868Z [24/26] aai-prompt-hash      [0;32mPASS[0m (0.0s)
+2026-10-07T21:36:03.2669248Z [25/26] aai-token-capture    [0;32mPASS[0m (4.0s)
+2026-10-07T21:36:03.5619019Z [26/26] aai-userguide-rollup [0;32mPASS[0m (0.0s)
+2026-10-07T21:36:03.6009924Z [0;34m[INFO][0m 
+2026-10-07T21:36:03.6010408Z [0;34m[INFO][0m 
+2026-10-07T21:36:03.6011399Z [0;34m[INFO][0m =========================================
+2026-10-07T21:36:03.6012171Z [0;34m[INFO][0m Test Summary
+2026-10-07T21:36:03.6012945Z [0;34m[INFO][0m =========================================
+2026-10-07T21:36:03.6013590Z [0;34m[INFO][0m Total:   26
+2026-10-07T21:36:03.6014431Z [0;32m[PASS][0m Passed:  25 (96%)
+2026-10-07T21:36:03.6016521Z [0;34m[INFO][0m Tripwire: 25/26 suite(s) attested clean; 1 not attested (skipped, failed, allowlisted, or unguarded)
+2026-10-07T21:36:03.6017760Z [0;34m[INFO][0m Isolation: 26/26 suite(s) isolated; 0 degraded
+2026-10-07T21:36:03.6019030Z [0;34m[INFO][0m Seeding: 26/26 suite(s) fully seeded; 0 partial; 0 skipped
+2026-10-07T21:36:03.6019986Z [0;31m[FAIL][0m Failed:  1 (3%)
+2026-10-07T21:36:03.6020959Z [0;34m[INFO][0m Concurrency: width 4; 0 wave(s) re-run serially (0 suite(s) total) to attribute a shipping-repository change
+2026-10-07T21:36:03.6021538Z [0;34m[INFO][0m 
+2026-10-07T21:36:03.6022166Z [0;34m[INFO][0m Results saved to: /home/runner/work/aai/aai/tests/skills/results/test-20261007-213239
+2026-10-07T21:36:03.6523188Z ##[error]Process completed with exit code 1.
+2026-10-07T21:36:03.6681101Z Post job cleanup.
+2026-10-07T21:36:03.7556998Z [command]/usr/bin/git version
+2026-10-07T21:36:03.7604271Z git version 2.55.0
+2026-10-07T21:36:03.7643810Z Temporarily overriding HOME='/home/runner/work/_temp/bbce9dc9-b161-4f7e-8968-bae7b1471c15' before making global git config changes
+2026-10-07T21:36:03.7645797Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-07T21:36:03.7649515Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/aai/aai
+2026-10-07T21:36:03.7689998Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-07T21:36:03.7726460Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-07T21:36:03.7975515Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-07T21:36:03.8000863Z http.https://github.com/.extraheader
+2026-10-07T21:36:03.8012266Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-07T21:36:03.8051541Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-07T21:36:03.8370210Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-07T21:36:03.8413339Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-07T21:36:03.8808659Z Cleaning up orphan processes
+2026-10-07T21:36:03.9089512Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

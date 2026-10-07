@@ -1,0 +1,29 @@
+{
+  "rule": "11",
+  "role": "Validation",
+  "lane": {
+    "selected": "full",
+    "ceremony_level": 2,
+    "validation_depth": "full"
+  },
+  "checks": {
+    "role": {
+      "actual": "87b60e4c3215b680b3c5ebcd08ab1d12420e13bf5e17ab1126ef418b373ac155",
+      "expected": "87b60e4c3215b680b3c5ebcd08ab1d12420e13bf5e17ab1126ef418b373ac155",
+      "match": true
+    },
+    "contract": {
+      "actual": "c4bfbc82bbd782e805b6481a8e0db1695c218541cb627f12970555bd29777bfd",
+      "expected": "c4bfbc82bbd782e805b6481a8e0db1695c218541cb627f12970555bd29777bfd",
+      "match": true
+    },
+    "learned": {
+      "actual": "453aa52c739abf56cddc4c1ca2e326c0fa699a46b5a6ba1705014ba81a1a3d70",
+      "expected": "453aa52c739abf56cddc4c1ca2e326c0fa699a46b5a6ba1705014ba81a1a3d70",
+      "match": true
+    }
+  },
+  "prompt_hash": "a4b17aac3f72c098ff48a66442d657c3198af7547ae76676c4b8a6ea5b0910c1",
+  "actual_model": "unknown",
+  "maker_model": "unknown"
+}

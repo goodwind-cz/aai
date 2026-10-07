@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-001 exit IDENTITY_INVALID
 selector_honoured: no (suite runs every test)
-target_sha256: 13d92495ee042d711e6d461c68972b431d641f1779976280715ebd2793256bc4
+target_sha256: aca4085d27c5e1f9e2db33a2f29eb9acbe6e9097838a1565dc275dc710a1430d
 ---
 FAIL: TEST-001 exit IDENTITY_INVALID
 

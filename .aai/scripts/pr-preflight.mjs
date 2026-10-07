@@ -149,9 +149,13 @@ async function identity(input, opts) {
   if (Object.keys(input).some(key => !allowed.has(key)) || input.schema_version !== 1) invalid('input');
   for (const key of ['repo_root','source_branch','target_branch']) if (!text(input[key])) invalid('input');
   if (!path.isAbsolute(input.repo_root) || !fs.statSync(input.repo_root).isDirectory()) invalid();
+  let gitLineTerminator;
   const local = async args => {
     const r = await probe('git', ['-C', input.repo_root, ...args], { cwd: input.repo_root, env: process.env, timeout: opts.timeout, operation: 'git.identity', provider: false });
-    if (r.code !== 0) invalid(); return r.stdout.trim();
+    if (r.code !== 0) invalid();
+    // Calibrate from rev-parse before URL data: a URL's trailing CR is not a CRLF delimiter.
+    if (gitLineTerminator === undefined) gitLineTerminator = r.stdout.endsWith('\r\n') ? '\r\n' : '\n';
+    return r.stdout.endsWith(gitLineTerminator) ? r.stdout.slice(0, -gitLineTerminator.length) : r.stdout;
   };
   const actualRoot = await local(['rev-parse','--show-toplevel']);
   if (fs.realpathSync(actualRoot) !== fs.realpathSync(input.repo_root)) invalid();
@@ -166,7 +170,8 @@ async function identity(input, opts) {
     const push = (await local(['remote','get-url','--push','--all','--',input.remote_name])).split(/\r?\n/);
     // get-url expands insteadOf/pushInsteadOf. Conservative endpoint equality
     // keeps the provider read bound to the repository a later named-remote push uses.
-    if (fetch.length !== 1 || push.length !== 1 || !text(fetch[0]) || fetch[0] !== push[0])
+    if (fetch.length !== 1 || push.length !== 1 || !text(fetch[0]) ||
+        /^\s|\s$|[\r\n]/.test(fetch[0]) || /^\s|\s$|[\r\n]/.test(push[0]) || fetch[0] !== push[0])
       invalid('git.push-destination');
     remote = fetch[0];
   }
