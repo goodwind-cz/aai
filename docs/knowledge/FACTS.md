@@ -1,5 +1,11 @@
 # Fact Index (Factual Memory)
 
+- `.aai/scripts/worktree-seed.mjs` seeds only registered linked worktrees in
+  the source repository's Git common directory. Its `inventory` uses
+  `existingPath` to reject symlink ancestors of installed skill roots;
+  `.aai/cache` is excluded, and tracked destination files remain authoritative.
+  Evidence: `tests/skills/test-aai-worktree-seed.sh`, TEST-004/006/007.
+
 This document contains VERIFIED, low-level facts extracted from code and past analyses.
 No narrative, no intent, no workflow.
 

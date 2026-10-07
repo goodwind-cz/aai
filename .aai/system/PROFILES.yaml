@@ -108,6 +108,7 @@ core:
   - .aai/scripts/check-role-output.mjs
   - .aai/scripts/validation-outcome-check.mjs
   - .aai/scripts/check-state.mjs
+  - .aai/scripts/worktree-seed.mjs
   - .aai/scripts/check-test-registration.mjs
   - .aai/scripts/check-vendored-script-deps.mjs
   - .aai/scripts/claude-hook-gate.sh
@@ -173,6 +174,7 @@ core:
   - .aai/scripts/lib/harness.mjs
   - .aai/scripts/lib/iso-time.mjs
   - .aai/scripts/lib/merge-hooks-json.mjs
+  - .aai/scripts/lib/metrics-flush-record.mjs
   - .aai/scripts/lib/mutation-record.mjs
   - .aai/scripts/lib/tree-hash.mjs
   - .aai/scripts/lib/pricing.mjs

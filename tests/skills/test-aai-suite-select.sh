@@ -476,14 +476,16 @@ test_019_ghost_core_entry_fails_open() {  # 5d sweep (Codex P2): core name witho
 }
 
 test_018_gate_job_contract() {  # review remediation: required-check continuity
-  log_info "Test: aggregating gate job carries the branch-protection check name and needs all three jobs (TEST-018)..."
+  log_info "Test: aggregating gate keeps its required-check name and needs native Windows worktree seed (TEST-018)..."
   grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$WORKFLOW_FILE" \
     || log_fail "gate job must keep the exact required-check name 'skill test suite (tests/skills/, via test-framework.sh)'"
-  grep -qE 'needs:\s*\[select, skills-selected, skills-full\]' "$WORKFLOW_FILE" \
-    || log_fail "gate job must need select + skills-selected + skills-full"
+  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed\]' "$WORKFLOW_FILE" \
+    || log_fail "gate job must need select + skills-selected + skills-full + native-worktree-seed"
+  grep -qF 'needs.native-worktree-seed.result' "$WORKFLOW_FILE" \
+    || log_fail "gate job must reject a failed or skipped native Windows worktree seed"
   grep -qE 'if:\s*always\(\)' "$WORKFLOW_FILE" \
     || log_fail "gate job must run on always() so it reports even when a leaf is skipped"
-  log_pass "Gate job preserves the required check across the selected/full split (TEST-018)"
+  log_pass "Gate job preserves the required check and requires native Windows seed (TEST-018)"
 }
 
 test_020_harness_surfaces_select_hygiene_pack() {  # TEST-010 / Spec-AC-09 (harness-surfaces-drift-unguarded)
@@ -935,17 +937,19 @@ test_1436_workflow_shard_step_and_matrix_pin() {  # Spec-AC-05
 }
 
 test_1437_gate_unchanged_negative_control() {  # Spec-AC-05, negative control
-  log_info "Test: negative control — the gate job keeps its exact name, needs list, always(), and full-mode success line (TEST-1437)..."
+  log_info "Test: negative control — the gate job keeps its exact name, extended needs list, always(), and full-mode success line (TEST-1437)..."
   local wf="$SHARD_WORKFLOW_FILE"
   grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$wf" \
     || log_fail "TEST-1437: the gate job must keep its exact required-check name"
-  grep -qE 'needs:\s*\[select, skills-selected, skills-full\]' "$wf" \
-    || log_fail "TEST-1437: the gate job must keep needs: [select, skills-selected, skills-full]"
+  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed\]' "$wf" \
+    || log_fail "TEST-1437: the gate job must require the selected/full suite and native Windows seed jobs"
   grep -qE 'if:\s*always\(\)' "$wf" \
     || log_fail "TEST-1437: the gate job must keep if: always()"
   grep -qF '[ "${{ needs.skills-full.result }}" = "success" ] || { echo "full-mode run failed"; exit 1; }' "$wf" \
     || log_fail "TEST-1437: the gate job must keep its exact full-mode success line"
-  log_pass "TEST-1437: negative control — the gate job's shape is unchanged (TEST-1437)"
+  grep -qF 'needs.native-worktree-seed.result' "$wf" \
+    || log_fail "TEST-1437: the gate job must reject a failed or skipped native Windows seed"
+  log_pass "TEST-1437: negative control — the existing suite verdict and native Windows dependency remain required (TEST-1437)"
 }
 
 test_1438_leg_rechecks_before_extract() {  # Spec-AC-05

@@ -6260,6 +6260,7 @@ MD
 {"date_utc":"2026-07-20","ref_id":"CHANGE-5830","title":"flushed a"}
 { this line is deliberately not valid json and must be skipped, never thrown
 {"date_utc":"2026-07-20","ref_id":"CHANGE-5832","title":"flushed via fileId"}
+{"timestamp":"2026-07-20T00:00:00Z","event":"worktree_create","ref_id":"CHANGE-5831","path":"/tmp/worktree"}
 JSONL
   local rc=0
   (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || rc=$?
@@ -6278,7 +6279,7 @@ JSONL
   if grep -qF "flush-fileid-slug" "$d/drift-sec.txt"; then
     log_fail "TEST-001(c): a METRICS ref_id matching only the numbered fileId (CHANGE-5832) must NOT flag the slug-id doc (SPEC-0054 Problem #2)"
   fi
-  # (b) no flush line, and (d) garbled lines did not spuriously flag it
+  # (b) worktree lifecycle telemetry is not a flush; (d) garbled lines are inert.
   if grep -qF "CHANGE-5831" "$d/drift-sec.txt"; then
     log_fail "TEST-001(b): a doc with no METRICS flush line must NOT be flagged by the METRICS arm"
   fi

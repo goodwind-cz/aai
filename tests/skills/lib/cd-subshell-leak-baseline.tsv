@@ -132,6 +132,7 @@
 2	tests/skills/test-aai-validator-isolation.sh
 2	tests/skills/test-aai-verify-gate.sh
 3	tests/skills/test-aai-win-fallback.sh
+1	tests/skills/test-aai-worktree-seed.sh
 2	tests/skills/test-aai-worktree.sh
 7	tests/skills/test-framework.sh
 3	tests/skills/test-ps1-quality.sh

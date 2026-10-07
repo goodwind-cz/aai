@@ -481,6 +481,14 @@ unexpected internal error.
 #### `/aai-worktree`
 **What:** Manages git worktrees for parallel development.
 
+Setup seeds a new linked worktree with an independent copy of the current
+installation's AAI engine and skills, including its version/profile pin, before
+the first state command runs. Updating the origin later does not change an
+existing worktree. Run `/aai-update` explicitly inside that worktree when you
+want to update its installation. A later seed refuses differing existing files;
+it is not an updater. This setup step applies to linked worktrees created by
+`/aai-worktree`, not arbitrary `git worktree add` commands or local clones.
+
 **When to use:**
 - Working on multiple features simultaneously
 - Long-running branches

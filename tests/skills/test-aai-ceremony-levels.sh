@@ -999,7 +999,7 @@ test_014_fixture_chain_lightweight() {
     jassert "$OUT" 'o.role === "Metrics Flush"'
 
     # Step 5: already flushed -> no_action, lane null.
-    echo '{"ref_id":"CHANGE-0001"}' > "$d/docs/ai/METRICS.jsonl"
+    echo '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","agent_runs":[]}' > "$d/docs/ai/METRICS.jsonl"
     run_dispatch "$d"
     [[ "$EC" == 3 ]] || log_fail "(L$lvl step5) must be no_action once flushed (got $EC): $(cat "$OUT" "$ERR")"
     jassert "$OUT" 'o.verdict === "no_action" && o.lane === null'

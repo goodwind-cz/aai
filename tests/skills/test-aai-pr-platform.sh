@@ -544,33 +544,41 @@ test_593_shared_page_push_scoped_to_own_diff() {
 # page a generator writes can no longer go uncounted just because a human
 # forgot it twice in the same edit — the measurement doesn't require anyone
 # to remember it once.
+build_regen_clone() { # source-root clone-path; include all non-ignored working-tree inputs
+  local source_root="$1" clone_dir="$2" base_commit wt_diff untracked_list rel
+  [[ -n "$source_root" && "$source_root" = /* && -n "$clone_dir" && "$clone_dir" = /* ]] || return 1
+  git clone --local --no-hardlinks --quiet "$source_root" "$clone_dir" || return 1
+  base_commit="$(git -C "$source_root" rev-parse HEAD)" || return 1
+  git -C "$clone_dir" checkout --quiet "$base_commit" || return 1
+  wt_diff="$clone_dir.tracked.patch"
+  git -C "$source_root" diff HEAD > "$wt_diff" || return 1
+  if [[ -s "$wt_diff" ]]; then
+    git -C "$clone_dir" apply "$wt_diff" || return 1
+  fi
+  untracked_list="$clone_dir.untracked.list"
+  git -C "$source_root" ls-files --others --exclude-standard -z > "$untracked_list" || return 1
+  while IFS= read -r -d '' rel; do
+    mkdir -p "$(dirname "$clone_dir/$rel")" || return 1
+    cp -P "$source_root/$rel" "$clone_dir/$rel" || return 1
+  done < "$untracked_list"
+}
+
 test_580_shared_page_set_covers_every_generated_page() {
   log_info "TEST-580: SHARED_GENERATED_PAGES matches disk and equals the pages the close ceremony's regen tail is MEASURED to actually write, one conflict arm per page (Spec-AC-30)..."
   local bin="$TMP_ROOT/gh-t580" page rc out ok=1
 
   # --- Build an isolated scratch clone -----------------------------------
-  # Same recipe mutation-run.mjs's buildIsolatedClone() uses (D4): clone
-  # HEAD, then reproduce the developer's own UNCOMMITTED tracked edits via
-  # `git diff HEAD | git apply`, so a mid-ride edit to lib/docs-model.mjs or
-  # to a generator is measured before it is ever committed — without a
+  # Match mutation-run.mjs's buildIsolatedClone() inputs: HEAD, uncommitted
+  # tracked edits and untracked non-ignored files. A new generator dependency
+  # is measured before it is committed, without a
   # generator run ever writing a regenerated page into the real working
   # tree (running these generators dirties tracked pages; this suite must
   # leave the tree clean).
   local clone_dir
   clone_dir="$(mktemp -d "$TMP_ROOT/regen-clone.XXXXXX")" \
     || { log_fail "TEST-580: could not create the scratch clone directory"; return; }
-  git clone --local --no-hardlinks --quiet "$PROJECT_ROOT" "$clone_dir" \
-    || { log_fail "TEST-580: could not build the scratch clone"; return; }
-  local base_commit
-  base_commit="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
-  (cd "$clone_dir" && git checkout --quiet "$base_commit") \
-    || { log_fail "TEST-580: could not checkout $base_commit in the scratch clone"; return; }
-  local wt_diff
-  wt_diff="$(cd "$PROJECT_ROOT" && git diff HEAD)"
-  if [[ -n "$wt_diff" ]]; then
-    printf '%s\n' "$wt_diff" | (cd "$clone_dir" && git apply) \
-      || { log_fail "TEST-580: could not reproduce uncommitted tracked edits in the scratch clone"; return; }
-  fi
+  build_regen_clone "$PROJECT_ROOT" "$clone_dir" \
+    || { log_fail "TEST-580: could not reproduce working-tree inputs in the scratch clone"; return; }
 
   # --- Run the regen tail's five generators, exactly as invoked -----------
   # close-work-item.mjs's regen tail: regenerateIndex() (also run inside
@@ -728,6 +736,31 @@ test_580_shared_page_set_covers_every_generated_page() {
     || log_fail "TEST-580 shared-page set coverage"
 }
 
+test_581_regen_clone_carries_untracked_dependencies() {
+  log_info "TEST-581: regen clone carries tracked edits and untracked dependencies before commit..."
+  local source_root="$TMP_ROOT/t581-source" clone_dir="$TMP_ROOT/t581-clone"
+  mkdir -p "$source_root/.aai/scripts/lib" || { log_fail "TEST-581: fixture setup failed"; return; }
+  git -C "$source_root" init -q || { log_fail "TEST-581: git init failed"; return; }
+  git -C "$source_root" config user.name 'AAI Fixture'
+  git -C "$source_root" config user.email 'fixture@example.invalid'
+  printf 'ignored.tmp\n' > "$source_root/.gitignore"
+  printf 'original\n' > "$source_root/tracked.txt"
+  git -C "$source_root" add .gitignore tracked.txt
+  git -C "$source_root" commit -qm 'fixture baseline' || { log_fail "TEST-581: fixture commit failed"; return; }
+  printf 'modified\n' > "$source_root/tracked.txt"
+  printf 'new helper\n' > "$source_root/.aai/scripts/lib/new-helper.mjs"
+  printf 'ignored\n' > "$source_root/ignored.tmp"
+  build_regen_clone "$source_root" "$clone_dir" \
+    || { log_fail "TEST-581: clone failed with an untracked helper"; return; }
+  [[ "$(cat "$clone_dir/tracked.txt")" == modified ]] \
+    || log_fail "TEST-581: tracked working-tree edit was lost"
+  [[ "$(cat "$clone_dir/.aai/scripts/lib/new-helper.mjs")" == 'new helper' ]] \
+    || log_fail "TEST-581: untracked nested helper was lost"
+  [[ ! -e "$clone_dir/ignored.tmp" ]] \
+    || log_fail "TEST-581: ignored runtime input entered the clone"
+  log_pass "TEST-581: tracked edits and untracked nested dependencies included; ignored input excluded"
+}
+
 # --- TEST-590 (Spec-AC-30, validation-round5 B3-R5) --------------------------
 # TEST-580 above RUNS the five REGEN_TAIL_GENERATORS, but nothing made
 # `tests/skills/suite-map.yaml`'s `aai-pr-platform` row NAME them — so
@@ -787,6 +820,7 @@ ALL_TESTS=(
   test_569_shared_page_push_names_open_prs
   test_593_shared_page_push_scoped_to_own_diff
   test_580_shared_page_set_covers_every_generated_page
+  test_581_regen_clone_carries_untracked_dependencies
   test_590_suite_map_names_the_regen_tail_generators
 )
 

@@ -1093,6 +1093,14 @@ suites:
       - .codex/skills/aai-worktree/**
       - .gemini/skills/aai-worktree/**
 
+  aai-worktree-seed:
+    globs:
+      - .aai/scripts/worktree-seed.mjs
+      - .aai/SKILL_WORKTREE.prompt.md
+      - .aai/system/PROFILES.yaml
+      - tests/skills/test-aai-worktree-seed.sh
+      - tests/skills/aai-worktree-seed.Tests.ps1
+
   aai-suite-select:
     globs:
       - tests/skills/suite-map.yaml

@@ -120,6 +120,7 @@ import { USAGE_NOTE_RE } from './lib/usage-note.mjs';
 // copied into the LEDGER, the only durable home the factory report can read.
 import { readValidationBlock, parseWaiver, refMatchesScope, formatWaiver, formatArchive } from './validation-waiver.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
 
 setEngineFailPrefix('metrics-flush');
 
@@ -307,7 +308,7 @@ function ledgerRefs(metricsPath) {
     if (t === '' || t.startsWith('#')) continue;
     try {
       const o = JSON.parse(t);
-      if (o && typeof o.ref_id === 'string') refs.add(o.ref_id);
+      if (isMetricsFlushRecord(o)) refs.add(o.ref_id);
     } catch { /* best-effort matching probe */ }
   }
   return refs;

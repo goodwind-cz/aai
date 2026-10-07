@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-05T23:34:30.652Z",
+  "generatedAt": "2026-10-06T19:30:44.886Z",
   "project": "aai",
   "counts": {
-    "delivered": 278,
+    "delivered": 279,
     "in_progress": 15,
     "releases": 1,
     "tokens_total": 74203136
@@ -208,6 +208,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "worktree-lacks-vendored-aai-layer-downstream",
+      "title": "Issue — In a downstream project a new worktree has no `.aai/` layer and no skills, so the worktree flow breaks at its first step",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0093-worktree-lacks-vendored-aai-layer-downstream.md",
+      "closed_on": "2026-10-06",
+      "agent_minutes": 317,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0209-spec-worktree-lacks-vendored-aai-layer-downstream.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "roadmap-maintenance-budget-advisory",
       "title": "Change Request: Advisory maintenance budget on the roadmap",
@@ -3849,6 +3862,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "worktree-lacks-vendored-aai-layer-downstream",
+          "title": "Issue — In a downstream project a new worktree has no `.aai/` layer and no skills, so the worktree flow breaks at its first step",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0093-worktree-lacks-vendored-aai-layer-downstream.md",
+          "closed_on": "2026-10-06",
+          "agent_minutes": 317,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0209-spec-worktree-lacks-vendored-aai-layer-downstream.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "roadmap-maintenance-budget-advisory",
           "title": "Change Request: Advisory maintenance budget on the roadmap",

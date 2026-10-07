@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-06T09:06:51.057Z
+Generated: 2026-10-06T20:54:16.287Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -54,7 +54,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (491)
+## Done (493)
 
 | ID | Type | Path |
 |---|---|---|
@@ -321,6 +321,7 @@ _None._
 | ISSUE-0089 | issues | docs/issues/ISSUE-0089-sync-deletes-target-only-hooks.md |
 | ISSUE-0090 | issues | docs/issues/ISSUE-0090-shipped-guards-have-no-downstream-trigger.md |
 | ISSUE-0092 | issues | docs/issues/ISSUE-0092-a-check-cannot-tell-silence-from-a-verdict.md |
+| ISSUE-0093 | issues | docs/issues/ISSUE-0093-worktree-lacks-vendored-aai-layer-downstream.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -547,6 +548,7 @@ _None._
 | SPEC-0206 | specs | docs/specs/SPEC-0206-spec-ci-test-selection-narrowing-and-sharding.md |
 | SPEC-0207 | specs | docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md |
 | SPEC-0208 | specs | docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md |
+| SPEC-0209 | specs | docs/specs/SPEC-0209-spec-worktree-lacks-vendored-aai-layer-downstream.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -573,11 +575,12 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (1)
+## Deferred items (per-AC, across all specs) (2)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
+| SPEC-0209 | Spec-AC-06 | 2026-10-20 | Pre-PR Bash real downstream and macOS pwsh evidence passed; neither proves native Windows. Windows PowerShell 5.1 and pwsh 7 Pester fixture checks are required in PR CI before merge; see the measurement amendment below. |
 
 ## Blocked items (per-AC, across all specs) (0)
 

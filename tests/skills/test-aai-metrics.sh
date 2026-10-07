@@ -922,6 +922,70 @@ test_013_transactionality() {
   log_pass "Ledger-before-reset ordering, crash-preserved STATE, idempotent cleanup-only resume, dry-run inert (TEST-013)"
 }
 
+test_013_worktree_telemetry_is_not_resume() {
+  log_info "Test: worktree_create telemetry for the same ref cannot trigger cleanup-only flush resume..."
+  local d
+  d="$(mk_repo t13-worktree)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  printf '{"timestamp":"2026-07-15T11:00:00Z","event":"worktree_create","ref_id":"CHANGE-0001","path":"/tmp/worktree"}\n' >> "$d/docs/ai/METRICS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "worktree telemetry fixture must flush (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "worktree telemetry must remain, followed by one final summary"
+  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "final summary is missing after worktree telemetry"
+const fs = require('fs');
+const lines = fs.readFileSync(process.argv[2], 'utf8').split('\n').filter(line => line.startsWith('{'));
+const records = lines.map(line => JSON.parse(line));
+if (records[0].event !== 'worktree_create' || records[1].ref_id !== 'CHANGE-0001' || records[1].verdict !== 'PASS') process.exit(1);
+NODE
+  log_pass "worktree telemetry preserved and a real final summary appended"
+}
+
+test_013_legacy_timestamp_summary_is_cleanup_only() {
+  log_info "Test: historical UTC timestamp summary resumes flush without a duplicate..."
+  local d
+  d="$(mk_repo t13-legacy-timestamp)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  printf '%s\n' '{"date_utc":"2026-07-04T10:04:21Z","ref_id":"CHANGE-0001","title":"Historical final summary","agent_runs":[],"totals":{},"verdict":"PASS"}' >> "$d/docs/ai/METRICS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "historical summary resume must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "historical summary must not be duplicated"
+  grep -qE '^ {4}CHANGE-0001:' "$d/docs/ai/STATE.yaml" && log_fail "resume must finish STATE cleanup"
+  log_pass "Historical UTC timestamp final summary triggers cleanup only, with one ledger record"
+}
+
+test_013_historical_summary_corpus() {
+  log_info "Test: historical final-summary corpus is recognized and lifecycle records are excluded..."
+  node --input-type=module - "$PROJECT_ROOT" <<'NODE' || log_fail "historical final-summary corpus classification failed"
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const root = process.argv[2];
+const { isMetricsFlushRecord, metricsFlushDateToTs } = await import(pathToFileURL(path.join(root, '.aai/scripts/lib/metrics-flush-record.mjs')));
+const { readMetricsFlushes } = await import(pathToFileURL(path.join(root, '.aai/scripts/lib/docs-audit-core.mjs')));
+const records = fs.readFileSync(path.join(root, 'docs/ai/METRICS.jsonl'), 'utf8')
+  .split('\n').filter(line => line.trim().startsWith('{')).map(JSON.parse);
+const byRef = new Map(records.filter(record => record.ref_id).map(record => [record.ref_id, record]));
+const flushes = readMetricsFlushes(root);
+if (byRef.has('CHANGE-0006')) {
+  for (const ref of ['CHANGE-0006', 'CHANGE-0007', 'CHANGE-0008']) {
+    assert.equal(isMetricsFlushRecord(byRef.get(ref)), true, ref);
+    assert.equal(flushes.has(ref), true, ref);
+    assert.equal(flushes.get(ref), byRef.get(ref).date_utc, ref);
+  }
+}
+for (const record of records.filter(record => record.event)) assert.equal(isMetricsFlushRecord(record), false);
+assert.equal(isMetricsFlushRecord({ ref_id: 'no-summary', date_utc: '2026-07-04T10:04:21Z', detail: 'other' }), false);
+assert.equal(isMetricsFlushRecord({ ref_id: 'lifecycle', date_utc: '2026-07-04', event: 'worktree_create', title: 'misleading' }), false);
+assert.equal(isMetricsFlushRecord({ ref_id: 'historical', date_utc: '2026-07-04T10:04:21Z', agent_runs: [], verdict: 'PASS' }), true);
+assert.equal(isMetricsFlushRecord({ ref_id: 'current', date_utc: '2026-07-04', agent_runs: [] }), true);
+assert.equal(metricsFlushDateToTs('2026-07-04'), '2026-07-04T23:59:59.999Z');
+assert.equal(metricsFlushDateToTs('2026-07-04T10:04:21Z'), '2026-07-04T10:04:21.000Z');
+assert.equal(metricsFlushDateToTs('2026-07-04T10:04:21+00:00'), '2026-07-04T10:04:21.000Z');
+NODE
+  log_pass "Historical CHANGE-0006/0007/0008 summaries and current summaries recognized; lifecycle and other records excluded"
+}
+
 # --- TEST-014: report golden -----------------------------------------------------------
 
 test_014_report_golden() {
@@ -3440,6 +3504,9 @@ main() {
   test_011_partial_flush
   test_012_full_reset_cleanup
   test_013_transactionality
+  test_013_worktree_telemetry_is_not_resume
+  test_013_legacy_timestamp_summary_is_cleanup_only
+  test_013_historical_summary_corpus
   test_014_report_golden
   test_015_fallback_ref_id_parity
   test_016_zero_relative_full_reset

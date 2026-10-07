@@ -232,6 +232,52 @@ jobs:
             bash tests/skills/test-framework.sh "${args[@]}"
           fi
 
+  native-worktree-seed:
+    name: worktree seed (native Windows PowerShell 5.1 and pwsh 7)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: TEST-008 under native Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          if (-not (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 })) {
+            Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
+          }
+          Import-Module Pester -MinimumVersion 5.0
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tests/skills/aai-worktree-seed.Tests.ps1'
+          $cfg.Run.PassThru = $true
+          $result = Invoke-Pester -Configuration $cfg
+          $cases = @($result.Tests | Where-Object { $_.ExpandedPath -like 'worktree seed PowerShell parity.TEST-008*' })
+          if ($cases.Count -ne 3 -or @($cases | Where-Object { $_.Result -ne 'Passed' }).Count -ne 0 -or $result.SkippedCount -ne 0 -or $result.FailedCount -ne 0 -or $result.FailedContainersCount -ne 0) {
+            throw "TEST-008 Windows PowerShell 5.1: expected 3 passed, 0 skipped/failed; found $($cases.Count) cases, $($result.SkippedCount) skipped, $($result.FailedCount) failed, $($result.FailedContainersCount) failed containers"
+          }
+
+      - name: TEST-008 under native Windows pwsh 7
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          if (-not (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 })) {
+            Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
+          }
+          Import-Module Pester -MinimumVersion 5.0
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tests/skills/aai-worktree-seed.Tests.ps1'
+          $cfg.Run.PassThru = $true
+          $result = Invoke-Pester -Configuration $cfg
+          $cases = @($result.Tests | Where-Object { $_.ExpandedPath -like 'worktree seed PowerShell parity.TEST-008*' })
+          if ($cases.Count -ne 3 -or @($cases | Where-Object { $_.Result -ne 'Passed' }).Count -ne 0 -or $result.SkippedCount -ne 0 -or $result.FailedCount -ne 0 -or $result.FailedContainersCount -ne 0) {
+            throw "TEST-008 Windows pwsh 7: expected 3 passed, 0 skipped/failed; found $($cases.Count) cases, $($result.SkippedCount) skipped, $($result.FailedCount) failed, $($result.FailedContainersCount) failed containers"
+          }
+
   # Aggregating gate: carries the EXACT name branch protection already
   # requires ("skill test suite (tests/skills/, via test-framework.sh)").
   # skills-selected and skills-full are mutually exclusive (one is always
@@ -240,7 +286,7 @@ jobs:
   # succeeded.
   gate:
     name: skill test suite (tests/skills/, via test-framework.sh)
-    needs: [select, skills-selected, skills-full]
+    needs: [select, skills-selected, skills-full, native-worktree-seed]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -251,6 +297,9 @@ jobs:
           echo "select=${{ needs.select.result }} mode=${{ needs.select.outputs.mode }} selected=${{ needs.skills-selected.result }} full=${{ needs.skills-full.result }}"
           if [ "${{ needs.select.result }}" != "success" ]; then
             echo "select job did not succeed"; exit 1
+          fi
+          if [ "${{ needs.native-worktree-seed.result }}" != "success" ]; then
+            echo "native Windows worktree seed job did not succeed"; exit 1
           fi
           if [ "${{ needs.select.outputs.mode }}" = "selected" ]; then
             [ "${{ needs.skills-selected.result }}" = "success" ] || { echo "selected-mode run failed"; exit 1; }
