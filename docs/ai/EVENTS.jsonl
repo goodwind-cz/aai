@@ -2835,3 +2835,4 @@
 {"v":1,"ts":"2026-10-07T13:34:01Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pr-capability-preflight/Spec-AC-04","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-07T13:34:01Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pr-capability-preflight/Spec-AC-05","payload":{"from":"planned","to":"blocked"}}
 {"v":1,"ts":"2026-10-07T13:34:01Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-pr-capability-preflight/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-07T16:51:20Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"pr-capability-preflight","payload":{"status":"pass","hash":"d9c8a405c5135a25f00c373170a95fa96757b28614c9b11228453c3c04814994"}}

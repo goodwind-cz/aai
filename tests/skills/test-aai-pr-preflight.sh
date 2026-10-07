@@ -11,7 +11,8 @@ const assert = require('assert/strict');
 const root = process.argv[2], id = process.argv[3];
 const parentDynamicInstall = process.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL;
 const cli = process.env.AAI_PR_PREFLIGHT || path.join(root,'.aai/scripts/pr-preflight.mjs');
-const scratch = process.env.AAI_PREFLIGHT_SCRATCH || (process.platform === 'win32' ? os.tmpdir() : '/private/tmp/aai-pr-preflight-scratch');
+const scratch = process.env.AAI_PREFLIGHT_SCRATCH || path.join(os.tmpdir(),'aai-pr-preflight-scratch');
+if(!process.env.AAI_PREFLIGHT_SCRATCH){assert.equal(scratch,path.join(os.tmpdir(),'aai-pr-preflight-scratch'));console.log('INFO: scratch_override=unset platform='+process.platform+' uid='+(process.getuid?process.getuid():'unavailable'));}
 fs.mkdirSync(scratch,{recursive:true});
 const tmp = fs.mkdtempSync(path.join(scratch,'fixture-'));
 const repo = path.join(tmp,'checkout with spaces 雪'), bin = path.join(tmp,'bin');
@@ -48,7 +49,7 @@ let gotInput=false; process.stdin.on('data',()=>{gotInput=true}); process.stdin.
  if(name==='gh'&&mode==='gh-auth'&&step===1){console.error('not logged in');process.exit(1);}
  if(step===0){console.log(name+' version fixture');return;}
  if(name==='az'&&step===1){console.log(JSON.stringify({name:'azure-devops',version:'1.0.0'}));return;}
- if(name==='az'){console.log(JSON.stringify({name:mode==='mismatch'?'Other':'Repo Name',project:{name:'Project 雪'},remoteUrl:'https://dev.azure.com/Org/Project%20%E9%9B%AA/_git/Repo%20Name'}));return;}
+ if(name==='az'){const raw=JSON.stringify({name:mode==='mismatch'?'Other':'Repo Name',project:{name:'Project 雪'},remoteUrl:'https://dev.azure.com/Org/Project%20%E9%9B%AA/_git/Repo%20Name'});if(mode==='split-unicode'){const bytes=Buffer.from(raw),cut=bytes.indexOf(Buffer.from('雪'))+1;fs.appendFileSync(process.env.FIX_LOG,JSON.stringify({split_fixture:true,cut,bytes:bytes.length})+'\\n');process.stdout.write(bytes.subarray(0,cut));setTimeout(()=>process.stdout.write(bytes.subarray(cut)),100);return;}console.log(raw);return;}
  if(step===1){console.log('authenticated');return;}
  console.log(JSON.stringify({nameWithOwner:mode==='mismatch'?'Other/Repo':'Org/Repo',url:'https://'+process.env.FIX_HOST+'/Org/Repo'}));
 }); process.stdin.resume();`);
@@ -71,10 +72,10 @@ let host='github.com';
 function azure(url='https://dev.azure.com/Org/Project%20%E9%9B%AA/_git/Repo%20Name') {try{git('remote','remove','origin')}catch{} git('remote','add','origin',url);}
 function github(h='github.com') {host=h; azure('https://'+h+'/Org/Repo.git'); input={schema_version:1,repo_root:repo,remote_name:'origin',source_branch:'change/pr-capability-preflight',target_branch:'main',repository:'Org/Repo'}; ghArgs[1][3]=h;}
 function calls() {return fs.existsSync(log)?fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];}
-function run(mode='ok',extra=[],override={}) {
+function run(mode='ok',extra=[],override={},entry=cli) {
  fs.writeFileSync(log,''); fs.writeFileSync(gitLog,''); const file=path.join(tmp,'input.json'); fs.writeFileSync(file,JSON.stringify(input));
  const env={...process.env,PATH:bin+path.delimiter+process.env.PATH,FIX_MODE:mode,FIX_REAL_GIT:realGit,FIX_GIT_LOG:gitLog,FIX_ALLOWED:JSON.stringify({az:azArgs,gh:ghArgs}),FIX_LOG:log,FIX_PID:pidFile,FIX_HOST:host,AAI_NATIVE_NODE:process.execPath,AAI_NATIVE_STUB:stub,...override};
- const start=Date.now(); const r=spawnSync(process.execPath,[cli,'--input',file,'--json',...extra],{env,encoding:'utf8',timeout:4000,maxBuffer:2000000});
+ const start=Date.now(); const r=spawnSync(process.execPath,[entry,'--input',file,'--json',...extra],{env,encoding:'utf8',timeout:4000,maxBuffer:2000000});
  assert.equal(r.error,undefined,'CLI must finish within harness bound');
  let json; try{json=JSON.parse(r.stdout)}catch{assert.fail('one parseable JSON result required: '+String(r.stdout).slice(0,200));}
  return {...r,json,ms:Date.now()-start};
@@ -84,6 +85,7 @@ function refusal(change) {const saved={...input};Object.assign(input,change);con
 azure();
 try {
  if(id==='001') {
+  const linkDir=path.join(tmp,'linked-scripts');fs.symlinkSync(path.dirname(cli),linkDir,process.platform==='win32'?'junction':'dir');const direct=run(),linked=run('ok',[],{},path.join(linkDir,path.basename(cli)));assert.equal(linked.status,direct.status);assert.equal(linked.stdout,direct.stdout);assert.equal(linked.stderr,direct.stderr);console.log('INFO: TEST-001 direct_symlink_exit_output_equal=true');
   const verified=run();expect(verified,0,'READ_VERIFIED'); assert.equal(calls().length,3);console.log('INFO: TEST-001 '+JSON.stringify({result:verified.json,calls:calls()})); assert.match(run().json.head_sha,/^[0-9a-f]{40,64}$/);
   for(const change of [{source_branch:'other'},{target_branch:input.source_branch},{repository:'Other'},{project:'Other'},{organization_url:'https://dev.azure.com/Other'},{remote_name:'missing'},{schema_version:2},{surprise:true},{target_branch:''},{source_branch:'bad..branch'},{repo_root:'relative'}])refusal(change);
   const saved=input.target_branch;delete input.target_branch;expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0);input.target_branch=saved;
@@ -101,8 +103,9 @@ try {
   fs.appendFileSync(wrapper,'\r\necho unexpected');assert.equal(spawnSync(process.execPath,['--input-type=module','-e',importCode,wrapper],{encoding:'utf8'}).status,3,'unknown batch text refused');
   const r=run();expect(r,0,'READ_VERIFIED');assert.equal(r.json.outcome,'read_verified');assert.deepEqual(calls().map(c=>c.args),azArgs);console.log('INFO: TEST-002 '+JSON.stringify({result:r.json,calls:calls()}));assert.equal(process.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL,parentDynamicInstall);
   assert.ok(calls().every(c=>c.env.AZURE_CORE_NO_COLOR==='true'));
-  expect(run('ok',[],{GIT_TERMINAL_PROMPT:'1',GH_PROMPT_DISABLED:'0'}),0,'READ_VERIFIED');assert.ok(calls().every(c=>c.env.GIT_TERMINAL_PROMPT==='0'&&c.env.GH_PROMPT_DISABLED==='1'));const gitProbes=fs.readFileSync(gitLog,'utf8').trim().split('\n').map(JSON.parse);assert.ok(gitProbes.length>=6,'Git identity probes reached');assert.ok(gitProbes.every(c=>c.GIT_TERMINAL_PROMPT==='0'&&c.GH_PROMPT_DISABLED==='1')); 
+  expect(run('ok',[],{GIT_TERMINAL_PROMPT:'1',GH_PROMPT_DISABLED:'0'}),0,'READ_VERIFIED');assert.ok(calls().every(c=>c.env.GIT_TERMINAL_PROMPT==='0'&&c.env.GH_PROMPT_DISABLED==='1'));const gitProbes=fs.readFileSync(gitLog,'utf8').trim().split('\n').map(JSON.parse);assert.ok(gitProbes.length>=6,'Git identity probes reached');assert.ok(gitProbes.every(c=>c.GIT_TERMINAL_PROMPT==='0'&&c.GH_PROMPT_DISABLED==='1'));
   if(process.platform==='win32'){const liveWrapper=path.join(bin,'az.cmd'),original=fs.readFileSync(liveWrapper,'utf8');assert.ok(calls().every(c=>c.env.AZ_INSTALLER==='MSI'));fs.writeFileSync(liveWrapper,original.replace('AZ_INSTALLER=MSI','AZ_INSTALLER=ZIP'));expect(run(),0,'READ_VERIFIED');assert.ok(calls().every(c=>c.env.AZ_INSTALLER==='ZIP'));fs.appendFileSync(liveWrapper,'\r\necho unexpected');expect(run(),3,'ACCESS_UNKNOWN');assert.equal(calls().length,0,'unknown cmd never executed');fs.writeFileSync(liveWrapper,original);}
+  const split=run('split-unicode');assert.equal(calls().filter(c=>c.split_fixture).length,1,'split provider fixture reached');assert.deepEqual(calls().filter(c=>c.name).map(c=>c.args),azArgs);expect(split,0,'READ_VERIFIED');console.log('INFO: TEST-002 split_utf8_read_verified=true split_fixture_reached=true');
   expect(run('extension'),3,'EXTENSION_MISSING');assert.equal(calls().length,2,'no repos without extension');
   expect(run('mismatch'),3,'PROVIDER_RESULT_INVALID');assert.equal(calls().length,3);
  } else if(id==='003') {

@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: cf14ad84ea03d2d1fe383784d4bddce70b55e92e4c02ab1df6fe5349eae36624
+frozen_sha256: 41fd709496de6d03dc290b491147b0225f291fb5d1b3a0a1a78994262e779e4d
 ceremony_level: 2
 links:
   requirement: pr-capability-preflight
@@ -113,6 +113,8 @@ Mutation cells name behavior-removal patch artifacts to be produced in the dispo
 | TEST-006 | Spec-AC-04 | integration | tests/skills/test-aai-pr-preflight.sh | Prompt orders actual CLI before numbering/stage/commit/close/push; refused real CLI fixture preserves STATE bytes/index tree/HEAD/local+remote reservation refs; success proves fixture probe reachable | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.patch | green |
 | TEST-007 | Spec-AC-05 | integration | tests/skills/test-aai-pr-preflight.sh | GitHub host/repository exact binding, missing auth refusal, generic/none no client calls and named fallback; original Azure/GitHub classification unchanged | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.patch | green |
 | TEST-008 | Spec-AC-06 | integration | tests/skills/test-aai-pr-preflight.sh | Core profile and suite-map select real new script; diet ledger addition and checkpoint match actual prompt diff | patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-008.patch | green |
+
+Review remediation stays within the existing rows: TEST-001 proves real direct/symlink CLI output and exit parity; TEST-002 emits a successful Azure Unicode JSON response split inside a UTF-8 character and proves READ_VERIFIED; byte/time caps remain unchanged. The existing Pester arm also runs canonical Bash on POSIX with the scratch override unset, using an os.tmpdir-based portable default and private per-run fixtures; native Linux evidence must be read from CI, not inferred from macOS.
 
 Remediation coverage includes negative inherited prompt flags on captured Git/Azure/GitHub probes, legacy vs-ssh.visualstudio.com v3 identity, generic credential marker positive controls, LF/CRLF prompt fixtures and a real shallow checkout with the historic baseline object absent. TEST-008 measures canonical LF bytes against the immutable baseline36430 bytes (bdeb425c040ada918dd97e5b878b71e420bad83a), without fetching history.
 

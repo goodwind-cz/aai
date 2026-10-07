@@ -76,7 +76,8 @@ function windowsAzure(env) {
 function probe(bin, args, { cwd, env, timeout, operation, provider = true }) {
   env = { ...env, GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1' };
   return new Promise((resolve, reject) => {
-    let stdout = '', stderr = '', bytes = 0, refusal = null;
+    const stdout = [], stderr = [];
+    let bytes = 0, refusal = null;
     let child;
     try { child = spawn(bin, args, { cwd, env, shell: false, windowsHide: true,
       detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] }); }
@@ -98,13 +99,14 @@ function probe(bin, args, { cwd, env, timeout, operation, provider = true }) {
     const read = (key, chunk) => {
       bytes += chunk.length;
       if (bytes > LIMIT) { if (!refusal) refusal = new Refusal('PROVIDER_RESULT_INVALID', operation); terminate(); return; }
-      if (key === 'out') stdout += chunk.toString('utf8'); else stderr += chunk.toString('utf8');
+      // Decode after close so a multibyte character split between pipe events survives.
+      (key === 'out' ? stdout : stderr).push(chunk);
     };
     child.stdout.on('data', chunk => read('out', chunk)); child.stderr.on('data', chunk => read('err', chunk));
     child.on('error', err => { clearTimeout(timer); clearTimeout(killTimer);
       reject(new Refusal(provider ? (err.code === 'ENOENT' ? 'CLIENT_MISSING' : 'ACCESS_UNKNOWN') : 'IDENTITY_INVALID', operation, provider ? 3 : 2)); });
     child.on('close', code => { clearTimeout(timer); clearTimeout(killTimer);
-      if (refusal) reject(refusal); else resolve({ code, stdout, stderr }); });
+      if (refusal) reject(refusal); else resolve({ code, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8') }); });
   });
 }
 function remoteParts(remote) {
@@ -242,4 +244,7 @@ try {
 }
 
 }
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) await main();
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) await main();

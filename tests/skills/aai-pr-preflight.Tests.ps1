@@ -59,6 +59,26 @@ Add-Type -TypeDefinition $code -OutputAssembly $args[0] -OutputType ConsoleAppli
             $rc | Should -Be 0
             ($output -join "`n") | Should -Match ('PASS: TEST-' + $id)
         }
+        if (-not $script:Native) {
+            # CI's Linux Pester job must also execute the canonical Bash entry
+            # without its own scratch override masking the portable default.
+            $oldScratch = $env:AAI_PREFLIGHT_SCRATCH
+            $env:AAI_PREFLIGHT_SCRATCH = $null
+            Push-Location -LiteralPath $script:Root
+            try {
+                $output = & bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh 2>&1
+                $rc = $LASTEXITCODE
+                Write-Host ($output -join "`n")
+                $rc | Should -Be 0
+                ($output -join "`n") | Should -Match 'scratch_override=unset platform=(linux|darwin)'
+                foreach ($id in @('001','002','003','004','005','006','007','008')) {
+                    ($output -join "`n") | Should -Match ('PASS: TEST-' + $id)
+                }
+            } finally {
+                Pop-Location
+                $env:AAI_PREFLIGHT_SCRATCH = $oldScratch
+            }
+        }
     }
     AfterAll {
         if ($script:Native) {
