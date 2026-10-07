@@ -27,6 +27,7 @@ fine — it is the marker a cut leaves on top.
 - Check repository identity and provider read access before PR numbering, staging, commit and push.
 - Bound noninteractive probes and return safe, named refusal remedies.
 - Preserve GitHub and generic/local routes; future PR create permission stays unknown.
+- CHANGE-0204 / SPEC-0210, phase A1 of RFC-0016.
 
 ## [unreleased] — fix: seed the installed AAI layer into linked worktrees
 

@@ -1,10 +1,10 @@
 ---
 id: spec-pr-capability-preflight
 type: spec
-number: null
+number: 210
 status: implementing
 mutation_gate: v1
-frozen_sha256: 41fd709496de6d03dc290b491147b0225f291fb5d1b3a0a1a78994262e779e4d
+frozen_sha256: 04dd230905c4d53b36cce42a4af90e1038eb74266cf6996fa2ba59a72a865449
 ceremony_level: 2
 links:
   requirement: pr-capability-preflight
@@ -19,8 +19,8 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-pr-capability-preflight.md
-- Umbrella: docs/rfc/RFC-DRAFT-downstream-pr-ceremony-reliability.md, phase A1 only
+- Requirement: docs/issues/CHANGE-0204-pr-capability-preflight.md
+- Umbrella: docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md, phase A1 only
 - Technology contract: docs/TECHNOLOGY.md
 - Prior art: docs/specs/SPEC-0103-spec-platform-portable-pr.md
 - Registry items closed by this scope: none
@@ -38,7 +38,7 @@ SPEC-FROZEN: true
 - User decision: undecided
 - Base ref: main
 - Worktree branch/path: decided by Implementation Preparation
-- Inline review scope: .aai/scripts/pr-preflight.mjs .aai/SKILL_PR.prompt.md .aai/system/PROFILES.yaml tests/skills/test-aai-pr-preflight.sh tests/skills/aai-pr-preflight.Tests.ps1 tests/skills/suite-map.yaml tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-hygiene-pack.sh docs/issues/CHANGE-DRAFT-pr-capability-preflight.md docs/specs/SPEC-DRAFT-spec-pr-capability-preflight.md docs/USER_GUIDE.md CHANGELOG.md
+- Inline review scope: .aai/scripts/pr-preflight.mjs .aai/SKILL_PR.prompt.md .aai/system/PROFILES.yaml tests/skills/test-aai-pr-preflight.sh tests/skills/aai-pr-preflight.Tests.ps1 tests/skills/suite-map.yaml tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-hygiene-pack.sh docs/issues/CHANGE-0204-pr-capability-preflight.md docs/specs/SPEC-0210-spec-pr-capability-preflight.md docs/USER_GUIDE.md CHANGELOG.md
 - Code review required: true; review the explicit paths above plus scoped evidence, including both compatibility and refusal behavior. Do not include unrelated umbrella or roadmap changes as implementation delivery.
 
 ## Scope
@@ -127,7 +127,7 @@ Patch intentions in order: bypass identity mismatch refusal; allow extension abs
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-profiles.sh`, exit 0.
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-prompt-diet.sh`, exit 0, including TEST-012.
 - Native Windows: `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 powershell -NoProfile -Command "Invoke-Pester -Path tests/skills/aai-pr-preflight.Tests.ps1 -EnableExit"`; the Pester suite also invokes pwsh 7 for the same real Node CLI/provider fixture matrix. Verify argument delivery and hung-process termination under both native shells. Mac/Linux Node subprocess green is not Windows proof. Native Windows availability is an implementation evidence requirement, not currently verified here; if unavailable, arrange an authorized runner or return an explicit validation blocker.
-- `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-pr-capability-preflight.md`, required exit 0 with eight reproduced behavioral RED records. Bash mutations cover shared Node behavior; native Pester has no supported mutation gate and supplies platform seam proof separately.
+- `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0210-spec-pr-capability-preflight.md`, required exit 0 with eight reproduced behavioral RED records. Bash mutations cover shared Node behavior; native Pester has no supported mutation gate and supplies platform seam proof separately.
 - All fixtures are private disposable repositories under the dispatched scratch path, never the shipping tree. Byte-exact append-only prefixes are preserved if evidence adds ledger records. No live Azure/GitHub provider write is executed by these tests.
 
 ## Evidence contract

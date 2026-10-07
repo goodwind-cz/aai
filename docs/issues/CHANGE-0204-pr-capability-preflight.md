@@ -1,7 +1,7 @@
 ---
 id: pr-capability-preflight
 type: change
-number: null
+number: 204
 status: draft
 links:
   spec: null

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-06T19:30:44.886Z",
+  "generatedAt": "2026-10-07T19:39:08.832Z",
   "project": "aai",
   "counts": {
     "delivered": 279,
-    "in_progress": 15,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -199,6 +199,19 @@
       "type": "rfc",
       "status": "implementing",
       "path": "docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "downstream-pr-ceremony-reliability",
+      "title": "RFC — Reliable, bounded and resumable downstream PR ceremony",
+      "type": "rfc",
+      "status": "draft",
+      "path": "docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,

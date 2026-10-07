@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-07T18:04:43.423Z
+Generated: 2026-10-07T19:41:02.941Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-pr-capability-preflight | specs | implementing | 3 done, 3 blocked | docs/specs/SPEC-DRAFT-spec-pr-capability-preflight.md |
+| SPEC-0210 | specs | implementing | 3 done, 3 blocked | docs/specs/SPEC-0210-spec-pr-capability-preflight.md |
 
 ## Canonical layer (0)
 
@@ -560,7 +560,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| pr-capability-preflight (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-pr-capability-preflight.md |
+| CHANGE-0204 | issues | docs/issues/CHANGE-0204-pr-capability-preflight.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -572,7 +572,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| downstream-pr-ceremony-reliability (unnumbered draft) | rfc | docs/rfc/RFC-DRAFT-downstream-pr-ceremony-reliability.md |
+| RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
 
@@ -589,9 +589,9 @@ _None._
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| spec-pr-capability-preflight | Spec-AC-02 | 2026-10-21 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
-| spec-pr-capability-preflight | Spec-AC-03 | 2026-10-21 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
-| spec-pr-capability-preflight | Spec-AC-05 | 2026-10-21 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
+| SPEC-0210 | Spec-AC-02 | 2026-10-21 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
+| SPEC-0210 | Spec-AC-03 | 2026-10-21 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
+| SPEC-0210 | Spec-AC-05 | 2026-10-21 | Native Windows5.1/pwsh7 argument and termination evidence pending; local matrix green. |
 
 ## Broken references (0)
 

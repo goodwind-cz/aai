@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "bdeb425c040ada918dd97e5b878b71e420bad83a...6005f5874dd789dbacd3e61088edf38aa8b35d99 plus all tracked working diffs"
-  spec: docs/specs/SPEC-DRAFT-spec-pr-capability-preflight.md
+  spec: docs/specs/SPEC-0210-spec-pr-capability-preflight.md
   spec_compliance:
     verdict: fail
     ac_walk:
