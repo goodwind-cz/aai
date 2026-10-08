@@ -202,7 +202,7 @@ import { parseFrontmatter, extractDocIds, DEFAULT_CATEGORY_PREFIXES, slugFamilyF
 import { readGuardConfig } from './lib/guard-config.mjs';
 import { REQUIRED_PRODUCT_SECTIONS, missingProductSections } from './lib/product-doc.mjs';
 import { extractUsageTotal, hasUsageSentinel, isHarnessDispatchedRole } from './lib/usage-note.mjs';
-import { unresolvedCitations } from './lib/evidence-paths.mjs';
+import { unresolvedCitations, planEvidenceRescue, copyEvidenceRescue } from './lib/evidence-paths.mjs';
 import { loadState, findBlock, readScalar, unquoteScalar } from './lib/state-engine.mjs';
 import { duplicateKeys, splitLines } from './lib/state-core.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
@@ -1159,10 +1159,11 @@ function resolveEvidenceRoot(root) {
 // against cwd, so worktree-stranded evidence cannot silently pass; it is
 // echoed back as `resolutionRoot` so the behavior stays observable (dry-run
 // JSON, docs-audit-relevant tooling).
-function evaluateEvidencePathGate(docs, evidenceRoot) {
+function evaluateEvidencePathGate(docs, evidenceRoot, rescuable = new Set()) {
   const unresolved = [];
   for (const d of docs) {
     for (const { acId, token } of unresolvedCitations(d.content, evidenceRoot)) {
+      if (rescuable.has(token)) continue;   // D6: will be copied into evidenceRoot
       unresolved.push({ doc: d.rel, acId, token });
     }
   }
@@ -1966,7 +1967,28 @@ function main() {
   // below, D8); --dry-run reports the verdict in its JSON below and never
   // acts on it.
   const evidenceRoot = resolveEvidenceRoot(ROOT);
-  const evidenceGate = evaluateEvidencePathGate(resolved, evidenceRoot);
+  let evidenceGate = evaluateEvidencePathGate(resolved, evidenceRoot);
+  // D6 evidence rescue (post-validation-pushes-reuse-test-results Spec-AC-10):
+  // from a linked worktree, ignored evidence that exists only here is copied
+  // into the main checkout (never staged). Candidates count as resolved for the
+  // verdict; the refuse check below runs before any copy.
+  let evidenceRescue = [];
+  if (evidenceGate.unresolved.length > 0 && fs.realpathSync(ROOT) !== evidenceRoot) {
+    evidenceRescue = planEvidenceRescue(evidenceGate.unresolved.map((u) => u.token), ROOT, evidenceRoot);
+    if (evidenceRescue.length > 0) {
+      evidenceGate = evaluateEvidencePathGate(resolved, evidenceRoot, new Set(evidenceRescue.map((r) => r.token)));
+    }
+  }
+  if (!args.dryRun && evidenceGate.severity !== 'refuse' && evidenceRescue.length > 0) {
+    const { copied, failed } = copyEvidenceRescue(evidenceRescue);
+    for (const r of copied) {
+      console.log(`close-work-item: evidence rescued — ${r.token} (worktree-only, gitignored) copied to the main checkout`);
+    }
+    if (failed.length > 0) {
+      evidenceGate = evaluateEvidencePathGate(resolved, evidenceRoot, new Set(copied.map((r) => r.token)));
+    }
+  }
+  evidenceGate = { ...evidenceGate, rescue: evidenceRescue.map(({ token, from, to }) => ({ token, from, to })) };
   if (!args.dryRun && evidenceGate.severity === 'refuse') {
     process.stderr.write(`close-work-item: REFUSED (evidence-path gate) — ${evidenceGate.reason}\n`);
     exit(5);

@@ -3,7 +3,9 @@
 // six-rule D2 grammar that decides whether a token inside an AC table's
 // Evidence cell is a candidate repo-relative path, plus the doc-level and
 // unresolved-filter wrappers close-work-item.mjs consults to choose
-// warn-vs-refuse. Node stdlib only (docs/TECHNOLOGY.md); no git invocation.
+// warn-vs-refuse. Node stdlib only (docs/TECHNOLOGY.md). The extraction half
+// invokes no git; the D6 rescue half (bottom of file) runs read-only
+// `git check-ignore` to decide what may be copied.
 //
 // GRAMMAR (D2, measured before it was written — see the spec's D3 for the
 // live-corpus evidence base: 752 tokens extracted, 0 false positives over
@@ -31,6 +33,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { parseAcTable, parseLeanAcTable } from './docs-model.mjs';
 
 const LEADING_RE = /^[`'"(\[{]/;
@@ -126,4 +129,87 @@ export function unresolvedCitations(content, root) {
   return evidenceCitations(content, root).filter(
     ({ token }) => !fs.existsSync(path.join(root, token))
   );
+}
+
+// --- D6 evidence rescue (post-validation-pushes-reuse-test-results Spec-AC-10) --
+//
+// Runtime evidence (docs/ai/reports, docs/ai/tdd, docs/ai/validation) is
+// gitignored. A close run from a linked worktree resolves citations against the
+// main checkout, so ignored evidence that exists ONLY in the worktree would warn
+// even though nothing is wrong with it. planEvidenceRescue names the tokens that
+// can safely be copied into the main checkout; copyEvidenceRescue performs the
+// copy. Neither stages, tracks or commits anything.
+
+// safeTree(abs) -> true when `abs` is a regular file, or a directory containing
+// only regular files and directories (no symlink anywhere beneath it).
+function safeTree(abs) {
+  let st;
+  try { st = fs.lstatSync(abs); } catch { return false; }
+  if (st.isSymbolicLink()) return false;
+  if (st.isFile()) return true;
+  if (!st.isDirectory()) return false;
+  let names;
+  try { names = fs.readdirSync(abs); } catch { return false; }
+  return names.every((n) => safeTree(path.join(abs, n)));
+}
+
+// ignoredByRepoRules(tree, rel, isDir) -> true when git's repository rules
+// (.gitignore files only: core.excludesFile emptied) ignore `rel` under `tree`,
+// whether or not it exists there. A directory is probed through a child path so
+// both `dir/**` and `dir/` rules match.
+function ignoredByRepoRules(tree, rel, isDir) {
+  const probe = isDir ? `${rel}/.rescue-probe` : rel;
+  const r = spawnSync(
+    'git',
+    ['-c', 'core.excludesFile=', 'check-ignore', '-q', '--no-index', '--', probe],
+    { cwd: tree, stdio: 'ignore' },
+  );
+  return r.status === 0;
+}
+
+// planEvidenceRescue(tokens, root, evidenceRoot) -> [{ token, from, to }] for
+// every token that exists under `root` as a symlink-free file or directory, with
+// nothing at the destination, and is ignored by repository rules in BOTH trees.
+// Pure: no write. Deduped, first-appearance order.
+export function planEvidenceRescue(tokens, root, evidenceRoot) {
+  const out = [];
+  const seen = new Set();
+  let realRoot;
+  try { realRoot = fs.realpathSync(root); } catch { return out; }
+  for (const token of tokens) {
+    if (seen.has(token)) continue;
+    seen.add(token);
+    const from = path.join(root, token);
+    const to = path.join(evidenceRoot, token);
+    let st;
+    try { st = fs.lstatSync(from); } catch { continue; }
+    if (st.isSymbolicLink()) continue;
+    try {
+      if (fs.realpathSync(from) !== path.join(realRoot, token)) continue;   // symlinked parent
+    } catch { continue; }
+    if (!safeTree(from)) continue;
+    if (fs.existsSync(to)) continue;
+    const isDir = st.isDirectory();
+    if (!ignoredByRepoRules(root, token, isDir)) continue;
+    if (!ignoredByRepoRules(evidenceRoot, token, isDir)) continue;
+    out.push({ token, from, to });
+  }
+  return out;
+}
+
+// copyEvidenceRescue(plan) -> { copied: [entry], failed: [entry] }. No clobber:
+// errorOnExist with force:false. A failure leaves the destination as it was.
+export function copyEvidenceRescue(plan) {
+  const copied = [];
+  const failed = [];
+  for (const entry of plan) {
+    try {
+      fs.mkdirSync(path.dirname(entry.to), { recursive: true });
+      fs.cpSync(entry.from, entry.to, { recursive: true, errorOnExist: true, force: false });
+      copied.push(entry);
+    } catch {
+      failed.push(entry);
+    }
+  }
+  return { copied, failed };
 }
