@@ -29,7 +29,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, readFileSync, realpathSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const GATE_JOB = 'skill test suite (tests/skills/, via test-framework.sh)';
@@ -225,12 +225,10 @@ export async function main(argv, env = process.env) {
   return 0;
 }
 
-function isMain() {
-  try {
-    return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
-  } catch (e) { return false; }
+function realOrResolve(p) {
+  try { return realpathSync(p); } catch { return resolve(p); }
 }
 
-if (isMain()) {
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) {
   main(process.argv.slice(2)).then((c) => { process.exitCode = c; }, () => { process.exitCode = 1; });
 }
