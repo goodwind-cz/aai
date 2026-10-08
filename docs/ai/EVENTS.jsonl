@@ -2882,3 +2882,4 @@
 {"v":1,"ts":"2026-10-08T21:22:47Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-post-validation-pushes-reuse-test-results","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-08T21:22:47Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-post-validation-pushes-reuse-test-results","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-08T21:22:47Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-post-validation-pushes-reuse-test-results","payload":{"commit":"b11f56dab2dd3c7605367b9ce5c5fb4863482907"}}
+{"v":1,"ts":"2026-10-08T23:23:39Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"post-validation-pushes-reuse-test-results","payload":{"pr":435,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"504f2f32d2cabbb9fbef2e86fc4f23a94adaaeb9"}}
