@@ -1,0 +1,24 @@
+{
+  "original_probes": [
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/identity.cjs",
+      "sha256": "827413798b456e1b52b884f7f499d6e1740c9271b6664bf76da4a6d99b68b902"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/password.cjs",
+      "sha256": "3c2acb8894f9a8c92a1edaa9a77464be31dc0eb6d82c659441f833daeda844dc"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config.cjs",
+      "sha256": "5d03490a24b27431f3c100eb4f9c40ef7369a47dc2aa9ff1518a615c028b8d4a"
+    }
+  ],
+  "adaptations": "Assigned reused scratch and unique private fixture directories; private result destinations. Password assertion expects zero providers rather than historical three. Source-copy loader omissions retained as infrastructure; stale result copy explicitly labeled.",
+  "git_version": "git version 2.54.0 (Apple Git-157)",
+  "node_version": "v26.8.2",
+  "official_reference": "https://git-scm.com/docs/git-clone#_git_urls",
+  "baseline_source_sha256": "d0bbf48e79e10b2e9ffa4bab970158f2f421af76b2d59af0dc9314e704226b7e",
+  "baseline_source_binding": "byte-exact original shipping525a copied to private scp-before; later slash baseline proof did not execute before interim fix",
+  "private_replay_commit": "de2f6c1a58fe16c9049116f5638eca3b061a5fbc",
+  "private_clean_commit": "5c29cbc125fa14b3c75cb989c21b2a7370afc5d3"
+}

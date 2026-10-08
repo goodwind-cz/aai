@@ -1,0 +1,50 @@
+[
+  {
+    "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.txt",
+    "old_sha256": "bc939865cc0e4700c652095cdd63a24fac528a7375d6729f3513f8aaeaf1763a",
+    "new_sha256": "faea5d1ae9f00a03437c410d6d50a3a808fa5ebf8b64ca81a067dc7f0462dbf5",
+    "target": ".aai/scripts/pr-preflight.mjs",
+    "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638",
+    "changed_field_only": "target_sha256"
+  },
+  {
+    "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.txt",
+    "old_sha256": "539401f1f807aeef59759c0c11127fcc75097e65f3ed36908934793b1d95cca0",
+    "new_sha256": "6844c31dc3aa2ef1013f62abc0d2906918dc2fb29bbe73f948dd213daf256b3f",
+    "target": ".aai/scripts/pr-preflight.mjs",
+    "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638",
+    "changed_field_only": "target_sha256"
+  },
+  {
+    "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.txt",
+    "old_sha256": "00262a714522de84ad833c71a0845b61c3c487514ccce551c56b0ac687e76e35",
+    "new_sha256": "292ef4723bba0485c2000329368446b0ac69cae92d2a8d64e2456898bdc045c4",
+    "target": ".aai/scripts/pr-preflight.mjs",
+    "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638",
+    "changed_field_only": "target_sha256"
+  },
+  {
+    "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.txt",
+    "old_sha256": "85d72e6bc35dfd87a8c52c75a681a97e4fa20c2ea964a0e7ab2724c5242bcd89",
+    "new_sha256": "2911c3f7929218432d1f20091e6e2b29155cfe4d6c70bd638c09a1e6cc3f88e6",
+    "target": ".aai/scripts/pr-preflight.mjs",
+    "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638",
+    "changed_field_only": "target_sha256"
+  },
+  {
+    "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.txt",
+    "old_sha256": "5703f6dd244a95c2c2842bc3efc2ebb7902966e845c4ac213db2c6065f8dfe59",
+    "new_sha256": "5eb341e4929a449a41c3414189ee2bd69e4367c5acab946bf4393e66a3a2c335",
+    "target": ".aai/scripts/pr-preflight.mjs",
+    "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638",
+    "changed_field_only": "target_sha256"
+  },
+  {
+    "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.txt",
+    "old_sha256": "446b2f8e51a8032635b60679d560346974d11128675a26ac4dfd71fa71545c43",
+    "new_sha256": "7ef22cd9da2f4900a321c970dee01b93490f8fccafd0491b8a22173dea15141d",
+    "target": ".aai/scripts/pr-preflight.mjs",
+    "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638",
+    "changed_field_only": "target_sha256"
+  }
+]

@@ -1,0 +1,901 @@
+{
+  "schema": 1,
+  "continuation_started_utc": "2026-10-08T02:22:22Z",
+  "continuation_ended_utc": "2026-10-08T02:32:26Z",
+  "duration_seconds": 604,
+  "prior_invocation_started_utc": "2026-10-08T02:07:56Z",
+  "prior_ended_utc": null,
+  "prior_outcome": "automatic-filter error; no sealed handoff",
+  "actual_model": "unknown",
+  "usage_capture": "none",
+  "shipping_head": "525a05791a24d3d8c894639ce66de9ceed5a01a3",
+  "source_hashes": [
+    {
+      "path": ".aai/scripts/pr-preflight.mjs",
+      "sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638"
+    },
+    {
+      "path": "tests/skills/test-aai-pr-preflight.sh",
+      "sha256": "ab7ddbcdd27a45ce7716c9df41f0b9ced31e3ca43563624d2d3b01d87fca641e"
+    },
+    {
+      "path": "tests/skills/aai-pr-preflight.Tests.ps1",
+      "sha256": "8ad350fed2e439c79620c2f997e59be9200deab2425927663731bfd677c7358e"
+    },
+    {
+      "path": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+      "sha256": "ab6f3f29efb9f5365f77ee376b490d8a427fb5e7b1e544c317181dcd31e71f72"
+    }
+  ],
+  "longest_candidate_relative_chars": 136,
+  "observed_native_prefix_chars": 122,
+  "max_observed_layout_chars": 258,
+  "deletions": [],
+  "self_excluded": true,
+  "rows": [
+    {
+      "path": ".aai/scripts/pr-preflight.mjs",
+      "bytes": 19825,
+      "sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/decisions.jsonl",
+      "bytes": 1177582,
+      "sha256": "65f214410b4ca65c232de78c5c1e7579041b1a6cf35653bbe2430190f401f05e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/reports/REMEDIATION-20261008T022222Z-pr434-scp.md",
+      "bytes": 9556,
+      "sha256": "379bee4a033a550c456244fc595c7727dc470bbfd16a6e361ca2d7d52a85ea60",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/RESULT.md",
+      "bytes": 7792,
+      "sha256": "78a09eb3e6b7de450118372bb6f576fca09440fd6b132ed3531ae0e5ab3155c9",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/amend-strict.log",
+      "bytes": 61878,
+      "sha256": "ece171cf6c883a74676baa9ea71434a79623886031204006a295ef5c4bde14b3",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/boundary-before.json",
+      "bytes": 10145,
+      "sha256": "0328967405414c8ca569eace40010a175107f9dde3f8571722d87fff64a66a2b",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/clean-after.json",
+      "bytes": 227,
+      "sha256": "3631d2f126630ea16c906e039275464538b4d3d6752e73156c9b60d7b0aa0257",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/clean-before.json",
+      "bytes": 257,
+      "sha256": "f0fc3d58b768b2bb01c53ca987308f11caf1f2b4fbeb770190b80a7170f0c7c4",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/continuation.json",
+      "bytes": 467,
+      "sha256": "8e3aef20bac72aad71b6892725843abb68fdcbd324228f9dfbfc7c664ef71a2e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/contract-amend.log",
+      "bytes": 601,
+      "sha256": "7e31eda8012a727d87b9f25d3dabef5be598f0cfe16652024efef6c8fde46912",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/encoded-amend.log",
+      "bytes": 601,
+      "sha256": "5a3065c0f919b8d1e0269f0e33c0267affbf422d027afcfda4253fe31e2b0623",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/encoded-authority-red.log",
+      "bytes": 4311,
+      "sha256": "c5d9a463b95b95fc3dec7f3a975d8dd122a9f2aff9d90029b7669e1cfe760dc6",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/encoded-authority-results.json",
+      "bytes": 4611,
+      "sha256": "fd50696f3a0edd171a3fa5e3f3a63d5b54b633869542b9d8310e0c4b713252d7",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/encoded-authority.cjs",
+      "bytes": 4430,
+      "sha256": "85a12d96998956ff7557b607ed694bd9560c2fae988a22edce97580ea00259e0",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/encoded-authority.raw.log",
+      "bytes": 4288,
+      "sha256": "146d42d20867078210d033c1a48b7a1038e9e6b3afffdc0eea0ce451eaae6214",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/encoded-red-check.log",
+      "bytes": 83,
+      "sha256": "52542c50a88302719339702731d8da0269cc5a398ac5a8fa301c1fc9a5b70c3b",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/encoded-ssh-config.log",
+      "bytes": 973,
+      "sha256": "3862cf038667298f50a75a8cfb28d2c906118d8f55ebf259c2b0738eec413679",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/files.json",
+      "bytes": 15079,
+      "sha256": "d1296795028f0a89916708322abf6b709ccfc8d785d92c9a5f9ccc2f7f72fd73",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/final-audit.json",
+      "bytes": 7734,
+      "sha256": "0b2d30d83ab7df23876f601203bc2794fcabbda8cfbf01b6edcaed9520861097",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/final-preflight.log",
+      "bytes": 11513,
+      "sha256": "41552e620e080ec1d4e1b1108a268ee9dfaf6c48064f6e6530924df46b944e48",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/friction.log",
+      "bytes": 45,
+      "sha256": "11ee086572ca284039e995546b4a438e0bbd02ba5e756eacdeee6f5787f9bcc6",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/frozen-preflight.log",
+      "bytes": 11513,
+      "sha256": "53a0efba76a3b5b9a60603936c71c1caaf947ce15b8689e3e45fde0be8d6eafb",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/full-525a-run.json",
+      "bytes": 12175,
+      "sha256": "58f47fc32857c77a72cdcab262a8e412de4859c84351e6d620c7a2e3cfe314d0",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/identity-green-results.json",
+      "bytes": 4265,
+      "sha256": "f093d98be05a45de84798f905b61d2bc8cb1b3b4b561c5d9452b6caa57f7f0dc",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/identity-green.log",
+      "bytes": 3268,
+      "sha256": "b04f3bb83c3d2dc759b9d8f0910190dbd4f1a4414e61ad4a0ccc0dc74cd96c27",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/identity-red-check.log",
+      "bytes": 74,
+      "sha256": "1b8c8f98ceaf860f6ea59ed2a1b2f8a6d23a0c5fdaf08d440975e5fcb312a510",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/identity-red-results.json",
+      "bytes": 4503,
+      "sha256": "1088ccdba54cb0fbc4047f58a52e58be91b4f12252ae98cc81941a98047d0600",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/identity-red.log",
+      "bytes": 4266,
+      "sha256": "53e40049ea2a2592b0e78b98b14256e2dac126281b588d9b188f0e60d3f9087b",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/identity-red.raw.log",
+      "bytes": 4243,
+      "sha256": "99b7f7a8a92b077239ee1abcda5c2edd99af5f190a714f02189609640e4d1395",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/identity.cjs",
+      "bytes": 4284,
+      "sha256": "edcdade693e7f5c92b7e226ef5b607866a58e34ea4913ce92946e6a93ecfbc88",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/matrix-before.sh",
+      "bytes": 39682,
+      "sha256": "1eb590db2a5c0ca766e88a86656d49f013b72acda10ccc1135c4e3e145b2d958",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/matrix-final.sh",
+      "bytes": 40900,
+      "sha256": "ab7ddbcdd27a45ce7716c9df41f0b9ced31e3ca43563624d2d3b01d87fca641e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/matrix-red-check.log",
+      "bytes": 72,
+      "sha256": "aeb4cc8da8e0092a00eb67d9ad03dd7a7f3adf2a52cd7736ec2b2a4950517a83",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/matrix-red.log",
+      "bytes": 656,
+      "sha256": "f905902f34bfa171b0b6f4c36f82f286db5a85fead5e768f0c4cf2fab394c349",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/matrix-red.raw.log",
+      "bytes": 633,
+      "sha256": "695c8c0d211d49df7feb3d5feb4eb09ca2cb3b41a39043b65c7e664ac07dd3af",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/measurement-amend.log",
+      "bytes": 199,
+      "sha256": "1be276f49cee215f406a8f45b4b732df57d6f1a75dc690c865558e2a1bfd1d4c",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/mutation-gate.log",
+      "bytes": 340,
+      "sha256": "d00357811699ecf88ff9836169721c1a65f9bce26e0ea49031f56f895a894185",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/mutation-restamp.log",
+      "bytes": 3140,
+      "sha256": "18fcce934c4997ab349fe2d3bbfda181cec7bd879c49e62af06115f219492395",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/native-525a-jobs.json",
+      "bytes": 10159,
+      "sha256": "771b3a95c189fdd9e644601cbbd9a902f65f74732a1eda2b6bd3a00fdd68e94e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/native-525a-run.json",
+      "bytes": 12174,
+      "sha256": "f7d21b08d8224bb2eab53ba3167faaf1746511ce828e8795016f4d180febdbf9",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/native-525a-windows.log",
+      "bytes": 190765,
+      "sha256": "00aa33096c035283c08c57a05daaac0cf31671aff1d882cb66ed8ef4a5895ead",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/password-green-results.json",
+      "bytes": 2860,
+      "sha256": "b135b0162107a4090b256b1ff8d6a0ecd35e49949b663a715b4cfe7dc53c1de5",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/password-green.log",
+      "bytes": 2231,
+      "sha256": "8478df235602540861f2e0d480669c0c8c8dca241802963f59062293753727ff",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/password-red-check.log",
+      "bytes": 74,
+      "sha256": "9c5971b6fb7518589a654cfc39b5af54bfe042586e182bb8d3f068da8ed5f6b6",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/password-red-results.json",
+      "bytes": 3098,
+      "sha256": "e9ec8c2d80056d29a47871d6fd7edba8516c3be4330a63ee30e4100a8d4a5998",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/password-red.log",
+      "bytes": 3175,
+      "sha256": "975b37da3c8f22376c0056c03a9ed0f50df8dfbc6bd795ad7a952a0c499d04de",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/password-red.raw.log",
+      "bytes": 3152,
+      "sha256": "47d6a7ca0e1d567636ec3eed13e4accf2be0ca76bdc495fdb531b229dc536079",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/password.cjs",
+      "bytes": 4369,
+      "sha256": "cd9f92f95357708cce4bd07e8666ba0c66322aff9307c2f41c83f85d1af72447",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/preflight-green.log",
+      "bytes": 11513,
+      "sha256": "e66dbdba31651813e69e74b7e5e4bd05b22c3f2475367f6ef3e2dc8bcfcce510",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/01.patch",
+      "bytes": 687,
+      "sha256": "52241527588dce1e57642876e016d5f44fa6dc476f6bd14c1ff5c6b254ef76f5",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/02.txt",
+      "bytes": 667,
+      "sha256": "bc939865cc0e4700c652095cdd63a24fac528a7375d6729f3513f8aaeaf1763a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/03.patch",
+      "bytes": 837,
+      "sha256": "b176cc21daf09ef30bffbba8ecae2c720f2a5915e810651cff231ac43f9a5491",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/04.txt",
+      "bytes": 669,
+      "sha256": "539401f1f807aeef59759c0c11127fcc75097e65f3ed36908934793b1d95cca0",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/05.patch",
+      "bytes": 1032,
+      "sha256": "b5c64d1fc41c0c9a9a2556f6ea92d3eb77d1de2130e830849d443ae302b6be9f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/06.txt",
+      "bytes": 661,
+      "sha256": "f338364201e914bba90639692ccb75dc7377cd168c53242e3f13e0fade3012ef",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/07.patch",
+      "bytes": 843,
+      "sha256": "265dae588c30855648e6c4bce056d2f7cfe7d524b1780fd3e70073deb1c0b652",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/08.txt",
+      "bytes": 640,
+      "sha256": "00262a714522de84ad833c71a0845b61c3c487514ccce551c56b0ac687e76e35",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/09.patch",
+      "bytes": 613,
+      "sha256": "6f861129eedcf21a5f671d2c31832f5bdc090b75db24462ace16e1f1e1c2044f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/10.txt",
+      "bytes": 1738,
+      "sha256": "51f480bc444e801c3e645baad6dc7f1eaf4530ccd1d8bbf50b98ee2baeeac35f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/11.patch",
+      "bytes": 613,
+      "sha256": "6f861129eedcf21a5f671d2c31832f5bdc090b75db24462ace16e1f1e1c2044f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/12.txt",
+      "bytes": 1719,
+      "sha256": "85d72e6bc35dfd87a8c52c75a681a97e4fa20c2ea964a0e7ab2724c5242bcd89",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/13.patch",
+      "bytes": 796,
+      "sha256": "b1f8208dcf9c28a83898bc207cb07cf5f0e15b3b788636324a7bd4d7257d9e4e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/14.txt",
+      "bytes": 1524,
+      "sha256": "5703f6dd244a95c2c2842bc3efc2ebb7902966e845c4ac213db2c6065f8dfe59",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/15.patch",
+      "bytes": 637,
+      "sha256": "965b47e3e7e9acf203ef4c67aad196924cf076225f1d0aef5ee4f99a5bbed6f8",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/16.txt",
+      "bytes": 675,
+      "sha256": "2072050569b5f7be5dd51c4e2c918f1da86c403013f1d0148558c0e92bc46ee9",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/17.patch",
+      "bytes": 619,
+      "sha256": "9b496577d77164cf0ec8dff3315a3889254e717d547ede93308393e57e8e5c6a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/18.txt",
+      "bytes": 675,
+      "sha256": "747a1c9e8a345942bd1589132b59383daa5d870c5a6751992eae345daea6db82",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/19.patch",
+      "bytes": 619,
+      "sha256": "9b496577d77164cf0ec8dff3315a3889254e717d547ede93308393e57e8e5c6a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/20.txt",
+      "bytes": 707,
+      "sha256": "55f4a916b79ffd77de6aefe23c9e02634579d0ca8704d97114bcd38ec533e522",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/21.patch",
+      "bytes": 1259,
+      "sha256": "5cb7ee0e5754d4ae20e924b69fc1c68e1ca73dfc94027abc88e35ce937d666c8",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/22.txt",
+      "bytes": 658,
+      "sha256": "446b2f8e51a8032635b60679d560346974d11128675a26ac4dfd71fa71545c43",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/23.patch",
+      "bytes": 354,
+      "sha256": "e758ab13211490e9c3f3cac5c057193020c75483fa12bf28d382311d763075ad",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/24.txt",
+      "bytes": 618,
+      "sha256": "614147e8ce8562b9dd174c6d93f78dcd5b59bf556281bfee4b2ebe609700f796",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/prior-mutations/map.json",
+      "bytes": 6488,
+      "sha256": "a56580bb3bbb12218c1c6c11711f0611e5b3546c6c979ba662c51df6cf5b1b8a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/private-after.json",
+      "bytes": 227,
+      "sha256": "e7776bd122ca1eee2b21b7da88f7a380f8992e47c5cf14c107727d2f9353480e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/private-before.json",
+      "bytes": 422,
+      "sha256": "103ef58fbaa7ef90bcd1732e232c637474e16bf3a0065b734caf2cdf27bd3b31",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/private-clean.log",
+      "bytes": 716,
+      "sha256": "3c810b6697362bd54d5b46d239c94de9ef7d4f00037df4356d6ad1640df75cf4",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/private-restamp.log",
+      "bytes": 2312,
+      "sha256": "c5eca46023533f94a6dc35d5280955b88336dc61395a731fa88b39b81a9327a7",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/product-before.mjs",
+      "bytes": 19246,
+      "sha256": "d0bbf48e79e10b2e9ffa4bab970158f2f421af76b2d59af0dc9314e704226b7e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/product-final.mjs",
+      "bytes": 19825,
+      "sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/provenance.json",
+      "bytes": 1369,
+      "sha256": "727a5ac73221adeee7df546509b4a5198a1fbe70979113c2dfcef7d7ab0c2c67",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/result-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-authority.cjs",
+      "bytes": 4273,
+      "sha256": "3613eaae3af93263135f24146aa925ec95ddda15ca4fe013aeb21e532ff5f38b",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-baseline-2-infra.log",
+      "bytes": 717,
+      "sha256": "f0e6395252f7bab8eece6a3b5faa0aaf8176c9c7d580387fc8bfe99da7307ab2",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-baseline-2.raw.log",
+      "bytes": 695,
+      "sha256": "e5d2b05ebdbd222e086a1221dc47df7469d96289af308aaf936771e02aacdada",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-baseline-3.raw.log",
+      "bytes": 3294,
+      "sha256": "200c2d74498b1f5dbabc602f1f4d18c871024bfff845f13227dcb292531d874a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-baseline-infra.log",
+      "bytes": 717,
+      "sha256": "f0e6395252f7bab8eece6a3b5faa0aaf8176c9c7d580387fc8bfe99da7307ab2",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-baseline-red.log",
+      "bytes": 3317,
+      "sha256": "23ea885b4e38900a7529b79239161c75064d623aa54a81597f93e79423dac46c",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-baseline-red.raw.log",
+      "bytes": 695,
+      "sha256": "e5d2b05ebdbd222e086a1221dc47df7469d96289af308aaf936771e02aacdada",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-baseline-results.json",
+      "bytes": 3205,
+      "sha256": "0e1145d69cd942d2a0a2ee74444a4d37534131c1e91e13765129f31756b0e206",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-green.log",
+      "bytes": 2338,
+      "sha256": "7506904c6e2874bce4f1dd59f6b5c9249c1ce9fa3c79f5724de8396e5b88da65",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-red-check.log",
+      "bytes": 80,
+      "sha256": "0538b0c0433a4fa92cbac9255e3c1e626732c82ccfd5bce7b51bd8c87ca6717b",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/slash-stale-results.json",
+      "bytes": 4611,
+      "sha256": "fd50696f3a0edd171a3fa5e3f3a63d5b54b633869542b9d8310e0c4b713252d7",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/source-diff.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/spec-lint.log",
+      "bytes": 188,
+      "sha256": "512d38bc2f4395b51bf62064faa1cbfbaba5e243243a72007f79e2722dcc7e35",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/ssh-config.cjs",
+      "bytes": 924,
+      "sha256": "4d2fd756caec1fdffaa07decf21c905d8c5690810044a3f638127f11eef2dbc2",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/ssh-config.log",
+      "bytes": 690,
+      "sha256": "6286340589cfdaab3ee8781d6ea6f11fade7b49599ad7ef95c436e7c01eb8146",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/scp-20261008T020756Z/stamp-transfer.json",
+      "bytes": 2625,
+      "sha256": "2eb15e65823b39dc2a16b0379ebb0d63a3fced2062b6708804fad44c10c92b88",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.txt",
+      "bytes": 667,
+      "sha256": "faea5d1ae9f00a03437c410d6d50a3a808fa5ebf8b64ca81a067dc7f0462dbf5",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.txt",
+      "bytes": 669,
+      "sha256": "6844c31dc3aa2ef1013f62abc0d2906918dc2fb29bbe73f948dd213daf256b3f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.txt",
+      "bytes": 640,
+      "sha256": "292ef4723bba0485c2000329368446b0ac69cae92d2a8d64e2456898bdc045c4",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.txt",
+      "bytes": 1719,
+      "sha256": "2911c3f7929218432d1f20091e6e2b29155cfe4d6c70bd638c09a1e6cc3f88e6",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.txt",
+      "bytes": 1524,
+      "sha256": "5eb341e4929a449a41c3414189ee2bd69e4367c5acab946bf4393e66a3a2c335",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.txt",
+      "bytes": 658,
+      "sha256": "7ef22cd9da2f4900a321c970dee01b93490f8fccafd0491b8a22173dea15141d",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+      "bytes": 34004,
+      "sha256": "ab6f3f29efb9f5365f77ee376b490d8a427fb5e7b1e544c317181dcd31e71f72",
+      "ownership": "maker"
+    },
+    {
+      "path": "tests/skills/test-aai-pr-preflight.sh",
+      "bytes": 40900,
+      "sha256": "ab7ddbcdd27a45ce7716c9df41f0b9ced31e3ca43563624d2d3b01d87fca641e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/reviews/review-20261008T015150Z-pr434-raw.md",
+      "bytes": 17479,
+      "sha256": "0835ffbf3b92a672101ccec0cff11fa50d35141d18d385198bbe6e409c1842b4",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/audit.json",
+      "bytes": 4907,
+      "sha256": "c7cab74f2874f1cc6bcf0c549fb75b3b2c002cdbd2f7b9d5b615788fd5d42009",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/boundary-after.json",
+      "bytes": 1372,
+      "sha256": "46b482a57eeba828daea6414414d30cddb33740336b8da8aa7ea1313580e11db",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/boundary-before.json",
+      "bytes": 1141,
+      "sha256": "5b47df6c49fec1594e0f67738ce3bc7c9a237978f890d77302735418a906cc43",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ci-transport.json",
+      "bytes": 1417,
+      "sha256": "3f56d8fb7f7007363ba4694748180893f8a70a2dfe0c272f9dda92ce17cbae13",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/diff-check.json",
+      "bytes": 9496,
+      "sha256": "c18f7294c1cc2bd4cfb254a537f1d8ffeaf57991a1b906dd33062bcaa6bc2e29",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/dispatch.txt",
+      "bytes": 50637,
+      "sha256": "a45d9b40355635347a2313cff537ef5ed611ab65e27a5622c9d9acf8cc490a62",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/external-review.json",
+      "bytes": 28051,
+      "sha256": "956c25bd7d02c39689dcab5a0357c96db06eca5c8c9b9155dfe79e326b5ef498",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-aggregate.log",
+      "bytes": 3110,
+      "sha256": "15509f28622ce797db17f26c06157a9317d5bd687c343503296466f1be75e29b",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-jobs.json",
+      "bytes": 17613,
+      "sha256": "880c1ea6dfa76d6aae9a0520c27900be710af8f0bf79eb6502c3341e14f6b7c0",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard1.log",
+      "bytes": 36216,
+      "sha256": "5c951350c0fb9e27794a37885c6b9698a69a3f8eb2d72598cdb7501147c2cfad",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard2.log",
+      "bytes": 35714,
+      "sha256": "b12bf7644326ea4d15757637e2355c1b5b61616cb87052bfaf288ba72cbc8f8e",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard3.log",
+      "bytes": 41526,
+      "sha256": "fdd7a754aef945e17c2fca8772ed859fd7900662620791d2c56b69e94781dd0c",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard4.log",
+      "bytes": 37868,
+      "sha256": "f45a0a5c1448d2db423e0053e5e6c27163dcf97112605fcb1406234b766f2583",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/identity-results.json",
+      "bytes": 4492,
+      "sha256": "08b32bfd413cb472fea3ccd132bb1fb06f212375707726be533a21b8919cd362",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/identity.cjs",
+      "bytes": 4262,
+      "sha256": "827413798b456e1b52b884f7f499d6e1740c9271b6664bf76da4a6d99b68b902",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/identity.log",
+      "bytes": 4200,
+      "sha256": "27da150018a7d0016e06445519a05be6c1624c45ae751e1524a60a7a5f28ea19",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/layer-profiles.log",
+      "bytes": 4050,
+      "sha256": "7403781c7e0e08a474a778dfca668d52b857926c8e1187ae8a6dad68b0894d4d",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/machine-dispatch.json",
+      "bytes": 7829,
+      "sha256": "b1bf22b52d842e47e96682d106da481d3a08d7a9749b2724def914c867c78a18",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/native-jobs.json",
+      "bytes": 9438,
+      "sha256": "8523b3c4b22fee39dbbd379bfab8e93fe80e38b06f29b2153368b6d2bdefe7a0",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/native-linux.log",
+      "bytes": 85349,
+      "sha256": "c5d7a83355ad7ae14e843391e9598aec93e38c5734acdebc93bd69edd273d25a",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/native-wsl.log.b64",
+      "bytes": 128005,
+      "sha256": "b6cdd9cf56200edf7e17d3d123b2357237aac550d2e8fa43f59fc403d0516636",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/packaging-infra.txt",
+      "bytes": 221,
+      "sha256": "4a274b34cb78f826367b51cc32dfe93ad4914879e992a651c6cae75f5d7f0785",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/password-results.json",
+      "bytes": 3098,
+      "sha256": "cbf633392ebdab94319ffbeae0396ba42eaca94c5f82974fcef870e621e97a55",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/password.cjs",
+      "bytes": 4356,
+      "sha256": "3c2acb8894f9a8c92a1edaa9a77464be31dc0eb6d82c659441f833daeda844dc",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/password.log",
+      "bytes": 3146,
+      "sha256": "c06d4c4fb72f30256cf7d3b41a153e57df6afa0b2aff93f9bcf4787ce15c5508",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/pr-platform.log",
+      "bytes": 4421,
+      "sha256": "4e5a15b82e09ab60f861ea4a24ce77ad2518e7704d5c98a8262502cd4d68ee68",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/preflight.log",
+      "bytes": 11529,
+      "sha256": "2f7b4755ad5a5a637aa5d44555a3774c689016ae1b7c1d814ccb892cb8317c44",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/prompt-diet.log",
+      "bytes": 8084,
+      "sha256": "7c89a40976ef33d3048235760eff63c588396fa7b7f4e3a934d5afc4abe82e3f",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/result.md",
+      "bytes": 5845,
+      "sha256": "42cd893e0cecb0a74dfb57db1fd404b8a76c2d0e77c4ffd3c997a0d6bf070394",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ride-select.log",
+      "bytes": 26859,
+      "sha256": "89846a7357959185a4b32fa415286f1d6f40650eb7504a2bf9e2d259a9128d9f",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/role-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/scope-hashes.json",
+      "bytes": 130755,
+      "sha256": "c666d07539ef2fbcecab9a18357dcc720439e986083db86692d5292292d9e2fa",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config-confirmed.log",
+      "bytes": 690,
+      "sha256": "6286340589cfdaab3ee8781d6ea6f11fade7b49599ad7ef95c436e7c01eb8146",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config.cjs",
+      "bytes": 923,
+      "sha256": "5d03490a24b27431f3c100eb4f9c40ef7369a47dc2aa9ff1518a615c028b8d4a",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config.log",
+      "bytes": 690,
+      "sha256": "6286340589cfdaab3ee8781d6ea6f11fade7b49599ad7ef95c436e7c01eb8146",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/manifest.json",
+      "bytes": 7384,
+      "sha256": "1753ab5348a342c1ca09d15661354f6054a658eccd0bc93a4ee1f72412295dc2",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reports/ORCHESTRATION-20261008T020700Z-pr434-scp.md",
+      "bytes": 1745,
+      "sha256": "9015e525ab1edaacebffad8f158619d35561ba6c201edf1c19b67cb8fb28d760",
+      "ownership": "root_dependency"
+    }
+  ]
+}

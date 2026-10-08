@@ -1,0 +1,1 @@
+Initial boundary packaging attempted git write-tree; exit128 because sandbox denied index.lock creation. No index change occurred; snapshot replaced with read-only git ls-files --stage -z digest. No escalation attempted.

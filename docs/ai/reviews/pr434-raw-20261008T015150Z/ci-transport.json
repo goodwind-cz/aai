@@ -1,0 +1,51 @@
+[
+  {
+    "artifact": "native-wsl.log.b64",
+    "raw_bytes": 96001,
+    "raw_sha256": "39d28f941c14063446c8e7ee8d86117f1403a47507613c7f86d998be65484884",
+    "raw_nul_count": 253,
+    "encoding": "base64"
+  },
+  {
+    "artifact": "full-shard1.log",
+    "raw_bytes": 36216,
+    "raw_sha256": "5c951350c0fb9e27794a37885c6b9698a69a3f8eb2d72598cdb7501147c2cfad",
+    "raw_nul_count": 0,
+    "encoding": "raw"
+  },
+  {
+    "artifact": "full-shard3.log",
+    "raw_bytes": 41526,
+    "raw_sha256": "fdd7a754aef945e17c2fca8772ed859fd7900662620791d2c56b69e94781dd0c",
+    "raw_nul_count": 0,
+    "encoding": "raw"
+  },
+  {
+    "artifact": "full-aggregate.log",
+    "raw_bytes": 3110,
+    "raw_sha256": "15509f28622ce797db17f26c06157a9317d5bd687c343503296466f1be75e29b",
+    "raw_nul_count": 0,
+    "encoding": "raw"
+  },
+  {
+    "artifact": "native-jobs.json",
+    "raw_bytes": 9438,
+    "raw_sha256": "8523b3c4b22fee39dbbd379bfab8e93fe80e38b06f29b2153368b6d2bdefe7a0",
+    "raw_nul_count": 0,
+    "encoding": "raw"
+  },
+  {
+    "artifact": "full-jobs.json",
+    "raw_bytes": 17613,
+    "raw_sha256": "880c1ea6dfa76d6aae9a0520c27900be710af8f0bf79eb6502c3341e14f6b7c0",
+    "raw_nul_count": 0,
+    "encoding": "raw"
+  },
+  {
+    "artifact": "external-review.json",
+    "raw_bytes": 28051,
+    "raw_sha256": "956c25bd7d02c39689dcab5a0357c96db06eca5c8c9b9155dfe79e326b5ef498",
+    "raw_nul_count": 0,
+    "encoding": "raw"
+  }
+]

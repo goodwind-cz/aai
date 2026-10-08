@@ -1,0 +1,196 @@
+{
+  "head": "525a05791a24d3d8c894639ce66de9ceed5a01a3",
+  "dependencies": [
+    {
+      "path": "docs/ai/reviews/review-20261008T015150Z-pr434-raw.md",
+      "sha256": "0835ffbf3b92a672101ccec0cff11fa50d35141d18d385198bbe6e409c1842b4",
+      "index_sha256": "0835ffbf3b92a672101ccec0cff11fa50d35141d18d385198bbe6e409c1842b4"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/audit.json",
+      "sha256": "c7cab74f2874f1cc6bcf0c549fb75b3b2c002cdbd2f7b9d5b615788fd5d42009",
+      "index_sha256": "c7cab74f2874f1cc6bcf0c549fb75b3b2c002cdbd2f7b9d5b615788fd5d42009"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/boundary-after.json",
+      "sha256": "46b482a57eeba828daea6414414d30cddb33740336b8da8aa7ea1313580e11db",
+      "index_sha256": "46b482a57eeba828daea6414414d30cddb33740336b8da8aa7ea1313580e11db"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/boundary-before.json",
+      "sha256": "5b47df6c49fec1594e0f67738ce3bc7c9a237978f890d77302735418a906cc43",
+      "index_sha256": "5b47df6c49fec1594e0f67738ce3bc7c9a237978f890d77302735418a906cc43"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ci-transport.json",
+      "sha256": "3f56d8fb7f7007363ba4694748180893f8a70a2dfe0c272f9dda92ce17cbae13",
+      "index_sha256": "3f56d8fb7f7007363ba4694748180893f8a70a2dfe0c272f9dda92ce17cbae13"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/diff-check.json",
+      "sha256": "c18f7294c1cc2bd4cfb254a537f1d8ffeaf57991a1b906dd33062bcaa6bc2e29",
+      "index_sha256": "c18f7294c1cc2bd4cfb254a537f1d8ffeaf57991a1b906dd33062bcaa6bc2e29"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/dispatch.txt",
+      "sha256": "a45d9b40355635347a2313cff537ef5ed611ab65e27a5622c9d9acf8cc490a62",
+      "index_sha256": "a45d9b40355635347a2313cff537ef5ed611ab65e27a5622c9d9acf8cc490a62"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/external-review.json",
+      "sha256": "956c25bd7d02c39689dcab5a0357c96db06eca5c8c9b9155dfe79e326b5ef498",
+      "index_sha256": "956c25bd7d02c39689dcab5a0357c96db06eca5c8c9b9155dfe79e326b5ef498"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-aggregate.log",
+      "sha256": "15509f28622ce797db17f26c06157a9317d5bd687c343503296466f1be75e29b",
+      "index_sha256": "15509f28622ce797db17f26c06157a9317d5bd687c343503296466f1be75e29b"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-jobs.json",
+      "sha256": "880c1ea6dfa76d6aae9a0520c27900be710af8f0bf79eb6502c3341e14f6b7c0",
+      "index_sha256": "880c1ea6dfa76d6aae9a0520c27900be710af8f0bf79eb6502c3341e14f6b7c0"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard1.log",
+      "sha256": "5c951350c0fb9e27794a37885c6b9698a69a3f8eb2d72598cdb7501147c2cfad",
+      "index_sha256": "5c951350c0fb9e27794a37885c6b9698a69a3f8eb2d72598cdb7501147c2cfad"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard2.log",
+      "sha256": "b12bf7644326ea4d15757637e2355c1b5b61616cb87052bfaf288ba72cbc8f8e",
+      "index_sha256": "b12bf7644326ea4d15757637e2355c1b5b61616cb87052bfaf288ba72cbc8f8e"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard3.log",
+      "sha256": "fdd7a754aef945e17c2fca8772ed859fd7900662620791d2c56b69e94781dd0c",
+      "index_sha256": "fdd7a754aef945e17c2fca8772ed859fd7900662620791d2c56b69e94781dd0c"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard4.log",
+      "sha256": "f45a0a5c1448d2db423e0053e5e6c27163dcf97112605fcb1406234b766f2583",
+      "index_sha256": "f45a0a5c1448d2db423e0053e5e6c27163dcf97112605fcb1406234b766f2583"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/identity-results.json",
+      "sha256": "08b32bfd413cb472fea3ccd132bb1fb06f212375707726be533a21b8919cd362",
+      "index_sha256": "08b32bfd413cb472fea3ccd132bb1fb06f212375707726be533a21b8919cd362"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/identity.cjs",
+      "sha256": "827413798b456e1b52b884f7f499d6e1740c9271b6664bf76da4a6d99b68b902",
+      "index_sha256": "827413798b456e1b52b884f7f499d6e1740c9271b6664bf76da4a6d99b68b902"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/identity.log",
+      "sha256": "27da150018a7d0016e06445519a05be6c1624c45ae751e1524a60a7a5f28ea19",
+      "index_sha256": "27da150018a7d0016e06445519a05be6c1624c45ae751e1524a60a7a5f28ea19"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/layer-profiles.log",
+      "sha256": "7403781c7e0e08a474a778dfca668d52b857926c8e1187ae8a6dad68b0894d4d",
+      "index_sha256": "7403781c7e0e08a474a778dfca668d52b857926c8e1187ae8a6dad68b0894d4d"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/machine-dispatch.json",
+      "sha256": "b1bf22b52d842e47e96682d106da481d3a08d7a9749b2724def914c867c78a18",
+      "index_sha256": "b1bf22b52d842e47e96682d106da481d3a08d7a9749b2724def914c867c78a18"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/native-jobs.json",
+      "sha256": "8523b3c4b22fee39dbbd379bfab8e93fe80e38b06f29b2153368b6d2bdefe7a0",
+      "index_sha256": "8523b3c4b22fee39dbbd379bfab8e93fe80e38b06f29b2153368b6d2bdefe7a0"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/native-linux.log",
+      "sha256": "c5d7a83355ad7ae14e843391e9598aec93e38c5734acdebc93bd69edd273d25a",
+      "index_sha256": "c5d7a83355ad7ae14e843391e9598aec93e38c5734acdebc93bd69edd273d25a"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/native-wsl.log.b64",
+      "sha256": "b6cdd9cf56200edf7e17d3d123b2357237aac550d2e8fa43f59fc403d0516636",
+      "index_sha256": "b6cdd9cf56200edf7e17d3d123b2357237aac550d2e8fa43f59fc403d0516636"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/packaging-infra.txt",
+      "sha256": "4a274b34cb78f826367b51cc32dfe93ad4914879e992a651c6cae75f5d7f0785",
+      "index_sha256": "4a274b34cb78f826367b51cc32dfe93ad4914879e992a651c6cae75f5d7f0785"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/password-results.json",
+      "sha256": "cbf633392ebdab94319ffbeae0396ba42eaca94c5f82974fcef870e621e97a55",
+      "index_sha256": "cbf633392ebdab94319ffbeae0396ba42eaca94c5f82974fcef870e621e97a55"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/password.cjs",
+      "sha256": "3c2acb8894f9a8c92a1edaa9a77464be31dc0eb6d82c659441f833daeda844dc",
+      "index_sha256": "3c2acb8894f9a8c92a1edaa9a77464be31dc0eb6d82c659441f833daeda844dc"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/password.log",
+      "sha256": "c06d4c4fb72f30256cf7d3b41a153e57df6afa0b2aff93f9bcf4787ce15c5508",
+      "index_sha256": "c06d4c4fb72f30256cf7d3b41a153e57df6afa0b2aff93f9bcf4787ce15c5508"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/pr-platform.log",
+      "sha256": "4e5a15b82e09ab60f861ea4a24ce77ad2518e7704d5c98a8262502cd4d68ee68",
+      "index_sha256": "4e5a15b82e09ab60f861ea4a24ce77ad2518e7704d5c98a8262502cd4d68ee68"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/preflight.log",
+      "sha256": "2f7b4755ad5a5a637aa5d44555a3774c689016ae1b7c1d814ccb892cb8317c44",
+      "index_sha256": "2f7b4755ad5a5a637aa5d44555a3774c689016ae1b7c1d814ccb892cb8317c44"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/prompt-diet.log",
+      "sha256": "7c89a40976ef33d3048235760eff63c588396fa7b7f4e3a934d5afc4abe82e3f",
+      "index_sha256": "7c89a40976ef33d3048235760eff63c588396fa7b7f4e3a934d5afc4abe82e3f"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/result.md",
+      "sha256": "42cd893e0cecb0a74dfb57db1fd404b8a76c2d0e77c4ffd3c997a0d6bf070394",
+      "index_sha256": "42cd893e0cecb0a74dfb57db1fd404b8a76c2d0e77c4ffd3c997a0d6bf070394"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ride-select.log",
+      "sha256": "89846a7357959185a4b32fa415286f1d6f40650eb7504a2bf9e2d259a9128d9f",
+      "index_sha256": "89846a7357959185a4b32fa415286f1d6f40650eb7504a2bf9e2d259a9128d9f"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/role-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "index_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/scope-hashes.json",
+      "sha256": "c666d07539ef2fbcecab9a18357dcc720439e986083db86692d5292292d9e2fa",
+      "index_sha256": "c666d07539ef2fbcecab9a18357dcc720439e986083db86692d5292292d9e2fa"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config-confirmed.log",
+      "sha256": "6286340589cfdaab3ee8781d6ea6f11fade7b49599ad7ef95c436e7c01eb8146",
+      "index_sha256": "6286340589cfdaab3ee8781d6ea6f11fade7b49599ad7ef95c436e7c01eb8146"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config.cjs",
+      "sha256": "5d03490a24b27431f3c100eb4f9c40ef7369a47dc2aa9ff1518a615c028b8d4a",
+      "index_sha256": "5d03490a24b27431f3c100eb4f9c40ef7369a47dc2aa9ff1518a615c028b8d4a"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config.log",
+      "sha256": "6286340589cfdaab3ee8781d6ea6f11fade7b49599ad7ef95c436e7c01eb8146",
+      "index_sha256": "6286340589cfdaab3ee8781d6ea6f11fade7b49599ad7ef95c436e7c01eb8146"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-raw-20261008T015150Z/manifest.json",
+      "sha256": "1753ab5348a342c1ca09d15661354f6054a658eccd0bc93a4ee1f72412295dc2",
+      "index_sha256": "1753ab5348a342c1ca09d15661354f6054a658eccd0bc93a4ee1f72412295dc2"
+    },
+    {
+      "path": "docs/ai/reports/ORCHESTRATION-20261008T020700Z-pr434-scp.md",
+      "sha256": "9015e525ab1edaacebffad8f158619d35561ba6c201edf1c19b67cb8fb28d760",
+      "index_sha256": "9015e525ab1edaacebffad8f158619d35561ba6c201edf1c19b67cb8fb28d760"
+    }
+  ],
+  "EVENTS_sha256": "6a439790b681bcb6c07905db934aaf1c9bd508a5856a8467ef43b49e01f5c113"
+}

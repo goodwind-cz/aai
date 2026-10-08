@@ -1,0 +1,1465 @@
+﻿2026-10-08T01:51:12.8620329Z Current runner version: '2.337.0'
+2026-10-08T01:51:12.8649617Z ##[group]Runner Image Provisioner
+2026-10-08T01:51:12.8650733Z Hosted Compute Agent
+2026-10-08T01:51:12.8651413Z Version: 20260901.588
+2026-10-08T01:51:12.8652308Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-08T01:51:12.8653154Z Build Date: 2026-09-01T19:56:44Z
+2026-10-08T01:51:12.8654138Z Worker ID: {240411c3-707d-4fd4-9c48-5ceb01b17a79}
+2026-10-08T01:51:12.8654977Z Azure Region: eastus
+2026-10-08T01:51:12.8655569Z ##[endgroup]
+2026-10-08T01:51:12.8657231Z ##[group]Operating System
+2026-10-08T01:51:12.8657966Z Microsoft Windows Server 2025
+2026-10-08T01:51:12.8658662Z 10.0.26100
+2026-10-08T01:51:12.8659327Z Datacenter
+2026-10-08T01:51:12.8659917Z ##[endgroup]
+2026-10-08T01:51:12.8660533Z ##[group]Runner Image
+2026-10-08T01:51:12.8661185Z Image: windows-2025-vs2026
+2026-10-08T01:51:12.8661911Z Version: 20260925.250.1
+2026-10-08T01:51:12.8663747Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260925.250/images/windows/Windows2025-VS2026-Readme.md
+2026-10-08T01:51:12.8665819Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260925.250
+2026-10-08T01:51:12.8666945Z ##[endgroup]
+2026-10-08T01:51:12.8668237Z ##[group]GITHUB_TOKEN Permissions
+2026-10-08T01:51:12.8670394Z Contents: read
+2026-10-08T01:51:12.8671115Z Metadata: read
+2026-10-08T01:51:12.8672660Z ##[endgroup]
+2026-10-08T01:51:12.8675073Z Secret source: Actions
+2026-10-08T01:51:12.8676021Z Cache mode: write
+2026-10-08T01:51:12.8676847Z Prepare workflow directory
+2026-10-08T01:51:12.9012542Z Prepare all required actions
+2026-10-08T01:51:12.9051103Z Getting action download info
+2026-10-08T01:51:13.0631369Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-08T01:51:13.1654128Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+2026-10-08T01:51:13.4236668Z Complete job name: parse-check + functional sync smoke + full Pester suite (both engines)
+2026-10-08T01:51:13.5417337Z ##[group]Run actions/checkout@v4
+2026-10-08T01:51:13.5418189Z with:
+2026-10-08T01:51:13.5418510Z   repository: goodwind-cz/aai
+2026-10-08T01:51:13.5421772Z   token: ***
+2026-10-08T01:51:13.5422090Z   ssh-strict: true
+2026-10-08T01:51:13.5422398Z   ssh-user: git
+2026-10-08T01:51:13.5422715Z   persist-credentials: true
+2026-10-08T01:51:13.5423062Z   clean: true
+2026-10-08T01:51:13.5423378Z   sparse-checkout-cone-mode: true
+2026-10-08T01:51:13.5423758Z   fetch-depth: 1
+2026-10-08T01:51:13.5424063Z   fetch-tags: false
+2026-10-08T01:51:13.5424377Z   show-progress: true
+2026-10-08T01:51:13.5424689Z   lfs: false
+2026-10-08T01:51:13.5424982Z   submodules: false
+2026-10-08T01:51:13.5425298Z   set-safe-directory: true
+2026-10-08T01:51:13.5425671Z   allow-unsafe-pr-checkout: false
+2026-10-08T01:51:13.5426196Z env:
+2026-10-08T01:51:13.5426496Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T01:51:13.5426860Z ##[endgroup]
+2026-10-08T01:51:13.6597246Z Syncing repository: goodwind-cz/aai
+2026-10-08T01:51:13.6599153Z ##[group]Getting Git version info
+2026-10-08T01:51:13.6599604Z Working directory is 'D:\a\aai\aai'
+2026-10-08T01:51:13.7231537Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-08T01:51:14.0885775Z git version 2.55.0.windows.5
+2026-10-08T01:51:14.0925060Z ##[endgroup]
+2026-10-08T01:51:14.0942020Z Temporarily overriding HOME='D:\a\_temp\b8a3071a-e9f5-46a1-8acd-f4574ba2fca1' before making global git config changes
+2026-10-08T01:51:14.0943033Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-08T01:51:14.0950867Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\aai\aai
+2026-10-08T01:51:14.1504553Z Deleting the contents of 'D:\a\aai\aai'
+2026-10-08T01:51:14.1509433Z ##[group]Initializing the repository
+2026-10-08T01:51:14.1516596Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\aai\aai
+2026-10-08T01:51:14.2235817Z Initialized empty Git repository in D:/a/aai/aai/.git/
+2026-10-08T01:51:14.2276818Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/goodwind-cz/aai
+2026-10-08T01:51:14.2838487Z ##[endgroup]
+2026-10-08T01:51:14.2839206Z ##[group]Disabling automatic garbage collection
+2026-10-08T01:51:14.2845699Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-08T01:51:14.3113331Z ##[endgroup]
+2026-10-08T01:51:14.3114196Z ##[group]Setting up auth
+2026-10-08T01:51:14.3115128Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-08T01:51:14.3349784Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-08T01:51:15.5897255Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-08T01:51:15.6149780Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-08T01:51:16.0266020Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-08T01:51:16.0512067Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-08T01:51:16.4713756Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-08T01:51:16.4956796Z ##[endgroup]
+2026-10-08T01:51:16.4957274Z ##[group]Fetching the repository
+2026-10-08T01:51:16.4968885Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4:refs/remotes/pull/434/merge
+2026-10-08T01:51:19.3369157Z From https://github.com/goodwind-cz/aai
+2026-10-08T01:51:19.3369983Z  * [new ref]         672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4 -> pull/434/merge
+2026-10-08T01:51:19.3411431Z ##[endgroup]
+2026-10-08T01:51:19.3412028Z ##[group]Determining the checkout info
+2026-10-08T01:51:19.3412789Z ##[endgroup]
+2026-10-08T01:51:19.3421755Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-08T01:51:19.3849052Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-08T01:51:19.4110103Z ##[group]Checking out the ref
+2026-10-08T01:51:19.4118228Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/434/merge
+2026-10-08T01:51:20.0035760Z Note: switching to 'refs/remotes/pull/434/merge'.
+2026-10-08T01:51:20.0036200Z 
+2026-10-08T01:51:20.0036376Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-08T01:51:20.0036879Z changes and commit them, and you can discard any commits you make in this
+2026-10-08T01:51:20.0037255Z state without impacting any branches by switching back to a branch.
+2026-10-08T01:51:20.0037520Z 
+2026-10-08T01:51:20.0037711Z If you want to create a new branch to retain commits you create, you may
+2026-10-08T01:51:20.0038061Z do so (now or later) by using -c with the switch command. Example:
+2026-10-08T01:51:20.0038309Z 
+2026-10-08T01:51:20.0038399Z   git switch -c <new-branch-name>
+2026-10-08T01:51:20.0038533Z 
+2026-10-08T01:51:20.0038614Z Or undo this operation with:
+2026-10-08T01:51:20.0038740Z 
+2026-10-08T01:51:20.0038809Z   git switch -
+2026-10-08T01:51:20.0038920Z 
+2026-10-08T01:51:20.0039258Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-08T01:51:20.0039502Z 
+2026-10-08T01:51:20.0039771Z HEAD is now at 672ad0c Merge 525a05791a24d3d8c894639ce66de9ceed5a01a3 into bdeb425c040ada918dd97e5b878b71e420bad83a
+2026-10-08T01:51:20.0155595Z ##[endgroup]
+2026-10-08T01:51:20.0516484Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-08T01:51:20.0747330Z 672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4
+2026-10-08T01:51:20.1192046Z ##[group]Run $ErrorActionPreference = "Stop"
+2026-10-08T01:51:20.1192525Z [36;1m$ErrorActionPreference = "Stop"[0m
+2026-10-08T01:51:20.1192826Z [36;1m$target = Join-Path $env:RUNNER_TEMP "aai-sync-smoke"[0m
+2026-10-08T01:51:20.1193175Z [36;1mif (Test-Path $target) { Remove-Item $target -Recurse -Force }[0m
+2026-10-08T01:51:20.1193553Z [36;1mNew-Item -ItemType Directory -Force -Path $target | Out-Null[0m
+2026-10-08T01:51:20.1193828Z [36;1mgit init -q $target[0m
+2026-10-08T01:51:20.1194092Z [36;1m& .\.aai\scripts\aai-sync.ps1 -TargetRoot $target -Profile extended[0m
+2026-10-08T01:51:20.1194360Z [36;1m$fail = 0[0m
+2026-10-08T01:51:20.1194618Z [36;1mforeach ($p in @(".codex/skills/README.md", ".gemini/skills/README.md")) {[0m
+2026-10-08T01:51:20.1195023Z [36;1m  if (-not (Test-Path (Join-Path $target $p))) { Write-Host "MISSING $p"; $fail++ }[0m
+2026-10-08T01:51:20.1195352Z [36;1m}[0m
+2026-10-08T01:51:20.1195610Z [36;1m# CHANGE seed-update-config: a fresh sync must SEED the auto-update[0m
+2026-10-08T01:51:20.1195975Z [36;1m# policy file so the `auto` opt-in knob is discoverable (parity with[0m
+2026-10-08T01:51:20.1196328Z [36;1m# the aai-sync.sh seed; authoritative Windows PowerShell 5.1 check).[0m
+2026-10-08T01:51:20.1196664Z [36;1m$seededCfg = Join-Path $target "docs/ai/update-config.yaml"[0m
+2026-10-08T01:51:20.1196939Z [36;1mif (-not (Test-Path $seededCfg)) {[0m
+2026-10-08T01:51:20.1197234Z [36;1m  Write-Host "MISSING docs/ai/update-config.yaml (not seeded)"; $fail++[0m
+2026-10-08T01:51:20.1197639Z [36;1m} elseif (-not (Select-String -Path $seededCfg -Pattern '^mode: notify$' -Quiet)) {[0m
+2026-10-08T01:51:20.1198065Z [36;1m  Write-Host "docs/ai/update-config.yaml seeded without 'mode: notify'"; $fail++[0m
+2026-10-08T01:51:20.1198450Z [36;1m} else {[0m
+2026-10-08T01:51:20.1198689Z [36;1m  Write-Host "SEEDED docs/ai/update-config.yaml (mode: notify)"[0m
+2026-10-08T01:51:20.1198943Z [36;1m}[0m
+2026-10-08T01:51:20.1199183Z [36;1m# Assert nested per-skill SKILL.md copied for BOTH mixed-content dirs[0m
+2026-10-08T01:51:20.1199557Z [36;1m# (top-level README alongside subfolders) — the exact shape that broke.[0m
+2026-10-08T01:51:20.1199895Z [36;1mforeach ($d in @(".codex/skills", ".gemini/skills")) {[0m
+2026-10-08T01:51:20.1200373Z [36;1m  $nested = @(Get-ChildItem -Path (Join-Path $target $d) -Recurse -Filter "SKILL.md" -ErrorAction SilentlyContinue).Count[0m
+2026-10-08T01:51:20.1200905Z [36;1m  if ($nested -lt 20) { Write-Host "$d nested SKILL.md too few: $nested"; $fail++ }[0m
+2026-10-08T01:51:20.1201268Z [36;1m  else { Write-Host "$d nested SKILL.md: $nested" }[0m
+2026-10-08T01:51:20.1201492Z [36;1m}[0m
+2026-10-08T01:51:20.1201761Z [36;1mif ($fail -gt 0) { Write-Error "functional sync smoke failed ($fail check(s))"; exit 1 }[0m
+2026-10-08T01:51:20.1202173Z [36;1mWrite-Host "SYNC SMOKE OK (.codex + .gemini skills fully populated)"[0m
+2026-10-08T01:51:20.1534963Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-08T01:51:20.1535363Z env:
+2026-10-08T01:51:20.1535537Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T01:51:20.1535733Z ##[endgroup]
+2026-10-08T01:51:22.8974010Z Syncing AAI from: D:\a\aai\aai
+2026-10-08T01:51:22.9020886Z Target project:     D:\a\_temp\aai-sync-smoke
+2026-10-08T01:51:22.9027357Z Profile:            extended
+2026-10-08T01:51:23.4312241Z   PRESERVE target-only skills under: D:\a\_temp\aai-sync-smoke\.claude\skills
+2026-10-08T01:51:23.4397447Z   SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md
+2026-10-08T01:51:23.4417885Z   SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml
+2026-10-08T01:51:23.4438102Z   SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)
+2026-10-08T01:51:23.4446865Z   PRESERVE docs/ai/ runtime data (STATE.yaml, LOOP_TICKS.jsonl, METRICS.jsonl, EVENTS.jsonl, decisions.jsonl, reports/)
+2026-10-08T01:51:23.5140229Z   PRESERVE local Codex dynamic index: D:\a\_temp\aai-sync-smoke\.codex\skills.local
+2026-10-08T01:51:23.5480644Z   PRESERVE local Gemini dynamic index: D:\a\_temp\aai-sync-smoke\.gemini\skills.local
+2026-10-08T01:51:23.6571048Z   PRESERVE target-only skills under: D:\a\_temp\aai-sync-smoke\.agents\skills
+2026-10-08T01:51:23.6592526Z   SYNC .claude-plugin/plugin.json
+2026-10-08T01:51:26.2439142Z   MERGE hooks/hooks.json: 1 hook(s) added, 0 updated, 0 already present, 0 left as-is -> hooks\hooks.json
+2026-10-08T01:51:26.2996463Z   MERGE hooks/hooks.windows.json: 1 hook(s) added, 0 updated, 0 already present, 0 left as-is -> hooks\hooks.windows.json
+2026-10-08T01:51:26.3044423Z   SYNC hooks/
+2026-10-08T01:51:26.3064335Z   SYNC .cursor/rules/aai.mdc
+2026-10-08T01:51:26.3133602Z   Added .aai/ to D:\a\_temp\aai-sync-smoke\.gitignore
+2026-10-08T01:51:26.3211418Z   Added .cloudflare-publish* to D:\a\_temp\aai-sync-smoke\.gitignore
+2026-10-08T01:51:26.3222358Z   Added .wrangler/ to D:\a\_temp\aai-sync-smoke\.gitignore
+2026-10-08T01:51:26.3247942Z   Added .aai/cache/ to D:\a\_temp\aai-sync-smoke\.gitignore
+2026-10-08T01:51:26.3266045Z   Added docs/ai/reports runtime ignore rules to D:\a\_temp\aai-sync-smoke\.gitignore
+2026-10-08T01:51:26.3311703Z   Added agent skill sync patterns to D:\a\_temp\aai-sync-smoke\.gitignore
+2026-10-08T01:51:26.3335915Z   Added AAI per-dev runtime state patterns to D:\a\_temp\aai-sync-smoke\.gitignore
+2026-10-08T01:51:26.3342969Z   NOTE: If docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl is still tracked,
+2026-10-08T01:51:26.3349908Z         run pwsh .aai/scripts/migrate-state-to-local.ps1 in the target project.
+2026-10-08T01:51:26.3447342Z   Added 24 AAI runtime-sidecar pattern(s) to D:\a\_temp\aai-sync-smoke\.gitignore
+2026-10-08T01:51:26.3774734Z   Advisory report: D:\a\_temp\aai-sync-smoke\docs\ai\reports\sync-conflicts-20261008-015126.md
+2026-10-08T01:51:26.4696135Z Sync complete. Review changes in D:\a\_temp\aai-sync-smoke :
+2026-10-08T01:51:26.4703244Z   cd D:\a\_temp\aai-sync-smoke; git status; git diff
+2026-10-08T01:51:26.4724476Z SEEDED docs/ai/update-config.yaml (mode: notify)
+2026-10-08T01:51:26.4837893Z .codex/skills nested SKILL.md: 41
+2026-10-08T01:51:26.4886719Z .gemini/skills nested SKILL.md: 41
+2026-10-08T01:51:26.4893752Z SYNC SMOKE OK (.codex + .gemini skills fully populated)
+2026-10-08T01:51:26.5452552Z ##[group]Run $bad = 0
+2026-10-08T01:51:26.5452832Z [36;1m$bad = 0[0m
+2026-10-08T01:51:26.5453165Z [36;1mGet-ChildItem -Path .aai/scripts -Filter *.ps1 | Sort-Object Name | ForEach-Object {[0m
+2026-10-08T01:51:26.5453511Z [36;1m  $errs = $null[0m
+2026-10-08T01:51:26.5453894Z [36;1m  [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errs) | Out-Null[0m
+2026-10-08T01:51:26.5454328Z [36;1m  if ($errs -and $errs.Count) {[0m
+2026-10-08T01:51:26.5454552Z [36;1m    $bad++[0m
+2026-10-08T01:51:26.5454734Z [36;1m    Write-Host "PARSEFAIL $($_.Name)"[0m
+2026-10-08T01:51:26.5455003Z [36;1m    $errs | ForEach-Object { Write-Host "  $($_.Message)" }[0m
+2026-10-08T01:51:26.5455247Z [36;1m  } else {[0m
+2026-10-08T01:51:26.5455408Z [36;1m    Write-Host "OK $($_.Name)"[0m
+2026-10-08T01:51:26.5455603Z [36;1m  }[0m
+2026-10-08T01:51:26.5455733Z [36;1m}[0m
+2026-10-08T01:51:26.5456074Z [36;1mif ($bad -gt 0) { Write-Error "$bad .ps1 file(s) fail to parse under Windows PowerShell 5.1"; exit 1 }[0m
+2026-10-08T01:51:26.5513411Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-08T01:51:26.5513742Z env:
+2026-10-08T01:51:26.5513902Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T01:51:26.5514101Z ##[endgroup]
+2026-10-08T01:51:26.9072062Z OK aai-canonicalize.ps1
+2026-10-08T01:51:26.9084704Z OK aai-live.ps1
+2026-10-08T01:51:26.9108985Z OK aai-reap-tests.ps1
+2026-10-08T01:51:26.9139703Z OK aai-release.ps1
+2026-10-08T01:51:26.9173321Z OK aai-run-tests.ps1
+2026-10-08T01:51:26.9214884Z OK aai-sync.ps1
+2026-10-08T01:51:26.9231570Z OK aai-update.ps1
+2026-10-08T01:51:26.9280833Z OK aai-win-selftest.ps1
+2026-10-08T01:51:26.9304821Z OK autonomous-loop.ps1
+2026-10-08T01:51:26.9316608Z OK cloudflare-share.ps1
+2026-10-08T01:51:26.9333836Z OK expert-fetch.ps1
+2026-10-08T01:51:26.9367123Z OK install-pre-commit-hook.ps1
+2026-10-08T01:51:26.9382231Z OK live-spool.ps1
+2026-10-08T01:51:26.9395266Z OK migrate-state-to-local.ps1
+2026-10-08T01:51:26.9408058Z OK migrate-yaml-to-jsonl.ps1
+2026-10-08T01:51:26.9425394Z OK pre-commit-checks.ps1
+2026-10-08T01:51:26.9436946Z OK pre-compact-save.ps1
+2026-10-08T01:51:26.9448394Z OK triage.ps1
+2026-10-08T01:51:26.9459126Z OK validate-skills.ps1
+2026-10-08T01:51:26.9798643Z ##[group]Run $bad = 0
+2026-10-08T01:51:26.9798929Z [36;1m$bad = 0[0m
+2026-10-08T01:51:26.9799238Z [36;1mGet-ChildItem -Path .aai/scripts -Filter *.ps1 | Sort-Object Name | ForEach-Object {[0m
+2026-10-08T01:51:26.9799609Z [36;1m  $errs = $null[0m
+2026-10-08T01:51:26.9799983Z [36;1m  [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errs) | Out-Null[0m
+2026-10-08T01:51:26.9800582Z [36;1m  if ($errs -and $errs.Count) { $bad++; Write-Host "PARSEFAIL $($_.Name)"; $errs | ForEach-Object { Write-Host "  $($_.Message)" } }[0m
+2026-10-08T01:51:26.9800987Z [36;1m}[0m
+2026-10-08T01:51:26.9801258Z [36;1mif ($bad -gt 0) { Write-Error "$bad .ps1 file(s) fail to parse under pwsh 7"; exit 1 }[0m
+2026-10-08T01:51:26.9991268Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-08T01:51:26.9991539Z env:
+2026-10-08T01:51:26.9991699Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T01:51:26.9991894Z ##[endgroup]
+2026-10-08T01:51:27.4861797Z ##[group]Run tmp="${RUNNER_TEMP}"
+2026-10-08T01:51:27.4862108Z [36;1mtmp="${RUNNER_TEMP}"[0m
+2026-10-08T01:51:27.4862390Z [36;1m# Iteration-3 hardening (PR #247 run 31606986703): the marker is[0m
+2026-10-08T01:51:27.4862772Z [36;1m# asserted via a FILE the arm writes to (path handed in through[0m
+2026-10-08T01:51:27.4863140Z [36;1m# AAI_SMOKE_MARKER_FILE), never via a stdout regex. The prior stdout-[0m
+2026-10-08T01:51:27.4863500Z [36;1m# only marker was proven encoding-fragile: a leaked UTF-16LE probe[0m
+2026-10-08T01:51:27.4863855Z [36;1m# message earlier in the SAME stdout stream flips Get-Content's BOM[0m
+2026-10-08T01:51:27.4864226Z [36;1m# auto-detection for the whole file, silently corrupting the ASCII[0m
+2026-10-08T01:51:27.4864578Z [36;1m# marker text downstream of it. The stdout echo is kept too (cheap,[0m
+2026-10-08T01:51:27.4864948Z [36;1m# useful for the diagnostic line below) but is no longer load-bearing.[0m
+2026-10-08T01:51:27.4865541Z [36;1mprintf 'echo AAI-WRAPPER-SMOKE-MARKER\necho AAI-WRAPPER-SMOKE-MARKER > "$AAI_SMOKE_MARKER_FILE"\nexit 3\n' > "$tmp/aai-smoke-marker.sh"[0m
+2026-10-08T01:51:27.4866056Z [36;1m# Field fact (PR #247 run 31603532721): the timeout arm returned 0[0m
+2026-10-08T01:51:27.4866409Z [36;1m# instead of 124 -- the fixture must hang UNCONDITIONALLY, with a[0m
+2026-10-08T01:51:27.4866744Z [36;1m# duration that cannot plausibly elapse (300s vs. the arm's[0m
+2026-10-08T01:51:27.4867075Z [36;1m# AAI_TEST_TIMEOUT=2 + outer watchdog grace). `sleep 300` has no[0m
+2026-10-08T01:51:27.4867396Z [36;1m# `read`/tty dependency and no EOF-on-stdin escape hatch.[0m
+2026-10-08T01:51:27.4867877Z [36;1mprintf 'sleep 300\n' > "$tmp/aai-smoke-hang.sh"[0m
+2026-10-08T01:51:27.4868346Z [36;1mprintf 'echo SHOULD-NOT-RUN\n' > "$tmp/aai-smoke-spawnfail.sh"[0m
+2026-10-08T01:51:27.4880824Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+2026-10-08T01:51:27.4881116Z env:
+2026-10-08T01:51:27.4881279Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T01:51:27.4881461Z ##[endgroup]
+2026-10-08T01:51:27.6650130Z ##[group]Run $ErrorActionPreference = "Stop"
+2026-10-08T01:51:27.6651133Z [36;1m$ErrorActionPreference = "Stop"[0m
+2026-10-08T01:51:27.6652061Z [36;1m$engine = "powershell.exe"[0m
+2026-10-08T01:51:27.6652369Z [36;1m$scriptPath = (Resolve-Path ".\.aai\scripts\aai-run-tests.ps1").Path[0m
+2026-10-08T01:51:27.6652731Z [36;1m$markerScript = Join-Path $env:RUNNER_TEMP "aai-smoke-marker.sh"[0m
+2026-10-08T01:51:27.6653102Z [36;1m$hangScript = Join-Path $env:RUNNER_TEMP "aai-smoke-hang.sh"[0m
+2026-10-08T01:51:27.6653475Z [36;1m$spawnfailScript = Join-Path $env:RUNNER_TEMP "aai-smoke-spawnfail.sh"[0m
+2026-10-08T01:51:27.6653849Z [36;1m$markerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-51-success.marker"[0m
+2026-10-08T01:51:27.6654124Z [36;1m$fail = 0[0m
+2026-10-08T01:51:27.6654278Z [36;1m[0m
+2026-10-08T01:51:27.6654441Z [36;1mfunction New-SmokeCommandText {[0m
+2026-10-08T01:51:27.6654776Z [36;1m  # Builds a -Command script string that sets $ExtraEnv INSIDE the[0m
+2026-10-08T01:51:27.6655118Z [36;1m  # spawned engine's own process, then invokes the wrapper via the[0m
+2026-10-08T01:51:27.6655448Z [36;1m  # call operator, then propagates its real exit code explicitly.[0m
+2026-10-08T01:51:27.6655772Z [36;1m  # See the H3 hardening note above the step header for why this[0m
+2026-10-08T01:51:27.6656089Z [36;1m  # replaces ambient parent->child env inheritance across the[0m
+2026-10-08T01:51:27.6656363Z [36;1m  # Start-Process boundary.[0m
+2026-10-08T01:51:27.6656546Z [36;1m  param([0m
+2026-10-08T01:51:27.6656734Z [36;1m    [Parameter(Mandatory)][string]$ScriptPath,[0m
+2026-10-08T01:51:27.6656992Z [36;1m    [Parameter(Mandatory)][string[]]$WrapperArgs,[0m
+2026-10-08T01:51:27.6657218Z [36;1m    [hashtable]$ExtraEnv[0m
+2026-10-08T01:51:27.6657396Z [36;1m  )[0m
+2026-10-08T01:51:27.6657569Z [36;1m  $sb = [System.Text.StringBuilder]::new()[0m
+2026-10-08T01:51:27.6657791Z [36;1m  if ($ExtraEnv) {[0m
+2026-10-08T01:51:27.6657987Z [36;1m    foreach ($k in $ExtraEnv.Keys) {[0m
+2026-10-08T01:51:27.6658239Z [36;1m      $v = ([string]$ExtraEnv[$k]) -replace "'", "''"[0m
+2026-10-08T01:51:27.6658499Z [36;1m      [void]$sb.Append("`$env:$k = '$v'; ")[0m
+2026-10-08T01:51:27.6658698Z [36;1m    }[0m
+2026-10-08T01:51:27.6658832Z [36;1m  }[0m
+2026-10-08T01:51:27.6659005Z [36;1m  $q = { param($s) "'" + ($s -replace "'", "''") + "'" }[0m
+2026-10-08T01:51:27.6659261Z [36;1m  [void]$sb.Append('& ' + (& $q $ScriptPath))[0m
+2026-10-08T01:51:27.6659561Z [36;1m  foreach ($a in $WrapperArgs) { [void]$sb.Append(' ' + (& $q $a)) }[0m
+2026-10-08T01:51:27.6659861Z [36;1m  [void]$sb.Append('; exit $LASTEXITCODE')[0m
+2026-10-08T01:51:27.6660075Z [36;1m  return $sb.ToString()[0m
+2026-10-08T01:51:27.6660251Z [36;1m}[0m
+2026-10-08T01:51:27.6660377Z [36;1m[0m
+2026-10-08T01:51:27.6660525Z [36;1mfunction Get-SmokeDiagBranch {[0m
+2026-10-08T01:51:27.6660776Z [36;1m  # PR #247 iter-4: the wrapper now prints an unconditional[0m
+2026-10-08T01:51:27.6661096Z [36;1m  # "AAI-BRANCH: <Branch> | AAI-TIMEOUT: <N>s (source=env|default)"[0m
+2026-10-08T01:51:27.6661406Z [36;1m  # line on every non-error run (Write-BranchDiag in[0m
+2026-10-08T01:51:27.6661713Z [36;1m  # aai-run-tests.ps1), so a SUCCESSFUL arm no longer has to fall[0m
+2026-10-08T01:51:27.6662034Z [36;1m  # back to "unknown" -- only the spawn-error and env-error paths[0m
+2026-10-08T01:51:27.6662356Z [36;1m  # still need their own patterns (AAI-BRANCH is never emitted on[0m
+2026-10-08T01:51:27.6662719Z [36;1m  # those, by the wrapper's own Spec-AC-02/03 single-line contracts).[0m
+2026-10-08T01:51:27.6663022Z [36;1m  param([string]$Err)[0m
+2026-10-08T01:51:27.6663294Z [36;1m  if ($Err -match 'AAI-BRANCH:\s*([^|]+?)\s*\|') { return $Matches[1].Trim() }[0m
+2026-10-08T01:51:27.6663649Z [36;1m  if ($Err -match 'AAI-SPAWN-ERROR:\s*\[([^\]]+)\]') { return $Matches[1] }[0m
+2026-10-08T01:51:27.6665350Z [36;1m  if ($Err -match 'AAI-ENV-ERROR') { return 'none (env-error)' }[0m
+2026-10-08T01:51:27.6665705Z [36;1m  return 'unknown (no branch marker on stderr)'[0m
+2026-10-08T01:51:27.6666048Z [36;1m}[0m
+2026-10-08T01:51:27.6666183Z [36;1m[0m
+2026-10-08T01:51:27.6666340Z [36;1mfunction Invoke-WrapperSmokeArm {[0m
+2026-10-08T01:51:27.6666633Z [36;1m  param([string]$ArmName, [string[]]$WrapperArgs, [hashtable]$ExtraEnv)[0m
+2026-10-08T01:51:27.6666989Z [36;1m  $outFile = Join-Path $env:RUNNER_TEMP "aai-smoke-51-$ArmName.out"[0m
+2026-10-08T01:51:27.6667316Z [36;1m  $errFile = Join-Path $env:RUNNER_TEMP "aai-smoke-51-$ArmName.err"[0m
+2026-10-08T01:51:27.6667638Z [36;1m  if (Test-Path $outFile) { Remove-Item $outFile -Force }[0m
+2026-10-08T01:51:27.6668196Z [36;1m  if (Test-Path $errFile) { Remove-Item $errFile -Force }[0m
+2026-10-08T01:51:27.6668629Z [36;1m  $commandText = New-SmokeCommandText -ScriptPath $scriptPath -WrapperArgs $WrapperArgs -ExtraEnv $ExtraEnv[0m
+2026-10-08T01:51:27.6669072Z [36;1m  $psArgs = @('-NoProfile', '-Command', $commandText)[0m
+2026-10-08T01:51:27.6669471Z [36;1m  $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru -Wait `[0m
+2026-10-08T01:51:27.6669907Z [36;1m        -RedirectStandardOutput $outFile -RedirectStandardError $errFile[0m
+2026-10-08T01:51:27.6670263Z [36;1m  $out = Get-Content $outFile -Raw -ErrorAction SilentlyContinue[0m
+2026-10-08T01:51:27.6670593Z [36;1m  $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue[0m
+2026-10-08T01:51:27.6670943Z [36;1m  $result = [pscustomobject]@{ Code = $p.ExitCode; Out = $out; Err = $err }[0m
+2026-10-08T01:51:27.6671269Z [36;1m  $branch = Get-SmokeDiagBranch -Err $result.Err[0m
+2026-10-08T01:51:27.6671641Z [36;1m  $out80 = if ($result.Out) { $result.Out.Substring(0, [Math]::Min(80, $result.Out.Length)) } else { '' }[0m
+2026-10-08T01:51:27.6672108Z [36;1m  $err80 = if ($result.Err) { $result.Err.Substring(0, [Math]::Min(80, $result.Err.Length)) } else { '' }[0m
+2026-10-08T01:51:27.6690919Z [36;1m  Write-Host "diag[$ArmName]: branch=$branch out80=[$out80] err80=[$err80]"[0m
+2026-10-08T01:51:27.6691418Z [36;1m  return $result[0m
+2026-10-08T01:51:27.6691656Z [36;1m}[0m
+2026-10-08T01:51:27.6691844Z [36;1m[0m
+2026-10-08T01:51:27.6692073Z [36;1mfunction Resolve-RealGitBashForSmoke {[0m
+2026-10-08T01:51:27.6692381Z [36;1m  # Mirrors Get-GitBashCandidates/Find-GitBash's resolution order[0m
+2026-10-08T01:51:27.6692719Z [36;1m  # (read-only re-derivation for the test harness; the production[0m
+2026-10-08T01:51:27.6693060Z [36;1m  # functions in aai-run-tests.ps1 are untouched) so the decoy swap[0m
+2026-10-08T01:51:27.6693408Z [36;1m  # below always targets the SAME file the wrapper would resolve.[0m
+2026-10-08T01:51:27.6693684Z [36;1m  $candidates = @()[0m
+2026-10-08T01:51:27.6693991Z [36;1m  if ($env:ProgramFiles) { $candidates += (Join-Path $env:ProgramFiles 'Git\bin\bash.exe') }[0m
+2026-10-08T01:51:27.6694329Z [36;1m  $pf86 = ${env:ProgramFiles(x86)}[0m
+2026-10-08T01:51:27.6694605Z [36;1m  if ($pf86) { $candidates += (Join-Path $pf86 'Git\bin\bash.exe') }[0m
+2026-10-08T01:51:27.6694927Z [36;1m  $gitCmd = Get-Command git.exe -ErrorAction SilentlyContinue[0m
+2026-10-08T01:51:27.6695185Z [36;1m  if ($gitCmd) {[0m
+2026-10-08T01:51:27.6695338Z [36;1m    try {[0m
+2026-10-08T01:51:27.6695523Z [36;1m      $execPath = & git.exe --exec-path 2>$null[0m
+2026-10-08T01:51:27.6695751Z [36;1m      if ($execPath) {[0m
+2026-10-08T01:51:27.6696055Z [36;1m        $gitRoot = Split-Path (Split-Path (Split-Path $execPath -Parent) -Parent) -Parent[0m
+2026-10-08T01:51:27.6696449Z [36;1m        if ($gitRoot) { $candidates += (Join-Path $gitRoot 'bin\bash.exe') }[0m
+2026-10-08T01:51:27.6696712Z [36;1m      }[0m
+2026-10-08T01:51:27.6696856Z [36;1m    } catch {}[0m
+2026-10-08T01:51:27.6697006Z [36;1m  }[0m
+2026-10-08T01:51:27.6697232Z [36;1m  $pathBash = Get-Command bash.exe -ErrorAction SilentlyContinue -All[0m
+2026-10-08T01:51:27.6698178Z [36;1m  if ($pathBash) { foreach ($b in $pathBash) { $candidates += $b.Source } }[0m
+2026-10-08T01:51:27.6698490Z [36;1m  foreach ($c in $candidates) {[0m
+2026-10-08T01:51:27.6698799Z [36;1m    if (-not $c) { continue }[0m
+2026-10-08T01:51:27.6699041Z [36;1m    if ($c -match '(?i)\\System32\\bash\.exe$') { continue }[0m
+2026-10-08T01:51:27.6699345Z [36;1m    if (Test-Path -LiteralPath $c -PathType Leaf) { return $c }[0m
+2026-10-08T01:51:27.6699596Z [36;1m  }[0m
+2026-10-08T01:51:27.6699734Z [36;1m  return $null[0m
+2026-10-08T01:51:27.6699886Z [36;1m}[0m
+2026-10-08T01:51:27.6700017Z [36;1m[0m
+2026-10-08T01:51:27.6700153Z [36;1m# Arm 1 - success[0m
+2026-10-08T01:51:27.6700388Z [36;1mif (Test-Path $markerFile) { Remove-Item $markerFile -Force }[0m
+2026-10-08T01:51:27.6700899Z [36;1m$r1 = Invoke-WrapperSmokeArm -ArmName 'success' -WrapperArgs @('sh', $markerScript) -ExtraEnv @{ AAI_SMOKE_MARKER_FILE = $markerFile }[0m
+2026-10-08T01:51:27.6701409Z [36;1mWrite-Host "success: code=$($r1.Code) out=[$($r1.Out)] err=[$($r1.Err)]"[0m
+2026-10-08T01:51:27.6701814Z [36;1mif ($r1.Code -ne 3) { Write-Host "FAIL success: expected exit 3, got $($r1.Code)"; $fail++ }[0m
+2026-10-08T01:51:27.6702145Z [36;1mif (-not (Test-Path $markerFile)) {[0m
+2026-10-08T01:51:27.6702446Z [36;1m  Write-Host "FAIL success: marker file was not created: $markerFile"; $fail++[0m
+2026-10-08T01:51:27.6702972Z [36;1m} elseif ((Get-Content -LiteralPath $markerFile -Raw -ErrorAction SilentlyContinue) -notmatch 'AAI-WRAPPER-SMOKE-MARKER') {[0m
+2026-10-08T01:51:27.6703508Z [36;1m  Write-Host "FAIL success: marker file exists but lacks expected content"; $fail++[0m
+2026-10-08T01:51:27.6703798Z [36;1m}[0m
+2026-10-08T01:51:27.6704117Z [36;1mif ($r1.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL success: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }[0m
+2026-10-08T01:51:27.6704477Z [36;1m[0m
+2026-10-08T01:51:27.6704675Z [36;1m# Arm 2 - genuine timeout (124 keeps its own meaning, never 125)[0m
+2026-10-08T01:51:27.6705136Z [36;1m$r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2' }[0m
+2026-10-08T01:51:27.6705576Z [36;1mWrite-Host "timeout: code=$($r2.Code) err=[$($r2.Err)]"[0m
+2026-10-08T01:51:27.6705950Z [36;1mif ($r2.Code -ne 124) { Write-Host "FAIL timeout: expected exit 124, got $($r2.Code)"; $fail++ }[0m
+2026-10-08T01:51:27.6706484Z [36;1mif ($r2.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL timeout: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }[0m
+2026-10-08T01:51:27.6706848Z [36;1m[0m
+2026-10-08T01:51:27.6707073Z [36;1m# Arm 3 - REAL induced spawn failure (non-vacuous AAI-SPAWN-ERROR proof)[0m
+2026-10-08T01:51:27.6707385Z [36;1m$realBash = Resolve-RealGitBashForSmoke[0m
+2026-10-08T01:51:27.6707601Z [36;1mif (-not $realBash) {[0m
+2026-10-08T01:51:27.6708200Z [36;1m  Write-Host "FAIL spawnfail: no real Git Bash resolved on this runner (cannot induce a real spawn failure)"[0m
+2026-10-08T01:51:27.6708618Z [36;1m  $fail++[0m
+2026-10-08T01:51:27.6708770Z [36;1m} else {[0m
+2026-10-08T01:51:27.6708963Z [36;1m  $backupPath = "$realBash.aai-smoke-backup"[0m
+2026-10-08T01:51:27.6709253Z [36;1m  Move-Item -Path $realBash -Destination $backupPath -Force[0m
+2026-10-08T01:51:27.6709766Z [36;1m  Set-Content -Path $realBash -Value "not a real executable (aai-run-tests.ps1 smoke: induced spawn failure)" -NoNewline -Encoding ascii[0m
+2026-10-08T01:51:27.6710191Z [36;1m  try {[0m
+2026-10-08T01:51:27.6710480Z [36;1m    $r3 = Invoke-WrapperSmokeArm -ArmName 'spawnfail' -WrapperArgs @('sh', $spawnfailScript)[0m
+2026-10-08T01:51:27.6710807Z [36;1m  } finally {[0m
+2026-10-08T01:51:27.6711051Z [36;1m    Remove-Item -Path $realBash -Force -ErrorAction SilentlyContinue[0m
+2026-10-08T01:51:27.6711396Z [36;1m    Move-Item -Path $backupPath -Destination $realBash -Force[0m
+2026-10-08T01:51:27.6711637Z [36;1m  }[0m
+2026-10-08T01:51:27.6711865Z [36;1m  Write-Host "spawnfail: code=$($r3.Code) out=[$($r3.Out)] err=[$($r3.Err)]"[0m
+2026-10-08T01:51:27.6712376Z [36;1m  if ($r3.Code -ne 125) { Write-Host "FAIL spawnfail: expected exit 125, got $($r3.Code)"; $fail++ }[0m
+2026-10-08T01:51:27.6713001Z [36;1m  if ($r3.Err -notmatch 'AAI-SPAWN-ERROR') { Write-Host "FAIL spawnfail: expected AAI-SPAWN-ERROR on stderr, got none"; $fail++ }[0m
+2026-10-08T01:51:27.6713633Z [36;1m  if ($r3.Out -match 'AAI-WRAPPER-SMOKE-MARKER') { Write-Host "FAIL spawnfail: marker must NOT appear (process never started)"; $fail++ }[0m
+2026-10-08T01:51:27.6714343Z [36;1m  if ($r3.Out -match 'SHOULD-NOT-RUN') { Write-Host "FAIL spawnfail: fixture RAN (SHOULD-NOT-RUN captured) - 125 did not come from a pre-spawn failure"; $fail++ }[0m
+2026-10-08T01:51:27.6714807Z [36;1m}[0m
+2026-10-08T01:51:27.6714931Z [36;1m[0m
+2026-10-08T01:51:27.6715250Z [36;1mif ($fail -gt 0) { Write-Error "real-wrapper smoke failed under Windows PowerShell 5.1 ($fail check(s))"; exit 1 }[0m
+2026-10-08T01:51:27.6715786Z [36;1mWrite-Host "REAL-WRAPPER SMOKE OK (Windows PowerShell 5.1): success/timeout/spawnfail all correct"[0m
+2026-10-08T01:51:27.6772691Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-08T01:51:27.6773034Z env:
+2026-10-08T01:51:27.6773203Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T01:51:27.6773392Z ##[endgroup]
+2026-10-08T01:51:32.0646190Z diag[success]: branch=Git Bash out80=[AAI-WRAPPER-SMOKE-MARKER
+2026-10-08T01:51:32.0646594Z ] err80=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T01:51:32.0647492Z AAI-DEGRADED-MODE: r]
+2026-10-08T01:51:32.0692133Z success: code=3 out=[AAI-WRAPPER-SMOKE-MARKER
+2026-10-08T01:51:32.0692457Z ] err=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T01:51:32.0693598Z AAI-DEGRADED-MODE: running under Git-Bash/MSYS (MINGW64_NT-10.0-26100) - no POSIX process-group guarantee; using best-effort Windows tree-kill (taskkill //T) or plain kill; detached/reparented descendants are NOT guaranteed reaped (see docs/TECHNOLOGY.md platform matrix).
+2026-10-08T01:51:32.0695180Z ]
+2026-10-08T01:56:33.3677100Z diag[timeout]: branch=Git Bash out80=[] err80=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)
+2026-10-08T01:56:33.3678130Z AAI-DEGRADED-MODE: running ]
+2026-10-08T01:56:33.3684404Z timeout: code=124 err=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)
+2026-10-08T01:56:33.3686377Z AAI-DEGRADED-MODE: running under Git-Bash/MSYS (MINGW64_NT-10.0-26100) - no POSIX process-group guarantee; using best-effort Windows tree-kill (taskkill //T) or plain kill; detached/reparented descendants are NOT guaranteed reaped (see docs/TECHNOLOGY.md platform matrix).
+2026-10-08T01:56:33.3687981Z aai-run-tests: TIMED OUT after 2s with no progress -- raise the ceiling with AAI_TEST_TIMEOUT=<seconds>
+2026-10-08T01:56:33.3688613Z ]
+2026-10-08T01:56:34.4326863Z diag[spawnfail]: branch=Git Bash out80=[] err80=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T01:56:34.4328026Z AAI-SPAWN-ERROR: [Gi]
+2026-10-08T01:56:34.4367620Z spawnfail: code=125 out=[] err=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T01:56:34.4368859Z AAI-SPAWN-ERROR: [Git Bash] This command cannot be run due to the error: This version of %1 is not compatible with the version of Windows you're running. Check your computer's system information and then contact the software publisher.
+2026-10-08T01:56:34.4370108Z ]
+2026-10-08T01:56:34.4384754Z REAL-WRAPPER SMOKE OK (Windows PowerShell 5.1): success/timeout/spawnfail all correct
+2026-10-08T01:56:34.4703122Z ##[group]Run $ErrorActionPreference = "Stop"
+2026-10-08T01:56:34.4703760Z [36;1m$ErrorActionPreference = "Stop"[0m
+2026-10-08T01:56:34.4704094Z [36;1m$engine = "pwsh"[0m
+2026-10-08T01:56:34.4704456Z [36;1m$scriptPath = (Resolve-Path "./.aai/scripts/aai-run-tests.ps1").Path[0m
+2026-10-08T01:56:34.4704906Z [36;1m$markerScript = Join-Path $env:RUNNER_TEMP "aai-smoke-marker.sh"[0m
+2026-10-08T01:56:34.4705393Z [36;1m$hangScript = Join-Path $env:RUNNER_TEMP "aai-smoke-hang.sh"[0m
+2026-10-08T01:56:34.4705856Z [36;1m$spawnfailScript = Join-Path $env:RUNNER_TEMP "aai-smoke-spawnfail.sh"[0m
+2026-10-08T01:56:34.4707013Z [36;1m$markerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-pwsh7-success.marker"[0m
+2026-10-08T01:56:34.4707388Z [36;1m$fail = 0[0m
+2026-10-08T01:56:34.4707625Z [36;1m[0m
+2026-10-08T01:56:34.4707859Z [36;1mfunction New-SmokeCommandText {[0m
+2026-10-08T01:56:34.4708142Z [36;1m  param([0m
+2026-10-08T01:56:34.4708496Z [36;1m    [Parameter(Mandatory)][string]$ScriptPath,[0m
+2026-10-08T01:56:34.4708835Z [36;1m    [Parameter(Mandatory)][string[]]$WrapperArgs,[0m
+2026-10-08T01:56:34.4709144Z [36;1m    [hashtable]$ExtraEnv[0m
+2026-10-08T01:56:34.4709400Z [36;1m  )[0m
+2026-10-08T01:56:34.4709650Z [36;1m  $sb = [System.Text.StringBuilder]::new()[0m
+2026-10-08T01:56:34.4709941Z [36;1m  if ($ExtraEnv) {[0m
+2026-10-08T01:56:34.4710212Z [36;1m    foreach ($k in $ExtraEnv.Keys) {[0m
+2026-10-08T01:56:34.4710563Z [36;1m      $v = ([string]$ExtraEnv[$k]) -replace "'", "''"[0m
+2026-10-08T01:56:34.4710896Z [36;1m      [void]$sb.Append("`$env:$k = '$v'; ")[0m
+2026-10-08T01:56:34.4711188Z [36;1m    }[0m
+2026-10-08T01:56:34.4711454Z [36;1m  }[0m
+2026-10-08T01:56:34.4711718Z [36;1m  $q = { param($s) "'" + ($s -replace "'", "''") + "'" }[0m
+2026-10-08T01:56:34.4712052Z [36;1m  [void]$sb.Append('& ' + (& $q $ScriptPath))[0m
+2026-10-08T01:56:34.4712417Z [36;1m  foreach ($a in $WrapperArgs) { [void]$sb.Append(' ' + (& $q $a)) }[0m
+2026-10-08T01:56:34.4712778Z [36;1m  [void]$sb.Append('; exit $LASTEXITCODE')[0m
+2026-10-08T01:56:34.4713072Z [36;1m  return $sb.ToString()[0m
+2026-10-08T01:56:34.4713388Z [36;1m}[0m
+2026-10-08T01:56:34.4713599Z [36;1m[0m
+2026-10-08T01:56:34.4713828Z [36;1mfunction Get-SmokeDiagBranch {[0m
+2026-10-08T01:56:34.4714178Z [36;1m  # PR #247 iter-4: mirrors the Windows PowerShell 5.1 step above --[0m
+2026-10-08T01:56:34.4714589Z [36;1m  # see its Get-SmokeDiagBranch comment for the full rationale.[0m
+2026-10-08T01:56:34.4714932Z [36;1m  param([string]$Err)[0m
+2026-10-08T01:56:34.4715308Z [36;1m  if ($Err -match 'AAI-BRANCH:\s*([^|]+?)\s*\|') { return $Matches[1].Trim() }[0m
+2026-10-08T01:56:34.4715758Z [36;1m  if ($Err -match 'AAI-SPAWN-ERROR:\s*\[([^\]]+)\]') { return $Matches[1] }[0m
+2026-10-08T01:56:34.4716206Z [36;1m  if ($Err -match 'AAI-ENV-ERROR') { return 'none (env-error)' }[0m
+2026-10-08T01:56:34.4716575Z [36;1m  return 'unknown (no branch marker on stderr)'[0m
+2026-10-08T01:56:34.4716875Z [36;1m}[0m
+2026-10-08T01:56:34.4717090Z [36;1m[0m
+2026-10-08T01:56:34.4717321Z [36;1mfunction Invoke-WrapperSmokeArm {[0m
+2026-10-08T01:56:34.4717691Z [36;1m  param([string]$ArmName, [string[]]$WrapperArgs, [hashtable]$ExtraEnv)[0m
+2026-10-08T01:56:34.4718127Z [36;1m  $outFile = Join-Path $env:RUNNER_TEMP "aai-smoke-pwsh7-$ArmName.out"[0m
+2026-10-08T01:56:34.4718890Z [36;1m  $errFile = Join-Path $env:RUNNER_TEMP "aai-smoke-pwsh7-$ArmName.err"[0m
+2026-10-08T01:56:34.4719341Z [36;1m  if (Test-Path $outFile) { Remove-Item $outFile -Force }[0m
+2026-10-08T01:56:34.4719698Z [36;1m  if (Test-Path $errFile) { Remove-Item $errFile -Force }[0m
+2026-10-08T01:56:34.4720211Z [36;1m  $commandText = New-SmokeCommandText -ScriptPath $scriptPath -WrapperArgs $WrapperArgs -ExtraEnv $ExtraEnv[0m
+2026-10-08T01:56:34.4720721Z [36;1m  $psArgs = @('-NoProfile', '-Command', $commandText)[0m
+2026-10-08T01:56:34.4722375Z [36;1m  $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru -Wait `[0m
+2026-10-08T01:56:34.4722969Z [36;1m        -RedirectStandardOutput $outFile -RedirectStandardError $errFile[0m
+2026-10-08T01:56:34.4723413Z [36;1m  $out = Get-Content $outFile -Raw -ErrorAction SilentlyContinue[0m
+2026-10-08T01:56:34.4723837Z [36;1m  $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue[0m
+2026-10-08T01:56:34.4724260Z [36;1m  $result = [pscustomobject]@{ Code = $p.ExitCode; Out = $out; Err = $err }[0m
+2026-10-08T01:56:34.4724661Z [36;1m  $branch = Get-SmokeDiagBranch -Err $result.Err[0m
+2026-10-08T01:56:34.4725122Z [36;1m  $out80 = if ($result.Out) { $result.Out.Substring(0, [Math]::Min(80, $result.Out.Length)) } else { '' }[0m
+2026-10-08T01:56:34.4725825Z [36;1m  $err80 = if ($result.Err) { $result.Err.Substring(0, [Math]::Min(80, $result.Err.Length)) } else { '' }[0m
+2026-10-08T01:56:34.4726328Z [36;1m  Write-Host "diag[$ArmName]: branch=$branch out80=[$out80] err80=[$err80]"[0m
+2026-10-08T01:56:34.4726727Z [36;1m  return $result[0m
+2026-10-08T01:56:34.4726968Z [36;1m}[0m
+2026-10-08T01:56:34.4727177Z [36;1m[0m
+2026-10-08T01:56:34.4727423Z [36;1mfunction Resolve-RealGitBashForSmoke {[0m
+2026-10-08T01:56:34.4727723Z [36;1m  $candidates = @()[0m
+2026-10-08T01:56:34.4728123Z [36;1m  if ($env:ProgramFiles) { $candidates += (Join-Path $env:ProgramFiles 'Git\bin\bash.exe') }[0m
+2026-10-08T01:56:34.4728551Z [36;1m  $pf86 = ${env:ProgramFiles(x86)}[0m
+2026-10-08T01:56:34.4728902Z [36;1m  if ($pf86) { $candidates += (Join-Path $pf86 'Git\bin\bash.exe') }[0m
+2026-10-08T01:56:34.4729306Z [36;1m  $gitCmd = Get-Command git.exe -ErrorAction SilentlyContinue[0m
+2026-10-08T01:56:34.4729673Z [36;1m  if ($gitCmd) {[0m
+2026-10-08T01:56:34.4729916Z [36;1m    try {[0m
+2026-10-08T01:56:34.4730192Z [36;1m      $execPath = & git.exe --exec-path 2>$null[0m
+2026-10-08T01:56:34.4730507Z [36;1m      if ($execPath) {[0m
+2026-10-08T01:56:34.4730900Z [36;1m        $gitRoot = Split-Path (Split-Path (Split-Path $execPath -Parent) -Parent) -Parent[0m
+2026-10-08T01:56:34.4731373Z [36;1m        if ($gitRoot) { $candidates += (Join-Path $gitRoot 'bin\bash.exe') }[0m
+2026-10-08T01:56:34.4731716Z [36;1m      }[0m
+2026-10-08T01:56:34.4731944Z [36;1m    } catch {}[0m
+2026-10-08T01:56:34.4732184Z [36;1m  }[0m
+2026-10-08T01:56:34.4732529Z [36;1m  $pathBash = Get-Command bash.exe -ErrorAction SilentlyContinue -All[0m
+2026-10-08T01:56:34.4732975Z [36;1m  if ($pathBash) { foreach ($b in $pathBash) { $candidates += $b.Source } }[0m
+2026-10-08T01:56:34.4733337Z [36;1m  foreach ($c in $candidates) {[0m
+2026-10-08T01:56:34.4733618Z [36;1m    if (-not $c) { continue }[0m
+2026-10-08T01:56:34.4733935Z [36;1m    if ($c -match '(?i)\\System32\\bash\.exe$') { continue }[0m
+2026-10-08T01:56:34.4734311Z [36;1m    if (Test-Path -LiteralPath $c -PathType Leaf) { return $c }[0m
+2026-10-08T01:56:34.4734641Z [36;1m  }[0m
+2026-10-08T01:56:34.4734858Z [36;1m  return $null[0m
+2026-10-08T01:56:34.4735118Z [36;1m}[0m
+2026-10-08T01:56:34.4735327Z [36;1m[0m
+2026-10-08T01:56:34.4735609Z [36;1mif (Test-Path $markerFile) { Remove-Item $markerFile -Force }[0m
+2026-10-08T01:56:34.4736190Z [36;1m$r1 = Invoke-WrapperSmokeArm -ArmName 'success' -WrapperArgs @('sh', $markerScript) -ExtraEnv @{ AAI_SMOKE_MARKER_FILE = $markerFile }[0m
+2026-10-08T01:56:34.4736778Z [36;1mWrite-Host "success: code=$($r1.Code) out=[$($r1.Out)] err=[$($r1.Err)]"[0m
+2026-10-08T01:56:34.4737257Z [36;1mif ($r1.Code -ne 3) { Write-Host "FAIL success: expected exit 3, got $($r1.Code)"; $fail++ }[0m
+2026-10-08T01:56:34.4737663Z [36;1mif (-not (Test-Path $markerFile)) {[0m
+2026-10-08T01:56:34.4738045Z [36;1m  Write-Host "FAIL success: marker file was not created: $markerFile"; $fail++[0m
+2026-10-08T01:56:34.4738672Z [36;1m} elseif ((Get-Content -LiteralPath $markerFile -Raw -ErrorAction SilentlyContinue) -notmatch 'AAI-WRAPPER-SMOKE-MARKER') {[0m
+2026-10-08T01:56:34.4739984Z [36;1m  Write-Host "FAIL success: marker file exists but lacks expected content"; $fail++[0m
+2026-10-08T01:56:34.4740380Z [36;1m}[0m
+2026-10-08T01:56:34.4740789Z [36;1mif ($r1.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL success: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }[0m
+2026-10-08T01:56:34.4741236Z [36;1m[0m
+2026-10-08T01:56:34.4741647Z [36;1m$r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2' }[0m
+2026-10-08T01:56:34.4742197Z [36;1mWrite-Host "timeout: code=$($r2.Code) err=[$($r2.Err)]"[0m
+2026-10-08T01:56:34.4742657Z [36;1mif ($r2.Code -ne 124) { Write-Host "FAIL timeout: expected exit 124, got $($r2.Code)"; $fail++ }[0m
+2026-10-08T01:56:34.4743314Z [36;1mif ($r2.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL timeout: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }[0m
+2026-10-08T01:56:34.4743749Z [36;1m[0m
+2026-10-08T01:56:34.4743995Z [36;1m$realBash = Resolve-RealGitBashForSmoke[0m
+2026-10-08T01:56:34.4744297Z [36;1mif (-not $realBash) {[0m
+2026-10-08T01:56:34.4744730Z [36;1m  Write-Host "FAIL spawnfail: no real Git Bash resolved on this runner (cannot induce a real spawn failure)"[0m
+2026-10-08T01:56:34.4745191Z [36;1m  $fail++[0m
+2026-10-08T01:56:34.4745416Z [36;1m} else {[0m
+2026-10-08T01:56:34.4745676Z [36;1m  $backupPath = "$realBash.aai-smoke-backup"[0m
+2026-10-08T01:56:34.4746046Z [36;1m  Move-Item -Path $realBash -Destination $backupPath -Force[0m
+2026-10-08T01:56:34.4746636Z [36;1m  Set-Content -Path $realBash -Value "not a real executable (aai-run-tests.ps1 smoke: induced spawn failure)" -NoNewline -Encoding ascii[0m
+2026-10-08T01:56:34.4747156Z [36;1m  try {[0m
+2026-10-08T01:56:34.4747530Z [36;1m    $r3 = Invoke-WrapperSmokeArm -ArmName 'spawnfail' -WrapperArgs @('sh', $spawnfailScript)[0m
+2026-10-08T01:56:34.4747942Z [36;1m  } finally {[0m
+2026-10-08T01:56:34.4748293Z [36;1m    Remove-Item -Path $realBash -Force -ErrorAction SilentlyContinue[0m
+2026-10-08T01:56:34.4748715Z [36;1m    Move-Item -Path $backupPath -Destination $realBash -Force[0m
+2026-10-08T01:56:34.4749042Z [36;1m  }[0m
+2026-10-08T01:56:34.4749352Z [36;1m  Write-Host "spawnfail: code=$($r3.Code) out=[$($r3.Out)] err=[$($r3.Err)]"[0m
+2026-10-08T01:56:34.4749848Z [36;1m  if ($r3.Code -ne 125) { Write-Host "FAIL spawnfail: expected exit 125, got $($r3.Code)"; $fail++ }[0m
+2026-10-08T01:56:34.4750465Z [36;1m  if ($r3.Err -notmatch 'AAI-SPAWN-ERROR') { Write-Host "FAIL spawnfail: expected AAI-SPAWN-ERROR on stderr, got none"; $fail++ }[0m
+2026-10-08T01:56:34.4751184Z [36;1m  if ($r3.Out -match 'AAI-WRAPPER-SMOKE-MARKER') { Write-Host "FAIL spawnfail: marker must NOT appear (process never started)"; $fail++ }[0m
+2026-10-08T01:56:34.4752001Z [36;1m  if ($r3.Out -match 'SHOULD-NOT-RUN') { Write-Host "FAIL spawnfail: fixture RAN (SHOULD-NOT-RUN captured) - 125 did not come from a pre-spawn failure"; $fail++ }[0m
+2026-10-08T01:56:34.4752542Z [36;1m}[0m
+2026-10-08T01:56:34.4752752Z [36;1m[0m
+2026-10-08T01:56:34.4753116Z [36;1mif ($fail -gt 0) { Write-Error "real-wrapper smoke failed under pwsh 7 ($fail check(s))"; exit 1 }[0m
+2026-10-08T01:56:34.4753824Z [36;1mWrite-Host "REAL-WRAPPER SMOKE OK (pwsh 7): success/timeout/spawnfail all correct"[0m
+2026-10-08T01:56:34.4812681Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-08T01:56:34.4813045Z env:
+2026-10-08T01:56:34.4813285Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T01:56:34.4813556Z ##[endgroup]
+2026-10-08T01:56:38.0554498Z diag[success]: branch=Git Bash out80=[AAI-WRAPPER-SMOKE-MARKER
+2026-10-08T01:56:38.0555135Z ] err80=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T01:56:38.0557002Z AAI-DEGRADED-MODE: r]
+2026-10-08T01:56:38.0587994Z success: code=3 out=[AAI-WRAPPER-SMOKE-MARKER
+2026-10-08T01:56:38.0588536Z ] err=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T01:56:38.0589785Z AAI-DEGRADED-MODE: running under Git-Bash/MSYS (MINGW64_NT-10.0-26100) - no POSIX process-group guarantee; using best-effort Windows tree-kill (taskkill //T) or plain kill; detached/reparented descendants are NOT guaranteed reaped (see docs/TECHNOLOGY.md platform matrix).
+2026-10-08T01:56:38.0590661Z ]
+2026-10-08T02:01:40.7123104Z diag[timeout]: branch=Git Bash out80=[] err80=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)
+2026-10-08T02:01:40.7123897Z AAI-DEGRADED-MODE: running ]
+2026-10-08T02:01:40.7127051Z timeout: code=124 err=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)
+2026-10-08T02:01:40.7128628Z AAI-DEGRADED-MODE: running under Git-Bash/MSYS (MINGW64_NT-10.0-26100) - no POSIX process-group guarantee; using best-effort Windows tree-kill (taskkill //T) or plain kill; detached/reparented descendants are NOT guaranteed reaped (see docs/TECHNOLOGY.md platform matrix).
+2026-10-08T02:01:40.7131018Z aai-run-tests: TIMED OUT after 2s with no progress -- raise the ceiling with AAI_TEST_TIMEOUT=<seconds>
+2026-10-08T02:01:40.7131650Z ]
+2026-10-08T02:01:41.4194648Z diag[spawnfail]: branch=Git Bash out80=[] err80=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:01:41.4195139Z AAI-SPAWN-ERROR: [Gi]
+2026-10-08T02:01:41.4229119Z spawnfail: code=125 out=[] err=[AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:01:41.4230133Z AAI-SPAWN-ERROR: [Git Bash] This command cannot be run due to the error: This version of %1 is not compatible with the version of Windows you're running. Check your computer's system information and then contact the software publisher.
+2026-10-08T02:01:41.4230929Z ]
+2026-10-08T02:01:41.4238786Z REAL-WRAPPER SMOKE OK (pwsh 7): success/timeout/spawnfail all correct
+2026-10-08T02:01:41.4576002Z ##[group]Run $ErrorActionPreference = "Stop"
+2026-10-08T02:01:41.4701648Z [36;1m$ErrorActionPreference = "Stop"[0m
+2026-10-08T02:01:41.4702201Z [36;1m# Control direction 1: pwsh IS resolvable in the undoctored parent.[0m
+2026-10-08T02:01:41.4702848Z [36;1m$pwshCmds = @(Get-Command pwsh.exe -ErrorAction SilentlyContinue -All)[0m
+2026-10-08T02:01:41.4703615Z [36;1mif ($pwshCmds.Count -eq 0) {[0m
+2026-10-08T02:01:41.4704422Z [36;1m  Write-Error "CONTROL FAIL: pwsh is not resolvable in the undoctored parent -- the child-side hiding check below would be vacuous"; exit 1[0m
+2026-10-08T02:01:41.4705184Z [36;1m}[0m
+2026-10-08T02:01:41.4705684Z [36;1mWrite-Host "CONTROL OK: pwsh resolvable in the undoctored parent: $($pwshCmds[0].Source)"[0m
+2026-10-08T02:01:41.4706372Z [36;1m# Reduced PATH: the current PATH minus every directory in which[0m
+2026-10-08T02:01:41.4707096Z [36;1m# pwsh.exe exists (surgical — node, git and the wrapper's Git Bash[0m
+2026-10-08T02:01:41.4707755Z [36;1m# resolution all survive the filter).[0m
+2026-10-08T02:01:41.4708157Z [36;1m$keep = @()[0m
+2026-10-08T02:01:41.4708507Z [36;1mforeach ($d in ($env:Path -split ';')) {[0m
+2026-10-08T02:01:41.4708940Z [36;1m  if (-not $d) { continue }[0m
+2026-10-08T02:01:41.4709319Z [36;1m  $probe = $null[0m
+2026-10-08T02:01:41.4709795Z [36;1m  try { $probe = Join-Path $d 'pwsh.exe' } catch { $keep += $d; continue }[0m
+2026-10-08T02:01:41.4710579Z [36;1m  if (Test-Path -LiteralPath $probe -PathType Leaf) { Write-Host "PATH filter drops: $d"; continue }[0m
+2026-10-08T02:01:41.4711188Z [36;1m  $keep += $d[0m
+2026-10-08T02:01:41.4711483Z [36;1m}[0m
+2026-10-08T02:01:41.4711807Z [36;1m$reducedPath = ($keep -join ';')[0m
+2026-10-08T02:01:41.4712197Z [36;1m$repoRoot = (Get-Location).Path[0m
+2026-10-08T02:01:41.4712679Z [36;1m$doctorJson = Join-Path $env:RUNNER_TEMP 'aai-51only-doctor.json'[0m
+2026-10-08T02:01:41.4713085Z [36;1m$innerPath = Join-Path $env:RUNNER_TEMP 'aai-51only-inner.ps1'[0m
+2026-10-08T02:01:41.4713402Z [36;1m$inner = @'[0m
+2026-10-08T02:01:41.4713625Z [36;1m$ErrorActionPreference = 'Stop'[0m
+2026-10-08T02:01:41.4713888Z [36;1m$env:Path = '__REDUCED_PATH__'[0m
+2026-10-08T02:01:41.4714145Z [36;1m$env:PATH = '__REDUCED_PATH__'[0m
+2026-10-08T02:01:41.4714473Z [36;1m# Control direction 2: pwsh must resolve to NOTHING here — a[0m
+2026-10-08T02:01:41.4714907Z [36;1m# distinct loud exit code if the hiding silently stopped working.[0m
+2026-10-08T02:01:41.4715296Z [36;1m$still = Get-Command pwsh -ErrorAction SilentlyContinue[0m
+2026-10-08T02:01:41.4715786Z [36;1mif ($still) { Write-Host "CONTROL FAIL: pwsh still resolves in the doctored child: $($still.Source)"; exit 97 }[0m
+2026-10-08T02:01:41.4716319Z [36;1mWrite-Host "CONTROL OK: pwsh is not resolvable in the doctored child"[0m
+2026-10-08T02:01:41.4716681Z [36;1mSet-Location '__REPO_ROOT__'[0m
+2026-10-08T02:01:41.4717021Z [36;1m. (Join-Path '__REPO_ROOT__' '.aai\scripts\aai-win-selftest.ps1')[0m
+2026-10-08T02:01:41.4717615Z [36;1m$engine = Resolve-SelfTestEngine[0m
+2026-10-08T02:01:41.4718118Z [36;1mif ($engine -ne 'powershell') { Write-Host "FAIL: Resolve-SelfTestEngine returned [$engine], expected powershell"; exit 98 }[0m
+2026-10-08T02:01:41.4718726Z [36;1mWrite-Host "Resolve-SelfTestEngine -> powershell (5.1-only fallback taken for real)"[0m
+2026-10-08T02:01:41.4719268Z [36;1m$jsonText = (& node .aai\scripts\aai-doctor.mjs --json) -join [Environment]::NewLine[0m
+2026-10-08T02:01:41.4719872Z [36;1mWrite-Host "doctor exit code inside the doctored child: $LASTEXITCODE"[0m
+2026-10-08T02:01:41.4720312Z [36;1mSet-Content -LiteralPath '__DOCTOR_JSON__' -Value $jsonText[0m
+2026-10-08T02:01:41.4720642Z [36;1mexit 0[0m
+2026-10-08T02:01:41.4721129Z [36;1m'@[0m
+2026-10-08T02:01:41.4721469Z [36;1m$inner = $inner.Replace('__REDUCED_PATH__', ($reducedPath -replace "'", "''"))[0m
+2026-10-08T02:01:41.4723522Z [36;1m$inner = $inner.Replace('__REPO_ROOT__', ($repoRoot -replace "'", "''"))[0m
+2026-10-08T02:01:41.4724043Z [36;1m$inner = $inner.Replace('__DOCTOR_JSON__', ($doctorJson -replace "'", "''"))[0m
+2026-10-08T02:01:41.4724455Z [36;1mSet-Content -LiteralPath $innerPath -Value $inner[0m
+2026-10-08T02:01:41.4724819Z [36;1m$outFile = Join-Path $env:RUNNER_TEMP 'aai-51only.out'[0m
+2026-10-08T02:01:41.4725161Z [36;1m$errFile = Join-Path $env:RUNNER_TEMP 'aai-51only.err'[0m
+2026-10-08T02:01:41.4725527Z [36;1m# OS-handle stream capture on a REAL child; pre-quoted argument[0m
+2026-10-08T02:01:41.4725888Z [36;1m# string (Start-Process silently space-joins array elements);[0m
+2026-10-08T02:01:41.4726282Z [36;1m# .Handle touched immediately (the 5.1 ExitCode-null footgun).[0m
+2026-10-08T02:01:41.4726673Z [36;1m$argString = '"-NoProfile" "-File" "' + $innerPath + '"'[0m
+2026-10-08T02:01:41.4727133Z [36;1m$p = Start-Process -FilePath powershell.exe -ArgumentList $argString -NoNewWindow -PassThru `[0m
+2026-10-08T02:01:41.4727921Z [36;1m      -RedirectStandardOutput $outFile -RedirectStandardError $errFile[0m
+2026-10-08T02:01:41.4728507Z [36;1m$null = $p.Handle[0m
+2026-10-08T02:01:41.4728800Z [36;1m$p.WaitForExit()[0m
+2026-10-08T02:01:41.4729395Z [36;1mGet-Content $outFile -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "child| $_" }[0m
+2026-10-08T02:01:41.4730679Z [36;1mGet-Content $errFile -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "child-err| $_" }[0m
+2026-10-08T02:01:41.4731967Z [36;1mif ($p.ExitCode -eq 97) { Write-Error "CONTROL FAIL: pwsh was still resolvable inside the doctored child (exit 97) -- the hiding silently stopped working"; exit 1 }[0m
+2026-10-08T02:01:41.4733532Z [36;1mif ($p.ExitCode -eq 98) { Write-Error "FAIL: Resolve-SelfTestEngine did not return powershell in the doctored child (exit 98)"; exit 1 }[0m
+2026-10-08T02:01:41.4734830Z [36;1mif ($p.ExitCode -ne 0) { Write-Error "doctored child failed with exit $($p.ExitCode)"; exit 1 }[0m
+2026-10-08T02:01:41.4735646Z [36;1m# The doctor ran INSIDE the doctored context; assert its CAT-14[0m
+2026-10-08T02:01:41.4736325Z [36;1m# arms here from the JSON it wrote (parsing location is irrelevant[0m
+2026-10-08T02:01:41.4736881Z [36;1m# to what the run proved).[0m
+2026-10-08T02:01:41.4737417Z [36;1m$doc = Get-Content -LiteralPath $doctorJson -Raw | ConvertFrom-Json[0m
+2026-10-08T02:01:41.4738184Z [36;1m$cat14 = $doc.categories | Where-Object { $_.id -eq 'CAT-14' } | Select-Object -First 1[0m
+2026-10-08T02:01:41.4738829Z [36;1m$fail = 0[0m
+2026-10-08T02:01:41.4739271Z [36;1mif (-not $cat14) { Write-Host "FAIL: no CAT-14 category in the doctored-context doctor output"; $fail++ }[0m
+2026-10-08T02:01:41.4739672Z [36;1m$arms = @()[0m
+2026-10-08T02:01:41.4740001Z [36;1mif ($cat14 -and $cat14.detail -and $cat14.detail.arms) { $arms = @($cat14.detail.arms) }[0m
+2026-10-08T02:01:41.4740564Z [36;1mif ($arms.Count -ne 3) { Write-Host "FAIL: expected 3 CAT-14 arms from the doctored-context run, got $($arms.Count)"; $fail++ }[0m
+2026-10-08T02:01:41.4741271Z [36;1mforeach ($a in $arms) {[0m
+2026-10-08T02:01:41.4741904Z [36;1m  if ($a.status -ne 'PASS') { Write-Host "FAIL: CAT-14 arm $($a.name) is $($a.status) (exit $($a.exitCode)) under powershell.exe"; $fail++ }[0m
+2026-10-08T02:01:41.4742505Z [36;1m  else { Write-Host "CAT-14 arm $($a.name): PASS (exit $($a.exitCode)) under powershell.exe"; }[0m
+2026-10-08T02:01:41.4742864Z [36;1m}[0m
+2026-10-08T02:01:41.4743200Z [36;1mif ($fail -gt 0) { Write-Error "5.1-only doctored-child proof failed ($fail check(s))"; exit 1 }[0m
+2026-10-08T02:01:41.4743853Z [36;1mWrite-Host "5.1-ONLY FALLBACK OK: pwsh hidden in the child, Resolve-SelfTestEngine -> powershell, all three CAT-14 arms PASS under powershell.exe"[0m
+2026-10-08T02:01:41.4806959Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-08T02:01:41.4807391Z env:
+2026-10-08T02:01:41.4807620Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T02:01:41.4807864Z ##[endgroup]
+2026-10-08T02:01:41.7768419Z CONTROL OK: pwsh resolvable in the undoctored parent: C:\Program Files\PowerShell\7\pwsh.exe
+2026-10-08T02:01:41.8510511Z PATH filter drops: C:\Program Files\PowerShell\7\
+2026-10-08T02:01:57.7734925Z child| CONTROL OK: pwsh is not resolvable in the doctored child
+2026-10-08T02:01:57.7741590Z child| Resolve-SelfTestEngine -> powershell (5.1-only fallback taken for real)
+2026-10-08T02:01:57.7748562Z child| doctor exit code inside the doctored child: 0
+2026-10-08T02:01:57.9074398Z CAT-14 arm success: PASS (exit 3) under powershell.exe
+2026-10-08T02:01:57.9080647Z CAT-14 arm timeout: PASS (exit 124) under powershell.exe
+2026-10-08T02:01:57.9087831Z CAT-14 arm spawnfail: PASS (exit 125) under powershell.exe
+2026-10-08T02:01:57.9099193Z 5.1-ONLY FALLBACK OK: pwsh hidden in the child, Resolve-SelfTestEngine -> powershell, all three CAT-14 arms PASS under powershell.exe
+2026-10-08T02:01:57.9482739Z ##[group]Run actions/cache@v4
+2026-10-08T02:01:57.9483201Z with:
+2026-10-08T02:01:57.9483932Z   path: ~\Documents\WindowsPowerShell\Modules
+~\Documents\PowerShell\Modules
+
+2026-10-08T02:01:57.9484584Z   key: ps-modules-Windows-pester5-win-v1
+2026-10-08T02:01:57.9485015Z   enableCrossOsArchive: false
+2026-10-08T02:01:57.9485374Z   fail-on-cache-miss: false
+2026-10-08T02:01:57.9485693Z   lookup-only: false
+2026-10-08T02:01:57.9486028Z   save-always: false
+2026-10-08T02:01:57.9486305Z env:
+2026-10-08T02:01:57.9486585Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T02:01:57.9486945Z ##[endgroup]
+2026-10-08T02:01:58.0590673Z (node:7564) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-08T02:01:58.0591390Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-08T02:01:58.2840513Z Cache not found for input keys: ps-modules-Windows-pester5-win-v1
+2026-10-08T02:01:58.3117026Z ##[group]Run $ErrorActionPreference = "Stop"
+2026-10-08T02:01:58.3117368Z [36;1m$ErrorActionPreference = "Stop"[0m
+2026-10-08T02:01:58.3117792Z [36;1m$existing = Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 } | Select-Object -First 1[0m
+2026-10-08T02:01:58.3118217Z [36;1mif (-not $existing) {[0m
+2026-10-08T02:01:58.3118661Z [36;1m  [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12[0m
+2026-10-08T02:01:58.3119214Z [36;1m  if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {[0m
+2026-10-08T02:01:58.3119686Z [36;1m    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null[0m
+2026-10-08T02:01:58.3120044Z [36;1m  }[0m
+2026-10-08T02:01:58.3120336Z [36;1m  Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0[0m
+2026-10-08T02:01:58.3120668Z [36;1m}[0m
+2026-10-08T02:01:58.3120877Z [36;1mImport-Module Pester -MinimumVersion 5.0[0m
+2026-10-08T02:01:58.3121250Z [36;1m$ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version[0m
+2026-10-08T02:01:58.3122034Z [36;1mif ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under Windows PowerShell 5.1 (5.1's built-in 3.4.0 silent-bind trap)"; exit 1 }[0m
+2026-10-08T02:01:58.3122555Z [36;1mWrite-Host "Pester $ver ready under Windows PowerShell 5.1"[0m
+2026-10-08T02:01:58.3177612Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-08T02:01:58.3177921Z env:
+2026-10-08T02:01:58.3178076Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T02:01:58.3178270Z ##[endgroup]
+2026-10-08T02:02:00.5222356Z Pester 5.9.0 ready under Windows PowerShell 5.1
+2026-10-08T02:02:00.5561674Z ##[group]Run $ErrorActionPreference = "Stop"
+2026-10-08T02:02:00.5562112Z [36;1m$ErrorActionPreference = "Stop"[0m
+2026-10-08T02:02:00.5562603Z [36;1m$existing = Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 } | Select-Object -First 1[0m
+2026-10-08T02:02:00.5563050Z [36;1mif (-not $existing) {[0m
+2026-10-08T02:02:00.5563430Z [36;1m  Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0[0m
+2026-10-08T02:02:00.5563822Z [36;1m}[0m
+2026-10-08T02:02:00.5564058Z [36;1mImport-Module Pester -MinimumVersion 5.0[0m
+2026-10-08T02:02:00.5564501Z [36;1m$ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version[0m
+2026-10-08T02:02:00.5565013Z [36;1mif ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under pwsh 7"; exit 1 }[0m
+2026-10-08T02:02:00.5565445Z [36;1mWrite-Host "Pester $ver ready under pwsh 7"[0m
+2026-10-08T02:02:00.5624413Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-08T02:02:00.5624769Z env:
+2026-10-08T02:02:00.5625091Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T02:02:00.5625453Z ##[endgroup]
+2026-10-08T02:02:01.3564597Z Pester 5.9.0 ready under pwsh 7
+2026-10-08T02:02:01.4202898Z ##[group]Run $ErrorActionPreference = "Stop"
+2026-10-08T02:02:01.4203338Z [36;1m$ErrorActionPreference = "Stop"[0m
+2026-10-08T02:02:01.4203667Z [36;1mImport-Module Pester -MinimumVersion 5.0[0m
+2026-10-08T02:02:01.4204149Z [36;1m$ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version[0m
+2026-10-08T02:02:01.4204710Z [36;1mif ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under Windows PowerShell 5.1"; exit 1 }[0m
+2026-10-08T02:02:01.4205107Z [36;1mWrite-Host "AAI-PESTER-VERSION: powershell $ver"[0m
+2026-10-08T02:02:01.4205413Z [36;1m$cfg = New-PesterConfiguration[0m
+2026-10-08T02:02:01.4205690Z [36;1m$cfg.Run.Path = 'tests/skills'[0m
+2026-10-08T02:02:01.4205964Z [36;1m$cfg.Run.PassThru = $true[0m
+2026-10-08T02:02:01.4206237Z [36;1m$cfg.Output.Verbosity = 'Detailed'[0m
+2026-10-08T02:02:01.4206572Z [36;1m$sw = [System.Diagnostics.Stopwatch]::StartNew()[0m
+2026-10-08T02:02:01.4206974Z [36;1m$result = Invoke-Pester -Configuration $cfg[0m
+2026-10-08T02:02:01.4207245Z [36;1m$sw.Stop()[0m
+2026-10-08T02:02:01.4207525Z [36;1m$elapsed = [Math]::Round($sw.Elapsed.TotalSeconds, 2)[0m
+2026-10-08T02:02:01.4207895Z [36;1mWrite-Host "AAI-PESTER-ELAPSED: powershell ${elapsed}s"[0m
+2026-10-08T02:02:01.4208223Z [36;1m$skipLines = 0[0m
+2026-10-08T02:02:01.4208472Z [36;1mforeach ($s in $result.Skipped) {[0m
+2026-10-08T02:02:01.4208771Z [36;1m  Write-Host "AAI-WIN-SKIP: $($s.ExpandedPath)"[0m
+2026-10-08T02:02:01.4209079Z [36;1m  $skipLines++[0m
+2026-10-08T02:02:01.4209299Z [36;1m}[0m
+2026-10-08T02:02:01.4209535Z [36;1m$expected = [int]$env:AAI_EXPECTED_WIN_SKIP_COUNT[0m
+2026-10-08T02:02:01.4209798Z [36;1m$fail = 0[0m
+2026-10-08T02:02:01.4210151Z [36;1mif ($result.FailedCount -gt 0) { Write-Host "FAIL: FailedCount=$($result.FailedCount)"; $fail++ }[0m
+2026-10-08T02:02:01.4210981Z [36;1mif ($result.FailedContainersCount -gt 0) { Write-Host "FAIL: FailedContainersCount=$($result.FailedContainersCount) (a .Tests.ps1 failed Pester DISCOVERY -- a parse/syntax error under this engine)"; $fail++ }[0m
+2026-10-08T02:02:01.4212054Z [36;1mif ($result.TotalCount -lt 111) { Write-Host "FAIL: TotalCount=$($result.TotalCount) is below the declared floor of 111 (symmetric with the POSIX gate's TEST-005 floor; catches a vacuous discovery)"; $fail++ }[0m
+2026-10-08T02:02:01.4213035Z [36;1mif ($elapsed -gt 600) { Write-Host "FAIL: elapsed ${elapsed}s exceeds the 600s ceiling"; $fail++ }[0m
+2026-10-08T02:02:01.4213885Z [36;1mif ($skipLines -ne $result.SkippedCount) { Write-Host "FAIL: AAI-WIN-SKIP line count ($skipLines) != Pester SkippedCount ($($result.SkippedCount))"; $fail++ }[0m
+2026-10-08T02:02:01.4214690Z [36;1mif ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }[0m
+2026-10-08T02:02:01.4215566Z [36;1m$seedCases = @($result.Tests | Where-Object { $_.ExpandedPath -like 'worktree seed PowerShell parity.TEST-008*' })[0m
+2026-10-08T02:02:01.4216160Z [36;1mif ($seedCases.Count -ne 3 -or @($seedCases | Where-Object { $_.Result -ne 'Passed' }).Count -ne 0) {[0m
+2026-10-08T02:02:01.4216781Z [36;1m  Write-Host "FAIL: TEST-008 worktree seed must pass all 3 cases under Windows PowerShell 5.1 (found $($seedCases.Count))"; $fail++[0m
+2026-10-08T02:02:01.4217250Z [36;1m}[0m
+2026-10-08T02:02:01.4217609Z [36;1mif ($fail -gt 0) { Write-Error "Pester gate failed under Windows PowerShell 5.1 ($fail check(s))"; exit 1 }[0m
+2026-10-08T02:02:01.4218254Z [36;1mWrite-Host "PESTER OK (Windows PowerShell 5.1): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"[0m
+2026-10-08T02:02:01.4292412Z shell: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.EXE -command ". '{0}'"
+2026-10-08T02:02:01.4292733Z env:
+2026-10-08T02:02:01.4292893Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T02:02:01.4293082Z ##[endgroup]
+2026-10-08T02:02:02.6395763Z AAI-PESTER-VERSION: powershell 5.9.0
+2026-10-08T02:02:04.2059688Z [95mPester v5.9.0[0m
+2026-10-08T02:02:04.3279793Z [95m
+2026-10-08T02:02:04.3280432Z [95mStarting discovery in 5 files.[0m
+2026-10-08T02:02:06.0653768Z [95mDiscovery found 157 tests in 1.38s.[0m
+2026-10-08T02:02:06.1922672Z [95mRunning tests.[0m
+2026-10-08T02:02:06.3180437Z [95m
+2026-10-08T02:02:06.3181046Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-pr-preflight.Tests.ps1'[0m
+2026-10-08T02:02:08.9481340Z [92mDescribing PR readiness process boundary[0m
+2026-10-08T02:02:09.2384620Z INFO: TEST008_CAPTURE_RESULT {"Output":"{\"clone_diagnostic\":\"full-boundary\"}\ngenuine-native-failure","ExitCode":7,"Preference":"Stop"}
+2026-10-08T02:02:09.8025987Z INFO: TEST008_NATIVE_CAPTURE diagnostic_visible=true nonzero_preserved=true preference_restored=true
+2026-10-08T02:02:10.1216643Z [32m  [+] prints captured JSON and preserves nonzero native status under Stop[0m[90m 1.07s (885ms|180ms)[0m
+2026-10-08T02:02:52.9007801Z INFO: TEST-001 direct_symlink_exit_output_equal=true
+2026-10-08T02:02:52.9015050Z INFO: TEST-001 {"result":{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"f832ee74e663a85be1c7907b55e0ca8ec8839d43","outcome":"read_verified","code":"READ_VERIFIED","operation":"azure.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"calls":[{"name":"az","args":["--version"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}},{"name":"az","args":["extension","show","--name","azure-devops","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}},{"name":"az","args":["repos","show","--organization","https://dev.azure.com/Org","--project","Project 雪","--repository","Repo Name","--detect","false","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}}]}
+2026-10-08T02:02:52.9022584Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9024338Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e67697420","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974200a"}
+2026-10-08T02:02:52.9026144Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9028248Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e67697409","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974090a"}
+2026-10-08T02:02:52.9030084Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"0d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9031880Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d0a"}
+2026-10-08T02:02:52.9033642Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a0a"}
+2026-10-08T02:02:52.9035698Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"0a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9037150Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9045642Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9048448Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9050260Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e67697420","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974200a"}
+2026-10-08T02:02:52.9052054Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9053848Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e67697409","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974090a"}
+2026-10-08T02:02:52.9055654Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"0d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9057465Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d0a"}
+2026-10-08T02:02:52.9059528Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a0a"}
+2026-10-08T02:02:52.9061306Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"0a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9063734Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9067117Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:02:52.9069774Z INFO: TEST001_EMPTY {"git_version":"git version 2.55.0.windows.5","configured_order":["https://github.com/Org/Repo.git",""],"effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a","expected":"READ_VERIFIED","provider_calls":3}
+2026-10-08T02:02:52.9072193Z INFO: TEST001_EMPTY {"git_version":"git version 2.55.0.windows.5","configured_order":["","https://github.com/Org/Repo.git"],"effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a","expected":"READ_VERIFIED","provider_calls":3}
+2026-10-08T02:02:52.9073626Z INFO: TEST001_BLANK deterministic_blank_first_last_only_refused=true provider_calls=0
+2026-10-08T02:02:52.9074950Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d0a"}
+2026-10-08T02:02:52.9076270Z INFO: TEST-001 pushurl_divergent_multiple_rewrite_refused=true ordinary_single_positive=true
+2026-10-08T02:02:52.9076894Z PASS: TEST-001 pr-capability-preflight
+2026-10-08T02:03:00.8100373Z INFO: TEST-002 {"result":{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"655a1d1621c27e9698e1a51272a68eba939e7f46","outcome":"read_verified","code":"READ_VERIFIED","operation":"azure.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"calls":[{"name":"az","args":["--version"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}},{"name":"az","args":["extension","show","--name","azure-devops","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}},{"name":"az","args":["repos","show","--organization","https://dev.azure.com/Org","--project","Project 雪","--repository","Repo Name","--detect","false","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}}]}
+2026-10-08T02:03:00.8106348Z INFO: TEST-002 split_utf8_read_verified=true split_fixture_reached=true
+2026-10-08T02:03:00.8106837Z PASS: TEST-002 pr-capability-preflight
+2026-10-08T02:03:07.4206894Z PASS: TEST-003 pr-capability-preflight
+2026-10-08T02:03:10.1380022Z INFO: TEST-004 elapsed_ms=1888 child_alive=false later_probes=0
+2026-10-08T02:03:10.1380562Z PASS: TEST-004 pr-capability-preflight
+2026-10-08T02:03:12.6319354Z PASS: TEST-005 pr-capability-preflight
+2026-10-08T02:03:20.4406805Z INFO: TEST-006 alternate_read_verified=true null_bypasses_origin=true ceremony_origin_refused=true
+2026-10-08T02:03:20.4407516Z PASS: TEST-006 pr-capability-preflight
+2026-10-08T02:03:49.3222056Z INFO: CLI_BOUND {"test":"007","sequence":1,"mode":"ok","timeout_ms":105000,"elapsed_ms":5943,"error_code":null,"signal":null,"git_probes":7,"provider_steps":["gh.--version","gh.auth","gh.repo"],"stdout_bytes":467}
+2026-10-08T02:03:49.3223248Z INFO: TEST-007 bounded_identity_delay_ms=5945 read_verified=true
+2026-10-08T02:03:49.3223919Z INFO: TEST007_SSH443 canonical_host=github.com exact_repository=true providers=3
+2026-10-08T02:03:49.3224507Z PASS: TEST-007 pr-capability-preflight
+2026-10-08T02:04:30.0527518Z INFO: TEST008_CLONE {"clone_timeout_ms":30000,"output_cap_bytes":65536,"source_head":{"status":0,"signal":null,"error":null,"stdout":"672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4\n","stderr":""},"core_longpaths":{"status":1,"signal":null,"error":null,"stdout":"","stderr":""},"tree_status":0,"longest_relative_path":"docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.patch","longest_relative_chars":136,"deep":{"destination":"C:\\Users\\runneradmin\\AppData\\Local\\Temp\\aai-pr-preflight-07b7c655-f174-43e5-9beb-13c771f37a0d\\fixture-zymzMQ\\note-shallow","max_checkout_path_chars":258,"status":0,"signal":null,"error":null,"stdout":"","stderr":"Note: switching to '672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4'.\n\nYou are in 'detached HEAD' state. You can look around, make experimental\nchanges and commit them, and you can discard any commits you make in this\nstate without impacting any branches by switching back to a branch.\n\nIf you want to create a new branch to retain commits you create, you may\ndo so (now or later) by using -c with the switch command. Example:\n\n  git switch -c <new-branch-name>\n\nOr undo this operation with:\n\n  git switch -\n\nTurn off this advice by setting config variable advice.detachedHead to false\n\n","head":{"status":0,"signal":null,"error":null,"stdout":"672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4\n","stderr":""},"shallow":{"status":0,"signal":null,"error":null,"stdout":"true\n","stderr":""}},"short":{"destination":"C:\\Users\\runneradmin\\AppData\\Local\\Temp\\aai-pr-preflight-07b7c655-f174-43e5-9beb-13c771f37a0d\\s-zymzMQ","max_checkout_path_chars":239,"status":0,"signal":null,"error":null,"stdout":"","stderr":"Note: switching to '672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4'.\n\nYou are in 'detached HEAD' state. You can look around, make experimental\nchanges and commit them, and you can discard any commits you make in this\nstate without impacting any branches by switching back to a branch.\n\nIf you want to create a new branch to retain commits you create, you may\ndo so (now or later) by using -c with the switch command. Example:\n\n  git switch -c <new-branch-name>\n\nOr undo this operation with:\n\n  git switch -\n\nTurn off this advice by setting config variable advice.detachedHead to false\n\n","head":{"status":0,"signal":null,"error":null,"stdout":"672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4\n","stderr":""},"shallow":{"status":0,"signal":null,"error":null,"stdout":"true\n","stderr":""}}}
+2026-10-08T02:04:30.0538688Z INFO: TEST-008 benign_note_captured=true genuine_clone_failure_throws=true note_control_shallow=true
+2026-10-08T02:04:30.0539624Z INFO: TEST008_REPLAY {"timeout_ms":100000,"elapsed_ms":11042,"status":0,"signal":null,"error":null,"stdout_bytes":38,"stderr_bytes":0}
+2026-10-08T02:04:30.0540667Z INFO: TEST008_REPLAY {"timeout_ms":100000,"elapsed_ms":40,"status":0,"signal":null,"error":null,"stdout_bytes":0,"stderr_bytes":0}
+2026-10-08T02:04:30.0542084Z INFO: TEST008_REPLAY {"timeout_ms":1000,"elapsed_ms":1008,"status":null,"signal":"SIGTERM","error":{"code":"ETIMEDOUT","message":"spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"},"stdout_bytes":13,"stderr_bytes":0}
+2026-10-08T02:04:30.0543659Z INFO: TEST008_REPLAY_CONTROLS delayed_success=true immediate_success=true bounded_hang_refused=true
+2026-10-08T02:04:30.0544548Z INFO: TEST008_REPLAY {"timeout_ms":100000,"elapsed_ms":11409,"status":0,"signal":null,"error":null,"stdout_bytes":2676,"stderr_bytes":0}
+2026-10-08T02:04:30.0545380Z INFO: TEST-008 shallow=true baseline_object_absent=true LF_CRLF_bytes_equal=true
+2026-10-08T02:04:30.0545886Z PASS: TEST-008 pr-capability-preflight
+2026-10-08T02:04:30.0621860Z [32m  [+] runs the eight provider/identity/refusal/timeout matrix arms[0m[90m 139.93s (139.93s|1ms)[0m
+2026-10-08T02:04:31.0973159Z [95m
+2026-10-08T02:04:31.0974411Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-release.Tests.ps1'[0m
+2026-10-08T02:04:31.1583048Z [92mDescribing aai-release.ps1 protected-branch classifier[0m
+2026-10-08T02:04:31.2300028Z [32m  [+] parses with no syntax errors[0m[90m 71ms (68ms|3ms)[0m
+2026-10-08T02:04:31.2414626Z [32m  [+] dot-sourcing defines Test-ProtectedBranchRejection without cutting a release[0m[90m 8ms (7ms|1ms)[0m
+2026-10-08T02:04:31.2931373Z [32m  [+] accepts GitHub's GH006 protected-branch rejection text[0m[90m 48ms (47ms|1ms)[0m
+2026-10-08T02:04:31.3010224Z [32m  [+] accepts the GH006 token regardless of case[0m[90m 4ms (3ms|1ms)[0m
+2026-10-08T02:04:31.3067481Z [32m  [+] accepts host-agnostic "protected branch" + "status check" wording, case-insensitively[0m[90m 3ms (2ms|1ms)[0m
+2026-10-08T02:04:31.3522617Z [32m  [+] rejects a non-fast-forward rejection (must degrade to git's own exit code)[0m[90m 42ms (41ms|1ms)[0m
+2026-10-08T02:04:31.3678928Z [32m  [+] rejects an auth failure[0m[90m 4ms (3ms|2ms)[0m
+2026-10-08T02:04:31.3737310Z [32m  [+] rejects "protected branch" wording with no status-check clause[0m[90m 4ms (3ms|2ms)[0m
+2026-10-08T02:04:31.3928974Z [32m  [+] rejects empty text[0m[90m 4ms (2ms|1ms)[0m
+2026-10-08T02:04:31.4240608Z [95m
+2026-10-08T02:04:31.4333319Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-update.Tests.ps1'[0m
+2026-10-08T02:04:31.4854899Z [92mDescribing aai-update.ps1[0m
+2026-10-08T02:04:31.5493513Z [32m  [+] parses with no syntax errors[0m[90m 8ms (5ms|4ms)[0m
+2026-10-08T02:04:31.5525126Z [96m Context canonical-repo guard[0m
+2026-10-08T02:04:32.6004780Z [32m   [+] refuses (exit 2) when run inside the canonical AAI repo without -Force[0m[90m 1.05s (1.05s|8ms)[0m
+2026-10-08T02:04:32.6077127Z [96m Context dry-run output (the previously fragile "Would run" line)[0m
+2026-10-08T02:04:33.6477455Z [32m   [+] native -Force -DryRun prints the Would-run line and exits 0[0m[90m 1.03s (1.03s|2ms)[0m
+2026-10-08T02:04:34.6885620Z [32m   [+] bash-style --force --dry-run works identically (flag parity)[0m[90m 1.04s (1.04s|2ms)[0m
+2026-10-08T02:04:34.6959689Z [96m Context bash long-flag values[0m
+2026-10-08T02:04:35.7234464Z [32m   [+] accepts --repo=OWNER/NAME and --ref BRANCH (= and space forms)[0m[90m 1.03s (1.02s|2ms)[0m
+2026-10-08T02:04:35.7309906Z [96m Context robustness[0m
+2026-10-08T02:04:36.7638714Z [32m   [+] warns but does not crash on an unrecognized argument[0m[90m 1.03s (1.03s|2ms)[0m
+2026-10-08T02:04:36.7767731Z [96m Context temp-dir lifecycle (ISSUE-0012 / SPEC-0052 â€” retain $Tmp, clone into $SrcDir)[0m
+2026-10-08T02:04:36.8011434Z [32m   [+] TEST-006: clone target is $SrcDir (=$Tmp/src) in all three attempts, never bare $Tmp; $Tmp created once as a directory[0m[90m 20ms (17ms|3ms)[0m
+2026-10-08T02:04:36.8086491Z [32m   [+] TEST-007: no Remove-Item ... $Tmp in the attempt cascade; per-attempt wipe targets $SrcDir; only finally removes $Tmp[0m[90m 4ms (3ms|1ms)[0m
+2026-10-08T02:04:36.8162133Z [96m Context SEAM-1 integration (ISSUE-0012 / SPEC-0052 â€” real clone parity)[0m
+2026-10-08T02:04:36.8244473Z [93m   [!] TEST-009: file:// fixture clone with -KeepTemp lands at $Tmp/src; $Tmp retained (skips if git unavailable) (PosixOnly: redirects the temp base through $env:TMPDIR, which [System.IO.Path]::GetTempPath() ignores on Windows, and builds a file://C:\...  URL from a backslash path)[0m[90m 4ms (0ms|4ms)[0m
+2026-10-08T02:04:36.8849491Z [95m
+2026-10-08T02:04:36.8879427Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-win-dispatch.Tests.ps1'[0m
+2026-10-08T02:04:36.9305128Z [92mDescribing aai-run-tests.ps1[0m
+2026-10-08T02:04:36.9522477Z [32m  [+] parses with no syntax errors[0m[90m 21ms (18ms|3ms)[0m
+2026-10-08T02:04:36.9561588Z [96m Context CHANGE-0134 TEST-003 (Spec-AC-02): Test-IsWindowsHostFor never silently fails to skip on Windows PowerShell 5.1, never over-skips on POSIX[0m
+2026-10-08T02:04:37.2627059Z [32m   [+] edition Desktop, IsWindowsFlag $null -> True[0m[90m 305ms (300ms|5ms)[0m
+2026-10-08T02:04:37.5424609Z [32m   [+] edition Core, IsWindowsFlag $true -> True[0m[90m 276ms (275ms|1ms)[0m
+2026-10-08T02:04:37.8313114Z [32m   [+] edition Core, IsWindowsFlag $false -> False[0m[90m 285ms (284ms|1ms)[0m
+2026-10-08T02:04:38.1075628Z [32m   [+] edition Desktop, IsWindowsFlag $false -> True[0m[90m 273ms (272ms|1ms)[0m
+2026-10-08T02:04:38.1148940Z [96m Context TEST-001 (Spec-AC-01): usable WSL -> WSL branch selected, delegation argv correct[0m
+2026-10-08T02:04:39.1812411Z [32m   [+] Resolve-Interpreter returns wsl when the WSL probe succeeds[0m[90m 1.02s (1.02s|2ms)[0m
+2026-10-08T02:04:39.2052648Z [32m   [+] builds the correct wsl.exe delegation argv (env passthrough + script + command)[0m[90m 21ms (18ms|3ms)[0m
+2026-10-08T02:04:39.4272160Z AAI-BRANCH: WSL | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:04:39.8100494Z [32m   [+] Invoke-Dispatch calls the WSL launch path with the resolved argv when WSL is usable[0m[90m 600ms (599ms|1ms)[0m
+2026-10-08T02:04:39.8190726Z [96m Context TEST-002 (Spec-AC-01): WSL absent/unusable + Git Bash candidates -> first-hit-wins, shim excluded[0m
+2026-10-08T02:04:40.0214126Z [32m   [+] Find-GitBash skips a WSL System32 shim and a non-existent candidate, returning the first REAL hit[0m[90m 198ms (195ms|2ms)[0m
+2026-10-08T02:04:40.1249619Z [32m   [+] Resolve-Interpreter falls through to gitbash when WSL is unusable[0m[90m 66ms (64ms|2ms)[0m
+2026-10-08T02:04:40.1866263Z [32m   [+] wsl.exe present but no usable distro falls through to Git Bash, never hangs/errors raw[0m[90m 42ms (40ms|2ms)[0m
+2026-10-08T02:04:40.1942231Z [96m Context TEST-010 (field fix, PR #247 run 31603532721): Test-WslUsable is a REAL functional probe, not a bare present-check[0m
+2026-10-08T02:04:40.2899174Z [32m   [+] wsl.exe present, ZERO installed distributions (stub prints the message and exits 0) -> NOT usable[0m[90m 60ms (58ms|3ms)[0m
+2026-10-08T02:04:40.5297067Z [32m   [+] wsl.exe present, real distro answers the sentinel exit code -> usable[0m[90m 64ms (62ms|2ms)[0m
+2026-10-08T02:04:40.5956549Z [32m   [+] wsl.exe present, distro answers a NON-sentinel exit code -> NOT usable[0m[90m 80ms (78ms|2ms)[0m
+2026-10-08T02:04:40.6383754Z [32m   [+] wsl.exe absent -> NOT usable, probe process never spawned[0m[90m 38ms (36ms|2ms)[0m
+2026-10-08T02:04:40.7239239Z [32m   [+] probe hangs past the watchdog -> NOT usable, hung probe process killed (never stalls the caller)[0m[90m 81ms (80ms|1ms)[0m
+2026-10-08T02:04:40.7409506Z [32m   [+] CHANGE-0136 field fix (PR #251 run 31683376326): ConvertTo-WslPath execs wslpath via -e, never through the login shell[0m[90m 14ms (13ms|1ms)[0m
+2026-10-08T02:04:40.7860585Z [32m   [+] CHANGE-0136 field fix (PR #251 run 31682243993): probe quoting is SELECTIVE â€” bare -e survives unquoted, the spaced sentinel stays quoted[0m[90m 41ms (41ms|1ms)[0m
+2026-10-08T02:04:40.8339541Z [32m   [+] probe runs the sentinel command THROUGH a distro (-e sh -c), never a bare presence check[0m[90m 43ms (42ms|1ms)[0m
+2026-10-08T02:04:40.8602343Z [32m   [+] H1 (field defect, PR #247 run 31606986703): Start-WslProbeProcess redirects BOTH stdout and stderr, never inherits the caller's streams[0m[90m 22ms (22ms|1ms)[0m
+2026-10-08T02:04:40.8688065Z [96m Context TEST-003 (Spec-AC-01): all probes negative -> error branch, never a partial launch[0m
+2026-10-08T02:04:41.0746922Z [32m   [+] Resolve-Interpreter returns error when neither WSL nor Git Bash is usable[0m[90m 114ms (111ms|2ms)[0m
+2026-10-08T02:04:41.1983832Z [32m   [+] Invoke-Dispatch never invokes a launch primitive on the error path[0m[90m 88ms (86ms|1ms)[0m
+2026-10-08T02:04:41.2124354Z [96m Context TEST-004 (Spec-AC-02): real invocation on THIS host (no WSL, no Windows Git Bash) -> exit 78 + exactly one AAI-ENV-ERROR line[0m
+2026-10-08T02:04:41.2169036Z [93m   [!] exits 78 with exactly one stderr line matching ^AAI-ENV-ERROR: naming both probed options (PosixOnly: windows-latest always has a real Git Bash, so the dispatcher resolves it and runs the command instead of erroring)[0m[90m 3ms (0ms|3ms)[0m
+2026-10-08T02:04:42.2567825Z [32m   [+] usage error (no command given) is distinct from the env error and never exit 78[0m[90m 1.04s (1.03s|1ms)[0m
+2026-10-08T02:04:42.2639436Z [96m Context TEST-005 (Spec-AC-03): Git-Bash run contract â€” passthrough, exit fidelity, timeout->124 + tree-kill[0m
+2026-10-08T02:04:42.2826709Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): bogus -> 3000[0m[90m 17ms (14ms|3ms)[0m
+2026-10-08T02:04:42.3024940Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): 0 -> 3000[0m[90m 17ms (16ms|1ms)[0m
+2026-10-08T02:04:42.3171994Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): -5 -> 3000[0m[90m 12ms (11ms|1ms)[0m
+2026-10-08T02:04:42.3314876Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default):  -> 3000[0m[90m 11ms (10ms|1ms)[0m
+2026-10-08T02:04:42.3481869Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default):  -> 3000[0m[90m 14ms (12ms|2ms)[0m
+2026-10-08T02:04:42.3639774Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): 45 -> 45[0m[90m 13ms (12ms|1ms)[0m
+2026-10-08T02:04:42.3819198Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): 99999999999 -> 3000[0m[90m 15ms (14ms|1ms)[0m
+2026-10-08T02:04:42.4330089Z [32m   [+] passes the wrapper script path, command args, and AAI_TEST_TIMEOUT to the launched process[0m[90m 47ms (46ms|1ms)[0m
+2026-10-08T02:04:42.4789167Z [32m   [+] translates a Windows project Python path to Git Bash and leaves the wrapper script path unchanged[0m[90m 42ms (41ms|1ms)[0m
+2026-10-08T02:04:42.5106660Z [32m   [+] NB-A: outer Git-Bash watchdog deadline = AAI_TEST_TIMEOUT + grace (never races the inner .sh reap-grace sleep)[0m[90m 28ms (27ms|1ms)[0m
+2026-10-08T02:04:42.5409518Z [32m   [+] propagates the real (non-zero) child exit code on normal completion[0m[90m 26ms (25ms|1ms)[0m
+2026-10-08T02:04:42.5916189Z [32m   [+] on timeout, kills the launched process TREE (taskkill /T /F semantics) and exits 124[0m[90m 46ms (45ms|1ms)[0m
+2026-10-08T02:04:42.5988664Z [96m Context CHANGE-0133 TEST-001 (Spec-AC-01): PATH collision group collapses to one literal Path key, ordinal-ordered union, dedup[0m
+2026-10-08T02:04:42.7307835Z [32m   [+] Path + PATH + path -> exactly one key "Path", ordinal-key-ordered union with duplicate segments dropped; OrdinalIgnoreCase dictionary build does not throw[0m[90m 121ms (119ms|2ms)[0m
+2026-10-08T02:04:42.7397031Z [96m Context CHANGE-0133 TEST-002 (Spec-AC-01): non-PATH group -> ordinal-first key+value only, no-op on clean input, idempotent[0m
+2026-10-08T02:04:42.7586898Z [32m   [+] Temp/TEMP collapses to the ordinal-first key with that key's value only (no concatenation)[0m[90m 18ms (15ms|3ms)[0m
+2026-10-08T02:04:42.7772878Z [32m   [+] identical-value duplicate casings collapse to a single entry[0m[90m 15ms (15ms|1ms)[0m
+2026-10-08T02:04:42.7956294Z [32m   [+] a collision-free map is returned unchanged[0m[90m 15ms (14ms|1ms)[0m
+2026-10-08T02:04:42.8142125Z [32m   [+] normalizing the output a second time yields an identical map (idempotent)[0m[90m 16ms (15ms|1ms)[0m
+2026-10-08T02:04:42.8212600Z [96m Context CHANGE-0133 TEST-003 (Spec-AC-02, SEAM-1): real dual-casing environment -- CONTROL throws, TREATMENT does not, one Path survives with both directories[0m
+2026-10-08T02:04:42.8243651Z [93m   [!] child pwsh: CONTROL arm (OrdinalIgnoreCase dictionary over the live dup env) THROWS; TREATMENT arm (after Set-CanonicalProcessEnvironment) does NOT throw, exactly one PATH casing remains, value holds both original directories (PosixOnly: the Win32 environment block is case-insensitive, so the CONTROL arm cannot be constructed in-process on Windows -- SPEC-0120 RR-1)[0m[90m 2ms (0ms|2ms)[0m
+2026-10-08T02:04:42.8335515Z [96m Context CHANGE-0133 TEST-004 (Spec-AC-02, SEAM-3): canonicalizer runs exactly once, before every probe/launch primitive on both branches; clean env -> zero raw Set calls[0m
+2026-10-08T02:04:42.8723176Z AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:04:42.8950803Z [32m   [+] gitbash branch: canonicalizer invoked exactly once, BEFORE Test-WslUsable and BEFORE Start-GitBashProcess[0m[90m 53ms (51ms|2ms)[0m
+2026-10-08T02:04:42.9246204Z AAI-BRANCH: WSL | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:04:42.9381916Z [32m   [+] wsl branch: canonicalizer invoked exactly once, BEFORE Test-WslUsable and BEFORE Invoke-WslProcess[0m[90m 39ms (38ms|1ms)[0m
+2026-10-08T02:04:42.9728690Z [32m   [+] on an already-clean environment the applier performs ZERO Set-EnvironmentVariableRaw calls[0m[90m 31ms (30ms|1ms)[0m
+2026-10-08T02:04:42.9798713Z [96m Context CHANGE-0133 TEST-005 (Spec-AC-03): spawn failure (throw or null) -> 125, wait logic never reached, never 124[0m
+2026-10-08T02:04:43.0200750Z AAI-SPAWN-ERROR: [Git Bash] AAI-TEST-005-THROW
+2026-10-08T02:04:43.0286425Z [32m   [+] Start-GitBashProcess THROW -> Invoke-ViaGitBash returns 125, Wait-ProcessWithTimeout never invoked[0m[90m 46ms (44ms|2ms)[0m
+2026-10-08T02:04:43.0601030Z AAI-SPAWN-ERROR: [Git Bash] spawn primitive returned no process object
+2026-10-08T02:04:43.0688171Z [32m   [+] Start-GitBashProcess returns $null -> Invoke-ViaGitBash returns 125, Wait-ProcessWithTimeout never invoked[0m[90m 35ms (35ms|1ms)[0m
+2026-10-08T02:04:43.0761927Z [96m Context CHANGE-0133 TEST-006 (Spec-AC-03): real child pwsh spawn-failure -> exactly one AAI-SPAWN-ERROR line naming Git Bash + exit 125[0m
+2026-10-08T02:04:44.1188313Z [32m   [+] stderr holds exactly one AAI-SPAWN-ERROR line containing the exception text and the literal token "Git Bash"; exit code is 125[0m[90m 1.04s (1.04s|2ms)[0m
+2026-10-08T02:04:44.1258522Z [96m Context CHANGE-0133 TEST-007 (Spec-AC-03): regression pins -- 124 keeps its meaning, no spawn-error noise[0m
+2026-10-08T02:04:44.1717329Z [32m   [+] live process + timeout still yields 124, tree-kill once, NO AAI-SPAWN-ERROR written[0m[90m 43ms (41ms|2ms)[0m
+2026-10-08T02:04:44.2000854Z [32m   [+] a normally completed process still propagates its own exit code 7[0m[90m 25ms (24ms|1ms)[0m
+2026-10-08T02:04:44.2110995Z [96m Context CHANGE-0135 field fix (PR #249 run 31658515767): Start-GitBashProcess pre-quotes ArgumentList into ONE string[0m
+2026-10-08T02:04:44.2444836Z [32m   [+] passes a single pre-quoted string, spaces in the script path and the sh payload both survive[0m[90m 31ms (28ms|3ms)[0m
+2026-10-08T02:04:44.2583632Z [96m Context CHANGE-0133 TEST-008 (Spec-AC-04): cleanup covers the spawn-failed branch, never a null pid[0m
+2026-10-08T02:04:44.2903449Z AAI-SPAWN-ERROR: [Git Bash] AAI-TEST-008-POST-SPAWN-FAILURE
+2026-10-08T02:04:44.3058669Z [32m   [+] a throw AFTER a live process object exists tree-kills exactly that pid once and returns 125[0m[90m 43ms (40ms|3ms)[0m
+2026-10-08T02:04:44.3311106Z AAI-SPAWN-ERROR: [Git Bash] spawn primitive returned no process object
+2026-10-08T02:04:44.3393217Z [32m   [+] a spawn that produced no object invokes Stop-ProcessTree zero times (never a null/empty pid to taskkill)[0m[90m 29ms (29ms|1ms)[0m
+2026-10-08T02:04:44.3500727Z [96m Context CHANGE-0133 TEST-009 (Spec-AC-04): WSL branch parity -- throw -> 125 named WSL, surfaced unchanged through Invoke-Dispatch; a real non-zero delegation passes through[0m
+2026-10-08T02:04:44.3910543Z [32m   [+] Invoke-WslProcess THROW -> Invoke-ViaWsl returns 125 with a diagnostic naming the literal token WSL[0m[90m 31ms (28ms|3ms)[0m
+2026-10-08T02:04:44.4167155Z AAI-BRANCH: WSL | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:04:44.4222373Z AAI-SPAWN-ERROR: [WSL] AAI-TEST-009-DISPATCH-SPAWN-FAILURE
+2026-10-08T02:04:44.4275522Z [32m   [+] Invoke-Dispatch surfaces that 125 unchanged on the wsl branch[0m[90m 32ms (32ms|1ms)[0m
+2026-10-08T02:04:44.4548780Z [32m   [+] a delegation that RAN and returned non-zero is passed through as its own code[0m[90m 24ms (23ms|1ms)[0m
+2026-10-08T02:04:44.4642660Z [96m Context CR-1 (review 20260812T133652Z): survivor re-write must be decided against POST-removal state, not the pre-removal snapshot[0m
+2026-10-08T02:04:44.5071713Z [32m   [+] a case-insensitive removal primitive that erases the survivor's own entry still gets the merged value written back[0m[90m 41ms (39ms|2ms)[0m
+2026-10-08T02:04:44.5106840Z [93m   [!] H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process â€” RED/GREEN probe for the smoke's "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom (PosixOnly: same Win32 case-insensitive-environment limitation as CHANGE-0133 TEST-003, PLUS the fixture overwrites PATH with a nonexistent directory, which on Windows breaks the Start-Process -FilePath 'pwsh' resolution this assertion depends on)[0m[90m 1ms (0ms|1ms)[0m
+2026-10-08T02:04:44.5461673Z [32m   [+] an already-clean environment still makes ZERO Set-EnvironmentVariableRaw calls (no re-read on the no-op path)[0m[90m 30ms (29ms|1ms)[0m
+2026-10-08T02:04:44.5595991Z [96m Context TEST-011 (5.1 ExitCode-null footgun): every Start-Process -PassThru launch helper touches .Handle immediately[0m
+2026-10-08T02:04:44.5782187Z [32m   [+] Start-WslProbeProcess touches $proc.Handle on the line immediately after the Start-Process assignment[0m[90m 22ms (15ms|7ms)[0m
+2026-10-08T02:04:44.5952435Z [32m   [+] Start-GitBashProcess touches $proc.Handle on the line immediately after the Start-Process assignment, and returns $proc (not the raw Start-Process pipeline output)[0m[90m 14ms (13ms|1ms)[0m
+2026-10-08T02:04:44.6021823Z [96m Context TEST-012 (TIMEOUT VISIBILITY): Get-EffectiveTimeoutSource labels env vs default in parity with Get-EffectiveTimeout's own coercion rule[0m
+2026-10-08T02:04:44.6210756Z [32m   [+] Get-EffectiveTimeoutSource: bogus -> default[0m[90m 18ms (15ms|2ms)[0m
+2026-10-08T02:04:44.6370825Z [32m   [+] Get-EffectiveTimeoutSource: 0 -> default[0m[90m 13ms (11ms|2ms)[0m
+2026-10-08T02:04:44.6516941Z [32m   [+] Get-EffectiveTimeoutSource: -5 -> default[0m[90m 12ms (11ms|1ms)[0m
+2026-10-08T02:04:44.6660466Z [32m   [+] Get-EffectiveTimeoutSource:  -> default[0m[90m 12ms (11ms|1ms)[0m
+2026-10-08T02:04:44.6803607Z [32m   [+] Get-EffectiveTimeoutSource:  -> default[0m[90m 11ms (10ms|1ms)[0m
+2026-10-08T02:04:44.6948172Z [32m   [+] Get-EffectiveTimeoutSource: 45 -> env[0m[90m 12ms (11ms|1ms)[0m
+2026-10-08T02:04:44.7093924Z [32m   [+] Get-EffectiveTimeoutSource: 99999999999 -> default[0m[90m 12ms (11ms|1ms)[0m
+2026-10-08T02:04:44.7262181Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 14ms (12ms|2ms)[0m
+2026-10-08T02:04:44.7440337Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 15ms (14ms|1ms)[0m
+2026-10-08T02:04:44.7595117Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 12ms (11ms|1ms)[0m
+2026-10-08T02:04:44.7757656Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 13ms (12ms|1ms)[0m
+2026-10-08T02:04:44.7911021Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 12ms (11ms|1ms)[0m
+2026-10-08T02:04:44.8050904Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 11ms (10ms|1ms)[0m
+2026-10-08T02:04:44.8189820Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 11ms (10ms|1ms)[0m
+2026-10-08T02:04:44.8341741Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 12ms (11ms|1ms)[0m
+2026-10-08T02:04:44.8411130Z [96m Context TEST-013 (branch diagnostic, always-on): AAI-BRANCH line names the chosen branch and effective timeout on every non-error run[0m
+2026-10-08T02:04:44.8603181Z [32m   [+] Write-BranchDiag writes exactly one AAI-BRANCH line with branch, timeout, and source[0m[90m 15ms (13ms|2ms)[0m
+2026-10-08T02:04:44.9009441Z [32m   [+] Invoke-Dispatch prints AAI-BRANCH naming WSL, with the default-sourced timeout, on the wsl branch[0m[90m 35ms (34ms|1ms)[0m
+2026-10-08T02:04:44.9493180Z [32m   [+] Invoke-Dispatch prints AAI-BRANCH naming Git Bash, with the env-sourced timeout, on the gitbash branch[0m[90m 44ms (42ms|1ms)[0m
+2026-10-08T02:04:44.9816619Z [32m   [+] Invoke-Dispatch never prints AAI-BRANCH on the error branch (Write-EnvError keeps its exactly-one-line contract)[0m[90m 29ms (28ms|1ms)[0m
+2026-10-08T02:04:45.0116332Z [0m
+2026-10-08T02:04:45.0127258Z [92mDescribing aai-release.ps1[0m
+2026-10-08T02:04:45.0274362Z [32m  [+] parses with no syntax errors[0m[90m 15ms (11ms|5ms)[0m
+2026-10-08T02:04:45.0407684Z [96m Context TEST-001 (Spec-AC-01): static contract â€” helper defined via OS-handle-level capture (CHANGE-0134 remediation)[0m
+2026-10-08T02:04:45.0542074Z [32m   [+] defines function Invoke-NativeChecked[0m[90m 20ms (11ms|9ms)[0m
+2026-10-08T02:04:45.0676330Z [32m   [+] captures via Start-Process -RedirectStandardOutput/-RedirectStandardError, never an in-process 2>&1 merge (a local $ErrorActionPreference override was proven NOT to suppress the real Windows PowerShell 5.1 stderr-promotion â€” PR #248 run 31638479811, TEST-002)[0m[90m 10ms (9ms|1ms)[0m
+2026-10-08T02:04:45.0744181Z [96m Context TEST-002/TEST-003 (Spec-AC-01): Invoke-NativeChecked behavioral contract[0m
+2026-10-08T02:04:46.1054512Z [32m   [+] TEST-002: stub writes stderr AND exits 0 -> returns without throwing[0m[90m 1.03s (1.03s|2ms)[0m
+2026-10-08T02:04:47.2953946Z [32m   [+] TEST-003: stub writes stderr AND exits non-zero -> throws and the message CONTAINS the stderr text[0m[90m 1.19s (1.19s|1ms)[0m
+2026-10-08T02:04:47.3071980Z [96m Context TEST-004 (Spec-AC-02): every cut-path native call is routed through the helper; probes untouched[0m
+2026-10-08T02:04:47.3203403Z [32m   [+] no bare git -C $Root push/add/commit/tag statement remains[0m[90m 12ms (10ms|2ms)[0m
+2026-10-08T02:04:47.3431020Z [32m   [+] no bare gh release create statement remains[0m[90m 19ms (19ms|1ms)[0m
+2026-10-08T02:04:47.3570607Z [32m   [+] git add/commit/tag are invoked through Invoke-NativeChecked[0m[90m 11ms (10ms|1ms)[0m
+2026-10-08T02:04:47.3722935Z [32m   [+] the display git rev-parse --short HEAD is invoked through Invoke-NativeChecked[0m[90m 12ms (8ms|4ms)[0m
+2026-10-08T02:04:47.3841419Z [32m   [+] every git push is invoked through Invoke-NativeChecked (target branch, fallback branch, tag)[0m[90m 9ms (8ms|1ms)[0m
+2026-10-08T02:04:47.3947380Z [32m   [+] gh release create is invoked through Invoke-NativeChecked[0m[90m 8ms (7ms|1ms)[0m
+2026-10-08T02:04:47.4062961Z [32m   [+] the tolerant probes (rev-parse -q --verify, gh auth status) keep their existing *> $null handling[0m[90m 9ms (8ms|1ms)[0m
+2026-10-08T02:04:47.4130823Z [96m Context TEST-006 (Spec-AC-03): dot-source guard â€” defines the helper WITHOUT running a release[0m
+2026-10-08T02:04:47.8554915Z [32m   [+] dot-sourcing in a child process defines Invoke-NativeChecked and does not exit early on release preconditions[0m[90m 441ms (439ms|2ms)[0m
+2026-10-08T02:04:47.8624870Z [96m Context TEST-007 (Spec-AC-03): -File -DryRun regression â€” the guard does not change normal execution[0m
+2026-10-08T02:04:47.9916982Z warning: in the working copy of 'CHANGELOG.md', LF will be replaced by CRLF the next time Git touches it
+2026-10-08T02:04:58.6764264Z [32m   [+] pwsh -File aai-release.ps1 -DryRun in a throwaway git fixture exits 0 and prints the plan header[0m[90m 10.81s (10.81s|2ms)[0m
+2026-10-08T02:04:58.6863567Z [0m
+2026-10-08T02:04:58.6871886Z [92mDescribing aai-reap-tests.ps1[0m
+2026-10-08T02:04:58.7014124Z [32m  [+] parses with no syntax errors[0m[90m 14ms (11ms|3ms)[0m
+2026-10-08T02:04:58.7050191Z [96m Context CHANGE-0134 TEST-007 (Spec-AC-03): reaper Test-WslUsable is a REAL functional probe, not a bare present-check[0m
+2026-10-08T02:04:58.7363584Z [32m   [+] wsl.exe present, ZERO installed distributions (probe exits 0 without the sentinel) -> NOT usable[0m[90m 29ms (27ms|2ms)[0m
+2026-10-08T02:04:58.7637197Z [32m   [+] wsl.exe present, real distro answers the exact sentinel exit code -> usable[0m[90m 23ms (23ms|1ms)[0m
+2026-10-08T02:04:58.7909439Z [32m   [+] wsl.exe present, distro answers a NON-sentinel exit code -> NOT usable[0m[90m 23ms (22ms|1ms)[0m
+2026-10-08T02:04:58.8396820Z [32m   [+] probe never completes within the watchdog -> NOT usable, probe process stopped exactly once[0m[90m 42ms (41ms|1ms)[0m
+2026-10-08T02:04:58.8468913Z [96m Context CHANGE-0134 TEST-008 (Spec-AC-03): structural pin -- reaper Start-WslProbeProcess redirects both streams and touches .Handle immediately[0m
+2026-10-08T02:04:58.8680843Z [32m   [+] Start-WslProbeProcess exists, redirects stdout+stderr to per-call temp files, and touches $proc.Handle on the very next statement[0m[90m 20ms (18ms|2ms)[0m
+2026-10-08T02:04:58.8785965Z [96m Context CHANGE-0134 TEST-009 (Spec-AC-03, SEAM-3): reaper and run-tests dispatchers agree on the sentinel value and probe argv[0m
+2026-10-08T02:04:58.8922912Z [32m   [+] both dispatchers' Test-WslUsable declare the identical sentinel integer literal[0m[90m 13ms (10ms|3ms)[0m
+2026-10-08T02:04:58.9122353Z [32m   [+] both dispatchers' Test-WslUsable pass an IDENTICAL probe argument list to Start-WslProbeProcess (compared to each other, not a hardcoded shape -- drift-proof: a future edit to ONE file's call site fails this even if it never touches the other)[0m[90m 16ms (16ms|1ms)[0m
+2026-10-08T02:04:58.9531023Z [32m   [+] reaper Resolve-Interpreter falls through to gitbash when the probe does not return the sentinel-clean result[0m[90m 36ms (31ms|5ms)[0m
+2026-10-08T02:04:58.9626054Z [96m Context TEST-006 (Spec-AC-04): mocked snapshot â€” other-workspace spared, young spared, old match killed as tree; prints reaped: N[0m
+2026-10-08T02:04:58.9955930Z [32m   [+] Get-ReapCandidates keeps only the aged in-workspace match[0m[90m 31ms (29ms|3ms)[0m
+2026-10-08T02:04:59.0533115Z [32m   [+] Invoke-ReapNative kills only the aged in-workspace match and prints reaped: N[0m[90m 54ms (53ms|1ms)[0m
+2026-10-08T02:04:59.0934879Z [32m   [+] never issues a global kill: an unmatched sibling and a fresh sibling both survive untouched[0m[90m 36ms (35ms|1ms)[0m
+2026-10-08T02:04:59.1170214Z [32m   [+] prints reaped: 0 and kills nothing when no candidate matches[0m[90m 19ms (18ms|1ms)[0m
+2026-10-08T02:04:59.1239529Z [96m Context StepStart (reaper-deterministic-age-guard, Spec-AC-05): contract parity with the .sh reaper's epoch mode[0m
+2026-10-08T02:04:59.1401893Z [32m   [+] Get-ReapCandidates -StepStart spares CreationDate >= StepStart-Grace and reaps older, ignoring MinAgeSeconds[0m[90m 15ms (13ms|2ms)[0m
+2026-10-08T02:04:59.1559716Z [32m   [+] Get-ReapCandidates without -StepStart stays byte-identical to the legacy MinAgeSeconds path[0m[90m 10ms (9ms|1ms)[0m
+2026-10-08T02:04:59.1943545Z [32m   [+] Invoke-ReapNative -StepStart reaps only the pre-step survivor[0m[90m 34ms (33ms|1ms)[0m
+2026-10-08T02:04:59.2634695Z [32m   [+] Get-StepStartFromEpoch: valid positive integer <= now returns the local DateTime[0m[90m 66ms (65ms|1ms)[0m
+2026-10-08T02:04:59.2897730Z [32m   [+] Get-StepStartFromEpoch: unset/empty/non-integer/negative/zero/future all fail safe to $null (never global)[0m[90m 23ms (22ms|1ms)[0m
+2026-10-08T02:04:59.3291891Z reaped: 1
+2026-10-08T02:04:59.3451567Z [32m   [+] Invoke-ReapDispatch fail-safe: an invalid AAI_REAP_STEP_START_EPOCH falls back to legacy AAI_REAP_MIN_AGE_SECS (never a global kill)[0m[90m 48ms (47ms|1ms)[0m
+2026-10-08T02:04:59.3623800Z [32m   [+] Get-ReapWslDelegationArgs forwards AAI_REAP_STEP_START_EPOCH/AAI_REAP_GRACE_SECS only when StepStartEpoch is supplied[0m[90m 14ms (13ms|1ms)[0m
+2026-10-08T02:04:59.3690451Z [96m Context NB-C: WSL-delegated reap forwards AAI_REAP_WORKSPACE/AAI_REAP_MIN_AGE_SECS and prints a single summary line[0m
+2026-10-08T02:04:59.3798830Z [32m   [+] Get-ReapWslDelegationArgs builds the correct wsl.exe delegation argv (env passthrough for BOTH overrides + script)[0m[90m 10ms (8ms|2ms)[0m
+2026-10-08T02:04:59.4071190Z reaped: 2
+2026-10-08T02:04:59.4273344Z [32m   [+] Invoke-ReapDispatch forwards the resolved workspace and min-age into the WSL delegation call[0m[90m 44ms (43ms|1ms)[0m
+2026-10-08T02:04:59.4647095Z [32m   [+] in WSL mode, the delegate summary is authoritative: the native pass never prints its own reaped: N line[0m[90m 34ms (33ms|1ms)[0m
+2026-10-08T02:04:59.5038226Z [32m   [+] in native-only mode (WSL unusable), the native pass IS the summary of record and prints exactly one line[0m[90m 35ms (34ms|1ms)[0m
+2026-10-08T02:04:59.5131650Z [0m
+2026-10-08T02:04:59.5139969Z [92mDescribing aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)[0m
+2026-10-08T02:04:59.5427588Z [32m  [+] parses with no syntax errors[0m[90m 28ms (25ms|3ms)[0m
+2026-10-08T02:04:59.5468164Z [96m Context CHANGE-0135 TEST-002 (Spec-AC-01): pure self-test report builder turns arm results into the documented shape[0m
+2026-10-08T02:04:59.5996322Z [32m   [+] produces one entry per arm, preserves status/exitCode/diag verbatim (including the AAI-TIMEOUT field), and marks failed when any arm is not PASS[0m[90m 51ms (49ms|2ms)[0m
+2026-10-08T02:04:59.6204212Z [32m   [+] reports failed=$false when every arm is PASS[0m[90m 18ms (17ms|1ms)[0m
+2026-10-08T02:04:59.6270178Z [96m Context CHANGE-0135 F2 (Spec-AC-01): Get-QuotedArgumentString quoting contract, and the load-bearing regression it prevents[0m
+2026-10-08T02:04:59.6471682Z [32m   [+] quotes every argument individually, preserving embedded spaces and escaping embedded double quotes[0m[90m 19ms (17ms|2ms)[0m
+2026-10-08T02:04:59.9356646Z [32m   [+] a spaced ArmTempDir still reaches the child engine intact (A/B pin: an unquoted raw ArgumentList array breaks this -- validator-observed quoted exitCode=3 vs raw exitCode=64)[0m[90m 285ms (284ms|1ms)[0m
+2026-10-08T02:04:59.9894381Z [96m Context CHANGE-0135 NB-1 (Code Review): interpolated paths escape an embedded apostrophe in all three arms[0m
+2026-10-08T02:05:00.2807283Z [32m   [+] Invoke-SelfTestArmSuccess writes a syntactically valid inner script[0m[90m 290ms (288ms|2ms)[0m
+2026-10-08T02:05:00.5559105Z [32m   [+] Invoke-SelfTestArmTimeout writes a syntactically valid inner script[0m[90m 272ms (271ms|1ms)[0m
+2026-10-08T02:05:00.8681706Z [32m   [+] Invoke-SelfTestArmSpawnFail writes a syntactically valid inner script[0m[90m 309ms (308ms|1ms)[0m
+2026-10-08T02:05:00.8865817Z [96m Context CHANGE-0135 F3 (Spec-AC-02): Get-AvailableEngines emits a real array even for exactly one engine[0m
+2026-10-08T02:05:01.1906522Z [32m   [+] returns a one-element array (not a pipeline-unwrapped scalar) when exactly one engine resolves, so CAT-15 counts it correctly[0m[90m 298ms (296ms|2ms)[0m
+2026-10-08T02:05:01.1973239Z [96m Context CHANGE-0135 TEST-006/TEST-007 (Spec-AC-02): environment collision report + WSL tri-state mapper[0m
+2026-10-08T02:05:01.2277254Z [32m   [+] names exactly one collision group (survivor Path, collapsed PATH) for a Path/PATH-colliding dictionary, and never mutates the real environment[0m[90m 29ms (27ms|2ms)[0m
+2026-10-08T02:05:01.2474776Z [32m   [+] names zero collision groups for a collision-free dictionary[0m[90m 17ms (16ms|1ms)[0m
+2026-10-08T02:05:01.2753829Z [32m   [+] Get-WslTriState returns absent when Test-WslPresent is false[0m[90m 24ms (23ms|1ms)[0m
+2026-10-08T02:05:01.3180397Z [32m   [+] Get-WslTriState returns present-no-distro when present but not usable[0m[90m 37ms (37ms|1ms)[0m
+2026-10-08T02:05:01.3578843Z [32m   [+] Get-WslTriState returns functional when present and usable[0m[90m 34ms (33ms|1ms)[0m
+2026-10-08T02:05:01.3650898Z [96m Context CHANGE-0135 TEST-004 (Spec-AC-01): host-adaptive end-to-end -- node aai-doctor.mjs --json over the real probe[0m
+2026-10-08T02:05:11.6372110Z CAT-14 detail: {"spawned":true,"arms":[{"name":"success","status":"PASS","exitCode":3,"diag":"AAI-BRANCH: Git Bash | AAI-TIMEOUT: 60s (source=env)","timedOut":false,"markerOk":true,"stdoutTail":"","stderrTail":"AAI-BRANCH: Git Bash | AAI-TIMEOUT: 60s (source=env)\r\nAAI-DEGRADED-MODE: running under Git-Bash/MSYS (MINGW64_NT-10.0-26100) - no POSIX process-group guarantee; using best-effort Windows tree-kill (taskkill //T) or plain kill; detached/reparented descendants are NOT guaranteed reaped (see docs/TECHNOLOGY.md platform matrix)."},{"name":"timeout","status":"PASS","exitCode":124,"diag":"AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)","timedOut":false,"stdoutTail":"","stderrTail":"MEOUT: 2s (source=env)\r\nAAI-DEGRADED-MODE: running under Git-Bash/MSYS (MINGW64_NT-10.0-26100) - no POSIX process-group guarantee; using best-effort Windows tree-kill (taskkill //T) or plain kill; detached/reparented descendants are NOT guaranteed reaped (see docs/TECHNOLOGY.md platform matrix).\naai-run-tests: TIMED OUT after 2s with no progress -- raise the ceiling with AAI_TEST_TIMEOUT=\u003cseconds\u003e"},{"name":"spawnfail","status":"PASS","exitCode":125,"diag":"AAI-SPAWN-ERROR: [Git Bash] This command cannot be run due to the error: This version of %1 is not compatible with the version of Windows you\u0027re running. Check your computer\u0027s system information and then contact the software publisher.","timedOut":false,"markerAbsent":true,"spawnErrorCount":1,"stdoutTail":"","stderrTail":"AAI-BRANCH: Git Bash | AAI-TIMEOUT: 30s (source=env)\r\nAAI-SPAWN-ERROR: [Git Bash] This command cannot be run due to the error: This version of %1 is not compatible with the version of Windows you\u0027re running. Check your computer\u0027s system information and then contact the software publisher."}],"failed":false,"reason":null}
+2026-10-08T02:05:11.6651194Z [32m   [+] CAT-14 spawns and all three arms are reported on Windows; CAT-14 is a named, non-spawning SKIP everywhere else[0m[90m 10.3s (10.29s|2ms)[0m
+2026-10-08T02:05:11.6927478Z [95m
+2026-10-08T02:05:11.6928537Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-worktree-seed.Tests.ps1'[0m
+2026-10-08T02:05:11.8827617Z Syncing AAI from: D:\a\aai\aai
+2026-10-08T02:05:11.8834089Z Target project:     C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source
+2026-10-08T02:05:11.8840369Z Profile:            core
+2026-10-08T02:05:11.9274969Z   PROFILE core: filtered .aai copy per .aai/system/PROFILES.yaml
+2026-10-08T02:05:12.5389633Z   PRESERVE target-only skills under: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.claude\skills
+2026-10-08T02:05:12.5497958Z   SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md
+2026-10-08T02:05:12.5522607Z   SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml
+2026-10-08T02:05:12.5549180Z   SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)
+2026-10-08T02:05:12.5559489Z   PRESERVE docs/ai/ runtime data (STATE.yaml, LOOP_TICKS.jsonl, METRICS.jsonl, EVENTS.jsonl, decisions.jsonl, reports/)
+2026-10-08T02:05:12.6510344Z   PRESERVE local Codex dynamic index: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.codex\skills.local
+2026-10-08T02:05:12.7331978Z   PRESERVE local Gemini dynamic index: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.gemini\skills.local
+2026-10-08T02:05:12.8507320Z   PRESERVE target-only skills under: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.agents\skills
+2026-10-08T02:05:12.8530718Z   SYNC .claude-plugin/plugin.json
+2026-10-08T02:05:12.9527488Z   MERGE hooks/hooks.json: 1 hook(s) added, 0 updated, 0 already present, 0 left as-is -> hooks\hooks.json
+2026-10-08T02:05:13.0084950Z   MERGE hooks/hooks.windows.json: 1 hook(s) added, 0 updated, 0 already present, 0 left as-is -> hooks\hooks.windows.json
+2026-10-08T02:05:13.0168212Z   SYNC hooks/
+2026-10-08T02:05:13.0190968Z   SYNC .cursor/rules/aai.mdc
+2026-10-08T02:05:13.0224558Z   Added .aai/ to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.gitignore
+2026-10-08T02:05:13.0245425Z   Added .cloudflare-publish* to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.gitignore
+2026-10-08T02:05:13.0256759Z   Added .wrangler/ to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.gitignore
+2026-10-08T02:05:13.0274314Z   Added .aai/cache/ to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.gitignore
+2026-10-08T02:05:13.0293993Z   Added docs/ai/reports runtime ignore rules to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.gitignore
+2026-10-08T02:05:13.0316201Z   Added agent skill sync patterns to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.gitignore
+2026-10-08T02:05:13.0336691Z   Added AAI per-dev runtime state patterns to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.gitignore
+2026-10-08T02:05:13.0342521Z   NOTE: If docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl is still tracked,
+2026-10-08T02:05:13.0348702Z         run pwsh .aai/scripts/migrate-state-to-local.ps1 in the target project.
+2026-10-08T02:05:13.0428116Z   Added 24 AAI runtime-sidecar pattern(s) to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\.gitignore
+2026-10-08T02:05:13.0596409Z   Advisory report: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source\docs\ai\reports\sync-conflicts-20261008-020513.md
+2026-10-08T02:05:13.1138686Z Sync complete. Review changes in C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source :
+2026-10-08T02:05:13.1145862Z   cd C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\installed source; git status; git diff
+2026-10-08T02:05:13.1358859Z warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+2026-10-08T02:05:13.3595013Z [92mDescribing worktree seed PowerShell parity[0m
+2026-10-08T02:05:13.6413902Z WORKTREE-SEED-REFUSED DESTINATION_TYPE: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\linked target\.aai\AGENTS.md
+2026-10-08T02:05:13.6585881Z [32m  [+] TEST-008 stops before initialization or success after seed refusal[0m[90m 298ms (294ms|4ms)[0m
+2026-10-08T02:05:23.3437354Z [32m  [+] TEST-008 seeds spaced paths, runs initializer, and creates no links[0m[90m 9.68s (9.68s|3ms)[0m
+2026-10-08T02:05:23.6387797Z WORKTREE-SEED-REFUSED DESTINATION_CONFLICT: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 85773466c6314f2aa68529228f65edd3\linked target\.aai\system\AAI_PIN.md
+2026-10-08T02:05:23.6528793Z [32m  [+] TEST-008 refuses a conflict and does not alter existing installed bytes[0m[90m 306ms (305ms|1ms)[0m
+2026-10-08T02:05:23.7130338Z [32m  [+] TEST-011 resolves the source repository root from a subdirectory[0m[90m 57ms (56ms|1ms)[0m
+2026-10-08T02:05:24.6148872Z [97mTests completed in 199.3s[0m
+2026-10-08T02:05:24.6318028Z [32mTests Passed: 153, [0m[90mFailed: 0, [0m[93mSkipped: 4, [0m[90mInconclusive: 0, [0m[37m[0m[90mNotRun: 0[0m
+2026-10-08T02:05:24.9482870Z AAI-PESTER-ELAPSED: powershell 202.25s
+2026-10-08T02:05:24.9503609Z AAI-WIN-SKIP: aai-update.ps1.SEAM-1 integration (ISSUE-0012 / SPEC-0052 â€” real clone parity).TEST-009: file:// fixture clone with -KeepTemp lands at $Tmp/src; $Tmp retained (skips if git unavailable) (PosixOnly: redirects the temp base through $env:TMPDIR, which [System.IO.Path]::GetTempPath() ignores on Windows, and builds a file://C:\...  URL from a backslash path)
+2026-10-08T02:05:24.9508905Z AAI-WIN-SKIP: aai-run-tests.ps1.TEST-004 (Spec-AC-02): real invocation on THIS host (no WSL, no Windows Git Bash) -> exit 78 + exactly one AAI-ENV-ERROR line.exits 78 with exactly one stderr line matching ^AAI-ENV-ERROR: naming both probed options (PosixOnly: windows-latest always has a real Git Bash, so the dispatcher resolves it and runs the command instead of erroring)
+2026-10-08T02:05:24.9517016Z AAI-WIN-SKIP: aai-run-tests.ps1.CHANGE-0133 TEST-003 (Spec-AC-02, SEAM-1): real dual-casing environment -- CONTROL throws, TREATMENT does not, one Path survives with both directories.child pwsh: CONTROL arm (OrdinalIgnoreCase dictionary over the live dup env) THROWS; TREATMENT arm (after Set-CanonicalProcessEnvironment) does NOT throw, exactly one PATH casing remains, value holds both original directories (PosixOnly: the Win32 environment block is case-insensitive, so the CONTROL arm cannot be constructed in-process on Windows -- SPEC-0120 RR-1)
+2026-10-08T02:05:24.9523644Z AAI-WIN-SKIP: aai-run-tests.ps1.CR-1 (review 20260812T133652Z): survivor re-write must be decided against POST-removal state, not the pre-removal snapshot.H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process â€” RED/GREEN probe for the smoke's "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom (PosixOnly: same Win32 case-insensitive-environment limitation as CHANGE-0133 TEST-003, PLUS the fixture overwrites PATH with a nonexistent directory, which on Windows breaks the Start-Process -FilePath 'pwsh' resolution this assertion depends on)
+2026-10-08T02:05:24.9616496Z PESTER OK (Windows PowerShell 5.1): 153 passed, 4 skipped, 0 failed, 202.25s
+2026-10-08T02:05:25.0040518Z ##[group]Run $ErrorActionPreference = "Stop"
+2026-10-08T02:05:25.0041012Z [36;1m$ErrorActionPreference = "Stop"[0m
+2026-10-08T02:05:25.0041341Z [36;1mImport-Module Pester -MinimumVersion 5.0[0m
+2026-10-08T02:05:25.0041861Z [36;1m$ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version[0m
+2026-10-08T02:05:25.0042422Z [36;1mif ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under pwsh 7"; exit 1 }[0m
+2026-10-08T02:05:25.0042854Z [36;1mWrite-Host "AAI-PESTER-VERSION: pwsh $ver"[0m
+2026-10-08T02:05:25.0043170Z [36;1m$cfg = New-PesterConfiguration[0m
+2026-10-08T02:05:25.0043470Z [36;1m$cfg.Run.Path = 'tests/skills'[0m
+2026-10-08T02:05:25.0043743Z [36;1m$cfg.Run.PassThru = $true[0m
+2026-10-08T02:05:25.0044009Z [36;1m$cfg.Output.Verbosity = 'Detailed'[0m
+2026-10-08T02:05:25.0044323Z [36;1m$sw = [System.Diagnostics.Stopwatch]::StartNew()[0m
+2026-10-08T02:05:25.0044732Z [36;1m$result = Invoke-Pester -Configuration $cfg[0m
+2026-10-08T02:05:25.0045012Z [36;1m$sw.Stop()[0m
+2026-10-08T02:05:25.0045286Z [36;1m$elapsed = [Math]::Round($sw.Elapsed.TotalSeconds, 2)[0m
+2026-10-08T02:05:25.0045657Z [36;1mWrite-Host "AAI-PESTER-ELAPSED: pwsh ${elapsed}s"[0m
+2026-10-08T02:05:25.0046153Z [36;1m$skipLines = 0[0m
+2026-10-08T02:05:25.0046405Z [36;1mforeach ($s in $result.Skipped) {[0m
+2026-10-08T02:05:25.0046734Z [36;1m  Write-Host "AAI-WIN-SKIP: $($s.ExpandedPath)"[0m
+2026-10-08T02:05:25.0047020Z [36;1m  $skipLines++[0m
+2026-10-08T02:05:25.0047239Z [36;1m}[0m
+2026-10-08T02:05:25.0047481Z [36;1m$expected = [int]$env:AAI_EXPECTED_WIN_SKIP_COUNT[0m
+2026-10-08T02:05:25.0047771Z [36;1m$fail = 0[0m
+2026-10-08T02:05:25.0048154Z [36;1mif ($result.FailedCount -gt 0) { Write-Host "FAIL: FailedCount=$($result.FailedCount)"; $fail++ }[0m
+2026-10-08T02:05:25.0049012Z [36;1mif ($result.FailedContainersCount -gt 0) { Write-Host "FAIL: FailedContainersCount=$($result.FailedContainersCount) (a .Tests.ps1 failed Pester DISCOVERY -- a parse/syntax error under this engine)"; $fail++ }[0m
+2026-10-08T02:05:25.0050410Z [36;1mif ($result.TotalCount -lt 111) { Write-Host "FAIL: TotalCount=$($result.TotalCount) is below the declared floor of 111 (symmetric with the POSIX gate's TEST-005 floor; catches a vacuous discovery)"; $fail++ }[0m
+2026-10-08T02:05:25.0051211Z [36;1mif ($elapsed -gt 600) { Write-Host "FAIL: elapsed ${elapsed}s exceeds the 600s ceiling"; $fail++ }[0m
+2026-10-08T02:05:25.0051898Z [36;1mif ($skipLines -ne $result.SkippedCount) { Write-Host "FAIL: AAI-WIN-SKIP line count ($skipLines) != Pester SkippedCount ($($result.SkippedCount))"; $fail++ }[0m
+2026-10-08T02:05:25.0052693Z [36;1mif ($result.SkippedCount -ne $expected) { Write-Host "FAIL: SkippedCount ($($result.SkippedCount)) != declared expected ($expected)"; $fail++ }[0m
+2026-10-08T02:05:25.0053397Z [36;1m$seedCases = @($result.Tests | Where-Object { $_.ExpandedPath -like 'worktree seed PowerShell parity.TEST-008*' })[0m
+2026-10-08T02:05:25.0054016Z [36;1mif ($seedCases.Count -ne 3 -or @($seedCases | Where-Object { $_.Result -ne 'Passed' }).Count -ne 0) {[0m
+2026-10-08T02:05:25.0054627Z [36;1m  Write-Host "FAIL: TEST-008 worktree seed must pass all 3 cases under pwsh 7 on Windows (found $($seedCases.Count))"; $fail++[0m
+2026-10-08T02:05:25.0055072Z [36;1m}[0m
+2026-10-08T02:05:25.0055399Z [36;1mif ($fail -gt 0) { Write-Error "Pester gate failed under pwsh 7 ($fail check(s))"; exit 1 }[0m
+2026-10-08T02:05:25.0056005Z [36;1mWrite-Host "PESTER OK (pwsh 7): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"[0m
+2026-10-08T02:05:25.0118766Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-08T02:05:25.0119113Z env:
+2026-10-08T02:05:25.0119336Z   AAI_EXPECTED_WIN_SKIP_COUNT: 4
+2026-10-08T02:05:25.0119582Z ##[endgroup]
+2026-10-08T02:05:25.7545735Z AAI-PESTER-VERSION: pwsh 5.9.0
+2026-10-08T02:05:25.9459910Z [95mPester v5.9.0[0m
+2026-10-08T02:05:25.9598297Z [95m
+2026-10-08T02:05:25.9604516Z [95mStarting discovery in 5 files.[0m
+2026-10-08T02:05:26.3354573Z [95mDiscovery found 157 tests in 349ms.[0m
+2026-10-08T02:05:26.3478585Z [95mRunning tests.[0m
+2026-10-08T02:05:26.3666573Z [95m
+2026-10-08T02:05:26.3667320Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-pr-preflight.Tests.ps1'[0m
+2026-10-08T02:05:26.8977896Z [92mDescribing PR readiness process boundary[0m
+2026-10-08T02:05:26.9685001Z INFO: TEST008_CAPTURE_RESULT {"Preference":"Stop","ExitCode":7,"Output":"{\"clone_diagnostic\":\"full-boundary\"}\ngenuine-native-failure"}
+2026-10-08T02:05:27.0205368Z INFO: TEST008_NATIVE_CAPTURE diagnostic_visible=true nonzero_preserved=true preference_restored=true
+2026-10-08T02:05:27.0485675Z [32m  [+] prints captured JSON and preserves nonzero native status under Stop[0m[90m 148ms (119ms|28ms)[0m
+2026-10-08T02:06:08.5327061Z INFO: TEST-001 direct_symlink_exit_output_equal=true
+2026-10-08T02:06:08.5334139Z INFO: TEST-001 {"result":{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"9629a3d0410efb06abb21e8ff08364cf71bd99af","outcome":"read_verified","code":"READ_VERIFIED","operation":"azure.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"calls":[{"name":"az","args":["--version"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}},{"name":"az","args":["extension","show","--name","azure-devops","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}},{"name":"az","args":["repos","show","--organization","https://dev.azure.com/Org","--project","Project 雪","--repository","Repo Name","--detect","false","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}}]}
+2026-10-08T02:06:08.5338276Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5339332Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e67697420","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974200a"}
+2026-10-08T02:06:08.5340364Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5341427Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e67697409","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974090a"}
+2026-10-08T02:06:08.5342459Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"0d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5343756Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d0a"}
+2026-10-08T02:06:08.5344778Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a0a"}
+2026-10-08T02:06:08.5346495Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"0a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5347924Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5349655Z INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5351044Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5352093Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e67697420","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974200a"}
+2026-10-08T02:06:08.5353630Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5354702Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e67697409","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974090a"}
+2026-10-08T02:06:08.5355745Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"0d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5356796Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d0a"}
+2026-10-08T02:06:08.5357867Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a0a"}
+2026-10-08T02:06:08.5358909Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"0a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5360306Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5362059Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
+2026-10-08T02:06:08.5363815Z INFO: TEST001_EMPTY {"git_version":"git version 2.55.0.windows.5","configured_order":["https://github.com/Org/Repo.git",""],"effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a","expected":"READ_VERIFIED","provider_calls":3}
+2026-10-08T02:06:08.5365280Z INFO: TEST001_EMPTY {"git_version":"git version 2.55.0.windows.5","configured_order":["","https://github.com/Org/Repo.git"],"effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a","expected":"READ_VERIFIED","provider_calls":3}
+2026-10-08T02:06:08.5366086Z INFO: TEST001_BLANK deterministic_blank_first_last_only_refused=true provider_calls=0
+2026-10-08T02:06:08.5366812Z INFO: TEST001_ENDPOINT {"endpoint":"pushurl","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740d0a"}
+2026-10-08T02:06:08.5367633Z INFO: TEST-001 pushurl_divergent_multiple_rewrite_refused=true ordinary_single_positive=true
+2026-10-08T02:06:08.5367984Z PASS: TEST-001 pr-capability-preflight
+2026-10-08T02:06:15.9362589Z INFO: TEST-002 {"result":{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"543a2b7859b8ecab980ac0cd0d7bf0f4e5ec5949","outcome":"read_verified","code":"READ_VERIFIED","operation":"azure.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"calls":[{"name":"az","args":["--version"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}},{"name":"az","args":["extension","show","--name","azure-devops","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}},{"name":"az","args":["repos","show","--organization","https://dev.azure.com/Org","--project","Project 雪","--repository","Repo Name","--detect","false","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1","AZ_INSTALLER":"MSI"}}]}
+2026-10-08T02:06:15.9366344Z INFO: TEST-002 split_utf8_read_verified=true split_fixture_reached=true
+2026-10-08T02:06:15.9366652Z PASS: TEST-002 pr-capability-preflight
+2026-10-08T02:06:22.4437939Z PASS: TEST-003 pr-capability-preflight
+2026-10-08T02:06:25.0714950Z INFO: TEST-004 elapsed_ms=1844 child_alive=false later_probes=0
+2026-10-08T02:06:25.0715534Z PASS: TEST-004 pr-capability-preflight
+2026-10-08T02:06:27.4740854Z PASS: TEST-005 pr-capability-preflight
+2026-10-08T02:06:35.1147788Z INFO: TEST-006 alternate_read_verified=true null_bypasses_origin=true ceremony_origin_refused=true
+2026-10-08T02:06:35.1148480Z PASS: TEST-006 pr-capability-preflight
+2026-10-08T02:07:03.8103306Z INFO: CLI_BOUND {"test":"007","sequence":1,"mode":"ok","timeout_ms":105000,"elapsed_ms":5930,"error_code":null,"signal":null,"git_probes":7,"provider_steps":["gh.--version","gh.auth","gh.repo"],"stdout_bytes":467}
+2026-10-08T02:07:03.8104028Z INFO: TEST-007 bounded_identity_delay_ms=5931 read_verified=true
+2026-10-08T02:07:03.8104417Z INFO: TEST007_SSH443 canonical_host=github.com exact_repository=true providers=3
+2026-10-08T02:07:03.8104839Z PASS: TEST-007 pr-capability-preflight
+2026-10-08T02:07:43.8405926Z INFO: TEST008_CLONE {"clone_timeout_ms":30000,"output_cap_bytes":65536,"source_head":{"status":0,"signal":null,"error":null,"stdout":"672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4\n","stderr":""},"core_longpaths":{"status":1,"signal":null,"error":null,"stdout":"","stderr":""},"tree_status":0,"longest_relative_path":"docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.patch","longest_relative_chars":136,"deep":{"destination":"C:\\Users\\runneradmin\\AppData\\Local\\Temp\\aai-pr-preflight-2add2482-26fe-4154-95eb-55ebcb72985c\\fixture-zluSjy\\note-shallow","max_checkout_path_chars":258,"status":0,"signal":null,"error":null,"stdout":"","stderr":"Note: switching to '672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4'.\n\nYou are in 'detached HEAD' state. You can look around, make experimental\nchanges and commit them, and you can discard any commits you make in this\nstate without impacting any branches by switching back to a branch.\n\nIf you want to create a new branch to retain commits you create, you may\ndo so (now or later) by using -c with the switch command. Example:\n\n  git switch -c <new-branch-name>\n\nOr undo this operation with:\n\n  git switch -\n\nTurn off this advice by setting config variable advice.detachedHead to false\n\n","head":{"status":0,"signal":null,"error":null,"stdout":"672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4\n","stderr":""},"shallow":{"status":0,"signal":null,"error":null,"stdout":"true\n","stderr":""}},"short":{"destination":"C:\\Users\\runneradmin\\AppData\\Local\\Temp\\aai-pr-preflight-2add2482-26fe-4154-95eb-55ebcb72985c\\s-zluSjy","max_checkout_path_chars":239,"status":0,"signal":null,"error":null,"stdout":"","stderr":"Note: switching to '672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4'.\n\nYou are in 'detached HEAD' state. You can look around, make experimental\nchanges and commit them, and you can discard any commits you make in this\nstate without impacting any branches by switching back to a branch.\n\nIf you want to create a new branch to retain commits you create, you may\ndo so (now or later) by using -c with the switch command. Example:\n\n  git switch -c <new-branch-name>\n\nOr undo this operation with:\n\n  git switch -\n\nTurn off this advice by setting config variable advice.detachedHead to false\n\n","head":{"status":0,"signal":null,"error":null,"stdout":"672ad0c903ee5707e1d4bc2a4b4ea83c86b52ee4\n","stderr":""},"shallow":{"status":0,"signal":null,"error":null,"stdout":"true\n","stderr":""}}}
+2026-10-08T02:07:43.8412708Z INFO: TEST-008 benign_note_captured=true genuine_clone_failure_throws=true note_control_shallow=true
+2026-10-08T02:07:43.8413271Z INFO: TEST008_REPLAY {"timeout_ms":100000,"elapsed_ms":11042,"status":0,"signal":null,"error":null,"stdout_bytes":38,"stderr_bytes":0}
+2026-10-08T02:07:43.8413892Z INFO: TEST008_REPLAY {"timeout_ms":100000,"elapsed_ms":42,"status":0,"signal":null,"error":null,"stdout_bytes":0,"stderr_bytes":0}
+2026-10-08T02:07:43.8414716Z INFO: TEST008_REPLAY {"timeout_ms":1000,"elapsed_ms":1005,"status":null,"signal":"SIGTERM","error":{"code":"ETIMEDOUT","message":"spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"},"stdout_bytes":13,"stderr_bytes":0}
+2026-10-08T02:07:43.8415473Z INFO: TEST008_REPLAY_CONTROLS delayed_success=true immediate_success=true bounded_hang_refused=true
+2026-10-08T02:07:43.8416028Z INFO: TEST008_REPLAY {"timeout_ms":100000,"elapsed_ms":11299,"status":0,"signal":null,"error":null,"stdout_bytes":2676,"stderr_bytes":0}
+2026-10-08T02:07:43.8416530Z INFO: TEST-008 shallow=true baseline_object_absent=true LF_CRLF_bytes_equal=true
+2026-10-08T02:07:43.8416850Z PASS: TEST-008 pr-capability-preflight
+2026-10-08T02:07:43.8506780Z [32m  [+] runs the eight provider/identity/refusal/timeout matrix arms[0m[90m 136.79s (136.79s|1ms)[0m
+2026-10-08T02:07:44.1139543Z [95m
+2026-10-08T02:07:44.1141259Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-release.Tests.ps1'[0m
+2026-10-08T02:07:44.1578835Z [92mDescribing aai-release.ps1 protected-branch classifier[0m
+2026-10-08T02:07:44.1766555Z [32m  [+] parses with no syntax errors[0m[90m 18ms (16ms|2ms)[0m
+2026-10-08T02:07:44.1839638Z [32m  [+] dot-sourcing defines Test-ProtectedBranchRejection without cutting a release[0m[90m 6ms (5ms|1ms)[0m
+2026-10-08T02:07:44.1934939Z [32m  [+] accepts GitHub's GH006 protected-branch rejection text[0m[90m 8ms (7ms|1ms)[0m
+2026-10-08T02:07:44.1968006Z [32m  [+] accepts the GH006 token regardless of case[0m[90m 2ms (1ms|1ms)[0m
+2026-10-08T02:07:44.2247669Z [32m  [+] accepts host-agnostic "protected branch" + "status check" wording, case-insensitively[0m[90m 26ms (1ms|25ms)[0m
+2026-10-08T02:07:44.2296746Z [32m  [+] rejects a non-fast-forward rejection (must degrade to git's own exit code)[0m[90m 3ms (3ms|0ms)[0m
+2026-10-08T02:07:44.2325215Z [32m  [+] rejects an auth failure[0m[90m 1ms (1ms|0ms)[0m
+2026-10-08T02:07:44.2358246Z [32m  [+] rejects "protected branch" wording with no status-check clause[0m[90m 1ms (1ms|0ms)[0m
+2026-10-08T02:07:44.2435787Z [32m  [+] rejects empty text[0m[90m 1ms (1ms|0ms)[0m
+2026-10-08T02:07:44.2970208Z [95m
+2026-10-08T02:07:44.2971427Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-update.Tests.ps1'[0m
+2026-10-08T02:07:44.3256507Z [92mDescribing aai-update.ps1[0m
+2026-10-08T02:07:44.3306699Z [32m  [+] parses with no syntax errors[0m[90m 5ms (3ms|1ms)[0m
+2026-10-08T02:07:44.3349118Z [96m Context canonical-repo guard[0m
+2026-10-08T02:07:44.8332701Z [32m   [+] refuses (exit 2) when run inside the canonical AAI repo without -Force[0m[90m 500ms (496ms|3ms)[0m
+2026-10-08T02:07:44.8370958Z [96m Context dry-run output (the previously fragile "Would run" line)[0m
+2026-10-08T02:07:45.4111933Z [32m   [+] native -Force -DryRun prints the Would-run line and exits 0[0m[90m 567ms (566ms|1ms)[0m
+2026-10-08T02:07:46.0215949Z [32m   [+] bash-style --force --dry-run works identically (flag parity)[0m[90m 609ms (608ms|1ms)[0m
+2026-10-08T02:07:46.0249747Z [96m Context bash long-flag values[0m
+2026-10-08T02:07:46.5621558Z [32m   [+] accepts --repo=OWNER/NAME and --ref BRANCH (= and space forms)[0m[90m 536ms (535ms|1ms)[0m
+2026-10-08T02:07:46.5657073Z [96m Context robustness[0m
+2026-10-08T02:07:47.2461135Z [32m   [+] warns but does not crash on an unrecognized argument[0m[90m 679ms (678ms|1ms)[0m
+2026-10-08T02:07:47.2513231Z [96m Context temp-dir lifecycle (ISSUE-0012 / SPEC-0052 — retain $Tmp, clone into $SrcDir)[0m
+2026-10-08T02:07:47.2599286Z [32m   [+] TEST-006: clone target is $SrcDir (=$Tmp/src) in all three attempts, never bare $Tmp; $Tmp created once as a directory[0m[90m 8ms (7ms|1ms)[0m
+2026-10-08T02:07:47.2628610Z [32m   [+] TEST-007: no Remove-Item ... $Tmp in the attempt cascade; per-attempt wipe targets $SrcDir; only finally removes $Tmp[0m[90m 1ms (1ms|0ms)[0m
+2026-10-08T02:07:47.2661313Z [96m Context SEAM-1 integration (ISSUE-0012 / SPEC-0052 — real clone parity)[0m
+2026-10-08T02:07:47.2702526Z [93m   [!] TEST-009: file:// fixture clone with -KeepTemp lands at $Tmp/src; $Tmp retained (skips if git unavailable) (PosixOnly: redirects the temp base through $env:TMPDIR, which [System.IO.Path]::GetTempPath() ignores on Windows, and builds a file://C:\...  URL from a backslash path)[0m[90m 2ms (0ms|2ms)[0m
+2026-10-08T02:07:47.3131719Z [95m
+2026-10-08T02:07:47.3132902Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-win-dispatch.Tests.ps1'[0m
+2026-10-08T02:07:47.4048049Z [92mDescribing aai-run-tests.ps1[0m
+2026-10-08T02:07:47.4231090Z [32m  [+] parses with no syntax errors[0m[90m 18ms (16ms|1ms)[0m
+2026-10-08T02:07:47.4250062Z [96m Context CHANGE-0134 TEST-003 (Spec-AC-02): Test-IsWindowsHostFor never silently fails to skip on Windows PowerShell 5.1, never over-skips on POSIX[0m
+2026-10-08T02:07:47.7680306Z [32m   [+] edition Desktop, IsWindowsFlag $null -> True[0m[90m 342ms (339ms|3ms)[0m
+2026-10-08T02:07:48.0552040Z [32m   [+] edition Core, IsWindowsFlag $true -> True[0m[90m 285ms (285ms|1ms)[0m
+2026-10-08T02:07:48.3441710Z [32m   [+] edition Core, IsWindowsFlag $false -> False[0m[90m 287ms (287ms|0ms)[0m
+2026-10-08T02:07:48.6431619Z [32m   [+] edition Desktop, IsWindowsFlag $false -> True[0m[90m 297ms (297ms|1ms)[0m
+2026-10-08T02:07:48.6471150Z [96m Context TEST-001 (Spec-AC-01): usable WSL -> WSL branch selected, delegation argv correct[0m
+2026-10-08T02:07:48.7997518Z [32m   [+] Resolve-Interpreter returns wsl when the WSL probe succeeds[0m[90m 145ms (144ms|1ms)[0m
+2026-10-08T02:07:48.8152745Z [32m   [+] builds the correct wsl.exe delegation argv (env passthrough + script + command)[0m[90m 14ms (13ms|1ms)[0m
+2026-10-08T02:07:48.8732544Z AAI-BRANCH: WSL | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:07:48.9495901Z [32m   [+] Invoke-Dispatch calls the WSL launch path with the resolved argv when WSL is usable[0m[90m 132ms (132ms|0ms)[0m
+2026-10-08T02:07:48.9538222Z [96m Context TEST-002 (Spec-AC-01): WSL absent/unusable + Git Bash candidates -> first-hit-wins, shim excluded[0m
+2026-10-08T02:07:49.0125683Z [32m   [+] Find-GitBash skips a WSL System32 shim and a non-existent candidate, returning the first REAL hit[0m[90m 58ms (57ms|1ms)[0m
+2026-10-08T02:07:49.0499495Z [32m   [+] Resolve-Interpreter falls through to gitbash when WSL is unusable[0m[90m 25ms (24ms|0ms)[0m
+2026-10-08T02:07:49.1035505Z [32m   [+] wsl.exe present but no usable distro falls through to Git Bash, never hangs/errors raw[0m[90m 51ms (50ms|1ms)[0m
+2026-10-08T02:07:49.1072142Z [96m Context TEST-010 (field fix, PR #247 run 31603532721): Test-WslUsable is a REAL functional probe, not a bare present-check[0m
+2026-10-08T02:07:49.1445580Z [32m   [+] wsl.exe present, ZERO installed distributions (stub prints the message and exits 0) -> NOT usable[0m[90m 36ms (35ms|1ms)[0m
+2026-10-08T02:07:49.1982063Z [32m   [+] wsl.exe present, real distro answers the sentinel exit code -> usable[0m[90m 23ms (23ms|0ms)[0m
+2026-10-08T02:07:49.2786949Z [32m   [+] wsl.exe present, distro answers a NON-sentinel exit code -> NOT usable[0m[90m 52ms (52ms|1ms)[0m
+2026-10-08T02:07:49.3021553Z [32m   [+] wsl.exe absent -> NOT usable, probe process never spawned[0m[90m 21ms (20ms|1ms)[0m
+2026-10-08T02:07:49.3509000Z [32m   [+] probe hangs past the watchdog -> NOT usable, hung probe process killed (never stalls the caller)[0m[90m 46ms (46ms|0ms)[0m
+2026-10-08T02:07:49.3663209Z [32m   [+] CHANGE-0136 field fix (PR #251 run 31683376326): ConvertTo-WslPath execs wslpath via -e, never through the login shell[0m[90m 14ms (13ms|1ms)[0m
+2026-10-08T02:07:49.4196628Z [32m   [+] CHANGE-0136 field fix (PR #251 run 31682243993): probe quoting is SELECTIVE — bare -e survives unquoted, the spaced sentinel stays quoted[0m[90m 52ms (51ms|1ms)[0m
+2026-10-08T02:07:49.4437941Z [32m   [+] probe runs the sentinel command THROUGH a distro (-e sh -c), never a bare presence check[0m[90m 22ms (22ms|0ms)[0m
+2026-10-08T02:07:49.4574565Z [32m   [+] H1 (field defect, PR #247 run 31606986703): Start-WslProbeProcess redirects BOTH stdout and stderr, never inherits the caller's streams[0m[90m 12ms (12ms|0ms)[0m
+2026-10-08T02:07:49.4610339Z [96m Context TEST-003 (Spec-AC-01): all probes negative -> error branch, never a partial launch[0m
+2026-10-08T02:07:49.5183896Z [32m   [+] Resolve-Interpreter returns error when neither WSL nor Git Bash is usable[0m[90m 17ms (16ms|1ms)[0m
+2026-10-08T02:07:49.5829658Z [32m   [+] Invoke-Dispatch never invokes a launch primitive on the error path[0m[90m 62ms (61ms|1ms)[0m
+2026-10-08T02:07:49.5869092Z [96m Context TEST-004 (Spec-AC-02): real invocation on THIS host (no WSL, no Windows Git Bash) -> exit 78 + exactly one AAI-ENV-ERROR line[0m
+2026-10-08T02:07:49.5887289Z [93m   [!] exits 78 with exactly one stderr line matching ^AAI-ENV-ERROR: naming both probed options (PosixOnly: windows-latest always has a real Git Bash, so the dispatcher resolves it and runs the command instead of erroring)[0m[90m 1ms (0ms|1ms)[0m
+2026-10-08T02:07:49.9557097Z [32m   [+] usage error (no command given) is distinct from the env error and never exit 78[0m[90m 365ms (365ms|0ms)[0m
+2026-10-08T02:07:49.9593410Z [96m Context TEST-005 (Spec-AC-03): Git-Bash run contract — passthrough, exit fidelity, timeout->124 + tree-kill[0m
+2026-10-08T02:07:49.9744074Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): bogus -> 3000[0m[90m 15ms (13ms|2ms)[0m
+2026-10-08T02:07:49.9907174Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): 0 -> 3000[0m[90m 15ms (14ms|0ms)[0m
+2026-10-08T02:07:50.0010904Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): -5 -> 3000[0m[90m 9ms (9ms|0ms)[0m
+2026-10-08T02:07:50.0106298Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default):  -> 3000[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:50.0215640Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default):  -> 3000[0m[90m 10ms (9ms|1ms)[0m
+2026-10-08T02:07:50.0320274Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): 45 -> 45[0m[90m 9ms (9ms|0ms)[0m
+2026-10-08T02:07:50.0413759Z [32m   [+] AAI_TEST_TIMEOUT coercion parity (matches the .sh default): 99999999999 -> 3000[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:50.0742639Z [32m   [+] passes the wrapper script path, command args, and AAI_TEST_TIMEOUT to the launched process[0m[90m 31ms (31ms|0ms)[0m
+2026-10-08T02:07:50.0945326Z [32m   [+] translates a Windows project Python path to Git Bash and leaves the wrapper script path unchanged[0m[90m 19ms (18ms|0ms)[0m
+2026-10-08T02:07:50.1122228Z [32m   [+] NB-A: outer Git-Bash watchdog deadline = AAI_TEST_TIMEOUT + grace (never races the inner .sh reap-grace sleep)[0m[90m 16ms (16ms|0ms)[0m
+2026-10-08T02:07:50.1284959Z [32m   [+] propagates the real (non-zero) child exit code on normal completion[0m[90m 15ms (14ms|0ms)[0m
+2026-10-08T02:07:50.1602743Z [32m   [+] on timeout, kills the launched process TREE (taskkill /T /F semantics) and exits 124[0m[90m 30ms (30ms|0ms)[0m
+2026-10-08T02:07:50.1633168Z [96m Context CHANGE-0133 TEST-001 (Spec-AC-01): PATH collision group collapses to one literal Path key, ordinal-ordered union, dedup[0m
+2026-10-08T02:07:50.1961725Z [32m   [+] Path + PATH + path -> exactly one key "Path", ordinal-key-ordered union with duplicate segments dropped; OrdinalIgnoreCase dictionary build does not throw[0m[90m 32ms (31ms|1ms)[0m
+2026-10-08T02:07:50.1991560Z [96m Context CHANGE-0133 TEST-002 (Spec-AC-01): non-PATH group -> ordinal-first key+value only, no-op on clean input, idempotent[0m
+2026-10-08T02:07:50.2107412Z [32m   [+] Temp/TEMP collapses to the ordinal-first key with that key's value only (no concatenation)[0m[90m 11ms (10ms|1ms)[0m
+2026-10-08T02:07:50.2211500Z [32m   [+] identical-value duplicate casings collapse to a single entry[0m[90m 9ms (9ms|0ms)[0m
+2026-10-08T02:07:50.2314656Z [32m   [+] a collision-free map is returned unchanged[0m[90m 9ms (9ms|0ms)[0m
+2026-10-08T02:07:50.2417916Z [32m   [+] normalizing the output a second time yields an identical map (idempotent)[0m[90m 9ms (9ms|0ms)[0m
+2026-10-08T02:07:50.2448081Z [96m Context CHANGE-0133 TEST-003 (Spec-AC-02, SEAM-1): real dual-casing environment -- CONTROL throws, TREATMENT does not, one Path survives with both directories[0m
+2026-10-08T02:07:50.2460614Z [93m   [!] child pwsh: CONTROL arm (OrdinalIgnoreCase dictionary over the live dup env) THROWS; TREATMENT arm (after Set-CanonicalProcessEnvironment) does NOT throw, exactly one PATH casing remains, value holds both original directories (PosixOnly: the Win32 environment block is case-insensitive, so the CONTROL arm cannot be constructed in-process on Windows -- SPEC-0120 RR-1)[0m[90m 1ms (0ms|1ms)[0m
+2026-10-08T02:07:50.2484567Z [96m Context CHANGE-0133 TEST-004 (Spec-AC-02, SEAM-3): canonicalizer runs exactly once, before every probe/launch primitive on both branches; clean env -> zero raw Set calls[0m
+2026-10-08T02:07:50.2786134Z AAI-BRANCH: Git Bash | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:07:50.2845876Z [32m   [+] gitbash branch: canonicalizer invoked exactly once, BEFORE Test-WslUsable and BEFORE Start-GitBashProcess[0m[90m 35ms (34ms|1ms)[0m
+2026-10-08T02:07:50.3022716Z AAI-BRANCH: WSL | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:07:50.3063427Z [32m   [+] wsl branch: canonicalizer invoked exactly once, BEFORE Test-WslUsable and BEFORE Invoke-WslProcess[0m[90m 20ms (20ms|0ms)[0m
+2026-10-08T02:07:50.3254634Z [32m   [+] on an already-clean environment the applier performs ZERO Set-EnvironmentVariableRaw calls[0m[90m 18ms (17ms|0ms)[0m
+2026-10-08T02:07:50.3283410Z [96m Context CHANGE-0133 TEST-005 (Spec-AC-03): spawn failure (throw or null) -> 125, wait logic never reached, never 124[0m
+2026-10-08T02:07:50.3516670Z AAI-SPAWN-ERROR: [Git Bash] AAI-TEST-005-THROW
+2026-10-08T02:07:50.3544477Z [32m   [+] Start-GitBashProcess THROW -> Invoke-ViaGitBash returns 125, Wait-ProcessWithTimeout never invoked[0m[90m 25ms (24ms|1ms)[0m
+2026-10-08T02:07:50.3741594Z AAI-SPAWN-ERROR: [Git Bash] spawn primitive returned no process object
+2026-10-08T02:07:50.3770397Z [32m   [+] Start-GitBashProcess returns $null -> Invoke-ViaGitBash returns 125, Wait-ProcessWithTimeout never invoked[0m[90m 21ms (20ms|0ms)[0m
+2026-10-08T02:07:50.3799405Z [96m Context CHANGE-0133 TEST-006 (Spec-AC-03): real child pwsh spawn-failure -> exactly one AAI-SPAWN-ERROR line naming Git Bash + exit 125[0m
+2026-10-08T02:07:50.7271559Z [32m   [+] stderr holds exactly one AAI-SPAWN-ERROR line containing the exception text and the literal token "Git Bash"; exit code is 125[0m[90m 346ms (346ms|1ms)[0m
+2026-10-08T02:07:50.7299020Z [96m Context CHANGE-0133 TEST-007 (Spec-AC-03): regression pins -- 124 keeps its meaning, no spawn-error noise[0m
+2026-10-08T02:07:50.7534719Z [32m   [+] live process + timeout still yields 124, tree-kill once, NO AAI-SPAWN-ERROR written[0m[90m 23ms (22ms|1ms)[0m
+2026-10-08T02:07:50.7682433Z [32m   [+] a normally completed process still propagates its own exit code 7[0m[90m 13ms (13ms|0ms)[0m
+2026-10-08T02:07:50.7710370Z [96m Context CHANGE-0135 field fix (PR #249 run 31658515767): Start-GitBashProcess pre-quotes ArgumentList into ONE string[0m
+2026-10-08T02:07:50.8052876Z [32m   [+] passes a single pre-quoted string, spaces in the script path and the sh payload both survive[0m[90m 33ms (32ms|1ms)[0m
+2026-10-08T02:07:50.8082109Z [96m Context CHANGE-0133 TEST-008 (Spec-AC-04): cleanup covers the spawn-failed branch, never a null pid[0m
+2026-10-08T02:07:50.8270923Z AAI-SPAWN-ERROR: [Git Bash] AAI-TEST-008-POST-SPAWN-FAILURE
+2026-10-08T02:07:50.8315609Z [32m   [+] a throw AFTER a live process object exists tree-kills exactly that pid once and returns 125[0m[90m 22ms (22ms|1ms)[0m
+2026-10-08T02:07:50.8452782Z AAI-SPAWN-ERROR: [Git Bash] spawn primitive returned no process object
+2026-10-08T02:07:50.8476276Z [32m   [+] a spawn that produced no object invokes Stop-ProcessTree zero times (never a null/empty pid to taskkill)[0m[90m 14ms (14ms|0ms)[0m
+2026-10-08T02:07:50.8508724Z [96m Context CHANGE-0133 TEST-009 (Spec-AC-04): WSL branch parity -- throw -> 125 named WSL, surfaced unchanged through Invoke-Dispatch; a real non-zero delegation passes through[0m
+2026-10-08T02:07:50.8683602Z [32m   [+] Invoke-WslProcess THROW -> Invoke-ViaWsl returns 125 with a diagnostic naming the literal token WSL[0m[90m 17ms (16ms|1ms)[0m
+2026-10-08T02:07:50.8869524Z AAI-BRANCH: WSL | AAI-TIMEOUT: 3000s (source=default)
+2026-10-08T02:07:50.8889392Z AAI-SPAWN-ERROR: [WSL] AAI-TEST-009-DISPATCH-SPAWN-FAILURE
+2026-10-08T02:07:50.8909421Z [32m   [+] Invoke-Dispatch surfaces that 125 unchanged on the wsl branch[0m[90m 21ms (21ms|0ms)[0m
+2026-10-08T02:07:50.9078426Z [32m   [+] a delegation that RAN and returned non-zero is passed through as its own code[0m[90m 15ms (15ms|0ms)[0m
+2026-10-08T02:07:50.9109976Z [96m Context CR-1 (review 20260812T133652Z): survivor re-write must be decided against POST-removal state, not the pre-removal snapshot[0m
+2026-10-08T02:07:50.9400280Z [32m   [+] a case-insensitive removal primitive that erases the survivor's own entry still gets the merged value written back[0m[90m 28ms (27ms|1ms)[0m
+2026-10-08T02:07:50.9422872Z [93m   [!] H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process — RED/GREEN probe for the smoke's "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom (PosixOnly: same Win32 case-insensitive-environment limitation as CHANGE-0133 TEST-003, PLUS the fixture overwrites PATH with a nonexistent directory, which on Windows breaks the Start-Process -FilePath 'pwsh' resolution this assertion depends on)[0m[90m 0ms (0ms|0ms)[0m
+2026-10-08T02:07:50.9603675Z [32m   [+] an already-clean environment still makes ZERO Set-EnvironmentVariableRaw calls (no re-read on the no-op path)[0m[90m 17ms (16ms|0ms)[0m
+2026-10-08T02:07:50.9646791Z [96m Context TEST-011 (5.1 ExitCode-null footgun): every Start-Process -PassThru launch helper touches .Handle immediately[0m
+2026-10-08T02:07:50.9761078Z [32m   [+] Start-WslProbeProcess touches $proc.Handle on the line immediately after the Start-Process assignment[0m[90m 12ms (10ms|2ms)[0m
+2026-10-08T02:07:50.9909838Z [32m   [+] Start-GitBashProcess touches $proc.Handle on the line immediately after the Start-Process assignment, and returns $proc (not the raw Start-Process pipeline output)[0m[90m 14ms (9ms|4ms)[0m
+2026-10-08T02:07:50.9938228Z [96m Context TEST-012 (TIMEOUT VISIBILITY): Get-EffectiveTimeoutSource labels env vs default in parity with Get-EffectiveTimeout's own coercion rule[0m
+2026-10-08T02:07:51.0034183Z [32m   [+] Get-EffectiveTimeoutSource: bogus -> default[0m[90m 9ms (8ms|1ms)[0m
+2026-10-08T02:07:51.0128849Z [32m   [+] Get-EffectiveTimeoutSource: 0 -> default[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:51.0220802Z [32m   [+] Get-EffectiveTimeoutSource: -5 -> default[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:51.0311753Z [32m   [+] Get-EffectiveTimeoutSource:  -> default[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:51.0403834Z [32m   [+] Get-EffectiveTimeoutSource:  -> default[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:51.0496118Z [32m   [+] Get-EffectiveTimeoutSource: 45 -> env[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:51.0587138Z [32m   [+] Get-EffectiveTimeoutSource: 99999999999 -> default[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:51.0691954Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 9ms (8ms|1ms)[0m
+2026-10-08T02:07:51.0795383Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 9ms (8ms|0ms)[0m
+2026-10-08T02:07:51.0890867Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:51.0987273Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:51.1083992Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 9ms (8ms|0ms)[0m
+2026-10-08T02:07:51.1171839Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 8ms (7ms|0ms)[0m
+2026-10-08T02:07:51.1259851Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 8ms (7ms|0ms)[0m
+2026-10-08T02:07:51.1349764Z [32m   [+] never disagrees with Get-EffectiveTimeout on whether a given Raw value is env-sourced[0m[90m 8ms (8ms|0ms)[0m
+2026-10-08T02:07:51.1413778Z [96m Context TEST-013 (branch diagnostic, always-on): AAI-BRANCH line names the chosen branch and effective timeout on every non-error run[0m
+2026-10-08T02:07:51.1515076Z [32m   [+] Write-BranchDiag writes exactly one AAI-BRANCH line with branch, timeout, and source[0m[90m 13ms (9ms|4ms)[0m
+2026-10-08T02:07:51.1705602Z [32m   [+] Invoke-Dispatch prints AAI-BRANCH naming WSL, with the default-sourced timeout, on the wsl branch[0m[90m 17ms (17ms|0ms)[0m
+2026-10-08T02:07:51.1918969Z [32m   [+] Invoke-Dispatch prints AAI-BRANCH naming Git Bash, with the env-sourced timeout, on the gitbash branch[0m[90m 20ms (19ms|0ms)[0m
+2026-10-08T02:07:51.2095020Z [32m   [+] Invoke-Dispatch never prints AAI-BRANCH on the error branch (Write-EnvError keeps its exactly-one-line contract)[0m[90m 16ms (16ms|0ms)[0m
+2026-10-08T02:07:51.2209462Z [0m
+2026-10-08T02:07:51.2214622Z [92mDescribing aai-release.ps1[0m
+2026-10-08T02:07:51.2308072Z [32m  [+] parses with no syntax errors[0m[90m 12ms (8ms|5ms)[0m
+2026-10-08T02:07:51.2327914Z [96m Context TEST-001 (Spec-AC-01): static contract — helper defined via OS-handle-level capture (CHANGE-0134 remediation)[0m
+2026-10-08T02:07:51.2405868Z [32m   [+] defines function Invoke-NativeChecked[0m[90m 7ms (6ms|1ms)[0m
+2026-10-08T02:07:51.2483146Z [32m   [+] captures via Start-Process -RedirectStandardOutput/-RedirectStandardError, never an in-process 2>&1 merge (a local $ErrorActionPreference override was proven NOT to suppress the real Windows PowerShell 5.1 stderr-promotion — PR #248 run 31638479811, TEST-002)[0m[90m 6ms (6ms|0ms)[0m
+2026-10-08T02:07:51.2509574Z [96m Context TEST-002/TEST-003 (Spec-AC-01): Invoke-NativeChecked behavioral contract[0m
+2026-10-08T02:07:51.5250787Z [32m   [+] TEST-002: stub writes stderr AND exits 0 -> returns without throwing[0m[90m 273ms (272ms|1ms)[0m
+2026-10-08T02:07:51.7959193Z [32m   [+] TEST-003: stub writes stderr AND exits non-zero -> throws and the message CONTAINS the stderr text[0m[90m 269ms (269ms|0ms)[0m
+2026-10-08T02:07:51.7992362Z [96m Context TEST-004 (Spec-AC-02): every cut-path native call is routed through the helper; probes untouched[0m
+2026-10-08T02:07:51.8072144Z [32m   [+] no bare git -C $Root push/add/commit/tag statement remains[0m[90m 8ms (7ms|1ms)[0m
+2026-10-08T02:07:51.8306554Z [32m   [+] no bare gh release create statement remains[0m[90m 22ms (22ms|0ms)[0m
+2026-10-08T02:07:51.8379973Z [32m   [+] git add/commit/tag are invoked through Invoke-NativeChecked[0m[90m 6ms (6ms|0ms)[0m
+2026-10-08T02:07:51.8440361Z [32m   [+] the display git rev-parse --short HEAD is invoked through Invoke-NativeChecked[0m[90m 5ms (5ms|0ms)[0m
+2026-10-08T02:07:51.8508378Z [32m   [+] every git push is invoked through Invoke-NativeChecked (target branch, fallback branch, tag)[0m[90m 6ms (5ms|0ms)[0m
+2026-10-08T02:07:51.8568185Z [32m   [+] gh release create is invoked through Invoke-NativeChecked[0m[90m 5ms (5ms|0ms)[0m
+2026-10-08T02:07:51.8631516Z [32m   [+] the tolerant probes (rev-parse -q --verify, gh auth status) keep their existing *> $null handling[0m[90m 5ms (5ms|0ms)[0m
+2026-10-08T02:07:51.8659011Z [96m Context TEST-006 (Spec-AC-03): dot-source guard — defines the helper WITHOUT running a release[0m
+2026-10-08T02:07:52.3210411Z [32m   [+] dot-sourcing in a child process defines Invoke-NativeChecked and does not exit early on release preconditions[0m[90m 454ms (453ms|1ms)[0m
+2026-10-08T02:07:52.3242681Z [96m Context TEST-007 (Spec-AC-03): -File -DryRun regression — the guard does not change normal execution[0m
+2026-10-08T02:07:52.4452379Z warning: in the working copy of 'CHANGELOG.md', LF will be replaced by CRLF the next time Git touches it
+2026-10-08T02:07:53.2565548Z [32m   [+] pwsh -File aai-release.ps1 -DryRun in a throwaway git fixture exits 0 and prints the plan header[0m[90m 931ms (930ms|1ms)[0m
+2026-10-08T02:07:53.2631253Z [0m
+2026-10-08T02:07:53.2636007Z [92mDescribing aai-reap-tests.ps1[0m
+2026-10-08T02:07:53.2746267Z [32m  [+] parses with no syntax errors[0m[90m 11ms (9ms|1ms)[0m
+2026-10-08T02:07:53.2760954Z [96m Context CHANGE-0134 TEST-007 (Spec-AC-03): reaper Test-WslUsable is a REAL functional probe, not a bare present-check[0m
+2026-10-08T02:07:53.2904835Z [32m   [+] wsl.exe present, ZERO installed distributions (probe exits 0 without the sentinel) -> NOT usable[0m[90m 13ms (13ms|1ms)[0m
+2026-10-08T02:07:53.3031486Z [32m   [+] wsl.exe present, real distro answers the exact sentinel exit code -> usable[0m[90m 11ms (11ms|0ms)[0m
+2026-10-08T02:07:53.3164170Z [32m   [+] wsl.exe present, distro answers a NON-sentinel exit code -> NOT usable[0m[90m 12ms (11ms|0ms)[0m
+2026-10-08T02:07:53.3427850Z [32m   [+] probe never completes within the watchdog -> NOT usable, probe process stopped exactly once[0m[90m 24ms (24ms|0ms)[0m
+2026-10-08T02:07:53.3459275Z [96m Context CHANGE-0134 TEST-008 (Spec-AC-03): structural pin -- reaper Start-WslProbeProcess redirects both streams and touches .Handle immediately[0m
+2026-10-08T02:07:53.3571937Z [32m   [+] Start-WslProbeProcess exists, redirects stdout+stderr to per-call temp files, and touches $proc.Handle on the very next statement[0m[90m 10ms (9ms|1ms)[0m
+2026-10-08T02:07:53.3600613Z [96m Context CHANGE-0134 TEST-009 (Spec-AC-03, SEAM-3): reaper and run-tests dispatchers agree on the sentinel value and probe argv[0m
+2026-10-08T02:07:53.3688326Z [32m   [+] both dispatchers' Test-WslUsable declare the identical sentinel integer literal[0m[90m 8ms (7ms|1ms)[0m
+2026-10-08T02:07:53.3802476Z [32m   [+] both dispatchers' Test-WslUsable pass an IDENTICAL probe argument list to Start-WslProbeProcess (compared to each other, not a hardcoded shape -- drift-proof: a future edit to ONE file's call site fails this even if it never touches the other)[0m[90m 10ms (9ms|0ms)[0m
+2026-10-08T02:07:53.3975338Z [32m   [+] reaper Resolve-Interpreter falls through to gitbash when the probe does not return the sentinel-clean result[0m[90m 15ms (15ms|0ms)[0m
+2026-10-08T02:07:53.4005255Z [96m Context TEST-006 (Spec-AC-04): mocked snapshot — other-workspace spared, young spared, old match killed as tree; prints reaped: N[0m
+2026-10-08T02:07:53.4229282Z [32m   [+] Get-ReapCandidates keeps only the aged in-workspace match[0m[90m 22ms (21ms|1ms)[0m
+2026-10-08T02:07:53.4569760Z [32m   [+] Invoke-ReapNative kills only the aged in-workspace match and prints reaped: N[0m[90m 32ms (32ms|0ms)[0m
+2026-10-08T02:07:53.4724779Z [32m   [+] never issues a global kill: an unmatched sibling and a fresh sibling both survive untouched[0m[90m 14ms (14ms|0ms)[0m
+2026-10-08T02:07:53.4828379Z [32m   [+] prints reaped: 0 and kills nothing when no candidate matches[0m[90m 9ms (9ms|0ms)[0m
+2026-10-08T02:07:53.4855413Z [96m Context StepStart (reaper-deterministic-age-guard, Spec-AC-05): contract parity with the .sh reaper's epoch mode[0m
+2026-10-08T02:07:53.4952228Z [32m   [+] Get-ReapCandidates -StepStart spares CreationDate >= StepStart-Grace and reaps older, ignoring MinAgeSeconds[0m[90m 9ms (8ms|1ms)[0m
+2026-10-08T02:07:53.5015141Z [32m   [+] Get-ReapCandidates without -StepStart stays byte-identical to the legacy MinAgeSeconds path[0m[90m 5ms (5ms|0ms)[0m
+2026-10-08T02:07:53.5262884Z [32m   [+] Invoke-ReapNative -StepStart reaps only the pre-step survivor[0m[90m 23ms (23ms|0ms)[0m
+2026-10-08T02:07:53.5483389Z [32m   [+] Get-StepStartFromEpoch: valid positive integer <= now returns the local DateTime[0m[90m 21ms (20ms|0ms)[0m
+2026-10-08T02:07:53.5567097Z [32m   [+] Get-StepStartFromEpoch: unset/empty/non-integer/negative/zero/future all fail safe to $null (never global)[0m[90m 7ms (7ms|0ms)[0m
+2026-10-08T02:07:53.5753280Z reaped: 1
+2026-10-08T02:07:53.5792713Z [32m   [+] Invoke-ReapDispatch fail-safe: an invalid AAI_REAP_STEP_START_EPOCH falls back to legacy AAI_REAP_MIN_AGE_SECS (never a global kill)[0m[90m 21ms (21ms|0ms)[0m
+2026-10-08T02:07:53.5923555Z [32m   [+] Get-ReapWslDelegationArgs forwards AAI_REAP_STEP_START_EPOCH/AAI_REAP_GRACE_SECS only when StepStartEpoch is supplied[0m[90m 7ms (7ms|0ms)[0m
+2026-10-08T02:07:53.5950345Z [96m Context NB-C: WSL-delegated reap forwards AAI_REAP_WORKSPACE/AAI_REAP_MIN_AGE_SECS and prints a single summary line[0m
+2026-10-08T02:07:53.6011450Z [32m   [+] Get-ReapWslDelegationArgs builds the correct wsl.exe delegation argv (env passthrough for BOTH overrides + script)[0m[90m 6ms (5ms|1ms)[0m
+2026-10-08T02:07:53.6149056Z reaped: 2
+2026-10-08T02:07:53.6214979Z [32m   [+] Invoke-ReapDispatch forwards the resolved workspace and min-age into the WSL delegation call[0m[90m 19ms (19ms|0ms)[0m
+2026-10-08T02:07:53.6405437Z [32m   [+] in WSL mode, the delegate summary is authoritative: the native pass never prints its own reaped: N line[0m[90m 18ms (17ms|0ms)[0m
+2026-10-08T02:07:53.6556330Z [32m   [+] in native-only mode (WSL unusable), the native pass IS the summary of record and prints exactly one line[0m[90m 13ms (13ms|0ms)[0m
+2026-10-08T02:07:53.6670606Z [0m
+2026-10-08T02:07:53.6675492Z [92mDescribing aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)[0m
+2026-10-08T02:07:53.6855842Z [32m  [+] parses with no syntax errors[0m[90m 18ms (16ms|1ms)[0m
+2026-10-08T02:07:53.6871905Z [96m Context CHANGE-0135 TEST-002 (Spec-AC-01): pure self-test report builder turns arm results into the documented shape[0m
+2026-10-08T02:07:53.7158017Z [32m   [+] produces one entry per arm, preserves status/exitCode/diag verbatim (including the AAI-TIMEOUT field), and marks failed when any arm is not PASS[0m[90m 28ms (27ms|1ms)[0m
+2026-10-08T02:07:53.7304350Z [32m   [+] reports failed=$false when every arm is PASS[0m[90m 13ms (13ms|0ms)[0m
+2026-10-08T02:07:53.7331023Z [96m Context CHANGE-0135 F2 (Spec-AC-01): Get-QuotedArgumentString quoting contract, and the load-bearing regression it prevents[0m
+2026-10-08T02:07:53.7469302Z [32m   [+] quotes every argument individually, preserving embedded spaces and escaping embedded double quotes[0m[90m 13ms (12ms|1ms)[0m
+2026-10-08T02:07:54.0184928Z [32m   [+] a spaced ArmTempDir still reaches the child engine intact (A/B pin: an unquoted raw ArgumentList array breaks this -- validator-observed quoted exitCode=3 vs raw exitCode=64)[0m[90m 270ms (270ms|0ms)[0m
+2026-10-08T02:07:54.0258134Z [96m Context CHANGE-0135 NB-1 (Code Review): interpolated paths escape an embedded apostrophe in all three arms[0m
+2026-10-08T02:07:54.2940291Z [32m   [+] Invoke-SelfTestArmSuccess writes a syntactically valid inner script[0m[90m 267ms (267ms|1ms)[0m
+2026-10-08T02:07:54.5473055Z [32m   [+] Invoke-SelfTestArmTimeout writes a syntactically valid inner script[0m[90m 252ms (251ms|0ms)[0m
+2026-10-08T02:07:54.8581843Z [32m   [+] Invoke-SelfTestArmSpawnFail writes a syntactically valid inner script[0m[90m 309ms (309ms|0ms)[0m
+2026-10-08T02:07:54.8671140Z [96m Context CHANGE-0135 F3 (Spec-AC-02): Get-AvailableEngines emits a real array even for exactly one engine[0m
+2026-10-08T02:07:55.1501424Z [32m   [+] returns a one-element array (not a pipeline-unwrapped scalar) when exactly one engine resolves, so CAT-15 counts it correctly[0m[90m 282ms (281ms|1ms)[0m
+2026-10-08T02:07:55.1571246Z [96m Context CHANGE-0135 TEST-006/TEST-007 (Spec-AC-02): environment collision report + WSL tri-state mapper[0m
+2026-10-08T02:07:55.1780779Z [32m   [+] names exactly one collision group (survivor Path, collapsed PATH) for a Path/PATH-colliding dictionary, and never mutates the real environment[0m[90m 24ms (19ms|5ms)[0m
+2026-10-08T02:07:55.1927573Z [32m   [+] names zero collision groups for a collision-free dictionary[0m[90m 13ms (13ms|0ms)[0m
+2026-10-08T02:07:55.2100002Z [32m   [+] Get-WslTriState returns absent when Test-WslPresent is false[0m[90m 16ms (16ms|0ms)[0m
+2026-10-08T02:07:55.2263400Z [32m   [+] Get-WslTriState returns present-no-distro when present but not usable[0m[90m 15ms (15ms|0ms)[0m
+2026-10-08T02:07:55.2428350Z [32m   [+] Get-WslTriState returns functional when present and usable[0m[90m 15ms (15ms|0ms)[0m
+2026-10-08T02:07:55.2455006Z [96m Context CHANGE-0135 TEST-004 (Spec-AC-01): host-adaptive end-to-end -- node aai-doctor.mjs --json over the real probe[0m
+2026-10-08T02:08:05.4027473Z CAT-14 detail: {"spawned":true,"arms":[{"name":"success","status":"PASS","exitCode":3,"diag":"AAI-BRANCH: Git Bash | AAI-TIMEOUT: 60s (source=env)","timedOut":false,"markerOk":true,"stdoutTail":"","stderrTail":"AAI-BRANCH: Git Bash | AAI-TIMEOUT: 60s (source=env)\r\nAAI-DEGRADED-MODE: running under Git-Bash/MSYS (MINGW64_NT-10.0-26100) - no POSIX process-group guarantee; using best-effort Windows tree-kill (taskkill //T) or plain kill; detached/reparented descendants are NOT guaranteed reaped (see docs/TECHNOLOGY.md platform matrix)."},{"name":"timeout","status":"PASS","exitCode":124,"diag":"AAI-BRANCH: Git Bash | AAI-TIMEOUT: 2s (source=env)","timedOut":false,"stdoutTail":"","stderrTail":"MEOUT: 2s (source=env)\r\nAAI-DEGRADED-MODE: running under Git-Bash/MSYS (MINGW64_NT-10.0-26100) - no POSIX process-group guarantee; using best-effort Windows tree-kill (taskkill //T) or plain kill; detached/reparented descendants are NOT guaranteed reaped (see docs/TECHNOLOGY.md platform matrix).\naai-run-tests: TIMED OUT after 2s with no progress -- raise the ceiling with AAI_TEST_TIMEOUT=<seconds>"},{"name":"spawnfail","status":"PASS","exitCode":125,"diag":"AAI-SPAWN-ERROR: [Git Bash] This command cannot be run due to the error: This version of %1 is not compatible with the version of Windows you're running. Check your computer's system information and then contact the software publisher.","timedOut":false,"markerAbsent":true,"spawnErrorCount":1,"stdoutTail":"","stderrTail":"AAI-BRANCH: Git Bash | AAI-TIMEOUT: 30s (source=env)\r\nAAI-SPAWN-ERROR: [Git Bash] This command cannot be run due to the error: This version of %1 is not compatible with the version of Windows you're running. Check your computer's system information and then contact the software publisher."}],"failed":false,"reason":null}
+2026-10-08T02:08:05.4148930Z [32m   [+] CAT-14 spawns and all three arms are reported on Windows; CAT-14 is a named, non-spawning SKIP everywhere else[0m[90m 10.17s (10.17s|1ms)[0m
+2026-10-08T02:08:05.4428613Z [95m
+2026-10-08T02:08:05.4429129Z [95mRunning tests from 'D:\a\aai\aai\tests\skills\aai-worktree-seed.Tests.ps1'[0m
+2026-10-08T02:08:05.5799268Z Syncing AAI from: D:\a\aai\aai
+2026-10-08T02:08:05.5802338Z Target project:     C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source
+2026-10-08T02:08:05.5806046Z Profile:            core
+2026-10-08T02:08:05.6027841Z   PROFILE core: filtered .aai copy per .aai/system/PROFILES.yaml
+2026-10-08T02:08:06.2221111Z   PRESERVE target-only skills under: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.claude\skills
+2026-10-08T02:08:06.2300995Z   SEED docs/TECHNOLOGY.md from .aai/templates/TECHNOLOGY_TEMPLATE.md
+2026-10-08T02:08:06.2320628Z   SEED docs/ai/update-config.yaml from .aai/templates/update-config.template.yaml
+2026-10-08T02:08:06.2340423Z   SEED docs/ai/docs-audit.yaml from .aai/templates/docs-audit.template.yaml (dials report-only; docs-audit --check now runs enforced)
+2026-10-08T02:08:06.2348128Z   PRESERVE docs/ai/ runtime data (STATE.yaml, LOOP_TICKS.jsonl, METRICS.jsonl, EVENTS.jsonl, decisions.jsonl, reports/)
+2026-10-08T02:08:06.3639276Z   PRESERVE local Codex dynamic index: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.codex\skills.local
+2026-10-08T02:08:06.4865502Z   PRESERVE local Gemini dynamic index: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.gemini\skills.local
+2026-10-08T02:08:06.6291771Z   PRESERVE target-only skills under: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.agents\skills
+2026-10-08T02:08:06.6306560Z   SYNC .claude-plugin/plugin.json
+2026-10-08T02:08:06.6891612Z   MERGE hooks/hooks.json: 1 hook(s) added, 0 updated, 0 already present, 0 left as-is -> hooks\hooks.json
+2026-10-08T02:08:06.7421452Z   MERGE hooks/hooks.windows.json: 1 hook(s) added, 0 updated, 0 already present, 0 left as-is -> hooks\hooks.windows.json
+2026-10-08T02:08:06.7478556Z   SYNC hooks/
+2026-10-08T02:08:06.7494399Z   SYNC .cursor/rules/aai.mdc
+2026-10-08T02:08:06.7520737Z   Added .aai/ to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.gitignore
+2026-10-08T02:08:06.7535272Z   Added .cloudflare-publish* to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.gitignore
+2026-10-08T02:08:06.7542669Z   Added .wrangler/ to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.gitignore
+2026-10-08T02:08:06.7553787Z   Added .aai/cache/ to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.gitignore
+2026-10-08T02:08:06.7589003Z   Added docs/ai/reports runtime ignore rules to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.gitignore
+2026-10-08T02:08:06.7604736Z   Added agent skill sync patterns to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.gitignore
+2026-10-08T02:08:06.7618927Z   Added AAI per-dev runtime state patterns to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.gitignore
+2026-10-08T02:08:06.7621959Z   NOTE: If docs/ai/STATE.yaml or docs/ai/LOOP_TICKS.jsonl is still tracked,
+2026-10-08T02:08:06.7625756Z         run pwsh .aai/scripts/migrate-state-to-local.ps1 in the target project.
+2026-10-08T02:08:06.7684589Z   Added 24 AAI runtime-sidecar pattern(s) to C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\.gitignore
+2026-10-08T02:08:06.7810057Z   Advisory report: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source\docs\ai\reports\sync-conflicts-20261008-020806.md
+2026-10-08T02:08:06.8362390Z Sync complete. Review changes in C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source :
+2026-10-08T02:08:06.8365963Z   cd C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\installed source; git status; git diff
+2026-10-08T02:08:06.8581866Z warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+2026-10-08T02:08:07.0004171Z [92mDescribing worktree seed PowerShell parity[0m
+2026-10-08T02:08:07.3053199Z WORKTREE-SEED-REFUSED DESTINATION_TYPE: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\linked target\.aai\AGENTS.md
+2026-10-08T02:08:07.3208007Z [32m  [+] TEST-008 stops before initialization or success after seed refusal[0m[90m 320ms (318ms|2ms)[0m
+2026-10-08T02:08:17.0119928Z [32m  [+] TEST-008 seeds spaced paths, runs initializer, and creates no links[0m[90m 9.69s (9.69s|2ms)[0m
+2026-10-08T02:08:17.3113873Z WORKTREE-SEED-REFUSED DESTINATION_CONFLICT: C:\Users\runneradmin\AppData\Local\Temp\aai seed ps 611c16a37e084657b54188447d0fa26c\linked target\.aai\system\AAI_PIN.md
+2026-10-08T02:08:17.3214965Z [32m  [+] TEST-008 refuses a conflict and does not alter existing installed bytes[0m[90m 308ms (308ms|0ms)[0m
+2026-10-08T02:08:17.3833752Z [32m  [+] TEST-011 resolves the source repository root from a subdirectory[0m[90m 60ms (60ms|0ms)[0m
+2026-10-08T02:08:17.7967062Z [97mTests completed in 171.73s[0m
+2026-10-08T02:08:17.8157916Z [32mTests Passed: 153, [0m[90mFailed: 0, [0m[93mSkipped: 4, [0m[90mInconclusive: 0, [0m[37m[0m[90mNotRun: 0[0m
+2026-10-08T02:08:17.8372316Z AAI-PESTER-ELAPSED: pwsh 172.07s
+2026-10-08T02:08:17.8386143Z AAI-WIN-SKIP: aai-update.ps1.SEAM-1 integration (ISSUE-0012 / SPEC-0052 — real clone parity).TEST-009: file:// fixture clone with -KeepTemp lands at $Tmp/src; $Tmp retained (skips if git unavailable) (PosixOnly: redirects the temp base through $env:TMPDIR, which [System.IO.Path]::GetTempPath() ignores on Windows, and builds a file://C:\...  URL from a backslash path)
+2026-10-08T02:08:17.8389745Z AAI-WIN-SKIP: aai-run-tests.ps1.TEST-004 (Spec-AC-02): real invocation on THIS host (no WSL, no Windows Git Bash) -> exit 78 + exactly one AAI-ENV-ERROR line.exits 78 with exactly one stderr line matching ^AAI-ENV-ERROR: naming both probed options (PosixOnly: windows-latest always has a real Git Bash, so the dispatcher resolves it and runs the command instead of erroring)
+2026-10-08T02:08:17.8394755Z AAI-WIN-SKIP: aai-run-tests.ps1.CHANGE-0133 TEST-003 (Spec-AC-02, SEAM-1): real dual-casing environment -- CONTROL throws, TREATMENT does not, one Path survives with both directories.child pwsh: CONTROL arm (OrdinalIgnoreCase dictionary over the live dup env) THROWS; TREATMENT arm (after Set-CanonicalProcessEnvironment) does NOT throw, exactly one PATH casing remains, value holds both original directories (PosixOnly: the Win32 environment block is case-insensitive, so the CONTROL arm cannot be constructed in-process on Windows -- SPEC-0120 RR-1)
+2026-10-08T02:08:17.8399443Z AAI-WIN-SKIP: aai-run-tests.ps1.CR-1 (review 20260812T133652Z): survivor re-write must be decided against POST-removal state, not the pre-removal snapshot.H3 (PR #247 run 31606986703 investigation): an unrelated process-scope var (AAI_TEST_TIMEOUT) survives canonicalization of a REAL Path/PATH collision AND is visible to a spawned grandchild process — RED/GREEN probe for the smoke's "default 300s watchdog used instead of AAI_TEST_TIMEOUT=2" symptom (PosixOnly: same Win32 case-insensitive-environment limitation as CHANGE-0133 TEST-003, PLUS the fixture overwrites PATH with a nonexistent directory, which on Windows breaks the Start-Process -FilePath 'pwsh' resolution this assertion depends on)
+2026-10-08T02:08:17.8442380Z PESTER OK (pwsh 7): 153 passed, 4 skipped, 0 failed, 172.07s
+2026-10-08T02:08:17.8971451Z Post job cleanup.
+2026-10-08T02:08:18.0050574Z (node:9868) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-08T02:08:18.0051508Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-08T02:08:18.0641436Z [warning]Path Validation Error: Path(s) specified in the action for caching do(es) not exist, hence no cache is being saved.
+2026-10-08T02:08:18.0912966Z Post job cleanup.
+2026-10-08T02:08:18.2370753Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-08T02:08:18.2629909Z git version 2.55.0.windows.5
+2026-10-08T02:08:18.2687630Z Temporarily overriding HOME='D:\a\_temp\fba5a81a-230d-4818-bded-824e32a394ff' before making global git config changes
+2026-10-08T02:08:18.2690177Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-08T02:08:18.2697351Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\aai\aai
+2026-10-08T02:08:18.2950986Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-08T02:08:18.3190617Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-08T02:08:18.7829629Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-08T02:08:18.8048111Z http.https://github.com/.extraheader
+2026-10-08T02:08:18.8086667Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-08T02:08:18.8331179Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-08T02:08:19.2737515Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-08T02:08:19.2974029Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-08T02:08:19.7468767Z Cleaning up orphan processes
+2026-10-08T02:08:19.7724807Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

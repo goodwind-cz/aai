@@ -1,0 +1,4 @@
+const fs=require('fs'),assert=require('assert/strict'),{spawnSync}=require('child_process');
+const rows=JSON.parse(fs.readFileSync('/private/tmp/aai-pr434-remediation-scratch/password-results.json'));
+const evidence=rows.map(row=>{const argv=row.ssh_argv[0].slice(0,-1);const r=spawnSync('/usr/bin/ssh',['-G','-F','/dev/null',...argv],{encoding:'utf8',timeout:5000});const fields=(r.stdout||'').split('\n').filter(l=>/^(hostname|port|user) /.test(l));return {remote:row.remote,config_status:r.status,fields,stderr:r.stderr};});
+console.log(JSON.stringify(evidence,null,2));assert.ok(evidence[0].fields.includes('hostname ssh.github.com'));assert.ok(evidence[0].fields.includes('port 443'));assert.ok(evidence[1].fields.includes('hostname ssh.github.com:443'));assert.ok(evidence[1].fields.includes('port 22'));console.log('PASS: real OpenSSH configuration proves different hostname and port; -G never opens a connection.');

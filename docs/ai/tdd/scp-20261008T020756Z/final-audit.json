@@ -1,0 +1,189 @@
+{
+  "checks": [
+    {
+      "name": "mutation-gate",
+      "command": [
+        "node",
+        ".aai/scripts/mutation-gate.mjs",
+        "--spec",
+        "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+        "--json"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "amend-strict",
+      "command": [
+        "node",
+        ".aai/scripts/spec-amend.mjs",
+        "list",
+        "--strict"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "spec-lint",
+      "command": [
+        "node",
+        ".aai/scripts/spec-lint.mjs",
+        "--path",
+        "docs/specs/SPEC-0210-spec-pr-capability-preflight.md"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "source-diff",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "--",
+        ".aai",
+        "tests",
+        "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+        "docs/ai/decisions.jsonl"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "shipping_head": "525a05791a24d3d8c894639ce66de9ceed5a01a3",
+  "root_dependencies": [
+    "docs/ai/reviews/review-20261008T015150Z-pr434-raw.md",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/audit.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/boundary-after.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/boundary-before.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/ci-transport.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/diff-check.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/dispatch.txt",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/external-review.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/full-aggregate.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/full-jobs.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard1.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard2.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard3.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/full-shard4.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/identity-results.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/identity.cjs",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/identity.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/layer-profiles.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/machine-dispatch.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/native-jobs.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/native-linux.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/native-wsl.log.b64",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/packaging-infra.txt",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/password-results.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/password.cjs",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/password.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/pr-platform.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/preflight.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/prompt-diet.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/result.md",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/ride-select.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/role-check.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/scope-hashes.json",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config-confirmed.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config.cjs",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/ssh-config.log",
+    "docs/ai/reviews/pr434-raw-20261008T015150Z/manifest.json",
+    "docs/ai/reports/ORCHESTRATION-20261008T020700Z-pr434-scp.md"
+  ],
+  "root38_working_and_index_exact": true,
+  "all_staged_names_exact": true,
+  "ledgers": [
+    {
+      "path": "docs/ai/EVENTS.jsonl",
+      "base_bytes": 543188,
+      "base_sha256": "6a439790b681bcb6c07905db934aaf1c9bd508a5856a8467ef43b49e01f5c113",
+      "current_sha256": "6a439790b681bcb6c07905db934aaf1c9bd508a5856a8467ef43b49e01f5c113",
+      "prefix_exact": true
+    },
+    {
+      "path": "docs/ai/METRICS.jsonl",
+      "base_bytes": 576232,
+      "base_sha256": "554849862fdc544e70beb085117f84a2a8f7a7f688cbed24446b21fbc8b1828e",
+      "current_sha256": "554849862fdc544e70beb085117f84a2a8f7a7f688cbed24446b21fbc8b1828e",
+      "prefix_exact": true
+    },
+    {
+      "path": "docs/ai/decisions.jsonl",
+      "base_bytes": 1175718,
+      "base_sha256": "a95eaa2cbca08ac01483e5961fa8b852ca6d369e1c29a9c06b82d94140c2acd4",
+      "current_sha256": "65f214410b4ca65c232de78c5c1e7579041b1a6cf35653bbe2430190f401f05e",
+      "prefix_exact": true
+    },
+    {
+      "path": "docs/ai/tests/test-runs.jsonl",
+      "base_bytes": 137492,
+      "base_sha256": "c37c463c1b2dcc5ed8806995341f294206f73422ecd75f3e5d3c4133c28c80e6",
+      "current_sha256": "c37c463c1b2dcc5ed8806995341f294206f73422ecd75f3e5d3c4133c28c80e6",
+      "prefix_exact": true
+    }
+  ],
+  "EVENTS_unchanged": true,
+  "STATE_matches_private_initial_copy": true,
+  "prior24_preserved": true,
+  "mutations": [
+    {
+      "record": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.txt",
+      "target": ".aai/scripts/pr-preflight.mjs",
+      "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638"
+    },
+    {
+      "record": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.txt",
+      "target": ".aai/scripts/pr-preflight.mjs",
+      "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638"
+    },
+    {
+      "record": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.txt",
+      "target": ".aai/scripts/pr-preflight.mjs",
+      "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638"
+    },
+    {
+      "record": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.txt",
+      "target": ".aai/scripts/pr-preflight.mjs",
+      "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638"
+    },
+    {
+      "record": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.txt",
+      "target": ".aai/scripts/pr-preflight.mjs",
+      "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638"
+    },
+    {
+      "record": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-006.txt",
+      "target": ".aai/SKILL_PR.prompt.md",
+      "target_sha256": "7dbd75147ecb8661be07119524f94b69a2c4ae40f534db27d82b5956f5eeec4e"
+    },
+    {
+      "record": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.txt",
+      "target": ".aai/scripts/pr-preflight.mjs",
+      "target_sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638"
+    },
+    {
+      "record": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-008.txt",
+      "target": ".aai/system/PROFILES.yaml",
+      "target_sha256": "143748780c90255c7cf446e73236ed83c2cff38ec767c282e89a46aca97ac9b4"
+    }
+  ],
+  "sources": [
+    {
+      "path": ".aai/scripts/pr-preflight.mjs",
+      "sha256": "68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638"
+    },
+    {
+      "path": "tests/skills/test-aai-pr-preflight.sh",
+      "sha256": "ab7ddbcdd27a45ce7716c9df41f0b9ced31e3ca43563624d2d3b01d87fca641e"
+    },
+    {
+      "path": "tests/skills/aai-pr-preflight.Tests.ps1",
+      "sha256": "8ad350fed2e439c79620c2f997e59be9200deab2425927663731bfd677c7358e"
+    },
+    {
+      "path": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+      "sha256": "ab6f3f29efb9f5365f77ee376b490d8a427fb5e7b1e544c317181dcd31e71f72"
+    }
+  ],
+  "longest_relative_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.patch",
+  "longest_relative_chars": 136,
+  "observed_native_prefix_chars": 122,
+  "max_observed_layout_chars": 258
+}

@@ -1,0 +1,28 @@
+RED_CLASS: product_red
+{"remote":"ssh://%67it@ssh.github.com:443/Org/Repo.git","effective_fetch":"ssh://%67it@ssh.github.com:443/Org/Repo.git","effective_push":"ssh://%67it@ssh.github.com:443/Org/Repo.git","preflight_status":0,"preflight":{"schema_version":1,"platform":"github","repository":{"host":"github.com","repository":"Org/Repo"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"3b3b243fa4cee4c1cbc6b1f21f3102447a34e866","outcome":"read_verified","code":"READ_VERIFIED","operation":"github.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"provider_calls":[["--version"],["auth","status","--hostname","github.com"],["repo","view","Org/Repo","--json","nameWithOwner,url"]],"transport_status":0,"transport_stdout":"3b3b243fa4cee4c1cbc6b1f21f3102447a34e866\tHEAD\n3b3b243fa4cee4c1cbc6b1f21f3102447a34e866\trefs/heads/change/pr-capability-preflight\n","transport_stderr":"","ssh_argv":[["-o","SendEnv=GIT_PROTOCOL","-p","443","git@ssh.github.com","git-upload-pack '/Org/Repo.git'"]]}
+{"remote":"ssh://git%2Fuser@ssh.github.com:443/Org/Repo.git","effective_fetch":"ssh://git%2Fuser@ssh.github.com:443/Org/Repo.git","effective_push":"ssh://git%2Fuser@ssh.github.com:443/Org/Repo.git","preflight_status":0,"preflight":{"schema_version":1,"platform":"github","repository":{"host":"github.com","repository":"Org/Repo"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"3b3b243fa4cee4c1cbc6b1f21f3102447a34e866","outcome":"read_verified","code":"READ_VERIFIED","operation":"github.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"provider_calls":[["--version"],["auth","status","--hostname","github.com"],["repo","view","Org/Repo","--json","nameWithOwner,url"]],"transport_status":128,"transport_stdout":"","transport_stderr":"fatal: '/private/tmp/aai-pr434-remediation-scratch/password-CNAqQ4/server/user@ssh.github.com:443/Org/Repo.git' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n","ssh_argv":[["-o","SendEnv=GIT_PROTOCOL","git","git-upload-pack '/user@ssh.github.com:443/Org/Repo.git'"]]}
+node:internal/assert/utils:146
+  throw error;
+  ^
+
+AssertionError [ERR_ASSERTION]: encoded userinfo slash must refuse mismatched transport identity
+
+0 !== 2
+
+    at Object.<anonymous> (/private/tmp/aai-pr-capability-preflight/docs/ai/tdd/scp-20261008T020756Z/slash-authority.cjs:24:8)
+    at Module._compile (node:internal/modules/cjs/loader:1934:14)
+    at Object..js (node:internal/modules/cjs/loader:2074:10)
+    at Module.load (node:internal/modules/cjs/loader:1656:32)
+    at Module._load (node:internal/modules/cjs/loader:1448:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 0,
+  expected: 2,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v26.8.2

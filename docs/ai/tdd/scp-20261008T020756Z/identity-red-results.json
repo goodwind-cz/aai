@@ -1,0 +1,158 @@
+[
+  {
+    "remote": "git@github.com:Org/Repo.git",
+    "effective_fetch": "git@github.com:Org/Repo.git",
+    "effective_push": "git@github.com:Org/Repo.git",
+    "preflight_status": 0,
+    "preflight": {
+      "schema_version": 1,
+      "platform": "github",
+      "repository": {
+        "host": "github.com",
+        "repository": "Org/Repo"
+      },
+      "remote_name": "origin",
+      "source_branch": "change/pr-capability-preflight",
+      "target_branch": "main",
+      "head_sha": "5a70888ad7ebe92efbbfa8d0eee1305fa3058494",
+      "outcome": "read_verified",
+      "code": "READ_VERIFIED",
+      "operation": "github.readiness",
+      "remedy": "Repository read access verified at invocation time; future PR create permission remains unknown.",
+      "create_permission": "unknown"
+    },
+    "provider_calls": [
+      [
+        "--version"
+      ],
+      [
+        "auth",
+        "status",
+        "--hostname",
+        "github.com"
+      ],
+      [
+        "repo",
+        "view",
+        "Org/Repo",
+        "--json",
+        "nameWithOwner,url"
+      ]
+    ],
+    "transport_status": 0,
+    "transport_stdout": "5a70888ad7ebe92efbbfa8d0eee1305fa3058494\tHEAD\n5a70888ad7ebe92efbbfa8d0eee1305fa3058494\trefs/heads/change/pr-capability-preflight\n",
+    "transport_stderr": "",
+    "ssh_argv": [
+      [
+        "-o",
+        "SendEnv=GIT_PROTOCOL",
+        "git@github.com",
+        "git-upload-pack 'Org/Repo.git'"
+      ]
+    ]
+  },
+  {
+    "remote": "git@github.com:Org/%52epo.git",
+    "effective_fetch": "git@github.com:Org/%52epo.git",
+    "effective_push": "git@github.com:Org/%52epo.git",
+    "preflight_status": 0,
+    "preflight": {
+      "schema_version": 1,
+      "platform": "github",
+      "repository": {
+        "host": "github.com",
+        "repository": "Org/Repo"
+      },
+      "remote_name": "origin",
+      "source_branch": "change/pr-capability-preflight",
+      "target_branch": "main",
+      "head_sha": "5a70888ad7ebe92efbbfa8d0eee1305fa3058494",
+      "outcome": "read_verified",
+      "code": "READ_VERIFIED",
+      "operation": "github.readiness",
+      "remedy": "Repository read access verified at invocation time; future PR create permission remains unknown.",
+      "create_permission": "unknown"
+    },
+    "provider_calls": [
+      [
+        "--version"
+      ],
+      [
+        "auth",
+        "status",
+        "--hostname",
+        "github.com"
+      ],
+      [
+        "repo",
+        "view",
+        "Org/Repo",
+        "--json",
+        "nameWithOwner,url"
+      ]
+    ],
+    "transport_status": 128,
+    "transport_stdout": "",
+    "transport_stderr": "fatal: '/private/tmp/aai-pr434-remediation-scratch/identity-pw5N4u/server/Org/%52epo.git' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n",
+    "ssh_argv": [
+      [
+        "-o",
+        "SendEnv=GIT_PROTOCOL",
+        "git@github.com",
+        "git-upload-pack 'Org/%52epo.git'"
+      ]
+    ]
+  },
+  {
+    "remote": "ssh://git@github.com/Org/%52epo.git",
+    "effective_fetch": "ssh://git@github.com/Org/%52epo.git",
+    "effective_push": "ssh://git@github.com/Org/%52epo.git",
+    "preflight_status": 0,
+    "preflight": {
+      "schema_version": 1,
+      "platform": "github",
+      "repository": {
+        "host": "github.com",
+        "repository": "Org/Repo"
+      },
+      "remote_name": "origin",
+      "source_branch": "change/pr-capability-preflight",
+      "target_branch": "main",
+      "head_sha": "5a70888ad7ebe92efbbfa8d0eee1305fa3058494",
+      "outcome": "read_verified",
+      "code": "READ_VERIFIED",
+      "operation": "github.readiness",
+      "remedy": "Repository read access verified at invocation time; future PR create permission remains unknown.",
+      "create_permission": "unknown"
+    },
+    "provider_calls": [
+      [
+        "--version"
+      ],
+      [
+        "auth",
+        "status",
+        "--hostname",
+        "github.com"
+      ],
+      [
+        "repo",
+        "view",
+        "Org/Repo",
+        "--json",
+        "nameWithOwner,url"
+      ]
+    ],
+    "transport_status": 0,
+    "transport_stdout": "5a70888ad7ebe92efbbfa8d0eee1305fa3058494\tHEAD\n5a70888ad7ebe92efbbfa8d0eee1305fa3058494\trefs/heads/change/pr-capability-preflight\n",
+    "transport_stderr": "",
+    "ssh_argv": [
+      [
+        "-o",
+        "SendEnv=GIT_PROTOCOL",
+        "git@github.com",
+        "git-upload-pack '/Org/Repo.git'"
+      ]
+    ]
+  }
+]

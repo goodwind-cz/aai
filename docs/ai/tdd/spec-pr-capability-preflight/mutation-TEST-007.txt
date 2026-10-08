@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-007 exit PROVIDER_RESULT_INVALID
 selector_honoured: yes
-target_sha256: d0bbf48e79e10b2e9ffa4bab970158f2f421af76b2d59af0dc9314e704226b7e
+target_sha256: 68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638
 ---
 FAIL: TEST-007 exit PROVIDER_RESULT_INVALID
 

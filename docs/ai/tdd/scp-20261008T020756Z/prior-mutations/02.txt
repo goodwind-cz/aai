@@ -1,0 +1,20 @@
+mutation_record: v1
+spec_id: spec-pr-capability-preflight
+test_id: TEST-001
+suite: tests/skills/test-aai-pr-preflight.sh
+selector: test_001
+target: .aai/scripts/pr-preflight.mjs
+mutation: patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.patch
+base_commit: bdeb425c040ada918dd97e5b878b71e420bad83a
+tree_hash: ce7b4701fffb81d2d3017ff7c4e72ff267ade55b0503ef8c1206f44510124863
+run_at_utc: 2026-10-07T12:31:39Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-001 exit IDENTITY_INVALID
+selector_honoured: no (suite runs every test)
+target_sha256: d0bbf48e79e10b2e9ffa4bab970158f2f421af76b2d59af0dc9314e704226b7e
+---
+FAIL: TEST-001 exit IDENTITY_INVALID
+
+0 !== 2
+
