@@ -1,0 +1,17 @@
+{
+  "paths": 966,
+  "mismatches": [],
+  "state_matches": true,
+  "index_matches": false,
+  "boundary_sha256": "e0e7aecfc9f4ff8348f088e6b4ab63912482f7f5d1e3e88db70df4176426c17f",
+  "ledger_prefixes": {
+    "docs/ai/EVENTS.jsonl": true,
+    "docs/ai/METRICS.jsonl": true,
+    "docs/ai/decisions.jsonl": true,
+    "docs/ai/tests/test-runs.jsonl": true
+  },
+  "index_pin_interpretation": "raw NUL-delimited git ls-files --stage -z content; not binary index file",
+  "index_content_matches": true,
+  "cached_diff": "",
+  "unmerged": ""
+}

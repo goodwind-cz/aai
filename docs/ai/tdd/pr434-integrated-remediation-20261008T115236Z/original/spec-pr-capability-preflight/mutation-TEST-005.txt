@@ -1,0 +1,23 @@
+mutation_record: v1
+spec_id: spec-pr-capability-preflight
+test_id: TEST-005
+suite: tests/skills/test-aai-pr-preflight.sh
+selector: test_005
+target: .aai/scripts/pr-preflight.mjs
+mutation: patch:docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.patch
+base_commit: bdeb425c040ada918dd97e5b878b71e420bad83a
+tree_hash: a55d3ae245449cf38276cb852dc3c0499b41df67bd506641cbdefda9e559cc54
+run_at_utc: 2026-10-07T12:33:18Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-005 The input was expected to not match the regular expression /ghp_|sk_live_|AKIA|user:/. Input:
+selector_honoured: yes
+target_sha256: 68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638
+---
+FAIL: TEST-005 The input was expected to not match the regular expression /ghp_|sk_live_|AKIA|user:/. Input:
+
+'{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"0e06407fcdf9cfac70a0bed9747a154fb8581416","outcome":"refused","code":"ACCESS_UNKNOWN","operation":"az.repository","remedy":"Ask the operator to verify repository read access; an ambiguous denial cannot prove readiness.","create_permission":"unknown"}\n' +
+  'ghp_SYNTHETIC_SECRET sk_live_SYNTHETIC_SECRET AKIASYNTHETICSECRET\n' +
+  '\n' +
+  'pr-preflight: ACCESS_UNKNOWN (az.repository): Ask the operator to verify repository read access; an ambiguous denial cannot prove readiness.\n'
+

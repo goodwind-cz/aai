@@ -1,0 +1,108 @@
+{
+  "artifact_count": 41,
+  "artifact_mismatches": [],
+  "originals": [
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-001.txt",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-001.patch",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-002.txt",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-002.patch",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-003.txt",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-003.patch",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-004.txt",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-004.patch",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-005.txt",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-005.patch",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-007.txt",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-007.patch",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-generic-url-validity/mutation-TEST-001.txt",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-generic-url-validity/mutation-TEST-001.patch",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-generic-url-validity/mutation-TEST-007.txt",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-generic-url-validity/mutation-TEST-007.patch",
+      "pin_matches": true,
+      "shipping_8701_matches": true
+    }
+  ],
+  "checks": [
+    {
+      "command": "node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0210-spec-pr-capability-preflight.md --json",
+      "exit_code": 0
+    },
+    {
+      "command": "node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0211-spec-pr-generic-url-validity.md --json",
+      "exit_code": 0
+    },
+    {
+      "command": "node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0212-spec-pr-github-case-identity.md --json",
+      "exit_code": 0
+    },
+    {
+      "command": "node .aai/scripts/spec-amend.mjs list --strict",
+      "exit_code": 0
+    },
+    {
+      "command": "node .aai/scripts/docs-audit.mjs --no-event",
+      "exit_code": 0
+    }
+  ]
+}

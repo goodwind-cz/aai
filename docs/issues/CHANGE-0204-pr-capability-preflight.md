@@ -2,7 +2,7 @@
 id: pr-capability-preflight
 type: change
 number: 204
-status: implementing
+status: done
 umbrella: true
 links:
   spec: null
@@ -11,6 +11,7 @@ links:
     - 434
   commits:
     - 227ca445e2e828cb428d7e537f2cf791fa9c2a91
+    - 8701da75a29e76e5a7897a9e327ad07f9ab38345
 ---
 
 # Noninteractive provider readiness before PR writes

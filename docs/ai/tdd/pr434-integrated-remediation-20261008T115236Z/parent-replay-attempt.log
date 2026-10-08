@@ -1,0 +1,12 @@
+RED TEST-001: still reddens (tests/skills/test-aai-pr-preflight.sh test_001) — target_sha256 re-stamped to the live target (this replay is the fact the stamp records)
+RED TEST-002: still reddens (tests/skills/test-aai-pr-preflight.sh test_002) — target_sha256 re-stamped to the live target (this replay is the fact the stamp records)
+RED TEST-003: still reddens (tests/skills/test-aai-pr-preflight.sh test_003) — target_sha256 re-stamped to the live target (this replay is the fact the stamp records)
+RED TEST-004: still reddens (tests/skills/test-aai-pr-preflight.sh test_004) — target_sha256 re-stamped to the live target (this replay is the fact the stamp records)
+RED TEST-005: still reddens (tests/skills/test-aai-pr-preflight.sh test_005) — target_sha256 re-stamped to the live target (this replay is the fact the stamp records)
+RED TEST-006: still reddens (tests/skills/test-aai-pr-preflight.sh test_006)
+INCONCLUSIVE TEST-007: could not apply the recorded mutation (Command failed: git -C /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-mutation-eK80xi/clone apply /private/tmp/aai-pr-capability-preflight/docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.patch
+error: patch failed: .aai/scripts/pr-preflight.mjs:183
+error: .aai/scripts/pr-preflight.mjs: patch does not apply
+)
+RED TEST-008: still reddens (tests/skills/test-aai-pr-preflight.sh test_008)
+mutation-run --replay: 7/7 attempted records still redden (1 inconclusive of 8 total, 5 re-stamped)

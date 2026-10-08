@@ -1,0 +1,11 @@
+--- a/.aai/scripts/pr-preflight.mjs
++++ b/.aai/scripts/pr-preflight.mjs
+@@ -126,7 +126,7 @@
+   if (fs.realpathSync(actualRoot) !== fs.realpathSync(input.repo_root)) invalid();
+   const branch = await local(['symbolic-ref','--quiet','--short','HEAD']);
+   await local(['check-ref-format','--branch',input.source_branch]); await local(['check-ref-format','--branch',input.target_branch]);
+-  if (branch !== input.source_branch || input.source_branch === input.target_branch) invalid();
++  if (input.source_branch === input.target_branch) invalid();
+   // A null remote is explicit local-only intent, never a missing-remote guess.
+   let remote = null;
+   if (input.remote_name !== null) {

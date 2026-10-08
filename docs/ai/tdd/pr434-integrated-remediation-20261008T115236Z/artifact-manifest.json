@@ -1,0 +1,170 @@
+{
+  "source_sha256": "e0d14f2b5dc9d5726fbae36e03b1bb346204c459cd6ab988015b57069396caaf",
+  "head": "8701da75a29e76e5a7897a9e327ad07f9ab38345",
+  "files": [
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/child1-gate.json",
+      "sha256": "0069af90aae6582dc802cef4e5306ff4086c6b0c5e77e5a0c8e63c349b9dd579"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/child1-replay.log",
+      "sha256": "f278a2f094be405cc136b8ac390562150aebc48ac09ad52239bf10a172e46de8"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/child2-gate.json",
+      "sha256": "a1cb46f342cbb1ed34e876d9ddec4fdd82abb0635f7f875d4f9dc8061db911b8"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-001.patch",
+      "sha256": "52241527588dce1e57642876e016d5f44fa6dc476f6bd14c1ff5c6b254ef76f5"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-001.txt",
+      "sha256": "faea5d1ae9f00a03437c410d6d50a3a808fa5ebf8b64ca81a067dc7f0462dbf5"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-002.patch",
+      "sha256": "b176cc21daf09ef30bffbba8ecae2c720f2a5915e810651cff231ac43f9a5491"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-002.txt",
+      "sha256": "6844c31dc3aa2ef1013f62abc0d2906918dc2fb29bbe73f948dd213daf256b3f"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-003.patch",
+      "sha256": "265dae588c30855648e6c4bce056d2f7cfe7d524b1780fd3e70073deb1c0b652"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-003.txt",
+      "sha256": "292ef4723bba0485c2000329368446b0ac69cae92d2a8d64e2456898bdc045c4"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-004.patch",
+      "sha256": "6f861129eedcf21a5f671d2c31832f5bdc090b75db24462ace16e1f1e1c2044f"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-004.txt",
+      "sha256": "2911c3f7929218432d1f20091e6e2b29155cfe4d6c70bd638c09a1e6cc3f88e6"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-005.patch",
+      "sha256": "b1f8208dcf9c28a83898bc207cb07cf5f0e15b3b788636324a7bd4d7257d9e4e"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-005.txt",
+      "sha256": "5eb341e4929a449a41c3414189ee2bd69e4367c5acab946bf4393e66a3a2c335"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-007.patch",
+      "sha256": "5cb7ee0e5754d4ae20e924b69fc1c68e1ca73dfc94027abc88e35ce937d666c8"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-capability-preflight/mutation-TEST-007.txt",
+      "sha256": "7ef22cd9da2f4900a321c970dee01b93490f8fccafd0491b8a22173dea15141d"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-generic-url-validity/mutation-TEST-001.patch",
+      "sha256": "faae797215ef14974008e857c55bac0d880d6b7497a59ff6e5f02e7d482dfbec"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-generic-url-validity/mutation-TEST-001.txt",
+      "sha256": "b04bd86783074a0c6a39a7c26be9faf7efab36250e5bbcd634854e3455e6c8bd"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-generic-url-validity/mutation-TEST-007.patch",
+      "sha256": "faae797215ef14974008e857c55bac0d880d6b7497a59ff6e5f02e7d482dfbec"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/original/spec-pr-generic-url-validity/mutation-TEST-007.txt",
+      "sha256": "67482dbd4332831f28fd87187d2c7b29486e523a3fee5fcb987c07e3f8ed6129"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/parent-gate.json",
+      "sha256": "d00357811699ecf88ff9836169721c1a65f9bce26e0ea49031f56f895a894185"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/parent-replay-attempt.log",
+      "sha256": "e7486a44cb349cf3ff62ca8264bb90dba5fd60020a9323064909f2aeef0cc891"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/parent-replay-final.log",
+      "sha256": "3c810b6697362bd54d5b46d239c94de9ef7d4f00037df4356d6ad1640df75cf4"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/parent-TEST-007-remeter.log",
+      "sha256": "78dfad3c5aec324c4f68f4b82b9554d5cae715560adc74830b6e70fb17ba1161"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/pre-replay-manifest.json",
+      "sha256": "31866c6371552a3c26a4fe3821d5c29f94d30ddf392b4371e9d421a15fce3cb3"
+    },
+    {
+      "path": "docs/ai/tdd/pr434-integrated-remediation-20261008T115236Z/result.md",
+      "sha256": "cbb77ea2ef8155cc463d349c8496ad2bf1d10dbd559083c5701a0d9623945e1e"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.patch",
+      "sha256": "52241527588dce1e57642876e016d5f44fa6dc476f6bd14c1ff5c6b254ef76f5"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.txt",
+      "sha256": "c6d892b2f4520e685b9f8e8bac101fc118410ed46728e640cdc806c76fac4d6d"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.patch",
+      "sha256": "b176cc21daf09ef30bffbba8ecae2c720f2a5915e810651cff231ac43f9a5491"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.txt",
+      "sha256": "dd1dd2f4a3fd245bc76ec4fba2a116f9b97ed24a980c2c8ebe66ede7f6ec879e"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.patch",
+      "sha256": "265dae588c30855648e6c4bce056d2f7cfe7d524b1780fd3e70073deb1c0b652"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.txt",
+      "sha256": "5b53d141b6a362305d0f83f59cc2f430db8e0e40c59c8ba4bf6aa92ad62dfcf0"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.patch",
+      "sha256": "6f861129eedcf21a5f671d2c31832f5bdc090b75db24462ace16e1f1e1c2044f"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.txt",
+      "sha256": "47792573d77d21872d9f84173486c82db99ba4eb24ea234ccc71b5643404a4d5"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.patch",
+      "sha256": "b1f8208dcf9c28a83898bc207cb07cf5f0e15b3b788636324a7bd4d7257d9e4e"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.txt",
+      "sha256": "56f581b2dd03c5cc4f5a97dd76eadd7865d486335a363f13c8fa177c423b61a2"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.patch",
+      "sha256": "0c7697cd2003eb417482567eff942a0e1393bc9930b9e6b74154dacaa25ff943"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.txt",
+      "sha256": "1f62c2841dda17ee874bf44769e098b5801d9668b185d748348e17623041bb3a"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-001.patch",
+      "sha256": "faae797215ef14974008e857c55bac0d880d6b7497a59ff6e5f02e7d482dfbec"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-001.txt",
+      "sha256": "65a981f59bbf7ff2408b2b981c5060ca0365b739d90afade5b2b94eeeda511f8"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-007.patch",
+      "sha256": "faae797215ef14974008e857c55bac0d880d6b7497a59ff6e5f02e7d482dfbec"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-007.txt",
+      "sha256": "0f9be9f32d324ea6a9e1ef927f14ea62c7b645b8fe73ae94bf001c7d301fdc42"
+    }
+  ]
+}

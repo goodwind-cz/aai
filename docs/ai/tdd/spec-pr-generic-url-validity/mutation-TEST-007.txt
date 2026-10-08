@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-007 exit IDENTITY_INVALID
 selector_honoured: yes
-target_sha256: a69e20c313a1d34c2b8e0095545b63e98337cd7e7b2fa825f9bcf69fd715d958
+target_sha256: e0d14f2b5dc9d5726fbae36e03b1bb346204c459cd6ab988015b57069396caaf
 ---
 INFO: scratch_override=unset platform=darwin uid=501
 INFO: CLI_BOUND {"test":"007","sequence":1,"mode":"ok","timeout_ms":105000,"elapsed_ms":5796,"error_code":null,"signal":null,"git_probes":7,"provider_steps":["gh.--version","gh.auth","gh.repo"],"stdout_bytes":467}

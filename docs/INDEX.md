@@ -1,19 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-08T11:49:34.202Z
+Generated: 2026-10-08T12:21:25.023Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| CHANGE-0204 | issues | implementing | — | docs/issues/CHANGE-0204-pr-capability-preflight.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0210 | specs | implementing | 6 done | docs/specs/SPEC-0210-spec-pr-capability-preflight.md |
 
 ## Canonical layer (0)
 
@@ -56,7 +54,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (497)
+## Done (499)
 
 | ID | Type | Path |
 |---|---|---|
@@ -259,6 +257,7 @@ _None._
 | CHANGE-0201 | issues | docs/issues/CHANGE-0201-roadmap-serves-downstream-projects.md |
 | CHANGE-0202 | issues | docs/issues/CHANGE-0202-amendment-signature-asks-the-owner-too-often.md |
 | CHANGE-0203 | issues | docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md |
+| CHANGE-0204 | issues | docs/issues/CHANGE-0204-pr-capability-preflight.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -553,6 +552,7 @@ _None._
 | SPEC-0207 | specs | docs/specs/SPEC-0207-spec-configurable-merge-policy-lanes.md |
 | SPEC-0208 | specs | docs/specs/SPEC-0208-spec-roadmap-maintenance-budget-advisory.md |
 | SPEC-0209 | specs | docs/specs/SPEC-0209-spec-worktree-lacks-vendored-aai-layer-downstream.md |
+| SPEC-0210 | specs | docs/specs/SPEC-0210-spec-pr-capability-preflight.md |
 | SPEC-0211 | specs | docs/specs/SPEC-0211-spec-pr-generic-url-validity.md |
 | SPEC-0212 | specs | docs/specs/SPEC-0212-spec-pr-github-case-identity.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |

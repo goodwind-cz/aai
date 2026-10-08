@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-002 exit EXTENSION_MISSING
 selector_honoured: no (suite runs every test)
-target_sha256: 68f6d775e272adeaf59739e8fa961613b10c2a7e2ade7e3645a4e01a67f75638
+target_sha256: e0d14f2b5dc9d5726fbae36e03b1bb346204c459cd6ab988015b57069396caaf
 ---
 FAIL: TEST-002 exit EXTENSION_MISSING
 

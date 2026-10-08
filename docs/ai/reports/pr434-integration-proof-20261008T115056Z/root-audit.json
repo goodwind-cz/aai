@@ -1,0 +1,8 @@
+{
+  "artifact_pins_verified": 41,
+  "before_rows_verified": 23,
+  "original_copies_git_8701_exact": true,
+  "index_content_matches_shipping_head": true,
+  "index_note": "Role prose says pre-replay index hash unchanged but pre-manifest contains no index hash. Root verifies no staged content changes/conflicts against checked shipping HEAD; no invented prior hash comparison.",
+  "current_raw_nul_index_sha256": "81a7e66098f85c68131f133a47331cfd9bee0efadcf3a15cbc1660b2a2de66d4"
+}

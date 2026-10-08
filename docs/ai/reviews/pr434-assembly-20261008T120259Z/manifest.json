@@ -1,0 +1,82 @@
+{
+  "boundary_sha256": "e0e7aecfc9f4ff8348f088e6b4ab63912482f7f5d1e3e88db70df4176426c17f",
+  "started_utc": "2026-10-08T12:02:59+00:00",
+  "ended_utc": "2026-10-08T12:11:30+00:00",
+  "duration_seconds": 511,
+  "role_checker_exit": 0,
+  "files": [
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/SPEC-0210-spec-pr-capability-preflight-gate.json",
+      "sha256": "d00357811699ecf88ff9836169721c1a65f9bce26e0ea49031f56f895a894185"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/SPEC-0211-spec-pr-generic-url-validity-gate.json",
+      "sha256": "0069af90aae6582dc802cef4e5306ff4086c6b0c5e77e5a0c8e63c349b9dd579"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/SPEC-0212-spec-pr-github-case-identity-gate.json",
+      "sha256": "a1cb46f342cbb1ed34e876d9ddec4fdd82abb0635f7f875d4f9dc8061db911b8"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/amend-strict.log",
+      "sha256": "e1d83061aaff39863853b7cd6397911aa2db0977312c5bdb791eb7cfd5eda075"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/boundary-after.json",
+      "sha256": "f997f9717941863ce1b20f368c58e10d4a382acbe9de4d25373e9fe0a28a37f5"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/boundary-before.json",
+      "sha256": "5e479ee1f3a87a1306a0576e7a5827ba52dd0fcf42450b336718fe5b3c93b94a"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/diff-summary.json",
+      "sha256": "e284cb48a30291d72362eb2363446cf56c6db9cef73f5acbd9c216fc87e10a5d"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/docs-audit.log",
+      "sha256": "375c6f30d9e14a441ebd45bb336e6be2d5d2ed66715d7a545b0799efa2215b7f"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/input-boundary.json",
+      "sha256": "e0e7aecfc9f4ff8348f088e6b4ab63912482f7f5d1e3e88db70df4176426c17f"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/patch-checks.json",
+      "sha256": "0596125934960aabd38e49b5e04327b8aec7d9e8b1849cd8b9cd4e53fbb044b3"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/preflight.log",
+      "sha256": "918ca2d9aed35f723ff7e77c8163152e84bacf31784bb85474c561026c87d0a6"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/probes-infra.log",
+      "sha256": "d2f4b16953063b184376235b72d06c5404e367cd899dc264a8bfb1e9cb4d441b"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/probes.cjs",
+      "sha256": "d72f759b70f84c71799877aa3a1975797b9e19b723b4a8edaf7a760cfda6968c"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/probes.log",
+      "sha256": "5a2a44e4b83bdb08a336291c9dc8330014d5d12a6a7d16262578bb2977676886"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/proof-audit.json",
+      "sha256": "a8bb1dcd5a90d4bc61d0c2e939ea5091dc69341b4ba68137d6be4b2958d0666d"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/result.md",
+      "sha256": "07c54249171ce7f86b3f2750f789318095428d5e3b93d32e7d1d7e2ac4ecb492"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-assembly-20261008T120259Z/role-check.log",
+      "sha256": "bde294368bfed77c2cddf8cec271d398aee9cdbab3b26e1059281bd33adb0120"
+    },
+    {
+      "path": "docs/ai/reviews/review-20261008T120259Z-pr434-assembly.md",
+      "sha256": "e33cc06fbef356f963a22d34044ea576cf892bb38a911e40a29c784464316345"
+    }
+  ],
+  "exclusion": "manifest excludes its own recursive hash; end captures review/result preparation, checker and manifest sealing immediately follow"
+}

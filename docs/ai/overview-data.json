@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-08T11:49:06.432Z",
+  "generatedAt": "2026-10-08T12:20:33.553Z",
   "project": "aai",
   "counts": {
-    "delivered": 281,
-    "in_progress": 17,
+    "delivered": 282,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -49,19 +49,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "pr-capability-preflight",
-      "title": "Noninteractive provider readiness before PR writes",
-      "type": "change",
-      "status": "implementing",
-      "path": "docs/issues/CHANGE-0204-pr-capability-preflight.md",
-      "closed_on": null,
-      "agent_minutes": 358,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
-      "validation": "docs/ai/reports/VALIDATION-20261007T205748Z-pr-capability-preflight-final-ci.md",
-      "review": "docs/ai/reviews/review-20261007T232901Z-pr-capability-preflight-final.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -259,6 +246,19 @@
       "spec": "docs/specs/SPEC-0212-spec-pr-github-case-identity.md",
       "validation": "docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md",
       "review": "docs/ai/reviews/review-20261008T114239Z-pr-github-case-identity.md"
+    },
+    {
+      "ref": "pr-capability-preflight",
+      "title": "Noninteractive provider readiness before PR writes",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0204-pr-capability-preflight.md",
+      "closed_on": "2026-10-07",
+      "agent_minutes": 358,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+      "validation": "docs/ai/reports/VALIDATION-20261007T205748Z-pr-capability-preflight-final-ci.md",
+      "review": "docs/ai/reviews/review-20261007T232901Z-pr-capability-preflight-final.md"
     },
     {
       "ref": "worktree-lacks-vendored-aai-layer-downstream",
@@ -3939,6 +3939,19 @@
           "spec": "docs/specs/SPEC-0212-spec-pr-github-case-identity.md",
           "validation": "docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md",
           "review": "docs/ai/reviews/review-20261008T114239Z-pr-github-case-identity.md"
+        },
+        {
+          "ref": "pr-capability-preflight",
+          "title": "Noninteractive provider readiness before PR writes",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0204-pr-capability-preflight.md",
+          "closed_on": "2026-10-07",
+          "agent_minutes": 358,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+          "validation": "docs/ai/reports/VALIDATION-20261007T205748Z-pr-capability-preflight-final-ci.md",
+          "review": "docs/ai/reviews/review-20261007T232901Z-pr-capability-preflight-final.md"
         },
         {
           "ref": "worktree-lacks-vendored-aai-layer-downstream",
