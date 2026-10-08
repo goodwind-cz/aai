@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T21:22:53.796Z",
+  "generatedAt": "2026-10-08T21:32:08.706Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -5071,7 +5071,7 @@
       {
         "ref": "post-validation-pushes-reuse-test-results",
         "verdict_source": "field",
-        "cost_basis": "mixed"
+        "cost_basis": "total-blended"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
