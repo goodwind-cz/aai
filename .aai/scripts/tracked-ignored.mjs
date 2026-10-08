@@ -5,7 +5,9 @@
 // SPEC spec-post-validation-pushes-reuse-test-results, D1).
 //
 // Rules counted: the repository's own per-directory .gitignore files only
-// (`git ls-files -ci` with the per-directory exclude option). Global
+// (`git ls-files -ci` with the per-directory exclude option; under `--rev` the
+// .gitignore blobs of THAT revision are materialized into a private work tree,
+// never the working tree's files). Global
 // core.excludesFile and .git/info/exclude are deliberately NOT counted: they
 // are per-machine, CI has neither, and a developer's private excludes must
 // not refuse what CI accepts.
@@ -33,9 +35,9 @@
 // ignoreRules(cwd, paths), ignoredByGitignore(cwd, paths).
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MAX_BUFFER = 256 * 1024 * 1024;
@@ -75,19 +77,19 @@ function splitNul(s) {
   return s.split('\0').filter((x) => x.length > 0);
 }
 
-// ignoreRules(cwd, paths) -> Map(path -> {source, line, pattern}) for every
+// ignoreRules(cwd, paths, env) -> Map(path -> {source, line, pattern}) for every
 // path git's ignore machinery decides on, one `check-ignore` process for the
-// whole batch. core.excludesFile is emptied so a developer's global file cannot
+// whole batch (`env` lets a caller point it at an alternate work tree). core.excludesFile is emptied so a developer's global file cannot
 // be named as the source; .git/info/exclude CAN still be named (git always
 // reads it) -- callers that must count repository rules only filter on the
 // source (see ignoredByGitignore). Works for paths that do not exist.
-export function ignoreRules(cwd, paths) {
+export function ignoreRules(cwd, paths, env) {
   const out = new Map();
   if (!paths || paths.length === 0) return out;
   const r = spawnSyncInput(
     cwd,
     ['-c', 'core.excludesFile=', 'check-ignore', '-v', '--no-index', '-z', '--stdin'],
-    {},
+    env || {},
     paths.join('\0') + '\0',
   );
   if (r.status !== 0 && r.status !== 1) return out;
@@ -111,6 +113,26 @@ export function ignoredByGitignore(cwd, paths) {
   return ok;
 }
 
+// Materialize the revision's own .gitignore files (regular blobs of the index
+// read from <rev>) into <wt>, mirroring their paths, so git evaluates the
+// rules that revision carried and not the working tree's.
+function materializeIgnoreFiles(top, env, wt) {
+  const entries = splitNul(gitOk(top, ['ls-files', '-s', '-z'], env));
+  for (const e of entries) {
+    const tab = e.indexOf('\t');
+    if (tab < 0) continue;
+    const [mode, sha] = e.slice(0, tab).split(' ');
+    const path = e.slice(tab + 1);
+    if (mode !== '100644' && mode !== '100755') continue;
+    if (path.split('/').pop() !== '.gitignore') continue;
+    const dest = join(wt, path);
+    mkdirSync(dirname(dest), { recursive: true });
+    const r = spawnSync('git', ['cat-file', 'blob', sha], { cwd: top, maxBuffer: MAX_BUFFER });
+    if (r.error || r.status !== 0) throw new Error(`git cat-file blob ${sha} failed`);
+    writeFileSync(dest, r.stdout);
+  }
+}
+
 function ruleText(m, p) {
   const r = m.get(p);
   return r ? `${r.source}:${r.line}:${r.pattern}` : 'unknown';
@@ -125,21 +147,31 @@ export function trackedIgnored({ cwd, rev, paths, pathspecs, nameRulesFor } = {}
   if (!top) throw new Error('not inside a git work tree');
   let env = {};
   let tmp = null;
+  let work = top;
+  let ruleEnv;
   try {
     if (rev) {
       gitOk(top, ['rev-parse', '--verify', '--quiet', `${rev}^{tree}`]);
       tmp = mkdtempSync(join(tmpdir(), 'tracked-ignored-'));
+      const gitDir = gitOk(top, ['rev-parse', '--absolute-git-dir']).trim();
       env = { GIT_INDEX_FILE: join(tmp, 'index') };
       gitOk(top, ['read-tree', rev], env);
+      // The ignore rules must be the revision's own, so the work tree git sees
+      // is a private directory holding only that revision's .gitignore files.
+      work = join(tmp, 'wt');
+      mkdirSync(work);
+      materializeIgnoreFiles(top, env, work);
+      ruleEnv = { GIT_DIR: gitDir, GIT_WORK_TREE: work };
+      env = { ...env, ...ruleEnv };
     }
     const spec = pathspecs && pathspecs.length ? ['--', ...pathspecs.map((p) => `:(literal)${p}`)] : [];
-    const tracked = splitNul(gitOk(top, ['ls-files', '-z', ...spec], env));
+    const tracked = splitNul(gitOk(work, ['ls-files', '-z', ...spec], env));
     const ignored = splitNul(
-      gitOk(top, ['ls-files', '-z', '-ci', '--exclude-per-directory=.gitignore', ...spec], env),
+      gitOk(work, ['ls-files', '-z', '-ci', '--exclude-per-directory=.gitignore', ...spec], env),
     );
     const want = paths ? new Set(paths) : null;
     const wanted = want ? ignored.filter((p) => want.has(p)) : ignored;
-    const named = ignoreRules(top, nameRulesFor ? wanted.filter((p) => nameRulesFor.has(p)) : wanted);
+    const named = ignoreRules(work, nameRulesFor ? wanted.filter((p) => nameRulesFor.has(p)) : wanted, ruleEnv);
     const hits = wanted.map((p) => ({ path: p, rule: ruleText(named, p) }));
     return { checked: want ? tracked.filter((p) => want.has(p)).length : tracked.length, hits };
   } finally {

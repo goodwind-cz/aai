@@ -674,6 +674,72 @@ test_1736_precommit_broken_script_is_not_a_pass() {  # review F4
   log_pass "TEST-1736: exit 1 without IGNORED_ADDED reads as 'could not run' (TEST-1736)"
 }
 
+test_1739_rev_uses_the_revisions_own_gitignore() {  # Spec-AC-01/04, review P2 (PR #435)
+  log_info "Test: --rev evaluates the requested revision's .gitignore files, not the working tree's (TEST-1739)..."
+  new_scratch
+  local repo r1 r2 sub
+  repo="$(fx_repo t1739)"
+  mkdir -p "$repo/sub"
+  printf 'x\n' > "$repo/keep.txt"
+  printf 'x\n' > "$repo/forced.log"
+  printf 'x\n' > "$repo/sub/inner.dat"
+  printf '*.log\n' > "$repo/.gitignore"
+  printf '*.dat\n' > "$repo/sub/.gitignore"
+  fx_git "$repo" add .gitignore sub/.gitignore keep.txt
+  fx_git "$repo" add -f forced.log sub/inner.dat
+  fx_git "$repo" commit -q -m first
+  r1="$(fx_git "$repo" rev-parse HEAD)"
+  # the next commit drops both rules; the force-added files stay tracked
+  : > "$repo/.gitignore"
+  fx_git "$repo" rm -q -f sub/.gitignore
+  fx_git "$repo" add .gitignore
+  fx_git "$repo" commit -q -m second
+  r2="$(fx_git "$repo" rev-parse HEAD)"
+
+  # the Codex repro: the first revision still had the rules, so it must report the hits
+  run_ta "$repo" --all --rev "$r1"
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1739: --rev $r1 must report the paths its own rules ignore, got $CODE: $OUT"
+  has_line_prefix "$OUT" "TRACKED_IGNORED forced.log rule=.gitignore:1:*.log" \
+    || log_fail "TEST-1739: the rule must name the revision's .gitignore line, got: $OUT"
+  has_line_prefix "$OUT" "TRACKED_IGNORED sub/inner.dat rule=sub/.gitignore:1:*.dat" \
+    || log_fail "TEST-1739: a nested revision rule must be honoured, got: $OUT"
+
+  # the later revision and the live tree carry no rule: clean
+  run_ta "$repo" --all --rev "$r2"
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1739: --rev $r2 has no rule left, expected exit 0, got $CODE: $OUT"
+  run_ta "$repo" --all
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1739: the live tree has no rule left, expected exit 0, got $CODE: $OUT"
+
+  # inverse: a rule that exists only in the working tree / a later commit must not flag the old revision
+  printf '*.log\n' > "$repo/.gitignore"
+  fx_git "$repo" add .gitignore
+  fx_git "$repo" commit -q -m third
+  run_ta "$repo" --all --rev "$r2"
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1739: a rule added only later must not flag the old revision, got $CODE: $OUT"
+  run_ta "$repo" --all
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1739: positive control — the live tree now ignores forced.log, got $CODE: $OUT"
+
+  # an uncommitted working-tree edit never leaks into a --rev check
+  : > "$repo/.gitignore"
+  run_ta "$repo" --all --rev HEAD
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1739: HEAD's committed rule must win over a dirty worktree, got $CODE: $OUT"
+
+  # check-committed-scope --rev inherits it
+  ccs_run "$repo" --rev "$r1" forced.log
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1739: check-committed-scope --rev $r1 must flag forced.log, got $CODE: $OUT"
+  out_has "forced.log (tracked-ignored)" || log_fail "TEST-1739: the label must appear for the old revision, got: $OUT"
+  ccs_run "$repo" --rev "$r2" forced.log
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1739: check-committed-scope --rev $r2 must be clean, got $CODE: $OUT"
+
+  # the global and info exclude files still do not count in --rev mode
+  printf 'keep.txt\n' > "$TEST_DIR/t1739-global"
+  fx_git "$repo" config core.excludesFile "$TEST_DIR/t1739-global"
+  printf 'keep.txt\n' > "$repo/.git/info/exclude"
+  run_ta "$repo" --all --rev "$r2"
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1739: global/info excludes must not count under --rev, got $CODE: $OUT"
+  log_pass "TEST-1739: --rev reads the requested revision's own .gitignore files (TEST-1739)"
+}
+
 main() {
   echo "Testing $TEST_NAME (post-validation-pushes-reuse-test-results, Batches A and B)"
   check_deps
@@ -688,6 +754,7 @@ main() {
   test_1708_precommit_ps1_parity
   test_1709_real_hook_refuses_commit
   test_1710_check_committed_scope_label
+  test_1739_rev_uses_the_revisions_own_gitignore
   test_1728_report_paths_refused_at_commit_time
   test_1733_local_evidence_rule_in_canon
   test_1735_staged_names_rules_in_one_batch
