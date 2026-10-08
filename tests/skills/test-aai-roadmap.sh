@@ -760,7 +760,14 @@ YAML
     live="$(git -C "$PROJECT_ROOT" hash-object .aai/scripts/close-work-item.mjs)"
     base="$(git -C "$PROJECT_ROOT" rev-parse "$mb:.aai/scripts/close-work-item.mjs" 2>/dev/null)" || base=""
     [ -n "$base" ] || log_fail "TEST-1322: the merge-base $mb carries no close-work-item.mjs blob"
-    [ "$live" = "$base" ] || log_fail "TEST-1322: close-work-item.mjs must be byte-identical to its merge-base blob ($live vs $base)"
+    if [ "$live" != "$base" ]; then
+      # A later ride may legitimately re-pin the engine: accept a different blob ONLY when
+      # its sha256 is on the shared reviewed allowlist (tests/skills/lib/close-work-item-pin.sh).
+      # shellcheck source=lib/close-work-item-pin.sh
+      . "$PROJECT_ROOT/tests/skills/lib/close-work-item-pin.sh"
+      close_work_item_pin_assert "$PROJECT_ROOT" >/dev/null \
+        || log_fail "TEST-1322: close-work-item.mjs differs from its merge-base blob ($live vs $base) and is not on the shared pin allowlist"
+    fi
   fi
   log_pass "advance is a no-op before the real close, flips after it, next follows; engine untouched (TEST-1322)"
 }
