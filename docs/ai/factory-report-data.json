@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-07T20:22:20.462Z",
+  "generatedAt": "2026-10-08T11:20:35.310Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 152,
-    "delivered": 501,
+    "rides": 153,
+    "delivered": 503,
     "active_weeks": 15,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (501 closes vs 152 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 501,
-    "delivered_per_week_avg": 33.4,
+    "note": "\"delivered\" counts every work_item_closed event (503 closes vs 153 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 503,
+    "delivered_per_week_avg": 33.5,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -29,7 +29,7 @@
       "2026-W38": 12,
       "2026-W39": 15,
       "2026-W40": 35,
-      "2026-W41": 8
+      "2026-W41": 10
     },
     "delivered_groups": [
       {
@@ -539,7 +539,7 @@
         "key": "month:2026-10",
         "kind": "month",
         "label": "2026-10",
-        "count": 22,
+        "count": 24,
         "refs": [
           "downstream-rides-ask-no-governance-questions",
           "spec-downstream-rides-ask-no-governance-questions",
@@ -562,7 +562,9 @@
           "worktree-lacks-vendored-aai-layer-downstream",
           "spec-worktree-lacks-vendored-aai-layer-downstream",
           "pr-capability-preflight",
-          "spec-pr-capability-preflight"
+          "spec-pr-capability-preflight",
+          "pr-generic-url-validity",
+          "spec-pr-generic-url-validity"
         ]
       }
     ],
@@ -2566,29 +2568,37 @@
         },
         {
           "ref": "pr-capability-preflight",
-          "lead_time_seconds": null
+          "lead_time_seconds": 28654
         },
         {
           "ref": "spec-pr-capability-preflight",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "pr-generic-url-validity",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-pr-generic-url-validity",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 4493,
-      "mean_seconds": 111193.6,
-      "measured": 148,
-      "unmeasurable": 353
+      "median_seconds": 4503,
+      "mean_seconds": 110639.7,
+      "measured": 149,
+      "unmeasurable": 354
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2780,
-      "mean": 8183,
-      "measured": 150
+      "median": 2783,
+      "mean": 8270.8,
+      "measured": 151
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 318457,
+        "duration_seconds": 323795,
         "tokens": 21871711
       },
       {
@@ -2598,17 +2608,17 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 112052,
+        "duration_seconds": 112714,
         "tokens": 11624415
       },
       {
         "role": "Remediation",
-        "duration_seconds": 252870,
+        "duration_seconds": 254280,
         "tokens": 13092672
       },
       {
         "role": "Validation",
-        "duration_seconds": 362973,
+        "duration_seconds": 377013,
         "tokens": 16336144
       },
       {
@@ -3382,6 +3392,11 @@
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
         "busy_seconds": 19008,
         "remediation_runs": 4
+      },
+      {
+        "ref": "pr-capability-preflight",
+        "busy_seconds": 21450,
+        "remediation_runs": 2
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -3428,7 +3443,7 @@
     ],
     "capture_coverage": {
       "runs_with_marker": 451,
-      "total_runs": 900,
+      "total_runs": 910,
       "pct": 50,
       "by_week": [
         {
@@ -3518,7 +3533,7 @@
         {
           "week": "2026-W41",
           "runs_with_marker": 0,
-          "total_runs": 131,
+          "total_runs": 141,
           "pct": 0
         }
       ]
@@ -3527,9 +3542,9 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 151,
+          "runs_total": 153,
           "runs_marked": 83,
-          "runs_sentinel": 1,
+          "runs_sentinel": 3,
           "runs_unmarked": 67,
           "tokens_total": 21871711,
           "median_tokens_per_run": 246695,
@@ -3547,9 +3562,9 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 174,
+          "runs_total": 176,
           "runs_marked": 104,
-          "runs_sentinel": 2,
+          "runs_sentinel": 4,
           "runs_unmarked": 68,
           "tokens_total": 11624415,
           "median_tokens_per_run": 103407,
@@ -3557,9 +3572,9 @@
         },
         {
           "role": "Remediation",
-          "runs_total": 151,
+          "runs_total": 153,
           "runs_marked": 66,
-          "runs_sentinel": 4,
+          "runs_sentinel": 6,
           "runs_unmarked": 81,
           "tokens_total": 13092672,
           "median_tokens_per_run": 175818,
@@ -3567,9 +3582,9 @@
         },
         {
           "role": "Validation",
-          "runs_total": 223,
+          "runs_total": 227,
           "runs_marked": 115,
-          "runs_sentinel": 5,
+          "runs_sentinel": 9,
           "runs_unmarked": 103,
           "tokens_total": 16336144,
           "median_tokens_per_run": 135832,
@@ -4203,14 +4218,14 @@
   "quality": {
     "first_pass_clean": {
       "clean": 85,
-      "flagged": 126,
+      "flagged": 127,
       "rate_pct": 67
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 85,
       "1": 14,
-      "2": 7,
+      "2": 8,
       "3": 4,
       "4": 7,
       "5": 4,
@@ -4223,7 +4238,7 @@
     "avg_validation_fails": 0.3,
     "avg_review_fails": 0.1,
     "verdict_mix": {
-      "PASS": 139,
+      "PASS": 140,
       "null": 13
     },
     "review_events": 26,
@@ -4238,7 +4253,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 15,
+    "field_derived": 16,
     "marker_derived": 2,
     "mixed": 0,
     "no_basis": 135,
@@ -5002,6 +5017,11 @@
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
         "verdict_source": "field",
         "cost_basis": "none"
+      },
+      {
+        "ref": "pr-capability-preflight",
+        "verdict_source": "field",
+        "cost_basis": "none"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -5121,23 +5141,23 @@
     },
     {
       "week": "2026-W41",
-      "delivered": 8,
-      "median_lead_time_seconds": 32613,
-      "busy_seconds": 378060,
+      "delivered": 10,
+      "median_lead_time_seconds": 30634,
+      "busy_seconds": 399510,
       "tokens": null,
       "first_pass_rate": 0
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 183,
-    "oldest_age_days": 47,
+    "open_count": 186,
+    "oldest_age_days": 48,
     "items": [
       {
         "id": "fu-typemap-missing-research-hotfix",
         "ref": "spec-intake-numbers-some-doc-types-immediately",
         "severity": "P2",
-        "age_days": 47,
+        "age_days": 48,
         "what": "allocate-doc-number.mjs TYPE_MAP has no research and no hotfix row, so --type research and --type hotfix exit 2 as unknown types",
         "status": "open"
       },
@@ -5145,7 +5165,7 @@
         "id": "fu-amend-friction-upsert-channel-ba7701",
         "ref": "friction-upsert-channel-cannot-file",
         "severity": "P2",
-        "age_days": 33,
+        "age_days": 34,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-upsert-channel-cannot-file (docs/specs/spec-friction-upsert-channel-cannot-file): renumbered the Test Plan ids to avoid collision with the suite's existing TEST-001..012, replaced the planned RED control with a stub-contract plus source-token pair, and pinned one-line-per-invocation recording in the gh stub",
         "status": "open"
       },
@@ -5169,7 +5189,7 @@
         "id": "fu-amend-lessons-that-must-hold-d-13bccc",
         "ref": "lessons-that-must-hold-downstream-are-guards",
         "severity": "P2",
-        "age_days": 31,
+        "age_days": 32,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-lessons-that-must-hold-downstream-are-guards: a guard marker in LEARNED.md may point at an already-shipped script, not only at an open follow-up; the test asserts each kind against reality",
         "status": "open"
       },
@@ -5193,7 +5213,7 @@
         "id": "fu-amend-spec-harness-universal-routing",
         "ref": "harness-universal-routing",
         "severity": "P2",
-        "age_days": 24,
+        "age_days": 25,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-harness-universal-routing: Remediation of round-1 validation FAIL: fixed BLOCKING-1 (--confirm fallback lost harness/suggested_model), corrected weak M7/M13 mutation controls, added N3/N5/N6/N8 test coverage, and disclosed the undeclared tests/skills/lib/cd-subshell-leak-baseline.tsv surface + widened review scope",
         "status": "open"
       },
@@ -5201,7 +5221,7 @@
         "id": "fu-amend-spec-telemetry-fields-not-prose",
         "ref": "telemetry-fields-not-prose",
         "severity": "P2",
-        "age_days": 24,
+        "age_days": 25,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-telemetry-fields-not-prose: post-freeze scope widening after validation round 1: seam S5 is record -> triage -> upsert, aai-feedback-triage.mjs and its suite join Scope, Affected Area and the review scope, harness enters the triage ALLOWED_KEYS with the closed-set sanitizer; Article-5 deviation text names both append-run callers (ROLE_COMMON.md gained --verdict, +216 corpus bytes ledgered); Spec-AC-13/TEST-030 rationale corrected; residual R8 added",
         "status": "open"
       },
@@ -5209,7 +5229,7 @@
         "id": "fu-cost-blend-silent-default",
         "ref": "telemetry-fields-not-prose",
         "severity": "P3",
-        "age_days": 24,
+        "age_days": 25,
         "what": "blendedCostUsd() in .aai/scripts/lib/pricing.mjs silently falls back to a hardcoded 0.5 input_share when PRICING.yaml carries no cost_blend.input_share, with no NOTE — emit one NOTE naming the missing key, or fail closed to cost_basis: none instead of a silent default.",
         "status": "open"
       },
@@ -5249,7 +5269,7 @@
         "id": "fu-pester-red-under-isolation",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "tests/skills/test-ps1-quality.sh:1 -- PRE-EXISTING, not introduced by this ride and NOT reachable in CI: run through the framework's isolation clone on a host with Pester 5, ps1-quality fails 1 of 150 Pester cases -- aai-update.Tests.ps1:77 'refuses (exit 2) when run inside the canonical AAI repo without -Force', Expected 2 but got 0, because test-framework.sh:490 rewrites the clone's origin to ORIGIN-DISABLED-BY-ISOLATION and aai-update.ps1:57-61 decides canonical-repo membership from exactly that URL.",
         "status": "open"
       },
@@ -5257,7 +5277,7 @@
         "id": "fu-pindirfast-gitdir-untested",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "branch-guard.mjs:319 -- the GIT_DIR deference in pinDirFast (added for validation round-2 NB-1) has no test a mutation reddens.",
         "status": "open"
       },
@@ -5265,7 +5285,7 @@
         "id": "fu-prompt-diet-fixture-real-root-race",
         "ref": "test-framework-sweep",
         "severity": "P2",
-        "age_days": 23,
+        "age_days": 24,
         "what": "a real-tree write hazard, observed under the validator's own concurrency: one regression run of test-aai-docs-audit.sh exited 1 with TEST-005 crashing on ENOENT for docs/issues/prompt-diet-e2e-dry-run. Mechanism: when suites are invoked BARE (outside the framework's per-suite isolation), tests/skills/test-aai-prompt-diet.sh creates and deletes that file in the REAL project root (:34 E2E_DRAFT, created in test_004, removed by rm -f and an EXIT trap), and a concurrent real-tree corpus walk by docs-audit opened it between enumeration and read.",
         "status": "open"
       },
@@ -5273,7 +5293,7 @@
         "id": "fu-ps1-quality-outside-sweep-glob",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "tests/skills/test-framework.sh:948 -- Spec-AC-08's own new guard (test-ps1-quality.sh's timeout-default parity check) lives in a suite the local evidence chain never runs. discover_tests()'s full-run branch is find $SCRIPT_DIR -name 'test-aai-*.sh'; tests/skills/test-ps1-quality.sh has no 'aai-' prefix, so it is not one of the 93 sweep suites and has no suite-map.yaml row, so select-suites.mjs cannot select it either.",
         "status": "open"
       },
@@ -5281,7 +5301,7 @@
         "id": "fu-seed-partial-verdict-unasserted",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "tests/skills/test-framework.sh:557 -- Spec-AC-18's 'partly seeded, never seeded' verdict for the step-2 enumeration case is asserted by nothing. TEST-433(b) (test-aai-suite-isolation.sh:2564) greps only for the log_warn TEXT; the iso_seed_fail call at :558 that turns the observation into the PARTIAL verdict is unasserted.",
         "status": "open"
       },
@@ -5289,7 +5309,7 @@
         "id": "fu-seeded-copies-lesson-no-guard",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "docs/knowledge/LEARNED.md:48 -- fu-learned-worktree-seeded-copies is closed done under Spec-AC-05 against a mechanism (session-lock.mjs) that addresses a different shape and has no caller until this remediation's SKILL_WORKTREE wiring. The marker itself concedes it: 'guard shipped: indirectly ... the pre-pull stale-untracked-copy cleanup habit itself remains an operator action, not automated.'",
         "status": "open"
       },
@@ -5297,7 +5317,7 @@
         "id": "fu-watchdog-3000-exceeds-ci-timeout",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": ".github/workflows/skill-suite.yml:161 -- raising the wrapper's default AAI_TEST_TIMEOUT from 300s to 3000s puts the inner watchdog ABOVE both CI job ceilings (skills-selected timeout-minutes: 15 = 900s at :123, skills-full timeout-minutes: 30 = 1800s at :161). 24 suites invoke aai-run-tests.sh inside their own fixtures.",
         "status": "open"
       },
@@ -5305,7 +5325,7 @@
         "id": "fu-clearfocus-announces-unwritten-phase",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "clear-focus REPLACES an existing phase:/status: line on the focused work item but never INSERTS a missing one, and prints 'work item phase=closed status=done' unconditionally even when the item carries no phase key at all (or there is no focused item).",
         "status": "open"
       },
@@ -5313,7 +5333,7 @@
         "id": "fu-dispatch-text-detector-self-ref-fp",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "check-dispatch-text.mjs's PRE_RATING_PHRASE_RE is a bare substring match with no exclusion for quoting, negation, or work-ordering prose, so it fires on the very D11 rule it enforces and on legitimate orchestration text.",
         "status": "open"
       },
@@ -5321,7 +5341,7 @@
         "id": "fu-verdict-coverage-same-second-true",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "metrics-flush.mjs's verdictAfterLastImplementer uses >= where Spec-AC-19 says 'later than', and no test pins the boundary; D7's second-precision coarsening widens the same-second window this decides wrongly.",
         "status": "open"
       },
@@ -5329,7 +5349,7 @@
         "id": "fu-ledger-shrink-arm-unpinned",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "tests/skills/test-aai-learned-routing.sh's TEST-008 does not pin the SHRINK arm of D15 — a ledger whose worktree content is SHORTER than the committed blob.",
         "status": "open"
       },
@@ -5337,7 +5357,7 @@
         "id": "fu-test454-4c-arm-uses-guard-proxy",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "TEST-454's step-4c arm exercises the exported checkBranchPin function rather than close-work-item.mjs's real CLI, disclosed in its own comment as a STATE.yaml-fixture limitation. Validation round 5 proved the real CLI passes too (rc 0, --dry-run needs no live active_work_items entry), showing the fixture limitation is surmountable.",
         "status": "open"
       },
@@ -5345,7 +5365,7 @@
         "id": "fu-tripwire-attributes-concurrent-writes",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "repo-tripwire attributes a shipping-tree write to the suite it is currently running, even when the writer is a DIFFERENT concurrent process (validation round 5: \"AAI-TRIPWIRE FAIL: test-aai-doc-numbering changed the shipping repository\" was actually the orchestrator's own concurrent full sweep, not doc-numbering).",
         "status": "open"
       },
@@ -5353,7 +5373,7 @@
         "id": "fu-pre-commit-checks-pipe-grep-q",
         "ref": "CHANGE-0185",
         "severity": "P2",
-        "age_days": 23,
+        "age_days": 24,
         "what": ".aai/scripts/pre-commit-checks.sh runs under pipefail and decides with 7 'echo $var | grep -q' pipes; the early-closing reader can SIGPIPE the producer and flip a guard decision (same class as round 9/10 of PR #381)",
         "status": "open"
       },
@@ -5361,7 +5381,7 @@
         "id": "fu-follow-ups-test021-fifo-eintr",
         "ref": "CHANGE-0185",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "test-aai-follow-ups.sh TEST-021 (FIFO arm) fails under 4-way parallel load with 'Interrupted system call' / 'Bad file descriptor' and passes standalone",
         "status": "open"
       },
@@ -5433,7 +5453,7 @@
         "id": "fu-sed-replacement-dollar-trap",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 22,
+        "age_days": 23,
         "what": "applySedExpr (mutation-run.mjs:324) still uses the STRING form of String.replace, the same js-replace-dollar-quote-corrupts trap NB3-r3 already fixed 210 lines below it in rotateExisting",
         "status": "open"
       },
@@ -5441,7 +5461,7 @@
         "id": "fu-writerecord-rotates-before-patch-copy",
         "ref": "mutation-gate-for-tests",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "mutation-run.mjs writeRecord() rotates the live record and patch aside BEFORE storePatchCopy() reads the caller's --patch path, so regenerating a patch-based record via its own live patch path (re-running the same command) throws ENOENT and destroys the live record",
         "status": "open"
       },
@@ -5473,7 +5493,7 @@
         "id": "fu-clone-untracked-copy-not-nul-split",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "buildIsolatedClone copies untracked files from git ls-files --others split on newlines while lib/tree-hash.mjs now lists with -z: an untracked file with a git-quoted name makes every run exit 3 (fail-closed, path named) until the file is gone",
         "status": "open"
       },
@@ -5481,7 +5501,7 @@
         "id": "fu-mutation-target-symlink-unchecked",
         "ref": "mutation-gate-for-tests",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "mutation-run.mjs never lstats --target: with --sed and an untracked symlink as --target the final write lands on the link's destination (e.g. the suite) and a RED is forged; it does not survive --replay on a clean checkout",
         "status": "open"
       },
@@ -5489,7 +5509,7 @@
         "id": "fu-tree-hash-nul-split-untested",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "lib/tree-hash.mjs listTreeFiles -z has no test of its own: reverting it leaves the mutation-gate suite green and no record targets lib/tree-hash.mjs",
         "status": "open"
       },
@@ -5497,7 +5517,7 @@
         "id": "fu-amend-spec-close-ceremony-sweep",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-close-ceremony-sweep: TEST-525 Mutation cell rewritten: the frozen cell carried two pipe characters that split the row into 11 cells, and named a line run 2's implementation does not have",
         "status": "open"
       },
@@ -5505,7 +5525,7 @@
         "id": "fu-mutation-sed-drops-multiline-flag",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "mutation-run.mjs applySedExpr honours only the g flag, so a per-line anchored expression (^number: null$) anchors to the whole file and can never redden",
         "status": "open"
       },
@@ -5513,7 +5533,7 @@
         "id": "fu-suite-fail-text-blocks-attribution",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "a suite whose log_fail wrapper prints no literal FAIL text (test-aai-intake.sh) cannot have a redden attributed by mutation-run, however correct the mutation",
         "status": "open"
       },
@@ -5521,7 +5541,7 @@
         "id": "fu-docs-audit-suite-has-no-selector",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "tests/skills/test-aai-docs-audit.sh runs every arm on every invocation, so any mutation targeting a shared file crashes an earlier arm and comes back INCONCLUSIVE",
         "status": "open"
       },
@@ -5529,7 +5549,7 @@
         "id": "fu-sweep-check-not-a-required-check",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "the report-only sweep-check job in .github/workflows/docs-numbering.yml (Spec-AC-34) is not a required GitHub check",
         "status": "open"
       },
@@ -5633,7 +5653,7 @@
         "id": "fu-issue-0040-closed-as-data-no-event",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 18,
+        "age_days": 19,
         "what": "ISSUE-0040 reads probable-false-done: it was closed as data by Spec-AC-10 with PR 382's real commit, but no ac_evidence event references it, so the drift report flags it",
         "status": "open"
       },
@@ -5641,7 +5661,7 @@
         "id": "fu-reconcile-mention-vs-disclosure",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 18,
+        "age_days": 19,
         "what": "close-reconcile's id-mention-unpaired arm fires on an id a delivered doc names to disclose that it is owned ELSEWHERE, not claimed; six such items on this ride's own merge",
         "status": "open"
       },
@@ -5649,7 +5669,7 @@
         "id": "fu-issue-0042-half-delivered",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 18,
+        "age_days": 19,
         "what": "ISSUE-0042 is half delivered: SPEC-0182 Spec-AC-21 shipped the template number: null half, but its Verification also requires allocate-doc-number.mjs to accept --type research and --type hotfix, which TYPE_MAP still lacks",
         "status": "open"
       },
@@ -5665,7 +5685,7 @@
         "id": "fu-mutation-selector-vs-bare-dispatch",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P2",
-        "age_days": 13,
+        "age_days": 14,
         "what": "mutation-run.mjs passes the full test_* function name to --selector, but suites whose main() dispatches on declare -f test_$t expect the bare suffix, so every mutation against such a suite returns INCONCLUSIVE",
         "status": "open"
       },
@@ -5673,7 +5693,7 @@
         "id": "fu-ps1-writeerror-terminates-before-exit",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "install-pre-commit-hook.ps1 sets ErrorActionPreference Stop, so Write-Error terminates before the following exit N ever runs; every pre-existing Write-Error plus exit pair lands on exit 1 by coincidence, not by intent",
         "status": "open"
       },
@@ -5681,7 +5701,7 @@
         "id": "fu-duplicate-message-collides-mutation",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "new code that echoes an EXISTING refusal or disclosure sentence verbatim gives a recorded mutation a second, unmutated copy, so the sed hits whichever comes first in file order and the row silently stops proving its property",
         "status": "open"
       },
@@ -5689,7 +5709,7 @@
         "id": "fu-amend-update-installs-ref-guar-f8caa1",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P2",
-        "age_days": 13,
+        "age_days": 14,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-update-installs-ref-guard-undisclosed: Spec-AC-05 and Spec-AC-06 bind the PowerShell twin too, delivered in run 3; TEST-613, TEST-616 and TEST-617 record equivalent mutations",
         "status": "open"
       },
@@ -5697,7 +5717,7 @@
         "id": "fu-ps1-symlink-config-replaced",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "install-pre-commit-hook.ps1 -ArmRefGuard on a SYMLINKED docs/ai/docs-audit.yaml replaces the symlink with a regular file, leaving the original target with the stale value",
         "status": "open"
       },
@@ -5705,7 +5725,7 @@
         "id": "fu-ps1-decline-not-disclosed",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "install-pre-commit-hook.ps1's ref-guard install disclosure names the refs/heads/main effect but never the -DeclineRefGuard command, unlike the .sh twin's disclosure line",
         "status": "open"
       },
@@ -5713,7 +5733,7 @@
         "id": "fu-ps1-refusal-no-manual-merge",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "Show-ForeignReftxRefusal (.ps1) says only Pass -Force to overwrite, naming no manual-merge command and offering no -Print surface at all, unlike the .sh twin's --print ref-guard",
         "status": "open"
       },
@@ -5881,7 +5901,7 @@
         "id": "fu-mutation-sed-replacement-unescaped",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "mutation-run.mjs --sed treats the pattern as a JS RegExp but the replacement as a literal String.replace substitution, so escaping the replacement the way the pattern requires inserts real backslashes and the mutated module fails to parse",
         "status": "open"
       },
@@ -5889,7 +5909,7 @@
         "id": "fu-labellist-parse-failure-untested",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "existingLabels' malformed-JSON and non-array branches now carry the gh result and render through the same refusal path, but no test exercises that rendering for a label list that exits 0 with unparseable output",
         "status": "open"
       },
@@ -5897,7 +5917,7 @@
         "id": "fu-amend-spec-friction-channel-sweep",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-friction-channel-sweep: TEST-672 and TEST-673 added for validation round 1's four blocking findings; the Registry section relabelled to the closure reader's grammar; the prompt's safety model corrected to describe the second mutating call",
         "status": "open"
       },
@@ -5905,7 +5925,7 @@
         "id": "fu-friction-loop-has-no-scheduler",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "nothing in the factory runs aai-feedback-status.mjs or the triage engine except /aai-wrap-up",
         "status": "open"
       },
@@ -5913,7 +5933,7 @@
         "id": "fu-runtests-capture-is-unscored-noise",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "the wrapper's automatic capture supplies confidence: low and no impact on every non-zero exit, including every deliberate TDD RED run",
         "status": "open"
       },
@@ -5921,7 +5941,7 @@
         "id": "fu-runtests-ps1-captures-no-friction",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "aai-run-tests.ps1 has no capture point at all, so a Windows-only failure never reaches the friction channel",
         "status": "open"
       },
@@ -5929,7 +5949,7 @@
         "id": "fu-672-identity-is-squeeze-bound",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "TEST-672's byte-identical comparison runs over tr -s ' ' output and truncates the create side at the literal string \" - failure_class:\"",
         "status": "open"
       },
@@ -5937,7 +5957,7 @@
         "id": "fu-672-no-second-read-assertion",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "spec row and Amendment 2 both claim TEST-672 pins the comment body coming from the blockquote rather than a second independent read of rep.summary; it does not",
         "status": "open"
       },
@@ -5945,7 +5965,7 @@
         "id": "fu-673-elapsed-threshold-headroom",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "TEST-673 asserts elapsed -le 5 seconds against a close ceremony that runs git, docs-audit and four regen passes",
         "status": "open"
       },
@@ -5953,7 +5973,7 @@
         "id": "fu-amendment-rule-not-rule-applied",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "an amendment corrects and does not rewrite is contradicted by the same diff, which rewrote three Registry section headings from prose subheadings to the NOT CLOSED vocabulary",
         "status": "open"
       },
@@ -5961,7 +5981,7 @@
         "id": "fu-backlog-timeout-can-be-weakened",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "AAI_FRICTION_BACKLOG_TIMEOUT_MS accepts a finite value like 999999999 which silently disables the outer bound for practical purposes",
         "status": "open"
       },
@@ -5969,7 +5989,7 @@
         "id": "fu-diet-ledger-plan-qualifier-wrong",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "the prompt-diet ledger entry for this ride reads +1022 B, inside the spec's declared ~900 B plan",
         "status": "open"
       },
@@ -5977,7 +5997,7 @@
         "id": "fu-mutation-evidence-is-gitignored",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "pre-existing, not this ride: .gitignore:35 excludes docs/ai/tdd/**, so the 25 mutation records mutation-gate.mjs reads for this spec are never committed",
         "status": "open"
       },
@@ -5985,7 +6005,7 @@
         "id": "fu-note-not-what-hung-gh-produces",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "Amendment 2 and the close comment associate a hung backlog step's degrade-to-NOTE with a hung gh call specifically",
         "status": "open"
       },
@@ -5993,7 +6013,7 @@
         "id": "fu-two-prompt-files-still-stale",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "the frozen plan named three corpus files whose text describes behaviour this scope changes; only one was corrected, and Amendment 2 speaks of that file and the dropped plan item in the singular",
         "status": "open"
       },
@@ -6001,7 +6021,7 @@
         "id": "fu-merge-needs-paired-flag",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "carried from round 1, still true: the close must pass --paired hand-authored-friction-is-second-class or six of the seven docs-audit reds survive the merge",
         "status": "open"
       },
@@ -6009,7 +6029,7 @@
         "id": "fu-mutation-gate-absent-tree-passes",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "mutation-gate.mjs is absent from .github/workflows entirely, and on a checkout without the gitignored evidence tree it returns the named degrade class 'evidence tree absent' at EXIT 0",
         "status": "open"
       },
@@ -6017,7 +6037,7 @@
         "id": "fu-comment-fail-no-retry-exit0",
         "ref": "friction-channel-sweep",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": ".aai/scripts/aai-feedback-upsert.mjs:739-752 analysis comment is an effect with no record and no retry",
         "status": "open"
       },
@@ -6025,7 +6045,7 @@
         "id": "fu-mutating-flag-dead-assertion",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": ".aai/scripts/aai-feedback-upsert.mjs:173/180 'mutating' is destructured and documented as the confirmed path's safety assertion, but is never read",
         "status": "open"
       },
@@ -6033,7 +6053,7 @@
         "id": "fu-test655-promote-spelling-pin",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "tests/skills/test-aai-friction-capture-points.sh:208-215 TEST-655's headline property is pinned by literal spelling, not structure",
         "status": "open"
       },
@@ -6041,7 +6061,7 @@
         "id": "fu-ledger-merge-byte-prefix-edge",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": ".aai/scripts/ledger-merge.mjs:119-140 the refusal is a BYTE-prefix test, not a line boundary",
         "status": "open"
       },
@@ -6049,7 +6069,7 @@
         "id": "fu-learned-header-format-stale",
         "ref": "friction-channel-sweep",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "docs/knowledge/LEARNED.md:36 the header's Format comment still documents lowercase '(source: ...)' with no 76-char wrap",
         "status": "open"
       },
@@ -6105,7 +6125,7 @@
         "id": "fu-release-ps1-empty-precut-sha",
         "ref": "canon-is-a-build-artifact",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "aai-release.ps1:389 captures the pre-cut SHA with Select-CapturedValue and never checks the result; when it comes back EMPTY the value flows into git reset --hard '' at :514 and the failure is reported at :520 as \"resetting main to  failed\" (note the double space) - the operator is told the reset failed when the truth is the engine never learned the SHA",
         "status": "open"
       },
@@ -6113,7 +6133,7 @@
         "id": "fu-amend-gate-checks-declared-mutation",
         "ref": "gate-checks-declared-mutation",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-gate-checks-declared-mutation: TEST-701..707's Mutation cells reconciled to the exact sed expression mutation-run.mjs actually recorded (TEST-708/709 already matched); Status flipped pending -> green for all 9 rows",
         "status": "open"
       },
@@ -6121,7 +6141,7 @@
         "id": "fu-amend-spec-roadmap-takes-direction",
         "ref": "roadmap-takes-direction",
         "severity": "P2",
-        "age_days": 10,
+        "age_days": 11,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-roadmap-takes-direction: TEST-745's Mutation cell changed from the hash-delimited sed:s#  - .aai/scripts/roadmap-propose.mjs## to the slash-delimited sed:s/roadmap-propose.mjs//, same target file .aai/system/PROFILES.yaml",
         "status": "open"
       },
@@ -6129,7 +6149,7 @@
         "id": "fu-t760-guard-narrows-to-fu-refs",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "TEST-760's findDoc guard fixture uses a dead ref that happens to be fu-prefixed (fu-t760-dead); mutation M6 (narrow the guard to only String(pr.maintenance).startsWith('fu-') && !findDoc(...)) leaves the full suite GREEN, and mutation M8 (the file-intake human-text arm printing the dead ref anyway) also leaves it GREEN — the arm a human actually reads (non --json) is unpinned.",
         "status": "open"
       },
@@ -6137,7 +6157,7 @@
         "id": "fu-bind-wave2-reason-generic",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "bind names its own reason for 2 of the 3 roadmap axes (already-a-capability, already-bound-elsewhere) but not the third: binding a live wave_2 slug surfaces certify's generic roadmap-parser error (wave_2: \"<slug>\" appears twice in the roadmap) instead of a bind-specific refusal naming the wave_2 axis.",
         "status": "open"
       },
@@ -6145,7 +6165,7 @@
         "id": "fu-harvest-write-excl-one-sided",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "F4's exclusion is one-sided: roadmap-propose.mjs:246 (readWave2AndPairSlugs) adds only capability: lines to pairSlugs, so harvest can still offer a draft capability-typed intake whose id is already some pair's maintenance: half as a candidate, and write --pick on that row then fails certification with the roadmap parser's generic appears-twice error and no guidance.",
         "status": "open"
       },
@@ -6153,7 +6173,7 @@
         "id": "fu-resolvedoc-stale-type-field",
         "ref": "roadmap-takes-direction",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "Two stale artefacts of the reverted round-1 CAPABILITY_TYPES check survive in resolveDoc: roadmap-propose.mjs:690's comment still says resolveDoc carries type 'so cmdBind's CAPABILITY_TYPES check below can classify the resolved document' (no such check exists any more since D16), and the type field the function returns (:697) now has no reader.",
         "status": "open"
       },
@@ -6161,7 +6181,7 @@
         "id": "fu-amend-growth-pins-dont-wall-th-095102",
         "ref": "growth-pins-dont-wall-the-corpus",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-growth-pins-dont-wall-the-corpus: corrects two measurably false claims in this spec's own prose: the Verification narrative predicted TEST-010 RED during the PR #388 rehearsal (measured PASS, headroom 449/2048), and the Decisions section claimed an uncredited glob byte still reddens exactly as today (it does not — cover now starts only once TEST-010's headroom, measured 2042 B, is exhausted)",
         "status": "open"
       },
@@ -6169,7 +6189,7 @@
         "id": "fu-agents-md-ceiling-unpinned",
         "ref": "growth-pins-dont-wall-the-corpus",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "AGENTS_MD_CEILING is a bare constant with no pin and no ledger cost, so it can be raised silently; its slack is 4.4 percent against the glob's 0.67 percent",
         "status": "open"
       },
@@ -6177,7 +6197,7 @@
         "id": "fu-wall-scan-misses-lib-dir",
         "ref": "growth-pins-dont-wall-the-corpus",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "the wall-shape scan (Spec-AC-05) does not reach tests/skills/lib/ — the identical equality planted there leaves TEST-770 green, proven by validation round 1",
         "status": "open"
       },
@@ -6185,7 +6205,7 @@
         "id": "fu-wall-scan-evaded-two-sided",
         "ref": "growth-pins-dont-wall-the-corpus",
         "severity": "P3",
-        "age_days": 9,
+        "age_days": 10,
         "what": "the wall-shape scan (SPEC-0189 Spec-AC-05) misses a byte-identical wall written as a two-sided inequality (less-than OR greater-than against the same pair), and also misses a path held in a variable or reached through one extra variable hop",
         "status": "open"
       },
@@ -6193,7 +6213,7 @@
         "id": "fu-sweep-denial-did-not-stop-merge",
         "ref": "growth-pins-dont-wall-the-corpus",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "on 2026-09-28 lane-gate.mjs --sweep-check DENIED PR #400 (the recorded sweep named an older commit than the one merging) and the merge went through seconds later anyway, because the check is not required in branch protection and the operator ran both commands in one block without conditioning the merge on the gate's exit status",
         "status": "open"
       },
@@ -6201,7 +6221,7 @@
         "id": "fu-amend-original-request-outcome-f44716",
         "ref": "original-request-outcome-backcheck",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-original-request-outcome-backcheck: The checker binds a report's intake and spec sources to the ref's own documents (--intake/--spec, else STATE's current_focus) and refuses an unbound invocation",
         "status": "open"
       },
@@ -6257,7 +6277,7 @@
         "id": "fu-set-strategy-ref-shape",
         "ref": "strategy-unscoped-from-current-focus",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "set-strategy --ref is not shape-validated; empty --ref with unset focus writes ref_id empty and Planning retarget then treats the intake stamp as stale",
         "status": "open"
       },
@@ -6265,7 +6285,7 @@
         "id": "fu-amend-mutation-clone-fidelity-8bfdf9",
         "ref": "mutation-clone-fidelity-windows-eol",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-mutation-clone-fidelity-windows-eol: D2: omit only root-level untracked files; nested untracked (lib/, tests/, .aai/) stay in the fidelity set so TEST-471 lib/extra.txt still copies",
         "status": "open"
       },
@@ -6273,7 +6293,7 @@
         "id": "fu-mutation-overlay-tracked-deletes",
         "ref": "mutation-clone-fidelity-windows-eol",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "overlay skips ENOENT so a tracked delete plus failed git apply still INCONCLUSIVE (exit 3)",
         "status": "open"
       },
@@ -6289,7 +6309,7 @@
         "id": "fu-amend-mutation-clone-windows-r-2da676",
         "ref": "mutation-clone-windows-run-chain",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-mutation-clone-windows-run-chain: mechanical restamp: the allocator rewrote this frozen spec’s own SPEC-DRAFT- path(s) at merge",
         "status": "open"
       },
@@ -6297,7 +6317,7 @@
         "id": "fu-amend-sync-deletes-target-only-hooks",
         "ref": "sync-deletes-target-only-hooks",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-sync-deletes-target-only-hooks: hooks.json and hooks.windows.json are additively merged instead of overwritten, so a target-added registration survives a sync; retirement of a stale registration is reversed out of scope as the accepted cost",
         "status": "open"
       },
@@ -6313,7 +6333,7 @@
         "id": "fu-amend-shipped-guards-have-no-d-2c787c",
         "ref": "shipped-guards-have-no-downstream-trigger",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-shipped-guards-have-no-downstream-trigger: Test Plan Mutation cells TEST-800/804/805/809/810/813/814/815 rewritten to the machine-readable sed:s/// form mutation-run.mjs records (four frozen cells were prose, three were not valid JS RegExps: a sed d command, an unescaped ')', an unbalanced '(', and one regex that never matched the table); Status column pending->green; AC table planned->done with mutation evidence",
         "status": "open"
       },
@@ -6321,7 +6341,7 @@
         "id": "fu-amend-downstream-rides-ask-no-d8106d",
         "ref": "downstream-rides-ask-no-governance-questions",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-downstream-rides-ask-no-governance-questions: Test Plan Mutation cells reconciled to the code and suites as written (anchors only, no behavior change): TEST-1202 and TEST-1206 cells now declare patch:docs/ai/tdd/spec-downstream-rides-ask-no-governance-questions/mutation-TEST-<id>.patch; TEST-1205 sed anchor now matches the gate() guard line as written (if (a.cmd === 'gate') {) instead of a combined condition that never existed; TEST-1209 sed gains the g flag (first occurrence of 'not consulted' in AGENTS.md is not rule 4); TEST-1212 sed anchor replaced (the one-line process.exit(0); } never existed, the branch spans lines); TEST-1215 and TEST-1216 cells become machine-readable sed deletions (were prose, uncomparable). TEST-1215 selector is a new test_1215_downstream_rides_growth_ledgered in test-aai-prompt-diet.sh. Status cells of TEST-1207 and 1210-1216 flipped to green. mutation_uncomparable stays 0.",
         "status": "open"
       },
@@ -6329,7 +6349,7 @@
         "id": "fu-ride-select-absent-intake-mismatch",
         "ref": "downstream-rides-ask-no-governance-questions",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "pin the gate's --intake id-mismatch usage check under an ABSENT roadmap: add one arm to test_1206_usage_checks_before_absent (no roadmap + mismatched --intake must exit 2), shown RED by moving the check below the absent-roadmap branch",
         "status": "open"
       },
@@ -6337,7 +6357,7 @@
         "id": "fu-mutation-rotation-colon-path",
         "ref": "shipped-guards-have-no-downstream-trigger",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "mutation-run.mjs names a rotated record with an ISO timestamp containing colons, which Windows forbids in a path — once such a file is committed, actions/checkout fails with 'invalid path' and the whole Windows job dies before any test runs",
         "status": "open"
       },
@@ -6345,7 +6365,7 @@
         "id": "fu-amend-roadmap-serves-downstrea-bc77da",
         "ref": "roadmap-serves-downstream-projects",
         "severity": "P2",
-        "age_days": 6,
+        "age_days": 7,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-roadmap-serves-downstream-projects: D16 additive amendment of D13: no-argument /aai-ship rides a file-intake capability and files its intake with id equal to the roadmap slug; show-first when no roadmap; budget on without a roadmap offers add-first; docs order, ADMIT quote, close-ceremony wording and last-pair drop rule fixed; new TEST-1338..1340 with mutation cells; discloses the earlier F3 narrowing of the intake To-Be (no-arg ship stopped at file-intake)",
         "status": "open"
       },
@@ -6353,7 +6373,7 @@
         "id": "fu-roadmap-docstatus-two-parsers",
         "ref": "roadmap-serves-downstream-projects",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "roadmap-edit.mjs docStatus (parseFrontmatter) and ride-select.mjs findDoc/statusOf (own line scan) resolve a doc's status differently; a quoted status: \"done\" makes advance flip the pair while next still names it unfinished. Route both through one resolver in lib/roadmap-model.mjs with a seam test.",
         "status": "open"
       },
@@ -6409,7 +6429,7 @@
         "id": "fu-ceremony-postpush-ac-circular",
         "ref": "spec-close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "a ride whose AC can only be proven by its own CI run cannot complete the close ceremony: close-before-push-guard refuses the push until the item is closed, close-work-item refuses to close while any AC is non-terminal, and the CI run that would make it terminal requires the push",
         "status": "open"
       },
@@ -6417,7 +6437,7 @@
         "id": "fu-amend-amendment-signature-asks-cf289a",
         "ref": "amendment-signature-asks-the-owner-too-often",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-amendment-signature-asks-the-owner-too-often: corrected the REPLACEMENT half of the Mutation cells for TEST-1358, TEST-1359, TEST-1360 and TEST-1361: each escaped its brackets or ampersands on the right-hand side of the sed expression, and mutation-run.mjs applies that half as a literal JS String.replace replacement, so the escapes were injected verbatim into the mutated clone and the row reddened on a SyntaxError instead of on the behaviour it pins",
         "status": "open"
       },
@@ -6425,7 +6445,7 @@
         "id": "fu-classify-trial-fold-race",
         "ref": "amendment-signature-asks-the-owner-too-often",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "cmdClassify's trial-fold preflight is a read-before-write snapshot, so two classify calls racing on the same (ts, ref) overlay key can each pass their own preflight and then land in an order the real fold tie-breaks differently",
         "status": "open"
       },
@@ -6473,7 +6493,7 @@
         "id": "fu-assertions-pinned-to-one-world",
         "ref": "release-v2026-10-02",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "three separate assertions were written so they can only hold in one state of the world, by the very change that produces the other state; there is no check for the shape",
         "status": "open"
       },
@@ -6537,7 +6557,7 @@
         "id": "fu-merge-policy-decision-ref-frac-ts",
         "ref": "configurable-merge-policy-lanes",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "DECISION_REF_RE accepts whole-second timestamps only; a hitl_decision stamped with fractional seconds cannot be bound by a lane",
         "status": "open"
       },
@@ -6545,7 +6565,7 @@
         "id": "fu-merge-policy-glob-unicode-question",
         "ref": "configurable-merge-policy-lanes",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "globToRegExp compiles without the u flag, so ? matches one UTF-16 unit, not one character",
         "status": "open"
       },
@@ -6553,7 +6573,7 @@
         "id": "fu-ride-select-c1-escape",
         "ref": "roadmap-maintenance-budget-advisory",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "reportDegraded leaves C1 controls (NEL, 8-bit CSI) raw and does not escape backslash, so two different paths can print the same stderr reason",
         "status": "open"
       },
@@ -6561,7 +6581,7 @@
         "id": "fu-ride-select-ledger-code-dup",
         "ref": "roadmap-maintenance-budget-advisory",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "ride-select ledger-unreadable messages still print the error code twice (ride-select.mjs ~465, ~584); degrade tests assume chmod 000 blocks reads (fails under root)",
         "status": "open"
       },
@@ -6595,6 +6615,30 @@
         "severity": "P2",
         "age_days": 0,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-pr-capability-preflight: Add tests/skills/test-aai-hygiene-pack.sh companion inventory pins 103 to 104 to explicit review scope",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-spec-pr-generic-url-validity",
+        "ref": "pr-generic-url-validity",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-pr-generic-url-validity: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-spec-pr-github-case-identity",
+        "ref": "pr-github-case-identity",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-pr-github-case-identity: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
+        "status": "open"
+      },
+      {
+        "id": "fu-review-log-attribution",
+        "ref": "pr-generic-url-validity",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "Generated overview attributes a PR434 compatibility test log as the layer-profiles code review",
         "status": "open"
       }
     ]
@@ -7142,6 +7186,36 @@
         "runs_marked": 0,
         "tokens_total": null,
         "remediation_runs": 4,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "pr-capability-preflight",
+        "date_utc": "2026-10-07",
+        "runs_total": 10,
+        "elapsed_wall_seconds": 22332,
+        "agent_seconds": 21450,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 2
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 4
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -11129,7 +11203,7 @@
     "NOTE 7 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
     "NOTE 24 agent_run(s) had a role that matched no canonical role — bucketed as Other",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
-    "NOTE 58 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 59 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 5 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
     "NOTE 27 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"

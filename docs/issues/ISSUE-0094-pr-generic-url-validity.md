@@ -2,12 +2,14 @@
 id: pr-generic-url-validity
 type: issue
 number: 94
-status: implementing
+status: done
 links:
   spec: spec-pr-generic-url-validity
   parent: pr-capability-preflight
-  pr: []
-  commits: []
+  pr:
+    - 434
+  commits:
+    - 6d3f616a96337ff1580968467fadfa9756a87a52
 ---
 
 # Refuse malformed scheme URLs before generic readiness

@@ -1,0 +1,5 @@
+diff --git a/.aai/scripts/pr-preflight.mjs b/.aai/scripts/pr-preflight.mjs
+--- a/.aai/scripts/pr-preflight.mjs
++++ b/.aai/scripts/pr-preflight.mjs
+@@ -206 +205,0 @@
+-    validateExplicitUrl(remote);

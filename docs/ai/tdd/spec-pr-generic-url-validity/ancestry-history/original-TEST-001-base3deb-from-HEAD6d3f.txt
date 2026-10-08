@@ -4,19 +4,18 @@ test_id: TEST-001
 suite: tests/skills/test-aai-pr-preflight.sh
 selector: test_001
 target: .aai/scripts/pr-preflight.mjs
-mutation: patch:docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-001.patch
-base_commit: 6d3f616a96337ff1580968467fadfa9756a87a52
-tree_hash: 626aba21874b98c2e725d99fbde9b4a99cfdfbda1566c828ad3e46b7b0f72676
-run_at_utc: 2026-10-08T10:57:39Z
+mutation: sed:s/validateExplicitUrl\(remote\);//
+base_commit: 3deb0568a7206ff3aa603324ded7668c50910118
+tree_hash: 8fc3f1e03d07617e3ed7bd0b803c4ea7bc51632589afea0227b2703d300c2612
+run_at_utc: 2026-10-08T09:24:55Z
 rc: 1
 verdict: RED
 first_fail: FAIL: TEST-001 exit IDENTITY_INVALID
 selector_honoured: yes
 target_sha256: a69e20c313a1d34c2b8e0095545b63e98337cd7e7b2fa825f9bcf69fd715d958
 ---
-INFO: scratch_override=unset platform=darwin uid=501
 INFO: TEST-001 direct_symlink_exit_output_equal=true
-INFO: TEST-001 {"result":{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"094f2a9f687317e79abe477dd762d00b8500bd07","outcome":"read_verified","code":"READ_VERIFIED","operation":"azure.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"calls":[{"name":"az","args":["--version"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["extension","show","--name","azure-devops","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["repos","show","--organization","https://dev.azure.com/Org","--project","Project 雪","--repository","Repo Name","--detect","false","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}}]}
+INFO: TEST-001 {"result":{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"7935ecc18813066cdc1d79e3a1c882786b7691d7","outcome":"read_verified","code":"READ_VERIFIED","operation":"azure.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"calls":[{"name":"az","args":["--version"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["extension","show","--name","azure-devops","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["repos","show","--organization","https://dev.azure.com/Org","--project","Project 雪","--repository","Repo Name","--detect","false","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}}]}
 INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"2068747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}
 INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e67697420","effective_hex":"68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974200a"}
 INFO: TEST001_ENDPOINT {"endpoint":"url","supplied_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e676974","effective_hex":"0968747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a"}

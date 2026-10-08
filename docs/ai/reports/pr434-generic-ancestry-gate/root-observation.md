@@ -1,0 +1,5 @@
+# Mechanical close prerequisite FAIL
+
+The canonical close dry-run refuses both child mutation records: their measured private base commit 3deb0568a7206ff3aa603324ded7668c50910118 is not an ancestor of shipping HEAD 6d3f616a96337ff1580968467fadfa9756a87a52. The independent precommit behavior/metadata Validation PASS and dual Review PASS remain immutable. This is a newly checked mechanical prerequisite failure, not a fabricated independent role verdict. No close/status flip occurred.
+
+Current source commit makes a canonical ancestor baseline available. Remeasure the same two mutations with the unchanged engine and actual shipping base, preserve the original records under explicit historical copies and Git6d3f, then independently verify the repaired proof and close gate. Do not hand-edit base_commit or weaken ancestry enforcement. The separate case-identity repair and final parent gates remain owed. Main-checkout evidence path resolution warnings are report-only; no proof is claimed missing from the committed worktree.

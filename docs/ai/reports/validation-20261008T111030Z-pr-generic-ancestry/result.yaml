@@ -1,0 +1,37 @@
+```yaml
+subagent_result:
+  scope: pr-generic-url-validity
+  role: Validation
+  status: PASS
+  started_utc: 2026-10-08T11:10:30Z
+  ended_utc: 2026-10-08T11:17:53Z
+  duration_seconds: 443
+  evidence:
+    - command: node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0211-spec-pr-generic-url-validity.md --json
+      exit_code: 0
+      output_snippet: "GATE PASS: 2 row(s) satisfied degraded=0 unstamped=0 uncomparable=0"
+    - command: bash .aai/scripts/aai-run-tests.sh node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0211-spec-pr-generic-url-validity.md
+      exit_code: 0
+      output_snippet: "2/2 attempted records still redden; 0 inconclusive; 0 re-stamped"
+    - command: bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh test_001
+      exit_code: 0
+      output_snippet: "PASS TEST-001; malformed scheme refusal; lawful_github_calls=3"
+    - command: bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh test_007
+      exit_code: 0
+      output_snippet: "PASS TEST-007; generic/numeric-port/local controls; malformed refusal"
+    - command: node .aai/scripts/docs-audit.mjs --gate SPEC-0211
+      exit_code: 0
+      output_snippet: "GATE PASS: AC Status table complete"
+    - command: node .aai/scripts/validation-outcome-check.mjs --report docs/ai/reports/VALIDATION-20261008T111030Z-pr-generic-url-validity.md --ref pr-generic-url-validity --since 2026-10-08T11:10:30Z --root /private/tmp/aai-pr-capability-preflight --intake docs/issues/ISSUE-0094-pr-generic-url-validity.md --spec docs/specs/SPEC-0211-spec-pr-generic-url-validity.md
+      exit_code: 0
+      output_snippet: "Checked report with explicit intake/spec bindings; no refusals"
+  files_changed:
+    - docs/ai/reports/VALIDATION-20261008T111030Z-pr-generic-url-validity.md
+    - docs/ai/reports/validation-20261008T111030Z-pr-generic-ancestry/
+  blockers: []
+  outcome_report: docs/ai/reports/VALIDATION-20261008T111030Z-pr-generic-url-validity.md
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-phase --ref pr-generic-url-validity --phase code_review
+    - node .aai/scripts/state.mjs set-validation --status pass --ref pr-generic-url-validity --evidence docs/ai/reports/VALIDATION-20261008T111030Z-pr-generic-url-validity.md --notes "Independent child mutation ancestry proof PASS; fresh replay 2/2 RED and focused GREEN; source/tests/history/index/STATE unchanged; retained Review PASS; parent B2 and final native/full CI remain owed."
+    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm
+```

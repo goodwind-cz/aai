@@ -2,7 +2,7 @@
 id: spec-pr-generic-url-validity
 type: spec
 number: 211
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: c544471bb969bb4773d86e8420e6df901f3d5f545a67a7c5281b2a90926f2c26
 ceremony_level: 1
@@ -10,8 +10,10 @@ links:
   requirement: pr-generic-url-validity
   parent: spec-pr-capability-preflight
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 434
+  commits:
+    - 6d3f616a96337ff1580968467fadfa9756a87a52
 ---
 
 # Refuse malformed scheme URLs before generic readiness

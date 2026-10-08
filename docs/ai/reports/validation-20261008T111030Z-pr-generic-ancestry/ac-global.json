@@ -1,0 +1,24 @@
+{
+  "observed_at_utc": "2026-10-08T11:14:06.062Z",
+  "utc_date": "2026-10-08",
+  "scanned": 216,
+  "opted_in": 210,
+  "rows": 1540,
+  "deferred": [
+    {
+      "path": "docs/specs/SPEC-0046-spec-test-wrapper-windows-fallback.md",
+      "id": "Spec-AC-10",
+      "status": "deferred",
+      "date": "2026-10-17"
+    },
+    {
+      "path": "docs/specs/SPEC-0209-spec-worktree-lacks-vendored-aai-layer-downstream.md",
+      "id": "Spec-AC-06",
+      "status": "deferred",
+      "date": "2026-10-20"
+    }
+  ],
+  "violations": [],
+  "parse_gaps": [],
+  "correction": "Initial diagnostic compared normalizeAcStatus object to string; this run reads its status field. Initial result retained and not evidence."
+}

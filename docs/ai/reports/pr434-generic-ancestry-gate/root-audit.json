@@ -1,0 +1,5 @@
+{
+  "verified_paths": 12,
+  "index_verified": "git ls-files -s -z",
+  "root_initial_check": "non-NUL index representation mismatched; exact producer format verified; no index modification"
+}

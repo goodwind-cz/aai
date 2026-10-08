@@ -1,0 +1,10 @@
+{
+  "observed_at_utc": "2026-10-08T11:13:42.891Z",
+  "utc_date": "2026-10-08",
+  "scanned": 216,
+  "opted_in": 210,
+  "rows": 1540,
+  "deferred": [],
+  "violations": [],
+  "parse_gaps": []
+}

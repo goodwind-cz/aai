@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-08T10:43:28.113Z",
+  "generatedAt": "2026-10-08T11:20:39.732Z",
   "project": "aai",
   "counts": {
-    "delivered": 279,
-    "in_progress": 19,
+    "delivered": 280,
+    "in_progress": 18,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -207,19 +207,6 @@
       "review": null
     },
     {
-      "ref": "pr-generic-url-validity",
-      "title": "Refuse malformed scheme URLs before generic readiness",
-      "type": "issue",
-      "status": "implementing",
-      "path": "docs/issues/ISSUE-0094-pr-generic-url-validity.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
-      "validation": "docs/ai/reports/VALIDATION-20261008T101336Z-pr-generic-url-validity.md",
-      "review": "docs/ai/reviews/review-20261008T102859Z-pr-generic-url-validity.md"
-    },
-    {
       "ref": "pr-github-case-identity",
       "title": "Compare GitHub repository identity without case sensitivity",
       "type": "issue",
@@ -260,6 +247,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "pr-generic-url-validity",
+      "title": "Refuse malformed scheme URLs before generic readiness",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0094-pr-generic-url-validity.md",
+      "closed_on": "2026-10-08",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+      "validation": "docs/ai/reports/VALIDATION-20261008T101336Z-pr-generic-url-validity.md",
+      "review": "docs/ai/reviews/review-20261008T102859Z-pr-generic-url-validity.md"
+    },
     {
       "ref": "worktree-lacks-vendored-aai-layer-downstream",
       "title": "Issue — In a downstream project a new worktree has no `.aai/` layer and no skills, so the worktree flow breaks at its first step",
@@ -3914,6 +3914,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "pr-generic-url-validity",
+          "title": "Refuse malformed scheme URLs before generic readiness",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0094-pr-generic-url-validity.md",
+          "closed_on": "2026-10-08",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+          "validation": "docs/ai/reports/VALIDATION-20261008T101336Z-pr-generic-url-validity.md",
+          "review": "docs/ai/reviews/review-20261008T102859Z-pr-generic-url-validity.md"
+        },
         {
           "ref": "worktree-lacks-vendored-aai-layer-downstream",
           "title": "Issue — In a downstream project a new worktree has no `.aai/` layer and no skills, so the worktree flow breaks at its first step",

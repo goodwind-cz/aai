@@ -1,0 +1,22 @@
+{
+  "command": [
+    "node",
+    ".aai/scripts/validation-outcome-check.mjs",
+    "--report",
+    "docs/ai/reports/VALIDATION-20261008T111030Z-pr-generic-url-validity.md",
+    "--ref",
+    "pr-generic-url-validity",
+    "--since",
+    "2026-10-08T11:10:30Z",
+    "--root",
+    "/private/tmp/aai-pr-capability-preflight",
+    "--intake",
+    "docs/issues/ISSUE-0094-pr-generic-url-validity.md",
+    "--spec",
+    "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md"
+  ],
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "",
+  "observed_at_utc": "2026-10-08T11:17:30.932264+00:00"
+}

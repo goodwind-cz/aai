@@ -1,0 +1,93 @@
+{
+  "anyMutation": true,
+  "productDocGate": {
+    "userVisible": false,
+    "severity": "none"
+  },
+  "usageCaptureGate": {
+    "severity": "none",
+    "roles": []
+  },
+  "evidencePathGate": {
+    "severity": "warn",
+    "dial": "report-only",
+    "unresolved": [
+      {
+        "doc": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+        "acId": "Spec-AC-01",
+        "token": "docs/ai/tdd/spec-pr-generic-url-validity/green-TEST-001.log"
+      },
+      {
+        "doc": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+        "acId": "Spec-AC-01",
+        "token": "docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-001.txt"
+      },
+      {
+        "doc": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+        "acId": "Spec-AC-02",
+        "token": "docs/ai/tdd/spec-pr-generic-url-validity/green-TEST-007.log"
+      },
+      {
+        "doc": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+        "acId": "Spec-AC-02",
+        "token": "docs/ai/tdd/spec-pr-generic-url-validity/full8row.log"
+      },
+      {
+        "doc": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+        "acId": "Spec-AC-02",
+        "token": "docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-007.txt"
+      }
+    ],
+    "reason": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md Spec-AC-01 cites \"docs/ai/tdd/spec-pr-generic-url-validity/green-TEST-001.log\" which does not resolve from the main checkout root; docs/specs/SPEC-0211-spec-pr-generic-url-validity.md Spec-AC-01 cites \"docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-001.txt\" which does not resolve from the main checkout root; docs/specs/SPEC-0211-spec-pr-generic-url-validity.md Spec-AC-02 cites \"docs/ai/tdd/spec-pr-generic-url-validity/green-TEST-007.log\" which does not resolve from the main checkout root; docs/specs/SPEC-0211-spec-pr-generic-url-validity.md Spec-AC-02 cites \"docs/ai/tdd/spec-pr-generic-url-validity/full8row.log\" which does not resolve from the main checkout root; docs/specs/SPEC-0211-spec-pr-generic-url-validity.md Spec-AC-02 cites \"docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-007.txt\" which does not resolve from the main checkout root",
+    "resolutionRoot": "/Users/ales/Projects/aai"
+  },
+  "mutationGate": {
+    "severity": "refuse",
+    "dial": "enforce",
+    "offending": [
+      {
+        "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+        "exitCode": 5,
+        "rows": [
+          "OFFENDING TEST-001: record's base_commit \"3deb0568a7206ff3aa603324ded7668c50910118\" is not an ancestor of HEAD",
+          "OFFENDING TEST-007: record's base_commit \"3deb0568a7206ff3aa603324ded7668c50910118\" is not an ancestor of HEAD"
+        ]
+      }
+    ],
+    "notices": [],
+    "reason": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md: OFFENDING TEST-001: record's base_commit \"3deb0568a7206ff3aa603324ded7668c50910118\" is not an ancestor of HEAD; OFFENDING TEST-007: record's base_commit \"3deb0568a7206ff3aa603324ded7668c50910118\" is not an ancestor of HEAD"
+  },
+  "stateReconcile": {
+    "severity": "apply",
+    "reason": null,
+    "statePath": "/private/tmp/aai-pr-capability-preflight/docs/ai/STATE.yaml",
+    "commands": [
+      "node .aai/scripts/state.mjs set-phase --ref pr-generic-url-validity --phase code_review --status done --path docs/issues/ISSUE-0094-pr-generic-url-validity.md --spec-path docs/specs/SPEC-0211-spec-pr-generic-url-validity.md"
+    ]
+  },
+  "productDocUpdate": null,
+  "plan": [
+    {
+      "ref": "pr-generic-url-validity",
+      "rel": "docs/issues/ISSUE-0094-pr-generic-url-validity.md",
+      "from": "implementing",
+      "to": "done",
+      "needsFlip": true,
+      "needsPr": true,
+      "needsCommit": true,
+      "needsClosedEvent": true,
+      "needsAcEvidence": true
+    },
+    {
+      "ref": "spec-pr-generic-url-validity",
+      "rel": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+      "from": "implementing",
+      "to": "done",
+      "needsFlip": true,
+      "needsPr": true,
+      "needsCommit": true,
+      "needsClosedEvent": true,
+      "needsAcEvidence": true
+    }
+  ]
+}

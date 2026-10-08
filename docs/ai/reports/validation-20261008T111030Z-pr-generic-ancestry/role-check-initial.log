@@ -1,0 +1,3 @@
+exit_code: 1
+ROLE-OUTPUT-VIOLATION: E-NO-BLOCK no parseable subagent_result YAML fence found
+Correction: wrap unchanged typed YAML in the required fenced block.
