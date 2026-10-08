@@ -8,7 +8,9 @@
 // full sweep. When an older commit of the same PR has a completed, successful
 // FULL-mode skill-suite run, and every path since that commit is a governed
 // ledger/doc (select-suites.mjs --delta-base decides), only the delta is
-// selected. Anything else fails safe: the whole-PR selector lines, byte for
+// selected. The anchor run must belong to the SAME pull request (number, base
+// ref and base sha equal the event's; a moved base never carries forward).
+// Anything else fails safe: the whole-PR selector lines, byte for
 // byte, plus one `CARRY_FORWARD none reason=<cell>` line.
 //
 // USAGE
@@ -154,7 +156,10 @@ async function findAnchor(o, ev, token) {
   if (cands === null) throw new Stop('git-error');
   const capped = cands.length > CANDIDATE_CAP;
   const older = cands.slice(0, CANDIDATE_CAP).filter((c) => c !== H);
+  const pr = ev.pull_request;
   let sawMismatch = false;
+  let sawPrMismatch = false;
+  let sawBaseMoved = false;
   let sawNotFull = false;
   for (const C of older) {
     const runs = await getList(
@@ -167,7 +172,16 @@ async function findAnchor(o, ev, token) {
     for (const r of ok) {
       const sameBranch = r.head_branch === head.ref;
       const sameRepo = !!r.head_repository && r.head_repository.full_name === head.repo.full_name;
-      if (sameBranch && sameRepo) kept.push(r); else sawMismatch = true;
+      if (!(sameBranch && sameRepo)) { sawMismatch = true; continue; }
+      // The run must belong to THIS pull request and its base must not have
+      // moved: a closed-and-reopened PR from the same branch, a retarget or a
+      // newer base all fail safe to the whole-PR selection.
+      const prs = Array.isArray(r.pull_requests) ? r.pull_requests : [];
+      const samePr = prs.filter((p) => p && p.number === pr.number);
+      if (samePr.length === 0) { sawPrMismatch = true; continue; }
+      const sameBase = samePr.some((p) => p.base && p.base.ref === pr.base.ref && p.base.sha === pr.base.sha);
+      if (!sameBase) { sawBaseMoved = true; continue; }
+      kept.push(r);
     }
     kept.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
     for (const r of kept) {
@@ -178,6 +192,8 @@ async function findAnchor(o, ev, token) {
   }
   if (sawNotFull) throw new Stop('no-full-mode-run');
   if (sawMismatch) throw new Stop('head-mismatch');
+  if (sawPrMismatch) throw new Stop('anchor-pr-mismatch');
+  if (sawBaseMoved) throw new Stop('anchor-base-moved');
   throw new Stop(capped ? 'candidate-cap' : 'no-covering-run');
 }
 
@@ -199,6 +215,11 @@ export async function main(argv, env = process.env) {
   if (!ev || ev.action !== 'synchronize') { none(`action-${ev && ev.action ? ev.action : 'missing'}`); return 0; }
   const head = ev.pull_request && ev.pull_request.head;
   if (!head || !head.sha || !head.ref || !head.repo || !head.repo.full_name || !o.repo || !o.baseRef) {
+    none('event-malformed'); return 0;
+  }
+  const pr = ev.pull_request;
+  if (!Number.isInteger(pr.number) || !pr.base || typeof pr.base.ref !== 'string' || !pr.base.ref
+    || typeof pr.base.sha !== 'string' || !pr.base.sha) {
     none('event-malformed'); return 0;
   }
   const token = env.GITHUB_TOKEN;

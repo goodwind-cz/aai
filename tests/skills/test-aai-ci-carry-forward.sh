@@ -160,14 +160,23 @@ EOF
       fx_commit "$REPO" c3 docs/ai/EVENTS.jsonl
       ;;
   esac
+  MAIN_SHA="$(fx_git "$REPO" rev-parse main)" || log_fail "fixture: rev-parse main failed"
   C3="$(fx_git "$REPO" rev-parse HEAD)" || log_fail "fixture: rev-parse head failed"
   C2="$(fx_git "$REPO" rev-parse 'HEAD~1')" || log_fail "fixture: rev-parse c2 failed"
   C1="$(fx_git "$REPO" rev-list --max-parents=1 --reverse main..HEAD | sed -n 1p)" || log_fail "fixture: rev-parse c1 failed"
 }
 
+# EV_PR / EV_BASE_REF / EV_BASE_SHA: the event's pull_request number and base
+# (defaults: PR 7 into main at the fixture's main sha); an empty EV_PR omits
+# the number so the malformed-payload cell can be built.
+EV_PR="7"
+EV_BASE_REF="main"
+EV_BASE_SHA=""
 write_event() {  # <file> <action> <head sha> [repo full_name] [ref]
-  printf '{"action":"%s","pull_request":{"head":{"sha":"%s","ref":"%s","repo":{"full_name":"%s"}}}}\n' \
-    "$2" "$3" "${5:-feat}" "${4:-o/r}" > "$1"
+  local bsha="${EV_BASE_SHA:-$MAIN_SHA}" extra=""
+  [[ -n "$EV_PR" ]] && extra="\"number\":$EV_PR,"
+  printf '{"action":"%s","pull_request":{%s"head":{"sha":"%s","ref":"%s","repo":{"full_name":"%s"}},"base":{"ref":"%s","sha":"%s"}}}\n' \
+    "$2" "$extra" "$3" "${5:-feat}" "${4:-o/r}" "$EV_BASE_REF" "$bsha" > "$1"
 }
 
 job() {  # <name> <conclusion>
@@ -202,10 +211,15 @@ jobs_resp() {
   esac
 }
 
+# RUN_PRS: the run's pull_requests[] (default: PR 7 into main at the fixture's
+# main sha, what GitHub reports for a same-repo PR run).
+RUN_PRS=""
 # run_entry <id> <sha> <conclusion> [branch] [repo]
 run_entry() {
-  printf '{"id":%s,"head_sha":"%s","event":"pull_request","conclusion":"%s","head_branch":"%s","head_repository":{"full_name":"%s"},"html_url":"https://github.com/o/r/actions/runs/%s","created_at":"2026-10-08T10:00:00Z"}' \
-    "$1" "$2" "$3" "${4:-feat}" "${5:-o/r}" "$1"
+  local prs="$RUN_PRS"
+  [[ -n "$prs" ]] || prs="$(printf '[{"number":7,"base":{"ref":"main","sha":"%s"}}]' "$MAIN_SHA")"
+  printf '{"id":%s,"head_sha":"%s","event":"pull_request","conclusion":"%s","head_branch":"%s","head_repository":{"full_name":"%s"},"pull_requests":%s,"html_url":"https://github.com/o/r/actions/runs/%s","created_at":"2026-10-08T10:00:00Z"}' \
+    "$1" "$2" "$3" "${4:-feat}" "${5:-o/r}" "$prs" "$1"
 }
 
 runs_path() {  # <sha>
@@ -581,6 +595,56 @@ test_1726_no_requests_when_selected_and_workflow_lines_pinned() {  # Spec-AC-08
   log_pass "TEST-1726: zero requests for a selected PR; non-PR, ci-full and gate logic equal the base (TEST-1726)"
 }
 
+test_1738_anchor_bound_to_current_pr() {  # Spec-AC-08, review P1 (PR #435)
+  log_info "Test: the anchor run must belong to the current PR and the same base (TEST-1738)..."
+  new_scratch
+  mk_pr t1738 full
+  local ev="$TEST_DIR/t1738.event" fx="$TEST_DIR/t1738.fx" lg="$TEST_DIR/t1738.log"
+  write_event "$ev" synchronize "$C3"
+
+  # positive control: number, base ref and base sha all equal -> anchored
+  RUN_PRS=""
+  std_fixture "$fx"
+  cs_run "$REPO" "$ev" "$fx" "$lg"
+  has_prefix "$CS_OUT" "CARRY_FORWARD sha=$C1 run=22" || log_fail "TEST-1738: positive control must anchor, got: $CS_OUT"
+
+  # the run belongs to another PR from the same branch (closed and reopened as a new PR)
+  RUN_PRS="[{\"number\":8,\"base\":{\"ref\":\"main\",\"sha\":\"$MAIN_SHA\"}}]"
+  std_fixture "$fx"
+  cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "TEST-1738 other PR number" anchor-pr-mismatch
+
+  # same PR number, retargeted base ref
+  RUN_PRS="[{\"number\":7,\"base\":{\"ref\":\"release\",\"sha\":\"$MAIN_SHA\"}}]"
+  std_fixture "$fx"
+  cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "TEST-1738 retargeted base ref" anchor-base-moved
+
+  # same PR, base branch advanced since the run
+  RUN_PRS="[{\"number\":7,\"base\":{\"ref\":\"main\",\"sha\":\"0000000000000000000000000000000000000001\"}}]"
+  std_fixture "$fx"
+  cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "TEST-1738 moved base sha" anchor-base-moved
+
+  # fork PR runs report an empty pull_requests array: fail safe
+  RUN_PRS="[]"
+  std_fixture "$fx"
+  cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "TEST-1738 empty pull_requests" anchor-pr-mismatch
+
+  # several PRs on the run: one matching entry is enough
+  RUN_PRS="[{\"number\":9,\"base\":{\"ref\":\"main\",\"sha\":\"$MAIN_SHA\"}},{\"number\":7,\"base\":{\"ref\":\"main\",\"sha\":\"$MAIN_SHA\"}}]"
+  std_fixture "$fx"
+  cs_run "$REPO" "$ev" "$fx" "$lg"
+  has_prefix "$CS_OUT" "CARRY_FORWARD sha=$C1 run=22" || log_fail "TEST-1738: a matching entry among several must anchor, got: $CS_OUT"
+  RUN_PRS=""
+
+  # an event payload without the PR number or the base is malformed: fail safe
+  EV_PR=""
+  write_event "$ev" synchronize "$C3"; std_fixture "$fx"
+  cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "TEST-1738 event without number" event-malformed
+  EV_PR="7"
+  printf '{"action":"synchronize","pull_request":{"number":7,"head":{"sha":"%s","ref":"feat","repo":{"full_name":"o/r"}}}}\n' "$C3" > "$ev"
+  cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "TEST-1738 event without base" event-malformed
+  log_pass "TEST-1738: carry-forward anchors only a run of the same PR number, base ref and base sha (TEST-1738)"
+}
+
 main() {
   echo "Testing $TEST_NAME (post-validation-pushes-reuse-test-results, Batch D)"
   check_deps
@@ -591,6 +655,7 @@ main() {
   test_1724_failsafe_table_anchor_cells
   test_1725_seam_s3_yaml_mode_derivation
   test_1726_no_requests_when_selected_and_workflow_lines_pinned
+  test_1738_anchor_bound_to_current_pr
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
