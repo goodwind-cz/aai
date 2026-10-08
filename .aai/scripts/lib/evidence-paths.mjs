@@ -165,17 +165,17 @@ function memberFiles(abs, rel) {
   return out;
 }
 
-// ignoredByRepoRules(tree, rel, isDir) -> true when the repository's own
+// ignoredByRepoRules(tree, rel, isDir, members) -> true when the repository's own
 // .gitignore files ignore `rel` under `tree` (the one D1 predicate,
 // ignoredByGitignore from tracked-ignored.mjs: .git/info/exclude, the global
 // excludes file and `!` re-includes do not count), whether or not it exists.
 // A directory is probed through a child path so both `dir/**` and `dir/` rules
-// match. Directory members (when the directory exists under `tree`): every file under the
-// directory must itself be ignored, so a `!`-re-included member REFUSES the
-// whole directory rather than being copied as a non-ignored file.
-function ignoredByRepoRules(tree, rel, isDir) {
-  const probes = [isDir ? `${rel}/.rescue-probe` : rel];
-  if (isDir && fs.existsSync(path.join(tree, rel))) probes.push(...memberFiles(path.join(tree, rel), rel));
+// match. `members` (the worktree directory's file list) is probed under `tree`
+// too, even where `tree` does not hold the directory (check-ignore accepts
+// absent paths): every file must itself be ignored in BOTH trees, so a member
+// `!`-re-included on either side REFUSES the whole directory.
+function ignoredByRepoRules(tree, rel, isDir, members = []) {
+  const probes = [isDir ? `${rel}/.rescue-probe` : rel, ...members];
   const ok = ignoredByGitignore(tree, probes);
   return probes.every((p) => ok.has(p));
 }
@@ -203,8 +203,9 @@ export function planEvidenceRescue(tokens, root, evidenceRoot) {
     if (!safeTree(from)) continue;
     if (fs.existsSync(to)) continue;
     const isDir = st.isDirectory();
-    if (!ignoredByRepoRules(root, token, isDir)) continue;
-    if (!ignoredByRepoRules(evidenceRoot, token, isDir)) continue;
+    const members = isDir ? memberFiles(from, token) : [];
+    if (!ignoredByRepoRules(root, token, isDir, members)) continue;
+    if (!ignoredByRepoRules(evidenceRoot, token, isDir, members)) continue;
     out.push({ token, from, to });
   }
   return out;

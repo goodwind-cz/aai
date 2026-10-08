@@ -4158,7 +4158,7 @@ test_1730_evidence_rescue_from_worktree() {
 
 test_1731_evidence_rescue_negations() {
   log_info "TEST-1731: rescue negations — non-ignored, missing, symlink, existing destination, info/exclude-only, re-included member..."
-  local cell="docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md docs/ai/reports/exists-1731.md docs/xscratch/x1731.md docs/evid1731"
+  local cell="docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md docs/ai/reports/exists-1731.md docs/xscratch/x1731.md docs/evid1731 docs/evid1731m"
   local pair main wt
   pair=$(rescue_fixture "t1731" "-" "$cell") || log_fail "TEST-1731: fixture setup error"
   main="${pair%% *}"; wt="${pair#* }"
@@ -4184,13 +4184,20 @@ test_1731_evidence_rescue_negations() {
   mkdir -p "$wt/docs/evid1731" || log_fail "TEST-1731: setup error"
   printf 'a\n' > "$wt/docs/evid1731/a.log" || log_fail "TEST-1731: setup error"
   printf 'keep\n' > "$wt/docs/evid1731/keep.md" || log_fail "TEST-1731: setup error"
+  # main-only re-include cell (N1): the worktree ignores every member, ONLY the
+  # main checkout re-includes one -> the member probe must run on the main side.
+  printf 'docs/evid1731m/*\n' >> "$wt/.gitignore" || log_fail "TEST-1731: setup error"
+  printf 'docs/evid1731m/*\n!docs/evid1731m/keep.md\n' >> "$main/.gitignore" || log_fail "TEST-1731: setup error"
+  mkdir -p "$wt/docs/evid1731m" || log_fail "TEST-1731: setup error"
+  printf 'a\n' > "$wt/docs/evid1731m/a.log" || log_fail "TEST-1731: setup error"
+  printf 'keep\n' > "$wt/docs/evid1731m/keep.md" || log_fail "TEST-1731: setup error"
 
   local out="$TEST_DIR/t1731.out" err="$TEST_DIR/t1731.err" code
   code=$(run_close "$wt" "$out" "$err" --ref t1731-change-slug --spec t1731-spec-slug --pr 1731 --commit a1731a17)
   assert_exit "TEST-1731: close from the worktree" 0 "$code"
   grep -q -- 'WARNING (evidence-path gate)' "$err" || log_fail "TEST-1731: unrescuable tokens must still warn, got: $(cat "$err")"
   local tok
-  for tok in docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md docs/xscratch/x1731.md docs/evid1731; do
+  for tok in docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md docs/xscratch/x1731.md docs/evid1731 docs/evid1731m; do
     grep -qF "$tok" "$err" || log_fail "TEST-1731: the warning must name $tok, got: $(cat "$err")"
   done
   if grep -qF 'docs/ai/reports/exists-1731.md' "$err"; then
@@ -4200,6 +4207,7 @@ test_1731_evidence_rescue_negations() {
   [[ ! -e "$main/docs/notes/n1731.md" ]] || log_fail "TEST-1731: a non-ignored worktree-only path must not be copied"
   [[ ! -e "$main/docs/xscratch/x1731.md" ]] || log_fail "TEST-1731: a path ignored only by .git/info/exclude must not be rescued"
   [[ ! -e "$main/docs/evid1731" ]] || log_fail "TEST-1731: a directory holding a re-included member must not be rescued"
+  [[ ! -e "$main/docs/evid1731m" ]] || log_fail "TEST-1731: a directory with a member re-included only in the main checkout must not be rescued"
   [[ ! -e "$main/docs/ai/reports/link-1731.md" && ! -L "$main/docs/ai/reports/link-1731.md" ]] \
     || log_fail "TEST-1731: a symlink token must not be copied"
   [[ "$(cat "$main/docs/ai/reports/exists-1731.md")" == "main version" ]] \
