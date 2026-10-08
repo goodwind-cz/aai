@@ -4157,8 +4157,8 @@ test_1730_evidence_rescue_from_worktree() {
 }
 
 test_1731_evidence_rescue_negations() {
-  log_info "TEST-1731: rescue negations — non-ignored, missing, symlink, existing destination..."
-  local cell="docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md docs/ai/reports/exists-1731.md"
+  log_info "TEST-1731: rescue negations — non-ignored, missing, symlink, existing destination, info/exclude-only, re-included member..."
+  local cell="docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md docs/ai/reports/exists-1731.md docs/xscratch/x1731.md docs/evid1731"
   local pair main wt
   pair=$(rescue_fixture "t1731" "-" "$cell") || log_fail "TEST-1731: fixture setup error"
   main="${pair%% *}"; wt="${pair#* }"
@@ -4168,13 +4168,29 @@ test_1731_evidence_rescue_negations() {
   ln -s target-1731.txt "$wt/docs/ai/reports/link-1731.md" || log_fail "TEST-1731: setup error"
   printf 'main version\n' > "$main/docs/ai/reports/exists-1731.md" || log_fail "TEST-1731: setup error"
   printf 'worktree version\n' > "$wt/docs/ai/reports/exists-1731.md" || log_fail "TEST-1731: setup error"
+  # info/exclude-only cell: ignored by the machine-local info/exclude (shared by
+  # every linked worktree) but by NO repository .gitignore rule -> must warn.
+  local common; common=$(git -C "$main" rev-parse --git-common-dir) || log_fail "TEST-1731: setup error"
+  [[ "$common" == /* ]] || common="$main/$common"
+  mkdir -p "$common/info" "$wt/docs/xscratch" || log_fail "TEST-1731: setup error"
+  printf 'docs/xscratch/\n' >> "$common/info/exclude" || log_fail "TEST-1731: setup error"
+  printf 'scratch\n' > "$wt/docs/xscratch/x1731.md" || log_fail "TEST-1731: setup error"
+  # re-include cell: a directory whose members are .gitignore-ignored except one
+  # `!`-re-included file -> the whole directory is refused (warn, no copy).
+  local g
+  for g in "$main" "$wt"; do
+    printf 'docs/evid1731/*\n!docs/evid1731/keep.md\n' >> "$g/.gitignore" || log_fail "TEST-1731: setup error"
+  done
+  mkdir -p "$wt/docs/evid1731" || log_fail "TEST-1731: setup error"
+  printf 'a\n' > "$wt/docs/evid1731/a.log" || log_fail "TEST-1731: setup error"
+  printf 'keep\n' > "$wt/docs/evid1731/keep.md" || log_fail "TEST-1731: setup error"
 
   local out="$TEST_DIR/t1731.out" err="$TEST_DIR/t1731.err" code
   code=$(run_close "$wt" "$out" "$err" --ref t1731-change-slug --spec t1731-spec-slug --pr 1731 --commit a1731a17)
   assert_exit "TEST-1731: close from the worktree" 0 "$code"
   grep -q -- 'WARNING (evidence-path gate)' "$err" || log_fail "TEST-1731: unrescuable tokens must still warn, got: $(cat "$err")"
   local tok
-  for tok in docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md; do
+  for tok in docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md docs/xscratch/x1731.md docs/evid1731; do
     grep -qF "$tok" "$err" || log_fail "TEST-1731: the warning must name $tok, got: $(cat "$err")"
   done
   if grep -qF 'docs/ai/reports/exists-1731.md' "$err"; then
@@ -4182,6 +4198,8 @@ test_1731_evidence_rescue_negations() {
   fi
   if grep -q -- 'evidence rescued' "$out"; then log_fail "TEST-1731: nothing here is rescuable, got: $(cat "$out")"; fi
   [[ ! -e "$main/docs/notes/n1731.md" ]] || log_fail "TEST-1731: a non-ignored worktree-only path must not be copied"
+  [[ ! -e "$main/docs/xscratch/x1731.md" ]] || log_fail "TEST-1731: a path ignored only by .git/info/exclude must not be rescued"
+  [[ ! -e "$main/docs/evid1731" ]] || log_fail "TEST-1731: a directory holding a re-included member must not be rescued"
   [[ ! -e "$main/docs/ai/reports/link-1731.md" && ! -L "$main/docs/ai/reports/link-1731.md" ]] \
     || log_fail "TEST-1731: a symlink token must not be copied"
   [[ "$(cat "$main/docs/ai/reports/exists-1731.md")" == "main version" ]] \

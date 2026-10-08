@@ -29,7 +29,8 @@
 // 2 usage or git failure (never a silent 0).
 //
 // Node stdlib only; no imports from sibling scripts (fixtures copy this file
-// alone). Exported: trackedIgnored({cwd, rev, paths, pathspecs}), stagedIgnored({cwd}).
+// alone). Exported: trackedIgnored({cwd, rev, paths, pathspecs, nameRulesFor}), stagedIgnored({cwd}),
+// ignoreRules(cwd, paths), ignoredByGitignore(cwd, paths).
 
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
@@ -74,27 +75,52 @@ function splitNul(s) {
   return s.split('\0').filter((x) => x.length > 0);
 }
 
-// Names the rule best-effort. core.excludesFile is emptied so a developer's
-// global file cannot be named as the source; .git/info/exclude can still be
-// named for a path ALSO matched by a repo rule only if it comes first, hence
-// "best effort" (exact on CI, which has neither).
-function ruleFor(cwd, path) {
+// ignoreRules(cwd, paths) -> Map(path -> {source, line, pattern}) for every
+// path git's ignore machinery decides on, one `check-ignore` process for the
+// whole batch. core.excludesFile is emptied so a developer's global file cannot
+// be named as the source; .git/info/exclude CAN still be named (git always
+// reads it) -- callers that must count repository rules only filter on the
+// source (see ignoredByGitignore). Works for paths that do not exist.
+export function ignoreRules(cwd, paths) {
+  const out = new Map();
+  if (!paths || paths.length === 0) return out;
   const r = spawnSyncInput(
     cwd,
     ['-c', 'core.excludesFile=', 'check-ignore', '-v', '--no-index', '-z', '--stdin'],
     {},
-    path + '\0',
+    paths.join('\0') + '\0',
   );
-  if (r.status === 0) {
-    const f = splitNul(r.stdout);
-    if (f.length >= 4) return `${f[0]}:${f[1]}:${f[2]}`;
+  if (r.status !== 0 && r.status !== 1) return out;
+  const f = splitNul(r.stdout || '');
+  for (let i = 0; i + 3 < f.length; i += 4) {
+    out.set(f[i + 3], { source: f[i], line: f[i + 1], pattern: f[i + 2] });
   }
-  return 'unknown';
+  return out;
+}
+
+// ignoredByGitignore(cwd, paths) -> Set of the paths the repository's own
+// .gitignore files ignore. The single D1 predicate for untracked/not-yet-present
+// paths (the evidence rescue): a decision taken by .git/info/exclude (or any
+// non-.gitignore source) or a `!` re-include does NOT count.
+export function ignoredByGitignore(cwd, paths) {
+  const ok = new Set();
+  for (const [p, rule] of ignoreRules(cwd, paths)) {
+    const base = String(rule.source).split(/[\\/]/).pop();
+    if (base === '.gitignore' && !String(rule.pattern).startsWith('!')) ok.add(p);
+  }
+  return ok;
+}
+
+function ruleText(m, p) {
+  const r = m.get(p);
+  return r ? `${r.source}:${r.line}:${r.pattern}` : 'unknown';
 }
 
 // `pathspecs` limits the scan to those paths (a directory covers everything
 // under it); each is passed literally so glob characters are not patterns.
-export function trackedIgnored({ cwd, rev, paths, pathspecs } = {}) {
+// `nameRulesFor` (a Set) limits the rule lookup to those paths; the rest read
+// 'unknown' (--staged never prints the rule of a pre-existing hit).
+export function trackedIgnored({ cwd, rev, paths, pathspecs, nameRulesFor } = {}) {
   const top = gitOk(resolve(cwd || process.cwd()), ['rev-parse', '--show-toplevel']).trim();
   if (!top) throw new Error('not inside a git work tree');
   let env = {};
@@ -112,10 +138,9 @@ export function trackedIgnored({ cwd, rev, paths, pathspecs } = {}) {
       gitOk(top, ['ls-files', '-z', '-ci', '--exclude-per-directory=.gitignore', ...spec], env),
     );
     const want = paths ? new Set(paths) : null;
-    const hits = (want ? ignored.filter((p) => want.has(p)) : ignored).map((p) => ({
-      path: p,
-      rule: ruleFor(top, p),
-    }));
+    const wanted = want ? ignored.filter((p) => want.has(p)) : ignored;
+    const named = ignoreRules(top, nameRulesFor ? wanted.filter((p) => nameRulesFor.has(p)) : wanted);
+    const hits = wanted.map((p) => ({ path: p, rule: ruleText(named, p) }));
     return { checked: want ? tracked.filter((p) => want.has(p)).length : tracked.length, hits };
   } finally {
     if (tmp) rmSync(tmp, { recursive: true, force: true });
@@ -131,7 +156,7 @@ export function stagedIgnored({ cwd } = {}) {
     splitNul(gitOk(top, ['diff', '--cached', '--name-only', '--no-renames', '-z', `--diff-filter=${filter}`]));
   const added = new Set(diff('AC'));
   const modified = new Set(diff('MT'));
-  const { hits } = trackedIgnored({ cwd: top });
+  const { hits } = trackedIgnored({ cwd: top, nameRulesFor: new Set([...added, ...modified]) });
   const out = { added: [], modified: [], preexisting: 0 };
   for (const h of hits) {
     if (added.has(h.path)) out.added.push(h);

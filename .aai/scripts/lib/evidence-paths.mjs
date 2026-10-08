@@ -33,7 +33,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { ignoredByGitignore } from '../tracked-ignored.mjs';
 import { parseAcTable, parseLeanAcTable } from './docs-model.mjs';
 
 const LEADING_RE = /^[`'"(\[{]/;
@@ -153,18 +153,31 @@ function safeTree(abs) {
   return names.every((n) => safeTree(path.join(abs, n)));
 }
 
-// ignoredByRepoRules(tree, rel, isDir) -> true when git's repository rules
-// (.gitignore files only: core.excludesFile emptied) ignore `rel` under `tree`,
-// whether or not it exists there. A directory is probed through a child path so
-// both `dir/**` and `dir/` rules match.
+// memberFiles(abs, rel) -> repo-relative paths of every file under a directory.
+function memberFiles(abs, rel) {
+  const out = [];
+  for (const n of fs.readdirSync(abs)) {
+    const a = path.join(abs, n);
+    const r = `${rel}/${n}`;
+    if (fs.lstatSync(a).isDirectory()) out.push(...memberFiles(a, r));
+    else out.push(r);
+  }
+  return out;
+}
+
+// ignoredByRepoRules(tree, rel, isDir) -> true when the repository's own
+// .gitignore files ignore `rel` under `tree` (the one D1 predicate,
+// ignoredByGitignore from tracked-ignored.mjs: .git/info/exclude, the global
+// excludes file and `!` re-includes do not count), whether or not it exists.
+// A directory is probed through a child path so both `dir/**` and `dir/` rules
+// match. Directory members (when the directory exists under `tree`): every file under the
+// directory must itself be ignored, so a `!`-re-included member REFUSES the
+// whole directory rather than being copied as a non-ignored file.
 function ignoredByRepoRules(tree, rel, isDir) {
-  const probe = isDir ? `${rel}/.rescue-probe` : rel;
-  const r = spawnSync(
-    'git',
-    ['-c', 'core.excludesFile=', 'check-ignore', '-q', '--no-index', '--', probe],
-    { cwd: tree, stdio: 'ignore' },
-  );
-  return r.status === 0;
+  const probes = [isDir ? `${rel}/.rescue-probe` : rel];
+  if (isDir && fs.existsSync(path.join(tree, rel))) probes.push(...memberFiles(path.join(tree, rel), rel));
+  const ok = ignoredByGitignore(tree, probes);
+  return probes.every((p) => ok.has(p));
 }
 
 // planEvidenceRescue(tokens, root, evidenceRoot) -> [{ token, from, to }] for
