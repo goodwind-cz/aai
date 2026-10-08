@@ -1995,13 +1995,13 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   grep -qE '^  aai-mutation-gate:$' "$map" \
     || log_fail "TEST-487: tests/skills/suite-map.yaml has no 'aai-mutation-gate:' row"
 
-  # Count arm: the pin (test_090's own number) holds at 104 and matches the
+  # Count arm: the pin (test_090's own number) holds at 105 and matches the
   # LIVE row count — a row deleted without moving the pin reddens BOTH arms
   # together, which is the two-way check the Mutation column drives.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 104 ]] \
-    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 104"
+  [[ "$row_count" -eq 105 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 105"
 
   # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
   # function anywhere under tests/skills, this suite's new ones included).
