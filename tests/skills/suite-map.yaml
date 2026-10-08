@@ -1164,6 +1164,13 @@ suites:
       - tests/skills/test-aai-tracked-ignored.sh
       - .gitignore
 
+  aai-ci-carry-forward:
+    globs:
+      - .aai/scripts/ci-select.mjs
+      - .aai/scripts/select-suites.mjs
+      - .github/workflows/skill-suite.yml
+      - tests/skills/test-aai-ci-carry-forward.sh
+
   aai-pr-preflight:
     globs:
       - .aai/scripts/pr-preflight.mjs

@@ -111,6 +111,7 @@ core:
   - .aai/scripts/worktree-seed.mjs
   - .aai/scripts/check-test-registration.mjs
   - .aai/scripts/check-vendored-script-deps.mjs
+  - .aai/scripts/ci-select.mjs
   - .aai/scripts/claude-hook-gate.sh
   - .aai/scripts/close-before-push-guard.mjs
   - .aai/scripts/close-reconcile.mjs
