@@ -1,0 +1,41 @@
+subagent_result:
+  scope: pr-github-case-identity
+  role: Validation
+  status: PASS
+  started_utc: 2026-10-08T11:35:26Z
+  ended_utc: 2026-10-08T11:39:52Z
+  duration_seconds: 266
+  evidence:
+    - command: bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh test_001
+      exit_code: 0
+      output_snippet: 'PASS: TEST-001 pr-capability-preflight'
+    - command: bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh test_007
+      exit_code: 0
+      output_snippet: 'PASS: TEST-007 pr-capability-preflight'
+    - command: bash .aai/scripts/aai-run-tests.sh bash /private/tmp/aai-pr434-case-validation-scratch/test-aai-pr-preflight.sh test_007
+      exit_code: 0
+      output_snippet: 'Seven adversarial controls refused after three probes; PASS: TEST-007'
+    - command: bash .aai/scripts/aai-run-tests.sh node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0212-spec-pr-github-case-identity.md
+      exit_code: 0
+      output_snippet: 'mutation-run --replay: 2/2 attempted records still redden (0 inconclusive of 2 total, 0 re-stamped)'
+    - command: node .aai/scripts/docs-audit.mjs --gate SPEC-0212
+      exit_code: 0
+      output_snippet: 'GATE PASS: AC Status table complete'
+    - command: node .aai/scripts/validation-outcome-check.mjs --report docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md --ref pr-github-case-identity --since 2026-10-08T11:35:26Z --root /private/tmp/aai-pr-capability-preflight --intake docs/issues/ISSUE-0095-pr-github-case-identity.md --spec docs/specs/SPEC-0212-spec-pr-github-case-identity.md
+      exit_code: 0
+      output_snippet: 'Outcome checker accepted exact scope sources and fresh hashed evidence.'
+  files_changed:
+    - docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md
+    - docs/ai/reports/pr-github-case-identity-validation-20261008T113526Z/test001.log
+    - docs/ai/reports/pr-github-case-identity-validation-20261008T113526Z/test007.log
+    - docs/ai/reports/pr-github-case-identity-validation-20261008T113526Z/adversarial007.log
+    - docs/ai/reports/pr-github-case-identity-validation-20261008T113526Z/replay.log
+    - docs/ai/reports/pr-github-case-identity-validation-20261008T113526Z/manifest.json
+    - docs/ai/reports/pr-github-case-identity-validation-20261008T113526Z/result.yaml
+    - docs/ai/reports/pr-github-case-identity-validation-20261008T113526Z/result.md
+  blockers: []
+  outcome_report: docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-validation --status pass --ref pr-github-case-identity --evidence docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md --notes "Child scoped validation passed two focused integration rows, seven adversarial probes and two mutation replays; root retains parent and CI gates"
+    - node .aai/scripts/state.mjs set-phase --ref pr-github-case-identity --phase code_review --status in_progress
+    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm

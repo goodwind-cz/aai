@@ -1,0 +1,6 @@
+  for(const h of ['github.com','enterprise.github.com']) {
+   github(h); input.repository='oRg/rEpO'; const v=run('ok',[],{FIX_NAME:'ORG/repo',FIX_URL:'https://'+h+'/org/REPO'});expect(v,0,'READ_VERIFIED');assert.equal(calls().length,3);assert.deepEqual(calls().map(c=>c.args),ghArgs);assert.ok(calls().every(c=>c.env.GH_HOST===h));assert.equal(v.json.create_permission,'unknown');console.log('PROBE simultaneous identity case PASS '+h);
+  }
+  github();azure('ssh://git@ssh.github.com:443/Org/Repo.git');input.repository='org/repo';expect(run('ok',[],{FIX_NAME:'ORG/REPO',FIX_URL:'https://github.com/org/repo'}),0,'READ_VERIFIED');assert.equal(calls().length,3);assert.deepEqual(calls().map(c=>c.args),ghArgs);console.log('PROBE SSH443 mixed case PASS');
+  for(const repository of ['Оrg/Repo','Org/Repо','org/repo/','org/other']){github();input.repository=repository;expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0);console.log('PROBE input refusal PASS '+repository);}
+  for(const url of ['http://github.com/org/repo','https://evil.invalid/org/repo','https://user@github.com/org/repo','https://github.com/org/repo?x=1','https://github.com/org/repo#x','https://github.com/оrg/repo']){github();expect(run('ok',[],{FIX_NAME:'org/repo',FIX_URL:url}),3,'PROVIDER_RESULT_INVALID');assert.equal(calls().length,3);console.log('PROBE result refusal PASS '+url);}

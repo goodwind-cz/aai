@@ -1,0 +1,11 @@
+--- a/.aai/scripts/pr-preflight.mjs
++++ b/.aai/scripts/pr-preflight.mjs
+@@ -218,7 +218,7 @@
+   } else if (result.platform === 'github') {
+     const parts = remoteParts(remote); if (parts.length !== 2) invalid();
+     const repository = parts[0] + '/' + parts[1].replace(/\.git$/, '');
+-    if (!text(input.repository) || !asciiCaseEqual(input.repository, repository) || input.organization_url !== undefined || input.project !== undefined) invalid();
++    if (!text(input.repository) || input.repository !== repository || input.organization_url !== undefined || input.project !== undefined) invalid();
+     result.repository = { host: githubApiHost(remote), repository };
+   } else {
+     if (['organization_url','project','repository'].some(key => input[key] !== undefined)) invalid();

@@ -1,0 +1,11 @@
+--- a/.aai/scripts/pr-preflight.mjs
++++ b/.aai/scripts/pr-preflight.mjs
+@@ -268,7 +268,7 @@
+     r = await invoke('gh',['repo','view',result.repository.repository,'--json','nameWithOwner,url'],'gh.repository'); if (r.code !== 0) failure(r,'gh.repository');
+     const repo = parseRecord(r.stdout,'gh.repository');
+     let url; try { url = new URL(repo.url); } catch { throw new Refusal('PROVIDER_RESULT_INVALID','gh.repository'); }
+-    if (!asciiCaseEqual(repo.nameWithOwner, result.repository.repository) || url.protocol !== 'https:' || url.host !== result.repository.host || !asciiCaseEqual(url.pathname, '/' + result.repository.repository) || url.username || url.password || url.search || url.hash) throw new Refusal('PROVIDER_RESULT_INVALID','gh.repository');
++    if (repo.nameWithOwner !== result.repository.repository || url.protocol !== 'https:' || url.host !== result.repository.host || url.pathname !== '/' + result.repository.repository || url.username || url.password || url.search || url.hash) throw new Refusal('PROVIDER_RESULT_INVALID','gh.repository');
+   } else {
+     Object.assign(result,{outcome:'capability_not_applicable',code:'CAPABILITY_NOT_APPLICABLE',operation:'generic',remedy:'GENERIC MODE: automated provider PR and reviewer checks are unavailable; use the existing local/manual ceremony route.'});return;
+   }

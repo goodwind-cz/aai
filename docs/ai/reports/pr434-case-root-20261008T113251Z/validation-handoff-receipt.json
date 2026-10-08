@@ -1,0 +1,5 @@
+{
+  "verified_paths": 18,
+  "typed_handoff": "docs/ai/reports/pr-github-case-identity-validation-20261008T113526Z/result.md",
+  "note": "Final conversational output pointed to actual authored checked result.md rather than embedding block; root checks that exact role-authored file, no verdict/commands invented."
+}

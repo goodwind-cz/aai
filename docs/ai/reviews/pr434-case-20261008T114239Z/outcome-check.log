@@ -1,0 +1,2 @@
+command: node .aai/scripts/validation-outcome-check.mjs --report docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md --ref pr-github-case-identity --since 2026-10-08T11:35:26Z --intake docs/issues/ISSUE-0095-pr-github-case-identity.md --spec docs/specs/SPEC-0212-spec-pr-github-case-identity.md
+exit_code: 0

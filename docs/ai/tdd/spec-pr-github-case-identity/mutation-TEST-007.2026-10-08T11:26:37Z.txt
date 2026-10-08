@@ -1,0 +1,23 @@
+mutation_record: v1
+spec_id: spec-pr-github-case-identity
+test_id: TEST-007
+suite: tests/skills/test-aai-pr-preflight.sh
+selector: test_007
+target: .aai/scripts/pr-preflight.mjs
+mutation: patch:docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.2026-10-08T11:26:37Z.patch
+base_commit: 8dd7a88a59a43ed094088b17361ca08cd13c855a
+tree_hash: be64dae6f3f2ed9c737fb0457b54d7fa9fe839adc24481914f1cf7df2e06ef9a
+run_at_utc: 2026-10-08T11:26:37Z
+rc: 1
+verdict: RED
+first_fail: FAIL: TEST-007 exit READ_VERIFIED
+selector_honoured: yes
+target_sha256: e0d14f2b5dc9d5726fbae36e03b1bb346204c459cd6ab988015b57069396caaf
+---
+INFO: scratch_override=unset platform=darwin uid=501
+INFO: CLI_BOUND {"test":"007","sequence":1,"mode":"ok","timeout_ms":105000,"elapsed_ms":5745,"error_code":null,"signal":null,"git_probes":7,"provider_steps":["gh.--version","gh.auth","gh.repo"],"stdout_bytes":467}
+INFO: TEST-007 bounded_identity_delay_ms=5745 read_verified=true
+FAIL: TEST-007 exit READ_VERIFIED
+
+3 !== 0
+

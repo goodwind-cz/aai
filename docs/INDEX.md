@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-08T11:21:04.180Z
+Generated: 2026-10-08T11:48:24.873Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -14,7 +14,7 @@ _None._
 | CHANGE-0204 | issues | implementing | — | docs/issues/CHANGE-0204-pr-capability-preflight.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | SPEC-0210 | specs | implementing | 6 done | docs/specs/SPEC-0210-spec-pr-capability-preflight.md |
-| SPEC-0212 | specs | implementing | 2 planned | docs/specs/SPEC-0212-spec-pr-github-case-identity.md |
+| SPEC-0212 | specs | implementing | 2 done | docs/specs/SPEC-0212-spec-pr-github-case-identity.md |
 
 ## Canonical layer (0)
 

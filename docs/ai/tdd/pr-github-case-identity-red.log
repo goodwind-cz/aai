@@ -1,0 +1,21 @@
+RED_CLASS: product_red
+ref_id: pr-github-case-identity
+base_commit: 8dd7a88a59a43ed094088b17361ca08cd13c855a
+pre_fix_source_git_sha: 495aeb01ba88a71c7b4ea8e96a587c83038955db
+pre_fix_source_sha256: a69e20c313a1d34c2b8e0095545b63e98337cd7e7b2fa825f9bcf69fd715d958
+TEST-001 / Spec-AC-02 command: AAI_PREFLIGHT_ROOT=/private/tmp/aai-pr434-case-maker-scratch/repo AAI_PR_PREFLIGHT=/private/tmp/aai-pr434-case-maker-scratch/repo/.aai/scripts/pr-preflight.mjs AAI_PREFLIGHT_SCRATCH=/private/tmp/aai-pr434-case-maker-scratch/fixtures bash .aai/scripts/aai-run-tests.sh bash /private/tmp/aai-pr434-case-maker-scratch/repo/tests/skills/test-aai-pr-preflight.sh test_001
+TEST-001 exit: 1; intended assertion: expected case-equivalent input identity to return READ_VERIFIED, actual exit 2 / IDENTITY_INVALID before providers.
+TEST-007 / Spec-AC-01 command: AAI_PREFLIGHT_ROOT=/private/tmp/aai-pr434-case-maker-scratch/repo AAI_PR_PREFLIGHT=/private/tmp/aai-pr434-case-maker-scratch/repo/.aai/scripts/pr-preflight.mjs AAI_PREFLIGHT_SCRATCH=/private/tmp/aai-pr434-case-maker-scratch/fixtures bash .aai/scripts/aai-run-tests.sh bash /private/tmp/aai-pr434-case-maker-scratch/repo/tests/skills/test-aai-pr-preflight.sh test_007
+TEST-007 exit: 1; intended assertion: expected case-equivalent provider identity to return READ_VERIFIED, actual exit 3 / PROVIDER_RESULT_INVALID after three calls.
+INFO: TEST-001 direct_symlink_exit_output_equal=true
+INFO: TEST-001 {"result":{"schema_version":1,"platform":"azure","repository":{"organization_url":"https://dev.azure.com/Org","project":"Project 雪","repository":"Repo Name"},"remote_name":"origin","source_branch":"change/pr-capability-preflight","target_branch":"main","head_sha":"c04bb0ae0d5b4cf14db7e1fbb8b8d93add393cb3","outcome":"read_verified","code":"READ_VERIFIED","operation":"azure.readiness","remedy":"Repository read access verified at invocation time; future PR create permission remains unknown.","create_permission":"unknown"},"calls":[{"name":"az","args":["--version"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["extension","show","--name","azure-devops","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}},{"name":"az","args":["repos","show","--organization","https://dev.azure.com/Org","--project","Project 雪","--repository","Repo Name","--detect","false","--output","json","--only-show-errors"],"env":{"AZURE_EXTENSION_USE_DYNAMIC_INSTALL":"no","AZURE_CORE_NO_COLOR":"true","GIT_TERMINAL_PROMPT":"0","GH_PROMPT_DISABLED":"1"}}]}
+FAIL: TEST-001 exit READ_VERIFIED
+
+2 !== 0
+
+INFO: CLI_BOUND {"test":"007","sequence":1,"mode":"ok","timeout_ms":105000,"elapsed_ms":5752,"error_code":null,"signal":null,"git_probes":7,"provider_steps":["gh.--version","gh.auth","gh.repo"],"stdout_bytes":467}
+INFO: TEST-007 bounded_identity_delay_ms=5752 read_verified=true
+FAIL: TEST-007 exit READ_VERIFIED
+
+3 !== 0
+

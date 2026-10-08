@@ -52,7 +52,7 @@ let gotInput=false; process.stdin.on('data',()=>{gotInput=true}); process.stdin.
  if(name==='az'&&step===1){console.log(JSON.stringify({name:'azure-devops',version:'1.0.0'}));return;}
  if(name==='az'){const raw=JSON.stringify({name:mode==='mismatch'?'Other':'Repo Name',project:{name:'Project 雪'},remoteUrl:'https://dev.azure.com/Org/Project%20%E9%9B%AA/_git/Repo%20Name'});if(mode==='split-unicode'){const bytes=Buffer.from(raw),cut=bytes.indexOf(Buffer.from('雪'))+1;fs.appendFileSync(process.env.FIX_LOG,JSON.stringify({split_fixture:true,cut,bytes:bytes.length})+'\\n');process.stdout.write(bytes.subarray(0,cut));setTimeout(()=>process.stdout.write(bytes.subarray(cut)),100);return;}console.log(raw);return;}
  if(step===1){console.log('authenticated');return;}
- console.log(JSON.stringify({nameWithOwner:mode==='mismatch'?'Other/Repo':'Org/Repo',url:'https://'+process.env.FIX_HOST+'/Org/Repo'}));
+ console.log(JSON.stringify({nameWithOwner:process.env.FIX_NAME|| (mode==='mismatch'?'Other/Repo':'Org/Repo'),url:process.env.FIX_URL||'https://'+process.env.FIX_HOST+'/Org/Repo'}));
 }); process.stdin.resume();`);
 function install(name) {
  if(process.platform==='win32') {
@@ -101,6 +101,11 @@ try {
   for(const url of ['git@ssh.dev.azure.com:v3/Org/Project%20%E9%9B%AA/Repo%20Name','Org@vs-ssh.visualstudio.com:v3/Org/Project%20%E9%9B%AA/Repo%20Name']){azure(url);expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0,'SCP percent bytes cannot verify a decoded Azure name');}
   azure('https://dev.azure.com/Org/Project/_git/Repo/extra');expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0);
   github();expect(run(),0,'READ_VERIFIED');
+  // GitHub repository identity is ASCII case-insensitive; endpoint bytes remain exact.
+  github();input.repository='org/Repo';
+  const caseRemote=run();expect(caseRemote,0,'READ_VERIFIED');assert.equal(calls().length,3,'ASCII-case-equivalent input reaches every provider');assert.equal(calls()[2].args[2],'Org/Repo','gh argv preserves resolved remote spelling');
+  for(const repository of ['Other/Repo','Org/Other']){input.repository=repository;expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0,'genuinely different input identity refuses before providers');}
+  input.repository='Org/Repo';
   const ordinary='https://github.com/Org/Repo.git';
   function rawGit(...args){return execFileSync(realGit,args,{cwd:repo,stdio:['ignore','pipe','pipe'],env:{...process.env,AAI_GIT_WRITE:'1',GIT_CONFIG_NOSYSTEM:'1'}});}
   function quotedEndpoint(endpoint,value){
@@ -133,6 +138,7 @@ try {
   console.log('INFO: TEST001_BLANK deterministic_blank_first_last_only_refused=true provider_calls=0');
   github();
   github();expect(run('ok',[],{FIX_GIT_CRLF:'1'}),0,'READ_VERIFIED');assert.equal(calls().length,3,'ordinary CRLF Git process delimiter supported');quotedEndpoint('pushurl',ordinary+'\r');expect(run('ok',[],{FIX_GIT_CRLF:'1'}),2,'IDENTITY_INVALID');assert.equal(calls().length,0,'URL CR retained under CRLF Git process delimiter');github();
+  git('config','remote.origin.pushurl','https://github.com/org/Repo.git');const caseEndpoint=run();expect(caseEndpoint,2,'IDENTITY_INVALID');assert.equal(caseEndpoint.json.operation,'git.push-destination');assert.equal(calls().length,0,'case-only fetch/push endpoint difference remains byte-exact');github();
   git('config','remote.origin.pushurl','https://github.com/Org/Repo.git');expect(run(),0,'READ_VERIFIED');assert.equal(calls().length,3,'one matching explicit push destination succeeds');
   for(const destinations of [['https://dev.azure.com/Other/Project/_git/Other'],['https://github.com/Other/Repo.git'],['https://github.com/Org/Repo.git','https://github.com/Other/Repo.git'],['https://github.com/Org/Repo.git','https://github.com/Org/Repo.git']]){
    git('config','--unset-all','remote.origin.pushurl');for(const url of destinations)git('config','--add','remote.origin.pushurl',url);
@@ -191,6 +197,14 @@ try {
 
  } else if(id==='007') {
   github();const delayed=run('ok',[],{FIX_DELAY_MS:'700'});expect(delayed,0,'READ_VERIFIED');assert.ok(delayed.ms>=4200,'real Git fixture crossed old whole-CLI bound');assert.ok(calls().length===3,'delayed success reached all provider probes');console.log('INFO: TEST-007 bounded_identity_delay_ms='+delayed.ms+' read_verified=true');
+  // Provider canonical casing is compared as GitHub identity, field by field.
+  for(const [name,url,label] of [
+    ['org/Repo','https://github.com/Org/Repo','nameWithOwner case'],
+    ['Org/Repo','https://github.com/org/Repo','URL owner case'],
+    ['Org/Repo','https://github.com/Org/repo','URL repository case'],
+    ['org/repo','https://github.com/org/repo','both fields case']
+  ]){github();const observed=run('ok',[],{FIX_NAME:name,FIX_URL:url});expect(observed,0,'READ_VERIFIED');assert.equal(calls().length,3,label+' reaches all three provider probes');assert.deepEqual(calls().map(c=>c.args),ghArgs);}
+  for(const [name,url] of [['Other/Repo','https://github.com/Org/Repo'],['Org/Other','https://github.com/Org/Repo'],['Org/Repo','https://github.com/Other/Repo'],['Org/Repo','https://github.com/Org/Other']]){github();const observed=run('ok',[],{FIX_NAME:name,FIX_URL:url});expect(observed,3,'PROVIDER_RESULT_INVALID');assert.equal(calls().length,3,'different provider identity is refused after exactly three probes');}
   // Inspect literal real-Git endpoints before a URL parser can collapse path segments.
   for(const endpoint of ['https://github.com\\Other/Org/Repo.git','ssh://git@github.com/Org/Other/../Repo.git','ssh://git@github.com/Org/./Repo.git','ssh://git@github.com/Org/%2e/Repo.git','ssh://git@github.com/Org/Other/%2E%2e/Repo.git','ssh://git@ssh.github.com:443/Org/Other/../Repo.git','https://github.com/Org/Other/../Repo.git']){
    github();azure(endpoint);assert.equal(git('remote','get-url','--all','origin'),endpoint);assert.equal(git('remote','get-url','--push','--all','origin'),endpoint);

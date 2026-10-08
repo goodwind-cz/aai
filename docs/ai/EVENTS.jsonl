@@ -2861,3 +2861,4 @@
 {"v":1,"ts":"2026-10-08T11:20:29Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-generic-url-validity","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-08T11:20:29Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-pr-generic-url-validity","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-08T11:20:29Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-pr-generic-url-validity","payload":{"commit":"6d3f616a96337ff1580968467fadfa9756a87a52"}}
+{"v":1,"ts":"2026-10-08T11:41:39Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"pr-github-case-identity","payload":{"status":"pass","hash":"57dda1130815b1010dad3a67d3ca204383503c05facf4c9128df748cdd69685c"}}

@@ -1,0 +1,38 @@
+{
+  "schema": "aai-pr434-case-identity-maker-manifest-v1",
+  "scope": "pr-github-case-identity",
+  "role": "TDD Implementation",
+  "branch_observed": "fix/pr-github-case-identity",
+  "base_commit_root_confirmed": "8dd7a88a59a43ed094088b17361ca08cd13c855a",
+  "source_git_blob_before_fix": "495aeb01ba88a71c7b4ea8e96a587c83038955db",
+  "source_sha256_before_fix": "a69e20c313a1d34c2b8e0095545b63e98337cd7e7b2fa825f9bcf69fd715d958",
+  "sealed_counterexample": {
+    "path": "docs/ai/reviews/review-20261008T023456Z-pr434-scp.md",
+    "source": "1691558c034e13258a31b8288df5642f6263a8cb"
+  },
+  "pins": {
+    "issue_sha256": "a8e13b3336790d2e752f66014cdad7720abb78dc05ddaf60584c155a3f73cfae",
+    "spec_sha256": "5d79d342483399c5b8c06cc3db31f529312014d1dad53032b825792bc7cbe81a",
+    "state_path": "docs/ai/STATE.yaml",
+    "state_sha256": "39fd189ec0a5d3a5a71aca3691fc4091ae7a8081f21150dc9272433c1f4ea500",
+    "index_format": "raw bytes from git ls-files -s -z; records are mode SP object-id SP stage TAB path NUL",
+    "index_sha256": "cb5c8684f34590f4636d15ddddc9523b5ddc87ea0249ea01ba063a1a8ea4ea17",
+    "index_bytes": 268612
+  },
+  "path_sha256": {
+    ".aai/scripts/pr-preflight.mjs": "e0d14f2b5dc9d5726fbae36e03b1bb346204c459cd6ab988015b57069396caaf",
+    "tests/skills/test-aai-pr-preflight.sh": "239206e806eff008083c8c1b081587760aa0ec9f4094fe7336a7404dc169df7c",
+    "docs/issues/ISSUE-0095-pr-github-case-identity.md": "a8e13b3336790d2e752f66014cdad7720abb78dc05ddaf60584c155a3f73cfae",
+    "docs/specs/SPEC-0212-spec-pr-github-case-identity.md": "5d79d342483399c5b8c06cc3db31f529312014d1dad53032b825792bc7cbe81a",
+    "docs/ai/reviews/review-20261008T023456Z-pr434-scp.md": "a3f9a4d080d0a8f678b6fa8fbd482c7fc2b20bee667b299de6a6b16113313913",
+    "docs/ai/tdd/pr-github-case-identity-red.log": "ca1c899307035145a37826ed82a92110d98c4175a418bd7ab82e13344f5b6c91",
+    "docs/ai/tdd/pr-github-case-identity-green.log": "dd2f66339aac87c497ed2e95ca2c00d7beaeb1ee112ec7669e4fee533ac8f7b2",
+    "docs/ai/tdd/pr-github-case-identity-full8row.log": "1ca095f5bc96c23becf04fa5f42f22118f1899c760b5f147d5cbdefbf658700b",
+    "docs/ai/tdd/pr-github-case-identity-refactor.log": "030f1a602d755e9e6b132a4a3eed3f3790a018d8e225571cc356a8c3ea7eeae4",
+    "docs/ai/tdd/pr-github-case-identity-mutation-replay.log": "477cef02155810cf11aa30b438cbcd9268d92c025dbe50b887456756f55f107c",
+    "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.txt": "98f88beaba92a15ff1bda6b00587a5ab35a423f99c412f18c6c145b4c194181e",
+    "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.patch": "020305614f2688764830270ab6bcf1e06f0b6593409bd099f3db4536f50f8452",
+    "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.txt": "cf66529ae89453504ab60ce4c9da7a35618ac6dd8db93c4a60b78a173f17922d",
+    "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.patch": "ff3457bd16e58c04e00640bd75dbe0c3196658970f481dd88e702e1c5add0818"
+  }
+}

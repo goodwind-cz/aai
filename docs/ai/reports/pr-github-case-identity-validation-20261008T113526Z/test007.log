@@ -1,0 +1,8 @@
+AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
+AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
+INFO: scratch_override=unset platform=darwin uid=501
+INFO: CLI_BOUND {"test":"007","sequence":1,"mode":"ok","timeout_ms":105000,"elapsed_ms":5727,"error_code":null,"signal":null,"git_probes":7,"provider_steps":["gh.--version","gh.auth","gh.repo"],"stdout_bytes":467}
+INFO: TEST-007 bounded_identity_delay_ms=5728 read_verified=true
+INFO: TEST007_SSH443 canonical_host=github.com exact_repository=true providers=3
+INFO: TEST-007 generic_numeric_port_and_local_controls=true malformed_refusal=true
+PASS: TEST-007 pr-capability-preflight

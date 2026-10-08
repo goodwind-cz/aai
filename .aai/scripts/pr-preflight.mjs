@@ -143,6 +143,10 @@ function validateParts(parts, uri) {
     return decoded;
   });
 }
+function asciiCaseEqual(left, right) {
+  const fold = value => value.replace(/[A-Z]/g, char => String.fromCharCode(char.charCodeAt(0) + 32));
+  return typeof left === 'string' && typeof right === 'string' && fold(left) === fold(right);
+}
 function githubApiHost(remote) {
   if (/^ssh:\/\//i.test(remote)) {
     const url = new URL(sanitize(remote));
@@ -214,7 +218,7 @@ async function identity(input, opts) {
   } else if (result.platform === 'github') {
     const parts = remoteParts(remote); if (parts.length !== 2) invalid();
     const repository = parts[0] + '/' + parts[1].replace(/\.git$/, '');
-    if (!text(input.repository) || input.repository !== repository || input.organization_url !== undefined || input.project !== undefined) invalid();
+    if (!text(input.repository) || !asciiCaseEqual(input.repository, repository) || input.organization_url !== undefined || input.project !== undefined) invalid();
     result.repository = { host: githubApiHost(remote), repository };
   } else {
     if (['organization_url','project','repository'].some(key => input[key] !== undefined)) invalid();
@@ -264,7 +268,7 @@ async function readiness(input, opts) {
     r = await invoke('gh',['repo','view',result.repository.repository,'--json','nameWithOwner,url'],'gh.repository'); if (r.code !== 0) failure(r,'gh.repository');
     const repo = parseRecord(r.stdout,'gh.repository');
     let url; try { url = new URL(repo.url); } catch { throw new Refusal('PROVIDER_RESULT_INVALID','gh.repository'); }
-    if (repo.nameWithOwner !== result.repository.repository || url.protocol !== 'https:' || url.host !== result.repository.host || url.pathname !== '/' + result.repository.repository || url.username || url.password || url.search || url.hash) throw new Refusal('PROVIDER_RESULT_INVALID','gh.repository');
+    if (!asciiCaseEqual(repo.nameWithOwner, result.repository.repository) || url.protocol !== 'https:' || url.host !== result.repository.host || !asciiCaseEqual(url.pathname, '/' + result.repository.repository) || url.username || url.password || url.search || url.hash) throw new Refusal('PROVIDER_RESULT_INVALID','gh.repository');
   } else {
     Object.assign(result,{outcome:'capability_not_applicable',code:'CAPABILITY_NOT_APPLICABLE',operation:'generic',remedy:'GENERIC MODE: automated provider PR and reviewer checks are unavailable; use the existing local/manual ceremony route.'});return;
   }
