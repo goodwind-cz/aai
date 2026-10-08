@@ -899,11 +899,17 @@ test_009_live_backfill_and_whole_ledger_readers() {
         .then((m) => process.stdout.write(m.amendItemId(process.argv[1])));
     ' "$sid" "$SA")"
     if grep -qxF "$expect" <<<"$open_ids"; then continue; fi
-    local trk found=0
+    # Fallback for a re-amended spec whose base item was signed and closed:
+    # EVERY tracker its unsigned records name must be OPEN and must be this
+    # spec's own (the stamped id shares the base id's stem), so a record
+    # borrowing another spec's open item, or one left on a closed item, fails.
+    local trk found=0 bad=0 stem="${expect%-*}-"
     for trk in $(unsigned_tracker_ids_for "$sid"); do
-      if grep -qxF "$trk" <<<"$open_ids"; then found=1; fi
+      found=1
+      [[ "$trk" == "$stem"* ]] || bad=1
+      grep -qxF "$trk" <<<"$open_ids" || bad=1
     done
-    [[ "$found" == 1 ]] || missing="$missing $sid($expect)"
+    [[ "$found" == 1 && "$bad" == 0 ]] || missing="$missing $sid($expect)"
   done
   [[ -z "$missing" ]] \
     || log_fail "TEST-009: no OPEN tracked item for:$missing — the standing amendments are not surfaced for an owner decision (checked as an id TOKEN against --json items[].id, not a substring of the rendering)"
