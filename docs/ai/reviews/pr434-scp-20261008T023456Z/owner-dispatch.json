@@ -1,0 +1,23 @@
+{
+  "actual_machine_dispatch": "rule11 Validation not executed",
+  "actual_manual_role": "Code Review",
+  "existing_owner_order": "docs/decisions/DECISION-pr-capability-preflight-test008-followup.md",
+  "source_head": "1691558c034e13258a31b8288df5642f6263a8cb",
+  "requested_model": "gpt-6-astra",
+  "actual_model": "unknown",
+  "contextual_independence": "fresh fork none; actual model weight distinction unknown",
+  "runtime_capabilities": {
+    "multi_agent_backend": "native collaboration",
+    "spawn_agent_available": true,
+    "fork_turns_supported": true,
+    "spawn_model_catalog": [
+      "gpt-6.1-sol",
+      "gpt-6-astra",
+      "gpt-6-sol",
+      "gpt-6-luna",
+      "gpt-5.6-sol"
+    ]
+  },
+  "prompt_sha256": "e09b009ef6a7c1d54be4ff998657e407afa4c25000b62998f7f363a1bb6bf63b",
+  "package_cycle": "second/final raw-ssh-path-identity check"
+}

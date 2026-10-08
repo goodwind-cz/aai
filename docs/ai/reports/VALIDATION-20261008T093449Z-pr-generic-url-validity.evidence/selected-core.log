@@ -1,0 +1,67 @@
+
+AAI Skills Test Framework
+=========================
+
+[0;34m[INFO][0m Setting up results directory: /private/tmp/aai-pr-capability-preflight/tests/skills/results/test-20261008-093810
+[0;34m[INFO][0m Checking system dependencies...
+[0;32m[PASS][0m Dependencies checked
+[0;34m[INFO][0m Isolation: every suite runs isolated in a disposable git checkout (its own .git, D1) seeded from the working tree
+[0;34m[INFO][0m Concurrency: up to 8 suite(s) run at a time (min(8, 16 cpu(s) - 2)). Set AAI_TEST_PARALLEL=1 for the serial execution model.
+[0;34m[INFO][0m Discovering skill tests...
+[0;34m[INFO][0m Found 7 test(s)
+[0;34m[INFO][0m 
+[0;34m[INFO][0m Running tests...
+[0;34m[INFO][0m 
+[ 1/ 7] aai-check-state      [0;32mPASS[0m (2.0s)
+[ 2/ 7] aai-spec-amend       [0;31mFAIL[0m (2.0s) [tripwire NOT ATTESTED — suite exited 1 before completing]
+--- Error Details (aai-spec-amend) ---
+--- failure lines (whole log) ---
+18:FAIL: TEST-007 arm 3: once every record is signed or unsigned-tracked, --strict must exit 0, got 1 (stdout: spec-amend: shown=2 total=2 signed=1 measurement=0 unsigned-tracked=1 unsigned-untracked=0 unclassified=0 ledger=/var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-spec-amend-test.0n27NS/t007.jsonl
+--- tail (last 30 lines) ---
+Testing aai-spec-amend (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Test: ONE `add --signoff none` appends BOTH the spec_amendment (owner_signoff false) AND the open follow_up naming the spec and the sign-off owed (TEST-001)...
+PASS: TEST-001 one add appended both the amendment and its open tracked item (BOTH-OK id=fu-amend-spec-t001-fixture)
+INFO: Test: REJECTED input — `add --signoff owner` with no --authority exits 2 and NAMES the flag; and `add --signoff none` against a ledger holding no tracked item exits 0, proving the writer never refuses for a missing item (TEST-002)...
+PASS: TEST-002 the writer refuses ONLY usage errors, names the flag it wants, and never refuses an unsigned amendment for a missing tracked item
+INFO: Test: `list --json` over the LIVE ledger counts by PARSING, not by grepping — the arm a grep-based implementation fails (TEST-003)...
+INFO: TEST-003: pinned be0c8ed ledger — parsed=10 tight-grep=4 (the 60% undercount)
+PASS: TEST-003 live ledger: parsed=298 (>= 10), tight-grep=281, 17 space-serialized records all reported
+INFO: Test: SEAM-2 — the item spec-amend.mjs PRODUCES is read back through the REAL follow-ups.mjs, not a mock (TEST-004)...
+PASS: TEST-004 the item written by spec-amend.mjs reads back OPEN and well-formed through the real follow-ups.mjs (fu-amend-spec-t004-fixture)
+INFO: Test: the bucket is decided by the owner_signoff KEY alone — an absent key is its own `unclassified` bucket, and prose saying "NOT an owner decision" loses to a key that says true (TEST-005)...
+PASS: TEST-005 three buckets decided by the field alone; the absent key is its own bucket and is never guessed; the latest overlay wins
+INFO: Test: SEAM-1 — allocate-doc-number.mjs renames SPEC-DRAFT-<slug>.md to SPEC-000N-<slug>.md at merge; the tracked id keys on the frontmatter id, so it survives (TEST-006)...
+PASS: TEST-006 the tracked item survives the draft-to-numbered rename and forks only when the frontmatter id differs (fu-amend-spec-t006-fixture)
+INFO: Test: BOTH `--strict` arms — exit 1 with the offending ref named while a record is untracked or unclassified, exit 0 once every record is signed or unsigned-tracked, and exit 0 in BOTH cases without --strict (TEST-007)...
+FAIL: TEST-007 arm 3: once every record is signed or unsigned-tracked, --strict must exit 0, got 1 (stdout: spec-amend: shown=2 total=2 signed=1 measurement=0 unsigned-tracked=1 unsigned-untracked=0 unclassified=0 ledger=/var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-spec-amend-test.0n27NS/t007.jsonl
+unsigned-tracked  2026-09-01T06:00:00Z  t007-untracked  spec=spec-g  tracked_by=fu-amend-spec-g  tracked_status=open  signoff=false  class=contract
+signed  2026-09-01T07:00:00Z  t007-absent  spec=spec-h  tracked_by=-  tracked_status=-  signoff=true  class=contract
+spec-amend: spec_scanned=205 spec_degraded=177 (no freeze anchor) specs_dir=/private/var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T/aai-iso-aai-spec-amend.LDNLho/wt/docs/specs
+STRICT-VIOLATION undisclosed-amendment spec=spec-pr-generic-url-validity path=docs/specs/SPEC-0211-spec-pr-generic-url-validity.md) (stderr: spec-amend: --strict found 1 frozen spec(s) whose content no longer matches their frozen_sha256 anchor with no explaining spec_amendment record — an undisclosed post-freeze edit.
+  node .aai/scripts/spec-amend.mjs add --spec 'docs/specs/SPEC-0211-spec-pr-generic-url-validity.md' --ref 'spec-pr-generic-url-validity' --what 'undisclosed post-freeze content change (edit this line to name what changed)' --why 'closing the strict amendment gate after the frozen anchor stopped matching (edit this line to name why)' --class contract --signoff none
+`add` RE-STAMPS frozen_sha256 to the current projection in the SAME call that appends the record, so running the line above is what clears this violation — never `spec-amend.mjs classify`, which judges an EXISTING record's sign-off and touches no spec.)
+--- end aai-spec-amend ---
+[ 3/ 7] aai-docs-audit       [0;31mFAIL[0m (8.0s) [tripwire NOT ATTESTED — suite exited 1 before completing]
+--- Error Details (aai-docs-audit) ---
+--- failure lines (whole log) ---
+11:FAIL: Expected 'Verdict: CLEAN' in /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T//aai-docs-audit-test.HU3J5M/silence-live-1349.log
+--- tail (last 30 lines) ---
+Testing aai-docs-audit skill (engine + fixtures)
+INFO: Checking dependencies...
+PASS: Dependencies checked
+INFO: Setting up fixture repo...
+PASS: Fixture repo ready
+INFO: Test: --check --strict over the live tree exits 0 and every near-miss document it names is dispositioned in the spec (TEST-1351)...
+PASS: Every near-miss document over the live corpus is dispositioned, and --check --strict still exits 0
+INFO: Test: the docs-audit headline carries the near-miss count split into blocking and report-only, and it equals the section count (TEST-1348)...
+PASS: The near-miss count is part of what the headline SAYS, and it agrees with the section
+INFO: Test: the Verdict line names the unreadable AC tables when any exist, stays bare CLEAN when none do, and keeps the literal 'Verdict: CLEAN' substring either way (TEST-1349)...
+FAIL: Expected 'Verdict: CLEAN' in /var/folders/ht/kpy2xm3n1s33fbg5c9x4_dtm0000gn/T//aai-docs-audit-test.HU3J5M/silence-live-1349.log
+--- end aai-docs-audit ---
+[ 4/ 7] aai-follow-ups       [0;32mPASS[0m (22.0s)
+[ 5/ 7] aai-spec-lint        [0;32mPASS[0m (36.0s)
+[ 6/ 7] aai-pr-preflight     [0;32mPASS[0m (60.0s)
+[1;33m[WARN][0m Tripwire: the shipping repository moved (dirty) while 1 suite(s) overlapped the concurrent window. One window shared by 1 suites cannot say which of them did it, and naming a sibling would be a false accusation — so this window's results are DISCARDED and its suites are re-run SERIALLY, each with its own exact window. The serial verdicts below are the ones this run reports.
+[ 7/ 7] aai-hygiene-pack     Terminated: 15

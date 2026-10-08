@@ -3,6 +3,7 @@ id: pr-capability-preflight
 type: change
 number: 204
 status: implementing
+umbrella: true
 links:
   spec: null
   rfc: downstream-pr-ceremony-reliability
@@ -47,3 +48,5 @@ Read access cannot attest permission for a future PR creation. Never install pre
 
 ## Notes
 The owner invoked aai-ship for the umbrella RFC; this intake records the first bounded ride under that authorization. Planning selects the implementation strategy. Human intake time is not supplied and remains null. Later RFC stages stay separate; inherited/global gate policy stays unchanged pending explicit owner choice.
+
+The owner-approved split in docs/decisions/DECISION-pr434-identity-split.md makes this open intake an assembly parent for pr-generic-url-validity and pr-github-case-identity. Its umbrella marker records that active multi-phase work while the intake remains open; historical delivery and FAIL evidence stay intact, and final assembly Review, closure, native/full CI, independent Validation and external sweep remain required.

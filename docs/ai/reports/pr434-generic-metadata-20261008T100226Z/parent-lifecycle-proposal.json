@@ -1,0 +1,16 @@
+{
+  "ref_id": "pr-capability-preflight",
+  "proposed_append_event_command": null,
+  "reason_no_command": "The real done-to-implementing transition was already recorded at 2026-10-07T20:35:08Z. Repeating it now would assert another status transition that did not occur. An implementing-to-implementing doc_lifecycle record would likewise misrepresent a status confirmation as a transition.",
+  "observed": {
+    "current_intake_status": "implementing",
+    "current_state_status": "blocked/remediation",
+    "last_real_reopen_event_utc": "2026-10-07T20:35:08Z",
+    "delivery_commits": ["2d215ede5a5611caf7e55f1dc866b255bc010b80", "ac68ccc2d5508ee3b4bf4aa8f73be682deb42f07"],
+    "metrics_flush_date_utc": "2026-10-07",
+    "audit_normalized_flush_instant_utc": "2026-10-07T23:59:59.999Z",
+    "audit_result": "probable-false-open / NEEDS-TRIAGE"
+  },
+  "root_owned_resolution_to_evaluate": "The existing docs-audit umbrella marker is designed for deliberately open multi-phase parents. The owner-approved split makes this parent an active assembly scope with separately checked child repairs. Root can review adding umbrella: true to the parent intake frontmatter and verify the audit names the suppression while the parent remains open; keep the blocked Review FAIL and every historical delivery record. If root judges that marker inapplicable, an audit timestamp semantics fix is required before an all-green selected/core replay.",
+  "ci_routing": "The existing PR #434 carries the final assembly and ci-full obligation. A separate child PR does not yet exist, and no child or parent CI PASS is claimed."
+}

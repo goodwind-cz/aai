@@ -1,0 +1,28 @@
+{
+  "root": "/private/tmp/aai-pr-capability-preflight",
+  "created_utc": "2026-10-08T10:07:19.501Z",
+  "sha256": {
+    ".aai/scripts/pr-preflight.mjs": "a69e20c313a1d34c2b8e0095545b63e98337cd7e7b2fa825f9bcf69fd715d958",
+    "tests/skills/test-aai-pr-preflight.sh": "7de8c1cb5460254a314e8df2232296e18e007e5b109da42e5ef78ec35326331c",
+    "docs/issues/ISSUE-0094-pr-generic-url-validity.md": "f33a3b26a7696a89abfcc2a211a3f2ce9fbfd56c2b5e11dabcdf602646daf77d",
+    "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md": "c601aa55033616636b10f306a1b897e5e9c46bc232e94939db341f9db2646018",
+    "docs/ai/decisions.jsonl": "45682f9889c08a6dd3b09493964ce2031a1b76a59327f59197dd9ae679c047c3",
+    "docs/ai/STATE.yaml": "d7faef7ae98d1033fe223007a617210535b09e3694e0ec07f7e9d8b9b6a848bf",
+    "docs/ai/EVENTS.jsonl": "4f01e7a864f81acd9d568a30f3db7588ff39c69ab508ce42d9a22f083514c107"
+  },
+  "index_listing_sha256": "d0ac948000e0c1c01682371821e557855f213c5a9c9239a41db12b1b42000753",
+  "head": "1691558c034e13258a31b8288df5642f6263a8cb",
+  "last_amendment": {
+    "v": 1,
+    "ts": "2026-10-08T10:04:58Z",
+    "actor": "orchestrator",
+    "type": "spec_amendment",
+    "ref_id": "pr-generic-url-validity",
+    "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+    "spec_id": "spec-pr-generic-url-validity",
+    "owner_signoff": false,
+    "amendment_class": "measurement",
+    "what": "Update post-implementation evidence summary from planned checks to stored RED/GREEN, eight-row suite, mutation replay, and still-pending independent/native/parent gates",
+    "why": "Implementation evidence was added after the frozen anchor; the contract projection changed only in the evidence-by-strategy summary, while AC predicates and Test Plan definitions stayed byte-identical"
+  }
+}

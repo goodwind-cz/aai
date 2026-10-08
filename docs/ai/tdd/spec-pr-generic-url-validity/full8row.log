@@ -1,0 +1,9 @@
+Scope: pr-generic-url-validity implementation integration sweep
+Command: AAI_PREFLIGHT_SCRATCH=/private/tmp/aai-pr434-generic-scratch/fixtures bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh
+Execution tree: isolated, seeded checkout of current working tree
+Result: exit 0
+Rows observed PASS: TEST-001, TEST-002, TEST-003, TEST-004, TEST-005, TEST-006, TEST-007, TEST-008
+TEST-001 malformed explicit GitHub URL refused with IDENTITY_INVALID and zero provider calls; lawful GitHub control reached three providers.
+TEST-007 lawful generic URL, numeric port 8443, and explicit local mode remained CAPABILITY_NOT_APPLICABLE with zero provider calls; malformed generic URL refused with IDENTITY_INVALID.
+TEST-008 clone diagnostics and delayed-success, immediate-success, bounded-hang controls passed.
+Native Windows and final parent assembly checks remain outstanding.

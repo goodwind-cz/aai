@@ -1,0 +1,12 @@
+worktree /Users/ales/Projects/aai
+HEAD bdeb425c040ada918dd97e5b878b71e420bad83a
+branch refs/heads/main
+
+worktree /private/tmp/aai-pr-capability-preflight
+HEAD 1691558c034e13258a31b8288df5642f6263a8cb
+branch refs/heads/change/pr-capability-preflight
+
+worktree /Users/ales/Projects/aai-fix-worktree-lacks-vendored-aai-layer-downstream
+HEAD 0e2ac59bbb86a7851bf0eaa2d24f94954be51c3a
+branch refs/heads/fix/worktree-lacks-vendored-aai-layer-downstream-wt
+

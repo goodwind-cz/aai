@@ -1,0 +1,13 @@
+{
+  "started_utc": "2026-10-08T02:34:56Z",
+  "ended_utc": "2026-10-08T02:46:23Z",
+  "duration_seconds": 687,
+  "checker_exit": 0,
+  "checked_at_utc": "2026-10-08T02:46:23.300010Z",
+  "requested_model": "gpt-6-astra",
+  "actual_model": "unknown",
+  "usage_capture": "none",
+  "context_independence": "fresh context; maker not reviewer; serving-weight distinction unobservable",
+  "full_role_includes": "inspection, own test wrappers, behavioral probes, report writing, typed checker and artifact sealing",
+  "timing_precision": "UTC whole seconds; actual post-seal clock is returned in final tool output"
+}

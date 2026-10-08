@@ -1,0 +1,6 @@
+{
+  "full_payload_dispatch_text_check_exit": 6,
+  "hit": "canonical Code Review section line168 concurrency/error handling ranked",
+  "explanation": "Generic canonical reviewer ranking instruction, not orchestrator findings/answer key. Full canonical prefix preserved unchanged. Check root-composed handoff separately before acceptance.",
+  "launch_before_corrected_check": true
+}

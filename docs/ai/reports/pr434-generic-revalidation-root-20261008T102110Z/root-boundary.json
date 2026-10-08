@@ -1,0 +1,10 @@
+{
+  ".aai/scripts/pr-preflight.mjs": "a69e20c313a1d34c2b8e0095545b63e98337cd7e7b2fa825f9bcf69fd715d958",
+  "tests/skills/test-aai-pr-preflight.sh": "7de8c1cb5460254a314e8df2232296e18e007e5b109da42e5ef78ec35326331c",
+  "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md": "c601aa55033616636b10f306a1b897e5e9c46bc232e94939db341f9db2646018",
+  "docs/issues/CHANGE-0204-pr-capability-preflight.md": "37c94a70f2596ec256c95dd1e594bf368834c288985c4beddcf24e84812fb6d5",
+  "docs/ai/STATE.yaml": "c34c014c6118823f116d1c4241fe42119a40df8936a18091b51694559ee50af6",
+  "docs/ai/decisions.jsonl": "45682f9889c08a6dd3b09493964ce2031a1b76a59327f59197dd9ae679c047c3",
+  "docs/ai/EVENTS.jsonl": "4f01e7a864f81acd9d568a30f3db7588ff39c69ab508ce42d9a22f083514c107",
+  "index_listing_sha256": "d0ac948000e0c1c01682371821e557855f213c5a9c9239a41db12b1b42000753"
+}

@@ -1,19 +1,22 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-08T02:33:44.119Z
+Generated: 2026-10-08T10:45:05.254Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (6)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | CHANGE-0204 | issues | implementing | — | docs/issues/CHANGE-0204-pr-capability-preflight.md |
+| ISSUE-0094 | issues | implementing | — | docs/issues/ISSUE-0094-pr-generic-url-validity.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | SPEC-0210 | specs | implementing | 6 done | docs/specs/SPEC-0210-spec-pr-capability-preflight.md |
+| SPEC-0211 | specs | implementing | 2 done | docs/specs/SPEC-0211-spec-pr-generic-url-validity.md |
+| SPEC-0212 | specs | implementing | 2 planned | docs/specs/SPEC-0212-spec-pr-github-case-identity.md |
 
 ## Canonical layer (0)
 
@@ -554,7 +557,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (16)
 
 | ID | Type | Path |
 |---|---|---|
@@ -572,6 +575,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
+| ISSUE-0095 | issues | docs/issues/ISSUE-0095-pr-github-case-identity.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)

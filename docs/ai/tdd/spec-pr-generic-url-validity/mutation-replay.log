@@ -1,0 +1,7 @@
+Scope: pr-generic-url-validity; spec-pr-generic-url-validity
+Command: node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0211-spec-pr-generic-url-validity.md
+Execution copy: /private/tmp/aai-pr434-generic-scratch/private-copy-isolated
+Private snapshot commit: 3deb0568a7206ff3aa603324ded7668c50910118
+Shared source-tree hash (copy and shipping at replay): 8fc3f1e03d07617e3ed7bd0b803c4ea7bc51632589afea0227b2703d300c2612
+Result: exit 0; TEST-001 and TEST-007 still RED; 2/2 attempted records red, 0 inconclusive, 0 re-stamped.
+One prior invocation hit the 30-second command-return window after printing TEST-001; the completed replay above is the checked full result.

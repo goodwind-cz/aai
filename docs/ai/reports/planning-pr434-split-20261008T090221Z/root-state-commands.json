@@ -1,0 +1,16 @@
+{
+  "pr-generic-url-validity": [
+    "node .aai/scripts/state.mjs set-focus --type intake_issue --ref pr-generic-url-validity --path docs/issues/ISSUE-DRAFT-pr-generic-url-validity.md",
+    "node .aai/scripts/state.mjs set-phase --ref pr-generic-url-validity --phase planning --status in_progress --spec-path docs/specs/SPEC-DRAFT-spec-pr-generic-url-validity.md",
+    "node .aai/scripts/state.mjs set-strategy --selected tdd --source docs/specs/SPEC-DRAFT-spec-pr-generic-url-validity.md --ref pr-generic-url-validity --rationale \"Owner-authorized split dispatch requires focused behavioral RED-GREEN-REFACTOR for B1.\"",
+    "node .aai/scripts/state.mjs set-worktree --recommendation not_needed --user-decision worktree --base-ref 1691558c034e13258a31b8288df5642f6263a8cb --branch fix/pr-generic-url-validity --path /private/tmp/aai-pr-capability-preflight --rationale \"Reuse authorized existing worktree sequentially; no new worktree.\"",
+    "node .aai/scripts/state.mjs set-code-review --required true --status not_run --scope \".aai/scripts/pr-preflight.mjs tests/skills/test-aai-pr-preflight.sh docs/issues/ISSUE-DRAFT-pr-generic-url-validity.md docs/specs/SPEC-DRAFT-spec-pr-generic-url-validity.md\" --base-ref 1691558c034e13258a31b8288df5642f6263a8cb"
+  ],
+  "pr-github-case-identity": [
+    "node .aai/scripts/state.mjs set-focus --type intake_issue --ref pr-github-case-identity --path docs/issues/ISSUE-DRAFT-pr-github-case-identity.md",
+    "node .aai/scripts/state.mjs set-phase --ref pr-github-case-identity --phase planning --status in_progress --spec-path docs/specs/SPEC-DRAFT-spec-pr-github-case-identity.md",
+    "node .aai/scripts/state.mjs set-strategy --selected tdd --source docs/specs/SPEC-DRAFT-spec-pr-github-case-identity.md --ref pr-github-case-identity --rationale \"Owner-authorized split dispatch requires focused behavioral RED-GREEN-REFACTOR for B2.\"",
+    "node .aai/scripts/state.mjs set-worktree --recommendation not_needed --user-decision worktree --base-ref 1691558c034e13258a31b8288df5642f6263a8cb --branch fix/pr-github-case-identity --path /private/tmp/aai-pr-capability-preflight --rationale \"Reuse authorized existing worktree sequentially; no new worktree.\"",
+    "node .aai/scripts/state.mjs set-code-review --required true --status not_run --scope \".aai/scripts/pr-preflight.mjs tests/skills/test-aai-pr-preflight.sh docs/issues/ISSUE-DRAFT-pr-github-case-identity.md docs/specs/SPEC-DRAFT-spec-pr-github-case-identity.md\" --base-ref 1691558c034e13258a31b8288df5642f6263a8cb"
+  ]
+}

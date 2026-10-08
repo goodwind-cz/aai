@@ -84,7 +84,7 @@ function run(mode='ok',extra=[],override={},entry=cli) {
  const elapsed=Date.now()-start,diagnostic={test:id,sequence,mode,timeout_ms:timeout,elapsed_ms:elapsed,error_code:r.error?.code||null,signal:r.signal,git_probes:fs.existsSync(gitLog)?fs.readFileSync(gitLog,'utf8').trim().split('\n').filter(Boolean).length:0,provider_steps:calls().filter(c=>c.name).map(c=>c.name+'.'+c.args[0]).slice(-3),stdout_bytes:Buffer.byteLength(r.stdout||'')};
  if(r.error||elapsed>=4000)console.log('INFO: CLI_BOUND '+JSON.stringify(diagnostic));
  assert.equal(r.error,undefined,'CLI must finish within harness bound: '+JSON.stringify(diagnostic));
- let json; try{json=JSON.parse(r.stdout)}catch{assert.fail('one parseable JSON result required: '+String(r.stdout).slice(0,200));}
+ let json; try{json=JSON.parse(r.stdout)}catch{assert.fail('one parseable JSON result required: '+JSON.stringify({status:r.status,signal:r.signal,stderr:r.stderr,stdout:String(r.stdout).slice(0,200),error:r.error?.message}));}
  return {...r,json,ms:Date.now()-start};
 }
 function expect(r,status,code) {assert.equal(r.status,status,'exit '+code);assert.equal(r.json.code,code);assert.equal(r.json.create_permission,'unknown');assert.equal(r.json.schema_version,1);if(status){assert.ok(r.json.operation);assert.ok(r.json.remedy);assert.ok(r.stderr.trim());}}
@@ -141,6 +141,14 @@ try {
   git('config','--unset-all','remote.origin.pushurl');
   const rewriteKey='url.https://dev.azure.com/Other/Project/_git/.pushInsteadOf';git('config',rewriteKey,'https://github.com/Org/');expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0,'effective pushInsteadOf destination checked');git('config','--unset-all',rewriteKey);
   git('config','--add','remote.origin.url','https://github.com/Other/Repo.git');expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0,'multiple fetch destinations refuse');git('config','--unset-all','remote.origin.url');git('config','remote.origin.url','https://github.com/Org/Repo.git');expect(run(),0,'READ_VERIFIED');console.log('INFO: TEST-001 pushurl_divergent_multiple_rewrite_refused=true ordinary_single_positive=true');
+  for(const endpoint of ['https://github.com:bad/Org/Repo.git','https://gitlab.com:bad/Org/Repo.git']){
+   github();delete input.repository;git('config','remote.origin.url',endpoint);git('config','remote.origin.pushurl',endpoint);
+   assert.equal(git('remote','get-url','--all','origin'),endpoint,'malformed fetch bytes survive Git');
+   assert.equal(git('remote','get-url','--push','--all','origin'),endpoint,'malformed push bytes survive Git');
+   const refused=run();expect(refused,2,'IDENTITY_INVALID');assert.equal(calls().length,0,'malformed explicit URL refuses before providers');
+  }
+  github();expect(run(),0,'READ_VERIFIED');assert.equal(calls().length,3,'valid GitHub control reaches all providers');
+  console.log('INFO: TEST-001 explicit_malformed_scheme_refusal=true provider_calls=0 lawful_github_calls=3');
   for(const args of [['--json'],['--unknown'],['--timeout-ms','200','--timeout-ms','200']]) {expect(run('ok',args),2,'IDENTITY_INVALID');assert.equal(calls().length,0);}
   const savedInput=input;for(const empty of [{},[],null]){input=empty;expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0);}input=savedInput;
  } else if(id==='002') {
@@ -200,6 +208,9 @@ try {
   for(const endpoint of ['ssh://git:SYNTHETIC_ALIAS_PASSWORD@ssh.github.com:443/Org/Repo.git','ssh://git:@ssh.github.com:443/Org/Repo.git','ssh://git%3ASYNTHETIC_ALIAS_PASSWORD@ssh.github.com:443/Org/Repo.git','ssh://git%3A@ssh.github.com:443/Org/Repo.git','ssh://git%2Fuser@ssh.github.com:443/Org/Repo.git']){github();azure(endpoint);assert.equal(git('remote','get-url','--all','origin'),endpoint);const refused=run();expect(refused,2,'IDENTITY_INVALID');assert.equal(calls().length,0,'unsupported raw SSH password authority refuses before providers');assert.doesNotMatch(refused.stdout+refused.stderr,/SYNTHETIC_|git:/);}
   github('enterprise.github.com');expect(run('ok',[],{GIT_TERMINAL_PROMPT:'1',GH_PROMPT_DISABLED:'0'}),0,'READ_VERIFIED');assert.ok(calls().every(c=>c.env.GIT_TERMINAL_PROMPT==='0'&&c.env.GH_PROMPT_DISABLED==='1'));assert.deepEqual(calls().map(c=>c.args),ghArgs);assert.ok(calls().every(c=>c.env.GH_HOST===host));expect(run('gh-auth'),3,'AUTH_FAILED');assert.equal(calls().length,2);expect(run('mismatch'),3,'PROVIDER_RESULT_INVALID');
   delete input.repository;azure('https://gitlab.com/Org/Repo.git');const r=run();expect(r,0,'CAPABILITY_NOT_APPLICABLE');assert.equal(calls().length,0);assert.match(r.json.remedy,/GENERIC MODE/);
+  for(const endpoint of ['https://gitlab.com/Org/Repo.git','https://gitlab.com:8443/Org/Repo.git']){azure(endpoint);const generic=run();expect(generic,0,'CAPABILITY_NOT_APPLICABLE');assert.equal(calls().length,0,'valid generic URL uses no provider');}
+  azure('https://gitlab.com:bad/Org/Repo.git');const malformed=run();expect(malformed,2,'IDENTITY_INVALID');assert.equal(calls().length,0,'malformed generic URL refuses before providers');
+  console.log('INFO: TEST-007 generic_numeric_port_and_local_controls=true malformed_refusal=true');
   for(const suffix of ['?access_token=SYNTHETIC_QUERY_CREDENTIAL','#SYNTHETIC_FRAGMENT_CREDENTIAL']){azure('https://user:SYNTHETIC_USERINFO_CREDENTIAL@gitlab.com/Org/Repo.git'+suffix);const clean=run();expect(clean,0,'CAPABILITY_NOT_APPLICABLE');assert.equal(calls().length,0);assert.equal(clean.json.repository.remote,'https://gitlab.com/Org/Repo.git');assert.doesNotMatch(clean.stdout+clean.stderr,/SYNTHETIC_|access_token|user:/);}
   git('remote','remove','origin');input.remote_name=null;expect(run(),0,'CAPABILITY_NOT_APPLICABLE');assert.equal(calls().length,0);
  } else if(id==='008') {

@@ -1,0 +1,20 @@
+{
+  "github_case_semantics": {
+    "url": "https://docs.github.com/en/rest/repos/repos#get-a-repository",
+    "observed_utc": "2026-10-08",
+    "claim": "Both owner and repo parameters are documented as not case sensitive.",
+    "proof_limit": "Primary published API contract; no live provider round trip performed."
+  },
+  "wrappers": {
+    "preflight": 0,
+    "pr-platform": 0,
+    "layer-profiles": 0,
+    "prompt-diet": 0,
+    "ride-select": 0,
+    "probe_initial_infrastructure": 1,
+    "probe_corrected_behavioral": 1
+  },
+  "scratch": "/private/tmp/aai-pr434-scp-review-scratch",
+  "source_head": "1691558c034e13258a31b8288df5642f6263a8cb",
+  "full_diff_path": "/private/tmp/aai-pr434-scp-review-scratch/full.diff"
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "command": "node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/issues/ISSUE-DRAFT-pr-generic-url-validity.md",
+    "exit_code": 0,
+    "stdout": "## Docs Audit \u2014 2026-10-08\n\n- Mode: enforced | Scope: docs/issues/ISSUE-DRAFT-pr-generic-url-validity.md\n- Scanned: 1 docs | Orphans: 0 (0 legacy soft) | Drifted: 0 | Stale: 0 | False-open: 0 | Obsolete: 0\n- Tracked: 1 open, 0 done, 0 superseded/rejected\n\n### Orphans (need triage): 0\n\n_None._\n\n### Drift report: 0\n\n_None._\n\n### Rollout progress: 0\n\n_None._\n\n### Closeout candidates: 0\n\n_None._\n\n### Duplicate doc ids: 0\n\n_None._\n\n### Open decisions on done docs: 0\n\n_None._\n\n### Near-miss AC tables: 0\n\n_None._\n\n### Review-By claims (unbacked): 0\n\n_None._\n\n### Missing close telemetry: 0\n\n_None._\n\n### Body lint: 0\n\n_None._\n\n### Canonical provenance drift: 0\n\n_None._\n\n### Pending commit (verdicts reflect the working tree)\n\n- docs/issues/ISSUE-DRAFT-pr-generic-url-validity.md\n\n### Verdict: CLEAN\n",
+    "stderr": ""
+  },
+  {
+    "command": "node .aai/scripts/docs-audit.mjs --intake-file docs/issues/ISSUE-DRAFT-pr-generic-url-validity.md",
+    "exit_code": 0,
+    "stdout": "## Intake Shape \u2014 docs/issues/ISSUE-DRAFT-pr-generic-url-validity.md\n\nINTAKE PASS: unnumbered draft with the prefix and directory its type requires.\n",
+    "stderr": ""
+  },
+  {
+    "command": "node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-DRAFT-spec-pr-generic-url-validity.md",
+    "exit_code": 0,
+    "stdout": "## Docs Audit \u2014 2026-10-08\n\n- Mode: enforced | Scope: docs/specs/SPEC-DRAFT-spec-pr-generic-url-validity.md\n- Scanned: 1 docs | Orphans: 0 (0 legacy soft) | Drifted: 0 | Stale: 0 | False-open: 0 | Obsolete: 0\n- Tracked: 1 open, 0 done, 0 superseded/rejected\n\n### Orphans (need triage): 0\n\n_None._\n\n### Drift report: 0\n\n_None._\n\n### Rollout progress: 0\n\n_None._\n\n### Closeout candidates: 0\n\n_None._\n\n### Duplicate doc ids: 0\n\n_None._\n\n### Open decisions on done docs: 0\n\n_None._\n\n### Near-miss AC tables: 0\n\n_None._\n\n### Review-By claims (unbacked): 0\n\n_None._\n\n### Missing close telemetry: 0\n\n_None._\n\n### Body lint: 0\n\n_None._\n\n### Canonical provenance drift: 0\n\n_None._\n\n### Pending commit (verdicts reflect the working tree)\n\n- docs/specs/SPEC-DRAFT-spec-pr-generic-url-validity.md\n\n### Verdict: CLEAN\n",
+    "stderr": ""
+  },
+  {
+    "command": "node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-pr-generic-url-validity.md",
+    "exit_code": 0,
+    "stdout": "## Spec Lint \u2014 2026-10-08\n\n- Scanned: 1 spec doc(s) | Skipped: 0 non-spec | Findings: 0 | Scope: docs/specs/SPEC-DRAFT-spec-pr-generic-url-validity.md\n\nLINT PASS: no structural findings.\n",
+    "stderr": ""
+  },
+  {
+    "command": "node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/issues/ISSUE-DRAFT-pr-github-case-identity.md",
+    "exit_code": 0,
+    "stdout": "## Docs Audit \u2014 2026-10-08\n\n- Mode: enforced | Scope: docs/issues/ISSUE-DRAFT-pr-github-case-identity.md\n- Scanned: 1 docs | Orphans: 0 (0 legacy soft) | Drifted: 0 | Stale: 0 | False-open: 0 | Obsolete: 0\n- Tracked: 1 open, 0 done, 0 superseded/rejected\n\n### Orphans (need triage): 0\n\n_None._\n\n### Drift report: 0\n\n_None._\n\n### Rollout progress: 0\n\n_None._\n\n### Closeout candidates: 0\n\n_None._\n\n### Duplicate doc ids: 0\n\n_None._\n\n### Open decisions on done docs: 0\n\n_None._\n\n### Near-miss AC tables: 0\n\n_None._\n\n### Review-By claims (unbacked): 0\n\n_None._\n\n### Missing close telemetry: 0\n\n_None._\n\n### Body lint: 0\n\n_None._\n\n### Canonical provenance drift: 0\n\n_None._\n\n### Pending commit (verdicts reflect the working tree)\n\n- docs/issues/ISSUE-DRAFT-pr-github-case-identity.md\n\n### Verdict: CLEAN\n",
+    "stderr": ""
+  },
+  {
+    "command": "node .aai/scripts/docs-audit.mjs --intake-file docs/issues/ISSUE-DRAFT-pr-github-case-identity.md",
+    "exit_code": 0,
+    "stdout": "## Intake Shape \u2014 docs/issues/ISSUE-DRAFT-pr-github-case-identity.md\n\nINTAKE PASS: unnumbered draft with the prefix and directory its type requires.\n",
+    "stderr": ""
+  },
+  {
+    "command": "node .aai/scripts/docs-audit.mjs --check --strict --no-event --path docs/specs/SPEC-DRAFT-spec-pr-github-case-identity.md",
+    "exit_code": 0,
+    "stdout": "## Docs Audit \u2014 2026-10-08\n\n- Mode: enforced | Scope: docs/specs/SPEC-DRAFT-spec-pr-github-case-identity.md\n- Scanned: 1 docs | Orphans: 0 (0 legacy soft) | Drifted: 0 | Stale: 0 | False-open: 0 | Obsolete: 0\n- Tracked: 1 open, 0 done, 0 superseded/rejected\n\n### Orphans (need triage): 0\n\n_None._\n\n### Drift report: 0\n\n_None._\n\n### Rollout progress: 0\n\n_None._\n\n### Closeout candidates: 0\n\n_None._\n\n### Duplicate doc ids: 0\n\n_None._\n\n### Open decisions on done docs: 0\n\n_None._\n\n### Near-miss AC tables: 0\n\n_None._\n\n### Review-By claims (unbacked): 0\n\n_None._\n\n### Missing close telemetry: 0\n\n_None._\n\n### Body lint: 0\n\n_None._\n\n### Canonical provenance drift: 0\n\n_None._\n\n### Pending commit (verdicts reflect the working tree)\n\n- docs/specs/SPEC-DRAFT-spec-pr-github-case-identity.md\n\n### Verdict: CLEAN\n",
+    "stderr": ""
+  },
+  {
+    "command": "node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-pr-github-case-identity.md",
+    "exit_code": 0,
+    "stdout": "## Spec Lint \u2014 2026-10-08\n\n- Scanned: 1 spec doc(s) | Skipped: 0 non-spec | Findings: 0 | Scope: docs/specs/SPEC-DRAFT-spec-pr-github-case-identity.md\n\nLINT PASS: no structural findings.\n",
+    "stderr": ""
+  }
+]

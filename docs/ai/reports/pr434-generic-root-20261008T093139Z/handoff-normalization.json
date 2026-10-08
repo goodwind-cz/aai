@@ -1,0 +1,14 @@
+{
+  "raw_checker_exit": 1,
+  "normalized_checker_exit": 0,
+  "normalization": [
+    "JSON double-quoted command scalars decoded without command changes",
+    "role label corrected to actual dispatched TDD Implementation"
+  ],
+  "branch_reconciliation": "Root dispatch typo branchfix; owner-approved Planning and actual branch both fix/pr-generic-url-validity; no branch rename needed.",
+  "source_manifest_verified": 16,
+  "boundary_pins_verified": 5,
+  "staged_paths_unchanged_expectation": 40,
+  "actual_serving_model": "unknown",
+  "requested_model": "gpt-6-luna"
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "name": "ordinary",
+    "remote": "https://github.com/Org/Repo.git",
+    "fetch": "https://github.com/Org/Repo.git",
+    "push": "https://github.com/Org/Repo.git",
+    "status": 3,
+    "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":{\"host\":\"github.com\",\"repository\":\"Org/Repo\"},\"remote_name\":\"origin\",\"source_branch\":\"change/probe\",\"target_branch\":\"main\",\"head_sha\":\"9a90dddf92dc1a58d41704e7d22cb3899405a0b1\",\"outcome\":\"refused\",\"code\":\"ACCESS_UNKNOWN\",\"operation\":\"gh.version\",\"remedy\":\"Ask the operator to verify repository read access; an ambiguous denial cannot prove readiness.\",\"create_permission\":\"unknown\"}\n",
+    "stderr": "pr-preflight: ACCESS_UNKNOWN (gh.version): Ask the operator to verify repository read access; an ambiguous denial cannot prove readiness.\n",
+    "calls": "",
+    "transport": null
+  },
+  {
+    "name": "case",
+    "remote": "https://github.com/Org/Repo.git",
+    "fetch": "https://github.com/Org/Repo.git",
+    "push": "https://github.com/Org/Repo.git",
+    "status": 3,
+    "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":{\"host\":\"github.com\",\"repository\":\"Org/Repo\"},\"remote_name\":\"origin\",\"source_branch\":\"change/probe\",\"target_branch\":\"main\",\"head_sha\":\"9a90dddf92dc1a58d41704e7d22cb3899405a0b1\",\"outcome\":\"refused\",\"code\":\"ACCESS_UNKNOWN\",\"operation\":\"gh.version\",\"remedy\":\"Ask the operator to verify repository read access; an ambiguous denial cannot prove readiness.\",\"create_permission\":\"unknown\"}\n",
+    "stderr": "pr-preflight: ACCESS_UNKNOWN (gh.version): Ask the operator to verify repository read access; an ambiguous denial cannot prove readiness.\n",
+    "calls": "",
+    "transport": null
+  },
+  {
+    "name": "malformed",
+    "remote": "https://github.com:bad/Org/Repo.git",
+    "fetch": "https://github.com:bad/Org/Repo.git",
+    "push": "https://github.com:bad/Org/Repo.git",
+    "status": 0,
+    "stdout": "{\"schema_version\":1,\"platform\":\"unknown\",\"repository\":{\"remote\":\"https://github.com:bad/Org/Repo.git\"},\"remote_name\":\"origin\",\"source_branch\":\"change/probe\",\"target_branch\":\"main\",\"head_sha\":\"9a90dddf92dc1a58d41704e7d22cb3899405a0b1\",\"outcome\":\"capability_not_applicable\",\"code\":\"CAPABILITY_NOT_APPLICABLE\",\"operation\":\"generic\",\"remedy\":\"GENERIC MODE: automated provider PR and reviewer checks are unavailable; use the existing local/manual ceremony route.\",\"create_permission\":\"unknown\"}\n",
+    "stderr": "",
+    "calls": "",
+    "transport": {
+      "status": 128,
+      "stdout": "",
+      "stderr": "fatal: unable to access 'https://github.com:bad/Org/Repo.git/': URL rejected: Port number was not a decimal number between 0 and 65535\n"
+    }
+  },
+  {
+    "name": "generic",
+    "remote": "https://gitlab.com/Org/Repo.git",
+    "fetch": "https://gitlab.com/Org/Repo.git",
+    "push": "https://gitlab.com/Org/Repo.git",
+    "status": 0,
+    "stdout": "{\"schema_version\":1,\"platform\":\"unknown\",\"repository\":{\"remote\":\"https://gitlab.com/Org/Repo.git\"},\"remote_name\":\"origin\",\"source_branch\":\"change/probe\",\"target_branch\":\"main\",\"head_sha\":\"9a90dddf92dc1a58d41704e7d22cb3899405a0b1\",\"outcome\":\"capability_not_applicable\",\"code\":\"CAPABILITY_NOT_APPLICABLE\",\"operation\":\"generic\",\"remedy\":\"GENERIC MODE: automated provider PR and reviewer checks are unavailable; use the existing local/manual ceremony route.\",\"create_permission\":\"unknown\"}\n",
+    "stderr": "",
+    "calls": "",
+    "transport": null
+  }
+]

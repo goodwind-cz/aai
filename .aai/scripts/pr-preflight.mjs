@@ -150,6 +150,10 @@ function githubApiHost(remote) {
   }
   return extractHost(remote);
 }
+function validateExplicitUrl(remote) {
+  if (!/^[a-z][a-z\d+.-]*:\/\//i.test(remote)) return;
+  try { new URL(remote); } catch { invalid('remote.url'); }
+}
 function azureIdentity(remote) {
   const host = extractHost(remote), p = remoteParts(remote);
   let org, project, repository;
@@ -199,6 +203,7 @@ async function identity(input, opts) {
         /^\s|\s$|[\r\n]/.test(fetch[0]) || /^\s|\s$|[\r\n]/.test(push[0]) || fetch[0] !== push[0])
       invalid('git.push-destination');
     remote = fetch[0];
+    validateExplicitUrl(remote);
   }
   result.platform = remote === null ? 'none' : classify(extractHost(remote));
   if (result.platform === 'azure') {

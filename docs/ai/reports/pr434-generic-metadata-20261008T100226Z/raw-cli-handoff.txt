@@ -1,0 +1,39 @@
+I recorded the child’s post-freeze evidence update as a **measurement amendment** and restamped SPEC-0211’s anchor. The AC promises and test definitions did not change. `spec-amend list --strict`, its focused live-ledger test, and `git diff --check` pass. Source and test hashes still match the validator’s handoff; STATE and the Git index were untouched. [Hash manifest](/private/tmp/aai-pr434-generic-metadata-scratch/manifest.json).
+
+The parent audit still reports `probable-false-open`. Its real reopening event predates the audit’s end-of-day interpretation of a date-only metrics flush. I found no truthful new lifecycle transition to append, so I left EVENTS unchanged. The [root-owned resolution note](/private/tmp/aai-pr434-generic-metadata-scratch/parent-lifecycle-proposal.json) explains the existing umbrella marker for root review.
+
+**No verdict was changed.** `last_validation` remains FAIL; `code_review` remains not_run. Root should resolve the parent audit finding before running the returned reset and phase commands. Fresh independent re-Validation and Review, plus PR #434’s `ci-full` and final assembly proof, remain pending. No new owner decision was requested.
+
+```yaml
+subagent_result:
+  scope: pr-generic-url-validity
+  role: Remediation
+  status: BLOCKED
+  started_utc: 2026-10-08T10:02:26Z
+  ended_utc: 2026-10-08T10:08:19Z
+  duration_seconds: 353
+  evidence:
+    - command: node .aai/scripts/spec-amend.mjs list --strict
+      exit_code: 0
+      output_snippet: "spec_scanned=205; new measurement amendment listed; no STRICT-VIOLATION"
+    - command: bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-spec-amend.sh test_009_live_backfill_and_whole_ledger_readers
+      exit_code: 0
+      output_snippet: "PASS: TEST-009 the live ledger is strict-clean"
+    - command: node .aai/scripts/docs-audit.mjs --check --strict --no-event
+      exit_code: 0
+      output_snippet: "Verdict: NEEDS-TRIAGE (1 items); parent pr-capability-preflight probable-false-open"
+    - command: git diff --check
+      exit_code: 0
+      output_snippet: "No whitespace errors"
+  files_changed:
+    - docs/specs/SPEC-0211-spec-pr-generic-url-validity.md
+    - docs/ai/decisions.jsonl
+  blockers:
+    - "Root-owned parent lifecycle reconciliation remains; see /private/tmp/aai-pr434-generic-metadata-scratch/parent-lifecycle-proposal.json."
+    - "Independent re-Validation and Code Review remain pending; PR #434 still owes ci-full and final assembly proof."
+  state_update_commands:
+    - node .aai/scripts/state.mjs reset-block last_validation
+    - node .aai/scripts/state.mjs set-phase --ref pr-generic-url-validity --phase validation --status in_progress
+```
+
+The result block passed `check-role-output.mjs`.

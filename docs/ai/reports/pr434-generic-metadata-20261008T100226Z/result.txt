@@ -1,0 +1,31 @@
+```yaml
+subagent_result:
+  scope: pr-generic-url-validity
+  role: Remediation
+  status: BLOCKED
+  started_utc: 2026-10-08T10:02:26Z
+  ended_utc: 2026-10-08T10:08:19Z
+  duration_seconds: 353
+  evidence:
+    - command: node .aai/scripts/spec-amend.mjs list --strict
+      exit_code: 0
+      output_snippet: "spec_scanned=205; new measurement amendment listed; no STRICT-VIOLATION"
+    - command: bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-spec-amend.sh test_009_live_backfill_and_whole_ledger_readers
+      exit_code: 0
+      output_snippet: "PASS: TEST-009 the live ledger is strict-clean"
+    - command: node .aai/scripts/docs-audit.mjs --check --strict --no-event
+      exit_code: 0
+      output_snippet: "Verdict: NEEDS-TRIAGE (1 items); parent pr-capability-preflight probable-false-open"
+    - command: git diff --check
+      exit_code: 0
+      output_snippet: "No whitespace errors"
+  files_changed:
+    - docs/specs/SPEC-0211-spec-pr-generic-url-validity.md
+    - docs/ai/decisions.jsonl
+  blockers:
+    - "Root-owned parent lifecycle reconciliation remains: historical reopening is earlier than the date-only metrics flush's audit end-of-day instant. See /private/tmp/aai-pr434-generic-metadata-scratch/parent-lifecycle-proposal.json; no truthful new append-event transition is available."
+    - "Independent re-Validation and Code Review remain pending; PR #434 still owes ci-full and final assembly proof."
+  state_update_commands:
+    - node .aai/scripts/state.mjs reset-block last_validation
+    - node .aai/scripts/state.mjs set-phase --ref pr-generic-url-validity --phase validation --status in_progress
+```

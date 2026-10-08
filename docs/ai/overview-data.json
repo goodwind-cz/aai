@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-07T20:22:42.808Z",
+  "generatedAt": "2026-10-08T10:43:28.113Z",
   "project": "aai",
   "counts": {
-    "delivered": 280,
-    "in_progress": 16,
+    "delivered": 279,
+    "in_progress": 19,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -49,6 +49,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "pr-capability-preflight",
+      "title": "Noninteractive provider readiness before PR writes",
+      "type": "change",
+      "status": "implementing",
+      "path": "docs/issues/CHANGE-0204-pr-capability-preflight.md",
+      "closed_on": null,
+      "agent_minutes": 358,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+      "validation": "docs/ai/reports/VALIDATION-20261007T205748Z-pr-capability-preflight-final-ci.md",
+      "review": "docs/ai/reviews/review-20261007T232901Z-pr-capability-preflight-final.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -194,6 +207,32 @@
       "review": null
     },
     {
+      "ref": "pr-generic-url-validity",
+      "title": "Refuse malformed scheme URLs before generic readiness",
+      "type": "issue",
+      "status": "implementing",
+      "path": "docs/issues/ISSUE-0094-pr-generic-url-validity.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
+      "validation": "docs/ai/reports/VALIDATION-20261008T101336Z-pr-generic-url-validity.md",
+      "review": "docs/ai/reviews/review-20261008T102859Z-pr-generic-url-validity.md"
+    },
+    {
+      "ref": "pr-github-case-identity",
+      "title": "Compare GitHub repository identity without case sensitivity",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0095-pr-github-case-identity.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0212-spec-pr-github-case-identity.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -221,19 +260,6 @@
     }
   ],
   "delivered": [
-    {
-      "ref": "pr-capability-preflight",
-      "title": "Noninteractive provider readiness before PR writes",
-      "type": "change",
-      "status": "done",
-      "path": "docs/issues/CHANGE-0204-pr-capability-preflight.md",
-      "closed_on": "2026-10-07",
-      "agent_minutes": 358,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
-      "validation": "docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md",
-      "review": "docs/ai/reviews/review-20261007T183041Z-pr-capability-preflight-corrected.md"
-    },
     {
       "ref": "worktree-lacks-vendored-aai-layer-downstream",
       "title": "Issue — In a downstream project a new worktree has no `.aai/` layer and no skills, so the worktree flow breaks at its first step",
@@ -3417,7 +3443,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0035-spec-layer-profiles.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20261007T232901Z-layer-profiles.log"
     },
     {
       "ref": "l1-close-gate",
@@ -3888,19 +3914,6 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
-        {
-          "ref": "pr-capability-preflight",
-          "title": "Noninteractive provider readiness before PR writes",
-          "type": "change",
-          "status": "done",
-          "path": "docs/issues/CHANGE-0204-pr-capability-preflight.md",
-          "closed_on": "2026-10-07",
-          "agent_minutes": 358,
-          "token_total": null,
-          "spec": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
-          "validation": "docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md",
-          "review": "docs/ai/reviews/review-20261007T183041Z-pr-capability-preflight-corrected.md"
-        },
         {
           "ref": "worktree-lacks-vendored-aai-layer-downstream",
           "title": "Issue — In a downstream project a new worktree has no `.aai/` layer and no skills, so the worktree flow breaks at its first step",
@@ -7105,7 +7118,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0035-spec-layer-profiles.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-20261007T232901Z-layer-profiles.log"
         },
         {
           "ref": "l1-close-gate",

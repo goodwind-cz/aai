@@ -1,0 +1,34 @@
+[
+  {
+    "ref": "pr-generic-url-validity",
+    "title": "Refuse malformed scheme URLs before generic readiness",
+    "finding": "B1",
+    "req": "AC-001 and AC-005; parent Spec-AC-01 and Spec-AC-05",
+    "current": "Identical effective fetch/push `https://github.com:bad/Org/Repo.git` returns exit 0 / CAPABILITY_NOT_APPLICABLE with zero provider calls although real Git rejects the malformed port.",
+    "expected": "Malformed explicit scheme URLs return exit 2 / IDENTITY_INVALID before generic success or provider calls. Lawful unrecognized-host URLs and explicit local mode retain CAPABILITY_NOT_APPLICABLE.",
+    "plan": "At the remote identity boundary, distinguish explicit scheme syntax whose URL parse fails from a successfully parsed URL with an unrecognized host. Inspect the effective endpoint before sanitization or fallback can conceal invalid syntax. Keep generic support, SCP/local handling, existing credential redaction and provider-specific validation; do not apply GitHub path/protocol restrictions to all generic hosts.",
+    "ac1": "WHEN an effective remote uses explicit scheme syntax with an invalid nonnumeric port, the CLI SHALL return exit 2 / IDENTITY_INVALID and zero provider calls instead of generic success.",
+    "ac2": "WHEN a valid unrecognized-host URL or explicit remote_name null is supplied, the CLI SHALL return exit 0 / CAPABILITY_NOT_APPLICABLE with zero provider calls; malformed port and destination divergence SHALL refuse before providers.",
+    "row1": "Extend existing TEST-001 with real Git configured equal malformed fetch/push https://github.com:bad/Org/Repo.git and https://gitlab.com:bad/Org/Repo.git; assert effective bytes equal seeded bytes, exit 2 IDENTITY_INVALID and zero provider calls. Include a lawful GitHub control reaching all three exact allowlisted calls and divergent effective endpoints refusing at git.push-destination.",
+    "row7": "Extend existing TEST-007 with valid https://gitlab.com/Org/Repo.git generic control and equal generic URL with numeric port 8443; both exit 0 CAPABILITY_NOT_APPLICABLE and zero provider calls. Retain credential/query/fragment redaction and explicit local-null positive; malformed unknown-host port refuses.",
+    "red": "TEST-001 malformed github.com:bad fixture must fail on the immutable pre-change source because observed exit is 0 rather than 2. TEST-007 malformed gitlab.com:bad fixture must likewise fail while valid generic/local controls succeed.",
+    "mutation1": "remove only the new malformed explicit scheme refusal, leaving program parseable",
+    "mutation7": "remove only the new malformed unknown-host scheme refusal, leaving lawful generic controls reachable"
+  },
+  {
+    "ref": "pr-github-case-identity",
+    "title": "Compare GitHub repository identity without case sensitivity",
+    "finding": "B2",
+    "req": "AC-001 and AC-005; parent Spec-AC-01 and Spec-AC-05",
+    "current": "Origin/input Org/Repo with successful provider nameWithOwner org/repo and URL https://github.com/org/repo runs three probes then returns exit 3 / PROVIDER_RESULT_INVALID. Input differing only by casing from the origin is also refused.",
+    "expected": "Owner/repository spelling differing only by ASCII case is the same GitHub identity for input/remote and provider-result comparison. Different owner or repository, host, protocol, userinfo, query and fragment remain refused. Effective fetch/push strings remain exactly equal.",
+    "plan": "Apply GitHub owner/repository case-insensitive comparison at both input-to-remote and provider-result-to-resolved identity seams. Compare both returned nameWithOwner and HTTPS URL path. Keep case folding local to GitHub identity, not endpoint comparison, Azure, host routing, CLI argv or global text validation. Retain resolved spelling for exact gh repo view argv; do not globally lowercase remote URLs.",
+    "ac1": "WHEN GitHub input, remote owner/repository and both successful returned identity fields differ only by ASCII case, the CLI SHALL return exit 0 / READ_VERIFIED after exactly three allowlisted host-bound provider probes; a different returned owner/repository SHALL return exit 3 / PROVIDER_RESULT_INVALID after those probes.",
+    "ac2": "WHEN GitHub input differs from the remote only by ASCII owner/repository case, the CLI SHALL reach READ_VERIFIED; genuinely different input SHALL refuse with exit 2 / IDENTITY_INVALID and zero providers, and fetch/push URLs differing even only by case SHALL refuse at git.push-destination with zero providers.",
+    "row1": "Extend existing TEST-001 with input org/repo against equal fetch/push Org/Repo, positive READ_VERIFIED with three exact allowlisted calls. Include Other/Repo and Org/Other input negatives, zero providers; include case-only fetch versus push spelling divergence, exit 2 IDENTITY_INVALID at git.push-destination, zero providers; same-spelling fetch/push positive reaches three calls.",
+    "row7": "Extend existing TEST-007 strict fixture responses so Org/Repo remote/input plus org/repo nameWithOwner and /org/repo HTTPS path returns READ_VERIFIED, create_permission unknown, three exact host-bound probes. Include mixed casing of each field separately and both together, exact-case positive, GitHub enterprise and SSH443 controls. Other/Repo and Org/Other in nameWithOwner alone or URL path alone must return exit 3 PROVIDER_RESULT_INVALID after exactly three calls. Preserve wrong host/protocol/userinfo/query/fragment refusal and ordinary Azure behavior.",
+    "red": "TEST-001 case-equivalent input must fail on pre-change source at exit 2 versus expected 0; TEST-007 case-equivalent provider fields must fail after exactly three probes at exit 3 versus expected 0. Exact-case and different-identity controls establish the path was reached.",
+    "mutation1": "restore case-sensitive input-to-remote repository equality only, preserving all other gates",
+    "mutation7": "restore case-sensitive provider nameWithOwner and URL-path comparison only, preserving all other gates"
+  }
+]

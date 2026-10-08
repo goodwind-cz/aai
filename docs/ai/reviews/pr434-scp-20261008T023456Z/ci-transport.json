@@ -1,0 +1,51 @@
+[
+  {
+    "source": "/private/tmp/aai-pr434-1691-job-113120521324.log",
+    "path": "docs/ai/reviews/pr434-scp-20261008T023456Z/ci-113120521324.log",
+    "encoding": "raw",
+    "raw_bytes": 85311,
+    "raw_sha256": "9c790c9e12a43a372cbb37678a6ccf919c433e5aac0137438de3deb1634e5eaf"
+  },
+  {
+    "source": "/private/tmp/aai-pr434-1691-job-113120521878.log",
+    "path": "docs/ai/reviews/pr434-scp-20261008T023456Z/ci-113120521878.log.b64",
+    "encoding": "base64",
+    "raw_bytes": 93917,
+    "raw_sha256": "48e10d9d4b7c0ca8e9ad81755971d3687b0075c82b6964bff80255358b06b1aa"
+  },
+  {
+    "source": "/private/tmp/aai-pr434-1691-job-113120584384.log",
+    "path": "docs/ai/reviews/pr434-scp-20261008T023456Z/ci-113120584384.log",
+    "encoding": "raw",
+    "raw_bytes": 37899,
+    "raw_sha256": "31b64b1b58ef2ce882b4f2d51167471f58551b95e7f95b73bf64321781c3be62"
+  },
+  {
+    "source": "/private/tmp/aai-pr434-1691-job-113120584390.log",
+    "path": "docs/ai/reviews/pr434-scp-20261008T023456Z/ci-113120584390.log",
+    "encoding": "raw",
+    "raw_bytes": 36219,
+    "raw_sha256": "c5e0f52a125d9ee572d4cf298a30b5808efdca681d3319f727e7fba3eb3d8ccb"
+  },
+  {
+    "source": "/private/tmp/aai-pr434-1691-job-113120584458.log",
+    "path": "docs/ai/reviews/pr434-scp-20261008T023456Z/ci-113120584458.log",
+    "encoding": "raw",
+    "raw_bytes": 41528,
+    "raw_sha256": "51960b3e69ddcd66dcf2a5a1c413cc4836e350977dd506d6e2d05fcc0c2fe290"
+  },
+  {
+    "source": "/private/tmp/aai-pr434-1691-job-113120584482.log",
+    "path": "docs/ai/reviews/pr434-scp-20261008T023456Z/ci-113120584482.log",
+    "encoding": "raw",
+    "raw_bytes": 35748,
+    "raw_sha256": "f46ca9e1a652238483091bf4d8f2f07030ff899c7325ddcb152333ed0e90562f"
+  },
+  {
+    "source": "/private/tmp/aai-pr434-1691-job-113122815599.log",
+    "path": "docs/ai/reviews/pr434-scp-20261008T023456Z/ci-113122815599.log",
+    "encoding": "raw",
+    "raw_bytes": 3110,
+    "raw_sha256": "815ea2a6a1dd1533632f21139ac1fa3885cc393bb94d6fcc2d245ccac1557f64"
+  }
+]
