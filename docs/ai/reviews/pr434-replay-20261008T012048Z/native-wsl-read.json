@@ -1,0 +1,16 @@
+{
+  "job": 113100988835,
+  "run": 37712364899,
+  "raw_bytes": 93912,
+  "raw_sha256": "ef135aec7225b1f4dee2ed9d1abb97ea18ccb2942d9b6c3c83fc5056536ef5e1",
+  "nul_bytes": 253,
+  "transport": "native-wsl.log.b64",
+  "transport_sha256": "5b9f775e08952c6c70f54037ecbf70041c5a4a904038fa865b1ff059c482ef64",
+  "lines": 711,
+  "head_in_checkout": true,
+  "eight_rows_once": true,
+  "summary": [
+    "2026-10-08T01:24:28.8681834Z \u001b[32mTests Passed: 153, \u001b[0m\u001b[90mFailed: 0, \u001b[0m\u001b[93mSkipped: 4, \u001b[0m\u001b[90mInconclusive: 0, \u001b[0m\u001b[37m\u001b[0m\u001b[90mNotRun: 0\u001b[0m",
+    "2026-10-08T01:24:29.2982292Z PESTER OK (Windows PowerShell 5.1, WSL1 leg): 153 passed, 4 skipped, 0 failed, 218.31s"
+  ]
+}

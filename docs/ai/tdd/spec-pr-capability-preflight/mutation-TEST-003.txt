@@ -12,7 +12,7 @@ rc: 1
 verdict: RED
 first_fail: FAIL: TEST-003 exit ACCESS_UNKNOWN
 selector_honoured: yes
-target_sha256: f4908d962b409672967f808988c2b70b7bccf22d9864456b32e0875a024db557
+target_sha256: d0bbf48e79e10b2e9ffa4bab970158f2f421af76b2d59af0dc9314e704226b7e
 ---
 FAIL: TEST-003 exit ACCESS_UNKNOWN
 

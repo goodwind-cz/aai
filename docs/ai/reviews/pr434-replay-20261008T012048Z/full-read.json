@@ -1,0 +1,63 @@
+[
+  {
+    "job": "113101059159",
+    "sha256": "c611c1c510e7fdab9b12144f20076b615c6ef07c3f3cd9ff31174250c6f6057e",
+    "lines_read": 490,
+    "summary": [
+      "2026-10-08T01:25:45.4836507Z [FAIL] Failed:  2 (7%)",
+      "2026-10-08T01:25:45.4838499Z [INFO] Total:   26",
+      "2026-10-08T01:25:45.4838986Z [PASS] Passed:  23 (88%)"
+    ],
+    "failed_suites": [
+      "2026-10-08T01:20:54.4500158Z [ 1/26] aai-doc-number-reservation FAIL (37.0s) [tripwire NOT ATTESTED \u2014 suite exited 1 before completing]",
+      "2026-10-08T01:23:42.5671993Z [ 6/26] aai-deslop           FAIL (43.0s) [tripwire NOT ATTESTED \u2014 suite exited 1 before completing]"
+    ]
+  },
+  {
+    "job": "113101059206",
+    "sha256": "d63fb9d10370ced19f1637c02967d8f02ed0e2bce40a861c3b38851817a3f7a0",
+    "lines_read": 464,
+    "summary": [
+      "2026-10-08T01:24:12.5763962Z [FAIL] Failed:  2 (7%)",
+      "2026-10-08T01:24:12.5765525Z [INFO] Total:   27",
+      "2026-10-08T01:24:12.5766258Z [PASS] Passed:  25 (92%)"
+    ],
+    "failed_suites": [
+      "2026-10-08T01:20:29.1098506Z [ 1/27] aai-docs-audit       FAIL (13.0s) [tripwire NOT ATTESTED \u2014 suite exited 1 before completing]",
+      "2026-10-08T01:23:21.9341299Z [ 7/27] aai-repo-tripwire    FAIL (186.0s) [tripwire NOT ATTESTED \u2014 suite exited 1 before completing]"
+    ]
+  },
+  {
+    "job": "113101059211",
+    "sha256": "9a5b2c7bd3422f919eb10e3bbfdcf40466026b01de73035f692dfd32be97ab2e",
+    "lines_read": 454,
+    "summary": [
+      "2026-10-08T01:23:40.0642708Z [FAIL] Failed:  1 (3%)",
+      "2026-10-08T01:23:40.0647797Z [INFO] Total:   26",
+      "2026-10-08T01:23:40.0648622Z [PASS] Passed:  25 (96%)"
+    ],
+    "failed_suites": [
+      "2026-10-08T01:21:57.5056233Z [ 3/26] aai-delta-stage3     FAIL (103.0s) [tripwire NOT ATTESTED \u2014 suite exited 1 before completing]"
+    ]
+  },
+  {
+    "job": "113101059241",
+    "sha256": "e53222f4d0d4c17ec927b4cada2afd10ce86a135a3f40501632ca84fcdf92c20",
+    "lines_read": 453,
+    "summary": [
+      "2026-10-08T01:28:13.5526202Z [FAIL] Failed:  1 (4%)",
+      "2026-10-08T01:28:13.5527038Z [INFO] Total:   25",
+      "2026-10-08T01:28:13.5527388Z [PASS] Passed:  24 (96%)"
+    ],
+    "failed_suites": [
+      "2026-10-08T01:23:41.7974738Z [ 4/25] aai-doc-numbering    FAIL (25.0s) [tripwire NOT ATTESTED \u2014 suite exited 1 before completing]"
+    ]
+  },
+  {
+    "job": "113103257596",
+    "sha256": "8e333a216fcba855a80a5567be3aa72b0219979b218a54e3c7cd854ded49b6ac",
+    "lines_read": 50,
+    "summary": [],
+    "failed_suites": []
+  }
+]

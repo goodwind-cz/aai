@@ -1,0 +1,11 @@
+--- a/.aai/scripts/pr-preflight.mjs
++++ b/.aai/scripts/pr-preflight.mjs
+@@ -157,7 +157,7 @@
+ }
+ function failure(r, operation) {
+   // Only known signals are named; denied/not-found/other failures stay unknown.
+-  const msg = (r.stderr + '\n' + r.stdout).toLowerCase();
++  console.error(r.stderr); const msg = (r.stderr + '\n' + r.stdout).toLowerCase();
+   if (/authentication failed|not logged in|login required|please run .*(?:az login|gh auth login)|unauthorized|expired.*(?:token|credential)/.test(msg)) throw new Refusal('AUTH_FAILED', operation);
+   if (/connection timed out|dns resolution failed|could not resolve host|name resolution|connection refused|network is unreachable/.test(msg)) throw new Refusal('NETWORK_FAILED', operation);
+   throw new Refusal('ACCESS_UNKNOWN', operation);

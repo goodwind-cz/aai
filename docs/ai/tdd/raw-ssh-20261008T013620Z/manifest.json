@@ -1,0 +1,658 @@
+{
+  "schema": 1,
+  "role_started_utc": "2026-10-08T01:36:20Z",
+  "role_ended_utc": "2026-10-08T01:48:56Z",
+  "duration_seconds": 756,
+  "actual_model": "unknown",
+  "usage_capture": "none",
+  "source_head": "5685e3625bc94f00ade55d9cf491158dde058177",
+  "deletions": [],
+  "longest_candidate_relative_chars": 136,
+  "observed_native_prefix_chars": 122,
+  "max_observed_layout_chars": 258,
+  "rows": [
+    {
+      "path": ".aai/scripts/pr-preflight.mjs",
+      "bytes": 19246,
+      "sha256": "d0bbf48e79e10b2e9ffa4bab970158f2f421af76b2d59af0dc9314e704226b7e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/decisions.jsonl",
+      "bytes": 1175718,
+      "sha256": "a95eaa2cbca08ac01483e5961fa8b852ca6d369e1c29a9c06b82d94140c2acd4",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/reports/REMEDIATION-20261008T013620Z-pr434-raw-path.md",
+      "bytes": 6289,
+      "sha256": "c6cd8090ccd9b3f901bbb2dd74c6b4937a275303e8f595d59a4dfc6567f4a3ee",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/RESULT.md",
+      "bytes": 6080,
+      "sha256": "7f93c36bd3b4e13a9d932e8e4ed88d118a001b19644989a8918bf969fea21015",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/amend-strict.log",
+      "bytes": 61316,
+      "sha256": "71816ae5f5d2879c0957f008367db1084f3a8adcf83fc0256b486771f4fa6693",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/authority-amend.log",
+      "bytes": 601,
+      "sha256": "8dda8ee3607a3fd3d0d4b8cfcd67435db6562f8fb460c59c21012eb4df396b44",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/authority-red-check.log",
+      "bytes": 79,
+      "sha256": "26e1069abafeb1055d5523bf354ec8cf8a05751283b5ebd351eccc2069e68e64",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/authority-red.log",
+      "bytes": 575,
+      "sha256": "49d2eb91b2c37a25428e434156ab565515189f61df747c0fae71bd682599e253",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/authority-red.raw.log",
+      "bytes": 552,
+      "sha256": "adf04848475fc7ccc0007ba9df3ef62f3bed03cf35901d7c2d3c9eb7f8d0a876",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/boundary-before.json",
+      "bytes": 11269,
+      "sha256": "64a58526ba107debc704ff118397097e29f4d14d5b0d704a95bc2252b13c895d",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/contract-amend.log",
+      "bytes": 601,
+      "sha256": "7069d41a3605fffc7c4ffae9b7026c13ab0945502525f6181532b338a8706be7",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/diff-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/files.json",
+      "bytes": 11550,
+      "sha256": "220744f96a1c8d8e9733204b9352223bb13132bf3df414ddfbb6612df34b81d4",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/final-audit.json",
+      "bytes": 4689,
+      "sha256": "aebc41052b2a0ccbee9872d5498b942f6501196245802254e2a7db727569f6dd",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/final-preflight.log",
+      "bytes": 11513,
+      "sha256": "21cc820008152bb0ac05a6b1dcab730def15698a1851e45bb5b1d49037896490",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/full-5685-run.json",
+      "bytes": 12178,
+      "sha256": "6db3cee540b7e4776ade37c722d0cde73f449da284a7761d15cc5b3324bb2021",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/matrix-before.sh",
+      "bytes": 38776,
+      "sha256": "0d997fef3017c68d862a944f2c1202ecec048396bf745fb75807194ef5f93fb5",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/matrix-final.sh",
+      "bytes": 39682,
+      "sha256": "1eb590db2a5c0ca766e88a86656d49f013b72acda10ccc1135c4e3e145b2d958",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/matrix-red-2.raw.log",
+      "bytes": 248,
+      "sha256": "e00cf5169d54b0625a88067e50b694c7f643419d709cf3d357b389f576b31f2a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/matrix-red-3.raw.log",
+      "bytes": 552,
+      "sha256": "d785d743066365e63f54813e0f3f3a6ed2a014808db322188d46e2d95cd523c4",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/matrix-red-check.log",
+      "bytes": 76,
+      "sha256": "deee49e1304e53df64646b086313ec271c3fe4477f534bc4e96e9d256d4c853f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/matrix-red.log",
+      "bytes": 575,
+      "sha256": "f7da88c8391cf5d06bb57a7ff9dc498d4f3db52f0db85e1d3530da3e0c266f75",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/matrix-red.raw.log",
+      "bytes": 251,
+      "sha256": "aa78048b0cf25247c066bbc7e7e2306abc72408c62f8d99cfbbedf2a4c9d74fe",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/measurement-amend.log",
+      "bytes": 387,
+      "sha256": "779a960e5b199c1b469c0494c85ad1e2c33595d2bc00abc2109a75a737df1237",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/mutation-clean.log",
+      "bytes": 716,
+      "sha256": "3c810b6697362bd54d5b46d239c94de9ef7d4f00037df4356d6ad1640df75cf4",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/mutation-gate.log",
+      "bytes": 340,
+      "sha256": "d00357811699ecf88ff9836169721c1a65f9bce26e0ea49031f56f895a894185",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/mutation-restamp.log",
+      "bytes": 2299,
+      "sha256": "0c71e2a34e3362da238bc9bc6c76266c1d453bab6a83c552691ae4faa9e9d2dd",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/native-5685-jobs.json",
+      "bytes": 10159,
+      "sha256": "29c432a7725c004a8005ed1c1a5da6a8de42f57dcade9edbb5e84a743d5782f3",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/native-5685-run.json",
+      "bytes": 12177,
+      "sha256": "aabe2278088b870d69a0bf270ced3a54b40f7cf67377290395b0da8e96bef25a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/native-5685-windows.log",
+      "bytes": 190690,
+      "sha256": "4c21f8ab6ccdca0c7063d60a4cf4bf4c318ad6611286d2dc8e556214ca380874",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/preflight-green.log",
+      "bytes": 11513,
+      "sha256": "2c9dc7bdd73e9499090e58d62dd443493ac07d66a65da19d6ec76991cc81cc31",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/01.patch",
+      "bytes": 687,
+      "sha256": "52241527588dce1e57642876e016d5f44fa6dc476f6bd14c1ff5c6b254ef76f5",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/02.txt",
+      "bytes": 667,
+      "sha256": "443e5abedc28c5c65ddb2783cd8cf052d5dc1e323dbc0ac7c7f273d966f9ea64",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/03.patch",
+      "bytes": 837,
+      "sha256": "b176cc21daf09ef30bffbba8ecae2c720f2a5915e810651cff231ac43f9a5491",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/04.txt",
+      "bytes": 669,
+      "sha256": "e27706044ee60e1c0846fca689909f9567c04416fbe303806b9222fc8a5a8d47",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/05.patch",
+      "bytes": 843,
+      "sha256": "265dae588c30855648e6c4bce056d2f7cfe7d524b1780fd3e70073deb1c0b652",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/06.txt",
+      "bytes": 640,
+      "sha256": "d62d4350c70de721457479ea75b18b99e9f55c53635b292e044f2750087e40e6",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/07.patch",
+      "bytes": 613,
+      "sha256": "6f861129eedcf21a5f671d2c31832f5bdc090b75db24462ace16e1f1e1c2044f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/08.txt",
+      "bytes": 1719,
+      "sha256": "5ae51a2cdb39fe28e2182ca7df7b94b4f1e94d212e78d1b285488b201bf2f95d",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/09.patch",
+      "bytes": 796,
+      "sha256": "b1f8208dcf9c28a83898bc207cb07cf5f0e15b3b788636324a7bd4d7257d9e4e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/10.txt",
+      "bytes": 1524,
+      "sha256": "3d45da34f741f20e061eb401f3bc4e044bd8eee20f18fda76ef52851b58b9b8d",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/11.patch",
+      "bytes": 619,
+      "sha256": "9b496577d77164cf0ec8dff3315a3889254e717d547ede93308393e57e8e5c6a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/12.txt",
+      "bytes": 707,
+      "sha256": "55f4a916b79ffd77de6aefe23c9e02634579d0ca8704d97114bcd38ec533e522",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/13.patch",
+      "bytes": 1259,
+      "sha256": "5cb7ee0e5754d4ae20e924b69fc1c68e1ca73dfc94027abc88e35ce937d666c8",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/14.txt",
+      "bytes": 658,
+      "sha256": "1ad90c01df14cdbf821e9feb66bfb3fa955be50948476d98ed8308db68f34c85",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/15.patch",
+      "bytes": 354,
+      "sha256": "e758ab13211490e9c3f3cac5c057193020c75483fa12bf28d382311d763075ad",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/16.txt",
+      "bytes": 618,
+      "sha256": "614147e8ce8562b9dd174c6d93f78dcd5b59bf556281bfee4b2ebe609700f796",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/17.patch",
+      "bytes": 1032,
+      "sha256": "b5c64d1fc41c0c9a9a2556f6ea92d3eb77d1de2130e830849d443ae302b6be9f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/18.txt",
+      "bytes": 661,
+      "sha256": "f338364201e914bba90639692ccb75dc7377cd168c53242e3f13e0fade3012ef",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/19.patch",
+      "bytes": 613,
+      "sha256": "6f861129eedcf21a5f671d2c31832f5bdc090b75db24462ace16e1f1e1c2044f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/20.txt",
+      "bytes": 1738,
+      "sha256": "51f480bc444e801c3e645baad6dc7f1eaf4530ccd1d8bbf50b98ee2baeeac35f",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/21.patch",
+      "bytes": 637,
+      "sha256": "965b47e3e7e9acf203ef4c67aad196924cf076225f1d0aef5ee4f99a5bbed6f8",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/22.txt",
+      "bytes": 675,
+      "sha256": "2072050569b5f7be5dd51c4e2c918f1da86c403013f1d0148558c0e92bc46ee9",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/23.patch",
+      "bytes": 619,
+      "sha256": "9b496577d77164cf0ec8dff3315a3889254e717d547ede93308393e57e8e5c6a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/24.txt",
+      "bytes": 675,
+      "sha256": "747a1c9e8a345942bd1589132b59383daa5d870c5a6751992eae345daea6db82",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/prior-mutations/map.json",
+      "bytes": 6584,
+      "sha256": "89c189783173e7ee05f775a5b6ea003796c29ccd5aa0d2ae9679058d30bcaa8e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/product-before.mjs",
+      "bytes": 18893,
+      "sha256": "f4908d962b409672967f808988c2b70b7bccf22d9864456b32e0875a024db557",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/product-final.mjs",
+      "bytes": 19246,
+      "sha256": "d0bbf48e79e10b2e9ffa4bab970158f2f421af76b2d59af0dc9314e704226b7e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/red-check.log",
+      "bytes": 79,
+      "sha256": "42169a4f56e292b48007c620db5769396c602ab34c475ac3e1fd1e91ca79c0d0",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/result-check-infra.log",
+      "bytes": 80,
+      "sha256": "ff1aa17b2dbd96e48793f588692bd385297a8e710319d779b6235af29235f32d",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/result-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/sealing-infra.txt",
+      "bytes": 264,
+      "sha256": "b3bb3b3b294ef064ce4f79948f734fdb09a76d52de4681f3596defb5cc83047d",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/selector-2-infra.log",
+      "bytes": 270,
+      "sha256": "08e2ee9732c4fcfe7c0e819ea7ff97adc18ec1fd08d0c3fd7c7cb464c3276634",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/selector-infra.log",
+      "bytes": 273,
+      "sha256": "11c9fea900cb1ec72618433cd2a999a993f5e023e756fd7e5c355c0047f89580",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/spec-lint.log",
+      "bytes": 188,
+      "sha256": "512d38bc2f4395b51bf62064faa1cbfbaba5e243243a72007f79e2722dcc7e35",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/transport-green.log",
+      "bytes": 1062,
+      "sha256": "23a28147b64308b0a78661b0acc9fd62f284e7be60806221d8101518fe37d88e",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/transport-red.log",
+      "bytes": 1739,
+      "sha256": "e0a2532b848391c28a46005f9147739366eaa9d2781983c2f8ea93bbec8a9d86",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/raw-ssh-20261008T013620Z/transport-red.raw.log",
+      "bytes": 1716,
+      "sha256": "5e67b207a95e579fcf8e7d01677ed70c58d6daccbcb1bcd9d37f35f995121d70",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.txt",
+      "bytes": 667,
+      "sha256": "bc939865cc0e4700c652095cdd63a24fac528a7375d6729f3513f8aaeaf1763a",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.txt",
+      "bytes": 669,
+      "sha256": "539401f1f807aeef59759c0c11127fcc75097e65f3ed36908934793b1d95cca0",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.txt",
+      "bytes": 640,
+      "sha256": "00262a714522de84ad833c71a0845b61c3c487514ccce551c56b0ac687e76e35",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.txt",
+      "bytes": 1719,
+      "sha256": "85d72e6bc35dfd87a8c52c75a681a97e4fa20c2ea964a0e7ab2724c5242bcd89",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.txt",
+      "bytes": 1524,
+      "sha256": "5703f6dd244a95c2c2842bc3efc2ebb7902966e845c4ac213db2c6065f8dfe59",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.txt",
+      "bytes": 658,
+      "sha256": "446b2f8e51a8032635b60679d560346974d11128675a26ac4dfd71fa71545c43",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
+      "bytes": 33632,
+      "sha256": "9a07cee87a4890ef8f9469d40e0bcdf968ba27f18e9e8a5ab1f74e45ccd91837",
+      "ownership": "maker"
+    },
+    {
+      "path": "tests/skills/test-aai-pr-preflight.sh",
+      "bytes": 39682,
+      "sha256": "1eb590db2a5c0ca766e88a86656d49f013b72acda10ccc1135c4e3e145b2d958",
+      "ownership": "maker"
+    },
+    {
+      "path": "docs/ai/reviews/review-20261008T012048Z-pr434-replay.md",
+      "bytes": 12660,
+      "sha256": "efb1fa40cda0d6a201d994123e7b81c1563a30f306d2ed46ae7d8c74f0b88c82",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/audit.json",
+      "bytes": 57541,
+      "sha256": "39ed25a56a470fd304196a9a096518985c93bb45421bee64461330f4d5fc8476",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/boundary-after.json",
+      "bytes": 89,
+      "sha256": "a436e5a0becb3b2c403e05a1300f1aa57c593dc0132e8380fe4ea27a91f2ee7a",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/boundary-before.json",
+      "bytes": 271005,
+      "sha256": "d04bc3067daf4b75680c06a6de175584332ebfae58d3158d987ee4f9c1153f05",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/compatibility-read.json",
+      "bytes": 2577,
+      "sha256": "0f6ee4f9c8aede6e8429be181967590521ecc3a757ae9e20331ecc4b780e3fdd",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/dot-path-red.log",
+      "bytes": 1720,
+      "sha256": "059fc951c36e9eeb267f99d74d804f8484360efc23636651300a057cde997b6b",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/dot-path.cjs",
+      "bytes": 36653,
+      "sha256": "3861e9aab99a9b2294eeb41af1f131fa2727160e57f6493b8c915c1c117d0dc7",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/dot-path.log",
+      "bytes": 1337,
+      "sha256": "f3be6e502bebfa9d202fecffed66b4924d929237ebdf23003a5bc2201b8a6a48",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/full-113101059159.log",
+      "bytes": 41490,
+      "sha256": "c611c1c510e7fdab9b12144f20076b615c6ef07c3f3cd9ff31174250c6f6057e",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/full-113101059206.log",
+      "bytes": 37866,
+      "sha256": "d63fb9d10370ced19f1637c02967d8f02ed0e2bce40a861c3b38851817a3f7a0",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/full-113101059211.log",
+      "bytes": 35750,
+      "sha256": "9a5b2c7bd3422f919eb10e3bbfdcf40466026b01de73035f692dfd32be97ab2e",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/full-113101059241.log",
+      "bytes": 36182,
+      "sha256": "e53222f4d0d4c17ec927b4cada2afd10ce86a135a3f40501632ca84fcdf92c20",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/full-113103257596.log",
+      "bytes": 3139,
+      "sha256": "8e333a216fcba855a80a5567be3aa72b0219979b218a54e3c7cd854ded49b6ac",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/full-jobs.json",
+      "bytes": 17613,
+      "sha256": "4a6138e362d426f95571bb25bcd7acb7ab3f5fbbcdede179b01e0311e32d31ba",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/full-read.json",
+      "bytes": 2550,
+      "sha256": "d1498892d2ebfe5431aff8d8ca1b93e12581b29442c640b90744533f725137d3",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/layer-profiles.log",
+      "bytes": 4050,
+      "sha256": "7403781c7e0e08a474a778dfca668d52b857926c8e1187ae8a6dad68b0894d4d",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/native-jobs-observed.json",
+      "bytes": 9834,
+      "sha256": "622b713e2456bf85cbe4f12a3367087fcb70161f7b0881d23d9598039285b4b0",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/native-linux-read.json",
+      "bytes": 460,
+      "sha256": "f57f113df72f5c156a92e3dac221152983e1a3c27d8d71f230380a1166497f0a",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/native-linux.log",
+      "bytes": 85320,
+      "sha256": "172ad79f9c245bb6cdf007d9fdcb781f9fed121f6ae25ae8dad5ee965d8da877",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/native-wsl-read.json",
+      "bytes": 733,
+      "sha256": "f70003e4a0c55155afea344053ac2b813fc439b77575e3e591b2744041ed72e8",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/native-wsl.log.b64",
+      "bytes": 126864,
+      "sha256": "5b9f775e08952c6c70f54037ecbf70041c5a4a904038fa865b1ff059c482ef64",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/pr-platform.log",
+      "bytes": 4421,
+      "sha256": "4e5a15b82e09ab60f861ea4a24ce77ad2518e7704d5c98a8262502cd4d68ee68",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/preflight.log",
+      "bytes": 11517,
+      "sha256": "4d7abb4ce7fe8d87631832c3f599b525c73c2f11385957900d7d02357ca216de",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/prompt-diet.log",
+      "bytes": 8084,
+      "sha256": "7c89a40976ef33d3048235760eff63c588396fa7b7f4e3a934d5afc4abe82e3f",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/recovery.json",
+      "bytes": 17460,
+      "sha256": "c69c099db0c56a4e973cb36b51c3a6e78361e13d7bc41fc3d43f43360e26387c",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/result.md",
+      "bytes": 4624,
+      "sha256": "daae3a20699903d5e21b487b348acaa7f14dd3c704db4dcfac903d6cd0f14345",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/ride-select.log",
+      "bytes": 26859,
+      "sha256": "89846a7357959185a4b32fa415286f1d6f40650eb7504a2bf9e2d259a9128d9f",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/role-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/scope-hashes.json",
+      "bytes": 97381,
+      "sha256": "cb13ccc622910aec2adb44c86f7c11db2dce63b80db2f979c02c790cfbbf0ec2",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-replay-20261008T012048Z/manifest.json",
+      "bytes": 6105,
+      "sha256": "a071735f2b37eafddb1c2f4c2008b9b8e4a5a98f618431eec10374f64d9913e4",
+      "ownership": "root_dependency"
+    },
+    {
+      "path": "docs/decisions/DECISION-pr434-raw-ssh-path.md",
+      "bytes": 3138,
+      "sha256": "982c95371b8853bb11d7d4400fedc3ce6b49b41f1f5befda5ca6a8b95b032e7e",
+      "ownership": "root_dependency"
+    }
+  ],
+  "self_excluded": true
+}

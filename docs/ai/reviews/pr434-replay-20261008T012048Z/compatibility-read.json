@@ -1,0 +1,50 @@
+[
+  {
+    "suite": "pr-platform",
+    "pass_lines": 32,
+    "fail_lines": [],
+    "tail": [
+      "PASS: TEST-581: tracked edits and untracked nested dependencies included; ignored input excluded",
+      "INFO: TEST-590: the aai-pr-platform suite-map row names every REGEN_TAIL_GENERATORS script (Spec-AC-30)...",
+      "PASS: TEST-590: aai-pr-platform suite-map row names every regen-tail generator plus the shared-set authority",
+      "",
+      "All tests passed!"
+    ]
+  },
+  {
+    "suite": "layer-profiles",
+    "pass_lines": 22,
+    "fail_lines": [],
+    "tail": [
+      "INFO: TEST-466: aai-sync.sh has zero real pipelines into grep -q (any spelling) / head -n1 (any spelling)...",
+      "PASS: TEST-466 aai-sync.sh: zero pipe-into-(grep -q|qhead -n1) sites",
+      "INFO: Self-check: suite uses no real-network URL schemes...",
+      "PASS: Self-check: fixtures only (non-routable placeholders)",
+      "=== ALL TESTS PASSED: aai-layer-profiles ==="
+    ]
+  },
+  {
+    "suite": "prompt-diet",
+    "pass_lines": 0,
+    "fail_lines": [],
+    "tail": [
+      "  TEST-1641: the entry sits at index 137 of 141 -- later rides have appended their own credits since; the prefix pin below is what holds",
+      "  TEST-1641 SKILL_SHIP.prompt.md: file has grown to 8167 B since this entry recorded 8036 B -- later growth must carry its OWN itemized ledger entry (TEST-010's live .aai/*.prompt.md glob headroom is the control that catches an uncredited byte on disk; TEST-012 only re-sums the ledger array and cannot see a byte on disk)",
+      "PASS TEST-1641 (Spec-AC-16) roadmap-maintenance-budget-advisory growth 736 B is measured per file and credited 1:1, pin 51242 -> 51978",
+      "",
+      "All tests passed!"
+    ]
+  },
+  {
+    "suite": "ride-select",
+    "pass_lines": 122,
+    "fail_lines": [],
+    "tail": [
+      "INFO: Test: an unreadable <docs>/issues DIRECTORY (as opposed to one unreadable entry inside it) degrades waiting with a stderr line and a json degraded entry (TEST-1652, NB-2)...",
+      "PASS: an unreadable issues directory degrades waiting with a stderr line and a json degraded entry (TEST-1652)",
+      "INFO: Test: an unreadable --events FILE (as opposed to a malformed/invalid record inside it) degrades a firing next with a stderr line and a json degraded entry, the roadmap_order fallback staying correct (TEST-1653, NB-2)...",
+      "PASS: an unreadable --events file degrades a firing next with a stderr line and a json degraded entry, fallback stays correct (TEST-1653)",
+      "=== test-aai-ride-select: ALL TESTS PASSED ==="
+    ]
+  }
+]

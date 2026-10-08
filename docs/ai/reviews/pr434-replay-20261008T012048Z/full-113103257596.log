@@ -1,0 +1,50 @@
+﻿2026-10-08T01:28:19.2728934Z Current runner version: '2.337.0'
+2026-10-08T01:28:19.2754214Z ##[group]Runner Image Provisioner
+2026-10-08T01:28:19.2755076Z Hosted Compute Agent
+2026-10-08T01:28:19.2755641Z Version: 20261002.596
+2026-10-08T01:28:19.2756226Z Commit: c3d12f3313a95f25162a1503be624f3b0617f8c0
+2026-10-08T01:28:19.2756882Z Build Date: 2026-10-02T22:28:27Z
+2026-10-08T01:28:19.2757515Z Worker ID: {70893665-a861-4c85-82ff-c957981d67f4}
+2026-10-08T01:28:19.2758163Z Region: westus3
+2026-10-08T01:28:19.2758637Z Cloud: Azure
+2026-10-08T01:28:19.2759148Z ##[endgroup]
+2026-10-08T01:28:19.2760531Z ##[group]Operating System
+2026-10-08T01:28:19.2761171Z Ubuntu
+2026-10-08T01:28:19.2761656Z 24.04.5
+2026-10-08T01:28:19.2762097Z LTS
+2026-10-08T01:28:19.2762592Z ##[endgroup]
+2026-10-08T01:28:19.2763080Z ##[group]Runner Image
+2026-10-08T01:28:19.2763973Z Image: ubuntu-24.04
+2026-10-08T01:28:19.2764555Z Version: 20261004.327.1
+2026-10-08T01:28:19.2765755Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261004.327/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-08T01:28:19.2767131Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261004.327
+2026-10-08T01:28:19.2767986Z ##[endgroup]
+2026-10-08T01:28:19.2769020Z ##[group]GITHUB_TOKEN Permissions
+2026-10-08T01:28:19.2771248Z Contents: read
+2026-10-08T01:28:19.2771800Z Metadata: read
+2026-10-08T01:28:19.2772294Z ##[endgroup]
+2026-10-08T01:28:19.2774496Z Secret source: Actions
+2026-10-08T01:28:19.2775377Z Cache mode: write
+2026-10-08T01:28:19.2776083Z Prepare workflow directory
+2026-10-08T01:28:19.3095945Z Prepare all required actions
+2026-10-08T01:28:19.3201109Z Complete job name: skill test suite (tests/skills/, via test-framework.sh)
+2026-10-08T01:28:19.4188062Z ##[group]Run set -e
+2026-10-08T01:28:19.4189185Z [36;1mset -e[0m
+2026-10-08T01:28:19.4190470Z [36;1mecho "select=success mode=full selected=skipped full=failure"[0m
+2026-10-08T01:28:19.4192505Z [36;1mif [ "success" != "success" ]; then[0m
+2026-10-08T01:28:19.4193868Z [36;1m  echo "select job did not succeed"; exit 1[0m
+2026-10-08T01:28:19.4194994Z [36;1mfi[0m
+2026-10-08T01:28:19.4195865Z [36;1mif [ "success" != "success" ]; then[0m
+2026-10-08T01:28:19.4197320Z [36;1m  echo "native Windows worktree seed job did not succeed"; exit 1[0m
+2026-10-08T01:28:19.4198775Z [36;1mfi[0m
+2026-10-08T01:28:19.4199680Z [36;1mif [ "full" = "selected" ]; then[0m
+2026-10-08T01:28:19.4201064Z [36;1m  [ "skipped" = "success" ] || { echo "selected-mode run failed"; exit 1; }[0m
+2026-10-08T01:28:19.4202381Z [36;1melse[0m
+2026-10-08T01:28:19.4203739Z [36;1m  [ "failure" = "success" ] || { echo "full-mode run failed"; exit 1; }[0m
+2026-10-08T01:28:19.4205106Z [36;1mfi[0m
+2026-10-08T01:28:19.5077786Z shell: /usr/bin/bash -e {0}
+2026-10-08T01:28:19.5079387Z ##[endgroup]
+2026-10-08T01:28:19.5444781Z select=success mode=full selected=skipped full=failure
+2026-10-08T01:28:19.5447000Z full-mode run failed
+2026-10-08T01:28:19.5472268Z ##[error]Process completed with exit code 1.
+2026-10-08T01:28:19.5691676Z Cleaning up orphan processes
