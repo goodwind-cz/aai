@@ -222,6 +222,40 @@ if ((Test-Path $DocNumberGuard) -and (Get-Command node -ErrorAction SilentlyCont
     Write-Pass-Check "Doc-numbering guard skipped (allocator absent or node unavailable)"
 }
 
+# --- CHECK 9: Gitignored paths staged (post-validation-pushes-reuse-test-results D3) ---
+# Same mapping as the .sh twin: an ADDED ignored path blocks; a MODIFIED
+# already-tracked one warns (blocking under -Strict); a deletion passes. The
+# remedy for deliberate tracking is a `!<path>` re-include in .gitignore.
+$TrackedIgnoredScript = Join-Path $ProjectRoot ".aai/scripts/tracked-ignored.mjs"
+if ((Test-Path $TrackedIgnoredScript) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+    Push-Location $ProjectRoot
+    $tiOut = node $TrackedIgnoredScript --staged 2>&1
+    $tiRc = $LASTEXITCODE
+    Pop-Location
+    if ($tiRc -gt 1) {
+        Write-Warn-Check "Gitignored-path check could not run (tracked-ignored.mjs exit $tiRc) - skipped"
+        $tiOut | ForEach-Object { Write-Host "    $_" }
+    } else {
+        $tiSeen = $false
+        foreach ($tiLine in @($tiOut)) {
+            $tiText = [string]$tiLine
+            if ($tiText -match '^IGNORED_ADDED (.+) rule=(.*)$') {
+                $tiSeen = $true
+                Write-Error-Check "Gitignored path staged for ADD: $($Matches[1]) (rule $($Matches[2])) - to track it deliberately add `"!$($Matches[1])`" to .gitignore; otherwise unstage it: git rm --cached -- `"$($Matches[1])`""
+            } elseif ($tiText -match '^IGNORED_MODIFIED (.+) rule=(.*)$') {
+                $tiSeen = $true
+                Write-Warn-Check "Tracked path matched by .gitignore is modified: $($Matches[1]) (rule $($Matches[2])) - untrack it (git rm --cached) or re-include it with `"!$($Matches[1])`""
+            } elseif ($tiText -match '^IGNORED_PREEXISTING count=(\d+)$') {
+                $tiSeen = $true
+                Write-Warn-Check "$($Matches[1]) tracked path(s) already match .gitignore (not touched by this commit) - run: node .aai/scripts/tracked-ignored.mjs --all"
+            }
+        }
+        if (-not $tiSeen) { Write-Pass-Check "No gitignored path staged" }
+    }
+} else {
+    Write-Warn-Check "Gitignored-path check skipped (tracked-ignored.mjs absent or node unavailable)"
+}
+
 # --- SUMMARY ---
 Write-Host ""
 Write-Host "-------------------------------------"

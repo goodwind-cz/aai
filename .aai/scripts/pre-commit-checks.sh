@@ -251,6 +251,50 @@ else
   pass "Doc-numbering guard skipped (allocator absent or node unavailable)"
 fi
 
+# --- CHECK 9: Gitignored paths staged (post-validation-pushes-reuse-test-results D3) ---
+# tracked-ignored.mjs --staged is the one predicate (repository .gitignore
+# rules only; core.excludesFile and .git/info/exclude are not counted). An
+# ADDED ignored path (git add -f, copy or rename destination) blocks; a
+# MODIFIED already-tracked one warns (blocking only under --strict); a
+# deletion passes. The remedy for deliberate tracking is a `!<path>`
+# re-include in .gitignore, which is reviewable; there is no env bypass.
+TRACKED_IGNORED_SCRIPT="$PROJECT_ROOT/.aai/scripts/tracked-ignored.mjs"
+if [ -f "$TRACKED_IGNORED_SCRIPT" ] && command -v node >/dev/null 2>&1; then
+  TI_RC=0
+  TI_OUT="$(node "$TRACKED_IGNORED_SCRIPT" --staged 2>&1)" || TI_RC=$?
+  if [ "$TI_RC" -gt 1 ]; then
+    warn "Gitignored-path check could not run (tracked-ignored.mjs exit $TI_RC) — skipped"
+    echo "$TI_OUT" | sed 's/^/    /'
+  else
+    TI_SEEN=0
+    while IFS= read -r TI_LINE; do
+      case "$TI_LINE" in
+        "IGNORED_ADDED "*)
+          TI_REST="${TI_LINE#IGNORED_ADDED }"
+          TI_PATH="${TI_REST% rule=*}"; TI_RULE="${TI_REST##* rule=}"
+          TI_SEEN=1
+          error "Gitignored path staged for ADD: $TI_PATH (rule $TI_RULE) — to track it deliberately add \"!$TI_PATH\" to .gitignore; otherwise unstage it: git rm --cached -- \"$TI_PATH\""
+          ;;
+        "IGNORED_MODIFIED "*)
+          TI_REST="${TI_LINE#IGNORED_MODIFIED }"
+          TI_PATH="${TI_REST% rule=*}"; TI_RULE="${TI_REST##* rule=}"
+          TI_SEEN=1
+          warn "Tracked path matched by .gitignore is modified: $TI_PATH (rule $TI_RULE) — untrack it (git rm --cached) or re-include it with \"!$TI_PATH\""
+          ;;
+        "IGNORED_PREEXISTING count="*)
+          TI_SEEN=1
+          warn "${TI_LINE#IGNORED_PREEXISTING count=} tracked path(s) already match .gitignore (not touched by this commit) — run: node .aai/scripts/tracked-ignored.mjs --all"
+          ;;
+      esac
+    done <<TIEOF
+$TI_OUT
+TIEOF
+    [ "$TI_SEEN" -eq 1 ] || pass "No gitignored path staged"
+  fi
+else
+  warn "Gitignored-path check skipped (tracked-ignored.mjs absent or node unavailable)"
+fi
+
 # --- SUMMARY ---
 echo ""
 echo "─────────────────────────────────────"

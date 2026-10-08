@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 #
 # Test: tracked-ignored guard (CHANGE post-validation-pushes-reuse-test-results /
-# SPEC spec-post-validation-pushes-reuse-test-results, Batch A: TEST-1700..1705).
+# SPEC spec-post-validation-pushes-reuse-test-results, Batch A: TEST-1700..1705;
+# Batch B: TEST-1706..1710).
 #
 # Verifies .aai/scripts/tracked-ignored.mjs --all (repository .gitignore rules
 # only), the unconditional `tracked-ignored` job in skill-suite.yml wired into
 # the required gate, and that the delivered tree tracks no ignored path.
+#
+# Batch B adds the --staged mode, CHECK 9 of pre-commit-checks.sh/.ps1 and the
+# `(tracked-ignored)` label of check-committed-scope.mjs.
 #
 # Fixtures are real git repos (git init -b main, own user.email/name) built
 # under a scratch dir; the real repo is touched read-only by TEST-1705.
@@ -325,8 +329,240 @@ test_1705_live_tree_tracks_no_ignored_path() {  # Spec-AC-02
   log_pass "TEST-1705: zero tracked ignored paths on the live tree (TEST-1705)"
 }
 
+# ---- Batch B: --staged, CHECK 9 (sh + ps1), check-committed-scope -----------
+
+SCRIPTS_DIR="${TRACKED_IGNORED_SCRIPTS_DIR:-$PROJECT_ROOT/.aai/scripts}"
+
+# pc_fixture <name> <plain|legacy> — fixture repo carrying the scripts under
+# test. plain: no tracked ignored path. legacy: mod.log and pre.log are tracked
+# although `*.log` is ignored (a deliberate pre-existing exception).
+pc_fixture() {
+  local repo
+  repo="$(fx_repo "$1")"
+  mkdir -p "$repo/.aai/scripts" "$repo/docs/ai" "$repo/out"
+  cp "$SCRIPTS_DIR/pre-commit-checks.sh" "$SCRIPTS_DIR/pre-commit-checks.ps1" \
+     "$SCRIPTS_DIR/tracked-ignored.mjs" "$repo/.aai/scripts/"
+  printf 'out/**\n*.log\n' > "$repo/.gitignore"
+  printf 'x\n' > "$repo/keep.txt"
+  printf 'x\n' > "$repo/other.txt"
+  printf 'status: idle\n' > "$repo/docs/ai/STATE.yaml"
+  fx_git "$repo" add .gitignore keep.txt other.txt docs/ai/STATE.yaml
+  if [[ "$2" == "legacy" ]]; then
+    printf 'x\n' > "$repo/mod.log"
+    printf 'x\n' > "$repo/pre.log"
+    fx_git "$repo" add -f mod.log pre.log
+  fi
+  fx_git "$repo" commit -q -m base
+  printf '%s' "$repo"
+}
+
+# pc_run <repo> <sh|ps1> [strict] — run the pre-commit checks; sets OUT, CODE.
+pc_run() {
+  local repo="$1" flavor="$2" strict="${3:-}"
+  [[ -n "$repo" && "$repo" == /* && -d "$repo" ]] || log_fail "pc_run: bad fixture dir '$repo'"
+  if [[ "$flavor" == "sh" ]]; then
+    if [[ "$strict" == "strict" ]]; then
+      in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh --strict
+    else
+      in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh
+    fi
+  else
+    if [[ "$strict" == "strict" ]]; then
+      in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 -Strict
+    else
+      in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1
+    fi
+  fi
+}
+
+out_has() {  # <needle> — substring test on $OUT
+  case "$OUT" in *"$1"*) return 0 ;; *) return 1 ;; esac
+}
+
+# pc_cell <flavor> <cell> — build the cell's fixture, stage its change, run the
+# checks; sets OUT and CODE. Cells: add rename mod modstrict del pre global
+# clean strictclean.
+PC_SEQ=0
+pc_cell() {
+  local flavor="$1" cell="$2" repo
+  new_scratch
+  PC_SEQ=$((PC_SEQ + 1))
+  case "$cell" in
+    add)
+      repo="$(pc_fixture "c$PC_SEQ-$flavor-$cell" plain)"
+      printf 'n\n' > "$repo/out/new.txt"
+      fx_git "$repo" add -f out/new.txt
+      pc_run "$repo" "$flavor" ;;
+    rename)
+      repo="$(pc_fixture "c$PC_SEQ-$flavor-$cell" plain)"
+      fx_git "$repo" mv keep.txt out/keep.txt
+      pc_run "$repo" "$flavor" ;;
+    mod|modstrict)
+      repo="$(pc_fixture "c$PC_SEQ-$flavor-$cell" legacy)"
+      printf 'changed\n' > "$repo/mod.log"
+      fx_git "$repo" add mod.log
+      if [[ "$cell" == "modstrict" ]]; then pc_run "$repo" "$flavor" strict; else pc_run "$repo" "$flavor"; fi ;;
+    del)
+      repo="$(pc_fixture "c$PC_SEQ-$flavor-$cell" legacy)"
+      fx_git "$repo" rm -q --cached mod.log pre.log
+      pc_run "$repo" "$flavor" ;;
+    pre)
+      repo="$(pc_fixture "c$PC_SEQ-$flavor-$cell" legacy)"
+      printf 'changed\n' > "$repo/other.txt"
+      fx_git "$repo" add other.txt
+      pc_run "$repo" "$flavor" ;;
+    global)
+      repo="$(pc_fixture "c$PC_SEQ-$flavor-$cell" plain)"
+      printf 'g.dat\n' > "$TEST_DIR/c$PC_SEQ-global-excludes"
+      fx_git "$repo" config core.excludesFile "$TEST_DIR/c$PC_SEQ-global-excludes"
+      printf 'g\n' > "$repo/g.dat"
+      printf 'i.dat\n' > "$repo/.git/info/exclude"
+      printf 'i\n' > "$repo/i.dat"
+      fx_git "$repo" add -f g.dat i.dat
+      pc_run "$repo" "$flavor" ;;
+    clean|strictclean)
+      repo="$(pc_fixture "c$PC_SEQ-$flavor-$cell" plain)"
+      printf 'changed\n' > "$repo/other.txt"
+      fx_git "$repo" add other.txt
+      if [[ "$cell" == "strictclean" ]]; then pc_run "$repo" "$flavor" strict; else pc_run "$repo" "$flavor"; fi ;;
+    *) log_fail "pc_cell: unknown cell '$cell'" ;;
+  esac
+}
+
+# assert_cells <flavor> <tag> — the Spec-AC-03 cell table for one flavor.
+assert_cells() {
+  local flavor="$1" tag="$2"
+  pc_cell "$flavor" add
+  [[ "$CODE" == "1" ]] || log_fail "$tag($flavor): git add -f of an ignored path must exit 1, got $CODE: $OUT"
+  out_has "out/new.txt" || log_fail "$tag($flavor): refusal must name the path, got: $OUT"
+  out_has ".gitignore:1:out/**" || log_fail "$tag($flavor): refusal must name the rule, got: $OUT"
+  out_has '!out/new.txt' || log_fail "$tag($flavor): refusal must name the ! re-include remedy, got: $OUT"
+  pc_cell "$flavor" clean
+  [[ "$CODE" == "0" ]] || log_fail "$tag($flavor): negation — a commit with no ignored path must exit 0, got $CODE: $OUT"
+  pc_cell "$flavor" strictclean
+  [[ "$CODE" == "0" ]] || log_fail "$tag($flavor): negation — a clean commit must stay clean under strict, got $CODE: $OUT"
+  pc_cell "$flavor" rename
+  [[ "$CODE" == "1" ]] || log_fail "$tag($flavor): a rename INTO an ignored dir must exit 1, got $CODE: $OUT"
+  out_has "out/keep.txt" || log_fail "$tag($flavor): rename refusal must name the destination, got: $OUT"
+  pc_cell "$flavor" mod
+  [[ "$CODE" == "0" ]] || log_fail "$tag($flavor): a modified tracked ignored path warns and exits 0, got $CODE: $OUT"
+  out_has "mod.log" || log_fail "$tag($flavor): the modified-path warning must name mod.log, got: $OUT"
+  out_has "modified" || log_fail "$tag($flavor): the warning must say modified, got: $OUT"
+  pc_cell "$flavor" modstrict
+  [[ "$CODE" == "1" ]] || log_fail "$tag($flavor): a modified tracked ignored path blocks under strict, got $CODE: $OUT"
+  pc_cell "$flavor" del
+  [[ "$CODE" == "0" ]] || log_fail "$tag($flavor): git rm --cached (deletion) must exit 0, got $CODE: $OUT"
+  pc_cell "$flavor" pre
+  [[ "$CODE" == "0" ]] || log_fail "$tag($flavor): untouched pre-existing tracked ignored paths only warn, got $CODE: $OUT"
+  out_has "2 tracked path(s) already match .gitignore" \
+    || log_fail "$tag($flavor): pre-existing paths must give a count warning, got: $OUT"
+  pc_cell "$flavor" global
+  [[ "$CODE" == "0" ]] || log_fail "$tag($flavor): paths ignored only by core.excludesFile/info exclude must exit 0, got $CODE: $OUT"
+}
+
+test_1706_precommit_sh_refuses_added_ignored_path() {  # Spec-AC-03
+  log_info "Test: pre-commit-checks.sh refuses a git add -f of an ignored path, naming path, rule and remedy (TEST-1706)..."
+  new_scratch
+  pc_cell sh add
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1706: git add -f of an ignored path must exit 1, got $CODE: $OUT"
+  out_has "out/new.txt" || log_fail "TEST-1706: refusal must name the path, got: $OUT"
+  out_has ".gitignore:1:out/**" || log_fail "TEST-1706: refusal must name the rule, got: $OUT"
+  out_has '!out/new.txt' || log_fail "TEST-1706: refusal must name the ! re-include remedy, got: $OUT"
+  pc_cell sh clean
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1706: negation — the same commit without the ignored path must exit 0, got $CODE: $OUT"
+  log_pass "TEST-1706: CHECK 9 refuses an added ignored path (TEST-1706)"
+}
+
+test_1707_precommit_sh_cells() {  # Spec-AC-03
+  log_info "Test: pre-commit-checks.sh cells — rename, modified, strict, deletion, pre-existing, global excludes (TEST-1707)..."
+  assert_cells sh "TEST-1707"
+  log_pass "TEST-1707: rename blocks; modified warns (blocks under strict); deletion and global-only pass; count warning (TEST-1707)"
+}
+
+test_1708_precommit_ps1_parity() {  # Spec-AC-03
+  log_info "Test: pre-commit-checks.ps1 gives the same exit codes on the TEST-1706/1707 cells (TEST-1708)..."
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_info "SKIP-NAMED: TEST-1708 needs pwsh (not installed here; ubuntu CI has it)"
+    return 0
+  fi
+  assert_cells ps1 "TEST-1708"
+  log_pass "TEST-1708: pre-commit-checks.ps1 matches the .sh cell table (TEST-1708)"
+}
+
+test_1709_real_hook_refuses_commit() {  # Spec-AC-03, SEAM S2
+  log_info "Test: SEAM S2 — the real installed pre-commit hook refuses a git commit of a forced ignored file (TEST-1709)..."
+  new_scratch
+  local repo before after
+  repo="$(pc_fixture t1709 plain)"
+  cp "$SCRIPTS_DIR/install-pre-commit-hook.sh" "$repo/.aai/scripts/"
+  in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/install-pre-commit-hook.sh --hooks index
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1709: hook install failed ($CODE): $OUT"
+  [[ -f "$repo/.git/hooks/pre-commit" ]] || log_fail "TEST-1709: pre-commit hook not installed"
+
+  printf 'ok\n' > "$repo/other.txt"
+  fx_git "$repo" add other.txt
+  in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git commit -q -m normal
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1709: positive control — a normal commit must succeed, got $CODE: $OUT"
+
+  before="$(fx_git "$repo" rev-list --count HEAD)"
+  printf 'n\n' > "$repo/out/new.txt"
+  fx_git "$repo" add -f out/new.txt
+  in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git commit -q -m forced
+  [[ "$CODE" != "0" ]] || log_fail "TEST-1709: the hook must refuse the commit of a forced ignored file, got exit 0: $OUT"
+  out_has "out/new.txt" || log_fail "TEST-1709: the refusal must name the path, got: $OUT"
+  after="$(fx_git "$repo" rev-list --count HEAD)"
+  [[ "$before" == "$after" ]] || log_fail "TEST-1709: HEAD must not advance on a refused commit ($before -> $after)"
+  log_pass "TEST-1709: the real hook refuses the forced commit and a normal commit succeeds (TEST-1709)"
+}
+
+# ccs_run <repo> <args...> — check-committed-scope in a fixture cwd; OUT, CODE.
+ccs_run() {
+  local repo="$1"; shift
+  in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null node "$SCRIPTS_DIR/check-committed-scope.mjs" "$@"
+}
+
+test_1710_check_committed_scope_label() {  # Spec-AC-04
+  log_info "Test: check-committed-scope lists a tracked ignored in-scope path as (tracked-ignored) (TEST-1710)..."
+  new_scratch
+  local repo
+  repo="$(fx_repo t1710)"
+  mkdir -p "$repo/scopedir" "$repo/cleandir"
+  printf '*.log\n' > "$repo/.gitignore"
+  printf 'x\n' > "$repo/scopedir/ok.txt"
+  printf 'x\n' > "$repo/scopedir/bad.log"
+  printf 'x\n' > "$repo/cleandir/ok.txt"
+  fx_git "$repo" add .gitignore scopedir/ok.txt cleandir/ok.txt
+  fx_git "$repo" add -f scopedir/bad.log
+  fx_git "$repo" commit -q -m init
+
+  ccs_run "$repo" scopedir
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1710: plain mode must exit 1, got $CODE: $OUT"
+  out_has "scopedir/bad.log (tracked-ignored)" || log_fail "TEST-1710: plain output must carry the label, got: $OUT"
+  ccs_run "$repo" --strict scopedir
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1710: --strict must exit 1, got $CODE: $OUT"
+  out_has "scopedir/bad.log (tracked-ignored)" || log_fail "TEST-1710: --strict output must carry the label, got: $OUT"
+  ccs_run "$repo" --rev HEAD scopedir
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1710: --rev HEAD must exit 1, got $CODE: $OUT"
+  out_has "scopedir/bad.log (tracked-ignored)" || log_fail "TEST-1710: --rev output must carry the label, got: $OUT"
+  ccs_run "$repo" scopedir/bad.log
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1710: a file in scope must exit 1, got $CODE: $OUT"
+
+  ccs_run "$repo" cleandir
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1710: negation — a scope without a tracked ignored path must exit 0, got $CODE: $OUT"
+  ccs_run "$repo" --strict cleandir
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1710: negation under --strict must exit 0, got $CODE: $OUT"
+
+  # --rev evaluates that revision's tree: untrack in the index only.
+  fx_git "$repo" rm -q --cached scopedir/bad.log
+  ccs_run "$repo" scopedir
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1710: index no longer tracks it, plain mode must exit 0, got $CODE: $OUT"
+  ccs_run "$repo" --rev HEAD scopedir
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1710: --rev HEAD must still see it, got $CODE: $OUT"
+  log_pass "TEST-1710: (tracked-ignored) label in plain, --strict and --rev modes (TEST-1710)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (post-validation-pushes-reuse-test-results, Batch A)"
+  echo "Testing $TEST_NAME (post-validation-pushes-reuse-test-results, Batches A and B)"
   check_deps
   test_1700_all_lists_forced_ignored_and_clean_control
   test_1701_nested_gitignore_and_negation
@@ -334,6 +570,11 @@ main() {
   test_1703_workflow_job_and_gate_wiring
   test_1704_workflow_run_text_executes_in_fixture
   test_1705_live_tree_tracks_no_ignored_path
+  test_1706_precommit_sh_refuses_added_ignored_path
+  test_1707_precommit_sh_cells
+  test_1708_precommit_ps1_parity
+  test_1709_real_hook_refuses_commit
+  test_1710_check_committed_scope_label
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

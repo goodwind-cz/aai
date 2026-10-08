@@ -57,6 +57,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { checkBranchPin } from './branch-guard.mjs';
+import { trackedIgnored } from './tracked-ignored.mjs';
 
 function usage(msg) { process.stderr.write(`check-committed-scope: ${msg}\n`); process.exit(2); }
 
@@ -379,6 +380,24 @@ function main() {
     mismatches.push(rel);
   }
 
+  // Spec-AC-04 (post-validation-pushes-reuse-test-results): an in-scope path
+  // (file or directory) that the compared tree TRACKS although the repository
+  // .gitignore rules match it is a mismatch in plain AND --strict mode — the
+  // PR #434 shape (force-added runtime reports). One predicate, shared with
+  // the CI check and the pre-commit guard: tracked-ignored.mjs.
+  const tiPaths = [...new Set(a.paths)];
+  const tiHits = new Set();
+  if (tiPaths.length) {
+    try {
+      for (const h of trackedIgnored({ cwd: root, rev: a.rev, pathspecs: tiPaths }).hits) {
+        tiHits.add(h.path);
+        if (!mismatches.includes(h.path)) mismatches.push(h.path);
+      }
+    } catch (e) {
+      degraded.push(`tracked-ignored check could not run: ${e.message}`);
+    }
+  }
+
   // A degrade is a failure under --strict, and "clean" is never printed for a
   // run that verified nothing: the last line of the output is what a human or a
   // grep reads, and `clean — 0 path(s)` after a list of degrades is a lie.
@@ -391,6 +410,7 @@ function main() {
   const out = {
     status: mismatches.length ? 'mismatch' : (degraded.length ? 'degraded' : (checked === 0 ? 'nothing-checked' : 'clean')),
     strict: a.strict, failed, checked, mismatches, degraded, appends, pending_appends: pendingAppends,
+    tracked_ignored: [...tiHits],
   };
   if (a.json) process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
   else {
@@ -411,7 +431,8 @@ function main() {
         // differently, so a reader (or a grep) knows which one it is.
         const label = pendingAppends.includes(m) ? ' (pending append not committed)'
           : LEDGER_PATHS.has(m) ? ' (divergence — not an append)' : '';
-        process.stderr.write(`  - ${m}${label}\n`);
+        const tiLabel = tiHits.has(m) ? ' (tracked-ignored)' : '';
+        process.stderr.write(`  - ${m}${label}${tiLabel}\n`);
       }
       process.stderr.write('The commit does NOT carry what the worktree holds. The usual cause is a\n`git add` given a path something already renamed: the whole add aborts, and the\ncommit still looks plausible because other steps stage files of their own.\nRe-stage these paths and amend, or commit them, before pushing.\n');
     } else if (checked === 0) {

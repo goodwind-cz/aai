@@ -12,16 +12,24 @@
 //
 // USAGE
 //   node .aai/scripts/tracked-ignored.mjs --all [--rev <rev>]
+//   node .aai/scripts/tracked-ignored.mjs --staged
 //
 // OUTPUT (--all)
 //   TRACKED_IGNORED <path> rule=<source>:<line>:<pattern>   (one per path, exit 1)
 //   TRACKED_IGNORED none checked=<n>                         (n > 0, exit 0)
 //
-// EXIT: 0 clean, 1 tracked ignored path(s) found, 2 usage or git failure
-// (never a silent 0). `--staged` mode is reserved for a later batch.
+// OUTPUT (--staged: index versus HEAD, `--no-renames` so a rename INTO an
+// ignored path is a delete plus an ADD)
+//   IGNORED_ADDED <path> rule=<...>      added/copied path the rules match (exit 1)
+//   IGNORED_MODIFIED <path> rule=<...>   modified/type-changed tracked ignored path
+//   IGNORED_PREEXISTING count=<n>        tracked ignored paths this commit does not touch
+//   (deletions are never reported: untracking is the remedy)
+//
+// EXIT: 0 clean, 1 tracked ignored path(s) found (--staged: an ADDED one),
+// 2 usage or git failure (never a silent 0).
 //
 // Node stdlib only; no imports from sibling scripts (fixtures copy this file
-// alone). Exported: trackedIgnored({cwd, rev, paths}).
+// alone). Exported: trackedIgnored({cwd, rev, paths, pathspecs}), stagedIgnored({cwd}).
 
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
@@ -84,7 +92,9 @@ function ruleFor(cwd, path) {
   return 'unknown';
 }
 
-export function trackedIgnored({ cwd, rev, paths } = {}) {
+// `pathspecs` limits the scan to those paths (a directory covers everything
+// under it); each is passed literally so glob characters are not patterns.
+export function trackedIgnored({ cwd, rev, paths, pathspecs } = {}) {
   const top = gitOk(resolve(cwd || process.cwd()), ['rev-parse', '--show-toplevel']).trim();
   if (!top) throw new Error('not inside a git work tree');
   let env = {};
@@ -96,9 +106,10 @@ export function trackedIgnored({ cwd, rev, paths } = {}) {
       env = { GIT_INDEX_FILE: join(tmp, 'index') };
       gitOk(top, ['read-tree', rev], env);
     }
-    const tracked = splitNul(gitOk(top, ['ls-files', '-z'], env));
+    const spec = pathspecs && pathspecs.length ? ['--', ...pathspecs.map((p) => `:(literal)${p}`)] : [];
+    const tracked = splitNul(gitOk(top, ['ls-files', '-z', ...spec], env));
     const ignored = splitNul(
-      gitOk(top, ['ls-files', '-z', '-ci', '--exclude-per-directory=.gitignore'], env),
+      gitOk(top, ['ls-files', '-z', '-ci', '--exclude-per-directory=.gitignore', ...spec], env),
     );
     const want = paths ? new Set(paths) : null;
     const hits = (want ? ignored.filter((p) => want.has(p)) : ignored).map((p) => ({
@@ -111,23 +122,58 @@ export function trackedIgnored({ cwd, rev, paths } = {}) {
   }
 }
 
+// Index versus HEAD. `--no-renames` turns a rename into delete + add, so a
+// rename INTO an ignored path is caught as an add.
+export function stagedIgnored({ cwd } = {}) {
+  const top = gitOk(resolve(cwd || process.cwd()), ['rev-parse', '--show-toplevel']).trim();
+  if (!top) throw new Error('not inside a git work tree');
+  const diff = (filter) =>
+    splitNul(gitOk(top, ['diff', '--cached', '--name-only', '--no-renames', '-z', `--diff-filter=${filter}`]));
+  const added = new Set(diff('AC'));
+  const modified = new Set(diff('MT'));
+  const { hits } = trackedIgnored({ cwd: top });
+  const out = { added: [], modified: [], preexisting: 0 };
+  for (const h of hits) {
+    if (added.has(h.path)) out.added.push(h);
+    else if (modified.has(h.path)) out.modified.push(h);
+    else out.preexisting += 1;
+  }
+  return out;
+}
+
 function usage(msg) {
-  process.stderr.write(`${msg ? msg + '\n' : ''}usage: tracked-ignored.mjs --all [--rev <rev>]\n`);
+  process.stderr.write(`${msg ? msg + '\n' : ''}usage: tracked-ignored.mjs --all [--rev <rev>] | --staged\n`);
   process.exit(2);
 }
 
 function main(argv) {
   let all = false;
+  let staged = false;
   let rev = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--all') all = true;
+    else if (a === '--staged') staged = true;
     else if (a === '--rev') {
       rev = argv[++i];
       if (!rev) usage('--rev needs a value');
     } else usage(`unknown argument: ${a}`);
   }
-  if (!all) usage('--all is required');
+  if (all === staged) usage('exactly one of --all or --staged is required');
+  if (staged && rev) usage('--rev applies to --all only');
+  if (staged) {
+    let st;
+    try {
+      st = stagedIgnored({});
+    } catch (e) {
+      process.stderr.write(`tracked-ignored: ${e.message}\n`);
+      process.exit(2);
+    }
+    for (const h of st.added) process.stdout.write(`IGNORED_ADDED ${h.path} rule=${h.rule}\n`);
+    for (const h of st.modified) process.stdout.write(`IGNORED_MODIFIED ${h.path} rule=${h.rule}\n`);
+    if (st.preexisting > 0) process.stdout.write(`IGNORED_PREEXISTING count=${st.preexisting}\n`);
+    process.exit(st.added.length > 0 ? 1 : 0);
+  }
   let res;
   try {
     res = trackedIgnored({ rev });
