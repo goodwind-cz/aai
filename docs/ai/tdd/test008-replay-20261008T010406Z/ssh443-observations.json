@@ -1,0 +1,343 @@
+{
+  "node": "v26.8.2",
+  "git": "git version 2.54.0 (Apple Git-157)\n",
+  "shipping_head": "ebbd0eaeaebfa9015f550193df6f0b54afc338c3",
+  "observations": [
+    {
+      "name": "https",
+      "url": "https://github.com/OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "https://github.com/OWNER/REPO.git\n",
+      "effective_push": "https://github.com/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"https://github.com/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 0,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":{\"host\":\"github.com\",\"repository\":\"OWNER/REPO\"},\"remote_name\":\"origin\",\"source_branch\":\"source\",\"target_branch\":\"main\",\"head_sha\":\"590ef12df267b7ceb5f786409a2c73dbd5f2850a\",\"outcome\":\"read_verified\",\"code\":\"READ_VERIFIED\",\"operation\":\"github.readiness\",\"remedy\":\"Repository read access verified at invocation time; future PR create permission remains unknown.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": ""
+      },
+      "calls": [
+        {
+          "args": [
+            "--version"
+          ],
+          "GH_HOST": "github.com"
+        },
+        {
+          "args": [
+            "auth",
+            "status",
+            "--hostname",
+            "github.com"
+          ],
+          "GH_HOST": "github.com"
+        },
+        {
+          "args": [
+            "repo",
+            "view",
+            "OWNER/REPO",
+            "--json",
+            "nameWithOwner,url"
+          ],
+          "GH_HOST": "github.com"
+        }
+      ]
+    },
+    {
+      "name": "scp",
+      "url": "git@github.com:OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "git@github.com:OWNER/REPO.git\n",
+      "effective_push": "git@github.com:OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"git@github.com:OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 0,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":{\"host\":\"github.com\",\"repository\":\"OWNER/REPO\"},\"remote_name\":\"origin\",\"source_branch\":\"source\",\"target_branch\":\"main\",\"head_sha\":\"590ef12df267b7ceb5f786409a2c73dbd5f2850a\",\"outcome\":\"read_verified\",\"code\":\"READ_VERIFIED\",\"operation\":\"github.readiness\",\"remedy\":\"Repository read access verified at invocation time; future PR create permission remains unknown.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": ""
+      },
+      "calls": [
+        {
+          "args": [
+            "--version"
+          ],
+          "GH_HOST": "github.com"
+        },
+        {
+          "args": [
+            "auth",
+            "status",
+            "--hostname",
+            "github.com"
+          ],
+          "GH_HOST": "github.com"
+        },
+        {
+          "args": [
+            "repo",
+            "view",
+            "OWNER/REPO",
+            "--json",
+            "nameWithOwner,url"
+          ],
+          "GH_HOST": "github.com"
+        }
+      ]
+    },
+    {
+      "name": "ssh-no-port",
+      "url": "ssh://git@github.com/OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "ssh://git@github.com/OWNER/REPO.git\n",
+      "effective_push": "ssh://git@github.com/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"ssh://github.com/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 0,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":{\"host\":\"github.com\",\"repository\":\"OWNER/REPO\"},\"remote_name\":\"origin\",\"source_branch\":\"source\",\"target_branch\":\"main\",\"head_sha\":\"590ef12df267b7ceb5f786409a2c73dbd5f2850a\",\"outcome\":\"read_verified\",\"code\":\"READ_VERIFIED\",\"operation\":\"github.readiness\",\"remedy\":\"Repository read access verified at invocation time; future PR create permission remains unknown.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": ""
+      },
+      "calls": [
+        {
+          "args": [
+            "--version"
+          ],
+          "GH_HOST": "github.com"
+        },
+        {
+          "args": [
+            "auth",
+            "status",
+            "--hostname",
+            "github.com"
+          ],
+          "GH_HOST": "github.com"
+        },
+        {
+          "args": [
+            "repo",
+            "view",
+            "OWNER/REPO",
+            "--json",
+            "nameWithOwner,url"
+          ],
+          "GH_HOST": "github.com"
+        }
+      ]
+    },
+    {
+      "name": "documented-alias",
+      "url": "ssh://git@ssh.github.com:443/OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "ssh://git@ssh.github.com:443/OWNER/REPO.git\n",
+      "effective_push": "ssh://git@ssh.github.com:443/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"ssh://ssh.github.com:443/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 2,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":null,\"remote_name\":null,\"source_branch\":null,\"target_branch\":null,\"head_sha\":null,\"outcome\":\"refused\",\"code\":\"IDENTITY_INVALID\",\"operation\":\"identity\",\"remedy\":\"Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": "pr-preflight: IDENTITY_INVALID (identity): Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\n"
+      },
+      "calls": []
+    },
+    {
+      "name": "documented-alias-mismatch",
+      "url": "ssh://git@ssh.github.com:443/OWNER/REPO.git",
+      "repository": "OWNER/OTHER",
+      "effective_fetch": "ssh://git@ssh.github.com:443/OWNER/REPO.git\n",
+      "effective_push": "ssh://git@ssh.github.com:443/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"ssh://ssh.github.com:443/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 2,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":null,\"remote_name\":null,\"source_branch\":null,\"target_branch\":null,\"head_sha\":null,\"outcome\":\"refused\",\"code\":\"IDENTITY_INVALID\",\"operation\":\"identity\",\"remedy\":\"Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": "pr-preflight: IDENTITY_INVALID (identity): Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\n"
+      },
+      "calls": []
+    },
+    {
+      "name": "alias-other-port",
+      "url": "ssh://git@ssh.github.com:444/OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "ssh://git@ssh.github.com:444/OWNER/REPO.git\n",
+      "effective_push": "ssh://git@ssh.github.com:444/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"ssh://ssh.github.com:444/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 2,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":null,\"remote_name\":null,\"source_branch\":null,\"target_branch\":null,\"head_sha\":null,\"outcome\":\"refused\",\"code\":\"IDENTITY_INVALID\",\"operation\":\"identity\",\"remedy\":\"Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": "pr-preflight: IDENTITY_INVALID (identity): Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\n"
+      },
+      "calls": []
+    },
+    {
+      "name": "github-ssh443",
+      "url": "ssh://git@github.com:443/OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "ssh://git@github.com:443/OWNER/REPO.git\n",
+      "effective_push": "ssh://git@github.com:443/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"ssh://github.com:443/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 2,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":null,\"remote_name\":null,\"source_branch\":null,\"target_branch\":null,\"head_sha\":null,\"outcome\":\"refused\",\"code\":\"IDENTITY_INVALID\",\"operation\":\"identity\",\"remedy\":\"Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": "pr-preflight: IDENTITY_INVALID (identity): Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\n"
+      },
+      "calls": []
+    },
+    {
+      "name": "https-default443",
+      "url": "https://github.com:443/OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "https://github.com:443/OWNER/REPO.git\n",
+      "effective_push": "https://github.com:443/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"https://github.com:443/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 0,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":{\"host\":\"github.com\",\"repository\":\"OWNER/REPO\"},\"remote_name\":\"origin\",\"source_branch\":\"source\",\"target_branch\":\"main\",\"head_sha\":\"590ef12df267b7ceb5f786409a2c73dbd5f2850a\",\"outcome\":\"read_verified\",\"code\":\"READ_VERIFIED\",\"operation\":\"github.readiness\",\"remedy\":\"Repository read access verified at invocation time; future PR create permission remains unknown.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": ""
+      },
+      "calls": [
+        {
+          "args": [
+            "--version"
+          ],
+          "GH_HOST": "github.com"
+        },
+        {
+          "args": [
+            "auth",
+            "status",
+            "--hostname",
+            "github.com"
+          ],
+          "GH_HOST": "github.com"
+        },
+        {
+          "args": [
+            "repo",
+            "view",
+            "OWNER/REPO",
+            "--json",
+            "nameWithOwner,url"
+          ],
+          "GH_HOST": "github.com"
+        }
+      ]
+    },
+    {
+      "name": "https-other-port",
+      "url": "https://github.com:444/OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "https://github.com:444/OWNER/REPO.git\n",
+      "effective_push": "https://github.com:444/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"https://github.com:444/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 2,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":null,\"remote_name\":null,\"source_branch\":null,\"target_branch\":null,\"head_sha\":null,\"outcome\":\"refused\",\"code\":\"IDENTITY_INVALID\",\"operation\":\"identity\",\"remedy\":\"Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": "pr-preflight: IDENTITY_INVALID (identity): Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\n"
+      },
+      "calls": []
+    },
+    {
+      "name": "alias-no-port",
+      "url": "ssh://git@ssh.github.com/OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "ssh://git@ssh.github.com/OWNER/REPO.git\n",
+      "effective_push": "ssh://git@ssh.github.com/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"ssh://ssh.github.com/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 3,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":{\"host\":\"ssh.github.com\",\"repository\":\"OWNER/REPO\"},\"remote_name\":\"origin\",\"source_branch\":\"source\",\"target_branch\":\"main\",\"head_sha\":\"590ef12df267b7ceb5f786409a2c73dbd5f2850a\",\"outcome\":\"refused\",\"code\":\"ACCESS_UNKNOWN\",\"operation\":\"gh.authentication\",\"remedy\":\"Ask the operator to verify repository read access; an ambiguous denial cannot prove readiness.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": "pr-preflight: ACCESS_UNKNOWN (gh.authentication): Ask the operator to verify repository read access; an ambiguous denial cannot prove readiness.\n"
+      },
+      "calls": [
+        {
+          "args": [
+            "--version"
+          ],
+          "GH_HOST": "ssh.github.com"
+        },
+        {
+          "args": [
+            "auth",
+            "status",
+            "--hostname",
+            "ssh.github.com"
+          ],
+          "GH_HOST": "ssh.github.com"
+        }
+      ]
+    },
+    {
+      "name": "ordinary-mismatch",
+      "url": "git@github.com:OWNER/REPO.git",
+      "repository": "OWNER/OTHER",
+      "effective_fetch": "git@github.com:OWNER/REPO.git\n",
+      "effective_push": "git@github.com:OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"github\",\n  \"remote\": \"git@github.com:OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 2,
+        "stdout": "{\"schema_version\":1,\"platform\":\"github\",\"repository\":null,\"remote_name\":null,\"source_branch\":null,\"target_branch\":null,\"head_sha\":null,\"outcome\":\"refused\",\"code\":\"IDENTITY_INVALID\",\"operation\":\"identity\",\"remedy\":\"Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": "pr-preflight: IDENTITY_INVALID (identity): Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\n"
+      },
+      "calls": []
+    },
+    {
+      "name": "github-lookalike",
+      "url": "ssh://git@ssh.github.com.evil.invalid:443/OWNER/REPO.git",
+      "repository": "OWNER/REPO",
+      "effective_fetch": "ssh://git@ssh.github.com.evil.invalid:443/OWNER/REPO.git\n",
+      "effective_push": "ssh://git@ssh.github.com.evil.invalid:443/OWNER/REPO.git\n",
+      "platform": {
+        "status": 0,
+        "stdout": "{\n  \"platform\": \"unknown\",\n  \"remote\": \"ssh://ssh.github.com.evil.invalid:443/OWNER/REPO.git\",\n  \"reviewer_bots\": \"none\"\n}\n",
+        "stderr": ""
+      },
+      "preflight": {
+        "status": 2,
+        "stdout": "{\"schema_version\":1,\"platform\":\"unknown\",\"repository\":null,\"remote_name\":null,\"source_branch\":null,\"target_branch\":null,\"head_sha\":null,\"outcome\":\"refused\",\"code\":\"IDENTITY_INVALID\",\"operation\":\"identity\",\"remedy\":\"Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\",\"create_permission\":\"unknown\"}\n",
+        "stderr": "pr-preflight: IDENTITY_INVALID (identity): Supply schema v1 with the actual checkout, selected remote, current source branch and a distinct explicit target; bind provider identity to a single matching fetch and push destination. Divergent or multiple destinations require explicit configuration repair.\n"
+      },
+      "calls": []
+    }
+  ]
+}

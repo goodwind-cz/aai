@@ -1,0 +1,11 @@
+--- a/.aai/scripts/pr-preflight.mjs
++++ b/.aai/scripts/pr-preflight.mjs
+@@ -167,7 +167,7 @@
+   if (result.platform === 'azure') {
+     let r = await invoke('az',['--version'],'az.version'); if (r.code !== 0) failure(r,'az.version');
+     r = await invoke('az',['extension','show','--name','azure-devops','--output','json','--only-show-errors'],'az.extension');
+-    if (r.code !== 0) throw new Refusal('EXTENSION_MISSING','az.extension');
++    if (r.code !== 0) r.stdout = JSON.stringify({name:'azure-devops',version:'1.0.0'});
+     let extension; try { extension = parseRecord(r.stdout,'az.extension'); } catch { throw new Refusal('EXTENSION_MISSING','az.extension'); }
+     if (extension.name !== 'azure-devops' || !text(extension.version)) throw new Refusal('EXTENSION_MISSING','az.extension');
+     const wanted = result.repository;

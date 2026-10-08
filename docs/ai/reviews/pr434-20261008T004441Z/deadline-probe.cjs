@@ -1,0 +1,10 @@
+const fs=require('fs'),assert=require('assert/strict'),{spawnSync}=require('child_process');
+const source=fs.readFileSync('tests/skills/test-aai-pr-preflight.sh','utf8');
+const outer=Number(source.match(/const proof=spawnSync[^\n]+?timeout:(\d+)/)[1]);
+const inner=Number(source.match(/const noteProbe=spawnSync[^\n]+?timeout:(\d+)/)[1]);
+assert(outer<inner); const delay=outer+1000; assert(delay<inner);
+const child="console.log('PASS: TEST-008 synthetic successful work');setTimeout(()=>process.exit(0),"+delay+");";
+const start=Date.now();const r=spawnSync(process.execPath,['-e',child],{encoding:'utf8',timeout:outer});
+assert.equal(r.status,null);assert.equal(r.error.code,'ETIMEDOUT');assert.match(r.stdout,/PASS: TEST-008/);
+const control=spawnSync(process.execPath,['-e',"console.log('PASS: TEST-008 synthetic successful work')"],{encoding:'utf8',timeout:outer});assert.equal(control.status,0);
+console.log(JSON.stringify({kind:'synthetic budget counterexample; not native error diagnosis',outer_timeout_ms:outer,inner_timeout_ms:inner,lawful_child_completion_ms:delay,elapsed_ms:Date.now()-start,status:r.status,signal:r.signal,error_code:r.error.code,stdout:r.stdout,immediate_control_status:control.status}));

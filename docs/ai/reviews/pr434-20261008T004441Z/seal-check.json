@@ -1,0 +1,11 @@
+{
+  "report_ac_rows": 6,
+  "dual_verdicts": "fail/fail",
+  "ci_transports_verified": 7,
+  "all_source_bound_jobs_terminal": true,
+  "head_unchanged": true,
+  "index_clean": true,
+  "only_tracked_delta": "docs/ai/EVENTS.jsonl (three disclosed telemetry rows)",
+  "max_review_relative_path_chars": 61,
+  "exit_code": 0
+}

@@ -1,0 +1,181 @@
+{
+  "scope": "pr-capability-preflight",
+  "base": "bdeb425c040ada918dd97e5b878b71e420bad83a",
+  "head": "ebbd0eaeaebfa9015f550193df6f0b54afc338c3",
+  "ended_utc": "2026-10-08T01:01:41Z",
+  "duration_seconds": 1020,
+  "files": [
+    {
+      "path": "docs/ai/EVENTS.jsonl",
+      "bytes": 543188,
+      "sha256": "6a439790b681bcb6c07905db934aaf1c9bd508a5856a8467ef43b49e01f5c113"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/audit.json",
+      "bytes": 103245,
+      "sha256": "fcedb22c36238d114d83f91a732651d505251897dfe3994de768d8178ee46d76"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/audit.log",
+      "bytes": 170,
+      "sha256": "bae1a88854fc57c5bba26caa83599c46957737d426d2bdc7d2bb1e2e1a9076c1"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/audit.py",
+      "bytes": 2935,
+      "sha256": "a2bef07d95d6b4d0a3de21961d454553156736ce4d23f3b6927b5faddbaa373f"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/boundary.json",
+      "bytes": 1600,
+      "sha256": "505d037b9385e799e87dd22baf2d5e0f550b8e9963af233fbde0a8403c5e92a8"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/ci-transport.json",
+      "bytes": 1964,
+      "sha256": "0a8e283d58a540abab057e1b04dd6837c8a48de2c9a12f6793f3177de425b5f5"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/deadline-probe.cjs",
+      "bytes": 1221,
+      "sha256": "3b50600ded2c32b0eabd27ab8b45ca9a947c8dbc38ea75b84fa999c5bfdb413b"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/deadline-probe.log",
+      "bytes": 316,
+      "sha256": "41b20af7114b7fe55162a837e83365b29b41ae689ec029a90caeb8a665ee78b1"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/docs-audit.log",
+      "bytes": 6954,
+      "sha256": "8dc060f8193a944e0d59fdb5ea505543948e5b87e93d542dfdf3142132dfd295"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/full-diff-check.log",
+      "bytes": 314595,
+      "sha256": "946a04290441fd35ec8178f5652de0f4a4bfb5046512ef1374a576f4708398a4"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/full-jobs.json",
+      "bytes": 17613,
+      "sha256": "0a74e37caa6b16a6e024f21269c5f3bcfbc4f554b2f0e9d10aaa86738a3b7c6f"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/full1.log",
+      "bytes": 36182,
+      "sha256": "ad80ec2b8fe8268070d08221c1acbe86d5d49219f6abc93a5417128b5f74f23c"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/full2.log",
+      "bytes": 35750,
+      "sha256": "16e57ae3fd04336d3cbdfd827de2ed39231cbddddfdc975027d5fa37b369d2ba"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/full3.log",
+      "bytes": 41527,
+      "sha256": "7a1b6236c9e7d7ccc39ee5f577f5b8421a38ca78dd8ae4f4392c3fcc284e2cb7"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/full4.log",
+      "bytes": 37863,
+      "sha256": "fb19d089cb58fc302e96f10ef2fc6015dae8565bc4c6a5a505243710200a1a9b"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/incidental-events.diff",
+      "bytes": 1289,
+      "sha256": "69638b2617d01efc3a17780ffc74dbcbd6abccb1255a1f73bd4c2c0b57b7c628"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/layer-profiles.log",
+      "bytes": 4050,
+      "sha256": "7403781c7e0e08a474a778dfca668d52b857926c8e1187ae8a6dad68b0894d4d"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/linux-excerpt.log",
+      "bytes": 15614,
+      "sha256": "c4e95beacab88c2e8f921b2e0cc6f32995c40f612862375af589b41041f56f38"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/linux.log",
+      "bytes": 83370,
+      "sha256": "bfcb90c6524adccea27e94ace442c6323eb4c1dbefcf04958f96e180ee9524a9"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/native-jobs.json",
+      "bytes": 10159,
+      "sha256": "27765962b2ad4179f348912f922be4882944e5411d9a89c9ac61493f1938406f"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/pr-platform.log",
+      "bytes": 4421,
+      "sha256": "4e5a15b82e09ab60f861ea4a24ce77ad2518e7704d5c98a8262502cd4d68ee68"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/preflight.log",
+      "bytes": 10706,
+      "sha256": "99e43407b14380b891f15d038002d5b6b1a95631abdd78e307b24d7dafe62f56"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/prompt-diet.log",
+      "bytes": 8084,
+      "sha256": "7c89a40976ef33d3048235760eff63c588396fa7b7f4e3a934d5afc4abe82e3f"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/result.md",
+      "bytes": 7175,
+      "sha256": "fede730d4124479be2a789d3833e4f749bc740418e4579a6b4bb83459044685b"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/ride-select.log",
+      "bytes": 26859,
+      "sha256": "89846a7357959185a4b32fa415286f1d6f40650eb7504a2bf9e2d259a9128d9f"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/role-output-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/role-output-first-failure.log",
+      "bytes": 106,
+      "sha256": "7bb32da45b4fcc3d5fccb938669fba406a6045919ff50920b340439d6b418dea"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/seal-check.json",
+      "bytes": 319,
+      "sha256": "0f315ce69ff8ccba61d2a7de7023a6f2f241ea6758d88112d39cf9ab53ebccb0"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/spec-lint.log",
+      "bytes": 188,
+      "sha256": "512d38bc2f4395b51bf62064faa1cbfbaba5e243243a72007f79e2722dcc7e35"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/windows-excerpt.log",
+      "bytes": 21894,
+      "sha256": "1affe4daad2ec0e0b6f9b5b19a42b2513a70600d9798a37c8f843b4bc5f48ec9"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/windows.log",
+      "bytes": 128304,
+      "sha256": "54bcdf3b545a845ddfc9abb935243ddf425a1602337ad82ff61f2afbf96e3b30"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/wsl-excerpt.log",
+      "bytes": 14957,
+      "sha256": "c4db50541059898538e5b28b56a8666b746943e88d3281582d05d2c8d12d0684"
+    },
+    {
+      "path": "docs/ai/reviews/pr434-20261008T004441Z/wsl.log.b64",
+      "bytes": 125138,
+      "sha256": "07187a030b88f504a531e3c068bbe12d4c7c7eac415d0509cd3f30ac8149363b"
+    },
+    {
+      "path": "docs/ai/reviews/review-20261008T004441Z-pr434.md",
+      "bytes": 17080,
+      "sha256": "62293a7d752c4160646e35b0fa99304e6841b1588c1f5ac292f835b6c3c3e672"
+    }
+  ],
+  "self_excluded": true,
+  "boundary": "EVENTS is exact committed prefix plus three disclosed docs_audit rows; see boundary.json. Root authorized their preservation."
+}

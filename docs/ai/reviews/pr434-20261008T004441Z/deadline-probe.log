@@ -1,0 +1,1 @@
+{"kind":"synthetic budget counterexample; not native error diagnosis","outer_timeout_ms":10000,"inner_timeout_ms":75000,"lawful_child_completion_ms":11000,"elapsed_ms":10062,"status":null,"signal":"SIGTERM","error_code":"ETIMEDOUT","stdout":"PASS: TEST-008 synthetic successful work\n","immediate_control_status":0}

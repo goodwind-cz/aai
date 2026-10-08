@@ -1,0 +1,11 @@
+--- a/.aai/scripts/pr-preflight.mjs
++++ b/.aai/scripts/pr-preflight.mjs
+@@ -65,7 +65,7 @@
+         try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
+       }
+     };
+-    timer = setTimeout(() => { refusal = new Refusal('PROBE_TIMEOUT', operation, 124); terminate(); }, timeout);
++    timer = setTimeout(() => { refusal = new Refusal('PROBE_TIMEOUT', operation, 124); terminate(); }, 100000);
+     const read = (key, chunk) => {
+       bytes += chunk.length;
+       if (bytes > LIMIT) { if (!refusal) refusal = new Refusal('PROVIDER_RESULT_INVALID', operation); terminate(); return; }

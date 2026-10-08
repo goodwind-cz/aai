@@ -1,0 +1,84 @@
+## Docs Audit — 2026-10-08
+
+- Mode: enforced
+- Scanned: 567 docs | Orphans: 0 (0 legacy soft) | Drifted: 1 | Stale: 0 | False-open: 1 | Obsolete: 0
+- Umbrella (deliberately open, false-open heuristic suppressed): 1 (aai-self-improvement-feedback-loop)
+- Near-miss AC tables: 8 (0 blocking, 8 report-only)
+- Tracked: 49 open, 493 done, 24 superseded/rejected
+- Rollout: RFC-0012 12/12 · RFC-0016 0/2
+
+### Orphans (need triage): 0
+
+_None._
+
+### Drift report: 1
+
+| Doc | Verdict | Evidence | Suggested next step |
+|---|---|---|---|
+| pr-capability-preflight | probable-false-open | delivery commit(s) 2d215ed, ac68ccc mention pr-capability-preflight; ac_evidence event; work_item_closed event; work-item flush record (METRICS.jsonl) | confirm delivery, then run close ceremony (status flip + links.pr/commits + doc_lifecycle/work_item_closed events) |
+
+Triage commands:
+- pr-capability-preflight: `git log --grep="pr-capability-preflight" --oneline` | `head -50 docs/issues/CHANGE-0204-pr-capability-preflight.md`
+
+### Rollout progress: 2
+
+| Parent | Type | Status | Children done | Path |
+|---|---|---|---|---|
+| RFC-0012 | rfc | implementing | 12/12 (100%) | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| RFC-0016 | rfc | draft | 0/2 (0%) | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
+
+### Closeout candidates: 0
+
+_None._
+
+### Duplicate doc ids: 0
+
+_None._
+
+### Open decisions on done docs: 0
+
+_None._
+
+### Near-miss AC tables: 8
+
+| Doc | Kind | Detail | Path |
+|---|---|---|---|
+| validation-ac-evidence-close-time | heading | malformed AC table — AC-like table under non-canonical heading "## Acceptance Criteria", expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate | docs/issues/CHANGE-0029-validation-ac-evidence-close-time.md |
+| validation-ac-evidence-close-time | column-set | malformed AC table — id column is "AC", not "Spec-AC" (header: AC | Status | Evidence); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate | docs/issues/CHANGE-0029-validation-ac-evidence-close-time.md |
+| secrets-preflight-env-multiline | heading | malformed AC table — AC-like table under non-canonical heading "## Acceptance Criteria", expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate | docs/issues/ISSUE-0010-secrets-preflight-env-multiline.md |
+| secrets-preflight-env-multiline | column-set | malformed AC table — id column is "AC", not "Spec-AC" (header: AC | Status | Evidence); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate | docs/issues/ISSUE-0010-secrets-preflight-env-multiline.md |
+| spec-lint-duplicate-ac-id | heading | malformed AC table — AC-like table under non-canonical heading "## Acceptance Criteria", expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate | docs/issues/ISSUE-0011-spec-lint-duplicate-ac-id.md |
+| spec-lint-duplicate-ac-id | column-set | malformed AC table — id column is "AC", not "Spec-AC" (header: AC | Status | Evidence); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate | docs/issues/ISSUE-0011-spec-lint-duplicate-ac-id.md |
+| aai-update-temp-toctou | heading | malformed AC table — AC-like table under non-canonical heading "## Acceptance Criteria", expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate | docs/issues/ISSUE-0012-aai-update-temp-toctou.md |
+| aai-update-temp-toctou | column-set | malformed AC table — id column is "AC", not "Spec-AC" (header: AC | Status | Evidence); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate | docs/issues/ISSUE-0012-aai-update-temp-toctou.md |
+| secrets-preflight-unterminated-quote-safe-direction | heading | malformed AC table — AC-like table under non-canonical heading "## Acceptance Criteria", expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate | docs/issues/ISSUE-0013-secrets-preflight-unterminated-quote-safe-direction.md |
+| secrets-preflight-unterminated-quote-safe-direction | column-set | malformed AC table — id column is "AC", not "Spec-AC" (header: AC | Status | Evidence); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate | docs/issues/ISSUE-0013-secrets-preflight-unterminated-quote-safe-direction.md |
+| docs-audit-duplicate-doc-id | heading | malformed AC table — AC-like table under non-canonical heading "## Acceptance Criteria", expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate | docs/issues/ISSUE-0014-docs-audit-duplicate-doc-id.md |
+| docs-audit-duplicate-doc-id | column-set | malformed AC table — id column is "AC", not "Spec-AC" (header: AC | Status | Evidence); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate | docs/issues/ISSUE-0014-docs-audit-duplicate-doc-id.md |
+| remediate-spec-id-collisions | heading | malformed AC table — AC-like table under non-canonical heading "## Acceptance Criteria", expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate | docs/issues/ISSUE-0015-remediate-spec-id-collisions.md |
+| remediate-spec-id-collisions | column-set | malformed AC table — id column is "AC", not "Spec-AC" (header: AC | Status | Evidence); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate | docs/issues/ISSUE-0015-remediate-spec-id-collisions.md |
+| spec-lint-enforce-spec-id-prefix | heading | malformed AC table — AC-like table under non-canonical heading "## Acceptance Criteria", expected "## Acceptance Criteria Status"; treated as missing, verdict may be inaccurate | docs/issues/ISSUE-0016-spec-lint-enforce-spec-id-prefix.md |
+| spec-lint-enforce-spec-id-prefix | column-set | malformed AC table — id column is "AC", not "Spec-AC" (header: AC | Status | Evidence); neither the canonical nor the lean parser recognizes any row, so the table reads as absent, verdict may be inaccurate | docs/issues/ISSUE-0016-spec-lint-enforce-spec-id-prefix.md |
+
+### Review-By claims (unbacked): 0
+
+_None._
+
+### Missing close telemetry: 2
+
+| Doc | Verdict | Path |
+|---|---|---|
+| pricing-gpt-6-flagship-family | missing-close-telemetry | docs/issues/CHANGE-0198-pricing-gpt-6-flagship-family.md |
+| spec-pricing-gpt-6-flagship-family | missing-close-telemetry | docs/specs/SPEC-0198-spec-pricing-gpt-6-flagship-family.md |
+
+Report-only: emit `append-event.mjs --event work_item_closed --ref <ID> --validation <v> --code-review <cr>` on close.
+
+### Body lint: 0
+
+_None._
+
+### Canonical provenance drift: 0
+
+_None._
+
+### Verdict: NEEDS-TRIAGE (1 items)
