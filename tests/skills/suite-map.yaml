@@ -169,6 +169,8 @@ suites:
       # best-effort friction-backlog line shells out to aai-feedback-status.mjs,
       # and TEST-671 asserts against it directly.
       - .aai/scripts/aai-feedback-status.mjs
+      # lib/evidence-paths.mjs (the D6 evidence rescue) imports it.
+      - .aai/scripts/tracked-ignored.mjs
 
   aai-constitution:
     globs:
@@ -787,6 +789,8 @@ suites:
       - .aai/scripts/generate-docs-index.mjs
       - .aai/scripts/lib/product-doc.mjs
       - .aai/scripts/close-work-item.mjs
+      # lib/evidence-paths.mjs imports it.
+      - .aai/scripts/tracked-ignored.mjs
       - .aai/templates/PRODUCT_TEMPLATE.md
       - .aai/SKILL_SHIP.prompt.md
       - docs/product/**

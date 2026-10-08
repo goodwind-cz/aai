@@ -1210,6 +1210,11 @@ test_1737_real_map_gitignore_full_and_guard_scripts_select() {  # validation rou
     *aai-tracked-ignored*) ;;
     *) log_fail "TEST-1737: check-committed-scope.mjs must select aai-tracked-ignored, got: $OUT" ;;
   esac
+  real_select .aai/scripts/tracked-ignored.mjs
+  case "$OUT" in
+    *aai-close-work-item*) ;;
+    *) log_fail "TEST-1737: tracked-ignored.mjs (imported by lib/evidence-paths.mjs) must select aai-close-work-item, got: $OUT" ;;
+  esac
   log_pass "TEST-1737: .gitignore stays unmapped (FULL_RUN); guard scripts select aai-tracked-ignored (TEST-1737)"
 }
 
