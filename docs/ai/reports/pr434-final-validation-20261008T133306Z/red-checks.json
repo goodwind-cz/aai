@@ -1,0 +1,72 @@
+[
+  {
+    "command": [
+      "node",
+      ".aai/scripts/tdd-evidence-check.mjs",
+      "--red",
+      "docs/ai/tdd/pr-capability-preflight-red.log"
+    ],
+    "exit_code": 3,
+    "output": "tdd-evidence-check: red log not found: docs/ai/tdd/pr-capability-preflight-red.log\nusage: node .aai/scripts/tdd-evidence-check.mjs --red <path-to-red-log>\n"
+  },
+  {
+    "command": [
+      "node",
+      ".aai/scripts/tdd-evidence-check.mjs",
+      "--red",
+      "docs/ai/tdd/pr-github-case-identity-red.log"
+    ],
+    "exit_code": 0,
+    "output": "ACCEPTED (product_red): docs/ai/tdd/pr-github-case-identity-red.log\n"
+  },
+  {
+    "command": [
+      "node",
+      ".aai/scripts/tdd-evidence-check.mjs",
+      "--red",
+      "docs/ai/tdd/spec-pr-generic-url-validity/red-TEST-001.log"
+    ],
+    "exit_code": 0,
+    "output": "ACCEPTED (product_red): docs/ai/tdd/spec-pr-generic-url-validity/red-TEST-001.log\n"
+  },
+  {
+    "command": [
+      "node",
+      ".aai/scripts/tdd-evidence-check.mjs",
+      "--red",
+      "docs/ai/tdd/spec-pr-generic-url-validity/red-TEST-007.log"
+    ],
+    "exit_code": 0,
+    "output": "ACCEPTED (product_red): docs/ai/tdd/spec-pr-generic-url-validity/red-TEST-007.log\n"
+  },
+  {
+    "command": [
+      "node",
+      ".aai/scripts/tdd-evidence-check.mjs",
+      "--red",
+      "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/whitespace-red.log"
+    ],
+    "exit_code": 0,
+    "output": "ACCEPTED (product_red): docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/whitespace-red.log\n"
+  },
+  {
+    "command": [
+      "node",
+      ".aai/scripts/tdd-evidence-check.mjs",
+      "--red",
+      "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/pushurl-609-red.log"
+    ],
+    "exit_code": 0,
+    "output": "ACCEPTED (product_red): docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/pushurl-609-red.log\n"
+  },
+  {
+    "command": [
+      "node",
+      ".aai/scripts/tdd-evidence-check.mjs",
+      "--red",
+      "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/terminator-CR-red.log"
+    ],
+    "exit_code": 0,
+    "output": "ACCEPTED (product_red): docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/terminator-CR-red.log\n"
+  }
+]

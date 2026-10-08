@@ -1,0 +1,264 @@
+{
+  "dry_run": true,
+  "flush": [
+    "pr-generic-url-validity",
+    "pr-github-case-identity"
+  ],
+  "swept": [],
+  "resume": [
+    "pr-capability-preflight"
+  ],
+  "skipped": {},
+  "verdict_basis": {
+    "pr-capability-preflight": "per-ref-field",
+    "pr-generic-url-validity": "per-ref-field",
+    "pr-github-case-identity": "per-ref-field"
+  },
+  "entries": [
+    {
+      "date_utc": "2026-10-08",
+      "ref_id": "pr-generic-url-validity",
+      "title": "Refuse malformed scheme URLs before generic readiness",
+      "human_time_minutes": {
+        "intake": null,
+        "reviews": null
+      },
+      "agent_runs": [
+        {
+          "role": "TDD Implementation",
+          "model_id": "unknown",
+          "note": "Actual CLI harness usage; cached and reasoning counters are subsets. Maker context fresh tier3; actual model unknown. Root transport normalization disclosed; no independent Validation/Review verdict.",
+          "started_utc": "2026-10-08T09:16:29Z",
+          "ended_utc": "2026-10-08T09:33:59Z",
+          "duration_seconds": 1050,
+          "tokens_in": 10207693,
+          "tokens_out": 50391,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "harness": "codex",
+          "tokens_total": 10258084,
+          "requested_model": "gpt-6-luna",
+          "actual_model": "unknown",
+          "verdict": "none",
+          "verdict_basis": "field"
+        },
+        {
+          "role": "Validation",
+          "model_id": "unknown",
+          "note": "Fresh CLI tier3 context; actual serving model unknown. Actual harness usage, cache/reasoning subsets. Root diagnostics appended one audit row during wrapper; discarded overlap and independent bounded hygiene rerun preserved. Child behavior green; metadata gates failed.",
+          "started_utc": "2026-10-08T09:34:49Z",
+          "ended_utc": "2026-10-08T10:01:04Z",
+          "duration_seconds": 1575,
+          "tokens_in": 11777400,
+          "tokens_out": 27197,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "harness": "codex",
+          "tokens_total": 11804597,
+          "requested_model": "gpt-6-sol",
+          "actual_model": "unknown",
+          "verdict": "fail",
+          "verdict_basis": "field"
+        },
+        {
+          "role": "Remediation",
+          "model_id": "unknown",
+          "note": "Fresh CLI tier3; actual serving model unknown. Checked BLOCKED handoff: child measurement amendment clears strict gate; parent audit dependency ROOT-owned. No source/test changes. Root resolved via deliberate-open assembly-parent umbrella marker, not fictitious lifecycle transition.",
+          "started_utc": "2026-10-08T10:02:26Z",
+          "ended_utc": "2026-10-08T10:11:17Z",
+          "duration_seconds": 531,
+          "tokens_in": 3713398,
+          "tokens_out": 11827,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "harness": "codex",
+          "tokens_total": 3725225,
+          "requested_model": "gpt-6-sol",
+          "actual_model": "unknown",
+          "verdict": "none",
+          "verdict_basis": "field"
+        },
+        {
+          "role": "Validation",
+          "model_id": "unknown",
+          "note": "Fresh CLI context, actual model unknown. Child PASS checker0 explicit outcome source binding. Original FAIL/framework130 retained; affected metadata/full8 green. One incidental actual docs_audit telemetry append retained with exact prior prefix; no source/test/index/STATE changes. No parent/current-source CI PASS.",
+          "started_utc": "2026-10-08T10:13:36Z",
+          "ended_utc": "2026-10-08T10:27:51Z",
+          "duration_seconds": 855,
+          "tokens_in": 2447891,
+          "tokens_out": 12914,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "harness": "codex",
+          "tokens_total": 2460805,
+          "requested_model": "gpt-6-sol",
+          "actual_model": "unknown",
+          "verdict": "pass",
+          "verdict_basis": "field"
+        },
+        {
+          "role": "Code Review",
+          "model_id": "unknown",
+          "note": "Fresh CLI review context; actual serving model unknown. 12 manifest rows and all123 scope hashes verified. Dual child PASS conditional N1 disposed via canonical option(b) filed fu-review-log-attribution; immutable review plus separate addendum. No parent readiness claim.",
+          "started_utc": "2026-10-08T10:28:59Z",
+          "ended_utc": "2026-10-08T10:40:05Z",
+          "duration_seconds": 666,
+          "tokens_in": 2020896,
+          "tokens_out": 9326,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "harness": "codex",
+          "tokens_total": 2030222,
+          "requested_model": "gpt-6-astra",
+          "actual_model": "unknown",
+          "verdict": "pass",
+          "verdict_basis": "field"
+        },
+        {
+          "role": "Remediation",
+          "model_id": "unknown",
+          "note": "Fresh ancestry and applicable-patch remediation; actual role ended 11:00:09Z, ledger duration includes root audit; cached/reasoning tokens are subsets; 12 manifest pins and NUL index verified.",
+          "started_utc": "2026-10-08T10:54:05Z",
+          "ended_utc": "2026-10-08T11:09:42Z",
+          "duration_seconds": 937,
+          "tokens_in": 6579638,
+          "tokens_out": 14355,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "harness": "codex",
+          "tokens_total": 6593993,
+          "requested_model": "gpt-6-sol",
+          "actual_model": "unknown",
+          "verdict": "pass",
+          "verdict_basis": "field"
+        },
+        {
+          "role": "Validation",
+          "model_id": "unknown",
+          "note": "Fresh independent mutation proof PASS; role ended11:17:53Z, append duration includes root audit;26 artifact hashes plus source/index/STATE boundary verified; actual serving model unknown.",
+          "started_utc": "2026-10-08T11:10:30Z",
+          "ended_utc": "2026-10-08T11:19:40Z",
+          "duration_seconds": 550,
+          "tokens_in": 2558015,
+          "tokens_out": 13687,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "harness": "codex",
+          "tokens_total": 2571702,
+          "requested_model": "gpt-6-astra",
+          "actual_model": "unknown",
+          "verdict": "pass",
+          "verdict_basis": "field"
+        }
+      ],
+      "totals": {
+        "human_time_minutes": 0,
+        "agent_duration_seconds": 6164,
+        "total_cost_usd": null,
+        "cost_basis": "none"
+      },
+      "strategy": "tdd",
+      "reliability": {
+        "validation_fails": 1,
+        "review_fails": 0,
+        "remediation_runs": 2,
+        "first_pass_clean": false,
+        "basis": "field",
+        "verdict_after_last_implementer": true
+      },
+      "verdict_basis": "per-ref-field",
+      "verdict": "PASS"
+    },
+    {
+      "date_utc": "2026-10-08",
+      "ref_id": "pr-github-case-identity",
+      "title": "Compare GitHub repository identity without case sensitivity",
+      "human_time_minutes": {
+        "intake": null,
+        "reviews": null
+      },
+      "agent_runs": [
+        {
+          "role": "TDD Implementation",
+          "model_id": "unknown",
+          "note": "Behavioral RED then ASCII-only source fix; full8 GREEN and child2 mutations RED; role ended11:32:51Z, duration includes root audit.14 hash pins and STATE/index verified. One known returned spec path typo normalized with raw preserved.",
+          "started_utc": "2026-10-08T11:22:10Z",
+          "ended_utc": "2026-10-08T11:34:39Z",
+          "duration_seconds": 749,
+          "tokens_in": 8977666,
+          "tokens_out": 32968,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "tdd_tests": 2,
+          "harness": "codex",
+          "tokens_total": 9010634,
+          "requested_model": "gpt-6-luna",
+          "actual_model": "unknown",
+          "verdict": "pass",
+          "verdict_basis": "field"
+        },
+        {
+          "role": "Validation",
+          "model_id": "unknown",
+          "note": "Independent child2 PASS: focused rows, seven adversarial controls,2mutation replay; role ended11:39:52Z; ledger duration includes root audit.18 path pins and NUL index verified. Role-authored typed result.md used as final points to it; actual model unknown.",
+          "started_utc": "2026-10-08T11:35:26Z",
+          "ended_utc": "2026-10-08T11:41:39Z",
+          "duration_seconds": 373,
+          "tokens_in": 2846684,
+          "tokens_out": 11968,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "harness": "codex",
+          "tokens_total": 2858652,
+          "requested_model": "gpt-6-sol",
+          "actual_model": "unknown",
+          "verdict": "pass",
+          "verdict_basis": "field"
+        },
+        {
+          "role": "Code Review",
+          "model_id": "unknown",
+          "note": "Fresh child dualPASS no findings; independent13additionalprobes; role ended11:46:51Z duration includes root audit;11seal and33scope pins plusSTATE/index verified. Actual identity unknown.",
+          "started_utc": "2026-10-08T11:42:39Z",
+          "ended_utc": "2026-10-08T11:47:59Z",
+          "duration_seconds": 320,
+          "tokens_in": 1182787,
+          "tokens_out": 7094,
+          "cost_usd": null,
+          "cost_basis": "none",
+          "harness": "codex",
+          "tokens_total": 1189881,
+          "requested_model": "gpt-6-astra",
+          "actual_model": "unknown",
+          "verdict": "pass",
+          "verdict_basis": "field"
+        }
+      ],
+      "totals": {
+        "human_time_minutes": 0,
+        "agent_duration_seconds": 1442,
+        "total_cost_usd": null,
+        "cost_basis": "none"
+      },
+      "strategy": "tdd",
+      "reliability": {
+        "validation_fails": 0,
+        "review_fails": 0,
+        "remediation_runs": 0,
+        "first_pass_clean": true,
+        "basis": "field",
+        "verdict_after_last_implementer": true
+      },
+      "verdict_basis": "per-ref-field",
+      "verdict": "PASS"
+    }
+  ],
+  "warnings": [
+    "NOTE pr-generic-url-validity run Validation: field/note disagreement — verdict field is \"fail\" but the note does not carry the VERDICT: FAIL marker; the FIELD wins (basis field)"
+  ],
+  "forensic_warnings": [],
+  "validation_waiver_persisted": [],
+  "partial_reset": [],
+  "full_reset": true,
+  "cleanup_planned": true
+}

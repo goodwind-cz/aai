@@ -1,0 +1,15 @@
+{
+  "observed_at_utc": "2026-10-08T13:53:27.168185+00:00",
+  "test_configs": [],
+  "shell_suites": 106,
+  "pester": [
+    "tests/skills/aai-win-dispatch.Tests.ps1",
+    "tests/skills/aai-release.Tests.ps1",
+    "tests/skills/aai-update.Tests.ps1",
+    "tests/skills/aai-worktree-seed.Tests.ps1",
+    "tests/skills/aai-pr-preflight.Tests.ps1"
+  ],
+  "e2e": "not applicable; no deployed surface",
+  "full_sweep": "prior immutable exact-head CI, explicitly reused per dispatch",
+  "docs_audit_exit": 0
+}

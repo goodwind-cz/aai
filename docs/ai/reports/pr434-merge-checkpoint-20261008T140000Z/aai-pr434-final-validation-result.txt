@@ -1,0 +1,31 @@
+**FAIL — original evidence unavailable.** The required parent RED log is missing; its checker exits 3. Current tests pass: 8/8 behavioral cases, 12 mutation replays, and exact-head native/full CI. AC gate passes; retained code review passes.
+
+[Validation report](/private/tmp/aai-pr-capability-preflight/docs/ai/reports/VALIDATION-20261008T133306Z-pr434-final.md) contains coverage, commands, limitations and hashes. [Checked handoff](/private/tmp/aai-pr-capability-preflight/docs/ai/reports/pr434-final-validation-20261008T133306Z/result.md) contains STATE commands; none were executed.
+
+```yaml
+subagent_result:
+  scope: pr-capability-preflight
+  role: Validation
+  status: FAIL
+  started_utc: 2026-10-08T13:33:06Z
+  ended_utc: 2026-10-08T13:43:41Z
+  duration_seconds: 635
+  evidence:
+    - command: behavioral suite and canonical mutation replays
+      exit_code: 0
+      output_snippet: "8/8 behavioral PASS; 12/12 mutation RED after stable rerun."
+    - command: node .aai/scripts/tdd-evidence-check.mjs --red docs/ai/tdd/pr-capability-preflight-red.log
+      exit_code: 3
+      output_snippet: "Original parent RED log not found."
+    - command: validation-outcome-check with explicit parent intake and spec
+      exit_code: 1
+      output_snippet: "OUTCOME-CHECK: outcome O-R-RED result is unknown"
+  files_changed:
+    - docs/ai/reports/VALIDATION-20261008T133306Z-pr434-final.md
+    - docs/ai/reports/pr434-final-validation-20261008T133306Z/
+  blockers:
+    - Recover authentic original parent RED evidence and provenance.
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-validation --status fail --ref pr-capability-preflight --evidence docs/ai/reports/VALIDATION-20261008T133306Z-pr434-final.md --notes "Original parent RED artifact missing; current behavioral, mutation and exact-head CI checks pass."
+    - node .aai/scripts/state.mjs set-phase --ref pr-capability-preflight --phase remediation
+```

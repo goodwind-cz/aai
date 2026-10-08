@@ -1,0 +1,2 @@
+Inspection attempt 1 exited 1: helper removed ordinal before comparing records; source itself retains ordinal. Corrected exact-record equality succeeds.
+Inspection attempt 2 exited 1 after recovery, seals and boundary checks: assumed headSha rather than raw REST head_sha. Corrected separate inspect-ci.py exits 0. No product test failed in these helper attempts; neither is RED evidence.

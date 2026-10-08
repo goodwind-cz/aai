@@ -1,0 +1,8 @@
+Flushed: pr-generic-url-validity -> docs/ai/METRICS.jsonl
+Flushed: pr-github-case-identity -> docs/ai/METRICS.jsonl
+  verdict_basis: pr-generic-url-validity -> per-ref-field
+  verdict_basis: pr-github-case-identity -> per-ref-field
+NOTE pr-generic-url-validity run Validation: field/note disagreement — verdict field is "fail" but the note does not carry the VERDICT: FAIL marker; the FIELD wins (basis field)
+RESUME pr-capability-preflight: already in ledger — cleanup-only pass (interrupted flush resume, no duplicate line)
+Full reset applied: no active work remains (flush-reset defaults per .aai/STATE_FALLBACK.md)
+check-state: OK (docs/ai/STATE.yaml)

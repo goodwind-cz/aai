@@ -1,0 +1,28 @@
+subagent_result:
+  scope: pr-capability-preflight
+  role: Validation
+  status: FAIL
+  started_utc: 2026-10-08T13:33:06Z
+  ended_utc: 2026-10-08T13:43:41Z
+  duration_seconds: 635
+  evidence:
+    - command: bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh
+      exit_code: 0
+      output_snippet: "8/8 PASS; actual source 9d90; tests in isolated copy"
+    - command: canonical mutation replay for SPEC-0210, SPEC-0211 stable rerun, SPEC-0212
+      exit_code: 0
+      output_snippet: "8+2+2 RED; zero inconclusive and zero restamps in accepted runs; first generic exit4 retained"
+    - command: node .aai/scripts/tdd-evidence-check.mjs --red docs/ai/tdd/pr-capability-preflight-red.log
+      exit_code: 3
+      output_snippet: "red log not found: docs/ai/tdd/pr-capability-preflight-red.log"
+    - command: node .aai/scripts/validation-outcome-check.mjs --report docs/ai/reports/VALIDATION-20261008T133306Z-pr434-final.md --ref pr-capability-preflight --since 2026-10-08T13:33:06Z --root /private/tmp/aai-pr-capability-preflight --intake docs/issues/CHANGE-0204-pr-capability-preflight.md --spec docs/specs/SPEC-0210-spec-pr-capability-preflight.md
+      exit_code: 1
+      output_snippet: "OUTCOME-CHECK: outcome O-R-RED result is unknown"
+  files_changed:
+    - docs/ai/reports/VALIDATION-20261008T133306Z-pr434-final.md
+    - docs/ai/reports/pr434-final-validation-20261008T133306Z/
+  blockers:
+    - "B1: original parent RED artifact is unavailable; recover authentic bytes/provenance before claiming original RED-before-implementation evidence."
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-validation --status fail --ref pr-capability-preflight --evidence docs/ai/reports/VALIDATION-20261008T133306Z-pr434-final.md --notes "Final independent Validation FAIL: original parent RED artifact missing; checker exit3 and outcome refusal. Current full8, mutation12, exact-head native/full CI and AC gates pass; authentic evidence recovery required."
+    - node .aai/scripts/state.mjs set-phase --ref pr-capability-preflight --phase remediation

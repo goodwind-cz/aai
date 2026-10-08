@@ -1,0 +1,659 @@
+# docs/ai/STATE.yaml - AAI runtime state (managed by orchestration; humans need not edit)
+#
+# CANONICAL SCHEMA / INVARIANTS (authoritative; see .aai/SKILL_CHECK_STATE.prompt.md)
+#   project_status:            active | paused
+#   current_focus.type:        intake_change | intake_issue | intake_prd | intake_hotfix |
+#                              intake_research | intake_rfc | intake_release |
+#                              technology_extraction | maintenance | none
+#   active_work_items[].status: planned | in_progress | blocked | done
+#   active_work_items[].phase:  planning | preparation | implementation | validation |
+#                              code_review | remediation
+#   implementation_strategy.selected: loop | tdd | hybrid | direct | untested | undecided
+#   worktree.recommendation:   not_needed | optional | recommended | required
+#   worktree.user_decision:    undecided | worktree | inline | waived
+#   code_review.status:        not_run | pass | fail | waived
+#   last_validation.status:    pass | fail | not_run
+#   updated_at_utc:            ISO 8601 UTC
+#   orchestration.mode:        auto | single | parallel   (RFC-0005 / SPEC-0005; default auto)
+#   orchestration.k:           integer chosen fan-out for the last tick (1 when single)
+#   orchestration.groups:      last selector partition [{kind: parallel|sequential, scopes: [...]}]
+#     The whole orchestration block is OPTIONAL and non-breaking: an absent block == auto
+#     (back-compat) - existing single-scope projects behave exactly as before.
+#     orchestration.mode is also the durable override input (a loop arg may
+#     override it per tick). Written by SKILL_LOOP from .aai/scripts/orchestration-mode.mjs.
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: pr-capability-preflight
+  primary_path: docs/issues/CHANGE-0204-pr-capability-preflight.md
+  spec_path: docs/specs/SPEC-0210-spec-pr-capability-preflight.md
+active_work_items:
+  - ref_id: pr-capability-preflight
+    status: done
+    phase: closed
+    spec_path: docs/specs/SPEC-0210-spec-pr-capability-preflight.md
+    primary_path: docs/issues/CHANGE-0204-pr-capability-preflight.md
+  - ref_id: pr-generic-url-validity
+    status: done
+    phase: code_review
+    spec_path: docs/specs/SPEC-0211-spec-pr-generic-url-validity.md
+    primary_path: docs/issues/ISSUE-0094-pr-generic-url-validity.md
+  - ref_id: pr-github-case-identity
+    status: done
+    phase: code_review
+    primary_path: docs/issues/ISSUE-0095-pr-github-case-identity.md
+    spec_path: docs/specs/SPEC-0212-spec-pr-github-case-identity.md
+implementation_strategy:
+  selected: tdd
+  source: docs/specs/SPEC-0210-spec-pr-capability-preflight.md
+  rationale: >-
+    Owner-approved split repairs integrated; final existing parent proof and assembly gates remain owed.
+  ref_id: pr-capability-preflight
+worktree:
+  recommendation: not_needed
+  user_decision: worktree
+  base_ref: bdeb425c040ada918dd97e5b878b71e420bad83a
+  branch: change/pr-capability-preflight
+  path: /private/tmp/aai-pr-capability-preflight
+  inline_review_scope: null
+  rationale: >-
+    Both checked child branches fast-forward integrated into existing PR branch.
+code_review:
+  required: true
+  status: pass
+  scope: >-
+    bdeb425c040ada918dd97e5b878b71e420bad83a to working tree at 8701da75a29e76e5a7897a9e327ad07f9ab38345; 966 pinned paths
+  base_ref: bdeb425c040ada918dd97e5b878b71e420bad83a
+  head_ref: null
+  pr: null
+  report_paths:
+    - docs/ai/reviews/review-20261008T120259Z-pr434-assembly.md
+  notes: >-
+    Assembly spec_compliance PASS and code_quality PASS. N1 remains filed: fu-review-log-attribution P3; not fixed. Parent and child unsigned amendment debts remain open. Current-source native/full CI, independent parent Validation and external sweep remain owed; no merge authorization.
+  scope_ref_id: pr-capability-preflight
+last_validation:
+  status: pass
+  run_at_utc: 2026-10-08T13:59:35Z
+  ref_id: pr-capability-preflight
+  evidence_paths:
+    - docs/ai/reports/VALIDATION-20261008T134948Z-pr434-final-recheck.md
+  notes: >-
+    Independent final recheck PASS: authentic original RED recovered; fresh 8 behavioral and 12 mutation checks pass; exact-head native/full/docs CI verified.
+tdd_cycle:
+  status: IDLE
+  test_id: null
+  spec_path: null
+  test_path: null
+  evidence:
+    red: null
+    green: null
+    refactor: null
+
+human_input:
+  required: false
+  blocking_reason: null
+  question: null
+
+locks:
+  implementation: true
+
+metrics:
+  work_items:
+    pr-capability-preflight:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            Scoped CI harness and origin binding corrections; checked maker local proof; native PS5.1 and independent checks pending. usage_capture=none. Routed gpt-5 unavailable; inherited actual_model=unknown.
+          started_utc: 2026-10-07T20:42:34Z
+          ended_utc: 2026-10-07T20:55:11Z
+          duration_seconds: 757
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: 06c890067c284f9f361c6818b6159ff052cfbc395574b962598b2e930d2ee620
+          harness: codex
+          verdict: none
+          actual_model: unknown
+          usage_basis: absent
+        - role: Validation
+          model_id: unknown
+          note: >-
+            FAIL current60983274; requested_model=gpt-6-astra actual_model=unknown usage_capture=none. Role reported end2026-10-07T21:11:33Z duration825s; append self-stamps merge end including handoff wait. Pushurl mismatch reproduced; WSL and full CI incomplete/failing.
+          started_utc: 2026-10-07T20:57:48Z
+          ended_utc: 2026-10-07T21:12:43Z
+          duration_seconds: 895
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: a4b17aac3f72c098ff48a66442d657c3198af7547ae76676c4b8a6ea5b0910c1
+          harness: codex
+          verdict: fail
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: absent
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            requested_model=gpt-5 actual_model=unknown usage_capture=none; canonical model unavailable, inherited serving model not exposed; actual role ended2026-10-07T21:28:14Z duration856s, append end includes handoff overhead; pushurl RED/GREEN and preflight8/8, mutation8/8; six closure-projection suites pass, actual aggregate FAIL; independent gates and new-source native CI pending.
+          started_utc: 2026-10-07T21:13:58Z
+          ended_utc: 2026-10-07T21:30:09Z
+          duration_seconds: 971
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: 06c890067c284f9f361c6818b6159ff052cfbc395574b962598b2e930d2ee620
+          harness: codex
+          verdict: none
+          requested_model: gpt-5
+          actual_model: unknown
+          usage_basis: absent
+        - role: Validation
+          model_id: unknown
+          note: >-
+            requested_model=gpt-6-astra actual_model=unknown usage_capture=none; fresh context, model weights unverified; immutable role ended2026-10-07T21:48:48Z duration961s, append timing includes handoff; FAIL at627: URL whitespace escapes, Windows16paths, NUL3logs, full10495PASS8FAIL1SKIP, unclassified new RED; owner second-extension decision pending.
+          started_utc: 2026-10-07T21:32:47Z
+          ended_utc: 2026-10-07T21:51:07Z
+          duration_seconds: 1100
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: a4b17aac3f72c098ff48a66442d657c3198af7547ae76676c4b8a6ea5b0910c1
+          harness: codex
+          verdict: fail
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: absent
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            requested_model=gpt-5 actual_model=unknown usage_capture=none; immutable maker handoff actual end2026-10-07T23:26:01Z duration2567s; CLI measured append includes handoff. Final preflight8/8 hygiene and recovery19/19 clean; no-restamp mutation8/8 RED0inconclusive; historical outer tripwire failures retained. Independent Review then authorized metadata close and final CI/Validation pending.
+          started_utc: 2026-10-07T22:43:14Z
+          ended_utc: 2026-10-07T23:26:31Z
+          duration_seconds: 2597
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: 06c890067c284f9f361c6818b6159ff052cfbc395574b962598b2e930d2ee620
+          harness: codex
+          verdict: none
+          requested_model: gpt-5
+          actual_model: unknown
+          usage_basis: absent
+        - role: Code Review
+          model_id: unknown
+          note: >-
+            requested_model=gpt-6-astra actual_model=unknown usage_capture=none; fresh context maker not reviewer, model weights independence unobservable; actual role end2026-10-07T23:37:39Z duration518s; append includes handoff. Spec FAIL code_quality PASS, native WSL1 TEST008 benign clone error opaque; no closure authorized without Review PASS.
+          started_utc: 2026-10-07T23:29:01Z
+          ended_utc: 2026-10-07T23:38:30Z
+          duration_seconds: 569
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: 50da5237c8ae57a0911c6a8af91790e7aa43b3b76502a2f2368f2671237fd2ff
+          harness: codex
+          verdict: fail
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: absent
+        - role: Orchestration
+          model_id: unknown
+          note: >-
+            NOTE actual dispatched roleResearch is unavailable in append-run enum; recorded as Orchestration diagnostic evidence unit with named degradation, no schema change. requested_model=unknown actual_model=unknown usage_capture=none; inherited standard-tier context; immutable actual end2026-10-08T00:09:40Z duration283s; append includeshandoff. RealGit2.43 source build and2.53/2.54 effective URL/localdrypush proof; fixture/SPEC portability only, no proven provider defect; typedchecker0. Complete report /private/tmp/aai-empty-pushurl-research/report.md.
+          started_utc: 2026-10-08T00:04:57Z
+          ended_utc: 2026-10-08T00:10:53Z
+          duration_seconds: 356
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          harness: codex
+          verdict: none
+          requested_model: unknown
+          actual_model: unknown
+          usage_basis: absent
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            usage_capture=none; actual role ended 2026-10-08T00:42:32Z, duration2428s including diagnostic CI wait; append CLI includes root handoff audit. Maker focused proofs PASS; repaired-head native CI, Review and Validation pending. Requested canonical gpt-5 unavailable; actual serving model unknown; no token or cost estimate. Report docs/ai/reports/REMEDIATION-20261008T000204Z-test008-native.md
+          started_utc: 2026-10-08T00:02:04Z
+          ended_utc: 2026-10-08T00:43:05Z
+          duration_seconds: 2461
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: 48366037c53400dd77986d79d56059d09a290fc4d3fd8c0427456c984e8be854
+          harness: codex
+          verdict: none
+          requested_model: gpt-5 unavailable
+          actual_model: unknown
+          usage_basis: absent
+        - role: Code Review
+          model_id: unknown
+          note: >-
+            usage_capture=none; requested_model=gpt-6-astra actual_model=unknown; freshcontext maker/checker separation verified, actualmodeldistinction unknown. Complete role ended2026-10-08T01:01:41Z duration1020s; append CLI includes root handoff audit. DualFAIL report docs/ai/reviews/review-20261008T004441Z-pr434.md. BoundaryEVENTS3actualrows preserved, no invented tokens/cost.
+          started_utc: 2026-10-08T00:44:41Z
+          ended_utc: 2026-10-08T01:02:41Z
+          duration_seconds: 1080
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: c58b96e358344f40759d375d60d842fc21780d12751128ceaee42197870ed10c
+          harness: codex
+          verdict: fail
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: absent
+        - role: Orchestration
+          model_id: unknown
+          note: >-
+            usage_capture=none; actual dispatched role Research (STATE role enum does not support Research, named mapping to Orchestration diagnostic); actual role ended2026-10-08T01:07:30Z duration117s; append CLI includes root handoff. Report /private/tmp/aai-pr434-ssh443-research/report.md actual existing-route defect thread4213513507; requested_model=inherited-standard actual_model=unknown. No usage or cost estimate.
+          started_utc: 2026-10-08T01:05:33Z
+          ended_utc: 2026-10-08T01:08:32Z
+          duration_seconds: 179
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          harness: codex
+          verdict: none
+          requested_model: inherited standard tier
+          actual_model: unknown
+          usage_basis: absent
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            usage_capture=none; requested_model=gpt-5-unavailable actual_model=unknown. Full role ended2026-10-08T01:18:03Z duration837s, append CLI includes root handoff audit. Owner-authorized existing-requirement SSH443 supplemental finding/research disposition in decisions.jsonl; report docs/ai/reports/REMEDIATION-20261008T010406Z-pr434-replay.md. Both actualRED/GREEN; matrix8/8; cleanmutation8RED0inconclusive0restamps, earlierrestampouterFAIL preserved. NativeCI/Review/Validation pending; no tokens/costestimate.
+          started_utc: 2026-10-08T01:04:06Z
+          ended_utc: 2026-10-08T01:18:49Z
+          duration_seconds: 883
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: 09cff26738f9666780a0d9df37ada196f9b0f13a19792ae390d04346b3a0281f
+          harness: codex
+          verdict: none
+          requested_model: gpt-5 unavailable
+          actual_model: unknown
+          usage_basis: absent
+        - role: Code Review
+          model_id: unknown
+          note: >-
+            requested_model=gpt-6-astra actual_model=unknown; usage_capture=none; sealed fullrole end2026-10-08T01:34:29Z duration821seconds; CLI duration additionally includes root handoff manifest audit. Fresh context maker differs from checker; weight independence unknown. Dual FAIL raw SSH path B1; full actual97PASS6FAIL1SKIP; Windows pending. Completed replay-budget package second finding-bearing round; split internal raw-ssh-path-identity per recorded disposition, no waiver.
+          started_utc: 2026-10-08T01:20:48Z
+          ended_utc: 2026-10-08T01:35:31Z
+          duration_seconds: 883
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: 7881d9b313b9f579e36022ef5307112f3347f7614569a6b3127d5e52a9477064
+          harness: codex
+          verdict: fail
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: absent
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            requested_model=gpt-5 actual_model=unknown; routed gpt-5 unavailable, inherited serving model unverified; usage_capture=none; typed interval end2026-10-08T01:48:56Z duration756seconds; actual post-seal observed2026-10-08T01:48:57Z full757seconds; CLI duration includes subsequent root handoff audit. Separate raw-ssh-path-identity repair maker8/8clean8mutationRED0inconclusive0restamps; first6recordrestamps outertripwireFAIL retained. Real Git dot-path and authority-backslash causal RED/GREEN; selectors/sealing infrastructureerrors preserved. Fresh independent fullrangeReview/nativeCI/Validation pending.
+          started_utc: 2026-10-08T01:36:20Z
+          ended_utc: 2026-10-08T01:49:58Z
+          duration_seconds: 818
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: a797ccf099b3ead58d931e78d953fa26c4fb3dc03377c2be8cd54a8eed769de9
+          harness: codex
+          verdict: none
+          requested_model: gpt-5
+          actual_model: unknown
+          usage_basis: absent
+        - role: Code Review
+          model_id: unknown
+          note: >-
+            requested_model=gpt-6-astra actual_model=unknown; usage_capture=none; fullroleend2026-10-08T02:04:47Z duration777seconds; CLI includes root handoff hash audit. Fresh contextual maker/checker separation, actual weight independence unknown. Actual dualFAIL B1 SCP decoding/B2 passwordSSH transport; source525a. Scopeartifact37, manifest36rows exact; source/index/STATEunchanged. Rawpackage first finding-bearing round, final remaining bounded repair cycle; no waiver.
+          started_utc: 2026-10-08T01:51:50Z
+          ended_utc: 2026-10-08T02:06:46Z
+          duration_seconds: 896
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: a45d9b40355635347a2313cff537ef5ed611ab65e27a5622c9d9acf8cc490a62
+          harness: codex
+          verdict: fail
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: absent
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            requested_model=gpt-5-unavailable actual_model=unknown; initial invocation ended in automatic-filter agent error without sealed result; exact role end and raw filter text unavailable; append duration is root observation plus handoff, not claimed completed-role duration. Source/test proof retained; continuation separately started02:22:22Z. Harness usage capture none; numeric usage omitted.
+          started_utc: 2026-10-08T02:07:56Z
+          ended_utc: 2026-10-08T02:33:08Z
+          duration_seconds: 1512
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: 78a13074ffc1258e72a62f19cba6f0cedbf8333875248f7c8c3d56bfc977285c
+          harness: codex
+          verdict: none
+          requested_model: unavailable-gpt-5
+          actual_model: unknown
+          usage_basis: field
+          tokens_total: 6056008
+          amended_at_utc: 2026-10-08T12:19:53Z
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            requested_model=gpt-5-unavailable actual_model=unknown; checked continuation sealed02:32:26Z actualrole604seconds no completion gap; append duration includes root handoff audit. Maker source/causal8rowPASS, private clean8RED0inconclusive0restamps, shipping infra attempt preserved; manifest606f2f014f619cc8e2aa999e48dcfcdb74ccff849e2a16285c876ebaea482863 all144rows+38dependencies independently verified. Harness usage capture none; numeric usage omitted. No Review/Validation PASS.
+          started_utc: 2026-10-08T02:22:22Z
+          ended_utc: 2026-10-08T02:33:08Z
+          duration_seconds: 646
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: 78a13074ffc1258e72a62f19cba6f0cedbf8333875248f7c8c3d56bfc977285c
+          harness: codex
+          verdict: none
+          requested_model: unavailable-gpt-5
+          actual_model: unknown
+          usage_basis: field
+          tokens_total: 5754696
+          amended_at_utc: 2026-10-08T12:19:53Z
+        - role: Code Review
+          model_id: unknown
+          note: >-
+            requested_model=gpt-6-astra actual_model=unknown; fresh fork-none contextual independence; fullrole02:34:56–02:46:23Z687seconds, postseal02:46:23.307; append duration includes root handoff audit. DualFAIL malformed scheme fallback and GitHub case identity; current bounded package exhausted. Typedchecker0 and all34hashrows/35files verified; source/index clean and fourledgerprefixes exact. Actual model-weight difference and harness usage unavailable; no numeric estimate. Windows pending; full104=97PASS6FAIL1SKIP.
+          started_utc: 2026-10-08T02:34:56Z
+          ended_utc: 2026-10-08T02:47:42Z
+          duration_seconds: 766
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+          prompt_hash: e09b009ef6a7c1d54be4ff998657e407afa4c25000b62998f7f363a1bb6bf63b
+          harness: codex
+          verdict: fail
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: field
+          tokens_total: 5874802
+          amended_at_utc: 2026-10-08T12:19:53Z
+        - role: Planning
+          model_id: unknown
+          note: >-
+            Fresh separate ephemeral Codex process after native thread-limit refusals. Explicit workspace-write sandbox; initial conflicting CLI flags failed before start; automatic-review rejected wider approve-for-me variant, safer explicit sandbox accepted. No bypass. Actual Planning09:02:21–09:09:48Z447seconds; append includes root audit. Two frozen lightweight child specifications, no implementation/native/product verdict. Actual model unavailable; configured route not model-weight evidence. Usage from final CLI turn.completed: input1885510 cached_input1775232 output14124 reasoning_output1982; cached/reasoning subsets not double-counted.
+          started_utc: 2026-10-08T09:02:21Z
+          ended_utc: 2026-10-08T09:11:25Z
+          duration_seconds: 544
+          tokens_in: 1885510
+          tokens_out: 14124
+          cost_usd: null
+          prompt_hash: ffdf37365a17e1f70cb1167fea7bc86379e7428d690ecf1163f31664f9df0375
+          harness: codex
+          verdict: none
+          requested_model: configured-default
+          actual_model: unknown
+          usage_basis: absent
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            Integrated proof PASS8parent+2child1 realreplay; child2 unchangedgatePASS; role ended11:57:17Z ledgerduration includesaudit.41artifact+23beforepins,16 originalcopies exactGit8701, source/state/specunchanged. Unsupported index-hash prose qualified inroot-audit; currentindex matchesHEAD. Actualmodelunknown.
+          started_utc: 2026-10-08T11:52:36Z
+          ended_utc: 2026-10-08T12:00:48Z
+          duration_seconds: 492
+          tokens_in: 5460326
+          tokens_out: 13613
+          cost_usd: null
+          harness: codex
+          tokens_total: 5473939
+          verdict: pass
+          requested_model: gpt-6-sol
+          actual_model: unknown
+          usage_basis: field
+        - role: Code Review
+          model_id: unknown
+          note: >-
+            Owner-approved final assembly dualPASS;8rows,12extra probes,12mutationgates;18seal966scope pins STATE/index verified; role ended12:11:30Z duration includes root audit. ExistingN1filedP3 andunsigned3debts remainopen; finalCI/Validation/sweep owed.
+          started_utc: 2026-10-08T12:02:59Z
+          ended_utc: 2026-10-08T12:13:20Z
+          duration_seconds: 621
+          tokens_in: 2939429
+          tokens_out: 14363
+          cost_usd: null
+          harness: codex
+          tokens_total: 2953792
+          verdict: pass
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: field
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            Actual fresh CLI ended 12:32:32Z; root duration includes audit. Six byte-preserving Windows path aliases; unchanged semantic source review; fresh CI and parent Validation owed. Default rule6 superseded by owner-approved delivery repair; handoff rule10 label corrected in receipt.
+          started_utc: 2026-10-08T12:30:31Z
+          ended_utc: 2026-10-08T12:35:52Z
+          duration_seconds: 321
+          tokens_in: 957437
+          tokens_out: 8656
+          cost_usd: null
+          harness: codex
+          tokens_total: 966093
+          verdict: pass
+          requested_model: gpt-6-sol
+          actual_model: unknown
+          usage_basis: field
+        - role: Validation
+          model_id: unknown
+          note: >-
+            Actual role ended13:43:41Z; root duration includes audit. Exact-head CI,8behavioral,12mutations pass; original RED log missing after temporary checkout disappeared. Actual model weights unknown.
+          started_utc: 2026-10-08T13:33:06Z
+          ended_utc: 2026-10-08T13:46:30Z
+          duration_seconds: 804
+          tokens_in: 4677477
+          tokens_out: 17940
+          cost_usd: null
+          harness: codex
+          tokens_total: 4695417
+          verdict: fail
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: field
+        - role: Validation
+          model_id: unknown
+          note: >-
+            Independent recovery recheck PASS; actual ended 2026-10-08T13:58:07Z; root duration includes audit. Requested6-astra vs source6-luna; actual weights unknown. Authentic1740byte RED,8behavioral,12mutations,11edgeprobes,current9d90CI verified; future metadata head CI pending.
+          started_utc: 2026-10-08T13:49:48Z
+          ended_utc: 2026-10-08T13:59:35Z
+          duration_seconds: 587
+          tokens_in: 2790319
+          tokens_out: 15667
+          cost_usd: null
+          harness: codex
+          tokens_total: 2805986
+          verdict: pass
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: field
+      validation:
+        status: pass
+        at: 2026-10-08T13:59:35Z
+    pr-generic-url-validity:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: TDD Implementation
+          model_id: unknown
+          note: >-
+            Actual CLI harness usage; cached and reasoning counters are subsets. Maker context fresh tier3; actual model unknown. Root transport normalization disclosed; no independent Validation/Review verdict.
+          started_utc: 2026-10-08T09:16:29Z
+          ended_utc: 2026-10-08T09:33:59Z
+          duration_seconds: 1050
+          tokens_in: 10207693
+          tokens_out: 50391
+          cost_usd: null
+          harness: codex
+          tokens_total: 10258084
+          verdict: none
+          requested_model: gpt-6-luna
+          actual_model: unknown
+          usage_basis: field
+        - role: Validation
+          model_id: unknown
+          note: >-
+            Fresh CLI tier3 context; actual serving model unknown. Actual harness usage, cache/reasoning subsets. Root diagnostics appended one audit row during wrapper; discarded overlap and independent bounded hygiene rerun preserved. Child behavior green; metadata gates failed.
+          started_utc: 2026-10-08T09:34:49Z
+          ended_utc: 2026-10-08T10:01:04Z
+          duration_seconds: 1575
+          tokens_in: 11777400
+          tokens_out: 27197
+          cost_usd: null
+          harness: codex
+          tokens_total: 11804597
+          verdict: fail
+          requested_model: gpt-6-sol
+          actual_model: unknown
+          usage_basis: field
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            Fresh CLI tier3; actual serving model unknown. Checked BLOCKED handoff: child measurement amendment clears strict gate; parent audit dependency ROOT-owned. No source/test changes. Root resolved via deliberate-open assembly-parent umbrella marker, not fictitious lifecycle transition.
+          started_utc: 2026-10-08T10:02:26Z
+          ended_utc: 2026-10-08T10:11:17Z
+          duration_seconds: 531
+          tokens_in: 3713398
+          tokens_out: 11827
+          cost_usd: null
+          harness: codex
+          tokens_total: 3725225
+          verdict: none
+          requested_model: gpt-6-sol
+          actual_model: unknown
+          usage_basis: field
+        - role: Validation
+          model_id: unknown
+          note: >-
+            Fresh CLI context, actual model unknown. Child PASS checker0 explicit outcome source binding. Original FAIL/framework130 retained; affected metadata/full8 green. One incidental actual docs_audit telemetry append retained with exact prior prefix; no source/test/index/STATE changes. No parent/current-source CI PASS.
+          started_utc: 2026-10-08T10:13:36Z
+          ended_utc: 2026-10-08T10:27:51Z
+          duration_seconds: 855
+          tokens_in: 2447891
+          tokens_out: 12914
+          cost_usd: null
+          harness: codex
+          tokens_total: 2460805
+          verdict: pass
+          requested_model: gpt-6-sol
+          actual_model: unknown
+          usage_basis: field
+        - role: Code Review
+          model_id: unknown
+          note: >-
+            Fresh CLI review context; actual serving model unknown. 12 manifest rows and all123 scope hashes verified. Dual child PASS conditional N1 disposed via canonical option(b) filed fu-review-log-attribution; immutable review plus separate addendum. No parent readiness claim.
+          started_utc: 2026-10-08T10:28:59Z
+          ended_utc: 2026-10-08T10:40:05Z
+          duration_seconds: 666
+          tokens_in: 2020896
+          tokens_out: 9326
+          cost_usd: null
+          harness: codex
+          tokens_total: 2030222
+          verdict: pass
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: field
+        - role: Remediation
+          model_id: unknown
+          note: >-
+            Fresh ancestry and applicable-patch remediation; actual role ended 11:00:09Z, ledger duration includes root audit; cached/reasoning tokens are subsets; 12 manifest pins and NUL index verified.
+          started_utc: 2026-10-08T10:54:05Z
+          ended_utc: 2026-10-08T11:09:42Z
+          duration_seconds: 937
+          tokens_in: 6579638
+          tokens_out: 14355
+          cost_usd: null
+          harness: codex
+          tokens_total: 6593993
+          verdict: pass
+          requested_model: gpt-6-sol
+          actual_model: unknown
+          usage_basis: field
+        - role: Validation
+          model_id: unknown
+          note: >-
+            Fresh independent mutation proof PASS; role ended11:17:53Z, append duration includes root audit;26 artifact hashes plus source/index/STATE boundary verified; actual serving model unknown.
+          started_utc: 2026-10-08T11:10:30Z
+          ended_utc: 2026-10-08T11:19:40Z
+          duration_seconds: 550
+          tokens_in: 2558015
+          tokens_out: 13687
+          cost_usd: null
+          harness: codex
+          tokens_total: 2571702
+          verdict: pass
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: field
+      validation:
+        status: pass
+        at: 2026-10-08T11:19:40Z
+    pr-github-case-identity:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: TDD Implementation
+          model_id: unknown
+          note: >-
+            Behavioral RED then ASCII-only source fix; full8 GREEN and child2 mutations RED; role ended11:32:51Z, duration includes root audit.14 hash pins and STATE/index verified. One known returned spec path typo normalized with raw preserved.
+          started_utc: 2026-10-08T11:22:10Z
+          ended_utc: 2026-10-08T11:34:39Z
+          duration_seconds: 749
+          tokens_in: 8977666
+          tokens_out: 32968
+          cost_usd: null
+          tdd_tests: 2
+          harness: codex
+          tokens_total: 9010634
+          verdict: pass
+          requested_model: gpt-6-luna
+          actual_model: unknown
+          usage_basis: field
+        - role: Validation
+          model_id: unknown
+          note: >-
+            Independent child2 PASS: focused rows, seven adversarial controls,2mutation replay; role ended11:39:52Z; ledger duration includes root audit.18 path pins and NUL index verified. Role-authored typed result.md used as final points to it; actual model unknown.
+          started_utc: 2026-10-08T11:35:26Z
+          ended_utc: 2026-10-08T11:41:39Z
+          duration_seconds: 373
+          tokens_in: 2846684
+          tokens_out: 11968
+          cost_usd: null
+          harness: codex
+          tokens_total: 2858652
+          verdict: pass
+          requested_model: gpt-6-sol
+          actual_model: unknown
+          usage_basis: field
+        - role: Code Review
+          model_id: unknown
+          note: >-
+            Fresh child dualPASS no findings; independent13additionalprobes; role ended11:46:51Z duration includes root audit;11seal and33scope pins plusSTATE/index verified. Actual identity unknown.
+          started_utc: 2026-10-08T11:42:39Z
+          ended_utc: 2026-10-08T11:47:59Z
+          duration_seconds: 320
+          tokens_in: 1182787
+          tokens_out: 7094
+          cost_usd: null
+          harness: codex
+          tokens_total: 1189881
+          verdict: pass
+          requested_model: gpt-6-astra
+          actual_model: unknown
+          usage_basis: field
+      validation:
+        status: pass
+        at: 2026-10-08T11:41:39Z
+
+updated_at_utc: 2026-10-08T14:02:31Z

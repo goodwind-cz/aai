@@ -1,0 +1,22 @@
+{
+  "command": [
+    "node",
+    ".aai/scripts/validation-outcome-check.mjs",
+    "--report",
+    "docs/ai/reports/VALIDATION-20261008T134948Z-pr434-final-recheck.md",
+    "--ref",
+    "pr-capability-preflight",
+    "--since",
+    "2026-10-08T13:49:48Z",
+    "--root",
+    "/private/tmp/aai-pr-capability-preflight",
+    "--intake",
+    "docs/issues/CHANGE-0204-pr-capability-preflight.md",
+    "--spec",
+    "docs/specs/SPEC-0210-spec-pr-capability-preflight.md"
+  ],
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "",
+  "observed_at_utc": "2026-10-08T13:57:46.759837+00:00"
+}

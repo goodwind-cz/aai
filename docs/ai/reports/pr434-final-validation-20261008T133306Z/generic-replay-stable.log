@@ -1,0 +1,11 @@
+mutation-run: skipping untracked path that could not be reproduced in the clone: aai-mutation-M4NPIq/clone/ (EISDIR: illegal operation on a directory, copyfile '/private/tmp/aai-pr434-final-validation-scratch/aai-mutation-M4NPIq/clone/' -> '/private/tmp/aai-pr434-final-validation-scratch/aai-mutation-M4NPIq/clone/aai-mutation-M4NPIq/clone/')
+NOTE: copied 7 root-level untracked path(s) into the clone: adversarial.cjs, audit.py, evidence-audit.py, run-validation.sh, tmp.9gZhA6wjJ6, tmp.ORG09oVdWE, xcrun_db
+RED TEST-001: still reddens (tests/skills/test-aai-pr-preflight.sh test_001)
+mutation-run: skipping untracked path that could not be reproduced in the clone: aai-mutation-pcRITh/clone/ (EISDIR: illegal operation on a directory, copyfile '/private/tmp/aai-pr434-final-validation-scratch/aai-mutation-pcRITh/clone/' -> '/private/tmp/aai-pr434-final-validation-scratch/aai-mutation-pcRITh/clone/aai-mutation-pcRITh/clone/')
+NOTE: copied 7 root-level untracked path(s) into the clone: adversarial.cjs, audit.py, evidence-audit.py, run-validation.sh, tmp.9gZhA6wjJ6, tmp.ORG09oVdWE, xcrun_db
+RED TEST-007: still reddens (tests/skills/test-aai-pr-preflight.sh test_007)
+mutation-run --replay: 2/2 attempted records still redden (0 inconclusive of 2 total, 0 re-stamped)
+reaped: 0
+reaped pids:
+reaped ages:
+reaped raw:

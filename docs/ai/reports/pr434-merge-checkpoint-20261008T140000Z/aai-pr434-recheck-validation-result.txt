@@ -1,0 +1,75 @@
+**PASS** — recovered RED provenance and bytes verified. Fresh checks: 8 behavioral PASS, 12 mutation RED, 11 adversarial probes PASS. Exact-head native/full/docs CI verified. Code review and AC gates: **pass**.
+
+[Validation report](/private/tmp/aai-pr-capability-preflight/docs/ai/reports/VALIDATION-20261008T134948Z-pr434-final-recheck.md) · [Complete checked result block](/private/tmp/aai-pr-capability-preflight/docs/ai/reports/pr434-final-recheck-20261008T134948Z/result.yaml) · [Artifact manifest](/private/tmp/aai-pr-capability-preflight/docs/ai/reports/pr434-final-recheck-20261008T134948Z/artifact-manifest.json)
+
+| Requirement | Spec | Evidence |
+|---|---|---|
+| Identity | AC-01 | TEST001, adversarial probes |
+| Azure readiness | AC-02 | TEST002, native CI |
+| Safe bounded refusals | AC-03 | TEST003–005 |
+| Preservation/order | AC-04 | TEST006, boundary hashes |
+| Provider compatibility | AC-05 | TEST007, adversarial probes |
+| Distribution/accounting | AC-06 | TEST008, full CI |
+
+No blocking failures remain. Historical FAIL and all 46 sealed artifacts remain unchanged. STATE/Git/lifecycle were untouched. Future metadata-commit CI and external sweep remain root-owned.
+
+```yaml
+subagent_result:
+  scope: pr-capability-preflight
+  role: Validation
+  status: PASS
+  started_utc: 2026-10-08T13:49:48Z
+  ended_utc: 2026-10-08T13:58:07Z
+  duration_seconds: 499
+  evidence:
+    - command: bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh
+      exit_code: 0
+      output_snippet: "8 named PASS; timeout 1495ms; child_alive=false; all fixtures in isolated copy."
+    - command: mutation-run.mjs --replay for SPEC-0210, SPEC-0211, SPEC-0212 through canonical wrapper
+      exit_code: 0
+      output_snippet: "8+2+2 RED, zero inconclusive, zero restamped."
+    - command: independent historical tool-record equality and original RED byte extraction; tdd-evidence-check.mjs
+      exit_code: 0
+      output_snippet: "1740 bytes match; eight FAIL rows; original maker test1/checker0; current ACCEPTED product_red."
+    - command: validation-outcome-check.mjs with explicit intake/spec and current start horizon
+      exit_code: 0
+      output_snippet: "Checked current report; all outcomes satisfied and evidence hashes bound."
+  files_changed:
+    - docs/ai/reports/VALIDATION-20261008T134948Z-pr434-final-recheck.md
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/ac-gate.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/adversarial-reaped.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/adversarial.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/artifact-manifest.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/boundary-corpus.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/build-report.py
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/case-replay.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/ci-inspection.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/discovery.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/docs-audit.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/exits.txt
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/final-boundary.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/fresh-evidence-inspection.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/gate-exits.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/generic-replay.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/infrastructure-notes.txt
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/inspect-ci.py
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/inspect.py
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/outcome-check.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/parent-replay.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/preflight.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/prior-seals.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/recovery-inspection.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/red-check.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/result.yaml
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/role-check.json
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/run-adversarial.sh
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/run-validation.sh
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/spec-lint.log
+    - docs/ai/reports/pr434-final-recheck-20261008T134948Z/role-check-attempt1.json
+  blockers: []
+  outcome_report: docs/ai/reports/VALIDATION-20261008T134948Z-pr434-final-recheck.md
+  state_update_commands:
+    - node .aai/scripts/state.mjs set-validation --status pass --ref pr-capability-preflight --evidence docs/ai/reports/VALIDATION-20261008T134948Z-pr434-final-recheck.md --notes "Independent final recheck PASS: authentic original RED recovered; fresh 8 behavioral and 12 mutation checks pass; exact-head native/full/docs CI verified."
+    - node .aai/scripts/state.mjs set-phase --ref pr-capability-preflight --phase code_review
+    - node .aai/scripts/orchestration-dispatch.mjs --human --confirm
+```

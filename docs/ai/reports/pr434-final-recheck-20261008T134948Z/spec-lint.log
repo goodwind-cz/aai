@@ -1,0 +1,6 @@
+## Spec Lint — 2026-10-08
+
+- Scanned: 1 spec doc(s) | Skipped: 0 non-spec | Findings: 0 | Scope: docs/specs/SPEC-0210-spec-pr-capability-preflight.md
+- Mutation gate: exempt (terminal spec)
+
+LINT PASS: no structural findings.
