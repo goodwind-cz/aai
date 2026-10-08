@@ -1,0 +1,13 @@
+# TEST008 native diagnostic snapshot — interim only
+
+Owner authority: docs/decisions/DECISION-pr-capability-preflight-test008-followup.md, explicit Pokracuj. Full role start captured before inspection2026-10-08T00:02:04Z; invocation remains active through root CI wait and subsequent cause-based repair. No full-role end/duration or agent-run metric is claimed here. Suggested gpt-5 unavailable; inherited actual model unknown.
+
+Review FAIL ataa18e55e remains unchanged. Required native clone failure is reproduced in existing complete Windows5.1 and WSL1 logs; nested cause is still unknown. Path length is a hypothesis, not a verified root cause. No product/provider source was changed.
+
+Diagnostic-only edits in existing TEST008 capture bounded real Git clone status, signal, error, stdout/stderr, exact destinations, source/clone HEAD, shallow state, core.longpaths and longest tracked path as JSON stdout. Both deep and short clones use the same source/Git/environment and unchanged configuration. Each clone has30second timeout and64KiB output bound; the containing captured process is bounded. The original deep-clone assertion remains mandatory; short control cannot turn its failure into success. Successful benign stderr remains captured and genuine clone failures remain nonzero. Short comparison is cleaned in finally.
+
+The Pester invocation scopes ErrorActionPreference=Continue to the native call, restores it in finally, prints captured diagnostics, then asserts the real exit code. Its behavior control under ambient Stop executes a real child emitting JSON and stderr with exit7, observes both, preserves7, and confirms Stop restored. This is scoped observation, not global suppression.
+
+Local serial focused TEST008 wrapper25276 exited0; deep and short real clones ofaa18 both shallow true, longest152, macOS checkout lengths232/213. Focused Pester wrapper75143 exited0:2/2 tests including capture control; shared matrix8/8 and canonical POSIX Bash companion8/8. The Pester scratch deep/short paths were283/264 on macOS, both successful; this does not attest Windows behavior. Logs are complete and no wrapper remains active. Diagnostic snapshots are frozen and hash-bound in interim-manifest.json.
+
+Root may commit/push these explicit diagnostic source/evidence paths under existing snapshot approval, retain current ReviewFAIL, and return complete native TEST008 JSON/clone error from that exact new head. Maker waits without source/index/STATE changes, then continues this same approved invocation only from observed cause. Final native success and independent gates remain pending. No lifecycle close, Git/index/STATE write or GitHub message was performed by maker.

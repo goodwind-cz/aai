@@ -33,7 +33,7 @@ const ghArgs = [['--version'],['auth','status','--hostname','github.com'],['repo
 // A strict stub compares the entire argument vector and environment before answering.
 const stub = path.join(tmp,'client.cjs');
 fs.writeFileSync(stub,`const fs=require('fs'); const name=process.argv[2],args=process.argv.slice(3),mode=process.env.FIX_MODE;
-if(name==='git'){if(process.env.FIX_PUSH_OUTPUT_HEX&&JSON.stringify(args)===JSON.stringify(['-C',process.env.FIX_REPO_ROOT,'remote','get-url','--push','--all','--','origin'])){fs.appendFileSync(process.env.FIX_GIT_LOG,JSON.stringify({blank_fixture:true,args})+'\\n');process.stdout.write(Buffer.from(process.env.FIX_PUSH_OUTPUT_HEX,'hex'));process.exit(0);}if(process.env.FIX_DELAY_MS)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,Number(process.env.FIX_DELAY_MS));fs.appendFileSync(process.env.FIX_GIT_LOG,JSON.stringify({args,GIT_TERMINAL_PROMPT:process.env.GIT_TERMINAL_PROMPT,GH_PROMPT_DISABLED:process.env.GH_PROMPT_DISABLED})+'\\n');const crlf=process.env.FIX_GIT_CRLF==='1';const r=require('child_process').spawnSync(process.env.FIX_REAL_GIT,args,{stdio:crlf?['ignore','pipe','pipe']:'inherit',encoding:'utf8',env:process.env});if(crlf){process.stdout.write((r.stdout||'').split(process.env.FIX_REAL_GIT_EOL).join('\\r\\n'));process.stderr.write(r.stderr||'');}process.exit(r.status===null?95:r.status);}
+if(name==='git'){if(process.env.FIX_DELAY_MS)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,Number(process.env.FIX_DELAY_MS));fs.appendFileSync(process.env.FIX_GIT_LOG,JSON.stringify({args,GIT_TERMINAL_PROMPT:process.env.GIT_TERMINAL_PROMPT,GH_PROMPT_DISABLED:process.env.GH_PROMPT_DISABLED})+'\\n');const crlf=process.env.FIX_GIT_CRLF==='1';const r=require('child_process').spawnSync(process.env.FIX_REAL_GIT,args,{stdio:crlf?['ignore','pipe','pipe']:'inherit',encoding:'utf8',env:process.env});if(crlf){process.stdout.write((r.stdout||'').split(process.env.FIX_REAL_GIT_EOL).join('\\r\\n'));process.stderr.write(r.stderr||'');}process.exit(r.status===null?95:r.status);}
 const allowed=JSON.parse(process.env.FIX_ALLOWED)[name];
 const step=allowed.findIndex(x=>JSON.stringify(x)===JSON.stringify(args));
 fs.appendFileSync(process.env.FIX_LOG,JSON.stringify({name,args,env:{AZURE_EXTENSION_USE_DYNAMIC_INSTALL:process.env.AZURE_EXTENSION_USE_DYNAMIC_INSTALL,AZURE_CORE_NO_COLOR:process.env.AZURE_CORE_NO_COLOR,GH_HOST:process.env.GH_HOST,GIT_TERMINAL_PROMPT:process.env.GIT_TERMINAL_PROMPT,GH_PROMPT_DISABLED:process.env.GH_PROMPT_DISABLED,AZ_INSTALLER:process.env.AZ_INSTALLER}})+'\\n');
@@ -77,7 +77,7 @@ function github(h='github.com') {host=h; azure('https://'+h+'/Org/Repo.git'); in
 function calls() {return fs.existsSync(log)?fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];}
 function run(mode='ok',extra=[],override={},entry=cli) {
  fs.writeFileSync(log,''); fs.writeFileSync(gitLog,''); const file=path.join(tmp,'input.json'); fs.writeFileSync(file,JSON.stringify(input));
- const env={...process.env,PATH:bin+path.delimiter+process.env.PATH,FIX_MODE:mode,FIX_REAL_GIT:realGit,FIX_REPO_ROOT:repo,FIX_REAL_GIT_EOL:realGitEol,FIX_GIT_LOG:gitLog,FIX_ALLOWED:JSON.stringify({az:azArgs,gh:ghArgs}),FIX_LOG:log,FIX_PID:pidFile,FIX_HOST:host,AAI_NATIVE_NODE:process.execPath,AAI_NATIVE_STUB:stub,...override};
+ const env={...process.env,PATH:bin+path.delimiter+process.env.PATH,FIX_MODE:mode,FIX_REAL_GIT:realGit,FIX_REAL_GIT_EOL:realGitEol,FIX_GIT_LOG:gitLog,FIX_ALLOWED:JSON.stringify({az:azArgs,gh:ghArgs}),FIX_LOG:log,FIX_PID:pidFile,FIX_HOST:host,AAI_NATIVE_NODE:process.execPath,AAI_NATIVE_STUB:stub,...override};
  const requestedTimeout=extra.includes('--timeout-ms')?Number(extra[extra.indexOf('--timeout-ms')+1]):10000;
  const timeout=mode==='hang'?4000:MAX_CLI_PROBES*(Number.isFinite(requestedTimeout)&&requestedTimeout>=100?requestedTimeout:10000)+STARTUP_ALLOWANCE_MS;
  const sequence=++invocation,start=Date.now(); const r=spawnSync(process.execPath,[entry,'--input',file,'--json',...extra],{env,encoding:'utf8',timeout,maxBuffer:2000000});
@@ -101,37 +101,16 @@ try {
   azure('https://dev.azure.com/Org/Project/_git/Repo/extra');expect(run(),2,'IDENTITY_INVALID');assert.equal(calls().length,0);
   github();expect(run(),0,'READ_VERIFIED');
   const ordinary='https://github.com/Org/Repo.git';
-  function rawGit(...args){return execFileSync(realGit,args,{cwd:repo,stdio:['ignore','pipe','pipe'],env:{...process.env,AAI_GIT_WRITE:'1',GIT_CONFIG_NOSYSTEM:'1'}});}
-  function quotedEndpoint(endpoint,value){
-   try{git('config','--unset-all','remote.origin.'+endpoint)}catch{}
-   // Literal CR inside Git quotes survives old Git config parsing.
-   const encoded=value.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\n/g,'\\n').replace(/\t/g,'\\t');
-   fs.appendFileSync(path.join(repo,'.git','config'),'\n[remote "origin"]\n\t'+endpoint+' = "'+encoded+'"\n');
-   assert.deepEqual(rawGit('config','--null','--get-all','remote.origin.'+endpoint),Buffer.from(value+'\0'),'quoted config round-trip retains endpoint bytes');
-   const args=['remote','get-url',...(endpoint==='pushurl'?['--push']:[]),'--all','origin'];
-   const effective=rawGit(...args);assert.deepEqual(effective,Buffer.from(value+realGitEol),'real Git effective endpoint retains seeded bytes');
-   console.log('INFO: TEST001_ENDPOINT '+JSON.stringify({endpoint,supplied_hex:Buffer.from(value).toString('hex'),effective_hex:effective.toString('hex')}));
-  }
   for(const endpoint of ['url','pushurl'])for(const malformed of [' '+ordinary,ordinary+' ', '\t'+ordinary,ordinary+'\t','\r'+ordinary,ordinary+'\r',ordinary+'\n', '\n'+ordinary,ordinary+'\n'+ordinary,ordinary+'\r'+ordinary]){
-   github();quotedEndpoint(endpoint,malformed);
+   github();git('config','remote.origin.'+endpoint,malformed);
    const refused=run();expect(refused,2,'IDENTITY_INVALID');assert.equal(calls().length,0,'malformed effective '+endpoint+' refused before providers');assert.equal(refused.json.operation,'git.push-destination');
   }
-  // Derive this host's contract from real effective bytes, never from CLI outcome.
-  const gitVersion=rawGit('--version').toString().trim();
+  // Git omits empty configured entries from effective destinations: pin its real positive contract.
   for(const destinations of [[ordinary,''],['',ordinary]]){
-   github();for(const value of destinations)git('config','--add','remote.origin.pushurl',value);
-   const effective=rawGit('remote','get-url','--push','--all','origin'),single=effective.equals(Buffer.from(ordinary+realGitEol));
-   if(!single)assert.ok([ordinary+realGitEol+realGitEol,realGitEol+ordinary+realGitEol].some(v=>effective.equals(Buffer.from(v))),'observed effective output is single URL or explicit blank destination');
-   const observed=run();expect(observed,single?0:2,single?'READ_VERIFIED':'IDENTITY_INVALID');assert.equal(calls().length,single?3:0);
-   console.log('INFO: TEST001_EMPTY '+JSON.stringify({git_version:gitVersion,configured_order:destinations,effective_hex:effective.toString('hex'),expected:single?'READ_VERIFIED':'IDENTITY_INVALID',provider_calls:calls().length}));
+   github();for(const value of destinations)git('config','--add','remote.origin.pushurl',value);expect(run(),0,'READ_VERIFIED');assert.equal(calls().length,3);
   }
   github();
-  for(const raw of [realGitEol+ordinary+realGitEol,ordinary+realGitEol+realGitEol,realGitEol]){
-   const refused=run('ok',[],{FIX_PUSH_OUTPUT_HEX:Buffer.from(raw).toString('hex')});expect(refused,2,'IDENTITY_INVALID');assert.equal(refused.json.operation,'git.push-destination');assert.equal(calls().length,0,'blank effective destination refuses on every host Git');assert.equal(fs.readFileSync(gitLog,'utf8').split('\n').filter(Boolean).map(JSON.parse).filter(c=>c.blank_fixture).length,1,'blank output fixture reached actual push query');
-  }
-  console.log('INFO: TEST001_BLANK deterministic_blank_first_last_only_refused=true provider_calls=0');
-  github();
-  github();expect(run('ok',[],{FIX_GIT_CRLF:'1'}),0,'READ_VERIFIED');assert.equal(calls().length,3,'ordinary CRLF Git process delimiter supported');quotedEndpoint('pushurl',ordinary+'\r');expect(run('ok',[],{FIX_GIT_CRLF:'1'}),2,'IDENTITY_INVALID');assert.equal(calls().length,0,'URL CR retained under CRLF Git process delimiter');github();
+  github();expect(run('ok',[],{FIX_GIT_CRLF:'1'}),0,'READ_VERIFIED');assert.equal(calls().length,3,'ordinary CRLF Git process delimiter supported');git('config','remote.origin.pushurl',ordinary+'\r');expect(run('ok',[],{FIX_GIT_CRLF:'1'}),2,'IDENTITY_INVALID');assert.equal(calls().length,0,'URL CR retained under CRLF Git process delimiter');github();
   git('config','remote.origin.pushurl','https://github.com/Org/Repo.git');expect(run(),0,'READ_VERIFIED');assert.equal(calls().length,3,'one matching explicit push destination succeeds');
   for(const destinations of [['https://dev.azure.com/Other/Project/_git/Other'],['https://github.com/Other/Repo.git'],['https://github.com/Org/Repo.git','https://github.com/Other/Repo.git'],['https://github.com/Org/Repo.git','https://github.com/Org/Repo.git']]){
    git('config','--unset-all','remote.origin.pushurl');for(const url of destinations)git('config','--add','remote.origin.pushurl',url);

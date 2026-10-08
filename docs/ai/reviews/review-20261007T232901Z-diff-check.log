@@ -1,0 +1,500 @@
+exit_code: 2
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/harness-deadline-infra.log:30: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-001.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-002.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.txt:45: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-004.txt:45: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-005.txt:23: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-007.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/whitespace-red.log:9: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/whitespace-red.raw.log:8: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/harness-budget-red.log:29: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-001.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-002.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-003.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.txt:45: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-004.txt:45: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-005.txt:23: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-007.txt:20: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:183: trailing whitespace.
++2026-10-07T20:57:21.5963600Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:187: trailing whitespace.
++2026-10-07T20:57:21.5968638Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:190: trailing whitespace.
++2026-10-07T20:57:21.5972019Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:192: trailing whitespace.
++2026-10-07T20:57:21.5973092Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:194: trailing whitespace.
++2026-10-07T20:57:21.5974369Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:196: trailing whitespace.
++2026-10-07T20:57:21.5975353Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:198: trailing whitespace.
++2026-10-07T20:57:21.5977238Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:347: trailing whitespace.
++2026-10-07T20:57:26.0312490Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:350: trailing whitespace.
++2026-10-07T20:57:26.0334116Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:358: trailing whitespace.
++2026-10-07T20:57:27.5119611Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:360: trailing whitespace.
++2026-10-07T20:57:27.5120249Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:423: trailing whitespace.
++2026-10-07T21:00:32.0260599Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:424: trailing whitespace.
++2026-10-07T21:00:32.0261190Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:435: trailing whitespace.
++2026-10-07T21:00:32.0272974Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457339.log:454: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:184: trailing whitespace.
++2026-10-07T20:57:20.1792822Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:188: trailing whitespace.
++2026-10-07T20:57:20.1797927Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:191: trailing whitespace.
++2026-10-07T20:57:20.1800833Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:193: trailing whitespace.
++2026-10-07T20:57:20.1801947Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:195: trailing whitespace.
++2026-10-07T20:57:20.1803035Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:197: trailing whitespace.
++2026-10-07T20:57:20.1803966Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:199: trailing whitespace.
++2026-10-07T20:57:20.1805835Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:348: trailing whitespace.
++2026-10-07T20:57:24.8768558Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:351: trailing whitespace.
++2026-10-07T20:57:24.8775936Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:359: trailing whitespace.
++2026-10-07T20:57:25.1778573Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:361: trailing whitespace.
++2026-10-07T20:57:25.1779671Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:412: trailing whitespace.
++2026-10-07T21:00:24.7890370Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:435: trailing whitespace.
++2026-10-07T21:01:10.9637265Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:436: trailing whitespace.
++2026-10-07T21:01:10.9637941Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:447: trailing whitespace.
++2026-10-07T21:01:10.9647277Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457365.log:466: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:183: trailing whitespace.
++2026-10-07T20:57:20.6958755Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:187: trailing whitespace.
++2026-10-07T20:57:20.6963115Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:190: trailing whitespace.
++2026-10-07T20:57:20.6965562Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:192: trailing whitespace.
++2026-10-07T20:57:20.6966332Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:194: trailing whitespace.
++2026-10-07T20:57:20.6967049Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:196: trailing whitespace.
++2026-10-07T20:57:20.6967621Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:198: trailing whitespace.
++2026-10-07T20:57:20.6968993Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:347: trailing whitespace.
++2026-10-07T20:57:24.7489985Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:350: trailing whitespace.
++2026-10-07T20:57:24.7496600Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:358: trailing whitespace.
++2026-10-07T20:57:27.7940223Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:360: trailing whitespace.
++2026-10-07T20:57:27.7940615Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:367: trailing whitespace.
++2026-10-07T20:58:01.5388381Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:370: trailing whitespace.
++2026-10-07T20:58:01.5457351Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:432: trailing whitespace.
++2026-10-07T20:59:38.5735806Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:455: trailing whitespace.
++2026-10-07T21:01:18.9878962Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:456: trailing whitespace.
++2026-10-07T21:01:18.9879264Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:467: trailing whitespace.
++2026-10-07T21:01:18.9884496Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457588.log:491: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:184: trailing whitespace.
++2026-10-07T20:57:20.5597215Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:188: trailing whitespace.
++2026-10-07T20:57:20.5604010Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:191: trailing whitespace.
++2026-10-07T20:57:20.5609556Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:193: trailing whitespace.
++2026-10-07T20:57:20.5611339Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:195: trailing whitespace.
++2026-10-07T20:57:20.5613238Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:197: trailing whitespace.
++2026-10-07T20:57:20.5614648Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:199: trailing whitespace.
++2026-10-07T20:57:20.5617853Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:348: trailing whitespace.
++2026-10-07T20:57:26.1973111Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:351: trailing whitespace.
++2026-10-07T20:57:26.1980332Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:359: trailing whitespace.
++2026-10-07T20:57:26.4714812Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:361: trailing whitespace.
++2026-10-07T20:57:26.4716091Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:399: trailing whitespace.
++2026-10-07T21:00:43.5895050Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:424: trailing whitespace.
++2026-10-07T21:04:33.6790206Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:425: trailing whitespace.
++2026-10-07T21:04:33.6790783Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:436: trailing whitespace.
++2026-10-07T21:04:33.6803999Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/original-ci-113013457677.log:455: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/pushurl-red.log:8: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/windows-60983274.log:91: trailing whitespace.
++2026-10-07T20:57:11.0966731Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/windows-60983274.log:95: trailing whitespace.
++2026-10-07T20:57:11.0969738Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/windows-60983274.log:98: trailing whitespace.
++2026-10-07T20:57:11.0971297Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/windows-60983274.log:100: trailing whitespace.
++2026-10-07T20:57:11.0971859Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/windows-60983274.log:102: trailing whitespace.
++2026-10-07T20:57:11.0972374Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/windows-60983274.log:104: trailing whitespace.
++2026-10-07T20:57:11.0972816Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/windows-60983274.log:106: trailing whitespace.
++2026-10-07T20:57:11.0973752Z 
+docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/windows-60983274.log:1392: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/clone-control-red.log:9: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:91: trailing whitespace.
++2026-10-07T20:24:24.3543327Z 
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:95: trailing whitespace.
++2026-10-07T20:24:24.3544714Z 
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:98: trailing whitespace.
++2026-10-07T20:24:24.3545416Z 
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:100: trailing whitespace.
++2026-10-07T20:24:24.3545647Z 
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:102: trailing whitespace.
++2026-10-07T20:24:24.3545858Z 
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:104: trailing whitespace.
++2026-10-07T20:24:24.3546026Z 
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:106: trailing whitespace.
++2026-10-07T20:24:24.3546417Z 
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:1042: trailing whitespace.
++2026-10-07T20:37:07.4151490Z     + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,e6d7f2ea-043e-43a9-a649-db2b34d45716.p 
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:1044: trailing whitespace.
++2026-10-07T20:37:07.4152189Z  
+docs/ai/tdd/pr-capability-preflight-remediation-20261007/native-ci-red.log:1062: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:183: trailing whitespace.
++2026-10-07T20:57:21.5963600Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:187: trailing whitespace.
++2026-10-07T20:57:21.5968638Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:190: trailing whitespace.
++2026-10-07T20:57:21.5972019Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:192: trailing whitespace.
++2026-10-07T20:57:21.5973092Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:194: trailing whitespace.
++2026-10-07T20:57:21.5974369Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:196: trailing whitespace.
++2026-10-07T20:57:21.5975353Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:198: trailing whitespace.
++2026-10-07T20:57:21.5977238Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:347: trailing whitespace.
++2026-10-07T20:57:26.0312490Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:350: trailing whitespace.
++2026-10-07T20:57:26.0334116Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:358: trailing whitespace.
++2026-10-07T20:57:27.5119611Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:360: trailing whitespace.
++2026-10-07T20:57:27.5120249Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:423: trailing whitespace.
++2026-10-07T21:00:32.0260599Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:424: trailing whitespace.
++2026-10-07T21:00:32.0261190Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:435: trailing whitespace.
++2026-10-07T21:00:32.0272974Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457339.log:454: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:184: trailing whitespace.
++2026-10-07T20:57:20.1792822Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:188: trailing whitespace.
++2026-10-07T20:57:20.1797927Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:191: trailing whitespace.
++2026-10-07T20:57:20.1800833Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:193: trailing whitespace.
++2026-10-07T20:57:20.1801947Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:195: trailing whitespace.
++2026-10-07T20:57:20.1803035Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:197: trailing whitespace.
++2026-10-07T20:57:20.1803966Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:199: trailing whitespace.
++2026-10-07T20:57:20.1805835Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:348: trailing whitespace.
++2026-10-07T20:57:24.8768558Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:351: trailing whitespace.
++2026-10-07T20:57:24.8775936Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:359: trailing whitespace.
++2026-10-07T20:57:25.1778573Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:361: trailing whitespace.
++2026-10-07T20:57:25.1779671Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:412: trailing whitespace.
++2026-10-07T21:00:24.7890370Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:435: trailing whitespace.
++2026-10-07T21:01:10.9637265Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:436: trailing whitespace.
++2026-10-07T21:01:10.9637941Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:447: trailing whitespace.
++2026-10-07T21:01:10.9647277Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457365.log:466: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:183: trailing whitespace.
++2026-10-07T20:57:20.6958755Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:187: trailing whitespace.
++2026-10-07T20:57:20.6963115Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:190: trailing whitespace.
++2026-10-07T20:57:20.6965562Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:192: trailing whitespace.
++2026-10-07T20:57:20.6966332Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:194: trailing whitespace.
++2026-10-07T20:57:20.6967049Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:196: trailing whitespace.
++2026-10-07T20:57:20.6967621Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:198: trailing whitespace.
++2026-10-07T20:57:20.6968993Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:347: trailing whitespace.
++2026-10-07T20:57:24.7489985Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:350: trailing whitespace.
++2026-10-07T20:57:24.7496600Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:358: trailing whitespace.
++2026-10-07T20:57:27.7940223Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:360: trailing whitespace.
++2026-10-07T20:57:27.7940615Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:367: trailing whitespace.
++2026-10-07T20:58:01.5388381Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:370: trailing whitespace.
++2026-10-07T20:58:01.5457351Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:432: trailing whitespace.
++2026-10-07T20:59:38.5735806Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:455: trailing whitespace.
++2026-10-07T21:01:18.9878962Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:456: trailing whitespace.
++2026-10-07T21:01:18.9879264Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:467: trailing whitespace.
++2026-10-07T21:01:18.9884496Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457588.log:491: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:184: trailing whitespace.
++2026-10-07T20:57:20.5597215Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:188: trailing whitespace.
++2026-10-07T20:57:20.5604010Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:191: trailing whitespace.
++2026-10-07T20:57:20.5609556Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:193: trailing whitespace.
++2026-10-07T20:57:20.5611339Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:195: trailing whitespace.
++2026-10-07T20:57:20.5613238Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:197: trailing whitespace.
++2026-10-07T20:57:20.5614648Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:199: trailing whitespace.
++2026-10-07T20:57:20.5617853Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:348: trailing whitespace.
++2026-10-07T20:57:26.1973111Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:351: trailing whitespace.
++2026-10-07T20:57:26.1980332Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:359: trailing whitespace.
++2026-10-07T20:57:26.4714812Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:361: trailing whitespace.
++2026-10-07T20:57:26.4716091Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:399: trailing whitespace.
++2026-10-07T21:00:43.5895050Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:424: trailing whitespace.
++2026-10-07T21:04:33.6790206Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:425: trailing whitespace.
++2026-10-07T21:04:33.6790783Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:436: trailing whitespace.
++2026-10-07T21:04:33.6803999Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/ci-failed-113013457677.log:455: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log:104: trailing whitespace.
++2026-10-07T20:57:04.3954550Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log:108: trailing whitespace.
++2026-10-07T20:57:04.3960928Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log:111: trailing whitespace.
++2026-10-07T20:57:04.3964078Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log:113: trailing whitespace.
++2026-10-07T20:57:04.3965449Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log:115: trailing whitespace.
++2026-10-07T20:57:04.3966641Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log:117: trailing whitespace.
++2026-10-07T20:57:04.3967762Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log:119: trailing whitespace.
++2026-10-07T20:57:04.3970413Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log:515: trailing whitespace.
++2026-10-07T20:58:38.5241108Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/native-linux.log:537: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027738596.log:181: trailing whitespace.
++2026-10-07T21:32:14.6789413Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027738596.log:185: trailing whitespace.
++2026-10-07T21:32:14.6793290Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027738596.log:188: trailing whitespace.
++2026-10-07T21:32:14.6795581Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027738596.log:190: trailing whitespace.
++2026-10-07T21:32:14.6796289Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027738596.log:192: trailing whitespace.
++2026-10-07T21:32:14.6796968Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027738596.log:194: trailing whitespace.
++2026-10-07T21:32:14.6797514Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027738596.log:196: trailing whitespace.
++2026-10-07T21:32:14.6799109Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027738596.log:244: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027738990.log:106: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740101.log:109: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740497.log:108: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740655.log:105: trailing whitespace.
++2026-10-07T21:32:13.4191930Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740655.log:109: trailing whitespace.
++2026-10-07T21:32:13.4193799Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740655.log:112: trailing whitespace.
++2026-10-07T21:32:13.4194711Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740655.log:114: trailing whitespace.
++2026-10-07T21:32:13.4196044Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740655.log:116: trailing whitespace.
++2026-10-07T21:32:13.4196597Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740655.log:118: trailing whitespace.
++2026-10-07T21:32:13.4196883Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740655.log:120: trailing whitespace.
++2026-10-07T21:32:13.4197375Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740655.log:522: trailing whitespace.
++2026-10-07T21:33:40.9764539Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027740655.log:544: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:183: trailing whitespace.
++2026-10-07T21:32:34.2069476Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:187: trailing whitespace.
++2026-10-07T21:32:34.2072735Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:190: trailing whitespace.
++2026-10-07T21:32:34.2074986Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:192: trailing whitespace.
++2026-10-07T21:32:34.2075640Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:194: trailing whitespace.
++2026-10-07T21:32:34.2076250Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:196: trailing whitespace.
++2026-10-07T21:32:34.2076738Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:198: trailing whitespace.
++2026-10-07T21:32:34.2078268Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:347: trailing whitespace.
++2026-10-07T21:32:39.2067263Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:350: trailing whitespace.
++2026-10-07T21:32:39.2072913Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:358: trailing whitespace.
++2026-10-07T21:32:39.4500109Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:360: trailing whitespace.
++2026-10-07T21:33:51.3236604Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:423: trailing whitespace.
++2026-10-07T21:36:03.6009924Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:424: trailing whitespace.
++2026-10-07T21:36:03.6010408Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:435: trailing whitespace.
++2026-10-07T21:36:03.6021538Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852639.log:454: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:184: trailing whitespace.
++2026-10-07T21:32:32.1287891Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:188: trailing whitespace.
++2026-10-07T21:32:32.1290975Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:191: trailing whitespace.
++2026-10-07T21:32:32.1296568Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:193: trailing whitespace.
++2026-10-07T21:32:32.1297227Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:195: trailing whitespace.
++2026-10-07T21:32:32.1297846Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:197: trailing whitespace.
++2026-10-07T21:32:32.1298345Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:199: trailing whitespace.
++2026-10-07T21:32:32.1299937Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:348: trailing whitespace.
++2026-10-07T21:32:37.0811296Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:351: trailing whitespace.
++2026-10-07T21:32:37.0841718Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:359: trailing whitespace.
++2026-10-07T21:32:38.0730826Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:361: trailing whitespace.
++2026-10-07T21:32:38.0732263Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:367: trailing whitespace.
++2026-10-07T21:33:17.6464141Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:370: trailing whitespace.
++2026-10-07T21:33:17.6487587Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:433: trailing whitespace.
++2026-10-07T21:35:46.7642946Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:456: trailing whitespace.
++2026-10-07T21:38:15.6562428Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:457: trailing whitespace.
++2026-10-07T21:38:15.6562926Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:469: trailing whitespace.
++2026-10-07T21:38:15.6570570Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852672.log:492: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:183: trailing whitespace.
++2026-10-07T21:32:31.7598137Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:187: trailing whitespace.
++2026-10-07T21:32:31.7606880Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:190: trailing whitespace.
++2026-10-07T21:32:31.7612282Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:192: trailing whitespace.
++2026-10-07T21:32:31.7614013Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:194: trailing whitespace.
++2026-10-07T21:32:31.7615727Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:196: trailing whitespace.
++2026-10-07T21:32:31.7616754Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:198: trailing whitespace.
++2026-10-07T21:32:31.7619765Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:347: trailing whitespace.
++2026-10-07T21:32:36.5563124Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:350: trailing whitespace.
++2026-10-07T21:32:36.5570529Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:358: trailing whitespace.
++2026-10-07T21:32:38.1011860Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:360: trailing whitespace.
++2026-10-07T21:32:38.1012930Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:412: trailing whitespace.
++2026-10-07T21:35:26.9751215Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:434: trailing whitespace.
++2026-10-07T21:36:00.5942012Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:435: trailing whitespace.
++2026-10-07T21:36:00.5942783Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:446: trailing whitespace.
++2026-10-07T21:36:00.5951865Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852720.log:465: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:183: trailing whitespace.
++2026-10-07T21:32:32.0435304Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:187: trailing whitespace.
++2026-10-07T21:32:32.0444922Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:190: trailing whitespace.
++2026-10-07T21:32:32.0450643Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:192: trailing whitespace.
++2026-10-07T21:32:32.0452477Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:194: trailing whitespace.
++2026-10-07T21:32:32.0454227Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:196: trailing whitespace.
++2026-10-07T21:32:32.0455663Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:198: trailing whitespace.
++2026-10-07T21:32:32.0459192Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:347: trailing whitespace.
++2026-10-07T21:32:36.8226485Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:350: trailing whitespace.
++2026-10-07T21:32:36.8233898Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:358: trailing whitespace.
++2026-10-07T21:32:37.9725403Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:360: trailing whitespace.
++2026-10-07T21:32:37.9726659Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:434: trailing whitespace.
++2026-10-07T21:35:08.9106709Z 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:495: trailing whitespace.
++2026-10-07T21:36:36.8551874Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:496: trailing whitespace.
++2026-10-07T21:36:36.8552381Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:507: trailing whitespace.
++2026-10-07T21:36:36.8566639Z [0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/ci-job-113027852777.log:526: new blank line at EOF.
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/full-framework.log:12: trailing whitespace.
++[0;34m[INFO][0m 
+docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/full-framework.log:14: trailing whitespace.
++[0;34m[INFO][0m 
+docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-001.txt:20: new blank line at EOF.
+docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-002.txt:20: new blank line at EOF.
+docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.2026-10-07T12-32-21Z.txt:20: new blank line at EOF.
+docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-003.txt:20: new blank line at EOF.
+docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.2026-10-07T12-32-59Z.txt:45: new blank line at EOF.
+docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-004.txt:45: new blank line at EOF.
+docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-005.txt:23: new blank line at EOF.
+docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.txt:20: new blank line at EOF.
+docs/decisions/DECISION-pr-capability-preflight-final-round.md:22: new blank line at EOF.

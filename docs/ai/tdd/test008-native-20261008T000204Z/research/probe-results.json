@@ -1,0 +1,1052 @@
+[
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "url",
+    "case": "no-pushurl",
+    "configured_pushurls": [],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "url",
+    "case": "matching",
+    "configured_pushurls": [
+      "https://github.com/Org/Repo.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "url",
+    "case": "valid-empty",
+    "configured_pushurls": [
+      "https://github.com/Org/Repo.git",
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "url",
+    "case": "empty-valid",
+    "configured_pushurls": [
+      "",
+      "https://github.com/Org/Repo.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "url",
+    "case": "empty-only",
+    "configured_pushurls": [
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "local",
+    "case": "no-pushurl",
+    "configured_pushurls": [],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-0.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-0.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "local",
+    "case": "matching",
+    "configured_pushurls": [
+      "/private/tmp/aai-empty-pushurl-research/destination-0.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-0.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-0.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "local",
+    "case": "valid-empty",
+    "configured_pushurls": [
+      "/private/tmp/aai-empty-pushurl-research/destination-0.git",
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-0.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-0.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "local",
+    "case": "empty-valid",
+    "configured_pushurls": [
+      "",
+      "/private/tmp/aai-empty-pushurl-research/destination-0.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-0.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-0.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/usr/bin/git",
+    "version": "git version 2.54.0 (Apple Git-157)",
+    "mode": "local",
+    "case": "empty-only",
+    "configured_pushurls": [
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-0.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d302e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-0.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "url",
+    "case": "no-pushurl",
+    "configured_pushurls": [],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "url",
+    "case": "matching",
+    "configured_pushurls": [
+      "https://github.com/Org/Repo.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "url",
+    "case": "valid-empty",
+    "configured_pushurls": [
+      "https://github.com/Org/Repo.git",
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a0a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "url",
+    "case": "empty-valid",
+    "configured_pushurls": [
+      "",
+      "https://github.com/Org/Repo.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "0a68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "\nhttps://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "url",
+    "case": "empty-only",
+    "configured_pushurls": [
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "0a",
+      "stderr_hex": "",
+      "stdout": "\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "local",
+    "case": "no-pushurl",
+    "configured_pushurls": [],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d312e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-1.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d312e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-1.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "local",
+    "case": "matching",
+    "configured_pushurls": [
+      "/private/tmp/aai-empty-pushurl-research/destination-1.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d312e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-1.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d312e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-1.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "local",
+    "case": "valid-empty",
+    "configured_pushurls": [
+      "/private/tmp/aai-empty-pushurl-research/destination-1.git",
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d312e6769740a0a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-1.git\n\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 128,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d312e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "666174616c3a206e6f2070617468207370656369666965643b2073656520276769742068656c702070756c6c2720666f722076616c69642075726c2073796e7461780a",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-1.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": "fatal: no path specified; see 'git help pull' for valid url syntax\n"
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "local",
+    "case": "empty-valid",
+    "configured_pushurls": [
+      "",
+      "/private/tmp/aai-empty-pushurl-research/destination-1.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "0a2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d312e6769740a",
+      "stderr_hex": "",
+      "stdout": "\n/private/tmp/aai-empty-pushurl-research/destination-1.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 128,
+      "stdout_hex": "",
+      "stderr_hex": "666174616c3a206e6f2070617468207370656369666965643b2073656520276769742068656c702070756c6c2720666f722076616c69642075726c2073796e7461780a",
+      "stdout": "",
+      "stderr": "fatal: no path specified; see 'git help pull' for valid url syntax\n"
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/private/tmp/aai-empty-pushurl-research/git-2.43.0/git",
+    "version": "git version 2.43.0",
+    "mode": "local",
+    "case": "empty-only",
+    "configured_pushurls": [
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "0a",
+      "stderr_hex": "",
+      "stdout": "\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 128,
+      "stdout_hex": "",
+      "stderr_hex": "666174616c3a206e6f2070617468207370656369666965643b2073656520276769742068656c702070756c6c2720666f722076616c69642075726c2073796e7461780a",
+      "stdout": "",
+      "stderr": "fatal: no path specified; see 'git help pull' for valid url syntax\n"
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "url",
+    "case": "no-pushurl",
+    "configured_pushurls": [],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "url",
+    "case": "matching",
+    "configured_pushurls": [
+      "https://github.com/Org/Repo.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "url",
+    "case": "valid-empty",
+    "configured_pushurls": [
+      "https://github.com/Org/Repo.git",
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "url",
+    "case": "empty-valid",
+    "configured_pushurls": [
+      "",
+      "https://github.com/Org/Repo.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "url",
+    "case": "empty-only",
+    "configured_pushurls": [
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "68747470733a2f2f6769746875622e636f6d2f4f72672f5265706f2e6769740a",
+      "stderr_hex": "",
+      "stdout": "https://github.com/Org/Repo.git\n",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "local",
+    "case": "no-pushurl",
+    "configured_pushurls": [],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-2.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-2.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "local",
+    "case": "matching",
+    "configured_pushurls": [
+      "/private/tmp/aai-empty-pushurl-research/destination-2.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-2.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-2.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "local",
+    "case": "valid-empty",
+    "configured_pushurls": [
+      "/private/tmp/aai-empty-pushurl-research/destination-2.git",
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-2.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-2.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "local",
+    "case": "empty-valid",
+    "configured_pushurls": [
+      "",
+      "/private/tmp/aai-empty-pushurl-research/destination-2.git"
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-2.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-2.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  {
+    "binary": "/Users/ales/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/git",
+    "version": "git version 2.53.0",
+    "mode": "local",
+    "case": "empty-only",
+    "configured_pushurls": [
+      ""
+    ],
+    "effective": {
+      "args": [
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        "origin"
+      ],
+      "exit": 0,
+      "stdout_hex": "2f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a",
+      "stderr_hex": "",
+      "stdout": "/private/tmp/aai-empty-pushurl-research/destination-2.git\n",
+      "stderr": ""
+    },
+    "push_dry_run": {
+      "args": [
+        "push",
+        "--dry-run",
+        "--porcelain",
+        "origin",
+        "main"
+      ],
+      "exit": 0,
+      "stdout_hex": "546f202f707269766174652f746d702f6161692d656d7074792d7075736875726c2d72657365617263682f64657374696e6174696f6e2d322e6769740a2a09726566732f68656164732f6d61696e3a726566732f68656164732f6d61696e095b6e6577206272616e63685d0a446f6e650a",
+      "stderr_hex": "",
+      "stdout": "To /private/tmp/aai-empty-pushurl-research/destination-2.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\nDone\n",
+      "stderr": ""
+    },
+    "destination_refs_after": {
+      "args": [
+        "show-ref"
+      ],
+      "exit": 1,
+      "stdout_hex": "",
+      "stderr_hex": "",
+      "stdout": "",
+      "stderr": ""
+    }
+  }
+]
