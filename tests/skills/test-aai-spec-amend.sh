@@ -69,6 +69,14 @@ unsigned_spec_ids() {
   node "$SA" list --ledger "$LIVE_LEDGER" --status unsigned --json 2>/dev/null \
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const ids=[...new Set((j.items||[]).map(r=>r.spec_id).filter(Boolean))];console.log(ids.join("\n"))})'
 }
+# tracked_by ids of one spec's unsigned records (one per line). A spec whose base
+# item was already closed by an owner signature gets a NEW disambiguated item on
+# its next amendment (spec-amend.mjs stamped id), so the open item is whichever
+# id the unsigned records point at, not only the base id.
+unsigned_tracker_ids_for() {  # <spec id>
+  node "$SA" list --ledger "$LIVE_LEDGER" --status unsigned --json 2>/dev/null \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log([...new Set((j.items||[]).filter(r=>r.spec_id===process.argv[1]&&r.tracked_by).map(r=>r.tracked_by))].join("\n"))})' "$1"
+}
 # Tracked items whose EVERY amendment record is signed (keyed on tracked_by,
 # so records with no spec path count too) — these must carry no OPEN item.
 fully_signed_tracked_ids() {
@@ -890,7 +898,12 @@ test_009_live_backfill_and_whole_ledger_readers() {
       import(pathToFileURL(process.argv[2]).href)
         .then((m) => process.stdout.write(m.amendItemId(process.argv[1])));
     ' "$sid" "$SA")"
-    grep -qxF "$expect" <<<"$open_ids" || missing="$missing $sid($expect)"
+    if grep -qxF "$expect" <<<"$open_ids"; then continue; fi
+    local trk found=0
+    for trk in $(unsigned_tracker_ids_for "$sid"); do
+      if grep -qxF "$trk" <<<"$open_ids"; then found=1; fi
+    done
+    [[ "$found" == 1 ]] || missing="$missing $sid($expect)"
   done
   [[ -z "$missing" ]] \
     || log_fail "TEST-009: no OPEN tracked item for:$missing — the standing amendments are not surfaced for an owner decision (checked as an id TOKEN against --json items[].id, not a substring of the rendering)"
