@@ -2,12 +2,14 @@
 id: pr-github-case-identity
 type: issue
 number: 95
-status: draft
+status: done
 links:
   spec: spec-pr-github-case-identity
   parent: pr-capability-preflight
-  pr: []
-  commits: []
+  pr:
+    - 434
+  commits:
+    - bddaa7657ac0c92dc22f0bc25d4bff7df22cf91c
 ---
 
 # Compare GitHub repository identity without case sensitivity

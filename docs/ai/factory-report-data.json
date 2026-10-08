@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-08T11:20:35.310Z",
+  "generatedAt": "2026-10-08T11:49:01.905Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 153,
-    "delivered": 503,
+    "delivered": 505,
     "active_weeks": 15,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (503 closes vs 153 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 503,
-    "delivered_per_week_avg": 33.5,
+    "note": "\"delivered\" counts every work_item_closed event (505 closes vs 153 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 505,
+    "delivered_per_week_avg": 33.7,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -29,7 +29,7 @@
       "2026-W38": 12,
       "2026-W39": 15,
       "2026-W40": 35,
-      "2026-W41": 10
+      "2026-W41": 12
     },
     "delivered_groups": [
       {
@@ -539,7 +539,7 @@
         "key": "month:2026-10",
         "kind": "month",
         "label": "2026-10",
-        "count": 24,
+        "count": 26,
         "refs": [
           "downstream-rides-ask-no-governance-questions",
           "spec-downstream-rides-ask-no-governance-questions",
@@ -564,7 +564,9 @@
           "pr-capability-preflight",
           "spec-pr-capability-preflight",
           "pr-generic-url-validity",
-          "spec-pr-generic-url-validity"
+          "spec-pr-generic-url-validity",
+          "pr-github-case-identity",
+          "spec-pr-github-case-identity"
         ]
       }
     ],
@@ -2581,12 +2583,20 @@
         {
           "ref": "spec-pr-generic-url-validity",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "pr-github-case-identity",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-pr-github-case-identity",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 4503,
       "mean_seconds": 110639.7,
       "measured": 149,
-      "unmeasurable": 354
+      "unmeasurable": 356
     }
   },
   "speed": {
@@ -5141,7 +5151,7 @@
     },
     {
       "week": "2026-W41",
-      "delivered": 10,
+      "delivered": 12,
       "median_lead_time_seconds": 30634,
       "busy_seconds": 399510,
       "tokens": null,
@@ -6501,7 +6511,7 @@
         "id": "fu-inert-path-class",
         "ref": "ci-test-selection-narrowing-and-sharding",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "Add a reviewed inert_globs class to suite-map.yaml so test-inert paths run CORE only instead of FULL_RUN",
         "status": "open"
       },
@@ -6509,7 +6519,7 @@
         "id": "fu-lib-graph-narrowing-after-sharding",
         "ref": "ci-test-selection-narrowing-and-sharding",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "Narrow the shared-lib FULL_RUN rule by the lib reverse-import graph, and shard the selected-mode job too",
         "status": "open"
       },

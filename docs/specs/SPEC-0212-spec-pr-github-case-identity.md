@@ -2,7 +2,7 @@
 id: spec-pr-github-case-identity
 type: spec
 number: 212
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 9b9ab5bbc7c930c3f2a432ddaa266d543c99f2675c1f3b5d1e856269e8c5783f
 ceremony_level: 1
@@ -10,8 +10,10 @@ links:
   requirement: pr-github-case-identity
   parent: spec-pr-capability-preflight
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 434
+  commits:
+    - bddaa7657ac0c92dc22f0bc25d4bff7df22cf91c
 ---
 
 # Compare GitHub repository identity without case sensitivity

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-08T11:48:04.004Z",
+  "generatedAt": "2026-10-08T11:49:06.432Z",
   "project": "aai",
   "counts": {
-    "delivered": 280,
-    "in_progress": 18,
+    "delivered": 281,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -207,19 +207,6 @@
       "review": null
     },
     {
-      "ref": "pr-github-case-identity",
-      "title": "Compare GitHub repository identity without case sensitivity",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0095-pr-github-case-identity.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0212-spec-pr-github-case-identity.md",
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -259,6 +246,19 @@
       "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
       "validation": "docs/ai/reports/VALIDATION-20261008T111030Z-pr-generic-url-validity.md",
       "review": "docs/ai/reviews/review-20261008T102859Z-pr-generic-url-validity.md"
+    },
+    {
+      "ref": "pr-github-case-identity",
+      "title": "Compare GitHub repository identity without case sensitivity",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0095-pr-github-case-identity.md",
+      "closed_on": "2026-10-08",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0212-spec-pr-github-case-identity.md",
+      "validation": "docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md",
+      "review": "docs/ai/reviews/review-20261008T114239Z-pr-github-case-identity.md"
     },
     {
       "ref": "worktree-lacks-vendored-aai-layer-downstream",
@@ -3926,6 +3926,19 @@
           "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
           "validation": "docs/ai/reports/VALIDATION-20261008T111030Z-pr-generic-url-validity.md",
           "review": "docs/ai/reviews/review-20261008T102859Z-pr-generic-url-validity.md"
+        },
+        {
+          "ref": "pr-github-case-identity",
+          "title": "Compare GitHub repository identity without case sensitivity",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0095-pr-github-case-identity.md",
+          "closed_on": "2026-10-08",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0212-spec-pr-github-case-identity.md",
+          "validation": "docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md",
+          "review": "docs/ai/reviews/review-20261008T114239Z-pr-github-case-identity.md"
         },
         {
           "ref": "worktree-lacks-vendored-aai-layer-downstream",
