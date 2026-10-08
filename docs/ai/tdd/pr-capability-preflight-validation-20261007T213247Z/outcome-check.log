@@ -1,6 +1,0 @@
-OUTCOME-CHECK: outcome OUT-AC-001 result is violated
-OUTCOME-CHECK: outcome OUT-AC-004 result is violated
-OUTCOME-CHECK: outcome OUT-AC-005 result is unknown
-OUTCOME-CHECK: outcome OUT-R-009 result is violated
-OUTCOME-CHECK: outcome OUT-R-010 result is unknown
-OUTCOME-CHECK: outcome OUT-R-011 result is unknown

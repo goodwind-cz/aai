@@ -1,8 +1,0 @@
-{
-  "shipping_head": "525a05791a24d3d8c894639ce66de9ceed5a01a3",
-  "private_commit": "de2f6c1a58fe16c9049116f5638eca3b061a5fbc",
-  "shipping_hash": "ff4156728b4f992ed4716faf04f24354fd41a8b2509a0933659d013d015096ee",
-  "private_hash": "ff4156728b4f992ed4716faf04f24354fd41a8b2509a0933659d013d015096ee",
-  "equal": true,
-  "tree_hash_limits": "tracked+untracked-not-ignored+closed runtime allowlist; excludes docs/ai/tdd"
-}

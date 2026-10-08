@@ -1,3 +1,0 @@
-mutation-run: skipping tracked overlay docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-001.patch (ENOENT: no such file or directory, lstat '/private/tmp/aai-pr-capability-preflight/docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-001.patch')
-RED: /private/tmp/aai-pr-capability-preflight/docs/ai/tdd/spec-pr-generic-url-validity/mutation-TEST-007.txt
-first_fail: FAIL: TEST-007 exit IDENTITY_INVALID

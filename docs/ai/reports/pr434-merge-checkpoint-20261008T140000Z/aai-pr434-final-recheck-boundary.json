@@ -1,6 +1,0 @@
-{
-  ".aai/scripts/pr-preflight.mjs": "e0d14f2b5dc9d5726fbae36e03b1bb346204c459cd6ab988015b57069396caaf",
-  "tests/skills/test-aai-pr-preflight.sh": "239206e806eff008083c8c1b081587760aa0ec9f4094fe7336a7404dc169df7c",
-  "docs/ai/STATE.yaml": "111440262779186b373353104f80b67fe740c1889a675adfc095f69f22edc4f9",
-  "index_raw_nul_sha256": "becdd72f98bf1a5978cf83ff39cd1cf9277e17044c183c49ed1b6aeae1749dc4"
-}

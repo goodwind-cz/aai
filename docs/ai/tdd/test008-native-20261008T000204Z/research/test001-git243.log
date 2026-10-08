@@ -1,4 +1,0 @@
-AAI-TRIPWIRE: NOTE - not armed (library not found: /private/tmp/aai-empty-pushurl-research/.aai/scripts/lib/repo-tripwire.sh); a write to the shipping repository would go unreported.
-AAI-ISOLATION: degraded - /private/tmp/aai-empty-pushurl-research is not a git checkout with a commit to branch from; this suite run uses the shipping repository as its working tree.
-AAI-SEEDING: skipped - no disposable checkout was made, or one was made and then discarded before seeding could start (see the AAI-ISOLATION line above for why), so nothing was seeded.
-FAIL: TEST-001 one parseable JSON result required: 

@@ -1,6 +1,0 @@
-CAPTURE_LEGACY {"ExitCode":1,"ArgumentMode":0,"Preference":1,"Output":"[eval]:1\nconsole.log(JSON.stringify({clone_diagnostic:full-boundary}));console.error(genuine-native-failure);process.exit(7)\n                                             ^\n\nReferenceError: full is not defined\n    at [eval]:1:46\n    at runScriptInThisContext (node:internal/vm:219:10)\n    at node:internal/process/execution:485:12\n    at [eval]-wrapper:6:24\n    at runScriptInContext (node:internal/process/execution:483:60)\n    at evalFunction (node:internal/process/execution:317:30)\n    at evalTypeScript (node:internal/process/execution:329:3)\n    at node:internal/main/eval_string:71:3\n\nNode.js v26.8.2"}
-Exception: /private/tmp/aai-pr434-remediation-scratch/capture-legacy-red.ps1:18
-Line |
-  18 |  … de -ne 7) { throw ('assertion: expected exit7, observed' + $result.Ex …
-     |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     | assertion: expected exit7, observed1

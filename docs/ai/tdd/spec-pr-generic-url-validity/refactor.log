@@ -1,4 +1,0 @@
-Scope: TEST-001 and TEST-007 for SPEC-0211
-Review: the implementation is one explicit-scheme syntax guard at the existing effective-remote boundary. The shared test harness additions reuse the existing Git fixture helpers, strict provider call log, generic/local controls, and the registered TEST-001/TEST-007 selectors.
-Decision: no further refactor was warranted; extracting a second parser or broadening generic host policy would add a new abstraction or behavior outside the two-row scope.
-Verification after this decision: `AAI_PREFLIGHT_SCRATCH=/private/tmp/aai-pr434-generic-scratch/fixtures bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh` exited 0 with TEST-001 through TEST-008 PASS. See `docs/ai/tdd/spec-pr-generic-url-validity/full8row.log`.

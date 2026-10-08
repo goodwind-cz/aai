@@ -1,1 +1,0 @@
-Initial audit stopped before writing final-audit.json: FileNotFoundError for mistaken tests/pester/aai-pr-preflight.Tests.ps1. Actual unchanged source is tests/skills/aai-pr-preflight.Tests.ps1; corrected audit below. No product assertion or test wrapper failure.

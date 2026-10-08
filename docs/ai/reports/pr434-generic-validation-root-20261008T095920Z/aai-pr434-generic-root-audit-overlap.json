@@ -1,9 +1,0 @@
-{
-  "actor": "root",
-  "command": "node .aai/scripts/docs-audit.mjs --check --strict",
-  "observed_new_event_utc": "2026-10-08T09:40:59Z",
-  "reason": "Diagnostic command unexpectedly appends docs_audit to shipping EVENTS ledger. Root invoked it during independent Validation wrapper window.",
-  "preservation": "Append retained byte-for-byte. No truncation or rewrite.",
-  "consequence": "Framework discarded overlapped final hygiene window and reruns it serially; accept only completed serial actual result. Root must not invoke more side-effecting diagnostics while role frozen.",
-  "source_code_changed": false
-}

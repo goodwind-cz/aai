@@ -1,7 +1,0 @@
-# Explicit operator-directed merge
-
-The owner requested: “co to tedy dela? a mergni to”. This supersedes the earlier lack of merge authorization for PR434 only. It does not waive validation, CI, review or thread-response checks. Standing lane policy returned `MERGE-POLICY denied pr=434 reason=policy_touched path=.aai/system/PROFILES.yaml`; no standing policy authorization is claimed. The explicit directed-merge carve in SKILL_PR step6 authorizes `AAI_OPERATOR_MERGE=1` for the one expected-head merge command after checks.
-
-Final independent parent Validation PASS is VALIDATION-20261008T134948Z-pr434-final-recheck.md. The first final FAIL and complete original seals remain intact. Recovery restores the authentic original RED log to a tracked artifact; all semantic source/tests are unchanged since reviewed child sourcebddaa. Exact9d90CI native/full/docs passed. This final metadata commit will receive its own native/full/docs checks before merge; older CI is historical evidence, not a claim about a future HEAD.
-
-The final Validation uses genuine fresh context, requested model6-astra versus source maker6-luna. Actual serving model weights remain unknown. Three unsigned amendment followups, N1 filedP3 followup and liveAzure adoption proof remain disclosed. The restored temporary checkout uses exact shippingHEAD and byte-exact runtime STATE recovery from real earlier e3c26ff7; no fabricated state or historical hashes. Runtime STATE stays local and untracked.

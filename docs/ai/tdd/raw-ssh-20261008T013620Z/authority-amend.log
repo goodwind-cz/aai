@@ -1,4 +1,0 @@
-NOTE re-stamped frozen_sha256 on docs/specs/SPEC-0210-spec-pr-capability-preflight.md to the current contract projection (bc2124633f71d1ebb0e368578388f08f28bd2942c9e36decd4bf4bcbcc880a32)
-spec-amend: recorded an UNSIGNED amendment on spec-pr-capability-preflight (ref pr-capability-preflight) tracked by fu-amend-spec-pr-capability-preflight — bucket unsigned-tracked
-NOTE tracked item fu-amend-spec-pr-capability-preflight already open — this amendment attaches to it (the owner's decision is per SPEC, not per ledger line)
-NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open

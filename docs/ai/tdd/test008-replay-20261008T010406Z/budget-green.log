@@ -1,4 +1,0 @@
-AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
-AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
-{"kind":"fixture budget contract, not native cause claim","outer_ms":100000,"inner_ms":75000,"elapsed_ms":11038,"status":0,"signal":null,"error_code":null,"stdout":"PASS: TEST-008 lawful delayed success\n"}
-immediate_exit0=true bounded_hang_ETIMEDOUT=true

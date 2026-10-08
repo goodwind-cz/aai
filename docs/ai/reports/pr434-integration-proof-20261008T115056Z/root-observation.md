@@ -1,3 +1,0 @@
-# Integrated-source proof prerequisite
-
-Both independently validated and reviewed child repairs are integrated linearly at8701da75. Source e0d14f2b5dc9d5726fbae36e03b1bb346204c459cd6ab988015b57069396caaf is unchanged since child2 validation/review. Mechanical mutation gate exits5 on six parent target records and two child1 records because shared source changed; child2 gate exits0. This is a root-observed prerequisite, not a fabricated independent Validation FAIL. Historical child PASS reports and original parent Review FAIL remain immutable. Actual replay and preserved historical record bytes are required before final parent assembly review. Root disclosed parent semantic amendment with signoff none; original follow-up remains open.

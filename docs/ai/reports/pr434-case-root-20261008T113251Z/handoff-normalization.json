@@ -1,6 +1,0 @@
-{
-  "verified_hash_pins": 14,
-  "state_and_nul_index_unchanged": true,
-  "raw_handoff": "/private/tmp/aai-pr434-case-maker-result.txt",
-  "correction": "One returned STATE command misspelled known SPEC0212 path by omitting pr-. Canonical numbered path normalized; evidence and verdict unchanged."
-}

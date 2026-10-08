@@ -1,6 +1,0 @@
-ref_id: pr-github-case-identity
-status: REFACTOR_COMPLETE
-summary: The scoped ASCII-only comparison helper is used at the two GitHub identity seams. No additional behavior-preserving refactor was warranted; the focused tests and full eight-row suite remained green after implementation.
-verification_command: AAI_PREFLIGHT_SCRATCH=/private/tmp/aai-pr434-case-maker-scratch/fixtures bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-pr-preflight.sh
-verification_exit: 0
-verification_evidence: docs/ai/tdd/pr-github-case-identity-full8row.log
