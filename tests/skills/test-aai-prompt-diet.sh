@@ -964,7 +964,12 @@ test_012_growth_sum_matches_ledger() {
   # ambiguous "any other answer below" link that fell through to the
   # printed-verbatim/stop catch-all; zero headroom standing, credited 1:1
   # (ledger key roadmap-maintenance-budget-advisory-round1-b1).
-  local want_growth=55539
+  # Then 52109 -> 52988: post-validation-pushes-reuse-test-results
+  # Spec-AC-11 / D6 (+879 B: one LOCAL EVIDENCE: line in each of
+  # VALIDATION.prompt.md, SKILL_TDD.prompt.md and SKILL_PR.prompt.md, 293 B
+  # each); zero headroom standing, credited 1:1 (ledger key
+  # post-validation-pushes-reuse-test-results).
+  local want_growth=56418
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2541,6 +2546,46 @@ test_1641_roadmap_advisory_growth_ledgered() {
     || log_fail "TEST-1641 (Spec-AC-16) roadmap-maintenance-budget-advisory ledger entry"
 }
 
+# TEST-1734 (post-validation-pushes-reuse-test-results Spec-AC-11, D6) -- the
+# three LOCAL EVIDENCE: canon lines are credited 1:1 by exactly one itemized
+# ledger entry, the TEST-012 pin already includes it (TEST-010 and TEST-012
+# above run in this same suite), and tracked-ignored.mjs / ci-select.mjs are
+# classified core in .aai/system/PROFILES.yaml.
+test_1734_local_evidence_growth_ledgered() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-1734 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local ok=1 _e entry='' n=0 ref lead bytes=0 f line
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    ref="${_e#* }"; ref="${ref%% *}"
+    if [[ "$ref" == "post-validation-pushes-reuse-test-results" ]]; then entry="$_e"; n=$((n + 1)); fi
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-1734: JUSTIFIED_ADDITIONS carries $n entries whose ref field is exactly 'post-validation-pushes-reuse-test-results' (want exactly 1)"
+    return
+  fi
+  lead="${entry%% *}"
+  for f in VALIDATION SKILL_TDD SKILL_PR; do
+    line="$(grep -- '^[[:space:]]*LOCAL EVIDENCE:' "$PROJECT_ROOT/.aai/$f.prompt.md" || true)"
+    [[ -n "$line" ]] || { log_info "TEST-1734: $f.prompt.md carries no LOCAL EVIDENCE line"; ok=0; continue; }
+    bytes=$(( bytes + $(printf '%s\n' "$line" | wc -c | tr -d ' ') ))
+  done
+  if [[ "$bytes" -ne "$lead" ]]; then
+    log_info "TEST-1734: the three LOCAL EVIDENCE lines measure $bytes B but the entry credits $lead B"
+    ok=0
+  fi
+  local profiles="$PROJECT_ROOT/.aai/system/PROFILES.yaml" s
+  for s in .aai/scripts/tracked-ignored.mjs .aai/scripts/ci-select.mjs; do
+    if [[ "$(awk -v want="  - $s" '/^[a-z_]+:/ { sec=$1 } $0 == want { print sec }' "$profiles")" != "core:" ]]; then
+      log_info "TEST-1734: $s is not classified under core: in PROFILES.yaml"
+      ok=0
+    fi
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-1734 (Spec-AC-11) LOCAL EVIDENCE growth $lead B credited 1:1 by one ledger entry; PROFILES classifies both scripts core" \
+    || log_fail "TEST-1734 (Spec-AC-11) LOCAL EVIDENCE ledger entry / PROFILES"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2597,6 +2642,7 @@ main() {
   test_1372_amendment_class_partition_credited
   test_1531_merge_policy_lanes_growth_ledgered
   test_1641_roadmap_advisory_growth_ledgered
+  test_1734_local_evidence_growth_ledgered
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

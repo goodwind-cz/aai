@@ -588,6 +588,25 @@ test_1728_report_paths_refused_at_commit_time() {  # Spec-AC-09
   log_pass "TEST-1728: report paths are refused at commit time (TEST-1728)"
 }
 
+test_1733_local_evidence_rule_in_canon() {  # Spec-AC-11
+  log_info "Test: VALIDATION, SKILL_TDD and SKILL_PR each carry exactly one LOCAL EVIDENCE rule line (TEST-1733)..."
+  local f path n line tok
+  for f in VALIDATION SKILL_TDD SKILL_PR; do
+    path="$PROJECT_ROOT/.aai/$f.prompt.md"
+    [[ -f "$path" ]] || log_fail "TEST-1733: $path missing"
+    n="$(grep -c -- '^[[:space:]]*LOCAL EVIDENCE:' "$path" || true)"
+    [[ "$n" == "1" ]] || log_fail "TEST-1733: $f.prompt.md must carry exactly one 'LOCAL EVIDENCE:' line, found $n"
+    line="$(grep -- '^[[:space:]]*LOCAL EVIDENCE:' "$path")"
+    for tok in 'docs/ai/reports' 'docs/ai/tdd' 'docs/ai/validation' 'git add -f'; do
+      case "$line" in
+        *"$tok"*) ;;
+        *) log_fail "TEST-1733: the $f.prompt.md LOCAL EVIDENCE line must name '$tok': $line" ;;
+      esac
+    done
+  done
+  log_pass "TEST-1733: the LOCAL EVIDENCE rule is present exactly once in VALIDATION, SKILL_TDD and SKILL_PR"
+}
+
 main() {
   echo "Testing $TEST_NAME (post-validation-pushes-reuse-test-results, Batches A and B)"
   check_deps
@@ -603,6 +622,7 @@ main() {
   test_1709_real_hook_refuses_commit
   test_1710_check_committed_scope_label
   test_1728_report_paths_refused_at_commit_time
+  test_1733_local_evidence_rule_in_canon
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

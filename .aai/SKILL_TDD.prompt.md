@@ -93,6 +93,7 @@ Every `set-tdd-cycle` STATE update below (RED/GREEN/REFACTOR_COMPLETE/IDLE): Dis
 
 4. **Capture RED Evidence**
    - Save test output to `docs/ai/tdd/red-[timestamp].log`
+   LOCAL EVIDENCE: cite runtime evidence (docs/ai/reports, docs/ai/tdd, docs/ai/validation) by path; never `git add -f` it — close-work-item.mjs copies worktree-only cited evidence into the main checkout; a project that wants shared evidence uses a project-owned path outside those folders.
    - Verify test FAILS with expected error message
    - If test passes, it's not testing new behavior - STOP and revise
    - **Classify it** (SPEC-0044): prepend one header line —
