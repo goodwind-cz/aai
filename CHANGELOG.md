@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat: pre-commit CHECK 9 blocks staging a gitignored path (post-validation-pushes-reuse-test-results)
+## [v2026.10.08] — feat: pre-commit CHECK 9 blocks staging a gitignored path (post-validation-pushes-reuse-test-results)
 
 - New blocking pre-commit check (CHECK 9, `pre-commit-checks.sh` and `.ps1`): a path matched by the repository `.gitignore` that is staged as ADDED (`git add -f`, a copy, or a rename into an ignored directory) is refused, naming the path, the rule and the remedy. Downstream projects that deliberately track an ignored path must add a reviewable `!<path>` re-include; there is no env bypass.
 - A MODIFIED already-tracked ignored path only warns (blocks under `--strict`); a deletion passes; untouched legacy hits are one count line. A check that cannot run (script error) warns "could not run" and is never reported as PASS.
@@ -30,39 +30,39 @@ fine — it is the marker a cut leaves on top.
 - Only repository `.gitignore` rules count; `core.excludesFile` and `.git/info/exclude` do not (one predicate, `tracked-ignored.mjs`).
 - Refs: CHANGE-0205 / SPEC-0213, PR #435.
 
-## [unreleased] — ci: a required tracked-ignored job fails a PR that tracks an ignored path (post-validation-pushes-reuse-test-results)
+## [v2026.10.08] — ci: a required tracked-ignored job fails a PR that tracks an ignored path (post-validation-pushes-reuse-test-results)
 
 - New unconditional `tracked-ignored` job in `skill-suite.yml`, wired into the required gate: `tracked-ignored.mjs --all` fails when the tree tracks a path the repository `.gitignore` ignores.
 - The delivered tree is clean: 86 previously tracked `docs/ai/tdd` logs were untracked (files stay on disk).
 - Refs: CHANGE-0205 / SPEC-0213, PR #435.
 
-## [unreleased] — ci: ledger-only pushes after a full-green head reuse the test results (post-validation-pushes-reuse-test-results)
+## [v2026.10.08] — ci: ledger-only pushes after a full-green head reuse the test results (post-validation-pushes-reuse-test-results)
 
 - New inert path class (`inert_globs` in `tests/skills/suite-map.yaml`, each a gitignored `<dir>/**`) and `carry_forward_globs` (ledger and generated pages): such paths select no suite beyond CORE and never yield `FULL_RUN reason=unmapped`. Protected-l3 and shared-lib paths still win over the inert class.
 - Carry-forward: on a PR `synchronize`, `ci-select.mjs` finds the newest earlier head with a successful full-mode run (same branch and repo, ancestor of the head) and, when the delta since it holds only inert, ledger and generated-page paths, selects from the delta and prints `CARRY_FORWARD sha=... run=...`. Every uncertainty falls back to the whole-PR selection with a named reason. The select job gains `actions: read`.
 - A `.gitignore`-only change stays unmapped (full run).
 - Refs: CHANGE-0205 / SPEC-0213, PR #435.
 
-## [unreleased] — feat: close rescues ignored, worktree-only evidence into the main checkout (post-validation-pushes-reuse-test-results)
+## [v2026.10.08] — feat: close rescues ignored, worktree-only evidence into the main checkout (post-validation-pushes-reuse-test-results)
 
 - `close-work-item.mjs` run from a linked worktree copies cited evidence under the gitignored runtime folders (`docs/ai/reports`, `docs/ai/tdd`, `docs/ai/validation`) that exists only in the worktree into the main checkout (no clobber, no symlinks, nothing staged or committed) instead of warning that it will not survive. Only paths ignored by the repository `.gitignore` in both trees are rescued; a path ignored only by `.git/info/exclude`, a non-ignored path, or a directory holding a `!`-re-included member still warns as before. `--dry-run` lists the rescue and copies nothing.
 - VALIDATION, SKILL_TDD and SKILL_PR carry a one-line LOCAL EVIDENCE rule: that evidence is local, cite it, never `git add -f` it.
 - Refs: CHANGE-0205 / SPEC-0213, PR #435.
 
-## [unreleased] — feat: check PR provider readiness before ceremony writes (pr-capability-preflight)
+## [v2026.10.08] — feat: check PR provider readiness before ceremony writes (pr-capability-preflight)
 
 - Check repository identity and provider read access before PR numbering, staging, commit and push.
 - Bound noninteractive probes and return safe, named refusal remedies.
 - Preserve GitHub and generic/local routes; future PR create permission stays unknown.
 - CHANGE-0204 / SPEC-0210, phase A1 of RFC-0016.
 
-## [unreleased] — fix: seed the installed AAI layer into linked worktrees
+## [v2026.10.08] — fix: seed the installed AAI layer into linked worktrees
 
 - Worktree setup copies the origin checkout's installed AAI engine, skills, profile, and pin before running the target's state initializer. It refuses unsafe or conflicting destinations and preserves tracked branch files.
 - Each worktree owns its snapshot. Updating the origin does not update an existing worktree; run `/aai-update` in that worktree to update it explicitly.
 - ISSUE-0093 / SPEC-0209.
 
-## [unreleased] — feat: an advisory roadmap budget proposes maintenance instead of requiring it (CHANGE-0203)
+## [v2026.10.08] — feat: an advisory roadmap budget proposes maintenance instead of requiring it (CHANGE-0203)
 
 - **Third budget posture.** `docs/ai/roadmap.yaml` accepts `budget: { mode: advisory, maintenance_threshold: <n> }` next to the 1:1 `maintenance_per_capability: 1` (on) and no block (off). Advisory never requires a maintenance half and never blocks: `gate` answers exactly as off.
 - **Proposals, not obligations.** In advisory, `ride-select next` returns `propose_maintenance` when open P1/P2 follow-ups plus open DEBT/ISSUE intakes reach the threshold, or when an open P1/P2 follow-up names the most recently closed capability; otherwise it returns the off answer. P3 follow-ups never count.
@@ -70,7 +70,7 @@ fine — it is the marker a cut leaves on top.
 - **Tools.** New read-only `ride-select.mjs waiting` reports the counts and a recommended threshold; `roadmap-edit.mjs budget advisory --threshold <n>`; `/aai-roadmap budget` offers on / advisory / off; `/aai-ship` relays a proposal as one two-option menu. `nothing-left-behind` now reads the roadmap through the shared parser.
 - This repository's live roadmap runs the advisory posture with threshold 95 (owner decision 2026-10-06, PR #432). roadmap-maintenance-budget-advisory / CHANGE-0203.
 
-## [unreleased] — feat: an owner-signed merge policy replaces the prose standing merge authorization (breaking, goodwind-cz/aai#429)
+## [v2026.10.08] — feat: an owner-signed merge policy replaces the prose standing merge authorization (breaking, goodwind-cz/aai#429)
 
 - **Breaking for a downstream project that relied on the prose STANDING AUTHORIZATION.** `docs/ai/merge-policy.yaml` (`node .aai/scripts/merge-policy.mjs --validate` must print `VALID lanes=N`) is now the one source of truth for which pull requests the agent may merge; the merge hook, `SKILL_PR` and `SKILL_SHIP` all defer to `.aai/scripts/merge-policy.mjs --check --pr <n>` instead of the prose exception, which is removed. A project with no `docs/ai/merge-policy.yaml` keeps today's operator-only behaviour unchanged.
 - **Migration step:** author a `docs/ai/merge-policy.yaml` lane bound to an owner-signed `hitl_decision` (`decision_ref: <ref_id>@<ts>`, `decision_match` naming the record) that lists the kinds, requester logins and conditions the lane allows; `aai-doctor` CAT-19 warns on an orphaned prose STANDING AUTHORIZATION record with no matching lane and names the remedy. The file must be in one canonical spelling (fixed key order, two-space indentation, one quoting rule; comments and blank lines are free): any other spelling of the same content is `noncanonical line=<n>`, and `node .aai/scripts/merge-policy.mjs --canonical` prints the form to copy.
@@ -78,7 +78,7 @@ fine — it is the marker a cut leaves on top.
 - `docs/CONSTITUTION.md` article 7 (operator-only merge) is amended to v2, 2026-10-03: the sole sanctioned exception is now a lane merge that `.aai/scripts/merge-policy.mjs` allows under an owner-signed policy.
 - configurable-merge-policy-lanes / SPEC-0207-spec-configurable-merge-policy-lanes.md.
 
-## [unreleased] — perf: the full skill-suite sweep runs on four runners in parallel (#428)
+## [v2026.10.08] — perf: the full skill-suite sweep runs on four runners in parallel (#428)
 
 - **The full sweep is sharded.** It ran as one job on one runner (median 1120 s on `main`) and runs on every push to `main`, every nightly and 17 of the last 40 PRs. `select-suites.mjs --shards 4` now emits a deterministic, weight-balanced plan (`tests/skills/suite-weights.tsv`) and `skills-full` runs it as a 4-leg matrix. First live runs: longest leg 427 s and 331 s.
 - **Coverage cannot shrink silently.** `tests/skills/lib/shard-plan-check.sh` re-derives the plan in `select` and in every leg and fails the build, naming the suite, if any suite is missing, duplicated, extra, or not runnable by the leg (a suite moved into a subdirectory would otherwise have been skipped together with every suite after it in its shard, behind a green gate — caught in code review).
