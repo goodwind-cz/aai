@@ -4,7 +4,7 @@ type: spec
 number: 213
 status: done
 mutation_gate: v1
-frozen_sha256: 298e0f2956012cc88964de18166f675be1bccdc6e8cac6f7183e4cd8b21289b5
+frozen_sha256: 8902e21857cef84e3e534f7213a69b6dba132534ebcd43df9030144356ab399d
 ceremony_level: 3
 links:
   requirement: post-validation-pushes-reuse-test-results
@@ -32,7 +32,7 @@ SPEC-FROZEN: true
 
 ## Registry items closed by this scope
 
-NOT CLOSED YET (the close ceremony closes both at delivery and relabels the claim; until then verify-closures would report a false MISS on every sweep):
+Closed at delivery (PR #435; follow-ups closed with resolved-by post-validation-pushes-reuse-test-results):
 - `fu-inert-path-class` (P3) — closed by Spec-AC-05: a reviewed `inert_globs`
   class in tests/skills/suite-map.yaml; inert paths select CORE only.
 - `fu-mutation-evidence-is-gitignored` (P3) — closed by decision D6: local,
