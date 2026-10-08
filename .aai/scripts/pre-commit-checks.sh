@@ -267,12 +267,14 @@ if [ -f "$TRACKED_IGNORED_SCRIPT" ] && command -v node >/dev/null 2>&1; then
     echo "$TI_OUT" | sed 's/^/    /'
   else
     TI_SEEN=0
+    TI_ADDED=0
     while IFS= read -r TI_LINE; do
       case "$TI_LINE" in
         "IGNORED_ADDED "*)
           TI_REST="${TI_LINE#IGNORED_ADDED }"
           TI_PATH="${TI_REST% rule=*}"; TI_RULE="${TI_REST##* rule=}"
           TI_SEEN=1
+          TI_ADDED=1
           error "Gitignored path staged for ADD: $TI_PATH (rule $TI_RULE) — to track it deliberately add \"!$TI_PATH\" to .gitignore; otherwise unstage it: git rm --cached -- \"$TI_PATH\""
           ;;
         "IGNORED_MODIFIED "*)
@@ -289,7 +291,14 @@ if [ -f "$TRACKED_IGNORED_SCRIPT" ] && command -v node >/dev/null 2>&1; then
     done <<TIEOF
 $TI_OUT
 TIEOF
-    [ "$TI_SEEN" -eq 1 ] || pass "No gitignored path staged"
+    if [ "$TI_RC" -eq 1 ] && [ "$TI_ADDED" -eq 0 ]; then
+      # exit 1 is "an ADDED ignored path"; with no IGNORED_ADDED line the script
+      # itself failed (e.g. an uncaught load error) and checked nothing.
+      warn "Gitignored-path check could not run (tracked-ignored.mjs exit 1 without an IGNORED_ADDED line) — skipped"
+      echo "$TI_OUT" | sed 's/^/    /'
+    elif [ "$TI_SEEN" -eq 0 ]; then
+      pass "No gitignored path staged"
+    fi
   fi
 else
   warn "Gitignored-path check skipped (tracked-ignored.mjs absent or node unavailable)"

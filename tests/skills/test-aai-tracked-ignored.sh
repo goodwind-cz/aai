@@ -607,6 +607,73 @@ test_1733_local_evidence_rule_in_canon() {  # Spec-AC-11
   log_pass "TEST-1733: the LOCAL EVIDENCE rule is present exactly once in VALIDATION, SKILL_TDD and SKILL_PR"
 }
 
+test_1735_staged_names_rules_in_one_batch() {  # review F3: no per-hit process
+  log_info "Test: --staged spawns no check-ignore for pre-existing hits and at most one for added/modified ones (TEST-1735)..."
+  new_scratch
+  local repo i shim real_git logf
+  repo="$(fx_repo t1735)"
+  printf '*.log\n' > "$repo/.gitignore"
+  printf 'x\n' > "$repo/keep.txt"
+  fx_git "$repo" add .gitignore keep.txt
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    printf 'x\n' > "$repo/pre$i.log"
+    fx_git "$repo" add -f "pre$i.log"
+  done
+  fx_git "$repo" commit -q -m base
+  real_git="$(command -v git)"
+  shim="$TEST_DIR/t1735-shim"
+  logf="$TEST_DIR/t1735-git.log"
+  mkdir -p "$shim"
+  printf '#!/bin/sh\necho "$*" >> "%s"\nexec "%s" "$@"\n' "$logf" "$real_git" > "$shim/git"
+  chmod +x "$shim/git"
+  : > "$logf"
+  printf 'changed\n' > "$repo/keep.txt"
+  fx_git "$repo" add keep.txt
+  in_dir "$repo" env PATH="$shim:$PATH" node "$SCRIPT" --staged
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1735: pre-existing hits only must exit 0, got $CODE: $OUT"
+  has_line_prefix "$OUT" "IGNORED_PREEXISTING count=12" || log_fail "TEST-1735: expected the 12-hit count line, got: $OUT"
+  local n
+  n="$(grep -c 'check-ignore' "$logf" || true)"
+  [[ "$n" == "0" ]] || log_fail "TEST-1735: 12 pre-existing hits must cost no check-ignore process, saw $n"
+  # positive control: two ADDED ignored files -> rules named, in exactly ONE process
+  printf 'a\n' > "$repo/new1.log"; printf 'b\n' > "$repo/new2.log"
+  fx_git "$repo" add -f new1.log new2.log
+  : > "$logf"
+  in_dir "$repo" env PATH="$shim:$PATH" node "$SCRIPT" --staged
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1735: added ignored files must exit 1, got $CODE: $OUT"
+  has_line_prefix "$OUT" "IGNORED_ADDED new1.log rule=.gitignore:1:*.log" || log_fail "TEST-1735: added hit must name its rule, got: $OUT"
+  has_line_prefix "$OUT" "IGNORED_ADDED new2.log rule=.gitignore:1:*.log" || log_fail "TEST-1735: second added hit must name its rule, got: $OUT"
+  n="$(grep -c 'check-ignore' "$logf" || true)"
+  [[ "$n" == "1" ]] || log_fail "TEST-1735: added hits must be named by ONE batched check-ignore, saw $n"
+  log_pass "TEST-1735: pre-existing hits cost no rule lookup; added hits share one batched lookup (TEST-1735)"
+}
+
+test_1736_precommit_broken_script_is_not_a_pass() {  # review F4
+  log_info "Test: tracked-ignored.mjs exiting 1 without an IGNORED_ADDED line is 'could not run', not PASS, in sh and ps1 (TEST-1736)..."
+  local flavor repo
+  for flavor in sh ps1; do
+    if [[ "$flavor" == "ps1" ]] && ! command -v pwsh >/dev/null 2>&1; then
+      log_info "SKIP-NAMED: TEST-1736(ps1) needs pwsh (not installed here; ubuntu CI has it)"
+      continue
+    fi
+    new_scratch
+    repo="$(pc_fixture "t1736-$flavor" plain)"
+    printf 'process.exit(1);\n' > "$repo/.aai/scripts/tracked-ignored.mjs"
+    printf 'changed\n' > "$repo/other.txt"
+    fx_git "$repo" add other.txt
+    pc_run "$repo" "$flavor"
+    [[ "$CODE" == "0" ]] || log_fail "TEST-1736($flavor): a broken check only warns (exit 0), got $CODE: $OUT"
+    out_has "could not run" || log_fail "TEST-1736($flavor): must report the check could not run, got: $OUT"
+    if out_has "No gitignored path staged"; then log_fail "TEST-1736($flavor): a check that ran nothing must not print PASS, got: $OUT"; fi
+    # negation: the genuine script still passes a clean commit
+    cp "$SCRIPTS_DIR/tracked-ignored.mjs" "$repo/.aai/scripts/tracked-ignored.mjs"
+    pc_run "$repo" "$flavor"
+    [[ "$CODE" == "0" ]] || log_fail "TEST-1736($flavor): control — the real script on a clean commit must exit 0, got $CODE: $OUT"
+    out_has "No gitignored path staged" || log_fail "TEST-1736($flavor): control — the real script must PASS, got: $OUT"
+  done
+  log_pass "TEST-1736: exit 1 without IGNORED_ADDED reads as 'could not run' (TEST-1736)"
+}
+
 main() {
   echo "Testing $TEST_NAME (post-validation-pushes-reuse-test-results, Batches A and B)"
   check_deps
@@ -623,6 +690,8 @@ main() {
   test_1710_check_committed_scope_label
   test_1728_report_paths_refused_at_commit_time
   test_1733_local_evidence_rule_in_canon
+  test_1735_staged_names_rules_in_one_batch
+  test_1736_precommit_broken_script_is_not_a_pass
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -237,10 +237,12 @@ if ((Test-Path $TrackedIgnoredScript) -and (Get-Command node -ErrorAction Silent
         $tiOut | ForEach-Object { Write-Host "    $_" }
     } else {
         $tiSeen = $false
+        $tiAdded = $false
         foreach ($tiLine in @($tiOut)) {
             $tiText = [string]$tiLine
             if ($tiText -match '^IGNORED_ADDED (.+) rule=(.*)$') {
                 $tiSeen = $true
+                $tiAdded = $true
                 Write-Error-Check "Gitignored path staged for ADD: $($Matches[1]) (rule $($Matches[2])) - to track it deliberately add `"!$($Matches[1])`" to .gitignore; otherwise unstage it: git rm --cached -- `"$($Matches[1])`""
             } elseif ($tiText -match '^IGNORED_MODIFIED (.+) rule=(.*)$') {
                 $tiSeen = $true
@@ -250,7 +252,11 @@ if ((Test-Path $TrackedIgnoredScript) -and (Get-Command node -ErrorAction Silent
                 Write-Warn-Check "$($Matches[1]) tracked path(s) already match .gitignore (not touched by this commit) - run: node .aai/scripts/tracked-ignored.mjs --all"
             }
         }
-        if (-not $tiSeen) { Write-Pass-Check "No gitignored path staged" }
+        if ($tiRc -eq 1 -and -not $tiAdded) {
+            # exit 1 is "an ADDED ignored path"; with no IGNORED_ADDED line the script itself failed.
+            Write-Warn-Check "Gitignored-path check could not run (tracked-ignored.mjs exit 1 without an IGNORED_ADDED line) - skipped"
+            $tiOut | ForEach-Object { Write-Host "    $_" }
+        } elseif (-not $tiSeen) { Write-Pass-Check "No gitignored path staged" }
     }
 } else {
     Write-Warn-Check "Gitignored-path check skipped (tracked-ignored.mjs absent or node unavailable)"
