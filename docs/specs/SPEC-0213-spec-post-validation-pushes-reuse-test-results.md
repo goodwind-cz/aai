@@ -10,7 +10,7 @@ links:
   requirement: post-validation-pushes-reuse-test-results
   rfc: null
   pr:
-    - TBD
+    - 435
   commits:
     - b11f56dab2dd3c7605367b9ce5c5fb4863482907
 ---
