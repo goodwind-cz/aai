@@ -479,7 +479,7 @@ test_018_gate_job_contract() {  # review remediation: required-check continuity
   log_info "Test: aggregating gate keeps its required-check name and needs native Windows worktree seed (TEST-018)..."
   grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$WORKFLOW_FILE" \
     || log_fail "gate job must keep the exact required-check name 'skill test suite (tests/skills/, via test-framework.sh)'"
-  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed\]' "$WORKFLOW_FILE" \
+  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed, tracked-ignored\]' "$WORKFLOW_FILE" \
     || log_fail "gate job must need select + skills-selected + skills-full + native-worktree-seed"
   grep -qF 'needs.native-worktree-seed.result' "$WORKFLOW_FILE" \
     || log_fail "gate job must reject a failed or skipped native Windows worktree seed"
@@ -941,7 +941,7 @@ test_1437_gate_unchanged_negative_control() {  # Spec-AC-05, negative control
   local wf="$SHARD_WORKFLOW_FILE"
   grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$wf" \
     || log_fail "TEST-1437: the gate job must keep its exact required-check name"
-  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed\]' "$wf" \
+  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed, tracked-ignored\]' "$wf" \
     || log_fail "TEST-1437: the gate job must require the selected/full suite and native Windows seed jobs"
   grep -qE 'if:\s*always\(\)' "$wf" \
     || log_fail "TEST-1437: the gate job must keep if: always()"

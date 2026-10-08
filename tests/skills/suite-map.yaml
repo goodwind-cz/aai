@@ -1114,6 +1114,13 @@ suites:
       - tests/skills/suite-weights.tsv
       - tests/skills/lib/shard-plan-check.sh
 
+  aai-tracked-ignored:
+    globs:
+      - .aai/scripts/tracked-ignored.mjs
+      - .github/workflows/skill-suite.yml
+      - tests/skills/test-aai-tracked-ignored.sh
+      - .gitignore
+
   aai-pr-preflight:
     globs:
       - .aai/scripts/pr-preflight.mjs

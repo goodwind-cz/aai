@@ -217,6 +217,7 @@ core:
   - .aai/scripts/state.mjs
   - .aai/scripts/sync-harness-skills.mjs
   - .aai/scripts/tdd-evidence-check.mjs
+  - .aai/scripts/tracked-ignored.mjs
   - .aai/scripts/triage.ps1
   - .aai/scripts/triage.sh
   - .aai/scripts/update-check.mjs
