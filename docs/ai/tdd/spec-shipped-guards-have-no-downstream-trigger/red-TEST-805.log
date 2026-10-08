@@ -1,6 +1,0 @@
-RED_CLASS: product_red
-# RED capture for TEST-805 — suite tests/skills/test-aai-hygiene-pack.sh selector test_805_feature_push_reports_open_doc — pre-change tree 3d9e2a6d — exit 1
-INFO: Checking dependencies...
-PASS: Dependencies checked
-INFO: Test: pushing a feature branch that carries a frozen open spec reports it via the pre-push hook; after done it is CLEAN (TEST-805)...
-FAIL: TEST-805: installer failed

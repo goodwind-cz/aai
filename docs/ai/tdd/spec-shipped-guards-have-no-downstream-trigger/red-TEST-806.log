@@ -1,6 +1,0 @@
-RED_CLASS: product_red
-# RED capture for TEST-806 — suite tests/skills/test-aai-hygiene-pack.sh selector test_806_enforce_refuses_default_branch_only — pre-change tree 3d9e2a6d — exit 1
-INFO: Checking dependencies...
-PASS: Dependencies checked
-INFO: Test: close_gate: enforce in the pushed commit refuses a default-branch push and reports a feature push (TEST-806)...
-FAIL: TEST-806: installer failed

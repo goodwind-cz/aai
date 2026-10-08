@@ -1,9 +1,0 @@
-RED_CLASS: product_red
-# TEST-1302 pre-change tree HEAD=e7de26d7 suite=test-aai-feedback-upsert.sh selector=test_1302_prepare_blocks_without_description exit=1
-AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
-AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
-=== test-aai-feedback-upsert ===
-INFO: Test: prepare marks a description-less cluster blocked_no_description and offers no --publish; a summary-carrying one is offered (TEST-1302)...
-FAIL: TEST-1302: the draft header must read status: blocked_no_description (# [contract_violation] SKILL_TDD/impl (high impact)
-
-<!-- status: new | redaction: none -->)

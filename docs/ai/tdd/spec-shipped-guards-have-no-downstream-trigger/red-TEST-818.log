@@ -1,6 +1,0 @@
-RED_CLASS: product_red
-# RED capture for TEST-818 — suite tests/skills/test-aai-hygiene-pack.sh selector test_818_ps1_upgrade_is_byte_exact_and_order_checked — pre-change tree 1eadb891 — exit 1
-INFO: Checking dependencies...
-PASS: Dependencies checked
-INFO: Test: the .ps1 twin checks marker order before any write and refreshes on bytes (static; behavioural under pwsh) (TEST-818)...
-FAIL: TEST-818: the .ps1 carries no BEGIN-before-END line-number check ($beginLn -gt $endLn)

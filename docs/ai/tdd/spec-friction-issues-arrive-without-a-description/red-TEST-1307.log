@@ -1,9 +1,0 @@
-RED_CLASS: product_red
-# TEST-1307 pre-change tree HEAD=e7de26d7 suite=test-aai-friction.sh selector=test_1307_promote_persists_450_chars exit=1
-AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
-AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
-=== aai-friction ===
-INFO: Checking dependencies...
-PASS: Dependencies checked
-INFO: Test: record --promote persists a clean 450-char summary verbatim under the 4096-byte line bound (TEST-1307)...
-FAIL: TEST-1307: the 450-char summary must persist verbatim (stderr: aai-friction: NOTE: summary dropped (reason: over_length))
