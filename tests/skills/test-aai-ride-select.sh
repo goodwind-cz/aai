@@ -144,6 +144,28 @@ test_001_validate() {
   log_pass "validate: shipped 0, eight malformed shapes refused by the named reason (TEST-001)"
 }
 
+# Consume the structured next boundary, including a proposal's off-posture
+# alternative. Candidates are a menu, not refs claimed to pass the gate.
+selected_next_ref() {
+  node - "$TEST_DIR/out" <<'NEXT_BOUNDARY'
+const fs=require('fs'),assert=require('assert/strict');
+function selection(j){
+ assert.ok(j&&typeof j==='object'&&!Array.isArray(j));
+ if(j.action==='propose_maintenance'){
+  assert.ok(['related','threshold'].includes(j.reason));
+  assert.ok(Array.isArray(j.candidates)&&j.candidates.length>0);
+  for(const c of j.candidates)assert.match(c.id,/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+  return selection(j.alternative);
+ }
+ if(j.action==='bind'){assert.match(j.capability,/^[a-z0-9]+(?:-[a-z0-9]+)*$/);assert.ok(j.command.includes('bind'));return '__BIND__';}
+ if(j.action==='file-intake'){assert.match(j.ref,/^[a-z0-9]+(?:-[a-z0-9]+)*$/);return j.ref;}
+ if(j.next===null){assert.equal(j.wave_1,'complete');return '__COMPLETE__';}
+ assert.equal(j.action,undefined);assert.match(j.next,/^[a-z0-9]+(?:-[a-z0-9]+)*$/);return j.next;
+}
+try{process.stdout.write(selection(JSON.parse(fs.readFileSync(process.argv[2],'utf8'))));}
+catch(e){console.error(e.message);process.exit(1);}
+NEXT_BOUNDARY
+}
 # --- TEST-002 (Spec-AC-02): next ----------------------------------------------
 test_002_next() {
   log_info "Test: next prints the right half, and 'wave 1 complete' when all pairs are done (TEST-002)..."
@@ -162,17 +184,24 @@ test_002_next() {
   printf 'budget:\n  maintenance_per_capability: 1\npairs:\n  - capability: cap-one\n    maintenance: maint-one\n    status: done\n' > "$TEST_DIR/done.yaml"
   [ "$(run next --roadmap "$TEST_DIR/done.yaml" --docs "$TEST_DIR/docs")" = "0" ] || log_fail "TEST-002: all-done must exit 0"
   grep -qi "wave 1 complete" "$TEST_DIR/out" || log_fail "TEST-002: all-done must print 'wave 1 complete', got: $(out)"
-  # shipped: pair 1 capability (live dashboard) is done on main -> maintenance half is next
-  # INVARIANT, not a literal: pinning "the next ride is X" is the moving-ref trap
-  # of 9deda6c3 (it goes red the moment X closes). What must always hold: the
-  # shipped `next` names a ref that the shipped gate ADMITS, or says wave 1 is complete.
-  local shipped; shipped="$(run next --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")"
-  [ "$shipped" = "0" ] || log_fail "TEST-002: next on the shipped roadmap must exit 0: $(err)"
-  local nxt; nxt="$(out)"
+  # Deterministic related maintenance proposal: reproduce the CI input even
+  # when the shipped lifecycle changes. Its alternative must still gate.
+  local d="$TEST_DIR/t002-related"; mkdir -p "$d"
+  printf 'budget:\n  mode: advisory\n  maintenance_threshold: 50\npairs:\n  - capability: cap-closed\n    status: done\n  - capability: cap-next\n    status: planned\n' > "$d/roadmap.yaml"
+  propose_write_doc "$d/docs" cap-next change draft
+  events_closes "$d/events.jsonl" "2026-10-01T00:00:00Z" cap-closed
+  fu_add "$d/ledger.jsonl" fu-t002-related cap-closed P2
+  [ "$(next_at "$d/roadmap.yaml" "$d/docs" "$d/ledger.jsonl" "$d/events.jsonl" --json)" = "0" ] || log_fail "TEST-002: related proposal must exit 0"
+  node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1]));require("assert/strict").equal(j.action,"propose_maintenance");require("assert/strict").equal(j.reason,"related");' "$TEST_DIR/out" || log_fail "TEST-002: fixture must reach related proposal"
+  local nxt; nxt="$(selected_next_ref)" || log_fail "TEST-002: proposal selection contract"
+  [ "$nxt" = "cap-next" ] || log_fail "TEST-002: related proposal alternative must be cap-next"
+  [ "$(run gate --ref "$nxt" --roadmap "$d/roadmap.yaml" --docs "$d/docs")" = "0" ] || log_fail "TEST-002: proposal alternative must be admitted: $(err)"
+  # The shipped selection is a live invariant, never a pinned next ride.
+  [ "$(run next --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs" --json)" = "0" ] || log_fail "TEST-002: shipped next must exit 0: $(err)"
+  nxt="$(selected_next_ref)" || log_fail "TEST-002: shipped next JSON contract"
   case "$nxt" in
-    "wave 1 complete"*) ;;
-    *) [ "$(run gate --ref "$nxt" --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] \
-         || log_fail "TEST-002: the shipped next ($nxt) must be admitted by the shipped gate: $(err)" ;;
+    __COMPLETE__|__BIND__) ;;
+    *) [ "$(run gate --ref "$nxt" --roadmap "$SHIPPED" --docs "$PROJECT_ROOT/docs")" = "0" ] || log_fail "TEST-002: shipped selection ($nxt) must be admitted: $(err)" ;;
   esac
   log_pass "next: capability first, then maintenance, then wave 1 complete; shipped agrees (TEST-002)"
 }
@@ -767,12 +796,24 @@ YAML
   log_pass "nothing-left-behind reports no paired maintenance half for a capability-only roadmap pair (TEST-717)"
 }
 
+shipped_summary() {
+  node - "$SHIPPED" <<'SUMMARY_COUNTS'
+const fs=require('fs'),assert=require('assert/strict');
+const raw=fs.readFileSync(process.argv[2],'utf8');
+const pairs=raw.match(/^pairs:\s*\n([\s\S]*?)(?=^\S|$(?![\s\S]))/m);assert.ok(pairs,'pairs section exists');
+const wave=raw.match(/^wave_2:\s*\n([\s\S]*?)(?=^\S|$(?![\s\S]))/m);
+const count=(text,pattern)=>(text.match(pattern)||[]).length;
+process.stdout.write('roadmap OK: '+count(pairs[1],/^  - capability:/gm)+' pair(s), '+count(wave?wave[1]:'',/^  - /gm)+' wave-2 item(s)');
+SUMMARY_COUNTS
+}
+
 # --- TEST-718 (Spec-AC-02): shipped roadmap regression proof -----------------
 test_718_validate_shipped_regression() {
   log_info "Test: validate over the shipped docs/ai/roadmap.yaml still prints the identical summary after the relaxation (TEST-718)..."
   [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-718: the shipped roadmap must still validate: $(err)"
-  [ "$(out)" = "roadmap OK: 13 pair(s), 4 wave-2 item(s)" ] \
-    || log_fail "TEST-718: the summary line must be byte-identical, got: $(out)"
+  local expected; expected="$(shipped_summary)" || log_fail "TEST-718: independent shipped counts must resolve"
+  [ "$(out)" = "$expected" ] \
+    || log_fail "TEST-718: summary must match independently counted shipped rows ($expected), got: $(out)"
   log_pass "the shipped roadmap still validates with the identical summary line (TEST-718)"
 }
 
@@ -1960,7 +2001,8 @@ test_1302_budget_block_stays_strict() {
   [ "$(run validate --roadmap "$TEST_DIR/t1302-two.yaml")" = "2" ] || log_fail "TEST-1302: maintenance_per_capability 2 must exit 2"
   grep -q 'must be 1' "$TEST_DIR/err" || log_fail "TEST-1302: the value refusal must say must be 1: $(err)"
   [ "$(run validate --roadmap "$SHIPPED")" = "0" ] || log_fail "TEST-1302: the shipped roadmap must validate: $(err)"
-  [ "$(out)" = "roadmap OK: 13 pair(s), 4 wave-2 item(s)" ] || log_fail "TEST-1302: the shipped summary must be byte-identical, got: $(out)"
+  local expected; expected="$(shipped_summary)" || log_fail "TEST-1302: independent shipped counts must resolve"
+  [ "$(out)" = "$expected" ] || log_fail "TEST-1302: shipped summary must match independent counts ($expected), got: $(out)"
   log_pass "empty, duplicate and non-1 budget blocks still exit 2; shipped summary unchanged (TEST-1302)"
 }
 

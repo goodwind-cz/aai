@@ -240,6 +240,8 @@ JUSTIFIED_ADDITIONS+=( "2075 worktree-lacks-vendored-aai-layer-downstream SKILL_
 JUSTIFIED_ADDITIONS+=( "68 worktree-lacks-vendored-aai-layer-downstream-codex-p2 external review response (Codex, PR #433 P2): SKILL_WORKTREE.prompt.md resolves both Bash and PowerShell source roots from git rev-parse --show-toplevel so setup invoked inside a repository subdirectory seeds from the installed repository root instead of failing after worktree creation; measured 13717 -> 13785 bytes (+68), credited 1:1; TEST-012 pin 54184 -> 54252" )
 
 
+JUSTIFIED_ADDITIONS+=( "1287 pr-capability-preflight SKILL_PR.prompt.md PRECONDITIONS bounded provider readiness before lifecycle/Git writes and before fresh STATE initialization; measured 36430 -> 37717 B; remediation binds readiness to ceremony origin, credited 1:1; create permission remains unknown" )
+
 JUSTIFIED_GROWTH_BYTES=0
 for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do
   JUSTIFIED_GROWTH_BYTES=$(( JUSTIFIED_GROWTH_BYTES + ${_entry%% *} ))

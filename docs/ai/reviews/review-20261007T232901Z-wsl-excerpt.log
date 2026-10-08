@@ -1,0 +1,14 @@
+2026-10-07T23:29:39.8387604Z [36;1mif ($result.FailedCount -gt 0) { Write-Host "FAIL: FailedCount=$($result.FailedCount)"; $fail++ }[0m
+2026-10-07T23:30:47.1167982Z PASS: TEST-001 pr-capability-preflight
+2026-10-07T23:30:58.4295523Z PASS: TEST-002 pr-capability-preflight
+2026-10-07T23:31:07.7353516Z PASS: TEST-003 pr-capability-preflight
+2026-10-07T23:31:11.1298885Z INFO: TEST-004 elapsed_ms=2195 child_alive=false later_probes=0
+2026-10-07T23:31:11.1299599Z PASS: TEST-004 pr-capability-preflight
+2026-10-07T23:31:14.6851479Z PASS: TEST-005 pr-capability-preflight
+2026-10-07T23:31:25.9525698Z PASS: TEST-006 pr-capability-preflight
+2026-10-07T23:31:41.7254864Z PASS: TEST-007 pr-capability-preflight
+2026-10-07T23:31:51.5145274Z ##[error][-] runs the eight provider/identity/refusal/timeout matrix arms 120.44s (120.17s|271ms)[0m
+2026-10-07T23:31:51.5156130Z RemoteException: FAIL: TEST-008 benign-note clone succeeds: node:child_process:955[0m
+2026-10-07T23:33:02.4356155Z [97mTests Passed: 151, [0m[91mFailed: 1, [0m[93mSkipped: 4, [0m[90mInconclusive: 0, [0m[37m[0m[90mNotRun: 0[0m
+2026-10-07T23:33:02.8890992Z FAIL: FailedCount=1
+2026-10-07T23:33:02.9639686Z ##[error]Process completed with exit code 1.

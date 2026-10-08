@@ -1113,3 +1113,10 @@ suites:
       # this suite's globs (TEST-1439 real-map replay).
       - tests/skills/suite-weights.tsv
       - tests/skills/lib/shard-plan-check.sh
+
+  aai-pr-preflight:
+    globs:
+      - .aai/scripts/pr-preflight.mjs
+      - .aai/SKILL_PR.prompt.md
+      - tests/skills/test-aai-pr-preflight.sh
+      - tests/skills/aai-pr-preflight.Tests.ps1
