@@ -1157,12 +1157,20 @@ suites:
       - tests/skills/suite-weights.tsv
       - tests/skills/lib/shard-plan-check.sh
 
+  # `.gitignore` is deliberately NOT a glob here: a .gitignore-only PR stays
+  # unmapped (FULL_RUN), because it is the one change that can break the inert
+  # invariant TEST-1713 pins (every inert dir is still ignored).
   aai-tracked-ignored:
     globs:
       - .aai/scripts/tracked-ignored.mjs
+      - .aai/scripts/check-committed-scope.mjs
+      - .aai/scripts/pre-commit-checks.sh
+      - .aai/scripts/pre-commit-checks.ps1
+      - .aai/VALIDATION.prompt.md
+      - .aai/SKILL_TDD.prompt.md
+      - .aai/SKILL_PR.prompt.md
       - .github/workflows/skill-suite.yml
       - tests/skills/test-aai-tracked-ignored.sh
-      - .gitignore
 
   aai-ci-carry-forward:
     globs:

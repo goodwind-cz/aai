@@ -1178,6 +1178,41 @@ test_1713_real_map_inert_pinned_to_ignored_dirs() {  # Spec-AC-05
   log_pass "TEST-1713: $n_inert inert globs pinned to ignored dirs; $n_carry carry-forward globs classify without FULL_RUN"
 }
 
+# real_select <path> — run the real selector on one path against the real map.
+real_select() {
+  printf '%s\n' "$1" > "$TEST_DIR/one.txt" || log_fail "real_select: write failed"
+  OUT="$(node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from "$TEST_DIR/one.txt" 2>&1)" || log_fail "real_select: selector failed for $1: $OUT"
+}
+
+test_1737_real_map_gitignore_full_and_guard_scripts_select() {  # validation round 1 BLOCKING-1
+  log_info "Test: a .gitignore-only path list stays FULL_RUN; the commit-guard scripts and LOCAL EVIDENCE prompts select aai-tracked-ignored (TEST-1737)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  real_select .gitignore
+  case "$OUT" in
+    *"FULL_RUN reason=unmapped path=.gitignore"*) ;;
+    *) log_fail "TEST-1737: a .gitignore-only PR must stay FULL_RUN reason=unmapped, got: $OUT" ;;
+  esac
+  local p
+  for p in .aai/scripts/check-committed-scope.mjs .aai/scripts/pre-commit-checks.sh .aai/scripts/pre-commit-checks.ps1 \
+           .aai/VALIDATION.prompt.md .aai/SKILL_TDD.prompt.md .aai/SKILL_PR.prompt.md; do
+    real_select "$p"
+    case "$OUT" in
+      *FULL_RUN*) continue ;;   # protected-l3 / shared surface: whole sweep already covers it
+    esac
+    case "$OUT" in
+      *aai-tracked-ignored*) ;;
+      *) log_fail "TEST-1737: $p must select aai-tracked-ignored (or be FULL_RUN), got: $OUT" ;;
+    esac
+  done
+  real_select .aai/scripts/check-committed-scope.mjs
+  case "$OUT" in
+    *FULL_RUN*) log_fail "TEST-1737: check-committed-scope.mjs is a mapped surface, not FULL_RUN, got: $OUT" ;;
+    *aai-tracked-ignored*) ;;
+    *) log_fail "TEST-1737: check-committed-scope.mjs must select aai-tracked-ignored, got: $OUT" ;;
+  esac
+  log_pass "TEST-1737: .gitignore stays unmapped (FULL_RUN); guard scripts select aai-tracked-ignored (TEST-1737)"
+}
+
 # delta_repo <dir> — a real git repo with the inert_map, branch main, and
 # its own identity; prints nothing. Every setup exit code is checked.
 delta_repo() {
@@ -1368,6 +1403,7 @@ main() {
   test_1711_inert_paths_select_core_only
   test_1712_inert_precedence_and_byte_identity
   test_1713_real_map_inert_pinned_to_ignored_dirs
+  test_1737_real_map_gitignore_full_and_guard_scripts_select
   test_1714_delta_selects_over_the_delta_only
   test_1715_delta_ineligible_cells
   test_1716_delta_ancestry_and_unknown_sha
