@@ -4131,28 +4131,28 @@ ignored_in_index() {
 test_1730_evidence_rescue_from_worktree() {
   log_info "TEST-1730: ignored worktree-only evidence is rescued into the main checkout, no warning, nothing ignored committed (SEAM S4)..."
   local pair main wt
-  pair=$(rescue_fixture "t1730" "-" "docs/ai/reports/VALIDATION-x.md") || log_fail "t1730: fixture setup error"
+  pair=$(rescue_fixture "t1730" "-" "docs/ai/reports/VALIDATION-x.md") || log_fail "TEST-1730: fixture setup error"
   main="${pair%% *}"; wt="${pair#* }"
-  mkdir -p "$wt/docs/ai/reports" || log_fail "t1730: setup error"
-  printf 'validation bytes\n' > "$wt/docs/ai/reports/VALIDATION-x.md" || log_fail "t1730: setup error"
-  [[ ! -e "$main/docs/ai/reports/VALIDATION-x.md" ]] || log_fail "t1730: fixture setup error — evidence leaked into the main checkout"
+  mkdir -p "$wt/docs/ai/reports" || log_fail "TEST-1730: setup error"
+  printf 'validation bytes\n' > "$wt/docs/ai/reports/VALIDATION-x.md" || log_fail "TEST-1730: setup error"
+  [[ ! -e "$main/docs/ai/reports/VALIDATION-x.md" ]] || log_fail "TEST-1730: fixture setup error — evidence leaked into the main checkout"
 
   local out="$TEST_DIR/t1730.out" err="$TEST_DIR/t1730.err" code
   code=$(run_close "$wt" "$out" "$err" --ref t1730-change-slug --spec t1730-spec-slug --pr 1730 --commit a1730a17)
-  assert_exit "t1730: close from the worktree" 0 "$code"
+  assert_exit "TEST-1730: close from the worktree" 0 "$code"
   if grep -qi -- 'evidence-path gate' "$err"; then
-    log_fail "t1730: rescued evidence must not produce an evidence-path warning, got: $(cat "$err")"
+    log_fail "TEST-1730: rescued evidence must not produce an evidence-path warning, got: $(cat "$err")"
   fi
   local n; n=$(grep -c -- 'evidence rescued' "$out" || true)
-  [[ "$n" == "1" ]] || log_fail "t1730: expected exactly one 'evidence rescued' stdout line, got $n: $(cat "$out")"
-  grep -qF 'docs/ai/reports/VALIDATION-x.md' "$out" || log_fail "t1730: the rescued line must name the token"
-  [[ -f "$main/docs/ai/reports/VALIDATION-x.md" ]] || log_fail "t1730: the evidence file must exist in the main checkout"
+  [[ "$n" == "1" ]] || log_fail "TEST-1730: expected exactly one 'evidence rescued' stdout line, got $n: $(cat "$out")"
+  grep -qF 'docs/ai/reports/VALIDATION-x.md' "$out" || log_fail "TEST-1730: the rescued line must name the token"
+  [[ -f "$main/docs/ai/reports/VALIDATION-x.md" ]] || log_fail "TEST-1730: the evidence file must exist in the main checkout"
   [[ "$(cat "$main/docs/ai/reports/VALIDATION-x.md")" == "validation bytes" ]] \
-    || log_fail "t1730: the rescued copy must carry the original bytes"
-  [[ -z "$(ignored_in_index "$main")" ]] || log_fail "t1730: main index holds an ignored path: $(ignored_in_index "$main")"
-  [[ -z "$(ignored_in_index "$wt")" ]] || log_fail "t1730: worktree index holds an ignored path: $(ignored_in_index "$wt")"
+    || log_fail "TEST-1730: the rescued copy must carry the original bytes"
+  [[ -z "$(ignored_in_index "$main")" ]] || log_fail "TEST-1730: main index holds an ignored path: $(ignored_in_index "$main")"
+  [[ -z "$(ignored_in_index "$wt")" ]] || log_fail "TEST-1730: worktree index holds an ignored path: $(ignored_in_index "$wt")"
   [[ -z "$(git -C "$main" status --porcelain --untracked-files=all -- docs/ai/reports)" ]] \
-    || log_fail "t1730: the rescued copy must stay ignored (not show as untracked) in the main checkout"
+    || log_fail "TEST-1730: the rescued copy must stay ignored (not show as untracked) in the main checkout"
   log_pass "TEST-1730: worktree-only ignored evidence rescued into the main checkout, no warning, both indexes free of ignored paths"
 }
 
@@ -4160,45 +4160,45 @@ test_1731_evidence_rescue_negations() {
   log_info "TEST-1731: rescue negations — non-ignored, missing, symlink, existing destination..."
   local cell="docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md docs/ai/reports/exists-1731.md"
   local pair main wt
-  pair=$(rescue_fixture "t1731" "-" "$cell") || log_fail "t1731: fixture setup error"
+  pair=$(rescue_fixture "t1731" "-" "$cell") || log_fail "TEST-1731: fixture setup error"
   main="${pair%% *}"; wt="${pair#* }"
-  mkdir -p "$wt/docs/notes" "$wt/docs/ai/reports" "$main/docs/ai/reports" || log_fail "t1731: setup error"
-  printf 'note\n' > "$wt/docs/notes/n1731.md" || log_fail "t1731: setup error"
-  printf 'target\n' > "$wt/docs/ai/reports/target-1731.txt" || log_fail "t1731: setup error"
-  ln -s target-1731.txt "$wt/docs/ai/reports/link-1731.md" || log_fail "t1731: setup error"
-  printf 'main version\n' > "$main/docs/ai/reports/exists-1731.md" || log_fail "t1731: setup error"
-  printf 'worktree version\n' > "$wt/docs/ai/reports/exists-1731.md" || log_fail "t1731: setup error"
+  mkdir -p "$wt/docs/notes" "$wt/docs/ai/reports" "$main/docs/ai/reports" || log_fail "TEST-1731: setup error"
+  printf 'note\n' > "$wt/docs/notes/n1731.md" || log_fail "TEST-1731: setup error"
+  printf 'target\n' > "$wt/docs/ai/reports/target-1731.txt" || log_fail "TEST-1731: setup error"
+  ln -s target-1731.txt "$wt/docs/ai/reports/link-1731.md" || log_fail "TEST-1731: setup error"
+  printf 'main version\n' > "$main/docs/ai/reports/exists-1731.md" || log_fail "TEST-1731: setup error"
+  printf 'worktree version\n' > "$wt/docs/ai/reports/exists-1731.md" || log_fail "TEST-1731: setup error"
 
   local out="$TEST_DIR/t1731.out" err="$TEST_DIR/t1731.err" code
   code=$(run_close "$wt" "$out" "$err" --ref t1731-change-slug --spec t1731-spec-slug --pr 1731 --commit a1731a17)
-  assert_exit "t1731: close from the worktree" 0 "$code"
-  grep -q -- 'WARNING (evidence-path gate)' "$err" || log_fail "t1731: unrescuable tokens must still warn, got: $(cat "$err")"
+  assert_exit "TEST-1731: close from the worktree" 0 "$code"
+  grep -q -- 'WARNING (evidence-path gate)' "$err" || log_fail "TEST-1731: unrescuable tokens must still warn, got: $(cat "$err")"
   local tok
   for tok in docs/notes/n1731.md docs/ai/reports/missing-1731.md docs/ai/reports/link-1731.md; do
-    grep -qF "$tok" "$err" || log_fail "t1731: the warning must name $tok, got: $(cat "$err")"
+    grep -qF "$tok" "$err" || log_fail "TEST-1731: the warning must name $tok, got: $(cat "$err")"
   done
   if grep -qF 'docs/ai/reports/exists-1731.md' "$err"; then
-    log_fail "t1731: a token already present in the main checkout is resolved and must not be named"
+    log_fail "TEST-1731: a token already present in the main checkout is resolved and must not be named"
   fi
-  if grep -q -- 'evidence rescued' "$out"; then log_fail "t1731: nothing here is rescuable, got: $(cat "$out")"; fi
-  [[ ! -e "$main/docs/notes/n1731.md" ]] || log_fail "t1731: a non-ignored worktree-only path must not be copied"
+  if grep -q -- 'evidence rescued' "$out"; then log_fail "TEST-1731: nothing here is rescuable, got: $(cat "$out")"; fi
+  [[ ! -e "$main/docs/notes/n1731.md" ]] || log_fail "TEST-1731: a non-ignored worktree-only path must not be copied"
   [[ ! -e "$main/docs/ai/reports/link-1731.md" && ! -L "$main/docs/ai/reports/link-1731.md" ]] \
-    || log_fail "t1731: a symlink token must not be copied"
+    || log_fail "TEST-1731: a symlink token must not be copied"
   [[ "$(cat "$main/docs/ai/reports/exists-1731.md")" == "main version" ]] \
-    || log_fail "t1731: an existing destination must never be overwritten"
+    || log_fail "TEST-1731: an existing destination must never be overwritten"
   log_pass "TEST-1731: non-ignored, missing, symlink and existing-destination cells all behave as before (warn, no copy, no overwrite)"
 }
 
 test_1732_evidence_rescue_dry_run_and_enforce() {
   log_info "TEST-1732: --dry-run lists the rescue and copies nothing; enforce with an unrescuable token copies nothing..."
   local pair main wt
-  pair=$(rescue_fixture "t1732a" "-" "docs/ai/tdd/red-1732.log") || log_fail "t1732: fixture setup error"
+  pair=$(rescue_fixture "t1732a" "-" "docs/ai/tdd/red-1732.log") || log_fail "TEST-1732: fixture setup error"
   main="${pair%% *}"; wt="${pair#* }"
-  mkdir -p "$wt/docs/ai/tdd" || log_fail "t1732: setup error"
-  printf 'red\n' > "$wt/docs/ai/tdd/red-1732.log" || log_fail "t1732: setup error"
+  mkdir -p "$wt/docs/ai/tdd" || log_fail "TEST-1732: setup error"
+  printf 'red\n' > "$wt/docs/ai/tdd/red-1732.log" || log_fail "TEST-1732: setup error"
   local out="$TEST_DIR/t1732a.out" err="$TEST_DIR/t1732a.err" code
   code=$(run_close "$wt" "$out" "$err" --ref t1732a-change-slug --spec t1732a-spec-slug --pr 1732 --commit a1732a17 --dry-run)
-  assert_exit "t1732: dry-run" 0 "$code"
+  assert_exit "TEST-1732: dry-run" 0 "$code"
   node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const g = j.evidencePathGate;
@@ -4206,31 +4206,31 @@ test_1732_evidence_rescue_dry_run_and_enforce() {
     if (!Array.isArray(g.rescue) || g.rescue.length !== 1) { console.error("expected one rescue entry, got " + JSON.stringify(g.rescue)); process.exit(1); }
     const r = g.rescue[0];
     if (r.token !== "docs/ai/tdd/red-1732.log" || !r.from || !r.to) { console.error("bad rescue entry " + JSON.stringify(r)); process.exit(1); }
-  ' "$out" || log_fail "t1732: dry-run JSON must list evidencePathGate.rescue"
-  [[ ! -e "$main/docs/ai/tdd/red-1732.log" ]] || log_fail "t1732: --dry-run must copy nothing"
-  if grep -q -- 'evidence rescued' "$out"; then log_fail "t1732: --dry-run must not print a rescued line"; fi
+  ' "$out" || log_fail "TEST-1732: dry-run JSON must list evidencePathGate.rescue"
+  [[ ! -e "$main/docs/ai/tdd/red-1732.log" ]] || log_fail "TEST-1732: --dry-run must copy nothing"
+  if grep -q -- 'evidence rescued' "$out"; then log_fail "TEST-1732: --dry-run must not print a rescued line"; fi
 
   local pair2 main2 wt2
-  pair2=$(rescue_fixture "t1732b" "enforce" "docs/ai/tdd/red-1732b.log docs/ai/tdd/gone-1732b.log") || log_fail "t1732: fixture setup error (enforce)"
+  pair2=$(rescue_fixture "t1732b" "enforce" "docs/ai/tdd/red-1732b.log docs/ai/tdd/gone-1732b.log") || log_fail "TEST-1732: fixture setup error (enforce)"
   main2="${pair2%% *}"; wt2="${pair2#* }"
-  mkdir -p "$wt2/docs/ai/tdd" || log_fail "t1732: setup error"
-  printf 'red\n' > "$wt2/docs/ai/tdd/red-1732b.log" || log_fail "t1732: setup error"
+  mkdir -p "$wt2/docs/ai/tdd" || log_fail "TEST-1732: setup error"
+  printf 'red\n' > "$wt2/docs/ai/tdd/red-1732b.log" || log_fail "TEST-1732: setup error"
   out="$TEST_DIR/t1732b.out"; err="$TEST_DIR/t1732b.err"
   code=$(run_close "$wt2" "$out" "$err" --ref t1732b-change-slug --spec t1732b-spec-slug --pr 1732 --commit b1732b17)
-  assert_exit "t1732: enforce with one unrescuable token refuses" 5 "$code"
-  [[ ! -e "$main2/docs/ai/tdd/red-1732b.log" ]] || log_fail "t1732: a refused close must copy nothing"
-  grep -qF 'docs/ai/tdd/gone-1732b.log' "$err" || log_fail "t1732: the refusal must name the unrescuable token"
-  if grep -qF 'red-1732b.log' "$err"; then log_fail "t1732: the rescuable token must not be named in the refusal"; fi
+  assert_exit "TEST-1732: enforce with one unrescuable token refuses" 5 "$code"
+  [[ ! -e "$main2/docs/ai/tdd/red-1732b.log" ]] || log_fail "TEST-1732: a refused close must copy nothing"
+  grep -qF 'docs/ai/tdd/gone-1732b.log' "$err" || log_fail "TEST-1732: the refusal must name the unrescuable token"
+  if grep -qF 'red-1732b.log' "$err"; then log_fail "TEST-1732: the rescuable token must not be named in the refusal"; fi
 
   local pair3 main3 wt3
-  pair3=$(rescue_fixture "t1732c" "enforce" "docs/ai/tdd/red-1732c.log") || log_fail "t1732: fixture setup error (enforce ok)"
+  pair3=$(rescue_fixture "t1732c" "enforce" "docs/ai/tdd/red-1732c.log") || log_fail "TEST-1732: fixture setup error (enforce ok)"
   main3="${pair3%% *}"; wt3="${pair3#* }"
-  mkdir -p "$wt3/docs/ai/tdd" || log_fail "t1732: setup error"
-  printf 'red\n' > "$wt3/docs/ai/tdd/red-1732c.log" || log_fail "t1732: setup error"
+  mkdir -p "$wt3/docs/ai/tdd" || log_fail "TEST-1732: setup error"
+  printf 'red\n' > "$wt3/docs/ai/tdd/red-1732c.log" || log_fail "TEST-1732: setup error"
   out="$TEST_DIR/t1732c.out"; err="$TEST_DIR/t1732c.err"
   code=$(run_close "$wt3" "$out" "$err" --ref t1732c-change-slug --spec t1732c-spec-slug --pr 1732 --commit c1732c17)
-  assert_exit "t1732: enforce with only rescuable evidence closes" 0 "$code"
-  [[ -f "$main3/docs/ai/tdd/red-1732c.log" ]] || log_fail "t1732: enforce close must rescue the file"
+  assert_exit "TEST-1732: enforce with only rescuable evidence closes" 0 "$code"
+  [[ -f "$main3/docs/ai/tdd/red-1732c.log" ]] || log_fail "TEST-1732: enforce close must rescue the file"
   log_pass "TEST-1732: dry-run lists and copies nothing; enforce refuses before any copy; enforce with only rescuable evidence closes"
 }
 
