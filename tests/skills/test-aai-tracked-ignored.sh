@@ -18,8 +18,13 @@
 set -euo pipefail
 
 TEST_NAME="aai-tracked-ignored"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Path math without a cd inside a command substitution (cd-subshell-leak gate).
+_src="${BASH_SOURCE[0]}"
+[[ "$_src" == */* ]] || _src="./$_src"
+SCRIPT_DIR="${_src%/*}"
+[[ "$SCRIPT_DIR" == /* ]] || SCRIPT_DIR="$PWD/$SCRIPT_DIR"
+SCRIPT_DIR="${SCRIPT_DIR%/.}"
+PROJECT_ROOT="${SCRIPT_DIR%/tests/skills}"
 SCRIPT="${TRACKED_IGNORED_SCRIPT:-$PROJECT_ROOT/.aai/scripts/tracked-ignored.mjs}"
 WORKFLOW_FILE="${TRACKED_IGNORED_WORKFLOW:-$PROJECT_ROOT/.github/workflows/skill-suite.yml}"
 
@@ -70,12 +75,22 @@ fx_repo() {
   printf '%s' "$repo"
 }
 
+# in_dir <abs dir> <cmd...> — run a command with <dir> as cwd in a plain
+# subshell (never a command substitution); sets OUT (stdout+stderr) and CODE.
+in_dir() {
+  local dir="$1"; shift
+  [[ -n "$dir" && "$dir" == /* && -d "$dir" ]] || log_fail "in_dir: bad directory '$dir'"
+  local outf="$TEST_DIR/in-dir.out"
+  CODE=0
+  ( cd "$dir" && "$@" ) > "$outf" 2>&1 || CODE=$?
+  OUT="$(cat "$outf")"
+}
+
 # run_ta <repo> <args...> — run the script in a fixture; sets OUT and CODE.
 run_ta() {
   local repo="$1"; shift
   [[ -n "$repo" && "$repo" == /* && -d "$repo" ]] || log_fail "run_ta: bad fixture dir '$repo'"
-  CODE=0
-  OUT="$(cd "$repo" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null node "$SCRIPT" "$@" 2>&1)" || CODE=$?
+  in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null node "$SCRIPT" "$@"
 }
 
 contains_line() {  # <payload> <fixed line>
@@ -283,8 +298,7 @@ test_1704_workflow_run_text_executes_in_fixture() {  # Spec-AC-01, SEAM S1
   fx_git "$repo" add .gitignore ok.txt
   fx_git "$repo" add -f bad.log
   fx_git "$repo" commit -q -m init
-  CODE=0
-  OUT="$(cd "$repo" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash "$runner" 2>&1)" || CODE=$?
+  in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash -e "$runner"
   [[ "$CODE" != "0" ]] || log_fail "TEST-1704: the job's run text must fail with a force-added ignored file, got exit 0: $OUT"
 
   clean="$(fx_repo t1704-clean)"
@@ -294,8 +308,7 @@ test_1704_workflow_run_text_executes_in_fixture() {  # Spec-AC-01, SEAM S1
   printf 'x\n' > "$clean/ok.txt"
   fx_git "$clean" add .gitignore ok.txt
   fx_git "$clean" commit -q -m init
-  CODE=0
-  OUT="$(cd "$clean" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash "$runner" 2>&1)" || CODE=$?
+  in_dir "$clean" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash -e "$runner"
   [[ "$CODE" == "0" ]] || log_fail "TEST-1704: the job's run text must pass on a clean repo, got $CODE: $OUT"
   log_pass "TEST-1704: the workflow's run text is red with a forced file and green clean (TEST-1704)"
 }
@@ -303,8 +316,8 @@ test_1704_workflow_run_text_executes_in_fixture() {  # Spec-AC-01, SEAM S1
 test_1705_live_tree_tracks_no_ignored_path() {  # Spec-AC-02
   log_info "Test: the live tree tracks no gitignored path (TEST-1705)..."
   [[ -d "$PROJECT_ROOT/.git" || -f "$PROJECT_ROOT/.git" ]] || log_skip "TEST-1705: not a git checkout"
-  CODE=0
-  OUT="$(cd "$PROJECT_ROOT" && node "$SCRIPT" --all 2>&1)" || CODE=$?
+  new_scratch
+  in_dir "$PROJECT_ROOT" node "$SCRIPT" --all
   [[ "$CODE" == "0" ]] || log_fail "TEST-1705: tracked-ignored --all must exit 0 on the delivered tree, got $CODE: $OUT"
   local ls_out
   ls_out="$(git -C "$PROJECT_ROOT" -c core.excludesFile=/dev/null ls-files -ci --exclude-standard)"
