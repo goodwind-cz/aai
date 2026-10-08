@@ -1,0 +1,57 @@
+[
+  {
+    "clone_timeout_ms": 30000,
+    "output_cap_bytes": 65536,
+    "source_head": {
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "stdout": "604abd7123524532d17035818372a4689062f7e1\n",
+      "stderr": ""
+    },
+    "core_longpaths": {
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    "tree_status": 0,
+    "longest_relative_path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/run-snapshot-cd54086ced343c861928c9749fd8d43b2aa4e72dfe2a705c484db17a8baf7cea.mjs",
+    "longest_relative_chars": 152,
+    "deep": {
+      "destination": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\aai-pr-preflight-ec29aa0a-ceb8-4d9d-97a0-002f661a238d\\fixture-EPTff7\\note-shallow",
+      "max_checkout_path_chars": 274,
+      "status": 128,
+      "signal": null,
+      "error": null,
+      "stdout": "",
+      "stderr": "Note: switching to '604abd7123524532d17035818372a4689062f7e1'.\n\nYou are in 'detached HEAD' state. You can look around, make experimental\nchanges and commit them, and you can discard any commits you make in this\nstate without impacting any branches by switching back to a branch.\n\nIf you want to create a new branch to retain commits you create, you may\ndo so (now or later) by using -c with the switch command. Example:\n\n  git switch -c <new-branch-name>\n\nOr undo this operation with:\n\n  git switch -\n\nTurn off this advice by setting config variable advice.detachedHead to false\n\nerror: unable to create file docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/run-snapshot-cd54086ced343c861928c9749fd8d43b2aa4e72dfe2a705c484db17a8baf7cea.mjs: Filename too long\nerror: unable to create file docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.patch: Filename too long\nerror: unable to create file docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.patch: Filename too long\nerror: unable to create file docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-006.2026-10-07T12-48-40Z.patch: Filename too long\nerror: unable to create file docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-006.2026-10-07T13-31-13Z.patch: Filename too long\nfatal: unable to checkout working tree\nwarning: Clone succeeded, but checkout failed.\nYou can inspect what was checked out with 'git status'\nand retry with 'git restore --source=HEAD :/'\n\n",
+      "head": null,
+      "shallow": null
+    },
+    "short": {
+      "destination": "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\aai-pr-preflight-ec29aa0a-ceb8-4d9d-97a0-002f661a238d\\s-EPTff7",
+      "max_checkout_path_chars": 255,
+      "status": 0,
+      "signal": null,
+      "error": null,
+      "stdout": "",
+      "stderr": "Note: switching to '604abd7123524532d17035818372a4689062f7e1'.\n\nYou are in 'detached HEAD' state. You can look around, make experimental\nchanges and commit them, and you can discard any commits you make in this\nstate without impacting any branches by switching back to a branch.\n\nIf you want to create a new branch to retain commits you create, you may\ndo so (now or later) by using -c with the switch command. Example:\n\n  git switch -c <new-branch-name>\n\nOr undo this operation with:\n\n  git switch -\n\nTurn off this advice by setting config variable advice.detachedHead to false\n\n",
+      "head": {
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "604abd7123524532d17035818372a4689062f7e1\n",
+        "stderr": ""
+      },
+      "shallow": {
+        "status": 0,
+        "signal": null,
+        "error": null,
+        "stdout": "true\n",
+        "stderr": ""
+      }
+    }
+  }
+]

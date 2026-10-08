@@ -4,7 +4,7 @@ type: spec
 number: 210
 status: implementing
 mutation_gate: v1
-frozen_sha256: 2fb9d370d9b4611e213ccb4e251db42e4ea209d154c325cedcb3aee16c142b90
+frozen_sha256: b4f49347b89bf7771bba756a393becbf364eb7cbf81e89b7bfe0079f030a61d6
 ceremony_level: 2
 links:
   requirement: pr-capability-preflight
@@ -159,3 +159,7 @@ Official command references checked during Planning: [Azure repos show](https://
 The completed final endpoint repair ended with fresh Review FAIL at aa18e55e because required native TEST008 clone failed with truncated nested stderr. Owner reply Pokracuj in docs/decisions/DECISION-pr-capability-preflight-test008-followup.md explicitly authorizes this separate bounded diagnostic and cause-based repair; it is not another inferred standing extension. The diagnostic stage retains the failing assertion, obtains bounded Git status/error/stdout/stderr as JSON stdout, and compares deep and shorter scratch clones at the same head/configuration. A scoped PowerShell Continue capture restores the original preference before the explicit exit assertion; its real exit7 control verifies diagnostic visibility without globally suppressing errors. Path length remains a hypothesis until native evidence identifies the cause. No provider change is authorized or implied by that hypothesis.
 
 Independent real Git2.43 research also establishes test-only fixture portability: unquoted edge CR can normalize before the CLI, while correctly quoted CR survives and must refuse. TEST001 verifies intended config and effective bytes before exercising the CLI. Empty pushurl expectations come from independently observed effective output, not the CLI result or a version-number guess: emitted blanks refuse with zero provider calls; an exact single lawful URL succeeds with three calls. A deterministic reached blank-output fixture preserves parser-refusal coverage on Git versions that omit empty config entries. Existing production validation remains unchanged. Historical failure and research bytes are preserved, including fixture infrastructure attempts. Frozen-spec amendment debt remains owed through the existing open follow-up.
+
+Native diagnostic snapshot bfea029b established the TEST008 cause on Windows5.1 WSL-host job113083903317: core.longpaths unset, identical synthetic checkout HEAD604abd7; deep maximum274 characters clone exit128 with Filename too long for five evidence paths, shorter maximum255 clone exit0 and shallow true. Five byte-identical short aliases preserve the source snapshot and four historical patch files through a new transitive mapping and original-hash recovery; historical manifests remain unchanged. The corrected candidate corpus fits the observed deep checkout prefix without a global Git configuration change. New native GREEN still requires the final shipping head.
+
+The diagnostic capture control introduced at bfea also failed expected7/actual1. A real PowerShell Legacy-argument reproduction exposes lost inline JavaScript quotes and ReferenceError before the intended exit. The control now passes a UTF8 script file, preserving real stderr/exit7/Stop restoration under Legacy argument mode. This is a test fixture repair, not a provider defect or global error suppression. Local focused verification does not attest native Windows5.1 GREEN.

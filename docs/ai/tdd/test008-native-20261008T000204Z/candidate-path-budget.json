@@ -1,0 +1,53 @@
+{
+  "original_native_head": "bfea029b",
+  "checkout_merge": "604abd7123524532d17035818372a4689062f7e1",
+  "observed_deep_prefix_chars": 122,
+  "original_max_full_chars": 274,
+  "candidate_max_relative_chars": 136,
+  "candidate_max_full_chars": 258,
+  "paths_checked": 1982,
+  "longest": [
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.patch",
+      "relative_chars": 136,
+      "deep_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.txt",
+      "relative_chars": 136,
+      "deep_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.2026-10-07T13-31-13Z.patch",
+      "relative_chars": 136,
+      "deep_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.txt",
+      "relative_chars": 136,
+      "deep_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-006.2026-10-07T13-31-13Z.txt",
+      "relative_chars": 136,
+      "deep_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.2026-10-07T12-48-40Z.patch",
+      "relative_chars": 136,
+      "deep_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.patch",
+      "relative_chars": 136,
+      "deep_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-006.2026-10-07T12-48-40Z.txt",
+      "relative_chars": 136,
+      "deep_full_chars": 258
+    }
+  ],
+  "scope": "tracked present files plus all followup artifacts and renamed leaves; shipping index not written by maker",
+  "native_green": "pending final commit CI"
+}

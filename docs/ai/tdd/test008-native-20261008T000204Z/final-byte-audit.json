@@ -1,0 +1,218 @@
+{
+  "paths_checked": 1991,
+  "undeclared_NUL": [],
+  "declared_binary": [
+    "docs/assets/aai-readme-hero.png"
+  ],
+  "deep_native_prefix_chars": 122,
+  "max_relative_chars": 136,
+  "max_native_full_chars": 258,
+  "longest": [
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.patch",
+      "relative_chars": 136,
+      "native_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.patch",
+      "relative_chars": 136,
+      "native_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.2026-10-07T12-48-40Z.patch",
+      "relative_chars": 136,
+      "native_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-006.2026-10-07T13-31-13Z.patch",
+      "relative_chars": 136,
+      "native_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.txt",
+      "relative_chars": 136,
+      "native_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.txt",
+      "relative_chars": 136,
+      "native_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-006.2026-10-07T12-48-40Z.txt",
+      "relative_chars": 136,
+      "native_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-pushurl-remediation-20261007T211358Z/historical-mutations/mutation-TEST-006.2026-10-07T13-31-13Z.txt",
+      "relative_chars": 136,
+      "native_full_chars": 258
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.txt",
+      "relative_chars": 134,
+      "native_full_chars": 256
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-004.2026-10-07T12-32-59Z.txt",
+      "relative_chars": 134,
+      "native_full_chars": 256
+    }
+  ],
+  "ledger_base_prefixes": {
+    "docs/ai/EVENTS.jsonl": {
+      "base_prefix": true,
+      "base_bytes": 542591,
+      "base_sha256": "04230c0e9928ec89be65bb8b22dddce1be5fd1569629c3ef26cdfaf954b26870"
+    },
+    "docs/ai/METRICS.jsonl": {
+      "base_prefix": true,
+      "base_bytes": 576232,
+      "base_sha256": "554849862fdc544e70beb085117f84a2a8f7a7f688cbed24446b21fbc8b1828e"
+    },
+    "docs/ai/decisions.jsonl": {
+      "base_prefix": true,
+      "base_bytes": 1170145,
+      "base_sha256": "12a98b5a842cae18ccf9437f39a9769a6c42e3799eff4eed06592e694c2f310a"
+    },
+    "docs/ai/tests/test-runs.jsonl": {
+      "base_prefix": true,
+      "base_bytes": 137492,
+      "base_sha256": "c37c463c1b2dcc5ed8806995341f294206f73422ecd75f3e5d3c4133c28c80e6"
+    }
+  },
+  "historical_unchanged": [
+    {
+      "path": "docs/ai/reports/ORCHESTRATION-20261007T213009Z-pr-capability-preflight-handoff.md",
+      "sha256": "5a342775ea434a1a0f59d164ad697614c88cee492275626abe8260a0ae0578ec",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/ORCHESTRATION-20261007T234900Z-pr-capability-preflight-blocked.md",
+      "sha256": "c2af058d0409ba28f9960056434a604ef3fae1a3268961acd47e63f5a76ef40c",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/REMEDIATION-20261007T204234Z-pr-capability-preflight-final-ci.md",
+      "sha256": "c5c3279185541ac5588159d0c13aa9f16981bb53ff65dc071a3b4f9c24a626bf",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/REMEDIATION-20261007T204234Z-pr-capability-preflight-result.md",
+      "sha256": "efe950793f39df64bda8577eecb891b6664c58566dd3836bd2c1c0d37701eff9",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/REMEDIATION-20261007T211358Z-pr-capability-preflight-pushurl.md",
+      "sha256": "e0533bde21c94fcacc4a3c0d6423bc3e9070edf1ad1b0739258b371f3b380ff9",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/REMEDIATION-20261007T224314Z-pr-capability-preflight-final.md",
+      "sha256": "76979c2e6c7ec204b9f729e716067e6575d0f74a0aa33b3a333d192fae3a9899",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/RESULT-20261007T180720Z-pr-capability-preflight-corrected.md",
+      "sha256": "b98de4f9f6ba816d78f1c5a9793c4104d1d207925120e60b698529dfebc4ab72",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/RESULT-20261007T205748Z-pr-capability-preflight-final-ci.md",
+      "sha256": "d4c720295ffe01c287c7f7accf4ddaae11243d78a2b8e2e67cb9d27329ca2dce",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/RESULT-20261007T211358Z-pr-capability-preflight-pushurl.md",
+      "sha256": "f2e98cffff870532bb5b66e22d363bc6e0be0cc6c18ca721e1a7bcdb80029967",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/RESULT-20261007T224314Z-pr-capability-preflight-final.md",
+      "sha256": "47c3d06f6bffc8719dd0aba18c3ef6e79a9966d2109806c76294772d0cfc5feb",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/VALIDATION-20261007T180720Z-pr-capability-preflight-corrected.md",
+      "sha256": "79ff30b900d0de93133787181b5f6244a1807aebf2816384c05d91f943f96c90",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reports/VALIDATION-20261007T205748Z-pr-capability-preflight-final-ci.md",
+      "sha256": "3bbcf9fe6a6e64f1885d7a2e22f24823bef051f600550b588e3e7c3eca40d131",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reviews/result-20261007T165159Z-pr-capability-preflight.md",
+      "sha256": "0592780d5260a873343bcf08c2c653038d028fdf0b4b2702e811ab9e6cd81e3d",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reviews/result-20261007T183041Z-pr-capability-preflight-corrected.md",
+      "sha256": "f05bd0109c94c660ac6964dfc5d4de8d7dea3a7046bcd39dbc81e709f1db6739",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reviews/review-20261007T165159Z-pr-capability-preflight.md",
+      "sha256": "a37d7e92616c6ed40c4e7079999e4f877354f02bb1a505e13bdbd0c0dbfd68c1",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reviews/review-20261007T183041Z-pr-capability-preflight-corrected.md",
+      "sha256": "2af66df565609c146df5a8ee42097155277504fe64167de8b19edd8741a853c0",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/reviews/review-20261007T232901Z-pr-capability-preflight-final.md",
+      "sha256": "f35be274c601302017225768c2f04df21215d27ac781c1c387b256d41aa52201",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/artifact-manifest.json",
+      "sha256": "959400159571acc9ada901ad94f9861f72bea6f7e3f19729ed7d3a35fd4e9714",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/transport-manifest.json",
+      "sha256": "bb699a9f601e127e10c84e73695162e1d5880ab7564863040999e7a261f79879",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T205748Z/tree-manifest.json",
+      "sha256": "71dd02b0665b8421f94343c0e0d8331fcf6a39504dfa52fb91a26b67c24f06cd",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/tdd/pr-capability-preflight-validation-20261007T213247Z/tree-manifest.json",
+      "sha256": "7108f5782fe746fe3f4b4c391ec2d106dd7b781b9f4777ba61ecce0d948f7420",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/tdd/test008-native-20261008T000204Z/INTERIM-v2.md",
+      "sha256": "50b551016ba70603443a05f502d255be20ad490b94797c3ab77c2f9b6200209e",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/tdd/test008-native-20261008T000204Z/INTERIM.md",
+      "sha256": "de5a35e5431bac0cd8101aa1897bc0fd78c97865e3efaaaea0a1024aa0d7251c",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/tdd/test008-native-20261008T000204Z/interim-manifest-v2.json",
+      "sha256": "94f469d73c728061a613cdadda708d771abe06e45e5b44324022931a4fa3ad4c",
+      "unchanged": true
+    },
+    {
+      "path": "docs/ai/tdd/test008-native-20261008T000204Z/interim-manifest.json",
+      "sha256": "274fd27e188b69049b772f232950165ab0e35de169dbc17c5603b759f0abfe66",
+      "unchanged": true
+    }
+  ],
+  "source_sha256": {
+    ".aai/scripts/pr-preflight.mjs": "aca4085d27c5e1f9e2db33a2f29eb9acbe6e9097838a1565dc275dc710a1430d",
+    "tests/skills/test-aai-pr-preflight.sh": "079f26bc47cf5e9097281ed8295a31fb5225e5c1c27e8c455eb8efaf1420866d",
+    "tests/skills/aai-pr-preflight.Tests.ps1": "8ad350fed2e439c79620c2f997e59be9200deab2425927663731bfd677c7358e",
+    "docs/specs/SPEC-0210-spec-pr-capability-preflight.md": "55d09ff1d9b567ab56d49eb0a99e9074e1e2102d987054ef9ecfe67484af6a9d"
+  },
+  "active_wrappers": []
+}
