@@ -2,10 +2,12 @@
 id: post-validation-pushes-reuse-test-results
 type: change
 number: 205
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b11f56dab2dd3c7605367b9ce5c5fb4863482907
 ---
 
 # Change Request: Post-validation pushes reuse the already-proven test result

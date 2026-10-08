@@ -55,7 +55,7 @@ pairs:
   - capability: pr-capability-preflight
     status: done
   - capability: post-validation-pushes-reuse-test-results
-    status: planned
+    status: done
   - capability: directed-merge-and-post-merge-cleanup
     status: planned
 wave_2:

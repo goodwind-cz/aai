@@ -2,15 +2,17 @@
 id: spec-post-validation-pushes-reuse-test-results
 type: spec
 number: 213
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 298e0f2956012cc88964de18166f675be1bccdc6e8cac6f7183e4cd8b21289b5
 ceremony_level: 3
 links:
   requirement: post-validation-pushes-reuse-test-results
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - b11f56dab2dd3c7605367b9ce5c5fb4863482907
 ---
 
 # Spec — Post-validation pushes reuse the already-proven test result
