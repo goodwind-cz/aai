@@ -1,2 +1,0 @@
-ASSEMBLY_PROBES ["combined case github.com","combined case enterprise.github.com","unicode-distinct","unicode-distinct","strict returned URL","strict returned URL","strict returned URL","strict returned URL","malformed explicit","malformed explicit","numeric generic redacted","byte exact endpoint"]
-PASS: TEST-007 pr-capability-preflight

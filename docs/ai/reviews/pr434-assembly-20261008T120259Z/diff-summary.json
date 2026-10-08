@@ -1,8 +1,0 @@
-{
-  "base": "bdeb425c040ada918dd97e5b878b71e420bad83a",
-  "head": "8701da75a29e76e5a7897a9e327ad07f9ab38345",
-  "working_tree_diff_bytes": 12739413,
-  "sha256": "09d2827d70676d20cf922bc88aa9323efe1ea2e8d7169d2df5d6ee407b443c07",
-  "tracked_diff_paths": 933,
-  "boundary_paths": 966
-}

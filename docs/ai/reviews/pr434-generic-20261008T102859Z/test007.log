@@ -1,7 +1,0 @@
-AAI-ISOLATION: degraded - /private/tmp/aai-pr434-generic-review-scratch/copy is not a git checkout with a commit to branch from; this suite run uses the shipping repository as its working tree.
-AAI-SEEDING: skipped - no disposable checkout was made, or one was made and then discarded before seeding could start (see the AAI-ISOLATION line above for why), so nothing was seeded.
-INFO: CLI_BOUND {"test":"007","sequence":1,"mode":"ok","timeout_ms":105000,"elapsed_ms":5763,"error_code":null,"signal":null,"git_probes":7,"provider_steps":["gh.--version","gh.auth","gh.repo"],"stdout_bytes":467}
-INFO: TEST-007 bounded_identity_delay_ms=5763 read_verified=true
-INFO: TEST007_SSH443 canonical_host=github.com exact_repository=true providers=3
-INFO: TEST-007 generic_numeric_port_and_local_controls=true malformed_refusal=true
-PASS: TEST-007 pr-capability-preflight
