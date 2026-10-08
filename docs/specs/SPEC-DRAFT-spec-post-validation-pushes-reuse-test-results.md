@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: ca8054fdeb1fbc7780a228bdd619455f2feada8dc81791bd925111f24ab9728a
+frozen_sha256: f8dd54d31f68d6f608d3ad7fabeb2a3ca85490decfff3422992c250e6af72ca2
 ceremony_level: 3
 links:
   requirement: post-validation-pushes-reuse-test-results
@@ -30,13 +30,14 @@ SPEC-FROZEN: true
 
 ## Registry items closed by this scope
 
+NOT CLOSED YET (the close ceremony closes both at delivery and relabels the claim; until then verify-closures would report a false MISS on every sweep):
 - `fu-inert-path-class` (P3) — closed by Spec-AC-05: a reviewed `inert_globs`
   class in tests/skills/suite-map.yaml; inert paths select CORE only.
 - `fu-mutation-evidence-is-gitignored` (P3) — closed by decision D6: local,
   gitignored evidence is the contract (never committed); close-work-item rescues
   worktree-only cited evidence into the main checkout instead.
 
-Not closed, with reason (registry scan `node .aai/scripts/follow-ups.mjs list`,
+NOT CLOSED, with reason (registry scan `node .aai/scripts/follow-ups.mjs list`,
 2026-10-08):
 - `fu-lib-graph-narrowing-after-sharding` — a different subject (shared-lib
   FULL_RUN fan-out); this scope does not narrow `.aai/scripts/lib/**`.
