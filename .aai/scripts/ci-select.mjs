@@ -139,7 +139,8 @@ function provesFullMode(jobs) {
 }
 
 function revList(o, head) {
-  const args = ['rev-list', `--max-count=${CANDIDATE_CAP}`, head, `^${o.baseRef}`];
+  // one beyond the cap, so "exactly CAP commits" is told apart from "more than CAP"
+  const args = ['rev-list', `--max-count=${CANDIDATE_CAP + 1}`, head, `^${o.baseRef}`];
   const r = spawnSync('git', o.repoRoot ? ['-C', o.repoRoot, ...args] : args, { encoding: 'utf8', maxBuffer: MAX_BUFFER });
   if (r.status !== 0) return null;
   return lines(r.stdout).map((s) => s.trim());
@@ -151,8 +152,8 @@ async function findAnchor(o, ev, token) {
   const H = head.sha;
   const cands = revList(o, H);
   if (cands === null) throw new Stop('git-error');
-  const capped = cands.length >= CANDIDATE_CAP;
-  const older = cands.filter((c) => c !== H);
+  const capped = cands.length > CANDIDATE_CAP;
+  const older = cands.slice(0, CANDIDATE_CAP).filter((c) => c !== H);
   let sawMismatch = false;
   let sawNotFull = false;
   for (const C of older) {

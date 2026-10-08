@@ -145,6 +145,15 @@ EOF
         i=$((i + 1))
       done
       ;;
+    exact)
+      # exactly CANDIDATE_CAP (20) commits on the PR: every candidate is searched
+      fx_commit "$REPO" c1 weird/unmapped.txt
+      local j=0
+      while [[ $j -lt 19 ]]; do
+        fx_commit "$REPO" "x$j" docs/ai/EVENTS.jsonl
+        j=$((j + 1))
+      done
+      ;;
     *)
       fx_commit "$REPO" c1 weird/unmapped.txt
       fx_commit "$REPO" c2 docs/ai/EVENTS.jsonl
@@ -376,6 +385,11 @@ test_1722_workflow_select_job_wiring() {  # Spec-AC-07
   case "$block" in
     *"secrets."*) log_fail "TEST-1722: the select job must reference no secrets.* value" ;;
   esac
+  # CI_SELECT_SELECTOR swaps the selector script under ci-select.mjs; it is a
+  # test seam, so the workflow must never set it anywhere (validation NB-4).
+  if grep -qF 'CI_SELECT_SELECTOR' "$WORKFLOW_FILE"; then
+    log_fail "TEST-1722: the workflow must never set the test-only CI_SELECT_SELECTOR override"
+  fi
   log_pass "TEST-1722: select job wiring is actions: read + github.token, no fixtures, no secrets (TEST-1722)"
 }
 
@@ -432,6 +446,18 @@ test_1723_failsafe_table_api_and_event_cells() {  # Spec-AC-08
   done
   fx_write "$fx"
   cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "TEST-1723 candidate cap" candidate-cap
+
+  # exactly 20 commits and no covering run: every candidate was searched, so this
+  # is no-covering-run, not candidate-cap (review F5)
+  mk_pr t1723-exact exact
+  write_event "$ev" synchronize "$C3"
+  fx_reset
+  for c in $(fx_git "$REPO" rev-list --max-count=20 "$C3" "^main"); do
+    [[ "$c" == "$C3" ]] && continue
+    fx_runs "$c" 0 ""
+  done
+  fx_write "$fx"
+  cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "TEST-1723 exactly 20 commits" no-covering-run
   log_pass "TEST-1723: nine fail-safe cells print whole-PR lines identical to select-suites plus a named reason (TEST-1723)"
 }
 
