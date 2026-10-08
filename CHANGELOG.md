@@ -22,6 +22,29 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: pre-commit CHECK 9 blocks staging a gitignored path (post-validation-pushes-reuse-test-results)
+
+- New blocking pre-commit check (CHECK 9, `pre-commit-checks.sh` and `.ps1`): a path matched by the repository `.gitignore` that is staged as ADDED (`git add -f`, a copy, or a rename into an ignored directory) is refused, naming the path, the rule and the remedy. Downstream projects that deliberately track an ignored path must add a reviewable `!<path>` re-include; there is no env bypass.
+- A MODIFIED already-tracked ignored path only warns (blocks under `--strict`); a deletion passes; untouched legacy hits are one count line. A check that cannot run (script error) warns "could not run" and is never reported as PASS.
+- `check-committed-scope.mjs` labels an in-scope tracked ignored path `(tracked-ignored)` in plain, `--strict` and `--rev` modes.
+- Only repository `.gitignore` rules count; `core.excludesFile` and `.git/info/exclude` do not (one predicate, `tracked-ignored.mjs`).
+
+## [unreleased] — ci: a required tracked-ignored job fails a PR that tracks an ignored path (post-validation-pushes-reuse-test-results)
+
+- New unconditional `tracked-ignored` job in `skill-suite.yml`, wired into the required gate: `tracked-ignored.mjs --all` fails when the tree tracks a path the repository `.gitignore` ignores.
+- The delivered tree is clean: 86 previously tracked `docs/ai/tdd` logs were untracked (files stay on disk).
+
+## [unreleased] — ci: ledger-only pushes after a full-green head reuse the test results (post-validation-pushes-reuse-test-results)
+
+- New inert path class (`inert_globs` in `tests/skills/suite-map.yaml`, each a gitignored `<dir>/**`) and `carry_forward_globs` (ledger and generated pages): such paths select no suite beyond CORE and never yield `FULL_RUN reason=unmapped`. Protected-l3 and shared-lib paths still win over the inert class.
+- Carry-forward: on a PR `synchronize`, `ci-select.mjs` finds the newest earlier head with a successful full-mode run (same branch and repo, ancestor of the head) and, when the delta since it holds only inert, ledger and generated-page paths, selects from the delta and prints `CARRY_FORWARD sha=... run=...`. Every uncertainty falls back to the whole-PR selection with a named reason. The select job gains `actions: read`.
+- A `.gitignore`-only change stays unmapped (full run).
+
+## [unreleased] — feat: close rescues ignored, worktree-only evidence into the main checkout (post-validation-pushes-reuse-test-results)
+
+- `close-work-item.mjs` run from a linked worktree copies cited evidence under the gitignored runtime folders (`docs/ai/reports`, `docs/ai/tdd`, `docs/ai/validation`) that exists only in the worktree into the main checkout (no clobber, no symlinks, nothing staged or committed) instead of warning that it will not survive. Only paths ignored by the repository `.gitignore` in both trees are rescued; a path ignored only by `.git/info/exclude`, a non-ignored path, or a directory holding a `!`-re-included member still warns as before. `--dry-run` lists the rescue and copies nothing.
+- VALIDATION, SKILL_TDD and SKILL_PR carry a one-line LOCAL EVIDENCE rule: that evidence is local, cite it, never `git add -f` it.
+
 ## [unreleased] — feat: check PR provider readiness before ceremony writes (pr-capability-preflight)
 
 - Check repository identity and provider read access before PR numbering, staging, commit and push.
