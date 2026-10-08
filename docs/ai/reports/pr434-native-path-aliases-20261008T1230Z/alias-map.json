@@ -1,0 +1,80 @@
+{
+  "schema": "pr434-native-path-aliases/v1",
+  "source_commit": "8045957286bd1bc5356e8be32b8b4dd025be262a",
+  "cause": "Native Windows checkout rejects six colon-containing historical mutation artifact paths before tests start.",
+  "old_paths_recoverable_at": "8045957286bd1bc5356e8be32b8b4dd025be262a",
+  "entries": [
+    {
+      "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.2026-10-07T12:49:40Z.patch",
+      "portable_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.2026-10-07T12-49-40Z.patch",
+      "source_commit": "8045957286bd1bc5356e8be32b8b4dd025be262a",
+      "source_blob": "58ce0b57de3d8a48a211acfdc54a38751b071532",
+      "sha256": "5cb7ee0e5754d4ae20e924b69fc1c68e1ca73dfc94027abc88e35ce937d666c8",
+      "reason": "Windows rejects colon in path component; ISO timestamp colons replaced with hyphens; historical artifact bytes preserved."
+    },
+    {
+      "original_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.2026-10-07T12:49:40Z.txt",
+      "portable_path": "docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.2026-10-07T12-49-40Z.txt",
+      "source_commit": "8045957286bd1bc5356e8be32b8b4dd025be262a",
+      "source_blob": "1638070e9a5febea8236d142ab4eb11437acca72",
+      "sha256": "0f425773b623039dbb0b9d624e9c2343597d1042dcf7955b289a695923eda380",
+      "reason": "Windows rejects colon in path component; ISO timestamp colons replaced with hyphens; historical artifact bytes preserved."
+    },
+    {
+      "original_path": "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.2026-10-08T11:26:19Z.txt",
+      "portable_path": "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.2026-10-08T11-26-19Z.txt",
+      "source_commit": "8045957286bd1bc5356e8be32b8b4dd025be262a",
+      "source_blob": "ad61caf9d2a85d623dd1ad3f4dae7cd2bbd5de3d",
+      "sha256": "56194d581e4ff09abbdde68997ac7bfababf17e5ba26a5477636a670720503fa",
+      "reason": "Windows rejects colon in path component; ISO timestamp colons replaced with hyphens; historical artifact bytes preserved."
+    },
+    {
+      "original_path": "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.2026-10-08T11:26:58Z.txt",
+      "portable_path": "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.2026-10-08T11-26-58Z.txt",
+      "source_commit": "8045957286bd1bc5356e8be32b8b4dd025be262a",
+      "source_blob": "4e3e9beead6cf1ceb152dae3be4d31852084d1b2",
+      "sha256": "add9a9c2f641a77d55844eff76466c7d5611125d69cecf7d25acb1be2af3d0c6",
+      "reason": "Windows rejects colon in path component; ISO timestamp colons replaced with hyphens; historical artifact bytes preserved."
+    },
+    {
+      "original_path": "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.2026-10-08T11:26:37Z.patch",
+      "portable_path": "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.2026-10-08T11-26-37Z.patch",
+      "source_commit": "8045957286bd1bc5356e8be32b8b4dd025be262a",
+      "source_blob": "180d163523ee2681580743ca5a1cb5f665630dca",
+      "sha256": "ff3457bd16e58c04e00640bd75dbe0c3196658970f481dd88e702e1c5add0818",
+      "reason": "Windows rejects colon in path component; ISO timestamp colons replaced with hyphens; historical artifact bytes preserved."
+    },
+    {
+      "original_path": "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.2026-10-08T11:26:37Z.txt",
+      "portable_path": "docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.2026-10-08T11-26-37Z.txt",
+      "source_commit": "8045957286bd1bc5356e8be32b8b4dd025be262a",
+      "source_blob": "5f10ec6360fb354fda440fab5463a0e4fda9b643",
+      "sha256": "a6b9ab341b920ff92bddaf4f482809cb54c64fe21c8235fe63ed65a8801ab0dd",
+      "reason": "Windows rejects colon in path component; ISO timestamp colons replaced with hyphens; historical artifact bytes preserved."
+    }
+  ],
+  "inventory": {
+    "scope": "complete Git HEAD tracked file inventory transformed by six renames",
+    "file_count": 2604,
+    "windows_invalid_paths": [],
+    "case_collisions": [],
+    "longest_path": {
+      "path": "docs/ai/tdd/pr-capability-preflight-final-remediation-20261007T224314Z/historical-mutations/mutation-TEST-003.2026-10-07T12-32-21Z.patch",
+      "length": 136
+    }
+  },
+  "frozen_pins": {
+    ".aai/scripts/pr-preflight.mjs": "e0d14f2b5dc9d5726fbae36e03b1bb346204c459cd6ab988015b57069396caaf",
+    "tests/skills/test-aai-pr-preflight.sh": "239206e806eff008083c8c1b081587760aa0ec9f4094fe7336a7404dc169df7c",
+    "docs/specs/SPEC-0210-spec-pr-capability-preflight.md": "24376e354503f0258e9b3236bad501ce7681a7ac0714065babdf831677d7c650",
+    "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md": "f81666fd1bb1d5ca97c827a214b37ada32804a37e5c866939d9a39c0110694d4",
+    "docs/specs/SPEC-0212-spec-pr-github-case-identity.md": "0e759ab9f62e9544cc990e4fbfa14213c3aa9e8d2e1f59e0adba6db4caad3d47",
+    "docs/INDEX.md": "96b7247e028340f300d0c889c4ac9b79e6abe140d7671d5676b5f6f2b8c94768",
+    "docs/ai/STATE.yaml": "5a8dd40630bc26b19a037766a2e13052d4067ad12024519b02890cd68552766e"
+  },
+  "sealed_reports": {
+    "file_count": 621,
+    "sha256_of_sorted_path_and_content_sha256": "bb2a84ffa68a3ffadfc09bffd90e0463620acc3ac04ff957b76fdc3a132f8151"
+  },
+  "qualification": "Semantic source and review evidence remain historical; aliases preserve bytes but require root publication, fresh native/full CI, and independent parent Validation."
+}

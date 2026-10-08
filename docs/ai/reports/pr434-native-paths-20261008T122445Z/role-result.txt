@@ -1,0 +1,51 @@
+The native checkout failure came from six committed mutation artifact names containing timestamp colons. I renamed those six files to Windows-safe names, preserving each file’s exact bytes from commit `80459572`. The [alias map](/private/tmp/aai-pr-capability-preflight/docs/ai/reports/pr434-native-path-aliases-20261008T1230Z/alias-map.json) records every old path, new path, Git blob, and SHA-256; the [evidence report](/private/tmp/aai-pr-capability-preflight/docs/ai/reports/pr434-native-path-aliases-20261008T1230Z/report.md) records the inventory scan.
+
+| Old timestamp | New timestamp | Artifact |
+|---|---|---|
+| `2026-10-07T12:49:40Z` | `2026-10-07T12-49-40Z` | `spec-pr-capability-preflight/mutation-TEST-007.patch` and `.txt` |
+| `2026-10-08T11:26:19Z` | `2026-10-08T11-26-19Z` | `spec-pr-github-case-identity/mutation-TEST-001.txt` |
+| `2026-10-08T11:26:58Z` | `2026-10-08T11-26-58Z` | `spec-pr-github-case-identity/mutation-TEST-001.txt` |
+| `2026-10-08T11:26:37Z` | `2026-10-08T11-26-37Z` | `spec-pr-github-case-identity/mutation-TEST-007.patch` and `.txt` |
+
+All 12 existing mutation gate rows passed without replay or restamp. The intended 2,604-file checkout inventory has no Windows-invalid paths or case collisions. Product source, tests, specs, index, STATE, and existing sealed reports retained their checked hashes. Eight other colon-named files are ignored local history, absent from the published tree; I left their bytes untouched.
+
+As a dispatched agent, I did **not** write STATE. Root should reset only the failed `last_validation` block using the returned command; `code_review` stays at its historical PASS. Root also owns staging the ignored aliases and report, publication, and fresh native/full CI. Independent parent re-Validation is pending on the next tick. No new readiness verdict or human decision is claimed. Suggested follow-up, not filed: make generated rotation filenames portable.
+
+```yaml
+subagent_result:
+  scope: pr-capability-preflight
+  role: Remediation
+  status: PASS
+  started_utc: 2026-10-08T12:30:31Z
+  ended_utc: 2026-10-08T12:32:32Z
+  duration_seconds: 121
+  evidence:
+    - command: "Compare six renamed aliases with Git804 blobs and recorded SHA-256 hashes"
+      exit_code: 0
+      output_snippet: "aliasesExactGit804=6; frozenPinsExact=7; oldReportCount=621"
+    - command: "Run mutation-gate.mjs for parent and both child specs"
+      exit_code: 0
+      output_snippet: "PASS 8+2+2 rows; degraded=0 unstamped=0 uncomparable=0"
+    - command: "Scan intended tracked checkout inventory for Windows-invalid paths and case collisions"
+      exit_code: 0
+      output_snippet: "2604 files; zero invalid paths; zero case collisions; longest relative path 136 characters"
+  files_changed:
+    - docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.2026-10-07T12:49:40Z.patch
+    - docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.2026-10-07T12-49-40Z.patch
+    - docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.2026-10-07T12:49:40Z.txt
+    - docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.2026-10-07T12-49-40Z.txt
+    - docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.2026-10-08T11:26:19Z.txt
+    - docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.2026-10-08T11-26-19Z.txt
+    - docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.2026-10-08T11:26:58Z.txt
+    - docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-001.2026-10-08T11-26-58Z.txt
+    - docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.2026-10-08T11:26:37Z.patch
+    - docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.2026-10-08T11-26-37Z.patch
+    - docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.2026-10-08T11:26:37Z.txt
+    - docs/ai/tdd/spec-pr-github-case-identity/mutation-TEST-007.2026-10-08T11-26-37Z.txt
+    - docs/ai/reports/pr434-native-path-aliases-20261008T1230Z/alias-map.json
+    - docs/ai/reports/pr434-native-path-aliases-20261008T1230Z/report.md
+  blockers: []
+  state_update_commands:
+    - node .aai/scripts/state.mjs reset-block last_validation
+    - node .aai/scripts/state.mjs set-phase --ref pr-capability-preflight --phase validation --status in_progress
+```

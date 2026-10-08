@@ -1,0 +1,105 @@
+﻿2026-10-08T12:22:39.3548035Z Current runner version: '2.337.0'
+2026-10-08T12:22:39.3566963Z ##[group]Runner Image Provisioner
+2026-10-08T12:22:39.3567491Z Hosted Compute Agent
+2026-10-08T12:22:39.3567855Z Version: 20260901.588
+2026-10-08T12:22:39.3568216Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-08T12:22:39.3568692Z Build Date: 2026-09-01T19:56:44Z
+2026-10-08T12:22:39.3569113Z Worker ID: {f998e64c-1590-4948-b775-7cb74e7f04e4}
+2026-10-08T12:22:39.3569542Z Azure Region: southcentralus
+2026-10-08T12:22:39.3569900Z ##[endgroup]
+2026-10-08T12:22:39.3570658Z ##[group]Operating System
+2026-10-08T12:22:39.3571027Z Microsoft Windows Server 2025
+2026-10-08T12:22:39.3571365Z 10.0.26100
+2026-10-08T12:22:39.3571705Z Datacenter
+2026-10-08T12:22:39.3572003Z ##[endgroup]
+2026-10-08T12:22:39.3572355Z ##[group]Runner Image
+2026-10-08T12:22:39.3572679Z Image: windows-2025-vs2026
+2026-10-08T12:22:39.3573029Z Version: 20260925.250.1
+2026-10-08T12:22:39.3574010Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260925.250/images/windows/Windows2025-VS2026-Readme.md
+2026-10-08T12:22:39.3574947Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260925.250
+2026-10-08T12:22:39.3575872Z ##[endgroup]
+2026-10-08T12:22:39.3576749Z ##[group]GITHUB_TOKEN Permissions
+2026-10-08T12:22:39.3578032Z Contents: read
+2026-10-08T12:22:39.3578350Z Metadata: read
+2026-10-08T12:22:39.3578707Z ##[endgroup]
+2026-10-08T12:22:39.3580074Z Secret source: Actions
+2026-10-08T12:22:39.3581249Z Cache mode: write
+2026-10-08T12:22:39.3581749Z Prepare workflow directory
+2026-10-08T12:22:39.3816732Z Prepare all required actions
+2026-10-08T12:22:39.3850875Z Getting action download info
+2026-10-08T12:22:39.6218962Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-08T12:22:39.7042676Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2026-10-08T12:22:39.9013417Z Complete job name: worktree seed (native Windows PowerShell 5.1 and pwsh 7)
+2026-10-08T12:22:40.0266882Z ##[group]Run actions/checkout@v4
+2026-10-08T12:22:40.0267608Z with:
+2026-10-08T12:22:40.0267848Z   repository: goodwind-cz/aai
+2026-10-08T12:22:40.0270229Z   token: ***
+2026-10-08T12:22:40.0270453Z   ssh-strict: true
+2026-10-08T12:22:40.0270694Z   ssh-user: git
+2026-10-08T12:22:40.0270933Z   persist-credentials: true
+2026-10-08T12:22:40.0271200Z   clean: true
+2026-10-08T12:22:40.0271439Z   sparse-checkout-cone-mode: true
+2026-10-08T12:22:40.0271719Z   fetch-depth: 1
+2026-10-08T12:22:40.0271946Z   fetch-tags: false
+2026-10-08T12:22:40.0272185Z   show-progress: true
+2026-10-08T12:22:40.0272422Z   lfs: false
+2026-10-08T12:22:40.0272639Z   submodules: false
+2026-10-08T12:22:40.0272882Z   set-safe-directory: true
+2026-10-08T12:22:40.0273157Z   allow-unsafe-pr-checkout: false
+2026-10-08T12:22:40.0273535Z ##[endgroup]
+2026-10-08T12:22:40.1350116Z Syncing repository: goodwind-cz/aai
+2026-10-08T12:22:40.1351167Z ##[group]Getting Git version info
+2026-10-08T12:22:40.1351553Z Working directory is 'D:\a\aai\aai'
+2026-10-08T12:22:40.1861246Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-08T12:22:40.6094326Z git version 2.55.0.windows.5
+2026-10-08T12:22:40.6135578Z ##[endgroup]
+2026-10-08T12:22:40.6150210Z Temporarily overriding HOME='D:\a\_temp\62d9fd3e-8e8a-4a64-8961-f3fded6352ab' before making global git config changes
+2026-10-08T12:22:40.6151034Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-08T12:22:40.6157428Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\aai\aai
+2026-10-08T12:22:40.6751919Z Deleting the contents of 'D:\a\aai\aai'
+2026-10-08T12:22:40.6756712Z ##[group]Initializing the repository
+2026-10-08T12:22:40.6763043Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\aai\aai
+2026-10-08T12:22:40.7537643Z Initialized empty Git repository in D:/a/aai/aai/.git/
+2026-10-08T12:22:40.7573944Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/goodwind-cz/aai
+2026-10-08T12:22:40.8152835Z ##[endgroup]
+2026-10-08T12:22:40.8153424Z ##[group]Disabling automatic garbage collection
+2026-10-08T12:22:40.8159504Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-08T12:22:40.8386969Z ##[endgroup]
+2026-10-08T12:22:40.8387439Z ##[group]Setting up auth
+2026-10-08T12:22:40.8396246Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-08T12:22:40.8601483Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-08T12:22:42.2664565Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-08T12:22:42.2956639Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-08T12:22:42.6686875Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-08T12:22:42.6903117Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-08T12:22:43.0863106Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-08T12:22:43.1087179Z ##[endgroup]
+2026-10-08T12:22:43.1097183Z ##[group]Fetching the repository
+2026-10-08T12:22:43.1098255Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +cadbea42bda0eccc4a7479a0927af3e4d901d52c:refs/remotes/pull/434/merge
+2026-10-08T12:22:45.5710100Z From https://github.com/goodwind-cz/aai
+2026-10-08T12:22:45.5712856Z  * [new ref]         cadbea42bda0eccc4a7479a0927af3e4d901d52c -> pull/434/merge
+2026-10-08T12:22:45.5745725Z ##[endgroup]
+2026-10-08T12:22:45.5746113Z ##[group]Determining the checkout info
+2026-10-08T12:22:45.5748042Z ##[endgroup]
+2026-10-08T12:22:45.5755330Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-08T12:22:45.6238459Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-08T12:22:45.6469963Z ##[group]Checking out the ref
+2026-10-08T12:22:45.6477753Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/434/merge
+2026-10-08T12:22:45.6812810Z ##[error]error: invalid path 'docs/ai/tdd/spec-pr-capability-preflight/mutation-TEST-007.2026-10-07T12:49:40Z.patch'
+2026-10-08T12:22:45.6846191Z ##[error]The process 'C:\Program Files\Git\bin\git.exe' failed with exit code 128
+2026-10-08T12:22:45.7226250Z Post job cleanup.
+2026-10-08T12:22:45.8272028Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-08T12:22:45.8463389Z git version 2.55.0.windows.5
+2026-10-08T12:22:45.8519663Z Temporarily overriding HOME='D:\a\_temp\c5c0c11e-02c4-4b6e-b3a4-4451294b7beb' before making global git config changes
+2026-10-08T12:22:45.8520373Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-08T12:22:45.8528310Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\aai\aai
+2026-10-08T12:22:45.8752608Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-08T12:22:45.8961277Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-08T12:22:46.2852010Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-08T12:22:46.3027352Z http.https://github.com/.extraheader
+2026-10-08T12:22:46.3059439Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-08T12:22:46.3266015Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-08T12:22:46.7590502Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-08T12:22:46.7797151Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-08T12:22:47.1835263Z Cleaning up orphan processes
+2026-10-08T12:22:47.1891877Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

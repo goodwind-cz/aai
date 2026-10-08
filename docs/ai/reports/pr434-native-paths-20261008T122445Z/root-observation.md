@@ -1,0 +1,3 @@
+# Native checkout prerequisite failure
+
+Published source80459572: Windows native, WSL1 native and worktree-seed jobs fail during checkout with invalid path containing ISO timestamp colons. Six newly captured historical mutation filenames contain colons. Product source and tests unchanged from independently validated/reviewed e0d14f2b5dc9d5726fbae36e03b1bb346204c459cd6ab988015b57069396caaf /239206e806eff008083c8c1b081587760aa0ec9f4094fe7336a7404dc169df7c. This is an actual CI prerequisite observation, not a fabricated independent Validation verdict. Preserve exact artifact bytes and all sealed reports; create portable aliases and mapping, never overwrite existing aliases or rewrite old seals. Fresh native/full CI and independent final Validation remain required.
