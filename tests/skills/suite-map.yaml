@@ -41,6 +41,47 @@ core:
   # widening its globs to tests/** and hoping the glob keeps up.
   - aai-hygiene-pack
 
+# D4 (post-validation-pushes-reuse-test-results): two more top-level lists, both
+# optional (an absent list is empty, so an old map selects byte-identically).
+# - `inert_globs:` gitignored runtime directories ONLY, each `<dir>/**` with
+#   `<dir>/probe` ignored by the repository .gitignore (pinned by TEST-1713). An
+#   inert path selects nothing and is never unmapped. Precedence: protected-l3,
+#   shared-lib, inert, suite match, unmapped. A new runtime folder stays
+#   unmapped (full) until added here deliberately.
+# - `carry_forward_globs:` the closed set of paths the close ceremony, PR stamp,
+#   sign-offs and sweep records write. They decide delta ELIGIBILITY only
+#   (`select-suites.mjs --delta-base`); they still select their mapped suites.
+#   A path in neither list is ineligible for a delta.
+inert_globs:
+  - docs/ai/reports/**
+  - docs/ai/tdd/**
+  - docs/ai/validation/**
+  - docs/ai/briefs/**
+  - docs/ai/archive/**
+  - docs/ai/friction/**
+  - docs/ai/live/**
+
+carry_forward_globs:
+  - docs/ai/EVENTS.jsonl
+  - docs/ai/decisions.jsonl
+  - docs/ai/METRICS.jsonl
+  - docs/ai/tests/test-runs.jsonl
+  - docs/INDEX.md
+  - docs/ai/overview.html
+  - docs/ai/overview-data.json
+  - docs/ai/factory-report.html
+  - docs/ai/factory-report-data.json
+  - docs/ai/dashboard.html
+  - docs/ai/dashboard-data.json
+  - docs/SKILL_CATALOG.html
+  - docs/skill-catalog-data.json
+  - docs/USER_GUIDE.md
+  - docs/specs/**
+  - docs/issues/**
+  - docs/ai/reviews/**
+  - docs/decisions/**
+  - CHANGELOG.md
+
 full_run_triggers:
   shared_lib_globs:
     - .aai/scripts/lib/**
@@ -242,6 +283,7 @@ suites:
       - .aai/scripts/install-pre-commit-hook.ps1
       - .aai/scripts/install-pre-commit-hook.sh
       - docs/ai/docs-audit.yaml
+      - docs/decisions/**
       - docs/specs/**
       - docs/issues/**
       - docs/rfc/**
@@ -986,7 +1028,6 @@ suites:
       - .aai/SKILL_TDD.prompt.md
       - .aai/VALIDATION.prompt.md
       - .aai/scripts/aai-run-tests.sh
-      - docs/ai/tdd/**
 
   aai-tdd:
     globs:
@@ -1109,6 +1150,8 @@ suites:
       # simple-and-friendly-to-use (Spec-AC-07): the PR #350 / #347 manifest
       # fixtures TEST-009 replays through the real map.
       - tests/fixtures/select-suites/**
+      # D4 (post-validation-pushes-reuse-test-results): TEST-1727 replay manifest.
+      - tests/fixtures/ci-carry-forward/**
       # D6, ci-test-selection-narrowing-and-sharding: the sharding seam joins
       # this suite's globs (TEST-1439 real-map replay).
       - tests/skills/suite-weights.tsv

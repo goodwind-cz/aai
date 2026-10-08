@@ -561,6 +561,33 @@ test_1710_check_committed_scope_label() {  # Spec-AC-04
   log_pass "TEST-1710: (tracked-ignored) label in plain, --strict and --rev modes (TEST-1710)"
 }
 
+test_1728_report_paths_refused_at_commit_time() {  # Spec-AC-09
+  log_info "Test: with the repo .gitignore, a forced PR #434 report path is refused by pre-commit-checks.sh (TEST-1728)..."
+  new_scratch
+  local manifest="$PROJECT_ROOT/tests/fixtures/ci-carry-forward/pr434-last-push-paths.txt" first="" line repo
+  [[ -f "$manifest" ]] || log_fail "TEST-1728: replay manifest missing: $manifest"
+  while IFS= read -r line; do
+    case "$line" in docs/ai/reports/*) first="$line"; break ;; esac
+  done < "$manifest"
+  [[ -n "$first" ]] || log_fail "TEST-1728: the manifest carries no docs/ai/reports path"
+  repo="$(pc_fixture t1728 plain)"
+  # the real .gitignore, not the fixture's two-line one
+  cp "$PROJECT_ROOT/.gitignore" "$repo/.gitignore" || log_fail "TEST-1728: copying the real .gitignore failed"
+  mkdir -p "$repo/${first%/*}" || log_fail "TEST-1728: mkdir for the report path failed"
+  printf 'report\n' > "$repo/$first" || log_fail "TEST-1728: writing the report path failed"
+  fx_git "$repo" add -f "$first" || log_fail "TEST-1728: git add -f failed"
+  pc_run "$repo" sh
+  [[ "$CODE" == "1" ]] || log_fail "TEST-1728: a forced report path must exit 1, got $CODE: $OUT"
+  out_has "$first" || log_fail "TEST-1728: the refusal must name $first, got: $OUT"
+  # negation: the same commit without the report path passes
+  fx_git "$repo" rm -q --cached "$first" || log_fail "TEST-1728: unstaging failed"
+  printf 'changed\n' > "$repo/other.txt"
+  fx_git "$repo" add other.txt || log_fail "TEST-1728: add other failed"
+  pc_run "$repo" sh
+  [[ "$CODE" == "0" ]] || log_fail "TEST-1728: negation — without the report path the commit must pass, got $CODE: $OUT"
+  log_pass "TEST-1728: report paths are refused at commit time (TEST-1728)"
+}
+
 main() {
   echo "Testing $TEST_NAME (post-validation-pushes-reuse-test-results, Batches A and B)"
   check_deps
@@ -575,6 +602,7 @@ main() {
   test_1708_precommit_ps1_parity
   test_1709_real_hook_refuses_commit
   test_1710_check_committed_scope_label
+  test_1728_report_paths_refused_at_commit_time
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
