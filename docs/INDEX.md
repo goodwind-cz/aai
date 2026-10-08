@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-08T20:59:21.668Z
+Generated: 2026-10-08T21:22:40.610Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-post-validation-pushes-reuse-test-results | specs | implementing | 11 planned | docs/specs/SPEC-DRAFT-spec-post-validation-pushes-reuse-test-results.md |
+| SPEC-0213 | specs | implementing | 11 done | docs/specs/SPEC-0213-spec-post-validation-pushes-reuse-test-results.md |
 
 ## Canonical layer (0)
 
@@ -566,7 +566,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| post-validation-pushes-reuse-test-results (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-post-validation-pushes-reuse-test-results.md |
+| CHANGE-0205 | issues | docs/issues/CHANGE-0205-post-validation-pushes-reuse-test-results.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
