@@ -1,7 +1,0 @@
-RED_CLASS: product_red
-# TEST-1304 pre-change tree HEAD=e7de26d7 suite=test-aai-feedback-upsert.sh selector=test_1304_poisoned_description_refused exit=1
-AAI-ISOLATION: isolated - this suite run has its own disposable checkout; the shipping repository is not its working tree.
-AAI-SEEDING: seeded - every seeding step completed; the disposable checkout carries your working tree.
-=== test-aai-feedback-upsert ===
-INFO: Test: a redactor-refused --description is refused naming the class with zero gh calls; a poisoned spool summary no longer files prose-free (TEST-1304)...
-FAIL: TEST-1304 (a): the refusal must say the redactor refused it (needle: 'refused by the redactor'), got: aai-feedback-upsert: unrecognized argument: --description

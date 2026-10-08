@@ -479,7 +479,7 @@ test_018_gate_job_contract() {  # review remediation: required-check continuity
   log_info "Test: aggregating gate keeps its required-check name and needs native Windows worktree seed (TEST-018)..."
   grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$WORKFLOW_FILE" \
     || log_fail "gate job must keep the exact required-check name 'skill test suite (tests/skills/, via test-framework.sh)'"
-  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed\]' "$WORKFLOW_FILE" \
+  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed, tracked-ignored\]' "$WORKFLOW_FILE" \
     || log_fail "gate job must need select + skills-selected + skills-full + native-worktree-seed"
   grep -qF 'needs.native-worktree-seed.result' "$WORKFLOW_FILE" \
     || log_fail "gate job must reject a failed or skipped native Windows worktree seed"
@@ -941,7 +941,7 @@ test_1437_gate_unchanged_negative_control() {  # Spec-AC-05, negative control
   local wf="$SHARD_WORKFLOW_FILE"
   grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$wf" \
     || log_fail "TEST-1437: the gate job must keep its exact required-check name"
-  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed\]' "$wf" \
+  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed, tracked-ignored\]' "$wf" \
     || log_fail "TEST-1437: the gate job must require the selected/full suite and native Windows seed jobs"
   grep -qE 'if:\s*always\(\)' "$wf" \
     || log_fail "TEST-1437: the gate job must keep if: always()"
@@ -1032,6 +1032,335 @@ test_1440_check_rejects_unresolvable_nested_suite() {  # Spec-AC-04 (post-freeze
   log_pass "TEST-1440: --check rejects a nested, --skill-unresolvable suite, naming it; the top-level case still passes (TEST-1440)"
 }
 
+# ---- inert class and delta mode (post-validation-pushes-reuse-test-results,
+# D4, TEST-1711..1716 and TEST-1727) -----------------------------------------
+
+# inert_map <dir> — small_map plus inert_globs and carry_forward_globs. aai-alpha
+# also claims docs/ai/reports/** so the inert-vs-suite precedence is observable;
+# aai-ledger maps the two ledger paths the delta fixtures touch.
+inert_map() {
+  local dir="$1"
+  mkdir -p "$dir/tests/skills"
+  cat > "$dir/tests/skills/suite-map.yaml" <<'YAML'
+core:
+  - aai-core-a
+  - aai-core-b
+
+inert_globs:
+  - docs/ai/reports/**
+  - docs/ai/tdd/**
+
+carry_forward_globs:
+  - docs/ai/EVENTS.jsonl
+  - docs/INDEX.md
+
+full_run_triggers:
+  shared_lib_globs:
+    - .aai/scripts/lib/**
+
+suites:
+  aai-core-a:
+    globs:
+      - docs/core-a.md
+  aai-core-b:
+    globs:
+      - docs/core-b.md
+  aai-alpha:
+    globs:
+      - src/alpha/**
+      - docs/ai/reports/**
+  aai-ledger:
+    globs:
+      - docs/ai/EVENTS.jsonl
+  aai-index:
+    globs:
+      - docs/INDEX.md
+  aai-other:
+    globs:
+      - src/other/**
+YAML
+}
+
+test_1711_inert_paths_select_core_only() {  # Spec-AC-05
+  log_info "Test: inert-only changes give CORE only, no FULL_RUN; an unmapped path beside them still FULL_RUNs (TEST-1711)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  inert_map "$TEST_DIR"
+  run_sel "$TEST_DIR" docs/ai/reports/VALIDATION-x.md docs/ai/tdd/spec/red-1.log
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1711: exit must be 0, got $CODE: $OUT"
+  assert_payload_has_line "$OUT" "CORE aai-core-a reason=core" "TEST-1711: CORE a must run: $OUT"
+  assert_payload_has_line "$OUT" "CORE aai-core-b reason=core" "TEST-1711: CORE b must run: $OUT"
+  assert_payload_has_line "$OUT" "DROPPED 4" "TEST-1711: every non-core suite is dropped: $OUT"
+  assert_payload_line_not_matches "$OUT" '^(FULL_RUN|SELECTED )' "TEST-1711: inert paths must neither FULL_RUN nor select: $OUT"
+  # negation: the same list plus an unmapped path
+  run_sel "$TEST_DIR" docs/ai/reports/VALIDATION-x.md zz/unmapped.txt
+  assert_payload_has_line "$OUT" "FULL_RUN reason=unmapped path=zz/unmapped.txt" "TEST-1711: negation — an unmapped path must still FULL_RUN, naming it: $OUT"
+  log_pass "TEST-1711: inert paths select CORE only; unmapped neighbour still falls open"
+}
+
+test_1712_inert_precedence_and_byte_identity() {  # Spec-AC-05
+  log_info "Test: inert beats suite match; protected-l3 and shared-lib still FULL_RUN; absent inert_globs selects byte-identically (TEST-1712)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  inert_map "$TEST_DIR"
+  run_sel "$TEST_DIR" docs/ai/reports/VALIDATION-x.md
+  assert_payload_line_not_matches "$OUT" '^SELECTED aai-alpha' "TEST-1712: an inert path matched by a suite glob must select nothing: $OUT"
+  # protected-l3 outranks inert
+  mkdir -p "$TEST_DIR/docs/ai"
+  printf 'protected_paths_l3:\n  - docs/ai/reports/PROTECTED.md\n' > "$TEST_DIR/docs/ai/docs-audit.yaml"
+  run_sel "$TEST_DIR" docs/ai/reports/PROTECTED.md
+  assert_payload_has_line "$OUT" "FULL_RUN reason=protected-l3 path=docs/ai/reports/PROTECTED.md" "TEST-1712: protected-l3 must outrank inert: $OUT"
+  rm -f "$TEST_DIR/docs/ai/docs-audit.yaml"
+  # shared-lib outranks inert
+  run_sel "$TEST_DIR" docs/ai/reports/x.md .aai/scripts/lib/y.mjs
+  assert_payload_has_line "$OUT" "FULL_RUN reason=shared-lib path=.aai/scripts/lib/y.mjs" "TEST-1712: shared-lib must outrank inert: $OUT"
+  # byte identity: a map without the two lists selects exactly as before
+  local plain="$TEST_DIR/plain" a b
+  mkdir -p "$plain"
+  small_map "$plain"
+  local sans="$TEST_DIR/sans"
+  mkdir -p "$sans"
+  small_map "$sans"
+  printf 'inert_globs:\n  - nothing/at/all/**\n' >> "$sans/tests/skills/suite-map.yaml"
+  run_sel "$plain" src/alpha/a.js src/beta/b.js docs/core-a.md
+  a="$OUT"
+  run_sel "$sans" src/alpha/a.js src/beta/b.js docs/core-a.md
+  b="$OUT"
+  [[ "$a" == "$b" ]] || log_fail "TEST-1712: a map with an unrelated inert list must select byte-identically: [$a] vs [$b]"
+  run_sel "$plain" docs/ai/reports/x.md
+  assert_payload_has_line "$OUT" "FULL_RUN reason=unmapped path=docs/ai/reports/x.md" "TEST-1712: without inert_globs the report path is unmapped as before: $OUT"
+  log_pass "TEST-1712: inert precedence below protected-l3 and shared-lib, above suite match; old maps unchanged"
+}
+
+test_1713_real_map_inert_pinned_to_ignored_dirs() {  # Spec-AC-05
+  log_info "Test: every real inert glob is <dir>/** over a gitignored dir; every carry-forward glob classifies without FULL_RUN (TEST-1713)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml" line sect="" g dir n_inert=0 n_carry=0 out rc
+  local probes="$TEST_DIR/probes.txt"
+  : > "$probes"
+  while IFS= read -r line; do
+    case "$line" in
+      "inert_globs:") sect=inert; continue ;;
+      "carry_forward_globs:") sect=carry; continue ;;
+      "  - "*) ;;
+      "") continue ;;
+      "#"*) continue ;;
+      *) sect=""; continue ;;
+    esac
+    [[ -n "$sect" ]] || continue
+    g="${line#  - }"
+    if [[ "$sect" == "inert" ]]; then
+      n_inert=$((n_inert + 1))
+      case "$g" in
+        */'**') ;;
+        *) log_fail "TEST-1713: inert glob must be <dir>/**, got: $g" ;;
+      esac
+      dir="${g%/\*\*}"
+      case "$dir" in *'*'*) log_fail "TEST-1713: inert dir must be a literal directory: $g" ;; esac
+      git -C "$PROJECT_ROOT" check-ignore -q "$dir/probe" \
+        || log_fail "TEST-1713: $dir/probe is not ignored by the repository .gitignore, so $g could swallow a committed surface"
+      printf '%s/probe\n' "$dir" >> "$probes"
+    else
+      n_carry=$((n_carry + 1))
+      printf '%s\n' "${g//\*\*/probe/x.txt}" >> "$probes"
+    fi
+  done < "$map"
+  [[ "$n_inert" -ge 1 ]] || log_fail "TEST-1713: the real map declares no inert_globs"
+  [[ "$n_carry" -ge 1 ]] || log_fail "TEST-1713: the real map declares no carry_forward_globs"
+  # one representative path per glob, classified one at a time: no FULL_RUN
+  local p
+  while IFS= read -r p; do
+    printf '%s\n' "$p" > "$TEST_DIR/one.txt"
+    out="$(node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from "$TEST_DIR/one.txt" 2>&1)"; rc=$?
+    [[ "$rc" -eq 0 ]] || log_fail "TEST-1713: exit must be 0 for $p, got $rc: $out"
+    case "$out" in
+      *FULL_RUN*) log_fail "TEST-1713: $p must classify as mapped or inert, got: $out" ;;
+    esac
+  done < "$probes"
+  log_pass "TEST-1713: $n_inert inert globs pinned to ignored dirs; $n_carry carry-forward globs classify without FULL_RUN"
+}
+
+# real_select <path> — run the real selector on one path against the real map.
+real_select() {
+  printf '%s\n' "$1" > "$TEST_DIR/one.txt" || log_fail "real_select: write failed"
+  OUT="$(node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from "$TEST_DIR/one.txt" 2>&1)" || log_fail "real_select: selector failed for $1: $OUT"
+}
+
+test_1737_real_map_gitignore_full_and_guard_scripts_select() {  # validation round 1 BLOCKING-1
+  log_info "Test: a .gitignore-only path list stays FULL_RUN; the commit-guard scripts and LOCAL EVIDENCE prompts select aai-tracked-ignored (TEST-1737)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  real_select .gitignore
+  case "$OUT" in
+    *"FULL_RUN reason=unmapped path=.gitignore"*) ;;
+    *) log_fail "TEST-1737: a .gitignore-only PR must stay FULL_RUN reason=unmapped, got: $OUT" ;;
+  esac
+  local p
+  for p in .aai/scripts/check-committed-scope.mjs .aai/scripts/pre-commit-checks.sh .aai/scripts/pre-commit-checks.ps1 \
+           .aai/VALIDATION.prompt.md .aai/SKILL_TDD.prompt.md .aai/SKILL_PR.prompt.md; do
+    real_select "$p"
+    case "$OUT" in
+      *FULL_RUN*) continue ;;   # protected-l3 / shared surface: whole sweep already covers it
+    esac
+    case "$OUT" in
+      *aai-tracked-ignored*) ;;
+      *) log_fail "TEST-1737: $p must select aai-tracked-ignored (or be FULL_RUN), got: $OUT" ;;
+    esac
+  done
+  real_select .aai/scripts/check-committed-scope.mjs
+  case "$OUT" in
+    *FULL_RUN*) log_fail "TEST-1737: check-committed-scope.mjs is a mapped surface, not FULL_RUN, got: $OUT" ;;
+    *aai-tracked-ignored*) ;;
+    *) log_fail "TEST-1737: check-committed-scope.mjs must select aai-tracked-ignored, got: $OUT" ;;
+  esac
+  real_select .aai/scripts/tracked-ignored.mjs
+  case "$OUT" in
+    *aai-close-work-item*) ;;
+    *) log_fail "TEST-1737: tracked-ignored.mjs (imported by lib/evidence-paths.mjs) must select aai-close-work-item, got: $OUT" ;;
+  esac
+  log_pass "TEST-1737: .gitignore stays unmapped (FULL_RUN); guard scripts select aai-tracked-ignored (TEST-1737)"
+}
+
+# delta_repo <dir> — a real git repo with the inert_map, branch main, and
+# its own identity; prints nothing. Every setup exit code is checked.
+delta_repo() {
+  local repo="$1"
+  [[ -n "$repo" && "$repo" == /* ]] || log_fail "delta_repo: path must be non-empty and absolute: '$repo'"
+  mkdir -p "$repo" || log_fail "delta_repo: mkdir failed"
+  git -C "$repo" init -q -b main || log_fail "delta_repo: git init failed"
+  git -C "$repo" symbolic-ref HEAD refs/heads/main || log_fail "delta_repo: symbolic-ref failed"
+  git -C "$repo" config user.email fixture@example.invalid || log_fail "delta_repo: config email failed"
+  git -C "$repo" config user.name Fixture || log_fail "delta_repo: config name failed"
+  inert_map "$repo"
+}
+
+# delta_commit <repo> <msg> <path...> — write each path then commit them.
+delta_commit() {
+  local repo="$1" msg="$2" p; shift 2
+  for p in "$@"; do
+    case "$p" in */*) mkdir -p "$repo/${p%/*}" || log_fail "delta_commit: mkdir failed: $p" ;; esac
+    printf '%s\n' "$msg" >> "$repo/$p" || log_fail "delta_commit: write failed: $p"
+  done
+  git -C "$repo" add -A || log_fail "delta_commit: add failed"
+  git -C "$repo" commit -q -m "$msg" || log_fail "delta_commit: commit failed"
+}
+
+delta_sel() {  # <repo> <args...> — sets OUT and CODE
+  local repo="$1"; shift
+  local rc=0
+  OUT="$(node "$SELECTOR" --repo-root "$repo" "$@" 2>&1)" || rc=$?
+  CODE=$rc
+}
+
+test_1714_delta_selects_over_the_delta_only() {  # Spec-AC-06
+  log_info "Test: --delta-base S --head H over EVENTS.jsonl and INDEX.md selects those paths' suites only (TEST-1714)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local repo="$TEST_DIR/repo" s h x
+  delta_repo "$repo"
+  delta_commit "$repo" seed README.md docs/core-a.md
+  s="$(git -C "$repo" rev-parse HEAD)"
+  delta_commit "$repo" ledger docs/ai/EVENTS.jsonl docs/INDEX.md
+  h="$(git -C "$repo" rev-parse HEAD)"
+  # a later commit beyond H that must NOT leak into the delta
+  delta_commit "$repo" later src/alpha/late.js
+  x="$(git -C "$repo" rev-parse HEAD)"
+  delta_sel "$repo" --delta-base "$s" --head "$h"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1714: exit must be 0, got $CODE: $OUT"
+  assert_payload_has_line "$OUT" "DELTA base=$s" "TEST-1714: DELTA line must name the base: $OUT"
+  assert_payload_has_line "$OUT" "CORE aai-core-a reason=core" "TEST-1714: CORE must be printed: $OUT"
+  assert_payload_has_line "$OUT" "SELECTED aai-ledger reason=docs/ai/EVENTS.jsonl" "TEST-1714: the ledger suite must be selected: $OUT"
+  assert_payload_has_line "$OUT" "SELECTED aai-index reason=docs/INDEX.md" "TEST-1714: the index suite must be selected: $OUT"
+  assert_payload_line_not_matches "$OUT" '^(SELECTED aai-alpha|DELTA_REFUSED|FULL_RUN)' "TEST-1714: a commit past H must not leak into the delta: $OUT"
+  assert_payload_has_line "$OUT" "DROPPED 2" "TEST-1714: the other two suites are dropped: $OUT"
+  # empty delta (S..S): DELTA plus CORE only
+  delta_sel "$repo" --delta-base "$h" --head "$h"
+  assert_payload_has_line "$OUT" "DELTA base=$h" "TEST-1714: empty delta still prints DELTA: $OUT"
+  assert_payload_line_not_matches "$OUT" '^(SELECTED|DELTA_REFUSED|FULL_RUN)' "TEST-1714: empty delta selects nothing beyond CORE: $OUT"
+  # head defaults to HEAD
+  delta_sel "$repo" --delta-base "$h"
+  assert_payload_has_line "$OUT" "DELTA_REFUSED reason=ineligible path=src/alpha/late.js" "TEST-1714: --head defaults to HEAD ($x): $OUT"
+  log_pass "TEST-1714: delta mode selects over S..H only"
+}
+
+test_1715_delta_ineligible_cells() {  # Spec-AC-06
+  log_info "Test: ineligible delta paths refuse by name and print no CORE line (TEST-1715)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local repo="$TEST_DIR/repo" s p n=0
+  delta_repo "$repo"
+  mkdir -p "$repo/docs/ai"
+  printf 'protected_paths_l3:\n  - .aai/scripts/state.mjs\n' > "$repo/docs/ai/docs-audit.yaml"
+  delta_commit "$repo" seed README.md
+  s="$(git -C "$repo" rev-parse HEAD)"
+  for p in .aai/scripts/x.mjs tests/skills/test-aai-x.sh .aai/X.prompt.md .github/workflows/y.yml .aai/scripts/state.mjs zz/u.txt; do
+    n=$((n + 1))
+    git -C "$repo" reset -q --hard "$s" || log_fail "TEST-1715: reset failed"
+    delta_commit "$repo" "cell$n" docs/ai/EVENTS.jsonl "$p"
+    delta_sel "$repo" --delta-base "$s"
+    [[ "$CODE" -eq 0 ]] || log_fail "TEST-1715: exit must be 0 for $p, got $CODE: $OUT"
+    assert_payload_has_line "$OUT" "DELTA_REFUSED reason=ineligible path=$p" "TEST-1715: $p must be refused by name: $OUT"
+    assert_payload_line_not_matches "$OUT" '^(CORE|SELECTED|DELTA base=)' "TEST-1715: a refusal prints no CORE/SELECTED line ($p): $OUT"
+  done
+  # negation: a carry-forward-only delta is NOT refused
+  git -C "$repo" reset -q --hard "$s" || log_fail "TEST-1715: reset failed"
+  delta_commit "$repo" ok docs/ai/EVENTS.jsonl docs/ai/reports/r.md
+  delta_sel "$repo" --delta-base "$s"
+  assert_payload_line_not_matches "$OUT" '^DELTA_REFUSED' "TEST-1715: negation — carry-forward plus inert paths are eligible: $OUT"
+  log_pass "TEST-1715: $n ineligible cells refuse by name; carry-forward negation passes"
+}
+
+test_1716_delta_ancestry_and_unknown_sha() {  # Spec-AC-06
+  log_info "Test: non-ancestor base refuses not-ancestor; unknown sha refuses internal-error; exit 0 always (TEST-1716)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local repo="$TEST_DIR/repo" base s h
+  delta_repo "$repo"
+  delta_commit "$repo" seed README.md
+  base="$(git -C "$repo" rev-parse HEAD)"
+  git -C "$repo" checkout -q -b old || log_fail "TEST-1716: checkout old failed"
+  delta_commit "$repo" onold docs/ai/EVENTS.jsonl
+  s="$(git -C "$repo" rev-parse HEAD)"
+  git -C "$repo" checkout -q main || log_fail "TEST-1716: checkout main failed"
+  delta_commit "$repo" onmain docs/ai/EVENTS.jsonl
+  h="$(git -C "$repo" rev-parse HEAD)"
+  delta_sel "$repo" --delta-base "$s" --head "$h"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1716: exit must be 0, got $CODE: $OUT"
+  assert_payload_has_line "$OUT" "DELTA_REFUSED reason=not-ancestor" "TEST-1716: a force-pushed (diverged) base must refuse not-ancestor: $OUT"
+  delta_sel "$repo" --delta-base 0000000000000000000000000000000000000000 --head "$h"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-1716: exit must be 0 for an unknown sha, got $CODE: $OUT"
+  assert_payload_has_line "$OUT" "DELTA_REFUSED reason=internal-error" "TEST-1716: an unknown sha must refuse internal-error: $OUT"
+  # positive control: the real ancestor works
+  delta_sel "$repo" --delta-base "$base" --head "$h"
+  assert_payload_has_line "$OUT" "DELTA base=$base" "TEST-1716: positive control — a true ancestor is accepted: $OUT"
+  log_pass "TEST-1716: not-ancestor and unknown-sha refuse by name, exit 0"
+}
+
+test_1727_pr434_last_push_replay() {  # Spec-AC-09
+  log_info "Test: the recorded PR #434 last-push path list selects CORE plus suites, never FULL_RUN (TEST-1727)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local fx="$PROJECT_ROOT/tests/fixtures/ci-carry-forward/pr434-last-push-paths.txt" out rc n
+  [[ -f "$fx" ]] || log_fail "TEST-1727: replay manifest missing: $fx"
+  n="$(wc -l < "$fx")"
+  [[ "${n// /}" -ge 100 ]] || log_fail "TEST-1727: the manifest must hold the recorded 102 paths, has $n"
+  out="$(node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from "$fx" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1727: exit must be 0, got $rc: $out"
+  assert_payload_line_not_matches "$out" '^FULL_RUN' "TEST-1727: the PR #434 last push must not FULL_RUN: $out"
+  assert_payload_line_matches "$out" '^CORE ' "TEST-1727: CORE must be selected: $out"
+  assert_payload_line_matches "$out" '^SELECTED ' "TEST-1727: the ledger and index paths must select suites: $out"
+  # the same list without any report or tdd path: the six ceremony paths alone
+  local rest="$TEST_DIR/rest.txt" line
+  : > "$rest"
+  while IFS= read -r line; do
+    case "$line" in
+      docs/ai/reports/*|docs/ai/tdd/*) ;;
+      *) printf '%s\n' "$line" >> "$rest" ;;
+    esac
+  done < "$fx"
+  [[ -s "$rest" ]] || log_fail "TEST-1727: the manifest holds no ceremony path outside the inert dirs"
+  out="$(node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from "$rest" 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-1727: exit must be 0 without report paths, got $rc: $out"
+  assert_payload_line_not_matches "$out" '^FULL_RUN' "TEST-1727: without report paths there must be no FULL_RUN: $out"
+  assert_payload_line_matches "$out" '^SELECTED ' "TEST-1727: without report paths suites are still selected: $out"
+  # at least one report path really is in the manifest (the case under replay)
+  assert_payload_line_matches "$(cat "$fx")" '^docs/ai/reports/' "TEST-1727: the manifest must carry report paths"
+  log_pass "TEST-1727: PR #434 last push replays to CORE plus SELECTED, with and without report paths"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -1076,6 +1405,14 @@ main() {
   test_1438_leg_rechecks_before_extract
   test_1439_real_map_replay_new_paths
   test_1440_check_rejects_unresolvable_nested_suite
+  test_1711_inert_paths_select_core_only
+  test_1712_inert_precedence_and_byte_identity
+  test_1713_real_map_inert_pinned_to_ignored_dirs
+  test_1737_real_map_gitignore_full_and_guard_scripts_select
+  test_1714_delta_selects_over_the_delta_only
+  test_1715_delta_ineligible_cells
+  test_1716_delta_ancestry_and_unknown_sha
+  test_1727_pr434_last_push_replay
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

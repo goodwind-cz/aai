@@ -123,6 +123,9 @@ new_fixture_repo() {
   # run dies at module-resolution time (ERR_MODULE_NOT_FOUND), never reaching
   # the behaviour under test.
   cp "$PROJECT_ROOT/.aai/scripts/branch-guard.mjs" "$dir/.aai/scripts/"
+  # lib/evidence-paths.mjs (imported by close-work-item.mjs) takes the evidence
+  # rescue's ignore predicate from the sibling tracked-ignored.mjs.
+  cp "$PROJECT_ROOT/.aai/scripts/tracked-ignored.mjs" "$dir/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$dir/.aai/scripts/lib/"
   : > "$dir/docs/ai/EVENTS.jsonl"
   cat > "$dir/docs/ai/docs-audit.yaml" <<'YAML'

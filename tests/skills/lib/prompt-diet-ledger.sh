@@ -242,6 +242,7 @@ JUSTIFIED_ADDITIONS+=( "68 worktree-lacks-vendored-aai-layer-downstream-codex-p2
 
 JUSTIFIED_ADDITIONS+=( "1287 pr-capability-preflight SKILL_PR.prompt.md PRECONDITIONS bounded provider readiness before lifecycle/Git writes and before fresh STATE initialization; measured 36430 -> 37717 B; remediation binds readiness to ceremony origin, credited 1:1; create permission remains unknown" )
 
+JUSTIFIED_ADDITIONS+=( "879 post-validation-pushes-reuse-test-results Spec-AC-11 / D6 canon text: one LOCAL EVIDENCE: line (293 B incl. indent) each in VALIDATION.prompt.md step 6, SKILL_TDD.prompt.md Phase 1 RED evidence and SKILL_PR.prompt.md step 4c, stating that runtime evidence under docs/ai/reports, docs/ai/tdd and docs/ai/validation is cited by path and never force-added, with close-work-item.mjs copying worktree-only cited evidence into the main checkout; measured deficit 879 B (3 x 293), credited 1:1, zero headroom standing" )
 JUSTIFIED_GROWTH_BYTES=0
 for _entry in "${JUSTIFIED_ADDITIONS[@]}"; do
   JUSTIFIED_GROWTH_BYTES=$(( JUSTIFIED_GROWTH_BYTES + ${_entry%% *} ))

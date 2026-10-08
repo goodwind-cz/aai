@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-08T14:03:42.167Z",
+  "generatedAt": "2026-10-08T21:32:03.397Z",
   "project": "aai",
   "counts": {
-    "delivered": 282,
+    "delivered": 283,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 74203136
@@ -222,6 +222,19 @@
   ],
   "delivered": [
     {
+      "ref": "post-validation-pushes-reuse-test-results",
+      "title": "Change Request: Post-validation pushes reuse the already-proven test result",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0205-post-validation-pushes-reuse-test-results.md",
+      "closed_on": "2026-10-08",
+      "agent_minutes": 361,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0213-spec-post-validation-pushes-reuse-test-results.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "pr-generic-url-validity",
       "title": "Refuse malformed scheme URLs before generic readiness",
       "type": "issue",
@@ -231,7 +244,7 @@
       "agent_minutes": 103,
       "token_total": null,
       "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
-      "validation": "docs/ai/reports/VALIDATION-20261008T111030Z-pr-generic-url-validity.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-20261008T102859Z-pr-generic-url-validity.md"
     },
     {
@@ -244,7 +257,7 @@
       "agent_minutes": 24,
       "token_total": null,
       "spec": "docs/specs/SPEC-0212-spec-pr-github-case-identity.md",
-      "validation": "docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-20261008T114239Z-pr-github-case-identity.md"
     },
     {
@@ -257,7 +270,7 @@
       "agent_minutes": 358,
       "token_total": null,
       "spec": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
-      "validation": "docs/ai/reports/VALIDATION-20261007T205748Z-pr-capability-preflight-final-ci.md",
+      "validation": null,
       "review": "docs/ai/reviews/review-20261007T232901Z-pr-capability-preflight-final.md"
     },
     {
@@ -3915,6 +3928,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "post-validation-pushes-reuse-test-results",
+          "title": "Change Request: Post-validation pushes reuse the already-proven test result",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0205-post-validation-pushes-reuse-test-results.md",
+          "closed_on": "2026-10-08",
+          "agent_minutes": 361,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0213-spec-post-validation-pushes-reuse-test-results.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "pr-generic-url-validity",
           "title": "Refuse malformed scheme URLs before generic readiness",
           "type": "issue",
@@ -3924,7 +3950,7 @@
           "agent_minutes": 103,
           "token_total": null,
           "spec": "docs/specs/SPEC-0211-spec-pr-generic-url-validity.md",
-          "validation": "docs/ai/reports/VALIDATION-20261008T111030Z-pr-generic-url-validity.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-20261008T102859Z-pr-generic-url-validity.md"
         },
         {
@@ -3937,7 +3963,7 @@
           "agent_minutes": 24,
           "token_total": null,
           "spec": "docs/specs/SPEC-0212-spec-pr-github-case-identity.md",
-          "validation": "docs/ai/reports/VALIDATION-20261008T113526Z-pr-github-case-identity.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-20261008T114239Z-pr-github-case-identity.md"
         },
         {
@@ -3950,7 +3976,7 @@
           "agent_minutes": 358,
           "token_total": null,
           "spec": "docs/specs/SPEC-0210-spec-pr-capability-preflight.md",
-          "validation": "docs/ai/reports/VALIDATION-20261007T205748Z-pr-capability-preflight-final-ci.md",
+          "validation": null,
           "review": "docs/ai/reviews/review-20261007T232901Z-pr-capability-preflight-final.md"
         },
         {

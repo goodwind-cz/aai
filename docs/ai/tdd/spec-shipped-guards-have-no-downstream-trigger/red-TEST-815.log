@@ -1,6 +1,0 @@
-RED_CLASS: product_red
-# RED capture for TEST-815 — suite test-aai-hygiene-pack.sh selector test_815_suite_map_and_registration — pre-change tree 3d9e2a6d — exit 1
-INFO: Checking dependencies...
-PASS: Dependencies checked
-INFO: Test: suite-map rows glob the installer and pr-platform.mjs; check-test-registration exits 0 (TEST-815)...
-FAIL: TEST-815: suite-map row aai-hygiene-pack does not glob .aai/scripts/install-pre-commit-hook.sh

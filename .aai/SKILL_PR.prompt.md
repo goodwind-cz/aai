@@ -202,6 +202,7 @@ PROCESS
    once close-work-item.mjs has run get misread as genuine CI failures every
    ride (measured, validation round 4). Step 5's push refuses below if this
    step is skipped.
+   LOCAL EVIDENCE: cite runtime evidence (docs/ai/reports, docs/ai/tdd, docs/ai/validation) by path; never `git add -f` it — close-work-item.mjs copies worktree-only cited evidence into the main checkout; a project that wants shared evidence uses a project-owned path outside those folders.
    - PROBE THE PLATFORM FIRST, before stamping anything (fu-close-before-
      push-ordering F-1 remediation, PR #320 Codex review — moved here from
      step 5 so this step never stamps a `TBD` it can never later resolve;

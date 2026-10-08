@@ -1,4 +1,0 @@
-prompt byte measurement (/usr/bin/wc -c under plain bash)
-before (HEAD e7de26d7): 3849
-after  (working tree): 3705
-delta: -144 B (non-positive: no prompt-diet ledger entry; TEST-010 headroom 0/2048 -> 144/2048)

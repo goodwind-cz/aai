@@ -69,6 +69,14 @@ unsigned_spec_ids() {
   node "$SA" list --ledger "$LIVE_LEDGER" --status unsigned --json 2>/dev/null \
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const ids=[...new Set((j.items||[]).map(r=>r.spec_id).filter(Boolean))];console.log(ids.join("\n"))})'
 }
+# tracked_by ids of one spec's unsigned records (one per line). A spec whose base
+# item was already closed by an owner signature gets a NEW disambiguated item on
+# its next amendment (spec-amend.mjs stamped id), so the open item is whichever
+# id the unsigned records point at, not only the base id.
+unsigned_tracker_ids_for() {  # <spec id>
+  node "$SA" list --ledger "$LIVE_LEDGER" --status unsigned --json 2>/dev/null \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log([...new Set((j.items||[]).filter(r=>r.spec_id===process.argv[1]&&r.tracked_by).map(r=>r.tracked_by))].join("\n"))})' "$1"
+}
 # Tracked items whose EVERY amendment record is signed (keyed on tracked_by,
 # so records with no spec path count too) — these must carry no OPEN item.
 fully_signed_tracked_ids() {
@@ -890,7 +898,18 @@ test_009_live_backfill_and_whole_ledger_readers() {
       import(pathToFileURL(process.argv[2]).href)
         .then((m) => process.stdout.write(m.amendItemId(process.argv[1])));
     ' "$sid" "$SA")"
-    grep -qxF "$expect" <<<"$open_ids" || missing="$missing $sid($expect)"
+    if grep -qxF "$expect" <<<"$open_ids"; then continue; fi
+    # Fallback for a re-amended spec whose base item was signed and closed:
+    # EVERY tracker its unsigned records name must be OPEN and must be this
+    # spec's own (the stamped id shares the base id's stem), so a record
+    # borrowing another spec's open item, or one left on a closed item, fails.
+    local trk found=0 bad=0 stem="${expect%-*}-"
+    for trk in $(unsigned_tracker_ids_for "$sid"); do
+      found=1
+      [[ "$trk" == "$stem"* ]] || bad=1
+      grep -qxF "$trk" <<<"$open_ids" || bad=1
+    done
+    [[ "$found" == 1 && "$bad" == 0 ]] || missing="$missing $sid($expect)"
   done
   [[ -z "$missing" ]] \
     || log_fail "TEST-009: no OPEN tracked item for:$missing — the standing amendments are not surfaced for an owner decision (checked as an id TOKEN against --json items[].id, not a substring of the rendering)"

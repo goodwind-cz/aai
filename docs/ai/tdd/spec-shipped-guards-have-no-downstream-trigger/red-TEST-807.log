@@ -1,6 +1,0 @@
-RED_CLASS: product_red
-# RED capture for TEST-807 — suite tests/skills/test-aai-hygiene-pack.sh selector test_807_default_branch_resolution_and_notes — pre-change tree 3d9e2a6d — exit 1
-INFO: Checking dependencies...
-PASS: Dependencies checked
-INFO: Test: R1 default-branch resolution (origin/HEAD -> trunk), the assumed-main NOTE and the node-absent NOTE (TEST-807)...
-FAIL: TEST-807: installer failed

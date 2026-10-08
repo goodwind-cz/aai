@@ -1,6 +1,0 @@
-RED_CLASS: product_red
-# RED capture for TEST-801 — suite tests/skills/test-aai-hygiene-pack.sh selector test_801_guard_block_propagates_block — pre-change tree 3d9e2a6d — exit 1
-INFO: Checking dependencies...
-PASS: Dependencies checked
-INFO: Test: a CHECK 2 secret in a staged file makes the guard block refuse the commit (TEST-801)...
-FAIL: TEST-801: a commit carrying a CHECK 2 secret must be refused, got exit 0: 

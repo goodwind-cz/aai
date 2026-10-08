@@ -23,6 +23,21 @@
 //   node .aai/scripts/select-suites.mjs --files-from <path|->
 //     [--repo-root <dir>] [--map <path>] [--docs-audit <path>]
 //
+//   node .aai/scripts/select-suites.mjs --delta-base <sha> [--head <sha>]
+//     [--repo-root <dir>] [--map <path>] [--docs-audit <path>]
+//
+// INERT CLASS (D4, post-validation-pushes-reuse-test-results): suite-map.yaml
+// `inert_globs` names gitignored runtime directories. An inert path selects
+// nothing and is never unmapped; precedence is protected-l3, shared-lib,
+// inert, suite match, unmapped.
+//
+// DELTA MODE: selects over `git diff --name-only --no-renames <sha> <head>`
+// (head defaults to HEAD) or refuses by name. Only paths matching
+// `carry_forward_globs` or `inert_globs` are eligible. Output is either
+//   DELTA base=<sha>   then CORE / SELECTED / DROPPED lines, or exactly one
+//   DELTA_REFUSED reason=<not-ancestor|ineligible|full-run:<reason>|internal-error> [path=<p>]
+// Exit is always 0.
+//
 // `--files-from` reads a newline-separated list of repo-relative changed
 // paths from a file (or stdin when the value is `-`) and skips `git diff`
 // entirely — the deterministic hook tests/skills/test-aai-suite-select.sh
@@ -80,7 +95,7 @@ const MAX_SHARDS = 8;
 function parseArgs(argv) {
   const out = {
     baseRef: null, filesFrom: null, repoRoot: null, mapPath: null, auditPath: null,
-    shards: null, weightsPath: null,
+    shards: null, weightsPath: null, deltaBase: null, head: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -91,6 +106,8 @@ function parseArgs(argv) {
     else if (a === '--docs-audit') out.auditPath = argv[++i];
     else if (a === '--shards') out.shards = argv[++i];
     else if (a === '--weights') out.weightsPath = argv[++i];
+    else if (a === '--delta-base') out.deltaBase = argv[++i];
+    else if (a === '--head') out.head = argv[++i];
     // Unknown flags are ignored on purpose — a CLI usage slip must never
     // fail the build; it degrades to FULL_RUN via the normal fail-open path
     // below when it leaves required inputs missing.
@@ -272,9 +289,11 @@ function matchesGlob(path, glob) {
 function parseSuiteMap(text) {
   const core = [];
   const sharedLibGlobs = [];
+  const inertGlobs = [];
+  const carryGlobs = [];
   const suites = {}; // name -> { globs: [] }, insertion-ordered
 
-  let section = null; // 'core' | 'shared' | 'suites'
+  let section = null; // 'core' | 'shared' | 'suites' | 'inert' | 'carry'
   let currentSuite = null;
   let inGlobs = false;
 
@@ -288,6 +307,8 @@ function parseSuiteMap(text) {
       if (trimmed === 'core:') { section = 'core'; currentSuite = null; inGlobs = false; continue; }
       if (trimmed === 'full_run_triggers:') { section = 'shared'; currentSuite = null; inGlobs = false; continue; }
       if (trimmed === 'suites:') { section = 'suites'; currentSuite = null; inGlobs = false; continue; }
+      if (trimmed === 'inert_globs:') { section = 'inert'; currentSuite = null; inGlobs = false; continue; }
+      if (trimmed === 'carry_forward_globs:') { section = 'carry'; currentSuite = null; inGlobs = false; continue; }
       section = null; currentSuite = null; inGlobs = false;
       continue;
     }
@@ -303,6 +324,11 @@ function parseSuiteMap(text) {
         }
         core.push(name);
       }
+      continue;
+    }
+
+    if (section === 'inert' || section === 'carry') {
+      if (trimmed.startsWith('- ')) (section === 'inert' ? inertGlobs : carryGlobs).push(trimmed.slice(2).trim());
       continue;
     }
 
@@ -329,7 +355,7 @@ function parseSuiteMap(text) {
     }
   }
 
-  return { core, sharedLibGlobs, suites };
+  return { core, sharedLibGlobs, inertGlobs, carryGlobs, suites };
 }
 
 // ---- docs-audit.yaml protected_paths_l3 reader (live, never duplicated) ----
@@ -379,10 +405,10 @@ function getChangedFiles(opts) {
   }
 }
 
-function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  opts.repoRoot = resolve(opts.repoRoot || DEFAULT_REPO_ROOT);
-  if (opts.shards !== null) return shardMain(opts);
+// loadContext <opts> — read and validate the map and the protected-L3 list.
+// Returns { ctx } or { fail: <detail> }; the caller decides how a failure is
+// reported (FULL_RUN internal-error in whole-PR mode, DELTA_REFUSED in delta mode).
+function loadContext(opts) {
   const mapPath = resolve(opts.repoRoot, opts.mapPath || 'tests/skills/suite-map.yaml');
   const auditPath = resolve(opts.repoRoot, opts.auditPath || 'docs/ai/docs-audit.yaml');
 
@@ -390,24 +416,24 @@ function main() {
   try {
     mapText = readFileSync(mapPath, 'utf8');
   } catch {
-    return fullRun('internal-error', `suite-map unreadable: ${mapPath}`);
+    return { fail: `suite-map unreadable: ${mapPath}` };
   }
   let parsedMap;
   try {
     parsedMap = parseSuiteMap(mapText);
   } catch (err) {
-    return fullRun('internal-error', `suite-map malformed: ${String(err.message || err).slice(0, 160)}`);
+    return { fail: `suite-map malformed: ${String(err.message || err).slice(0, 160)}` };
   }
-  const { core, sharedLibGlobs, suites } = parsedMap;
+  const { core, sharedLibGlobs, inertGlobs, carryGlobs, suites } = parsedMap;
   if (core.length === 0 || Object.keys(suites).length === 0) {
-    return fullRun('internal-error', `suite-map empty or malformed: ${mapPath}`);
+    return { fail: `suite-map empty or malformed: ${mapPath}` };
   }
   // Every core entry must name a defined suite: a misspelled/removed core
   // row would otherwise emit CORE <ghost> (workflow runs a nonexistent
   // suite) and corrupt the DROPPED arithmetic (negative count).
   for (const c of core) {
     if (!suites[c]) {
-      return fullRun('internal-error', `core entry has no suites row: ${c}`);
+      return { fail: `core entry has no suites row: ${c}` };
     }
   }
 
@@ -418,33 +444,32 @@ function main() {
     } catch {
       // Unreadable protected-paths config: never run with silently-zero L3
       // coverage — fall open unconditionally rather than guess.
-      return fullRun('internal-error', `docs-audit.yaml unreadable: ${auditPath}`);
+      return { fail: `docs-audit.yaml unreadable: ${auditPath}` };
     }
   }
+  return { ctx: { core, sharedLibGlobs, inertGlobs, carryGlobs, suites, protectedL3 } };
+}
 
-  const changed = getChangedFiles(opts);
+// classifyPaths <changed> <ctx> — pure classification of a non-empty path list.
+// Returns { full: { reason, path } } or { selected: Map<suite, first path> }.
+function classifyPaths(changed, ctx) {
+  const { core, sharedLibGlobs, inertGlobs, suites, protectedL3 } = ctx;
   const coreSet = new Set(core);
-
-  if (changed.length === 0) {
-    for (const c of core) console.log(`CORE ${c} reason=core`);
-    console.log(`DROPPED ${Object.keys(suites).length - core.length}`);
-    return;
-  }
 
   // Priority 1: protected L3 surfaces (exact path match — docs-audit.yaml
   // lists literal files, not globs).
   for (const path of changed) {
-    if (protectedL3.includes(path)) return fullRun('protected-l3', path);
+    if (protectedL3.includes(path)) return { full: { reason: 'protected-l3', path } };
   }
 
   // Priority 2: shared-lib fan-out.
   for (const path of changed) {
     for (const g of sharedLibGlobs) {
-      if (matchesGlob(path, g)) return fullRun('shared-lib', path);
+      if (matchesGlob(path, g)) return { full: { reason: 'shared-lib', path } };
     }
   }
 
-  // Priority 3: per-path suite matching + unmapped detection. Every suite
+  // Priority 3 (inert) and 4 (suite match) and 5 (unmapped). Every suite
   // (core included) is checked so a path that only touches a core suite's
   // own source is correctly treated as mapped (core already always runs) —
   // only non-core matches produce a SELECTED line.
@@ -452,6 +477,7 @@ function main() {
   let firstUnmapped = null;
 
   for (const path of changed) {
+    if (inertGlobs.some((g) => matchesGlob(path, g))) continue;
     let matchedAny = false;
     for (const [name, def] of Object.entries(suites)) {
       const globs = def.globs.concat([`tests/skills/test-${name}.sh`]);
@@ -464,17 +490,116 @@ function main() {
     if (!matchedAny && firstUnmapped === null) firstUnmapped = path;
   }
 
-  if (firstUnmapped !== null) return fullRun('unmapped', firstUnmapped);
+  if (firstUnmapped !== null) return { full: { reason: 'unmapped', path: firstUnmapped } };
+  return { selected };
+}
 
-  for (const c of core) console.log(`CORE ${c} reason=core`);
+function printSelection(ctx, selected) {
+  for (const c of ctx.core) console.log(`CORE ${c} reason=core`);
   for (const [name, path] of selected) console.log(`SELECTED ${name} reason=${path}`);
-  const dropped = Object.keys(suites).length - core.length - selected.size;
+  const dropped = Object.keys(ctx.suites).length - ctx.core.length - selected.size;
   console.log(`DROPPED ${dropped}`);
+}
+
+// ---- delta mode (D4) ----
+
+function deltaRefuse(reason, path) {
+  console.log(`DELTA_REFUSED reason=${reason}${path === undefined ? '' : ` path=${path}`}`);
+  exit(0);
+}
+
+function gitResolveCommit(repoRoot, rev) {
+  return execFileSync('git', ['rev-parse', '--verify', '--quiet', `${rev}^{commit}`], {
+    cwd: repoRoot, encoding: 'utf8',
+  }).trim();
+}
+
+// gitIsAncestor — true/false from the exit status; any other failure throws.
+function gitIsAncestor(repoRoot, baseSha, headSha) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', baseSha, headSha], { cwd: repoRoot, stdio: 'ignore' });
+    return true;
+  } catch (err) {
+    if (err && err.status === 1) return false;
+    throw err;
+  }
+}
+
+function deltaMain(opts) {
+  const loaded = loadContext(opts);
+  if (loaded.fail) return deltaRefuse('internal-error');
+  const { ctx } = loaded;
+
+  let baseSha;
+  let headSha;
+  try {
+    baseSha = gitResolveCommit(opts.repoRoot, opts.deltaBase);
+    headSha = gitResolveCommit(opts.repoRoot, opts.head || 'HEAD');
+  } catch {
+    return deltaRefuse('internal-error');
+  }
+  let ancestor;
+  try {
+    ancestor = gitIsAncestor(opts.repoRoot, baseSha, headSha);
+  } catch {
+    return deltaRefuse('internal-error');
+  }
+  if (!ancestor) return deltaRefuse('not-ancestor');
+
+  let changed;
+  try {
+    const out = execFileSync('git', ['diff', '--name-only', '--no-renames', baseSha, headSha], {
+      cwd: opts.repoRoot, encoding: 'utf8',
+    });
+    changed = out.split('\n').map((x) => x.trim()).filter(Boolean);
+  } catch {
+    return deltaRefuse('internal-error');
+  }
+
+  const eligible = (p) => ctx.inertGlobs.some((g) => matchesGlob(p, g))
+    || ctx.carryGlobs.some((g) => matchesGlob(p, g));
+  for (const p of changed) {
+    if (!eligible(p)) return deltaRefuse('ineligible', p);
+  }
+
+  console.log(`DELTA base=${opts.deltaBase}`);
+  if (changed.length === 0) {
+    for (const c of ctx.core) console.log(`CORE ${c} reason=core`);
+    console.log(`DROPPED ${Object.keys(ctx.suites).length - ctx.core.length}`);
+    return;
+  }
+  const result = classifyPaths(changed, ctx);
+  if (result.full) return deltaRefuse(`full-run:${result.full.reason}`, result.full.path);
+  printSelection(ctx, result.selected);
+}
+
+function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  opts.repoRoot = resolve(opts.repoRoot || DEFAULT_REPO_ROOT);
+  if (opts.shards !== null) return shardMain(opts);
+  if (opts.deltaBase !== null) return deltaMain(opts);
+
+  const loaded = loadContext(opts);
+  if (loaded.fail) return fullRun('internal-error', loaded.fail);
+  const { ctx } = loaded;
+
+  const changed = getChangedFiles(opts);
+
+  if (changed.length === 0) {
+    for (const c of ctx.core) console.log(`CORE ${c} reason=core`);
+    console.log(`DROPPED ${Object.keys(ctx.suites).length - ctx.core.length}`);
+    return;
+  }
+
+  const result = classifyPaths(changed, ctx);
+  if (result.full) return fullRun(result.full.reason, result.full.path);
+  printSelection(ctx, result.selected);
 }
 
 runMain(() => main(), {
   onError(err) {
     try {
+      if (process.argv.includes('--delta-base')) deltaRefuse('internal-error');
       fullRun('internal-error', String((err && err.message) || err).slice(0, 200));
     } catch (e) {
       if (e instanceof ExitSignal) { process.exitCode = e.code; return; }

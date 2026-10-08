@@ -103,6 +103,12 @@ jobs:
     name: select suites (PR impact analysis; full elsewhere)
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Carry-forward (post-validation-pushes-reuse-test-results, Spec-AC-07):
+    # ci-select.mjs reads the PR's earlier workflow runs and jobs through the
+    # API with the job's own GITHUB_TOKEN; the read scope on actions is the only addition.
+    permissions:
+      contents: read
+      actions: read
     outputs:
       mode: ${{ steps.select.outputs.mode }}
       suites: ${{ steps.select.outputs.suites }}
@@ -131,6 +137,8 @@ jobs:
 
       - id: select
         name: Run select-suites.mjs (PR only; every other event is always full)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -e
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
@@ -145,8 +153,9 @@ jobs:
           fi
           # fetch-depth: 0 above already fetched full history for every
           # branch (including the base), so origin/<base> is resolvable here.
-          OUT="$(node .aai/scripts/select-suites.mjs --base-ref "origin/${{ github.event.pull_request.base.ref }}")"
+          OUT="$(node .aai/scripts/ci-select.mjs --base-ref "origin/${{ github.event.pull_request.base.ref }}" --event "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY" --workflow-file skill-suite.yml)"
           echo "$OUT"
+          echo "$OUT" | grep '^CARRY_FORWARD ' >> "$GITHUB_STEP_SUMMARY" || true
           if echo "$OUT" | grep -q '^FULL_RUN'; then
             echo "mode=full" >> "$GITHUB_OUTPUT"
           else
@@ -232,6 +241,27 @@ jobs:
             bash tests/skills/test-framework.sh "${args[@]}"
           fi
 
+  # Tracked-ignored guard (CHANGE post-validation-pushes-reuse-test-results,
+  # Spec-AC-01): no path matched by the repository's own .gitignore files may
+  # be tracked. Unconditional (no `if:`) so it runs on every event, and the
+  # `gate` job below depends on it, which makes it part of the already
+  # required skill-suite context without a branch protection change.
+  tracked-ignored:
+    name: tracked-ignored guard (no gitignored path may be tracked)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fail when the index tracks a path the repository .gitignore ignores
+        run: |
+          set -euo pipefail
+          node .aai/scripts/tracked-ignored.mjs --all
+
   native-worktree-seed:
     name: worktree seed (native Windows PowerShell 5.1 and pwsh 7)
     runs-on: windows-latest
@@ -286,7 +316,7 @@ jobs:
   # succeeded.
   gate:
     name: skill test suite (tests/skills/, via test-framework.sh)
-    needs: [select, skills-selected, skills-full, native-worktree-seed]
+    needs: [select, skills-selected, skills-full, native-worktree-seed, tracked-ignored]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -300,6 +330,9 @@ jobs:
           fi
           if [ "${{ needs.native-worktree-seed.result }}" != "success" ]; then
             echo "native Windows worktree seed job did not succeed"; exit 1
+          fi
+          if [ "${{ needs.tracked-ignored.result }}" != "success" ]; then
+            echo "tracked-ignored guard job did not succeed"; exit 1
           fi
           if [ "${{ needs.select.outputs.mode }}" = "selected" ]; then
             [ "${{ needs.skills-selected.result }}" = "success" ] || { echo "selected-mode run failed"; exit 1; }
