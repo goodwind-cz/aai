@@ -1,7 +1,7 @@
 ---
 id: ci-windows-leg-waits-and-ps1-path-filter
 type: techdebt
-number: null
+number: 9
 status: draft
 links:
   pr: []

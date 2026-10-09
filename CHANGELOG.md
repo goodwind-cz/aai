@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: the Windows test wrapper reaps the whole process tree on timeout; ps1-quality runs only for files PowerShell reads (ci-windows-leg-waits-and-ps1-path-filter)
+
+- On native Windows, `aai-run-tests.ps1` now starts Git Bash inside a Job Object (suspended, assigned, resumed, in the PowerShell location), so a timeout ends every descendant. Before, MSYS fork+exec broke the Windows parent chain and `taskkill /T` could not reach exec'd grandchildren: the 2 s timeout smoke waited 300 s for an orphaned `sleep`. If no job can be created, one `AAI-DEGRADED-MODE` line names it and the old launch is used.
+- The Git-Bash branch of `aai-run-tests.sh` translates the MSYS pid to its Windows pid and does one forced tree kill first.
+- The ps1-quality smoke harness no longer uses `Start-Process -Wait`; it fails a timeout arm that runs past 20 s or leaves a survivor, with a started marker so the check cannot pass vacuously.
+- The ps1-quality `paths:` filter lists only the `tests/skills/lib` files PowerShell reads (derived from the sources and pinned by a test) instead of `tests/skills/lib/**`; `prompt-diet-ledger.sh` is exempt by owner decision. `windows-5_1` gets `timeout-minutes: 30`.
+- Measured: smoke steps 306/305 s -> 16/13 s; `windows-5_1` about 18 min -> 9m45s (owner-accepted target p50 <= 10 min; the remaining Pester time is slowest-suite-hot-spots).
+- Refs: DEBT-0009 / SPEC-0214, PR #442.
+
 ## [v2026.10.08] — feat: pre-commit CHECK 9 blocks staging a gitignored path (post-validation-pushes-reuse-test-results)
 
 - New blocking pre-commit check (CHECK 9, `pre-commit-checks.sh` and `.ps1`): a path matched by the repository `.gitignore` that is staged as ADDED (`git add -f`, a copy, or a rename into an ignored directory) is refused, naming the path, the rule and the remedy. Downstream projects that deliberately track an ignored path must add a reviewable `!<path>` re-include; there is no env bypass.

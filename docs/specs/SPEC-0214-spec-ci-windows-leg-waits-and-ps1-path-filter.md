@@ -1,15 +1,15 @@
 ---
 id: spec-ci-windows-leg-waits-and-ps1-path-filter
 type: spec
-number: null
+number: 214
 status: implementing
 mutation_gate: v1
-frozen_sha256: ca8867fa1e7f14de7b3afd72f3a73db06c08436eea565de69bd059e8db7435ff
+frozen_sha256: 6ead062b81b270eff1ca9a6ed3c30b13823728d2f4774a5397941e680b401970
 ceremony_level: 2
 links:
   requirement: null
   rfc: null
-  intake: docs/issues/DEBT-DRAFT-ci-windows-leg-waits-and-ps1-path-filter.md
+  intake: docs/issues/DEBT-0009-ci-windows-leg-waits-and-ps1-path-filter.md
   pr: []
   commits: []
 ---
@@ -19,7 +19,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/DEBT-DRAFT-ci-windows-leg-waits-and-ps1-path-filter.md (techdebt intake, id `ci-windows-leg-waits-and-ps1-path-filter`)
+- Requirement: docs/issues/DEBT-0009-ci-windows-leg-waits-and-ps1-path-filter.md (techdebt intake, id `ci-windows-leg-waits-and-ps1-path-filter`)
 - Decision records: none
 - Technology contract: docs/TECHNOLOGY.md (platform matrix row "Windows + Git-Bash-only (no WSL)", unchanged by this spec)
 
@@ -382,11 +382,11 @@ and the platform-matrix text stay unchanged.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the wrapper runs under Git-Bash/MSYS and the watchdog fires, the system SHALL issue one forced tree kill (taskkill //T //F) on the Windows PID read from the proc winpid entry of the command's MSYS pid, before any leader-only kill, and SHALL fall back to the MSYS pid itself when no winpid entry is readable. | planned | — | — | D1; non-MSYS branches unchanged (test_007) |
-| Spec-AC-02 | WHEN the ps1-quality timeout arm runs aai-run-tests.ps1 with AAI_TEST_TIMEOUT=2 around a 300 s hang on Windows PowerShell 5.1 and on pwsh 7, the harness SHALL wait on the wrapper process only (no Start-Process -Wait), SHALL fail the arm unless the wrapper exits 124 within 20 s and no process of the hang fixture survives 5 s after that exit, and SHALL fail the arm when the fixture's started marker is missing. | planned | — | — | D2; Windows proof is the CI RED and GREEN run logs |
-| Spec-AC-03 | WHEN any PowerShell source, Pester test, or bash suite named by a Pester test names a file under tests/skills/lib, the ps1-quality push and pull_request path lists SHALL match that file or carry a reasoned ps1-paths-exempt line for it, and the lists SHALL be identical and SHALL match no other tests/skills/lib file. | planned | — | — | D3, D4 |
-| Spec-AC-04 | The windows-5_1 job SHALL declare a job-level timeout-minutes between 26 and 45 inclusive (value 30). | planned | — | — | D5 |
-| Spec-AC-05 | WHEN aai-run-tests.ps1 launches the Git-Bash branch on Windows, the dispatcher SHALL start bash.exe suspended inside a Job Object carrying JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, assign it before resuming it, and terminate the job on every exit path with the exit-code contract unchanged; WHEN no job can be created or assigned it SHALL print one AAI-DEGRADED-MODE line naming the cause and launch as before. | planned | — | — | Amendment 1 (D1-fallback); Windows proof is the windows-5_1 smoke timeout arm |
+| Spec-AC-01 | WHEN the wrapper runs under Git-Bash/MSYS and the watchdog fires, the system SHALL issue one forced tree kill (taskkill //T //F) on the Windows PID read from the proc winpid entry of the command's MSYS pid, before any leader-only kill, and SHALL fall back to the MSYS pid itself when no winpid entry is readable. | done | TEST-001..003 PASS (tests/skills/test-aai-win-fallback.sh); mutation docs/ai/tdd/spec-ci-windows-leg-waits-and-ps1-path-filter/mutation-TEST-001.txt; validation docs/ai/reports/validation-ci-windows-leg-waits-and-ps1-path-filter.md | — | D1; non-MSYS branches unchanged (test_007) |
+| Spec-AC-02 | WHEN the ps1-quality timeout arm runs aai-run-tests.ps1 with AAI_TEST_TIMEOUT=2 around a 300 s hang on Windows PowerShell 5.1 and on pwsh 7, the harness SHALL wait on the wrapper process only (no Start-Process -Wait), SHALL fail the arm unless the wrapper exits 124 within 20 s and no process of the hang fixture survives 5 s after that exit, and SHALL fail the arm when the fixture's started marker is missing. | done | TEST-004, TEST-005, TEST-013 PASS; CI RED docs/ai/tdd/ci-windows-leg-waits-and-ps1-path-filter-ci-red.log (runs 37892787478, 37894665268); CI GREEN run 37903835784 smoke 16/13 s; validation docs/ai/reports/validation-ci-windows-leg-waits-and-ps1-path-filter.md | — | D2; Windows proof is the CI RED and GREEN run logs |
+| Spec-AC-03 | WHEN any PowerShell source, Pester test, or bash suite named by a Pester test names a file under tests/skills/lib, the ps1-quality push and pull_request path lists SHALL match that file or carry a reasoned ps1-paths-exempt line for it, and the lists SHALL be identical and SHALL match no other tests/skills/lib file. | done | TEST-006..008 PASS; derived PowerShell-read set matches the filter; mutation docs/ai/tdd/spec-ci-windows-leg-waits-and-ps1-path-filter/mutation-TEST-006.txt; validation docs/ai/reports/validation-ci-windows-leg-waits-and-ps1-path-filter.md | — | D3, D4 |
+| Spec-AC-04 | The windows-5_1 job SHALL declare a job-level timeout-minutes between 26 and 45 inclusive (value 30). | done | TEST-009 PASS; timeout-minutes 30 on windows-5_1; mutation docs/ai/tdd/spec-ci-windows-leg-waits-and-ps1-path-filter/mutation-TEST-009.txt; validation docs/ai/reports/validation-ci-windows-leg-waits-and-ps1-path-filter.md | — | D5 |
+| Spec-AC-05 | WHEN aai-run-tests.ps1 launches the Git-Bash branch on Windows, the dispatcher SHALL start bash.exe suspended inside a Job Object carrying JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, assign it before resuming it, and terminate the job on every exit path with the exit-code contract unchanged; WHEN no job can be created or assigned it SHALL print one AAI-DEGRADED-MODE line naming the cause and launch as before. | done | TEST-010..012 PASS incl. cwd parity; CI GREEN run 37903835784 windows-5_1 9m45s, no survivor; mutation docs/ai/tdd/spec-ci-windows-leg-waits-and-ps1-path-filter/mutation-TEST-010.txt; validation docs/ai/reports/validation-ci-windows-leg-waits-and-ps1-path-filter.md | — | Amendment 1 (D1-fallback); Windows proof is the windows-5_1 smoke timeout arm |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -443,8 +443,8 @@ Commands, all run from the worktree root:
   and `gh run view <run> --log --job <windows-5_1 job>` for the arm lines. Wait
   about 40 s after a push before watching.
 - `node .aai/scripts/mutation-run.mjs` per row, then
-  `node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-spec-ci-windows-leg-waits-and-ps1-path-filter.md`
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-ci-windows-leg-waits-and-ps1-path-filter.md`
+  `node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0214-spec-ci-windows-leg-waits-and-ps1-path-filter.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0214-spec-ci-windows-leg-waits-and-ps1-path-filter.md`
 - `node .aai/scripts/docs-audit.mjs --strict`
 - One full sweep before close: `AAI_TEST_TIMEOUT=3000 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`
 

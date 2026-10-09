@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-08T21:32:03.397Z",
+  "generatedAt": "2026-10-09T08:56:39.127Z",
   "project": "aai",
   "counts": {
     "delivered": 283,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -112,6 +112,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "ci-windows-leg-waits-and-ps1-path-filter",
+      "title": "Tech Debt: the Windows ps1 leg waits 10 minutes on a 2-second timeout and runs for bash-only ledger edits",
+      "type": "techdebt",
+      "status": "draft",
+      "path": "docs/issues/DEBT-0009-ci-windows-leg-waits-and-ps1-path-filter.md",
+      "closed_on": null,
+      "agent_minutes": 213,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0214-spec-ci-windows-leg-waits-and-ps1-path-filter.md",
       "validation": null,
       "review": null
     },
