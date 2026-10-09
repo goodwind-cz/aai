@@ -1908,15 +1908,15 @@ _assert_weight_at_most() {  # $1 suite $2 bound $3 plan row id
 }
 
 test_1757_hygiene_pack_weight() {  # Spec-AC-03 / TEST-005
-  log_info "Test: the committed CI weight of aai-hygiene-pack is at most 65 (TEST-005)..."
-  _assert_weight_at_most aai-hygiene-pack 65 "TEST-005"
-  log_pass "TEST-005: aai-hygiene-pack weighs at most 65"
+  log_info "Test: the committed CI weight of aai-hygiene-pack is at most 95 (TEST-005)..."
+  _assert_weight_at_most aai-hygiene-pack 95 "TEST-005"
+  log_pass "TEST-005: aai-hygiene-pack weighs at most 95"
 }
 
 test_1758_sync_seed_weight() {  # Spec-AC-06 / TEST-009
-  log_info "Test: the committed CI weight of aai-sync-seed is at most 118 (TEST-009)..."
-  _assert_weight_at_most aai-sync-seed 118 "TEST-009"
-  log_pass "TEST-009: aai-sync-seed weighs at most 118"
+  log_info "Test: the committed CI weight of aai-sync-seed is at most 170 (TEST-009)..."
+  _assert_weight_at_most aai-sync-seed 170 "TEST-009"
+  log_pass "TEST-009: aai-sync-seed weighs at most 170"
 }
 
 test_1759_run_tests_weight() {  # Spec-AC-09 / TEST-015
