@@ -2892,3 +2892,4 @@
 {"v":1,"ts":"2026-10-09T08:59:19Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ci-windows-leg-waits-and-ps1-path-filter","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-09T08:59:19Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-ci-windows-leg-waits-and-ps1-path-filter","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-09T08:59:19Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-ci-windows-leg-waits-and-ps1-path-filter","payload":{"commit":"e4bbe1861e7ce8310b8fad273ef3c8958f3d1530"}}
+{"v":1,"ts":"2026-10-09T09:20:14Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"ci-windows-leg-waits-and-ps1-path-filter","payload":{"pr":442,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"6a73cc3459572c837e71d5c764c7553a56522afb"}}
