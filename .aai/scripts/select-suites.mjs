@@ -52,12 +52,18 @@
 //
 //   FULL_RUN reason=<protected-l3|shared-lib|unmapped|internal-error> path=<path>
 //
-// or, one line per always-on core suite, one per diff-matched suite, then
-// exactly one DROPPED count line (AC-005: auditable, no silent truncation):
+// or, one line per always-on core suite, one per diff-matched suite, one per
+// companion (suite-map.yaml `companions:`, followed transitively, each suite
+// printed once), then exactly one DROPPED count line (AC-005: auditable, no
+// silent truncation):
 //
 //   CORE <suite> reason=core
 //   SELECTED <suite> reason=<path that matched it>
+//   SELECTED <suite> reason=companion:<parent suite>
 //   DROPPED <n>
+//
+// A malformed companion (no row, its own row, bad name) is a malformed map:
+// FULL_RUN reason=internal-error (DELTA_REFUSED in delta mode).
 //
 // SHARD MODE (D1, SPEC-0206-spec-ci-test-selection-narrowing-and-sharding):
 //   node .aai/scripts/select-suites.mjs --shards <N> [--repo-root <dir>]
@@ -291,11 +297,12 @@ function parseSuiteMap(text) {
   const sharedLibGlobs = [];
   const inertGlobs = [];
   const carryGlobs = [];
-  const suites = {}; // name -> { globs: [] }, insertion-ordered
+  const suites = {}; // name -> { globs: [], companions: [] }, insertion-ordered
 
   let section = null; // 'core' | 'shared' | 'suites' | 'inert' | 'carry'
   let currentSuite = null;
   let inGlobs = false;
+  let inCompanions = false;
 
   for (const raw of text.split('\n')) {
     const line = raw.replace(/\r$/, '');
@@ -341,16 +348,27 @@ function parseSuiteMap(text) {
     if (section === 'suites') {
       if (indent === 2 && /^[A-Za-z0-9_-]+:$/.test(trimmed)) {
         currentSuite = trimmed.slice(0, -1);
-        suites[currentSuite] = { globs: [] };
+        suites[currentSuite] = { globs: [], companions: [] };
         inGlobs = false;
+        inCompanions = false;
         continue;
       }
       if (indent === 4 && trimmed === 'globs:' && currentSuite) {
         inGlobs = true;
+        inCompanions = false;
         continue;
       }
-      if (indent >= 6 && inGlobs && currentSuite && trimmed.startsWith('- ')) {
-        suites[currentSuite].globs.push(trimmed.slice(2).trim());
+      // D1 (nested-suite-reruns-duplicate-sweep-time): `companions:` switches the
+      // row into companion mode and `globs:` switches it back, so a companion
+      // item can never be read as a glob.
+      if (indent === 4 && trimmed === 'companions:' && currentSuite) {
+        inCompanions = true;
+        inGlobs = false;
+        continue;
+      }
+      if (indent >= 6 && currentSuite && trimmed.startsWith('- ')) {
+        if (inGlobs) suites[currentSuite].globs.push(trimmed.slice(2).trim());
+        else if (inCompanions) suites[currentSuite].companions.push(trimmed.slice(2).trim());
       }
     }
   }
@@ -437,6 +455,22 @@ function loadContext(opts) {
     }
   }
 
+  // Companion edges (D1): every name must be a valid, defined, non-self row.
+  // A malformed edge fails open like a ghost core entry.
+  for (const [name, def] of Object.entries(suites)) {
+    for (const comp of def.companions) {
+      if (!/^[A-Za-z0-9_-]+$/.test(comp)) {
+        return { fail: `suite-map malformed: companion violates [A-Za-z0-9_-]+: ${name} -> ${comp.slice(0, 80)}` };
+      }
+      if (!suites[comp]) {
+        return { fail: `companion has no suites row: ${name} -> ${comp}` };
+      }
+      if (comp === name) {
+        return { fail: `companion names its own row: ${name}` };
+      }
+    }
+  }
+
   let protectedL3 = [];
   if (existsSync(auditPath)) {
     try {
@@ -494,7 +528,28 @@ function classifyPaths(changed, ctx) {
   return { selected };
 }
 
-function printSelection(ctx, selected) {
+// expandCompanions <selected> <ctx> — D2: the selection plus every companion,
+// transitively. `queue` is seeded with the core suites, then the selected ones;
+// a suite is added at most once (so a cycle terminates) with the reason
+// `companion:<parent>`. Core suites always run, so they are never added.
+function expandCompanions(selected, ctx) {
+  const coreSet = new Set(ctx.core);
+  const out = new Map(selected);
+  const queue = [...ctx.core, ...selected.keys()];
+  for (let i = 0; i < queue.length; i++) {
+    const parent = queue[i];
+    const comps = (ctx.suites[parent] && ctx.suites[parent].companions) || [];
+    for (const comp of comps) {
+      if (coreSet.has(comp) || out.has(comp)) continue;
+      out.set(comp, 'companion:' + parent);
+      queue.push(comp);
+    }
+  }
+  return out;
+}
+
+function printSelection(ctx, pathSelected) {
+  const selected = expandCompanions(pathSelected, ctx);
   for (const c of ctx.core) console.log(`CORE ${c} reason=core`);
   for (const [name, path] of selected) console.log(`SELECTED ${name} reason=${path}`);
   const dropped = Object.keys(ctx.suites).length - ctx.core.length - selected.size;
@@ -564,8 +619,7 @@ function deltaMain(opts) {
 
   console.log(`DELTA base=${opts.deltaBase}`);
   if (changed.length === 0) {
-    for (const c of ctx.core) console.log(`CORE ${c} reason=core`);
-    console.log(`DROPPED ${Object.keys(ctx.suites).length - ctx.core.length}`);
+    printSelection(ctx, new Map());
     return;
   }
   const result = classifyPaths(changed, ctx);
@@ -586,8 +640,7 @@ function main() {
   const changed = getChangedFiles(opts);
 
   if (changed.length === 0) {
-    for (const c of ctx.core) console.log(`CORE ${c} reason=core`);
-    console.log(`DROPPED ${Object.keys(ctx.suites).length - ctx.core.length}`);
+    printSelection(ctx, new Map());
     return;
   }
 

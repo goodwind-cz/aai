@@ -23,6 +23,16 @@
 #   selection is exactly what the fail-open triad above exists to catch. The
 #   selector ALSO implicitly matches `tests/skills/test-<name>.sh` (the
 #   suite's own test file) for every suite without it needing to be listed.
+# - `suites.<name>.companions` (optional, nested-suite-reruns-duplicate-sweep-time
+#   D1) — suites that are selected whenever this suite is selected or is core,
+#   followed transitively (each suite once, a cycle terminates). Placed BEFORE
+#   `globs:` at 4 spaces, items at 6 spaces, sorted by name. A companion never
+#   adds a glob, so it cannot turn an unmapped path into a mapped one. It must
+#   name an existing row other than its own, and never a core suite (redundant:
+#   core always runs). A malformed entry is a malformed map: FULL_RUN
+#   internal-error (DELTA_REFUSED in delta mode). Replaces a suite running
+#   another whole suite nested; the outer suite pins its edges with
+#   `assert_companions` (tests/skills/lib/companion-assert.sh).
 # - AC-003 (hygiene pin): every `tests/skills/test-aai-*.sh` file on disk
 #   MUST have a corresponding `suites.<name>` row, `<name>` being the
 #   filename with the `test-` prefix and `.sh` suffix stripped. A new suite
