@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-09T14:43:22.538Z
+Generated: 2026-10-09T21:42:51.253Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -54,7 +54,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (505)
+## Done (507)
 
 | ID | Type | Path |
 |---|---|---|
@@ -264,6 +264,7 @@ _None._
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
 | DEBT-0009 | issues | docs/issues/DEBT-0009-ci-windows-leg-waits-and-ps1-path-filter.md |
 | DEBT-0010 | issues | docs/issues/DEBT-0010-nested-suite-reruns-duplicate-sweep-time.md |
+| DEBT-0011 | issues | docs/issues/DEBT-0011-slowest-suite-hot-spots.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
 | ISSUE-0003 | issues | docs/issues/ISSUE-0003-index-autogen-bakes-stale-drift-row.md |
@@ -561,6 +562,7 @@ _None._
 | SPEC-0213 | specs | docs/specs/SPEC-0213-spec-post-validation-pushes-reuse-test-results.md |
 | SPEC-0214 | specs | docs/specs/SPEC-0214-spec-ci-windows-leg-waits-and-ps1-path-filter.md |
 | SPEC-0215 | specs | docs/specs/SPEC-0215-spec-nested-suite-reruns-duplicate-sweep-time.md |
+| SPEC-0216 | specs | docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

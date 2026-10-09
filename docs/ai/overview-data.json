@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-09T14:26:13.682Z",
+  "generatedAt": "2026-10-09T21:12:34.870Z",
   "project": "aai",
   "counts": {
-    "delivered": 285,
+    "delivered": 286,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 74203136
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0215-spec-nested-suite-reruns-duplicate-sweep-time.md",
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "slowest-suite-hot-spots",
+      "title": "Tech Debt: four hot spots make the always-run and slowest suites expensive",
+      "type": "techdebt",
+      "status": "done",
+      "path": "docs/issues/DEBT-0011-slowest-suite-hot-spots.md",
+      "closed_on": "2026-10-09",
+      "agent_minutes": 309,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-slowest-suite-hot-spots-r2-20261009T202300Z.md"
     },
     {
       "ref": "post-validation-pushes-reuse-test-results",
@@ -3978,6 +3991,19 @@
           "spec": "docs/specs/SPEC-0215-spec-nested-suite-reruns-duplicate-sweep-time.md",
           "validation": null,
           "review": null
+        },
+        {
+          "ref": "slowest-suite-hot-spots",
+          "title": "Tech Debt: four hot spots make the always-run and slowest suites expensive",
+          "type": "techdebt",
+          "status": "done",
+          "path": "docs/issues/DEBT-0011-slowest-suite-hot-spots.md",
+          "closed_on": "2026-10-09",
+          "agent_minutes": 309,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-slowest-suite-hot-spots-r2-20261009T202300Z.md"
         },
         {
           "ref": "post-validation-pushes-reuse-test-results",

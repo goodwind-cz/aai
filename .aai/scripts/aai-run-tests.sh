@@ -759,7 +759,10 @@ aai_reap_group() {
     fi
   else
     kill -TERM -"${PGID:-$CMD_PID}" 2>/dev/null
-    sleep 1
+    # Grace only while a member survived the TERM: an already-empty group
+    # (the common clean exit) has nothing to wait for. A survivor still gets
+    # the full second before the KILL below.
+    kill -0 -"${PGID:-$CMD_PID}" 2>/dev/null && sleep 1
     kill -KILL -"${PGID:-$CMD_PID}" 2>/dev/null
   fi
   return 0

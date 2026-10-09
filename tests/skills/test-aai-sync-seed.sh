@@ -44,6 +44,10 @@ GITIGNORE_LIB="$PROJECT_ROOT/.aai/scripts/lib/gitignore-block.sh"
 BOOTSTRAP_SH="$PROJECT_ROOT/.aai/scripts/aai-bootstrap.sh"
 
 TMP_ROOT=""
+# Canonical fixture source (built once per run, lazily; see _sync_fixture_canon).
+SYNC_FIXTURE_CANON=""
+# Golden directory of the key the last _sync_cached call served (read by test_794/795).
+SYNC_LAST_GOLDEN=""
 
 # Set by any pwsh-dependent arm that could not run (pwsh absent). Checked at
 # the end of main(): a suite that never exercised a single PowerShell
@@ -59,6 +63,9 @@ cleanup() {
     return 0
   fi
   if [[ -n "${TMP_ROOT:-}" && -d "$TMP_ROOT" ]]; then
+    # The sync goldens are read-only on purpose (_sync_cached); give the
+    # owner write back so rm can remove them.
+    if [[ -d "$TMP_ROOT/golden" ]]; then chmod -R u+w "$TMP_ROOT/golden" 2>/dev/null || true; fi
     rm -rf "$TMP_ROOT"
   fi
 }
@@ -74,7 +81,80 @@ check_deps() {
   command -v git >/dev/null 2>&1 || log_skip "git not found"
   [[ -f "$SYNC_SH" ]] || log_fail "aai-sync.sh not found: $SYNC_SH"
   TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aai-sync-seed-test.XXXXXX")"
+  SYNC_FIXTURE_CANON="$TMP_ROOT/fixture-canon"
   log_pass "Dependencies checked"
+}
+
+# --- sync cache (hot-spots D3) -------------------------------------------------
+# Most tests start with a FIRST sync into a fresh target whose output they
+# discard, then assert on a later step. _sync_cached runs that first sync for
+# real ONCE per key into a read-only golden and hands every later request a
+# writable copy. A key is engine (sh|ps1) + source kind (real = $PROJECT_ROOT,
+# fixture = $SYNC_FIXTURE_CANON) + target kind (empty | git).
+# It may replace ONLY a first sync into a fresh target whose output the test
+# discards. A re-sync, a pre-seeded target, a captured stdout, an engine-parity
+# comparison and TEST-778's old-vs-new comparison always call the engine
+# directly. State lives on disk (a .done marker next to the golden), not in a
+# variable, so a call made inside a command substitution (TEST-630 replays a
+# test that way) still sees the golden an earlier call made.
+# The premise (path-dependent output is only the pin and advisory header lines;
+# an existing pin is read for Profile only) is pinned by test_795.
+_hooks_run_engine() {
+  local engine="$1" src="$2" dst="$3"
+  [[ -n "$dst" && "$dst" == /* ]] || log_fail "bad fixture path: [$dst]"
+  if [[ "$engine" == "ps1" ]]; then
+    pwsh -NoProfile -File "$src/.aai/scripts/aai-sync.ps1" -TargetRoot "$dst"
+  else
+    bash "$src/.aai/scripts/aai-sync.sh" "$dst"
+  fi
+}
+
+_sync_fixture_canon() {
+  if [[ ! -f "$TMP_ROOT/fixture-canon.done" ]]; then
+    rm -rf "$SYNC_FIXTURE_CANON"
+    _778_build_fixture_source "$SYNC_FIXTURE_CANON"
+    : > "$TMP_ROOT/fixture-canon.done"
+  fi
+}
+
+# Copy the canonical fixture source to its own path; the caller edits the copy.
+_fixture_source_copy() {
+  local dir="$1"
+  [[ -n "$dir" && "$dir" == /* ]] || log_fail "_fixture_source_copy: destination is empty or relative: [$dir]"
+  _sync_fixture_canon
+  mkdir -p "$dir"
+  cp -R "$SYNC_FIXTURE_CANON/." "$dir/" || log_fail "_fixture_source_copy: copy into $dir failed"
+}
+
+# _sync_cached <engine> <source-root> <dst> [git]
+_sync_cached() {
+  local engine="$1" src="$2" dst="$3" tkind="${4:-empty}" skind key golden
+  [[ -n "$dst" && "$dst" == /* ]] || log_fail "_sync_cached: destination is empty or relative: [$dst]"
+  case "$engine" in sh|ps1) : ;; *) log_fail "_sync_cached: unknown engine [$engine]" ;; esac
+  case "$tkind" in git|empty) : ;; *) log_fail "_sync_cached: unknown target kind [$tkind]" ;; esac
+  if [[ "$src" == "$PROJECT_ROOT" ]]; then
+    skind=real
+  elif [[ "$src" == "$SYNC_FIXTURE_CANON" ]]; then
+    skind=fixture
+    _sync_fixture_canon
+  else
+    log_fail "_sync_cached: source [$src] is neither the real source nor the canonical fixture source"
+  fi
+  key="$engine-$skind-$tkind"
+  golden="$TMP_ROOT/golden/$key"
+  if [[ ! -f "$golden.done" ]]; then
+    if [[ -d "$golden" ]]; then chmod -R u+w "$golden"; rm -rf "$golden"; fi
+    mkdir -p "$golden"
+    if [[ "$tkind" == "git" ]]; then git -C "$golden" init -q -b main; fi
+    _hooks_run_engine "$engine" "$src" "$golden" >/dev/null 2>&1 \
+      || log_fail "_sync_cached: the real $engine sync into golden $key failed"
+    chmod -R a-w "$golden"
+    : > "$golden.done"
+  fi
+  SYNC_LAST_GOLDEN="$golden"
+  mkdir -p "$dst"
+  cp -Rp "$golden/." "$dst/" || log_fail "_sync_cached: copy of golden $key into $dst failed"
+  chmod -R u+w "$dst"
 }
 
 # --- TEST-001 — fresh target: docs/ai/update-config.yaml is SEEDED -------------
@@ -551,9 +631,7 @@ test_bootstrap_survives_missing_library() {
   # case -- and running bootstrap from the target's own copy (never the real
   # repo's library, which is left untouched).
   local dst="$TMP_ROOT/lib-absent-bootstrap" out
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-019: sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
   [[ -f "$dst/.aai/scripts/lib/gitignore-block.sh" ]] \
     || log_fail "TEST-019: bad fixture -- sync did not vendor the shared library into $dst"
   rm -f "$dst/.aai/scripts/lib/gitignore-block.sh"
@@ -570,9 +648,7 @@ test_bootstrap_survives_missing_library() {
 test_git_status_clean_after_spool_creation() {
   log_info "TEST-015: git status --porcelain reports zero runtime-sidecar paths once spool files exist, on both engines..."
   local dst_sh="$TMP_ROOT/gitstatus-sh" leaked_sh
-  mkdir -p "$dst_sh"
-  git -C "$dst_sh" init -q -b main
-  bash "$SYNC_SH" "$dst_sh" >/dev/null 2>&1 || log_fail "TEST-015: bash sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst_sh" git
   mkdir -p "$dst_sh/docs/ai/briefs" "$dst_sh/docs/ai/tdd"
   : > "$dst_sh/docs/ai/STATE.yaml"
   : > "$dst_sh/docs/ai/LOOP_TICKS.jsonl"
@@ -584,9 +660,7 @@ test_git_status_clean_after_spool_creation() {
 
   if command -v pwsh >/dev/null 2>&1; then
     local dst_ps="$TMP_ROOT/gitstatus-ps" leaked_ps
-    mkdir -p "$dst_ps"
-    git -C "$dst_ps" init -q -b main
-    pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$dst_ps" >/dev/null 2>&1 || log_fail "TEST-015: ps1 sync failed"
+    _sync_cached ps1 "$PROJECT_ROOT" "$dst_ps" git
     mkdir -p "$dst_ps/docs/ai/briefs" "$dst_ps/docs/ai/tdd"
     : > "$dst_ps/docs/ai/STATE.yaml"
     : > "$dst_ps/docs/ai/LOOP_TICKS.jsonl"
@@ -718,8 +792,7 @@ test_agents_skills_mirror_synced() {
   # a reason that has nothing to do with the mutation under test.
   local dst
   dst="$(mktemp -d "${TMP_ROOT}/agents-skills-mirror.XXXXXX")"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-022: sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
 
   # (a) the mirror lands with real skills, not just an empty directory.
   [[ -f "$dst/.agents/skills/aai-pr/SKILL.md" ]] \
@@ -766,9 +839,7 @@ test_agents_skills_mirror_synced() {
   if command -v pwsh >/dev/null 2>&1; then
     local pdst
     pdst="$(mktemp -d "${TMP_ROOT}/agents-skills-ps1.XXXXXX")"
-    git -C "$pdst" init -q -b main
-    pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$pdst" >/dev/null 2>&1 \
-      || log_fail "TEST-022: aai-sync.ps1 run failed"
+    _sync_cached ps1 "$PROJECT_ROOT" "$pdst" git
     [[ -f "$pdst/.agents/skills/aai-pr/SKILL.md" ]] \
       || log_fail "TEST-022: aai-sync.ps1 did not propagate .agents/skills (ps1 parity broken)"
     [[ "$(grep -cxF ".agents/skills/" "$pdst/.gitignore")" -eq 1 ]] \
@@ -889,9 +960,7 @@ test_630_agents_tree_pin_still_bites() {
 test_773_hook_target_only_survives_bytes() {
   log_info "TEST-773: a target-only hooks/merge-guard.sh survives a real sync byte-identical..."
   local dst="$TMP_ROOT/hooks-773" recorded="$TMP_ROOT/hooks-773-recorded.sh"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-773: initial sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
   printf '#!/bin/sh\necho guard\n' > "$dst/hooks/merge-guard.sh"
   cp "$dst/hooks/merge-guard.sh" "$recorded"
   bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-773: re-sync failed"
@@ -906,9 +975,7 @@ test_773_hook_target_only_survives_bytes() {
 test_774_hook_target_only_named_on_stdout() {
   log_info "TEST-774: sync stdout carries PRESERVE target-only hook naming hooks/merge-guard.sh..."
   local dst="$TMP_ROOT/hooks-774" log="$TMP_ROOT/hooks-774.log"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-774: initial sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
   printf '#!/bin/sh\necho guard\n' > "$dst/hooks/merge-guard.sh"
   bash "$SYNC_SH" "$dst" >"$log" 2>&1 || log_fail "TEST-774: re-sync failed: $(cat "$log")"
   grep -qF -- 'PRESERVE target-only hook: hooks/merge-guard.sh' "$log" \
@@ -920,9 +987,7 @@ test_774_hook_target_only_named_on_stdout() {
 test_775_hook_source_owned_overwritten_stays_executable() {
   log_info "TEST-775: a differing hooks/session-start.sh is replaced by source bytes and stays executable..."
   local dst="$TMP_ROOT/hooks-775" src_session="$PROJECT_ROOT/hooks/session-start.sh"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-775: initial sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
   printf '#!/bin/sh\necho tampered\n' > "$dst/hooks/session-start.sh"
   chmod -x "$dst/hooks/session-start.sh"
   bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-775: re-sync failed"
@@ -942,9 +1007,7 @@ test_775_hook_source_owned_overwritten_stays_executable() {
 test_776_hook_json_target_added_entry_survives_merge() {
   log_info "TEST-776: a target-added hooks/hooks.json registration (PreToolUse -> merge-guard.sh) survives an additive-merge sync..."
   local dst="$TMP_ROOT/hooks-776" log="$TMP_ROOT/hooks-776.log"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-776: initial sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
   cat > "$dst/hooks/hooks.json" <<'HOOKSJSON'
 {
   "hooks": {
@@ -971,9 +1034,7 @@ HOOKSJSON
 test_777_deletion_only_advisory_has_deleted_items() {
   log_info "TEST-777: a deletion-only re-sync writes an advisory with a Deleted items section naming the path..."
   local dst="$TMP_ROOT/hooks-777" newest
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-777: initial sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
   mkdir -p "$dst/.aai/zz-target-only"
   printf 'x\n' > "$dst/.aai/zz-target-only/x.txt"
   bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-777: re-sync failed"
@@ -1027,7 +1088,7 @@ test_778_quiet_run_advisory_byte_identical_old_vs_new() {
     || log_fail "TEST-778: pre-change revision $pre_change_rev is not reachable in this checkout's history (needs full history, e.g. fetch-depth: 0)"
 
   local fixture_src="$TMP_ROOT/quiet-fixture-src"
-  _778_build_fixture_source "$fixture_src"
+  _fixture_source_copy "$fixture_src"
 
   local dst_old="$TMP_ROOT/quiet-old" dst_new="$TMP_ROOT/quiet-new" old_report new_report
   mkdir -p "$dst_old" "$dst_new"
@@ -1071,10 +1132,7 @@ test_779_ps1_engine_hooks_parity() {
   fi
   local dst="$TMP_ROOT/hooks-779-ps1" log="$TMP_ROOT/hooks-779-ps1.log"
   local recorded="$TMP_ROOT/hooks-779-recorded.sh" newest
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  pwsh -NoProfile -File "$SYNC_PS1" -TargetRoot "$dst" >/dev/null 2>&1 \
-    || log_fail "TEST-779: initial ps1 sync failed"
+  _sync_cached ps1 "$PROJECT_ROOT" "$dst" git
 
   # AC-01 / AC-02: target-only hook survives byte-identical and is named.
   printf '#!/bin/sh\necho guard\n' > "$dst/hooks/merge-guard.sh"
@@ -1132,9 +1190,7 @@ HOOKSJSON
 test_780_retired_hook_registration_and_file_both_survive() {
   log_info "TEST-780: a target's existing hooks.json registration for a source-retired hook survives, and so does the hook's file..."
   local dst="$TMP_ROOT/hooks-780"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-780: initial sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
   printf '#!/bin/sh\necho retired\n' > "$dst/hooks/retired-hook.sh"
   cat > "$dst/hooks/hooks.json" <<'HOOKSJSON'
 {
@@ -1178,9 +1234,7 @@ test_781_regression_suites_exit_zero() {
 test_782_hook_json_malformed_merge_refused() {
   log_info "TEST-782: a malformed target hooks/hooks.json refuses the merge, stays byte-untouched, and is named in the advisory..."
   local dst="$TMP_ROOT/hooks-782" before after newest rec_file="$TMP_ROOT/hooks-782-rec.txt"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-782: initial sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
   printf 'NOT JSON {' > "$dst/hooks/hooks.json"
   before="$(cat "$dst/hooks/hooks.json")"
   bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-782: re-sync failed"
@@ -1295,10 +1349,8 @@ test_784_hook_json_source_edit_updates_in_place() {
   log_info "TEST-784: a source-changed command for a source-owned script path is UPDATED in place (target entry equals what the engine last shipped); the target-added merge-guard entry is untouched..."
   local fixture_src="$TMP_ROOT/upd-784-src" dst="$TMP_ROOT/upd-784" log="$TMP_ROOT/upd-784.log"
   local guard_cmd='"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.sh"' guard_needle='hooks/merge-guard.sh\"' n
-  _778_build_fixture_source "$fixture_src"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst" >/dev/null 2>&1 || log_fail "TEST-784: v1 sync failed"
+  _fixture_source_copy "$fixture_src"
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$dst" git
   [[ -f "$dst/.aai/cache/hooks-shipped/hooks.json" ]] \
     || log_fail "TEST-784: the engine did not record what it shipped (.aai/cache/hooks-shipped/hooks.json missing)"
   cmp -s "$fixture_src/hooks/hooks.json" "$dst/.aai/cache/hooks-shipped/hooks.json" \
@@ -1334,10 +1386,8 @@ test_785_hook_json_unprovable_entry_left_as_is() {
   log_info "TEST-785: a same-path entry the engine cannot prove it shipped is left as-is, not duplicated, and named in the advisory (edited-locally arm + no-record arm)..."
   local fixture_src="$TMP_ROOT/left-785-src" dst="$TMP_ROOT/left-785" log="$TMP_ROOT/left-785.log"
   local guard_cmd='"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.sh"' guard_needle='hooks/merge-guard.sh\"' n newest rec_file="$TMP_ROOT/left-785-rec.txt"
-  _778_build_fixture_source "$fixture_src"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$fixture_src/.aai/scripts/aai-sync.sh" "$dst" >/dev/null 2>&1 || log_fail "TEST-785: v1 sync failed"
+  _fixture_source_copy "$fixture_src"
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$dst" git
   _hooks_add_merge_guard "$dst/hooks/hooks.json" "$guard_cmd"
   # (a) the user edits the source-owned SessionStart command locally.
   _hooks_source_edit_flag "$dst/hooks/hooks.json" "--mine"
@@ -1390,7 +1440,7 @@ test_785_hook_json_unprovable_entry_left_as_is() {
 test_786_fresh_target_hooks_json_is_source_bytes() {
   log_info "TEST-786: a fresh target's hooks/hooks.json is byte-identical to a source hooks.json that is NOT in JSON.stringify shape..."
   local fixture_src="$TMP_ROOT/fresh-786-src" dst="$TMP_ROOT/fresh-786"
-  _778_build_fixture_source "$fixture_src"
+  _fixture_source_copy "$fixture_src"
   # Same document, 4-space indent + a trailing comment-shaped key: valid JSON
   # that JSON.stringify(x, null, 2) cannot reproduce.
   node -e '
@@ -1416,9 +1466,7 @@ test_786_fresh_target_hooks_json_is_source_bytes() {
 test_787_bootstrap_missing_merge_library_fails_explicit_opt_in() {
   log_info "TEST-787: aai-bootstrap.sh --with-claude-hooks exits 3 and writes nothing when the shared merge library is missing..."
   local dst="$TMP_ROOT/lib-absent-hooks-787" log="$TMP_ROOT/lib-absent-hooks-787.log" rc
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  bash "$SYNC_SH" "$dst" >/dev/null 2>&1 || log_fail "TEST-787: sync failed"
+  _sync_cached sh "$PROJECT_ROOT" "$dst" git
   [[ -f "$dst/.aai/scripts/lib/merge-hooks-json.mjs" ]] \
     || log_fail "TEST-787: bad fixture -- sync did not vendor .aai/scripts/lib/merge-hooks-json.mjs"
   [[ -f "$dst/.aai/templates/hooks/settings-hooks.json" ]] \
@@ -1449,11 +1497,8 @@ test_788_ps1_engine_update_and_left_as_is_parity() {
   fi
   local fixture_src="$TMP_ROOT/upd-788-src" dst="$TMP_ROOT/upd-788-ps1" log="$TMP_ROOT/upd-788-ps1.log"
   local guard_cmd='"${CLAUDE_PLUGIN_ROOT}/hooks/merge-guard.ps1"' guard_needle='hooks/merge-guard.ps1\"' n newest rec_file="$TMP_ROOT/upd-788-rec.txt"
-  _778_build_fixture_source "$fixture_src"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  pwsh -NoProfile -File "$fixture_src/.aai/scripts/aai-sync.ps1" -TargetRoot "$dst" >/dev/null 2>&1 \
-    || log_fail "TEST-788: v1 ps1 sync failed"
+  _fixture_source_copy "$fixture_src"
+  _sync_cached ps1 "$SYNC_FIXTURE_CANON" "$dst" git
   [[ -f "$dst/.aai/cache/hooks-shipped/hooks.json" ]] \
     || log_fail "TEST-788: the ps1 engine did not record what it shipped"
   _hooks_add_merge_guard "$dst/hooks/hooks.json" "$guard_cmd"
@@ -1539,17 +1584,6 @@ _hooks_event_json() {
     console.log(JSON.stringify(j.hooks[process.argv[2]] || []));' "$1" "$2"
 }
 
-# Run one engine from a fixture source into a target (absolute paths only).
-_hooks_run_engine() {
-  local engine="$1" src="$2" dst="$3"
-  [[ -n "$dst" && "$dst" == /* ]] || log_fail "bad fixture path: [$dst]"
-  if [[ "$engine" == "ps1" ]]; then
-    pwsh -NoProfile -File "$src/.aai/scripts/aai-sync.ps1" -TargetRoot "$dst"
-  else
-    bash "$src/.aai/scripts/aai-sync.sh" "$dst"
-  fi
-}
-
 # One provenance arm shared by TEST-789 (bash) and TEST-790 (ps1): sync v1,
 # apply the user edit (matcher | fields), ship v2, sync, and assert the
 # user's registration survived byte-for-byte, nothing was added beside it,
@@ -1559,10 +1593,8 @@ _hooks_user_edit_preserved_arm() {
   local engine="$1" arm="$2" tid="$3" tag="$4"
   local fixture_src="$TMP_ROOT/$tag-src" dst="$TMP_ROOT/$tag" log="$TMP_ROOT/$tag.log" rec_file="$TMP_ROOT/$tag-rec.txt"
   local before after n newest
-  _778_build_fixture_source "$fixture_src"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  _hooks_run_engine "$engine" "$fixture_src" "$dst" >/dev/null 2>&1 || log_fail "$tid($arm): v1 $engine sync failed"
+  _fixture_source_copy "$fixture_src"
+  _sync_cached "$engine" "$SYNC_FIXTURE_CANON" "$dst" git
   [[ -f "$dst/.aai/cache/hooks-shipped/hooks.json" ]] || log_fail "$tid($arm): the engine did not record what it shipped"
   case "$arm" in
     matcher) _hooks_edit_matcher "$dst/hooks/hooks.json" "startup" ;;
@@ -1628,7 +1660,7 @@ test_790_ps1_user_edited_matcher_and_fields_preserved() {
 test_791_hooks_dotfiles_synced_and_preserved_cross_engine() {
   log_info "TEST-791: a source dotfile under hooks/ is synced and a target-only dotfile is preserved and named (bash; ps1 parity arm when pwsh is present)..."
   local fixture_src="$TMP_ROOT/dot-791-src" dst="$TMP_ROOT/dot-791" log="$TMP_ROOT/dot-791.log"
-  _778_build_fixture_source "$fixture_src"
+  _fixture_source_copy "$fixture_src"
   printf '#!/bin/sh\necho hidden\n' > "$fixture_src/hooks/.hidden-hook.sh"
   mkdir -p "$dst/hooks"
   printf 'mine\n' > "$dst/hooks/.local-only.sh"
@@ -1667,10 +1699,8 @@ test_791_hooks_dotfiles_synced_and_preserved_cross_engine() {
 _hooks_snapshot_unwritable_arm() {
   local engine="$1" tid="$2" tag="$3"
   local fixture_src="$TMP_ROOT/$tag-src" dst="$TMP_ROOT/$tag" log="$TMP_ROOT/$tag.log" rec_file="$TMP_ROOT/$tag-rec.txt" newest
-  _778_build_fixture_source "$fixture_src"
-  mkdir -p "$dst"
-  git -C "$dst" init -q -b main
-  _hooks_run_engine "$engine" "$fixture_src" "$dst" >/dev/null 2>&1 || log_fail "$tid: v1 $engine sync failed"
+  _fixture_source_copy "$fixture_src"
+  _sync_cached "$engine" "$SYNC_FIXTURE_CANON" "$dst" git
   rm -rf "$dst/.aai/cache/hooks-shipped/hooks.json"
   mkdir -p "$dst/.aai/cache/hooks-shipped/hooks.json"
   _hooks_source_add_stop_event "$fixture_src/hooks/hooks.json"
@@ -1754,6 +1784,183 @@ test_793_symlink_destination_refused_and_write_is_atomic() {
   log_pass "TEST-793 a symlinked destination is refused without following or replacing it, and the merged write leaves no temp residue"
 }
 
+# --- sync cache, hot-spots D3 (plan rows TEST-006, TEST-007, TEST-008) ---------
+# test_794..796 pin the _sync_cached helper itself: the golden is read-only and
+# every request gets an independent writable copy (794); a cached copy equals a
+# fresh real sync from a differently located identical source, and the engines
+# read nothing of an existing pin but its Profile (795); and the cache is adopted
+# widely without ever replacing a re-sync or a sync whose output is asserted (796).
+
+# Files under $1 that carry an owner executable bit, relative to $1, sorted.
+_794_exec_list() {
+  local root="$1"
+  find "$root" -type f -perm -u+x -print | sed "s|^$root||" | LC_ALL=C sort
+}
+
+test_794_sync_cache_golden_isolation() {
+  log_info "TEST-794: a sync golden is read-only, every copy is writable and equals it (contents + executable bits), two keys give two goldens..."
+  local d1="$TMP_ROOT/cache-794-a" d2="$TMP_ROOT/cache-794-b" d3="$TMP_ROOT/cache-794-c"
+  local golden golden2 diffs
+  _sync_cached sh "$PROJECT_ROOT" "$d1" git
+  golden="$SYNC_LAST_GOLDEN"
+  _sync_cached sh "$PROJECT_ROOT" "$d2" git
+  [[ "$SYNC_LAST_GOLDEN" == "$golden" ]] \
+    || log_fail "TEST-794 (plan row TEST-006): two requests for one key were served by two goldens ($golden vs $SYNC_LAST_GOLDEN)"
+
+  # Both copies equal the golden in contents and in executable bits.
+  diffs="$(diff -rq "$golden" "$d1" 2>&1 || true)"
+  [[ -z "$diffs" ]] || log_fail "TEST-794 (plan row TEST-006): copy A differs from its golden: $diffs"
+  diffs="$(diff -rq "$golden" "$d2" 2>&1 || true)"
+  [[ -z "$diffs" ]] || log_fail "TEST-794 (plan row TEST-006): copy B differs from its golden: $diffs"
+  [[ -n "$(_794_exec_list "$golden")" ]] \
+    || log_fail "TEST-794 (plan row TEST-006): bad fixture -- the golden holds no executable file to compare"
+  [[ "$(_794_exec_list "$golden")" == "$(_794_exec_list "$d1")" ]] \
+    || log_fail "TEST-794 (plan row TEST-006): copy A lost or gained executable bits relative to the golden"
+  [[ "$(_794_exec_list "$golden")" == "$(_794_exec_list "$d2")" ]] \
+    || log_fail "TEST-794 (plan row TEST-006): copy B lost or gained executable bits relative to the golden"
+
+  # A copy is writable (the directory and a file inside it).
+  { : > "$d1/zz-writable"; } 2>/dev/null \
+    || log_fail "TEST-794 (plan row TEST-006): a copy is not writable"
+  { printf 'x\n' >> "$d1/.aai/system/AAI_PIN.md"; } 2>/dev/null \
+    || log_fail "TEST-794 (plan row TEST-006): a file inside a copy is not writable"
+
+  # No state leaks between copies or back into the golden.
+  diffs="$(diff -rq "$golden" "$d2" 2>&1 || true)"
+  [[ -z "$diffs" ]] || log_fail "TEST-794 (plan row TEST-006): a write into copy A showed up in copy B: $diffs"
+  [[ ! -e "$golden/zz-writable" ]] \
+    || log_fail "TEST-794 (plan row TEST-006): a write into copy A reached the golden"
+
+  # A write into the golden fails (root ignores file modes, so skip the arm there).
+  if [[ "$(id -u)" != "0" ]]; then
+    if { : > "$golden/zz-golden-write"; } 2>/dev/null; then
+      rm -f "$golden/zz-golden-write"
+      log_fail "TEST-794 (plan row TEST-006): a write into the golden succeeded; the golden is not read-only"
+    fi
+    if { printf 'x\n' >> "$golden/.aai/system/AAI_PIN.md"; } 2>/dev/null; then
+      log_fail "TEST-794 (plan row TEST-006): a file inside the golden is writable"
+    fi
+  else
+    log_info "TEST-794 note: running as root -- the golden write-refusal arm is skipped"
+  fi
+
+  # A second key gets its own golden.
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$d3" git
+  golden2="$SYNC_LAST_GOLDEN"
+  [[ "$golden2" != "$golden" ]] \
+    || log_fail "TEST-794 (plan row TEST-006): a second key reused the first key's golden"
+  diffs="$(diff -rq "$golden" "$golden2" 2>&1 || true)"
+  [[ -n "$diffs" ]] \
+    || log_fail "TEST-794 (plan row TEST-006): the real-source and fixture-source goldens are identical, so the key does not discriminate"
+  log_pass "TEST-794 a golden is read-only; each copy is writable, equals it in contents and executable bits, and leaks nothing to another copy; two keys give two goldens"
+}
+
+# One golden against one fresh real sync from a differently located identical
+# source. The fresh syncs of all keys are independent (own source copy, own
+# target), so they run concurrently: _795_start launches one, _795_check compares.
+# $1 engine  $2 source kind (real|fixture)  $3 ordinal
+_795_PIDS=""
+_795_start() {
+  local engine="$1" skind="$2" n="$3" src second fresh f
+  if [[ "$skind" == "real" ]]; then src="$PROJECT_ROOT"; else src="$SYNC_FIXTURE_CANON"; fi
+  _sync_cached "$engine" "$src" "$TMP_ROOT/eq-795-$n-copy" git
+  # The "identical source": the engine-visible subset (the fixture builder) in
+  # another place; for the real key plus the four root files the engine copies.
+  second="$TMP_ROOT/eq-795-$n-src"
+  _fixture_source_copy "$second"
+  if [[ "$skind" == "real" ]]; then
+    for f in CLAUDE.md CODEX.md GEMINI.md SKILLS.md; do
+      if [[ -f "$PROJECT_ROOT/$f" ]]; then cp "$PROJECT_ROOT/$f" "$second/$f"; fi
+    done
+  fi
+  fresh="$TMP_ROOT/eq-795-$n-fresh"
+  mkdir -p "$fresh"
+  git -C "$fresh" init -q -b main
+  ( _hooks_run_engine "$engine" "$second" "$fresh" >/dev/null 2>&1 ) &
+  _795_PIDS="$_795_PIDS $!:$n:$engine/$skind"
+}
+
+_795_check() {
+  local engine="$1" skind="$2" n="$3" golden fresh diffs rest a b
+  golden="$TMP_ROOT/golden/$engine-$skind-git"
+  fresh="$TMP_ROOT/eq-795-$n-fresh"
+  # Tree: the only differing paths are the pin and the advisory file name.
+  diffs="$(diff -rq "$golden" "$fresh" 2>&1 || true)"
+  rest="$(printf '%s\n' "$diffs" | grep -vE '/\.aai/system/AAI_PIN\.md and .* differ$|^Only in .*/docs/ai/reports: sync-conflicts-[0-9-]+\.md$' || true)"
+  [[ -z "$rest" ]] \
+    || log_fail "TEST-795 (plan row TEST-007): a cached $engine/$skind golden differs from a fresh sync beyond the pin and the advisory name:"$'\n'"$rest"
+  # Pin: equal apart from the four path- or time-dependent lines.
+  a="$(grep -vE '^- (Source path|Template commit|Canonical repo|Synced at \(UTC\)):' "$golden/.aai/system/AAI_PIN.md" || true)"
+  b="$(grep -vE '^- (Source path|Template commit|Canonical repo|Synced at \(UTC\)):' "$fresh/.aai/system/AAI_PIN.md" || true)"
+  [[ -n "$a" && "$a" == "$b" ]] \
+    || log_fail "TEST-795 (plan row TEST-007): the $engine/$skind pins differ beyond Source path, Template commit, Canonical repo and Synced at:"$'\n'"$(diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") || true)"
+  # Advisory: one file each, equal apart from its Generated at and Source header lines.
+  a="$(find "$golden/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | wc -l | tr -d ' ')"
+  b="$(find "$fresh/docs/ai/reports" -name 'sync-conflicts-*.md' -type f | wc -l | tr -d ' ')"
+  [[ "$a" == "1" && "$b" == "1" ]] \
+    || log_fail "TEST-795 (plan row TEST-007): expected one advisory per sync ($engine/$skind), got golden=$a fresh=$b"
+  a="$(grep -vE '^- (Generated at \(UTC\)|Source):' "$golden"/docs/ai/reports/sync-conflicts-*.md || true)"
+  b="$(grep -vE '^- (Generated at \(UTC\)|Source):' "$fresh"/docs/ai/reports/sync-conflicts-*.md || true)"
+  [[ -n "$a" && "$a" == "$b" ]] \
+    || log_fail "TEST-795 (plan row TEST-007): the $engine/$skind advisories differ beyond their Generated at and Source header lines:"$'\n'"$(diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") || true)"
+}
+
+test_795_sync_cache_equivalence() {
+  log_info "TEST-795: per golden key a fresh sync from a differently located identical source equals the golden apart from the pin and advisory path lines; the engines read only Profile from an existing pin..."
+  local n=0 engine skind fields entry arms="" arm
+  _795_PIDS=""
+  for engine in sh ps1; do
+    if [[ "$engine" == "ps1" ]] && ! command -v pwsh >/dev/null 2>&1; then
+      PWSH_ARM_SKIPPED=1
+      log_info "TEST-795 note: pwsh absent -- ps1 keys SKIPPED"
+      continue
+    fi
+    for skind in real fixture; do
+      n=$((n + 1))
+      _795_start "$engine" "$skind" "$n"
+      arms="$arms $engine:$skind:$n"
+    done
+  done
+  for entry in $_795_PIDS; do
+    wait "${entry%%:*}" \
+      || log_fail "TEST-795 (plan row TEST-007): the real sync from the second source failed (${entry##*:})"
+  done
+  for arm in $arms; do
+    _795_check "${arm%%:*}" "$(echo "$arm" | cut -d: -f2)" "${arm##*:}"
+  done
+
+  # Static: the only field either engine reads from an existing pin is Profile.
+  fields="$(grep -oE "s/\^- [A-Za-z ()]+: //p" "$SYNC_SH" | LC_ALL=C sort -u || true)"
+  [[ "$fields" == "s/^- Profile: //p" ]] \
+    || log_fail "TEST-795 (plan row TEST-007): aai-sync.sh reads a pin field other than Profile (or none): [$fields]"
+  fields="$(grep -oE "Pattern '\^- [A-Za-z ()]+:" "$SYNC_PS1" | LC_ALL=C sort -u || true)"
+  [[ "$fields" == "Pattern '^- Profile:" ]] \
+    || log_fail "TEST-795 (plan row TEST-007): aai-sync.ps1 reads a pin field other than Profile (or none): [$fields]"
+  fields="$(grep -nE '\^- (Source path|Template version|Template commit|Canonical repo|Synced at)' "$SYNC_SH" "$SYNC_PS1" || true)"
+  [[ -z "$fields" ]] \
+    || log_fail "TEST-795 (plan row TEST-007): an engine matches a pin field other than Profile: $fields"
+  log_pass "TEST-795 a cached golden equals a fresh sync from a differently located identical source (pin and advisory path lines aside); both engines read only Profile from an existing pin"
+}
+
+test_796_sync_cache_adoption() {
+  log_info "TEST-796: the suite routes at least 15 first syncs through _sync_cached, never one that captures output, and keeps its direct engine calls..."
+  local self="${BASH_SOURCE[0]}" calls bad direct
+  # Count only the conversions in the suite proper (the lines before this block's
+  # own pin tests, which call _sync_cached to test it).
+  calls="$(awk '/^# --- sync cache, hot-spots D3 \(plan rows/{exit} /^[[:space:]]*_sync_cached[[:space:]]/{n++} END{print n+0}' "$self")"
+  [[ "$calls" -ge 15 ]] \
+    || log_fail "TEST-796 (plan row TEST-008): only $calls _sync_cached call site(s) in this suite, expected at least 15"
+  bad="$(grep -nE '^[[:space:]]*_sync_cached[[:space:]].*(>|\$\(|\|)' "$self" || true)"
+  [[ -z "$bad" ]] \
+    || log_fail "TEST-796 (plan row TEST-008): a _sync_cached call captures or pipes output (a first sync whose output is asserted must stay a real engine call): $bad"
+  # Every re-sync and every asserted sync is a direct engine call; a floor keeps
+  # them from being converted wholesale.
+  direct="$(grep -cE '^[[:space:]]*(env PATH="[^"]*" )?(bash "\$(SYNC_SH|fixture_src/\.aai/scripts/aai-sync\.sh)"|pwsh -NoProfile -File "\$(SYNC_PS1|fixture_src/\.aai/scripts/aai-sync\.ps1)"|_hooks_run_engine "\$engine")' "$self" || true)"
+  [[ "$direct" -ge 30 ]] \
+    || log_fail "TEST-796 (plan row TEST-008): only $direct direct engine call line(s) remain, expected at least 30 (every re-sync and asserted first sync stays real)"
+  log_pass "TEST-796 $calls first syncs go through _sync_cached, none captures output, $direct direct engine calls remain"
+}
+
 main() {
   echo "=== Test Suite: $TEST_NAME ==="
   check_deps
@@ -1817,6 +2024,9 @@ main() {
   test_791_hooks_dotfiles_synced_and_preserved_cross_engine
   test_792_snapshot_unwritable_reports_true_state
   test_793_symlink_destination_refused_and_write_is_atomic
+  test_794_sync_cache_golden_isolation
+  test_795_sync_cache_equivalence
+  test_796_sync_cache_adoption
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi

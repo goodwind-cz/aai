@@ -1893,6 +1893,72 @@ test_1756_weights_reseeded_from_a_named_run() {  # Spec-AC-12 / TEST-035
   log_pass "TEST-035: weights re-seeded from a named run (learned-append <= 15, delta-stage3 <= 30), balance bound holds (TEST-035)"
 }
 
+# --- slowest-suite-hot-spots D6 (plan rows TEST-005, 009, 015, 016, 017) ------
+# The committed weights are measured CI seconds, so a weight bound is the CI
+# half of a hot-spot reduction (the local half is timed by hand).
+_hot_spot_weight() {  # $1 suite name -> the committed weight, or empty
+  awk -F'\t' -v s="$1" '$1 == s {print $2}' "$PROJECT_ROOT/tests/skills/suite-weights.tsv"
+}
+
+_assert_weight_at_most() {  # $1 suite $2 bound $3 plan row id
+  local w
+  w="$(_hot_spot_weight "$1")"
+  [[ "$w" =~ ^[0-9]+$ ]] || log_fail "$3: no numeric weight for $1 in suite-weights.tsv (got '$w')"
+  [[ "$w" -le "$2" ]] || log_fail "$3: the committed CI weight of $1 is $w, the bound is $2"
+}
+
+test_1757_hygiene_pack_weight() {  # Spec-AC-03 / TEST-005
+  log_info "Test: the committed CI weight of aai-hygiene-pack is at most 95 (TEST-005)..."
+  _assert_weight_at_most aai-hygiene-pack 95 "TEST-005"
+  log_pass "TEST-005: aai-hygiene-pack weighs at most 95"
+}
+
+test_1758_sync_seed_weight() {  # Spec-AC-06 / TEST-009
+  log_info "Test: the committed CI weight of aai-sync-seed is at most 170 (TEST-009)..."
+  _assert_weight_at_most aai-sync-seed 170 "TEST-009"
+  log_pass "TEST-009: aai-sync-seed weighs at most 170"
+}
+
+test_1759_run_tests_weight() {  # Spec-AC-09 / TEST-015
+  log_info "Test: the committed CI weight of aai-run-tests is at most 92 (TEST-015)..."
+  _assert_weight_at_most aai-run-tests 92 "TEST-015"
+  log_pass "TEST-015: aai-run-tests weighs at most 92"
+}
+
+test_1760_weights_provenance() {  # Spec-AC-10 / TEST-016
+  log_info "Test: the weights header names a re-seed run other than 37930287459, four job ids and a head SHA; the balance bound holds (TEST-016)..."
+  local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" header run jobs sha
+  [[ -f "$f" ]] || log_fail "TEST-016: missing $f"
+  header="$(sed -n '/^#/p' "$f")"
+  run="$(printf '%s\n' "$header" | awk '/^# Actions run [0-9][0-9]*/ {print $4; exit}')"
+  [[ -n "$run" ]] || log_fail "TEST-016: the header must carry a line starting '# Actions run <id>'"
+  [[ "$run" != "37930287459" ]] || log_fail "TEST-016: the header still names the previous seed run 37930287459"
+  jobs="$(printf '%s\n' "$header" | awk '/^# legs / {print; exit}' | /usr/bin/grep -oE '[0-9]{9,}' | sort -u | wc -l | tr -d ' ')"
+  [[ "$jobs" == "4" ]] || log_fail "TEST-016: the header must name four distinct leg job ids on its '# legs' line, found $jobs"
+  # The SHA is read from the run line itself (the first 'head SHA' after '# Actions run'),
+  # so the previous seed's SHA, which the header still records, cannot satisfy it.
+  sha="$(printf '%s\n' "$header" | tr '\n' ' ' | /usr/bin/grep -oE 'Actions run [0-9]+[^)]*head SHA[ #]*[0-9a-f]{40}' | awk 'NR==1 {print substr($0, length($0) - 39)}')"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || log_fail "TEST-016: the run line must name a 40-hex head SHA"
+  [[ "$sha" != "8e08f059448ca3853d87255f1d167aea74a4deda" ]] || log_fail "TEST-016: the run line names the previous seed's head SHA"
+  test_1423_real_repo_balance_bound "$PROJECT_ROOT"
+  log_pass "TEST-016: weights re-seeded from run $run, four job ids and a head SHA named, balance bound holds"
+}
+
+test_1761_leg_walls_bound() {  # Spec-AC-11 / TEST-017
+  log_info "Test: the weights header's Leg walls line has four positive integers and the largest is at most 1.25 times their mean (TEST-017)..."
+  local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" line nums count
+  line="$(sed -n '/^# Leg walls/{p;q;}' "$f")"
+  [[ -n "$line" ]] || log_fail "TEST-017: the weights header has no '# Leg walls' line"
+  [[ "$line" =~ ^#\ Leg\ walls\ \(run\ [0-9]{8,}\):\ ([0-9]+)\ ([0-9]+)\ ([0-9]+)\ ([0-9]+)$ ]] \
+    || log_fail "TEST-017: the Leg walls line must read '# Leg walls (run <id>): w1 w2 w3 w4', got: $line"
+  nums="${BASH_REMATCH[1]} ${BASH_REMATCH[2]} ${BASH_REMATCH[3]} ${BASH_REMATCH[4]}"
+  count="$(printf '%s\n' $nums | awk '$1 > 0' | wc -l | tr -d ' ')"
+  [[ "$count" == "4" ]] || log_fail "TEST-017: all four leg walls must be positive integers: $nums"
+  printf '%s\n' $nums | awk '{s += $1; if ($1 > m) m = $1} END {exit !(m * 4 <= s * 1.25)}' \
+    || log_fail "TEST-017: the slowest leg wall exceeds 1.25 times the mean of the four ($nums)"
+  log_pass "TEST-017: the slowest leg is within 1.25 times the mean ($nums)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -1952,6 +2018,11 @@ main() {
   test_1754_assert_companions_helper
   test_1755_real_map_declares_the_pinned_companion_edges
   test_1756_weights_reseeded_from_a_named_run
+  test_1757_hygiene_pack_weight
+  test_1758_sync_seed_weight
+  test_1759_run_tests_weight
+  test_1760_weights_provenance
+  test_1761_leg_walls_bound
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
