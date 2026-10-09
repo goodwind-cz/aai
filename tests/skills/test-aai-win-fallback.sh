@@ -813,7 +813,78 @@ EOS
   log_pass "TEST-028 Windows Python path translated in-process and executed under Git Bash"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028"
+# --- TEST-004 / TEST-005 (ci-windows-leg-waits-and-ps1-path-filter Spec-AC-02): smoke harness measures the wrapper, not the orphan ---
+
+# Prints the two Real-wrapper smoke step bodies, comment lines stripped, one
+# engine per call: "5.1" or "pwsh7".
+smoke_step_body() {
+  local engine="$1" name
+  case "$engine" in
+    5.1)   name="Real-wrapper smoke: aai-run-tests.ps1 under Windows PowerShell 5.1" ;;
+    pwsh7) name="Real-wrapper smoke: aai-run-tests.ps1 under pwsh 7" ;;
+    *) return 2 ;;
+  esac
+  get_step_block "$name" | awk '$0 !~ /^[[:space:]]*#/'
+}
+
+test_032() {
+  log_info "TEST-004 (test_032): both Real-wrapper smoke steps wait on the wrapper process only: no Start-Process wait-for-descendants flag, a bounded WaitForExit follows the spawn, and the timeout-arm bound is above the 2 s timeout and at most 30 s..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local engine body spawn_ln wait_ln bound ceiling
+  for engine in 5.1 pwsh7; do
+    body="$(smoke_step_body "$engine")"
+    [[ -n "$body" ]] || log_fail "TEST-004 (test_032): smoke step body for $engine not found"
+    spawn_ln="$(awk '/\$p = Start-Process/ { print NR; exit }' <<<"$body")"
+    [[ -n "$spawn_ln" ]] || log_fail "TEST-004 (test_032): $engine smoke arm has no '\$p = Start-Process' spawn line"
+    if grep -qE '(^|[[:space:]])-Wait([[:space:]]|$)' <<<"$body"; then
+      log_fail "TEST-004 (test_032): $engine smoke step still uses Start-Process -Wait (waits on the hang fixture's orphaned descendants, ~300 s)"
+    fi
+    grep -qF '$null = $p.Handle' <<<"$body" \
+      || log_fail "TEST-004 (test_032): $engine smoke arm must cache \$p.Handle (5.1 ExitCode-null workaround once -Wait is gone)"
+    wait_ln="$(awk -v s="$spawn_ln" 'index($0, "$p.WaitForExit($armCeilingSeconds * 1000)") && NR > s { print NR; exit }' <<<"$body")"
+    [[ -n "$wait_ln" ]] || log_fail "TEST-004 (test_032): $engine smoke arm needs a bounded \$p.WaitForExit(\$armCeilingSeconds * 1000) AFTER the spawn line"
+    ceiling="$(sed -n 's/^[[:space:]]*\$armCeilingSeconds = \([0-9][0-9]*\)[[:space:]]*$/\1/p' <<<"$body")"
+    [[ -n "$ceiling" && "$ceiling" -ge 20 && "$ceiling" -le 120 ]] \
+      || log_fail "TEST-004 (test_032): $engine smoke step must define \$armCeilingSeconds as a bare integer 20..120 (got '${ceiling:-none}')"
+    bound="$(sed -n 's/^[[:space:]]*\$timeoutArmBoundSeconds = \([0-9][0-9]*\)[[:space:]]*$/\1/p' <<<"$body")"
+    [[ -n "$bound" && "$bound" -gt 2 && "$bound" -le 30 ]] \
+      || log_fail "TEST-004 (test_032): $engine smoke step must define \$timeoutArmBoundSeconds as a bare integer >2 and <=30 (got '${bound:-none}')"
+    grep -qF 'taskkill /PID' <<<"$body" \
+      || log_fail "TEST-004 (test_032): $engine smoke arm must force-stop the wrapper tree when the ceiling is hit"
+  done
+  log_pass "TEST-004 (test_032) both smoke steps wait on the wrapper only, bounded (ceiling and timeout-arm bound pinned)"
+}
+
+test_033() {
+  log_info "TEST-005 (test_033): both smoke steps' timeout arm probes for surviving hang-fixture processes, fails on any, and asserts the started marker; the fixture-prep step writes the marker before sleep 300..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local engine body
+  for engine in 5.1 pwsh7; do
+    body="$(smoke_step_body "$engine")"
+    [[ -n "$body" ]] || log_fail "TEST-005 (test_033): smoke step body for $engine not found"
+    grep -qF 'function Get-SmokeHangSurvivors' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine smoke step must define function Get-SmokeHangSurvivors"
+    grep -qF 'Get-SmokeHangSurvivors -Token' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine timeout arm must call Get-SmokeHangSurvivors -Token"
+    grep -qE 'FAIL timeout: .*surviv' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine timeout arm must turn a non-empty survivor result into a 'FAIL timeout:' line"
+    grep -qF 'ParentProcessId' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine survivor FAIL line must name the survivor's ParentProcessId (H1 vs H2 diagnosis)"
+    grep -qF 'AAI_SMOKE_HANG_MARKER' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine timeout arm must hand the fixture AAI_SMOKE_HANG_MARKER"
+    grep -qE 'FAIL timeout: .*marker' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine timeout arm must FAIL when the started marker is missing (positive control)"
+  done
+  local prep fix
+  prep="$(get_step_block "Prepare real-wrapper smoke fixtures")"
+  fix="$(grep -F 'aai-smoke-hang.sh' <<<"$prep" | grep -F 'printf' || true)"
+  [[ -n "$fix" ]] || log_fail "TEST-005 (test_033): fixture-prep step must printf the aai-smoke-hang.sh fixture"
+  [[ "$fix" == *'AAI_SMOKE_HANG_MARKER'*'sleep 300'* ]] \
+    || log_fail "TEST-005 (test_033): hang fixture must write the AAI_SMOKE_HANG_MARKER started marker BEFORE 'sleep 300': $fix"
+  log_pass "TEST-005 (test_033) survivor probe + started-marker positive control wired in both smoke steps and the fixture"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 032 033"
 
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {

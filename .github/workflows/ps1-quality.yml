@@ -246,7 +246,10 @@ jobs:
           # duration that cannot plausibly elapse (300s vs. the arm's
           # AAI_TEST_TIMEOUT=2 + outer watchdog grace). `sleep 300` has no
           # `read`/tty dependency and no EOF-on-stdin escape hatch.
-          printf 'sleep 300\n' > "$tmp/aai-smoke-hang.sh"
+          # ci-windows-leg-waits-and-ps1-path-filter Spec-AC-02 / D2: the fixture
+          # writes a started marker BEFORE it sleeps, so the harness can prove
+          # the hang really started (positive control for the survivor probe).
+          printf 'echo started > "$AAI_SMOKE_HANG_MARKER"\nsleep 300\n' > "$tmp/aai-smoke-hang.sh"
           printf 'echo SHOULD-NOT-RUN\n' > "$tmp/aai-smoke-spawnfail.sh"
 
       - name: "Real-wrapper smoke: aai-run-tests.ps1 under Windows PowerShell 5.1 (CHANGE-0133 Spec-AC-05)"
@@ -313,6 +316,8 @@ jobs:
           $spawnfailScript = Join-Path $env:RUNNER_TEMP "aai-smoke-spawnfail.sh"
           $markerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-51-success.marker"
           $fail = 0
+          $armCeilingSeconds = 60
+          $timeoutArmBoundSeconds = 20
 
           function New-SmokeCommandText {
             # Builds a -Command script string that sets $ExtraEnv INSIDE the
@@ -363,16 +368,45 @@ jobs:
             if (Test-Path $errFile) { Remove-Item $errFile -Force }
             $commandText = New-SmokeCommandText -ScriptPath $scriptPath -WrapperArgs $WrapperArgs -ExtraEnv $ExtraEnv
             $psArgs = @('-NoProfile', '-Command', $commandText)
-            $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru -Wait `
+            # D2: wait on the wrapper process ONLY, bounded. The wait-for-
+            # descendants flag of Start-Process also waits on an orphaned
+            # `sleep 300` (~300 s). $p.Handle is cached because Windows
+            # PowerShell 5.1 loses ExitCode without it once that flag is gone.
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru `
                   -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+            $null = $p.Handle
+            $exited = $p.WaitForExit($armCeilingSeconds * 1000)
+            $sw.Stop()
+            if (-not $exited) {
+              Write-Host "FAIL ${ArmName}: wrapper still running after the ${armCeilingSeconds}s ceiling; force-stopping its process tree (pid $($p.Id))"
+              & taskkill /PID $p.Id /T /F | Out-Null
+              [void]$p.WaitForExit(5000)
+            }
             $out = Get-Content $outFile -Raw -ErrorAction SilentlyContinue
             $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue
-            $result = [pscustomobject]@{ Code = $p.ExitCode; Out = $out; Err = $err }
+            $code = if ($exited) { $p.ExitCode } else { -1 }
+            $result = [pscustomobject]@{ Code = $code; Out = $out; Err = $err; Elapsed = $sw.Elapsed.TotalSeconds; CeilingHit = (-not $exited) }
             $branch = Get-SmokeDiagBranch -Err $result.Err
             $out80 = if ($result.Out) { $result.Out.Substring(0, [Math]::Min(80, $result.Out.Length)) } else { '' }
             $err80 = if ($result.Err) { $result.Err.Substring(0, [Math]::Min(80, $result.Err.Length)) } else { '' }
             Write-Host "diag[$ArmName]: branch=$branch out80=[$out80] err80=[$err80]"
             return $result
+          }
+
+          function Get-SmokeHangSurvivors {
+            # D2 survivor probe: sleep.exe processes whose command line carries
+            # the hang fixture's own argument. Polls up to $PollSeconds after
+            # the wrapper exited; a process that is gone within that window is
+            # not a survivor.
+            param([Parameter(Mandatory)][string]$Token, [int]$PollSeconds = 5)
+            $deadline = [DateTime]::UtcNow.AddSeconds($PollSeconds)
+            while ($true) {
+              $found = @(Get-CimInstance Win32_Process -Filter "Name = 'sleep.exe'" -ErrorAction SilentlyContinue |
+                Where-Object { $_.CommandLine -and $_.CommandLine.Contains($Token) })
+              if ($found.Count -eq 0 -or [DateTime]::UtcNow -ge $deadline) { return ,$found }
+              Start-Sleep -Milliseconds 500
+            }
           }
 
           function Resolve-RealGitBashForSmoke {
@@ -417,10 +451,25 @@ jobs:
           if ($r1.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL success: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
 
           # Arm 2 - genuine timeout (124 keeps its own meaning, never 125)
-          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2' }
+          $hangMarkerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-51-hang.marker"
+          if (Test-Path $hangMarkerFile) { Remove-Item $hangMarkerFile -Force }
+          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2'; AAI_SMOKE_HANG_MARKER = $hangMarkerFile }
           Write-Host "timeout: code=$($r2.Code) err=[$($r2.Err)]"
           if ($r2.Code -ne 124) { Write-Host "FAIL timeout: expected exit 124, got $($r2.Code)"; $fail++ }
           if ($r2.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL timeout: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
+          # D2: the wrapper itself must return promptly, and nothing of the hang
+          # fixture may outlive it (the exit code alone hid an orphaned sleep).
+          Write-Host ("timeout: elapsed={0:N1}s (bound {1}s, ceiling {2}s)" -f $r2.Elapsed, $timeoutArmBoundSeconds, $armCeilingSeconds)
+          if ($r2.CeilingHit) { Write-Host "FAIL timeout: wrapper did not exit within the ${armCeilingSeconds}s ceiling"; $fail++ }
+          elseif ($r2.Elapsed -gt $timeoutArmBoundSeconds) { Write-Host ("FAIL timeout: elapsed {0:N1}s exceeds the {1}s bound" -f $r2.Elapsed, $timeoutArmBoundSeconds); $fail++ }
+          if (-not (Test-Path $hangMarkerFile)) {
+            Write-Host "FAIL timeout: started marker missing ($hangMarkerFile) - the hang fixture never started, so the survivor probe would be vacuous"; $fail++
+          }
+          $survivors = @(Get-SmokeHangSurvivors -Token '300')
+          foreach ($sv in $survivors) {
+            Write-Host "FAIL timeout: hang fixture process survived the wrapper exit: pid=$($sv.ProcessId) ParentProcessId=$($sv.ParentProcessId) cmd=[$($sv.CommandLine)]"; $fail++
+            Stop-Process -Id $sv.ProcessId -Force -ErrorAction SilentlyContinue
+          }
 
           # Arm 3 - REAL induced spawn failure (non-vacuous AAI-SPAWN-ERROR proof)
           $realBash = Resolve-RealGitBashForSmoke
@@ -466,6 +515,8 @@ jobs:
           $spawnfailScript = Join-Path $env:RUNNER_TEMP "aai-smoke-spawnfail.sh"
           $markerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-pwsh7-success.marker"
           $fail = 0
+          $armCeilingSeconds = 60
+          $timeoutArmBoundSeconds = 20
 
           function New-SmokeCommandText {
             param(
@@ -505,16 +556,45 @@ jobs:
             if (Test-Path $errFile) { Remove-Item $errFile -Force }
             $commandText = New-SmokeCommandText -ScriptPath $scriptPath -WrapperArgs $WrapperArgs -ExtraEnv $ExtraEnv
             $psArgs = @('-NoProfile', '-Command', $commandText)
-            $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru -Wait `
+            # D2: wait on the wrapper process ONLY, bounded. The wait-for-
+            # descendants flag of Start-Process also waits on an orphaned
+            # `sleep 300` (~300 s). $p.Handle is cached because Windows
+            # PowerShell 5.1 loses ExitCode without it once that flag is gone.
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru `
                   -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+            $null = $p.Handle
+            $exited = $p.WaitForExit($armCeilingSeconds * 1000)
+            $sw.Stop()
+            if (-not $exited) {
+              Write-Host "FAIL ${ArmName}: wrapper still running after the ${armCeilingSeconds}s ceiling; force-stopping its process tree (pid $($p.Id))"
+              & taskkill /PID $p.Id /T /F | Out-Null
+              [void]$p.WaitForExit(5000)
+            }
             $out = Get-Content $outFile -Raw -ErrorAction SilentlyContinue
             $err = Get-Content $errFile -Raw -ErrorAction SilentlyContinue
-            $result = [pscustomobject]@{ Code = $p.ExitCode; Out = $out; Err = $err }
+            $code = if ($exited) { $p.ExitCode } else { -1 }
+            $result = [pscustomobject]@{ Code = $code; Out = $out; Err = $err; Elapsed = $sw.Elapsed.TotalSeconds; CeilingHit = (-not $exited) }
             $branch = Get-SmokeDiagBranch -Err $result.Err
             $out80 = if ($result.Out) { $result.Out.Substring(0, [Math]::Min(80, $result.Out.Length)) } else { '' }
             $err80 = if ($result.Err) { $result.Err.Substring(0, [Math]::Min(80, $result.Err.Length)) } else { '' }
             Write-Host "diag[$ArmName]: branch=$branch out80=[$out80] err80=[$err80]"
             return $result
+          }
+
+          function Get-SmokeHangSurvivors {
+            # D2 survivor probe: sleep.exe processes whose command line carries
+            # the hang fixture's own argument. Polls up to $PollSeconds after
+            # the wrapper exited; a process that is gone within that window is
+            # not a survivor.
+            param([Parameter(Mandatory)][string]$Token, [int]$PollSeconds = 5)
+            $deadline = [DateTime]::UtcNow.AddSeconds($PollSeconds)
+            while ($true) {
+              $found = @(Get-CimInstance Win32_Process -Filter "Name = 'sleep.exe'" -ErrorAction SilentlyContinue |
+                Where-Object { $_.CommandLine -and $_.CommandLine.Contains($Token) })
+              if ($found.Count -eq 0 -or [DateTime]::UtcNow -ge $deadline) { return ,$found }
+              Start-Sleep -Milliseconds 500
+            }
           }
 
           function Resolve-RealGitBashForSmoke {
@@ -553,10 +633,25 @@ jobs:
           }
           if ($r1.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL success: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
 
-          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2' }
+          $hangMarkerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-pwsh7-hang.marker"
+          if (Test-Path $hangMarkerFile) { Remove-Item $hangMarkerFile -Force }
+          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2'; AAI_SMOKE_HANG_MARKER = $hangMarkerFile }
           Write-Host "timeout: code=$($r2.Code) err=[$($r2.Err)]"
           if ($r2.Code -ne 124) { Write-Host "FAIL timeout: expected exit 124, got $($r2.Code)"; $fail++ }
           if ($r2.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL timeout: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
+          # D2: the wrapper itself must return promptly, and nothing of the hang
+          # fixture may outlive it (the exit code alone hid an orphaned sleep).
+          Write-Host ("timeout: elapsed={0:N1}s (bound {1}s, ceiling {2}s)" -f $r2.Elapsed, $timeoutArmBoundSeconds, $armCeilingSeconds)
+          if ($r2.CeilingHit) { Write-Host "FAIL timeout: wrapper did not exit within the ${armCeilingSeconds}s ceiling"; $fail++ }
+          elseif ($r2.Elapsed -gt $timeoutArmBoundSeconds) { Write-Host ("FAIL timeout: elapsed {0:N1}s exceeds the {1}s bound" -f $r2.Elapsed, $timeoutArmBoundSeconds); $fail++ }
+          if (-not (Test-Path $hangMarkerFile)) {
+            Write-Host "FAIL timeout: started marker missing ($hangMarkerFile) - the hang fixture never started, so the survivor probe would be vacuous"; $fail++
+          }
+          $survivors = @(Get-SmokeHangSurvivors -Token '300')
+          foreach ($sv in $survivors) {
+            Write-Host "FAIL timeout: hang fixture process survived the wrapper exit: pid=$($sv.ProcessId) ParentProcessId=$($sv.ParentProcessId) cmd=[$($sv.CommandLine)]"; $fail++
+            Stop-Process -Id $sv.ProcessId -Force -ErrorAction SilentlyContinue
+          }
 
           $realBash = Resolve-RealGitBashForSmoke
           if (-not $realBash) {
