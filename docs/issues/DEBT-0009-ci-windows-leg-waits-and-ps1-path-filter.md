@@ -2,10 +2,12 @@
 id: ci-windows-leg-waits-and-ps1-path-filter
 type: techdebt
 number: 9
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - e4bbe1861e7ce8310b8fad273ef3c8958f3d1530
 ---
 
 # Tech Debt: the Windows ps1 leg waits 10 minutes on a 2-second timeout and runs for bash-only ledger edits

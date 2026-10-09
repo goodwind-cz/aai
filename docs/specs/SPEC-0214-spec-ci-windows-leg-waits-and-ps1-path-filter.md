@@ -2,7 +2,7 @@
 id: spec-ci-windows-leg-waits-and-ps1-path-filter
 type: spec
 number: 214
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 6ead062b81b270eff1ca9a6ed3c30b13823728d2f4774a5397941e680b401970
 ceremony_level: 2
@@ -10,8 +10,10 @@ links:
   requirement: null
   rfc: null
   intake: docs/issues/DEBT-0009-ci-windows-leg-waits-and-ps1-path-filter.md
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - e4bbe1861e7ce8310b8fad273ef3c8958f3d1530
 ---
 
 # Spec — The Windows wrapper timeout reaps the child tree, and ps1-quality runs only when a PowerShell-read file changes
