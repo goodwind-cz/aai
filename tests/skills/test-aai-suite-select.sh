@@ -1930,10 +1930,10 @@ test_1760_weights_provenance() {  # Spec-AC-10 / TEST-016
   local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" header run jobs
   [[ -f "$f" ]] || log_fail "TEST-016: missing $f"
   header="$(sed -n '/^#/p' "$f")"
-  run="$(printf '%s\n' "$header" | sed -n -E 's/^# Actions run ([0-9]{8,}).*/\1/p' | head -n 1)"
+  run="$(printf '%s\n' "$header" | awk '/^# Actions run [0-9][0-9]*/ {print $4; exit}')"
   [[ -n "$run" ]] || log_fail "TEST-016: the header must carry a line starting '# Actions run <id>'"
   [[ "$run" != "37930287459" ]] || log_fail "TEST-016: the header still names the previous seed run 37930287459"
-  jobs="$(printf '%s\n' "$header" | sed -n -E 's/^# legs (.*)/\1/p' | head -n 1 | /usr/bin/grep -oE '[0-9]{9,}' | sort -u | wc -l | tr -d ' ')"
+  jobs="$(printf '%s\n' "$header" | awk '/^# legs / {print; exit}' | /usr/bin/grep -oE '[0-9]{9,}' | sort -u | wc -l | tr -d ' ')"
   [[ "$jobs" == "4" ]] || log_fail "TEST-016: the header must name four distinct leg job ids on its '# legs' line, found $jobs"
   [[ "$header" =~ [0-9a-f]{40} ]] || log_fail "TEST-016: the header must name a 40-hex head SHA"
   test_1423_real_repo_balance_bound "$PROJECT_ROOT"
@@ -1943,7 +1943,7 @@ test_1760_weights_provenance() {  # Spec-AC-10 / TEST-016
 test_1761_leg_walls_bound() {  # Spec-AC-11 / TEST-017
   log_info "Test: the weights header's Leg walls line has four positive integers and the largest is at most 1.25 times their mean (TEST-017)..."
   local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" line nums count
-  line="$(/usr/bin/grep -E '^# Leg walls' "$f" | head -n 1 || true)"
+  line="$(sed -n '/^# Leg walls/{p;q;}' "$f")"
   [[ -n "$line" ]] || log_fail "TEST-017: the weights header has no '# Leg walls' line"
   if [[ "$line" == *"pending"* ]]; then
     # Pending marker, honest and loud: the second CI run has not measured yet.
