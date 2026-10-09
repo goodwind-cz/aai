@@ -42,6 +42,9 @@
 #   AAI_UNAME         test-only override for the `uname -s` probe below
 #                      (SPEC-0046 Spec-AC-05); unset on macOS/Linux in normal
 #                      use — this file's behavior there is UNCHANGED.
+#   AAI_PROC_ROOT     test-only override for the /proc root the MSYS branch reads
+#                      `<pid>/winpid` from (ci-windows-leg-waits-and-ps1-path-filter
+#                      Spec-AC-01); unset in normal use - /proc.
 #   AAI_SHIPPING_WRITE_FATAL=1  opt-in teeth (D5,
 #                      spec-adhoc-probes-unisolated-report-only): unset (the
 #                      default), an ad-hoc command that dirties the shipping
@@ -710,6 +713,28 @@ if [ "$AAI_ISO_STATUS" != 'not-applicable' ]; then
   esac
 fi
 
+# aai_msys_winpid - print the Windows PID for an MSYS (Cygwin) pid. MSYS pids
+# are not Windows pids and `taskkill` only understands the latter; MSYS exposes
+# the mapping at /proc/<pid>/winpid. A missing, unreadable or non-numeric entry
+# degrades to the MSYS pid itself (never an empty pid, never an abort).
+aai_msys_winpid() {
+  aai_wp_file="${AAI_PROC_ROOT:-/proc}/$1/winpid"
+  aai_wp="$(cat "$aai_wp_file" 2>/dev/null)"
+  case "$aai_wp" in
+    ''|*[!0-9]*) aai_wp="$1" ;;
+  esac
+  printf '%s\n' "$aai_wp"
+}
+
+# aai_msys_tree_kill - ONE forced tree kill on the translated Windows pid,
+# BEFORE any leader-only kill: a leader killed first orphans its children out
+# of the parent chain `taskkill //T` walks. The MSYS leader-only kill is only
+# the fallback after the forced tree kill has failed.
+aai_msys_tree_kill() {
+  aai_tk_wp="$(aai_msys_winpid "$1")"
+  taskkill //PID "$aai_tk_wp" //T //F >/dev/null 2>&1 || kill -KILL "$1" 2>/dev/null
+}
+
 # aai_reap_group - TERM then, after a short grace, KILL the wrapped command's
 # whole process group (or, degraded, the lone pid). Defined once and called
 # from both the signal traps below and the always-reap step further down, so
@@ -726,9 +751,7 @@ aai_reap_group() {
   [ -n "${CMD_PID:-}" ] || return 0
   if [ "$DEGRADED_MSYS" -eq 1 ]; then
     if command -v taskkill >/dev/null 2>&1; then
-      taskkill //PID "$CMD_PID" //T >/dev/null 2>&1 || kill -TERM "$CMD_PID" 2>/dev/null
-      sleep 1
-      taskkill //PID "$CMD_PID" //T //F >/dev/null 2>&1 || kill -KILL "$CMD_PID" 2>/dev/null
+      aai_msys_tree_kill "$CMD_PID"
     else
       kill -TERM "$CMD_PID" 2>/dev/null
       sleep 1
@@ -822,7 +845,7 @@ rm -f "$TIMED_OUT_FILE"
   : > "$TIMED_OUT_FILE"
   if [ "$DEGRADED_MSYS" -eq 1 ]; then
     if command -v taskkill >/dev/null 2>&1; then
-      taskkill //PID "$CMD_PID" //T >/dev/null 2>&1 || kill -TERM "$CMD_PID" 2>/dev/null
+      aai_msys_tree_kill "$CMD_PID"
     else
       kill -TERM "$CMD_PID" 2>/dev/null
     fi

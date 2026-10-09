@@ -813,7 +813,569 @@ EOS
   log_pass "TEST-028 Windows Python path translated in-process and executed under Git Bash"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028"
+# --- TEST-004 / TEST-005 (ci-windows-leg-waits-and-ps1-path-filter Spec-AC-02): smoke harness measures the wrapper, not the orphan ---
+
+# Prints the two Real-wrapper smoke step bodies, comment lines stripped, one
+# engine per call: "5.1" or "pwsh7".
+smoke_step_body() {
+  local engine="$1" name
+  case "$engine" in
+    5.1)   name="Real-wrapper smoke: aai-run-tests.ps1 under Windows PowerShell 5.1" ;;
+    pwsh7) name="Real-wrapper smoke: aai-run-tests.ps1 under pwsh 7" ;;
+    *) return 2 ;;
+  esac
+  get_step_block "$name" | awk '$0 !~ /^[[:space:]]*#/'
+}
+
+test_032() {
+  log_info "TEST-004 (test_032): both Real-wrapper smoke steps wait on the wrapper process only: no Start-Process wait-for-descendants flag, a bounded WaitForExit follows the spawn, and the timeout-arm bound is above the 2 s timeout and at most 30 s..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local engine body spawn_ln wait_ln bound ceiling
+  for engine in 5.1 pwsh7; do
+    body="$(smoke_step_body "$engine")"
+    [[ -n "$body" ]] || log_fail "TEST-004 (test_032): smoke step body for $engine not found"
+    spawn_ln="$(awk '/\$p = Start-Process/ { print NR; exit }' <<<"$body")"
+    [[ -n "$spawn_ln" ]] || log_fail "TEST-004 (test_032): $engine smoke arm has no '\$p = Start-Process' spawn line"
+    if grep -qE '(^|[[:space:]])-Wait([[:space:]]|$)' <<<"$body"; then
+      log_fail "TEST-004 (test_032): $engine smoke step still uses Start-Process -Wait (waits on the hang fixture's orphaned descendants, ~300 s)"
+    fi
+    grep -qF '$null = $p.Handle' <<<"$body" \
+      || log_fail "TEST-004 (test_032): $engine smoke arm must cache \$p.Handle (5.1 ExitCode-null workaround once -Wait is gone)"
+    wait_ln="$(awk -v s="$spawn_ln" 'index($0, "$p.WaitForExit($armCeilingSeconds * 1000)") && NR > s { print NR; exit }' <<<"$body")"
+    [[ -n "$wait_ln" ]] || log_fail "TEST-004 (test_032): $engine smoke arm needs a bounded \$p.WaitForExit(\$armCeilingSeconds * 1000) AFTER the spawn line"
+    ceiling="$(sed -n 's/^[[:space:]]*\$armCeilingSeconds = \([0-9][0-9]*\)[[:space:]]*$/\1/p' <<<"$body")"
+    [[ -n "$ceiling" && "$ceiling" -ge 20 && "$ceiling" -le 120 ]] \
+      || log_fail "TEST-004 (test_032): $engine smoke step must define \$armCeilingSeconds as a bare integer 20..120 (got '${ceiling:-none}')"
+    bound="$(sed -n 's/^[[:space:]]*\$timeoutArmBoundSeconds = \([0-9][0-9]*\)[[:space:]]*$/\1/p' <<<"$body")"
+    [[ -n "$bound" && "$bound" -gt 2 && "$bound" -le 30 ]] \
+      || log_fail "TEST-004 (test_032): $engine smoke step must define \$timeoutArmBoundSeconds as a bare integer >2 and <=30 (got '${bound:-none}')"
+    grep -qF 'taskkill /PID' <<<"$body" \
+      || log_fail "TEST-004 (test_032): $engine smoke arm must force-stop the wrapper tree when the ceiling is hit"
+  done
+  log_pass "TEST-004 (test_032) both smoke steps wait on the wrapper only, bounded (ceiling and timeout-arm bound pinned)"
+}
+
+test_033() {
+  log_info "TEST-005 (test_033): both smoke steps' timeout arm probes for surviving hang-fixture processes, fails on any, and asserts the started marker; the fixture-prep step writes the marker before sleep 300..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local engine body
+  for engine in 5.1 pwsh7; do
+    body="$(smoke_step_body "$engine")"
+    [[ -n "$body" ]] || log_fail "TEST-005 (test_033): smoke step body for $engine not found"
+    grep -qF 'function Get-SmokeHangSurvivors' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine smoke step must define function Get-SmokeHangSurvivors"
+    grep -qF 'Get-SmokeHangSurvivors -Token' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine timeout arm must call Get-SmokeHangSurvivors -Token"
+    grep -qE 'FAIL timeout: .*surviv' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine timeout arm must turn a non-empty survivor result into a 'FAIL timeout:' line"
+    grep -qF 'ParentProcessId' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine survivor FAIL line must name the survivor's ParentProcessId (H1 vs H2 diagnosis)"
+    grep -qF 'AAI_SMOKE_HANG_MARKER' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine timeout arm must hand the fixture AAI_SMOKE_HANG_MARKER"
+    grep -qE 'FAIL timeout: .*marker' <<<"$body" \
+      || log_fail "TEST-005 (test_033): $engine timeout arm must FAIL when the started marker is missing (positive control)"
+  done
+  local prep fix
+  prep="$(get_step_block "Prepare real-wrapper smoke fixtures")"
+  fix="$(grep -F 'aai-smoke-hang.sh' <<<"$prep" | grep -F 'printf' || true)"
+  [[ -n "$fix" ]] || log_fail "TEST-005 (test_033): fixture-prep step must printf the aai-smoke-hang.sh fixture"
+  [[ "$fix" == *'AAI_SMOKE_HANG_MARKER'*'sleep 300'* ]] \
+    || log_fail "TEST-005 (test_033): hang fixture must write the AAI_SMOKE_HANG_MARKER started marker BEFORE 'sleep 300': $fix"
+  log_pass "TEST-005 (test_033) survivor probe + started-marker positive control wired in both smoke steps and the fixture"
+}
+
+# --- TEST-001 / TEST-002 / TEST-003 (ci-windows-leg-waits-and-ps1-path-filter Spec-AC-01): MSYS timeout reaps the child tree ---
+
+# Runs the wrapper under a forced MSYS uname with a Windows-modelling
+# `taskkill` PATH stub and an AAI_PROC_ROOT fixture, around a fixture command
+# that hangs (leader sh + a `sleep 300` child). Sets globals: MK_RC,
+# MK_ELAPSED, MK_LOG (stub call log), MK_LEADER (the leader's MSYS pid),
+# MK_GC (the sleep child's pid), MK_DIR (scratch). Arg 1: "winpid" (the
+# fixture writes its own proc winpid entry, MSYS pid + 100000) or "nowinpid"
+# (AAI_PROC_ROOT stays empty). The stub models Windows: it refuses a
+# non-forced call, only knows Windows pids the fixture registered, and for
+# //T walks children by parent pid, so a leader killed first orphans its child.
+msys_reap_run() {
+  local mode="$1" t0
+  MK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-msys-reap.XXXXXX")"
+  [[ -n "$MK_DIR" && "$MK_DIR" = /* ]] || log_fail "msys_reap_run: scratch dir not absolute: '$MK_DIR'"
+  mkdir -p "$MK_DIR/bin" "$MK_DIR/proc"
+  MK_LOG="$MK_DIR/taskkill.log"
+  : > "$MK_LOG"
+  cat > "$MK_DIR/bin/taskkill" <<'EOS'
+#!/bin/sh
+echo "$*" >> "$MK_DIR/taskkill.log"
+pid="" force=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    //PID) pid="$2"; shift ;;
+    //F) force=1 ;;
+  esac
+  shift
+done
+[ -f "$MK_DIR/win-$pid" ] || exit 128
+real="$(cat "$MK_DIR/win-$pid")"
+[ -n "$force" ] || { echo "ERROR: can only be terminated forcefully" >&2; exit 1; }
+kill_tree() {
+  for c in $(ps -A -o pid= -o ppid= | awk -v p="$1" '$2 == p { print $1 }'); do kill_tree "$c"; done
+  kill -KILL "$1" 2>/dev/null
+}
+kill_tree "$real"
+exit 0
+EOS
+  chmod +x "$MK_DIR/bin/taskkill"
+  cat > "$MK_DIR/fixture.sh" <<'EOS'
+#!/bin/sh
+echo "$$" > "$MK_DIR/leader.pid"
+if [ "$MK_MODE" = winpid ]; then
+  mkdir -p "$AAI_PROC_ROOT/$$"
+  echo "$(( $$ + 100000 ))" > "$AAI_PROC_ROOT/$$/winpid"
+  echo "$$" > "$MK_DIR/win-$(( $$ + 100000 ))"
+fi
+sleep 300 &
+echo "$!" > "$MK_DIR/gc.pid"
+wait
+EOS
+  chmod +x "$MK_DIR/fixture.sh"
+  t0="$(date +%s)"
+  MK_DIR="$MK_DIR" MK_MODE="$mode" AAI_PROC_ROOT="$MK_DIR/proc" \
+    AAI_UNAME="MINGW64_NT-10.0" AAI_TEST_TIMEOUT=2 PATH="$MK_DIR/bin:$PATH" \
+    sh "$RUN_TESTS_SCRIPT" sh "$MK_DIR/fixture.sh" >"$MK_DIR/out.txt" 2>&1 < /dev/null
+  MK_RC=$?
+  MK_ELAPSED=$(( $(date +%s) - t0 ))
+  MK_LEADER="$(cat "$MK_DIR/leader.pid" 2>/dev/null || true)"
+  MK_GC="$(cat "$MK_DIR/gc.pid" 2>/dev/null || true)"
+}
+
+msys_reap_cleanup() {
+  [[ -n "${MK_GC:-}" ]] && kill -KILL "$MK_GC" 2>/dev/null
+  [[ -n "${MK_LEADER:-}" ]] && kill -KILL "$MK_LEADER" 2>/dev/null
+  [[ -n "${MK_DIR:-}" && "$MK_DIR" = /* ]] && rm -rf "$MK_DIR"
+  return 0
+}
+
+test_029() {
+  log_info "TEST-001 (test_029): MSYS timeout aims the tree kill at the Windows pid from the proc winpid entry, never the raw MSYS pid..."
+  msys_reap_run winpid
+  local first calls
+  first="$(sed -n '1p' "$MK_LOG")"
+  calls="$(cat "$MK_LOG")"
+  [[ -n "$MK_LEADER" ]] || { msys_reap_cleanup; log_fail "TEST-001 (test_029): fixture never started (positive control: no leader pid recorded)"; }
+  if [[ "$first" != *"//PID $(( MK_LEADER + 100000 )) "* ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-001 (test_029): first taskkill call must target the mapped Windows pid $(( MK_LEADER + 100000 )), got: '${first:-no call}'"
+  fi
+  if [[ "$calls" == *"//PID $MK_LEADER "* ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-001 (test_029): a taskkill call carried the raw MSYS pid $MK_LEADER (wrong PID namespace)"
+  fi
+  msys_reap_cleanup
+  log_pass "TEST-001 (test_029) taskkill targets the winpid-mapped Windows pid"
+}
+
+test_030() {
+  log_info "TEST-002 (test_030): MSYS timeout does one forced tree kill first, so the fixture's grandchild sleep does not survive..."
+  msys_reap_run winpid
+  local first alive=1 i
+  first="$(sed -n '1p' "$MK_LOG")"
+  if [[ -z "$MK_GC" ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-002 (test_030): fixture never started its grandchild (positive control: no gc pid recorded)"
+  fi
+  if [[ "$first" != *"//T"* || "$first" != *"//F"* ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-002 (test_030): first taskkill call must carry //T and //F, got: '${first:-no call}'"
+  fi
+  [[ "$MK_RC" -eq 124 ]] || { msys_reap_cleanup; log_fail "TEST-002 (test_030): wrapper exit $MK_RC (want 124)"; }
+  [[ "$MK_ELAPSED" -le 10 ]] || { msys_reap_cleanup; log_fail "TEST-002 (test_030): wrapper took ${MK_ELAPSED}s (want <= TIMEOUT+8 = 10)"; }
+  # A killed grandchild that no one reaps stays a zombie (Z) in containers
+  # whose PID 1 does not reap orphans; kill -0 still succeeds on it, so a
+  # defunct process counts as killed (PR #442 review, Codex P2).
+  local st
+  for i in 1 2 3 4 5 6; do
+    kill -0 "$MK_GC" 2>/dev/null || { alive=0; break; }
+    st="$(ps -o stat= -p "$MK_GC" 2>/dev/null)" || st=""
+    case "$st" in *Z*) alive=0; break ;; esac
+    sleep 0.5
+  done
+  if [[ "$alive" -eq 1 ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-002 (test_030): the grandchild sleep (pid $MK_GC) survived the timeout reap (orphaned by a leader-first kill)"
+  fi
+  msys_reap_cleanup
+  log_pass "TEST-002 (test_030) forced tree kill first; grandchild reaped; exit 124 in ${MK_ELAPSED}s"
+}
+
+test_031() {
+  log_info "TEST-003 (test_031): with no proc winpid entry the tree kill falls back to the MSYS pid itself (never empty) and the wrapper still exits 124..."
+  msys_reap_run nowinpid
+  local first
+  first="$(sed -n '1p' "$MK_LOG")"
+  if [[ -z "$MK_LEADER" ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-003 (test_031): fixture never started (positive control: no leader pid recorded)"
+  fi
+  if [[ "$first" != *"//PID $MK_LEADER //T //F"* ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-003 (test_031): first taskkill call must be a forced tree kill on the MSYS pid $MK_LEADER, got: '${first:-no call}'"
+  fi
+  if [[ "$MK_RC" -ne 124 ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-003 (test_031): wrapper exit $MK_RC (want 124)"
+  fi
+  msys_reap_cleanup
+  log_pass "TEST-003 (test_031) missing winpid degrades to the MSYS pid; exit 124"
+}
+
+# --- TEST-006..009 (Spec-AC-03/04): ps1-quality `paths:` filter derived from
+# what PowerShell actually reads, and the windows-5_1 job-level bound ---------
+
+# ps1f_derive <root> <tests-glob> -- prints, sorted, the name of every file in
+# <root>/tests/skills/lib that the PowerShell side reads (D3): named as
+# `lib/<name>` by a .aai/scripts/*.ps1, a <tests-glob> Pester file in
+# tests/skills, a tests/skills/lib/*.ps1, test-ps1-quality.sh, or one hop out,
+# a test-*.sh a Pester file names. No pipe into a quiet grep (pipefail).
+ps1f_derive() {
+  local root="$1" tglob="$2" libdir tok_file src_file hop f b h
+  libdir="$root/tests/skills/lib"
+  [[ -d "$libdir" ]] || return 0
+  tok_file="$(mktemp "${TMPDIR:-/tmp}/ps1f-tok.XXXXXX")"
+  src_file="$(mktemp "${TMPDIR:-/tmp}/ps1f-src.XXXXXX")"
+  : >"$src_file"
+  find "$root/.aai/scripts" -maxdepth 1 -name '*.ps1' -type f 2>/dev/null >>"$src_file"
+  find "$root/tests/skills" -maxdepth 1 -name "$tglob" -type f 2>/dev/null >>"$src_file"
+  find "$libdir" -maxdepth 1 -name '*.ps1' -type f 2>/dev/null >>"$src_file"
+  [[ -f "$root/tests/skills/test-ps1-quality.sh" ]] && echo "$root/tests/skills/test-ps1-quality.sh" >>"$src_file"
+  # one hop: bash suites a Pester file names
+  find "$root/tests/skills" -maxdepth 1 -name "$tglob" -type f 2>/dev/null >"$tok_file"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    for h in $(grep -ohE 'test-[A-Za-z0-9_-]+\.sh' "$f" 2>/dev/null); do
+      [[ -f "$root/tests/skills/$h" ]] && echo "$root/tests/skills/$h" >>"$src_file"
+    done
+  done <"$tok_file"
+  : >"$tok_file"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    grep -ohE 'lib/[A-Za-z0-9_.-]+' "$f" 2>/dev/null >>"$tok_file"
+  done <"$src_file"
+  for f in "$libdir"/*; do
+    [[ -f "$f" ]] || continue
+    b="$(basename "$f")"
+    if grep -qxF "lib/$b" "$tok_file" || grep -qxF "lib/$b." "$tok_file"; then
+      echo "$b"
+    fi
+  done | sort
+  rm -f "$tok_file" "$src_file"
+}
+
+# ps1f_list <event> -- the `paths:` entries of one `on:` event, unquoted.
+ps1f_list() {
+  awk -v ev="$1" '
+    /^on:/ { on = 1; next }
+    on && /^[^[:space:]#]/ { on = 0 }
+    on && $0 ~ ("^  " ev ":") { cur = 1; inp = 0; next }
+    on && /^  [A-Za-z_]+:/ { cur = 0; inp = 0 }
+    cur && /^    paths:/ { inp = 1; next }
+    cur && /^    [A-Za-z_-]+:/ { inp = 0 }
+    inp && /^      - / { sub(/^      - /, ""); sub(/[[:space:]]*#.*$/, ""); print }
+  ' "$CI_WORKFLOW" | sed "s/^'//; s/'\$//"
+}
+
+# ps1f_exempt -- "<name>|<reason>" for each well-formed exemption comment line.
+ps1f_exempt() {
+  local line re='^[[:space:]]*#[[:space:]]*ps1-paths-exempt:[[:space:]]+tests/skills/lib/([^[:space:]]+)[[:space:]]+--[[:space:]]*(.*)$'
+  while IFS= read -r line; do
+    if [[ "$line" =~ $re ]]; then echo "${BASH_REMATCH[1]}|${BASH_REMATCH[2]}"; fi
+  done <"$CI_WORKFLOW"
+}
+
+# ps1f_match <glob-entry> <path> -- GitHub path-glob semantics: `*` stays
+# inside a segment, `**` crosses `/`.
+ps1f_match() {
+  local re
+  re="$(printf '%s' "$1" | sed -e 's/[.+^$(){}|\\]/\\&/g' -e 's/\*\*/@@DS@@/g' -e 's/\*/[^\/]*/g' -e 's/@@DS@@/.*/g')"
+  [[ "$2" =~ ^${re}$ ]]
+}
+
+# ps1f_is_dirwide <entry> -- a bare directory glob is not a derived entry.
+ps1f_is_dirwide() {
+  case "$1" in */\*\*|*/\*|\*\*) return 0 ;; esac
+  return 1
+}
+
+# ps1f_uncovered <root> <tests-glob> -- prints each derived-set member that no
+# non-directory-wide push entry matches and no well-formed exemption names;
+# returns 1 when there is any.
+ps1f_uncovered() {
+  local root="$1" tglob="$2" name entry hit ex rc=0 exempt_names
+  exempt_names="$(ps1f_exempt | cut -d'|' -f1)"
+  for name in $(ps1f_derive "$root" "$tglob"); do
+    hit=0
+    while IFS= read -r entry; do
+      [[ -n "$entry" ]] || continue
+      ps1f_is_dirwide "$entry" && continue
+      if ps1f_match "$entry" "tests/skills/lib/$name"; then hit=1; break; fi
+    done <<<"$(ps1f_list push)"
+    if [[ "$hit" -eq 0 ]]; then
+      ex=0
+      case $'\n'"$exempt_names"$'\n' in *$'\n'"$name"$'\n'*) ex=1 ;; esac
+      if [[ "$ex" -eq 0 ]]; then echo "$name"; rc=1; fi
+    fi
+  done
+  return "$rc"
+}
+
+test_034() {
+  log_info "TEST-006 (test_034): push and pull_request path lists are identical and cover every file the PowerShell side reads from tests/skills/lib, or carry a reasoned ps1-paths-exempt line..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local push pr derived n missing ex_line ex_name ex_reason
+  push="$(ps1f_list push)"
+  pr="$(ps1f_list pull_request)"
+  [[ -n "$push" ]] || log_fail "TEST-006 (test_034): no push paths list parsed (positive control)"
+  [[ "$push" == "$pr" ]] || log_fail "TEST-006 (test_034): push and pull_request paths lists differ"
+  derived="$(ps1f_derive "$PROJECT_ROOT" '*.Tests.ps1')"
+  n="$(printf '%s\n' "$derived" | awk 'NF' | wc -l | tr -d ' ')"
+  [[ "$n" -ge 4 ]] || log_fail "TEST-006 (test_034): derived set has $n members (want >= 4), the derivation is broken: $derived"
+  [[ $'\n'"$derived"$'\n' == *$'\npester-host-skip.ps1\n'* ]] || log_fail "TEST-006 (test_034): derived set lacks pester-host-skip.ps1 (positive control)"
+  [[ $'\n'"$derived"$'\n' == *$'\nassert-payload.sh\n'* ]] || log_fail "TEST-006 (test_034): derived set lacks assert-payload.sh (positive control)"
+  missing="$(ps1f_uncovered "$PROJECT_ROOT" '*.Tests.ps1' || true)"
+  [[ -z "$missing" ]] || log_fail "TEST-006 (test_034): PowerShell-read lib files neither matched by the push paths list nor exempted with a reason: $(printf '%s' "$missing" | tr '\n' ' ')"
+  while IFS= read -r ex_line; do
+    [[ -n "$ex_line" ]] || continue
+    ex_name="${ex_line%%|*}"
+    ex_reason="${ex_line#*|}"
+    [[ $'\n'"$derived"$'\n' == *$'\n'"$ex_name"$'\n'* ]] || log_fail "TEST-006 (test_034): ps1-paths-exempt names $ex_name, which is not in the derived set"
+    [[ -n "${ex_reason//[[:space:]]/}" ]] || log_fail "TEST-006 (test_034): ps1-paths-exempt for $ex_name has an empty reason"
+  done <<<"$(ps1f_exempt)"
+  log_pass "TEST-006 (test_034) lists identical; derived set ($n files) covered or reasoned-exempt"
+}
+
+test_035() {
+  log_info "TEST-007 (test_035): the path lists match no tests/skills/lib file outside the derived set, match no exempt file, and carry no bare lib directory glob..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local ev entry f name derived exempt
+  derived="$(ps1f_derive "$PROJECT_ROOT" '*.Tests.ps1')"
+  exempt="$(ps1f_exempt | cut -d'|' -f1)"
+  for control in prompt-diet-ledger.sh cd-subshell-leak-baseline.tsv; do
+    [[ -f "$PROJECT_ROOT/tests/skills/lib/$control" ]] || log_fail "TEST-007 (test_035): negative control $control no longer exists, re-pick it"
+  done
+  [[ $'\n'"$derived"$'\n' != *$'\ncd-subshell-leak-baseline.tsv\n'* ]] || log_fail "TEST-007 (test_035): cd-subshell-leak-baseline.tsv is in the derived set, the control is stale"
+  for ev in push pull_request; do
+    while IFS= read -r entry; do
+      [[ -n "$entry" ]] || continue
+      case "$entry" in
+        tests/skills/lib/\*\*|tests/skills/lib/\*|tests/skills/\*\*|tests/\*\*)
+          log_fail "TEST-007 (test_035): $ev list carries the directory-wide glob '$entry'" ;;
+      esac
+      for f in "$PROJECT_ROOT"/tests/skills/lib/*; do
+        [[ -f "$f" ]] || continue
+        name="$(basename "$f")"
+        if ps1f_match "$entry" "tests/skills/lib/$name"; then
+          [[ $'\n'"$derived"$'\n' == *$'\n'"$name"$'\n'* ]] \
+            || log_fail "TEST-007 (test_035): $ev entry '$entry' matches $name, which PowerShell never reads"
+          [[ $'\n'"$exempt"$'\n' != *$'\n'"$name"$'\n'* ]] \
+            || log_fail "TEST-007 (test_035): $ev entry '$entry' matches $name, which a ps1-paths-exempt line exempts"
+        fi
+      done
+    done <<<"$(ps1f_list "$ev")"
+  done
+  log_pass "TEST-007 (test_035) lists match only derived, non-exempt lib files"
+}
+
+test_036() {
+  log_info "TEST-008 (test_036): a new lib data file read by a Pester test makes the derived-set check fail and name it..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local scan_tests_glob='*.Tests.ps1'
+  local scratch out rc
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/ps1f-fixture.XXXXXX")"
+  [[ -n "$scratch" && "$scratch" = /* ]] || log_fail "TEST-008 (test_036): scratch dir not absolute"
+  mkdir -p "$scratch/.aai/scripts" "$scratch/tests/skills/lib"
+  : >"$scratch/tests/skills/lib/pester-host-skip.ps1"
+  : >"$scratch/tests/skills/lib/unrelated-data.tsv"
+  printf '%s\n' '. (Join-Path $PSScriptRoot "lib/pester-host-skip.ps1")' 'Get-Content (Join-Path $PSScriptRoot "lib/brand-new-fixture.tsv")' >"$scratch/tests/skills/fx.Tests.ps1"
+  : >"$scratch/tests/skills/lib/brand-new-fixture.tsv"
+  # negative control: the covered file and the unread file are never reported
+  out="$(ps1f_uncovered "$scratch" "$scan_tests_glob")"; rc=$?
+  if [[ "$rc" -eq 0 ]]; then rm -rf "$scratch"; log_fail "TEST-008 (test_036): derived-set check passed although brand-new-fixture.tsv is read by a Pester test and not in the filter"; fi
+  if [[ "$out" != *brand-new-fixture.tsv* ]]; then rm -rf "$scratch"; log_fail "TEST-008 (test_036): check failed but did not name brand-new-fixture.tsv: '$out'"; fi
+  if [[ "$out" == *unrelated-data.tsv* ]]; then rm -rf "$scratch"; log_fail "TEST-008 (test_036): unread file unrelated-data.tsv was reported (negative control)"; fi
+  if [[ "$out" == *pester-host-skip.ps1* ]]; then rm -rf "$scratch"; log_fail "TEST-008 (test_036): covered file pester-host-skip.ps1 was reported"; fi
+  rm -rf "$scratch"
+  log_pass "TEST-008 (test_036) a new PowerShell-read lib file is detected and named"
+}
+
+test_037() {
+  log_info "TEST-009 (test_037): windows-5_1 declares a job-level timeout-minutes of 26..45, windows-wsl1 keeps 25, the Pester steps keep 15..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local block v wsl steps15
+  block="$(awk '/^  windows-5_1:/ { f = 1; print; next } f && /^  [A-Za-z0-9_-]+:/ { f = 0 } f { print }' "$CI_WORKFLOW")"
+  [[ -n "$block" ]] || log_fail "TEST-009 (test_037): windows-5_1 job block not found"
+  v="$(sed -n 's/^    timeout-minutes:[[:space:]]*\([0-9][0-9]*\).*$/\1/p' <<<"$block")"
+  [[ -n "$v" && "$v" != *$'\n'* ]] || log_fail "TEST-009 (test_037): windows-5_1 needs exactly one job-level timeout-minutes (got '${v:-none}')"
+  [[ "$v" -ge 26 && "$v" -le 45 ]] || log_fail "TEST-009 (test_037): windows-5_1 timeout-minutes $v is outside 26..45"
+  wsl="$(awk '/^  windows-wsl1:/ { f = 1; next } f && /^  [A-Za-z0-9_-]+:/ { f = 0 } f { print }' "$CI_WORKFLOW" | sed -n 's/^    timeout-minutes:[[:space:]]*\([0-9][0-9]*\).*$/\1/p')"
+  [[ "$wsl" == "25" ]] || log_fail "TEST-009 (test_037): windows-wsl1 job timeout-minutes must stay 25 (got '${wsl:-none}')"
+  steps15="$(grep -cE '^        timeout-minutes: 15[[:space:]]*$' <<<"$block" || true)"
+  [[ "$steps15" -ge 2 ]] || log_fail "TEST-009 (test_037): the windows-5_1 Pester steps must keep step-level timeout-minutes: 15 (found $steps15)"
+  log_pass "TEST-009 (test_037) windows-5_1 timeout-minutes $v, wsl1 25, Pester steps 15"
+}
+
+# --- ci-windows-leg-waits-and-ps1-path-filter amendment (D1-fallback): the
+# Git-Bash launch runs inside a Windows Job Object. Job Objects are Windows
+# only, so TEST-010/TEST-011 drive the dispatcher's own seams under pwsh with
+# stubs, and TEST-012 compiles the P/Invoke type and pins its wiring. The real
+# Windows proof is the windows-5_1 smoke timeout arm (no survivor).
+# ps1_job_probe <script-body> -- runs the body after dot-sourcing the real
+# dispatcher; prints stdout, then a line "STDERR:" and the stderr capture.
+ps1_job_probe() {
+  local body="$1" d rc
+  d="$(mktemp -d "${TMPDIR:-/tmp}/ps1-job-probe.XXXXXX")"
+  [[ -n "$d" && "$d" = /* ]] || log_fail "ps1_job_probe: scratch dir not absolute"
+  printf '%s\n' 'param([string]$Ps1)' '. $Ps1' "$body" >"$d/probe.ps1"
+  pwsh -NoProfile -NonInteractive -File "$d/probe.ps1" -Ps1 "$RUN_TESTS_PS1" >"$d/out" 2>"$d/err" </dev/null
+  rc=$?
+  cat "$d/out"
+  echo "STDERR:"
+  cat "$d/err"
+  echo "PWSH_RC=$rc"
+  rm -rf "$d"
+}
+
+test_038() {
+  log_info "TEST-010 (test_038): the Git-Bash launch goes through the job seam and the job is terminated on the normal and the timeout path, exit codes unchanged..."
+  command -v pwsh >/dev/null 2>&1 || { echo "SKIP: TEST-010 (test_038): pwsh not found on this host (named skip; the windows-5_1 CI smoke arm still proves the job)"; return 0; }
+  local out
+  out="$(ps1_job_probe '
+$script:calls = [System.Collections.Generic.List[string]]::new()
+function New-KillOnCloseJob { [IntPtr]77 }
+function Start-ProcessInJob { param($BashPath, $ArgString, $Job, $WorkingDirectory) $script:calls.Add("start-in-job:$Job"); $script:cwdSeen = $WorkingDirectory; [pscustomobject]@{ Id = 4242; ExitCode = 7 } }
+function Start-Process { $script:calls.Add("start-process"); throw "Start-Process must not run when the job path works" }
+function Stop-KillOnCloseJob { param($Job) $script:calls.Add("stop-job:$Job") }
+function Stop-ProcessTree { param($ProcessId) $script:calls.Add("tree:$ProcessId") }
+function Wait-ProcessWithTimeout { param($Process, $TimeoutSeconds) $true }
+$cwdDir = Join-Path ([System.IO.Path]::GetTempPath()) ("aai-cwd-probe-" + [guid]::NewGuid().ToString("N"))
+$null = New-Item -ItemType Directory -Path $cwdDir
+Set-Location -LiteralPath $cwdDir
+$want = (Get-Location -PSProvider FileSystem).ProviderPath
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "exit 7") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 30
+"NORMAL rc=$rc calls=$($script:calls -join ",")"
+"CWD same=$($script:cwdSeen -ceq $want) seen=$($script:cwdSeen)"
+Set-Location -LiteralPath $HOME
+Remove-Item -LiteralPath $cwdDir -Force
+$script:calls.Clear()
+function Wait-ProcessWithTimeout { param($Process, $TimeoutSeconds) $false }
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "sleep 300") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 2
+"TIMEOUT rc=$rc calls=$($script:calls -join ",")"
+')"
+  [[ "$out" == *"NORMAL rc="* ]] || log_fail "TEST-010 (test_038): probe never reached the normal arm (positive control): $out"
+  [[ "$out" == *"NORMAL rc=7 calls=start-in-job:77,stop-job:77"$'\n'* ]] \
+    || log_fail "TEST-010 (test_038): normal path must start inside job 77, keep exit 7 and terminate the job once: $out"
+  [[ "$out" == *"TIMEOUT rc=124 calls=start-in-job:77,tree:4242,stop-job:77"$'\n'* ]] \
+    || log_fail "TEST-010 (test_038): timeout path must keep exit 124, tree-kill 4242 and then terminate job 77: $out"
+  [[ "$out" == *"CWD same=True"* ]] \
+    || log_fail "TEST-010 (test_038): the job launch must start bash in the PowerShell location (Start-Process parity), not the process cwd: $out"
+  [[ "$(<"$RUN_TESTS_PS1")" == *"IntPtr.Zero, cwd, ref si, out pi"* ]] \
+    || log_fail "TEST-010 (test_038): StartSuspendedInJob must hand its cwd argument to CreateProcessW (lpCurrentDirectory), not null"
+  log_pass "TEST-010 (test_038) job seam used; job terminated on normal and timeout paths; exit 7 and 124 kept"
+}
+
+test_039() {
+  log_info "TEST-011 (test_039): no job -> one named AAI-DEGRADED-MODE line and today's Start-Process launch; assign failure degrades the same way; a CreateProcess failure stays a 125 spawn error..."
+  command -v pwsh >/dev/null 2>&1 || { echo "SKIP: TEST-011 (test_039): pwsh not found on this host (named skip)"; return 0; }
+  local out
+  out="$(ps1_job_probe '
+$script:calls = [System.Collections.Generic.List[string]]::new()
+function Start-Process { $script:calls.Add("start-process"); [pscustomobject]@{ Id = 5150; Handle = [IntPtr]1; ExitCode = 3 } }
+function Stop-KillOnCloseJob { param($Job) $script:calls.Add("stop-job:$Job") }
+function Stop-ProcessTree { param($ProcessId) $script:calls.Add("tree:$ProcessId") }
+function Wait-ProcessWithTimeout { param($Process, $TimeoutSeconds) $true }
+function New-KillOnCloseJob { throw "AAI-NO-JOB-PROBE" }
+function Start-ProcessInJob { param($BashPath, $ArgString, $Job) $script:calls.Add("start-in-job:$Job"); throw "must not be reached without a job" }
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "exit 3") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 30
+"NOJOB rc=$rc calls=$($script:calls -join ",")"
+$script:calls.Clear()
+function New-KillOnCloseJob { [IntPtr]78 }
+function Start-ProcessInJob { param($BashPath, $ArgString, $Job) $script:calls.Add("start-in-job:$Job"); throw [System.InvalidOperationException]::new("AssignProcessToJobObject failed: AAI-ASSIGN-PROBE") }
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "exit 3") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 30
+"ASSIGN rc=$rc calls=$($script:calls -join ",")"
+$script:calls.Clear()
+function New-KillOnCloseJob { [IntPtr]79 }
+function Start-ProcessInJob { param($BashPath, $ArgString, $Job) $script:calls.Add("start-in-job:$Job"); throw [System.ComponentModel.Win32Exception]::new(193) }
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "exit 3") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 30
+"SPAWNFAIL rc=$rc calls=$($script:calls -join ",")"
+')"
+  local err="${out#*STDERR:}" n
+  [[ "$out" == *"NOJOB rc="* ]] || log_fail "TEST-011 (test_039): probe never reached the no-job arm (positive control): $out"
+  [[ "$out" == *"NOJOB rc=3 calls=start-process"$'\n'* ]] \
+    || log_fail "TEST-011 (test_039): with no job the dispatcher must launch through Start-Process and keep exit 3: $out"
+  [[ "$err" == *"AAI-DEGRADED-MODE: [Git Bash] no Windows Job Object (AAI-NO-JOB-PROBE)"* ]] \
+    || log_fail "TEST-011 (test_039): the no-job degrade must print one named AAI-DEGRADED-MODE line carrying the cause: $err"
+  [[ "$out" == *"ASSIGN rc=3 calls=start-in-job:78,stop-job:78,start-process"$'\n'* ]] \
+    || log_fail "TEST-011 (test_039): an assign failure must close job 78 and fall back to Start-Process with exit 3: $out"
+  [[ "$err" == *"AAI-DEGRADED-MODE: [Git Bash] no Windows Job Object (AssignProcessToJobObject failed: AAI-ASSIGN-PROBE)"* ]] \
+    || log_fail "TEST-011 (test_039): the assign degrade must print a named AAI-DEGRADED-MODE line: $err"
+  n="$(grep -c 'AAI-DEGRADED-MODE: \[Git Bash\] no Windows Job Object' <<<"$err" || true)"
+  [[ "$n" == "2" ]] || log_fail "TEST-011 (test_039): want exactly two degrade lines (no-job, assign), got $n: $err"
+  [[ "$out" == *"SPAWNFAIL rc=125 calls=start-in-job:79,stop-job:79"$'\n'* ]] \
+    || log_fail "TEST-011 (test_039): a CreateProcess failure must stay a 125 spawn error, close job 79 and never re-spawn through Start-Process: $out"
+  [[ "$err" == *"AAI-SPAWN-ERROR: [Git Bash]"* ]] || log_fail "TEST-011 (test_039): the CreateProcess failure must print AAI-SPAWN-ERROR: $err"
+  log_pass "TEST-011 (test_039) named degrade on no job and on assign failure; CreateProcess failure stays 125"
+}
+
+test_040() {
+  log_info "TEST-012 (test_040): the Job Object P/Invoke type compiles under pwsh, sets KILL_ON_JOB_CLOSE, starts bash suspended and assigns it before resuming..."
+  [[ -f "$RUN_TESTS_PS1" ]] || log_fail "missing $RUN_TESTS_PS1"
+  local src a r
+  src="$(cat "$RUN_TESTS_PS1")"
+  [[ "$src" == *"JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000"* ]] || log_fail "TEST-012 (test_040): JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE must be 0x2000"
+  [[ "$src" == *"LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE"* ]] || log_fail "TEST-012 (test_040): the job's LimitFlags must carry KILL_ON_JOB_CLOSE"
+  [[ "$src" == *"CREATE_SUSPENDED = 0x00000004"* ]] || log_fail "TEST-012 (test_040): CREATE_SUSPENDED must be 0x00000004"
+  [[ "$src" == *"CreateProcessW(app, cmd, IntPtr.Zero, IntPtr.Zero, true, CREATE_SUSPENDED"* ]] || log_fail "TEST-012 (test_040): bash must be created suspended"
+  a="$(grep -n -m1 'if (!AssignProcessToJobObject(job, pi.hProcess))' "$RUN_TESTS_PS1" | cut -d: -f1)"
+  r="$(grep -n -m1 'ResumeThread(pi.hThread)' "$RUN_TESTS_PS1" | cut -d: -f1)"
+  [[ -n "$a" && -n "$r" ]] || log_fail "TEST-012 (test_040): AssignProcessToJobObject / ResumeThread calls not found (assign=${a:-none} resume=${r:-none})"
+  [[ "$a" -lt "$r" ]] || log_fail "TEST-012 (test_040): the process must be assigned to the job (line $a) before its thread is resumed (line $r)"
+  if command -v pwsh >/dev/null 2>&1; then
+    local out
+    out="$(ps1_job_probe 'Initialize-AaiJobObjectType; "TYPE=" + [bool]("AaiJobObject" -as [type])')"
+    [[ "$out" == *"TYPE=True"* ]] || log_fail "TEST-012 (test_040): the AaiJobObject P/Invoke type does not compile under pwsh: $out"
+  else
+    echo "SKIP: TEST-012 (test_040) compile arm: pwsh not found on this host (named skip)"
+  fi
+  log_pass "TEST-012 (test_040) KILL_ON_JOB_CLOSE set; suspended create, assign, then resume; type compiles"
+}
+
+test_041() {
+  log_info "TEST-013 (test_041): in both smoke steps the survivor probe, run under pwsh with Win32_Process stubbed, reports zero survivors when none exist and exactly one (with its pid) when one does..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  command -v pwsh >/dev/null 2>&1 || { echo "SKIP: TEST-013 (test_041): pwsh not found on this host (named skip)"; return 0; }
+  local engine body fn call d out
+  for engine in 5.1 pwsh7; do
+    body="$(smoke_step_body "$engine")"
+    fn="$(awk '/^ *function Get-SmokeHangSurvivors \{/ { f = 1 } f { print } f && /^          \}$/ { exit }' <<<"$body")"
+    call="$(grep -m1 -E '^ *\$survivors = .*Get-SmokeHangSurvivors -Token' <<<"$body" || true)"
+    [[ -n "$fn" && -n "$call" ]] || log_fail "TEST-013 (test_041): $engine smoke step lacks the survivor function or its call (fn=${#fn} bytes, call='$call')"
+    d="$(mktemp -d "${TMPDIR:-/tmp}/survivor-probe.XXXXXX")"
+    [[ -n "$d" && "$d" = /* ]] || log_fail "TEST-013 (test_041): scratch dir not absolute"
+    {
+      printf '%s\n' "$fn"
+      printf '%s\n' 'function Start-Sleep { }'
+      printf '%s\n' '$script:rows = @()' 'function Get-CimInstance { $script:rows }'
+      printf '%s\n' "$call" '"NONE count=$($survivors.Count)"'
+      printf '%s\n' '$script:rows = @([pscustomobject]@{ ProcessId = 2672; ParentProcessId = 3184; CommandLine = "sleep.exe 300" }, [pscustomobject]@{ ProcessId = 9; ParentProcessId = 1; CommandLine = "sleep.exe 1" })'
+      printf '%s\n' "$call" '"ONE count=$($survivors.Count) pid=$($survivors[0].ProcessId)"'
+    } >"$d/probe.ps1"
+    out="$(pwsh -NoProfile -NonInteractive -File "$d/probe.ps1" 2>&1 </dev/null)"
+    rm -rf "$d"
+    [[ "$out" == *"ONE count="* ]] || log_fail "TEST-013 (test_041): $engine probe never reached the one-survivor arm (positive control): $out"
+    [[ "$out" == *"NONE count=0"* ]] || log_fail "TEST-013 (test_041): $engine survivor probe reports a phantom survivor when none exist: $out"
+    [[ "$out" == *"ONE count=1 pid=2672"* ]] || log_fail "TEST-013 (test_041): $engine survivor probe must report exactly the one sleep 300 survivor (pid 2672): $out"
+  done
+  log_pass "TEST-013 (test_041) survivor probe: zero when none, exactly one when one, in both smoke steps"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040 041"
 
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {

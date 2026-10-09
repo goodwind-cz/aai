@@ -2302,15 +2302,18 @@ test_1532_changelog_unreleased_entry() {
     return
   fi
   local ok=1 body
-  # Concatenate the body of every '## [unreleased] — ' heading (up to the
-  # next '## ' heading), pipe-free single read of one bounded file.
+  # Concatenate the body of every '## [unreleased] — ' or released
+  # '## [<version>] — ' heading that names the merge policy (up to the next
+  # '## ' heading). A release cut renames the heading but keeps the entry, so
+  # the declaration must survive it (it broke after v2026.10.08 rolled the
+  # [unreleased] block). Pipe-free single read of one bounded file.
   body="$(awk '
-    /^## \[unreleased\] — / { capture=1; next }
+    /^## \[[^]]+\] — / { capture = (tolower($0) ~ /merge polic/); next }
     /^## / { capture=0 }
     capture { print }
   ' "$changelog")"
   if [[ -z "$body" ]]; then
-    log_fail "TEST-1532: no '## [unreleased] — ' heading found in CHANGELOG.md"
+    log_fail "TEST-1532: no '## [unreleased|<version>] — ' merge-policy heading found in CHANGELOG.md"
     return
   fi
   assert_payload_contains "$body" "merge-policy.yaml" \

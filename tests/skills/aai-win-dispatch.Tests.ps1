@@ -627,6 +627,9 @@ exit $rc
         # Same footgun and same fix as Start-WslProbeProcess's own header.
         It 'passes a single pre-quoted string, spaces in the script path and the sh payload both survive' {
             $script:gbArgList = $null
+            # No Job Object here: this case pins the plain Start-Process launch,
+            # which is the degrade path since the Job Object launch was added.
+            Mock New-KillOnCloseJob { throw 'AAI-TEST: no job in this unit test' }
             Mock Start-Process {
                 $script:gbArgList = $ArgumentList
                 [PSCustomObject]@{ Id = 7100; Handle = [IntPtr]::new(1); ExitCode = 0 }
@@ -646,6 +649,29 @@ exit $rc
             # carries the whole payload with every segment quoted.
             @($script:gbArgList).Count | Should -Be 1 -Because 'a raw multi-element array is space-joined engine-dependently; the payload must be pre-quoted into one string'
             @($script:gbArgList)[0] | Should -Be '"C:\repo with space\.aai\scripts\aai-run-tests.sh" "sh" "-c" "echo AAI-SELFTEST-OK > ''/tmp/m.txt''; exit 3"'
+        }
+    }
+
+    Context 'ci-windows-leg-waits-and-ps1-path-filter Spec-AC-05: the Job Object launch gets the same pre-quoted string' {
+        It 'hands Start-ProcessInJob the identical pre-quoted argument string and tags the process with its job' {
+            $script:jobArgString = $null
+            Mock New-KillOnCloseJob { [IntPtr]::new(55) }
+            Mock Start-ProcessInJob {
+                $script:jobArgString = $ArgString
+                [PSCustomObject]@{ Id = 7200; ExitCode = 0 }
+            }
+            Mock Start-Process { throw 'Start-Process must not run when the job launch works' }
+            $origTimeout = $env:AAI_TEST_TIMEOUT
+            try {
+                $proc = Start-GitBashProcess -BashPath 'C:\Git\bin\bash.exe' `
+                    -ScriptArgs @('C:\repo with space\.aai\scripts\aai-run-tests.sh', 'sh', '-c', 'echo AAI-SELFTEST-OK > ''/tmp/m.txt''; exit 3') `
+                    -Timeout 60
+            } finally {
+                if ($null -eq $origTimeout) { Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue } else { $env:AAI_TEST_TIMEOUT = $origTimeout }
+            }
+            $proc.Id | Should -Be 7200
+            $proc.AaiJob | Should -Be ([IntPtr]::new(55))
+            $script:jobArgString | Should -Be '"C:\repo with space\.aai\scripts\aai-run-tests.sh" "sh" "-c" "echo AAI-SELFTEST-OK > ''/tmp/m.txt''; exit 3"'
         }
     }
 
