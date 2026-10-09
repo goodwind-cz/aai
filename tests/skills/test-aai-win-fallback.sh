@@ -884,7 +884,144 @@ test_033() {
   log_pass "TEST-005 (test_033) survivor probe + started-marker positive control wired in both smoke steps and the fixture"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 032 033"
+# --- TEST-001 / TEST-002 / TEST-003 (ci-windows-leg-waits-and-ps1-path-filter Spec-AC-01): MSYS timeout reaps the child tree ---
+
+# Runs the wrapper under a forced MSYS uname with a Windows-modelling
+# `taskkill` PATH stub and an AAI_PROC_ROOT fixture, around a fixture command
+# that hangs (leader sh + a `sleep 300` child). Sets globals: MK_RC,
+# MK_ELAPSED, MK_LOG (stub call log), MK_LEADER (the leader's MSYS pid),
+# MK_GC (the sleep child's pid), MK_DIR (scratch). Arg 1: "winpid" (the
+# fixture writes its own proc winpid entry, MSYS pid + 100000) or "nowinpid"
+# (AAI_PROC_ROOT stays empty). The stub models Windows: it refuses a
+# non-forced call, only knows Windows pids the fixture registered, and for
+# //T walks children by parent pid, so a leader killed first orphans its child.
+msys_reap_run() {
+  local mode="$1" t0
+  MK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-msys-reap.XXXXXX")"
+  [[ -n "$MK_DIR" && "$MK_DIR" = /* ]] || log_fail "msys_reap_run: scratch dir not absolute: '$MK_DIR'"
+  mkdir -p "$MK_DIR/bin" "$MK_DIR/proc"
+  MK_LOG="$MK_DIR/taskkill.log"
+  : > "$MK_LOG"
+  cat > "$MK_DIR/bin/taskkill" <<'EOS'
+#!/bin/sh
+echo "$*" >> "$MK_DIR/taskkill.log"
+pid="" force=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    //PID) pid="$2"; shift ;;
+    //F) force=1 ;;
+  esac
+  shift
+done
+[ -f "$MK_DIR/win-$pid" ] || exit 128
+real="$(cat "$MK_DIR/win-$pid")"
+[ -n "$force" ] || { echo "ERROR: can only be terminated forcefully" >&2; exit 1; }
+kill_tree() {
+  for c in $(ps -A -o pid= -o ppid= | awk -v p="$1" '$2 == p { print $1 }'); do kill_tree "$c"; done
+  kill -KILL "$1" 2>/dev/null
+}
+kill_tree "$real"
+exit 0
+EOS
+  chmod +x "$MK_DIR/bin/taskkill"
+  cat > "$MK_DIR/fixture.sh" <<'EOS'
+#!/bin/sh
+echo "$$" > "$MK_DIR/leader.pid"
+if [ "$MK_MODE" = winpid ]; then
+  mkdir -p "$AAI_PROC_ROOT/$$"
+  echo "$(( $$ + 100000 ))" > "$AAI_PROC_ROOT/$$/winpid"
+  echo "$$" > "$MK_DIR/win-$(( $$ + 100000 ))"
+fi
+sleep 300 &
+echo "$!" > "$MK_DIR/gc.pid"
+wait
+EOS
+  chmod +x "$MK_DIR/fixture.sh"
+  t0="$(date +%s)"
+  MK_DIR="$MK_DIR" MK_MODE="$mode" AAI_PROC_ROOT="$MK_DIR/proc" \
+    AAI_UNAME="MINGW64_NT-10.0" AAI_TEST_TIMEOUT=2 PATH="$MK_DIR/bin:$PATH" \
+    sh "$RUN_TESTS_SCRIPT" sh "$MK_DIR/fixture.sh" >"$MK_DIR/out.txt" 2>&1 < /dev/null
+  MK_RC=$?
+  MK_ELAPSED=$(( $(date +%s) - t0 ))
+  MK_LEADER="$(cat "$MK_DIR/leader.pid" 2>/dev/null || true)"
+  MK_GC="$(cat "$MK_DIR/gc.pid" 2>/dev/null || true)"
+}
+
+msys_reap_cleanup() {
+  [[ -n "${MK_GC:-}" ]] && kill -KILL "$MK_GC" 2>/dev/null
+  [[ -n "${MK_LEADER:-}" ]] && kill -KILL "$MK_LEADER" 2>/dev/null
+  [[ -n "${MK_DIR:-}" && "$MK_DIR" = /* ]] && rm -rf "$MK_DIR"
+  return 0
+}
+
+test_029() {
+  log_info "TEST-001 (test_029): MSYS timeout aims the tree kill at the Windows pid from the proc winpid entry, never the raw MSYS pid..."
+  msys_reap_run winpid
+  local first calls
+  first="$(sed -n '1p' "$MK_LOG")"
+  calls="$(cat "$MK_LOG")"
+  [[ -n "$MK_LEADER" ]] || { msys_reap_cleanup; log_fail "TEST-001 (test_029): fixture never started (positive control: no leader pid recorded)"; }
+  if [[ "$first" != *"//PID $(( MK_LEADER + 100000 )) "* ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-001 (test_029): first taskkill call must target the mapped Windows pid $(( MK_LEADER + 100000 )), got: '${first:-no call}'"
+  fi
+  if [[ "$calls" == *"//PID $MK_LEADER "* ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-001 (test_029): a taskkill call carried the raw MSYS pid $MK_LEADER (wrong PID namespace)"
+  fi
+  msys_reap_cleanup
+  log_pass "TEST-001 (test_029) taskkill targets the winpid-mapped Windows pid"
+}
+
+test_030() {
+  log_info "TEST-002 (test_030): MSYS timeout does one forced tree kill first, so the fixture's grandchild sleep does not survive..."
+  msys_reap_run winpid
+  local first alive=1 i
+  first="$(sed -n '1p' "$MK_LOG")"
+  if [[ -z "$MK_GC" ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-002 (test_030): fixture never started its grandchild (positive control: no gc pid recorded)"
+  fi
+  if [[ "$first" != *"//T"* || "$first" != *"//F"* ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-002 (test_030): first taskkill call must carry //T and //F, got: '${first:-no call}'"
+  fi
+  [[ "$MK_RC" -eq 124 ]] || { msys_reap_cleanup; log_fail "TEST-002 (test_030): wrapper exit $MK_RC (want 124)"; }
+  [[ "$MK_ELAPSED" -le 10 ]] || { msys_reap_cleanup; log_fail "TEST-002 (test_030): wrapper took ${MK_ELAPSED}s (want <= TIMEOUT+8 = 10)"; }
+  for i in 1 2 3 4 5 6; do
+    kill -0 "$MK_GC" 2>/dev/null || { alive=0; break; }
+    sleep 0.5
+  done
+  if [[ "$alive" -eq 1 ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-002 (test_030): the grandchild sleep (pid $MK_GC) survived the timeout reap (orphaned by a leader-first kill)"
+  fi
+  msys_reap_cleanup
+  log_pass "TEST-002 (test_030) forced tree kill first; grandchild reaped; exit 124 in ${MK_ELAPSED}s"
+}
+
+test_031() {
+  log_info "TEST-003 (test_031): with no proc winpid entry the tree kill falls back to the MSYS pid itself (never empty) and the wrapper still exits 124..."
+  msys_reap_run nowinpid
+  local first
+  first="$(sed -n '1p' "$MK_LOG")"
+  if [[ -z "$MK_LEADER" ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-003 (test_031): fixture never started (positive control: no leader pid recorded)"
+  fi
+  if [[ "$first" != *"//PID $MK_LEADER //T //F"* ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-003 (test_031): first taskkill call must be a forced tree kill on the MSYS pid $MK_LEADER, got: '${first:-no call}'"
+  fi
+  if [[ "$MK_RC" -ne 124 ]]; then
+    msys_reap_cleanup
+    log_fail "TEST-003 (test_031): wrapper exit $MK_RC (want 124)"
+  fi
+  msys_reap_cleanup
+  log_pass "TEST-003 (test_031) missing winpid degrades to the MSYS pid; exit 124"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033"
 
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {
