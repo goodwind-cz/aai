@@ -1215,7 +1215,121 @@ test_037() {
   log_pass "TEST-009 (test_037) windows-5_1 timeout-minutes $v, wsl1 25, Pester steps 15"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037"
+# --- ci-windows-leg-waits-and-ps1-path-filter amendment (D1-fallback): the
+# Git-Bash launch runs inside a Windows Job Object. Job Objects are Windows
+# only, so TEST-010/TEST-011 drive the dispatcher's own seams under pwsh with
+# stubs, and TEST-012 compiles the P/Invoke type and pins its wiring. The real
+# Windows proof is the windows-5_1 smoke timeout arm (no survivor).
+# ps1_job_probe <script-body> -- runs the body after dot-sourcing the real
+# dispatcher; prints stdout, then a line "STDERR:" and the stderr capture.
+ps1_job_probe() {
+  local body="$1" d rc
+  d="$(mktemp -d "${TMPDIR:-/tmp}/ps1-job-probe.XXXXXX")"
+  [[ -n "$d" && "$d" = /* ]] || log_fail "ps1_job_probe: scratch dir not absolute"
+  printf '%s\n' 'param([string]$Ps1)' '. $Ps1' "$body" >"$d/probe.ps1"
+  pwsh -NoProfile -NonInteractive -File "$d/probe.ps1" -Ps1 "$RUN_TESTS_PS1" >"$d/out" 2>"$d/err" </dev/null
+  rc=$?
+  cat "$d/out"
+  echo "STDERR:"
+  cat "$d/err"
+  echo "PWSH_RC=$rc"
+  rm -rf "$d"
+}
+
+test_038() {
+  log_info "TEST-010 (test_038): the Git-Bash launch goes through the job seam and the job is terminated on the normal and the timeout path, exit codes unchanged..."
+  command -v pwsh >/dev/null 2>&1 || { echo "SKIP: TEST-010 (test_038): pwsh not found on this host (named skip; the windows-5_1 CI smoke arm still proves the job)"; return 0; }
+  local out
+  out="$(ps1_job_probe '
+$script:calls = [System.Collections.Generic.List[string]]::new()
+function New-KillOnCloseJob { [IntPtr]77 }
+function Start-ProcessInJob { param($BashPath, $ArgString, $Job) $script:calls.Add("start-in-job:$Job"); [pscustomobject]@{ Id = 4242; ExitCode = 7 } }
+function Start-Process { $script:calls.Add("start-process"); throw "Start-Process must not run when the job path works" }
+function Stop-KillOnCloseJob { param($Job) $script:calls.Add("stop-job:$Job") }
+function Stop-ProcessTree { param($ProcessId) $script:calls.Add("tree:$ProcessId") }
+function Wait-ProcessWithTimeout { param($Process, $TimeoutSeconds) $true }
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "exit 7") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 30
+"NORMAL rc=$rc calls=$($script:calls -join ",")"
+$script:calls.Clear()
+function Wait-ProcessWithTimeout { param($Process, $TimeoutSeconds) $false }
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "sleep 300") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 2
+"TIMEOUT rc=$rc calls=$($script:calls -join ",")"
+')"
+  [[ "$out" == *"NORMAL rc="* ]] || log_fail "TEST-010 (test_038): probe never reached the normal arm (positive control): $out"
+  [[ "$out" == *"NORMAL rc=7 calls=start-in-job:77,stop-job:77"$'\n'* ]] \
+    || log_fail "TEST-010 (test_038): normal path must start inside job 77, keep exit 7 and terminate the job once: $out"
+  [[ "$out" == *"TIMEOUT rc=124 calls=start-in-job:77,tree:4242,stop-job:77"$'\n'* ]] \
+    || log_fail "TEST-010 (test_038): timeout path must keep exit 124, tree-kill 4242 and then terminate job 77: $out"
+  log_pass "TEST-010 (test_038) job seam used; job terminated on normal and timeout paths; exit 7 and 124 kept"
+}
+
+test_039() {
+  log_info "TEST-011 (test_039): no job -> one named AAI-DEGRADED-MODE line and today's Start-Process launch; assign failure degrades the same way; a CreateProcess failure stays a 125 spawn error..."
+  command -v pwsh >/dev/null 2>&1 || { echo "SKIP: TEST-011 (test_039): pwsh not found on this host (named skip)"; return 0; }
+  local out
+  out="$(ps1_job_probe '
+$script:calls = [System.Collections.Generic.List[string]]::new()
+function Start-Process { $script:calls.Add("start-process"); [pscustomobject]@{ Id = 5150; Handle = [IntPtr]1; ExitCode = 3 } }
+function Stop-KillOnCloseJob { param($Job) $script:calls.Add("stop-job:$Job") }
+function Stop-ProcessTree { param($ProcessId) $script:calls.Add("tree:$ProcessId") }
+function Wait-ProcessWithTimeout { param($Process, $TimeoutSeconds) $true }
+function New-KillOnCloseJob { throw "AAI-NO-JOB-PROBE" }
+function Start-ProcessInJob { param($BashPath, $ArgString, $Job) $script:calls.Add("start-in-job:$Job"); throw "must not be reached without a job" }
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "exit 3") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 30
+"NOJOB rc=$rc calls=$($script:calls -join ",")"
+$script:calls.Clear()
+function New-KillOnCloseJob { [IntPtr]78 }
+function Start-ProcessInJob { param($BashPath, $ArgString, $Job) $script:calls.Add("start-in-job:$Job"); throw [System.InvalidOperationException]::new("AssignProcessToJobObject failed: AAI-ASSIGN-PROBE") }
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "exit 3") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 30
+"ASSIGN rc=$rc calls=$($script:calls -join ",")"
+$script:calls.Clear()
+function New-KillOnCloseJob { [IntPtr]79 }
+function Start-ProcessInJob { param($BashPath, $ArgString, $Job) $script:calls.Add("start-in-job:$Job"); throw [System.ComponentModel.Win32Exception]::new(193) }
+$rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "exit 3") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 30
+"SPAWNFAIL rc=$rc calls=$($script:calls -join ",")"
+')"
+  local err="${out#*STDERR:}" n
+  [[ "$out" == *"NOJOB rc="* ]] || log_fail "TEST-011 (test_039): probe never reached the no-job arm (positive control): $out"
+  [[ "$out" == *"NOJOB rc=3 calls=start-process"$'\n'* ]] \
+    || log_fail "TEST-011 (test_039): with no job the dispatcher must launch through Start-Process and keep exit 3: $out"
+  [[ "$err" == *"AAI-DEGRADED-MODE: [Git Bash] no Windows Job Object (AAI-NO-JOB-PROBE)"* ]] \
+    || log_fail "TEST-011 (test_039): the no-job degrade must print one named AAI-DEGRADED-MODE line carrying the cause: $err"
+  [[ "$out" == *"ASSIGN rc=3 calls=start-in-job:78,stop-job:78,start-process"$'\n'* ]] \
+    || log_fail "TEST-011 (test_039): an assign failure must close job 78 and fall back to Start-Process with exit 3: $out"
+  [[ "$err" == *"AAI-DEGRADED-MODE: [Git Bash] no Windows Job Object (AssignProcessToJobObject failed: AAI-ASSIGN-PROBE)"* ]] \
+    || log_fail "TEST-011 (test_039): the assign degrade must print a named AAI-DEGRADED-MODE line: $err"
+  n="$(grep -c 'AAI-DEGRADED-MODE: \[Git Bash\] no Windows Job Object' <<<"$err" || true)"
+  [[ "$n" == "2" ]] || log_fail "TEST-011 (test_039): want exactly two degrade lines (no-job, assign), got $n: $err"
+  [[ "$out" == *"SPAWNFAIL rc=125 calls=start-in-job:79,stop-job:79"$'\n'* ]] \
+    || log_fail "TEST-011 (test_039): a CreateProcess failure must stay a 125 spawn error, close job 79 and never re-spawn through Start-Process: $out"
+  [[ "$err" == *"AAI-SPAWN-ERROR: [Git Bash]"* ]] || log_fail "TEST-011 (test_039): the CreateProcess failure must print AAI-SPAWN-ERROR: $err"
+  log_pass "TEST-011 (test_039) named degrade on no job and on assign failure; CreateProcess failure stays 125"
+}
+
+test_040() {
+  log_info "TEST-012 (test_040): the Job Object P/Invoke type compiles under pwsh, sets KILL_ON_JOB_CLOSE, starts bash suspended and assigns it before resuming..."
+  [[ -f "$RUN_TESTS_PS1" ]] || log_fail "missing $RUN_TESTS_PS1"
+  local src a r
+  src="$(cat "$RUN_TESTS_PS1")"
+  [[ "$src" == *"JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000"* ]] || log_fail "TEST-012 (test_040): JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE must be 0x2000"
+  [[ "$src" == *"LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE"* ]] || log_fail "TEST-012 (test_040): the job's LimitFlags must carry KILL_ON_JOB_CLOSE"
+  [[ "$src" == *"CREATE_SUSPENDED = 0x00000004"* ]] || log_fail "TEST-012 (test_040): CREATE_SUSPENDED must be 0x00000004"
+  [[ "$src" == *"CreateProcessW(app, cmd, IntPtr.Zero, IntPtr.Zero, true, CREATE_SUSPENDED"* ]] || log_fail "TEST-012 (test_040): bash must be created suspended"
+  a="$(grep -n 'if (!AssignProcessToJobObject(job, pi.hProcess))' "$RUN_TESTS_PS1" | head -n1 | cut -d: -f1)"
+  r="$(grep -n 'ResumeThread(pi.hThread)' "$RUN_TESTS_PS1" | head -n1 | cut -d: -f1)"
+  [[ -n "$a" && -n "$r" ]] || log_fail "TEST-012 (test_040): AssignProcessToJobObject / ResumeThread calls not found (assign=${a:-none} resume=${r:-none})"
+  [[ "$a" -lt "$r" ]] || log_fail "TEST-012 (test_040): the process must be assigned to the job (line $a) before its thread is resumed (line $r)"
+  if command -v pwsh >/dev/null 2>&1; then
+    local out
+    out="$(ps1_job_probe 'Initialize-AaiJobObjectType; "TYPE=" + [bool]("AaiJobObject" -as [type])')"
+    [[ "$out" == *"TYPE=True"* ]] || log_fail "TEST-012 (test_040): the AaiJobObject P/Invoke type does not compile under pwsh: $out"
+  else
+    echo "SKIP: TEST-012 (test_040) compile arm: pwsh not found on this host (named skip)"
+  fi
+  log_pass "TEST-012 (test_040) KILL_ON_JOB_CLOSE set; suspended create, assign, then resume; type compiles"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040"
 
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {

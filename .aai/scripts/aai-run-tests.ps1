@@ -61,6 +61,15 @@
 # returns no process object) never reaches this contract: it exits 125 with
 # an AAI-SPAWN-ERROR line instead (Spec-AC-03/Spec-AC-04).
 #
+# Job Object (ci-windows-leg-waits-and-ps1-path-filter, D1-fallback): on top
+# of that contract, bash.exe is started suspended inside a Windows Job Object
+# with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, and the job is terminated on every
+# exit path. That also reaps MSYS exec'd descendants, which `taskkill /T`
+# cannot reach because their Windows parent has already exited. When no job
+# can be created or assigned, one `AAI-DEGRADED-MODE: [Git Bash] no Windows
+# Job Object (...)` stderr line names the cause and the launch falls back to
+# the plain Start-Process path above. Exit codes are unchanged.
+#
 # Every probe/launch/kill primitive below is its own small function so Pester
 # (tests/skills/aai-win-dispatch.Tests.ps1) can override each branch. Dot-
 # sourcing this file (`. $path`) defines the functions WITHOUT running Main —
@@ -563,6 +572,168 @@ function Invoke-ViaWsl {
 
 # ---- Git-Bash launch path -------------------------------------------------------
 
+# ---- Windows Job Object (Git-Bash launch) ---------------------------------------
+#
+# ci-windows-leg-waits-and-ps1-path-filter, D1-fallback amendment. CI field
+# evidence (run 37896117512): MSYS fork+exec gives every exec'd program a NEW
+# Windows process whose Windows parent is the short-lived fork stub, which has
+# already exited. The `sleep 300` of a hung `sh` therefore had a dead
+# ParentProcessId, and no `taskkill /T` walk from bash or sh could reach it.
+# Job membership does not depend on the parent chain: every process created
+# inside a job stays in it. So the dispatcher starts bash.exe SUSPENDED,
+# assigns it to a job with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, resumes it, and
+# terminates the job on every exit path of Invoke-ViaGitBash. If this
+# dispatcher itself dies, the kernel closes the job handle and the same flag
+# kills the tree.
+$script:AaiJobObjectSource = @'
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class AaiJobObject {
+  const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000;
+  const int JobObjectExtendedLimitInformation = 9;
+  const uint CREATE_SUSPENDED = 0x00000004;
+  const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
+
+  [StructLayout(LayoutKind.Sequential)]
+  struct JOBOBJECT_BASIC_LIMIT_INFORMATION {
+    public long PerProcessUserTimeLimit; public long PerJobUserTimeLimit; public uint LimitFlags;
+    public UIntPtr MinimumWorkingSetSize; public UIntPtr MaximumWorkingSetSize; public uint ActiveProcessLimit;
+    public UIntPtr Affinity; public uint PriorityClass; public uint SchedulingClass;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  struct IO_COUNTERS {
+    public ulong ReadOperationCount; public ulong WriteOperationCount; public ulong OtherOperationCount;
+    public ulong ReadTransferCount; public ulong WriteTransferCount; public ulong OtherTransferCount;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+    public JOBOBJECT_BASIC_LIMIT_INFORMATION BasicLimitInformation; public IO_COUNTERS IoInfo;
+    public UIntPtr ProcessMemoryLimit; public UIntPtr JobMemoryLimit; public UIntPtr PeakProcessMemoryUsed; public UIntPtr PeakJobMemoryUsed;
+  }
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+  struct STARTUPINFO {
+    public int cb; public string lpReserved; public string lpDesktop; public string lpTitle;
+    public int dwX; public int dwY; public int dwXSize; public int dwYSize; public int dwXCountChars; public int dwYCountChars;
+    public int dwFillAttribute; public int dwFlags; public short wShowWindow; public short cbReserved2;
+    public IntPtr lpReserved2; public IntPtr hStdInput; public IntPtr hStdOutput; public IntPtr hStdError;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  struct PROCESS_INFORMATION { public IntPtr hProcess; public IntPtr hThread; public int dwProcessId; public int dwThreadId; }
+
+  [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+  static extern IntPtr CreateJobObjectW(IntPtr attributes, string name);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref JOBOBJECT_EXTENDED_LIMIT_INFORMATION info, uint length);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern bool TerminateJobObject(IntPtr job, uint exitCode);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern bool CloseHandle(IntPtr handle);
+  [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+  static extern bool CreateProcessW(string app, StringBuilder cmd, IntPtr procAttrs, IntPtr threadAttrs, bool inheritHandles,
+    uint flags, IntPtr env, string cwd, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern uint ResumeThread(IntPtr thread);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern bool TerminateProcess(IntPtr process, uint exitCode);
+
+  public static IntPtr CreateKillOnCloseJob() {
+    IntPtr job = CreateJobObjectW(IntPtr.Zero, null);
+    if (job == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION();
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, ref info, (uint)Marshal.SizeOf(typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION)))) {
+      int err = Marshal.GetLastWin32Error();
+      CloseHandle(job);
+      throw new Win32Exception(err);
+    }
+    return job;
+  }
+
+  // Same handle semantics as Start-Process -NoNewWindow with no redirection:
+  // the console is shared and the standard handles are inherited. A failed
+  // CreateProcessW throws Win32Exception (a real spawn failure). A failed
+  // assignment kills the never-resumed process and throws
+  // InvalidOperationException, so the caller can degrade and launch again.
+  public static Process StartSuspendedInJob(string app, string commandLine, IntPtr job) {
+    STARTUPINFO si = new STARTUPINFO();
+    si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
+    PROCESS_INFORMATION pi;
+    StringBuilder cmd = new StringBuilder(commandLine);
+    if (!CreateProcessW(app, cmd, IntPtr.Zero, IntPtr.Zero, true, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, IntPtr.Zero, null, ref si, out pi)) {
+      throw new Win32Exception(Marshal.GetLastWin32Error());
+    }
+    try {
+      if (!AssignProcessToJobObject(job, pi.hProcess)) {
+        int err = Marshal.GetLastWin32Error();
+        TerminateProcess(pi.hProcess, 1);
+        throw new InvalidOperationException("AssignProcessToJobObject failed: " + new Win32Exception(err).Message);
+      }
+      Process proc = Process.GetProcessById(pi.dwProcessId);
+      GC.KeepAlive(proc.Handle);
+      if (ResumeThread(pi.hThread) == 0xFFFFFFFF) {
+        int err = Marshal.GetLastWin32Error();
+        TerminateProcess(pi.hProcess, 1);
+        throw new Win32Exception(err);
+      }
+      return proc;
+    } finally {
+      CloseHandle(pi.hThread);
+      CloseHandle(pi.hProcess);
+    }
+  }
+
+  public static void TerminateAndClose(IntPtr job) {
+    TerminateJobObject(job, 1);
+    CloseHandle(job);
+  }
+}
+'@
+
+function Initialize-AaiJobObjectType {
+  [CmdletBinding()] param()
+  if (-not ('AaiJobObject' -as [type])) {
+    # -IgnoreWarnings: Windows PowerShell 5.1 treats compiler warnings (e.g. CS0649
+    # on the marshalled struct fields) as errors otherwise.
+    Add-Type -TypeDefinition $script:AaiJobObjectSource -Language CSharp -IgnoreWarnings -ErrorAction Stop
+  }
+}
+
+function New-KillOnCloseJob {
+  # Returns a job handle, or throws; Start-GitBashProcess turns a throw into
+  # the AAI-DEGRADED-MODE line and today's launch.
+  [CmdletBinding()] param()
+  Initialize-AaiJobObjectType
+  return [AaiJobObject]::CreateKillOnCloseJob()
+}
+
+function Start-ProcessInJob {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][string]$BashPath,
+    [Parameter(Mandatory)][AllowEmptyString()][string]$ArgString,
+    [Parameter(Mandatory)]$Job
+  )
+  return [AaiJobObject]::StartSuspendedInJob($BashPath, ('"' + $BashPath + '" ' + $ArgString), $Job)
+}
+
+function Stop-KillOnCloseJob {
+  # Kills whatever is still in the job (bash has normally exited by now, so
+  # this reaps only leftovers such as an orphaned sleep.exe), then closes it.
+  [CmdletBinding()] param([Parameter(Mandatory)]$Job)
+  try { [AaiJobObject]::TerminateAndClose($Job) } catch { $null = $_ }
+}
+
+function Write-JobDegradedLine {
+  [CmdletBinding()] param([Parameter(Mandatory)][string]$Reason)
+  [Console]::Error.WriteLine("AAI-DEGRADED-MODE: [Git Bash] no Windows Job Object ($Reason) - descendants are reaped only by the taskkill /T parent-chain walk, which misses MSYS exec'd children")
+}
+
 function Start-GitBashProcess {
   [CmdletBinding()]
   param(
@@ -579,6 +750,24 @@ function Start-GitBashProcess {
   # evidence: `sleep: missing operand` on the timeout arm, bare `echo` exit 0
   # on the success arm).
   $argString = ($ScriptArgs | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join ' '
+  # Job Object first (see the Windows Job Object section above). Only a job
+  # that cannot be created or assigned degrades to the plain launch below; a
+  # CreateProcess failure is a real spawn failure and is rethrown (exit 125).
+  $job = $null
+  try { $job = New-KillOnCloseJob } catch { Write-JobDegradedLine -Reason $_.Exception.Message }
+  if ($job) {
+    try {
+      $jobProc = Start-ProcessInJob -BashPath $BashPath -ArgString $argString -Job $job
+      $jobProc | Add-Member -NotePropertyName AaiJob -NotePropertyValue $job -Force
+      return $jobProc
+    } catch {
+      $cause = $_.Exception
+      while ($cause.InnerException) { $cause = $cause.InnerException }
+      Stop-KillOnCloseJob -Job $job
+      if (-not ($cause -is [System.InvalidOperationException])) { throw $cause }
+      Write-JobDegradedLine -Reason $cause.Message
+    }
+  }
   # -ErrorAction Stop (Spec-AC-03): a non-terminating Start-Process error
   # (e.g. the OrdinalIgnoreCase Path/PATH dictionary collision this scope
   # fixes) becomes a catchable exception instead of silently returning $null.
@@ -702,6 +891,9 @@ function Invoke-ViaGitBash {
   } finally {
     if ($spawnFailed -and $proc -and $proc.Id) {
       Stop-ProcessTree -ProcessId $proc.Id
+    }
+    if ($proc -and $proc.PSObject.Properties['AaiJob']) {
+      Stop-KillOnCloseJob -Job $proc.AaiJob
     }
   }
 }

@@ -388,15 +388,6 @@ jobs:
             $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru `
                   -RedirectStandardOutput $outFile -RedirectStandardError $errFile
             $null = $p.Handle
-            if ($ArmName -eq 'timeout') {
-              # TEMP DIAG (Batch 2b): snapshot the wrapper's Windows descendant tree before the 2 s timeout fires.
-              Start-Sleep -Milliseconds 1200
-              $all = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
-              $ids = @{}; $ids[[int]$p.Id] = $true; $grew = $true
-              while ($grew) { $grew = $false; foreach ($w in $all) { if ($ids.ContainsKey([int]$w.ParentProcessId) -and -not $ids.ContainsKey([int]$w.ProcessId)) { $ids[[int]$w.ProcessId] = $true; $grew = $true } } }
-              Write-Host "DIAG[pre-timeout] root pid=$($p.Id)"
-              foreach ($w in $all) { if ($ids.ContainsKey([int]$w.ProcessId) -or $w.Name -match '^(sleep|sh|bash)\.exe$') { Write-Host ("DIAG[pre-timeout] pid={0} ppid={1} desc={2} name={3} cmd=[{4}]" -f $w.ProcessId, $w.ParentProcessId, $ids.ContainsKey([int]$w.ProcessId), $w.Name, $w.CommandLine) } }
-            }
             $exited = $p.WaitForExit($armCeilingSeconds * 1000)
             $sw.Stop()
             if (-not $exited) {
@@ -474,7 +465,7 @@ jobs:
           # Arm 2 - genuine timeout (124 keeps its own meaning, never 125)
           $hangMarkerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-51-hang.marker"
           if (Test-Path $hangMarkerFile) { Remove-Item $hangMarkerFile -Force }
-          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2'; AAI_SMOKE_HANG_MARKER = $hangMarkerFile; AAI_MSYS_KILL_DEBUG = '1' }
+          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2'; AAI_SMOKE_HANG_MARKER = $hangMarkerFile }
           Write-Host "timeout: code=$($r2.Code) err=[$($r2.Err)]"
           if ($r2.Code -ne 124) { Write-Host "FAIL timeout: expected exit 124, got $($r2.Code)"; $fail++ }
           if ($r2.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL timeout: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
@@ -490,7 +481,8 @@ jobs:
           foreach ($sv in $survivors) {
             Write-Host "FAIL timeout: hang fixture process survived the wrapper exit: pid=$($sv.ProcessId) ParentProcessId=$($sv.ParentProcessId) cmd=[$($sv.CommandLine)]"; $fail++
             $par = Get-CimInstance Win32_Process -Filter "ProcessId = $($sv.ParentProcessId)" -ErrorAction SilentlyContinue
-            Write-Host ("DIAG[survivor-parent] pid={0} alive={1} name={2} ppid={3} cmd=[{4}] created={5} survivor_created={6}" -f $sv.ParentProcessId, [bool]$par, $par.Name, $par.ParentProcessId, $par.CommandLine, $par.CreationDate, $sv.CreationDate)
+            # A dead parent means the Windows parent chain was already broken (MSYS fork+exec), so no taskkill /T walk could reach this pid.
+            Write-Host ("timeout: survivor parent pid={0} alive={1} name={2}" -f $sv.ParentProcessId, [bool]$par, $par.Name)
             Stop-Process -Id $sv.ProcessId -Force -ErrorAction SilentlyContinue
           }
 
@@ -587,15 +579,6 @@ jobs:
             $p = Start-Process -FilePath $engine -ArgumentList $psArgs -NoNewWindow -PassThru `
                   -RedirectStandardOutput $outFile -RedirectStandardError $errFile
             $null = $p.Handle
-            if ($ArmName -eq 'timeout') {
-              # TEMP DIAG (Batch 2b): snapshot the wrapper's Windows descendant tree before the 2 s timeout fires.
-              Start-Sleep -Milliseconds 1200
-              $all = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
-              $ids = @{}; $ids[[int]$p.Id] = $true; $grew = $true
-              while ($grew) { $grew = $false; foreach ($w in $all) { if ($ids.ContainsKey([int]$w.ParentProcessId) -and -not $ids.ContainsKey([int]$w.ProcessId)) { $ids[[int]$w.ProcessId] = $true; $grew = $true } } }
-              Write-Host "DIAG[pre-timeout] root pid=$($p.Id)"
-              foreach ($w in $all) { if ($ids.ContainsKey([int]$w.ProcessId) -or $w.Name -match '^(sleep|sh|bash)\.exe$') { Write-Host ("DIAG[pre-timeout] pid={0} ppid={1} desc={2} name={3} cmd=[{4}]" -f $w.ProcessId, $w.ParentProcessId, $ids.ContainsKey([int]$w.ProcessId), $w.Name, $w.CommandLine) } }
-            }
             $exited = $p.WaitForExit($armCeilingSeconds * 1000)
             $sw.Stop()
             if (-not $exited) {
@@ -667,7 +650,7 @@ jobs:
 
           $hangMarkerFile = Join-Path $env:RUNNER_TEMP "aai-smoke-pwsh7-hang.marker"
           if (Test-Path $hangMarkerFile) { Remove-Item $hangMarkerFile -Force }
-          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2'; AAI_SMOKE_HANG_MARKER = $hangMarkerFile; AAI_MSYS_KILL_DEBUG = '1' }
+          $r2 = Invoke-WrapperSmokeArm -ArmName 'timeout' -WrapperArgs @('sh', $hangScript) -ExtraEnv @{ AAI_TEST_TIMEOUT = '2'; AAI_SMOKE_HANG_MARKER = $hangMarkerFile }
           Write-Host "timeout: code=$($r2.Code) err=[$($r2.Err)]"
           if ($r2.Code -ne 124) { Write-Host "FAIL timeout: expected exit 124, got $($r2.Code)"; $fail++ }
           if ($r2.Err -match 'AAI-SPAWN-ERROR') { Write-Host "FAIL timeout: unexpected AAI-SPAWN-ERROR on stderr"; $fail++ }
@@ -683,7 +666,8 @@ jobs:
           foreach ($sv in $survivors) {
             Write-Host "FAIL timeout: hang fixture process survived the wrapper exit: pid=$($sv.ProcessId) ParentProcessId=$($sv.ParentProcessId) cmd=[$($sv.CommandLine)]"; $fail++
             $par = Get-CimInstance Win32_Process -Filter "ProcessId = $($sv.ParentProcessId)" -ErrorAction SilentlyContinue
-            Write-Host ("DIAG[survivor-parent] pid={0} alive={1} name={2} ppid={3} cmd=[{4}] created={5} survivor_created={6}" -f $sv.ParentProcessId, [bool]$par, $par.Name, $par.ParentProcessId, $par.CommandLine, $par.CreationDate, $sv.CreationDate)
+            # A dead parent means the Windows parent chain was already broken (MSYS fork+exec), so no taskkill /T walk could reach this pid.
+            Write-Host ("timeout: survivor parent pid={0} alive={1} name={2}" -f $sv.ParentProcessId, [bool]$par, $par.Name)
             Stop-Process -Id $sv.ProcessId -Force -ErrorAction SilentlyContinue
           }
 
