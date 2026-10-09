@@ -153,6 +153,42 @@ spawn_parent_with_child() {
 
 alive() { kill -0 "$1" >/dev/null 2>&1; }
 
+# wait_marker_gone <marker> <deadline-seconds> - same poll for processes known
+# only by a unique argv marker (pgrep -f). Returns when none is left or the
+# deadline passes; the caller's own survivor check then reports and fails.
+wait_marker_gone() {
+  local marker="$1" deadline="$2" i=0
+  [[ "$deadline" =~ ^[0-9]+$ && "$deadline" -ge 5 ]] || log_fail "wait_marker_gone: deadline must be an integer >= 5 seconds (got '$deadline')"
+  while (( i < deadline * 10 )); do
+    pgrep -f "$marker" >/dev/null 2>&1 || return 0
+    sleep 0.1
+    i=$(( i + 1 ))
+  done
+  return 0
+}
+
+# wait_gone <pid>... <deadline-seconds> - poll (0.1s) until every pid is dead,
+# replacing a fixed settle `sleep` that precedes an EXPECTED death. Returns at
+# once when they are all gone; fails the test naming the survivor when the
+# deadline passes. The deadline is at least 5s, so it tolerates CI load better
+# than the 1s settle it replaces. A caller may set WAIT_LABEL (local) so the
+# FAIL line names its own test and plan row. Survival checks keep a fixed settle: a poll
+# cannot prove that something does NOT happen.
+wait_gone() {
+  local deadline="${!#}" n=$(( $# - 1 )) i=0 ticks p
+  [[ "$deadline" =~ ^[0-9]+$ && "$deadline" -ge 5 ]] || log_fail "wait_gone: deadline must be an integer >= 5 seconds (got '$deadline')"
+  ticks=$(( deadline * 10 ))
+  while (( i < ticks )); do
+    local live=0
+    for p in "${@:1:$n}"; do alive "$p" && live=1; done
+    [[ "$live" -eq 0 ]] && return 0
+    sleep 0.1
+    i=$(( i + 1 ))
+  done
+  for p in "${@:1:$n}"; do alive "$p" && log_fail "${WAIT_LABEL:-wait_gone}: wait_gone found pid $p still alive after ${deadline}s"; done
+  return 0
+}
+
 # Parse the reaper's OWN reported reaped-pids list from its stdout — the
 # `reaped pids:<space-list>` line the reaper prints alongside `reaped: N`
 # (empty tail when it reaped nothing). This is what lets test_018 ATTRIBUTE a
@@ -208,7 +244,7 @@ test_002() {
   [[ "$rc" -eq 0 ]] || log_fail "a leaky child that exits 0 must yield exit 0 (got $rc)"
   [[ $((end - start)) -lt 30 ]] || log_fail "wrapper must return promptly, took $((end - start))s"
   # Give any straggler a moment, then assert the marker is gone.
-  sleep 1
+  wait_marker_gone "$marker" 5
   if pgrep -f "$marker" >/dev/null 2>&1; then
     local survivors
     survivors="$(pgrep -f "$marker" | tr '\n' ' ')"
@@ -228,7 +264,7 @@ test_003() {
   end="$(date +%s)"
   [[ "$rc" -eq 124 ]] || log_fail "a timed-out command must exit 124 (got $rc)"
   [[ $((end - start)) -lt 15 ]] || log_fail "wrapper must return within ~timeout, took $((end - start))s"
-  sleep 1
+  wait_marker_gone "$marker" 5
   if pgrep -f "$marker" >/dev/null 2>&1; then
     local survivors
     survivors="$(pgrep -f "$marker" | tr '\n' ' ')"
@@ -262,6 +298,7 @@ test_005() {
   log_info "TEST-005: reaper kills only vitest+THIS-workspace; a non-matching (other workspace) sibling SURVIVES..."
   [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
   local ws other match_pid other_pid out
+  local WAIT_LABEL="TEST-005 (plan row TEST-014)"
   ws="$(mktemp -d "$TMP_ROOT/ws.XXXXXX")"
   other="$(mktemp -d "$TMP_ROOT/other.XXXXXX")"
   # Matching: cmd line contains vitest + THIS workspace as a proper path component
@@ -273,7 +310,7 @@ test_005() {
   alive "$match_pid" || log_fail "fixture setup: matching proc $match_pid not alive"
   alive "$other_pid" || log_fail "fixture setup: non-matching proc $other_pid not alive"
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH= AAI_REAP_MIN_AGE_SECS=0 sh "$REAP_SCRIPT" 2>&1)"  # legacy mode: strip any ambient AAI_REAP_STEP_START_EPOCH (fu-reaper-epoch-export-fails-test005)
-  sleep 1
+  wait_gone "$match_pid" 5
   alive "$match_pid" && log_fail "reaper failed to kill the in-workspace vitest proc $match_pid"
   alive "$other_pid" || log_fail "reaper over-reached: killed a NON-matching (other-workspace) sibling $other_pid — never-global invariant violated"
   assert_payload_line_matches_i "$out" "reaped: *[1-9]" "reaper must report a non-zero reaped count (got: $out)"
@@ -303,7 +340,7 @@ test_006() {
   # re-derive the slack from GRACE first. Only the PRE-step side needs the
   # margin — the fresh sibling below is spawned after step_start, so it is
   # unambiguously post-boundary.
-  sleep 6
+  sleep 6   # AGE-WAIT min=6
   # Step boundary captured HERE — everything spawned at/after this instant is
   # this step's own work and must be spared regardless of reaper overhead.
   step_start="$(date +%s)"
@@ -311,7 +348,7 @@ test_006() {
   alive "$old_pid" || log_fail "fixture setup: old proc $old_pid not alive"
   alive "$fresh_pid" || log_fail "fixture setup: fresh proc $fresh_pid not alive"
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" sh "$REAP_SCRIPT" 2>&1)"
-  sleep 1
+  wait_gone "$old_pid" 5
   alive "$old_pid" && log_fail "reaper failed to reap the pre-step matching proc $old_pid"
   alive "$fresh_pid" || log_fail "reaper killed a FRESH sibling $fresh_pid spawned at/after the step boundary — epoch guard violated"
   log_pass "epoch guard reaps the pre-step tree and spares the post-step-boundary sibling, deterministically"
@@ -455,7 +492,7 @@ test_012() {
   alive "$match_pid" || log_fail "fixture setup: match proc $match_pid not alive"
   alive "$prefix_pid" || log_fail "fixture setup: prefix-sibling proc $prefix_pid not alive"
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH= AAI_REAP_MIN_AGE_SECS=0 sh "$REAP_SCRIPT" 2>&1)"  # legacy mode: strip any ambient AAI_REAP_STEP_START_EPOCH (fu-reaper-epoch-export-fails-test005)
-  sleep 1
+  wait_gone "$match_pid" 5
   alive "$match_pid" && log_fail "reaper failed to kill the in-workspace vitest proc $match_pid"
   alive "$prefix_pid" \
     || log_fail "reaper over-killed: killed prefix-sibling proc $prefix_pid in ${ws_fork} — pre-fix substring match (E1)"
@@ -483,7 +520,7 @@ test_013() {
     alive "$match_pid" || log_fail "fixture setup: match proc $match_pid not alive"
     err="$TMP_ROOT/dash-stderr.$$"
     out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH= AAI_REAP_MIN_AGE_SECS=1 dash "$REAP_SCRIPT" 2>"$err")"  # legacy mode: strip any ambient AAI_REAP_STEP_START_EPOCH
-    sleep 1
+    wait_gone "$match_pid" 5
     if grep -qiE 'not found|expecting EOF|arithmetic|[Ss]yntax error|unexpected' "$err"; then
       log_fail "reaper emitted shell errors under dash (bashism) — $(tr '\n' ';' < "$err")"
     fi
@@ -503,14 +540,14 @@ test_013() {
     # runs only because this branch needs `dash` (absent on many macOS hosts) and
     # so effectively ran on CI alone. DO NOT NARROW back toward 3s: re-derive the
     # slack from GRACE first.
-    sleep 6
+    sleep 6   # AGE-WAIT min=6
     step_start="$(date +%s)"
     fresh_pid="$(spawn_marked "vitest_epoch_fresh_${ws2}/worker")"
     alive "$old_pid" || log_fail "fixture setup: epoch-old proc $old_pid not alive"
     alive "$fresh_pid" || log_fail "fixture setup: epoch-fresh proc $fresh_pid not alive"
     err2="$TMP_ROOT/dash-epoch-stderr.$$"
     out2="$(AAI_REAP_WORKSPACE="$ws2" AAI_REAP_STEP_START_EPOCH="$step_start" dash "$REAP_SCRIPT" 2>"$err2")"
-    sleep 1
+    wait_gone "$old_pid" 5
     if grep -qiE 'not found|expecting EOF|arithmetic|[Ss]yntax error|unexpected' "$err2"; then
       log_fail "epoch mode emitted shell errors under dash (bashism) — $(tr '\n' ';' < "$err2")"
     fi
@@ -543,7 +580,7 @@ test_014() {
   end="$(date +%s)"
   [[ "$rc" -eq 0 ]] || log_fail "a leaky child that exits 0 must yield exit 0 under dash (got $rc)"
   [[ $((end - start)) -lt 30 ]] || log_fail "wrapper under dash must return promptly, took $((end - start))s"
-  sleep 1
+  wait_marker_gone "$marker" 5
   if pgrep -f "$marker" >/dev/null 2>&1; then
     local survivors
     survivors="$(pgrep -f "$marker" | tr '\n' ' ')"
@@ -583,7 +620,7 @@ test_015() {
   # supplied only by the pgrep/ps calls below. Restored to `sleep 8` (4s slack).
   # DO NOT NARROW: re-derive from GRACE first. The deterministic spare/reap
   # boundary itself is pinned by TEST-021, not by this margin.
-  sleep 8   # let the forked child come up AND clear the epoch boundary band
+  sleep 8   # AGE-WAIT min=8 - let the forked child come up AND clear the epoch boundary band
   p_child="$(pgrep -P "$p_pid" | qhead -1)"
   o_child="$(pgrep -P "$o_pid" | qhead -1)"
   [[ -n "$p_child" ]] || log_fail "fixture: matched launcher $p_pid has no live child"
@@ -601,7 +638,7 @@ test_015() {
   alive "$p_child" || log_fail "fixture: token-less child $p_child not alive"
   alive "$o_pid"   || log_fail "fixture: other-ws launcher $o_pid not alive"
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" sh "$REAP_SCRIPT" 2>&1)"
-  sleep 1
+  wait_gone "$p_pid" "$p_child" 5
   alive "$p_pid"   && log_fail "reaper failed to kill the matched launcher $p_pid"
   alive "$p_child" && log_fail "reaper left the token-less descendant $p_child resident — matched tree not fully reaped (P2)"
   alive "$o_pid"   || log_fail "reaper over-reached: killed the DIFFERENT-workspace launcher $o_pid — E1 workspace scope broadened"
@@ -631,7 +668,7 @@ test_016() {
     step_start="$(date +%s)"
     fresh_pid="$(spawn_marked "vitest_fresh16_${delay}_${ws}/worker")"
     alive "$fresh_pid" || log_fail "fixture setup: fresh proc $fresh_pid not alive (delay=$delay)"
-    sleep "$delay"   # simulate reaper overhead / host load between step-start and the reap sweep
+    sleep "$delay"   # AGE-WAIT min=7 - simulate reaper overhead / host load between step-start and the reap sweep
     out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" AAI_REAP_MIN_AGE_SECS=5 sh "$REAP_SCRIPT" 2>&1)"
     sleep 1
     if ! alive "$fresh_pid"; then
@@ -664,13 +701,13 @@ test_017() {
   # lenient model and 2s under the conservative one. DO NOT NARROW this back
   # toward 3s: re-derive the slack from GRACE first — the deterministic
   # spare/reap boundary itself is pinned by TEST-021, not by this margin.
-  sleep 6
+  sleep 6   # AGE-WAIT min=6
   step_start="$(date +%s)"
   alive "$survivor_pid" || log_fail "fixture setup: survivor proc $survivor_pid not alive"
   # MIN_AGE=999 is IRRELEVANT to epoch mode; if the reaper wrongly fell back to
   # legacy behavior here it would SPARE this (~6s old) survivor instead.
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" AAI_REAP_MIN_AGE_SECS=999 sh "$REAP_SCRIPT" 2>&1)"
-  sleep 1
+  wait_gone "$survivor_pid" 5
   alive "$survivor_pid" && log_fail "epoch mode failed to reap a genuine pre-step survivor $survivor_pid (reaper output: $out)"
   assert_payload_line_matches_i "$out" "reaped: *[1-9]" "reaper must report a non-zero reaped count (got: $out)"
   log_pass "epoch mode reaps a genuine pre-step survivor regardless of a high legacy MIN_AGE"
@@ -681,6 +718,7 @@ test_018() {
   log_info "TEST-018: fail-safe — unset/empty/non-integer/negative/non-positive/future AAI_REAP_STEP_START_EPOCH falls back to EXACT legacy MIN_AGE behavior; never global..."
   [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
   local ws invalid old_pid fresh_pid out future
+  local WAIT_LABEL="TEST-018 (plan row TEST-013)"
   future=$(( $(date +%s) + 100000 ))
   # LOAD-IMMUNE MARGINS (do not "widen" a single threshold — that is what flaked).
   # Legacy mode is the UNCHANGED pre-epoch fixed-threshold path, so it still
@@ -699,19 +737,29 @@ test_018() {
       *)     AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$1" AAI_REAP_MIN_AGE_SECS="$2" sh "$REAP_SCRIPT" 2>&1 ;;
     esac
   }
-  for invalid in UNSET EMPTY "abc" "-5" "0" "$future"; do
+  local cases=(UNSET EMPTY "abc" "-5" "0" "$future") ws_list=() old_list=() idx
+  # SHARED AGING: spawn all six reap-old fixtures first (each with its OWN
+  # workspace and its OWN process, so no case can see another's), age them in
+  # ONE wait, then run the six reaps and the six spare-fresh attributions.
+  for invalid in "${cases[@]}"; do
+    ws="$(mktemp -d "$TMP_ROOT/ws18.XXXXXX")"
+    ws_list+=("$ws")
+    old_list+=("$(spawn_marked "vitest_old18_${ws}/worker")")
+  done
+  sleep 3   # AGE-WAIT min=3
+  for idx in "${!cases[@]}"; do
+    invalid="${cases[$idx]}"
     # STATE ISOLATION: a FRESH workspace per case so the reaper (which matches by
     # AAI_REAP_WORKSPACE) can NEVER match a marker process spawned by an earlier
     # case or the other direction — the shared-workspace pollution that flaked
     # the spare-fresh assertion under CI load (reaped a leaked cross-iteration
     # proc). The split-direction margins below are unchanged.
-    ws="$(mktemp -d "$TMP_ROOT/ws18.XXXXXX")"
+    ws="${ws_list[$idx]}"
+    old_pid="${old_list[$idx]}"
     # Direction 1 — legacy still REAPS a genuine pre-threshold survivor.
-    old_pid="$(spawn_marked "vitest_old18_${ws}/worker")"
-    sleep 3
     alive "$old_pid" || log_fail "fixture setup: old proc $old_pid not alive (case='$invalid')"
     out="$(reap_run "$invalid" 1)"
-    sleep 1
+    wait_gone "$old_pid" 5
     if alive "$old_pid"; then
       kill -9 "$old_pid" >/dev/null 2>&1 || true
       log_fail "fail-safe broken (case='$invalid'): legacy MIN_AGE=1 should have reaped the ~3s-old match (reaper output: $out)"
@@ -832,7 +880,7 @@ test_021() {
   # same or an earlier second than the true spawn instant.
   ref_epoch="$(date +%s)"
   survivor_pid="$(spawn_marked "vitest_boundary21_${ws}/worker")"
-  sleep 4   # clear of the etime 0-1s rounding edge (same idiom as TEST-015), and
+  sleep 4   # AGE-WAIT min=4 - clear of the etime 0-1s rounding edge (same idiom as TEST-015), and
             # enough that both injected step_start values are already in the past
   alive "$survivor_pid" || log_fail "fixture setup: survivor proc $survivor_pid not alive"
 
@@ -846,7 +894,7 @@ test_021() {
   # Case B — 2s PAST the boundary: threshold == ref_epoch+2 => must REAP.
   step_start=$(( ref_epoch + grace + 2 ))
   out="$(AAI_REAP_WORKSPACE="$ws" AAI_REAP_STEP_START_EPOCH="$step_start" sh "$REAP_SCRIPT" 2>&1)"
-  sleep 1
+  wait_gone "$survivor_pid" 5
   alive "$survivor_pid" && log_fail "Case B: reaper failed to reap the survivor $survivor_pid past the boundary (ref_epoch=$ref_epoch step_start=$step_start threshold=$(( step_start - grace )); reaper output: $out)"
   assert_payload_line_matches_i "$out" "reaped: *[1-9]" "Case B: reaper must report a non-zero reaped count past the boundary (got: $out)"
   log_pass "epoch boundary pinned by arithmetic: SPARE at ref+GRACE, REAP at ref+GRACE+2 (no wall-clock race)"
@@ -958,7 +1006,7 @@ test_024() {
   local marker="aai_024_${$}_${RANDOM}_vitest"
   AAI_TEST_TIMEOUT=1 sh "$real_wrapper" bash -c "exec -a $marker sleep 300" >/dev/null 2>&1; rc=$?
   [[ "$rc" -eq 124 ]] || log_fail "real wrapper: a genuine hang must still exit 124 (got $rc)"
-  sleep 1
+  wait_marker_gone "$marker" 5
   if pgrep -f "$marker" >/dev/null 2>&1; then
     local survivors
     survivors="$(pgrep -f "$marker" | tr '\n' ' ')"
@@ -1138,7 +1186,91 @@ SUITE
   log_pass "TEST-027: a suite run wrapped in sh -c (its path hidden from the classifier) gets one AAI-ISOLATION NOTE line naming what could not be classified, instead of complete silence"
 }
 
-ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027"
+# --- TEST-028 (plan row TEST-010, Spec-AC-07) — an empty group skips the grace -
+# The wrapper's reap used to pay an unconditional 1s grace even when the TERM
+# left nothing alive. The fastest of three runs of a trivial command must now
+# finish well inside that second.
+test_028() {
+  log_info "TEST-028: aai-run-tests.sh true returns without the 1s grace when the group is already empty..."
+  [[ -f "$RUN_TESTS_SCRIPT" ]] || log_fail "wrapper script not found: $RUN_TESTS_SCRIPT"
+  local best
+  best="$(node -e '
+    const { spawnSync } = require("child_process");
+    let best = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const t0 = process.hrtime.bigint();
+      const r = spawnSync("sh", [process.argv[1], "true"], { stdio: "ignore" });
+      const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+      if (r.status !== 0) { console.log("rc" + r.status); process.exit(0); }
+      if (ms < best) best = ms;
+    }
+    console.log(Math.round(best));
+  ' "$RUN_TESTS_SCRIPT")"
+  [[ "$best" =~ ^[0-9]+$ ]] || log_fail "TEST-028 (plan row TEST-010): wrapper run of true did not exit 0 (got '$best')"
+  [[ "$best" -lt 800 ]] || log_fail "TEST-028 (plan row TEST-010): fastest of three 'true' runs took ${best}ms, not under 800ms - the empty-group grace was not skipped"
+  log_pass "an empty process group is reaped without the grace (fastest of three: ${best}ms < 800ms)"
+}
+
+# --- TEST-029 (plan row TEST-011, Spec-AC-07) — a survivor still gets grace + KILL
+# Both arms: a member that traps TERM and finishes its work 0.3s later must be
+# allowed to (the grace), and a member that IGNORES TERM must still die (the
+# KILL after the grace).
+test_029() {
+  log_info "TEST-029: a group member surviving the TERM still gets the grace (trapper finishes) and then the KILL (TERM-ignorer dies)..."
+  [[ -f "$RUN_TESTS_SCRIPT" ]] || log_fail "wrapper script not found: $RUN_TESTS_SCRIPT"
+  local d rc ignorer_pid trapper_pid
+  d="$(mktemp -d "$TMP_ROOT/grace29.XXXXXX")"
+  # Leader: starts both members, waits until both are READY (so the TERM cannot
+  # arrive before a trap is installed), then exits 0 leaving them in the group.
+  sh "$RUN_TESTS_SCRIPT" bash -c '
+    d="$1"
+    bash -c "trap \"sleep 0.3; echo done > \\\"\$1/marker\\\"; exit 0\" TERM
+      echo \$\$ > \"\$1/trapper.pid\"; echo ready > \"\$1/trapper.ready\"
+      while :; do sleep 0.05; done" _ "$d" &
+    sh -c "trap \"\" TERM; echo \$\$ > \"$d/ignorer.pid\"; echo ready > \"$d/ignorer.ready\"; exec sleep 600" &
+    n=0
+    while [ ! -f "$d/trapper.ready" ] || [ ! -f "$d/ignorer.ready" ]; do
+      sleep 0.05; n=$((n + 1)); [ "$n" -lt 400 ] || exit 3
+    done
+    exit 0
+  ' _ "$d" >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-029 (plan row TEST-011): fixture leader must exit 0 (got $rc)"
+  trapper_pid="$(cat "$d/trapper.pid" 2>/dev/null)"
+  ignorer_pid="$(cat "$d/ignorer.pid" 2>/dev/null)"
+  [[ -n "$trapper_pid" && -n "$ignorer_pid" ]] || log_fail "TEST-029 (plan row TEST-011): fixture members did not record their pids"
+  track "$trapper_pid"; track "$ignorer_pid"
+  [[ -f "$d/marker" ]] || log_fail "TEST-029 (plan row TEST-011): the TERM-trapping member never finished - the grace after the TERM was skipped although a member survived"
+  alive "$trapper_pid" && log_fail "TEST-029 (plan row TEST-011): trapping member $trapper_pid is still alive after the wrapper returned"
+  alive "$ignorer_pid" && log_fail "TEST-029 (plan row TEST-011): TERM-ignoring member $ignorer_pid survived the wrapper - the KILL after the grace is gone"
+  log_pass "a surviving member gets the grace (trapper wrote its marker) and the KILL (ignorer is dead)"
+}
+
+# --- TEST-030 (plan row TEST-012, Spec-AC-08) — age waits are tagged and not narrowed
+# Every sleep that ages a process across a GRACE-derived or MIN_AGE boundary
+# carries `# AGE-WAIT min=<n>`; a tagged sleep must stay at or above its min.
+# Tag lines are recognised by a LEADING sleep, so this checker's own text
+# cannot count itself.
+test_030() {
+  log_info "TEST-030: the suite carries exactly 7 AGE-WAIT tags and none is narrowed below its documented minimum..."
+  local self="${BASH_SOURCE[0]}" count=0 line min dur list
+  while IFS= read -r line; do
+    count=$((count + 1))
+    min="$(printf '%s\n' "$line" | sed -n 's/.*# AGE-WAIT min=\([0-9][0-9]*\).*/\1/p')"
+    [[ -n "$min" ]] || log_fail "TEST-030 (plan row TEST-012): malformed AGE-WAIT tag: $line"
+    dur="$(printf '%s\n' "$line" | sed -n 's/^[[:space:]]*sleep \([0-9][0-9]*\)[[:space:]].*/\1/p')"
+    if [[ -z "$dur" ]]; then
+      # sleep "$delay" - the largest delay the surrounding loop feeds it.
+      list="$(sed -n 's/^[[:space:]]*for delay in \([0-9 ][0-9 ]*\); do.*/\1/p' "$self" | qhead -1)"
+      dur=0
+      for d in $list; do [[ "$d" -gt "$dur" ]] && dur="$d"; done
+    fi
+    [[ "$dur" -ge "$min" ]] || log_fail "TEST-030 (plan row TEST-012): an age wait was narrowed to ${dur}s, below its min=${min}: $line"
+  done < <(/usr/bin/grep -E '^[[:space:]]*sleep [^#]*# AGE-WAIT min=' "$self")
+  [[ "$count" -eq 7 ]] || log_fail "TEST-030 (plan row TEST-012): expected 7 AGE-WAIT tags, found $count"
+  log_pass "7 AGE-WAIT tags, each sleep at or above its documented minimum"
+}
+
+ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030"
 
 main() {
   echo "Testing $TEST_NAME (process-group wrapper + workspace/etime-scoped reaper + wiring)"
@@ -1147,7 +1279,7 @@ main() {
   [[ -n "$selected" ]] || selected="$ALL_TESTS"
   local t
   for t in $selected; do
-    t="${t#TEST-}"
+    t="${t#TEST-}"; t="${t#test_}"
     declare -F "test_${t}" >/dev/null || { echo "Unknown test: $t" >&2; exit 2; }
     "test_${t}"
   done
