@@ -1703,12 +1703,9 @@ test_562_no_nul_in_tracked_text() {  # TEST-562 / Spec-AC-27
     *) : ;;
   esac
 
-  # The live tree carries a declared asset today; the guard must pass over it.
-  local outl rcl
-  outl=$(bash "$guard" --check "$PROJECT_ROOT" 2>&1) && rcl=0 || rcl=$?
-  [[ "$rcl" -eq 0 ]] || log_fail "TEST-562: the live tree must pass the guard, got $rcl naming: $outl"
-
-  # ---- live tree: exits clean -- REQUIRES spec-amend.mjs's NUL to be gone
+  # ---- live tree, scanned ONCE: exits clean -- REQUIRES spec-amend.mjs's NUL
+  # to be gone. The live tree carries a declared asset today; the guard must
+  # pass over it, with the exit code AND the empty output read off this one run.
   local live_out live_rc
   live_out=$(bash "$guard" --check "$PROJECT_ROOT" 2>&1) && live_rc=0 || live_rc=$?
   [[ "$live_rc" -eq 0 ]] \
@@ -1951,13 +1948,33 @@ EOS
   done <<< "$(hp_scan_selector_suites "$PROJECT_ROOT")"
   [[ "${#corpus_files[@]}" -ge 1 ]] || log_fail "TEST-473: the mechanical scan enumerated zero selector-accepting suites — the detector itself is broken"
 
-  local name rel out rc bad=""
-  for f in "${corpus_files[@]}"; do
-    rel="${f#"$PROJECT_ROOT"/}"
-    name="$(basename "$f" .sh)"; name="${name#test-aai-}"
-    out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=60 bash .aai/scripts/aai-run-tests.sh bash "$rel" no_such_test_xyz 2>&1)" && rc=0 || rc=$?
-    if [[ "$rc" -eq 0 ]]; then
-      log_info "test_094: ${rel} exited 0 on an unknown selector (fail-open): $out"
+  # ONE wrapper run probes every enumerated suite (tests/skills/lib/
+  # selector-probe.sh): the wrapper builds a single isolated checkout for the
+  # whole loop instead of one per suite. Full enumeration is kept (SPEC-0181
+  # TEST-473 forbids sampling). The bound covers the whole loop.
+  local name rel out rc bad="" probe_out probe_n probe_cnt probe_rc0
+  local rels=()
+  for f in "${corpus_files[@]}"; do rels+=("${f#"$PROJECT_ROOT"/}"); done
+  # The slowest real-selector arm (a real re-sync, several seconds) starts now
+  # and is collected below, so it overlaps the probe loop instead of adding to it.
+  local lp_out_f lp_pid
+  lp_out_f="$(mktemp "${TMPDIR:-/tmp}/aai-hp-lp.XXXXXX")"
+  ( cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=600 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-profiles.sh test_default_byte_identity > "$lp_out_f" 2>&1 ) &
+  lp_pid=$!
+  probe_out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=600 bash .aai/scripts/aai-run-tests.sh bash tests/skills/lib/selector-probe.sh "${rels[@]}" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-473: the selector probe run itself failed, rc=$rc: $probe_out"
+  assert_payload_contains "$probe_out" "AAI-ISOLATION: isolated" \
+    "TEST-473: the selector probe run was not classified as an isolated suite run: $probe_out"
+  probe_n="$(printf '%s\n' "$probe_out" | awk '$1=="PROBE-RC"{c++} END{print c+0}')"
+  [[ "$probe_n" -eq "${#corpus_files[@]}" ]] \
+    || log_fail "TEST-473: expected exactly ${#corpus_files[@]} PROBE-RC lines (one per enumerated suite), got $probe_n: $probe_out"
+  for rel in "${rels[@]}"; do
+    probe_cnt="$(printf '%s\n' "$probe_out" | awk -v r="$rel" '$1=="PROBE-RC" && $2==r{c++} END{print c+0}')"
+    [[ "$probe_cnt" -eq 1 ]] || log_fail "TEST-473: suite $rel must have exactly one PROBE-RC line (it was really probed), got $probe_cnt"
+    probe_rc0="$(printf '%s\n' "$probe_out" | awk -v r="$rel" '$1=="PROBE-RC" && $2==r && $3==0{c++} END{print c+0}')"
+    if [[ "$probe_rc0" -ge 1 ]]; then
+      log_info "test_094: ${rel} exited 0 on an unknown selector (fail-open)"
+      name="$(basename "$rel" .sh)"; name="${name#test-aai-}"
       bad="$bad ${name}"
     fi
   done
@@ -1978,12 +1995,111 @@ EOS
   assert_payload_contains "$out" "SELECTED PASSED (test_001_gates)" \
     "TEST-473: test-aai-feedback-triage.sh did not report the selected test"
 
-  out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE AAI_TEST_TIMEOUT=600 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-layer-profiles.sh test_default_byte_identity 2>&1)" && rc=0 || rc=$?
+  wait "$lp_pid" && rc=0 || rc=$?
+  out="$(cat "$lp_out_f")"; rm -f "$lp_out_f"
   [[ "$rc" -eq 0 ]] || log_fail "TEST-473: test-aai-layer-profiles.sh test_default_byte_identity (a real selector, the already-fixed suite) must still exit 0, got $rc: $out"
   assert_payload_contains "$out" "SELECTED PASSED (test_default_byte_identity)" \
     "TEST-473: test-aai-layer-profiles.sh did not report the selected test"
 
   log_pass "test_094: every selector-accepting suite (${#corpus_files[@]} measured, scanned from the tree) refuses an unknown selector corpus-wide, and a real selector in one suite per idiom plus the already-fixed suite still runs alone (TEST-473)"
+}
+
+test_135_selector_probe_counts() {  # slowest-suite-hot-spots TEST-002 / Spec-AC-01
+  log_info "test_135: selector-probe.sh prints exactly one PROBE-RC line per suite argument and rc 0 only for the fail-open one..."
+  local probe="$PROJECT_ROOT/tests/skills/lib/selector-probe.sh" d
+  [[ -f "$probe" ]] || log_fail "test_135: missing tests/skills/lib/selector-probe.sh"
+  d="$(mktemp -d "${TMPDIR:-/tmp}/aai-hp-probe.XXXXXX")"
+  [[ -n "$d" && "$d" == /* ]] || log_fail "test_135: fixture dir not absolute"
+  cat > "$d/ok-one.sh" <<'EOS2'
+#!/usr/bin/env bash
+if [[ -n "${1:-}" ]] && ! declare -F "$1" >/dev/null; then echo "unknown" >&2; exit 2; fi
+EOS2
+  cp "$d/ok-one.sh" "$d/ok-two.sh"
+  cat > "$d/fail-open.sh" <<'EOS2'
+#!/usr/bin/env bash
+echo "runs everything"; exit 0
+EOS2
+  local out rc
+  out="$(bash "$probe" "$d/ok-one.sh" "$d/fail-open.sh" "$d/ok-two.sh" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_135: the probe must exit 0 itself (the caller judges), got $rc: $out"
+  [[ "$(printf '%s\n' "$out" | awk '$1=="PROBE-RC"{c++} END{print c+0}')" -eq 3 ]] \
+    || log_fail "test_135: expected exactly three PROBE-RC lines: $out"
+  assert_payload_contains "$out" "PROBE-RC $d/fail-open.sh 0" "test_135: the fail-open suite must report rc 0: $out"
+  assert_payload_contains "$out" "PROBE-RC $d/ok-one.sh 2" "test_135: a refusing suite must report its nonzero rc: $out"
+  assert_payload_contains "$out" "PROBE-RC $d/ok-two.sh 2" "test_135: the probe must not stop early after the fail-open suite: $out"
+  [[ "$(printf '%s\n' "$out" | awk '$1=="PROBE-RC" && $3==0{c++} END{print c+0}')" -eq 1 ]] \
+    || log_fail "test_135: rc 0 must appear only for the fail-open suite: $out"
+  rm -rf "$d"
+  log_pass "test_135: three suites give three PROBE-RC lines, rc 0 only for the fail-open one, no early stop"
+}
+
+test_136_nonul_batch_equivalence() {  # slowest-suite-hot-spots TEST-004 / Spec-AC-02
+  log_info "test_136: nonul_scan (batch) is byte-identical to nonul_scan_perfile over a nine-case fixture and starts one node and one git check-attr..."
+  local guard="$PROJECT_ROOT/$NONUL_LIB_REL" d fx
+  [[ -f "$guard" ]] || log_fail "test_136: missing $NONUL_LIB_REL"
+  d="$(mktemp -d "${TMPDIR:-/tmp}/aai-hp-nonul.XXXXXX")"
+  [[ -n "$d" && "$d" == /* ]] || log_fail "test_136: fixture dir not absolute"
+  # shellcheck source=lib/no-nul-guard.sh
+  . "$guard"
+  fx="$d/fx"
+  mkdir -p "$fx"
+  git init -q -b main "$fx"
+  git -C "$fx" config user.email t@t.example
+  git -C "$fx" config user.name t
+  printf '*.png binary\n' > "$fx/.gitattributes"
+  printf 'before\000after\n' > "$fx/planted.bin"
+  printf 'clean text\n' > "$fx/clean.txt"
+  printf '\211PNG\r\n\032\n\000\000' > "$fx/asset.png"
+  printf 'prose\000byte\n' > "$fx/undeclared.md"
+  printf 'with space\000x\n' > "$fx/with space.txt"
+  { head -c 9000 /dev/zero | tr '\0' 'a'; printf '\000tail\n'; } > "$fx/late-nul.txt"
+  printf 'gone\000x\n' > "$fx/missing.txt"
+  printf 'target\000x\n' > "$fx/nul-target.dat"
+  ln -s nul-target.dat "$fx/link-to-nul"
+  printf 'locked\000x\n' > "$fx/unreadable.txt"
+  git -C "$fx" add -A
+  git -C "$fx" commit -qm "fixture: nine NUL cases"
+  rm -f "$fx/missing.txt"
+  chmod 000 "$fx/unreadable.txt"
+
+  local want got want_rc got_rc
+  want="$(nonul_scan_perfile "$fx")" && want_rc=0 || want_rc=$?
+  got="$(nonul_scan "$fx")" && got_rc=0 || got_rc=$?
+  [[ "$want_rc" -eq "$got_rc" ]] || log_fail "test_136: exit codes differ: perfile=$want_rc batch=$got_rc"
+  [[ "$want" == "$got" ]] || log_fail "test_136: output differs. perfile:\n$want\nbatch:\n$got"
+  # Positive controls: the fixture really exercises the cases.
+  assert_payload_contains "$got" "planted.bin" "test_136: planted NUL file must be named: $got"
+  assert_payload_contains "$got" "undeclared.md" "test_136: undeclared NUL file must be named: $got"
+  assert_payload_contains "$got" "with space.txt" "test_136: a path with spaces must be named: $got"
+  assert_payload_contains "$got" "late-nul.txt" "test_136: a NUL past byte 8000 must be named: $got"
+  assert_payload_contains "$got" "link-to-nul" "test_136: a symlink to a NUL file must be named: $got"
+  assert_payload_not_contains "$got" "asset.png" "test_136: the declared-binary asset must be exempt: $got"
+  assert_payload_not_contains "$got" "clean.txt" "test_136: a clean file must not be named: $got"
+  assert_payload_not_contains "$got" "missing.txt" "test_136: a tracked file missing from the worktree must be skipped: $got"
+  if [[ -r "$fx/unreadable.txt" ]]; then
+    log_info "test_136: unreadable case not enforceable here (running with permission to read mode 000); parity still held"
+  else
+    assert_payload_not_contains "$got" "unreadable.txt" "test_136: an unreadable file must be skipped: $got"
+  fi
+
+  # Process counts through PATH shims that log every start.
+  local shim="$d/shim" log="$d/starts.log" realnode realgit
+  mkdir -p "$shim"
+  realnode="$(command -v node)"; realgit="$(command -v git)"
+  printf '#!/bin/sh\necho node >> "%s"\nexec "%s" "$@"\n' "$log" "$realnode" > "$shim/node"
+  printf '#!/bin/sh\necho "git $*" >> "%s"\nexec "%s" "$@"\n' "$log" "$realgit" > "$shim/git"
+  chmod +x "$shim/node" "$shim/git"
+  : > "$log"
+  PATH="$shim:$PATH" nonul_scan "$fx" > /dev/null
+  local nn ng
+  nn="$(awk '$1=="node"{c++} END{print c+0}' "$log")"
+  ng="$(awk '$1=="git" && $0 ~ / check-attr /{c++} END{print c+0}' "$log")"
+  [[ "$nn" -eq 1 ]] || log_fail "test_136: nonul_scan must start exactly one node, started $nn"
+  [[ "$ng" -eq 1 ]] || log_fail "test_136: nonul_scan must start exactly one git check-attr, started $ng"
+
+  chmod 600 "$fx/unreadable.txt"
+  rm -rf "$d"
+  log_pass "test_136: batch scan is byte-identical to the per-file reference over nine cases, with one node and one git check-attr"
 }
 
 test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TEST-487 / Spec-AC-18
@@ -5790,6 +5906,8 @@ main() {
   test_127_withdrawn_phrases_drained
   test_128_shipping_scripts_pipe_safe_at_zero
   test_094_mutation_selector_fails_closed_corpus_wide
+  test_135_selector_probe_counts
+  test_136_nonul_batch_equivalence
   test_129_mutation_gate_suite_registration
   test_130_node_bash_selector_scanner_whitespace_parity
   test_131_vendored_script_deps_gate_and_bite

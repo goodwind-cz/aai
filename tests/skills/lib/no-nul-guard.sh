@@ -69,7 +69,10 @@ nonul_is_declared_binary() {
   esac
 }
 
-nonul_scan() {
+# nonul_scan_perfile <repo-root> — the REFERENCE implementation: one node and
+# one git check-attr process PER tracked file. Kept, unchanged, so the batch
+# scan below can be proven byte-identical to it (hygiene-pack test_136).
+nonul_scan_perfile() {
   local _nn_root="$1" _nn_f _nn_rc
   ( cd "$_nn_root" && git ls-files -z ) | while IFS= read -r -d '' _nn_f; do
     [ -f "$_nn_root/$_nn_f" ] || continue
@@ -79,6 +82,54 @@ nonul_scan() {
     [ "$_nn_rc" -eq 0 ] || continue
     printf '%s\n' "$_nn_f"
   done
+}
+
+# nonul_scan_batch <repo-root> — the same answer in three processes: one
+# git ls-files, one git check-attr --stdin, one node. The node program walks
+# the tracked list in order and applies the reference's three skips (not a
+# regular file or a link to one; declared binary, i.e. the attribute value
+# is exactly set; unreadable) and prints each path whose bytes contain 0.
+# Paths are handled as raw bytes so a non-UTF-8 name is printed unchanged.
+nonul_scan_batch() {
+  local _nn_root="$1" _nn_tmp
+  _nn_tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-nonul.XXXXXX")" || return 0
+  case "$_nn_tmp" in /*) ;; *) return 0 ;; esac
+  if git -C "$_nn_root" ls-files -z > "$_nn_tmp/files" 2>/dev/null; then
+    git -C "$_nn_root" check-attr -z --stdin binary < "$_nn_tmp/files" > "$_nn_tmp/attrs" 2>/dev/null
+    node -e '
+      const fs = require("fs");
+      const root = Buffer.from(process.argv[1]);
+      const split = (b) => {
+        const out = []; let s = 0;
+        for (let i = 0; i < b.length; i++) if (b[i] === 0) { out.push(b.subarray(s, i)); s = i + 1; }
+        return out;
+      };
+      const files = split(fs.readFileSync(process.argv[2]));
+      const attrs = split(fs.readFileSync(process.argv[3]));
+      const exempt = new Set();
+      for (let i = 0; i + 2 < attrs.length; i += 3) {
+        if (attrs[i + 2].toString("latin1") === "set") exempt.add(attrs[i].toString("latin1"));
+      }
+      const hits = [];
+      for (const f of files) {
+        const full = Buffer.concat([root, Buffer.from("/"), f]);
+        let st;
+        try { st = fs.statSync(full); } catch { continue; }
+        if (!st.isFile()) continue;
+        if (exempt.has(f.toString("latin1"))) continue;
+        let buf;
+        try { buf = fs.readFileSync(full); } catch { continue; }
+        if (buf.includes(0)) hits.push(Buffer.concat([f, Buffer.from("\n")]));
+      }
+      if (hits.length) fs.writeSync(1, Buffer.concat(hits));
+    ' "$_nn_root" "$_nn_tmp/files" "$_nn_tmp/attrs"
+  fi
+  rm -rf "$_nn_tmp"
+  return 0
+}
+
+nonul_scan() {
+  nonul_scan_batch "$1"
 }
 
 # --check [<repo-root>] — direct CLI entry point (the "guard" Spec-AC-27
