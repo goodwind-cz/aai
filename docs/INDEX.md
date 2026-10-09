@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-09T21:08:28.689Z
+Generated: 2026-10-09T21:12:21.478Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-slowest-suite-hot-spots | specs | implementing | 12 done | docs/specs/SPEC-DRAFT-spec-slowest-suite-hot-spots.md |
+| SPEC-0216 | specs | implementing | 12 done | docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md |
 
 ## Canonical layer (0)
 
@@ -577,7 +577,7 @@ _None._
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
 | DEBT-0006 | issues | docs/issues/DEBT-0006-payload-size-hazards-past-the-one-fixed-site.md |
 | DEBT-0007 | issues | docs/issues/DEBT-0007-withdrawn-claim-sweeps-are-not-verifiable.md |
-| slowest-suite-hot-spots (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-slowest-suite-hot-spots.md |
+| DEBT-0011 | issues | docs/issues/DEBT-0011-slowest-suite-hot-spots.md |
 | ISSUE-0039 | issues | docs/issues/ISSUE-0039-disposable-checkout-lifecycle-residuals.md |
 | ISSUE-0041 | issues | docs/issues/ISSUE-0041-hardcoded-path-defeats-suite-isolation.md |
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |

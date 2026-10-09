@@ -22,6 +22,16 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — ci: the slowest suites lose their hot spots; the slowest CI leg drops from 309 s to 171 s (slowest-suite-hot-spots)
+
+- `tests/skills/lib/no-nul-guard.sh`: the No-NUL scan runs as one `git ls-files`, one `git check-attr` and one `node` process instead of one process pair per file; output and exit code are unchanged on every completed scan, and an internal failure now fails closed (`--check` exits 2 with a "could not scan" line) instead of reading as a clean tree.
+- `aai-hygiene-pack`: test_094 runs in one isolated checkout and TEST-562 scans the live tree once (294 s -> about 60 s locally, CI weight 311 -> 93).
+- `aai-sync-seed`: 19 first syncs come from a read-only golden copy per key (`_sync_cached`); every re-sync and every asserted first sync stays a real engine call.
+- `aai-run-tests`: fixed settle sleeps became bounded polls (`wait_gone`, `wait_marker_gone`) and TEST-018 ages its fixtures in one shared wait (133 s -> 89 s).
+- `.aai/scripts/aai-run-tests.sh`: the one-second POSIX grace before the group kill is skipped when the group is already gone, so every wrapped run ends about a second sooner.
+- `tests/skills/suite-weights.tsv` re-seeded from a full-mode CI run; the four legs now take 146/160/159/171 s (slowest at most 1.25 times the mean, pinned by a test).
+- Refs: DEBT-0011 / SPEC-0216.
+
 ## [unreleased] — ci: suites stop re-running other whole suites; the selector picks declared companions instead (nested-suite-reruns-duplicate-sweep-time)
 
 - `tests/skills/suite-map.yaml` rows can declare `companions:`; `select-suites.mjs` selects them with the suite that names them, transitively and cycle-safe. A malformed entry (unknown row, self, bad name, inline `[x]` form) fails open to a full run (`internal-error`), and a map without companions selects exactly as before.

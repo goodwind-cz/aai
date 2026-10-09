@@ -1,14 +1,14 @@
 ---
 id: spec-slowest-suite-hot-spots
 type: spec
-number: null
+number: 216
 status: implementing
-frozen_sha256: cedba7fb4783fd16b0c0dfe8c0243fc4100e2bc0e111f92da016d061bf21c635
+frozen_sha256: d6f263a7596db80959adc70f19c515c1da975ab167fe9b8f800c81f2c7d01d06
 ceremony_level: 2
 links:
   requirement: null
   rfc: null
-  intake: docs/issues/DEBT-DRAFT-slowest-suite-hot-spots.md
+  intake: docs/issues/DEBT-0011-slowest-suite-hot-spots.md
   pr: []
   commits: []
 ---
@@ -18,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/DEBT-DRAFT-slowest-suite-hot-spots.md (techdebt intake, id `slowest-suite-hot-spots`)
+- Requirement: docs/issues/DEBT-0011-slowest-suite-hot-spots.md (techdebt intake, id `slowest-suite-hot-spots`)
 - Decision records: SPEC-0215 Spec-AC-12 (the CI leg bound moved here by owner amendment, 2026-10-09)
 - Technology contract: docs/TECHNOLOGY.md (Node stdlib only for `.aai/scripts/*.mjs`; bash suites under `tests/skills/`)
 

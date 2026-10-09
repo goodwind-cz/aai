@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff bf740c2e..57cbf875 (remediation 9c561cd7 + owner amendment 57cbf875) plus regression check; worktree /Users/ales/Projects/aai-debt-slowest-suite-hot-spots, branch debt/slowest-suite-hot-spots, base main e80ecabc"
-  spec: docs/specs/SPEC-DRAFT-spec-slowest-suite-hot-spots.md
+  spec: docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -64,7 +64,7 @@ review:
 | `node .aai/scripts/spec-amend.mjs list --strict` | rc 0 |
 | `node .aai/scripts/docs-audit.mjs --ac-flip-check spec-slowest-suite-hot-spots` | rc 0, AC-FLIP PASS |
 | `node .aai/scripts/docs-audit.mjs --strict --no-event` | Verdict: CLEAN (no probable-false-open reported this round; 8 unreadable AC tables report-only) |
-| `env -u AAI_ROLE node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-slowest-suite-hot-spots.md` (after suites, not concurrent) | rc 1: 17/18 RED, TEST-013 STAYED GREEN |
+| `env -u AAI_ROLE node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md` (after suites, not concurrent) | rc 1: 17/18 RED, TEST-013 STAYED GREEN |
 | TEST-013 mutation on a scratch copy, `bash tests/skills/test-aai-run-tests.sh test_018` x4 | rc 1 x4, RED as recorded |
 | `git ls-files -ci --exclude-standard` | empty |
 

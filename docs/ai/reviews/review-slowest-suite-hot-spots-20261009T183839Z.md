@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff main...HEAD (main e80ecabc .. debt/slowest-suite-hot-spots bf740c2e), worktree /Users/ales/Projects/aai-debt-slowest-suite-hot-spots"
-  spec: docs/specs/SPEC-DRAFT-spec-slowest-suite-hot-spots.md
+  spec: docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -51,7 +51,7 @@ review:
 ## Scope and spec
 
 - Scope: `git diff main...HEAD`, 14 commits, 13 files (wrapper 1 line, two lib scripts, four suites, weights, spec/intake/INDEX, 14 decisions.jsonl appends, 6 EVENTS.jsonl appends).
-- Spec: `docs/specs/SPEC-DRAFT-spec-slowest-suite-hot-spots.md` (frozen, amended; owner-signed contract amendment for Spec-AC-03/06 bounds). `spec-lint` PASS, `spec-amend list --strict` exit 0, `git ls-files -ci --exclude-standard` empty.
+- Spec: `docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md` (frozen, amended; owner-signed contract amendment for Spec-AC-03/06 bounds). `spec-lint` PASS, `spec-amend list --strict` exit 0, `git ls-files -ci --exclude-standard` empty.
 - No coaching in the dispatch beyond a focus list; the full scope was reviewed.
 
 ## Verdict 1 — spec compliance: FAIL (one AC)
