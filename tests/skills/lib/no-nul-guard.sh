@@ -129,7 +129,8 @@ nonul_scan_batch() {
 }
 
 nonul_scan() {
-  nonul_scan_batch "$1"
+  local _nn_root="$1"
+  nonul_scan_batch "$_nn_root"
 }
 
 # --check [<repo-root>] — direct CLI entry point (the "guard" Spec-AC-27
