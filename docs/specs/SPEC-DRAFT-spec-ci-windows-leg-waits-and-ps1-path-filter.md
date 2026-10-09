@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: e393eaac552e6076492923d51b4c87903cb543b52790837caed858b1f2b5b43f
+frozen_sha256: 8f3918b149a81c752f21be41cfe2bbfcfb822b1e6f4f99fadd6f8ba9a0ea0383
 ceremony_level: 2
 links:
   requirement: null
@@ -182,6 +182,44 @@ does not depend on that answer. The answer is recorded in the TDD evidence.
   step is a Windows Job Object in the ps1 dispatcher's Git-Bash launch. That
   is an additive spec amendment with its own TEST rows. It is not a silent
   redesign.
+- D1-fallback ACTIVATED (amendment 1, 2026-10-09, additive, owner sign-off
+  pending). The Batch 2 CI run 37894665268 still showed a survivor after D1.
+  The diagnostic run 37896117512 then showed the cause: the forced
+  `taskkill //PID <winpid> //T //F` did hit the right PID (sh.exe, MSYS pid
+  1453 to winpid 4384) and killed it, but the orphan `sleep.exe` (winpid 2672)
+  had Windows ParentProcessId 3184, a process that no longer existed. sh.exe
+  itself had parent 6476, which was also gone. MSYS fork+exec gives each
+  exec'd program a new Windows process whose parent is the short-lived fork
+  stub, so the Windows parent chain is broken at every exec and no
+  `taskkill /T` walk can reach the grandchild. So D1 stays as is (the right
+  PID namespace, and harmless), and the pre-declared fallback is added:
+  - `.aai/scripts/aai-run-tests.ps1` starts bash.exe SUSPENDED
+    (`CreateProcessW` with `CREATE_SUSPENDED`), assigns it with
+    `AssignProcessToJobObject` to a job carrying
+    `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, then resumes it. Every descendant
+    is in the job whatever its parent chain looks like. The job is terminated
+    in `Invoke-ViaGitBash`'s `finally` on every exit path. The P/Invoke type
+    is compiled with Add-Type on both Windows PowerShell 5.1 and pwsh 7.
+  - If the job cannot be created or assigned, one stderr line
+    `AAI-DEGRADED-MODE: [Git Bash] no Windows Job Object (<cause>) ...` is
+    printed and the launch falls back to the previous Start-Process path. A
+    CreateProcess failure is still a spawn failure (exit 125).
+  - The exit-code contract (0/N, 2, 78, 124, 125) and stdout/stderr handling
+    do not change. The platform-matrix rows do not change.
+  - D1's sentence "the ps1 dispatcher is NOT changed" is superseded by this
+    amendment. New Spec-AC-05 and TEST-010 to TEST-012 cover it.
+  - Harness defect found on the first job run (37896949975): with NO
+    survivor, `Get-SmokeHangSurvivors` returned `,$found` (unary comma), and
+    the caller's `@(...)` turned the empty result into one phantom survivor,
+    printed as `pid= ParentProcessId=`. The function now returns `$found`
+    plainly. New TEST-013 (Spec-AC-02) runs the real function and caller
+    line under pwsh with Win32_Process stubbed. The smoke harness also keeps
+    one permanent line that names the survivor's parent and whether it is
+    alive.
+  - Residual: a wrapper run from Git Bash directly, without the ps1 in front,
+    has no job. D1's forced tree kill still misses MSYS exec'd grandchildren
+    there. The edge case below that says "D1 covers it" is therefore only
+    partly true. Suggested follow-up: `fu-msys-direct-run-misses-exec-grandchildren`.
 - D2, the smoke harness measures the wrapper, not the orphan. This applies to
   BOTH Real-wrapper smoke steps (5.1 and pwsh 7), in `Invoke-WrapperSmokeArm`:
   - Replace `Start-Process ... -Wait` with `-PassThru` plus
@@ -348,6 +386,7 @@ and the platform-matrix text stay unchanged.
 | Spec-AC-02 | WHEN the ps1-quality timeout arm runs aai-run-tests.ps1 with AAI_TEST_TIMEOUT=2 around a 300 s hang on Windows PowerShell 5.1 and on pwsh 7, the harness SHALL wait on the wrapper process only (no Start-Process -Wait), SHALL fail the arm unless the wrapper exits 124 within 20 s and no process of the hang fixture survives 5 s after that exit, and SHALL fail the arm when the fixture's started marker is missing. | planned | — | — | D2; Windows proof is the CI RED and GREEN run logs |
 | Spec-AC-03 | WHEN any PowerShell source, Pester test, or bash suite named by a Pester test names a file under tests/skills/lib, the ps1-quality push and pull_request path lists SHALL match that file or carry a reasoned ps1-paths-exempt line for it, and the lists SHALL be identical and SHALL match no other tests/skills/lib file. | planned | — | — | D3, D4 |
 | Spec-AC-04 | The windows-5_1 job SHALL declare a job-level timeout-minutes between 26 and 45 inclusive (value 30). | planned | — | — | D5 |
+| Spec-AC-05 | WHEN aai-run-tests.ps1 launches the Git-Bash branch on Windows, the dispatcher SHALL start bash.exe suspended inside a Job Object carrying JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, assign it before resuming it, and terminate the job on every exit path with the exit-code contract unchanged; WHEN no job can be created or assigned it SHALL print one AAI-DEGRADED-MODE line naming the cause and launch as before. | planned | — | — | Amendment 1 (D1-fallback); Windows proof is the windows-5_1 smoke timeout arm |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -380,6 +419,10 @@ by pid and killed in a trap, so no busy or sleeping process outlives the suite.
 | TEST-007 | Spec-AC-03 | static      | tests/skills/test-aai-win-fallback.sh | test_035: under GitHub glob semantics the lists match no tests/skills/lib file outside D, so prompt-diet-ledger.sh and cd-subshell-leak-baseline.tsv do not trigger ps1-quality, and no list entry is the bare tests/skills/lib/** glob | sed:s/tests\/skills\/lib\/\*\.ps1/tests\/skills\/lib\/**/ | pending |
 | TEST-008 | Spec-AC-03 | integration | tests/skills/test-aai-win-fallback.sh | test_036: on a scratch fixture tree whose Tests.ps1 reads a new lib data file, the derived-set check fails and names that file, which proves a new PowerShell-read helper cannot be missed | sed:s/scan_tests_glob='\*\.Tests\.ps1'/scan_tests_glob='*.none'/ | pending |
 | TEST-009 | Spec-AC-04 | static      | tests/skills/test-aai-win-fallback.sh | test_037: the windows-5_1 job block carries a job-level timeout-minutes between 26 and 45 inclusive, while windows-wsl1 keeps 25 and the step-level 15 on the Pester steps stays | sed:s/    timeout-minutes: 30/    timeout-minutes: 360/ | pending |
+| TEST-010 | Spec-AC-05 | integration | tests/skills/test-aai-win-fallback.sh | test_038: under pwsh with the dispatcher's seams stubbed, Invoke-ViaGitBash launches through Start-ProcessInJob, never Start-Process, keeps exit 7 on the normal path and 124 on the timeout path, and calls Stop-KillOnCloseJob on the job exactly once on each path (after the tree kill on timeout) | sed:s/Stop-KillOnCloseJob -Job \$proc\.AaiJob/$null/ | green |
+| TEST-011 | Spec-AC-05 | integration | tests/skills/test-aai-win-fallback.sh | test_039: a job that cannot be created, or a failed assignment, prints one named AAI-DEGRADED-MODE line carrying the cause and launches through Start-Process with the exit code kept; a CreateProcess failure stays an AAI-SPAWN-ERROR exit 125 and closes the job without a second launch | sed:s/Write-JobDegradedLine -Reason \$_\.Exception\.Message/$null/ | green |
+| TEST-012 | Spec-AC-05 | static      | tests/skills/test-aai-win-fallback.sh | test_040: the P/Invoke source sets LimitFlags to JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE (0x2000), creates bash with CREATE_SUSPENDED, calls AssignProcessToJobObject before ResumeThread, and the AaiJobObject type compiles under pwsh (named skip without pwsh) | sed:s/LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE/LimitFlags = 0/ | green |
+| TEST-013 | Spec-AC-02 | integration | tests/skills/test-aai-win-fallback.sh | test_041: in both smoke steps the survivor function and its caller line, run under pwsh with Win32_Process stubbed, report zero survivors when none exist and exactly one (pid 2672) when one sleep 300 exists beside an unrelated sleep 1 | sed:s/\{ return \$found \}/{ return ,$found }/g | green |
 
 Test status values: pending → red → green
 

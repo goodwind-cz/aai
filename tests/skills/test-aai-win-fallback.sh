@@ -1315,8 +1315,8 @@ test_040() {
   [[ "$src" == *"LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE"* ]] || log_fail "TEST-012 (test_040): the job's LimitFlags must carry KILL_ON_JOB_CLOSE"
   [[ "$src" == *"CREATE_SUSPENDED = 0x00000004"* ]] || log_fail "TEST-012 (test_040): CREATE_SUSPENDED must be 0x00000004"
   [[ "$src" == *"CreateProcessW(app, cmd, IntPtr.Zero, IntPtr.Zero, true, CREATE_SUSPENDED"* ]] || log_fail "TEST-012 (test_040): bash must be created suspended"
-  a="$(grep -n 'if (!AssignProcessToJobObject(job, pi.hProcess))' "$RUN_TESTS_PS1" | head -n1 | cut -d: -f1)"
-  r="$(grep -n 'ResumeThread(pi.hThread)' "$RUN_TESTS_PS1" | head -n1 | cut -d: -f1)"
+  a="$(grep -n -m1 'if (!AssignProcessToJobObject(job, pi.hProcess))' "$RUN_TESTS_PS1" | cut -d: -f1)"
+  r="$(grep -n -m1 'ResumeThread(pi.hThread)' "$RUN_TESTS_PS1" | cut -d: -f1)"
   [[ -n "$a" && -n "$r" ]] || log_fail "TEST-012 (test_040): AssignProcessToJobObject / ResumeThread calls not found (assign=${a:-none} resume=${r:-none})"
   [[ "$a" -lt "$r" ]] || log_fail "TEST-012 (test_040): the process must be assigned to the job (line $a) before its thread is resumed (line $r)"
   if command -v pwsh >/dev/null 2>&1; then
