@@ -1945,11 +1945,6 @@ test_1761_leg_walls_bound() {  # Spec-AC-11 / TEST-017
   local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" line nums count
   line="$(sed -n '/^# Leg walls/{p;q;}' "$f")"
   [[ -n "$line" ]] || log_fail "TEST-017: the weights header has no '# Leg walls' line"
-  if [[ "$line" == *"pending"* ]]; then
-    # Pending marker, honest and loud: the second CI run has not measured yet.
-    log_info "TEST-017: Leg walls pending the second full-mode CI run (Spec-AC-11 stays implementing)"
-    return 0
-  fi
   [[ "$line" =~ ^#\ Leg\ walls\ \(run\ [0-9]{8,}\):\ ([0-9]+)\ ([0-9]+)\ ([0-9]+)\ ([0-9]+)$ ]] \
     || log_fail "TEST-017: the Leg walls line must read '# Leg walls (run <id>): w1 w2 w3 w4', got: $line"
   nums="${BASH_REMATCH[1]} ${BASH_REMATCH[2]} ${BASH_REMATCH[3]} ${BASH_REMATCH[4]}"

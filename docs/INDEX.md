@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-09T18:17:47.033Z
+Generated: 2026-10-09T18:24:02.130Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-slowest-suite-hot-spots | specs | implementing | 11 done, 1 implementing | docs/specs/SPEC-DRAFT-spec-slowest-suite-hot-spots.md |
+| spec-slowest-suite-hot-spots | specs | implementing | 12 done | docs/specs/SPEC-DRAFT-spec-slowest-suite-hot-spots.md |
 
 ## Canonical layer (0)
 

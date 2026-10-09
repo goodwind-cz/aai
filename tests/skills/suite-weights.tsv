@@ -20,7 +20,7 @@
 # (WEIGHTS_IGNORED) and fall back to name-balanced (every weight 1) —
 # this file carries no hygiene pin (D3).
 #
-# Leg walls: pending the second full-mode CI run on these weights (Spec-AC-11).
+# Leg walls (run 37972288462): 146 160 159 171
 #
 # Stale/missing rows cost minutes, never coverage: re-seed by re-running
 # this extraction against a fresh skills-full run id whenever it drifts
