@@ -65,13 +65,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-friction.mjs"
 PROTOCOL="$PROJECT_ROOT/.aai/system/FRICTION_PROTOCOL.md"
 AGENTS="$PROJECT_ROOT/.aai/AGENTS.md"
-PROMPT_DIET_TEST="$SCRIPT_DIR/test-aai-prompt-diet.sh"
-LAYER_PROFILES_TEST="$SCRIPT_DIR/test-aai-layer-profiles.sh"
 
 # The canonical seam markers Phase 1 introduces.
 SEAM_HEADING="## Skill wiring (shadow capture)"
@@ -158,8 +160,6 @@ check_deps() {
   log_info "Checking dependencies..."
   command -v node >/dev/null 2>&1 || log_skip "node not found"
   command -v git  >/dev/null 2>&1 || log_skip "git not found"
-  [ -f "$PROMPT_DIET_TEST" ]    || log_fail "test-aai-prompt-diet.sh not found"
-  [ -f "$LAYER_PROFILES_TEST" ] || log_fail "test-aai-layer-profiles.sh not found"
   # PROTOCOL / AGENTS / SCRIPT are intentionally NOT required here so the RED
   # phase fails on each TEST-xxx's own assertion (product_red), not a skip.
   log_pass "Dependencies checked"
@@ -289,13 +289,10 @@ test_005_no_phase2_surface() {
 # --- TEST-006 (Spec-AC-06): companion suites green --------------------------
 
 test_006_companion_suites() {
-  log_info "Test: companion prompt-diet + layer-profiles suites green (TEST-006)..."
-  local out code
-  out="$(bash "$PROMPT_DIET_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || nested_suite_fail "TEST-006: test-aai-prompt-diet.sh" "$out" "$code"
-  out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || nested_suite_fail "TEST-006: test-aai-layer-profiles.sh" "$out" "$code"
-  log_pass "Companion prompt-diet + layer-profiles suites green (TEST-006)"
+  log_info "Test: companion prompt-diet + layer-profiles suites are declared companions (TEST-006)..."
+  assert_companions aai-friction-wiring aai-layer-profiles aai-prompt-diet \
+    || log_fail "TEST-006 (plan row TEST-015): aai-layer-profiles and aai-prompt-diet must be selected with aai-friction-wiring"
+  log_pass "Companion prompt-diet + layer-profiles suites are selected with this suite (TEST-006)"
 }
 
 # --- TEST-449 (Spec-AC-28): the same nesting-wrapper property, proven against

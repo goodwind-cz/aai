@@ -58,6 +58,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/gh-merge-queue-stub.sh
 . "$SCRIPT_DIR/lib/gh-merge-queue-stub.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 MP="${MERGE_POLICY_SCRIPT:-$PROJECT_ROOT/.aai/scripts/merge-policy.mjs}"
@@ -2284,13 +2288,13 @@ test_1530_companion_wiring() {
   assert_payload_line_matches "$out" '^SELECTED aai-merge-policy ' \
     "TEST-1530: select-suites.mjs did not select aai-merge-policy" || ok=0
 
-  if ! bash "$PROJECT_ROOT/tests/skills/test-aai-layer-profiles.sh" >/dev/null 2>&1; then
-    log_info "TEST-1530: tests/skills/test-aai-layer-profiles.sh failed"
+  if ! assert_companions aai-merge-policy aai-layer-profiles; then
+    log_info "TEST-1530 (plan row TEST-018): aai-layer-profiles must be selected with aai-merge-policy"
     ok=0
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-1530: PROFILES/DOCS_AI_CANON/suite-map wiring complete; select-suites selects aai-merge-policy with no FULL_RUN; layer-profiles suite green" \
-    || log_fail "TEST-1530 companion wiring (PROFILES/canon/suite-map)"
+  [[ $ok -eq 1 ]] && log_pass "TEST-1530: PROFILES/DOCS_AI_CANON/suite-map wiring complete; select-suites selects aai-merge-policy with no FULL_RUN; layer-profiles is a companion" \
+    || log_fail "TEST-1530 companion wiring (PROFILES/canon/suite-map) (plan row TEST-018)"
 }
 
 # --- TEST-1532 (Spec-AC-23) --------------------------------------------------

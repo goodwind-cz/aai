@@ -32,6 +32,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DISPATCH="$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs"
 
@@ -710,16 +714,14 @@ test_009_workflow_and_config() {
 # --- TEST-010: seam survival (dispatch suite, prompt-diet, strict audit) ----------
 
 test_010_seam_survival() {
-  log_info "Test: dispatch suite, prompt-diet, and repo-wide strict audit survive (TEST-010)..."
-  (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-orchestration-dispatch.sh > "$TEST_DIR/t10-dispatch.log" 2>&1) \
-    || log_fail "existing dispatch suite must stay green: $(tail -20 "$TEST_DIR/t10-dispatch.log")"
-  (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-prompt-diet.sh > "$TEST_DIR/t10-diet.log" 2>&1) \
-    || log_fail "prompt-diet floor must hold: $(tail -20 "$TEST_DIR/t10-diet.log")"
+  log_info "Test: dispatch suite and prompt-diet are declared companions; repo-wide strict audit survives (TEST-010)..."
+  assert_companions aai-ceremony-levels aai-orchestration-dispatch aai-prompt-diet \
+    || log_fail "TEST-010 (plan row TEST-013): orchestration-dispatch and prompt-diet must be selected with aai-ceremony-levels"
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t10-audit.log" 2>&1) \
     || log_fail "repo-wide strict audit must exit 0: $(tail -30 "$TEST_DIR/t10-audit.log")"
   grep -qE "Scanned: [1-9][0-9]* docs" "$TEST_DIR/t10-audit.log" \
     || log_fail "strict audit must be non-vacuous: $(head -10 "$TEST_DIR/t10-audit.log")"
-  log_pass "Seams survive: dispatch suite, prompt-diet, strict audit all green (TEST-010)"
+  log_pass "Seams survive: dispatch suite and prompt-diet selected with this suite, strict audit green (TEST-010)"
 }
 
 ## ==========================================================================
@@ -1098,40 +1100,22 @@ test_016_misuse_guard_survival() {
 # --- TEST-017 (Spec TEST-007/Spec-AC-04..06): seam survival --------------------
 
 test_017_seam_survival_spec0041() {
-  log_info "Test: seam survival for SPEC-0041: dispatch suite green (S1), ceremony TEST-001..010 green, prompt-diet no NEW regression (S3), strict audit exit 0 (S4) (TEST-007)..."
+  log_info "Test: seam survival for SPEC-0041: dispatch suite and prompt-diet are companions (S1, S3), strict audit exit 0 (S4) (TEST-007)..."
 
-  # S1 -- dispatch suite (also the CHANGE-0031 seam) stays green.
-  (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-orchestration-dispatch.sh > "$TEST_DIR/t17-dispatch.log" 2>&1) \
-    || log_fail "dispatch suite must stay green post-change: $(tail -20 "$TEST_DIR/t17-dispatch.log")"
-
-  # ceremony TEST-001..010 stanzas (SPEC-0030) re-verified green, each as an
-  # independent subprocess (isolated fixture dir; the file's own
-  # single-function invocation mode, used identically by TDD RED/GREEN runs).
-  local fn
-  for fn in test_001_decide_fail_closed_default test_002_decide_l0_rule6_prune \
-            test_003_decide_l3_worktree test_004_decide_l3_review \
-            test_005_cli_fail_closed_parsing test_006_close_gate_justification \
-            test_007_spec_template test_008_planning_step10 \
-            test_009_workflow_and_config; do
-    (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-ceremony-levels.sh "$fn" > "$TEST_DIR/t17-$fn.log" 2>&1) \
-      || log_fail "$fn must stay green post-change: $(tail -20 "$TEST_DIR/t17-$fn.log")"
-  done
-  # test_010 itself re-runs prompt-diet (see below); it is exercised directly
-  # here too so the seam is proven independently of the loop above.
-
-  # S3 -- prompt-diet floor. The pre-existing TEST-010 byte-budget shortfall
-  # (LEARNED 2026-07-17) is RESOLVED (DEBT-0002/SPEC-0048: JUSTIFIED_GROWTH_BYTES
-  # ledger credit + bounded headroom-cap guard) -- plain exit-0 assertion, no
-  # tolerance branch.
-  (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-prompt-diet.sh > "$TEST_DIR/t17-diet.log" 2>&1) \
-    || log_fail "prompt-diet must exit 0 (DEBT-0002 shortfall resolved): $(tail -20 "$TEST_DIR/t17-diet.log")"
+  # S1 + S3 -- the dispatch suite (also the CHANGE-0031 seam) and the
+  # prompt-diet floor are declared companions (suite-map.yaml), selected with
+  # this suite instead of re-run nested. The old loop re-ran this file's own
+  # test_001..009 by selector; main already runs them in this same execution,
+  # so nothing replaces it (D5).
+  assert_companions aai-ceremony-levels aai-orchestration-dispatch aai-prompt-diet \
+    || log_fail "TEST-017 (plan row TEST-013): orchestration-dispatch and prompt-diet must be selected with aai-ceremony-levels"
 
   # S4 -- repo-wide strict audit.
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t17-audit.log" 2>&1) \
     || log_fail "repo-wide strict audit must exit 0: $(tail -30 "$TEST_DIR/t17-audit.log")"
   grep -qE "Scanned: [1-9][0-9]* docs" "$TEST_DIR/t17-audit.log" \
     || log_fail "strict audit must be non-vacuous: $(head -10 "$TEST_DIR/t17-audit.log")"
-  log_pass "Seams survive: dispatch suite, ceremony TEST-001..010, prompt-diet (no new regression), strict audit all green (TEST-017/spec TEST-007)"
+  log_pass "Seams survive: dispatch suite and prompt-diet selected with this suite, strict audit green (TEST-017/spec TEST-007)"
 }
 
 # --- TEST-018 (prompt-dedup-canonical-includes spec TEST-001/Spec-AC-01):

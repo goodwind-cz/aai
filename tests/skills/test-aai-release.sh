@@ -40,6 +40,10 @@ TEST_NAME="aai-release"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 RELEASE_SH="$PROJECT_ROOT/.aai/scripts/aai-release.sh"
@@ -799,13 +803,10 @@ test_019_ps1_flag_parity() {
 # --- TEST-020 (Spec-AC-05, SEAM-2): layer-profiles classification ----------
 
 test_020_seam2_layer_profiles() {
-  log_info "TEST-020: SEAM-2 — test-aai-layer-profiles.sh exits 0 with the 3 new .aai/** files classified core..."
-  local suite="$PROJECT_ROOT/tests/skills/test-aai-layer-profiles.sh" rc
-  [[ -f "$suite" ]] || log_fail "TEST-020: test-aai-layer-profiles.sh not found"
-  rc=0
-  bash "$suite" >"$TMP_ROOT/t020.out" 2>&1 || rc=$?
-  [[ "$rc" == "0" ]] || log_fail "TEST-020: test-aai-layer-profiles.sh exited $rc:"$'\n'"$(tail -40 "$TMP_ROOT/t020.out")"
-  log_pass "TEST-020 layer-profiles suite green (new .aai/** files classified)"
+  log_info "TEST-020: SEAM-2 — layer-profiles is a declared companion (it classifies the 3 new .aai/** files in its own run)..."
+  assert_companions aai-release aai-layer-profiles \
+    || log_fail "TEST-020 (plan row TEST-019): aai-layer-profiles must be selected with aai-release"
+  log_pass "TEST-020 layer-profiles is selected with this suite (new .aai/** files classified in its run)"
 }
 
 # --- TEST-021 (Spec-AC-05): docs document /aai-release ---------------------

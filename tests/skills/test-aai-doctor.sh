@@ -38,6 +38,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 
 # dr_line_hit <payload> <ere> — true (rc 0) iff some LINE of <payload> matches
 # <ere>, tested one line at a time so `.` can never span a newline the way it
@@ -1134,22 +1138,13 @@ test_031_hygiene_set() {
   profcount="$(grep -cF '.aai/scripts/aai-win-selftest.ps1' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")"
   [[ "$profcount" -eq 1 ]] || { log_info "TEST-031: PROFILES.yaml lists aai-win-selftest.ps1 $profcount time(s) (want 1)"; ok=0; }
 
-  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-doctor-lp.XXXXXX")"
-  if ! bash "$PROJECT_ROOT/tests/skills/test-aai-layer-profiles.sh" >"$tmp" 2>&1; then
-    log_info "TEST-031: test-aai-layer-profiles.sh failed: $(tail -20 "$tmp")"
+  if ! assert_companions aai-doctor aai-layer-profiles aai-suite-select; then
+    log_info "TEST-031 (plan row TEST-012): aai-layer-profiles and aai-suite-select must be selected with aai-doctor"
     ok=0
   fi
-  rm -f "$tmp"
 
-  tmp="$(mktemp "${TMPDIR:-/tmp}/aai-doctor-ss.XXXXXX")"
-  if ! bash "$PROJECT_ROOT/tests/skills/test-aai-suite-select.sh" >"$tmp" 2>&1; then
-    log_info "TEST-031: test-aai-suite-select.sh failed: $(tail -20 "$tmp")"
-    ok=0
-  fi
-  rm -f "$tmp"
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-031 hygiene set: registration clean, suite-map row, PROFILES entry once, layer-profiles/suite-select green" \
-    || log_fail "TEST-031 hygiene set"
+  [[ $ok -eq 1 ]] && log_pass "TEST-031 hygiene set: registration clean, suite-map row, PROFILES entry once, layer-profiles/suite-select selected with this suite" \
+    || log_fail "TEST-031 hygiene set (plan row TEST-012)"
 }
 
 # --- TEST-032 (Spec-AC-05) — documentation pin ------------------------------

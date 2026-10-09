@@ -79,13 +79,16 @@ TEST_DIR=""
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-friction.mjs"
 PROTOCOL="$PROJECT_ROOT/.aai/system/FRICTION_PROTOCOL.md"
 AAI_PIN="$PROJECT_ROOT/.aai/system/AAI_PIN.md"
 PROFILES="$PROJECT_ROOT/.aai/system/PROFILES.yaml"
-LAYER_PROFILES_TEST="$SCRIPT_DIR/test-aai-layer-profiles.sh"
 REAL_SPOOL="$PROJECT_ROOT/docs/ai/friction/observations.jsonl"
 JQ=""
 
@@ -112,7 +115,6 @@ check_deps() {
   command -v git  >/dev/null 2>&1 || log_skip "git not found"
   [ -f "$AAI_PIN" ] || log_fail "AAI_PIN.md not found: $AAI_PIN"
   [ -f "$PROFILES" ] || log_fail "PROFILES.yaml not found: $PROFILES"
-  [ -f "$LAYER_PROFILES_TEST" ] || log_fail "test-aai-layer-profiles.sh not found"
   # NOTE: SCRIPT and PROTOCOL are intentionally NOT required here — the RED
   # phase runs against the absent script/doc so each TEST-xxx fails on its own
   # assertion (product_red), not a missing-precondition skip.
@@ -574,17 +576,15 @@ test_013_gitignore() {
 # --- TEST-014 (Spec-AC-09): PROFILES classification / layer-profiles green ---
 
 test_014_profiles_classified() {
-  log_info "Test: both new .aai paths classified once; test-aai-layer-profiles.sh green (TEST-014, Seam 1)..."
+  log_info "Test: both new .aai paths classified once; layer-profiles is a companion (TEST-014, Seam 1)..."
   local n
   n="$(grep -cF "  - .aai/scripts/aai-friction.mjs" "$PROFILES" || true)"
   [ "$n" = "1" ] || log_fail "TEST-014: .aai/scripts/aai-friction.mjs must be classified exactly once (got $n)"
   n="$(grep -cF "  - .aai/system/FRICTION_PROTOCOL.md" "$PROFILES" || true)"
   [ "$n" = "1" ] || log_fail "TEST-014: .aai/system/FRICTION_PROTOCOL.md must be classified exactly once (got $n)"
-  local lp_log="$TEST_DIR/layer-profiles.log" code=0
-  bash "$LAYER_PROFILES_TEST" > "$lp_log" 2>&1 || code=$?
-  [ "$code" = "0" ] \
-    || log_fail "TEST-014: test-aai-layer-profiles.sh must exit 0 (got $code): $(tail -20 "$lp_log")"
-  log_pass "PROFILES classifies both new files; layer-profiles suite green (TEST-014)"
+  assert_companions aai-friction aai-layer-profiles \
+    || log_fail "TEST-014 (plan row TEST-016): aai-layer-profiles must be selected with aai-friction"
+  log_pass "PROFILES classifies both new files; layer-profiles is a companion (TEST-014)"
 }
 
 # --- TEST-015 (Spec-AC-10): --help documents the contract -------------------

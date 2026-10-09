@@ -144,6 +144,9 @@ suites:
       - .aai/ORCHESTRATION.prompt.md
 
   aai-ceremony-levels:
+    companions:
+      - aai-orchestration-dispatch
+      - aai-prompt-diet
     globs:
       - .aai/PLANNING.prompt.md
       - .aai/VALIDATION.prompt.md
@@ -339,6 +342,9 @@ suites:
       - .aai/system/LOCKS.md
 
   aai-doctor:
+    companions:
+      - aai-layer-profiles
+      - aai-suite-select
     globs:
       - .aai/scripts/aai-doctor.mjs
       - .aai/SKILL_DOCTOR.prompt.md
@@ -367,6 +373,9 @@ suites:
       - .aai/scripts/aai-friction.mjs
 
   aai-feedback-upsert:
+    companions:
+      - aai-layer-profiles
+      - aai-prompt-diet
     globs:
       - .aai/scripts/aai-feedback-upsert.mjs
 
@@ -455,6 +464,9 @@ suites:
       - .aai/scripts/aai-friction.mjs
 
   aai-friction-wiring:
+    companions:
+      - aai-layer-profiles
+      - aai-prompt-diet
     globs:
       - .aai/AGENTS.md
       - .aai/IMPLEMENTATION.prompt.md
@@ -467,6 +479,8 @@ suites:
       - .aai/system/FRICTION_PROTOCOL.md
 
   aai-friction:
+    companions:
+      - aai-layer-profiles
     globs:
       - .aai/scripts/aai-friction.mjs
       - .aai/system/AAI_PIN.md
@@ -668,6 +682,11 @@ suites:
       - docs/product/live-status-dashboard.md
 
   aai-sync-seed:
+    companions:
+      - aai-bootstrap
+      - aai-hooks-overlay
+      - aai-layer-drift
+      - aai-layer-profiles
     globs:
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/aai-sync.ps1
@@ -702,11 +721,15 @@ suites:
       - docs/knowledge/**
 
   aai-ledger-merge:
+    companions:
+      - aai-layer-profiles
     globs:
       - .aai/scripts/ledger-merge.mjs
       - .aai/system/PROFILES.yaml
 
   aai-merge-policy:
+    companions:
+      - aai-layer-profiles
     globs:
       - .aai/scripts/merge-policy.mjs
       - .aai/scripts/lane-gate.mjs
@@ -864,6 +887,8 @@ suites:
       - .aai/scripts/lib/aai-redact.mjs
 
   aai-release:
+    companions:
+      - aai-layer-profiles
     globs:
       - .aai/scripts/aai-release.sh
       - .aai/scripts/aai-release.ps1

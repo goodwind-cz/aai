@@ -25,10 +25,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-feedback-upsert.mjs"
 FRICTION_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-friction.mjs"
-LAYER_PROFILES_TEST="$SCRIPT_DIR/test-aai-layer-profiles.sh"
 
 cleanup() { [ -n "${TEST_DIR:-}" ] && [ -z "${KEEP_TEST_DIR:-}" ] && rm -rf "$TEST_DIR"; }
 trap cleanup EXIT
@@ -2025,10 +2028,9 @@ test_664_parse_failure_is_not_exit_zero() {
 }
 
 test_009_profiles() {
-  log_info "Test: new .aai files classified; layer-profiles green (TEST-009)..."
-  local out code; out="$(bash "$LAYER_PROFILES_TEST" 2>&1)"; code=$?
-  [ "$code" = "0" ] || nested_suite_fail "TEST-009: layer-profiles" "$out" "$code"
-  log_pass "new .aai files classified; layer-profiles green (TEST-009)"
+  log_info "Test: layer-profiles is a declared companion (TEST-009)..."
+  assert_companions aai-feedback-upsert aai-layer-profiles || log_fail "TEST-009 (plan row TEST-014): aai-layer-profiles must be selected with aai-feedback-upsert"
+  log_pass "layer-profiles is selected with this suite; it classifies the new .aai files in its own run (TEST-009)"
 }
 
 # --- TEST-404 (Spec-AC-28): nesting wrapper names a file + line count, and
@@ -2358,9 +2360,8 @@ test_1312_surfaces_state_the_contract() {
     esac
   done <<<"$cl"
   [ "$found" = "1" ] || log_fail "TEST-1312: CHANGELOG carries no 'fix:' heading naming --description, unreleased or released"
-  local out code; out="$(bash "$SCRIPT_DIR/test-aai-prompt-diet.sh" 2>&1)"; code=$?
-  [ "$code" = "0" ] || nested_suite_fail "TEST-1312: prompt-diet" "$out" "$code"
-  log_pass "the four surfaces and the CHANGELOG state the contract; stale sentence gone; cap 500; prompt-diet green (TEST-1312)"
+  assert_companions aai-feedback-upsert aai-prompt-diet || log_fail "TEST-1312 (plan row TEST-014): aai-prompt-diet must be selected with aai-feedback-upsert"
+  log_pass "the four surfaces and the CHANGELOG state the contract; stale sentence gone; cap 500; prompt-diet is a companion (TEST-1312)"
 }
 
 main() {
