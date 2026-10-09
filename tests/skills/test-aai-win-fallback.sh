@@ -988,8 +988,14 @@ test_030() {
   fi
   [[ "$MK_RC" -eq 124 ]] || { msys_reap_cleanup; log_fail "TEST-002 (test_030): wrapper exit $MK_RC (want 124)"; }
   [[ "$MK_ELAPSED" -le 10 ]] || { msys_reap_cleanup; log_fail "TEST-002 (test_030): wrapper took ${MK_ELAPSED}s (want <= TIMEOUT+8 = 10)"; }
+  # A killed grandchild that no one reaps stays a zombie (Z) in containers
+  # whose PID 1 does not reap orphans; kill -0 still succeeds on it, so a
+  # defunct process counts as killed (PR #442 review, Codex P2).
+  local st
   for i in 1 2 3 4 5 6; do
     kill -0 "$MK_GC" 2>/dev/null || { alive=0; break; }
+    st="$(ps -o stat= -p "$MK_GC" 2>/dev/null)" || st=""
+    case "$st" in *Z*) alive=0; break ;; esac
     sleep 0.5
   done
   if [[ "$alive" -eq 1 ]]; then
