@@ -29,6 +29,10 @@ TEST_NAME="aai-sync-seed"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/pipe-safe.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 SYNC_SH="$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
 SYNC_PS1="$PROJECT_ROOT/.aai/scripts/aai-sync.ps1"
 TEMPLATE="$PROJECT_ROOT/.aai/templates/update-config.template.yaml"
@@ -1160,17 +1164,10 @@ HOOKSJSON
 # shared .aai/scripts/lib/merge-hooks-json.mjs this scope introduces, so that
 # suite is a regression guard for THIS change too, not just a bystander.
 test_781_regression_suites_exit_zero() {
-  log_info "TEST-781: the sync-engine regression suites exit 0 on the changed tree..."
-  local suite rc outfile
-  for suite in tests/skills/test-aai-layer-drift.sh tests/skills/test-aai-layer-profiles.sh tests/skills/test-aai-bootstrap.sh tests/skills/test-aai-hooks-overlay.sh; do
-    outfile="$TMP_ROOT/regress-$(basename "$suite" .sh).log"
-    rc=0
-    env -u AAI_ROLE bash "$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh" bash "$PROJECT_ROOT/$suite" \
-      > "$outfile" 2>&1 || rc=$?
-    [[ "$rc" -eq 0 ]] || log_fail "TEST-781: $suite exited $rc (expected 0); tail: $(tail -c 2000 "$outfile")"
-  done
-  log_info "TEST-781 note: this suite's own green exit (test-aai-sync-seed.sh) is the fifth data point by construction of running as part of this same execution -- it is not re-invoked here to avoid unbounded self-recursion"
-  log_pass "TEST-781 test-aai-layer-drift.sh, test-aai-layer-profiles.sh, test-aai-bootstrap.sh and test-aai-hooks-overlay.sh all exit 0 on the changed tree"
+  log_info "TEST-781: the sync-engine regression suites are declared companions of this suite..."
+  assert_companions aai-sync-seed aai-bootstrap aai-hooks-overlay aai-layer-drift aai-layer-profiles \
+    || log_fail "TEST-781 (plan row TEST-011): bootstrap, hooks-overlay, layer-drift and layer-profiles must be selected with aai-sync-seed"
+  log_pass "TEST-781 test-aai-layer-drift.sh, test-aai-layer-profiles.sh, test-aai-bootstrap.sh and test-aai-hooks-overlay.sh are selected with this suite (each exits 0 in its own run)"
 }
 
 # --- TEST-782 (Spec-AC-10, NEW) — malformed target hooks.json: merge refused,

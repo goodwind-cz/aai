@@ -55,6 +55,10 @@ TEST_DIR=""
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 CHECK_SCRIPT="$PROJECT_ROOT/.aai/scripts/tdd-evidence-check.mjs"
 SKILL_TDD="$PROJECT_ROOT/.aai/SKILL_TDD.prompt.md"
 VALIDATION="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
@@ -285,7 +289,7 @@ test_004_validation_canon() {
 # --- TEST-005 (Spec-AC-05): additive regression ------------------------------
 
 test_005_additive_regression() {
-  log_info "Test: legacy log probe -> 2, no repo-wide sweep, test-aai-tdd.sh regression, state.mjs zero-diff, docs-audit strict (TEST-005)..."
+  log_info "Test: legacy log probe -> 2, no repo-wide sweep, test-aai-tdd.sh is a declared companion, state.mjs zero-diff, docs-audit strict (TEST-005)..."
 
   # Legacy repo log (pre-change, no RED_CLASS line) -> 2 when explicitly probed.
   assert_exit "legacy log explicit probe" 2 "$(run_check "$LEGACY_RED_LOG")"
@@ -295,11 +299,10 @@ test_005_additive_regression() {
     log_fail "TEST-005: tdd-evidence-check.mjs must not perform a repo-wide sweep of docs/ai/tdd/"
   fi
 
-  # Regression: existing TDD skill test suite still exits 0.
-  local regress_log="$TEST_DIR/tdd-regression.log"
-  (cd "$PROJECT_ROOT" && AAI_TEST_TIMEOUT="${AAI_TEST_TIMEOUT:-600}" \
-    "$RUN_TESTS_SH" bash "$TDD_REGRESSION_SUITE" > "$regress_log" 2>&1) \
-    || log_fail "TEST-005: tests/skills/test-aai-tdd.sh must still exit 0: $(tail -20 "$regress_log")"
+  # Regression: the existing TDD skill test suite is a declared companion,
+  # selected with this suite and run on its own (not nested).
+  assert_companions aai-tdd-evidence aai-tdd \
+    || log_fail "TEST-005 (plan row TEST-031): aai-tdd must be selected with aai-tdd-evidence"
 
   # Protected surface (reframed by token-capture-canary — mirrors
   # test-aai-hitl-propagation.sh TEST-014): a non-empty state.mjs diff is
@@ -351,7 +354,7 @@ EOF
   (cd "$PROJECT_ROOT" && node "$DOCS_AUDIT" --check --strict --no-event > "$audit_log" 2>&1) \
     || log_fail "TEST-005: docs-audit --check --strict --no-event must exit 0: $(tail -20 "$audit_log")"
 
-  log_pass "Additive regression: legacy probe=2, no sweep, tdd.sh green, state.mjs zero-diff, docs-audit clean (TEST-005)"
+  log_pass "Additive regression: legacy probe=2, no sweep, tdd suite selected with this suite, state.mjs zero-diff, docs-audit clean (TEST-005)"
 }
 
 # --- TEST-010 (SPEC-0046 Spec-AC-08): BOM+CRLF product_red -> exit 0 ACCEPTED --
@@ -411,6 +414,13 @@ main() {
   check_deps
   setup_fixture
   ensure_legacy_red_log
+
+  if [[ $# -ge 1 ]]; then
+    [[ "$(type -t "$1" 2>/dev/null || true)" == "function" ]] \
+      || { echo "unknown test: $1" >&2; exit 2; }
+    "$1"
+    exit 0
+  fi
 
   test_001_contract_matrix
   test_002_realistic_fixture_pair

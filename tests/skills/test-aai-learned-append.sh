@@ -76,6 +76,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pipe-free payload assertions (spec-assertions-must-not-die-on-their-own-payload).
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
@@ -83,10 +87,6 @@ SCRIPT="$PROJECT_ROOT/.aai/scripts/learned-append.mjs"
 WRAP_UP_PROMPT="$PROJECT_ROOT/.aai/SKILL_WRAP_UP.prompt.md"
 PROTOCOL="$PROJECT_ROOT/.aai/system/FRICTION_PROTOCOL.md"
 PROFILES="$PROJECT_ROOT/.aai/system/PROFILES.yaml"
-LAYER_PROFILES_TEST="$SCRIPT_DIR/test-aai-layer-profiles.sh"
-PROMPT_DIET_TEST="$SCRIPT_DIR/test-aai-prompt-diet.sh"
-FRICTION_WIRING_TEST="$SCRIPT_DIR/test-aai-friction-wiring.sh"
-HYGIENE_PACK_TEST="$SCRIPT_DIR/test-aai-hygiene-pack.sh"
 
 log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -429,41 +429,28 @@ test_014_protocol_pointer() {
 # --- TEST-015 (Spec-AC-04): PROFILES classification + real suite ------------
 
 test_015_profiles_classified() {
-  log_info "Test: PROFILES.yaml classifies learned-append.mjs under core; real layer-profiles suite green (TEST-015)..."
+  log_info "Test: PROFILES.yaml classifies learned-append.mjs under core; layer-profiles is a declared companion (TEST-015)..."
   local core_block
   core_block="$(awk '/^core:/{cap=1; next} /^extended:/{cap=0} cap' "$PROFILES")"
   assert_payload_contains "$core_block" ".aai/scripts/learned-append.mjs" "TEST-015: .aai/scripts/learned-append.mjs must be classified under 'core:' in PROFILES.yaml"
-  [ -f "$LAYER_PROFILES_TEST" ] || log_fail "TEST-015: $LAYER_PROFILES_TEST missing"
-  local out code=0
-  out="$(bash "$LAYER_PROFILES_TEST" 2>&1)" || code=$?
-  [ "$code" = "0" ] || log_fail "TEST-015: test-aai-layer-profiles.sh must pass (exit $code): $(printf '%s' "$out" | tail -5)"
-  log_pass "learned-append.mjs classified under core; layer-profiles suite green (TEST-015)"
+  assert_companions aai-learned-append aai-layer-profiles || log_fail "TEST-015 (plan row TEST-006): aai-layer-profiles must be a companion of aai-learned-append"
+  log_pass "learned-append.mjs classified under core; layer-profiles is a companion (TEST-015)"
 }
 
 # --- TEST-016 (Spec-AC-04): prompt-diet ledger true-up -----------------------
 
 test_016_prompt_diet_ledger() {
-  log_info "Test: real test-aai-prompt-diet.sh stays green (ledger true-up proven against the live corpus) (TEST-016)..."
-  [ -f "$PROMPT_DIET_TEST" ] || log_fail "TEST-016: $PROMPT_DIET_TEST missing"
-  local out code=0
-  out="$(bash "$PROMPT_DIET_TEST" 2>&1)" || code=$?
-  [ "$code" = "0" ] || log_fail "TEST-016: test-aai-prompt-diet.sh must pass (exit $code): $(printf '%s' "$out" | tail -8)"
-  log_pass "Prompt-diet ledger trued up: real suite green (TEST-016)"
+  log_info "Test: prompt-diet is a declared companion (ledger true-up proven by its own run against the live corpus) (TEST-016)..."
+  assert_companions aai-learned-append aai-prompt-diet || log_fail "TEST-016 (plan row TEST-006): aai-prompt-diet must be a companion of aai-learned-append"
+  log_pass "Prompt-diet is a companion; its own run proves the ledger true-up (TEST-016)"
 }
 
 # --- TEST-017 (Spec-AC-05): companion suites stay green ---------------------
 
 test_017_companion_suites_green() {
-  log_info "Test: companion friction-wiring + hygiene-pack suites stay green (TEST-017)..."
-  [ -f "$FRICTION_WIRING_TEST" ] || log_fail "TEST-017: $FRICTION_WIRING_TEST missing"
-  [ -f "$HYGIENE_PACK_TEST" ] || log_fail "TEST-017: $HYGIENE_PACK_TEST missing"
-  local out code=0
-  out="$(bash "$FRICTION_WIRING_TEST" 2>&1)" || code=$?
-  [ "$code" = "0" ] || log_fail "TEST-017: test-aai-friction-wiring.sh must pass (exit $code): $(printf '%s' "$out" | tail -8)"
-  code=0
-  out="$(bash "$HYGIENE_PACK_TEST" 2>&1)" || code=$?
-  [ "$code" = "0" ] || log_fail "TEST-017: test-aai-hygiene-pack.sh must pass (exit $code): $(printf '%s' "$out" | tail -8)"
-  log_pass "Companion suites (friction-wiring, hygiene-pack) stay green (TEST-017)"
+  log_info "Test: friction-wiring is a declared companion and hygiene-pack runs as core (TEST-017)..."
+  assert_companions aai-learned-append aai-friction-wiring aai-hygiene-pack || log_fail "TEST-017 (plan row TEST-006): friction-wiring and hygiene-pack must be selected with aai-learned-append"
+  log_pass "Companion suites (friction-wiring, hygiene-pack) are selected with this suite (TEST-017)"
 }
 
 # --- TEST-665 (Spec-AC-08): the house bullet style (spec-friction-channel-sweep) ---

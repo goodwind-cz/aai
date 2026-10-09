@@ -1361,6 +1361,538 @@ test_1727_pr434_last_push_replay() {  # Spec-AC-09
   log_pass "TEST-1727: PR #434 last push replays to CORE plus SELECTED, with and without report paths"
 }
 
+# ---- companions (nested-suite-reruns-duplicate-sweep-time, D1/D2/D4,
+# TEST-001..005 = test_1750..test_1754) -----------------------------------
+
+# write_map <dir> — read a suite-map.yaml body on stdin into <dir>.
+write_map() {
+  local dir="$1"
+  [[ -n "$dir" && "$dir" == /* ]] || log_fail "write_map: path must be non-empty and absolute: '$dir'"
+  mkdir -p "$dir/tests/skills" || log_fail "write_map: mkdir failed"
+  cat > "$dir/tests/skills/suite-map.yaml" || log_fail "write_map: write failed"
+}
+
+# sel_count <payload> <ere> — number of payload lines matching the ERE.
+sel_count() {
+  local _p="$1" _e="$2" _l _n=0
+  while IFS= read -r _l; do
+    if [[ "$_l" =~ $_e ]]; then _n=$((_n + 1)); fi
+  done <<EOT
+$_p
+EOT
+  echo "$_n"
+}
+
+test_1750_companion_is_selected_with_its_parent() {  # Spec-AC-01 / TEST-001
+  log_info "Test: a companion is selected after its parent with reason=companion:<parent> and counted in DROPPED (TEST-001)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  write_map "$TEST_DIR" <<'YAML'
+core:
+  - aai-c
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+  aai-x:
+    companions:
+      - aai-y
+    globs:
+      - src/x/**
+  aai-y:
+    globs:
+      - src/y/**
+  aai-w:
+    globs:
+      - src/w/**
+YAML
+  run_sel "$TEST_DIR" src/x/a.js
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-001: exit must be 0, got $CODE: $OUT"
+  local want
+  want="CORE aai-c reason=core
+SELECTED aai-x reason=src/x/a.js
+SELECTED aai-y reason=companion:aai-x
+DROPPED 1"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-001: companion selection output differs. want: $want -- got: $(payload_preview "$OUT")"
+  # a companion the diff also selects by path keeps its path reason, once
+  run_sel "$TEST_DIR" src/x/a.js src/y/b.js
+  want="CORE aai-c reason=core
+SELECTED aai-x reason=src/x/a.js
+SELECTED aai-y reason=src/y/b.js
+DROPPED 1"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-001: a path-selected companion keeps its path reason. got: $(payload_preview "$OUT")"
+  # negative control: a diff that does not select the parent adds no companion
+  run_sel "$TEST_DIR" src/w/a.js
+  assert_payload_line_not_matches "$OUT" 'aai-y' "TEST-001: an unrelated diff must not pull in a companion: $(payload_preview "$OUT")"
+  assert_payload_has_line "$OUT" "DROPPED 2" "TEST-001: unrelated diff drops x and y: $(payload_preview "$OUT")"
+  log_pass "TEST-001: companions follow their parent with reason=companion:<parent>, DROPPED counts them (TEST-001)"
+}
+
+test_1751_companions_are_transitive_cycle_safe() {  # Spec-AC-01 / TEST-002
+  log_info "Test: companions are followed transitively, a cycle terminates, a core companion prints no SELECTED line (TEST-002)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  write_map "$TEST_DIR" <<'YAML'
+core:
+  - aai-c
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+  aai-x:
+    companions:
+      - aai-y
+    globs:
+      - src/x/**
+  aai-y:
+    companions:
+      - aai-z
+    globs:
+      - src/y/**
+  aai-z:
+    globs:
+      - src/z/**
+  aai-w:
+    companions:
+      - aai-w2
+      - aai-y
+    globs:
+      - src/w/**
+  aai-w2:
+    companions:
+      - aai-w
+      - aai-w2x
+      - aai-c
+    globs:
+      - src/w2/**
+  aai-w2x:
+    globs:
+      - src/w2x/**
+YAML
+  local want
+  run_sel "$TEST_DIR" src/x/a.js
+  want="CORE aai-c reason=core
+SELECTED aai-x reason=src/x/a.js
+SELECTED aai-y reason=companion:aai-x
+SELECTED aai-z reason=companion:aai-y
+DROPPED 3"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-002: x -> y -> z must select all three in order. got: $(payload_preview "$OUT")"
+  # cycle w -> w2 -> w, plus a diamond into y (multi-source), plus a core companion
+  run_sel "$TEST_DIR" src/w/a.js
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-002: a cycle must still exit 0, got $CODE"
+  want="CORE aai-c reason=core
+SELECTED aai-w reason=src/w/a.js
+SELECTED aai-w2 reason=companion:aai-w
+SELECTED aai-y reason=companion:aai-w
+SELECTED aai-w2x reason=companion:aai-w2
+SELECTED aai-z reason=companion:aai-y
+DROPPED 1"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-002: cycle/diamond output differs. want: $want -- got: $(payload_preview "$OUT")"
+  [[ "$(sel_count "$OUT" '^SELECTED aai-w ')" -eq 1 ]] || log_fail "TEST-002: the cycle must print aai-w once: $(payload_preview "$OUT")"
+  [[ "$(sel_count "$OUT" '^SELECTED aai-c ')" -eq 0 ]] || log_fail "TEST-002: a core companion must print no SELECTED line: $(payload_preview "$OUT")"
+  # degenerate: a suite whose companion list is empty-ish (listed twice) prints once
+  write_map "$TEST_DIR" <<'YAML'
+core:
+  - aai-c
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+  aai-x:
+    companions:
+      - aai-y
+      - aai-y
+    globs:
+      - src/x/**
+  aai-y:
+    globs:
+      - src/y/**
+YAML
+  run_sel "$TEST_DIR" src/x/a.js
+  [[ "$(sel_count "$OUT" '^SELECTED aai-y ')" -eq 1 ]] || log_fail "TEST-002: a duplicated companion entry must print once: $(payload_preview "$OUT")"
+  log_pass "TEST-002: companions are transitive, cycle-safe, deduplicated, and skip core suites (TEST-002)"
+}
+
+test_1752_malformed_companion_fails_open() {  # Spec-AC-02 / TEST-003
+  log_info "Test: a ghost, self or bad-charset companion fails open in whole-PR and delta mode, exit 0 (TEST-003)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local repo="$TEST_DIR/repo" bad variant
+  delta_repo "$repo"
+  delta_commit "$repo" seed README.md
+  for variant in ghost self charset; do
+    case "$variant" in
+      ghost) bad="aai-ghost" ;;
+      self) bad="aai-x" ;;
+      charset) bad="aai x!" ;;
+    esac
+    write_map "$repo" <<YAML
+core:
+  - aai-c
+
+carry_forward_globs:
+  - docs/INDEX.md
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+  aai-x:
+    companions:
+      - $bad
+    globs:
+      - src/x/**
+YAML
+    run_sel "$repo" src/x/a.js
+    [[ "$CODE" -eq 0 ]] || log_fail "TEST-003 ($variant): whole-PR exit must be 0, got $CODE: $OUT"
+    case "$OUT" in
+      "FULL_RUN reason=internal-error "*) ;;
+      *) log_fail "TEST-003 ($variant): whole-PR must print FULL_RUN reason=internal-error, got: $(payload_preview "$OUT")" ;;
+    esac
+    delta_sel "$repo" --delta-base HEAD
+    [[ "$CODE" -eq 0 ]] || log_fail "TEST-003 ($variant): delta exit must be 0, got $CODE: $OUT"
+    assert_payload_has_line "$OUT" "DELTA_REFUSED reason=internal-error" "TEST-003 ($variant): delta must refuse by name: $(payload_preview "$OUT")"
+  done
+  # the failure detail names the offending edge
+  write_map "$repo" <<'YAML'
+core:
+  - aai-c
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+  aai-x:
+    companions:
+      - aai-ghost
+    globs:
+      - src/x/**
+YAML
+  run_sel "$repo" src/x/a.js
+  assert_payload_contains "$OUT" "companion has no suites row: aai-x -> aai-ghost" "TEST-003: ghost detail must name the edge: $(payload_preview "$OUT")"
+  # flow-form companions (inline content on the key line) must not be silently
+  # ignored: fail open like every other malformed companions block.
+  local flow
+  for flow in '[aai-c]' 'aai-c'; do
+    write_map "$repo" <<YAML
+core:
+  - aai-c
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+  aai-x:
+    companions: $flow
+    globs:
+      - src/x/**
+YAML
+    run_sel "$repo" src/x/a.js
+    [[ "$CODE" -eq 0 ]] || log_fail "TEST-003 (flow '$flow'): whole-PR exit must be 0, got $CODE: $OUT"
+    case "$OUT" in
+      "FULL_RUN reason=internal-error "*) ;;
+      *) log_fail "TEST-003 (flow '$flow'): inline companions must print FULL_RUN reason=internal-error, got: $(payload_preview "$OUT")" ;;
+    esac
+    delta_sel "$repo" --delta-base HEAD
+    assert_payload_has_line "$OUT" "DELTA_REFUSED reason=internal-error" "TEST-003 (flow '$flow'): delta must refuse by name: $(payload_preview "$OUT")"
+  done
+  # negative control: the same map with the ghost row defined selects normally
+  write_map "$repo" <<'YAML'
+core:
+  - aai-c
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+  aai-x:
+    companions:
+      - aai-ghost
+    globs:
+      - src/x/**
+  aai-ghost:
+    globs:
+      - src/ghost/**
+YAML
+  run_sel "$repo" src/x/a.js
+  assert_payload_line_not_matches "$OUT" '^FULL_RUN' "TEST-003: a defined companion must not fail open: $(payload_preview "$OUT")"
+  assert_payload_has_line "$OUT" "SELECTED aai-ghost reason=companion:aai-x" "TEST-003: a defined companion is selected: $(payload_preview "$OUT")"
+  log_pass "TEST-003: malformed companions fail open (FULL_RUN / DELTA_REFUSED internal-error), exit 0 (TEST-003)"
+}
+
+test_1753_core_companions_empty_diff_golden_and_workflow_line() {  # Spec-AC-03 / TEST-004
+  log_info "Test: core companions on empty diff/delta, byte-identical golden without companions, workflow SUITES line (TEST-004)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local repo="$TEST_DIR/repo" want
+  delta_repo "$repo"
+  delta_commit "$repo" seed README.md
+  write_map "$repo" <<'YAML'
+core:
+  - aai-c
+
+carry_forward_globs:
+  - docs/INDEX.md
+
+suites:
+  aai-c:
+    companions:
+      - aai-y
+    globs:
+      - docs/c.md
+  aai-x:
+    globs:
+      - src/x/**
+      - docs/INDEX.md
+  aai-y:
+    companions:
+      - aai-z
+    globs:
+      - src/y/**
+  aai-z:
+    globs:
+      - src/z/**
+YAML
+  # whole-PR empty diff: the core suite's companions (transitive) are selected
+  run_sel "$repo"
+  want="CORE aai-c reason=core
+SELECTED aai-y reason=companion:aai-c
+SELECTED aai-z reason=companion:aai-y
+DROPPED 1"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-004: empty diff must select the core companions. got: $(payload_preview "$OUT")"
+  # delta empty: same
+  delta_sel "$repo" --delta-base HEAD
+  want="DELTA base=HEAD
+CORE aai-c reason=core
+SELECTED aai-y reason=companion:aai-c
+SELECTED aai-z reason=companion:aai-y
+DROPPED 1"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-004: empty delta must select the core companions. got: $(payload_preview "$OUT")"
+  # delta non-empty: path selection plus core companions
+  local s
+  git -C "$repo" add -A || log_fail "TEST-004: add failed"
+  git -C "$repo" commit -q -m map || log_fail "TEST-004: commit failed"
+  s="$(git -C "$repo" rev-parse HEAD)" || log_fail "TEST-004: rev-parse failed"
+  delta_commit "$repo" idx docs/INDEX.md
+  delta_sel "$repo" --delta-base "$s"
+  want="DELTA base=$s
+CORE aai-c reason=core
+SELECTED aai-x reason=docs/INDEX.md
+SELECTED aai-y reason=companion:aai-c
+SELECTED aai-z reason=companion:aai-y
+DROPPED 0"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-004: delta must carry companions. got: $(payload_preview "$OUT")"
+
+  # the workflow's own SUITES extraction line, read from the real file
+  local line
+  line="$(sed -n '/SUITES="\$(echo "\$OUT"/{p;q;}' "$WORKFLOW_FILE")"
+  [[ -n "$line" ]] || log_fail "TEST-004: SUITES extraction line not found in $WORKFLOW_FILE"
+  OUT="$(node "$SELECTOR" --repo-root "$repo" --files-from /dev/null 2>&1)" || true
+  eval "$line"
+  [[ " $SUITES " == *" aai-y "* ]] || log_fail "TEST-004: whole-PR output must yield aai-y through the workflow line, got: $SUITES"
+  delta_sel "$repo" --delta-base "$s"
+  eval "$line"
+  [[ " $SUITES " == *" aai-z "* && " $SUITES " == *" aai-x "* ]] || log_fail "TEST-004: delta output must yield aai-x and aai-z through the workflow line, got: $SUITES"
+
+  # a map without companions: byte-identical to the frozen pre-change golden
+  small_map "$TEST_DIR"
+  run_sel "$TEST_DIR" src/alpha/x.js
+  want="CORE aai-core-a reason=core
+CORE aai-core-b reason=core
+SELECTED aai-alpha reason=src/alpha/x.js
+DROPPED 1"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-004 golden 1 differs: $(payload_preview "$OUT")"
+  run_sel "$TEST_DIR" src/alpha/shared.js src/beta/b.js
+  want="CORE aai-core-a reason=core
+CORE aai-core-b reason=core
+SELECTED aai-alpha reason=src/alpha/shared.js
+SELECTED aai-beta reason=src/alpha/shared.js
+DROPPED 0"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-004 golden 2 differs: $(payload_preview "$OUT")"
+  run_sel "$TEST_DIR" foo.txt
+  [[ "$OUT" == "FULL_RUN reason=unmapped path=foo.txt" ]] || log_fail "TEST-004 golden 3 differs: $(payload_preview "$OUT")"
+  run_sel "$TEST_DIR" .aai/scripts/lib/x.mjs
+  [[ "$OUT" == "FULL_RUN reason=shared-lib path=.aai/scripts/lib/x.mjs" ]] || log_fail "TEST-004 golden 4 differs: $(payload_preview "$OUT")"
+  run_sel "$TEST_DIR"
+  want="CORE aai-core-a reason=core
+CORE aai-core-b reason=core
+DROPPED 2"
+  [[ "$OUT" == "$want" ]] || log_fail "TEST-004 golden 5 (empty diff) differs: $(payload_preview "$OUT")"
+  log_pass "TEST-004: core companions on empty diff/delta, workflow line yields them, no-companion maps unchanged (TEST-004)"
+}
+
+test_1754_assert_companions_helper() {  # Spec-AC-04 / TEST-005
+  log_info "Test: assert_companions returns 0 for declared/core companions and 1 naming the MISSING one (TEST-005)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local lib="$SCRIPT_DIR/lib/companion-assert.sh" out rc
+  [[ -f "$lib" ]] || log_fail "TEST-005: helper missing: $lib"
+  # shellcheck source=lib/companion-assert.sh
+  . "$lib"
+  write_map "$TEST_DIR" <<'YAML'
+core:
+  - aai-c
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+  aai-x:
+    companions:
+      - aai-y
+    globs:
+      - src/x/**
+  aai-y:
+    globs:
+      - src/y/**
+  aai-w:
+    globs:
+      - src/w/**
+YAML
+  export COMPANION_ASSERT_ROOT="$TEST_DIR" SELECT_SUITES_SCRIPT="$SELECTOR"
+  rc=0; out="$(assert_companions aai-x aai-y)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-005: a declared companion must pass, rc=$rc: $out"
+  assert_payload_contains "$out" "aai-y" "TEST-005: success must name the companions: $out"
+  rc=0; out="$(assert_companions aai-x aai-c)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-005: a core companion must pass through the CORE line, rc=$rc: $out"
+  rc=0; out="$(assert_companions aai-w aai-y)" || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-005: an absent edge must return 1, rc=$rc: $out"
+  assert_payload_contains "$out" "MISSING companion aai-y for aai-w" "TEST-005: the miss must be named: $out"
+  # partial: one present, one absent -> only the absent one is named
+  rc=0; out="$(assert_companions aai-x aai-y aai-w)" || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-005: a partial miss must return 1, rc=$rc: $out"
+  assert_payload_contains "$out" "MISSING companion aai-w for aai-x" "TEST-005: partial miss names aai-w: $out"
+  assert_payload_not_contains "$out" "MISSING companion aai-y" "TEST-005: the present companion must not be reported: $out"
+  # a malformed map (FULL_RUN) selects nothing by name and must fail
+  write_map "$TEST_DIR" <<'YAML'
+core:
+  - aai-c
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+YAML
+  rc=0; out="$(assert_companions aai-x aai-y)" || rc=$?
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-005: an outer suite the map does not cover (FULL_RUN) must fail, rc=$rc: $out"
+  unset COMPANION_ASSERT_ROOT SELECT_SUITES_SCRIPT
+  log_pass "TEST-005: assert_companions passes declared/core companions, fails naming the missing one (TEST-005)"
+}
+
+test_1755_real_map_declares_the_pinned_companion_edges() {  # Spec-AC-11 / TEST-032
+  log_info "Test: the real suite-map.yaml declares exactly the pinned D3 companion edges, none to a core suite, and each row selects its whole closure (TEST-032)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local pin="$TEST_DIR/pinned.txt" got="$TEST_DIR/got.txt" rc=0
+  cat > "$pin" <<'PIN'
+aai-advisory-skills aai-prompt-diet
+aai-ceremony-levels aai-orchestration-dispatch
+aai-ceremony-levels aai-prompt-diet
+aai-constitution aai-prompt-diet
+aai-debug-gate aai-prompt-diet
+aai-delta-stage1 aai-docs-canon
+aai-delta-stage2 aai-delta-stage1
+aai-delta-stage3 aai-delta-stage1
+aai-delta-stage3 aai-delta-stage2
+aai-deslop aai-advisory-skills
+aai-deslop aai-prompt-diet
+aai-doc-number-reservation aai-doc-numbering
+aai-doctor aai-layer-profiles
+aai-doctor aai-suite-select
+aai-feedback-upsert aai-layer-profiles
+aai-feedback-upsert aai-prompt-diet
+aai-friction aai-layer-profiles
+aai-friction-wiring aai-layer-profiles
+aai-friction-wiring aai-prompt-diet
+aai-git-ref-guard aai-prompt-diet
+aai-hitl-propagation aai-orchestration-dispatch
+aai-hitl-propagation aai-state
+aai-hooks-overlay aai-prompt-diet
+aai-learned-append aai-friction-wiring
+aai-learned-append aai-layer-profiles
+aai-learned-append aai-prompt-diet
+aai-ledger-merge aai-layer-profiles
+aai-merge-policy aai-layer-profiles
+aai-release aai-layer-profiles
+aai-secrets-preflight aai-intake
+aai-spec-lint aai-prompt-diet
+aai-sync-seed aai-bootstrap
+aai-sync-seed aai-hooks-overlay
+aai-sync-seed aai-layer-drift
+aai-sync-seed aai-layer-profiles
+aai-tdd-evidence aai-tdd
+PIN
+  # The pin is the spec's D3 table (36 edges over 24 rows; a body with more
+  # edges than the spec says is a measurement the spec must record, never
+  # silent drift). The edges and the core list are read from the real map.
+  node - "$PROJECT_ROOT" "$SELECTOR" "$got" <<'JS' || rc=$?
+const fs = require('fs');
+const cp = require('child_process');
+const [root, selector, out] = process.argv.slice(2);
+const lines = fs.readFileSync(root + '/tests/skills/suite-map.yaml', 'utf8').split('\n');
+const core = new Set();
+const edges = [];
+const decl = {};
+let section = '';
+let row = null;
+let inList = false;
+for (const l of lines) {
+  let m = l.match(/^(core|suites):\s*$/);
+  if (m) { section = m[1]; row = null; inList = false; continue; }
+  if (section === 'core' && (m = l.match(/^  - (\S+)/))) { core.add(m[1]); continue; }
+  if (section !== 'suites') continue;
+  if ((m = l.match(/^  (aai-[a-z0-9-]+):\s*$/))) { row = m[1]; inList = false; continue; }
+  if (/^    companions:\s*$/.test(l)) { inList = true; continue; }
+  if (inList && (m = l.match(/^      - (\S+)/))) { edges.push(row + ' ' + m[1]); (decl[row] = decl[row] || []).push(m[1]); continue; }
+  inList = false;
+}
+const bad = edges.filter((e) => core.has(e.split(' ')[1]));
+const closure = (r) => {
+  const seen = new Set();
+  const stack = [...(decl[r] || [])];
+  while (stack.length) { const c = stack.pop(); if (seen.has(c)) continue; seen.add(c); stack.push(...(decl[c] || [])); }
+  return [...seen];
+};
+const miss = [];
+for (const r of Object.keys(decl)) {
+  const sel = cp.execFileSync('node', [selector, '--files-from', '-', '--repo-root', root],
+    { input: 'tests/skills/test-' + r + '.sh\n', encoding: 'utf8' });
+  for (const c of closure(r)) {
+    if (!core.has(c) && !sel.split('\n').some((x) => x.startsWith('SELECTED ' + c + ' '))) miss.push(r + ' -> ' + c);
+  }
+}
+fs.writeFileSync(out, edges.sort().join('\n') + '\nROWS ' + Object.keys(decl).length + '\nCOREEDGES ' + bad.join(',') + '\nCLOSUREMISS ' + miss.join(',') + '\n');
+JS
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-032 (plan row TEST-032): edge extraction failed (rc=$rc)"
+  local want_edges got_edges
+  want_edges="$(sort "$pin")"
+  got_edges="$(sed '/^ROWS /,$d' "$got")"
+  [[ "$got_edges" == "$want_edges" ]] || log_fail "TEST-032 (plan row TEST-032): the real map's companion edges differ from the pinned list. want: $(printf '%s' "$want_edges" | tr '\n' ';') -- got: $(printf '%s' "$got_edges" | tr '\n' ';')"
+  [[ "$(wc -l < "$pin" | tr -d ' ')" == "36" ]] || log_fail "TEST-032 (plan row TEST-032): the pinned list must hold 36 edges"
+  grep -qxF "ROWS 24" "$got" || log_fail "TEST-032 (plan row TEST-032): the edges must sit on 24 rows: $(grep '^ROWS' "$got")"
+  grep -qxF "COREEDGES " "$got" || log_fail "TEST-032 (plan row TEST-032): an edge names a core suite: $(grep '^COREEDGES' "$got")"
+  grep -qxF "CLOSUREMISS " "$got" || log_fail "TEST-032 (plan row TEST-032): a row's own test file does not select its whole closure: $(grep '^CLOSUREMISS' "$got")"
+  log_pass "TEST-032: the real map declares exactly the 36 pinned edges on 24 rows, none to a core suite, each row selects its closure (TEST-032)"
+}
+
+test_1756_weights_reseeded_from_a_named_run() {  # Spec-AC-12 / TEST-035
+  log_info "Test: suite-weights.tsv names its source run and head SHA, weighs learned-append at most 15 and delta-stage3 at most 30, and the balance bound holds (TEST-035)..."
+  local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" header w
+  [[ -f "$f" ]] || log_fail "TEST-035 (plan row TEST-035): missing $f"
+  header="$(sed -n '/^#/p' "$f")"
+  # the header names a CI run id (8+ digits after 'run') or the local-sweep fallback
+  if [[ ! "$header" =~ run[[:space:]]+[0-9]{8,} && ! "$header" == *"local sweep"* ]]; then
+    log_fail "TEST-035 (plan row TEST-035): the weights header must name a run id or the local-sweep fallback"
+  fi
+  [[ "$header" =~ [0-9a-f]{40} ]] || log_fail "TEST-035 (plan row TEST-035): the weights header must name a 40-hex head SHA"
+  w="$(awk -F'\t' '$1 == "aai-learned-append" {print $2}' "$f")"
+  [[ "$w" =~ ^[0-9]+$ && "$w" -ge 1 && "$w" -le 15 ]] \
+    || log_fail "TEST-035 (plan row TEST-035): aai-learned-append weight must be 1..15 after the nested runs left, got '$w'"
+  w="$(awk -F'\t' '$1 == "aai-delta-stage3" {print $2}' "$f")"
+  [[ "$w" =~ ^[0-9]+$ && "$w" -ge 1 && "$w" -le 30 ]] \
+    || log_fail "TEST-035 (plan row TEST-035): aai-delta-stage3 weight must be 1..30 after the nested runs left, got '$w'"
+  # the balance bound is TEST-1423's; running it here binds it to THESE weights
+  test_1423_real_repo_balance_bound "$PROJECT_ROOT"
+  log_pass "TEST-035: weights re-seeded from a named run (learned-append <= 15, delta-stage3 <= 30), balance bound holds (TEST-035)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -1413,6 +1945,13 @@ main() {
   test_1715_delta_ineligible_cells
   test_1716_delta_ancestry_and_unknown_sha
   test_1727_pr434_last_push_replay
+  test_1750_companion_is_selected_with_its_parent
+  test_1751_companions_are_transitive_cycle_safe
+  test_1752_malformed_companion_fails_open
+  test_1753_core_companions_empty_diff_golden_and_workflow_line
+  test_1754_assert_companions_helper
+  test_1755_real_map_declares_the_pinned_companion_edges
+  test_1756_weights_reseeded_from_a_named_run
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

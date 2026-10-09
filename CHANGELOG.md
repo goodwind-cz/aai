@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — ci: suites stop re-running other whole suites; the selector picks declared companions instead (nested-suite-reruns-duplicate-sweep-time)
+
+- `tests/skills/suite-map.yaml` rows can declare `companions:`; `select-suites.mjs` selects them with the suite that names them, transitively and cycle-safe. A malformed entry (unknown row, self, bad name, inline `[x]` form) fails open to a full run (`internal-error`), and a map without companions selects exactly as before.
+- 32 test functions in 26 suites no longer run another whole suite to prove it stays green; each now checks with `assert_companions` (`tests/skills/lib/companion-assert.sh`) that the selector picks the companion. 36 edges are declared and pinned. Three nested runs that prove something a companion cannot stay on `tests/skills/lib/nested-suite-allowlist.tsv`.
+- A new lint (`tests/skills/lib/nested-suite-lint.mjs`, run by hygiene-pack) refuses any new nested whole-suite run; the allowlist can only shrink.
+- `tests/skills/suite-weights.tsv` re-seeded from a full-mode CI run of the branch.
+- Measured: full local sweep summed suite time 4,379 s -> 2,378 s (wall 799 s -> 490 s); `aai-learned-append` 446 s -> 1 s, `aai-delta-stage3` 200 s -> 3 s. The CI leg-balance bound moved to slowest-suite-hot-spots by owner amendment (`aai-hygiene-pack` alone floors the slowest leg).
+- Refs: DEBT-0010 / SPEC-0215.
+
 ## [unreleased] — fix: the Windows test wrapper reaps the whole process tree on timeout; ps1-quality runs only for files PowerShell reads (ci-windows-leg-waits-and-ps1-path-filter)
 
 - On native Windows, `aai-run-tests.ps1` now starts Git Bash inside a Job Object (suspended, assigned, resumed, in the PowerShell location), so a timeout ends every descendant. Before, MSYS fork+exec broke the Windows parent chain and `taskkill /T` could not reach exec'd grandchildren: the 2 s timeout smoke waited 300 s for an orphaned `sleep`. If no job can be created, one `AAI-DEGRADED-MODE` line names it and the old launch is used.

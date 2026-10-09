@@ -24,6 +24,10 @@ set -euo pipefail
 TEST_NAME="aai-delta-stage2"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 TEMPLATE="$PROJECT_ROOT/.aai/templates/SPEC_TEMPLATE.md"
 PLANNING="$PROJECT_ROOT/.aai/PLANNING.prompt.md"
 
@@ -216,14 +220,12 @@ test_005_template_and_planning() {
 # TEST-006 (Spec-AC-03) — seam survival: sibling suites + strict audit green
 # ---------------------------------------------------------------------------
 test_006_seam_survival() {
-  log_info "TEST-006: existing spec-lint + delta-stage1 suites and strict audit survive the change (int)..."
-  bash "$SCRIPT_DIR/test-aai-spec-lint.sh" > /tmp/aai-delta-stage2-speclint.log 2>&1 \
-    || { tail -25 /tmp/aai-delta-stage2-speclint.log >&2; log_fail "TEST-006: spec-lint suite failed"; }
-  bash "$SCRIPT_DIR/test-aai-delta-stage1.sh" > /tmp/aai-delta-stage2-stage1.log 2>&1 \
-    || { tail -25 /tmp/aai-delta-stage2-stage1.log >&2; log_fail "TEST-006: delta-stage1 suite failed"; }
+  log_info "TEST-006: spec-lint + delta-stage1 are selected with this suite and the strict audit survives the change (int)..."
+  assert_companions aai-delta-stage2 aai-delta-stage1 aai-spec-lint \
+    || log_fail "TEST-006 (plan row TEST-008): spec-lint and delta-stage1 must be selected with aai-delta-stage2"
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event >/dev/null 2>&1) \
     || log_fail "TEST-006: repo-wide strict audit failed"
-  log_pass "TEST-006: spec-lint + delta-stage1 suites green; strict audit CLEAN (seam survival)"
+  log_pass "TEST-006: spec-lint + delta-stage1 selected with this suite; strict audit CLEAN (seam survival)"
 }
 
 # ---------------------------------------------------------------------------
@@ -231,6 +233,11 @@ test_006_seam_survival() {
 main() {
   echo "=== Test: $TEST_NAME (spec-delta-stage-2 / RFC-0011 delta-spec lifecycle) ==="
   check_deps
+  if [[ $# -ge 1 ]]; then
+    "$1"
+    echo "=== $TEST_NAME: SELECTED TEST PASSED ($1) ==="
+    return 0
+  fi
   local only="${ONLY:-}"
   run_stanza() {
     local id="$1"; shift

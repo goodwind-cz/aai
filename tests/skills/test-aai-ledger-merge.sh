@@ -48,12 +48,15 @@ TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/pipe-safe.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 SCRIPT="$PROJECT_ROOT/.aai/scripts/ledger-merge.mjs"
 PROFILES="$PROJECT_ROOT/.aai/system/PROFILES.yaml"
 SUITE_MAP="$PROJECT_ROOT/tests/skills/suite-map.yaml"
-LAYER_PROFILES_TEST="$SCRIPT_DIR/test-aai-layer-profiles.sh"
 
 log_pass() { echo "PASS: $*"; }
 log_fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -155,10 +158,8 @@ test_667_new_script_is_classified() {
   log_info "Test: PROFILES.yaml classifies ledger-merge.mjs exactly once; suite-map.yaml carries a row for this suite naming it (TEST-667)..."
   local n; n="$(grep -cF '.aai/scripts/ledger-merge.mjs' "$PROFILES" || true)"
   [ "$n" = "1" ] || log_fail "TEST-667: PROFILES.yaml must classify .aai/scripts/ledger-merge.mjs EXACTLY once, found $n"
-  [ -f "$LAYER_PROFILES_TEST" ] || log_fail "TEST-667: $LAYER_PROFILES_TEST missing"
-  local out code=0
-  out="$(bash "$LAYER_PROFILES_TEST" 2>&1)" || code=$?
-  [ "$code" = "0" ] || log_fail "TEST-667: test-aai-layer-profiles.sh must pass (exit $code): $(printf '%s' "$out" | tail -5)"
+  assert_companions aai-ledger-merge aai-layer-profiles \
+    || log_fail "TEST-667 (plan row TEST-017): aai-layer-profiles must be selected with aai-ledger-merge"
 
   local row_block
   row_block="$(awk '/^  aai-ledger-merge:/{cap=1; print; next} cap && /^  [a-zA-Z]/{exit} cap' "$SUITE_MAP")"

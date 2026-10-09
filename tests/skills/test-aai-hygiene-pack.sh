@@ -5523,6 +5523,208 @@ test_818_ps1_upgrade_is_byte_exact_and_order_checked() {  # TEST-818 / Spec-AC-1
   log_pass "TEST-818 .ps1 checks marker order and scans markers on bytes (static); under pwsh inverted markers, a stray END, a BOM, a UTF-16 hook and a merely-mentioned marker are refused byte-identical and the refresh keeps every byte outside the interior"
 }
 
+# ---- nested-suite-reruns-duplicate-sweep-time, D6/D7/D8 (TEST-033/034/036) ---
+NSL_SCRIPT_REL="tests/skills/lib/nested-suite-lint.mjs"
+NSL_ALLOWLIST_REL="tests/skills/lib/nested-suite-allowlist.tsv"
+# The merge base the inventory was measured on (an immutable SHA, never a moving ref).
+NSL_BASE_SHA="8f6590f12c3bd159773e09f34eb97db277fe8ef2"
+
+test_132_nested_suite_lint_shapes() {  # TEST-033 / Spec-AC-11
+  log_info "test_132: nested-suite-lint reports each planted D7 shape with its function and nothing else (TEST-033)..."
+  local script="$PROJECT_ROOT/$NSL_SCRIPT_REL" d fx out rc=0
+  [[ -f "$script" ]] || log_fail "test_132 (plan row TEST-033): missing $NSL_SCRIPT_REL"
+  d="$(ap_tmpdir)"
+  fx="$d/nsl-fixture"
+  rm -rf "$fx"; mkdir -p "$fx"
+  : > "$fx/test-aai-b.sh"; : > "$fx/test-aai-c.sh"
+  cat > "$fx/test-aai-a.sh" <<'NSL_FIXTURE'
+#!/usr/bin/env bash
+SCRIPT_DIR="x"
+BVAR="$SCRIPT_DIR/test-aai-b.sh"
+THIS_SELF="$0"
+f_literal() {
+  out="$(bash "$SCRIPT_DIR/test-aai-b.sh" 2>&1)" || code=$?
+}
+f_variable() {
+  bash "$BVAR" >/dev/null
+}
+f_loop() {
+  for s in test-aai-b test-aai-c; do
+    bash "$SCRIPT_DIR/$s.sh" >/dev/null
+  done
+}
+f_wrapper() {
+  env -u AAI_ROLE bash "$ROOT/.aai/scripts/aai-run-tests.sh" bash tests/skills/test-aai-b.sh
+}
+f_self() {
+  bash "$0" >/dev/null
+}
+f_self_var() {
+  (bash "$THIS_SELF")
+}
+f_selector() {
+  bash "$SCRIPT_DIR/test-aai-b.sh" test_one
+}
+f_comment() {
+  # bash "$SCRIPT_DIR/test-aai-b.sh"
+  true
+}
+f_heredoc() {
+  cat > "$x" <<'EOT'
+bash "$SCRIPT_DIR/test-aai-b.sh"
+EOT
+}
+f_fixture_name() {
+  bash "$SCRIPT_DIR/test-aai-wsuite.sh"
+}
+f_syntax_only() {
+  bash -n "$SCRIPT_DIR/test-aai-b.sh"
+}
+f_reassigned() {
+  local runner="$SCRIPT_DIR/test-aai-b.sh"
+  runner="$SCRIPT_DIR/helper.sh"
+  bash "$runner" >/dev/null
+}
+NSL_FIXTURE
+  out="$(node "$script" "$fx" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_132 (plan row TEST-033): the scanner must exit 0 without --allowlist (it reports, the caller judges), rc=$rc: $out"
+  [[ "$out" == *"TOTAL: 8"* ]] || log_fail "test_132 (plan row TEST-033): 8 planted whole-suite runs expected (literal, variable, loop x2, wrapper, self, self-variable, reassigned local): $out"
+  local want
+  for want in "f_literal: nested whole-suite run of test-aai-b.sh" "f_variable: nested whole-suite run of test-aai-b.sh" \
+              "f_loop: nested whole-suite run of test-aai-b.sh" "f_loop: nested whole-suite run of test-aai-c.sh" \
+              "f_wrapper: nested whole-suite run of test-aai-b.sh" "f_self: nested whole-suite run of test-aai-a.sh" \
+              "f_self_var: nested whole-suite run of test-aai-a.sh" \
+              "f_reassigned: nested whole-suite run of test-aai-b.sh"; do
+    [[ "$out" == *"$want"* ]] || log_fail "test_132 (plan row TEST-033): planted shape not reported: '$want' in: $out"
+  done
+  for want in f_selector f_comment f_heredoc f_fixture_name f_syntax_only; do
+    [[ "$out" != *"$want:"* ]] || log_fail "test_132 (plan row TEST-033): $want must NOT be reported (negative control): $out"
+  done
+  log_pass "test_132: every planted D7 shape reported with its function, selector/comment/heredoc/fixture-name/syntax-check calls ignored (TEST-033)"
+}
+
+test_133_nested_suite_lint_live_and_base() {  # TEST-034 / Spec-AC-11
+  log_info "test_133: nested-suite-lint over the live tree with the allowlist is clean with exactly 3 rows; over the base tree it reports all 34 inventory functions (TEST-034)..."
+  local script="$PROJECT_ROOT/$NSL_SCRIPT_REL" allow="$PROJECT_ROOT/$NSL_ALLOWLIST_REL" d out rc=0 rows
+  [[ -f "$script" ]] || log_fail "test_133 (plan row TEST-034): missing $NSL_SCRIPT_REL"
+  [[ -f "$allow" ]] || log_fail "test_133 (plan row TEST-034): missing $NSL_ALLOWLIST_REL"
+  d="$(ap_tmpdir)"
+
+  # ---- live tree --------------------------------------------------------
+  out="$(node "$script" --allowlist "$allow" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_133 (plan row TEST-034): the live tree must be clean under the allowlist, rc=$rc: $out"
+  rows="$(awk -F'\t' '!/^[[:space:]]*#/ && NF >= 4 {n++} END {print n+0}' "$allow")"
+  [[ "$rows" -eq 3 ]] || log_fail "test_133 (plan row TEST-034): the allowlist must hold exactly 3 rows, found $rows"
+  [[ "$out" == *"ALLOWLISTED: 3"* ]] || log_fail "test_133 (plan row TEST-034): all 3 rows must match a live finding: $out"
+  [[ "$out" != *"STALE"* ]] || log_fail "test_133 (plan row TEST-034): no allowlist row may be stale: $out"
+  # positive control: the allowlist is what keeps the live tree clean
+  local empty="$d/nsl-empty.tsv" rc2=0 out2
+  printf '# no rows\n' > "$empty"
+  out2="$(node "$script" --allowlist "$empty" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc2=$?
+  [[ "$rc2" -eq 1 && "$out2" == *"TOTAL: 3"* ]] || log_fail "test_133 (plan row TEST-034): without the allowlist the live tree has exactly 3 findings (rc=1), got rc=$rc2: $out2"
+  # a row that matches nothing is stale and fails the run
+  local stale="$d/nsl-stale.tsv" rc3=0 out3
+  cp "$allow" "$stale"
+  printf 'test-aai-state.sh\ttest_no_such_function\ttest-aai-check-state.sh\tstale control\n' >> "$stale"
+  out3="$(node "$script" --allowlist "$stale" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc3=$?
+  [[ "$rc3" -eq 1 && "$out3" == *"STALE allowlist row"* ]] || log_fail "test_133 (plan row TEST-034): a stale allowlist row must fail the run (rc=1, STALE line), got rc=$rc3: $out3"
+
+  # ---- base tree (git archive of the merge base) -------------------------
+  if [[ "$(git -C "$PROJECT_ROOT" rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]] \
+     && ! git -C "$PROJECT_ROOT" cat-file -e "$NSL_BASE_SHA^{commit}" 2>/dev/null; then
+    log_info "test_133: BASE-TREE ARM SKIPPED — shallow checkout without $NSL_BASE_SHA (the live arm above ran)"
+    return 0
+  fi
+  git -C "$PROJECT_ROOT" cat-file -e "$NSL_BASE_SHA^{commit}" 2>/dev/null \
+    || log_fail "test_133 (plan row TEST-034): the base commit $NSL_BASE_SHA is not in this clone"
+  local base="$d/nsl-base"
+  rm -rf "$base"; mkdir -p "$base"
+  git -C "$PROJECT_ROOT" archive "$NSL_BASE_SHA" tests/skills > "$d/nsl-base.tar" \
+    || log_fail "test_133 (plan row TEST-034): git archive of the base tree failed"
+  tar -xf "$d/nsl-base.tar" -C "$base" || log_fail "test_133 (plan row TEST-034): extracting the base tree failed"
+  rc=0; out="$(node "$script" "$base/tests/skills" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_133 (plan row TEST-034): without --allowlist the scanner exits 0, rc=$rc: $out"
+  local found="$d/nsl-found.txt" pin="$d/nsl-pin.txt"
+  # file + function per finding, from "<file>:<n>: <fn>: nested ..."
+  node -e '
+    const lines = require("fs").readFileSync(0, "utf8").split("\n");
+    const set = new Set();
+    for (const l of lines) { const m = l.match(/^(test-aai-[a-z0-9-]+\.sh):\d+: ([A-Za-z0-9_]+): nested whole-suite run/); if (m) set.add(m[1] + " " + m[2]); }
+    process.stdout.write([...set].sort().join("\n") + "\n");
+  ' > "$found" <<NSL_EOF2
+$out
+NSL_EOF2
+  cat > "$pin" <<'NSL_PIN'
+test-aai-advisory-skills.sh test_013_prompt_diet_floor
+test-aai-ceremony-levels.sh test_010_seam_survival
+test-aai-ceremony-levels.sh test_017_seam_survival_spec0041
+test-aai-constitution.sh test_009_prompt_diet_floor
+test-aai-debug-gate.sh test_007_prompt_diet_suite
+test-aai-delta-stage1.sh test_007_docs_canon_suite
+test-aai-delta-stage2.sh test_006_seam_survival
+test-aai-delta-stage3.sh test_007_seam_survival
+test-aai-deslop.sh test_011_advisory_skills_suite_still_green
+test-aai-deslop.sh test_012_prompt_diet_ledger_true_up
+test-aai-doc-number-reservation.sh test_011_backcompat_suite
+test-aai-doc-number-reservation.sh test_107_regression_doc_numbering_suite
+test-aai-doctor.sh test_031_hygiene_set
+test-aai-feedback-upsert.sh test_009_profiles
+test-aai-feedback-upsert.sh test_1312_surfaces_state_the_contract
+test-aai-friction-wiring.sh test_006_companion_suites
+test-aai-friction.sh test_014_profiles_classified
+test-aai-git-ref-guard.sh test_312_contract_and_diet
+test-aai-hitl-propagation.sh test_015_existing_suites_green
+test-aai-hooks-overlay.sh test_014_prompt_diet_floor
+test-aai-learned-append.sh test_015_profiles_classified
+test-aai-learned-append.sh test_016_prompt_diet_ledger
+test-aai-learned-append.sh test_017_companion_suites_green
+test-aai-ledger-merge.sh test_667_new_script_is_classified
+test-aai-merge-policy.sh test_1530_companion_wiring
+test-aai-release.sh test_020_seam2_layer_profiles
+test-aai-repo-tripwire.sh test_006_fixed_suites_leave_the_real_tree_untouched
+test-aai-repo-tripwire.sh test_019_full_run_leaves_no_temp_directory_behind
+test-aai-secrets-preflight.sh test_006_additive_budget_regression
+test-aai-spec-lint.sh test_011_seam_survival
+test-aai-state.sh test_008_lib_extraction_regression
+test-aai-state.sh test_071_rguard_predicate_which_file
+test-aai-sync-seed.sh test_781_regression_suites_exit_zero
+test-aai-tdd-evidence.sh test_005_additive_regression
+NSL_PIN
+  local got_set want_set
+  got_set="$(cat "$found")"
+  want_set="$(sort "$pin")"
+  [[ "$(wc -l < "$pin" | tr -d ' ')" == "34" ]] || log_fail "test_133 (plan row TEST-034): the pinned inventory must hold 34 functions"
+  [[ "$got_set" == "$want_set" ]] || log_fail "test_133 (plan row TEST-034): the base tree's findings differ from the 34-function inventory. want: $(printf '%s' "$want_set" | tr '\n' ';') -- got: $(printf '%s' "$got_set" | tr '\n' ';')"
+  log_pass "test_133: live tree clean under a 3-row allowlist (stale and empty-allowlist controls bite); base tree reports all 34 inventory functions (TEST-034)"
+}
+
+test_134_nested_suite_disclosures() {  # TEST-036 / Spec-AC-13
+  log_info "test_134: every spec whose row a rewritten function backs carries a measurement record for the ride; the allowlisted specs carry none (TEST-036)..."
+  local amend="$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" d json
+  [[ -f "$amend" ]] || log_fail "test_134 (plan row TEST-036): missing .aai/scripts/spec-amend.mjs"
+  d="$(ap_tmpdir)"
+  json="$d/amend-measurement.json"
+  node "$amend" list --status measurement --json > "$json" 2>/dev/null || log_fail "test_134 (plan row TEST-036): spec-amend list failed"
+  local out rc=0
+  out="$(node -e '
+    const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    // Final list (D8): Batch 2, 3 and 4 as confirmed against the frozen Test Plan rows.
+    // SPEC-0100 from the preliminary list is not here: doctor test_031 backs SPEC-0122.
+    const want = ["0095","0038","0037","0034","0179","0199","0122","0030","0041","0059","0082","0203","0079","0078","0185","0207","0063",
+                  "0012","0027","0028","0029","0031","0033","0044","0045","0047","0066","0090","0132","0156"];
+    const never = ["0137","0180"];
+    const ref = "nested-suite-reruns-duplicate-sweep-time";
+    const mine = d.items.filter((x) => x.ref_id === ref && x.amendment_class === "measurement");
+    const has = (n) => mine.some((x) => new RegExp("/SPEC-" + n + "-").test(x.spec));
+    const missing = want.filter((n) => !has(n));
+    const forbidden = never.filter((n) => has(n));
+    console.log("WANT " + want.length + " MISSING " + missing.join(",") + " FORBIDDEN " + forbidden.join(","));
+  ' "$json" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_134 (plan row TEST-036): could not read the amendment list: $out"
+  [[ "$out" == "WANT 30 MISSING  FORBIDDEN " ]] || log_fail "test_134 (plan row TEST-036): disclosure set differs from the pinned 30 specs: $out"
+  log_pass "test_134: all 30 pinned specs carry a measurement disclosure for the ride; SPEC-0137 and SPEC-0180 carry none (TEST-036)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -5591,6 +5793,9 @@ main() {
   test_129_mutation_gate_suite_registration
   test_130_node_bash_selector_scanner_whitespace_parity
   test_131_vendored_script_deps_gate_and_bite
+  test_132_nested_suite_lint_shapes
+  test_133_nested_suite_lint_live_and_base
+  test_134_nested_suite_disclosures
   test_618_ref_guard_grep_conformance
   test_800_installed_hook_reaches_guard
   test_801_guard_block_propagates_block

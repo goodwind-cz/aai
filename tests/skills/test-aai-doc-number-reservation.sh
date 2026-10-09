@@ -25,6 +25,10 @@ TEST_NAME="aai-doc-number-reservation"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 ALLOC_SCRIPT="$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs"
 
 cleanup() {
@@ -499,14 +503,9 @@ EOF
 # exception).
 test_011_backcompat_suite() {
   log_info "TEST-011: existing tests/skills/test-aai-doc-numbering.sh suite stays green (D9 back-compat)..."
-  (cd "$PROJECT_ROOT" && AAI_TEST_TIMEOUT=600 \
-      bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-doc-numbering.sh \
-      > "$TEST_DIR/backcompat.log" 2>&1)
-  local rc=$?
-  [[ "$rc" -eq 0 ]] \
-    || log_fail "existing doc-numbering suite must stay green (D9): rc=$rc: $(tail -40 "$TEST_DIR/backcompat.log")"
-  assert_contains "$TEST_DIR/backcompat.log" "All doc-numbering tests passed."
-  log_pass "TEST-011 existing doc-numbering suite green (back-compat invariant, D9)"
+  assert_companions aai-doc-number-reservation aai-doc-numbering \
+    || log_fail "TEST-011 (plan row TEST-024): aai-doc-numbering must be selected with aai-doc-number-reservation"
+  log_pass "TEST-011 existing doc-numbering suite is selected with this suite (back-compat invariant, D9)"
 }
 
 # =============================================================================
@@ -912,14 +911,9 @@ EOF
 # Plan): it passes today and its evidentiary value is staying green.
 test_107_regression_doc_numbering_suite() {
   log_info "TEST-107: existing allocation/collision/guard suites pass unchanged (regression)..."
-  (cd "$PROJECT_ROOT" && AAI_TEST_TIMEOUT=600 \
-      bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-doc-numbering.sh \
-      > "$TEST_DIR/regression-107.log" 2>&1)
-  local rc=$?
-  [[ "$rc" -eq 0 ]] \
-    || log_fail "doc-numbering suite must stay green (Spec-AC-06): rc=$rc: $(tail -40 "$TEST_DIR/regression-107.log")"
-  assert_contains "$TEST_DIR/regression-107.log" "All doc-numbering tests passed."
-  log_pass "TEST-107 existing doc-numbering suite green (regression guard)"
+  assert_companions aai-doc-number-reservation aai-doc-numbering \
+    || log_fail "TEST-107 (plan row TEST-024): aai-doc-numbering must be selected with aai-doc-number-reservation"
+  log_pass "TEST-107 existing doc-numbering suite is selected with this suite (regression guard)"
 }
 
 # =============================================================================
@@ -986,6 +980,13 @@ main() {
   echo ""
   check_deps
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-doc-number-reservation-test.XXXXXX")"
+
+  if [[ $# -ge 1 ]]; then
+    [[ "$(type -t "$1" 2>/dev/null || true)" == "function" ]] \
+      || { echo "unknown test: $1" >&2; exit 2; }
+    "$1"
+    return 0
+  fi
 
   test_001_reservation_before_rename
   test_002_retry_on_rejection

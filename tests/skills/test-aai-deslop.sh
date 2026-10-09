@@ -40,6 +40,10 @@ set -uo pipefail
 TEST_NAME="aai-deslop"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 ENGINE="$PROJECT_ROOT/.aai/scripts/deslop-unrequested.mjs"
@@ -832,10 +836,10 @@ test_010_real_repo_all_scope_sanity() {
 # tests/skills/test-aai-advisory-skills.sh still pass after the rewrite.
 # ---------------------------------------------------------------------------
 test_011_advisory_skills_suite_still_green() {
-  if bash "$PROJECT_ROOT/tests/skills/test-aai-advisory-skills.sh" >/dev/null 2>&1; then
-    log_pass "TEST-011 tests/skills/test-aai-advisory-skills.sh exits 0 after the deslop prompt rewrite"
+  if assert_companions aai-deslop aai-advisory-skills; then
+    log_pass "TEST-011 aai-advisory-skills is selected with this suite (its pins run on their own after the deslop prompt rewrite)"
   else
-    log_fail "TEST-011 tests/skills/test-aai-advisory-skills.sh failed after the deslop prompt rewrite"
+    log_fail "TEST-011 (plan row TEST-023): aai-advisory-skills must be selected with aai-deslop"
   fi
 }
 
@@ -846,8 +850,8 @@ test_011_advisory_skills_suite_still_green() {
 # ---------------------------------------------------------------------------
 test_012_prompt_diet_ledger_true_up() {
   local ok=1
-  if ! bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" >/dev/null 2>&1; then
-    log_info "TEST-012: tests/skills/test-aai-prompt-diet.sh failed"
+  if ! assert_companions aai-deslop aai-prompt-diet; then
+    log_info "TEST-012 (plan row TEST-023): aai-prompt-diet must be selected with aai-deslop"
     ok=0
   fi
   local ledger="$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh"
@@ -858,7 +862,7 @@ test_012_prompt_diet_ledger_true_up() {
   grep -qF ".aai/AGENTS.md" "$ledger" \
     || { log_info "TEST-012: ledger entry does not name .aai/AGENTS.md"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-012 prompt-diet ledger true-up (suite green, entry names both files)" \
-    || log_fail "TEST-012 prompt-diet ledger true-up"
+    || log_fail "TEST-012 prompt-diet ledger true-up (plan row TEST-023)"
 }
 
 # ---------------------------------------------------------------------------

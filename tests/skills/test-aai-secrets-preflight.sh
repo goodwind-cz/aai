@@ -101,6 +101,10 @@ TEST_NAME="aai-secrets-preflight"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 HELPER="$PROJECT_ROOT/.aai/scripts/secrets-preflight.mjs"
@@ -623,7 +627,7 @@ EOF
 # --- TEST-006 (Spec-AC-05): additive/budget regression (RED-waiver) --------
 
 test_006_additive_budget_regression() {
-  log_info "Test: additive/budget regression — strict audit 0; intake line budget <=240; template headings intact; test-aai-intake.sh green (TEST-006)..."
+  log_info "Test: additive/budget regression — strict audit 0; intake line budget <=240; template headings intact; test-aai-intake.sh is a declared companion (TEST-006)..."
 
   local audit_log="$TEST_DIR/docs-audit.log"
   (node "$DOCS_AUDIT" --check --strict --no-event > "$audit_log" 2>&1) \
@@ -653,12 +657,10 @@ test_006_additive_budget_regression() {
       || log_fail "TEST-006: ISSUE_TEMPLATE.md missing pre-existing heading '$h'"
   done
 
-  local intake_regress="$TEST_DIR/intake-regress.log"
-  (AAI_TEST_TIMEOUT="${AAI_TEST_TIMEOUT:-600}" \
-    "$RUN_TESTS_SH" bash "$INTAKE_TEST_SUITE" > "$intake_regress" 2>&1) \
-    || log_fail "TEST-006: tests/skills/test-aai-intake.sh must still exit 0: $(tail -20 "$intake_regress")"
+  assert_companions aai-secrets-preflight aai-intake \
+    || log_fail "TEST-006 (plan row TEST-028): aai-intake must be selected with aai-secrets-preflight"
 
-  log_pass "Additive/budget regression: strict audit clean, line budget held, template headings intact, intake suite green (TEST-006)"
+  log_pass "Additive/budget regression: strict audit clean, line budget held, template headings intact, intake suite selected with this suite (TEST-006)"
 }
 
 # --- TEST-007 (Spec-AC-01): quoting-aware multiline scan --------------------

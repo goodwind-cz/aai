@@ -29,6 +29,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 DOC_FILE="docs/CONSTITUTION.md"
@@ -208,10 +212,10 @@ test_1529_constitution_v2_merge_policy_amendment() {
 # TEST-009 — prompt-diet byte floor survives the PLANNING addition (shared
 # baseline lives in the prompt-diet suite; run it rather than duplicate it).
 test_009_prompt_diet_floor() {
-  if bash tests/skills/test-aai-prompt-diet.sh >/dev/null 2>&1; then
-    log_pass "TEST-009 prompt-diet suite green (byte floor holds)"
+  if assert_companions aai-constitution aai-prompt-diet; then
+    log_pass "TEST-009 prompt-diet suite is selected with this suite (byte floor pinned by its own run)"
   else
-    log_fail "TEST-009 prompt-diet suite failed after PLANNING addition"
+    log_fail "TEST-009 (plan row TEST-021): aai-prompt-diet must be selected with aai-constitution"
   fi
 }
 
@@ -229,6 +233,12 @@ main() {
   echo "===================="
 
   check_deps
+  if [[ $# -ge 1 ]]; then
+    [[ "$(type -t "$1" 2>/dev/null || true)" == "function" ]] \
+      || { echo "unknown test: $1" >&2; exit 2; }
+    "$1"
+    exit "$FAILED"
+  fi
 
   test_001_exists_and_line_budget
   test_002_articles_with_pointers

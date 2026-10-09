@@ -83,7 +83,11 @@ WORKDIR_REGISTRY="$(mktemp "${TMPDIR:-/tmp}/aai-tripwire-registry.XXXXXX")" \
   || { echo "FAIL $TEST_NAME: no workdir registry could be made; refusing to run a suite that would then leak every fixture it creates" >&2; exit 1; }
 register_workdir() { printf '%s\n' "$1" >> "$WORKDIR_REGISTRY"; }
 
-cleanup() {
+# drain_workdirs removes every directory the registry names. The EXIT trap
+# calls it, and so does test_019 (TEST-437), which is how a full run's
+# "leaves no temporary directory behind" claim is proven in-process instead of
+# by running this whole suite a second time.
+drain_workdirs() {
   local d
   while IFS= read -r d; do
     [[ -n "$d" && -d "$d" ]] || continue
@@ -92,6 +96,10 @@ cleanup() {
     fi
     rm -rf "$d"
   done < "$WORKDIR_REGISTRY"
+}
+
+cleanup() {
+  drain_workdirs
   rm -f "$WORKDIR_REGISTRY"
 }
 trap cleanup EXIT
@@ -1210,42 +1218,66 @@ exit 0'
 # and the EXIT trap drained an empty list — measured 13 fixture directories
 # left behind after a full run. `new_fixture` now registers through a FILE
 # (`register_workdir`), the identical fix already shipped for
-# tests/skills/test-aai-suite-isolation.sh's own WORKDIR_REGISTRY. This runs
-# THIS ENTIRE SUITE as a real subprocess (the only way to prove a FULL run
-# leaks nothing) inside its own scoped TMPDIR, and requires that directory to
-# be empty afterward.
+# tests/skills/test-aai-suite-isolation.sh's own WORKDIR_REGISTRY.
+#
+# This used to run THIS ENTIRE SUITE a second time (about 80 s) to see whether
+# a full run leaves anything behind. It now proves the same claim in-process
+# (nested-suite-reruns-duplicate-sweep-time D5): it runs LAST in main, makes
+# one fixture through the exact defect shape (a command substitution, i.e. a
+# subshell) as a positive control, drains the registry with the very function
+# the EXIT trap calls, and requires that nothing the registry named survives.
+# A broken register_workdir leaves the registry without that entry and fails
+# the positive control; a broken drain leaves directories behind and fails the
+# survivor check.
 # ---------------------------------------------------------------------------
 test_019_full_run_leaves_no_temp_directory_behind() {
-  # A nested full run would itself reach this same test and launch ANOTHER
-  # nested full run — unbounded recursion, not a second measurement. The
-  # child sees this flag and reports itself skipped instead.
-  if [[ -n "${AAI_TRIPWIRE_NESTED_437:-}" ]]; then
-    log_pass "TEST-019 (nested invocation — this recursion guard fired; the OUTER run is what actually verifies TEST-437)"
+  local d held entry survivors=""
+  d="$(new_fixture)" || return
+  [[ -d "$d" ]] || { log_fail "TEST-437 (plan row TEST-010) positive control: the fixture made through a command substitution does not exist: $d"; return; }
+  held="$(wc -l < "$WORKDIR_REGISTRY" | tr -d ' ')"
+  if [[ "${held:-0}" -lt 1 ]] || ! grep -qxF -e "$d" "$WORKDIR_REGISTRY"; then
+    log_fail "TEST-437 (plan row TEST-010) positive control: the registry holds ${held:-0} entries and does not name the fixture made through a command substitution ($d)"
     return
   fi
-  local scoped_tmp out rc=0 leftover
-  scoped_tmp="$(new_fixture)" || return
-  out="$(TMPDIR="$scoped_tmp" AAI_TRIPWIRE_NESTED_437=1 bash "$PROJECT_ROOT/tests/skills/test-aai-repo-tripwire.sh" 2>&1)" || rc=$?
-  [[ "$rc" -eq 0 ]] || { log_info "TEST-437: the nested full run exited $rc (want 0)"; }
-  # Scoped to THIS suite's own naming (aai-tripwire-fixture.*, the registry
-  # file aai-tripwire-registry.*): the nested run's own TEST-006 legitimately
-  # invokes the REAL test-aai-deslop.sh suite against the real checkout,
-  # which leaks its own aai-deslop-fixture.* directories under the same
-  # inherited TMPDIR — a pre-existing defect of a different suite, not named
-  # by this AC's fu id, and not this arm's claim.
-  leftover="$(find "$scoped_tmp" -mindepth 1 -maxdepth 1 \( -name 'aai-tripwire-fixture.*' -o -name 'aai-tripwire-registry.*' \) 2>/dev/null)"
-  if [[ -n "$leftover" ]]; then
-    log_info "TEST-437: temporary entries survived a full run under a scoped TMPDIR:"
-    printf '%s\n' "$leftover" | sed 's/^/    /'
-    log_fail "TEST-437 a full run of the tripwire suite leaves no temporary directory behind"
+  drain_workdirs
+  while IFS= read -r entry; do
+    [[ -n "$entry" && -e "$entry" ]] && survivors="$survivors $entry"
+  done < "$WORKDIR_REGISTRY"
+  if [[ -n "$survivors" ]]; then
+    log_info "TEST-437: directories named by the registry survived drain_workdirs:$survivors"
+    log_fail "TEST-437 (plan row TEST-010) a full run of the tripwire suite leaves no temporary directory behind"
     return
   fi
-  log_pass "TEST-437 a full run of this suite (nested, under its own scoped TMPDIR) leaves no aai-tripwire-fixture.* or aai-tripwire-registry.* directory behind"
+  # The drain only matters if the EXIT trap still reaches it, and the registry
+  # file must not outlive the run: assert the trap names cleanup, then run
+  # cleanup itself (in a subshell) and require the registry to be gone.
+  local trap_def
+  trap_def="$(trap -p EXIT)"
+  if [[ "$trap_def" != *cleanup* ]]; then
+    log_fail "TEST-437 (plan row TEST-010) the EXIT trap no longer invokes cleanup (trap -p EXIT: ${trap_def:-<none>})"
+    return
+  fi
+  declare -F cleanup >/dev/null && [[ "$(declare -f cleanup)" == *drain_workdirs* ]] \
+    || { log_fail "TEST-437 (plan row TEST-010) cleanup, the EXIT trap handler, does not call drain_workdirs"; return; }
+  ( cleanup ) || { log_fail "TEST-437 (plan row TEST-010) cleanup failed after the drain"; return; }
+  if [[ -e "$WORKDIR_REGISTRY" ]]; then
+    log_fail "TEST-437 (plan row TEST-010) the registry file survived cleanup: $WORKDIR_REGISTRY"
+    return
+  fi
+  : > "$WORKDIR_REGISTRY"  # keep the real EXIT trap's drain readable
+  log_pass "TEST-437 every one of the $held directories the registry names (including one made through a command substitution) is gone after drain_workdirs, the function the EXIT trap runs"
 }
 
 main() {
   echo "=== Test: $TEST_NAME (spec-suites-must-not-touch-the-shipping-repo) ==="
   check_deps
+  if [[ $# -ge 1 ]]; then
+    declare -F "$1" >/dev/null 2>&1 || { echo "unknown test function: $1" >&2; exit 2; }
+    "$1"
+    if [[ $FAILED -ne 0 ]]; then echo "=== $TEST_NAME: SELECTED TEST FAILED ($1) ===" >&2; exit 1; fi
+    echo "=== $TEST_NAME: SELECTED TEST PASSED ($1) ==="
+    exit 0
+  fi
   test_001_framework_bites_on_a_dirty_suite
   test_002_framework_bites_on_a_commit
   test_003_skipped_and_crashed_are_not_clean

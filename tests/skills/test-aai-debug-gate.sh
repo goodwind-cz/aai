@@ -24,6 +24,10 @@ TEST_NAME="aai-debug-gate"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 GATE_FILE=".aai/SKILL_DEBUG.prompt.md"
@@ -169,10 +173,10 @@ test_007_prompt_diet_suite() {
     log_fail "TEST-007 tests/skills/test-aai-prompt-diet.sh not found"
     return
   fi
-  if bash tests/skills/test-aai-prompt-diet.sh >/dev/null 2>&1; then
-    log_pass "TEST-007 prompt-diet suite green (byte floor holds)"
+  if assert_companions aai-debug-gate aai-prompt-diet; then
+    log_pass "TEST-007 prompt-diet suite is selected with this suite (byte floor pinned by its own run)"
   else
-    log_fail "TEST-007 prompt-diet suite failed (byte floor or wiring broken)"
+    log_fail "TEST-007 (plan row TEST-022): aai-prompt-diet must be selected with aai-debug-gate"
   fi
 }
 
@@ -190,6 +194,12 @@ main() {
   echo "===================="
 
   check_deps
+  if [[ $# -ge 1 ]]; then
+    [[ "$(type -t "$1" 2>/dev/null || true)" == "function" ]] \
+      || { echo "unknown test: $1" >&2; exit 2; }
+    "$1"
+    exit "$FAILED"
+  fi
 
   test_001_exists_and_line_budget
   test_002_protocol_chain

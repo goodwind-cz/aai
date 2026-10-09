@@ -41,6 +41,10 @@ TEST_NAME="aai-hitl-propagation"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 DISPATCH="$PROJECT_ROOT/.aai/scripts/orchestration-dispatch.mjs"
 STATE_CLI="$PROJECT_ROOT/.aai/scripts/state.mjs"
 SKILL_HITL="$PROJECT_ROOT/.aai/SKILL_HITL.prompt.md"
@@ -480,33 +484,21 @@ EOF
 # --- TEST-015 (Spec-AC-07): pre-existing dispatch + state suites stay green ---
 
 test_015_existing_suites_green() {
-  log_info "Test: pre-existing dispatch + state suites stay green (TEST-015)..."
+  log_info "Test: pre-existing dispatch + state suites are declared companions (TEST-015)..."
   local dispatch_suite="$SCRIPT_DIR/test-aai-orchestration-dispatch.sh"
   local state_suite="$SCRIPT_DIR/test-aai-state.sh"
-  local ec1=0 ec2=0
-  local log1="$TEST_DIR/dispatch-suite.log" log2="$TEST_DIR/state-suite.log"
-  if [[ -f "$dispatch_suite" ]]; then
-    bash "$dispatch_suite" > "$log1" 2>&1 || ec1=$?
-  else
+  if [[ ! -f "$dispatch_suite" ]]; then
     log_fail "TEST-015: $dispatch_suite not found"
     return
   fi
-  if [[ -f "$state_suite" ]]; then
-    bash "$state_suite" > "$log2" 2>&1 || ec2=$?
-  else
+  if [[ ! -f "$state_suite" ]]; then
     log_fail "TEST-015: $state_suite not found"
     return
   fi
-  # 0 pass, 42 skip (missing optional deps) are both acceptable; only a hard
-  # failure (any other exit) breaks this control.
-  if [[ "$ec1" != 0 && "$ec1" != 42 ]]; then
-    log_fail "TEST-015: test-aai-orchestration-dispatch.sh exited $ec1: $(tail -n 20 "$log1")"
-  fi
-  if [[ "$ec2" != 0 && "$ec2" != 42 ]]; then
-    log_fail "TEST-015: test-aai-state.sh exited $ec2: $(tail -n 20 "$log2")"
-  fi
-  if [[ ( "$ec1" == 0 || "$ec1" == 42 ) && ( "$ec2" == 0 || "$ec2" == 42 ) ]]; then
-    log_pass "TEST-015: dispatch (exit $ec1) + state (exit $ec2) suites stay green"
+  if assert_companions aai-hitl-propagation aai-orchestration-dispatch aai-state; then
+    log_pass "TEST-015: dispatch + state suites are selected with this suite (each runs on its own)"
+  else
+    log_fail "TEST-015 (plan row TEST-026): aai-orchestration-dispatch and aai-state must be selected with aai-hitl-propagation"
   fi
 }
 
@@ -514,6 +506,13 @@ test_015_existing_suites_green() {
 
 check_deps
 setup_fixture
+
+if [[ $# -ge 1 ]]; then
+  [[ "$(type -t "$1" 2>/dev/null || true)" == "function" ]] \
+    || { echo "unknown test: $1" >&2; exit 2; }
+  "$1"
+  exit "$FAILED"
+fi
 
 test_001_all_rows_present
 test_002_rows_name_targets
