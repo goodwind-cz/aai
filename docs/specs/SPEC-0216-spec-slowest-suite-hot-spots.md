@@ -2,15 +2,17 @@
 id: spec-slowest-suite-hot-spots
 type: spec
 number: 216
-status: implementing
+status: done
 frozen_sha256: d6f263a7596db80959adc70f19c515c1da975ab167fe9b8f800c81f2c7d01d06
 ceremony_level: 2
 links:
   requirement: null
   rfc: null
   intake: docs/issues/DEBT-0011-slowest-suite-hot-spots.md
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - da7460d195081ba377d1a1cf172d7b91d13a22db
 ---
 
 # Spec — The four hot spots of the slowest suites get cheap without proving less
