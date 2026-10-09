@@ -732,6 +732,17 @@ aai_msys_winpid() {
 # the fallback after the forced tree kill has failed.
 aai_msys_tree_kill() {
   aai_tk_wp="$(aai_msys_winpid "$1")"
+  if [ -n "${AAI_MSYS_KILL_DEBUG:-}" ]; then
+    echo "AAI-DIAG: tree_kill msys_pid=$1 winpid=$aai_tk_wp self=$$ self_winpid=$(cat /proc/$$/winpid 2>/dev/null)" >&2
+    ps -l >&2 2>&1
+    aai_dbg_out="$(taskkill //PID "$aai_tk_wp" //T //F 2>&1)"; aai_dbg_rc=$?
+    echo "AAI-DIAG: taskkill rc=$aai_dbg_rc out=[$aai_dbg_out]" >&2
+    sleep 1
+    echo "AAI-DIAG: ps after taskkill:" >&2
+    ps -l >&2 2>&1
+    [ "$aai_dbg_rc" -eq 0 ] || kill -KILL "$1" 2>/dev/null
+    return 0
+  fi
   taskkill //PID "$aai_tk_wp" //T //F >/dev/null 2>&1 || kill -KILL "$1" 2>/dev/null
 }
 
