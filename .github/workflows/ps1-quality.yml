@@ -407,6 +407,8 @@ jobs:
           }
 
           function Get-SmokeHangSurvivors {
+            # Plain `return $found`: the caller wraps it in @(). A unary-comma
+            # return made an EMPTY result read as one phantom survivor (run 37896949975).
             # D2 survivor probe: sleep.exe processes whose command line carries
             # the hang fixture's own argument. Polls up to $PollSeconds after
             # the wrapper exited; a process that is gone within that window is
@@ -416,7 +418,7 @@ jobs:
             while ($true) {
               $found = @(Get-CimInstance Win32_Process -Filter "Name = 'sleep.exe'" -ErrorAction SilentlyContinue |
                 Where-Object { $_.CommandLine -and $_.CommandLine.Contains($Token) })
-              if ($found.Count -eq 0 -or [DateTime]::UtcNow -ge $deadline) { return ,$found }
+              if ($found.Count -eq 0 -or [DateTime]::UtcNow -ge $deadline) { return $found }
               Start-Sleep -Milliseconds 500
             }
           }
@@ -598,6 +600,8 @@ jobs:
           }
 
           function Get-SmokeHangSurvivors {
+            # Plain `return $found`: the caller wraps it in @(). A unary-comma
+            # return made an EMPTY result read as one phantom survivor (run 37896949975).
             # D2 survivor probe: sleep.exe processes whose command line carries
             # the hang fixture's own argument. Polls up to $PollSeconds after
             # the wrapper exited; a process that is gone within that window is
@@ -607,7 +611,7 @@ jobs:
             while ($true) {
               $found = @(Get-CimInstance Win32_Process -Filter "Name = 'sleep.exe'" -ErrorAction SilentlyContinue |
                 Where-Object { $_.CommandLine -and $_.CommandLine.Contains($Token) })
-              if ($found.Count -eq 0 -or [DateTime]::UtcNow -ge $deadline) { return ,$found }
+              if ($found.Count -eq 0 -or [DateTime]::UtcNow -ge $deadline) { return $found }
               Start-Sleep -Milliseconds 500
             }
           }

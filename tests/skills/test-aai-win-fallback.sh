@@ -1329,7 +1329,36 @@ test_040() {
   log_pass "TEST-012 (test_040) KILL_ON_JOB_CLOSE set; suspended create, assign, then resume; type compiles"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040"
+test_041() {
+  log_info "TEST-013 (test_041): in both smoke steps the survivor probe, run under pwsh with Win32_Process stubbed, reports zero survivors when none exist and exactly one (with its pid) when one does..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  command -v pwsh >/dev/null 2>&1 || { echo "SKIP: TEST-013 (test_041): pwsh not found on this host (named skip)"; return 0; }
+  local engine body fn call d out
+  for engine in 5.1 pwsh7; do
+    body="$(smoke_step_body "$engine")"
+    fn="$(awk '/^ *function Get-SmokeHangSurvivors \{/ { f = 1 } f { print } f && /^          \}$/ { exit }' <<<"$body")"
+    call="$(grep -m1 -E '^ *\$survivors = .*Get-SmokeHangSurvivors -Token' <<<"$body" || true)"
+    [[ -n "$fn" && -n "$call" ]] || log_fail "TEST-013 (test_041): $engine smoke step lacks the survivor function or its call (fn=${#fn} bytes, call='$call')"
+    d="$(mktemp -d "${TMPDIR:-/tmp}/survivor-probe.XXXXXX")"
+    [[ -n "$d" && "$d" = /* ]] || log_fail "TEST-013 (test_041): scratch dir not absolute"
+    {
+      printf '%s\n' "$fn"
+      printf '%s\n' 'function Start-Sleep { }'
+      printf '%s\n' '$script:rows = @()' 'function Get-CimInstance { $script:rows }'
+      printf '%s\n' "$call" '"NONE count=$($survivors.Count)"'
+      printf '%s\n' '$script:rows = @([pscustomobject]@{ ProcessId = 2672; ParentProcessId = 3184; CommandLine = "sleep.exe 300" }, [pscustomobject]@{ ProcessId = 9; ParentProcessId = 1; CommandLine = "sleep.exe 1" })'
+      printf '%s\n' "$call" '"ONE count=$($survivors.Count) pid=$($survivors[0].ProcessId)"'
+    } >"$d/probe.ps1"
+    out="$(pwsh -NoProfile -NonInteractive -File "$d/probe.ps1" 2>&1 </dev/null)"
+    rm -rf "$d"
+    [[ "$out" == *"ONE count="* ]] || log_fail "TEST-013 (test_041): $engine probe never reached the one-survivor arm (positive control): $out"
+    [[ "$out" == *"NONE count=0"* ]] || log_fail "TEST-013 (test_041): $engine survivor probe reports a phantom survivor when none exist: $out"
+    [[ "$out" == *"ONE count=1 pid=2672"* ]] || log_fail "TEST-013 (test_041): $engine survivor probe must report exactly the one sleep 300 survivor (pid 2672): $out"
+  done
+  log_pass "TEST-013 (test_041) survivor probe: zero when none, exactly one when one, in both smoke steps"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040 041"
 
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {
