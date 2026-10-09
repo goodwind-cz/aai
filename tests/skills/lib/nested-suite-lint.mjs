@@ -44,18 +44,28 @@ const SUITE_RE = /test-aai-([a-z0-9-]+)\.sh/;
 
 export function resolveVarSuite(name, vars) {
   // Follows `NAME="...test-aai-<x>.sh"` assignments, and one hop of
-  // `NAME="$OTHER"` so a suite alias is not a way around the lint.
-  let cur = name;
-  for (let hop = 0; hop < 4; hop++) {
-    const val = vars.get(cur);
-    if (val === undefined) return null;
-    const m = val.match(/test-aai-([a-z0-9-]+)\.sh["']?\s*$/);
-    if (m) return m[1];
-    const ref = val.match(/^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$/);
-    if (!ref) return null;
-    cur = ref[1];
-  }
-  return null;
+  // `NAME="$OTHER"` so a suite alias is not a way around the lint. A name may
+  // be assigned more than once in a file (a function-local reassigned later);
+  // it resolves as a suite when ANY of its assignments does, so a later
+  // non-suite value cannot hide an earlier suite one.
+  const seen = new Set();
+  const walk = (cur, hop) => {
+    if (hop >= 4 || seen.has(cur + "#" + hop)) return null;
+    seen.add(cur + "#" + hop);
+    const vals = vars.get(cur);
+    if (vals === undefined) return null;
+    for (const val of Array.isArray(vals) ? vals : [vals]) {
+      const m = val.match(/test-aai-([a-z0-9-]+)\.sh["']?\s*$/);
+      if (m) return m[1];
+      const ref = val.match(/^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$/);
+      if (ref) {
+        const r = walk(ref[1], hop + 1);
+        if (r) return r;
+      }
+    }
+    return null;
+  };
+  return walk(name, 0);
 }
 
 // Join backslash continuations; keep the first physical line number.
@@ -176,11 +186,13 @@ function scanFile(dir, file, suites) {
     if (m && !/^\s*#/.test(l)) {
       const rest = stripComment(m[2]).trim();
       const q = rest.match(/^(["'])(.*?)\1/);
-      vars.set(m[1], q ? q[2] : rest.split(/\s+/)[0]);
+      const val = q ? q[2] : rest.split(/\s+/)[0];
+      if (!vars.has(m[1])) vars.set(m[1], []);
+      vars.get(m[1]).push(val);
     }
   }
   const runnerVars = new Set();
-  for (const [k, v] of vars) if (/aai-run-tests\.sh$/.test(v)) runnerVars.add(k);
+  for (const [k, vs] of vars) if (vs.some((v) => /aai-run-tests\.sh$/.test(v))) runnerVars.add(k);
 
   const findings = [];
   let fn = "(top level)";

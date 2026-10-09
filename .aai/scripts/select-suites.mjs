@@ -361,6 +361,12 @@ function parseSuiteMap(text) {
       // D1 (nested-suite-reruns-duplicate-sweep-time): `companions:` switches the
       // row into companion mode and `globs:` switches it back, so a companion
       // item can never be read as a glob.
+      // A flow-form `companions: [x]` (inline content on the key line) is not
+      // supported; ignoring it would silently drop the edge, so it is a
+      // malformed map and fails open like any other bad companions block.
+      if (indent === 4 && /^companions:\s*[^\s#]/.test(trimmed) && currentSuite) {
+        throw new Error(`inline companions not supported (use a block list): ${currentSuite}`);
+      }
       if (indent === 4 && trimmed === 'companions:' && currentSuite) {
         inCompanions = true;
         inGlobs = false;

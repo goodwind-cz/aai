@@ -1570,6 +1570,32 @@ suites:
 YAML
   run_sel "$repo" src/x/a.js
   assert_payload_contains "$OUT" "companion has no suites row: aai-x -> aai-ghost" "TEST-003: ghost detail must name the edge: $(payload_preview "$OUT")"
+  # flow-form companions (inline content on the key line) must not be silently
+  # ignored: fail open like every other malformed companions block.
+  local flow
+  for flow in '[aai-c]' 'aai-c'; do
+    write_map "$repo" <<YAML
+core:
+  - aai-c
+
+suites:
+  aai-c:
+    globs:
+      - docs/c.md
+  aai-x:
+    companions: $flow
+    globs:
+      - src/x/**
+YAML
+    run_sel "$repo" src/x/a.js
+    [[ "$CODE" -eq 0 ]] || log_fail "TEST-003 (flow '$flow'): whole-PR exit must be 0, got $CODE: $OUT"
+    case "$OUT" in
+      "FULL_RUN reason=internal-error "*) ;;
+      *) log_fail "TEST-003 (flow '$flow'): inline companions must print FULL_RUN reason=internal-error, got: $(payload_preview "$OUT")" ;;
+    esac
+    delta_sel "$repo" --delta-base HEAD
+    assert_payload_has_line "$OUT" "DELTA_REFUSED reason=internal-error" "TEST-003 (flow '$flow'): delta must refuse by name: $(payload_preview "$OUT")"
+  done
   # negative control: the same map with the ghost row defined selects normally
   write_map "$repo" <<'YAML'
 core:

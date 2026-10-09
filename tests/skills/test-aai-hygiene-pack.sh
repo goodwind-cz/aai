@@ -5580,15 +5580,21 @@ f_fixture_name() {
 f_syntax_only() {
   bash -n "$SCRIPT_DIR/test-aai-b.sh"
 }
+f_reassigned() {
+  local runner="$SCRIPT_DIR/test-aai-b.sh"
+  runner="$SCRIPT_DIR/helper.sh"
+  bash "$runner" >/dev/null
+}
 NSL_FIXTURE
   out="$(node "$script" "$fx" 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_132 (plan row TEST-033): the scanner must exit 0 without --allowlist (it reports, the caller judges), rc=$rc: $out"
-  [[ "$out" == *"TOTAL: 7"* ]] || log_fail "test_132 (plan row TEST-033): 7 planted whole-suite runs expected (literal, variable, loop x2, wrapper, self, self-variable): $out"
+  [[ "$out" == *"TOTAL: 8"* ]] || log_fail "test_132 (plan row TEST-033): 8 planted whole-suite runs expected (literal, variable, loop x2, wrapper, self, self-variable, reassigned local): $out"
   local want
   for want in "f_literal: nested whole-suite run of test-aai-b.sh" "f_variable: nested whole-suite run of test-aai-b.sh" \
               "f_loop: nested whole-suite run of test-aai-b.sh" "f_loop: nested whole-suite run of test-aai-c.sh" \
               "f_wrapper: nested whole-suite run of test-aai-b.sh" "f_self: nested whole-suite run of test-aai-a.sh" \
-              "f_self_var: nested whole-suite run of test-aai-a.sh"; do
+              "f_self_var: nested whole-suite run of test-aai-a.sh" \
+              "f_reassigned: nested whole-suite run of test-aai-b.sh"; do
     [[ "$out" == *"$want"* ]] || log_fail "test_132 (plan row TEST-033): planted shape not reported: '$want' in: $out"
   done
   for want in f_selector f_comment f_heredoc f_fixture_name f_syntax_only; do

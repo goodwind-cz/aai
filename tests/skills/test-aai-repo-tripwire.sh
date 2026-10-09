@@ -1248,6 +1248,23 @@ test_019_full_run_leaves_no_temp_directory_behind() {
     log_fail "TEST-437 (plan row TEST-010) a full run of the tripwire suite leaves no temporary directory behind"
     return
   fi
+  # The drain only matters if the EXIT trap still reaches it, and the registry
+  # file must not outlive the run: assert the trap names cleanup, then run
+  # cleanup itself (in a subshell) and require the registry to be gone.
+  local trap_def
+  trap_def="$(trap -p EXIT)"
+  if [[ "$trap_def" != *cleanup* ]]; then
+    log_fail "TEST-437 (plan row TEST-010) the EXIT trap no longer invokes cleanup (trap -p EXIT: ${trap_def:-<none>})"
+    return
+  fi
+  declare -F cleanup >/dev/null && [[ "$(declare -f cleanup)" == *drain_workdirs* ]] \
+    || { log_fail "TEST-437 (plan row TEST-010) cleanup, the EXIT trap handler, does not call drain_workdirs"; return; }
+  ( cleanup ) || { log_fail "TEST-437 (plan row TEST-010) cleanup failed after the drain"; return; }
+  if [[ -e "$WORKDIR_REGISTRY" ]]; then
+    log_fail "TEST-437 (plan row TEST-010) the registry file survived cleanup: $WORKDIR_REGISTRY"
+    return
+  fi
+  : > "$WORKDIR_REGISTRY"  # keep the real EXIT trap's drain readable
   log_pass "TEST-437 every one of the $held directories the registry names (including one made through a command substitution) is gone after drain_workdirs, the function the EXIT trap runs"
 }
 
