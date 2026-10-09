@@ -2,10 +2,12 @@
 id: nested-suite-reruns-duplicate-sweep-time
 type: techdebt
 number: 10
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - e2e11cf0757c476aa0e85ff4156e30bb2f618cf9
 ---
 
 # Tech Debt: suites re-run other suites, so a third of the sweep is duplicate work

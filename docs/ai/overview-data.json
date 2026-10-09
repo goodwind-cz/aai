@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-09T14:23:50.806Z",
+  "generatedAt": "2026-10-09T14:26:13.682Z",
   "project": "aai",
   "counts": {
-    "delivered": 284,
-    "in_progress": 17,
+    "delivered": 285,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -112,19 +112,6 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
-      "ref": "nested-suite-reruns-duplicate-sweep-time",
-      "title": "Tech Debt: suites re-run other suites, so a third of the sweep is duplicate work",
-      "type": "techdebt",
-      "status": "draft",
-      "path": "docs/issues/DEBT-0010-nested-suite-reruns-duplicate-sweep-time.md",
-      "closed_on": null,
-      "agent_minutes": 210,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0215-spec-nested-suite-reruns-duplicate-sweep-time.md",
       "validation": null,
       "review": null
     },
@@ -244,6 +231,19 @@
       "agent_minutes": 213,
       "token_total": null,
       "spec": "docs/specs/SPEC-0214-spec-ci-windows-leg-waits-and-ps1-path-filter.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "nested-suite-reruns-duplicate-sweep-time",
+      "title": "Tech Debt: suites re-run other suites, so a third of the sweep is duplicate work",
+      "type": "techdebt",
+      "status": "done",
+      "path": "docs/issues/DEBT-0010-nested-suite-reruns-duplicate-sweep-time.md",
+      "closed_on": "2026-10-09",
+      "agent_minutes": 210,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0215-spec-nested-suite-reruns-duplicate-sweep-time.md",
       "validation": null,
       "review": null
     },
@@ -3963,6 +3963,19 @@
           "agent_minutes": 213,
           "token_total": null,
           "spec": "docs/specs/SPEC-0214-spec-ci-windows-leg-waits-and-ps1-path-filter.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "nested-suite-reruns-duplicate-sweep-time",
+          "title": "Tech Debt: suites re-run other suites, so a third of the sweep is duplicate work",
+          "type": "techdebt",
+          "status": "done",
+          "path": "docs/issues/DEBT-0010-nested-suite-reruns-duplicate-sweep-time.md",
+          "closed_on": "2026-10-09",
+          "agent_minutes": 210,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0215-spec-nested-suite-reruns-duplicate-sweep-time.md",
           "validation": null,
           "review": null
         },

@@ -2,7 +2,7 @@
 id: spec-nested-suite-reruns-duplicate-sweep-time
 type: spec
 number: 215
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 221617746c6477d0b20df74a58073d6aaf4344d0a746a55663a7178550dba7a9
 ceremony_level: 2
@@ -10,8 +10,10 @@ links:
   requirement: null
   rfc: null
   intake: docs/issues/DEBT-0010-nested-suite-reruns-duplicate-sweep-time.md
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - e2e11cf0757c476aa0e85ff4156e30bb2f618cf9
 ---
 
 # Spec — Suites stop re-running other suites; suite-map.yaml declares companions and select-suites selects them
