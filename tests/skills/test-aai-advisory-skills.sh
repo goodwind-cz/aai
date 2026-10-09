@@ -20,6 +20,10 @@ TEST_NAME="aai-advisory-skills"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 SCOUT=".aai/SKILL_SCOUT.prompt.md"
@@ -222,12 +226,13 @@ test_012_advisory_isolation() {
     || log_fail "TEST-012 advisory isolation"
 }
 
-# TEST-013 — prompt-diet byte floor holds post-change (Seam S1; runs the real suite)
+# TEST-013 — prompt-diet byte floor holds post-change (Seam S1): prompt-diet is
+# a declared companion, selected with this suite and run on its own.
 test_013_prompt_diet_floor() {
-  if bash tests/skills/test-aai-prompt-diet.sh >/dev/null 2>&1; then
-    log_pass "TEST-013 prompt-diet suite exits 0 (byte floor holds)"
+  if assert_companions aai-advisory-skills aai-prompt-diet; then
+    log_pass "TEST-013 prompt-diet suite is selected with this suite (byte floor pinned by its own run)"
   else
-    log_fail "TEST-013 prompt-diet suite failed (byte floor broken?)"
+    log_fail "TEST-013 (plan row TEST-020): aai-prompt-diet must be selected with aai-advisory-skills"
   fi
 }
 
@@ -245,6 +250,12 @@ main() {
   echo "===================="
 
   check_deps
+  if [[ $# -ge 1 ]]; then
+    [[ "$(type -t "$1" 2>/dev/null || true)" == "function" ]] \
+      || { echo "unknown test: $1" >&2; exit 2; }
+    "$1"
+    exit "$FAILED"
+  fi
 
   test_001_scout_exists
   test_002_scout_mechanism

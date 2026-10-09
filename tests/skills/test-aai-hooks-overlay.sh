@@ -33,6 +33,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/gh-merge-queue-stub.sh
 . "$SCRIPT_DIR/lib/gh-merge-queue-stub.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 cd "$PROJECT_ROOT"
 
 TEMPLATE=".aai/templates/hooks/settings-hooks.json"
@@ -513,10 +517,10 @@ test_013_repo_uninstalled() {
 
 # TEST-014 — prompt-diet byte floor survives the SKILL_PR addition
 test_014_prompt_diet_floor() {
-  if bash tests/skills/test-aai-prompt-diet.sh >/dev/null 2>&1; then
-    log_pass "TEST-014 prompt-diet suite green (byte floor holds)"
+  if assert_companions aai-hooks-overlay aai-prompt-diet; then
+    log_pass "TEST-014 prompt-diet suite is selected with this suite (byte floor pinned by its own run)"
   else
-    log_fail "TEST-014 prompt-diet suite failed after SKILL_PR addition"
+    log_fail "TEST-014 (plan row TEST-027): aai-prompt-diet must be selected with aai-hooks-overlay"
   fi
 }
 
@@ -1577,6 +1581,12 @@ main() {
   echo "===================="
 
   check_deps
+  if [[ $# -ge 1 ]]; then
+    [[ "$(type -t "$1" 2>/dev/null || true)" == "function" ]] \
+      || { echo "unknown test: $1" >&2; exit 2; }
+    "$1"
+    exit "$FAILED"
+  fi
 
   test_001_template_valid_json
   test_002_template_structure

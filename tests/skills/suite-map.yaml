@@ -98,6 +98,8 @@ full_run_triggers:
 
 suites:
   aai-advisory-skills:
+    companions:
+      - aai-prompt-diet
     globs:
       - .aai/SKILL_SCOUT.prompt.md
       - .aai/SKILL_DESLOP.prompt.md
@@ -186,6 +188,8 @@ suites:
       - .aai/scripts/tracked-ignored.mjs
 
   aai-constitution:
+    companions:
+      - aai-prompt-diet
     globs:
       - docs/CONSTITUTION.md
       - .aai/PLANNING.prompt.md
@@ -205,6 +209,9 @@ suites:
       - docs/ai/dashboard-data.json
 
   aai-deslop:
+    companions:
+      - aai-advisory-skills
+      - aai-prompt-diet
     globs:
       - .aai/scripts/deslop-unrequested.mjs
       - .aai/SKILL_DESLOP.prompt.md
@@ -214,6 +221,8 @@ suites:
       - .agents/skills/aai-deslop/**
 
   aai-debug-gate:
+    companions:
+      - aai-prompt-diet
     globs:
       - .aai/SKILL_DEBUG.prompt.md
       - .aai/REMEDIATION.prompt.md
@@ -246,6 +255,8 @@ suites:
       - .aai/scripts/delta-merge.mjs
 
   aai-doc-number-reservation:
+    companions:
+      - aai-doc-numbering
     globs:
       - .aai/scripts/allocate-doc-number.mjs
 
@@ -489,6 +500,8 @@ suites:
       - docs/ai/friction/**
 
   aai-git-ref-guard:
+    companions:
+      - aai-prompt-diet
     globs:
       - .aai/scripts/install-pre-commit-hook.sh
       - .aai/scripts/install-pre-commit-hook.ps1
@@ -528,12 +541,17 @@ suites:
       - .aai/SKILL_HITL.prompt.md
 
   aai-hitl-propagation:
+    companions:
+      - aai-orchestration-dispatch
+      - aai-state
     globs:
       - .aai/ORCHESTRATION_HITL.prompt.md
       - .aai/SKILL_HITL.prompt.md
       - .aai/scripts/orchestration-dispatch.mjs
 
   aai-hooks-overlay:
+    companions:
+      - aai-prompt-diet
     globs:
       - .aai/templates/hooks/**
       - .aai/scripts/claude-hook-gate.sh
@@ -995,6 +1013,8 @@ suites:
       - .aai/scripts/hitl-channel.mjs
 
   aai-secrets-preflight:
+    companions:
+      - aai-intake
     globs:
       - .aai/scripts/secrets-preflight.mjs
       - .aai/INTAKE_CHANGE.prompt.md
@@ -1040,6 +1060,8 @@ suites:
       - .aai/scripts/routine-emit.mjs
 
   aai-spec-lint:
+    companions:
+      - aai-prompt-diet
     globs:
       - .aai/scripts/spec-lint.mjs
       - .aai/scripts/spec-freeze.mjs
@@ -1073,6 +1095,8 @@ suites:
       - .aai/ROLE_COMMON.md
 
   aai-tdd-evidence:
+    companions:
+      - aai-tdd
     globs:
       - .aai/scripts/tdd-evidence-check.mjs
       - .aai/SKILL_TDD.prompt.md

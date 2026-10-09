@@ -71,6 +71,10 @@ TEST_NAME="aai-git-ref-guard"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
 INSTALLER_PS1="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
@@ -888,10 +892,11 @@ test_312_contract_and_diet() {
     grep -qF "$tok" "$sc" || { log_fail "TEST-312: SUBAGENT_CONTRACT.md missing scar citation $tok"; ok=0; }
   done
 
-  local diet_out diet_rc
-  diet_out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE bash tests/skills/test-aai-prompt-diet.sh 2>&1)"; diet_rc=$?
-  if [[ $diet_rc -ne 0 ]]; then
-    log_fail "TEST-312: test-aai-prompt-diet.sh exited $diet_rc"
+  # prompt-diet is a declared companion of this suite (selected with it, run on
+  # its own), not run nested. The live credit it used to report is read from the
+  # live ledger below with the same summation the base side uses.
+  if ! assert_companions aai-git-ref-guard aai-prompt-diet; then
+    log_fail "TEST-312 (plan row TEST-025): aai-prompt-diet must be selected with aai-git-ref-guard"
     ok=0
   fi
   # The claim is "THIS ride did not move the corpus credit", not "the credit is
@@ -908,9 +913,9 @@ test_312_contract_and_diet() {
     # the real one and this arm would then be pinning its own bug.
     base_pin="$(bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s" "$JUSTIFIED_GROWTH_BYTES"' _ "$base_ledger" 2>/dev/null)"
   fi
-  live_pin="$(printf '%s\n' "$diet_out" | sed -n 's/.*JUSTIFIED_GROWTH_BYTES == \([-0-9][0-9]*\).*/\1/p' | qhead -1)"
+  live_pin="$(bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s" "${JUSTIFIED_GROWTH_BYTES:-}"' _ "$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh" 2>/dev/null)"
   if [[ -z "$live_pin" ]]; then
-    log_fail "TEST-312: prompt-diet output does not report JUSTIFIED_GROWTH_BYTES at all: $(printf '%s\n' "$diet_out" | grep -i justified | qhead -1)"
+    log_fail "TEST-312: the live prompt-diet ledger does not define JUSTIFIED_GROWTH_BYTES at all"
     ok=0
   elif [[ -z "${base_pin:-}" ]]; then
     # Spec-AC-12 (TEST-446): an unreadable base used to soft-skip this arm
@@ -953,7 +958,7 @@ test_312_contract_and_diet() {
     fi
   fi
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-312 SUBAGENT_CONTRACT.md names AAI_GIT_WRITE + AAI:REF-GUARD, all 5 HAZ anchors + 5 scar citations survive, and test-aai-prompt-diet.sh exits 0 with any corpus-credit move fully accounted for by ledger entries this branch added (and none of origin/main's entries deleted or rewritten)"
+  [[ $ok -eq 1 ]] && log_pass "TEST-312 SUBAGENT_CONTRACT.md names AAI_GIT_WRITE + AAI:REF-GUARD, all 5 HAZ anchors + 5 scar citations survive, and test-aai-prompt-diet.sh is selected with this suite, with any corpus-credit move fully accounted for by ledger entries this branch added (and none of origin/main's entries deleted or rewritten)"
 }
 
 # --- TEST-313 (Spec-AC-07) — LIVE, degrade-and-report ------------------------

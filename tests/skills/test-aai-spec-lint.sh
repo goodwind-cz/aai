@@ -26,6 +26,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 LINT="$PROJECT_ROOT/.aai/scripts/spec-lint.mjs"
 
 FAILED=0
@@ -439,8 +443,8 @@ test_011_seam_survival() {
   if ! node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check --strict --no-event >/dev/null 2>&1; then
     log_info "TEST-011: repo-wide strict audit failed"; ok=0
   fi
-  if ! (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-prompt-diet.sh >/dev/null 2>&1); then
-    log_info "TEST-011: prompt-diet suite failed"; ok=0
+  if ! assert_companions aai-spec-lint aai-prompt-diet; then
+    log_info "TEST-011 (plan row TEST-029): aai-prompt-diet must be selected with aai-spec-lint"; ok=0
   fi
   # Index double-regeneration stability, modulo the Generated stamp. The
   # generator WRITES, and its Generated line carries a timestamp, so running it
@@ -463,7 +467,7 @@ test_011_seam_survival() {
     log_info "TEST-011: index regeneration not stable ($snap1 vs $snap2)"; ok=0
   fi
   rm -rf "$idx_mirror"
-  [[ $ok -eq 1 ]] && log_pass "TEST-011 seam survival (audit/diet/index)" || log_fail "TEST-011 seam survival"
+  [[ $ok -eq 1 ]] && log_pass "TEST-011 seam survival (audit/diet companion/index)" || log_fail "TEST-011 seam survival (plan row TEST-029)"
 }
 
 # Build a spec = clean body + a `## Deltas` section (block content on stdin).
@@ -2073,6 +2077,12 @@ EOF
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
+  if [[ $# -ge 1 ]]; then
+    [[ "$(type -t "$1" 2>/dev/null || true)" == "function" ]] \
+      || { echo "unknown test: $1" >&2; exit 2; }
+    "$1"
+    exit "$FAILED"
+  fi
   test_001_duplicate_id
   test_002_gap_and_malformed
   test_003_done_without_evidence
@@ -2138,5 +2148,5 @@ main() {
 
 # Sourcing-compatible: run main only when executed directly (per-test TDD evidence).
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main
+  main "$@"
 fi

@@ -31,6 +31,10 @@ TEST_DIR=""
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
 STATE_SCRIPT="$PROJECT_ROOT/.aai/scripts/state.mjs"
@@ -541,10 +545,9 @@ test_008_lib_extraction_regression() {  # TEST-008 / Spec-AC-04
     || log_fail "check-state.mjs must import the shared lib/state-core.mjs (no logic fork)"
   grep -qF "lib/state-core.mjs" "$STATE_SCRIPT" \
     || log_fail "state.mjs must import the shared lib/state-core.mjs (no logic fork)"
-  local ec=0
-  (cd "$PROJECT_ROOT" && bash tests/skills/test-aai-check-state.sh > "$TEST_DIR/t8.log" 2>&1) || ec=$?
-  [[ "$ec" == 0 ]] || log_fail "test-aai-check-state.sh must stay green after the lib extraction (got $ec): $(tail -5 "$TEST_DIR/t8.log")"
-  log_pass "Shared duplicate-key definition; validator suite green post-extraction (TEST-008)"
+  assert_companions aai-state aai-check-state \
+    || log_fail "TEST-008 (plan row TEST-030): aai-check-state must be selected (core) with aai-state"
+  log_pass "Shared duplicate-key definition; validator suite is core and selected with this suite (TEST-008)"
 }
 
 test_009_inline_agent_runs_conversion() {  # TEST-009 / Spec-AC-11
