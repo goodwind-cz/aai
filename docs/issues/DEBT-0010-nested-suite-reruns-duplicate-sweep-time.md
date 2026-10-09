@@ -1,7 +1,7 @@
 ---
 id: nested-suite-reruns-duplicate-sweep-time
 type: techdebt
-number: null
+number: 10
 status: draft
 links:
   pr: []

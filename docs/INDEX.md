@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-09T14:21:13.907Z
+Generated: 2026-10-09T14:25:55.969Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-nested-suite-reruns-duplicate-sweep-time | specs | implementing | 13 done | docs/specs/SPEC-DRAFT-spec-nested-suite-reruns-duplicate-sweep-time.md |
+| SPEC-0215 | specs | implementing | 13 done | docs/specs/SPEC-0215-spec-nested-suite-reruns-duplicate-sweep-time.md |
 
 ## Canonical layer (0)
 
@@ -575,7 +575,7 @@ _None._
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
 | DEBT-0006 | issues | docs/issues/DEBT-0006-payload-size-hazards-past-the-one-fixed-site.md |
 | DEBT-0007 | issues | docs/issues/DEBT-0007-withdrawn-claim-sweeps-are-not-verifiable.md |
-| nested-suite-reruns-duplicate-sweep-time (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-nested-suite-reruns-duplicate-sweep-time.md |
+| DEBT-0010 | issues | docs/issues/DEBT-0010-nested-suite-reruns-duplicate-sweep-time.md |
 | ISSUE-0039 | issues | docs/issues/ISSUE-0039-disposable-checkout-lifecycle-residuals.md |
 | ISSUE-0041 | issues | docs/issues/ISSUE-0041-hardcoded-path-defeats-suite-isolation.md |
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |

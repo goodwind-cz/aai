@@ -1,15 +1,15 @@
 ---
 id: spec-nested-suite-reruns-duplicate-sweep-time
 type: spec
-number: null
+number: 215
 status: implementing
 mutation_gate: v1
-frozen_sha256: 429c3a511213f11b9b8bd4654ce3f52d9a8788e1e2c170ce6beea96d0ce29b5c
+frozen_sha256: 221617746c6477d0b20df74a58073d6aaf4344d0a746a55663a7178550dba7a9
 ceremony_level: 2
 links:
   requirement: null
   rfc: null
-  intake: docs/issues/DEBT-DRAFT-nested-suite-reruns-duplicate-sweep-time.md
+  intake: docs/issues/DEBT-0010-nested-suite-reruns-duplicate-sweep-time.md
   pr: []
   commits: []
 ---
@@ -19,7 +19,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/DEBT-DRAFT-nested-suite-reruns-duplicate-sweep-time.md (techdebt intake, id `nested-suite-reruns-duplicate-sweep-time`)
+- Requirement: docs/issues/DEBT-0010-nested-suite-reruns-duplicate-sweep-time.md (techdebt intake, id `nested-suite-reruns-duplicate-sweep-time`)
 - Decision records: none
 - Technology contract: docs/TECHNOLOGY.md (Node stdlib only for `.aai/scripts/*.mjs`; bash suites under `tests/skills/`)
 
