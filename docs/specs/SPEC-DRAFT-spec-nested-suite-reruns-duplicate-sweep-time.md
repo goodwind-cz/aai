@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 701bc6cd72f69a124e039cd3d2a24d5991648d24ca5a7076979445ff46109560
+frozen_sha256: f99169d43deb72a8f251318a77edde0feea4f3c984bb1135e4bb8931cde7a73f
 ceremony_level: 2
 links:
   requirement: null
@@ -518,19 +518,19 @@ selects byte-identically.
 
 | Spec-AC    | Description | Status | Evidence | Review-By | Notes |
 |------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN a changed path selects a suite whose suite-map.yaml row declares companions, select-suites.mjs SHALL also print one SELECTED line per companion with reason=companion:<parent>, SHALL follow companions transitively, SHALL print each suite at most once even through a cycle, and SHALL count companions in DROPPED. | planned | — | — | D1, D2 |
-| Spec-AC-02 | WHEN a companion entry names no suites row, names its own row, or breaks the name charset, select-suites.mjs SHALL print FULL_RUN reason=internal-error in whole-PR mode and DELTA_REFUSED reason=internal-error in delta mode, and SHALL exit 0. | planned | — | — | D1 fail-open |
-| Spec-AC-03 | WHEN a core suite declares companions, every selection outcome including an empty diff and an empty delta SHALL select them; WHEN no row declares companions, every output SHALL be byte-identical to the pre-change selector; and the workflow's own SUITES extraction line SHALL yield the companion names from both whole-PR and delta output. | planned | — | — | D2, SEAM-1, SEAM-2 |
-| Spec-AC-04 | assert_companions in tests/skills/lib/companion-assert.sh SHALL return 0 when the real selector selects (or runs as core) every named companion for the outer suite's own test file, and SHALL return 1 printing MISSING companion <name> for <outer> otherwise. | planned | — | — | D4 |
-| Spec-AC-05 | WHEN test-aai-learned-append.sh runs, test_015, test_016 and test_017 SHALL invoke no other suite, SHALL assert their companions through assert_companions, SHALL keep their non-nested assertions, and the whole suite SHALL finish in at most 10 s on the measuring host. | planned | — | — | worst case 1 (445 of 446 s) |
-| Spec-AC-06 | WHEN the delta-stage1, delta-stage2 and delta-stage3 suites run, their seam functions SHALL invoke no other suite, SHALL assert their companions through assert_companions, and delta-stage3 TEST-007 SHALL keep its repo-wide strict docs-audit check. | planned | — | — | worst case 2 (199 s) |
-| Spec-AC-07 | WHEN test-aai-repo-tripwire.sh runs, test_019 SHALL run last in main without re-running the suite, SHALL create one fixture through a command substitution as a positive control, and SHALL fail when any directory its registry named survives drain_workdirs or when the registry held no entry. | planned | — | — | D5; SPEC-0179 TEST-437 claim kept |
-| Spec-AC-08 | WHEN the sync-seed, doctor and ceremony-levels suites run, test_781, test_031, test_010 and test_017 SHALL invoke no other suite (ceremony-levels test_017 also drops its own-function loop) and SHALL assert their companions through assert_companions. | planned | — | — | worst cases 4 to 6 |
-| Spec-AC-09 | WHEN the feedback-upsert, friction-wiring, friction, ledger-merge, merge-policy and release suites run, their inventory functions SHALL invoke no other suite and SHALL assert their companions through assert_companions. | planned | — | — | layer-profiles group, 84 s each |
-| Spec-AC-10 | WHEN the advisory-skills, constitution, debug-gate, deslop, doc-number-reservation, git-ref-guard, hitl-propagation, hooks-overlay, secrets-preflight, spec-lint, state and tdd-evidence suites run, their inventory functions (state test_008 only) SHALL invoke no other suite and SHALL assert their companions through assert_companions. | planned | — | — | prompt-diet group and the rest |
-| Spec-AC-11 | The real suite-map.yaml SHALL declare exactly the 36 companion edges of D3; nested-suite-lint.mjs SHALL report every whole-suite nested run of the four D7 shapes and no selector-form or fixture-suite call; over the live tree with the allowlist it SHALL exit 0 with exactly 3 allowlist rows and none stale; over the base tree it SHALL report all 34 inventory functions. | planned | — | — | D3, D6, D7 |
-| Spec-AC-12 | tests/skills/suite-weights.tsv SHALL be re-seeded from a named run of this branch, SHALL give aai-learned-append a weight of at most 15 and aai-delta-stage3 at most 30, the TEST-1423 balance bound SHALL hold, and a full local sweep on the measuring host SHALL sum to at most 3,065 s (0.70 of the 4,379 s baseline) with the slowest full-mode CI leg at most 1.25 times the mean leg. | planned | — | — | D9 |
-| Spec-AC-13 | Every frozen spec whose Test Plan row is backed by a rewritten function SHALL carry a spec_amendment record of class measurement with ref nested-suite-reruns-duplicate-sweep-time, and no allowlisted row SHALL carry one. | planned | — | — | D8 |
+| Spec-AC-01 | WHEN a changed path selects a suite whose suite-map.yaml row declares companions, select-suites.mjs SHALL also print one SELECTED line per companion with reason=companion:<parent>, SHALL follow companions transitively, SHALL print each suite at most once even through a cycle, and SHALL count companions in DROPPED. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-001.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-002.log | — | D1, D2 |
+| Spec-AC-02 | WHEN a companion entry names no suites row, names its own row, or breaks the name charset, select-suites.mjs SHALL print FULL_RUN reason=internal-error in whole-PR mode and DELTA_REFUSED reason=internal-error in delta mode, and SHALL exit 0. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-003.log | — | D1 fail-open |
+| Spec-AC-03 | WHEN a core suite declares companions, every selection outcome including an empty diff and an empty delta SHALL select them; WHEN no row declares companions, every output SHALL be byte-identical to the pre-change selector; and the workflow's own SUITES extraction line SHALL yield the companion names from both whole-PR and delta output. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-004.log | — | D2, SEAM-1, SEAM-2 |
+| Spec-AC-04 | assert_companions in tests/skills/lib/companion-assert.sh SHALL return 0 when the real selector selects (or runs as core) every named companion for the outer suite's own test file, and SHALL return 1 printing MISSING companion <name> for <outer> otherwise. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-005.log | — | D4 |
+| Spec-AC-05 | WHEN test-aai-learned-append.sh runs, test_015, test_016 and test_017 SHALL invoke no other suite, SHALL assert their companions through assert_companions, SHALL keep their non-nested assertions, and the whole suite SHALL finish in at most 10 s on the measuring host. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-006.log | — | worst case 1 (445 of 446 s); learned-append 1 s in the Batch 5 local sweep |
+| Spec-AC-06 | WHEN the delta-stage1, delta-stage2 and delta-stage3 suites run, their seam functions SHALL invoke no other suite, SHALL assert their companions through assert_companions, and delta-stage3 TEST-007 SHALL keep its repo-wide strict docs-audit check. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-007.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-008.log | — | worst case 2 (199 s) |
+| Spec-AC-07 | WHEN test-aai-repo-tripwire.sh runs, test_019 SHALL run last in main without re-running the suite, SHALL create one fixture through a command substitution as a positive control, and SHALL fail when any directory its registry named survives drain_workdirs or when the registry held no entry. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-sweep-b5.log | — | D5; SPEC-0179 TEST-437 claim kept; repo-tripwire passes in the Batch 5 sweep; mutation record mutation-TEST-010.txt |
+| Spec-AC-08 | WHEN the sync-seed, doctor and ceremony-levels suites run, test_781, test_031, test_010 and test_017 SHALL invoke no other suite (ceremony-levels test_017 also drops its own-function loop) and SHALL assert their companions through assert_companions. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-011.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-012.log | — | worst cases 4 to 6 |
+| Spec-AC-09 | WHEN the feedback-upsert, friction-wiring, friction, ledger-merge, merge-policy and release suites run, their inventory functions SHALL invoke no other suite and SHALL assert their companions through assert_companions. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-014a.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-015.log | — | layer-profiles group, 84 s each |
+| Spec-AC-10 | WHEN the advisory-skills, constitution, debug-gate, deslop, doc-number-reservation, git-ref-guard, hitl-propagation, hooks-overlay, secrets-preflight, spec-lint, state and tdd-evidence suites run, their inventory functions (state test_008 only) SHALL invoke no other suite and SHALL assert their companions through assert_companions. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-020.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-031.log | — | prompt-diet group and the rest |
+| Spec-AC-11 | The real suite-map.yaml SHALL declare exactly the 36 companion edges of D3; nested-suite-lint.mjs SHALL report every whole-suite nested run of the four D7 shapes and no selector-form or fixture-suite call; over the live tree with the allowlist it SHALL exit 0 with exactly 3 allowlist rows and none stale; over the base tree it SHALL report all 34 inventory functions. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-032.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-034.log | — | D3, D6, D7; 36 edges on 24 rows as D3 planned; nested-suite-lint.mjs reports 34 base functions, 3 allowlist rows live |
+| Spec-AC-12 | tests/skills/suite-weights.tsv SHALL be re-seeded from a named run of this branch, SHALL give aai-learned-append a weight of at most 15 and aai-delta-stage3 at most 30, the TEST-1423 balance bound SHALL hold, and a full local sweep on the measuring host SHALL sum to at most 3,065 s (0.70 of the 4,379 s baseline) with the slowest full-mode CI leg at most 1.25 times the mean leg. | deferred | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-035.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-sweep-b5.log | 2026-10-16 | D9; weights re-seeded from run 37930287459; local sweep sum 2378 s of 3065 s (about 2572 s with hygiene-pack at its CI weight); the 1.25 CI leg bound is measured only by a CI run on the re-seeded weights, which this role cannot start |
+| Spec-AC-13 | Every frozen spec whose Test Plan row is backed by a rewritten function SHALL carry a spec_amendment record of class measurement with ref nested-suite-reruns-duplicate-sweep-time, and no allowlisted row SHALL carry one. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-036.log | — | D8; 30 specs carry a measurement record; SPEC-0100 dropped, doctor test_031 backs SPEC-0122 |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 
@@ -581,11 +581,11 @@ suite lacks one.
 | TEST-029 | Spec-AC-10 | integration | tests/skills/test-aai-spec-lint.sh | test_011_seam_survival: no nested run; assert_companions aai-spec-lint aai-prompt-diet passes (spec-lint is core, so this also proves D2's core-companion rule on the real map) | sed:s/(  aai-spec-lint:\n    companions:\n)      - aai-prompt-diet\n/$1/ | green |
 | TEST-030 | Spec-AC-10 | integration | tests/skills/test-aai-state.sh | test_008_lib_extraction_regression: no nested run; assert_companions aai-state aai-check-state passes through the CORE line; test_071 unchanged | sed:s/  - aai-check-state\n// | green |
 | TEST-031 | Spec-AC-10 | integration | tests/skills/test-aai-tdd-evidence.sh | test_005_additive_regression: no nested run; state.mjs zero-diff and strict audit kept; assert_companions aai-tdd-evidence aai-tdd passes | sed:s/(  aai-tdd-evidence:\n    companions:\n)      - aai-tdd\n/$1/ | green |
-| TEST-032 | Spec-AC-11 | integration | tests/skills/test-aai-suite-select.sh | test_1755: the real map declares exactly the 36 D3 edges (pinned list, item count 36, no edge to a core suite), and feeding each row's own test file selects its whole closure | sed:s/(  aai-learned-append:\n    companions:\n      - aai-friction-wiring\n)      - aai-layer-profiles\n/$1/ | pending |
-| TEST-033 | Spec-AC-11 | unit        | tests/skills/test-aai-hygiene-pack.sh | test_14x_nested_suite_lint_shapes: a fixture tree with one planted call per D7 shape (literal, variable, loop variable, wrapper, self) is reported with its function name; a selector call, a comment, a heredoc body and a non-existent fixture suite name are not; TOTAL equals the planted count | sed:s/function resolveVarSuite\(name, vars\) \{/function resolveVarSuite(name, vars) { return null;/ | pending |
-| TEST-034 | Spec-AC-11 | integration | tests/skills/test-aai-hygiene-pack.sh | test_14y_nested_suite_lint_live: over the live tree with the allowlist the lint exits 0 with exactly 3 allowlist rows and no STALE line; over the base tree (git archive of the merge base) it reports all 34 inventory functions (pinned list) | sed:s/test_071_rguard_predicate_which_file/test_071_renamed/ | pending |
-| TEST-035 | Spec-AC-12 | unit        | tests/skills/test-aai-suite-select.sh | test_1756: the weights header names a run id or the local-sweep fallback and a head SHA; aai-learned-append weight at most 15 and aai-delta-stage3 at most 30; TEST-1423 stays green | sed:s/(aai-learned-append\s+)[0-9]+/$1999/ | pending |
-| TEST-036 | Spec-AC-13 | integration | tests/skills/test-aai-hygiene-pack.sh | test_14z_nested_suite_disclosures: spec-amend list --status measurement --json carries at least one item with ref nested-suite-reruns-duplicate-sweep-time for every spec in the final pinned list, and none for SPEC-0137 or SPEC-0180 | sed:s/"ref_id":"nested-suite-reruns-duplicate-sweep-time"/"ref_id":"nested-x"/g | pending |
+| TEST-032 | Spec-AC-11 | integration | tests/skills/test-aai-suite-select.sh | test_1755: the real map declares exactly the 36 D3 edges (pinned list, item count 36, no edge to a core suite), and feeding each row's own test file selects its whole closure | sed:s/(  aai-learned-append:\n    companions:\n      - aai-friction-wiring\n)      - aai-layer-profiles\n/$1/ | green |
+| TEST-033 | Spec-AC-11 | unit        | tests/skills/test-aai-hygiene-pack.sh | test_132_nested_suite_lint_shapes: a fixture tree with one planted call per D7 shape (literal, variable, loop variable, wrapper, self) is reported with its function name; a selector call, a comment, a heredoc body and a non-existent fixture suite name are not; TOTAL equals the planted count | sed:s/function resolveVarSuite\(name, vars\) \{/function resolveVarSuite(name, vars) { return null;/ | green |
+| TEST-034 | Spec-AC-11 | integration | tests/skills/test-aai-hygiene-pack.sh | test_133_nested_suite_lint_live_and_base: over the live tree with the allowlist the lint exits 0 with exactly 3 allowlist rows and no STALE line; over the base tree (git archive of the merge base) it reports all 34 inventory functions (pinned list) | sed:s/test_071_rguard_predicate_which_file/test_071_renamed/ | green |
+| TEST-035 | Spec-AC-12 | unit        | tests/skills/test-aai-suite-select.sh | test_1756: the weights header names a run id or the local-sweep fallback and a head SHA; aai-learned-append weight at most 15 and aai-delta-stage3 at most 30; TEST-1423 stays green | sed:s/(aai-learned-append\s+)[0-9]+/$1999/ | green |
+| TEST-036 | Spec-AC-13 | integration | tests/skills/test-aai-hygiene-pack.sh | test_134_nested_suite_disclosures: spec-amend list --status measurement --json carries at least one item with ref nested-suite-reruns-duplicate-sweep-time for every spec in the final pinned list, and none for SPEC-0137 or SPEC-0180 | sed:s/"ref_id":"nested-suite-reruns-duplicate-sweep-time"/"ref_id":"nested-x"/g | green |
 
 Test status values: pending → red → green
 
@@ -620,6 +620,36 @@ PASS criteria:
 - The trace shows no WHOLE nested run outside the allowlist.
 - CI full-mode legs within the 1.25 bound; TEST-1423 green on the new weights.
 - `docs-audit --strict` CLEAN; `spec-amend list --strict` exit 0.
+
+### Batch 5 measurements (recorded by the implementation)
+
+- Edge pin (TEST-032): the real map declares exactly the 36 D3 edges on 24
+  rows, none to a core suite; Batches 2 to 4 landed D3 as planned, so no
+  count amendment is needed. (A hand tally of 45 edges quoted at hand-off was
+  not reproduced: parsing the map and diffing it against the D3 table both give 36.) A core
+  row may declare companions (D2): the aai-spec-lint row declares
+  aai-prompt-diet and the pin keeps that truthful.
+- Lint (TEST-033, TEST-034): the base tree at 8f6590f1 yields exactly the 34
+  inventory functions; the live tree is clean under the 3-row allowlist.
+- Disclosures (TEST-036): 30 specs carry a measurement record for this ride
+  (Batch 2: 0095, 0038, 0037, 0034, 0179; Batch 3: 0199, 0122, 0030, 0041,
+  0059, 0082, 0203, 0079, 0078, 0185, 0207, 0063; Batch 4: 0012, 0027, 0028,
+  0029, 0031, 0033, 0044, 0045, 0047, 0066, 0090, 0132, 0156). SPEC-0100 of
+  the preliminary list was dropped: doctor test_031 backs SPEC-0122.
+- Weights: re-seeded from CI run 37930287459 (head 8e08f059). On the OLD
+  weights its legs ran 113 s, 171 s, 327 s and 185 s (the ratio of slowest to
+  mean was 1.64, which is the imbalance the re-seed removes); the new plan
+  gives shard sums of 621, 621, 621 and 622. A CI run on the re-seeded
+  weights is still needed to measure the 1.25 leg bound.
+- Local sweep (docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-sweep-b5.log):
+  106 suites, wall 490 s, summed suite seconds 2378 (0.543 of 4379; about 2572
+  and 0.587 with the aborted hygiene-pack at its CI weight), under the 3065 s
+  bound. Two failures: aai-win-fallback (the known python-path fixture) and
+  aai-hygiene-pack (a degenerate-pass baseline rise from the first draft of
+  test_133, fixed and re-run green). aai-learned-append took 1 s and
+  aai-delta-stage3 3 s. aai-state ran (no skip in this sweep).
+- Not run: the BASH_ENV dynamic recall trace of the Verification section; the
+  static lint reproduces the 34-function inventory from the base tree instead.
 
 ## Evidence contract
 For each implementation, validation, TDD, and code review artifact, record:

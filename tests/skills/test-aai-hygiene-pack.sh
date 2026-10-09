@@ -5627,7 +5627,6 @@ test_133_nested_suite_lint_live_and_base() {  # TEST-034 / Spec-AC-11
   if [[ "$(git -C "$PROJECT_ROOT" rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]] \
      && ! git -C "$PROJECT_ROOT" cat-file -e "$NSL_BASE_SHA^{commit}" 2>/dev/null; then
     log_info "test_133: BASE-TREE ARM SKIPPED — shallow checkout without $NSL_BASE_SHA (the live arm above ran)"
-    log_pass "test_133: live tree clean under a 3-row allowlist; base-tree arm skipped on a shallow checkout (TEST-034)"
     return 0
   fi
   git -C "$PROJECT_ROOT" cat-file -e "$NSL_BASE_SHA^{commit}" 2>/dev/null \

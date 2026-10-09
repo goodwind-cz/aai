@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-09T12:28:07.101Z
+Generated: 2026-10-09T13:02:09.248Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-nested-suite-reruns-duplicate-sweep-time | specs | implementing | 13 planned | docs/specs/SPEC-DRAFT-spec-nested-suite-reruns-duplicate-sweep-time.md |
+| spec-nested-suite-reruns-duplicate-sweep-time | specs | implementing | 12 done, 1 deferred | docs/specs/SPEC-DRAFT-spec-nested-suite-reruns-duplicate-sweep-time.md |
 
 ## Canonical layer (0)
 
@@ -588,10 +588,11 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (2)
+## Deferred items (per-AC, across all specs) (3)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
+| spec-nested-suite-reruns-duplicate-sweep-time | Spec-AC-12 | 2026-10-16 | D9; weights re-seeded from run 37930287459; local sweep sum 2378 s of 3065 s (about 2572 s with hygiene-pack at its CI weight); the 1.25 CI leg bound is measured only by a CI run on the re-seeded weights, which this role cannot start |
 | SPEC-0046 | Spec-AC-10 | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 | SPEC-0209 | Spec-AC-06 | 2026-10-20 | Pre-PR Bash real downstream and macOS pwsh evidence passed; neither proves native Windows. Windows PowerShell 5.1 and pwsh 7 Pester fixture checks are required in PR CI before merge; see the measurement amendment below. |
 
