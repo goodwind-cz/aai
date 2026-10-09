@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-09T08:44:05.836Z
+Generated: 2026-10-09T08:59:08.423Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-ci-windows-leg-waits-and-ps1-path-filter | specs | implementing | 5 planned | docs/specs/SPEC-DRAFT-spec-ci-windows-leg-waits-and-ps1-path-filter.md |
+| SPEC-0214 | specs | implementing | 5 done | docs/specs/SPEC-0214-spec-ci-windows-leg-waits-and-ps1-path-filter.md |
 
 ## Canonical layer (0)
 
@@ -573,7 +573,7 @@ _None._
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
 | DEBT-0006 | issues | docs/issues/DEBT-0006-payload-size-hazards-past-the-one-fixed-site.md |
 | DEBT-0007 | issues | docs/issues/DEBT-0007-withdrawn-claim-sweeps-are-not-verifiable.md |
-| ci-windows-leg-waits-and-ps1-path-filter (unnumbered draft) | issues | docs/issues/DEBT-DRAFT-ci-windows-leg-waits-and-ps1-path-filter.md |
+| DEBT-0009 | issues | docs/issues/DEBT-0009-ci-windows-leg-waits-and-ps1-path-filter.md |
 | ISSUE-0039 | issues | docs/issues/ISSUE-0039-disposable-checkout-lifecycle-residuals.md |
 | ISSUE-0041 | issues | docs/issues/ISSUE-0041-hardcoded-path-defeats-suite-isolation.md |
 | ISSUE-0042 | issues | docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md |
