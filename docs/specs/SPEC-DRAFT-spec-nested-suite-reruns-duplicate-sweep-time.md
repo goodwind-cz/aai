@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: f99169d43deb72a8f251318a77edde0feea4f3c984bb1135e4bb8931cde7a73f
+frozen_sha256: 429c3a511213f11b9b8bd4654ce3f52d9a8788e1e2c170ce6beea96d0ce29b5c
 ceremony_level: 2
 links:
   requirement: null
@@ -529,7 +529,7 @@ selects byte-identically.
 | Spec-AC-09 | WHEN the feedback-upsert, friction-wiring, friction, ledger-merge, merge-policy and release suites run, their inventory functions SHALL invoke no other suite and SHALL assert their companions through assert_companions. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-014a.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-015.log | — | layer-profiles group, 84 s each |
 | Spec-AC-10 | WHEN the advisory-skills, constitution, debug-gate, deslop, doc-number-reservation, git-ref-guard, hitl-propagation, hooks-overlay, secrets-preflight, spec-lint, state and tdd-evidence suites run, their inventory functions (state test_008 only) SHALL invoke no other suite and SHALL assert their companions through assert_companions. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-020.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-031.log | — | prompt-diet group and the rest |
 | Spec-AC-11 | The real suite-map.yaml SHALL declare exactly the 36 companion edges of D3; nested-suite-lint.mjs SHALL report every whole-suite nested run of the four D7 shapes and no selector-form or fixture-suite call; over the live tree with the allowlist it SHALL exit 0 with exactly 3 allowlist rows and none stale; over the base tree it SHALL report all 34 inventory functions. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-032.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-034.log | — | D3, D6, D7; 36 edges on 24 rows as D3 planned; nested-suite-lint.mjs reports 34 base functions, 3 allowlist rows live |
-| Spec-AC-12 | tests/skills/suite-weights.tsv SHALL be re-seeded from a named run of this branch, SHALL give aai-learned-append a weight of at most 15 and aai-delta-stage3 at most 30, the TEST-1423 balance bound SHALL hold, and a full local sweep on the measuring host SHALL sum to at most 3,065 s (0.70 of the 4,379 s baseline) with the slowest full-mode CI leg at most 1.25 times the mean leg. | deferred | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-035.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-sweep-b5.log | 2026-10-16 | D9; weights re-seeded from run 37930287459; local sweep sum 2378 s of 3065 s (about 2572 s with hygiene-pack at its CI weight); the 1.25 CI leg bound is measured only by a CI run on the re-seeded weights, which this role cannot start |
+| Spec-AC-12 | tests/skills/suite-weights.tsv SHALL be re-seeded from a named run of this branch, SHALL give aai-learned-append a weight of at most 15 and aai-delta-stage3 at most 30, the TEST-1423 balance bound SHALL hold, and a full local sweep on the measuring host SHALL sum to at most 3,065 s (0.70 of the 4,379 s baseline); the CI leg balance bound (slowest leg at most 1.25 times the mean) moved to slowest-suite-hot-spots by owner amendment, since a single suite (aai-hygiene-pack, 308 s) floors the slowest leg. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-035.log; docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-sweep-b5.log | — | D9; weights re-seeded from run 37930287459; local sweep sum 2378 s of 3065 s (about 2572 s with hygiene-pack at its CI weight); CI run 37934068219 on the new weights green, shard walls 309, 210, 132, 133 s with aai-hygiene-pack 308 s alone flooring leg 1; the leg bound moved to slowest-suite-hot-spots (owner amendment) |
 | Spec-AC-13 | Every frozen spec whose Test Plan row is backed by a rewritten function SHALL carry a spec_amendment record of class measurement with ref nested-suite-reruns-duplicate-sweep-time, and no allowlisted row SHALL carry one. | done | docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-red-TEST-036.log | — | D8; 30 specs carry a measurement record; SPEC-0100 dropped, doctor test_031 backs SPEC-0122 |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
@@ -609,8 +609,8 @@ Commands, all run from the worktree root, suites under `env -u AAI_ROLE`:
   `AAI_TEST_TIMEOUT=3000 env -u AAI_ROLE bash tests/skills/test-framework.sh`;
   sum the `[ n/106] <suite> ... (<s>s)` durations; at most 3,065 s.
 - CI: the branch's full-mode skill-suite run; `gh run view <run> --json jobs`
-  for leg durations (slowest at most 1.25 times the mean) and the four logs
-  for the weight re-seed. Wait about 40 s after a push before watching.
+  for leg durations (recorded; the 1.25 bound moved to slowest-suite-hot-spots)
+  and the four logs for the weight re-seed. Wait about 40 s after a push before watching.
 - `node .aai/scripts/spec-amend.mjs list --status measurement --json`
 - `node .aai/scripts/spec-lint.mjs --path <this spec>`; `node .aai/scripts/docs-audit.mjs --strict`.
 
@@ -618,7 +618,8 @@ PASS criteria:
 - All TEST-xxx green with mutation records, all Spec-AC terminal.
 - Local sweep sum at most 3,065 s and `aai-learned-append` at most 10 s in it.
 - The trace shows no WHOLE nested run outside the allowlist.
-- CI full-mode legs within the 1.25 bound; TEST-1423 green on the new weights.
+- CI full-mode run green on the new weights; TEST-1423 green. (The 1.25 leg
+  bound moved to slowest-suite-hot-spots by owner amendment.)
 - `docs-audit --strict` CLEAN; `spec-amend list --strict` exit 0.
 
 ### Batch 5 measurements (recorded by the implementation)
@@ -641,6 +642,10 @@ PASS criteria:
   mean was 1.64, which is the imbalance the re-seed removes); the new plan
   gives shard sums of 621, 621, 621 and 622. A CI run on the re-seeded
   weights is still needed to measure the 1.25 leg bound.
+- CI run 37934068219 (head 62427456) on the re-seeded weights: green; shard
+  walls 309, 210, 132 and 133 s. Leg 1 is floored by aai-hygiene-pack alone
+  (308 s), so no shard plan can reach 1.25; the owner moved that bound to
+  slowest-suite-hot-spots (2026-10-09, "Přesunout do B").
 - Local sweep (docs/ai/tdd/nested-suite-reruns-duplicate-sweep-time-sweep-b5.log):
   106 suites, wall 490 s, summed suite seconds 2378 (0.543 of 4379; about 2572
   and 0.587 with the aborted hygiene-pack at its CI weight), under the 3065 s
