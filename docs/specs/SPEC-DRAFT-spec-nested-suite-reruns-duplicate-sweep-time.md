@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: b8ae8d0b254d50649eb3455c994fa9c908c6c9d98309d72c9a3e67b3528dafeb
+frozen_sha256: 867870284a10fc48a82dce113099b83e899214953d1d2b2c8304617c2a145196
 ceremony_level: 2
 links:
   requirement: null
@@ -650,7 +650,7 @@ Source: `node .aai/scripts/follow-ups.mjs list`, read on 2026-10-09 and
 scanned for nested, companion, suite-map, select, weight, shard, selector,
 layer-profiles and prompt-diet subjects.
 
-Registry items closed by this scope: none.
+This scope closes none of the registry items below.
 
 NOT CLOSED, with reason:
 - `fu-lib-graph-narrowing-after-sharding` (P2). Same file
