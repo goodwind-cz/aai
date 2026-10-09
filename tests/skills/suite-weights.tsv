@@ -1,22 +1,26 @@
 # tests/skills/suite-weights.tsv — LPT shard-balancing weights (D3,
 # SPEC-DRAFT-spec-ci-test-selection-narrowing-and-sharding).
 #
-# Re-seeded (nested-suite-reruns-duplicate-sweep-time, D9) from GitHub Actions
-# run 37930287459 (workflow_dispatch, full mode, head SHA
-# 8e08f059448ca3853d87255f1d167aea74a4deda, branch
-# debt/nested-suite-reruns-duplicate-sweep-time, after the nested whole-suite
-# runs were removed; https://github.com/goodwind-cz/aai/actions/runs/37930287459),
-# legs 113819146625 (1), 113819146774 (2), 113819146689 (3), 113819146709 (4),
-# parsed from their '[ n/NN] <suite> PASS (<s>s)' lines; seconds are rounded to
+# Re-seeded (slowest-suite-hot-spots, D6; SPEC-0215 D9 method) from GitHub
+# Actions run 37966091223 (workflow_dispatch, full mode, head SHA
+# 77cfd944f5304502bb7c8670666de44fe3186cbf, branch
+# debt/slowest-suite-hot-spots, after the hygiene-pack, sync-seed and
+# run-tests hot spots were reworked;
+# https://github.com/goodwind-cz/aai/actions/runs/37966091223),
+# legs 113940809318 (1), 113940809257 (2), 113940809326 (3), 113940809221 (4),
+# parsed from their '[ n/NN] <suite> PASS (<s>s)' lines (the one SKIP line,
+# aai-state, contributes its measured seconds); seconds are rounded to
 # the nearest integer and a reading under 1 becomes 1 (positive-integer-seconds
 # contract; weights affect balance only, never membership — D3). The earlier
-# seed was run 37069590585 (job 111045681118, head SHA
-# 9f718c084385722a6ff6d735df128d3cdf02f1b0), which still carried the nested
-# runs. Format: '#' comments, blank lines, and
+# seed was run 37930287459 (jobs 113819146625, 113819146774, 113819146689,
+# 113819146709, head SHA 8e08f059448ca3853d87255f1d167aea74a4deda).
+# Format: '#' comments, blank lines, and
 # '<suite><whitespace><positive integer seconds>' rows. Any single
 # malformed row makes select-suites.mjs --shards ignore the WHOLE file
 # (WEIGHTS_IGNORED) and fall back to name-balanced (every weight 1) —
 # this file carries no hygiene pin (D3).
+#
+# Leg walls: pending the second full-mode CI run on these weights (Spec-AC-11).
 #
 # Stale/missing rows cost minutes, never coverage: re-seed by re-running
 # this extraction against a fresh skills-full run id whenever it drifts
@@ -27,104 +31,104 @@ aai-antigravity-project-skills	1
 aai-bootstrap	5
 aai-branch-guard	9
 aai-canon	4
-aai-ceremony-levels	11
+aai-ceremony-levels	12
 aai-check-state	2
-aai-ci-carry-forward	7
+aai-ci-carry-forward	10
 aai-close-reconcile	13
-aai-close-work-item	133
-aai-constitution	5
-aai-dashboard	1
+aai-close-work-item	56
+aai-constitution	3
+aai-dashboard	2
 aai-debug-gate	3
 aai-delta-stage1	1
 aai-delta-stage2	4
 aai-delta-stage3	5
-aai-deslop	24
-aai-doc-number-reservation	7
-aai-doc-numbering	25
-aai-docs-audit	139
+aai-deslop	27
+aai-doc-number-reservation	8
+aai-doc-numbering	41
+aai-docs-audit	182
 aai-docs-canon	4
 aai-docs-hub	2
 aai-docs-lock	7
-aai-doctor	102
+aai-doctor	101
 aai-downstream-autopilot	1
-aai-factory-report	11
-aai-feedback-status	3
-aai-feedback-triage	2
+aai-factory-report	7
+aai-feedback-status	2
+aai-feedback-triage	3
 aai-feedback-upsert	11
-aai-follow-ups	37
-aai-friction	8
-aai-friction-capture-points	18
+aai-follow-ups	36
+aai-friction	5
+aai-friction-capture-points	10
 aai-friction-wiring	1
-aai-git-ref-guard	16
-aai-golden-flow	88
-aai-heartbeat	4
+aai-git-ref-guard	23
+aai-golden-flow	86
+aai-heartbeat	5
 aai-hitl-channel	4
 aai-hitl-propagation	1
-aai-hooks-overlay	28
-aai-hygiene-pack	311
+aai-hooks-overlay	16
+aai-hygiene-pack	93
 aai-implementation-mode	1
-aai-intake	14
-aai-issues	2
-aai-layer-drift	2
-aai-layer-profiles	40
-aai-learned-append	2
-aai-learned-routing	5
+aai-intake	17
+aai-issues	3
+aai-layer-drift	4
+aai-layer-profiles	76
+aai-learned-append	1
+aai-learned-routing	3
 aai-ledger-merge	1
 aai-lightweight-lane	5
-aai-live-serve	20
-aai-live-status	11
-aai-merge-policy	36
-aai-metrics	87
-aai-mutation-gate	79
-aai-orchestration-dispatch	66
-aai-orchestration-mode	3
+aai-live-serve	21
+aai-live-status	14
+aai-merge-policy	19
+aai-metrics	110
+aai-mutation-gate	74
+aai-orchestration-dispatch	23
+aai-orchestration-mode	4
 aai-orphan-sweep	3
-aai-outcome-backcheck	12
+aai-outcome-backcheck	6
 aai-overview	4
 aai-pipe-safe	1
 aai-planning-probes	1
-aai-pr-platform	7
-aai-pr-preflight	76
-aai-pr-waiver	29
+aai-pr-platform	13
+aai-pr-preflight	101
+aai-pr-waiver	33
 aai-pricing	1
 aai-product-docs	4
-aai-prompt-diet	6
+aai-prompt-diet	8
 aai-prompt-hash	1
 aai-prune-stale-briefs	1
 aai-r-guard	1
 aai-reconcile-telemetry	2
 aai-redact	3
-aai-release	20
-aai-repo-tripwire	56
-aai-ride-select	34
-aai-roadmap	32
+aai-release	10
+aai-repo-tripwire	69
+aai-ride-select	37
+aai-roadmap	34
 aai-role-output	5
-aai-routine	7
-aai-run-tests	131
-aai-runtime-file	1
-aai-secrets-preflight	21
-aai-session-lock	1
+aai-routine	5
+aai-run-tests	88
+aai-runtime-file	2
+aai-secrets-preflight	9
+aai-session-lock	2
 aai-share	1
-aai-spec-amend	29
-aai-spec-lint	38
-aai-spec-tools	7
-aai-state	23
-aai-suite-isolation	79
-aai-suite-select	7
-aai-sweep-parallel	90
-aai-sync-seed	168
+aai-spec-amend	34
+aai-spec-lint	42
+aai-spec-tools	4
+aai-state	32
+aai-suite-isolation	55
+aai-suite-select	12
+aai-sweep-parallel	95
+aai-sync-seed	169
 aai-tdd	1
 aai-tdd-evidence	5
-aai-test-canon	5
-aai-token-capture	3
-aai-tracked-ignored	21
-aai-unattended	5
-aai-update	5
-aai-update-check	31
+aai-test-canon	4
+aai-token-capture	4
+aai-tracked-ignored	25
+aai-unattended	6
+aai-update	6
+aai-update-check	27
 aai-userguide-drift	1
 aai-userguide-rollup	1
 aai-validator-isolation	1
 aai-verify-gate	4
-aai-win-fallback	33
+aai-win-fallback	41
 aai-worktree	1
-aai-worktree-seed	30
+aai-worktree-seed	29

@@ -5841,6 +5841,32 @@ test_134_nested_suite_disclosures() {  # TEST-036 / Spec-AC-13
   log_pass "test_134: all 30 pinned specs carry a measurement disclosure for the ride; SPEC-0137 and SPEC-0180 carry none (TEST-036)"
 }
 
+test_137_hot_spot_disclosures() {  # slowest-suite-hot-spots TEST-018 / Spec-AC-12
+  log_info "test_137: every spec whose row a cached sync, batched wait or polled wait backs carries a measurement record for the ride; SPEC-0181 and SPEC-0182 carry none (TEST-018)..."
+  local amend="$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" d json
+  [[ -f "$amend" ]] || log_fail "test_137 (plan row TEST-018): missing .aai/scripts/spec-amend.mjs"
+  d="$(ap_tmpdir)"
+  json="$d/amend-measurement.json"
+  node "$amend" list --status measurement --json > "$json" 2>/dev/null || log_fail "test_137 (plan row TEST-018): spec-amend list failed"
+  local out rc=0
+  out="$(node -e '
+    const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    // Final list: sync-seed rows whose first sync comes from the cache (0157, 0184, 0199)
+    // and run-tests rows whose waits were batched or polled (0009, 0064, 0069, 0072, 0076, 0120).
+    const want = ["0157","0184","0199","0009","0064","0069","0072","0076","0120"];
+    const never = ["0181","0182"];
+    const ref = "slowest-suite-hot-spots";
+    const mine = d.items.filter((x) => x.ref_id === ref && x.amendment_class === "measurement");
+    const has = (n) => mine.some((x) => new RegExp("/SPEC-" + n + "-").test(x.spec));
+    const missing = want.filter((n) => !has(n));
+    const forbidden = never.filter((n) => has(n));
+    console.log("WANT " + want.length + " MISSING " + missing.join(",") + " FORBIDDEN " + forbidden.join(","));
+  ' "$json" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "test_137 (plan row TEST-018): could not read the amendment list: $out"
+  [[ "$out" == "WANT 9 MISSING  FORBIDDEN " ]] || log_fail "test_137 (plan row TEST-018): disclosure set differs from the pinned 9 specs: $out"
+  log_pass "test_137: all 9 pinned specs carry a measurement disclosure for the ride; SPEC-0181 and SPEC-0182 carry none (TEST-018)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -5914,6 +5940,7 @@ main() {
   test_132_nested_suite_lint_shapes
   test_133_nested_suite_lint_live_and_base
   test_134_nested_suite_disclosures
+  test_137_hot_spot_disclosures
   test_618_ref_guard_grep_conformance
   test_800_installed_hook_reaches_guard
   test_801_guard_block_propagates_block
