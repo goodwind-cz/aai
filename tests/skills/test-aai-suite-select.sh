@@ -1751,6 +1751,122 @@ YAML
   log_pass "TEST-005: assert_companions passes declared/core companions, fails naming the missing one (TEST-005)"
 }
 
+test_1755_real_map_declares_the_pinned_companion_edges() {  # Spec-AC-11 / TEST-032
+  log_info "Test: the real suite-map.yaml declares exactly the pinned D3 companion edges, none to a core suite, and each row selects its whole closure (TEST-032)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  local pin="$TEST_DIR/pinned.txt" got="$TEST_DIR/got.txt" rc=0
+  cat > "$pin" <<'PIN'
+aai-advisory-skills aai-prompt-diet
+aai-ceremony-levels aai-orchestration-dispatch
+aai-ceremony-levels aai-prompt-diet
+aai-constitution aai-prompt-diet
+aai-debug-gate aai-prompt-diet
+aai-delta-stage1 aai-docs-canon
+aai-delta-stage2 aai-delta-stage1
+aai-delta-stage3 aai-delta-stage1
+aai-delta-stage3 aai-delta-stage2
+aai-deslop aai-advisory-skills
+aai-deslop aai-prompt-diet
+aai-doc-number-reservation aai-doc-numbering
+aai-doctor aai-layer-profiles
+aai-doctor aai-suite-select
+aai-feedback-upsert aai-layer-profiles
+aai-feedback-upsert aai-prompt-diet
+aai-friction aai-layer-profiles
+aai-friction-wiring aai-layer-profiles
+aai-friction-wiring aai-prompt-diet
+aai-git-ref-guard aai-prompt-diet
+aai-hitl-propagation aai-orchestration-dispatch
+aai-hitl-propagation aai-state
+aai-hooks-overlay aai-prompt-diet
+aai-learned-append aai-friction-wiring
+aai-learned-append aai-layer-profiles
+aai-learned-append aai-prompt-diet
+aai-ledger-merge aai-layer-profiles
+aai-merge-policy aai-layer-profiles
+aai-release aai-layer-profiles
+aai-secrets-preflight aai-intake
+aai-spec-lint aai-prompt-diet
+aai-sync-seed aai-bootstrap
+aai-sync-seed aai-hooks-overlay
+aai-sync-seed aai-layer-drift
+aai-sync-seed aai-layer-profiles
+aai-tdd-evidence aai-tdd
+PIN
+  # The pin is the spec's D3 table (36 edges over 24 rows; a body with more
+  # edges than the spec says is a measurement the spec must record, never
+  # silent drift). The edges and the core list are read from the real map.
+  node - "$PROJECT_ROOT" "$SELECTOR" "$got" <<'JS' || rc=$?
+const fs = require('fs');
+const cp = require('child_process');
+const [root, selector, out] = process.argv.slice(2);
+const lines = fs.readFileSync(root + '/tests/skills/suite-map.yaml', 'utf8').split('\n');
+const core = new Set();
+const edges = [];
+const decl = {};
+let section = '';
+let row = null;
+let inList = false;
+for (const l of lines) {
+  let m = l.match(/^(core|suites):\s*$/);
+  if (m) { section = m[1]; row = null; inList = false; continue; }
+  if (section === 'core' && (m = l.match(/^  - (\S+)/))) { core.add(m[1]); continue; }
+  if (section !== 'suites') continue;
+  if ((m = l.match(/^  (aai-[a-z0-9-]+):\s*$/))) { row = m[1]; inList = false; continue; }
+  if (/^    companions:\s*$/.test(l)) { inList = true; continue; }
+  if (inList && (m = l.match(/^      - (\S+)/))) { edges.push(row + ' ' + m[1]); (decl[row] = decl[row] || []).push(m[1]); continue; }
+  inList = false;
+}
+const bad = edges.filter((e) => core.has(e.split(' ')[1]));
+const closure = (r) => {
+  const seen = new Set();
+  const stack = [...(decl[r] || [])];
+  while (stack.length) { const c = stack.pop(); if (seen.has(c)) continue; seen.add(c); stack.push(...(decl[c] || [])); }
+  return [...seen];
+};
+const miss = [];
+for (const r of Object.keys(decl)) {
+  const sel = cp.execFileSync('node', [selector, '--files-from', '-', '--repo-root', root],
+    { input: 'tests/skills/test-' + r + '.sh\n', encoding: 'utf8' });
+  for (const c of closure(r)) {
+    if (!core.has(c) && !sel.split('\n').some((x) => x.startsWith('SELECTED ' + c + ' '))) miss.push(r + ' -> ' + c);
+  }
+}
+fs.writeFileSync(out, edges.sort().join('\n') + '\nROWS ' + Object.keys(decl).length + '\nCOREEDGES ' + bad.join(',') + '\nCLOSUREMISS ' + miss.join(',') + '\n');
+JS
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-032 (plan row TEST-032): edge extraction failed (rc=$rc)"
+  local want_edges got_edges
+  want_edges="$(sort "$pin")"
+  got_edges="$(sed '/^ROWS /,$d' "$got")"
+  [[ "$got_edges" == "$want_edges" ]] || log_fail "TEST-032 (plan row TEST-032): the real map's companion edges differ from the pinned list. want: $(printf '%s' "$want_edges" | tr '\n' ';') -- got: $(printf '%s' "$got_edges" | tr '\n' ';')"
+  [[ "$(wc -l < "$pin" | tr -d ' ')" == "36" ]] || log_fail "TEST-032 (plan row TEST-032): the pinned list must hold 36 edges"
+  grep -qxF "ROWS 24" "$got" || log_fail "TEST-032 (plan row TEST-032): the edges must sit on 24 rows: $(grep '^ROWS' "$got")"
+  grep -qxF "COREEDGES " "$got" || log_fail "TEST-032 (plan row TEST-032): an edge names a core suite: $(grep '^COREEDGES' "$got")"
+  grep -qxF "CLOSUREMISS " "$got" || log_fail "TEST-032 (plan row TEST-032): a row's own test file does not select its whole closure: $(grep '^CLOSUREMISS' "$got")"
+  log_pass "TEST-032: the real map declares exactly the 36 pinned edges on 24 rows, none to a core suite, each row selects its closure (TEST-032)"
+}
+
+test_1756_weights_reseeded_from_a_named_run() {  # Spec-AC-12 / TEST-035
+  log_info "Test: suite-weights.tsv names its source run and head SHA, weighs learned-append at most 15 and delta-stage3 at most 30, and the balance bound holds (TEST-035)..."
+  local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" header w
+  [[ -f "$f" ]] || log_fail "TEST-035 (plan row TEST-035): missing $f"
+  header="$(sed -n '/^#/p' "$f")"
+  # the header names a CI run id (8+ digits after 'run') or the local-sweep fallback
+  if [[ ! "$header" =~ run[[:space:]]+[0-9]{8,} && ! "$header" == *"local sweep"* ]]; then
+    log_fail "TEST-035 (plan row TEST-035): the weights header must name a run id or the local-sweep fallback"
+  fi
+  [[ "$header" =~ [0-9a-f]{40} ]] || log_fail "TEST-035 (plan row TEST-035): the weights header must name a 40-hex head SHA"
+  w="$(awk -F'\t' '$1 == "aai-learned-append" {print $2}' "$f")"
+  [[ "$w" =~ ^[0-9]+$ && "$w" -ge 1 && "$w" -le 15 ]] \
+    || log_fail "TEST-035 (plan row TEST-035): aai-learned-append weight must be 1..15 after the nested runs left, got '$w'"
+  w="$(awk -F'\t' '$1 == "aai-delta-stage3" {print $2}' "$f")"
+  [[ "$w" =~ ^[0-9]+$ && "$w" -ge 1 && "$w" -le 30 ]] \
+    || log_fail "TEST-035 (plan row TEST-035): aai-delta-stage3 weight must be 1..30 after the nested runs left, got '$w'"
+  # the balance bound is TEST-1423's; running it here binds it to THESE weights
+  test_1423_real_repo_balance_bound "$PROJECT_ROOT"
+  log_pass "TEST-035: weights re-seeded from a named run (learned-append <= 15, delta-stage3 <= 30), balance bound holds (TEST-035)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -1808,6 +1924,8 @@ main() {
   test_1752_malformed_companion_fails_open
   test_1753_core_companions_empty_diff_golden_and_workflow_line
   test_1754_assert_companions_helper
+  test_1755_real_map_declares_the_pinned_companion_edges
+  test_1756_weights_reseeded_from_a_named_run
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

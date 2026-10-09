@@ -1,12 +1,18 @@
 # tests/skills/suite-weights.tsv — LPT shard-balancing weights (D3,
 # SPEC-DRAFT-spec-ci-test-selection-narrowing-and-sharding).
 #
-# Seeded from GitHub Actions run 37069590585 (skills-full job
-# 111045681118, head SHA 9f718c084385722a6ff6d735df128d3cdf02f1b0,
-# https://github.com/goodwind-cz/aai/actions/runs/37069590585), parsed
-# from its '[ n/101] <suite> PASS (<s>s)' lines. A 0.0s reading becomes 1
-# (positive-integer-seconds contract; weights affect balance only, never
-# membership — D3). Format: '#' comments, blank lines, and
+# Re-seeded (nested-suite-reruns-duplicate-sweep-time, D9) from GitHub Actions
+# run 37930287459 (workflow_dispatch, full mode, head SHA
+# 8e08f059448ca3853d87255f1d167aea74a4deda, branch
+# debt/nested-suite-reruns-duplicate-sweep-time, after the nested whole-suite
+# runs were removed; https://github.com/goodwind-cz/aai/actions/runs/37930287459),
+# legs 113819146625 (1), 113819146774 (2), 113819146689 (3), 113819146709 (4),
+# parsed from their '[ n/NN] <suite> PASS (<s>s)' lines; seconds are rounded to
+# the nearest integer and a reading under 1 becomes 1 (positive-integer-seconds
+# contract; weights affect balance only, never membership — D3). The earlier
+# seed was run 37069590585 (job 111045681118, head SHA
+# 9f718c084385722a6ff6d735df128d3cdf02f1b0), which still carried the nested
+# runs. Format: '#' comments, blank lines, and
 # '<suite><whitespace><positive integer seconds>' rows. Any single
 # malformed row makes select-suites.mjs --shards ignore the WHOLE file
 # (WEIGHTS_IGNORED) and fall back to name-balanced (every weight 1) —
@@ -16,104 +22,109 @@
 # this extraction against a fresh skills-full run id whenever it drifts
 # far from reality; nothing here is load-bearing for correctness.
 #
-aai-advisory-skills	9
+aai-advisory-skills	4
 aai-antigravity-project-skills	1
 aai-bootstrap	5
 aai-branch-guard	9
-aai-canon	7
-aai-ceremony-levels	120
-aai-check-state	3
-aai-close-reconcile	15
-aai-close-work-item	112
-aai-constitution	11
-aai-dashboard	2
-aai-debug-gate	10
-aai-delta-stage1	4
-aai-delta-stage2	56
-aai-delta-stage3	278
-aai-deslop	40
-aai-doc-number-reservation	97
-aai-doc-numbering	43
-aai-docs-audit	161
+aai-canon	4
+aai-ceremony-levels	11
+aai-check-state	2
+aai-ci-carry-forward	7
+aai-close-reconcile	13
+aai-close-work-item	133
+aai-constitution	5
+aai-dashboard	1
+aai-debug-gate	3
+aai-delta-stage1	1
+aai-delta-stage2	4
+aai-delta-stage3	5
+aai-deslop	24
+aai-doc-number-reservation	7
+aai-doc-numbering	25
+aai-docs-audit	139
 aai-docs-canon	4
-aai-docs-hub	3
+aai-docs-hub	2
 aai-docs-lock	7
-aai-doctor	149
+aai-doctor	102
 aai-downstream-autopilot	1
-aai-factory-report	12
-aai-feedback-status	2
-aai-feedback-triage	3
-aai-feedback-upsert	91
+aai-factory-report	11
+aai-feedback-status	3
+aai-feedback-triage	2
+aai-feedback-upsert	11
 aai-follow-ups	37
-aai-friction	93
-aai-friction-capture-points	19
-aai-friction-wiring	91
-aai-git-ref-guard	28
-aai-golden-flow	81
-aai-heartbeat	5
-aai-hitl-channel	6
-aai-hitl-propagation	93
-aai-hooks-overlay	18
-aai-hygiene-pack	313
+aai-friction	8
+aai-friction-capture-points	18
+aai-friction-wiring	1
+aai-git-ref-guard	16
+aai-golden-flow	88
+aai-heartbeat	4
+aai-hitl-channel	4
+aai-hitl-propagation	1
+aai-hooks-overlay	28
+aai-hygiene-pack	311
 aai-implementation-mode	1
-aai-intake	17
-aai-issues	3
-aai-layer-drift	3
-aai-layer-profiles	69
-aai-learned-append	434
+aai-intake	14
+aai-issues	2
+aai-layer-drift	2
+aai-layer-profiles	40
+aai-learned-append	2
 aai-learned-routing	5
-aai-ledger-merge	66
+aai-ledger-merge	1
 aai-lightweight-lane	5
-aai-live-serve	19
-aai-live-status	13
-aai-metrics	89
-aai-mutation-gate	82
-aai-orchestration-dispatch	39
-aai-orchestration-mode	4
+aai-live-serve	20
+aai-live-status	11
+aai-merge-policy	36
+aai-metrics	87
+aai-mutation-gate	79
+aai-orchestration-dispatch	66
+aai-orchestration-mode	3
 aai-orphan-sweep	3
-aai-outcome-backcheck	10
+aai-outcome-backcheck	12
 aai-overview	4
 aai-pipe-safe	1
 aai-planning-probes	1
-aai-pr-platform	10
-aai-pr-waiver	27
+aai-pr-platform	7
+aai-pr-preflight	76
+aai-pr-waiver	29
 aai-pricing	1
-aai-product-docs	3
-aai-prompt-diet	5
+aai-product-docs	4
+aai-prompt-diet	6
 aai-prompt-hash	1
 aai-prune-stale-briefs	1
 aai-r-guard	1
 aai-reconcile-telemetry	2
 aai-redact	3
-aai-release	81
-aai-repo-tripwire	155
-aai-ride-select	18
-aai-roadmap	22
+aai-release	20
+aai-repo-tripwire	56
+aai-ride-select	34
+aai-roadmap	32
 aai-role-output	5
-aai-routine	6
-aai-run-tests	135
+aai-routine	7
+aai-run-tests	131
 aai-runtime-file	1
-aai-secrets-preflight	52
-aai-session-lock	2
+aai-secrets-preflight	21
+aai-session-lock	1
 aai-share	1
-aai-spec-amend	28
-aai-spec-lint	39
-aai-spec-tools	6
-aai-state	27
-aai-suite-isolation	77
-aai-suite-select	1
-aai-sweep-parallel	91
-aai-sync-seed	234
+aai-spec-amend	29
+aai-spec-lint	38
+aai-spec-tools	7
+aai-state	23
+aai-suite-isolation	79
+aai-suite-select	7
+aai-sweep-parallel	90
+aai-sync-seed	168
 aai-tdd	1
-aai-tdd-evidence	6
+aai-tdd-evidence	5
 aai-test-canon	5
 aai-token-capture	3
+aai-tracked-ignored	21
 aai-unattended	5
-aai-update	6
-aai-update-check	32
+aai-update	5
+aai-update-check	31
 aai-userguide-drift	1
 aai-userguide-rollup	1
 aai-validator-isolation	1
 aai-verify-gate	4
-aai-win-fallback	10
+aai-win-fallback	33
 aai-worktree	1
+aai-worktree-seed	30
