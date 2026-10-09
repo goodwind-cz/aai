@@ -1927,7 +1927,7 @@ test_1759_run_tests_weight() {  # Spec-AC-09 / TEST-015
 
 test_1760_weights_provenance() {  # Spec-AC-10 / TEST-016
   log_info "Test: the weights header names a re-seed run other than 37930287459, four job ids and a head SHA; the balance bound holds (TEST-016)..."
-  local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" header run jobs
+  local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" header run jobs sha
   [[ -f "$f" ]] || log_fail "TEST-016: missing $f"
   header="$(sed -n '/^#/p' "$f")"
   run="$(printf '%s\n' "$header" | awk '/^# Actions run [0-9][0-9]*/ {print $4; exit}')"
@@ -1935,7 +1935,11 @@ test_1760_weights_provenance() {  # Spec-AC-10 / TEST-016
   [[ "$run" != "37930287459" ]] || log_fail "TEST-016: the header still names the previous seed run 37930287459"
   jobs="$(printf '%s\n' "$header" | awk '/^# legs / {print; exit}' | /usr/bin/grep -oE '[0-9]{9,}' | sort -u | wc -l | tr -d ' ')"
   [[ "$jobs" == "4" ]] || log_fail "TEST-016: the header must name four distinct leg job ids on its '# legs' line, found $jobs"
-  [[ "$header" =~ [0-9a-f]{40} ]] || log_fail "TEST-016: the header must name a 40-hex head SHA"
+  # The SHA is read from the run line itself (the first 'head SHA' after '# Actions run'),
+  # so the previous seed's SHA, which the header still records, cannot satisfy it.
+  sha="$(printf '%s\n' "$header" | tr '\n' ' ' | /usr/bin/grep -oE 'Actions run [0-9]+[^)]*head SHA[ #]*[0-9a-f]{40}' | awk 'NR==1 {print substr($0, length($0) - 39)}')"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || log_fail "TEST-016: the run line must name a 40-hex head SHA"
+  [[ "$sha" != "8e08f059448ca3853d87255f1d167aea74a4deda" ]] || log_fail "TEST-016: the run line names the previous seed's head SHA"
   test_1423_real_repo_balance_bound "$PROJECT_ROOT"
   log_pass "TEST-016: weights re-seeded from run $run, four job ids and a head SHA named, balance bound holds"
 }

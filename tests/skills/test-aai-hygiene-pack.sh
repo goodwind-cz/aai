@@ -2097,6 +2097,17 @@ test_136_nonul_batch_equivalence() {  # slowest-suite-hot-spots TEST-004 / Spec-
   [[ "$nn" -eq 1 ]] || log_fail "TEST-004 test_136: nonul_scan must start exactly one node, started $nn"
   [[ "$ng" -eq 1 ]] || log_fail "TEST-004 test_136: nonul_scan must start exactly one git check-attr, started $ng"
 
+  # Fail-closed arm: a node that dies must not read as a clean tree.
+  local shimf="$d/shim-fail" fout frc
+  mkdir -p "$shimf"
+  printf '#!/bin/sh\nexit 1\n' > "$shimf/node"
+  chmod +x "$shimf/node"
+  fout="$(PATH="$shimf:$PATH" nonul_scan "$fx" 2>"$d/fail.err")" && frc=0 || frc=$?
+  [[ "$frc" -ne 0 ]] || log_fail "TEST-004 test_136: nonul_scan must fail closed (non-zero) when node dies, got 0"
+  [[ -z "$fout" ]] || log_fail "TEST-004 test_136: a failed scan must print no path list on stdout: $fout"
+  [[ "$(wc -l < "$d/fail.err" | tr -d ' ')" -eq 1 ]] || log_fail "TEST-004 test_136: a failed scan must write exactly one stderr line: $(cat "$d/fail.err")"
+  assert_payload_contains "$(cat "$d/fail.err")" "could not scan" "TEST-004 test_136: the stderr line must say it could not scan"
+
   chmod 600 "$fx/unreadable.txt"
   rm -rf "$d"
   log_pass "TEST-004 test_136: batch scan is byte-identical to the per-file reference over nine cases, with one node and one git check-attr"
@@ -5852,8 +5863,8 @@ test_137_hot_spot_disclosures() {  # slowest-suite-hot-spots TEST-018 / Spec-AC-
   out="$(node -e '
     const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     // Final list: sync-seed rows whose first sync comes from the cache (0157, 0184, 0199)
-    // and run-tests rows whose waits were batched or polled (0009, 0064, 0069, 0072, 0076, 0120).
-    const want = ["0157","0184","0199","0009","0064","0069","0072","0076","0120"];
+    // and run-tests rows whose waits were batched or polled (0009, 0046, 0064, 0069, 0072, 0076, 0120, 0179).
+    const want = ["0157","0184","0199","0009","0064","0069","0072","0076","0120","0046","0179"];
     const never = ["0181","0182"];
     const ref = "slowest-suite-hot-spots";
     const mine = d.items.filter((x) => x.ref_id === ref && x.amendment_class === "measurement");
@@ -5863,8 +5874,8 @@ test_137_hot_spot_disclosures() {  # slowest-suite-hot-spots TEST-018 / Spec-AC-
     console.log("WANT " + want.length + " MISSING " + missing.join(",") + " FORBIDDEN " + forbidden.join(","));
   ' "$json" 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_137 (plan row TEST-018): could not read the amendment list: $out"
-  [[ "$out" == "WANT 9 MISSING  FORBIDDEN " ]] || log_fail "test_137 (plan row TEST-018): disclosure set differs from the pinned 9 specs: $out"
-  log_pass "test_137: all 9 pinned specs carry a measurement disclosure for the ride; SPEC-0181 and SPEC-0182 carry none (TEST-018)"
+  [[ "$out" == "WANT 11 MISSING  FORBIDDEN " ]] || log_fail "test_137 (plan row TEST-018): disclosure set differs from the pinned 11 specs: $out"
+  log_pass "test_137: all 11 pinned specs carry a measurement disclosure for the ride; SPEC-0181 and SPEC-0182 carry none (TEST-018)"
 }
 
 main() {

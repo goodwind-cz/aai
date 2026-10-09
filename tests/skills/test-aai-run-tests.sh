@@ -1240,8 +1240,8 @@ test_029() {
   [[ -n "$trapper_pid" && -n "$ignorer_pid" ]] || log_fail "TEST-029 (plan row TEST-011): fixture members did not record their pids"
   track "$trapper_pid"; track "$ignorer_pid"
   [[ -f "$d/marker" ]] || log_fail "TEST-029 (plan row TEST-011): the TERM-trapping member never finished - the grace after the TERM was skipped although a member survived"
-  alive "$trapper_pid" && log_fail "TEST-029 (plan row TEST-011): trapping member $trapper_pid is still alive after the wrapper returned"
-  alive "$ignorer_pid" && log_fail "TEST-029 (plan row TEST-011): TERM-ignoring member $ignorer_pid survived the wrapper - the KILL after the grace is gone"
+  WAIT_LABEL="TEST-029 (plan row TEST-011): trapping member $trapper_pid is still alive after the wrapper returned" wait_gone "$trapper_pid" 5
+  WAIT_LABEL="TEST-029 (plan row TEST-011): TERM-ignoring member $ignorer_pid survived the wrapper - the KILL after the grace is gone" wait_gone "$ignorer_pid" 5
   log_pass "a surviving member gets the grace (trapper wrote its marker) and the KILL (ignorer is dead)"
 }
 

@@ -91,11 +91,13 @@ nonul_scan_perfile() {
 # is exactly set; unreadable) and prints each path whose bytes contain 0.
 # Paths are handled as raw bytes so a non-UTF-8 name is printed unchanged.
 nonul_scan_batch() {
-  local _nn_root="$1" _nn_tmp
-  _nn_tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-nonul.XXXXXX")" || return 0
-  case "$_nn_tmp" in /*) ;; *) return 0 ;; esac
-  if git -C "$_nn_root" ls-files -z > "$_nn_tmp/files" 2>/dev/null; then
-    git -C "$_nn_root" check-attr -z --stdin binary < "$_nn_tmp/files" > "$_nn_tmp/attrs" 2>/dev/null
+  local _nn_root="$1" _nn_tmp _nn_rc=0
+  _nn_tmp="$(mktemp -d "${TMPDIR:-/tmp}/aai-nonul.XXXXXX")" || { echo "no-nul-guard: could not scan (mktemp failed)" >&2; return 1; }
+  case "$_nn_tmp" in /*) ;; *) echo "no-nul-guard: could not scan (mktemp returned a relative path)" >&2; return 1 ;; esac
+  # An internal failure must never read as a clean tree: every step below
+  # that fails sets _nn_rc, and the function returns it after cleanup.
+  if git -C "$_nn_root" ls-files -z > "$_nn_tmp/files" 2>/dev/null \
+     && git -C "$_nn_root" check-attr -z --stdin binary < "$_nn_tmp/files" > "$_nn_tmp/attrs" 2>/dev/null; then
     node -e '
       const fs = require("fs");
       const root = Buffer.from(process.argv[1]);
@@ -122,10 +124,13 @@ nonul_scan_batch() {
         if (buf.includes(0)) hits.push(Buffer.concat([f, Buffer.from("\n")]));
       }
       if (hits.length) fs.writeSync(1, Buffer.concat(hits));
-    ' "$_nn_root" "$_nn_tmp/files" "$_nn_tmp/attrs"
+    ' "$_nn_root" "$_nn_tmp/files" "$_nn_tmp/attrs" || _nn_rc=1
+  else
+    _nn_rc=1
   fi
   rm -rf "$_nn_tmp"
-  return 0
+  [ "$_nn_rc" -eq 0 ] || echo "no-nul-guard: could not scan $_nn_root (git ls-files, check-attr or node failed)" >&2
+  return "$_nn_rc"
 }
 
 nonul_scan() {
@@ -144,7 +149,7 @@ nonul_scan() {
 if [ "${BASH_SOURCE[0]}" = "${0}" ] && [ "${1:-}" = "--check" ]; then
   _nn_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   _nn_root="${2:-$(cd "$_nn_self_dir/../../.." && pwd)}"
-  _nn_out="$(nonul_scan "$_nn_root")"
+  _nn_out="$(nonul_scan "$_nn_root")" || exit 2
   if [ -n "$_nn_out" ]; then
     printf '%s\n' "$_nn_out"
     exit 1
