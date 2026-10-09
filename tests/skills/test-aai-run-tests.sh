@@ -151,7 +151,16 @@ spawn_parent_with_child() {
   echo "$pid"
 }
 
-alive() { kill -0 "$1" >/dev/null 2>&1; }
+# alive <pid> - true while the process exists and has not terminated. A
+# zombie (ps state Z) has terminated: in a container whose PID 1 never reaps
+# orphans, a killed fixture member stays defunct with PPID 1 forever, and
+# kill -0 alone would report it alive.
+alive() {
+  local st
+  kill -0 "$1" >/dev/null 2>&1 || return 1
+  st="$(ps -o stat= -p "$1" 2>/dev/null)" || st=""
+  [[ "$st" != *Z* ]]
+}
 
 # wait_marker_gone <marker> <deadline-seconds> - same poll for processes known
 # only by a unique argv marker (pgrep -f). Returns when none is left or the
