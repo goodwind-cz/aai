@@ -2090,7 +2090,7 @@ test_136_nonul_batch_equivalence() {  # slowest-suite-hot-spots TEST-004 / Spec-
   printf '#!/bin/sh\necho "git $*" >> "%s"\nexec "%s" "$@"\n' "$log" "$realgit" > "$shim/git"
   chmod +x "$shim/node" "$shim/git"
   : > "$log"
-  PATH="$shim:$PATH" nonul_scan "$fx" > /dev/null
+  PATH="$shim:$PATH" nonul_scan "$fx" > /dev/null || true
   local nn ng
   nn="$(awk '$1=="node"{c++} END{print c+0}' "$log")"
   ng="$(awk '$1=="git" && $0 ~ / check-attr /{c++} END{print c+0}' "$log")"
