@@ -1021,7 +1021,201 @@ test_031() {
   log_pass "TEST-003 (test_031) missing winpid degrades to the MSYS pid; exit 124"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033"
+# --- TEST-006..009 (Spec-AC-03/04): ps1-quality `paths:` filter derived from
+# what PowerShell actually reads, and the windows-5_1 job-level bound ---------
+
+# ps1f_derive <root> <tests-glob> -- prints, sorted, the name of every file in
+# <root>/tests/skills/lib that the PowerShell side reads (D3): named as
+# `lib/<name>` by a .aai/scripts/*.ps1, a <tests-glob> Pester file in
+# tests/skills, a tests/skills/lib/*.ps1, test-ps1-quality.sh, or one hop out,
+# a test-*.sh a Pester file names. No pipe into a quiet grep (pipefail).
+ps1f_derive() {
+  local root="$1" tglob="$2" libdir tok_file src_file hop f b h
+  libdir="$root/tests/skills/lib"
+  [[ -d "$libdir" ]] || return 0
+  tok_file="$(mktemp "${TMPDIR:-/tmp}/ps1f-tok.XXXXXX")"
+  src_file="$(mktemp "${TMPDIR:-/tmp}/ps1f-src.XXXXXX")"
+  : >"$src_file"
+  find "$root/.aai/scripts" -maxdepth 1 -name '*.ps1' -type f 2>/dev/null >>"$src_file"
+  find "$root/tests/skills" -maxdepth 1 -name "$tglob" -type f 2>/dev/null >>"$src_file"
+  find "$libdir" -maxdepth 1 -name '*.ps1' -type f 2>/dev/null >>"$src_file"
+  [[ -f "$root/tests/skills/test-ps1-quality.sh" ]] && echo "$root/tests/skills/test-ps1-quality.sh" >>"$src_file"
+  # one hop: bash suites a Pester file names
+  find "$root/tests/skills" -maxdepth 1 -name "$tglob" -type f 2>/dev/null >"$tok_file"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    for h in $(grep -ohE 'test-[A-Za-z0-9_-]+\.sh' "$f" 2>/dev/null); do
+      [[ -f "$root/tests/skills/$h" ]] && echo "$root/tests/skills/$h" >>"$src_file"
+    done
+  done <"$tok_file"
+  : >"$tok_file"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    grep -ohE 'lib/[A-Za-z0-9_.-]+' "$f" 2>/dev/null >>"$tok_file"
+  done <"$src_file"
+  for f in "$libdir"/*; do
+    [[ -f "$f" ]] || continue
+    b="$(basename "$f")"
+    if grep -qxF "lib/$b" "$tok_file" || grep -qxF "lib/$b." "$tok_file"; then
+      echo "$b"
+    fi
+  done | sort
+  rm -f "$tok_file" "$src_file"
+}
+
+# ps1f_list <event> -- the `paths:` entries of one `on:` event, unquoted.
+ps1f_list() {
+  awk -v ev="$1" '
+    /^on:/ { on = 1; next }
+    on && /^[^[:space:]#]/ { on = 0 }
+    on && $0 ~ ("^  " ev ":") { cur = 1; inp = 0; next }
+    on && /^  [A-Za-z_]+:/ { cur = 0; inp = 0 }
+    cur && /^    paths:/ { inp = 1; next }
+    cur && /^    [A-Za-z_-]+:/ { inp = 0 }
+    inp && /^      - / { sub(/^      - /, ""); sub(/[[:space:]]*#.*$/, ""); print }
+  ' "$CI_WORKFLOW" | sed "s/^'//; s/'\$//"
+}
+
+# ps1f_exempt -- "<name>|<reason>" for each well-formed exemption comment line.
+ps1f_exempt() {
+  local line re='^[[:space:]]*#[[:space:]]*ps1-paths-exempt:[[:space:]]+tests/skills/lib/([^[:space:]]+)[[:space:]]+--[[:space:]]*(.*)$'
+  while IFS= read -r line; do
+    if [[ "$line" =~ $re ]]; then echo "${BASH_REMATCH[1]}|${BASH_REMATCH[2]}"; fi
+  done <"$CI_WORKFLOW"
+}
+
+# ps1f_match <glob-entry> <path> -- GitHub path-glob semantics: `*` stays
+# inside a segment, `**` crosses `/`.
+ps1f_match() {
+  local re
+  re="$(printf '%s' "$1" | sed -e 's/[.+^$(){}|\\]/\\&/g' -e 's/\*\*/@@DS@@/g' -e 's/\*/[^\/]*/g' -e 's/@@DS@@/.*/g')"
+  [[ "$2" =~ ^${re}$ ]]
+}
+
+# ps1f_is_dirwide <entry> -- a bare directory glob is not a derived entry.
+ps1f_is_dirwide() {
+  case "$1" in */\*\*|*/\*|\*\*) return 0 ;; esac
+  return 1
+}
+
+# ps1f_uncovered <root> <tests-glob> -- prints each derived-set member that no
+# non-directory-wide push entry matches and no well-formed exemption names;
+# returns 1 when there is any.
+ps1f_uncovered() {
+  local root="$1" tglob="$2" name entry hit ex rc=0 exempt_names
+  exempt_names="$(ps1f_exempt | cut -d'|' -f1)"
+  for name in $(ps1f_derive "$root" "$tglob"); do
+    hit=0
+    while IFS= read -r entry; do
+      [[ -n "$entry" ]] || continue
+      ps1f_is_dirwide "$entry" && continue
+      if ps1f_match "$entry" "tests/skills/lib/$name"; then hit=1; break; fi
+    done <<<"$(ps1f_list push)"
+    if [[ "$hit" -eq 0 ]]; then
+      ex=0
+      case $'\n'"$exempt_names"$'\n' in *$'\n'"$name"$'\n'*) ex=1 ;; esac
+      if [[ "$ex" -eq 0 ]]; then echo "$name"; rc=1; fi
+    fi
+  done
+  return "$rc"
+}
+
+test_034() {
+  log_info "TEST-006 (test_034): push and pull_request path lists are identical and cover every file the PowerShell side reads from tests/skills/lib, or carry a reasoned ps1-paths-exempt line..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local push pr derived n missing ex_line ex_name ex_reason
+  push="$(ps1f_list push)"
+  pr="$(ps1f_list pull_request)"
+  [[ -n "$push" ]] || log_fail "TEST-006 (test_034): no push paths list parsed (positive control)"
+  [[ "$push" == "$pr" ]] || log_fail "TEST-006 (test_034): push and pull_request paths lists differ"
+  derived="$(ps1f_derive "$PROJECT_ROOT" '*.Tests.ps1')"
+  n="$(printf '%s\n' "$derived" | awk 'NF' | wc -l | tr -d ' ')"
+  [[ "$n" -ge 4 ]] || log_fail "TEST-006 (test_034): derived set has $n members (want >= 4), the derivation is broken: $derived"
+  [[ $'\n'"$derived"$'\n' == *$'\npester-host-skip.ps1\n'* ]] || log_fail "TEST-006 (test_034): derived set lacks pester-host-skip.ps1 (positive control)"
+  [[ $'\n'"$derived"$'\n' == *$'\nassert-payload.sh\n'* ]] || log_fail "TEST-006 (test_034): derived set lacks assert-payload.sh (positive control)"
+  missing="$(ps1f_uncovered "$PROJECT_ROOT" '*.Tests.ps1' || true)"
+  [[ -z "$missing" ]] || log_fail "TEST-006 (test_034): PowerShell-read lib files neither matched by the push paths list nor exempted with a reason: $(printf '%s' "$missing" | tr '\n' ' ')"
+  while IFS= read -r ex_line; do
+    [[ -n "$ex_line" ]] || continue
+    ex_name="${ex_line%%|*}"
+    ex_reason="${ex_line#*|}"
+    [[ $'\n'"$derived"$'\n' == *$'\n'"$ex_name"$'\n'* ]] || log_fail "TEST-006 (test_034): ps1-paths-exempt names $ex_name, which is not in the derived set"
+    [[ -n "${ex_reason//[[:space:]]/}" ]] || log_fail "TEST-006 (test_034): ps1-paths-exempt for $ex_name has an empty reason"
+  done <<<"$(ps1f_exempt)"
+  log_pass "TEST-006 (test_034) lists identical; derived set ($n files) covered or reasoned-exempt"
+}
+
+test_035() {
+  log_info "TEST-007 (test_035): the path lists match no tests/skills/lib file outside the derived set, match no exempt file, and carry no bare lib directory glob..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local ev entry f name derived exempt
+  derived="$(ps1f_derive "$PROJECT_ROOT" '*.Tests.ps1')"
+  exempt="$(ps1f_exempt | cut -d'|' -f1)"
+  for control in prompt-diet-ledger.sh cd-subshell-leak-baseline.tsv; do
+    [[ -f "$PROJECT_ROOT/tests/skills/lib/$control" ]] || log_fail "TEST-007 (test_035): negative control $control no longer exists, re-pick it"
+  done
+  [[ $'\n'"$derived"$'\n' != *$'\ncd-subshell-leak-baseline.tsv\n'* ]] || log_fail "TEST-007 (test_035): cd-subshell-leak-baseline.tsv is in the derived set, the control is stale"
+  for ev in push pull_request; do
+    while IFS= read -r entry; do
+      [[ -n "$entry" ]] || continue
+      case "$entry" in
+        tests/skills/lib/\*\*|tests/skills/lib/\*|tests/skills/\*\*|tests/\*\*)
+          log_fail "TEST-007 (test_035): $ev list carries the directory-wide glob '$entry'" ;;
+      esac
+      for f in "$PROJECT_ROOT"/tests/skills/lib/*; do
+        [[ -f "$f" ]] || continue
+        name="$(basename "$f")"
+        if ps1f_match "$entry" "tests/skills/lib/$name"; then
+          [[ $'\n'"$derived"$'\n' == *$'\n'"$name"$'\n'* ]] \
+            || log_fail "TEST-007 (test_035): $ev entry '$entry' matches $name, which PowerShell never reads"
+          [[ $'\n'"$exempt"$'\n' != *$'\n'"$name"$'\n'* ]] \
+            || log_fail "TEST-007 (test_035): $ev entry '$entry' matches $name, which a ps1-paths-exempt line exempts"
+        fi
+      done
+    done <<<"$(ps1f_list "$ev")"
+  done
+  log_pass "TEST-007 (test_035) lists match only derived, non-exempt lib files"
+}
+
+test_036() {
+  log_info "TEST-008 (test_036): a new lib data file read by a Pester test makes the derived-set check fail and name it..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local scan_tests_glob='*.Tests.ps1'
+  local scratch out rc
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/ps1f-fixture.XXXXXX")"
+  [[ -n "$scratch" && "$scratch" = /* ]] || log_fail "TEST-008 (test_036): scratch dir not absolute"
+  mkdir -p "$scratch/.aai/scripts" "$scratch/tests/skills/lib"
+  : >"$scratch/tests/skills/lib/pester-host-skip.ps1"
+  : >"$scratch/tests/skills/lib/unrelated-data.tsv"
+  printf '%s\n' '. (Join-Path $PSScriptRoot "lib/pester-host-skip.ps1")' 'Get-Content (Join-Path $PSScriptRoot "lib/brand-new-fixture.tsv")' >"$scratch/tests/skills/fx.Tests.ps1"
+  : >"$scratch/tests/skills/lib/brand-new-fixture.tsv"
+  # negative control: the covered file and the unread file are never reported
+  out="$(ps1f_uncovered "$scratch" "$scan_tests_glob")"; rc=$?
+  if [[ "$rc" -eq 0 ]]; then rm -rf "$scratch"; log_fail "TEST-008 (test_036): derived-set check passed although brand-new-fixture.tsv is read by a Pester test and not in the filter"; fi
+  if [[ "$out" != *brand-new-fixture.tsv* ]]; then rm -rf "$scratch"; log_fail "TEST-008 (test_036): check failed but did not name brand-new-fixture.tsv: '$out'"; fi
+  if [[ "$out" == *unrelated-data.tsv* ]]; then rm -rf "$scratch"; log_fail "TEST-008 (test_036): unread file unrelated-data.tsv was reported (negative control)"; fi
+  if [[ "$out" == *pester-host-skip.ps1* ]]; then rm -rf "$scratch"; log_fail "TEST-008 (test_036): covered file pester-host-skip.ps1 was reported"; fi
+  rm -rf "$scratch"
+  log_pass "TEST-008 (test_036) a new PowerShell-read lib file is detected and named"
+}
+
+test_037() {
+  log_info "TEST-009 (test_037): windows-5_1 declares a job-level timeout-minutes of 26..45, windows-wsl1 keeps 25, the Pester steps keep 15..."
+  [[ -f "$CI_WORKFLOW" ]] || log_fail "missing $CI_WORKFLOW"
+  local block v wsl steps15
+  block="$(awk '/^  windows-5_1:/ { f = 1; print; next } f && /^  [A-Za-z0-9_-]+:/ { f = 0 } f { print }' "$CI_WORKFLOW")"
+  [[ -n "$block" ]] || log_fail "TEST-009 (test_037): windows-5_1 job block not found"
+  v="$(sed -n 's/^    timeout-minutes:[[:space:]]*\([0-9][0-9]*\).*$/\1/p' <<<"$block")"
+  [[ -n "$v" && "$v" != *$'\n'* ]] || log_fail "TEST-009 (test_037): windows-5_1 needs exactly one job-level timeout-minutes (got '${v:-none}')"
+  [[ "$v" -ge 26 && "$v" -le 45 ]] || log_fail "TEST-009 (test_037): windows-5_1 timeout-minutes $v is outside 26..45"
+  wsl="$(awk '/^  windows-wsl1:/ { f = 1; next } f && /^  [A-Za-z0-9_-]+:/ { f = 0 } f { print }' "$CI_WORKFLOW" | sed -n 's/^    timeout-minutes:[[:space:]]*\([0-9][0-9]*\).*$/\1/p')"
+  [[ "$wsl" == "25" ]] || log_fail "TEST-009 (test_037): windows-wsl1 job timeout-minutes must stay 25 (got '${wsl:-none}')"
+  steps15="$(grep -cE '^        timeout-minutes: 15[[:space:]]*$' <<<"$block" || true)"
+  [[ "$steps15" -ge 2 ]] || log_fail "TEST-009 (test_037): the windows-5_1 Pester steps must keep step-level timeout-minutes: 15 (found $steps15)"
+  log_pass "TEST-009 (test_037) windows-5_1 timeout-minutes $v, wsl1 25, Pester steps 15"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037"
 
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {

@@ -56,6 +56,13 @@ run-name: ${{ github.event_name == 'schedule' && 'ps1-quality weekly runner-imag
 #                    canary failure instead of breaking the next unrelated PR;
 #                    the run-name above marks scheduled runs as the canary.
 
+# Path filter (spec ci-windows-leg-waits-and-ps1-path-filter D3/D4): the tests/skills/lib
+# entries are DERIVED from what PowerShell reads, not a directory glob; the pin
+# in tests/skills/test-aai-win-fallback.sh (test_034..036) recomputes the set and
+# fails when a new PowerShell-read helper is missing from both lists. A file the
+# derivation finds but this filter deliberately omits carries one exemption line:
+# ps1-paths-exempt: tests/skills/lib/prompt-diet-ledger.sh -- only reader is the pr-preflight ledger arithmetic, platform-neutral Node logic that Linux runs in test-aai-pr-preflight.sh with its own LF/CRLF parity check
+
 on:
   push:
     branches: [main]
@@ -67,7 +74,9 @@ on:
       - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
       - 'tests/skills/*.Tests.ps1'
-      - 'tests/skills/lib/**'
+      - 'tests/skills/lib/*.ps1'
+      - 'tests/skills/lib/assert-payload.sh'
+      - 'tests/skills/lib/pipe-safe.sh'
       - '.github/workflows/ps1-quality.yml'
   pull_request:
     paths:
@@ -78,7 +87,9 @@ on:
       - '.aai/scripts/aai-run-tests.sh'
       - 'tests/skills/test-ps1-quality.sh'
       - 'tests/skills/*.Tests.ps1'
-      - 'tests/skills/lib/**'
+      - 'tests/skills/lib/*.ps1'
+      - 'tests/skills/lib/assert-payload.sh'
+      - 'tests/skills/lib/pipe-safe.sh'
       - '.github/workflows/ps1-quality.yml'
   workflow_dispatch: {}
   schedule:
@@ -148,6 +159,7 @@ jobs:
   windows-5_1:
     name: parse-check + functional sync smoke + full Pester suite (both engines)
     runs-on: windows-latest
+    timeout-minutes: 30   # job-level bound (Spec-AC-04): above the measured pre-fix max 20.6 min and p90 18.9 min, far under the 360-min default a hung runner would hold
     # NB (CHANGE-0136): the expected-skip-count declaration this job consumes
     # moved to WORKFLOW-level env above — declared once, consumed by both
     # windows jobs' Pester run steps.
