@@ -660,12 +660,14 @@ public static class AaiJobObject {
   // CreateProcessW throws Win32Exception (a real spawn failure). A failed
   // assignment kills the never-resumed process and throws
   // InvalidOperationException, so the caller can degrade and launch again.
-  public static Process StartSuspendedInJob(string app, string commandLine, IntPtr job) {
+  // cwd is the PowerShell LOCATION (Start-Process parity): a null
+  // lpCurrentDirectory would inherit the process directory instead.
+  public static Process StartSuspendedInJob(string app, string commandLine, IntPtr job, string cwd) {
     STARTUPINFO si = new STARTUPINFO();
     si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
     PROCESS_INFORMATION pi;
     StringBuilder cmd = new StringBuilder(commandLine);
-    if (!CreateProcessW(app, cmd, IntPtr.Zero, IntPtr.Zero, true, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, IntPtr.Zero, null, ref si, out pi)) {
+    if (!CreateProcessW(app, cmd, IntPtr.Zero, IntPtr.Zero, true, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, IntPtr.Zero, cwd, ref si, out pi)) {
       throw new Win32Exception(Marshal.GetLastWin32Error());
     }
     try {
@@ -717,9 +719,10 @@ function Start-ProcessInJob {
   param(
     [Parameter(Mandatory)][string]$BashPath,
     [Parameter(Mandatory)][AllowEmptyString()][string]$ArgString,
-    [Parameter(Mandatory)]$Job
+    [Parameter(Mandatory)]$Job,
+    [Parameter(Mandatory)][string]$WorkingDirectory
   )
-  return [AaiJobObject]::StartSuspendedInJob($BashPath, ('"' + $BashPath + '" ' + $ArgString), $Job)
+  return [AaiJobObject]::StartSuspendedInJob($BashPath, ('"' + $BashPath + '" ' + $ArgString), $Job, $WorkingDirectory)
 }
 
 function Stop-KillOnCloseJob {
@@ -757,7 +760,10 @@ function Start-GitBashProcess {
   try { $job = New-KillOnCloseJob } catch { Write-JobDegradedLine -Reason $_.Exception.Message }
   if ($job) {
     try {
-      $jobProc = Start-ProcessInJob -BashPath $BashPath -ArgString $argString -Job $job
+      # Start-Process starts the child in the PowerShell location, not the
+      # process directory; hand the same one to CreateProcessW.
+      $cwd = (Get-Location -PSProvider FileSystem).ProviderPath
+      $jobProc = Start-ProcessInJob -BashPath $BashPath -ArgString $argString -Job $job -WorkingDirectory $cwd
       $jobProc | Add-Member -NotePropertyName AaiJob -NotePropertyValue $job -Force
       return $jobProc
     } catch {

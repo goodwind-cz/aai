@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 8f3918b149a81c752f21be41cfe2bbfcfb822b1e6f4f99fadd6f8ba9a0ea0383
+frozen_sha256: ca8867fa1e7f14de7b3afd72f3a73db06c08436eea565de69bd059e8db7435ff
 ceremony_level: 2
 links:
   requirement: null
@@ -410,16 +410,16 @@ by pid and killed in a trap, so no busy or sleeping process outlives the suite.
 
 | Test ID  | Spec-AC    | Type        | File path (expected) | Description | Mutation | Status |
 |----------|------------|-------------|----------------------|-------------|----------|--------|
-| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-win-fallback.sh | test_029: under AAI_UNAME=MINGW64_NT-10.0 with a fixture command that writes its own winpid entry (MSYS pid plus 100000) into AAI_PROC_ROOT, the stub taskkill log shows the timeout-path kill aimed at the mapped Windows PID, never the raw MSYS pid | sed:s/winpid"/winpid_absent"/ | pending |
-| TEST-002 | Spec-AC-01 | integration | tests/skills/test-aai-win-fallback.sh | test_030: with a parent-walking stub that refuses non-forced calls, the first taskkill call carries //T and //F, the wrapper exits 124 within TIMEOUT plus 8 s, and the fixture's grandchild sleep (pid file written before the timeout as a positive control) is gone after the wrapper returns | sed:s/ \/\/T \/\/F >/ \/\/T >/ | pending |
-| TEST-003 | Spec-AC-01 | integration | tests/skills/test-aai-win-fallback.sh | test_031: with an empty AAI_PROC_ROOT the stub taskkill receives the MSYS pid itself (never an empty pid) and the wrapper still exits 124 | sed:s/aai_wp="\$1" ;;/aai_wp="" ;;/ | pending |
-| TEST-004 | Spec-AC-02 | static      | tests/skills/test-aai-win-fallback.sh | test_032: in BOTH Real-wrapper smoke step bodies the arm's Start-Process line carries no -Wait, a bounded $p.WaitForExit($armCeilingSeconds * 1000) follows it, and $timeoutArmBoundSeconds is greater than 2 and at most 30 | sed:s/\$p\.WaitForExit\(\$armCeilingSeconds \* 1000\)/$true/ | pending |
-| TEST-005 | Spec-AC-02 | static      | tests/skills/test-aai-win-fallback.sh | test_033: in BOTH smoke steps the timeout arm calls Get-SmokeHangSurvivors -Token and turns a non-empty result into a FAIL timeout line, and asserts the AAI_SMOKE_HANG_MARKER started marker; the fixture-prep step writes that marker before sleep 300 | sed:s/Get-SmokeHangSurvivors -Token/Get-SmokeHangSurvivorsOff -Token/ | pending |
-| TEST-006 | Spec-AC-03 | static      | tests/skills/test-aai-win-fallback.sh | test_034: the push and pull_request path lists are identical; every member of the derived set D is matched by a list entry or named by a ps1-paths-exempt line with a non-empty reason; positive control: D has at least 4 members and contains pester-host-skip.ps1 and assert-payload.sh | sed:s/tests\/skills\/lib\/pipe-safe\.sh/tests\/skills\/lib\/pipe-safe-gone.sh/ | pending |
-| TEST-007 | Spec-AC-03 | static      | tests/skills/test-aai-win-fallback.sh | test_035: under GitHub glob semantics the lists match no tests/skills/lib file outside D, so prompt-diet-ledger.sh and cd-subshell-leak-baseline.tsv do not trigger ps1-quality, and no list entry is the bare tests/skills/lib/** glob | sed:s/tests\/skills\/lib\/\*\.ps1/tests\/skills\/lib\/**/ | pending |
-| TEST-008 | Spec-AC-03 | integration | tests/skills/test-aai-win-fallback.sh | test_036: on a scratch fixture tree whose Tests.ps1 reads a new lib data file, the derived-set check fails and names that file, which proves a new PowerShell-read helper cannot be missed | sed:s/scan_tests_glob='\*\.Tests\.ps1'/scan_tests_glob='*.none'/ | pending |
-| TEST-009 | Spec-AC-04 | static      | tests/skills/test-aai-win-fallback.sh | test_037: the windows-5_1 job block carries a job-level timeout-minutes between 26 and 45 inclusive, while windows-wsl1 keeps 25 and the step-level 15 on the Pester steps stays | sed:s/    timeout-minutes: 30/    timeout-minutes: 360/ | pending |
-| TEST-010 | Spec-AC-05 | integration | tests/skills/test-aai-win-fallback.sh | test_038: under pwsh with the dispatcher's seams stubbed, Invoke-ViaGitBash launches through Start-ProcessInJob, never Start-Process, keeps exit 7 on the normal path and 124 on the timeout path, and calls Stop-KillOnCloseJob on the job exactly once on each path (after the tree kill on timeout) | sed:s/Stop-KillOnCloseJob -Job \$proc\.AaiJob/$null/ | green |
+| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-win-fallback.sh | test_029: under AAI_UNAME=MINGW64_NT-10.0 with a fixture command that writes its own winpid entry (MSYS pid plus 100000) into AAI_PROC_ROOT, the stub taskkill log shows the timeout-path kill aimed at the mapped Windows PID, never the raw MSYS pid | sed:s/winpid"/winpid_absent"/ | green |
+| TEST-002 | Spec-AC-01 | integration | tests/skills/test-aai-win-fallback.sh | test_030: with a parent-walking stub that refuses non-forced calls, the first taskkill call carries //T and //F, the wrapper exits 124 within TIMEOUT plus 8 s, and the fixture's grandchild sleep (pid file written before the timeout as a positive control) is gone after the wrapper returns | sed:s/ \/\/T \/\/F >/ \/\/T >/ | green |
+| TEST-003 | Spec-AC-01 | integration | tests/skills/test-aai-win-fallback.sh | test_031: with an empty AAI_PROC_ROOT the stub taskkill receives the MSYS pid itself (never an empty pid) and the wrapper still exits 124 | sed:s/aai_wp="\$1" ;;/aai_wp="" ;;/ | green |
+| TEST-004 | Spec-AC-02 | static      | tests/skills/test-aai-win-fallback.sh | test_032: in BOTH Real-wrapper smoke step bodies the arm's Start-Process line carries no -Wait, a bounded $p.WaitForExit($armCeilingSeconds * 1000) follows it, and $timeoutArmBoundSeconds is greater than 2 and at most 30 | sed:s/\$p\.WaitForExit\(\$armCeilingSeconds \* 1000\)/$true/ | green |
+| TEST-005 | Spec-AC-02 | static      | tests/skills/test-aai-win-fallback.sh | test_033: in BOTH smoke steps the timeout arm calls Get-SmokeHangSurvivors -Token and turns a non-empty result into a FAIL timeout line, and asserts the AAI_SMOKE_HANG_MARKER started marker; the fixture-prep step writes that marker before sleep 300 | sed:s/Get-SmokeHangSurvivors -Token/Get-SmokeHangSurvivorsOff -Token/ | green |
+| TEST-006 | Spec-AC-03 | static      | tests/skills/test-aai-win-fallback.sh | test_034: the push and pull_request path lists are identical; every member of the derived set D is matched by a list entry or named by a ps1-paths-exempt line with a non-empty reason; positive control: D has at least 4 members and contains pester-host-skip.ps1 and assert-payload.sh | sed:s/tests\/skills\/lib\/pipe-safe\.sh/tests\/skills\/lib\/pipe-safe-gone.sh/ | green |
+| TEST-007 | Spec-AC-03 | static      | tests/skills/test-aai-win-fallback.sh | test_035: under GitHub glob semantics the lists match no tests/skills/lib file outside D, so prompt-diet-ledger.sh and cd-subshell-leak-baseline.tsv do not trigger ps1-quality, and no list entry is the bare tests/skills/lib/** glob | sed:s/tests\/skills\/lib\/\*\.ps1/tests\/skills\/lib\/**/ | green |
+| TEST-008 | Spec-AC-03 | integration | tests/skills/test-aai-win-fallback.sh | test_036: on a scratch fixture tree whose Tests.ps1 reads a new lib data file, the derived-set check fails and names that file, which proves a new PowerShell-read helper cannot be missed | sed:s/scan_tests_glob='\*\.Tests\.ps1'/scan_tests_glob='*.none'/ | green |
+| TEST-009 | Spec-AC-04 | static      | tests/skills/test-aai-win-fallback.sh | test_037: the windows-5_1 job block carries a job-level timeout-minutes between 26 and 45 inclusive, while windows-wsl1 keeps 25 and the step-level 15 on the Pester steps stays | sed:s/    timeout-minutes: 30/    timeout-minutes: 360/ | green |
+| TEST-010 | Spec-AC-05 | integration | tests/skills/test-aai-win-fallback.sh | test_038: under pwsh with the dispatcher's seams stubbed, Invoke-ViaGitBash launches through Start-ProcessInJob, never Start-Process, keeps exit 7 on the normal path and 124 on the timeout path, and calls Stop-KillOnCloseJob on the job exactly once on each path (after the tree kill on timeout); it also passes the PowerShell location (not the process directory) to Start-ProcessInJob as the working directory, and the P/Invoke source hands that cwd to CreateProcessW (M1, validation round 1) | sed:s/Stop-KillOnCloseJob -Job \$proc\.AaiJob/$null/ | green |
 | TEST-011 | Spec-AC-05 | integration | tests/skills/test-aai-win-fallback.sh | test_039: a job that cannot be created, or a failed assignment, prints one named AAI-DEGRADED-MODE line carrying the cause and launches through Start-Process with the exit code kept; a CreateProcess failure stays an AAI-SPAWN-ERROR exit 125 and closes the job without a second launch | sed:s/Write-JobDegradedLine -Reason \$_\.Exception\.Message/$null/ | green |
 | TEST-012 | Spec-AC-05 | static      | tests/skills/test-aai-win-fallback.sh | test_040: the P/Invoke source sets LimitFlags to JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE (0x2000), creates bash with CREATE_SUSPENDED, calls AssignProcessToJobObject before ResumeThread, and the AaiJobObject type compiles under pwsh (named skip without pwsh) | sed:s/LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE/LimitFlags = 0/ | green |
 | TEST-013 | Spec-AC-02 | integration | tests/skills/test-aai-win-fallback.sh | test_041: in both smoke steps the survivor function and its caller line, run under pwsh with Win32_Process stubbed, report zero survivors when none exist and exactly one (pid 2672) when one sleep 300 exists beside an unrelated sleep 1 | sed:s/\{ return \$found \}/{ return ,$found }/g | green |
@@ -486,21 +486,22 @@ verification matrix above.
 
 Source: `node .aai/scripts/follow-ups.mjs list`, read on 2026-10-09 and scanned
 for windows, ps1, pester, msys, taskkill, timeout, smoke, reap and path-filter subjects.
+Re-read at the validation FAIL (round 1): this scope delivers none of the four
+items below, so it closes none of them.
 
-- none closed.
-
-Open items this scope touches, and why each one stays open:
+NOT CLOSED, with reason (all four stay open):
 - `fu-mutation-gate-skips-pester` (P3). This is the reason the Windows
   behavior is proven by CI run logs plus static pins with mutations, and not
-  by a Pester row. Nothing here adds Pester mutation support, so it stays open.
+  by a Pester row. Nothing here adds Pester mutation support.
 - `fu-ps1-quality-outside-sweep-glob` (P3). This scope routes around it: the
   new pins go to `test-aai-win-fallback.sh`, not `test-ps1-quality.sh`.
-  It does not fix the glob, so it stays open.
-- `fu-runtests-ps1-captures-no-friction` (P3). The ps1 dispatcher is
-  untouched (D1), so it stays open.
+  It does not fix the glob.
+- `fu-runtests-ps1-captures-no-friction` (P3). Amendment 1 changed the ps1
+  dispatcher's Git-Bash launch (Job Object), but it added no friction-channel
+  capture point, so a Windows-only failure still never reaches the channel.
 - `fu-lib-graph-narrowing-after-sharding` (P2). This item is about
   `select-suites`' lib mapping. SEAM-5 is an instance of that subject, and
-  this scope does not change `select-suites`, so it stays open.
+  this scope does not change `select-suites`.
 
 ## Residual risks
 

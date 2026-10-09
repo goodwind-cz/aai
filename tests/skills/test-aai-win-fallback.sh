@@ -1243,13 +1243,20 @@ test_038() {
   out="$(ps1_job_probe '
 $script:calls = [System.Collections.Generic.List[string]]::new()
 function New-KillOnCloseJob { [IntPtr]77 }
-function Start-ProcessInJob { param($BashPath, $ArgString, $Job) $script:calls.Add("start-in-job:$Job"); [pscustomobject]@{ Id = 4242; ExitCode = 7 } }
+function Start-ProcessInJob { param($BashPath, $ArgString, $Job, $WorkingDirectory) $script:calls.Add("start-in-job:$Job"); $script:cwdSeen = $WorkingDirectory; [pscustomobject]@{ Id = 4242; ExitCode = 7 } }
 function Start-Process { $script:calls.Add("start-process"); throw "Start-Process must not run when the job path works" }
 function Stop-KillOnCloseJob { param($Job) $script:calls.Add("stop-job:$Job") }
 function Stop-ProcessTree { param($ProcessId) $script:calls.Add("tree:$ProcessId") }
 function Wait-ProcessWithTimeout { param($Process, $TimeoutSeconds) $true }
+$cwdDir = Join-Path ([System.IO.Path]::GetTempPath()) ("aai-cwd-probe-" + [guid]::NewGuid().ToString("N"))
+$null = New-Item -ItemType Directory -Path $cwdDir
+Set-Location -LiteralPath $cwdDir
+$want = (Get-Location -PSProvider FileSystem).ProviderPath
 $rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "exit 7") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 30
 "NORMAL rc=$rc calls=$($script:calls -join ",")"
+"CWD same=$($script:cwdSeen -ceq $want) seen=$($script:cwdSeen)"
+Set-Location -LiteralPath $HOME
+Remove-Item -LiteralPath $cwdDir -Force
 $script:calls.Clear()
 function Wait-ProcessWithTimeout { param($Process, $TimeoutSeconds) $false }
 $rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "sleep 300") -ShScriptPath "C:\r\aai-run-tests.sh" -Timeout 2
@@ -1260,6 +1267,10 @@ $rc = Invoke-ViaGitBash -BashPath "C:\Git\bin\bash.exe" -Command @("sh", "-c", "
     || log_fail "TEST-010 (test_038): normal path must start inside job 77, keep exit 7 and terminate the job once: $out"
   [[ "$out" == *"TIMEOUT rc=124 calls=start-in-job:77,tree:4242,stop-job:77"$'\n'* ]] \
     || log_fail "TEST-010 (test_038): timeout path must keep exit 124, tree-kill 4242 and then terminate job 77: $out"
+  [[ "$out" == *"CWD same=True"* ]] \
+    || log_fail "TEST-010 (test_038): the job launch must start bash in the PowerShell location (Start-Process parity), not the process cwd: $out"
+  [[ "$(<"$RUN_TESTS_PS1")" == *"IntPtr.Zero, cwd, ref si, out pi"* ]] \
+    || log_fail "TEST-010 (test_038): StartSuspendedInJob must hand its cwd argument to CreateProcessW (lpCurrentDirectory), not null"
   log_pass "TEST-010 (test_038) job seam used; job terminated on normal and timeout paths; exit 7 and 124 kept"
 }
 
