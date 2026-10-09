@@ -23,6 +23,10 @@ TEST_NAME="aai-delta-stage1"
 TEST_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Companion suites are declared in suite-map.yaml, not run nested
+# (nested-suite-reruns-duplicate-sweep-time).
+# shellcheck source=lib/companion-assert.sh
+. "$SCRIPT_DIR/lib/companion-assert.sh"
 TEMPLATE="$PROJECT_ROOT/.aai/templates/CANONICAL_TEMPLATE.md"
 PROMPT="$PROJECT_ROOT/.aai/SKILL_DOCS_CANON.prompt.md"
 
@@ -350,10 +354,10 @@ test_006_prompt_contract() {
 # TEST-007 (Spec-AC-04) — seam survival: existing docs-canon suite green
 # ---------------------------------------------------------------------------
 test_007_docs_canon_suite() {
-  log_info "TEST-007: existing test-aai-docs-canon.sh passes over the changed core (int)..."
-  bash "$SCRIPT_DIR/test-aai-docs-canon.sh" > /tmp/aai-delta-stage1-canon-suite.log 2>&1 \
-    || { tail -20 /tmp/aai-delta-stage1-canon-suite.log >&2; log_fail "TEST-007: docs-canon suite failed"; }
-  log_pass "TEST-007: docs-canon suite green (seam survival)"
+  log_info "TEST-007: docs-canon is a declared companion over the changed core (int)..."
+  assert_companions aai-delta-stage1 aai-docs-canon \
+    || log_fail "TEST-007 (plan row TEST-009): docs-canon must be selected with aai-delta-stage1"
+  log_pass "TEST-007: docs-canon selected with this suite (seam survival)"
 }
 
 # ---------------------------------------------------------------------------
@@ -361,6 +365,11 @@ test_007_docs_canon_suite() {
 main() {
   echo "=== Test: $TEST_NAME (spec-delta-stage-1 / RFC-0011 stage 1) ==="
   check_deps
+  if [[ $# -ge 1 ]]; then
+    "$1"
+    echo "=== $TEST_NAME: SELECTED TEST PASSED ($1) ==="
+    return 0
+  fi
   local only="${ONLY:-}"
   run_stanza() {
     local id="$1"; shift

@@ -219,18 +219,25 @@ suites:
       - .gemini/skills/aai-debug/**
 
   aai-delta-stage1:
+    companions:
+      - aai-docs-canon
     globs:
       - .aai/SKILL_DOCS_CANON.prompt.md
       - .aai/scripts/docs-canon.mjs
       - .aai/templates/CANONICAL_TEMPLATE.md
 
   aai-delta-stage2:
+    companions:
+      - aai-delta-stage1
     globs:
       - .aai/PLANNING.prompt.md
       - .aai/scripts/spec-lint.mjs
       - .aai/templates/SPEC_TEMPLATE.md
 
   aai-delta-stage3:
+    companions:
+      - aai-delta-stage1
+      - aai-delta-stage2
     globs:
       - .aai/SKILL_PR.prompt.md
       - .aai/scripts/delta-merge.mjs
@@ -683,6 +690,10 @@ suites:
       - .aai/system/PROFILES.yaml
 
   aai-learned-append:
+    companions:
+      - aai-friction-wiring
+      - aai-layer-profiles
+      - aai-prompt-diet
     globs:
       - .aai/scripts/learned-append.mjs
       - .aai/SKILL_WRAP_UP.prompt.md
