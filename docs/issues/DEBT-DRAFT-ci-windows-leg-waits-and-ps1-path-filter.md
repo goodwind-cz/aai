@@ -72,7 +72,11 @@ checks. Two causes:
 ## Verification
 - A Windows CI run of the timeout scenario finishes within `AAI_TEST_TIMEOUT`
   plus a small margin, and no child of the scenario survives the wrapper.
-- `windows-5_1` p50 drops from about 12.4 min to about 2–3 min.
+- `windows-5_1` loses its two 300 s smoke waits (each smoke step finishes in
+  seconds) and its p50 stays at or below 10 min. Owner decision 2026-10-09
+  re-baselined the earlier 2–3 min estimate: the Pester steps grew to about
+  8 min independently of this scope and are addressed by
+  slowest-suite-hot-spots.
 - A PR that changes only `tests/skills/lib/prompt-diet-ledger.sh` does not
   trigger ps1-quality; a PR that changes a `.ps1` under `tests/skills/lib/` or
   a listed shared helper does.
