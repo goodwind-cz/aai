@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-10T11:44:04.945Z
+Generated: 2026-10-10T11:55:04.441Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-directed-merge-and-post-merge-cleanup | specs | implementing | 9 done, 1 implementing | docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md |
+| spec-directed-merge-and-post-merge-cleanup | specs | implementing | 10 done | docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md |
 
 ## Canonical layer (0)
 
