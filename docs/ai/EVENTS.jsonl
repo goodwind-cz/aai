@@ -2934,3 +2934,4 @@
 {"v":1,"ts":"2026-10-09T21:12:29Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-slowest-suite-hot-spots","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-09T21:12:29Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-slowest-suite-hot-spots","payload":{"commit":"da7460d195081ba377d1a1cf172d7b91d13a22db"}}
 {"v":1,"ts":"2026-10-09T21:42:51Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"slowest-suite-hot-spots","payload":{"pr":444,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"a30b395da09d78bf68f33101ca6cd6151f835cfd"}}
+{"v":1,"ts":"2026-10-10T06:45:32Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-win-fallback-test028-red-on-bash-3","payload":{"from":"draft","to":"implementing"}}
