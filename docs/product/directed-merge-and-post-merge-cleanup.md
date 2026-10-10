@@ -5,6 +5,7 @@ capability: directed-merge-and-post-merge-cleanup
 status: current
 delivered_by:
   - directed-merge-and-post-merge-cleanup
+  - merge-direction-signs-amendments
 spec: docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
 updated: 2026-10-10
 ---
@@ -26,6 +27,14 @@ history as a byte-exact prefix, with local lines added after it. The merged
 work item leaves the current focus, and the ride worktree and its local branch
 are removed once they are proven finished.
 
+Your merge direction is also your signature. The contract amendments a ride
+made to its frozen spec after freeze are signed by the same words you used to
+merge it: preflight lists them as `signs on merge:` lines before the merge
+command, and the cleanup signs them once the merge is on the base. A tracker of
+owed sign-offs closes when every contract amendment it tracks is signed. There
+is no separate sign-off question before the merge. A merge made without your
+direction (a lane or standing merge) signs nothing.
+
 When anything is uncertain, it stops and names the reason rather than guessing.
 Running it again, or after an interruption, finishes the remaining steps and
 reports the completed ones as no-ops.
@@ -38,6 +47,13 @@ reports the completed ones as no-ops.
   and then cleans up.
 - Clean up after a pull request someone already merged: `/aai-merge 447` on a
   merged pull request skips the merge and runs the cleanup only.
+- Sign the backlog of rides merged before this existed, once, on a recorded
+  owner decision: `node .aai/scripts/merge-cleanup.mjs sign-merged
+  --authority-ts <ts of your decision record> --origin "$PWD" --dry-run`
+  shows what would be signed and closed; the same command without `--dry-run`
+  does it. Pass `--origin` with the checkout whose ledger should carry the
+  signatures (the ride worktree, so they ship in its pull request); without it
+  every mode reads and writes the main checkout (the first git worktree).
 - Read-only look first:
   `node .aai/scripts/merge-cleanup.mjs plan --pr 447` lists every step and
   target without changing anything.
@@ -55,6 +71,12 @@ reports the completed ones as no-ops.
 - Decision record: one `directed_merge` line in `docs/ai/decisions.jsonl`
   carrying your verbatim direction, the pull request number and the head commit
   the merge is pinned to. It is written once, before the merge runs.
+- Signatures: one `spec_amendment_classification` line per signed amendment
+  (`owner_signoff: true`, `classifies_record: <record key>`) whose `source`
+  names the pull request, the merged head, your words and the merge commit
+  (for `sign-merged`: the decision's timestamp, your answer, the pull request
+  and the base commit that delivered the ride). A closed tracker is one
+  `follow_up_status` line. Both are appended to `docs/ai/decisions.jsonl`.
 
 ## Interfaces and contracts
 
@@ -63,10 +85,25 @@ reports the completed ones as no-ops.
 - `node .aai/scripts/merge-cleanup.mjs preflight --pr <n> --expect-head <sha>
   --directed-by human --direction "<words>" [--origin <abs>] [--json]`: gates
   for an open pull request. It never merges; on success it prints one
-  `gh pr merge <n> --squash --match-head-commit <sha>` line.
+  `gh pr merge <n> --squash --match-head-commit <sha>` line, preceded by one
+  `signs on merge: <record key> <ref> <what>` line per amendment the merge
+  will sign (or `signs on merge: none`); `--json` carries them as
+  `signs_on_merge`.
 - `merge-cleanup.mjs plan --pr <n>` (read-only) and
   `merge-cleanup.mjs apply --pr <n> --pid <harness pid> [--direction "<words>"]
   [--archive-divergent <path>]...` (cleanup after a merged pull request).
+  Its `sign-amendments` step runs right after the base sync; it signs only
+  when the ledger holds your `directed_merge` for that pull request and head,
+  and otherwise reports `no_human_direction`. The report lists `signed` record
+  keys and `closed` trackers.
+- `merge-cleanup.mjs sign-merged --authority-ts <ts> [--exclude <fu-id>]...
+  [--base <name>] [--dry-run] [--origin <abs>] [--json]`: signs the contract
+  amendments of rides that are done on the base with a pull request delivered
+  by a first-parent commit, and closes the trackers left fully signed. It
+  takes no `--pr`. Its authority is one `by: human` `hitl_decision` with an
+  answer; a `directed_merge` (your words about one pull request) does not
+  authorize it. Trackers it leaves open are reported with the reason
+  (`excluded`, `unmerged:<ref>`, `unclassified:<key>`, `no_contract_records`).
 - Exit codes: 0 complete, 2 usage error, 3 refused before any change
   (`REFUSE <reason> <detail>`), 4 stopped mid-way (a re-run resumes), 10
   preflight ready.
@@ -74,7 +111,11 @@ reports the completed ones as no-ops.
   `head_changed`, `checks_failing`, `not_mergeable`, `sweep_missing`,
   `repo_mismatch`, `not_merged`, `merge_commit_not_on_base`,
   `base_diverged`, `overlap`, `untracked_collision`, `ledger_rewritten`,
-  `worktree_dirty`, `worktree_missing`, `tip_mismatch`, `session_locked`.
+  `worktree_dirty`, `worktree_missing`, `tip_mismatch`, `session_locked`,
+  `signs_unknown` (preflight cannot derive what the merge signs), and for
+  `sign-merged` `no_owner_decision` (the timestamp names no single
+  `by: human` `hitl_decision` with an answer in the ledger the refusal names),
+  `base_unreadable`, `ledger_unreadable`.
 - Test-only environment variables (`AAI_MERGE_CLEANUP_GH_NODE`,
   `AAI_MERGE_CLEANUP_STOP_AFTER`, `AAI_MERGE_CLEANUP_CRASH_AT`) do nothing
   unless `AAI_MERGE_CLEANUP_TEST_SEAMS=1` is also set.
@@ -88,6 +129,9 @@ reports the completed ones as no-ops.
   stash, and no deletion of remote branches.
 - A draft whose content differs from the delivered document is kept, with a
   named reason, unless you pass `--archive-divergent` for it.
+- The engine cannot prove that `--direction` words are yours; only the skill
+  rule (it runs on your explicit `/aai-merge <n>`) keeps an agent from
+  inventing them.
 - It does not report on every worktree in the repository; that broader report
   is a separate request (ISSUE-0091).
 - Native Windows is covered by the PowerShell block and its CI tests; the
@@ -98,3 +142,5 @@ reports the completed ones as no-ops.
 - Request: docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md
 - Spec: docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
 - Validation evidence: docs/ai/reports/VALIDATION-r3-directed-merge-and-post-merge-cleanup.md
+- Signing request: docs/issues/CHANGE-0208-merge-direction-signs-amendments.md
+- Signing spec: docs/specs/SPEC-0220-spec-merge-direction-signs-amendments.md

@@ -911,9 +911,14 @@ test_312_contract_and_diet() {
     # Derive the base credit with the ledger's OWN summation rather than a
     # reimplementation here: a second copy of that arithmetic would drift from
     # the real one and this arm would then be pinning its own bug.
-    base_pin="$(bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s" "$JUSTIFIED_GROWTH_BYTES"' _ "$base_ledger" 2>/dev/null)"
+    # Every sourcing below clears the positional parameters first (`set --`):
+    # `. file` inherits them, and a ledger entry that quotes "$@" or
+    # ${VAR:+...} literally inside its double-quoted string would otherwise
+    # expand to the ledger's own path — a different string per side, which
+    # reads as a rewritten base entry although no byte of it changed.
+    base_pin="$(bash -c 'f=$1; set --; set -e; . "$f" >/dev/null 2>&1; printf "%s" "$JUSTIFIED_GROWTH_BYTES"' _ "$base_ledger" 2>/dev/null)"
   fi
-  live_pin="$(bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s" "${JUSTIFIED_GROWTH_BYTES:-}"' _ "$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh" 2>/dev/null)"
+  live_pin="$(bash -c 'f=$1; set --; set -e; . "$f" >/dev/null 2>&1; printf "%s" "${JUSTIFIED_GROWTH_BYTES:-}"' _ "$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh" 2>/dev/null)"
   if [[ -z "$live_pin" ]]; then
     log_fail "TEST-312: the live prompt-diet ledger does not define JUSTIFIED_GROWTH_BYTES at all"
     ok=0
@@ -940,8 +945,8 @@ test_312_contract_and_diet() {
     local base_entries live_entries added_sum=0 missing _e
     base_entries="$TMP_ROOT/t312-base-entries.txt"
     live_entries="$TMP_ROOT/t312-live-entries.txt"
-    bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s\n" "${JUSTIFIED_ADDITIONS[@]}"' _ "$base_ledger" 2>/dev/null | LC_ALL=C sort > "$base_entries"
-    bash -c 'set -e; . "$1" >/dev/null 2>&1; printf "%s\n" "${JUSTIFIED_ADDITIONS[@]}"' _ "$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh" 2>/dev/null | LC_ALL=C sort > "$live_entries"
+    bash -c 'f=$1; set --; set -e; . "$f" >/dev/null 2>&1; printf "%s\n" "${JUSTIFIED_ADDITIONS[@]}"' _ "$base_ledger" 2>/dev/null | LC_ALL=C sort > "$base_entries"
+    bash -c 'f=$1; set --; set -e; . "$f" >/dev/null 2>&1; printf "%s\n" "${JUSTIFIED_ADDITIONS[@]}"' _ "$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh" 2>/dev/null | LC_ALL=C sort > "$live_entries"
     missing="$(comm -23 "$base_entries" "$live_entries" | qhead -3)"
     if [[ -n "$missing" ]]; then
       log_fail "TEST-312: the corpus credit moved ($base_pin -> $live_pin) AND a ledger entry that origin/main carries is gone or rewritten here — credit must be paid by ADDING an entry, never by editing history: $missing"

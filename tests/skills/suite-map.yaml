@@ -510,6 +510,7 @@ suites:
       - docs/ai/docs-audit.yaml
       - .aai/SKILL_UPDATE.prompt.md
       - .aai/SUBAGENT_CONTRACT.md
+      - tests/skills/lib/prompt-diet-ledger.sh
       - docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md
 
   # simple-and-friendly-to-use (Spec-AC-08): the golden flow drives the vendored
