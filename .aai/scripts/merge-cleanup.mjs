@@ -21,11 +21,11 @@
 //
 // IMPLEMENTED HERE: the CLI/step skeleton, the D5 read-back gate, the D6/D7
 // superseded-draft archive (batch B1), the D8 base sync and the D10 runtime
-// archive, worktree removal and branch compare-and-swap delete (batch B2).
+// archive, worktree removal and branch compare-and-swap delete (batch B2), the
+// D9 focus clear, index regeneration, audit verdict and saved report, and the
+// D11 resume contract (batch B3).
 // Every precondition that can refuse is derived BEFORE the first write, so a
-// refusal is exit 3 with nothing changed. The state and index-audit steps are
-// registered with a null handler and reported as `not_implemented` until
-// their batch lands.
+// refusal is exit 3 with nothing changed.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -245,13 +245,15 @@ function appendJsonl(file, obj) {
 // Copy `src` to `destBase` (a numeric suffix when a DIFFERENT file already
 // occupies it), byte-compare, and record one manifest line unless the same
 // original+sha256 is already recorded. Never overwrites, never removes `src`.
+// `fresh` tells a repeat (nothing new written) from a first archive.
 function archiveFile(ctx, { src, destBase, original, reason, step }) {
   const bytes = fs.readFileSync(src);
   const digest = sha256(bytes);
   let dest = destBase;
   for (let n = 1; fs.existsSync(dest) && !fs.readFileSync(dest).equals(bytes); n++) dest = `${destBase}.${n}`;
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  if (!fs.existsSync(dest)) fs.copyFileSync(src, dest);
+  const created = !fs.existsSync(dest);
+  if (created) fs.copyFileSync(src, dest);
   if (!fs.readFileSync(dest).equals(bytes)) throw new Error(`archive copy differs from source: ${original}`);
   const rel = posix(path.relative(ctx.origin, dest));
   const manifest = path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'manifest.jsonl');
@@ -259,7 +261,7 @@ function archiveFile(ctx, { src, destBase, original, reason, step }) {
   if (!known) {
     appendJsonl(manifest, { original, archive: rel, sha256: digest, reason, step, timestamp: new Date().toISOString() });
   }
-  return { rel, digest };
+  return { rel, digest, fresh: created || !known };
 }
 
 function archiveDrafts(ctx) {
@@ -422,14 +424,15 @@ function archiveRuntime(ctx) {
   const ls = git(wt.path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--', STATE_REL, ...RUNTIME_DIRS]);
   const rels = new Set(ls.status === 0 ? ls.stdout.split('\0').filter(Boolean) : []);
   if (fs.existsSync(path.join(wt.path, STATE_REL))) rels.add(STATE_REL);
-  let archived = 0; let copied = 0;
+  let archived = 0; let copied = 0; let fresh = 0;
   for (const rel of [...rels].sort()) {
     const src = path.join(wt.path, rel);
     let st = null;
     try { st = fs.lstatSync(src); } catch { continue; }
     if (!st.isFile()) continue;
-    archiveFile(ctx, { src, destBase: path.join(root, 'worktree', rel), original: `worktree:${rel}`, reason: 'runtime_archive', step: 'archive-runtime' });
+    const a = archiveFile(ctx, { src, destBase: path.join(root, 'worktree', rel), original: `worktree:${rel}`, reason: 'runtime_archive', step: 'archive-runtime' });
     archived++;
+    if (a.fresh) fresh++;
     const dest = path.join(ctx.origin, rel);
     if (rel !== STATE_REL && !fs.existsSync(dest)) {
       fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -438,6 +441,7 @@ function archiveRuntime(ctx) {
     }
   }
   if (archived === 0) return { status: 'noop', detail: 'no_runtime_files' };
+  if (fresh === 0 && copied === 0) return { status: 'noop', detail: 'already_archived' };
   return { status: 'done', detail: `${archived} archived, ${copied} copied to origin` };
 }
 
@@ -479,6 +483,122 @@ function planChecks(ctx) {
   }
 }
 
+// ---- D9: focus, index, audit, report --------------------------------------
+
+// Work-item ids this PR delivered: the frontmatter ids of the docs it added or
+// changed plus the last segment of its branch name (refs are named after it).
+function mergedRefs(ctx) {
+  if (!ctx.refs) {
+    ctx.refs = new Set(deliveredIds(ctx.origin, ctx.mc));
+    const tail = ctx.headRef.split('/').pop();
+    if (tail) ctx.refs.add(tail);
+  }
+  return ctx.refs;
+}
+
+function focusRefOf(file) {
+  const lines = fs.readFileSync(file, 'utf8').split('\n');
+  let inFocus = false;
+  for (const line of lines) {
+    if (/^current_focus:\s*$/.test(line)) { inFocus = true; continue; }
+    if (inFocus && /^\S/.test(line)) break;
+    const m = inFocus ? line.match(/^ {2}ref_id:\s*(.*?)\s*$/) : null;
+    if (m) {
+      const v = m[1].replace(/\s+#.*$/, '').replace(/^(['"])(.*)\1$/, '$2');
+      return v === '' || v === 'null' || v === '~' ? null : v;
+    }
+  }
+  return null;
+}
+
+function stateStep(ctx) {
+  const file = path.join(ctx.origin, STATE_REL);
+  if (!fs.existsSync(file)) return { status: 'noop', detail: 'no_state' };
+  const ref = focusRefOf(file);
+  if (!ref || !mergedRefs(ctx).has(ref)) return { status: 'noop', detail: 'focus_not_this_ref' };
+  const r = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'state.mjs'), 'clear-focus', '--ref', ref], { cwd: ctx.origin, encoding: 'utf8' });
+  if (r.status !== 0) stop('state_clear_failed', (r.stderr || r.stdout).trim().split('\n')[0] ?? '');
+  return { status: 'done', detail: `cleared focus ${ref}` };
+}
+
+// The generator stamps a `Generated:` line; a regeneration that differs only
+// there keeps the old bytes, so a repeat run leaves the tree untouched.
+const stripStamp = (buf) => buf.toString('utf8').split('\n').filter((l) => !l.startsWith('Generated: ')).join('\n');
+const INDEX_FILES = [INDEX_PATH, 'docs/INDEX.audit.md', 'docs/INDEX.violations.md'];
+
+function indexAudit(ctx) {
+  const before = new Map(INDEX_FILES.map((rel) => {
+    try { return [rel, fs.readFileSync(path.join(ctx.origin, rel))]; } catch { return [rel, null]; }
+  }));
+  const g = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'generate-docs-index.mjs')], { cwd: ctx.origin, encoding: 'utf8' });
+  if (g.status !== 0) stop('index_regen_failed', (g.stderr || g.stdout).trim().split('\n')[0] ?? '');
+  let changed = false;
+  for (const [rel, old] of before) {
+    const abs = path.join(ctx.origin, rel);
+    let now = null;
+    try { now = fs.readFileSync(abs); } catch { /* not produced */ }
+    if (old && now && stripStamp(old) === stripStamp(now)) { fs.writeFileSync(abs, old); continue; }
+    if (rel === INDEX_PATH && (old || now)) changed = true;
+  }
+  const a = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'docs-audit.mjs'), '--check', '--strict', '--no-event'], { cwd: ctx.origin, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const verdict = `${a.stdout ?? ''}`.match(/^.*Verdict: .*$/m);
+  ctx.audit = verdict ? verdict[0].replace(/^#+\s*/, '').trim() : `Verdict: UNKNOWN (docs-audit exit ${a.status})`;
+  return { status: changed ? 'done' : 'noop', detail: changed ? 'index regenerated' : 'index_current' };
+}
+
+const REPORT_DIR = 'docs/ai/reports';
+const utcStamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+
+function savedReports(ctx) {
+  const dir = path.join(ctx.origin, REPORT_DIR);
+  const re = new RegExp(`^merge-cleanup-pr${ctx.opts.pr}-.+\\.md$`);
+  try { return fs.readdirSync(dir).filter((f) => re.test(f)).sort(); } catch { return []; }
+}
+
+function renderReport(report) {
+  const list = (items, fmt) => (items.length ? items.map((i) => `- ${fmt(i)}`) : ['- none']);
+  return `${[
+    `# merge-cleanup PR #${report.pr}`,
+    '',
+    `- pr: ${report.pr}`,
+    `- merge commit: ${report.mergeCommit}`,
+    `- base: ${report.base}`,
+    `- final HEAD: ${report.head}`,
+    ...(report.direction ? [`- direction: ${report.direction}`] : []),
+    `- audit: ${report.audit ?? 'not run'}`,
+    '',
+    '## Steps',
+    ...report.steps.map((s) => `- ${s.id}: ${s.status}${s.detail ? ` (${s.detail})` : ''}`),
+    '',
+    '## Archived',
+    ...list(report.archived, (a) => `${a.path} -> ${a.archive} [${a.reason}] sha256 ${a.sha256}`),
+    '',
+    '## Retained',
+    ...list(report.retained, (r) => `${r.path} [${r.reason}]`),
+    '',
+    '## No-ops',
+    ...list(report.noops, (n) => n),
+    '',
+    '## Remaining',
+    ...list(report.remaining, (r) => r),
+  ].join('\n')}\n`;
+}
+
+// A repeat run that did no work keeps the report already saved; any run that
+// did work (first run, resume, a new decision) saves its own.
+function reportStep(ctx, steps) {
+  const existing = savedReports(ctx);
+  if (existing.length > 0 && !steps.some((s) => s.status === 'done')) return { status: 'noop', detail: 'report_exists' };
+  const dir = path.join(ctx.origin, REPORT_DIR);
+  fs.mkdirSync(dir, { recursive: true });
+  let name = `merge-cleanup-pr${ctx.opts.pr}-${utcStamp()}.md`;
+  for (let n = 1; fs.existsSync(path.join(dir, name)); n++) name = `merge-cleanup-pr${ctx.opts.pr}-${utcStamp()}-${n}.md`;
+  const rel = `${REPORT_DIR}/${name}`;
+  fs.writeFileSync(path.join(dir, name), renderReport(buildReport(ctx, [...steps, { id: 'report', status: 'done', detail: rel }])));
+  ctx.reportPath = rel;
+  return { status: 'done', detail: rel };
+}
+
 // ---- steps ----------------------------------------------------------------
 
 const HANDLERS = {
@@ -487,9 +607,10 @@ const HANDLERS = {
   'archive-runtime': archiveRuntime,
   'archive-drafts': archiveDrafts,
   'sync-base': syncBase,
+  state: stateStep,
+  'index-audit': indexAudit,
   'remove-worktree': removeWorktree,
   'delete-branch': deleteBranch,
-  report: () => ({ status: 'read' }),
 };
 
 // D10: remote branches are never deleted here; a surviving one is an owner action.
@@ -511,7 +632,11 @@ function buildReport(ctx, steps) {
     archived: ctx.archived,
     retained: ctx.drafts.retained,
     noops: steps.filter((s) => s.status === 'noop').map((s) => `noop:${s.id}:${s.detail}`),
+    audit: ctx.audit ?? null,
+    ...(ctx.opts.direction ? { direction: ctx.opts.direction } : {}),
+    ...(ctx.reportPath ? { report: ctx.reportPath } : {}),
     remaining: [
+      ...(ctx.audit && !/Verdict: CLEAN/.test(ctx.audit) ? [`docs-audit ${ctx.audit}: owner action, not auto-remediated`] : []),
       ...ctx.drafts.retained
         .filter((r) => r.reason === 'divergent_content' || r.reason === 'unverifiable_history')
         .map((r) => `${r.path} (${r.reason}): owner decision; archive with --archive-divergent`),
@@ -545,8 +670,7 @@ function runApplyOrPlan(opts) {
       steps.push({ id, status: 'planned' });
       continue;
     }
-    const handler = HANDLERS[id];
-    const res = handler ? handler(ctx) : { status: 'not_implemented' };
+    const res = id === 'report' ? (opts.mode === 'apply' ? reportStep(ctx, steps) : { status: 'read' }) : HANDLERS[id](ctx);
     steps.push({ id, status: res.status, ...(res.detail ? { detail: res.detail } : {}) });
     if (res.status === 'done') appendJsonl(journal, { step: id, status: 'done', detail: res.detail ?? '', timestamp: new Date().toISOString() });
     if (opts.mode === 'apply' && stopAfter === id) {

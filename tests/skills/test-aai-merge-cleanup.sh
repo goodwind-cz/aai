@@ -4,6 +4,7 @@
 # in a fixture carries its own identity; gh is a deny-by-default stub.
 # B1: TEST-005 (apply read-back gate), TEST-006/007 (drafts).
 # B2: TEST-008/009 (base sync), TEST-010/011 (worktree and branch cleanup).
+# B3: TEST-012 (focus, index, report), TEST-013/014 (idempotence and resume).
 set -euo pipefail
 
 case "$0" in /*) HERE="${0%/*}" ;; */*) HERE="$PWD/${0%/*}" ;; *) HERE="$PWD" ;; esac
@@ -573,9 +574,245 @@ test_011_worktree_refusals() {
   echo 'PASS: TEST-011 worktree refusals'
 }
 
+# ---------------------------------------------------------------------------
+# Batch B3: focus, index and report (TEST-012), idempotence and resume (TEST-013/014)
+
+STATE_REL='docs/ai/STATE.yaml'
+ACTION_STEPS='archive-runtime archive-drafts sync-base state index-audit remove-worktree delete-branch report'
+ALL_STEPS='resolve plan archive-runtime archive-drafts sync-base state index-audit remove-worktree delete-branch report'
+
+# seed_state [ref]: the real check-state.mjs creates the origin STATE; with a
+# ref the real state.mjs puts that ref in focus with an in-progress work item.
+seed_state() {
+  local ref="${1:-}"
+  [[ -n "$ORIGIN" && "$ORIGIN" = /* ]] || fail SETUP 'seed_state origin'
+  ( cd "$ORIGIN" && env -u AAI_ROLE node "$ROOT/.aai/scripts/check-state.mjs" --repair >/dev/null ) || fail SETUP 'state repair'
+  if [[ -n "$ref" ]]; then
+    ( cd "$ORIGIN" \
+      && env -u AAI_ROLE node "$ROOT/.aai/scripts/state.mjs" set-focus --type intake_change --ref "$ref" --path "$DRAFT_ISSUE" >/dev/null \
+      && env -u AAI_ROLE node "$ROOT/.aai/scripts/state.mjs" set-phase --ref "$ref" --phase implementation --status in_progress >/dev/null ) \
+      || fail SETUP "state focus $ref"
+  fi
+}
+
+# state_block <file> <top-level key>: the indented body of one STATE block.
+state_block() { awk -v k="$2:" '$0 == k {f=1; next} f && /^[^ #]/ {f=0} f' "$1"; }
+
+step_status() { json_get "$1" "j.steps.find(s=>s.id===\"$2\").status"; }
+
+saved_reports() { find "$ORIGIN/docs/ai/reports" -maxdepth 1 -type f -name "merge-cleanup-pr$PR-*.md" 2>/dev/null | LC_ALL=C sort || true; }
+
+test_012_state_index_report() {
+  local rep before arm name focus reason rpt n idx
+  # focus names the merged ref: the real state.mjs clears it
+  build_world focus_hit
+  seed_state foo
+  before="$(sha_of "$ORIGIN/$STATE_REL")"
+  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: foo'   # positive control
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  rep="$ENG_OUT"
+  [[ "$(sha_of "$ORIGIN/$STATE_REL")" != "$before" ]] || fail TEST-012 'STATE was not changed although the focus named the merged ref'
+  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: null'
+  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'type: none'
+  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" active_work_items)" 'status: done'
+  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" active_work_items)" 'phase: closed'
+  [[ "$(step_status "$rep" state)" == done ]] || fail TEST-012 "state step reported $(step_status "$rep" state), want done"
+
+  # index: numbered rows present, no DRAFT row for the delivered ids
+  idx="$(cat "$ORIGIN/docs/INDEX.md")"
+  want TEST-012 "$idx" 'ISSUE-0001'
+  want TEST-012 "$idx" 'SPEC-0001'
+  unwanted TEST-012 "$idx" 'ISSUE-DRAFT-foo'
+  unwanted TEST-012 "$idx" 'SPEC-DRAFT-spec-foo'
+  [[ "$(step_status "$rep" index-audit)" == done ]] || fail TEST-012 "index-audit step reported $(step_status "$rep" index-audit), want done"
+
+  # report: JSON object carries every spec field ...
+  [[ "$(json_get "$rep" 'j.base')" == main ]] || fail TEST-012 'report base'
+  [[ "$(json_get "$rep" 'j.head')" == "$MC" ]] || fail TEST-012 "report head $(json_get "$rep" 'j.head'), want $MC"
+  [[ "$(json_get "$rep" 'j.mergeCommit')" == "$MC" ]] || fail TEST-012 'report merge commit'
+  [[ "$(json_get "$rep" 'Array.isArray(j.archived)&&Array.isArray(j.retained)&&Array.isArray(j.noops)&&Array.isArray(j.remaining)')" == true ]] || fail TEST-012 'report lacks an archived/retained/noops/remaining array'
+  [[ "$(json_get "$rep" 'j.archived.length')" == 2 ]] || fail TEST-012 'report archived count'
+  want TEST-012 "$(json_get "$rep" 'j.audit')" 'Verdict: CLEAN'
+  want TEST-012 "$(json_get "$rep" 'j.remaining')" "origin/$BRANCH"
+  # ... and is saved under docs/ai/reports with the same fields
+  n="$(saved_reports | wc -l | tr -d ' ')"
+  [[ "$n" == 1 ]] || fail TEST-012 "$n saved reports, want 1"
+  rpt="$(cat "$(saved_reports)")"
+  want TEST-012 "$rpt" "- pr: $PR"
+  want TEST-012 "$rpt" "- merge commit: $MC"
+  want TEST-012 "$rpt" '- base: main'
+  want TEST-012 "$rpt" "- final HEAD: $MC"
+  want TEST-012 "$rpt" 'Verdict: CLEAN'
+  want TEST-012 "$rpt" '## Archived'
+  want TEST-012 "$rpt" "$DRAFT_ISSUE"
+  want TEST-012 "$rpt" '## Retained'
+  want TEST-012 "$rpt" '## No-ops'
+  want TEST-012 "$rpt" '## Remaining'
+  want TEST-012 "$rpt" "origin/$BRANCH"
+  case "$(basename "$(saved_reports)")" in merge-cleanup-pr"$PR"-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z.md) ;; *) fail TEST-012 "report file name shape: $(saved_reports)" ;; esac
+  assert_no_merge_call TEST-012
+
+  # negative controls: no focus, another ref in focus, and no STATE at all leave
+  # STATE byte-identical and report a named no-op
+  for arm in "none||focus_not_this_ref" "other|other-ref|focus_not_this_ref" "nostate|-|no_state"; do
+    name="${arm%%|*}"; focus="${arm#*|}"; reason="${focus#*|}"; focus="${focus%%|*}"
+    build_world "focus_$name"
+    if [[ "$focus" != - ]]; then seed_state "$focus"; fi
+    if [[ -f "$ORIGIN/$STATE_REL" ]]; then run cp "$ORIGIN/$STATE_REL" "$W/state.keep"; fi
+    run_engine apply --pr "$PR" --pid 4242 --json
+    [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "arm $name exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+    [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "arm $name state step reported $(step_status "$ENG_OUT" state), want noop"
+    want TEST-012 "$(json_get "$ENG_OUT" 'j.noops')" "noop:state:$reason"
+    if [[ -f "$W/state.keep" ]]; then
+      cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 "arm $name changed the STATE bytes"
+    else
+      [[ ! -e "$ORIGIN/$STATE_REL" ]] || fail TEST-012 "arm $name created a STATE file"
+    fi
+    if [[ "$name" == other ]]; then want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: other-ref'; fi
+  done
+  # a non-CLEAN audit verdict is reported under remaining, never auto-remediated
+  build_world audit_dirty
+  printf -- '---\nid: stray\ntype: issue\nnumber: 50\nstatus: done\nlinks:\n  pr: []\n  commits: []\n---\n\n# Stray\n' > "$ORIGIN/docs/issues/ISSUE-0050-stray.md"
+  run cp "$ORIGIN/docs/issues/ISSUE-0050-stray.md" "$W/stray.keep"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "dirty-audit apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-012 "$(json_get "$ENG_OUT" 'j.audit')" 'Verdict: CLEAN'
+  want TEST-012 "$(json_get "$ENG_OUT" 'j.audit')" 'NEEDS-TRIAGE'
+  want TEST-012 "$(json_get "$ENG_OUT" 'j.remaining')" 'docs-audit'
+  cmp "$W/stray.keep" "$ORIGIN/docs/issues/ISSUE-0050-stray.md" || fail TEST-012 'the audit finding was auto-remediated'
+  echo 'PASS: TEST-012 focus, index and report'
+}
+
+# build_rich_world <name>: a world in which every action step has work to do.
+PRE_LIST=''
+build_rich_world() {
+  build_world "$1"
+  local other='docs/issues/ISSUE-DRAFT-other.md' f
+  seed_runtime
+  seed_state foo
+  printf 'local edit\n' >> "$ORIGIN/UNRELATED.txt"
+  printf 'my private note\n' > "$ORIGIN/NOTE.txt"
+  printf '%s\n%s\n' "$LOCAL_LINE_A" "$LOCAL_LINE_B" >> "$ORIGIN/$EV"
+  printf -- '---\nid: other\ntype: issue\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Other\n' > "$ORIGIN/$other"
+  PRE_LIST="$W/pre.list"
+  : > "$PRE_LIST"
+  for f in UNRELATED.txt NOTE.txt "$EV" "$other" "$DRAFT_ISSUE" "$DRAFT_SPEC"; do
+    printf '%s %s\n' "$f" "$(sha_of "$ORIGIN/$f")" >> "$PRE_LIST"
+  done
+}
+
+# every pre-run dirty or untracked file is still in the origin or archived
+# byte-for-byte (same sha256) in the per-PR archive
+assert_nothing_lost() {
+  local tid="$1" f s p found arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  while IFS=' ' read -r f s; do
+    if [[ -f "$ORIGIN/$f" && "$(sha_of "$ORIGIN/$f")" == "$s" ]]; then continue; fi
+    found=''
+    if [[ -d "$arch" ]]; then
+      while IFS= read -r p; do
+        if [[ "$(sha_of "$p")" == "$s" ]]; then found=yes; break; fi
+      done < <(find "$arch" -type f ! -name manifest.jsonl ! -name journal.jsonl)
+    fi
+    [[ -n "$found" ]] || fail "$tid" "pre-run file $f (sha $s) is neither in the origin nor archived"
+    want "$tid" "$(cat "$arch/manifest.jsonl")" "\"sha256\":\"$s\""
+  done < "$PRE_LIST"
+}
+
+norm_sha() {
+  case "$1" in
+    */INDEX*.md) sed -e '/^Generated: /d' "$1" | sha_stdin ;;
+    */manifest.jsonl) sed -e 's/"timestamp":"[^"]*"//' "$1" | sha_stdin ;;
+    */STATE.yaml) sed -e '/updated_at_utc:/d' "$1" | sha_stdin ;;
+    *) sha_of "$1" ;;
+  esac
+}
+
+# tree_sig: location-independent signature of the origin tree (journal and the
+# time-stamped report are compared separately).
+tree_sig() {
+  [[ -n "$ORIGIN" && "$ORIGIN" = /* ]] || fail SETUP 'tree_sig origin'
+  ( cd "$ORIGIN" && find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | while IFS= read -r f; do
+      case "$f" in ./docs/ai/reports/merge-cleanup-pr*|*/journal.jsonl) continue ;; esac
+      printf '%s %s\n' "$f" "$(norm_sha "$f")"
+    done )
+}
+
+journal_dups() { sed 's/,"timestamp":"[^"]*"//' "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/journal.jsonl" 2>/dev/null | LC_ALL=C sort | uniq -d | wc -l | tr -d ' ' || true; }
+
+test_013_second_apply_is_noop() {
+  build_rich_world idem
+  local first second before s sig_before
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-013 "first apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  first="$ENG_OUT"
+  # positive control: the first run really did every action
+  for s in $ACTION_STEPS; do
+    [[ "$(step_status "$first" "$s")" == done ]] || fail TEST-013 "first run: step $s reported $(step_status "$first" "$s"), want done"
+  done
+  before="$(world_digest)"
+  [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 ]] || fail TEST-013 'first run: local ledger line A not exactly once'
+  : > "$GHD/gh-argv.log"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-013 "second apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  second="$ENG_OUT"
+  for s in $ACTION_STEPS; do
+    [[ "$(step_status "$second" "$s")" == noop ]] || fail TEST-013 "second run: step $s reported $(step_status "$second" "$s"), want noop"
+    want TEST-013 "$(json_get "$second" 'j.noops')" "noop:$s:"
+  done
+  [[ "$(json_get "$second" 'j.noops.length')" == 8 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 8"
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-013 'second apply changed files, refs, worktrees or the reflog'
+  [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-013 'second run duplicated a ledger line'
+  [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-013 'the ledger holds a duplicate line'
+  [[ "$(saved_reports | wc -l | tr -d ' ')" == 1 ]] || fail TEST-013 'second run wrote another report'
+  [[ "$(journal_dups)" == 0 ]] || fail TEST-013 'journal holds a duplicate step line'
+  want TEST-013 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"   # positive control: the gate ran
+  assert_no_merge_call TEST-013
+  assert_nothing_lost TEST-013
+  echo 'PASS: TEST-013 second apply is a named no-op'
+}
+
+test_014_interrupted_run_converges() {
+  local control_sig control_state id sig first second rc
+  build_rich_world control
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-014 "control apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  control_state="$ENG_OUT"
+  control_sig="$(tree_sig)"
+  [[ -n "$control_sig" ]] || fail TEST-014 'control tree signature is empty'
+  for id in $ALL_STEPS; do
+    build_rich_world "stop_$id"
+    rc=0
+    ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_STOP_AFTER="$id" node "$ENGINE" apply --pr "$PR" --pid 4242 --json >"$W/engine.out" 2>"$W/engine.err" ) || rc=$?
+    [[ "$rc" -eq 4 ]] || fail TEST-014 "stop after $id exited $rc, want 4 ($(cat "$W/engine.out") $(cat "$W/engine.err"))"
+    want TEST-014 "$(cat "$W/engine.out")" "STOPPED after $id"
+    assert_nothing_lost TEST-014
+    run_engine apply --pr "$PR" --pid 4242 --json
+    [[ "$ENG_RC" -eq 0 ]] || fail TEST-014 "resume after $id exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+    second="$ENG_OUT"
+    sig="$(tree_sig)"
+    [[ "$sig" == "$control_sig" ]] || fail TEST-014 "resume after $id differs from the uninterrupted run: $(diff <(printf '%s\n' "$control_sig") <(printf '%s\n' "$sig") | head -6 | tr '\n' ' ')"
+    assert_nothing_lost TEST-014
+    [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-014 "resume after $id left a duplicate ledger line"
+    [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-014 "resume after $id: local ledger line not exactly once"
+    [[ "$(saved_reports | wc -l | tr -d ' ')" == 1 ]] || fail TEST-014 "resume after $id left $(saved_reports | wc -l | tr -d ' ') reports, want 1"
+    [[ "$(journal_dups)" == 0 ]] || fail TEST-014 "resume after $id: journal holds a duplicate step line"
+    [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-014 "resume after $id: HEAD is not the merge commit"
+    # a step completed before the interruption is reported as a named no-op on resume
+    case " $ACTION_STEPS " in
+      *" $id "*) [[ "$(step_status "$second" "$id")" == noop ]] || fail TEST-014 "resume after $id: step $id reported $(step_status "$second" "$id"), want noop"
+                 want TEST-014 "$(json_get "$second" 'j.noops')" "noop:$id:" ;;
+    esac
+    assert_no_merge_call TEST-014
+  done
+  [[ "$(step_status "$control_state" state)" == done ]] || fail TEST-014 'control run did not clear the focus (positive control)'
+  echo 'PASS: TEST-014 interrupted run converges to the uninterrupted bytes'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate; test_006_superseded_drafts; test_007_retained_and_decisions
-     test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals ;;
+     test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
+     test_012_state_index_report; test_013_second_apply_is_noop; test_014_interrupted_run_converges ;;
   TEST-005|test_005_apply_readback_gate) test_005_apply_readback_gate ;;
   TEST-006|test_006_superseded_drafts) test_006_superseded_drafts ;;
   TEST-007|test_007_retained_and_decisions) test_007_retained_and_decisions ;;
@@ -583,5 +820,8 @@ case "$SELECTED" in
   TEST-009|test_009_base_sync_refusals) test_009_base_sync_refusals ;;
   TEST-010|test_010_worktree_and_branch_cleanup) test_010_worktree_and_branch_cleanup ;;
   TEST-011|test_011_worktree_refusals) test_011_worktree_refusals ;;
+  TEST-012|test_012_state_index_report) test_012_state_index_report ;;
+  TEST-013|test_013_second_apply_is_noop) test_013_second_apply_is_noop ;;
+  TEST-014|test_014_interrupted_run_converges) test_014_interrupted_run_converges ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac
