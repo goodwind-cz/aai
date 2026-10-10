@@ -1410,7 +1410,7 @@ EOF_NAMES
 }
 
 test_042() {
-  log_info "TEST-028 gate (test_042): the execution arm is skipped by name only for an invoked bash older than 4; translation asserts precede the gate; no .aai/ change..."
+  log_info "TEST-028 gate (test_042): the execution arm is skipped by name only for an invoked bash older than 4; translation asserts precede the gate; the .aai/ path checker can flag a path (positive control)..."
   local out rc m
   # TEST-001 (Spec-AC-01, SEAM-2): the real host. Below bash 4 the named SKIP line
   # and exit 0; bash 4 or newer the unchanged pass line and no SKIP line.
