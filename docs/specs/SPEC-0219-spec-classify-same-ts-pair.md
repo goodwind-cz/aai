@@ -10,7 +10,7 @@ links:
   requirement: classify-same-ts-pair
   rfc: null
   pr:
-    - TBD
+    - 449
   commits:
     - 3f76f35e3772ee2566550f3853c3fd7bfb671b93
 ---
