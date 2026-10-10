@@ -177,7 +177,7 @@ test_1210_ship_step_1a_absent_admit() {
 }
 
 test_1211_signoff_none_is_the_no_question_default() {
-  log_info "Test: four canon surfaces state signoff none is the autonomous default with no mid-ride owner question; step 6 owed sign-offs line (TEST-1211)..."
+  log_info "Test: four canon surfaces state signoff none is the autonomous default with no mid-ride owner question; step 6 signs on merge line (TEST-1211)..."
   local name body
   local sentence='`--signoff none` is the autonomous default'
   local secs=(
@@ -195,9 +195,12 @@ test_1211_signoff_none_is_the_no_question_default() {
   done
   local step6
   step6="$(section "$SHIP" '^6\. MERGE CHECKPOINT' '^7\. ')"
-  has "$step6" 'owed sign-offs:' || log_fail "TEST-1211: SKILL_SHIP step 6 must carry an 'owed sign-offs:' line"
-  has "$step6" 'follow-ups.mjs list --status open --ref' || log_fail "TEST-1211: the owed sign-offs line must name 'follow-ups.mjs list --status open --ref'"
-  log_pass "TEST-1211: signoff none default stated on four surfaces, step 6 owed sign-offs line"
+  # spec-merge-direction-signs-amendments D10 supersedes the step 6 'owed sign-offs:' line:
+  # the owner's merge direction signs the ride's contract amendments, listed as 'signs on merge:'.
+  has "$step6" 'signs on merge:' || log_fail "TEST-1211: SKILL_SHIP step 6 must carry a 'signs on merge:' line"
+  has "$step6" 'spec-amend.mjs list --json' || log_fail "TEST-1211: the signs on merge line must name 'spec-amend.mjs list --json'"
+  if has "$step6" 'owed sign-offs'; then log_fail "TEST-1211: step 6 still asks for 'owed sign-offs'"; fi
+  log_pass "TEST-1211: signoff none default stated on four surfaces, step 6 signs on merge line"
 }
 
 test_1212_fixture_project_rides_with_no_question() {

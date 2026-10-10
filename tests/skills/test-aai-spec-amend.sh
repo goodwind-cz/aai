@@ -3849,7 +3849,12 @@ test_1375_migrated_cohort_is_the_proven_one() {
       for (const want of process.argv.slice(1)) {
         const it = by.get(want);
         if (!it) { bad.push(want + " -> MISSING from the ledger"); continue; }
-        if (it.amendment_class !== "contract" || it.bucket !== "unsigned-tracked") {
+        // Contract lane is the pin: unsigned-tracked, or signed by an owner
+        // overlay (merge-direction-signs-amendments signs the contract
+        // records of merged rides). Never the measurement lane.
+        const lane = it.amendment_class === "contract" &&
+          (it.bucket === "unsigned-tracked" || (it.bucket === "signed" && it.owner_signoff === true));
+        if (!lane) {
           bad.push(want + " -> " + it.amendment_class + "/" + it.bucket);
         }
       }
@@ -3859,7 +3864,7 @@ test_1375_migrated_cohort_is_the_proven_one() {
   if [[ -n "$bad" ]]; then
     log_fail "TEST-1375 arm 1: a restamp-shaped record whose allocator cause the bytes do NOT reproduce is still discharged into the obligation-free measurement lane. The structural shape (both anchors + a byte-equal RESTAMP_WHAT) was written by the OLD cmdRestamp after ANY post-freeze edit, so it is not probative; each record below needs a later-dated \`classify --class contract --signoff none\` overlay putting it back where the obligation is real. Offending: $bad"
   fi
-  log_info "TEST-1375 arm 1: all 13 unprovable restamp records resolve to contract/unsigned-tracked"
+  log_info "TEST-1375 arm 1: all 13 unprovable restamp records resolve to the contract lane (unsigned-tracked, or owner-signed)"
 
   # --- ARM 2: the rule itself, on a fixture, with the REAL cause oracle ------
   # Two frozen specs drift: one by the allocator's own DRAFT-to-numbered

@@ -60,6 +60,8 @@ pairs:
     status: done
   - capability: classify-same-ts-pair
     status: done
+  - capability: merge-direction-signs-amendments
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

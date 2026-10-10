@@ -984,7 +984,11 @@ test_012_growth_sum_matches_ledger() {
   # builds the --direction pair with set -- so it is two words under zsh too);
   # zero headroom standing, credited 1:1 (ledger key
   # directed-merge-and-post-merge-cleanup-round2).
-  local want_growth=60008
+  # Then 60008 -> 60568: merge-direction-signs-amendments Spec-AC-06 / D10
+  # (+560 B: ROLE_COMMON +141, SKILL_MERGE +161, SKILL_SHIP +95, SKILL_PR +163;
+  # the owner's merge direction signs the ride's contract amendments); zero
+  # headroom standing, credited 1:1 (ledger key merge-direction-signs-amendments).
+  local want_growth=60568
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

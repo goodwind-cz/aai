@@ -44,7 +44,7 @@ AUTOPILOT DEFAULTS (recorded, never silent)
    The merge checkpoint (step 6) is the one human gate, and it sits at the
    merge, not before the PR.
 5. Post-freeze spec amendment: `--signoff none` is the autonomous default;
-   the owner is never asked mid-ride. The sign-off owed surfaces at step 6.
+   the owner is never asked mid-ride; the owner's merge direction signs it (step 6).
 
 RUN
 1. INTAKE — follow .aai/SKILL_INTAKE.prompt.md with the need, applying the
@@ -105,9 +105,9 @@ RUN
    - the pull request's URL
    - `ride gate: <the gate's ADMIT line>`
    - `roadmap: <the ship-append line>` (omit when step 1a did not run it)
-   - `owed sign-offs: <open fu-amend ids>` from
-     `node .aai/scripts/follow-ups.mjs list --status open --ref <ref_id>`
-     (omit when none)
+   - `signs on merge: <record_key> <ref_id> <what>` per unsigned contract
+     record of the ride (`spec-amend.mjs list --json`), else `signs on merge:
+     none`: the owner's merge direction signs them; no separate sign-off ask.
    - "Merging stays operator-only — review the PR above and merge it
      yourself when ready." To merge and clean up on your word: `/aai-merge <n>`
      (never invoked by /aai-ship).
