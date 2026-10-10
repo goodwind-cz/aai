@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-10T14:51:48.845Z
+Generated: 2026-10-10T14:58:18.532Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-classify-same-ts-pair | specs | implementing | 2 done, 4 planned | docs/specs/SPEC-DRAFT-spec-classify-same-ts-pair.md |
+| spec-classify-same-ts-pair | specs | implementing | 4 done, 2 planned | docs/specs/SPEC-DRAFT-spec-classify-same-ts-pair.md |
 
 ## Canonical layer (0)
 

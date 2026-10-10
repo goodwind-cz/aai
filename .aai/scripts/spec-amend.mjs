@@ -320,6 +320,15 @@ function recordKey(rec) {
   return crypto.createHash('sha256').update(JSON.stringify(rec)).digest('hex').slice(0, RECORD_KEY_LEN);
 }
 
+// D7: a pair is SHARED when more than one spec_amendment record carries its
+// (ts, ref_id). Only a shared pair needs `--record` to be addressed; an
+// unshared pair keeps every printed line byte-identical to before.
+function pairIsShared(reg, ts, ref) {
+  const key = overlayKey(ts, ref);
+  if (key === null) return false;
+  return reg.items.filter((i) => overlayKey(i.ts, i.ref_id) === key).length > 1;
+}
+
 function overlayKey(ts, ref) {
   const t = str(ts);
   const r = str(ref);
@@ -837,6 +846,16 @@ function remedyLines(build) {
   const pwsh = build(shqPowerShell);
   if (posix === pwsh) return [posix];
   return [`POSIX sh: ${posix}`, `PowerShell: ${pwsh}`];
+}
+
+// The one place a printed `classify` remedy is assembled. `--record` appears
+// only for a shared pair (D7), so every other printed line stays byte-identical.
+// Tokens are joined here, not interpolated into a template, so the value of
+// every user-derived token passes through `shq`.
+function printedClassify(shq, ts, ref, recordKeyOrNull, tail) {
+  const head = ['--ts', shq(ts), '--ref', shq(ref)];
+  if (recordKeyOrNull !== null) head.push('--record', recordKeyOrNull); // 12 lowercase hex by construction (recordKey), never user text: nothing to quote
+  return ['node .aai/scripts/spec-amend.mjs classify', ...head, ...tail].join(' ');
 }
 
 function usageError(msg) {
@@ -1651,7 +1670,8 @@ function cmdRestamp(opts) {
     // A remedy that cannot be run is the defect this script exists to remove,
     // one level up — TEST-1376 runs this line verbatim and checks EVERY
     // printed invocation in this file against FLAG_SPECS itself.
-    for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs classify --ts ${shq(ts)} --ref ${shq(ref)} --signoff owner --source "<who decided, where>" --why "<what the drift really was>" --ledger ${shq(abs)}`)) {
+    const recordKeyArg = pairIsShared(after, ts, ref) ? recordKey(entry) : null;
+    for (const remedy of remedyLines((shq) => printedClassify(shq, ts, ref, recordKeyArg, ['--signoff', 'owner', '--source', '"<who decided, where>"', '--why', '"<what the drift really was>"', '--ledger', shq(abs)]))) {
       console.log(`NOTE sign it off once someone has said what changed: ${remedy}`);
     }
   }
@@ -1915,7 +1935,8 @@ function cmdList(opts) {
       // ref carrying a quote or whitespace produced a line that breaks when
       // pasted — and TEST-013 runs this line through `eval` (code review
       // NB-E, reproduced through the writer, not only by hand-append).
-      for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs classify --ts ${shq(v.ts)} --ref ${shq(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"`)) {
+      const recordKeyArg = pairIsShared(reg, v.ts, v.ref_id) ? v.record_key : null;
+      for (const remedy of remedyLines((shq) => printedClassify(shq, v.ts, v.ref_id, recordKeyArg, ['--signoff', 'none', '--why', '"<one line>"', '--source', '"<evidence>"']))) {
         process.stderr.write(`  ${remedy}\n`);
       }
     }
