@@ -357,6 +357,13 @@ function archiveDrafts(ctx) {
   for (const item of drafts.archive) {
     const src = path.join(origin, item.path);
     racedEdit('before-archive', item.path, src);
+    // Edited before the copy: its bytes were never in the PR, so they are not archived
+    // as superseded; the working copy stays untouched.
+    if (sha256(fs.readFileSync(src)) !== item.sha256) {
+      drafts.retained.push({ path: item.path, reason: 'divergent_after_plan' });
+      kept.push(item.path);
+      continue;
+    }
     const { digest } = archiveFile(ctx, {
       src, destBase: path.join(root, 'files', item.path), original: item.path, reason: item.reason, step: 'archive-drafts',
     });

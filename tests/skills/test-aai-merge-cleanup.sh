@@ -389,6 +389,15 @@ test_007_retained_and_decisions() {
     want TEST-007 "$(json_get "$rep" 'j.remaining')" 'divergent_after_plan'
     arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
     [[ "$(json_get "$rep" 'j.archived.length')" -ge 1 ]] || fail TEST-007 "race arm $point: nothing archived"
+    # The manifest records an edited draft as superseded only when its archived bytes are the
+    # PR's: edited before the copy -> no record for it; edited after the copy -> one record.
+    local recs
+    recs="$(node -e 'const fs=require("fs");const [m,p]=process.argv.slice(1);const t=fs.existsSync(m)?fs.readFileSync(m,"utf8"):"";console.log(t.split("\n").filter(Boolean).map(JSON.parse).filter(r=>r.original===p).length)' "$arch/manifest.jsonl" "$DRAFT_ISSUE")"
+    if [[ "$point" == before-archive ]]; then
+      [[ "$recs" == 0 ]] || fail TEST-007 "race arm $point: the edited draft was recorded in the manifest ($recs record(s)) although its bytes were never in the PR"
+    else
+      [[ "$recs" == 1 ]] || fail TEST-007 "race arm $point: want one manifest record of the PR bytes, got $recs"
+    fi
   done
 
   # degenerate: no drafts at all -> clean no-op, no archive directory created
