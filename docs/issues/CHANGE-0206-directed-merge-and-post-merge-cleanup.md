@@ -2,10 +2,12 @@
 id: directed-merge-and-post-merge-cleanup
 type: change
 number: 206
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 82d6e76a748ee95483666c2fad5ba4d9418a86ca
 ---
 
 # Change — Directed merge and safe post-merge cleanup

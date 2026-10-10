@@ -2,15 +2,17 @@
 id: spec-directed-merge-and-post-merge-cleanup
 type: spec
 number: 218
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: c6518462e2fe2b05c405ac7aed73fa2b1fa42224a29a80d492436782e7f716ae
 ceremony_level: 2
 links:
   requirement: directed-merge-and-post-merge-cleanup
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 82d6e76a748ee95483666c2fad5ba4d9418a86ca
 ---
 
 # Spec — Directed merge and safe post-merge cleanup (`/aai-merge`)

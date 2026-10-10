@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-10T12:32:46.940Z
+Generated: 2026-10-10T12:33:08.047Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0218 | specs | implementing | 10 done | docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md |
 
 ## Canonical layer (0)
 
@@ -56,7 +55,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (509)
+## Done (511)
 
 | ID | Type | Path |
 |---|---|---|
@@ -261,6 +260,7 @@ _None._
 | CHANGE-0203 | issues | docs/issues/CHANGE-0203-roadmap-maintenance-budget-advisory.md |
 | CHANGE-0204 | issues | docs/issues/CHANGE-0204-pr-capability-preflight.md |
 | CHANGE-0205 | issues | docs/issues/CHANGE-0205-post-validation-pushes-reuse-test-results.md |
+| CHANGE-0206 | issues | docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -567,17 +567,17 @@ _None._
 | SPEC-0215 | specs | docs/specs/SPEC-0215-spec-nested-suite-reruns-duplicate-sweep-time.md |
 | SPEC-0216 | specs | docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md |
 | SPEC-0217 | specs | docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md |
+| SPEC-0218 | specs | docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| CHANGE-0206 | issues | docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
