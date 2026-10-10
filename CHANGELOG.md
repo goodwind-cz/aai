@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — fix: spec-amend classify can sign one record of a same-timestamp amendment pair (classify-same-ts-pair)
+## [v2026.10.10.2] — fix: spec-amend classify can sign one record of a same-timestamp amendment pair (classify-same-ts-pair)
 
 - Every spec_amendment record now has a 12-hex record key (sha256 of the record); `spec-amend list --json` shows it as `record_key`. `classify --record <key>` writes an overlay addressed to exactly that record, so an owner signature can land on a contract record even when a measurement record shares its `(ts, ref_id)`.
 - A shared pair without `--record` is still refused as ambiguous, now with one `record=` line per candidate and the runnable `--record` form. Every overlay already on the ledger folds exactly as before (checked against the cf39c58f engine on the live ledger).
@@ -31,14 +31,14 @@ fine — it is the marker a cut leaves on top.
 - Known limit: an older spec-amend engine reading this ledger cannot see record-addressed overlays, so its `list --strict` reports that record as unsigned and untracked. Update the AAI layer rather than mixing versions.
 - Refs: CHANGE-0207 / SPEC-0219.
 
-## [unreleased] — feat: /aai-merge merges the PR you name and cleans up after it (directed-merge-and-post-merge-cleanup)
+## [v2026.10.10.2] — feat: /aai-merge merges the PR you name and cleans up after it (directed-merge-and-post-merge-cleanup)
 
 - New `/aai-merge <PR>` skill (all four skill trees) over a deterministic engine, `.aai/scripts/merge-cleanup.mjs`. On an open PR it runs the read-only gates (state, draft, judged head, checks, mergeability, sweep record) and prints the one `gh pr merge --squash --match-head-commit <sha>` line; the engine itself never merges, and the prompt runs that line only on your explicit invocation for that PR.
 - On a merged PR it proves the merge commit is on the base branch, archives superseded draft copies by content identity, fast-forwards the base checkout while preserving dirty files and append-only ledgers, clears the focus only for the work item the PR delivered (an intake the merge leaves done and stamped with that PR number; STATE is archived first), regenerates the index, archives the ride's runtime evidence, removes the worktree without force and deletes the local branch by compare-and-swap. Re-runs resume or report named no-ops, including after a kill inside the base sync. Your verbatim merge direction and the merged head are kept in the run report and as one `directed_merge` decision.
 - `/aai-pr`, `/aai-ship` and `/aai-worktree cleanup` point to it as the completion procedure. Closes `fu-seeded-copies-lesson-no-guard`; overlaps, does not close, ISSUE-0091.
 - Refs: CHANGE-0206 / SPEC-0218.
 
-## [unreleased] — test: aai-win-fallback TEST-028 is green on a host whose bash is older than 4 (win-fallback-test028-red-on-bash-3)
+## [v2026.10.10.2] — test: aai-win-fallback TEST-028 is green on a host whose bash is older than 4 (win-fallback-test028-red-on-bash-3)
 
 - On a bash older than 4 (macOS ships 3.2), TEST-028 still checks the Windows-to-Git-Bash path translation, then reports its execution arm as a named skip with the bash version: that arm relies on `command_not_found_handle`, which bash only has from 4.0. Git Bash and CI run bash 5, so they still run the arm unchanged.
 - The version is read from the `bash` the test wrapper invokes, not from the test's own shell; an empty or unreadable version runs the arm rather than skipping it. The new test_042 pins the gate against versions 3, 4, 5 and empty.
