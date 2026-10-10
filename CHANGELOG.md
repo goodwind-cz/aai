@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — ci: the slowest suites lose their hot spots; the slowest CI leg drops from 309 s to 171 s (slowest-suite-hot-spots)
+## [v2026.10.10] — ci: the slowest suites lose their hot spots; the slowest CI leg drops from 309 s to 171 s (slowest-suite-hot-spots)
 
 - `tests/skills/lib/no-nul-guard.sh`: the No-NUL scan runs as one `git ls-files`, one `git check-attr` and one `node` process instead of one process pair per file; output and exit code are unchanged on every completed scan, and an internal failure now fails closed (`--check` exits 2 with a "could not scan" line) instead of reading as a clean tree.
 - `aai-hygiene-pack`: test_094 runs in one isolated checkout and TEST-562 scans the live tree once (294 s -> about 60 s locally, CI weight 311 -> 93).
@@ -32,7 +32,7 @@ fine — it is the marker a cut leaves on top.
 - `tests/skills/suite-weights.tsv` re-seeded from a full-mode CI run; the four legs now take 146/160/159/171 s (slowest at most 1.25 times the mean, pinned by a test).
 - Refs: DEBT-0011 / SPEC-0216.
 
-## [unreleased] — ci: suites stop re-running other whole suites; the selector picks declared companions instead (nested-suite-reruns-duplicate-sweep-time)
+## [v2026.10.10] — ci: suites stop re-running other whole suites; the selector picks declared companions instead (nested-suite-reruns-duplicate-sweep-time)
 
 - `tests/skills/suite-map.yaml` rows can declare `companions:`; `select-suites.mjs` selects them with the suite that names them, transitively and cycle-safe. A malformed entry (unknown row, self, bad name, inline `[x]` form) fails open to a full run (`internal-error`), and a map without companions selects exactly as before.
 - 32 test functions in 26 suites no longer run another whole suite to prove it stays green; each now checks with `assert_companions` (`tests/skills/lib/companion-assert.sh`) that the selector picks the companion. 36 edges are declared and pinned. Three nested runs that prove something a companion cannot stay on `tests/skills/lib/nested-suite-allowlist.tsv`.
@@ -41,7 +41,7 @@ fine — it is the marker a cut leaves on top.
 - Measured: full local sweep summed suite time 4,379 s -> 2,378 s (wall 799 s -> 490 s); `aai-learned-append` 446 s -> 1 s, `aai-delta-stage3` 200 s -> 3 s. The CI leg-balance bound moved to slowest-suite-hot-spots by owner amendment (`aai-hygiene-pack` alone floors the slowest leg).
 - Refs: DEBT-0010 / SPEC-0215.
 
-## [unreleased] — fix: the Windows test wrapper reaps the whole process tree on timeout; ps1-quality runs only for files PowerShell reads (ci-windows-leg-waits-and-ps1-path-filter)
+## [v2026.10.10] — fix: the Windows test wrapper reaps the whole process tree on timeout; ps1-quality runs only for files PowerShell reads (ci-windows-leg-waits-and-ps1-path-filter)
 
 - On native Windows, `aai-run-tests.ps1` now starts Git Bash inside a Job Object (suspended, assigned, resumed, in the PowerShell location), so a timeout ends every descendant. Before, MSYS fork+exec broke the Windows parent chain and `taskkill /T` could not reach exec'd grandchildren: the 2 s timeout smoke waited 300 s for an orphaned `sleep`. If no job can be created, one `AAI-DEGRADED-MODE` line names it and the old launch is used.
 - The Git-Bash branch of `aai-run-tests.sh` translates the MSYS pid to its Windows pid and does one forced tree kill first.
