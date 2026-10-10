@@ -2785,6 +2785,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Merge a named pull request and clean up after it
+
+`/aai-merge <PR>` finishes a ride in one step. It checks the pull request you named, merges it only because you asked for that exact pull request, and then cleans up after it. For an already merged pull request it does the cleanup alone.
+
+[Product doc](product/directed-merge-and-post-merge-cleanup.md) · [Spec](specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md)
+
 ### Owner-defined merge lanes
 
 By default an AAI agent never merges a pull request; merging is the operator's job. A repository owner can now write down, in one project-owned file, which kinds of pull requests the agent may merge on its own, for example "a change that only touches content or design files, with green CI, a recorded bot sweep and the requester's GitHub approval". Each such rule is a lane, and each lane must point at a decision the owner signed. Anything outside every lane, and anything touching architecture (containers, dependencies, migrations, CI, credentials) as the owner defines it, still goes to the operator. With no policy file, nothing changes.

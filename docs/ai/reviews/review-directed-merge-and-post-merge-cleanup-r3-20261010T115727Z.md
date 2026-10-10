@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "delta 93e6be5c..bc041b26 plus regression origin/main...HEAD (2836dcc5...bc041b26), branch change/directed-merge-and-post-merge-cleanup"
-  spec: docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md
+  spec: docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
   spec_compliance:
     verdict: pass
     ac_walk:

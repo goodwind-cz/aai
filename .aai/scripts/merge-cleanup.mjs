@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // merge-cleanup.mjs — deterministic engine behind `/aai-merge <PR>`
-// (docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md, D1-D12).
+// (docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md, D1-D12).
 //
 //   merge-cleanup.mjs preflight --pr <n> --expect-head <sha> --directed-by human
 //                               --direction "<verbatim owner words>" [--origin <abs>] [--json]

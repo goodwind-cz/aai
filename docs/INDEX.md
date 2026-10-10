@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-10T12:20:59.353Z
+Generated: 2026-10-10T12:32:46.940Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,13 +12,13 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-directed-merge-and-post-merge-cleanup | specs | implementing | 10 done | docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md |
+| SPEC-0218 | specs | implementing | 10 done | docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md |
 
 ## Canonical layer (0)
 
 _None._
 
-## Product (32)
+## Product (33)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -32,6 +32,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | configurable-merge-policy-lanes | configurable-merge-policy-lanes | 1 | docs/product/configurable-merge-policy-lanes.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
+| directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 1 | docs/product/directed-merge-and-post-merge-cleanup.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
@@ -576,7 +577,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| directed-merge-and-post-merge-cleanup (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-directed-merge-and-post-merge-cleanup.md |
+| CHANGE-0206 | issues | docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

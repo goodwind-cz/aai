@@ -1,10 +1,10 @@
 ---
 id: spec-directed-merge-and-post-merge-cleanup
 type: spec
-number: null
+number: 218
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4dcfa890b5dc72fcb5706d081df302516105cefede7b071fe2b8373a29241090
+frozen_sha256: c6518462e2fe2b05c405ac7aed73fa2b1fa42224a29a80d492436782e7f716ae
 ceremony_level: 2
 links:
   requirement: directed-merge-and-post-merge-cleanup
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-directed-merge-and-post-merge-cleanup.md
+- Requirement: docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md
 - Related intake (overlap assessed, not closed): docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md
 - Prior art: docs/specs/SPEC-0209-spec-worktree-lacks-vendored-aai-layer-downstream.md (PR #433, the originating incident), .aai/SKILL_PR.prompt.md step 6, .aai/SKILL_WORKTREE.prompt.md "Command: Cleanup Worktree", .aai/scripts/ledger-merge.mjs, .aai/scripts/lib/session-lock.mjs, .aai/scripts/lane-gate.mjs, docs/ai/merge-policy.yaml
 - Technology contract: docs/TECHNOLOGY.md
@@ -105,8 +105,8 @@ above.
   tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh,
   docs/USER_GUIDE.md, CHANGELOG.md, docs/skill-catalog-data.json (only if its
   generator pins the skill list),
-  docs/issues/CHANGE-DRAFT-directed-merge-and-post-merge-cleanup.md,
-  docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md
+  docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md,
+  docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
 - Code review required: true (code, workflow and test change).
 
 ## Phasing
@@ -477,8 +477,8 @@ with TEST id and platform.
   SKILL_SHIP pins); `test-aai-worktree.sh` has a known local pre-existing
   failure (docs/knowledge/LEARNED.md 2026-07-15) — compare against a
   disposable worktree of the base, never by stashing.
-- Lint: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md`.
-- Mutation replay: `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md`.
+- Lint: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md`.
+- Mutation replay: `node .aai/scripts/mutation-run.mjs --replay --spec docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md`.
 
 Logs: `docs/ai/tdd/directed-merge-and-post-merge-cleanup-{red,green,validation}.log`;
 mutation records at

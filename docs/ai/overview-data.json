@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-10T07:25:19.277Z",
+  "generatedAt": "2026-10-10T12:30:58.070Z",
   "project": "aai",
   "counts": {
     "delivered": 287,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -49,6 +49,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "directed-merge-and-post-merge-cleanup",
+      "title": "Change — Directed merge and safe post-merge cleanup",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md",
+      "closed_on": null,
+      "agent_minutes": 216,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-directed-merge-and-post-merge-cleanup-r3-20261010T115727Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",

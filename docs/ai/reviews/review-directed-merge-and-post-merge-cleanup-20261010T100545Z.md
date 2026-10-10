@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: origin/main...HEAD (2836dcc5...3dd377cd, branch change/directed-merge-and-post-merge-cleanup, 27 files +2884/-16)
-  spec: docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md
+  spec: docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -49,7 +49,7 @@ Diff `origin/main...HEAD` (2836dcc5..3dd377cd) in worktree
 `/Users/ales/Projects/aai-change-directed-merge-and-post-merge-cleanup`, read
 in full for the engine, prompt, wrappers, edited prompts, companion wiring,
 ledger appends; the test suite read for fixture shape and stub. Frozen spec
-`docs/specs/SPEC-DRAFT-spec-directed-merge-and-post-merge-cleanup.md`. Per
+`docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md`. Per
 dispatch, no suites or mutation runs were executed; one scratch fixture
 outside the worktree was run against the engine.
 
