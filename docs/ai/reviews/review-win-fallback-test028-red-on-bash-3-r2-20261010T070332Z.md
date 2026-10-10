@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "b28ac995..034888d4 (round-2 delta) plus regression over origin/main(ebc5d72b)...HEAD(034888d4)"
-  spec: docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md
+  spec: docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -30,7 +30,7 @@ review:
 # Code Review round 2 — win-fallback-test028-red-on-bash-3
 
 - Scope: delta `b28ac995..034888d4` (remediation commit 8e556c9b + round-1 report commit 034888d4) plus regression over `origin/main...HEAD`. Worktree `/Users/ales/Projects/aai-fix-win-fallback-test028-red-on-bash-3`, HEAD 034888d4, base ebc5d72b.
-- Spec: `docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md` (frozen, amended: one measurement record 06:50:52Z, one unsigned contract record 06:58:04Z tracked by `fu-amend-win-fallback-test028-red-fa32f7`, open).
+- Spec: `docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md` (frozen, amended: one measurement record 06:50:52Z, one unsigned contract record 06:58:04Z tracked by `fu-amend-win-fallback-test028-red-fa32f7`, open).
 - Dispatch coaching check: dispatch named round-1 blockers and their remediation (context, not severity pre-rating) and delegated the mutation replay to Validation; no scope exclusion of review areas. Full scope reviewed.
 
 ## Round-1 blockers re-checked
@@ -49,7 +49,7 @@ See yaml block. All four ACs compliant. Spec-AC-04 read once now: no `.aai/` pat
 ## Evidence
 - `env -u AAI_ROLE bash tests/skills/test-aai-win-fallback.sh 028 042` -> rc=0, SKIP line for bash 3.x, PASS TEST-042.
 - `env -u AAI_ROLE AAI_TEST_TIMEOUT=3000 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh --skill aai-win-fallback --skill aai-hygiene-pack --skill aai-spec-lint --skill aai-docs-audit` -> rc=0, 4/4 PASS (spec-lint 32s, win-fallback 36s, hygiene-pack 65s, docs-audit 118s).
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md` -> rc=0 LINT PASS.
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md` -> rc=0 LINT PASS.
 - `node .aai/scripts/spec-amend.mjs list --strict` -> rc=0.
 
 ## cannot_verify

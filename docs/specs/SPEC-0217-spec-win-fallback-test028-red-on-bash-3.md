@@ -1,14 +1,14 @@
 ---
 id: spec-win-fallback-test028-red-on-bash-3
 type: spec
-number: null
+number: 217
 status: implementing
-frozen_sha256: 040732b3e7ea4ea5f743326a43e8bf1d6a1815df17ed8138fc21ff28cba5653d
+frozen_sha256: 2de87dbd15fa349395d9e4fcf540e0ef90930a34845b7ea11f4400ce6cd197d9
 ceremony_level: 1
 links:
   requirement: null
   rfc: null
-  intake: docs/issues/ISSUE-DRAFT-win-fallback-test028-red-on-bash-3.md
+  intake: docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md
   pr: []
   commits: []
 ---
@@ -20,7 +20,7 @@ SPEC-FROZEN: true
 Ceremony justification: test-only change to one function and one new pin in one bash suite (tests/skills/test-aai-win-fallback.sh); no product code, no protected path, no schema; a wrong guard fails closed to the existing behaviour (the arm runs).
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-win-fallback-test028-red-on-bash-3.md (issue id `win-fallback-test028-red-on-bash-3`)
+- Requirement: docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md (issue id `win-fallback-test028-red-on-bash-3`)
 - Decision records: none
 - Technology contract: docs/TECHNOLOGY.md (bash suites under `tests/skills/`)
 
@@ -42,7 +42,7 @@ Ceremony justification: test-only change to one function and one new pin in one 
 - User decision: worktree
 - Base ref: origin/main (ebc5d72b)
 - Worktree branch/path: fix/win-fallback-test028-red-on-bash-3 at /Users/ales/Projects/aai-fix-win-fallback-test028-red-on-bash-3
-- Inline review scope: tests/skills/test-aai-win-fallback.sh, docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md
+- Inline review scope: tests/skills/test-aai-win-fallback.sh, docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md
 
 ## Design decisions
 
@@ -110,7 +110,7 @@ Counts: 4 rows, all in one file. Unit 3 (TEST-002 to TEST-004), integration 1 (T
 ## Verification
 - `env -u AAI_ROLE bash tests/skills/test-aai-win-fallback.sh 028 042` exits 0 on this host.
 - `env -u AAI_ROLE bash tests/skills/test-aai-win-fallback.sh` (whole suite) exits 0 on this host.
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md` shows no errors.
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md` shows no errors.
 - PASS: TEST-001 to TEST-004 green and Spec-AC-01 to Spec-AC-04 done; CI (bash 5) prints the TEST-028 pass line.
 
 ## Evidence contract

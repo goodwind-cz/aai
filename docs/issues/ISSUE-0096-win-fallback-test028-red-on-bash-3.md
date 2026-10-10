@@ -1,7 +1,7 @@
 ---
 id: win-fallback-test028-red-on-bash-3
 type: issue
-number: null
+number: 96
 status: draft
 links:
   pr: []

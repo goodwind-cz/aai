@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: origin/main...HEAD (ebc5d72b..b28ac995), worktree /Users/ales/Projects/aai-fix-win-fallback-test028-red-on-bash-3
-  spec: docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md
+  spec: docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -21,7 +21,7 @@ review:
       - { rank: BLOCKING, file: tests/skills/test-aai-win-fallback.sh, line: 1474,
           issue: "TEST-004 arm asserts the CURRENT checkout's diff vs origin/main touches no .aai/ path; this is a one-ride scope fact baked into a permanent suite",
           failure_scenario: "Any later branch that edits .aai/ (e.g. .aai/scripts/lib/git-bash-path.sh or aai-run-tests.sh, exactly the files that make the selector run this suite; CI checks out with fetch-depth 0 so origin/main exists) makes test_042 fail. Reproduced: scratch clone at b28ac995, origin/main=ebc5d72b, one-line commit to .aai/scripts/lib/git-bash-path.sh -> `test-aai-win-fallback.sh 042` rc=1 'FAIL: TEST-004: diff touches a path under .aai/'" }
-      - { rank: BLOCKING, file: docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md, line: 85,
+      - { rank: BLOCKING, file: docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md, line: 85,
           issue: "AC Status evidence cells cite docs/ai/tdd/... paths on a `direct` strategy spec; spec-lint flags strategy-evidence-mismatch and exits 1",
           failure_scenario: "`node .aai/scripts/spec-lint.mjs --path <this spec>` rc=1; aai-spec-lint real-corpus arms (TEST-009, TEST-004 delta-stage-2, TEST-005 dupac, TEST-007 stratev, TEST-004 halffrozen, TEST-005 actest, TEST-009 clarify) FAIL in this run -> CI red. Also the cited docs/ai/tdd files are gitignored, so the citation is unreachable from the PR" }
       - { rank: BLOCKING, file: tests/skills/test-aai-win-fallback.sh, line: 1480,
@@ -37,7 +37,7 @@ review:
 ```
 
 ## Scope and spec
-Scope `origin/main...HEAD` (ebc5d72b..b28ac995): tests/skills/test-aai-win-fallback.sh, the intake, the frozen spec (AC/Test status columns only post-freeze), docs/INDEX.md, one EVENTS doc_lifecycle line, one decisions.jsonl measurement amendment. No `.aai/` file changed. Spec: docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md (direct, ceremony 1). No coaching in the dispatch beyond the host-capability note and the gate checks it asked for, which are within scope.
+Scope `origin/main...HEAD` (ebc5d72b..b28ac995): tests/skills/test-aai-win-fallback.sh, the intake, the frozen spec (AC/Test status columns only post-freeze), docs/INDEX.md, one EVENTS doc_lifecycle line, one decisions.jsonl measurement amendment. No `.aai/` file changed. Spec: docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md (direct, ceremony 1). No coaching in the dispatch beyond the host-capability note and the gate checks it asked for, which are within scope.
 
 ## Dispatch checks
 - Gate cannot skip on bash >= 4: `win_fallback_exec_arm_decision` prints `skip` only for an all-digit value `-lt 4` (:784-789). Confirmed.
