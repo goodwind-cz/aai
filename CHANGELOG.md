@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: spec-amend classify can sign one record of a same-timestamp amendment pair (classify-same-ts-pair)
+
+- Every spec_amendment record now has a 12-hex record key (sha256 of the record); `spec-amend list --json` shows it as `record_key`. `classify --record <key>` writes an overlay addressed to exactly that record, so an owner signature can land on a contract record even when a measurement record shares its `(ts, ref_id)`.
+- A shared pair without `--record` is still refused as ambiguous, now with one `record=` line per candidate and the runnable `--record` form. Every overlay already on the ledger folds exactly as before (checked against the cf39c58f engine on the live ledger).
+- `add` and `restamp` stay fail-open on a same-second collision, prove the record they actually wrote, and print its `--record` key. Printed `list --strict` remedies add `--record` only for a shared pair.
+- Used once: the PR #448 contract amendment of 2026-10-10T11:35:07Z now reads signed (the owner's "Podepsat" at the merge checkpoint).
+- Known limit: an older spec-amend engine reading this ledger cannot see record-addressed overlays, so its `list --strict` reports that record as unsigned and untracked. Update the AAI layer rather than mixing versions.
+- Refs: CHANGE-0207 / SPEC-0219.
+
 ## [unreleased] — feat: /aai-merge merges the PR you name and cleans up after it (directed-merge-and-post-merge-cleanup)
 
 - New `/aai-merge <PR>` skill (all four skill trees) over a deterministic engine, `.aai/scripts/merge-cleanup.mjs`. On an open PR it runs the read-only gates (state, draft, judged head, checks, mergeability, sweep record) and prints the one `gh pr merge --squash --match-head-commit <sha>` line; the engine itself never merges, and the prompt runs that line only on your explicit invocation for that PR.

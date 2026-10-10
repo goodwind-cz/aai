@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-10T12:33:00.613Z",
+  "generatedAt": "2026-10-10T15:26:30.355Z",
   "project": "aai",
   "counts": {
     "delivered": 288,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -49,6 +49,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "classify-same-ts-pair",
+      "title": "classify can address one record of a same-timestamp amendment pair",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0207-classify-same-ts-pair.md",
+      "closed_on": null,
+      "agent_minutes": 34,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0219-spec-classify-same-ts-pair.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-classify-same-ts-pair-20261010T150813Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -232,7 +245,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-directed-merge-and-post-merge-cleanup-r3-20261010T115727Z.md"
+      "review": "docs/ai/reviews/review-directed-merge-and-post-merge-cleanup-r4-20261010T125912Z.md"
     },
     {
       "ref": "win-fallback-test028-red-on-bash-3",
@@ -4003,7 +4016,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-directed-merge-and-post-merge-cleanup-r3-20261010T115727Z.md"
+          "review": "docs/ai/reviews/review-directed-merge-and-post-merge-cleanup-r4-20261010T125912Z.md"
         },
         {
           "ref": "win-fallback-test028-red-on-bash-3",

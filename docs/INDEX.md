@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-10T15:17:02.566Z
+Generated: 2026-10-10T15:27:01.925Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-classify-same-ts-pair | specs | implementing | 6 done | docs/specs/SPEC-DRAFT-spec-classify-same-ts-pair.md |
+| SPEC-0219 | specs | implementing | 6 done | docs/specs/SPEC-0219-spec-classify-same-ts-pair.md |
 
 ## Canonical layer (0)
 
@@ -579,7 +579,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| classify-same-ts-pair (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-classify-same-ts-pair.md |
+| CHANGE-0207 | issues | docs/issues/CHANGE-0207-classify-same-ts-pair.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

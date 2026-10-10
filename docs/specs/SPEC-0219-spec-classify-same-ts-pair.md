@@ -1,10 +1,10 @@
 ---
 id: spec-classify-same-ts-pair
 type: spec
-number: null
+number: 219
 status: implementing
 mutation_gate: v1
-frozen_sha256: 1ea9ba4bfb402490158dc47810cd9b07b0693c136fdd1858e6ec2b01ddd60a11
+frozen_sha256: 84e2c7f5c2a27ee1b8a39f58a949b771fa5774dffa622a4fd13d5c114ef22396
 ceremony_level: 2
 links:
   requirement: classify-same-ts-pair
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-classify-same-ts-pair.md
+- Requirement: docs/issues/CHANGE-0207-classify-same-ts-pair.md
 - Engine: .aai/scripts/spec-amend.mjs (fold `foldAmendments`, writers
   `cmdAdd`, `cmdClassify`, `cmdRestamp`, gate `cmdList`)
 - Prior art: docs/specs/SPEC-0205-spec-amendment-signature-asks-the-owner-too-often.md
@@ -83,8 +83,8 @@ for classify, spec-amend, same-ts, amendment_class, (ts, ref), digest.
   /Users/ales/Projects/aai-change-classify-same-ts-pair
 - Inline review scope: .aai/scripts/spec-amend.mjs,
   tests/skills/test-aai-spec-amend.sh, CHANGELOG.md,
-  docs/issues/CHANGE-DRAFT-classify-same-ts-pair.md,
-  docs/specs/SPEC-DRAFT-spec-classify-same-ts-pair.md, and the ledger lines
+  docs/issues/CHANGE-0207-classify-same-ts-pair.md,
+  docs/specs/SPEC-0219-spec-classify-same-ts-pair.md, and the ledger lines
   Spec-AC-06 appends to docs/ai/decisions.jsonl (diff range origin/main..HEAD)
 - Code review required: true (code and test change).
 
@@ -282,7 +282,7 @@ on the live ledger before V3 runs. RED logs go to
   test-aai-mutation-gate.sh, test-aai-spec-amend.sh) plus
   test-aai-hygiene-pack.sh (TEST-562 NUL guard, learned-guard lints over the
   new tests), all through the wrapper.
-- Lint: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-classify-same-ts-pair.md`.
+- Lint: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0219-spec-classify-same-ts-pair.md`.
 - Mutation: `node .aai/scripts/mutation-run.mjs` per row against
   `.aai/scripts/spec-amend.mjs`, then `mutation-gate.mjs` at close.
 

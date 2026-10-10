@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: origin/main...HEAD (cf39c58f...49c9c520), worktree /Users/ales/Projects/aai-change-classify-same-ts-pair, branch change/classify-same-ts-pair
-  spec: docs/specs/SPEC-DRAFT-spec-classify-same-ts-pair.md
+  spec: docs/specs/SPEC-0219-spec-classify-same-ts-pair.md
   spec_compliance:
     verdict: pass
     ac_walk:
