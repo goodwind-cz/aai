@@ -4961,6 +4961,69 @@ test_448_record_signed_on_the_live_ledger() {
   log_pass "TEST-009 the #448 contract record is signed through a record-addressed overlay citing 'Podepsat', its sibling stays measurement, both follow-ups are done, strict is clean"
 }
 
+# --- classify-same-ts-pair bot sweep, PR #449 (TEST-010, TEST-011) ---
+
+test_add_duplicate_is_idempotent() {
+  log_info "Test: an add byte-identical to a record already on the ledger appends nothing and names that record's key (TEST-010)..."
+  local led spec rel before_n after_n key
+  led="$(mk_ledger t010)"
+  spec="$(mk_spec "SPEC-DRAFT-t010.md" "spec-t010-fixture")"
+  rel="$(node -e 'process.stdout.write(require("path").relative(process.cwd(), process.argv[1]))' "$spec")"
+  # Seed, for every second of the window the writer can stamp, the EXACT line
+  # `add --class measurement --signoff none` will build, so the collision is a
+  # byte-identical one whichever second the writer lands in.
+  node -e '
+    const fs=require("fs");
+    const [led,spec,specId]=process.argv.slice(1);
+    const now=Math.floor(Date.now()/1000);
+    let out="";
+    for (let s=-1;s<=8;s+=1) {
+      const ts=new Date((now+s)*1000).toISOString().replace(/\.\d{3}Z$/,"Z");
+      out+=JSON.stringify({v:1,ts,actor:"orchestrator",type:"spec_amendment",ref_id:"t010-ref",spec,spec_id:specId,owner_signoff:false,amendment_class:"measurement",what:"repeated change",why:"repeated within one second"})+"\n";
+    }
+    fs.appendFileSync(led,out);
+  ' "$led" "$rel" "spec-t010-fixture"
+  before_n="$(ledger_amendments "$led")"
+  [[ "$before_n" == 10 ]] || log_fail "TEST-010 setup: the seeded window must hold 10 records, got $before_n"
+
+  run_sa add --ledger "$led" --spec "$spec" --ref t010-ref --what "repeated change" --why "repeated within one second" --class measurement --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-010: an identical add must be an idempotent no-op that exits 0; exit $EC (stdout: $OUT) (stderr: $ERR)"
+  after_n="$(ledger_amendments "$led")"
+  [[ "$after_n" == "$before_n" ]] || log_fail "TEST-010: nothing may be appended for a byte-identical record (before=$before_n after=$after_n)"
+  key="$(printf '%s\n' "$OUT" | sed -n 's/.*addressed by --record \([0-9a-f]\{12\}\).*/\1/p;t' )"
+  [[ -n "$key" ]] || log_fail "TEST-010: the no-op must print the existing record's --record key; stdout: $OUT"
+  [[ "$(node "$SA" list --ledger "$led" --json --status all | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{process.stdout.write(String(JSON.parse(s).items.filter(i=>i.record_key===process.argv[1]).length))})' "$key")" == 1 ]] \
+    || log_fail "TEST-010: the printed key $key must address exactly one record on the ledger"
+
+  # Positive control: a NON-identical add in the same window still appends.
+  run_sa add --ledger "$led" --spec "$spec" --ref t010-ref --what "a different change" --why "repeated within one second" --class measurement --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-010 positive control: a non-identical collision must still append; exit $EC (stderr: $ERR)"
+  [[ "$(ledger_amendments "$led")" == "$((before_n + 1))" ]] || log_fail "TEST-010 positive control: exactly one record must be appended for the non-identical add"
+  log_pass "TEST-010 an add identical to a ledger record is an exit-0 no-op naming that record's key, and a non-identical collision still appends"
+}
+
+test_strict_remedy_for_identical_pair_is_a_named_note() {
+  log_info "Test: list --strict prints a named note, not an unrunnable --record line, for byte-identical records (TEST-011)..."
+  local dir specs led a c strict_err n line
+  dir="$TEST_DIR/t011"; mkdir -p "$dir"; specs="$dir/specs"; mkdir -p "$specs"
+  led="$(mk_ledger t011)"
+  a="$(legacy_rec "2026-10-10T11:35:07Z" t011-dup "identical legacy")"
+  c="$(legacy_rec "2026-10-10T11:40:00Z" t011-solo "unshared legacy")"
+  { printf '%s\n' "$a"; printf '%s\n' "$a"; printf '%s\n' "$c"; } >> "$led"
+
+  run_sa list --ledger "$led" --specs-dir "$specs" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-011 setup: the fixture must refuse --strict, got $EC (stderr: $ERR)"
+  strict_err="$ERR"
+  n="$(printf '%s\n' "$strict_err" | /usr/bin/grep -cF 'classify --ts' || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-011: only the unshared record may get a classify line, got $n; stderr: $strict_err"
+  line="$(printf '%s\n' "$strict_err" | /usr/bin/grep -F 'classify --ts' || true)"
+  [[ "$line" == *t011-solo* ]] || log_fail "TEST-011: the one classify line must be the unshared record's; stderr: $strict_err"
+  [[ "$line" != *--record* ]] || log_fail "TEST-011: the unshared line must carry no --record; stderr: $strict_err"
+  n="$(printf '%s\n' "$strict_err" | /usr/bin/grep -cF 'indistinguishable duplicate records: no classify can address one; see the ledger lines' || true)"
+  [[ "$n" == 2 ]] || log_fail "TEST-011: each identical record must get the named note (2 expected), got $n; stderr: $strict_err"
+  log_pass "TEST-011 byte-identical records get a named note instead of an unrunnable --record line, the unshared line is unchanged"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -5028,6 +5091,8 @@ main() {
   test_add_collision_is_addressable
   test_restamp_collision_is_addressable
   test_448_record_signed_on_the_live_ledger
+  test_add_duplicate_is_idempotent
+  test_strict_remedy_for_identical_pair_is_a_named_note
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

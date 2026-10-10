@@ -329,6 +329,17 @@ function pairIsShared(reg, ts, ref) {
   return reg.items.filter((i) => overlayKey(i.ts, i.ref_id) === key).length > 1;
 }
 
+// Bot-sweep round (PR #449): two records of one pair with the SAME key are
+// byte-identical once re-serialised, so no `--record` can tell them apart and
+// `classify` refuses either as indistinguishable. A printed remedy for such a
+// record would be a line that cannot run, so callers print a named note.
+const INDISTINGUISHABLE_NOTE = 'indistinguishable duplicate records: no classify can address one; see the ledger lines';
+function indistinguishableInPair(reg, ts, ref, key) {
+  const pair = overlayKey(ts, ref);
+  if (pair === null || key === null || key === undefined) return false;
+  return reg.items.filter((i) => overlayKey(i.ts, i.ref_id) === pair && i.record_key === key).length > 1;
+}
+
 // D6: the record a writer just appended, read back through its content key.
 // `byKey` (one record per (ts, ref_id)) returns the EARLIER record of a
 // same-second collision and so judges the wrong one.
@@ -1125,6 +1136,20 @@ function cmdAdd(opts) {
   }
   if (signed) entry.authority = opts.authority;
 
+  // An `add` repeated inside one second can build a record byte-identical to
+  // one already on the ledger (the timestamp has second precision). Appending
+  // it would mint a second line no `--record` can address, so an exact
+  // duplicate is an idempotent no-op that names the existing record's key.
+  // Every NON-identical collision still appends (fail-open, D6).
+  const dupKey = recordKey(entry);
+  if (reg.byRecord.has(dupKey)) {
+    const dupAnchor = restampSpecAnchor(absSpec);
+    if (dupAnchor) console.log(`NOTE re-stamped frozen_sha256 on ${specRel} to the current contract projection (${dupAnchor})`);
+    console.log(`spec-amend: add: an identical amendment for ${opts.ref} already sits on the ledger — nothing appended (idempotent no-op); the existing record is addressed by --record ${dupKey}`);
+    exit(0);
+    return;
+  }
+
   const earlierSamePair = earlierInPair(reg, entry);
   appendLine(abs, entry);
 
@@ -1656,9 +1681,15 @@ function cmdRestamp(opts) {
   // the co-created tracked item both happen here, then commitSpecRestamp does
   // the ONE atomic write.
   const earlierSamePair = earlierInPair(reg, entry);
-  appendLine(abs, entry);
-  if (owes && !reg.followUps.has(itemId)) {
-    appendAmendItem(abs, { actor, itemId, ref, specId, specRel, what, why, sourceTs: ts });
+  // Same rule as `add`: a record byte-identical to one already on the ledger is
+  // not appended a second time (nothing could address it); the file re-anchor
+  // below still lands, since that is what the disclosure is for.
+  const duplicateRecord = reg.byRecord.has(recordKey(entry));
+  if (!duplicateRecord) {
+    appendLine(abs, entry);
+    if (owes && !reg.followUps.has(itemId)) {
+      appendAmendItem(abs, { actor, itemId, ref, specId, specRel, what, why, sourceTs: ts });
+    }
   }
 
   commitSpecRestamp(absSpec, computed.out);
@@ -1694,12 +1725,20 @@ function cmdRestamp(opts) {
     // one level up — TEST-1376 runs this line verbatim and checks EVERY
     // printed invocation in this file against FLAG_SPECS itself.
     const recordKeyArg = pairIsShared(after, ts, ref) ? recordKey(entry) : null;
-    for (const remedy of remedyLines((shq) => printedClassify(shq, ts, ref, recordKeyArg, ['--signoff', 'owner', '--source', '"<who decided, where>"', '--why', '"<what the drift really was>"', '--ledger', shq(abs)]))) {
-      console.log(`NOTE sign it off once someone has said what changed: ${remedy}`);
+    if (indistinguishableInPair(after, ts, ref, recordKey(entry))) {
+      console.log(`NOTE ${INDISTINGUISHABLE_NOTE}`);
+    } else {
+      for (const remedy of remedyLines((shq) => printedClassify(shq, ts, ref, recordKeyArg, ['--signoff', 'owner', '--source', '"<who decided, where>"', '--why', '"<what the drift really was>"', '--ledger', shq(abs)]))) {
+        console.log(`NOTE sign it off once someone has said what changed: ${remedy}`);
+      }
     }
   }
-  const collision = collisionNote(earlierSamePair, entry);
-  if (collision !== null) console.log(collision);
+  if (duplicateRecord) {
+    console.log(`NOTE an identical amendment already sat on the ledger, so none was appended (idempotent); the existing record is addressed by --record ${recordKey(entry)}`);
+  } else {
+    const collision = collisionNote(earlierSamePair, entry);
+    if (collision !== null) console.log(collision);
+  }
   if (reusedNote) console.log(`NOTE ${reusedNote}`);
   if (owes) console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
   exit(0);
@@ -1960,6 +1999,10 @@ function cmdList(opts) {
       // ref carrying a quote or whitespace produced a line that breaks when
       // pasted — and TEST-013 runs this line through `eval` (code review
       // NB-E, reproduced through the writer, not only by hand-append).
+      if (indistinguishableInPair(reg, v.ts, v.ref_id, v.record_key)) {
+        process.stderr.write(`  (no runnable remedy for ts=${v.ts} ref=${v.ref_id}: ${INDISTINGUISHABLE_NOTE})\n`);
+        continue;
+      }
       const recordKeyArg = pairIsShared(reg, v.ts, v.ref_id) ? v.record_key : null;
       for (const remedy of remedyLines((shq) => printedClassify(shq, v.ts, v.ref_id, recordKeyArg, ['--signoff', 'none', '--why', '"<one line>"', '--source', '"<evidence>"']))) {
         process.stderr.write(`  ${remedy}\n`);

@@ -4,7 +4,7 @@ type: spec
 number: 219
 status: done
 mutation_gate: v1
-frozen_sha256: 84e2c7f5c2a27ee1b8a39f58a949b771fa5774dffa622a4fd13d5c114ef22396
+frozen_sha256: 6fdb2844ae3c3dfaeee765f23b60a2ce537f898955bef2907c567b39e40e81e5
 ceremony_level: 2
 links:
   requirement: classify-same-ts-pair
@@ -252,6 +252,8 @@ is `.aai/scripts/spec-amend.mjs` for every row.
 | TEST-007 | Spec-AC-04 | integration | tests/skills/test-aai-spec-amend.sh | test_restamp_collision_is_addressable: same seeded window under the spec's ref; restamp of an allocator-renamed frozen spec (existing mk_linked_freezable_spec helper) exits 0 with bucket measurement on the NEW record, NOTE names its key, seeded records unchanged | sed:s/return after\.byRecord\.get\(recordKey\(entry\)\) \?\? null;/return after.byKey.get(overlayKey(entry.ts, entry.ref_id)) ?? null;/ | green |
 | TEST-008 | Spec-AC-05 | integration | tests/skills/test-aai-spec-amend.sh | test_printed_remedies_address_the_record: legacy pair of two unclassified records at one (ts, ref) plus one unshared unclassified record; list --strict exit 1 prints three classify lines, the two shared ones carry --record and the unshared one is byte-equal to the cf39c58f program's line; each line evaled verbatim exits 0; list --strict then exits 0; list --json items carry record_key equal to the recomputed key; --help names --record | sed:s/function pairIsShared\(reg, ts, ref\) \{/function pairIsShared(reg, ts, ref) { return false;/ | green |
 | TEST-009 | Spec-AC-06 | contract | tests/skills/test-aai-spec-amend.sh | test_448_record_signed_on_the_live_ledger: over docs/ai/decisions.jsonl: the ts 2026-10-10T11:35:07Z ref directed-merge-and-post-merge-cleanup row with record_key ae5529c8b535 is signed, and its overlay source contains Podepsat and PR #448; row 1c45f52a2649 is measurement with classified_by null; follow-ups.mjs list --json shows both ids done; list --strict exit 0. RED until the orchestrator runs V3 | sed:s/const RECORD_OVERLAY_FIELD = 'classifies_record';/const RECORD_OVERLAY_FIELD = 'classifies_recordx';/ | green |
+| TEST-010 | Spec-AC-04 | integration | tests/skills/test-aai-spec-amend.sh | test_add_duplicate_is_idempotent (PR #449 bot sweep): seed byte-identical measurement records for each second of a window from now; add of the same what/why exits 0, appends nothing, and prints the existing record's --record key (which addresses exactly one record); positive control: a non-identical add in the same window still appends one record | sed:s/if \(reg\.byRecord\.has\(dupKey\)\) \{/if (false) {/ | green |
+| TEST-011 | Spec-AC-05 | integration | tests/skills/test-aai-spec-amend.sh | test_strict_remedy_for_identical_pair_is_a_named_note (PR #449 bot sweep): two byte-identical legacy records at one (ts, ref) plus one unshared record; list --strict exit 1 prints a classify line only for the unshared record (no --record) and the named note 'indistinguishable duplicate records: no classify can address one; see the ledger lines' once per identical record | sed:s/if \(indistinguishableInPair\(reg, v\.ts, v\.ref_id, v\.record_key\)\) \{/if (false) {/ | green |
 
 RED discipline: each row is observed failing on the pre-change engine for
 its semantic assertion (not a syntax error or a missing helper). TEST-004 is
