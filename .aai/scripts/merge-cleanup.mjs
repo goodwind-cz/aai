@@ -23,7 +23,7 @@
 // superseded-draft archive (batch B1), the D8 base sync and the D10 runtime
 // archive, worktree removal and branch compare-and-swap delete (batch B2), the
 // D9 focus clear, index regeneration, audit verdict and saved report, and the
-// D11 resume contract (batch B3).
+// D11 resume contract (batch B3), and the D3/D4 open-PR preflight (batch B4a).
 // Every precondition that can refuse is derived BEFORE the first write, so a
 // refusal is exit 3 with nothing changed.
 
@@ -682,10 +682,67 @@ function runApplyOrPlan(opts) {
   exit(0);
 }
 
+// ---- D3/D4: open-PR preflight ---------------------------------------------
+
+// A rollup entry is green when it is a completed check with SUCCESS, NEUTRAL or
+// SKIPPED, or a status context in state SUCCESS. Anything else - failed,
+// cancelled, still running or pending - is not.
+function rollupGreen(e) {
+  if (e && typeof e.status === 'string' && e.status !== '') {
+    return e.status === 'COMPLETED' && ['SUCCESS', 'NEUTRAL', 'SKIPPED'].includes(e.conclusion);
+  }
+  if (e && typeof e.state === 'string') return e.state === 'SUCCESS';
+  return false;
+}
+
+// Read-only gates for an OPEN pull request, in the documented order. On success
+// it PRINTS the one merge command; the engine never runs it (D3).
+function runPreflight(opts) {
+  if (!/^[0-9a-f]{40}$/i.test(opts.expectHead ?? '')) usage('preflight requires --expect-head <40-hex sha>');
+  if (opts.directedBy !== 'human' || (opts.direction ?? '').trim() === '') {
+    refuse('no_direction', 'needs --directed-by human and the owner\'s verbatim --direction');
+  }
+  const cwd = opts.origin ?? process.cwd();
+  const r = spawnSync('gh', ['pr', 'view', String(opts.pr), '--json', PR_FIELDS], {
+    cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+  });
+  if (r.error || r.status !== 0) refuse('gh_read_failed', `gh pr view ${opts.pr}`);
+  let pr;
+  try { pr = JSON.parse(r.stdout); } catch { refuse('gh_read_invalid', 'gh pr view printed no JSON'); }
+  if (pr.state === 'MERGED') {
+    process.stdout.write(`already_merged PR #${opts.pr} is merged; run: merge-cleanup.mjs apply --pr ${opts.pr} --pid <harness pid>\n`);
+    exit(0);
+  }
+  if (pr.state !== 'OPEN') refuse('not_open', `state=${pr.state ?? 'unknown'}`);
+  if (pr.isDraft) refuse('draft', `PR #${opts.pr} is a draft`);
+  const head = pr.headRefOid ?? '';
+  if (head.toLowerCase() !== opts.expectHead.toLowerCase()) refuse('head_changed', `PR head ${head || 'unknown'}, expected ${opts.expectHead}`);
+  const rollup = Array.isArray(pr.statusCheckRollup) ? pr.statusCheckRollup : [];
+  const bad = rollup.filter((e) => !rollupGreen(e));
+  if (bad.length > 0) refuse('checks_failing', bad.map((e) => `${e.name ?? e.context ?? 'check'}=${e.conclusion || e.state || e.status || 'unknown'}`).join(','));
+  if (pr.mergeStateStatus !== 'CLEAN') refuse('not_mergeable', `mergeStateStatus=${pr.mergeStateStatus ?? 'unknown'}`);
+  // The sweep is judged by the real lane-gate, in the checkout named by --origin
+  // (the ride checkout the merge is being judged from), else the engine's own.
+  const gateArgs = [path.join(SCRIPT_DIR, 'lane-gate.mjs'), '--sweep-check', '--pr', String(opts.pr)];
+  if (opts.origin) gateArgs.push('--repo-root', opts.origin);
+  const g = spawnSync(process.execPath, gateArgs, { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const gateOut = (g.stdout ?? '').trim();
+  if (g.error || g.status !== 0) {
+    refuse('sweep_missing', gateOut.split('\n').filter(Boolean).join(' | ') || 'lane-gate --sweep-check did not allow the merge');
+  }
+  const command = `AAI_OPERATOR_MERGE=1 gh pr merge ${opts.pr} --squash --match-head-commit ${head}`;
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify({ ready: true, pr: opts.pr, head, command, sweep: gateOut, direction: opts.direction })}\n`);
+  } else {
+    process.stdout.write(`READY PR #${opts.pr} head ${head}\n${gateOut}\n${command}\n`);
+  }
+  exit(10);
+}
+
 function main(argv) {
   if (argv.includes('--help') || argv.includes('-h')) { process.stdout.write(HELP); exit(0); }
   const opts = parseArgs(argv);
-  if (opts.mode === 'preflight') usage('preflight is not implemented in this build');
+  if (opts.mode === 'preflight') runPreflight(opts);
   runApplyOrPlan(opts);
 }
 

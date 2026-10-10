@@ -5,6 +5,7 @@
 # B1: TEST-005 (apply read-back gate), TEST-006/007 (drafts).
 # B2: TEST-008/009 (base sync), TEST-010/011 (worktree and branch cleanup).
 # B3: TEST-012 (focus, index, report), TEST-013/014 (idempotence and resume).
+# B4a: TEST-003/004 (open-PR preflight), TEST-015 (downstream installed layout).
 set -euo pipefail
 
 case "$0" in /*) HERE="${0%/*}" ;; */*) HERE="$PWD/${0%/*}" ;; *) HERE="$PWD" ;; esac
@@ -86,6 +87,18 @@ DRAFT_SPEC='docs/specs/SPEC-DRAFT-spec-foo.md'
 NUM_ISSUE='docs/issues/ISSUE-0001-foo.md'
 NUM_SPEC='docs/specs/SPEC-0001-spec-foo.md'
 
+# install_core_layer: a downstream installation in ORIGIN. aai-sync.sh core
+# puts .aai/ and the skill trees under .gitignore; everything else it writes is
+# committed so the origin starts clean.
+install_core_layer() {
+  [[ -n "$ORIGIN" && "$ORIGIN" = /* && -d "$ORIGIN" ]] || fail SETUP 'install target'
+  run bash "$ROOT/.aai/scripts/aai-sync.sh" "$ORIGIN" --profile core >"$W/sync.out" 2>&1
+  run git -C "$ORIGIN" add -A
+  run git -C "$ORIGIN" commit -qm 'install aai core'
+  run git -C "$ORIGIN" push -q origin main
+  run git -C "$ORIGIN" fetch -q origin
+}
+
 # build_world <name>: bare origin, origin checkout with untracked DRAFT copies,
 # a ride worktree whose branch history holds the drafts and then the numbered
 # docs, a squash commit on the bare main, and a MERGED PR fixture for gh.
@@ -114,12 +127,14 @@ build_world() {
   run git -C "$ORIGIN" commit -qm baseline
   run git -C "$ORIGIN" push -q origin main
   run git -C "$ORIGIN" fetch -q origin
+  if [[ -n "${DOWNSTREAM:-}" ]]; then install_core_layer; fi
   run mkdir -p "$ORIGIN/docs/issues" "$ORIGIN/docs/specs"
   draft_issue_v1 > "$ORIGIN/$DRAFT_ISSUE"
   draft_spec_v1 > "$ORIGIN/$DRAFT_SPEC"
   run git -C "$ORIGIN" worktree add -q -b "$BRANCH" "$RIDE" main
   run git -C "$RIDE" config user.name 'AAI Fixture'
   run git -C "$RIDE" config user.email 'fixture@example.invalid'
+  if [[ -n "${DOWNSTREAM:-}" ]]; then run node "$ORIGIN/.aai/scripts/worktree-seed.mjs" --source "$ORIGIN" --target "$RIDE" >/dev/null; fi
   run mkdir -p "$RIDE/docs/issues" "$RIDE/docs/specs"
   run cp "$ORIGIN/$DRAFT_ISSUE" "$RIDE/$DRAFT_ISSUE"
   run cp "$ORIGIN/$DRAFT_SPEC" "$RIDE/$DRAFT_SPEC"
@@ -809,10 +824,180 @@ test_014_interrupted_run_converges() {
   echo 'PASS: TEST-014 interrupted run converges to the uninterrupted bytes'
 }
 
+# ---------------------------------------------------------------------------
+# B4a: open-PR preflight (TEST-003/004) and the downstream layout (TEST-015).
+# write_open_pr <state> <isDraft> <head> <mergeStateStatus> <rollup-json>
+write_open_pr() {
+  printf '{"number":%s,"state":"%s","isDraft":%s,"headRefOid":"%s","headRefName":"%s","baseRefName":"main","mergeStateStatus":"%s","statusCheckRollup":%s,"mergeCommit":null,"url":"https://github.com/example/repo/pull/%s"}\n' \
+    "$PR" "$1" "$2" "$3" "$BRANCH" "$4" "$5" "$PR" > "$GHD/pr-$PR.json"
+}
+ROLLUP_OK='[{"__typename":"CheckRun","name":"a","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"CheckRun","name":"b","status":"COMPLETED","conclusion":"NEUTRAL"},{"__typename":"CheckRun","name":"c","status":"COMPLETED","conclusion":"SKIPPED"},{"__typename":"StatusContext","context":"d","state":"SUCCESS"}]'
+SWEEP_OK='{"v":1,"ts":"2026-10-10T01:00:00Z","actor":"fixture","event":"pr_sweep","ref":"foo","payload":{"pr":433,"lane":"heavy","threads_seen":1,"threads_unresolved":0,"reviewer_bots":"expected","outcome":"swept"}}'
+
+# open_world <name>: a ride worktree on the PR head with a consistent sweep
+# record (uncommitted) and an OPEN, clean, green PR. The sweep is judged in RIDE.
+open_world() {
+  build_world "$1"
+  printf '%s\n' "$SWEEP_OK" >> "$RIDE/docs/ai/EVENTS.jsonl"
+  write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
+  : > "$GHD/gh-argv.log"
+}
+
+# pf: the full, valid preflight argument list; arms append an override.
+pf() { run_engine preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by human --direction 'merge 433 please' --origin "$RIDE" "$@"; }
+
+# expect_refusal <test id> <reason> <command...>: exit 3, named reason, the
+# fixture digest unchanged, and no merge-class gh call.
+expect_refusal() {
+  local tid="$1" reason="$2" before
+  shift 2
+  before="$(world_digest)"
+  : > "$GHD/gh-argv.log"
+  "$@"
+  [[ "$ENG_RC" -eq 3 ]] || fail "$tid" "arm $reason exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  want "$tid" "$ENG_OUT" "REFUSE $reason"
+  [[ "$(world_digest)" == "$before" ]] || fail "$tid" "arm $reason changed the fixture"
+  assert_no_merge_call "$tid"
+}
+
+test_003_preflight_refusals() {
+  open_world pf_refuse
+  local arm
+  # no_direction: three shapes
+  expect_refusal TEST-003 no_direction run_engine preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by human --origin "$RIDE"
+  expect_refusal TEST-003 no_direction run_engine preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by human --direction '   ' --origin "$RIDE"
+  expect_refusal TEST-003 no_direction run_engine preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by agent --direction 'merge it' --origin "$RIDE"
+  # a missing expected head is a usage error, not a refusal
+  run_engine preflight --pr "$PR" --directed-by human --direction 'x' --origin "$RIDE"
+  [[ "$ENG_RC" -eq 2 ]] || fail TEST-003 "missing --expect-head exited $ENG_RC, want 2"
+
+  write_open_pr CLOSED false "$HEAD_OID" CLEAN "$ROLLUP_OK"
+  expect_refusal TEST-003 not_open pf
+  want TEST-003 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"   # positive control: the read ran
+  write_open_pr OPEN true "$HEAD_OID" CLEAN "$ROLLUP_OK"
+  expect_refusal TEST-003 draft pf
+  # a draft that is also blocked reports the first reason in the documented order
+  write_open_pr OPEN true "$HEAD_OID" BLOCKED '[{"__typename":"CheckRun","name":"a","status":"COMPLETED","conclusion":"FAILURE"}]'
+  expect_refusal TEST-003 draft pf
+  write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
+  expect_refusal TEST-003 head_changed run_engine preflight --pr "$PR" --expect-head 0123456789012345678901234567890123456789 --directed-by human --direction 'merge 433 please' --origin "$RIDE"
+  for arm in '[{"__typename":"CheckRun","name":"a","status":"COMPLETED","conclusion":"FAILURE"}]' \
+             '[{"__typename":"CheckRun","name":"a","status":"IN_PROGRESS","conclusion":""}]' \
+             '[{"__typename":"CheckRun","name":"a","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"StatusContext","context":"d","state":"PENDING"}]' \
+             '[{"__typename":"StatusContext","context":"d","state":"FAILURE"}]' \
+             '[{"__typename":"CheckRun","name":"a","status":"COMPLETED","conclusion":"CANCELLED"}]'; do
+    write_open_pr OPEN false "$HEAD_OID" CLEAN "$arm"
+    expect_refusal TEST-003 checks_failing pf
+  done
+  for arm in BLOCKED BEHIND DIRTY UNSTABLE UNKNOWN HAS_HOOKS; do
+    write_open_pr OPEN false "$HEAD_OID" "$arm" "$ROLLUP_OK"
+    expect_refusal TEST-003 not_mergeable pf
+  done
+  # sweep_missing through the REAL lane-gate: no record, then a contradictory one
+  write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
+  run cp "$RIDE/docs/ai/EVENTS.jsonl" "$W/events.with-sweep"
+  { /usr/bin/grep -v '"pr_sweep"' "$W/events.with-sweep" || true; } > "$RIDE/docs/ai/EVENTS.jsonl"
+  expect_refusal TEST-003 sweep_missing pf
+  want TEST-003 "$ENG_OUT" 'SWEEP-CHECK denied'
+  { /usr/bin/grep -v '"pr_sweep"' "$W/events.with-sweep" || true; } > "$RIDE/docs/ai/EVENTS.jsonl"
+  printf '%s\n' "${SWEEP_OK/\"threads_unresolved\":0/\"threads_unresolved\":3}" >> "$RIDE/docs/ai/EVENTS.jsonl"
+  expect_refusal TEST-003 sweep_missing pf
+  want TEST-003 "$ENG_OUT" 'contradictory-record'
+
+  # negative controls: a merged PR points at apply (exit 0), and the all-good
+  # fixture is ready (exit 10) - the refusals above are not vacuous
+  run cp "$W/events.with-sweep" "$RIDE/docs/ai/EVENTS.jsonl"
+  write_pr_json MERGED "$MC"
+  pf
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-003 "merged PR exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-003 "$ENG_OUT" already_merged
+  want TEST-003 "$ENG_OUT" apply
+  write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-003 "all-good control exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+  echo 'PASS: TEST-003 preflight refusals'
+}
+
+test_004_preflight_ready() {
+  open_world pf_ready
+  local before cmd n
+  before="$(world_digest)"
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-004 "ready exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+  cmd="AAI_OPERATOR_MERGE=1 gh pr merge $PR --squash --match-head-commit $HEAD_OID"
+  n="$(printf '%s\n' "$ENG_OUT" | { /usr/bin/grep -c 'gh pr merge' || true; })"
+  [[ "$n" == 1 ]] || fail TEST-004 "output carries $n merge commands, want exactly 1: $ENG_OUT"
+  [[ "$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep 'gh pr merge')" == "$cmd" ]] || fail TEST-004 "printed command is not the pinned one: $ENG_OUT"
+  unwanted TEST-004 "$ENG_OUT" '--admin'
+  unwanted TEST-004 "$ENG_OUT" '--auto'
+  unwanted TEST-004 "$ENG_OUT" '--delete-branch'
+  # positive controls: the PR read and the real sweep check both ran
+  want TEST-004 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"
+  want TEST-004 "$ENG_OUT" 'SWEEP-CHECK allowed'
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-004 'preflight changed the fixture'
+  assert_no_merge_call TEST-004
+  # --json carries the same single command and the judged head
+  pf --json
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-004 "json ready exited $ENG_RC"
+  [[ "$(json_get "$ENG_OUT" 'j.command')" == "$cmd" ]] || fail TEST-004 'json command differs'
+  [[ "$(json_get "$ENG_OUT" 'j.head')" == "$HEAD_OID" ]] || fail TEST-004 'json head differs'
+  assert_no_merge_call TEST-004
+  # plan on a merged PR never prints or runs a merge either
+  write_pr_json MERGED "$MC"
+  run_engine plan --pr "$PR" --origin "$ORIGIN"
+  unwanted TEST-004 "$ENG_OUT" 'gh pr merge'
+  assert_no_merge_call TEST-004
+  echo 'PASS: TEST-004 preflight ready prints one pinned command'
+}
+
+test_015_downstream_layout() {
+  local saved_engine="$ENGINE" tracked
+  DOWNSTREAM=1 build_world "down stream"
+  # installed layout: .aai and the skill trees exist on disk, are ignored, nothing under them is tracked
+  [[ -f "$ORIGIN/.aai/scripts/merge-cleanup.mjs" ]] || fail TEST-015 'core install omitted the engine'
+  [[ -f "$RIDE/.aai/scripts/merge-cleanup.mjs" ]] || fail TEST-015 'seed omitted the engine'
+  tracked="$(git -C "$ORIGIN" ls-files -- .aai .claude/skills .agents/skills .codex/skills .gemini/skills | wc -l | tr -d ' ')"
+  [[ "$tracked" == 0 ]] || fail TEST-015 "git ls-files lists $tracked path(s) under .aai or a skill tree"
+  git -C "$ORIGIN" check-ignore -q .aai/scripts/merge-cleanup.mjs || fail TEST-015 '.aai is not ignored in the origin'
+  git -C "$ORIGIN" check-ignore -q .claude/skills/x || fail TEST-015 'the Claude skill tree is not ignored in the origin'
+  # dirty-worktree refusal from the installed engine
+  printf 'edit\n' >> "$RIDE/README.md"
+  ENGINE="$ORIGIN/.aai/scripts/merge-cleanup.mjs"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  ENGINE="$saved_engine"
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-015 "apply with a dirty worktree exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-015 "$ENG_OUT" 'REFUSE worktree_dirty'
+  [[ -d "$RIDE" ]] || fail TEST-015 'dirty worktree was removed'
+  git -C "$ORIGIN" show-ref --verify -q "refs/heads/$BRANCH" || fail TEST-015 'branch of a dirty worktree was deleted'
+  # positive cleanup once the edit is undone (rewritten from the committed blob, never a restore command)
+  git -C "$RIDE" show "HEAD:README.md" > "$W/readme.ride" || fail SETUP 'ride README blob'
+  run cp "$W/readme.ride" "$RIDE/README.md"
+  ENGINE="$ORIGIN/.aai/scripts/merge-cleanup.mjs"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  ENGINE="$saved_engine"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-015 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status "$ENG_OUT" archive-drafts)" == done ]] || fail TEST-015 'drafts were not archived'
+  [[ "$(step_status "$ENG_OUT" remove-worktree)" == done ]] || fail TEST-015 "worktree step reported $(step_status "$ENG_OUT" remove-worktree)"
+  [[ "$(step_status "$ENG_OUT" delete-branch)" == done ]] || fail TEST-015 "branch step reported $(step_status "$ENG_OUT" delete-branch)"
+  [[ ! -e "$RIDE" ]] || fail TEST-015 'worktree still present'
+  if git -C "$ORIGIN" show-ref --verify -q "refs/heads/$BRANCH"; then fail TEST-015 'branch still present'; fi
+  [[ -f "$ORIGIN/$NUM_ISSUE" && -f "$ORIGIN/$NUM_SPEC" ]] || fail TEST-015 'numbered docs missing from the origin'
+  [[ ! -e "$ORIGIN/$DRAFT_ISSUE" && ! -e "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-015 'superseded draft still in the origin'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-015 'origin HEAD is not the merge commit'
+  tracked="$(git -C "$ORIGIN" ls-files -- .aai | wc -l | tr -d ' ')"
+  [[ "$tracked" == 0 ]] || fail TEST-015 "git ls-files lists $tracked path(s) under .aai after apply"
+  assert_no_merge_call TEST-015
+  echo 'PASS: TEST-015 downstream installed layout'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate; test_006_superseded_drafts; test_007_retained_and_decisions
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
-     test_012_state_index_report; test_013_second_apply_is_noop; test_014_interrupted_run_converges ;;
+     test_012_state_index_report; test_013_second_apply_is_noop; test_014_interrupted_run_converges
+     test_003_preflight_refusals; test_004_preflight_ready; test_015_downstream_layout ;;
+  TEST-003|test_003_preflight_refusals) test_003_preflight_refusals ;;
+  TEST-004|test_004_preflight_ready) test_004_preflight_ready ;;
+  TEST-015|test_015_downstream_layout) test_015_downstream_layout ;;
   TEST-005|test_005_apply_readback_gate) test_005_apply_readback_gate ;;
   TEST-006|test_006_superseded_drafts) test_006_superseded_drafts ;;
   TEST-007|test_007_retained_and_decisions) test_007_retained_and_decisions ;;
