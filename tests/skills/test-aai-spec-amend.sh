@@ -4566,6 +4566,11 @@ test_classify_refuses_what_it_cannot_tell_apart() {
   n="$(printf '%s\n' "$ERR" | /usr/bin/grep -c 'record=' || true)"
   [[ "$n" -ge 2 && "$ERR" == *"record=$PAIR_CK"* && "$ERR" == *"record=$PAIR_MK"* ]] || log_fail "TEST-003 arm 1: one record= line per candidate expected (both keys); got: $ERR"
   [[ "$sha" == "$(ledger_sha "$led")" ]] || log_fail "TEST-003 arm 1: ledger must be byte-identical"
+  # D5: the refusal ends with the runnable --record form; D7: the duplicate-key NOTE names --record.
+  [[ "$ERR" == *"spec-amend.mjs classify --ts"*"--record <key> --signoff owner"* ]] || log_fail "TEST-003 arm 1: the refusal must print the runnable --record form (D5); got: $ERR"
+  local note
+  note="$(node "$SA" list --ledger "$led" --status all)"
+  [[ "$note" == *"only \`classify\` without --record refuses such a pair, as ambiguous"* ]] || log_fail "TEST-003 arm 1: the duplicate-key NOTE must say classify refuses only without --record (D7); got: $note"
 
   # arm 2: two byte-identical records -> --record cannot tell them apart
   local twin ledtw

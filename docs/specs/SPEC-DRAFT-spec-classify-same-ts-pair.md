@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 56f11e8aa73f428742701bea0dc9c4cc5b84df81a3b57a283512e9facbc057ad
+frozen_sha256: 1ea9ba4bfb402490158dc47810cd9b07b0693c136fdd1858e6ec2b01ddd60a11
 ceremony_level: 2
 links:
   requirement: classify-same-ts-pair
@@ -100,9 +100,10 @@ orchestrator then runs Spec-AC-06's commands, which turn TEST-009 green.
 - D1 RECORD KEY. Every `spec_amendment` record has a stable per-record key:
   the first 12 hex characters of sha256 over `JSON.stringify(record)`, where
   `record` is the parsed ledger line. Measured on the ledger at cf39c58f plus
-  this branch: all 380 amendment records get distinct keys, and for every
-  line `JSON.stringify(JSON.parse(line))` equals the line, so the key equals
-  the hash of the line itself. Two records with equal content get equal keys
+  this branch: all 380 amendment records get distinct keys. For 363 of them
+  `JSON.stringify(JSON.parse(line))` equals the line; 17 were written with
+  spaced JSON, so their key is the hash of the re-serialised record, not of
+  the raw line. The key is deterministic either way. Two records with equal content get equal keys
   and are by definition indistinguishable. The key is computed, never
   stored on the amendment record.
 - D2 MANDATED IDENTIFIERS (the Mutation cells anchor on them):

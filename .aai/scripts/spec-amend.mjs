@@ -549,7 +549,7 @@ function foldAmendments(records) {
     notes.push(`NOTE ${orphanRecordOverlays} spec_amendment_classification record(s) address a record key with no spec_amendment — counted, never applied`);
   }
   if (duplicateKeys) {
-    notes.push(`NOTE ${duplicateKeys} spec_amendment record(s) share a (ts, ref_id) pair with an earlier one — every record is still LISTED and counted; only \`classify\` refuses such a pair, as ambiguous`);
+    notes.push(`NOTE ${duplicateKeys} spec_amendment record(s) share a (ts, ref_id) pair with an earlier one — every record is still LISTED and counted; only \`classify\` without --record refuses such a pair, as ambiguous`);
   }
 
   const counts = { total: items.length };
@@ -1393,7 +1393,8 @@ function cmdClassify(opts) {
   if (wantRecord === null) {
     if (candidates.length > 1) {
       const lines = candidates.map((i) => `  record=${i.record_key} class=${i.amendment_class} bucket=${i.bucket} what=${i.what.slice(0, 80)}`);
-      usageError(`--ts "${opts.ts}" --ref "${opts.ref}" matches ${candidates.length} spec_amendment records in ${abs} — ambiguous, refused rather than guessed. Address one with --record <key>:\n${lines.join('\n')}`);
+      const runnable = remedyLines((shq) => printedClassify(shq, str(opts.ts), str(opts.ref), '<key>', ['--signoff', str(opts.signoff) || '<owner|none>', '--why', '"<one line>"', '--source', '"<evidence>"']));
+      usageError(`--ts "${opts.ts}" --ref "${opts.ref}" matches ${candidates.length} spec_amendment records in ${abs} — ambiguous, refused rather than guessed. Address one with --record <key>:\n${lines.join('\n')}\n${runnable.map((r) => `  ${r}`).join('\n')}`);
     }
   } else {
     const matched = candidates.filter((i) => i.record_key === wantRecord);
