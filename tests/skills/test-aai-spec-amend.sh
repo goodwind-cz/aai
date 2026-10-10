@@ -4445,6 +4445,627 @@ STDERR:  $(cat "$e")"
   log_pass "TEST-1381 the printed remedy is rendered in the one literal POSIX sh and PowerShell read identically and runs verbatim in both (live PowerShell run: $had_pwsh), and a value no common literal covers prints both labelled forms, each runnable in its own shell"
 }
 
+# --- classify-same-ts-pair (SPEC spec-classify-same-ts-pair, TEST-001..003) ---
+# One (ts, ref_id) pair can hold several spec_amendment records; `classify`
+# addresses ONE of them by a content key (--record). Fixtures are scratch
+# ledgers; the shipping ledger is never written.
+
+# rec_key <json line> -> the 12-hex content key (sha256 of the re-serialised
+# parsed record), computed here independently of the engine.
+rec_key() {
+  node -e 'const c=require("crypto");process.stdout.write(c.createHash("sha256").update(JSON.stringify(JSON.parse(process.argv[1]))).digest("hex").slice(0,12))' "$1"
+}
+
+# pair_rec <ts> <ref> <class> <what> [tracked_by] -> one spec_amendment line.
+pair_rec() {
+  local tb=""
+  if [[ -n "${5:-}" ]]; then tb=",\"tracked_by\":\"$5\""; fi
+  printf '{"v":1,"ts":"%s","actor":"orchestrator","type":"spec_amendment","ref_id":"%s","spec":"docs/specs/SPEC-DRAFT-spec-pair.md","spec_id":"spec-pair","owner_signoff":false,"amendment_class":"%s","what":"%s","why":"fixture"%s}' \
+    "$1" "$2" "$3" "$4" "$tb"
+}
+
+# json_rows <ledger> <ts> <ref> <class> -> JSON of the matching list --json rows
+# with record_key removed (so a pre-change engine's rows compare equal).
+json_rows() {
+  node "$SA" list --ledger "$1" --json --status all 2>/dev/null | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      const j=JSON.parse(s);
+      const rows=j.items.filter(i=>i.ts===process.argv[1]&&i.ref_id===process.argv[2]&&(process.argv[3]===""||i.amendment_class===process.argv[3]))
+        .map(i=>{const c=Object.assign({},i);delete c.record_key;return c;});
+      process.stdout.write(JSON.stringify(rows));
+    })' "$2" "$3" "${4:-}"
+}
+
+ledger_sha() { node -e 'const c=require("crypto");process.stdout.write(c.createHash("sha256").update(require("fs").readFileSync(process.argv[1])).digest("hex"))' "$1"; }
+
+# mk_mixed_pair <name> -> sets PAIR_LED, PAIR_TS, PAIR_REF, PAIR_CK (contract key), PAIR_MK (measurement key)
+mk_mixed_pair() {
+  local led c m
+  PAIR_TS="2026-10-10T11:35:07Z"; PAIR_REF="pair-ref"
+  led="$(mk_ledger "$1")"
+  c="$(pair_rec "$PAIR_TS" "$PAIR_REF" contract "contract change" fu-amend-spec-pair)"
+  m="$(pair_rec "$PAIR_TS" "$PAIR_REF" measurement "measurement change")"
+  {
+    printf '%s\n' '{"v":1,"ts":"2026-10-10T11:35:08Z","actor":"orchestrator","type":"follow_up","id":"fu-amend-spec-pair","priority":"P2","what":"owner sign-off owed","why":"fixture"}'
+    printf '%s\n' "$c"
+    printf '%s\n' "$m"
+  } >> "$led"
+  PAIR_LED="$led"; PAIR_CK="$(rec_key "$c")"; PAIR_MK="$(rec_key "$m")"
+}
+
+test_classify_record_signs_one_of_a_pair() {
+  log_info "Test: classify --record signs exactly one record of a same-(ts, ref) pair (TEST-001)..."
+  local specs before_m after_m strict_before strict_after lines_before lines_after new_line
+  mk_mixed_pair t001
+  specs="$TEST_DIR/t001-specs"; mkdir -p "$specs"
+  [[ "$PAIR_CK" != "$PAIR_MK" && "${#PAIR_CK}" == 12 ]] || log_fail "TEST-001 setup: the two records must have distinct 12-hex keys (got $PAIR_CK / $PAIR_MK)"
+
+  before_m="$(json_rows "$PAIR_LED" "$PAIR_TS" "$PAIR_REF" measurement)"
+  run_sa list --ledger "$PAIR_LED" --strict --specs-dir "$specs"; strict_before="$EC"
+  lines_before="$(wc -l < "$PAIR_LED" | tr -d ' ')"
+
+  run_sa classify --ledger "$PAIR_LED" --ts "$PAIR_TS" --ref "$PAIR_REF" --record "$PAIR_CK" --signoff owner --why "owner signed" --source "owner answer"
+  [[ "$EC" == 0 ]] || log_fail "TEST-001: classify --record $PAIR_CK must exit 0, got $EC (stderr: $ERR)"
+
+  lines_after="$(wc -l < "$PAIR_LED" | tr -d ' ')"
+  [[ "$lines_after" == "$((lines_before + 1))" ]] || log_fail "TEST-001: exactly one overlay line must be appended (before=$lines_before after=$lines_after)"
+  new_line="$(tail -n 1 "$PAIR_LED")"
+  [[ "$new_line" == *'"classifies_record":"'"$PAIR_CK"'"'* ]] || log_fail "TEST-001 positive control: the overlay must carry classifies_record=$PAIR_CK; got: $new_line"
+  [[ "$new_line" != *classifies_ts* && "$new_line" != *classifies_ref* ]] || log_fail "TEST-001: a record-addressed overlay must carry NO classifies_ts / classifies_ref (an older reader would apply it to both records); got: $new_line"
+
+  local rows
+  rows="$(node "$SA" list --ledger "$PAIR_LED" --json --status all | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+      const c=j.items.find(i=>i.amendment_class==="contract");
+      process.stdout.write(c.bucket+" "+(c.classified_by===null?"null":"set"))})')"
+  [[ "$rows" == "signed set" ]] || log_fail "TEST-001: the contract record must fold to bucket signed with classified_by set; got: $rows"
+
+  after_m="$(json_rows "$PAIR_LED" "$PAIR_TS" "$PAIR_REF" measurement)"
+  [[ "$before_m" == "$after_m" ]] || log_fail "TEST-001: the measurement sibling's row must be unchanged.
+before: $before_m
+after:  $after_m"
+  run_sa list --ledger "$PAIR_LED" --strict --specs-dir "$specs"; strict_after="$EC"
+  [[ "$strict_before" == "$strict_after" ]] || log_fail "TEST-001: list --strict exit must be unchanged (before=$strict_before after=$strict_after)"
+  log_pass "TEST-001 classify --record signed exactly the contract record; the measurement sibling and the strict exit are unchanged"
+}
+
+test_record_overlay_folds_to_its_record_only() {
+  log_info "Test: a hand-written record-addressed overlay folds to its record only (TEST-002)..."
+  mk_mixed_pair t002
+  local led="$PAIR_LED" before_m after out
+  before_m="$(json_rows "$led" "$PAIR_TS" "$PAIR_REF" measurement)"
+  printf '%s\n' '{"v":1,"ts":"2026-10-10T14:00:00Z","actor":"hand","type":"spec_amendment_classification","classifies_record":"'"$PAIR_CK"'","owner_signoff":true,"why":"hand written","source":"fixture"}' >> "$led"
+  after="$(node "$SA" list --ledger "$led" --json --status all | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+      process.stdout.write(j.items.map(i=>i.amendment_class+":"+i.bucket).sort().join(","))})')"
+  [[ "$after" == "contract:signed,measurement:measurement" ]] || log_fail "TEST-002: only the addressed record may fold signed; got: $after"
+  [[ "$(json_rows "$led" "$PAIR_TS" "$PAIR_REF" measurement)" == "$before_m" ]] || log_fail "TEST-002: the sibling row must be untouched"
+
+  # An overlay naming a key no record has is counted in a NOTE and applied to nothing.
+  printf '%s\n' '{"v":1,"ts":"2026-10-10T14:00:01Z","actor":"hand","type":"spec_amendment_classification","classifies_record":"000000000000","owner_signoff":true,"why":"hand written","source":"fixture"}' >> "$led"
+  out="$(node "$SA" list --ledger "$led" --status all)"
+  [[ "$out" == *"address a record key with no spec_amendment"* ]] || log_fail "TEST-002: an overlay addressing an unknown record key must be counted in a NOTE; got: $out"
+  [[ "$out" != *"carry no usable classifies_ts"* ]] || log_fail "TEST-002: a record-addressed overlay must not be counted as dangling by THIS reader"
+  after="$(node "$SA" list --ledger "$led" --json --status all | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+      process.stdout.write(j.items.filter(i=>i.bucket==="signed").length+"/"+j.items.length)})')"
+  [[ "$after" == "1/2" ]] || log_fail "TEST-002: the unknown-key overlay must be applied to nothing; signed/total=$after"
+  log_pass "TEST-002 a record-addressed overlay folds to its record only; an unknown key is a counted NOTE and applies to nothing"
+}
+
+test_classify_refuses_what_it_cannot_tell_apart() {
+  log_info "Test: classify refuses what it cannot tell apart, ledger untouched (TEST-003)..."
+  mk_mixed_pair t003
+  local led="$PAIR_LED" sha n
+
+  # arm 1: shared pair, no --record -> ambiguous, one record= line per candidate
+  sha="$(ledger_sha "$led")"
+  run_sa classify --ledger "$led" --ts "$PAIR_TS" --ref "$PAIR_REF" --signoff owner --why w --source s
+  [[ "$EC" == 2 ]] || log_fail "TEST-003 arm 1: expected exit 2, got $EC"
+  [[ "$ERR" == *ambiguous* ]] || log_fail "TEST-003 arm 1: stderr must say ambiguous; got: $ERR"
+  n="$(printf '%s\n' "$ERR" | /usr/bin/grep -c 'record=' || true)"
+  [[ "$n" -ge 2 && "$ERR" == *"record=$PAIR_CK"* && "$ERR" == *"record=$PAIR_MK"* ]] || log_fail "TEST-003 arm 1: one record= line per candidate expected (both keys); got: $ERR"
+  [[ "$sha" == "$(ledger_sha "$led")" ]] || log_fail "TEST-003 arm 1: ledger must be byte-identical"
+  # D5: the refusal ends with the runnable --record form; D7: the duplicate-key NOTE names --record.
+  [[ "$ERR" == *"spec-amend.mjs classify --ts"*"--record <key> --signoff owner"* ]] || log_fail "TEST-003 arm 1: the refusal must print the runnable --record form (D5); got: $ERR"
+  local note
+  note="$(node "$SA" list --ledger "$led" --status all)"
+  [[ "$note" == *"only \`classify\` without --record refuses such a pair, as ambiguous"* ]] || log_fail "TEST-003 arm 1: the duplicate-key NOTE must say classify refuses only without --record (D7); got: $note"
+
+  # arm 2: two byte-identical records -> --record cannot tell them apart
+  local twin ledtw
+  ledtw="$(mk_ledger t003-twin)"
+  twin="$(pair_rec "$PAIR_TS" "$PAIR_REF" contract "same content" fu-amend-spec-pair)"
+  { printf '%s\n' "$twin"; printf '%s\n' "$twin"; } >> "$ledtw"
+  sha="$(ledger_sha "$ledtw")"
+  run_sa classify --ledger "$ledtw" --ts "$PAIR_TS" --ref "$PAIR_REF" --record "$(rec_key "$twin")" --signoff owner --why w --source s
+  [[ "$EC" == 2 && "$ERR" == *indistinguishable* ]] || log_fail "TEST-003 arm 2: expected exit 2 + indistinguishable; got $EC: $ERR"
+  [[ "$sha" == "$(ledger_sha "$ledtw")" ]] || log_fail "TEST-003 arm 2: ledger must be byte-identical"
+
+  # arm 3: a well-formed key that is not in the pair -> names the pair's keys
+  sha="$(ledger_sha "$led")"
+  run_sa classify --ledger "$led" --ts "$PAIR_TS" --ref "$PAIR_REF" --record 000000000000 --signoff owner --why w --source s
+  [[ "$EC" == 2 && "$ERR" == *"$PAIR_CK"* && "$ERR" == *"$PAIR_MK"* ]] || log_fail "TEST-003 arm 3: expected exit 2 naming the pair's candidate keys; got $EC: $ERR"
+  [[ "$sha" == "$(ledger_sha "$led")" ]] || log_fail "TEST-003 arm 3: ledger must be byte-identical"
+
+  # arm 4: malformed --record -> usage error naming the format
+  run_sa classify --ledger "$led" --ts "$PAIR_TS" --ref "$PAIR_REF" --record NOTHEX --signoff owner --why w --source s
+  [[ "$EC" == 2 && "$ERR" == *"12 lowercase hex"* ]] || log_fail "TEST-003 arm 4: expected exit 2 naming the 12-lowercase-hex format; got $EC: $ERR"
+  [[ "$sha" == "$(ledger_sha "$led")" ]] || log_fail "TEST-003 arm 4: ledger must be byte-identical"
+
+  # positive control: the same shape with a valid, distinguishable --record succeeds
+  run_sa classify --ledger "$led" --ts "$PAIR_TS" --ref "$PAIR_REF" --record "$PAIR_CK" --signoff owner --why w --source s
+  [[ "$EC" == 0 ]] || log_fail "TEST-003 positive control: a valid --record on a distinguishable pair must exit 0, got $EC: $ERR"
+  [[ "$sha" != "$(ledger_sha "$led")" ]] || log_fail "TEST-003 positive control: the successful call must have appended"
+  log_pass "TEST-003 every indistinguishable shape exits 2 with its reason and leaves the ledger byte-identical; the distinguishable control succeeds"
+}
+
+# --- classify-same-ts-pair batch B (TEST-004, TEST-005, TEST-008) ---
+
+# fold_vs_baseline <old-json> <new-json> <ledger> -> one line:
+# "OK <items> <overlays> <compared>" or the first difference. record_key is
+# removed from the new items; records a classifies_record overlay targets are
+# skipped (counts and violations are compared only when none is targeted).
+fold_vs_baseline() {
+  node -e '
+    const fs=require("fs");
+    const old=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+    const neu=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+    const targeted=new Set();
+    let overlays=0;
+    for (const line of fs.readFileSync(process.argv[3],"utf8").split(/\r?\n/)) {
+      const t=line.trim(); if (t===""||t.startsWith("#")) continue;
+      let r; try { r=JSON.parse(t); } catch { continue; }
+      if (r && r.type==="spec_amendment_classification") {
+        overlays+=1;
+        if (r.classifies_record) targeted.add(String(r.classifies_record));
+      }
+    }
+    if (old.items.length!==neu.items.length) { console.log("ITEMS old="+old.items.length+" new="+neu.items.length); process.exit(0); }
+    const strip=(i)=>{const c=Object.assign({},i);delete c.record_key;return JSON.stringify(c);};
+    let compared=0;
+    for (let n=0;n<old.items.length;n+=1) {
+      if (targeted.has(neu.items[n].record_key)) continue;
+      compared+=1;
+      if (strip(old.items[n])!==strip(neu.items[n])) { console.log("ITEM "+n+" old="+strip(old.items[n])+" new="+strip(neu.items[n])); process.exit(0); }
+    }
+    if (targeted.size===0) {
+      if (JSON.stringify(old.counts)!==JSON.stringify(neu.counts)) { console.log("COUNTS old="+JSON.stringify(old.counts)+" new="+JSON.stringify(neu.counts)); process.exit(0); }
+      const sv=(j)=>JSON.stringify(j.violations.map((v)=>{const c=Object.assign({},v);delete c.record_key;return c;}));
+      if (sv(old)!==sv(neu)) { console.log("VIOLATIONS differ"); process.exit(0); }
+    }
+    console.log("OK "+old.items.length+" "+overlays+" "+compared);
+  ' "$1" "$2" "$3"
+}
+
+test_existing_overlays_fold_unchanged() {
+  log_info "Test: every existing overlay folds exactly as the cf39c58f engine folds it (TEST-004)..."
+  local dir base_ref base_script base_ledger verdict n_items n_overlays
+  base_ref="${AAI_SPEC_AMEND_PAIR_BASE_REF:-cf39c58f}"
+  dir="$TEST_DIR/t004"
+  mkdir -p "$dir"
+  if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$base_ref^{commit}" >/dev/null 2>&1; then
+    log_info "TEST-004: the base commit $base_ref is not in this checkout (shallow clone?) — the baseline fold cannot be produced here"
+    log_pass "TEST-004 SKIPPED-ARM: baseline unreachable; nothing asserted rather than asserting against the wrong baseline"
+    return
+  fi
+  base_script="$dir/spec-amend-base.mjs"
+  base_ledger="$dir/base-decisions.jsonl"
+  git -C "$PROJECT_ROOT" show "$base_ref:.aai/scripts/spec-amend.mjs" > "$base_script" 2>/dev/null \
+    || log_fail "TEST-004: $base_ref has no .aai/scripts/spec-amend.mjs — FAILING CLOSED (a missing ref, not a detected regression)"
+  git -C "$PROJECT_ROOT" show "$base_ref:docs/ai/decisions.jsonl" > "$base_ledger" 2>/dev/null \
+    || log_fail "TEST-004: $base_ref has no docs/ai/decisions.jsonl — FAILING CLOSED (a missing ref, not a detected regression)"
+  ln -snf "$PROJECT_ROOT/.aai/scripts/lib" "$dir/lib"
+
+  # arm 1 (historical): the base ledger through the base program and the new one.
+  EC=0; node "$base_script" list --ledger "$base_ledger" --json --status all > "$dir/h-old.json" 2> "$dir/h-old.err" || EC=$?
+  [[ "$EC" == 0 ]] || log_fail "TEST-004 arm 1: the base program failed to fold the base ledger (rc=$EC): $(cat "$dir/h-old.err")"
+  EC=0; node "$SA" list --ledger "$base_ledger" --json --status all > "$dir/h-new.json" 2> "$dir/h-new.err" || EC=$?
+  [[ "$EC" == 0 ]] || log_fail "TEST-004 arm 1: the current program failed to fold the base ledger (rc=$EC): $(cat "$dir/h-new.err")"
+  verdict="$(fold_vs_baseline "$dir/h-old.json" "$dir/h-new.json" "$base_ledger")"
+  [[ "$verdict" == OK\ * ]] || log_fail "TEST-004 arm 1: the historical ledger must fold identically (record_key removed): $verdict"
+  n_items="$(printf '%s' "$verdict" | cut -d' ' -f2)"; n_overlays="$(printf '%s' "$verdict" | cut -d' ' -f3)"
+  # positive control: the comparison actually read a real corpus
+  [[ "$n_items" -gt 300 && "$n_overlays" -ge 100 ]] || log_fail "TEST-004 positive control: expected over 300 items and at least 100 overlays read, got items=$n_items overlays=$n_overlays"
+
+  # arm 2 (live): the live ledger, every record no classifies_record overlay targets.
+  EC=0; node "$base_script" list --ledger "$LIVE_LEDGER" --json --status all > "$dir/l-old.json" 2> "$dir/l-old.err" || EC=$?
+  [[ "$EC" == 0 ]] || log_fail "TEST-004 arm 2: the base program failed to fold the live ledger (rc=$EC): $(cat "$dir/l-old.err")"
+  EC=0; node "$SA" list --ledger "$LIVE_LEDGER" --json --status all > "$dir/l-new.json" 2> "$dir/l-new.err" || EC=$?
+  [[ "$EC" == 0 ]] || log_fail "TEST-004 arm 2: the current program failed to fold the live ledger (rc=$EC): $(cat "$dir/l-new.err")"
+  verdict="$(fold_vs_baseline "$dir/l-old.json" "$dir/l-new.json" "$LIVE_LEDGER")"
+  [[ "$verdict" == OK\ * ]] || log_fail "TEST-004 arm 2: the live ledger must fold identically for every record no record overlay targets: $verdict"
+  log_pass "TEST-004 $base_ref and the current engine fold the historical ledger ($n_items items, $n_overlays overlays) and the live ledger identically, record_key aside"
+}
+
+# buckets_of <program> <ledger> -> "what=bucket;..." in fold order.
+buckets_of() {
+  node "$1" list --ledger "$2" --json --status all | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);process.stdout.write(j.items.map(i=>i.what+"="+i.bucket).join(";"))})'
+}
+
+test_old_reader_never_applies_a_record_overlay() {
+  log_info "Test: the cf39c58f reader counts a record-addressed overlay as dangling and applies it to no record (TEST-005)..."
+  local dir base_ref base_script led ck ck2 a b old_before old_after new_after old_note
+  base_ref="${AAI_SPEC_AMEND_PAIR_BASE_REF:-cf39c58f}"
+  dir="$TEST_DIR/t005"
+  mkdir -p "$dir"
+  if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$base_ref^{commit}" >/dev/null 2>&1; then
+    log_info "TEST-005: the base commit $base_ref is not in this checkout (shallow clone?)"
+    log_pass "TEST-005 SKIPPED-ARM: the old reader is unreachable; nothing asserted rather than asserting against the wrong reader"
+    return
+  fi
+  base_script="$dir/spec-amend-base.mjs"
+  git -C "$PROJECT_ROOT" show "$base_ref:.aai/scripts/spec-amend.mjs" > "$base_script" 2>/dev/null \
+    || log_fail "TEST-005: $base_ref has no .aai/scripts/spec-amend.mjs — FAILING CLOSED"
+  ln -snf "$PROJECT_ROOT/.aai/scripts/lib" "$dir/lib"
+
+  # A pair of two CONTRACT records (the shape the old classify refused as ambiguous).
+  led="$(mk_ledger t005)"
+  a="$(pair_rec "2026-10-10T11:35:07Z" t005-ref contract "first contract change" fu-amend-t005)"
+  b="$(pair_rec "2026-10-10T11:35:07Z" t005-ref contract "second contract change" fu-amend-t005)"
+  {
+    printf '%s\n' '{"v":1,"ts":"2026-10-10T11:35:08Z","actor":"orchestrator","type":"follow_up","id":"fu-amend-t005","priority":"P2","what":"owner sign-off owed","why":"fixture"}'
+    printf '%s\n' "$a"; printf '%s\n' "$b"
+  } >> "$led"
+  ck="$(rec_key "$a")"; ck2="$(rec_key "$b")"
+  [[ "$ck" != "$ck2" ]] || log_fail "TEST-005 setup: the two contract records must have distinct keys"
+
+  old_before="$(buckets_of "$base_script" "$led")"
+  [[ "$old_before" == "first contract change=unsigned-tracked;second contract change=unsigned-tracked" ]] || log_fail "TEST-005 setup: both records must start unsigned-tracked; got: $old_before"
+
+  run_sa classify --ledger "$led" --ts "2026-10-10T11:35:07Z" --ref t005-ref --record "$ck" --signoff owner --why "owner signed" --source "owner answer"
+  [[ "$EC" == 0 ]] || log_fail "TEST-005: the new classify --record must exit 0, got $EC (stderr: $ERR)"
+
+  new_after="$(buckets_of "$SA" "$led")"
+  [[ "$new_after" == "first contract change=signed;second contract change=unsigned-tracked" ]] || log_fail "TEST-005: the new reader must show exactly one signed record; got: $new_after"
+
+  old_after="$(buckets_of "$base_script" "$led")"
+  [[ "$old_after" == "$old_before" ]] || log_fail "TEST-005: the old reader must keep BOTH records at their pre-call bucket.
+before: $old_before
+after:  $old_after"
+  old_note="$(node "$base_script" list --ledger "$led" --status all)"
+  [[ "$old_note" == *"NOTE 1 spec_amendment_classification record(s) carry no usable classifies_ts/classifies_ref pair — counted, never applied"* ]] \
+    || log_fail "TEST-005: the old reader's dangling NOTE must count exactly 1 overlay; got: $old_note"
+  log_pass "TEST-005 the cf39c58f reader counts the record overlay as dangling (NOTE 1) and signs neither record; the new reader signs exactly one"
+}
+
+# legacy_rec <ts> <ref> <what> -> an unclassified spec_amendment (no owner_signoff, no class).
+legacy_rec() {
+  printf '{"v":1,"ts":"%s","actor":"remediation","type":"spec_amendment","ref_id":"%s","spec":"docs/specs/SPEC-DRAFT-spec-t008.md","spec_id":"spec-t008","what":"%s","why":"fixture"}' "$1" "$2" "$3"
+}
+
+test_printed_remedies_address_the_record() {
+  log_info "Test: list --strict prints classify remedies that name the record of a shared pair, and each runs verbatim (TEST-008)..."
+  local dir base_ref base_script led specs a b c ka kb kc strict_err old_err la lb lc n line cmd keys
+  base_ref="${AAI_SPEC_AMEND_PAIR_BASE_REF:-cf39c58f}"
+  dir="$TEST_DIR/t008"; mkdir -p "$dir"; specs="$dir/specs"; mkdir -p "$specs"
+  led="$(mk_ledger t008)"
+  a="$(legacy_rec "2026-10-10T11:35:07Z" t008-ref "shared legacy one")"
+  b="$(legacy_rec "2026-10-10T11:35:07Z" t008-ref "shared legacy two")"
+  c="$(legacy_rec "2026-10-10T11:40:00Z" t008-solo "unshared legacy")"
+  { printf '%s\n' "$a"; printf '%s\n' "$b"; printf '%s\n' "$c"; } >> "$led"
+  ka="$(rec_key "$a")"; kb="$(rec_key "$b")"; kc="$(rec_key "$c")"
+
+  run_sa list --ledger "$led" --specs-dir "$specs" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-008 setup: the fixture must refuse --strict, got $EC (stderr: $ERR)"
+  strict_err="$ERR"
+  la="$(printf '%s\n' "$strict_err" | /usr/bin/grep -F 'classify --ts' | /usr/bin/grep -F "$ka" || true)"
+  lb="$(printf '%s\n' "$strict_err" | /usr/bin/grep -F 'classify --ts' | /usr/bin/grep -F "$kb" || true)"
+  lc="$(printf '%s\n' "$strict_err" | /usr/bin/grep -F 'classify --ts' | /usr/bin/grep -F 't008-solo' || true)"
+  n="$(printf '%s\n' "$strict_err" | /usr/bin/grep -cF 'classify --ts' || true)"
+  [[ "$n" == 3 ]] || log_fail "TEST-008: exactly three classify remedies expected, got $n; stderr: $strict_err"
+  [[ -n "$la" && -n "$lb" ]] || log_fail "TEST-008: each record of the shared pair must be named by its --record key in its remedy ($ka / $kb); stderr: $strict_err"
+  [[ "$la" == *"--record $ka"* && "$lb" == *"--record $kb"* ]] || log_fail "TEST-008: the shared remedies must carry --record <key>; got: $la / $lb"
+  [[ -n "$lc" && "$lc" != *--record* ]] || log_fail "TEST-008: the unshared remedy must carry no --record; got: $lc"
+
+  # the unshared line is byte-equal to what the base program printed
+  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$base_ref^{commit}" >/dev/null 2>&1; then
+    base_script="$dir/spec-amend-base.mjs"
+    git -C "$PROJECT_ROOT" show "$base_ref:.aai/scripts/spec-amend.mjs" > "$base_script" 2>/dev/null \
+      || log_fail "TEST-008: $base_ref has no spec-amend.mjs — FAILING CLOSED"
+    ln -snf "$PROJECT_ROOT/.aai/scripts/lib" "$dir/lib"
+    old_err="$(node "$base_script" list --ledger "$led" --specs-dir "$specs" --strict 2>&1 >/dev/null || true)"
+    [[ "$(printf '%s\n' "$old_err" | /usr/bin/grep -F 't008-solo' | /usr/bin/grep -F 'classify --ts' || true)" == "$lc" ]] \
+      || log_fail "TEST-008: the unshared remedy must be byte-identical to the base program's line.
+base: $(printf '%s\n' "$old_err" | /usr/bin/grep -F 't008-solo' | /usr/bin/grep -F 'classify --ts' || true)
+now:  $lc"
+  else
+    log_info "TEST-008: base commit $base_ref unreachable — the byte-equality arm is skipped (the --record-free assertion above still ran)"
+  fi
+
+  # each printed line runs verbatim (placeholders filled, nothing else rewritten)
+  for line in "$la" "$lb" "$lc"; do
+    line="${line#"${line%%node *}"}"
+    cmd="${line//<one line>/back-classified at the gate}"
+    cmd="${cmd//<evidence>/tests/skills/test-aai-spec-amend.sh TEST-008}"
+    cmd="${cmd#node .aai/scripts/spec-amend.mjs }"
+    EC=0
+    eval "node \"\$SA\" $cmd --ledger \"\$led\"" > "$dir/.out" 2> "$dir/.err" || EC=$?
+    [[ "$EC" == 0 ]] || log_fail "TEST-008: the printed remedy, run verbatim, must exit 0, got $EC: $line
+stderr: $(cat "$dir/.err")"
+  done
+  run_sa list --ledger "$led" --specs-dir "$specs" --strict
+  [[ "$EC" == 0 ]] || log_fail "TEST-008: after the three printed remedies --strict must exit 0, got $EC (stderr: $ERR)"
+
+  # list --json items carry the recomputed key; --help documents --record
+  keys="$(node "$SA" list --ledger "$led" --json --status all | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{process.stdout.write(JSON.parse(s).items.map(i=>i.record_key).sort().join(","))})')"
+  [[ "$keys" == "$(printf '%s\n' "$ka" "$kb" "$kc" | sort | paste -sd, -)" ]] || log_fail "TEST-008: list --json record_key must equal the recomputed key of each record; got: $keys"
+  run_sa --help
+  [[ "$OUT" == *"--record"* ]] || log_fail "TEST-008: --help must document --record"
+  log_pass "TEST-008 shared-pair remedies name --record, the unshared remedy is byte-identical to the base, every printed line runs verbatim and clears --strict"
+}
+
+# --- classify-same-ts-pair batch C (TEST-006, TEST-007, TEST-009) ---
+
+# seed_window <ledger> <ref> <spec-relpath> -> appends one SIGNED contract
+# spec_amendment per second from now-1 to now+8 under <ref>, so whatever
+# second the writer under test stamps, its (ts, ref_id) pair already holds a
+# record (a deterministic same-second collision). Ids carry a distinct `what`.
+seed_window() {
+  node -e '
+    const fs=require("fs");
+    const [led,ref,spec]=process.argv.slice(1);
+    const now=Math.floor(Date.now()/1000);
+    let out="";
+    for (let s=-1;s<=8;s+=1) {
+      const ts=new Date((now+s)*1000).toISOString().replace(/\.\d{3}Z$/,"Z");
+      out+=JSON.stringify({v:1,ts,actor:"orchestrator",type:"spec_amendment",ref_id:ref,spec,spec_id:"spec-seed",owner_signoff:true,amendment_class:"contract",what:"seeded signed record "+s,why:"fixture",authority:"fixture owner decision"})+"\n";
+    }
+    fs.appendFileSync(led,out);
+  ' "$1" "$2" "$3"
+}
+
+# ledger_amendments <ledger> -> the number of spec_amendment lines.
+ledger_amendments() {
+  node -e '
+    const fs=require("fs");let n=0;
+    for (const l of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=l.trim(); if (t===""||t.startsWith("#")) continue;
+      try { if (JSON.parse(t).type==="spec_amendment") n+=1; } catch { /* skip */ }
+    }
+    process.stdout.write(String(n));
+  ' "$1"
+}
+
+# last_amendment_key <ledger> -> recordKey of the last spec_amendment line,
+# computed here independently of the engine.
+last_amendment_key() {
+  node -e '
+    const fs=require("fs"),c=require("crypto");let last=null;
+    for (const l of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=l.trim(); if (t===""||t.startsWith("#")) continue;
+      try { if (JSON.parse(t).type==="spec_amendment") last=t; } catch { /* skip */ }
+    }
+    process.stdout.write(c.createHash("sha256").update(JSON.stringify(JSON.parse(last))).digest("hex").slice(0,12));
+  ' "$1"
+}
+
+# signed_keys <ledger> -> sorted record_keys whose bucket is signed, comma-joined.
+signed_keys() {
+  node "$SA" list --ledger "$1" --json --status all | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{process.stdout.write(JSON.parse(s).items.filter(i=>i.bucket==="signed").map(i=>i.record_key).sort().join(","))})'
+}
+
+test_add_collision_is_addressable() {
+  log_info "Test: an add that collides on (ts, ref_id) is appended, judged on ITS record, and addressable by --record (TEST-006)..."
+  local led spec before_n after_n key signed_before signed_after note
+  led="$(mk_ledger t006)"
+  spec="$(mk_spec "SPEC-DRAFT-t006.md" "spec-t006-fixture")"
+  seed_window "$led" t006-ref "docs/specs/SPEC-DRAFT-spec-seed.md"
+  before_n="$(ledger_amendments "$led")"
+  [[ "$before_n" == 10 ]] || log_fail "TEST-006 setup: the seeded window must hold 10 records, got $before_n"
+  signed_before="$(signed_keys "$led")"
+
+  run_sa add --ledger "$led" --spec "$spec" --ref t006-ref --what "colliding change" --why "same second as a seeded record" --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-006: a same-second collision must not refuse the add; exit $EC (stdout: $OUT) (stderr: $ERR)"
+  after_n="$(ledger_amendments "$led")"
+  [[ "$after_n" == "$((before_n + 1))" ]] || log_fail "TEST-006 positive control: exactly one amendment must be appended (before=$before_n after=$after_n)"
+
+  key="$(last_amendment_key "$led")"
+  note="$(printf '%s\n' "$OUT" | /usr/bin/grep -F 'NOTE this record shares (ts, ref_id) with' || true)"
+  [[ -n "$note" ]] || log_fail "TEST-006: the collision must be disclosed in a NOTE; stdout: $OUT"
+  [[ "$note" == *"earlier record(s); address it with --record $key"* ]] || log_fail "TEST-006: the NOTE must name --record <the appended line's key $key>; got: $note"
+  [[ "$OUT" == *"UNSIGNED amendment"*"bucket unsigned-tracked"* ]] || log_fail "TEST-006: the add must judge ITS OWN record (unsigned-tracked), not the earlier sibling; stdout: $OUT"
+
+  run_sa classify --ledger "$led" --ts "$(node -e 'const fs=require("fs");const ls=fs.readFileSync(process.argv[1],"utf8").trim().split(/\n/);let t="";for(const l of ls){try{const r=JSON.parse(l);if(r.type==="spec_amendment")t=r.ts}catch{}}process.stdout.write(t)' "$led")" --ref t006-ref --record "$key" --signoff owner --why "owner signed" --source "owner answer"
+  [[ "$EC" == 0 ]] || log_fail "TEST-006: classify --record $key (the key the writer printed) must exit 0, got $EC (stderr: $ERR)"
+  signed_after="$(signed_keys "$led")"
+  [[ "$signed_after" == "$(printf '%s\n%s\n' "${signed_before//,/$'\n'}" "$key" | sort | paste -sd, -)" ]] \
+    || log_fail "TEST-006: exactly the new record may turn signed.
+before: $signed_before
+after:  $signed_after
+key:    $key"
+  log_pass "TEST-006 a same-second add exits 0, names --record <key> equal to its own line's key, judges its own record, and classify --record signs only it"
+}
+
+test_restamp_collision_is_addressable() {
+  log_info "Test: a restamp that collides on (ts, ref_id) is judged on ITS record, verified and unverified, and its remedy names --record (TEST-007)..."
+  local led spec frozen specU ledU key keyU note line cmd before_n after_n bucket
+  frozen="$TEST_DIR/t007-frozen.md"
+  spec="$(mk_linked_freezable_spec t007-specs/a.md spec-t007-fixture t007-intake)"
+  freeze_spec "$spec" || log_fail "TEST-007 setup: real spec-freeze.mjs refused the fixture"
+  cp "$spec" "$frozen"
+  specU="$TEST_DIR/t007-specs/u.md"; cp "$frozen" "$specU"
+
+  # ARM 1 - a genuine allocator rename (verified cause): the NEW record is a measurement record.
+  sed -i.bak -e 's/SPEC-DRAFT-spec-t007-fixture/SPEC-0312-spec-t007-fixture/g' \
+             -e 's/CHANGE-DRAFT-t007-intake/CHANGE-0312-t007-intake/g' "$spec"
+  /usr/bin/grep -qF 'SPEC-0312-spec-t007-fixture' "$spec" || log_fail "TEST-007 arm 1: the simulated allocator rewrite did not land"
+  led="$(mk_ledger t007a)"
+  seed_window "$led" t007-ref "docs/specs/SPEC-DRAFT-spec-seed.md"
+  before_n="$(ledger_amendments "$led")"
+  run_sa restamp --spec "$spec" --ref t007-ref --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-007 arm 1: a same-second collision must not refuse the restamp; exit $EC (stdout: $OUT) (stderr: $ERR)"
+  after_n="$(ledger_amendments "$led")"
+  [[ "$after_n" == "$((before_n + 1))" ]] || log_fail "TEST-007 positive control: exactly one amendment must be appended (before=$before_n after=$after_n)"
+  key="$(last_amendment_key "$led")"
+  note="$(printf '%s\n' "$OUT" | /usr/bin/grep -F 'NOTE this record shares (ts, ref_id) with' || true)"
+  [[ "$note" == *"earlier record(s); address it with --record $key"* ]] || log_fail "TEST-007 arm 1: the NOTE must name --record <the appended line's key $key>; stdout: $OUT"
+  [[ "$OUT" == *"bucket measurement"* ]] || log_fail "TEST-007 arm 1: the restamp must judge ITS OWN record (measurement); stdout: $OUT"
+  bucket="$(node "$SA" list --ledger "$led" --json --status all | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);process.stdout.write(j.items.filter(i=>i.bucket==="measurement").map(i=>i.record_key).join(",")+"|"+j.items.filter(i=>i.bucket==="signed").length)})')"
+  [[ "$bucket" == "$key|10" ]] || log_fail "TEST-007 arm 1: the new record is the only measurement row and the 10 seeded records stay signed; got: $bucket (key $key)"
+
+  # ARM 2 - an unverified restamp: the printed classify remedy names --record and runs verbatim.
+  sed -i.bak 's/original description text/a DIFFERENT promise this spec never made/' "$specU"
+  ledU="$(mk_ledger t007b)"
+  seed_window "$ledU" t007-ref "docs/specs/SPEC-DRAFT-spec-seed.md"
+  run_sa restamp --spec "$specU" --ref t007-ref --ledger "$ledU"
+  [[ "$EC" == 0 ]] || log_fail "TEST-007 arm 2: an unverified colliding restamp must exit 0; exit $EC (stdout: $OUT) (stderr: $ERR)"
+  keyU="$(last_amendment_key "$ledU")"
+  [[ "$OUT" == *"bucket unsigned-tracked"* ]] || log_fail "TEST-007 arm 2: the restamp must judge ITS OWN record (unsigned-tracked); stdout: $OUT"
+  line="$(printf '%s\n' "$OUT" | /usr/bin/grep -F 'NOTE sign it off once someone has said what changed:' | /usr/bin/grep -F 'classify --ts' || true)"
+  [[ -n "$line" ]] || log_fail "TEST-007 arm 2: the unverified restamp must print a classify remedy; stdout: $OUT"
+  [[ "$line" == *"--record $keyU"* ]] || log_fail "TEST-007 arm 2: the remedy of a shared pair must carry --record $keyU; got: $line"
+  cmd="${line#*: }"
+  cmd="${cmd#node .aai/scripts/spec-amend.mjs }"
+  cmd="${cmd//<who decided, where>/owner answer}"
+  cmd="${cmd//<what the drift really was>/fixture drift}"
+  EC=0
+  eval "node \"\$SA\" $cmd" > "$TEST_DIR/.out" 2> "$TEST_DIR/.err" || EC=$?
+  [[ "$EC" == 0 ]] || log_fail "TEST-007 arm 2: the printed remedy, run verbatim, must exit 0, got $EC: $line
+stderr: $(cat "$TEST_DIR/.err")"
+  [[ "$(signed_keys "$ledU")" == *"$keyU"* ]] || log_fail "TEST-007 arm 2: the remedy must have signed the new record $keyU; signed: $(signed_keys "$ledU")"
+  log_pass "TEST-007 a same-second restamp (verified and unverified) exits 0, judges its own record, names --record <key>, and the printed remedy signs it"
+}
+
+test_448_record_signed_on_the_live_ledger() {
+  log_info "Test: the PR #448 contract record is signed on the live ledger (TEST-009)..."
+  local led row fu ov
+  led="$PROJECT_ROOT/docs/ai/decisions.jsonl"
+  [[ -f "$led" ]] || log_fail "TEST-009: the live ledger $led is missing"
+  row="$(node "$SA" list --ledger "$led" --json --status all | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+      const f=(k)=>j.items.find(i=>i.record_key===k)||null;
+      const a=f("ae5529c8b535"), m=f("1c45f52a2649");
+      process.stdout.write(JSON.stringify({a:a&&{ts:a.ts,ref:a.ref_id,bucket:a.bucket,by:a.classified_by},m:m&&{bucket:m.bucket,by:m.classified_by}}));
+    })')"
+  [[ "$row" == *'"a":{"ts":"2026-10-10T11:35:07Z","ref":"directed-merge-and-post-merge-cleanup","bucket":"signed"'* ]] \
+    || log_fail "TEST-009: record ae5529c8b535 must exist at 2026-10-10T11:35:07Z/directed-merge-and-post-merge-cleanup and be signed; got: $row"
+  [[ "$row" == *'"by":null'* && "$row" == *'"m":{"bucket":"measurement","by":null}'* ]] \
+    || log_fail "TEST-009: the measurement sibling 1c45f52a2649 must stay measurement with classified_by null; got: $row"
+  ov="$(/usr/bin/grep -F '"classifies_record":"ae5529c8b535"' "$led" || true)"
+  [[ -n "$ov" ]] || log_fail "TEST-009 positive control: a classifies_record overlay for ae5529c8b535 must be on the ledger"
+  [[ "$ov" == *Podepsat* ]] || log_fail "TEST-009: the overlay source must cite the owner's 'Podepsat' answer; got: $ov"
+  [[ "$ov" == *"PR #448"* ]] || log_fail "TEST-009: the overlay source must cite PR #448; got: $ov"
+  for fu in fu-amend-directed-merge-and-post-007bae fu-classify-same-ts-pair; do
+    run_fu list --ledger "$led" --status all --json
+    [[ "$OUT" == *"$fu"* ]] || log_fail "TEST-009 positive control: follow-ups list must show $fu"
+    printf '%s' "$OUT" | node -e '
+      let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+        const j=JSON.parse(s);const arr=Array.isArray(j)?j:(j.items||j.follow_ups||[]);
+        const it=arr.find(x=>x.id===process.argv[1]);
+        process.exit(it&&it.status==="done"?0:1)})' "$fu" \
+      || log_fail "TEST-009: follow-up $fu must be done"
+  done
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 0 ]] || log_fail "TEST-009: list --strict on the live ledger must exit 0, got $EC (stderr: $ERR)"
+  log_pass "TEST-009 the #448 contract record is signed through a record-addressed overlay citing 'Podepsat', its sibling stays measurement, both follow-ups are done, strict is clean"
+}
+
+# --- classify-same-ts-pair bot sweep, PR #449 (TEST-010, TEST-011) ---
+
+test_add_duplicate_is_idempotent() {
+  log_info "Test: an add byte-identical to a record already on the ledger appends nothing and names that record's key (TEST-010)..."
+  local led spec rel before_n after_n key
+  led="$(mk_ledger t010)"
+  spec="$(mk_spec "SPEC-DRAFT-t010.md" "spec-t010-fixture")"
+  rel="$(node -e 'process.stdout.write(require("path").relative(process.cwd(), process.argv[1]))' "$spec")"
+  # Seed, for every second of the window the writer can stamp, the EXACT line
+  # `add --class measurement --signoff none` will build, so the collision is a
+  # byte-identical one whichever second the writer lands in.
+  node -e '
+    const fs=require("fs");
+    const [led,spec,specId]=process.argv.slice(1);
+    const now=Math.floor(Date.now()/1000);
+    let out="";
+    for (let s=-1;s<=8;s+=1) {
+      const ts=new Date((now+s)*1000).toISOString().replace(/\.\d{3}Z$/,"Z");
+      out+=JSON.stringify({v:1,ts,actor:"orchestrator",type:"spec_amendment",ref_id:"t010-ref",spec,spec_id:specId,owner_signoff:false,amendment_class:"measurement",what:"repeated change",why:"repeated within one second"})+"\n";
+    }
+    fs.appendFileSync(led,out);
+  ' "$led" "$rel" "spec-t010-fixture"
+  before_n="$(ledger_amendments "$led")"
+  [[ "$before_n" == 10 ]] || log_fail "TEST-010 setup: the seeded window must hold 10 records, got $before_n"
+
+  run_sa add --ledger "$led" --spec "$spec" --ref t010-ref --what "repeated change" --why "repeated within one second" --class measurement --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-010: an identical add must be an idempotent no-op that exits 0; exit $EC (stdout: $OUT) (stderr: $ERR)"
+  after_n="$(ledger_amendments "$led")"
+  [[ "$after_n" == "$before_n" ]] || log_fail "TEST-010: nothing may be appended for a byte-identical record (before=$before_n after=$after_n)"
+  key="$(printf '%s\n' "$OUT" | sed -n 's/.*addressed by --record \([0-9a-f]\{12\}\).*/\1/p;t' )"
+  [[ -n "$key" ]] || log_fail "TEST-010: the no-op must print the existing record's --record key; stdout: $OUT"
+  [[ "$(node "$SA" list --ledger "$led" --json --status all | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{process.stdout.write(String(JSON.parse(s).items.filter(i=>i.record_key===process.argv[1]).length))})' "$key")" == 1 ]] \
+    || log_fail "TEST-010: the printed key $key must address exactly one record on the ledger"
+
+  # Positive control: a NON-identical add in the same window still appends.
+  run_sa add --ledger "$led" --spec "$spec" --ref t010-ref --what "a different change" --why "repeated within one second" --class measurement --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-010 positive control: a non-identical collision must still append; exit $EC (stderr: $ERR)"
+  [[ "$(ledger_amendments "$led")" == "$((before_n + 1))" ]] || log_fail "TEST-010 positive control: exactly one record must be appended for the non-identical add"
+  log_pass "TEST-010 an add identical to a ledger record is an exit-0 no-op naming that record's key, and a non-identical collision still appends"
+}
+
+test_strict_remedy_for_identical_pair_is_a_named_note() {
+  log_info "Test: list --strict prints a named note, not an unrunnable --record line, for byte-identical records (TEST-011)..."
+  local dir specs led a c strict_err n line
+  dir="$TEST_DIR/t011"; mkdir -p "$dir"; specs="$dir/specs"; mkdir -p "$specs"
+  led="$(mk_ledger t011)"
+  a="$(legacy_rec "2026-10-10T11:35:07Z" t011-dup "identical legacy")"
+  c="$(legacy_rec "2026-10-10T11:40:00Z" t011-solo "unshared legacy")"
+  { printf '%s\n' "$a"; printf '%s\n' "$a"; printf '%s\n' "$c"; } >> "$led"
+
+  run_sa list --ledger "$led" --specs-dir "$specs" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-011 setup: the fixture must refuse --strict, got $EC (stderr: $ERR)"
+  strict_err="$ERR"
+  n="$(printf '%s\n' "$strict_err" | /usr/bin/grep -cF 'classify --ts' || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-011: only the unshared record may get a classify line, got $n; stderr: $strict_err"
+  line="$(printf '%s\n' "$strict_err" | /usr/bin/grep -F 'classify --ts' || true)"
+  [[ "$line" == *t011-solo* ]] || log_fail "TEST-011: the one classify line must be the unshared record's; stderr: $strict_err"
+  [[ "$line" != *--record* ]] || log_fail "TEST-011: the unshared line must carry no --record; stderr: $strict_err"
+  n="$(printf '%s\n' "$strict_err" | /usr/bin/grep -cF 'indistinguishable duplicate records: no classify can address one; see the ledger lines' || true)"
+  [[ "$n" == 2 ]] || log_fail "TEST-011: each identical record must get the named note (2 expected), got $n; stderr: $strict_err"
+  log_pass "TEST-011 byte-identical records get a named note instead of an unrunnable --record line, the unshared line is unchanged"
+}
+
+test_identical_pair_prose_and_refusal_stay_honest() {
+  log_info "Test: for byte-identical records the strict trailer and the classify refusal promise nothing they cannot deliver (TEST-012)..."
+  local dir specs led solo_led a c strict_err refuse_err n
+  dir="$TEST_DIR/t012"; mkdir -p "$dir"; specs="$dir/specs"; mkdir -p "$specs"
+  a="$(legacy_rec "2026-10-10T11:35:07Z" t012-dup "identical legacy")"
+  c="$(legacy_rec "2026-10-10T11:40:00Z" t012-solo "unshared legacy")"
+  led="$(mk_ledger t012)"
+  { printf '%s\n' "$a"; printf '%s\n' "$a"; printf '%s\n' "$c"; } >> "$led"
+  solo_led="$(mk_ledger t012solo)"
+  printf '%s\n' "$c" >> "$solo_led"
+
+  # (a) the trailer: positive control first, the original sentence is byte-identical when every violation got a runnable command.
+  run_sa list --ledger "$solo_led" --specs-dir "$specs" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-012 control: the solo fixture must refuse --strict, got $EC (stderr: $ERR)"
+  n="$(printf '%s\n' "$ERR" | /usr/bin/grep -cF 'so each command above takes its record to `unsigned-tracked` and this gate to exit 0;' || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-012 control: the trailer must be unchanged when every violation has a command; stderr: $ERR"
+  run_sa list --ledger "$led" --specs-dir "$specs" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-012 setup: the identical-pair fixture must refuse --strict, got $EC (stderr: $ERR)"
+  strict_err="$ERR"
+  n="$(printf '%s\n' "$strict_err" | /usr/bin/grep -cF 'this gate to exit 0' || true)"
+  [[ "$n" == 0 ]] || log_fail "TEST-012: the trailer must not promise exit 0 while indistinguishable records remain; stderr: $strict_err"
+  n="$(printf '%s\n' "$strict_err" | /usr/bin/grep -cF 'no command above can clear' || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-012: the trailer must say the indistinguishable records have no command, once; stderr: $strict_err"
+
+  # (b) the pair-addressed refusal: byte-identical candidates list their key once and print no --record template.
+  run_sa classify --ledger "$led" --ts "2026-10-10T11:35:07Z" --ref t012-dup --signoff none --why "x" --source "y"
+  [[ "$EC" == 2 ]] || log_fail "TEST-012: classify on an identical pair must refuse with 2, got $EC (stderr: $ERR)"
+  refuse_err="$ERR"
+  n="$(printf '%s\n' "$refuse_err" | /usr/bin/grep -cF 'record=' || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-012: an identical pair's key must be listed once, got $n; stderr: $refuse_err"
+  [[ "$refuse_err" != *'<key>'* ]] || log_fail "TEST-012: no --record <key> template may be printed for an identical pair; stderr: $refuse_err"
+  [[ "$refuse_err" == *indistinguishable* ]] || log_fail "TEST-012: the refusal must say the records are indistinguishable; stderr: $refuse_err"
+  # positive control: a pair of DISTINCT records still lists both keys and the template.
+  led="$(mk_ledger t012b)"
+  { printf '%s\n' "$a"; printf '%s\n' "$(legacy_rec "2026-10-10T11:35:07Z" t012-dup "a different legacy")"; } >> "$led"
+  run_sa classify --ledger "$led" --ts "2026-10-10T11:35:07Z" --ref t012-dup --signoff none --why "x" --source "y"
+  [[ "$EC" == 2 ]] || log_fail "TEST-012 control: classify on a distinct pair must refuse with 2, got $EC"
+  n="$(printf '%s\n' "$ERR" | /usr/bin/grep -cF 'record=' || true)"
+  [[ "$n" == 2 && "$ERR" == *'--record <key>'* ]] || log_fail "TEST-012 control: a distinct pair must list both keys and the template, got $n; stderr: $ERR"
+  log_pass "TEST-012 the strict trailer admits the indistinguishable records have no command, the identical-pair refusal lists its key once with no template, distinct pairs unchanged"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -4503,6 +5124,18 @@ main() {
   test_1379_test_plan_summary_is_recomputed_from_the_tables
   test_1380_signing_refusal_reads_the_projected_class
   test_1381_printed_remedy_runs_in_posix_and_powershell
+  test_classify_record_signs_one_of_a_pair
+  test_record_overlay_folds_to_its_record_only
+  test_classify_refuses_what_it_cannot_tell_apart
+  test_existing_overlays_fold_unchanged
+  test_old_reader_never_applies_a_record_overlay
+  test_printed_remedies_address_the_record
+  test_add_collision_is_addressable
+  test_restamp_collision_is_addressable
+  test_448_record_signed_on_the_live_ledger
+  test_add_duplicate_is_idempotent
+  test_strict_remedy_for_identical_pair_is_a_named_note
+  test_identical_pair_prose_and_refusal_stay_honest
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

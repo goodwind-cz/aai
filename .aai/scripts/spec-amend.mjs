@@ -90,6 +90,12 @@
 //   line numbers are not stable identifiers. `classify` refuses an unmatched
 //   or ambiguous target with exit 2 rather than guessing.
 //
+//   A pair is not always unique. A record is then addressed by its content key
+//   (`record_key`: first 12 hex of sha256 over the re-serialised record), and
+//   `classify --record <key>` appends an overlay carrying `classifies_record`
+//   and NO `classifies_ts`/`classifies_ref`: a reader that predates the field
+//   counts it as dangling and applies it to no record, never to a sibling.
+//
 //   The overlay's `tracked_by` is the one field beyond the classification
 //   itself: a record written before this script existed carries no
 //   `tracked_by`, so without it a back-classified unsigned amendment could
@@ -300,6 +306,59 @@ function amendItemIdStamped(specId, stamp) {
   return fitItemId(`${specId}-${stamp}`);
 }
 
+// RECORD KEY (spec-classify-same-ts-pair D1/D2). A (ts, ref_id) pair is not
+// unique on the ledger, so a record is also addressable by the first 12 hex
+// characters of sha256 over its re-serialised parsed form. Computed, never
+// stored on the amendment record.
+const RECORD_KEY_LEN = 12;
+// The field a record-addressed overlay carries INSTEAD of classifies_ts /
+// classifies_ref, so a reader that predates it counts the overlay as dangling
+// and applies it to no record (D3).
+const RECORD_OVERLAY_FIELD = 'classifies_record';
+
+function recordKey(rec) {
+  return crypto.createHash('sha256').update(JSON.stringify(rec)).digest('hex').slice(0, RECORD_KEY_LEN);
+}
+
+// D7: a pair is SHARED when more than one spec_amendment record carries its
+// (ts, ref_id). Only a shared pair needs `--record` to be addressed; an
+// unshared pair keeps every printed line byte-identical to before.
+function pairIsShared(reg, ts, ref) {
+  const key = overlayKey(ts, ref);
+  if (key === null) return false;
+  return reg.items.filter((i) => overlayKey(i.ts, i.ref_id) === key).length > 1;
+}
+
+// Bot-sweep round (PR #449): two records of one pair with the SAME key are
+// byte-identical once re-serialised, so no `--record` can tell them apart and
+// `classify` refuses either as indistinguishable. A printed remedy for such a
+// record would be a line that cannot run, so callers print a named note.
+const INDISTINGUISHABLE_NOTE = 'indistinguishable duplicate records: no classify can address one; see the ledger lines';
+function indistinguishableInPair(reg, ts, ref, key) {
+  const pair = overlayKey(ts, ref);
+  if (pair === null || key === null || key === undefined) return false;
+  return reg.items.filter((i) => overlayKey(i.ts, i.ref_id) === pair && i.record_key === key).length > 1;
+}
+
+// D6: the record a writer just appended, read back through its content key.
+// `byKey` (one record per (ts, ref_id)) returns the EARLIER record of a
+// same-second collision and so judges the wrong one.
+function landedRecord(after, entry) {
+  return after.byRecord.get(recordKey(entry)) ?? null;
+}
+
+// D6: how many records already held the (ts, ref_id) of `entry` before it was
+// appended, and the NOTE a writer prints when that is not zero.
+function earlierInPair(reg, entry) {
+  const key = overlayKey(entry.ts, entry.ref_id);
+  if (key === null) return 0;
+  return reg.items.filter((i) => overlayKey(i.ts, i.ref_id) === key).length;
+}
+function collisionNote(earlier, entry) {
+  if (earlier === 0) return null;
+  return `NOTE this record shares (ts, ref_id) with ${earlier} earlier record(s); address it with --record ${recordKey(entry)}`;
+}
+
 function overlayKey(ts, ref) {
   const t = str(ts);
   const r = str(ref);
@@ -315,13 +374,14 @@ function byTsAscending(a, b) {
   return at < bt ? -1 : at > bt ? 1 : 0;
 }
 
-// foldAmendments(records) -> { items, followUps, notes, counts, byKey }
+// foldAmendments(records) -> { items, followUps, notes, counts, byKey, byRecord }
 // The projection is computed, never stored. Every read in this file goes
 // through here so the CLI's four surfaces cannot drift from each other.
 function foldAmendments(records) {
   const notes = [];
   const amendments = [];
   const overlays = new Map();
+  const recordOverlays = new Map();
   const fuItems = new Map();
   const fuStatuses = new Map();
   let danglingOverlays = 0;
@@ -344,7 +404,13 @@ function foldAmendments(records) {
     } else if (recType === 'spec_amendment_classification') {
       const key = overlayKey(rec.classifies_ts, rec.classifies_ref);
       if (key === null) {
-        danglingOverlays += 1;
+        const recKey = str(rec[RECORD_OVERLAY_FIELD]);
+        if (recKey === null) {
+          danglingOverlays += 1;
+        } else {
+          if (!recordOverlays.has(recKey)) recordOverlays.set(recKey, []);
+          recordOverlays.get(recKey).push(rec);
+        }
         continue;
       }
       if (!overlays.has(key)) overlays.set(key, []);
@@ -372,11 +438,18 @@ function foldAmendments(records) {
   }
 
   const byKey = new Map();
+  const byRecord = new Map();
   const items = [];
   let duplicateKeys = 0;
   for (const rec of amendments) {
     const key = overlayKey(rec.ts, rec.ref_id);
-    const history = key === null ? [] : (overlays.get(key) ?? []).slice().sort(byTsAscending);
+    const recKey = recordKey(rec);
+    // D4: the pair-addressed overlays (exactly today's list) plus the
+    // record-addressed ones for this record's key, latest-wins over the union.
+    // With no record-addressed overlay on the ledger this is today's history.
+    const history = (key === null ? [] : (overlays.get(key) ?? []))
+      .concat(recordOverlays.get(recKey) ?? [])
+      .sort(byTsAscending);
     const overlay = history.filter((h) => typeof h.owner_signoff === 'boolean').pop() ?? null;
 
     let signoff = null;
@@ -451,6 +524,7 @@ function foldAmendments(records) {
     const item = {
       ts: str(rec.ts),
       ref_id: str(rec.ref_id),
+      record_key: recKey,
       spec: str(rec.spec) ?? str(rec.amends),
       spec_id: str(rec.spec_id),
       actor: str(rec.actor),
@@ -464,6 +538,7 @@ function foldAmendments(records) {
       what: str(rec.what) ?? str(rec.change) ?? str(rec.finding) ?? '',
     };
     items.push(item);
+    if (!byRecord.has(recKey)) byRecord.set(recKey, item);
     if (key !== null) {
       if (byKey.has(key)) duplicateKeys += 1;
       else byKey.set(key, item);
@@ -472,6 +547,8 @@ function foldAmendments(records) {
 
   let orphanOverlays = 0;
   for (const key of overlays.keys()) if (!byKey.has(key)) orphanOverlays += 1;
+  let orphanRecordOverlays = 0;
+  for (const key of recordOverlays.keys()) if (!byRecord.has(key)) orphanRecordOverlays += 1;
 
   if (danglingOverlays) {
     notes.push(`NOTE ${danglingOverlays} spec_amendment_classification record(s) carry no usable classifies_ts/classifies_ref pair — counted, never applied`);
@@ -479,13 +556,16 @@ function foldAmendments(records) {
   if (orphanOverlays) {
     notes.push(`NOTE ${orphanOverlays} spec_amendment_classification record(s) address a (ts, ref_id) pair with no spec_amendment — counted, never applied`);
   }
+  if (orphanRecordOverlays) {
+    notes.push(`NOTE ${orphanRecordOverlays} spec_amendment_classification record(s) address a record key with no spec_amendment — counted, never applied`);
+  }
   if (duplicateKeys) {
-    notes.push(`NOTE ${duplicateKeys} spec_amendment record(s) share a (ts, ref_id) pair with an earlier one — every record is still LISTED and counted; only \`classify\` refuses such a pair, as ambiguous`);
+    notes.push(`NOTE ${duplicateKeys} spec_amendment record(s) share a (ts, ref_id) pair with an earlier one — every record is still LISTED and counted; only \`classify\` without --record refuses such a pair, as ambiguous`);
   }
 
   const counts = { total: items.length };
   for (const b of BUCKETS) counts[b] = items.filter((i) => i.bucket === b).length;
-  return { items, followUps, notes, counts, byKey };
+  return { items, followUps, notes, counts, byKey, byRecord };
 }
 
 function loadLedger(absPath) {
@@ -628,6 +708,7 @@ const USAGE = `Usage:
 
   node .aai/scripts/spec-amend.mjs classify --ts <ISO8601Z> --ref <ref_id>
        --signoff owner|none --why "<one line>" --source "<evidence>"
+       [--record <12-hex record key>]   (one record of a shared (ts, ref) pair)
        [--origin backfill] [--tracked-by fu-amend-<id>] [--actor <slug>]
        [--class contract|measurement] [--ledger <path>]
 
@@ -687,6 +768,9 @@ tool exists to stop.
 \`classify\` back-classifies an existing record by APPENDING an overlay
 (docs/ai/decisions.jsonl is append-only — HAZ-LEDGER); the target record is
 never edited. The target is the (--ts, --ref) PAIR, never a line number.
+When several records share one pair, \`classify\` refuses (exit 2) and lists
+each candidate's \`record=<key>\`; \`--record <key>\` then addresses exactly
+that record with an overlay carrying \`classifies_record\` instead of the pair.
 Like \`add\`, \`classify --signoff none\` CO-CREATES the tracked item when the
 target has none, so ONE call takes a record from \`unsigned-untracked\` or
 \`unclassified\` to \`unsigned-tracked\` and \`list --strict\` to exit 0. Pass
@@ -794,6 +878,16 @@ function remedyLines(build) {
   return [`POSIX sh: ${posix}`, `PowerShell: ${pwsh}`];
 }
 
+// The one place a printed `classify` remedy is assembled. `--record` appears
+// only for a shared pair (D7), so every other printed line stays byte-identical.
+// Tokens are joined here, not interpolated into a template, so the value of
+// every user-derived token passes through `shq`.
+function printedClassify(shq, ts, ref, recordKeyOrNull, tail) {
+  const head = ['--ts', shq(ts), '--ref', shq(ref)];
+  if (recordKeyOrNull !== null) head.push('--record', recordKeyOrNull); // 12 lowercase hex by construction (recordKey), never user text: nothing to quote
+  return ['node .aai/scripts/spec-amend.mjs classify', ...head, ...tail].join(' ');
+}
+
 function usageError(msg) {
   process.stderr.write(`spec-amend: ${msg}\n`);
   process.stderr.write('Run `node .aai/scripts/spec-amend.mjs --help` for the grammar.\n');
@@ -802,7 +896,7 @@ function usageError(msg) {
 
 const FLAG_SPECS = {
   add: ['--ledger', '--spec', '--ref', '--what', '--why', '--signoff', '--authority', '--actor', '--class'],
-  classify: ['--ledger', '--ts', '--ref', '--signoff', '--why', '--source', '--origin', '--tracked-by', '--actor', '--class'],
+  classify: ['--ledger', '--ts', '--ref', '--record', '--signoff', '--why', '--source', '--origin', '--tracked-by', '--actor', '--class'],
   // --specs-dir (D11): where `list --strict` scans for frozen specs to
   // re-hash against their own `frozen_sha256` anchor. Defaults to
   // docs/specs — overridable so a fixture test can point at a scratch
@@ -1042,6 +1136,21 @@ function cmdAdd(opts) {
   }
   if (signed) entry.authority = opts.authority;
 
+  // An `add` repeated inside one second can build a record byte-identical to
+  // one already on the ledger (the timestamp has second precision). Appending
+  // it would mint a second line no `--record` can address, so an exact
+  // duplicate is an idempotent no-op that names the existing record's key.
+  // Every NON-identical collision still appends (fail-open, D6).
+  const dupKey = recordKey(entry);
+  if (reg.byRecord.has(dupKey)) {
+    const dupAnchor = restampSpecAnchor(absSpec);
+    if (dupAnchor) console.log(`NOTE re-stamped frozen_sha256 on ${specRel} to the current contract projection (${dupAnchor})`);
+    console.log(`spec-amend: add: an identical amendment for ${opts.ref} already sits on the ledger — nothing appended (idempotent no-op); the existing record is addressed by --record ${dupKey}`);
+    exit(0);
+    return;
+  }
+
+  const earlierSamePair = earlierInPair(reg, entry);
   appendLine(abs, entry);
 
   if (owes && !reg.followUps.has(itemId)) {
@@ -1061,8 +1170,7 @@ function cmdAdd(opts) {
   // discipline follow-ups.mjs's `close` uses. A claim that the ledger now
   // holds the obligation is worth nothing if it was never read back.
   const after = loadLedger(abs);
-  const key = overlayKey(entry.ts, entry.ref_id);
-  const landed = after.byKey.get(key) ?? null;
+  const landed = landedRecord(after, entry);
   if (landed === null) {
     process.stderr.write(`spec-amend: appended the amendment for ${opts.ref} but the re-read of ${abs} did not show it\n`);
     exit(1);
@@ -1080,6 +1188,8 @@ function cmdAdd(opts) {
   // findable, is silently left alone.
   const newAnchor = restampSpecAnchor(absSpec);
   if (newAnchor) console.log(`NOTE re-stamped frozen_sha256 on ${specRel} to the current contract projection (${newAnchor})`);
+  const collision = collisionNote(earlierSamePair, entry);
+  if (collision !== null) console.log(collision);
 
   if (signed) {
     console.log(`spec-amend: recorded a SIGNED amendment on ${specId} (ref ${opts.ref}, authority on the record) — no tracked item is owed`);
@@ -1293,25 +1403,52 @@ function cmdClassify(opts) {
     usageError(`--tracked-by "${trackedBy}" does not match ^fu-[a-z0-9]+(-[a-z0-9]+)*$`);
   }
 
+  // --record (D5): the 12-hex content key of ONE record of a shared pair.
+  const wantRecord = opts.record === undefined ? null : opts.record;
+  if (wantRecord !== null && !new RegExp(`^[0-9a-f]{${RECORD_KEY_LEN}}$`).test(wantRecord)) {
+    usageError(`--record "${wantRecord}" is not a record key: it must be exactly ${RECORD_KEY_LEN} lowercase hex characters (copy it from \`list --json\` \`record_key\`)`);
+  }
+
   const reg = loadLedgerOrRefuse(abs);
-  const targets = reg.items.filter((i) => i.ts === str(opts.ts) && i.ref_id === str(opts.ref));
-  if (targets.length === 0) {
+  const candidates = reg.items.filter((i) => i.ts === str(opts.ts) && i.ref_id === str(opts.ref));
+  if (candidates.length === 0) {
     usageError(`no spec_amendment matches --ts "${opts.ts}" --ref "${opts.ref}" in ${abs} — the target is addressed by the (ts, ref_id) pair, never by line number`);
   }
-  if (targets.length > 1) {
-    usageError(`--ts "${opts.ts}" --ref "${opts.ref}" matches ${targets.length} spec_amendment records in ${abs} — ambiguous, refused rather than guessed`);
+  let targets = candidates;
+  if (wantRecord === null) {
+    if (candidates.length > 1) {
+      // Byte-identical candidates share one key: no --record can tell them apart, so list the key once and print no template that exits 2.
+      if (new Set(candidates.map((i) => i.record_key)).size === 1) {
+        usageError(`--ts "${opts.ts}" --ref "${opts.ref}" matches ${candidates.length} spec_amendment records in ${abs} that are ambiguous and indistinguishable (equal content, equal key) — refused rather than guessed; no --record can address one of them:\n  record=${candidates[0].record_key} class=${candidates[0].amendment_class} bucket=${candidates[0].bucket} what=${candidates[0].what.slice(0, 80)}`);
+      }
+      const lines = candidates.map((i) => `  record=${i.record_key} class=${i.amendment_class} bucket=${i.bucket} what=${i.what.slice(0, 80)}`);
+      const runnable = remedyLines((shq) => printedClassify(shq, str(opts.ts), str(opts.ref), '<key>', ['--signoff', str(opts.signoff) || '<owner|none>', '--why', '"<one line>"', '--source', '"<evidence>"']));
+      usageError(`--ts "${opts.ts}" --ref "${opts.ref}" matches ${candidates.length} spec_amendment records in ${abs} — ambiguous, refused rather than guessed. Address one with --record <key>:\n${lines.join('\n')}\n${runnable.map((r) => `  ${r}`).join('\n')}`);
+    }
+  } else {
+    const matched = candidates.filter((i) => i.record_key === wantRecord);
+    if (matched.length === 0) {
+      usageError(`--record ${wantRecord} matches no record of ts="${opts.ts}" ref="${opts.ref}" in ${abs}; the pair's record keys are: ${candidates.map((i) => i.record_key).join(', ')}`);
+    }
+    if (matched.length > 1) {
+      usageError(`--record ${wantRecord} matches ${matched.length} records of ts="${opts.ts}" ref="${opts.ref}" that are indistinguishable (equal content, equal key) — refused rather than guessed`);
+    }
+    targets = matched;
   }
+  // The fold's view of the target, by whichever address the caller used.
+  const lookup = (fold) => (wantRecord === null
+    ? fold.byKey.get(overlayKey(opts.ts, opts.ref))
+    : fold.byRecord.get(wantRecord));
 
   const entry = {
     v: 1,
     ts: nowIso(),
     actor: str(opts.actor) ?? 'orchestrator',
     type: 'spec_amendment_classification',
-    classifies_ts: opts.ts,
-    classifies_ref: opts.ref,
-    owner_signoff: signed,
-    why: opts.why,
   };
+  if (wantRecord === null) { entry.classifies_ts = opts.ts; entry.classifies_ref = opts.ref; } else { entry[RECORD_OVERLAY_FIELD] = wantRecord; }
+  entry.owner_signoff = signed;
+  entry.why = opts.why;
   if (opts.origin !== undefined) entry.origin = opts.origin;
   if (amendmentClass !== null) entry.amendment_class = amendmentClass;
   entry.source = opts.source;
@@ -1353,7 +1490,7 @@ function cmdClassify(opts) {
   // it to agree with the first, which is the only version of this that a
   // later edit to `foldAmendments` cannot quietly undo.
   const trial = foldAmendments(reg.records.concat([entry]));
-  const projected = trial.byKey.get(overlayKey(opts.ts, opts.ref));
+  const projected = lookup(trial);
 
   // THE SIGNING REFUSAL IS A GATE ON THE PROJECTED CLASS, NOT ON THE FLAG —
   // the SAME correction `owesOwnerObligation` took above, applied to its
@@ -1432,7 +1569,7 @@ function cmdClassify(opts) {
   // `tracked_by` outrank any overlay's, so filing before the re-read could
   // manufacture an orphan item for an id the gate will never consult.
   let after = loadLedger(abs);
-  let landed = after.byKey.get(overlayKey(opts.ts, opts.ref)) ?? null;
+  let landed = lookup(after) ?? null;
   if (owes && landed !== null && landed.tracked_by !== null && !after.followUps.has(landed.tracked_by)) {
     appendAmendItem(abs, {
       actor: entry.actor,
@@ -1445,7 +1582,7 @@ function cmdClassify(opts) {
       sourceTs: opts.ts,
     });
     after = loadLedger(abs);
-    landed = after.byKey.get(overlayKey(opts.ts, opts.ref)) ?? null;
+    landed = lookup(after) ?? null;
   }
 
   if (landed === null || landed.owner_signoff !== signed) {
@@ -1547,16 +1684,23 @@ function cmdRestamp(opts) {
   // THE LEDGER LANDS BEFORE THE FILE IS TOUCHED (Spec-AC-19) — appendLine and
   // the co-created tracked item both happen here, then commitSpecRestamp does
   // the ONE atomic write.
-  appendLine(abs, entry);
-  if (owes && !reg.followUps.has(itemId)) {
-    appendAmendItem(abs, { actor, itemId, ref, specId, specRel, what, why, sourceTs: ts });
+  const earlierSamePair = earlierInPair(reg, entry);
+  // Same rule as `add`: a record byte-identical to one already on the ledger is
+  // not appended a second time (nothing could address it); the file re-anchor
+  // below still lands, since that is what the disclosure is for.
+  const duplicateRecord = reg.byRecord.has(recordKey(entry));
+  if (!duplicateRecord) {
+    appendLine(abs, entry);
+    if (owes && !reg.followUps.has(itemId)) {
+      appendAmendItem(abs, { actor, itemId, ref, specId, specRel, what, why, sourceTs: ts });
+    }
   }
 
   commitSpecRestamp(absSpec, computed.out);
 
   // Prove the write by re-reading, the same discipline `add`/`classify` use.
   const after = loadLedger(abs);
-  const landed = after.byKey.get(overlayKey(entry.ts, entry.ref_id)) ?? null;
+  const landed = landedRecord(after, entry);
   // The proof this write owes is the BUCKET, and WHICH bucket is itself
   // decided by the measured cause: `measurement` when the allocator was
   // shown to be the cause, `unsigned-tracked` when it was not (the obligation
@@ -1584,9 +1728,20 @@ function cmdRestamp(opts) {
     // A remedy that cannot be run is the defect this script exists to remove,
     // one level up — TEST-1376 runs this line verbatim and checks EVERY
     // printed invocation in this file against FLAG_SPECS itself.
-    for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs classify --ts ${shq(ts)} --ref ${shq(ref)} --signoff owner --source "<who decided, where>" --why "<what the drift really was>" --ledger ${shq(abs)}`)) {
-      console.log(`NOTE sign it off once someone has said what changed: ${remedy}`);
+    const recordKeyArg = pairIsShared(after, ts, ref) ? recordKey(entry) : null;
+    if (indistinguishableInPair(after, ts, ref, recordKey(entry))) {
+      console.log(`NOTE ${INDISTINGUISHABLE_NOTE}`);
+    } else {
+      for (const remedy of remedyLines((shq) => printedClassify(shq, ts, ref, recordKeyArg, ['--signoff', 'owner', '--source', '"<who decided, where>"', '--why', '"<what the drift really was>"', '--ledger', shq(abs)]))) {
+        console.log(`NOTE sign it off once someone has said what changed: ${remedy}`);
+      }
     }
+  }
+  if (duplicateRecord) {
+    console.log(`NOTE an identical amendment already sat on the ledger, so none was appended (idempotent); the existing record is addressed by --record ${recordKey(entry)}`);
+  } else {
+    const collision = collisionNote(earlierSamePair, entry);
+    if (collision !== null) console.log(collision);
   }
   if (reusedNote) console.log(`NOTE ${reusedNote}`);
   if (owes) console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
@@ -1828,6 +1983,7 @@ function cmdList(opts) {
     // buckets, and the two commands that do NOT are named as not doing it.
     process.stderr.write(`spec-amend: --strict found ${violations.length} amendment record(s) that are untracked or unclassified — an unsigned amendment with no tracked item has no outflow, and an unclassified one cannot be told from a signed one.\n`);
     process.stderr.write('Clear EACH record named above by APPEND, with its own ts and ref:\n');
+    let noCommand = 0;
     for (const v of violations) {
       // A record missing `ts` or `ref_id` cannot be matched by `classify`,
       // which keys on that pair — so printing a `<ts>` placeholder would be
@@ -1848,11 +2004,22 @@ function cmdList(opts) {
       // ref carrying a quote or whitespace produced a line that breaks when
       // pasted — and TEST-013 runs this line through `eval` (code review
       // NB-E, reproduced through the writer, not only by hand-append).
-      for (const remedy of remedyLines((shq) => `node .aai/scripts/spec-amend.mjs classify --ts ${shq(v.ts)} --ref ${shq(v.ref_id)} --signoff none --why "<one line>" --source "<evidence>"`)) {
+      if (indistinguishableInPair(reg, v.ts, v.ref_id, v.record_key)) {
+        process.stderr.write(`  (no runnable remedy for ts=${v.ts} ref=${v.ref_id}: ${INDISTINGUISHABLE_NOTE})\n`);
+        noCommand += 1;
+        continue;
+      }
+      const recordKeyArg = pairIsShared(reg, v.ts, v.ref_id) ? v.record_key : null;
+      for (const remedy of remedyLines((shq) => printedClassify(shq, v.ts, v.ref_id, recordKeyArg, ['--signoff', 'none', '--why', '"<one line>"', '--source', '"<evidence>"']))) {
         process.stderr.write(`  ${remedy}\n`);
       }
     }
-    process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n');
+    if (noCommand > 0) {
+      // The trailer must not promise what the printed lines cannot deliver: a record that got only the indistinguishable note has NO command, so exit 0 is out of reach for it.
+      process.stderr.write(`${noCommand} record(s) above got only the indistinguishable note: no command above can clear them, so this gate stays at exit 1 while they sit on the ledger. For any command printed above, \`--signoff none\` also FILES the tracked item in that same call and takes its record to \`unsigned-tracked\`; use \`--signoff owner --why … --source …\` instead when the owner actually decided, naming the record that proves it, and \`--tracked-by fu-…\` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n`);
+    } else {
+      process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n');
+    }
     process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');
   }
   if (opts.strict && (violations.length > 0 || specViolations.length > 0)) exit(1);

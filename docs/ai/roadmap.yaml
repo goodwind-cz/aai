@@ -58,6 +58,8 @@ pairs:
     status: done
   - capability: directed-merge-and-post-merge-cleanup
     status: done
+  - capability: classify-same-ts-pair
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
