@@ -772,6 +772,26 @@ test_012_state_index_report() {
   [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "other-pr arm state step reported $(step_status "$ENG_OUT" state), want noop"
   cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 'other-pr arm changed the STATE bytes'
 
+  # (d) links.pr is read strictly (NB-r2-3): a URL for ANOTHER repository whose owner name carries
+  # the digits of this PR (u433/r/pull/77) names no work of this PR, and a bare digit scrape would clear it
+  ISSUE_LINK_PR='https://github.com/u433/r/pull/77' build_world focus_url_digits
+  seed_state foo
+  run cp "$ORIGIN/$STATE_REL" "$W/state.keep"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "url-digits arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "url-digits arm state step reported $(step_status "$ENG_OUT" state), want noop"
+  cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 'url-digits arm changed the STATE bytes'
+  # positive controls: the accepted shapes still clear (a '#N' entry is quoted, an unquoted # starts a YAML comment)
+  n=0
+  for arm in '"#433"' 'https://github.com/example/repo/pull/433'; do
+    n=$((n + 1))
+    ISSUE_LINK_PR="$arm" build_world "focus_link_shape_$n"
+    seed_state foo
+    run_engine apply --pr "$PR" --pid 4242 --json
+    [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "link shape $arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+    [[ "$(step_status "$ENG_OUT" state)" == done ]] || fail TEST-012 "link shape $arm: state step reported $(step_status "$ENG_OUT" state), want done"
+  done
+
   # the owner's verbatim direction and the merged head are recorded durably (D3/D9):
   # report, saved report and one directed_merge decision, once even when re-run
   build_world direction
@@ -958,6 +978,50 @@ test_014_interrupted_run_converges() {
     [[ "$(step_status "$ENG_OUT" sync-base)" == done ]] || fail TEST-014 "resume after crash at $point: sync-base reported $(step_status "$ENG_OUT" sync-base), want done (the re-append is work, not a no-op)"
     assert_no_merge_call TEST-014
   done
+
+  # NB-r2-1: a kill at sync-after-rewrite, then ANOTHER session appends to the shared ledger before
+  # the re-run. The local tail must come back after the concurrent line, nothing lost or doubled.
+  local concurrent='{"v":1,"ts":"2026-10-10T02:00:00Z","actor":"other","event":"concurrent_note","ref":"concurrent","payload":{}}'
+  build_rich_world crash_concurrent
+  rc=0
+  ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=sync-after-rewrite node "$ENGINE" apply --pr "$PR" --pid 4242 --json >"$W/engine.out" 2>"$W/engine.err" ) || rc=$?
+  [[ "$rc" -eq 137 ]] || fail TEST-014 "concurrent arm: crash exited $rc, want 137"
+  [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 0 ]] || fail TEST-014 'concurrent arm: the local tail is still live before the append (positive control)'
+  printf '%s\n' "$concurrent" >> "$ORIGIN/$EV"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-014 "concurrent arm: resume exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-014 'concurrent arm: the local tail is not exactly once in the live ledger'
+  [[ "$(count_line "$ORIGIN/$EV" "$concurrent")" == 1 ]] || fail TEST-014 'concurrent arm: the concurrent line is not exactly once'
+  [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-014 'concurrent arm: a duplicate ledger line'
+  [[ ! -e "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail TEST-014 'concurrent arm: the pending journal survived a clean resume'
+
+  # a live ledger that no longer starts with the HEAD blob cannot be proven safe: refuse with a
+  # named reason, keep the journal and the archived tail, overwrite nothing
+  build_rich_world crash_diverged
+  rc=0
+  ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=sync-after-rewrite node "$ENGINE" apply --pr "$PR" --pid 4242 --json >"$W/engine.out" 2>"$W/engine.err" ) || rc=$?
+  [[ "$rc" -eq 137 ]] || fail TEST-014 "diverged arm: crash exited $rc, want 137"
+  printf 'someone rewrote the ledger\n' > "$ORIGIN/$EV"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-014 "diverged arm: resume exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-014 "$ENG_OUT" 'REFUSE ledger_rewritten'
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail TEST-014 'diverged arm: the pending journal was deleted'
+  [[ "$(cat "$ORIGIN/$EV")" == 'someone rewrote the ledger' ]] || fail TEST-014 'diverged arm: the live ledger was overwritten'
+  assert_nothing_lost TEST-014
+
+  # NB-r2-4: the journal is found by ANY later apply, not only the same PR's. PR 433 is killed
+  # mid-sync; the owner then merges and cleans PR 434. Its apply puts PR 433's tail back first.
+  build_rich_world crash_foreign
+  rc=0
+  ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=sync-after-rewrite node "$ENGINE" apply --pr "$PR" --pid 4242 --json >"$W/engine.out" 2>"$W/engine.err" ) || rc=$?
+  [[ "$rc" -eq 137 ]] || fail TEST-014 "foreign arm: crash exited $rc, want 137"
+  sed -e 's/"number":433/"number":434/' -e 's#/pull/433#/pull/434#' "$GHD/pr-$PR.json" > "$GHD/pr-434.json"
+  run_engine apply --pr 434 --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-014 "foreign arm: apply for another PR exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-014 'foreign arm: the other PR tail was not put back exactly once'
+  [[ ! -e "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail TEST-014 'foreign arm: the other PR journal survived'
+  [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-014 'foreign arm: a duplicate ledger line'
+  assert_no_merge_call TEST-014
   echo 'PASS: TEST-014 interrupted run converges to the uninterrupted bytes'
 }
 
@@ -1041,6 +1105,7 @@ test_003_preflight_refusals() {
   expect_refusal TEST-003 sweep_missing pf
   want TEST-003 "$ENG_OUT" 'contradictory-record'
 
+  [[ ! -e "$ORIGIN/docs/ai/decisions.jsonl" ]] || fail TEST-003 'a refusal arm left a directed_merge record'
   # negative controls: a merged PR points at apply (exit 0), and the all-good
   # fixture is ready (exit 10) - the refusals above are not vacuous
   run cp "$W/events.with-sweep" "$RIDE/docs/ai/EVENTS.jsonl"
@@ -1084,7 +1149,7 @@ test_003_preflight_refusals() {
 
 test_004_preflight_ready() {
   open_world pf_ready
-  local before cmd n
+  local before cmd n dec after
   before="$(world_digest)"
   pf
   [[ "$ENG_RC" -eq 10 ]] || fail TEST-004 "ready exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
@@ -1098,7 +1163,27 @@ test_004_preflight_ready() {
   # positive controls: the PR read and the real sweep check both ran
   want TEST-004 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"
   want TEST-004 "$ENG_OUT" 'SWEEP-CHECK allowed'
-  [[ "$(world_digest)" == "$before" ]] || fail TEST-004 'preflight changed the fixture'
+  # NB-r2-2: the owner's direction is recorded BEFORE the printed merge runs, and only that:
+  # one directed_merge decision in the origin ledger, nothing else in the fixture changed
+  dec="$ORIGIN/docs/ai/decisions.jsonl"
+  [[ -f "$dec" && "$(wc -l < "$dec" | tr -d ' ')" == 1 ]] || fail TEST-004 'preflight did not record exactly one decision'
+  [[ "$(json_get "$(cat "$dec")" 'j.type')" == directed_merge ]] || fail TEST-004 'recorded decision type'
+  [[ "$(json_get "$(cat "$dec")" 'j.answer')" == 'merge 433 please' ]] || fail TEST-004 'recorded decision is not the verbatim direction'
+  [[ "$(json_get "$(cat "$dec")" 'j.head')" == "$HEAD_OID" ]] || fail TEST-004 'recorded decision head'
+  [[ "$(json_get "$(cat "$dec")" 'j.pr')" == "$PR" ]] || fail TEST-004 'recorded decision pr'
+  rm -f "$dec"
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-004 'preflight changed the fixture beyond the decision record'
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-004 "second ready exited $ENG_RC"
+  after="$(sha_of "$dec")"
+  pf
+  [[ "$(sha_of "$dec")" == "$after" && "$(wc -l < "$dec" | tr -d ' ')" == 1 ]] || fail TEST-004 'a repeat preflight duplicated the decision record'
+  # the merge happens, then apply refuses (the ride is dirty): the direction is already durable
+  write_pr_json MERGED "$MC"
+  run_engine apply --pr "$PR" --pid 4242 --direction 'merge 433 please'
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-004 "apply on the dirty ride exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(wc -l < "$dec" | tr -d ' ')" == 1 && "$(sha_of "$dec")" == "$after" ]] || fail TEST-004 'a refused apply lost or duplicated the recorded direction'
+  write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
   assert_no_merge_call TEST-004
   # --json carries the same single command and the judged head
   pf --json
@@ -1204,29 +1289,31 @@ test_001_wrappers_and_pointers() {
   echo 'PASS: TEST-001 wrappers and completion pointers'
 }
 
-# run_block <file> <cwd>: executes an extracted prompt block with the gh stub first on PATH.
+# run_block <file> <cwd> [shell]: executes an extracted prompt block with the gh stub first on PATH.
 run_block() {
   ENG_RC=0
   [[ -n "$2" && "$2" = /* ]] || fail SETUP 'block cwd'
-  ( cd "$2" && AAI_PR="$PR" PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" bash "$1" >"$W/block.out" 2>"$W/block.err" ) || ENG_RC=$?
+  ( cd "$2" && AAI_PR="$PR" PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" "${3:-bash}" "$1" >"$W/block.out" 2>"$W/block.err" ) || ENG_RC=$?
   ENG_OUT="$(cat "$W/block.out")"
   ENG_ERR="$(cat "$W/block.err")"
 }
 
-test_002_prompt_block_runs_cleanup() {
+# block_case <shell> <world name>: the extracted bash block, run by that shell.
+block_case() {
+  local sh="$1"
   [[ -f "$PROMPT" ]] || fail TEST-002 "the core prompt is missing: $PROMPT"
-  DOWNSTREAM=1 build_world "prompt block"
+  DOWNSTREAM=1 build_world "$2"
   block_of AAI_MERGE_BEGIN AAI_MERGE_END "$PROMPT" > "$W/merge.block.sh"
   [[ -s "$W/merge.block.sh" ]] || fail TEST-002 'AAI_MERGE bash block is empty or missing'
   local before
   # negative control: no PR number is a usage failure that writes nothing
   before="$(world_digest)"
-  ( cd "$RIDE" && env -u AAI_PR PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" bash "$W/merge.block.sh" >"$W/block.out" 2>"$W/block.err" ) && ENG_RC=0 || ENG_RC=$?
-  [[ "$ENG_RC" -ne 0 ]] || fail TEST-002 'the block ran without AAI_PR'
+  ( cd "$RIDE" && env -u AAI_PR PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" "$sh" "$W/merge.block.sh" >"$W/block.out" 2>"$W/block.err" ) && ENG_RC=0 || ENG_RC=$?
+  [[ "$ENG_RC" -ne 0 ]] || fail TEST-002 "the $sh block ran without AAI_PR"
   [[ "$(world_digest)" == "$before" ]] || fail TEST-002 'the block without AAI_PR changed the fixture'
   # positive: run from INSIDE the ride worktree, the block resolves the origin itself
-  AAI_DIRECTION='merge 433 now, owner said so' run_block "$W/merge.block.sh" "$RIDE"
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-002 "block exited $ENG_RC (out: $ENG_OUT err: $ENG_ERR)"
+  AAI_DIRECTION='merge 433 now, owner said so' run_block "$W/merge.block.sh" "$RIDE" "$sh"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-002 "$sh block exited $ENG_RC (out: $ENG_OUT err: $ENG_ERR)"
   [[ ! -e "$RIDE" ]] || fail TEST-002 'the ride worktree still exists'
   if git -C "$ORIGIN" show-ref --verify -q "refs/heads/$BRANCH"; then fail TEST-002 'the ride branch still exists'; fi
   [[ -f "$ORIGIN/$NUM_ISSUE" && -f "$ORIGIN/$NUM_SPEC" ]] || fail TEST-002 'numbered docs missing from the origin'
@@ -1237,6 +1324,15 @@ test_002_prompt_block_runs_cleanup() {
   # the block forwards the owner's verbatim direction, which lands in the decision ledger
   want TEST-002 "$(cat "$ORIGIN/docs/ai/decisions.jsonl")" '"answer":"merge 433 now, owner said so"'
   assert_no_merge_call TEST-002
+}
+
+test_002_prompt_block_runs_cleanup() {
+  block_case bash 'prompt block'
+  # D3/D9: the owner's direction is one word per flag in zsh too (the Claude Code Bash tool
+  # runs zsh on macOS). The skip is by name, and only when zsh is genuinely absent.
+  if command -v zsh >/dev/null 2>&1; then block_case zsh 'prompt block zsh'
+  else echo 'SKIP: TEST-002 zsh arm (zsh not installed)'
+  fi
   echo 'PASS: TEST-002 the prompt block runs cleanup'
 }
 

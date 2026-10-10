@@ -125,7 +125,13 @@ process.exit(1);
     $script:Block = [scriptblock]::Create($match.Groups[1].Value)
   }
   AfterAll {
-    foreach ($name in $script:Saved.Keys) { [Environment]::SetEnvironmentVariable($name, $script:Saved[$name]) }
+    # An unset variable must be removed, not set to '': pwsh 7 passes $null to the .NET
+    # string parameter as an empty string, and an empty GIT_AUTHOR_NAME leaks into every
+    # later Pester file as 'empty ident name'.
+    foreach ($name in $script:Saved.Keys) {
+      if ($null -eq $script:Saved[$name]) { Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue }
+      else { [Environment]::SetEnvironmentVariable($name, $script:Saved[$name]) }
+    }
     if (Test-Path -LiteralPath $Ride) { & git -C $Origin worktree remove --force $Ride | Out-Null }
     if (Test-Path -LiteralPath $Scratch) { Remove-Item -LiteralPath $Scratch -Recurse -Force }
   }

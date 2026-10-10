@@ -979,7 +979,12 @@ test_012_growth_sum_matches_ledger() {
   # direction forwarded to the engine and the PowerShell lock pid); zero
   # headroom standing, credited 1:1 (ledger key
   # directed-merge-and-post-merge-cleanup-round1).
-  local want_growth=59970
+  # Then 59970 -> 60008: directed-merge-and-post-merge-cleanup round 2
+  # remediation (+38 B: SKILL_MERGE.prompt.md 3412 -> 3450, the bash block
+  # builds the --direction pair with set -- so it is two words under zsh too);
+  # zero headroom standing, credited 1:1 (ledger key
+  # directed-merge-and-post-merge-cleanup-round2).
+  local want_growth=60008
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

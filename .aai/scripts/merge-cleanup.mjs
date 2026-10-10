@@ -209,17 +209,27 @@ function deliveredIds(origin, mc) {
   return ids;
 }
 
-// Numbers named by a frontmatter links.pr value (block list or inline text).
-function linkedPrs(fm) {
+// PR numbers a frontmatter links.pr value names, read strictly: a bare number, '#N',
+// or a URL of THIS repository whose path ends /pull/N. Digits elsewhere in an entry
+// (an owner or repo name, a query) name nothing.
+function linkedPrs(fm, repo) {
   const v = fm?.links?.pr;
-  return (Array.isArray(v) ? v : [v]).flatMap((x) => String(x ?? '').match(/\d+/g) ?? []).map(Number);
+  const out = [];
+  for (const x of Array.isArray(v) ? v : [v]) {
+    const t = String(x ?? '').trim();
+    const plain = t.match(/^#?(\d+)$/);
+    if (plain) { out.push(Number(plain[1])); continue; }
+    const url = t.match(/^https?:\/\/[^\s?#]+\/pull\/(\d+)\/?$/);
+    if (url && repo && repoSlug(t) === repo) out.push(Number(url[1]));
+  }
+  return out;
 }
 
 // The work item(s) THIS PR delivered: intake docs (any type but spec) in the merged
 // tree that the PR added or changed, left status done with links.pr naming this PR -
 // the stamp close-work-item writes. Touching a doc, filing a draft, or sharing the
 // branch-name tail does not make a ref merged (F1).
-function deliveredDoneRefs(origin, mc, pr) {
+function deliveredDoneRefs(origin, mc, pr, repo) {
   const names = git(origin, ['diff', '--name-only', '--no-renames', '--diff-filter=AM', '-z', `${mc}^1`, mc]);
   const refs = new Set();
   if (names.status !== 0) return refs;
@@ -228,7 +238,7 @@ function deliveredDoneRefs(origin, mc, pr) {
     const blob = git(origin, ['cat-file', 'blob', `${mc}:${rel}`]);
     if (blob.status !== 0) continue;
     const fm = parseFrontmatter(blob.stdout);
-    if (fm?.id && fm.type !== 'spec' && fm.status === 'done' && linkedPrs(fm).includes(pr)) refs.add(String(fm.id));
+    if (fm?.id && fm.type !== 'spec' && fm.status === 'done' && linkedPrs(fm, repo).includes(pr)) refs.add(String(fm.id));
   }
   return refs;
 }
@@ -404,32 +414,56 @@ function planSync(ctx) {
 // NB-2: a hard kill between rewriting a dirty ledger to the HEAD blob and
 // re-appending the local tail would leave the tail only in the archive. The
 // pending journal below names it; the next run puts it back before anything else.
+// Any later apply finds the journal, whichever PR wrote it (NB-r2-4).
 const pendingPath = (ctx) => path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'sync', 'pending.json');
 
-// Re-append (or restore) from a pending journal. Returns a detail string when it
-// did work, null when there was nothing pending.
-function resumeSync(ctx) {
-  const file = pendingPath(ctx);
-  if (!fs.existsSync(file)) return null;
+function pendingJournals(ctx) {
+  const root = path.join(ctx.origin, 'docs', 'ai', 'archive', 'merge-cleanup');
+  let names = [];
+  try { names = fs.readdirSync(root); } catch { /* no archive yet */ }
+  return names.sort().map((n) => path.join(root, n, 'sync', 'pending.json')).filter((f) => fs.existsSync(f));
+}
+
+const startsWith = (whole, part) => !!whole && !!part && whole.length >= part.length && whole.subarray(0, part.length).equals(part);
+
+// What a ledger that was rewritten to the HEAD blob becomes when the archived local
+// bytes (HEAD blob + local tail) go back: anything appended since stays AFTER them.
+// null when the live bytes cannot be proven to be the HEAD blob plus appends.
+function putBack(saved, headBlob, live) {
+  if (!headBlob || !startsWith(live, headBlob)) return null;
+  if (startsWith(live, saved)) return live;
+  return Buffer.concat([saved, live.subarray(headBlob.length)]);
+}
+
+// Re-append (or restore) from one pending journal. Returns a detail string when it
+// did work.
+function resumeSync(ctx, file) {
   const { origin } = ctx;
+  const rel = posix(path.relative(origin, file));
   let pending;
-  try { pending = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { stop('pending_unreadable', posix(path.relative(origin, file))); }
+  try { pending = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { stop('pending_unreadable', rel); }
   const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim();
   let entries;
-  try { entries = pending.entries.map((e) => ({ ...e, saved: fs.readFileSync(path.join(origin, e.archive)) })); } catch { stop('pending_unreadable', posix(path.relative(origin, file))); }
+  try { entries = pending.entries.map((e) => ({ ...e, saved: fs.readFileSync(path.join(origin, e.archive)), headBlob: readBlob(origin, `${pending.head}:${e.rel}`) })); } catch { stop('pending_unreadable', rel); }
+  if (entries.some((e) => !e.headBlob)) stop('pending_unreadable', `${rel}: HEAD blob of a journalled file is gone`);
   let detail;
   if (headNow === pending.head) {
-    // the fast-forward never happened: put the local bytes back, the normal sync redoes the rest
+    // the fast-forward never happened: put the local bytes back after anything appended
+    // since, the normal sync redoes the rest. Prove every file before writing any.
+    const writes = [];
     for (const e of entries) {
       const abs = path.join(origin, e.rel);
-      const headBlob = readBlob(origin, `${pending.head}:${e.rel}`);
       let cur = null;
       try { cur = fs.readFileSync(abs); } catch { /* removed */ }
-      if (headBlob && cur && cur.equals(headBlob)) fs.writeFileSync(abs, e.saved);
+      if (!e.ledger) { if (cur && cur.equals(e.headBlob)) writes.push([abs, e.saved]); continue; }
+      const next = putBack(e.saved, e.headBlob, cur);
+      if (!next) stop('pending_diverged', `${e.rel}: the live ledger no longer starts with the HEAD blob; the local tail stays in ${e.archive} and the journal ${rel}`);
+      writes.push([abs, next]);
     }
+    for (const [abs, bytes] of writes) fs.writeFileSync(abs, bytes);
     detail = 'restored local state of an interrupted sync';
   } else {
-    mergeLedgerTails(ctx, entries.filter((e) => e.ledger).map((e) => ({ rel: e.rel, headBlob: readBlob(origin, `${pending.head}:${e.rel}`), bytes: e.saved })));
+    mergeLedgerTails(ctx, entries.filter((e) => e.ledger).map((e) => ({ rel: e.rel, headBlob: e.headBlob, bytes: e.saved })));
     if (entries.some((e) => !e.ledger)) regenIndex(ctx);
     detail = 're-appended the local ledger tail of an interrupted sync';
   }
@@ -459,15 +493,25 @@ function regenIndex(ctx) {
 }
 
 function syncBase(ctx) {
-  const resumed = resumeSync(ctx);
+  const resumed = pendingJournals(ctx).map((f) => resumeSync(ctx, f)).pop() ?? null;
   const plan = planSync(ctx);
   if (plan.refusal) stop(...plan.refusal);
   if (plan.noop) return resumed ? { status: 'done', detail: resumed } : { status: 'noop', detail: 'already_at_target' };
   const { origin, opts } = ctx;
   const root = archiveRoot(origin, opts.pr);
   const saved = [];
+  // Puts the pre-sync local bytes back after a failed fast-forward, keeping anything another
+  // session appended meanwhile. Returns the files it could not prove safe to touch.
   const restore = () => {
-    for (const s of saved) fs.writeFileSync(path.join(origin, s.rel), s.bytes);
+    const stuck = [];
+    for (const s of saved) {
+      const abs = path.join(origin, s.rel);
+      let cur = null;
+      try { cur = fs.readFileSync(abs); } catch { /* removed */ }
+      const next = s.ledger ? putBack(s.bytes, s.headBlob, cur) : s.bytes;
+      if (next) fs.writeFileSync(abs, next); else stuck.push(s.rel);
+    }
+    return stuck;
   };
   const pendingEntries = [];
   for (const rel of [...plan.ledgers, ...(plan.index ? [INDEX_PATH] : [])]) {
@@ -489,10 +533,12 @@ function syncBase(ctx) {
   for (const r of removed) fs.unlinkSync(path.join(origin, r.rel));
   const ff = git(origin, ['merge', '--ff-only', plan.target]);
   if (ff.status !== 0) {
-    restore();
+    const stuck = restore();
     for (const r of removed) { fs.mkdirSync(path.dirname(path.join(origin, r.rel)), { recursive: true }); fs.writeFileSync(path.join(origin, r.rel), r.bytes); }
+    const why = (ff.stderr || ff.stdout).trim().split('\n')[0] ?? '';
+    if (stuck.length > 0) stop('sync_failed', `${why}; pending_diverged: ${stuck.join(', ')} changed meanwhile, the local tail stays archived and the journal is kept`);
     fs.rmSync(pendingPath(ctx), { force: true });
-    stop('sync_failed', (ff.stderr || ff.stdout).trim().split('\n')[0] ?? '');
+    stop('sync_failed', why);
   }
   const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim();
   const refNow = git(origin, ['rev-parse', `refs/heads/${ctx.base}`]).stdout.trim();
@@ -609,7 +655,7 @@ function planChecks(ctx) {
 
 // Work-item ids this PR delivered (see deliveredDoneRefs).
 function mergedRefs(ctx) {
-  if (!ctx.refs) ctx.refs = deliveredDoneRefs(ctx.origin, ctx.mc, ctx.opts.pr);
+  if (!ctx.refs) ctx.refs = deliveredDoneRefs(ctx.origin, ctx.mc, ctx.opts.pr, repoSlug(ctx.pr?.url));
   return ctx.refs;
 }
 
@@ -665,16 +711,13 @@ function indexAudit(ctx) {
   return { status: changed ? 'done' : 'noop', detail: changed ? 'index regenerated' : 'index_current' };
 }
 
-// D3/D9: the owner's verbatim direction and the merged head become one durable
-// directed_merge decision (append-only ledger, written once per pr+words+head).
-// Returns the ledger path when it wrote, null when there is nothing to add.
-function recordDirection(ctx) {
-  const direction = ctx.opts.direction ?? '';
-  if (ctx.opts.mode !== 'apply' || direction.trim() === '') return null;
-  const file = path.join(ctx.origin, 'docs', 'ai', 'decisions.jsonl');
-  const known = readJsonl(file).some((r) => r.type === 'directed_merge' && r.pr === ctx.opts.pr && r.answer === direction && r.head === ctx.head);
-  if (known) return null;
-  const ref = [...mergedRefs(ctx)].sort()[0] ?? ctx.headRef.split('/').pop();
+// D3/D9: the owner's verbatim direction and the judged head become one durable
+// directed_merge decision (append-only ledger, once per pr+words+head). preflight
+// writes it before the merge command runs; apply writes it only when preflight did
+// not. Returns the ledger path when it wrote, null when it was already there.
+function appendDirectedMerge(origin, rec) {
+  const file = path.join(origin, 'docs', 'ai', 'decisions.jsonl');
+  if (readJsonl(file).some((r) => r.type === 'directed_merge' && r.pr === rec.pr && r.answer === rec.direction && r.head === rec.head)) return null;
   let lead = '';
   try {
     const old = fs.readFileSync(file);
@@ -682,11 +725,18 @@ function recordDirection(ctx) {
   } catch { /* no ledger yet */ }
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.appendFileSync(file, `${lead}${JSON.stringify({
-    v: 1, ts: new Date().toISOString(), actor: 'merge-cleanup', type: 'directed_merge', ref_id: ref, pr: ctx.opts.pr, by: 'human',
-    answer: direction, head: ctx.head, merge_commit: ctx.mc,
-    decision: `owner-directed merge of PR #${ctx.opts.pr} at head ${ctx.head} via /aai-merge (one PR, one head, --match-head-commit)`,
+    v: 1, ts: new Date().toISOString(), actor: 'merge-cleanup', type: 'directed_merge', ref_id: rec.ref, pr: rec.pr, by: 'human',
+    answer: rec.direction, head: rec.head, ...(rec.mc ? { merge_commit: rec.mc } : {}),
+    decision: `owner-directed merge of PR #${rec.pr} at head ${rec.head} via /aai-merge (one PR, one head, --match-head-commit)`,
   })}\n`);
   return 'docs/ai/decisions.jsonl';
+}
+
+function recordDirection(ctx) {
+  const direction = ctx.opts.direction ?? '';
+  if (ctx.opts.mode !== 'apply' || direction.trim() === '') return null;
+  const ref = [...mergedRefs(ctx)].sort()[0] ?? ctx.headRef.split('/').pop();
+  return appendDirectedMerge(ctx.origin, { pr: ctx.opts.pr, direction, head: ctx.head, mc: ctx.mc, ref });
 }
 
 const REPORT_DIR = 'docs/ai/reports';
@@ -888,6 +938,16 @@ function runPreflight(opts) {
   const gateOut = (g.stdout ?? '').trim();
   if (g.error || g.status !== 0) {
     refuse('sweep_missing', gateOut.split('\n').filter(Boolean).join(' | ') || 'lane-gate --sweep-check did not allow the merge');
+  }
+  // The direction is durable BEFORE the printed merge runs, so a later refusal cannot lose it. It goes
+  // to the main checkout's ledger (the one apply syncs), never into the ride branch.
+  const wl = git(cwd, ['worktree', 'list', '--porcelain']);
+  const mainWt = wl.status === 0 ? wl.stdout.match(/^worktree (.+)$/m)?.[1] : null;
+  if (!mainWt) refuse('direction_unrecorded', 'cannot locate the origin checkout to record the direction in');
+  try {
+    appendDirectedMerge(realOr(mainWt), { pr: opts.pr, direction: opts.direction, head, ref: String(pr.headRefName ?? '').split('/').pop() });
+  } catch (e) {
+    refuse('direction_unrecorded', String(e.message ?? e).split('\n')[0]);
   }
   const command = `AAI_OPERATOR_MERGE=1 gh pr merge ${opts.pr} --squash --match-head-commit ${head}`;
   if (opts.json) {

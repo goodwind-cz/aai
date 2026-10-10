@@ -24,7 +24,8 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    AAI_ORIGIN="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
    [[ -n "$AAI_ORIGIN" && "$AAI_ORIGIN" = /* && -d "$AAI_ORIGIN" ]] || { echo "origin checkout not found" >&2; exit 1; }
    cd "$AAI_ORIGIN"
-   AAI_GIT_WRITE=1 node "$AAI_ORIGIN/.aai/scripts/merge-cleanup.mjs" apply --pr "$AAI_PR" --pid "$PPID" --origin "$AAI_ORIGIN" ${AAI_DIRECTION:+--direction "$AAI_DIRECTION"}
+   set --; [[ -z "${AAI_DIRECTION:-}" ]] || set -- --direction "$AAI_DIRECTION"
+   AAI_GIT_WRITE=1 node "$AAI_ORIGIN/.aai/scripts/merge-cleanup.mjs" apply --pr "$AAI_PR" --pid "$PPID" --origin "$AAI_ORIGIN" "$@"
    # AAI_MERGE_END
    ```
 

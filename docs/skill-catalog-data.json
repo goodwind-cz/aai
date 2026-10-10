@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-10-10T07:25:19.339Z",
-  "skillsCount": 41,
-  "degradedCount": 26,
+  "generatedAt": "2026-10-10T11:23:43.495Z",
+  "skillsCount": 42,
+  "degradedCount": 27,
   "skills": [
     {
       "dir": "aai-auto-trigger",
@@ -231,6 +231,17 @@
       "goal": null,
       "notes": [
         "NOTE: no \"## Goal\" section found in .aai/SKILL_LOOP.prompt.md"
+      ]
+    },
+    {
+      "dir": "aai-merge",
+      "name": "aai-merge",
+      "description": "Use when the owner directs you to merge a named pull request, or when a pull request is already merged and its leftovers (draft copies, base checkout, focus, worktree, branch) need safe cleanup. Runs the open-PR gates and prints the one pinned merge command, or the archive-first idempotent cleanup of a merged PR. Merges only on the owner's explicit invocation for that one PR.",
+      "model": null,
+      "promptFile": ".aai/SKILL_MERGE.prompt.md",
+      "goal": null,
+      "notes": [
+        "NOTE: no \"## Goal\" section found in .aai/SKILL_MERGE.prompt.md"
       ]
     },
     {
