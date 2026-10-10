@@ -90,6 +90,12 @@
 //   line numbers are not stable identifiers. `classify` refuses an unmatched
 //   or ambiguous target with exit 2 rather than guessing.
 //
+//   A pair is not always unique. A record is then addressed by its content key
+//   (`record_key`: first 12 hex of sha256 over the re-serialised record), and
+//   `classify --record <key>` appends an overlay carrying `classifies_record`
+//   and NO `classifies_ts`/`classifies_ref`: a reader that predates the field
+//   counts it as dangling and applies it to no record, never to a sibling.
+//
 //   The overlay's `tracked_by` is the one field beyond the classification
 //   itself: a record written before this script existed carries no
 //   `tracked_by`, so without it a back-classified unsigned amendment could
@@ -300,6 +306,20 @@ function amendItemIdStamped(specId, stamp) {
   return fitItemId(`${specId}-${stamp}`);
 }
 
+// RECORD KEY (spec-classify-same-ts-pair D1/D2). A (ts, ref_id) pair is not
+// unique on the ledger, so a record is also addressable by the first 12 hex
+// characters of sha256 over its re-serialised parsed form. Computed, never
+// stored on the amendment record.
+const RECORD_KEY_LEN = 12;
+// The field a record-addressed overlay carries INSTEAD of classifies_ts /
+// classifies_ref, so a reader that predates it counts the overlay as dangling
+// and applies it to no record (D3).
+const RECORD_OVERLAY_FIELD = 'classifies_record';
+
+function recordKey(rec) {
+  return crypto.createHash('sha256').update(JSON.stringify(rec)).digest('hex').slice(0, RECORD_KEY_LEN);
+}
+
 function overlayKey(ts, ref) {
   const t = str(ts);
   const r = str(ref);
@@ -315,13 +335,14 @@ function byTsAscending(a, b) {
   return at < bt ? -1 : at > bt ? 1 : 0;
 }
 
-// foldAmendments(records) -> { items, followUps, notes, counts, byKey }
+// foldAmendments(records) -> { items, followUps, notes, counts, byKey, byRecord }
 // The projection is computed, never stored. Every read in this file goes
 // through here so the CLI's four surfaces cannot drift from each other.
 function foldAmendments(records) {
   const notes = [];
   const amendments = [];
   const overlays = new Map();
+  const recordOverlays = new Map();
   const fuItems = new Map();
   const fuStatuses = new Map();
   let danglingOverlays = 0;
@@ -344,7 +365,13 @@ function foldAmendments(records) {
     } else if (recType === 'spec_amendment_classification') {
       const key = overlayKey(rec.classifies_ts, rec.classifies_ref);
       if (key === null) {
-        danglingOverlays += 1;
+        const recKey = str(rec[RECORD_OVERLAY_FIELD]);
+        if (recKey === null) {
+          danglingOverlays += 1;
+        } else {
+          if (!recordOverlays.has(recKey)) recordOverlays.set(recKey, []);
+          recordOverlays.get(recKey).push(rec);
+        }
         continue;
       }
       if (!overlays.has(key)) overlays.set(key, []);
@@ -372,11 +399,18 @@ function foldAmendments(records) {
   }
 
   const byKey = new Map();
+  const byRecord = new Map();
   const items = [];
   let duplicateKeys = 0;
   for (const rec of amendments) {
     const key = overlayKey(rec.ts, rec.ref_id);
-    const history = key === null ? [] : (overlays.get(key) ?? []).slice().sort(byTsAscending);
+    const recKey = recordKey(rec);
+    // D4: the pair-addressed overlays (exactly today's list) plus the
+    // record-addressed ones for this record's key, latest-wins over the union.
+    // With no record-addressed overlay on the ledger this is today's history.
+    const history = (key === null ? [] : (overlays.get(key) ?? []))
+      .concat(recordOverlays.get(recKey) ?? [])
+      .sort(byTsAscending);
     const overlay = history.filter((h) => typeof h.owner_signoff === 'boolean').pop() ?? null;
 
     let signoff = null;
@@ -451,6 +485,7 @@ function foldAmendments(records) {
     const item = {
       ts: str(rec.ts),
       ref_id: str(rec.ref_id),
+      record_key: recKey,
       spec: str(rec.spec) ?? str(rec.amends),
       spec_id: str(rec.spec_id),
       actor: str(rec.actor),
@@ -464,6 +499,7 @@ function foldAmendments(records) {
       what: str(rec.what) ?? str(rec.change) ?? str(rec.finding) ?? '',
     };
     items.push(item);
+    if (!byRecord.has(recKey)) byRecord.set(recKey, item);
     if (key !== null) {
       if (byKey.has(key)) duplicateKeys += 1;
       else byKey.set(key, item);
@@ -472,6 +508,8 @@ function foldAmendments(records) {
 
   let orphanOverlays = 0;
   for (const key of overlays.keys()) if (!byKey.has(key)) orphanOverlays += 1;
+  let orphanRecordOverlays = 0;
+  for (const key of recordOverlays.keys()) if (!byRecord.has(key)) orphanRecordOverlays += 1;
 
   if (danglingOverlays) {
     notes.push(`NOTE ${danglingOverlays} spec_amendment_classification record(s) carry no usable classifies_ts/classifies_ref pair — counted, never applied`);
@@ -479,13 +517,16 @@ function foldAmendments(records) {
   if (orphanOverlays) {
     notes.push(`NOTE ${orphanOverlays} spec_amendment_classification record(s) address a (ts, ref_id) pair with no spec_amendment — counted, never applied`);
   }
+  if (orphanRecordOverlays) {
+    notes.push(`NOTE ${orphanRecordOverlays} spec_amendment_classification record(s) address a record key with no spec_amendment — counted, never applied`);
+  }
   if (duplicateKeys) {
     notes.push(`NOTE ${duplicateKeys} spec_amendment record(s) share a (ts, ref_id) pair with an earlier one — every record is still LISTED and counted; only \`classify\` refuses such a pair, as ambiguous`);
   }
 
   const counts = { total: items.length };
   for (const b of BUCKETS) counts[b] = items.filter((i) => i.bucket === b).length;
-  return { items, followUps, notes, counts, byKey };
+  return { items, followUps, notes, counts, byKey, byRecord };
 }
 
 function loadLedger(absPath) {
@@ -628,6 +669,7 @@ const USAGE = `Usage:
 
   node .aai/scripts/spec-amend.mjs classify --ts <ISO8601Z> --ref <ref_id>
        --signoff owner|none --why "<one line>" --source "<evidence>"
+       [--record <12-hex record key>]   (one record of a shared (ts, ref) pair)
        [--origin backfill] [--tracked-by fu-amend-<id>] [--actor <slug>]
        [--class contract|measurement] [--ledger <path>]
 
@@ -687,6 +729,9 @@ tool exists to stop.
 \`classify\` back-classifies an existing record by APPENDING an overlay
 (docs/ai/decisions.jsonl is append-only — HAZ-LEDGER); the target record is
 never edited. The target is the (--ts, --ref) PAIR, never a line number.
+When several records share one pair, \`classify\` refuses (exit 2) and lists
+each candidate's \`record=<key>\`; \`--record <key>\` then addresses exactly
+that record with an overlay carrying \`classifies_record\` instead of the pair.
 Like \`add\`, \`classify --signoff none\` CO-CREATES the tracked item when the
 target has none, so ONE call takes a record from \`unsigned-untracked\` or
 \`unclassified\` to \`unsigned-tracked\` and \`list --strict\` to exit 0. Pass
@@ -802,7 +847,7 @@ function usageError(msg) {
 
 const FLAG_SPECS = {
   add: ['--ledger', '--spec', '--ref', '--what', '--why', '--signoff', '--authority', '--actor', '--class'],
-  classify: ['--ledger', '--ts', '--ref', '--signoff', '--why', '--source', '--origin', '--tracked-by', '--actor', '--class'],
+  classify: ['--ledger', '--ts', '--ref', '--record', '--signoff', '--why', '--source', '--origin', '--tracked-by', '--actor', '--class'],
   // --specs-dir (D11): where `list --strict` scans for frozen specs to
   // re-hash against their own `frozen_sha256` anchor. Defaults to
   // docs/specs — overridable so a fixture test can point at a scratch
@@ -1293,25 +1338,47 @@ function cmdClassify(opts) {
     usageError(`--tracked-by "${trackedBy}" does not match ^fu-[a-z0-9]+(-[a-z0-9]+)*$`);
   }
 
+  // --record (D5): the 12-hex content key of ONE record of a shared pair.
+  const wantRecord = opts.record === undefined ? null : opts.record;
+  if (wantRecord !== null && !new RegExp(`^[0-9a-f]{${RECORD_KEY_LEN}}$`).test(wantRecord)) {
+    usageError(`--record "${wantRecord}" is not a record key: it must be exactly ${RECORD_KEY_LEN} lowercase hex characters (copy it from \`list --json\` \`record_key\`)`);
+  }
+
   const reg = loadLedgerOrRefuse(abs);
-  const targets = reg.items.filter((i) => i.ts === str(opts.ts) && i.ref_id === str(opts.ref));
-  if (targets.length === 0) {
+  const candidates = reg.items.filter((i) => i.ts === str(opts.ts) && i.ref_id === str(opts.ref));
+  if (candidates.length === 0) {
     usageError(`no spec_amendment matches --ts "${opts.ts}" --ref "${opts.ref}" in ${abs} — the target is addressed by the (ts, ref_id) pair, never by line number`);
   }
-  if (targets.length > 1) {
-    usageError(`--ts "${opts.ts}" --ref "${opts.ref}" matches ${targets.length} spec_amendment records in ${abs} — ambiguous, refused rather than guessed`);
+  let targets = candidates;
+  if (wantRecord === null) {
+    if (candidates.length > 1) {
+      const lines = candidates.map((i) => `  record=${i.record_key} class=${i.amendment_class} bucket=${i.bucket} what=${i.what.slice(0, 80)}`);
+      usageError(`--ts "${opts.ts}" --ref "${opts.ref}" matches ${candidates.length} spec_amendment records in ${abs} — ambiguous, refused rather than guessed. Address one with --record <key>:\n${lines.join('\n')}`);
+    }
+  } else {
+    const matched = candidates.filter((i) => i.record_key === wantRecord);
+    if (matched.length === 0) {
+      usageError(`--record ${wantRecord} matches no record of ts="${opts.ts}" ref="${opts.ref}" in ${abs}; the pair's record keys are: ${candidates.map((i) => i.record_key).join(', ')}`);
+    }
+    if (matched.length > 1) {
+      usageError(`--record ${wantRecord} matches ${matched.length} records of ts="${opts.ts}" ref="${opts.ref}" that are indistinguishable (equal content, equal key) — refused rather than guessed`);
+    }
+    targets = matched;
   }
+  // The fold's view of the target, by whichever address the caller used.
+  const lookup = (fold) => (wantRecord === null
+    ? fold.byKey.get(overlayKey(opts.ts, opts.ref))
+    : fold.byRecord.get(wantRecord));
 
   const entry = {
     v: 1,
     ts: nowIso(),
     actor: str(opts.actor) ?? 'orchestrator',
     type: 'spec_amendment_classification',
-    classifies_ts: opts.ts,
-    classifies_ref: opts.ref,
-    owner_signoff: signed,
-    why: opts.why,
   };
+  if (wantRecord === null) { entry.classifies_ts = opts.ts; entry.classifies_ref = opts.ref; } else { entry[RECORD_OVERLAY_FIELD] = wantRecord; }
+  entry.owner_signoff = signed;
+  entry.why = opts.why;
   if (opts.origin !== undefined) entry.origin = opts.origin;
   if (amendmentClass !== null) entry.amendment_class = amendmentClass;
   entry.source = opts.source;
@@ -1353,7 +1420,7 @@ function cmdClassify(opts) {
   // it to agree with the first, which is the only version of this that a
   // later edit to `foldAmendments` cannot quietly undo.
   const trial = foldAmendments(reg.records.concat([entry]));
-  const projected = trial.byKey.get(overlayKey(opts.ts, opts.ref));
+  const projected = lookup(trial);
 
   // THE SIGNING REFUSAL IS A GATE ON THE PROJECTED CLASS, NOT ON THE FLAG —
   // the SAME correction `owesOwnerObligation` took above, applied to its
@@ -1432,7 +1499,7 @@ function cmdClassify(opts) {
   // `tracked_by` outrank any overlay's, so filing before the re-read could
   // manufacture an orphan item for an id the gate will never consult.
   let after = loadLedger(abs);
-  let landed = after.byKey.get(overlayKey(opts.ts, opts.ref)) ?? null;
+  let landed = lookup(after) ?? null;
   if (owes && landed !== null && landed.tracked_by !== null && !after.followUps.has(landed.tracked_by)) {
     appendAmendItem(abs, {
       actor: entry.actor,
@@ -1445,7 +1512,7 @@ function cmdClassify(opts) {
       sourceTs: opts.ts,
     });
     after = loadLedger(abs);
-    landed = after.byKey.get(overlayKey(opts.ts, opts.ref)) ?? null;
+    landed = lookup(after) ?? null;
   }
 
   if (landed === null || landed.owner_signoff !== signed) {

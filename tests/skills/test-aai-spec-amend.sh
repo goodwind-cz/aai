@@ -4445,6 +4445,156 @@ STDERR:  $(cat "$e")"
   log_pass "TEST-1381 the printed remedy is rendered in the one literal POSIX sh and PowerShell read identically and runs verbatim in both (live PowerShell run: $had_pwsh), and a value no common literal covers prints both labelled forms, each runnable in its own shell"
 }
 
+# --- classify-same-ts-pair (SPEC spec-classify-same-ts-pair, TEST-001..003) ---
+# One (ts, ref_id) pair can hold several spec_amendment records; `classify`
+# addresses ONE of them by a content key (--record). Fixtures are scratch
+# ledgers; the shipping ledger is never written.
+
+# rec_key <json line> -> the 12-hex content key (sha256 of the re-serialised
+# parsed record), computed here independently of the engine.
+rec_key() {
+  node -e 'const c=require("crypto");process.stdout.write(c.createHash("sha256").update(JSON.stringify(JSON.parse(process.argv[1]))).digest("hex").slice(0,12))' "$1"
+}
+
+# pair_rec <ts> <ref> <class> <what> [tracked_by] -> one spec_amendment line.
+pair_rec() {
+  local tb=""
+  if [[ -n "${5:-}" ]]; then tb=",\"tracked_by\":\"$5\""; fi
+  printf '{"v":1,"ts":"%s","actor":"orchestrator","type":"spec_amendment","ref_id":"%s","spec":"docs/specs/SPEC-DRAFT-spec-pair.md","spec_id":"spec-pair","owner_signoff":false,"amendment_class":"%s","what":"%s","why":"fixture"%s}' \
+    "$1" "$2" "$3" "$4" "$tb"
+}
+
+# json_rows <ledger> <ts> <ref> <class> -> JSON of the matching list --json rows
+# with record_key removed (so a pre-change engine's rows compare equal).
+json_rows() {
+  node "$SA" list --ledger "$1" --json --status all 2>/dev/null | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      const j=JSON.parse(s);
+      const rows=j.items.filter(i=>i.ts===process.argv[1]&&i.ref_id===process.argv[2]&&(process.argv[3]===""||i.amendment_class===process.argv[3]))
+        .map(i=>{const c=Object.assign({},i);delete c.record_key;return c;});
+      process.stdout.write(JSON.stringify(rows));
+    })' "$2" "$3" "${4:-}"
+}
+
+ledger_sha() { node -e 'const c=require("crypto");process.stdout.write(c.createHash("sha256").update(require("fs").readFileSync(process.argv[1])).digest("hex"))' "$1"; }
+
+# mk_mixed_pair <name> -> sets PAIR_LED, PAIR_TS, PAIR_REF, PAIR_CK (contract key), PAIR_MK (measurement key)
+mk_mixed_pair() {
+  local led c m
+  PAIR_TS="2026-10-10T11:35:07Z"; PAIR_REF="pair-ref"
+  led="$(mk_ledger "$1")"
+  c="$(pair_rec "$PAIR_TS" "$PAIR_REF" contract "contract change" fu-amend-spec-pair)"
+  m="$(pair_rec "$PAIR_TS" "$PAIR_REF" measurement "measurement change")"
+  {
+    printf '%s\n' '{"v":1,"ts":"2026-10-10T11:35:08Z","actor":"orchestrator","type":"follow_up","id":"fu-amend-spec-pair","priority":"P2","what":"owner sign-off owed","why":"fixture"}'
+    printf '%s\n' "$c"
+    printf '%s\n' "$m"
+  } >> "$led"
+  PAIR_LED="$led"; PAIR_CK="$(rec_key "$c")"; PAIR_MK="$(rec_key "$m")"
+}
+
+test_classify_record_signs_one_of_a_pair() {
+  log_info "Test: classify --record signs exactly one record of a same-(ts, ref) pair (TEST-001)..."
+  local specs before_m after_m strict_before strict_after lines_before lines_after new_line
+  mk_mixed_pair t001
+  specs="$TEST_DIR/t001-specs"; mkdir -p "$specs"
+  [[ "$PAIR_CK" != "$PAIR_MK" && "${#PAIR_CK}" == 12 ]] || log_fail "TEST-001 setup: the two records must have distinct 12-hex keys (got $PAIR_CK / $PAIR_MK)"
+
+  before_m="$(json_rows "$PAIR_LED" "$PAIR_TS" "$PAIR_REF" measurement)"
+  run_sa list --ledger "$PAIR_LED" --strict --specs-dir "$specs"; strict_before="$EC"
+  lines_before="$(wc -l < "$PAIR_LED" | tr -d ' ')"
+
+  run_sa classify --ledger "$PAIR_LED" --ts "$PAIR_TS" --ref "$PAIR_REF" --record "$PAIR_CK" --signoff owner --why "owner signed" --source "owner answer"
+  [[ "$EC" == 0 ]] || log_fail "TEST-001: classify --record $PAIR_CK must exit 0, got $EC (stderr: $ERR)"
+
+  lines_after="$(wc -l < "$PAIR_LED" | tr -d ' ')"
+  [[ "$lines_after" == "$((lines_before + 1))" ]] || log_fail "TEST-001: exactly one overlay line must be appended (before=$lines_before after=$lines_after)"
+  new_line="$(tail -n 1 "$PAIR_LED")"
+  [[ "$new_line" == *'"classifies_record":"'"$PAIR_CK"'"'* ]] || log_fail "TEST-001 positive control: the overlay must carry classifies_record=$PAIR_CK; got: $new_line"
+  [[ "$new_line" != *classifies_ts* && "$new_line" != *classifies_ref* ]] || log_fail "TEST-001: a record-addressed overlay must carry NO classifies_ts / classifies_ref (an older reader would apply it to both records); got: $new_line"
+
+  local rows
+  rows="$(node "$SA" list --ledger "$PAIR_LED" --json --status all | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+      const c=j.items.find(i=>i.amendment_class==="contract");
+      process.stdout.write(c.bucket+" "+(c.classified_by===null?"null":"set"))})')"
+  [[ "$rows" == "signed set" ]] || log_fail "TEST-001: the contract record must fold to bucket signed with classified_by set; got: $rows"
+
+  after_m="$(json_rows "$PAIR_LED" "$PAIR_TS" "$PAIR_REF" measurement)"
+  [[ "$before_m" == "$after_m" ]] || log_fail "TEST-001: the measurement sibling's row must be unchanged.
+before: $before_m
+after:  $after_m"
+  run_sa list --ledger "$PAIR_LED" --strict --specs-dir "$specs"; strict_after="$EC"
+  [[ "$strict_before" == "$strict_after" ]] || log_fail "TEST-001: list --strict exit must be unchanged (before=$strict_before after=$strict_after)"
+  log_pass "TEST-001 classify --record signed exactly the contract record; the measurement sibling and the strict exit are unchanged"
+}
+
+test_record_overlay_folds_to_its_record_only() {
+  log_info "Test: a hand-written record-addressed overlay folds to its record only (TEST-002)..."
+  mk_mixed_pair t002
+  local led="$PAIR_LED" before_m after out
+  before_m="$(json_rows "$led" "$PAIR_TS" "$PAIR_REF" measurement)"
+  printf '%s\n' '{"v":1,"ts":"2026-10-10T14:00:00Z","actor":"hand","type":"spec_amendment_classification","classifies_record":"'"$PAIR_CK"'","owner_signoff":true,"why":"hand written","source":"fixture"}' >> "$led"
+  after="$(node "$SA" list --ledger "$led" --json --status all | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+      process.stdout.write(j.items.map(i=>i.amendment_class+":"+i.bucket).sort().join(","))})')"
+  [[ "$after" == "contract:signed,measurement:measurement" ]] || log_fail "TEST-002: only the addressed record may fold signed; got: $after"
+  [[ "$(json_rows "$led" "$PAIR_TS" "$PAIR_REF" measurement)" == "$before_m" ]] || log_fail "TEST-002: the sibling row must be untouched"
+
+  # An overlay naming a key no record has is counted in a NOTE and applied to nothing.
+  printf '%s\n' '{"v":1,"ts":"2026-10-10T14:00:01Z","actor":"hand","type":"spec_amendment_classification","classifies_record":"000000000000","owner_signoff":true,"why":"hand written","source":"fixture"}' >> "$led"
+  out="$(node "$SA" list --ledger "$led" --status all)"
+  [[ "$out" == *"address a record key with no spec_amendment"* ]] || log_fail "TEST-002: an overlay addressing an unknown record key must be counted in a NOTE; got: $out"
+  [[ "$out" != *"carry no usable classifies_ts"* ]] || log_fail "TEST-002: a record-addressed overlay must not be counted as dangling by THIS reader"
+  after="$(node "$SA" list --ledger "$led" --json --status all | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+      process.stdout.write(j.items.filter(i=>i.bucket==="signed").length+"/"+j.items.length)})')"
+  [[ "$after" == "1/2" ]] || log_fail "TEST-002: the unknown-key overlay must be applied to nothing; signed/total=$after"
+  log_pass "TEST-002 a record-addressed overlay folds to its record only; an unknown key is a counted NOTE and applies to nothing"
+}
+
+test_classify_refuses_what_it_cannot_tell_apart() {
+  log_info "Test: classify refuses what it cannot tell apart, ledger untouched (TEST-003)..."
+  mk_mixed_pair t003
+  local led="$PAIR_LED" sha n
+
+  # arm 1: shared pair, no --record -> ambiguous, one record= line per candidate
+  sha="$(ledger_sha "$led")"
+  run_sa classify --ledger "$led" --ts "$PAIR_TS" --ref "$PAIR_REF" --signoff owner --why w --source s
+  [[ "$EC" == 2 ]] || log_fail "TEST-003 arm 1: expected exit 2, got $EC"
+  [[ "$ERR" == *ambiguous* ]] || log_fail "TEST-003 arm 1: stderr must say ambiguous; got: $ERR"
+  n="$(printf '%s\n' "$ERR" | /usr/bin/grep -c 'record=' || true)"
+  [[ "$n" -ge 2 && "$ERR" == *"record=$PAIR_CK"* && "$ERR" == *"record=$PAIR_MK"* ]] || log_fail "TEST-003 arm 1: one record= line per candidate expected (both keys); got: $ERR"
+  [[ "$sha" == "$(ledger_sha "$led")" ]] || log_fail "TEST-003 arm 1: ledger must be byte-identical"
+
+  # arm 2: two byte-identical records -> --record cannot tell them apart
+  local twin ledtw
+  ledtw="$(mk_ledger t003-twin)"
+  twin="$(pair_rec "$PAIR_TS" "$PAIR_REF" contract "same content" fu-amend-spec-pair)"
+  { printf '%s\n' "$twin"; printf '%s\n' "$twin"; } >> "$ledtw"
+  sha="$(ledger_sha "$ledtw")"
+  run_sa classify --ledger "$ledtw" --ts "$PAIR_TS" --ref "$PAIR_REF" --record "$(rec_key "$twin")" --signoff owner --why w --source s
+  [[ "$EC" == 2 && "$ERR" == *indistinguishable* ]] || log_fail "TEST-003 arm 2: expected exit 2 + indistinguishable; got $EC: $ERR"
+  [[ "$sha" == "$(ledger_sha "$ledtw")" ]] || log_fail "TEST-003 arm 2: ledger must be byte-identical"
+
+  # arm 3: a well-formed key that is not in the pair -> names the pair's keys
+  sha="$(ledger_sha "$led")"
+  run_sa classify --ledger "$led" --ts "$PAIR_TS" --ref "$PAIR_REF" --record 000000000000 --signoff owner --why w --source s
+  [[ "$EC" == 2 && "$ERR" == *"$PAIR_CK"* && "$ERR" == *"$PAIR_MK"* ]] || log_fail "TEST-003 arm 3: expected exit 2 naming the pair's candidate keys; got $EC: $ERR"
+  [[ "$sha" == "$(ledger_sha "$led")" ]] || log_fail "TEST-003 arm 3: ledger must be byte-identical"
+
+  # arm 4: malformed --record -> usage error naming the format
+  run_sa classify --ledger "$led" --ts "$PAIR_TS" --ref "$PAIR_REF" --record NOTHEX --signoff owner --why w --source s
+  [[ "$EC" == 2 && "$ERR" == *"12 lowercase hex"* ]] || log_fail "TEST-003 arm 4: expected exit 2 naming the 12-lowercase-hex format; got $EC: $ERR"
+  [[ "$sha" == "$(ledger_sha "$led")" ]] || log_fail "TEST-003 arm 4: ledger must be byte-identical"
+
+  # positive control: the same shape with a valid, distinguishable --record succeeds
+  run_sa classify --ledger "$led" --ts "$PAIR_TS" --ref "$PAIR_REF" --record "$PAIR_CK" --signoff owner --why w --source s
+  [[ "$EC" == 0 ]] || log_fail "TEST-003 positive control: a valid --record on a distinguishable pair must exit 0, got $EC: $ERR"
+  [[ "$sha" != "$(ledger_sha "$led")" ]] || log_fail "TEST-003 positive control: the successful call must have appended"
+  log_pass "TEST-003 every indistinguishable shape exits 2 with its reason and leaves the ledger byte-identical; the distinguishable control succeeds"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -4503,6 +4653,9 @@ main() {
   test_1379_test_plan_summary_is_recomputed_from_the_tables
   test_1380_signing_refusal_reads_the_projected_class
   test_1381_printed_remedy_runs_in_posix_and_powershell
+  test_classify_record_signs_one_of_a_pair
+  test_record_overlay_folds_to_its_record_only
+  test_classify_refuses_what_it_cannot_tell_apart
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
