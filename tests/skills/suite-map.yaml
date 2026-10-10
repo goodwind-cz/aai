@@ -1208,6 +1208,18 @@ suites:
       - .codex/skills/aai-worktree/**
       - .gemini/skills/aai-worktree/**
 
+  aai-merge-cleanup:
+    globs:
+      - .aai/scripts/merge-cleanup.mjs
+      - .aai/SKILL_MERGE.prompt.md
+      - .claude/skills/aai-merge/**
+      - .codex/skills/aai-merge/**
+      - .gemini/skills/aai-merge/**
+      - .agents/skills/aai-merge/**
+      - .aai/system/PROFILES.yaml
+      - tests/skills/test-aai-merge-cleanup.sh
+      - tests/skills/aai-merge-cleanup.Tests.ps1
+
   aai-worktree-seed:
     globs:
       - .aai/scripts/worktree-seed.mjs

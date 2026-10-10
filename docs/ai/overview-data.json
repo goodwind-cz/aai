@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-10T07:25:19.277Z",
+  "generatedAt": "2026-10-10T12:33:00.613Z",
   "project": "aai",
   "counts": {
-    "delivered": 287,
+    "delivered": 288,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 74203136
@@ -221,6 +221,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "directed-merge-and-post-merge-cleanup",
+      "title": "Change — Directed merge and safe post-merge cleanup",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md",
+      "closed_on": "2026-10-10",
+      "agent_minutes": 216,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-directed-merge-and-post-merge-cleanup-r3-20261010T115727Z.md"
+    },
     {
       "ref": "win-fallback-test028-red-on-bash-3",
       "title": "aai-win-fallback TEST-028 is red on a host whose bash is older than 4",
@@ -3979,6 +3992,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "directed-merge-and-post-merge-cleanup",
+          "title": "Change — Directed merge and safe post-merge cleanup",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md",
+          "closed_on": "2026-10-10",
+          "agent_minutes": 216,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-directed-merge-and-post-merge-cleanup-r3-20261010T115727Z.md"
+        },
         {
           "ref": "win-fallback-test028-red-on-bash-3",
           "title": "aai-win-fallback TEST-028 is red on a host whose bash is older than 4",

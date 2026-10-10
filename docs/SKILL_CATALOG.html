@@ -237,6 +237,13 @@ decision-ledger pattern.</p>
   <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_LOOP.prompt.md</li></ul>
   <p class="meta">.claude/skills/aai-loop/SKILL.md · .aai/SKILL_LOOP.prompt.md</p>
 </div>
+<div class="skill-card" data-search="aai-merge use when the owner directs you to merge a named pull request, or when a pull request is already merged and its leftovers (draft copies, base checkout, focus, worktree, branch) need safe cleanup. runs the open-pr gates and prints the one pinned merge command, or the archive-first idempotent cleanup of a merged pr. merges only on the owner's explicit invocation for that one pr. aai-merge">
+  <h3>aai-merge</h3>
+  <p class="desc"><strong>When to use:</strong> Use when the owner directs you to merge a named pull request, or when a pull request is already merged and its leftovers (draft copies, base checkout, focus, worktree, branch) need safe cleanup. Runs the open-PR gates and prints the one pinned merge command, or the archive-first idempotent cleanup of a merged PR. Merges only on the owner's explicit invocation for that one PR.</p>
+  <p class="goal"><strong>Goal:</strong> —</p>
+  <ul class="notes"><li>NOTE: no &quot;## Goal&quot; section found in .aai/SKILL_MERGE.prompt.md</li></ul>
+  <p class="meta">.claude/skills/aai-merge/SKILL.md · .aai/SKILL_MERGE.prompt.md</p>
+</div>
 <div class="skill-card" data-search="aai-overview use when the user wants a plain-language project overview — what the factory has delivered, what is in progress, and what waits on a human decision — rendered as a self-contained html page with links to specs and evidence. aai-overview">
   <h3>aai-overview</h3>
   <p class="desc"><strong>When to use:</strong> Use when the user wants a plain-language project overview — what the factory has delivered, what is in progress, and what waits on a human decision — rendered as a self-contained HTML page with links to specs and evidence.</p>
@@ -428,7 +435,7 @@ the user chooses to continue in the current working tree.</p>
 </div>
 </div>
 
-<footer>41 skills (26 with extraction notes) · source: .claude/skills/*/SKILL.md + .aai/SKILL_*.prompt.md</footer>
+<footer>42 skills (27 with extraction notes) · source: .claude/skills/*/SKILL.md + .aai/SKILL_*.prompt.md</footer>
 <script>
   document.getElementById('search').addEventListener('input', function (e) {
     var term = e.target.value.trim().toLowerCase();

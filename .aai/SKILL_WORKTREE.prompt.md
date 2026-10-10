@@ -265,7 +265,8 @@ Create a new worktree for a feature/task.
 
 ### Command: Cleanup Worktree
 
-Remove a completed or abandoned worktree.
+Remove a completed or abandoned worktree. A merged ride: `/aai-merge <n>`
+(archive-first, no force); the steps below serve abandoned worktrees.
 
 **Usage:**
 ```bash

@@ -57,7 +57,7 @@ pairs:
   - capability: post-validation-pushes-reuse-test-results
     status: done
   - capability: directed-merge-and-post-merge-cleanup
-    status: planned
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

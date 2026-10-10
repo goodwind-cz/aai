@@ -22,6 +22,13 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: /aai-merge merges the PR you name and cleans up after it (directed-merge-and-post-merge-cleanup)
+
+- New `/aai-merge <PR>` skill (all four skill trees) over a deterministic engine, `.aai/scripts/merge-cleanup.mjs`. On an open PR it runs the read-only gates (state, draft, judged head, checks, mergeability, sweep record) and prints the one `gh pr merge --squash --match-head-commit <sha>` line; the engine itself never merges, and the prompt runs that line only on your explicit invocation for that PR.
+- On a merged PR it proves the merge commit is on the base branch, archives superseded draft copies by content identity, fast-forwards the base checkout while preserving dirty files and append-only ledgers, clears the focus only for the work item the PR delivered (an intake the merge leaves done and stamped with that PR number; STATE is archived first), regenerates the index, archives the ride's runtime evidence, removes the worktree without force and deletes the local branch by compare-and-swap. Re-runs resume or report named no-ops, including after a kill inside the base sync. Your verbatim merge direction and the merged head are kept in the run report and as one `directed_merge` decision.
+- `/aai-pr`, `/aai-ship` and `/aai-worktree cleanup` point to it as the completion procedure. Closes `fu-seeded-copies-lesson-no-guard`; overlaps, does not close, ISSUE-0091.
+- Refs: CHANGE-0206 / SPEC-0218.
+
 ## [unreleased] — test: aai-win-fallback TEST-028 is green on a host whose bash is older than 4 (win-fallback-test028-red-on-bash-3)
 
 - On a bash older than 4 (macOS ships 3.2), TEST-028 still checks the Windows-to-Git-Bash path translation, then reports its execution arm as a named skip with the bash version: that arm relies on `command_not_found_handle`, which bash only has from 4.0. Git Bash and CI run bash 5, so they still run the arm unchanged.

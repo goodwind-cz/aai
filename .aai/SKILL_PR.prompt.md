@@ -552,9 +552,8 @@ PROCESS
      explicit direction is a constitution violation, not a technical
      impossibility.
    - After opening the PR, report the PR URL and stop.
-   - Branch/worktree cleanup is post-merge work: delete the branch or remove the
-     worktree only after `gh pr view <n> --json state` reads MERGED — never on
-     the assumption that a merge happened.
+   - Post-merge work (branch, worktree, drafts, base checkout, focus) is
+     `/aai-merge <n>`; run only after `gh pr view <n> --json state` reads MERGED.
 
 STRICT RULES
 - No `git add -A`, no `git add .`, no `git commit -a`.
