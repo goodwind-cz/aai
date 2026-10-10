@@ -4790,6 +4790,172 @@ stderr: $(cat "$dir/.err")"
   log_pass "TEST-008 shared-pair remedies name --record, the unshared remedy is byte-identical to the base, every printed line runs verbatim and clears --strict"
 }
 
+# --- classify-same-ts-pair batch C (TEST-006, TEST-007, TEST-009) ---
+
+# seed_window <ledger> <ref> <spec-relpath> -> appends one SIGNED contract
+# spec_amendment per second from now-1 to now+8 under <ref>, so whatever
+# second the writer under test stamps, its (ts, ref_id) pair already holds a
+# record (a deterministic same-second collision). Ids carry a distinct `what`.
+seed_window() {
+  node -e '
+    const fs=require("fs");
+    const [led,ref,spec]=process.argv.slice(1);
+    const now=Math.floor(Date.now()/1000);
+    let out="";
+    for (let s=-1;s<=8;s+=1) {
+      const ts=new Date((now+s)*1000).toISOString().replace(/\.\d{3}Z$/,"Z");
+      out+=JSON.stringify({v:1,ts,actor:"orchestrator",type:"spec_amendment",ref_id:ref,spec,spec_id:"spec-seed",owner_signoff:true,amendment_class:"contract",what:"seeded signed record "+s,why:"fixture",authority:"fixture owner decision"})+"\n";
+    }
+    fs.appendFileSync(led,out);
+  ' "$1" "$2" "$3"
+}
+
+# ledger_amendments <ledger> -> the number of spec_amendment lines.
+ledger_amendments() {
+  node -e '
+    const fs=require("fs");let n=0;
+    for (const l of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=l.trim(); if (t===""||t.startsWith("#")) continue;
+      try { if (JSON.parse(t).type==="spec_amendment") n+=1; } catch { /* skip */ }
+    }
+    process.stdout.write(String(n));
+  ' "$1"
+}
+
+# last_amendment_key <ledger> -> recordKey of the last spec_amendment line,
+# computed here independently of the engine.
+last_amendment_key() {
+  node -e '
+    const fs=require("fs"),c=require("crypto");let last=null;
+    for (const l of fs.readFileSync(process.argv[1],"utf8").split(/\r?\n/)) {
+      const t=l.trim(); if (t===""||t.startsWith("#")) continue;
+      try { if (JSON.parse(t).type==="spec_amendment") last=t; } catch { /* skip */ }
+    }
+    process.stdout.write(c.createHash("sha256").update(JSON.stringify(JSON.parse(last))).digest("hex").slice(0,12));
+  ' "$1"
+}
+
+# signed_keys <ledger> -> sorted record_keys whose bucket is signed, comma-joined.
+signed_keys() {
+  node "$SA" list --ledger "$1" --json --status all | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{process.stdout.write(JSON.parse(s).items.filter(i=>i.bucket==="signed").map(i=>i.record_key).sort().join(","))})'
+}
+
+test_add_collision_is_addressable() {
+  log_info "Test: an add that collides on (ts, ref_id) is appended, judged on ITS record, and addressable by --record (TEST-006)..."
+  local led spec before_n after_n key signed_before signed_after note
+  led="$(mk_ledger t006)"
+  spec="$(mk_spec "SPEC-DRAFT-t006.md" "spec-t006-fixture")"
+  seed_window "$led" t006-ref "docs/specs/SPEC-DRAFT-spec-seed.md"
+  before_n="$(ledger_amendments "$led")"
+  [[ "$before_n" == 10 ]] || log_fail "TEST-006 setup: the seeded window must hold 10 records, got $before_n"
+  signed_before="$(signed_keys "$led")"
+
+  run_sa add --ledger "$led" --spec "$spec" --ref t006-ref --what "colliding change" --why "same second as a seeded record" --signoff none
+  [[ "$EC" == 0 ]] || log_fail "TEST-006: a same-second collision must not refuse the add; exit $EC (stdout: $OUT) (stderr: $ERR)"
+  after_n="$(ledger_amendments "$led")"
+  [[ "$after_n" == "$((before_n + 1))" ]] || log_fail "TEST-006 positive control: exactly one amendment must be appended (before=$before_n after=$after_n)"
+
+  key="$(last_amendment_key "$led")"
+  note="$(printf '%s\n' "$OUT" | /usr/bin/grep -F 'NOTE this record shares (ts, ref_id) with' || true)"
+  [[ -n "$note" ]] || log_fail "TEST-006: the collision must be disclosed in a NOTE; stdout: $OUT"
+  [[ "$note" == *"earlier record(s); address it with --record $key"* ]] || log_fail "TEST-006: the NOTE must name --record <the appended line's key $key>; got: $note"
+  [[ "$OUT" == *"UNSIGNED amendment"*"bucket unsigned-tracked"* ]] || log_fail "TEST-006: the add must judge ITS OWN record (unsigned-tracked), not the earlier sibling; stdout: $OUT"
+
+  run_sa classify --ledger "$led" --ts "$(node -e 'const fs=require("fs");const ls=fs.readFileSync(process.argv[1],"utf8").trim().split(/\n/);let t="";for(const l of ls){try{const r=JSON.parse(l);if(r.type==="spec_amendment")t=r.ts}catch{}}process.stdout.write(t)' "$led")" --ref t006-ref --record "$key" --signoff owner --why "owner signed" --source "owner answer"
+  [[ "$EC" == 0 ]] || log_fail "TEST-006: classify --record $key (the key the writer printed) must exit 0, got $EC (stderr: $ERR)"
+  signed_after="$(signed_keys "$led")"
+  [[ "$signed_after" == "$(printf '%s\n%s\n' "${signed_before//,/$'\n'}" "$key" | sort | paste -sd, -)" ]] \
+    || log_fail "TEST-006: exactly the new record may turn signed.
+before: $signed_before
+after:  $signed_after
+key:    $key"
+  log_pass "TEST-006 a same-second add exits 0, names --record <key> equal to its own line's key, judges its own record, and classify --record signs only it"
+}
+
+test_restamp_collision_is_addressable() {
+  log_info "Test: a restamp that collides on (ts, ref_id) is judged on ITS record, verified and unverified, and its remedy names --record (TEST-007)..."
+  local led spec frozen specU ledU key keyU note line cmd before_n after_n bucket
+  frozen="$TEST_DIR/t007-frozen.md"
+  spec="$(mk_linked_freezable_spec t007-specs/a.md spec-t007-fixture t007-intake)"
+  freeze_spec "$spec" || log_fail "TEST-007 setup: real spec-freeze.mjs refused the fixture"
+  cp "$spec" "$frozen"
+  specU="$TEST_DIR/t007-specs/u.md"; cp "$frozen" "$specU"
+
+  # ARM 1 - a genuine allocator rename (verified cause): the NEW record is a measurement record.
+  sed -i.bak -e 's/SPEC-DRAFT-spec-t007-fixture/SPEC-0312-spec-t007-fixture/g' \
+             -e 's/CHANGE-DRAFT-t007-intake/CHANGE-0312-t007-intake/g' "$spec"
+  /usr/bin/grep -qF 'SPEC-0312-spec-t007-fixture' "$spec" || log_fail "TEST-007 arm 1: the simulated allocator rewrite did not land"
+  led="$(mk_ledger t007a)"
+  seed_window "$led" t007-ref "docs/specs/SPEC-DRAFT-spec-seed.md"
+  before_n="$(ledger_amendments "$led")"
+  run_sa restamp --spec "$spec" --ref t007-ref --ledger "$led"
+  [[ "$EC" == 0 ]] || log_fail "TEST-007 arm 1: a same-second collision must not refuse the restamp; exit $EC (stdout: $OUT) (stderr: $ERR)"
+  after_n="$(ledger_amendments "$led")"
+  [[ "$after_n" == "$((before_n + 1))" ]] || log_fail "TEST-007 positive control: exactly one amendment must be appended (before=$before_n after=$after_n)"
+  key="$(last_amendment_key "$led")"
+  note="$(printf '%s\n' "$OUT" | /usr/bin/grep -F 'NOTE this record shares (ts, ref_id) with' || true)"
+  [[ "$note" == *"earlier record(s); address it with --record $key"* ]] || log_fail "TEST-007 arm 1: the NOTE must name --record <the appended line's key $key>; stdout: $OUT"
+  [[ "$OUT" == *"bucket measurement"* ]] || log_fail "TEST-007 arm 1: the restamp must judge ITS OWN record (measurement); stdout: $OUT"
+  bucket="$(node "$SA" list --ledger "$led" --json --status all | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);process.stdout.write(j.items.filter(i=>i.bucket==="measurement").map(i=>i.record_key).join(",")+"|"+j.items.filter(i=>i.bucket==="signed").length)})')"
+  [[ "$bucket" == "$key|10" ]] || log_fail "TEST-007 arm 1: the new record is the only measurement row and the 10 seeded records stay signed; got: $bucket (key $key)"
+
+  # ARM 2 - an unverified restamp: the printed classify remedy names --record and runs verbatim.
+  sed -i.bak 's/original description text/a DIFFERENT promise this spec never made/' "$specU"
+  ledU="$(mk_ledger t007b)"
+  seed_window "$ledU" t007-ref "docs/specs/SPEC-DRAFT-spec-seed.md"
+  run_sa restamp --spec "$specU" --ref t007-ref --ledger "$ledU"
+  [[ "$EC" == 0 ]] || log_fail "TEST-007 arm 2: an unverified colliding restamp must exit 0; exit $EC (stdout: $OUT) (stderr: $ERR)"
+  keyU="$(last_amendment_key "$ledU")"
+  [[ "$OUT" == *"bucket unsigned-tracked"* ]] || log_fail "TEST-007 arm 2: the restamp must judge ITS OWN record (unsigned-tracked); stdout: $OUT"
+  line="$(printf '%s\n' "$OUT" | /usr/bin/grep -F 'NOTE sign it off once someone has said what changed:' | /usr/bin/grep -F 'classify --ts' || true)"
+  [[ -n "$line" ]] || log_fail "TEST-007 arm 2: the unverified restamp must print a classify remedy; stdout: $OUT"
+  [[ "$line" == *"--record $keyU"* ]] || log_fail "TEST-007 arm 2: the remedy of a shared pair must carry --record $keyU; got: $line"
+  cmd="${line#*: }"
+  cmd="${cmd#node .aai/scripts/spec-amend.mjs }"
+  cmd="${cmd//<who decided, where>/owner answer}"
+  cmd="${cmd//<what the drift really was>/fixture drift}"
+  EC=0
+  eval "node \"\$SA\" $cmd" > "$TEST_DIR/.out" 2> "$TEST_DIR/.err" || EC=$?
+  [[ "$EC" == 0 ]] || log_fail "TEST-007 arm 2: the printed remedy, run verbatim, must exit 0, got $EC: $line
+stderr: $(cat "$TEST_DIR/.err")"
+  [[ "$(signed_keys "$ledU")" == *"$keyU"* ]] || log_fail "TEST-007 arm 2: the remedy must have signed the new record $keyU; signed: $(signed_keys "$ledU")"
+  log_pass "TEST-007 a same-second restamp (verified and unverified) exits 0, judges its own record, names --record <key>, and the printed remedy signs it"
+}
+
+test_448_record_signed_on_the_live_ledger() {
+  log_info "Test: the PR #448 contract record is signed on the live ledger (TEST-009)..."
+  local led row fu ov
+  led="$PROJECT_ROOT/docs/ai/decisions.jsonl"
+  [[ -f "$led" ]] || log_fail "TEST-009: the live ledger $led is missing"
+  row="$(node "$SA" list --ledger "$led" --json --status all | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
+      const f=(k)=>j.items.find(i=>i.record_key===k)||null;
+      const a=f("ae5529c8b535"), m=f("1c45f52a2649");
+      process.stdout.write(JSON.stringify({a:a&&{ts:a.ts,ref:a.ref_id,bucket:a.bucket,by:a.classified_by},m:m&&{bucket:m.bucket,by:m.classified_by}}));
+    })')"
+  [[ "$row" == *'"a":{"ts":"2026-10-10T11:35:07Z","ref":"directed-merge-and-post-merge-cleanup","bucket":"signed"'* ]] \
+    || log_fail "TEST-009: record ae5529c8b535 must exist at 2026-10-10T11:35:07Z/directed-merge-and-post-merge-cleanup and be signed; got: $row"
+  [[ "$row" == *'"by":null'* && "$row" == *'"m":{"bucket":"measurement","by":null}'* ]] \
+    || log_fail "TEST-009: the measurement sibling 1c45f52a2649 must stay measurement with classified_by null; got: $row"
+  ov="$(/usr/bin/grep -F '"classifies_record":"ae5529c8b535"' "$led" || true)"
+  [[ -n "$ov" ]] || log_fail "TEST-009 positive control: a classifies_record overlay for ae5529c8b535 must be on the ledger"
+  [[ "$ov" == *Podepsat* ]] || log_fail "TEST-009: the overlay source must cite the owner's 'Podepsat' answer; got: $ov"
+  [[ "$ov" == *"PR #448"* ]] || log_fail "TEST-009: the overlay source must cite PR #448; got: $ov"
+  for fu in fu-amend-directed-merge-and-post-007bae fu-classify-same-ts-pair; do
+    run_fu list --ledger "$led" --status all --json
+    [[ "$OUT" == *"$fu"* ]] || log_fail "TEST-009 positive control: follow-ups list must show $fu"
+    printf '%s' "$OUT" | node -e '
+      let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+        const j=JSON.parse(s);const arr=Array.isArray(j)?j:(j.items||j.follow_ups||[]);
+        const it=arr.find(x=>x.id===process.argv[1]);
+        process.exit(it&&it.status==="done"?0:1)})' "$fu" \
+      || log_fail "TEST-009: follow-up $fu must be done"
+  done
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 0 ]] || log_fail "TEST-009: list --strict on the live ledger must exit 0, got $EC (stderr: $ERR)"
+  log_pass "TEST-009 the #448 contract record is signed through a record-addressed overlay citing 'Podepsat', its sibling stays measurement, both follow-ups are done, strict is clean"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -4854,6 +5020,9 @@ main() {
   test_existing_overlays_fold_unchanged
   test_old_reader_never_applies_a_record_overlay
   test_printed_remedies_address_the_record
+  test_add_collision_is_addressable
+  test_restamp_collision_is_addressable
+  test_448_record_signed_on_the_live_ledger
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

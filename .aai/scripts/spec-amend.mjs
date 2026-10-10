@@ -329,6 +329,25 @@ function pairIsShared(reg, ts, ref) {
   return reg.items.filter((i) => overlayKey(i.ts, i.ref_id) === key).length > 1;
 }
 
+// D6: the record a writer just appended, read back through its content key.
+// `byKey` (one record per (ts, ref_id)) returns the EARLIER record of a
+// same-second collision and so judges the wrong one.
+function landedRecord(after, entry) {
+  return after.byRecord.get(recordKey(entry)) ?? null;
+}
+
+// D6: how many records already held the (ts, ref_id) of `entry` before it was
+// appended, and the NOTE a writer prints when that is not zero.
+function earlierInPair(reg, entry) {
+  const key = overlayKey(entry.ts, entry.ref_id);
+  if (key === null) return 0;
+  return reg.items.filter((i) => overlayKey(i.ts, i.ref_id) === key).length;
+}
+function collisionNote(earlier, entry) {
+  if (earlier === 0) return null;
+  return `NOTE this record shares (ts, ref_id) with ${earlier} earlier record(s); address it with --record ${recordKey(entry)}`;
+}
+
 function overlayKey(ts, ref) {
   const t = str(ts);
   const r = str(ref);
@@ -1106,6 +1125,7 @@ function cmdAdd(opts) {
   }
   if (signed) entry.authority = opts.authority;
 
+  const earlierSamePair = earlierInPair(reg, entry);
   appendLine(abs, entry);
 
   if (owes && !reg.followUps.has(itemId)) {
@@ -1125,8 +1145,7 @@ function cmdAdd(opts) {
   // discipline follow-ups.mjs's `close` uses. A claim that the ledger now
   // holds the obligation is worth nothing if it was never read back.
   const after = loadLedger(abs);
-  const key = overlayKey(entry.ts, entry.ref_id);
-  const landed = after.byKey.get(key) ?? null;
+  const landed = landedRecord(after, entry);
   if (landed === null) {
     process.stderr.write(`spec-amend: appended the amendment for ${opts.ref} but the re-read of ${abs} did not show it\n`);
     exit(1);
@@ -1144,6 +1163,8 @@ function cmdAdd(opts) {
   // findable, is silently left alone.
   const newAnchor = restampSpecAnchor(absSpec);
   if (newAnchor) console.log(`NOTE re-stamped frozen_sha256 on ${specRel} to the current contract projection (${newAnchor})`);
+  const collision = collisionNote(earlierSamePair, entry);
+  if (collision !== null) console.log(collision);
 
   if (signed) {
     console.log(`spec-amend: recorded a SIGNED amendment on ${specId} (ref ${opts.ref}, authority on the record) — no tracked item is owed`);
@@ -1633,6 +1654,7 @@ function cmdRestamp(opts) {
   // THE LEDGER LANDS BEFORE THE FILE IS TOUCHED (Spec-AC-19) — appendLine and
   // the co-created tracked item both happen here, then commitSpecRestamp does
   // the ONE atomic write.
+  const earlierSamePair = earlierInPair(reg, entry);
   appendLine(abs, entry);
   if (owes && !reg.followUps.has(itemId)) {
     appendAmendItem(abs, { actor, itemId, ref, specId, specRel, what, why, sourceTs: ts });
@@ -1642,7 +1664,7 @@ function cmdRestamp(opts) {
 
   // Prove the write by re-reading, the same discipline `add`/`classify` use.
   const after = loadLedger(abs);
-  const landed = after.byKey.get(overlayKey(entry.ts, entry.ref_id)) ?? null;
+  const landed = landedRecord(after, entry);
   // The proof this write owes is the BUCKET, and WHICH bucket is itself
   // decided by the measured cause: `measurement` when the allocator was
   // shown to be the cause, `unsigned-tracked` when it was not (the obligation
@@ -1675,6 +1697,8 @@ function cmdRestamp(opts) {
       console.log(`NOTE sign it off once someone has said what changed: ${remedy}`);
     }
   }
+  const collision = collisionNote(earlierSamePair, entry);
+  if (collision !== null) console.log(collision);
   if (reusedNote) console.log(`NOTE ${reusedNote}`);
   if (owes) console.log('NOTE drain it with: node .aai/scripts/follow-ups.mjs list --status open');
   exit(0);
