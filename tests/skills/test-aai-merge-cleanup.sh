@@ -6,6 +6,7 @@
 # B2: TEST-008/009 (base sync), TEST-010/011 (worktree and branch cleanup).
 # B3: TEST-012 (focus, index, report), TEST-013/014 (idempotence and resume).
 # B4a: TEST-003/004 (open-PR preflight), TEST-015 (downstream installed layout).
+# B4b: TEST-001/002 (prompt, wrappers, executed block), TEST-017 (companion wiring).
 set -euo pipefail
 
 case "$0" in /*) HERE="${0%/*}" ;; */*) HERE="$PWD/${0%/*}" ;; *) HERE="$PWD" ;; esac
@@ -15,7 +16,7 @@ DOCS_AUDIT="$ROOT/.aai/scripts/docs-audit.mjs"
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/aai-merge-cleanup.XXXXXX")"
 [[ -n "$SCRATCH" && "$SCRATCH" = /* && -d "$SCRATCH" ]] || { echo 'FAIL: SETUP scratch root not absolute' >&2; exit 1; }
 
-SCRATCH="$(cd "$SCRATCH" && pwd -P)" || { echo 'FAIL: SETUP scratch root not resolvable' >&2; exit 1; }
+SCRATCH="$(node -e 'process.stdout.write(require("fs").realpathSync(process.argv[1]))' "$SCRATCH")" || { echo 'FAIL: SETUP scratch root not resolvable' >&2; exit 1; }
 
 SELECTED=""
 if [[ $# -ne 0 ]]; then
@@ -511,7 +512,7 @@ test_010_worktree_and_branch_cleanup() {
   HELPER_PIDS+=("$pid")
   ( cd "$RIDE" && node "$ROOT/.aai/scripts/lib/session-lock.mjs" acquire --pid "$pid" --ref foo >/dev/null ) || fail SETUP 'lock acquire'
   [[ "$(git -C "$ORIGIN" rev-parse "refs/heads/$BRANCH")" == "$HEAD_OID" ]] || fail SETUP 'branch tip'
-  if git -C "$ORIGIN" merge-base --is-ancestor "$HEAD_OID" main 2>/dev/null; then fail SETUP 'fixture is not a squash merge'; fi
+  if git -C "$ORIGIN" merge-base --is-ancestor "$HEAD_OID" refs/heads/main 2>/dev/null; then fail SETUP 'fixture is not a squash merge'; fi
   for f in $RUNTIME_FILES; do run cp "$RIDE/$f" "$(kf "$f")"; done
 
   run_engine apply --pr "$PR" --pid "$pid" --json
@@ -806,7 +807,7 @@ test_014_interrupted_run_converges() {
     [[ "$ENG_RC" -eq 0 ]] || fail TEST-014 "resume after $id exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
     second="$ENG_OUT"
     sig="$(tree_sig)"
-    [[ "$sig" == "$control_sig" ]] || fail TEST-014 "resume after $id differs from the uninterrupted run: $(diff <(printf '%s\n' "$control_sig") <(printf '%s\n' "$sig") | head -6 | tr '\n' ' ')"
+    [[ "$sig" == "$control_sig" ]] || fail TEST-014 "resume after $id differs from the uninterrupted run: $(diff <(printf '%s\n' "$control_sig") <(printf '%s\n' "$sig") | awk 'NR <= 6' | tr '\n' ' ')"
     assert_nothing_lost TEST-014
     [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-014 "resume after $id left a duplicate ledger line"
     [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-014 "resume after $id: local ledger line not exactly once"
@@ -990,11 +991,136 @@ test_015_downstream_layout() {
   echo 'PASS: TEST-015 downstream installed layout'
 }
 
+# ---------------------------------------------------------------------------
+# B4b: the prompt and its wrappers (TEST-001), the executed bash block
+# (TEST-002), and the companion wiring (TEST-017).
+PROMPT="$ROOT/.aai/SKILL_MERGE.prompt.md"
+
+# block_of <begin-marker> <end-marker> <file>: the lines strictly between two marker lines.
+block_of() {
+  awk -v b="# $1" -v e="# $2" '
+    { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line == b { f = 1; next }
+    line == e { f = 0; next }
+    f' "$3"
+}
+# section_of <start-regex> <stop-regex> <file>: from the first start line up to (not including) the next stop line.
+section_of() { awk -v s="$1" -v e="$2" '$0 ~ s { f = 1; print; next } f && $0 ~ e { exit } f' "$3"; }
+
+test_001_wrappers_and_pointers() {
+  local tree sect out rc=0
+  for tree in .claude .agents .codex .gemini; do
+    [[ -f "$ROOT/$tree/skills/aai-merge/SKILL.md" ]] || fail TEST-001 "wrapper missing in $tree/skills/aai-merge"
+    want TEST-001 "$(cat "$ROOT/$tree/skills/aai-merge/SKILL.md")" '.aai/SKILL_MERGE.prompt.md'
+  done
+  [[ -f "$PROMPT" ]] || fail TEST-001 'the core prompt .aai/SKILL_MERGE.prompt.md is missing'
+  out="$(node "$ROOT/.aai/scripts/sync-harness-skills.mjs" --check 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || fail TEST-001 "sync-harness-skills --check exited $rc: $out"
+  # the three completion pointers, each inside its own section
+  sect="$(section_of '^6\. MERGE BOUNDARY' '^7\. ' "$ROOT/.aai/SKILL_PR.prompt.md")"
+  [[ -n "$sect" ]] || fail TEST-001 'SKILL_PR step 6 section not found (positive control)'
+  want TEST-001 "$sect" '/aai-merge'
+  sect="$(section_of '^6\. MERGE CHECKPOINT' '^7\. ' "$ROOT/.aai/SKILL_SHIP.prompt.md")"
+  [[ -n "$sect" ]] || fail TEST-001 'SKILL_SHIP step 6 section not found (positive control)'
+  want TEST-001 "$sect" '/aai-merge'
+  sect="$(section_of '^### Command: Cleanup Worktree' '^### ' "$ROOT/.aai/SKILL_WORKTREE.prompt.md")"
+  [[ -n "$sect" ]] || fail TEST-001 'SKILL_WORKTREE cleanup section not found (positive control)'
+  want TEST-001 "$sect" '/aai-merge'
+  # the engine's own help lists the three modes
+  out="$(node "$ENGINE" --help 2>&1)" || fail TEST-001 'engine --help failed'
+  want TEST-001 "$out" 'preflight'; want TEST-001 "$out" 'plan'; want TEST-001 "$out" 'apply'
+  # the prompt carries both marked blocks, and neither block can merge
+  [[ -n "$(block_of AAI_MERGE_BEGIN AAI_MERGE_END "$PROMPT")" ]] || fail TEST-001 'AAI_MERGE bash block missing from the prompt'
+  [[ -n "$(block_of AAI_MERGE_PS_BEGIN AAI_MERGE_PS_END "$PROMPT")" ]] || fail TEST-001 'AAI_MERGE_PS block missing from the prompt'
+  for sect in "$(block_of AAI_MERGE_BEGIN AAI_MERGE_END "$PROMPT")" "$(block_of AAI_MERGE_PS_BEGIN AAI_MERGE_PS_END "$PROMPT")"; do
+    unwanted TEST-001 "$sect" 'pr merge'
+    unwanted TEST-001 "$sect" '--admin'
+    unwanted TEST-001 "$sect" '--auto'
+    unwanted TEST-001 "$sect" '--force'
+  done
+  echo 'PASS: TEST-001 wrappers and completion pointers'
+}
+
+# run_block <file> <cwd>: executes an extracted prompt block with the gh stub first on PATH.
+run_block() {
+  ENG_RC=0
+  [[ -n "$2" && "$2" = /* ]] || fail SETUP 'block cwd'
+  ( cd "$2" && AAI_PR="$PR" PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" bash "$1" >"$W/block.out" 2>"$W/block.err" ) || ENG_RC=$?
+  ENG_OUT="$(cat "$W/block.out")"
+  ENG_ERR="$(cat "$W/block.err")"
+}
+
+test_002_prompt_block_runs_cleanup() {
+  [[ -f "$PROMPT" ]] || fail TEST-002 "the core prompt is missing: $PROMPT"
+  DOWNSTREAM=1 build_world "prompt block"
+  block_of AAI_MERGE_BEGIN AAI_MERGE_END "$PROMPT" > "$W/merge.block.sh"
+  [[ -s "$W/merge.block.sh" ]] || fail TEST-002 'AAI_MERGE bash block is empty or missing'
+  local before
+  # negative control: no PR number is a usage failure that writes nothing
+  before="$(world_digest)"
+  ( cd "$RIDE" && env -u AAI_PR PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" bash "$W/merge.block.sh" >"$W/block.out" 2>"$W/block.err" ) && ENG_RC=0 || ENG_RC=$?
+  [[ "$ENG_RC" -ne 0 ]] || fail TEST-002 'the block ran without AAI_PR'
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-002 'the block without AAI_PR changed the fixture'
+  # positive: run from INSIDE the ride worktree, the block resolves the origin itself
+  run_block "$W/merge.block.sh" "$RIDE"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-002 "block exited $ENG_RC (out: $ENG_OUT err: $ENG_ERR)"
+  [[ ! -e "$RIDE" ]] || fail TEST-002 'the ride worktree still exists'
+  if git -C "$ORIGIN" show-ref --verify -q "refs/heads/$BRANCH"; then fail TEST-002 'the ride branch still exists'; fi
+  [[ -f "$ORIGIN/$NUM_ISSUE" && -f "$ORIGIN/$NUM_SPEC" ]] || fail TEST-002 'numbered docs missing from the origin'
+  [[ ! -e "$ORIGIN/$DRAFT_ISSUE" && ! -e "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-002 'superseded drafts still in the origin'
+  [[ -s "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/manifest.jsonl" ]] || fail TEST-002 'no archive manifest'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-002 'origin HEAD is not the merge commit'
+  want TEST-002 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"   # positive control: the engine really ran
+  assert_no_merge_call TEST-002
+  echo 'PASS: TEST-002 the prompt block runs cleanup'
+}
+
+test_017_companion_wiring() {
+  local profiles map yml sect
+  profiles="$(section_of '^core:' '^[a-z_]+:' "$ROOT/.aai/system/PROFILES.yaml")"
+  [[ -n "$profiles" ]] || fail TEST-017 'PROFILES core section not found (positive control)'
+  want TEST-017 "$profiles" '- .aai/SKILL_MERGE.prompt.md'
+  want TEST-017 "$profiles" '- .aai/scripts/merge-cleanup.mjs'
+  map="$(section_of '^  aai-merge-cleanup:' '^  [a-zA-Z]' "$ROOT/tests/skills/suite-map.yaml")"
+  [[ -n "$map" ]] || fail TEST-017 'suite-map.yaml has no aai-merge-cleanup row'
+  want TEST-017 "$map" '.aai/scripts/merge-cleanup.mjs'
+  want TEST-017 "$map" '.aai/SKILL_MERGE.prompt.md'
+  want TEST-017 "$map" 'tests/skills/test-aai-merge-cleanup.sh'
+  want TEST-017 "$map" 'tests/skills/aai-merge-cleanup.Tests.ps1'
+  yml="$ROOT/.github/workflows/ps1-quality.yml"
+  [[ "$(/usr/bin/grep -cF -- "- '.aai/scripts/merge-cleanup.mjs'" "$yml" || true)" == 2 ]] || fail TEST-017 'ps1-quality must list the engine in both the push and pull_request filters'
+  [[ "$(/usr/bin/grep -cF -- "- '.aai/SKILL_MERGE.prompt.md'" "$yml" || true)" == 2 ]] || fail TEST-017 'ps1-quality must list the prompt in both the push and pull_request filters'
+  # the diet ledger names this scope with a positive integer credit
+  sect="$(/usr/bin/grep -F 'directed-merge-and-post-merge-cleanup' "$ROOT/tests/skills/lib/prompt-diet-ledger.sh" || true)"
+  [[ -n "$sect" ]] || fail TEST-017 'the prompt-diet ledger carries no entry for this scope'
+  echo 'PASS: TEST-017 companion wiring'
+}
+
+# TEST-016: the Pester parity suite, run under the local pwsh. Explicit selection
+# only (the default run and CI's skill-suite leg leave it to the ps1-quality
+# jobs, which run the same file under Windows PowerShell 5.1 and pwsh 7); this
+# selector exists so the engine mutations that redden TEST-015 can be measured
+# against the PowerShell half too. A macOS/Linux pwsh run is pre-PR evidence only.
+test_016_powershell_parity() {
+  local rc=0 out
+  command -v pwsh >/dev/null 2>&1 || fail TEST-016 'pwsh is not installed; the Pester parity cannot be measured here'
+  [[ -f "$ROOT/tests/skills/aai-merge-cleanup.Tests.ps1" ]] || fail TEST-016 'tests/skills/aai-merge-cleanup.Tests.ps1 is missing'
+  out="$(AAI_ROOT_DIR="$ROOT" pwsh -NoProfile -Command 'Set-Location -LiteralPath $env:AAI_ROOT_DIR; Invoke-Pester -Path tests/skills/aai-merge-cleanup.Tests.ps1 -EnableExit' 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || fail TEST-016 "Pester exited $rc: $(printf '%s\n' "$out" | /usr/bin/grep -E 'RuntimeException|Expected|REFUSE|STOPPED|\[-\]' | awk 'NR <= 6' | tr '\n' ' ')"
+  want TEST-016 "$out" 'Passed: 2'
+  echo 'PASS: TEST-016 PowerShell parity (local pwsh)'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate; test_006_superseded_drafts; test_007_retained_and_decisions
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
      test_012_state_index_report; test_013_second_apply_is_noop; test_014_interrupted_run_converges
-     test_003_preflight_refusals; test_004_preflight_ready; test_015_downstream_layout ;;
+     test_003_preflight_refusals; test_004_preflight_ready; test_015_downstream_layout
+     test_001_wrappers_and_pointers; test_002_prompt_block_runs_cleanup; test_017_companion_wiring ;;
+  TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
+  TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
+  TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
+  TEST-017|test_017_companion_wiring) test_017_companion_wiring ;;
   TEST-003|test_003_preflight_refusals) test_003_preflight_refusals ;;
   TEST-004|test_004_preflight_ready) test_004_preflight_ready ;;
   TEST-015|test_015_downstream_layout) test_015_downstream_layout ;;

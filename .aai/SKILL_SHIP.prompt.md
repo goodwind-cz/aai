@@ -109,7 +109,8 @@ RUN
      `node .aai/scripts/follow-ups.mjs list --status open --ref <ref_id>`
      (omit when none)
    - "Merging stays operator-only — review the PR above and merge it
-     yourself when ready."
+     yourself when ready." To merge and clean up on your word: `/aai-merge <n>`
+     (never invoked by /aai-ship).
    UNDER A LANE MERGE (SKILL_PR step 6: `merge-policy.mjs --check --pr <n>`
    allows a lane under docs/ai/merge-policy.yaml) merge per that step and
    report the decision_ref cited; any other verdict leaves merging to the

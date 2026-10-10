@@ -243,6 +243,7 @@ AAI uses two different classes of documentation:
 | `/aai-docs-canon` | Docs consolidation | Layered intake/specs/RFCs → canonical per-domain layer + archive |
 | `/aai-test-canon` | Test consolidation | Fragmented tests → canonical per-domain suites + RED stubs for gaps |
 | `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; never merges |
+| `/aai-merge` | Merge and clean up | You name the PR: gates, one pinned merge command, then archive-first cleanup of the merged ride |
 | `/aai-release` | Cut a release | Roll CHANGELOG, commit, tag, publish, push; operator-gated, safe dry-run |
 | `/aai-profile` | Optimize | Performance analysis |
 | `/aai-worktree` | Isolate the work | Create and manage a git worktree for a scope |
@@ -1462,6 +1463,31 @@ per-run drill-down.
 
 # Generates: docs/ai/factory-report.html (+ factory-report-data.json)
 ```
+
+#### `/aai-merge`
+**What:** The directed merge and its safe cleanup. `/aai-merge <PR>` is the one
+place an agent merges, and only on your explicit word for that one PR. For an
+open PR it checks the gates (open, not draft, the head you judged, green
+checks, mergeable, a recorded review sweep) and prints the single pinned
+`gh pr merge --squash --match-head-commit <sha>` command; the prompt runs
+exactly that line. For a merged PR it proves the merge reached the base branch,
+then tidies the leftovers: superseded draft copies are archived (never
+deleted), the base checkout is fast-forwarded without losing your dirty files
+or ledger lines, the focus is cleared only if it was this PR's work item, and
+the finished worktree and local branch are removed without force. A second run
+reports what is already done.
+
+**When to use:** after you have reviewed a PR and want it merged and cleaned up
+in one step, or after you merged it yourself and want the leftovers handled.
+`/aai-ship` and the loop never call it.
+
+**Example:**
+```bash
+/aai-merge 433
+```
+
+Remote branch deletion and drafts that differ from what was merged stay your
+decision; the report lists them under `remaining`.
 
 #### `/aai-profile`
 **What:** Performance profiling and optimization suggestions.

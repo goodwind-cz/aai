@@ -114,6 +114,18 @@ function git(cwd, args, opts = {}) {
   return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
+// The ONE gh read (D4). Test seam: AAI_MERGE_CLEANUP_GH_NODE=<abs .js path> runs
+// that script under this node instead of `gh`, because a native Windows runner
+// cannot spawn a .cmd/.sh stub without a shell. Production leaves it unset.
+function ghPrView(cwd, pr, maxBuffer) {
+  const stub = process.env.AAI_MERGE_CLEANUP_GH_NODE;
+  const viewArgs = ['pr', 'view', String(pr), '--json', PR_FIELDS];
+  if (stub && path.isAbsolute(stub)) {
+    return spawnSync(process.execPath, [stub, ...viewArgs], { cwd, encoding: 'utf8', maxBuffer });
+  }
+  return spawnSync('gh', viewArgs, { cwd, encoding: 'utf8', maxBuffer });
+}
+
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const posix = (p) => p.split(path.sep).join('/');
 
@@ -132,9 +144,7 @@ function resolveOrigin(opts) {
 
 // D4/D5: the one fixed gh read, then the read-back gate.
 function readAndGate(opts, origin) {
-  const r = spawnSync('gh', ['pr', 'view', String(opts.pr), '--json', PR_FIELDS], {
-    cwd: origin, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
-  });
+  const r = ghPrView(origin, opts.pr, 64 * 1024 * 1024);
   if (r.error || r.status !== 0) refuse('gh_read_failed', `gh pr view ${opts.pr}`);
   let pr;
   try { pr = JSON.parse(r.stdout); } catch { refuse('gh_read_invalid', 'gh pr view printed no JSON'); }
@@ -703,9 +713,7 @@ function runPreflight(opts) {
     refuse('no_direction', 'needs --directed-by human and the owner\'s verbatim --direction');
   }
   const cwd = opts.origin ?? process.cwd();
-  const r = spawnSync('gh', ['pr', 'view', String(opts.pr), '--json', PR_FIELDS], {
-    cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
-  });
+  const r = ghPrView(cwd, opts.pr, 64 * 1024 * 1024);
   if (r.error || r.status !== 0) refuse('gh_read_failed', `gh pr view ${opts.pr}`);
   let pr;
   try { pr = JSON.parse(r.stdout); } catch { refuse('gh_read_invalid', 'gh pr view printed no JSON'); }

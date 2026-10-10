@@ -63,6 +63,7 @@ core:
   - .aai/SKILL_HITL.prompt.md
   - .aai/SKILL_INTAKE.prompt.md
   - .aai/SKILL_LOOP.prompt.md
+  - .aai/SKILL_MERGE.prompt.md
   - .aai/SKILL_META.prompt.md
   - .aai/SKILL_PR.prompt.md
   - .aai/SKILL_RELEASE.prompt.md

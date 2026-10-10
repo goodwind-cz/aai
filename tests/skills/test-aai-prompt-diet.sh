@@ -969,7 +969,12 @@ test_012_growth_sum_matches_ledger() {
   # VALIDATION.prompt.md, SKILL_TDD.prompt.md and SKILL_PR.prompt.md, 293 B
   # each); zero headroom standing, credited 1:1 (ledger key
   # post-validation-pushes-reuse-test-results).
-  local want_growth=56418
+  # Then 56418 -> 59467: directed-merge-and-post-merge-cleanup Spec-AC-10
+  # (+3049 B: the new SKILL_MERGE.prompt.md 0 -> 2909 plus the SKILL_PR step 6,
+  # SKILL_SHIP step 6 and SKILL_WORKTREE cleanup pointers, -50 + 88 + 102 B);
+  # zero headroom standing, credited 1:1 (ledger key
+  # directed-merge-and-post-merge-cleanup).
+  local want_growth=59467
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
