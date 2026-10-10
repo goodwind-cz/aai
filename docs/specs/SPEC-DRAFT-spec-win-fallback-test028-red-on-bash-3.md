@@ -82,10 +82,10 @@ None.
 
 | Spec-AC    | Description | Status  | Evidence | Review-By | Notes |
 |------------|-------------|---------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the PATH bash is older than 4 the suite exits 0 and prints the named TEST-028 execution-arm SKIP line | planned | — | — | — |
-| Spec-AC-02 | WHEN the invoked bash major is 4 or more or unreadable the arm runs unchanged, WHEN below 4 it is skipped by name | planned | — | — | — |
-| Spec-AC-03 | WHEN the arm is skipped the in-process translation asserts still ran and still fail the suite on a break | planned | — | — | — |
-| Spec-AC-04 | WHEN the diff is read only the one suite and spec docs changed, no product code | planned | — | — | — |
+| Spec-AC-01 | WHEN the PATH bash is older than 4 the suite exits 0 and prints the named TEST-028 execution-arm SKIP line | done | `docs/ai/tdd/spec-win-fallback-test028-red-on-bash-3/mutation-TEST-001.txt` (regression check) + `env -u AAI_ROLE bash tests/skills/test-aai-win-fallback.sh 028 042` exit 0 | — | — |
+| Spec-AC-02 | WHEN the invoked bash major is 4 or more or unreadable the arm runs unchanged, WHEN below 4 it is skipped by name | done | `docs/ai/tdd/spec-win-fallback-test028-red-on-bash-3/mutation-TEST-002.txt` (regression check) + `env -u AAI_ROLE bash tests/skills/test-aai-win-fallback.sh 028 042` exit 0 | — | — |
+| Spec-AC-03 | WHEN the arm is skipped the in-process translation asserts still ran and still fail the suite on a break | done | `docs/ai/tdd/spec-win-fallback-test028-red-on-bash-3/mutation-TEST-003.txt` (regression check) + `env -u AAI_ROLE bash tests/skills/test-aai-win-fallback.sh 028 042` exit 0 | — | — |
+| Spec-AC-04 | WHEN the diff is read only the one suite and spec docs changed, no product code | done | `docs/ai/tdd/spec-win-fallback-test028-red-on-bash-3/mutation-TEST-004.txt` (regression check) + `env -u AAI_ROLE bash tests/skills/test-aai-win-fallback.sh 028 042` exit 0 | — | TEST-004 mutation expression in the Test Plan cell is not valid in the runner grammar (unescaped slash); recorded with `s/\^\\\.aai\//^\\.nothing\//` |
 
 ## Implementation plan
 - tests/skills/test-aai-win-fallback.sh: add the two helpers `win_fallback_invoked_bash_major` and `win_fallback_exec_arm_decision` directly above `test_028`; in `test_028` insert the gate after the translation asserts and before the `root`/`exe`/`suite` fixture; keep the arm and pass line unchanged; add `test_042` after `test_041` and append `042` to `ALL_TESTS`.
@@ -98,10 +98,10 @@ Every row is a function in `tests/skills/test-aai-win-fallback.sh`, run as `env 
 
 | Test ID  | Spec-AC    | Type        | File path (expected) | Description | Mutation | Status  |
 |----------|------------|-------------|----------------------|-------------|----------|---------|
-| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-win-fallback.sh | test_028 on the real host: exit 0 on bash 3, SKIP line with version present, pass line absent; on bash 4 or newer the pass line present and no SKIP line | sed:s/== skip \]\]/== never ]]/ | pending |
-| TEST-002 | Spec-AC-02 | unit        | tests/skills/test-aai-win-fallback.sh | test_042: forced majors 3, 4, 5 and empty through the subshell redefinition; SKIP line only for 3; a stub bash printing 5 first on PATH is read by the real helper | sed:s/-lt 4/-lt 99/ | pending |
-| TEST-003 | Spec-AC-03 | unit        | tests/skills/test-aai-win-fallback.sh | test_042: with the version forced to 3 and aai_to_git_bash_path redefined to echo its input, test_028 exits 1 (translation asserts precede the gate) | sed:s/\[\[ "\$gb" == "\/c\/proj\/.venv\/Scripts\/python.exe" \]\]/true/ | pending |
-| TEST-004 | Spec-AC-04 | unit        | tests/skills/test-aai-win-fallback.sh | test_042: git diff --name-only against origin/main, when that ref exists, names no path under .aai/; absent ref is a named skip | sed:s/\^\\.aai\\//^\\.nothing\\// | pending |
+| TEST-001 | Spec-AC-01 | integration | tests/skills/test-aai-win-fallback.sh | test_028 on the real host: exit 0 on bash 3, SKIP line with version present, pass line absent; on bash 4 or newer the pass line present and no SKIP line | sed:s/== skip \]\]/== never ]]/ | green |
+| TEST-002 | Spec-AC-02 | unit        | tests/skills/test-aai-win-fallback.sh | test_042: forced majors 3, 4, 5 and empty through the subshell redefinition; SKIP line only for 3; a stub bash printing 5 first on PATH is read by the real helper | sed:s/-lt 4/-lt 99/ | green |
+| TEST-003 | Spec-AC-03 | unit        | tests/skills/test-aai-win-fallback.sh | test_042: with the version forced to 3 and aai_to_git_bash_path redefined to echo its input, test_028 exits 1 (translation asserts precede the gate) | sed:s/\[\[ "\$gb" == "\/c\/proj\/.venv\/Scripts\/python.exe" \]\]/true/ | green |
+| TEST-004 | Spec-AC-04 | unit        | tests/skills/test-aai-win-fallback.sh | test_042: git diff --name-only against origin/main, when that ref exists, names no path under .aai/; absent ref is a named skip | sed:s/\^\\.aai\\//^\\.nothing\\// | green |
 
 Test status values: pending → red → green
 

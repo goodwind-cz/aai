@@ -772,6 +772,22 @@ test_026() {
   log_pass "allowlist rationale + operator note + truthful product doc + CHANGELOG heading (TEST-026)"
 }
 
+# TEST-028 gate (win-fallback-test028-red-on-bash-3): the execution arm needs
+# command_not_found_handle (bash 4+). The major is read from the interpreter the
+# wrapper will invoke (the bare word `bash` on PATH), never from this process.
+win_fallback_invoked_bash_major() {
+  bash -c 'printf %s "${BASH_VERSINFO[0]}"' 2>/dev/null || true
+}
+
+# Prints `skip` only for an all-digit major below 4; everything else (4+, empty,
+# non-numeric) fails closed to `run`.
+win_fallback_exec_arm_decision() {
+  case "${1:-}" in
+    ''|*[!0-9]*) printf 'run' ;;
+    *) if [ "$1" -lt 4 ]; then printf 'skip'; else printf 'run'; fi ;;
+  esac
+}
+
 test_028() {
   log_info "TEST-028: a Windows project Python path round-trips to Git Bash and a bash suite executes it (no helper command, so not exit 127)..."
   local lib="$PROJECT_ROOT/.aai/scripts/lib/git-bash-path.sh"
@@ -790,6 +806,13 @@ test_028() {
   [[ "$slash" == "/c/proj/.venv/Scripts/python.exe" ]] || log_fail "C:/ spelling wrong: got '$slash'"
   # Non-paths stay put (the wrapper must not rewrite "sh" or "-c").
   [[ "$(aai_to_git_bash_path 'sh')" == "sh" ]] || log_fail "plain token was rewritten"
+
+  local invoked_major
+  invoked_major="$(win_fallback_invoked_bash_major)"
+  if [[ "$(win_fallback_exec_arm_decision "$invoked_major")" == skip ]]; then
+    echo "SKIP: TEST-028 execution arm: invoked bash is $invoked_major.x; bash older than 4 has no command_not_found_handle (Git Bash and CI run bash 5); translation asserts passed"
+    return 0
+  fi
 
   local root exe suite out rc
   root="$(mktemp -d "${TMPDIR:-/tmp}/aai-gb-root.XXXXXX")"
@@ -1375,7 +1398,89 @@ test_041() {
   log_pass "TEST-013 (test_041) survivor probe: zero when none, exactly one when one, in both smoke steps"
 }
 
-ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040 041"
+# Prints, one per line, each path of the newline-separated list $1 under .aai/.
+win_fallback_aai_paths() {
+  local p
+  while IFS= read -r p; do
+    [[ "$p" =~ ^\.aai/ ]] && printf '%s\n' "$p"
+  done <<EOF_NAMES
+$1
+EOF_NAMES
+  return 0
+}
+
+test_042() {
+  log_info "TEST-028 gate (test_042): the execution arm is skipped by name only for an invoked bash older than 4; translation asserts precede the gate; no .aai/ change..."
+  local out rc m
+  # TEST-001 (Spec-AC-01, SEAM-2): the real host. Below bash 4 the named SKIP line
+  # and exit 0; bash 4 or newer the unchanged pass line and no SKIP line.
+  local real_major real_out real_rc
+  real_major="$(win_fallback_invoked_bash_major)"
+  real_out="$(test_028 2>&1)" && real_rc=0 || real_rc=$?
+  if [[ "$(win_fallback_exec_arm_decision "$real_major")" == skip ]]; then
+    [[ "$real_rc" -eq 0 ]] || log_fail "TEST-001: bash $real_major host must exit 0 on test_028, got $real_rc: $real_out"
+    assert_payload_contains "$real_out" "SKIP: TEST-028 execution arm" "TEST-001: bash $real_major host printed no named SKIP line: $real_out"
+    assert_payload_not_contains "$real_out" "executed under Git Bash" "TEST-001: bash $real_major host printed the arm pass line: $real_out"
+    assert_payload_not_contains "$real_out" "FAIL python path" "TEST-001: bash $real_major host ran the sentinel: $real_out"
+  else
+    [[ "$real_rc" -eq 0 ]] || log_fail "TEST-001: bash $real_major host must pass test_028, got $real_rc: $real_out"
+    assert_payload_contains "$real_out" "executed under Git Bash" "TEST-001: bash $real_major host lost the pass line: $real_out"
+    assert_payload_not_contains "$real_out" "SKIP: TEST-028" "TEST-001: bash $real_major host skipped the arm: $real_out"
+  fi
+  # Positive control + forced majors (SEAM-1, in-process override of the probe).
+  for m in 3 4 5 ""; do
+    out="$(win_fallback_invoked_bash_major() { printf '%s' "$m"; }; test_028 2>&1)" && rc=0 || rc=$?
+    if [[ "$m" == 3 ]]; then
+      [[ "$rc" -eq 0 ]] || log_fail "TEST-002: forced major 3 must skip with exit 0, got $rc: $out"
+      assert_payload_contains "$out" "SKIP: TEST-028 execution arm" "TEST-002: forced major 3 printed no named SKIP line: $out"
+      assert_payload_not_contains "$out" "executed under Git Bash" "TEST-002: forced major 3 still ran the arm: $out"
+    else
+      assert_payload_not_contains "$out" "SKIP: TEST-028" "TEST-002: forced major '${m}' must not skip the arm: $out"
+    fi
+  done
+  # A stub bash first on PATH is what the real helper reads (SEAM-1).
+  local stub
+  stub="$(mktemp -d "${TMPDIR:-/tmp}/aai-w28-stub.XXXXXX")"
+  [[ -n "$stub" && "$stub" = /* ]] || log_fail "TEST-002: stub dir not absolute"
+  printf '#!/bin/sh\nprintf 5\n' > "$stub/bash"
+  chmod +x "$stub/bash"
+  [[ "$(PATH="$stub:$PATH" win_fallback_invoked_bash_major)" == 5 ]] || { rm -rf "$stub"; log_fail "TEST-002: real helper did not read the stub bash major"; }
+  printf '#!/bin/sh\nprintf 3\n' > "$stub/bash"
+  out="$(PATH="$stub:$PATH" test_028 2>&1)" && rc=0 || rc=$?
+  rm -rf "$stub"
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-002: stub bash 3 must skip with exit 0, got $rc: $out"
+  assert_payload_contains "$out" "SKIP: TEST-028 execution arm" "TEST-002: stub bash 3 printed no SKIP line: $out"
+  [[ "$(win_fallback_exec_arm_decision 3)" == skip && "$(win_fallback_exec_arm_decision 4)" == run && "$(win_fallback_exec_arm_decision x)" == run && "$(win_fallback_exec_arm_decision '')" == run ]] \
+    || log_fail "TEST-002: decision helper wrong for 3/4/non-numeric/empty"
+
+  # Spec-AC-03: a broken translation lib fails test_028 even on the skip branch.
+  local fake
+  fake="$(mktemp -d "${TMPDIR:-/tmp}/aai-w28-fake.XXXXXX")"
+  [[ -n "$fake" && "$fake" = /* ]] || log_fail "TEST-003: fake root not absolute"
+  mkdir -p "$fake/.aai/scripts/lib"
+  printf 'aai_to_git_bash_path() { printf %%s "$1"; }\naai_to_windows_path() { printf %%s "$1"; }\n' > "$fake/.aai/scripts/lib/git-bash-path.sh"
+  out="$(PROJECT_ROOT="$fake"; win_fallback_invoked_bash_major() { printf 3; }; test_028 2>&1)" && rc=0 || rc=$?
+  rm -rf "$fake"
+  [[ "$rc" -eq 1 ]] || log_fail "TEST-003: broken translation must fail test_028 with exit 1 on the skip branch, got $rc: $out"
+  assert_payload_contains "$out" "git-bash path wrong" "TEST-003: broken translation failed for another reason: $out"
+
+  # Spec-AC-04: nothing under .aai/ changed against origin/main. The checker has
+  # a positive control, so a regex that matches nothing cannot pass vacuously.
+  local flagged
+  flagged="$(win_fallback_aai_paths $'docs/a.md\n.aai/scripts/x.sh\ntests/skills/t.sh')"
+  [[ "$flagged" == ".aai/scripts/x.sh" ]] || log_fail "TEST-004: path checker did not flag exactly the .aai/ path (positive control): '$flagged'"
+  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+    local names
+    names="$(git -C "$PROJECT_ROOT" diff --name-only origin/main...HEAD 2>/dev/null)" || log_fail "TEST-004: git diff against origin/main failed"
+    flagged="$(win_fallback_aai_paths "$names")"
+    [[ -z "$flagged" ]] || log_fail "TEST-004: diff touches a path under .aai/: $flagged"
+  else
+    echo "SKIP: TEST-004 diff arm: origin/main not present (named skip)"
+  fi
+  log_pass "TEST-042 TEST-028 execution arm skipped by name only below bash 4; translation asserts precede the gate"
+}
+
+ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040 041 042"
 
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {

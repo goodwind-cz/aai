@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-10T06:46:08.809Z
+Generated: 2026-10-10T06:50:28.134Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-win-fallback-test028-red-on-bash-3 | specs | implementing | 4 planned | docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md |
+| spec-win-fallback-test028-red-on-bash-3 | specs | implementing | 4 done | docs/specs/SPEC-DRAFT-spec-win-fallback-test028-red-on-bash-3.md |
 
 ## Canonical layer (0)
 
