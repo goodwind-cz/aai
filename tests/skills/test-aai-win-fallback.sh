@@ -1464,20 +1464,13 @@ test_042() {
   [[ "$rc" -eq 1 ]] || log_fail "TEST-003: broken translation must fail test_028 with exit 1 on the skip branch, got $rc: $out"
   assert_payload_contains "$out" "git-bash path wrong" "TEST-003: broken translation failed for another reason: $out"
 
-  # Spec-AC-04: nothing under .aai/ changed against origin/main. The checker has
-  # a positive control, so a regex that matches nothing cannot pass vacuously.
+  # Spec-AC-04 (positive control only): the .aai/ path checker flags exactly the
+  # .aai/ path. The one-off "this ride changed nothing under .aai/" diff is a
+  # property of the ride, read once at validation, not an invariant of the suite.
   local flagged
   flagged="$(win_fallback_aai_paths $'docs/a.md\n.aai/scripts/x.sh\ntests/skills/t.sh')"
   [[ "$flagged" == ".aai/scripts/x.sh" ]] || log_fail "TEST-004: path checker did not flag exactly the .aai/ path (positive control): '$flagged'"
-  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
-    local names
-    names="$(git -C "$PROJECT_ROOT" diff --name-only origin/main...HEAD 2>/dev/null)" || log_fail "TEST-004: git diff against origin/main failed"
-    flagged="$(win_fallback_aai_paths "$names")"
-    [[ -z "$flagged" ]] || log_fail "TEST-004: diff touches a path under .aai/: $flagged"
-  else
-    echo "SKIP: TEST-004 diff arm: origin/main not present (named skip)"
-  fi
-  log_pass "TEST-042 TEST-028 execution arm skipped by name only below bash 4; translation asserts precede the gate"
+  log_pass "TEST-042 TEST-028 execution arm gated by the invoked bash major; translation asserts precede the gate"
 }
 
 ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040 041 042"
