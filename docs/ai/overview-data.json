@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-10T15:27:20.033Z",
+  "generatedAt": "2026-10-10T21:30:27.893Z",
   "project": "aai",
   "counts": {
     "delivered": 289,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 74203136
   },
@@ -47,6 +47,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "merge-direction-signs-amendments",
+      "title": "The owner's merge direction signs the ride's contract amendments",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0208-merge-direction-signs-amendments.md",
+      "closed_on": null,
+      "agent_minutes": 180,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0220-spec-merge-direction-signs-amendments.md",
       "validation": null,
       "review": null
     },
@@ -245,7 +258,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0219-spec-classify-same-ts-pair.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-classify-same-ts-pair-20261010T150813Z.md"
+      "review": "docs/ai/reviews/review-classify-same-ts-pair-r3-20261010T155619Z.md"
     },
     {
       "ref": "win-fallback-test028-red-on-bash-3",
@@ -4029,7 +4042,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0219-spec-classify-same-ts-pair.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-classify-same-ts-pair-20261010T150813Z.md"
+          "review": "docs/ai/reviews/review-classify-same-ts-pair-r3-20261010T155619Z.md"
         },
         {
           "ref": "win-fallback-test028-red-on-bash-3",

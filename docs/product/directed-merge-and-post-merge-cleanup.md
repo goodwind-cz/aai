@@ -142,5 +142,5 @@ reports the completed ones as no-ops.
 - Request: docs/issues/CHANGE-0206-directed-merge-and-post-merge-cleanup.md
 - Spec: docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
 - Validation evidence: docs/ai/reports/VALIDATION-r3-directed-merge-and-post-merge-cleanup.md
-- Signing request: docs/issues/CHANGE-DRAFT-merge-direction-signs-amendments.md
-- Signing spec: docs/specs/SPEC-DRAFT-spec-merge-direction-signs-amendments.md
+- Signing request: docs/issues/CHANGE-0208-merge-direction-signs-amendments.md
+- Signing spec: docs/specs/SPEC-0220-spec-merge-direction-signs-amendments.md

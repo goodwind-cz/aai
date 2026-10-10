@@ -1,10 +1,10 @@
 ---
 id: spec-merge-direction-signs-amendments
 type: spec
-number: null
+number: 220
 status: implementing
 mutation_gate: v1
-frozen_sha256: 0803332894e65dc70c9fa495e98036351490f131d23e83d7d7d3bc2cd00397d3
+frozen_sha256: 6b03635cea31f44c8b7a10adfa7021d0c773395bbf557bfaeff803db1b277aae
 ceremony_level: 2
 links:
   requirement: merge-direction-signs-amendments
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-merge-direction-signs-amendments.md
+- Requirement: docs/issues/CHANGE-0208-merge-direction-signs-amendments.md
   (owner decision 2026-10-10, answer "Merge = podpis + backlog (Recommended)")
 - Engines: .aai/scripts/merge-cleanup.mjs (preflight, apply, `mergedRefs`,
   `deliveredDoneRefs`, `appendDirectedMerge`, `recordDirection`, report),

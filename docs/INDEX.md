@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-10T21:29:54.088Z
+Generated: 2026-10-10T21:31:34.292Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-merge-direction-signs-amendments | specs | implementing | 8 done | docs/specs/SPEC-DRAFT-spec-merge-direction-signs-amendments.md |
+| SPEC-0220 | specs | implementing | 8 done | docs/specs/SPEC-0220-spec-merge-direction-signs-amendments.md |
 
 ## Canonical layer (0)
 
@@ -581,7 +581,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| merge-direction-signs-amendments (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-merge-direction-signs-amendments.md |
+| CHANGE-0208 | issues | docs/issues/CHANGE-0208-merge-direction-signs-amendments.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

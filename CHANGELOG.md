@@ -22,6 +22,14 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: your /aai-merge direction signs the ride's contract amendments (merge-direction-signs-amendments)
+
+- `/aai-merge` preflight lists every unsigned contract-class amendment of the ride under `signs on merge:` before it prints the merge command, so the merge direction is informed. After the merge, `apply` signs exactly those records through `spec-amend classify --record` and closes the `fu-amend-*` trackers they fully discharge. Its authority is the human `directed_merge` for that PR and head, carrying your verbatim words.
+- No human direction for that PR and head, as with a lane or autonomous merge, means nothing is signed. Measurement records, already-signed records, unclassified records and other rides' records are never touched. A re-run or a run resumed after a crash appends nothing twice.
+- New `merge-cleanup.mjs sign-merged --authority-ts <ts>` signs the backlog of already-merged rides, but only on an explicit owner `hitl_decision` (a single PR's merge direction is refused). It cites each ride's merge commit. Used once, on the owner's answer of 2026-10-10: 202 records signed and 34 trackers closed. Two trackers stay open: one ride is unmerged, and one belongs to another session's in-flight work.
+- The canon (ROLE_COMMON, SKILL_MERGE, SKILL_SHIP, SKILL_PR, AUTONOMOUS_LOOP) no longer asks for a separate signature menu before the merge. The merge direction is the signature.
+- Refs: CHANGE-0208 / SPEC-0220.
+
 ## [v2026.10.10.2] — fix: spec-amend classify can sign one record of a same-timestamp amendment pair (classify-same-ts-pair)
 
 - Every spec_amendment record now has a 12-hex record key (sha256 of the record); `spec-amend list --json` shows it as `record_key`. `classify --record <key>` writes an overlay addressed to exactly that record, so an owner signature can land on a contract record even when a measurement record shares its `(ts, ref_id)`.
