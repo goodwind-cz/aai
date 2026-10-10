@@ -2,10 +2,12 @@
 id: classify-same-ts-pair
 type: change
 number: 207
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 3f76f35e3772ee2566550f3853c3fd7bfb671b93
 ---
 
 # classify can address one record of a same-timestamp amendment pair

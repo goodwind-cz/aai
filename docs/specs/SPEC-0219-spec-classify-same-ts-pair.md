@@ -2,15 +2,17 @@
 id: spec-classify-same-ts-pair
 type: spec
 number: 219
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 84e2c7f5c2a27ee1b8a39f58a949b771fa5774dffa622a4fd13d5c114ef22396
 ceremony_level: 2
 links:
   requirement: classify-same-ts-pair
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 3f76f35e3772ee2566550f3853c3fd7bfb671b93
 ---
 
 # Spec — classify can address one record of a same-timestamp amendment pair
