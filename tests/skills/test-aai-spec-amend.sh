@@ -5024,6 +5024,48 @@ test_strict_remedy_for_identical_pair_is_a_named_note() {
   log_pass "TEST-011 byte-identical records get a named note instead of an unrunnable --record line, the unshared line is unchanged"
 }
 
+test_identical_pair_prose_and_refusal_stay_honest() {
+  log_info "Test: for byte-identical records the strict trailer and the classify refusal promise nothing they cannot deliver (TEST-012)..."
+  local dir specs led solo_led a c strict_err refuse_err n
+  dir="$TEST_DIR/t012"; mkdir -p "$dir"; specs="$dir/specs"; mkdir -p "$specs"
+  a="$(legacy_rec "2026-10-10T11:35:07Z" t012-dup "identical legacy")"
+  c="$(legacy_rec "2026-10-10T11:40:00Z" t012-solo "unshared legacy")"
+  led="$(mk_ledger t012)"
+  { printf '%s\n' "$a"; printf '%s\n' "$a"; printf '%s\n' "$c"; } >> "$led"
+  solo_led="$(mk_ledger t012solo)"
+  printf '%s\n' "$c" >> "$solo_led"
+
+  # (a) the trailer: positive control first, the original sentence is byte-identical when every violation got a runnable command.
+  run_sa list --ledger "$solo_led" --specs-dir "$specs" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-012 control: the solo fixture must refuse --strict, got $EC (stderr: $ERR)"
+  n="$(printf '%s\n' "$ERR" | /usr/bin/grep -cF 'so each command above takes its record to `unsigned-tracked` and this gate to exit 0;' || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-012 control: the trailer must be unchanged when every violation has a command; stderr: $ERR"
+  run_sa list --ledger "$led" --specs-dir "$specs" --strict
+  [[ "$EC" == 1 ]] || log_fail "TEST-012 setup: the identical-pair fixture must refuse --strict, got $EC (stderr: $ERR)"
+  strict_err="$ERR"
+  n="$(printf '%s\n' "$strict_err" | /usr/bin/grep -cF 'this gate to exit 0' || true)"
+  [[ "$n" == 0 ]] || log_fail "TEST-012: the trailer must not promise exit 0 while indistinguishable records remain; stderr: $strict_err"
+  n="$(printf '%s\n' "$strict_err" | /usr/bin/grep -cF 'no command above can clear' || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-012: the trailer must say the indistinguishable records have no command, once; stderr: $strict_err"
+
+  # (b) the pair-addressed refusal: byte-identical candidates list their key once and print no --record template.
+  run_sa classify --ledger "$led" --ts "2026-10-10T11:35:07Z" --ref t012-dup --signoff none --why "x" --source "y"
+  [[ "$EC" == 2 ]] || log_fail "TEST-012: classify on an identical pair must refuse with 2, got $EC (stderr: $ERR)"
+  refuse_err="$ERR"
+  n="$(printf '%s\n' "$refuse_err" | /usr/bin/grep -cF 'record=' || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-012: an identical pair's key must be listed once, got $n; stderr: $refuse_err"
+  [[ "$refuse_err" != *'<key>'* ]] || log_fail "TEST-012: no --record <key> template may be printed for an identical pair; stderr: $refuse_err"
+  [[ "$refuse_err" == *indistinguishable* ]] || log_fail "TEST-012: the refusal must say the records are indistinguishable; stderr: $refuse_err"
+  # positive control: a pair of DISTINCT records still lists both keys and the template.
+  led="$(mk_ledger t012b)"
+  { printf '%s\n' "$a"; printf '%s\n' "$(legacy_rec "2026-10-10T11:35:07Z" t012-dup "a different legacy")"; } >> "$led"
+  run_sa classify --ledger "$led" --ts "2026-10-10T11:35:07Z" --ref t012-dup --signoff none --why "x" --source "y"
+  [[ "$EC" == 2 ]] || log_fail "TEST-012 control: classify on a distinct pair must refuse with 2, got $EC"
+  n="$(printf '%s\n' "$ERR" | /usr/bin/grep -cF 'record=' || true)"
+  [[ "$n" == 2 && "$ERR" == *'--record <key>'* ]] || log_fail "TEST-012 control: a distinct pair must list both keys and the template, got $n; stderr: $ERR"
+  log_pass "TEST-012 the strict trailer admits the indistinguishable records have no command, the identical-pair refusal lists its key once with no template, distinct pairs unchanged"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -5093,6 +5135,7 @@ main() {
   test_448_record_signed_on_the_live_ledger
   test_add_duplicate_is_idempotent
   test_strict_remedy_for_identical_pair_is_a_named_note
+  test_identical_pair_prose_and_refusal_stay_honest
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

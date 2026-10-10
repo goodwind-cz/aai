@@ -1417,6 +1417,10 @@ function cmdClassify(opts) {
   let targets = candidates;
   if (wantRecord === null) {
     if (candidates.length > 1) {
+      // Byte-identical candidates share one key: no --record can tell them apart, so list the key once and print no template that exits 2.
+      if (new Set(candidates.map((i) => i.record_key)).size === 1) {
+        usageError(`--ts "${opts.ts}" --ref "${opts.ref}" matches ${candidates.length} spec_amendment records in ${abs} that are ambiguous and indistinguishable (equal content, equal key) — refused rather than guessed; no --record can address one of them:\n  record=${candidates[0].record_key} class=${candidates[0].amendment_class} bucket=${candidates[0].bucket} what=${candidates[0].what.slice(0, 80)}`);
+      }
       const lines = candidates.map((i) => `  record=${i.record_key} class=${i.amendment_class} bucket=${i.bucket} what=${i.what.slice(0, 80)}`);
       const runnable = remedyLines((shq) => printedClassify(shq, str(opts.ts), str(opts.ref), '<key>', ['--signoff', str(opts.signoff) || '<owner|none>', '--why', '"<one line>"', '--source', '"<evidence>"']));
       usageError(`--ts "${opts.ts}" --ref "${opts.ref}" matches ${candidates.length} spec_amendment records in ${abs} — ambiguous, refused rather than guessed. Address one with --record <key>:\n${lines.join('\n')}\n${runnable.map((r) => `  ${r}`).join('\n')}`);
@@ -1979,6 +1983,7 @@ function cmdList(opts) {
     // buckets, and the two commands that do NOT are named as not doing it.
     process.stderr.write(`spec-amend: --strict found ${violations.length} amendment record(s) that are untracked or unclassified — an unsigned amendment with no tracked item has no outflow, and an unclassified one cannot be told from a signed one.\n`);
     process.stderr.write('Clear EACH record named above by APPEND, with its own ts and ref:\n');
+    let noCommand = 0;
     for (const v of violations) {
       // A record missing `ts` or `ref_id` cannot be matched by `classify`,
       // which keys on that pair — so printing a `<ts>` placeholder would be
@@ -2001,6 +2006,7 @@ function cmdList(opts) {
       // NB-E, reproduced through the writer, not only by hand-append).
       if (indistinguishableInPair(reg, v.ts, v.ref_id, v.record_key)) {
         process.stderr.write(`  (no runnable remedy for ts=${v.ts} ref=${v.ref_id}: ${INDISTINGUISHABLE_NOTE})\n`);
+        noCommand += 1;
         continue;
       }
       const recordKeyArg = pairIsShared(reg, v.ts, v.ref_id) ? v.record_key : null;
@@ -2008,7 +2014,12 @@ function cmdList(opts) {
         process.stderr.write(`  ${remedy}\n`);
       }
     }
-    process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n');
+    if (noCommand > 0) {
+      // The trailer must not promise what the printed lines cannot deliver: a record that got only the indistinguishable note has NO command, so exit 0 is out of reach for it.
+      process.stderr.write(`${noCommand} record(s) above got only the indistinguishable note: no command above can clear them, so this gate stays at exit 1 while they sit on the ledger. For any command printed above, \`--signoff none\` also FILES the tracked item in that same call and takes its record to \`unsigned-tracked\`; use \`--signoff owner --why … --source …\` instead when the owner actually decided, naming the record that proves it, and \`--tracked-by fu-…\` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n`);
+    } else {
+      process.stderr.write('`--signoff none` also FILES the tracked item in that same call, so each command above takes its record to `unsigned-tracked` and this gate to exit 0; use `--signoff owner --why … --source …` instead when the owner actually decided, naming the record that proves it, and `--tracked-by fu-…` to name the item it attaches to (a new id is filed for you; a discharged one is refused).\n');
+    }
     process.stderr.write('NOT remedies: `spec-amend.mjs add` records a NEW amendment and leaves the record named above untracked; `follow-ups.mjs add` files an item but attaches it to nothing. Never edit the ledger in place (HAZ-LEDGER).\n');
   }
   if (opts.strict && (violations.length > 0 || specViolations.length > 0)) exit(1);
