@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-09T21:12:34.870Z",
+  "generatedAt": "2026-10-10T07:25:19.277Z",
   "project": "aai",
   "counts": {
-    "delivered": 286,
+    "delivered": 287,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 74203136
@@ -221,6 +221,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "win-fallback-test028-red-on-bash-3",
+      "title": "aai-win-fallback TEST-028 is red on a host whose bash is older than 4",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md",
+      "closed_on": "2026-10-10",
+      "agent_minutes": 47,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-win-fallback-test028-red-on-bash-3-r3-20261010T071421Z.md"
+    },
     {
       "ref": "ci-windows-leg-waits-and-ps1-path-filter",
       "title": "Tech Debt: the Windows ps1 leg waits 10 minutes on a 2-second timeout and runs for bash-only ledger edits",
@@ -3966,6 +3979,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "win-fallback-test028-red-on-bash-3",
+          "title": "aai-win-fallback TEST-028 is red on a host whose bash is older than 4",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md",
+          "closed_on": "2026-10-10",
+          "agent_minutes": 47,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-win-fallback-test028-red-on-bash-3-r3-20261010T071421Z.md"
+        },
         {
           "ref": "ci-windows-leg-waits-and-ps1-path-filter",
           "title": "Tech Debt: the Windows ps1 leg waits 10 minutes on a 2-second timeout and runs for bash-only ledger edits",

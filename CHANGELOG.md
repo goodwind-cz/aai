@@ -22,6 +22,13 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — test: aai-win-fallback TEST-028 is green on a host whose bash is older than 4 (win-fallback-test028-red-on-bash-3)
+
+- On a bash older than 4 (macOS ships 3.2), TEST-028 still checks the Windows-to-Git-Bash path translation, then reports its execution arm as a named skip with the bash version: that arm relies on `command_not_found_handle`, which bash only has from 4.0. Git Bash and CI run bash 5, so they still run the arm unchanged.
+- The version is read from the `bash` the test wrapper invokes, not from the test's own shell; an empty or unreadable version runs the arm rather than skipping it. The new test_042 pins the gate against versions 3, 4, 5 and empty.
+- A local full sweep on macOS no longer carries one permanently red suite.
+- Refs: ISSUE-0096 / SPEC-0217.
+
 ## [v2026.10.10] — ci: the slowest suites lose their hot spots; the slowest CI leg drops from 309 s to 171 s (slowest-suite-hot-spots)
 
 - `tests/skills/lib/no-nul-guard.sh`: the No-NUL scan runs as one `git ls-files`, one `git check-attr` and one `node` process instead of one process pair per file; output and exit code are unchanged on every completed scan, and an internal failure now fails closed (`--check` exits 2 with a "could not scan" line) instead of reading as a clean tree.
