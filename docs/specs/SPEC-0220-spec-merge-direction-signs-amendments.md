@@ -10,7 +10,7 @@ links:
   requirement: merge-direction-signs-amendments
   rfc: null
   pr:
-    - TBD
+    - 452
   commits:
     - a0f53aeb571f76cc8ff929f50d78d4db54c428f0
 ---
