@@ -820,10 +820,14 @@ function signable(items, keys) {
 }
 
 // D2: the owner's own direction for THIS PR at THIS head - nothing else authorizes.
-function humanDirection(ledger, pr, head) {
-  return readJsonl(ledger).find((r) => r.type === 'directed_merge' && r.by === 'human'
+// PFA-8: a re-run preflight with other words leaves several such records; the signature
+// cites the one whose answer is apply's --direction, else the latest one.
+function humanDirection(ledger, pr, head, wanted = '') {
+  const mine = readJsonl(ledger).filter((r) => r.type === 'directed_merge' && r.by === 'human'
     && Number(r.pr) === pr && String(r.head ?? '').toLowerCase() === String(head).toLowerCase()
-    && typeof r.answer === 'string' && r.answer.trim() !== '') ?? null;
+    && typeof r.answer === 'string' && r.answer.trim() !== '');
+  const asked = wanted.trim() === '' ? null : mine.findLast((r) => r.answer === wanted);
+  return asked ?? mine.at(-1) ?? null;
 }
 
 // D4: each record signed through the shipped classify CLI, read back after every call;
@@ -879,8 +883,9 @@ function closeFullySigned(cwd, ledger, trackerIds, { resolvedBy, source }) {
 function signAmendments(ctx) {
   const ledger = path.join(ctx.origin, DECISIONS_REL);
   // apply's --direction becomes the durable record first (the same one report would write).
-  const recorded = humanDirection(ledger, ctx.opts.pr, ctx.head) ? null : recordDirection(ctx);
-  const direction = humanDirection(ledger, ctx.opts.pr, ctx.head);
+  const wanted = ctx.opts.direction ?? '';
+  const recorded = humanDirection(ledger, ctx.opts.pr, ctx.head, wanted)?.answer === wanted ? null : recordDirection(ctx);
+  const direction = humanDirection(ledger, ctx.opts.pr, ctx.head, wanted);
   if (!direction) return { status: 'noop', detail: 'no_human_direction' };
   const rows = amendmentRows(ctx.origin, ledger);
   if (!rows) stop('amendments_unreadable', DECISIONS_REL);

@@ -10,6 +10,7 @@
 # spec-merge-direction-signs-amendments A: TEST-018/020/021 (the sign-amendments step).
 # spec-merge-direction-signs-amendments B: TEST-022 (trackers, idempotence, resume), TEST-023 (preflight), TEST-019 (downstream).
 # spec-merge-direction-signs-amendments C: TEST-025 (sign-merged backlog), TEST-024 (canon), TEST-026 (live ledger, RED until V3).
+# spec-merge-direction-signs-amendments PFA-8: TEST-027 (the signature cites the current direction).
 set -euo pipefail
 
 case "$0" in /*) HERE="${0%/*}" ;; */*) HERE="$PWD/${0%/*}" ;; *) HERE="$PWD" ;; esac
@@ -1441,6 +1442,51 @@ test_020_no_human_direction_signs_nothing() {
   echo 'PASS: TEST-020 no human direction signs nothing'
 }
 
+# TEST-027 (Codex P2 on PR #452): two human directed_merge records for one PR and head
+# (preflight re-run with other words, e.g. after a failed merge command). The signature
+# cites the record whose answer equals apply's --direction; without --direction the
+# latest one; new --direction words are recorded first and then cited.
+dm_rec() { printf '{"v":1,"ts":"%s","actor":"merge-cleanup","type":"directed_merge","ref_id":"foo","pr":%s,"by":"human","answer":"%s","head":"%s"}\n' "$1" "$PR" "$2" "$HEAD_OID"; }
+
+test_027_signature_cites_the_current_direction() {
+  local arm first second third want_answer want_ts other n ov line
+  first='merge 433 please'
+  second='retry: merge 433 now'
+  third='go ahead and merge 433'
+  for arm in direction_second direction_first latest new_words; do
+    AMEND_WORLD=1 RIDE_SEED=seed_ride_018 build_world "dir027_$arm"
+    dm_rec '2026-10-10T03:00:00Z' "$first" >> "$ORIGIN/$DEC"
+    [[ "$arm" == new_words ]] || dm_rec '2026-10-10T04:00:00Z' "$second" >> "$ORIGIN/$DEC"
+    apply_stop_after_sync TEST-027
+    [[ "$(type_count "$ORIGIN/$DEC" directed_merge)" == "$([[ "$arm" == new_words ]] && echo 1 || echo 2)" ]] || fail TEST-027 "arm $arm: directed_merge records after sync: $(type_count "$ORIGIN/$DEC" directed_merge) (positive control)"
+    case "$arm" in
+      direction_second) want_answer="$second"; want_ts='2026-10-10T04:00:00Z'; other="$first"
+        run_engine apply --pr "$PR" --pid 4242 --json --direction "$second" ;;
+      direction_first) want_answer="$first"; want_ts='2026-10-10T03:00:00Z'; other="$second"
+        run_engine apply --pr "$PR" --pid 4242 --json --direction "$first" ;;
+      latest) want_answer="$second"; want_ts='2026-10-10T04:00:00Z'; other="$first"
+        run_engine apply --pr "$PR" --pid 4242 --json ;;
+      new_words) want_answer="$third"; want_ts=''; other="$first"
+        run_engine apply --pr "$PR" --pid 4242 --json --direction "$third" ;;
+    esac
+    [[ "$ENG_RC" -eq 0 ]] || fail TEST-027 "arm $arm: apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+    [[ "$(step_status "$ENG_OUT" sign-amendments)" == done ]] || fail TEST-027 "arm $arm: step reported $(step_status "$ENG_OUT" sign-amendments), want done"
+    if [[ "$arm" == new_words ]]; then
+      [[ "$(type_count "$ORIGIN/$DEC" directed_merge)" == 2 ]] || fail TEST-027 "new_words arm: --direction was not recorded before signing"
+      want TEST-027 "$(cat "$ORIGIN/$DEC")" "\"answer\":\"$third\""
+    fi
+    ov="$(overlays "$ORIGIN/$DEC")"
+    n="$(printf '%s\n' "$ov" | /usr/bin/grep -c . || true)"
+    [[ "$n" == 2 ]] || fail TEST-027 "arm $arm: $n overlays appended, want 2: $ov"
+    while IFS= read -r line; do
+      want TEST-027 "$(json_get "$line" 'j.source')" "answer=\"$want_answer\""
+      if [[ -n "$want_ts" ]]; then want TEST-027 "$(json_get "$line" 'j.source')" "ts=$want_ts"; fi
+      ! has "$(json_get "$line" 'j.source')" "answer=\"$other\"" || fail TEST-027 "arm $arm: the signature cites the stale answer '$other': $line"
+    done <<< "$ov"
+  done
+  echo 'PASS: TEST-027 the signature cites the direction of the merge that ran'
+}
+
 # The ride's ledger: a measurement record, an owner-signed contract record and one unsigned
 # contract record keyed on the numbered display id; plus an unsigned contract record of another ref.
 seed_ride_021() {
@@ -2012,7 +2058,7 @@ case "$SELECTED" in
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
      test_012_state_index_report; test_013_second_apply_is_noop; test_014_interrupted_run_converges
      test_003_preflight_refusals; test_004_preflight_ready; test_015_downstream_layout
-     test_018_direction_signs_ride_amendments; test_020_no_human_direction_signs_nothing; test_021_signs_only_unsigned_contract_of_the_ride
+     test_018_direction_signs_ride_amendments; test_020_no_human_direction_signs_nothing; test_027_signature_cites_the_current_direction; test_021_signs_only_unsigned_contract_of_the_ride
      test_022_trackers_close_idempotent_resumable; test_023_preflight_lists_signs_on_merge; test_019_downstream_signs
      test_025_sign_merged_backlog; test_024_canon_merge_direction_signs; test_026_backlog_signed_on_live_ledger
      test_001_wrappers_and_pointers; test_002_prompt_block_runs_cleanup; test_017_companion_wiring ;;
@@ -2035,6 +2081,7 @@ case "$SELECTED" in
   TEST-014|test_014_interrupted_run_converges) test_014_interrupted_run_converges ;;
   TEST-018|test_018_direction_signs_ride_amendments) test_018_direction_signs_ride_amendments ;;
   TEST-020|test_020_no_human_direction_signs_nothing) test_020_no_human_direction_signs_nothing ;;
+  TEST-027|test_027_signature_cites_the_current_direction) test_027_signature_cites_the_current_direction ;;
   TEST-021|test_021_signs_only_unsigned_contract_of_the_ride) test_021_signs_only_unsigned_contract_of_the_ride ;;
   TEST-022|test_022_trackers_close_idempotent_resumable) test_022_trackers_close_idempotent_resumable ;;
   TEST-023|test_023_preflight_lists_signs_on_merge) test_023_preflight_lists_signs_on_merge ;;

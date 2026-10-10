@@ -4,7 +4,7 @@ type: spec
 number: 220
 status: done
 mutation_gate: v1
-frozen_sha256: 6b03635cea31f44c8b7a10adfa7021d0c773395bbf557bfaeff803db1b277aae
+frozen_sha256: 071b98685eefc7d45f15c5b6d3ab9dff41f0622a3330ab872a91f37230debff5
 ceremony_level: 2
 links:
   requirement: merge-direction-signs-amendments
@@ -261,7 +261,7 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN apply runs for a merged PR and the origin ledger holds a `directed_merge` record with `by` human, that PR and its `headRefOid`, the system SHALL append one `spec_amendment_classification` overlay with `owner_signoff` true and `classifies_record` per unsigned contract record of the rides that PR delivered, each `source` containing the PR number, the head sha and the verbatim answer, so that `spec-amend list --json` folds every such record to bucket `signed`; this SHALL hold in the source layout and in a `--profile core` installed layout. | done | docs/ai/tdd/spec-merge-direction-signs-amendments/green-TEST-018.log, docs/ai/tdd/spec-merge-direction-signs-amendments/green-TEST-019.log | — | D1 to D4, D6; seams S1, S3, S4 |
+| Spec-AC-01 | WHEN apply runs for a merged PR and the origin ledger holds a `directed_merge` record with `by` human, that PR and its `headRefOid`, the system SHALL append one `spec_amendment_classification` overlay with `owner_signoff` true and `classifies_record` per unsigned contract record of the rides that PR delivered, each `source` containing the PR number, the head sha and the verbatim answer, so that `spec-amend list --json` folds every such record to bucket `signed`; this SHALL hold in the source layout and in a `--profile core` installed layout. | done | docs/ai/tdd/spec-merge-direction-signs-amendments/green-TEST-018.log, docs/ai/tdd/spec-merge-direction-signs-amendments/green-TEST-019.log, docs/ai/tdd/spec-merge-direction-signs-amendments/green-TEST-027.log | — | D1 to D4, D6; seams S1, S3, S4; PFA-8 |
 | Spec-AC-02 | WHEN no `directed_merge` record matches with `by` human, the PR number and the PR head (four arms: none; `by` orchestrator; another head; another PR), apply SHALL append no overlay and no `follow_up_status` line, SHALL leave the `decisions.jsonl` bytes as they were after `sync-base`, and SHALL report step `sign-amendments` as noop `no_human_direction`. | done | docs/ai/tdd/spec-merge-direction-signs-amendments/green-TEST-020.log | — | D2 |
 | Spec-AC-03 | WHEN an owner-directed apply signs, the system SHALL leave the `list --json` rows of measurement records, already-signed records and records whose ref is not a ride key of a doc delivered by the PR equal to their rows before apply, and SHALL append overlays for the unsigned contract records only (count of new overlays equals count of those records). | done | docs/ai/tdd/spec-merge-direction-signs-amendments/green-TEST-021.log | — | D3 |
 | Spec-AC-04 | WHEN every contract record tracked by a `fu-amend-*` tracker folds `signed` after the step, the system SHALL close that tracker (follow-ups `list --json` status done) and keep `spec-amend list --strict` at exit 0; a tracker with one remaining unsigned contract record SHALL stay open; a second apply SHALL append nothing to `decisions.jsonl`; and a run killed after its first classify SHALL, on re-run, end in the same ledger fold and tracker states as an uninterrupted run with no duplicate overlay. | done | docs/ai/tdd/spec-merge-direction-signs-amendments/green-TEST-022.log | — | D4, D5; seam S2 |
@@ -302,6 +302,7 @@ None.
 | TEST-024 | Spec-AC-06 | contract | tests/skills/test-aai-merge-cleanup.sh | test_024_canon_merge_direction_signs: ROLE_COMMON, SKILL_MERGE, SKILL_SHIP, SKILL_PR, AUTONOMOUS_LOOP each carry the phrase merge direction signs; none carries owed sign-offs; SKILL_SHIP step 6 carries signs on merge:; prompt-diet ledger carries merge-direction-signs-amendments with a positive integer credit | sed:s/signs on merge:/owed sign-offs:/ | green |
 | TEST-025 | Spec-AC-07 | integration | tests/skills/test-aai-merge-cleanup.sh | test_025_sign_merged_backlog: origin main with ride X done and delivered (squash commit), ride Y draft, tracker T1 (X only), T2 (X and Y), T3 (X, excluded); --authority-ts of a by-orchestrator record and of a missing ts exit 3 no_owner_decision, ledger sha256 unchanged; --dry-run writes nothing and lists T1 close, T2 stays open unmerged, T3 excluded; real run signs X's records with source naming the authority ts, answer, PR and the squash commit; T1 closed, T2 and T3 open; Y's records and T3's records unsigned; list --strict exit 0 | sed:s/if \(!authority\) refuse\('no_owner_decision',/if (false) refuse('no_owner_decision',/ | green |
 | TEST-026 | Spec-AC-08 | contract | tests/skills/test-aai-merge-cleanup.sh | test_026_backlog_signed_on_live_ledger: over docs/ai/decisions.jsonl: the trackers open in the da1abba5 blob are done except the two named; the 202 keys signed with overlay source containing the authority ts and a 40-hex commit on origin/main; for every other record_key present in the da1abba5 fold the fields owner_signoff, amendment_class, bucket are equal; list --strict exit 0; positive control: over 380 items read, over 30 trackers checked. RED until the orchestrator runs V3 | sed:s/const RECORD_OVERLAY_FIELD = 'classifies_record';/const RECORD_OVERLAY_FIELD = 'classifies_recordx';/ | green |
+| TEST-027 | Spec-AC-01 | integration | tests/skills/test-aai-merge-cleanup.sh | test_027_signature_cites_the_current_direction: two by-human directed_merge records for the same PR and head with different answers (ts 03:00 and 04:00); four arms: apply --direction with the second answer cites it; apply --direction with the first answer cites it; apply without --direction cites the latest; with one record, apply --direction with new words records them first and cites them; each arm: step done, two overlays, each source carries the wanted answer and ts and not the other answer | sed:s/mine\.at\(-1\)/mine[0]/ | green |
 
 ## Verification
 
@@ -447,3 +448,10 @@ narrowed. Disclosed with
 - PFA-7 (remediation round 1, Registry items closed, measurement): the
   closure line names the 34 closed tracker ids instead of a wildcard, so
   `follow-ups verify-closures` reads real ids.
+- PFA-8 (bot-sweep round on PR #452, D2 and Spec-AC-01, contract): when the
+  origin holds several `by: human` `directed_merge` records for the PR and its
+  head (preflight re-run with other words, for example after a failed merge
+  command), the step cites the record whose `answer` equals apply's
+  `--direction`, writing it first when no record carries those words; without
+  `--direction` it cites the latest matching record. D2 named no choice and the
+  forward search cited the oldest answer. TEST-027 pins it.
