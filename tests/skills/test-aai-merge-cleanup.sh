@@ -365,13 +365,31 @@ test_007_retained_and_decisions() {
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-007 "decision run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
   [[ ! -e "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-007 'named divergent draft still in the origin'
   [[ "$(cat "$arch/files/$DRAFT_SPEC")" == squatter ]] || fail TEST-007 'archive squatter was overwritten'
-  after="$(json_get "$ENG_OUT" 'j.archived[0].archive')"
+  after="$(json_get "$ENG_OUT" "j.archived.find(a=>a.path===\"$DRAFT_SPEC\").archive")"
   [[ -f "$ORIGIN/$after" ]] || fail TEST-007 "archive path from report missing: $after"
   cmp "$W/divergent-spec.md" "$ORIGIN/$after" || fail TEST-007 'archived divergent bytes differ from the original'
   [[ "$after" != "docs/ai/archive/merge-cleanup/pr-$PR/files/$DRAFT_SPEC" ]] || fail TEST-007 'archive path was not suffixed'
   [[ -f "$ORIGIN/$other" ]] || fail TEST-007 'unrelated draft vanished during the decision run'
   want TEST-007 "$ENG_OUT" '"reason":"unrelated_id"'
   want TEST-007 "$(cat "$arch/manifest.jsonl")" '"reason":"divergent_archived_by_decision"'
+
+  # bot sweep P2-1: a draft edited by another session after it was classified (or after it was
+  # archived, before the unlink) is never deleted; the working copy stays, the run reports
+  # divergent_after_plan, and the archive copy stays recoverable. The other draft is the control.
+  local point
+  for point in before-archive before-unlink; do
+    build_world "race_$point"
+    ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_EDIT_DRAFT="$point:$DRAFT_ISSUE" node "$ENGINE" apply --pr "$PR" --pid 4242 --json >"$W/engine.out" 2>"$W/engine.err" ) || fail TEST-007 "race arm $point exited non-zero: $(cat "$W/engine.out") $(cat "$W/engine.err")"
+    rep="$(cat "$W/engine.out")"
+    [[ -f "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-007 "race arm $point: the edited draft was deleted"
+    has "$(cat "$ORIGIN/$DRAFT_ISSUE")" 'edited by another session' || fail TEST-007 "race arm $point: the working copy lost the other session's edit"
+    [[ ! -e "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-007 "race arm $point: the untouched draft was not archived (positive control)"
+    want TEST-007 "$rep" '"reason":"divergent_after_plan"'
+    want TEST-007 "$(json_get "$rep" 'j.remaining')" "$DRAFT_ISSUE"
+    want TEST-007 "$(json_get "$rep" 'j.remaining')" 'divergent_after_plan'
+    arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+    [[ "$(json_get "$rep" 'j.archived.length')" -ge 1 ]] || fail TEST-007 "race arm $point: nothing archived"
+  done
 
   # degenerate: no drafts at all -> clean no-op, no archive directory created
   build_world empty
@@ -551,9 +569,31 @@ test_010_worktree_and_branch_cleanup() {
   if git -C "$ORIGIN" merge-base --is-ancestor "$HEAD_OID" refs/heads/main 2>/dev/null; then fail SETUP 'fixture is not a squash merge'; fi
   for f in $RUNTIME_FILES; do run cp "$RIDE/$f" "$(kf "$f")"; done
 
+  # bot sweep P2-3: plan names the concrete targets of every action step and writes nothing
+  local pdig
+  pdig="$(world_digest)"
+  run_engine plan --pr "$PR" --pid "$pid" --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-010 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(world_digest)" == "$pdig" ]] || fail TEST-010 'plan changed the fixture'
+  [[ ! -e "$arch" ]] || fail TEST-010 'plan created the archive'
+  rep="$ENG_OUT"
+  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-drafts").targets')" "$DRAFT_ISSUE"
+  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-drafts").targets')" "docs/ai/archive/merge-cleanup/pr-$PR/files/$DRAFT_ISSUE"
+  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-runtime").targets')" "worktree:docs/ai/STATE.yaml"
+  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-runtime").targets')" "docs/ai/archive/merge-cleanup/pr-$PR/worktree/docs/ai/STATE.yaml"
+  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="sync-base").targets')" "$(git -C "$ORIGIN" rev-parse --short=12 HEAD)..$(git -C "$ORIGIN" rev-parse --short=12 "$MC")"
+  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="remove-worktree").targets')" "$RIDE"
+  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="delete-branch").targets')" "$BRANCH"
+  [[ "$(json_get "$rep" 'j.steps.find(s=>s.id==="delete-branch").status')" == planned ]] || fail TEST-010 'plan step status is not planned'
+
   run_engine apply --pr "$PR" --pid "$pid" --json
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-010 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
   rep="$ENG_OUT"
+  # bot sweep P2-2: the report lists every archived file (runtime STATE and ignored evidence
+  # included) with its recovery path
+  for f in $RUNTIME_FILES; do
+    want TEST-010 "$(json_get "$rep" 'j.archived.map(a=>a.path+" "+a.archive)')" "worktree:$f docs/ai/archive/merge-cleanup/pr-$PR/worktree/$f"
+  done
   # archived bytes are sha-equal to the pre-removal bytes
   for f in $RUNTIME_FILES; do
     [[ "$(sha_of "$arch/worktree/$f")" == "$(sha_of "$(kf "$f")")" ]] || fail TEST-010 "archived $f differs from the pre-removal bytes"
@@ -584,6 +624,25 @@ test_010_worktree_and_branch_cleanup() {
   [[ "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="remove-worktree").status')" == noop ]] || fail TEST-010 'rerun remove-worktree not a no-op'
   [[ "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="delete-branch").status')" == noop ]] || fail TEST-010 'rerun delete-branch not a no-op'
   assert_no_merge_call TEST-010
+
+  # bot sweep P2-4: a failed git ls-remote is remote_unknown under remaining, never "no remote
+  # action"; an absent remote branch stays distinct (nothing remaining); a present one is named
+  local shim="$W/shim" real_git
+  real_git="$(command -v git)"
+  build_world remote_unknown
+  run mkdir -p "$shim"
+  printf '#!/usr/bin/env bash\nfor a in "$@"; do if [ "$a" = ls-remote ]; then echo "fatal: unable to access" >&2; exit 128; fi; done\nexec "%s" "$@"\n' "$real_git" > "$shim/git"
+  run chmod +x "$shim/git"
+  PATH="$shim:$PATH" run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-010 "remote_unknown arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-010 "$(json_get "$ENG_OUT" 'j.remaining')" "remote_unknown"
+  want TEST-010 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
+  build_world remote_absent
+  run git -C "$BARE" update-ref -d "refs/heads/$BRANCH"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-010 "remote_absent arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-010 "$(json_get "$ENG_OUT" 'j.remaining')" "remote_unknown"
+  unwanted TEST-010 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
   echo 'PASS: TEST-010 worktree archived, removed, branch compare-and-swap deleted'
 }
 
@@ -699,7 +758,9 @@ test_012_state_index_report() {
   [[ "$(json_get "$rep" 'j.head')" == "$MC" ]] || fail TEST-012 "report head $(json_get "$rep" 'j.head'), want $MC"
   [[ "$(json_get "$rep" 'j.mergeCommit')" == "$MC" ]] || fail TEST-012 'report merge commit'
   [[ "$(json_get "$rep" 'Array.isArray(j.archived)&&Array.isArray(j.retained)&&Array.isArray(j.noops)&&Array.isArray(j.remaining)')" == true ]] || fail TEST-012 'report lacks an archived/retained/noops/remaining array'
-  [[ "$(json_get "$rep" 'j.archived.length')" == 2 ]] || fail TEST-012 'report archived count'
+  want TEST-012 "$(json_get "$rep" 'j.archived.map(a=>a.path)')" "$DRAFT_ISSUE"
+  want TEST-012 "$(json_get "$rep" 'j.archived.map(a=>a.path)')" "$DRAFT_SPEC"
+  want TEST-012 "$(json_get "$rep" 'j.archived.map(a=>a.path)')" "origin:docs/ai/STATE.yaml"
   want TEST-012 "$(json_get "$rep" 'j.audit')" 'Verdict: CLEAN'
   want TEST-012 "$(json_get "$rep" 'j.remaining')" "origin/$BRANCH"
   # ... and is saved under docs/ai/reports with the same fields
@@ -936,6 +997,8 @@ test_014_interrupted_run_converges() {
     run_engine apply --pr "$PR" --pid 4242 --json
     [[ "$ENG_RC" -eq 0 ]] || fail TEST-014 "resume after $id exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
     second="$ENG_OUT"
+    # bot sweep P2-2: drafts archived by the interrupted run are still in the final report
+    want TEST-014 "$(json_get "$second" 'j.archived.map(a=>a.path)')" "$DRAFT_ISSUE"
     sig="$(tree_sig)"
     [[ "$sig" == "$control_sig" ]] || fail TEST-014 "resume after $id differs from the uninterrupted run: $(diff <(printf '%s\n' "$control_sig") <(printf '%s\n' "$sig") | awk 'NR <= 6' | tr '\n' ' ')"
     assert_nothing_lost TEST-014

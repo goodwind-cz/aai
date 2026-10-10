@@ -288,8 +288,8 @@ function classifyDrafts(origin, ctx, opts) {
     if (!id || !delivered.has(String(id))) { retained.push({ path: rel, reason: 'unrelated_id' }); continue; }
     if (blobs === null) { retained.push({ path: rel, reason: 'unverifiable_history' }); continue; }
     const h = git(origin, ['hash-object', '--no-filters', abs]);
-    if (h.status === 0 && blobs.has(h.stdout.trim())) { archive.push({ path: rel, reason: 'superseded' }); continue; }
-    if (named.has(rel)) { archive.push({ path: rel, reason: 'divergent_archived_by_decision' }); continue; }
+    if (h.status === 0 && blobs.has(h.stdout.trim())) { archive.push({ path: rel, reason: 'superseded', sha256: sha256(bytes) }); continue; }
+    if (named.has(rel)) { archive.push({ path: rel, reason: 'divergent_archived_by_decision', sha256: sha256(bytes) }); continue; }
     retained.push({ path: rel, reason: 'divergent_content' });
   }
   const candidateReasons = new Map(retained.map((r) => [r.path, r.reason]));
@@ -340,19 +340,36 @@ function archiveFile(ctx, { src, destBase, original, reason, step }) {
   return { rel, digest, fresh: created || !known };
 }
 
+// Test seam: another session edits a candidate draft at a named point of archive-drafts.
+function racedEdit(point, rel, abs) {
+  if (seam('AAI_MERGE_CLEANUP_EDIT_DRAFT') === `${point}:${rel}`) fs.appendFileSync(abs, '\nedited by another session\n');
+}
+
+// The classification hashed the bytes; the copy is removed only while the working file
+// still has exactly those bytes. A draft edited since stays, its archive copy remains
+// recoverable, and the report names it divergent_after_plan (compare-then-unlink).
 function archiveDrafts(ctx) {
   const { origin, opts, drafts } = ctx;
   if (drafts.archive.length === 0) return { status: 'noop', detail: 'no_superseded_drafts' };
   const root = archiveRoot(origin, opts.pr);
+  let archived = 0;
+  const kept = [];
   for (const item of drafts.archive) {
     const src = path.join(origin, item.path);
-    const { rel, digest } = archiveFile(ctx, {
+    racedEdit('before-archive', item.path, src);
+    const { digest } = archiveFile(ctx, {
       src, destBase: path.join(root, 'files', item.path), original: item.path, reason: item.reason, step: 'archive-drafts',
     });
+    racedEdit('before-unlink', item.path, src);
+    if (digest !== item.sha256 || sha256(fs.readFileSync(src)) !== item.sha256) {
+      drafts.retained.push({ path: item.path, reason: 'divergent_after_plan' });
+      kept.push(item.path);
+      continue;
+    }
     fs.unlinkSync(src);
-    ctx.archived.push({ path: item.path, archive: rel, sha256: digest, reason: item.reason });
+    archived++;
   }
-  return { status: 'done', detail: `${drafts.archive.length} archived` };
+  return { status: 'done', detail: `${archived} archived${kept.length ? `, ${kept.length} kept (divergent_after_plan)` : ''}` };
 }
 
 // ---- D8: base sync --------------------------------------------------------
@@ -807,12 +824,51 @@ const HANDLERS = {
   'delete-branch': deleteBranch,
 };
 
+// plan mode: the concrete targets of each action step, derived without executing it.
+// Pure reads (git ls-files, rev-parse, worktree list, the focus file); nothing is written.
+const PLANNERS = {
+  'archive-runtime': (ctx) => {
+    const wt = findRideWorktree(ctx);
+    if (!wt) return [];
+    const root = archiveRoot(ctx.origin, ctx.opts.pr);
+    const ls = git(wt.path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--', STATE_REL, ...RUNTIME_DIRS]);
+    const rels = new Set(ls.status === 0 ? ls.stdout.split('\0').filter(Boolean) : []);
+    if (fs.existsSync(path.join(wt.path, STATE_REL))) rels.add(STATE_REL);
+    return [...rels].sort().filter((rel) => { try { return fs.lstatSync(path.join(wt.path, rel)).isFile(); } catch { return false; } })
+      .map((rel) => `worktree:${rel} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree', rel)))}`);
+  },
+  'archive-drafts': (ctx) => ctx.drafts.archive.map((i) => `${i.path} -> ${posix(path.relative(ctx.origin, path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'files', i.path)))}`),
+  'sync-base': (ctx) => {
+    const plan = planSync(ctx);
+    if (plan.refusal || plan.noop) return [];
+    return [`${ctx.base} ${plan.head.slice(0, 12)}..${plan.target.slice(0, 12)}`];
+  },
+  state: (ctx) => {
+    const file = path.join(ctx.origin, STATE_REL);
+    const ref = fs.existsSync(file) ? focusRefOf(file) : null;
+    return ref && mergedRefs(ctx).has(ref) ? [`clear focus ${ref}`] : [];
+  },
+  'remove-worktree': (ctx) => { const wt = findRideWorktree(ctx); return wt ? [wt.path] : []; },
+  'delete-branch': (ctx) => (branchTip(ctx) && ctx.headRef !== ctx.base ? [ctx.headRef] : []),
+};
+
 // D10: remote branches are never deleted here; a surviving one is an owner action.
 function remoteBranchNote(ctx) {
   if (ctx.opts.mode !== 'apply' || ctx.headRef === ctx.base) return [];
   const r = git(ctx.origin, ['ls-remote', '--heads', 'origin', `refs/heads/${ctx.headRef}`]);
-  if (r.status !== 0 || r.stdout.trim() === '') return [];
+  if (r.status !== 0) {
+    const why = (r.stderr || r.stdout).trim().split('\n')[0] ?? '';
+    return [`remote_unknown: could not read origin/${ctx.headRef} (git ls-remote failed${why ? `: ${why}` : ''}); check it yourself and delete it if it exists`];
+  }
+  if (r.stdout.trim() === '') return [];
   return [`origin/${ctx.headRef} still exists on the remote: delete it yourself (git push origin --delete ${ctx.headRef})`];
+}
+
+// Every file any run of this PR archived, read from the durable manifest so an interrupted
+// earlier run's archives and the runtime/ledger/STATE archives appear too.
+function archivedFromManifest(ctx) {
+  return readJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'manifest.jsonl'))
+    .map((m) => ({ path: m.original, archive: m.archive, sha256: m.sha256, reason: m.reason }));
 }
 
 function buildReport(ctx, steps) {
@@ -824,7 +880,7 @@ function buildReport(ctx, steps) {
     head: headRev.status === 0 ? headRev.stdout.trim() : null,
     mergedHead: ctx.head,
     steps,
-    archived: ctx.archived,
+    archived: archivedFromManifest(ctx),
     retained: ctx.drafts.retained,
     noops: steps.filter((s) => s.status === 'noop').map((s) => `noop:${s.id}:${s.detail}`),
     audit: ctx.audit ?? null,
@@ -833,7 +889,7 @@ function buildReport(ctx, steps) {
     remaining: [
       ...(ctx.audit && !/Verdict: CLEAN/.test(ctx.audit) ? [`docs-audit ${ctx.audit}: owner action, not auto-remediated`] : []),
       ...ctx.drafts.retained
-        .filter((r) => r.reason === 'divergent_content' || r.reason === 'unverifiable_history')
+        .filter((r) => ['divergent_content', 'unverifiable_history', 'divergent_after_plan'].includes(r.reason))
         .map((r) => `${r.path} (${r.reason}): owner decision; archive with --archive-divergent`),
       ...remoteBranchNote(ctx),
     ],
@@ -843,7 +899,10 @@ function buildReport(ctx, steps) {
 function emit(report, json) {
   if (json) { process.stdout.write(`${JSON.stringify(report)}\n`); return; }
   const lines = [`merge-cleanup PR #${report.pr}: merge ${report.mergeCommit} base ${report.base} head ${report.head}`];
-  for (const s of report.steps) lines.push(`  ${s.id}: ${s.status}${s.detail ? ` (${s.detail})` : ''}`);
+  for (const s of report.steps) {
+    lines.push(`  ${s.id}: ${s.status}${s.detail ? ` (${s.detail})` : ''}`);
+    for (const t of s.targets ?? []) lines.push(`    -> ${t}`);
+  }
   for (const a of report.archived) lines.push(`  archived ${a.path} -> ${a.archive} [${a.reason}]`);
   for (const r of report.retained) lines.push(`  retained ${r.path} [${r.reason}]`);
   for (const r of report.remaining) lines.push(`  remaining: ${r}`);
@@ -856,13 +915,14 @@ function runApplyOrPlan(opts) {
   const origin = resolveOrigin(opts);
   const gate = readAndGate(opts, origin);
   const drafts = classifyDrafts(origin, gate, opts);
-  const ctx = { opts, origin, ...gate, drafts, archived: [] };
+  const ctx = { opts, origin, ...gate, drafts };
   planChecks(ctx);
   const steps = [];
   const journal = path.join(archiveRoot(origin, opts.pr), 'journal.jsonl');
   for (const id of STEP_IDS) {
     if (opts.mode === 'plan' && !['resolve', 'plan', 'report'].includes(id)) {
-      steps.push({ id, status: 'planned' });
+      const targets = PLANNERS[id] ? PLANNERS[id](ctx) : [];
+      steps.push({ id, status: 'planned', ...(targets.length ? { targets } : {}) });
       continue;
     }
     if (id === 'report') {
