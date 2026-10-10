@@ -2,10 +2,12 @@
 id: win-fallback-test028-red-on-bash-3
 type: issue
 number: 96
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 01dc145a9b98ec10a812624a9afd39877125ec86
 ---
 
 # aai-win-fallback TEST-028 is red on a host whose bash is older than 4

@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-10T07:25:11.574Z
+Generated: 2026-10-10T07:25:26.632Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0217 | specs | implementing | 4 done | docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md |
 
 ## Canonical layer (0)
 
@@ -55,7 +54,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (507)
+## Done (509)
 
 | ID | Type | Path |
 |---|---|---|
@@ -330,6 +329,7 @@ _None._
 | ISSUE-0093 | issues | docs/issues/ISSUE-0093-worktree-lacks-vendored-aai-layer-downstream.md |
 | ISSUE-0094 | issues | docs/issues/ISSUE-0094-pr-generic-url-validity.md |
 | ISSUE-0095 | issues | docs/issues/ISSUE-0095-pr-github-case-identity.md |
+| ISSUE-0096 | issues | docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -564,10 +564,11 @@ _None._
 | SPEC-0214 | specs | docs/specs/SPEC-0214-spec-ci-windows-leg-waits-and-ps1-path-filter.md |
 | SPEC-0215 | specs | docs/specs/SPEC-0215-spec-nested-suite-reruns-duplicate-sweep-time.md |
 | SPEC-0216 | specs | docs/specs/SPEC-0216-spec-slowest-suite-hot-spots.md |
+| SPEC-0217 | specs | docs/specs/SPEC-0217-spec-win-fallback-test028-red-on-bash-3.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -585,7 +586,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| ISSUE-0096 | issues | docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)

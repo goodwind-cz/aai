@@ -2,15 +2,17 @@
 id: spec-win-fallback-test028-red-on-bash-3
 type: spec
 number: 217
-status: implementing
+status: done
 frozen_sha256: 2de87dbd15fa349395d9e4fcf540e0ef90930a34845b7ea11f4400ce6cd197d9
 ceremony_level: 1
 links:
   requirement: null
   rfc: null
   intake: docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 01dc145a9b98ec10a812624a9afd39877125ec86
 ---
 
 # Spec — TEST-028 skips only its execution arm on a bash older than 4
