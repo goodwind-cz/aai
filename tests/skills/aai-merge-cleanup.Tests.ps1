@@ -2,7 +2,8 @@
 # Runs the prompt's own AAI_MERGE_PS block against a real downstream-shaped
 # fixture on a spaced path; runs under Windows PowerShell 5.1 and pwsh 7.
 # gh is a deny-by-default node stub reached through AAI_MERGE_CLEANUP_GH_NODE
-# (a native Windows runner cannot spawn a .cmd/.sh stub without a shell).
+# (a native Windows runner cannot spawn a .cmd/.sh stub without a shell); the
+# engine honours that seam only when AAI_MERGE_CLEANUP_TEST_SEAMS=1 is also set.
 Describe 'merge cleanup PowerShell parity' {
   BeforeAll {
     $script:Root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -11,7 +12,7 @@ Describe 'merge cleanup PowerShell parity' {
     $script:Pr = 433
     $script:Branch = 'ride/foo'
     $script:Saved = @{}
-    foreach ($name in 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'AAI_MERGE_CLEANUP_GH_NODE', 'GH_STUB_DIR', 'AAI_PR', 'AAI_GIT_WRITE') {
+    foreach ($name in 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'AAI_MERGE_CLEANUP_GH_NODE', 'AAI_MERGE_CLEANUP_TEST_SEAMS', 'AAI_DIRECTION', 'GH_STUB_DIR', 'AAI_PR', 'AAI_GIT_WRITE') {
       $script:Saved[$name] = [Environment]::GetEnvironmentVariable($name)
     }
     $env:GIT_AUTHOR_NAME = 'AAI Fixture'; $env:GIT_COMMITTER_NAME = 'AAI Fixture'
@@ -106,6 +107,15 @@ console.error('STUB-DENY: unexpected argv: ' + a.join(' '));
 process.exit(1);
 '@
     $env:AAI_MERGE_CLEANUP_GH_NODE = $GhStub
+    $env:AAI_MERGE_CLEANUP_TEST_SEAMS = '1'
+    $env:AAI_DIRECTION = 'merge 433 please (pester)'
+    # The harness pid the prompt block keys the session lock on: the parent of this
+    # one-shot shell, exactly as the bash block uses $PPID.
+    $harness = $null
+    try { $harness = (Get-CimInstance Win32_Process -Filter "ProcessId=$PID" -ErrorAction Stop).ParentProcessId } catch { $harness = $null }
+    if (-not $harness) { try { $harness = (Get-Process -Id $PID).Parent.Id } catch { $harness = $null } }
+    if (-not $harness) { throw 'cannot resolve the parent of this shell' }
+    $script:HarnessPid = [int]$harness
     $env:GH_STUB_DIR = $Ghd
     $env:AAI_PR = "$Pr"
 
@@ -138,6 +148,13 @@ process.exit(1);
   It 'TEST-016 cleans up the merged ride from inside the worktree on a spaced path' {
     $committed = (& git -C $Ride show 'HEAD:README.md')
     [IO.File]::WriteAllText((Join-Path $Ride 'README.md'), (($committed -join "`n") + "`n"), $Utf8)
+    # the ride session holds the worktree lock under the harness (parent) pid; the block
+    # passes that same pid, so the lock is released and the cleanup is not refused
+    Push-Location -LiteralPath $Ride
+    try {
+      & node (Join-Path $Origin '.aai/scripts/lib/session-lock.mjs') acquire --pid $script:HarnessPid | Out-Null
+      if ($LASTEXITCODE -ne 0) { throw "session-lock acquire failed ($LASTEXITCODE)" }
+    } finally { Pop-Location }
     Push-Location -LiteralPath $Ride
     $lines = New-Object System.Collections.ArrayList
     try {
@@ -155,5 +172,7 @@ process.exit(1);
     $log = [IO.File]::ReadAllText((Join-Path $Ghd 'gh-argv.log'))
     $log | Should -Match "pr view $Pr --json"
     $log | Should -Not -Match 'pr merge'
+    # the directed-merge record carries the owner's verbatim words
+    ([IO.File]::ReadAllText((Join-Path $Origin 'docs/ai/decisions.jsonl'))) | Should -BeLike '*"answer":"merge 433 please (pester)"*'
   }
 }

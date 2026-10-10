@@ -974,7 +974,12 @@ test_012_growth_sum_matches_ledger() {
   # SKILL_SHIP step 6 and SKILL_WORKTREE cleanup pointers, -50 + 88 + 102 B);
   # zero headroom standing, credited 1:1 (ledger key
   # directed-merge-and-post-merge-cleanup).
-  local want_growth=59467
+  # Then 59467 -> 59970: directed-merge-and-post-merge-cleanup round 1
+  # remediation (+503 B: SKILL_MERGE.prompt.md 2909 -> 3412, the owner's
+  # direction forwarded to the engine and the PowerShell lock pid); zero
+  # headroom standing, credited 1:1 (ledger key
+  # directed-merge-and-post-merge-cleanup-round1).
+  local want_growth=59970
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

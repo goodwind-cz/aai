@@ -13,8 +13,10 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    printed, nothing added (never `--admin`, `--auto`, `--delete-branch`).
    Exit 3: relay the `REFUSE` line and stop. Exit 0 `already_merged`: go to 2.
 2. MERGED PR — cleanup only. Run the block for your shell with `AAI_PR` set to
-   the PR number (the engine proves MERGED and the merge commit on the base
-   first; it archives before it removes, never forces, never stashes):
+   the PR number and, when step 1 merged it, `AAI_DIRECTION` to the owner's
+   words (the engine records them with the merged head). It proves MERGED and
+   the merge commit on the base first; it archives before it removes, never
+   forces, never stashes:
 
    ```bash
    # AAI_MERGE_BEGIN
@@ -22,7 +24,7 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    AAI_ORIGIN="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
    [[ -n "$AAI_ORIGIN" && "$AAI_ORIGIN" = /* && -d "$AAI_ORIGIN" ]] || { echo "origin checkout not found" >&2; exit 1; }
    cd "$AAI_ORIGIN"
-   AAI_GIT_WRITE=1 node "$AAI_ORIGIN/.aai/scripts/merge-cleanup.mjs" apply --pr "$AAI_PR" --pid "$PPID" --origin "$AAI_ORIGIN"
+   AAI_GIT_WRITE=1 node "$AAI_ORIGIN/.aai/scripts/merge-cleanup.mjs" apply --pr "$AAI_PR" --pid "$PPID" --origin "$AAI_ORIGIN" ${AAI_DIRECTION:+--direction "$AAI_DIRECTION"}
    # AAI_MERGE_END
    ```
 
@@ -32,8 +34,11 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    $AaiOrigin = ((& git worktree list --porcelain | Select-Object -First 1) -replace '^worktree ', '')
    if (-not $AaiOrigin -or -not (Test-Path -LiteralPath $AaiOrigin)) { throw 'origin checkout not found' }
    Set-Location -LiteralPath $AaiOrigin
+   $AaiPid = $PID
+   try { $p = (Get-CimInstance Win32_Process -Filter "ProcessId=$PID" -ErrorAction Stop).ParentProcessId; if ($p) { $AaiPid = $p } } catch { try { $p = (Get-Process -Id $PID).Parent.Id; if ($p) { $AaiPid = $p } } catch { } }
+   $AaiDir = @(); if ($env:AAI_DIRECTION) { $AaiDir = @('--direction', $env:AAI_DIRECTION) }
    $env:AAI_GIT_WRITE = '1'
-   & node (Join-Path $AaiOrigin '.aai/scripts/merge-cleanup.mjs') apply --pr $env:AAI_PR --pid $PID --origin $AaiOrigin
+   & node (Join-Path $AaiOrigin '.aai/scripts/merge-cleanup.mjs') apply --pr $env:AAI_PR --pid $AaiPid --origin $AaiOrigin @AaiDir
    $AaiRc = $LASTEXITCODE
    Remove-Item Env:AAI_GIT_WRITE
    if ($AaiRc -ne 0) { throw "merge-cleanup apply exited $AaiRc" }

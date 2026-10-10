@@ -125,6 +125,11 @@ build_world() {
   printf '{"v":1,"ts":"2026-10-09T00:00:00Z","actor":"fixture","event":"seed","ref":"seed","payload":{}}\n' > "$ORIGIN/docs/ai/EVENTS.jsonl"
   printf '# Docs Index \xe2\x80\x94 auto-generated, DO NOT EDIT\n' > "$ORIGIN/docs/INDEX.md"
   run git -C "$ORIGIN" add README.md UNRELATED.txt .gitignore docs/ai/EVENTS.jsonl docs/INDEX.md
+  if [[ -n "${EXTRA_OTHER:-}" ]]; then
+    run mkdir -p "$ORIGIN/docs/issues"
+    other_item_doc > "$ORIGIN/docs/issues/ISSUE-0002-other-item.md"
+    run git -C "$ORIGIN" add docs/issues/ISSUE-0002-other-item.md
+  fi
   run git -C "$ORIGIN" commit -qm baseline
   run git -C "$ORIGIN" push -q origin main
   run git -C "$ORIGIN" fetch -q origin
@@ -148,6 +153,10 @@ build_world() {
   printf '{"v":1,"ts":"2026-10-10T00:00:00Z","actor":"fixture","event":"work_item_closed","ref":"%s","payload":{"validation":"pass","code_review":"pass"}}\n{"v":1,"ts":"2026-10-10T00:00:01Z","actor":"fixture","event":"work_item_closed","ref":"%s","payload":{"validation":"pass","code_review":"pass"}}\n' "$ISSUE_ID" "$SPEC_ID" >> "$RIDE/docs/ai/EVENTS.jsonl"
   printf 'delivered by the ride\n' >> "$RIDE/README.md"
   run git -C "$RIDE" add "$NUM_ISSUE" "$NUM_SPEC" docs/ai/EVENTS.jsonl README.md
+  if [[ -n "${EXTRA_OTHER:-}" ]]; then
+    printf '\nCross-link to foo.\n' >> "$RIDE/docs/issues/ISSUE-0002-other-item.md"
+    run git -C "$RIDE" add docs/issues/ISSUE-0002-other-item.md
+  fi
   run git -C "$RIDE" commit -qm 'docs: number and close'
   run git -C "$RIDE" push -q origin "$BRANCH"
   run git -C "$RIDE" push -q origin "HEAD:refs/pull/$PR/head"
@@ -161,7 +170,8 @@ build_world() {
 
 draft_issue_v1() { printf -- '---\nid: %s\ntype: issue\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Issue foo\n\nDraft body.\n' "$ISSUE_ID"; }
 draft_spec_v1() { printf -- '---\nid: %s\ntype: spec\nnumber: null\nstatus: implementing\nlinks:\n  requirement: %s\n  pr: []\n  commits: []\n---\n\n# Spec foo\n\nDraft spec body.\n' "$SPEC_ID" "$ISSUE_ID"; }
-numbered_issue() { printf -- '---\nid: %s\ntype: issue\nnumber: 1\nstatus: done\nlinks:\n  pr:\n    - %s\n  commits: []\n---\n\n# Issue foo\n\nDraft body.\n\nDelivered.\n' "$ISSUE_ID" "$PR"; }
+numbered_issue() { printf -- '---\nid: %s\ntype: issue\nnumber: 1\nstatus: %s\nlinks:\n  pr:\n    - %s\n  commits: []\n---\n\n# Issue foo\n\nDraft body.\n\nDelivered.\n' "$ISSUE_ID" "${ISSUE_STATUS:-done}" "${ISSUE_LINK_PR:-$PR}"; }
+other_item_doc() { printf -- '---\nid: other-item\ntype: issue\nnumber: 2\nstatus: implementing\nlinks:\n  pr: []\n  commits: []\n---\n\n# Other item\n\nStill in flight.\n'; }
 numbered_spec() { printf -- '---\nid: %s\ntype: spec\nnumber: 1\nstatus: done\nlinks:\n  requirement: %s\n  pr:\n    - %s\n  commits: []\n---\n\n# Spec foo\n\nDraft spec body.\n\nDelivered.\n\n## Acceptance Criteria Status\n\n| Spec-AC | Description | Status | Evidence | Review-By | Notes |\n|---|---|---|---|---|---|\n| Spec-AC-01 | The fixture spec is delivered. | done | docs/ai/tdd/foo-green.log | tdd | fixture |\n' "$SPEC_ID" "$ISSUE_ID" "$PR"; }
 
 # write_pr_json <state> <merge-commit-oid|null>
@@ -254,6 +264,32 @@ test_005_apply_readback_gate() {
   write_pr_json MERGED "$MC"
   run_engine apply --pr "$PR" --pid 4242
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-005 "merged control exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+
+  # repo_mismatch: the PR's repository differs from the origin remote's (NB-4).
+  # The refusal precedes every write; a matching slug (case-insensitive, through
+  # an insteadOf rewrite so no network is touched) passes the same gate.
+  build_world repo_mismatch
+  run git -C "$ORIGIN" remote set-url origin https://github.com/other/repo.git
+  refuse_arm TEST-005 repo_mismatch 'PR example/repo'
+  run git -C "$ORIGIN" remote set-url origin https://github.com/Example/Repo.git
+  run git -C "$ORIGIN" config "url.$BARE.insteadOf" https://github.com/Example/Repo.git
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-005 "matching repository slug exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+
+  # test seams are inert in production (F5): AAI_MERGE_CLEANUP_GH_NODE replaces gh,
+  # STOP_AFTER and CRASH_AT stop the run - each only when the TEST_SEAMS guard is set
+  build_world seams
+  printf 'require("fs").writeFileSync(process.env.SEAM_MARK, "ran");\nprocess.stdout.write(require("fs").readFileSync(process.env.SEAM_PR));\n' > "$W/gh-seam.js"
+  local mark="$W/seam.mark"
+  rm -f "$mark"
+  ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" SEAM_MARK="$mark" SEAM_PR="$GHD/pr-$PR.json" AAI_MERGE_CLEANUP_GH_NODE="$W/gh-seam.js" AAI_MERGE_CLEANUP_STOP_AFTER=resolve AAI_MERGE_CLEANUP_CRASH_AT=sync-after-ff node "$ENGINE" plan --pr "$PR" >"$W/engine.out" 2>"$W/engine.err" ) || fail TEST-005 "plan with unguarded seams exited non-zero: $(cat "$W/engine.err")"
+  [[ ! -e "$mark" ]] || fail TEST-005 'AAI_MERGE_CLEANUP_GH_NODE was honoured without the TEST_SEAMS guard'
+  want TEST-005 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"
+  ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_STOP_AFTER=resolve AAI_MERGE_CLEANUP_CRASH_AT=sync-after-ff node "$ENGINE" apply --pr "$PR" --pid 4242 >"$W/engine.out" 2>"$W/engine.err" ) || fail TEST-005 "apply with unguarded STOP_AFTER/CRASH_AT exited non-zero: $(cat "$W/engine.out") $(cat "$W/engine.err")"
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-005 'unguarded STOP_AFTER/CRASH_AT stopped the run'
+  # positive control: with the guard the gh seam really runs
+  ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" SEAM_MARK="$mark" SEAM_PR="$GHD/pr-$PR.json" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_GH_NODE="$W/gh-seam.js" node "$ENGINE" plan --pr "$PR" >"$W/engine.out" 2>"$W/engine.err" ) || fail TEST-005 "guarded seam plan exited non-zero: $(cat "$W/engine.err")"
+  [[ -e "$mark" ]] || fail TEST-005 'guarded AAI_MERGE_CLEANUP_GH_NODE seam did not run (positive control)'
   echo 'PASS: TEST-005 apply read-back gate'
 }
 
@@ -579,6 +615,15 @@ test_011_worktree_refusals() {
   ENG_CWD=''
   [[ -d "$RIDE" ]] || fail TEST-011 'cwd arm lost the worktree'
 
+  # a registered worktree whose directory is gone is named worktree_missing (never
+  # worktree_dirty), is never pruned, and its branch is left alone (NB-4)
+  build_world missing
+  [[ -n "$RIDE" && "$RIDE" = /* && -d "$RIDE" ]] || fail SETUP 'missing-arm ride path'
+  run rm -rf "$RIDE"
+  refuse_arm TEST-011 worktree_missing "$RIDE"
+  want TEST-011 "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE"
+  git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-011 'missing arm deleted the branch'
+
   # negative control: a lock held by a DEAD pid does not block
   build_world deadlock
   ( exit 0 ) & dead=$!
@@ -624,6 +669,7 @@ test_012_state_index_report() {
   build_world focus_hit
   seed_state foo
   before="$(sha_of "$ORIGIN/$STATE_REL")"
+  run cp "$ORIGIN/$STATE_REL" "$W/state.pre"
   want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: foo'   # positive control
   run_engine apply --pr "$PR" --pid 4242 --json
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
@@ -634,6 +680,11 @@ test_012_state_index_report() {
   want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" active_work_items)" 'status: done'
   want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" active_work_items)" 'phase: closed'
   [[ "$(step_status "$rep" state)" == done ]] || fail TEST-012 "state step reported $(step_status "$rep" state), want done"
+  # the gitignored origin STATE is archived byte-for-byte before the irreversible clear-focus
+  cmp "$W/state.pre" "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/origin/$STATE_REL" || fail TEST-012 'origin STATE was not archived before clear-focus'
+  want TEST-012 "$(cat "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/manifest.jsonl")" "\"original\":\"origin:$STATE_REL\""
+  # no direction given: no directed_merge record and no direction line
+  [[ ! -e "$ORIGIN/docs/ai/decisions.jsonl" ]] || fail TEST-012 'a decisions record was written without --direction'
 
   # index: numbered rows present, no DRAFT row for the delivered ids
   idx="$(cat "$ORIGIN/docs/INDEX.md")"
@@ -687,6 +738,65 @@ test_012_state_index_report() {
     fi
     if [[ "$name" == other ]]; then want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: other-ref'; fi
   done
+  # the merged ref is the intake THIS PR delivered (status done, links.pr names the PR).
+  # Negative arms, each with the origin focus on a ref the branch tail ALSO names (foo) or
+  # on a doc the PR merely touches: the focus and STATE bytes stay, with a named no-op.
+  # (a) the PR only edits another in-flight item's doc
+  EXTRA_OTHER=1 build_world focus_other_doc
+  seed_state other-item
+  run cp "$ORIGIN/$STATE_REL" "$W/state.keep"
+  want TEST-012 "$(git -C "$BARE" diff --name-only "$MC^1" "$MC")" 'ISSUE-0002-other-item.md'   # the PR really touches it
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "other-doc arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "other-doc arm state step reported $(step_status "$ENG_OUT" state), want noop"
+  want TEST-012 "$(json_get "$ENG_OUT" 'j.noops')" 'noop:state:focus_not_this_ref'
+  cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 'other-doc arm changed the STATE bytes'
+  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: other-item'
+  unwanted TEST-012 "$(state_block "$ORIGIN/$STATE_REL" active_work_items)" 'status: done'
+  [[ ! -e "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/origin" ]] || fail TEST-012 'other-doc arm archived a STATE it did not touch'
+  # (b) the PR files the item in focus only as a DRAFT intake (status not done)
+  ISSUE_STATUS=draft build_world focus_draft_only
+  seed_state foo
+  run cp "$ORIGIN/$STATE_REL" "$W/state.keep"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "draft-only arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "draft-only arm state step reported $(step_status "$ENG_OUT" state), want noop"
+  want TEST-012 "$(json_get "$ENG_OUT" 'j.noops')" 'noop:state:focus_not_this_ref'
+  cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 'draft-only arm changed the STATE bytes'
+  # (c) done, but its links.pr names a different PR
+  ISSUE_LINK_PR=999 build_world focus_other_pr
+  seed_state foo
+  run cp "$ORIGIN/$STATE_REL" "$W/state.keep"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "other-pr arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "other-pr arm state step reported $(step_status "$ENG_OUT" state), want noop"
+  cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 'other-pr arm changed the STATE bytes'
+
+  # the owner's verbatim direction and the merged head are recorded durably (D3/D9):
+  # report, saved report and one directed_merge decision, once even when re-run
+  build_world direction
+  seed_state foo
+  run_engine apply --pr "$PR" --pid 4242 --json --direction 'merge 433 please, the sweep is in'
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "direction apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(json_get "$ENG_OUT" 'j.direction')" == 'merge 433 please, the sweep is in' ]] || fail TEST-012 'JSON report lacks the verbatim direction'
+  [[ "$(json_get "$ENG_OUT" 'j.mergedHead')" == "$HEAD_OID" ]] || fail TEST-012 'JSON report lacks the merged head'
+  rpt="$(cat "$(saved_reports)")"
+  want TEST-012 "$rpt" '- direction: merge 433 please, the sweep is in'
+  want TEST-012 "$rpt" "- merged head: $HEAD_OID"
+  idx="$ORIGIN/docs/ai/decisions.jsonl"
+  [[ -f "$idx" ]] || fail TEST-012 'no decisions.jsonl record for the directed merge'
+  [[ "$(wc -l < "$idx" | tr -d ' ')" == 1 ]] || fail TEST-012 'decisions.jsonl must hold exactly one record'
+  [[ "$(json_get "$(cat "$idx")" 'j.type')" == directed_merge ]] || fail TEST-012 'decision record type'
+  [[ "$(json_get "$(cat "$idx")" 'j.answer')" == 'merge 433 please, the sweep is in' ]] || fail TEST-012 'decision record answer is not the verbatim direction'
+  [[ "$(json_get "$(cat "$idx")" 'j.pr')" == "$PR" ]] || fail TEST-012 'decision record pr'
+  [[ "$(json_get "$(cat "$idx")" 'j.head')" == "$HEAD_OID" ]] || fail TEST-012 'decision record head'
+  [[ "$(json_get "$(cat "$idx")" 'j.by')" == human ]] || fail TEST-012 'decision record by'
+  before="$(sha_of "$idx")"
+  run_engine apply --pr "$PR" --pid 4242 --json --direction 'merge 433 please, the sweep is in'
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "direction rerun exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(sha_of "$idx")" == "$before" ]] || fail TEST-012 'a repeat run duplicated the directed_merge record'
+  [[ "$(saved_reports | wc -l | tr -d ' ')" == 1 ]] || fail TEST-012 'a repeat run wrote another report'
+
   # a non-CLEAN audit verdict is reported under remaining, never auto-remediated
   build_world audit_dirty
   printf -- '---\nid: stray\ntype: issue\nnumber: 50\nstatus: done\nlinks:\n  pr: []\n  commits: []\n---\n\n# Stray\n' > "$ORIGIN/docs/issues/ISSUE-0050-stray.md"
@@ -738,7 +848,7 @@ assert_nothing_lost() {
 norm_sha() {
   case "$1" in
     */INDEX*.md) sed -e '/^Generated: /d' "$1" | sha_stdin ;;
-    */manifest.jsonl) sed -e 's/"timestamp":"[^"]*"//' "$1" | sha_stdin ;;
+    */manifest.jsonl) sed -e 's/"timestamp":"[^"]*"//' -e '/"original":"origin:docs\/ai\/STATE.yaml"/s/"sha256":"[^"]*"//' "$1" | sha_stdin ;;
     */STATE.yaml) sed -e '/updated_at_utc:/d' "$1" | sha_stdin ;;
     *) sha_of "$1" ;;
   esac
@@ -799,7 +909,7 @@ test_014_interrupted_run_converges() {
   for id in $ALL_STEPS; do
     build_rich_world "stop_$id"
     rc=0
-    ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_STOP_AFTER="$id" node "$ENGINE" apply --pr "$PR" --pid 4242 --json >"$W/engine.out" 2>"$W/engine.err" ) || rc=$?
+    ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_STOP_AFTER="$id" node "$ENGINE" apply --pr "$PR" --pid 4242 --json >"$W/engine.out" 2>"$W/engine.err" ) || rc=$?
     [[ "$rc" -eq 4 ]] || fail TEST-014 "stop after $id exited $rc, want 4 ($(cat "$W/engine.out") $(cat "$W/engine.err"))"
     want TEST-014 "$(cat "$W/engine.out")" "STOPPED after $id"
     assert_nothing_lost TEST-014
@@ -822,6 +932,32 @@ test_014_interrupted_run_converges() {
     assert_no_merge_call TEST-014
   done
   [[ "$(step_status "$control_state" state)" == done ]] || fail TEST-014 'control run did not clear the focus (positive control)'
+
+  # a hard kill INSIDE sync-base (NB-2): after the dirty ledgers were rewritten to the HEAD
+  # blob, and after the fast-forward but before the local tail was re-appended. The resume
+  # re-appends from the archive: the final bytes equal the control run's, nothing is lost.
+  local point
+  for point in sync-after-rewrite sync-after-ff; do
+    build_rich_world "crash_$point"
+    rc=0
+    ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT="$point" node "$ENGINE" apply --pr "$PR" --pid 4242 --json >"$W/engine.out" 2>"$W/engine.err" ) || rc=$?
+    [[ "$rc" -eq 137 ]] || fail TEST-014 "crash at $point exited $rc, want 137 (killed) ($(cat "$W/engine.out") $(cat "$W/engine.err"))"
+    if [[ "$point" == sync-after-ff ]]; then
+      [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-014 'crash after the fast-forward: HEAD is not the merge commit (positive control)'
+      [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 0 ]] || fail TEST-014 'crash after the fast-forward: the local tail is already back (positive control)'
+    fi
+    assert_nothing_lost TEST-014
+    run_engine apply --pr "$PR" --pid 4242 --json
+    [[ "$ENG_RC" -eq 0 ]] || fail TEST-014 "resume after crash at $point exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+    sig="$(tree_sig)"
+    [[ "$sig" == "$control_sig" ]] || fail TEST-014 "resume after crash at $point differs from the uninterrupted run: $(diff <(printf '%s\n' "$control_sig") <(printf '%s\n' "$sig") | awk 'NR <= 6' | tr '\n' ' ')"
+    assert_nothing_lost TEST-014
+    [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-014 "resume after crash at $point: local ledger line not exactly once"
+    [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-014 "resume after crash at $point left a duplicate ledger line"
+    [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-014 "resume after crash at $point: HEAD is not the merge commit"
+    [[ "$(step_status "$ENG_OUT" sync-base)" == done ]] || fail TEST-014 "resume after crash at $point: sync-base reported $(step_status "$ENG_OUT" sync-base), want done (the re-append is work, not a no-op)"
+    assert_no_merge_call TEST-014
+  done
   echo 'PASS: TEST-014 interrupted run converges to the uninterrupted bytes'
 }
 
@@ -863,7 +999,7 @@ expect_refusal() {
 
 test_003_preflight_refusals() {
   open_world pf_refuse
-  local arm
+  local arm first
   # no_direction: three shapes
   expect_refusal TEST-003 no_direction run_engine preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by human --origin "$RIDE"
   expect_refusal TEST-003 no_direction run_engine preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by human --direction '   ' --origin "$RIDE"
@@ -916,6 +1052,33 @@ test_003_preflight_refusals() {
   write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
   pf
   [[ "$ENG_RC" -eq 10 ]] || fail TEST-003 "all-good control exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+
+  # repo_mismatch: the PR belongs to another repository than the origin remote (NB-4)
+  run git -C "$ORIGIN" remote set-url origin https://github.com/other/repo.git
+  expect_refusal TEST-003 repo_mismatch pf
+  want TEST-003 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"   # positive control: the read ran
+  run git -C "$ORIGIN" remote set-url origin "$BARE"
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-003 "repo_mismatch control exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+
+  # the printed --match-head-commit and the sweep verdict bind to ONE commit (NB-1):
+  # a local HEAD that is not the PR head is refused before the sweep is judged
+  open_world pf_localhead
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-003 "local-head control exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+  printf 'pushed from elsewhere\n' > "$RIDE/later.txt"
+  run git -C "$RIDE" add later.txt
+  run git -C "$RIDE" commit -qm 'a later local commit'
+  expect_refusal TEST-003 head_changed pf
+  want TEST-003 "$ENG_OUT" 'local'
+  # and a sweep record that names an older head with real code changes since is denied by the real lane-gate
+  open_world pf_stale
+  first="$(git -C "$RIDE" rev-parse HEAD~1)" || fail SETUP 'older ride commit'
+  { /usr/bin/grep -v '"pr_sweep"' "$RIDE/docs/ai/EVENTS.jsonl" || true; } > "$W/events.nosweep"
+  run cp "$W/events.nosweep" "$RIDE/docs/ai/EVENTS.jsonl"
+  printf '%s\n' "${SWEEP_OK/\"outcome\":\"swept\"/\"outcome\":\"swept\",\"head_sha\":\"$first\"}" >> "$RIDE/docs/ai/EVENTS.jsonl"
+  expect_refusal TEST-003 sweep_missing pf
+  want TEST-003 "$ENG_OUT" 'stale-head'
   echo 'PASS: TEST-003 preflight refusals'
 }
 
@@ -1062,7 +1225,7 @@ test_002_prompt_block_runs_cleanup() {
   [[ "$ENG_RC" -ne 0 ]] || fail TEST-002 'the block ran without AAI_PR'
   [[ "$(world_digest)" == "$before" ]] || fail TEST-002 'the block without AAI_PR changed the fixture'
   # positive: run from INSIDE the ride worktree, the block resolves the origin itself
-  run_block "$W/merge.block.sh" "$RIDE"
+  AAI_DIRECTION='merge 433 now, owner said so' run_block "$W/merge.block.sh" "$RIDE"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-002 "block exited $ENG_RC (out: $ENG_OUT err: $ENG_ERR)"
   [[ ! -e "$RIDE" ]] || fail TEST-002 'the ride worktree still exists'
   if git -C "$ORIGIN" show-ref --verify -q "refs/heads/$BRANCH"; then fail TEST-002 'the ride branch still exists'; fi
@@ -1071,6 +1234,8 @@ test_002_prompt_block_runs_cleanup() {
   [[ -s "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/manifest.jsonl" ]] || fail TEST-002 'no archive manifest'
   [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-002 'origin HEAD is not the merge commit'
   want TEST-002 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"   # positive control: the engine really ran
+  # the block forwards the owner's verbatim direction, which lands in the decision ledger
+  want TEST-002 "$(cat "$ORIGIN/docs/ai/decisions.jsonl")" '"answer":"merge 433 now, owner said so"'
   assert_no_merge_call TEST-002
   echo 'PASS: TEST-002 the prompt block runs cleanup'
 }

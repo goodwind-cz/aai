@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 122e95bfbd0dcab1cc683ebf8f1de4add35fd3aa691c2b4cb051fa63fbaa0aa5
+frozen_sha256: fb8150e4c8d6d9c43aecc76e2920b607b3cb36c1cf66f3e8f37fcf525ddd8b38
 ceremony_level: 2
 links:
   requirement: directed-merge-and-post-merge-cleanup
@@ -35,9 +35,15 @@ for seeded, worktree, merge, cleanup, focus, draft.
   pre-pull stale-untracked-copy cleanup becomes a deterministic, tested
   step (identity + merged-content proof, recoverable archival) instead of
   an operator habit.
+## Registry items assessed, not closed
+
+These were assessed during the registry scan above and are NOT closed by this
+scope; they are listed apart so the closure verifier reads only the claim
+above.
+
 - `fu-clearfocus-announces-unwritten-phase` (P3) — NOT closed. Adjacent:
   this scope calls `state.mjs clear-focus` only when the origin focus equals
-  the merged ref, and never edits `state.mjs` (L3 surface). The defect in
+  the work item this PR delivered (D9), and never edits `state.mjs` (L3 surface). The defect in
   clear-focus's own announcement stays open.
 - `fu-sweep-denial-did-not-stop-merge` (P2) — NOT closed, partially
   mitigated: `/aai-merge` runs the merge command only after the engine's
@@ -149,8 +155,9 @@ the merge checkpoint, never silent.
   step 6 already describes ("an agent acting on the operator's explicit,
   recorded direction"); no standing authorization is created, and `/aai-ship`
   and the loop never invoke `/aai-merge`. The verbatim direction and head
-  sha are written into the run report (D9). A lane merge stays SKILL_PR
-  step 6's own path. See Constitution deviations.
+  sha are written into the run report and into one `directed_merge` record
+  of `docs/ai/decisions.jsonl` (D9). A lane merge stays SKILL_PR step 6's own
+  path. See Constitution deviations.
 - D4 Preflight gates (open PR). Read with ONE fixed call
   `gh pr view <n> --json number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url`,
   then `node .aai/scripts/lane-gate.mjs --sweep-check --pr <n>`. Refusal
@@ -159,7 +166,13 @@ the merge checkpoint, never silent.
   (`headRefOid` differs from `--expect-head`), `checks_failing` (any
   rollup entry not SUCCESS, NEUTRAL or SKIPPED, or any still pending),
   `not_mergeable` (`mergeStateStatus` other than CLEAN), `sweep_missing`
-  (lane-gate non-zero; its message is relayed). A MERGED PR answers
+  (lane-gate non-zero; its message is relayed), `repo_mismatch` (the PR's
+  `url` names another repository than the origin remote; compared only when
+  the remote URL is a recognisable `owner/repo`; also an `apply` refusal).
+  The checkout `preflight` runs in must be AT the judged head: `head_changed`
+  also covers a local HEAD that differs from `headRefOid`, so the sweep
+  record (judged by lane-gate against that checkout) and the printed
+  `--match-head-commit` name one commit. A MERGED PR answers
   `already_merged` with exit 0 and points to `apply`.
 - D5 Read-back gate. `apply` and every mutation behind it require the same
   `gh pr view` read to report `state` MERGED with a non-empty
@@ -211,29 +224,46 @@ the merge checkpoint, never silent.
   (the prompt sets `AAI_GIT_WRITE=1` for the ref-guard on the default
   branch). Afterwards HEAD, `refs/heads/<base>` and the target sha must be
   equal (the guarded-pull scar). On a failed fast-forward the archived
-  ledger and index bytes are written back before exit 4. Never `git stash`,
+  ledger and index bytes are written back before exit 4. Before the first
+  rewrite a `sync/pending.json` journal names the archived local bytes; a
+  run killed anywhere inside the sync restores them (fast-forward not done)
+  or re-appends the local tail (fast-forward done) on the next run, then
+  removes the journal. Never `git stash`,
   `git reset`, `git restore`, `git checkout --`, `git clean` or blanket
   staging.
-- D9 Runtime state, index and report. Origin STATE: when
-  `current_focus.ref_id` equals the merged ref (the PR's delivered work-item
-  id), run `node .aai/scripts/state.mjs clear-focus --ref <ref>` in the
-  origin; any other focus, including `none`, is the named no-op
+- D9 Runtime state, index and report. The merged ref is the frontmatter `id`
+  of an intake doc (any `type` but `spec`) that the PR added or changed, that
+  the merged tree leaves `status: done`, and whose `links.pr` names this PR
+  (the stamp `close-work-item.mjs` writes). A doc the PR merely touches, a
+  draft it files, or a branch name that happens to end in an id is NOT the
+  merged ref. Origin STATE: when `current_focus.ref_id` equals the merged
+  ref, archive the origin `docs/ai/STATE.yaml` (gitignored, so irreversible
+  once cleared) into the per-PR archive, then run
+  `node .aai/scripts/state.mjs clear-focus --ref <ref>` in the origin; any other focus, including `none`, is the named no-op
   `focus_not_this_ref` and STATE bytes stay unchanged (the field-evidence
   usage-error case). Then `node .aai/scripts/docs-audit.mjs --strict` runs
   in the origin and its verdict line goes into the report; a non-CLEAN
   verdict is listed under `remaining`, never auto-remediated. The report is
   printed (and with `--json` emitted as one JSON object) and saved to
   `docs/ai/reports/merge-cleanup-pr<n>-<UTC>.md`: pr, merge commit, base,
-  final HEAD, direction (when a merge ran), archived, retained (with
-  reasons), no-ops, remaining (owner actions such as remote branch deletion
-  and divergent-draft decisions).
+  final HEAD, merged head (the PR's `headRefOid`), direction (when
+  `--direction` is given), archived, retained (with reasons), no-ops,
+  remaining (owner actions such as remote branch deletion and
+  divergent-draft decisions). When `apply` is given `--direction "<owner's
+  words verbatim>"` it also appends ONE `directed_merge` record (pr, by
+  `human`, answer = the verbatim words, head, merge commit) to
+  `docs/ai/decisions.jsonl`, at the end of the file, once per pr, words and
+  head; the prompt passes the words it ran the merge for.
 - D10 Worktree and branch. The ride worktree is the registered worktree
   whose branch equals `headRefName` (none: named no-op `no_worktree`).
-  Eligible only when: `git status --porcelain` in it is empty
+  A registered worktree whose directory is gone is refused as
+  `worktree_missing` (never pruned, branch left alone). Eligible only when:
+  `git status --porcelain` in it is empty
   (`worktree_dirty`), its tip equals `headRefOid` (`tip_mismatch`; squash
   merges are recognized by this equality, never by ancestry),
   `session-lock.mjs status` shows no lock held by a live pid other than
-  `--pid` (`session_locked`), and the engine's cwd is not inside it
+  `--pid` (`session_locked`; the prompt passes the HARNESS pid, the parent
+  of its one-shot shell, on every platform), and the engine's cwd is not inside it
   (`cwd_inside_target`). Before removal: the worktree's
   docs/ai/STATE.yaml and every git-ignored file under its
   docs/ai/{reports,tdd,validation,reviews,evidence} are copied to the
@@ -255,7 +285,12 @@ the merge checkpoint, never silent.
   named no-op `noop:<step>:<reason>` even without the journal; the journal
   only adds the original completion time to the report. A test-only
   environment seam `AAI_MERGE_CLEANUP_STOP_AFTER=<step>` exits 4 right after
-  that step's journal line, to prove resume.
+  that step's journal line, to prove resume; `AAI_MERGE_CLEANUP_CRASH_AT=
+  sync-after-rewrite|sync-after-ff` stops the process with exit 137 inside
+  the base sync; and `AAI_MERGE_CLEANUP_GH_NODE=<abs .js>` runs that script
+  in place of `gh` (the Windows runner cannot spawn a shell stub). All three
+  are honoured ONLY when `AAI_MERGE_CLEANUP_TEST_SEAMS=1` is also set, and
+  are inert in production.
 - D12 Gh access. The engine calls only the read in D4 plus the fetches in
   D5/D6. Tests use a deny-by-default gh stub that pins the exact argv
   skeleton and logs every call (LEARNED 2026-09-05 deny-default-mock), and a
@@ -306,7 +341,7 @@ the merge checkpoint, never silent.
 | Spec-AC-06 | WHEN the ride worktree is eligible the system SHALL archive its STATE and ignored evidence before `git worktree remove` without force, delete its local branch only by compare-and-swap against the PR head (squash merge included), and SHALL refuse worktree_dirty, tip_mismatch, session_locked and cwd_inside_target while leaving other worktrees, branches and the remote branch intact. | done | docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-010.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-011.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-010.txt, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-011.txt | tdd | D10; B2 TEST-010 TEST-011 green, mutation RED |
 | Spec-AC-07 | WHEN cleanup completes the system SHALL clear the origin focus through `state.mjs clear-focus` only if it names the merged ref (else the named no-op focus_not_this_ref with STATE bytes unchanged), regenerate docs/INDEX.md without a DRAFT row for the delivered id, and report base, final HEAD, archived, retained, no-ops and remaining steps. | done | docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-012.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-012.txt | tdd | D9; B3 TEST-012 green, mutation RED |
 | Spec-AC-08 | WHEN `apply` is repeated or resumed after an interruption at any step the system SHALL lose no file, duplicate no ledger line, never call a merge, report completed steps as named no-ops, and converge to the same final bytes as an uninterrupted run. | done | docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-013.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-014.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-013.txt, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-014.txt | tdd | D11; B3 TEST-013 TEST-014 green, mutation RED |
-| Spec-AC-09 | WHEN run in a downstream installation whose `.aai/` and skill trees are gitignored, and on Windows PowerShell 5.1 and pwsh 7, the system SHALL complete the positive cleanup and the dirty-worktree refusal with the same results as on Bash. | done | docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-015.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-015.txt, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-016.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-016.txt | tdd | Bash half TEST-015 and the PowerShell half TEST-016 (local pwsh 7.6.3 on macOS, pre-PR evidence only) green with mutation RED; the native Windows verdict (Windows PowerShell 5.1 and pwsh 7 Pester runs) comes from PR CI only, so the CI run ids are cited from the PR, not here |
+| Spec-AC-09 | WHEN run in a downstream installation whose `.aai/` and skill trees are gitignored, and on Windows PowerShell 5.1 and pwsh 7, the system SHALL complete the positive cleanup and the dirty-worktree refusal with the same results as on Bash. | implementing | docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-015.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-015.txt, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-016.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-016.txt | tdd | Bash half TEST-015 and the PowerShell half TEST-016 (local pwsh 7.6.3 on macOS, pre-PR evidence only) green with mutation RED; the native Windows verdict (Windows PowerShell 5.1 and pwsh 7 Pester runs) comes from PR CI only, so the CI run ids are cited from the PR, not here; the row stays implementing until those run ids exist (V2), and the orchestrator flips it after PR CI |
 | Spec-AC-10 | The scope SHALL classify the new prompt and engine as core in PROFILES.yaml, add a suite-map row, credit the measured prompt-corpus growth in the diet ledger with the matching TEST-012 pin, and list the engine and prompt in the ps1-quality path filter, with the owning suites green. | done | docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/green-TEST-017.log, docs/ai/tdd/spec-directed-merge-and-post-merge-cleanup/mutation-TEST-017.txt | tdd | Companion obligations; B4b TEST-017 green, mutation RED; prompt-diet, layer-profiles, suite-select and win-fallback exit 0 (V3) |
 
 ## Implementation plan
@@ -460,9 +495,9 @@ plus the full verification matrix V1 to V4.
 ## Assumptions (autopilot, recorded instead of questions)
 
 - A1 The merged work item's ref is the frontmatter `id` of the delivered
-  intake doc in the PR (the `links.pr` stamp written by close-work-item);
-  when the PR delivers several intake ids, focus is cleared only for the
-  one the origin STATE names, else `focus_not_this_ref`.
+  intake doc in the PR (status done, the `links.pr` stamp written by
+  close-work-item; see D9); when the PR delivers several intake ids, focus is
+  cleared only for the one the origin STATE names, else `focus_not_this_ref`.
 - A2 "Origin checkout" defaults to the repository's main worktree (first
   `git worktree list --porcelain` entry); `--origin` overrides it.
 - A3 Remote branch deletion is out of scope (intake): neither the engine

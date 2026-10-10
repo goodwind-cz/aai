@@ -19,6 +19,10 @@
 // and `git fetch`; every other effect is a local, archive-first file or git
 // operation. Node stdlib only (docs/TECHNOLOGY.md).
 //
+// Test seams (AAI_MERGE_CLEANUP_GH_NODE, _STOP_AFTER, _CRASH_AT) are honoured
+// ONLY when AAI_MERGE_CLEANUP_TEST_SEAMS=1 is also set; in production they are
+// inert, so a stray variable can neither replace gh nor stop a run.
+//
 // IMPLEMENTED HERE: the CLI/step skeleton, the D5 read-back gate, the D6/D7
 // superseded-draft archive (batch B1), the D8 base sync and the D10 runtime
 // archive, worktree removal and branch compare-and-swap delete (batch B2), the
@@ -41,6 +45,7 @@ const HELP = `merge-cleanup.mjs <preflight|plan|apply> --pr <n> [options]
   plan       read-only plan for a MERGED pull request
   apply      cleanup after a MERGED pull request (needs --pid)
 options: --origin <abs> --json --archive-divergent <path> (apply, repeatable)
+         --direction "<owner's words>" (apply: recorded with the merged head)
 exit: 0 complete, 2 usage, 3 refused, 4 stopped mid-way, 10 preflight ready
 `;
 
@@ -114,11 +119,19 @@ function git(cwd, args, opts = {}) {
   return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
+// A test seam is live only under the explicit test guard (F5).
+const seam = (name) => (process.env.AAI_MERGE_CLEANUP_TEST_SEAMS === '1' ? process.env[name] : undefined);
+
+// A hard stop at a named point (no handler, no cleanup), to prove a resume (test seam _CRASH_AT).
+function crashAt(point) {
+  if (seam('AAI_MERGE_CLEANUP_CRASH_AT') === point) process.exit(137);
+}
+
 // The ONE gh read (D4). Test seam: AAI_MERGE_CLEANUP_GH_NODE=<abs .js path> runs
 // that script under this node instead of `gh`, because a native Windows runner
-// cannot spawn a .cmd/.sh stub without a shell. Production leaves it unset.
+// cannot spawn a .cmd/.sh stub without a shell. Inert without the test guard.
 function ghPrView(cwd, pr, maxBuffer) {
-  const stub = process.env.AAI_MERGE_CLEANUP_GH_NODE;
+  const stub = seam('AAI_MERGE_CLEANUP_GH_NODE');
   const viewArgs = ['pr', 'view', String(pr), '--json', PR_FIELDS];
   if (stub && path.isAbsolute(stub)) {
     return spawnSync(process.execPath, [stub, ...viewArgs], { cwd, encoding: 'utf8', maxBuffer });
@@ -128,6 +141,24 @@ function ghPrView(cwd, pr, maxBuffer) {
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const posix = (p) => p.split(path.sep).join('/');
+
+// owner/repo of a git remote URL or a GitHub pull-request URL, lower-cased; null
+// when it is not recognisably a hosted repository (a local path, a bare name).
+function repoSlug(url) {
+  const u = String(url ?? '').trim().replace(/\/pull\/\d+.*$/, '').replace(/\/+$/, '');
+  const m = u.match(/^(?:https?|ssh|git):\/\/(?:[^@/]+@)?[^/:]+(?::\d+)?\/([^/]+)\/([^/]+?)(?:\.git)?$/)
+    ?? u.match(/^(?:[^@/\s]+@)?[^/:\s]*\.[^/:\s]+:([^/]+)\/([^/]+?)(?:\.git)?$/);
+  return m ? `${m[1]}/${m[2]}`.toLowerCase() : null;
+}
+
+// NB-4: the PR must belong to the repository the origin remote points at. Only a
+// recognisable remote is compared (a local path or an unparsable URL is skipped).
+function checkRepo(origin, prUrl) {
+  const r = git(origin, ['config', '--get', 'remote.origin.url']);
+  const remote = r.status === 0 ? repoSlug(r.stdout) : null;
+  const pr = repoSlug(prUrl);
+  if (remote && pr && remote !== pr) refuse('repo_mismatch', `PR ${pr}, origin ${remote}`);
+}
 
 function resolveOrigin(opts) {
   let origin = opts.origin;
@@ -148,6 +179,7 @@ function readAndGate(opts, origin) {
   if (r.error || r.status !== 0) refuse('gh_read_failed', `gh pr view ${opts.pr}`);
   let pr;
   try { pr = JSON.parse(r.stdout); } catch { refuse('gh_read_invalid', 'gh pr view printed no JSON'); }
+  checkRepo(origin, pr?.url);
   const mc = pr?.mergeCommit?.oid ?? '';
   if (pr.state !== 'MERGED' || !/^[0-9a-f]{40}$/i.test(mc)) {
     refuse('not_merged', `state=${pr.state ?? 'unknown'} mergeCommit=${mc || 'none'}`);
@@ -175,6 +207,30 @@ function deliveredIds(origin, mc) {
     if (id) ids.add(String(id));
   }
   return ids;
+}
+
+// Numbers named by a frontmatter links.pr value (block list or inline text).
+function linkedPrs(fm) {
+  const v = fm?.links?.pr;
+  return (Array.isArray(v) ? v : [v]).flatMap((x) => String(x ?? '').match(/\d+/g) ?? []).map(Number);
+}
+
+// The work item(s) THIS PR delivered: intake docs (any type but spec) in the merged
+// tree that the PR added or changed, left status done with links.pr naming this PR -
+// the stamp close-work-item writes. Touching a doc, filing a draft, or sharing the
+// branch-name tail does not make a ref merged (F1).
+function deliveredDoneRefs(origin, mc, pr) {
+  const names = git(origin, ['diff', '--name-only', '--no-renames', '--diff-filter=AM', '-z', `${mc}^1`, mc]);
+  const refs = new Set();
+  if (names.status !== 0) return refs;
+  for (const rel of names.stdout.split('\0').filter(Boolean)) {
+    if (!rel.endsWith('.md')) continue;
+    const blob = git(origin, ['cat-file', 'blob', `${mc}:${rel}`]);
+    if (blob.status !== 0) continue;
+    const fm = parseFrontmatter(blob.stdout);
+    if (fm?.id && fm.type !== 'spec' && fm.status === 'done' && linkedPrs(fm).includes(pr)) refs.add(String(fm.id));
+  }
+  return refs;
 }
 
 // Blob ids the PR's own commits introduced. null when the history cannot be read.
@@ -345,38 +401,47 @@ function planSync(ctx) {
   return plan;
 }
 
-function syncBase(ctx) {
-  const plan = planSync(ctx);
-  if (plan.refusal) stop(...plan.refusal);
-  if (plan.noop) return { status: 'noop', detail: 'already_at_target' };
+// NB-2: a hard kill between rewriting a dirty ledger to the HEAD blob and
+// re-appending the local tail would leave the tail only in the archive. The
+// pending journal below names it; the next run puts it back before anything else.
+const pendingPath = (ctx) => path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'sync', 'pending.json');
+
+// Re-append (or restore) from a pending journal. Returns a detail string when it
+// did work, null when there was nothing pending.
+function resumeSync(ctx) {
+  const file = pendingPath(ctx);
+  if (!fs.existsSync(file)) return null;
+  const { origin } = ctx;
+  let pending;
+  try { pending = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { stop('pending_unreadable', posix(path.relative(origin, file))); }
+  const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim();
+  let entries;
+  try { entries = pending.entries.map((e) => ({ ...e, saved: fs.readFileSync(path.join(origin, e.archive)) })); } catch { stop('pending_unreadable', posix(path.relative(origin, file))); }
+  let detail;
+  if (headNow === pending.head) {
+    // the fast-forward never happened: put the local bytes back, the normal sync redoes the rest
+    for (const e of entries) {
+      const abs = path.join(origin, e.rel);
+      const headBlob = readBlob(origin, `${pending.head}:${e.rel}`);
+      let cur = null;
+      try { cur = fs.readFileSync(abs); } catch { /* removed */ }
+      if (headBlob && cur && cur.equals(headBlob)) fs.writeFileSync(abs, e.saved);
+    }
+    detail = 'restored local state of an interrupted sync';
+  } else {
+    mergeLedgerTails(ctx, entries.filter((e) => e.ledger).map((e) => ({ rel: e.rel, headBlob: readBlob(origin, `${pending.head}:${e.rel}`), bytes: e.saved })));
+    if (entries.some((e) => !e.ledger)) regenIndex(ctx);
+    detail = 're-appended the local ledger tail of an interrupted sync';
+  }
+  fs.rmSync(file, { force: true });
+  return detail;
+}
+
+function mergeLedgerTails(ctx, items) {
   const { origin, opts } = ctx;
   const root = archiveRoot(origin, opts.pr);
-  const saved = [];
-  const restore = () => {
-    for (const s of saved) fs.writeFileSync(path.join(origin, s.rel), s.bytes);
-  };
-  for (const rel of [...plan.ledgers, ...(plan.index ? [INDEX_PATH] : [])]) {
-    const abs = path.join(origin, rel);
-    const bytes = fs.readFileSync(abs);
-    archiveFile(ctx, { src: abs, destBase: path.join(root, 'sync', rel), original: rel, reason: 'pre_sync_local_state', step: 'sync-base' });
-    saved.push({ rel, bytes, headBlob: readBlob(origin, `${plan.head}:${rel}`), ledger: rel !== INDEX_PATH });
-    fs.writeFileSync(abs, saved[saved.length - 1].headBlob);
-  }
-  // Untracked copies byte-equal to the incoming blob would block the fast-forward
-  // and are recreated by it; keep the bytes to put back should it fail.
-  const removed = plan.removeEqual.map((rel) => ({ rel, bytes: fs.readFileSync(path.join(origin, rel)) }));
-  for (const r of removed) fs.unlinkSync(path.join(origin, r.rel));
-  const ff = git(origin, ['merge', '--ff-only', plan.target]);
-  if (ff.status !== 0) {
-    restore();
-    for (const r of removed) { fs.mkdirSync(path.dirname(path.join(origin, r.rel)), { recursive: true }); fs.writeFileSync(path.join(origin, r.rel), r.bytes); }
-    stop('sync_failed', (ff.stderr || ff.stdout).trim().split('\n')[0] ?? '');
-  }
-  const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim();
-  const refNow = git(origin, ['rev-parse', `refs/heads/${ctx.base}`]).stdout.trim();
-  if (headNow !== plan.target || refNow !== plan.target) stop('sync_failed', `head_ref_mismatch HEAD=${headNow} ${ctx.base}=${refNow} want=${plan.target}`);
   const tmp = path.join(root, 'sync', '.tmp');
-  for (const s of saved.filter((x) => x.ledger)) {
+  for (const s of items) {
     fs.mkdirSync(tmp, { recursive: true });
     const baseF = path.join(tmp, 'base'); const theirs = path.join(tmp, 'theirs'); const out = path.join(tmp, 'out');
     fs.writeFileSync(baseF, s.headBlob);
@@ -386,10 +451,56 @@ function syncBase(ctx) {
     fs.copyFileSync(out, path.join(origin, s.rel));
   }
   fs.rmSync(tmp, { recursive: true, force: true });
-  if (plan.index) {
-    const g = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'generate-docs-index.mjs')], { cwd: origin, encoding: 'utf8' });
-    if (g.status !== 0) stop('index_regen_failed', (g.stderr || g.stdout).trim().split('\n')[0] ?? '');
+}
+
+function regenIndex(ctx) {
+  const g = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'generate-docs-index.mjs')], { cwd: ctx.origin, encoding: 'utf8' });
+  if (g.status !== 0) stop('index_regen_failed', (g.stderr || g.stdout).trim().split('\n')[0] ?? '');
+}
+
+function syncBase(ctx) {
+  const resumed = resumeSync(ctx);
+  const plan = planSync(ctx);
+  if (plan.refusal) stop(...plan.refusal);
+  if (plan.noop) return resumed ? { status: 'done', detail: resumed } : { status: 'noop', detail: 'already_at_target' };
+  const { origin, opts } = ctx;
+  const root = archiveRoot(origin, opts.pr);
+  const saved = [];
+  const restore = () => {
+    for (const s of saved) fs.writeFileSync(path.join(origin, s.rel), s.bytes);
+  };
+  const pendingEntries = [];
+  for (const rel of [...plan.ledgers, ...(plan.index ? [INDEX_PATH] : [])]) {
+    const abs = path.join(origin, rel);
+    const bytes = fs.readFileSync(abs);
+    const a = archiveFile(ctx, { src: abs, destBase: path.join(root, 'sync', rel), original: rel, reason: 'pre_sync_local_state', step: 'sync-base' });
+    saved.push({ rel, bytes, headBlob: readBlob(origin, `${plan.head}:${rel}`), ledger: rel !== INDEX_PATH });
+    pendingEntries.push({ rel, archive: a.rel, ledger: rel !== INDEX_PATH });
   }
+  if (pendingEntries.length > 0) {
+    fs.mkdirSync(path.dirname(pendingPath(ctx)), { recursive: true });
+    fs.writeFileSync(pendingPath(ctx), `${JSON.stringify({ head: plan.head, entries: pendingEntries })}\n`);
+  }
+  for (const s of saved) fs.writeFileSync(path.join(origin, s.rel), s.headBlob);
+  crashAt('sync-after-rewrite');
+  // Untracked copies byte-equal to the incoming blob would block the fast-forward
+  // and are recreated by it; keep the bytes to put back should it fail.
+  const removed = plan.removeEqual.map((rel) => ({ rel, bytes: fs.readFileSync(path.join(origin, rel)) }));
+  for (const r of removed) fs.unlinkSync(path.join(origin, r.rel));
+  const ff = git(origin, ['merge', '--ff-only', plan.target]);
+  if (ff.status !== 0) {
+    restore();
+    for (const r of removed) { fs.mkdirSync(path.dirname(path.join(origin, r.rel)), { recursive: true }); fs.writeFileSync(path.join(origin, r.rel), r.bytes); }
+    fs.rmSync(pendingPath(ctx), { force: true });
+    stop('sync_failed', (ff.stderr || ff.stdout).trim().split('\n')[0] ?? '');
+  }
+  const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim();
+  const refNow = git(origin, ['rev-parse', `refs/heads/${ctx.base}`]).stdout.trim();
+  if (headNow !== plan.target || refNow !== plan.target) stop('sync_failed', `head_ref_mismatch HEAD=${headNow} ${ctx.base}=${refNow} want=${plan.target}`);
+  crashAt('sync-after-ff');
+  mergeLedgerTails(ctx, saved.filter((x) => x.ledger));
+  fs.rmSync(pendingPath(ctx), { force: true });
+  if (plan.index) regenIndex(ctx);
   return { status: 'done', detail: `fast-forward to ${plan.target.slice(0, 12)}` };
 }
 
@@ -412,6 +523,7 @@ function findRideWorktree(ctx) {
 
 // First eligibility failure as [reason, detail], else null.
 function worktreeVerdict(ctx, wt) {
+  if (!fs.existsSync(wt.path)) return ['worktree_missing', wt.path];
   const cwd = realOr(process.cwd());
   if (cwd === wt.path || cwd.startsWith(wt.path + path.sep)) return ['cwd_inside_target', wt.path];
   const st = git(wt.path, ['status', '--porcelain']);
@@ -495,14 +607,9 @@ function planChecks(ctx) {
 
 // ---- D9: focus, index, audit, report --------------------------------------
 
-// Work-item ids this PR delivered: the frontmatter ids of the docs it added or
-// changed plus the last segment of its branch name (refs are named after it).
+// Work-item ids this PR delivered (see deliveredDoneRefs).
 function mergedRefs(ctx) {
-  if (!ctx.refs) {
-    ctx.refs = new Set(deliveredIds(ctx.origin, ctx.mc));
-    const tail = ctx.headRef.split('/').pop();
-    if (tail) ctx.refs.add(tail);
-  }
+  if (!ctx.refs) ctx.refs = deliveredDoneRefs(ctx.origin, ctx.mc, ctx.opts.pr);
   return ctx.refs;
 }
 
@@ -526,6 +633,8 @@ function stateStep(ctx) {
   if (!fs.existsSync(file)) return { status: 'noop', detail: 'no_state' };
   const ref = focusRefOf(file);
   if (!ref || !mergedRefs(ctx).has(ref)) return { status: 'noop', detail: 'focus_not_this_ref' };
+  // clear-focus is irreversible and STATE is gitignored: keep the bytes first.
+  archiveFile(ctx, { src: file, destBase: path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'origin', STATE_REL), original: `origin:${STATE_REL}`, reason: 'pre_clear_focus', step: 'state' });
   const r = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'state.mjs'), 'clear-focus', '--ref', ref], { cwd: ctx.origin, encoding: 'utf8' });
   if (r.status !== 0) stop('state_clear_failed', (r.stderr || r.stdout).trim().split('\n')[0] ?? '');
   return { status: 'done', detail: `cleared focus ${ref}` };
@@ -556,6 +665,30 @@ function indexAudit(ctx) {
   return { status: changed ? 'done' : 'noop', detail: changed ? 'index regenerated' : 'index_current' };
 }
 
+// D3/D9: the owner's verbatim direction and the merged head become one durable
+// directed_merge decision (append-only ledger, written once per pr+words+head).
+// Returns the ledger path when it wrote, null when there is nothing to add.
+function recordDirection(ctx) {
+  const direction = ctx.opts.direction ?? '';
+  if (ctx.opts.mode !== 'apply' || direction.trim() === '') return null;
+  const file = path.join(ctx.origin, 'docs', 'ai', 'decisions.jsonl');
+  const known = readJsonl(file).some((r) => r.type === 'directed_merge' && r.pr === ctx.opts.pr && r.answer === direction && r.head === ctx.head);
+  if (known) return null;
+  const ref = [...mergedRefs(ctx)].sort()[0] ?? ctx.headRef.split('/').pop();
+  let lead = '';
+  try {
+    const old = fs.readFileSync(file);
+    if (old.length > 0 && old[old.length - 1] !== 10) lead = '\n';
+  } catch { /* no ledger yet */ }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, `${lead}${JSON.stringify({
+    v: 1, ts: new Date().toISOString(), actor: 'merge-cleanup', type: 'directed_merge', ref_id: ref, pr: ctx.opts.pr, by: 'human',
+    answer: direction, head: ctx.head, merge_commit: ctx.mc,
+    decision: `owner-directed merge of PR #${ctx.opts.pr} at head ${ctx.head} via /aai-merge (one PR, one head, --match-head-commit)`,
+  })}\n`);
+  return 'docs/ai/decisions.jsonl';
+}
+
 const REPORT_DIR = 'docs/ai/reports';
 const utcStamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
 
@@ -574,6 +707,7 @@ function renderReport(report) {
     `- merge commit: ${report.mergeCommit}`,
     `- base: ${report.base}`,
     `- final HEAD: ${report.head}`,
+    `- merged head: ${report.mergedHead}`,
     ...(report.direction ? [`- direction: ${report.direction}`] : []),
     `- audit: ${report.audit ?? 'not run'}`,
     '',
@@ -638,6 +772,7 @@ function buildReport(ctx, steps) {
     mergeCommit: ctx.mc,
     base: ctx.base,
     head: headRev.status === 0 ? headRev.stdout.trim() : null,
+    mergedHead: ctx.head,
     steps,
     archived: ctx.archived,
     retained: ctx.drafts.retained,
@@ -666,7 +801,7 @@ function emit(report, json) {
 }
 
 function runApplyOrPlan(opts) {
-  const stopAfter = process.env.AAI_MERGE_CLEANUP_STOP_AFTER;
+  const stopAfter = seam('AAI_MERGE_CLEANUP_STOP_AFTER');
   if (stopAfter && !STEP_IDS.includes(stopAfter)) usage(`AAI_MERGE_CLEANUP_STOP_AFTER names an unknown step: ${stopAfter}`);
   const origin = resolveOrigin(opts);
   const gate = readAndGate(opts, origin);
@@ -679,6 +814,13 @@ function runApplyOrPlan(opts) {
     if (opts.mode === 'plan' && !['resolve', 'plan', 'report'].includes(id)) {
       steps.push({ id, status: 'planned' });
       continue;
+    }
+    if (id === 'report') {
+      const rec = recordDirection(ctx);
+      if (rec) {
+        steps.push({ id: 'record-direction', status: 'done', detail: rec });
+        appendJsonl(journal, { step: 'record-direction', status: 'done', detail: rec, timestamp: new Date().toISOString() });
+      }
     }
     const res = id === 'report' ? (opts.mode === 'apply' ? reportStep(ctx, steps) : { status: 'read' }) : HANDLERS[id](ctx);
     steps.push({ id, status: res.status, ...(res.detail ? { detail: res.detail } : {}) });
@@ -721,6 +863,7 @@ function runPreflight(opts) {
     process.stdout.write(`already_merged PR #${opts.pr} is merged; run: merge-cleanup.mjs apply --pr ${opts.pr} --pid <harness pid>\n`);
     exit(0);
   }
+  checkRepo(cwd, pr.url);
   if (pr.state !== 'OPEN') refuse('not_open', `state=${pr.state ?? 'unknown'}`);
   if (pr.isDraft) refuse('draft', `PR #${opts.pr} is a draft`);
   const head = pr.headRefOid ?? '';
@@ -729,6 +872,14 @@ function runPreflight(opts) {
   const bad = rollup.filter((e) => !rollupGreen(e));
   if (bad.length > 0) refuse('checks_failing', bad.map((e) => `${e.name ?? e.context ?? 'check'}=${e.conclusion || e.state || e.status || 'unknown'}`).join(','));
   if (pr.mergeStateStatus !== 'CLEAN') refuse('not_mergeable', `mergeStateStatus=${pr.mergeStateStatus ?? 'unknown'}`);
+  // NB-1: lane-gate judges the sweep record against THIS checkout's HEAD while the
+  // printed merge command binds the PR head; the two must be one commit, or a push
+  // made elsewhere would be merged on the strength of a sweep that never saw it.
+  const local = git(cwd, ['rev-parse', 'HEAD']);
+  const localHead = local.status === 0 ? local.stdout.trim() : '';
+  if (localHead.toLowerCase() !== head.toLowerCase()) {
+    refuse('head_changed', `local HEAD ${localHead || 'unknown'} is not the PR head ${head}; sync this checkout to the PR head before merging`);
+  }
   // The sweep is judged by the real lane-gate, in the checkout named by --origin
   // (the ride checkout the merge is being judged from), else the engine's own.
   const gateArgs = [path.join(SCRIPT_DIR, 'lane-gate.mjs'), '--sweep-check', '--pr', String(opts.pr)];
