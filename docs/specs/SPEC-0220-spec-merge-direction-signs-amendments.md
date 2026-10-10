@@ -2,15 +2,17 @@
 id: spec-merge-direction-signs-amendments
 type: spec
 number: 220
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 6b03635cea31f44c8b7a10adfa7021d0c773395bbf557bfaeff803db1b277aae
 ceremony_level: 2
 links:
   requirement: merge-direction-signs-amendments
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a0f53aeb571f76cc8ff929f50d78d4db54c428f0
 ---
 
 # Spec — the owner's merge direction signs the ride's contract amendments

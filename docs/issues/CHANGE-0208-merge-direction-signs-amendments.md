@@ -2,10 +2,12 @@
 id: merge-direction-signs-amendments
 type: change
 number: 208
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - a0f53aeb571f76cc8ff929f50d78d4db54c428f0
 ---
 
 # The owner's merge direction signs the ride's contract amendments

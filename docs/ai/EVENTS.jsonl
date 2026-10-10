@@ -2967,3 +2967,9 @@
 {"v":1,"ts":"2026-10-10T20:06:25Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":588,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-10T20:20:26Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":588,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-10T21:26:52Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":588,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-10T21:31:40Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"merge-direction-signs-amendments","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-10T21:31:40Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"merge-direction-signs-amendments","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-10T21:31:40Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"merge-direction-signs-amendments","payload":{"commit":"a0f53aeb571f76cc8ff929f50d78d4db54c428f0"}}
+{"v":1,"ts":"2026-10-10T21:31:40Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-merge-direction-signs-amendments","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-10T21:31:40Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-merge-direction-signs-amendments","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-10T21:31:40Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-merge-direction-signs-amendments","payload":{"commit":"a0f53aeb571f76cc8ff929f50d78d4db54c428f0"}}
