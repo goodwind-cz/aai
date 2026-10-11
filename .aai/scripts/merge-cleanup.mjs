@@ -151,6 +151,14 @@ function ghPrView(cwd, pr, maxBuffer) {
   return spawnSync('gh', viewArgs, { cwd, encoding: 'utf8', maxBuffer });
 }
 
+// Open PRs stacked on a branch (their BASE): deleting that branch can close them. Same gh seam.
+function ghDependents(cwd, branch) {
+  const listArgs = ['pr', 'list', '--state', 'open', '--base', branch, '--json', 'number', '--limit', '100'];
+  const stub = seam('AAI_MERGE_CLEANUP_GH_NODE');
+  if (stub && path.isAbsolute(stub)) return spawnSync(process.execPath, [stub, ...listArgs], { cwd, encoding: 'utf8' });
+  return spawnSync('gh', listArgs, { cwd, encoding: 'utf8' });
+}
+
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const posix = (p) => p.split(path.sep).join('/');
 
@@ -913,6 +921,16 @@ function remoteProof(ctx) {
   if ([ctx.base, defaultBranch].includes(b)) return { retain: ['remote_is_base', `${b} is the base or default branch`] };
   if (remoteOid === '') return { absent: true };
   if (!/^[0-9a-f]{40}$/i.test(ctx.head) || remoteOid !== ctx.head) return { retain: ['remote_moved', `origin/${b} at ${remoteOid}, PR head ${ctx.head || 'unknown'}`] };
+  const dep = ghDependents(ctx.origin, b);
+  let nums = null;
+  if (!dep.error && dep.status === 0) {
+    try {
+      const rows = JSON.parse(dep.stdout);
+      if (Array.isArray(rows) && rows.every((x) => Number.isInteger(x?.number))) nums = rows.map((x) => x.number);
+    } catch { nums = null; }
+  }
+  if (nums === null) return { retain: ['remote_unknown', 'open pull requests based on the branch could not be listed'] };
+  if (nums.length > 0) return { retain: ['remote_has_dependents', `open pull requests based on it: ${nums.map((n) => `#${n}`).join(', ')}`] };
   return { oid: remoteOid };
 }
 

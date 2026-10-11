@@ -82,6 +82,12 @@ if [ "$#" -eq 5 ] && [ "$1" = pr ] && [ "$2" = view ] && [ "$4" = --json ] && [ 
   case "$3" in ''|*[!0-9]*) echo "STUB-DENY: pr number $3" >&2; exit 1 ;; esac
   if [ -f "$dir/pr-$3.json" ]; then cat "$dir/pr-$3.json"; exit 0; fi
 fi
+if [ "$#" -eq 10 ] && [ "$1" = pr ] && [ "$2" = list ] && [ "$3" = --state ] && [ "$4" = open ] && [ "$5" = --base ] && [ "$7" = --json ] && [ "$8" = number ] && [ "$9" = --limit ] && [ "${10}" = 100 ]; then
+  [ -f "$dir/deps-fail" ] && { echo 'STUB: pr list failed' >&2; exit 1; }
+  key="${6//\//_}"
+  if [ -f "$dir/deps-$key.json" ]; then cat "$dir/deps-$key.json"; else echo '[]'; fi
+  exit 0
+fi
 printf 'STUB-DENY: unexpected argv: %s\n' "$*" >&2
 exit 1
 GHSTUB
@@ -2682,6 +2688,27 @@ test_041_rejected_and_unreadable_never_stop() {
   echo 'PASS: TEST-041 a rejected or unreadable remote never stops the run'
 }
 
+test_043_dependents_retain_remote_branch() {
+  # arm dependents: one open PR is based on the head branch
+  build_world remote_dependents
+  printf '[{"number":512}]\n' > "$GHD/deps-${BRANCH//\//_}.json"
+  run_engine plan --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-043 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-043 "$ENG_OUT" 'retain origin/ride/foo (remote_has_dependents)'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-043 remote_has_dependents 'dependents arm'
+  want TEST-043 "$(rstep "$ENG_OUT" detail)" '#512'
+  want TEST-043 "$(cat "$GHD/gh-argv.log")" "pr list --state open --base $BRANCH --json number --limit 100"
+  bare_has "$BRANCH" || fail TEST-043 'dependents arm: the remote branch was deleted'
+  # arm unlisted: the dependents query fails, fail closed
+  build_world remote_dependents_unknown
+  : > "$GHD/deps-fail"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-043 remote_unknown 'unlisted arm'
+  bare_has "$BRANCH" || fail TEST-043 'unlisted arm: the remote branch was deleted'
+  echo 'PASS: TEST-043 a branch with open dependent pull requests is never deleted'
+}
+
 test_042_canon_runs_block_unwrapped() {
   local text flat rest step3 sh_block ps_block credit
   text="$(cat "$PROMPT")"
@@ -2726,7 +2753,7 @@ case "$SELECTED" in
      test_035_submodule_tags_archived
      test_036_remote_branch_deleted_by_lease; test_037_moved_remote_retained; test_038_absent_noop_and_idempotent
      test_039_fork_and_unknown_origin_retained; test_040_base_default_and_bad_name_retained; test_041_rejected_and_unreadable_never_stop
-     test_042_canon_runs_block_unwrapped ;;
+     test_042_canon_runs_block_unwrapped; test_043_dependents_retain_remote_branch ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -2769,5 +2796,6 @@ case "$SELECTED" in
   TEST-040|test_040_base_default_and_bad_name_retained) test_040_base_default_and_bad_name_retained ;;
   TEST-041|test_041_rejected_and_unreadable_never_stop) test_041_rejected_and_unreadable_never_stop ;;
   TEST-042|test_042_canon_runs_block_unwrapped) test_042_canon_runs_block_unwrapped ;;
+  TEST-043|test_043_dependents_retain_remote_branch) test_043_dependents_retain_remote_branch ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac
