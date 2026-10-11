@@ -8,6 +8,7 @@ delivered_by:
   - merge-direction-signs-amendments
   - merge-cleanup-submodule-worktree
   - merge-cleanup-delete-remote-branch
+  - merge-cleanup-ride-leftovers
 spec: docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
 updated: 2026-10-11
 ---
@@ -55,6 +56,20 @@ command, and the cleanup signs them once the merge is on the base. A tracker of
 owed sign-offs closes when every contract amendment it tracks is signed. There
 is no separate sign-off question before the merge. A merge made without your
 direction (a lane or standing merge) signs nothing.
+
+The cleanup also handles the traces a ride leaves behind itself:
+
+- **The ride's own roadmap entry.** A roadmap entry the ride wrote into the
+  main checkout is set aside into the archive, and the merged roadmap is taken.
+  This is only when the local change touches nothing but that ride's entry;
+  any other local roadmap change still stops the cleanup.
+- **Ledger lines written after the last commit.** Lines appended to the ride
+  worktree's append-only ledgers after its last commit (test-run records,
+  events) move byte for byte to the main checkout's ledgers, and the worktree
+  is then removed. Any other edit there still stops the cleanup.
+- **A changed cleanup engine.** When the merged pull request changes the
+  cleanup engine itself, the new engine finishes the run in the same
+  invocation.
 
 When anything is uncertain, it stops and names the reason rather than guessing.
 Running it again, or after an interruption, finishes the remaining steps and
@@ -186,6 +201,13 @@ reports the completed ones as no-ops.
   A file written into a submodule between the last check and the removal, or
   a commit reachable only from notes or other custom refs, is not protected.
   A forced removal with submodules is not exercised on native Windows.
+- Moved ledger lines are matched through an append-intent record in the run
+  journal. A crash between the ride-ledger reset and its journal record can
+  make a later, byte-identical ride tail count as already moved; that copy
+  then lives only in the archive. A main ledger rewritten shorter between a
+  crash and the re-run gets the tail appended again (a visible duplicate).
+  A replaced engine that fails stops with `STOPPED reexec_child_exit_<n|signal>`
+  (exit 4).
 - A draft whose content differs from the delivered document is kept, with a
   named reason, unless you pass `--archive-divergent` for it.
 - The engine cannot prove that `--direction` words are yours; only the skill
@@ -207,3 +229,5 @@ reports the completed ones as no-ops.
 - Submodule spec: docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md
 - Remote-branch request: docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md
 - Remote-branch spec: docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md
+- Ride-leftovers request: docs/issues/CHANGE-0210-merge-cleanup-ride-leftovers.md
+- Ride-leftovers spec: docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md

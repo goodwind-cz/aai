@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-11T13:20:24.035Z
+Generated: 2026-10-11T17:30:55.295Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -31,7 +31,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | configurable-merge-policy-lanes | configurable-merge-policy-lanes | 1 | docs/product/configurable-merge-policy-lanes.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
-| directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 4 | docs/product/directed-merge-and-post-merge-cleanup.md |
+| directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 5 | docs/product/directed-merge-and-post-merge-cleanup.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
@@ -55,7 +55,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (519)
+## Done (521)
 
 | ID | Type | Path |
 |---|---|---|
@@ -264,6 +264,7 @@ _None._
 | CHANGE-0207 | issues | docs/issues/CHANGE-0207-classify-same-ts-pair.md |
 | CHANGE-0208 | issues | docs/issues/CHANGE-0208-merge-direction-signs-amendments.md |
 | CHANGE-0209 | issues | docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md |
+| CHANGE-0210 | issues | docs/issues/CHANGE-0210-merge-cleanup-ride-leftovers.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -576,6 +577,7 @@ _None._
 | SPEC-0220 | specs | docs/specs/SPEC-0220-spec-merge-direction-signs-amendments.md |
 | SPEC-0221 | specs | docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md |
 | SPEC-0222 | specs | docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md |
+| SPEC-0223 | specs | docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
