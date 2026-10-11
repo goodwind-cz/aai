@@ -218,7 +218,7 @@ test_gitignore_seed_idempotent_and_respectful() {
   bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" > "$TEST_DIR/seed1.log"
   bash "$BOOTSTRAP_SCRIPT" "$TEST_DIR" --force > "$TEST_DIR/seed2.log"  # re-run = idempotency probe
   local n_state n_marker
-  n_state="$(grep -cF 'docs/ai/STATE.yaml' "$TEST_DIR/.gitignore")"
+  n_state="$(grep -cxF 'docs/ai/STATE.yaml' "$TEST_DIR/.gitignore")"
   [[ "$n_state" -eq 1 ]] || log_fail "gitignore-seed: docs/ai/STATE.yaml duplicated ($n_state occurrences)"
   n_marker="$(grep -cF 'AAI runtime sidecars' "$TEST_DIR/.gitignore")"
   [[ "$n_marker" -eq 1 ]] || log_fail "gitignore-seed: marker comment must appear exactly once ($n_marker)"
@@ -258,7 +258,7 @@ test_gitignore_seed_uses_shared_library() {
   bash "$BOOTSTRAP_SCRIPT" "$dir" --force >/dev/null 2>&1 || log_fail "TEST-017: bootstrap --force re-run failed"
 
   local n_state n_marker
-  n_state="$(grep -cF 'docs/ai/STATE.yaml' "$dir/.gitignore")"
+  n_state="$(grep -cxF 'docs/ai/STATE.yaml' "$dir/.gitignore")"
   [[ "$n_state" -eq 1 ]] || log_fail "TEST-017: docs/ai/STATE.yaml duplicated ($n_state occurrences) after extraction"
   n_marker="$(grep -cF 'AAI runtime sidecars' "$dir/.gitignore")"
   [[ "$n_marker" -eq 1 ]] || log_fail "TEST-017: marker comment count is $n_marker after extraction, expected 1"
