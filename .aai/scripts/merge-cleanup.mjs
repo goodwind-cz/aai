@@ -64,7 +64,7 @@ options: --origin <abs> --json --archive-divergent <path> (apply, repeatable)
 the ride's own leftovers (apply): a roadmap change confined to the merged ride's entry is archived and the
          incoming roadmap taken; whole lines appended to the ride worktree's ledgers are moved to the main checkout
          (archived first, journalled, reported as moved lines); an engine file replaced by the base sync is run
-         again once (reload-engine), and a re-run child that exits other than 0 or 4 prints STOPPED reexec_child_exit_<n> (exit 4)
+         again once (reload-engine), and a re-run child that exits other than 0 or 4 prints STOPPED reexec_child_exit_<n|signal> (exit 4)
 exit: 0 complete, 2 usage, 3 refused, 4 stopped mid-way, 10 preflight ready
 `;
 
@@ -1005,33 +1005,45 @@ function moveLedgerTails(ctx, wt) {
       // the append and its bytes occur at a line start in the main ledger at or after the recorded
       // length of the ledger at intent time. This run's own archive has no intent yet, so a first run
       // appends the whole tail, a line already present in the ledger included.
-      const records = readJsonl(journal).filter((r) => r.step === LEDGER_APPEND_STEP && r.ledger === t.rel);
+      // A reset record (written after the ride ledger was reset) retires every intent before it: those
+      // bytes were moved and the ride file rewritten, so a later identical tail is new content.
+      let open = [];
+      const doneArchives = new Set();
+      for (const r of readJsonl(journal)) {
+        if (r.step !== LEDGER_APPEND_STEP || r.ledger !== t.rel) continue;
+        if (r.status === 'intent') open.push(r);
+        else if (r.status === 'reset') { open = []; doneArchives.clear(); }
+        else if (r.status === 'done') doneArchives.add(r.archive);
+      }
       let already = 0;
-      for (const r of records.filter((x) => x.status === 'intent')) {
+      for (const r of open) {
         let c = null;
         try { c = fs.readFileSync(path.join(ctx.origin, r.archive)); } catch { continue; }
         const from = Math.min(r.mainLen ?? 0, cur ? cur.length : 0);
         if (c.length > t.tail.length || !t.tail.subarray(0, c.length).equals(c) || !atLineStart(cur, c, from)) continue;
         already = Math.max(already, c.length);
-        // the append happened but the crash came before its done record: record it now
-        if (!records.some((x) => x.status === 'done' && x.archive === r.archive)) {
-          appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'done', ledger: t.rel, archive: r.archive, sha256: r.sha256, lines: r.lines, timestamp: new Date().toISOString() });
+        // the append happened but the crash came before its done record: record it now, once per archive
+        if (!doneArchives.has(r.archive)) {
+          doneArchives.add(r.archive);
+          appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'done', ledger: t.rel, archive: r.archive, sha256: r.sha256, lines: r.lines, intent: r.timestamp, timestamp: new Date().toISOString() });
         }
       }
       if (already < t.tail.length) {
         const seg = t.tail.subarray(already);
-        appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'intent', ledger: t.rel, archive: arch.rel, sha256: arch.digest, length: t.tail.length, mainLen: cur ? cur.length : 0, lines: countLines(seg), timestamp: new Date().toISOString() });
+        const intentAt = new Date().toISOString();
+        appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'intent', ledger: t.rel, archive: arch.rel, sha256: arch.digest, length: t.tail.length, mainLen: cur ? cur.length : 0, lines: countLines(seg), timestamp: intentAt });
         crashAt('ledger-move-after-intent');
         fs.mkdirSync(path.dirname(main), { recursive: true });
         fs.appendFileSync(main, seg);
         crashAt('ledger-move-after-append');
-        appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'done', ledger: t.rel, archive: arch.rel, sha256: arch.digest, lines: countLines(seg), timestamp: new Date().toISOString() });
+        appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'done', ledger: t.rel, archive: arch.rel, sha256: arch.digest, lines: countLines(seg), intent: intentAt, timestamp: new Date().toISOString() });
       }
       const abs = path.join(wt.path, t.rel);
       let now = null;
       try { now = fs.readFileSync(abs); } catch { /* removed */ }
       if (!now || !now.equals(t.bytes)) stop('worktree_dirty', `${t.rel} changed during the move`);
       fs.writeFileSync(abs, t.head);
+      appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'reset', ledger: t.rel, archive: arch.rel, timestamp: new Date().toISOString() });
     }
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -1045,7 +1057,8 @@ function movedFromManifest(ctx) {
   for (const r of readJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'journal.jsonl'))) {
     if (r.step !== LEDGER_APPEND_STEP || r.status !== 'done') continue;
     const e = done.get(r.ledger) ?? { ledger: r.ledger, lines: 0, sha256: r.sha256, archive: r.archive, seen: new Set() };
-    if (!e.seen.has(r.archive)) { e.seen.add(r.archive); e.lines += r.lines; e.sha256 = r.sha256; e.archive = r.archive; }
+    const key = r.intent ?? r.archive;
+    if (!e.seen.has(key)) { e.seen.add(key); e.lines += r.lines; e.sha256 = r.sha256; e.archive = r.archive; }
     done.set(r.ledger, e);
   }
   return [...done.values()].map(({ ledger, lines, sha256: digest, archive }) => ({ ledger, lines, sha256: digest, archive }))

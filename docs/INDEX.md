@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-11T14:49:08.204Z
+Generated: 2026-10-11T15:29:27.863Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-merge-cleanup-ride-leftovers | specs | implementing | 8 planned | docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md |
+| spec-merge-cleanup-ride-leftovers | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md |
 
 ## Canonical layer (0)
 

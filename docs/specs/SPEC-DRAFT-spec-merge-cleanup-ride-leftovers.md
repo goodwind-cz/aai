@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: e6af583bf929931dbc2a7c47604e7c4408a109e0da73f4dad93371ec4c270148
+frozen_sha256: 858367bfb1342a3226a0d2ee9fbc2b734e1fb9fd44d47a7ed4c7090d0c3e6a76
 ceremony_level: 2
 links:
   requirement: merge-cleanup-ride-leftovers
@@ -89,8 +89,8 @@ reload.
 
 One ride, 6 Spec-ACs, 6 TEST rows. Expected three TDD dispatches:
 (A) TEST-045, TEST-046 (roadmap); (B) TEST-047, TEST-048 (ledger tails);
-(C) TEST-049, TEST-050 (engine reload); (D) TEST-051, TEST-052 (remediation round 1: the
-tail resume key and report count, the re-exec child exit); then V1 to V5.
+(C) TEST-049, TEST-050 (engine reload); (D) TEST-051, TEST-052, TEST-053 (remediation rounds 1 and 2: the
+tail resume key and report count, the re-exec child exit, the reset record and the done record per archive); then V1 to V5.
 
 ## Measured facts (scratch repos, git 2.54.0, node from PATH, 2026-10-11)
 
@@ -211,13 +211,22 @@ tail resume key and report count, the re-exec child exit); then V1 to V5.
      the append leaves one it finds (the re-run appends nothing more);
   4. compare-then-write: when the worktree file still equals `B`, write `H`
      to it; otherwise stop `worktree_dirty <rel> changed during the move`
-     (exit 4).
+     (exit 4);
+  5. after that write, the journal record `{ step: 'ledger-append', status:
+     'reset', ledger, archive }`. A reset record retires every earlier intent
+     of the ledger: its bytes were moved and the ride file rewritten, so a
+     later ride tail identical to it is new content and is appended, never
+     skipped as already moved (the resume test reads only the intents after
+     the last reset record). Each archive gets one done record per append, a
+     second intent for the same archive included.
   The archive, the intent and the done record make a re-run after a crash at
   any point idempotent: no tail byte is appended twice and none is lost. A
   hand-copied tail with no intent is appended again (a visible duplicate in an
   append-only ledger, never a silent loss). The residual false skip needs a
   crash, a re-run and a byte-identical block at or after `mainLen` that
-  another writer put there.
+  another writer put there. A main ledger rewritten shorter between a crash
+  and the re-run, with the tail kept in it, gets the tail appended again (a
+  visible duplicate, not a loss).
 - D9 `planChecks` also refuses `ledger_unaligned <rel>` (exit 3, nothing
   written) when a qualifying ledger's main-checkout copy is non-empty and does
   not end with `\n` at plan time.
@@ -352,6 +361,7 @@ None.
 | Spec-AC-06 | WHEN the re-executed engine finds its own file changed again during its run (self-touching fixture variant), the system SHALL NOT re-execute a second time: apply SHALL exit 0 and the variant SHALL have been loaded exactly once; WHEN the re-executed run is stopped after the state step (STOP_AFTER seam), apply SHALL exit 4 and a re-run SHALL exit 0 with the fixture-marker step run exactly once overall. | planned | — | — | D12, D13, D14; seam S4 |
 | Spec-AC-07 | WHEN a ride ledger tail holds a line byte-identical to one already in the main checkout's ledger, a first apply SHALL append the whole tail byte-exact (the line occurs twice) and the moved list SHALL count it; WHEN the run is killed at ledger-move-after-intent a re-run SHALL append the tail exactly once; WHEN it is killed at ledger-move-after-append a re-run SHALL append nothing more, and in every case the moved list SHALL hold one entry per ledger whose lines equal the lines actually appended, a later late line included. | planned | — | — | D8, D10; remediation r1 (validation NB-1, review finding 1 and 2) |
 | Spec-AC-08 | WHEN the re-executed engine exits with a status other than 0 or 4 (a refusal status 3, a merged engine that does not load, or a signal), apply SHALL print one STOPPED reexec_child_exit_ line naming the status or signal as the only stdout line and exit 4; WHEN the child exits 4 on its own stop its output SHALL pass through unchanged. | planned | — | — | D12; remediation r1 (validation NB-2, review finding 3) |
+| Spec-AC-09 | WHEN a ride ledger tail is identical to one already moved and the ride file was reset after that move, a re-run SHALL append the later tail again (main holds the line once per write, nothing lost) and the moved list SHALL count both; WHEN several intent records exist for one archive, the journal SHALL hold exactly one done record for that append. | planned | — | — | D8, D10; remediation r2 (validation NB-r2-1 and NB-r2-3) |
 
 ## Implementation plan
 
@@ -407,8 +417,9 @@ None.
 | TEST-048 | Spec-AC-04 | integration | tests/skills/test-aai-merge-cleanup.sh | test_048_non_append_ledger_change_refused: refuse_arm worktree_dirty for arm rewrite (first ledger line replaced in the ride), arm partial (tail without a final newline), arm staged (append then git add), arm plus-file (append plus a modified README.md), arm plus-untracked (append plus stray.txt); each arm: the worktree and branch still exist; arm late: TOUCH_AT before-remove-verify appends to the ride's test-runs.jsonl, apply exits 4 with worktree_dirty, the worktree exists and holds the late line, a re-run exits 0 and the late line occurs once in the main ledger | sed:s/const appendOnly = [^;]*;/const appendOnly = true;/ | green |
 | TEST-049 | Spec-AC-05 | integration | tests/skills/test-aai-merge-cleanup.sh | test_049_merged_engine_runs_in_the_same_apply: engine world (tracked engine copy in the origin; the ride commit replaces it with the generated fixture-marker variant); apply --json run from the origin's engine exits 0, stdout parses as one JSON document, steps contain fixture-marker done and reload-engine done whose detail names the first 12 hex of both shas, stderr has exactly one re-executing line, the journal has exactly one reexec record, the marker file has one line; a second apply exits 0 with no reload-engine step, every action step noop, fixture-marker noop and an equal world digest; control: the plain build_world apply reports no reload-engine step | sed:s/function reexecIfReplaced\(ctx\) \{/function reexecIfReplaced(ctx) { return null;/ | green |
 | TEST-050 | Spec-AC-06 | integration | tests/skills/test-aai-merge-cleanup.sh | test_050_reexec_runs_once_and_resumes: arm guard: the variant appends a comment to its own file at load and logs each load to a fixture file, refusing with exit 99 on a third load; apply exits 0 and the load log has exactly one variant line; arm interrupted: STOP_AFTER state with test seams, apply exits 4 after the child stopped, a re-run without seams exits 0 with fixture-marker done, no reload-engine step, and the marker file has one line | sed:s/if \(process\.env\[REEXEC_ENV\]\) return null;/if (false) return null;/ | green |
-| TEST-051 | Spec-AC-07 | integration | tests/skills/test-aai-merge-cleanup.sh | test_051_ledger_tail_resume_key_and_count: ledger world; arm dup: the ride appends the seed line the main test-runs.jsonl already holds, apply appends it (count 2), tail -c equals the tail, JSON moved lines for test-runs is 1; arm late: CRASH_AT ledger-move-after-append, a late line appended in the ride, the re-run moves each line once and JSON moved holds one EVENTS entry of 3 lines; arm intent: CRASH_AT ledger-move-after-intent exits 137 with the duplicate not yet appended, the re-run appends it once (count 2) and moved is 1; arm after: crash after the append of the duplicate, the re-run appends nothing more (count 2) and moved is 1 | sed:s/const records = readJsonl\(journal\)\.filter\([^;]*;/const records = [];/ | green |
+| TEST-051 | Spec-AC-07 | integration | tests/skills/test-aai-merge-cleanup.sh | test_051_ledger_tail_resume_key_and_count: ledger world; arm dup: the ride appends the seed line the main test-runs.jsonl already holds, apply appends it (count 2), tail -c equals the tail, JSON moved lines for test-runs is 1; arm late: CRASH_AT ledger-move-after-append, a late line appended in the ride, the re-run moves each line once and JSON moved holds one EVENTS entry of 3 lines; arm intent: CRASH_AT ledger-move-after-intent exits 137 with the duplicate not yet appended, the re-run appends it once (count 2) and moved is 1; arm after: crash after the append of the duplicate, the re-run appends nothing more (count 2) and moved is 1 | sed:s/for \(const r of readJsonl\(journal\)\) \{/for (const r of []) {/ | green |
 | TEST-052 | Spec-AC-08 | integration | tests/skills/test-aai-merge-cleanup.sh | test_052_reexec_child_exit_is_mapped: engine world with the generated variant; arm exit3: the variant prints REFUSE and exits 3 at load, apply exits 4 and stdout is exactly one STOPPED reexec_child_exit_3 line; arm sig: the variant kills itself with SIGKILL, stdout is one STOPPED reexec_child_exit_SIGKILL line; arm syntax: the variant has a syntax error appended, stdout is one STOPPED reexec_child_exit_1 line; control: STOP_AFTER state in the child exits 4 with no reexec_child_exit line | sed:s/if \(r\.status === 0 [^)]*\) \{/if (true) {/ | green |
+| TEST-053 | Spec-AC-09 | integration | tests/skills/test-aai-merge-cleanup.sh | test_053_reset_ride_ledger_is_not_a_resume_candidate: ledger world; arm ident: a late line is appended in the ride, TOUCH_AT before-remove-verify appends the byte-identical line again, apply stops with exit 4, the re-run exits 0 and main holds the line twice and the moved list counts 2; arm dint: three crashes (two at intent, one after the append) then a re-run, the duplicate line is in main twice (once appended), the journal holds one done record and moved is 1 | sed:s/else if \(r\.status === 'reset'\) \{ open = \[\]; doneArchives\.clear\(\); \}// | green |
 
 Mutation target: .aai/scripts/merge-cleanup.mjs for every row. The intake's
 "mutation that widens the predicate" is TEST-046's row (roadmap) and
@@ -418,7 +429,7 @@ and TEST-049's row respectively.
 ## Verification
 
 - V1: `env -u AAI_ROLE bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-merge-cleanup.sh`
-  exits 0 (TEST-001 to TEST-052 in the default order). Single test: append the
+  exits 0 (TEST-001 to TEST-053 in the default order). Single test: append the
   function name or `TEST-0xx`.
 - V2: `node .aai/scripts/mutation-run.mjs` per Test Plan row on the engine,
   then `node .aai/scripts/mutation-gate.mjs` at close.

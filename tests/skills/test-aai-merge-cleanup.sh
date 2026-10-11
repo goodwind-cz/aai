@@ -3217,6 +3217,38 @@ test_051_ledger_tail_resume_key_and_count() {
   echo 'PASS: TEST-051 a first run appends the whole tail and the moved count is what was appended'
 }
 
+test_053_reset_ride_ledger_is_not_a_resume_candidate() {
+  local journal late='written by another session' dones
+  # arm identical: a later ride tail byte-identical to one already moved (and the ride reset) is appended, not skipped
+  LEDGER_WORLD=1 build_world ident
+  printf '%s\n' "$late" >> "$RIDE/$TR"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_TOUCH_AT="before-remove-verify:$TR" run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-053 "ident arm stop exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$RIDE/$TR" "$late")" == 1 && "$(count_line "$ORIGIN/$TR" "$late")" == 1 ]] || fail TEST-053 'ident arm: the stop did not leave one line in the ride and one in main'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-053 "ident arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$TR" "$late")" == 2 ]] || fail TEST-053 "ident arm: main holds the identical later line $(count_line "$ORIGIN/$TR" "$late") times, want 2 (once per write)"
+  [[ "$(moved_lines "$ENG_OUT" "$TR")" == 2 ]] || fail TEST-053 "ident arm: moved lines is [$(moved_lines "$ENG_OUT" "$TR")], want 2"
+
+  # arm double-intent: three intents for one archive, one append; the journal holds exactly one done record
+  LEDGER_WORLD=1 build_world dint
+  printf '%s\n' "$RIDE_DUP" >> "$RIDE/$TR"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-intent run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-053 "dint arm first crash exited $ENG_RC, want 137"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-intent run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-053 "dint arm second crash exited $ENG_RC, want 137"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-053 "dint arm third crash exited $ENG_RC, want 137"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-053 "dint arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$TR" "$RIDE_DUP")" == 2 ]] || fail TEST-053 'dint arm: the duplicate line is not appended exactly once'
+  journal="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/journal.jsonl"
+  dones="$(/usr/bin/grep -c '"step":"ledger-append","status":"done"' "$journal" || true)"
+  [[ "$dones" == 1 ]] || fail TEST-053 "dint arm: the journal holds $dones done records for one append, want 1"
+  [[ "$(moved_lines "$ENG_OUT" "$TR")" == 1 ]] || fail TEST-053 "dint arm: moved lines is [$(moved_lines "$ENG_OUT" "$TR")], want 1"
+  echo 'PASS: TEST-053 a reset ride ledger is no resume candidate and every append has exactly one done record'
+}
+
 # child_exit_arm <name> <variant file> <FIXTURE_CHILD_EXIT value or empty> <tag in the STOPPED line>
 child_exit_arm() {
   local name="$1" variant="$2" mode="$3" tag="$4" stops
@@ -3266,7 +3298,7 @@ case "$SELECTED" in
      test_045_ride_roadmap_entry_taken_from_incoming; test_046_foreign_roadmap_hunk_refuses_overlap
      test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
      test_049_merged_engine_runs_in_the_same_apply; test_050_reexec_runs_once_and_resumes
-     test_051_ledger_tail_resume_key_and_count; test_052_reexec_child_exit_is_mapped ;;
+     test_051_ledger_tail_resume_key_and_count; test_052_reexec_child_exit_is_mapped; test_053_reset_ride_ledger_is_not_a_resume_candidate ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -3319,5 +3351,6 @@ case "$SELECTED" in
   TEST-050|test_050_reexec_runs_once_and_resumes) test_050_reexec_runs_once_and_resumes ;;
   TEST-051|test_051_ledger_tail_resume_key_and_count) test_051_ledger_tail_resume_key_and_count ;;
   TEST-052|test_052_reexec_child_exit_is_mapped) test_052_reexec_child_exit_is_mapped ;;
+  TEST-053|test_053_reset_ride_ledger_is_not_a_resume_candidate) test_053_reset_ride_ledger_is_not_a_resume_candidate ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac
