@@ -359,14 +359,17 @@ function closedRefs(eventsPath) {
   return refs;
 }
 
-// True when the LAST work_item_closed event for `ref` is followed by a later
-// doc_lifecycle event whose payload.from is "done" (a re-open) — the same
-// notion orchestration-dispatch.mjs calls close_event_superseded_by_reopen. A
-// superseded close is not a close: the ceremony has to run again.
-function closeSupersededByReopen(eventsPath, ref) {
-  if (!fs.existsSync(eventsPath)) return false;
+// The close/re-open scan --release uses for ALL its provenance checks, with the
+// dispatcher's exact-or-path-component ref semantics (refMatches, identical to
+// orchestration-dispatch.mjs:refMatches): a close event the dispatcher accepted
+// for the focus ref ("docs/issues/CHANGE-0001" for "CHANGE-0001") is therefore
+// one --release accepts too, so the remedy dispatch prints can never refuse.
+// closedRefs() above stays exact on purpose: it is the --sweep / --retire
+// predicate and must match close-work-item.mjs:hasWorkItemClosed.
+function scanCloseEvents(eventsPath, ref) {
   let lastClose = -1;
   let lastReopen = -1;
+  if (!fs.existsSync(eventsPath)) return { lastClose, lastReopen };
   const evLines = fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/);
   for (let i = 0; i < evLines.length; i += 1) {
     const t = evLines[i].trim();
@@ -378,6 +381,20 @@ function closeSupersededByReopen(eventsPath, ref) {
       else if (o.event === 'doc_lifecycle' && o.payload && o.payload.from === 'done') lastReopen = i;
     } catch { /* best-effort matching probe */ }
   }
+  return { lastClose, lastReopen };
+}
+
+// True when a work_item_closed event matching `ref` (dispatcher semantics) exists.
+function hasCloseEventFor(eventsPath, ref) {
+  return scanCloseEvents(eventsPath, ref).lastClose !== -1;
+}
+
+// True when the LAST work_item_closed event for `ref` is followed by a later
+// doc_lifecycle event whose payload.from is "done" (a re-open) — the same
+// notion orchestration-dispatch.mjs calls close_event_superseded_by_reopen. A
+// superseded close is not a close: the ceremony has to run again.
+function closeSupersededByReopen(eventsPath, ref) {
+  const { lastClose, lastReopen } = scanCloseEvents(eventsPath, ref);
   return lastClose !== -1 && lastReopen > lastClose;
 }
 
@@ -1123,6 +1140,32 @@ function applyReleaseReset(lines, ref, nowIso, carryWaiver, vRefNow, crScopeRef)
   }
 }
 
+// Release is STATE-first (a crash must never leave EVENTS claiming a release
+// that did not happen). The one window that remains is "STATE committed, event
+// not yet appended"; a pending record next to STATE proves that window was a
+// release in flight, so a retry appends ONLY the missing event (never a
+// duplicate, never a second STATE mutation). Written before the STATE commit,
+// removed after the event is durable.
+function releasePendingPath(statePath) { return `${statePath}.release-pending`; }
+
+function readReleasePending(statePath) {
+  try {
+    const o = JSON.parse(fs.readFileSync(releasePendingPath(statePath), 'utf8'));
+    return o && typeof o.ref === 'string' && o.event && o.event.event === RELEASED_EVENT && o.event.ref === o.ref ? o : null;
+  } catch { return null; }
+}
+
+function eventsHasLine(eventsPath, event) {
+  if (!fs.existsSync(eventsPath)) return false;
+  const want = JSON.stringify(event);
+  return fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/).some(l => l.trim() === want);
+}
+
+function appendReleaseEvent(eventsPath, event) {
+  fs.mkdirSync(path.dirname(eventsPath), { recursive: true });
+  fs.appendFileSync(eventsPath, `${JSON.stringify(event)}\n`);
+}
+
 function handleRelease(ctx) {
   const {
     ref, reason, entries, vStatus, vRef, focusRef, statusByRef, existingScopeRef,
@@ -1130,8 +1173,29 @@ function handleRelease(ctx) {
   } = ctx;
   const rStatusNow = readScalar(origLines, 'code_review', 'status');
 
-  // 1) Durable close provenance — the SAME predicate --sweep demands.
-  if (!closedRefs(eventsPath).has(ref)) {
+  // 0) An interrupted earlier release. Pending record + item still in STATE =
+  // the STATE commit never happened (crash or concurrent-modification
+  // rejection): the record is stale, drop it and release afresh. Pending record
+  // + item gone from STATE and from the ledger = the commit happened and only
+  // the event is missing: append exactly that event (resume), nothing else.
+  const pending = readReleasePending(statePath);
+  if (pending !== null && statusByRef.has(pending.ref)) {
+    if (!opts.dryRun) fs.rmSync(releasePendingPath(statePath), { force: true });
+  } else if (pending !== null && pending.ref === ref && !statusByRef.has(ref) && focusRef !== ref
+      && !entries.some(e => e.ref === ref) && !ledgerRefs(metricsPath).has(ref)
+      && hasCloseEventFor(eventsPath, ref) && !closeSupersededByReopen(eventsPath, ref)) {
+    if (opts.dryRun === true) {
+      console.log(JSON.stringify({ dry_run: true, release: ref, resume: true, event: pending.event }, null, 2));
+      exit(0);
+    }
+    if (!eventsHasLine(eventsPath, pending.event)) appendReleaseEvent(eventsPath, pending.event);
+    fs.rmSync(releasePendingPath(statePath), { force: true });
+    console.log(`Released: ${ref} -> ${path.relative(process.cwd(), eventsPath)} (${RELEASED_EVENT}; resumed an interrupted release, STATE was already released, telemetry absent, no METRICS entry written)`);
+    exit(0);
+  }
+
+  // 1) Durable close provenance — the dispatcher's own ref matching (see scanCloseEvents).
+  if (!hasCloseEventFor(eventsPath, ref)) {
     fail(`release refused: no committed work_item_closed event for "${ref}" in EVENTS.jsonl — `
       + 'the close ceremony has not run, so there is nothing to release', 1);
   }
@@ -1246,13 +1310,24 @@ function handleRelease(ctx) {
       + '— nothing written, original preserved', 1);
   }
 
-  // EVENTS-before-STATE: the record of the absence is durable before STATE changes.
-  fs.mkdirSync(path.dirname(eventsPath), { recursive: true });
-  fs.appendFileSync(eventsPath, `${JSON.stringify(event)}\n`);
+  // STATE-before-EVENTS: the event claims a release, so it is appended only
+  // after the STATE commit (with its concurrent-modification recheck) landed.
+  // The pending record is what lets a retry recognise a commit that landed
+  // without its event (see readReleasePending).
+  const pendingTmp = `${releasePendingPath(statePath)}.tmp-${process.pid}`;
+  fs.writeFileSync(pendingTmp, JSON.stringify({ ref, event }));
+  fs.renameSync(pendingTmp, releasePendingPath(statePath));
   if (releaseLedgerEntries.length > 0) {
     fs.appendFileSync(metricsPath, releaseLedgerEntries.map(e => JSON.stringify(e) + '\n').join(''));
   }
   writeState(statePath, lines, trailingNewline, raw);
+  if (process.env.AAI_FLUSH_INJECT_CRASH === 'after-state') {
+    // Test-only fault hook: die between the STATE commit and the event append —
+    // EVENTS must stay free of the claim; a re-run resumes event-only.
+    process.kill(process.pid, 'SIGKILL');
+  }
+  appendReleaseEvent(eventsPath, event);
+  fs.rmSync(releasePendingPath(statePath), { force: true });
 
   const check = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'check-state.mjs'), statePath], { encoding: 'utf8' });
   if (check.status !== 0) {

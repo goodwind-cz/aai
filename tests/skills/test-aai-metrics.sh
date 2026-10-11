@@ -3962,6 +3962,74 @@ test_1747_full_reset_keeps_unowned_fail() {  # TEST-1747 (Spec-AC-19)
   log_pass "A release never erases a fail verdict it does not own (TEST-1747)"
 }
 
+count_release_events() {  # $1 events file $2 ref — number of work_item_released lines naming the ref
+  node -e '
+    const fs = require("fs");
+    let n = 0;
+    for (const l of fs.readFileSync(process.argv[1], "utf8").split(/\r?\n/)) {
+      if (l.trim() === "") continue;
+      const o = JSON.parse(l);
+      if (o.event === "work_item_released" && o.ref === process.argv[2]) n += 1;
+    }
+    process.stdout.write(String(n));
+  ' "$1" "$2"
+}
+
+test_1749_crash_after_state_is_resumable() {  # TEST-1749 (Spec-AC-21)
+  log_info "Test: a release that dies after the STATE commit leaves no false event, and a retry appends the missing event exactly once (TEST-1749)..."
+  local d n
+  d="$(release_fixture t1749)"
+  snapshot_release_files "$d"
+  EC=0
+  AAI_FLUSH_INJECT_CRASH=after-state run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" != 0 ]] || log_fail "TEST-1749: the injected crash must kill the first release (got 0)"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.before" && log_fail "TEST-1749: the crash point is after the STATE commit, so STATE must have changed"
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "TEST-1749: EVENTS must carry no release claim for a release that did not finish"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.crashed"
+  run_flush_split "$d" --release WEDGE-0001 --dry-run
+  [[ "$EC" == 0 ]] || log_fail "TEST-1749: a dry run over the interrupted release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.crashed" || log_fail "TEST-1749: dry run must not write STATE"
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "TEST-1749: dry run must not write EVENTS"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1749: the retry must resume and exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  n="$(count_release_events "$d/docs/ai/EVENTS.jsonl" WEDGE-0001)"
+  [[ "$n" == 1 ]] || log_fail "TEST-1749: the retry must append exactly one work_item_released event (got $n)"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.crashed" || log_fail "TEST-1749: the resume must not touch STATE again"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1749: a third release of the same ref must refuse (got $EC)"
+  n="$(count_release_events "$d/docs/ai/EVENTS.jsonl" WEDGE-0001)"
+  [[ "$n" == 1 ]] || log_fail "TEST-1749: no duplicate event after a completed resume (got $n)"
+  log_pass "An interrupted release is resumable and never duplicated (TEST-1749)"
+}
+
+test_1750_rejected_commit_records_nothing() {  # TEST-1750 (Spec-AC-21)
+  log_info "Test: a STATE commit rejected for concurrent modification records no release, and a retry over a newly added run still records none (TEST-1750)..."
+  local d n
+  d="$(release_fixture t1750)"
+  snapshot_release_files "$d"
+  EC=0
+  AAI_STATE_INJECT_CONCURRENT=before-rename run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1750: a concurrent modification must be rejected with exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SERR")" "concurrent modification" "TEST-1750: refusal must name the concurrent modification"
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "TEST-1750: a rejected commit must leave no work_item_released event"
+  # (a) the retry on the unchanged-but-marked file completes exactly once
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1750: (a) the retry must succeed (got $EC): $(cat "$SOUT" "$SERR")"
+  n="$(count_release_events "$d/docs/ai/EVENTS.jsonl" WEDGE-0001)"
+  [[ "$n" == 1 ]] || log_fail "TEST-1750: (a) exactly one release event after the retry (got $n)"
+  # (b) the concurrent writer added an agent run: the retry refuses and no event is ever written
+  d="$(release_fixture t1750b)"
+  snapshot_release_files "$d"
+  AAI_STATE_INJECT_CONCURRENT=before-rename run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1750: (b) first attempt must be rejected (got $EC)"
+  write_release_state "$d/docs/ai/STATE.yaml" WEDGE-0001 row=runs
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1750: (b) a row that now carries runs must refuse (got $EC): $(cat "$SOUT" "$SERR")"
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "TEST-1750: (b) EVENTS must never claim a release that did not happen"
+  [[ ! -e "$d/docs/ai/STATE.yaml.release-pending" ]] || log_fail "TEST-1750: (b) the stale in-flight record must be dropped once the STATE commit is known not to have happened"
+  log_pass "A rejected release leaves no false record (TEST-1750)"
+}
+
 test_1743_release_refuses_reopened_close() {  # TEST-1743 (Spec-AC-16)
   log_info "Test: --release refuses a close superseded by a later re-open from done; a re-close makes it releasable (TEST-1743)..."
   local d
@@ -4115,6 +4183,8 @@ main() {
   test_1741_release_reset_is_surgical
   test_1742_release_refuses_fail_verdict
   test_1747_full_reset_keeps_unowned_fail
+  test_1749_crash_after_state_is_resumable
+  test_1750_rejected_commit_records_nothing
   test_1743_release_refuses_reopened_close
   test_1745_release_flag_conflicts
   echo ""

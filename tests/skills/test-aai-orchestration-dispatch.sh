@@ -4884,6 +4884,40 @@ test_1740_named_remedy_succeeds_seam() {  # TEST-1740 (Spec-AC-13)
   log_pass "The remedy dispatch names always acts, so the wedge cannot persist (TEST-1740)"
 }
 
+test_1748_path_qualified_close_remedy_seam() {  # TEST-1748 (Spec-AC-20)
+  log_info "Test: seam — a close event with a path-qualified ref that dispatch accepts for the focus is also accepted by the --release dispatch prints (TEST-1748)..."
+  local d shape vs cmdline ref why
+  for vs in not_run pass; do
+    for shape in none empty; do
+      d="$(unflushable_fixture "TEST-1748-$vs-$shape" "$shape" "$vs")"
+      printf '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"fixture","event":"work_item_closed","ref":"docs/issues/CHANGE-0001","payload":{"validation":"pass","code_review":"none"}}\n' \
+        > "$d/docs/ai/EVENTS.jsonl"
+      run_dispatch "$d"
+      [[ "$EC" == 4 ]] || log_fail "TEST-1748: ($vs/$shape) precondition: path-qualified close must still reach needs_llm exit 4 (got $EC): $(cat "$OUT" "$ERR")"
+      jassert "$OUT" 'o.rule === "4b"'
+      cmdline="$(node -e '
+        const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+        const r = o.reasons.find(x => typeof x === "string" && x.includes("metrics-flush.mjs --release"));
+        const m = r && r.match(/node \.aai\/scripts\/metrics-flush\.mjs --release (\S+) --reason "([^"]*)"$/);
+        if (!m) { console.error("no runnable remedy in reasons"); process.exit(1); }
+        process.stdout.write(m[1] + "\t" + m[2]);
+      ' "$OUT")" || log_fail "TEST-1748: ($vs/$shape) dispatch must print a runnable --release command: $(cat "$OUT")"
+      ref="${cmdline%%$'\t'*}"
+      why="${cmdline#*$'\t'}"
+      : > "$d/docs/ai/METRICS.jsonl"
+      (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
+        --state "$d/docs/ai/STATE.yaml" --metrics "$d/docs/ai/METRICS.jsonl" \
+        --events "$d/docs/ai/EVENTS.jsonl" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
+        --pricing "$PROJECT_ROOT/.aai/system/PRICING.yaml" \
+        --release "$ref" --reason "$why" > "$d/release-out.log" 2>&1) \
+        || log_fail "TEST-1748: ($vs/$shape) the --release dispatch printed must succeed on a path-qualified close: $(cat "$d/release-out.log")"
+      run_dispatch "$d" || true
+      jassert "$OUT" 'o.rule !== "4b"'
+    done
+  done
+  log_pass "A close event dispatch accepts is a close event --release accepts (TEST-1748)"
+}
+
 test_1746_item_absent_remedy_succeeds_seam() {  # TEST-1746 (Spec-AC-18)
   log_info "Test: seam — a closed focus whose work item is absent from active_work_items prints a remedy that exits 0 and leaves rule 4b (TEST-1746)..."
   local d shape vs cmdline ref
@@ -5002,6 +5036,7 @@ main() {
   test_1395_snapshot_reports_real_run_count
   test_1396_release_then_dispatch_seam
   test_1740_named_remedy_succeeds_seam
+  test_1748_path_qualified_close_remedy_seam
   test_1746_item_absent_remedy_succeeds_seam
   test_1744_reopened_close_is_not_closed
   echo ""
