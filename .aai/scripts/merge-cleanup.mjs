@@ -33,6 +33,12 @@
 // (git push --force-with-lease=<ref>:<oid>), else retained with a named reason.
 // Every precondition that can refuse is derived BEFORE the first write, so a
 // refusal is exit 3 with nothing changed.
+//
+// spec-merge-cleanup-ride-leftovers: the ride's own traces no longer stop the run. A roadmap
+// change confined to the merged ride's entry is archived and the incoming roadmap taken (D1-D5);
+// whole lines appended after the last commit to the ride worktree's ledgers are moved byte-exact
+// to the main checkout and archived before the worktree is removed (D6-D10); and when sync-base
+// replaced the engine file this process was loaded from, the new file is run once (D11-D14).
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -75,6 +81,11 @@ const INDEX_PATH = 'docs/INDEX.md';
 // D10 ignored evidence directories of the ride worktree.
 const RUNTIME_DIRS = ['reports', 'tdd', 'validation', 'reviews', 'evidence'].map((d) => `docs/ai/${d}`);
 const STATE_REL = 'docs/ai/STATE.yaml';
+const ROADMAP_PATH = 'docs/ai/roadmap.yaml';
+// D11: the engine file this process was loaded from and its bytes at load; D12/D13: the one-shot re-exec guard.
+const ENGINE_FILE = fs.realpathSync(fileURLToPath(import.meta.url));
+const ENGINE_STARTUP_SHA = crypto.createHash('sha256').update(fs.readFileSync(ENGINE_FILE)).digest('hex');
+const REEXEC_ENV = 'AAI_MERGE_CLEANUP_REEXECED';
 
 function usage(msg) {
   process.stderr.write(`merge-cleanup: ${msg}\n${HELP}`);
@@ -423,6 +434,56 @@ const readBlob = (cwd, spec) => {
   return r.status === 0 ? r.stdout : null;
 };
 
+// D2: the roadmap text without the merged ride's own entries - every pair block whose first line is
+// `  - capability: <ref>` (it runs until the next line not indented by four spaces or more) and every
+// `  - <ref>` line (the wave_2 entry ship-append deletes). Everything else, line endings included, stays.
+function stripRideEntries(text, refs) {
+  const lines = text.split(/(?<=\n)/);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const body = lines[i].replace(/\r?\n$/, '');
+    const cap = body.match(/^ {2}- capability: (.+)$/);
+    if (cap && refs.has(cap[1])) {
+      while (i + 1 < lines.length && /^ {4}/.test(lines[i + 1])) i++;
+      continue;
+    }
+    const wave = body.match(/^ {2}- (.+)$/);
+    if (wave && refs.has(wave[1])) continue;
+    out.push(lines[i]);
+  }
+  return out.join('');
+}
+
+// The roadmap as three latin1 strings: the main checkout's file, the HEAD blob, the incoming blob.
+function roadmapTexts(ctx, head, target) {
+  let local;
+  try { local = fs.readFileSync(path.join(ctx.origin, ROADMAP_PATH), 'latin1'); } catch { return null; }
+  const headBlob = readBlob(ctx.origin, `${head}:${ROADMAP_PATH}`);
+  const inBlob = readBlob(ctx.origin, `${target}:${ROADMAP_PATH}`);
+  if (!headBlob || !inBlob) return null;
+  return { local, head: headBlob.toString('latin1'), incoming: inBlob.toString('latin1') };
+}
+
+// The ride refs whose own entry differs between the HEAD blob and the local file.
+function rideChangedRefs(refs, t) {
+  return [...refs].sort().filter((ref) => {
+    const others = new Set([...refs].filter((r) => r !== ref));
+    return stripRideEntries(t.local, others) !== stripRideEntries(t.head, others);
+  });
+}
+
+// D3: true only when every local change is confined to the merged ride's entries and the incoming
+// roadmap carries a pair block for each of them (taking it loses no record of the ride).
+function roadmapRideOnly(ctx, head, target) {
+  const refs = mergedRefs(ctx);
+  if (refs.size === 0) return false;
+  const t = roadmapTexts(ctx, head, target);
+  if (!t) return false;
+  if (stripRideEntries(t.local, refs) !== stripRideEntries(t.head, refs)) return false;
+  const incoming = t.incoming.split(/\r?\n/);
+  return rideChangedRefs(refs, t).every((ref) => incoming.includes(`  - capability: ${ref}`));
+}
+
 // Pure derivation, no writes. Returns { refusal } or a plan.
 function planSync(ctx) {
   const { origin, base } = ctx;
@@ -444,14 +505,20 @@ function planSync(ctx) {
   };
   const dirty = names(['diff', '--name-only', '-z', 'HEAD']);
   const staged = new Set(names(['diff', '--cached', '--name-only', '-z']));
-  const plan = { head, target, ledgers: [], index: false, removeEqual: [] };
+  const plan = { head, target, ledgers: [], index: false, roadmap: false, removeEqual: [] };
   for (const rel of dirty.sort()) {
     const isLedger = LEDGERS.includes(rel) && incoming.has(rel);
     const isIndex = rel === INDEX_PATH;
+    const isRoadmap = rel === ROADMAP_PATH;
     if (!isLedger && !isIndex && !incoming.has(rel)) continue;
-    if (!isLedger && !isIndex) return { refusal: ['overlap', rel] };
+    if (!isLedger && !isIndex && !isRoadmap) return { refusal: ['overlap', rel] };
     if (staged.has(rel)) return { refusal: ['overlap', rel] };
     if (isIndex) { plan.index = true; continue; }
+    if (isRoadmap) {
+      if (!roadmapRideOnly(ctx, head, target)) return { refusal: ['overlap', rel] };
+      plan.roadmap = true;
+      continue;
+    }
     const headBlob = readBlob(origin, `${head}:${rel}`);
     const inBlob = readBlob(origin, `${target}:${rel}`);
     let local = null;
@@ -525,7 +592,7 @@ function resumeSync(ctx, file) {
     detail = 'restored local state of an interrupted sync';
   } else {
     mergeLedgerTails(ctx, entries.filter((e) => e.ledger).map((e) => ({ rel: e.rel, headBlob: e.headBlob, bytes: e.saved })));
-    if (entries.some((e) => !e.ledger)) regenIndex(ctx);
+    if (entries.some((e) => e.rel === INDEX_PATH)) regenIndex(ctx);
     detail = 're-appended the local ledger tail of an interrupted sync';
   }
   fs.rmSync(file, { force: true });
@@ -575,12 +642,12 @@ function syncBase(ctx) {
     return stuck;
   };
   const pendingEntries = [];
-  for (const rel of [...plan.ledgers, ...(plan.index ? [INDEX_PATH] : [])]) {
+  for (const rel of [...plan.ledgers, ...(plan.index ? [INDEX_PATH] : []), ...(plan.roadmap ? [ROADMAP_PATH] : [])]) {
     const abs = path.join(origin, rel);
     const bytes = fs.readFileSync(abs);
     const a = archiveFile(ctx, { src: abs, destBase: path.join(root, 'sync', rel), original: rel, reason: 'pre_sync_local_state', step: 'sync-base' });
-    saved.push({ rel, bytes, headBlob: readBlob(origin, `${plan.head}:${rel}`), ledger: rel !== INDEX_PATH });
-    pendingEntries.push({ rel, archive: a.rel, ledger: rel !== INDEX_PATH });
+    saved.push({ rel, bytes, headBlob: readBlob(origin, `${plan.head}:${rel}`), ledger: LEDGERS.includes(rel) });
+    pendingEntries.push({ rel, archive: a.rel, ledger: LEDGERS.includes(rel) });
   }
   if (pendingEntries.length > 0) {
     fs.mkdirSync(path.dirname(pendingPath(ctx)), { recursive: true });
@@ -736,13 +803,37 @@ function blockerVerdict(blockers) {
   return [`submodule_${kind}`, blockers.map((b) => `${b.path} (${b.kind}: ${b.fact})`).join('; ')];
 }
 
-// First eligibility failure as [reason, detail], else null.
-function worktreeVerdict(ctx, wt) {
+// D6: the ride worktree's appended ledger lines. One entry per modified ledger when EVERY porcelain
+// entry is an unstaged ` M` of a LEDGERS file whose bytes are the HEAD blob plus whole appended
+// lines; null as soon as anything else is in the worktree.
+function ledgerTails(ctx, wt) {
+  const st = git(wt.path, ['status', '--porcelain=v1', '-z', '--ignore-submodules=dirty', '--untracked-files=normal']);
+  if (st.status !== 0) return null;
+  const tails = [];
+  for (const e of st.stdout.split('\0').filter(Boolean)) {
+    const rel = e.slice(3);
+    if (e.slice(0, 3) !== ' M ' || !LEDGERS.includes(rel)) return null;
+    const H = readBlob(wt.path, `HEAD:${rel}`);
+    let B = null;
+    try { B = fs.readFileSync(path.join(wt.path, rel)); } catch { /* removed */ }
+    if (!H || !B) return null;
+    const tail = B.subarray(H.length);
+    const appendOnly = B.length > H.length && B.subarray(0, H.length).equals(H) && (H.length === 0 || H[H.length - 1] === 10) && tail[tail.length - 1] === 10;
+    if (!appendOnly) return null;
+    tails.push({ rel, head: H, bytes: B, tail });
+  }
+  return tails.sort((a, b) => LEDGERS.indexOf(a.rel) - LEDGERS.indexOf(b.rel));
+}
+
+// First eligibility failure as [reason, detail], else null. D7: with allowTails a worktree whose only
+// changes are append-only ledger tails is clean; the strict form is the late check before the removal.
+function worktreeVerdict(ctx, wt, { allowTails = false } = {}) {
   if (!fs.existsSync(wt.path)) return ['worktree_missing', wt.path];
   const cwd = realOr(process.cwd());
   if (cwd === wt.path || cwd.startsWith(wt.path + path.sep)) return ['cwd_inside_target', wt.path];
   const st = git(wt.path, ['status', '--porcelain', '--ignore-submodules=dirty', '--untracked-files=normal']);
-  if (st.status !== 0 || st.stdout.trim() !== '') return ['worktree_dirty', wt.path];
+  if (st.status !== 0) return ['worktree_dirty', wt.path];
+  if (st.stdout.trim() !== '' && !(allowTails && ledgerTails(ctx, wt) !== null)) return ['worktree_dirty', wt.path];
   const blockers = submoduleBlockers(wt.path);
   if (blockers.length > 0) return blockerVerdict(blockers);
   if (wt.head !== ctx.head) return ['tip_mismatch', `${ctx.headRef} at ${wt.head || 'unknown'}, PR head ${ctx.head}`];
@@ -876,16 +967,80 @@ function touchAt(point, wtPath) {
   if (v && v.startsWith(`${point}:`)) fs.appendFileSync(path.join(wtPath, v.slice(point.length + 1)), 'written by another session\n');
 }
 
+const LEDGER_TAIL_REASON = 'ride_ledger_tail';
+const LEDGER_TAILS_DIR = 'worktree-ledger-tails';
+
+// Does `part` occur in `buf` at a line start (offset 0 or right after a newline)?
+function atLineStart(buf, part) {
+  if (!buf || part.length === 0) return false;
+  for (let i = buf.indexOf(part); i >= 0; i = buf.indexOf(part, i + 1)) if (i === 0 || buf[i - 1] === 10) return true;
+  return false;
+}
+
+// D8: move the ride worktree's appended ledger lines to the main checkout, archive-first and
+// idempotent: a re-run after a crash at any point appends no tail byte twice and loses none.
+function moveLedgerTails(ctx, wt) {
+  const tails = ledgerTails(ctx, wt);
+  if (!tails || tails.length === 0) return;
+  const root = archiveRoot(ctx.origin, ctx.opts.pr);
+  const manifest = path.join(root, 'manifest.jsonl');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-cleanup-tail-'));
+  try {
+    for (const t of tails) {
+      const main = path.join(ctx.origin, t.rel);
+      let cur = null;
+      try { cur = fs.readFileSync(main); } catch { /* absent: the move creates it */ }
+      if (cur && cur.length > 0 && cur[cur.length - 1] !== 10) stop('ledger_unaligned', t.rel);
+      const src = path.join(tmp, 'tail');
+      fs.writeFileSync(src, t.tail);
+      archiveFile(ctx, { src, destBase: path.join(root, LEDGER_TAILS_DIR, t.rel), original: `worktree:${t.rel}`, reason: LEDGER_TAIL_REASON, step: 'remove-worktree' });
+      // the longest already-moved prefix of this tail (this tail or an earlier archived one) found in the main ledger
+      let already = 0;
+      for (const m of readJsonl(manifest)) {
+        if (m.original !== `worktree:${t.rel}` || m.reason !== LEDGER_TAIL_REASON) continue;
+        let c = null;
+        try { c = fs.readFileSync(path.join(ctx.origin, m.archive)); } catch { continue; }
+        if (c.length > already && c.length <= t.tail.length && t.tail.subarray(0, c.length).equals(c) && atLineStart(cur, c)) already = c.length;
+      }
+      if (already < t.tail.length) {
+        fs.mkdirSync(path.dirname(main), { recursive: true });
+        fs.appendFileSync(main, t.tail.subarray(already));
+      }
+      crashAt('ledger-move-after-append');
+      const abs = path.join(wt.path, t.rel);
+      let now = null;
+      try { now = fs.readFileSync(abs); } catch { /* removed */ }
+      if (!now || !now.equals(t.bytes)) stop('worktree_dirty', `${t.rel} changed during the move`);
+      fs.writeFileSync(abs, t.head);
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+// D10: the moved ledger tails, read from the durable manifest.
+function movedFromManifest(ctx) {
+  return readJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'manifest.jsonl'))
+    .filter((m) => m.reason === LEDGER_TAIL_REASON)
+    .map((m) => {
+      let lines = 0;
+      try { for (const b of fs.readFileSync(path.join(ctx.origin, m.archive))) if (b === 10) lines++; } catch { /* archive gone */ }
+      return { ledger: m.original.replace(/^worktree:/, ''), lines, sha256: m.sha256, archive: m.archive };
+    });
+}
+
 function removeWorktree(ctx) {
   const wt = findRideWorktree(ctx);
   if (!wt) return { status: 'noop', detail: 'no_worktree' };
-  const why = worktreeVerdict(ctx, wt);
+  const why = worktreeVerdict(ctx, wt, { allowTails: true });
   if (why) stop(...why);
+  moveLedgerTails(ctx, wt);
   archiveSubmoduleIgnored(ctx, wt);
   archiveSubmoduleTags(ctx, wt);
   touchAt('before-remove-verify', wt.path);
-  // the proof runs again as the last check, right before the destructive call (D3)
-  const late = worktreeVerdict(ctx, wt);
+  // the proof runs again as the last check, right before the destructive call (D3); strict, so a line
+  // appended after the move stops the run (exit 4) instead of reaching a forced removal
+  const late = worktreeVerdict(ctx, wt, { allowTails: false });
   if (late) stop(...late);
   const withSubmodules = hasSubmodules(wt.path);
   const lk = lockStatus(wt.path);
@@ -993,8 +1148,13 @@ function planChecks(ctx) {
   if (sync.refusal) refuse(...sync.refusal);
   const wt = findRideWorktree(ctx);
   if (wt) {
-    const why = worktreeVerdict(ctx, wt);
+    const why = worktreeVerdict(ctx, wt, { allowTails: true });
     if (why) refuse(...why);
+    for (const t of ledgerTails(ctx, wt) ?? []) {
+      let cur = null;
+      try { cur = fs.readFileSync(path.join(ctx.origin, t.rel)); } catch { /* absent */ }
+      if (cur && cur.length > 0 && cur[cur.length - 1] !== 10) refuse('ledger_unaligned', t.rel);
+    }
   } else {
     const tip = branchTip(ctx);
     if (tip && tip !== ctx.head && ctx.headRef !== ctx.base) refuse('tip_mismatch', `${ctx.headRef} at ${tip}, PR head ${ctx.head}`);
@@ -1243,6 +1403,9 @@ function renderReport(report) {
     '## Archived',
     ...list(report.archived, (a) => `${a.path} -> ${a.archive} [${a.reason}] sha256 ${a.sha256}`),
     '',
+    '## Moved ledger lines',
+    ...list(report.moved ?? [], (m) => `${m.ledger} (${m.lines} line(s)) -> ${m.archive}`),
+    '',
     '## Removed, not archived',
     ...list(report.removed_unarchived ?? [], (p) => p),
     '',
@@ -1311,7 +1474,11 @@ const PLANNERS = {
   'sync-base': (ctx) => {
     const plan = planSync(ctx);
     if (plan.refusal || plan.noop) return [];
-    return [`${ctx.base} ${plan.head.slice(0, 12)}..${plan.target.slice(0, 12)}`];
+    const t = plan.roadmap ? roadmapTexts(ctx, plan.head, plan.target) : null;
+    return [
+      `${ctx.base} ${plan.head.slice(0, 12)}..${plan.target.slice(0, 12)}`,
+      ...(plan.roadmap ? [`take incoming ${ROADMAP_PATH} (archive ride entry ${t ? rideChangedRefs(mergedRefs(ctx), t).join(', ') : ''})`] : []),
+    ];
   },
   // the merged ledger blob, listed from a private temporary copy (nothing in the origin is written)
   [SIGN_STEP_ID]: (ctx) => {
@@ -1338,6 +1505,7 @@ const PLANNERS = {
     const { files, named } = submoduleIgnored(wt.path);
     return [
       wt.path,
+      ...(ledgerTails(ctx, wt) ?? []).map((t) => `move ${t.tail.filter((b) => b === 10).length} line(s) worktree:${t.rel} -> ${t.rel}`),
       ...files.map((rel) => `archive worktree:${rel} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree-submodules', rel)))}`),
       ...named.map((n) => `remove (ignored, not archived) ${n.path}`),
       ...submoduleMembers(wt.path).members.map((m) => [m, submoduleTags(wt.path, m).length]).filter(([, n]) => n > 0)
@@ -1378,6 +1546,7 @@ function buildReport(ctx, steps) {
     mergedHead: ctx.head,
     steps,
     archived: archivedFromManifest(ctx),
+    moved: movedFromManifest(ctx),
     removed_unarchived: readJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), REMOVED_REL)).map((r) => r.path),
     retained: ctx.drafts.retained,
     noops: steps.filter((s) => s.status === 'noop').map((s) => `noop:${s.id}:${s.detail}`),
@@ -1404,9 +1573,29 @@ function emit(report, json) {
     for (const t of s.targets ?? []) lines.push(`    -> ${t}`);
   }
   for (const a of report.archived) lines.push(`  archived ${a.path} -> ${a.archive} [${a.reason}]`);
+  for (const m of report.moved ?? []) lines.push(`  moved ${m.lines} line(s) worktree:${m.ledger} -> ${m.ledger}`);
   for (const r of report.retained) lines.push(`  retained ${r.path} [${r.reason}]`);
   for (const r of report.remaining) lines.push(`  remaining: ${r}`);
   process.stdout.write(`${lines.join('\n')}\n`);
+}
+
+// D12: after sync-base, run the engine file again once when the merge replaced the very file this
+// process was loaded from. The parent writes nothing to stdout; the child inherits stdio and its exit
+// code becomes ours. REEXEC_ENV (honoured in production, D13) holds the parent's sha and stops a second hop.
+function reexecIfReplaced(ctx) {
+  if (process.env[REEXEC_ENV]) return null;
+  if (!ENGINE_FILE.startsWith(ctx.origin + path.sep)) return null;
+  let now;
+  try { now = sha256(fs.readFileSync(ENGINE_FILE)); } catch { return null; }
+  if (now === ENGINE_STARTUP_SHA) return null;
+  const detail = `${ENGINE_STARTUP_SHA.slice(0, 12)} -> ${now.slice(0, 12)}`;
+  appendJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'journal.jsonl'), { step: 'reexec', status: 'done', detail, timestamp: new Date().toISOString() });
+  process.stderr.write(`merge-cleanup: engine replaced by sync-base (${detail}); re-executing once\n`);
+  const r = spawnSync(process.execPath, [...process.execArgv, ENGINE_FILE, ...process.argv.slice(2)], {
+    stdio: 'inherit', env: { ...process.env, [REEXEC_ENV]: ENGINE_STARTUP_SHA },
+  });
+  if (r.error) stop('reexec_failed', r.error.message);
+  return exit(r.status ?? 4);
 }
 
 function runApplyOrPlan(opts) {
@@ -1435,10 +1624,20 @@ function runApplyOrPlan(opts) {
     const res = id === 'report' ? (opts.mode === 'apply' ? reportStep(ctx, steps) : { status: 'read' }) : HANDLERS[id](ctx);
     steps.push({ id, status: res.status, ...(res.detail ? { detail: res.detail } : {}) });
     if (res.status === 'done') appendJsonl(journal, { step: id, status: 'done', detail: res.detail ?? '', timestamp: new Date().toISOString() });
+    if (id === 'sync-base' && opts.mode === 'apply') {
+      // D14: the re-executed run reports that it is the reloaded engine
+      const from = process.env[REEXEC_ENV] ?? '';
+      if (/^[0-9a-f]{64}$/.test(from) && from !== ENGINE_STARTUP_SHA) {
+        const detail = `engine ${from.slice(0, 12)} -> ${ENGINE_STARTUP_SHA.slice(0, 12)} after sync-base`;
+        steps.push({ id: 'reload-engine', status: 'done', detail });
+        appendJsonl(journal, { step: 'reload-engine', status: 'done', detail, timestamp: new Date().toISOString() });
+      }
+    }
     if (opts.mode === 'apply' && stopAfter === id) {
       process.stdout.write(`STOPPED after ${id}\n`);
       exit(4);
     }
+    if (id === 'sync-base' && opts.mode === 'apply') reexecIfReplaced(ctx);
   }
   emit(buildReport(ctx, steps), opts.json);
   exit(0);

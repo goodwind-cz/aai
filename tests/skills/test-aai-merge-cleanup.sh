@@ -13,6 +13,7 @@
 # spec-merge-direction-signs-amendments PFA-8: TEST-027 (the signature cites the current direction).
 # spec-merge-cleanup-submodule-worktree B: TEST-031 (ignored content), TEST-032 (late dirt), TEST-033 (preflight), TEST-034 (canon).
 # spec-merge-cleanup-delete-remote-branch: TEST-036..042 (delete-remote-branch step; TEST-002/010/012/013/014 amended).
+# spec-merge-cleanup-ride-leftovers: TEST-045/046 (ride roadmap entry), TEST-047/048 (ride ledger appends), TEST-049/050 (engine reload).
 # spec-merge-cleanup-submodule-worktree A: TEST-028 (removal after the proof), TEST-029 (dirty refused), TEST-030 (unpushed, stash, no remote, stray module refused).
 set -euo pipefail
 
@@ -154,12 +155,30 @@ build_world() {
     other_item_doc > "$ORIGIN/docs/issues/ISSUE-0002-other-item.md"
     run git -C "$ORIGIN" add docs/issues/ISSUE-0002-other-item.md
   fi
+  # ROADMAP_WORLD / LEDGER_WORLD (spec-merge-cleanup-ride-leftovers): tracked roadmap and test-runs ledger
+  if [[ -n "${ROADMAP_WORLD:-}" ]]; then
+    roadmap_base > "$ORIGIN/docs/ai/roadmap.yaml"
+    run git -C "$ORIGIN" add docs/ai/roadmap.yaml
+  fi
+  if [[ -n "${LEDGER_WORLD:-}" ]]; then
+    run mkdir -p "$ORIGIN/docs/ai/tests"
+    printf '{"v":1,"ts":"2026-10-09T00:00:00Z","actor":"fixture","event":"seed-run"}\n' > "$ORIGIN/docs/ai/tests/test-runs.jsonl"
+    run git -C "$ORIGIN" add docs/ai/tests/test-runs.jsonl
+  fi
   # BASELINE_SEED: a function that adds more tracked content (submodules) before the baseline commit
   if [[ -n "${BASELINE_SEED:-}" ]]; then "$BASELINE_SEED"; fi
   run git -C "$ORIGIN" commit -qm baseline
   run git -C "$ORIGIN" push -q origin main
   run git -C "$ORIGIN" fetch -q origin
   if [[ -n "${DOWNSTREAM:-}" ]]; then install_core_layer; fi
+  # ENGINE_WORLD: the installed engine is tracked in the origin, so the merge can replace the very file the apply process runs from
+  if [[ -n "${ENGINE_WORLD:-}" ]]; then
+    run cp "$ENGINE" "$ORIGIN/.aai/scripts/merge-cleanup.mjs"
+    run git -C "$ORIGIN" add -f .aai/scripts/merge-cleanup.mjs
+    run git -C "$ORIGIN" commit -qm 'track the engine'
+    run git -C "$ORIGIN" push -q origin main
+    run git -C "$ORIGIN" fetch -q origin
+  fi
   run mkdir -p "$ORIGIN/docs/issues" "$ORIGIN/docs/specs"
   draft_issue_v1 > "$ORIGIN/$DRAFT_ISSUE"
   draft_spec_v1 > "$ORIGIN/$DRAFT_SPEC"
@@ -180,6 +199,14 @@ build_world() {
   numbered_spec > "$RIDE/$NUM_SPEC"
   printf '{"v":1,"ts":"2026-10-10T00:00:00Z","actor":"fixture","event":"work_item_closed","ref":"%s","payload":{"validation":"pass","code_review":"pass"}}\n{"v":1,"ts":"2026-10-10T00:00:01Z","actor":"fixture","event":"work_item_closed","ref":"%s","payload":{"validation":"pass","code_review":"pass"}}\n' "$ISSUE_ID" "$SPEC_ID" >> "$RIDE/docs/ai/EVENTS.jsonl"
   printf 'delivered by the ride\n' >> "$RIDE/README.md"
+  if [[ -n "${ROADMAP_WORLD:-}" ]]; then
+    roadmap_ride > "$RIDE/docs/ai/roadmap.yaml"
+    run git -C "$RIDE" add docs/ai/roadmap.yaml
+  fi
+  if [[ -n "${ENGINE_VARIANT:-}" ]]; then
+    run cp "$ENGINE_VARIANT" "$RIDE/.aai/scripts/merge-cleanup.mjs"
+    run git -C "$RIDE" add -f .aai/scripts/merge-cleanup.mjs
+  fi
   run git -C "$RIDE" add "$NUM_ISSUE" "$NUM_SPEC" docs/ai/EVENTS.jsonl README.md
   if [[ -n "${EXTRA_OTHER:-}" ]]; then
     printf '\nCross-link to foo.\n' >> "$RIDE/docs/issues/ISSUE-0002-other-item.md"
@@ -198,6 +225,15 @@ build_world() {
   write_pr_json MERGED "$MC"
 }
 
+# roadmap_base: the baseline roadmap (foo is deferred in wave_2); roadmap_ride: what the merged PR leaves
+# (the pair as close-work-item's advance leaves it, or, with RIDE_ROADMAP=elsewhere, an edit elsewhere with no foo block).
+roadmap_base() { printf 'pairs:\n  - capability: other-item\n    status: done\nwave_2:\n  - foo\n  - later\n'; }
+roadmap_ride() {
+  case "${RIDE_ROADMAP:-done}" in
+    elsewhere) printf 'pairs:\n  - capability: other-item\n    status: active\nwave_2:\n  - foo\n  - later\n' ;;
+    *) printf 'pairs:\n  - capability: other-item\n    status: done\n  - capability: foo\n    status: done\nwave_2:\n  - later\n' ;;
+  esac
+}
 draft_issue_v1() { printf -- '---\nid: %s\ntype: issue\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Issue foo\n\nDraft body.\n' "$ISSUE_ID"; }
 draft_spec_v1() { printf -- '---\nid: %s\ntype: spec\nnumber: null\nstatus: implementing\nlinks:\n  requirement: %s\n  pr: []\n  commits: []\n---\n\n# Spec foo\n\nDraft spec body.\n' "$SPEC_ID" "$ISSUE_ID"; }
 numbered_issue() { printf -- '---\nid: %s\ntype: issue\nnumber: 1\nstatus: %s\nlinks:\n  pr:\n    - %s\n  commits: []\n---\n\n# Issue foo\n\nDraft body.\n\nDelivered.\n' "$ISSUE_ID" "${ISSUE_STATUS:-done}" "${ISSUE_LINK_PR:-$PR}"; }
@@ -1287,9 +1323,13 @@ test_004_preflight_ready() {
   [[ "$(sha_of "$dec")" == "$after" && "$(wc -l < "$dec" | tr -d ' ')" == 1 ]] || fail TEST-004 'a repeat preflight duplicated the decision record'
   # the merge happens, then apply refuses (the ride is dirty): the direction is already durable
   write_pr_json MERGED "$MC"
+  # the appended sweep line alone is a movable ledger tail (spec-merge-cleanup-ride-leftovers); a stray edit makes the ride dirty
+  printf 'stray edit\n' >> "$RIDE/README.md"
   run_engine apply --pr "$PR" --pid 4242 --direction 'merge 433 please'
   [[ "$ENG_RC" -eq 3 ]] || fail TEST-004 "apply on the dirty ride exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
   [[ "$(wc -l < "$dec" | tr -d ' ')" == 1 && "$(sha_of "$dec")" == "$after" ]] || fail TEST-004 'a refused apply lost or duplicated the recorded direction'
+  git -C "$RIDE" show HEAD:README.md > "$W/readme.ride" || fail SETUP 'ride README blob'
+  run cp "$W/readme.ride" "$RIDE/README.md"
   write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
   assert_no_merge_call TEST-004
   # --json carries the same single command and the judged head
@@ -2811,6 +2851,309 @@ test_042_canon_runs_block_unwrapped() {
   echo 'PASS: TEST-042 the canon runs the block unwrapped and the block is clean'
 }
 
+# ---------------------------------------------------------------------------
+# spec-merge-cleanup-ride-leftovers: the ride's own roadmap entry (TEST-045/046), the ride
+# worktree's appended ledger lines (TEST-047/048) and the engine replaced by the merge (TEST-049/050).
+ROADMAP_ENGINE="$ROOT/.aai/scripts/roadmap-edit.mjs"
+RM='docs/ai/roadmap.yaml'
+TR='docs/ai/tests/test-runs.jsonl'
+
+# ship_append_foo: the REAL roadmap-edit ship-append (seam S1) on the origin's tracked roadmap,
+# backed by scratch docs (a change-typed intake for foo, a doc for every other pair).
+ship_append_foo() {
+  local d="$W/rmdocs"
+  run mkdir -p "$d/issues"
+  other_item_doc > "$d/issues/ISSUE-0002-other-item.md"
+  printf -- '---\nid: foo\ntype: change\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Change foo\n' > "$d/issues/CHANGE-DRAFT-foo.md"
+  node "$ROADMAP_ENGINE" ship-append --ref foo --intake "$d/issues/CHANGE-DRAFT-foo.md" --roadmap "$ORIGIN/$RM" --docs "$d" >"$W/ship-append.out" 2>&1 || fail SETUP "ship-append failed: $(cat "$W/ship-append.out")"
+  want SETUP "$(cat "$ORIGIN/$RM")" '  - capability: foo'
+}
+
+test_045_ride_roadmap_entry_taken_from_incoming() {
+  local before arch
+  ROADMAP_WORLD=1 build_world rmap
+  ship_append_foo
+  run cp "$ORIGIN/$RM" "$W/roadmap.local"
+  git -C "$BARE" show "$MC:$RM" > "$W/roadmap.incoming" || fail SETUP 'incoming roadmap blob'
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  before="$(world_digest)"
+  run_engine plan --pr "$PR"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-045 "plan exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-045 "$ENG_OUT" "take incoming $RM (archive ride entry foo)"
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-045 'plan changed the world'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-045 "apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  cmp "$W/roadmap.incoming" "$ORIGIN/$RM" || fail TEST-045 'roadmap.yaml is not the merge commit blob'
+  want TEST-045 "$(cat "$arch/manifest.jsonl")" "\"original\":\"$RM\""
+  want TEST-045 "$(cat "$arch/manifest.jsonl")" "\"sha256\":\"$(sha_of "$W/roadmap.local")\",\"reason\":\"pre_sync_local_state\""
+  cmp "$W/roadmap.local" "$arch/sync/$RM" || fail TEST-045 'the archived roadmap differs from the pre-apply local file'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-045 'origin HEAD is not the merge commit'
+
+  # arm crash: killed right after the roadmap was rewritten to the HEAD blob, a re-run converges
+  ROADMAP_WORLD=1 build_world rmap_crash
+  ship_append_foo
+  run cp "$ORIGIN/$RM" "$W/roadmap.local"
+  git -C "$BARE" show "$MC:$RM" > "$W/roadmap.incoming" || fail SETUP 'incoming roadmap blob'
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=sync-after-rewrite run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-045 "crash arm exited $ENG_RC, want 137 (out: $ENG_OUT $ENG_ERR)"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-045 "crash arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  cmp "$W/roadmap.incoming" "$ORIGIN/$RM" || fail TEST-045 'crash arm: roadmap.yaml is not the merge commit blob'
+  cmp "$W/roadmap.local" "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/$RM" || fail TEST-045 'crash arm: the archived roadmap differs from the pre-apply local file'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-045 'crash arm: origin HEAD is not the merge commit'
+  assert_no_merge_call TEST-045
+  echo 'PASS: TEST-045 the ride roadmap entry is archived and the incoming roadmap taken'
+}
+
+test_046_foreign_roadmap_hunk_refuses_overlap() {
+  ROADMAP_WORLD=1 build_world rmap_foreign
+  roadmap_base | sed 's/status: done/status: active/' > "$ORIGIN/$RM"
+  refuse_arm TEST-046 overlap "$RM"
+
+  ROADMAP_WORLD=1 build_world rmap_mixed
+  ship_append_foo
+  sed 's/status: done/status: active/' "$ORIGIN/$RM" > "$W/mixed.yaml"
+  run cp "$W/mixed.yaml" "$ORIGIN/$RM"
+  refuse_arm TEST-046 overlap "$RM"
+
+  ROADMAP_WORLD=1 build_world rmap_staged
+  ship_append_foo
+  run git -C "$ORIGIN" add "$RM"
+  refuse_arm TEST-046 overlap "$RM"
+
+  RIDE_ROADMAP=elsewhere ROADMAP_WORLD=1 build_world rmap_lacks
+  ship_append_foo
+  refuse_arm TEST-046 overlap "$RM"
+
+  # positive control: the ride-only world is not refused
+  ROADMAP_WORLD=1 build_world rmap_control
+  ship_append_foo
+  run_engine plan --pr "$PR"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-046 "control: plan exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  echo 'PASS: TEST-046 a foreign, mixed, staged or unmatched roadmap change refuses overlap'
+}
+
+LEDGER_RT='{"v":1,"ts":"2026-10-11T00:00:00Z","actor":"ride","event":"tail-run-1"}'
+LEDGER_EV1='{"v":1,"ts":"2026-10-11T00:00:01Z","actor":"ride","event":"tail-event-1","ref":"foo","payload":{}}'
+LEDGER_EV2='{"v":1,"ts":"2026-10-11T00:00:02Z","actor":"ride","event":"tail-event-2","ref":"foo","payload":{}}'
+
+# seed_ledger_tails: lines appended in the ride worktree after its last commit (one in test-runs, two in EVENTS)
+seed_ledger_tails() {
+  printf '%s\n' "$LEDGER_RT" >> "$RIDE/$TR"
+  printf '%s\n%s\n' "$LEDGER_EV1" "$LEDGER_EV2" >> "$RIDE/docs/ai/EVENTS.jsonl"
+  printf '%s\n' "$LEDGER_RT" > "$W/tail-rt"
+  printf '%s\n%s\n' "$LEDGER_EV1" "$LEDGER_EV2" > "$W/tail-ev"
+}
+
+tail_matches() {
+  local tid="$1" ledger="$2" tailf="$3" n
+  n="$(wc -c < "$tailf" | tr -d ' ')"
+  tail -c "$n" "$ORIGIN/$ledger" > "$W/got-tail" || fail "$tid" "cannot read the end of $ledger"
+  cmp "$tailf" "$W/got-tail" || fail "$tid" "the main checkout's $ledger does not end with the appended bytes"
+}
+
+test_047_ride_ledger_appends_moved() {
+  local before arch rep reports
+  LEDGER_WORLD=1 build_world ledg
+  seed_ledger_tails
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  before="$(world_digest)"
+  run_engine plan --pr "$PR"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-047 "plan exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-047 "$ENG_OUT" 'move 2 line(s) worktree:docs/ai/EVENTS.jsonl -> docs/ai/EVENTS.jsonl'
+  want TEST-047 "$ENG_OUT" "move 1 line(s) worktree:$TR -> $TR"
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-047 'plan changed the world'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-047 "apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  rep="$ENG_OUT"
+  [[ "$(step_status "$rep" remove-worktree)" == done ]] || fail TEST-047 "remove-worktree reported $(step_status "$rep" remove-worktree)"
+  [[ ! -e "$RIDE" ]] || fail TEST-047 'the ride worktree is still there'
+  tail_matches TEST-047 docs/ai/EVENTS.jsonl "$W/tail-ev"
+  tail_matches TEST-047 "$TR" "$W/tail-rt"
+  [[ "$(/usr/bin/grep -c '"reason":"ride_ledger_tail"' "$arch/manifest.jsonl" || true)" == 2 ]] || fail TEST-047 'the manifest does not hold two ride_ledger_tail entries'
+  cmp "$W/tail-ev" "$arch/worktree-ledger-tails/docs/ai/EVENTS.jsonl" || fail TEST-047 'the archived EVENTS tail differs from the appended bytes'
+  cmp "$W/tail-rt" "$arch/worktree-ledger-tails/$TR" || fail TEST-047 'the archived test-runs tail differs from the appended bytes'
+  [[ "$(json_get "$rep" 'j.moved.map(m=>m.ledger+":"+m.lines).join(",")')" == "docs/ai/EVENTS.jsonl:2,$TR:1" ]] || fail TEST-047 "JSON moved list is $(json_get "$rep" 'JSON.stringify(j.moved)')"
+  [[ "$(json_get "$rep" 'j.moved[0].sha256')" == "$(sha_of "$W/tail-ev")" ]] || fail TEST-047 'JSON moved sha256 is not the tail digest'
+  # the text run of a fresh world and the saved report
+  LEDGER_WORLD=1 build_world ledg_text
+  seed_ledger_tails
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-047 "text apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-047 "$ENG_OUT" '  moved 2 line(s) worktree:docs/ai/EVENTS.jsonl -> docs/ai/EVENTS.jsonl'
+  want TEST-047 "$ENG_OUT" "  moved 1 line(s) worktree:$TR -> $TR"
+  reports="$(saved_reports)"
+  [[ -n "$reports" ]] || fail TEST-047 'no saved report'
+  want TEST-047 "$(cat "$reports")" '## Moved ledger lines'
+  want TEST-047 "$(cat "$reports")" 'docs/ai/EVENTS.jsonl'
+
+  # arm crash: killed after the first ledger tail was appended, a re-run appends nothing twice
+  LEDGER_WORLD=1 build_world ledg_crash
+  seed_ledger_tails
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-047 "crash arm exited $ENG_RC, want 137 (out: $ENG_OUT $ENG_ERR)"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-047 "crash arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$RIDE" ]] || fail TEST-047 'crash arm: the ride worktree is still there'
+  [[ "$(count_line "$ORIGIN/docs/ai/EVENTS.jsonl" "$LEDGER_EV1")" == 1 ]] || fail TEST-047 'crash arm: event line 1 is not exactly once'
+  [[ "$(count_line "$ORIGIN/docs/ai/EVENTS.jsonl" "$LEDGER_EV2")" == 1 ]] || fail TEST-047 'crash arm: event line 2 is not exactly once'
+  [[ "$(count_line "$ORIGIN/$TR" "$LEDGER_RT")" == 1 ]] || fail TEST-047 'crash arm: the test-runs line is not exactly once'
+  assert_no_merge_call TEST-047
+  echo 'PASS: TEST-047 the ride worktree ledger appends are moved to the main checkout'
+}
+
+test_048_non_append_ledger_change_refused() {
+  local arm
+  for arm in rewrite partial staged plus-file plus-untracked; do
+    LEDGER_WORLD=1 build_world "ledg_$arm"
+    case "$arm" in
+      rewrite) sed '1s/.*/{"v":1,"rewritten":true}/' "$RIDE/docs/ai/EVENTS.jsonl" > "$W/rewritten.jsonl"
+               run cp "$W/rewritten.jsonl" "$RIDE/docs/ai/EVENTS.jsonl"
+               printf '%s\n' "$LEDGER_EV1" >> "$RIDE/docs/ai/EVENTS.jsonl" ;;
+      partial) printf '%s' "$LEDGER_EV1" >> "$RIDE/docs/ai/EVENTS.jsonl" ;;
+      staged) printf '%s\n' "$LEDGER_EV1" >> "$RIDE/docs/ai/EVENTS.jsonl"
+              run git -C "$RIDE" add docs/ai/EVENTS.jsonl ;;
+      plus-file) printf '%s\n' "$LEDGER_EV1" >> "$RIDE/docs/ai/EVENTS.jsonl"
+                 printf 'edit\n' >> "$RIDE/README.md" ;;
+      plus-untracked) printf '%s\n' "$LEDGER_EV1" >> "$RIDE/docs/ai/EVENTS.jsonl"
+                      printf 'stray\n' > "$RIDE/stray.txt" ;;
+    esac
+    refuse_arm TEST-048 worktree_dirty "$RIDE"
+    [[ -d "$RIDE" ]] || fail TEST-048 "arm $arm: the worktree is gone"
+    git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-048 "arm $arm: the branch is gone"
+  done
+
+  # arm late: a line lands in a ride ledger after the move and before the late re-verify
+  LEDGER_WORLD=1 build_world ledg_late
+  printf '%s\n' "$LEDGER_EV1" >> "$RIDE/docs/ai/EVENTS.jsonl"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_TOUCH_AT="before-remove-verify:$TR" run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-048 "late arm exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-048 "$ENG_OUT" 'STOPPED worktree_dirty'
+  [[ -d "$RIDE" ]] || fail TEST-048 'late arm: the worktree is gone'
+  [[ "$(count_line "$RIDE/$TR" 'written by another session')" == 1 ]] || fail TEST-048 'late arm: the worktree does not hold the late line'
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-048 "late arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$RIDE" ]] || fail TEST-048 'late arm: the re-run left the worktree'
+  [[ "$(count_line "$ORIGIN/$TR" 'written by another session')" == 1 ]] || fail TEST-048 'late arm: the late line is not exactly once in the main ledger'
+  [[ "$(count_line "$ORIGIN/docs/ai/EVENTS.jsonl" "$LEDGER_EV1")" == 1 ]] || fail TEST-048 'late arm: the first move is not exactly once'
+  echo 'PASS: TEST-048 a non-append ledger change keeps the worktree and a late append stops the removal'
+}
+
+# make_engine_variant <out>: the engine under test plus a fixture-marker step, a load log and an optional
+# self-touch. Generated by index slicing (never a replacement string), each anchor asserted (positive control).
+make_engine_variant() {
+  local out="$1"
+  cat > "$SCRATCH/mkvariant.cjs" <<'JS'
+const fs = require('fs');
+let t = fs.readFileSync(process.argv[2], 'utf8');
+const rep = (from, to) => {
+  const i = t.indexOf(from);
+  if (i < 0) { console.error(`anchor missing: ${from}`); process.exit(1); }
+  t = t.slice(0, i) + to + t.slice(i + from.length);
+};
+const fn = `function fixtureMarker() {
+  const f = process.env.FIXTURE_MARKER_FILE;
+  if (!f || fs.existsSync(f)) return { status: 'noop', detail: 'marker_exists' };
+  fs.appendFileSync(f, 'ran\\n');
+  return { status: 'done', detail: 'marker written' };
+}
+if (process.env.FIXTURE_LOAD_LOG) {
+  fs.appendFileSync(process.env.FIXTURE_LOAD_LOG, 'variant-load\\n');
+  if (fs.readFileSync(process.env.FIXTURE_LOAD_LOG, 'utf8').split('\\n').filter(Boolean).length >= 3) process.exit(99);
+}
+if (process.env.FIXTURE_SELF_TOUCH) fs.appendFileSync(ENGINE_FILE, '\\n// touched by the fixture\\n');
+`;
+rep("'delete-remote-branch', 'report',", "'delete-remote-branch', 'fixture-marker', 'report',");
+rep('const HANDLERS = {', `${fn}const HANDLERS = {`);
+rep("'delete-remote-branch': deleteRemoteBranch,", "'delete-remote-branch': deleteRemoteBranch,\n  'fixture-marker': fixtureMarker,");
+fs.writeFileSync(process.argv[3], t);
+JS
+  node "$SCRATCH/mkvariant.cjs" "$ENGINE" "$out" || fail SETUP 'engine variant anchors missing'
+  [[ "$(/usr/bin/grep -c "fixture-marker" "$out" || true)" -ge 2 ]] || fail SETUP 'engine variant lacks the fixture step'
+}
+
+# engine_world <name> [variant]: installed layout with the engine tracked in the origin; the merged PR
+# replaces it with the variant when given.
+engine_world() {
+  local name="$1" variant="${2:-}"
+  if [[ -n "$variant" ]]; then DOWNSTREAM=1 ENGINE_WORLD=1 ENGINE_VARIANT="$variant" build_world "$name"
+  else DOWNSTREAM=1 ENGINE_WORLD=1 build_world "$name"
+  fi
+}
+
+# apply_from_origin <args...>: the apply runs from the origin's tracked engine copy (seam S4)
+apply_from_origin() {
+  local saved="$ENGINE"
+  ENGINE="$ORIGIN/.aai/scripts/merge-cleanup.mjs"
+  run_engine "$@"
+  ENGINE="$saved"
+}
+
+# sstat <json> <step>: the step's status, or 'absent'
+sstat() { json_get "$1" "j.steps.find(s=>s.id===\"$2\")?.status??\"absent\""; }
+# file_lines <file>: the number of lines, 0 when the file does not exist
+file_lines() { if [[ -f "$1" ]]; then wc -l < "$1" | tr -d ' '; else echo 0; fi; }
+reexec_records() { /usr/bin/grep -c '"step":"reexec"' "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/journal.jsonl" || true; }
+
+test_049_merged_engine_runs_in_the_same_apply() {
+  local variant="$SCRATCH/engine-variant-049.mjs" old new before s idx
+  make_engine_variant "$variant"
+  engine_world reexec "$variant"
+  old="$(sha_of "$ORIGIN/.aai/scripts/merge-cleanup.mjs")"; new="$(sha_of "$variant")"
+  [[ "$old" != "$new" ]] || fail SETUP 'the variant equals the tracked engine'
+  FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-049 "apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(sstat "$ENG_OUT" fixture-marker)" == done ]] || fail TEST-049 "fixture-marker reported $(sstat "$ENG_OUT" fixture-marker) (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(sstat "$ENG_OUT" reload-engine)" == done ]] || fail TEST-049 'reload-engine is not done'
+  [[ "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="reload-engine").detail')" == "engine ${old:0:12} -> ${new:0:12} after sync-base" ]] || fail TEST-049 "reload-engine detail is $(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="reload-engine").detail')"
+  [[ "$(json_get "$ENG_OUT" 'j.steps.findIndex(s=>s.id==="reload-engine")-j.steps.findIndex(s=>s.id==="sync-base")')" == 1 ]] || fail TEST-049 'reload-engine does not follow sync-base'
+  [[ "$(/usr/bin/grep -c 're-executing once' "$W/engine.err" || true)" == 1 ]] || fail TEST-049 "stderr: $(cat "$W/engine.err")"
+  [[ "$(reexec_records)" == 1 ]] || fail TEST-049 'the journal does not hold exactly one reexec record'
+  [[ "$(file_lines "$W/marker")" == 1 ]] || fail TEST-049 'the marker file does not hold one line'
+  # a second apply: nothing left to do, nothing reloaded
+  before="$(world_digest)"
+  FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-049 "second apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(json_get "$ENG_OUT" 'j.steps.some(s=>s.id==="reload-engine")')" == false ]] || fail TEST-049 'second apply reloaded the engine'
+  for s in $ACTION_STEPS fixture-marker; do
+    [[ "$(sstat "$ENG_OUT" "$s")" == noop ]] || fail TEST-049 "second apply: step $s reported $(sstat "$ENG_OUT" "$s"), want noop"
+  done
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-049 'second apply changed the world'
+  [[ "$(reexec_records)" == 1 ]] || fail TEST-049 'second apply journalled another reexec'
+  # control: a merge that leaves the engine unchanged reloads nothing
+  engine_world reexec_same
+  FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-049 "control apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(json_get "$ENG_OUT" 'j.steps.some(s=>s.id==="reload-engine")')" == false ]] || fail TEST-049 'control: an unchanged engine was reloaded'
+  [[ "$(reexec_records)" == 0 ]] || fail TEST-049 'control: an unchanged engine was re-executed'
+  assert_no_merge_call TEST-049
+  echo 'PASS: TEST-049 the merged engine runs in the same apply'
+}
+
+test_050_reexec_runs_once_and_resumes() {
+  local variant="$SCRATCH/engine-variant-050.mjs"
+  make_engine_variant "$variant"
+  # arm guard: the variant changes its own file at every load; the re-executed run must not re-execute again
+  engine_world reexec_guard "$variant"
+  FIXTURE_MARKER_FILE="$W/marker" FIXTURE_LOAD_LOG="$W/loads" FIXTURE_SELF_TOUCH=1 apply_from_origin apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-050 "guard arm exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(file_lines "$W/loads")" == 1 ]] || fail TEST-050 "the variant was loaded $(file_lines "$W/loads") time(s), want 1"
+  [[ "$(reexec_records)" == 1 ]] || fail TEST-050 'guard arm: the journal does not hold exactly one reexec record'
+  # arm interrupted: the re-executed run stops after the state step; a re-run finishes it
+  engine_world reexec_int "$variant"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_STOP_AFTER=state FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-050 "interrupted arm exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(reexec_records)" == 1 ]] || fail TEST-050 'interrupted arm: the child did not run (no reexec record)'
+  [[ ! -e "$W/marker" ]] || fail TEST-050 'interrupted arm: the marker ran before the stop'
+  FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-050 "interrupted arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(sstat "$ENG_OUT" fixture-marker)" == done ]] || fail TEST-050 'interrupted arm: fixture-marker is not done on the re-run'
+  [[ "$(json_get "$ENG_OUT" 'j.steps.some(s=>s.id==="reload-engine")')" == false ]] || fail TEST-050 'interrupted arm: the re-run reloaded the engine'
+  [[ "$(file_lines "$W/marker")" == 1 ]] || fail TEST-050 'interrupted arm: the marker did not run exactly once overall'
+  assert_no_merge_call TEST-050
+  echo 'PASS: TEST-050 the re-executed run does not re-execute and an interrupted one resumes'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate; test_006_superseded_drafts; test_007_retained_and_decisions
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -2826,7 +3169,10 @@ case "$SELECTED" in
      test_036_remote_branch_deleted_by_lease; test_037_moved_remote_retained; test_038_absent_noop_and_idempotent
      test_039_fork_and_unknown_origin_retained; test_040_base_default_and_bad_name_retained; test_041_rejected_and_unreadable_never_stop
      test_042_canon_runs_block_unwrapped; test_043_dependents_retain_remote_branch
-     test_044_push_url_must_equal_fetch_url ;;
+     test_044_push_url_must_equal_fetch_url
+     test_045_ride_roadmap_entry_taken_from_incoming; test_046_foreign_roadmap_hunk_refuses_overlap
+     test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
+     test_049_merged_engine_runs_in_the_same_apply; test_050_reexec_runs_once_and_resumes ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -2871,5 +3217,11 @@ case "$SELECTED" in
   TEST-042|test_042_canon_runs_block_unwrapped) test_042_canon_runs_block_unwrapped ;;
   TEST-043|test_043_dependents_retain_remote_branch) test_043_dependents_retain_remote_branch ;;
   TEST-044|test_044_push_url_must_equal_fetch_url) test_044_push_url_must_equal_fetch_url ;;
+  TEST-045|test_045_ride_roadmap_entry_taken_from_incoming) test_045_ride_roadmap_entry_taken_from_incoming ;;
+  TEST-046|test_046_foreign_roadmap_hunk_refuses_overlap) test_046_foreign_roadmap_hunk_refuses_overlap ;;
+  TEST-047|test_047_ride_ledger_appends_moved) test_047_ride_ledger_appends_moved ;;
+  TEST-048|test_048_non_append_ledger_change_refused) test_048_non_append_ledger_change_refused ;;
+  TEST-049|test_049_merged_engine_runs_in_the_same_apply) test_049_merged_engine_runs_in_the_same_apply ;;
+  TEST-050|test_050_reexec_runs_once_and_resumes) test_050_reexec_runs_once_and_resumes ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac
