@@ -4,7 +4,7 @@ type: spec
 number: 223
 status: done
 mutation_gate: v1
-frozen_sha256: 6426c8231a4c19b071dc3bfbc7385aece0a5d2802730799328d3acfc03dedb85
+frozen_sha256: 827e9ba9e4a42306ce5536b798bc0a5f4ca2a362338ada0d5670cbb609b8e6ad
 ceremony_level: 2
 links:
   requirement: merge-cleanup-ride-leftovers
@@ -91,7 +91,7 @@ reload.
 
 One ride, 6 Spec-ACs, 6 TEST rows. Expected three TDD dispatches:
 (A) TEST-045, TEST-046 (roadmap); (B) TEST-047, TEST-048 (ledger tails);
-(C) TEST-049, TEST-050 (engine reload); (D) TEST-051 to TEST-054 (remediation rounds 1 to 3: the
+(C) TEST-049, TEST-050 (engine reload); (D) TEST-051 to TEST-055 (remediation rounds 1 to 5: the
 tail resume key and report count, the re-exec child exit, the reset record and the done record per archive); then V1 to V5.
 
 ## Measured facts (scratch repos, git 2.54.0, node from PATH, 2026-10-11)
@@ -200,12 +200,23 @@ tail resume key and report count, the re-exec child exit, the reset record and t
      for exactly that segment, not for the whole archive: when a recovery had
      already matched an earlier prefix and then crashed after appending only
      the rest, the next run finds the rest at or after `mainLen` and appends
-     nothing more (an intent without `segOffset` is read as the whole
-     archive). `T`'s own archive has no intent yet, so a first run appends
+     nothing more. Malformed intent fields never stop the run and never lose a
+     byte: an intent without a `segOffset`, or with one that is not an integer
+     or lies outside the archive, is read as the whole archive; an intent
+     whose `segSha256` differs from the digest of that segment, or whose
+     segment is empty, is ignored, so the segment is appended again (a
+     visible duplicate line, the accepted residual of a corrupted journal).
+     An earlier intent is also ignored, and never gets a done record, when a
+     later intent of the same ledger carries a valid `segOffset` smaller than
+     the earlier archive's length: that later run already judged the earlier
+     append missing (a crash between the intent and the append), and its
+     bytes only look present because the later append starts with the same
+     bytes. The moved count therefore equals the lines actually appended. `T`'s own archive has no intent yet, so a first run appends
      all of `T`, a line that is already in the ledger included. Right before
      the append the engine journals `{ step: 'ledger-append', status:
-     'intent', ledger, archive, sha256, mainLen, lines }` (`lines` = the lines
-     of the segment about to be appended) and passes
+     'intent', ledger, archive, sha256, length, segOffset, segSha256, mainLen,
+     lines }` (`length` = the byte length of `T`, `segOffset` and `segSha256`
+     as above, `lines` = the lines of the segment about to be appended) and passes
      `crashAt('ledger-move-after-intent')`; then it appends
      `T.subarray(already)` to the main checkout's `<rel>` (created with its
      directory when absent). A non-empty main ledger that does not end with
@@ -376,6 +387,7 @@ None.
 | Spec-AC-08 | WHEN the re-executed engine exits with a status other than 0 or 4 (a refusal status 3, a merged engine that does not load, or a signal), apply SHALL print one STOPPED reexec_child_exit_ line naming the status or signal as the only stdout line and exit 4; WHEN the child exits 4 on its own stop its output SHALL pass through unchanged. | done | docs/ai/tdd/spec-merge-cleanup-ride-leftovers/green-test-052.log; docs/ai/tdd/spec-merge-cleanup-ride-leftovers/mutation-TEST-052.txt | — | D12; remediation r1 (validation NB-2, review finding 3) |
 | Spec-AC-09 | WHEN a ride ledger tail is identical to one already moved and the ride file was reset after that move, a re-run SHALL append the later tail again (main holds the line once per write, nothing lost) and the moved list SHALL count both; WHEN several intent records exist for one archive, the journal SHALL hold exactly one done record for that append. | done | docs/ai/tdd/spec-merge-cleanup-ride-leftovers/green-test-053.log; docs/ai/tdd/spec-merge-cleanup-ride-leftovers/mutation-TEST-053.txt | — | D8, D10; remediation r2 (validation NB-r2-1 and NB-r2-3) |
 | Spec-AC-10 | WHEN a recovery run has matched an earlier archived prefix of the ride ledger tail and appended only the rest, and the run is killed at ledger-move-after-append, the next run SHALL append nothing more (every tail line, a late line included, occurs exactly once in the main checkout's ledger) and the moved list SHALL count each appended line once; the append intent SHALL record the appended segment offset and digest. | done | docs/ai/tdd/spec-merge-cleanup-ride-leftovers/green-test-054.log; docs/ai/tdd/spec-merge-cleanup-ride-leftovers/mutation-TEST-054.txt | — | D8; remediation r3 (Codex P2 on PR 455) |
+| Spec-AC-11 | WHEN a run is killed at ledger-move-after-intent (nothing appended), a late line lands in the ride ledger and a later run is killed at ledger-move-after-append or ledger-move-after-done, the final run SHALL exit 0, every tail line SHALL occur exactly once in the main checkout's ledger and the moved list SHALL hold the lines actually appended (3 for the two-line tail plus one late line), the never-appended intent getting no done record; the same SHALL hold when two intents crash before their append and a second late line lands. | done | docs/ai/tdd/spec-merge-cleanup-ride-leftovers/green-test-055.log; docs/ai/tdd/spec-merge-cleanup-ride-leftovers/mutation-TEST-055.txt | — | D8, D10; remediation r5 (validation F-r4-1) |
 
 ## Implementation plan
 
@@ -435,6 +447,7 @@ None.
 | TEST-052 | Spec-AC-08 | integration | tests/skills/test-aai-merge-cleanup.sh | test_052_reexec_child_exit_is_mapped: engine world with the generated variant; arm exit3: the variant prints REFUSE and exits 3 at load, apply exits 4 and stdout is exactly one STOPPED reexec_child_exit_3 line; arm sig: the variant kills itself with SIGKILL, stdout is one STOPPED reexec_child_exit_SIGKILL line; arm syntax: the variant has a syntax error appended, stdout is one STOPPED reexec_child_exit_1 line; control: STOP_AFTER state in the child exits 4 with no reexec_child_exit line | sed:s/if \(r\.status === 0 [^)]*\) \{/if (true) {/ | green |
 | TEST-053 | Spec-AC-09 | integration | tests/skills/test-aai-merge-cleanup.sh | test_053_reset_ride_ledger_is_not_a_resume_candidate: ledger world; arm ident: a late line is appended in the ride, TOUCH_AT before-remove-verify appends the byte-identical line again, apply stops with exit 4, the re-run exits 0 and main holds the line twice and the moved list counts 2; arm dint: three crashes (two at intent, one after the append) then a re-run, the duplicate line is in main twice (once appended), the journal holds one done record and moved is 1 | sed:s/else if \(r\.status === 'reset'\) \{ open = \[\]; doneArchives\.clear\(\); \}// | green |
 | TEST-054 | Spec-AC-10 | integration | tests/skills/test-aai-merge-cleanup.sh | test_054_resume_matches_the_appended_segment: ledger world; arm segcc: CRASH_AT ledger-move-after-append on a two-line EVENTS tail, a late line appended in the ride, a second crash at ledger-move-after-append after the recovery appends the late line, the final run exits 0 and each EVENTS line occurs once in main with moved one entry of 3; arm segtc: crash after the append, a late line, TOUCH_AT before-remove-verify stops the recovery with exit 4, a crash at the next recovery, the final run keeps every line once with moved one entry of 4 | sed:s/const segment = c\.subarray\(segAt\);/const segment = c;/ | green |
+| TEST-055 | Spec-AC-11 | integration | tests/skills/test-aai-merge-cleanup.sh | test_055_unappended_intent_is_not_counted: ledger world; arm ovc: crash at ledger-move-after-intent on a two-line EVENTS tail, a late line, crash at ledger-move-after-append, the final run keeps each line once and moved is one entry of 3; arm itc: two crashes at ledger-move-after-intent with a late line after each, then a crash at ledger-move-after-append, the final run keeps each line once and moved is one entry of 4 | sed:s/if \(judgedMissing\(i, c\.length\)\) continue;// | green |
 
 Mutation target: .aai/scripts/merge-cleanup.mjs for every row. The intake's
 "mutation that widens the predicate" is TEST-046's row (roadmap) and
@@ -444,7 +457,7 @@ and TEST-049's row respectively.
 ## Verification
 
 - V1: `env -u AAI_ROLE bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-merge-cleanup.sh`
-  exits 0 (TEST-001 to TEST-054 in the default order). Single test: append the
+  exits 0 (TEST-001 to TEST-055 in the default order). Single test: append the
   function name or `TEST-0xx`.
 - V2: `node .aai/scripts/mutation-run.mjs` per Test Plan row on the engine,
   then `node .aai/scripts/mutation-gate.mjs` at close.

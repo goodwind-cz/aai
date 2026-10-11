@@ -3288,6 +3288,44 @@ test_054_resume_matches_the_appended_segment() {
   echo 'PASS: TEST-054 a resume matches the segment an intent appended, never the whole archived tail'
 }
 
+test_055_unappended_intent_is_not_counted() {
+  local ev=docs/ai/EVENTS.jsonl late2='{"v":1,"event":"late-after-crash-two"}'
+  # arm ovc: crash after the intent (nothing appended), a late line lands, crash after the append of the larger
+  # tail; the never-appended first intent must not get a done record, so moved is the 3 lines appended
+  LEDGER_WORLD=1 build_world ovc
+  seed_ledger_tails
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-intent run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-055 "ovc first crash exited $ENG_RC, want 137"
+  printf '%s\n' "$LATE_LINE" >> "$RIDE/$ev"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-055 "ovc second crash exited $ENG_RC, want 137 (out: $ENG_OUT $ENG_ERR)"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-055 "ovc final run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$ev" "$LEDGER_EV1")" == 1 && "$(count_line "$ORIGIN/$ev" "$LEDGER_EV2")" == 1 ]] || fail TEST-055 'ovc: an original event line is not exactly once'
+  [[ "$(count_line "$ORIGIN/$ev" "$LATE_LINE")" == 1 ]] || fail TEST-055 "ovc: the late line is in main $(count_line "$ORIGIN/$ev" "$LATE_LINE") times, want 1"
+  [[ "$(moved_lines "$ENG_OUT" "$ev")" == 3 ]] || fail TEST-055 "ovc: EVENTS moved is [$(moved_lines "$ENG_OUT" "$ev")], want one entry of 3"
+
+  # arm itc: crash after the intent, late line, a second crash after the intent, a second late line, crash after
+  # the append; the two earlier intents appended nothing and must not be counted (moved is 4, not 9)
+  LEDGER_WORLD=1 build_world itc
+  seed_ledger_tails
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-intent run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-055 "itc first crash exited $ENG_RC, want 137"
+  printf '%s\n' "$LATE_LINE" >> "$RIDE/$ev"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-intent run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-055 "itc second crash exited $ENG_RC, want 137 (out: $ENG_OUT $ENG_ERR)"
+  printf '%s\n' "$late2" >> "$RIDE/$ev"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-055 "itc third crash exited $ENG_RC, want 137 (out: $ENG_OUT $ENG_ERR)"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-055 "itc final run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$ev" "$LEDGER_EV1")" == 1 && "$(count_line "$ORIGIN/$ev" "$LEDGER_EV2")" == 1 ]] || fail TEST-055 'itc: an original event line is not exactly once'
+  [[ "$(count_line "$ORIGIN/$ev" "$LATE_LINE")" == 1 && "$(count_line "$ORIGIN/$ev" "$late2")" == 1 ]] || fail TEST-055 'itc: a late line is not exactly once'
+  [[ "$(moved_lines "$ENG_OUT" "$ev")" == 4 ]] || fail TEST-055 "itc: EVENTS moved is [$(moved_lines "$ENG_OUT" "$ev")], want one entry of 4"
+  assert_no_merge_call TEST-055
+  echo 'PASS: TEST-055 an intent whose append a later run judged missing is never counted as moved'
+}
+
 # child_exit_arm <name> <variant file> <FIXTURE_CHILD_EXIT value or empty> <tag in the STOPPED line>
 child_exit_arm() {
   local name="$1" variant="$2" mode="$3" tag="$4" stops
@@ -3338,7 +3376,7 @@ case "$SELECTED" in
      test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
      test_049_merged_engine_runs_in_the_same_apply; test_050_reexec_runs_once_and_resumes
      test_051_ledger_tail_resume_key_and_count; test_052_reexec_child_exit_is_mapped; test_053_reset_ride_ledger_is_not_a_resume_candidate
-     test_054_resume_matches_the_appended_segment ;;
+     test_054_resume_matches_the_appended_segment; test_055_unappended_intent_is_not_counted ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -3393,5 +3431,6 @@ case "$SELECTED" in
   TEST-052|test_052_reexec_child_exit_is_mapped) test_052_reexec_child_exit_is_mapped ;;
   TEST-053|test_053_reset_ride_ledger_is_not_a_resume_candidate) test_053_reset_ride_ledger_is_not_a_resume_candidate ;;
   TEST-054|test_054_resume_matches_the_appended_segment) test_054_resume_matches_the_appended_segment ;;
+  TEST-055|test_055_unappended_intent_is_not_counted) test_055_unappended_intent_is_not_counted ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

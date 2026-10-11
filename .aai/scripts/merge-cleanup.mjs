@@ -1015,10 +1015,15 @@ function moveLedgerTails(ctx, wt) {
         else if (r.status === 'reset') { open = []; doneArchives.clear(); }
         else if (r.status === 'done') doneArchives.add(r.archive);
       }
+      // A later intent's segOffset is what that run judged already appended. An earlier intent whose archive
+      // is longer than a later valid segOffset was judged not appended: it crashed before its append, and its
+      // bytes only look present because the later append starts with the same bytes. It is never counted.
+      const judgedMissing = (i, len) => open.slice(i + 1).some((l) => Number.isInteger(l.segOffset) && l.segOffset >= 0 && (!Number.isInteger(l.length) || l.segOffset <= l.length) && l.segOffset < len);
       let already = 0;
-      for (const r of open) {
+      for (const [i, r] of open.entries()) {
         let c = null;
         try { c = fs.readFileSync(path.join(ctx.origin, r.archive)); } catch { continue; }
+        if (judgedMissing(i, c.length)) continue;
         const from = Math.min(r.mainLen ?? 0, cur ? cur.length : 0);
         // the intent appended the archive from segOffset on (an earlier prefix was already in main); an
         // intent without one appended the whole archive
