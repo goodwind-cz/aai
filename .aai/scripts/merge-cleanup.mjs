@@ -1020,7 +1020,11 @@ function moveLedgerTails(ctx, wt) {
         let c = null;
         try { c = fs.readFileSync(path.join(ctx.origin, r.archive)); } catch { continue; }
         const from = Math.min(r.mainLen ?? 0, cur ? cur.length : 0);
-        if (c.length > t.tail.length || !t.tail.subarray(0, c.length).equals(c) || !atLineStart(cur, c, from)) continue;
+        // the intent appended the archive from segOffset on (an earlier prefix was already in main); an
+        // intent without one appended the whole archive
+        const segAt = Number.isInteger(r.segOffset) && r.segOffset >= 0 && r.segOffset <= c.length ? r.segOffset : 0;
+        const segment = c.subarray(segAt);
+        if (c.length > t.tail.length || !t.tail.subarray(0, c.length).equals(c) || (r.segSha256 && r.segSha256 !== sha256(segment)) || !atLineStart(cur, segment, from)) continue;
         already = Math.max(already, c.length);
         // the append happened but the crash came before its done record: record it now, once per archive
         if (!doneArchives.has(r.archive)) {
@@ -1031,7 +1035,7 @@ function moveLedgerTails(ctx, wt) {
       if (already < t.tail.length) {
         const seg = t.tail.subarray(already);
         const intentAt = new Date().toISOString();
-        appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'intent', ledger: t.rel, archive: arch.rel, sha256: arch.digest, length: t.tail.length, mainLen: cur ? cur.length : 0, lines: countLines(seg), timestamp: intentAt });
+        appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'intent', ledger: t.rel, archive: arch.rel, sha256: arch.digest, length: t.tail.length, segOffset: already, segSha256: sha256(seg), mainLen: cur ? cur.length : 0, lines: countLines(seg), timestamp: intentAt });
         crashAt('ledger-move-after-intent');
         fs.mkdirSync(path.dirname(main), { recursive: true });
         fs.appendFileSync(main, seg);

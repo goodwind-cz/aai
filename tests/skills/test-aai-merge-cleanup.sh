@@ -3249,6 +3249,45 @@ test_053_reset_ride_ledger_is_not_a_resume_candidate() {
   echo 'PASS: TEST-053 a reset ride ledger is no resume candidate and every append has exactly one done record'
 }
 
+test_054_resume_matches_the_appended_segment() {
+  local ev=docs/ai/EVENTS.jsonl
+  # arm crash-crash: crash after the append of a two-line tail, a late line lands, the recovery appends it and
+  # crashes again; the last run must not append the late line a second time
+  LEDGER_WORLD=1 build_world segcc
+  seed_ledger_tails
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-054 "segcc first crash exited $ENG_RC, want 137"
+  printf '%s\n' "$LATE_LINE" >> "$RIDE/$ev"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-054 "segcc second crash exited $ENG_RC, want 137 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$ev" "$LATE_LINE")" == 1 ]] || fail TEST-054 'segcc: the recovery did not append the late line once before the crash'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-054 "segcc final run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$ev" "$LEDGER_EV1")" == 1 && "$(count_line "$ORIGIN/$ev" "$LEDGER_EV2")" == 1 ]] || fail TEST-054 'segcc: an original event line is not exactly once'
+  [[ "$(count_line "$ORIGIN/$ev" "$LATE_LINE")" == 1 ]] || fail TEST-054 "segcc: the late line is in main $(count_line "$ORIGIN/$ev" "$LATE_LINE") times, want 1"
+  [[ "$(moved_lines "$ENG_OUT" "$ev")" == 3 ]] || fail TEST-054 "segcc: EVENTS moved is [$(moved_lines "$ENG_OUT" "$ev")], want one entry of 3"
+
+  # arm touch: crash after the append, a late line lands, the recovery moves it and a TOUCH_AT line stops the run,
+  # a crash during the next recovery loses its done record; the final run keeps every line once
+  LEDGER_WORLD=1 build_world segtc
+  seed_ledger_tails
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-054 "segtc first crash exited $ENG_RC, want 137"
+  printf '%s\n' "$LATE_LINE" >> "$RIDE/$ev"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_TOUCH_AT="before-remove-verify:$ev" run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-054 "segtc touch stop exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-054 "segtc second crash exited $ENG_RC, want 137 (out: $ENG_OUT $ENG_ERR)"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-054 "segtc final run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$ev" "$LEDGER_EV1")" == 1 && "$(count_line "$ORIGIN/$ev" "$LEDGER_EV2")" == 1 ]] || fail TEST-054 'segtc: an original event line is not exactly once'
+  [[ "$(count_line "$ORIGIN/$ev" "$LATE_LINE")" == 1 ]] || fail TEST-054 "segtc: the late line is in main $(count_line "$ORIGIN/$ev" "$LATE_LINE") times, want 1"
+  [[ "$(count_line "$ORIGIN/$ev" 'written by another session')" == 1 ]] || fail TEST-054 'segtc: the touched line is not exactly once'
+  [[ "$(moved_lines "$ENG_OUT" "$ev")" == 4 ]] || fail TEST-054 "segtc: EVENTS moved is [$(moved_lines "$ENG_OUT" "$ev")], want one entry of 4"
+  assert_no_merge_call TEST-054
+  echo 'PASS: TEST-054 a resume matches the segment an intent appended, never the whole archived tail'
+}
+
 # child_exit_arm <name> <variant file> <FIXTURE_CHILD_EXIT value or empty> <tag in the STOPPED line>
 child_exit_arm() {
   local name="$1" variant="$2" mode="$3" tag="$4" stops
@@ -3298,7 +3337,8 @@ case "$SELECTED" in
      test_045_ride_roadmap_entry_taken_from_incoming; test_046_foreign_roadmap_hunk_refuses_overlap
      test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
      test_049_merged_engine_runs_in_the_same_apply; test_050_reexec_runs_once_and_resumes
-     test_051_ledger_tail_resume_key_and_count; test_052_reexec_child_exit_is_mapped; test_053_reset_ride_ledger_is_not_a_resume_candidate ;;
+     test_051_ledger_tail_resume_key_and_count; test_052_reexec_child_exit_is_mapped; test_053_reset_ride_ledger_is_not_a_resume_candidate
+     test_054_resume_matches_the_appended_segment ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -3352,5 +3392,6 @@ case "$SELECTED" in
   TEST-051|test_051_ledger_tail_resume_key_and_count) test_051_ledger_tail_resume_key_and_count ;;
   TEST-052|test_052_reexec_child_exit_is_mapped) test_052_reexec_child_exit_is_mapped ;;
   TEST-053|test_053_reset_ride_ledger_is_not_a_resume_candidate) test_053_reset_ride_ledger_is_not_a_resume_candidate ;;
+  TEST-054|test_054_resume_matches_the_appended_segment) test_054_resume_matches_the_appended_segment ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac
