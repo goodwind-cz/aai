@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff 029e9884..a2a4e174 (branch change/merge-cleanup-delete-remote-branch, worktree)"
-  spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-delete-remote-branch.md
+  spec: docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -45,9 +45,9 @@ review:
   (STATE `worktree.user_decision: worktree`, base main). The uncommitted files
   in the worktree (EVENTS, decisions, roadmap, test-runs ledgers) are outside
   the reviewed range.
-- Spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-delete-remote-branch.md
+- Spec: docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md
   (frozen, with the Spec-AC-08 post-freeze amendment). Intake:
-  docs/issues/CHANGE-DRAFT-merge-cleanup-delete-remote-branch.md.
+  docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md.
 - Dispatch note: the dispatch prompt listed focus areas. They were not
   severity pre-ratings or scope exclusions. The full scope was reviewed.
 - Independent run: TEST-036 to TEST-043 each PASS through

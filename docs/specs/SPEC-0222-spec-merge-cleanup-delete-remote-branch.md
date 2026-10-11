@@ -1,10 +1,10 @@
 ---
 id: spec-merge-cleanup-delete-remote-branch
 type: spec
-number: null
+number: 222
 status: implementing
 mutation_gate: v1
-frozen_sha256: 8d7f3cfe468da0e9735a3a606b11900c8815f9f60438875c324c8603af91d39a
+frozen_sha256: 8bc81ccf7a49660909be2817ebb37c52c2812f6c2c4ceb5764e37a87df423af9
 ceremony_level: 2
 links:
   requirement: merge-cleanup-delete-remote-branch
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-merge-cleanup-delete-remote-branch.md
+- Requirement: docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md
   (owner direction 2026-10-11: "Podle mě by měl dělat i to mazání větve a
   neměl by mit problém s bezpečnostn kontrolou")
 - Engine: .aai/scripts/merge-cleanup.mjs (`STEP_IDS`, `PR_FIELDS`,
@@ -338,7 +338,7 @@ the race arm deletes the moved branch.
   the wrapper, and `node .aai/scripts/docs-audit.mjs --check --strict`.
 - V4 mutation: `node .aai/scripts/mutation-run.mjs` per row on the targets
   above, then `mutation-gate.mjs` at close.
-- Lint: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-merge-cleanup-delete-remote-branch.md`.
+- Lint: `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md`.
 
 PASS criteria: every TEST row green with a stored RED and a mutation record,
 every Spec-AC terminal, V1 to V3 exit 0.

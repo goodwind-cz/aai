@@ -62,6 +62,8 @@ pairs:
     status: done
   - capability: merge-direction-signs-amendments
     status: done
+  - capability: merge-cleanup-delete-remote-branch
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-11T01:53:49.273Z",
+  "generatedAt": "2026-10-11T12:25:45.767Z",
   "project": "aai",
   "counts": {
     "delivered": 291,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 75743724
   },
@@ -49,6 +49,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "merge-cleanup-delete-remote-branch",
+      "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261011T1201Z-merge-cleanup-delete-remote-branch-r1.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -232,7 +245,7 @@
       "token_total": 1540588,
       "spec": "docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20261011T014254Z-merge-cleanup-submodule-worktree-r3.md"
+      "review": "docs/ai/reviews/review-20261011T021433Z-merge-cleanup-submodule-worktree-r4.md"
     },
     {
       "ref": "directed-merge-and-post-merge-cleanup",
@@ -4042,7 +4055,7 @@
           "token_total": 1540588,
           "spec": "docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-20261011T014254Z-merge-cleanup-submodule-worktree-r3.md"
+          "review": "docs/ai/reviews/review-20261011T021433Z-merge-cleanup-submodule-worktree-r4.md"
         },
         {
           "ref": "directed-merge-and-post-merge-cleanup",
