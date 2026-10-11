@@ -88,6 +88,12 @@ if [ "$#" -eq 10 ] && [ "$1" = pr ] && [ "$2" = list ] && [ "$3" = --state ] && 
   if [ -f "$dir/deps-$key.json" ]; then cat "$dir/deps-$key.json"; else echo '[]'; fi
   exit 0
 fi
+if [ "$#" -eq 10 ] && [ "$1" = pr ] && [ "$2" = list ] && [ "$3" = --state ] && [ "$4" = open ] && [ "$5" = --head ] && [ "$7" = --json ] && [ "$8" = number ] && [ "$9" = --limit ] && [ "${10}" = 100 ]; then
+  [ -f "$dir/heads-fail" ] && { echo 'STUB: pr list --head failed' >&2; exit 1; }
+  key="${6//\//_}"
+  if [ -f "$dir/heads-$key.json" ]; then cat "$dir/heads-$key.json"; else echo '[]'; fi
+  exit 0
+fi
 printf 'STUB-DENY: unexpected argv: %s\n' "$*" >&2
 exit 1
 GHSTUB
@@ -2706,6 +2712,25 @@ test_043_dependents_retain_remote_branch() {
   run_engine apply --pr "$PR" --pid 4242 --json
   retained_arm TEST-043 remote_unknown 'unlisted arm'
   bare_has "$BRANCH" || fail TEST-043 'unlisted arm: the remote branch was deleted'
+  # arm head-of: an open PR is opened FROM the head branch (into another base)
+  build_world remote_head_of_open_pr
+  printf '[{"number":611}]\n' > "$GHD/heads-${BRANCH//\//_}.json"
+  run_engine plan --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-043 "head-of plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-043 "$ENG_OUT" 'retain origin/ride/foo (remote_has_dependents)'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-043 "head-of apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  retained_arm TEST-043 remote_has_dependents 'head-of arm'
+  want TEST-043 "$(rstep "$ENG_OUT" detail)" '#611'
+  want TEST-043 "$(rstep "$ENG_OUT" detail)" 'opened from'
+  want TEST-043 "$(cat "$GHD/gh-argv.log")" "pr list --state open --head $BRANCH --json number --limit 100"
+  bare_has "$BRANCH" || fail TEST-043 'head-of arm: the remote branch was deleted'
+  # arm head-unlisted: the head query fails, fail closed
+  build_world remote_head_unknown
+  : > "$GHD/heads-fail"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-043 remote_unknown 'head-unlisted arm'
+  bare_has "$BRANCH" || fail TEST-043 'head-unlisted arm: the remote branch was deleted'
   echo 'PASS: TEST-043 a branch with open dependent pull requests is never deleted'
 }
 

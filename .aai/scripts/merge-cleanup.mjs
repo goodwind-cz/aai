@@ -151,12 +151,23 @@ function ghPrView(cwd, pr, maxBuffer) {
   return spawnSync('gh', viewArgs, { cwd, encoding: 'utf8', maxBuffer });
 }
 
-// Open PRs stacked on a branch (their BASE): deleting that branch can close them. Same gh seam.
-function ghDependents(cwd, branch) {
-  const listArgs = ['pr', 'list', '--state', 'open', '--base', branch, '--json', 'number', '--limit', '100'];
+// Open PRs that deleting a branch would close, same gh seam: those stacked on it (their BASE is the
+// branch) and those opened from it (their HEAD is the branch). `side` is 'base' or 'head'.
+function ghDependents(cwd, branch, side = 'base') {
+  const listArgs = ['pr', 'list', '--state', 'open', `--${side}`, branch, '--json', 'number', '--limit', '100'];
   const stub = seam('AAI_MERGE_CLEANUP_GH_NODE');
   if (stub && path.isAbsolute(stub)) return spawnSync(process.execPath, [stub, ...listArgs], { cwd, encoding: 'utf8', timeout: 120000 });
   return spawnSync('gh', listArgs, { cwd, encoding: 'utf8', timeout: 120000 });
+}
+
+// PR numbers from one dependents query, or null when it failed or its output is not a list of numbers.
+function dependentNumbers(dep) {
+  if (dep.error || dep.status !== 0) return null;
+  try {
+    const rows = JSON.parse(dep.stdout);
+    if (Array.isArray(rows) && rows.every((x) => Number.isInteger(x?.number))) return rows.map((x) => x.number);
+  } catch { /* unparsable: fail closed */ }
+  return null;
 }
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
@@ -921,16 +932,14 @@ function remoteProof(ctx) {
   if ([ctx.base, defaultBranch].includes(b)) return { retain: ['remote_is_base', `${b} is the base or default branch`] };
   if (remoteOid === '') return { absent: true };
   if (!/^[0-9a-f]{40}$/i.test(ctx.head) || remoteOid !== ctx.head) return { retain: ['remote_moved', `origin/${b} at ${remoteOid}, PR head ${ctx.head || 'unknown'}`] };
-  const dep = ghDependents(ctx.origin, b);
-  let nums = null;
-  if (!dep.error && dep.status === 0) {
-    try {
-      const rows = JSON.parse(dep.stdout);
-      if (Array.isArray(rows) && rows.every((x) => Number.isInteger(x?.number))) nums = rows.map((x) => x.number);
-    } catch { nums = null; }
-  }
-  if (nums === null) return { retain: ['remote_unknown', 'open pull requests based on the branch could not be listed'] };
-  if (nums.length > 0) return { retain: ['remote_has_dependents', `open pull requests based on it: ${nums.map((n) => `#${n}`).join(', ')}`] };
+  const based = dependentNumbers(ghDependents(ctx.origin, b, 'base'));
+  const opened = dependentNumbers(ghDependents(ctx.origin, b, 'head'));
+  if (based === null || opened === null) return { retain: ['remote_unknown', 'open pull requests based on or opened from the branch could not be listed'] };
+  const list = (ns) => ns.map((n) => `#${n}`).join(', ');
+  const facts = [];
+  if (based.length > 0) facts.push(`open pull requests based on it: ${list(based)}`);
+  if (opened.length > 0) facts.push(`open pull requests opened from it: ${list(opened)}`);
+  if (facts.length > 0) return { retain: ['remote_has_dependents', facts.join('; ')] };
   return { oid: remoteOid };
 }
 

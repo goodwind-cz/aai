@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: a0c3662fcf06f74f161dc65a7b631d1949e24f7a9f60dcc2a6c0972e64f1edb8
+frozen_sha256: 8d7f3cfe468da0e9735a3a606b11900c8815f9f60438875c324c8603af91d39a
 ceremony_level: 2
 links:
   requirement: merge-cleanup-delete-remote-branch
@@ -136,13 +136,18 @@ Measured in a scratch bare origin plus a clone, `GIT_CONFIG_GLOBAL=/dev/null`.
   5. remote head: no `refs/heads/<b>` line gives status `noop`, detail
      `remote_absent`; an oid other than the PR `headRefOid` (or a
      `headRefOid` that is not 40 hex) gives `remote_moved` naming both oids;
-  6. dependents (Spec-AC-08, amended): one `gh pr list --state open --base <b>
-     --json number --limit 100` read with a 120 s timeout; any open PR gives
-     `remote_has_dependents` naming the PR numbers; a failed, timed-out or
-     unparsable read gives `remote_unknown` (fail closed).
+  6. dependents (Spec-AC-08, amended twice): two reads, each `gh pr list
+     --state open --base <b> --json number --limit 100` and `gh pr list
+     --state open --head <b> --json number --limit 100`, each with a 120 s
+     timeout (the base read finds PRs stacked on the branch, the head read
+     finds PRs opened from it, which deleting the branch would also close);
+     any open PR from either read gives `remote_has_dependents` naming the PR
+     numbers and whether each is based on the branch or opened from it; either
+     read failing, timing out or unparsable gives `remote_unknown` (fail
+     closed). The stale-info re-read repeats both reads.
   MERGED and the merge commit on the base are already proven by
   `readAndGate` (refusal before any write); the step does not re-read the PR
-  itself, its only gh read is the dependents list of step 6.
+  itself, its only gh reads are the two dependents lists of step 6.
 - D3 Deletion by compare-and-swap only:
   `const lease = \`--force-with-lease=refs/heads/${b}:${ctx.head}\`;` then
   `git push --porcelain <lease> origin :refs/heads/<b>` with
@@ -261,7 +266,7 @@ None.
 | Spec-AC-05 | WHEN the PR head branch name equals the base branch or the default branch of the remote (bare HEAD symref pointed at it), the step SHALL be retained with reason remote_is_base, and WHEN the head branch name fails git check-ref-format it SHALL be retained with reason remote_bad_name; the named remote branch SHALL still exist and apply SHALL exit 0. | done | docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/green-TEST-040.log; docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/mutation-TEST-040.txt | tdd | D2, D5 |
 | Spec-AC-06 | WHEN the origin rejects the deletion (pre-receive hook exits 1) the step SHALL be retained with reason remote_delete_rejected and the hook's rejection text in the detail, and WHEN git ls-remote fails it SHALL be retained with reason remote_unknown; in both arms the origin branch SHALL still exist, apply SHALL exit 0, and the report step SHALL be done with a saved report naming the retained branch under Remaining. | done | docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/green-TEST-041.log; docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/mutation-TEST-041.txt | tdd | D4, D5, D6; seam S4 |
 | Spec-AC-07 | SKILL_MERGE.prompt.md SHALL say to run the block as the command itself, never through bash -c, sh -c or eval; step 3 SHALL no longer name remote branch deletion as an owner action and SHALL say a retained remote branch is relayed with its reason and never deleted by the agent; neither the bash nor the PowerShell block SHALL contain rm as a command word, Remove-Item or --force; the PowerShell block SHALL clear the variable with $env:AAI_GIT_WRITE = $null; the prompt-diet ledger SHALL carry an entry keyed merge-cleanup-delete-remote-branch crediting a positive integer of at most 600 bytes. | done | docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/green-TEST-042.log; docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/mutation-TEST-042.txt | tdd | D9, D10; seams S3, S5 |
-| Spec-AC-08 | WHEN an open pull request has the head branch as its base (a stacked PR) the step SHALL be retained with reason remote_has_dependents naming the PR numbers, the plan SHALL show the same retention, and the origin branch SHALL still exist with apply exiting 0; WHEN the open-PR query fails the step SHALL be retained with reason remote_unknown and the origin branch SHALL still exist. | done | docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/green-TEST-043.log; docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/mutation-TEST-043.txt | tdd | D2, D5; post-freeze amendment |
+| Spec-AC-08 | WHEN an open pull request has the head branch as its base (a stacked PR) or as its head (a PR opened from the branch into another base) the step SHALL be retained with reason remote_has_dependents naming the PR numbers, the plan SHALL show the same retention, and the origin branch SHALL still exist with apply exiting 0; WHEN either open-PR query fails the step SHALL be retained with reason remote_unknown and the origin branch SHALL still exist. | done | docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/green-TEST-043.log; docs/ai/tdd/spec-merge-cleanup-delete-remote-branch/mutation-TEST-043.txt | tdd | D2, D5; post-freeze amendment |
 
 ## Implementation plan
 
@@ -312,7 +317,7 @@ None.
 | TEST-040 | Spec-AC-05 | integration | tests/skills/test-aai-merge-cleanup.sh | test_040_base_default_and_bad_name_retained: arm default (bare HEAD symbolic-ref set to refs/heads/ride/foo): retained remote_is_base, bare ride/foo still exists; arm base (PR fixture headRefName main, equal to baseRefName main): retained remote_is_base, bare main unchanged; arm bad name (PR fixture headRefName ride..foo, which passes the planChecks bad_head_name refusal but fails git check-ref-format): retained remote_bad_name; each exits 0 | sed:s/\[ctx\.base, defaultBranch\]\.includes\(b\)/false/ | green |
 | TEST-041 | Spec-AC-06 | integration | tests/skills/test-aai-merge-cleanup.sh | test_041_rejected_and_unreadable_never_stop: arm rejected (pre-receive hook on the bare exits 1 with protected branch on stderr): retained remote_delete_rejected with the hook text in the detail; arm unreadable (git shim fails ls-remote): retained remote_unknown; each arm: bare ride/foo still exists, exit 0, report step done, the saved report Remaining section names origin/ride/foo | sed:s/return retain\('remote_delete_rejected'/return stop('remote_delete_rejected'/ | green |
 | TEST-042 | Spec-AC-07 | contract | tests/skills/test-aai-merge-cleanup.sh | test_042_canon_runs_block_unwrapped: SKILL_MERGE.prompt.md contains as the command itself, never through followed by bash -c, sh -c and eval; step 3 section has no remote branch deletion owner action and contains retained and never delete; both extracted blocks contain no rm command word, no Remove-Item, no --force; the PowerShell block contains $env:AAI_GIT_WRITE = $null; the prompt-diet ledger has the key merge-cleanup-delete-remote-branch with a positive integer credit of at most 600 | sed:s/as the command itself, never through/as the command itself, or through/ | green |
-| TEST-043 | Spec-AC-08 | integration | tests/skills/test-aai-merge-cleanup.sh | test_043_dependents_retain_remote_branch: arm dependents (fake gh lists one open PR based on ride/foo): plan lists retain origin/ride/foo (remote_has_dependents), apply exits 0 with the step retained remote_has_dependents naming the PR number, the gh log shows the pr list query, bare ride/foo still exists; arm unlisted (fake gh fails the pr list query): retained remote_unknown, bare ride/foo still exists | sed:s/if \(nums\.length > 0\) return/if (false) return/ | green |
+| TEST-043 | Spec-AC-08 | integration | tests/skills/test-aai-merge-cleanup.sh | test_043_dependents_retain_remote_branch: arm dependents (fake gh lists one open PR based on ride/foo): plan lists retain origin/ride/foo (remote_has_dependents), apply exits 0 with the step retained remote_has_dependents naming the PR number, the gh log shows the pr list query, bare ride/foo still exists; arm unlisted (fake gh fails the pr list query): retained remote_unknown, bare ride/foo still exists; arm head-of (fake gh lists one open PR whose head is ride/foo): plan lists retain origin/ride/foo (remote_has_dependents), apply exits 0 retained remote_has_dependents naming the PR number and saying opened from it, the gh log shows the pr list --head query, bare ride/foo still exists; arm head-unlisted (fake gh fails the pr list --head query): retained remote_unknown, bare ride/foo still exists | sed:s/const opened = dependentNumbers\(ghDependents\(ctx\.origin, b, 'head'\)\);/const opened = [];/ | green |
 
 Mutation targets: .aai/scripts/merge-cleanup.mjs for TEST-036 to TEST-041 and TEST-043;
 .aai/SKILL_MERGE.prompt.md for TEST-042. The intake's "a mutation that drops
