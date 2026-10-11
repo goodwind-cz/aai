@@ -3032,3 +3032,4 @@
 {"v":1,"ts":"2026-10-11T16:05:58Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0223/Spec-AC-10","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-11T16:12:58Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":594,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-11T16:39:32Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0223/Spec-AC-11","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-11T17:20:07Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0223/Spec-AC-11","payload":{"commit":"436b51f9"}}
