@@ -369,7 +369,8 @@ function closedRefs(eventsPath) {
 function scanCloseEvents(eventsPath, ref) {
   let lastClose = -1;
   let lastReopen = -1;
-  if (!fs.existsSync(eventsPath)) return { lastClose, lastReopen };
+  let lastRelease = -1;
+  if (!fs.existsSync(eventsPath)) return { lastClose, lastReopen, lastRelease };
   const evLines = fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/);
   for (let i = 0; i < evLines.length; i += 1) {
     const t = evLines[i].trim();
@@ -379,9 +380,17 @@ function scanCloseEvents(eventsPath, ref) {
       if (!refMatches(o.ref, ref)) continue;
       if (o.event === 'work_item_closed') lastClose = i;
       else if (o.event === 'doc_lifecycle' && o.payload && o.payload.from === 'done') lastReopen = i;
+      else if (o.event === RELEASED_EVENT) lastRelease = i;
     } catch { /* best-effort matching probe */ }
   }
-  return { lastClose, lastReopen };
+  return { lastClose, lastReopen, lastRelease };
+}
+
+// True when a work_item_released event for `ref` follows its last close: the
+// release the close allowed has already been recorded.
+function releasedSinceLastClose(eventsPath, ref) {
+  const { lastClose, lastRelease } = scanCloseEvents(eventsPath, ref);
+  return lastClose !== -1 && lastRelease > lastClose;
 }
 
 // True when a work_item_closed event matching `ref` (dispatcher semantics) exists.
@@ -1155,11 +1164,26 @@ function readReleasePending(statePath) {
   } catch { return null; }
 }
 
-function eventsHasLine(eventsPath, event) {
-  if (!fs.existsSync(eventsPath)) return false;
-  const want = JSON.stringify(event);
-  return fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/).some(l => l.trim() === want);
+function pidAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
 }
+
+// A crash between the temp write and the rename leaves
+// `<state>.release-pending.tmp-<pid>`; remove those whose writer is dead
+// (a live pid may be another session mid-write).
+function sweepStaleReleaseTmp(statePath) {
+  const dir = path.dirname(statePath);
+  const prefix = `${path.basename(releasePendingPath(statePath))}.tmp-`;
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch { return; }
+  for (const n of names) {
+    if (!n.startsWith(prefix)) continue;
+    const pid = Number(n.slice(prefix.length));
+    if (Number.isInteger(pid) && pid > 0 && !pidAlive(pid)) fs.rmSync(path.join(dir, n), { force: true });
+  }
+}
+
+function dropReleasePending(statePath) { fs.rmSync(releasePendingPath(statePath), { force: true }); }
 
 function appendReleaseEvent(eventsPath, event) {
   fs.mkdirSync(path.dirname(eventsPath), { recursive: true });
@@ -1172,24 +1196,39 @@ function handleRelease(ctx) {
     eventsPath, metricsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
   } = ctx;
   const rStatusNow = readScalar(origLines, 'code_review', 'status');
+  // A fail verdict naming the ref is an incomplete close (guard 4 below); the
+  // resume path honours it too, so a record can never yield an event the
+  // normal path would refuse.
+  const failNamesRef = (vStatus === 'fail' && refMatches(vRef, ref))
+    || (rStatusNow === 'fail' && refMatches(scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id')), ref));
+  if (!opts.dryRun) sweepStaleReleaseTmp(statePath);
 
   // 0) An interrupted earlier release. Pending record + item still in STATE =
   // the STATE commit never happened (crash or concurrent-modification
   // rejection): the record is stale, drop it and release afresh. Pending record
   // + item gone from STATE and from the ledger = the commit happened and only
-  // the event is missing: append exactly that event (resume), nothing else.
+  // the event is missing: append exactly that event (resume), nothing else —
+  // but only if EVENTS holds no release for the ref after its last close (else
+  // the release is already recorded, by this record or another session: the
+  // spent record is dropped) and no fail verdict names the ref.
   const pending = readReleasePending(statePath);
   if (pending !== null && statusByRef.has(pending.ref)) {
     if (!opts.dryRun) fs.rmSync(releasePendingPath(statePath), { force: true });
   } else if (pending !== null && pending.ref === ref && !statusByRef.has(ref) && focusRef !== ref
       && !entries.some(e => e.ref === ref) && !ledgerRefs(metricsPath).has(ref)
-      && hasCloseEventFor(eventsPath, ref) && !closeSupersededByReopen(eventsPath, ref)) {
+      && hasCloseEventFor(eventsPath, ref) && !closeSupersededByReopen(eventsPath, ref)
+      && releasedSinceLastClose(eventsPath, ref)) {
+    if (opts.dryRun !== true) dropReleasePending(statePath);
+  } else if (pending !== null && pending.ref === ref && !statusByRef.has(ref) && focusRef !== ref
+      && !entries.some(e => e.ref === ref) && !ledgerRefs(metricsPath).has(ref)
+      && hasCloseEventFor(eventsPath, ref) && !closeSupersededByReopen(eventsPath, ref)
+      && !failNamesRef) {
     if (opts.dryRun === true) {
       console.log(JSON.stringify({ dry_run: true, release: ref, resume: true, event: pending.event }, null, 2));
       exit(0);
     }
-    if (!eventsHasLine(eventsPath, pending.event)) appendReleaseEvent(eventsPath, pending.event);
-    fs.rmSync(releasePendingPath(statePath), { force: true });
+    appendReleaseEvent(eventsPath, pending.event);
+    dropReleasePending(statePath);
     console.log(`Released: ${ref} -> ${path.relative(process.cwd(), eventsPath)} (${RELEASED_EVENT}; resumed an interrupted release, STATE was already released, telemetry absent, no METRICS entry written)`);
     exit(0);
   }
@@ -1219,7 +1258,7 @@ function handleRelease(ctx) {
   // 4) A fail verdict naming the ref is an incomplete close, never erased by a
   // release. (A last_validation PASS naming a zero-run ref is NOT a refusal:
   // the default gate skips a ref with no agent_runs, so nothing would flush it.)
-  if (vStatus === 'fail' && refMatches(vRef, ref)) {
+  if (vStatus === 'fail' && refMatches(vRef, ref)) { // see failNamesRef
     fail(`release refused: last_validation.status is fail and names "${ref}" — an incomplete close; `
       + 'remediate and re-validate it, a release never erases a fail verdict', 1);
   }
@@ -1327,7 +1366,11 @@ function handleRelease(ctx) {
     process.kill(process.pid, 'SIGKILL');
   }
   appendReleaseEvent(eventsPath, event);
-  fs.rmSync(releasePendingPath(statePath), { force: true });
+  if (process.env.AAI_FLUSH_INJECT_CRASH === 'after-event') {
+    // Test-only fault hook: die between the event append and the record's removal.
+    process.kill(process.pid, 'SIGKILL');
+  }
+  dropReleasePending(statePath);
 
   const check = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'check-state.mjs'), statePath], { encoding: 'utf8' });
   if (check.status !== 0) {

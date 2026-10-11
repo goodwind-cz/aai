@@ -4887,6 +4887,30 @@ test_1740_named_remedy_succeeds_seam() {  # TEST-1740 (Spec-AC-13)
 test_1748_path_qualified_close_remedy_seam() {  # TEST-1748 (Spec-AC-20)
   log_info "Test: seam — a close event with a path-qualified ref that dispatch accepts for the focus is also accepted by the --release dispatch prints (TEST-1748)..."
   local d shape vs cmdline ref why
+  # The two refMatches copies (dispatcher, --release) must agree on a table of shapes.
+  node -e '
+    const fs = require("fs");
+    const root = process.argv[1];
+    const grab = f => {
+      const m = fs.readFileSync(root + "/.aai/scripts/" + f, "utf8").match(/function refMatches\(vref, ref\) \{[\s\S]*?\n\}\n/);
+      if (!m) { console.error("refMatches not found in " + f); process.exit(1); }
+      return new Function(m[0] + "; return refMatches;")();
+    };
+    const a = grab("orchestration-dispatch.mjs"), b = grab("metrics-flush.mjs");
+    const table = [
+      ["CHANGE-0001", "CHANGE-0001", true],
+      ["docs/issues/CHANGE-0001", "CHANGE-0001", true],
+      ["CHANGE-00011", "CHANGE-0001", false],
+      ["CHANGE-0001", "CHANGE-00011", false],
+      ["docs/issues/x-foo", "foo", false],
+      ["foo", "docs/issues/x-foo", false],
+      [null, "CHANGE-0001", false],
+      ["CHANGE-0001", null, false],
+    ];
+    for (const [v, r, want] of table) {
+      if (a(v, r) !== want || b(v, r) !== want) { console.error("refMatches drift on " + JSON.stringify([v, r]) + " want " + want + " got " + a(v, r) + "/" + b(v, r)); process.exit(1); }
+    }
+  ' "$PROJECT_ROOT" || log_fail "TEST-1748: the two refMatches copies must agree on the shape table"
   for vs in not_run pass; do
     for shape in none empty; do
       d="$(unflushable_fixture "TEST-1748-$vs-$shape" "$shape" "$vs")"

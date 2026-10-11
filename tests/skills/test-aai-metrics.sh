@@ -4030,6 +4030,115 @@ test_1750_rejected_commit_records_nothing() {  # TEST-1750 (Spec-AC-21)
   log_pass "A rejected release leaves no false record (TEST-1750)"
 }
 
+forge_release_marker() {  # $1 root $2 ref — an in-flight record as a crashed release would have left it
+  node -e '
+    const fs = require("fs");
+    const ref = process.argv[2];
+    const event = { v: 1, ts: "2026-07-15T11:30:00Z", actor: "forged", event: "work_item_released", ref,
+      payload: { reason: "forged", telemetry: "absent", metrics_row: "absent" } };
+    fs.writeFileSync(process.argv[1] + "/docs/ai/STATE.yaml.release-pending", JSON.stringify({ ref, event }));
+  ' "$1" "$2"
+}
+
+test_1751_resume_never_duplicates_a_release() {  # TEST-1751 (Spec-AC-22)
+  log_info "Test: the resume path appends nothing when EVENTS already carries a release after the last close (TEST-1751)..."
+  local d n
+  # (a) a crash after the STATE commit, then ANOTHER session released the same ref
+  d="$(release_fixture t1751a)"
+  EC=0
+  AAI_FLUSH_INJECT_CRASH=after-state run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" != 0 ]] || log_fail "TEST-1751: (a) the injected crash must kill the first release"
+  printf '{"v":1,"ts":"2026-07-15T12:00:00Z","actor":"other-session","event":"work_item_released","ref":"WEDGE-0001","payload":{"reason":"sessionB","telemetry":"absent","metrics_row":"absent"}}\n' >> "$d/docs/ai/EVENTS.jsonl"
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.other"
+  run_flush_split "$d" --release WEDGE-0001
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.other" || log_fail "TEST-1751: (a) a stale record must never add a second release event"
+  # (b) a forged record next to a clean state whose EVENTS already holds the release
+  d="$(release_fixture t1751b status=absent focus=none)"
+  printf '{"v":1,"ts":"2026-07-15T12:00:00Z","actor":"x","event":"work_item_released","ref":"WEDGE-0001","payload":{}}\n' >> "$d/docs/ai/EVENTS.jsonl"
+  forge_release_marker "$d" WEDGE-0001
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.before"
+  run_flush_split "$d" --release WEDGE-0001
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "TEST-1751: (b) a forged record must not duplicate an existing release"
+  # (c) a release that PRECEDES a later re-close is history, the new close is still unreleased: resume allowed
+  d="$(release_fixture t1751c status=absent focus=none)"
+  printf '{"v":1,"ts":"2026-07-14T09:30:00Z","actor":"x","event":"work_item_released","ref":"WEDGE-0001","payload":{}}\n' > "$d/docs/ai/EVENTS.jsonl"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" WEDGE-0001 2026-07-14T10:00:00Z
+  forge_release_marker "$d" WEDGE-0001
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1751: (c) a release older than the last close must not block the resume (got $EC): $(cat "$SOUT" "$SERR")"
+  n="$(count_release_events "$d/docs/ai/EVENTS.jsonl" WEDGE-0001)"
+  [[ "$n" == 2 ]] || log_fail "TEST-1751: (c) the resume must append the missing event (got $n release events)"
+  log_pass "The resume path never records a release twice (TEST-1751)"
+}
+
+test_1752_resume_keeps_the_fail_guard() {  # TEST-1752 (Spec-AC-22)
+  log_info "Test: the resume path refuses when a fail verdict names the ref, and still resumes otherwise (TEST-1752)..."
+  local d arm
+  for arm in vfail cfail; do
+    if [[ "$arm" == vfail ]]; then
+      d="$(release_fixture "t1752-$arm" status=absent focus=none vstatus=fail vref=WEDGE-0001)"
+    else
+      d="$(release_fixture "t1752-$arm" status=absent focus=none cstatus=fail cref=WEDGE-0001)"
+    fi
+    forge_release_marker "$d" WEDGE-0001
+    snapshot_release_files "$d"
+    run_flush_split "$d" --release WEDGE-0001
+    [[ "$EC" == 1 ]] || log_fail "TEST-1752: ($arm) a fail verdict naming the ref must refuse the resume (got $EC): $(cat "$SOUT" "$SERR")"
+    cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.before" || log_fail "TEST-1752: ($arm) the refused resume must append nothing"
+  done
+  d="$(release_fixture t1752-ok status=absent focus=none vstatus=fail vref=OTHER-0002)"
+  forge_release_marker "$d" WEDGE-0001
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1752: a fail verdict naming another ride must not block the resume (got $EC): $(cat "$SOUT" "$SERR")"
+  [[ "$(count_release_events "$d/docs/ai/EVENTS.jsonl" WEDGE-0001)" == 1 ]] || log_fail "TEST-1752: the resume must append the one missing event"
+  log_pass "The resume path keeps the fail-verdict guard (TEST-1752)"
+}
+
+test_1753_crash_after_event_appends_nothing_more() {  # TEST-1753 (Spec-AC-21)
+  log_info "Test: a release that dies after its event append but before the record is removed is not recorded twice (TEST-1753)..."
+  local d n
+  d="$(release_fixture t1753)"
+  EC=0
+  AAI_FLUSH_INJECT_CRASH=after-event run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" != 0 ]] || log_fail "TEST-1753: the injected crash must kill the release"
+  [[ -e "$d/docs/ai/STATE.yaml.release-pending" ]] || log_fail "TEST-1753: precondition: the record survives a crash before its removal"
+  n="$(count_release_events "$d/docs/ai/EVENTS.jsonl" WEDGE-0001)"
+  [[ "$n" == 1 ]] || log_fail "TEST-1753: precondition: the event was appended once (got $n)"
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.crashed"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.crashed"
+  run_flush_split "$d" --release WEDGE-0001
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.crashed" || log_fail "TEST-1753: the retry must append nothing more"
+  cmp -s "$d/docs/ai/STATE.yaml" "$d/state.crashed" || log_fail "TEST-1753: the retry must not touch STATE"
+  [[ ! -e "$d/docs/ai/STATE.yaml.release-pending" ]] || log_fail "TEST-1753: the retry must remove the spent record"
+  run_flush_split "$d" --release WEDGE-0001
+  cmp -s "$d/docs/ai/EVENTS.jsonl" "$d/events.crashed" || log_fail "TEST-1753: a further retry must append nothing either"
+  log_pass "A crash after the event append is not recorded twice (TEST-1753)"
+}
+
+test_1754_stale_release_tmp_is_cleaned() {  # TEST-1754 (Spec-AC-23)
+  log_info "Test: a release removes in-flight temp files left by dead processes and keeps a live one's (TEST-1754)..."
+  local d dead
+  d="$(release_fixture t1754)"
+  dead="$(bash -c 'echo $$')"
+  printf 'x' > "$d/docs/ai/STATE.yaml.release-pending.tmp-$dead"
+  printf 'x' > "$d/docs/ai/STATE.yaml.release-pending.tmp-$$"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1754: the release must succeed (got $EC): $(cat "$SOUT" "$SERR")"
+  [[ ! -e "$d/docs/ai/STATE.yaml.release-pending.tmp-$dead" ]] || log_fail "TEST-1754: a temp file of a dead process must be removed"
+  [[ -e "$d/docs/ai/STATE.yaml.release-pending.tmp-$$" ]] || log_fail "TEST-1754: a temp file of a live process must be kept"
+  log_pass "Stale in-flight temp files are cleaned (TEST-1754)"
+}
+
+test_1755_release_marker_is_ignored_downstream() {  # TEST-1755 (Spec-AC-23)
+  log_info "Test: the in-flight record pattern is in the runtime ignore list downstream projects receive (TEST-1755)..."
+  local pat
+  pat="$(grep -v '^#' "$PROJECT_ROOT/.gitignore" | grep -F 'release-pending' || true)"
+  [[ -n "$pat" ]] || log_fail "TEST-1755: .gitignore must carry the in-flight record pattern"
+  grep -qxF "$pat" "$PROJECT_ROOT/.aai/system/RUNTIME_IGNORE.list" \
+    || log_fail "TEST-1755: RUNTIME_IGNORE.list must carry the same pattern as .gitignore ($pat)"
+  log_pass "The in-flight record is ignored downstream too (TEST-1755)"
+}
+
 test_1743_release_refuses_reopened_close() {  # TEST-1743 (Spec-AC-16)
   log_info "Test: --release refuses a close superseded by a later re-open from done; a re-close makes it releasable (TEST-1743)..."
   local d
@@ -4185,6 +4294,11 @@ main() {
   test_1747_full_reset_keeps_unowned_fail
   test_1749_crash_after_state_is_resumable
   test_1750_rejected_commit_records_nothing
+  test_1751_resume_never_duplicates_a_release
+  test_1752_resume_keeps_the_fail_guard
+  test_1753_crash_after_event_appends_nothing_more
+  test_1754_stale_release_tmp_is_cleaned
+  test_1755_release_marker_is_ignored_downstream
   test_1743_release_refuses_reopened_close
   test_1745_release_flag_conflicts
   echo ""
