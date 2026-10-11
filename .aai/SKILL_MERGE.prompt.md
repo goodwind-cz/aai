@@ -11,6 +11,7 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    `node .aai/scripts/merge-cleanup.mjs preflight --pr <n> --expect-head <sha> --directed-by human --direction "<owner's words verbatim>" --origin "$(pwd)"`.
    Its `signs on merge:` lines name the ride's contract amendments: the owner's
    merge direction signs them (step 2, `sign-amendments`); never ask separately.
+   Relay a `cleanup blocked:` line verbatim; it does not stop the merge.
    Exit 10: run exactly the one `AAI_OPERATOR_MERGE=1 gh pr merge <n> --squash --match-head-commit <sha>` line it
    printed, nothing added (never `--admin`, `--auto`, `--delete-branch`).
    Exit 3: relay the `REFUSE` line and stop. Exit 0 `already_merged`: go to 2.
@@ -47,6 +48,11 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    if ($AaiRc -ne 0) { throw "merge-cleanup apply exited $AaiRc" }
    # AAI_MERGE_PS_END
    ```
+
+   Exit 3 or 4: relay the `REFUSE` or `STOPPED` line verbatim and stop;
+   never finish a step by hand (no `git worktree remove --force`, branch delete
+   or `git submodule deinit`). Re-running `apply` after the owner resolves the
+   cause is the only way forward.
 
 3. Report the engine's report: base, final HEAD, archived, retained with
    reasons, no-ops, `remaining`. Owner actions stay with the owner: remote

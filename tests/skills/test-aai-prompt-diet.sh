@@ -988,7 +988,11 @@ test_012_growth_sum_matches_ledger() {
   # (+560 B: ROLE_COMMON +141, SKILL_MERGE +161, SKILL_SHIP +95, SKILL_PR +163;
   # the owner's merge direction signs the ride's contract amendments); zero
   # headroom standing, credited 1:1 (ledger key merge-direction-signs-amendments).
-  local want_growth=60568
+  # Then 60568 -> 60907: merge-cleanup-submodule-worktree Spec-AC-07 / D6
+  # (+339 B: SKILL_MERGE.prompt.md 3611 -> 3950, relay the cleanup blocked: and
+  # REFUSE/STOPPED lines verbatim, never finish a step by hand); zero headroom
+  # standing, credited 1:1 (ledger key merge-cleanup-submodule-worktree).
+  local want_growth=60907
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

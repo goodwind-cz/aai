@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-10T22:05:26.430Z
+Generated: 2026-10-11T02:40:25.601Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -31,7 +31,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | configurable-merge-policy-lanes | configurable-merge-policy-lanes | 1 | docs/product/configurable-merge-policy-lanes.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
-| directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 2 | docs/product/directed-merge-and-post-merge-cleanup.md |
+| directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 3 | docs/product/directed-merge-and-post-merge-cleanup.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
@@ -55,7 +55,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (515)
+## Done (517)
 
 | ID | Type | Path |
 |---|---|---|
@@ -334,6 +334,7 @@ _None._
 | ISSUE-0094 | issues | docs/issues/ISSUE-0094-pr-generic-url-validity.md |
 | ISSUE-0095 | issues | docs/issues/ISSUE-0095-pr-github-case-identity.md |
 | ISSUE-0096 | issues | docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md |
+| ISSUE-0097 | issues | docs/issues/ISSUE-0097-merge-cleanup-submodule-worktree.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -572,6 +573,7 @@ _None._
 | SPEC-0218 | specs | docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md |
 | SPEC-0219 | specs | docs/specs/SPEC-0219-spec-classify-same-ts-pair.md |
 | SPEC-0220 | specs | docs/specs/SPEC-0220-spec-merge-direction-signs-amendments.md |
+| SPEC-0221 | specs | docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -648,4 +650,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-10 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-11 — counts above use this date for overdue checks.
