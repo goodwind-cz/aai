@@ -2,15 +2,17 @@
 id: spec-merge-cleanup-ride-leftovers
 type: spec
 number: 223
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 94f3e080c301eda9940282814acc6252e86576867edd3e8688fec54dfa29c7f8
 ceremony_level: 2
 links:
   requirement: merge-cleanup-ride-leftovers
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 598e4f5e91c90eeb8d74e9faf151078e969b11f0
 ---
 
 # Spec — /aai-merge cleanup handles the ride's own leftovers instead of refusing

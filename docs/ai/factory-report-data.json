@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-11T12:27:04.850Z",
+  "generatedAt": "2026-10-11T15:42:30.688Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 164,
-    "delivered": 525,
+    "delivered": 527,
     "active_weeks": 15,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (525 closes vs 164 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 525,
-    "delivered_per_week_avg": 35,
+    "note": "\"delivered\" counts every work_item_closed event (527 closes vs 164 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 527,
+    "delivered_per_week_avg": 35.1,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -29,7 +29,7 @@
       "2026-W38": 12,
       "2026-W39": 15,
       "2026-W40": 35,
-      "2026-W41": 32
+      "2026-W41": 34
     },
     "delivered_groups": [
       {
@@ -539,7 +539,7 @@
         "key": "month:2026-10",
         "kind": "month",
         "label": "2026-10",
-        "count": 46,
+        "count": 48,
         "refs": [
           "downstream-rides-ask-no-governance-questions",
           "spec-downstream-rides-ask-no-governance-questions",
@@ -586,7 +586,9 @@
           "merge-cleanup-submodule-worktree",
           "spec-merge-cleanup-submodule-worktree",
           "merge-cleanup-delete-remote-branch",
-          "spec-merge-cleanup-delete-remote-branch"
+          "spec-merge-cleanup-delete-remote-branch",
+          "merge-cleanup-ride-leftovers",
+          "spec-merge-cleanup-ride-leftovers"
         ]
       }
     ],
@@ -2691,12 +2693,20 @@
         {
           "ref": "spec-merge-cleanup-delete-remote-branch",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "merge-cleanup-ride-leftovers",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-merge-cleanup-ride-leftovers",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 4643,
       "mean_seconds": 103716.8,
       "measured": 160,
-      "unmeasurable": 365
+      "unmeasurable": 367
     }
   },
   "speed": {
@@ -5361,7 +5371,7 @@
     },
     {
       "week": "2026-W41",
-      "delivered": 32,
+      "delivered": 34,
       "median_lead_time_seconds": 13069,
       "busy_seconds": 508843,
       "tokens": 1540588,
@@ -5370,7 +5380,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 174,
+    "open_count": 176,
     "oldest_age_days": 51,
     "items": [
       {
@@ -5801,7 +5811,7 @@
         "id": "fu-falseopen-rearms-on-disclosure",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "docs-audit's false-open detector re-arms for every commit whose message names a non-terminal doc id, so disclosing a reopen re-triggers it and each suppression commit can trigger it again",
         "status": "open"
       },
@@ -5873,7 +5883,7 @@
         "id": "fu-ac05-counts-a-valueless-key",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "a value-less ref_guard key is correctly appended past (neither reader calls a token-less line the key) but Spec-AC-05's chosen verification, grep -c on the key prefix, then counts 2",
         "status": "open"
       },
@@ -5881,7 +5891,7 @@
         "id": "fu-doubled-key-has-no-repair",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "a config that already carries two ref_guard keys makes arm refuse loudly every time and decline exit 0 leaving both; refusing an ambiguous file is right but no command repairs it",
         "status": "open"
       },
@@ -5889,7 +5899,7 @@
         "id": "fu-test634-mutation-prose-stale",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "TEST-634's Mutation cell prose taken literally leaves the suite green: the any-token gate has no trailing boundary, so the kill comes from the re-cut patch's other half",
         "status": "open"
       },
@@ -5897,7 +5907,7 @@
         "id": "fu-test641-passes-without-pwsh",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "TEST-641's behavioural half runs only when pwsh is present; measured, a closed-vocabulary restriction spelled without the literal armed-or-declined passes both static arms and the row survives entirely on a host with no pwsh",
         "status": "open"
       },
@@ -5905,7 +5915,7 @@
         "id": "fu-three-readers-three-whitespaces",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "U+0085, a UTF-8 BOM and CR-only line endings each make the .ps1 read declined while the shell mirror and the JS reader read armed; U+00A0 and U+3000 split the mirror from JS under LC_ALL=C",
         "status": "open"
       },
@@ -5913,7 +5923,7 @@
         "id": "fu-installer-flag-lattice-no-mode",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "install-pre-commit-hook's six flags resolve as an unsequenced boolean lattice with no single resolved MODE: --uninstall --decline-ref-guard exits 0 leaving the AAI pre-commit hook installed (the uninstall the user asked for silently skipped), and --print <bogus> exits 0 ignoring the rest of the line",
         "status": "open"
       },
@@ -5921,7 +5931,7 @@
         "id": "fu-docs-audit-yaml-misnamed-guard-config",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "docs/ai/docs-audit.yaml's own header still says 'Docs audit policy (RFC-0002 D4)' though the file is now the repo's general committed guard-policy surface, with two writers (aai-sync's template seed, install-pre-commit-hook's ref_guard key) and readers/keys beyond docs-audit (guard-config.mjs calls it 'the committed guard-policy file'; it holds doc_number_guard, usage_capture_gate, mutation_gate, protected_paths_l3 -- none about the docs audit)",
         "status": "open"
       },
@@ -5929,7 +5939,7 @@
         "id": "fu-doctor-declined-vocab-undeclared",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "CAT-17's DECLINED state is not in the doctor's declared status vocabulary",
         "status": "open"
       },
@@ -5937,7 +5947,7 @@
         "id": "fu-installer-want-refguard-overloaded",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "the installer's want-refguard flag carries two meanings, selection and policy",
         "status": "open"
       },
@@ -5945,7 +5955,7 @@
         "id": "fu-mutation-anchors-undisclosed",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "several mutation cells name anchors the implementation does not carry, disclosed only in amendments",
         "status": "open"
       },
@@ -5953,7 +5963,7 @@
         "id": "fu-ps1-decline-force-advice-wrong",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "the twin's decline advice names a force flag that does not do what the sentence implies",
         "status": "open"
       },
@@ -5961,7 +5971,7 @@
         "id": "fu-skill-update-step4-both-hooks",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "SKILL_UPDATE step 4 still describes installing both hooks unconditionally",
         "status": "open"
       },
@@ -5969,7 +5979,7 @@
         "id": "fu-bare-config-satisfies-lane-gate",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "a bare seeded config satisfies the lane gate's presence check although it declares almost nothing",
         "status": "open"
       },
@@ -5977,7 +5987,7 @@
         "id": "fu-ps1-enable-refguard-no-rationale",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "the twin's enable path carries no counterpart of the shell's D4 rationale comment",
         "status": "open"
       },
@@ -5985,7 +5995,7 @@
         "id": "fu-ps1-setcontent-rewrites-seed-eol",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "the twin's Set-Content rewrites the seeded template's line endings on Windows",
         "status": "open"
       },
@@ -5993,7 +6003,7 @@
         "id": "fu-test618-positional-pattern",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "TEST-618's conformance check keys on a positional pattern rather than the named field",
         "status": "open"
       },
@@ -6001,7 +6011,7 @@
         "id": "fu-uninstall-refguard-leaves-armed",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "uninstalling only the ref-guard removes it and records nothing, so the declaration still reads armed",
         "status": "open"
       },
@@ -6185,7 +6195,7 @@
         "id": "fu-claims-report-drops-root-annotation",
         "ref": "canon-is-a-build-artifact",
         "severity": "P2",
-        "age_days": 15,
+        "age_days": 16,
         "what": "claims --report's REPORT_DOC_TYPES filter (canon.mjs:594) only recognizes docs/specs/SPEC-\\d+- and docs/issues/[A-Za-z]+-\\d+- paths, so CHANGELOG.md:1856's genuine WITHDRAWN annotation is silently omitted from the generated enumeration, unlike origin_docs which prints its exclusion",
         "status": "open"
       },
@@ -6193,7 +6203,7 @@
         "id": "fu-test699-count-comparison-decorative",
         "ref": "canon-is-a-build-artifact",
         "severity": "P3",
-        "age_days": 15,
+        "age_days": 16,
         "what": "tests/skills/test-aai-canon.sh:920 TEST-699's [[ built -eq count ]] can never differ: built increments once per loop iteration over the same role list count is read from, after an expect_rc 0 that exits on failure",
         "status": "open"
       },
@@ -6201,7 +6211,7 @@
         "id": "fu-orchestration-parallel-still-pastes",
         "ref": "canon-is-a-build-artifact",
         "severity": "P2",
-        "age_days": 15,
+        "age_days": 16,
         "what": ".aai/ORCHESTRATION_PARALLEL.prompt.md:142-143 still reads 'a copy of .aai/SUBAGENT_CONTRACT.md (stable, first), then scope and inputs' — pasted contract prose, not a pointer to canon.mjs build",
         "status": "open"
       },
@@ -6209,7 +6219,7 @@
         "id": "fu-subagent-protocol-input-row-stale",
         "ref": "canon-is-a-build-artifact",
         "severity": "P3",
-        "age_days": 15,
+        "age_days": 16,
         "what": ".aai/SUBAGENT_PROTOCOL.md's INPUT row (line ~40) does not name canon.mjs as the dispatch-payload builder",
         "status": "open"
       },
@@ -6217,7 +6227,7 @@
         "id": "fu-mutation-run-patch-self-rotate",
         "ref": "canon-is-a-build-artifact",
         "severity": "P2",
-        "age_days": 15,
+        "age_days": 16,
         "what": "mutation-run.mjs --patch <file> can destroy its own input: rotateExisting() (mutation-run.mjs:618-648) moves the LIVE mutation-TEST-<id>.patch aside before the new record is written, so passing that same canonical path as the --patch SOURCE rotates the source out from under the run",
         "status": "open"
       },
@@ -6305,7 +6315,7 @@
         "id": "fu-backlog-is-not-queryable",
         "ref": "polydao-graph-loop-ideas-for-aai",
         "severity": "P2",
-        "age_days": 12,
+        "age_days": 13,
         "what": "the ride selector cannot ask the backlog what needs doing: it walks an ordered roadmap list and skips done, while the state that knows (follow-up ledger, doc lifecycle, mutation-record drift, ac_evidence gaps) is never read as a selection source",
         "status": "open"
       },
@@ -6409,7 +6419,7 @@
         "id": "fu-classify-rerun-not-deduped",
         "ref": "amendment-signature-asks-the-owner-too-often",
         "severity": "P3",
-        "age_days": 8,
+        "age_days": 9,
         "what": "cmdClassify has no duplicate-overlay guard, and its implicit tracked_by path skips the closed-tracker refusal that only fires for an explicit --tracked-by",
         "status": "open"
       },
@@ -6417,7 +6427,7 @@
         "id": "fu-flagspecs-guard-line-scoped",
         "ref": "amendment-signature-asks-the-owner-too-often",
         "severity": "P3",
-        "age_days": 8,
+        "age_days": 9,
         "what": "TEST-1376's FLAG_SPECS guard extracts flags only from the same physical line as the subcommand token, so the multi-line USAGE block's continuation lines are unchecked",
         "status": "open"
       },
@@ -6425,7 +6435,7 @@
         "id": "fu-test1378-guard-line-scoped",
         "ref": "amendment-signature-asks-the-owner-too-often",
         "severity": "P3",
-        "age_days": 8,
+        "age_days": 9,
         "what": "TEST-1378 arm 2's source-wide unquoted-interpolation guard shares TEST-1376 arm 2's single-physical-line limit: it extracts from the command token onward on one line only",
         "status": "open"
       },
@@ -6433,7 +6443,7 @@
         "id": "fu-measurement-ledger-old-reader",
         "ref": "amendment-signature-asks-the-owner-too-often",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "a layer version predating the measurement class reads a new ledger's measurement records as unsigned-untracked, so list --strict exits 1 on a ledger the shipping code reads as clean",
         "status": "open"
       },
@@ -6465,7 +6475,7 @@
         "id": "fu-framework-discover-exit-swallowed",
         "ref": "ci-test-selection-narrowing-and-sharding",
         "severity": "P2",
-        "age_days": 7,
+        "age_days": 8,
         "what": "test-framework.sh --skill: a missing test file makes discover_tests exit 2 inside < <(...), the exit is lost and the run continues with only the suites listed before it",
         "status": "open"
       },
@@ -6473,7 +6483,7 @@
         "id": "fu-shard-check-regex-arm-unpinned",
         "ref": "ci-test-selection-narrowing-and-sharding",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "No test pins the name-format clause of shard-plan-check.sh --check; mutating it to if-false leaves the suite green",
         "status": "open"
       },
@@ -6481,7 +6491,7 @@
         "id": "fu-shard-check-twin-basename",
         "ref": "ci-test-selection-narrowing-and-sharding",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "shard-plan-check.sh --check compares against a deduplicated file list, so a suite name present both top-level and nested passes when a plan lists it once",
         "status": "open"
       },
@@ -6489,7 +6499,7 @@
         "id": "fu-shared-page-check-flags-own-pr",
         "ref": "ci-test-selection-narrowing-and-sharding",
         "severity": "P3",
-        "age_days": 7,
+        "age_days": 8,
         "what": "pr-platform.mjs --check-shared-page-conflicts does not exclude the open PR whose head is the current branch, so it reports a push into a ride's own PR as a conflict with itself",
         "status": "open"
       },
@@ -6625,7 +6635,7 @@
         "id": "fu-sweep-zero-thread-bot-pass",
         "ref": "nested-suite-reruns-duplicate-sweep-time",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "pr_sweep cannot record a bot review that posted zero threads: swept needs threads_seen>0, internal_substituted forbids reviewer_bots=expected",
         "status": "open"
       },
@@ -6673,7 +6683,7 @@
         "id": "fu-win-real-wrapper-smoke-hang",
         "ref": "directed-merge-and-post-merge-cleanup",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "Windows 'Real-wrapper smoke: aai-run-tests.ps1 under Windows PowerShell 5.1' hung 30+ min (normally ~13 s); cancelled, attempt 2 green",
         "status": "open"
       },
@@ -6681,7 +6691,7 @@
         "id": "fu-constitution-art7-directed-merge",
         "ref": "directed-merge-and-post-merge-cleanup",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "Constitution Article 7 names only lane merges; reword it to name the directed merge of SKILL_PR step 6 that /aai-merge implements",
         "status": "open"
       },
@@ -6689,7 +6699,7 @@
         "id": "fu-record-overlay-tie-order",
         "ref": "classify-same-ts-pair",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "spec-amend fold sorts overlays by ts only: a record-addressed and a pair-addressed overlay in the same second resolve by concat order, not ledger order",
         "status": "open"
       },
@@ -6742,14 +6752,6 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-merge-cleanup-delete-rem-353ede",
-        "ref": "merge-cleanup-delete-remote-branch",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-merge-cleanup-delete-remote-branch: D9 supersession also covers TEST-012 (remaining and saved report no longer name origin/BRANCH), TEST-013 (ten second-run no-ops) and TEST-014 (ACTION_STEPS and ALL_STEPS gain delete-remote-branch), SKILL_MERGE step 2 also states the lease-only deletion, and the lease CAS moves one line (single retain site for remote_delete_rejected)",
-        "status": "open"
-      },
-      {
         "id": "fu-merge-fork-remaining-line",
         "ref": "merge-cleanup-delete-remote-branch",
         "severity": "P3",
@@ -6763,6 +6765,30 @@
         "severity": "P3",
         "age_days": 0,
         "what": "TEST-043 has one mutation row (head query); the --base dependents query has no recorded mutation",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-merge-cleanup-ride-leftovers",
+        "ref": "merge-cleanup-ride-leftovers",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-merge-cleanup-ride-leftovers: Adds Spec-AC-07 and Spec-AC-08 with TEST-051 and TEST-052: the ledger-tail resume key needs an append-intent journal record and the moved count is the lines actually appended (D8, D10); a re-exec child exit other than 0 or 4 or a signal prints STOPPED reexec_child_exit_<n|signal> and exits 4 (D12); HELP names the three behaviours",
+        "status": "open"
+      },
+      {
+        "id": "fu-merge-ledger-reset-window",
+        "ref": "merge-cleanup-ride-leftovers",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "a crash between the ride-ledger reset and its reset record makes a later identical ride tail count as moved (kept only in the archive)",
+        "status": "open"
+      },
+      {
+        "id": "fu-merge-skip-worktree-hidden-edit",
+        "ref": "merge-cleanup-ride-leftovers",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "a ride worktree edit hidden with update-index --skip-worktree is removed without a worktree_dirty refusal",
         "status": "open"
       }
     ]

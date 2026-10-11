@@ -2,10 +2,12 @@
 id: merge-cleanup-ride-leftovers
 type: change
 number: 210
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 598e4f5e91c90eeb8d74e9faf151078e969b11f0
 ---
 
 # /aai-merge cleanup handles the ride's own leftovers instead of refusing
