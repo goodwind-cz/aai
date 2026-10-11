@@ -2,10 +2,12 @@
 id: merge-cleanup-submodule-worktree
 type: issue
 number: 97
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 37946f0563d22a82bc5707552e4f6be6bfcc786e
 ---
 
 # /aai-merge cleanup stops on a ride worktree with submodules, and the stop invites a forbidden manual --force

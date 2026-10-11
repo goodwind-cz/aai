@@ -2,15 +2,17 @@
 id: spec-merge-cleanup-submodule-worktree
 type: spec
 number: 221
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 9b5599ce2a41e5ab46331d129bcc848028b82c6e9f66cd60431b0ccf90cf411e
 ceremony_level: 2
 links:
   requirement: merge-cleanup-submodule-worktree
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 37946f0563d22a82bc5707552e4f6be6bfcc786e
 ---
 
 # Spec — /aai-merge cleanup removes a ride worktree with submodules only after proving nothing is lost

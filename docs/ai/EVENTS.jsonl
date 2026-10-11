@@ -2993,3 +2993,9 @@
 {"v":1,"ts":"2026-10-11T01:53:37Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-merge-cleanup-submodule-worktree/Spec-AC-05","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-11T01:53:37Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-merge-cleanup-submodule-worktree/Spec-AC-06","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-11T01:53:37Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-merge-cleanup-submodule-worktree/Spec-AC-07","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-11T01:53:43Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"merge-cleanup-submodule-worktree","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-11T01:53:43Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"merge-cleanup-submodule-worktree","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-11T01:53:43Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"merge-cleanup-submodule-worktree","payload":{"commit":"37946f0563d22a82bc5707552e4f6be6bfcc786e"}}
+{"v":1,"ts":"2026-10-11T01:53:43Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-merge-cleanup-submodule-worktree","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-11T01:53:43Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-merge-cleanup-submodule-worktree","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-11T01:53:43Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-merge-cleanup-submodule-worktree","payload":{"commit":"37946f0563d22a82bc5707552e4f6be6bfcc786e"}}
