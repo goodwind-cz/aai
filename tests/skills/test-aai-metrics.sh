@@ -3492,6 +3492,417 @@ test_151_shrink_advice_is_reappend() {  # TEST-151 / Spec-AC-20
   log_pass "Shrink advice names the re-append remedy and the missing count; no git restore/checkout/reset instruction anywhere (TEST-151)"
 }
 
+# --- done-work-item-stays-in-current-focus: --release (TEST-1382..1392, 1397, 1398) ----
+# A closed ride with no flushable telemetry gets a sanctioned exit. Every
+# fixture is a scratch temp-dir repo driven through the path-injection flags.
+
+# write_release_state <file> <ref> [key=value ...] — a minimal STATE for the
+# release arms. Keys: focus=<ref>|none (default: <ref>), status=done|in_progress|
+# absent (the ref's active_work_items entry; default done), row=none|empty|runs
+# (the ref's metrics.work_items row: absent | agent_runs [] | one run; default
+# none), vstatus=<s> vref=<r> (last_validation), other=yes (adds an in-flight
+# OTHER-0002 active item). An unrelated UNREL-0001 metrics row is ALWAYS
+# present, as in the measured wedge.
+write_release_state() {
+  local f="$1" ref="$2" focus status="done" row="none" vstatus="not_run" vref="null" other="no" kv
+  shift 2
+  focus="$ref"
+  for kv in "$@"; do
+    case "$kv" in
+      focus=*) focus="${kv#focus=}" ;;
+      status=*) status="${kv#status=}" ;;
+      row=*) row="${kv#row=}" ;;
+      vstatus=*) vstatus="${kv#vstatus=}" ;;
+      vref=*) vref="${kv#vref=}" ;;
+      other=*) other="${kv#other=}" ;;
+      *) log_fail "write_release_state: unknown option $kv" ;;
+    esac
+  done
+  {
+    echo "project_status: active"
+    echo "current_focus:"
+    if [[ "$focus" == "none" ]]; then
+      echo "  type: none"
+      echo "  ref_id: null"
+      echo "  primary_path: null"
+    else
+      echo "  type: intake_change"
+      echo "  ref_id: $focus"
+      echo "  primary_path: docs/issues/$focus.md"
+    fi
+    if [[ "$status" == "absent" && "$other" != "yes" ]]; then
+      echo "active_work_items: []"
+    else
+      echo "active_work_items:"
+      if [[ "$status" != "absent" ]]; then
+        echo "  - ref_id: $ref"
+        echo "    status: $status"
+        echo "    phase: validation"
+        echo "    primary_path: docs/issues/$ref.md"
+      fi
+      if [[ "$other" == "yes" ]]; then
+        echo "  - ref_id: OTHER-0002"
+        echo "    status: in_progress"
+        echo "    phase: implementation"
+        echo "    primary_path: docs/issues/OTHER-0002.md"
+      fi
+    fi
+    cat <<YAML
+implementation_strategy:
+  selected: tdd
+  source: null
+  rationale: null
+worktree:
+  recommendation: not_needed
+  user_decision: undecided
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: false
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: $vstatus
+  run_at_utc: null
+  ref_id: $vref
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+  spec_path: null
+  test_path: null
+  evidence:
+    red: null
+    green: null
+    refactor: null
+metrics:
+  work_items:
+YAML
+    if [[ "$row" == "empty" ]]; then
+      echo "    $ref:"
+      echo "      human_time_minutes:"
+      echo "        intake: null"
+      echo "        reviews: null"
+      echo "      agent_runs: []"
+    elif [[ "$row" == "runs" ]]; then
+      echo "    $ref:"
+      echo "      human_time_minutes:"
+      echo "        intake: null"
+      echo "        reviews: null"
+      echo "      agent_runs:"
+      echo "        - role: Planning"
+      echo "          model_id: claude-sonnet-5"
+      echo "          started_utc: 2026-07-15T10:00:00Z"
+      echo "          ended_utc: 2026-07-15T10:02:00Z"
+      echo "          duration_seconds: 120"
+      echo "          tokens_in: null"
+      echo "          tokens_out: null"
+      echo "          cost_usd: null"
+    fi
+    cat <<YAML
+    UNREL-0001:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Planning
+          model_id: claude-sonnet-5
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:02:00Z
+          duration_seconds: 120
+          tokens_in: null
+          tokens_out: null
+          cost_usd: null
+
+updated_at_utc: 2026-07-15T11:30:00Z
+YAML
+  } > "$f"
+}
+
+# run_flush_split <root> [flags...] — stdout in $SOUT, stderr in $SERR, exit in $EC.
+SOUT=""
+SERR=""
+run_flush_split() {
+  local d="$1"
+  shift
+  SOUT="$d/flush-stdout.log"
+  SERR="$d/flush-stderr.log"
+  EC=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
+    --state "$d/docs/ai/STATE.yaml" \
+    --metrics "$d/docs/ai/METRICS.jsonl" \
+    --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
+    --pricing "$d/PRICING.yaml" \
+    --events "$d/docs/ai/EVENTS.jsonl" \
+    --now "$NOW_PIN" "$@" > "$SOUT" 2> "$SERR") || EC=$?
+}
+
+# release_fixture <name> [write_release_state opts...] — a repo with a closed
+# WEDGE-0001 (committed work_item_closed event) and the chosen STATE shape.
+release_fixture() {
+  local name="$1" d
+  shift
+  d="$(mk_repo "$name")"
+  write_release_state "$d/docs/ai/STATE.yaml" WEDGE-0001 "$@"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" WEDGE-0001 2026-07-14T09:00:00Z
+  printf '%s' "$d"
+}
+
+snapshot_release_files() {  # $1 root — before-copies of STATE, EVENTS, METRICS
+  cp "$1/docs/ai/STATE.yaml" "$1/state.before"
+  cp "$1/docs/ai/EVENTS.jsonl" "$1/events.before"
+  cp "$1/docs/ai/METRICS.jsonl" "$1/metrics.before"
+}
+
+assert_release_unchanged() {  # $1 root $2 label
+  cmp -s "$1/docs/ai/STATE.yaml" "$1/state.before" || log_fail "$2: STATE must stay byte-identical"
+  cmp -s "$1/docs/ai/EVENTS.jsonl" "$1/events.before" || log_fail "$2: EVENTS must stay byte-identical"
+  cmp -s "$1/docs/ai/METRICS.jsonl" "$1/metrics.before" || log_fail "$2: METRICS must stay byte-identical"
+}
+
+test_1382_ref_absent_is_not_empty_success() {  # TEST-1382 (Spec-AC-01)
+  log_info "Test: --ref <ref absent from metrics.work_items> exits 1 naming the ref and --release; no flush key (TEST-1382)..."
+  local d
+  d="$(release_fixture t1382)"
+  run_flush_split "$d" --ref WEDGE-0001 --dry-run
+  [[ "$EC" == 1 ]] || log_fail "TEST-1382: an explicitly named non-candidate ref must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SERR")" "WEDGE-0001" "TEST-1382: stderr must name the ref"
+  assert_payload_contains "$(cat "$SERR")" "not a flush candidate" "TEST-1382: stderr must say the ref is not a flush candidate"
+  assert_payload_contains "$(cat "$SERR")" "--release" "TEST-1382: stderr must name --release as the exit for a closed work item"
+  assert_payload_not_contains "$(cat "$SOUT")" '"flush"' "TEST-1382: stdout must carry no flush key"
+  log_pass "A named non-candidate ref is a named refusal, never an empty success (TEST-1382)"
+}
+
+test_1383_bare_flush_unaffected() {  # TEST-1383 (Spec-AC-01) negative control
+  log_info "Test: negative control — a bare flush and a --ref on a present candidate are unaffected by the new guard (TEST-1383)..."
+  local d
+  d="$(mk_repo t1383)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  run_flush_split "$d" --dry-run
+  [[ "$EC" == 0 ]] || log_fail "TEST-1383: bare dry-run flush must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (JSON.stringify(o.flush) !== JSON.stringify(["CHANGE-0001"])) { console.error("flush plan changed: " + JSON.stringify(o.flush)); process.exit(1); }
+    if (Object.keys(o.skipped).length !== 0) { console.error("skipped changed: " + JSON.stringify(o.skipped)); process.exit(1); }
+  ' "$SOUT" || log_fail "TEST-1383: bare flush plan must be the pre-change plan (flush [CHANGE-0001], nothing skipped): $(cat "$SOUT")"
+  run_flush_split "$d" --dry-run --ref CHANGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1383: --ref on a present candidate must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SOUT")" '"CHANGE-0001"' "TEST-1383: the present candidate must still be planned"
+  log_pass "Bare flush and --ref on a present candidate are byte-for-byte the pre-change plan (TEST-1383)"
+}
+
+test_1384_release_clears_closed_item() {  # TEST-1384 (Spec-AC-02)
+  log_info "Test: --release on the row-less closed fixture exits 0 and the ref leaves active_work_items (TEST-1384)..."
+  local d
+  d="$(release_fixture t1384)"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1384: release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  [[ "$(grep -cF 'WEDGE-0001' "$d/docs/ai/STATE.yaml" || true)" == 0 ]] \
+    || log_fail "TEST-1384: the released ref must appear zero times in STATE: $(cat "$d/docs/ai/STATE.yaml")"
+  grep -qF 'UNREL-0001' "$d/docs/ai/STATE.yaml" || log_fail "TEST-1384: the unrelated metrics row must survive"
+  log_pass "Release removes the done work item and leaves unrelated state alone (TEST-1384)"
+}
+
+test_1385_release_appends_one_non_lifecycle_event() {  # TEST-1385 (Spec-AC-02)
+  log_info "Test: --release appends exactly one work_item_released event and no lifecycle event (TEST-1385)..."
+  local d before_closed before_lifecycle
+  d="$(release_fixture t1385)"
+  before_closed="$(grep -c '"event":"work_item_closed"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1385: release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  [[ "$(grep -c '' "$d/docs/ai/EVENTS.jsonl")" == 2 ]] || log_fail "TEST-1385: EVENTS must gain exactly one line: $(cat "$d/docs/ai/EVENTS.jsonl")"
+  [[ "$(grep -c '"event":"work_item_released"' "$d/docs/ai/EVENTS.jsonl" || true)" == 1 ]] \
+    || log_fail "TEST-1385: exactly one work_item_released line expected: $(cat "$d/docs/ai/EVENTS.jsonl")"
+  [[ "$(grep -c '"event":"work_item_closed"' "$d/docs/ai/EVENTS.jsonl" || true)" == "$before_closed" ]] \
+    || log_fail "TEST-1385: release must add zero work_item_closed lines (close-work-item.mjs is the sole emitter)"
+  before_lifecycle="$(grep -c '"event":"doc_lifecycle"' "$d/docs/ai/EVENTS.jsonl" || true)"
+  [[ "$before_lifecycle" == 0 ]] || log_fail "TEST-1385: release must add zero doc_lifecycle lines"
+  log_pass "One work_item_released event, no lifecycle event (TEST-1385)"
+}
+
+test_1386_release_focus_only_when_focused() {  # TEST-1386 (Spec-AC-03)
+  log_info "Test: releasing the focused ref nulls current_focus; releasing a non-focused closed ref leaves the block byte-identical (TEST-1386)..."
+  local d
+  d="$(release_fixture t1386a)"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1386: (a) release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  node -e '
+    const t = require("fs").readFileSync(process.argv[1], "utf8");
+    const m = t.match(/^current_focus:\n((?:[ ].*\n)+)/m);
+    if (!m || !/^  type: none$/m.test(m[1]) || !/^  ref_id: null$/m.test(m[1])) { console.error("current_focus not nulled: " + (m && m[1])); process.exit(1); }
+  ' "$d/docs/ai/STATE.yaml" || log_fail "TEST-1386: (a) the focused ref's release must null current_focus"
+  # (b) focus is an in-flight OTHER ref; the released ref is some other closed one.
+  d="$(release_fixture t1386b focus=OTHER-0002 other=yes)"
+  node -e '
+    const t = require("fs").readFileSync(process.argv[1], "utf8");
+    process.stdout.write(t.match(/^current_focus:\n(?:[ ].*\n)+/m)[0]);
+  ' "$d/docs/ai/STATE.yaml" > "$d/focus.before"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1386: (b) release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  node -e '
+    const t = require("fs").readFileSync(process.argv[1], "utf8");
+    process.stdout.write(t.match(/^current_focus:\n(?:[ ].*\n)+/m)[0]);
+  ' "$d/docs/ai/STATE.yaml" > "$d/focus.after"
+  cmp -s "$d/focus.before" "$d/focus.after" || log_fail "TEST-1386: (b) current_focus must be byte-identical after releasing a non-focused ref"
+  grep -qF 'OTHER-0002' "$d/docs/ai/STATE.yaml" || log_fail "TEST-1386: (b) the in-flight item must survive"
+  log_pass "Release nulls only a focus it is in (TEST-1386)"
+}
+
+test_1387_release_requires_closed_event() {  # TEST-1387 (Spec-AC-04)
+  log_info "Test: --release with no committed work_item_closed event exits 1, names it, writes nothing (TEST-1387)..."
+  local d
+  d="$(release_fixture t1387)"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1387: release without a close event must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SERR")" "work_item_closed" "TEST-1387: refusal must name the missing work_item_closed event"
+  assert_release_unchanged "$d" "TEST-1387 no close event"
+  log_pass "Release is fail-closed without durable close provenance (TEST-1387)"
+}
+
+test_1388_release_requires_done_item() {  # TEST-1388 (Spec-AC-04)
+  log_info "Test: --release on an in_progress item, and on a ref absent from active_work_items, exits 1 and writes nothing (TEST-1388)..."
+  local d
+  d="$(release_fixture t1388a status=in_progress)"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1388: (a) in_progress item must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SERR")" "in_progress" "TEST-1388: (a) refusal must name the status"
+  assert_release_unchanged "$d" "TEST-1388 in_progress item"
+  d="$(release_fixture t1388b status=absent)"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1388: (b) absent item must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SERR")" "active_work_items" "TEST-1388: (b) refusal must name active_work_items"
+  assert_release_unchanged "$d" "TEST-1388 absent item"
+  log_pass "Release cannot clear past an incomplete close (TEST-1388)"
+}
+
+test_1389_release_refuses_flushable_runs() {  # TEST-1389 (Spec-AC-05)
+  log_info "Test: --release on a ref whose row carries agent_runs is refused with a flush-it message (TEST-1389)..."
+  local d
+  d="$(release_fixture t1389 row=runs)"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1389: a row with runs must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SERR")" "would flush" "TEST-1389: refusal must say the ref would flush"
+  assert_payload_contains "$(cat "$SERR")" "flush it" "TEST-1389: refusal must say to flush it rather than release it"
+  assert_release_unchanged "$d" "TEST-1389 row with runs"
+  log_pass "The truth gate is not bypassable through --release when runs exist (TEST-1389)"
+}
+
+test_1390_release_refuses_validation_pass() {  # TEST-1390 (Spec-AC-05)
+  log_info "Test: --release is refused when last_validation passes naming the ref, even with the row absent (TEST-1390)..."
+  local d
+  d="$(release_fixture t1390 vstatus=pass vref=WEDGE-0001)"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1390: a validation pass naming the ref must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SERR")" "would flush" "TEST-1390: refusal must say the ref would flush"
+  assert_payload_contains "$(cat "$SERR")" "last_validation" "TEST-1390: refusal must name last_validation"
+  assert_release_unchanged "$d" "TEST-1390 validation pass"
+  log_pass "The default gate is not bypassable through --release (TEST-1390)"
+}
+
+test_1391_release_builds_no_ledger_entry() {  # TEST-1391 (Spec-AC-06)
+  log_info "Test: a successful --release leaves METRICS.jsonl byte-identical and never names the ref (TEST-1391)..."
+  local d
+  d="$(release_fixture t1391)"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1391: release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  cmp -s "$d/docs/ai/METRICS.jsonl" "$d/metrics.before" || log_fail "TEST-1391: METRICS.jsonl must be byte-identical after a release"
+  [[ "$(/usr/bin/grep -cF 'WEDGE-0001' "$d/docs/ai/METRICS.jsonl" || true)" == 0 ]] \
+    || log_fail "TEST-1391: the released ref must appear zero times in METRICS.jsonl"
+  # Also the W2 shape: a row present with agent_runs [] is released, still no ledger line.
+  d="$(release_fixture t1391b row=empty)"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1391: (W2) release of an empty-runs row must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  cmp -s "$d/docs/ai/METRICS.jsonl" "$d/metrics.before" || log_fail "TEST-1391: (W2) METRICS.jsonl must be byte-identical"
+  [[ "$(grep -cF 'WEDGE-0001' "$d/docs/ai/STATE.yaml" || true)" == 0 ]] || log_fail "TEST-1391: (W2) the empty row must leave STATE too"
+  log_pass "A release fabricates no ledger line, on either wedge shape (TEST-1391)"
+}
+
+test_1392_release_dry_run_writes_nothing() {  # TEST-1392 (Spec-AC-07)
+  log_info "Test: --release --dry-run prints a release key and writes nothing; every refused arm still refuses under --dry-run (TEST-1392)..."
+  local d
+  d="$(release_fixture t1392)"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --release WEDGE-0001 --dry-run
+  [[ "$EC" == 0 ]] || log_fail "TEST-1392: dry-run release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  node -e '
+    const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    if (o.release !== "WEDGE-0001") { console.error("release key: " + o.release); process.exit(1); }
+  ' "$SOUT" || log_fail "TEST-1392: dry-run stdout must carry a release key naming the ref: $(cat "$SOUT")"
+  assert_release_unchanged "$d" "TEST-1392 dry run"
+  # Every refusal arm still refuses under --dry-run.
+  local arm
+  for arm in "noevent" "inprogress" "absent" "runs" "vpass"; do
+    case "$arm" in
+      noevent) d="$(release_fixture t1392x1)"; : > "$d/docs/ai/EVENTS.jsonl" ;;
+      inprogress) d="$(release_fixture t1392x2 status=in_progress)" ;;
+      absent) d="$(release_fixture t1392x3 status=absent)" ;;
+      runs) d="$(release_fixture t1392x4 row=runs)" ;;
+      vpass) d="$(release_fixture t1392x5 vstatus=pass vref=WEDGE-0001)" ;;
+    esac
+    snapshot_release_files "$d"
+    run_flush_split "$d" --release WEDGE-0001 --dry-run
+    [[ "$EC" == 1 ]] || log_fail "TEST-1392: dry-run on the $arm arm must still exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+    assert_release_unchanged "$d" "TEST-1392 dry-run $arm arm"
+  done
+  log_pass "A dry run is never a preview of a bypass (TEST-1392)"
+}
+
+test_1397_retire_names_release() {  # TEST-1397 (Spec-AC-12)
+  log_info "Test: --retire on a zero-run closed ref exits 1 and names --release (TEST-1397)..."
+  local d
+  d="$(release_fixture t1397 row=empty)"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --retire WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1397: retire of a closed zero-run ref must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SERR")" "--release" "TEST-1397: the retire refusal must name --release as the correct exit"
+  assert_release_unchanged "$d" "TEST-1397 retire refusal"
+  log_pass "--retire no longer sends the caller to a flush the sweep skips (TEST-1397)"
+}
+
+test_1398_release_records_absence() {  # TEST-1398 (Spec-AC-08)
+  log_info "Test: the release event records telemetry absent with no number and no false validation archive (TEST-1398)..."
+  local d
+  d="$(release_fixture t1398)"
+  run_flush_split "$d" --release WEDGE-0001 --reason "ride closed with no recorded runs"
+  [[ "$EC" == 0 ]] || log_fail "TEST-1398: release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  node -e '
+    const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n").filter(Boolean).map(l => JSON.parse(l));
+    const ev = lines.find(o => o.event === "work_item_released");
+    if (!ev) { console.error("no work_item_released event"); process.exit(1); }
+    if (ev.ref !== "WEDGE-0001") { console.error("ref: " + ev.ref); process.exit(1); }
+    if (!ev.payload || ev.payload.telemetry !== "absent") { console.error("telemetry: " + JSON.stringify(ev.payload)); process.exit(1); }
+    const nums = Object.entries(ev.payload).filter(([, v]) => typeof v === "number");
+    if (nums.length) { console.error("numeric payload fields: " + JSON.stringify(nums)); process.exit(1); }
+    if (/token|duration|cost/i.test(Object.keys(ev.payload).join(","))) { console.error("payload carries a measurement key"); process.exit(1); }
+  ' "$d/docs/ai/EVENTS.jsonl" || log_fail "TEST-1398: the event must record telemetry absent and carry no number: $(cat "$d/docs/ai/EVENTS.jsonl")"
+  [[ "$(grep -cF 'AAI-VALIDATION-ARCHIVED' "$d/docs/ai/STATE.yaml" || true)" == 0 ]] \
+    || log_fail "TEST-1398: a release must mint zero AAI-VALIDATION-ARCHIVED records"
+  log_pass "Absence is recorded, never fabricated as zeroes (TEST-1398)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -3565,6 +3976,19 @@ main() {
   test_149_partial_reset_keeps_review_gate
   test_150_verdict_after_last_implementer
   test_151_shrink_advice_is_reappend
+  test_1382_ref_absent_is_not_empty_success
+  test_1383_bare_flush_unaffected
+  test_1384_release_clears_closed_item
+  test_1385_release_appends_one_non_lifecycle_event
+  test_1386_release_focus_only_when_focused
+  test_1387_release_requires_closed_event
+  test_1388_release_requires_done_item
+  test_1389_release_refuses_flushable_runs
+  test_1390_release_refuses_validation_pass
+  test_1391_release_builds_no_ledger_entry
+  test_1392_release_dry_run_writes_nothing
+  test_1397_retire_names_release
+  test_1398_release_records_absence
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

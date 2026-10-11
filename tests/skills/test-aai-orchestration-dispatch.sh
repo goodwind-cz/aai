@@ -1726,6 +1726,12 @@ EOF
   write_dstate "$d/docs/ai/STATE.yaml" not_run not_run validation done tdd optional inline CHANGE-0001 false
   printf '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"fixture","event":"work_item_closed","ref":"CHANGE-0001","payload":{"validation":"pass","code_review":"none"}}\n' \
     > "$d/docs/ai/EVENTS.jsonl"
+  # Rule 4b dispatches Metrics Flush only for a focus with recorded agent_runs
+  # (done-work-item-stays-in-current-focus: a run-less focus reports needs_llm).
+  append_metrics_block "$d/docs/ai/STATE.yaml" CHANGE-0001 \
+    "        - role: Planning" "          model_id: claude-sonnet-5" \
+    "          started_utc: 2026-07-01T00:00:00Z" "          ended_utc: 2026-07-01T00:01:00Z" \
+    "          duration_seconds: 60"
   run_dispatch "$d"
   [[ "$EC" == 0 ]] || log_fail "4b CLI fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
   jassert "$OUT" 'o.rule === "4b" && o.role === "Metrics Flush" && o.suggested_tier === "mechanical"'
@@ -2945,6 +2951,9 @@ EOF
       delete post.state_summary.tree_hash;
       delete post.state_summary.last_validation_verdict;
       delete post.state_summary.close_event_superseded_by_reopen;
+      // done-work-item-stays-in-current-focus: a later, equally-additive snapshot
+      // field this pinned pre-G2 blob predates (the rule-4b flushability probe).
+      delete post.state_summary.focus_flushable_runs;
     }
     // harness-universal-routing: `harness` is a LATER, equally-additive
     // top-level key this pinned pre-G2 blob predates (same rationale as the
@@ -3392,6 +3401,14 @@ tdd_cycle:
   test_id: null
 updated_at_utc: 2026-07-01T00:00:00Z
 YAML
+
+  # A recorded run: rule 4b dispatches Metrics Flush only for a flushable focus
+  # (done-work-item-stays-in-current-focus: a run-less closed focus reports
+  # needs_llm naming --release instead).
+  append_metrics_block "$d/docs/ai/STATE.yaml" t47a-slug \
+    "        - role: Planning" "          model_id: claude-sonnet-5" \
+    "          started_utc: 2026-07-01T00:00:00Z" "          ended_utc: 2026-07-01T00:01:00Z" \
+    "          duration_seconds: 60"
 
   local cout="$TEST_DIR/t47a-close.out" cerr="$TEST_DIR/t47a-close.err" ccode=0
   ( cd "$d" && node "$PROJECT_ROOT/.aai/scripts/close-work-item.mjs" --ref t47a-slug --pr 47 --commit 47474747 \
@@ -3891,6 +3908,9 @@ assert_mode_a_byte_identity() {
     const pre = JSON.parse(fs.readFileSync(preFile, "utf8"));
     const post = JSON.parse(fs.readFileSync(postFile, "utf8"));
     delete post.harness;
+    // done-work-item-stays-in-current-focus: a later, equally-additive snapshot
+    // field this pinned pre-harness blob predates.
+    if (post.state_summary) delete post.state_summary.focus_flushable_runs;
     const preStr = JSON.stringify(pre);
     const postStr = JSON.stringify(post);
     if (preStr !== postStr) {
@@ -4744,6 +4764,93 @@ test_192_stale_strategy_is_undecided() {  # SPEC-0192 TEST-005 / Spec-AC-04
   log_pass "leftover untested with disagreeing ref_id yields rule 7 Planning (SPEC-0192 TEST-005)"
 }
 
+# --- done-work-item-stays-in-current-focus: rule 4b precondition (TEST-1393..1396) ----
+# A closed focus with no flushable telemetry must not be dispatched to a role
+# that cannot act; it reports needs_llm naming the sanctioned exit instead.
+
+# unflushable_fixture <name> <row> — a closed focus (done work item, committed
+# work_item_closed event, nothing in METRICS.jsonl) whose metrics row is
+# row=none (absent) | empty (agent_runs: []) | runs (one agent_run).
+unflushable_fixture() {
+  local d
+  d="$(mk_root "$1")"
+  write_dstate "$d/docs/ai/STATE.yaml" not_run not_run validation done tdd optional inline CHANGE-0001 false
+  printf '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"fixture","event":"work_item_closed","ref":"CHANGE-0001","payload":{"validation":"pass","code_review":"none"}}\n' \
+    > "$d/docs/ai/EVENTS.jsonl"
+  case "$2" in
+    none) ;;
+    empty)
+      { echo "metrics:"; echo "  work_items:"; echo "    CHANGE-0001:"; echo "      human_time_minutes:"
+        echo "        intake: null"; echo "        reviews: null"; echo "      agent_runs: []"; } >> "$d/docs/ai/STATE.yaml" ;;
+    runs)
+      append_metrics_block "$d/docs/ai/STATE.yaml" CHANGE-0001 \
+        "        - role: Planning" "          model_id: claude-sonnet-5" \
+        "          started_utc: 2026-07-01T00:00:00Z" "          ended_utc: 2026-07-01T00:01:00Z" \
+        "          duration_seconds: 60" ;;
+    *) log_fail "unflushable_fixture: unknown row shape $2" ;;
+  esac
+  printf '%s' "$d"
+}
+
+test_1393_rule_4b_unflushable_reports() {  # TEST-1393 (Spec-AC-09)
+  log_info "Test: a closed focus with no flushable runs yields needs_llm at rule 4b naming --release, on both wedge shapes (TEST-1393)..."
+  local d shape
+  for shape in none empty; do
+    d="$(unflushable_fixture "TEST-1393-$shape" "$shape")"
+    run_dispatch "$d"
+    [[ "$EC" == 4 ]] || log_fail "TEST-1393: ($shape) unflushable focus must exit 4 (got $EC): $(cat "$OUT" "$ERR")"
+    jassert "$OUT" 'o.verdict === "needs_llm" && o.rule === "4b"'
+    jassert "$OUT" 'o.reasons.includes("closed_focus_unflushable_no_flushable_metrics")'
+    jassert "$OUT" 'o.reasons.some(r => typeof r === "string" && r.includes("metrics-flush.mjs --release"))'
+  done
+  log_pass "Rule 4b reports an unflushable closed focus instead of dispatching a role that cannot act (TEST-1393)"
+}
+
+test_1394_rule_4b_flushable_still_dispatches() {  # TEST-1394 (Spec-AC-10)
+  log_info "Test: negative control — a closed focus WITH a recorded run still dispatches Metrics Flush at rule 4b (TEST-1394)..."
+  local d
+  d="$(unflushable_fixture TEST-1394 runs)"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-1394: flushable focus must dispatch (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "4b" && o.role === "Metrics Flush"'
+  jassert "$OUT" 'o.reasons.includes("closed_but_unflushed_focus")'
+  log_pass "The arm that works today is not pruned (TEST-1394)"
+}
+
+test_1395_snapshot_reports_real_run_count() {  # TEST-1395 (Spec-AC-10)
+  log_info "Test: state_summary.focus_flushable_runs reports the real count (TEST-1395)..."
+  local d
+  d="$(unflushable_fixture TEST-1395-a runs)"
+  run_dispatch "$d"
+  jassert "$OUT" 'o.state_summary.focus_flushable_runs === 1'
+  d="$(unflushable_fixture TEST-1395-b empty)"
+  run_dispatch "$d" || true
+  jassert "$OUT" 'o.state_summary.focus_flushable_runs === 0'
+  d="$(unflushable_fixture TEST-1395-c none)"
+  run_dispatch "$d" || true
+  jassert "$OUT" 'o.state_summary.focus_flushable_runs === 0'
+  log_pass "A focus with a run is never reported as unflushable (TEST-1395)"
+}
+
+test_1396_release_then_dispatch_seam() {  # TEST-1396 (Spec-AC-11)
+  log_info "Test: seam — the real --release, then the real dispatch over the resulting STATE, leaves rule 4b (TEST-1396)..."
+  local d
+  d="$(unflushable_fixture TEST-1396 none)"
+  run_dispatch "$d"
+  [[ "$EC" == 4 ]] || log_fail "TEST-1396: precondition: the wedge fixture must report needs_llm (got $EC): $(cat "$OUT" "$ERR")"
+  : > "$d/docs/ai/METRICS.jsonl"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
+    --state "$d/docs/ai/STATE.yaml" --metrics "$d/docs/ai/METRICS.jsonl" \
+    --events "$d/docs/ai/EVENTS.jsonl" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
+    --pricing "$PROJECT_ROOT/.aai/system/PRICING.yaml" \
+    --release CHANGE-0001 > "$d/release-out.log" 2>&1) \
+    || log_fail "TEST-1396: the real --release must exit 0: $(cat "$d/release-out.log")"
+  run_dispatch "$d" || true
+  jassert "$OUT" 'o.rule !== "4b"'
+  jassert "$OUT" 'o.reasons.includes("no_focus_ref")'
+  log_pass "The wedge is gone rather than masked: release then dispatch leaves rule 4b (TEST-1396)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026 + harness-universal-routing TEST-048..058/060 (TEST-059 lives in test-aai-layer-profiles.sh); TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -4813,6 +4920,10 @@ main() {
   test_065_effort_suffix_note
   test_567_rule_4a_single_retarget
   test_192_stale_strategy_is_undecided
+  test_1393_rule_4b_unflushable_reports
+  test_1394_rule_4b_flushable_still_dispatches
+  test_1395_snapshot_reports_real_run_count
+  test_1396_release_then_dispatch_seam
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

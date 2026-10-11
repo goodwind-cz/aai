@@ -83,10 +83,26 @@
 // --retire prints the plan and writes nothing, but STILL refuses a flushable
 // ref (never a truth-gate bypass). --reason defaults to null when omitted.
 //
-// Exit codes: 0 flushed / nothing to flush / retired (or dry-run plan printed),
-// 1 integrity refusal / post-commit check failure / retire refused (would
-// flush, or ref absent) — original preserved or the recovery file named,
-// 2 usage.
+// --release <ref> [--reason "<text>"]: the sanctioned exit for the mirror-image
+// case — a work item whose close ceremony ran (committed work_item_closed event
+// AND active_work_items[ref].status done) but which has NO flushable telemetry
+// (no metrics.work_items row, or a row carrying zero agent_runs). Without it
+// such a ref wedges rule 4b forever: the flush never lists it, the sweep skips
+// it, and --retire refuses it. Structurally DISJOINT from the flush loop
+// (handleRelease; the no---release behavior is byte-unchanged by construction)
+// and FAIL-CLOSED: it REFUSES (exit 1, nothing written) a ref without the close
+// event, a ref whose work item is not done, a ref whose row carries runs, and a
+// ref the default gate would flush (last_validation pass naming it) — a dry run
+// refuses exactly the same. It builds NO ledger entry (METRICS.jsonl is never
+// opened): the absence is recorded as ONE work_item_released event carrying
+// telemetry "absent", never as zeroes. Events-before-STATE, like --retire.
+// --ref <id> naming a ref absent from metrics.work_items is an exit 1 refusal
+// (it used to be an empty exit 0), pointing at --release.
+//
+// Exit codes: 0 flushed / nothing to flush / retired / released (or dry-run plan
+// printed), 1 integrity refusal / post-commit check failure / retire or release
+// refused (would flush, or ref absent) / --ref not a candidate — original
+// preserved or the recovery file named, 2 usage.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -165,10 +181,11 @@ function parseArgs(argv) {
     dryRun: false,
     sweep: false,
     retire: null,
+    release: null,
     reason: null,
     now: process.env.AAI_FLUSH_NOW ?? null,
   };
-  const valueFlags = { '--state': 'state', '--metrics': 'metrics', '--ticks': 'ticks', '--pricing': 'pricing', '--events': 'events', '--ref': 'ref', '--retire': 'retire', '--reason': 'reason', '--now': 'now' };
+  const valueFlags = { '--state': 'state', '--metrics': 'metrics', '--ticks': 'ticks', '--pricing': 'pricing', '--events': 'events', '--ref': 'ref', '--retire': 'retire', '--release': 'release', '--reason': 'reason', '--now': 'now' };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--dry-run') { opts.dryRun = true; continue; }
@@ -180,7 +197,10 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
-    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --retire --reason --now)`);
+    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --retire --release --reason --now)`);
+  }
+  if (opts.release !== null && opts.retire !== null) {
+    fail('--release and --retire are mutually exclusive (release: closed work item with no flushable telemetry; retire: a metrics entry that is not a work item)');
   }
   if (opts.now !== null && (!ISO_RE.test(opts.now) || Number.isNaN(Date.parse(opts.now)))) {
     fail(`--now "${opts.now}" is not an ISO-8601 UTC timestamp`);
@@ -1030,6 +1050,136 @@ function cleanupEphemeral(stateDir, ticksPath, nowMs, report) {
   }
 }
 
+// --- release (done-work-item-stays-in-current-focus) -------------------------------------
+// The sanctioned exit for a CLOSED work item with no flushable telemetry. A
+// FAIL-CLOSED branch reached ONLY when opts.release is set (structurally
+// disjoint from the flush loop, exactly as handleRetire is). Every guard runs
+// BEFORE the --dry-run branch, so a dry run is never a preview of a bypass.
+// It builds no ledger entry — absence is RECORDED (one work_item_released
+// event, telemetry "absent"), never fabricated as a zero-token METRICS line.
+const RELEASED_EVENT = 'work_item_released';
+
+// The default flush gate's per-ref predicate (last_validation passes naming the
+// ref) — ONE copy, shared by --retire and --release so neither can drift into a
+// looser check than the flush itself.
+function releaseWouldFlushByDefaultGate(vStatus, vRef, ref) {
+  return vStatus === 'pass' && refMatches(vRef, ref);
+}
+
+function handleRelease(ctx) {
+  const {
+    ref, reason, entries, vStatus, vRef, focusRef, statusByRef, existingScopeRef,
+    eventsPath, metricsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
+  } = ctx;
+
+  // 1) Durable close provenance — the SAME predicate --sweep demands.
+  if (!closedRefs(eventsPath).has(ref)) {
+    fail(`release refused: no committed work_item_closed event for "${ref}" in EVENTS.jsonl — `
+      + 'the close ceremony has not run, so there is nothing to release', 1);
+  }
+  // 2) The work item must be done — never release an in-flight item.
+  if (statusByRef.get(ref) !== 'done') {
+    const seen = statusByRef.has(ref) ? `"${statusByRef.get(ref)}"` : 'absent from active_work_items';
+    fail(`release refused: active_work_items status for "${ref}" is ${seen} (needs done) — `
+      + 'an in-flight or unknown work item is never released', 1);
+  }
+  // 3) A row carrying runs is flushable telemetry — flush it, do not release it.
+  const releaseEntry = entries.find(e => e.ref === ref) ?? null;
+  if (releaseEntry && releaseEntry.runs.length > 0) {
+    fail(`release refused: "${ref}" would flush (metrics.work_items carries ${releaseEntry.runs.length} agent_run(s)) `
+      + '— flush it, do not release it (fail-closed truth-gate)', 1);
+  }
+  // 4) The default gate would flush it.
+  if (releaseWouldFlushByDefaultGate(vStatus, vRef, ref)) {
+    fail(`release refused: "${ref}" would flush (last_validation.status is pass and names ${ref}) `
+      + '— flush it, do not release it (fail-closed truth-gate)', 1);
+  }
+
+  const event = {
+    v: 1,
+    ts: nowIsoStr,
+    actor: actorSlug(),
+    event: RELEASED_EVENT,
+    ref,
+    payload: {
+      reason: reason ?? null,
+      telemetry: 'absent',
+      metrics_row: releaseEntry ? 'present_without_runs' : 'absent',
+    },
+  };
+  const roundTrip = JSON.parse(JSON.stringify(event));
+  if (JSON.stringify(roundTrip) !== JSON.stringify(event)) {
+    fail(`internal guard: ${RELEASED_EVENT} event for ${ref} is not JSON-round-trip stable — refusing to append`, 1);
+  }
+  // A release builds NO ledger entry: this stays empty by construction.
+  const releaseLedgerEntries = [];
+
+  const releasingFocus = focusRef === ref;
+  if (opts.dryRun) {
+    console.log(JSON.stringify({
+      dry_run: true,
+      release: ref,
+      reason: reason ?? null,
+      would_remove_from_state: true,
+      would_null_focus: releasingFocus,
+      event,
+    }, null, 2));
+    exit(0);
+  }
+
+  const lines = [...origLines];
+  removeMetricsEntries(lines, [ref]);
+  removeDoneWorkItems(lines, [ref]);
+  // Only a focus the call is IN is ever cleared — nulling another session's
+  // focus is the shared-worktree hazard clear-focus already refuses.
+  if (focusRef === ref) {
+    const vWaiverParse = parseWaiver((readValidationBlock(raw) ?? {}).notes ?? '');
+    const carryWaiver = vWaiverParse.present && vWaiverParse.ok ? formatWaiver(vWaiverParse) : null;
+    const { items: remaining } = parseWorkItems(lines);
+    if (remaining.length === 0 || remaining.every(it => it.status === 'done')) {
+      applyFullReset(lines, carryWaiver);
+    } else {
+      // The reset note CLAIMS no validation PASS moved to a ledger: empty archive allowlist.
+      applyPartialReset(lines, [ref], nowIsoStr, carryWaiver, [], focusRef, existingScopeRef);
+      editBlock(lines, 'current_focus', bl => {
+        setField(bl, 2, 'type', [scalarLine(2, 'type', 'none')]);
+        setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', 'null')]);
+        setField(bl, 2, 'primary_path', [scalarLine(2, 'primary_path', 'null')]);
+        nullFieldIfPresent(bl, 2, 'spec_path');
+        return bl;
+      });
+    }
+  }
+  bumpUpdatedAt(lines, nowIsoStr);
+
+  const mDups = duplicateKeys(lines);
+  const mConf = inlineChildConflicts(lines);
+  if (mDups.length > 0 || mConf.length > 0) {
+    fail('integrity refusal: the planned STATE cleanup would violate structural invariants '
+      + `(duplicates: [${mDups.map(d => d.key).join(', ')}], inline conflicts: [${mConf.map(c => c.key).join(', ')}]) `
+      + '— nothing written, original preserved', 1);
+  }
+
+  // EVENTS-before-STATE: the record of the absence is durable before STATE changes.
+  fs.mkdirSync(path.dirname(eventsPath), { recursive: true });
+  fs.appendFileSync(eventsPath, `${JSON.stringify(event)}\n`);
+  if (releaseLedgerEntries.length > 0) {
+    fs.appendFileSync(metricsPath, releaseLedgerEntries.map(e => JSON.stringify(e) + '\n').join(''));
+  }
+  writeState(statePath, lines, trailingNewline, raw);
+
+  const check = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'check-state.mjs'), statePath], { encoding: 'utf8' });
+  if (check.status !== 0) {
+    const recovery = `${statePath}.pre-flush-${nowIsoStr.replace(/[-:]/g, '')}`;
+    fs.writeFileSync(recovery, raw);
+    fail(`post-commit check-state FAILED — pre-flush STATE saved to ${recovery} for recovery:\n${check.stdout}${check.stderr}`, 1);
+  }
+
+  console.log(`Released: ${ref} -> ${path.relative(process.cwd(), eventsPath)} (${RELEASED_EVENT}; telemetry absent, no METRICS entry written)`);
+  console.log(`check-state: OK (${path.relative(process.cwd(), statePath)})`);
+  exit(0);
+}
+
 // --- retire (SPEC-0075-spec-retire-stranded-nonworkitem-metric) --------------------------
 // The sanctioned exit for a stranded, legitimately-not-a-work-item entry. A
 // FAIL-CLOSED branch reached ONLY when opts.retire is set (structurally
@@ -1052,15 +1202,19 @@ function handleRetire(ctx) {
   // 2) FAIL-CLOSED flushability guards (BOTH before the --dry-run branch, so a
   // dry-run on a flushable ref is STILL refused — never a preview of a bypass).
   //   (a) the DEFAULT predicate, verbatim from the flush loop.
-  if (vStatus === 'pass' && refMatches(vRef, ref)) {
+  const retireWouldFlushDefault = releaseWouldFlushByDefaultGate(vStatus, vRef, ref);
+  if (retireWouldFlushDefault) {
     fail(`retire refused: "${ref}" would flush (last_validation.status is pass and names ${ref}) `
       + '— flush it, do not retire (fail-closed truth-gate)', 1);
   }
   //   (b) the SWEEP predicate — closedRefs() called UNCONDITIONALLY for retire
   //   (regardless of whether --sweep was also passed).
   if (closedRefs(eventsPath).has(ref)) {
+    const noRuns = entry.runs.length === 0;
     fail(`retire refused: "${ref}" would flush (a committed work_item_closed event exists for ${ref} in EVENTS.jsonl) `
-      + '— flush it, do not retire (fail-closed truth-gate)', 1);
+      + (noRuns
+        ? `— but it carries no agent_runs, so the flush skips it: use --release ${ref} (the exit for a closed work item with no flushable telemetry), not --retire`
+        : '— flush it, do not retire (fail-closed truth-gate)'), 1);
   }
 
   // 3) Build the audit record — compact discarded_runs read VERBATIM off the
@@ -1303,6 +1457,25 @@ function main() {
       eventsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
     });
     return; // unreached — handleRetire always exit()s.
+  }
+
+  // --release (done-work-item-stays-in-current-focus): the closed-work-item
+  // exit, branched to before the flush loop like --retire above.
+  if (opts.release !== null) {
+    handleRelease({
+      ref: opts.release, reason: opts.reason, entries, vStatus, vRef, focusRef, statusByRef, existingScopeRef,
+      eventsPath, metricsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
+    });
+    return; // unreached — handleRelease always exit()s.
+  }
+
+  // An explicitly named --ref that is not a candidate at all is not an empty
+  // success: it used to print an empty plan and exit 0, which let a caller read
+  // "flushed" off a ref that was never even considered.
+  if (opts.ref !== null && !entries.some(e => e.ref === opts.ref)) {
+    fail(`--ref "${opts.ref}" is not a flush candidate: it is not present in metrics.work_items. `
+      + `If it is a closed work item with no recorded telemetry, release it with --release ${opts.ref}; `
+      + 'if it is a metrics entry that is not a work item, retire it with --retire', 1);
   }
 
   const skipped = {};
