@@ -1,18 +1,17 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-11T20:10:16.366Z
+Generated: 2026-10-11T20:10:32.239Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| SPEC-0224 | specs | implementing | 19 done | docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md |
 
 ## Canonical layer (0)
 
@@ -56,7 +55,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (521)
+## Done (523)
 
 | ID | Type | Path |
 |---|---|---|
@@ -338,6 +337,7 @@ _None._
 | ISSUE-0095 | issues | docs/issues/ISSUE-0095-pr-github-case-identity.md |
 | ISSUE-0096 | issues | docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md |
 | ISSUE-0097 | issues | docs/issues/ISSUE-0097-merge-cleanup-submodule-worktree.md |
+| ISSUE-0098 | issues | docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -579,10 +579,11 @@ _None._
 | SPEC-0221 | specs | docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md |
 | SPEC-0222 | specs | docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md |
 | SPEC-0223 | specs | docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md |
+| SPEC-0224 | specs | docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -600,7 +601,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| ISSUE-0098 | issues | docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)

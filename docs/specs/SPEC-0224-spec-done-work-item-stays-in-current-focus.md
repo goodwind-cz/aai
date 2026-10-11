@@ -2,7 +2,7 @@
 id: spec-done-work-item-stays-in-current-focus
 type: spec
 number: 224
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 06997fcaa813dbb3f63b1eaa18c24878409c2875daca931c5ae0d59f78f910ca
 ceremony_level: 2
@@ -10,8 +10,10 @@ links:
   requirement: null
   rfc: null
   intake: docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - df3a569422103ab58e2e5994d845678736a239b0
 ---
 
 # Spec — A closed ride with no flushable telemetry gets a sanctioned exit, and rule 4b stops prescribing a remedy that cannot act

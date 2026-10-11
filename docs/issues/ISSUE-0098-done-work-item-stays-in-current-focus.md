@@ -2,10 +2,12 @@
 id: done-work-item-stays-in-current-focus
 type: issue
 number: 98
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - df3a569422103ab58e2e5994d845678736a239b0
 ---
 
 # Issue — A closed item with no `metrics.work_items` row is unflushable, so rule 4b dispatches a no-op forever and a done item stays in `current_focus`
