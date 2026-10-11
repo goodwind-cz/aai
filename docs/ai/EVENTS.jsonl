@@ -2976,3 +2976,13 @@
 {"v":1,"ts":"2026-10-10T21:47:52Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":588,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-10T21:47:57Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":588,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-10T22:05:26Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"merge-direction-signs-amendments","payload":{"pr":452,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"c40777178978f8bdd810bddf2801d4a855257599"}}
+{"v":1,"ts":"2026-10-10T21:47:59Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":588,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-11T00:15:41Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-merge-cleanup-submodule-worktree","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-11T00:46:46Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":590,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-11T00:54:20Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":590,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-11T01:04:43Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":590,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-11T01:06:41Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"merge-cleanup-submodule-worktree","payload":{"status":"pass","hash":"a48750fcfc35667d85806c29232ac450efcaac7863a8086635c3db83f59a35d3"}}
+{"v":1,"ts":"2026-10-11T01:24:21Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":590,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-11T01:41:01Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":590,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-11T01:49:51Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":590,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-11T01:50:43Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"merge-cleanup-submodule-worktree","payload":{"status":"pass","hash":"75c909434f13b6f4b4c3c04238a8f88070dcae375a7286118726b5f3e1ab33f0"}}

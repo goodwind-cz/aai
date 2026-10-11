@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: /aai-merge cleans up a ride worktree with submodules, and never by hand (merge-cleanup-submodule-worktree)
+
+- `/aai-merge` cleanup used to stop at `remove-worktree` for every ride worktree with initialized git submodules: git refuses a plain `git worktree remove` for them, even when they are clean. In a downstream project the agent then finished the step by hand with `git worktree remove --force`. That deletes the submodules' git directories, including commits never pushed.
+- The engine now removes such a worktree itself, but only after proving that every submodule, nested ones included, is clean, has a remote, has its HEAD, local branches and local tags on that remote, and has no stash. It proves this before any write (`plan`/`apply` exit 3) and again right before the removal (exit 4). Reasons: `submodule_dirty`, `submodule_unpushed`, `submodule_stash`, `submodule_no_remote`, `submodule_unverifiable`, each naming the submodule path. The main checkout's submodule configuration is left untouched.
+- Ignored single files inside a submodule are archived under `worktree-submodules/` first. Wholly ignored directories are removed but named in the plan, the report and `removed.jsonl`.
+- Preflight prints `cleanup blocked: <reason> <detail>` before the merge command (`cleanup_blockers` in `--json`) and still lets you merge.
+- `SKILL_MERGE`: on exit 3 or 4 the agent relays the line verbatim and stops; it never finishes a step by hand.
+- Refs: ISSUE-0097 / SPEC-0221.
+
 ## [unreleased] — feat: your /aai-merge direction signs the ride's contract amendments (merge-direction-signs-amendments)
 
 - `/aai-merge` preflight lists every unsigned contract-class amendment of the ride under `signs on merge:` before it prints the merge command, so the merge direction is informed. After the merge, `apply` signs exactly those records through `spec-amend classify --record` and closes the `fu-amend-*` trackers they fully discharge. Its authority is the human `directed_merge` for that PR and head, carrying your verbatim words.

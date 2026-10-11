@@ -11,6 +11,8 @@
 # spec-merge-direction-signs-amendments B: TEST-022 (trackers, idempotence, resume), TEST-023 (preflight), TEST-019 (downstream).
 # spec-merge-direction-signs-amendments C: TEST-025 (sign-merged backlog), TEST-024 (canon), TEST-026 (live ledger, RED until V3).
 # spec-merge-direction-signs-amendments PFA-8: TEST-027 (the signature cites the current direction).
+# spec-merge-cleanup-submodule-worktree B: TEST-031 (ignored content), TEST-032 (late dirt), TEST-033 (preflight), TEST-034 (canon).
+# spec-merge-cleanup-submodule-worktree A: TEST-028 (removal after the proof), TEST-029 (dirty refused), TEST-030 (unpushed, stash, no remote, stray module refused).
 set -euo pipefail
 
 case "$0" in /*) HERE="${0%/*}" ;; */*) HERE="$PWD/${0%/*}" ;; *) HERE="$PWD" ;; esac
@@ -139,6 +141,8 @@ build_world() {
     other_item_doc > "$ORIGIN/docs/issues/ISSUE-0002-other-item.md"
     run git -C "$ORIGIN" add docs/issues/ISSUE-0002-other-item.md
   fi
+  # BASELINE_SEED: a function that adds more tracked content (submodules) before the baseline commit
+  if [[ -n "${BASELINE_SEED:-}" ]]; then "$BASELINE_SEED"; fi
   run git -C "$ORIGIN" commit -qm baseline
   run git -C "$ORIGIN" push -q origin main
   run git -C "$ORIGIN" fetch -q origin
@@ -150,6 +154,8 @@ build_world() {
   run git -C "$RIDE" config user.name 'AAI Fixture'
   run git -C "$RIDE" config user.email 'fixture@example.invalid'
   if [[ -n "${DOWNSTREAM:-}" ]]; then run node "$ORIGIN/.aai/scripts/worktree-seed.mjs" --source "$ORIGIN" --target "$RIDE" >/dev/null; fi
+  # RIDE_BOOT: a function that prepares the fresh ride checkout (initializes its submodules)
+  if [[ -n "${RIDE_BOOT:-}" ]]; then "$RIDE_BOOT"; fi
   run mkdir -p "$RIDE/docs/issues" "$RIDE/docs/specs"
   run cp "$ORIGIN/$DRAFT_ISSUE" "$RIDE/$DRAFT_ISSUE"
   run cp "$ORIGIN/$DRAFT_SPEC" "$RIDE/$DRAFT_SPEC"
@@ -2053,6 +2059,388 @@ test_016_powershell_parity() {
   echo 'PASS: TEST-016 PowerShell parity (local pwsh)'
 }
 
+# ---------------------------------------------------------------------------
+# spec-merge-cleanup-submodule-worktree A: submodule fixture, TEST-028/029/030
+
+# Every submodule git call carries protocol.file.allow (the suite runs with
+# GIT_CONFIG_GLOBAL=/dev/null) and every setup command goes through `run`.
+SUB_BASELINE_SEED=''
+subgit() { git -c protocol.file.allow=always "$@"; }
+
+# mk_sub_origin <dir>: a bare origin whose HEAD names main (a bare repo created
+# without it points at the machine's init.defaultBranch, which CI does not share).
+mk_bare_origin() {
+  [[ -n "$1" && "$1" = /* ]] || fail SETUP "bare origin path not absolute: $1"
+  run git init -q --bare -b main "$1"
+  run git -C "$1" symbolic-ref HEAD refs/heads/main
+}
+
+# seed_sub_baseline: bare nested.git and sub.git origins (sub holds the nested
+# submodule `nest`), then `sub` added to the origin checkout, initialized
+# recursively there. Runs inside build_world before the baseline commit.
+seed_sub_baseline() {
+  local nw="$W/nested-work" sw="$W/sub-work"
+  SUBS="$W/subs"; NESTED="$SUBS/nested.git"; SUBR="$SUBS/sub.git"
+  run mkdir -p "$SUBS"
+  mk_bare_origin "$NESTED"; mk_bare_origin "$SUBR"
+  run git clone -q "$NESTED" "$nw"
+  run git -C "$nw" config user.name 'AAI Fixture'; run git -C "$nw" config user.email 'fixture@example.invalid'
+  printf 'nest tracked\n' > "$nw/nest.txt"
+  run git -C "$nw" add nest.txt
+  run git -C "$nw" commit -qm 'nested baseline'
+  run git -C "$nw" push -q origin HEAD:refs/heads/main
+  run git clone -q "$SUBR" "$sw"
+  run git -C "$sw" config user.name 'AAI Fixture'; run git -C "$sw" config user.email 'fixture@example.invalid'
+  printf 'sub tracked\n' > "$sw/sub.txt"
+  run git -C "$sw" add sub.txt
+  run subgit -C "$sw" submodule add -q "$NESTED" nest
+  run git -C "$sw" commit -qm 'sub baseline'
+  run git -C "$sw" push -q origin HEAD:refs/heads/main
+  run subgit -C "$ORIGIN" submodule add -q "$SUBR" sub
+  run subgit -C "$ORIGIN" submodule update -q --init --recursive
+  # the squash commit may record a gitlink whose commit lives in no remote (the unpushed arms);
+  # an on-demand submodule fetch would fail the base fetch before the worktree gate is reached
+  run git -C "$ORIGIN" config fetch.recurseSubmodules false
+  if [[ -n "${SUB_IGNORE_ALL:-}" ]]; then
+    run git -C "$ORIGIN" config -f .gitmodules submodule.sub.ignore all
+    run git -C "$ORIGIN" add .gitmodules
+  fi
+}
+
+# boot_sub_ride: the ride checkout initializes its own submodules (their git
+# dirs land under the ride's admin dir, which is what git refuses to remove).
+boot_sub_ride() {
+  run subgit -C "$RIDE" submodule update -q --init --recursive
+  local d
+  for d in sub sub/nest; do
+    run git -C "$RIDE/$d" config user.name 'AAI Fixture'
+    run git -C "$RIDE/$d" config user.email 'fixture@example.invalid'
+  done
+}
+
+# build_sub_world <name>: build_world plus the submodule fixture. SUB_RIDE_UNINIT=1
+# leaves the ride's submodules uninitialized; SUB_IGNORE_ALL=1 writes
+# `ignore = all` into .gitmodules; RIDE_SEED works as in build_world.
+build_sub_world() {
+  BASELINE_SEED=seed_sub_baseline
+  if [[ -n "${SUB_RIDE_UNINIT:-}" ]]; then RIDE_BOOT=''; else RIDE_BOOT=boot_sub_ride; fi
+  build_world "$1"
+  BASELINE_SEED=''; RIDE_BOOT=''
+}
+
+# seed_unpushed_sub: a ride commit in sub, on no remote, recorded as the gitlink.
+seed_unpushed_sub() {
+  printf 'unpushed\n' > "$RIDE/sub/unpushed.txt"
+  run git -C "$RIDE/sub" add unpushed.txt
+  run git -C "$RIDE/sub" commit -qm 'unpushed in sub'
+  UNPUSHED_SHA="$(git -C "$RIDE/sub" rev-parse HEAD)" || fail SETUP 'unpushed sha'
+  run git -C "$RIDE" add sub
+}
+
+# seed_unpushed_nest: the same one level down (sub's gitlink moves too).
+seed_unpushed_nest() {
+  printf 'unpushed\n' > "$RIDE/sub/nest/unpushed.txt"
+  run git -C "$RIDE/sub/nest" add unpushed.txt
+  run git -C "$RIDE/sub/nest" commit -qm 'unpushed in nest'
+  UNPUSHED_SHA="$(git -C "$RIDE/sub/nest" rev-parse HEAD)" || fail SETUP 'unpushed nest sha'
+  run git -C "$RIDE/sub" add nest
+  run git -C "$RIDE/sub" commit -qm 'move nest'
+  run git -C "$RIDE" add sub
+}
+
+# origin_sub_state: what the main checkout's submodule registration looks like.
+origin_sub_state() {
+  git -C "$ORIGIN" config --get-regexp '^submodule\.' || true
+  git -C "$ORIGIN" submodule status --recursive || true
+}
+
+# plan_refuses <tid> <reason> <detail>: plan exits 3 with the same line apply gives, writing nothing.
+plan_refuses() {
+  local tid="$1" reason="$2" detail="$3" before
+  before="$(world_digest)"
+  run_engine plan --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 3 ]] || fail "$tid" "plan exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  want "$tid" "$ENG_OUT" "REFUSE $reason $detail"
+  [[ "$(world_digest)" == "$before" ]] || fail "$tid" "plan arm $reason changed the fixture"
+}
+
+test_028_submodule_worktree_removed_after_proof() {
+  local before after
+  build_sub_world sub_clean
+  [[ -e "$RIDE/sub/nest/nest.txt" ]] || fail SETUP 'ride nested submodule is not initialized'
+  [[ -e "$ORIGIN/sub/nest/nest.txt" ]] || fail SETUP 'origin nested submodule is not initialized'
+  has "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE" || fail SETUP 'ride is not registered'
+  before="$(origin_sub_state)"
+  has "$before" 'submodule.sub.url' || fail SETUP "origin submodule config missing: $before"
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-028 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$RIDE" ]] || fail TEST-028 'ride worktree directory still exists'
+  unwanted TEST-028 "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE"
+  if git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null; then fail TEST-028 'ride branch still exists'; fi
+  after="$(origin_sub_state)"
+  [[ "$after" == "$before" ]] || fail TEST-028 "the main checkout's submodule registration changed: before [$before] after [$after]"
+  [[ -e "$ORIGIN/sub/nest/nest.txt" ]] || fail TEST-028 'the main checkout lost its nested submodule'
+
+  # arm 2: a ride whose submodules were never initialized is removed as before
+  SUB_RIDE_UNINIT=1 build_sub_world sub_uninit
+  [[ ! -e "$RIDE/sub/sub.txt" ]] || fail SETUP 'uninitialized arm has initialized submodule'
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-028 "uninitialized arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$RIDE" ]] || fail TEST-028 'uninitialized arm left the worktree'
+  if git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null; then fail TEST-028 'uninitialized arm left the branch'; fi
+  echo 'PASS: TEST-028 submodule worktree removed after the proof, main checkout untouched'
+}
+
+test_029_dirty_submodule_refused() {
+  local arm path want_path sha_before dirty
+  for arm in "tracked|sub|sub" "untracked|sub|sub" "nested|sub/nest|sub/nest" "ignore_all|sub|sub"; do
+    path="${arm#*|}"; want_path="${path#*|}"; path="${path%%|*}"
+    if [[ "${arm%%|*}" == ignore_all ]]; then SUB_IGNORE_ALL=1 build_sub_world "sub_dirty_${arm%%|*}"; else build_sub_world "sub_dirty_${arm%%|*}"; fi
+    case "${arm%%|*}" in
+      tracked|ignore_all) dirty="$RIDE/$path/sub.txt"; printf 'edited\n' >> "$dirty" ;;
+      untracked) dirty="$RIDE/$path/stray.txt"; printf 'stray\n' > "$dirty" ;;
+      nested) dirty="$RIDE/$path/nest.txt"; printf 'edited\n' >> "$dirty" ;;
+    esac
+    sha_before="$(sha_of "$dirty")"
+    plan_refuses TEST-029 submodule_dirty "$want_path (dirty:"
+    refuse_arm TEST-029 submodule_dirty "$want_path (dirty:"
+    [[ "$(sha_of "$dirty")" == "$sha_before" ]] || fail TEST-029 "arm ${arm%%|*}: the dirty file changed"
+    has "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE" || fail TEST-029 "arm ${arm%%|*}: the ride left the worktree list"
+    git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-029 "arm ${arm%%|*}: the ride branch is gone"
+    # the nested arm names the nested path, not its parent
+    if [[ "${arm%%|*}" == nested ]]; then unwanted TEST-029 "$ENG_OUT" 'sub (dirty'; fi
+  done
+  echo 'PASS: TEST-029 a dirty submodule refuses before any write'
+}
+
+test_030_unpushed_submodule_refused() {
+  local arm reason path before adm
+  for arm in "gitlink|submodule_unpushed|sub" "nested_gitlink|submodule_unpushed|sub (unpushed: 1 commit not on any remote-tracking ref); sub/nest" "branch_ahead|submodule_unpushed|sub" "tag_only|submodule_unpushed|sub" \
+             "stash|submodule_stash|sub" "no_remote|submodule_no_remote|sub" "stray_module|submodule_unverifiable|stray" \
+             "ignored_ls_fails|submodule_unverifiable|sub"; do
+    reason="${arm#*|}"; path="${reason#*|}"; reason="${reason%%|*}"
+    UNPUSHED_SHA=''
+    case "${arm%%|*}" in
+      gitlink) RIDE_SEED=seed_unpushed_sub build_sub_world "sub_${arm%%|*}" ;;
+      nested_gitlink) RIDE_SEED=seed_unpushed_nest build_sub_world "sub_${arm%%|*}" ;;
+      *) build_sub_world "sub_${arm%%|*}" ;;
+    esac
+    case "${arm%%|*}" in
+      branch_ahead)
+        run git -C "$RIDE/sub" checkout -q -b ahead
+        printf 'ahead\n' > "$RIDE/sub/ahead.txt"
+        run git -C "$RIDE/sub" add ahead.txt
+        run git -C "$RIDE/sub" commit -qm 'ahead on a branch'
+        UNPUSHED_SHA="$(git -C "$RIDE/sub" rev-parse HEAD)" || fail SETUP 'ahead sha'
+        run git -C "$RIDE/sub" checkout -q --detach "$(git -C "$RIDE" rev-parse HEAD:sub)" ;;
+      tag_only)
+        printf 'tagged\n' > "$RIDE/sub/tagged.txt"
+        run git -C "$RIDE/sub" add tagged.txt
+        run git -C "$RIDE/sub" commit -qm 'reachable only from a local tag'
+        UNPUSHED_SHA="$(git -C "$RIDE/sub" rev-parse HEAD)" || fail SETUP 'tag sha'
+        run git -C "$RIDE/sub" tag only-local-tag
+        run git -C "$RIDE/sub" checkout -q --detach "$(git -C "$RIDE" rev-parse HEAD:sub)" ;;
+      stash)
+        printf 'stashed\n' >> "$RIDE/sub/sub.txt"
+        run git -C "$RIDE/sub" stash -q ;;
+      no_remote) run git -C "$RIDE/sub" remote remove origin ;;
+      ignored_ls_fails)
+        # the ignored listing of sub fails (test seam): --force would delete ignored files unarchived and unnamed
+        ignore_in_sub
+        export AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_FAIL_IGNORED_LS=sub ;;
+      stray_module)
+        adm="$(git -C "$RIDE" rev-parse --absolute-git-dir)" || fail SETUP 'ride admin dir'
+        [[ -n "$adm" && "$adm" = /* ]] || fail SETUP 'ride admin dir not absolute'
+        run git init -q --bare "$adm/modules/stray" ;;
+    esac
+    before="$(git -C "$RIDE" status --porcelain --ignore-submodules=dirty)"
+    [[ -z "$before" ]] || fail SETUP "arm ${arm%%|*}: superproject not clean: $before"
+    plan_refuses TEST-030 "$reason" "$path ("
+    refuse_arm TEST-030 "$reason" "$path ("
+    has "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE" || fail TEST-030 "arm ${arm%%|*}: the ride left the worktree list"
+    git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-030 "arm ${arm%%|*}: the ride branch is gone"
+    if [[ "${arm%%|*}" == ignored_ls_fails ]]; then
+      unset AAI_MERGE_CLEANUP_TEST_SEAMS AAI_MERGE_CLEANUP_FAIL_IGNORED_LS
+      [[ -f "$RIDE/sub/x.local" && -f "$RIDE/sub/ign/out.bin" ]] || fail TEST-030 "arm ${arm%%|*}: the ignored files were deleted"
+    fi
+    if [[ -n "$UNPUSHED_SHA" ]]; then
+      if [[ "${arm%%|*}" == nested_gitlink ]]; then
+        git -C "$RIDE/sub/nest" cat-file -e "$UNPUSHED_SHA^{commit}" || fail TEST-030 "arm ${arm%%|*}: the unpushed commit is gone"
+      else
+        git -C "$RIDE/sub" cat-file -e "$UNPUSHED_SHA^{commit}" || fail TEST-030 "arm ${arm%%|*}: the unpushed commit is gone"
+      fi
+    fi
+  done
+  echo 'PASS: TEST-030 unpushed, stashed, remoteless and unverifiable submodules refuse'
+}
+
+# ---------------------------------------------------------------------------
+# spec-merge-cleanup-submodule-worktree B: TEST-031 (ignored content), TEST-032 (late dirt), TEST-033 (preflight), TEST-034 (canon).
+
+# ignore_in_sub: x.local and the directory ign/ are ignored inside the ride's `sub`
+# (through the submodule's own info/exclude, which keeps its tree clean).
+ignore_in_sub() {
+  local gd
+  gd="$(git -C "$RIDE/sub" rev-parse --absolute-git-dir)" || fail SETUP 'sub git dir'
+  [[ -n "$gd" && "$gd" = /* ]] || fail SETUP 'sub git dir not absolute'
+  run mkdir -p "$gd/info"
+  printf 'x.local\nign/\n' >> "$gd/info/exclude"
+  printf 'local secret\n' > "$RIDE/sub/x.local"
+  run mkdir -p "$RIDE/sub/ign"
+  printf 'generated\n' > "$RIDE/sub/ign/out.bin"
+  [[ -z "$(git -C "$RIDE/sub" status --porcelain --untracked-files=normal)" ]] || fail SETUP 'ignored content made sub dirty'
+}
+
+# lines_of <file> <fixed string>: how many lines of the file contain it (0 when the file is absent).
+lines_of() {
+  local n=0
+  if [[ -f "$1" ]]; then n="$( { /usr/bin/grep -cF -- "$2" "$1" || true; } )"; fi
+  printf '%s' "$n"
+}
+
+test_031_submodule_ignored_archived_or_named() {
+  local arch pre rep man removed saved f
+  build_sub_world sub_ignored
+  ignore_in_sub
+  pre="$(sha_of "$RIDE/sub/x.local")"
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  run_engine plan --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-031 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-031 "$ENG_OUT" "archive worktree:sub/x.local -> docs/ai/archive/merge-cleanup/pr-$PR/worktree-submodules/sub/x.local"
+  want TEST-031 "$ENG_OUT" 'remove (ignored, not archived) sub/ign/'
+  [[ ! -e "$arch" ]] || fail TEST-031 'plan wrote an archive'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-031 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  rep="$ENG_OUT"
+  [[ ! -e "$RIDE" ]] || fail TEST-031 'the ride worktree is still there'
+  [[ "$(sha_of "$arch/worktree-submodules/sub/x.local")" == "$pre" ]] || fail TEST-031 'the archived copy differs from the ignored file'
+  [[ ! -e "$arch/worktree-submodules/sub/ign" ]] || fail TEST-031 'a fully ignored directory was archived'
+  man="$arch/manifest.jsonl"
+  [[ "$(lines_of "$man" 'worktree:sub/x.local')" == 1 ]] || fail TEST-031 "manifest lines for x.local: $(lines_of "$man" 'worktree:sub/x.local'), want 1"
+  want TEST-031 "$(cat "$man")" "\"sha256\":\"$pre\""
+  want TEST-031 "$(cat "$man")" '"reason":"submodule_ignored"'
+  removed="$arch/removed.jsonl"
+  [[ "$(lines_of "$removed" 'sub/ign/')" == 1 && "$(/usr/bin/grep -c . "$removed" || true)" == 1 ]] || fail TEST-031 "removed.jsonl: $(cat "$removed" 2>/dev/null)"
+  want TEST-031 "$(cat "$removed")" 'submodule_ignored_not_archived'
+  [[ "$(json_get "$rep" 'j.removed_unarchived.join(",")')" == 'sub/ign/' ]] || fail TEST-031 "removed_unarchived: $(json_get "$rep" 'j.removed_unarchived')"
+  saved=''
+  for f in "$ORIGIN"/docs/ai/reports/merge-cleanup-pr"$PR"-*.md; do if [[ -f "$f" ]]; then saved="$f"; break; fi; done
+  [[ -n "$saved" ]] || fail TEST-031 'no saved report'
+  want TEST-031 "$(awk '/^## Removed, not archived/ { f = 1; next } /^## / { f = 0 } f' "$saved")" 'sub/ign/'
+  # a second apply appends no manifest and no removed.jsonl line
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-031 "second apply exited $ENG_RC"
+  [[ "$(lines_of "$man" 'worktree:sub/x.local')" == 1 && "$(/usr/bin/grep -c . "$removed" || true)" == 1 ]] || fail TEST-031 'second apply appended a line'
+
+  # an interrupted run re-archives the same content: still one line each (the archive itself is idempotent)
+  build_sub_world sub_ignored_resume
+  ignore_in_sub
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"; man="$arch/manifest.jsonl"; removed="$arch/removed.jsonl"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_TOUCH_AT='before-remove-verify:sub/late.txt' run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-031 "resume arm: first apply exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(lines_of "$man" 'worktree:sub/x.local')" == 1 ]] || fail TEST-031 'resume arm: first run did not archive x.local once'
+  run rm "$RIDE/sub/late.txt"
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-031 "resume arm: second apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(lines_of "$man" 'worktree:sub/x.local')" == 1 && "$(/usr/bin/grep -c . "$removed" || true)" == 1 ]] || fail TEST-031 'resume arm: the second pass appended a line'
+  echo 'PASS: TEST-031 ignored submodule files archived, ignored directories named, repeat appends nothing'
+}
+
+test_032_late_dirt_stops_then_resumes() {
+  local before_branch
+  build_sub_world sub_late
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_TOUCH_AT='before-remove-verify:sub/late.txt' run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-032 "apply exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-032 "$ENG_OUT" 'STOPPED submodule_dirty sub (dirty:'
+  [[ -d "$RIDE" ]] || fail TEST-032 'the ride worktree was removed'
+  [[ -s "$RIDE/sub/late.txt" ]] || fail TEST-032 'the late file did not survive'
+  has "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE" || fail TEST-032 'the ride left the worktree list'
+  git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-032 'the ride branch is gone'
+  want TEST-032 "$(cat "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/journal.jsonl")" '"step":"sync-base"'
+  unwanted TEST-032 "$(cat "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/journal.jsonl")" '"step":"remove-worktree"'
+  run rm "$RIDE/sub/late.txt"
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-032 "re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$RIDE" ]] || fail TEST-032 'the re-run left the ride worktree'
+  if git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null; then fail TEST-032 'the re-run left the ride branch'; fi
+  # arm 2: the ignored listing fails only at the archive step (a one-off git failure after
+  # the proof passed): the removal stops, nothing ignored is lost, and a re-run finishes.
+  build_sub_world sub_late_ls
+  ignore_in_sub
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_FAIL_IGNORED_LS=sub AAI_MERGE_CLEANUP_FAIL_IGNORED_LS_AT=archive run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-032 "archive-listing arm: apply exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-032 "$ENG_OUT" 'STOPPED submodule_unverifiable sub'
+  [[ -d "$RIDE" ]] || fail TEST-032 'archive-listing arm: the ride worktree was removed'
+  [[ -f "$RIDE/sub/x.local" && -f "$RIDE/sub/ign/out.bin" ]] || fail TEST-032 'archive-listing arm: the ignored files were deleted'
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-032 "archive-listing arm: re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$RIDE" ]] || fail TEST-032 'archive-listing arm: the re-run left the ride worktree'
+  echo 'PASS: TEST-032 late dirt stops the removal and a re-run finishes it'
+}
+
+test_033_preflight_names_cleanup_blocker() {
+  local merge_at block_at lines
+  # arm dirty
+  open_sub_world pf_sub_dirty
+  printf 'edited\n' >> "$RIDE/sub/sub.txt"
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-033 "dirty arm: preflight exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+  lines="$(printf '%s\n' "$ENG_OUT" | { /usr/bin/grep '^cleanup blocked: ' || true; })"
+  [[ "$(printf '%s\n' "$lines" | /usr/bin/grep -c . || true)" == 1 ]] || fail TEST-033 "want exactly one cleanup blocked line: $ENG_OUT"
+  want TEST-033 "$lines" 'cleanup blocked: submodule_dirty sub (dirty:'
+  merge_at="$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep -n 'gh pr merge' | cut -d: -f1)"
+  block_at="$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep -n '^cleanup blocked: ' | cut -d: -f1)"
+  [[ -n "$merge_at" && -n "$block_at" && "$block_at" -lt "$merge_at" ]] || fail TEST-033 "the cleanup blocked line does not precede the merge command: $ENG_OUT"
+  pf --json
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-033 "dirty arm json: exit $ENG_RC"
+  [[ "$(json_get "$ENG_OUT" 'j.cleanup_blockers.length')" == 1 ]] || fail TEST-033 "cleanup_blockers: $(json_get "$ENG_OUT" 'j.cleanup_blockers')"
+  [[ "$(json_get "$ENG_OUT" 'j.cleanup_blockers[0].reason')" == submodule_dirty ]] || fail TEST-033 'json reason is not submodule_dirty'
+  want TEST-033 "$(json_get "$ENG_OUT" 'j.cleanup_blockers[0].detail')" 'sub (dirty:'
+  # arm unpushed (committed gitlink)
+  RIDE_SEED=seed_unpushed_sub open_sub_world pf_sub_unpushed
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-033 "unpushed arm: preflight exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-033 "$ENG_OUT" 'cleanup blocked: submodule_unpushed sub (unpushed:'
+  # clean arm: no line, and the key is computed (an empty array, not an absent key)
+  open_sub_world pf_sub_clean
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-033 "clean arm: preflight exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-033 "$ENG_OUT" 'cleanup blocked:'
+  pf --json
+  [[ "$(json_get "$ENG_OUT" 'j.cleanup_blockers')" == '[]' ]] || fail TEST-033 "clean arm: cleanup_blockers is $(json_get "$ENG_OUT" 'j.cleanup_blockers'), want []"
+  # a ride without submodules is untouched by the new key
+  open_world pf_nosub
+  pf --json
+  [[ "$(json_get "$ENG_OUT" 'j.cleanup_blockers')" == '[]' ]] || fail TEST-033 'no-submodule arm: cleanup_blockers is not []'
+  assert_no_merge_call TEST-033
+  echo 'PASS: TEST-033 preflight names the cleanup blocker before the merge command'
+}
+
+# open_sub_world <name>: open_world with the submodule fixture.
+open_sub_world() {
+  build_sub_world "$1"
+  printf '%s\n' "$SWEEP_OK" >> "$RIDE/docs/ai/EVENTS.jsonl"
+  write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
+  : > "$GHD/gh-argv.log"
+}
+
+test_034_canon_stop_and_relay() {
+  local text step23 hard credit
+  text="$(cat "$ROOT/.aai/SKILL_MERGE.prompt.md")"
+  want TEST-034 "$text" 'cleanup blocked:'
+  step23="$(awk '/^2\. / { f = 1 } f' "$ROOT/.aai/SKILL_MERGE.prompt.md")"
+  [[ -n "$step23" ]] || fail TEST-034 'SKILL_MERGE step 2 not found (positive control)'
+  want TEST-034 "$step23" 'relay'
+  want TEST-034 "$step23" 'verbatim'
+  want TEST-034 "$text" 'never finish a step by hand'
+  want TEST-034 "$(printf '%s\n' "$text" | /usr/bin/grep -F 'never finish a step by hand' || true)" 'git worktree remove --force'
+  hard="$(printf '%s\n' "$text" | /usr/bin/grep -i 'hard rules' -A12 || true)"
+  want TEST-034 "$hard" 'worktree remove --force'
+  credit="$(/usr/bin/grep -F 'JUSTIFIED_ADDITIONS+=( "' "$ROOT/tests/skills/lib/prompt-diet-ledger.sh" | sed -n 's/^JUSTIFIED_ADDITIONS+=( "\([0-9][0-9]*\) merge-cleanup-submodule-worktree .*/\1/p' | awk 'NR == 1')"
+  [[ -n "$credit" && "$credit" -gt 0 && "$credit" -le 700 ]] || fail TEST-034 "the prompt-diet ledger credit for merge-cleanup-submodule-worktree is '$credit', want 1..700"
+  echo 'PASS: TEST-034 the canon tells the agent to relay the refusal and never finish by hand'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate; test_006_superseded_drafts; test_007_retained_and_decisions
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -2061,7 +2449,9 @@ case "$SELECTED" in
      test_018_direction_signs_ride_amendments; test_020_no_human_direction_signs_nothing; test_027_signature_cites_the_current_direction; test_021_signs_only_unsigned_contract_of_the_ride
      test_022_trackers_close_idempotent_resumable; test_023_preflight_lists_signs_on_merge; test_019_downstream_signs
      test_025_sign_merged_backlog; test_024_canon_merge_direction_signs; test_026_backlog_signed_on_live_ledger
-     test_001_wrappers_and_pointers; test_002_prompt_block_runs_cleanup; test_017_companion_wiring ;;
+     test_001_wrappers_and_pointers; test_002_prompt_block_runs_cleanup; test_017_companion_wiring
+     test_028_submodule_worktree_removed_after_proof; test_029_dirty_submodule_refused; test_030_unpushed_submodule_refused
+     test_031_submodule_ignored_archived_or_named; test_032_late_dirt_stops_then_resumes; test_033_preflight_names_cleanup_blocker; test_034_canon_stop_and_relay ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -2089,5 +2479,12 @@ case "$SELECTED" in
   TEST-025|test_025_sign_merged_backlog) test_025_sign_merged_backlog ;;
   TEST-024|test_024_canon_merge_direction_signs) test_024_canon_merge_direction_signs ;;
   TEST-026|test_026_backlog_signed_on_live_ledger) test_026_backlog_signed_on_live_ledger ;;
+  TEST-028|test_028_submodule_worktree_removed_after_proof) test_028_submodule_worktree_removed_after_proof ;;
+  TEST-029|test_029_dirty_submodule_refused) test_029_dirty_submodule_refused ;;
+  TEST-030|test_030_unpushed_submodule_refused) test_030_unpushed_submodule_refused ;;
+  TEST-031|test_031_submodule_ignored_archived_or_named) test_031_submodule_ignored_archived_or_named ;;
+  TEST-032|test_032_late_dirt_stops_then_resumes) test_032_late_dirt_stops_then_resumes ;;
+  TEST-033|test_033_preflight_names_cleanup_blocker) test_033_preflight_names_cleanup_blocker ;;
+  TEST-034|test_034_canon_stop_and_relay) test_034_canon_stop_and_relay ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

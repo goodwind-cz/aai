@@ -6,8 +6,9 @@ status: current
 delivered_by:
   - directed-merge-and-post-merge-cleanup
   - merge-direction-signs-amendments
+  - merge-cleanup-submodule-worktree
 spec: docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # Merge a named pull request and clean up after it
@@ -26,6 +27,16 @@ other uncommitted work stays as it was. Append-only ledgers keep the incoming
 history as a byte-exact prefix, with local lines added after it. The merged
 work item leaves the current focus, and the ride worktree and its local branch
 are removed once they are proven finished.
+
+A ride worktree with git submodules is removed too, but only after every
+submodule, nested ones included, is proven safe to lose. Each one must be
+clean, have a remote, and have its checked-out commit, every local branch and
+every local tag on that remote, with no stash. Ignored single files inside a
+submodule (a `.env`, say) are archived first. Wholly ignored directories
+(`node_modules/`, `dist/`) are removed but named in the plan and the report.
+If any submodule fails the proof, nothing is removed and the reason names the
+submodule. Preflight shows the same blocker as a `cleanup blocked:` line before
+the merge command, so you know before you direct the merge.
 
 Your merge direction is also your signature. The contract amendments a ride
 made to its frozen spec after freeze are signed by the same words you used to
@@ -64,7 +75,9 @@ reports the completed ones as no-ops.
   (gitignored). It holds the archived drafts, the ride's STATE and ignored
   evidence, the saved local ledger tail, a `manifest.jsonl` with sha256 per
   archived file, and a `sync/pending.json` journal while a base sync is in
-  flight.
+  flight. Ignored files from ride submodules go under `worktree-submodules/`;
+  wholly ignored directories that were removed without an archive are listed
+  in `removed.jsonl` and in the report section `## Removed, not archived`.
 - Run report: `docs/ai/reports/merge-cleanup-pr<n>-<UTC>.md` (gitignored):
   verified base and head, archived paths, retained changes, the audit verdict,
   and the steps still remaining.
@@ -88,7 +101,10 @@ reports the completed ones as no-ops.
   `gh pr merge <n> --squash --match-head-commit <sha>` line, preceded by one
   `signs on merge: <record key> <ref> <what>` line per amendment the merge
   will sign (or `signs on merge: none`); `--json` carries them as
-  `signs_on_merge`.
+  `signs_on_merge`. A submodule that would stop the cleanup prints one
+  `cleanup blocked: <reason> <detail>` line before the merge command, and
+  `--json` carries `cleanup_blockers` (an empty array when there is none);
+  it never refuses the merge.
 - `merge-cleanup.mjs plan --pr <n>` (read-only) and
   `merge-cleanup.mjs apply --pr <n> --pid <harness pid> [--direction "<words>"]
   [--archive-divergent <path>]...` (cleanup after a merged pull request).
@@ -106,18 +122,25 @@ reports the completed ones as no-ops.
   (`excluded`, `unmerged:<ref>`, `unclassified:<key>`, `no_contract_records`).
 - Exit codes: 0 complete, 2 usage error, 3 refused before any change
   (`REFUSE <reason> <detail>`), 4 stopped mid-way (a re-run resumes), 10
-  preflight ready.
+  preflight ready. On 3 or 4 the agent relays the line to you verbatim and
+  stops; it never finishes a step by hand.
 - Refusal reasons include `no_direction`, `not_open`, `draft`,
   `head_changed`, `checks_failing`, `not_mergeable`, `sweep_missing`,
   `repo_mismatch`, `not_merged`, `merge_commit_not_on_base`,
   `base_diverged`, `overlap`, `untracked_collision`, `ledger_rewritten`,
   `worktree_dirty`, `worktree_missing`, `tip_mismatch`, `session_locked`,
+  `submodule_dirty`, `submodule_unpushed`, `submodule_stash`,
+  `submodule_no_remote`, `submodule_unverifiable` (each naming the submodule
+  path; the same reason stops `apply` with exit 4 when it appears only after
+  the proof passed),
   `signs_unknown` (preflight cannot derive what the merge signs), and for
   `sign-merged` `no_owner_decision` (the timestamp names no single
   `by: human` `hitl_decision` with an answer in the ledger the refusal names),
   `base_unreadable`, `ledger_unreadable`.
 - Test-only environment variables (`AAI_MERGE_CLEANUP_GH_NODE`,
-  `AAI_MERGE_CLEANUP_STOP_AFTER`, `AAI_MERGE_CLEANUP_CRASH_AT`) do nothing
+  `AAI_MERGE_CLEANUP_STOP_AFTER`, `AAI_MERGE_CLEANUP_CRASH_AT`,
+  `AAI_MERGE_CLEANUP_TOUCH_AT`, `AAI_MERGE_CLEANUP_FAIL_IGNORED_LS` and
+  `AAI_MERGE_CLEANUP_FAIL_IGNORED_LS_AT`) do nothing
   unless `AAI_MERGE_CLEANUP_TEST_SEAMS=1` is also set.
 
 ## Limits and non-goals
@@ -125,8 +148,14 @@ reports the completed ones as no-ops.
 - It merges only the pull request you name, only at the head commit it
   checked, and never bypasses branch protection. It never merges merely
   because a ride opened a pull request.
-- No forced worktree removal, no `git branch -D`, no `git clean`, reset or
-  stash, and no deletion of remote branches.
+- No forced worktree removal except for a ride worktree with submodules, and
+  then only by the engine after the proof above; no `git branch -D`, no
+  `git clean`, reset or stash, and no deletion of remote branches.
+- The submodule proof reads the remote-tracking refs as they are (no fetch),
+  so a stale ref can report a pushed commit as unpushed; fetch and re-run.
+  A file written into a submodule between the last check and the removal, or
+  a commit reachable only from notes or other custom refs, is not protected.
+  A forced removal with submodules is not exercised on native Windows.
 - A draft whose content differs from the delivered document is kept, with a
   named reason, unless you pass `--archive-divergent` for it.
 - The engine cannot prove that `--direction` words are yours; only the skill
@@ -144,3 +173,5 @@ reports the completed ones as no-ops.
 - Validation evidence: docs/ai/reports/VALIDATION-r3-directed-merge-and-post-merge-cleanup.md
 - Signing request: docs/issues/CHANGE-0208-merge-direction-signs-amendments.md
 - Signing spec: docs/specs/SPEC-0220-spec-merge-direction-signs-amendments.md
+- Submodule request: docs/issues/ISSUE-0097-merge-cleanup-submodule-worktree.md
+- Submodule spec: docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md

@@ -606,13 +606,123 @@ function findRideWorktree(ctx) {
   return null;
 }
 
+// ---- D2: submodule proof --------------------------------------------------
+
+const SUB_KINDS = ['dirty', 'unpushed', 'stash', 'no_remote', 'unverifiable'];
+
+// Every initialized submodule below `dir` (a gitlink whose path holds a `.git`), nested
+// ones included, as paths relative to `base`, sorted. Uninitialized gitlinks are skipped.
+function submoduleMembers(dir, base = dir) {
+  const ls = git(dir, ['ls-files', '--stage', '-z']);
+  if (ls.status !== 0) return { members: [], failed: [posix(path.relative(base, dir)) || '.'] };
+  const members = [];
+  const failed = [];
+  for (const entry of ls.stdout.split('\0').filter(Boolean)) {
+    const m = entry.match(/^160000 [0-9a-f]+ \d\t(.+)$/s);
+    if (!m) continue;
+    const abs = path.join(dir, m[1]);
+    if (!fs.existsSync(path.join(abs, '.git'))) continue;
+    members.push(posix(path.relative(base, abs)));
+    const inner = submoduleMembers(abs, base);
+    members.push(...inner.members);
+    failed.push(...inner.failed);
+  }
+  return { members: members.sort(), failed };
+}
+
+// Git dirs below `modules` (names may hold slashes; nested ones live under <gitdir>/modules).
+function moduleGitDirs(modules) {
+  const found = [];
+  const walk = (d) => {
+    let kids = [];
+    try { kids = fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()); } catch { return; }
+    for (const k of kids) {
+      const abs = path.join(d, k.name);
+      if (fs.existsSync(path.join(abs, 'HEAD')) && fs.existsSync(path.join(abs, 'objects'))) {
+        found.push(abs);
+        walk(path.join(abs, 'modules'));
+      } else walk(abs);
+    }
+  };
+  walk(modules);
+  return found;
+}
+
+function adminModulesDir(wtPath) {
+  const r = git(wtPath, ['rev-parse', '--absolute-git-dir']);
+  return r.status === 0 ? path.join(realOr(r.stdout.trim()), 'modules') : null;
+}
+
+// True when the worktree holds an initialized submodule or a modules dir in its admin dir
+// (git refuses a plain `worktree remove` for either, F1/F4).
+function hasSubmodules(wtPath) {
+  if (submoduleMembers(wtPath).members.length > 0) return true;
+  const mod = adminModulesDir(wtPath);
+  return !!mod && fs.existsSync(mod);
+}
+
+// The ignored listing of one submodule (D4). Test seam AAI_MERGE_CLEANUP_FAIL_IGNORED_LS=<member>
+// makes it fail, so the fail-closed path is reachable deterministically; with
+// AAI_MERGE_CLEANUP_FAIL_IGNORED_LS_AT=<phase> it fails only in that phase (a one-off failure).
+function ignoredListing(wtPath, member, phase = 'verify') {
+  const at = seam('AAI_MERGE_CLEANUP_FAIL_IGNORED_LS_AT');
+  if (seam('AAI_MERGE_CLEANUP_FAIL_IGNORED_LS') === member && (!at || at === phase)) return { status: 1, stdout: '', stderr: '' };
+  return git(path.join(wtPath, member), ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z']);
+}
+
+// Per initialized submodule, recursive (D2): clean, has a remote, pushed, no stash.
+// Returns [{ path, kind, fact }] sorted by path; one entry per offending member.
+function submoduleBlockers(wtPath) {
+  const out = [];
+  const { members, failed } = submoduleMembers(wtPath);
+  for (const f of failed) out.push({ path: f, kind: 'unverifiable', fact: 'git ls-files failed' });
+  const gitDirs = new Set();
+  for (const rel of members) {
+    const abs = path.join(wtPath, rel);
+    const gd = git(abs, ['rev-parse', '--absolute-git-dir']);
+    if (gd.status !== 0) { out.push({ path: rel, kind: 'unverifiable', fact: 'git rev-parse failed' }); continue; }
+    gitDirs.add(realOr(gd.stdout.trim()));
+    const st = git(abs, ['status', '--porcelain', '--ignore-submodules=dirty', '--untracked-files=normal']);
+    if (st.status !== 0) { out.push({ path: rel, kind: 'unverifiable', fact: 'git status failed' }); continue; }
+    const changed = st.stdout.split('\n').filter((l) => l.trim() !== '').length;
+    if (changed > 0) { out.push({ path: rel, kind: 'dirty', fact: `${changed} changed` }); continue; }
+    const rm = git(abs, ['remote']);
+    if (rm.status !== 0) { out.push({ path: rel, kind: 'unverifiable', fact: 'git remote failed' }); continue; }
+    if (rm.stdout.trim() === '') { out.push({ path: rel, kind: 'no_remote', fact: 'no remote configured' }); continue; }
+    const rl = git(abs, ['rev-list', '--count', 'HEAD', '--branches', '--tags', '--not', '--remotes']);
+    const unpushed = Number(rl.stdout.trim());
+    if (rl.status !== 0 || !Number.isFinite(unpushed)) { out.push({ path: rel, kind: 'unverifiable', fact: 'git rev-list failed' }); continue; }
+    if (unpushed > 0) { out.push({ path: rel, kind: 'unpushed', fact: `${unpushed} commit${unpushed === 1 ? '' : 's'} not on any remote-tracking ref` }); continue; }
+    const sh = git(abs, ['rev-parse', '-q', '--verify', 'refs/stash']);
+    if (sh.status === 0) out.push({ path: rel, kind: 'stash', fact: 'stash present' });
+    // --force deletes ignored files, so a listing that fails can be neither archived nor named: fail closed
+    if (ignoredListing(wtPath, rel).status !== 0) out.push({ path: rel, kind: 'unverifiable', fact: 'git ls-files --ignored failed' });
+  }
+  const mod = adminModulesDir(wtPath);
+  if (mod && fs.existsSync(mod)) {
+    for (const dir of moduleGitDirs(mod)) {
+      if (!gitDirs.has(realOr(dir))) out.push({ path: posix(path.relative(mod, dir)), kind: 'unverifiable', fact: 'git dir of no initialized submodule' });
+    }
+  }
+  return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+// D3: [reason, detail] for a blocker list, else null. Reason is the first kind present.
+function blockerVerdict(blockers) {
+  const kind = SUB_KINDS.find((k) => blockers.some((b) => b.kind === k));
+  if (!kind) return null;
+  return [`submodule_${kind}`, blockers.map((b) => `${b.path} (${b.kind}: ${b.fact})`).join('; ')];
+}
+
 // First eligibility failure as [reason, detail], else null.
 function worktreeVerdict(ctx, wt) {
   if (!fs.existsSync(wt.path)) return ['worktree_missing', wt.path];
   const cwd = realOr(process.cwd());
   if (cwd === wt.path || cwd.startsWith(wt.path + path.sep)) return ['cwd_inside_target', wt.path];
-  const st = git(wt.path, ['status', '--porcelain']);
+  const st = git(wt.path, ['status', '--porcelain', '--ignore-submodules=dirty', '--untracked-files=normal']);
   if (st.status !== 0 || st.stdout.trim() !== '') return ['worktree_dirty', wt.path];
+  const blockers = submoduleBlockers(wt.path);
+  if (blockers.length > 0) return blockerVerdict(blockers);
   if (wt.head !== ctx.head) return ['tip_mismatch', `${ctx.headRef} at ${wt.head || 'unknown'}, PR head ${ctx.head}`];
   const lk = lockStatus(wt.path);
   if (lk.held && lk.alive && lk.pid !== Number(ctx.opts.pid)) return ['session_locked', `${lk.pid} ${lk.worktree ?? ''}`.trim()];
@@ -652,14 +762,71 @@ function archiveRuntime(ctx) {
   return { status: 'done', detail: `${archived} archived, ${copied} copied to origin` };
 }
 
+// ---- D4: ignored content inside submodules ---------------------------------
+
+const REMOVED_REL = 'removed.jsonl';
+
+// Ignored entries of every initialized submodule: regular files to archive, and the
+// fully ignored directories / non-regular entries that are only named (git lists a wholly
+// ignored directory once, with a trailing slash, F8). Paths are relative to the worktree.
+function submoduleIgnored(wtPath, phase = 'verify') {
+  const files = [];
+  const named = [];
+  for (const member of submoduleMembers(wtPath).members) {
+    const ls = ignoredListing(wtPath, member, phase);
+    // The proof already refuses a failing listing; a one-off failure after it passed must not
+    // let --force delete this submodule's ignored files unarchived and unnamed.
+    if (ls.status !== 0) stop('submodule_unverifiable', `${member} (unverifiable: git ls-files --ignored failed)`);
+    for (const entry of ls.stdout.split('\0').filter(Boolean)) {
+      const rel = `${member}/${entry}`;
+      if (entry.endsWith('/')) { named.push({ path: rel, kind: 'directory' }); continue; }
+      let st = null;
+      try { st = fs.lstatSync(path.join(wtPath, rel)); } catch { continue; }
+      if (st.isFile()) files.push(rel); else named.push({ path: rel, kind: 'non_regular' });
+    }
+  }
+  return { files: files.sort(), named: named.sort((a, b) => (a.path < b.path ? -1 : 1)) };
+}
+
+// Archive each ignored regular file under worktree-submodules/ and record each entry that is
+// only named in removed.jsonl (deduplicated), before the worktree goes. A repeat adds nothing.
+function archiveSubmoduleIgnored(ctx, wt) {
+  const root = archiveRoot(ctx.origin, ctx.opts.pr);
+  const { files, named } = submoduleIgnored(wt.path, 'archive');
+  for (const rel of files) {
+    archiveFile(ctx, { src: path.join(wt.path, rel), destBase: path.join(root, 'worktree-submodules', rel), original: `worktree:${rel}`, reason: 'submodule_ignored', step: 'remove-worktree' });
+  }
+  const file = path.join(root, REMOVED_REL);
+  const known = readJsonl(file);
+  for (const n of named) {
+    if (!known.some((k) => k.path === n.path && k.kind === n.kind)) appendJsonl(file, { ...n, reason: 'submodule_ignored_not_archived' });
+  }
+}
+
+// Test seam: another session writes into a submodule between the archive and the final verify.
+function touchAt(point, wtPath) {
+  const v = seam('AAI_MERGE_CLEANUP_TOUCH_AT');
+  if (v && v.startsWith(`${point}:`)) fs.appendFileSync(path.join(wtPath, v.slice(point.length + 1)), 'written by another session\n');
+}
+
 function removeWorktree(ctx) {
   const wt = findRideWorktree(ctx);
   if (!wt) return { status: 'noop', detail: 'no_worktree' };
   const why = worktreeVerdict(ctx, wt);
   if (why) stop(...why);
+  archiveSubmoduleIgnored(ctx, wt);
+  touchAt('before-remove-verify', wt.path);
+  // the proof runs again as the last check, right before the destructive call (D3)
+  const late = worktreeVerdict(ctx, wt);
+  if (late) stop(...late);
+  const withSubmodules = hasSubmodules(wt.path);
   const lk = lockStatus(wt.path);
   if (lk.held && lk.pid === Number(ctx.opts.pid)) lockRelease({ cwd: wt.path, pid: lk.pid });
-  const r = git(ctx.origin, ['worktree', 'remove', wt.path]);
+  // git refuses a plain remove once submodules are initialized (F1); the proof above is what
+  // makes the one --force safe, so only this engine forces and only after it
+  const r = withSubmodules
+    ? git(ctx.origin, ['worktree', 'remove', '--force', wt.path])
+    : git(ctx.origin, ['worktree', 'remove', wt.path]);
   if (r.status !== 0) stop('worktree_remove_failed', (r.stderr || r.stdout).trim().split('\n')[0] ?? '');
   return { status: 'done', detail: wt.path };
 }
@@ -932,6 +1099,9 @@ function renderReport(report) {
     '## Archived',
     ...list(report.archived, (a) => `${a.path} -> ${a.archive} [${a.reason}] sha256 ${a.sha256}`),
     '',
+    '## Removed, not archived',
+    ...list(report.removed_unarchived ?? [], (p) => p),
+    '',
     '## Retained',
     ...list(report.retained, (r) => `${r.path} [${r.reason}]`),
     '',
@@ -1016,7 +1186,17 @@ const PLANNERS = {
     const ref = fs.existsSync(file) ? focusRefOf(file) : null;
     return ref && mergedRefs(ctx).has(ref) ? [`clear focus ${ref}`] : [];
   },
-  'remove-worktree': (ctx) => { const wt = findRideWorktree(ctx); return wt ? [wt.path] : []; },
+  'remove-worktree': (ctx) => {
+    const wt = findRideWorktree(ctx);
+    if (!wt) return [];
+    const root = archiveRoot(ctx.origin, ctx.opts.pr);
+    const { files, named } = submoduleIgnored(wt.path);
+    return [
+      wt.path,
+      ...files.map((rel) => `archive worktree:${rel} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree-submodules', rel)))}`),
+      ...named.map((n) => `remove (ignored, not archived) ${n.path}`),
+    ];
+  },
   'delete-branch': (ctx) => (branchTip(ctx) && ctx.headRef !== ctx.base ? [ctx.headRef] : []),
 };
 
@@ -1049,6 +1229,7 @@ function buildReport(ctx, steps) {
     mergedHead: ctx.head,
     steps,
     archived: archivedFromManifest(ctx),
+    removed_unarchived: readJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), REMOVED_REL)).map((r) => r.path),
     retained: ctx.drafts.retained,
     noops: steps.filter((s) => s.status === 'noop').map((s) => `noop:${s.id}:${s.detail}`),
     audit: ctx.audit ?? null,
@@ -1199,12 +1380,16 @@ function runPreflight(opts) {
   } catch (e) {
     refuse('direction_unrecorded', String(e.message ?? e).split('\n')[0]);
   }
+  // D5: the cleanup proof, surfaced before the merge; it never refuses the merge
+  const rideWt = findRideWorktree({ origin: realOr(mainWt), headRef: String(pr.headRefName ?? '') });
+  const cleanupVerdict = rideWt ? blockerVerdict(submoduleBlockers(rideWt.path)) : null;
+  const cleanupBlockers = cleanupVerdict ? [{ reason: cleanupVerdict[0], detail: cleanupVerdict[1] }] : [];
   const command = `AAI_OPERATOR_MERGE=1 gh pr merge ${opts.pr} --squash --match-head-commit ${head}`;
   if (opts.json) {
-    process.stdout.write(`${JSON.stringify({ ready: true, pr: opts.pr, head, command, sweep: gateOut, direction: opts.direction, signs_on_merge: signs })}\n`);
+    process.stdout.write(`${JSON.stringify({ ready: true, pr: opts.pr, head, command, sweep: gateOut, direction: opts.direction, signs_on_merge: signs, cleanup_blockers: cleanupBlockers })}\n`);
   } else {
     const signLines = signs.length ? signs.map((x) => `${SIGNS_PREFIX}${x.record_key} ${x.ref_id} ${x.what}`) : [`${SIGNS_PREFIX}none`];
-    process.stdout.write(`READY PR #${opts.pr} head ${head}\n${gateOut}\n${signLines.join('\n')}\n${command}\n`);
+    process.stdout.write(`READY PR #${opts.pr} head ${head}\n${gateOut}\n${signLines.join('\n')}\n${cleanupBlockers.map((b) => `cleanup blocked: ${b.reason} ${b.detail}\n`).join('')}${command}\n`);
   }
   exit(10);
 }
