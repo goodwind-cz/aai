@@ -1,15 +1,15 @@
 ---
 id: spec-done-work-item-stays-in-current-focus
 type: spec
-number: null
+number: 224
 status: implementing
 mutation_gate: v1
-frozen_sha256: 9feda21d767ed6e12251d9c37e9c1ec8ccd52f6da56a7e47385bc48c5554e8c2
+frozen_sha256: 06997fcaa813dbb3f63b1eaa18c24878409c2875daca931c5ae0d59f78f910ca
 ceremony_level: 2
 links:
   requirement: null
   rfc: null
-  intake: docs/issues/ISSUE-DRAFT-done-work-item-stays-in-current-focus.md
+  intake: docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md
   pr: []
   commits: []
 ---
@@ -19,7 +19,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: none (bug intake, `docs/issues/ISSUE-DRAFT-done-work-item-stays-in-current-focus.md`)
+- Requirement: none (bug intake, `docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md`)
 - Decision records: SPEC-0075 (`--retire`, the symmetric sanctioned exit), SPEC-0180 (`clear-focus` wiring), SPEC-0192 (the `set-strategy` refusal this scope must not weaken), SPEC-0053/SPEC-0054 (`close-work-item.mjs` owns the close lifecycle)
 - Technology contract: docs/TECHNOLOGY.md
 
@@ -420,7 +420,7 @@ Commands to run (every one of them from the repository root):
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-orchestration-mode.sh` — reads the same STATE schema header
 - `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh` with
   `AAI_TEST_TIMEOUT=3000` for the full sweep, once, before close
-- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-DRAFT-spec-done-work-item-stays-in-current-focus.md`
+- `node .aai/scripts/spec-lint.mjs --path docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md`
 - `node .aai/scripts/docs-audit.mjs --strict`
 
 Evidence artifacts: the per-TEST RED logs and mutation records named under

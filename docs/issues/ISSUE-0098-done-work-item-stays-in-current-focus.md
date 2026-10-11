@@ -1,7 +1,7 @@
 ---
 id: done-work-item-stays-in-current-focus
 type: issue
-number: null
+number: 98
 status: draft
 links:
   pr: []

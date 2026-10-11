@@ -22,6 +22,12 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: a closed ride with no flushable telemetry no longer wedges the focus (done-work-item-stays-in-current-focus)
+
+- `metrics-flush.mjs --release <ref>` is the sanctioned exit for a closed ride with no flushable telemetry: one `work_item_released` event (`telemetry: absent`), no fabricated METRICS line, the focus released, and only the ref's own validation and review blocks reset. It refuses an incomplete close (no committed close event, a close superseded by a reopen, an item not done, recorded runs, or a fail verdict it does not own) before any write.
+- Rule 4b of `orchestration-dispatch.mjs` no longer dispatches a Metrics Flush that cannot act: a zero-run closed focus returns `needs_llm` with the command that releases it (`--release`, or `state.mjs clear-focus` when no work item exists), and a reopened close never reaches rule 4b.
+- `metrics-flush.mjs --ref <ref>` on a non-candidate ref exits 1 naming why, instead of an empty-success `flush: []`.
+
 ## [unreleased] — fix: /aai-merge cleans up the ride's own leftovers instead of refusing (merge-cleanup-ride-leftovers)
 
 - A main-checkout `roadmap.yaml` change that touches only the merged ride's own entry (written by `/aai-ship`'s ship-append) is archived and the merged file taken, instead of `REFUSE overlap`. Any other local roadmap change still refuses.

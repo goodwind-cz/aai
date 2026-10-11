@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-11T15:42:30.573Z",
+  "generatedAt": "2026-10-11T20:08:46.096Z",
   "project": "aai",
   "counts": {
     "delivered": 293,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 75743724
   },
@@ -194,6 +194,19 @@
       "review": null
     },
     {
+      "ref": "done-work-item-stays-in-current-focus",
+      "title": "Issue — A closed item with no `metrics.work_items` row is unflushable, so rule 4b dispatches a no-op forever and a done item stays in `current_focus`",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md",
+      "closed_on": null,
+      "agent_minutes": 15,
+      "token_total": 199682,
+      "spec": "docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -245,7 +258,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20261011T1537Z-merge-cleanup-ride-leftovers-r3.md"
+      "review": "docs/ai/reviews/review-20261011T1718Z-merge-cleanup-ride-leftovers-r5.md"
     },
     {
       "ref": "merge-cleanup-submodule-worktree",
@@ -4081,7 +4094,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-20261011T1537Z-merge-cleanup-ride-leftovers-r3.md"
+          "review": "docs/ai/reviews/review-20261011T1718Z-merge-cleanup-ride-leftovers-r5.md"
         },
         {
           "ref": "merge-cleanup-submodule-worktree",

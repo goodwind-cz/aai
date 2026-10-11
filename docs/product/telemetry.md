@@ -8,6 +8,7 @@ delivered_by:
   - CHANGE-0070
   - CHANGE-0063
   - telemetry-fields-not-prose
+  - done-work-item-stays-in-current-focus
 spec: docs/specs/SPEC-0089-spec-token-economics-end-to-end.md
 updated: 2026-09-13
 ---
@@ -80,6 +81,27 @@ one capability:
   detected harness; `--tokens-total` records a harness-reported total when
   the runtime exposes only one number (no in/out split); `--requested-model`
   / `--actual-model` record a routing decision and what actually ran.
+- `node .aai/scripts/metrics-flush.mjs --release <ref> [--reason "<why>"]
+  [--dry-run]`: the sanctioned exit for a closed ride that has no flushable
+  telemetry (no `metrics.work_items` row, or a row with zero `agent_runs`).
+  It appends one `work_item_released` event with `telemetry: absent`, writes
+  no METRICS line, releases `current_focus` when it names the ref, and
+  resets only the validation and review blocks that name the ref. It refuses,
+  before any write and under `--dry-run` too, when there is no committed
+  `work_item_closed` event, the close was superseded by a reopen, the work
+  item is not done, the row carries runs, or a fail verdict names the ref or
+  is not owned by any ref. With `--ref` or `--sweep` it is a usage error.
+- `metrics-flush.mjs --ref <ref>` on a ref that is not a flush candidate now
+  exits 1 naming the reason (and `--release` where it applies) instead of an
+  empty-success `flush: []`.
+- `orchestration-dispatch.mjs` rule 4b no longer dispatches a Metrics Flush
+  that cannot act. For a closed focus with zero runs it returns `needs_llm`
+  and prints the command a human runs: `metrics-flush.mjs --release <ref>`
+  (reason `closed_focus_unflushable_no_flushable_metrics`), or
+  `state.mjs clear-focus --ref <ref>` when the focus has no
+  `active_work_items` entry (reason
+  `closed_focus_item_absent_no_flushable_metrics`). A close superseded by a
+  reopen never reaches rule 4b.
 - `node .aai/scripts/state.mjs set-validation --ref <R> --status <pass|fail>`
   additionally stamps a per-ref `validation: {status, at}` field on that
   ref's metrics entry when one already exists — the provenance the default
@@ -145,14 +167,20 @@ one capability:
   `validation_verdict` ledger event) remain unflushable by design — nothing
   durable says they passed; the honest exits are `--retire` or a fresh
   verdict, never a fabricated one.
+- A closed focus with no `active_work_items` entry but recorded runs still
+  dispatches a Metrics Flush that cannot act
+  (`fu-4b-item-absent-with-runs-wedge`); `--sweep` still treats a close
+  superseded by a reopen as closed (`fu-sweep-ignores-reopen`).
 
 ## Links
 
 - Requests: docs/issues/CHANGE-0058-token-capture-canary.md,
   docs/issues/CHANGE-0070-prompt-hash-telemetry.md,
   docs/issues/CHANGE-0063-token-economics-end-to-end.md,
-  docs/issues/CHANGE-0183-telemetry-fields-not-prose.md
+  docs/issues/CHANGE-0183-telemetry-fields-not-prose.md,
+  docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md
 - Specs: docs/specs/SPEC-0085-spec-token-capture-canary.md,
   docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md,
   docs/specs/SPEC-0089-spec-token-economics-end-to-end.md,
-  docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md
+  docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md,
+  docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md

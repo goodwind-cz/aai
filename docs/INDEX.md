@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-11T19:53:37.418Z
+Generated: 2026-10-11T20:10:16.366Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-done-work-item-stays-in-current-focus | specs | implementing | 19 done | docs/specs/SPEC-DRAFT-spec-done-work-item-stays-in-current-focus.md |
+| SPEC-0224 | specs | implementing | 19 done | docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md |
 
 ## Canonical layer (0)
 
@@ -51,7 +51,7 @@ _None._
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | roadmap | roadmap | 1 | docs/product/roadmap.md |
 | role-output-contracts | role-output-contracts | 1 | docs/product/role-output-contracts.md |
-| telemetry | telemetry | 4 | docs/product/telemetry.md |
+| telemetry | telemetry | 5 | docs/product/telemetry.md |
 | universal-routines | universal-routines | 2 | docs/product/universal-routines.md |
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
@@ -600,7 +600,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| done-work-item-stays-in-current-focus (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-done-work-item-stays-in-current-focus.md |
+| ISSUE-0098 | issues | docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
