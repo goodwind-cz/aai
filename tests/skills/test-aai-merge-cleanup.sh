@@ -2764,6 +2764,20 @@ test_044_push_url_must_equal_fetch_url() {
   retained_arm TEST-044 remote_unknown 'pushInsteadOf arm'
   bare_has "$BRANCH" || fail TEST-044 'pushInsteadOf arm: the fetch-side remote branch was deleted'
   git -C "$other" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null 2>&1 || fail TEST-044 'pushInsteadOf arm: the push-side remote branch was deleted'
+  # arm two pushurls: the first equals the fetch URL, the second names a bare no proof reads
+  build_world remote_two_pushurls
+  other="$W/other/origin.git"
+  run mkdir -p "$W/other"
+  run git init -q --bare -b main "$other"
+  run git -C "$ORIGIN" push -q "$other" "$HEAD_OID:refs/heads/$BRANCH"
+  local fetch_url
+  fetch_url="$(git -C "$ORIGIN" remote get-url origin)" || fail TEST-044 'two-pushurls arm: cannot read the fetch URL'
+  run git -C "$ORIGIN" config --add remote.origin.pushurl "$fetch_url"
+  run git -C "$ORIGIN" config --add remote.origin.pushurl "$other"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-044 remote_unknown 'two-pushurls arm'
+  bare_has "$BRANCH" || fail TEST-044 'two-pushurls arm: the fetch-side remote branch was deleted'
+  git -C "$other" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null 2>&1 || fail TEST-044 'two-pushurls arm: the second push URL branch was deleted'
   echo 'PASS: TEST-044 a push URL that differs from the fetch URL is never pushed to'
 }
 
