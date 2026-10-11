@@ -2,15 +2,17 @@
 id: spec-merge-cleanup-delete-remote-branch
 type: spec
 number: 222
-status: implementing
+status: done
 mutation_gate: v1
 frozen_sha256: 8bc81ccf7a49660909be2817ebb37c52c2812f6c2c4ceb5764e37a87df423af9
 ceremony_level: 2
 links:
   requirement: merge-cleanup-delete-remote-branch
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 61a314b513af2683f7e2fac568c6a124b821fbf9
 ---
 
 # Spec — /aai-merge deletes the merged remote branch by lease, and its block passes the agent's safety check

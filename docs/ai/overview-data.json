@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-11T12:25:45.767Z",
+  "generatedAt": "2026-10-11T12:27:04.741Z",
   "project": "aai",
   "counts": {
-    "delivered": 291,
-    "in_progress": 17,
+    "delivered": 292,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 75743724
   },
@@ -49,19 +49,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "merge-cleanup-delete-remote-branch",
-      "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-20261011T1201Z-merge-cleanup-delete-remote-branch-r1.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -234,6 +221,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "merge-cleanup-delete-remote-branch",
+      "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md",
+      "closed_on": "2026-10-11",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261011T1224Z-merge-cleanup-delete-remote-branch-r2.md"
+    },
     {
       "ref": "merge-cleanup-submodule-worktree",
       "title": "/aai-merge cleanup stops on a ride worktree with submodules, and the stop invites a forbidden manual --force",
@@ -4044,6 +4044,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "merge-cleanup-delete-remote-branch",
+          "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md",
+          "closed_on": "2026-10-11",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261011T1224Z-merge-cleanup-delete-remote-branch-r2.md"
+        },
         {
           "ref": "merge-cleanup-submodule-worktree",
           "title": "/aai-merge cleanup stops on a ride worktree with submodules, and the stop invites a forbidden manual --force",

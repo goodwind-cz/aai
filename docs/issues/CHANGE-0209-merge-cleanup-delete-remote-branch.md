@@ -2,10 +2,12 @@
 id: merge-cleanup-delete-remote-branch
 type: change
 number: 209
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 61a314b513af2683f7e2fac568c6a124b821fbf9
 ---
 
 # /aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check
