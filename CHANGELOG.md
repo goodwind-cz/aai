@@ -22,6 +22,13 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: /aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check (merge-cleanup-delete-remote-branch)
+
+- `merge-cleanup.mjs apply` gains a `delete-remote-branch` step: it deletes the merged pull request's head branch on origin by compare-and-swap (`--force-with-lease` against the merged head), so the owner no longer runs `git push origin --delete` by hand.
+- The branch is kept, with a named reason on a `remaining:` line, when it moved after the merge, came from a fork, is the base or default branch, has another open pull request based on it or opened from it, is refused by the server, or cannot be read. A kept branch never stops the rest of the cleanup, and a re-run is idempotent.
+- The branch is also kept (`remote_unknown`) when the push URL of `origin` differs from its fetch URL (`remote.origin.pushurl`, `pushInsteadOf`) or either side lists more than one URL, because the proofs read the fetch repository while the deletion pushes to the push URL.
+- SKILL_MERGE: run the cleanup block as the command itself, never through `bash -c`, `sh -c` or `eval`. The PowerShell block clears `AAI_GIT_WRITE` with `$env:AAI_GIT_WRITE = $null`. Neither block contains a removal command.
+
 ## [unreleased] — fix: /aai-merge cleans up a ride worktree with submodules, and never by hand (merge-cleanup-submodule-worktree)
 
 - `/aai-merge` cleanup used to stop at `remove-worktree` for every ride worktree with initialized git submodules: git refuses a plain `git worktree remove` for them, even when they are clean. In a downstream project the agent then finished the step by hand with `git worktree remove --force`. That deletes the submodules' git directories, including commits never pushed.

@@ -27,7 +27,10 @@
 // superseded-draft archive (batch B1), the D8 base sync and the D10 runtime
 // archive, worktree removal and branch compare-and-swap delete (batch B2), the
 // D9 focus clear, index regeneration, audit verdict and saved report, and the
-// D11 resume contract (batch B3), and the D3/D4 open-PR preflight (batch B4a).
+// D11 resume contract (batch B3), and the D3/D4 open-PR preflight (batch B4a),
+// and the delete-remote-branch step (spec-merge-cleanup-delete-remote-branch):
+// the merged origin branch is deleted only by a lease against the merged head
+// (git push --force-with-lease=<ref>:<oid>), else retained with a named reason.
 // Every precondition that can refuse is derived BEFORE the first write, so a
 // refusal is exit 3 with nothing changed.
 
@@ -60,9 +63,9 @@ exit: 0 complete, 2 usage, 3 refused, 4 stopped mid-way, 10 preflight ready
 const SIGN_STEP_ID = 'sign-amendments';
 const STEP_IDS = [
   'resolve', 'plan', 'archive-runtime', 'archive-drafts', 'sync-base', SIGN_STEP_ID,
-  'state', 'index-audit', 'remove-worktree', 'delete-branch', 'report',
+  'state', 'index-audit', 'remove-worktree', 'delete-branch', 'delete-remote-branch', 'report',
 ];
-const PR_FIELDS = 'number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url';
+const PR_FIELDS = 'number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url,isCrossRepository';
 const DRAFT_BASENAME_RE = /^[A-Z]+(?:-[A-Z]+)*-DRAFT-.+\.md$/;
 const BASE_NAME_RE = /^[A-Za-z0-9._/-]+$/;
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -136,7 +139,7 @@ function crashAt(point) {
   if (seam('AAI_MERGE_CLEANUP_CRASH_AT') === point) process.exit(137);
 }
 
-// The ONE gh read (D4). Test seam: AAI_MERGE_CLEANUP_GH_NODE=<abs .js path> runs
+// The PR read (D4); ghDependents below is the only other gh call. Test seam: AAI_MERGE_CLEANUP_GH_NODE=<abs .js path> runs
 // that script under this node instead of `gh`, because a native Windows runner
 // cannot spawn a .cmd/.sh stub without a shell. Inert without the test guard.
 function ghPrView(cwd, pr, maxBuffer) {
@@ -146,6 +149,25 @@ function ghPrView(cwd, pr, maxBuffer) {
     return spawnSync(process.execPath, [stub, ...viewArgs], { cwd, encoding: 'utf8', maxBuffer });
   }
   return spawnSync('gh', viewArgs, { cwd, encoding: 'utf8', maxBuffer });
+}
+
+// Open PRs that deleting a branch would close, same gh seam: those stacked on it (their BASE is the
+// branch) and those opened from it (their HEAD is the branch). `side` is 'base' or 'head'.
+function ghDependents(cwd, branch, side = 'base') {
+  const listArgs = ['pr', 'list', '--state', 'open', `--${side}`, branch, '--json', 'number', '--limit', '100'];
+  const stub = seam('AAI_MERGE_CLEANUP_GH_NODE');
+  if (stub && path.isAbsolute(stub)) return spawnSync(process.execPath, [stub, ...listArgs], { cwd, encoding: 'utf8', timeout: 120000 });
+  return spawnSync('gh', listArgs, { cwd, encoding: 'utf8', timeout: 120000 });
+}
+
+// PR numbers from one dependents query, or null when it failed or its output is not a list of numbers.
+function dependentNumbers(dep) {
+  if (dep.error || dep.status !== 0) return null;
+  try {
+    const rows = JSON.parse(dep.stdout);
+    if (Array.isArray(rows) && rows.every((x) => Number.isInteger(x?.number))) return rows.map((x) => x.number);
+  } catch { /* unparsable: fail closed */ }
+  return null;
 }
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
@@ -877,6 +899,82 @@ function removeWorktree(ctx) {
   return { status: 'done', detail: wt.path };
 }
 
+// spec-merge-cleanup-delete-remote-branch D2: the read-only proofs before the merged origin
+// branch may be deleted. Returns { retain: [reason, fact] }, { absent: true } or { oid }.
+const remoteFirstLine = (s) => String(s ?? '').trim().split('\n')[0].trim();
+function remoteGit(origin, args) {
+  return spawnSync('git', args, {
+    cwd: origin, encoding: 'utf8', timeout: 120000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
+}
+function remoteProof(ctx) {
+  const b = ctx.headRef;
+  if (!BASE_NAME_RE.test(b) || b.startsWith('-') || git(ctx.origin, ['check-ref-format', `refs/heads/${b}`]).status !== 0) {
+    return { retain: ['remote_bad_name', JSON.stringify(b)] };
+  }
+  if (ctx.pr.isCrossRepository === true) return { retain: ['remote_fork', 'the PR head lives in another repository'] };
+  if (ctx.pr.isCrossRepository !== false) return { retain: ['remote_unknown', 'the PR head repository is not known'] };
+  // the deletion push goes to the push URL; every proof below reads the fetch URL (D2 step 2b)
+  const urlsOf = (args) => {
+    const u = remoteGit(ctx.origin, ['remote', 'get-url', ...args, 'origin']);
+    return u.error || u.status !== 0 ? null : u.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+  };
+  const fetchUrls = urlsOf(['--all']);
+  const pushUrls = urlsOf(['--push', '--all']);
+  if (!fetchUrls || !pushUrls || fetchUrls.length === 0) return { retain: ['remote_unknown', 'the push URL cannot be compared with the fetch URL'] };
+  if (fetchUrls.length !== 1 || pushUrls.length !== 1 || fetchUrls[0] !== pushUrls[0]) return { retain: ['remote_unknown', 'the push URL differs from the fetch URL'] };
+  const r = remoteGit(ctx.origin, ['ls-remote', '--symref', 'origin', 'HEAD', `refs/heads/${b}`]);
+  if (r.error || r.status !== 0) return { retain: ['remote_unknown', remoteFirstLine(r.error?.message || r.stderr || r.stdout) || 'git ls-remote failed'] };
+  let defaultBranch = '';
+  let remoteOid = '';
+  for (const line of r.stdout.split('\n')) {
+    const sym = line.match(/^ref: refs\/heads\/(\S+)\tHEAD$/);
+    if (sym) defaultBranch = sym[1];
+    const ref = line.match(/^([0-9a-f]{40})\trefs\/heads\/(.+)$/);
+    if (ref && ref[2] === b) remoteOid = ref[1];
+  }
+  if (!defaultBranch) {
+    const local = git(ctx.origin, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']).stdout.trim();
+    defaultBranch = local.startsWith('refs/remotes/origin/') ? local.slice('refs/remotes/origin/'.length) : '';
+  }
+  if (!defaultBranch) return { retain: ['remote_unknown', 'the default branch of origin is not known'] };
+  if ([ctx.base, defaultBranch].includes(b)) return { retain: ['remote_is_base', `${b} is the base or default branch`] };
+  if (remoteOid === '') return { absent: true };
+  if (!/^[0-9a-f]{40}$/i.test(ctx.head) || remoteOid !== ctx.head) return { retain: ['remote_moved', `origin/${b} at ${remoteOid}, PR head ${ctx.head || 'unknown'}`] };
+  const based = dependentNumbers(ghDependents(ctx.origin, b, 'base'));
+  const opened = dependentNumbers(ghDependents(ctx.origin, b, 'head'));
+  if (based === null || opened === null) return { retain: ['remote_unknown', 'open pull requests based on or opened from the branch could not be listed'] };
+  const list = (ns) => ns.map((n) => `#${n}`).join(', ');
+  const facts = [];
+  if (based.length > 0) facts.push(`open pull requests based on it: ${list(based)}`);
+  if (opened.length > 0) facts.push(`open pull requests opened from it: ${list(opened)}`);
+  if (facts.length > 0) return { retain: ['remote_has_dependents', facts.join('; ')] };
+  return { oid: remoteOid };
+}
+
+// D3/D4/D5: delete the merged origin branch by compare-and-swap, never stopping the run.
+function deleteRemoteBranch(ctx) {
+  const b = ctx.headRef;
+  const retain = (reason, fact = '') => ({ status: 'retained', detail: fact ? `${reason} ${fact}` : reason });
+  const proof = remoteProof(ctx);
+  if (proof.retain) return retain(...proof.retain);
+  if (proof.absent) return { status: 'noop', detail: 'remote_absent' };
+  const lease = `--force-with-lease=refs/heads/${b}:${ctx.head}`;
+  const r = remoteGit(ctx.origin, ['push', '--porcelain', lease, 'origin', `:refs/heads/${b}`]);
+  if (r.error) return retain('remote_unknown', remoteFirstLine(r.error.message));
+  const cols = r.stdout.split('\n').map((l) => l.split('\t')).find((c) => c.length >= 3 && c[1].endsWith(`refs/heads/${b}`));
+  const summary = cols ? cols[2].trim() : '';
+  if (r.status === 0 && summary.startsWith('[deleted]')) return { status: 'done', detail: b };
+  if (summary.startsWith('[rejected] (stale info)')) {
+    const again = remoteProof(ctx);
+    if (again.absent) return { status: 'noop', detail: 'remote_absent' };
+    if (again.retain) return retain(...again.retain);
+  }
+  const hook = remoteFirstLine((r.stderr.split('\n').find((l) => l.startsWith('remote: ')) ?? '').slice('remote: '.length));
+  const why = [summary, hook].filter(Boolean).join(' ') || remoteFirstLine(r.stderr || r.stdout) || `git push exited ${r.status}`;
+  return retain('remote_delete_rejected', why);
+}
+
 function deleteBranch(ctx) {
   const tip = branchTip(ctx);
   if (!tip) return { status: 'noop', detail: 'no_branch' };
@@ -1193,6 +1291,7 @@ const HANDLERS = {
   'index-audit': indexAudit,
   'remove-worktree': removeWorktree,
   'delete-branch': deleteBranch,
+  'delete-remote-branch': deleteRemoteBranch,
 };
 
 // plan mode: the concrete targets of each action step, derived without executing it.
@@ -1246,18 +1345,20 @@ const PLANNERS = {
     ];
   },
   'delete-branch': (ctx) => (branchTip(ctx) && ctx.headRef !== ctx.base ? [ctx.headRef] : []),
+  'delete-remote-branch': (ctx) => {
+    const p = remoteProof(ctx);
+    if (p.absent) return [];
+    if (p.retain) return [`retain origin/${ctx.headRef} (${p.retain[0]})`];
+    return [`origin/${ctx.headRef} ${ctx.head.slice(0, 12)}`];
+  },
 };
 
-// D10: remote branches are never deleted here; a surviving one is an owner action.
-function remoteBranchNote(ctx) {
-  if (ctx.opts.mode !== 'apply' || ctx.headRef === ctx.base) return [];
-  const r = git(ctx.origin, ['ls-remote', '--heads', 'origin', `refs/heads/${ctx.headRef}`]);
-  if (r.status !== 0) {
-    const why = (r.stderr || r.stdout).trim().split('\n')[0] ?? '';
-    return [`remote_unknown: could not read origin/${ctx.headRef} (git ls-remote failed${why ? `: ${why}` : ''}); check it yourself and delete it if it exists`];
-  }
-  if (r.stdout.trim() === '') return [];
-  return [`origin/${ctx.headRef} still exists on the remote: delete it yourself (git push origin --delete ${ctx.headRef})`];
+// D6: a retained remote branch is the owner's decision; done and noop leave nothing remaining.
+function remoteBranchNote(ctx, steps) {
+  const s = steps.find((x) => x.id === 'delete-remote-branch' && x.status === 'retained');
+  if (!s) return [];
+  const [reason, ...fact] = (s.detail ?? '').split(' ');
+  return [`origin/${ctx.headRef} retained (${reason}${fact.length ? `: ${fact.join(' ')}` : ''}): owner decision, not deleted`];
 }
 
 // Every file any run of this PR archived, read from the durable manifest so an interrupted
@@ -1290,7 +1391,7 @@ function buildReport(ctx, steps) {
       ...ctx.drafts.retained
         .filter((r) => ['divergent_content', 'unverifiable_history', 'divergent_after_plan'].includes(r.reason))
         .map((r) => `${r.path} (${r.reason}): owner decision; archive with --archive-divergent`),
-      ...remoteBranchNote(ctx),
+      ...remoteBranchNote(ctx, steps),
     ],
   };
 }

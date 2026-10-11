@@ -12,6 +12,7 @@
 # spec-merge-direction-signs-amendments C: TEST-025 (sign-merged backlog), TEST-024 (canon), TEST-026 (live ledger, RED until V3).
 # spec-merge-direction-signs-amendments PFA-8: TEST-027 (the signature cites the current direction).
 # spec-merge-cleanup-submodule-worktree B: TEST-031 (ignored content), TEST-032 (late dirt), TEST-033 (preflight), TEST-034 (canon).
+# spec-merge-cleanup-delete-remote-branch: TEST-036..042 (delete-remote-branch step; TEST-002/010/012/013/014 amended).
 # spec-merge-cleanup-submodule-worktree A: TEST-028 (removal after the proof), TEST-029 (dirty refused), TEST-030 (unpushed, stash, no remote, stray module refused).
 set -euo pipefail
 
@@ -76,10 +77,22 @@ write_gh_stub() {
 dir="${GH_STUB_DIR:-}"
 [ -n "$dir" ] && [ -d "$dir" ] || { echo 'STUB-DENY: GH_STUB_DIR unset' >&2; exit 1; }
 printf '%s\n' "$*" >> "$dir/gh-argv.log"
-fields='number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url'
+fields='number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url,isCrossRepository'
 if [ "$#" -eq 5 ] && [ "$1" = pr ] && [ "$2" = view ] && [ "$4" = --json ] && [ "$5" = "$fields" ]; then
   case "$3" in ''|*[!0-9]*) echo "STUB-DENY: pr number $3" >&2; exit 1 ;; esac
   if [ -f "$dir/pr-$3.json" ]; then cat "$dir/pr-$3.json"; exit 0; fi
+fi
+if [ "$#" -eq 10 ] && [ "$1" = pr ] && [ "$2" = list ] && [ "$3" = --state ] && [ "$4" = open ] && [ "$5" = --base ] && [ "$7" = --json ] && [ "$8" = number ] && [ "$9" = --limit ] && [ "${10}" = 100 ]; then
+  [ -f "$dir/deps-fail" ] && { echo 'STUB: pr list failed' >&2; exit 1; }
+  key="${6//\//_}"
+  if [ -f "$dir/deps-$key.json" ]; then cat "$dir/deps-$key.json"; else echo '[]'; fi
+  exit 0
+fi
+if [ "$#" -eq 10 ] && [ "$1" = pr ] && [ "$2" = list ] && [ "$3" = --state ] && [ "$4" = open ] && [ "$5" = --head ] && [ "$7" = --json ] && [ "$8" = number ] && [ "$9" = --limit ] && [ "${10}" = 100 ]; then
+  [ -f "$dir/heads-fail" ] && { echo 'STUB: pr list --head failed' >&2; exit 1; }
+  key="${6//\//_}"
+  if [ -f "$dir/heads-$key.json" ]; then cat "$dir/heads-$key.json"; else echo '[]'; fi
+  exit 0
 fi
 printf 'STUB-DENY: unexpected argv: %s\n' "$*" >&2
 exit 1
@@ -192,11 +205,13 @@ other_item_doc() { printf -- '---\nid: other-item\ntype: issue\nnumber: 2\nstatu
 numbered_spec() { printf -- '---\nid: %s\ntype: spec\nnumber: 1\nstatus: done\nlinks:\n  requirement: %s\n  pr:\n    - %s\n  commits: []\n---\n\n# Spec foo\n\nDraft spec body.\n\nDelivered.\n\n## Acceptance Criteria Status\n\n| Spec-AC | Description | Status | Evidence | Review-By | Notes |\n|---|---|---|---|---|---|\n| Spec-AC-01 | The fixture spec is delivered. | done | docs/ai/tdd/foo-green.log | tdd | fixture |\n' "$SPEC_ID" "$ISSUE_ID" "$PR"; }
 
 # write_pr_json <state> <merge-commit-oid|null>
+# PR_CROSS=true|absent and PR_HEAD_NAME=<name> override the head repository flag / head branch name.
 write_pr_json() {
-  local state="$1" mc="$2" mcjson='null'
+  local state="$1" mc="$2" mcjson='null' cross='"isCrossRepository":false,'
   if [[ "$mc" != null ]]; then mcjson="{\"oid\":\"$mc\"}"; fi
-  printf '{"number":%s,"state":"%s","isDraft":false,"headRefOid":"%s","headRefName":"%s","baseRefName":"main","mergeStateStatus":"UNKNOWN","statusCheckRollup":[],"mergeCommit":%s,"url":"https://github.com/example/repo/pull/%s"}\n' \
-    "$PR" "$state" "$HEAD_OID" "$BRANCH" "$mcjson" "$PR" > "$GHD/pr-$PR.json"
+  case "${PR_CROSS:-}" in true) cross='"isCrossRepository":true,' ;; absent) cross='' ;; esac
+  printf '{"number":%s,"state":"%s","isDraft":false,"headRefOid":"%s","headRefName":"%s","baseRefName":"main","mergeStateStatus":"UNKNOWN","statusCheckRollup":[],"mergeCommit":%s,%s"url":"https://github.com/example/repo/pull/%s"}\n' \
+    "$PR" "$state" "$HEAD_OID" "${PR_HEAD_NAME:-$BRANCH}" "$mcjson" "$cross" "$PR" > "$GHD/pr-$PR.json"
 }
 
 # world_digest: one hash over the origin and ride trees (all files, .git
@@ -637,9 +652,10 @@ test_010_worktree_and_branch_cleanup() {
   [[ -d "$other" ]] || fail TEST-010 'the other worktree was removed'
   git -C "$ORIGIN" rev-parse -q --verify refs/heads/ride/other >/dev/null || fail TEST-010 'the other worktree branch was deleted'
   git -C "$ORIGIN" rev-parse -q --verify refs/heads/misc >/dev/null || fail TEST-010 'an unrelated branch was deleted'
-  git -C "$BARE" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-010 'the remote branch was deleted'
+  # spec-merge-cleanup-delete-remote-branch D9 supersedes SPEC-0218 D10: the merged remote branch is deleted by lease
+  if git -C "$BARE" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null; then fail TEST-010 'the merged remote branch still exists'; fi
   git -C "$BARE" rev-parse -q --verify refs/heads/misc-remote >/dev/null || fail TEST-010 'an unrelated remote branch was deleted'
-  want TEST-010 "$(json_get "$rep" 'j.remaining')" "origin/$BRANCH"
+  unwanted TEST-010 "$(json_get "$rep" 'j.remaining')" "origin/$BRANCH"
   [[ "$(json_get "$rep" 'j.steps.find(s=>s.id==="remove-worktree").status')" == done ]] || fail TEST-010 'remove-worktree not done'
   [[ "$(json_get "$rep" 'j.steps.find(s=>s.id==="delete-branch").status')" == done ]] || fail TEST-010 'delete-branch not done'
 
@@ -724,8 +740,8 @@ test_011_worktree_refusals() {
 # Batch B3: focus, index and report (TEST-012), idempotence and resume (TEST-013/014)
 
 STATE_REL='docs/ai/STATE.yaml'
-ACTION_STEPS='archive-runtime archive-drafts sync-base state index-audit remove-worktree delete-branch report'
-ALL_STEPS='resolve plan archive-runtime archive-drafts sync-base sign-amendments state index-audit remove-worktree delete-branch report'
+ACTION_STEPS='archive-runtime archive-drafts sync-base state index-audit remove-worktree delete-branch delete-remote-branch report'
+ALL_STEPS='resolve plan archive-runtime archive-drafts sync-base sign-amendments state index-audit remove-worktree delete-branch delete-remote-branch report'
 
 # seed_state [ref]: the real check-state.mjs creates the origin STATE; with a
 # ref the real state.mjs puts that ref in focus with an in-progress work item.
@@ -788,7 +804,7 @@ test_012_state_index_report() {
   want TEST-012 "$(json_get "$rep" 'j.archived.map(a=>a.path)')" "$DRAFT_SPEC"
   want TEST-012 "$(json_get "$rep" 'j.archived.map(a=>a.path)')" "origin:docs/ai/STATE.yaml"
   want TEST-012 "$(json_get "$rep" 'j.audit')" 'Verdict: CLEAN'
-  want TEST-012 "$(json_get "$rep" 'j.remaining')" "origin/$BRANCH"
+  unwanted TEST-012 "$(json_get "$rep" 'j.remaining')" "origin/$BRANCH"
   # ... and is saved under docs/ai/reports with the same fields
   n="$(saved_reports | wc -l | tr -d ' ')"
   [[ "$n" == 1 ]] || fail TEST-012 "$n saved reports, want 1"
@@ -803,7 +819,7 @@ test_012_state_index_report() {
   want TEST-012 "$rpt" '## Retained'
   want TEST-012 "$rpt" '## No-ops'
   want TEST-012 "$rpt" '## Remaining'
-  want TEST-012 "$rpt" "origin/$BRANCH"
+  unwanted TEST-012 "$rpt" "origin/$BRANCH"
   case "$(basename "$(saved_reports)")" in merge-cleanup-pr"$PR"-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z.md) ;; *) fail TEST-012 "report file name shape: $(saved_reports)" ;; esac
   assert_no_merge_call TEST-012
 
@@ -995,7 +1011,7 @@ test_013_second_apply_is_noop() {
   done
   # sign-amendments has no owner direction in this world: a named no-op on both runs
   want TEST-013 "$(json_get "$second" 'j.noops')" 'noop:sign-amendments:no_human_direction'
-  [[ "$(json_get "$second" 'j.noops.length')" == 9 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 9"
+  [[ "$(json_get "$second" 'j.noops.length')" == 10 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 10"
   [[ "$(world_digest)" == "$before" ]] || fail TEST-013 'second apply changed files, refs, worktrees or the reflog'
   [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-013 'second run duplicated a ledger line'
   [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-013 'the ledger holds a duplicate line'
@@ -2010,6 +2026,8 @@ block_case() {
   want TEST-002 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"   # positive control: the engine really ran
   # the block forwards the owner's verbatim direction, which lands in the decision ledger
   want TEST-002 "$(cat "$ORIGIN/docs/ai/decisions.jsonl")" '"answer":"merge 433 now, owner said so"'
+  # spec-merge-cleanup-delete-remote-branch D9: the block also deleted the merged remote branch
+  if git -C "$BARE" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null; then fail TEST-002 'the merged remote branch still exists on the bare origin'; fi
   assert_no_merge_call TEST-002
 }
 
@@ -2488,6 +2506,311 @@ test_035_submodule_tags_archived() {
   echo 'PASS: TEST-035 submodule tags archived before the forced removal, repeat appends nothing'
 }
 
+# ---------------------------------------------------------------------------
+# spec-merge-cleanup-delete-remote-branch: TEST-036..042 (the delete-remote-branch step).
+# Every assertion about the remote reads the bare origin itself, never the report alone.
+
+bare_has() { git -C "$BARE" rev-parse -q --verify "refs/heads/$1" >/dev/null 2>&1; }
+rstep() { json_get "$1" "j.steps.find(s=>s.id===\"delete-remote-branch\")?.$2"; }
+
+# make_shim <dir> <git subcommand that triggers it> <shell action run before the real git>
+make_shim() {
+  local d="$1" trig="$2" act="$3" real
+  real="$(command -v git)" || fail SETUP 'git not found'
+  run mkdir -p "$d"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'for a in "$@"; do\n  if [ "$a" = %s ]; then\n    %s\n    break\n  fi\ndone\n' "$trig" "$act"
+    printf 'exec "%s" "$@"\n' "$real"
+  } > "$d/git"
+  run chmod +x "$d/git"
+}
+
+# advance_bare_oid: a commit on top of the PR head, created in the bare WITHOUT moving any ref.
+advance_bare_oid() {
+  ADV_OID="$(git -C "$BARE" commit-tree "$HEAD_OID^{tree}" -p "$HEAD_OID" -m 'advanced after the merge')" || fail SETUP 'advance commit'
+}
+
+# retained_arm <tid> <reason> <label>: the common post-conditions of a retained remote branch.
+retained_arm() {
+  local tid="$1" reason="$2" label="$3" rpt
+  [[ "$ENG_RC" -eq 0 ]] || fail "$tid" "$label exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(rstep "$ENG_OUT" status)" == retained ]] || fail "$tid" "$label: step is '$(rstep "$ENG_OUT" status)', want retained (out: $ENG_OUT)"
+  want "$tid" "$(rstep "$ENG_OUT" detail)" "$reason"
+  want "$tid" "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
+  want "$tid" "$(json_get "$ENG_OUT" 'j.remaining')" "$reason"
+  [[ "$(step_status "$ENG_OUT" remove-worktree)" == done ]] || fail "$tid" "$label: remove-worktree is not done"
+  [[ "$(step_status "$ENG_OUT" delete-branch)" == done ]] || fail "$tid" "$label: delete-branch is not done"
+  [[ "$(step_status "$ENG_OUT" report)" == done ]] || fail "$tid" "$label: report step is not done"
+  rpt="$(cat "$(saved_reports)")"
+  want "$tid" "$(printf '%s\n' "$rpt" | awk '/^## Remaining/ { f = 1 } f')" "origin/$BRANCH"
+}
+
+test_036_remote_branch_deleted_by_lease() {
+  build_world remote_delete
+  local pdig tgt
+  run git -C "$BARE" update-ref refs/heads/misc-remote "$MC"
+  bare_has "$BRANCH" || fail SETUP 'the bare has no ride branch (positive control)'
+  pdig="$(world_digest)"
+  run_engine plan --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-036 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(world_digest)" == "$pdig" ]] || fail TEST-036 'plan changed the fixture'
+  tgt="$(rstep "$ENG_OUT" targets)"
+  want TEST-036 "$tgt" "origin/$BRANCH"
+  want TEST-036 "$tgt" "${HEAD_OID:0:12}"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-036 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  if bare_has "$BRANCH"; then fail TEST-036 'the remote branch still exists on the bare origin'; fi
+  [[ "$(rstep "$ENG_OUT" status)" == done ]] || fail TEST-036 "step is '$(rstep "$ENG_OUT" status)', want done (out: $ENG_OUT)"
+  [[ "$(rstep "$ENG_OUT" detail)" == "$BRANCH" ]] || fail TEST-036 "step detail '$(rstep "$ENG_OUT" detail)', want $BRANCH"
+  unwanted TEST-036 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
+  want TEST-036 "$(cat "$(saved_reports)")" "- delete-remote-branch: done ($BRANCH)"
+  [[ "$(git -C "$BARE" rev-parse refs/heads/main)" == "$MC" ]] || fail TEST-036 'the bare main moved'
+  [[ "$(git -C "$BARE" rev-parse refs/heads/misc-remote)" == "$MC" ]] || fail TEST-036 'an unrelated remote branch moved or was deleted'
+  assert_no_merge_call TEST-036
+  # the text report of a fresh world prints the step
+  build_world remote_delete_text
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-036 "text apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-036 "$ENG_OUT" "delete-remote-branch: done ($BRANCH)"
+  unwanted TEST-036 "$ENG_OUT" "remaining: origin/$BRANCH"
+  echo 'PASS: TEST-036 the merged remote branch is deleted by lease'
+}
+
+test_037_moved_remote_retained() {
+  local shim moved
+  # arm pre-moved: the remote branch advanced after the merge, before apply starts
+  build_world remote_premoved
+  advance_bare_oid
+  moved="$ADV_OID"
+  run git -C "$BARE" update-ref "refs/heads/$BRANCH" "$moved"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-037 remote_moved 'pre-moved arm'
+  [[ "$(git -C "$BARE" rev-parse "refs/heads/$BRANCH")" == "$moved" ]] || fail TEST-037 'pre-moved arm: the remote branch is not at the new commit'
+  # arm race: the remote advances right between the ls-remote proof and the push
+  build_world remote_race
+  advance_bare_oid
+  moved="$ADV_OID"
+  shim="$W/shim"
+  make_shim "$shim" push "\"$(command -v git)\" -C \"$BARE\" update-ref \"refs/heads/$BRANCH\" \"$moved\""
+  bare_has "$BRANCH" || fail SETUP 'race arm: no remote branch before the run'
+  PATH="$shim:$PATH" run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-037 remote_moved 'race arm'
+  [[ "$(git -C "$BARE" rev-parse "refs/heads/$BRANCH")" == "$moved" ]] || fail TEST-037 'race arm: the moved remote branch was deleted or reset'
+  echo 'PASS: TEST-037 a moved remote branch is retained by the lease'
+}
+
+test_038_absent_noop_and_idempotent() {
+  local shim before n
+  # arm absent
+  build_world remote_absent_pre
+  run git -C "$BARE" update-ref -d "refs/heads/$BRANCH"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-038 "absent arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(rstep "$ENG_OUT" status)" == noop ]] || fail TEST-038 "absent arm: step is '$(rstep "$ENG_OUT" status)', want noop"
+  [[ "$(rstep "$ENG_OUT" detail)" == remote_absent ]] || fail TEST-038 "absent arm: detail '$(rstep "$ENG_OUT" detail)'"
+  unwanted TEST-038 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
+  # arm race-absent: the branch vanishes between the proof and the push
+  build_world remote_race_absent
+  shim="$W/shim"
+  make_shim "$shim" push "\"$(command -v git)\" -C \"$BARE\" update-ref -d \"refs/heads/$BRANCH\""
+  PATH="$shim:$PATH" run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-038 "race-absent arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(rstep "$ENG_OUT" status)" == noop ]] || fail TEST-038 "race-absent arm: step is '$(rstep "$ENG_OUT" status)', want noop"
+  [[ "$(rstep "$ENG_OUT" detail)" == remote_absent ]] || fail TEST-038 "race-absent arm: detail '$(rstep "$ENG_OUT" detail)'"
+  unwanted TEST-038 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
+  # arm rerun: a second apply after a successful first one is a full no-op
+  build_world remote_rerun
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-038 "first apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(rstep "$ENG_OUT" status)" == done ]] || fail TEST-038 'first apply did not delete the remote branch (positive control)'
+  n="$(saved_reports | wc -l | tr -d ' ')"
+  before="$(world_digest)"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-038 "second apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(rstep "$ENG_OUT" status)" == noop ]] || fail TEST-038 "second apply: step is '$(rstep "$ENG_OUT" status)', want noop"
+  [[ "$(step_status "$ENG_OUT" delete-branch)" == noop && "$(step_status "$ENG_OUT" remove-worktree)" == noop ]] || fail TEST-038 'second apply: an earlier action step did work'
+  [[ "$(saved_reports | wc -l | tr -d ' ')" == "$n" ]] || fail TEST-038 'second apply saved another report'
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-038 'second apply changed the world'
+  echo 'PASS: TEST-038 an absent remote branch is a named no-op and a rerun is idempotent'
+}
+
+test_039_fork_and_unknown_origin_retained() {
+  PR_CROSS=true build_world remote_fork
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-039 remote_fork 'fork arm'
+  bare_has "$BRANCH" || fail TEST-039 'fork arm: the remote branch was deleted'
+  PR_CROSS=absent build_world remote_field_absent
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-039 remote_unknown 'field-absent arm'
+  bare_has "$BRANCH" || fail TEST-039 'field-absent arm: the remote branch was deleted'
+  echo 'PASS: TEST-039 a fork head or an unknown head repository is retained'
+}
+
+test_040_base_default_and_bad_name_retained() {
+  # default: the bare HEAD names the ride branch
+  build_world remote_default
+  run git -C "$BARE" symbolic-ref HEAD "refs/heads/$BRANCH"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-040 remote_is_base 'default arm'
+  bare_has "$BRANCH" || fail TEST-040 'default arm: the default branch was deleted'
+  # base: the PR head branch is the base branch
+  PR_HEAD_NAME=main build_world remote_base
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-040 "base arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(rstep "$ENG_OUT" status)" == retained ]] || fail TEST-040 "base arm: step is '$(rstep "$ENG_OUT" status)', want retained"
+  want TEST-040 "$(rstep "$ENG_OUT" detail)" remote_is_base
+  [[ "$(git -C "$BARE" rev-parse refs/heads/main)" == "$MC" ]] || fail TEST-040 'base arm: the bare main moved'
+  # bad name: passes the bad_head_name refusal, fails git check-ref-format
+  PR_HEAD_NAME='ride..foo' build_world remote_bad_name
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-040 "bad-name arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(rstep "$ENG_OUT" status)" == retained ]] || fail TEST-040 "bad-name arm: step is '$(rstep "$ENG_OUT" status)', want retained"
+  want TEST-040 "$(rstep "$ENG_OUT" detail)" remote_bad_name
+  bare_has "$BRANCH" || fail TEST-040 'bad-name arm: a remote branch was deleted'
+  echo 'PASS: TEST-040 the base, the default branch and a bad name are retained'
+}
+
+test_041_rejected_and_unreadable_never_stop() {
+  local shim
+  # rejected: a pre-receive hook on the bare refuses the deletion
+  build_world remote_rejected
+  run mkdir -p "$BARE/hooks"
+  printf '#!/bin/sh\necho "protected branch" >&2\nexit 1\n' > "$BARE/hooks/pre-receive"
+  run chmod +x "$BARE/hooks/pre-receive"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-041 remote_delete_rejected 'rejected arm'
+  want TEST-041 "$(rstep "$ENG_OUT" detail)" 'protected branch'
+  want TEST-041 "$(rstep "$ENG_OUT" detail)" 'pre-receive hook declined'
+  bare_has "$BRANCH" || fail TEST-041 'rejected arm: the remote branch is gone'
+  # unreadable: git ls-remote fails
+  build_world remote_unreadable
+  shim="$W/shim"
+  make_shim "$shim" ls-remote 'echo "fatal: unable to access" >&2; exit 128'
+  PATH="$shim:$PATH" run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-041 remote_unknown 'unreadable arm'
+  want TEST-041 "$(rstep "$ENG_OUT" detail)" 'unable to access'
+  bare_has "$BRANCH" || fail TEST-041 'unreadable arm: the remote branch is gone'
+  echo 'PASS: TEST-041 a rejected or unreadable remote never stops the run'
+}
+
+test_043_dependents_retain_remote_branch() {
+  # arm dependents: one open PR is based on the head branch
+  build_world remote_dependents
+  printf '[{"number":512}]\n' > "$GHD/deps-${BRANCH//\//_}.json"
+  run_engine plan --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-043 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-043 "$ENG_OUT" 'retain origin/ride/foo (remote_has_dependents)'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-043 remote_has_dependents 'dependents arm'
+  want TEST-043 "$(rstep "$ENG_OUT" detail)" '#512'
+  want TEST-043 "$(cat "$GHD/gh-argv.log")" "pr list --state open --base $BRANCH --json number --limit 100"
+  bare_has "$BRANCH" || fail TEST-043 'dependents arm: the remote branch was deleted'
+  # arm unlisted: the dependents query fails, fail closed
+  build_world remote_dependents_unknown
+  : > "$GHD/deps-fail"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-043 remote_unknown 'unlisted arm'
+  bare_has "$BRANCH" || fail TEST-043 'unlisted arm: the remote branch was deleted'
+  # arm head-of: an open PR is opened FROM the head branch (into another base)
+  build_world remote_head_of_open_pr
+  printf '[{"number":611}]\n' > "$GHD/heads-${BRANCH//\//_}.json"
+  run_engine plan --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-043 "head-of plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-043 "$ENG_OUT" 'retain origin/ride/foo (remote_has_dependents)'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-043 "head-of apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  retained_arm TEST-043 remote_has_dependents 'head-of arm'
+  want TEST-043 "$(rstep "$ENG_OUT" detail)" '#611'
+  want TEST-043 "$(rstep "$ENG_OUT" detail)" 'opened from'
+  want TEST-043 "$(cat "$GHD/gh-argv.log")" "pr list --state open --head $BRANCH --json number --limit 100"
+  bare_has "$BRANCH" || fail TEST-043 'head-of arm: the remote branch was deleted'
+  # arm head-unlisted: the head query fails, fail closed
+  build_world remote_head_unknown
+  : > "$GHD/heads-fail"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-043 remote_unknown 'head-unlisted arm'
+  bare_has "$BRANCH" || fail TEST-043 'head-unlisted arm: the remote branch was deleted'
+  echo 'PASS: TEST-043 a branch with open dependent pull requests is never deleted'
+}
+
+test_044_push_url_must_equal_fetch_url() {
+  local other pdig
+  # arm pushurl: remote.origin.pushurl names a second bare that also holds the branch at the merged head
+  build_world remote_pushurl
+  other="$W/other/origin.git"
+  run mkdir -p "$W/other"
+  run git init -q --bare -b main "$other"
+  run git -C "$ORIGIN" push -q "$other" "$HEAD_OID:refs/heads/$BRANCH"
+  run git -C "$ORIGIN" config remote.origin.pushurl "$other"
+  pdig="$(world_digest)"
+  run_engine plan --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-044 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-044 "$ENG_OUT" 'retain origin/ride/foo (remote_unknown)'
+  [[ "$(world_digest)" == "$pdig" ]] || fail TEST-044 'plan changed the fixture'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-044 remote_unknown 'pushurl arm'
+  want TEST-044 "$(rstep "$ENG_OUT" detail)" 'push URL'
+  bare_has "$BRANCH" || fail TEST-044 'pushurl arm: the fetch-side remote branch was deleted'
+  git -C "$other" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null 2>&1 || fail TEST-044 'pushurl arm: the push-side remote branch was deleted'
+  # arm pushInsteadOf: a url.<base>.pushInsteadOf rewrite moves only the push side
+  build_world remote_push_instead_of
+  other="$W/other/origin.git"
+  run mkdir -p "$W/other"
+  run git init -q --bare -b main "$other"
+  run git -C "$ORIGIN" push -q "$other" "$HEAD_OID:refs/heads/$BRANCH"
+  run git -C "$ORIGIN" config "url.$W/other/.pushInsteadOf" "$W/"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-044 remote_unknown 'pushInsteadOf arm'
+  bare_has "$BRANCH" || fail TEST-044 'pushInsteadOf arm: the fetch-side remote branch was deleted'
+  git -C "$other" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null 2>&1 || fail TEST-044 'pushInsteadOf arm: the push-side remote branch was deleted'
+  # arm two pushurls: the first equals the fetch URL, the second names a bare no proof reads
+  build_world remote_two_pushurls
+  other="$W/other/origin.git"
+  run mkdir -p "$W/other"
+  run git init -q --bare -b main "$other"
+  run git -C "$ORIGIN" push -q "$other" "$HEAD_OID:refs/heads/$BRANCH"
+  local fetch_url
+  fetch_url="$(git -C "$ORIGIN" remote get-url origin)" || fail TEST-044 'two-pushurls arm: cannot read the fetch URL'
+  run git -C "$ORIGIN" config --add remote.origin.pushurl "$fetch_url"
+  run git -C "$ORIGIN" config --add remote.origin.pushurl "$other"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-044 remote_unknown 'two-pushurls arm'
+  bare_has "$BRANCH" || fail TEST-044 'two-pushurls arm: the fetch-side remote branch was deleted'
+  git -C "$other" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null 2>&1 || fail TEST-044 'two-pushurls arm: the second push URL branch was deleted'
+  echo 'PASS: TEST-044 a push URL that differs from the fetch URL is never pushed to'
+}
+
+test_042_canon_runs_block_unwrapped() {
+  local text flat rest step3 sh_block ps_block credit
+  text="$(cat "$PROMPT")"
+  flat="$(printf '%s' "$text" | tr '\n' ' ' | tr -s ' ')"
+  want TEST-042 "$flat" 'as the command itself, never through'
+  rest="${flat#*as the command itself, never through}"
+  rest="${rest:0:60}"
+  want TEST-042 "$rest" 'bash -c'
+  want TEST-042 "$rest" 'sh -c'
+  want TEST-042 "$rest" 'eval'
+  step3="$(awk '/^3\. / { f = 1 } /^Hard rules/ { f = 0 } f' "$PROMPT" | tr '\n' ' ' | tr -s ' ')"
+  [[ -n "$step3" ]] || fail TEST-042 'SKILL_MERGE step 3 not found (positive control)'
+  unwanted TEST-042 "$step3" 'remote branch deletion'
+  want TEST-042 "$step3" 'retained'
+  want TEST-042 "$step3" 'never delete'
+  sh_block="$(block_of AAI_MERGE_BEGIN AAI_MERGE_END "$PROMPT")"
+  ps_block="$(block_of AAI_MERGE_PS_BEGIN AAI_MERGE_PS_END "$PROMPT")"
+  [[ -n "$sh_block" && -n "$ps_block" ]] || fail TEST-042 'a merge block is missing (positive control)'
+  local blk rm_word='(^|[[:space:];&|(`])rm([[:space:]]|$)'
+  for blk in "$sh_block" "$ps_block"; do
+    if [[ "$blk" =~ $rm_word ]]; then fail TEST-042 'a block contains rm as a command word'; fi
+    unwanted TEST-042 "$blk" 'Remove-Item'
+    unwanted TEST-042 "$blk" '--force'
+  done
+  want TEST-042 "$ps_block" '$env:AAI_GIT_WRITE = $null'
+  credit="$(/usr/bin/grep -F 'JUSTIFIED_ADDITIONS+=( "' "$ROOT/tests/skills/lib/prompt-diet-ledger.sh" | sed -n 's/^JUSTIFIED_ADDITIONS+=( "\([0-9][0-9]*\) merge-cleanup-delete-remote-branch .*/\1/p' | awk 'NR == 1')"
+  [[ -n "$credit" && "$credit" -gt 0 && "$credit" -le 600 ]] || fail TEST-042 "the prompt-diet ledger credit for merge-cleanup-delete-remote-branch is '$credit', want 1..600"
+  echo 'PASS: TEST-042 the canon runs the block unwrapped and the block is clean'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate; test_006_superseded_drafts; test_007_retained_and_decisions
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -2499,7 +2822,11 @@ case "$SELECTED" in
      test_001_wrappers_and_pointers; test_002_prompt_block_runs_cleanup; test_017_companion_wiring
      test_028_submodule_worktree_removed_after_proof; test_029_dirty_submodule_refused; test_030_unpushed_submodule_refused
      test_031_submodule_ignored_archived_or_named; test_032_late_dirt_stops_then_resumes; test_033_preflight_names_cleanup_blocker; test_034_canon_stop_and_relay
-     test_035_submodule_tags_archived ;;
+     test_035_submodule_tags_archived
+     test_036_remote_branch_deleted_by_lease; test_037_moved_remote_retained; test_038_absent_noop_and_idempotent
+     test_039_fork_and_unknown_origin_retained; test_040_base_default_and_bad_name_retained; test_041_rejected_and_unreadable_never_stop
+     test_042_canon_runs_block_unwrapped; test_043_dependents_retain_remote_branch
+     test_044_push_url_must_equal_fetch_url ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -2535,5 +2862,14 @@ case "$SELECTED" in
   TEST-033|test_033_preflight_names_cleanup_blocker) test_033_preflight_names_cleanup_blocker ;;
   TEST-034|test_034_canon_stop_and_relay) test_034_canon_stop_and_relay ;;
   TEST-035|test_035_submodule_tags_archived) test_035_submodule_tags_archived ;;
+  TEST-036|test_036_remote_branch_deleted_by_lease) test_036_remote_branch_deleted_by_lease ;;
+  TEST-037|test_037_moved_remote_retained) test_037_moved_remote_retained ;;
+  TEST-038|test_038_absent_noop_and_idempotent) test_038_absent_noop_and_idempotent ;;
+  TEST-039|test_039_fork_and_unknown_origin_retained) test_039_fork_and_unknown_origin_retained ;;
+  TEST-040|test_040_base_default_and_bad_name_retained) test_040_base_default_and_bad_name_retained ;;
+  TEST-041|test_041_rejected_and_unreadable_never_stop) test_041_rejected_and_unreadable_never_stop ;;
+  TEST-042|test_042_canon_runs_block_unwrapped) test_042_canon_runs_block_unwrapped ;;
+  TEST-043|test_043_dependents_retain_remote_branch) test_043_dependents_retain_remote_branch ;;
+  TEST-044|test_044_push_url_must_equal_fetch_url) test_044_push_url_must_equal_fetch_url ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

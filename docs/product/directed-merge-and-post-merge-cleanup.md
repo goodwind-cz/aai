@@ -7,6 +7,7 @@ delivered_by:
   - directed-merge-and-post-merge-cleanup
   - merge-direction-signs-amendments
   - merge-cleanup-submodule-worktree
+  - merge-cleanup-delete-remote-branch
 spec: docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
 updated: 2026-10-11
 ---
@@ -27,6 +28,14 @@ other uncommitted work stays as it was. Append-only ledgers keep the incoming
 history as a byte-exact prefix, with local lines added after it. The merged
 work item leaves the current focus, and the ride worktree and its local branch
 are removed once they are proven finished.
+
+The merged branch on origin is deleted too, by compare-and-swap against the
+merged head, so a branch someone pushed to after the merge is never deleted.
+It is kept, with a named reason on a `remaining:` line, when it moved, when the
+pull request came from a fork, when it is the base or default branch, when
+another open pull request is based on it or opened from it, when the server
+refuses the delete, or when any of that cannot be read. A kept branch never
+stops the rest of the cleanup.
 
 A ride worktree with git submodules is removed too, but only after every
 submodule, nested ones included, is proven safe to lose. Each one must be
@@ -56,7 +65,9 @@ reports the completed ones as no-ops.
 - Merge and clean up: `/aai-merge 447` in a session where you have just told
   the agent to merge that pull request. The agent runs the gates, records your
   words, prints one merge command pinned to the checked head commit, runs it,
-  and then cleans up.
+  and then cleans up. The agent runs the cleanup block exactly as written, as
+  the command itself, never wrapped in `bash -c`, `sh -c` or `eval`: a wrapper
+  hides the script from the agent's own safety check, which may then refuse it.
 - Clean up after a pull request someone already merged: `/aai-merge 447` on a
   merged pull request skips the merge and runs the cleanup only.
 - Sign the backlog of rides merged before this existed, once, on a recorded
@@ -80,6 +91,9 @@ reports the completed ones as no-ops.
   annotated tag objects) from ride submodules go under `worktree-submodules/`;
   wholly ignored directories that were removed without an archive are listed
   in `removed.jsonl` and in the report section `## Removed, not archived`.
+- Remote branch: the `delete-remote-branch` step reports `done <branch>`,
+  `noop remote_absent`, or `retained <reason> <fact>`; a retained branch also
+  gets a `remaining:` line in the report.
 - Run report: `docs/ai/reports/merge-cleanup-pr<n>-<UTC>.md` (gitignored):
   verified base and head, archived paths, retained changes, the audit verdict,
   and the steps still remaining.
@@ -113,7 +127,16 @@ reports the completed ones as no-ops.
   Its `sign-amendments` step runs right after the base sync; it signs only
   when the ledger holds your `directed_merge` for that pull request and head,
   and otherwise reports `no_human_direction`. The report lists `signed` record
-  keys and `closed` trackers.
+  keys and `closed` trackers. Its `delete-remote-branch` step runs after the
+  local branch is deleted: it reads `git ls-remote --symref origin` plus two
+  `gh pr list --state open` queries (`--base` and `--head` the branch) and
+  deletes with `git push --porcelain --force-with-lease=refs/heads/<b>:<merged
+  head> origin :refs/heads/<b>`. Retained reasons: `remote_moved`,
+  `remote_fork`, `remote_is_base`, `remote_bad_name`,
+  `remote_has_dependents` (naming the pull requests), `remote_delete_rejected`
+  and `remote_unknown`. The push URL of `origin` must equal its fetch URL
+  (one URL each, after `pushurl` and `pushInsteadOf` rewrites); otherwise the
+  branch is kept as `remote_unknown` before any remote is read.
 - `merge-cleanup.mjs sign-merged --authority-ts <ts> [--exclude <fu-id>]...
   [--base <name>] [--dry-run] [--origin <abs>] [--json]`: signs the contract
   amendments of rides that are done on the base with a pull request delivered
@@ -152,7 +175,12 @@ reports the completed ones as no-ops.
   because a ride opened a pull request.
 - No forced worktree removal except for a ride worktree with submodules, and
   then only by the engine after the proof above; no `git branch -D`, no
-  `git clean`, reset or stash, and no deletion of remote branches.
+  `git clean`, reset or stash. The only remote branch it deletes is the merged
+  pull request's own head branch on origin, and only at the merged head.
+- A pull request opened from or onto the branch between the dependents check
+  and the push is not seen. A fork pull request with the same branch name
+  keeps our branch (over-retention, never a wrong delete). A fork pull
+  request's `remaining:` line names an origin branch that may not exist.
 - The submodule proof reads the remote-tracking refs as they are (no fetch),
   so a stale ref can report a pushed commit as unpushed; fetch and re-run.
   A file written into a submodule between the last check and the removal, or
@@ -177,3 +205,5 @@ reports the completed ones as no-ops.
 - Signing spec: docs/specs/SPEC-0220-spec-merge-direction-signs-amendments.md
 - Submodule request: docs/issues/ISSUE-0097-merge-cleanup-submodule-worktree.md
 - Submodule spec: docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md
+- Remote-branch request: docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md
+- Remote-branch spec: docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md

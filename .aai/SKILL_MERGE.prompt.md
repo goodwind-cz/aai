@@ -19,7 +19,10 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    the PR number and, when step 1 merged it, `AAI_DIRECTION` to the owner's
    words (the engine records them with the merged head). It proves MERGED and
    the merge commit on the base first; it archives before it removes, never
-   forces, never stashes:
+   stashes, and deletes the merged remote branch only by lease against the
+   merged head (else retained). Run the block
+   as the command itself, never through `bash -c`, `sh -c` or `eval` (a
+   wrapped script cannot be checked and is refused):
 
    ```bash
    # AAI_MERGE_BEGIN
@@ -44,7 +47,7 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    $env:AAI_GIT_WRITE = '1'
    & node (Join-Path $AaiOrigin '.aai/scripts/merge-cleanup.mjs') apply --pr $env:AAI_PR --pid $AaiPid --origin $AaiOrigin @AaiDir
    $AaiRc = $LASTEXITCODE
-   Remove-Item Env:AAI_GIT_WRITE
+   $env:AAI_GIT_WRITE = $null
    if ($AaiRc -ne 0) { throw "merge-cleanup apply exited $AaiRc" }
    # AAI_MERGE_PS_END
    ```
@@ -55,10 +58,11 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    cause is the only way forward.
 
 3. Report the engine's report: base, final HEAD, archived, retained with
-   reasons, no-ops, `remaining`. Owner actions stay with the owner: remote
-   branch deletion and divergent drafts (re-run `apply` with
-   `--archive-divergent <path>` once the owner names the file).
+   reasons, no-ops, `remaining`. Divergent drafts stay with the owner (re-run
+   `apply` with `--archive-divergent <path>` once the owner names the file); a
+   retained remote branch is relayed with its reason and never deleted by the
+   agent.
 
 Hard rules: no standing authorization — one invocation, one PR, one head.
 `/aai-ship` and the loop never invoke this skill. Never `git stash`, `reset`,
-`restore`, `clean`, `branch -D`, `worktree remove --force` or `worktree prune`.
+`restore`, `clean`, `branch -D`, `push --delete`, `worktree remove --force` or `worktree prune`.

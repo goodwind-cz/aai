@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-11T01:53:49.273Z",
+  "generatedAt": "2026-10-11T12:27:04.741Z",
   "project": "aai",
   "counts": {
-    "delivered": 291,
+    "delivered": 292,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 75743724
@@ -222,6 +222,19 @@
   ],
   "delivered": [
     {
+      "ref": "merge-cleanup-delete-remote-branch",
+      "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md",
+      "closed_on": "2026-10-11",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261011T1224Z-merge-cleanup-delete-remote-branch-r2.md"
+    },
+    {
       "ref": "merge-cleanup-submodule-worktree",
       "title": "/aai-merge cleanup stops on a ride worktree with submodules, and the stop invites a forbidden manual --force",
       "type": "issue",
@@ -232,7 +245,7 @@
       "token_total": 1540588,
       "spec": "docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20261011T014254Z-merge-cleanup-submodule-worktree-r3.md"
+      "review": "docs/ai/reviews/review-20261011T021433Z-merge-cleanup-submodule-worktree-r4.md"
     },
     {
       "ref": "directed-merge-and-post-merge-cleanup",
@@ -4032,6 +4045,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "merge-cleanup-delete-remote-branch",
+          "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0209-merge-cleanup-delete-remote-branch.md",
+          "closed_on": "2026-10-11",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261011T1224Z-merge-cleanup-delete-remote-branch-r2.md"
+        },
+        {
           "ref": "merge-cleanup-submodule-worktree",
           "title": "/aai-merge cleanup stops on a ride worktree with submodules, and the stop invites a forbidden manual --force",
           "type": "issue",
@@ -4042,7 +4068,7 @@
           "token_total": 1540588,
           "spec": "docs/specs/SPEC-0221-spec-merge-cleanup-submodule-worktree.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-20261011T014254Z-merge-cleanup-submodule-worktree-r3.md"
+          "review": "docs/ai/reviews/review-20261011T021433Z-merge-cleanup-submodule-worktree-r4.md"
         },
         {
           "ref": "directed-merge-and-post-merge-cleanup",
