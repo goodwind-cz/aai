@@ -83,10 +83,29 @@
 // --retire prints the plan and writes nothing, but STILL refuses a flushable
 // ref (never a truth-gate bypass). --reason defaults to null when omitted.
 //
-// Exit codes: 0 flushed / nothing to flush / retired (or dry-run plan printed),
-// 1 integrity refusal / post-commit check failure / retire refused (would
-// flush, or ref absent) — original preserved or the recovery file named,
-// 2 usage.
+// --release <ref> [--reason "<text>"]: the sanctioned exit for the mirror-image
+// case — a work item whose close ceremony ran (committed work_item_closed event
+// AND active_work_items[ref].status done) but which has NO flushable telemetry
+// (no metrics.work_items row, or a row carrying zero agent_runs). Without it
+// such a ref wedges rule 4b forever: the flush never lists it, the sweep skips
+// it, and --retire refuses it. Structurally DISJOINT from the flush loop
+// (handleRelease; the no---release behavior is byte-unchanged by construction)
+// and FAIL-CLOSED: it REFUSES (exit 1, nothing written) a ref without the close
+// event (or one superseded by a later re-open from done), a ref whose work item
+// is not done, a ref whose row carries runs, and a ref a fail verdict names
+// (last_validation or code_review.scope_ref_id: an incomplete close) — a dry
+// run refuses exactly the same. A last_validation pass naming a zero-run ref
+// does NOT block it: the default gate never flushes a zero-run ref. With other
+// work in flight only the verdict blocks that name the released ref are reset. It builds NO ledger entry (METRICS.jsonl is never
+// opened): the absence is recorded as ONE work_item_released event carrying
+// telemetry "absent", never as zeroes. Events-before-STATE, like --retire.
+// --ref <id> naming a ref absent from metrics.work_items is an exit 1 refusal
+// (it used to be an empty exit 0), pointing at --release.
+//
+// Exit codes: 0 flushed / nothing to flush / retired / released (or dry-run plan
+// printed), 1 integrity refusal / post-commit check failure / retire or release
+// refused (would flush, or ref absent) / --ref not a candidate — original
+// preserved or the recovery file named, 2 usage.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -165,10 +184,11 @@ function parseArgs(argv) {
     dryRun: false,
     sweep: false,
     retire: null,
+    release: null,
     reason: null,
     now: process.env.AAI_FLUSH_NOW ?? null,
   };
-  const valueFlags = { '--state': 'state', '--metrics': 'metrics', '--ticks': 'ticks', '--pricing': 'pricing', '--events': 'events', '--ref': 'ref', '--retire': 'retire', '--reason': 'reason', '--now': 'now' };
+  const valueFlags = { '--state': 'state', '--metrics': 'metrics', '--ticks': 'ticks', '--pricing': 'pricing', '--events': 'events', '--ref': 'ref', '--retire': 'retire', '--release': 'release', '--reason': 'reason', '--now': 'now' };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--dry-run') { opts.dryRun = true; continue; }
@@ -180,7 +200,13 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
-    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --retire --reason --now)`);
+    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --retire --release --reason --now)`);
+  }
+  if (opts.release !== null && opts.retire !== null) {
+    fail('--release and --retire are mutually exclusive (release: closed work item with no flushable telemetry; retire: a metrics entry that is not a work item)');
+  }
+  if (opts.release !== null && (opts.ref !== null || opts.sweep)) {
+    fail('--release is mutually exclusive with --ref and --sweep (it acts on the one named ref only; --ref and --sweep select flush candidates)');
   }
   if (opts.now !== null && (!ISO_RE.test(opts.now) || Number.isNaN(Date.parse(opts.now)))) {
     fail(`--now "${opts.now}" is not an ISO-8601 UTC timestamp`);
@@ -331,6 +357,54 @@ function closedRefs(eventsPath) {
     } catch { /* best-effort matching probe */ }
   }
   return refs;
+}
+
+// The close/re-open scan --release uses for ALL its provenance checks, with the
+// dispatcher's exact-or-path-component ref semantics (refMatches, identical to
+// orchestration-dispatch.mjs:refMatches): a close event the dispatcher accepted
+// for the focus ref ("docs/issues/CHANGE-0001" for "CHANGE-0001") is therefore
+// one --release accepts too, so the remedy dispatch prints can never refuse.
+// closedRefs() above stays exact on purpose: it is the --sweep / --retire
+// predicate and must match close-work-item.mjs:hasWorkItemClosed.
+function scanCloseEvents(eventsPath, ref) {
+  let lastClose = -1;
+  let lastReopen = -1;
+  let lastRelease = -1;
+  if (!fs.existsSync(eventsPath)) return { lastClose, lastReopen, lastRelease };
+  const evLines = fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/);
+  for (let i = 0; i < evLines.length; i += 1) {
+    const t = evLines[i].trim();
+    if (t === '' || t.startsWith('#')) continue;
+    try {
+      const o = JSON.parse(t);
+      if (!refMatches(o.ref, ref)) continue;
+      if (o.event === 'work_item_closed') lastClose = i;
+      else if (o.event === 'doc_lifecycle' && o.payload && o.payload.from === 'done') lastReopen = i;
+      else if (o.event === RELEASED_EVENT) lastRelease = i;
+    } catch { /* best-effort matching probe */ }
+  }
+  return { lastClose, lastReopen, lastRelease };
+}
+
+// True when a work_item_released event for `ref` follows its last close: the
+// release the close allowed has already been recorded.
+function releasedSinceLastClose(eventsPath, ref) {
+  const { lastClose, lastRelease } = scanCloseEvents(eventsPath, ref);
+  return lastClose !== -1 && lastRelease > lastClose;
+}
+
+// True when a work_item_closed event matching `ref` (dispatcher semantics) exists.
+function hasCloseEventFor(eventsPath, ref) {
+  return scanCloseEvents(eventsPath, ref).lastClose !== -1;
+}
+
+// True when the LAST work_item_closed event for `ref` is followed by a later
+// doc_lifecycle event whose payload.from is "done" (a re-open) — the same
+// notion orchestration-dispatch.mjs calls close_event_superseded_by_reopen. A
+// superseded close is not a close: the ceremony has to run again.
+function closeSupersededByReopen(eventsPath, ref) {
+  const { lastClose, lastReopen } = scanCloseEvents(eventsPath, ref);
+  return lastClose !== -1 && lastReopen > lastClose;
 }
 
 // telemetry-fields-not-prose D6 source 3 / Spec-AC-08: the LATEST
@@ -1030,6 +1104,288 @@ function cleanupEphemeral(stateDir, ticksPath, nowMs, report) {
   }
 }
 
+// --- release (done-work-item-stays-in-current-focus) -------------------------------------
+// The sanctioned exit for a CLOSED work item with no flushable telemetry. A
+// FAIL-CLOSED branch reached ONLY when opts.release is set (structurally
+// disjoint from the flush loop, exactly as handleRetire is). Every guard runs
+// BEFORE the --dry-run branch, so a dry run is never a preview of a bypass.
+// It builds no ledger entry — absence is RECORDED (one work_item_released
+// event, telemetry "absent"), never fabricated as a zero-token METRICS line.
+const RELEASED_EVENT = 'work_item_released';
+
+// The default flush gate's per-ref predicate (last_validation passes naming the
+// ref) — ONE copy, shared by --retire and --release so neither can drift into a
+// looser check than the flush itself.
+function releaseWouldFlushByDefaultGate(vStatus, vRef, ref) {
+  return vStatus === 'pass' && refMatches(vRef, ref);
+}
+
+// Partial reset for --release: a block is reset only when it names the released
+// ref; a block naming another ride (or nothing) is left byte-identical. The
+// note says "release", never "flush" — nothing was flushed.
+function applyReleaseReset(lines, ref, nowIso, carryWaiver, vRefNow, crScopeRef) {
+  // A waiver lives in last_validation.notes: carry it only when that block is rewritten.
+  const waiver = refMatches(vRefNow, ref) ? carryWaiver : null;
+  const prose = waiver === null
+    ? `reset after release of ${ref}`
+    : `reset after release of ${ref} — PRESERVED unflushed validation waiver: ${waiver}`;
+  if (refMatches(vRefNow, ref)) {
+    editBlock(lines, 'last_validation', bl => {
+      setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
+      setField(bl, 2, 'run_at_utc', [scalarLine(2, 'run_at_utc', nowIso)]);
+      setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', 'null')]);
+      setField(bl, 2, 'evidence_paths', [scalarLine(2, 'evidence_paths', '[]')]);
+      setField(bl, 2, 'notes', textFieldLines(2, 'notes', prose));
+      return bl;
+    });
+  }
+  if (refMatches(crScopeRef, ref)) {
+    editBlock(lines, 'code_review', bl => {
+      setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
+      setField(bl, 2, 'report_paths', [scalarLine(2, 'report_paths', '[]')]);
+      setField(bl, 2, 'notes', textFieldLines(2, 'notes', prose));
+      return bl;
+    });
+  }
+}
+
+// Release is STATE-first (a crash must never leave EVENTS claiming a release
+// that did not happen). The one window that remains is "STATE committed, event
+// not yet appended"; a pending record next to STATE proves that window was a
+// release in flight, so a retry appends ONLY the missing event (never a
+// duplicate, never a second STATE mutation). Written before the STATE commit,
+// removed after the event is durable.
+function releasePendingPath(statePath) { return `${statePath}.release-pending`; }
+
+function readReleasePending(statePath) {
+  try {
+    const o = JSON.parse(fs.readFileSync(releasePendingPath(statePath), 'utf8'));
+    return o && typeof o.ref === 'string' && o.event && o.event.event === RELEASED_EVENT && o.event.ref === o.ref ? o : null;
+  } catch { return null; }
+}
+
+function pidAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+}
+
+// A crash between the temp write and the rename leaves
+// `<state>.release-pending.tmp-<pid>`; remove those whose writer is dead
+// (a live pid may be another session mid-write).
+function sweepStaleReleaseTmp(statePath) {
+  const dir = path.dirname(statePath);
+  const prefix = `${path.basename(releasePendingPath(statePath))}.tmp-`;
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch { return; }
+  for (const n of names) {
+    if (!n.startsWith(prefix)) continue;
+    const tail = n.slice(prefix.length);
+    if (!/^[1-9][0-9]*$/.test(tail) || pidAlive(Number(tail))) continue;
+    // only a regular file is ever ours; anything else is left alone, never fatal
+    try { if (fs.lstatSync(path.join(dir, n)).isFile()) fs.rmSync(path.join(dir, n), { force: true }); } catch { /* best effort */ }
+  }
+}
+
+function dropReleasePending(statePath) { fs.rmSync(releasePendingPath(statePath), { force: true }); }
+
+function appendReleaseEvent(eventsPath, event) {
+  fs.mkdirSync(path.dirname(eventsPath), { recursive: true });
+  fs.appendFileSync(eventsPath, `${JSON.stringify(event)}\n`);
+}
+
+function handleRelease(ctx) {
+  const {
+    ref, reason, entries, vStatus, vRef, focusRef, statusByRef, existingScopeRef,
+    eventsPath, metricsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
+  } = ctx;
+  const rStatusNow = readScalar(origLines, 'code_review', 'status');
+  // A fail verdict naming the ref is an incomplete close (guard 4 below); the
+  // resume path honours it too, so a record can never yield an event the
+  // normal path would refuse.
+  const failNamesRef = (vStatus === 'fail' && refMatches(vRef, ref))
+    || (rStatusNow === 'fail' && refMatches(scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id')), ref));
+  if (!opts.dryRun) sweepStaleReleaseTmp(statePath);
+
+  // 0) An interrupted earlier release. Pending record + item still in STATE =
+  // the STATE commit never happened (crash or concurrent-modification
+  // rejection): the record is stale, drop it and release afresh. Pending record
+  // + item gone from STATE and from the ledger = the commit happened and only
+  // the event is missing: append exactly that event (resume), nothing else —
+  // but only if EVENTS holds no release for the ref after its last close (else
+  // the release is already recorded, by this record or another session: the
+  // spent record is dropped) and no fail verdict names the ref.
+  const pending = readReleasePending(statePath);
+  if (pending !== null && statusByRef.has(pending.ref)) {
+    if (!opts.dryRun) fs.rmSync(releasePendingPath(statePath), { force: true });
+  } else if (pending !== null && pending.ref === ref && !statusByRef.has(ref) && focusRef !== ref
+      && !entries.some(e => e.ref === ref) && !ledgerRefs(metricsPath).has(ref)
+      && hasCloseEventFor(eventsPath, ref) && !closeSupersededByReopen(eventsPath, ref)
+      && releasedSinceLastClose(eventsPath, ref)) {
+    if (opts.dryRun !== true) dropReleasePending(statePath);
+  } else if (pending !== null && pending.ref === ref && !statusByRef.has(ref) && focusRef !== ref
+      && !entries.some(e => e.ref === ref) && !ledgerRefs(metricsPath).has(ref)
+      && hasCloseEventFor(eventsPath, ref) && !closeSupersededByReopen(eventsPath, ref)
+      && !failNamesRef) {
+    if (opts.dryRun === true) {
+      console.log(JSON.stringify({ dry_run: true, release: ref, resume: true, event: pending.event }, null, 2));
+      exit(0);
+    }
+    appendReleaseEvent(eventsPath, pending.event);
+    dropReleasePending(statePath);
+    console.log(`Released: ${ref} -> ${path.relative(process.cwd(), eventsPath)} (${RELEASED_EVENT}; resumed an interrupted release, STATE was already released, telemetry absent, no METRICS entry written)`);
+    exit(0);
+  }
+
+  // 1) Durable close provenance — the dispatcher's own ref matching (see scanCloseEvents).
+  if (!hasCloseEventFor(eventsPath, ref)) {
+    fail(`release refused: no committed work_item_closed event for "${ref}" in EVENTS.jsonl — `
+      + 'the close ceremony has not run, so there is nothing to release', 1);
+  }
+  // 1b) A close that a later re-open from done supersedes is not a close.
+  if (closeSupersededByReopen(eventsPath, ref)) {
+    fail(`release refused: the work_item_closed event for "${ref}" is superseded by a later re-open (doc_lifecycle from done) — `
+      + 'the close ceremony must run again before the ref can be released', 1);
+  }
+  // 2) The work item must be done — never release an in-flight item.
+  if (statusByRef.get(ref) !== 'done') {
+    const seen = statusByRef.has(ref) ? `"${statusByRef.get(ref)}"` : 'absent from active_work_items';
+    fail(`release refused: active_work_items status for "${ref}" is ${seen} (needs done) — `
+      + 'an in-flight or unknown work item is never released', 1);
+  }
+  // 3) A row carrying runs is flushable telemetry — flush it, do not release it.
+  const releaseEntry = entries.find(e => e.ref === ref) ?? null;
+  if (releaseEntry && releaseEntry.runs.length > 0) {
+    fail(`release refused: "${ref}" would flush (metrics.work_items carries ${releaseEntry.runs.length} agent_run(s)) `
+      + '— flush it, do not release it (fail-closed truth-gate)', 1);
+  }
+  // 4) A fail verdict naming the ref is an incomplete close, never erased by a
+  // release. (A last_validation PASS naming a zero-run ref is NOT a refusal:
+  // the default gate skips a ref with no agent_runs, so nothing would flush it.)
+  if (vStatus === 'fail' && refMatches(vRef, ref)) { // see failNamesRef
+    fail(`release refused: last_validation.status is fail and names "${ref}" — an incomplete close; `
+      + 'remediate and re-validate it, a release never erases a fail verdict', 1);
+  }
+  if (rStatusNow === 'fail' && refMatches(scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id')), ref)) {
+    fail(`release refused: code_review.status is fail and its scope_ref_id names "${ref}" — an incomplete close; `
+      + 'remediate and re-review it, a release never erases a fail verdict', 1);
+  }
+
+  const event = {
+    v: 1,
+    ts: nowIsoStr,
+    actor: actorSlug(),
+    event: RELEASED_EVENT,
+    ref,
+    payload: {
+      reason: reason ?? null,
+      telemetry: 'absent',
+      metrics_row: releaseEntry ? 'present_without_runs' : 'absent',
+    },
+  };
+  const roundTrip = JSON.parse(JSON.stringify(event));
+  if (JSON.stringify(roundTrip) !== JSON.stringify(event)) {
+    fail(`internal guard: ${RELEASED_EVENT} event for ${ref} is not JSON-round-trip stable — refusing to append`, 1);
+  }
+  // A release builds NO ledger entry: this stays empty by construction.
+  const releaseLedgerEntries = [];
+
+  const releasingFocus = focusRef === ref;
+  // 4b) The full-reset branch (no other non-done work) zeroes BOTH verdict
+  // blocks. A fail verdict that does not name the ref is not this release's to
+  // erase (Spec-AC-19): refuse before any write, dry-run included.
+  if (releasingFocus) {
+    const remainingNow = parseWorkItems(origLines).items.filter(it => it.ref_id !== ref);
+    if (remainingNow.every(it => it.status === 'done')) {
+      if (vStatus === 'fail') {
+        fail(`release refused: last_validation.status is fail (ref_id ${vRef === null ? 'null' : `"${vRef}"`}) and a release of "${ref}" would reset it — `
+          + 'a release never erases a fail verdict it does not own; remediate and re-validate it first', 1);
+      }
+      if (rStatusNow === 'fail') {
+        fail(`release refused: code_review.status is fail (scope_ref_id ${scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id')) ?? 'null'}) and a release of "${ref}" would reset it — `
+          + 'a release never erases a fail verdict it does not own; remediate and re-review it first', 1);
+      }
+    }
+  }
+  if (opts.dryRun) {
+    console.log(JSON.stringify({
+      dry_run: true,
+      release: ref,
+      reason: reason ?? null,
+      would_remove_from_state: true,
+      would_null_focus: releasingFocus,
+      event,
+    }, null, 2));
+    exit(0);
+  }
+
+  const lines = [...origLines];
+  removeMetricsEntries(lines, [ref]);
+  removeDoneWorkItems(lines, [ref]);
+  // Only a focus the call is IN is ever cleared — nulling another session's
+  // focus is the shared-worktree hazard clear-focus already refuses.
+  if (focusRef === ref) {
+    const vWaiverParse = parseWaiver((readValidationBlock(raw) ?? {}).notes ?? '');
+    const carryWaiver = vWaiverParse.present && vWaiverParse.ok ? formatWaiver(vWaiverParse) : null;
+    const { items: remaining } = parseWorkItems(lines);
+    if (remaining.length === 0 || remaining.every(it => it.status === 'done')) {
+      applyFullReset(lines, carryWaiver);
+    } else {
+      // Other work is in flight: reset ONLY the verdict blocks that name the
+      // released ref — another ride's verdicts are never touched.
+      applyReleaseReset(lines, ref, nowIsoStr, carryWaiver, vRef, scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id')));
+      editBlock(lines, 'current_focus', bl => {
+        setField(bl, 2, 'type', [scalarLine(2, 'type', 'none')]);
+        setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', 'null')]);
+        setField(bl, 2, 'primary_path', [scalarLine(2, 'primary_path', 'null')]);
+        nullFieldIfPresent(bl, 2, 'spec_path');
+        return bl;
+      });
+    }
+  }
+  bumpUpdatedAt(lines, nowIsoStr);
+
+  const mDups = duplicateKeys(lines);
+  const mConf = inlineChildConflicts(lines);
+  if (mDups.length > 0 || mConf.length > 0) {
+    fail('integrity refusal: the planned STATE cleanup would violate structural invariants '
+      + `(duplicates: [${mDups.map(d => d.key).join(', ')}], inline conflicts: [${mConf.map(c => c.key).join(', ')}]) `
+      + '— nothing written, original preserved', 1);
+  }
+
+  // STATE-before-EVENTS: the event claims a release, so it is appended only
+  // after the STATE commit (with its concurrent-modification recheck) landed.
+  // The pending record is what lets a retry recognise a commit that landed
+  // without its event (see readReleasePending).
+  const pendingTmp = `${releasePendingPath(statePath)}.tmp-${process.pid}`;
+  fs.writeFileSync(pendingTmp, JSON.stringify({ ref, event }));
+  fs.renameSync(pendingTmp, releasePendingPath(statePath));
+  if (releaseLedgerEntries.length > 0) {
+    fs.appendFileSync(metricsPath, releaseLedgerEntries.map(e => JSON.stringify(e) + '\n').join(''));
+  }
+  writeState(statePath, lines, trailingNewline, raw);
+  if (process.env.AAI_FLUSH_INJECT_CRASH === 'after-state') {
+    // Test-only fault hook: die between the STATE commit and the event append —
+    // EVENTS must stay free of the claim; a re-run resumes event-only.
+    process.kill(process.pid, 'SIGKILL');
+  }
+  appendReleaseEvent(eventsPath, event);
+  if (process.env.AAI_FLUSH_INJECT_CRASH === 'after-event') {
+    // Test-only fault hook: die between the event append and the record's removal.
+    process.kill(process.pid, 'SIGKILL');
+  }
+  dropReleasePending(statePath);
+
+  const check = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'check-state.mjs'), statePath], { encoding: 'utf8' });
+  if (check.status !== 0) {
+    const recovery = `${statePath}.pre-flush-${nowIsoStr.replace(/[-:]/g, '')}`;
+    fs.writeFileSync(recovery, raw);
+    fail(`post-commit check-state FAILED — pre-flush STATE saved to ${recovery} for recovery:\n${check.stdout}${check.stderr}`, 1);
+  }
+
+  console.log(`Released: ${ref} -> ${path.relative(process.cwd(), eventsPath)} (${RELEASED_EVENT}; telemetry absent, no METRICS entry written)`);
+  console.log(`check-state: OK (${path.relative(process.cwd(), statePath)})`);
+  exit(0);
+}
+
 // --- retire (SPEC-0075-spec-retire-stranded-nonworkitem-metric) --------------------------
 // The sanctioned exit for a stranded, legitimately-not-a-work-item entry. A
 // FAIL-CLOSED branch reached ONLY when opts.retire is set (structurally
@@ -1052,15 +1408,19 @@ function handleRetire(ctx) {
   // 2) FAIL-CLOSED flushability guards (BOTH before the --dry-run branch, so a
   // dry-run on a flushable ref is STILL refused — never a preview of a bypass).
   //   (a) the DEFAULT predicate, verbatim from the flush loop.
-  if (vStatus === 'pass' && refMatches(vRef, ref)) {
+  const retireWouldFlushDefault = releaseWouldFlushByDefaultGate(vStatus, vRef, ref);
+  if (retireWouldFlushDefault) {
     fail(`retire refused: "${ref}" would flush (last_validation.status is pass and names ${ref}) `
       + '— flush it, do not retire (fail-closed truth-gate)', 1);
   }
   //   (b) the SWEEP predicate — closedRefs() called UNCONDITIONALLY for retire
   //   (regardless of whether --sweep was also passed).
   if (closedRefs(eventsPath).has(ref)) {
+    const noRuns = entry.runs.length === 0;
     fail(`retire refused: "${ref}" would flush (a committed work_item_closed event exists for ${ref} in EVENTS.jsonl) `
-      + '— flush it, do not retire (fail-closed truth-gate)', 1);
+      + (noRuns
+        ? `— but it carries no agent_runs, so the flush skips it: use --release ${ref} (the exit for a closed work item with no flushable telemetry), not --retire`
+        : '— flush it, do not retire (fail-closed truth-gate)'), 1);
   }
 
   // 3) Build the audit record — compact discarded_runs read VERBATIM off the
@@ -1303,6 +1663,25 @@ function main() {
       eventsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
     });
     return; // unreached — handleRetire always exit()s.
+  }
+
+  // --release (done-work-item-stays-in-current-focus): the closed-work-item
+  // exit, branched to before the flush loop like --retire above.
+  if (opts.release !== null) {
+    handleRelease({
+      ref: opts.release, reason: opts.reason, entries, vStatus, vRef, focusRef, statusByRef, existingScopeRef,
+      eventsPath, metricsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
+    });
+    return; // unreached — handleRelease always exit()s.
+  }
+
+  // An explicitly named --ref that is not a candidate at all is not an empty
+  // success: it used to print an empty plan and exit 0, which let a caller read
+  // "flushed" off a ref that was never even considered.
+  if (opts.ref !== null && !entries.some(e => e.ref === opts.ref)) {
+    fail(`--ref "${opts.ref}" is not a flush candidate: it is not present in metrics.work_items. `
+      + `If it is a closed work item with no recorded telemetry, release it with --release ${opts.ref}; `
+      + 'if it is a metrics entry that is not a work item, retire it with --retire', 1);
   }
 
   const skipped = {};

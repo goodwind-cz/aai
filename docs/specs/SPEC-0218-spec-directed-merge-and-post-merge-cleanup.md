@@ -4,7 +4,7 @@ type: spec
 number: 218
 status: done
 mutation_gate: v1
-frozen_sha256: c6518462e2fe2b05c405ac7aed73fa2b1fa42224a29a80d492436782e7f716ae
+frozen_sha256: 5241fba681754f981b7eadfa180925ae47d9e9ae22eb6bb84e063601891ffefe
 ceremony_level: 2
 links:
   requirement: directed-merge-and-post-merge-cleanup
@@ -62,7 +62,7 @@ above.
   classification, `aai-doctor` home, no removal). Its later ride can reuse
   this scope's predicate (`merge-cleanup.mjs plan` output) rather than
   re-derive it.
-- Main-checkout drafts `ISSUE-DRAFT-done-work-item-stays-in-current-focus`
+- Main-checkout drafts `ISSUE-0098-done-work-item-stays-in-current-focus`
   and its spec (another session's work, read only) — NOT overlapping: they
   fix `metrics-flush.mjs` / rule 4b for a closed ref with no
   `metrics.work_items` row. This scope never flushes metrics and never

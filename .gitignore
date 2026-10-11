@@ -77,6 +77,8 @@ docs/INDEX.audit.md
 # AAI per-dev runtime state (RFC-0001: STATE is per-developer local, never committed).
 # Cross-developer visibility lives in docs/ai/EVENTS.jsonl (append-only, committed).
 docs/ai/STATE.yaml
+# metrics-flush --release in-flight record (STATE committed, event not yet appended); transient.
+docs/ai/STATE.yaml.release-pending*
 docs/ai/LOOP_TICKS.jsonl
 
 # Async-HITL platform channel sidecar (async-hitl-platform-comments): the

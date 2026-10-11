@@ -105,7 +105,7 @@ const RULES = [
   { id: '3', when: 'docs/TECHNOLOGY.md missing', then: 'dispatch Technology extraction (.aai/TECH_EXTRACT.prompt.md)' },
   { id: '4', when: '.aai/workflow/WORKFLOW.md missing', then: 'dispatch Bootstrap (.aai/BOOTSTRAP.prompt.md)' },
   { id: '4a', when: 'focus work item done/absent AND focus ref flushed to METRICS.jsonl (spec-dispatch-new-intake-after-completed-scope D1) AND no recorded fail verdict (validation.status !== fail AND review.status !== fail; CHANGE-0036 fail-verdict precedence guard — abstains so decide() falls through to rule 10/12 Remediation instead of burying the failure); exactly one open mappable docs/issues intake (draft/implementing, no done work item) -> retarget; zero -> no_action scope_complete_no_open_intake; 2+/unmappable/scan-failure -> needs_llm named reasons', then: 'dispatch Planning retarget (.aai/PLANNING.prompt.md) to the open intake, or no_action/needs_llm per candidate count' },
-  { id: '4b', when: 'focus work item done/absent AND focus ref NOT flushed to METRICS.jsonl AND a committed work_item_closed event for the focus ref exists in docs/ai/EVENTS.jsonl (close ceremony ran — possibly in another session/clone whose local STATE verdicts never traveled) AND no recorded fail verdict AND no unsatisfied required review; closes the close->flush->retarget autonomy gap: without this arm a closed-but-unflushed focus falls to rule 5 and re-offers Planning for a finished scope', then: 'dispatch Metrics Flush (.aai/METRICS_FLUSH.prompt.md); after the flush lands, rule 4a retargets or reports scope_complete_no_open_intake' },
+  { id: '4b', when: 'focus work item done/absent AND focus ref NOT flushed to METRICS.jsonl AND a committed work_item_closed event for the focus ref exists in docs/ai/EVENTS.jsonl (close ceremony ran — possibly in another session/clone whose local STATE verdicts never traveled) AND no recorded fail verdict AND no unsatisfied required review; closes the close->flush->retarget autonomy gap: without this arm a closed-but-unflushed focus falls to rule 5 and re-offers Planning for a finished scope; a focus with ZERO recorded agent_runs (absent metrics row or agent_runs: []) is not flushable by any arm, so it reports needs_llm closed_focus_unflushable_no_flushable_metrics naming metrics-flush.mjs --release instead of dispatching', then: 'dispatch Metrics Flush (.aai/METRICS_FLUSH.prompt.md); after the flush lands, rule 4a retargets or reports scope_complete_no_open_intake' },
   { id: '5', when: 'focus spec_path null or spec file missing; spec-close-leaves-state-stale D7 — a CLOSED focus (close_event_present AND NOT close_event_superseded_by_reopen) never gets Planning here: needs_llm closed_focus_stale_state instead (STATE stayed stale after a close, D8 re-open lane excepted)', then: 'dispatch Planning, or needs_llm closed_focus_stale_state on a closed focus' },
   { id: '6', when: 'spec not frozen (no SPEC-FROZEN: true) or frontmatter status not draft/implementing; ceremony L0 (RFC-0009) prunes the status arm (tech-note doc), never the marker arm; spec-close-leaves-state-stale D7 — same closed-focus guard as rule 5', then: 'dispatch Planning, or needs_llm closed_focus_stale_state on a closed focus' },
   { id: '7', when: 'implementation_strategy.selected missing or undecided', then: 'dispatch Planning' },
@@ -260,6 +260,9 @@ function noAction(rule, snapshot, reasons) {
     retarget: null,
   };
 }
+
+const UNFLUSHABLE_REASON = 'closed_focus_unflushable_no_flushable_metrics';
+const ITEM_ABSENT_REASON = 'closed_focus_item_absent_no_flushable_metrics';
 
 function needsLlm(snapshot, reasons, rule = null) {
   return {
@@ -459,8 +462,34 @@ function decideRuleTable(snapshot, opts = {}) {
     // verdict already abstained above; a required-but-unsatisfied review
     // still routes to rule 13 (never prune the review gate mechanically).
     if (s.close_event_present === true
+        && s.close_event_superseded_by_reopen !== true
         && !(s.review && s.review.required === true
              && !['pass', 'waived'].includes(s.review.status))) {
+      // done-work-item-stays-in-current-focus: Metrics Flush can only act on a
+      // focus that has recorded agent_runs. A closed focus with an absent
+      // metrics row, or a row carrying `agent_runs: []`, is not flushable by
+      // ANY arm of the flush (default gate, --sweep, --retire all skip or
+      // refuse it), so dispatching that role re-fires this rule on every tick
+      // and the done item keeps current_focus forever. Report the sanctioned
+      // exit instead of dispatching a role that cannot act. A legacy snapshot
+      // without the field (undefined) never takes this arm.
+      if (s.focus_flushable_runs < 1) {
+        if (s.focus_flushable_runs < 1 && s.work_item == null) {
+          // The focus has NO active_work_items entry, so `--release` (which
+          // refuses an item absent from active_work_items) cannot act. The
+          // committed close event already is the durable record; the only
+          // sanctioned exit is to null the focus. A detector and its printed
+          // remedy must agree (Spec-AC-18).
+          return needsLlm(s, [
+            ITEM_ABSENT_REASON,
+            `clear the closed focus (its work item is already gone from active_work_items; the committed close event is the durable record): node .aai/scripts/state.mjs clear-focus --ref ${s.focus.ref_id}`,
+          ], '4b');
+        }
+        return needsLlm(s, [
+          UNFLUSHABLE_REASON,
+          `release the closed focus (no flushable telemetry; fail-closed on the close event): node .aai/scripts/metrics-flush.mjs --release ${s.focus.ref_id} --reason "<why>"`,
+        ], '4b');
+      }
       return dispatchFor('Metrics Flush', s, '4b', { reasons: ['closed_but_unflushed_focus'] });
     }
   }
@@ -1093,6 +1122,8 @@ export function buildSnapshot(statePath, root) {
     review,
     flushed,
     close_event_present: closeEventPresent,
+    // Recorded agent_runs for the focus ref (0 for an absent row AND for `agent_runs: []`).
+    focus_flushable_runs: focusRef ? agentRunsFor(lines, focusRef).length : 0,
     close_event_superseded_by_reopen: closeEventSupersededByReopen,
     last_phase_confirm: lastPhaseConfirm,
     // role-verification-guards G2 — the two staleness-comparison inputs

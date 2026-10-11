@@ -6,6 +6,8 @@
 # per line; '#' comments ignored; '!' negation lines keep the .gitkeep
 # placeholders tracked.
 docs/ai/STATE.yaml
+# metrics-flush --release in-flight record (and its temp file); transient, never committed.
+docs/ai/STATE.yaml.release-pending*
 docs/ai/LOOP_TICKS.jsonl
 docs/ai/hitl-channel.json
 docs/ai/briefs/**
