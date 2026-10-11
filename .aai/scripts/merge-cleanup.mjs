@@ -61,6 +61,10 @@ options: --origin <abs> --json --archive-divergent <path> (apply, repeatable)
          --direction "<owner's words>" (apply: recorded with the merged head)
          --origin defaults to the main checkout (the first git worktree), in every mode;
          pass it to read and write a ride worktree's ledger instead
+the ride's own leftovers (apply): a roadmap change confined to the merged ride's entry is archived and the
+         incoming roadmap taken; whole lines appended to the ride worktree's ledgers are moved to the main checkout
+         (archived first, journalled, reported as moved lines); an engine file replaced by the base sync is run
+         again once (reload-engine), and a re-run child that exits other than 0 or 4 prints STOPPED reexec_child_exit_<n> (exit 4)
 exit: 0 complete, 2 usage, 3 refused, 4 stopped mid-way, 10 preflight ready
 `;
 
@@ -970,12 +974,15 @@ function touchAt(point, wtPath) {
 const LEDGER_TAIL_REASON = 'ride_ledger_tail';
 const LEDGER_TAILS_DIR = 'worktree-ledger-tails';
 
-// Does `part` occur in `buf` at a line start (offset 0 or right after a newline)?
-function atLineStart(buf, part) {
+// Does `part` occur in `buf` at a line start (offset 0 or right after a newline), at or after `from`?
+function atLineStart(buf, part, from = 0) {
   if (!buf || part.length === 0) return false;
-  for (let i = buf.indexOf(part); i >= 0; i = buf.indexOf(part, i + 1)) if (i === 0 || buf[i - 1] === 10) return true;
+  for (let i = buf.indexOf(part, from); i >= 0; i = buf.indexOf(part, i + 1)) if (i === 0 || buf[i - 1] === 10) return true;
   return false;
 }
+
+const LEDGER_APPEND_STEP = 'ledger-append';
+const countLines = (buf) => { let n = 0; for (const b of buf) if (b === 10) n++; return n; };
 
 // D8: move the ride worktree's appended ledger lines to the main checkout, archive-first and
 // idempotent: a re-run after a crash at any point appends no tail byte twice and loses none.
@@ -983,7 +990,7 @@ function moveLedgerTails(ctx, wt) {
   const tails = ledgerTails(ctx, wt);
   if (!tails || tails.length === 0) return;
   const root = archiveRoot(ctx.origin, ctx.opts.pr);
-  const manifest = path.join(root, 'manifest.jsonl');
+  const journal = path.join(root, 'journal.jsonl');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-cleanup-tail-'));
   try {
     for (const t of tails) {
@@ -993,20 +1000,33 @@ function moveLedgerTails(ctx, wt) {
       if (cur && cur.length > 0 && cur[cur.length - 1] !== 10) stop('ledger_unaligned', t.rel);
       const src = path.join(tmp, 'tail');
       fs.writeFileSync(src, t.tail);
-      archiveFile(ctx, { src, destBase: path.join(root, LEDGER_TAILS_DIR, t.rel), original: `worktree:${t.rel}`, reason: LEDGER_TAIL_REASON, step: 'remove-worktree' });
-      // the longest already-moved prefix of this tail (this tail or an earlier archived one) found in the main ledger
+      const arch = archiveFile(ctx, { src, destBase: path.join(root, LEDGER_TAILS_DIR, t.rel), original: `worktree:${t.rel}`, reason: LEDGER_TAIL_REASON, step: 'remove-worktree' });
+      // D8: an earlier archive counts as already moved only when an append-intent record for it precedes
+      // the append and its bytes occur at a line start in the main ledger at or after the recorded
+      // length of the ledger at intent time. This run's own archive has no intent yet, so a first run
+      // appends the whole tail, a line already present in the ledger included.
+      const records = readJsonl(journal).filter((r) => r.step === LEDGER_APPEND_STEP && r.ledger === t.rel);
       let already = 0;
-      for (const m of readJsonl(manifest)) {
-        if (m.original !== `worktree:${t.rel}` || m.reason !== LEDGER_TAIL_REASON) continue;
+      for (const r of records.filter((x) => x.status === 'intent')) {
         let c = null;
-        try { c = fs.readFileSync(path.join(ctx.origin, m.archive)); } catch { continue; }
-        if (c.length > already && c.length <= t.tail.length && t.tail.subarray(0, c.length).equals(c) && atLineStart(cur, c)) already = c.length;
+        try { c = fs.readFileSync(path.join(ctx.origin, r.archive)); } catch { continue; }
+        const from = Math.min(r.mainLen ?? 0, cur ? cur.length : 0);
+        if (c.length > t.tail.length || !t.tail.subarray(0, c.length).equals(c) || !atLineStart(cur, c, from)) continue;
+        already = Math.max(already, c.length);
+        // the append happened but the crash came before its done record: record it now
+        if (!records.some((x) => x.status === 'done' && x.archive === r.archive)) {
+          appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'done', ledger: t.rel, archive: r.archive, sha256: r.sha256, lines: r.lines, timestamp: new Date().toISOString() });
+        }
       }
       if (already < t.tail.length) {
+        const seg = t.tail.subarray(already);
+        appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'intent', ledger: t.rel, archive: arch.rel, sha256: arch.digest, length: t.tail.length, mainLen: cur ? cur.length : 0, lines: countLines(seg), timestamp: new Date().toISOString() });
+        crashAt('ledger-move-after-intent');
         fs.mkdirSync(path.dirname(main), { recursive: true });
-        fs.appendFileSync(main, t.tail.subarray(already));
+        fs.appendFileSync(main, seg);
+        crashAt('ledger-move-after-append');
+        appendJsonl(journal, { step: LEDGER_APPEND_STEP, status: 'done', ledger: t.rel, archive: arch.rel, sha256: arch.digest, lines: countLines(seg), timestamp: new Date().toISOString() });
       }
-      crashAt('ledger-move-after-append');
       const abs = path.join(wt.path, t.rel);
       let now = null;
       try { now = fs.readFileSync(abs); } catch { /* removed */ }
@@ -1018,15 +1038,18 @@ function moveLedgerTails(ctx, wt) {
   }
 }
 
-// D10: the moved ledger tails, read from the durable manifest.
+// D10: the moved ledger lines, read from the durable journal: one entry per ledger, the lines
+// of every completed append (one per archive), never the archived tail that a skip left unappended.
 function movedFromManifest(ctx) {
-  return readJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'manifest.jsonl'))
-    .filter((m) => m.reason === LEDGER_TAIL_REASON)
-    .map((m) => {
-      let lines = 0;
-      try { for (const b of fs.readFileSync(path.join(ctx.origin, m.archive))) if (b === 10) lines++; } catch { /* archive gone */ }
-      return { ledger: m.original.replace(/^worktree:/, ''), lines, sha256: m.sha256, archive: m.archive };
-    });
+  const done = new Map();
+  for (const r of readJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'journal.jsonl'))) {
+    if (r.step !== LEDGER_APPEND_STEP || r.status !== 'done') continue;
+    const e = done.get(r.ledger) ?? { ledger: r.ledger, lines: 0, sha256: r.sha256, archive: r.archive, seen: new Set() };
+    if (!e.seen.has(r.archive)) { e.seen.add(r.archive); e.lines += r.lines; e.sha256 = r.sha256; e.archive = r.archive; }
+    done.set(r.ledger, e);
+  }
+  return [...done.values()].map(({ ledger, lines, sha256: digest, archive }) => ({ ledger, lines, sha256: digest, archive }))
+    .sort((x, y) => LEDGERS.indexOf(x.ledger) - LEDGERS.indexOf(y.ledger));
 }
 
 function removeWorktree(ctx) {
@@ -1591,11 +1614,16 @@ function reexecIfReplaced(ctx) {
   const detail = `${ENGINE_STARTUP_SHA.slice(0, 12)} -> ${now.slice(0, 12)}`;
   appendJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'journal.jsonl'), { step: 'reexec', status: 'done', detail, timestamp: new Date().toISOString() });
   process.stderr.write(`merge-cleanup: engine replaced by sync-base (${detail}); re-executing once\n`);
+  // the child's stdout is held: forwarded only for the exits the engine defines (0 done, 4 stopped);
+  // anything else becomes one STOPPED line, because the parent has already written (never "nothing written")
   const r = spawnSync(process.execPath, [...process.execArgv, ENGINE_FILE, ...process.argv.slice(2)], {
-    stdio: 'inherit', env: { ...process.env, [REEXEC_ENV]: ENGINE_STARTUP_SHA },
+    stdio: ['inherit', 'pipe', 'inherit'], maxBuffer: 256 * 1024 * 1024, env: { ...process.env, [REEXEC_ENV]: ENGINE_STARTUP_SHA },
   });
   if (r.error) stop('reexec_failed', r.error.message);
-  return exit(r.status ?? 4);
+  const out = r.stdout ? r.stdout.toString() : '';
+  if (r.status === 0 || r.status === 4) { process.stdout.write(out); return exit(r.status); }
+  if (out) process.stderr.write(out);
+  return stop(`reexec_child_exit_${r.status ?? r.signal ?? 'unknown'}`);
 }
 
 function runApplyOrPlan(opts) {

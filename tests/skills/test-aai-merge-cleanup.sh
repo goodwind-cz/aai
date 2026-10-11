@@ -13,7 +13,7 @@
 # spec-merge-direction-signs-amendments PFA-8: TEST-027 (the signature cites the current direction).
 # spec-merge-cleanup-submodule-worktree B: TEST-031 (ignored content), TEST-032 (late dirt), TEST-033 (preflight), TEST-034 (canon).
 # spec-merge-cleanup-delete-remote-branch: TEST-036..042 (delete-remote-branch step; TEST-002/010/012/013/014 amended).
-# spec-merge-cleanup-ride-leftovers: TEST-045/046 (ride roadmap entry), TEST-047/048 (ride ledger appends), TEST-049/050 (engine reload).
+# spec-merge-cleanup-ride-leftovers: TEST-045/046 (ride roadmap entry), TEST-047/048 (ride ledger appends), TEST-049/050 (engine reload), TEST-051/052 (tail resume key, re-exec child exit).
 # spec-merge-cleanup-submodule-worktree A: TEST-028 (removal after the proof), TEST-029 (dirty refused), TEST-030 (unpushed, stash, no remote, stray module refused).
 set -euo pipefail
 
@@ -3061,6 +3061,11 @@ if (process.env.FIXTURE_LOAD_LOG) {
   fs.appendFileSync(process.env.FIXTURE_LOAD_LOG, 'variant-load\\n');
   if (fs.readFileSync(process.env.FIXTURE_LOAD_LOG, 'utf8').split('\\n').filter(Boolean).length >= 3) process.exit(99);
 }
+if (process.env.FIXTURE_CHILD_EXIT) {
+  process.stdout.write('REFUSE fixture-child\\n');
+  if (process.env.FIXTURE_CHILD_EXIT === 'signal') process.kill(process.pid, 'SIGKILL');
+  process.exit(Number(process.env.FIXTURE_CHILD_EXIT));
+}
 if (process.env.FIXTURE_SELF_TOUCH) fs.appendFileSync(ENGINE_FILE, '\\n// touched by the fixture\\n');
 `;
 rep("'delete-remote-branch', 'report',", "'delete-remote-branch', 'fixture-marker', 'report',");
@@ -3154,6 +3159,94 @@ test_050_reexec_runs_once_and_resumes() {
   echo 'PASS: TEST-050 the re-executed run does not re-execute and an interrupted one resumes'
 }
 
+# the SEED line the ledger world already holds in the main test-runs.jsonl, appended again in the ride
+RIDE_DUP='{"v":1,"ts":"2026-10-09T00:00:00Z","actor":"fixture","event":"seed-run"}'
+
+LATE_LINE='{"v":1,"event":"late-after-crash"}'
+moved_lines() { json_get "$1" "j.moved.filter(m=>m.ledger===\"$2\").map(m=>m.lines).join(\",\")"; }
+
+test_051_ledger_tail_resume_key_and_count() {
+  local rep
+  # arm dup: a tail line byte-identical to one already in the main ledger is appended, not skipped
+  LEDGER_WORLD=1 build_world dup
+  printf '%s\n' "$RIDE_DUP" >> "$RIDE/$TR"
+  printf '%s\n' "$RIDE_DUP" > "$W/tail-rt"
+  [[ "$(count_line "$ORIGIN/$TR" "$RIDE_DUP")" == 1 ]] || fail SETUP 'the main test-runs ledger does not hold the seed line once'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-051 "dup arm exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  rep="$ENG_OUT"
+  [[ "$(count_line "$ORIGIN/$TR" "$RIDE_DUP")" == 2 ]] || fail TEST-051 'dup arm: the duplicate line was not appended'
+  tail_matches TEST-051 "$TR" "$W/tail-rt"
+  [[ "$(moved_lines "$rep" "$TR")" == 1 ]] || fail TEST-051 "dup arm: moved lines is [$(moved_lines "$rep" "$TR")], want 1"
+
+  # arm late: crash after the append, a line lands in the ride, the re-run counts what was appended
+  LEDGER_WORLD=1 build_world late
+  seed_ledger_tails
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-051 "late arm crash exited $ENG_RC, want 137"
+  printf '%s\n' "$LATE_LINE" >> "$RIDE/docs/ai/EVENTS.jsonl"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-051 "late arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  rep="$ENG_OUT"
+  [[ "$(count_line "$ORIGIN/docs/ai/EVENTS.jsonl" "$LEDGER_EV1")" == 1 && "$(count_line "$ORIGIN/docs/ai/EVENTS.jsonl" "$LEDGER_EV2")" == 1 ]] || fail TEST-051 'late arm: an event line is not exactly once'
+  [[ "$(count_line "$ORIGIN/docs/ai/EVENTS.jsonl" "$LATE_LINE")" == 1 ]] || fail TEST-051 'late arm: the late line is not exactly once'
+  [[ "$(moved_lines "$rep" docs/ai/EVENTS.jsonl)" == 3 ]] || fail TEST-051 "late arm: EVENTS moved is [$(moved_lines "$rep" docs/ai/EVENTS.jsonl)], want one entry of 3"
+
+  # arm intent: crash between the append intent and the append; a duplicate of an existing line is still appended once
+  LEDGER_WORLD=1 build_world intent
+  printf '%s\n' "$RIDE_DUP" >> "$RIDE/$TR"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-intent run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-051 "intent arm crash exited $ENG_RC, want 137 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$TR" "$RIDE_DUP")" == 1 ]] || fail TEST-051 'intent arm: the crash was not before the append'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-051 "intent arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$TR" "$RIDE_DUP")" == 2 ]] || fail TEST-051 'intent arm: the re-run did not append the duplicate exactly once'
+  [[ "$(moved_lines "$ENG_OUT" "$TR")" == 1 ]] || fail TEST-051 "intent arm: moved lines is [$(moved_lines "$ENG_OUT" "$TR")], want 1"
+
+  # arm after: crash after the append of a duplicate line; the re-run appends nothing more and still counts it
+  LEDGER_WORLD=1 build_world after
+  printf '%s\n' "$RIDE_DUP" >> "$RIDE/$TR"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=ledger-move-after-append run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-051 "after arm crash exited $ENG_RC, want 137"
+  [[ "$(count_line "$ORIGIN/$TR" "$RIDE_DUP")" == 2 ]] || fail TEST-051 'after arm: the append did not happen before the crash'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-051 "after arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(count_line "$ORIGIN/$TR" "$RIDE_DUP")" == 2 ]] || fail TEST-051 'after arm: the re-run appended the duplicate again'
+  [[ "$(moved_lines "$ENG_OUT" "$TR")" == 1 ]] || fail TEST-051 "after arm: moved lines is [$(moved_lines "$ENG_OUT" "$TR")], want 1"
+  assert_no_merge_call TEST-051
+  echo 'PASS: TEST-051 a first run appends the whole tail and the moved count is what was appended'
+}
+
+# child_exit_arm <name> <variant file> <FIXTURE_CHILD_EXIT value or empty> <tag in the STOPPED line>
+child_exit_arm() {
+  local name="$1" variant="$2" mode="$3" tag="$4" stops
+  engine_world "$name" "$variant"
+  FIXTURE_CHILD_EXIT="$mode" FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-052 "$name exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  stops="$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep -c "^STOPPED reexec_child_exit_${tag}\$" || true)"
+  [[ "$stops" == 1 ]] || fail TEST-052 "$name: stdout lacks one STOPPED reexec_child_exit_${tag} line (out: $ENG_OUT)"
+  [[ "$(printf '%s\n' "$ENG_OUT" | wc -l | tr -d ' ')" == 1 ]] || fail TEST-052 "$name: stdout is more than the stop line (out: $ENG_OUT)"
+}
+
+test_052_reexec_child_exit_is_mapped() {
+  local variant="$SCRATCH/engine-variant-052.mjs" broken="$SCRATCH/engine-broken-052.mjs"
+  make_engine_variant "$variant"
+  # arm exit3: the child refuses after the parent wrote; the run stops (4), never relays "nothing written"
+  child_exit_arm exit3 "$variant" 3 3
+  # arm signal: a killed child is a stop line too
+  child_exit_arm sig "$variant" signal SIGKILL
+  # arm syntax: a merged engine that does not load is a stop line, not a raw stack
+  cp "$variant" "$broken"; printf '\n)(\n' >> "$broken"
+  child_exit_arm syntax "$broken" '' 1
+  # control: a child that stops on its own (exit 4) passes through with its own output
+  engine_world exit4 "$variant"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_STOP_AFTER=state FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-052 "pass-through arm exited $ENG_RC, want 4"
+  [[ "$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep -c 'reexec_child_exit' || true)" == 0 ]] || fail TEST-052 'pass-through arm: a clean child stop was remapped'
+  assert_no_merge_call TEST-052
+  echo 'PASS: TEST-052 a re-exec child exit other than 0 or 4 is a STOPPED line and exit 4'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate; test_006_superseded_drafts; test_007_retained_and_decisions
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -3172,7 +3265,8 @@ case "$SELECTED" in
      test_044_push_url_must_equal_fetch_url
      test_045_ride_roadmap_entry_taken_from_incoming; test_046_foreign_roadmap_hunk_refuses_overlap
      test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
-     test_049_merged_engine_runs_in_the_same_apply; test_050_reexec_runs_once_and_resumes ;;
+     test_049_merged_engine_runs_in_the_same_apply; test_050_reexec_runs_once_and_resumes
+     test_051_ledger_tail_resume_key_and_count; test_052_reexec_child_exit_is_mapped ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -3223,5 +3317,7 @@ case "$SELECTED" in
   TEST-048|test_048_non_append_ledger_change_refused) test_048_non_append_ledger_change_refused ;;
   TEST-049|test_049_merged_engine_runs_in_the_same_apply) test_049_merged_engine_runs_in_the_same_apply ;;
   TEST-050|test_050_reexec_runs_once_and_resumes) test_050_reexec_runs_once_and_resumes ;;
+  TEST-051|test_051_ledger_tail_resume_key_and_count) test_051_ledger_tail_resume_key_and_count ;;
+  TEST-052|test_052_reexec_child_exit_is_mapped) test_052_reexec_child_exit_is_mapped ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac
