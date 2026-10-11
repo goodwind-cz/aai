@@ -914,6 +914,15 @@ function remoteProof(ctx) {
   }
   if (ctx.pr.isCrossRepository === true) return { retain: ['remote_fork', 'the PR head lives in another repository'] };
   if (ctx.pr.isCrossRepository !== false) return { retain: ['remote_unknown', 'the PR head repository is not known'] };
+  // the deletion push goes to the push URL; every proof below reads the fetch URL (D2 step 3)
+  const urlsOf = (args) => {
+    const u = remoteGit(ctx.origin, ['remote', 'get-url', ...args, 'origin']);
+    return u.error || u.status !== 0 ? null : u.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+  };
+  const fetchUrls = urlsOf(['--all']);
+  const pushUrls = urlsOf(['--push', '--all']);
+  if (!fetchUrls || !pushUrls || fetchUrls.length === 0) return { retain: ['remote_unknown', 'the push URL cannot be compared with the fetch URL'] };
+  if (fetchUrls.length !== 1 || pushUrls.length !== 1 || fetchUrls[0] !== pushUrls[0]) return { retain: ['remote_unknown', 'the push URL differs from the fetch URL'] };
   const r = remoteGit(ctx.origin, ['ls-remote', '--symref', 'origin', 'HEAD', `refs/heads/${b}`]);
   if (r.error || r.status !== 0) return { retain: ['remote_unknown', remoteFirstLine(r.error?.message || r.stderr || r.stdout) || 'git ls-remote failed'] };
   let defaultBranch = '';

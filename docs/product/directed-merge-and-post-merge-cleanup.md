@@ -134,7 +134,9 @@ reports the completed ones as no-ops.
   head> origin :refs/heads/<b>`. Retained reasons: `remote_moved`,
   `remote_fork`, `remote_is_base`, `remote_bad_name`,
   `remote_has_dependents` (naming the pull requests), `remote_delete_rejected`
-  and `remote_unknown`.
+  and `remote_unknown`. The push URL of `origin` must equal its fetch URL
+  (one URL each, after `pushurl` and `pushInsteadOf` rewrites); otherwise the
+  branch is kept as `remote_unknown` before any remote is read.
 - `merge-cleanup.mjs sign-merged --authority-ts <ts> [--exclude <fu-id>]...
   [--base <name>] [--dry-run] [--origin <abs>] [--json]`: signs the contract
   amendments of rides that are done on the base with a pull request delivered

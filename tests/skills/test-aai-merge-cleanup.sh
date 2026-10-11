@@ -2734,6 +2734,39 @@ test_043_dependents_retain_remote_branch() {
   echo 'PASS: TEST-043 a branch with open dependent pull requests is never deleted'
 }
 
+test_044_push_url_must_equal_fetch_url() {
+  local other pdig
+  # arm pushurl: remote.origin.pushurl names a second bare that also holds the branch at the merged head
+  build_world remote_pushurl
+  other="$W/other/origin.git"
+  run mkdir -p "$W/other"
+  run git init -q --bare -b main "$other"
+  run git -C "$ORIGIN" push -q "$other" "$HEAD_OID:refs/heads/$BRANCH"
+  run git -C "$ORIGIN" config remote.origin.pushurl "$other"
+  pdig="$(world_digest)"
+  run_engine plan --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-044 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-044 "$ENG_OUT" 'retain origin/ride/foo (remote_unknown)'
+  [[ "$(world_digest)" == "$pdig" ]] || fail TEST-044 'plan changed the fixture'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-044 remote_unknown 'pushurl arm'
+  want TEST-044 "$(rstep "$ENG_OUT" detail)" 'push URL'
+  bare_has "$BRANCH" || fail TEST-044 'pushurl arm: the fetch-side remote branch was deleted'
+  git -C "$other" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null 2>&1 || fail TEST-044 'pushurl arm: the push-side remote branch was deleted'
+  # arm pushInsteadOf: a url.<base>.pushInsteadOf rewrite moves only the push side
+  build_world remote_push_instead_of
+  other="$W/other/origin.git"
+  run mkdir -p "$W/other"
+  run git init -q --bare -b main "$other"
+  run git -C "$ORIGIN" push -q "$other" "$HEAD_OID:refs/heads/$BRANCH"
+  run git -C "$ORIGIN" config "url.$W/other/.pushInsteadOf" "$W/"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-044 remote_unknown 'pushInsteadOf arm'
+  bare_has "$BRANCH" || fail TEST-044 'pushInsteadOf arm: the fetch-side remote branch was deleted'
+  git -C "$other" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null 2>&1 || fail TEST-044 'pushInsteadOf arm: the push-side remote branch was deleted'
+  echo 'PASS: TEST-044 a push URL that differs from the fetch URL is never pushed to'
+}
+
 test_042_canon_runs_block_unwrapped() {
   local text flat rest step3 sh_block ps_block credit
   text="$(cat "$PROMPT")"
@@ -2778,7 +2811,8 @@ case "$SELECTED" in
      test_035_submodule_tags_archived
      test_036_remote_branch_deleted_by_lease; test_037_moved_remote_retained; test_038_absent_noop_and_idempotent
      test_039_fork_and_unknown_origin_retained; test_040_base_default_and_bad_name_retained; test_041_rejected_and_unreadable_never_stop
-     test_042_canon_runs_block_unwrapped; test_043_dependents_retain_remote_branch ;;
+     test_042_canon_runs_block_unwrapped; test_043_dependents_retain_remote_branch
+     test_044_push_url_must_equal_fetch_url ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -2822,5 +2856,6 @@ case "$SELECTED" in
   TEST-041|test_041_rejected_and_unreadable_never_stop) test_041_rejected_and_unreadable_never_stop ;;
   TEST-042|test_042_canon_runs_block_unwrapped) test_042_canon_runs_block_unwrapped ;;
   TEST-043|test_043_dependents_retain_remote_branch) test_043_dependents_retain_remote_branch ;;
+  TEST-044|test_044_push_url_must_equal_fetch_url) test_044_push_url_must_equal_fetch_url ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac
