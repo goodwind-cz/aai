@@ -10,7 +10,7 @@ links:
   requirement: merge-cleanup-submodule-worktree
   rfc: null
   pr:
-    - TBD
+    - 453
   commits:
     - 37946f0563d22a82bc5707552e4f6be6bfcc786e
 ---
