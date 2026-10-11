@@ -461,6 +461,7 @@ function decideRuleTable(snapshot, opts = {}) {
     // verdict already abstained above; a required-but-unsatisfied review
     // still routes to rule 13 (never prune the review gate mechanically).
     if (s.close_event_present === true
+        && s.close_event_superseded_by_reopen !== true
         && !(s.review && s.review.required === true
              && !['pass', 'waived'].includes(s.review.status))) {
       // done-work-item-stays-in-current-focus: Metrics Flush can only act on a

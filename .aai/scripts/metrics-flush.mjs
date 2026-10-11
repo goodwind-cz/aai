@@ -91,9 +91,12 @@
 // it, and --retire refuses it. Structurally DISJOINT from the flush loop
 // (handleRelease; the no---release behavior is byte-unchanged by construction)
 // and FAIL-CLOSED: it REFUSES (exit 1, nothing written) a ref without the close
-// event, a ref whose work item is not done, a ref whose row carries runs, and a
-// ref the default gate would flush (last_validation pass naming it) — a dry run
-// refuses exactly the same. It builds NO ledger entry (METRICS.jsonl is never
+// event (or one superseded by a later re-open from done), a ref whose work item
+// is not done, a ref whose row carries runs, and a ref a fail verdict names
+// (last_validation or code_review.scope_ref_id: an incomplete close) — a dry
+// run refuses exactly the same. A last_validation pass naming a zero-run ref
+// does NOT block it: the default gate never flushes a zero-run ref. With other
+// work in flight only the verdict blocks that name the released ref are reset. It builds NO ledger entry (METRICS.jsonl is never
 // opened): the absence is recorded as ONE work_item_released event carrying
 // telemetry "absent", never as zeroes. Events-before-STATE, like --retire.
 // --ref <id> naming a ref absent from metrics.work_items is an exit 1 refusal
@@ -201,6 +204,9 @@ function parseArgs(argv) {
   }
   if (opts.release !== null && opts.retire !== null) {
     fail('--release and --retire are mutually exclusive (release: closed work item with no flushable telemetry; retire: a metrics entry that is not a work item)');
+  }
+  if (opts.release !== null && (opts.ref !== null || opts.sweep)) {
+    fail('--release is mutually exclusive with --ref and --sweep (it acts on the one named ref only; --ref and --sweep select flush candidates)');
   }
   if (opts.now !== null && (!ISO_RE.test(opts.now) || Number.isNaN(Date.parse(opts.now)))) {
     fail(`--now "${opts.now}" is not an ISO-8601 UTC timestamp`);
@@ -351,6 +357,28 @@ function closedRefs(eventsPath) {
     } catch { /* best-effort matching probe */ }
   }
   return refs;
+}
+
+// True when the LAST work_item_closed event for `ref` is followed by a later
+// doc_lifecycle event whose payload.from is "done" (a re-open) — the same
+// notion orchestration-dispatch.mjs calls close_event_superseded_by_reopen. A
+// superseded close is not a close: the ceremony has to run again.
+function closeSupersededByReopen(eventsPath, ref) {
+  if (!fs.existsSync(eventsPath)) return false;
+  let lastClose = -1;
+  let lastReopen = -1;
+  const evLines = fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/);
+  for (let i = 0; i < evLines.length; i += 1) {
+    const t = evLines[i].trim();
+    if (t === '' || t.startsWith('#')) continue;
+    try {
+      const o = JSON.parse(t);
+      if (!refMatches(o.ref, ref)) continue;
+      if (o.event === 'work_item_closed') lastClose = i;
+      else if (o.event === 'doc_lifecycle' && o.payload && o.payload.from === 'done') lastReopen = i;
+    } catch { /* best-effort matching probe */ }
+  }
+  return lastClose !== -1 && lastReopen > lastClose;
 }
 
 // telemetry-fields-not-prose D6 source 3 / Spec-AC-08: the LATEST
@@ -1066,16 +1094,51 @@ function releaseWouldFlushByDefaultGate(vStatus, vRef, ref) {
   return vStatus === 'pass' && refMatches(vRef, ref);
 }
 
+// Partial reset for --release: a block is reset only when it names the released
+// ref; a block naming another ride (or nothing) is left byte-identical. The
+// note says "release", never "flush" — nothing was flushed.
+function applyReleaseReset(lines, ref, nowIso, carryWaiver, vRefNow, crScopeRef) {
+  // A waiver lives in last_validation.notes: carry it only when that block is rewritten.
+  const waiver = refMatches(vRefNow, ref) ? carryWaiver : null;
+  const prose = waiver === null
+    ? `reset after release of ${ref}`
+    : `reset after release of ${ref} — PRESERVED unflushed validation waiver: ${waiver}`;
+  if (refMatches(vRefNow, ref)) {
+    editBlock(lines, 'last_validation', bl => {
+      setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
+      setField(bl, 2, 'run_at_utc', [scalarLine(2, 'run_at_utc', nowIso)]);
+      setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', 'null')]);
+      setField(bl, 2, 'evidence_paths', [scalarLine(2, 'evidence_paths', '[]')]);
+      setField(bl, 2, 'notes', textFieldLines(2, 'notes', prose));
+      return bl;
+    });
+  }
+  if (refMatches(crScopeRef, ref)) {
+    editBlock(lines, 'code_review', bl => {
+      setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
+      setField(bl, 2, 'report_paths', [scalarLine(2, 'report_paths', '[]')]);
+      setField(bl, 2, 'notes', textFieldLines(2, 'notes', prose));
+      return bl;
+    });
+  }
+}
+
 function handleRelease(ctx) {
   const {
     ref, reason, entries, vStatus, vRef, focusRef, statusByRef, existingScopeRef,
     eventsPath, metricsPath, statePath, origLines, trailingNewline, raw, nowIsoStr, opts,
   } = ctx;
+  const rStatusNow = readScalar(origLines, 'code_review', 'status');
 
   // 1) Durable close provenance — the SAME predicate --sweep demands.
   if (!closedRefs(eventsPath).has(ref)) {
     fail(`release refused: no committed work_item_closed event for "${ref}" in EVENTS.jsonl — `
       + 'the close ceremony has not run, so there is nothing to release', 1);
+  }
+  // 1b) A close that a later re-open from done supersedes is not a close.
+  if (closeSupersededByReopen(eventsPath, ref)) {
+    fail(`release refused: the work_item_closed event for "${ref}" is superseded by a later re-open (doc_lifecycle from done) — `
+      + 'the close ceremony must run again before the ref can be released', 1);
   }
   // 2) The work item must be done — never release an in-flight item.
   if (statusByRef.get(ref) !== 'done') {
@@ -1089,10 +1152,16 @@ function handleRelease(ctx) {
     fail(`release refused: "${ref}" would flush (metrics.work_items carries ${releaseEntry.runs.length} agent_run(s)) `
       + '— flush it, do not release it (fail-closed truth-gate)', 1);
   }
-  // 4) The default gate would flush it.
-  if (releaseWouldFlushByDefaultGate(vStatus, vRef, ref)) {
-    fail(`release refused: "${ref}" would flush (last_validation.status is pass and names ${ref}) `
-      + '— flush it, do not release it (fail-closed truth-gate)', 1);
+  // 4) A fail verdict naming the ref is an incomplete close, never erased by a
+  // release. (A last_validation PASS naming a zero-run ref is NOT a refusal:
+  // the default gate skips a ref with no agent_runs, so nothing would flush it.)
+  if (vStatus === 'fail' && refMatches(vRef, ref)) {
+    fail(`release refused: last_validation.status is fail and names "${ref}" — an incomplete close; `
+      + 'remediate and re-validate it, a release never erases a fail verdict', 1);
+  }
+  if (rStatusNow === 'fail' && refMatches(scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id')), ref)) {
+    fail(`release refused: code_review.status is fail and its scope_ref_id names "${ref}" — an incomplete close; `
+      + 'remediate and re-review it, a release never erases a fail verdict', 1);
   }
 
   const event = {
@@ -1139,8 +1208,9 @@ function handleRelease(ctx) {
     if (remaining.length === 0 || remaining.every(it => it.status === 'done')) {
       applyFullReset(lines, carryWaiver);
     } else {
-      // The reset note CLAIMS no validation PASS moved to a ledger: empty archive allowlist.
-      applyPartialReset(lines, [ref], nowIsoStr, carryWaiver, [], focusRef, existingScopeRef);
+      // Other work is in flight: reset ONLY the verdict blocks that name the
+      // released ref — another ride's verdicts are never touched.
+      applyReleaseReset(lines, ref, nowIsoStr, carryWaiver, vRef, scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id')));
       editBlock(lines, 'current_focus', bl => {
         setField(bl, 2, 'type', [scalarLine(2, 'type', 'none')]);
         setField(bl, 2, 'ref_id', [scalarLine(2, 'ref_id', 'null')]);

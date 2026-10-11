@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 6a323fd7f6a57a88cbef6630ff77e60de260486d99f6372c2592f79e4fcef1bd
+frozen_sha256: 5d2687c74d7990467c53cae46c9e766fb8e60ff5017fea02a0d9b5cb390d662a
 ceremony_level: 2
 links:
   requirement: null
@@ -114,11 +114,18 @@ this spec does not take that route.
 
 Report-and-refuse over auto-repair (intake constraint): nothing in this scope
 clears a focus on its own. Rule 4b stops dispatching an unactionable role and
-instead REPORTS `needs_llm` naming the remedy; a human or the LLM orchestrator
-runs the remedy. The remedy itself re-checks the same durable provenance
+instead REPORTS `needs_llm` naming the remedy; the owner or a human runs it. The reason string is deliberately NOT one of the named reasons
+in `.aai/ORCHESTRATION.prompt.md` step 4 ("handle ONLY the named reasons"), the
+same as the existing `closed_focus_stale_state`: the LLM orchestrator reports it
+and stops, and the printed command is run by the owner or a human (RR-1). No
+prompt-corpus byte changes, so no diet-ledger obligation arises (remediation
+round 1, finding N4). The remedy itself re-checks the same durable provenance
 `--sweep` demands and refuses without it, so it cannot clear past an incomplete
-close: a close ceremony that has not emitted `work_item_closed` is refused, and
-a close ceremony whose `active_work_items` status is not yet `done` is refused.
+close: a close ceremony that has not emitted `work_item_closed` is refused, a close
+ceremony whose `active_work_items` status is not yet `done` is refused, a close
+that a later re-open from `done` supersedes is refused (Spec-AC-16), and a `fail`
+verdict naming the ref is refused (Spec-AC-15: a release never erases a failed
+verdict, and the flush's fail-precedence is not inverted).
 
 ## Implementation plan
 
@@ -146,10 +153,19 @@ affected Mutation cells, disclosed in the TDD record):
   non-empty and the no-fabrication test must catch it.
 - `metrics-flush.mjs`: the appended event's payload carries
   `telemetry: 'absent'` — absence as a recorded value, never a zero.
-- `metrics-flush.mjs`: a named predicate `releaseWouldFlushByDefaultGate` for
-  the `last_validation` pass arm of Spec-AC-05, reusing the SAME
-  `vStatus === 'pass' && refMatches(vRef, ref)` test `handleRetire` already
-  applies rather than a second private copy.
+- `metrics-flush.mjs`: the named predicate `releaseWouldFlushByDefaultGate`
+  (`vStatus === 'pass' && refMatches(vRef, ref)`) is used by `handleRetire`
+  ONLY. Remediation round 1 removed it from `handleRelease`: the default gate
+  never flushes a ref with zero `agent_runs`, so a release refusal built on it
+  was false for exactly the refs `--release` exists for and re-created the
+  wedge (dispatch named `--release`, `--release` refused).
+- `metrics-flush.mjs`: `function closeSupersededByReopen(eventsPath, ref)` — the
+  same notion as `close_event_superseded_by_reopen` in dispatch: the last
+  `work_item_closed` for the ref is followed by a `doc_lifecycle` event whose
+  `payload.from` is `done`. `handleRelease` refuses such a close (Spec-AC-16).
+- `metrics-flush.mjs`: `function applyReleaseReset(...)` — the partial reset used
+  when other work is in flight; it rewrites a verdict block only when that block
+  names the released ref (Spec-AC-14).
 - `orchestration-dispatch.mjs`: `const UNFLUSHABLE_REASON = 'closed_focus_unflushable_no_flushable_metrics';`
 - `orchestration-dispatch.mjs`: snapshot field
   `focus_flushable_runs: focusRef ? agentRunsFor(lines, focusRef).length : 0`
@@ -166,11 +182,13 @@ Data flows:
   `writeState` atomic tmp+rename+recheck path the flush uses. EVENTS-before-STATE,
   matching `handleRetire` step 7/8. METRICS.jsonl is opened for nothing.
 - After removing the released ref's done `active_work_items` entry, `--release`
-  reuses the SAME reset selection the flush path uses (full reset when no
-  non-done active work remains, else partial reset for the focus ref) with an
-  EMPTY archive allowlist, because `--release` satisfies no part of the default
-  validation gate. The archive allowlist is the existing
-  `defaultOkRefs`-derived mechanism; `--release` never adds to it.
+  of the focused ref uses a full reset when no non-done active work remains
+  (the flush path's `applyFullReset`), else `applyReleaseReset`: only a
+  `last_validation` whose `ref_id` names the released ref, and only a
+  `code_review` whose `scope_ref_id` names it, are reset to `not_run`, with the
+  note `reset after release of <ref>`; another ride's verdict blocks stay
+  byte-identical (Spec-AC-14). No archive record is ever written, because
+  `--release` satisfies no part of the default validation gate.
 - Rule 4b reads one extra pure STATE value. No clock, no writes, no new
   filesystem reads — the dispatch's stated invariant is preserved.
 
@@ -181,8 +199,23 @@ Edge cases:
   `clear-focus` already refuses.
 - `--release` on a ref whose metrics row exists and carries runs: refused, with
   the message naming the flush as the correct action (Spec-AC-05).
-- `--release` on a ref with a `last_validation` pass naming it: refused for the
-  same reason — the default gate would flush it (Spec-AC-05).
+- `--release` on a ref with a `last_validation` pass naming it and ZERO runs:
+  ALLOWED (Spec-AC-05 as amended). The default gate sets its skip reason
+  `no agent_runs recorded in STATE metrics` for a zero-run ref and never sees a
+  row-less ref, so nothing would flush it; refusing here made dispatch name a
+  command that refused. This is the natural post-close shape of a ride that
+  recorded no `append-run`. A pass naming a ref whose row carries runs is
+  refused by the runs arm.
+- `--release` on a ref a `fail` verdict names (`last_validation.status` fail with
+  `ref_id` naming it, or `code_review.status` fail with `scope_ref_id` naming it):
+  refused as an incomplete close (Spec-AC-15). A fail naming another ride does
+  not block.
+- `--release` on a ref whose latest `work_item_closed` is followed by a
+  `doc_lifecycle` event with `payload.from` `done`: refused (Spec-AC-16); a
+  close recorded after the re-open makes it releasable again. Dispatch applies
+  the same notion: a superseded close is not routed to rule 4b.
+- `--release` combined with `--ref` or `--sweep` (or `--retire`): usage error,
+  exit 2, nothing written (Spec-AC-17).
 - `--release --dry-run`: prints the plan and still refuses every arm the real
   run refuses, so a dry run is never a preview of a bypass (Spec-AC-07,
   mirroring `handleRetire`'s guards-before-dry-run ordering).
@@ -219,6 +252,7 @@ Explicitly NOT in scope (each with its reason):
 | `--release` appends to `docs/ai/EVENTS.jsonl`, which `close-work-item.mjs` owns as the close-lifecycle emitter (SPEC-0054) | release appends a NON-lifecycle event | TEST-1385 asserts the appended event's `event` field is `work_item_released` and that zero `work_item_closed` or `doc_lifecycle` lines are added, so the sole-emitter rule is not broken. |
 | `--release` resets verdict blocks the PR ceremony's preconditions read | release writes `code_review`; SKILL_PR reads it | TEST-1391 asserts the post-release STATE carries zero occurrences of `AAI-VALIDATION-ARCHIVED` — the false-archive shape that once made both SKILL_PR preconditions read satisfied for a ride that satisfied neither. |
 | The `--ref` exit-code change is a CLI boundary other callers may depend on | corpus callers | TEST-1383 is a negative control: the bare flush with no `--ref` is byte-for-byte unaffected. The corpus was enumerated: `.aai/METRICS_FLUSH.prompt.md` invokes the script with no `--ref`; no other `.aai/**` caller passes `--ref`. |
+| Rule 4b's `needs_llm` remedy must act on every shape rule 4b reports it for | dispatch names the command; `--release` runs it | TEST-1740 parses the command out of the real dispatch output for every fixture shape (including `last_validation` pass naming the focus), runs it for real, and re-dispatches. A detector and its remedy can no longer disagree unnoticed. |
 | Rule 4b's two arms must stay distinguishable: unflushable refuses, flushable still dispatches | one function, two outcomes | TEST-1392 and TEST-1393 are a matched pair, and TEST-1393's mutation inverts the precondition so the working arm must break. |
 
 A seam no automated test crosses, written down rather than left out: the real
@@ -237,6 +271,9 @@ this scope. No gate is added that would degrade to exit 0 when STATE is absent.
   -> Spec-AC-06, Spec-AC-08
 - Intake "report-and-refuse beats auto-repair; evaluate the close-ceremony
   ordering, not just the happy path" -> Spec-AC-04, Spec-AC-05, Spec-AC-07
+- Remediation round 1 (validation findings B1, N1, N2, N3, N5) -> Spec-AC-05
+  (amended), Spec-AC-13, Spec-AC-14, Spec-AC-15, Spec-AC-16, Spec-AC-17; N4 is a
+  documented non-change (see `## Design decision`, report-and-refuse paragraph)
 - Intake "do not weaken the SPEC-0192 refusal" -> out of scope by construction,
   recorded under `## Implementation plan`; Spec-AC set touches no `state.mjs` byte
 
@@ -268,7 +305,7 @@ this scope. No gate is added that would degrade to exit 0 when STATE is absent.
 | Spec-AC-02 | WHEN `metrics-flush.mjs --release <ref>` runs against a STATE whose `active_work_items` entry for the ref has `status: done`, whose `metrics.work_items` has no row for the ref, and an EVENTS.jsonl carrying a committed `work_item_closed` for the ref THEN it exits 0, EVENTS.jsonl gains exactly one line whose `event` is `work_item_released`, and the ref appears zero times in the post-run `active_work_items` block | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1384.log, docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1385.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1384.txt, docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1385.txt | — | the terminal state the wedge never reached |
 | Spec-AC-03 | WHEN the released ref equals `current_focus.ref_id` THEN the post-run `current_focus` carries `type: none` and `ref_id: null`, and WHEN the released ref is some other closed ref THEN the whole `current_focus` block is byte-identical before and after | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1386.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1386.txt | — | never clears a focus the call is not in |
 | Spec-AC-04 | WHEN `--release <ref>` is invoked with no committed `work_item_closed` event for the ref, or with `active_work_items[ref].status` not `done`, or with the ref absent from `active_work_items` THEN each case exits 1, names the failing condition, and leaves EVENTS.jsonl and STATE.yaml byte-identical as `cmp` reports exit 0 | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1387.log, docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1388.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1387.txt, docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1388.txt | — | fail-closed on the same durable provenance `--sweep` demands; cannot clear past an incomplete close |
-| Spec-AC-05 | WHEN `--release <ref>` is invoked on a ref whose `metrics.work_items` row carries at least one `agent_runs` entry, or whose `last_validation` records `status: pass` naming that ref THEN it exits 1 and stderr says the ref would flush and to flush it rather than release it, leaving EVENTS.jsonl and STATE.yaml byte-identical | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1389.log, docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1390.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1389.txt, docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1390.txt | — | the truth gate is never bypassable through the new door |
+| Spec-AC-05 | WHEN `--release <ref>` is invoked on a ref whose `metrics.work_items` row carries at least one `agent_runs` entry THEN it exits 1 and stderr says the ref would flush and to flush it rather than release it, leaving EVENTS.jsonl and STATE.yaml byte-identical; and WHEN the ref has zero runs (row absent or `agent_runs: []`) and `last_validation` records `status: pass` naming it THEN `--release` still exits 0 and removes the ref | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1389.log, docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1390.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1389.txt, docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1390.txt | — | the truth gate is never bypassable through the new door; amended in remediation round 1: the former `last_validation` pass arm is removed because the default gate never flushes a zero-run ref, so it refused refs that nothing would flush |
 | Spec-AC-06 | WHEN `--release <ref>` succeeds THEN `cmp` over `docs/ai/METRICS.jsonl` before and after exits 0, and `/usr/bin/grep -cF <ref> docs/ai/METRICS.jsonl` prints 0 | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1391.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1391.txt | — | the hard no-fabrication constraint, asserted on the SUCCESS path, not only on refusals |
 | Spec-AC-07 | WHEN `--release <ref> --dry-run` runs on the Spec-AC-02 fixture THEN it exits 0, stdout JSON carries a `release` key naming the ref, and `cmp` exits 0 for all three of STATE.yaml, EVENTS.jsonl and METRICS.jsonl; and WHEN `--dry-run` is combined with any Spec-AC-04 or Spec-AC-05 arm THEN it still exits 1 | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1392.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1392.txt | — | guards precede the dry-run branch, as `handleRetire` already orders them |
 | Spec-AC-08 | WHEN `--release <ref>` succeeds THEN the appended event's payload records the telemetry as absent and carries no token, duration or cost number, and the post-run STATE contains zero occurrences of `AAI-VALIDATION-ARCHIVED` | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1398.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1398.txt | — | absence is RECORDED, not fabricated as zeroes, and no false validation archive is minted |
@@ -276,6 +313,11 @@ this scope. No gate is added that would degrade to exit 0 when STATE is absent.
 | Spec-AC-10 | WHEN the same fixture is changed only by giving the focus ref a `metrics.work_items` row with one `agent_runs` entry THEN dispatch still exits 0 with `"rule":"4b"` and `"role":"Metrics Flush"` | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1394.log, docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1395.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1394.txt, docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1395.txt | — | the arm that works today is not pruned |
 | Spec-AC-11 | WHEN `--release <ref>` has been run on the Spec-AC-02 fixture THEN a second `orchestration-dispatch.mjs` run over the SAME fixture returns a `rule` other than `4b` and `reasons` containing `no_focus_ref` | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1396.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1396.txt | — | the wedge is gone rather than masked; this is the same terminal state a normal full-reset flush produces, verified against a focus-nulled fixture during planning |
 | Spec-AC-12 | WHEN `--retire <ref>` is invoked on a ref whose `metrics.work_items` row carries zero `agent_runs` and for which a committed `work_item_closed` event exists THEN it still exits 1 and its refusal names `--release` as the correct exit instead of telling the caller to flush a ref the flush skips | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1397.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1397.txt | — | removes the measured self-contradiction between `--retire` and the sweep gate |
+| Spec-AC-13 | WHEN dispatch returns rule 4b `needs_llm` for a closed zero-run focus, on every fixture shape (row absent or `agent_runs: []`, crossed with `last_validation` not_run or pass naming the focus) THEN the `metrics-flush.mjs --release <ref> --reason` command its reasons print exits 0 when run, and a second dispatch over the resulting STATE returns a `rule` other than `4b` | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1740.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1740.txt | — | detector and remedy agree for every shape rule 4b reports; validation round 1 finding B1 |
+| Spec-AC-14 | WHEN `--release` releases the focused ref while other non-done work is in flight THEN a `last_validation` or `code_review` block that does not name the released ref is byte-identical afterwards, a block that does name it is reset to `not_run`, and no note reads `reset after flush` | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1741.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1741.txt | — | another ride's verdicts survive; validation round 1 finding N1 |
+| Spec-AC-15 | WHEN `--release <ref>` is invoked and `last_validation` is `fail` with `ref_id` naming the ref, or `code_review` is `fail` with `scope_ref_id` naming it THEN it exits 1 naming the fail verdict and leaves STATE.yaml, EVENTS.jsonl and METRICS.jsonl byte-identical, with and without `--dry-run`; and a fail naming another ride does not block | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1742.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1742.txt | — | decision: refuse as an incomplete close rather than keep the verdict untouched, because a release removes the work item and a fail verdict with no item to remediate would be stranded; validation round 1 finding N2 |
+| Spec-AC-16 | WHEN the latest `work_item_closed` event for the ref is followed by a `doc_lifecycle` event whose `payload.from` is `done` THEN `--release` exits 1 naming the re-open and writes nothing, a close recorded after the re-open makes it releasable, and dispatch does not route that focus to rule 4b (`close_event_superseded_by_reopen` true, `rule` other than `4b`) | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1743.log, docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1744.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1743.txt, docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1744.txt | — | a superseded close does not count as closed; validation round 1 finding N3 |
+| Spec-AC-17 | WHEN `--release <ref>` is combined with `--ref` or `--sweep` THEN it exits 2 with a mutually-exclusive message and writes nothing | done | docs/ai/tdd/done-work-item-stays-in-current-focus-green-TEST-1745.log; mutation: docs/ai/tdd/spec-done-work-item-stays-in-current-focus/mutation-TEST-1745.txt | — | like `--release` with `--retire`; validation round 1 finding N5 |
 
 Status values: planned | implementing | done | deferred | blocked | rejected
 - planned: AC defined, no implementation started
@@ -332,7 +374,7 @@ real runtime files are never touched.
 | TEST-1387 | Spec-AC-04 | integration | tests/skills/test-aai-metrics.sh | no committed `work_item_closed` event: exit 1, named reason, `cmp` clean on EVENTS and STATE | sed:s/if \(!closedRefs\(eventsPath\)\.has\(ref\)\) \{/if (false) {/ | green |
 | TEST-1388 | Spec-AC-04 | integration | tests/skills/test-aai-metrics.sh | `active_work_items[ref].status` is `in_progress`, and separately the ref is absent from `active_work_items`: both exit 1, both `cmp` clean | sed:s/statusByRef\.get\(ref\) !== 'done'/false/ | green |
 | TEST-1389 | Spec-AC-05 | integration | tests/skills/test-aai-metrics.sh | a row with one `agent_runs` entry is refused with a flush-it-do-not-release message, `cmp` clean | sed:s/releaseEntry\.runs\.length > 0/false/ | green |
-| TEST-1390 | Spec-AC-05 | integration | tests/skills/test-aai-metrics.sh | `last_validation` pass naming the ref is refused even with the row absent, `cmp` clean | sed:s/if \(releaseWouldFlushByDefaultGate\(vStatus, vRef, ref\)\)/if (false)/ | green |
+| TEST-1390 | Spec-AC-05 | integration | tests/skills/test-aai-metrics.sh | `last_validation` pass naming a zero-run ref (row absent, and row with `agent_runs: []`) does not block: release exits 0, the ref leaves STATE, METRICS.jsonl is byte-identical | sed:s/if \(vStatus === 'fail' && refMatches\(vRef, ref\)\) \{/if (releaseWouldFlushByDefaultGate(vStatus, vRef, ref) ? true : vStatus === 'fail' && refMatches(vRef, ref)) {/ | green |
 | TEST-1391 | Spec-AC-06 | integration | tests/skills/test-aai-metrics.sh | after a successful release `cmp` on METRICS.jsonl exits 0 and `grep -cF <ref>` on it is 0 | sed:s/const releaseLedgerEntries = \[\];/const releaseLedgerEntries = [{ ref_id: ref }];/ | green |
 | TEST-1398 | Spec-AC-08 | integration | tests/skills/test-aai-metrics.sh | the appended event payload records telemetry absent and carries no token, duration or cost number, and the post-release STATE holds zero `AAI-VALIDATION-ARCHIVED` occurrences | sed:s/telemetry: 'absent'/telemetry: 'zero'/ | green |
 | TEST-1392 | Spec-AC-07 | integration | tests/skills/test-aai-metrics.sh | `--release --dry-run` prints a `release` key and `cmp` is clean on STATE, EVENTS and METRICS; the same dry run on the Spec-AC-04 and Spec-AC-05 arms still exits 1 | sed:s/if \(opts\.dryRun\) \{/if (false) {/ | green |
@@ -341,6 +383,12 @@ real runtime files are never touched.
 | TEST-1395 | Spec-AC-10 | integration | tests/skills/test-aai-orchestration-dispatch.sh | the snapshot field itself reports the real count, so a focus with a run is never reported as unflushable | sed:s/agentRunsFor\(lines, focusRef\)\.length : 0/0 : 0/ | green |
 | TEST-1396 | Spec-AC-11 | integration | tests/skills/test-aai-orchestration-dispatch.sh | seam: run the real `--release`, then the real dispatch over the resulting STATE, and assert the rule is not `4b` and `reasons` contains `no_focus_ref` | sed:s/if \(focusRef === ref\) \{/if (false) {/ | green |
 | TEST-1397 | Spec-AC-12 | integration | tests/skills/test-aai-metrics.sh | `--retire` on the zero-run closed ref exits 1 and its message names `--release` | sed:s/const noRuns = entry\.runs\.length === 0;/const noRuns = false;/ | green |
+| TEST-1740 | Spec-AC-13 | integration | tests/skills/test-aai-orchestration-dispatch.sh | seam: for rule-4b needs_llm fixtures (row absent and row empty, each with last_validation not_run and with pass naming the focus) the printed --release command is parsed and run for real, exits 0, and a second dispatch is not rule 4b | sed:s/if \(vStatus === 'fail' && refMatches\(vRef, ref\)\) \{/if (releaseWouldFlushByDefaultGate(vStatus, vRef, ref) ? true : vStatus === 'fail' && refMatches(vRef, ref)) {/ | green |
+| TEST-1741 | Spec-AC-14 | integration | tests/skills/test-aai-metrics.sh | other work in flight: another ride's last_validation and code_review stay byte-identical, blocks naming the released ref reset with a release note, a mixed case resets only the matching block, and no note says reset after flush | sed:s/if \(refMatches\(vRefNow, ref\)\) \{/if (true) {/ | green |
+| TEST-1742 | Spec-AC-15 | integration | tests/skills/test-aai-metrics.sh | a fail verdict naming the ref (last_validation, and code_review scope_ref_id) is refused with and without dry-run and writes nothing, while a fail naming another ride does not block | sed:s/if \(vStatus === 'fail' && refMatches\(vRef, ref\)\) \{/if (false) {/ | green |
+| TEST-1743 | Spec-AC-16 | integration | tests/skills/test-aai-metrics.sh | a work_item_closed followed by a doc_lifecycle from done is refused naming the re-open and writes nothing, and a later re-close is releasable | sed:s/if \(closeSupersededByReopen\(eventsPath, ref\)\) \{/if (false) {/ | green |
+| TEST-1744 | Spec-AC-16 | integration | tests/skills/test-aai-orchestration-dispatch.sh | dispatch over a reopen-superseded close (row absent, and row with a run) reports the superseded flag true and never returns rule 4b or either 4b reason | sed:s/s\.close_event_present === true\n        && s\.close_event_superseded_by_reopen !== true/s.close_event_present === true/ | green |
+| TEST-1745 | Spec-AC-17 | integration | tests/skills/test-aai-metrics.sh | --release with --ref and with --sweep each exit 2 naming mutual exclusion and write nothing | sed:s/opts\.release !== null && \(opts\.ref/false && (opts.ref/ | green |
 
 Test status values: pending -> red -> green
 
@@ -420,7 +468,10 @@ it is not, and this scope does not need to close it.
   unflushable closed focus REPORTS `needs_llm` and waits for the remedy to be
   run; it does not self-heal. That is the intake's own constraint
   (report-and-refuse over auto-repair) and the cost is one human or
-  orchestrator step per occurrence.
+  human step per occurrence. The `needs_llm` reason is not in the orchestration
+  prompt's named-reasons list, so the LLM orchestrator reports and stops
+  (precedent: `closed_focus_stale_state`); the owner or a human runs the
+  printed command.
 - RR-2. A released ride is absent from `docs/ai/METRICS.jsonl` forever, so the
   factory report never counts it. This is an accepted, disclosed telemetry loss
   — the alternative is a fabricated reliability record — and the

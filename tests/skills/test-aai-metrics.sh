@@ -3492,7 +3492,7 @@ test_151_shrink_advice_is_reappend() {  # TEST-151 / Spec-AC-20
   log_pass "Shrink advice names the re-append remedy and the missing count; no git restore/checkout/reset instruction anywhere (TEST-151)"
 }
 
-# --- done-work-item-stays-in-current-focus: --release (TEST-1382..1392, 1397, 1398) ----
+# --- done-work-item-stays-in-current-focus: --release (TEST-1382..1392, 1397, 1398, 1741..1743, 1745) ----
 # A closed ride with no flushable telemetry gets a sanctioned exit. Every
 # fixture is a scratch temp-dir repo driven through the path-injection flags.
 
@@ -3500,11 +3500,12 @@ test_151_shrink_advice_is_reappend() {  # TEST-151 / Spec-AC-20
 # release arms. Keys: focus=<ref>|none (default: <ref>), status=done|in_progress|
 # absent (the ref's active_work_items entry; default done), row=none|empty|runs
 # (the ref's metrics.work_items row: absent | agent_runs [] | one run; default
-# none), vstatus=<s> vref=<r> (last_validation), other=yes (adds an in-flight
+# none), vstatus=<s> vref=<r> (last_validation), cstatus=<s> cref=<r>
+# (code_review.status and scope_ref_id), other=yes (adds an in-flight
 # OTHER-0002 active item). An unrelated UNREL-0001 metrics row is ALWAYS
 # present, as in the measured wedge.
 write_release_state() {
-  local f="$1" ref="$2" focus status="done" row="none" vstatus="not_run" vref="null" other="no" kv
+  local f="$1" ref="$2" focus status="done" row="none" vstatus="not_run" vref="null" cstatus="not_run" cref="null" other="no" kv
   shift 2
   focus="$ref"
   for kv in "$@"; do
@@ -3514,6 +3515,8 @@ write_release_state() {
       row=*) row="${kv#row=}" ;;
       vstatus=*) vstatus="${kv#vstatus=}" ;;
       vref=*) vref="${kv#vref=}" ;;
+      cstatus=*) cstatus="${kv#cstatus=}" ;;
+      cref=*) cref="${kv#cref=}" ;;
       other=*) other="${kv#other=}" ;;
       *) log_fail "write_release_state: unknown option $kv" ;;
     esac
@@ -3562,13 +3565,14 @@ worktree:
   rationale: null
 code_review:
   required: false
-  status: not_run
+  status: $cstatus
   scope: null
   base_ref: main
   head_ref: null
   pr: null
   report_paths: []
   notes: null
+  scope_ref_id: $cref
 last_validation:
   status: $vstatus
   run_at_utc: null
@@ -3807,17 +3811,19 @@ test_1389_release_refuses_flushable_runs() {  # TEST-1389 (Spec-AC-05)
   log_pass "The truth gate is not bypassable through --release when runs exist (TEST-1389)"
 }
 
-test_1390_release_refuses_validation_pass() {  # TEST-1390 (Spec-AC-05)
-  log_info "Test: --release is refused when last_validation passes naming the ref, even with the row absent (TEST-1390)..."
-  local d
-  d="$(release_fixture t1390 vstatus=pass vref=WEDGE-0001)"
-  snapshot_release_files "$d"
-  run_flush_split "$d" --release WEDGE-0001
-  [[ "$EC" == 1 ]] || log_fail "TEST-1390: a validation pass naming the ref must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
-  assert_payload_contains "$(cat "$SERR")" "would flush" "TEST-1390: refusal must say the ref would flush"
-  assert_payload_contains "$(cat "$SERR")" "last_validation" "TEST-1390: refusal must name last_validation"
-  assert_release_unchanged "$d" "TEST-1390 validation pass"
-  log_pass "The default gate is not bypassable through --release (TEST-1390)"
+test_1390_release_ignores_validation_pass_without_runs() {  # TEST-1390 (Spec-AC-05)
+  log_info "Test: --release succeeds for a zero-run ref even when last_validation passes naming it, because the default gate never flushes a zero-run ref (TEST-1390)..."
+  local d row
+  for row in none empty; do
+    d="$(release_fixture "t1390-$row" "row=$row" vstatus=pass vref=WEDGE-0001)"
+    snapshot_release_files "$d"
+    run_flush_split "$d" --release WEDGE-0001
+    [[ "$EC" == 0 ]] || log_fail "TEST-1390: ($row) a validation pass naming a zero-run ref must not block release (got $EC): $(cat "$SOUT" "$SERR")"
+    [[ "$(grep -cF 'WEDGE-0001' "$d/docs/ai/STATE.yaml" || true)" == 0 ]] \
+      || log_fail "TEST-1390: ($row) the released ref must leave STATE: $(cat "$d/docs/ai/STATE.yaml")"
+    cmp -s "$d/docs/ai/METRICS.jsonl" "$d/metrics.before" || log_fail "TEST-1390: ($row) METRICS.jsonl must stay byte-identical"
+  done
+  log_pass "A zero-run ref is releasable whatever last_validation says (TEST-1390)"
 }
 
 test_1391_release_builds_no_ledger_entry() {  # TEST-1391 (Spec-AC-06)
@@ -3854,13 +3860,12 @@ test_1392_release_dry_run_writes_nothing() {  # TEST-1392 (Spec-AC-07)
   assert_release_unchanged "$d" "TEST-1392 dry run"
   # Every refusal arm still refuses under --dry-run.
   local arm
-  for arm in "noevent" "inprogress" "absent" "runs" "vpass"; do
+  for arm in "noevent" "inprogress" "absent" "runs"; do
     case "$arm" in
       noevent) d="$(release_fixture t1392x1)"; : > "$d/docs/ai/EVENTS.jsonl" ;;
       inprogress) d="$(release_fixture t1392x2 status=in_progress)" ;;
       absent) d="$(release_fixture t1392x3 status=absent)" ;;
       runs) d="$(release_fixture t1392x4 row=runs)" ;;
-      vpass) d="$(release_fixture t1392x5 vstatus=pass vref=WEDGE-0001)" ;;
     esac
     snapshot_release_files "$d"
     run_flush_split "$d" --release WEDGE-0001 --dry-run
@@ -3868,6 +3873,102 @@ test_1392_release_dry_run_writes_nothing() {  # TEST-1392 (Spec-AC-07)
     assert_release_unchanged "$d" "TEST-1392 dry-run $arm arm"
   done
   log_pass "A dry run is never a preview of a bypass (TEST-1392)"
+}
+
+test_1741_release_reset_is_surgical() {  # TEST-1741 (Spec-AC-14)
+  log_info "Test: with other work in flight a release resets only the verdict blocks that name the released ref, and says release not flush (TEST-1741)..."
+  local d
+  blk() {  # $1 file $2 block name — print the top-level block verbatim
+    node -e '
+      const t = require("fs").readFileSync(process.argv[1], "utf8");
+      const m = t.match(new RegExp("^" + process.argv[2] + ":\\n(?:[ ].*\\n)+", "m"));
+      process.stdout.write(m ? m[0] : "");
+    ' "$1" "$2"
+  }
+  # (a) another ride's passing verdicts must survive byte-for-byte.
+  d="$(release_fixture t1741a other=yes vstatus=pass vref=OTHER-0002 cstatus=pass cref=OTHER-0002)"
+  blk "$d/docs/ai/STATE.yaml" last_validation > "$d/v.before"
+  blk "$d/docs/ai/STATE.yaml" code_review > "$d/c.before"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1741: (a) release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  blk "$d/docs/ai/STATE.yaml" last_validation > "$d/v.after"
+  blk "$d/docs/ai/STATE.yaml" code_review > "$d/c.after"
+  cmp -s "$d/v.before" "$d/v.after" || log_fail "TEST-1741: (a) another ride's last_validation must be untouched: $(cat "$d/v.after")"
+  cmp -s "$d/c.before" "$d/c.after" || log_fail "TEST-1741: (a) another ride's code_review must be untouched: $(cat "$d/c.after")"
+  [[ "$(grep -cF 'reset after flush' "$d/docs/ai/STATE.yaml" || true)" == 0 ]] \
+    || log_fail "TEST-1741: (a) no misleading 'reset after flush' note may be written"
+  # (b) blocks naming the released ref are reset, worded as a release.
+  d="$(release_fixture t1741b other=yes vstatus=pass vref=WEDGE-0001 cstatus=pass cref=WEDGE-0001)"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1741: (b) release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  blk "$d/docs/ai/STATE.yaml" last_validation > "$d/blk.out"; grep -qE '^  status: not_run$' "$d/blk.out" || log_fail "TEST-1741: (b) last_validation naming the ref must reset to not_run"
+  blk "$d/docs/ai/STATE.yaml" code_review > "$d/blk.out"; grep -qE '^  status: not_run$' "$d/blk.out" || log_fail "TEST-1741: (b) code_review naming the ref must reset to not_run"
+  grep -qF 'reset after release of WEDGE-0001' "$d/docs/ai/STATE.yaml" || log_fail "TEST-1741: (b) the note must say release: $(cat "$d/docs/ai/STATE.yaml")"
+  [[ "$(grep -cF 'reset after flush' "$d/docs/ai/STATE.yaml" || true)" == 0 ]] \
+    || log_fail "TEST-1741: (b) no 'reset after flush' note may be written"
+  # (c) mixed: last_validation names the ref, code_review names another ride.
+  d="$(release_fixture t1741c other=yes vstatus=pass vref=WEDGE-0001 cstatus=pass cref=OTHER-0002)"
+  blk "$d/docs/ai/STATE.yaml" code_review > "$d/c.before"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1741: (c) release must exit 0 (got $EC): $(cat "$SOUT" "$SERR")"
+  blk "$d/docs/ai/STATE.yaml" last_validation > "$d/blk.out"; grep -qE '^  status: not_run$' "$d/blk.out" || log_fail "TEST-1741: (c) last_validation naming the ref must reset"
+  blk "$d/docs/ai/STATE.yaml" code_review > "$d/c.after"
+  cmp -s "$d/c.before" "$d/c.after" || log_fail "TEST-1741: (c) a code_review naming another ride must be untouched"
+  log_pass "A release touches only what belongs to the released ref (TEST-1741)"
+}
+
+test_1742_release_refuses_fail_verdict() {  # TEST-1742 (Spec-AC-15)
+  log_info "Test: --release refuses an incomplete close when a fail verdict names the ref; a fail naming another ride does not block (TEST-1742)..."
+  local d arm
+  for arm in vfail cfail; do
+    case "$arm" in
+      vfail) d="$(release_fixture "t1742-$arm" vstatus=fail vref=WEDGE-0001)" ;;
+      cfail) d="$(release_fixture "t1742-$arm" cstatus=fail cref=WEDGE-0001)" ;;
+    esac
+    snapshot_release_files "$d"
+    run_flush_split "$d" --release WEDGE-0001
+    [[ "$EC" == 1 ]] || log_fail "TEST-1742: ($arm) a fail verdict naming the ref must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+    assert_payload_contains "$(cat "$SERR")" "fail" "TEST-1742: ($arm) refusal must name the fail verdict"
+    assert_release_unchanged "$d" "TEST-1742 $arm"
+    run_flush_split "$d" --release WEDGE-0001 --dry-run
+    [[ "$EC" == 1 ]] || log_fail "TEST-1742: ($arm) dry-run must refuse too (got $EC)"
+    assert_release_unchanged "$d" "TEST-1742 $arm dry-run"
+  done
+  d="$(release_fixture t1742-other other=yes vstatus=fail vref=OTHER-0002)"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1742: a fail naming another ride must not block (got $EC): $(cat "$SOUT" "$SERR")"
+  log_pass "A fail verdict naming the ref is never erased by a release (TEST-1742)"
+}
+
+test_1743_release_refuses_reopened_close() {  # TEST-1743 (Spec-AC-16)
+  log_info "Test: --release refuses a close superseded by a later re-open from done; a re-close makes it releasable (TEST-1743)..."
+  local d
+  d="$(release_fixture t1743)"
+  printf '{"v":1,"ts":"2026-07-14T10:00:00Z","actor":"test","event":"doc_lifecycle","ref":"WEDGE-0001","payload":{"from":"done","to":"implementing"}}\n' >> "$d/docs/ai/EVENTS.jsonl"
+  snapshot_release_files "$d"
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 1 ]] || log_fail "TEST-1743: a reopen-superseded close must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
+  assert_payload_contains "$(cat "$SERR")" "re-open" "TEST-1743: refusal must name the re-open"
+  assert_release_unchanged "$d" "TEST-1743 reopened"
+  write_closed_event "$d/docs/ai/EVENTS.jsonl" WEDGE-0001 2026-07-14T11:00:00Z
+  run_flush_split "$d" --release WEDGE-0001
+  [[ "$EC" == 0 ]] || log_fail "TEST-1743: a close recorded after the re-open must be releasable (got $EC): $(cat "$SOUT" "$SERR")"
+  log_pass "A superseded close does not count as closed (TEST-1743)"
+}
+
+test_1745_release_flag_conflicts() {  # TEST-1745 (Spec-AC-17)
+  log_info "Test: --release combined with --ref or --sweep is a usage error, exit 2, nothing written (TEST-1745)..."
+  local d extra
+  d="$(release_fixture t1745)"
+  snapshot_release_files "$d"
+  for extra in "--ref WEDGE-0001" "--sweep"; do
+    # shellcheck disable=SC2086
+    run_flush_split "$d" --release WEDGE-0001 $extra
+    [[ "$EC" == 2 ]] || log_fail "TEST-1745: --release $extra must exit 2 (got $EC): $(cat "$SOUT" "$SERR")"
+    assert_payload_contains "$(cat "$SERR")" "mutually exclusive" "TEST-1745: refusal must say the flags are mutually exclusive"
+    assert_release_unchanged "$d" "TEST-1745 $extra"
+  done
+  log_pass "--release does not silently ignore --ref or --sweep (TEST-1745)"
 }
 
 test_1397_retire_names_release() {  # TEST-1397 (Spec-AC-12)
@@ -3984,11 +4085,15 @@ main() {
   test_1387_release_requires_closed_event
   test_1388_release_requires_done_item
   test_1389_release_refuses_flushable_runs
-  test_1390_release_refuses_validation_pass
+  test_1390_release_ignores_validation_pass_without_runs
   test_1391_release_builds_no_ledger_entry
   test_1392_release_dry_run_writes_nothing
   test_1397_retire_names_release
   test_1398_release_records_absence
+  test_1741_release_reset_is_surgical
+  test_1742_release_refuses_fail_verdict
+  test_1743_release_refuses_reopened_close
+  test_1745_release_flag_conflicts
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

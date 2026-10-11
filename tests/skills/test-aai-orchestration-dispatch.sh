@@ -4764,17 +4764,18 @@ test_192_stale_strategy_is_undecided() {  # SPEC-0192 TEST-005 / Spec-AC-04
   log_pass "leftover untested with disagreeing ref_id yields rule 7 Planning (SPEC-0192 TEST-005)"
 }
 
-# --- done-work-item-stays-in-current-focus: rule 4b precondition (TEST-1393..1396) ----
+# --- done-work-item-stays-in-current-focus: rule 4b precondition (TEST-1393..1396, 1740, 1744) ----
 # A closed focus with no flushable telemetry must not be dispatched to a role
 # that cannot act; it reports needs_llm naming the sanctioned exit instead.
 
-# unflushable_fixture <name> <row> — a closed focus (done work item, committed
+# unflushable_fixture <name> <row> [vstatus] — a closed focus (done work item, committed
 # work_item_closed event, nothing in METRICS.jsonl) whose metrics row is
-# row=none (absent) | empty (agent_runs: []) | runs (one agent_run).
+# row=none (absent) | empty (agent_runs: []) | runs (one agent_run); vstatus
+# (default not_run) is last_validation.status, naming the focus ref.
 unflushable_fixture() {
   local d
   d="$(mk_root "$1")"
-  write_dstate "$d/docs/ai/STATE.yaml" not_run not_run validation done tdd optional inline CHANGE-0001 false
+  write_dstate "$d/docs/ai/STATE.yaml" "${3:-not_run}" not_run validation done tdd optional inline CHANGE-0001 false
   printf '{"v":1,"ts":"2026-07-01T00:00:00Z","actor":"fixture","event":"work_item_closed","ref":"CHANGE-0001","payload":{"validation":"pass","code_review":"none"}}\n' \
     > "$d/docs/ai/EVENTS.jsonl"
   case "$2" in
@@ -4851,6 +4852,53 @@ test_1396_release_then_dispatch_seam() {  # TEST-1396 (Spec-AC-11)
   log_pass "The wedge is gone rather than masked: release then dispatch leaves rule 4b (TEST-1396)"
 }
 
+test_1740_named_remedy_succeeds_seam() {  # TEST-1740 (Spec-AC-13)
+  log_info "Test: seam — every rule-4b needs_llm fixture, including last_validation pass naming the focus, prints a remedy that exits 0 and leaves rule 4b (TEST-1740)..."
+  local d shape vs cmdline ref why
+  for vs in not_run pass; do
+    for shape in none empty; do
+      d="$(unflushable_fixture "TEST-1740-$vs-$shape" "$shape" "$vs")"
+      run_dispatch "$d"
+      [[ "$EC" == 4 ]] || log_fail "TEST-1740: ($vs/$shape) precondition: needs_llm exit 4 (got $EC): $(cat "$OUT" "$ERR")"
+      jassert "$OUT" 'o.rule === "4b"'
+      cmdline="$(node -e '
+        const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+        const r = o.reasons.find(x => typeof x === "string" && x.includes("metrics-flush.mjs --release"));
+        const m = r && r.match(/node \.aai\/scripts\/metrics-flush\.mjs --release (\S+) --reason "([^"]*)"$/);
+        if (!m) { console.error("no runnable remedy in reasons"); process.exit(1); }
+        process.stdout.write(m[1] + "\t" + m[2]);
+      ' "$OUT")" || log_fail "TEST-1740: ($vs/$shape) dispatch must print a runnable --release command: $(cat "$OUT")"
+      ref="${cmdline%%$'\t'*}"
+      why="${cmdline#*$'\t'}"
+      : > "$d/docs/ai/METRICS.jsonl"
+      (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
+        --state "$d/docs/ai/STATE.yaml" --metrics "$d/docs/ai/METRICS.jsonl" \
+        --events "$d/docs/ai/EVENTS.jsonl" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
+        --pricing "$PROJECT_ROOT/.aai/system/PRICING.yaml" \
+        --release "$ref" --reason "$why" > "$d/release-out.log" 2>&1) \
+        || log_fail "TEST-1740: ($vs/$shape) the command dispatch prints must succeed: $(cat "$d/release-out.log")"
+      run_dispatch "$d" || true
+      jassert "$OUT" 'o.rule !== "4b"'
+    done
+  done
+  log_pass "The remedy dispatch names always acts, so the wedge cannot persist (TEST-1740)"
+}
+
+test_1744_reopened_close_is_not_closed() {  # TEST-1744 (Spec-AC-16)
+  log_info "Test: a close superseded by a later re-open from done is not routed to rule 4b (TEST-1744)..."
+  local d shape
+  for shape in none runs; do
+    d="$(unflushable_fixture "TEST-1744-$shape" "$shape")"
+    printf '{"v":1,"ts":"2026-07-02T00:00:00Z","actor":"fixture","event":"doc_lifecycle","ref":"CHANGE-0001","payload":{"from":"done","to":"implementing"}}\n' \
+      >> "$d/docs/ai/EVENTS.jsonl"
+    run_dispatch "$d" || true
+    jassert "$OUT" 'o.state_summary.close_event_superseded_by_reopen === true'
+    jassert "$OUT" 'o.rule !== "4b"'
+    jassert "$OUT" '!o.reasons.includes("closed_but_unflushed_focus") && !o.reasons.includes("closed_focus_unflushable_no_flushable_metrics")'
+  done
+  log_pass "A reopen-superseded close never reaches the closed-but-unflushed arm (TEST-1744)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026 + harness-universal-routing TEST-048..058/060 (TEST-059 lives in test-aai-layer-profiles.sh); TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -4924,6 +4972,8 @@ main() {
   test_1394_rule_4b_flushable_still_dispatches
   test_1395_snapshot_reports_real_run_count
   test_1396_release_then_dispatch_seam
+  test_1740_named_remedy_succeeds_seam
+  test_1744_reopened_close_is_not_closed
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
