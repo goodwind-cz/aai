@@ -10,7 +10,7 @@ links:
   requirement: merge-cleanup-delete-remote-branch
   rfc: null
   pr:
-    - TBD
+    - 454
   commits:
     - 61a314b513af2683f7e2fac568c6a124b821fbf9
 ---
