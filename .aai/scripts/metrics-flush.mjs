@@ -1184,6 +1184,22 @@ function handleRelease(ctx) {
   const releaseLedgerEntries = [];
 
   const releasingFocus = focusRef === ref;
+  // 4b) The full-reset branch (no other non-done work) zeroes BOTH verdict
+  // blocks. A fail verdict that does not name the ref is not this release's to
+  // erase (Spec-AC-19): refuse before any write, dry-run included.
+  if (releasingFocus) {
+    const remainingNow = parseWorkItems(origLines).items.filter(it => it.ref_id !== ref);
+    if (remainingNow.every(it => it.status === 'done')) {
+      if (vStatus === 'fail') {
+        fail(`release refused: last_validation.status is fail (ref_id ${vRef === null ? 'null' : `"${vRef}"`}) and a release of "${ref}" would reset it — `
+          + 'a release never erases a fail verdict it does not own; remediate and re-validate it first', 1);
+      }
+      if (rStatusNow === 'fail') {
+        fail(`release refused: code_review.status is fail (scope_ref_id ${scalarOrNull(readScalar(origLines, 'code_review', 'scope_ref_id')) ?? 'null'}) and a release of "${ref}" would reset it — `
+          + 'a release never erases a fail verdict it does not own; remediate and re-review it first', 1);
+      }
+    }
+  }
   if (opts.dryRun) {
     console.log(JSON.stringify({
       dry_run: true,

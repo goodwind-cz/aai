@@ -3929,6 +3929,7 @@ test_1742_release_refuses_fail_verdict() {  # TEST-1742 (Spec-AC-15)
     run_flush_split "$d" --release WEDGE-0001
     [[ "$EC" == 1 ]] || log_fail "TEST-1742: ($arm) a fail verdict naming the ref must exit 1 (got $EC): $(cat "$SOUT" "$SERR")"
     assert_payload_contains "$(cat "$SERR")" "fail" "TEST-1742: ($arm) refusal must name the fail verdict"
+    assert_payload_contains "$(cat "$SERR")" "an incomplete close" "TEST-1742: ($arm) a fail verdict naming the ref is refused as an incomplete close"
     assert_release_unchanged "$d" "TEST-1742 $arm"
     run_flush_split "$d" --release WEDGE-0001 --dry-run
     [[ "$EC" == 1 ]] || log_fail "TEST-1742: ($arm) dry-run must refuse too (got $EC)"
@@ -3938,6 +3939,27 @@ test_1742_release_refuses_fail_verdict() {  # TEST-1742 (Spec-AC-15)
   run_flush_split "$d" --release WEDGE-0001
   [[ "$EC" == 0 ]] || log_fail "TEST-1742: a fail naming another ride must not block (got $EC): $(cat "$SOUT" "$SERR")"
   log_pass "A fail verdict naming the ref is never erased by a release (TEST-1742)"
+}
+
+test_1747_full_reset_keeps_unowned_fail() {  # TEST-1747 (Spec-AC-19)
+  log_info "Test: --release refuses on the full-reset branch when a fail verdict that does not name the ref would be erased (TEST-1747)..."
+  local d arm
+  for arm in vfail-other vfail-null cfail-null; do
+    case "$arm" in
+      vfail-other) d="$(release_fixture "t1747-$arm" vstatus=fail vref=OTHER-0002)" ;;
+      vfail-null) d="$(release_fixture "t1747-$arm" vstatus=fail vref=null)" ;;
+      cfail-null) d="$(release_fixture "t1747-$arm" cstatus=fail cref=null)" ;;
+    esac
+    snapshot_release_files "$d"
+    run_flush_split "$d" --release WEDGE-0001
+    [[ "$EC" == 1 ]] || log_fail "TEST-1747: ($arm) an unowned fail verdict must refuse (got $EC): $(cat "$SOUT" "$SERR")"
+    assert_payload_contains "$(cat "$SERR")" "fail" "TEST-1747: ($arm) refusal must name the fail verdict"
+    assert_release_unchanged "$d" "TEST-1747 $arm"
+    run_flush_split "$d" --release WEDGE-0001 --dry-run
+    [[ "$EC" == 1 ]] || log_fail "TEST-1747: ($arm) dry-run must refuse too (got $EC)"
+    assert_release_unchanged "$d" "TEST-1747 $arm dry-run"
+  done
+  log_pass "A release never erases a fail verdict it does not own (TEST-1747)"
 }
 
 test_1743_release_refuses_reopened_close() {  # TEST-1743 (Spec-AC-16)
@@ -4092,6 +4114,7 @@ main() {
   test_1398_release_records_absence
   test_1741_release_reset_is_surgical
   test_1742_release_refuses_fail_verdict
+  test_1747_full_reset_keeps_unowned_fail
   test_1743_release_refuses_reopened_close
   test_1745_release_flag_conflicts
   echo ""

@@ -4884,6 +4884,35 @@ test_1740_named_remedy_succeeds_seam() {  # TEST-1740 (Spec-AC-13)
   log_pass "The remedy dispatch names always acts, so the wedge cannot persist (TEST-1740)"
 }
 
+test_1746_item_absent_remedy_succeeds_seam() {  # TEST-1746 (Spec-AC-18)
+  log_info "Test: seam — a closed focus whose work item is absent from active_work_items prints a remedy that exits 0 and leaves rule 4b (TEST-1746)..."
+  local d shape vs cmdline ref
+  for vs in not_run pass; do
+    for shape in none empty; do
+      d="$(unflushable_fixture "TEST-1746-$vs-$shape" "$shape" "$vs")"
+      sed -i.bak 's/^  - ref_id: CHANGE-0001$/  - ref_id: CHANGE-0777/' "$d/docs/ai/STATE.yaml"
+      run_dispatch "$d"
+      [[ "$EC" == 4 ]] || log_fail "TEST-1746: ($vs/$shape) precondition: needs_llm exit 4 (got $EC): $(cat "$OUT" "$ERR")"
+      jassert "$OUT" 'o.rule === "4b"'
+      jassert "$OUT" 'o.reasons.includes("closed_focus_item_absent_no_flushable_metrics")'
+      jassert "$OUT" '!o.reasons.some(r => typeof r === "string" && r.includes("--release"))'
+      ref="$(node -e '
+        const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+        const r = o.reasons.find(x => typeof x === "string" && x.includes("state.mjs clear-focus"));
+        const m = r && r.match(/node \.aai\/scripts\/state\.mjs clear-focus --ref (\S+)$/);
+        if (!m) { console.error("no runnable remedy in reasons"); process.exit(1); }
+        process.stdout.write(m[1]);
+      ' "$OUT")" || log_fail "TEST-1746: ($vs/$shape) dispatch must print a runnable clear-focus command: $(cat "$OUT")"
+      (cd "$PROJECT_ROOT" && env -u AAI_ROLE node .aai/scripts/state.mjs --state "$d/docs/ai/STATE.yaml" \
+        clear-focus --ref "$ref" > "$d/clear-out.log" 2>&1) \
+        || log_fail "TEST-1746: ($vs/$shape) the command dispatch prints must succeed: $(cat "$d/clear-out.log")"
+      run_dispatch "$d" || true
+      jassert "$OUT" 'o.rule !== "4b"'
+    done
+  done
+  log_pass "An item-absent closed focus is never given a remedy that refuses (TEST-1746)"
+}
+
 test_1744_reopened_close_is_not_closed() {  # TEST-1744 (Spec-AC-16)
   log_info "Test: a close superseded by a later re-open from done is not routed to rule 4b (TEST-1744)..."
   local d shape
@@ -4973,6 +5002,7 @@ main() {
   test_1395_snapshot_reports_real_run_count
   test_1396_release_then_dispatch_seam
   test_1740_named_remedy_succeeds_seam
+  test_1746_item_absent_remedy_succeeds_seam
   test_1744_reopened_close_is_not_closed
   echo ""
   log_pass "All $TEST_NAME tests passed"

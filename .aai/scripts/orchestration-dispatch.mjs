@@ -262,6 +262,7 @@ function noAction(rule, snapshot, reasons) {
 }
 
 const UNFLUSHABLE_REASON = 'closed_focus_unflushable_no_flushable_metrics';
+const ITEM_ABSENT_REASON = 'closed_focus_item_absent_no_flushable_metrics';
 
 function needsLlm(snapshot, reasons, rule = null) {
   return {
@@ -473,6 +474,17 @@ function decideRuleTable(snapshot, opts = {}) {
       // exit instead of dispatching a role that cannot act. A legacy snapshot
       // without the field (undefined) never takes this arm.
       if (s.focus_flushable_runs < 1) {
+        if (s.focus_flushable_runs < 1 && s.work_item == null) {
+          // The focus has NO active_work_items entry, so `--release` (which
+          // refuses an item absent from active_work_items) cannot act. The
+          // committed close event already is the durable record; the only
+          // sanctioned exit is to null the focus. A detector and its printed
+          // remedy must agree (Spec-AC-18).
+          return needsLlm(s, [
+            ITEM_ABSENT_REASON,
+            `clear the closed focus (its work item is already gone from active_work_items; the committed close event is the durable record): node .aai/scripts/state.mjs clear-focus --ref ${s.focus.ref_id}`,
+          ], '4b');
+        }
         return needsLlm(s, [
           UNFLUSHABLE_REASON,
           `release the closed focus (no flushable telemetry; fail-closed on the close event): node .aai/scripts/metrics-flush.mjs --release ${s.focus.ref_id} --reason "<why>"`,
