@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-11T20:10:25.052Z",
+  "generatedAt": "2026-10-11T21:32:10.680Z",
   "project": "aai",
   "counts": {
     "delivered": 294,
@@ -271,7 +271,7 @@
       "token_total": 199682,
       "spec": "docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20261011T200510Z-done-work-item-stays-in-current-focus-r1.md"
+      "review": "docs/ai/reviews/review-20261011T210849Z-done-work-item-stays-in-current-focus-r2.md"
     },
     {
       "ref": "directed-merge-and-post-merge-cleanup",
@@ -4120,7 +4120,7 @@
           "token_total": 199682,
           "spec": "docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-20261011T200510Z-done-work-item-stays-in-current-focus-r1.md"
+          "review": "docs/ai/reviews/review-20261011T210849Z-done-work-item-stays-in-current-focus-r2.md"
         },
         {
           "ref": "directed-merge-and-post-merge-cleanup",
