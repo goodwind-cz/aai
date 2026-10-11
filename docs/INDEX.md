@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-11T15:40:22.337Z
+Generated: 2026-10-11T15:42:16.380Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -12,7 +12,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-merge-cleanup-ride-leftovers | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md |
+| SPEC-0223 | specs | implementing | 9 done | docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md |
 
 ## Canonical layer (0)
 
@@ -32,7 +32,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
 | configurable-merge-policy-lanes | configurable-merge-policy-lanes | 1 | docs/product/configurable-merge-policy-lanes.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
-| directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 4 | docs/product/directed-merge-and-post-merge-cleanup.md |
+| directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 5 | docs/product/directed-merge-and-post-merge-cleanup.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
@@ -587,7 +587,7 @@ _None._
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| merge-cleanup-ride-leftovers (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-merge-cleanup-ride-leftovers.md |
+| CHANGE-0210 | issues | docs/issues/CHANGE-0210-merge-cleanup-ride-leftovers.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

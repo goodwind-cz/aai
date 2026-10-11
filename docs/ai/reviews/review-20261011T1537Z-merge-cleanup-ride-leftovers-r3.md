@@ -1,7 +1,7 @@
 # Code review: merge-cleanup-ride-leftovers, round r3 (delta)
 
 - Ref: merge-cleanup-ride-leftovers.
-- Spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md (frozen_sha256 858367bf..., ceremony_level 2, 9 Spec-ACs).
+- Spec: docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md (frozen_sha256 858367bf..., ceremony_level 2, 9 Spec-ACs).
 - Scope: `git diff 8d959eec..04645431` in /Users/ales/Projects/aai-change-merge-cleanup-ride-leftovers, branch change/merge-cleanup-ride-leftovers. Files in the delta:
   - .aai/scripts/merge-cleanup.mjs: D8 reset record and resume scan, the once-per-archive done record, the movedFromManifest intent key, HELP.
   - tests/skills/test-aai-merge-cleanup.sh: TEST-053.
@@ -15,7 +15,7 @@
 ```yaml
 review:
   scope: 8d959eec..04645431 (worktree /Users/ales/Projects/aai-change-merge-cleanup-ride-leftovers)
-  spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md
+  spec: docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -32,7 +32,7 @@ review:
     verdict: pass
     findings:
       - { rank: NON-BLOCKING, file: .aai/scripts/merge-cleanup.mjs, line: 1045, issue: "The reset record is written after the ride file write. A crash between them leaves the moved intent open, and a later ride tail whose leading bytes equal the moved tail is then skipped as already moved and reset away (kept only in the archive). D8 step 5 says such a tail 'is appended, never skipped'. The residual paragraph names only the foreign-writer-at-mainLen case, so this window is undisclosed in the spec.", failure_scenario: "Validator probe_r3_crash.sh with the after-reset-write seam from make_eng.sh: crash rc 137, the identical EV1+EV2 is appended to the ride EVENTS again, the re-run exits 0 with EV1=1 and EV2=1 where 2 were written. With identical prefix + a first-time line M, the prefix is skipped and M appended. First-time lines alone are always appended; no crash point or pair double-appends (28 sequences). Fix: add the window to the D8 residual sentence, or trade the loss for a visible duplicate by journalling a pre-write 'resetting' record and retiring intents on resume when the ride file no longer equals the recorded tail." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md, line: 481, issue: "Risk R5 still describes the pre-intent behaviour: hand-copied lines 'are skipped only when the whole tail, or an earlier archived tail of this PR, already occurs at a line start'. D8 (since r2) says a hand-copied tail with no intent is appended again. Stale text that predates this delta.", failure_scenario: "A reader of the Risks section expects a hand-copied tail to be skipped; the engine appends it again (validator P6 shape). Documentation only." }
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md, line: 481, issue: "Risk R5 still describes the pre-intent behaviour: hand-copied lines 'are skipped only when the whole tail, or an earlier archived tail of this PR, already occurs at a line start'. D8 (since r2) says a hand-copied tail with no intent is appended again. Stale text that predates this delta.", failure_scenario: "A reader of the Risks section expects a hand-copied tail to be skipped; the engine appends it again (validator P6 shape). Documentation only." }
       - { rank: NON-BLOCKING, file: .aai/scripts/merge-cleanup.mjs, line: 1015, issue: "Informational, no change asked: journals written by this branch's own r1/r2 engines have no reset records, so the r2 skip (P7) persists for them (validator O2a) and the r1 shape duplicates (P6). No engine on main writes ledger-append records, so only local runs of this unmerged branch are exposed.", failure_scenario: "probe_r3_oldjournal.sh O2a: main 1 where 2 written after the reset records and intent keys are stripped." }
   cannot_verify:
     - { claim: "No live journal in the main checkout carries ledger-append records from this branch's earlier engines.", closes_with: "A read-only scan of /Users/ales/Projects/aai/docs/ai/archive/merge-cleanup/*/journal.jsonl for step ledger-append (out of bounds for this dispatch)." }

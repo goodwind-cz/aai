@@ -64,6 +64,8 @@ pairs:
     status: done
   - capability: merge-cleanup-delete-remote-branch
     status: done
+  - capability: merge-cleanup-ride-leftovers
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

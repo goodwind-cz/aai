@@ -1,7 +1,7 @@
 # Code review: merge-cleanup-ride-leftovers, round r1
 
 - Ref: merge-cleanup-ride-leftovers
-- Spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md (frozen, ceremony_level 2)
+- Spec: docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md (frozen, ceremony_level 2)
 - Scope: `git diff 6d12eb41..194cb494` in the worktree, branch change/merge-cleanup-ride-leftovers. Files: .aai/scripts/merge-cleanup.mjs, tests/skills/test-aai-merge-cleanup.sh, docs/INDEX.md, the CHANGE draft and the SPEC draft.
 - Validation input: docs/ai/validation/VALIDATION-20261011T1426Z-merge-cleanup-ride-leftovers-r1.md (PASS, NB-1 to NB-4).
 - Reviewer: claude-opus-5-5. Independent context, read-only.
@@ -11,7 +11,7 @@
 ```yaml
 review:
   scope: 6d12eb41..194cb494 (worktree /Users/ales/Projects/aai-change-merge-cleanup-ride-leftovers)
-  spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md
+  spec: docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md
   spec_compliance:
     verdict: pass
     ac_walk:

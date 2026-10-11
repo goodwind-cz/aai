@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-11T12:27:04.741Z",
+  "generatedAt": "2026-10-11T15:40:51.085Z",
   "project": "aai",
   "counts": {
     "delivered": 292,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 75743724
   },
@@ -49,6 +49,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "merge-cleanup-ride-leftovers",
+      "title": "/aai-merge cleanup handles the ride's own leftovers instead of refusing",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0210-merge-cleanup-ride-leftovers.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261011T1537Z-merge-cleanup-ride-leftovers-r3.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -232,7 +245,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20261011T1224Z-merge-cleanup-delete-remote-branch-r2.md"
+      "review": "docs/ai/reviews/review-20261011T1308Z-merge-cleanup-delete-remote-branch-r3.md"
     },
     {
       "ref": "merge-cleanup-submodule-worktree",
@@ -4055,7 +4068,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-20261011T1224Z-merge-cleanup-delete-remote-branch-r2.md"
+          "review": "docs/ai/reviews/review-20261011T1308Z-merge-cleanup-delete-remote-branch-r3.md"
         },
         {
           "ref": "merge-cleanup-submodule-worktree",

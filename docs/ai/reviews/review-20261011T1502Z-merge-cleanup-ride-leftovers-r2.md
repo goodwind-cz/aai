@@ -1,7 +1,7 @@
 # Code review: merge-cleanup-ride-leftovers, round r2 (delta)
 
 - Ref: merge-cleanup-ride-leftovers
-- Spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md (frozen_sha256 e6af583b..., ceremony_level 2, now 8 Spec-ACs)
+- Spec: docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md (frozen_sha256 e6af583b..., ceremony_level 2, now 8 Spec-ACs)
 - Scope: `git diff 194cb494..8d959eec` in the worktree /Users/ales/Projects/aai-change-merge-cleanup-ride-leftovers, branch change/merge-cleanup-ride-leftovers. Files: .aai/scripts/merge-cleanup.mjs (D8 intent journal, D10 moved count, D12 child exit, HELP), tests/skills/test-aai-merge-cleanup.sh (TEST-051/052, variant FIXTURE_CHILD_EXIT), the spec (D8/D10/D12 text, Spec-AC-07/08, TEST-051/052 rows, TEST-004 disclosure), docs/INDEX.md, and the r1 review report. The r1 surface (6d12eb41..194cb494) was reviewed in r1 and is in scope here only where the delta touches it.
 - Validation input: docs/ai/validation/VALIDATION-20261011T1502Z-merge-cleanup-ride-leftovers-r2.md (same round, PASS, NB-r2-1..4).
 - Reviewer: claude-opus-5-5. Independent context, read-only. Implementer: claude-sonnet-5-5.
@@ -10,7 +10,7 @@
 ```yaml
 review:
   scope: 194cb494..8d959eec (worktree /Users/ales/Projects/aai-change-merge-cleanup-ride-leftovers)
-  spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-ride-leftovers.md
+  spec: docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md
   spec_compliance:
     verdict: pass
     ac_walk:

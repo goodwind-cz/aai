@@ -22,6 +22,12 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: /aai-merge cleans up the ride's own leftovers instead of refusing (merge-cleanup-ride-leftovers)
+
+- A main-checkout `roadmap.yaml` change that touches only the merged ride's own entry (written by `/aai-ship`'s ship-append) is archived and the merged file taken, instead of `REFUSE overlap`. Any other local roadmap change still refuses.
+- A ride worktree that differs from its HEAD only by lines appended to append-only ledgers (`test-runs.jsonl`, `EVENTS.jsonl`, `decisions.jsonl`) no longer refuses `worktree_dirty`. The lines move byte-exact to the main checkout's ledgers through a journaled append intent, are archived, and the worktree is removed. Any other edit still refuses.
+- When the merged pull request changes `merge-cleanup.mjs` itself, apply re-executes the new engine once after the base sync, so its new steps run in the same invocation. A failing child stops with `STOPPED reexec_child_exit_<n|signal>` (exit 4).
+
 ## [unreleased] — feat: /aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check (merge-cleanup-delete-remote-branch)
 
 - `merge-cleanup.mjs apply` gains a `delete-remote-branch` step: it deletes the merged pull request's head branch on origin by compare-and-swap (`--force-with-lease` against the merged head), so the owner no longer runs `git push origin --delete` by hand.
