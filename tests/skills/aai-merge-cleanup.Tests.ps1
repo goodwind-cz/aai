@@ -89,7 +89,7 @@ Describe 'merge cleanup PowerShell parity' {
     $script:Mc = (& git -C $Bare commit-tree $tree -p $main0 -m "foo (#$Pr)").Trim()
     Assert-Native git @('-C', $Bare, 'update-ref', 'refs/heads/main', $Mc)
 
-    $prJson = "{`"number`":$Pr,`"state`":`"MERGED`",`"isDraft`":false,`"headRefOid`":`"$HeadOid`",`"headRefName`":`"$Branch`",`"baseRefName`":`"main`",`"mergeStateStatus`":`"UNKNOWN`",`"statusCheckRollup`":[],`"mergeCommit`":{`"oid`":`"$Mc`"},`"url`":`"https://github.com/example/repo/pull/$Pr`"}`n"
+    $prJson = "{`"number`":$Pr,`"state`":`"MERGED`",`"isDraft`":false,`"headRefOid`":`"$HeadOid`",`"headRefName`":`"$Branch`",`"baseRefName`":`"main`",`"mergeStateStatus`":`"UNKNOWN`",`"statusCheckRollup`":[],`"mergeCommit`":{`"oid`":`"$Mc`"},`"isCrossRepository`":false,`"url`":`"https://github.com/example/repo/pull/$Pr`"}`n"
     Write-Text (Join-Path $Ghd "pr-$Pr.json") $prJson
     $script:GhStub = Join-Path $Ghd 'gh-stub.js'
     Write-Text $GhStub @'
@@ -98,7 +98,7 @@ const dir = process.env.GH_STUB_DIR;
 if (!dir) { console.error('STUB-DENY: GH_STUB_DIR unset'); process.exit(1); }
 const a = process.argv.slice(2);
 fs.appendFileSync(path.join(dir, 'gh-argv.log'), a.join(' ') + '\n');
-const fields = 'number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url';
+const fields = 'number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url,isCrossRepository';
 if (a.length === 5 && a[0] === 'pr' && a[1] === 'view' && /^[0-9]+$/.test(a[2]) && a[3] === '--json' && a[4] === fields) {
   const p = path.join(dir, 'pr-' + a[2] + '.json');
   if (fs.existsSync(p)) { process.stdout.write(fs.readFileSync(p)); process.exit(0); }
@@ -175,6 +175,10 @@ process.exit(1);
     (Test-Path -LiteralPath (Join-Path $Origin 'docs/specs/SPEC-DRAFT-spec-foo.md')) | Should -BeFalse
     (Get-Content -LiteralPath (Join-Path $Origin "docs/ai/archive/merge-cleanup/pr-$Pr/manifest.jsonl")).Count | Should -Be 2
     (& git -C $Origin rev-parse HEAD).Trim() | Should -Be $Mc
+    # spec-merge-cleanup-delete-remote-branch D9/D10: the merged remote branch is gone and the block cleared the variable
+    & git -C $Bare show-ref --verify -q "refs/heads/$Branch" 2>$null
+    $LASTEXITCODE | Should -Not -Be 0
+    $env:AAI_GIT_WRITE | Should -BeNullOrEmpty
     $log = [IO.File]::ReadAllText((Join-Path $Ghd 'gh-argv.log'))
     $log | Should -Match "pr view $Pr --json"
     $log | Should -Not -Match 'pr merge'

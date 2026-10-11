@@ -992,7 +992,11 @@ test_012_growth_sum_matches_ledger() {
   # (+339 B: SKILL_MERGE.prompt.md 3611 -> 3950, relay the cleanup blocked: and
   # REFUSE/STOPPED lines verbatim, never finish a step by hand); zero headroom
   # standing, credited 1:1 (ledger key merge-cleanup-submodule-worktree).
-  local want_growth=60907
+  # Then 60907 -> 61186: merge-cleanup-delete-remote-branch Spec-AC-07 / D10
+  # (+279 B: SKILL_MERGE.prompt.md 3950 -> 4229, run the block unwrapped, remote
+  # branch deleted by lease or relayed, $env:AAI_GIT_WRITE = $null); zero headroom
+  # standing, credited 1:1 (ledger key merge-cleanup-delete-remote-branch).
+  local want_growth=61186
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
