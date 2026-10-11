@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 858367bfb1342a3226a0d2ee9fbc2b734e1fb9fd44d47a7ed4c7090d0c3e6a76
+frozen_sha256: 48494616fb4589b5d381005a20092539f23bdd1079c6d2526be94a6145fc72c0
 ceremony_level: 2
 links:
   requirement: merge-cleanup-ride-leftovers
@@ -226,7 +226,11 @@ tail resume key and report count, the re-exec child exit, the reset record and t
   crash, a re-run and a byte-identical block at or after `mainLen` that
   another writer put there. A main ledger rewritten shorter between a crash
   and the re-run, with the tail kept in it, gets the tail appended again (a
-  visible duplicate, not a loss).
+  visible duplicate, not a loss). A crash between the step 4 write and the
+  step 5 reset record leaves that intent live: a later ride tail identical to
+  the tail just moved (or to its first lines) is then skipped as already
+  moved, and the skipped copy survives only in the archive; new lines after
+  it are still appended once.
 - D9 `planChecks` also refuses `ledger_unaligned <rel>` (exit 3, nothing
   written) when a qualifying ledger's main-checkout copy is non-empty and does
   not end with `\n` at plan time.
@@ -478,9 +482,9 @@ plus the full verification matrix V1 to V4.
   so in the report's archived list).
 - R4 The compare-then-write in D8 has a window between the last read and the
   write; a concurrent writer is already refused by the session lock proof.
-- R5 Hand-copied lines (the incident's manual move) are skipped only when the
-  whole tail, or an earlier archived tail of this PR, already occurs at a line
-  start of the main ledger; a partial hand copy is appended again in full.
+- R5 Hand-copied lines (the incident's manual move) carry no intent record, so
+  they are appended again (a visible duplicate in an append-only ledger, never
+  a silent loss), as D8 states.
 
 ## Assumptions (autopilot, recorded instead of questions)
 
