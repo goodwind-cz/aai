@@ -1178,8 +1178,10 @@ function sweepStaleReleaseTmp(statePath) {
   try { names = fs.readdirSync(dir); } catch { return; }
   for (const n of names) {
     if (!n.startsWith(prefix)) continue;
-    const pid = Number(n.slice(prefix.length));
-    if (Number.isInteger(pid) && pid > 0 && !pidAlive(pid)) fs.rmSync(path.join(dir, n), { force: true });
+    const tail = n.slice(prefix.length);
+    if (!/^[1-9][0-9]*$/.test(tail) || pidAlive(Number(tail))) continue;
+    // only a regular file is ever ours; anything else is left alone, never fatal
+    try { if (fs.lstatSync(path.join(dir, n)).isFile()) fs.rmSync(path.join(dir, n), { force: true }); } catch { /* best effort */ }
   }
 }
 
