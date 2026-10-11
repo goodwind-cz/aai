@@ -22,26 +22,26 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — fix: a closed ride with no flushable telemetry no longer wedges the focus (done-work-item-stays-in-current-focus)
+## [v2026.10.11] — fix: a closed ride with no flushable telemetry no longer wedges the focus (done-work-item-stays-in-current-focus)
 
 - `metrics-flush.mjs --release <ref>` is the sanctioned exit for a closed ride with no flushable telemetry: one `work_item_released` event (`telemetry: absent`), no fabricated METRICS line, the focus released, and only the ref's own validation and review blocks reset. It refuses an incomplete close (no committed close event, a close superseded by a reopen, an item not done, recorded runs, or a fail verdict it does not own) before any write.
 - Rule 4b of `orchestration-dispatch.mjs` no longer dispatches a Metrics Flush that cannot act: a zero-run closed focus returns `needs_llm` with the command that releases it (`--release`, or `state.mjs clear-focus` when no work item exists), and a reopened close never reaches rule 4b.
 - `metrics-flush.mjs --ref <ref>` on a non-candidate ref exits 1 naming why, instead of an empty-success `flush: []`.
 
-## [unreleased] — fix: /aai-merge cleans up the ride's own leftovers instead of refusing (merge-cleanup-ride-leftovers)
+## [v2026.10.11] — fix: /aai-merge cleans up the ride's own leftovers instead of refusing (merge-cleanup-ride-leftovers)
 
 - A main-checkout `roadmap.yaml` change that touches only the merged ride's own entry (written by `/aai-ship`'s ship-append) is archived and the merged file taken, instead of `REFUSE overlap`. Any other local roadmap change still refuses.
 - A ride worktree that differs from its HEAD only by lines appended to append-only ledgers (`test-runs.jsonl`, `EVENTS.jsonl`, `decisions.jsonl`) no longer refuses `worktree_dirty`. The lines move byte-exact to the main checkout's ledgers through a journaled append intent, are archived, and the worktree is removed. Any other edit still refuses.
 - When the merged pull request changes `merge-cleanup.mjs` itself, apply re-executes the new engine once after the base sync, so its new steps run in the same invocation. A failing child stops with `STOPPED reexec_child_exit_<n|signal>` (exit 4).
 
-## [unreleased] — feat: /aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check (merge-cleanup-delete-remote-branch)
+## [v2026.10.11] — feat: /aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check (merge-cleanup-delete-remote-branch)
 
 - `merge-cleanup.mjs apply` gains a `delete-remote-branch` step: it deletes the merged pull request's head branch on origin by compare-and-swap (`--force-with-lease` against the merged head), so the owner no longer runs `git push origin --delete` by hand.
 - The branch is kept, with a named reason on a `remaining:` line, when it moved after the merge, came from a fork, is the base or default branch, has another open pull request based on it or opened from it, is refused by the server, or cannot be read. A kept branch never stops the rest of the cleanup, and a re-run is idempotent.
 - The branch is also kept (`remote_unknown`) when the push URL of `origin` differs from its fetch URL (`remote.origin.pushurl`, `pushInsteadOf`) or either side lists more than one URL, because the proofs read the fetch repository while the deletion pushes to the push URL.
 - SKILL_MERGE: run the cleanup block as the command itself, never through `bash -c`, `sh -c` or `eval`. The PowerShell block clears `AAI_GIT_WRITE` with `$env:AAI_GIT_WRITE = $null`. Neither block contains a removal command.
 
-## [unreleased] — fix: /aai-merge cleans up a ride worktree with submodules, and never by hand (merge-cleanup-submodule-worktree)
+## [v2026.10.11] — fix: /aai-merge cleans up a ride worktree with submodules, and never by hand (merge-cleanup-submodule-worktree)
 
 - `/aai-merge` cleanup used to stop at `remove-worktree` for every ride worktree with initialized git submodules: git refuses a plain `git worktree remove` for them, even when they are clean. In a downstream project the agent then finished the step by hand with `git worktree remove --force`. That deletes the submodules' git directories, including commits never pushed.
 - The engine now removes such a worktree itself, but only after proving that every submodule, nested ones included, is clean, has a remote, has its HEAD, local branches and local tags on that remote, and has no stash. It proves this before any write (`plan`/`apply` exit 3) and again right before the removal (exit 4). Reasons: `submodule_dirty`, `submodule_unpushed`, `submodule_stash`, `submodule_no_remote`, `submodule_unverifiable`, each naming the submodule path. The main checkout's submodule configuration is left untouched.
@@ -50,7 +50,7 @@ fine — it is the marker a cut leaves on top.
 - `SKILL_MERGE`: on exit 3 or 4 the agent relays the line verbatim and stops; it never finishes a step by hand.
 - Refs: ISSUE-0097 / SPEC-0221.
 
-## [unreleased] — feat: your /aai-merge direction signs the ride's contract amendments (merge-direction-signs-amendments)
+## [v2026.10.11] — feat: your /aai-merge direction signs the ride's contract amendments (merge-direction-signs-amendments)
 
 - `/aai-merge` preflight lists every unsigned contract-class amendment of the ride under `signs on merge:` before it prints the merge command, so the merge direction is informed. After the merge, `apply` signs exactly those records through `spec-amend classify --record` and closes the `fu-amend-*` trackers they fully discharge. Its authority is the human `directed_merge` for that PR and head, carrying your verbatim words.
 - No human direction for that PR and head, as with a lane or autonomous merge, means nothing is signed. Measurement records, already-signed records, unclassified records and other rides' records are never touched. A re-run or a run resumed after a crash appends nothing twice.
