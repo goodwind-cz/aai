@@ -2441,6 +2441,53 @@ test_034_canon_stop_and_relay() {
   echo 'PASS: TEST-034 the canon tells the agent to relay the refusal and never finish by hand'
 }
 
+# spec-merge-cleanup-submodule-worktree D (bot round): TEST-035 (submodule tags archived).
+# A local-only tag on an already-pushed commit passes the commit-reachability proof, and --force
+# deletes the submodule git dir: the tag names (and an annotated tag's own object) are archived first.
+test_035_submodule_tags_archived() {
+  local arch man tdir want_obj got_obj tagoid lw ann n1
+  build_sub_world sub_tags
+  run git -C "$RIDE/sub" tag lw-local
+  run git -C "$RIDE/sub" tag -a -m 'annotated message' ann-local
+  tagoid="$(git -C "$RIDE/sub" rev-parse refs/tags/ann-local)" || fail SETUP 'annotated tag oid'
+  lw="$(git -C "$RIDE/sub" rev-parse refs/tags/lw-local)" || fail SETUP 'lightweight tag oid'
+  want_obj="$(git -C "$RIDE/sub" cat-file tag "$tagoid" | node -e 'process.stdout.write(require("crypto").createHash("sha256").update(require("fs").readFileSync(0)).digest("hex"))')" || fail SETUP 'annotated tag object'
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"; man="$arch/manifest.jsonl"
+  tdir="$arch/worktree-submodules/sub/.aai-submodule-tags"
+  run_engine plan --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-035 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-035 "$ENG_OUT" 'archive 2 tags of sub -> docs/ai/archive/merge-cleanup/pr-'
+  [[ ! -e "$arch" ]] || fail TEST-035 'plan wrote an archive'
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-035 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$RIDE" ]] || fail TEST-035 'the ride worktree is still there'
+  [[ -f "$tdir/tags.txt" ]] || fail TEST-035 'no tags file archived'
+  want TEST-035 "$(cat "$tdir/tags.txt")" "refs/tags/lw-local $lw commit"
+  want TEST-035 "$(cat "$tdir/tags.txt")" "refs/tags/ann-local $tagoid tag"
+  [[ -f "$tdir/objects/$tagoid.tag" ]] || fail TEST-035 'the annotated tag object was not archived'
+  got_obj="$(sha_of "$tdir/objects/$tagoid.tag")"
+  [[ "$got_obj" == "$want_obj" ]] || fail TEST-035 "archived tag object differs from git cat-file output: $got_obj vs $want_obj"
+  [[ ! -e "$tdir/objects/$lw.tag" ]] || fail TEST-035 'a lightweight tag got an object file'
+  want TEST-035 "$(cat "$man")" '"reason":"submodule_tags"'
+  n1="$(/usr/bin/grep -c '"reason":"submodule_tags"' "$man" || true)"
+  [[ "$n1" == 2 ]] || fail TEST-035 "submodule_tags manifest lines: $n1, want 2 (tags file and one tag object)"
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-035 "second apply exited $ENG_RC"
+  [[ "$(/usr/bin/grep -c '"reason":"submodule_tags"' "$man" || true)" == "$n1" ]] || fail TEST-035 'second apply appended a manifest line'
+
+  # an unpushed commit still blocks (the tag archive does not replace the commit proof)
+  build_sub_world sub_tags_unpushed
+  printf 'tagged\n' > "$RIDE/sub/tagged.txt"
+  run git -C "$RIDE/sub" add tagged.txt
+  run git -C "$RIDE/sub" commit -qm 'reachable only from a local tag'
+  run git -C "$RIDE/sub" tag only-local-tag
+  run git -C "$RIDE/sub" checkout -q --detach "$(git -C "$RIDE" rev-parse HEAD:sub)"
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-035 "unpushed-tag arm: apply exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  [[ -d "$RIDE" ]] || fail TEST-035 'unpushed-tag arm: the ride was removed'
+  echo 'PASS: TEST-035 submodule tags archived before the forced removal, repeat appends nothing'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate; test_006_superseded_drafts; test_007_retained_and_decisions
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -2451,7 +2498,8 @@ case "$SELECTED" in
      test_025_sign_merged_backlog; test_024_canon_merge_direction_signs; test_026_backlog_signed_on_live_ledger
      test_001_wrappers_and_pointers; test_002_prompt_block_runs_cleanup; test_017_companion_wiring
      test_028_submodule_worktree_removed_after_proof; test_029_dirty_submodule_refused; test_030_unpushed_submodule_refused
-     test_031_submodule_ignored_archived_or_named; test_032_late_dirt_stops_then_resumes; test_033_preflight_names_cleanup_blocker; test_034_canon_stop_and_relay ;;
+     test_031_submodule_ignored_archived_or_named; test_032_late_dirt_stops_then_resumes; test_033_preflight_names_cleanup_blocker; test_034_canon_stop_and_relay
+     test_035_submodule_tags_archived ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -2486,5 +2534,6 @@ case "$SELECTED" in
   TEST-032|test_032_late_dirt_stops_then_resumes) test_032_late_dirt_stops_then_resumes ;;
   TEST-033|test_033_preflight_names_cleanup_blocker) test_033_preflight_names_cleanup_blocker ;;
   TEST-034|test_034_canon_stop_and_relay) test_034_canon_stop_and_relay ;;
+  TEST-035|test_035_submodule_tags_archived) test_035_submodule_tags_archived ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

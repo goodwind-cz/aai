@@ -4,7 +4,7 @@ type: spec
 number: 221
 status: done
 mutation_gate: v1
-frozen_sha256: 9b5599ce2a41e5ab46331d129bcc848028b82c6e9f66cd60431b0ccf90cf411e
+frozen_sha256: a0682013010b5997b3a3f584b9e5cb65ae26de1b4b628d51a5049d259b117d03
 ceremony_level: 2
 links:
   requirement: merge-cleanup-submodule-worktree
@@ -196,6 +196,24 @@ submodule `sub/nest`) and a linked worktree where
   (`.env`, local settings) are the likely irreplaceable ones and are small.
   The superproject's own ignored files keep today's behaviour (only the D10
   runtime set is archived); named as residual risk R4.
+- D4b Tag refs inside submodules (additive, bot round on PR #453, archive-first,
+  no network). The D2 commit proof compares reachability only, so a local-only
+  lightweight or annotated tag on an already-pushed commit passes it, and
+  `--force` then deletes the submodule git dir with the tag name and an
+  annotated tag's own object. Blocking on tags would stop every submodule that
+  fetched the remote's tags and `ls-remote` needs the network, so the same
+  step as D4 archives them instead: for each initialized submodule (nested
+  too) that has `refs/tags`, `archiveFile` writes under
+  `worktree-submodules/<sub path>/.aai-submodule-tags/` a `tags.txt` (one
+  `<ref> <oid> <type>` line per tag ref) and `objects/<oid>.tag`, the raw
+  `git cat-file tag <oid>` bytes of every annotated tag, each with a manifest
+  line (sha256, reason `submodule_tags`, idempotent). Restore inside the
+  submodule: lightweight, `git update-ref <ref> <oid>`; annotated,
+  `git hash-object -t tag -w --stdin < objects/<oid>.tag` then
+  `git update-ref <ref> <oid>`. The `remove-worktree` plan targets name
+  `archive <n> tags of <sub> -> <dir>`. A failing tag listing is
+  `submodule_unverifiable` (exit 4 at the archive step). The commit proof is
+  unchanged: an unpushed commit still blocks.
 - D5 Preflight surfaces, it does not refuse. When `preflight` finds a
   registered worktree on the PR's `headRefName` other than the main checkout,
   it runs the D2 proof on it and prints one
@@ -289,6 +307,7 @@ None.
 | Spec-AC-05 | WHEN a file appears in a submodule after `planChecks` passed and before the removal (seam `before-remove-verify`), apply SHALL exit 4 with `STOPPED submodule_dirty` naming that submodule, the worktree, the file and the branch SHALL survive, and a re-run after the file is removed SHALL exit 0 with the worktree removed; WHEN a submodule's ignored-file listing fails only at the archive step (after the proof passed), apply SHALL exit 4 with `STOPPED submodule_unverifiable` naming that submodule, its ignored files SHALL survive, and a re-run SHALL exit 0 with the worktree removed (amended: review r2 NB-1r2). | done | docs/ai/tdd/spec-merge-cleanup-submodule-worktree/green-full-C-20261011T013947Z.log | — | D3, D7 |
 | Spec-AC-06 | WHEN preflight passes all gates and the PR's ride worktree has a submodule blocker, preflight SHALL exit 10 and print one `cleanup blocked: <reason> <detail>` line naming the submodule path before the `gh pr merge` line, and `--json` SHALL carry it in `cleanup_blockers`; for a clean ride worktree no such line SHALL appear and `cleanup_blockers` SHALL be an empty array. | done | docs/ai/tdd/spec-merge-cleanup-submodule-worktree/green-full-C-20261011T013947Z.log | — | D5; seam S2 |
 | Spec-AC-07 | SKILL_MERGE.prompt.md SHALL tell the agent to relay a `cleanup blocked:` line verbatim, and on apply exit 3 or 4 to relay the `REFUSE` or `STOPPED` line verbatim and stop, SHALL contain the phrase `never finish a step by hand` naming `git worktree remove --force`, and SHALL keep `worktree remove --force` in its hard rules; the prompt-diet ledger SHALL carry an entry keyed `merge-cleanup-submodule-worktree` crediting at most 700 bytes; the prompt-diet suite exit 0 is verified by V2 and by that suite itself, not nested inside TEST-034 (post-freeze amendment). | done | docs/ai/tdd/spec-merge-cleanup-submodule-worktree/green-full-C-20261011T013947Z.log | — | D6; seam S4 |
+| Spec-AC-08 | WHEN an eligible submodule holds local tag refs, lightweight or annotated, apply SHALL archive under `worktree-submodules/<sub path>/.aai-submodule-tags/` a `tags.txt` listing each tag ref with its object id and type and, for every annotated tag, `objects/<oid>.tag` byte-equal to `git cat-file tag <oid>` taken before the run, each with a manifest line carrying its sha256 and reason `submodule_tags`, SHALL name the tag count in the `remove-worktree` plan targets, a second apply SHALL append no manifest line, and a commit reachable only from a local tag SHALL still be refused (post-freeze amendment, bot round on PR #453). | done | docs/ai/tdd/spec-merge-cleanup-submodule-worktree/green-TEST-035-20261011T020722Z.log | — | D4b |
 
 ## Implementation plan
 
@@ -341,8 +360,9 @@ None.
 | TEST-032 | Spec-AC-05 | integration | tests/skills/test-aai-merge-cleanup.sh | test_032_late_dirt_stops_then_resumes: clean pushed world; apply with TOUCH_AT before-remove-verify naming a new file in sub; exit 4, STOPPED submodule_dirty sub; ride dir, the touched file and the branch present; the steps before remove-worktree are journalled done; after rm of that file a second apply exits 0, the ride is gone and the branch deleted; archive-listing arm: ignored files in sub and seam FAIL_IGNORED_LS=sub with FAIL_IGNORED_LS_AT=archive; exit 4, STOPPED submodule_unverifiable sub; ride, x.local and ign/out.bin present; a re-run without the seam exits 0 and the ride is gone | sed:s/const late = worktreeVerdict\(ctx, wt\);/const late = null;/ | green |
 | TEST-033 | Spec-AC-06 | integration | tests/skills/test-aai-merge-cleanup.sh | test_033_preflight_names_cleanup_blocker: open-PR world built with build_sub_world; arm dirty: preflight exit 10, exactly one cleanup blocked: line naming submodule_dirty and sub, positioned before the gh pr merge line; --json cleanup_blockers length 1; arm unpushed (committed gitlink): reason submodule_unpushed; clean arm: no cleanup blocked: line and cleanup_blockers equals [] (positive control that the key is computed) | sed:s/cleanup blocked: /cleanup-hidden: / | green |
 | TEST-034 | Spec-AC-07 | contract | tests/skills/test-aai-merge-cleanup.sh | test_034_canon_stop_and_relay: SKILL_MERGE.prompt.md contains cleanup blocked:, the words relay and verbatim within step 2 or 3, never finish a step by hand, git worktree remove --force outside the hard-rules line and worktree remove --force inside it; prompt-diet ledger has an entry with key merge-cleanup-submodule-worktree whose credit is a positive integer of at most 700 | sed:s/never finish a step by hand/finish steps as needed/ | green |
+| TEST-035 | Spec-AC-08 | integration | tests/skills/test-aai-merge-cleanup.sh | test_035_submodule_tags_archived: sub holds a local lightweight tag and a local annotated tag on its pushed HEAD; plan lists archive 2 tags of sub and writes nothing; apply exits 0; tags.txt names both refs with oid and type; the annotated tag object file is byte-equal to the git cat-file output taken before; manifest has two submodule_tags lines; a second apply adds none; arm unpushed: a commit reachable only from a local tag is still refused with exit 3 | sed:s/archiveSubmoduleTags\(ctx, wt\);/void 0;/ | green |
 
-Mutation targets: .aai/scripts/merge-cleanup.mjs for TEST-028 to TEST-033;
+Mutation targets: .aai/scripts/merge-cleanup.mjs for TEST-028 to TEST-033 and TEST-035;
 .aai/SKILL_MERGE.prompt.md for TEST-034. The intake's "straight --force"
 mutation is TEST-029's row (proof dropped, `--force` path taken): it must turn
 TEST-029 red, and TEST-030's row does the same for the unpushed arms.

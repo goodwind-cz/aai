@@ -32,7 +32,8 @@ A ride worktree with git submodules is removed too, but only after every
 submodule, nested ones included, is proven safe to lose. Each one must be
 clean, have a remote, and have its checked-out commit, every local branch and
 every local tag on that remote, with no stash. Ignored single files inside a
-submodule (a `.env`, say) are archived first. Wholly ignored directories
+submodule (a `.env`, say) and each submodule's local tags (names and annotated
+tag objects) are archived first. Wholly ignored directories
 (`node_modules/`, `dist/`) are removed but named in the plan and the report.
 If any submodule fails the proof, nothing is removed and the reason names the
 submodule. Preflight shows the same blocker as a `cleanup blocked:` line before
@@ -75,7 +76,8 @@ reports the completed ones as no-ops.
   (gitignored). It holds the archived drafts, the ride's STATE and ignored
   evidence, the saved local ledger tail, a `manifest.jsonl` with sha256 per
   archived file, and a `sync/pending.json` journal while a base sync is in
-  flight. Ignored files from ride submodules go under `worktree-submodules/`;
+  flight. Ignored files and tag refs (`.aai-submodule-tags/tags.txt` plus raw
+  annotated tag objects) from ride submodules go under `worktree-submodules/`;
   wholly ignored directories that were removed without an archive are listed
   in `removed.jsonl` and in the report section `## Removed, not archived`.
 - Run report: `docs/ai/reports/merge-cleanup-pr<n>-<UTC>.md` (gitignored):

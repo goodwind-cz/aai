@@ -803,6 +803,51 @@ function archiveSubmoduleIgnored(ctx, wt) {
   }
 }
 
+// ---- D4b: tag refs inside submodules ---------------------------------------
+
+const TAGS_DIR = '.aai-submodule-tags';
+
+// Every tag ref of one initialized submodule: [{ ref, oid, type }]. The commit proof compares
+// reachability only, so a local-only tag on a pushed commit passes it; --force then deletes the
+// git dir and with it the tag name and an annotated tag's own object. Archive-first, no network
+// (SPEC-0218 D7): the refs are archived instead of blocked on. A failing listing fails closed.
+function submoduleTags(wtPath, member) {
+  const r = git(path.join(wtPath, member), ['for-each-ref', '--format=%(refname) %(objectname) %(objecttype)', 'refs/tags']);
+  if (r.status !== 0) stop('submodule_unverifiable', `${member} (unverifiable: git for-each-ref failed)`);
+  return r.stdout.split('\n').filter(Boolean).map((l) => { const [ref, oid, type] = l.split(' '); return { ref, oid, type }; });
+}
+
+// Archive each submodule's tag refs under worktree-submodules/<sub path>/.aai-submodule-tags/:
+// tags.txt (`<ref> <oid> <type>` per line) plus objects/<oid>.tag, the raw `git cat-file tag` bytes
+// of every annotated tag. Restore, inside the submodule:
+//   lightweight:  git update-ref <ref> <oid>
+//   annotated:    git hash-object -t tag -w --stdin < objects/<oid>.tag   (prints <oid>), then git update-ref <ref> <oid>
+// Idempotent through archiveFile (one manifest line per file and content, reason submodule_tags).
+function archiveSubmoduleTags(ctx, wt) {
+  const root = archiveRoot(ctx.origin, ctx.opts.pr);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-cleanup-tags-'));
+  try {
+    for (const member of submoduleMembers(wt.path).members) {
+      const tags = submoduleTags(wt.path, member);
+      if (tags.length === 0) continue;
+      const base = path.join(root, 'worktree-submodules', member, TAGS_DIR);
+      const put = (name, bytes, destRel) => {
+        const src = path.join(tmp, name);
+        fs.writeFileSync(src, bytes);
+        archiveFile(ctx, { src, destBase: path.join(base, destRel), original: `worktree:${member}/${TAGS_DIR}/${destRel}`, reason: 'submodule_tags', step: 'remove-worktree' });
+      };
+      for (const t of tags.filter((x) => x.type === 'tag')) {
+        const o = git(path.join(wt.path, member), ['cat-file', 'tag', t.oid], { buffer: true });
+        if (o.status !== 0) stop('submodule_unverifiable', `${member} (unverifiable: git cat-file tag failed)`);
+        put('obj', o.stdout, `objects/${t.oid}.tag`);
+      }
+      put('tags', tags.map((t) => `${t.ref} ${t.oid} ${t.type}\n`).join(''), 'tags.txt');
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 // Test seam: another session writes into a submodule between the archive and the final verify.
 function touchAt(point, wtPath) {
   const v = seam('AAI_MERGE_CLEANUP_TOUCH_AT');
@@ -815,6 +860,7 @@ function removeWorktree(ctx) {
   const why = worktreeVerdict(ctx, wt);
   if (why) stop(...why);
   archiveSubmoduleIgnored(ctx, wt);
+  archiveSubmoduleTags(ctx, wt);
   touchAt('before-remove-verify', wt.path);
   // the proof runs again as the last check, right before the destructive call (D3)
   const late = worktreeVerdict(ctx, wt);
@@ -1195,6 +1241,8 @@ const PLANNERS = {
       wt.path,
       ...files.map((rel) => `archive worktree:${rel} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree-submodules', rel)))}`),
       ...named.map((n) => `remove (ignored, not archived) ${n.path}`),
+      ...submoduleMembers(wt.path).members.map((m) => [m, submoduleTags(wt.path, m).length]).filter(([, n]) => n > 0)
+        .map(([m, n]) => `archive ${n} tag${n === 1 ? '' : 's'} of ${m} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree-submodules', m, TAGS_DIR)))}`),
     ];
   },
   'delete-branch': (ctx) => (branchTip(ctx) && ctx.headRef !== ctx.base ? [ctx.headRef] : []),
