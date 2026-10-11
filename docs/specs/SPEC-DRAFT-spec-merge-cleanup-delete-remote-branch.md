@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: addc98a016823ae26656e2181a9a732443b94c083d09f2c39089b49bc827017b
+frozen_sha256: a0c3662fcf06f74f161dc65a7b631d1949e24f7a9f60dcc2a6c0972e64f1edb8
 ceremony_level: 2
 links:
   requirement: merge-cleanup-delete-remote-branch
@@ -135,9 +135,14 @@ Measured in a scratch bare origin plus a clone, `GIT_CONFIG_GLOBAL=/dev/null`.
      from either source gives `remote_unknown` (fail closed);
   5. remote head: no `refs/heads/<b>` line gives status `noop`, detail
      `remote_absent`; an oid other than the PR `headRefOid` (or a
-     `headRefOid` that is not 40 hex) gives `remote_moved` naming both oids.
+     `headRefOid` that is not 40 hex) gives `remote_moved` naming both oids;
+  6. dependents (Spec-AC-08, amended): one `gh pr list --state open --base <b>
+     --json number --limit 100` read with a 120 s timeout; any open PR gives
+     `remote_has_dependents` naming the PR numbers; a failed, timed-out or
+     unparsable read gives `remote_unknown` (fail closed).
   MERGED and the merge commit on the base are already proven by
-  `readAndGate` (refusal before any write); the step does not re-read gh.
+  `readAndGate` (refusal before any write); the step does not re-read the PR
+  itself, its only gh read is the dependents list of step 6.
 - D3 Deletion by compare-and-swap only:
   `const lease = \`--force-with-lease=refs/heads/${b}:${ctx.head}\`;` then
   `git push --porcelain <lease> origin :refs/heads/<b>` with
@@ -146,8 +151,9 @@ Measured in a scratch bare origin plus a clone, `GIT_CONFIG_GLOBAL=/dev/null`.
   `gh pr merge --delete-branch`.
 - D4 Push outcome, read from the porcelain line for `refs/heads/<b>` (F1 to
   F4): `[deleted]` gives `done` (detail `<b>`); `[rejected] (stale info)`
-  triggers one re-read (D2 step 3 and 5): absent gives `noop remote_absent`,
-  otherwise `retained remote_moved`; any other `!` line or a non-zero exit
+  triggers one re-read (D2 steps 3 to 6): absent gives `noop remote_absent`,
+  open dependents give `retained remote_has_dependents`, otherwise
+  `retained remote_moved`; any other `!` line or a non-zero exit
   without a porcelain line gives `retained remote_delete_rejected` with the
   first rejection or stderr line; a spawn error or timeout gives
   `retained remote_unknown`.

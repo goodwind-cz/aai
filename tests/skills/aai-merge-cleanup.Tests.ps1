@@ -103,6 +103,7 @@ if (a.length === 5 && a[0] === 'pr' && a[1] === 'view' && /^[0-9]+$/.test(a[2]) 
   const p = path.join(dir, 'pr-' + a[2] + '.json');
   if (fs.existsSync(p)) { process.stdout.write(fs.readFileSync(p)); process.exit(0); }
 }
+if (a.length === 10 && a[0] === 'pr' && a[1] === 'list' && a.slice(2).join(' ') === '--state open --base ride/foo --json number --limit 100') { process.stdout.write('[]'); process.exit(0); }
 console.error('STUB-DENY: unexpected argv: ' + a.join(' '));
 process.exit(1);
 '@

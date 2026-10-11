@@ -139,7 +139,7 @@ function crashAt(point) {
   if (seam('AAI_MERGE_CLEANUP_CRASH_AT') === point) process.exit(137);
 }
 
-// The ONE gh read (D4). Test seam: AAI_MERGE_CLEANUP_GH_NODE=<abs .js path> runs
+// The PR read (D4); ghDependents below is the only other gh call. Test seam: AAI_MERGE_CLEANUP_GH_NODE=<abs .js path> runs
 // that script under this node instead of `gh`, because a native Windows runner
 // cannot spawn a .cmd/.sh stub without a shell. Inert without the test guard.
 function ghPrView(cwd, pr, maxBuffer) {
@@ -155,8 +155,8 @@ function ghPrView(cwd, pr, maxBuffer) {
 function ghDependents(cwd, branch) {
   const listArgs = ['pr', 'list', '--state', 'open', '--base', branch, '--json', 'number', '--limit', '100'];
   const stub = seam('AAI_MERGE_CLEANUP_GH_NODE');
-  if (stub && path.isAbsolute(stub)) return spawnSync(process.execPath, [stub, ...listArgs], { cwd, encoding: 'utf8' });
-  return spawnSync('gh', listArgs, { cwd, encoding: 'utf8' });
+  if (stub && path.isAbsolute(stub)) return spawnSync(process.execPath, [stub, ...listArgs], { cwd, encoding: 'utf8', timeout: 120000 });
+  return spawnSync('gh', listArgs, { cwd, encoding: 'utf8', timeout: 120000 });
 }
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
