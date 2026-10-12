@@ -2038,6 +2038,157 @@ EOF
     || log_fail "TEST-516 unreadable spec"
 }
 
+# --- TEST-517 (Spec-AC-01, SPEC-0226) -----------------------------------------
+# Merged ride contract amendment folds to signed at read time when its ride doc
+# is status: done and carries links.pr in the base branch. Zero overlays written.
+test_517_merged_ride_folds_signed() {
+  log_info "Test: merged ride contract amendment folds to signed at read time (TEST-517)..."
+  local dir repo out ec
+  dir="$TEST_DIR/t517"
+  repo="$dir/repo"
+  mkdir -p "$repo/docs/specs" "$repo/docs/ai"
+  git -C "$repo" init -q -b main
+  git -C "$repo" config user.email "test@example.com"
+  git -C "$repo" config user.name "Test"
+
+  cat > "$repo/docs/specs/SPEC-0999-merged-ride.md" <<'EOF'
+---
+id: spec-0999-merged-ride
+status: done
+links:
+  pr: 999
+---
+# Merged Ride Spec
+EOF
+  git -C "$repo" add docs/specs
+  git -C "$repo" commit -q -m "merged ride doc"
+
+  cat > "$repo/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2026-10-01T00:00:00Z","actor":"planning","type":"spec_amendment","ref_id":"spec-0999-merged-ride","spec":"docs/specs/SPEC-0999-merged-ride.md","spec_id":"spec-0999-merged-ride","owner_signoff":false,"what":"contract amendment","amendment_class":"contract","tracked_by":"fu-amend-spec-0999"}
+{"v":1,"ts":"2026-10-01T00:00:00Z","actor":"planning","type":"follow_up","id":"fu-amend-spec-0999","status":"open","title":"obligation"}
+EOF
+
+  out="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --json)"
+  node -e '
+    const res = JSON.parse(process.argv[1]);
+    const it = res.items.find(i => i.ref_id === "spec-0999-merged-ride");
+    if (!it) process.exit(1);
+    if (it.bucket !== "signed" || it.owner_signoff !== true || it.tracked_status !== "done") process.exit(2);
+  ' "$out" || log_fail "TEST-517: merged ride amendment did not fold to signed: $out"
+
+  local fu_out
+  fu_out="$(cd "$repo" && node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --ledger "$repo/docs/ai/decisions.jsonl" --status all --json)"
+  node -e '
+    const res = JSON.parse(process.argv[1]);
+    const it = (res.items || res).find(i => (i.id || i.item_id) === "fu-amend-spec-0999");
+    if (!it || it.status !== "done") process.exit(1);
+  ' "$fu_out" || log_fail "TEST-517: follow-up tracker did not resolve to done: $fu_out"
+
+  ec=0
+  (cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --strict >/dev/null 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-517: strict list must exit 0 for implied-signed amendments, got $ec"
+
+  log_pass "TEST-517 merged ride contract amendment folds to signed at read time with zero written overlays"
+}
+
+# --- TEST-518 (Spec-AC-02, SPEC-0226) -----------------------------------------
+# Unmerged ride amendment remains unsigned-tracked (or untracked) at read time.
+test_518_unmerged_ride_stays_unsigned() {
+  log_info "Test: unmerged ride contract amendment remains unsigned-tracked (TEST-518)..."
+  local dir repo out ec
+  dir="$TEST_DIR/t518"
+  repo="$dir/repo"
+  mkdir -p "$repo/docs/specs" "$repo/docs/ai"
+  git -C "$repo" init -q -b main
+  git -C "$repo" config user.email "test@example.com"
+  git -C "$repo" config user.name "Test"
+
+  cat > "$repo/docs/specs/SPEC-1000-unmerged-ride.md" <<'EOF'
+---
+id: spec-1000-unmerged-ride
+status: implementing
+links:
+  pr: []
+---
+# In-flight Ride Spec
+EOF
+  git -C "$repo" add docs/specs
+  git -C "$repo" commit -q -m "initial draft"
+
+  cat > "$repo/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2026-10-02T00:00:00Z","actor":"planning","type":"spec_amendment","ref_id":"spec-1000-unmerged-ride","spec":"docs/specs/SPEC-1000-unmerged-ride.md","spec_id":"spec-1000-unmerged-ride","owner_signoff":false,"what":"in-flight amendment","amendment_class":"contract","tracked_by":"fu-amend-spec-1000"}
+{"v":1,"ts":"2026-10-02T00:00:00Z","actor":"planning","type":"follow_up","id":"fu-amend-spec-1000","status":"open","title":"obligation"}
+EOF
+
+  out="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --json)"
+  node -e '
+    const res = JSON.parse(process.argv[1]);
+    const it = res.items.find(i => i.ref_id === "spec-1000-unmerged-ride");
+    if (!it) process.exit(1);
+    if (it.bucket !== "unsigned-tracked" || it.owner_signoff !== false || it.tracked_status !== "open") process.exit(2);
+  ' "$out" || log_fail "TEST-518: unmerged ride amendment must remain unsigned-tracked: $out"
+
+  # Under --status unsigned it appears, under --status signed it does not
+  local out_uns out_sgn
+  out_uns="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --status unsigned --json)"
+  node -e '
+    const res = JSON.parse(process.argv[1]);
+    if (res.items.length !== 1 || res.items[0].ref_id !== "spec-1000-unmerged-ride") process.exit(1);
+  ' "$out_uns" || log_fail "TEST-518: unmerged amendment must appear under --status unsigned: $out_uns"
+
+  out_sgn="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --status signed --json)"
+  node -e '
+    const res = JSON.parse(process.argv[1]);
+    if (res.items.length !== 0) process.exit(1);
+  ' "$out_sgn" || log_fail "TEST-518: unmerged amendment must not appear under --status signed: $out_sgn"
+
+  # When untracked, strict gate fails
+  local repo_untracked="$dir/repo_untracked"
+  mkdir -p "$repo_untracked/docs/ai"
+  git -C "$repo_untracked" init -q -b main
+  touch "$repo_untracked/.gitkeep"; git -C "$repo_untracked" add .; git -C "$repo_untracked" commit -q -m "init"
+  cat > "$repo_untracked/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2026-10-02T00:00:00Z","actor":"planning","type":"spec_amendment","ref_id":"spec-1000-unmerged-ride","spec":"docs/specs/SPEC-1000-unmerged-ride.md","spec_id":"spec-1000-unmerged-ride","owner_signoff":false,"what":"untracked amendment","amendment_class":"contract"}
+EOF
+  ec=0
+  (cd "$repo_untracked" && node "$SA" list --ledger "$repo_untracked/docs/ai/decisions.jsonl" --base-ref main --strict >/dev/null 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "TEST-518: strict list must fail for untracked unsigned amendment on unmerged ride, got $ec"
+
+  log_pass "TEST-518 unmerged ride contract amendment remains unsigned-tracked and fails strict gate when untracked"
+}
+
+# --- TEST-519 (Spec-AC-03, SPEC-0226) -----------------------------------------
+# Existing overlays continue to fold to signed backward-compatibly.
+test_519_existing_overlays_continue_to_fold_signed() {
+  log_info "Test: existing overlays continue to fold to signed (TEST-519)..."
+  local dir repo out
+  dir="$TEST_DIR/t519"
+  repo="$dir/repo"
+  mkdir -p "$repo/docs/ai"
+  git -C "$repo" init -q -b main
+  git -C "$repo" config user.email "test@example.com"
+  git -C "$repo" config user.name "Test"
+
+  touch "$repo/.gitkeep"
+  git -C "$repo" add .gitkeep
+  git -C "$repo" commit -q -m "initial"
+
+  cat > "$repo/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2026-10-03T00:00:00Z","actor":"planning","type":"spec_amendment","ref_id":"spec-overlay-ride","spec":"docs/specs/SPEC-overlay.md","spec_id":"spec-overlay","owner_signoff":false,"what":"overlay amendment","amendment_class":"contract","tracked_by":"fu-amend-overlay"}
+{"v":1,"ts":"2026-10-03T01:00:00Z","actor":"human","type":"spec_amendment_classification","classifies_ts":"2026-10-03T00:00:00Z","classifies_ref":"spec-overlay-ride","owner_signoff":true,"amendment_class":"contract","why":"signed by human"}
+EOF
+
+  out="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --json)"
+  node -e '
+    const res = JSON.parse(process.argv[1]);
+    const it = res.items.find(i => i.ref_id === "spec-overlay-ride");
+    if (!it) process.exit(1);
+    if (it.bucket !== "signed" || it.owner_signoff !== true) process.exit(2);
+  ' "$out" || log_fail "TEST-519: overlay did not fold to signed: $out"
+
+  log_pass "TEST-519 existing overlays continue to fold to signed backward-compatibly"
+}
+
 # --- TEST-550 (Spec-AC-19, D2) ------------------------------------------------
 # `spec-amend.mjs restamp` appends a spec_amendment record carrying the
 # from/to frozen_sha256 anchors as 64-hex values, writes the spec ATOMICALLY
@@ -2793,6 +2944,7 @@ test_1363_live_ledger_folds_identically() {
     for (const [k,b] of oldB) {
       if (cohort.has(k)) continue;
       if (!newB.has(k)) { missing.push(k.replace("\u0000"," ")); continue; }
+      if (b === "unsigned-tracked" && newB.get(k) === "signed") continue;
       if (newB.get(k)!==b) moved.push(k.replace("\u0000"," ")+": "+b+" -> "+newB.get(k));
     }
     // The MECHANISM that makes the line above true, asserted directly: a
@@ -4629,12 +4781,26 @@ fold_vs_baseline() {
     if (old.items.length!==neu.items.length) { console.log("ITEMS old="+old.items.length+" new="+neu.items.length); process.exit(0); }
     const strip=(i)=>{const c=Object.assign({},i);delete c.record_key;return JSON.stringify(c);};
     let compared=0;
+    let impliedSignatures=0;
     for (let n=0;n<old.items.length;n+=1) {
       if (targeted.has(neu.items[n].record_key)) continue;
       compared+=1;
-      if (strip(old.items[n])!==strip(neu.items[n])) { console.log("ITEM "+n+" old="+strip(old.items[n])+" new="+strip(neu.items[n])); process.exit(0); }
+      if (strip(old.items[n])!==strip(neu.items[n])) {
+        if (old.items[n].bucket==="unsigned-tracked" && neu.items[n].bucket==="signed") {
+          const modOld=Object.assign({}, old.items[n], {
+            owner_signoff: true,
+            tracked_status: neu.items[n].tracked_status,
+            bucket: "signed",
+          });
+          if (strip(modOld)===strip(neu.items[n])) {
+            impliedSignatures+=1;
+            continue;
+          }
+        }
+        console.log("ITEM "+n+" old="+strip(old.items[n])+" new="+strip(neu.items[n])); process.exit(0);
+      }
     }
-    if (targeted.size===0) {
+    if (targeted.size===0 && impliedSignatures===0) {
       if (JSON.stringify(old.counts)!==JSON.stringify(neu.counts)) { console.log("COUNTS old="+JSON.stringify(old.counts)+" new="+JSON.stringify(neu.counts)); process.exit(0); }
       const sv=(j)=>JSON.stringify(j.violations.map((v)=>{const c=Object.assign({},v);delete c.record_key;return c;}));
       if (sv(old)!==sv(neu)) { console.log("VIOLATIONS differ"); process.exit(0); }
@@ -5100,6 +5266,9 @@ main() {
   test_514_anchor_without_marker_caught
   test_515_contract_hash_escaped_pipe
   test_516_unreadable_spec_refuses
+  test_517_merged_ride_folds_signed
+  test_518_unmerged_ride_stays_unsigned
+  test_519_existing_overlays_continue_to_fold_signed
   test_550_amendment_record_anchors
   test_551_restamp_after_renumbering
   test_1354_measurement_add_owes_no_owner_obligation

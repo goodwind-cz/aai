@@ -129,6 +129,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { nowIso } from './lib/iso-time.mjs';
+import { foldAmendments } from './spec-amend.mjs';
 
 const DEFAULT_LEDGER = 'docs/ai/decisions.jsonl';
 const FOLLOW_UP_ID_RE = /^fu-[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -207,8 +208,9 @@ function foldFollowUps(records, opts = {}) {
   let unparseableTs = 0;
   let malformedIds = 0;
 
+  const amendFollowUps = foldAmendments(records, opts).followUps;
+
   for (const rec of records) {
-    if (!rec || typeof rec !== 'object') continue;
     if (rec.type === 'follow_up') {
       let id = typeof rec.id === 'string' && rec.id.trim() !== '' ? rec.id.trim() : null;
       let isDerived = false;
@@ -246,7 +248,11 @@ function foldFollowUps(records, opts = {}) {
     const statuslessCount = history.length - history.filter(
       (h) => typeof h.status === 'string' && h.status.trim() !== '',
     ).length;
-    const status = latestUsable ? latestUsable.status.trim() : 'open';
+    let status = latestUsable ? latestUsable.status.trim() : 'open';
+    if (status === 'open' && id.startsWith('fu-amend-')) {
+      const am = amendFollowUps.get(id);
+      if (am && am.status === 'done') status = 'done';
+    }
     // A status value outside the closed vocabulary must never SILENTLY hide an
     // item — it stays in the backlog and is named (degrade-with-NOTE).
     if (latest && !TERMINAL_STATUSES.includes(status) && status !== 'open') {

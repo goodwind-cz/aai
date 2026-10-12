@@ -379,9 +379,8 @@ PROCESS
      ## Test evidence
      <suite names + real counts + exit codes>
 
-     ## Signs on merge
-     <the ride's unsigned contract amendments (spec-amend.mjs list --json):
-     the owner's merge direction signs them; `none` when none>
+     ## Contract amendments
+     <the ride's contract amendments (signed upon merge into base); `none` when none>
 
      ## Links
      <change doc>, <spec doc>

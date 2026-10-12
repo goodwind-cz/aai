@@ -53,11 +53,8 @@ const HELP = `merge-cleanup.mjs <preflight|plan|apply> --pr <n> [options]
   preflight  read-only gates for an OPEN pull request; exit 10 when ready
   plan       read-only plan for a MERGED pull request
   apply      cleanup after a MERGED pull request (needs --pid)
-merge-cleanup.mjs sign-merged --authority-ts <ISO ts> [--exclude <fu-id>]... [--base <name>] [--origin <abs>] [--dry-run] [--json]
-  sign-merged  sign the unsigned contract amendments of every merged ride of the open
-               fu-amend-* trackers on one by=human hitl_decision (no --pr)
 options: --origin <abs> --json
-         --direction "<owner's words>" (apply: recorded with the merged head)
+         --direction "<owner's words>"
          --origin defaults to the main checkout (the first git worktree), in every mode;
          pass it to read and write a ride worktree's ledger instead
 the ride's own leftovers (apply): a roadmap change confined to the merged ride's entry is archived and the
@@ -67,11 +64,8 @@ the ride's own leftovers (apply): a roadmap change confined to the merged ride's
 exit: 0 complete, 2 usage, 3 refused, 4 stopped mid-way, 10 preflight ready
 `;
 
-// spec-merge-direction-signs-amendments D1: the owner's merge direction signs the ride's
-// contract amendments right after the base sync (the synced ledger holds the ride's records).
-const SIGN_STEP_ID = 'sign-amendments';
 const STEP_IDS = [
-  'resolve', 'plan', 'archive-runtime', 'sync-base', SIGN_STEP_ID,
+  'resolve', 'plan', 'archive-runtime', 'sync-base',
   'remove-worktree', 'delete-branch', 'report',
 ];
 const PR_FIELDS = 'number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url,isCrossRepository';
@@ -1103,157 +1097,6 @@ function mergedRefs(ctx) {
 }
 
 
-// D3/D9: the owner's verbatim direction and the judged head become one durable
-// directed_merge decision (append-only ledger, once per pr+words+head). preflight
-// writes it before the merge command runs; apply writes it only when preflight did
-// not. Returns the ledger path when it wrote, null when it was already there.
-function appendDirectedMerge(origin, rec) {
-  const file = path.join(origin, 'docs', 'ai', 'decisions.jsonl');
-  if (readJsonl(file).some((r) => r.type === 'directed_merge' && r.pr === rec.pr && r.answer === rec.direction && r.head === rec.head)) return null;
-  let lead = '';
-  try {
-    const old = fs.readFileSync(file);
-    if (old.length > 0 && old[old.length - 1] !== 10) lead = '\n';
-  } catch { /* no ledger yet */ }
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.appendFileSync(file, `${lead}${JSON.stringify({
-    v: 1, ts: new Date().toISOString(), actor: 'merge-cleanup', type: 'directed_merge', ref_id: rec.ref, pr: rec.pr, by: 'human',
-    answer: rec.direction, head: rec.head, ...(rec.mc ? { merge_commit: rec.mc } : {}),
-    decision: `owner-directed merge of PR #${rec.pr} at head ${rec.head} via /aai-merge (one PR, one head, --match-head-commit)`,
-  })}\n`);
-  return 'docs/ai/decisions.jsonl';
-}
-
-function recordDirection(ctx) {
-  const direction = ctx.opts.direction ?? '';
-  if (ctx.opts.mode !== 'apply' || direction.trim() === '') return null;
-  const ref = [...mergedRefs(ctx)].sort()[0] ?? ctx.headRef.split('/').pop();
-  return appendDirectedMerge(ctx.origin, { pr: ctx.opts.pr, direction, head: ctx.head, mc: ctx.mc, ref });
-}
-
-// ---- sign-amendments (spec-merge-direction-signs-amendments D1-D6) ---------
-
-const DECISIONS_REL = 'docs/ai/decisions.jsonl';
-const SPEC_AMEND = path.join(SCRIPT_DIR, 'spec-amend.mjs');
-const SIGNABLE_CLASS = 'contract';
-const DISPLAY_ID_RE = /^([A-Z]+-\d+)-/;
-
-// D3: the keys a ride's amendment records may carry - the doc's frontmatter id, its
-// spec id, and its numbered display id (CHANGE-0179 for CHANGE-0179-<slug>.md).
-function rideKeys(docs) {
-  const keys = new Set();
-  for (const d of docs) {
-    keys.add(d.id);
-    keys.add(`spec-${d.id}`);
-    const m = path.posix.basename(d.rel).match(DISPLAY_ID_RE);
-    if (m) keys.add(m[1]);
-  }
-  return keys;
-}
-
-// The fold as the real spec-amend reads it (seam S1); null when it cannot be read.
-function amendmentRows(cwd, ledger) {
-  const r = spawnSync(process.execPath, [SPEC_AMEND, 'list', '--json', '--ledger', ledger], { cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  if (r.status !== 0) return null;
-  try { return JSON.parse(r.stdout).items ?? []; } catch { return null; }
-}
-
-// D3: unsigned contract records of the rides this PR delivered. `unclassified` records
-// are never signed (assumption A4).
-function signable(items, keys) {
-  return items
-    .filter((i) => i.amendment_class === SIGNABLE_CLASS && i.bucket !== 'signed')
-    .filter((i) => i.bucket !== 'unclassified')
-    .filter((i) => keys.has(i.ref_id));
-}
-
-// D2: the owner's own direction for THIS PR at THIS head - nothing else authorizes.
-// PFA-8: a re-run preflight with other words leaves several such records; the signature
-// cites the one whose answer is apply's --direction, else the latest one.
-function humanDirection(ledger, pr, head, wanted = '') {
-  const mine = readJsonl(ledger).filter((r) => r.type === 'directed_merge' && r.by === 'human'
-    && Number(r.pr) === pr && String(r.head ?? '').toLowerCase() === String(head).toLowerCase()
-    && typeof r.answer === 'string' && r.answer.trim() !== '');
-  const asked = wanted.trim() === '' ? null : mine.findLast((r) => r.answer === wanted);
-  return asked ?? mine.at(-1) ?? null;
-}
-
-// D4: each record signed through the shipped classify CLI, read back after every call;
-// a classify that did not land as `signed` stops the run (exit 4) and a re-run resumes.
-function signRecords(cwd, ledger, targets, { why, source }) {
-  const signed = [];
-  for (const t of targets) {
-    const r = spawnSync(process.execPath, [SPEC_AMEND, 'classify', '--ts', t.ts, '--ref', t.ref_id,
-      '--record', t.record_key, '--signoff', 'owner', '--actor', 'merge-cleanup', '--why', why, '--source', source, '--ledger', ledger],
-    { cwd, encoding: 'utf8' });
-    if (r.status !== 0) stop('sign_failed', `${t.record_key}: ${(r.stderr || r.stdout).trim().split('\n')[0] ?? ''}`);
-    crashAt('sign-after-classify');
-    const now = (amendmentRows(cwd, ledger) ?? []).find((i) => i.record_key === t.record_key);
-    if (now?.bucket !== 'signed') stop('sign_not_landed', t.record_key);
-    signed.push(t.record_key);
-  }
-  return signed;
-}
-
-const FOLLOW_UPS = path.join(SCRIPT_DIR, 'follow-ups.mjs');
-const AMEND_TRACKER_PREFIX = 'fu-amend-';
-
-// The registry as the real follow-ups fold reads it (seam S2); null when it cannot be read.
-function followUpRows(cwd, ledger) {
-  const r = spawnSync(process.execPath, [FOLLOW_UPS, 'list', '--status', 'all', '--json', '--ledger', ledger], { cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  if (r.status !== 0) return null;
-  try { return JSON.parse(r.stdout).items ?? []; } catch { return null; }
-}
-
-// D5: close each open fu-amend-* tracker of `trackerIds` whose contract records ALL fold
-// signed. The predicate reads the ledger as it is now, not this run's signed keys, so a run
-// killed between signing and closing closes on the re-run. One unsigned record keeps it open.
-function closeFullySigned(cwd, ledger, trackerIds, { resolvedBy, source }) {
-  const rows = amendmentRows(cwd, ledger);
-  const fus = followUpRows(cwd, ledger);
-  if (!rows || !fus) stop('trackers_unreadable', DECISIONS_REL);
-  const open = new Set(fus.filter((i) => i.status === 'open').map((i) => i.id));
-  const closed = [];
-  for (const id of [...new Set(trackerIds)].sort()) {
-    if (!id.startsWith(AMEND_TRACKER_PREFIX) || !open.has(id)) continue;
-    const mine = rows.filter((i) => i.tracked_by === id && i.amendment_class === SIGNABLE_CLASS);
-    const fullySigned = mine.every((i) => i.bucket === 'signed');
-    if (!fullySigned) continue;
-    const r = spawnSync(process.execPath, [FOLLOW_UPS, 'close', '--id', id, '--resolved-by', resolvedBy,
-      '--source', source, '--actor', 'merge-cleanup', '--ledger', ledger], { cwd, encoding: 'utf8' });
-    if (r.status !== 0) stop('close_failed', `${id}: ${(r.stderr || r.stdout).trim().split('\n')[0] ?? ''}`);
-    if ((followUpRows(cwd, ledger) ?? []).find((i) => i.id === id)?.status !== 'done') stop('close_not_landed', id);
-    closed.push(id);
-  }
-  return closed;
-}
-
-function signAmendments(ctx) {
-  const ledger = path.join(ctx.origin, DECISIONS_REL);
-  // apply's --direction becomes the durable record first (the same one report would write).
-  const wanted = ctx.opts.direction ?? '';
-  const recorded = humanDirection(ledger, ctx.opts.pr, ctx.head, wanted)?.answer === wanted ? null : recordDirection(ctx);
-  const direction = humanDirection(ledger, ctx.opts.pr, ctx.head, wanted);
-  if (!direction) return { status: 'noop', detail: 'no_human_direction' };
-  const rows = amendmentRows(ctx.origin, ledger);
-  if (!rows) stop('amendments_unreadable', DECISIONS_REL);
-  const keys = rideKeys(mergedDocs(ctx));
-  const targets = signable(rows, keys);
-  const source = `directed_merge ts=${direction.ts} by=human PR #${ctx.opts.pr} head ${ctx.head} answer="${direction.answer}"; merge commit ${ctx.mc}`;
-  const why = `the owner's /aai-merge direction of PR #${ctx.opts.pr} signs the contract amendments of the rides it delivered`;
-  ctx.signed = signRecords(ctx.origin, ledger, targets, { why, source });
-  // the trackers of the ride's contract records, signed by this run or by an earlier one
-  const trackers = rows.filter((i) => i.amendment_class === SIGNABLE_CLASS && keys.has(i.ref_id) && i.tracked_by).map((i) => i.tracked_by);
-  const resolvedBy = [...mergedRefs(ctx)].sort()[0] ?? `pr-${ctx.opts.pr}`;
-  ctx.closed = closeFullySigned(ctx.origin, ledger, trackers, { resolvedBy, source: ctx.mc });
-  if (ctx.signed.length === 0 && ctx.closed.length === 0) {
-    return recorded ? { status: 'done', detail: 'direction recorded, nothing_to_sign' } : { status: 'noop', detail: 'nothing_to_sign' };
-  }
-  return { status: 'done', detail: `${ctx.signed.length} signed, ${ctx.closed.length} closed` };
-}
-
-
-
 function reportStep(ctx, steps) {
   if (!steps.some((s) => s.status === 'done')) return { status: 'noop', detail: 'stdout' };
   return { status: 'done', detail: 'stdout' };
@@ -1266,7 +1109,6 @@ const HANDLERS = {
   plan: () => ({ status: 'read' }),
   'archive-runtime': archiveRuntime,
   'sync-base': syncBase,
-  [SIGN_STEP_ID]: signAmendments,
   'remove-worktree': removeWorktree,
   'delete-branch': deleteBranch,
 };
@@ -1289,19 +1131,6 @@ const PLANNERS = {
       `${ctx.base} ${plan.head.slice(0, 12)}..${plan.target.slice(0, 12)}`,
       ...(plan.roadmap ? [`take incoming ${ROADMAP_PATH} (archive ride entry ${t ? rideChangedRefs(mergedRefs(ctx), t).join(', ') : ''})`] : []),
     ];
-  },
-  // the merged ledger blob, listed from a private temporary copy (nothing in the origin is written)
-  [SIGN_STEP_ID]: (ctx) => {
-    const blob = readBlob(ctx.origin, `${ctx.mc}:${DECISIONS_REL}`);
-    if (!blob) return [];
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-cleanup-plan-'));
-    try {
-      const ledger = path.join(tmp, 'decisions.jsonl');
-      fs.writeFileSync(ledger, blob);
-      return signable(amendmentRows(ctx.origin, ledger) ?? [], rideKeys(mergedDocs(ctx))).map((i) => `sign ${i.record_key} ${i.ref_id}`);
-    } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
-    }
   },
   'remove-worktree': (ctx) => {
     const wt = findRideWorktree(ctx);
@@ -1360,8 +1189,6 @@ function buildReport(ctx, steps) {
     noops: steps.filter((s) => s.status === 'noop').map((s) => `noop:${s.id}:${s.detail}`),
     audit: ctx.audit ?? null,
     ...(ctx.opts.direction ? { direction: ctx.opts.direction } : {}),
-    signed: ctx.signed ?? [],
-    closed: ctx.closed ?? [],
     ...(ctx.reportPath ? { report: ctx.reportPath } : {}),
     remaining: [
       ...ctx.drafts.retained.map((r) => `${r.path}: unexpected leftover draft; owner decision`),
@@ -1400,13 +1227,6 @@ function runApplyOrPlan(opts) {
       steps.push({ id, status: 'planned', ...(targets.length ? { targets } : {}) });
       continue;
     }
-    if (id === 'report') {
-      const rec = recordDirection(ctx);
-      if (rec) {
-        steps.push({ id: 'record-direction', status: 'done', detail: rec });
-        appendJsonl(journal, { step: 'record-direction', status: 'done', detail: rec, timestamp: new Date().toISOString() });
-      }
-    }
     const res = id === 'report' ? (opts.mode === 'apply' ? reportStep(ctx, steps) : { status: 'read' }) : HANDLERS[id](ctx);
     steps.push({ id, status: res.status, ...(res.detail ? { detail: res.detail } : {}) });
     if (res.status === 'done') appendJsonl(journal, { step: id, status: 'done', detail: res.detail ?? '', timestamp: new Date().toISOString() });
@@ -1427,21 +1247,6 @@ function runApplyOrPlan(opts) {
 // contract records of the rides the ride checkout delivers (HEAD against its merge base with
 // origin/<base>, the same done + links.pr predicate apply uses), read from that checkout's
 // ledger. Read-only: no overlay is written here.
-const SIGNS_PREFIX = 'signs on merge: ';
-const SIGNS_WHAT_MAX = 100;
-
-function preflightSigns(cwd, pr, base, repo) {
-  if (!BASE_NAME_RE.test(base) || base.startsWith('-')) refuse('signs_unknown', `unsafe base name ${JSON.stringify(base)}`);
-  const mb = git(cwd, ['merge-base', 'HEAD', `refs/remotes/origin/${base}`]);
-  if (mb.status !== 0) refuse('signs_unknown', `no merge base of HEAD with origin/${base}`);
-  const docs = doneDocsBetween(cwd, mb.stdout.trim(), 'HEAD', pr, repo);
-  const ledger = path.join(cwd, DECISIONS_REL);
-  if (!fs.existsSync(ledger)) return [];
-  const rows = amendmentRows(cwd, ledger);
-  if (!rows) refuse('signs_unknown', `${DECISIONS_REL} unreadable by spec-amend list --json`);
-  return signable(rows, rideKeys(docs)).map((i) => ({ record_key: i.record_key, ref_id: i.ref_id, what: String(i.what ?? '').slice(0, SIGNS_WHAT_MAX) }));
-}
-
 // Read-only gates for an OPEN pull request, in the documented order. On success
 // it PRINTS the one merge command; the engine never runs it (D3).
 function runPreflight(opts) {
@@ -1480,203 +1285,23 @@ function runPreflight(opts) {
   if (g.error || g.status !== 0) {
     refuse('sweep_missing', gateOut.split('\n').filter(Boolean).join(' | ') || 'lane-gate --sweep-check did not allow the merge');
   }
-  const signs = preflightSigns(cwd, opts.pr, String(pr.baseRefName ?? ''), repoSlug(pr.url));
-  // The direction is durable BEFORE the printed merge runs, so a later refusal cannot lose it. It goes
-  // to the main checkout's ledger (the one apply syncs), never into the ride branch.
+  // D5: the cleanup proof, surfaced before the merge; it never refuses the merge
   const wl = git(cwd, ['worktree', 'list', '--porcelain']);
   const mainWt = wl.status === 0 ? wl.stdout.match(/^worktree (.+)$/m)?.[1] : null;
-  if (!mainWt) refuse('direction_unrecorded', 'cannot locate the origin checkout to record the direction in');
-  try {
-    appendDirectedMerge(realOr(mainWt), { pr: opts.pr, direction: opts.direction, head, ref: String(pr.headRefName ?? '').split('/').pop() });
-  } catch (e) {
-    refuse('direction_unrecorded', String(e.message ?? e).split('\n')[0]);
-  }
-  // D5: the cleanup proof, surfaced before the merge; it never refuses the merge
-  const rideWt = findRideWorktree({ origin: realOr(mainWt), headRef: String(pr.headRefName ?? '') });
+  const rideWt = findRideWorktree({ origin: realOr(mainWt ?? cwd), headRef: String(pr.headRefName ?? '') });
   const cleanupVerdict = rideWt ? blockerVerdict(submoduleBlockers(rideWt.path)) : null;
   const cleanupBlockers = cleanupVerdict ? [{ reason: cleanupVerdict[0], detail: cleanupVerdict[1] }] : [];
   const command = `AAI_OPERATOR_MERGE=1 gh pr merge ${opts.pr} --squash --match-head-commit ${head}`;
   if (opts.json) {
-    process.stdout.write(`${JSON.stringify({ ready: true, pr: opts.pr, head, command, sweep: gateOut, direction: opts.direction, signs_on_merge: signs, cleanup_blockers: cleanupBlockers })}\n`);
+    process.stdout.write(`${JSON.stringify({ ready: true, pr: opts.pr, head, command, sweep: gateOut, direction: opts.direction, cleanup_blockers: cleanupBlockers })}\n`);
   } else {
-    const signLines = signs.length ? signs.map((x) => `${SIGNS_PREFIX}${x.record_key} ${x.ref_id} ${x.what}`) : [`${SIGNS_PREFIX}none`];
-    process.stdout.write(`READY PR #${opts.pr} head ${head}\n${gateOut}\n${signLines.join('\n')}\n${cleanupBlockers.map((b) => `cleanup blocked: ${b.reason} ${b.detail}\n`).join('')}${command}\n`);
+    process.stdout.write(`READY PR #${opts.pr} head ${head}\n${gateOut}\n${cleanupBlockers.map((b) => `cleanup blocked: ${b.reason} ${b.detail}\n`).join('')}${command}\n`);
   }
   exit(10);
 }
 
-// ---- sign-merged: the merged-ride backlog (spec-merge-direction-signs-amendments D8) ----
-
-// Only an owner decision authorizes the backlog: a directed_merge is the owner's words
-// about ONE pull request, never a signature for every merged ride (PFA-4).
-const AUTHORITY_TYPES = new Set(['hitl_decision']);
-// Intake doc types a ride is keyed on; never spec, product, report or review.
-const INTAKE_TYPES = new Set(['issue', 'change', 'techdebt', 'rfc', 'prd', 'requirement', 'research']);
-
-function parseSignMergedArgs(argv) {
-  const out = { mode: 'sign-merged', exclude: [], json: false, dryRun: false, base: 'main' };
-  const valueFlags = { '--authority-ts': 'authorityTs', '--base': 'base', '--origin': 'origin' };
-  for (let i = 1; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === '--json') { out.json = true; continue; }
-    if (a === '--dry-run') { out.dryRun = true; continue; }
-    if (a === '--pr') usage('sign-merged takes no --pr (it signs every merged ride of the open fu-amend-* trackers)');
-    if (a === '--exclude' || Object.hasOwn(valueFlags, a)) {
-      if (i + 1 >= argv.length || argv[i + 1] === '') usage(`${a} requires a value`);
-      if (a === '--exclude') out.exclude.push(argv[++i]); else out[valueFlags[a]] = argv[++i];
-      continue;
-    }
-    usage(`unknown argument: ${a}`);
-  }
-  if ((out.authorityTs ?? '') === '') usage('sign-merged requires --authority-ts <ISO ts of the owner decision>');
-  if (!BASE_NAME_RE.test(out.base) || out.base.startsWith('-')) usage(`unsafe --base ${JSON.stringify(out.base)}`);
-  if (out.origin !== undefined && !path.isAbsolute(out.origin)) usage('--origin must be an absolute path');
-  return out;
-}
-
-// Many blobs in one `git cat-file --batch` call; null for a missing one.
-function readBlobsBatch(cwd, specs) {
-  if (specs.length === 0) return [];
-  const r = spawnSync('git', ['cat-file', '--batch'], { cwd, input: `${specs.join('\n')}\n`, maxBuffer: 1024 * 1024 * 1024 });
-  if (r.status !== 0 || !r.stdout) return specs.map(() => null);
-  const buf = r.stdout;
-  const out = [];
-  let at = 0;
-  for (let n = 0; n < specs.length; n++) {
-    const nl = buf.indexOf(10, at);
-    if (nl < 0) { out.push(null); continue; }
-    const header = buf.subarray(at, nl).toString('utf8');
-    const m = header.match(/^[0-9a-f]+ (\w+) (\d+)$/);
-    if (!m) { out.push(null); at = nl + 1; continue; }
-    const size = Number(m[2]);
-    out.push(m[1] === 'blob' ? buf.subarray(nl + 1, nl + 1 + size).toString('utf8') : null);
-    at = nl + 1 + size + 1;
-  }
-  return out;
-}
-
-// ride key -> the intake docs of origin/<base> that carry it (D3 keys).
-function baseRideDocs(cwd, ref) {
-  const ls = git(cwd, ['ls-tree', '-r', '-z', '--name-only', ref, '--', 'docs']);
-  if (ls.status !== 0) refuse('base_unreadable', `git ls-tree ${ref}`);
-  const rels = ls.stdout.split('\0').filter((p) => p.endsWith('.md'));
-  const blobs = readBlobsBatch(cwd, rels.map((rel) => `${ref}:${rel}`));
-  const byKey = new Map();
-  rels.forEach((rel, n) => {
-    const fm = blobs[n] === null ? null : parseFrontmatter(blobs[n]);
-    if (!fm?.id || !INTAKE_TYPES.has(String(fm.type ?? ''))) return;
-    const doc = { id: String(fm.id), rel, fm };
-    for (const k of rideKeys([doc])) byKey.set(k, [...(byKey.get(k) ?? []), doc]);
-  });
-  return byKey;
-}
-
-// D8: the PR that delivered a done ride doc and the first first-parent commit of
-// origin/<base> that carries the doc done with links.pr naming that PR; null otherwise.
-function rideDelivery(cwd, ref, doc, repo) {
-  if (doc.fm.status !== 'done') return null;
-  const prs = linkedPrs(doc.fm, repo);
-  if (prs.length === 0) return null;
-  const log = git(cwd, ['log', '--first-parent', '--reverse', '--format=%H', ref, '--', doc.rel]);
-  if (log.status !== 0) return null;
-  for (const c of log.stdout.split('\n').filter(Boolean)) {
-    const blob = git(cwd, ['cat-file', 'blob', `${c}:${doc.rel}`]);
-    if (blob.status !== 0) continue;
-    const fm = parseFrontmatter(blob.stdout);
-    const pr = fm?.status === 'done' ? linkedPrs(fm, repo).find((n) => prs.includes(n)) : undefined;
-    if (pr !== undefined) return { ride: doc.id, pr, commit: c };
-  }
-  return null;
-}
-
-function runSignMerged(opts) {
-  const origin = resolveOrigin(opts);
-  const ledger = path.join(origin, DECISIONS_REL);
-  const ts = opts.authorityTs;
-  const matches = readJsonl(ledger).filter((r) => r.ts === ts && r.by === 'human' && AUTHORITY_TYPES.has(r.type)
-    && typeof r.answer === 'string' && r.answer.trim() !== '');
-  const authority = matches.length === 1 ? matches[0] : null;
-  if (!authority) refuse('no_owner_decision', `no single by=human hitl_decision with an answer at ts ${ts} in ${ledger} (${matches.length} found)`);
-  const ref = `refs/remotes/origin/${opts.base}`;
-  if (git(origin, ['rev-parse', '--verify', '-q', `${ref}^{commit}`]).status !== 0) refuse('base_unreadable', `${ref} does not exist`);
-  const remote = git(origin, ['config', '--get', 'remote.origin.url']);
-  const repo = remote.status === 0 ? repoSlug(remote.stdout) : null;
-  const rows = amendmentRows(origin, ledger);
-  const fus = followUpRows(origin, ledger);
-  if (!rows || !fus) refuse('ledger_unreadable', DECISIONS_REL);
-  const byKey = baseRideDocs(origin, ref);
-  const cache = new Map();
-  const deliveryOf = (refId) => {
-    if (!cache.has(refId)) {
-      const docs = byKey.get(refId) ?? [];
-      cache.set(refId, docs.length === 1 ? rideDelivery(origin, ref, docs[0], repo) : null);
-    }
-    return cache.get(refId);
-  };
-  const excluded = new Set(opts.exclude);
-  const trackers = fus.filter((i) => i.status === 'open' && String(i.id).startsWith(AMEND_TRACKER_PREFIX)).map((i) => i.id).sort();
-  const plan = [];
-  for (const id of trackers) {
-    if (excluded.has(id)) { plan.push({ tracker: id, action: 'open', reason: 'excluded', sign: [] }); continue; }
-    const mine = rows.filter((i) => i.tracked_by === id && i.amendment_class === SIGNABLE_CLASS);
-    if (mine.length === 0) { plan.push({ tracker: id, action: 'open', reason: 'no_contract_records', sign: [] }); continue; }
-    const sign = [];
-    const unmerged = new Set();
-    const unclassified = new Set();
-    for (const rec of mine.filter((i) => i.bucket !== 'signed')) {
-      // A4: an `unclassified` record (no owner_signoff field) is never signed - by apply or here.
-      if (rec.bucket === 'unclassified') { unclassified.add(rec.record_key); continue; }
-      const delivery = deliveryOf(rec.ref_id);
-      if (!delivery) {
-        unmerged.add(rec.ref_id);
-        continue;
-      }
-      sign.push({ record_key: rec.record_key, ts: rec.ts, ref_id: rec.ref_id, ...delivery });
-    }
-    const rides = mine.map((i) => deliveryOf(i.ref_id)).filter(Boolean);
-    const held = [...[...unmerged].sort().map((r) => `unmerged:${r}`), ...[...unclassified].sort().map((k) => `unclassified:${k}`)];
-    const entry = { tracker: id, action: held.length ? 'open' : 'close', sign };
-    if (held.length) entry.reason = held.join(',');
-    else entry.close = rides[0] ?? null;
-    plan.push(entry);
-  }
-  const result = {
-    mode: 'sign-merged', dry_run: opts.dryRun, base: opts.base,
-    authority: { ts, type: authority.type, answer: authority.answer },
-    plan: plan.map((p) => ({ ...p, sign: p.sign.map(({ ts: _t, ...s }) => s) })),
-    to_sign: plan.flatMap((p) => p.sign.map((s) => s.record_key)),
-    to_close: plan.filter((p) => p.action === 'close').map((p) => p.tracker),
-    signed: [], closed: [],
-  };
-  if (!opts.dryRun) {
-    const why = `the owner's decision ${ts} signs the contract amendments of merged rides (merge-cleanup sign-merged)`;
-    for (const p of plan) {
-      for (const s of p.sign) {
-        const source = `owner decision ${ts} by=human answer="${authority.answer}"; ${s.ride} merged by PR #${s.pr} at ${s.commit}`;
-        result.signed.push(...signRecords(origin, ledger, [s], { why, source }));
-      }
-      if (p.action !== 'close') continue;
-      const resolvedBy = p.close?.ride ?? p.sign[0]?.ride ?? p.tracker;
-      const source = p.close?.commit ?? `${DECISIONS_REL} ts=${ts}`;
-      result.closed.push(...closeFullySigned(origin, ledger, [p.tracker], { resolvedBy, source }));
-    }
-  }
-  if (opts.json) { process.stdout.write(`${JSON.stringify(result)}\n`); exit(0); }
-  const lines = [`sign-merged authority ${ts} (${authority.type}) answer "${authority.answer}"${opts.dryRun ? ' DRY RUN' : ''}`];
-  for (const p of plan) {
-    lines.push(`  ${p.tracker}: ${p.action === 'close' ? 'close' : `stays open (${p.reason})`}`);
-    for (const s of p.sign) lines.push(`    sign ${s.record_key} ${s.ref_id} PR #${s.pr} at ${s.commit}`);
-  }
-  lines.push(opts.dryRun
-    ? `would sign ${result.to_sign.length}, would close ${result.to_close.length}`
-    : `signed ${result.signed.length}, closed ${result.closed.length}`);
-  process.stdout.write(`${lines.join('\n')}\n`);
-  exit(0);
-}
-
 function main(argv) {
   if (argv.includes('--help') || argv.includes('-h')) { process.stdout.write(HELP); exit(0); }
-  if (argv[0] === 'sign-merged') runSignMerged(parseSignMergedArgs(argv));
   const opts = parseArgs(argv);
   if (opts.mode === 'preflight') runPreflight(opts);
   runApplyOrPlan(opts);
