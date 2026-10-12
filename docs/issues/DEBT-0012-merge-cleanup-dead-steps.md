@@ -2,10 +2,12 @@
 id: merge-cleanup-dead-steps
 type: techdebt
 number: 12
-status: draft
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 733db13489c49ddb8a777c223722e7f94245ebae
 ---
 
 # Tech Debt: delete merge-cleanup steps that never act, and gates GitHub already enforces

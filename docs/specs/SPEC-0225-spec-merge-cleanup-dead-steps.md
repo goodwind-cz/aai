@@ -2,14 +2,16 @@
 id: spec-merge-cleanup-dead-steps
 type: spec
 number: 225
-status: implementing
+status: done
 frozen_sha256: c2bc2261042afd22e95586e321d1d9db591707d0b358e8e3b12d1a20dc8faba8
 ceremony_level: 2
 links:
   requirement: merge-cleanup-dead-steps
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 733db13489c49ddb8a777c223722e7f94245ebae
 ---
 
 # Spec — Delete merge-cleanup dead steps, consolidate branch deletion, and drop redundant gates

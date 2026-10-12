@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-12T00:04:18.401Z",
+  "generatedAt": "2026-10-12T00:08:57.404Z",
   "project": "aai",
   "counts": {
-    "delivered": 294,
-    "in_progress": 17,
+    "delivered": 295,
+    "in_progress": 16,
     "releases": 1,
     "tokens_total": 75943406
   },
@@ -116,19 +116,6 @@
       "review": null
     },
     {
-      "ref": "merge-cleanup-dead-steps",
-      "title": "Tech Debt: delete merge-cleanup steps that never act, and gates GitHub already enforces",
-      "type": "techdebt",
-      "status": "draft",
-      "path": "docs/issues/DEBT-0012-merge-cleanup-dead-steps.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-0225-spec-merge-cleanup-dead-steps.md",
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "disposable-checkout-lifecycle-residuals",
       "title": "The disposable checkout is created and destroyed by bookkeeping that loses track of it",
       "type": "issue",
@@ -234,6 +221,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "merge-cleanup-dead-steps",
+      "title": "Tech Debt: delete merge-cleanup steps that never act, and gates GitHub already enforces",
+      "type": "techdebt",
+      "status": "done",
+      "path": "docs/issues/DEBT-0012-merge-cleanup-dead-steps.md",
+      "closed_on": "2026-10-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0225-spec-merge-cleanup-dead-steps.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261012T000200Z-merge-cleanup-dead-steps.md"
+    },
     {
       "ref": "merge-cleanup-delete-remote-branch",
       "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
@@ -4083,6 +4083,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "merge-cleanup-dead-steps",
+          "title": "Tech Debt: delete merge-cleanup steps that never act, and gates GitHub already enforces",
+          "type": "techdebt",
+          "status": "done",
+          "path": "docs/issues/DEBT-0012-merge-cleanup-dead-steps.md",
+          "closed_on": "2026-10-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0225-spec-merge-cleanup-dead-steps.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261012T000200Z-merge-cleanup-dead-steps.md"
+        },
         {
           "ref": "merge-cleanup-delete-remote-branch",
           "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
