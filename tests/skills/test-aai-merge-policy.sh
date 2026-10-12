@@ -842,9 +842,9 @@ JSONL
   echo "a docs change" > "$repo/docs/changed.md"
   commit_all "$repo" "head"
   local head; head="$(head_sha "$repo")"
-  # Deliberately NO write_sweep_record -- docs/ai/EVENTS.jsonl carries no
-  # pr_sweep record at all, so the spawned lane-gate.mjs --sweep-check must
-  # exit 5 (reason=missing-record).
+  # Under SPEC-0227 / DEBT-0014, lane-gate drops the committed sweep requirement
+  # for absent records. A contradictory record triggers lane-gate exit 5 (sweep_check_failed).
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t1512-ride","payload":{"pr":9,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":5,"outcome":"swept"}}' >> "$repo/docs/ai/EVENTS.jsonl"
 
   local ghbin="$TEST_DIR/gh-bin" json="$TEST_DIR/pr.json" log="$TEST_DIR/gh.log"
   cat > "$json" <<JSON

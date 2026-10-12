@@ -1468,11 +1468,11 @@ export function runAudit(root, { quick = false, scopePath = null, today = new Da
         const hasCommit = (idMentionMap.get(id) ?? null) != null;
         // PARENT-ID/sub-item refs roll up to the parent, but sibling IDs
         // (CHANGE-0045 vs CHANGE-004) must not cross-match (CHANGE-0002 D11)
-        const hasEvidence = events.some(e => e.event === 'ac_evidence'
+        const hasEvidence = events.some(e => (e.event === 'ac_evidence' || e.event === 'work_item_closed')
           && (String(e.ref) === id || String(e.ref).startsWith(id + '/')));
         if (!hasCommit && !hasEvidence) {
           doc.verdict = 'probable-false-done';
-          doc.reasons.push('no commit and no ac_evidence event references this doc');
+          doc.reasons.push('no commit, work_item_closed, or ac_evidence event references this doc');
         }
       }
     } else if (OPEN_STATUSES.has(status) && !quick) {

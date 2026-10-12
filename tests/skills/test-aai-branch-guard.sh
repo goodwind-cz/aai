@@ -674,10 +674,6 @@ test_407() {
   [[ "$rc" -ne 0 ]] || log_fail "check-committed-scope.mjs must refuse when HEAD moved under the pin (got exit 0; output: $out)"
   assert_payload_contains "$out" "REFUSED" "check-committed-scope.mjs must name the refusal"
 
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/ceremony 2>&1)"; rc=$?
-  [[ "$rc" -ne 0 ]] || log_fail "close-before-push-guard.mjs must refuse when HEAD moved under the pin (got exit 0; output: $out)"
-  assert_payload_contains "$out" "REFUSED" "close-before-push-guard.mjs must name the refusal"
-
   out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch feat/ceremony 2>&1)"; rc=$?
   [[ "$rc" -ne 0 ]] || log_fail "close-work-item.mjs must refuse when HEAD moved under the pin (got exit 0; output: $out)"
   assert_payload_contains "$out" "REFUSED" "close-work-item.mjs must name the refusal"
@@ -686,11 +682,11 @@ test_407() {
   after_log="$(run_out "$repo" git log --format=%H --all)"
   after_status="$(run_out "$repo" git status --porcelain)"
   [[ "$after_log" == "$before_log" ]] \
-    || log_fail "no commit must have been created by any of the three refused invocations"
+    || log_fail "no commit must have been created by any of the two refused invocations"
   [[ "$after_status" == "$before_status" ]] \
-    || log_fail "no path must have been staged/modified by any of the three refused invocations (before: [$before_status] after: [$after_status])"
+    || log_fail "no path must have been staged/modified by any of the two refused invocations (before: [$before_status] after: [$after_status])"
 
-  log_pass "all three ceremony scripts refuse before writing when HEAD moved under the pin; git log/status unchanged"
+  log_pass "both ceremony scripts refuse before writing when HEAD moved under the pin; git log/status unchanged"
 }
 
 # --- TEST-408 — no pin file -> all three scripts + branch-guard.mjs are
@@ -727,13 +723,10 @@ test_408() {
     fi
   done
   oldccs="$oldroot/check-committed-scope.mjs"
-  oldcbpg="$oldroot/close-before-push-guard.mjs"
   oldcwi="$oldroot/close-work-item.mjs"
   oldguard="$oldroot/branch-guard.mjs"
   ( cd "$PROJECT_ROOT" && git show "$pre_ref:.aai/scripts/check-committed-scope.mjs" ) > "$oldccs" \
     || log_fail "could not extract pre-change check-committed-scope.mjs from $pre_ref"
-  ( cd "$PROJECT_ROOT" && git show "$pre_ref:.aai/scripts/close-before-push-guard.mjs" ) > "$oldcbpg" \
-    || log_fail "could not extract pre-change close-before-push-guard.mjs from $pre_ref"
   ( cd "$PROJECT_ROOT" && git show "$pre_ref:.aai/scripts/close-work-item.mjs" ) > "$oldcwi" \
     || log_fail "could not extract pre-change close-work-item.mjs from $pre_ref"
   ( cd "$PROJECT_ROOT" && git show "$pre_ref:.aai/scripts/branch-guard.mjs" ) > "$oldguard" \
@@ -750,11 +743,6 @@ test_408() {
   old_out="$(run_out "$repo" node "$oldccs" --from-state 2>&1)"; old_rc=$?
   [[ "$new_rc" -eq "$old_rc" ]] || log_fail "check-committed-scope.mjs exit code changed with no pin (old $old_rc, new $new_rc)"
   [[ "$new_out" == "$old_out" ]] || log_fail "check-committed-scope.mjs stdout changed with no pin (old: [$old_out] new: [$new_out])"
-
-  new_out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref bogus-slug 2>&1)"; new_rc=$?
-  old_out="$(run_out "$repo" node "$oldcbpg" --ref bogus-slug 2>&1)"; old_rc=$?
-  [[ "$new_rc" -eq "$old_rc" ]] || log_fail "close-before-push-guard.mjs exit code changed with no pin (old $old_rc, new $new_rc)"
-  [[ "$new_out" == "$old_out" ]] || log_fail "close-before-push-guard.mjs stdout changed with no pin (old: [$old_out] new: [$new_out])"
 
   new_out="$(run_out "$repo" node "$CWI_SCRIPT" --ref bogus-slug --pr TBD --commit deadbeef 2>&1)"; new_rc=$?
   old_out="$(run_out "$repo" node "$oldcwi" --ref bogus-slug --pr TBD --commit deadbeef 2>&1)"; old_rc=$?
@@ -804,15 +792,11 @@ test_450() {
 
   local rc out
   # --expect-branch as the LAST token: argv[++i] reads past the end.
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch 2>&1)"; rc=$?
-  [[ "$rc" -ne 0 ]] || log_fail "close-before-push-guard.mjs: --expect-branch with no value must not silently pass (got exit 0; output: $out)"
-  assert_payload_contains "$out" "requires a value" "close-before-push-guard.mjs must name the missing-value usage error (got: $out)"
-
   out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch 2>&1)"; rc=$?
   [[ "$rc" -ne 0 ]] || log_fail "close-work-item.mjs: --expect-branch with no value must not silently pass (got exit 0; output: $out)"
   assert_payload_contains "$out" "requires a value" "close-work-item.mjs must name the missing-value usage error (got: $out)"
 
-  log_pass "a missing --expect-branch value is a named usage refusal in both scripts, never a silent fail-open"
+  log_pass "a missing --expect-branch value is a named usage refusal, never a silent fail-open"
 }
 
 # --- TEST-451 — outside a git work tree, --verify-pin/--expect-branch REFUSE
@@ -849,17 +833,12 @@ test_451() {
   assert_payload_not_contains "$out" "    at " "check-committed-scope.mjs must not print a raw Node stack trace (got: $out)"
   assert_payload_contains "$out" "not inside a git work tree" "check-committed-scope.mjs must name the refusal"
 
-  out="$(run_out "$nonrepo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/ceremony 2>&1)"; rc=$?
-  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs --expect-branch outside a work tree must exit 3 (got $rc; output: $out)"
-  assert_payload_not_contains "$out" "    at " "close-before-push-guard.mjs must not print a raw Node stack trace (got: $out)"
-  assert_payload_contains "$out" "not inside a git work tree" "close-before-push-guard.mjs must name the refusal"
-
   out="$(run_out "$nonrepo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch feat/ceremony 2>&1)"; rc=$?
   [[ "$rc" -eq 7 ]] || log_fail "close-work-item.mjs --expect-branch outside a work tree must exit 7 (got $rc; output: $out)"
   assert_payload_not_contains "$out" "    at " "close-work-item.mjs must not print a raw Node stack trace (got: $out)"
   assert_payload_contains "$out" "not inside a git work tree" "close-work-item.mjs must name the refusal"
 
-  log_pass "branch-guard.mjs --verify-pin and all three ceremony scripts' --expect-branch refuse with a named message and their own documented exit code outside a git work tree, never a raw crash"
+  log_pass "branch-guard.mjs --verify-pin and both ceremony scripts' --expect-branch refuse with a named message and their own documented exit code outside a git work tree, never a raw crash"
 }
 
 # --- TEST-452 — --expect-branch GIVEN but no pin file yet is still a no-op
@@ -881,17 +860,12 @@ test_452() {
   [[ "$with_rc" -eq "$without_rc" ]] || log_fail "check-committed-scope.mjs: --expect-branch with no pin changed the exit code (with=$with_rc without=$without_rc)"
   [[ "$with_out" == "$without_out" ]] || log_fail "check-committed-scope.mjs: --expect-branch with no pin changed stdout (with: [$with_out] without: [$without_out])"
 
-  with_out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref bogus-slug --expect-branch feat/never-pinned 2>&1)"; with_rc=$?
-  without_out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref bogus-slug 2>&1)"; without_rc=$?
-  [[ "$with_rc" -eq "$without_rc" ]] || log_fail "close-before-push-guard.mjs: --expect-branch with no pin changed the exit code (with=$with_rc without=$without_rc)"
-  [[ "$with_out" == "$without_out" ]] || log_fail "close-before-push-guard.mjs: --expect-branch with no pin changed stdout (with: [$with_out] without: [$without_out])"
-
   with_out="$(run_out "$repo" node "$CWI_SCRIPT" --ref bogus-slug --pr TBD --commit deadbeef --expect-branch feat/never-pinned 2>&1)"; with_rc=$?
   without_out="$(run_out "$repo" node "$CWI_SCRIPT" --ref bogus-slug --pr TBD --commit deadbeef 2>&1)"; without_rc=$?
   [[ "$with_rc" -eq "$without_rc" ]] || log_fail "close-work-item.mjs: --expect-branch with no pin changed the exit code (with=$with_rc without=$without_rc)"
   [[ "$with_out" == "$without_out" ]] || log_fail "close-work-item.mjs: --expect-branch with no pin changed stdout (with: [$with_out] without: [$without_out])"
 
-  log_pass "--expect-branch actively passed with no pin file yet is a byte-identical no-op in all three ceremony scripts"
+  log_pass "--expect-branch actively passed with no pin file yet is a byte-identical no-op in both ceremony scripts"
 }
 
 # --- TEST-453 — the CHANGE-0180 mechanism is ARMED: SKILL_PR.prompt.md and
@@ -924,14 +898,12 @@ test_453() {
   # can satisfy it.
   grep -qF -- 'check-committed-scope.mjs --from-state --strict --rev HEAD --expect-branch' "$pr_doc" \
     || log_fail "SKILL_PR.prompt.md step 4a must pass --expect-branch to check-committed-scope.mjs (on the command line itself, not adjacent prose)"
-  grep -A1 -- 'close-work-item.mjs --ref <slug> --pr' "$pr_doc" | qgrep -q -- '--expect-branch' \
+  grep -A1 -- 'close-work-item.mjs --ref <slug>' "$pr_doc" | qgrep -q -- '--expect-branch' \
     || log_fail "SKILL_PR.prompt.md step 4c must pass --expect-branch to close-work-item.mjs"
-  grep -- 'close-before-push-guard.mjs --ref <slug> --expect-branch' "$pr_doc" >/dev/null \
-    || log_fail "SKILL_PR.prompt.md step 5 must pass --expect-branch to close-before-push-guard.mjs"
   local expect_branch_sites
   expect_branch_sites="$(grep -c -- '--expect-branch <branch>' "$pr_doc")"
-  [[ "$expect_branch_sites" -ge 3 ]] \
-    || log_fail "SKILL_PR.prompt.md must pass --expect-branch <branch> at steps 4a/4c/5 (found $expect_branch_sites site(s), want >= 3)"
+  [[ "$expect_branch_sites" -ge 2 ]] \
+    || log_fail "SKILL_PR.prompt.md must pass --expect-branch <branch> at steps 4a/4c (found $expect_branch_sites site(s), want >= 2)"
 
   grep -qF 'session-lock.mjs acquire' "$wt_doc" \
     || log_fail "SKILL_WORKTREE.prompt.md must acquire the session lock (session-lock.mjs acquire)"
@@ -1018,10 +990,6 @@ EOF
   " 2>&1)"; rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "step 4c close-work-item.mjs's guard function must pass after the ceremony's own commit (got $rc; output: $out)"
 
-  # step 5.
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref t454-slug --expect-branch feat/e2e-ceremony 2>&1)"; rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "step 5 close-before-push-guard.mjs must pass after the ceremony's own commit (got $rc; output: $out)"
-
   # Now a GENUINE concurrent session: reset this same branch back to an
   # OLDER commit — a non-descendant of the pin — the "someone reset/switched
   # me" case the advance-only sha arm must still catch.
@@ -1040,10 +1008,7 @@ EOF
   " 2>&1)"; rc=$?
   [[ "$rc" -eq 7 ]] || log_fail "step 4c's guard function must refuse (exit 7) after a genuine concurrent reset (got $rc; output: $out)"
 
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref t454-slug --expect-branch feat/e2e-ceremony 2>&1)"; rc=$?
-  [[ "$rc" -eq 3 ]] || log_fail "step 5 must refuse (exit 3) after a genuine concurrent reset (got $rc; output: $out)"
-
-  log_pass "pin -> the ceremony's own commit -> all three --expect-branch call sites pass; a genuine concurrent reset afterward still refuses at each, with its documented code"
+  log_pass "pin -> the ceremony's own commit -> --expect-branch call sites pass; a genuine concurrent reset afterward still refuses at each, with its documented code"
 }
 
 # --- TEST-455 — the NB-3 branch COMPARE itself is crossing-tested: a pin on
@@ -1092,11 +1057,6 @@ test_455() {
   assert_payload_contains "$out" 'actual branch "feat/a"' \
     "close-work-item.mjs must name the ACTUAL branch (feat/a) in its refusal, not silently accept pin.branch"
 
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/b 2>&1)"; rc=$?
-  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs: staying on the pinned branch feat/a but naming --expect-branch feat/b must refuse (exit 3; got $rc; output: $out)"
-  assert_payload_contains "$out" 'actual branch "feat/a"' \
-    "close-before-push-guard.mjs must name the ACTUAL branch (feat/a) in its refusal, not silently accept pin.branch"
-
   # A NONEXISTENT --expect-branch name must refuse too, with the code-6
   # "renamed or removed" wording (the exit code stays each script's own
   # documented 3/7/3 — only the message distinguishes cause 6 from cause 7).
@@ -1126,10 +1086,7 @@ test_455() {
   out="$(run_out "$repo" node "$CWI_SCRIPT" --ref whatever-slug --pr TBD --commit deadbeef --expect-branch feat/b 2>&1)"; rc=$?
   [[ "$rc" -eq 7 ]] || log_fail "close-work-item.mjs: pinned on feat/a but now on feat/b must refuse (exit 7; got $rc; output: $out)"
 
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/b 2>&1)"; rc=$?
-  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs: pinned on feat/a but now on feat/b must refuse (exit 3; got $rc; output: $out)"
-
-  log_pass "a --expect-branch naming a DIFFERENT branch than the pin's own refuses at all three call sites, whether HEAD stayed on the pinned branch or moved to the named one — the NB-3 compare crossing is proven, not merely wired"
+  log_pass "a --expect-branch naming a DIFFERENT branch than the pin's own refuses at both call sites, whether HEAD stayed on the pinned branch or moved to the named one — the NB-3 compare crossing is proven, not merely wired"
 }
 
 # --- TEST-459 (round 8, Codex P1) — SKILL_WORKTREE/SKILL_PR wire the
@@ -1200,10 +1157,6 @@ test_460() {
   [[ "$rc" -eq 7 ]] || log_fail "close-work-item.mjs must refuse (exit 7) against a malformed pin, never silently pass (got $rc; output: $out)"
   assert_payload_contains "$out" "not valid JSON" "close-work-item.mjs's refusal must cite the malformed/corrupted pin (got: $out)"
 
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/malformed 2>&1)"; rc=$?
-  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs must refuse (exit 3) against a malformed pin, never silently pass (got $rc; output: $out)"
-  assert_payload_contains "$out" "not valid JSON" "close-before-push-guard.mjs's refusal must cite the malformed/corrupted pin (got: $out)"
-
   # round 9 (NB-4): the missing-fields arm — valid JSON, but without the
   # required `branch`/`sha` keys (e.g. a pin written by an older/foreign
   # format). checkBranchPin's THIRD malformed-pin branch, previously only
@@ -1224,10 +1177,6 @@ test_460() {
   [[ "$rc" -eq 7 ]] || log_fail "close-work-item.mjs must refuse (exit 7) against a fields-missing pin, never silently pass (got $rc; output: $out)"
   assert_payload_contains "$out" "missing required fields" "close-work-item.mjs's refusal must cite the fields-missing pin (got: $out)"
 
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref whatever-slug --expect-branch feat/malformed 2>&1)"; rc=$?
-  [[ "$rc" -eq 3 ]] || log_fail "close-before-push-guard.mjs must refuse (exit 3) against a fields-missing pin, never silently pass (got $rc; output: $out)"
-  assert_payload_contains "$out" "missing required fields" "close-before-push-guard.mjs's refusal must cite the fields-missing pin (got: $out)"
-
   # ENOENT contrast: removing the pin entirely reverts to the documented
   # Spec-AC-04 no-op (exit 0) — proving code 8 is genuinely conditioned on
   # the file's PRESENCE-but-unreadable, not on --expect-branch/--verify-pin
@@ -1236,14 +1185,14 @@ test_460() {
   run_guard "$repo" --verify-pin
   [[ "$RC" -eq 0 ]] || log_fail "--verify-pin with NO pin file at all must stay a no-op (exit 0), got $RC; stderr: $ERR"
 
-  log_pass "a malformed/unreadable pin (invalid JSON, and valid JSON missing branch/sha) refuses (code 8) at branch-guard.mjs and at all three ceremony call sites; a genuinely absent pin (ENOENT) stays the Spec-AC-04 no-op"
+  log_pass "a malformed/unreadable pin (invalid JSON, and valid JSON missing branch/sha) refuses (code 8) at branch-guard.mjs and at both ceremony call sites; a genuinely absent pin (ENOENT) stays the Spec-AC-04 no-op"
 }
 
 # --- TEST-461 (round 8, Copilot) — an EXPLICIT empty --expect-branch value
 #     ('') is a missing value (usage error), never a silent fail-open no-op,
-#     at both close-before-push-guard.mjs and close-work-item.mjs ---------
+#     at close-work-item.mjs ---------------------------------------------
 test_461() {
-  log_info "TEST-461: --expect-branch '' (explicit empty string) is a usage error, not a silent disable, at both ceremony call sites..."
+  log_info "TEST-461: --expect-branch '' (explicit empty string) is a usage error, not a silent disable, at close-work-item.mjs..."
   local repo; repo="$(make_repo t461)"
   ( cd "$repo" && git checkout -qb feat/empty-expect ) \
     || log_fail "fixture setup: could not create feat/empty-expect"
@@ -1286,17 +1235,7 @@ EOF
 
   local out rc
 
-  # Baseline (no --expect-branch at all): proves the fixture itself would
-  # otherwise succeed — the rc discriminator below is real, not an artifact
-  # of a bad ref.
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref t461-slug 2>&1)"; rc=$?
-  [[ "$rc" -eq 0 ]] || log_fail "fixture precondition broken: close-before-push-guard.mjs --ref t461-slug (no --expect-branch) must exit 0 (got $rc; output: $out)"
-
-  out="$(run_out "$repo" node "$CBPG_SCRIPT" --ref t461-slug --expect-branch '' 2>&1)"; rc=$?
-  [[ "$rc" -eq 2 ]] || log_fail "close-before-push-guard.mjs: --expect-branch '' must refuse at usage-parse time (exit 2), never silently pass through to the real (otherwise-succeeding) ref check (got $rc; output: $out)"
-  assert_payload_contains "$out" "requires a value" "close-before-push-guard.mjs must name the missing-value usage error for an empty --expect-branch (got: $out)"
-
-  # Same baseline proof for close-work-item.mjs, via --dry-run (resolves and
+  # Baseline proof for close-work-item.mjs, via --dry-run (resolves and
   # validates the doc exactly like a real close, writes nothing).
   out="$(run_out "$repo" node "$CWI_SCRIPT" --ref t461-slug --pr TBD --commit deadbeef --dry-run 2>&1)"; rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "fixture precondition broken: close-work-item.mjs --ref t461-slug --dry-run (no --expect-branch) must exit 0 (got $rc; output: $out)"
@@ -1305,7 +1244,7 @@ EOF
   [[ "$rc" -eq 2 ]] || log_fail "close-work-item.mjs: --expect-branch '' must refuse at usage-parse time (exit 2), never silently pass through to the real (otherwise-succeeding) ref check (got $rc; output: $out)"
   assert_payload_contains "$out" "requires a value" "close-work-item.mjs must name the missing-value usage error for an empty --expect-branch (got: $out)"
 
-  log_pass "an explicit empty --expect-branch value is a named usage refusal in both scripts, never a silent fail-open — proven against a ref that would otherwise genuinely succeed"
+  log_pass "an explicit empty --expect-branch value is a named usage refusal in close-work-item.mjs, never a silent fail-open — proven against a ref that would otherwise genuinely succeed"
 }
 
 ALL_TESTS="001 002 003 004 005 006 007 008 009 010 011 012 013 014 405 406 407 408 450 451 452 453 454 455 459 460 461"

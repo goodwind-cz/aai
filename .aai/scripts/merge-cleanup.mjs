@@ -156,6 +156,53 @@ function ghDependents(cwd, branch, side = 'base') {
   return spawnSync('gh', listArgs, { cwd, encoding: 'utf8', timeout: 120000 });
 }
 
+function ghApi(cwd, args, maxBuffer = 16 * 1024 * 1024) {
+  const stub = seam('AAI_MERGE_CLEANUP_GH_NODE');
+  const apiArgs = ['api', ...args];
+  if (stub && path.isAbsolute(stub)) {
+    return spawnSync(process.execPath, [stub, ...apiArgs], { cwd, encoding: 'utf8', maxBuffer });
+  }
+  return spawnSync('gh', apiArgs, { cwd, encoding: 'utf8', maxBuffer });
+}
+
+function checkReviewThreads(cwd, prNumber, prUrl) {
+  const slug = repoSlug(prUrl);
+  if (!slug) return { ok: true, unresolvedCount: 0 };
+  const [owner, repo] = slug.split('/');
+  let hostname = null;
+  try {
+    const u = new URL(prUrl);
+    if (u.hostname) hostname = u.hostname;
+  } catch {}
+  const query = 'query($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) { repository(owner: $owner, name: $repo) { pullRequest(number: $pr) { reviewThreads(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor } nodes { isResolved isOutdated comments(first: 10) { nodes { body author { login } path line } } } } } } }';
+  const apiArgs = ['graphql', '--paginate', '--slurp'];
+  if (hostname) apiArgs.push('--hostname', hostname);
+  apiArgs.push('-F', `owner=${owner}`, '-F', `repo=${repo}`, '-F', `pr=${prNumber}`, '-f', `query=${query}`);
+  const r = ghApi(cwd, apiArgs);
+  if (r.error || r.status !== 0) {
+    refuse('gh_read_failed', `gh api review-threads ${prNumber}`);
+  }
+  let pages;
+  try { pages = JSON.parse(r.stdout); } catch { refuse('gh_read_invalid', 'gh api review-threads printed no JSON'); }
+  if (!Array.isArray(pages)) pages = [pages];
+  const threads = [];
+  for (const page of pages) {
+    const nodes = page?.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
+    threads.push(...nodes);
+  }
+  const unresolved = threads.filter((t) => !t.isResolved);
+  if (unresolved.length > 0) {
+    const details = unresolved.map((t) => {
+      const c = t.comments?.nodes?.[0];
+      const author = c?.author?.login ?? 'unknown';
+      const loc = c?.path ? `${c.path}${c.line ? `:${c.line}` : ''}` : '';
+      return `${author}${loc ? ` (${loc})` : ''}: ${(c?.body || '').slice(0, 100)}`;
+    }).join('; ');
+    return { ok: false, unresolvedCount: unresolved.length, details };
+  }
+  return { ok: true, unresolvedCount: 0 };
+}
+
 // PR numbers from one dependents query, or null when it failed or its output is not a list of numbers.
 function dependentNumbers(dep) {
   if (dep.error || dep.status !== 0) return null;
@@ -1284,6 +1331,10 @@ function runPreflight(opts) {
   const gateOut = (g.stdout ?? '').trim();
   if (g.error || g.status !== 0) {
     refuse('sweep_missing', gateOut.split('\n').filter(Boolean).join(' | ') || 'lane-gate --sweep-check did not allow the merge');
+  }
+  const reviewCheck = checkReviewThreads(cwd, opts.pr, pr.url);
+  if (!reviewCheck.ok) {
+    refuse('review_unresolved', `${reviewCheck.unresolvedCount} unresolved review thread(s): ${reviewCheck.details}`);
   }
   // D5: the cleanup proof, surfaced before the merge; it never refuses the merge
   const wl = git(cwd, ['worktree', 'list', '--porcelain']);

@@ -169,6 +169,63 @@ PROCESS
    - Rationale: the changelog is the aggregated view operators read; it once
      silently drifted 10 PRs behind.
 
+4c. CLOSE BEFORE PUSH (fu-close-before-push-ordering / fu-close-requires-pr-
+   before-it-exists) — run the close ceremony BEFORE creating the content commit:
+   closing first means step 4's single content commit carries the closed
+   doc, so no ceremony commits follow and the very first CI run already sees
+   a closed doc.
+   LOCAL EVIDENCE: cite runtime evidence (docs/ai/reports, docs/ai/tdd, docs/ai/validation) by path; never `git add -f` it — close-work-item.mjs copies worktree-only cited evidence into the main checkout; a project that wants shared evidence uses a project-owned path outside those folders.
+   - AMENDMENT GATE — run `node .aai/scripts/spec-amend.mjs list --strict`.
+     Exit 0: proceed. Exit 1: it PRINTS one runnable remedy line per
+     offending violation — `spec-amend.mjs classify` for an offending
+     RECORD (carrying its `--ts`/`--ref`), `spec-amend.mjs add` for an
+     offending SPEC edited with no record (`undisclosed-amendment`, D11 of
+     spec-mutation-gate-for-tests; carrying its `--spec`/`--ref`). Run each
+     (`--signoff none` also files the tracked item, so one call per
+     violation clears the gate; `--signoff owner` when the owner really
+     decided). `--signoff none` is the autonomous default;
+     the owner is never asked mid-ride. Never an in-place edit. For a RECORD violation, never `spec-amend.mjs add`
+     — that records a NEW amendment and leaves the named record untracked.
+     An unsigned post-freeze amendment with no tracked item discharges an
+     owner HITL gate by self-disclosure.
+   - FLIP THE AC TABLE FIRST (its own ordered step — .aai/VALIDATION.prompt.md
+     step 8a defers it to here): set every Spec-AC row of the scope's doc(s)
+     terminal, fill each Evidence cell from the validation report's per-AC
+     evidence, and clear VALIDATION 8b's close gate on the flipped table; the
+     window this opens lasts the seconds until the next command, never ships.
+   - THEN run the deterministic close ceremony instead of hand-editing
+     frontmatter or hand-emitting close events:
+     node .aai/scripts/close-work-item.mjs --ref <slug> \
+       [--spec <spec-slug>] --review <pass|waived|none> --expect-branch <branch>
+   - `<slug>` is the primary work-item doc's frontmatter `id`; pass
+     `--spec <spec-slug>` when this scope also has a linked spec doc.
+     `--review` mirrors `code_review.status` (pass/waived/none).
+     `--expect-branch` re-checks step 0's pin (CHANGE-0180 D4) FIRST, before
+     any write; exit 7 means a concurrent session moved HEAD — STOP, REVERT
+     the AC-table flip above, do not retry blind.
+   - Exit 0 = closed (or already closed — idempotent). Exit 1 = the post-close
+     self-verify audit was not CLEAN; the script already rolled back — STOP
+     and investigate before retrying. Exit 2 = usage error (bad ref, a
+     non-done-terminal status); nothing was written — fix the flag and retry.
+   If `close-work-item.mjs` then exits non-zero other than 6, REVERT the flip
+   before anything else — an open doc with terminal evidenced rows is the
+   exact false-open shape this ordering exists to prevent, and the script's
+   own rollback cannot see edits made before it ran. Exit 6 means the close
+   STOOD: keep the flip; run the echoed remaining state.mjs command(s).
+   - Then run `node .aai/scripts/roadmap-edit.mjs advance --ref <slug>` (a
+     named no-op without a roadmap or before the documents are done); non-zero:
+     STOP and print it (the script already restored the file). When
+     `git status --porcelain -- docs/ai/roadmap.yaml` is non-empty, stage
+     `docs/ai/roadmap.yaml` in the close commit and add it to the
+     `check-committed-scope` CLI path list below.
+   - Then run `node .aai/scripts/state.mjs clear-focus --ref <slug>` — a
+     closed ride must stop publishing as the in-flight scope
+     (fu-overview-shows-closed-ride-inflight).
+   - Stage the mutated doc(s) + docs/ai/EVENTS.jsonl into the index so their
+     closure is committed directly as part of step 4's single content commit
+     (Spec-AC-05 / DEBT-0014: zero ceremony commits added after content).
+   - Merge boundary unchanged: this step never merges, and never pushes.
+
 4. COMMIT — message conventions:
    - Conventional-commit style: `<type>(<scope>): <imperative summary>`
      (feat / fix / docs / chore / test / refactor), consistent with the
@@ -195,93 +252,9 @@ PROCESS
    staged after the commit but never committed reads clean — this step's whole
    claim is about the COMMIT (round-two review, 2026-09-06).
 
-4c. CLOSE BEFORE PUSH (fu-close-before-push-ordering / fu-close-requires-pr-
-   before-it-exists) — run the close ceremony on THIS local commit, BEFORE
-   any push exists to trigger CI: pushing first means CI runs against a
-   still-open doc, and 5 tests/skills/test-framework.sh reds that only clear
-   once close-work-item.mjs has run get misread as genuine CI failures every
-   ride (measured, validation round 4). Step 5's push refuses below if this
-   step is skipped.
-   LOCAL EVIDENCE: cite runtime evidence (docs/ai/reports, docs/ai/tdd, docs/ai/validation) by path; never `git add -f` it — close-work-item.mjs copies worktree-only cited evidence into the main checkout; a project that wants shared evidence uses a project-owned path outside those folders.
-   - PROBE THE PLATFORM FIRST, before stamping anything (fu-close-before-
-     push-ordering F-1 remediation, PR #320 Codex review — moved here from
-     step 5 so this step never stamps a `TBD` it can never later resolve;
-     the probe is a read-only `git remote get-url origin` check with no
-     dependency on the commit/push that follows, so running it this early
-     costs nothing):
-       node .aai/scripts/pr-platform.mjs
-     `github`/`azure` -> a real PR WILL exist once step 5 pushes; use `--pr
-     TBD` below. `unknown`/`none` -> GENERIC MODE (step 5 never opens a PR
-     for either): use `--pr NONE` below instead — the terminal "correctly,
-     permanently, no PR" sentinel, never `TBD`, which a generic-mode ride
-     could never later resolve via step 5c. Step 5's own platform bullet
-     REUSES this same result; it is not re-probed there.
-   - AMENDMENT GATE — run `node .aai/scripts/spec-amend.mjs list --strict`.
-     Exit 0: proceed. Exit 1: it PRINTS one runnable remedy line per
-     offending violation — `spec-amend.mjs classify` for an offending
-     RECORD (carrying its `--ts`/`--ref`), `spec-amend.mjs add` for an
-     offending SPEC edited with no record (`undisclosed-amendment`, D11 of
-     spec-mutation-gate-for-tests; carrying its `--spec`/`--ref`). Run each
-     (`--signoff none` also files the tracked item, so one call per
-     violation clears the gate; `--signoff owner` when the owner really
-     decided). `--signoff none` is the autonomous default;
-     the owner is never asked mid-ride. Never an in-place edit. For a RECORD violation, never `spec-amend.mjs add`
-     — that records a NEW amendment and leaves the named record untracked.
-     An unsigned post-freeze amendment with no tracked item discharges an
-     owner HITL gate by self-disclosure.
-   - FLIP THE AC TABLE FIRST (its own ordered step — .aai/VALIDATION.prompt.md
-     step 8a defers it to here): set every Spec-AC row of the scope's doc(s)
-     terminal, fill each Evidence cell from the validation report's per-AC
-     evidence, and clear VALIDATION 8b's close gate on the flipped table; the
-     window this opens lasts the seconds until the next command, never ships.
-   - THEN run the deterministic close ceremony instead of hand-editing
-     frontmatter or hand-emitting close events, with `--pr` set to whichever
-     sentinel the probe above selected — NEVER a guessed number (the
-     historical read-the-highest-existing-number-and-add-one guess was luck,
-     not procedure):
-     node .aai/scripts/close-work-item.mjs --ref <slug> --pr <TBD|NONE> --commit <this-commit-sha> \
-       [--spec <spec-slug>] --review <pass|waived|none> --expect-branch <branch>
-   - `<slug>` is the primary work-item doc's frontmatter `id`; pass
-     `--spec <spec-slug>` when this scope also has a linked spec doc.
-     `--review` mirrors `code_review.status` (pass/waived/none).
-     `--expect-branch` re-checks step 0's pin (CHANGE-0180 D4) FIRST, before
-     any write; exit 7 means a concurrent session moved HEAD — STOP, REVERT
-     the AC-table flip above, do not retry blind.
-   - Exit 0 = closed (or already closed — idempotent). Exit 1 = the post-close
-     self-verify audit was not CLEAN; the script already rolled back — STOP
-     and investigate before retrying. Exit 2 = usage error (bad ref, a
-     non-done-terminal status); nothing was written — fix the flag and retry.
-   If `close-work-item.mjs` then exits non-zero other than 6, REVERT the flip
-   before anything else — an open doc with terminal evidenced rows is the
-   exact false-open shape this ordering exists to prevent, and the script's
-   own rollback cannot see edits made before it ran. Exit 6 means the close
-   STOOD: keep the flip; run the echoed remaining state.mjs command(s).
-   - Then run `node .aai/scripts/roadmap-edit.mjs advance --ref <slug>` (a
-     named no-op without a roadmap or before the documents are done); non-zero:
-     STOP and print it (the script already restored the file). When
-     `git status --porcelain -- docs/ai/roadmap.yaml` is non-empty, stage
-     `docs/ai/roadmap.yaml` in the close commit and add it to the
-     `check-committed-scope.mjs` path list below.
-   - Then run `node .aai/scripts/state.mjs clear-focus --ref <slug>` — a
-     closed ride must stop publishing as the in-flight scope
-     (fu-overview-shows-closed-ride-inflight).
-   - Stage the mutated doc(s) + docs/ai/EVENTS.jsonl and commit as a SECOND
-     local commit, `chore(close): <ref> close ceremony (PR pending)` — do NOT
-     push yet, there is no PR to update. This commit rides out together with
-     the FIRST push in step 5, so the very first CI run already sees a
-     closed doc.
-   - VERIFY THE CLOSE COMMIT (Spec-AC-30): `node .aai/scripts/check-committed-scope.mjs
-     <closed-doc-path(s)> docs/ai/EVENTS.jsonl --strict --rev HEAD --expect-branch <branch>`
-     (never `--from-state` — wrong scope here). Non-zero: STOP, re-stage,
-     `git commit --amend`. FALLBACK: `git show --stat HEAD`.
-   - Merge boundary unchanged: this step never merges, and never pushes.
-
 5. PLATFORM GATE + PUSH + PR:
-   - Reuse the platform value step 4c already probed (do NOT re-run
-     `node .aai/scripts/pr-platform.mjs` here — it is read-only and
-     deterministic, so a second invocation is dead-weight duplication, not
-     a fresher answer). That value is why a `PLATFORM none` repo never
-     reaches a push line here: it has no origin to push to.
+   - Probe the platform: run `node .aai/scripts/pr-platform.mjs`. That value is
+     why a `PLATFORM none` repo never reaches a push line here: it has no origin to push to.
    - The probe also prints `reviewer_bots=<expected|none|unknown>` (from the
      repo-local `docs/ai/pr-config.yaml` knob; absent == `none`, assume-none).
      Step 5d branches on it so a GitHub repo with NO reviewer bots never waits
@@ -289,11 +262,8 @@ PROCESS
    - LANE (CHANGE lightweight-e2e-lane) — once the branch is pushed and the
      final diff is known, classify the ride with the deterministic gate
      (NO agent judgment — a bad or inflated declaration can only ever pick the
-     HEAVY lane, fail-closed). RECOMPUTE after ANY later commit lands on the
-     branch (the stamp-pr commit of step 5c included): the lane verdict
-     that governs steps 5c/5d is the one computed over the FINAL branch diff —
-     if the recomputed lane is heavy, the ride reverts to the full envelope
-     (a fast verdict can be lost by growth, never regained by trimming):
+     HEAVY lane, fail-closed). The lane verdict that governs step 5d is the one
+     computed over the branch diff:
        node .aai/scripts/lane-gate.mjs --spec <frozen spec path> \
          --intake <intake CHANGE doc path> \
          --state docs/ai/STATE.yaml --base-ref origin/<base>
@@ -307,15 +277,7 @@ PROCESS
      Record the verdict + its predicate lines in the PR body `## Lane` section
      so a reviewer can SEE why a ride went light (never a hidden decision). The
      fast lane only REMOVES ceremony from a deterministically-small ride; it
-     can never add risk to a large one. Steps 5c/5d branch on this verdict.
-   - CLOSE-BEFORE-PUSH GATE (fu-close-before-push-ordering) — immediately
-     before the push line below:
-       node .aai/scripts/close-before-push-guard.mjs --ref <slug> --expect-branch <branch>
-     `--expect-branch` re-checks step 0's pin (CHANGE-0180 D4) one last time
-     before the push; exit 3 means a concurrent session moved HEAD. Exit 0:
-     proceed. Non-zero: STOP — step 4c did not run (or its commit is
-     missing from this branch); go back and complete 4c. Never push a ride
-     whose work-item doc is not yet `status: done`.
+     can never add risk to a large one. Step 5d branches on this verdict.
    - NOTHING-LEFT-BEHIND GATE (simple-and-friendly-to-use D2) — after the
      close ceremony's final commit and before the push line below:
        node .aai/scripts/nothing-left-behind.mjs --ref <slug>
@@ -401,39 +363,6 @@ PROCESS
      the resolution commit then claimed a merge that never happened). Confirm
      `.git/MERGE_HEAD` exists (merge in progress) or the commit has 2 parents.
 
-5c. STAMP THE PR NUMBER (fu-close-requires-pr-before-it-exists) — the close
-   itself already ran and self-verified CLEAN in step 4c, before this PR
-   existed; now that the PR number N is known, replace the `TBD` placeholder
-   step 4c stamped with the real number:
-     node .aai/scripts/close-work-item.mjs --ref <slug> --stamp-pr <N> \
-       [--spec <spec-slug>]
-   - This is a NARROW, separate transaction — it never re-runs the status
-     flip or re-emits the close event set (both already happened, self-
-     verified, in step 4c); it only replaces `links.pr`.
-   - Exit 0 = stamped (or already stamped with N — idempotent). Exit 1 = the
-     post-stamp self-verify audit was not CLEAN; the script already rolled
-     back — STOP and investigate. Exit 2 = usage error — most commonly no
-     `TBD` placeholder was found, meaning step 4c did not run with `--pr TBD`
-     before this push (the ordering was violated somewhere): fix the
-     ordering and re-run 4c, never hand-edit `links.pr`.
-   - Stage, COMMIT (`chore(close): <ref> stamp PR #<N>`, same discipline as
-     steps 2-4), and VERIFY it (Spec-AC-30) with `node .aai/scripts/check-committed-scope.mjs
-     <closed-doc-path(s)> --strict --rev HEAD --expect-branch <branch>`
-     (non-zero STOPs; FALLBACK `git show --stat HEAD`) before pushing this
-     commit on the SAME branch, updating the open PR.
-   - FAST LANE (lightweight-e2e-lane): on `LANE fast`, this stamp-pr commit's
-     diff is a single frontmatter line (`links.pr`) — even lighter than
-     before this change, because the close ceremony's real diff (status flip
-     + `links.commits` + docs/ai/EVENTS.jsonl) already rode out with the
-     FIRST push in step 4c. select-suites.mjs routes this commit to the CORE
-     suites (docs-audit, check-state, spec-lint), NEVER FULL_RUN. The
-     post-merge push-to-main + nightly FULL run (SPEC-0097) remain the
-     backstop. Heavy lane unchanged.
-   - MUST NOT GO UNFILLED: if for any reason this step is skipped, EVERY
-     later close-work-item.mjs invocation anywhere in this repo prints a
-     named stderr WARNING for this doc's stale `TBD` (see close-work-item.mjs
-     PR-NUMBER SPLIT) — a stale placeholder is loud, not silent.
-   - Merge boundary unchanged: this step never merges.
 
 5d. POST-OPEN REVIEW SWEEP (CHANGE-0060) — external reviewer bots (Copilot,
    Codex) post INLINE comments that never appear in `gh pr checks`. Before
@@ -492,17 +421,11 @@ PROCESS
      "internal review substituted for absent bot layer" in the PR description.
    - Wait for the CI re-run and repeat this sweep ONCE for NEW comments
      before declaring merge-ready.
-   - RECORD IT (Spec-AC-33/34, issue 338): `append-event.mjs --event pr_sweep
-     --pr <N> --lane <fast|heavy> --reviewer-bots <expected|none|unknown>
-     --threads-seen <n> --threads-unresolved 0 --outcome
-     <swept|skipped_fast_lane|internal_substituted>` before any merge — the
-     hook-overlay merge gate calls `lane-gate.mjs --sweep-check` and denies a
-     `gh pr merge` with no matching record.
    - FRICTION HOOK (canon-file gate/lint/CI failure handled, default-on): when
      a CI check or bot finding here surfaces an AAI-owned defect, best-effort
      record it per .aai/system/FRICTION_PROTOCOL.md "Deterministic hook
      points" (schema v2); swallow any capture failure, never block the sweep.
-   - Release the step-0 session lock now, at the true end of step 5 (5b/5c/5d
+   - Release the step-0 session lock now, at the true end of step 5 (5b/5d
      included — every git write this ceremony makes is done): `node
      .aai/scripts/lib/session-lock.mjs release --pid "$PPID"` — a no-op if
      nothing is held under this pid.
@@ -540,9 +463,6 @@ PROCESS
      verdict's `lane=<id> reason=<code>` lines name why each lane was
      rejected, which belongs in the merge report alongside the verdict line,
      never silently dropped.
-   - SWEEP CHECK (Spec-AC-34), runs even without the hook overlay: before
-     `gh pr merge`, `node .aai/scripts/lane-gate.mjs --sweep-check --pr <n>`
-     must exit 0, or step 5d's `pr_sweep` record is missing/wrong -- fix, retry.
    - Hook marker (RFC-0010, opt-in overlay): projects with the Claude hooks
      overlay installed deny `git merge` / `gh pr merge` mechanically unless
      `AAI_OPERATOR_MERGE=1` is set on that command. The agent NEVER sets this

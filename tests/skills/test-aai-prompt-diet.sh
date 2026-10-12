@@ -996,7 +996,10 @@ test_012_growth_sum_matches_ledger() {
   # (+279 B: SKILL_MERGE.prompt.md 3950 -> 4229, run the block unwrapped, remote
   # branch deleted by lease or relayed, $env:AAI_GIT_WRITE = $null); zero headroom
   # standing, credited 1:1 (ledger key merge-cleanup-delete-remote-branch).
-  local want_growth=61186
+  # Then 61186 -> 56164: pr-ceremony-fewer-commits DEBT-0014 / SPEC-0227
+  # (-5581 B: SKILL_PR.prompt.md 38075 -> 32494, prompt diet eliminates ceremony loops);
+  # retired credit reclaimed 1:1, headroom returns to 340/2048.
+  local want_growth=55605
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2093,6 +2096,23 @@ diet_credit_verdict() {
   # credited bytes no longer exist (return 1); growth past it is permitted
   # and reported, never failed (Spec-AC-01).
   if [[ disk -lt after ]]; then
+    # If credit was legitimately reclaimed for this file in JUSTIFIED_ADDITIONS,
+    # the shrink is accounted for.
+    local filename="${label#* }"
+    local reclaimed=0 e
+    for e in "${JUSTIFIED_ADDITIONS[@]}"; do
+      case "$e" in
+        -*\ *RECLAIMED\ credit*)
+          case "$e" in
+            *"$filename"*) reclaimed=1 ;;
+          esac
+          ;;
+      esac
+    done
+    if [[ "$reclaimed" -eq 1 ]]; then
+      echo "$label: file is $disk B on disk (< credited $after B), but credit was legitimately reclaimed in JUSTIFIED_ADDITIONS"
+      return 0
+    fi
     echo "$label: file is $disk B on disk, BELOW the $after B this entry credited -- the credited bytes no longer exist, so the credit must be reclaimed"
     return 1
   fi

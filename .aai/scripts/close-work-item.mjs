@@ -228,7 +228,7 @@ const FLIP_ELIGIBLE = new Set(['draft', 'implementing', 'accepted']);
 function usageError(msg) {
   process.stderr.write(`close-work-item: ${msg}\n`);
   process.stderr.write(
-    'usage: node .aai/scripts/close-work-item.mjs --ref <slug> --pr <N|TBD|NONE> --commit <sha> ' +
+    'usage: node .aai/scripts/close-work-item.mjs --ref <slug> [--pr <N|TBD|NONE>] [--commit <sha>] ' +
       '[--spec <spec-slug>] [--paired <slug>] [--review <pass|waived|none>] [--dry-run] [--expect-branch <branch>]\n' +
       '   or: node .aai/scripts/close-work-item.mjs --ref <slug> --stamp-pr <N> [--spec <spec-slug>] [--expect-branch <branch>]\n'
   );
@@ -245,7 +245,7 @@ const TBD_SENTINEL = 'TBD';
 const NONE_SENTINEL = 'NONE';
 
 function parseArgs(argv) {
-  const args = { spec: null, paired: null, review: 'none', dryRun: false, stampPr: null, expectBranch: null };
+  const args = { spec: null, paired: null, review: 'none', dryRun: false, stampPr: null, expectBranch: null, pr: null, commit: null };
   let reviewProvided = false;
   let pairedProvided = false;
   for (let i = 0; i < argv.length; i += 1) {
@@ -291,8 +291,8 @@ function parseArgs(argv) {
     // is a usage error, never a silently-ignored no-op (Copilot F-5, PR
     // #320: --review used to parse fine here and just go unread, hiding a
     // real usage mistake instead of naming it).
-    if (args.pr !== undefined) usageError('--stamp-pr cannot be combined with --pr (they are separate modes)');
-    if (args.commit !== undefined) usageError('--stamp-pr cannot be combined with --commit (they are separate modes)');
+    if (args.pr !== null) usageError('--stamp-pr cannot be combined with --pr (they are separate modes)');
+    if (args.commit !== null) usageError('--stamp-pr cannot be combined with --commit (they are separate modes)');
     if (args.dryRun) usageError('--stamp-pr cannot be combined with --dry-run');
     if (reviewProvided) usageError('--stamp-pr cannot be combined with --review (--stamp-pr only accepts --ref, --stamp-pr and --spec)');
     if (pairedProvided) usageError('--stamp-pr cannot be combined with --paired (--stamp-pr only accepts --ref, --stamp-pr and --spec)');
@@ -300,16 +300,16 @@ function parseArgs(argv) {
     return args;
   }
 
-  if (!args.pr) usageError('missing --pr (integer, TBD before the PR exists, or NONE for a ride that opens no PR)');
-  const prUpper = String(args.pr).toUpperCase();
-  if (prUpper === TBD_SENTINEL) {
-    args.pr = TBD_SENTINEL;
-  } else if (prUpper === NONE_SENTINEL) {
-    args.pr = NONE_SENTINEL;
-  } else if (!/^\d+$/.test(String(args.pr))) {
-    usageError('invalid --pr (integer, TBD before the PR exists, or NONE for a ride that opens no PR)');
+  if (args.pr !== null) {
+    const prUpper = String(args.pr).toUpperCase();
+    if (prUpper === TBD_SENTINEL) {
+      args.pr = TBD_SENTINEL;
+    } else if (prUpper === NONE_SENTINEL) {
+      args.pr = NONE_SENTINEL;
+    } else if (!/^\d+$/.test(String(args.pr))) {
+      usageError('invalid --pr (integer, TBD before the PR exists, or NONE for a ride that opens no PR)');
+    }
   }
-  if (!args.commit) usageError('missing --commit');
   if (!['pass', 'waived', 'none'].includes(args.review)) usageError('--review must be one of pass|waived|none');
   return args;
 }
@@ -725,8 +725,8 @@ function applyDocMutation(content, { toStatus, pr, commit }) {
   if (!split) throw new Error('cannot locate a frontmatter block to mutate');
   const lines = split.head.split(split.eol);
   if (toStatus) stampStatus(lines, toStatus);
-  stampLink(lines, 'pr', pr);
-  stampLink(lines, 'commits', commit);
+  if (pr !== null && pr !== undefined) stampLink(lines, 'pr', pr);
+  if (commit !== null && commit !== undefined) stampLink(lines, 'commits', commit);
   return lines.join(split.eol) + split.rest;
 }
 
@@ -1503,8 +1503,6 @@ function runStampPr(args) {
     resolved.push({ slug, ...r.doc, status });
   }
 
-  emitStaleTbdWarning(scanForStaleTbdPr(ROOT, resolved.map((d) => d.fmId)));
-
   const plan = resolved.map((d) => ({
     ...d,
     alreadyStamped: hasLinkValue(d.content, 'pr', n),
@@ -1885,12 +1883,7 @@ function main() {
   // per invocation before any resolution or write (report-only; --dry-run
   // already reports everything informationally in its own JSON, so this line
   // is suppressed there too, matching the three gates below).
-  if (!args.dryRun) emitPostMergeCloseWarning(ROOT, args.commit, args.pr);
-  // fu-close-requires-pr-before-it-exists — "must not go unfilled": a stale
-  // TBD left by an EARLIER close on a DIFFERENT ref is reported here too, on
-  // every close-work-item.mjs invocation repo-wide (report-only; never
-  // refuses THIS close).
-  if (!args.dryRun) emitStaleTbdWarning(scanForStaleTbdPr(ROOT, slugs));
+  if (!args.dryRun && args.commit) emitPostMergeCloseWarning(ROOT, args.commit, args.pr);
 
   // D2 + D3 — resolve EVERY doc and validate its status BEFORE any write
   // (D7 pair pre-write abort: either failing aborts the whole transaction).
@@ -2023,10 +2016,10 @@ function main() {
   const plan = resolved.map((d) => ({
     ...d,
     needsFlip: d.status !== 'done',
-    needsPr: !hasLinkValue(d.content, 'pr', args.pr),
-    needsCommit: !hasLinkValue(d.content, 'commits', args.commit),
+    needsPr: args.pr ? !hasLinkValue(d.content, 'pr', args.pr) : false,
+    needsCommit: args.commit ? !hasLinkValue(d.content, 'commits', args.commit) : false,
     needsClosedEvent: !hasWorkItemClosed(events, d.fmId),
-    needsAcEvidence: !hasAcEvidence(events, d.fmId, args.commit),
+    needsAcEvidence: args.commit ? !hasAcEvidence(events, d.fmId, args.commit) : false,
   }));
   const anyMutation = plan.some((p) => p.needsFlip || p.needsPr || p.needsCommit || p.needsClosedEvent || p.needsAcEvidence);
 
@@ -2122,8 +2115,8 @@ function main() {
     for (const p of plan) {
       const mutated = applyDocMutation(p.content, {
         toStatus: p.needsFlip ? 'done' : null,
-        pr: args.pr,
-        commit: args.commit,
+        pr: p.needsPr ? args.pr : null,
+        commit: p.needsCommit ? args.commit : null,
       });
       if (mutated !== p.content) fs.writeFileSync(p.abs, mutated);
     }
@@ -2133,7 +2126,7 @@ function main() {
     for (const p of plan) {
       if (p.needsFlip) emitEvent('doc_lifecycle', p.fmId, ['--from', p.status, '--to', 'done']);
       if (p.needsClosedEvent) emitEvent('work_item_closed', p.fmId, ['--validation', 'pass', '--code-review', args.review]);
-      if (p.needsAcEvidence) emitEvent('ac_evidence', p.fmId, ['--commit', args.commit]);
+      if (p.needsAcEvidence && args.commit) emitEvent('ac_evidence', p.fmId, ['--commit', args.commit]);
     }
 
     // D6.4 — SELF-VERIFY against the REAL audit engine (the oracle).

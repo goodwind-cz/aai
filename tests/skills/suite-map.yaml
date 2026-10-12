@@ -1029,7 +1029,6 @@ suites:
       - .aai/scripts/lib/session-lock.mjs
       - .aai/scripts/branch-guard.mjs
       - .aai/scripts/check-committed-scope.mjs
-      - .aai/scripts/close-before-push-guard.mjs
       - .aai/scripts/close-work-item.mjs
 
   aai-share:

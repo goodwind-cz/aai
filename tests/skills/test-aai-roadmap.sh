@@ -1034,9 +1034,9 @@ test_1331_ship_wiring() {
 test_1332_pr_advance_wiring() {
   log_info "Test: SKILL_PR 4c runs roadmap-edit advance after the close call and before the close commit, and stages the roadmap (TEST-1332)..."
   local PR="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md" close_ln adv_ln commit_ln hit
-  hit="$(grep -nF -m1 -- 'close-work-item.mjs --ref <slug> --pr <TBD|NONE>' "$PR" || true)"; close_ln="${hit%%:*}"
+  hit="$(grep -nF -m1 -- 'close-work-item.mjs --ref <slug>' "$PR" || true)"; close_ln="${hit%%:*}"
   hit="$(grep -nF -m1 -- 'roadmap-edit.mjs advance --ref <slug>' "$PR" || true)"; adv_ln="${hit%%:*}"
-  hit="$(grep -nF -m1 -- 'chore(close): <ref> close ceremony (PR pending)' "$PR" || true)"; commit_ln="${hit%%:*}"
+  hit="$(grep -nE -m1 -- '(chore\(close\): <ref> close ceremony|^4\. COMMIT)' "$PR" || true)"; commit_ln="${hit%%:*}"
   [ -n "$close_ln" ] || log_fail "TEST-1332: SKILL_PR lost the close-work-item call line"
   [ -n "$adv_ln" ] || log_fail "TEST-1332: SKILL_PR step 4c must name roadmap-edit.mjs advance --ref <slug>"
   [ -n "$commit_ln" ] || log_fail "TEST-1332: SKILL_PR lost the close commit line"

@@ -266,6 +266,12 @@ test_005_skill_pr_wiring() {
 test_568_every_ceremony_commit_is_verified() {
   log_info "Test: SKILL_PR 4c and 5c each verify their own committed blob by explicit paths, not --from-state, with a manual fallback (TEST-568)..."
   local f="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  # SPEC-0227 / DEBT-0014: the PR ceremony stops adding ceremony commits.
+  # Step 5c ("STAMP THE PR NUMBER") was deleted and 4c no longer commits before push.
+  if ! grep -qE '^5c\. STAMP THE PR NUMBER' "$f"; then
+    log_pass "SKILL_PR 4c/5c ceremony commits retired per DEBT-0014 / SPEC-0227 (TEST-568)"
+    return 0
+  fi
   local s4c e4c s5c e5c
   s4c="$(grep -nE '^4c\. CLOSE BEFORE PUSH' "$f" | qhead -1 | cut -d: -f1)"
   e4c="$(grep -nE '^5\. PLATFORM GATE' "$f" | qhead -1 | cut -d: -f1)"
