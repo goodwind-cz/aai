@@ -651,7 +651,7 @@ test_011_worktree_refusals() {
 
 STATE_REL='docs/ai/STATE.yaml'
 ACTION_STEPS='archive-runtime sync-base remove-worktree delete-branch report'
-ALL_STEPS='resolve plan archive-runtime sync-base sign-amendments remove-worktree delete-branch report'
+ALL_STEPS='resolve plan archive-runtime sync-base remove-worktree delete-branch report'
 
 # seed_state [ref]: the real check-state.mjs creates the origin STATE; with a
 # ref the real state.mjs puts that ref in focus with an in-progress work item.
@@ -750,9 +750,8 @@ test_013_second_apply_is_noop() {
     [[ "$(step_status "$second" "$s")" == noop ]] || fail TEST-013 "second run: step $s reported $(step_status "$second" "$s"), want noop"
     want TEST-013 "$(json_get "$second" 'j.noops')" "noop:$s:"
   done
-  # sign-amendments has no owner direction in this world: a named no-op on both runs
-  want TEST-013 "$(json_get "$second" 'j.noops')" 'noop:sign-amendments:no_human_direction'
-  [[ "$(json_get "$second" 'j.noops.length')" == 6 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 6"
+  unwanted TEST-013 "$(json_get "$second" 'j.noops')" 'sign-amendments'
+  [[ "$(json_get "$second" 'j.noops.length')" == 5 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 5"
   [[ "$(world_digest)" == "$before" ]] || fail TEST-013 'second apply changed files, refs, worktrees or the reflog'
   [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-013 'second run duplicated a ledger line'
   [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-013 'the ledger holds a duplicate line'
@@ -1014,28 +1013,20 @@ test_004_preflight_ready() {
   # positive controls: the PR read and the real sweep check both ran
   want TEST-004 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"
   want TEST-004 "$ENG_OUT" 'SWEEP-CHECK allowed'
-  # NB-r2-2: the owner's direction is recorded BEFORE the printed merge runs, and only that:
-  # one directed_merge decision in the origin ledger, nothing else in the fixture changed
+  # SPEC-0226: preflight writes nothing to decisions.jsonl; the fixture is completely unchanged
   dec="$ORIGIN/docs/ai/decisions.jsonl"
-  [[ -f "$dec" && "$(wc -l < "$dec" | tr -d ' ')" == 1 ]] || fail TEST-004 'preflight did not record exactly one decision'
-  [[ "$(json_get "$(cat "$dec")" 'j.type')" == directed_merge ]] || fail TEST-004 'recorded decision type'
-  [[ "$(json_get "$(cat "$dec")" 'j.answer')" == 'merge 433 please' ]] || fail TEST-004 'recorded decision is not the verbatim direction'
-  [[ "$(json_get "$(cat "$dec")" 'j.head')" == "$HEAD_OID" ]] || fail TEST-004 'recorded decision head'
-  [[ "$(json_get "$(cat "$dec")" 'j.pr')" == "$PR" ]] || fail TEST-004 'recorded decision pr'
-  rm -f "$dec"
-  [[ "$(world_digest)" == "$before" ]] || fail TEST-004 'preflight changed the fixture beyond the decision record'
+  [[ ! -f "$dec" ]] || fail TEST-004 'preflight created decisions.jsonl, want zero ledger writes'
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-004 'preflight changed the fixture'
   pf
   [[ "$ENG_RC" -eq 10 ]] || fail TEST-004 "second ready exited $ENG_RC"
-  after="$(sha_of "$dec")"
-  pf
-  [[ "$(sha_of "$dec")" == "$after" && "$(wc -l < "$dec" | tr -d ' ')" == 1 ]] || fail TEST-004 'a repeat preflight duplicated the decision record'
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-004 'second preflight changed the fixture'
   # the merge happens, then apply refuses (the ride is dirty): the direction is already durable
   write_pr_json MERGED "$MC"
   # the appended sweep line alone is a movable ledger tail (spec-merge-cleanup-ride-leftovers); a stray edit makes the ride dirty
   printf 'stray edit\n' >> "$RIDE/README.md"
   run_engine apply --pr "$PR" --pid 4242 --direction 'merge 433 please'
   [[ "$ENG_RC" -eq 3 ]] || fail TEST-004 "apply on the dirty ride exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(wc -l < "$dec" | tr -d ' ')" == 1 && "$(sha_of "$dec")" == "$after" ]] || fail TEST-004 'a refused apply lost or duplicated the recorded direction'
+  [[ ! -f "$dec" ]] || fail TEST-004 'refused apply wrote to decisions.jsonl'
   git -C "$RIDE" show HEAD:README.md > "$W/readme.ride" || fail SETUP 'ride README blob'
   run cp "$W/readme.ride" "$RIDE/README.md"
   write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
@@ -1139,127 +1130,48 @@ apply_stop_after_sync() {
 }
 
 test_018_direction_signs_ride_amendments() {
-  local pre keys k n ov line rows
-  AMEND_WORLD=1 RIDE_SEED=seed_ride_018 open_world sign_018
-  pre="$(amend_rows "$RIDE")"
-  keys="$(unsigned_contract_keys "$pre")"
-  [[ "$(printf '%s\n' $keys | wc -l | tr -d ' ')" == 2 ]] || fail TEST-018 "the ride holds '$keys', want two unsigned contract records (positive control)"
-  # the owner's direction through preflight: it lands in the origin ledger, nobody hand-writes it
-  pf
-  [[ "$ENG_RC" -eq 10 ]] || fail TEST-018 "preflight exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
-  want TEST-018 "$(cat "$ORIGIN/$DEC")" '"type":"directed_merge"'
-  # the sweep line was the ride's only uncommitted edit; put the committed bytes back
-  git -C "$RIDE" show "HEAD:docs/ai/EVENTS.jsonl" > "$W/events.ride" || fail SETUP 'ride EVENTS blob'
-  run cp "$W/events.ride" "$RIDE/docs/ai/EVENTS.jsonl"
-  write_pr_json MERGED "$MC"
-  [[ "$(overlays "$ORIGIN/$DEC" | wc -l | tr -d ' ')" == 0 ]] || fail TEST-018 'an overlay exists before apply'
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-018 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" sign-amendments)" == done ]] || fail TEST-018 "step sign-amendments reported $(step_status "$ENG_OUT" sign-amendments), want done"
-  rows="$(amend_rows "$ORIGIN")"
-  for k in $keys; do
-    [[ "$(json_get "$rows" "j.items.find(i=>i.record_key===\"$k\")?.bucket")" == signed ]] || fail TEST-018 "record $k does not fold signed: $(row_of "$rows" "$k")"
-  done
-  # positive control: exactly two new record-addressed overlays, each citing the PR, the head and the words
-  ov="$(overlays "$ORIGIN/$DEC")"
-  n="$(printf '%s\n' "$ov" | /usr/bin/grep -c . || true)"
-  [[ "$n" == 2 ]] || fail TEST-018 "$n overlays appended, want 2: $ov"
-  while IFS= read -r line; do
-    has " $keys " " $(json_get "$line" 'j.classifies_record') " || fail TEST-018 "overlay classifies a record outside the ride: $line"
-    [[ "$(json_get "$line" 'j.owner_signoff')" == true ]] || fail TEST-018 "overlay is not an owner signature: $line"
-    want TEST-018 "$(json_get "$line" 'j.source')" "#$PR"
-    want TEST-018 "$(json_get "$line" 'j.source')" "$HEAD_OID"
-    want TEST-018 "$(json_get "$line" 'j.source')" "$ANSWER"
-  done <<< "$ov"
-  assert_no_merge_call TEST-018
-  echo 'PASS: TEST-018 the merge direction signs the ride amendments'
+  local eng_content out rc=0
+  eng_content="$(cat "$ENGINE")"
+  unwanted TEST-018 "$eng_content" "SIGN_STEP_ID"
+  unwanted TEST-018 "$eng_content" "'sign-amendments'"
+  unwanted TEST-018 "$eng_content" "signAmendments"
+  unwanted TEST-018 "$eng_content" "runSignMerged"
+  unwanted TEST-018 "$eng_content" "preflightSigns"
+  unwanted TEST-018 "$eng_content" "appendDirectedMerge"
+  out="$(node "$ENGINE" sign-merged 2>&1)" || rc=$?
+  [[ "$rc" -eq 2 ]] || fail TEST-018 "sign-merged must exit 2 as unknown command, got $rc: $out"
+  echo 'PASS: TEST-018 sign-amendments step and sign-merged helpers removed from merge-cleanup'
 }
 
 test_020_no_human_direction_signs_nothing() {
-  local arm rec sha pre post rows k keys
-  for arm in none orchestrator other_head other_pr human; do
-    AMEND_WORLD=1 RIDE_SEED=seed_ride_018 build_world "nodir_$arm"
-    case "$arm" in
-      none) rec='' ;;
-      orchestrator) rec="{\"v\":1,\"ts\":\"2026-10-10T03:00:00Z\",\"actor\":\"orchestrator\",\"type\":\"directed_merge\",\"ref_id\":\"foo\",\"pr\":$PR,\"by\":\"orchestrator\",\"answer\":\"$ANSWER\",\"head\":\"$HEAD_OID\"}" ;;
-      other_head) rec="{\"v\":1,\"ts\":\"2026-10-10T03:00:00Z\",\"actor\":\"merge-cleanup\",\"type\":\"directed_merge\",\"ref_id\":\"foo\",\"pr\":$PR,\"by\":\"human\",\"answer\":\"$ANSWER\",\"head\":\"0123456789012345678901234567890123456789\"}" ;;
-      other_pr) rec="{\"v\":1,\"ts\":\"2026-10-10T03:00:00Z\",\"actor\":\"merge-cleanup\",\"type\":\"directed_merge\",\"ref_id\":\"foo\",\"pr\":434,\"by\":\"human\",\"answer\":\"$ANSWER\",\"head\":\"$HEAD_OID\"}" ;;
-      human) rec="{\"v\":1,\"ts\":\"2026-10-10T03:00:00Z\",\"actor\":\"merge-cleanup\",\"type\":\"directed_merge\",\"ref_id\":\"foo\",\"pr\":$PR,\"by\":\"human\",\"answer\":\"$ANSWER\",\"head\":\"$HEAD_OID\"}" ;;
-    esac
-    if [[ -n "$rec" ]]; then printf '%s\n' "$rec" >> "$ORIGIN/$DEC"; fi
-    apply_stop_after_sync TEST-020
-    sha="$(sha_of "$ORIGIN/$DEC")"
-    pre="$(amend_rows "$ORIGIN")"
-    keys="$(unsigned_contract_keys "$pre")"
-    [[ "$(printf '%s\n' $keys | wc -l | tr -d ' ')" == 2 ]] || fail TEST-020 "arm $arm: the synced ledger holds '$keys', want two unsigned ride records (positive control)"
-    run_engine apply --pr "$PR" --pid 4242 --json
-    [[ "$ENG_RC" -eq 0 ]] || fail TEST-020 "arm $arm: apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-    rows="$(amend_rows "$ORIGIN")"
-    if [[ "$arm" == human ]]; then
-      # positive control: the matching human record signs both ride records
-      [[ "$(step_status "$ENG_OUT" sign-amendments)" == done ]] || fail TEST-020 "human arm: step reported $(step_status "$ENG_OUT" sign-amendments), want done"
-      for k in $keys; do
-        [[ "$(json_get "$rows" "j.items.find(i=>i.record_key===\"$k\")?.bucket")" == signed ]] || fail TEST-020 "human arm: record $k does not fold signed"
-      done
-      continue
-    fi
-    [[ "$(step_status "$ENG_OUT" sign-amendments)" == noop ]] || fail TEST-020 "arm $arm: step reported $(step_status "$ENG_OUT" sign-amendments), want noop"
-    want TEST-020 "$(json_get "$ENG_OUT" 'j.noops')" 'noop:sign-amendments:no_human_direction'
-    [[ "$(sha_of "$ORIGIN/$DEC")" == "$sha" ]] || fail TEST-020 "arm $arm: decisions.jsonl changed after sync-base"
-    [[ "$(json_get "$rows" 'JSON.stringify(j.items)')" == "$(json_get "$pre" 'JSON.stringify(j.items)')" ]] || fail TEST-020 "arm $arm: list --json rows changed"
-    [[ "$(type_count "$ORIGIN/$DEC" follow_up_status)" == 0 ]] || fail TEST-020 "arm $arm: a follow_up_status line was written"
-    [[ "$(overlays "$ORIGIN/$DEC" | wc -l | tr -d ' ')" == 0 ]] || fail TEST-020 "arm $arm: an overlay was written"
-  done
-  echo 'PASS: TEST-020 no human direction signs nothing'
+  local sha_pre sha_post
+  AMEND_WORLD=1 RIDE_SEED=seed_ride_018 build_world "zero_writes_020"
+  write_pr_json MERGED "$MC"
+  apply_stop_after_sync TEST-020
+  sha_pre="$(sha_of "$ORIGIN/$DEC")"
+  run_engine apply --pr "$PR" --pid 4242 --json --direction "$ANSWER"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-020 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  sha_post="$(sha_of "$ORIGIN/$DEC")"
+  [[ "$sha_pre" == "$sha_post" ]] || fail TEST-020 "decisions.jsonl was modified after sync-base: before $sha_pre after $sha_post"
+  [[ "$(overlays "$ORIGIN/$DEC" | wc -l | tr -d ' ')" == 0 ]] || fail TEST-020 "an overlay was written to decisions.jsonl"
+  [[ -z "$(git -C "$ORIGIN" status --porcelain "$DEC")" ]] || fail TEST-020 "decisions.jsonl is dirty in git status after apply"
+  echo 'PASS: TEST-020 apply leaves decisions.jsonl untouched'
 }
-
-# TEST-027 (Codex P2 on PR #452): two human directed_merge records for one PR and head
-# (preflight re-run with other words, e.g. after a failed merge command). The signature
-# cites the record whose answer equals apply's --direction; without --direction the
-# latest one; new --direction words are recorded first and then cited.
-dm_rec() { printf '{"v":1,"ts":"%s","actor":"merge-cleanup","type":"directed_merge","ref_id":"foo","pr":%s,"by":"human","answer":"%s","head":"%s"}\n' "$1" "$PR" "$2" "$HEAD_OID"; }
 
 test_027_signature_cites_the_current_direction() {
-  local arm first second third want_answer want_ts other n ov line
-  first='merge 433 please'
-  second='retry: merge 433 now'
-  third='go ahead and merge 433'
-  for arm in direction_second direction_first latest new_words; do
-    AMEND_WORLD=1 RIDE_SEED=seed_ride_018 build_world "dir027_$arm"
-    dm_rec '2026-10-10T03:00:00Z' "$first" >> "$ORIGIN/$DEC"
-    [[ "$arm" == new_words ]] || dm_rec '2026-10-10T04:00:00Z' "$second" >> "$ORIGIN/$DEC"
-    apply_stop_after_sync TEST-027
-    [[ "$(type_count "$ORIGIN/$DEC" directed_merge)" == "$([[ "$arm" == new_words ]] && echo 1 || echo 2)" ]] || fail TEST-027 "arm $arm: directed_merge records after sync: $(type_count "$ORIGIN/$DEC" directed_merge) (positive control)"
-    case "$arm" in
-      direction_second) want_answer="$second"; want_ts='2026-10-10T04:00:00Z'; other="$first"
-        run_engine apply --pr "$PR" --pid 4242 --json --direction "$second" ;;
-      direction_first) want_answer="$first"; want_ts='2026-10-10T03:00:00Z'; other="$second"
-        run_engine apply --pr "$PR" --pid 4242 --json --direction "$first" ;;
-      latest) want_answer="$second"; want_ts='2026-10-10T04:00:00Z'; other="$first"
-        run_engine apply --pr "$PR" --pid 4242 --json ;;
-      new_words) want_answer="$third"; want_ts=''; other="$first"
-        run_engine apply --pr "$PR" --pid 4242 --json --direction "$third" ;;
-    esac
-    [[ "$ENG_RC" -eq 0 ]] || fail TEST-027 "arm $arm: apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-    [[ "$(step_status "$ENG_OUT" sign-amendments)" == done ]] || fail TEST-027 "arm $arm: step reported $(step_status "$ENG_OUT" sign-amendments), want done"
-    if [[ "$arm" == new_words ]]; then
-      [[ "$(type_count "$ORIGIN/$DEC" directed_merge)" == 2 ]] || fail TEST-027 "new_words arm: --direction was not recorded before signing"
-      want TEST-027 "$(cat "$ORIGIN/$DEC")" "\"answer\":\"$third\""
-    fi
-    ov="$(overlays "$ORIGIN/$DEC")"
-    n="$(printf '%s\n' "$ov" | /usr/bin/grep -c . || true)"
-    [[ "$n" == 2 ]] || fail TEST-027 "arm $arm: $n overlays appended, want 2: $ov"
-    while IFS= read -r line; do
-      want TEST-027 "$(json_get "$line" 'j.source')" "answer=\"$want_answer\""
-      if [[ -n "$want_ts" ]]; then want TEST-027 "$(json_get "$line" 'j.source')" "ts=$want_ts"; fi
-      ! has "$(json_get "$line" 'j.source')" "answer=\"$other\"" || fail TEST-027 "arm $arm: the signature cites the stale answer '$other': $line"
-    done <<< "$ov"
-  done
-  echo 'PASS: TEST-027 the signature cites the direction of the merge that ran'
+  local sha_pre sha_post
+  AMEND_WORLD=1 RIDE_SEED=seed_ride_018 build_world dir027_test
+  write_pr_json MERGED "$MC"
+  apply_stop_after_sync TEST-027
+  sha_pre="$(sha_of "$ORIGIN/$DEC")"
+  run_engine apply --pr "$PR" --pid 4242 --json --direction "test direction"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-027 "apply exited $ENG_RC"
+  sha_post="$(sha_of "$ORIGIN/$DEC")"
+  [[ "$sha_pre" == "$sha_post" ]] || fail TEST-027 "decisions.jsonl was modified after sync-base"
+  [[ -z "$(git -C "$ORIGIN" status --porcelain "$DEC")" ]] || fail TEST-027 "decisions.jsonl is dirty in git status after apply"
+  echo 'PASS: TEST-027 apply with direction makes zero ledger writes'
 }
 
-# The ride's ledger: a measurement record, an owner-signed contract record and one unsigned
-# contract record keyed on the numbered display id; plus an unsigned contract record of another ref.
 seed_ride_021() {
   amend_add "$RIDE" --spec "$NUM_SPEC" --ref "$ISSUE_ID" --what 'measured differently' --why 'cell did not redden' --signoff none --class measurement
   amend_add "$RIDE" --spec "$NUM_SPEC" --ref "$SPEC_ID" --what 'already signed' --why 'owner agreed' --signoff owner --authority 'owner said yes in chat'
@@ -1269,27 +1181,21 @@ seed_ride_021() {
 }
 
 test_021_signs_only_unsigned_contract_of_the_ride() {
-  local pre rows target others k n ov
+  local sha_pre sha_post
   AMEND_WORLD=1 RIDE_SEED=seed_ride_021 build_world sign_021
-  pre="$(amend_rows "$RIDE")"
-  target="$(json_get "$pre" 'j.items.filter(i=>i.ref_id==="ISSUE-0001").map(i=>i.record_key).join(" ")')"
-  others="$(json_get "$pre" 'j.items.filter(i=>i.ref_id!=="ISSUE-0001").map(i=>i.record_key).join(" ")')"
-  [[ -n "$target" && "$(printf '%s\n' $others | wc -l | tr -d ' ')" == 3 ]] || fail TEST-021 "fixture rows: target '$target', others '$others' (positive control)"
-  [[ "$(json_get "$pre" 'j.items.map(i=>i.bucket).sort().join(",")')" == 'measurement,signed,unsigned-tracked,unsigned-tracked' ]] || fail TEST-021 "fixture buckets: $(json_get "$pre" 'j.items.map(i=>i.bucket)')"
+  run_engine plan --pr "$PR" --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-021 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-021 "$ENG_OUT" '"id":"sign-amendments"'
+  write_pr_json MERGED "$MC"
+  apply_stop_after_sync TEST-021
+  sha_pre="$(sha_of "$ORIGIN/$DEC")"
   run_engine apply --pr "$PR" --pid 4242 --json --direction "$ANSWER"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-021 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" sign-amendments)" == done ]] || fail TEST-021 "step reported $(step_status "$ENG_OUT" sign-amendments), want done"
-  rows="$(amend_rows "$ORIGIN")"
-  for k in $others; do
-    [[ "$(row_of "$rows" "$k")" == "$(row_of "$pre" "$k")" ]] || fail TEST-021 "record $k changed: before $(row_of "$pre" "$k") after $(row_of "$rows" "$k")"
-  done
-  [[ "$(json_get "$rows" "j.items.find(i=>i.record_key===\"$target\")?.bucket")" == signed ]] || fail TEST-021 "the ride's unsigned contract record $target does not fold signed"
-  # positive control: one new overlay per unsigned contract record of the ride, here exactly one
-  ov="$(overlays "$ORIGIN/$DEC")"
-  n="$(printf '%s\n' "$ov" | /usr/bin/grep -c . || true)"
-  [[ "$n" == 1 ]] || fail TEST-021 "$n overlays appended, want 1: $ov"
-  [[ "$(json_get "$ov" 'j.classifies_record')" == "$target" ]] || fail TEST-021 "the overlay classifies $(json_get "$ov" 'j.classifies_record'), want $target"
-  echo 'PASS: TEST-021 only the unsigned contract records of the ride are signed'
+  unwanted TEST-021 "$ENG_OUT" '"id":"sign-amendments"'
+  sha_post="$(sha_of "$ORIGIN/$DEC")"
+  [[ "$sha_pre" == "$sha_post" ]] || fail TEST-021 "apply modified decisions.jsonl"
+  [[ -z "$(git -C "$ORIGIN" status --porcelain "$DEC")" ]] || fail TEST-021 "decisions.jsonl is dirty in git status after apply"
+  echo 'PASS: TEST-021 sign-amendments step absent in plan and apply'
 }
 
 # ---------------------------------------------------------------------------
@@ -1330,54 +1236,20 @@ seed_ride_022() {
 }
 
 test_022_trackers_close_idempotent_resumable() {
-  local pre fu rows control_proj control_fu sha n rc dup report
+  local sha1 sha2
   AMEND_WORLD=1 RIDE_SEED=seed_ride_022 build_world sign_022
-  fu="$(fu_rows "$RIDE")"
-  [[ "$(amend_trackers "$fu")" == 'fu-amend-spec-bar:open fu-amend-spec-foo:open' ]] || fail TEST-022 "fixture trackers: '$(amend_trackers "$fu")' (positive control)"
-  pre="$(amend_rows "$RIDE")"
-  [[ "$(unsigned_contract_keys "$pre" | wc -w | tr -d ' ')" == 4 ]] || fail TEST-022 'fixture: want four unsigned contract records (positive control)'
+  write_pr_json MERGED "$MC"
+  apply_stop_after_sync TEST-022
+  sha1="$(sha_of "$ORIGIN/$DEC")"
   run_engine apply --pr "$PR" --pid 4242 --json --direction "$ANSWER"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-022 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" sign-amendments)" == done ]] || fail TEST-022 "step reported $(step_status "$ENG_OUT" sign-amendments), want done"
-  want TEST-022 "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="sign-amendments").detail')" '3 signed, 1 closed'
-  [[ "$(json_get "$ENG_OUT" 'j.signed.length')" == 3 ]] || fail TEST-022 "report lists $(json_get "$ENG_OUT" 'j.signed.length') signed keys, want 3"
-  [[ "$(json_get "$ENG_OUT" 'j.closed.join(" ")')" == fu-amend-spec-foo ]] || fail TEST-022 "report closed: $(json_get "$ENG_OUT" 'j.closed')"
-  # seam S2: through the real follow-ups and spec-amend folds
-  fu="$(fu_rows "$ORIGIN")"
-  [[ "$(fu_status "$fu" fu-amend-spec-foo)" == done ]] || fail TEST-022 "tracker A is $(fu_status "$fu" fu-amend-spec-foo), want done"
-  [[ "$(fu_status "$fu" fu-amend-spec-bar)" == open ]] || fail TEST-022 "tracker B is $(fu_status "$fu" fu-amend-spec-bar), want open (one unsigned contract record left)"
-  rows="$(amend_rows "$ORIGIN")"
-  [[ "$(json_get "$rows" 'j.items.find(i=>i.ref_id==="bar").bucket')" == unsigned-tracked ]] || fail TEST-022 "the unmerged record folds $(json_get "$rows" 'j.items.find(i=>i.ref_id==="bar").bucket'), want unsigned-tracked"
-  [[ "$(strict_rc "$ORIGIN")" == 0 ]] || fail TEST-022 'spec-amend list --strict is not 0 after apply'
-  control_proj="$(amend_projection "$rows")"
-  control_fu="$(amend_trackers "$fu")"
-  # a second apply signs nothing, closes nothing, appends nothing
-  sha="$(sha_of "$ORIGIN/$DEC")"
+  sha2="$(sha_of "$ORIGIN/$DEC")"
+  [[ "$sha1" == "$sha2" ]] || fail TEST-022 "decisions.jsonl changed during first apply"
   run_engine apply --pr "$PR" --pid 4242 --json --direction "$ANSWER"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-022 "second apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(sha_of "$ORIGIN/$DEC")" == "$sha" ]] || fail TEST-022 'second apply appended to decisions.jsonl'
-  [[ "$(step_status "$ENG_OUT" sign-amendments)" == noop ]] || fail TEST-022 "second apply: step reported $(step_status "$ENG_OUT" sign-amendments), want noop"
-  want TEST-022 "$(json_get "$ENG_OUT" 'j.noops')" 'noop:sign-amendments:nothing_to_sign'
-  [[ "$(json_get "$ENG_OUT" 'j.signed.length + j.closed.length')" == 0 ]] || fail TEST-022 'second apply reports signed or closed work'
-
-  # killed after its first classify: the re-run ends where the uninterrupted run ended
-  AMEND_WORLD=1 RIDE_SEED=seed_ride_022 build_world sign_022_crash
-  rc=0
-  ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=sign-after-classify node "$ENGINE" apply --pr "$PR" --pid 4242 --json --direction "$ANSWER" >"$W/engine.out" 2>"$W/engine.err" ) || rc=$?
-  [[ "$rc" -eq 137 ]] || fail TEST-022 "crash at sign-after-classify exited $rc, want 137 ($(cat "$W/engine.out") $(cat "$W/engine.err"))"
-  [[ "$(overlays "$ORIGIN/$DEC" | wc -l | tr -d ' ')" == 1 ]] || fail TEST-022 'crash: want exactly one overlay before the re-run (positive control)'
-  [[ "$(fu_status "$(fu_rows "$ORIGIN")" fu-amend-spec-foo)" == open ]] || fail TEST-022 'crash: tracker A already closed before the re-run (positive control)'
-  run_engine apply --pr "$PR" --pid 4242 --json --direction "$ANSWER"
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-022 "re-run after the crash exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(amend_projection "$(amend_rows "$ORIGIN")")" == "$control_proj" ]] || fail TEST-022 "re-run fold differs from the uninterrupted run: $(amend_projection "$(amend_rows "$ORIGIN")")"
-  [[ "$(amend_trackers "$(fu_rows "$ORIGIN")")" == "$control_fu" ]] || fail TEST-022 "re-run trackers '$(amend_trackers "$(fu_rows "$ORIGIN")")', want '$control_fu'"
-  n="$(overlays "$ORIGIN/$DEC" | wc -l | tr -d ' ')"
-  [[ "$n" == 3 ]] || fail TEST-022 "re-run left $n overlays, want 3"
-  dup="$(overlays "$ORIGIN/$DEC" | node -e 'const k=require("fs").readFileSync(0,"utf8").split("\n").filter(Boolean).map(l=>JSON.parse(l).classifies_record);console.log(k.length-new Set(k).size)')"
-  [[ "$dup" == 0 ]] || fail TEST-022 "re-run left $dup duplicate overlay(s)"
-  [[ "$(strict_rc "$ORIGIN")" == 0 ]] || fail TEST-022 'spec-amend list --strict is not 0 after the re-run'
-  assert_no_merge_call TEST-022
-  echo 'PASS: TEST-022 trackers close, a second run is a no-op, a killed run resumes'
+  [[ "$(sha_of "$ORIGIN/$DEC")" == "$sha2" ]] || fail TEST-022 "decisions.jsonl changed during second apply"
+  [[ -z "$(git -C "$ORIGIN" status --porcelain "$DEC")" ]] || fail TEST-022 "decisions.jsonl is dirty in git status after apply"
+  echo 'PASS: TEST-022 apply is idempotent with zero ledger writes'
 }
 
 # The ride: two unsigned contract records and one measurement record.
@@ -1389,40 +1261,18 @@ seed_ride_023() {
 }
 
 test_023_preflight_lists_signs_on_merge() {
-  local pre keys k lines merge_at sign_at ride_sha
+  local sha_pre sha_post
   AMEND_WORLD=1 RIDE_SEED=seed_ride_023 open_world pf_sign_023
-  pre="$(amend_rows "$RIDE")"
-  keys="$(unsigned_contract_keys "$pre")"
-  [[ "$(printf '%s\n' $keys | wc -l | tr -d ' ')" == 2 ]] || fail TEST-023 "fixture: unsigned contract keys '$keys', want two (positive control)"
-  [[ "$(json_get "$pre" 'j.items.filter(i=>i.bucket==="measurement").length')" == 1 ]] || fail TEST-023 'fixture: want one measurement record (positive control)'
-  ride_sha="$(sha_of "$RIDE/$DEC")"
+  sha_pre="$(sha_of "$ORIGIN/$DEC")"
   pf
   [[ "$ENG_RC" -eq 10 ]] || fail TEST-023 "preflight exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
-  lines="$(printf '%s\n' "$ENG_OUT" | { /usr/bin/grep '^signs on merge: ' || true; })"
-  [[ "$(printf '%s\n' "$lines" | /usr/bin/grep -c . || true)" == 2 ]] || fail TEST-023 "want two signs on merge lines: $ENG_OUT"
-  for k in $keys; do
-    want TEST-023 "$lines" "signs on merge: $k $(json_get "$pre" "j.items.find(i=>i.record_key===\"$k\").ref_id") $(json_get "$pre" "j.items.find(i=>i.record_key===\"$k\").what")"
-  done
-  unwanted TEST-023 "$lines" 'preflight measurement'
-  merge_at="$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep -n 'gh pr merge' | cut -d: -f1)"
-  sign_at="$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep -n '^signs on merge: ' | tail -n 1 | cut -d: -f1)"
-  [[ -n "$merge_at" && -n "$sign_at" && "$sign_at" -lt "$merge_at" ]] || fail TEST-023 "the signs on merge lines do not precede the merge command: $ENG_OUT"
+  unwanted TEST-023 "$ENG_OUT" 'signs on merge:'
+  sha_post="$(sha_of "$ORIGIN/$DEC")"
+  [[ "$sha_pre" == "$sha_post" ]] || fail TEST-023 "preflight wrote to decisions.jsonl"
   pf --json
   [[ "$ENG_RC" -eq 10 ]] || fail TEST-023 "json preflight exited $ENG_RC"
-  [[ "$(json_get "$ENG_OUT" 'j.signs_on_merge.length')" == 2 ]] || fail TEST-023 "json signs_on_merge: $(json_get "$ENG_OUT" 'j.signs_on_merge')"
-  [[ "$(json_get "$ENG_OUT" 'j.signs_on_merge.map(s=>s.record_key).sort().join(" ")')" == "$(printf '%s\n' $keys | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')" ]] || fail TEST-023 "json record keys differ from list --json: $(json_get "$ENG_OUT" 'j.signs_on_merge')"
-  # preflight signs nothing: no overlay in either ledger, the ride ledger bytes unchanged
-  [[ "$(sha_of "$RIDE/$DEC")" == "$ride_sha" ]] || fail TEST-023 'preflight changed the ride ledger'
-  [[ "$(overlays "$ORIGIN/$DEC" | wc -l | tr -d ' ')" == 0 ]] || fail TEST-023 'preflight appended an overlay to the origin ledger'
-  # a ride with nothing to sign says so
-  open_world pf_sign_023_none
-  pf
-  [[ "$ENG_RC" -eq 10 ]] || fail TEST-023 "none arm: preflight exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  want TEST-023 "$ENG_OUT" 'signs on merge: none'
-  pf --json
-  [[ "$(json_get "$ENG_OUT" 'j.signs_on_merge.length')" == 0 ]] || fail TEST-023 'none arm: json signs_on_merge is not empty'
-  assert_no_merge_call TEST-023
-  echo 'PASS: TEST-023 preflight lists what the merge direction signs'
+  unwanted TEST-023 "$ENG_OUT" 'signs_on_merge'
+  echo 'PASS: TEST-023 preflight excludes signs on merge and makes zero ledger writes'
 }
 
 seed_ride_019() {
@@ -1431,25 +1281,19 @@ seed_ride_019() {
 }
 
 test_019_downstream_signs() {
-  local saved_engine="$ENGINE" pre key rows
-  AMEND_WORLD=1 DOWNSTREAM=1 RIDE_SEED=seed_ride_019 build_world "down stream sign"
-  [[ -f "$ORIGIN/.aai/scripts/spec-amend.mjs" && -f "$ORIGIN/.aai/scripts/follow-ups.mjs" ]] || fail TEST-019 'core install omitted spec-amend or follow-ups'
-  pre="$(amend_rows "$RIDE")"
-  key="$(unsigned_contract_keys "$pre")"
-  [[ -n "$key" && "$key" != *' '* ]] || fail TEST-019 "fixture: want one unsigned contract record, got '$key' (positive control)"
+  local saved_engine="$ENGINE" sha_pre sha_post
+  AMEND_WORLD=1 DOWNSTREAM=1 RIDE_SEED=seed_ride_019 build_world "down stream test"
   ENGINE="$ORIGIN/.aai/scripts/merge-cleanup.mjs"
+  write_pr_json MERGED "$MC"
+  apply_stop_after_sync TEST-019
+  sha_pre="$(sha_of "$ORIGIN/$DEC")"
   run_engine apply --pr "$PR" --pid 4242 --json --direction "$ANSWER"
   ENGINE="$saved_engine"
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-019 "installed apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" sign-amendments)" == done ]] || fail TEST-019 "step reported $(step_status "$ENG_OUT" sign-amendments), want done"
-  # read back through the INSTALLED spec-amend
-  ( cd "$ORIGIN" && env -u AAI_ROLE node "$ORIGIN/.aai/scripts/spec-amend.mjs" list --json --ledger "$ORIGIN/$DEC" ) > "$W/installed-rows.json" || fail TEST-019 'installed spec-amend list --json failed'
-  rows="$(cat "$W/installed-rows.json")"
-  [[ "$(json_get "$rows" "j.items.find(i=>i.record_key===\"$key\")?.bucket")" == signed ]] || fail TEST-019 "record $key does not fold signed: $(row_of "$rows" "$key")"
-  [[ "$(fu_status "$(fu_rows "$ORIGIN")" fu-amend-spec-foo)" == done ]] || fail TEST-019 'the installed engine did not close the tracker'
-  [[ "$(git -C "$ORIGIN" ls-files -- .aai | wc -l | tr -d ' ')" == 0 ]] || fail TEST-019 'apply left a tracked path under .aai'
-  assert_no_merge_call TEST-019
-  echo 'PASS: TEST-019 the installed downstream engine signs the ride amendments'
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-019 "downstream apply exited $ENG_RC"
+  sha_post="$(sha_of "$ORIGIN/$DEC")"
+  [[ "$sha_pre" == "$sha_post" ]] || fail TEST-019 "downstream apply modified decisions.jsonl"
+  [[ -z "$(git -C "$ORIGIN" status --porcelain "$DEC")" ]] || fail TEST-019 "decisions.jsonl is dirty in git status after apply"
+  echo 'PASS: TEST-019 downstream engine makes zero ledger writes'
 }
 
 # ---------------------------------------------------------------------------
@@ -1480,209 +1324,63 @@ AUTH_ANSWER='Merge = podpis + backlog (Recommended)'
 sm() { run_engine sign-merged --exclude fu-amend-spec-t3 "$@"; }
 
 test_025_sign_merged_backlog() {
-  local pre rows fu sha key k n ov line x_keys y_key t3_key meas_key
-  EXTRA_OTHER=1 AMEND_WORLD=1 RIDE_SEED=seed_ride_025 build_world backlog_025
-  # a lane merge: apply without the owner's direction signs nothing (the backlog this command closes)
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-025 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" sign-amendments)" == noop ]] || fail TEST-025 'fixture: the directionless apply signed (positive control)'
-  {
-    printf '{"v":1,"ts":"%s","actor":"orchestrator","type":"hitl_decision","ref_id":"backlog","by":"human","question":"Sign the merged backlog?","answer":"%s","decision":"sign it"}\n' "$AUTH_TS" "$AUTH_ANSWER"
-    printf '{"v":1,"ts":"2026-10-10T05:00:01Z","actor":"orchestrator","type":"hitl_decision","ref_id":"backlog","by":"orchestrator","question":"q","answer":"yes","decision":"d"}\n'
-    printf '{"v":1,"ts":"2026-10-10T05:00:02Z","actor":"orchestrator","type":"hitl_decision","ref_id":"backlog","by":"human","question":"q","answer":"  ","decision":"d"}\n'
-    printf '{"v":1,"ts":"2026-10-10T05:00:03Z","actor":"orchestrator","type":"note","ref_id":"backlog","by":"human","answer":"yes"}\n'
-    # the owner's words about ONE pull request: a directed_merge never authorizes the backlog (PFA-4)
-    printf '{"v":1,"ts":"2026-10-10T05:00:04Z","actor":"merge-cleanup","type":"directed_merge","ref_id":"pr-%s","by":"human","pr":%s,"head":"%s","answer":"merge PR %s"}\n' "$PR" "$PR" "$HEAD_OID" "$PR"
-  } >> "$ORIGIN/$DEC"
-  pre="$(amend_rows "$ORIGIN")"
-  [[ "$(unsigned_contract_keys "$pre" | wc -w | tr -d ' ')" == 5 ]] || fail TEST-025 "fixture: want five unsigned contract records, got '$(unsigned_contract_keys "$pre")' (positive control)"
-  x_keys="$(json_get "$pre" 'j.items.filter(i=>/^backlog x (one|two|three)$/.test(i.what)).map(i=>i.record_key).sort().join(" ")')"
-  y_key="$(json_get "$pre" 'j.items.find(i=>i.what==="backlog y one").record_key')"
-  t3_key="$(json_get "$pre" 'j.items.find(i=>i.what==="backlog x excluded").record_key')"
-  meas_key="$(json_get "$pre" 'j.items.find(i=>i.what==="backlog x measured").record_key')"
-  [[ "$(printf '%s\n' $x_keys | wc -l | tr -d ' ')" == 3 ]] || fail TEST-025 "fixture: X keys '$x_keys'"
-  fu="$(fu_rows "$ORIGIN")"
-  [[ "$(amend_trackers "$fu")" == 'fu-amend-spec-t1:open fu-amend-spec-t2:open fu-amend-spec-t3:open' ]] || fail TEST-025 "fixture trackers: '$(amend_trackers "$fu")' (positive control)"
-  sha="$(sha_of "$ORIGIN/$DEC")"
-  # refusals: an orchestrator record, a missing ts, an empty answer, a non-decision type, a
-  # by=human directed_merge with an answer (one PR's words); nothing written
-  for k in 2026-10-10T05:00:01Z 2026-01-01T00:00:00Z 2026-10-10T05:00:02Z 2026-10-10T05:00:03Z 2026-10-10T05:00:04Z; do
-    sm --authority-ts "$k"
-    [[ "$ENG_RC" -eq 3 ]] || fail TEST-025 "authority $k exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
-    want TEST-025 "$ENG_OUT" 'REFUSE no_owner_decision'
-    want TEST-025 "$ENG_OUT" "$DEC"
-    [[ "$(sha_of "$ORIGIN/$DEC")" == "$sha" ]] || fail TEST-025 "authority $k changed the ledger"
-  done
-  # positive control: the directed_merge arm's record is in the ledger, by=human, with an answer
-  [[ "$(/usr/bin/grep -c '"ts":"2026-10-10T05:00:04Z","actor":"merge-cleanup","type":"directed_merge".*"by":"human".*"answer":"merge PR' "$ORIGIN/$DEC")" == 1 ]] || fail TEST-025 'fixture: the by=human directed_merge record is missing (positive control)'
-
-  # sign-merged takes no --pr
-  sm --authority-ts "$AUTH_TS" --pr "$PR"
-  [[ "$ENG_RC" -eq 2 ]] || fail TEST-025 "--pr exited $ENG_RC, want 2"
-  # --dry-run: the plan, nothing written
-  sm --authority-ts "$AUTH_TS" --dry-run --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-025 "dry run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(sha_of "$ORIGIN/$DEC")" == "$sha" ]] || fail TEST-025 'the dry run changed the ledger'
-  [[ "$(json_get "$ENG_OUT" 'j.to_sign.slice().sort().join(" ")')" == "$(printf '%s\n' $x_keys | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')" ]] || fail TEST-025 "dry run to_sign: $(json_get "$ENG_OUT" 'j.to_sign')"
-  [[ "$(json_get "$ENG_OUT" 'j.to_close.join(" ")')" == fu-amend-spec-t1 ]] || fail TEST-025 "dry run to_close: $(json_get "$ENG_OUT" 'j.to_close')"
-  [[ "$(json_get "$ENG_OUT" 'j.plan.find(p=>p.tracker==="fu-amend-spec-t2").reason')" == 'unmerged:other-item' ]] || fail TEST-025 "dry run T2: $(json_get "$ENG_OUT" 'j.plan')"
-  [[ "$(json_get "$ENG_OUT" 'j.plan.find(p=>p.tracker==="fu-amend-spec-t3").reason')" == excluded ]] || fail TEST-025 "dry run T3: $(json_get "$ENG_OUT" 'j.plan')"
-  [[ "$(json_get "$ENG_OUT" 'j.signed.length + j.closed.length')" == 0 ]] || fail TEST-025 'the dry run reports signed or closed work'
-  sm --authority-ts "$AUTH_TS" --dry-run
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-025 "text dry run exited $ENG_RC"
-  want TEST-025 "$ENG_OUT" 'fu-amend-spec-t2: stays open (unmerged:other-item)'
-  want TEST-025 "$ENG_OUT" 'fu-amend-spec-t3: stays open (excluded)'
-  want TEST-025 "$ENG_OUT" 'fu-amend-spec-t1: close'
-  [[ "$(sha_of "$ORIGIN/$DEC")" == "$sha" ]] || fail TEST-025 'the text dry run changed the ledger'
-  # the real run
-  sm --authority-ts "$AUTH_TS" --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-025 "sign-merged exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(json_get "$ENG_OUT" 'j.signed.length')" == 3 ]] || fail TEST-025 "reported $(json_get "$ENG_OUT" 'j.signed.length') signed, want 3"
-  rows="$(amend_rows "$ORIGIN")"
-  for k in $x_keys; do
-    [[ "$(json_get "$rows" "j.items.find(i=>i.record_key===\"$k\")?.bucket")" == signed ]] || fail TEST-025 "X record $k does not fold signed: $(row_of "$rows" "$k")"
-  done
-  for k in "$y_key" "$t3_key" "$meas_key"; do
-    [[ "$(row_of "$rows" "$k")" == "$(row_of "$pre" "$k")" ]] || fail TEST-025 "record $k changed: before $(row_of "$pre" "$k") after $(row_of "$rows" "$k")"
-  done
-  # positive control: three overlays, each citing the authority, the answer, the PR and the squash commit
-  ov="$(overlays "$ORIGIN/$DEC")"
-  n="$(printf '%s\n' "$ov" | /usr/bin/grep -c . || true)"
-  [[ "$n" == 3 ]] || fail TEST-025 "$n overlays appended, want 3: $ov"
-  while IFS= read -r line; do
-    has " $x_keys " " $(json_get "$line" 'j.classifies_record') " || fail TEST-025 "overlay classifies a record outside ride X: $line"
-    [[ "$(json_get "$line" 'j.owner_signoff')" == true ]] || fail TEST-025 "overlay is not an owner signature: $line"
-    want TEST-025 "$(json_get "$line" 'j.source')" "$AUTH_TS"
-    want TEST-025 "$(json_get "$line" 'j.source')" "answer=\"$AUTH_ANSWER\""
-    want TEST-025 "$(json_get "$line" 'j.source')" "PR #$PR at $MC"
-  done <<< "$ov"
-  fu="$(fu_rows "$ORIGIN")"
-  [[ "$(amend_trackers "$fu")" == 'fu-amend-spec-t1:done fu-amend-spec-t2:open fu-amend-spec-t3:open' ]] || fail TEST-025 "trackers after: '$(amend_trackers "$fu")'"
-  [[ "$(strict_rc "$ORIGIN")" == 0 ]] || fail TEST-025 'spec-amend list --strict is not 0 after sign-merged'
-  # a second run signs nothing and appends nothing
-  sha="$(sha_of "$ORIGIN/$DEC")"
-  sm --authority-ts "$AUTH_TS" --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-025 "second run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(sha_of "$ORIGIN/$DEC")" == "$sha" ]] || fail TEST-025 'the second run appended to the ledger'
-  # A4 (code review r2 NB-1): an `unclassified` contract record (no owner_signoff field) of the
-  # MERGED ride X is never signed by sign-merged either, exactly as apply skips it; its tracker
-  # stays open and names the record. Mutation evidence: dropping the filter signs it here.
-  printf -- '---\nid: spec-t4\ntype: spec\nnumber: null\nstatus: implementing\nlinks:\n  requirement: t4\n  pr: []\n  commits: []\n---\n\n# Spec t4\n' > "$W/t4-spec.md"
-  amend_add "$ORIGIN" --spec "$W/t4-spec.md" --ref "$ISSUE_ID" --what 'backlog x unclassified' --why 'scope grew x5' --signoff none
-  node -e 'const fs=require("fs");const f=process.argv[1];const out=fs.readFileSync(f,"utf8").split("\n").map(l=>{let r;try{r=JSON.parse(l)}catch{return l}if(r.type!=="spec_amendment"||r.what!=="backlog x unclassified")return l;delete r.owner_signoff;return JSON.stringify(r)});fs.writeFileSync(f,out.join("\n"))' "$ORIGIN/$DEC" || fail SETUP 'strip owner_signoff'
-  rows="$(amend_rows "$ORIGIN")"
-  key="$(json_get "$rows" 'j.items.find(i=>i.what==="backlog x unclassified")?.record_key')"
-  [[ -n "$key" && "$(json_get "$rows" "j.items.find(i=>i.record_key===\"$key\").bucket")" == unclassified ]] || fail TEST-025 "fixture: the unclassified record does not fold unclassified: $(row_of "$rows" "$key") (positive control)"
-  [[ "$(json_get "$rows" "j.items.find(i=>i.record_key===\"$key\").amendment_class")" == contract ]] || fail TEST-025 'fixture: the unclassified record is not a contract record (positive control)'
-  [[ "$(json_get "$rows" "j.items.find(i=>i.record_key===\"$key\").tracked_by")" == fu-amend-spec-t4 ]] || fail TEST-025 "fixture: the unclassified record is not tracked by fu-amend-spec-t4: $(row_of "$rows" "$key") (positive control)"
-  [[ "$(fu_status "$(fu_rows "$ORIGIN")" fu-amend-spec-t4)" == open ]] || fail TEST-025 'fixture: fu-amend-spec-t4 is not open (positive control)'
-  sha="$(sha_of "$ORIGIN/$DEC")"
-  sm --authority-ts "$AUTH_TS" --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-025 "unclassified run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(json_get "$ENG_OUT" 'j.signed.length + j.closed.length + j.to_sign.length')" == 0 ]] || fail TEST-025 "the unclassified record was signed or its tracker closed: $ENG_OUT"
-  [[ "$(json_get "$ENG_OUT" 'j.plan.find(p=>p.tracker==="fu-amend-spec-t4").reason')" == "unclassified:$key" ]] || fail TEST-025 "T4 plan: $(json_get "$ENG_OUT" 'j.plan')"
-  [[ "$(sha_of "$ORIGIN/$DEC")" == "$sha" ]] || fail TEST-025 'the unclassified run appended to the ledger'
-  [[ "$(fu_status "$(fu_rows "$ORIGIN")" fu-amend-spec-t4)" == open ]] || fail TEST-025 'fu-amend-spec-t4 was closed over an unclassified record'
-  assert_no_merge_call TEST-025
-  echo 'PASS: TEST-025 sign-merged signs the merged backlog on the owner decision'
+  local out rc=0
+  out="$(node "$ENGINE" sign-merged 2>&1)" || rc=$?
+  [[ "$rc" -eq 2 ]] || fail TEST-025 "sign-merged exited $rc, want 2 (out: $out)"
+  want TEST-025 "$out" 'unknown or missing mode: sign-merged'
+  out="$(node "$ENGINE" --help 2>&1)" || true
+  unwanted TEST-025 "$out" 'sign-merged'
+  echo 'PASS: TEST-025 sign-merged subcommand is removed and exits 2'
 }
 
-# TEST-024: the canon says the owner's merge direction signs the ride's contract amendments,
-# no prompt still asks for owed sign-offs, and the diet ledger credits the bytes.
+# TEST-024: prompts are free of dead signing instructions
 test_024_canon_merge_direction_signs() {
-  local f text step6 credit n=0
+  local f text credit n=0
   for f in .aai/ROLE_COMMON.md .aai/SKILL_MERGE.prompt.md .aai/SKILL_SHIP.prompt.md .aai/SKILL_PR.prompt.md .aai/system/AUTONOMOUS_LOOP.md; do
     [[ -s "$ROOT/$f" ]] || fail TEST-024 "canon file missing: $f"
     text="$(cat "$ROOT/$f")"
-    want TEST-024 "$text" 'merge direction signs'
     unwanted TEST-024 "$text" 'owed sign-offs'
     n=$((n + 1))
   done
   [[ "$n" == 5 ]] || fail TEST-024 "read $n canon files, want 5 (positive control)"
-  # SKILL_SHIP step 6 (the merge checkpoint) names what the merge signs
-  step6="$(awk '/^6\. MERGE CHECKPOINT/ { f = 1 } f && /^7\. / { exit } f' "$ROOT/.aai/SKILL_SHIP.prompt.md")"
-  [[ -n "$step6" ]] || fail TEST-024 'SKILL_SHIP step 6 not found (positive control)'
-  want TEST-024 "$step6" 'signs on merge:'
+  unwanted TEST-024 "$(cat "$ROOT/.aai/SKILL_MERGE.prompt.md")" 'signs on merge:'
+  unwanted TEST-024 "$(cat "$ROOT/.aai/SKILL_MERGE.prompt.md")" 'sign-amendments'
+  unwanted TEST-024 "$(cat "$ROOT/.aai/SKILL_PR.prompt.md")" 'Signs on merge'
+  unwanted TEST-024 "$(cat "$ROOT/.aai/SKILL_PR.prompt.md")" 'signs on merge:'
   credit="$(/usr/bin/grep -F 'JUSTIFIED_ADDITIONS+=( "' "$ROOT/tests/skills/lib/prompt-diet-ledger.sh" | sed -n 's/^JUSTIFIED_ADDITIONS+=( "\([0-9][0-9]*\) merge-direction-signs-amendments .*/\1/p' | awk 'NR == 1')"
   [[ -n "$credit" && "$credit" -gt 0 ]] || fail TEST-024 'the prompt-diet ledger carries no positive entry keyed merge-direction-signs-amendments'
-  echo 'PASS: TEST-024 the canon says the merge direction signs'
+  echo 'PASS: TEST-024 prompts are free of dead signing instructions'
 }
-
-# TEST-026 (Spec-AC-08): the merged-ride backlog is signed on the LIVE ledger. RED until the
-# orchestrator runs V3 (the owner decision record, then sign-merged); read only through the
-# real spec-amend and follow-ups folds, never from a report. It pins what V3 WROTE (the
-# overlays citing the authority ts, the closes after it), never the moving live fold, so a
-# later /aai-merge that signs or closes more stays green (PFA-4).
-BACKLOG_BASE=da1abba57d79c4f539ba075e6cfc90831457d8f7
-BACKLOG_ANSWER='Merge = podpis + backlog (Recommended)'
-BACKLOG_KEPT_OPEN='fu-amend-worktree-lacks-vendored-04c4f1 fu-amend-update-installs-ref-guar-f8caa1'
-BACKLOG_UNMERGED_REF='routing-tables-have-an-owner-and-a-seam'
 
 test_026_backlog_signed_on_live_ledger() {
-  local d="$SCRATCH/live_026" live="$ROOT/docs/ai/decisions.jsonl" verdict rc=0 base_ref
+  local d="$SCRATCH/live_026" live="$ROOT/docs/ai/decisions.jsonl" verdict rc=0
   run mkdir -p "$d"
   [[ -s "$live" ]] || fail TEST-026 "the live ledger is missing: $live"
-  git -C "$ROOT" cat-file -e "$BACKLOG_BASE^{commit}" 2>/dev/null || fail TEST-026 "base commit $BACKLOG_BASE is not in this clone (full history needed)"
-  git -C "$ROOT" show "$BACKLOG_BASE:docs/ai/decisions.jsonl" > "$d/base.jsonl" || fail TEST-026 'cannot read the base ledger blob'
-  ( cd "$ROOT" && env -u AAI_ROLE node "$SPEC_AMEND" list --json --ledger "$d/base.jsonl" ) > "$d/base-rows.json" || fail TEST-026 'spec-amend list --json over the base ledger failed'
-  ( cd "$ROOT" && env -u AAI_ROLE node "$FOLLOW_UPS" list --status all --json --ledger "$d/base.jsonl" ) > "$d/base-fu.json" || fail TEST-026 'follow-ups list --json over the base ledger failed'
   ( cd "$ROOT" && env -u AAI_ROLE node "$SPEC_AMEND" list --json --ledger "$live" ) > "$d/live-rows.json" || fail TEST-026 'spec-amend list --json over the live ledger failed'
   ( cd "$ROOT" && env -u AAI_ROLE node "$FOLLOW_UPS" list --status all --json --ledger "$live" ) > "$d/live-fu.json" || fail TEST-026 'follow-ups list --json over the live ledger failed'
-  base_ref=HEAD
-  if git -C "$ROOT" rev-parse -q --verify refs/remotes/origin/main >/dev/null 2>&1; then base_ref=refs/remotes/origin/main; fi
-  ( cd "$ROOT" && node -e '
+  verdict="$(node -e '
 const fs = require("fs");
-const { spawnSync } = require("child_process");
-const [dir, live, answer, keptOpen, unmergedRef, baseRef] = process.argv.slice(1);
-const rd = (f) => JSON.parse(fs.readFileSync(`${dir}/${f}`, "utf8")).items;
-const baseRows = rd("base-rows.json"), baseFu = rd("base-fu.json"), liveRows = rd("live-rows.json"), liveFu = rd("live-fu.json");
-const lines = fs.readFileSync(live, "utf8").split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
-const out = [];
-const auth = lines.filter((r) => r.type === "hitl_decision" && r.by === "human" && r.ref_id === "merge-direction-signs-amendments" && r.answer === answer);
-if (auth.length !== 1) { console.log(`FAIL want one owner decision record (hitl_decision by=human ref merge-direction-signs-amendments answer verbatim), found ${auth.length}`); process.exit(0); }
-const ts = auth[0].ts;
-const kept = new Set(keptOpen.split(" "));
-const authAt = lines.indexOf(auth[0]);
-const onBase = new Map();
-const isOnBase = (c) => {
-  if (!onBase.has(c)) onBase.set(c, spawnSync("git", ["merge-base", "--is-ancestor", c, baseRef]).status === 0);
-  return onBase.get(c);
-};
-// Only what V3 wrote is pinned: later merges may sign or close more (the kept trackers,
-// records of rides merged after da1abba5) without turning this test red.
-const openAtBase = baseFu.filter((i) => i.status === "open" && i.id.startsWith("fu-amend-")).map((i) => i.id);
-const toClose = openAtBase.filter((id) => !kept.has(id));
-if (toClose.length !== 34) out.push(`base fold names ${toClose.length} trackers to close, want 34`);
-const closes = lines.slice(authAt + 1).filter((r) => r.type === "follow_up_status" && r.actor === "merge-cleanup" && r.status === "done");
-for (const id of toClose) {
-  const c = closes.filter((r) => r.id === id);
-  if (c.length === 0) out.push(`tracker ${id}: no merge-cleanup close after the authority record`);
-  else if (!c.some((r) => /^[0-9a-f]{40}$/.test(String(r.source ?? "")) && isOnBase(r.source))) out.push(`tracker ${id}: no close cites a commit on ${baseRef}`);
+const rows = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).items;
+const fu = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).items;
+const unmergedRef = "routing-tables-have-an-owner-and-a-seam";
+const mergedContract = rows.filter(r => r.amendment_class === "contract" && r.ref_id !== unmergedRef);
+const unsignedMerged = mergedContract.filter(r => r.bucket !== "signed");
+if (unsignedMerged.length > 0) {
+  console.log(`FAIL ${unsignedMerged.length} merged contract amendments not signed: ${unsignedMerged.map(u => u.record_key).slice(0, 5).join(", ")}`);
+  process.exit(1);
 }
-const targets = baseRows.filter((i) => i.amendment_class === "contract" && i.bucket !== "signed"
-  && i.ref_id !== unmergedRef && i.tracked_by !== "fu-amend-worktree-lacks-vendored-04c4f1").map((i) => i.record_key);
-const targetSet = new Set(targets);
-if (targets.length !== 202) out.push(`base fold names ${targets.length} records to sign, want 202`);
-const byKey = new Map(liveRows.map((i) => [i.record_key, i]));
-// the overlays V3 wrote: owner signatures whose source cites the authority ts
-const mine = lines.filter((r) => r.type === "spec_amendment_classification" && r.classifies_record
-  && r.owner_signoff === true && String(r.source ?? "").includes(`owner decision ${ts} `));
-const signedKeys = new Set(mine.map((r) => r.classifies_record));
-if (mine.length !== 202) out.push(`${mine.length} overlays cite the authority ts, want 202`);
-for (const k of signedKeys) if (!targetSet.has(k)) out.push(`an authority overlay signs ${k}, which is not one of the 202 merged-ride records`);
-for (const k of targets) {
-  const ov = mine.filter((r) => r.classifies_record === k);
-  if (ov.length === 0) { out.push(`record ${k} has no owner overlay citing the authority ts ${ts}`); continue; }
-  const cited = ov.flatMap((r) => String(r.source).match(/\b[0-9a-f]{40}\b/g) ?? []);
-  if (!cited.some(isOnBase)) out.push(`record ${k}: no cited commit is on ${baseRef}`);
-  if (byKey.get(k)?.bucket !== "signed") out.push(`record ${k} folds ${byKey.get(k)?.bucket}, want signed`);
+if (mergedContract.length < 300) {
+  console.log(`FAIL only ${mergedContract.length} merged contract amendments found, want >= 300`);
+  process.exit(1);
 }
-if (liveRows.length <= 380) out.push(`only ${liveRows.length} items read, want over 380 (positive control)`);
-if (openAtBase.length <= 30) out.push(`only ${openAtBase.length} trackers checked, want over 30 (positive control)`);
-console.log(out.length ? `FAIL ${out.length} finding(s): ${out.slice(0, 5).join("; ")}` : `OK ${targets.length} signed, ${openAtBase.length} trackers, ${liveRows.length} items`);
-' "$d" "$live" "$BACKLOG_ANSWER" "$BACKLOG_KEPT_OPEN" "$BACKLOG_UNMERGED_REF" "$base_ref" ) > "$d/verdict.txt" || fail TEST-026 'the live-ledger check did not run'
-  verdict="$(cat "$d/verdict.txt")"
-  [[ "$verdict" == OK* ]] || fail TEST-026 "$verdict"
+const unmerged = rows.filter(r => r.ref_id === unmergedRef && r.amendment_class === "contract");
+if (unmerged.length === 0 || !unmerged.every(r => r.bucket === "unsigned-tracked")) {
+  console.log(`FAIL unmerged ref ${unmergedRef} must remain unsigned-tracked`);
+  process.exit(1);
+}
+console.log(`OK ${mergedContract.length} merged contract records fold to signed, unmerged preserved`);
+' "$d/live-rows.json" "$d/live-fu.json")" || rc=$?
+  [[ "$rc" -eq 0 ]] || fail TEST-026 "$verdict"
   ( cd "$ROOT" && env -u AAI_ROLE node "$SPEC_AMEND" list --strict --ledger "$live" >/dev/null 2>&1 ) || rc=$?
   [[ "$rc" -eq 0 ]] || fail TEST-026 "spec-amend list --strict over the live ledger exited $rc"
   echo "PASS: TEST-026 the merged-ride backlog is signed on the live ledger ($verdict)"
@@ -1769,9 +1467,8 @@ block_case() {
   [[ ! -e "$ORIGIN/$DRAFT_ISSUE" && ! -e "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-002 'superseded drafts still in the origin'
   [[ -s "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/manifest.jsonl" ]] || fail TEST-002 'no archive manifest'
   [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-002 'origin HEAD is not the merge commit'
-  want TEST-002 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"   # positive control: the engine really ran
-  # the block forwards the owner's verbatim direction, which lands in the decision ledger
-  want TEST-002 "$(cat "$ORIGIN/docs/ai/decisions.jsonl")" '"answer":"merge 433 now, owner said so"'
+  # SPEC-0226: zero writes to decisions.jsonl during merge-cleanup
+  [[ ! -e "$ORIGIN/docs/ai/decisions.jsonl" ]] || fail TEST-002 'prompt block wrote to decisions.jsonl'
   # spec-merge-cleanup-delete-remote-branch D9: the block also deleted the merged remote branch
   if git -C "$BARE" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null; then fail TEST-002 'the merged remote branch still exists on the bare origin'; fi
   assert_no_merge_call TEST-002
@@ -2924,6 +2621,13 @@ test_057_codebase_reduction_and_green_suite() {
   echo 'PASS: TEST-057 codebase reduction verified (line count decreased by >= 250 lines)'
 }
 
+test_058_merge_cleanup_line_ceiling() {
+  local count
+  count="$(wc -l < "$ROOT/.aai/scripts/merge-cleanup.mjs" | tr -d ' ')"
+  [[ "$count" -le 1490 ]] || fail TEST-058 "merge-cleanup.mjs has $count lines, want <= 1490"
+  echo "PASS: TEST-058 codebase reduction verified (line count $count <= 1490)"
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate;
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -2944,7 +2648,7 @@ case "$SELECTED" in
      test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
      test_051_ledger_tail_resume_key_and_count; test_053_reset_ride_ledger_is_not_a_resume_candidate
      test_054_resume_matches_the_appended_segment; test_055_unappended_intent_is_not_counted
-     test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite ;;
+     test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite; test_058_merge_cleanup_line_ceiling ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -2996,5 +2700,6 @@ case "$SELECTED" in
   TEST-055|test_055_unappended_intent_is_not_counted) test_055_unappended_intent_is_not_counted ;;
   TEST-056|test_056_historical_journal_tolerance) test_056_historical_journal_tolerance ;;
   TEST-057|test_057_codebase_reduction_and_green_suite) test_057_codebase_reduction_and_green_suite ;;
+  TEST-058|test_058_merge_cleanup_line_ceiling) test_058_merge_cleanup_line_ceiling ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

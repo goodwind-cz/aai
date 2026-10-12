@@ -163,6 +163,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { nowIso } from './lib/iso-time.mjs';
@@ -374,10 +375,87 @@ function byTsAscending(a, b) {
   return at < bt ? -1 : at > bt ? 1 : 0;
 }
 
-// foldAmendments(records) -> { items, followUps, notes, counts, byKey, byRecord }
+// Base-ref ride cache: Map<`${cwd}:${baseRef}`, Map<rideKey, { id, status, isDone }>>
+const BASE_DOCS_CACHE = new Map();
+const RESOLVE_BASE_REF_CACHE = new Map();
+
+function resolveBaseRef(cwd, explicitBaseRef) {
+  const cacheKey = `${cwd}:${explicitBaseRef ?? ''}`;
+  if (RESOLVE_BASE_REF_CACHE.has(cacheKey)) return RESOLVE_BASE_REF_CACHE.get(cacheKey);
+
+  let res = null;
+  if (explicitBaseRef) {
+    const r = spawnSync('git', ['rev-parse', '--verify', '-q', `${explicitBaseRef}^{commit}`], { cwd, encoding: 'utf8' });
+    if (r.status === 0) res = explicitBaseRef;
+  } else {
+    const rem = spawnSync('git', ['rev-parse', '--verify', '-q', 'refs/remotes/origin/main^{commit}'], { cwd, encoding: 'utf8' });
+    if (rem.status === 0) res = 'refs/remotes/origin/main';
+    else {
+      const main = spawnSync('git', ['rev-parse', '--verify', '-q', 'refs/heads/main^{commit}'], { cwd, encoding: 'utf8' });
+      if (main.status === 0) res = 'refs/heads/main';
+    }
+  }
+  RESOLVE_BASE_REF_CACHE.set(cacheKey, res);
+  return res;
+}
+
+function getBaseDocIndex(cwd, baseRef) {
+  const cacheKey = `${cwd}:${baseRef}`;
+  if (BASE_DOCS_CACHE.has(cacheKey)) return BASE_DOCS_CACHE.get(cacheKey);
+
+  const byKey = new Map();
+  BASE_DOCS_CACHE.set(cacheKey, byKey);
+
+  const ls = spawnSync('git', ['ls-tree', '-r', '-z', '--name-only', baseRef, '--', 'docs'], { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  if (ls.status !== 0 || !ls.stdout) return byKey;
+
+  const rels = ls.stdout.split('\0').filter((p) => p.endsWith('.md'));
+  if (rels.length === 0) return byKey;
+
+  const input = rels.map((r) => `${baseRef}:${r}`).join('\n') + '\n';
+  const cat = spawnSync('git', ['cat-file', '--batch'], { cwd, input, maxBuffer: 64 * 1024 * 1024 });
+  if (cat.status !== 0 || !cat.stdout) return byKey;
+
+  const buf = cat.stdout;
+  let at = 0;
+  for (let n = 0; n < rels.length; n += 1) {
+    const nl = buf.indexOf(10, at);
+    if (nl < 0) break;
+    const header = buf.subarray(at, nl).toString('utf8');
+    const m = header.match(/^[0-9a-f]+ (\w+) (\d+)$/);
+    if (!m) { at = nl + 1; continue; }
+    const size = Number(m[2]);
+    const body = m[1] === 'blob' ? buf.subarray(nl + 1, nl + 1 + size).toString('utf8') : '';
+    at = nl + 1 + size + 1;
+
+    const fm = parseFrontmatter(body);
+    if (fm && fm.id) {
+      const prs = (Array.isArray(fm.links?.pr) ? fm.links.pr : [fm.links?.pr]).filter(Boolean);
+      const isDone = fm.status === 'done' && prs.length > 0;
+      const info = { id: String(fm.id), status: fm.status, prs, isDone };
+      byKey.set(String(fm.id), info);
+      byKey.set(`spec-${fm.id}`, info);
+      if (String(fm.id).startsWith('spec-')) byKey.set(String(fm.id).slice(5), info);
+      if (fm.links?.requirement) byKey.set(String(fm.links.requirement), info);
+      const dm = rels[n].match(/\/([A-Z]+-\d+)-/);
+      if (dm) byKey.set(dm[1], info);
+    }
+  }
+  return byKey;
+}
+
+function checkRideMerged(refId, cwd, explicitBaseRef) {
+  if (!refId) return false;
+  const baseRef = resolveBaseRef(cwd, explicitBaseRef);
+  if (!baseRef) return false;
+  const index = getBaseDocIndex(cwd, baseRef);
+  return Boolean(index.get(refId)?.isDone);
+}
+
+// foldAmendments(records, opts = {}) -> { items, followUps, notes, counts, byKey, byRecord }
 // The projection is computed, never stored. Every read in this file goes
 // through here so the CLI's four surfaces cannot drift from each other.
-function foldAmendments(records) {
+function foldAmendments(records, opts = {}) {
   const notes = [];
   const amendments = [];
   const overlays = new Map();
@@ -501,13 +579,31 @@ function foldAmendments(records) {
     // `signed` is tested FIRST and alone: a signature outranks the class and
     // is never downgraded by it (the record keeps its resolved class on the
     // item either way — the signature outranked the class, it did not
-    // rewrite it). Everything below `measurement` is today's logic, byte for
-    // byte, which is what keeps the contract lane unmoved.
+    // rewrite it).
+    //
+    // Implied signature fold (DEBT-0013 / SPEC-0226): an unsigned contract-class
+    // amendment is signed at read time when its ride doc is status: done and
+    // merged into the base branch with a PR number in links.pr. Zero overlays
+    // written, zero dirty checkout after merge. Unmerged rides stay unsigned.
     let bucket;
-    if (signoff === true) bucket = 'signed';
-    else if (amendmentClass === MEASUREMENT_CLASS) bucket = MEASUREMENT_CLASS;
-    else if (signoff === false) bucket = trackerOpen ? 'unsigned-tracked' : 'unsigned-untracked';
-    else bucket = 'unclassified';
+    let impliedByMerge = false;
+    if (signoff === true) {
+      bucket = 'signed';
+    } else if (amendmentClass === MEASUREMENT_CLASS) {
+      bucket = MEASUREMENT_CLASS;
+    } else {
+      if (signoff === false && amendmentClass === 'contract') {
+        const cwd = opts.cwd || process.cwd();
+        const baseRef = opts.base_ref || opts.baseRef;
+        if (checkRideMerged(str(rec.ref_id), cwd, baseRef)) {
+          signoff = true;
+          impliedByMerge = true;
+        }
+      }
+      if (signoff === true) bucket = 'signed';
+      else if (signoff === false) bucket = trackerOpen ? 'unsigned-tracked' : 'unsigned-untracked';
+      else bucket = 'unclassified';
+    }
 
     // tool_restamp (D3) — the STRUCTURAL selector the one migrated cohort is
     // picked by, exposed here rather than reimplemented by whoever runs the
@@ -533,7 +629,7 @@ function foldAmendments(records) {
       tool_restamp: toolRestamp,
       classified_by: classifiedBy,
       tracked_by: trackedBy,
-      tracked_status: trackedItem === null ? null : trackedItem.status,
+      tracked_status: trackedItem === null ? null : (impliedByMerge && trackedItem.closed !== true ? 'done' : trackedItem.status),
       bucket,
       what: str(rec.what) ?? str(rec.change) ?? str(rec.finding) ?? '',
     };
@@ -542,6 +638,26 @@ function foldAmendments(records) {
     if (key !== null) {
       if (byKey.has(key)) duplicateKeys += 1;
       else byKey.set(key, item);
+    }
+  }
+
+  // Any open fu-amend-* tracker whose contract records ALL fold signed is
+  // satisfied (closed) by construction (DEBT-0013 tracker lifecycle).
+  const trackerStats = new Map();
+  for (const item of items) {
+    if (!item.tracked_by) continue;
+    if (!trackerStats.has(item.tracked_by)) trackerStats.set(item.tracked_by, { s: 0, u: 0 });
+    const st = trackerStats.get(item.tracked_by);
+    if (item.bucket === 'signed') st.s += 1;
+    else if (item.bucket !== MEASUREMENT_CLASS) st.u += 1;
+  }
+  for (const [id, fu] of followUps) {
+    if (!fu.closed && id.startsWith(ITEM_PREFIX)) {
+      const st = trackerStats.get(id);
+      if (st && st.s > 0 && st.u === 0) {
+        fu.status = 'done';
+        fu.closed = true;
+      }
     }
   }
 
@@ -568,9 +684,9 @@ function foldAmendments(records) {
   return { items, followUps, notes, counts, byKey, byRecord };
 }
 
-function loadLedger(absPath) {
+function loadLedger(absPath, opts = {}) {
   const { records, malformed, missing, unreadable } = readDecisionsLedger(absPath);
-  const folded = foldAmendments(records);
+  const folded = foldAmendments(records, opts);
   const notes = [];
   // UNREACHABLE FROM THIS CLI, on purpose: `loadLedgerOrRefuse` calls
   // `requireReadableFile` first, so an absent `--ledger` exits 2 rather than
@@ -902,7 +1018,7 @@ const FLAG_SPECS = {
   // docs/specs — overridable so a fixture test can point at a scratch
   // corpus without touching the live tree, the same seam `--ledger` already
   // is for the amendment-record half of this gate.
-  list: ['--ledger', '--status', '--specs-dir'],
+  list: ['--ledger', '--status', '--specs-dir', '--base-ref'],
   // restamp (D2 / Spec-AC-20): --ref is OPTIONAL, unlike add/classify — a
   // mechanical allocator-rewrite restamp has no ride to blame if the caller
   // omits it, so it falls back to the spec's own frontmatter id (readSpecId),
@@ -989,9 +1105,9 @@ function requireReadableFile(abs, label) {
   }
 }
 
-function loadLedgerOrRefuse(abs) {
+function loadLedgerOrRefuse(abs, opts = {}) {
   requireReadableFile(abs, 'ledger');
-  const reg = loadLedger(abs);
+  const reg = loadLedger(abs, opts);
   if (reg.unreadable) usageError(`ledger not readable: ${abs} (${reg.unreadable.code}: ${reg.unreadable.message})`);
   return reg;
 }
@@ -1859,7 +1975,7 @@ function scanSpecAnchors(specsDirAbs) {
 
 function cmdList(opts) {
   const abs = ledgerPath(opts);
-  const reg = loadLedgerOrRefuse(abs);
+  const reg = loadLedgerOrRefuse(abs, opts);
   const wantStatus = str(opts.status) ?? 'all';
   if (!Object.prototype.hasOwnProperty.call(STATUS_FILTERS, wantStatus)) {
     usageError(`--status must be one of ${Object.keys(STATUS_FILTERS).join(', ')} (got "${wantStatus}")`);
@@ -2060,6 +2176,9 @@ export {
   readDecisionsLedger,
   foldAmendments,
   loadLedger,
+  checkRideMerged,
+  resolveBaseRef,
+  BASE_DOCS_CACHE,
   amendItemId,
   amendItemIdStamped,
 };

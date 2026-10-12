@@ -9,15 +9,13 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    PR in this session. Judged head = the sha the owner named, else the PR's
    current `headRefOid`. From the ride checkout run
    `node .aai/scripts/merge-cleanup.mjs preflight --pr <n> --expect-head <sha> --directed-by human --direction "<owner's words verbatim>" --origin "$(pwd)"`.
-   Its `signs on merge:` lines name the ride's contract amendments: the owner's
-   merge direction signs them (step 2, `sign-amendments`); never ask separately.
    Relay a `cleanup blocked:` line verbatim; it does not stop the merge.
    Exit 10: run exactly the one `AAI_OPERATOR_MERGE=1 gh pr merge <n> --squash --match-head-commit <sha>` line it
    printed, nothing added (never `--admin`, `--auto`, `--delete-branch`).
    Exit 3: relay the `REFUSE` line and stop. Exit 0 `already_merged`: go to 2.
 2. MERGED PR — cleanup only. Run the block for your shell with `AAI_PR` set to
    the PR number and, when step 1 merged it, `AAI_DIRECTION` to the owner's
-   words (the engine records them with the merged head). It proves MERGED and
+   words. It proves MERGED and
    the merge commit on the base first; it archives before it removes, never
    stashes, and deletes the merged remote branch only by lease against the
    merged head (else retained). Run the block

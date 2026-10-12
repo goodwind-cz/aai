@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-12T00:08:57.404Z",
+  "generatedAt": "2026-10-12T13:06:55.393Z",
   "project": "aai",
   "counts": {
-    "delivered": 295,
+    "delivered": 296,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 75943406
@@ -233,6 +233,19 @@
       "spec": "docs/specs/SPEC-0225-spec-merge-cleanup-dead-steps.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20261012T000200Z-merge-cleanup-dead-steps.md"
+    },
+    {
+      "ref": "amendment-signoff-implied-by-merge",
+      "title": "Tech Debt: a contract amendment is signed by the merge of its ride, not by a written record",
+      "type": "techdebt",
+      "status": "done",
+      "path": "docs/issues/DEBT-0013-amendment-signoff-implied-by-merge.md",
+      "closed_on": "2026-10-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0226-spec-amendment-signoff-implied-by-merge.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "merge-cleanup-delete-remote-branch",
@@ -4095,6 +4108,19 @@
           "spec": "docs/specs/SPEC-0225-spec-merge-cleanup-dead-steps.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20261012T000200Z-merge-cleanup-dead-steps.md"
+        },
+        {
+          "ref": "amendment-signoff-implied-by-merge",
+          "title": "Tech Debt: a contract amendment is signed by the merge of its ride, not by a written record",
+          "type": "techdebt",
+          "status": "done",
+          "path": "docs/issues/DEBT-0013-amendment-signoff-implied-by-merge.md",
+          "closed_on": "2026-10-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0226-spec-amendment-signoff-implied-by-merge.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "merge-cleanup-delete-remote-branch",
