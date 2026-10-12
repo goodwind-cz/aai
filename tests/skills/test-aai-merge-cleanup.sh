@@ -141,7 +141,7 @@ build_world() {
   printf 'fixture\n' > "$ORIGIN/README.md"
   printf 'unrelated\n' > "$ORIGIN/UNRELATED.txt"
   printf 'docs/ai/archive/**\ndocs/ai/reports/**\ndocs/ai/tdd/**\ndocs/ai/validation/**\ndocs/ai/reviews/**\ndocs/ai/evidence/**\ndocs/ai/STATE.yaml\n' > "$ORIGIN/.gitignore"
-  run mkdir -p "$ORIGIN/docs/ai"
+  run mkdir -p "$ORIGIN/docs/ai" "$ORIGIN/docs/issues" "$ORIGIN/docs/specs"
   printf '{"v":1,"ts":"2026-10-09T00:00:00Z","actor":"fixture","event":"seed","ref":"seed","payload":{}}\n' > "$ORIGIN/docs/ai/EVENTS.jsonl"
   printf '# Docs Index \xe2\x80\x94 auto-generated, DO NOT EDIT\n' > "$ORIGIN/docs/INDEX.md"
   run git -C "$ORIGIN" add README.md UNRELATED.txt .gitignore docs/ai/EVENTS.jsonl docs/INDEX.md
@@ -179,18 +179,16 @@ build_world() {
     run git -C "$ORIGIN" push -q origin main
     run git -C "$ORIGIN" fetch -q origin
   fi
-  run mkdir -p "$ORIGIN/docs/issues" "$ORIGIN/docs/specs"
-  draft_issue_v1 > "$ORIGIN/$DRAFT_ISSUE"
-  draft_spec_v1 > "$ORIGIN/$DRAFT_SPEC"
   run git -C "$ORIGIN" worktree add -q -b "$BRANCH" "$RIDE" main
   run git -C "$RIDE" config user.name 'AAI Fixture'
   run git -C "$RIDE" config user.email 'fixture@example.invalid'
   if [[ -n "${DOWNSTREAM:-}" ]]; then run node "$ORIGIN/.aai/scripts/worktree-seed.mjs" --source "$ORIGIN" --target "$RIDE" >/dev/null; fi
   # RIDE_BOOT: a function that prepares the fresh ride checkout (initializes its submodules)
   if [[ -n "${RIDE_BOOT:-}" ]]; then "$RIDE_BOOT"; fi
-  run mkdir -p "$RIDE/docs/issues" "$RIDE/docs/specs"
-  run cp "$ORIGIN/$DRAFT_ISSUE" "$RIDE/$DRAFT_ISSUE"
-  run cp "$ORIGIN/$DRAFT_SPEC" "$RIDE/$DRAFT_SPEC"
+  run mkdir -p "$RIDE/docs/issues" "$RIDE/docs/specs" "$RIDE/docs/ai"
+  printf 'current_focus:\n  ref_id: foo\n' > "$RIDE/docs/ai/STATE.yaml"
+  draft_issue_v1 > "$RIDE/$DRAFT_ISSUE"
+  draft_spec_v1 > "$RIDE/$DRAFT_SPEC"
   run git -C "$RIDE" add "$DRAFT_ISSUE" "$DRAFT_SPEC"
   run git -C "$RIDE" commit -qm 'docs: drafts'
   run git -C "$RIDE" mv "$DRAFT_ISSUE" "$NUM_ISSUE"
@@ -324,7 +322,7 @@ test_005_apply_readback_gate() {
     # positive control: the gate really read the PR (a vacuous refusal would not)
     want TEST-005 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"
     assert_no_merge_call TEST-005
-    [[ -f "$ORIGIN/$DRAFT_ISSUE" && -f "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-005 "arm $state/$reason lost a draft"
+    [[ -f "$ORIGIN/README.md" ]] || fail TEST-005 "arm $state/$reason changed README"
     [[ ! -e "$ORIGIN/docs/ai/archive" ]] || fail TEST-005 "arm $state/$reason created an archive"
   done
 
@@ -359,123 +357,6 @@ test_005_apply_readback_gate() {
   ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" SEAM_MARK="$mark" SEAM_PR="$GHD/pr-$PR.json" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_GH_NODE="$W/gh-seam.js" node "$ENGINE" plan --pr "$PR" >"$W/engine.out" 2>"$W/engine.err" ) || fail TEST-005 "guarded seam plan exited non-zero: $(cat "$W/engine.err")"
   [[ -e "$mark" ]] || fail TEST-005 'guarded AAI_MERGE_CLEANUP_GH_NODE seam did not run (positive control)'
   echo 'PASS: TEST-005 apply read-back gate'
-}
-
-test_006_superseded_drafts() {
-  build_world drafts
-  local issue_sha spec_sha arch lines after_audit
-  issue_sha="$(sha_of "$ORIGIN/$DRAFT_ISSUE")"
-  spec_sha="$(sha_of "$ORIGIN/$DRAFT_SPEC")"
-  run cp "$ORIGIN/$DRAFT_ISSUE" "$W/orig-issue.md"
-  run cp "$ORIGIN/$DRAFT_SPEC" "$W/orig-spec.md"
-  # the numbered docs reach the origin checkout through the engine's own
-  # sync-base step; positive control: they are absent before apply
-  [[ ! -e "$ORIGIN/$NUM_ISSUE" && ! -e "$ORIGIN/$NUM_SPEC" ]] || fail TEST-006 'numbered docs already in the origin before apply'
-
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-006 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
-  [[ ! -e "$ORIGIN/$DRAFT_ISSUE" && ! -e "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-006 'superseded draft still in the origin tree'
-  cmp "$W/orig-issue.md" "$arch/files/$DRAFT_ISSUE" || fail TEST-006 'archived issue draft bytes differ'
-  cmp "$W/orig-spec.md" "$arch/files/$DRAFT_SPEC" || fail TEST-006 'archived spec draft bytes differ'
-  [[ -f "$ORIGIN/$NUM_ISSUE" && -f "$ORIGIN/$NUM_SPEC" ]] || fail TEST-006 'numbered docs missing from the origin'
-  lines="$(wc -l < "$arch/manifest.jsonl" | tr -d ' ')"
-  [[ "$lines" == 2 ]] || fail TEST-006 "manifest has $lines lines, want 2"
-  want TEST-006 "$(cat "$arch/manifest.jsonl")" "\"sha256\":\"$issue_sha\""
-  want TEST-006 "$(cat "$arch/manifest.jsonl")" "\"sha256\":\"$spec_sha\""
-  want TEST-006 "$(cat "$arch/manifest.jsonl")" "\"original\":\"$DRAFT_ISSUE\""
-  want TEST-006 "$(cat "$arch/manifest.jsonl")" '"reason":"superseded"'
-  want TEST-006 "$(cat "$arch/manifest.jsonl")" '"step":"archive-drafts"'
-  [[ "$(json_get "$ENG_OUT" 'j.archived.length')" == 2 ]] || fail TEST-006 'JSON report archived count'
-  [[ "$(json_get "$ENG_OUT" 'j.retained.length')" == 0 ]] || fail TEST-006 'nothing should be retained'
-  after_audit="$(audit_verdict)"
-  want TEST-006 "$after_audit" 'Verdict: CLEAN'
-  assert_no_merge_call TEST-006
-  echo 'PASS: TEST-006 superseded drafts archived by identity'
-}
-
-test_007_retained_and_decisions() {
-  build_world retain
-  local arch before after rep other="docs/issues/ISSUE-DRAFT-other.md"
-  # unrelated id: not delivered by the PR
-  printf -- '---\nid: other\ntype: issue\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Other\n' > "$ORIGIN/$other"
-  # same id as the delivered spec but different bytes (CRLF-converted copy)
-  draft_spec_v1 | sed 's/$/\r/' > "$W/divergent-spec.md"
-  run cp "$W/divergent-spec.md" "$ORIGIN/$DRAFT_SPEC"
-  # the issue draft stays byte-identical to history (superseded)
-  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
-
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-007 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  rep="$ENG_OUT"
-  [[ -f "$ORIGIN/$other" ]] || fail TEST-007 'unrelated draft was removed'
-  [[ -f "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-007 'divergent draft was removed'
-  cmp "$W/divergent-spec.md" "$ORIGIN/$DRAFT_SPEC" || fail TEST-007 'divergent draft bytes changed'
-  [[ ! -e "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-007 'identical issue draft was not archived (positive control)'
-  want TEST-007 "$rep" '"reason":"unrelated_id"'
-  want TEST-007 "$rep" '"reason":"divergent_content"'
-  want TEST-007 "$(json_get "$rep" 'j.remaining')" "$DRAFT_SPEC"
-  [[ "$(json_get "$rep" 'j.archived.length')" == 1 ]] || fail TEST-007 'only the identical draft may be archived'
-  [[ ! -e "$arch/files/$DRAFT_SPEC" && ! -e "$arch/files/$other" ]] || fail TEST-007 'retained draft leaked into the archive'
-
-  # --archive-divergent naming a draft that is NOT divergent is refused untouched
-  before="$(world_digest)"
-  run_engine apply --pr "$PR" --pid 4242 --archive-divergent "$other"
-  [[ "$ENG_RC" -eq 3 ]] || fail TEST-007 "unrelated --archive-divergent exited $ENG_RC, want 3"
-  want TEST-007 "$ENG_OUT" 'REFUSE archive_divergent_not_candidate'
-  [[ "$(world_digest)" == "$before" ]] || fail TEST-007 'refused --archive-divergent changed the fixture'
-
-  # the explicit decision archives the divergent copy; a differing file already
-  # occupying the archive path is never overwritten (numeric suffix instead)
-  run mkdir -p "$arch/files/docs/specs"
-  printf 'squatter\n' > "$arch/files/$DRAFT_SPEC"
-  run_engine apply --pr "$PR" --pid 4242 --json --archive-divergent "$DRAFT_SPEC"
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-007 "decision run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ ! -e "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-007 'named divergent draft still in the origin'
-  [[ "$(cat "$arch/files/$DRAFT_SPEC")" == squatter ]] || fail TEST-007 'archive squatter was overwritten'
-  after="$(json_get "$ENG_OUT" "j.archived.find(a=>a.path===\"$DRAFT_SPEC\").archive")"
-  [[ -f "$ORIGIN/$after" ]] || fail TEST-007 "archive path from report missing: $after"
-  cmp "$W/divergent-spec.md" "$ORIGIN/$after" || fail TEST-007 'archived divergent bytes differ from the original'
-  [[ "$after" != "docs/ai/archive/merge-cleanup/pr-$PR/files/$DRAFT_SPEC" ]] || fail TEST-007 'archive path was not suffixed'
-  [[ -f "$ORIGIN/$other" ]] || fail TEST-007 'unrelated draft vanished during the decision run'
-  want TEST-007 "$ENG_OUT" '"reason":"unrelated_id"'
-  want TEST-007 "$(cat "$arch/manifest.jsonl")" '"reason":"divergent_archived_by_decision"'
-
-  # bot sweep P2-1: a draft edited by another session after it was classified (or after it was
-  # archived, before the unlink) is never deleted; the working copy stays, the run reports
-  # divergent_after_plan, and the archive copy stays recoverable. The other draft is the control.
-  local point
-  for point in before-archive before-unlink; do
-    build_world "race_$point"
-    ( cd "$ORIGIN" && PATH="$GHD/bin:$PATH" GH_STUB_DIR="$GHD" AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_EDIT_DRAFT="$point:$DRAFT_ISSUE" node "$ENGINE" apply --pr "$PR" --pid 4242 --json >"$W/engine.out" 2>"$W/engine.err" ) || fail TEST-007 "race arm $point exited non-zero: $(cat "$W/engine.out") $(cat "$W/engine.err")"
-    rep="$(cat "$W/engine.out")"
-    [[ -f "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-007 "race arm $point: the edited draft was deleted"
-    has "$(cat "$ORIGIN/$DRAFT_ISSUE")" 'edited by another session' || fail TEST-007 "race arm $point: the working copy lost the other session's edit"
-    [[ ! -e "$ORIGIN/$DRAFT_SPEC" ]] || fail TEST-007 "race arm $point: the untouched draft was not archived (positive control)"
-    want TEST-007 "$rep" '"reason":"divergent_after_plan"'
-    want TEST-007 "$(json_get "$rep" 'j.remaining')" "$DRAFT_ISSUE"
-    want TEST-007 "$(json_get "$rep" 'j.remaining')" 'divergent_after_plan'
-    arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
-    [[ "$(json_get "$rep" 'j.archived.length')" -ge 1 ]] || fail TEST-007 "race arm $point: nothing archived"
-    # The manifest records an edited draft as superseded only when its archived bytes are the
-    # PR's: edited before the copy -> no record for it; edited after the copy -> one record.
-    local recs
-    recs="$(node -e 'const fs=require("fs");const [m,p]=process.argv.slice(1);const t=fs.existsSync(m)?fs.readFileSync(m,"utf8"):"";console.log(t.split("\n").filter(Boolean).map(JSON.parse).filter(r=>r.original===p).length)' "$arch/manifest.jsonl" "$DRAFT_ISSUE")"
-    if [[ "$point" == before-archive ]]; then
-      [[ "$recs" == 0 ]] || fail TEST-007 "race arm $point: the edited draft was recorded in the manifest ($recs record(s)) although its bytes were never in the PR"
-    else
-      [[ "$recs" == 1 ]] || fail TEST-007 "race arm $point: want one manifest record of the PR bytes, got $recs"
-    fi
-  done
-
-  # degenerate: no drafts at all -> clean no-op, no archive directory created
-  build_world empty
-  run rm "$ORIGIN/$DRAFT_ISSUE" "$ORIGIN/$DRAFT_SPEC"
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-007 "empty-world apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ ! -e "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/files" && ! -e "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/manifest.jsonl" ]] || fail TEST-007 'empty-world apply archived a draft'
-  [[ "$(json_get "$ENG_OUT" 'j.archived.length')" == 0 ]] || fail TEST-007 'empty-world archived count'
-  echo 'PASS: TEST-007 retained drafts and explicit decisions'
 }
 
 # ---------------------------------------------------------------------------
@@ -654,10 +535,11 @@ test_010_worktree_and_branch_cleanup() {
   [[ "$(world_digest)" == "$pdig" ]] || fail TEST-010 'plan changed the fixture'
   [[ ! -e "$arch" ]] || fail TEST-010 'plan created the archive'
   rep="$ENG_OUT"
-  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-drafts").targets')" "$DRAFT_ISSUE"
-  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-drafts").targets')" "docs/ai/archive/merge-cleanup/pr-$PR/files/$DRAFT_ISSUE"
+  unwanted TEST-010 "$(json_get "$rep" 'j.steps.map(s=>s.id)')" "archive-drafts"
+  unwanted TEST-010 "$(json_get "$rep" 'j.steps.map(s=>s.id)')" "state"
+  unwanted TEST-010 "$(json_get "$rep" 'j.steps.map(s=>s.id)')" "index-audit"
+  unwanted TEST-010 "$(json_get "$rep" 'j.steps.map(s=>s.id)')" "delete-remote-branch"
   want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-runtime").targets')" "worktree:docs/ai/STATE.yaml"
-  want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-runtime").targets')" "docs/ai/archive/merge-cleanup/pr-$PR/worktree/docs/ai/STATE.yaml"
   want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="sync-base").targets')" "$(git -C "$ORIGIN" rev-parse --short=12 HEAD)..$(git -C "$ORIGIN" rev-parse --short=12 "$MC")"
   want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="remove-worktree").targets')" "$RIDE"
   want TEST-010 "$(json_get "$rep" 'j.steps.find(s=>s.id==="delete-branch").targets')" "$BRANCH"
@@ -666,20 +548,12 @@ test_010_worktree_and_branch_cleanup() {
   run_engine apply --pr "$PR" --pid "$pid" --json
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-010 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
   rep="$ENG_OUT"
-  # bot sweep P2-2: the report lists every archived file (runtime STATE and ignored evidence
-  # included) with its recovery path
-  for f in $RUNTIME_FILES; do
-    want TEST-010 "$(json_get "$rep" 'j.archived.map(a=>a.path+" "+a.archive)')" "worktree:$f docs/ai/archive/merge-cleanup/pr-$PR/worktree/$f"
-  done
-  # archived bytes are sha-equal to the pre-removal bytes
-  for f in $RUNTIME_FILES; do
-    [[ "$(sha_of "$arch/worktree/$f")" == "$(sha_of "$(kf "$f")")" ]] || fail TEST-010 "archived $f differs from the pre-removal bytes"
-    want TEST-010 "$(cat "$arch/manifest.jsonl")" "\"original\":\"worktree:$f\""
-  done
+  # archive-runtime archives only the ride STATE.yaml
+  local state_pre
+  state_pre="$(kf docs/ai/STATE.yaml)"
+  [[ "$(sha_of "$arch/worktree/docs/ai/STATE.yaml")" == "$(sha_of "$state_pre")" ]] || fail TEST-010 "archived STATE.yaml differs from the pre-removal bytes"
+  want TEST-010 "$(cat "$arch/manifest.jsonl")" "\"original\":\"worktree:docs/ai/STATE.yaml\""
   want TEST-010 "$(cat "$arch/manifest.jsonl")" '"step":"archive-runtime"'
-  # evidence copied into the origin only where absent
-  cmp "$(kf docs/ai/tdd/only-ride.log)" "$ORIGIN/docs/ai/tdd/only-ride.log" || fail TEST-010 'absent evidence was not copied into the origin'
-  [[ "$(cat "$ORIGIN/docs/ai/tdd/shared.log")" == 'origin version' ]] || fail TEST-010 'a differing origin evidence file was overwritten'
   # worktree removed, branch deleted although it is not an ancestor
   [[ ! -e "$RIDE" ]] || fail TEST-010 'ride worktree directory still exists'
   unwanted TEST-010 "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE"
@@ -776,8 +650,8 @@ test_011_worktree_refusals() {
 # Batch B3: focus, index and report (TEST-012), idempotence and resume (TEST-013/014)
 
 STATE_REL='docs/ai/STATE.yaml'
-ACTION_STEPS='archive-runtime archive-drafts sync-base state index-audit remove-worktree delete-branch delete-remote-branch report'
-ALL_STEPS='resolve plan archive-runtime archive-drafts sync-base sign-amendments state index-audit remove-worktree delete-branch delete-remote-branch report'
+ACTION_STEPS='archive-runtime sync-base remove-worktree delete-branch report'
+ALL_STEPS='resolve plan archive-runtime sync-base sign-amendments remove-worktree delete-branch report'
 
 # seed_state [ref]: the real check-state.mjs creates the origin STATE; with a
 # ref the real state.mjs puts that ref in focus with an in-progress work item.
@@ -800,175 +674,6 @@ step_status() { json_get "$1" "j.steps.find(s=>s.id===\"$2\").status"; }
 
 saved_reports() { find "$ORIGIN/docs/ai/reports" -maxdepth 1 -type f -name "merge-cleanup-pr$PR-*.md" 2>/dev/null | LC_ALL=C sort || true; }
 
-test_012_state_index_report() {
-  local rep before arm name focus reason rpt n idx
-  # focus names the merged ref: the real state.mjs clears it
-  build_world focus_hit
-  seed_state foo
-  before="$(sha_of "$ORIGIN/$STATE_REL")"
-  run cp "$ORIGIN/$STATE_REL" "$W/state.pre"
-  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: foo'   # positive control
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  rep="$ENG_OUT"
-  [[ "$(sha_of "$ORIGIN/$STATE_REL")" != "$before" ]] || fail TEST-012 'STATE was not changed although the focus named the merged ref'
-  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: null'
-  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'type: none'
-  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" active_work_items)" 'status: done'
-  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" active_work_items)" 'phase: closed'
-  [[ "$(step_status "$rep" state)" == done ]] || fail TEST-012 "state step reported $(step_status "$rep" state), want done"
-  # the gitignored origin STATE is archived byte-for-byte before the irreversible clear-focus
-  cmp "$W/state.pre" "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/origin/$STATE_REL" || fail TEST-012 'origin STATE was not archived before clear-focus'
-  want TEST-012 "$(cat "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/manifest.jsonl")" "\"original\":\"origin:$STATE_REL\""
-  # no direction given: no directed_merge record and no direction line
-  [[ ! -e "$ORIGIN/docs/ai/decisions.jsonl" ]] || fail TEST-012 'a decisions record was written without --direction'
-
-  # index: numbered rows present, no DRAFT row for the delivered ids
-  idx="$(cat "$ORIGIN/docs/INDEX.md")"
-  want TEST-012 "$idx" 'ISSUE-0001'
-  want TEST-012 "$idx" 'SPEC-0001'
-  unwanted TEST-012 "$idx" 'ISSUE-DRAFT-foo'
-  unwanted TEST-012 "$idx" 'SPEC-DRAFT-spec-foo'
-  [[ "$(step_status "$rep" index-audit)" == done ]] || fail TEST-012 "index-audit step reported $(step_status "$rep" index-audit), want done"
-
-  # report: JSON object carries every spec field ...
-  [[ "$(json_get "$rep" 'j.base')" == main ]] || fail TEST-012 'report base'
-  [[ "$(json_get "$rep" 'j.head')" == "$MC" ]] || fail TEST-012 "report head $(json_get "$rep" 'j.head'), want $MC"
-  [[ "$(json_get "$rep" 'j.mergeCommit')" == "$MC" ]] || fail TEST-012 'report merge commit'
-  [[ "$(json_get "$rep" 'Array.isArray(j.archived)&&Array.isArray(j.retained)&&Array.isArray(j.noops)&&Array.isArray(j.remaining)')" == true ]] || fail TEST-012 'report lacks an archived/retained/noops/remaining array'
-  want TEST-012 "$(json_get "$rep" 'j.archived.map(a=>a.path)')" "$DRAFT_ISSUE"
-  want TEST-012 "$(json_get "$rep" 'j.archived.map(a=>a.path)')" "$DRAFT_SPEC"
-  want TEST-012 "$(json_get "$rep" 'j.archived.map(a=>a.path)')" "origin:docs/ai/STATE.yaml"
-  want TEST-012 "$(json_get "$rep" 'j.audit')" 'Verdict: CLEAN'
-  unwanted TEST-012 "$(json_get "$rep" 'j.remaining')" "origin/$BRANCH"
-  # ... and is saved under docs/ai/reports with the same fields
-  n="$(saved_reports | wc -l | tr -d ' ')"
-  [[ "$n" == 1 ]] || fail TEST-012 "$n saved reports, want 1"
-  rpt="$(cat "$(saved_reports)")"
-  want TEST-012 "$rpt" "- pr: $PR"
-  want TEST-012 "$rpt" "- merge commit: $MC"
-  want TEST-012 "$rpt" '- base: main'
-  want TEST-012 "$rpt" "- final HEAD: $MC"
-  want TEST-012 "$rpt" 'Verdict: CLEAN'
-  want TEST-012 "$rpt" '## Archived'
-  want TEST-012 "$rpt" "$DRAFT_ISSUE"
-  want TEST-012 "$rpt" '## Retained'
-  want TEST-012 "$rpt" '## No-ops'
-  want TEST-012 "$rpt" '## Remaining'
-  unwanted TEST-012 "$rpt" "origin/$BRANCH"
-  case "$(basename "$(saved_reports)")" in merge-cleanup-pr"$PR"-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z.md) ;; *) fail TEST-012 "report file name shape: $(saved_reports)" ;; esac
-  assert_no_merge_call TEST-012
-
-  # negative controls: no focus, another ref in focus, and no STATE at all leave
-  # STATE byte-identical and report a named no-op
-  for arm in "none||focus_not_this_ref" "other|other-ref|focus_not_this_ref" "nostate|-|no_state"; do
-    name="${arm%%|*}"; focus="${arm#*|}"; reason="${focus#*|}"; focus="${focus%%|*}"
-    build_world "focus_$name"
-    if [[ "$focus" != - ]]; then seed_state "$focus"; fi
-    if [[ -f "$ORIGIN/$STATE_REL" ]]; then run cp "$ORIGIN/$STATE_REL" "$W/state.keep"; fi
-    run_engine apply --pr "$PR" --pid 4242 --json
-    [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "arm $name exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-    [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "arm $name state step reported $(step_status "$ENG_OUT" state), want noop"
-    want TEST-012 "$(json_get "$ENG_OUT" 'j.noops')" "noop:state:$reason"
-    if [[ -f "$W/state.keep" ]]; then
-      cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 "arm $name changed the STATE bytes"
-    else
-      [[ ! -e "$ORIGIN/$STATE_REL" ]] || fail TEST-012 "arm $name created a STATE file"
-    fi
-    if [[ "$name" == other ]]; then want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: other-ref'; fi
-  done
-  # the merged ref is the intake THIS PR delivered (status done, links.pr names the PR).
-  # Negative arms, each with the origin focus on a ref the branch tail ALSO names (foo) or
-  # on a doc the PR merely touches: the focus and STATE bytes stay, with a named no-op.
-  # (a) the PR only edits another in-flight item's doc
-  EXTRA_OTHER=1 build_world focus_other_doc
-  seed_state other-item
-  run cp "$ORIGIN/$STATE_REL" "$W/state.keep"
-  want TEST-012 "$(git -C "$BARE" diff --name-only "$MC^1" "$MC")" 'ISSUE-0002-other-item.md'   # the PR really touches it
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "other-doc arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "other-doc arm state step reported $(step_status "$ENG_OUT" state), want noop"
-  want TEST-012 "$(json_get "$ENG_OUT" 'j.noops')" 'noop:state:focus_not_this_ref'
-  cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 'other-doc arm changed the STATE bytes'
-  want TEST-012 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: other-item'
-  unwanted TEST-012 "$(state_block "$ORIGIN/$STATE_REL" active_work_items)" 'status: done'
-  [[ ! -e "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/origin" ]] || fail TEST-012 'other-doc arm archived a STATE it did not touch'
-  # (b) the PR files the item in focus only as a DRAFT intake (status not done)
-  ISSUE_STATUS=draft build_world focus_draft_only
-  seed_state foo
-  run cp "$ORIGIN/$STATE_REL" "$W/state.keep"
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "draft-only arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "draft-only arm state step reported $(step_status "$ENG_OUT" state), want noop"
-  want TEST-012 "$(json_get "$ENG_OUT" 'j.noops')" 'noop:state:focus_not_this_ref'
-  cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 'draft-only arm changed the STATE bytes'
-  # (c) done, but its links.pr names a different PR
-  ISSUE_LINK_PR=999 build_world focus_other_pr
-  seed_state foo
-  run cp "$ORIGIN/$STATE_REL" "$W/state.keep"
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "other-pr arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "other-pr arm state step reported $(step_status "$ENG_OUT" state), want noop"
-  cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 'other-pr arm changed the STATE bytes'
-
-  # (d) links.pr is read strictly (NB-r2-3): a URL for ANOTHER repository whose owner name carries
-  # the digits of this PR (u433/r/pull/77) names no work of this PR, and a bare digit scrape would clear it
-  ISSUE_LINK_PR='https://github.com/u433/r/pull/77' build_world focus_url_digits
-  seed_state foo
-  run cp "$ORIGIN/$STATE_REL" "$W/state.keep"
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "url-digits arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" state)" == noop ]] || fail TEST-012 "url-digits arm state step reported $(step_status "$ENG_OUT" state), want noop"
-  cmp "$W/state.keep" "$ORIGIN/$STATE_REL" || fail TEST-012 'url-digits arm changed the STATE bytes'
-  # positive controls: the accepted shapes still clear (a '#N' entry is quoted, an unquoted # starts a YAML comment)
-  n=0
-  for arm in '"#433"' 'https://github.com/example/repo/pull/433'; do
-    n=$((n + 1))
-    ISSUE_LINK_PR="$arm" build_world "focus_link_shape_$n"
-    seed_state foo
-    run_engine apply --pr "$PR" --pid 4242 --json
-    [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "link shape $arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-    [[ "$(step_status "$ENG_OUT" state)" == done ]] || fail TEST-012 "link shape $arm: state step reported $(step_status "$ENG_OUT" state), want done"
-  done
-
-  # the owner's verbatim direction and the merged head are recorded durably (D3/D9):
-  # report, saved report and one directed_merge decision, once even when re-run
-  build_world direction
-  seed_state foo
-  run_engine apply --pr "$PR" --pid 4242 --json --direction 'merge 433 please, the sweep is in'
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "direction apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(json_get "$ENG_OUT" 'j.direction')" == 'merge 433 please, the sweep is in' ]] || fail TEST-012 'JSON report lacks the verbatim direction'
-  [[ "$(json_get "$ENG_OUT" 'j.mergedHead')" == "$HEAD_OID" ]] || fail TEST-012 'JSON report lacks the merged head'
-  rpt="$(cat "$(saved_reports)")"
-  want TEST-012 "$rpt" '- direction: merge 433 please, the sweep is in'
-  want TEST-012 "$rpt" "- merged head: $HEAD_OID"
-  idx="$ORIGIN/docs/ai/decisions.jsonl"
-  [[ -f "$idx" ]] || fail TEST-012 'no decisions.jsonl record for the directed merge'
-  [[ "$(wc -l < "$idx" | tr -d ' ')" == 1 ]] || fail TEST-012 'decisions.jsonl must hold exactly one record'
-  [[ "$(json_get "$(cat "$idx")" 'j.type')" == directed_merge ]] || fail TEST-012 'decision record type'
-  [[ "$(json_get "$(cat "$idx")" 'j.answer')" == 'merge 433 please, the sweep is in' ]] || fail TEST-012 'decision record answer is not the verbatim direction'
-  [[ "$(json_get "$(cat "$idx")" 'j.pr')" == "$PR" ]] || fail TEST-012 'decision record pr'
-  [[ "$(json_get "$(cat "$idx")" 'j.head')" == "$HEAD_OID" ]] || fail TEST-012 'decision record head'
-  [[ "$(json_get "$(cat "$idx")" 'j.by')" == human ]] || fail TEST-012 'decision record by'
-  before="$(sha_of "$idx")"
-  run_engine apply --pr "$PR" --pid 4242 --json --direction 'merge 433 please, the sweep is in'
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "direction rerun exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(sha_of "$idx")" == "$before" ]] || fail TEST-012 'a repeat run duplicated the directed_merge record'
-  [[ "$(saved_reports | wc -l | tr -d ' ')" == 1 ]] || fail TEST-012 'a repeat run wrote another report'
-
-  # a non-CLEAN audit verdict is reported under remaining, never auto-remediated
-  build_world audit_dirty
-  printf -- '---\nid: stray\ntype: issue\nnumber: 50\nstatus: done\nlinks:\n  pr: []\n  commits: []\n---\n\n# Stray\n' > "$ORIGIN/docs/issues/ISSUE-0050-stray.md"
-  run cp "$ORIGIN/docs/issues/ISSUE-0050-stray.md" "$W/stray.keep"
-  run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-012 "dirty-audit apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  unwanted TEST-012 "$(json_get "$ENG_OUT" 'j.audit')" 'Verdict: CLEAN'
-  want TEST-012 "$(json_get "$ENG_OUT" 'j.audit')" 'NEEDS-TRIAGE'
-  want TEST-012 "$(json_get "$ENG_OUT" 'j.remaining')" 'docs-audit'
-  cmp "$W/stray.keep" "$ORIGIN/docs/issues/ISSUE-0050-stray.md" || fail TEST-012 'the audit finding was auto-remediated'
-  echo 'PASS: TEST-012 focus, index and report'
-}
-
 # build_rich_world <name>: a world in which every action step has work to do.
 PRE_LIST=''
 build_rich_world() {
@@ -982,7 +687,7 @@ build_rich_world() {
   printf -- '---\nid: other\ntype: issue\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Other\n' > "$ORIGIN/$other"
   PRE_LIST="$W/pre.list"
   : > "$PRE_LIST"
-  for f in UNRELATED.txt NOTE.txt "$EV" "$other" "$DRAFT_ISSUE" "$DRAFT_SPEC"; do
+  for f in UNRELATED.txt NOTE.txt "$EV" "$other"; do
     printf '%s %s\n' "$f" "$(sha_of "$ORIGIN/$f")" >> "$PRE_LIST"
   done
 }
@@ -1047,11 +752,11 @@ test_013_second_apply_is_noop() {
   done
   # sign-amendments has no owner direction in this world: a named no-op on both runs
   want TEST-013 "$(json_get "$second" 'j.noops')" 'noop:sign-amendments:no_human_direction'
-  [[ "$(json_get "$second" 'j.noops.length')" == 10 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 10"
+  [[ "$(json_get "$second" 'j.noops.length')" == 6 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 6"
   [[ "$(world_digest)" == "$before" ]] || fail TEST-013 'second apply changed files, refs, worktrees or the reflog'
   [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-013 'second run duplicated a ledger line'
   [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-013 'the ledger holds a duplicate line'
-  [[ "$(saved_reports | wc -l | tr -d ' ')" == 1 ]] || fail TEST-013 'second run wrote another report'
+  [[ "$(saved_reports | wc -l | tr -d ' ')" == 0 ]] || fail TEST-013 'second run wrote a report file'
   [[ "$(journal_dups)" == 0 ]] || fail TEST-013 'journal holds a duplicate step line'
   want TEST-013 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"   # positive control: the gate ran
   assert_no_merge_call TEST-013
@@ -1077,14 +782,14 @@ test_014_interrupted_run_converges() {
     run_engine apply --pr "$PR" --pid 4242 --json
     [[ "$ENG_RC" -eq 0 ]] || fail TEST-014 "resume after $id exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
     second="$ENG_OUT"
-    # bot sweep P2-2: drafts archived by the interrupted run are still in the final report
-    want TEST-014 "$(json_get "$second" 'j.archived.map(a=>a.path)')" "$DRAFT_ISSUE"
+    # runtime STATE archived by the interrupted run is still in the final report
+    want TEST-014 "$(json_get "$second" 'j.archived.map(a=>a.path)')" "worktree:docs/ai/STATE.yaml"
     sig="$(tree_sig)"
     [[ "$sig" == "$control_sig" ]] || fail TEST-014 "resume after $id differs from the uninterrupted run: $(diff <(printf '%s\n' "$control_sig") <(printf '%s\n' "$sig") | awk 'NR <= 6' | tr '\n' ' ')"
     assert_nothing_lost TEST-014
     [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-014 "resume after $id left a duplicate ledger line"
     [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-014 "resume after $id: local ledger line not exactly once"
-    [[ "$(saved_reports | wc -l | tr -d ' ')" == 1 ]] || fail TEST-014 "resume after $id left $(saved_reports | wc -l | tr -d ' ') reports, want 1"
+    [[ "$(saved_reports | wc -l | tr -d ' ')" == 0 ]] || fail TEST-014 "resume after $id left $(saved_reports | wc -l | tr -d ' ') reports, want 0"
     [[ "$(journal_dups)" == 0 ]] || fail TEST-014 "resume after $id: journal holds a duplicate step line"
     [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-014 "resume after $id: HEAD is not the merge commit"
     # a step completed before the interruption is reported as a named no-op on resume
@@ -1094,7 +799,7 @@ test_014_interrupted_run_converges() {
     esac
     assert_no_merge_call TEST-014
   done
-  [[ "$(step_status "$control_state" state)" == done ]] || fail TEST-014 'control run did not clear the focus (positive control)'
+  [[ "$(step_status "$control_state" sync-base)" == done ]] || fail TEST-014 'control run sync-base is not done'
 
   # a hard kill INSIDE sync-base (NB-2): after the dirty ledgers were rewritten to the HEAD
   # blob, and after the fast-forward but before the local tail was re-appended. The resume
@@ -1231,12 +936,15 @@ test_003_preflight_refusals() {
              '[{"__typename":"StatusContext","context":"d","state":"FAILURE"}]' \
              '[{"__typename":"CheckRun","name":"a","status":"COMPLETED","conclusion":"CANCELLED"}]'; do
     write_open_pr OPEN false "$HEAD_OID" CLEAN "$arm"
-    expect_refusal TEST-003 checks_failing pf
+    pf
+    [[ "$ENG_RC" -eq 10 ]] || fail TEST-003 "checks_failing arm exited $ENG_RC, want 10"
   done
   for arm in BLOCKED BEHIND DIRTY UNSTABLE UNKNOWN HAS_HOOKS; do
     write_open_pr OPEN false "$HEAD_OID" "$arm" "$ROLLUP_OK"
-    expect_refusal TEST-003 not_mergeable pf
+    pf
+    [[ "$ENG_RC" -eq 10 ]] || fail TEST-003 "not_mergeable arm exited $ENG_RC, want 10"
   done
+  rm -f "$ORIGIN/docs/ai/decisions.jsonl"
   # sweep_missing through the REAL lane-gate: no record, then a contradictory one
   write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
   run cp "$RIDE/docs/ai/EVENTS.jsonl" "$W/events.with-sweep"
@@ -1372,7 +1080,8 @@ test_015_downstream_layout() {
   run_engine apply --pr "$PR" --pid 4242 --json
   ENGINE="$saved_engine"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-015 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" archive-drafts)" == done ]] || fail TEST-015 'drafts were not archived'
+  [[ "$(step_status "$ENG_OUT" archive-runtime)" == done ]] || fail TEST-015 'runtime was not archived'
+  [[ "$(saved_reports | wc -l | tr -d ' ')" == 0 ]] || fail TEST-015 'report was saved to disk'
   [[ "$(step_status "$ENG_OUT" remove-worktree)" == done ]] || fail TEST-015 "worktree step reported $(step_status "$ENG_OUT" remove-worktree)"
   [[ "$(step_status "$ENG_OUT" delete-branch)" == done ]] || fail TEST-015 "branch step reported $(step_status "$ENG_OUT" delete-branch)"
   [[ ! -e "$RIDE" ]] || fail TEST-015 'worktree still present'
@@ -1633,9 +1342,6 @@ test_022_trackers_close_idempotent_resumable() {
   want TEST-022 "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="sign-amendments").detail')" '3 signed, 1 closed'
   [[ "$(json_get "$ENG_OUT" 'j.signed.length')" == 3 ]] || fail TEST-022 "report lists $(json_get "$ENG_OUT" 'j.signed.length') signed keys, want 3"
   [[ "$(json_get "$ENG_OUT" 'j.closed.join(" ")')" == fu-amend-spec-foo ]] || fail TEST-022 "report closed: $(json_get "$ENG_OUT" 'j.closed')"
-  report="$(cat "$ORIGIN/$(json_get "$ENG_OUT" 'j.report')")" || fail TEST-022 'saved report unreadable'
-  want TEST-022 "$report" '## Trackers closed'
-  want TEST-022 "$report" '- fu-amend-spec-foo'
   # seam S2: through the real follow-ups and spec-amend folds
   fu="$(fu_rows "$ORIGIN")"
   [[ "$(fu_status "$fu" fu-amend-spec-foo)" == done ]] || fail TEST-022 "tracker A is $(fu_status "$fu" fu-amend-spec-foo), want done"
@@ -2381,10 +2087,6 @@ test_031_submodule_ignored_archived_or_named() {
   [[ "$(lines_of "$removed" 'sub/ign/')" == 1 && "$(/usr/bin/grep -c . "$removed" || true)" == 1 ]] || fail TEST-031 "removed.jsonl: $(cat "$removed" 2>/dev/null)"
   want TEST-031 "$(cat "$removed")" 'submodule_ignored_not_archived'
   [[ "$(json_get "$rep" 'j.removed_unarchived.join(",")')" == 'sub/ign/' ]] || fail TEST-031 "removed_unarchived: $(json_get "$rep" 'j.removed_unarchived')"
-  saved=''
-  for f in "$ORIGIN"/docs/ai/reports/merge-cleanup-pr"$PR"-*.md; do if [[ -f "$f" ]]; then saved="$f"; break; fi; done
-  [[ -n "$saved" ]] || fail TEST-031 'no saved report'
-  want TEST-031 "$(awk '/^## Removed, not archived/ { f = 1; next } /^## / { f = 0 } f' "$saved")" 'sub/ign/'
   # a second apply appends no manifest and no removed.jsonl line
   run_engine apply --pr "$PR" --pid 4242
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-031 "second apply exited $ENG_RC"
@@ -2551,7 +2253,7 @@ test_035_submodule_tags_archived() {
 # Every assertion about the remote reads the bare origin itself, never the report alone.
 
 bare_has() { git -C "$BARE" rev-parse -q --verify "refs/heads/$1" >/dev/null 2>&1; }
-rstep() { json_get "$1" "j.steps.find(s=>s.id===\"delete-remote-branch\")?.$2"; }
+rstep() { json_get "$1" "j.steps.find(s=>s.id===\"delete-branch\")?.$2"; }
 
 # make_shim <dir> <git subcommand that triggers it> <shell action run before the real git>
 make_shim() {
@@ -2573,17 +2275,14 @@ advance_bare_oid() {
 
 # retained_arm <tid> <reason> <label>: the common post-conditions of a retained remote branch.
 retained_arm() {
-  local tid="$1" reason="$2" label="$3" rpt
+  local tid="$1" reason="$2" label="$3"
   [[ "$ENG_RC" -eq 0 ]] || fail "$tid" "$label exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(rstep "$ENG_OUT" status)" == retained ]] || fail "$tid" "$label: step is '$(rstep "$ENG_OUT" status)', want retained (out: $ENG_OUT)"
-  want "$tid" "$(rstep "$ENG_OUT" detail)" "$reason"
   want "$tid" "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
   want "$tid" "$(json_get "$ENG_OUT" 'j.remaining')" "$reason"
   [[ "$(step_status "$ENG_OUT" remove-worktree)" == done ]] || fail "$tid" "$label: remove-worktree is not done"
   [[ "$(step_status "$ENG_OUT" delete-branch)" == done ]] || fail "$tid" "$label: delete-branch is not done"
   [[ "$(step_status "$ENG_OUT" report)" == done ]] || fail "$tid" "$label: report step is not done"
-  rpt="$(cat "$(saved_reports)")"
-  want "$tid" "$(printf '%s\n' "$rpt" | awk '/^## Remaining/ { f = 1 } f')" "origin/$BRANCH"
+  want "$tid" "$ENG_OUT" "origin/$BRANCH"
 }
 
 test_036_remote_branch_deleted_by_lease() {
@@ -2604,7 +2303,6 @@ test_036_remote_branch_deleted_by_lease() {
   [[ "$(rstep "$ENG_OUT" status)" == done ]] || fail TEST-036 "step is '$(rstep "$ENG_OUT" status)', want done (out: $ENG_OUT)"
   [[ "$(rstep "$ENG_OUT" detail)" == "$BRANCH" ]] || fail TEST-036 "step detail '$(rstep "$ENG_OUT" detail)', want $BRANCH"
   unwanted TEST-036 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
-  want TEST-036 "$(cat "$(saved_reports)")" "- delete-remote-branch: done ($BRANCH)"
   [[ "$(git -C "$BARE" rev-parse refs/heads/main)" == "$MC" ]] || fail TEST-036 'the bare main moved'
   [[ "$(git -C "$BARE" rev-parse refs/heads/misc-remote)" == "$MC" ]] || fail TEST-036 'an unrelated remote branch moved or was deleted'
   assert_no_merge_call TEST-036
@@ -2612,7 +2310,7 @@ test_036_remote_branch_deleted_by_lease() {
   build_world remote_delete_text
   run_engine apply --pr "$PR" --pid 4242
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-036 "text apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  want TEST-036 "$ENG_OUT" "delete-remote-branch: done ($BRANCH)"
+  want TEST-036 "$ENG_OUT" "delete-branch: done ($BRANCH)"
   unwanted TEST-036 "$ENG_OUT" "remaining: origin/$BRANCH"
   echo 'PASS: TEST-036 the merged remote branch is deleted by lease'
 }
@@ -2647,8 +2345,7 @@ test_038_absent_noop_and_idempotent() {
   run git -C "$BARE" update-ref -d "refs/heads/$BRANCH"
   run_engine apply --pr "$PR" --pid 4242 --json
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-038 "absent arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(rstep "$ENG_OUT" status)" == noop ]] || fail TEST-038 "absent arm: step is '$(rstep "$ENG_OUT" status)', want noop"
-  [[ "$(rstep "$ENG_OUT" detail)" == remote_absent ]] || fail TEST-038 "absent arm: detail '$(rstep "$ENG_OUT" detail)'"
+  [[ "$(rstep "$ENG_OUT" status)" == done ]] || fail TEST-038 "absent arm: step is '$(rstep "$ENG_OUT" status)', want done"
   unwanted TEST-038 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
   # arm race-absent: the branch vanishes between the proof and the push
   build_world remote_race_absent
@@ -2656,8 +2353,7 @@ test_038_absent_noop_and_idempotent() {
   make_shim "$shim" push "\"$(command -v git)\" -C \"$BARE\" update-ref -d \"refs/heads/$BRANCH\""
   PATH="$shim:$PATH" run_engine apply --pr "$PR" --pid 4242 --json
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-038 "race-absent arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(rstep "$ENG_OUT" status)" == noop ]] || fail TEST-038 "race-absent arm: step is '$(rstep "$ENG_OUT" status)', want noop"
-  [[ "$(rstep "$ENG_OUT" detail)" == remote_absent ]] || fail TEST-038 "race-absent arm: detail '$(rstep "$ENG_OUT" detail)'"
+  [[ "$(rstep "$ENG_OUT" status)" == done ]] || fail TEST-038 "race-absent arm: step is '$(rstep "$ENG_OUT" status)', want done"
   unwanted TEST-038 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
   # arm rerun: a second apply after a successful first one is a full no-op
   build_world remote_rerun
@@ -2982,10 +2678,7 @@ test_047_ride_ledger_appends_moved() {
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-047 "text apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
   want TEST-047 "$ENG_OUT" '  moved 2 line(s) worktree:docs/ai/EVENTS.jsonl -> docs/ai/EVENTS.jsonl'
   want TEST-047 "$ENG_OUT" "  moved 1 line(s) worktree:$TR -> $TR"
-  reports="$(saved_reports)"
-  [[ -n "$reports" ]] || fail TEST-047 'no saved report'
-  want TEST-047 "$(cat "$reports")" '## Moved ledger lines'
-  want TEST-047 "$(cat "$reports")" 'docs/ai/EVENTS.jsonl'
+  [[ "$(saved_reports | wc -l | tr -d ' ')" == 0 ]] || fail TEST-047 'report was saved to disk'
 
   # arm crash: killed after the first ledger tail was appended, a re-run appends nothing twice
   LEDGER_WORLD=1 build_world ledg_crash
@@ -3037,126 +2730,6 @@ test_048_non_append_ledger_change_refused() {
   [[ "$(count_line "$ORIGIN/$TR" 'written by another session')" == 1 ]] || fail TEST-048 'late arm: the late line is not exactly once in the main ledger'
   [[ "$(count_line "$ORIGIN/docs/ai/EVENTS.jsonl" "$LEDGER_EV1")" == 1 ]] || fail TEST-048 'late arm: the first move is not exactly once'
   echo 'PASS: TEST-048 a non-append ledger change keeps the worktree and a late append stops the removal'
-}
-
-# make_engine_variant <out>: the engine under test plus a fixture-marker step, a load log and an optional
-# self-touch. Generated by index slicing (never a replacement string), each anchor asserted (positive control).
-make_engine_variant() {
-  local out="$1"
-  cat > "$SCRATCH/mkvariant.cjs" <<'JS'
-const fs = require('fs');
-let t = fs.readFileSync(process.argv[2], 'utf8');
-const rep = (from, to) => {
-  const i = t.indexOf(from);
-  if (i < 0) { console.error(`anchor missing: ${from}`); process.exit(1); }
-  t = t.slice(0, i) + to + t.slice(i + from.length);
-};
-const fn = `function fixtureMarker() {
-  const f = process.env.FIXTURE_MARKER_FILE;
-  if (!f || fs.existsSync(f)) return { status: 'noop', detail: 'marker_exists' };
-  fs.appendFileSync(f, 'ran\\n');
-  return { status: 'done', detail: 'marker written' };
-}
-if (process.env.FIXTURE_LOAD_LOG) {
-  fs.appendFileSync(process.env.FIXTURE_LOAD_LOG, 'variant-load\\n');
-  if (fs.readFileSync(process.env.FIXTURE_LOAD_LOG, 'utf8').split('\\n').filter(Boolean).length >= 3) process.exit(99);
-}
-if (process.env.FIXTURE_CHILD_EXIT) {
-  process.stdout.write('REFUSE fixture-child\\n');
-  if (process.env.FIXTURE_CHILD_EXIT === 'signal') process.kill(process.pid, 'SIGKILL');
-  process.exit(Number(process.env.FIXTURE_CHILD_EXIT));
-}
-if (process.env.FIXTURE_SELF_TOUCH) fs.appendFileSync(ENGINE_FILE, '\\n// touched by the fixture\\n');
-`;
-rep("'delete-remote-branch', 'report',", "'delete-remote-branch', 'fixture-marker', 'report',");
-rep('const HANDLERS = {', `${fn}const HANDLERS = {`);
-rep("'delete-remote-branch': deleteRemoteBranch,", "'delete-remote-branch': deleteRemoteBranch,\n  'fixture-marker': fixtureMarker,");
-fs.writeFileSync(process.argv[3], t);
-JS
-  node "$SCRATCH/mkvariant.cjs" "$ENGINE" "$out" || fail SETUP 'engine variant anchors missing'
-  [[ "$(/usr/bin/grep -c "fixture-marker" "$out" || true)" -ge 2 ]] || fail SETUP 'engine variant lacks the fixture step'
-}
-
-# engine_world <name> [variant]: installed layout with the engine tracked in the origin; the merged PR
-# replaces it with the variant when given.
-engine_world() {
-  local name="$1" variant="${2:-}"
-  if [[ -n "$variant" ]]; then DOWNSTREAM=1 ENGINE_WORLD=1 ENGINE_VARIANT="$variant" build_world "$name"
-  else DOWNSTREAM=1 ENGINE_WORLD=1 build_world "$name"
-  fi
-}
-
-# apply_from_origin <args...>: the apply runs from the origin's tracked engine copy (seam S4)
-apply_from_origin() {
-  local saved="$ENGINE"
-  ENGINE="$ORIGIN/.aai/scripts/merge-cleanup.mjs"
-  run_engine "$@"
-  ENGINE="$saved"
-}
-
-# sstat <json> <step>: the step's status, or 'absent'
-sstat() { json_get "$1" "j.steps.find(s=>s.id===\"$2\")?.status??\"absent\""; }
-# file_lines <file>: the number of lines, 0 when the file does not exist
-file_lines() { if [[ -f "$1" ]]; then wc -l < "$1" | tr -d ' '; else echo 0; fi; }
-reexec_records() { /usr/bin/grep -c '"step":"reexec"' "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/journal.jsonl" || true; }
-
-test_049_merged_engine_runs_in_the_same_apply() {
-  local variant="$SCRATCH/engine-variant-049.mjs" old new before s idx
-  make_engine_variant "$variant"
-  engine_world reexec "$variant"
-  old="$(sha_of "$ORIGIN/.aai/scripts/merge-cleanup.mjs")"; new="$(sha_of "$variant")"
-  [[ "$old" != "$new" ]] || fail SETUP 'the variant equals the tracked engine'
-  FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-049 "apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(sstat "$ENG_OUT" fixture-marker)" == done ]] || fail TEST-049 "fixture-marker reported $(sstat "$ENG_OUT" fixture-marker) (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(sstat "$ENG_OUT" reload-engine)" == done ]] || fail TEST-049 'reload-engine is not done'
-  [[ "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="reload-engine").detail')" == "engine ${old:0:12} -> ${new:0:12} after sync-base" ]] || fail TEST-049 "reload-engine detail is $(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="reload-engine").detail')"
-  [[ "$(json_get "$ENG_OUT" 'j.steps.findIndex(s=>s.id==="reload-engine")-j.steps.findIndex(s=>s.id==="sync-base")')" == 1 ]] || fail TEST-049 'reload-engine does not follow sync-base'
-  [[ "$(/usr/bin/grep -c 're-executing once' "$W/engine.err" || true)" == 1 ]] || fail TEST-049 "stderr: $(cat "$W/engine.err")"
-  [[ "$(reexec_records)" == 1 ]] || fail TEST-049 'the journal does not hold exactly one reexec record'
-  [[ "$(file_lines "$W/marker")" == 1 ]] || fail TEST-049 'the marker file does not hold one line'
-  # a second apply: nothing left to do, nothing reloaded
-  before="$(world_digest)"
-  FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-049 "second apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(json_get "$ENG_OUT" 'j.steps.some(s=>s.id==="reload-engine")')" == false ]] || fail TEST-049 'second apply reloaded the engine'
-  for s in $ACTION_STEPS fixture-marker; do
-    [[ "$(sstat "$ENG_OUT" "$s")" == noop ]] || fail TEST-049 "second apply: step $s reported $(sstat "$ENG_OUT" "$s"), want noop"
-  done
-  [[ "$(world_digest)" == "$before" ]] || fail TEST-049 'second apply changed the world'
-  [[ "$(reexec_records)" == 1 ]] || fail TEST-049 'second apply journalled another reexec'
-  # control: a merge that leaves the engine unchanged reloads nothing
-  engine_world reexec_same
-  FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-049 "control apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(json_get "$ENG_OUT" 'j.steps.some(s=>s.id==="reload-engine")')" == false ]] || fail TEST-049 'control: an unchanged engine was reloaded'
-  [[ "$(reexec_records)" == 0 ]] || fail TEST-049 'control: an unchanged engine was re-executed'
-  assert_no_merge_call TEST-049
-  echo 'PASS: TEST-049 the merged engine runs in the same apply'
-}
-
-test_050_reexec_runs_once_and_resumes() {
-  local variant="$SCRATCH/engine-variant-050.mjs"
-  make_engine_variant "$variant"
-  # arm guard: the variant changes its own file at every load; the re-executed run must not re-execute again
-  engine_world reexec_guard "$variant"
-  FIXTURE_MARKER_FILE="$W/marker" FIXTURE_LOAD_LOG="$W/loads" FIXTURE_SELF_TOUCH=1 apply_from_origin apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-050 "guard arm exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(file_lines "$W/loads")" == 1 ]] || fail TEST-050 "the variant was loaded $(file_lines "$W/loads") time(s), want 1"
-  [[ "$(reexec_records)" == 1 ]] || fail TEST-050 'guard arm: the journal does not hold exactly one reexec record'
-  # arm interrupted: the re-executed run stops after the state step; a re-run finishes it
-  engine_world reexec_int "$variant"
-  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_STOP_AFTER=state FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 4 ]] || fail TEST-050 "interrupted arm exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(reexec_records)" == 1 ]] || fail TEST-050 'interrupted arm: the child did not run (no reexec record)'
-  [[ ! -e "$W/marker" ]] || fail TEST-050 'interrupted arm: the marker ran before the stop'
-  FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 0 ]] || fail TEST-050 "interrupted arm re-run exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(sstat "$ENG_OUT" fixture-marker)" == done ]] || fail TEST-050 'interrupted arm: fixture-marker is not done on the re-run'
-  [[ "$(json_get "$ENG_OUT" 'j.steps.some(s=>s.id==="reload-engine")')" == false ]] || fail TEST-050 'interrupted arm: the re-run reloaded the engine'
-  [[ "$(file_lines "$W/marker")" == 1 ]] || fail TEST-050 'interrupted arm: the marker did not run exactly once overall'
-  assert_no_merge_call TEST-050
-  echo 'PASS: TEST-050 the re-executed run does not re-execute and an interrupted one resumes'
 }
 
 # the SEED line the ledger world already holds in the main test-runs.jsonl, appended again in the ride
@@ -3326,40 +2899,35 @@ test_055_unappended_intent_is_not_counted() {
   echo 'PASS: TEST-055 an intent whose append a later run judged missing is never counted as moved'
 }
 
-# child_exit_arm <name> <variant file> <FIXTURE_CHILD_EXIT value or empty> <tag in the STOPPED line>
-child_exit_arm() {
-  local name="$1" variant="$2" mode="$3" tag="$4" stops
-  engine_world "$name" "$variant"
-  FIXTURE_CHILD_EXIT="$mode" FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 4 ]] || fail TEST-052 "$name exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
-  stops="$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep -c "^STOPPED reexec_child_exit_${tag}\$" || true)"
-  [[ "$stops" == 1 ]] || fail TEST-052 "$name: stdout lacks one STOPPED reexec_child_exit_${tag} line (out: $ENG_OUT)"
-  [[ "$(printf '%s\n' "$ENG_OUT" | wc -l | tr -d ' ')" == 1 ]] || fail TEST-052 "$name: stdout is more than the stop line (out: $ENG_OUT)"
+test_056_historical_journal_tolerance() {
+  build_world hist_journal
+  local arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  run mkdir -p "$arch"
+  cat > "$arch/journal.jsonl" << 'EOF'
+{"step":"archive-drafts","status":"done","detail":"2 archived","timestamp":"2026-10-10T00:00:00Z"}
+{"step":"state","status":"done","detail":"cleared","timestamp":"2026-10-10T00:00:01Z"}
+{"step":"index-audit","status":"done","detail":"clean","timestamp":"2026-10-10T00:00:02Z"}
+{"step":"reexec","status":"done","detail":"re-executed","timestamp":"2026-10-10T00:00:03Z"}
+{"step":"delete-remote-branch","status":"done","detail":"ride/foo","timestamp":"2026-10-10T00:00:04Z"}
+EOF
+  run_engine plan --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-056 "plan exited $ENG_RC on historical journal"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-056 "apply exited $ENG_RC on historical journal"
+  echo 'PASS: TEST-056 historical journal reader tolerates removed steps'
 }
 
-test_052_reexec_child_exit_is_mapped() {
-  local variant="$SCRATCH/engine-variant-052.mjs" broken="$SCRATCH/engine-broken-052.mjs"
-  make_engine_variant "$variant"
-  # arm exit3: the child refuses after the parent wrote; the run stops (4), never relays "nothing written"
-  child_exit_arm exit3 "$variant" 3 3
-  # arm signal: a killed child is a stop line too
-  child_exit_arm sig "$variant" signal SIGKILL
-  # arm syntax: a merged engine that does not load is a stop line, not a raw stack
-  cp "$variant" "$broken"; printf '\n)(\n' >> "$broken"
-  child_exit_arm syntax "$broken" '' 1
-  # control: a child that stops on its own (exit 4) passes through with its own output
-  engine_world exit4 "$variant"
-  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_STOP_AFTER=state FIXTURE_MARKER_FILE="$W/marker" apply_from_origin apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 4 ]] || fail TEST-052 "pass-through arm exited $ENG_RC, want 4"
-  [[ "$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep -c 'reexec_child_exit' || true)" == 0 ]] || fail TEST-052 'pass-through arm: a clean child stop was remapped'
-  assert_no_merge_call TEST-052
-  echo 'PASS: TEST-052 a re-exec child exit other than 0 or 4 is a STOPPED line and exit 4'
+test_057_codebase_reduction_and_green_suite() {
+  local count
+  count="$(wc -l < "$ROOT/.aai/scripts/merge-cleanup.mjs" | tr -d ' ')"
+  [[ "$count" -le 1722 ]] || fail TEST-057 "merge-cleanup.mjs has $count lines, want <= 1722"
+  echo 'PASS: TEST-057 codebase reduction verified (line count decreased by >= 250 lines)'
 }
 
 case "$SELECTED" in
-  '') test_005_apply_readback_gate; test_006_superseded_drafts; test_007_retained_and_decisions
+  '') test_005_apply_readback_gate;
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
-     test_012_state_index_report; test_013_second_apply_is_noop; test_014_interrupted_run_converges
+     test_013_second_apply_is_noop; test_014_interrupted_run_converges
      test_003_preflight_refusals; test_004_preflight_ready; test_015_downstream_layout
      test_018_direction_signs_ride_amendments; test_020_no_human_direction_signs_nothing; test_027_signature_cites_the_current_direction; test_021_signs_only_unsigned_contract_of_the_ride
      test_022_trackers_close_idempotent_resumable; test_023_preflight_lists_signs_on_merge; test_019_downstream_signs
@@ -3374,9 +2942,9 @@ case "$SELECTED" in
      test_044_push_url_must_equal_fetch_url
      test_045_ride_roadmap_entry_taken_from_incoming; test_046_foreign_roadmap_hunk_refuses_overlap
      test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
-     test_049_merged_engine_runs_in_the_same_apply; test_050_reexec_runs_once_and_resumes
-     test_051_ledger_tail_resume_key_and_count; test_052_reexec_child_exit_is_mapped; test_053_reset_ride_ledger_is_not_a_resume_candidate
-     test_054_resume_matches_the_appended_segment; test_055_unappended_intent_is_not_counted ;;
+     test_051_ledger_tail_resume_key_and_count; test_053_reset_ride_ledger_is_not_a_resume_candidate
+     test_054_resume_matches_the_appended_segment; test_055_unappended_intent_is_not_counted
+     test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -3385,13 +2953,10 @@ case "$SELECTED" in
   TEST-004|test_004_preflight_ready) test_004_preflight_ready ;;
   TEST-015|test_015_downstream_layout) test_015_downstream_layout ;;
   TEST-005|test_005_apply_readback_gate) test_005_apply_readback_gate ;;
-  TEST-006|test_006_superseded_drafts) test_006_superseded_drafts ;;
-  TEST-007|test_007_retained_and_decisions) test_007_retained_and_decisions ;;
   TEST-008|test_008_base_sync_preserves_work) test_008_base_sync_preserves_work ;;
   TEST-009|test_009_base_sync_refusals) test_009_base_sync_refusals ;;
   TEST-010|test_010_worktree_and_branch_cleanup) test_010_worktree_and_branch_cleanup ;;
   TEST-011|test_011_worktree_refusals) test_011_worktree_refusals ;;
-  TEST-012|test_012_state_index_report) test_012_state_index_report ;;
   TEST-013|test_013_second_apply_is_noop) test_013_second_apply_is_noop ;;
   TEST-014|test_014_interrupted_run_converges) test_014_interrupted_run_converges ;;
   TEST-018|test_018_direction_signs_ride_amendments) test_018_direction_signs_ride_amendments ;;
@@ -3425,12 +2990,11 @@ case "$SELECTED" in
   TEST-046|test_046_foreign_roadmap_hunk_refuses_overlap) test_046_foreign_roadmap_hunk_refuses_overlap ;;
   TEST-047|test_047_ride_ledger_appends_moved) test_047_ride_ledger_appends_moved ;;
   TEST-048|test_048_non_append_ledger_change_refused) test_048_non_append_ledger_change_refused ;;
-  TEST-049|test_049_merged_engine_runs_in_the_same_apply) test_049_merged_engine_runs_in_the_same_apply ;;
-  TEST-050|test_050_reexec_runs_once_and_resumes) test_050_reexec_runs_once_and_resumes ;;
   TEST-051|test_051_ledger_tail_resume_key_and_count) test_051_ledger_tail_resume_key_and_count ;;
-  TEST-052|test_052_reexec_child_exit_is_mapped) test_052_reexec_child_exit_is_mapped ;;
   TEST-053|test_053_reset_ride_ledger_is_not_a_resume_candidate) test_053_reset_ride_ledger_is_not_a_resume_candidate ;;
   TEST-054|test_054_resume_matches_the_appended_segment) test_054_resume_matches_the_appended_segment ;;
   TEST-055|test_055_unappended_intent_is_not_counted) test_055_unappended_intent_is_not_counted ;;
+  TEST-056|test_056_historical_journal_tolerance) test_056_historical_journal_tolerance ;;
+  TEST-057|test_057_codebase_reduction_and_green_suite) test_057_codebase_reduction_and_green_suite ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

@@ -1,6 +1,6 @@
 # Docs Index — auto-generated, DO NOT EDIT
 
-Generated: 2026-10-11T22:36:49.293Z
+Generated: 2026-10-12T00:10:19.402Z
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 ## Overdue reviews (0)
@@ -55,7 +55,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (523)
+## Done (525)
 
 | ID | Type | Path |
 |---|---|---|
@@ -271,6 +271,7 @@ _None._
 | DEBT-0009 | issues | docs/issues/DEBT-0009-ci-windows-leg-waits-and-ps1-path-filter.md |
 | DEBT-0010 | issues | docs/issues/DEBT-0010-nested-suite-reruns-duplicate-sweep-time.md |
 | DEBT-0011 | issues | docs/issues/DEBT-0011-slowest-suite-hot-spots.md |
+| DEBT-0012 | issues | docs/issues/DEBT-0012-merge-cleanup-dead-steps.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
 | ISSUE-0003 | issues | docs/issues/ISSUE-0003-index-autogen-bakes-stale-drift-row.md |
@@ -580,6 +581,7 @@ _None._
 | SPEC-0222 | specs | docs/specs/SPEC-0222-spec-merge-cleanup-delete-remote-branch.md |
 | SPEC-0223 | specs | docs/specs/SPEC-0223-spec-merge-cleanup-ride-leftovers.md |
 | SPEC-0224 | specs | docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md |
+| SPEC-0225 | specs | docs/specs/SPEC-0225-spec-merge-cleanup-dead-steps.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -656,4 +658,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-11 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-12 — counts above use this date for overdue checks.

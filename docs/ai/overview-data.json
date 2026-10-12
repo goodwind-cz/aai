@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-11T21:32:10.680Z",
+  "generatedAt": "2026-10-12T00:08:57.404Z",
   "project": "aai",
   "counts": {
-    "delivered": 294,
+    "delivered": 295,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 75943406
@@ -222,6 +222,19 @@
   ],
   "delivered": [
     {
+      "ref": "merge-cleanup-dead-steps",
+      "title": "Tech Debt: delete merge-cleanup steps that never act, and gates GitHub already enforces",
+      "type": "techdebt",
+      "status": "done",
+      "path": "docs/issues/DEBT-0012-merge-cleanup-dead-steps.md",
+      "closed_on": "2026-10-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0225-spec-merge-cleanup-dead-steps.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261012T000200Z-merge-cleanup-dead-steps.md"
+    },
+    {
       "ref": "merge-cleanup-delete-remote-branch",
       "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
       "type": "change",
@@ -271,7 +284,7 @@
       "token_total": 199682,
       "spec": "docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20261011T210849Z-done-work-item-stays-in-current-focus-r2.md"
+      "review": "docs/ai/reviews/review-20261011T220039Z-done-work-item-stays-in-current-focus-r3.md"
     },
     {
       "ref": "directed-merge-and-post-merge-cleanup",
@@ -4071,6 +4084,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "merge-cleanup-dead-steps",
+          "title": "Tech Debt: delete merge-cleanup steps that never act, and gates GitHub already enforces",
+          "type": "techdebt",
+          "status": "done",
+          "path": "docs/issues/DEBT-0012-merge-cleanup-dead-steps.md",
+          "closed_on": "2026-10-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0225-spec-merge-cleanup-dead-steps.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261012T000200Z-merge-cleanup-dead-steps.md"
+        },
+        {
           "ref": "merge-cleanup-delete-remote-branch",
           "title": "/aai-merge deletes the merged remote branch itself, and its block passes the agent's safety check",
           "type": "change",
@@ -4120,7 +4146,7 @@
           "token_total": 199682,
           "spec": "docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-20261011T210849Z-done-work-item-stays-in-current-focus-r2.md"
+          "review": "docs/ai/reviews/review-20261011T220039Z-done-work-item-stays-in-current-focus-r3.md"
         },
         {
           "ref": "directed-merge-and-post-merge-cleanup",

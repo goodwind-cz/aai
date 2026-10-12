@@ -58,8 +58,7 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    cause is the only way forward.
 
 3. Report the engine's report: base, final HEAD, archived, retained with
-   reasons, no-ops, `remaining`. Divergent drafts stay with the owner (re-run
-   `apply` with `--archive-divergent <path>` once the owner names the file); a
+   reasons, no-ops, `remaining`. Divergent drafts stay with the owner; a
    retained remote branch is relayed with its reason and never deleted by the
    agent.
 

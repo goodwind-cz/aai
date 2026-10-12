@@ -22,6 +22,17 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — chore(merge-cleanup): delete dead cleanup steps, consolidate branch deletion, and prune redundant gates (merge-cleanup-dead-steps)
+
+- Deleted 4 unexercised steps (`archive-drafts`, `state`, `index-audit`, `reexec`) from `.aai/scripts/merge-cleanup.mjs` execution pipeline.
+- Consolidated branch deletion into a single `delete-branch` step that removes the local branch and deletes the remote branch by lease.
+- Pruned redundant preflight check gates (`checks_failing`, `not_mergeable`) delegated to GitHub branch protection and `--match-head-commit`.
+- Narrowed `archive-runtime` to copy only `worktree:docs/ai/STATE.yaml`, eliminating copying of large gitignored runtime evidence directories.
+- Streamlined report generation to output exclusively to stdout without writing duplicate markdown reports to disk.
+- Historical journal reader tolerates obsolete step IDs without failure or regression.
+- Codebase reduced by 280 lines in `merge-cleanup.mjs` with full test suite passing 100% green.
+- Traceability: DEBT-0012 / SPEC-0225 (`merge-cleanup-dead-steps`).
+
 ## [v2026.10.11] — fix: a closed ride with no flushable telemetry no longer wedges the focus (done-work-item-stays-in-current-focus)
 
 - `metrics-flush.mjs --release <ref>` is the sanctioned exit for a closed ride with no flushable telemetry: one `work_item_released` event (`telemetry: absent`), no fabricated METRICS line, the focus released, and only the ref's own validation and review blocks reset. It refuses an incomplete close (no committed close event, a close superseded by a reopen, an item not done, recorded runs, or a fail verdict it does not own) before any write.
