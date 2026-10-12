@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — chore(release): a release is a PR, and CI tags and publishes it after the merge (release-tagged-by-ci-after-merge)
+## [v2026.10.12] — chore(release): a release is a PR, and CI tags and publishes it after the merge (release-tagged-by-ci-after-merge)
 
 - `/aai-release --confirm` builds the release commit on `chore/release-<version>` in its own temporary worktree from the target branch on origin (`origin/main` here), pushes that branch and opens a release PR. With `--no-remote` it stops after the local release branch, without push or PR. The caller's checkout is never touched, so a detached HEAD or a dirty main checkout no longer matters.
 - The script no longer pushes to the target branch, creates a local tag or calls `gh release create`. The protected-branch fallback, the pre-cut reset and exits 17 and 18 are gone.
@@ -30,7 +30,7 @@ fine — it is the marker a cut leaves on top.
 - The golden-flow coupling and its release-time warning are dropped. The missing-notes check now recognises `(#N)`, `#N` and `goodwind-cz/aai#N`.
 - Traceability: DEBT-0015 / SPEC-0228, goodwind-cz/aai#462.
 
-## [unreleased] — chore(pr): the PR ceremony stops adding commits after the content commit (pr-ceremony-fewer-commits)
+## [v2026.10.12] — chore(pr): the PR ceremony stops adding commits after the content commit (pr-ceremony-fewer-commits)
 
 - `close-work-item.mjs` closes once, without the `--pr TBD|NONE` sentinel or the separate `--stamp-pr` commit.
 - `pr_sweep` records are no longer committed. The merge preflight inspects the PR's live review threads instead, and `lane-gate` no longer requires a committed sweep record. This also removes the stale-head rule that a later ledger commit used to trip.
@@ -38,14 +38,14 @@ fine — it is the marker a cut leaves on top.
 - `close-before-push-guard.mjs` is deleted (`nothing-left-behind` already covers it).
 - Traceability: DEBT-0014 / SPEC-0227, goodwind-cz/aai#461.
 
-## [unreleased] — chore(spec-amend): a contract amendment is signed by the merge of its ride (amendment-signoff-implied-by-merge)
+## [v2026.10.12] — chore(spec-amend): a contract amendment is signed by the merge of its ride (amendment-signoff-implied-by-merge)
 
 - `spec-amend.mjs` folds a contract amendment as signed at read time when its ride's doc is `done` and its PR is merged into the base. No overlay record is written after the merge.
 - `/aai-merge` no longer writes `directed_merge` or signature records into the main checkout, so it leaves no uncommitted `decisions.jsonl` lines behind. The `sign-amendments` step, `sign-merged` and the preflight "signs on merge" lines are removed.
 - Existing signature overlays stay valid; nothing is rewritten.
 - Traceability: DEBT-0013 / SPEC-0226, goodwind-cz/aai#460.
 
-## [unreleased] — chore(merge-cleanup): delete dead cleanup steps, consolidate branch deletion, and prune redundant gates (merge-cleanup-dead-steps)
+## [v2026.10.12] — chore(merge-cleanup): delete dead cleanup steps, consolidate branch deletion, and prune redundant gates (merge-cleanup-dead-steps)
 
 - Deleted 4 unexercised steps (`archive-drafts`, `state`, `index-audit`, `reexec`) from `.aai/scripts/merge-cleanup.mjs` execution pipeline.
 - Consolidated branch deletion into a single `delete-branch` step that removes the local branch and deletes the remote branch by lease.
