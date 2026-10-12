@@ -377,18 +377,26 @@ function byTsAscending(a, b) {
 
 // Base-ref ride cache: Map<`${cwd}:${baseRef}`, Map<rideKey, { id, status, isDone }>>
 const BASE_DOCS_CACHE = new Map();
+const RESOLVE_BASE_REF_CACHE = new Map();
 
 function resolveBaseRef(cwd, explicitBaseRef) {
+  const cacheKey = `${cwd}:${explicitBaseRef ?? ''}`;
+  if (RESOLVE_BASE_REF_CACHE.has(cacheKey)) return RESOLVE_BASE_REF_CACHE.get(cacheKey);
+
+  let res = null;
   if (explicitBaseRef) {
     const r = spawnSync('git', ['rev-parse', '--verify', '-q', `${explicitBaseRef}^{commit}`], { cwd, encoding: 'utf8' });
-    if (r.status === 0) return explicitBaseRef;
-    return null;
+    if (r.status === 0) res = explicitBaseRef;
+  } else {
+    const rem = spawnSync('git', ['rev-parse', '--verify', '-q', 'refs/remotes/origin/main^{commit}'], { cwd, encoding: 'utf8' });
+    if (rem.status === 0) res = 'refs/remotes/origin/main';
+    else {
+      const main = spawnSync('git', ['rev-parse', '--verify', '-q', 'refs/heads/main^{commit}'], { cwd, encoding: 'utf8' });
+      if (main.status === 0) res = 'refs/heads/main';
+    }
   }
-  const rem = spawnSync('git', ['rev-parse', '--verify', '-q', 'refs/remotes/origin/main^{commit}'], { cwd, encoding: 'utf8' });
-  if (rem.status === 0) return 'refs/remotes/origin/main';
-  const main = spawnSync('git', ['rev-parse', '--verify', '-q', 'refs/heads/main^{commit}'], { cwd, encoding: 'utf8' });
-  if (main.status === 0) return 'refs/heads/main';
-  return null;
+  RESOLVE_BASE_REF_CACHE.set(cacheKey, res);
+  return res;
 }
 
 function getBaseDocIndex(cwd, baseRef) {

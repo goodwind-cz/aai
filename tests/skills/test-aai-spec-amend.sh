@@ -2068,7 +2068,8 @@ EOF
 {"v":1,"ts":"2026-10-01T00:00:00Z","actor":"planning","type":"follow_up","id":"fu-amend-spec-0999","status":"open","title":"obligation"}
 EOF
 
-  out="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --json)"
+  ( cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --json > "$dir/out.json" )
+  out="$(cat "$dir/out.json")"
   node -e '
     const res = JSON.parse(process.argv[1]);
     const it = res.items.find(i => i.ref_id === "spec-0999-merged-ride");
@@ -2076,8 +2077,9 @@ EOF
     if (it.bucket !== "signed" || it.owner_signoff !== true || it.tracked_status !== "done") process.exit(2);
   ' "$out" || log_fail "TEST-517: merged ride amendment did not fold to signed: $out"
 
+  ( cd "$repo" && node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --ledger "$repo/docs/ai/decisions.jsonl" --status all --json > "$dir/fu_out.json" )
   local fu_out
-  fu_out="$(cd "$repo" && node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --ledger "$repo/docs/ai/decisions.jsonl" --status all --json)"
+  fu_out="$(cat "$dir/fu_out.json")"
   node -e '
     const res = JSON.parse(process.argv[1]);
     const it = (res.items || res).find(i => (i.id || i.item_id) === "fu-amend-spec-0999");
@@ -2120,7 +2122,8 @@ EOF
 {"v":1,"ts":"2026-10-02T00:00:00Z","actor":"planning","type":"follow_up","id":"fu-amend-spec-1000","status":"open","title":"obligation"}
 EOF
 
-  out="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --json)"
+  ( cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --json > "$dir/out.json" )
+  out="$(cat "$dir/out.json")"
   node -e '
     const res = JSON.parse(process.argv[1]);
     const it = res.items.find(i => i.ref_id === "spec-1000-unmerged-ride");
@@ -2130,13 +2133,15 @@ EOF
 
   # Under --status unsigned it appears, under --status signed it does not
   local out_uns out_sgn
-  out_uns="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --status unsigned --json)"
+  ( cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --status unsigned --json > "$dir/out_uns.json" )
+  out_uns="$(cat "$dir/out_uns.json")"
   node -e '
     const res = JSON.parse(process.argv[1]);
     if (res.items.length !== 1 || res.items[0].ref_id !== "spec-1000-unmerged-ride") process.exit(1);
   ' "$out_uns" || log_fail "TEST-518: unmerged amendment must appear under --status unsigned: $out_uns"
 
-  out_sgn="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --status signed --json)"
+  ( cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --status signed --json > "$dir/out_sgn.json" )
+  out_sgn="$(cat "$dir/out_sgn.json")"
   node -e '
     const res = JSON.parse(process.argv[1]);
     if (res.items.length !== 0) process.exit(1);
@@ -2178,7 +2183,8 @@ test_519_existing_overlays_continue_to_fold_signed() {
 {"v":1,"ts":"2026-10-03T01:00:00Z","actor":"human","type":"spec_amendment_classification","classifies_ts":"2026-10-03T00:00:00Z","classifies_ref":"spec-overlay-ride","owner_signoff":true,"amendment_class":"contract","why":"signed by human"}
 EOF
 
-  out="$(cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --json)"
+  ( cd "$repo" && node "$SA" list --ledger "$repo/docs/ai/decisions.jsonl" --base-ref main --json > "$dir/out.json" )
+  out="$(cat "$dir/out.json")"
   node -e '
     const res = JSON.parse(process.argv[1]);
     const it = res.items.find(i => i.ref_id === "spec-overlay-ride");

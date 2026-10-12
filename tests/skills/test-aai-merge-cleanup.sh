@@ -2621,7 +2621,7 @@ test_057_codebase_reduction_and_green_suite() {
   echo 'PASS: TEST-057 codebase reduction verified (line count decreased by >= 250 lines)'
 }
 
-test_058_codebase_reduction_and_green_suite() {
+test_058_merge_cleanup_line_ceiling() {
   local count
   count="$(wc -l < "$ROOT/.aai/scripts/merge-cleanup.mjs" | tr -d ' ')"
   [[ "$count" -le 1490 ]] || fail TEST-058 "merge-cleanup.mjs has $count lines, want <= 1490"
@@ -2648,7 +2648,7 @@ case "$SELECTED" in
      test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
      test_051_ledger_tail_resume_key_and_count; test_053_reset_ride_ledger_is_not_a_resume_candidate
      test_054_resume_matches_the_appended_segment; test_055_unappended_intent_is_not_counted
-     test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite; test_058_codebase_reduction_and_green_suite ;;
+     test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite; test_058_merge_cleanup_line_ceiling ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;
@@ -2700,6 +2700,6 @@ case "$SELECTED" in
   TEST-055|test_055_unappended_intent_is_not_counted) test_055_unappended_intent_is_not_counted ;;
   TEST-056|test_056_historical_journal_tolerance) test_056_historical_journal_tolerance ;;
   TEST-057|test_057_codebase_reduction_and_green_suite) test_057_codebase_reduction_and_green_suite ;;
-  TEST-058|test_058_codebase_reduction_and_green_suite) test_058_codebase_reduction_and_green_suite ;;
+  TEST-058|test_058_merge_cleanup_line_ceiling) test_058_merge_cleanup_line_ceiling ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

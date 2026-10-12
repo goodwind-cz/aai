@@ -182,7 +182,7 @@ process.exit(1);
     $log = [IO.File]::ReadAllText((Join-Path $Ghd 'gh-argv.log'))
     $log | Should -Match "pr view $Pr --json"
     $log | Should -Not -Match 'pr merge'
-    # the directed-merge record carries the owner's verbatim words
-    ([IO.File]::ReadAllText((Join-Path $Origin 'docs/ai/decisions.jsonl'))) | Should -BeLike '*"answer":"merge 433 please (pester)"*'
+    # SPEC-0226: zero writes to decisions.jsonl during merge-cleanup
+    (Test-Path -LiteralPath (Join-Path $Origin 'docs/ai/decisions.jsonl')) | Should -BeFalse
   }
 }

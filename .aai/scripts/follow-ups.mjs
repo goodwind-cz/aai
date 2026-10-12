@@ -211,6 +211,7 @@ function foldFollowUps(records, opts = {}) {
   const amendFollowUps = foldAmendments(records, opts).followUps;
 
   for (const rec of records) {
+    if (!rec || typeof rec !== 'object') continue;
     if (rec.type === 'follow_up') {
       let id = typeof rec.id === 'string' && rec.id.trim() !== '' ? rec.id.trim() : null;
       let isDerived = false;
