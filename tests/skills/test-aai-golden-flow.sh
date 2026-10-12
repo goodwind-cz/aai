@@ -1017,7 +1017,7 @@ test_006_record_reads_gate_and_skill_pr_wiring() {
     printf '%s' "${hit%%:*}"
   }
   local close_ln gate_ln push_ln
-  close_ln="$(first_line_of 'close-work-item.mjs --ref <slug> --pr <TBD|NONE>' "$SKILL_PR")"
+  close_ln="$(first_line_of 'close-work-item.mjs --ref <slug>' "$SKILL_PR")"
   gate_ln="$(first_line_of 'nothing-left-behind.mjs --ref <slug>' "$SKILL_PR")"
   push_ln="$(first_line_of 'git push -u origin <branch>' "$SKILL_PR")"
   [[ -n "$close_ln" && -n "$gate_ln" && -n "$push_ln" ]] || log_fail "TEST-006: SKILL_PR must name close-work-item (line '$close_ln'), nothing-left-behind (line '$gate_ln') and the push (line '$push_ln')"

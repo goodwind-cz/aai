@@ -547,11 +547,11 @@ test_016_merge_gate_sweep_check() {
   cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
   : > "$d/docs/ai/EVENTS.jsonl"
 
-  # No pr_sweep record at all for PR 42: denied, naming the absent record.
+  # No pr_sweep record at all for PR 42:
+  # Under SPEC-0227 / DEBT-0014, lane-gate drops the committed sweep requirement.
+  # A PR without a committed pr_sweep record is allowed (outcome=live).
   err=$(payload_for "gh pr merge 42 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
-  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: no-record merge exited $rc (want 2): $err"; ok=0; }
-  assert_payload_contains "$err" "pr_sweep" "TEST-574: deny message does not name the absent pr_sweep record: $err" || ok=0
-  assert_payload_contains "$err" "42" "TEST-574: deny message does not name PR 42: $err" || ok=0
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: absent sweep record allowed under SPEC-0227 (got $rc): $err"; ok=0; }
 
   # A consistent record for PR 42 (heavy lane, internal_substituted outcome —
   # this fixture carries no spec/STATE, so lane-gate computes heavy by
@@ -578,17 +578,13 @@ test_016_merge_gate_sweep_check() {
   [[ "$rc" -eq 0 ]] || { log_info "TEST-574: unreadable EVENTS.jsonl must fail OPEN (allow), got $rc: $err"; ok=0; }
   rmdir "$d/docs/ai/EVENTS.jsonl" 2>/dev/null || true
 
-  # B2 (validation-round1): the PR number is NOT always positional right
-  # after `merge` -- prove the three other forms the old positional-only
-  # regex missed each still get judged against the real record (not allowed
-  # by a parse miss). No record for PR 45/46: denied naming it.
+  # B2 (validation-round1): positional-after-flags form.
+  # Under SPEC-0227 / DEBT-0014, lane-gate drops the committed sweep requirement.
   err=$(payload_for "gh pr merge --squash 45" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
-  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: 'gh pr merge --squash 45' (number after flags) exited $rc (want 2): $err"; ok=0; }
-  assert_payload_contains "$err" "45" "TEST-574: 'gh pr merge --squash 45' deny message does not name PR 45: $err" || ok=0
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: 'gh pr merge --squash 45' allowed (got $rc): $err"; ok=0; }
 
   err=$(payload_for "gh pr merge --squash --delete-branch 46" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
-  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: 'gh pr merge --squash --delete-branch 46' exited $rc (want 2): $err"; ok=0; }
-  assert_payload_contains "$err" "46" "TEST-574: 'gh pr merge --squash --delete-branch 46' deny message does not name PR 46: $err" || ok=0
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: 'gh pr merge --squash --delete-branch 46' allowed (got $rc): $err"; ok=0; }
 
   # A consistent record for PR 45 (the positional-after-flags form): allowed.
   (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
@@ -611,8 +607,7 @@ exit 1
 GHSTUB
   chmod +x "$d/bin/gh"
   err=$(payload_for "gh pr merge" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
-  [[ "$rc" -eq 2 ]] || { log_info "TEST-574: bare 'gh pr merge' (resolved to 47, no record) exited $rc (want 2): $err"; ok=0; }
-  assert_payload_contains "$err" "47" "TEST-574: bare 'gh pr merge' deny message does not name the resolved PR 47: $err" || ok=0
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-574: bare 'gh pr merge' (resolved to 47, no record) allowed under SPEC-0227 (got $rc): $err"; ok=0; }
 
   (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t574-ride \
      --pr 47 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
@@ -743,11 +738,16 @@ test_017_merge_gate_quoted_pr_number() {
   cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
   : > "$d/docs/ai/EVENTS.jsonl"
 
-  # A consistent record exists ONLY for PR 777 (standing in for "whatever PR
-  # the current branch would resolve to"), never for PR 385.
+  # A consistent record exists for PR 777 (standing in for "whatever PR
+  # the current branch would resolve to").
+  # Under SPEC-0227 / DEBT-0014, lane-gate drops the committed sweep requirement
+  # for absent records. To verify that PR 385 is judged against ITSELF (and does not
+  # fall through to PR 777), PR 385 carries a contradictory record (denied), while
+  # PR 777 carries a consistent record (allowed).
   (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/append-event.mjs" --event pr_sweep --ref t587-ride \
      --pr 777 --lane heavy --reviewer-bots none --threads-seen 0 --threads-unresolved 0 \
      --outcome internal_substituted >/dev/null)
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t587-ride","payload":{"pr":385,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":5,"outcome":"swept"}}' >> "$d/docs/ai/EVENTS.jsonl"
   cat > "$d/bin/gh" <<'GHSTUB'
 #!/usr/bin/env bash
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
@@ -762,7 +762,7 @@ GHSTUB
   # through to branch resolution (which would find 777's consistent record
   # and wrongly ALLOW a merge of PR 385).
   err=$(payload_for 'gh pr merge "385" --squash' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
-  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: quoted 'gh pr merge \"385\"' exited $rc (want 2, denied against PR 385's own absent record): $err"; ok=0; }
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-587: quoted 'gh pr merge \"385\"' exited $rc (want 2, denied against PR 385's own contradictory record): $err"; ok=0; }
   assert_payload_contains "$err" "385" "TEST-587: the quoted-PR deny message does not name PR 385: $err" || ok=0
 
   # Same for a single-quoted number.
@@ -861,20 +861,22 @@ GHSTUB
   assert_payload_contains "$err" "could not determine" "TEST-592: tooling-present-unresolvable deny message does not explain why: $err" || ok=0
 
   # (b) node + lane-gate.mjs ARE present (capability present), the PR IS
-  # known, but there is no valid sweep record for it: denied (unchanged
-  # behavior, still exercised here to pin it alongside the capability-order
-  # fix, not just via TEST-574).
+  # known, but carries a contradictory sweep record: denied.
+  # Under SPEC-0227 / DEBT-0014, lane-gate drops the committed sweep requirement
+  # for absent records, so a contradictory record is used to assert that the gate
+  # still denies when verification fails with tooling present.
   d="$(new_fixture)"
   mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai"
   cp "$PROJECT_ROOT/.aai/scripts/lane-gate.mjs" "$d/.aai/scripts/lane-gate.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/lib/pr-sweep.mjs" "$d/.aai/scripts/lib/pr-sweep.mjs"
   : > "$d/docs/ai/EVENTS.jsonl"
+  printf '%s\n' '{"v":1,"ts":"2026-01-01T00:00:00.000Z","actor":"t","event":"pr_sweep","ref":"t592-ride","payload":{"pr":99,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":5,"outcome":"swept"}}' >> "$d/docs/ai/EVENTS.jsonl"
   err=$(payload_for "gh pr merge 99 --squash" | (cd "$d" && CLAUDE_PROJECT_DIR="$d" AAI_OPERATOR_MERGE=1 bash "$PROJECT_ROOT/$ADAPTER" merge 2>&1 >/dev/null)); rc=$?
-  [[ "$rc" -eq 2 ]] || { log_info "TEST-592: 'gh pr merge 99' with capability present but no sweep record exited $rc (want 2): $err"; ok=0; }
-  assert_payload_contains "$err" "99" "TEST-592: capability-present-no-record deny message does not name PR 99: $err" || ok=0
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-592: 'gh pr merge 99' with capability present but contradictory sweep record exited $rc (want 2): $err"; ok=0; }
+  assert_payload_contains "$err" "99" "TEST-592: capability-present-contradictory-record deny message does not name PR 99: $err" || ok=0
 
-  [[ $ok -eq 1 ]] && log_pass "TEST-592 (fu-hookgate-capability-before-deny) merge gate still DENIES when the tooling to resolve or check a PR is present and what it finds is genuinely unresolvable or missing" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-592 (fu-hookgate-capability-before-deny) merge gate still DENIES when the tooling to resolve or check a PR is present and what it finds is genuinely unresolvable or contradictory" \
                   || log_fail "TEST-592 merge gate tooling-present-unresolvable"
 }
 

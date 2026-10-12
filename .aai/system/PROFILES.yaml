@@ -114,7 +114,6 @@ core:
   - .aai/scripts/check-vendored-script-deps.mjs
   - .aai/scripts/ci-select.mjs
   - .aai/scripts/claude-hook-gate.sh
-  - .aai/scripts/close-before-push-guard.mjs
   - .aai/scripts/close-reconcile.mjs
   - .aai/scripts/close-work-item.mjs
   - .aai/scripts/delta-merge.mjs

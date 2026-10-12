@@ -3063,3 +3063,8 @@
 {"v":1,"ts":"2026-10-12T13:06:47Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-amendment-signoff-implied-by-merge","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-12T13:06:47Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-amendment-signoff-implied-by-merge","payload":{"commit":"5479a818"}}
 {"v":1,"ts":"2026-10-12T13:09:47Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"amendment-signoff-implied-by-merge","payload":{"pr":460,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"2a8310d3fe376b28ab6c50a713418339cc36ebca"}}
+{"v":1,"ts":"2026-10-12T14:11:59Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-ceremony-fewer-commits","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-12T15:05:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"pr-ceremony-fewer-commits","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-12T15:05:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"pr-ceremony-fewer-commits","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-12T15:05:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-pr-ceremony-fewer-commits","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-12T15:06:41Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":603,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

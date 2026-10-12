@@ -8144,10 +8144,47 @@ test_1351_live_corpus_near_miss_set_is_dispositioned() {   # TEST-1351 / Spec-AC
   log_pass "Every near-miss document over the live corpus is dispositioned, and --check --strict still exits 0"
 }
 
+test_deterministic_index_no_clock_line() { # TEST-001 / Spec-AC-01 (SPEC-0227)
+  log_info "Test: generate-docs-index produces deterministic output with no clock line (TEST-001)..."
+  local idx="$PROJECT_ROOT/docs/INDEX.md"
+  local audit_idx="$PROJECT_ROOT/docs/INDEX.audit.md"
+  local viol_idx="$PROJECT_ROOT/docs/INDEX.violations.md"
+
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+    || log_fail "TEST-001: generate-docs-index.mjs must exit 0 on run 1"
+
+  grep -q '^Generated:' "$idx" \
+    && log_fail "TEST-001: docs/INDEX.md must not carry a Generated: clock line"
+
+  if [[ -f "$audit_idx" ]]; then
+    grep -q '^Generated:' "$audit_idx" \
+      && log_fail "TEST-001: docs/INDEX.audit.md must not carry a Generated: clock line"
+  fi
+
+  if [[ -f "$viol_idx" ]]; then
+    grep -q '^Generated:' "$viol_idx" \
+      && log_fail "TEST-001: docs/INDEX.violations.md must not carry a Generated: clock line"
+  fi
+
+  local snap1="$TEST_DIR/index-det1.snap"
+  local snap2="$TEST_DIR/index-det2.snap"
+  cp "$idx" "$snap1"
+
+  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
+    || log_fail "TEST-001: generate-docs-index.mjs must exit 0 on run 2"
+  cp "$idx" "$snap2"
+
+  diff -u "$snap1" "$snap2" >/dev/null \
+    || log_fail "TEST-001: multiple runs of generate-docs-index.mjs over an unmodified tree must produce 0 diff"
+
+  log_pass "generate-docs-index produces deterministic output with no clock line (TEST-001)"
+}
+
 main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   check_deps
   setup_fixture
+  test_deterministic_index_no_clock_line
   test_1351_live_corpus_near_miss_set_is_dispositioned
   test_1348_near_miss_headline_carries_the_count
   test_1349_verdict_names_the_unreadable_tables

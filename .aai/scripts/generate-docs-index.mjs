@@ -89,8 +89,6 @@ function writeViolationsReport(skipped, acStatusViolations = [], nearMissWarning
   const out = [
     VIOLATIONS_MARKER,
     '',
-    `Generated: ${new Date().toISOString()}`,
-    '',
   ];
   if (skipped.length > 0) {
     out.push(
@@ -428,7 +426,6 @@ function main() {
   const lines = [];
   lines.push(MARKER);
   lines.push('');
-  lines.push(`Generated: ${new Date().toISOString()}`);
   lines.push(`Source: docs/{issues,rfc,specs,requirements,releases,${FAMILY_DIR_NAMES.join(',')}}/**/*.md`);
   lines.push('');
 
@@ -550,8 +547,6 @@ function main() {
   const auditOrphans = [...audit.orphansNew, ...audit.orphansLegacy];
   const auditLines = [
     AUDIT_MARKER,
-    '',
-    `Generated: ${new Date().toISOString()}`,
     '',
     'Git-ignored companion to docs/INDEX.md carrying the git-history-dependent',
     'Orphans + Drift sections relocated out of the committed index (SPEC-0010 /',

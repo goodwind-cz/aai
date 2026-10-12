@@ -95,6 +95,12 @@ if [ "$#" -eq 10 ] && [ "$1" = pr ] && [ "$2" = list ] && [ "$3" = --state ] && 
   if [ -f "$dir/heads-$key.json" ]; then cat "$dir/heads-$key.json"; else echo '[]'; fi
   exit 0
 fi
+if [ "$1" = api ]; then
+  [ -f "$dir/api-fail" ] && { echo 'STUB: api failed' >&2; exit 1; }
+  if [ -f "$dir/review-threads.json" ]; then cat "$dir/review-threads.json"; exit 0; fi
+  echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+  exit 0
+fi
 printf 'STUB-DENY: unexpected argv: %s\n' "$*" >&2
 exit 1
 GHSTUB
@@ -944,13 +950,20 @@ test_003_preflight_refusals() {
     [[ "$ENG_RC" -eq 10 ]] || fail TEST-003 "not_mergeable arm exited $ENG_RC, want 10"
   done
   rm -f "$ORIGIN/docs/ai/decisions.jsonl"
-  # sweep_missing through the REAL lane-gate: no record, then a contradictory one
+  # SPEC-0227: live review check at preflight (Spec-AC-03) & lane-gate drops missing-sweep requirement (Spec-AC-04)
   write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
   run cp "$RIDE/docs/ai/EVENTS.jsonl" "$W/events.with-sweep"
   { /usr/bin/grep -v '"pr_sweep"' "$W/events.with-sweep" || true; } > "$RIDE/docs/ai/EVENTS.jsonl"
-  expect_refusal TEST-003 sweep_missing pf
-  want TEST-003 "$ENG_OUT" 'SWEEP-CHECK denied'
-  { /usr/bin/grep -v '"pr_sweep"' "$W/events.with-sweep" || true; } > "$RIDE/docs/ai/EVENTS.jsonl"
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-003 "missing pr_sweep event must not block preflight (Spec-AC-04), got $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-003 "$ENG_OUT" 'SWEEP-CHECK allowed'
+  # Live unresolved review threads block preflight (Spec-AC-03):
+  printf '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[{"isResolved":false,"isOutdated":false,"comments":{"nodes":[{"author":{"login":"copilot-pull-request-reviewer"},"body":"Must fix this bug","path":"test.js","line":42}]}}]}}}}}\n' > "$GHD/review-threads.json"
+  expect_refusal TEST-003 review_unresolved pf
+  want TEST-003 "$ENG_OUT" 'unresolved review thread'
+  want TEST-003 "$ENG_OUT" 'copilot'
+  rm -f "$GHD/review-threads.json"
+  # Contradictory record in EVENTS.jsonl is still caught:
   printf '%s\n' "${SWEEP_OK/\"threads_unresolved\":0/\"threads_unresolved\":3}" >> "$RIDE/docs/ai/EVENTS.jsonl"
   expect_refusal TEST-003 sweep_missing pf
   want TEST-003 "$ENG_OUT" 'contradictory-record'
@@ -1010,8 +1023,9 @@ test_004_preflight_ready() {
   unwanted TEST-004 "$ENG_OUT" '--admin'
   unwanted TEST-004 "$ENG_OUT" '--auto'
   unwanted TEST-004 "$ENG_OUT" '--delete-branch'
-  # positive controls: the PR read and the real sweep check both ran
+  # positive controls: the PR read, live review check, and the real sweep check all ran
   want TEST-004 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"
+  want TEST-004 "$(cat "$GHD/gh-argv.log")" "api graphql"
   want TEST-004 "$ENG_OUT" 'SWEEP-CHECK allowed'
   # SPEC-0226: preflight writes nothing to decisions.jsonl; the fixture is completely unchanged
   dec="$ORIGIN/docs/ai/decisions.jsonl"
@@ -2628,6 +2642,44 @@ test_058_merge_cleanup_line_ceiling() {
   echo "PASS: TEST-058 codebase reduction verified (line count $count <= 1490)"
 }
 
+test_059_lane_gate_passes_without_pr_sweep() {
+  # Spec-AC-04 (TEST-004 / SPEC-0227): lane-gate.mjs passes without pr_sweep event in EVENTS.jsonl
+  build_world t059_nosweep
+  grep -q '"event":"pr_sweep"' "$RIDE/docs/ai/EVENTS.jsonl" && fail TEST-004 "EVENTS.jsonl must not contain pr_sweep"
+  local out code=0
+  out="$(node "$ROOT/.aai/scripts/lane-gate.mjs" --sweep-check --pr "$PR" --repo-root "$RIDE" 2>&1)" || code=$?
+  [[ "$code" -eq 0 ]] || fail TEST-004 "lane-gate.mjs --sweep-check must exit 0 without pr_sweep event, got $code: $out"
+  want TEST-004 "$out" "SWEEP-CHECK allowed"
+  want TEST-004 "$out" "outcome=live"
+  echo "PASS: TEST-004 lane-gate passes without pr_sweep event in EVENTS.jsonl (Spec-AC-04)"
+}
+
+test_060_skill_pr_prompt_free_of_pr_sweep() {
+  # Spec-AC-02 (TEST-002 / SPEC-0227): SKILL_PR prompt free of pr_sweep commit instructions
+  local pr_doc="$ROOT/.aai/SKILL_PR.prompt.md"
+  if grep -qF 'append-event.mjs --event pr_sweep' "$pr_doc"; then
+    fail TEST-002 "SKILL_PR.prompt.md must not contain append-event.mjs --event pr_sweep"
+  fi
+  if grep -qF 'links.commits' "$pr_doc"; then
+    fail TEST-002 "SKILL_PR.prompt.md must not reference links.commits"
+  fi
+  if grep -qF -e '--stamp-pr' "$pr_doc"; then
+    fail TEST-002 "SKILL_PR.prompt.md must not reference --stamp-pr"
+  fi
+  if grep -qF 'close-before-push-guard.mjs' "$pr_doc"; then
+    fail TEST-002 "SKILL_PR.prompt.md must not reference close-before-push-guard.mjs"
+  fi
+  echo "PASS: TEST-002 SKILL_PR prompt free of pr_sweep and ceremony commit instructions (Spec-AC-02)"
+}
+
+test_061_prompt_diet_passes() {
+  # Spec-AC-07 (TEST-007 / SPEC-0227): SKILL_PR prompt diet verified
+  local out code=0
+  out="$(bash "$ROOT/tests/skills/test-aai-prompt-diet.sh" test_010_audit_and_reduction 2>&1)" || code=$?
+  [[ "$code" -eq 0 ]] || fail TEST-007 "test-aai-prompt-diet.sh failed ($code): $out"
+  echo "PASS: TEST-007 SKILL_PR prompt diet verified (Spec-AC-07)"
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate;
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -2648,7 +2700,10 @@ case "$SELECTED" in
      test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
      test_051_ledger_tail_resume_key_and_count; test_053_reset_ride_ledger_is_not_a_resume_candidate
      test_054_resume_matches_the_appended_segment; test_055_unappended_intent_is_not_counted
-     test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite; test_058_merge_cleanup_line_ceiling ;;
+     test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite; test_058_merge_cleanup_line_ceiling; test_059_lane_gate_passes_without_pr_sweep; test_060_skill_pr_prompt_free_of_pr_sweep; test_061_prompt_diet_passes ;;
+  TEST-059|test_059_lane_gate_passes_without_pr_sweep) test_059_lane_gate_passes_without_pr_sweep ;;
+  TEST-060|test_060_skill_pr_prompt_free_of_pr_sweep) test_060_skill_pr_prompt_free_of_pr_sweep ;;
+  TEST-061|test_061_prompt_diet_passes) test_061_prompt_diet_passes ;;
   TEST-001|test_001_wrappers_and_pointers) test_001_wrappers_and_pointers ;;
   TEST-002|test_002_prompt_block_runs_cleanup) test_002_prompt_block_runs_cleanup ;;
   TEST-016|test_016_powershell_parity) test_016_powershell_parity ;;

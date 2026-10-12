@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-12T13:06:55.393Z",
+  "generatedAt": "2026-10-12T15:05:08.142Z",
   "project": "aai",
   "counts": {
-    "delivered": 296,
+    "delivered": 297,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 75943406
@@ -244,6 +244,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0226-spec-amendment-signoff-implied-by-merge.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "pr-ceremony-fewer-commits",
+      "title": "Tech Debt: the PR ceremony stops adding commits after the content commit",
+      "type": "techdebt",
+      "status": "done",
+      "path": "docs/issues/DEBT-0014-pr-ceremony-fewer-commits.md",
+      "closed_on": "2026-10-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0227-spec-pr-ceremony-fewer-commits.md",
       "validation": null,
       "review": null
     },
@@ -4119,6 +4132,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0226-spec-amendment-signoff-implied-by-merge.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "pr-ceremony-fewer-commits",
+          "title": "Tech Debt: the PR ceremony stops adding commits after the content commit",
+          "type": "techdebt",
+          "status": "done",
+          "path": "docs/issues/DEBT-0014-pr-ceremony-fewer-commits.md",
+          "closed_on": "2026-10-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0227-spec-pr-ceremony-fewer-commits.md",
           "validation": null,
           "review": null
         },
