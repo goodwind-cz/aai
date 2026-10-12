@@ -2044,6 +2044,7 @@ EOF
 test_517_merged_ride_folds_signed() {
   log_info "Test: merged ride contract amendment folds to signed at read time (TEST-517)..."
   local dir repo out ec
+  export GIT_AUTHOR_NAME="Test" GIT_AUTHOR_EMAIL="test@example.com" GIT_COMMITTER_NAME="Test" GIT_COMMITTER_EMAIL="test@example.com"
   dir="$TEST_DIR/t517"
   repo="$dir/repo"
   mkdir -p "$repo/docs/specs" "$repo/docs/ai"
@@ -2098,6 +2099,7 @@ EOF
 test_518_unmerged_ride_stays_unsigned() {
   log_info "Test: unmerged ride contract amendment remains unsigned-tracked (TEST-518)..."
   local dir repo out ec
+  export GIT_AUTHOR_NAME="Test" GIT_AUTHOR_EMAIL="test@example.com" GIT_COMMITTER_NAME="Test" GIT_COMMITTER_EMAIL="test@example.com"
   dir="$TEST_DIR/t518"
   repo="$dir/repo"
   mkdir -p "$repo/docs/specs" "$repo/docs/ai"
@@ -2151,6 +2153,8 @@ EOF
   local repo_untracked="$dir/repo_untracked"
   mkdir -p "$repo_untracked/docs/ai"
   git -C "$repo_untracked" init -q -b main
+  git -C "$repo_untracked" config user.email "test@example.com"
+  git -C "$repo_untracked" config user.name "Test"
   touch "$repo_untracked/.gitkeep"; git -C "$repo_untracked" add .; git -C "$repo_untracked" commit -q -m "init"
   cat > "$repo_untracked/docs/ai/decisions.jsonl" <<'EOF'
 {"v":1,"ts":"2026-10-02T00:00:00Z","actor":"planning","type":"spec_amendment","ref_id":"spec-1000-unmerged-ride","spec":"docs/specs/SPEC-1000-unmerged-ride.md","spec_id":"spec-1000-unmerged-ride","owner_signoff":false,"what":"untracked amendment","amendment_class":"contract"}
@@ -2167,6 +2171,7 @@ EOF
 test_519_existing_overlays_continue_to_fold_signed() {
   log_info "Test: existing overlays continue to fold to signed (TEST-519)..."
   local dir repo out
+  export GIT_AUTHOR_NAME="Test" GIT_AUTHOR_EMAIL="test@example.com" GIT_COMMITTER_NAME="Test" GIT_COMMITTER_EMAIL="test@example.com"
   dir="$TEST_DIR/t519"
   repo="$dir/repo"
   mkdir -p "$repo/docs/ai"
