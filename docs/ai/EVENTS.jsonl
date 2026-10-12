@@ -3058,3 +3058,7 @@
 {"v":1,"ts":"2026-10-12T11:51:23Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"merge-cleanup-dead-steps","payload":{"pr":459,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"c59b2cf2cb82fbc917f1a2e180789489467d7b36"}}
 {"v":1,"ts":"2026-10-12T11:58:45Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-amendment-signoff-implied-by-merge","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-10-12T13:04:39Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":602,"orphans":0,"drifted":1,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-12T13:06:47Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"amendment-signoff-implied-by-merge","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-12T13:06:47Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"amendment-signoff-implied-by-merge","payload":{"commit":"5479a818"}}
+{"v":1,"ts":"2026-10-12T13:06:47Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-amendment-signoff-implied-by-merge","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-12T13:06:47Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-amendment-signoff-implied-by-merge","payload":{"commit":"5479a818"}}

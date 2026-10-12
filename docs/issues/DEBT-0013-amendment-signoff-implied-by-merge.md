@@ -4,8 +4,10 @@ type: techdebt
 number: 13
 status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - 460
+  commits:
+    - 5479a818
 ---
 
 # Tech Debt: a contract amendment is signed by the merge of its ride, not by a written record

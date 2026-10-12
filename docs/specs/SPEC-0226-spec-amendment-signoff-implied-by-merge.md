@@ -8,8 +8,10 @@ ceremony_level: 2
 links:
   requirement: amendment-signoff-implied-by-merge
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - 460
+  commits:
+    - 5479a818
 ---
 
 # Spec — A contract amendment is signed by the merge of its ride, not by a written record
