@@ -72,8 +72,8 @@ exit: 0 complete, 2 usage, 3 refused, 4 stopped mid-way, 10 preflight ready
 // contract amendments right after the base sync (the synced ledger holds the ride's records).
 const SIGN_STEP_ID = 'sign-amendments';
 const STEP_IDS = [
-  'resolve', 'plan', 'archive-runtime', 'archive-drafts', 'sync-base', SIGN_STEP_ID,
-  'state', 'index-audit', 'remove-worktree', 'delete-branch', 'delete-remote-branch', 'report',
+  'resolve', 'plan', 'archive-runtime', 'sync-base', SIGN_STEP_ID,
+  'remove-worktree', 'delete-branch', 'report',
 ];
 const PR_FIELDS = 'number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url,isCrossRepository';
 const DRAFT_BASENAME_RE = /^[A-Z]+(?:-[A-Z]+)*-DRAFT-.+\.md$/;
@@ -82,14 +82,8 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 // D8 append-only ledgers and the generated index, origin-relative.
 const LEDGERS = ['docs/ai/EVENTS.jsonl', 'docs/ai/decisions.jsonl', 'docs/ai/METRICS.jsonl', 'docs/ai/tests/test-runs.jsonl'];
 const INDEX_PATH = 'docs/INDEX.md';
-// D10 ignored evidence directories of the ride worktree.
-const RUNTIME_DIRS = ['reports', 'tdd', 'validation', 'reviews', 'evidence'].map((d) => `docs/ai/${d}`);
 const STATE_REL = 'docs/ai/STATE.yaml';
 const ROADMAP_PATH = 'docs/ai/roadmap.yaml';
-// D11: the engine file this process was loaded from and its bytes at load; D12/D13: the one-shot re-exec guard.
-const ENGINE_FILE = fs.realpathSync(fileURLToPath(import.meta.url));
-const ENGINE_STARTUP_SHA = crypto.createHash('sha256').update(fs.readFileSync(ENGINE_FILE)).digest('hex');
-const REEXEC_ENV = 'AAI_MERGE_CLEANUP_REEXECED';
 
 function usage(msg) {
   process.stderr.write(`merge-cleanup: ${msg}\n${HELP}`);
@@ -241,19 +235,7 @@ function readAndGate(opts, origin) {
 
 // ---- D6: draft classification --------------------------------------------
 
-function deliveredIds(origin, mc) {
-  const names = git(origin, ['diff', '--name-only', '--no-renames', '--diff-filter=AM', '-z', `${mc}^1`, mc]);
-  const ids = new Set();
-  if (names.status !== 0) return ids;
-  for (const rel of names.stdout.split('\0').filter(Boolean)) {
-    if (!rel.endsWith('.md')) continue;
-    const blob = git(origin, ['cat-file', 'blob', `${mc}:${rel}`]);
-    if (blob.status !== 0) continue;
-    const id = parseFrontmatter(blob.stdout)?.id;
-    if (id) ids.add(String(id));
-  }
-  return ids;
-}
+
 
 // PR numbers a frontmatter links.pr value names, read strictly: a bare number, '#N',
 // or a URL of THIS repository whose path ends /pull/N. Digits elsewhere in an entry
@@ -295,61 +277,11 @@ function doneDocsBetween(cwd, from, to, pr, repo) {
   return docs;
 }
 
-// Blob ids the PR's own commits introduced. null when the history cannot be read.
-function historyBlobs(origin, ctx, prNumber) {
-  const has = (oid) => git(origin, ['cat-file', '-e', `${oid}^{commit}`]).status === 0;
-  if (!/^[0-9a-f]{40}$/i.test(ctx.head)) return null;
-  if (!has(ctx.head)) git(origin, ['fetch', '-q', 'origin', `refs/pull/${prNumber}/head`]);
-  if (!has(ctx.head)) return null;
-  const range = has(`${ctx.mc}^1`) ? [ctx.head, `^${ctx.mc}^1`] : [ctx.head];
-  const log = git(origin, ['log', '--format=', '--raw', '--no-abbrev', '--no-renames', '-r', ...range]);
-  if (log.status !== 0) return null;
-  const blobs = new Set();
-  for (const line of log.stdout.split('\n')) {
-    const m = line.match(/^:\d+ \d+ [0-9a-f]+ ([0-9a-f]+) [A-Z]\d*\t/);
-    if (m && !/^0+$/.test(m[1])) blobs.add(m[1]);
-  }
-  return blobs;
-}
-
-function normalizeNamed(origin, p) {
-  const abs = path.isAbsolute(p) ? p : path.join(origin, p);
-  const rel = path.relative(origin, abs);
-  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return null;
-  return posix(rel);
-}
-
-function classifyDrafts(origin, ctx, opts) {
+function classifyDrafts(origin) {
   const ls = git(origin, ['ls-files', '--others', '--exclude-standard', '-z']);
   const candidates = (ls.status === 0 ? ls.stdout.split('\0').filter(Boolean) : [])
     .filter((rel) => rel.startsWith('docs/') && DRAFT_BASENAME_RE.test(path.posix.basename(rel)));
-  const named = new Set();
-  for (const p of opts.archiveDivergent ?? []) {
-    const rel = normalizeNamed(origin, p);
-    if (!rel) refuse('archive_divergent_not_candidate', p);
-    named.add(rel);
-  }
-  const delivered = candidates.length ? deliveredIds(origin, ctx.mc) : new Set();
-  const blobs = candidates.length ? historyBlobs(origin, ctx, opts.pr) : new Set();
-  const archive = [];
-  const retained = [];
-  for (const rel of candidates.sort()) {
-    const abs = path.join(origin, rel);
-    const bytes = fs.readFileSync(abs);
-    const id = parseFrontmatter(bytes.toString('utf8'))?.id ?? null;
-    if (!id || !delivered.has(String(id))) { retained.push({ path: rel, reason: 'unrelated_id' }); continue; }
-    if (blobs === null) { retained.push({ path: rel, reason: 'unverifiable_history' }); continue; }
-    const h = git(origin, ['hash-object', '--no-filters', abs]);
-    if (h.status === 0 && blobs.has(h.stdout.trim())) { archive.push({ path: rel, reason: 'superseded', sha256: sha256(bytes) }); continue; }
-    if (named.has(rel)) { archive.push({ path: rel, reason: 'divergent_archived_by_decision', sha256: sha256(bytes) }); continue; }
-    retained.push({ path: rel, reason: 'divergent_content' });
-  }
-  const candidateReasons = new Map(retained.map((r) => [r.path, r.reason]));
-  for (const rel of named) {
-    if (archive.some((a) => a.path === rel)) continue;
-    if (candidateReasons.get(rel) !== 'divergent_content') refuse('archive_divergent_not_candidate', rel);
-  }
-  return { archive, retained };
+  return { retained: candidates.map((rel) => ({ path: rel, reason: 'leftover_draft' })) };
 }
 
 // ---- D7: archive ----------------------------------------------------------
@@ -392,44 +324,6 @@ function archiveFile(ctx, { src, destBase, original, reason, step }) {
   return { rel, digest, fresh: created || !known };
 }
 
-// Test seam: another session edits a candidate draft at a named point of archive-drafts.
-function racedEdit(point, rel, abs) {
-  if (seam('AAI_MERGE_CLEANUP_EDIT_DRAFT') === `${point}:${rel}`) fs.appendFileSync(abs, '\nedited by another session\n');
-}
-
-// The classification hashed the bytes; the copy is removed only while the working file
-// still has exactly those bytes. A draft edited since stays, its archive copy remains
-// recoverable, and the report names it divergent_after_plan (compare-then-unlink).
-function archiveDrafts(ctx) {
-  const { origin, opts, drafts } = ctx;
-  if (drafts.archive.length === 0) return { status: 'noop', detail: 'no_superseded_drafts' };
-  const root = archiveRoot(origin, opts.pr);
-  let archived = 0;
-  const kept = [];
-  for (const item of drafts.archive) {
-    const src = path.join(origin, item.path);
-    racedEdit('before-archive', item.path, src);
-    // Edited before the copy: its bytes were never in the PR, so they are not archived
-    // as superseded; the working copy stays untouched.
-    if (sha256(fs.readFileSync(src)) !== item.sha256) {
-      drafts.retained.push({ path: item.path, reason: 'divergent_after_plan' });
-      kept.push(item.path);
-      continue;
-    }
-    const { digest } = archiveFile(ctx, {
-      src, destBase: path.join(root, 'files', item.path), original: item.path, reason: item.reason, step: 'archive-drafts',
-    });
-    racedEdit('before-unlink', item.path, src);
-    if (digest !== item.sha256 || sha256(fs.readFileSync(src)) !== item.sha256) {
-      drafts.retained.push({ path: item.path, reason: 'divergent_after_plan' });
-      kept.push(item.path);
-      continue;
-    }
-    fs.unlinkSync(src);
-    archived++;
-  }
-  return { status: 'done', detail: `${archived} archived${kept.length ? `, ${kept.length} kept (divergent_after_plan)` : ''}` };
-}
 
 // ---- D8: base sync --------------------------------------------------------
 
@@ -854,29 +748,12 @@ function branchTip(ctx) {
 function archiveRuntime(ctx) {
   const wt = findRideWorktree(ctx);
   if (!wt) return { status: 'noop', detail: 'no_worktree' };
+  const statePath = path.join(wt.path, STATE_REL);
+  if (!fs.existsSync(statePath)) return { status: 'noop', detail: 'no_state' };
   const root = archiveRoot(ctx.origin, ctx.opts.pr);
-  const ls = git(wt.path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--', STATE_REL, ...RUNTIME_DIRS]);
-  const rels = new Set(ls.status === 0 ? ls.stdout.split('\0').filter(Boolean) : []);
-  if (fs.existsSync(path.join(wt.path, STATE_REL))) rels.add(STATE_REL);
-  let archived = 0; let copied = 0; let fresh = 0;
-  for (const rel of [...rels].sort()) {
-    const src = path.join(wt.path, rel);
-    let st = null;
-    try { st = fs.lstatSync(src); } catch { continue; }
-    if (!st.isFile()) continue;
-    const a = archiveFile(ctx, { src, destBase: path.join(root, 'worktree', rel), original: `worktree:${rel}`, reason: 'runtime_archive', step: 'archive-runtime' });
-    archived++;
-    if (a.fresh) fresh++;
-    const dest = path.join(ctx.origin, rel);
-    if (rel !== STATE_REL && !fs.existsSync(dest)) {
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.copyFileSync(src, dest);
-      copied++;
-    }
-  }
-  if (archived === 0) return { status: 'noop', detail: 'no_runtime_files' };
-  if (fresh === 0 && copied === 0) return { status: 'noop', detail: 'already_archived' };
-  return { status: 'done', detail: `${archived} archived, ${copied} copied to origin` };
+  const a = archiveFile(ctx, { src: statePath, destBase: path.join(root, 'worktree', STATE_REL), original: `worktree:${STATE_REL}`, reason: 'runtime_archive', step: 'archive-runtime' });
+  if (!a.fresh) return { status: 'noop', detail: 'already_archived' };
+  return { status: 'done', detail: '1 archived' };
 }
 
 // ---- D4: ignored content inside submodules ---------------------------------
@@ -1176,14 +1053,27 @@ function deleteRemoteBranch(ctx) {
 }
 
 function deleteBranch(ctx) {
+  let localDone = false;
   const tip = branchTip(ctx);
-  if (!tip) return { status: 'noop', detail: 'no_branch' };
   const cur = git(ctx.origin, ['symbolic-ref', '-q', '--short', 'HEAD']).stdout.trim();
-  if (ctx.headRef === ctx.base || ctx.headRef === cur) return { status: 'noop', detail: 'branch_is_current_or_base' };
-  if (!/^[0-9a-f]{40}$/i.test(ctx.head)) stop('branch_moved', 'PR head sha unknown');
-  const r = git(ctx.origin, ['update-ref', '-d', `refs/heads/${ctx.headRef}`, ctx.head]);
-  if (r.status !== 0) stop('branch_moved', `${ctx.headRef} no longer at ${ctx.head}`);
-  return { status: 'done', detail: ctx.headRef };
+  if (tip && ctx.headRef !== ctx.base && ctx.headRef !== cur) {
+    if (!/^[0-9a-f]{40}$/i.test(ctx.head)) stop('branch_moved', 'PR head sha unknown');
+    const r = git(ctx.origin, ['update-ref', '-d', `refs/heads/${ctx.headRef}`, ctx.head]);
+    if (r.status !== 0) stop('branch_moved', `${ctx.headRef} no longer at ${ctx.head}`);
+    localDone = true;
+  }
+  const remote = deleteRemoteBranch(ctx);
+  if (remote.status === 'retained') {
+    ctx.remoteRetained = remote;
+  }
+  if (localDone || remote.status === 'done') {
+    const detail = remote.status === 'retained' ? `${ctx.headRef} ${remote.detail}` : ctx.headRef;
+    return { status: 'done', detail };
+  }
+  if (remote.status === 'retained') {
+    return remote;
+  }
+  return { status: 'noop', detail: 'no_branch' };
 }
 
 // Everything that can refuse, derived before the first write (exit 3).
@@ -1219,57 +1109,6 @@ function mergedRefs(ctx) {
   return ctx.refs;
 }
 
-function focusRefOf(file) {
-  const lines = fs.readFileSync(file, 'utf8').split('\n');
-  let inFocus = false;
-  for (const line of lines) {
-    if (/^current_focus:\s*$/.test(line)) { inFocus = true; continue; }
-    if (inFocus && /^\S/.test(line)) break;
-    const m = inFocus ? line.match(/^ {2}ref_id:\s*(.*?)\s*$/) : null;
-    if (m) {
-      const v = m[1].replace(/\s+#.*$/, '').replace(/^(['"])(.*)\1$/, '$2');
-      return v === '' || v === 'null' || v === '~' ? null : v;
-    }
-  }
-  return null;
-}
-
-function stateStep(ctx) {
-  const file = path.join(ctx.origin, STATE_REL);
-  if (!fs.existsSync(file)) return { status: 'noop', detail: 'no_state' };
-  const ref = focusRefOf(file);
-  if (!ref || !mergedRefs(ctx).has(ref)) return { status: 'noop', detail: 'focus_not_this_ref' };
-  // clear-focus is irreversible and STATE is gitignored: keep the bytes first.
-  archiveFile(ctx, { src: file, destBase: path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'origin', STATE_REL), original: `origin:${STATE_REL}`, reason: 'pre_clear_focus', step: 'state' });
-  const r = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'state.mjs'), 'clear-focus', '--ref', ref], { cwd: ctx.origin, encoding: 'utf8' });
-  if (r.status !== 0) stop('state_clear_failed', (r.stderr || r.stdout).trim().split('\n')[0] ?? '');
-  return { status: 'done', detail: `cleared focus ${ref}` };
-}
-
-// The generator stamps a `Generated:` line; a regeneration that differs only
-// there keeps the old bytes, so a repeat run leaves the tree untouched.
-const stripStamp = (buf) => buf.toString('utf8').split('\n').filter((l) => !l.startsWith('Generated: ')).join('\n');
-const INDEX_FILES = [INDEX_PATH, 'docs/INDEX.audit.md', 'docs/INDEX.violations.md'];
-
-function indexAudit(ctx) {
-  const before = new Map(INDEX_FILES.map((rel) => {
-    try { return [rel, fs.readFileSync(path.join(ctx.origin, rel))]; } catch { return [rel, null]; }
-  }));
-  const g = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'generate-docs-index.mjs')], { cwd: ctx.origin, encoding: 'utf8' });
-  if (g.status !== 0) stop('index_regen_failed', (g.stderr || g.stdout).trim().split('\n')[0] ?? '');
-  let changed = false;
-  for (const [rel, old] of before) {
-    const abs = path.join(ctx.origin, rel);
-    let now = null;
-    try { now = fs.readFileSync(abs); } catch { /* not produced */ }
-    if (old && now && stripStamp(old) === stripStamp(now)) { fs.writeFileSync(abs, old); continue; }
-    if (rel === INDEX_PATH && (old || now)) changed = true;
-  }
-  const a = spawnSync(process.execPath, [path.join(SCRIPT_DIR, 'docs-audit.mjs'), '--check', '--strict', '--no-event'], { cwd: ctx.origin, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  const verdict = `${a.stdout ?? ''}`.match(/^.*Verdict: .*$/m);
-  ctx.audit = verdict ? verdict[0].replace(/^#+\s*/, '').trim() : `Verdict: UNKNOWN (docs-audit exit ${a.status})`;
-  return { status: changed ? 'done' : 'noop', detail: changed ? 'index regenerated' : 'index_current' };
-}
 
 // D3/D9: the owner's verbatim direction and the judged head become one durable
 // directed_merge decision (append-only ledger, once per pr+words+head). preflight
@@ -1420,70 +1259,11 @@ function signAmendments(ctx) {
   return { status: 'done', detail: `${ctx.signed.length} signed, ${ctx.closed.length} closed` };
 }
 
-const REPORT_DIR = 'docs/ai/reports';
-const utcStamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
 
-function savedReports(ctx) {
-  const dir = path.join(ctx.origin, REPORT_DIR);
-  const re = new RegExp(`^merge-cleanup-pr${ctx.opts.pr}-.+\\.md$`);
-  try { return fs.readdirSync(dir).filter((f) => re.test(f)).sort(); } catch { return []; }
-}
 
-function renderReport(report) {
-  const list = (items, fmt) => (items.length ? items.map((i) => `- ${fmt(i)}`) : ['- none']);
-  return `${[
-    `# merge-cleanup PR #${report.pr}`,
-    '',
-    `- pr: ${report.pr}`,
-    `- merge commit: ${report.mergeCommit}`,
-    `- base: ${report.base}`,
-    `- final HEAD: ${report.head}`,
-    `- merged head: ${report.mergedHead}`,
-    ...(report.direction ? [`- direction: ${report.direction}`] : []),
-    `- audit: ${report.audit ?? 'not run'}`,
-    '',
-    '## Steps',
-    ...report.steps.map((s) => `- ${s.id}: ${s.status}${s.detail ? ` (${s.detail})` : ''}`),
-    '',
-    '## Archived',
-    ...list(report.archived, (a) => `${a.path} -> ${a.archive} [${a.reason}] sha256 ${a.sha256}`),
-    '',
-    '## Moved ledger lines',
-    ...list(report.moved ?? [], (m) => `${m.ledger} (${m.lines} line(s)) -> ${m.archive}`),
-    '',
-    '## Removed, not archived',
-    ...list(report.removed_unarchived ?? [], (p) => p),
-    '',
-    '## Retained',
-    ...list(report.retained, (r) => `${r.path} [${r.reason}]`),
-    '',
-    '## Signed',
-    ...list(report.signed ?? [], (k) => k),
-    '',
-    '## Trackers closed',
-    ...list(report.closed ?? [], (k) => k),
-    '',
-    '## No-ops',
-    ...list(report.noops, (n) => n),
-    '',
-    '## Remaining',
-    ...list(report.remaining, (r) => r),
-  ].join('\n')}\n`;
-}
-
-// A repeat run that did no work keeps the report already saved; any run that
-// did work (first run, resume, a new decision) saves its own.
 function reportStep(ctx, steps) {
-  const existing = savedReports(ctx);
-  if (existing.length > 0 && !steps.some((s) => s.status === 'done')) return { status: 'noop', detail: 'report_exists' };
-  const dir = path.join(ctx.origin, REPORT_DIR);
-  fs.mkdirSync(dir, { recursive: true });
-  let name = `merge-cleanup-pr${ctx.opts.pr}-${utcStamp()}.md`;
-  for (let n = 1; fs.existsSync(path.join(dir, name)); n++) name = `merge-cleanup-pr${ctx.opts.pr}-${utcStamp()}-${n}.md`;
-  const rel = `${REPORT_DIR}/${name}`;
-  fs.writeFileSync(path.join(dir, name), renderReport(buildReport(ctx, [...steps, { id: 'report', status: 'done', detail: rel }])));
-  ctx.reportPath = rel;
-  return { status: 'done', detail: rel };
+  if (!steps.some((s) => s.status === 'done')) return { status: 'noop', detail: 'stdout' };
+  return { status: 'done', detail: 'stdout' };
 }
 
 // ---- steps ----------------------------------------------------------------
@@ -1492,14 +1272,10 @@ const HANDLERS = {
   resolve: () => ({ status: 'read' }),
   plan: () => ({ status: 'read' }),
   'archive-runtime': archiveRuntime,
-  'archive-drafts': archiveDrafts,
   'sync-base': syncBase,
   [SIGN_STEP_ID]: signAmendments,
-  state: stateStep,
-  'index-audit': indexAudit,
   'remove-worktree': removeWorktree,
   'delete-branch': deleteBranch,
-  'delete-remote-branch': deleteRemoteBranch,
 };
 
 // plan mode: the concrete targets of each action step, derived without executing it.
@@ -1509,13 +1285,9 @@ const PLANNERS = {
     const wt = findRideWorktree(ctx);
     if (!wt) return [];
     const root = archiveRoot(ctx.origin, ctx.opts.pr);
-    const ls = git(wt.path, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--', STATE_REL, ...RUNTIME_DIRS]);
-    const rels = new Set(ls.status === 0 ? ls.stdout.split('\0').filter(Boolean) : []);
-    if (fs.existsSync(path.join(wt.path, STATE_REL))) rels.add(STATE_REL);
-    return [...rels].sort().filter((rel) => { try { return fs.lstatSync(path.join(wt.path, rel)).isFile(); } catch { return false; } })
-      .map((rel) => `worktree:${rel} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree', rel)))}`);
+    const statePath = path.join(wt.path, STATE_REL);
+    return fs.existsSync(statePath) ? [`worktree:${STATE_REL} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree', STATE_REL)))}`] : [];
   },
-  'archive-drafts': (ctx) => ctx.drafts.archive.map((i) => `${i.path} -> ${posix(path.relative(ctx.origin, path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'files', i.path)))}`),
   'sync-base': (ctx) => {
     const plan = planSync(ctx);
     if (plan.refusal || plan.noop) return [];
@@ -1538,11 +1310,6 @@ const PLANNERS = {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   },
-  state: (ctx) => {
-    const file = path.join(ctx.origin, STATE_REL);
-    const ref = fs.existsSync(file) ? focusRefOf(file) : null;
-    return ref && mergedRefs(ctx).has(ref) ? [`clear focus ${ref}`] : [];
-  },
   'remove-worktree': (ctx) => {
     const wt = findRideWorktree(ctx);
     if (!wt) return [];
@@ -1557,18 +1324,21 @@ const PLANNERS = {
         .map(([m, n]) => `archive ${n} tag${n === 1 ? '' : 's'} of ${m} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree-submodules', m, TAGS_DIR)))}`),
     ];
   },
-  'delete-branch': (ctx) => (branchTip(ctx) && ctx.headRef !== ctx.base ? [ctx.headRef] : []),
-  'delete-remote-branch': (ctx) => {
+  'delete-branch': (ctx) => {
+    const targets = [];
+    if (branchTip(ctx) && ctx.headRef !== ctx.base) targets.push(ctx.headRef);
     const p = remoteProof(ctx);
-    if (p.absent) return [];
-    if (p.retain) return [`retain origin/${ctx.headRef} (${p.retain[0]})`];
-    return [`origin/${ctx.headRef} ${ctx.head.slice(0, 12)}`];
+    if (!p.absent) {
+      if (p.retain) targets.push(`retain origin/${ctx.headRef} (${p.retain[0]})`);
+      else targets.push(`origin/${ctx.headRef} ${ctx.head.slice(0, 12)}`);
+    }
+    return targets;
   },
 };
 
 // D6: a retained remote branch is the owner's decision; done and noop leave nothing remaining.
 function remoteBranchNote(ctx, steps) {
-  const s = steps.find((x) => x.id === 'delete-remote-branch' && x.status === 'retained');
+  const s = ctx.remoteRetained || steps.find((x) => x.id === 'delete-branch' && x.status === 'retained');
   if (!s) return [];
   const [reason, ...fact] = (s.detail ?? '').split(' ');
   return [`origin/${ctx.headRef} retained (${reason}${fact.length ? `: ${fact.join(' ')}` : ''}): owner decision, not deleted`];
@@ -1601,10 +1371,7 @@ function buildReport(ctx, steps) {
     closed: ctx.closed ?? [],
     ...(ctx.reportPath ? { report: ctx.reportPath } : {}),
     remaining: [
-      ...(ctx.audit && !/Verdict: CLEAN/.test(ctx.audit) ? [`docs-audit ${ctx.audit}: owner action, not auto-remediated`] : []),
-      ...ctx.drafts.retained
-        .filter((r) => ['divergent_content', 'unverifiable_history', 'divergent_after_plan'].includes(r.reason))
-        .map((r) => `${r.path} (${r.reason}): owner decision; archive with --archive-divergent`),
+      ...ctx.drafts.retained.map((r) => `${r.path}: unexpected leftover draft; owner decision`),
       ...remoteBranchNote(ctx, steps),
     ],
   };
@@ -1624,36 +1391,12 @@ function emit(report, json) {
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
-// D12: after sync-base, run the engine file again once when the merge replaced the very file this
-// process was loaded from. The parent writes nothing to stdout; the child inherits stdio and its exit
-// code becomes ours. REEXEC_ENV (honoured in production, D13) holds the parent's sha and stops a second hop.
-function reexecIfReplaced(ctx) {
-  if (process.env[REEXEC_ENV]) return null;
-  if (!ENGINE_FILE.startsWith(ctx.origin + path.sep)) return null;
-  let now;
-  try { now = sha256(fs.readFileSync(ENGINE_FILE)); } catch { return null; }
-  if (now === ENGINE_STARTUP_SHA) return null;
-  const detail = `${ENGINE_STARTUP_SHA.slice(0, 12)} -> ${now.slice(0, 12)}`;
-  appendJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'journal.jsonl'), { step: 'reexec', status: 'done', detail, timestamp: new Date().toISOString() });
-  process.stderr.write(`merge-cleanup: engine replaced by sync-base (${detail}); re-executing once\n`);
-  // the child's stdout is held: forwarded only for the exits the engine defines (0 done, 4 stopped);
-  // anything else becomes one STOPPED line, because the parent has already written (never "nothing written")
-  const r = spawnSync(process.execPath, [...process.execArgv, ENGINE_FILE, ...process.argv.slice(2)], {
-    stdio: ['inherit', 'pipe', 'inherit'], maxBuffer: 256 * 1024 * 1024, env: { ...process.env, [REEXEC_ENV]: ENGINE_STARTUP_SHA },
-  });
-  if (r.error) stop('reexec_failed', r.error.message);
-  const out = r.stdout ? r.stdout.toString() : '';
-  if (r.status === 0 || r.status === 4) { process.stdout.write(out); return exit(r.status); }
-  if (out) process.stderr.write(out);
-  return stop(`reexec_child_exit_${r.status ?? r.signal ?? 'unknown'}`);
-}
-
 function runApplyOrPlan(opts) {
   const stopAfter = seam('AAI_MERGE_CLEANUP_STOP_AFTER');
   if (stopAfter && !STEP_IDS.includes(stopAfter)) usage(`AAI_MERGE_CLEANUP_STOP_AFTER names an unknown step: ${stopAfter}`);
   const origin = resolveOrigin(opts);
   const gate = readAndGate(opts, origin);
-  const drafts = classifyDrafts(origin, gate, opts);
+  const drafts = classifyDrafts(origin);
   const ctx = { opts, origin, ...gate, drafts };
   planChecks(ctx);
   const steps = [];
@@ -1674,20 +1417,10 @@ function runApplyOrPlan(opts) {
     const res = id === 'report' ? (opts.mode === 'apply' ? reportStep(ctx, steps) : { status: 'read' }) : HANDLERS[id](ctx);
     steps.push({ id, status: res.status, ...(res.detail ? { detail: res.detail } : {}) });
     if (res.status === 'done') appendJsonl(journal, { step: id, status: 'done', detail: res.detail ?? '', timestamp: new Date().toISOString() });
-    if (id === 'sync-base' && opts.mode === 'apply') {
-      // D14: the re-executed run reports that it is the reloaded engine
-      const from = process.env[REEXEC_ENV] ?? '';
-      if (/^[0-9a-f]{64}$/.test(from) && from !== ENGINE_STARTUP_SHA) {
-        const detail = `engine ${from.slice(0, 12)} -> ${ENGINE_STARTUP_SHA.slice(0, 12)} after sync-base`;
-        steps.push({ id: 'reload-engine', status: 'done', detail });
-        appendJsonl(journal, { step: 'reload-engine', status: 'done', detail, timestamp: new Date().toISOString() });
-      }
-    }
     if (opts.mode === 'apply' && stopAfter === id) {
       process.stdout.write(`STOPPED after ${id}\n`);
       exit(4);
     }
-    if (id === 'sync-base' && opts.mode === 'apply') reexecIfReplaced(ctx);
   }
   emit(buildReport(ctx, steps), opts.json);
   exit(0);
@@ -1697,15 +1430,6 @@ function runApplyOrPlan(opts) {
 
 // A rollup entry is green when it is a completed check with SUCCESS, NEUTRAL or
 // SKIPPED, or a status context in state SUCCESS. Anything else - failed,
-// cancelled, still running or pending - is not.
-function rollupGreen(e) {
-  if (e && typeof e.status === 'string' && e.status !== '') {
-    return e.status === 'COMPLETED' && ['SUCCESS', 'NEUTRAL', 'SKIPPED'].includes(e.conclusion);
-  }
-  if (e && typeof e.state === 'string') return e.state === 'SUCCESS';
-  return false;
-}
-
 // D7: the records the owner's direction will sign once this PR is merged - the unsigned
 // contract records of the rides the ride checkout delivers (HEAD against its merge base with
 // origin/<base>, the same done + links.pr predicate apply uses), read from that checkout's
@@ -1746,10 +1470,6 @@ function runPreflight(opts) {
   if (pr.isDraft) refuse('draft', `PR #${opts.pr} is a draft`);
   const head = pr.headRefOid ?? '';
   if (head.toLowerCase() !== opts.expectHead.toLowerCase()) refuse('head_changed', `PR head ${head || 'unknown'}, expected ${opts.expectHead}`);
-  const rollup = Array.isArray(pr.statusCheckRollup) ? pr.statusCheckRollup : [];
-  const bad = rollup.filter((e) => !rollupGreen(e));
-  if (bad.length > 0) refuse('checks_failing', bad.map((e) => `${e.name ?? e.context ?? 'check'}=${e.conclusion || e.state || e.status || 'unknown'}`).join(','));
-  if (pr.mergeStateStatus !== 'CLEAN') refuse('not_mergeable', `mergeStateStatus=${pr.mergeStateStatus ?? 'unknown'}`);
   // NB-1: lane-gate judges the sweep record against THIS checkout's HEAD while the
   // printed merge command binds the PR head; the two must be one commit, or a push
   // made elsewhere would be merged on the strength of a sweep that never saw it.

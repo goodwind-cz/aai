@@ -59,12 +59,11 @@ Describe 'merge cleanup PowerShell parity' {
     Assert-Native git @('-C', $Origin, 'commit', '-qm', 'baseline and installed layer')
     Assert-Native git @('-C', $Origin, 'push', '-q', 'origin', 'main')
     Assert-Native git @('-C', $Origin, 'fetch', '-q', 'origin')
-    Write-Text (Join-Path $Origin 'docs/issues/ISSUE-DRAFT-foo.md') $issueDraft
-    Write-Text (Join-Path $Origin 'docs/specs/SPEC-DRAFT-spec-foo.md') $specDraft
 
     Assert-Native git @('-C', $Origin, 'worktree', 'add', '-q', '-b', $Branch, $Ride, 'main')
     Set-RepoIdentity $Ride
     Assert-Native node @((Join-Path $Origin '.aai/scripts/worktree-seed.mjs'), '--source', $Origin, '--target', $Ride)
+    Write-Text (Join-Path $Ride 'docs/ai/STATE.yaml') "current_focus:`n  ref_id: foo`n"
     Write-Text (Join-Path $Ride 'docs/issues/ISSUE-DRAFT-foo.md') $issueDraft
     Write-Text (Join-Path $Ride 'docs/specs/SPEC-DRAFT-spec-foo.md') $specDraft
     Assert-Native git @('-C', $Ride, 'add', 'docs/issues/ISSUE-DRAFT-foo.md', 'docs/specs/SPEC-DRAFT-spec-foo.md')
@@ -150,7 +149,7 @@ process.exit(1);
     ($lines -join "`n") | Should -BeLike '*REFUSE worktree_dirty*'
     (Test-Path -LiteralPath $Ride) | Should -BeTrue
     (& git -C $Origin show-ref --verify "refs/heads/$Branch") | Should -Not -BeNullOrEmpty
-    (Test-Path -LiteralPath (Join-Path $Origin 'docs/issues/ISSUE-DRAFT-foo.md')) | Should -BeTrue
+    (Test-Path -LiteralPath (Join-Path $Ride 'docs/ai/STATE.yaml')) | Should -BeTrue
   }
 
   It 'TEST-016 cleans up the merged ride from inside the worktree on a spaced path' {
@@ -173,9 +172,8 @@ process.exit(1);
     $LASTEXITCODE | Should -Not -Be 0
     (Test-Path -LiteralPath (Join-Path $Origin 'docs/issues/ISSUE-0001-foo.md')) | Should -BeTrue
     (Test-Path -LiteralPath (Join-Path $Origin 'docs/specs/SPEC-0001-spec-foo.md')) | Should -BeTrue
-    (Test-Path -LiteralPath (Join-Path $Origin 'docs/issues/ISSUE-DRAFT-foo.md')) | Should -BeFalse
-    (Test-Path -LiteralPath (Join-Path $Origin 'docs/specs/SPEC-DRAFT-spec-foo.md')) | Should -BeFalse
-    (Get-Content -LiteralPath (Join-Path $Origin "docs/ai/archive/merge-cleanup/pr-$Pr/manifest.jsonl")).Count | Should -Be 2
+    (Test-Path -LiteralPath (Join-Path $Origin "docs/ai/archive/merge-cleanup/pr-$Pr/worktree/docs/ai/STATE.yaml")) | Should -BeTrue
+    (Get-Content -LiteralPath (Join-Path $Origin "docs/ai/archive/merge-cleanup/pr-$Pr/manifest.jsonl")).Count | Should -Be 1
     (& git -C $Origin rev-parse HEAD).Trim() | Should -Be $Mc
     # spec-merge-cleanup-delete-remote-branch D9/D10: the merged remote branch is gone and the block cleared the variable
     & git -C $Bare show-ref --verify -q "refs/heads/$Branch" 2>$null
