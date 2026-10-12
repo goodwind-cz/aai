@@ -24,7 +24,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased] — chore(release): a release is a PR, and CI tags and publishes it after the merge (release-tagged-by-ci-after-merge)
 
-- `/aai-release --confirm` always builds the release commit on `chore/release-<version>` in its own temporary worktree from `origin/main` and opens a release PR. The caller's checkout is never touched, so a detached HEAD or a dirty main checkout no longer matters.
+- `/aai-release --confirm` builds the release commit on `chore/release-<version>` in its own temporary worktree from the target branch on origin (`origin/main` here), pushes that branch and opens a release PR. With `--no-remote` it stops after the local release branch, without push or PR. The caller's checkout is never touched, so a detached HEAD or a dirty main checkout no longer matters.
 - The script no longer pushes to the target branch, creates a local tag or calls `gh release create`. The protected-branch fallback, the pre-cut reset and exits 17 and 18 are gone.
 - `.github/workflows/release.yml` also runs on a push to `main`. For a `chore(release): <version>` commit it creates the annotated tag on the merge commit and publishes the GitHub release from that version's CHANGELOG sections. Re-runs are idempotent. Downstream projects without this workflow tag and publish after the merge, or vendor `release.yml`.
 - The golden-flow coupling and its release-time warning are dropped. The missing-notes check now recognises `(#N)`, `#N` and `goodwind-cz/aai#N`.
