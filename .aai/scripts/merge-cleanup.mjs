@@ -5,8 +5,7 @@
 //   merge-cleanup.mjs preflight --pr <n> --expect-head <sha> --directed-by human
 //                               --direction "<verbatim owner words>" [--origin <abs>] [--json]
 //   merge-cleanup.mjs plan  --pr <n> [--origin <abs>] [--json]
-//   merge-cleanup.mjs apply --pr <n> --pid <harness pid> [--origin <abs>]
-//                               [--archive-divergent <path>]... [--json]
+//   merge-cleanup.mjs apply --pr <n> --pid <harness pid> [--origin <abs>] [--json]
 //
 // EXIT CONTRACT
 //   0  complete (every eligible step done or a named no-op)
@@ -57,7 +56,7 @@ const HELP = `merge-cleanup.mjs <preflight|plan|apply> --pr <n> [options]
 merge-cleanup.mjs sign-merged --authority-ts <ISO ts> [--exclude <fu-id>]... [--base <name>] [--origin <abs>] [--dry-run] [--json]
   sign-merged  sign the unsigned contract amendments of every merged ride of the open
                fu-amend-* trackers on one by=human hitl_decision (no --pr)
-options: --origin <abs> --json --archive-divergent <path> (apply, repeatable)
+options: --origin <abs> --json
          --direction "<owner's words>" (apply: recorded with the merged head)
          --origin defaults to the main checkout (the first git worktree), in every mode;
          pass it to read and write a ride worktree's ledger instead
@@ -102,7 +101,7 @@ function stop(reason, detail = '') {
 }
 
 function parseArgs(argv) {
-  const out = { archiveDivergent: [], json: false };
+  const out = { json: false };
   const mode = argv[0];
   if (!['preflight', 'plan', 'apply'].includes(mode)) usage(`unknown or missing mode: ${mode ?? '(none)'}`);
   out.mode = mode;
@@ -113,12 +112,6 @@ function parseArgs(argv) {
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--json') { out.json = true; continue; }
-    if (a === '--archive-divergent') {
-      if (mode !== 'apply') usage('--archive-divergent is an apply option');
-      if (i + 1 >= argv.length || argv[i + 1] === '') usage('--archive-divergent requires a path');
-      out.archiveDivergent.push(argv[++i]);
-      continue;
-    }
     if (Object.hasOwn(valueFlags, a)) {
       if (i + 1 >= argv.length) usage(`${a} requires a value`);
       out[valueFlags[a]] = argv[++i];

@@ -2355,7 +2355,6 @@ test_038_absent_noop_and_idempotent() {
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-038 "race-absent arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
   [[ "$(rstep "$ENG_OUT" status)" == done ]] || fail TEST-038 "race-absent arm: step is '$(rstep "$ENG_OUT" status)', want done"
   unwanted TEST-038 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
-  unwanted TEST-038 "$(json_get "$ENG_OUT" 'j.remaining')" "origin/$BRANCH"
   # arm rerun: a second apply after a successful first one is a full no-op
   build_world remote_rerun
   run_engine apply --pr "$PR" --pid 4242 --json
