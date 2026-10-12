@@ -2,18 +2,17 @@
 # AAI release-cut engine — one deterministic command for /aai-release.
 #
 # Rolls the repo root's CHANGELOG.md `[unreleased]` blocks into a versioned
-# section, commits, creates an annotated tag, publishes a GitHub release with
-# notes derived from that section, and pushes — behind an operator gate with
-# a safe default (plan-only) mode. Works identically releasing AAI itself or
-# a downstream project that has the AAI layer deployed: its only inputs are
-# the repo root, its CHANGELOG.md, and its git/gh remote.
+# section, commits in an isolated temporary worktree, pushes a release branch,
+# and opens a release PR — behind an operator gate with a safe default
+# (plan-only) mode. On merge to main, CI creates the annotated tag and
+# publishes the GitHub release.
 #
 # Usage (run from anywhere inside the target repo):
 #   ./.aai/scripts/aai-release.sh                       # plan-only (default-safe), no writes
 #   ./.aai/scripts/aai-release.sh --dry-run             # same as bare invocation, explicit
 #   ./.aai/scripts/aai-release.sh --version v1.2.3      # verbatim version (any scheme)
-#   ./.aai/scripts/aai-release.sh --confirm             # CUT: roll+commit+tag(+push+publish)
-#   ./.aai/scripts/aai-release.sh --confirm --no-remote # CUT, skip push + gh release create
+#   ./.aai/scripts/aai-release.sh --confirm             # CUT: open release PR
+#   ./.aai/scripts/aai-release.sh --confirm --no-remote # CUT, skip push + gh pr create
 #   AAI_RELEASE_DATE=2026-07-20 ./.aai/scripts/aai-release.sh --dry-run
 #                                                        # pin the CalVer date (tests)
 #   AAI_RELEASE_NO_REMOTE=1 ./.aai/scripts/aai-release.sh --confirm
@@ -24,11 +23,8 @@
 #
 # Exit codes: 0 success (plan or cut) | 1 bad argument | 10 not a git repo |
 #   11 no CHANGELOG.md | 12 malformed [unreleased] region | 13 no rollable
-#   [unreleased] entries (absent/empty) | 14 dirty working tree (cut path) |
-#   15 tag already exists (cut path) | 16 gh absent/unauthenticated (publish
-#   path only; dry-run works offline) | 17 target branch is protected: fell
-#   back to a release branch + PR, release NOT published | 18 protected-branch
-#   fallback engaged but INCOMPLETE (see the report's manual commands).
+#   [unreleased] entries (absent/empty) | 15 tag already exists (cut path) |
+#   16 gh absent/unauthenticated (when remote PR creation is attempted).
 set -euo pipefail
 
 VERSION=""
@@ -38,44 +34,6 @@ NO_REMOTE=0
 [[ "${AAI_RELEASE_NO_REMOTE:-0}" == "1" ]] && NO_REMOTE=1
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
-
-# D1 classifier: is this captured push output a protected-branch/required-
-# status-checks rejection? GitHub's own token `GH006`, or the host-agnostic
-# wording pair, both case-insensitively. Deliberately narrow: every OTHER
-# failure class (auth, network, non-fast-forward) must keep today's raw
-# behavior, so a miss degrades to "re-emit and exit with git's code", never to
-# a wrong recovery (Constitution article 4; SEAM-5 residual risk).
-is_protected_branch_rejection() {
-  local text
-  text="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
-  case "$text" in
-    *gh006*) return 0 ;;
-  esac
-  case "$text" in
-    *"protected branch"*)
-      case "$text" in
-        *"status check"*) return 0 ;;
-      esac
-      ;;
-  esac
-  return 1
-}
-
-# df_conflict_ref <git-branch-stderr-text> — pulls the pre-existing ref out of
-# git's own D/F (directory/file) conflict message on `git branch <name> <sha>`
-# ("cannot lock ref 'refs/heads/X': 'refs/heads/X/Y' exists; cannot create
-# 'refs/heads/X'") so the protected-branch fallback (TEST-648) can NAME the
-# ref actually blocking creation instead of repeating the exact command that
-# just failed and will fail again the same way. Matched literally on git's own
-# wording, not a generic ref-name regex, so a miss (a different `git branch`
-# failure, or a future git message change) prints nothing rather than
-# inventing a wrong ref name — the caller falls back to the generic recipe.
-df_conflict_ref() {
-  local text="$1"
-  if [[ "$text" =~ cannot\ lock\ ref\ \'[^\']+\':\ \'([^\']+)\'\ exists\;\ cannot\ create ]]; then
-    printf '%s' "${BASH_REMATCH[1]}"
-  fi
-}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -88,7 +46,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# D4: --dry-run always wins over --confirm (safe by construction).
 if [[ "$DRY_RUN" == "1" ]]; then
   CONFIRM=0
 fi
@@ -97,126 +54,50 @@ OUT=""
 NOTES=""
 PUSH_LOG=""
 PR_OUT=""
+WT_DIR=""
 cleanup() {
-  # A trap handler's own final exit status would otherwise silently replace
-  # the script's real exit code (bash trap semantics) — every path ends in
-  # `|| true` so the caller always sees the code the script exited with.
   [[ -n "$OUT" && -f "$OUT" ]] && rm -f "$OUT"
   [[ -n "$NOTES" && -f "$NOTES" ]] && rm -f "$NOTES"
   [[ -n "$PUSH_LOG" && -f "$PUSH_LOG" ]] && rm -f "$PUSH_LOG"
   [[ -n "$PR_OUT" && -f "$PR_OUT" ]] && rm -f "$PR_OUT"
+  if [[ -n "$WT_DIR" && -d "$WT_DIR" ]]; then
+    git -C "$ROOT" worktree remove --force "$WT_DIR" >/dev/null 2>&1 || rm -rf "$WT_DIR"
+  fi
   true
 }
 trap cleanup EXIT
 
-# --- golden-flow record precondition (simple-and-friendly-to-use D4). A release
-# is the cadence the PRD asks the golden flow to run at, and a missing record is
-# what "we never measured this release" looks like. NAMED, never blocking (the
-# same posture as the unlogged-PR check below): a release has one shot. Prints
-# ONE line when no docs/ai/tests/golden-flow.jsonl record has a run_utc newer
-# than the previous tag's commit date (or the file is absent), nothing otherwise
-# — so a repo with a fresh record keeps its block byte-identical. Arms only
-# where the command it names exists (.aai/scripts/golden-flow.mjs): a repo that
-# never vendored the flow cannot be told to run it.
-golden_flow_record_gap() {
-  local prev rec_utc last newer_tag
-  prev="$(git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null || true)"
-  [ -n "$prev" ] || return 0
-  [ -f "$ROOT/.aai/scripts/golden-flow.mjs" ] || return 0
-  if [ ! -s "$ROOT/docs/ai/tests/golden-flow.jsonl" ]; then
-    echo "no record file (docs/ai/tests/golden-flow.jsonl) since $prev"
-    return 0
-  fi
-  # The newest record is the last line; the writer serializes run_utc as
-  # "run_utc":"<ISO-8601Z>", so a fixed sed on that key is the whole parser.
-  last="$(tail -n 1 "$ROOT/docs/ai/tests/golden-flow.jsonl")"
-  rec_utc="$(printf '%s\n' "$last" | sed -n 's/.*"run_utc":"\([^"]*\)".*/\1/p')"
-  if [ -z "$rec_utc" ]; then
-    echo "newest record carries no run_utc, so nothing proves a run since $prev"
-    return 0
-  fi
-  # A non-empty but UNPARSABLE run_utc must be NAMED, not handed to git:
-  # git's approxidate resolves garbage to `now`, so `--after=<garbage>` lists
-  # nothing, the comparison below stays silent, and a release with no evidence
-  # reads as ready — the exact silence D4 exists to remove. golden-flow.mjs
-  # serializes run_utc as `new Date().toISOString()` with the milliseconds
-  # stripped, so the shape is fixed and the check is a glob, not a parser.
-  case "$rec_utc" in
-    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
-    *)
-      echo "newest record carries an unparsable run_utc (\"$rec_utc\"), so nothing proves a run since $prev"
-      return 0
-      ;;
-  esac
-  # git compares the dates: the tag's commit is listed under --after=<run_utc>
-  # only when it is newer than the record (no date(1) parsing, which differs
-  # between BSD and GNU).
-  newer_tag="$(git -C "$ROOT" log -1 --after="$rec_utc" --format=%H "$prev" 2>/dev/null || true)"
-  if [ -n "$newer_tag" ]; then
-    echo "newest record $rec_utc is older than $prev ($(git -C "$ROOT" log -1 --format=%ci "$prev" 2>/dev/null || true))"
-  fi
-  return 0
-}
-
-# --- unlogged-PR precondition (spec-lessons-that-must-hold-downstream-are-guards
-# D2). The cut rolls up "## [unreleased]" sections; a PR merged since the previous
-# tag that never wrote one is omitted SILENTLY. v2026.09.06 would have shipped
-# notes covering seven fixes while omitting /aai-live, the roadmap ride gate and
-# answering from the dashboard — the three things an operator would notice. This
-# NAMES them; it never blocks, because a release has one shot and a PR whose
-# section merged under another title is a false positive.
+# --- unlogged-PR precondition
 unlogged_prs() {  # $1 = rolled-up notes file
   local notes="$1" prev
   prev="$(git describe --tags --abbrev=0 2>/dev/null || true)"
   [ -n "$prev" ] || return 0
-  # `|| true` on the pipeline as well as on both call sites. The call sites make
-  # `set -e` dormant inside this function today, but that exemption depends on
-  # the caller's shape; a future direct call would inherit an abort from a
-  # transient git failure, and this precondition must never be why a cut dies.
   git log --format='%s' "$prev"..HEAD 2>/dev/null | while IFS= read -r subj; do
-    # Two merge strategies, two subject shapes. Squash gives `title (#310)`;
-    # GitHub's merge-commit gives `Merge pull request #310 from org/branch`,
-    # which the first pattern alone skipped silently — so a PR merged that way
-    # went unnamed while this block promised to name every merged PR (bot
-    # review, PR #349; the shape exists in this history at 2bf1a3c).
     case "$subj" in
       *'(#'*')'*) ;;
       'Merge pull request #'*)
         mnum="${subj#Merge pull request #}"; mnum="${mnum%% *}"
         case "$mnum" in ''|*[!0-9]*) continue ;; esac
-        grep -qF -- "(#${mnum})" "$notes" 2>/dev/null || echo "#${mnum} (merge commit, no subject text)"
+        grep -qE -- "(#|/)${mnum}\b" "$notes" 2>/dev/null || echo "#${mnum} (merge commit, no subject text)"
         continue
         ;;
       *) continue ;;
     esac
-    # Take the LAST "(#" for the number and the text BEFORE that same token for
-    # the body. Splitting the number off the last token while truncating the
-    # body at the FIRST one made `fix(x): a (#12) thing (#340)` search the notes
-    # for `fix(x): a`, which matches almost anything (round-two review).
     num="${subj##*(#}"; num="${num%%)*}"
     case "$num" in ''|*[!0-9]*) continue ;; esac
     body="${subj% (#${num})*}"
-    # `--` before the pattern: a commit subject beginning with a dash otherwise
-    # reaches grep as an option ("invalid option", rc=2), which reads as "not
-    # found" and names a PR that IS logged (code review, 2026-09-06).
-    # An empty body would make `grep -qF -- ""` match every file and silently
-    # mark the PR as logged, so the number is then the only evidence.
     if [ -z "$body" ]; then
-      grep -qF -- "(#${num})" "$notes" 2>/dev/null || echo "#${num} (no subject text)"
+      grep -qE -- "(#|/)${num}\b" "$notes" 2>/dev/null || echo "#${num} (no subject text)"
       continue
     fi
-    if ! grep -qF -- "(#${num})" "$notes" 2>/dev/null && ! grep -qF -- "$body" "$notes" 2>/dev/null; then
+    if ! grep -qE -- "(#|/)${num}\b" "$notes" 2>/dev/null && ! grep -qF -- "$body" "$notes" 2>/dev/null; then
       echo "#${num} ${body}"
     fi
   done || true
-  # This precondition NAMES; it must never be the reason a release fails. Under
-  # `set -euo pipefail` a non-zero from the pipeline above would propagate out of
-  # the command substitution and abort the whole run with no output at all —
-  # the exact HAZ this scope was told to avoid.
   return 0
 }
 
-# --- D6 ALWAYS-checked preconditions (a)/(b): not a git repo / no CHANGELOG --
+# --- ALWAYS-checked preconditions: not a git repo / no CHANGELOG --
 if ! ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   echo "REFUSED: not a git repository (cwd=$(pwd))." >&2
   exit 10
@@ -227,13 +108,10 @@ if [[ ! -f "$CHANGELOG" ]]; then
   exit 11
 fi
 
-# Snapshot the dirty-tree state NOW, before this script creates its own temp
-# file inside $ROOT below — a later check would see our own scratch file and
-# falsely report a clean tree as dirty.
 DIRTY=0
 [[ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]] && DIRTY=1
 
-# --- D3: version resolution (verbatim else CalVer, clock-controllable) ------
+# --- Version resolution
 if [[ -z "$VERSION" ]]; then
   if [[ -n "${AAI_RELEASE_DATE:-}" ]]; then
     VERSION="v${AAI_RELEASE_DATE//-/.}"
@@ -242,16 +120,14 @@ if [[ -z "$VERSION" ]]; then
   fi
 fi
 
-# --- D1: CHANGELOG rollup transform (line-surgical, byte-preserved) --------
-# Full-template mktemp (no `-t <bare>`): the CHANGELOG's own temp is created
-# IN ITS OWN DIRECTORY so the final `mv` below is an atomic same-filesystem
-# rename. The notes temp lives under TMPDIR (consumed only by `gh`, no
-# atomicity requirement).
+# --- CHANGELOG rollup transform
 OUT="$(mktemp "$ROOT/.aai-release-changelog.XXXXXX")"
 NOTES="$(mktemp "${TMPDIR:-/tmp}/aai-release-notes.XXXXXX")"
 
-rollup_rc=0
-awk -v version="$VERSION" -v outfile="$OUT" -v notesfile="$NOTES" -f - "$CHANGELOG" <<'AWKPROG' || rollup_rc=$?
+perform_rollup() {
+  local in_file="$1" out_file="$2" notes_file="$3"
+  local rc=0
+  awk -v version="$VERSION" -v outfile="$out_file" -v notesfile="$notes_file" -f - "$in_file" <<'AWKPROG' || rc=$?
 { L[NR] = $0 }
 END {
   n = NR
@@ -315,11 +191,6 @@ END {
       print newline > outfile
       nc++; NL[nc] = newline
     } else if (type[k] == "SCAFFOLD") {
-      # Pre-existing bare scaffolds are CONSUMED, not copied: the roll inserts
-      # exactly one fresh scaffold above the rolled section, and copying the
-      # old one through produced a duplicate bare heading INSIDE the versioned
-      # region on every cut (the recurring class TEST-022 pins at PR time —
-      # but this engine writes directly to main, so it must not plant it).
       continue
     } else {
       print L[hi] > outfile
@@ -336,6 +207,11 @@ END {
   for (i = s; i <= e; i++) print NL[i] > notesfile
 }
 AWKPROG
+  return $rc
+}
+
+rollup_rc=0
+perform_rollup "$CHANGELOG" "$OUT" "$NOTES" || rollup_rc=$?
 
 case "$rollup_rc" in
   0) : ;;
@@ -347,9 +223,6 @@ case "$rollup_rc" in
      exit 12 ;;
 esac
 
-# Preserve the original file's final-newline state (byte fidelity, D1 step 5):
-# command substitution strips ALL trailing newlines, reproducing "no trailing
-# newline" exactly when the source had none.
 if [[ -s "$CHANGELOG" ]]; then
   last_byte="$(tail -c1 "$CHANGELOG" | od -An -tx1 2>/dev/null | tr -d ' \n')"
   if [[ "$last_byte" != "0a" ]]; then
@@ -357,7 +230,6 @@ if [[ -s "$CHANGELOG" ]]; then
   fi
 fi
 
-# --- D6 CUT-path gates (d)/(e)/(f): dirty tree (snapshotted above) / existing tag / gh auth ----
 TAG_EXISTS=0
 git -C "$ROOT" rev-parse -q --verify "refs/tags/$VERSION" >/dev/null 2>&1 && TAG_EXISTS=1
 
@@ -371,7 +243,15 @@ if [[ "$NO_REMOTE" != "1" ]]; then
   fi
 fi
 
-BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+TARGET_BRANCH="$(git -C "$ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || true)"
+if [[ -z "$TARGET_BRANCH" ]]; then
+  if git -C "$ROOT" rev-parse -q --verify refs/remotes/origin/main >/dev/null 2>&1 || git -C "$ROOT" rev-parse -q --verify refs/heads/main >/dev/null 2>&1; then
+    TARGET_BRANCH="main"
+  else
+    TARGET_BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")"
+    [[ "$TARGET_BRANCH" != "HEAD" ]] || TARGET_BRANCH="main"
+  fi
+fi
 
 if [[ "$CONFIRM" != "1" ]]; then
   # --- PLAN-ONLY (bare invocation or --dry-run): print the plan, write nothing.
@@ -389,7 +269,6 @@ if [[ "$CONFIRM" != "1" ]]; then
   echo
   echo "## Preconditions"
   blocked=0
-  [[ "$DIRTY" == "1" ]] && { echo "- would block: working tree is dirty"; blocked=1; }
   [[ "$TAG_EXISTS" == "1" ]] && { echo "- would block: tag $VERSION already exists"; blocked=1; }
   [[ "$GH_BLOCK" == "1" ]] && { echo "- would block (publish path): $GH_REASON"; blocked=1; }
   UNLOGGED="$(unlogged_prs "$NOTES" || true)"
@@ -398,18 +277,7 @@ if [[ "$CONFIRM" != "1" ]]; then
     printf '%s\n' "$UNLOGGED" | sed 's/^/    - /'
     echo "    Add a '## [unreleased] — <title>' section for each, or confirm they are covered under another title."
   fi
-  GOLDEN_GAP="$(golden_flow_record_gap || true)"
-  if [[ -n "$GOLDEN_GAP" ]]; then
-    echo "- NAMED (not blocking): no golden-flow record since the previous tag — $GOLDEN_GAP."
-    # A CONCRETE scratch dir, not a placeholder: the flow rebuilds <out>/target,
-    # which is the build-output directory of Rust/Maven/Gradle. golden-flow.mjs
-    # refuses a non-empty --out it did not create, and mktemp makes an empty one.
-    echo "    Produce one with: node .aai/scripts/golden-flow.mjs --out \"\$(mktemp -d)\" --metrics docs/ai/METRICS.jsonl"
-  fi
-  # "none" must mean the whole block found nothing. Saying "none — ready to cut"
-  # directly under a list of named PRs is the report contradicting itself in the
-  # one document an operator reads before cutting (code review, 2026-09-06).
-  if [[ "$blocked" == "0" && -z "$UNLOGGED" && -z "$GOLDEN_GAP" ]]; then
+  if [[ "$blocked" == "0" && -z "$UNLOGGED" ]]; then
     echo "- none — ready to cut with --confirm"
   elif [[ "$blocked" == "0" ]]; then
     echo "- nothing blocks the cut; the NAMED item above is for you to confirm first"
@@ -417,18 +285,14 @@ if [[ "$CONFIRM" != "1" ]]; then
   echo
   echo "## Remote"
   if [[ "$NO_REMOTE" == "1" ]]; then
-    echo "- --no-remote / AAI_RELEASE_NO_REMOTE=1: push + gh release create would be SKIPPED"
+    echo "- --no-remote / AAI_RELEASE_NO_REMOTE=1: push + gh pr create would be SKIPPED"
   else
-    echo "- push ($BRANCH + tag $VERSION) and 'gh release create' WOULD run against this repo's remote"
+    echo "- push (branch chore/release-$VERSION) and 'gh pr create' (base $TARGET_BRANCH) WOULD run against this repo's remote; CI will tag and publish upon merge"
   fi
   exit 0
 fi
 
-# --- CONFIRM (the cut): fail-closed, zero writes on any refusal below ------
-if [[ "$DIRTY" == "1" ]]; then
-  echo "REFUSED: working tree is dirty — commit or stash before cutting a release." >&2
-  exit 14
-fi
+# --- CONFIRM (the cut): fail-closed
 if [[ "$TAG_EXISTS" == "1" ]]; then
   echo "REFUSED: tag $VERSION already exists." >&2
   exit 15
@@ -438,11 +302,6 @@ if [[ "$GH_BLOCK" == "1" ]]; then
   exit 16
 fi
 
-# The unlogged-PR precondition also runs on the REAL cut, not only the dry run.
-# `--confirm` is a documented, supported invocation: an operator who cuts
-# directly was previously never told a merged PR had no section, which is the
-# whole omission this precondition exists to surface (code review, 2026-09-06).
-# It NAMES and never blocks here either — a release has one shot.
 UNLOGGED_CUT="$(unlogged_prs "$NOTES" || true)"
 if [[ -n "$UNLOGGED_CUT" ]]; then
   echo "NOTE (not blocking): $(printf '%s\n' "$UNLOGGED_CUT" | wc -l | tr -d ' ') PR(s) merged since the previous tag have no matching section in these notes:" >&2
@@ -450,19 +309,45 @@ if [[ -n "$UNLOGGED_CUT" ]]; then
   echo "  They are being released WITHOUT a notes entry. Re-run with --dry-run to review." >&2
 fi
 
-# --- D7 cut sequence: rewrite -> add -> commit -> tag -> (push + publish) --
-# D3 step 2: the target branch's pre-cut position, captured BEFORE the release
-# commit exists. The protected-branch fallback resets the target branch back to
-# exactly this SHA, so the cut leaves the branch as it found it.
-PRE_CUT_SHA="$(git -C "$ROOT" rev-parse HEAD)"
+# --- CUT IN TEMPORARY WORKTREE
+RELEASE_BRANCH="chore/release-$VERSION"
 
-mv -f "$OUT" "$CHANGELOG"
-OUT=""
+BASE_REF=""
+if git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/$TARGET_BRANCH" >/dev/null 2>&1; then
+  BASE_REF="origin/$TARGET_BRANCH"
+elif git -C "$ROOT" rev-parse -q --verify "refs/heads/$TARGET_BRANCH" >/dev/null 2>&1; then
+  BASE_REF="$TARGET_BRANCH"
+else
+  BASE_REF="HEAD"
+fi
 
-# AAI_VERSION.md: the version stamp aai-sync reads to fill `Template version:`
-# in a target project's AAI_PIN.md. Without it every downstream pin said
-# UNKNOWN (operator-found after the v2026.08.03 deployment check).
-mkdir -p "$ROOT/docs/ai"
+if git -C "$ROOT" rev-parse -q --verify "refs/heads/$RELEASE_BRANCH" >/dev/null 2>&1; then
+  EXISTING_SUBJECT="$(git -C "$ROOT" log -1 --format=%s "refs/heads/$RELEASE_BRANCH" 2>/dev/null || true)"
+  if [[ "$EXISTING_SUBJECT" == "chore(release): $VERSION"* ]] || git -C "$ROOT" merge-base --is-ancestor "$RELEASE_BRANCH" "$BASE_REF" 2>/dev/null; then
+    git -C "$ROOT" branch -D "$RELEASE_BRANCH" >/dev/null 2>&1 || true
+  else
+    echo "REFUSED: branch $RELEASE_BRANCH already exists with unmerged commits ($EXISTING_SUBJECT)." >&2
+    exit 12
+  fi
+fi
+
+WT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-release-wt.XXXXXX")"
+git -C "$ROOT" worktree add -q -b "$RELEASE_BRANCH" "$WT_DIR" "$BASE_REF"
+
+WT_OUT="$(mktemp "${TMPDIR:-/tmp}/aai-release-wt-out.XXXXXX")"
+WT_NOTES="$(mktemp "${TMPDIR:-/tmp}/aai-release-wt-notes.XXXXXX")"
+wt_rc=0
+perform_rollup "$WT_DIR/CHANGELOG.md" "$WT_OUT" "$WT_NOTES" || wt_rc=$?
+if [[ "$wt_rc" != "0" ]]; then
+  rm -f "$WT_OUT" "$WT_NOTES"
+  git -C "$ROOT" worktree remove --force "$WT_DIR" >/dev/null 2>&1 || rm -rf "$WT_DIR"
+  echo "REFUSED: base branch has no rollable entries in CHANGELOG.md (rc=$wt_rc)." >&2
+  exit 13
+fi
+mv -f "$WT_OUT" "$WT_DIR/CHANGELOG.md"
+cp -f "$WT_NOTES" "$NOTES"
+rm -f "$WT_NOTES"
+mkdir -p "$WT_DIR/docs/ai"
 {
   echo "# AAI Version"
   echo
@@ -472,171 +357,50 @@ mkdir -p "$ROOT/docs/ai"
   echo "- Written by the release engines (aai-release.sh / aai-release.ps1) at each cut;"
   echo "  consumed by \`.aai/scripts/aai-sync.*\` to stamp \`Template version:\` into the"
   echo "  target project's \`.aai/system/AAI_PIN.md\`. Do not edit by hand."
-} > "$ROOT/docs/ai/AAI_VERSION.md"
-git -C "$ROOT" add -- CHANGELOG.md docs/ai/AAI_VERSION.md
-git -C "$ROOT" commit -q -m "chore(release): $VERSION"
-git -C "$ROOT" tag -a "$VERSION" -m "$VERSION"
+} > "$WT_DIR/docs/ai/AAI_VERSION.md"
+
+git -C "$WT_DIR" add -- CHANGELOG.md docs/ai/AAI_VERSION.md
+git -C "$WT_DIR" commit -q -m "chore(release): $VERSION"
+RELEASE_SHA="$(git -C "$WT_DIR" rev-parse HEAD)"
+
+# Remove worktree immediately
+git -C "$ROOT" worktree remove --force "$WT_DIR" >/dev/null 2>&1 || rm -rf "$WT_DIR"
+WT_DIR=""
 
 echo "## aai-release — cut complete"
 echo "- Version: $VERSION"
-echo "- Commit:  $(git -C "$ROOT" rev-parse --short HEAD)"
-echo "- Tag:     $VERSION (annotated)"
+echo "- Commit:  $(git -C "$ROOT" rev-parse --short "$RELEASE_SHA")"
+echo "- Release branch: $RELEASE_BRANCH ($RELEASE_SHA)"
 
 if [[ "$NO_REMOTE" != "1" ]]; then
-  # D2 --no-follow-tags: with `push.followTags=true` in the repo or the
-  # operator's GLOBAL git config, this branch push would carry
-  # refs/tags/$VERSION along with it — and GitHub's branch protection is
-  # per-ref and NON-atomic, so a GH006-rejected branch push still publishes
-  # the tag. That is precisely how v2026.09.01 (PR #329) left an orphaned tag
-  # pointing at a commit `main` never received. The tag push below stays
-  # strictly AFTER a successful branch push, and never runs on the fallback.
   PUSH_LOG="$(mktemp "${TMPDIR:-/tmp}/aai-release-push.XXXXXX")"
   push_rc=0
-  git -C "$ROOT" push --no-follow-tags origin "$BRANCH" >"$PUSH_LOG" 2>&1 || push_rc=$?
-  # D1: always re-emit git's own output, whatever happens next — no diagnostic
-  # is ever swallowed by the capture.
+  git -C "$ROOT" push --no-follow-tags origin "$RELEASE_BRANCH" >"$PUSH_LOG" 2>&1 || push_rc=$?
   cat "$PUSH_LOG" >&2
-  push_text="$(cat "$PUSH_LOG")"
   rm -f "$PUSH_LOG"; PUSH_LOG=""
-
   if [[ "$push_rc" != "0" ]]; then
-    if ! is_protected_branch_rejection "$push_text"; then
-      # Every other failure class keeps today's behavior exactly: git's raw
-      # output (already on stderr above) and git's own exit code.
-      exit "$push_rc"
-    fi
-
-    # --- D3 protected-branch fallback: release branch + PR, then STOP -------
-    RELEASE_BRANCH="chore/release-$VERSION"
-    echo "## aai-release — target branch '$BRANCH' is PROTECTED (push rejected)" >&2
-
-    fallback_incomplete() {
-      # D5 exit 18: the fallback engaged but could not finish. Name the exact
-      # manual commands rather than leaving a half-cut release to reconstruct.
-      # $2 (TEST-648, optional): overrides the generic first recovery line
-      # below when that generic line — re-running the exact `git branch`
-      # invocation that just failed — cannot itself succeed (e.g. a D/F ref
-      # conflict, where re-running the identical command fails identically
-      # and strands the operator: the finding this pins). Every other caller
-      # omits it and keeps the generic line.
-      local branch_step="${2:-git branch $RELEASE_BRANCH $RELEASE_SHA     # if that ref does not exist yet}"
-      echo "## aai-release — PROTECTED-BRANCH FALLBACK INCOMPLETE"
-      echo "- Reason:  $1"
-      echo "- Version: $VERSION (release commit exists LOCALLY, tag is LOCAL ONLY)"
-      echo "- Finish by hand:"
-      echo "    $branch_step"
-      echo "    git reset --hard $PRE_CUT_SHA               # on $BRANCH"
-      echo "    git push --no-follow-tags origin $RELEASE_BRANCH"
-      echo "    gh pr create --base $BRANCH --head $RELEASE_BRANCH --title 'chore(release): $VERSION'"
-      echo "- The release is NOT published and no tag was pushed."
-      exit 18
-    }
-
-    RELEASE_SHA="$(git -C "$ROOT" rev-parse HEAD)"
-
-    # No detached-HEAD arm here on purpose. With a detached HEAD $BRANCH is the
-    # literal "HEAD", and `git push origin HEAD` then fails CLIENT-side ("The
-    # destination you provided is not a full refname", exit 1) without the
-    # remote ever answering — so the classifier cannot match and this block is
-    # unreachable in that state. Detached HEAD degrades raw at git's own exit
-    # code, exactly as it does today (Constitution article 4). Measured
-    # 2026-09-02; a guard here would be dead code asserting a condition the
-    # push above already excludes.
-    if git -C "$ROOT" rev-parse -q --verify "refs/heads/$RELEASE_BRANCH" >/dev/null 2>&1; then
-      fallback_incomplete "branch $RELEASE_BRANCH already exists — never clobbering an existing ref"
-    fi
-
-    # D5/Spec-AC-10: neither of these two calls had an rc check before this
-    # scope — under `set -euo pipefail` a failure (e.g. a D/F-conflicting ref
-    # already at $RELEASE_BRANCH, or a reset that cannot check out its target)
-    # killed the script raw at git's own exit code, never reaching the
-    # INCOMPLETE report below. The reset call's `|| fallback_incomplete "..."`
-    # stays one line on purpose (mutation-run.mjs's --sed compiles a JS
-    # RegExp without the multiline flag; Amendment 1 TEST-616 hit exactly this
-    # limit); the branch call below captures stderr instead, so a D/F ref
-    # conflict can be told apart from any other failure (TEST-648).
-    BRANCH_ERR_LOG="$(mktemp "${TMPDIR:-/tmp}/aai-release-branch.XXXXXX")"
-    if ! git -C "$ROOT" branch "$RELEASE_BRANCH" "$RELEASE_SHA" 2>"$BRANCH_ERR_LOG"; then
-      branch_err_text="$(cat "$BRANCH_ERR_LOG")"
-      cat "$BRANCH_ERR_LOG" >&2  # D1: git's own output is never swallowed
-      rm -f "$BRANCH_ERR_LOG"
-      conflicting_ref="$(df_conflict_ref "$branch_err_text")"
-      if [[ -n "$conflicting_ref" ]]; then
-        # TEST-648: name the ref actually blocking creation and a step that
-        # can succeed — renaming/deleting it, or cutting under a different
-        # release-branch name — instead of the generic line, which is this
-        # exact command re-run against the exact ref that just refused it.
-        # `git branch -m/-D` take the short branch name, not a refs/heads/...
-        # path (measured: `git branch -D refs/heads/x` -> "not found"), so the
-        # refs/heads/ prefix is stripped for the SUGGESTED command while the
-        # Reason line above keeps the full ref git itself reported.
-        conflicting_branch="${conflicting_ref#refs/heads/}"
-        fallback_incomplete \
-          "creating $RELEASE_BRANCH failed: '$conflicting_ref' already exists and blocks it (a directory/file ref conflict; git branch exited non-zero, its output is on stderr above)" \
-          "git branch -m $conflicting_branch <new-name>   # or: git branch -D $conflicting_branch -- then: git branch $RELEASE_BRANCH $RELEASE_SHA   # or pick a different release branch name and repeat this recipe with it"
-      else
-        fallback_incomplete "creating $RELEASE_BRANCH failed (git branch exited non-zero; its output is on stderr above)"
-      fi
-    fi
-    rm -f "$BRANCH_ERR_LOG" 2>/dev/null || true
-    git -C "$ROOT" reset -q --hard "$PRE_CUT_SHA" || fallback_incomplete "resetting $BRANCH to $PRE_CUT_SHA failed (git reset exited non-zero; its output is on stderr above)"
-
-    PUSH_LOG="$(mktemp "${TMPDIR:-/tmp}/aai-release-push.XXXXXX")"
-    branch_push_rc=0
-    git -C "$ROOT" push --no-follow-tags origin "$RELEASE_BRANCH" >"$PUSH_LOG" 2>&1 || branch_push_rc=$?
-    cat "$PUSH_LOG" >&2
-    rm -f "$PUSH_LOG"; PUSH_LOG=""
-    if [[ "$branch_push_rc" != "0" ]]; then
-      fallback_incomplete "pushing $RELEASE_BRANCH to origin failed (git exit $branch_push_rc; its output is on stderr above)"
-    fi
-
-    PR_BODY="Automated release cut for $VERSION.
-
-The target branch \`$BRANCH\` is protected, so \`aai-release\` did not push to it
-directly. This PR carries the release commit; \`$BRANCH\` was reset to
-$PRE_CUT_SHA and is unchanged.
-
-The release is NOT published and the annotated tag \`$VERSION\` exists only in
-the cutting operator's local clone. After this PR merges, re-point and publish
-the tag against the merge commit (a squash merge produces a new SHA).
-
-Opened by .aai/scripts/aai-release.sh — it never merges this PR."
-    pr_rc=0
-    # gh's stdout goes to a temp file, its stderr passes straight through:
-    # the URL is captured, the diagnostics are never swallowed (Constitution
-    # article 4). The `cd` stays inside a plain SUBSHELL rather than a command
-    # substitution — a `cd` inside `$( )` is the leak shape
-    # .aai/scripts/check-cd-subshell-leak.mjs refuses.
-    PR_OUT="$(mktemp "${TMPDIR:-/tmp}/aai-release-pr.XXXXXX")"
-    ( cd "$ROOT" && gh pr create --base "$BRANCH" --head "$RELEASE_BRANCH" \
-        --title "chore(release): $VERSION" --body "$PR_BODY" ) >"$PR_OUT" || pr_rc=$?
-    PR_URL="$(cat "$PR_OUT")"
-    rm -f "$PR_OUT"; PR_OUT=""
-    if [[ "$pr_rc" != "0" ]]; then
-      fallback_incomplete "gh pr create failed (exit $pr_rc; its output is on stderr above) — the release branch IS pushed, only the PR is missing"
-    fi
-
-    # D8 report. D4: no `gh release create`, no `gh pr merge` — ever, on this
-    # path (Constitution article 7). Pinned by TEST-028/TEST-033.
-    echo "## aai-release — PROTECTED BRANCH: fell back to a release PR"
-    echo "- PR:              $PR_URL"
-    echo "- Release branch:  $RELEASE_BRANCH (pushed, carries the release commit $RELEASE_SHA)"
-    echo "- Target branch:   $BRANCH — reset to its pre-cut SHA $PRE_CUT_SHA (left clean)"
-    echo "- Release:         NOT PUBLISHED — CI must pass and the PR must be merged first."
-    echo "- Tag:             $VERSION is annotated LOCALLY ONLY and was NOT pushed."
-    echo "- After the PR merges, re-point the tag at the merge commit and publish:"
-    echo "    git checkout $BRANCH && git pull"
-    echo "    git tag -d $VERSION"
-    echo "    git tag -a $VERSION -m $VERSION"
-    echo "    git push origin refs/tags/$VERSION"
-    echo "    gh release create $VERSION --title $VERSION --notes-file <the [$VERSION] CHANGELOG section>"
-    exit 17
+    exit "$push_rc"
   fi
 
-  git -C "$ROOT" push origin "refs/tags/$VERSION"
-  ( cd "$ROOT" && gh release create "$VERSION" --title "$VERSION" --notes-file "$NOTES" )
-  echo "- Pushed:  $BRANCH + tag $VERSION"
-  echo "- Published: gh release create $VERSION"
+  PR_BODY="Automated release cut for $VERSION.
+
+Opened by .aai/scripts/aai-release.sh. On merge to $TARGET_BRANCH, CI tags and publishes the release.
+It never merges this PR."
+
+  PR_OUT="$(mktemp "${TMPDIR:-/tmp}/aai-release-pr.XXXXXX")"
+  pr_rc=0
+  ( cd "$ROOT" && gh pr create --base "$TARGET_BRANCH" --head "$RELEASE_BRANCH" \
+      --title "chore(release): $VERSION" --body "$PR_BODY" ) >"$PR_OUT" || pr_rc=$?
+  PR_URL="$(cat "$PR_OUT")"
+  rm -f "$PR_OUT"; PR_OUT=""
+  if [[ "$pr_rc" != "0" ]]; then
+    exit "$pr_rc"
+  fi
+
+  echo "- PR:      $PR_URL"
+  echo "- Status:  Release PR opened — CI tags and publishes upon merge."
 else
-  echo "- Remote:  SKIPPED (--no-remote/AAI_RELEASE_NO_REMOTE=1) — would push $BRANCH + tag $VERSION, then 'gh release create $VERSION'"
+  echo "- Remote:  SKIPPED (--no-remote/AAI_RELEASE_NO_REMOTE=1) — release branch $RELEASE_BRANCH created locally at $RELEASE_SHA"
 fi
+
+exit 0

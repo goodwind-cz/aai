@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-12T15:05:08.142Z",
+  "generatedAt": "2026-10-12T17:11:08.881Z",
   "project": "aai",
   "counts": {
-    "delivered": 297,
+    "delivered": 298,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 75943406
@@ -257,6 +257,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0227-spec-pr-ceremony-fewer-commits.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "release-tagged-by-ci-after-merge",
+      "title": "Tech Debt: a release is a PR, and CI tags and publishes it after the merge",
+      "type": "techdebt",
+      "status": "done",
+      "path": "docs/issues/DEBT-0015-release-tagged-by-ci-after-merge.md",
+      "closed_on": "2026-10-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0228-spec-release-tagged-by-ci-after-merge.md",
       "validation": null,
       "review": null
     },
@@ -4145,6 +4158,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0227-spec-pr-ceremony-fewer-commits.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "release-tagged-by-ci-after-merge",
+          "title": "Tech Debt: a release is a PR, and CI tags and publishes it after the merge",
+          "type": "techdebt",
+          "status": "done",
+          "path": "docs/issues/DEBT-0015-release-tagged-by-ci-after-merge.md",
+          "closed_on": "2026-10-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0228-spec-release-tagged-by-ci-after-merge.md",
           "validation": null,
           "review": null
         },

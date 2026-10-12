@@ -1060,36 +1060,25 @@ Describe 'aai-release.ps1' {
             $offending | Should -BeNullOrEmpty
         }
 
-        It 'git add/commit/tag are invoked through Invoke-NativeChecked' {
+        It 'git add/commit are invoked through Invoke-NativeChecked' {
             $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'add'"
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'commit'"
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'tag'"
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$wtDir,\s*'add'"
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$wtDir,\s*'commit'"
         }
 
-        It 'the display git rev-parse --short HEAD is invoked through Invoke-NativeChecked' {
+        It 'the display git rev-parse --short is invoked through Invoke-NativeChecked' {
             $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'rev-parse',\s*'--short',\s*'HEAD'"
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'rev-parse',\s*'--short',\s*\`$releaseSha\)"
         }
 
-        It 'every git push is invoked through Invoke-NativeChecked (target branch, fallback branch, tag)' {
-            # release-protected-branch-fallback: the two BRANCH pushes carry
-            # --no-follow-tags. Without it a repo-level or global
-            # push.followTags=true makes the branch push publish
-            # refs/tags/$Version as a side effect -- and since GitHub's branch
-            # protection is per-ref and non-atomic, a GH006-rejected branch
-            # push then leaves an ORPHANED tag on the remote (the v2026.09.01 /
-            # PR #329 incident). The tag push itself must stay follow-tags-free
-            # of that flag and run only after a successful branch push.
+        It 'every git push is invoked through Invoke-NativeChecked (release branch)' {
             $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'--no-follow-tags',\s*'origin',\s*\`$branch\)"
             $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'--no-follow-tags',\s*'origin',\s*\`$releaseBranch\)"
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'origin',\s*""refs/tags"
         }
 
-        It 'gh release create is invoked through Invoke-NativeChecked' {
+        It 'gh pr create is invoked through Invoke-NativeChecked' {
             $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'gh'\s+-Arguments\s+@\('release',\s*'create'"
+            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'gh'\s+-Arguments\s+@\('pr',\s*'create'"
         }
 
         It 'the tolerant probes (rev-parse -q --verify, gh auth status) keep their existing *> $null handling' {

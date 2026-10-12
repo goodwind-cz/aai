@@ -1,23 +1,16 @@
 name: release
 
-# Publish a GitHub Release when a version tag is pushed.
+# Publish a GitHub Release when a version tag is pushed or when a release PR merges to main.
 #
-# This is the automation path that lets a release be published WITHOUT any
-# agent (or CI job other than this one) holding gh write permissions: an
-# operator — or `.aai/scripts/aai-release.sh` — creates the annotated `vX` tag
-# and pushes it, and this workflow turns that pushed tag into a published
-# Release using the built-in GITHUB_TOKEN.
-#
-# Notes come from the matching `## [<tag>]` CHANGELOG.md section(s), the same
-# source `aai-release.sh` uses for its own `--notes-file`. The step is
-# IDEMPOTENT: a pre-check of `gh release view` skips work when the release
-# already exists, and a failed `gh release create` is still treated as success
-# when the release is then visible (the race with a concurrent
-# `aai-release.sh --confirm` publish). The two paths never double-publish or
-# fail each other.
+# On merge to main: if the commit is `chore(release): <version>`, CI creates the
+# annotated tag on the merge commit, pushes it, and publishes the release with notes
+# from the rolled CHANGELOG section.
+# On tag push: if a version tag is pushed directly, it publishes the release idempotently.
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
@@ -26,23 +19,45 @@ permissions:
 
 jobs:
   publish:
-    name: publish GitHub release from the pushed tag
+    name: tag and publish release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Publish release (idempotent; notes from the CHANGELOG section)
+      - name: Tag and publish release (idempotent; notes from the CHANGELOG section)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
-          # Cheap skip when already published (e.g. by aai-release.sh --confirm
-          # on a host with gh write). The create call below is the real
-          # idempotency gate: a concurrent publisher can pass this check and
-          # still win the create.
+          if [ "$REF_TYPE" = "tag" ]; then
+            TAG="$REF_NAME"
+          else
+            COMMIT_MSG="$(git log -1 --format=%s)"
+            if [[ "$COMMIT_MSG" =~ ^chore\(release\):[[:space:]]*(v?[0-9][^[:space:]]*) ]]; then
+              TAG="${BASH_REMATCH[1]}"
+            else
+              echo "Commit on main is not a release commit ($COMMIT_MSG) — nothing to do."
+              exit 0
+            fi
+
+            # Create and push annotated tag on the merge commit if it doesn't already exist
+            if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
+              echo "Tag $TAG already exists — skipping tag creation."
+            else
+              echo "Creating and pushing annotated tag $TAG on merge commit $(git rev-parse HEAD)..."
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git tag -a "$TAG" -m "$TAG"
+              git push origin "refs/tags/$TAG"
+            fi
+          fi
+
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists — nothing to do."
             exit 0
@@ -53,13 +68,6 @@ jobs:
             exit 1
           fi
 
-          # Extract every consecutive '## [<tag>] — ...' section from the
-          # CHANGELOG (a cut rolls one titled block per entry under the same
-          # version), stopping at the next DIFFERENT version header. Literal
-          # prefix match (index ==1) so a version's dots are never treated as
-          # regex. Mirrors the section aai-release.sh writes to its notes file.
-          # No `|| true`: an awk/IO failure must fail the job, not publish
-          # truncated or auto-generated notes under a false "no section" claim.
           notes="$(mktemp)"
           trap 'rm -f "$notes"' EXIT
           awk -v tag="$TAG" '

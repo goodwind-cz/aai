@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-12T15:05:08.442Z",
+  "generatedAt": "2026-10-12T17:11:09.194Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 165,
-    "delivered": 535,
+    "delivered": 537,
     "active_weeks": 16,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (535 closes vs 165 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 535,
-    "delivered_per_week_avg": 33.4,
+    "note": "\"delivered\" counts every work_item_closed event (537 closes vs 165 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 537,
+    "delivered_per_week_avg": 33.6,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -30,7 +30,7 @@
       "2026-W39": 15,
       "2026-W40": 35,
       "2026-W41": 36,
-      "2026-W42": 6
+      "2026-W42": 8
     },
     "delivered_groups": [
       {
@@ -540,7 +540,7 @@
         "key": "month:2026-10",
         "kind": "month",
         "label": "2026-10",
-        "count": 56,
+        "count": 58,
         "refs": [
           "downstream-rides-ask-no-governance-questions",
           "spec-downstream-rides-ask-no-governance-questions",
@@ -597,7 +597,9 @@
           "amendment-signoff-implied-by-merge",
           "spec-amendment-signoff-implied-by-merge",
           "pr-ceremony-fewer-commits",
-          "spec-pr-ceremony-fewer-commits"
+          "spec-pr-ceremony-fewer-commits",
+          "release-tagged-by-ci-after-merge",
+          "spec-release-tagged-by-ci-after-merge"
         ]
       }
     ],
@@ -2742,12 +2744,20 @@
         {
           "ref": "spec-pr-ceremony-fewer-commits",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "release-tagged-by-ci-after-merge",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-release-tagged-by-ci-after-merge",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 4702,
       "mean_seconds": 107702.4,
       "measured": 161,
-      "unmeasurable": 374
+      "unmeasurable": 376
     }
   },
   "speed": {
@@ -5470,7 +5480,7 @@
     },
     {
       "week": "2026-W42",
-      "delivered": 6,
+      "delivered": 8,
       "median_lead_time_seconds": null,
       "busy_seconds": null,
       "tokens": null,
@@ -5646,7 +5656,7 @@
         "id": "fu-replay-vanished-target-counter",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 27,
+        "age_days": 28,
         "what": "mutation-run.mjs --replay counts a vanished-target record in failures but prints INCONCLUSIVE, so the summary line's own arithmetic disagrees with the printed row",
         "status": "open"
       },
@@ -5654,7 +5664,7 @@
         "id": "fu-tdd-block-needs-fail-line-grammar",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 27,
+        "age_days": 28,
         "what": "SKILL_TDD.prompt.md's mutation BLOCK line is unconditional, but the FAIL-line grammar mutation-run.mjs classifies a RED verdict against is an AAI-suite output convention, not a property of test runners in general",
         "status": "open"
       },
@@ -6118,7 +6128,7 @@
         "id": "fu-roadmap-pair-pinned-by-index",
         "ref": "update-installs-ref-guard-undisclosed",
         "severity": "P3",
-        "age_days": 17,
+        "age_days": 18,
         "what": "TEST-565 and TEST-583 pinned the live roadmap's admissible pair by INDEX, so every completed pair broke them; fixed here by deriving the first unfinished pair from the shipped file",
         "status": "open"
       },
@@ -6438,7 +6448,7 @@
         "id": "fu-hooks-merge-group-level-keys",
         "ref": "sync-deletes-target-only-hooks",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "the hooks merge proves the group's matcher but not the group's other keys, so a user-added group-level key is lost when a source change moves the hook to a different matcher group",
         "status": "open"
       },
@@ -6470,7 +6480,7 @@
         "id": "fu-redact-entropy-fp-hyphen-identifier",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "redactSummary fires secret_highentropy on an ordinary hyphenated identifier: CAT-17-git-ref-guard is rejected while CAT-17 and cat-git-ref-guard pass, so any AAI phase name shaped CAT-NN-some-name is silently redacted out of a friction summary",
         "status": "open"
       },
@@ -6542,7 +6552,7 @@
         "id": "fu-measurement-ledger-old-reader",
         "ref": "amendment-signature-asks-the-owner-too-often",
         "severity": "P2",
-        "age_days": 9,
+        "age_days": 10,
         "what": "a layer version predating the measurement class reads a new ledger's measurement records as unsigned-untracked, so list --strict exits 1 on a ledger the shipping code reads as clean",
         "status": "open"
       },
@@ -6790,7 +6800,7 @@
         "id": "fu-record-overlay-tie-order",
         "ref": "classify-same-ts-pair",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "spec-amend fold sorts overlays by ts only: a record-addressed and a pair-addressed overlay in the same second resolve by concat order, not ledger order",
         "status": "open"
       },
@@ -6862,7 +6872,7 @@
         "id": "fu-merge-ledger-reset-window",
         "ref": "merge-cleanup-ride-leftovers",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "a crash between the ride-ledger reset and its reset record makes a later identical ride tail count as moved (kept only in the archive)",
         "status": "open"
       },
@@ -6870,7 +6880,7 @@
         "id": "fu-merge-skip-worktree-hidden-edit",
         "ref": "merge-cleanup-ride-leftovers",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "a ride worktree edit hidden with update-index --skip-worktree is removed without a worktree_dirty refusal",
         "status": "open"
       },

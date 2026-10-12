@@ -33,7 +33,7 @@ BeforeAll {
     . $script:Release
 }
 
-Describe 'aai-release.ps1 protected-branch classifier' {
+Describe 'aai-release.ps1 exports and direct-push classifier elimination' {
 
     It 'parses with no syntax errors' {
         $errors = $null
@@ -42,48 +42,20 @@ Describe 'aai-release.ps1 protected-branch classifier' {
         $errors | Should -BeNullOrEmpty
     }
 
-    It 'dot-sourcing defines Test-ProtectedBranchRejection without cutting a release' {
-        (Get-Command Test-ProtectedBranchRejection -ErrorAction SilentlyContinue) | Should -Not -BeNullOrEmpty
+    It 'Test-ProtectedBranchRejection and Get-DfConflictRef are eliminated' {
+        (Get-Command Test-ProtectedBranchRejection -ErrorAction SilentlyContinue) | Should -BeNullOrEmpty
+        (Get-Command Get-DfConflictRef -ErrorAction SilentlyContinue) | Should -BeNullOrEmpty
     }
 
-    It 'accepts GitHub''s GH006 protected-branch rejection text' {
-        $text = @(
-            'remote: error: GH006: Protected branch update failed for refs/heads/main.',
-            'remote: error: 3 of 3 required status checks are expected.',
-            ' ! [remote rejected] main -> main (protected branch hook declined)'
-        ) -join [Environment]::NewLine
-        Test-ProtectedBranchRejection -Text $text | Should -BeTrue
+    It 'Select-CapturedValue extracts matching values' {
+        $sample = @('first line', 'https://github.com/goodwind-cz/aai/pull/462', 'third line')
+        $val = Select-CapturedValue -Captured $sample -Pattern '^https?://'
+        $val | Should -Be 'https://github.com/goodwind-cz/aai/pull/462'
     }
 
-    It 'accepts the GH006 token regardless of case' {
-        Test-ProtectedBranchRejection -Text 'remote: error: gh006: protected branch update failed' | Should -BeTrue
-    }
-
-    It 'accepts host-agnostic "protected branch" + "status check" wording, case-insensitively' {
-        Test-ProtectedBranchRejection -Text 'Push declined: MAIN is a Protected Branch and 2 required Status Checks have not run.' | Should -BeTrue
-    }
-
-    It 'rejects a non-fast-forward rejection (must degrade to git''s own exit code)' {
-        $text = @(
-            ' ! [rejected]        main -> main (non-fast-forward)',
-            "error: failed to push some refs to 'origin'",
-            'hint: Updates were rejected because the tip of your current branch is behind'
-        ) -join [Environment]::NewLine
-        Test-ProtectedBranchRejection -Text $text | Should -BeFalse
-    }
-
-    It 'rejects an auth failure' {
-        Test-ProtectedBranchRejection -Text 'remote: Invalid username or password. fatal: Authentication failed' | Should -BeFalse
-    }
-
-    It 'rejects "protected branch" wording with no status-check clause' {
-        # Half the host-agnostic pair is deliberately NOT enough: a narrow
-        # classifier degrades to today's raw behavior, a broad one recovers
-        # wrongly.
-        Test-ProtectedBranchRejection -Text 'refusing to delete the protected branch main' | Should -BeFalse
-    }
-
-    It 'rejects empty text' {
-        Test-ProtectedBranchRejection -Text '' | Should -BeFalse
+    It 'Select-CapturedValue returns empty string when no line matches' {
+        $sample = @('first line', 'second line')
+        $val = Select-CapturedValue -Captured $sample -Pattern '^https?://'
+        $val | Should -Be ''
     }
 }

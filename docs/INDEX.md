@@ -54,7 +54,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (529)
+## Done (531)
 
 | ID | Type | Path |
 |---|---|---|
@@ -273,6 +273,7 @@ _None._
 | DEBT-0012 | issues | docs/issues/DEBT-0012-merge-cleanup-dead-steps.md |
 | DEBT-0013 | issues | docs/issues/DEBT-0013-amendment-signoff-implied-by-merge.md |
 | DEBT-0014 | issues | docs/issues/DEBT-0014-pr-ceremony-fewer-commits.md |
+| DEBT-0015 | issues | docs/issues/DEBT-0015-release-tagged-by-ci-after-merge.md |
 | ISSUE-0001 | issues | docs/issues/ISSUE-0001-parsefrontmatter-crlf-drops-index-sections.md |
 | ISSUE-0002 | issues | docs/issues/ISSUE-0002-aai-loop-leaks-hung-vitest-process-trees.md |
 | ISSUE-0003 | issues | docs/issues/ISSUE-0003-index-autogen-bakes-stale-drift-row.md |
@@ -585,6 +586,7 @@ _None._
 | SPEC-0225 | specs | docs/specs/SPEC-0225-spec-merge-cleanup-dead-steps.md |
 | SPEC-0226 | specs | docs/specs/SPEC-0226-spec-amendment-signoff-implied-by-merge.md |
 | SPEC-0227 | specs | docs/specs/SPEC-0227-spec-pr-ceremony-fewer-commits.md |
+| SPEC-0228 | specs | docs/specs/SPEC-0228-spec-release-tagged-by-ci-after-merge.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
