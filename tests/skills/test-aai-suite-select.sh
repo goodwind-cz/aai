@@ -1811,6 +1811,8 @@ aai-learned-append aai-prompt-diet
 aai-ledger-merge aai-layer-profiles
 aai-merge-policy aai-layer-profiles
 aai-release aai-layer-profiles
+aai-release-notes aai-layer-profiles
+aai-release-notes aai-release
 aai-secrets-preflight aai-intake
 aai-spec-lint aai-prompt-diet
 aai-sync-seed aai-bootstrap
@@ -1819,7 +1821,7 @@ aai-sync-seed aai-layer-drift
 aai-sync-seed aai-layer-profiles
 aai-tdd-evidence aai-tdd
 PIN
-  # The pin is the spec's D3 table (36 edges over 24 rows; a body with more
+  # The pin is the spec's D3 table (38 edges over 25 rows; a body with more
   # edges than the spec says is a measurement the spec must record, never
   # silent drift). The edges and the core list are read from the real map.
   node - "$PROJECT_ROOT" "$SELECTOR" "$got" <<'JS' || rc=$?
@@ -1865,11 +1867,11 @@ JS
   want_edges="$(sort "$pin")"
   got_edges="$(sed '/^ROWS /,$d' "$got")"
   [[ "$got_edges" == "$want_edges" ]] || log_fail "TEST-032 (plan row TEST-032): the real map's companion edges differ from the pinned list. want: $(printf '%s' "$want_edges" | tr '\n' ';') -- got: $(printf '%s' "$got_edges" | tr '\n' ';')"
-  [[ "$(wc -l < "$pin" | tr -d ' ')" == "36" ]] || log_fail "TEST-032 (plan row TEST-032): the pinned list must hold 36 edges"
-  grep -qxF "ROWS 24" "$got" || log_fail "TEST-032 (plan row TEST-032): the edges must sit on 24 rows: $(grep '^ROWS' "$got")"
+  [[ "$(wc -l < "$pin" | tr -d ' ')" == "38" ]] || log_fail "TEST-032 (plan row TEST-032): the pinned list must hold 38 edges"
+  grep -qxF "ROWS 25" "$got" || log_fail "TEST-032 (plan row TEST-032): the edges must sit on 25 rows: $(grep '^ROWS' "$got")"
   grep -qxF "COREEDGES " "$got" || log_fail "TEST-032 (plan row TEST-032): an edge names a core suite: $(grep '^COREEDGES' "$got")"
   grep -qxF "CLOSUREMISS " "$got" || log_fail "TEST-032 (plan row TEST-032): a row's own test file does not select its whole closure: $(grep '^CLOSUREMISS' "$got")"
-  log_pass "TEST-032: the real map declares exactly the 36 pinned edges on 24 rows, none to a core suite, each row selects its closure (TEST-032)"
+  log_pass "TEST-032: the real map declares exactly the 38 pinned edges on 25 rows, none to a core suite, each row selects its closure (TEST-032)"
 }
 
 test_1756_weights_reseeded_from_a_named_run() {  # Spec-AC-12 / TEST-035

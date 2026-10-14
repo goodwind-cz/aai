@@ -158,16 +158,19 @@ PROCESS
    - `docs/ai/METRICS.jsonl` / `docs/ai/EVENTS.jsonl` staged by the step-2b
      reconcile are expected companions too (CHANGE-0039): never unstage them.
 
-3b. CHANGELOG — keep the human-readable history fed (root `CHANGELOG.md`):
-   - For every feature/fix scope (feat/fix; pure chore/docs noise may skip),
-     add a per-entry heading at the top of the entry list in the shape
-     CHANGELOG.md's own preamble names (Spec-AC-31: stated once, where its
-     tool reads it — do not restate the shape here), followed by 3–10
-     hyphen bullets: what changed, why it matters, and the ref ids
-     (CHANGE-xxxx / SPEC-xxxx; PR number once known).
-   - Stage `CHANGELOG.md` together with the scope.
-   - Rationale: the changelog is the aggregated view operators read; it once
-     silently drifted 10 PRs behind.
+3b. RELEASE NOTES — shipped surfaces require newly added, nonempty rollable
+   unreleased notes in root `CHANGELOG.md`, or a final PR body line
+   `no-notes: <nonempty reason>`. Docs/test/evidence-only changes are exempt.
+   Use the entry shape stated in CHANGELOG.md's own preamble; stage its notes.
+   Write the final proposed PR body to `<pr-body-file>` in private temporary
+   storage, then run before commit or push:
+     node .aai/scripts/release-notes-gate.mjs --staged --body-file <pr-body-file>
+   Nonzero: STOP and print the refusal. Old unchanged entries and empty
+   scaffolds do not satisfy the gate. Re-run after any staged/body changes;
+   use this exact checked body for PR creation (`gh pr create --body-file`).
+   CI runs the same gate over the PR base/head and body. Operators can make
+   the `release notes` check required in branch protection; this ceremony
+   does not change remote protection.
 
 4c. CLOSE BEFORE PUSH (fu-close-before-push-ordering / fu-close-requires-pr-
    before-it-exists) — run the close ceremony BEFORE creating the content commit:

@@ -996,10 +996,12 @@ test_012_growth_sum_matches_ledger() {
   # (+279 B: SKILL_MERGE.prompt.md 3950 -> 4229, run the block unwrapped, remote
   # branch deleted by lease or relayed, $env:AAI_GIT_WRITE = $null); zero headroom
   # standing, credited 1:1 (ledger key merge-cleanup-delete-remote-branch).
-  # Then 61186 -> 56164: pr-ceremony-fewer-commits DEBT-0014 / SPEC-0227
+  # Then 61186 -> 55605: pr-ceremony-fewer-commits DEBT-0014 / SPEC-0227
   # (-5581 B: SKILL_PR.prompt.md 38075 -> 32494, prompt diet eliminates ceremony loops);
   # retired credit reclaimed 1:1, headroom returns to 340/2048.
-  local want_growth=55605
+  # Then 55605 -> 55864: release-notes-gate Spec-AC-03
+  # (SKILL_PR.prompt.md 32494 -> 32753, +259 B), credited 1:1.
+  local want_growth=55864
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

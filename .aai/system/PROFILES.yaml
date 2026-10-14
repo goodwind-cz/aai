@@ -88,6 +88,7 @@ core:
   - .aai/scripts/aai-reap-tests.sh
   - .aai/scripts/aai-release.ps1
   - .aai/scripts/aai-release.sh
+  - .aai/scripts/release-notes-gate.mjs
   - .aai/scripts/aai-run-tests.ps1
   - .aai/scripts/aai-run-tests.sh
   - .aai/scripts/aai-sync.ps1

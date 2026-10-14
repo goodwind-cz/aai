@@ -90,7 +90,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
   schedule:
     - cron: '17 3 * * *'  # nightly full framework, ~03:17 UTC
   workflow_dispatch: {}
@@ -99,6 +99,31 @@ permissions:
   contents: read
 
 jobs:
+  release-notes:
+    name: release notes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Require added notes or an explicit exemption
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Event body is data, never shell-interpolated or executed.
+          node --input-type=module -e 'import fs from "node:fs"; const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8")); fs.writeFileSync("/tmp/aai-pr-body.txt", event.pull_request.body ?? "");'
+          node .aai/scripts/release-notes-gate.mjs --base "$PR_BASE" --head "$PR_HEAD" --body-file /tmp/aai-pr-body.txt
+
   select:
     name: select suites (PR impact analysis; full elsewhere)
     runs-on: ubuntu-latest

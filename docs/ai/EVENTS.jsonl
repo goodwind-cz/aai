@@ -3075,3 +3075,9 @@
 {"v":1,"ts":"2026-10-12T17:11:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"release-tagged-by-ci-after-merge","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-12T17:11:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-tagged-by-ci-after-merge","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-12T17:11:16Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":604,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-13T23:54:01Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":607,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-13T23:56:13Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"release-notes-gate","payload":{"status":"pass","hash":"5e5ba25fc4451eaed817b0c8a79dd45e6ee53987b5c492f70e421b10740cf1db"}}
+{"v":1,"ts":"2026-10-14T00:38:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"release-notes-gate","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-14T00:38:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"release-notes-gate","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-14T00:38:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-notes-gate","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-14T00:38:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-notes-gate","payload":{"validation":"pass","code_review":"pass"}}

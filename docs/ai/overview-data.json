@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-12T17:11:08.881Z",
+  "generatedAt": "2026-10-14T00:38:07.926Z",
   "project": "aai",
   "counts": {
-    "delivered": 298,
+    "delivered": 299,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 75943406
@@ -222,6 +222,19 @@
   ],
   "delivered": [
     {
+      "ref": "release-notes-gate",
+      "title": "Change: notes gate for shipped-surface pull requests",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0211-release-notes-gate.md",
+      "closed_on": "2026-10-14",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0229-spec-release-notes-gate.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261013T235645Z-release-notes-gate.md"
+    },
+    {
       "ref": "merge-cleanup-dead-steps",
       "title": "Tech Debt: delete merge-cleanup steps that never act, and gates GitHub already enforces",
       "type": "techdebt",
@@ -271,7 +284,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0228-spec-release-tagged-by-ci-after-merge.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-release-tagged-by-ci-after-merge.md"
     },
     {
       "ref": "merge-cleanup-delete-remote-branch",
@@ -4123,6 +4136,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "release-notes-gate",
+          "title": "Change: notes gate for shipped-surface pull requests",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0211-release-notes-gate.md",
+          "closed_on": "2026-10-14",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0229-spec-release-notes-gate.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261013T235645Z-release-notes-gate.md"
+        },
+        {
           "ref": "merge-cleanup-dead-steps",
           "title": "Tech Debt: delete merge-cleanup steps that never act, and gates GitHub already enforces",
           "type": "techdebt",
@@ -4172,7 +4198,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0228-spec-release-tagged-by-ci-after-merge.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-release-tagged-by-ci-after-merge.md"
         },
         {
           "ref": "merge-cleanup-delete-remote-branch",

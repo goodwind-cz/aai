@@ -22,6 +22,12 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(pr): shipped changes need new notes or an explicit exemption (release-notes-gate)
+
+- A pull request that changes a shipped surface must add a nonempty rollable `## [unreleased]` entry, or carry `no-notes: <reason>` in the PR body. Docs, tests, and evidence-only diffs are exempt.
+- `/aai-pr` runs the same check on the staged patch and the final proposed body. CI runs it on the pull request range and body. The body is data and is never executed.
+- Traceability: release-notes-gate, CHANGE-0211, SPEC-0229.
+
 ## [v2026.10.12] — chore(release): a release is a PR, and CI tags and publishes it after the merge (release-tagged-by-ci-after-merge)
 
 - `/aai-release --confirm` builds the release commit on `chore/release-<version>` in its own temporary worktree from the target branch on origin (`origin/main` here), pushes that branch and opens a release PR. With `--no-remote` it stops after the local release branch, without push or PR. The caller's checkout is never touched, so a detached HEAD or a dirty main checkout no longer matters.
