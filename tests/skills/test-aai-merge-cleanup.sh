@@ -1369,7 +1369,7 @@ test_024_canon_merge_direction_signs() {
 test_026_backlog_signed_on_live_ledger() {
   # Execute this tests actual live verdict against real Git/object fixtures.
   # A >=300 signed backlog must not conceal one merged-but-unsigned record.
-  AAI_PREDICATE_SUITE="$ROOT/tests/skills/test-aai-merge-cleanup.sh" AAI_PREDICATE_SCRATCH="${AAI_PREDICATE_SCRATCH:-$SCRATCH}" node <<'JS' || fail TEST-026 'merged predicate fixture assertions failed'
+  AAI_PREDICATE_SUITE="$ROOT/tests/skills/test-aai-merge-cleanup.sh" AAI_PREDICATE_MODEL="$ROOT/.aai/scripts/lib/docs-model.mjs" AAI_PREDICATE_SCRATCH="${AAI_PREDICATE_SCRATCH:-$SCRATCH}" node <<'JS' || fail TEST-026 'merged predicate fixture assertions failed'
 const fs = require("fs");
 const path = require("path");
 const {execFileSync, spawnSync} = require("child_process");
@@ -1379,7 +1379,7 @@ fs.mkdirSync(scratch, {recursive:true});
 const fixture = fs.mkdtempSync(path.join(scratch, "merged-predicate."));
 try {
   const source = fs.readFileSync(process.env.AAI_PREDICATE_SUITE, "utf8");
-  const start = source.indexOf("const fs = require(\"fs\");\nconst {execFileSync} = require(\"child_process\");\nconst rows =");
+  const start = source.indexOf("import fs from \"node:fs\";\nimport {execFileSync} from \"node:child_process\";");
   const end = source.indexOf("\n' \"$d/live-rows.json\"", start);
   if (start < 0 || end < 0) throw Error("live verdict extraction failed");
   const program = source.slice(start, end);
@@ -1387,9 +1387,32 @@ try {
   git("init", "-q", "-b", "main"); git("config", "user.name", "predicate-fixture");
   git("config", "user.email", "predicate@example.invalid"); git("config", "core.hooksPath", "/dev/null");
   fs.mkdirSync(path.join(fixture,"docs"));
-  for (const [ref, status, pr] of [["merged-control","done","[465]"],["pending-control","implementing","[]"]]) {
-    fs.writeFileSync(path.join(fixture,"docs",ref+".md"),`---\nid: ${ref}\nstatus: ${status}\nlinks:\n  pr: ${pr}\n---\n`);
+  // Corpus-shaped frontmatter is committed and consumed by the actual verdict.
+  const cases = [
+    ["merged-inline", "done", "  pr: [465]\n  commits: []\n", "", true],
+    ["merged-block", "done", "  pr:\n    - 465\n  commits: []\n", "", true],
+    ["empty-inline", "done", "  pr: []\n  commits: []\n", "", false],
+    ["empty-inline-spaced", "done", "  pr: [ ]\n  commits: []\n", "", false],
+    ["empty-inline-quoted", "done", "  pr: [\" \"]\n  commits: []\n", "", false],
+    ["empty-block-quoted", "done", "  pr:\n    - \" \"\n  commits: []\n", "", false],
+    ["empty-block", "done", "  pr:\n  commits: []\n", "", false],
+    ["null-inline", "done", "  pr: null\n  commits: []\n", "", false],
+    ["tilde-inline", "done", "  pr: ~\n  commits: []\n", "", false],
+    ["missing-pr", "done", "  commits: []\n", "", false],
+    ["sibling-list", "done", "  pr:\n  commits:\n    - abcdef\n", "", false],
+    ["other-key", "done", "  other_pr: [465]\n  commits: []\n", "", false],
+    ["body-decoy", "done", "  commits: []\n", "\nExample only:\n  pr: [465]\n", false],
+    ["nondone-inline", "implementing", "  pr: [465]\n  commits: []\n", "", false],
+    ["nondone-block", "implementing", "  pr:\n    - 465\n  commits: []\n", "", false],
+    ["empty-block-item", "done", "  pr:\n    - \n  commits: []\n", "", false],
+  ];
+  for (const [ref, status, links, body] of cases) {
+    fs.writeFileSync(path.join(fixture,"docs",ref+".md"),`---\nid: ${ref}\ntype: issue\nstatus: ${status}\nlinks:\n${links}---\n# Fixture\n${body}`);
   }
+  // Deliberate import closure: copied model has only node: stdlib imports.
+  const model = path.join(fixture,".aai/scripts/lib/docs-model.mjs");
+  fs.mkdirSync(path.dirname(model), {recursive:true});
+  fs.copyFileSync(process.env.AAI_PREDICATE_MODEL, model);
   git("add", "--", "docs"); git("commit", "-qm", "fixture docs");
   git("update-ref", "refs/remotes/origin/main", "HEAD");
   const signed = Array.from({length:300}, (_,i) => ({amendment_class:"contract",ref_id:"signed-"+i,bucket:"signed",record_key:"signed-"+i}));
@@ -1398,18 +1421,25 @@ try {
   let failures = 0;
   function check(label, extra, wanted, message) {
     fs.writeFileSync(path.join(fixture,"rows.json"), JSON.stringify({items:[...signed, unmerged, ...extra]}));
-    const result = spawnSync(process.execPath,["-e",program,path.join(fixture,"rows.json"),path.join(fixture,"fu.json")],{cwd:fixture,encoding:"utf8"});
+    const result = spawnSync(process.execPath,["--input-type=module","-e",program,path.join(fixture,"rows.json"),path.join(fixture,"fu.json")],{cwd:fixture,encoding:"utf8",env:{...process.env,AAI_MERGED_DOC_MODEL:model}});
     const output = (result.stdout || "") + (result.stderr || "");
     const ok = result.status === wanted && output.includes(message);
     console.log(`TEST-026 ${ok ? "PASS" : "FAIL"} ${label} expected=${wanted} exit=${result.status}\n${output.trim()}`);
     if (!ok) failures++;
   }
   const unsigned = ref => ({amendment_class:"contract",ref_id:ref,bucket:"unsigned-tracked",record_key:ref});
-  check("merged unsigned record reaches actual rejection",[unsigned("merged-control")],1,"merged contract amendments not signed");
-  check("unmerged record remains allowed",[unsigned("pending-control")],0,"OK 300 merged contract records");
+  check("signed backlog positive control",[],0,"OK 300 merged contract records");
+  for (const [ref, , , , merged] of cases) {
+    check((merged ? "TEST-005 merged " : "TEST-006 negative ")+ref,[unsigned(ref)],merged ? 1 : 0,merged ? "merged contract amendments not signed" : "OK 300 merged contract records");
+  }
+  check("TEST-006 absent doc is valid unmerged",[unsigned("absent-doc")],0,"OK 300 merged contract records");
   git("update-ref", "-d", "refs/remotes/origin/main");
-  check("unreadable base cannot attest unmerged",[unsigned("pending-control")],1,"cannot determine merge status");
-  console.log(`merged predicate assertions=3 failures=${failures} fixture=${fixture}`);
+  check("TEST-006 unreadable base cannot attest unmerged",[unsigned("missing-pr")],1,"cannot determine merge status");
+  git("update-ref", "refs/remotes/origin/main", "HEAD");
+  const blob=git("rev-parse", "origin/main:docs/merged-block.md");
+  fs.unlinkSync(path.join(fixture,".git/objects",blob.slice(0,2),blob.slice(2)));
+  check("TEST-006 unreadable actual blob cannot attest unmerged",[unsigned("merged-block")],1,"cannot determine merge status");
+  console.log(`merged predicate assertions=${cases.length + 4} failures=${failures} fixture=${fixture}`);
   process.exitCode = failures ? 1 : 0;
 } finally { fs.rmSync(fixture,{recursive:true,force:true}); }
 JS
@@ -1418,9 +1448,11 @@ JS
   [[ -s "$live" ]] || fail TEST-026 "the live ledger is missing: $live"
   ( cd "$ROOT" && env -u AAI_ROLE node "$SPEC_AMEND" list --json --ledger "$live" ) > "$d/live-rows.json" || fail TEST-026 'spec-amend list --json over the live ledger failed'
   ( cd "$ROOT" && env -u AAI_ROLE node "$FOLLOW_UPS" list --status all --json --ledger "$live" ) > "$d/live-fu.json" || fail TEST-026 'follow-ups list --json over the live ledger failed'
-  verdict="$(node -e '
-const fs = require("fs");
-const {execFileSync} = require("child_process");
+  verdict="$(AAI_MERGED_DOC_MODEL="$ROOT/.aai/scripts/lib/docs-model.mjs" node --input-type=module -e '
+import fs from "node:fs";
+import {execFileSync} from "node:child_process";
+import {pathToFileURL} from "node:url";
+const {parseFrontmatter} = await import(pathToFileURL(process.env.AAI_MERGED_DOC_MODEL).href);
 const rows = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).items;
 const fu = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).items;
 const unmergedRef = "routing-tables-have-an-owner-and-a-seam";
@@ -1433,16 +1465,18 @@ function rideMerged(ref) {
     try {
       listed = execFileSync("git", ["grep", "-l", `id: ${ref}`, "origin/main", "--", "docs"], {encoding:"utf8"}).split("\n").filter(Boolean);
     } catch (error) {
-      if (error.status === 1) listed = []; // Git grep found no match: a valid negative result.
+      if (error.status === 1 && !String(error.stderr || "").trim()) listed = []; // Only a diagnostic-free no-match is a valid negative.
       else throw error;
     }
     for (const path of listed) {
       const text = execFileSync("git", ["show", path], {encoding:"utf8"});
-      const id = /^id:\s*(\S+)\s*$/m.exec(text);
-      const status = /^status:\s*(\S+)\s*$/m.exec(text);
-      const pr = /^  pr:\s*(.+)\s*$/m.exec(text);
-      const prItems = pr && pr[1] !== "[]" && pr[1] !== "null" && pr[1] !== "~";
-      if (id && id[1] === ref && status && status[1] === "done" && prItems) yes = true;
+      const fm = parseFrontmatter(text);
+      const raw = fm?.links?.pr;
+      // The existing model returns nested inline lists as strings, and block
+      // lists as arrays. Normalize only this observed list representation.
+      const values = Array.isArray(raw) ? raw : typeof raw === "string" && /^\[.*\]$/.test(raw) ? raw.slice(1,-1).split(",") : [];
+      const prItems = values.some(value => !["", "null", "~"].includes(String(value).trim().replace(/^["\x27]|["\x27]$/g, "").trim()));
+      if (fm?.id === ref && fm.status === "done" && prItems) yes = true;
     }
   } catch (error) { throw new Error(`cannot determine merge status for ${ref}: ${error.message}`); }
   mergedCache.set(ref, yes);

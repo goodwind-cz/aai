@@ -147,6 +147,58 @@ git -C "$FIXTURE" add -- CHANGELOG.md
 git -C "$FIXTURE" commit -qm 'base drops an old note'
 printf 'Summary\n' > "$BODY"
 expect TEST-005 refuse 'a note deleted on the base is not a note the head added' --base notes-base --head notes-head --body-file "$BODY"
+# spec-notes-content-and-merged-links TEST-001..004: compare actual Git notes
+# content, not cosmetic replacement lines. All fixtures use the real CLI.
+AAI_NOVELTY_GATE="$GATE" AAI_NOVELTY_SCRATCH="$SCRATCH_ROOT" AAI_NOVELTY_ROOT="$ROOT" node --input-type=module <<'JS' || { echo 'TEST-001 FAIL notes-content regressions'; FAILURES=$((FAILURES + 1)); }
+import fs from 'node:fs';
+import path from 'node:path';
+import {execFileSync, spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+const scratch = process.env.AAI_NOVELTY_SCRATCH;
+if (!scratch || !path.isAbsolute(scratch)) throw Error('absolute novelty scratch required');
+const old = '## [unreleased] — Existing\n- Existing note.\n';
+const corpus = fs.readFileSync(path.join(process.env.AAI_NOVELTY_ROOT,'CHANGELOG.md'),'utf8');
+console.log(`Corpus files=1 path=CHANGELOG.md lines=${corpus.split('\n').length} sha256=${createHash('sha256').update(corpus).digest('hex')}`);
+const cases = [
+ ['TEST-001','trailing spaces',old,old.replace('note.\n','note.   \n'),1],
+ ['TEST-001','trailing tab',old,old.replace('note.\n','note.\t\n'),1],
+ ['TEST-002','LF to CRLF',old,old.replace(/\n/g,'\r\n'),1],
+ ['TEST-002','CRLF to LF',old.replace(/\n/g,'\r\n'),old,1],
+ ['TEST-003','new substantive note',old,old+'- Newly described behavior.\n',0],
+ ['TEST-003','changed words',old,old.replace('Existing note.','Existing behavior now works.'),0],
+ ['TEST-003','interior inline-code spacing','## [unreleased] — Existing\n- Use `a b`.\n','## [unreleased] — Existing\n- Use `a  b`.\n',0],
+ ['TEST-003','mixed cosmetic and substantive',old,old.replace('note.\n','note.\t\n')+'- Newly described behavior.\n',0],
+ ['TEST-001','explicit exemption control',old,old.replace('note.\n','note. \n'),0,'no-notes: cosmetic notes need no new entry\n'],
+ ['TEST-004','unstaged content cannot satisfy indexed cosmetic edit',old,old.replace('note.\n','note. \n'),1,'Summary\n','- Unstaged substantive note.\n'],
+ ['TEST-002','actual corpus formatting only',corpus,corpus.replace(/\r?\n/g,'\r\n'),1],
+ ['TEST-003','actual corpus genuine addition',corpus,corpus+'\n## [unreleased] — new corpus control\n- A genuinely added note.\n',0],
+];
+let failures = 0;
+for (const [id,label,before,after,wanted,body='Summary\n',unstaged=''] of cases) {
+ const fixture = fs.mkdtempSync(path.join(scratch,'novelty.'));
+ const git = (...args) => execFileSync('git',args,{cwd:fixture,encoding:'utf8'}).trim();
+ try {
+  git('init','-q','-b','main');git('config','user.name','novelty-fixture');git('config','user.email','novelty@example.invalid');git('config','core.hooksPath','/dev/null');
+  fs.mkdirSync(path.join(fixture,'.aai'));fs.writeFileSync(path.join(fixture,'.aai/tool'),'old');fs.writeFileSync(path.join(fixture,'CHANGELOG.md'),before);
+  git('add','--','.aai/tool','CHANGELOG.md');git('commit','-qm','base');const base=git('rev-parse','HEAD');
+  fs.writeFileSync(path.join(fixture,'.aai/tool'),'new');fs.writeFileSync(path.join(fixture,'CHANGELOG.md'),after);git('add','--','.aai/tool','CHANGELOG.md');
+  fs.writeFileSync(path.join(fixture,'body'),body);
+  if (unstaged) fs.appendFileSync(path.join(fixture,'CHANGELOG.md'),unstaged);
+  for (const mode of ['staged','range']) {
+   if (mode==='range') git('commit','-qm','target');
+   const args=mode==='staged'?['--staged']:['--base',base,'--head','HEAD'];
+   const shipped=git('diff',...(mode==='staged'?['--cached',base]:[base,'HEAD']),'--name-only','--').split('\n').includes('.aai/tool');
+   const result=spawnSync(process.execPath,[process.env.AAI_NOVELTY_GATE,...args,'--body-file',path.join(fixture,'body')],{cwd:fixture,encoding:'utf8'});
+   const output=(result.stdout||'')+(result.stderr||'');const expected=wanted===1?'REFUSED: release-notes missing newly added':body.startsWith('no-notes:')?'PASS: release-notes explicit no-notes':'PASS: release-notes newly added unreleased';
+   const ok=shipped && result.status===wanted && output.includes(expected);
+   console.log(`${id} ${ok?'PASS':'FAIL'} ${mode}: ${label} shipped=${shipped} expected=${wanted} exit=${result.status} fixture=${fixture} base=${base} head=${git('rev-parse','HEAD')}\n${output.trim()}`);
+   if (!ok) failures++;
+  }
+ } finally { fs.rmSync(fixture,{recursive:true,force:true}); }
+}
+console.log(`notes content assertions=${cases.length*2} failures=${failures}`);process.exitCode=failures?1:0;
+JS
+
 # SPEC-0229 Spec-AC-01 TEST-001..003: comments are scanned across every
 # region before interpreting headings; hidden headings never reset state.
 AAI_PARSER_GATE="$GATE" AAI_PARSER_SCRATCH="$SCRATCH_ROOT" node --input-type=module <<'JS' || { echo 'TEST-001 FAIL comment parser regressions'; FAILURES=$((FAILURES + 1)); }
