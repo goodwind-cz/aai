@@ -147,7 +147,8 @@ export function checkNotes(args) {
     // Deleted CHANGELOG cannot qualify; all other blob errors fail closed.
     const exists = git(staged ? ['ls-files', '--stage', '--', 'CHANGELOG.md'] : ['ls-tree', range[1], '--', 'CHANGELOG.md']).trim();
     if (exists) content = git(['show', target]);
-    const patch = git(['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--unified=0', ...range, '--', 'CHANGELOG.md']);
+    // Cosmetic line endings/right-edge whitespace must not manufacture added note content.
+    const patch = git(['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--ignore-space-at-eol', '--unified=0', ...range, '--', 'CHANGELOG.md']);
     if (hasAddedNotes(content, patch)) return 'PASS: release-notes newly added unreleased entry';
   }
   throw new Error(`missing newly added nonempty unreleased notes or no-notes: reason for shipped surfaces: ${shipped.join(', ')}`);

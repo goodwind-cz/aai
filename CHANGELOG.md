@@ -22,6 +22,11 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: ignore cosmetic replacements when checking release notes
+
+- Trailing spaces/tabs and LF/CRLF-only edits to existing notes no longer satisfy the shipped-change gate. New words, new notes and interior inline-code spacing still count as content changes.
+- Traceability: notes-content-and-merged-links / spec-notes-content-and-merged-links.
+
 ## [unreleased] — feat(pr): shipped changes need new notes or an explicit exemption (release-notes-gate)
 
 - A pull request that changes a shipped surface must add a nonempty rollable `## [unreleased]` entry, or carry `no-notes: <reason>` in the PR body. Docs, tests, and evidence-only diffs are exempt.

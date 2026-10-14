@@ -55,7 +55,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (533)
+## Done (535)
 
 | ID | Type | Path |
 |---|---|---|
@@ -343,6 +343,7 @@ _None._
 | ISSUE-0096 | issues | docs/issues/ISSUE-0096-win-fallback-test028-red-on-bash-3.md |
 | ISSUE-0097 | issues | docs/issues/ISSUE-0097-merge-cleanup-submodule-worktree.md |
 | ISSUE-0098 | issues | docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md |
+| ISSUE-0099 | issues | docs/issues/ISSUE-0099-notes-content-and-merged-links.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -590,6 +591,7 @@ _None._
 | SPEC-0227 | specs | docs/specs/SPEC-0227-spec-pr-ceremony-fewer-commits.md |
 | SPEC-0228 | specs | docs/specs/SPEC-0228-spec-release-tagged-by-ci-after-merge.md |
 | SPEC-0229 | specs | docs/specs/SPEC-0229-spec-release-notes-gate.md |
+| SPEC-0230 | specs | docs/specs/SPEC-0230-spec-notes-content-and-merged-links.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

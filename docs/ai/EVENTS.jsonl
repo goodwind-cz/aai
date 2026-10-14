@@ -3083,3 +3083,9 @@
 {"v":1,"ts":"2026-10-14T00:38:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-notes-gate","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-14T08:37:38Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"release-notes-gate","payload":{"status":"pass","hash":"171df69eec80d12e1374b68c57da3fc652d8544f5c260438687775741d3e4913"}}
 {"v":1,"ts":"2026-10-14T08:59:00Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"release-notes-gate","payload":{"status":"pass","hash":"d45d85c779d933dd1f078440b8b302b627adace341b0e637264cc77bda98a063"}}
+{"v":1,"ts":"2026-10-14T10:44:59Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-notes-content-and-merged-links","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-14T14:01:11Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"notes-content-and-merged-links","payload":{"status":"pass","hash":"463f43c398c8065fc97e293aa8d93898e65761095e02e5d0ccad25bafcec3de2"}}
+{"v":1,"ts":"2026-10-14T14:10:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"notes-content-and-merged-links","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-14T14:10:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"notes-content-and-merged-links","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-14T14:10:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-notes-content-and-merged-links","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-14T14:10:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-notes-content-and-merged-links","payload":{"validation":"pass","code_review":"pass"}}

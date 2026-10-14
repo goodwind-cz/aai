@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-14T00:38:07.926Z",
+  "generatedAt": "2026-10-14T14:10:08.790Z",
   "project": "aai",
   "counts": {
-    "delivered": 299,
+    "delivered": 300,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 75943406
@@ -232,7 +232,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0229-spec-release-notes-gate.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20261013T235645Z-release-notes-gate.md"
+      "review": "docs/ai/reviews/review-20261014T010700Z-release-notes-gate-external.md"
+    },
+    {
+      "ref": "notes-content-and-merged-links",
+      "title": "Issue: distinguish new notes and pin merged PR link handling",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0099-notes-content-and-merged-links.md",
+      "closed_on": "2026-10-14",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0230-spec-notes-content-and-merged-links.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261014T140233Z-notes-content-and-merged-links.md"
     },
     {
       "ref": "merge-cleanup-dead-steps",
@@ -4146,7 +4159,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0229-spec-release-notes-gate.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-20261013T235645Z-release-notes-gate.md"
+          "review": "docs/ai/reviews/review-20261014T010700Z-release-notes-gate-external.md"
+        },
+        {
+          "ref": "notes-content-and-merged-links",
+          "title": "Issue: distinguish new notes and pin merged PR link handling",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0099-notes-content-and-merged-links.md",
+          "closed_on": "2026-10-14",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0230-spec-notes-content-and-merged-links.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261014T140233Z-notes-content-and-merged-links.md"
         },
         {
           "ref": "merge-cleanup-dead-steps",
