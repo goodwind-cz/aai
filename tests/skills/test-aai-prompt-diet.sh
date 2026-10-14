@@ -1001,7 +1001,9 @@ test_012_growth_sum_matches_ledger() {
   # retired credit reclaimed 1:1, headroom returns to 340/2048.
   # Then 55605 -> 55864: release-notes-gate Spec-AC-03
   # (SKILL_PR.prompt.md 32494 -> 32753, +259 B), credited 1:1.
-  local want_growth=55864
+  # Then 55864 -> 55944: release-notes-gate-merge-base
+  # (SKILL_PR.prompt.md 32753 -> 32833, +80 B), credited 1:1.
+  local want_growth=55944
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

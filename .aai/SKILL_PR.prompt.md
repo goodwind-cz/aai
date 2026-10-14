@@ -166,9 +166,11 @@ PROCESS
    storage, then run before commit or push:
      node .aai/scripts/release-notes-gate.mjs --staged --body-file <pr-body-file>
    Nonzero: STOP and print the refusal. Old unchanged entries and empty
-   scaffolds do not satisfy the gate. Re-run after any staged/body changes;
-   use this exact checked body for PR creation (`gh pr create --body-file`).
-   CI runs the same gate over the PR base/head and body. Operators can make
+   scaffolds do not satisfy the gate. Re-run `--staged` only while that
+   change is still staged. The body `gh pr create` submits, Lane section
+   included, is checked after commit with
+   `--base origin/<base> --head HEAD --body-file <pr-body-file>`. An empty
+   index is not that check. Operators can make
    the `release notes` check required in branch protection; this ceremony
    does not change remote protection.
 

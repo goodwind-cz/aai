@@ -123,5 +123,29 @@ if grep -q 'release-notes-gate.mjs' "$ROOT/.aai/system/PROFILES.yaml" && ! grep 
 else
   echo 'TEST-004 FAIL profiles'; FAILURES=$((FAILURES + 1))
 fi
+# A later base commit is not part of the pull request. Two-dot diff would
+# treat that base-only shipped edit as a reverse change, and a base-deleted
+# note as a note the head added.
+FORK="$(git -C "$FIXTURE" rev-parse HEAD)"
+git -C "$FIXTURE" checkout -q -b diverge-head
+printf 'docs only\n' > "$FIXTURE/README.md"
+git -C "$FIXTURE" add -- README.md
+git -C "$FIXTURE" commit -qm 'docs only head'
+git -C "$FIXTURE" checkout -q -b diverge-base "$FORK"
+printf 'base only shipped\n' >> "$FIXTURE/.aai/tool.txt"
+git -C "$FIXTURE" add -- .aai/tool.txt
+git -C "$FIXTURE" commit -qm 'base shipped'
+printf 'Summary\n' > "$BODY"
+expect TEST-005 pass 'docs-only head ignores a base-only shipped file' --base diverge-base --head diverge-head --body-file "$BODY"
+git -C "$FIXTURE" checkout -q -B notes-head "$FORK"
+printf 'shipped on head\n' >> "$FIXTURE/.aai/tool.txt"
+git -C "$FIXTURE" add -- .aai/tool.txt
+git -C "$FIXTURE" commit -qm 'head shipped no notes'
+git -C "$FIXTURE" checkout -q -B notes-base "$FORK"
+node -e 'const fs=require("fs"); const p=process.argv[1]; const t=fs.readFileSync(p,"utf8"); if(!t.includes("- New behavior ships.")) process.exit(2); fs.writeFileSync(p, t.replace("\n- New behavior ships.\n","\n"));' "$FIXTURE/CHANGELOG.md"
+git -C "$FIXTURE" add -- CHANGELOG.md
+git -C "$FIXTURE" commit -qm 'base drops an old note'
+printf 'Summary\n' > "$BODY"
+expect TEST-005 refuse 'a note deleted on the base is not a note the head added' --base notes-base --head notes-head --body-file "$BODY"
 printf 'release-notes assertions: failures=%s fixture=%s base=%s head=%s\n' "$FAILURES" "$FIXTURE" "$BASE" "$(git -C "$FIXTURE" rev-parse HEAD)"
 [ "$FAILURES" -eq 0 ]

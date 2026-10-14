@@ -88,8 +88,13 @@ export function checkNotes(args) {
   try { body = readFileSync(bodyFile, 'utf8'); }
   catch (error) { throw new Error(`cannot read PR body ${bodyFile}: ${error.message}`); }
   // Resolve commits before exemptions: missing history is never a success.
+  // A pull request is the patch since the merge base. Two endpoints would
+  // treat a later base-only change as part of the head.
   const resolve = (ref) => git(['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]).trim();
-  const range = staged ? ['--cached', resolve('HEAD')] : [resolve(base), resolve(head)];
+  const headSha = staged ? resolve('HEAD') : resolve(head);
+  const range = staged
+    ? ['--cached', headSha]
+    : [git(['merge-base', '--end-of-options', resolve(base), headSha]).trim(), headSha];
   const raw = git(['diff', '--raw', '-z', '--no-renames', '--no-ext-diff', ...range, '--']).split('\0');
   const shipped = [];
   let changelogChanged = false;
