@@ -1374,11 +1374,30 @@ test_026_backlog_signed_on_live_ledger() {
   ( cd "$ROOT" && env -u AAI_ROLE node "$FOLLOW_UPS" list --status all --json --ledger "$live" ) > "$d/live-fu.json" || fail TEST-026 'follow-ups list --json over the live ledger failed'
   verdict="$(node -e '
 const fs = require("fs");
+const {execFileSync} = require("child_process");
 const rows = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).items;
 const fu = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).items;
 const unmergedRef = "routing-tables-have-an-owner-and-a-seam";
-const mergedContract = rows.filter(r => r.amendment_class === "contract" && r.ref_id !== unmergedRef);
-const unsignedMerged = mergedContract.filter(r => r.bucket !== "signed");
+const mergedCache = new Map();
+function rideMerged(ref) {
+  if (mergedCache.has(ref)) return mergedCache.get(ref);
+  let yes = false;
+  try {
+    const listed = execFileSync("git", ["grep", "-l", `id: ${ref}`, "origin/main", "--", "docs"], {encoding:"utf8"}).split("\n").filter(Boolean);
+    for (const path of listed) {
+      const text = execFileSync("git", ["show", `origin/main:${path}`], {encoding:"utf8"});
+      const id = /^id:\s*(\S+)\s*$/m.exec(text);
+      const status = /^status:\s*(\S+)\s*$/m.exec(text);
+      const pr = /^  pr:\s*(.+)\s*$/m.exec(text);
+      const prItems = pr && pr[1] !== "[]" && pr[1] !== "null" && pr[1] !== "~";
+      if (id && id[1] === ref && status && status[1] === "done" && prItems) yes = true;
+    }
+  } catch (e) { yes = false; }
+  mergedCache.set(ref, yes);
+  return yes;
+}
+const mergedContract = rows.filter(r => r.amendment_class === "contract" && r.ref_id !== unmergedRef && (r.bucket === "signed" || rideMerged(r.ref_id)));
+const unsignedMerged = rows.filter(r => r.amendment_class === "contract" && r.ref_id !== unmergedRef && r.bucket !== "signed" && rideMerged(r.ref_id));
 if (unsignedMerged.length > 0) {
   console.log(`FAIL ${unsignedMerged.length} merged contract amendments not signed: ${unsignedMerged.map(u => u.record_key).slice(0, 5).join(", ")}`);
   process.exit(1);

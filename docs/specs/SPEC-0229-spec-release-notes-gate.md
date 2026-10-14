@@ -8,7 +8,8 @@ ceremony_level: 2
 links:
   requirement: release-notes-gate
   rfc: null
-  pr: []
+  pr:
+    - 465
   commits: []
 ---
 
