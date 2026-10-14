@@ -45,24 +45,57 @@ export function hasAddedNotes(content, patch) {
   const lines = content.split(/\r?\n/);
   let entry = false;
   let comment = false;
+  // Inline code uses equally sized backtick runs; unmatched runs stay literal.
+  // Headings are single-line blocks, so their code delimiters must close here.
+  const codeSpanEnd = (line, start) => {
+    let end = start;
+    while (line[end] === '`') end++;
+    const size = end - start;
+    const runs = /`+/g;
+    runs.lastIndex = end;
+    let match;
+    while ((match = runs.exec(line))) {
+      if (match[0].length === size) return match.index + size;
+    }
+    return -1;
+  };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (/^## /.test(line)) {
-      entry = /^## \[unreleased\] — \S/.test(line);
-      comment = false;
+    let visible = '';
+    let offset = 0;
+    // Track comments across every region before interpreting headings. A
+    // hidden heading must neither activate an entry nor reset comment state.
+    while (offset < line.length) {
+      if (comment) {
+        const end = line.indexOf('-->', offset);
+        if (end < 0) break;
+        offset = end + 3;
+        comment = false;
+      } else if (line.charCodeAt(offset) === 92 && /[!-/:-@\[-`{-~]/.test(line[offset + 1] || '')) {
+        // An escaped punctuation mark cannot open an inline-code span/comment.
+        visible += line.slice(offset, offset + 2);
+        offset += 2;
+      } else if (line[offset] === '`') {
+        let end = codeSpanEnd(line, offset);
+        if (end < 0) {
+          // The whole unmatched run is literal; its suffix is not a new opener.
+          end = offset;
+          while (line[end] === '`') end++;
+        }
+        visible += line.slice(offset, end);
+        offset = end;
+      } else if (line.startsWith('<!--', offset)) {
+        offset += 4;
+        comment = true;
+      } else {
+        visible += line[offset++];
+      }
+    }
+    if (/^## /.test(visible)) {
+      entry = /^## \[unreleased\] — \S/.test(visible);
       continue;
     }
     if (!entry) continue;
-    let visible = line;
-    // Comments and heading scaffolds are not release-note body content.
-    if (comment) {
-      const end = visible.indexOf('-->');
-      if (end < 0) continue;
-      visible = visible.slice(end + 3); comment = false;
-    }
-    visible = visible.replace(/<!--.*?-->/g, '');
-    const start = visible.indexOf('<!--');
-    if (start >= 0) { visible = visible.slice(0, start); comment = true; }
     if (added.has(i + 1) && visible.trim() && !/^\s*(?:#{1,6}\s|[-*+]\s*$)/.test(visible)) return true;
   }
   return false;

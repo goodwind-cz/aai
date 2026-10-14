@@ -1367,6 +1367,52 @@ test_024_canon_merge_direction_signs() {
 }
 
 test_026_backlog_signed_on_live_ledger() {
+  # Execute this tests actual live verdict against real Git/object fixtures.
+  # A >=300 signed backlog must not conceal one merged-but-unsigned record.
+  AAI_PREDICATE_SUITE="$ROOT/tests/skills/test-aai-merge-cleanup.sh" AAI_PREDICATE_SCRATCH="${AAI_PREDICATE_SCRATCH:-$SCRATCH}" node <<'JS' || fail TEST-026 'merged predicate fixture assertions failed'
+const fs = require("fs");
+const path = require("path");
+const {execFileSync, spawnSync} = require("child_process");
+const scratch = process.env.AAI_PREDICATE_SCRATCH;
+if (!scratch || !path.isAbsolute(scratch)) throw Error("absolute predicate scratch required");
+fs.mkdirSync(scratch, {recursive:true});
+const fixture = fs.mkdtempSync(path.join(scratch, "merged-predicate."));
+try {
+  const source = fs.readFileSync(process.env.AAI_PREDICATE_SUITE, "utf8");
+  const start = source.indexOf("const fs = require(\"fs\");\nconst {execFileSync} = require(\"child_process\");\nconst rows =");
+  const end = source.indexOf("\n' \"$d/live-rows.json\"", start);
+  if (start < 0 || end < 0) throw Error("live verdict extraction failed");
+  const program = source.slice(start, end);
+  const git = (...args) => execFileSync("git", args, {cwd:fixture, encoding:"utf8"}).trim();
+  git("init", "-q", "-b", "main"); git("config", "user.name", "predicate-fixture");
+  git("config", "user.email", "predicate@example.invalid"); git("config", "core.hooksPath", "/dev/null");
+  fs.mkdirSync(path.join(fixture,"docs"));
+  for (const [ref, status, pr] of [["merged-control","done","[465]"],["pending-control","implementing","[]"]]) {
+    fs.writeFileSync(path.join(fixture,"docs",ref+".md"),`---\nid: ${ref}\nstatus: ${status}\nlinks:\n  pr: ${pr}\n---\n`);
+  }
+  git("add", "--", "docs"); git("commit", "-qm", "fixture docs");
+  git("update-ref", "refs/remotes/origin/main", "HEAD");
+  const signed = Array.from({length:300}, (_,i) => ({amendment_class:"contract",ref_id:"signed-"+i,bucket:"signed",record_key:"signed-"+i}));
+  const unmerged = {amendment_class:"contract",ref_id:"routing-tables-have-an-owner-and-a-seam",bucket:"unsigned-tracked",record_key:"unmerged"};
+  fs.writeFileSync(path.join(fixture,"fu.json"), JSON.stringify({items:[]}));
+  let failures = 0;
+  function check(label, extra, wanted, message) {
+    fs.writeFileSync(path.join(fixture,"rows.json"), JSON.stringify({items:[...signed, unmerged, ...extra]}));
+    const result = spawnSync(process.execPath,["-e",program,path.join(fixture,"rows.json"),path.join(fixture,"fu.json")],{cwd:fixture,encoding:"utf8"});
+    const output = (result.stdout || "") + (result.stderr || "");
+    const ok = result.status === wanted && output.includes(message);
+    console.log(`TEST-026 ${ok ? "PASS" : "FAIL"} ${label} expected=${wanted} exit=${result.status}\n${output.trim()}`);
+    if (!ok) failures++;
+  }
+  const unsigned = ref => ({amendment_class:"contract",ref_id:ref,bucket:"unsigned-tracked",record_key:ref});
+  check("merged unsigned record reaches actual rejection",[unsigned("merged-control")],1,"merged contract amendments not signed");
+  check("unmerged record remains allowed",[unsigned("pending-control")],0,"OK 300 merged contract records");
+  git("update-ref", "-d", "refs/remotes/origin/main");
+  check("unreadable base cannot attest unmerged",[unsigned("pending-control")],1,"cannot determine merge status");
+  console.log(`merged predicate assertions=3 failures=${failures} fixture=${fixture}`);
+  process.exitCode = failures ? 1 : 0;
+} finally { fs.rmSync(fixture,{recursive:true,force:true}); }
+JS
   local d="$SCRATCH/live_026" live="$ROOT/docs/ai/decisions.jsonl" verdict rc=0
   run mkdir -p "$d"
   [[ -s "$live" ]] || fail TEST-026 "the live ledger is missing: $live"
@@ -1383,16 +1429,22 @@ function rideMerged(ref) {
   if (mergedCache.has(ref)) return mergedCache.get(ref);
   let yes = false;
   try {
-    const listed = execFileSync("git", ["grep", "-l", `id: ${ref}`, "origin/main", "--", "docs"], {encoding:"utf8"}).split("\n").filter(Boolean);
+    let listed;
+    try {
+      listed = execFileSync("git", ["grep", "-l", `id: ${ref}`, "origin/main", "--", "docs"], {encoding:"utf8"}).split("\n").filter(Boolean);
+    } catch (error) {
+      if (error.status === 1) listed = []; // Git grep found no match: a valid negative result.
+      else throw error;
+    }
     for (const path of listed) {
-      const text = execFileSync("git", ["show", `origin/main:${path}`], {encoding:"utf8"});
+      const text = execFileSync("git", ["show", path], {encoding:"utf8"});
       const id = /^id:\s*(\S+)\s*$/m.exec(text);
       const status = /^status:\s*(\S+)\s*$/m.exec(text);
       const pr = /^  pr:\s*(.+)\s*$/m.exec(text);
       const prItems = pr && pr[1] !== "[]" && pr[1] !== "null" && pr[1] !== "~";
       if (id && id[1] === ref && status && status[1] === "done" && prItems) yes = true;
     }
-  } catch (e) { yes = false; }
+  } catch (error) { throw new Error(`cannot determine merge status for ${ref}: ${error.message}`); }
   mergedCache.set(ref, yes);
   return yes;
 }

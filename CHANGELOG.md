@@ -28,6 +28,7 @@ fine — it is the marker a cut leaves on top.
 - `/aai-pr` runs the same check on the staged patch and the final proposed body. CI runs it on the pull request range and body. The body is data and is never executed.
 - The pull request range is the patch since the merge base. A later commit on the base is not part of the pull request, and a note removed on the base does not count as a note the pull request added.
 - After the commit, the check uses that same range on the body that will be submitted, including its Lane section. Re-running the staged check against an empty index is not that check.
+- Ignore headings and note text hidden inside HTML comments, including comments that start outside the active entry; visible notes after a closing comment and literal delimiters inside matching inline-code spans remain valid (SPEC-0229).
 - Traceability: release-notes-gate, CHANGE-0211, SPEC-0229.
 
 ## [v2026.10.12] — chore(release): a release is a PR, and CI tags and publishes it after the merge (release-tagged-by-ci-after-merge)

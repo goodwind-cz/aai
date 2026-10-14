@@ -147,5 +147,59 @@ git -C "$FIXTURE" add -- CHANGELOG.md
 git -C "$FIXTURE" commit -qm 'base drops an old note'
 printf 'Summary\n' > "$BODY"
 expect TEST-005 refuse 'a note deleted on the base is not a note the head added' --base notes-base --head notes-head --body-file "$BODY"
+# SPEC-0229 Spec-AC-01 TEST-001..003: comments are scanned across every
+# region before interpreting headings; hidden headings never reset state.
+AAI_PARSER_GATE="$GATE" AAI_PARSER_SCRATCH="$SCRATCH_ROOT" node --input-type=module <<'JS' || { echo 'TEST-001 FAIL comment parser regressions'; FAILURES=$((FAILURES + 1)); }
+import fs from 'node:fs';
+import path from 'node:path';
+import {execFileSync, spawnSync} from 'node:child_process';
+const scratch = process.env.AAI_PARSER_SCRATCH;
+if (!scratch || !path.isAbsolute(scratch)) throw new Error('absolute parser scratch required');
+let failures = 0;
+const cases = [
+  ['hidden heading inside active region', '## [unreleased] — visible title\n<!--\n## [unreleased] — hidden title\nHidden text only.\n-->\n', 1],
+  ['hidden heading outside active region', '<!--\n## [unreleased] — hidden title\nHidden text only.\n-->\n', 1],
+  ['ordinary multiline comment control', '## [unreleased] — visible title\n<!--\nHidden text only.\n-->\n', 1],
+  ['multiple closed comments and reopened comment', '## [unreleased] — visible title\n<!-- first --> <!-- second --> <!--\n## [unreleased] — hidden title\nHidden text only.\n-->\n', 1],
+  ['inline-code marker in title', '## [unreleased] — handle `<!--` markers\n- Literal markers render correctly.\n', 0],
+  ['double-backtick span containing a single backtick', '## [unreleased] — handle `` ` <!-- `` markers\n- Literal markers render correctly.\n', 0],
+  ['triple-backtick span containing shorter runs', '## [unreleased] — handle ``` `` <!-- ` ``` markers\n- Literal markers render correctly.\n', 0],
+  ['unmatched backtick does not hide a genuine comment', '## [unreleased] — unmatched ` <!--\n## [unreleased] — hidden title\nHidden text only.\n-->\n', 1],
+  ['unmatched double run cannot become a single opener', '## [unreleased] — unmatched ``<!--`\n## [unreleased] — hidden title\nHidden text only.\n-->\n', 1],
+  ['unmatched triple run cannot become a shorter opener', '## [unreleased] — unmatched ```<!--``\n## [unreleased] — hidden title\nHidden text only.\n-->\n', 1],
+  ['mismatched delimiter does not hide a genuine comment', '## [unreleased] — unmatched `` ` <!--\n## [unreleased] — hidden title\nHidden text only.\n-->\n', 1],
+  ['literal code marker followed by genuine comment', '## [unreleased] — handle `<!--` <!--\n## [unreleased] — hidden title\nHidden text only.\n-->\n', 1],
+  ['escaped backtick does not hide a genuine comment', '## [unreleased] — escaped \\`<!--`\n## [unreleased] — hidden title\nHidden text only.\n-->\n', 1],
+  ['code ticks within genuine comment remain hidden', '<!-- `\n## [unreleased] — hidden title\nHidden text only. `\n-->\n', 1],
+  ['visible note positive control', '## [unreleased] — visible title\n- Real release note.\n', 0],
+  ['visible body after closing comment', '## [unreleased] — visible title\n<!--\n## [v1] — hidden released title\n-->- Real release note after close.\n', 0],
+  ['visible region after outside comment', '<!--\n## [unreleased] — hidden title\nHidden text only.\n-->\n## [unreleased] — visible title\n- Real release note.\n', 0],
+];
+for (const [label, notes, wanted] of cases) {
+  const fixture = fs.mkdtempSync(path.join(scratch, 'parser.'));
+  const git = (...args) => execFileSync('git', args, {cwd:fixture, encoding:'utf8'}).trim();
+  try {
+    git('init','-q','-b','main'); git('config','user.name','notes-parser-fixture');
+    git('config','user.email','notes-parser@example.invalid'); git('config','core.hooksPath','/dev/null');
+    fs.mkdirSync(path.join(fixture,'.aai')); fs.writeFileSync(path.join(fixture,'.aai/tool'),'old');
+    fs.writeFileSync(path.join(fixture,'CHANGELOG.md'),'# Changelog\n'); git('add','--','.aai/tool','CHANGELOG.md'); git('commit','-qm','base');
+    const base = git('rev-parse','HEAD');
+    fs.writeFileSync(path.join(fixture,'.aai/tool'),'new'); fs.appendFileSync(path.join(fixture,'CHANGELOG.md'), notes);
+    git('add','--','.aai/tool','CHANGELOG.md'); fs.writeFileSync(path.join(fixture,'body'),'Summary\n');
+    for (const mode of ['staged','range']) {
+      if (mode === 'range') git('commit','-qm','parser target');
+      const args = mode === 'staged' ? ['--staged'] : ['--base',base,'--head','HEAD'];
+      const result = spawnSync(process.execPath,[process.env.AAI_PARSER_GATE,...args,'--body-file',path.join(fixture,'body')],{cwd:fixture,encoding:'utf8'});
+      const output = (result.stdout || '') + (result.stderr || '');
+      const expected = wanted === 0 ? 'PASS: release-notes newly added unreleased entry' : 'REFUSED: release-notes missing newly added';
+      const ok = result.status === wanted && output.includes(expected);
+      console.log(`TEST-${wanted === 0 ? '002' : '001'} ${ok ? 'PASS' : 'FAIL'} ${mode}: ${label} expected=${wanted} exit=${result.status} fixture=${fixture} base=${base} head=${git('rev-parse','HEAD')}\n${output.trim()}`);
+      if (!ok) failures++;
+    }
+  } finally { fs.rmSync(fixture,{recursive:true,force:true}); }
+}
+console.log(`comment parser assertions=${cases.length * 2} failures=${failures}`);
+process.exitCode = failures ? 1 : 0;
+JS
 printf 'release-notes assertions: failures=%s fixture=%s base=%s head=%s\n' "$FAILURES" "$FIXTURE" "$BASE" "$(git -C "$FIXTURE" rev-parse HEAD)"
 [ "$FAILURES" -eq 0 ]
