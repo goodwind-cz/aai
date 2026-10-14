@@ -102,6 +102,7 @@
 2	tests/skills/test-aai-r-guard.sh
 3	tests/skills/test-aai-reconcile-telemetry.sh
 2	tests/skills/test-aai-redact.sh
+2	tests/skills/test-aai-release-notes.sh
 3	tests/skills/test-aai-release.sh
 4	tests/skills/test-aai-repo-tripwire.sh
 2	tests/skills/test-aai-ride-select.sh

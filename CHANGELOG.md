@@ -22,6 +22,20 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: ignore cosmetic replacements when checking release notes
+
+- Trailing spaces/tabs and LF/CRLF-only edits to existing notes no longer satisfy the shipped-change gate. New words, new notes and interior inline-code spacing still count as content changes.
+- Traceability: notes-content-and-merged-links / spec-notes-content-and-merged-links.
+
+## [unreleased] — feat(pr): shipped changes need new notes or an explicit exemption (release-notes-gate)
+
+- A pull request that changes a shipped surface must add a nonempty rollable `## [unreleased]` entry, or carry `no-notes: <reason>` in the PR body. Docs, tests, and evidence-only diffs are exempt.
+- `/aai-pr` runs the same check on the staged patch and the final proposed body. CI runs it on the pull request range and body. The body is data and is never executed.
+- The pull request range is the patch since the merge base. A later commit on the base is not part of the pull request, and a note removed on the base does not count as a note the pull request added.
+- After the commit, the check uses that same range on the body that will be submitted, including its Lane section. Re-running the staged check against an empty index is not that check.
+- Ignore headings and note text hidden inside HTML comments, including comments that start outside the active entry; visible notes after a closing comment and literal delimiters inside matching inline-code spans remain valid (SPEC-0229).
+- Traceability: release-notes-gate, CHANGE-0211, SPEC-0229.
+
 ## [v2026.10.12] — chore(release): a release is a PR, and CI tags and publishes it after the merge (release-tagged-by-ci-after-merge)
 
 - `/aai-release --confirm` builds the release commit on `chore/release-<version>` in its own temporary worktree from the target branch on origin (`origin/main` here), pushes that branch and opens a release PR. With `--no-remote` it stops after the local release branch, without push or PR. The caller's checkout is never touched, so a detached HEAD or a dirty main checkout no longer matters.

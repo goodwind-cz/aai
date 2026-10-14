@@ -905,6 +905,16 @@ suites:
     globs:
       - .aai/scripts/lib/aai-redact.mjs
 
+  aai-release-notes:
+    companions:
+      - aai-release
+      - aai-layer-profiles
+    globs:
+      - .aai/scripts/release-notes-gate.mjs
+      - .aai/SKILL_PR.prompt.md
+      - .github/workflows/skill-suite.yml
+      - tests/skills/test-aai-release-notes.sh
+
   aai-release:
     companions:
       - aai-layer-profiles
