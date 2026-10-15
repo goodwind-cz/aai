@@ -8540,7 +8540,7 @@ test_broken_refs_vanished_tracked_skipped() {
   [[ "$rows" == "$expect" ]] \
     || br_fail_rm "$dir" "vanished tracked source: kept row missing or gone.mjs was counted: $rows"
   rm -rf "$dir"
-  log_pass "tracked-but-absent source is skipped with a NOTE"
+  log_pass "tracked-but-absent source is named in a NOTE and left out of the count"
 }
 
 test_broken_refs_generator_companions_ignored() {
