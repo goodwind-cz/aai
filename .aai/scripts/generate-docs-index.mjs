@@ -61,6 +61,18 @@ const AUDIT_MARKER = '# Docs Index Audit — auto-generated, DO NOT EDIT';
 const SOURCE_REF_ROOTS = ['.aai/scripts', 'tests', 'services', 'apps', 'packages', 'convex', 'supabase'];
 const SOURCE_REF_EXTENSIONS = new Set(['.mjs', '.js', '.cjs', '.ts', '.tsx', '.jsx', '.sh', '.ps1', '.py']);
 const SOURCE_REF_EXCLUDED_SEGMENTS = new Set(['node_modules', '_archive', 'archive', 'dist', 'coverage', '.git']);
+// This command owns these paths. INDEX.md and INDEX.audit.md are stubbed
+// before the walk; INDEX.violations.md is removed when the tree is clean.
+// A literal mention in the generator or a hook is not a missing document.
+const SOURCE_REF_GENERATOR_PATHS = new Set([
+  'docs/INDEX.md',
+  'docs/INDEX.audit.md',
+  'docs/INDEX.violations.md',
+]);
+// Same token shape as scan_stale_draft_refs in test-aai-doc-numbering.sh.
+// A draft path whose numbered successor is already on disk was renamed, not
+// lost. Writing the draft token into docs/INDEX.md fails that scan.
+const RETIRED_DRAFT_REF_RE = /^docs\/(rfc|specs|issues|requirements|releases)\/([A-Z]+(?:-[A-Z]+)*)-DRAFT-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
 
 function compareSourceRefRows(a, b) {
   if (a.source < b.source) return -1;
@@ -68,6 +80,23 @@ function compareSourceRefRows(a, b) {
   if (a.ref < b.ref) return -1;
   if (a.ref > b.ref) return 1;
   return 0;
+}
+
+function hasNumberedDraftSuccessor(root, matchedPath) {
+  const m = RETIRED_DRAFT_REF_RE.exec(matchedPath);
+  if (!m) return false;
+  const dir = m[1];
+  const prefix = m[2];
+  const slug = m[3];
+  let names;
+  try {
+    names = fs.readdirSync(path.join(root, 'docs', dir));
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return false;
+    throw e;
+  }
+  const fileRe = new RegExp(`^${prefix}-\\d+-${slug}\\.md$`);
+  return names.some((name) => fileRe.test(name));
 }
 
 function listSourceRefWorkingTree(root, sourceRefRoot) {
@@ -119,8 +148,20 @@ function collectSourceBrokenRefs(root) {
       const posix = toPosix(rel).replace(/^\.\//, '');
       if (posix.split('/').some((seg) => SOURCE_REF_EXCLUDED_SEGMENTS.has(seg))) continue;
       if (!SOURCE_REF_EXTENSIONS.has(path.posix.extname(posix))) continue;
-      const text = fs.readFileSync(path.join(root, posix), 'utf8');
+      const absSource = path.join(root, posix);
+      let text;
+      try {
+        text = fs.readFileSync(absSource, 'utf8');
+      } catch (e) {
+        if (e && e.code === 'ENOENT') {
+          console.error(`NOTE: ${posix} is tracked but absent on disk — source-ref walk skips it.`);
+          continue;
+        }
+        throw e;
+      }
       for (const matchedPath of extractDocPathReferences(text)) {
+        if (SOURCE_REF_GENERATOR_PATHS.has(matchedPath)) continue;
+        if (hasNumberedDraftSuccessor(root, matchedPath)) continue;
         try {
           fs.statSync(path.join(root, matchedPath));
           continue;

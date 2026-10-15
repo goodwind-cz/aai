@@ -8519,6 +8519,71 @@ test_broken_refs_selector_isolates() {
   log_pass "one argument runs only that function (TEST-012)"
 }
 
+# Fixture paths are assembled at runtime. A contiguous docs/*.md literal in this
+# tracked file would itself become a broken-reference row.
+test_broken_refs_vanished_tracked_skipped() {
+  local dir rc rows kept gone expect
+  dir="$(br_with_repo git)"
+  kept="$(printf 'docs/%s.md' 'missing-kept')"
+  gone="$(printf 'docs/%s.md' 'missing-gone')"
+  printf '%s\n' "$kept" | br_write "$dir" ".aai/scripts/cite.mjs"
+  printf '%s\n' "$gone" | br_write "$dir" ".aai/scripts/gone.mjs"
+  br_commit_all "$dir"
+  rm "$dir/.aai/scripts/gone.mjs"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "vanished tracked source: generator exit $rc"
+  grep -qF 'NOTE: .aai/scripts/gone.mjs is tracked but absent on disk' "$dir/br-stderr.txt" \
+    || br_fail_rm "$dir" "vanished tracked source: stderr did not name gone.mjs"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 1)" == "1" ]] || br_fail_rm "$dir" "vanished tracked source: expected count 1"
+  rows="$(br_data_rows "$dir")"
+  expect="$(printf '| .aai/scripts/cite.mjs | docs/%s.md | NOT FOUND |' 'missing-kept')"
+  [[ "$rows" == "$expect" ]] \
+    || br_fail_rm "$dir" "vanished tracked source: kept row missing or gone.mjs was counted: $rows"
+  rm -rf "$dir"
+  log_pass "tracked-but-absent source is skipped with a NOTE"
+}
+
+test_broken_refs_generator_companions_ignored() {
+  local dir rc rows expect
+  dir="$(br_with_repo git)"
+  {
+    printf 'docs/%s.md\n' 'INDEX'
+    printf 'docs/%s.md\n' 'INDEX.audit'
+    printf 'docs/%s.md\n' 'INDEX.violations'
+    printf 'docs/%s.md\n' 'missing-real'
+  } | br_write "$dir" ".aai/scripts/cite.mjs"
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "generator companions: generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 1)" == "1" ]] || br_fail_rm "$dir" "generator companions: expected count 1"
+  rows="$(br_data_rows "$dir")"
+  expect="$(printf '| .aai/scripts/cite.mjs | docs/%s.md | NOT FOUND |' 'missing-real')"
+  [[ "$rows" == "$expect" ]] \
+    || br_fail_rm "$dir" "generator companions: only the real missing path should be a row: $rows"
+  rm -rf "$dir"
+  log_pass "generator-owned companions are not broken refs"
+}
+
+test_broken_refs_retired_draft_not_a_row() {
+  local dir rc rows numbered draft inflight expect
+  dir="$(br_with_repo git)"
+  numbered="$(printf 'docs/issues/%s.md' 'CHANGE-0012-widget')"
+  draft="$(printf 'docs/issues/%s.md' 'CHANGE-DRAFT-widget')"
+  inflight="$(printf 'docs/issues/%s.md' 'CHANGE-DRAFT-inflight')"
+  printf '# numbered successor\n' | br_write "$dir" "$numbered"
+  printf '%s\n' "$draft" "$inflight" | br_write "$dir" "tests/cite.sh"
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "retired draft: generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 1)" == "1" ]] || br_fail_rm "$dir" "retired draft: expected count 1"
+  rows="$(br_data_rows "$dir")"
+  expect="$(printf '| tests/cite.sh | docs/issues/%s.md | NOT FOUND |' 'CHANGE-DRAFT-inflight')"
+  [[ "$rows" == "$expect" ]] \
+    || br_fail_rm "$dir" "retired draft: inflight row missing or numbered successor was counted: $rows"
+  rm -rf "$dir"
+  log_pass "a draft path with a numbered successor is not a broken ref"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -8721,6 +8786,9 @@ main() {
   test_broken_refs_services_root
   test_broken_refs_untracked_skipped
   test_broken_refs_nongit_note
+  test_broken_refs_vanished_tracked_skipped
+  test_broken_refs_generator_companions_ignored
+  test_broken_refs_retired_draft_not_a_row
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

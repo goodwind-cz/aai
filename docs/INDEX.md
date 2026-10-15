@@ -632,7 +632,7 @@ _None._
 
 _None._
 
-## Broken references (484)
+## Broken references (476)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -640,11 +640,8 @@ _None._
 | .aai/scripts/aai-sync.sh | docs/knowledge/PATTERNS_UNIVERSAL.md | NOT FOUND |
 | .aai/scripts/deslop-unrequested.mjs | docs/ai/validation/validation-20260815T085528Z-...-round5.md | NOT FOUND |
 | .aai/scripts/deslop-unrequested.mjs | docs/issues/CHANGE-0145-...md | NOT FOUND |
-| .aai/scripts/generate-docs-index.mjs | docs/INDEX.violations.md | NOT FOUND |
 | .aai/scripts/generate-overview.mjs | docs/issues/team/foo.md | NOT FOUND |
 | .aai/scripts/generate-userguide-rollup.mjs | docs/specs/SPEC-1.md | NOT FOUND |
-| .aai/scripts/install-pre-commit-hook.ps1 | docs/INDEX.violations.md | NOT FOUND |
-| .aai/scripts/install-pre-commit-hook.sh | docs/INDEX.violations.md | NOT FOUND |
 | .aai/scripts/lib/repo-tripwire.sh | docs/other.md | NOT FOUND |
 | .aai/scripts/migrate-state-to-local.ps1 | docs/ai/.session-context.md | NOT FOUND |
 | .aai/scripts/pre-compact-save.ps1 | docs/ai/.session-context.md | NOT FOUND |
@@ -718,6 +715,7 @@ _None._
 | tests/skills/test-aai-delta-stage3.sh | docs/specs/SPEC-bad-violation.md | NOT FOUND |
 | tests/skills/test-aai-delta-stage3.sh | docs/specs/SPEC-collision.md | NOT FOUND |
 | tests/skills/test-aai-delta-stage3.sh | docs/specs/SPEC-missing-doc.md | NOT FOUND |
+| tests/skills/test-aai-deslop.sh | docs/ai/reports/deslop-candidate-adjudication-20260815.md | NOT FOUND |
 | tests/skills/test-aai-deslop.sh | docs/issues/CHANGE-does-not-exist.md | NOT FOUND |
 | tests/skills/test-aai-deslop.sh | docs/issues/DOC-change.md | NOT FOUND |
 | tests/skills/test-aai-deslop.sh | docs/issues/DOC-issue.md | NOT FOUND |
@@ -773,7 +771,6 @@ _None._
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-in-flight-dev-draft.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-my-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-noid.md | NOT FOUND |
-| tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-parallel-safe-doc-numbering.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-second-demo.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-still-a-draft.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-topic-a.md | NOT FOUND |
@@ -788,7 +785,6 @@ _None._
 | tests/skills/test-aai-doc-numbering.sh | docs/specs/SPEC-DRAFT-readonly-projection.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/specs/SPEC-DRAFT-state-recorded.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/specs/SPEC-DRAFT-widget-projection.md | NOT FOUND |
-| tests/skills/test-aai-docs-audit.sh | docs/INDEX.violations.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/_archive/specs/SPEC-old.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/closeout/CHANGE-0050-change-parent.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/closeout/CHANGE-0070-done-nonspec.md | NOT FOUND |
@@ -930,7 +926,6 @@ _None._
 | tests/skills/test-aai-downstream-autopilot.sh | docs/issues/CHANGE-0001-none.md | NOT FOUND |
 | tests/skills/test-aai-downstream-autopilot.sh | docs/issues/CHANGE-0002-fx.md | NOT FOUND |
 | tests/skills/test-aai-downstream-autopilot.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
-| tests/skills/test-aai-factory-report.sh | docs/specs/SPEC-DRAFT-spec-factory-performance-report.md | NOT FOUND |
 | tests/skills/test-aai-follow-ups.sh | docs/ai/reviews/x.md | NOT FOUND |
 | tests/skills/test-aai-follow-ups.sh | docs/issues/CHANGE-9999-does-not-need-to-exist.md | NOT FOUND |
 | tests/skills/test-aai-follow-ups.sh | docs/specs/SPEC-0042-spec-some-other-frozen-scope.md | NOT FOUND |
@@ -1015,7 +1010,6 @@ _None._
 | tests/skills/test-aai-planning-probes.sh | docs/ai/briefs/CHANGE-0113.md | NOT FOUND |
 | tests/skills/test-aai-planning-probes.sh | docs/analysis/altitude-disposition-PLANNING.md | NOT FOUND |
 | tests/skills/test-aai-planning-probes.sh | docs/specs/SPEC-DRAFT-x.md | NOT FOUND |
-| tests/skills/test-aai-pr-platform.sh | docs/INDEX.violations.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/canonical/auth.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/issues/CHANGE-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/cap-t013.md | NOT FOUND |
@@ -1067,7 +1061,6 @@ _None._
 | tests/skills/test-aai-spec-tools.sh | docs/specs/SPEC-0102-dual.md | NOT FOUND |
 | tests/skills/test-aai-spec-tools.sh | docs/specs/SPEC-0200-lean.md | NOT FOUND |
 | tests/skills/test-aai-spec-tools.sh | docs/specs/SPEC-0201-done.md | NOT FOUND |
-| tests/skills/test-aai-state.sh | docs/INDEX.violations.md | NOT FOUND |
 | tests/skills/test-aai-state.sh | docs/ai/reviews/a.md | NOT FOUND |
 | tests/skills/test-aai-state.sh | docs/ai/reviews/b.md | NOT FOUND |
 | tests/skills/test-aai-state.sh | docs/ai/reviews/fresh.md | NOT FOUND |
@@ -1086,7 +1079,6 @@ _None._
 | tests/skills/test-aai-state.sh | docs/issues/CHANGE-0012.md | NOT FOUND |
 | tests/skills/test-aai-state.sh | docs/issues/CHANGE-0020.md | NOT FOUND |
 | tests/skills/test-aai-state.sh | docs/issues/CHANGE-0050-fixture.md | NOT FOUND |
-| tests/skills/test-aai-state.sh | docs/issues/CHANGE-DRAFT-slug-refs-across-tooling.md | NOT FOUND |
 | tests/skills/test-aai-state.sh | docs/issues/ISSUE-0042.md | NOT FOUND |
 | tests/skills/test-aai-state.sh | docs/issues/ISSUE-0086.md | NOT FOUND |
 | tests/skills/test-aai-state.sh | docs/issues/ISSUE-0099-fixture.md | NOT FOUND |
