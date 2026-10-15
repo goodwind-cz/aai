@@ -2164,7 +2164,9 @@ EOF
 # both immune to untracked in-flight documents and to the clock:
 #   forward — every document git TRACKS under the directories the index itself
 #             names in its `Source:` line must be listed in the index;
-#   reverse — every `docs/*.md` path the index lists must still exist on disk.
+#   reverse — every `docs/*.md` path the index lists must still exist on disk,
+#             except paths that appear only in the Broken references section
+#             (those rows exist to name a file that is not on disk).
 # The reverse direction checks EXISTENCE, deliberately not trackedness: an index
 # regenerated locally while an untracked draft exists legitimately lists that
 # draft, and a trackedness rule would redden on it. The scanned directories come
@@ -2208,7 +2210,14 @@ index_stale_findings() {  # $1 = repo root, $2 = index file
       bad=$(( bad + 1 ))
     fi
   done <<< "$tracked_list"
-  listed="$(grep -oE 'docs/[A-Za-z0-9._/-]+\.md' "$idx" | sort -u || true)"
+  # The Broken references section names docs paths that are absent on purpose.
+  # The reverse existence check must not call that signal stale.
+  listed="$(awk '
+    /^## Broken references/ { skip=1; next }
+    /^## / { skip=0 }
+    skip { next }
+    { print }
+  ' "$idx" | grep -oE 'docs/[A-Za-z0-9._/-]+\.md' | sort -u || true)"
   while IFS= read -r p; do
     [[ -n "$p" ]] || continue
     n_paths=$(( n_paths + 1 ))
@@ -8180,8 +8189,343 @@ test_deterministic_index_no_clock_line() { # TEST-001 / Spec-AC-01 (SPEC-0227)
   log_pass "generate-docs-index produces deterministic output with no clock line (TEST-001)"
 }
 
+# docs-index-broken-refs-scope — disposable repo for generate-docs-index.mjs.
+# The generator under test is the PROJECT_ROOT script. These functions do not
+# cd the caller to PROJECT_ROOT and do not reuse setup_fixture's TEST_DIR.
+br_with_repo() {
+  local mode="$1"
+  local dir
+  dir="$(mktemp -d "${TMPDIR:-/tmp}/aai-broken-refs.XXXXXX")"
+  if [[ "$mode" != "nogit" ]]; then
+    git -C "$dir" init -q
+    git -C "$dir" config user.email "test@example.com"
+    git -C "$dir" config user.name "AAI Test"
+  fi
+  printf '%s\n' "$dir"
+}
+
+br_write() {
+  local dir="$1" rel="$2"
+  mkdir -p "$dir/$(dirname "$rel")"
+  cat > "$dir/$rel"
+}
+
+br_commit_all() {
+  git -C "$1" add -A
+  git -C "$1" commit -qm "fixture"
+}
+
+br_spec_md() {
+  local id="$1" notes="$2"
+  cat <<MD
+---
+id: ${id}
+type: spec
+status: draft
+---
+
+# ${id}
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Evidence | Review-By | Notes |
+|---------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | row | planned | — | — | ${notes} |
+MD
+}
+
+br_generate() {
+  local dir="$1"
+  local rc
+  set +e
+  (cd "$dir" && node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" >"$dir/br-stdout.txt" 2>"$dir/br-stderr.txt")
+  rc=$?
+  set -e
+  printf '%s\n' "$rc"
+}
+
+br_occurs() {
+  local file="$1" needle="$2"
+  local hits
+  hits="$(grep -o -F "$needle" "$file" || true)"
+  if [[ -z "$hits" ]]; then
+    printf '0\n'
+  else
+    printf '%s\n' "$hits" | wc -l | tr -d ' '
+  fi
+}
+
+br_wrote_count() {
+  local file="$1" n="$2"
+  local hits
+  hits="$(grep -E "^Wrote docs/INDEX.md \\([0-9]+ docs, [0-9]+ overdue, [0-9]+ deferred, ${n} broken refs\\)\$" "$file" || true)"
+  if [[ -z "$hits" ]]; then
+    printf '0\n'
+  else
+    printf '%s\n' "$hits" | wc -l | tr -d ' '
+  fi
+}
+
+br_section() {
+  extract_section "$1/docs/INDEX.md" "## Broken references"
+}
+
+br_data_rows() {
+  br_section "$1" | grep -F '| NOT FOUND |' || true
+}
+
+br_fail_rm() {
+  local dir="$1"
+  shift
+  rm -rf "$dir"
+  log_fail "$@"
+}
+
+test_broken_refs_source_missing() {
+  local dir rc sec wrote1 wrote2 rows
+  dir="$(br_with_repo git)"
+  br_write "$dir" ".aai/scripts/a.mjs" <<'EOF'
+docs/missing-a.md
+EOF
+  br_write "$dir" "tests/z.sh" <<'EOF'
+docs/missing-z.md
+EOF
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-001 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 2)" == "1" ]] || br_fail_rm "$dir" "TEST-001 expected one Wrote line with 2 broken refs"
+  [[ "$(br_occurs "$dir/br-stdout.txt" "broken refs")" == "1" ]] || br_fail_rm "$dir" "TEST-001 broken refs substring was not once"
+  sec="$(br_section "$dir")"
+  assert_payload_contains "$sec" '## Broken references (2)' "TEST-001 section heading was not Broken references (2)"
+  rows="$(br_data_rows "$dir")"
+  assert_payload_contains "$rows" '| .aai/scripts/a.mjs | docs/missing-a.md | NOT FOUND |' "TEST-001 missing row for .aai/scripts/a.mjs"
+  assert_payload_contains "$rows" '| tests/z.sh | docs/missing-z.md | NOT FOUND |' "TEST-001 missing row for tests/z.sh"
+  [[ "${rows%%$'\n'*}" == '| .aai/scripts/a.mjs | docs/missing-a.md | NOT FOUND |' ]] || br_fail_rm "$dir" "TEST-001 first data row was not .aai/scripts/a.mjs"
+  [[ "$(printf '%s\n' "$rows" | sed -n '2p')" == '| tests/z.sh | docs/missing-z.md | NOT FOUND |' ]] || br_fail_rm "$dir" "TEST-001 second data row was not tests/z.sh"
+  wrote1="$(grep -E '^Wrote docs/INDEX.md ' "$dir/br-stdout.txt" || true)"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-001 second generator exit $rc"
+  wrote2="$(grep -E '^Wrote docs/INDEX.md ' "$dir/br-stdout.txt" || true)"
+  [[ "$wrote1" == "$wrote2" ]] || br_fail_rm "$dir" "TEST-001 second run Wrote line differed"
+  [[ "$(br_section "$dir")" == "$sec" ]] || br_fail_rm "$dir" "TEST-001 second run section differed"
+  rm -rf "$dir"
+  log_pass "source-tree missing docs paths are listed (TEST-001)"
+}
+
+test_broken_refs_both_clean_is_zero() {
+  local dir rc sec
+  dir="$(br_with_repo git)"
+  br_write "$dir" "docs/TECHNOLOGY.md" <<'EOF'
+# technology
+EOF
+  br_write "$dir" ".aai/scripts/cite.mjs" <<'EOF'
+docs/TECHNOLOGY.md
+EOF
+  br_spec_md "SPEC-0001" "→ SPEC-0001" | br_write "$dir" "docs/specs/SPEC-0001.md"
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-002 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 0)" == "1" ]] || br_fail_rm "$dir" "TEST-002 expected one Wrote line with 0 broken refs"
+  [[ "$(br_occurs "$dir/br-stdout.txt" "broken refs")" == "1" ]] || br_fail_rm "$dir" "TEST-002 broken refs substring was not once"
+  sec="$(br_section "$dir")"
+  assert_payload_contains "$sec" '## Broken references (0)' "TEST-002 section heading was not Broken references (0)"
+  assert_payload_has_line "$sec" '_None._' "TEST-002 section body was not _None._"
+  assert_payload_not_contains "$sec" 'NOT FOUND' "TEST-002 clean tree listed a broken ref"
+  rm -rf "$dir"
+  log_pass "both walks clean is 0 broken refs (TEST-002)"
+}
+
+test_broken_refs_ac_notes_still_counted() {
+  local dir rc rows
+  dir="$(br_with_repo git)"
+  br_spec_md "SPEC-0001" "→ NOPE-9999" | br_write "$dir" "docs/specs/SPEC-0001.md"
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-003 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 1)" == "1" ]] || br_fail_rm "$dir" "TEST-003 expected count 1"
+  [[ "$(br_occurs "$dir/br-stdout.txt" "broken refs")" == "1" ]] || br_fail_rm "$dir" "TEST-003 broken refs substring was not once"
+  rows="$(br_data_rows "$dir")"
+  [[ "$rows" == '| SPEC-0001/Spec-AC-01 | NOPE-9999 | NOT FOUND |' ]] || br_fail_rm "$dir" "TEST-003 row was not SPEC-0001/Spec-AC-01 NOPE-9999"
+  rm -rf "$dir"
+  log_pass "acceptance-criteria Notes arrow is still counted (TEST-003)"
+}
+
+test_broken_refs_non_paths_ignored() {
+  local dir rc sec
+  dir="$(br_with_repo git)"
+  br_write "$dir" ".aai/scripts/noise.mjs" <<'EOF'
+SPEC-9999
+→ SPEC-9999
+docs/not-a-file
+docs/*.{md,txt}
+docs/Foo.MD
+docs/../outside.md
+https://example.com/blob/docs/missing.md
+EOF
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-004 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 0)" == "1" ]] || br_fail_rm "$dir" "TEST-004 expected count 0"
+  sec="$(br_section "$dir")"
+  assert_payload_has_line "$sec" '_None._' "TEST-004 section body was not _None._"
+  assert_payload_not_contains "$sec" 'NOT FOUND' "TEST-004 counted a non-path token"
+  rm -rf "$dir"
+  log_pass "prose ids and non-path docs tokens are ignored (TEST-004)"
+}
+
+test_broken_refs_dedup_per_file() {
+  local dir rc rows n
+  dir="$(br_with_repo git)"
+  br_write "$dir" ".aai/scripts/twice.mjs" <<'EOF'
+docs/missing-dedup.md
+docs/missing-dedup.md
+EOF
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-005 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 1)" == "1" ]] || br_fail_rm "$dir" "TEST-005 expected count 1"
+  rows="$(br_data_rows "$dir")"
+  n="$(printf '%s\n' "$rows" | sed '/^$/d' | wc -l | tr -d ' ')"
+  [[ "$n" == "1" ]] || br_fail_rm "$dir" "TEST-005 expected one data row, got $n"
+  [[ "$rows" == '| .aai/scripts/twice.mjs | docs/missing-dedup.md | NOT FOUND |' ]] || br_fail_rm "$dir" "TEST-005 row was not the deduped path"
+  rm -rf "$dir"
+  log_pass "one row per source file and path (TEST-005)"
+}
+
+test_broken_refs_one_signal() {
+  local dir rc rows
+  dir="$(br_with_repo git)"
+  br_spec_md "SPEC-0002" "→ NOPE-9999" | br_write "$dir" "docs/specs/SPEC-0002.md"
+  br_write "$dir" ".aai/scripts/cite.mjs" <<'EOF'
+docs/missing-from-source.md
+EOF
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-006 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 2)" == "1" ]] || br_fail_rm "$dir" "TEST-006 expected one Wrote line with 2 broken refs"
+  [[ "$(br_occurs "$dir/br-stdout.txt" "broken refs")" == "1" ]] || br_fail_rm "$dir" "TEST-006 broken refs substring was not once"
+  rows="$(br_data_rows "$dir")"
+  [[ "${rows%%$'\n'*}" == '| SPEC-0002/Spec-AC-01 | NOPE-9999 | NOT FOUND |' ]] || br_fail_rm "$dir" "TEST-006 first row was not the arrow id"
+  [[ "$(printf '%s\n' "$rows" | sed -n '2p')" == '| .aai/scripts/cite.mjs | docs/missing-from-source.md | NOT FOUND |' ]] || br_fail_rm "$dir" "TEST-006 second row was not the source path"
+  rm -rf "$dir"
+  log_pass "arrow id and source path share one count (TEST-006)"
+}
+
+test_broken_refs_excluded_trees() {
+  local dir rc
+  dir="$(br_with_repo git)"
+  br_write "$dir" "tests/_archive/old.sh" <<'EOF'
+docs/missing-from-under-archive.md
+EOF
+  br_write "$dir" "tests/skills/archive/note.sh" <<'EOF'
+docs/missing-from-archive-segment.md
+EOF
+  br_write "$dir" "tests/node_modules/pkg/cite.mjs" <<'EOF'
+docs/missing-from-node-modules.md
+EOF
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-007 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 0)" == "1" ]] || br_fail_rm "$dir" "TEST-007 expected count 0"
+  rm -rf "$dir"
+  log_pass "excluded segments are not counted (TEST-007)"
+}
+
+test_broken_refs_closed_root_set() {
+  local dir rc
+  dir="$(br_with_repo git)"
+  br_write "$dir" "src/a.mjs" <<'EOF'
+docs/missing-from-src.md
+EOF
+  br_write "$dir" ".aai/templates/cite.mjs" <<'EOF'
+docs/missing-from-templates.md
+EOF
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-008 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 0)" == "1" ]] || br_fail_rm "$dir" "TEST-008 expected count 0"
+  rm -rf "$dir"
+  log_pass "roots outside the closed set are not counted (TEST-008)"
+}
+
+test_broken_refs_services_root() {
+  local dir rc rows
+  dir="$(br_with_repo git)"
+  br_write "$dir" "services/api.ts" <<'EOF'
+docs/missing-from-api.md
+EOF
+  br_write "$dir" "services/tool.ps1" <<'EOF'
+docs/missing-from-ps1.md
+EOF
+  br_write "$dir" "services/note.txt" <<'EOF'
+docs/missing-from-txt.md
+EOF
+  br_commit_all "$dir"
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-009 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 2)" == "1" ]] || br_fail_rm "$dir" "TEST-009 expected count 2"
+  rows="$(br_data_rows "$dir")"
+  [[ "${rows%%$'\n'*}" == '| services/api.ts | docs/missing-from-api.md | NOT FOUND |' ]] || br_fail_rm "$dir" "TEST-009 first source was not services/api.ts"
+  [[ "$(printf '%s\n' "$rows" | sed -n '2p')" == '| services/tool.ps1 | docs/missing-from-ps1.md | NOT FOUND |' ]] || br_fail_rm "$dir" "TEST-009 second source was not services/tool.ps1"
+  assert_payload_not_contains "$rows" 'note.txt' "TEST-009 counted services/note.txt"
+  rm -rf "$dir"
+  log_pass "services ts and ps1 are counted (TEST-009)"
+}
+
+test_broken_refs_untracked_skipped() {
+  local dir rc
+  dir="$(br_with_repo git)"
+  br_write "$dir" ".aai/scripts/cite.mjs" <<'EOF'
+docs/missing-untracked.md
+EOF
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-010 generator exit $rc"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 0)" == "1" ]] || br_fail_rm "$dir" "TEST-010 expected count 0 for an untracked file"
+  rm -rf "$dir"
+  log_pass "untracked files are not counted (TEST-010)"
+}
+
+test_broken_refs_nongit_note() {
+  local dir rc phrase
+  dir="$(br_with_repo nogit)"
+  br_write "$dir" ".aai/scripts/cite.mjs" <<'EOF'
+docs/missing-nongit.md
+EOF
+  rc="$(br_generate "$dir")"
+  [[ "$rc" == "0" ]] || br_fail_rm "$dir" "TEST-011 generator exit $rc"
+  phrase="$(br_occurs "$dir/br-stderr.txt" "source-ref walk falls back to a working-tree walk")"
+  [[ "$phrase" == "1" ]] || br_fail_rm "$dir" "TEST-011 fallback phrase count was $phrase"
+  grep -qF '.aai/scripts' "$dir/br-stderr.txt" || br_fail_rm "$dir" "TEST-011 stderr did not name .aai/scripts"
+  [[ "$(br_wrote_count "$dir/br-stdout.txt" 1)" == "1" ]] || br_fail_rm "$dir" "TEST-011 expected stdout count 1"
+  rm -rf "$dir"
+  log_pass "non-git root prints one fallback NOTE and counts the file (TEST-011)"
+}
+
+test_broken_refs_selector_isolates() {
+  # The no-arg path calls this function. When the early return is absent, the
+  # nested invocation is that same no-arg path, so a second entry must not
+  # start another nest. The outer invocation still sees the banner.
+  if [[ "${AAI_BROKEN_REFS_NEST:-}" == "1" ]]; then
+    return 0
+  fi
+  local out rc
+  set +e
+  out="$(AAI_BROKEN_REFS_NEST=1 bash "$SUITE_FILE" test_broken_refs_both_clean_is_zero 2>&1)"
+  rc=$?
+  set -e
+  assert_payload_not_contains "$out" 'Testing aai-docs-audit skill' "TEST-012 nested run printed the full-suite banner"
+  [[ "$rc" == "0" ]] || log_fail "TEST-012 nested selector exit $rc"
+  assert_payload_contains "$out" 'both walks clean is 0 broken refs (TEST-002)' "TEST-012 nested stdout lacked the TEST-002 pass text"
+  log_pass "one argument runs only that function (TEST-012)"
+}
+
 main() {
+  if [[ $# -gt 0 ]]; then
+    "$1"
+    return
+  fi
   echo "Testing $TEST_NAME skill (engine + fixtures)"
+  test_broken_refs_selector_isolates
   check_deps
   setup_fixture
   test_deterministic_index_no_clock_line
@@ -8366,6 +8710,17 @@ main() {
   test_acflip_remediation_is_reachable
   test_acflip_real_repo_clean
   test_441_untracked_new_doc_passes_genuine_drift_still_fails
+  test_broken_refs_source_missing
+  test_broken_refs_both_clean_is_zero
+  test_broken_refs_ac_notes_still_counted
+  test_broken_refs_non_paths_ignored
+  test_broken_refs_dedup_per_file
+  test_broken_refs_one_signal
+  test_broken_refs_excluded_trees
+  test_broken_refs_closed_root_set
+  test_broken_refs_services_root
+  test_broken_refs_untracked_skipped
+  test_broken_refs_nongit_note
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

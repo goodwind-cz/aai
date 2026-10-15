@@ -1317,6 +1317,21 @@ export function extractReferences(notes) {
   return refs;
 }
 
+const DOC_PATH_REF_RE = /(?:^|[\s`'"(=])(docs\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+\.md)(?![A-Za-z0-9._-])/g;
+
+export function extractDocPathReferences(text) {
+  const normalized = normalizeNewlines(text);
+  DOC_PATH_REF_RE.lastIndex = 0;
+  const refs = [];
+  for (const m of normalized.matchAll(DOC_PATH_REF_RE)) {
+    const captured = m[1];
+    const segments = captured.split('/');
+    if (segments.includes('..')) continue;
+    refs.push(captured);
+  }
+  return refs;
+}
+
 // --- RFC-0003 / SPEC-0002 canonicalization schema ---------------------------
 
 // Normalize a frontmatter value that should be a list into a string array.
