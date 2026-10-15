@@ -3089,3 +3089,13 @@
 {"v":1,"ts":"2026-10-14T14:10:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"notes-content-and-merged-links","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-14T14:10:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-notes-content-and-merged-links","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-14T14:10:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-notes-content-and-merged-links","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-12T20:28:39Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":605,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-12T21:11:48Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-one-command-no-findings","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-13T23:14:22Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"release-one-command-no-findings","payload":{"from":"draft","to":"superseded"}}
+{"v":1,"ts":"2026-10-13T23:14:22Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-one-command-no-findings","payload":{"from":"implementing","to":"superseded"}}
+{"v":1,"ts":"2026-10-14T18:55:34Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"docs-index-broken-refs-scope","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-15T10:14:09Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"docs-index-broken-refs-scope","payload":{"status":"pass","hash":"3bf22eda536ab069116e33a8130ef3d5b1db1e16186586faa6a3b08164e308d3"}}
+{"v":1,"ts":"2026-10-15T10:25:23Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"docs-index-broken-refs-scope","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-15T10:25:23Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"docs-index-broken-refs-scope","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-15T10:25:24Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-index-broken-refs-scope","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-15T10:25:24Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-docs-index-broken-refs-scope","payload":{"validation":"pass","code_review":"pass"}}

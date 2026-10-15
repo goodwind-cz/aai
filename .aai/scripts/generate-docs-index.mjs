@@ -19,10 +19,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import {
   DOC_STATUS_ENUM, walkTracked, DOC_FAMILIES, slugFamilyForPath,
-  parseFrontmatter, parseAcTable, parseReviewBy, extractReferences, toPosix,
-  normalizeAcStatus, detectNearMissAcTable, TERMINAL_DOC_STATUS,
+  parseFrontmatter, parseAcTable, parseReviewBy, extractReferences, extractDocPathReferences, toPosix,
+  isGitWorkTree, normalizeAcStatus, detectNearMissAcTable, TERMINAL_DOC_STATUS,
 } from './lib/docs-model.mjs';
 import { runAudit, suggestedStep, loadConfig, firstCommitDate } from './lib/docs-audit-core.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
@@ -56,6 +57,127 @@ const AUDIT_PATH = path.join(ROOT, 'docs/INDEX.audit.md');
 const MARKER = '# Docs Index — auto-generated, DO NOT EDIT';
 const VIOLATIONS_MARKER = '# Docs Index Violations — auto-generated, DO NOT EDIT';
 const AUDIT_MARKER = '# Docs Index Audit — auto-generated, DO NOT EDIT';
+
+const SOURCE_REF_ROOTS = ['.aai/scripts', 'tests', 'services', 'apps', 'packages', 'convex', 'supabase'];
+const SOURCE_REF_EXTENSIONS = new Set(['.mjs', '.js', '.cjs', '.ts', '.tsx', '.jsx', '.sh', '.ps1', '.py']);
+const SOURCE_REF_EXCLUDED_SEGMENTS = new Set(['node_modules', '_archive', 'archive', 'dist', 'coverage', '.git']);
+// This command owns these paths. INDEX.md and INDEX.audit.md are stubbed
+// before the walk; INDEX.violations.md is removed when the tree is clean.
+// A literal mention in the generator or a hook is not a missing document.
+const SOURCE_REF_GENERATOR_PATHS = new Set([
+  'docs/INDEX.md',
+  'docs/INDEX.audit.md',
+  'docs/INDEX.violations.md',
+]);
+// Same token shape as scan_stale_draft_refs in test-aai-doc-numbering.sh.
+// A draft path whose numbered successor is already on disk was renamed, not
+// lost. Writing the draft token into docs/INDEX.md fails that scan.
+const RETIRED_DRAFT_REF_RE = /^docs\/(rfc|specs|issues|requirements|releases)\/([A-Z]+(?:-[A-Z]+)*)-DRAFT-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
+
+function compareSourceRefRows(a, b) {
+  if (a.source < b.source) return -1;
+  if (a.source > b.source) return 1;
+  if (a.ref < b.ref) return -1;
+  if (a.ref > b.ref) return 1;
+  return 0;
+}
+
+function hasNumberedDraftSuccessor(root, matchedPath) {
+  const m = RETIRED_DRAFT_REF_RE.exec(matchedPath);
+  if (!m) return false;
+  const dir = m[1];
+  const prefix = m[2];
+  const slug = m[3];
+  let names;
+  try {
+    names = fs.readdirSync(path.join(root, 'docs', dir));
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return false;
+    throw e;
+  }
+  const fileRe = new RegExp(`^${prefix}-\\d+-${slug}\\.md$`);
+  return names.some((name) => fileRe.test(name));
+}
+
+function listSourceRefWorkingTree(root, sourceRefRoot) {
+  const rels = [];
+  const walkDir = (dir) => {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (SOURCE_REF_EXCLUDED_SEGMENTS.has(entry.name)) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walkDir(full);
+      else if (entry.isFile()) rels.push(toPosix(path.relative(root, full)));
+    }
+  };
+  walkDir(path.join(root, sourceRefRoot));
+  return rels;
+}
+
+function collectSourceBrokenRefs(root) {
+  const rows = [];
+  const seenSourceRefs = new Set();
+  for (const sourceRefRoot of SOURCE_REF_ROOTS) {
+    const abs = path.join(root, sourceRefRoot);
+    let st;
+    try {
+      st = fs.statSync(abs);
+    } catch (e) {
+      if (e && e.code === 'ENOENT') continue;
+      throw e;
+    }
+    if (!st.isDirectory()) continue;
+
+    let rels;
+    if (!isGitWorkTree(root)) {
+      console.error(`NOTE: ${root} is not a git work tree — ${sourceRefRoot} source-ref walk falls back to a working-tree walk (untracked files may be included).`);
+      rels = listSourceRefWorkingTree(root, sourceRefRoot);
+    } else {
+      let listing;
+      try {
+        listing = execFileSync('git', ['-C', root, 'ls-files', '-z', '--', sourceRefRoot], { encoding: 'utf8' });
+      } catch {
+        console.error(`NOTE: "git ls-files -- ${sourceRefRoot}" failed under ${root} — ${sourceRefRoot} source-ref walk falls back to a working-tree walk (untracked files may be included).`);
+        rels = listSourceRefWorkingTree(root, sourceRefRoot);
+        listing = null;
+      }
+      if (listing != null) rels = listing.split('\0').filter(Boolean);
+    }
+
+    for (const rel of rels) {
+      const posix = toPosix(rel).replace(/^\.\//, '');
+      if (posix.split('/').some((seg) => SOURCE_REF_EXCLUDED_SEGMENTS.has(seg))) continue;
+      if (!SOURCE_REF_EXTENSIONS.has(path.posix.extname(posix))) continue;
+      const absSource = path.join(root, posix);
+      let text;
+      try {
+        text = fs.readFileSync(absSource, 'utf8');
+      } catch (e) {
+        if (e && e.code === 'ENOENT') {
+          console.error(`NOTE: ${posix} is tracked but absent on disk — source-ref walk skips it.`);
+          continue;
+        }
+        throw e;
+      }
+      for (const matchedPath of extractDocPathReferences(text)) {
+        if (SOURCE_REF_GENERATOR_PATHS.has(matchedPath)) continue;
+        if (hasNumberedDraftSuccessor(root, matchedPath)) continue;
+        try {
+          fs.statSync(path.join(root, matchedPath));
+          continue;
+        } catch (e) {
+          if (!e || e.code !== 'ENOENT') throw e;
+        }
+        const key = `${posix}\t${matchedPath}`;
+        if (seenSourceRefs.has(key)) continue;
+        seenSourceRefs.add(key);
+        rows.push({ source: posix, ref: matchedPath });
+      }
+    }
+  }
+  rows.sort(compareSourceRefRows);
+  return rows;
+}
 
 const today = new Date();
 const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
@@ -150,6 +272,29 @@ function writeAuditCompanion(body) {
   }
   fs.mkdirSync(path.dirname(AUDIT_PATH), { recursive: true });
   fs.writeFileSync(AUDIT_PATH, body);
+}
+
+// The source-ref walk stats docs paths named by tracked sources, including
+// this generator's own companions. INDEX.audit.md is always written below.
+// If that write happens after the stat, a missing companion is a broken ref
+// on run 1 and present on run 2, so two runs over an unmodified tree differ.
+// A marker stub exists for the stat; the real body still replaces it later.
+// A pre-existing file without the marker is left untouched, matching
+// writeAuditCompanion.
+function ensureAuditCompanionPath() {
+  if (fs.existsSync(AUDIT_PATH)) return;
+  fs.mkdirSync(path.dirname(AUDIT_PATH), { recursive: true });
+  fs.writeFileSync(AUDIT_PATH, `${AUDIT_MARKER}\n`);
+}
+
+// docs/INDEX.md is this command's own output, written after the source-ref
+// stat. Without a marker stub, run 1 counts the generator's own `docs/INDEX.md`
+// mention as missing and run 2 finds the file it just wrote. The real body
+// still replaces the stub. checkMarker() already refused a marker-less file.
+function ensureIndexPath() {
+  if (fs.existsSync(OUT_PATH)) return;
+  fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
+  fs.writeFileSync(OUT_PATH, `${MARKER}\n`);
 }
 
 function main() {
@@ -354,6 +499,12 @@ function main() {
       }
     }
   }
+
+  writeViolationsReport(skipped, acStatusViolations, nearMissWarnings);
+  ensureAuditCompanionPath();
+  ensureIndexPath();
+  const sourceBrokenRefs = collectSourceBrokenRefs(ROOT);
+  for (const row of sourceBrokenRefs) brokenRefs.push(row);
 
   const sortByReviewBy = (a, b) => String(a.reviewBy).localeCompare(String(b.reviewBy));
   overdue.sort(sortByReviewBy);
