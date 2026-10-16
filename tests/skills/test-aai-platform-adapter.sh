@@ -510,9 +510,15 @@ const args = ['repos', 'pr', 'show', '--id', '9', '--org', 'https://dev.azure.co
 for (const p of ['darwin', 'linux']) assert.deepEqual(azSpawnSpec(args, p), { cmd: 'az', args });
 const savedComSpec = process.env.ComSpec;
 process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe';
-assert.deepEqual(azSpawnSpec(args, 'win32'), { cmd: 'C:\\Windows\\System32\\cmd.exe', args: ['/d', '/s', '/c', 'az', ...args] });
+const { env: winEnv, ...winSpec } = azSpawnSpec(args, 'win32');
+assert.deepEqual(winSpec, { cmd: 'C:\\Windows\\System32\\cmd.exe', args: ['/d', '/s', '/c', 'az', ...args] });
+// NB-3: cmd.exe would resolve az from the current directory before PATH; the spec's env switches that off
+assert.equal(winEnv.NoDefaultCurrentDirectoryInExePath, '1');
+assert.equal(winEnv.PATH ?? winEnv.Path, process.env.PATH ?? process.env.Path, 'win32 env must keep the parent environment');
 delete process.env.ComSpec;
-assert.deepEqual(azSpawnSpec(['account', 'show'], 'win32'), { cmd: 'cmd.exe', args: ['/d', '/s', '/c', 'az', 'account', 'show'] });
+const { env: winEnv2, ...winSpec2 } = azSpawnSpec(['account', 'show'], 'win32');
+assert.deepEqual(winSpec2, { cmd: 'cmd.exe', args: ['/d', '/s', '/c', 'az', 'account', 'show'] });
+assert.equal(winEnv2.NoDefaultCurrentDirectoryInExePath, '1');
 if (savedComSpec !== undefined) process.env.ComSpec = savedComSpec;
 for (const unsafe of ['a b', 'say"hi', 'a&b', '100%', 'a^b', 'x|y', 'a;b', '$(x)', '']) {
   const r = azSpawnSpec(['repos', unsafe], 'win32');
@@ -524,13 +530,16 @@ assert.deepEqual(azSpawnSpec(['repos', 'a b'], 'linux'), { cmd: 'az', args: ['re
 
 // routing: the auth probe and the adapter reads spawn through the spec, and a refused arg never spawns
 const seen = [];
-const runner = (cmd, a) => { seen.push([cmd, a]); return { status: 0, stdout: '[]' }; };
+const opts = [];
+const runner = (cmd, a, o) => { seen.push([cmd, a]); opts.push(o); return { status: 0, stdout: '[]' }; };
 assert.equal(authStatus('azure', { runner, hostPlatform: 'win32' }), 'ok');
 assert.equal(seen.length, 2);
+for (const o of opts) assert.equal(o.env?.NoDefaultCurrentDirectoryInExePath, '1', 'auth probe spawned without the cwd-lookup guard');
 for (const [cmd, a] of seen) { assert.equal(cmd, process.env.ComSpec || 'cmd.exe'); assert.deepEqual(a.slice(0, 4), ['/d', '/s', '/c', 'az']); }
-seen.length = 0;
+seen.length = 0; opts.length = 0;
 assert.equal(authStatus('azure', { runner, hostPlatform: 'linux' }), 'ok');
 assert.deepEqual(seen.map(([c]) => c), ['az', 'az']);
+for (const o of opts) assert.equal(o.env, undefined, 'off Windows the spawn env is the inherited one');
 seen.length = 0;
 authStatus('github', { runner, hostPlatform: 'win32' });
 assert.deepEqual(seen, [['gh', ['auth', 'status']]]);
@@ -539,8 +548,10 @@ const win = createAdapter('azure', { cwd: process.cwd(), runner, hostPlatform: '
 const refused = win.listDependents('bad branch', 'base');
 assert.equal(refused.ok, false); assert.equal(refused.reason, 'az_arg_unsafe');
 assert.equal(seen.length, 0, 'unsafe argument spawned');
+opts.length = 0;
 win.listDependents('ride/foo', 'base');
 assert.equal(seen.length, 1); assert.equal(seen[0][1][3], 'az');
+assert.equal(opts[0].env?.NoDefaultCurrentDirectoryInExePath, '1', 'adapter read spawned without the cwd-lookup guard');
 stub('az', []); stub('gh', []);
 assert.deepEqual(log('az'), []);
 console.log('HARNESS-OK 069');
@@ -728,7 +739,8 @@ $A1_ARGV" ]] || fail TEST-071 "merged arm az log wrong (want A1, A5, A1): $(cat 
   seed_cfg "$az_repo" 'platform: github\n'
   merge_arm "$az_repo" 1 "$SHA_A" 0 "$open_a"
   [[ "$M_RC" -eq 3 ]] || fail TEST-071 "mismatch want 3 got $M_RC: $M_OUT"
-  case "$M_OUT" in *platform_mismatch*) ;; *) fail TEST-071 "want platform_mismatch: $M_OUT" ;; esac
+  case "$M_OUT" in *"REFUSE platform_mismatch recorded=github detected=azure"*) ;; *) fail TEST-071 "want a REFUSE platform_mismatch line like merge-cleanup's: $M_OUT" ;; esac
+  case "$M_OUT" in *'record --force'*) ;; *) fail TEST-071 "platform_mismatch refusal lacks the record --force command: $M_OUT" ;; esac
   [[ ! -s "$AZ_LOG" ]] || fail TEST-071 "mismatch spawned az"
   rm -f "$(cfg_of "$az_repo")"
 
@@ -760,6 +772,10 @@ test_076_canon_and_governance() {
   grep -qF '`AAI_OPERATOR_MERGE=1 gh pr merge <n> --squash --match-head-commit <sha>`' "$skill" || fail TEST-076 "SKILL_MERGE lost the GitHub merge literal"
   grep -qF 'platform.mjs" merge --pr <n> --expect-head <sha>' "$skill" || fail TEST-076 "SKILL_MERGE does not name the Azure merge form"
   grep -qF 'A `platform_mismatch` or `platform_generic` REFUSE is relayed with its command and the run stops.' "$skill" || fail TEST-076 "SKILL_MERGE lacks the REFUSE relay sentence"
+  grep -qF 'Exit 4 (completion_pending)' "$skill" || fail TEST-076 "SKILL_MERGE does not name exit 4 completion_pending"
+  grep -qF '5 (head_race_lost)' "$skill" || fail TEST-076 "SKILL_MERGE does not name exit 5 head_race_lost"
+  grep -qF 'never treat the direction as covering a head it did not name' "$skill" || fail TEST-076 "SKILL_MERGE lacks the head_race_lost direction rule"
+  grep -qF 'platform: <reason>' "$skill" || fail TEST-076 "SKILL_MERGE does not say how the other refusals print"
   local credit
   credit="$(sed -n 's/^JUSTIFIED_ADDITIONS+=( "\([0-9][0-9]*\) git-platform-detected-at-bootstrap .*/\1/p' "$ledger")"
   [[ -n "$credit" && "$(printf '%s\n' "$credit" | wc -l | tr -d ' ')" == 1 ]] || fail TEST-076 "want exactly one ledger entry for the key, got: $credit"

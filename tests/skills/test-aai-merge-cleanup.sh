@@ -3032,6 +3032,19 @@ test_073_platform_mismatch_refuses_before_any_read() {
       empty_logs || fail TEST-073 "$rec $mode spawned a platform CLI: $(cat "$GHD/gh-argv.log" "$GHD/az-argv.log")"
       [[ "$(world_digest)" == "$before" ]] || fail TEST-073 "$rec $mode changed the fixture"
     done
+    # NB-5: the record is read at the git toplevel, so a run from a subdirectory refuses the same way
+    run mkdir -p "$ORIGIN/sub/dir"
+    local sub_origin="$ORIGIN/sub/dir"
+    for mode in preflight plan apply; do
+      case "$mode" in
+        preflight) ENG_CWD="$sub_origin" run_engine preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by human --direction 'merge 433 please' ;;
+        plan) ENG_CWD="$sub_origin" run_engine plan --pr "$PR" ;;
+        apply) ENG_CWD="$sub_origin" run_engine apply --pr "$PR" --pid 4242 ;;
+      esac
+      [[ "$ENG_RC" -eq 3 ]] || fail TEST-073 "$rec $mode from a subdirectory exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+      want TEST-073 "$ENG_OUT" "REFUSE platform_mismatch recorded=$rec detected=$detected"
+      empty_logs || fail TEST-073 "$rec $mode from a subdirectory spawned a platform CLI"
+    done
   done
   echo 'PASS: TEST-073 a recorded platform that contradicts the origin refuses before any read'
 }

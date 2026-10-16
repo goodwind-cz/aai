@@ -70,12 +70,18 @@ export function resolvePlatform({ repoRoot, remoteUrl } = {}) {
 // D13: on Windows the Azure CLI is az.cmd, which Node refuses to spawn without
 // a shell; the one safe route is cmd.exe /d /s /c az <args> after every arg is
 // checked against a closed character set, so no shell metacharacter can pass.
+// cmd.exe also looks in the current directory before PATH, so the spec's env sets
+// NoDefaultCurrentDirectoryInExePath=1 and a planted az.cmd in the repo never runs.
 const AZ_SAFE_ARG = /^[A-Za-z0-9._\/:=@-]+$/;
 export function azSpawnSpec(args, platform = process.platform) {
   if (platform !== 'win32') return { cmd: 'az', args };
   const bad = args.find((a) => !AZ_SAFE_ARG.test(String(a)));
   if (bad !== undefined) return { refused: 'az_arg_unsafe', detail: `az argument refused on Windows: ${JSON.stringify(String(bad))}` };
-  return { cmd: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', 'az', ...args] };
+  return {
+    cmd: process.env.ComSpec || 'cmd.exe',
+    args: ['/d', '/s', '/c', 'az', ...args],
+    env: { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' },
+  };
 }
 
 function runTool(cmd, args, runner, hostPlatform) {
@@ -84,7 +90,7 @@ function runTool(cmd, args, runner, hostPlatform) {
     spec = azSpawnSpec(args, hostPlatform);
     if (spec.refused) return 'unauthenticated';
   }
-  const res = (runner || spawnSync)(spec.cmd, spec.args, { stdio: 'ignore', timeout: AUTH_TIMEOUT_MS });
+  const res = (runner || spawnSync)(spec.cmd, spec.args, { stdio: 'ignore', timeout: AUTH_TIMEOUT_MS, env: spec.env });
   if (res.error) return res.error.code === 'ENOENT' ? 'cli_missing' : 'unauthenticated';
   return res.status === 0 ? 'ok' : 'unauthenticated';
 }
@@ -227,7 +233,7 @@ function azureAdapter({ cwd, runner, hostPlatform }) {
   const run = (args, extra) => {
     const spec = azSpawnSpec(args, hostPlatform);
     if (spec.refused) return { error: Object.assign(new Error(spec.detail), { code: spec.refused }), status: null, stdout: '' };
-    return (runner || spawnSync)(spec.cmd, spec.args, { cwd, encoding: 'utf8', ...extra });
+    return (runner || spawnSync)(spec.cmd, spec.args, { cwd, encoding: 'utf8', env: spec.env, ...extra });
   };
   const az = (what, failed, args, extra) => {
     const res = run(args, extra);

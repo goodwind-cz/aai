@@ -157,7 +157,7 @@ function refuse(reason, detail) {
 function completePr(n, cwd) {
   const spec = azSpawnSpec(['repos', 'pr', 'update', '--id', String(n), '--status', 'completed', '--squash', 'true', '--delete-source-branch', 'false', '--detect', 'true', '--output', 'json']);
   if (spec.refused) return { ok: false, detail: spec.detail };
-  const res = spawnSync(spec.cmd, spec.args, { cwd, encoding: 'utf8', timeout: 120000 });
+  const res = spawnSync(spec.cmd, spec.args, { cwd, encoding: 'utf8', timeout: 120000, env: spec.env });
   if (res.error || res.status !== 0) {
     const first = String(res.stderr || res.error?.message || '').split(/\r?\n/).find((l) => l.trim()) || `exit ${res.status}`;
     return { ok: false, detail: first.trim() };
@@ -172,7 +172,10 @@ function runMerge(args) {
   if (process.env.AAI_OPERATOR_MERGE !== '1') refuse('no_operator_merge', 'set AAI_OPERATOR_MERGE=1 on the owner-directed merge command');
   if (!/^[0-9a-f]{40}$/.test(opts.expectHead)) refuse('bad_expect_head', '--expect-head must be 40 lower-case hex characters');
   const eff = resolvePlatform({ repoRoot });
-  if (eff.mismatch) refuse('platform_mismatch', `recorded=${eff.recorded} detected=${eff.detected}`);
+  if (eff.mismatch) {
+    console.log(`REFUSE platform_mismatch recorded=${eff.recorded} detected=${eff.detected} re-record: node .aai/scripts/platform.mjs record --force`);
+    exit(3);
+  }
   if (eff.platform !== 'azure') refuse('platform_not_azure', `effective platform is ${eff.platform}`);
   const adapter = createAdapter('azure', { cwd: repoRoot });
   const expectHead = opts.expectHead;

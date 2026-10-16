@@ -147,7 +147,8 @@ function seamRunner() {
 
 // D11: platform resolution runs first in every mode, before any platform read or write.
 function openPlatform(cwd) {
-  const res = resolvePlatform({ repoRoot: cwd });
+  const top = git(cwd, ['rev-parse', '--show-toplevel']);
+  const res = resolvePlatform({ repoRoot: top.status === 0 && top.stdout.trim() ? top.stdout.trim() : cwd });
   if (res.mismatch) {
     refuse('platform_mismatch', `recorded=${res.recorded} detected=${res.detected} re-record: node .aai/scripts/platform.mjs record --force`);
   }
