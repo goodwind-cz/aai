@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "delta git diff 886dfea5..HEAD (HEAD 2b4bf67d) plus regression check of git diff feca6e0b..HEAD, branch change/git-platform-detected-at-bootstrap"
-  spec: docs/specs/SPEC-DRAFT-spec-git-platform-detected-at-bootstrap.md
+  spec: docs/specs/SPEC-0232-spec-git-platform-detected-at-bootstrap.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -43,7 +43,7 @@ review:
 
 - Delta: `git diff 886dfea5..HEAD` (commit 2b4bf67d, 11 files, +62/-22). Regression check: `git diff feca6e0b..HEAD`; outside the delta nothing changed since r1 (HEAD 19b2f100 -> 886dfea5 was docs/telemetry only).
 - Working tree: clean except the append-only ledgers the test wrapper writes (docs/ai/EVENTS.jsonl, docs/ai/tests/test-runs.jsonl).
-- Spec: docs/specs/SPEC-DRAFT-spec-git-platform-detected-at-bootstrap.md, frozen; third measurement amendment (decisions.jsonl 2026-10-16T17:26:04Z).
+- Spec: docs/specs/SPEC-0232-spec-git-platform-detected-at-bootstrap.md, frozen; third measurement amendment (decisions.jsonl 2026-10-16T17:26:04Z).
 - Reviewer runs: `aai-run-tests.sh bash tests/skills/test-aai-platform-adapter.sh` (all PASS, incl. TEST-069, 071, 075, 076); toplevel probes of merge-cleanup preflight with `platform: azure` recorded and a github origin, run without `--origin` from (a) a subdirectory of the main checkout, (b) a subdirectory of a linked worktree: both `REFUSE platform_mismatch recorded=azure detected=github re-record: ...` rc=3; (c) a subdirectory of a submodule whose own record is azure: the record is read at the submodule toplevel (azure adapter used, az read attempted; origin is a local path, so no mismatch, by design).
 - Dispatch note (anti-gaming contract): the dispatch suggested probe areas (env leakage, REFUSE consumers, toplevel in odd layouts) and relayed validation N1/N2. No severity was pre-rated and no scope excluded; the full delta and the ride diff were reviewed.
 

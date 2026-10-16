@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff feca6e0b..HEAD (HEAD 19b2f100, branch change/git-platform-detected-at-bootstrap), limited to STATE code_review.scope"
-  spec: docs/specs/SPEC-DRAFT-spec-git-platform-detected-at-bootstrap.md
+  spec: docs/specs/SPEC-0232-spec-git-platform-detected-at-bootstrap.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -59,7 +59,7 @@ review:
 ## Scope and spec
 
 - Scope: `git diff feca6e0b..HEAD` on change/git-platform-detected-at-bootstrap (HEAD 19b2f100), the paths of STATE `code_review.scope`. Worktree decision `worktree`; working tree clean apart from the two append-only ledgers the test wrapper writes (docs/ai/EVENTS.jsonl, docs/ai/tests/test-runs.jsonl).
-- Spec: docs/specs/SPEC-DRAFT-spec-git-platform-detected-at-bootstrap.md (frozen, 14 Spec-ACs, two measurement amendments in decisions.jsonl).
+- Spec: docs/specs/SPEC-0232-spec-git-platform-detected-at-bootstrap.md (frozen, 14 Spec-ACs, two measurement amendments in decisions.jsonl).
 - Validation r1 (docs/ai/reports/VALIDATION-20261016T164947Z-git-platform-detected-at-bootstrap-r1.md) was read, not redone. Reviewer re-ran: `node tests/skills/lib/platform-direct-calls.mjs .aai/scripts/merge-cleanup.mjs` (exit 0, clean), `aai-run-tests.sh bash tests/skills/test-aai-platform-adapter.sh` (all PASS), a block-comment blind-spot probe of the checker over merge-cleanup.mjs (0 lines skipped), a GHE-origin record probe (NB-2) and an azSpawnSpec(win32) probe.
 - Dispatch note (anti-gaming contract): the dispatch named focus areas and relayed validator notes N1-N3. It did not pre-rate severity or exclude scope; recorded here, and the full scope was reviewed.
 

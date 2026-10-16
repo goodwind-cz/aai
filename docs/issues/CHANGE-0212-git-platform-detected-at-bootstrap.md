@@ -1,8 +1,10 @@
 ---
 id: git-platform-detected-at-bootstrap
 type: change
-number: null
-status: draft
+number: 212
+status: done
+capability: platform-portable-pr
+user_visible: true
 links:
   pr: []
   commits: []

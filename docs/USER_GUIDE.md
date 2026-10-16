@@ -2787,6 +2787,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Platform-portable PR ceremony
+
+Bootstrap records which git host the project lives on (GitHub, Azure DevOps, unknown or none) once, and `/aai-merge` follows that record: a directed merge and the post-merge cleanup now work on Azure DevOps as well as on GitHub, without ever calling `gh` there.
+
+[Product doc](product/platform-portable-pr.md) · [Spec](specs/SPEC-0103-spec-platform-portable-pr.md)
+
 ### Release notes gate
 
 A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, and root executables. Documentation, tests, and evidence-only changes are exempt. An old unchanged entry, an empty scaffold, and a blank reason do not count.
@@ -2942,12 +2948,6 @@ A project built on AAI finds out that a newer AAI release exists **as a side eff
 `/aai-issues` pulls the open issues sitting on your project's git hosting platform, triages each one, and — after you approve a short list — starts the normal intake process for the ones you picked. It runs only when you invoke it; it never fires automatically from the autonomous loop. On GitHub it lists real open issues today. On Azure DevOps it explains that work items live in Azure Boards (not repo issues) and points you at the `az boards` commands instead of pretending to fetch something that doesn't exist there. On any other or unrecognized git host it tells you plainly that it can't fetch issues and to paste them in by hand or use `/aai-intake`.
 
 [Product doc](product/issues-skill.md) · [Spec](specs/SPEC-0104-spec-issues-skill.md)
-
-### Platform-portable PR ceremony
-
-The PR ceremony (`/aai-pr`, `/aai-ship`) now works beyond GitHub. A deterministic probe classifies the origin remote and the ceremony branches accordingly; where reviewer bots do not exist, the factory's own independent code review takes their place — quality is never silently skipped on any git host.
-
-[Product doc](product/platform-portable-pr.md) · [Spec](specs/SPEC-0103-spec-platform-portable-pr.md)
 
 ### Product docs (capability-keyed doc family)
 
