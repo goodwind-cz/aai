@@ -2903,15 +2903,17 @@ test_070_azure_preflight_ready_and_refusals() {
   local before engdir line path want_line
   engdir="$(cd "$ROOT/.aai/scripts" && pwd -P)" || fail SETUP 'engine dir'
   [[ -n "$engdir" && "$engdir" = /* ]] || fail SETUP 'engine dir not absolute'
-  want_line="AAI_OPERATOR_MERGE=1 node \"$engdir/platform.mjs\" merge --pr $PR --expect-head $HEAD_OID"
+  want_line="node \"$engdir/platform.mjs\" merge --pr $PR --expect-head $HEAD_OID --operator-merge"
   write_az_pr active false "$HEAD_OID"
   before="$(world_digest)"
   : > "$GHD/gh-argv.log"; : > "$GHD/az-argv.log"
   pf
   [[ "$ENG_RC" -eq 10 ]] || fail TEST-070 "azure ready exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(printf '%s\n' "$ENG_OUT" | { /usr/bin/grep -c 'AAI_OPERATOR_MERGE=1' || true; })" == 1 ]] || fail TEST-070 "want exactly one merge line: $ENG_OUT"
-  line="$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep 'AAI_OPERATOR_MERGE=1')"
+  [[ "$(printf '%s\n' "$ENG_OUT" | { /usr/bin/grep -c 'platform.mjs" merge --pr' || true; })" == 1 ]] || fail TEST-070 "want exactly one merge line: $ENG_OUT"
+  line="$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep 'platform.mjs" merge --pr')"
   [[ "$line" == "$want_line" ]] || fail TEST-070 "merge line is not the D9 form: $line"
+  # the line must run in PowerShell and cmd too: no POSIX NAME=value prefix (code-review r3, Codex P1)
+  [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || fail TEST-070 "merge line starts with a POSIX env prefix PowerShell cannot run: $line"
   unwanted TEST-070 "$ENG_OUT" 'gh pr merge'
   path="${line#*node \"}"; path="${path%%\"*}"
   [[ -f "$path" ]] || fail TEST-070 "the printed engine path does not exist: $path"

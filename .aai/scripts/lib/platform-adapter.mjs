@@ -276,7 +276,7 @@ function azureAdapter({ cwd, runner, hostPlatform }) {
       return okv({ unresolvedCount: unresolved.length, details });
     },
     repoMatches: (originUrl, pr) => repoMatchesWith(azureRepoId, originUrl, pr),
-    mergeCommand: (n, head, engineDir) => `AAI_OPERATOR_MERGE=1 node "${engineDir}/platform.mjs" merge --pr ${n} --expect-head ${head}`,
+    mergeCommand: (n, head, engineDir) => `node "${engineDir}/platform.mjs" merge --pr ${n} --expect-head ${head} --operator-merge`,
     authStatus: () => authStatus('azure', { runner, hostPlatform }),
   };
 }

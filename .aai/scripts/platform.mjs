@@ -3,8 +3,8 @@
 //
 //   node .aai/scripts/platform.mjs record [--repo-root <dir>] [--remote-url <url>]
 //                                         [--force] [--dry-run]
-//   AAI_OPERATOR_MERGE=1 node .aai/scripts/platform.mjs merge --pr <n> --expect-head <sha>
-//                                         [--repo-root <dir>]
+//   node .aai/scripts/platform.mjs merge --pr <n> --expect-head <sha> --operator-merge
+//                                         [--repo-root <dir>]   (AAI_OPERATOR_MERGE=1 also accepted)
 //
 // record classifies origin with pr-platform.mjs's classifier and keeps ONE
 // column-0 `platform:` line in docs/ai/pr-config.yaml (D2). It never
@@ -30,7 +30,7 @@ import {
 } from './lib/platform-adapter.mjs';
 
 const USAGE = 'Usage: node platform.mjs record [--repo-root <dir>] [--remote-url <url>] [--force] [--dry-run]\n'
-  + '       AAI_OPERATOR_MERGE=1 node platform.mjs merge --pr <n> --expect-head <sha> [--repo-root <dir>]';
+  + '       node platform.mjs merge --pr <n> --expect-head <sha> --operator-merge [--repo-root <dir>]';
 const NEW_FILE_HEADER = [
   '# AAI PR-ceremony policy (docs/ai/pr-config.yaml). Parsed by a COLUMN-0 line scan; keep keys at column 0.',
   '# platform: github | azure | unknown | none -- the git host, recorded by',
@@ -133,9 +133,10 @@ function runRecord(args) {
 }
 
 function parseMergeArgs(args) {
-  const opts = { pr: null, expectHead: null, repoRoot: null };
+  const opts = { pr: null, expectHead: null, repoRoot: null, operatorMerge: false };
   for (let i = 0; i < args.length; i += 1) {
     const tok = args[i];
+    if (tok === '--operator-merge') { opts.operatorMerge = true; continue; }
     if (tok !== '--pr' && tok !== '--expect-head' && tok !== '--repo-root') usageError(`unknown flag "${tok}"`);
     if (args[i + 1] === undefined) usageError(`${tok} requires a value`);
     if (tok === '--pr') opts.pr = args[i + 1];
@@ -169,7 +170,7 @@ function runMerge(args) {
   const opts = parseMergeArgs(args);
   const n = Number(opts.pr);
   const repoRoot = path.resolve(opts.repoRoot || gitToplevel() || process.cwd());
-  if (process.env.AAI_OPERATOR_MERGE !== '1') refuse('no_operator_merge', 'set AAI_OPERATOR_MERGE=1 on the owner-directed merge command');
+  if (process.env.AAI_OPERATOR_MERGE !== '1' && !opts.operatorMerge) refuse('no_operator_merge', 'add --operator-merge (or set AAI_OPERATOR_MERGE=1) on the owner-directed merge command');
   if (!/^[0-9a-f]{40}$/.test(opts.expectHead)) refuse('bad_expect_head', '--expect-head must be 40 lower-case hex characters');
   const eff = resolvePlatform({ repoRoot });
   if (eff.mismatch) {

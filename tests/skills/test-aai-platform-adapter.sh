@@ -442,7 +442,7 @@ assert.deepEqual(log('az'), [A4.join(' ')]);
 stub('az', [[A4, { count: 0 }]]); assert.equal(az.reviewThreads(9, prv).reason, 'read_invalid');
 stub('az', [[A4, 'nope']]); assert.equal(az.reviewThreads(9, prv).reason, 'read_invalid');
 stub('az', [[A4, null, 1]]); assert.equal(az.reviewThreads(9, prv).reason, 'read_failed');
-assert.equal(az.mergeCommand(9, SHA, '/opt/aai/.aai/scripts'), `AAI_OPERATOR_MERGE=1 node "/opt/aai/.aai/scripts/platform.mjs" merge --pr 9 --expect-head ${SHA}`);
+assert.equal(az.mergeCommand(9, SHA, '/opt/aai/.aai/scripts'), `node "/opt/aai/.aai/scripts/platform.mjs" merge --pr 9 --expect-head ${SHA} --operator-merge`);
 for (const o of ['https://dev.azure.com/acme/My%20Proj/_git/foo', 'https://acme@dev.azure.com/Acme/My%20Proj/_git/Foo', 'git@ssh.dev.azure.com:v3/Acme/My%20Proj/Foo', 'https://acme.visualstudio.com/DefaultCollection/My%20Proj/_git/foo']) {
   assert.equal(az.repoMatches(o, prv).ok, true, o);
 }
@@ -758,6 +758,32 @@ $A1_ARGV" ]] || fail TEST-071 "merged arm az log wrong (want A1, A5, A1): $(cat 
   case "$M_OUT" in *MERGED*) fail TEST-071 "head_race_lost printed MERGED: $M_OUT" ;; esac
   [[ "$(a5_calls)" == 1 ]] || fail TEST-071 "head_race_lost want exactly one A5"
 
+  # shell-neutral guard (code-review r3, Codex P1): the printed Azure line carries no POSIX env prefix and
+  # its own --operator-merge flag is the owner-directed marker; env-less runs merge, a bare run still refuses
+  local line eng_dir
+  eng_dir="${PLATFORM_CLI%/*}"
+  line="$("$NODE_BIN" --input-type=module -e "import { createAdapter } from '$eng_dir/lib/platform-adapter.mjs'; process.stdout.write(createAdapter('azure', { cwd: '$az_repo' }).mergeCommand(7, '$SHA_A', '$eng_dir'));")"
+  [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || fail TEST-071 "Azure merge line starts with a POSIX env prefix: $line"
+  [[ "$line" == *' --operator-merge' ]] || fail TEST-071 "Azure merge line lacks --operator-merge: $line"
+  rm -rf "$SCRATCH/azstate"; mkdir -p "$SCRATCH/azstate"
+  printf '%s\n' "$open_a" > "$SCRATCH/azstate/a1.1.json"; printf '%s\n' "$done_a" > "$SCRATCH/azstate/a1.2.json"
+  reset_logs; M_RC=0
+  M_OUT="$(env -u AAI_OPERATOR_MERGE PATH="$BIN_MERGE:$(dirname "$NODE_BIN")" AZ_STATE="$SCRATCH/azstate" /bin/bash -c "$line --repo-root \"$az_repo\"" 2>&1)" || M_RC=$?
+  [[ "$M_RC" -eq 0 ]] || fail TEST-071 "flag arm (no env) exit want 0 got $M_RC: $M_OUT"
+  case "$M_OUT" in *"MERGED PR #7 head $SHA_A merge $SHA_M"*) ;; *) fail TEST-071 "flag arm output: $M_OUT" ;; esac
+  [[ "$(a5_calls)" == 1 ]] || fail TEST-071 "flag arm want exactly one A5, got $(a5_calls)"
+  if command -v pwsh >/dev/null 2>&1; then
+    rm -rf "$SCRATCH/azstate"; mkdir -p "$SCRATCH/azstate"
+    printf '%s\n' "$open_a" > "$SCRATCH/azstate/a1.1.json"; printf '%s\n' "$done_a" > "$SCRATCH/azstate/a1.2.json"
+    reset_logs; M_RC=0
+    M_OUT="$(env -u AAI_OPERATOR_MERGE PATH="$BIN_MERGE:$(dirname "$NODE_BIN"):$PATH" AZ_STATE="$SCRATCH/azstate" pwsh -NoProfile -NonInteractive -Command "$line --repo-root \"$az_repo\"" 2>&1)" || M_RC=$?
+    [[ "$M_RC" -eq 0 ]] || fail TEST-071 "pwsh arm exit want 0 got $M_RC: $M_OUT"
+    case "$M_OUT" in *"MERGED PR #7 head $SHA_A merge $SHA_M"*) ;; *) fail TEST-071 "pwsh arm output: $M_OUT" ;; esac
+  else
+    echo "SKIP: TEST-071 pwsh arm (pwsh not on PATH)"
+  fi
+  merge_arm "$az_repo" 0 "$SHA_A" 0 "$open_a"
+  [[ "$M_RC" -eq 3 && "$(a5_calls)" == 0 ]] || fail TEST-071 "a bare run (no env, no flag) must still refuse with zero A5, got rc=$M_RC"
   # still active after A5: exit 4 completion_pending
   merge_arm "$az_repo" 1 "$SHA_A" 0 "$open_a" "$open_a"
   [[ "$M_RC" -eq 4 ]] || fail TEST-071 "completion_pending want 4 got $M_RC: $M_OUT"
