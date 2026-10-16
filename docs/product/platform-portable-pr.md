@@ -40,7 +40,7 @@ skipped on any git host.
   that no longer matches `origin`; without it a mismatch is reported, never
   overwritten).
 - `/aai-merge <n>` on Azure DevOps prints and runs
-  `node <repo>/.aai/scripts/platform.mjs merge --pr <n> --expect-head <sha>`
+  `node <repo>/.aai/scripts/platform.mjs merge --pr <n> --expect-head <sha> --operator-merge`
   instead of `gh pr merge`; everything after the merge (base sync,
   worktree and branch removal) is the same as on GitHub.
 
