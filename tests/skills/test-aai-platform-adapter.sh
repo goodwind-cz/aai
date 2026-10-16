@@ -3,6 +3,7 @@
 # Batch A: TEST-062 (record matrix), TEST-063 (never overwrites), TEST-064 (auth report).
 # Batch B: TEST-066 (adapter shapes), TEST-067 (generic skips), TEST-069 (az Windows spawn),
 #          TEST-075 (no direct platform calls).
+# Batch D: TEST-071 (Azure merge executor), TEST-076 (canon and governance).
 # Every fixture lives under ONE private absolute scratch root; gh and az are
 # deny-by-default stubs that log every call; PATH holds only stubs plus node and git.
 # Usage: test-aai-platform-adapter.sh [test_xxx | TEST-xxx]
@@ -610,6 +611,183 @@ EOF
   echo "PASS: TEST-075 no direct platform calls (Spec-AC-13), merge-cleanup.mjs armed and clean"
 }
 
+# --- batch D: Azure merge executor (TEST-071) and canon plus governance (TEST-076) ---
+SHA_A='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+SHA_B='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+SHA_M='cccccccccccccccccccccccccccccccccccccccc'
+AZ_URL='https://dev.azure.com/acme/Proj/_git/foo'
+
+# make_merge_bin <dir>: az stub that serves exactly A1 (the n-th call reads
+# $AZ_STATE/a1.<n>.json) and A5 (exit AZ_A5_RC, stderr from AZ_A5_ERR); every
+# other argv is logged and denied. gh is a denying stub that logs.
+make_merge_bin() {
+  local dir="$1"
+  [[ -n "$dir" && "$dir" = /* ]] || fail SETUP "make_merge_bin dir not absolute"
+  mkdir -p "$dir"
+  ln -sf "$NODE_BIN" "$dir/node"
+  ln -sf "$GIT_BIN" "$dir/git"
+  cat > "$dir/az" <<'STUB'
+#!/bin/sh
+echo "$*" >> "$AZ_LOG"
+case "$*" in
+  "repos pr show --id 7 --detect true --output json")
+    n=0; [ -f "$AZ_STATE/a1n" ] && read -r n < "$AZ_STATE/a1n"
+    n=$((n + 1)); echo "$n" > "$AZ_STATE/a1n"
+    if [ -f "$AZ_STATE/a1.$n.json" ]; then
+      while IFS= read -r l || [ -n "$l" ]; do printf '%s\n' "$l"; done < "$AZ_STATE/a1.$n.json"; exit 0
+    fi
+    echo "STUB-DENY: no scripted A1 read $n" >&2; exit 1 ;;
+  "repos pr update --id 7 --status completed --squash true --delete-source-branch false --detect true --output json")
+    if [ "${AZ_A5_RC:-0}" != 0 ]; then echo "${AZ_A5_ERR:-update failed}" >&2; exit "$AZ_A5_RC"; fi
+    echo '{}'; exit 0 ;;
+esac
+echo "STUB-DENY: az $*" >&2
+exit 1
+STUB
+  chmod +x "$dir/az"
+  cat > "$dir/gh" <<'STUB'
+#!/bin/sh
+echo "$*" >> "$GH_LOG"
+echo "STUB-DENY: gh $*" >&2
+exit 1
+STUB
+  chmod +x "$dir/gh"
+}
+
+# az_pr_json <status> <head> <mergeCommit or ''>: one A1 answer.
+az_pr_json() {
+  local status="$1" head="$2" mc="$3" lm=''
+  if [[ -n "$mc" ]]; then lm=",\"lastMergeCommit\":{\"commitId\":\"$mc\"}"; fi
+  printf '{"pullRequestId":7,"status":"%s","isDraft":false,"sourceRefName":"refs/heads/ride","targetRefName":"refs/heads/main","lastMergeSourceCommit":{"commitId":"%s"}%s,"repository":{"id":"r1","name":"foo","webUrl":"%s","url":"https://dev.azure.com/acme/p1/_apis/git/repositories/r1","project":{"id":"p1"}}}\n' \
+    "$status" "$head" "$lm" "$AZ_URL"
+}
+
+# merge_arm <repo> <operator 0|1> <expect-sha> <a5-rc> <a1 json>...: sets M_OUT, M_RC.
+M_OUT=""; M_RC=0
+merge_arm() {
+  local repo="$1" op="$2" expect="$3" a5rc="$4" i=0 j
+  shift 4
+  rm -rf "$SCRATCH/azstate"; mkdir -p "$SCRATCH/azstate"
+  for j in "$@"; do i=$((i + 1)); printf '%s\n' "$j" > "$SCRATCH/azstate/a1.$i.json"; done
+  reset_logs
+  M_RC=0
+  if [[ "$op" == 1 ]]; then
+    M_OUT="$(env PATH="$BIN_MERGE" AZ_STATE="$SCRATCH/azstate" AZ_A5_RC="$a5rc" AZ_A5_ERR='TF401027: no permission' AAI_OPERATOR_MERGE=1 \
+      "$NODE_BIN" "$PLATFORM_CLI" merge --pr 7 --expect-head "$expect" --repo-root "$repo" 2>&1)" || M_RC=$?
+  else
+    M_OUT="$(env PATH="$BIN_MERGE" AZ_STATE="$SCRATCH/azstate" AZ_A5_RC="$a5rc" \
+      "$NODE_BIN" "$PLATFORM_CLI" merge --pr 7 --expect-head "$expect" --repo-root "$repo" 2>&1)" || M_RC=$?
+  fi
+}
+a5_calls() { count_lines '^repos pr update' "$AZ_LOG"; }
+A5_ARGV='repos pr update --id 7 --status completed --squash true --delete-source-branch false --detect true --output json'
+A1_ARGV='repos pr show --id 7 --detect true --output json'
+
+test_071_azure_merge_head_match() {
+  BIN_MERGE="$SCRATCH/bin-merge"; make_merge_bin "$BIN_MERGE"
+  local az_repo gh_repo none_repo open_a open_b done_a done_b
+  mk_repo "$AZ_URL"; az_repo="$REPO"
+  mk_repo 'https://github.com/acme/foo.git'; gh_repo="$REPO"
+  mk_repo ''; none_repo="$REPO"
+  open_a="$(az_pr_json active "$SHA_A" '')"; open_b="$(az_pr_json active "$SHA_B" '')"
+  done_a="$(az_pr_json completed "$SHA_A" "$SHA_M")"; done_b="$(az_pr_json completed "$SHA_B" "$SHA_M")"
+
+  # merged arm: A1, A5 exactly once, A1 again, nothing else, exit 0 MERGED
+  merge_arm "$az_repo" 1 "$SHA_A" 0 "$open_a" "$done_a"
+  [[ "$M_RC" -eq 0 ]] || fail TEST-071 "merged arm exit want 0 got $M_RC: $M_OUT"
+  case "$M_OUT" in *"MERGED PR #7 head $SHA_A merge $SHA_M"*) ;; *) fail TEST-071 "merged arm output: $M_OUT" ;; esac
+  [[ "$(a5_calls)" == 1 ]] || fail TEST-071 "merged arm want exactly one A5, got $(a5_calls)"
+  [[ "$(cat "$AZ_LOG")" == "$A1_ARGV
+$A5_ARGV
+$A1_ARGV" ]] || fail TEST-071 "merged arm az log wrong (want A1, A5, A1): $(cat "$AZ_LOG")"
+  [[ ! -s "$GH_LOG" ]] || fail TEST-071 "merged arm spawned gh"
+
+  # refusal arms: exit 3 and zero A5
+  merge_arm "$az_repo" 0 "$SHA_A" 0 "$open_a"
+  [[ "$M_RC" -eq 3 ]] || fail TEST-071 "no_operator_merge want 3 got $M_RC: $M_OUT"
+  case "$M_OUT" in *no_operator_merge*) ;; *) fail TEST-071 "want no_operator_merge: $M_OUT" ;; esac
+  [[ "$(a5_calls)" == 0 ]] || fail TEST-071 "no_operator_merge ran A5"
+  merge_arm "$az_repo" 1 "$SHA_A" 0 "$open_b"
+  [[ "$M_RC" -eq 3 ]] || fail TEST-071 "head_changed want 3 got $M_RC: $M_OUT"
+  case "$M_OUT" in *head_changed*) ;; *) fail TEST-071 "want head_changed: $M_OUT" ;; esac
+  [[ "$(a5_calls)" == 0 ]] || fail TEST-071 "head_changed ran A5"
+  merge_arm "$az_repo" 1 "$SHA_A" 0 "$done_a"
+  [[ "$M_RC" -eq 3 ]] || fail TEST-071 "not_open want 3 got $M_RC: $M_OUT"
+  case "$M_OUT" in *not_open*) ;; *) fail TEST-071 "want not_open: $M_OUT" ;; esac
+  [[ "$(a5_calls)" == 0 ]] || fail TEST-071 "not_open ran A5"
+  merge_arm "$az_repo" 1 "not-a-sha" 0 "$open_a"
+  [[ "$M_RC" -eq 3 ]] || fail TEST-071 "bad sha want 3 got $M_RC: $M_OUT"
+  [[ ! -s "$AZ_LOG" ]] || fail TEST-071 "bad sha reached az: $(cat "$AZ_LOG")"
+  merge_arm "$gh_repo" 1 "$SHA_A" 0 "$open_a"
+  [[ "$M_RC" -eq 3 ]] || fail TEST-071 "github platform want 3 got $M_RC: $M_OUT"
+  case "$M_OUT" in *platform_not_azure*) ;; *) fail TEST-071 "want platform_not_azure: $M_OUT" ;; esac
+  [[ ! -s "$AZ_LOG" && ! -s "$GH_LOG" ]] || fail TEST-071 "github platform spawned a CLI"
+  merge_arm "$none_repo" 1 "$SHA_A" 0 "$open_a"
+  [[ "$M_RC" -eq 3 ]] || fail TEST-071 "no origin want 3 got $M_RC: $M_OUT"
+  [[ ! -s "$AZ_LOG" ]] || fail TEST-071 "no origin spawned az"
+  seed_cfg "$az_repo" 'platform: github\n'
+  merge_arm "$az_repo" 1 "$SHA_A" 0 "$open_a"
+  [[ "$M_RC" -eq 3 ]] || fail TEST-071 "mismatch want 3 got $M_RC: $M_OUT"
+  case "$M_OUT" in *platform_mismatch*) ;; *) fail TEST-071 "want platform_mismatch: $M_OUT" ;; esac
+  [[ ! -s "$AZ_LOG" ]] || fail TEST-071 "mismatch spawned az"
+  rm -f "$(cfg_of "$az_repo")"
+
+  # A5 failure: exit 3 merge_rejected with its first stderr line, one A5, no re-read
+  merge_arm "$az_repo" 1 "$SHA_A" 1 "$open_a"
+  [[ "$M_RC" -eq 3 ]] || fail TEST-071 "merge_rejected want 3 got $M_RC: $M_OUT"
+  case "$M_OUT" in *"merge_rejected TF401027: no permission"*) ;; *) fail TEST-071 "want merge_rejected with stderr line: $M_OUT" ;; esac
+  [[ "$(a5_calls)" == 1 ]] || fail TEST-071 "merge_rejected want one A5"
+  [[ "$(count_lines '^repos pr show' "$AZ_LOG")" == 1 ]] || fail TEST-071 "merge_rejected re-read after a failed A5"
+
+  # mismatch arm: the re-read shows another head merged -> exit 5 naming both shas
+  merge_arm "$az_repo" 1 "$SHA_A" 0 "$open_a" "$done_b"
+  [[ "$M_RC" -eq 5 ]] || fail TEST-071 "head_race_lost want 5 got $M_RC: $M_OUT"
+  case "$M_OUT" in *"head_race_lost expected $SHA_A merged $SHA_B"*) ;; *) fail TEST-071 "want head_race_lost naming both shas: $M_OUT" ;; esac
+  case "$M_OUT" in *MERGED*) fail TEST-071 "head_race_lost printed MERGED: $M_OUT" ;; esac
+  [[ "$(a5_calls)" == 1 ]] || fail TEST-071 "head_race_lost want exactly one A5"
+
+  # still active after A5: exit 4 completion_pending
+  merge_arm "$az_repo" 1 "$SHA_A" 0 "$open_a" "$open_a"
+  [[ "$M_RC" -eq 4 ]] || fail TEST-071 "completion_pending want 4 got $M_RC: $M_OUT"
+  case "$M_OUT" in *completion_pending*) ;; *) fail TEST-071 "want completion_pending: $M_OUT" ;; esac
+  [[ "$(a5_calls)" == 1 ]] || fail TEST-071 "completion_pending want one A5"
+  echo "PASS: TEST-071 azure merge head match (Spec-AC-09)"
+}
+
+test_076_canon_and_governance() {
+  local skill="$ROOT/.aai/SKILL_MERGE.prompt.md" ledger="$ROOT/tests/skills/lib/prompt-diet-ledger.sh"
+  local profiles="$ROOT/.aai/system/PROFILES.yaml" cfg="$ROOT/docs/ai/pr-config.yaml" smap="$ROOT/tests/skills/suite-map.yaml"
+  grep -qF '`AAI_OPERATOR_MERGE=1 gh pr merge <n> --squash --match-head-commit <sha>`' "$skill" || fail TEST-076 "SKILL_MERGE lost the GitHub merge literal"
+  grep -qF 'platform.mjs" merge --pr <n> --expect-head <sha>' "$skill" || fail TEST-076 "SKILL_MERGE does not name the Azure merge form"
+  grep -qF 'A `platform_mismatch` or `platform_generic` REFUSE is relayed with its command and the run stops.' "$skill" || fail TEST-076 "SKILL_MERGE lacks the REFUSE relay sentence"
+  local credit
+  credit="$(sed -n 's/^JUSTIFIED_ADDITIONS+=( "\([0-9][0-9]*\) git-platform-detected-at-bootstrap .*/\1/p' "$ledger")"
+  [[ -n "$credit" && "$(printf '%s\n' "$credit" | wc -l | tr -d ' ')" == 1 ]] || fail TEST-076 "want exactly one ledger entry for the key, got: $credit"
+  [[ "$credit" -ge 1 && "$credit" -le 900 ]] || fail TEST-076 "ledger credit $credit outside 1..900"
+  local f
+  for f in .aai/scripts/platform.mjs .aai/scripts/lib/platform-adapter.mjs; do
+    awk -v f="$f" '/^core:/ { in_core = 1; next } /^[a-z_]+:/ { in_core = 0 } in_core && $0 == "  - " f { found = 1 } END { exit found ? 0 : 1 }' "$profiles" || fail TEST-076 "PROFILES core lacks $f"
+  done
+  grep -qx 'platform: github' "$cfg" || fail TEST-076 "pr-config.yaml does not record platform: github"
+  grep -q '^#   platform:' "$cfg" || fail TEST-076 "pr-config.yaml does not document the platform key"
+  awk '/^  aai-merge-cleanup:/ { in_row = 1; next } /^  [a-z]/ { in_row = 0 } in_row { print }' "$smap" > "$SCRATCH/mc-row.txt"
+  for f in .aai/scripts/platform.mjs .aai/scripts/lib/platform-adapter.mjs; do
+    grep -qxF "      - $f" "$SCRATCH/mc-row.txt" || fail TEST-076 "suite-map aai-merge-cleanup row lacks $f"
+  done
+  local rc=0 out
+  out="$(env -u AAI_ROLE bash "$ROOT/tests/skills/test-aai-prompt-diet.sh" test_010_audit_and_reduction 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || fail TEST-076 "prompt-diet TEST-010 exit $rc: $out"
+  rc=0; out="$(env -u AAI_ROLE bash "$ROOT/tests/skills/test-aai-prompt-diet.sh" test_012_growth_sum_matches_ledger 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || fail TEST-076 "prompt-diet TEST-012 exit $rc: $out"
+  # The whole pr-preflight and layer-profiles suites are NOT nested here (SPEC-0215 forbids a
+  # nested whole-suite run, and the companion pin of test-aai-suite-select.sh is closed); V3 and
+  # the end-of-ride sweep run them. The one pr-preflight function that pins the ledger sum runs
+  # in selector form, and the PROFILES classification is asserted above.
+  rc=0; out="$(env -u AAI_ROLE bash "$ROOT/tests/skills/test-aai-pr-preflight.sh" test_008 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || fail TEST-076 "pr-preflight test_008 exit $rc: $out"
+  echo "PASS: TEST-076 canon and governance (Spec-AC-14)"
+}
+
 if [[ $# -gt 1 ]]; then echo 'Usage: test-aai-platform-adapter.sh [test_xxx | TEST-xxx]' >&2; exit 2; fi
 case "${1:-}" in
   TEST-062) set -- test_062_record_matrix ;;
@@ -619,6 +797,8 @@ case "${1:-}" in
   TEST-067) set -- test_067_generic_named_skips ;;
   TEST-069) set -- test_069_az_windows_spawn_spec ;;
   TEST-075) set -- test_075_no_direct_platform_calls ;;
+  TEST-071) set -- test_071_azure_merge_head_match ;;
+  TEST-076) set -- test_076_canon_and_governance ;;
 esac
 if [[ $# -gt 0 ]]; then
   declare -F "$1" >/dev/null || { echo "Unknown selector: $1" >&2; exit 2; }
@@ -632,4 +812,6 @@ test_066_adapter_shapes
 test_067_generic_named_skips
 test_069_az_windows_spawn_spec
 test_075_no_direct_platform_calls
+test_071_azure_merge_head_match
+test_076_canon_and_governance
 echo "All platform adapter tests passed"

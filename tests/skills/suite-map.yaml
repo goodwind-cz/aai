@@ -1232,6 +1232,8 @@ suites:
   aai-merge-cleanup:
     globs:
       - .aai/scripts/merge-cleanup.mjs
+      - .aai/scripts/platform.mjs
+      - .aai/scripts/lib/platform-adapter.mjs
       - .aai/SKILL_MERGE.prompt.md
       - .claude/skills/aai-merge/**
       - .codex/skills/aai-merge/**
