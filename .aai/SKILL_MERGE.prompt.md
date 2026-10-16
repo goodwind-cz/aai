@@ -13,7 +13,7 @@ sequences it. Input: the PR number (ask once if absent, then stop). Exit codes:
    Exit 10: run exactly the one `AAI_OPERATOR_MERGE=1 gh pr merge <n> --squash --match-head-commit <sha>` line it
    printed, nothing added (never `--admin`, `--auto`, `--delete-branch`).
    On Azure DevOps that line is `AAI_OPERATOR_MERGE=1 node "<engineDir>/platform.mjs" merge --pr <n> --expect-head <sha>`;
-   run it the same way. A `platform_mismatch` or `platform_generic` REFUSE is relayed with its command and the run stops. Exit 4 (completion_pending) stops: re-run it. Exit 5 (head_race_lost) stops: skip step 2, never treat the direction as covering a head it did not name. Other refusals print `platform: <reason>`.
+   run it the same way. A `platform_mismatch` or `platform_generic` REFUSE is relayed with its command and the run stops. Exit 4 (completion_pending) stops: re-run `/aai-merge <n>`. Exit 5 (head_race_lost) stops: skip step 2, never treat the direction as covering a head it did not name. Other refusals print `platform: <reason>`.
    Exit 3: relay the `REFUSE` line and stop. Exit 0 `already_merged`: go to 2.
 2. MERGED PR — cleanup only. Run the block for your shell with `AAI_PR` set to
    the PR number and, when step 1 merged it, `AAI_DIRECTION` to the owner's

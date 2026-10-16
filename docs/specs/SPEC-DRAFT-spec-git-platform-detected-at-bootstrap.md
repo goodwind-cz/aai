@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 2c89a628c8395c60d65b4e1b952fa23fbb853ea0b13b7e462a9f0f4bfe954186
+frozen_sha256: 26b669799ae9c6d4690f930fc9832bc2e06eed960edad2b9e389b61c4d34b537
 ceremony_level: 2
 links:
   requirement: git-platform-detected-at-bootstrap
@@ -504,7 +504,7 @@ governance (TEST-071, TEST-076), then V1 to V5.
 | TEST-073 | Spec-AC-11 | integration | tests/skills/test-aai-merge-cleanup.sh | test_073_platform_mismatch_refuses_before_any_read: recorded azure with github origin and recorded github with Azure origin; preflight, plan and apply each exit 3 platform_mismatch naming both values and record --force; gh and az logs empty; world digest unchanged; the same refusal when the engine runs from a subdirectory of the repository (the record is read at the git toplevel) | sed:s/KNOWN_DETECTED\.includes\(detected\) && recorded !== detected/false/ | pending |
 | TEST-074 | Spec-AC-12 | integration | tests/skills/test-aai-merge-cleanup.sh | test_074_github_recorded_and_legacy_unchanged: preflight READY with platform github recorded prints the pinned gh pr merge line; the unrecorded run prints the same stdout and exactly one stderr line containing platform not recorded; plus V1 full-suite and Pester twin runs | sed:s/--match-head-commit \$\{head\}/--match-head-commit HEAD/ | pending |
 | TEST-075 | Spec-AC-13 | contract | tests/skills/test-aai-platform-adapter.sh | test_075_no_direct_platform_calls: the checker on merge-cleanup.mjs exits 0 with PLATFORM-CALLS clean; on a scratch copy with the four injected lines it exits 1 and lists all four line numbers | sed:s/gh pr /gh-pr-never-matches / | pending |
-| TEST-076 | Spec-AC-14 | contract | tests/skills/test-aai-platform-adapter.sh | test_076_canon_and_governance: SKILL_MERGE carries the GitHub literal and the Azure form and the REFUSE relay sentence and the Azure exit 4 completion_pending, exit 5 head_race_lost and platform: reason outcomes; ledger credit for the key in 1..900; PROFILES lists both new files; pr-config.yaml documents and records platform github; runs test-aai-prompt-diet.sh TEST-010 and TEST-012 and test-aai-pr-preflight.sh test_008 in selector form and expects exit 0; the whole pr-preflight and layer-profiles suites run as separate companions, never nested (hygiene-pack test_133 bans nested whole-suite runs) | sed:s/platform\.mjs" merge --pr <n> --expect-head <sha>/platform.mjs merge/ | pending |
+| TEST-076 | Spec-AC-14 | contract | tests/skills/test-aai-platform-adapter.sh | test_076_canon_and_governance: SKILL_MERGE carries the GitHub literal and the Azure form and the REFUSE relay sentence and the Azure exit 4 completion_pending with the re-run of /aai-merge <n>, exit 5 head_race_lost and platform: reason outcomes; ledger credit for the key in 1..900; PROFILES lists both new files; pr-config.yaml documents and records platform github; runs test-aai-prompt-diet.sh TEST-010 and TEST-012 and test-aai-pr-preflight.sh test_008 in selector form and expects exit 0; the whole pr-preflight and layer-profiles suites run as separate companions, never nested (hygiene-pack test_133 bans nested whole-suite runs) | sed:s/platform\.mjs" merge --pr <n> --expect-head <sha>/platform.mjs merge/ | pending |
 
 Mutation targets: .aai/scripts/lib/platform-adapter.mjs for TEST-062,
 TEST-064, TEST-066, TEST-067, TEST-069, TEST-070, TEST-072, TEST-073, TEST-074;

@@ -773,6 +773,7 @@ test_076_canon_and_governance() {
   grep -qF 'platform.mjs" merge --pr <n> --expect-head <sha>' "$skill" || fail TEST-076 "SKILL_MERGE does not name the Azure merge form"
   grep -qF 'A `platform_mismatch` or `platform_generic` REFUSE is relayed with its command and the run stops.' "$skill" || fail TEST-076 "SKILL_MERGE lacks the REFUSE relay sentence"
   grep -qF 'Exit 4 (completion_pending)' "$skill" || fail TEST-076 "SKILL_MERGE does not name exit 4 completion_pending"
+  grep -qF 'Exit 4 (completion_pending) stops: re-run `/aai-merge <n>`.' "$skill" || fail TEST-076 "SKILL_MERGE exit 4 does not tell the agent to re-run /aai-merge <n>"
   grep -qF '5 (head_race_lost)' "$skill" || fail TEST-076 "SKILL_MERGE does not name exit 5 head_race_lost"
   grep -qF 'never treat the direction as covering a head it did not name' "$skill" || fail TEST-076 "SKILL_MERGE lacks the head_race_lost direction rule"
   grep -qF 'platform: <reason>' "$skill" || fail TEST-076 "SKILL_MERGE does not say how the other refusals print"
