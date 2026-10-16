@@ -28,4 +28,12 @@
 #
 # This AAI repo has Copilot + Codex reviewer bots installed, so it declares
 # `expected` to keep the existing GitHub bot-sweep behavior.
+#
+#   platform:       github | azure | unknown | none   (default when absent: detected from origin)
+#     The git host, recorded by `node .aai/scripts/platform.mjs record` (bootstrap
+#     runs it). /aai-merge and merge-cleanup resolve the host from this key; a value
+#     that disagrees with origin is a platform_mismatch REFUSE, re-recorded only with
+#     `node .aai/scripts/platform.mjs record --force`. unknown and none run generic
+#     (manual) mode. This AAI repo is hosted on GitHub.
 reviewer_bots: expected
+platform: github

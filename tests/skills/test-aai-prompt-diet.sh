@@ -1003,7 +1003,9 @@ test_012_growth_sum_matches_ledger() {
   # (SKILL_PR.prompt.md 32494 -> 32753, +259 B), credited 1:1.
   # Then 55864 -> 55944: release-notes-gate-merge-base
   # (SKILL_PR.prompt.md 32753 -> 32833, +80 B), credited 1:1.
-  local want_growth=55944
+  # Then 55944 -> 56836: git-platform-detected-at-bootstrap (SKILL_BOOTSTRAP +442 B,
+  # SKILL_MERGE +450 B incl. the NB-1 exit outcomes and r2-NB-1 re-run wording), credited 1:1 (cap 900 B).
+  local want_growth=56836
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

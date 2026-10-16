@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-15T10:25:33.194Z",
+  "generatedAt": "2026-10-16T18:31:58.963Z",
   "project": "aai",
   "counts": {
-    "delivered": 301,
+    "delivered": 302,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 75943406
+    "tokens_total": 77863744
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -221,6 +221,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "git-platform-detected-at-bootstrap",
+      "title": "Change: bootstrap detects the git platform once, and every PR, merge, CI and release path goes through one platform adapter",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0212-git-platform-detected-at-bootstrap.md",
+      "closed_on": "2026-10-16",
+      "agent_minutes": 179,
+      "token_total": 1920338,
+      "spec": "docs/specs/SPEC-0232-spec-git-platform-detected-at-bootstrap.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261016T180456Z-git-platform-detected-at-bootstrap-r2.md"
+    },
     {
       "ref": "docs-index-broken-refs-scope",
       "title": "Issue — docs index broken-ref count ignores source-tree references",
@@ -4161,6 +4174,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "git-platform-detected-at-bootstrap",
+          "title": "Change: bootstrap detects the git platform once, and every PR, merge, CI and release path goes through one platform adapter",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0212-git-platform-detected-at-bootstrap.md",
+          "closed_on": "2026-10-16",
+          "agent_minutes": 179,
+          "token_total": 1920338,
+          "spec": "docs/specs/SPEC-0232-spec-git-platform-detected-at-bootstrap.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261016T180456Z-git-platform-detected-at-bootstrap-r2.md"
+        },
         {
           "ref": "docs-index-broken-refs-scope",
           "title": "Issue — docs index broken-ref count ignores source-tree references",

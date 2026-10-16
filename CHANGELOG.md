@@ -22,6 +22,14 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(platform): bootstrap records the git platform and /aai-merge works on Azure DevOps (git-platform-detected-at-bootstrap)
+
+- `aai-bootstrap` records `platform: github|azure|unknown|none` in `docs/ai/pr-config.yaml` (via the new `.aai/scripts/platform.mjs record`) and reports whether the host's CLI is signed in. An existing value is never overwritten silently; `record --force` replaces it.
+- `/aai-merge` goes through one platform adapter (`.aai/scripts/lib/platform-adapter.mjs`). On Azure DevOps the preflight, the directed merge (`platform.mjs merge`, head checked before and after completion, exit 5 `head_race_lost`) and the cleanup run without any `gh` call. Fixes goodwind-cz/aai#468.
+- A recorded platform that no longer matches `origin` refuses `platform_mismatch` before any write; a recorded `unknown`/`none` refuses `platform_generic`. Projects with no recorded platform keep today's behaviour.
+- On Windows the Azure CLI runs through `cmd.exe` with a strict argument allow-list and without searching the checkout for `az`.
+- Not yet moved to the adapter: CI watching, merge lanes, PR preflight, close ceremony, release and the merge hook (tracked as follow-ups).
+
 ## [unreleased] — fix: ignore cosmetic replacements when checking release notes
 
 - Trailing spaces/tabs and LF/CRLF-only edits to existing notes no longer satisfy the shipped-change gate. New words, new notes and interior inline-code spacing still count as content changes.

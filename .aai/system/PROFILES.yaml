@@ -165,9 +165,11 @@ core:
   - .aai/scripts/learned-append.mjs
   - .aai/scripts/ledger-merge.mjs
   - .aai/scripts/merge-cleanup.mjs
+  - .aai/scripts/platform.mjs
   - .aai/scripts/lib/append-lock.mjs
   - .aai/scripts/lib/append-lock.sh
   - .aai/scripts/lib/cli-pipe-guard.mjs
+  - .aai/scripts/lib/platform-adapter.mjs
   - .aai/scripts/lib/docs-audit-core.mjs
   - .aai/scripts/lib/docs-model.mjs
   - .aai/scripts/lib/evidence-paths.mjs

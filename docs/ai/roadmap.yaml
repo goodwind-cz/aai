@@ -70,6 +70,8 @@ pairs:
     status: done
   - capability: release-finish-one-command
     status: planned
+  - capability: git-platform-detected-at-bootstrap
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

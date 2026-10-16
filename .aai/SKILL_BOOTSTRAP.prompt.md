@@ -87,6 +87,13 @@ Credential policy:
   "The app uses authentication. Which non-secret credential reference should E2E tests use? Provide env var names or say 'skip'."
 - If the user provides actual secret values, do not write them to files. Ask for env var names or a secret-manager reference instead.
 
+## Git platform
+
+Bootstrap records the git host in `docs/ai/pr-config.yaml` (`platform: github|azure|unknown|none`) and reports CLI auth. It never overwrites a differing value: a `MISMATCH` (exit 6) is relayed, not fixed.
+- POSIX: `node .aai/scripts/platform.mjs record`
+- PowerShell: `node .aai/scripts/platform.mjs record`
+- After a real origin change only: add `--force`.
+
 ## Report Results
 
 Final output must include:
@@ -94,4 +101,5 @@ Final output must include:
 - auth note if auth was detected
 - generated/updated file list
 - skipped skill list with reasons
+- git platform and auth lines (RECORDED/UNCHANGED/MISMATCH, AUTH)
 - ready-to-use commands, for example `/aai-test-e2e`, `/aai-test-unit`, `/aai-build`, `/aai-lint`, `/aai-python-monty`

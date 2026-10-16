@@ -125,6 +125,8 @@ suites:
   aai-bootstrap:
     globs:
       - .aai/scripts/aai-bootstrap.sh
+      - .aai/scripts/platform.mjs
+      - .aai/scripts/lib/platform-adapter.mjs
       - .aai/scripts/lib/gitignore-block.sh
       - .aai/BOOTSTRAP.prompt.md
       - .aai/BOOTSTRAP_DIFF.prompt.md
@@ -817,6 +819,15 @@ suites:
       - .aai/PLANNING.prompt.md
       - .aai/SUBAGENT_PROTOCOL.md
 
+  aai-platform-adapter:
+    globs:
+      - .aai/scripts/platform.mjs
+      - .aai/scripts/lib/platform-adapter.mjs
+      - .aai/scripts/pr-platform.mjs
+      - docs/ai/pr-config.yaml
+      - tests/skills/test-aai-platform-adapter.sh
+      - tests/skills/lib/platform-direct-calls.mjs
+
   aai-pr-platform:
     globs:
       - .aai/scripts/pr-platform.mjs
@@ -1221,6 +1232,8 @@ suites:
   aai-merge-cleanup:
     globs:
       - .aai/scripts/merge-cleanup.mjs
+      - .aai/scripts/platform.mjs
+      - .aai/scripts/lib/platform-adapter.mjs
       - .aai/SKILL_MERGE.prompt.md
       - .claude/skills/aai-merge/**
       - .codex/skills/aai-merge/**

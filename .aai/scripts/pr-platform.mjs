@@ -250,11 +250,12 @@ function runSharedPageCheck(opts) {
 // itself walks up from cwd to the repo root, so this is cwd-independent —
 // no --show-toplevel resolution needed. Returns null on any failure (not a
 // git repo, no `origin` remote, git not installed): all fold into `none`.
-function readOriginUrl() {
+function readOriginUrl(cwd) {
   try {
     const out = execFileSync('git', ['remote', 'get-url', 'origin'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
+      ...(cwd ? { cwd } : {}),
     }).trim();
     return out === '' ? null : out;
   } catch {
@@ -408,6 +409,6 @@ const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResol
 if (isMain) runMain(() => main());
 
 export {
-  classify, extractHost, sanitize, readReviewerBots,
+  classify, extractHost, sanitize, readReviewerBots, readOriginUrl,
   sharedPageConflicts, listOpenPrFiles, SHARED_GENERATED_PAGES,
 };
