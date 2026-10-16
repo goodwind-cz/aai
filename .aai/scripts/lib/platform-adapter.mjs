@@ -109,6 +109,9 @@ const READ_TIMEOUT_MS = 120000;
 const BIG_BUFFER = 64 * 1024 * 1024;
 const GENERIC_MANUAL = (op) => `open the pull request on your git host and ${op === 'mergeCommand' ? 'merge it there' : 'check it there'}; then delete the worktree and branch by hand`;
 
+// The refusal name a consumer prints for a failed read: the CLI's own prefix for a failed or unreadable call, any other reason (repo_mismatch, az_arg_unsafe) as is.
+const refusalFor = (prefix) => (r) => (r.reason === 'read_failed' || r.reason === 'read_invalid' ? `${prefix}_${r.reason}` : r.reason);
+
 const okv = (value) => ({ ok: true, value });
 const bad = (reason, detail) => ({ ok: false, reason, detail });
 
@@ -149,6 +152,7 @@ function githubAdapter({ cwd, runner }) {
   const run = (args, extra) => (runner || spawnSync)('gh', args, { cwd, encoding: 'utf8', ...extra });
   return {
     platform: 'github',
+    refusalReason: refusalFor('gh'),
     prView(n) {
       const r = readJson(run(['pr', 'view', String(n), '--json', PR_FIELDS], { maxBuffer: BIG_BUFFER }), 'gh pr view', `gh pr view ${n}`);
       return r;
@@ -233,6 +237,7 @@ function azureAdapter({ cwd, runner, hostPlatform }) {
   };
   return {
     platform: 'azure',
+    refusalReason: refusalFor('az'),
     prView(n) {
       const r = az('az repos pr show', `az repos pr show ${n}`, ['repos', 'pr', 'show', '--id', String(n), '--detect', 'true', '--output', 'json'], { maxBuffer: BIG_BUFFER });
       if (!r.ok) return r;

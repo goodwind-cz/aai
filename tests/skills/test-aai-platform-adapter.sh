@@ -586,32 +586,28 @@ EOF
     case "$out" in *"consumer-injected.mjs:$((base + n)):"*) ;; *) fail TEST-075 "injected line $((base + n)) not listed: $out" ;; esac
   done
   [[ "$(printf '%s\n' "$out" | grep -c 'consumer-injected.mjs:' || true)" == 4 ]] || fail TEST-075 "want exactly four listed lines: $out"
-  # merge-cleanup.mjs must be clean once it is on the adapter (batch C). Until it imports
-  # the adapter the arm is PENDING by name, never silently green.
-  if grep -q 'platform-adapter' "$mc"; then
-    rc=0; out="$("$NODE_BIN" "$chk" "$mc" 2>&1)" || rc=$?
-    [[ "$rc" -eq 0 ]] || fail TEST-075 "merge-cleanup.mjs still names a platform CLI: $out"
-    case "$out" in *"PLATFORM-CALLS clean"*) ;; *) fail TEST-075 "merge-cleanup output: $out" ;; esac
-    local mcn mcinj="$SCRATCH/merge-cleanup-injected.mjs"
-    mcn="$(wc -l < "$mc")"; mcn=$((mcn + 0))
-    cp "$mc" "$mcinj"
-    # the copy may lack a trailing newline: the injected lines start on their own line
-    printf '\n' >> "$mcinj"; mcn=$((mcn + 1))
-    cat >> "$mcinj" <<'EOF'
+  # merge-cleanup.mjs must import the adapter and be clean (batch C): the arm is mandatory.
+  grep -q 'platform-adapter' "$mc" || fail TEST-075 "merge-cleanup.mjs does not import the platform adapter"
+  rc=0; out="$("$NODE_BIN" "$chk" "$mc" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || fail TEST-075 "merge-cleanup.mjs still names a platform CLI: $out"
+  case "$out" in *"PLATFORM-CALLS clean"*) ;; *) fail TEST-075 "merge-cleanup output: $out" ;; esac
+  local mcn mcinj="$SCRATCH/merge-cleanup-injected.mjs"
+  mcn="$(wc -l < "$mc")"; mcn=$((mcn + 0))
+  cp "$mc" "$mcinj"
+  # the copy may lack a trailing newline: the injected lines start on their own line
+  printf '\n' >> "$mcinj"; mcn=$((mcn + 1))
+  cat >> "$mcinj" <<'EOF'
 spawnSync('gh', ['pr', 'view']);
 spawnSync('az', ['repos', 'pr', 'show']);
 execFileSync("gh", ['api']);
 const injected = `AAI_OPERATOR_MERGE=1 gh pr merge ${n}`;
 EOF
-    rc=0; out="$("$NODE_BIN" "$chk" "$mcinj" 2>&1)" || rc=$?
-    [[ "$rc" -eq 1 ]] || fail TEST-075 "injected merge-cleanup copy exit want 1 got $rc"
-    for n in 1 2 3 4; do
-      case "$out" in *"merge-cleanup-injected.mjs:$((mcn + n)):"*) ;; *) fail TEST-075 "injected merge-cleanup line $((mcn + n)) not listed: $out" ;; esac
-    done
-    echo "PASS: TEST-075 no direct platform calls (Spec-AC-13), merge-cleanup.mjs armed and clean"
-  else
-    echo "PENDING: TEST-075 merge-cleanup.mjs arm (it imports the adapter in batch C); checker and positive control PASS (Spec-AC-13)"
-  fi
+  rc=0; out="$("$NODE_BIN" "$chk" "$mcinj" 2>&1)" || rc=$?
+  [[ "$rc" -eq 1 ]] || fail TEST-075 "injected merge-cleanup copy exit want 1 got $rc"
+  for n in 1 2 3 4; do
+    case "$out" in *"merge-cleanup-injected.mjs:$((mcn + n)):"*) ;; *) fail TEST-075 "injected merge-cleanup line $((mcn + n)) not listed: $out" ;; esac
+  done
+  echo "PASS: TEST-075 no direct platform calls (Spec-AC-13), merge-cleanup.mjs armed and clean"
 }
 
 if [[ $# -gt 1 ]]; then echo 'Usage: test-aai-platform-adapter.sh [test_xxx | TEST-xxx]' >&2; exit 2; fi

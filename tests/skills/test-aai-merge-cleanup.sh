@@ -14,6 +14,7 @@
 # spec-merge-cleanup-submodule-worktree B: TEST-031 (ignored content), TEST-032 (late dirt), TEST-033 (preflight), TEST-034 (canon).
 # spec-merge-cleanup-delete-remote-branch: TEST-036..042 (delete-remote-branch step; TEST-002/010/012/013/014 amended).
 # spec-merge-cleanup-ride-leftovers: TEST-045/046 (ride roadmap entry), TEST-047/048 (ride ledger appends), TEST-049/050 (engine reload), TEST-051/052 (tail resume key, re-exec child exit).
+# spec-git-platform-detected-at-bootstrap C: TEST-068, TEST-070, TEST-072, TEST-073, TEST-074 (merge-cleanup on the platform adapter).
 # spec-merge-cleanup-submodule-worktree A: TEST-028 (removal after the proof), TEST-029 (dirty refused), TEST-030 (unpushed, stash, no remote, stray module refused).
 set -euo pipefail
 
@@ -2785,6 +2786,277 @@ test_061_prompt_diet_passes() {
   echo "PASS: TEST-007 SKILL_PR prompt diet verified (Spec-AC-07)"
 }
 
+# ---------------------------------------------------------------------------
+# spec-git-platform-detected-at-bootstrap C: merge-cleanup on the platform adapter
+# (TEST-068 generic refusals, TEST-070 Azure preflight, TEST-072 Azure apply,
+# TEST-073 platform mismatch, TEST-074 GitHub recorded and the legacy notice).
+
+AZ_ORG_URL='https://dev.azure.com/acme/Proj/_git/foo'
+AZ_A1="repos pr show --id 433 --detect true --output json"
+AZ_A4='devops invoke --area git --resource pullRequestThreads --route-parameters project=proj-id-1111 repositoryId=repo-id-2222 pullRequestId=433 --org https://dev.azure.com/acme --api-version 7.1 --http-method GET --output json'
+
+# write_az_stub <dir>: az stub, deny-by-default. Accepted calls are exactly A1 to A4 of the spec (D8);
+# every call is logged to az-argv.log in the same directory the gh stub uses.
+write_az_stub() {
+  local d="$1"
+  run mkdir -p "$d/bin"
+  cat > "$d/bin/az" <<'AZSTUB'
+#!/usr/bin/env bash
+dir="${GH_STUB_DIR:-}"
+[ -n "$dir" ] && [ -d "$dir" ] || { echo 'STUB-DENY: GH_STUB_DIR unset' >&2; exit 1; }
+printf '%s\n' "$*" >> "$dir/az-argv.log"
+a4='devops invoke --area git --resource pullRequestThreads --route-parameters project=proj-id-1111 repositoryId=repo-id-2222 pullRequestId=433 --org https://dev.azure.com/acme --api-version 7.1 --http-method GET --output json'
+if [ "$*" = "repos pr show --id 433 --detect true --output json" ]; then
+  [ -f "$dir/az-show-fail" ] && { echo 'STUB: az repos pr show failed' >&2; exit 1; }
+  [ -f "$dir/azpr-433.json" ] && { cat "$dir/azpr-433.json"; exit 0; }
+fi
+if [ "$#" -eq 13 ] && [ "$1 $2 $3 $4 $5 $6" = "repos pr list --status active --target-branch" ] && [ "$8 $9 ${10} ${11} ${12} ${13}" = "--top 100 --detect true --output json" ]; then
+  key="${7//\//_}"
+  if [ -f "$dir/az-deps-$key.json" ]; then cat "$dir/az-deps-$key.json"; else echo '[]'; fi
+  exit 0
+fi
+if [ "$#" -eq 13 ] && [ "$1 $2 $3 $4 $5 $6" = "repos pr list --status active --source-branch" ] && [ "$8 $9 ${10} ${11} ${12} ${13}" = "--top 100 --detect true --output json" ]; then
+  key="${7//\//_}"
+  if [ -f "$dir/az-heads-$key.json" ]; then cat "$dir/az-heads-$key.json"; else echo '[]'; fi
+  exit 0
+fi
+if [ "$*" = "$a4" ]; then
+  [ -f "$dir/az-threads-fail" ] && { echo 'STUB: az devops invoke failed' >&2; exit 1; }
+  if [ -f "$dir/az-threads.json" ]; then cat "$dir/az-threads.json"; else echo '{"value":[]}'; fi
+  exit 0
+fi
+printf 'STUB-DENY: unexpected argv: %s\n' "$*" >&2
+exit 1
+AZSTUB
+  run chmod +x "$d/bin/az"
+  : > "$d/az-argv.log"
+}
+
+# write_az_pr <status> <isDraft> <head> [webUrl]: the A1 fixture. AZ_FORK=1 adds a forkSource.
+write_az_pr() {
+  local status="$1" draft="$2" head="$3" web="${4:-$AZ_ORG_URL}" fork='' mcj=''
+  if [[ -n "${AZ_FORK:-}" ]]; then fork=',"forkSource":{"repository":{"id":"fork-1"}}'; fi
+  if [[ "$status" == completed ]]; then mcj=",\"lastMergeCommit\":{\"commitId\":\"$MC\"}"; fi
+  printf '{"pullRequestId":%s,"status":"%s","isDraft":%s,"sourceRefName":"refs/heads/%s","targetRefName":"refs/heads/main","lastMergeSourceCommit":{"commitId":"%s"}%s%s,"repository":{"id":"repo-id-2222","name":"foo","webUrl":"%s","url":"https://dev.azure.com/acme/proj-id-1111/_apis/git/repositories/repo-id-2222","project":{"id":"proj-id-1111"}}}\n' \
+    "$PR" "$status" "$draft" "$BRANCH" "$head" "$mcj" "$fork" "$web" > "$GHD/azpr-$PR.json"
+}
+
+# record_platform <dir> <value>: a recorded platform in <dir>/docs/ai/pr-config.yaml, hidden from git status.
+record_platform() {
+  [[ -n "$1" && "$1" = /* && -d "$1" ]] || fail SETUP "record_platform dir: $1"
+  mkdir -p "$1/docs/ai" || fail SETUP 'record_platform mkdir'
+  printf 'platform: %s\n' "$2" > "$1/docs/ai/pr-config.yaml"
+  printf 'docs/ai/pr-config.yaml\n' >> "$ORIGIN/.git/info/exclude"
+}
+
+empty_logs() { [[ ! -s "$GHD/gh-argv.log" && ! -s "$GHD/az-argv.log" ]]; }
+
+# generic_refusal <tid> <label> <engine args...>: exit 3, platform_generic with a manual, no gh_ reason, no CLI spawned, world unchanged.
+generic_refusal() {
+  local tid="$1" label="$2" before
+  shift 2
+  before="$(world_digest)"
+  : > "$GHD/gh-argv.log"; : > "$GHD/az-argv.log"
+  run_engine "$@"
+  [[ "$ENG_RC" -eq 3 ]] || fail "$tid" "$label exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  want "$tid" "$ENG_OUT" 'REFUSE platform_generic'
+  want "$tid" "$ENG_OUT" 'manual:'
+  unwanted "$tid" "$ENG_OUT" 'gh_'
+  unwanted "$tid" "$ENG_ERR" 'gh_'
+  empty_logs || fail "$tid" "$label spawned a platform CLI: $(cat "$GHD/gh-argv.log" "$GHD/az-argv.log")"
+  [[ "$(world_digest)" == "$before" ]] || fail "$tid" "$label changed the fixture"
+}
+
+test_068_generic_refuses_with_manual() {
+  local rec
+  for rec in unknown none; do
+    open_world "generic_$rec"
+    write_az_stub "$GHD"
+    write_pr_json MERGED "$MC"
+    record_platform "$ORIGIN" "$rec"
+    record_platform "$RIDE" "$rec"
+    generic_refusal TEST-068 "$rec preflight" preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by human --direction 'merge 433 please' --origin "$RIDE"
+    generic_refusal TEST-068 "$rec plan" plan --pr "$PR"
+    generic_refusal TEST-068 "$rec apply" apply --pr "$PR" --pid 4242
+  done
+  # positive control: with no record the same world reads the PR through gh
+  rm -f "$ORIGIN/docs/ai/pr-config.yaml" "$RIDE/docs/ai/pr-config.yaml"
+  : > "$GHD/gh-argv.log"
+  run_engine plan --pr "$PR"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-068 "unrecorded control exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-068 "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"
+  echo 'PASS: TEST-068 a recorded unknown or none platform refuses with the manual route'
+}
+
+# az_refusal <reason> <engine args...>: a named refusal and an empty gh log (the Azure arms never touch gh).
+az_refusal() {
+  local reason="$1"
+  shift
+  expect_refusal TEST-070 "$reason" "$@"
+  [[ ! -s "$GHD/gh-argv.log" ]] || fail TEST-070 "arm $reason invoked gh: $(cat "$GHD/gh-argv.log")"
+}
+
+test_070_azure_preflight_ready_and_refusals() {
+  open_world az_preflight
+  write_az_stub "$GHD"
+  run git -C "$ORIGIN" remote set-url origin "$AZ_ORG_URL"
+  local before engdir line path want_line
+  engdir="$(cd "$ROOT/.aai/scripts" && pwd -P)" || fail SETUP 'engine dir'
+  [[ -n "$engdir" && "$engdir" = /* ]] || fail SETUP 'engine dir not absolute'
+  want_line="AAI_OPERATOR_MERGE=1 node \"$engdir/platform.mjs\" merge --pr $PR --expect-head $HEAD_OID"
+  write_az_pr active false "$HEAD_OID"
+  before="$(world_digest)"
+  : > "$GHD/gh-argv.log"; : > "$GHD/az-argv.log"
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-070 "azure ready exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(printf '%s\n' "$ENG_OUT" | { /usr/bin/grep -c 'AAI_OPERATOR_MERGE=1' || true; })" == 1 ]] || fail TEST-070 "want exactly one merge line: $ENG_OUT"
+  line="$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep 'AAI_OPERATOR_MERGE=1')"
+  [[ "$line" == "$want_line" ]] || fail TEST-070 "merge line is not the D9 form: $line"
+  unwanted TEST-070 "$ENG_OUT" 'gh pr merge'
+  path="${line#*node \"}"; path="${path%%\"*}"
+  [[ -f "$path" ]] || fail TEST-070 "the printed engine path does not exist: $path"
+  [[ ! -s "$GHD/gh-argv.log" ]] || fail TEST-070 "azure preflight invoked gh: $(cat "$GHD/gh-argv.log")"
+  [[ "$(cat "$GHD/az-argv.log")" == "$AZ_A1"$'\n'"$AZ_A4" ]] || fail TEST-070 "az log is not exactly A1 and A4: $(cat "$GHD/az-argv.log")"
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-070 'azure preflight changed the fixture'
+  # resolved or system threads never block (only active and pending do)
+  printf '{"value":[{"id":1,"status":"closed","comments":[{"content":"x"}]},{"id":2,"status":"fixed","comments":[{"content":"x"}]},{"id":3,"comments":[{"content":"system"}]},{"id":4,"status":"active","isDeleted":true,"comments":[{"content":"gone"}]}]}\n' > "$GHD/az-threads.json"
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-070 "resolved-threads control exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+  rm -f "$GHD/az-threads.json"
+
+  write_az_pr active false 0123456789012345678901234567890123456789
+  az_refusal head_changed pf
+  write_az_pr active true "$HEAD_OID"
+  az_refusal draft pf
+  write_az_pr abandoned false "$HEAD_OID"
+  az_refusal not_open pf
+  write_az_pr active false "$HEAD_OID" 'https://dev.azure.com/acme/Proj/_git/other'
+  az_refusal repo_mismatch pf
+  want TEST-070 "$ENG_OUT" 'acme/proj/foo'
+  write_az_pr active false "$HEAD_OID"
+  printf '{"value":[{"id":7,"status":"active","comments":[{"content":"fix this","author":{"displayName":"Rev"}}]}]}\n' > "$GHD/az-threads.json"
+  az_refusal review_unresolved pf
+  want TEST-070 "$ENG_OUT" 'Rev'
+  printf '{"value":[{"id":8,"status":"pending","comments":[{"content":"wait","author":{"displayName":"Rev"}}]}]}\n' > "$GHD/az-threads.json"
+  az_refusal review_unresolved pf
+  rm -f "$GHD/az-threads.json"
+  : > "$GHD/az-show-fail"
+  az_refusal az_read_failed pf
+  rm -f "$GHD/az-show-fail"
+  # completed: already_merged, exit 0, still no gh
+  write_az_pr completed false "$HEAD_OID"
+  : > "$GHD/gh-argv.log"
+  pf
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-070 "completed PR exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-070 "$ENG_OUT" already_merged
+  [[ ! -s "$GHD/gh-argv.log" ]] || fail TEST-070 "already_merged arm invoked gh"
+  # control: the ready fixture is ready again after the refusal arms
+  write_az_pr active false "$HEAD_OID"
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-070 "ready control exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+  echo 'PASS: TEST-070 azure preflight is READY with zero gh calls and refuses on each gate'
+}
+
+test_072_azure_apply_cleanup() {
+  local a1 a2 a3
+  build_world az_apply
+  a1="$AZ_A1"
+  a2="repos pr list --status active --target-branch $BRANCH --top 100 --detect true --output json"
+  a3="repos pr list --status active --source-branch $BRANCH --top 100 --detect true --output json"
+  write_az_stub "$GHD"
+  record_platform "$ORIGIN" azure
+  write_az_pr completed false "$HEAD_OID"
+  bare_has "$BRANCH" || fail SETUP 'the bare has no ride branch (positive control)'
+  : > "$GHD/gh-argv.log"; : > "$GHD/az-argv.log"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-072 "azure apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -d "$RIDE" ]] || fail TEST-072 'the ride worktree still exists'
+  if bare_has "$BRANCH"; then fail TEST-072 'the bare still has the ride branch'; fi
+  [[ "$(cat "$GHD/az-argv.log")" == "$a1"$'\n'"$a2"$'\n'"$a3" ]] || fail TEST-072 "az log is not exactly A1, A2, A3: $(cat "$GHD/az-argv.log")"
+  [[ ! -s "$GHD/gh-argv.log" ]] || fail TEST-072 "azure apply invoked gh: $(cat "$GHD/gh-argv.log")"
+  # fork arm: retained as remote_fork, the bare branch stays
+  build_world az_apply_fork
+  write_az_stub "$GHD"
+  record_platform "$ORIGIN" azure
+  AZ_FORK=1 write_az_pr completed false "$HEAD_OID"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-072 remote_fork 'azure fork arm'
+  bare_has "$BRANCH" || fail TEST-072 'fork arm: the remote branch was deleted'
+  # dependents arms: an open PR based on, then opened from, the branch (A2, A3)
+  build_world az_apply_dep
+  write_az_stub "$GHD"
+  record_platform "$ORIGIN" azure
+  write_az_pr completed false "$HEAD_OID"
+  printf '[{"pullRequestId":512}]\n' > "$GHD/az-deps-${BRANCH//\//_}.json"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-072 remote_has_dependents 'azure dependents arm'
+  want TEST-072 "$(rstep "$ENG_OUT" detail)" '#512'
+  bare_has "$BRANCH" || fail TEST-072 'dependents arm: the remote branch was deleted'
+  build_world az_apply_head
+  write_az_stub "$GHD"
+  record_platform "$ORIGIN" azure
+  write_az_pr completed false "$HEAD_OID"
+  printf '[{"pullRequestId":611}]\n' > "$GHD/az-heads-${BRANCH//\//_}.json"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  retained_arm TEST-072 remote_has_dependents 'azure head-of arm'
+  want TEST-072 "$(rstep "$ENG_OUT" detail)" '#611'
+  bare_has "$BRANCH" || fail TEST-072 'head-of arm: the remote branch was deleted'
+  echo 'PASS: TEST-072 azure apply cleans up through A1, A2 and A3 only'
+}
+
+test_073_platform_mismatch_refuses_before_any_read() {
+  local arm rec url
+  for arm in 'azure|https://github.com/example/repo.git' 'github|https://dev.azure.com/acme/Proj/_git/foo'; do
+    rec="${arm%%|*}"; url="${arm#*|}"
+    open_world "mismatch_$rec"
+    write_az_stub "$GHD"
+    write_pr_json MERGED "$MC"
+    run git -C "$ORIGIN" remote set-url origin "$url"
+    record_platform "$ORIGIN" "$rec"
+    record_platform "$RIDE" "$rec"
+    local detected='github'
+    if [[ "$rec" == github ]]; then detected='azure'; fi
+    local before
+    before="$(world_digest)"
+    : > "$GHD/gh-argv.log"; : > "$GHD/az-argv.log"
+    local mode
+    for mode in preflight plan apply; do
+      case "$mode" in
+        preflight) run_engine preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by human --direction 'merge 433 please' --origin "$RIDE" ;;
+        plan) run_engine plan --pr "$PR" ;;
+        apply) run_engine apply --pr "$PR" --pid 4242 ;;
+      esac
+      [[ "$ENG_RC" -eq 3 ]] || fail TEST-073 "$rec $mode exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+      want TEST-073 "$ENG_OUT" "REFUSE platform_mismatch recorded=$rec detected=$detected"
+      want TEST-073 "$ENG_OUT" 'record --force'
+      empty_logs || fail TEST-073 "$rec $mode spawned a platform CLI: $(cat "$GHD/gh-argv.log" "$GHD/az-argv.log")"
+      [[ "$(world_digest)" == "$before" ]] || fail TEST-073 "$rec $mode changed the fixture"
+    done
+  done
+  echo 'PASS: TEST-073 a recorded platform that contradicts the origin refuses before any read'
+}
+
+test_074_github_recorded_and_legacy_unchanged() {
+  local pinned out_legacy
+  open_world gh_recorded
+  write_az_stub "$GHD"
+  pinned="AAI_OPERATOR_MERGE=1 gh pr merge $PR --squash --match-head-commit $HEAD_OID"
+  record_platform "$RIDE" github
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-074 "recorded github exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(printf '%s\n' "$ENG_OUT" | /usr/bin/grep 'gh pr merge')" == "$pinned" ]] || fail TEST-074 "printed command is not the pinned one: $ENG_OUT"
+  [[ -z "$ENG_ERR" ]] || fail TEST-074 "recorded github printed on stderr: $ENG_ERR"
+  out_legacy="$ENG_OUT"
+  [[ ! -s "$GHD/az-argv.log" ]] || fail TEST-074 'github run invoked az'
+  rm -f "$RIDE/docs/ai/pr-config.yaml"
+  pf
+  [[ "$ENG_RC" -eq 10 ]] || fail TEST-074 "unrecorded exited $ENG_RC, want 10 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$ENG_OUT" == "$out_legacy" ]] || fail TEST-074 "unrecorded stdout differs from the recorded run"
+  want TEST-074 "$ENG_ERR" 'platform not recorded'
+  [[ "$(printf '%s\n' "$ENG_ERR" | wc -l | tr -d ' ')" == 1 ]] || fail TEST-074 "want exactly one stderr line: $ENG_ERR"
+  echo 'PASS: TEST-074 recorded github prints the pinned line; unrecorded adds one notice only'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate;
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -2805,7 +3077,9 @@ case "$SELECTED" in
      test_047_ride_ledger_appends_moved; test_048_non_append_ledger_change_refused
      test_051_ledger_tail_resume_key_and_count; test_053_reset_ride_ledger_is_not_a_resume_candidate
      test_054_resume_matches_the_appended_segment; test_055_unappended_intent_is_not_counted
-     test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite; test_058_merge_cleanup_line_ceiling; test_059_lane_gate_passes_without_pr_sweep; test_060_skill_pr_prompt_free_of_pr_sweep; test_061_prompt_diet_passes ;;
+     test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite; test_058_merge_cleanup_line_ceiling; test_059_lane_gate_passes_without_pr_sweep; test_060_skill_pr_prompt_free_of_pr_sweep; test_061_prompt_diet_passes
+     test_068_generic_refuses_with_manual; test_070_azure_preflight_ready_and_refusals; test_072_azure_apply_cleanup
+     test_073_platform_mismatch_refuses_before_any_read; test_074_github_recorded_and_legacy_unchanged ;;
   TEST-059|test_059_lane_gate_passes_without_pr_sweep) test_059_lane_gate_passes_without_pr_sweep ;;
   TEST-060|test_060_skill_pr_prompt_free_of_pr_sweep) test_060_skill_pr_prompt_free_of_pr_sweep ;;
   TEST-061|test_061_prompt_diet_passes) test_061_prompt_diet_passes ;;
@@ -2861,5 +3135,10 @@ case "$SELECTED" in
   TEST-056|test_056_historical_journal_tolerance) test_056_historical_journal_tolerance ;;
   TEST-057|test_057_codebase_reduction_and_green_suite) test_057_codebase_reduction_and_green_suite ;;
   TEST-058|test_058_merge_cleanup_line_ceiling) test_058_merge_cleanup_line_ceiling ;;
+  TEST-068|test_068_generic_refuses_with_manual) test_068_generic_refuses_with_manual ;;
+  TEST-070|test_070_azure_preflight_ready_and_refusals) test_070_azure_preflight_ready_and_refusals ;;
+  TEST-072|test_072_azure_apply_cleanup) test_072_azure_apply_cleanup ;;
+  TEST-073|test_073_platform_mismatch_refuses_before_any_read) test_073_platform_mismatch_refuses_before_any_read ;;
+  TEST-074|test_074_github_recorded_and_legacy_unchanged) test_074_github_recorded_and_legacy_unchanged ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

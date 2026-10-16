@@ -48,6 +48,7 @@ import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { status as lockStatus, release as lockRelease } from './lib/session-lock.mjs';
 import { parseFrontmatter } from './lib/docs-model.mjs';
+import { createAdapter, resolvePlatform, githubRepoSlug } from './lib/platform-adapter.mjs';
 
 const HELP = `merge-cleanup.mjs <preflight|plan|apply> --pr <n> [options]
   preflight  read-only gates for an OPEN pull request; exit 10 when ready
@@ -68,7 +69,6 @@ const STEP_IDS = [
   'resolve', 'plan', 'archive-runtime', 'sync-base',
   'remove-worktree', 'delete-branch', 'report',
 ];
-const PR_FIELDS = 'number,state,isDraft,headRefOid,headRefName,baseRefName,mergeStateStatus,statusCheckRollup,mergeCommit,url,isCrossRepository';
 const DRAFT_BASENAME_RE = /^[A-Z]+(?:-[A-Z]+)*-DRAFT-.+\.md$/;
 const BASE_NAME_RE = /^[A-Za-z0-9._/-]+$/;
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -135,103 +135,55 @@ function crashAt(point) {
   if (seam('AAI_MERGE_CLEANUP_CRASH_AT') === point) process.exit(137);
 }
 
-// The PR read (D4); ghDependents below is the only other gh call. Test seam: AAI_MERGE_CLEANUP_GH_NODE=<abs .js path> runs
-// that script under this node instead of `gh`, because a native Windows runner
-// cannot spawn a .cmd/.sh stub without a shell. Inert without the test guard.
-function ghPrView(cwd, pr, maxBuffer) {
+// D11: every host read goes through the platform adapter (lib/platform-adapter.mjs). The one
+// test seam, AAI_MERGE_CLEANUP_GH_NODE=<abs .js path>, runs that script under this node instead of
+// the GitHub CLI, because a native Windows runner cannot spawn a .cmd/.sh stub without a shell.
+// Inert without the test guard, and never applied to another platform's adapter.
+function seamRunner() {
   const stub = seam('AAI_MERGE_CLEANUP_GH_NODE');
-  const viewArgs = ['pr', 'view', String(pr), '--json', PR_FIELDS];
-  if (stub && path.isAbsolute(stub)) {
-    return spawnSync(process.execPath, [stub, ...viewArgs], { cwd, encoding: 'utf8', maxBuffer });
-  }
-  return spawnSync('gh', viewArgs, { cwd, encoding: 'utf8', maxBuffer });
+  if (!stub || !path.isAbsolute(stub)) return undefined;
+  return (_cmd, args, o) => spawnSync(process.execPath, [stub, ...args], o);
 }
 
-// Open PRs that deleting a branch would close, same gh seam: those stacked on it (their BASE is the
-// branch) and those opened from it (their HEAD is the branch). `side` is 'base' or 'head'.
-function ghDependents(cwd, branch, side = 'base') {
-  const listArgs = ['pr', 'list', '--state', 'open', `--${side}`, branch, '--json', 'number', '--limit', '100'];
-  const stub = seam('AAI_MERGE_CLEANUP_GH_NODE');
-  if (stub && path.isAbsolute(stub)) return spawnSync(process.execPath, [stub, ...listArgs], { cwd, encoding: 'utf8', timeout: 120000 });
-  return spawnSync('gh', listArgs, { cwd, encoding: 'utf8', timeout: 120000 });
+// D11: platform resolution runs first in every mode, before any platform read or write.
+function openPlatform(cwd) {
+  const res = resolvePlatform({ repoRoot: cwd });
+  if (res.mismatch) {
+    refuse('platform_mismatch', `recorded=${res.recorded} detected=${res.detected} re-record: node .aai/scripts/platform.mjs record --force`);
+  }
+  if (res.legacy) {
+    process.stderr.write('merge-cleanup: platform not recorded; assuming github (record it: node .aai/scripts/platform.mjs record)\n');
+  }
+  return createAdapter(res.platform, { cwd, runner: res.platform === 'github' ? seamRunner() : undefined });
 }
 
-function ghApi(cwd, args, maxBuffer = 16 * 1024 * 1024) {
-  const stub = seam('AAI_MERGE_CLEANUP_GH_NODE');
-  const apiArgs = ['api', ...args];
-  if (stub && path.isAbsolute(stub)) {
-    return spawnSync(process.execPath, [stub, ...apiArgs], { cwd, encoding: 'utf8', maxBuffer });
-  }
-  return spawnSync('gh', apiArgs, { cwd, encoding: 'utf8', maxBuffer });
+// An adapter read becomes its value, a named generic skip, or the platform's refusal reason.
+function unwrap(adapter, r) {
+  if (r.skip) refuse('platform_generic', `${r.op} manual: ${r.manual}`);
+  if (!r.ok) refuse(adapter.refusalReason(r), r.detail);
+  return r.value;
 }
 
-function checkReviewThreads(cwd, prNumber, prUrl) {
-  const slug = repoSlug(prUrl);
-  if (!slug) return { ok: true, unresolvedCount: 0 };
-  const [owner, repo] = slug.split('/');
-  let hostname = null;
-  try {
-    const u = new URL(prUrl);
-    if (u.hostname) hostname = u.hostname;
-  } catch {}
-  const query = 'query($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) { repository(owner: $owner, name: $repo) { pullRequest(number: $pr) { reviewThreads(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor } nodes { isResolved isOutdated comments(first: 10) { nodes { body author { login } path line } } } } } } }';
-  const apiArgs = ['graphql', '--paginate', '--slurp'];
-  if (hostname) apiArgs.push('--hostname', hostname);
-  apiArgs.push('-F', `owner=${owner}`, '-F', `repo=${repo}`, '-F', `pr=${prNumber}`, '-f', `query=${query}`);
-  const r = ghApi(cwd, apiArgs);
-  if (r.error || r.status !== 0) {
-    refuse('gh_read_failed', `gh api review-threads ${prNumber}`);
-  }
-  let pages;
-  try { pages = JSON.parse(r.stdout); } catch { refuse('gh_read_invalid', 'gh api review-threads printed no JSON'); }
-  if (!Array.isArray(pages)) pages = [pages];
-  const threads = [];
-  for (const page of pages) {
-    const nodes = page?.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
-    threads.push(...nodes);
-  }
-  const unresolved = threads.filter((t) => !t.isResolved);
-  if (unresolved.length > 0) {
-    const details = unresolved.map((t) => {
-      const c = t.comments?.nodes?.[0];
-      const author = c?.author?.login ?? 'unknown';
-      const loc = c?.path ? `${c.path}${c.line ? `:${c.line}` : ''}` : '';
-      return `${author}${loc ? ` (${loc})` : ''}: ${(c?.body || '').slice(0, 100)}`;
-    }).join('; ');
-    return { ok: false, unresolvedCount: unresolved.length, details };
-  }
-  return { ok: true, unresolvedCount: 0 };
+function checkReviewThreads(adapter, prNumber, pr) {
+  const t = unwrap(adapter, adapter.reviewThreads(prNumber, pr));
+  return { ok: t.unresolvedCount === 0, unresolvedCount: t.unresolvedCount, details: t.details };
 }
 
-// PR numbers from one dependents query, or null when it failed or its output is not a list of numbers.
-function dependentNumbers(dep) {
-  if (dep.error || dep.status !== 0) return null;
-  try {
-    const rows = JSON.parse(dep.stdout);
-    if (Array.isArray(rows) && rows.every((x) => Number.isInteger(x?.number))) return rows.map((x) => x.number);
-  } catch { /* unparsable: fail closed */ }
-  return null;
+// PR numbers from one dependents query, or null when it failed (the proof then retains the branch).
+function dependentNumbers(r) {
+  return r.ok ? r.value : null;
 }
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const posix = (p) => p.split(path.sep).join('/');
 
-// owner/repo of a git remote URL or a GitHub pull-request URL, lower-cased; null
-// when it is not recognisably a hosted repository (a local path, a bare name).
-function repoSlug(url) {
-  const u = String(url ?? '').trim().replace(/\/pull\/\d+.*$/, '').replace(/\/+$/, '');
-  const m = u.match(/^(?:https?|ssh|git):\/\/(?:[^@/]+@)?[^/:]+(?::\d+)?\/([^/]+)\/([^/]+?)(?:\.git)?$/)
-    ?? u.match(/^(?:[^@/\s]+@)?[^/:\s]*\.[^/:\s]+:([^/]+)\/([^/]+?)(?:\.git)?$/);
-  return m ? `${m[1]}/${m[2]}`.toLowerCase() : null;
-}
+const repoSlug = githubRepoSlug;
 
-// NB-4: the PR must belong to the repository the origin remote points at. Only a
-// recognisable remote is compared (a local path or an unparsable URL is skipped).
-function checkRepo(origin, prUrl) {
+// NB-4: the PR must belong to the repository the origin remote points at (the adapter compares
+// only a recognisable remote; a local path or an unparsable URL is skipped).
+function checkRepo(adapter, origin, pr) {
   const r = git(origin, ['config', '--get', 'remote.origin.url']);
-  const remote = r.status === 0 ? repoSlug(r.stdout) : null;
-  const pr = repoSlug(prUrl);
-  if (remote && pr && remote !== pr) refuse('repo_mismatch', `PR ${pr}, origin ${remote}`);
+  unwrap(adapter, adapter.repoMatches(r.status === 0 ? r.stdout.trim() : '', pr));
 }
 
 function resolveOrigin(opts) {
@@ -247,13 +199,11 @@ function resolveOrigin(opts) {
   return fs.realpathSync(top.stdout.trim());
 }
 
-// D4/D5: the one fixed gh read, then the read-back gate.
+// D4/D5: the one fixed PR read, then the read-back gate.
 function readAndGate(opts, origin) {
-  const r = ghPrView(origin, opts.pr, 64 * 1024 * 1024);
-  if (r.error || r.status !== 0) refuse('gh_read_failed', `gh pr view ${opts.pr}`);
-  let pr;
-  try { pr = JSON.parse(r.stdout); } catch { refuse('gh_read_invalid', 'gh pr view printed no JSON'); }
-  checkRepo(origin, pr?.url);
+  const adapter = openPlatform(origin);
+  const pr = unwrap(adapter, adapter.prView(opts.pr));
+  checkRepo(adapter, origin, pr);
   const mc = pr?.mergeCommit?.oid ?? '';
   if (pr.state !== 'MERGED' || !/^[0-9a-f]{40}$/i.test(mc)) {
     refuse('not_merged', `state=${pr.state ?? 'unknown'} mergeCommit=${mc || 'none'}`);
@@ -264,7 +214,7 @@ function readAndGate(opts, origin) {
   if (f.status !== 0) refuse('fetch_failed', `origin ${base}`);
   const anc = git(origin, ['merge-base', '--is-ancestor', mc, `refs/remotes/origin/${base}`]);
   if (anc.status !== 0) refuse('merge_commit_not_on_base', `${mc} is not reachable from origin/${base}`);
-  return { pr, mc, base, head: pr.headRefOid ?? '', headRef: pr.headRefName ?? '' };
+  return { pr, mc, base, head: pr.headRefOid ?? '', headRef: pr.headRefName ?? '', adapter };
 }
 
 // ---- D6: draft classification --------------------------------------------
@@ -1052,8 +1002,8 @@ function remoteProof(ctx) {
   if ([ctx.base, defaultBranch].includes(b)) return { retain: ['remote_is_base', `${b} is the base or default branch`] };
   if (remoteOid === '') return { absent: true };
   if (!/^[0-9a-f]{40}$/i.test(ctx.head) || remoteOid !== ctx.head) return { retain: ['remote_moved', `origin/${b} at ${remoteOid}, PR head ${ctx.head || 'unknown'}`] };
-  const based = dependentNumbers(ghDependents(ctx.origin, b, 'base'));
-  const opened = dependentNumbers(ghDependents(ctx.origin, b, 'head'));
+  const based = dependentNumbers(ctx.adapter.listDependents(b, 'base'));
+  const opened = dependentNumbers(ctx.adapter.listDependents(b, 'head'));
   if (based === null || opened === null) return { retain: ['remote_unknown', 'open pull requests based on or opened from the branch could not be listed'] };
   const list = (ns) => ns.map((n) => `#${n}`).join(', ');
   const facts = [];
@@ -1302,15 +1252,13 @@ function runPreflight(opts) {
     refuse('no_direction', 'needs --directed-by human and the owner\'s verbatim --direction');
   }
   const cwd = opts.origin ?? process.cwd();
-  const r = ghPrView(cwd, opts.pr, 64 * 1024 * 1024);
-  if (r.error || r.status !== 0) refuse('gh_read_failed', `gh pr view ${opts.pr}`);
-  let pr;
-  try { pr = JSON.parse(r.stdout); } catch { refuse('gh_read_invalid', 'gh pr view printed no JSON'); }
+  const adapter = openPlatform(cwd);
+  const pr = unwrap(adapter, adapter.prView(opts.pr));
   if (pr.state === 'MERGED') {
     process.stdout.write(`already_merged PR #${opts.pr} is merged; run: merge-cleanup.mjs apply --pr ${opts.pr} --pid <harness pid>\n`);
     exit(0);
   }
-  checkRepo(cwd, pr.url);
+  checkRepo(adapter, cwd, pr);
   if (pr.state !== 'OPEN') refuse('not_open', `state=${pr.state ?? 'unknown'}`);
   if (pr.isDraft) refuse('draft', `PR #${opts.pr} is a draft`);
   const head = pr.headRefOid ?? '';
@@ -1332,7 +1280,7 @@ function runPreflight(opts) {
   if (g.error || g.status !== 0) {
     refuse('sweep_missing', gateOut.split('\n').filter(Boolean).join(' | ') || 'lane-gate --sweep-check did not allow the merge');
   }
-  const reviewCheck = checkReviewThreads(cwd, opts.pr, pr.url);
+  const reviewCheck = checkReviewThreads(adapter, opts.pr, pr);
   if (!reviewCheck.ok) {
     refuse('review_unresolved', `${reviewCheck.unresolvedCount} unresolved review thread(s): ${reviewCheck.details}`);
   }
@@ -1342,7 +1290,7 @@ function runPreflight(opts) {
   const rideWt = findRideWorktree({ origin: realOr(mainWt ?? cwd), headRef: String(pr.headRefName ?? '') });
   const cleanupVerdict = rideWt ? blockerVerdict(submoduleBlockers(rideWt.path)) : null;
   const cleanupBlockers = cleanupVerdict ? [{ reason: cleanupVerdict[0], detail: cleanupVerdict[1] }] : [];
-  const command = `AAI_OPERATOR_MERGE=1 gh pr merge ${opts.pr} --squash --match-head-commit ${head}`;
+  const command = adapter.mergeCommand(opts.pr, head, SCRIPT_DIR);
   if (opts.json) {
     process.stdout.write(`${JSON.stringify({ ready: true, pr: opts.pr, head, command, sweep: gateOut, direction: opts.direction, cleanup_blockers: cleanupBlockers })}\n`);
   } else {
