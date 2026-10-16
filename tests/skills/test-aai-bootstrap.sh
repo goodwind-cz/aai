@@ -320,9 +320,86 @@ test_force_is_explicit_overwrite() {
   log_pass "--force replaced the unmarked skill"
 }
 
+# Spec-AC-04 (TEST-065 / spec-git-platform-detected-at-bootstrap): bootstrap
+# records the git platform, relays the RECORDED / MISMATCH / AUTH lines and
+# never aborts on them; SKILL_BOOTSTRAP names the record command for POSIX and
+# PowerShell; the PowerShell form writes the same bytes as the bash run.
+test_065_bootstrap_records_platform() {
+  log_info "Test: bootstrap records the git platform (TEST-065)..."
+  local root="$TEST_DIR/platform-fixtures" stubs repo repo2 dry cfg saved
+  [[ -n "$TEST_DIR" && "$TEST_DIR" = /* ]] || log_fail "TEST-065: scratch root not absolute"
+  # Assertions name TEST-065 so a failure is attributable (mutation-run reads the FAIL line).
+  t65_file() { [[ -f "$1" ]] || log_fail "TEST-065: missing file $1"; }
+  t65_has() { grep -qF "$2" "$1" || log_fail "TEST-065: expected '$2' in $1"; }
+  stubs="$root/stubs"
+  mkdir -p "$stubs"
+  # az and gh are stubs that accept anything and answer ok (auth lines only).
+  printf '#!/bin/sh\nexit 0\n' > "$stubs/az"
+  printf '#!/bin/sh\nexit 0\n' > "$stubs/gh"
+  chmod +x "$stubs/az" "$stubs/gh"
+
+  repo="$root/azure"; repo2="$root/azure-ps"; dry="$root/azure-dry"
+  local d
+  for d in "$repo" "$repo2" "$dry"; do
+    [[ -n "$d" && "$d" = /* ]] || log_fail "TEST-065: fixture path not absolute"
+    mkdir -p "$d"
+    git -C "$d" init -q
+    git -C "$d" remote add origin "https://dev.azure.com/acme/Proj/_git/foo"
+  done
+  cfg="$repo/docs/ai/pr-config.yaml"
+
+  # run 1: records azure, exit 0, prints RECORDED and AUTH
+  PATH="$stubs:$PATH" bash "$BOOTSTRAP_SCRIPT" "$repo" > "$root/run1.log" 2>&1 || log_fail "TEST-065: bootstrap exit non-zero on first run: $(cat "$root/run1.log")"
+  t65_file "$cfg"
+  t65_has "$cfg" "platform: azure"
+  t65_has "$root/run1.log" "RECORDED platform=azure"
+  t65_has "$root/run1.log" "AUTH azure ok"
+  saved="$root/pr-config.after-run1"
+  cp "$cfg" "$saved"
+
+  # run 2 after origin moved to github: exit 0, MISMATCH relayed, file byte-identical
+  git -C "$repo" remote set-url origin "https://github.com/acme/foo.git"
+  PATH="$stubs:$PATH" bash "$BOOTSTRAP_SCRIPT" "$repo" > "$root/run2.log" 2>&1 || log_fail "TEST-065: a MISMATCH aborted bootstrap: $(cat "$root/run2.log")"
+  t65_has "$root/run2.log" "MISMATCH recorded=azure detected=github"
+  cmp -s "$cfg" "$saved" || log_fail "TEST-065: MISMATCH run changed pr-config.yaml"
+
+  # dry-run creates no pr-config.yaml
+  PATH="$stubs:$PATH" bash "$BOOTSTRAP_SCRIPT" "$dry" --dry-run > "$root/dry.log" 2>&1 || log_fail "TEST-065: dry-run exit non-zero"
+  [[ ! -f "$dry/docs/ai/pr-config.yaml" ]] || log_fail "TEST-065: dry-run created pr-config.yaml"
+  t65_has "$root/dry.log" "WOULD-RECORD platform=azure"
+
+  # SKILL_BOOTSTRAP names the command for POSIX and PowerShell
+  local skill="$PROJECT_ROOT/.aai/SKILL_BOOTSTRAP.prompt.md"
+  t65_has "$skill" 'POSIX: `node .aai/scripts/platform.mjs record`'
+  t65_has "$skill" 'PowerShell: `node .aai/scripts/platform.mjs record`'
+
+  # PowerShell form, fresh copy of the fixture: same bytes as the bash run
+  if command -v pwsh >/dev/null 2>&1; then
+    (
+      cd "$repo2" || exit 1
+      PATH="$stubs:$PATH" pwsh -NoProfile -Command "& node '$PROJECT_ROOT/.aai/scripts/platform.mjs' record --repo-root '$repo2'" > "$root/ps.log" 2>&1
+    ) || log_fail "TEST-065: PowerShell form failed: $(cat "$root/ps.log")"
+    cmp -s "$repo2/docs/ai/pr-config.yaml" "$saved" || log_fail "TEST-065: PowerShell form wrote different bytes than the bash run"
+  else
+    log_info "SKIP (logged): TEST-065 pwsh arm, pwsh not on PATH"
+  fi
+  log_pass "Bootstrap records the git platform (TEST-065)"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
+
+  if [[ $# -gt 0 ]]; then
+    # Positional selector (mutation-run.mjs): fixture plus the one named test.
+    case "$1" in TEST-065) set -- test_065_bootstrap_records_platform ;; esac
+    declare -F "$1" >/dev/null || log_fail "Unknown selector: $1"
+    check_deps
+    setup_fixture
+    "$1"
+    echo "Selected test passed"
+    return 0
+  fi
 
   check_deps
   setup_fixture
@@ -333,6 +410,7 @@ main() {
   test_managed_skill_is_stable
   test_no_overwrite_without_force
   test_force_is_explicit_overwrite
+  test_065_bootstrap_records_platform
 
   echo
   echo "All tests passed!"

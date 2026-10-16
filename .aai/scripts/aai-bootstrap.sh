@@ -1035,6 +1035,30 @@ install_claude_hooks() {
   return 0
 }
 
+# Git platform record (spec-git-platform-detected-at-bootstrap D4): the Node CLI
+# classifies origin, keeps one `platform:` line in docs/ai/pr-config.yaml and
+# prints a RECORDED/UNCHANGED/WOULD-RECORD/MISMATCH line plus one AUTH line.
+# Never aborts bootstrap: a MISMATCH (exit 6), a failure or a missing node is
+# relayed in the summary, nothing more.
+PLATFORM_LINES=""
+record_git_platform() {
+  local out="" rc=0
+  if ! command -v node >/dev/null 2>&1; then
+    PLATFORM_LINES="platform not recorded: node unavailable (run: node .aai/scripts/platform.mjs record)"
+    return 0
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    out="$(node "$BOOTSTRAP_SCRIPT_DIR/platform.mjs" record --repo-root "$ROOT" --dry-run 2>&1)" || rc=$?
+  else
+    out="$(node "$BOOTSTRAP_SCRIPT_DIR/platform.mjs" record --repo-root "$ROOT" 2>&1)" || rc=$?
+  fi
+  PLATFORM_LINES="$out"
+  if [[ "$rc" -ne 0 && "$rc" -ne 6 ]]; then
+    PLATFORM_LINES="platform record failed (exit $rc): $out"
+  fi
+  return 0
+}
+
 print_summary() {
   echo
   echo "AAI bootstrap summary"
@@ -1068,6 +1092,11 @@ print_summary() {
       echo "- /${SKILL_NAMES[$i]} -> $(flatten_cmd_for_display "${SKILL_COMMANDS[$i]}")"
     done
   fi
+  if [[ -n "$PLATFORM_LINES" ]]; then
+    echo
+    echo "Git platform:"
+    echo "$PLATFORM_LINES"
+  fi
   echo
   echo "Generated/updated files:"
   list_lines "No file changes" "${WRITTEN[@]:-}"
@@ -1097,6 +1126,7 @@ fi
 
 write_outputs
 install_claude_hooks
+record_git_platform
 print_summary
 
 # Review NB-1: an explicitly requested hooks overlay that was refused fails the run.

@@ -125,6 +125,8 @@ suites:
   aai-bootstrap:
     globs:
       - .aai/scripts/aai-bootstrap.sh
+      - .aai/scripts/platform.mjs
+      - .aai/scripts/lib/platform-adapter.mjs
       - .aai/scripts/lib/gitignore-block.sh
       - .aai/BOOTSTRAP.prompt.md
       - .aai/BOOTSTRAP_DIFF.prompt.md
@@ -816,6 +818,14 @@ suites:
       - .aai/scripts/check-role-output.mjs
       - .aai/PLANNING.prompt.md
       - .aai/SUBAGENT_PROTOCOL.md
+
+  aai-platform-adapter:
+    globs:
+      - .aai/scripts/platform.mjs
+      - .aai/scripts/lib/platform-adapter.mjs
+      - .aai/scripts/pr-platform.mjs
+      - docs/ai/pr-config.yaml
+      - tests/skills/test-aai-platform-adapter.sh
 
   aai-pr-platform:
     globs:

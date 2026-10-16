@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: b6c8f526e2df4497b636618cce55bb0cb78d7bfd5848b08fceaf8b2f99ace9d3
+frozen_sha256: c67fb6591f15f5605b9fcecb0245e2ec0cd3cfe7e4a22ccdcce65454d8d86ab8
 ceremony_level: 2
 links:
   requirement: git-platform-detected-at-bootstrap
@@ -154,7 +154,7 @@ governance (TEST-071, TEST-076), then V1 to V5.
   invoke --area --resource --route-parameters --org --api-version
   --http-method --output` (`--api-version` defaults to 5.0, so it is passed).
 - F3 merge-cleanup.mjs at feca6e0b has 1361 lines and makes exactly three
-  kinds of gh call: `pr view <n> --json <PR_FIELDS>`, `pr list --state open
+  kinds of gh call: `pr view <n> --json PR_FIELDS`, `pr list --state open
   --base|--head <b> --json number --limit 100`, and `api graphql` (review
   threads); it prints (never runs) one `gh pr merge` line. TEST-058 caps the
   file at 1490 lines.
@@ -239,7 +239,7 @@ governance (TEST-071, TEST-076), then V1 to V5.
   so merge-cleanup keeps its existing `AAI_MERGE_CLEANUP_GH_NODE` seam under
   `AAI_MERGE_CLEANUP_TEST_SEAMS=1` unchanged (TEST-005 and the Pester twin).
 - D7 GitHub implementation: byte-identical argv to today (F3): `pr view <n>
-  --json <PR_FIELDS>`, the two `pr list` reads with a 120 s timeout, the
+  --json PR_FIELDS`, the two `pr list` reads with a 120 s timeout, the
   `api graphql --paginate --slurp [--hostname h] -F owner -F repo -F pr -f
   query` read; failures map to the existing refusal reasons `gh_read_failed`
   and `gh_read_invalid` with the existing details. `mergeCommand` returns
