@@ -826,6 +826,7 @@ suites:
       - .aai/scripts/pr-platform.mjs
       - docs/ai/pr-config.yaml
       - tests/skills/test-aai-platform-adapter.sh
+      - tests/skills/lib/platform-direct-calls.mjs
 
   aai-pr-platform:
     globs:

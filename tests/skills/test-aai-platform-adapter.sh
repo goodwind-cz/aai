@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Platform record and adapter tests (spec-git-platform-detected-at-bootstrap).
 # Batch A: TEST-062 (record matrix), TEST-063 (never overwrites), TEST-064 (auth report).
+# Batch B: TEST-066 (adapter shapes), TEST-067 (generic skips), TEST-069 (az Windows spawn),
+#          TEST-075 (no direct platform calls).
 # Every fixture lives under ONE private absolute scratch root; gh and az are
 # deny-by-default stubs that log every call; PATH holds only stubs plus node and git.
 # Usage: test-aai-platform-adapter.sh [test_xxx | TEST-xxx]
@@ -278,11 +280,349 @@ test_064_auth_report() {
   echo "PASS: TEST-064 auth report (Spec-AC-03)"
 }
 
+# --- batch B: table stubs and node harnesses ---------------------------------
+# make_table_bin <dir>: node, git and gh/az stubs that answer ONLY the exact argv
+# listed in $GH_TABLE / $AZ_TABLE (lines: argv<TAB>stdout-file or -<TAB>rc), log every
+# call to GH_LOG / AZ_LOG and deny everything else. Builtins only, so the PATH
+# can stay stubs-plus-node.
+make_table_bin() {
+  local dir="$1" tool up
+  [[ -n "$dir" && "$dir" = /* ]] || fail SETUP "make_table_bin dir not absolute"
+  mkdir -p "$dir"
+  ln -sf "$NODE_BIN" "$dir/node"
+  ln -sf "$GIT_BIN" "$dir/git"
+  for tool in gh az; do
+    up="$(printf '%s' "$tool" | tr 'a-z' 'A-Z')"
+    cat > "$dir/$tool" <<STUB
+#!/bin/sh
+echo "\$*" >> "\$${up}_LOG"
+while IFS="	" read -r key file rc; do
+  if [ "\$key" = "\$*" ]; then
+    if [ "\$file" != "-" ]; then while IFS= read -r l || [ -n "\$l" ]; do printf '%s\\n' "\$l"; done < "\$file"; fi
+    exit "\${rc:-0}"
+  fi
+done < "\$${up}_TABLE"
+echo "STUB-DENY: $tool \$*" >&2
+exit 1
+STUB
+    chmod +x "$dir/$tool"
+  done
+}
+BIN_TABLE="$SCRATCH/bin-table"; make_table_bin "$BIN_TABLE"
+export GH_TABLE="$SCRATCH/gh.table" AZ_TABLE="$SCRATCH/az.table"
+: > "$GH_TABLE"; : > "$AZ_TABLE"
+
+# run_harness <test-id> <file>: runs a node harness with the stub PATH; the
+# harness asserts on its own and prints HARNESS-OK.
+run_harness() {
+  local id="$1" file="$2" out rc=0
+  [[ -n "$file" && "$file" = /* && -f "$file" ]] || fail "$id" "harness missing"
+  out="$(env PATH="$BIN_TABLE" GH_LOG="$GH_LOG" AZ_LOG="$AZ_LOG" GH_TABLE="$GH_TABLE" AZ_TABLE="$AZ_TABLE" \
+    "$NODE_BIN" "$file" "$ROOT" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || fail "$id" "harness exit $rc: $out"
+  case "$out" in *"HARNESS-OK"*) ;; *) fail "$id" "harness did not finish: $out" ;; esac
+}
+
+write_stubkit() {
+  cat > "$SCRATCH/stubkit.mjs" <<'KIT'
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+export { assert };
+export const ROOT = path.resolve(process.argv[2]);
+export const adapterUrl = 'file://' + path.join(ROOT, '.aai/scripts/lib/platform-adapter.mjs');
+const TMP = path.dirname(process.env.GH_TABLE);
+let seq = 0;
+// stub('gh'|'az', [[argvArray, stdout (string|object|null), rc]...]): replaces the table, clears the log.
+export function stub(tool, entries) {
+  const lines = entries.map(([argv, out, rc]) => {
+    let file = '-';
+    if (out !== null && out !== undefined) {
+      file = path.join(TMP, `fx-${++seq}.json`);
+      fs.writeFileSync(file, typeof out === 'string' ? out : JSON.stringify(out));
+    }
+    return `${argv.join(' ')}\t${file}\t${rc ?? 0}`;
+  });
+  fs.writeFileSync(process.env[`${tool.toUpperCase()}_TABLE`], lines.join('\n') + (lines.length ? '\n' : ''));
+  fs.writeFileSync(process.env[`${tool.toUpperCase()}_LOG`], '');
+}
+export const log = (tool) => fs.readFileSync(process.env[`${tool.toUpperCase()}_LOG`], 'utf8').split('\n').filter(Boolean);
+KIT
+}
+
+write_harness_066() {
+  cat > "$SCRATCH/harness-066.mjs" <<'H066'
+import { stub, log, assert, adapterUrl } from './stubkit.mjs';
+const { createAdapter, PR_FIELDS } = await import(adapterUrl);
+const SHA = 'a'.repeat(40), MC = 'b'.repeat(40);
+
+// ---- GitHub: argv byte-identical to today's engine (F3/D7)
+const gh = createAdapter('github', { cwd: process.cwd() });
+const VIEW = ['pr', 'view', '7', '--json', PR_FIELDS];
+const ghPr = { number: 7, state: 'OPEN', isDraft: false, headRefOid: SHA, headRefName: 'ride/foo', baseRefName: 'main', mergeCommit: null, url: 'https://github.com/acme/foo/pull/7', isCrossRepository: false };
+stub('gh', [[VIEW, ghPr]]);
+assert.deepEqual(gh.prView(7), { ok: true, value: ghPr });
+assert.deepEqual(log('gh'), [VIEW.join(' ')]);
+stub('gh', [[VIEW, null, 1]]);
+assert.deepEqual(gh.prView(7), { ok: false, reason: 'read_failed', detail: 'gh pr view 7' });
+stub('gh', [[VIEW, 'not json']]);
+assert.deepEqual(gh.prView(7), { ok: false, reason: 'read_invalid', detail: 'gh pr view printed no JSON' });
+const LB = ['pr', 'list', '--state', 'open', '--base', 'ride/foo', '--json', 'number', '--limit', '100'];
+const LH = ['pr', 'list', '--state', 'open', '--head', 'ride/foo', '--json', 'number', '--limit', '100'];
+stub('gh', [[LB, [{ number: 3 }, { number: 4 }]], [LH, []]]);
+assert.deepEqual(gh.listDependents('ride/foo', 'base'), { ok: true, value: [3, 4] });
+assert.deepEqual(gh.listDependents('ride/foo', 'head'), { ok: true, value: [] });
+assert.deepEqual(log('gh'), [LB.join(' '), LH.join(' ')]);
+stub('gh', [[LB, [{ number: 'x' }]]]);
+assert.equal(gh.listDependents('ride/foo', 'base').reason, 'read_invalid');
+stub('gh', [[LB, null, 1]]);
+assert.equal(gh.listDependents('ride/foo', 'base').reason, 'read_failed');
+const QUERY = 'query($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) { repository(owner: $owner, name: $repo) { pullRequest(number: $pr) { reviewThreads(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor } nodes { isResolved isOutdated comments(first: 10) { nodes { body author { login } path line } } } } } } }';
+const API = ['api', 'graphql', '--paginate', '--slurp', '--hostname', 'github.com', '-F', 'owner=acme', '-F', 'repo=foo', '-F', 'pr=7', '-f', `query=${QUERY}`];
+const pages = [{ data: { repository: { pullRequest: { reviewThreads: { nodes: [
+  { isResolved: true, comments: { nodes: [{ body: 'ok', author: { login: 'a' } }] } },
+  { isResolved: false, comments: { nodes: [{ body: 'fix this', author: { login: 'bot' }, path: 'x.js', line: 3 }] } },
+] } } } } }];
+stub('gh', [[API, pages]]);
+let t = gh.reviewThreads(7, ghPr);
+assert.equal(t.ok, true); assert.equal(t.value.unresolvedCount, 1); assert.match(t.value.details, /bot \(x\.js:3\): fix this/);
+assert.deepEqual(log('gh'), [API.join(' ')]);
+stub('gh', [[API, null, 1]]);
+assert.deepEqual(gh.reviewThreads(7, ghPr), { ok: false, reason: 'read_failed', detail: 'gh api review-threads 7' });
+assert.equal(gh.mergeCommand(7, SHA, '/x'), `AAI_OPERATOR_MERGE=1 gh pr merge 7 --squash --match-head-commit ${SHA}`);
+assert.equal(gh.repoMatches('https://github.com/Acme/Foo.git', ghPr).ok, true);
+assert.equal(gh.repoMatches('https://github.com/other/foo.git', ghPr).reason, 'repo_mismatch');
+assert.equal(gh.repoMatches('/local/path', ghPr).ok, true);
+
+// ---- Azure: exactly the A1 to A4 argv of D8
+stub('gh', []);
+const az = createAdapter('azure', { cwd: process.cwd() });
+const A1 = ['repos', 'pr', 'show', '--id', '9', '--detect', 'true', '--output', 'json'];
+const repo = { id: 'repo-guid', url: 'https://dev.azure.com/Acme/proj-guid/_apis/git/repositories/repo-guid', webUrl: 'https://dev.azure.com/Acme/My%20Proj/_git/Foo', project: { id: 'proj-guid' } };
+const azPr = (o) => ({ pullRequestId: 9, status: 'active', isDraft: false, sourceRefName: 'refs/heads/ride/foo', targetRefName: 'refs/heads/main', lastMergeSourceCommit: { commitId: SHA }, lastMergeCommit: { commitId: MC }, repository: repo, ...o });
+const view = (o) => { stub('az', [[A1, azPr(o)]]); const r = az.prView(9); assert.deepEqual(log('az'), [A1.join(' ')]); return r; };
+let r = view({});
+assert.equal(r.ok, true);
+assert.deepEqual({ ...r.value, azure: undefined }, { number: 9, state: 'OPEN', isDraft: false, headRefOid: SHA, headRefName: 'ride/foo', baseRefName: 'main', mergeCommit: null, url: 'https://dev.azure.com/Acme/My%20Proj/_git/Foo/pullrequest/9', isCrossRepository: false, azure: undefined });
+assert.deepEqual(r.value.azure, { orgUrl: 'https://dev.azure.com/Acme', projectId: 'proj-guid', repositoryId: 'repo-guid' });
+r = view({ status: 'completed' });
+assert.equal(r.value.state, 'MERGED'); assert.deepEqual(r.value.mergeCommit, { oid: MC });
+r = view({ status: 'abandoned' }); assert.equal(r.value.state, 'CLOSED'); assert.equal(r.value.mergeCommit, null);
+r = view({ status: 'mystery' }); assert.equal(r.value.state, 'CLOSED');
+r = view({ status: 'active', lastMergeCommit: { commitId: MC } }); assert.equal(r.value.mergeCommit, null);
+r = view({ isDraft: true }); assert.equal(r.value.isDraft, true);
+r = view({ forkSource: { repository: { id: 'x' } } }); assert.equal(r.value.isCrossRepository, true);
+r = view({ sourceRefName: 'feature', targetRefName: 'refs/heads/refs/heads/x' });
+assert.equal(r.value.headRefName, 'feature'); assert.equal(r.value.baseRefName, 'refs/heads/x');
+r = view({ lastMergeSourceCommit: { commitId: 'c'.repeat(40) }, lastMergeCommit: { commitId: 'd'.repeat(40) } });
+assert.equal(r.value.headRefOid, 'c'.repeat(40));
+stub('az', [[A1, '{broken']]); assert.deepEqual(az.prView(9), { ok: false, reason: 'read_invalid', detail: 'az repos pr show printed no JSON' });
+stub('az', [[A1, '[]']]); assert.equal(az.prView(9).reason, 'read_invalid');
+stub('az', [[A1, null, 1]]); assert.deepEqual(az.prView(9), { ok: false, reason: 'read_failed', detail: 'az repos pr show 9' });
+assert.deepEqual(log('gh'), [], 'azure never spawns gh');
+
+const A2 = ['repos', 'pr', 'list', '--status', 'active', '--target-branch', 'ride/foo', '--top', '100', '--detect', 'true', '--output', 'json'];
+const A3 = ['repos', 'pr', 'list', '--status', 'active', '--source-branch', 'ride/foo', '--top', '100', '--detect', 'true', '--output', 'json'];
+stub('az', [[A2, [{ pullRequestId: 11 }, { pullRequestId: 12 }]], [A3, []]]);
+assert.deepEqual(az.listDependents('ride/foo', 'base'), { ok: true, value: [11, 12] });
+assert.deepEqual(az.listDependents('ride/foo', 'head'), { ok: true, value: [] });
+assert.deepEqual(log('az'), [A2.join(' '), A3.join(' ')]);
+stub('az', [[A2, [{ pullRequestId: 'x' }]]]); assert.equal(az.listDependents('ride/foo', 'base').reason, 'read_invalid');
+stub('az', [[A2, null, 1]]); assert.equal(az.listDependents('ride/foo', 'base').reason, 'read_failed');
+
+const A4 = ['devops', 'invoke', '--area', 'git', '--resource', 'pullRequestThreads', '--route-parameters', 'project=proj-guid', 'repositoryId=repo-guid', 'pullRequestId=9', '--org', 'https://dev.azure.com/Acme', '--api-version', '7.1', '--http-method', 'GET', '--output', 'json'];
+const prv = view({}).value;
+const th = (status, extra = {}) => ({ status, comments: [{ content: `c-${status}`, author: { displayName: 'rev' } }], ...extra });
+stub('az', [[A4, { value: [th('active'), th('pending'), th('closed'), th('fixed'), th('wontFix'), th('byDesign'), { comments: [{ content: 'system' }] }, th('active', { isDeleted: true })] }]]);
+t = az.reviewThreads(9, prv);
+assert.equal(t.ok, true); assert.equal(t.value.unresolvedCount, 2);
+assert.match(t.value.details, /c-active/); assert.match(t.value.details, /c-pending/); assert.doesNotMatch(t.value.details, /c-closed/);
+assert.deepEqual(log('az'), [A4.join(' ')]);
+stub('az', [[A4, { count: 0 }]]); assert.equal(az.reviewThreads(9, prv).reason, 'read_invalid');
+stub('az', [[A4, 'nope']]); assert.equal(az.reviewThreads(9, prv).reason, 'read_invalid');
+stub('az', [[A4, null, 1]]); assert.equal(az.reviewThreads(9, prv).reason, 'read_failed');
+assert.equal(az.mergeCommand(9, SHA, '/opt/aai/.aai/scripts'), `AAI_OPERATOR_MERGE=1 node "/opt/aai/.aai/scripts/platform.mjs" merge --pr 9 --expect-head ${SHA}`);
+for (const o of ['https://dev.azure.com/acme/My%20Proj/_git/foo', 'https://acme@dev.azure.com/Acme/My%20Proj/_git/Foo', 'git@ssh.dev.azure.com:v3/Acme/My%20Proj/Foo', 'https://acme.visualstudio.com/DefaultCollection/My%20Proj/_git/foo']) {
+  assert.equal(az.repoMatches(o, prv).ok, true, o);
+}
+assert.equal(az.repoMatches('https://dev.azure.com/acme/other/_git/foo', prv).reason, 'repo_mismatch');
+assert.equal(az.repoMatches('/local/bare', prv).ok, true);
+console.log('HARNESS-OK 066');
+H066
+}
+
+test_066_adapter_shapes() {
+  write_stubkit; write_harness_066
+  reset_logs
+  run_harness TEST-066 "$SCRATCH/harness-066.mjs"
+  echo "PASS: TEST-066 adapter shapes (Spec-AC-05)"
+}
+
+write_harness_067() {
+  cat > "$SCRATCH/harness-067.mjs" <<'H067'
+import { stub, log, assert, adapterUrl } from './stubkit.mjs';
+const { createAdapter, PR_FIELDS } = await import(adapterUrl);
+const calls = (a) => [
+  ['prView', () => a.prView(7)],
+  ['listDependents', () => a.listDependents('ride/foo', 'base')],
+  ['reviewThreads', () => a.reviewThreads(7, { url: 'https://github.com/acme/foo/pull/7' })],
+  ['repoMatches', () => a.repoMatches('https://github.com/acme/foo', { url: 'https://github.com/acme/foo/pull/7' })],
+  ['mergeCommand', () => a.mergeCommand(7, 'a'.repeat(40), '/x')],
+];
+for (const platform of ['unknown', 'none']) {
+  stub('gh', [[['pr', 'view', '7', '--json', PR_FIELDS], { number: 7 }]]);
+  stub('az', []);
+  const a = createAdapter(platform, { cwd: process.cwd() });
+  for (const [op, fn] of calls(a)) {
+    const r = fn();
+    assert.equal(r.skip, true, `${platform} ${op} skips`);
+    assert.equal(r.reason, 'platform_generic');
+    assert.equal(r.op, op);
+    assert.equal(typeof r.manual, 'string'); assert.ok(r.manual.length > 10, 'manual text non-empty');
+    assert.equal('ok' in r, false);
+  }
+  assert.equal(a.authStatus(), 'skipped');
+  assert.deepEqual(log('gh'), [], `${platform} spawned gh`);
+  assert.deepEqual(log('az'), [], `${platform} spawned az`);
+}
+// positive control: the same harness on github spawns exactly one call
+stub('gh', [[['pr', 'view', '7', '--json', PR_FIELDS], { number: 7 }]]);
+const g = createAdapter('github', { cwd: process.cwd() });
+assert.equal(g.prView(7).ok, true);
+assert.equal(log('gh').length, 1);
+console.log('HARNESS-OK 067');
+H067
+}
+
+test_067_generic_named_skips() {
+  write_stubkit; write_harness_067
+  reset_logs
+  run_harness TEST-067 "$SCRATCH/harness-067.mjs"
+  echo "PASS: TEST-067 generic named skips (Spec-AC-06, adapter arm)"
+}
+
+write_harness_069() {
+  cat > "$SCRATCH/harness-069.mjs" <<'H069'
+import { stub, log, assert, adapterUrl } from './stubkit.mjs';
+const { azSpawnSpec, authStatus, createAdapter } = await import(adapterUrl);
+const args = ['repos', 'pr', 'show', '--id', '9', '--org', 'https://dev.azure.com/Acme', '--route-parameters', 'project=a-b_c.d', 'refs/heads/ride/foo@x'];
+for (const p of ['darwin', 'linux']) assert.deepEqual(azSpawnSpec(args, p), { cmd: 'az', args });
+const savedComSpec = process.env.ComSpec;
+process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe';
+assert.deepEqual(azSpawnSpec(args, 'win32'), { cmd: 'C:\\Windows\\System32\\cmd.exe', args: ['/d', '/s', '/c', 'az', ...args] });
+delete process.env.ComSpec;
+assert.deepEqual(azSpawnSpec(['account', 'show'], 'win32'), { cmd: 'cmd.exe', args: ['/d', '/s', '/c', 'az', 'account', 'show'] });
+if (savedComSpec !== undefined) process.env.ComSpec = savedComSpec;
+for (const unsafe of ['a b', 'say"hi', 'a&b', '100%', 'a^b', 'x|y', 'a;b', '$(x)', '']) {
+  const r = azSpawnSpec(['repos', unsafe], 'win32');
+  assert.equal(r.refused, 'az_arg_unsafe', JSON.stringify(unsafe));
+  assert.equal(r.cmd, undefined);
+}
+// off Windows no shell is involved, so the same argument passes through unchanged
+assert.deepEqual(azSpawnSpec(['repos', 'a b'], 'linux'), { cmd: 'az', args: ['repos', 'a b'] });
+
+// routing: the auth probe and the adapter reads spawn through the spec, and a refused arg never spawns
+const seen = [];
+const runner = (cmd, a) => { seen.push([cmd, a]); return { status: 0, stdout: '[]' }; };
+assert.equal(authStatus('azure', { runner, hostPlatform: 'win32' }), 'ok');
+assert.equal(seen.length, 2);
+for (const [cmd, a] of seen) { assert.equal(cmd, process.env.ComSpec || 'cmd.exe'); assert.deepEqual(a.slice(0, 4), ['/d', '/s', '/c', 'az']); }
+seen.length = 0;
+assert.equal(authStatus('azure', { runner, hostPlatform: 'linux' }), 'ok');
+assert.deepEqual(seen.map(([c]) => c), ['az', 'az']);
+seen.length = 0;
+authStatus('github', { runner, hostPlatform: 'win32' });
+assert.deepEqual(seen, [['gh', ['auth', 'status']]]);
+seen.length = 0;
+const win = createAdapter('azure', { cwd: process.cwd(), runner, hostPlatform: 'win32' });
+const refused = win.listDependents('bad branch', 'base');
+assert.equal(refused.ok, false); assert.equal(refused.reason, 'az_arg_unsafe');
+assert.equal(seen.length, 0, 'unsafe argument spawned');
+win.listDependents('ride/foo', 'base');
+assert.equal(seen.length, 1); assert.equal(seen[0][1][3], 'az');
+stub('az', []); stub('gh', []);
+assert.deepEqual(log('az'), []);
+console.log('HARNESS-OK 069');
+H069
+}
+
+test_069_az_windows_spawn_spec() {
+  write_stubkit; write_harness_069
+  reset_logs
+  run_harness TEST-069 "$SCRATCH/harness-069.mjs"
+  echo "PASS: TEST-069 az windows spawn spec (Spec-AC-07)"
+}
+
+test_075_no_direct_platform_calls() {
+  local chk="$ROOT/tests/skills/lib/platform-direct-calls.mjs" mc="$ROOT/.aai/scripts/merge-cleanup.mjs"
+  local out rc n base
+  [[ -f "$chk" && -f "$mc" ]] || fail TEST-075 "checker or merge-cleanup.mjs missing"
+  # a clean synthetic consumer: comments that mention the commands must be skipped
+  local clean="$SCRATCH/consumer-clean.mjs"
+  cat > "$clean" <<'EOF'
+// talks about gh pr merge and az repos in a comment only
+import { createAdapter } from './adapter.mjs';
+/* a block comment naming gh api
+   and az devops over two lines */
+const adapter = createAdapter('github', {});
+export const read = (n) => adapter.prView(n);
+EOF
+  rc=0; out="$("$NODE_BIN" "$chk" "$clean" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || fail TEST-075 "clean consumer exit $rc: $out"
+  case "$out" in *"PLATFORM-CALLS clean 1 files"*) ;; *) fail TEST-075 "clean consumer output: $out" ;; esac
+  # positive control: four injected direct calls are all listed, nothing else is
+  base="$(wc -l < "$clean")"; base=$((base + 0))
+  local inj="$SCRATCH/consumer-injected.mjs"
+  cp "$clean" "$inj"
+  cat >> "$inj" <<'EOF'
+spawnSync('gh', ['pr', 'view']);
+spawnSync('az', ['repos', 'pr', 'show']);
+execFileSync("gh", ['api']);
+const cmd = `AAI_OPERATOR_MERGE=1 gh pr merge ${n}`;
+EOF
+  rc=0; out="$("$NODE_BIN" "$chk" "$inj" 2>&1)" || rc=$?
+  [[ "$rc" -eq 1 ]] || fail TEST-075 "injected consumer exit want 1 got $rc: $out"
+  for n in 1 2 3 4; do
+    case "$out" in *"consumer-injected.mjs:$((base + n)):"*) ;; *) fail TEST-075 "injected line $((base + n)) not listed: $out" ;; esac
+  done
+  [[ "$(printf '%s\n' "$out" | grep -c 'consumer-injected.mjs:' || true)" == 4 ]] || fail TEST-075 "want exactly four listed lines: $out"
+  # merge-cleanup.mjs must be clean once it is on the adapter (batch C). Until it imports
+  # the adapter the arm is PENDING by name, never silently green.
+  if grep -q 'platform-adapter' "$mc"; then
+    rc=0; out="$("$NODE_BIN" "$chk" "$mc" 2>&1)" || rc=$?
+    [[ "$rc" -eq 0 ]] || fail TEST-075 "merge-cleanup.mjs still names a platform CLI: $out"
+    case "$out" in *"PLATFORM-CALLS clean"*) ;; *) fail TEST-075 "merge-cleanup output: $out" ;; esac
+    local mcn mcinj="$SCRATCH/merge-cleanup-injected.mjs"
+    mcn="$(wc -l < "$mc")"; mcn=$((mcn + 0))
+    cp "$mc" "$mcinj"
+    # the copy may lack a trailing newline: the injected lines start on their own line
+    printf '\n' >> "$mcinj"; mcn=$((mcn + 1))
+    cat >> "$mcinj" <<'EOF'
+spawnSync('gh', ['pr', 'view']);
+spawnSync('az', ['repos', 'pr', 'show']);
+execFileSync("gh", ['api']);
+const injected = `AAI_OPERATOR_MERGE=1 gh pr merge ${n}`;
+EOF
+    rc=0; out="$("$NODE_BIN" "$chk" "$mcinj" 2>&1)" || rc=$?
+    [[ "$rc" -eq 1 ]] || fail TEST-075 "injected merge-cleanup copy exit want 1 got $rc"
+    for n in 1 2 3 4; do
+      case "$out" in *"merge-cleanup-injected.mjs:$((mcn + n)):"*) ;; *) fail TEST-075 "injected merge-cleanup line $((mcn + n)) not listed: $out" ;; esac
+    done
+    echo "PASS: TEST-075 no direct platform calls (Spec-AC-13), merge-cleanup.mjs armed and clean"
+  else
+    echo "PENDING: TEST-075 merge-cleanup.mjs arm (it imports the adapter in batch C); checker and positive control PASS (Spec-AC-13)"
+  fi
+}
+
 if [[ $# -gt 1 ]]; then echo 'Usage: test-aai-platform-adapter.sh [test_xxx | TEST-xxx]' >&2; exit 2; fi
 case "${1:-}" in
   TEST-062) set -- test_062_record_matrix ;;
   TEST-063) set -- test_063_record_never_overwrites ;;
   TEST-064) set -- test_064_auth_report ;;
+  TEST-066) set -- test_066_adapter_shapes ;;
+  TEST-067) set -- test_067_generic_named_skips ;;
+  TEST-069) set -- test_069_az_windows_spawn_spec ;;
+  TEST-075) set -- test_075_no_direct_platform_calls ;;
 esac
 if [[ $# -gt 0 ]]; then
   declare -F "$1" >/dev/null || { echo "Unknown selector: $1" >&2; exit 2; }
@@ -292,4 +632,8 @@ fi
 test_062_record_matrix
 test_063_record_never_overwrites
 test_064_auth_report
+test_066_adapter_shapes
+test_067_generic_named_skips
+test_069_az_windows_spawn_spec
+test_075_no_direct_platform_calls
 echo "All platform adapter tests passed"
