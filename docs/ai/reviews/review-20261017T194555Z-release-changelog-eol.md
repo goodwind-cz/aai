@@ -2,8 +2,8 @@
 
 ```yaml
 review:
-  scope: "git diff f404ef88..068c77c1 (branch fix/release-changelog-eol): .aai/scripts/release-finish.mjs tests/skills/test-aai-release.sh docs/product/release-command-finish.md CHANGELOG.md docs/specs/SPEC-DRAFT-spec-release-changelog-eol.md docs/issues/ISSUE-DRAFT-release-changelog-eol.md (+ ledger/index companions docs/INDEX.md docs/ai/EVENTS.jsonl docs/ai/decisions.jsonl)"
-  spec: docs/specs/SPEC-DRAFT-spec-release-changelog-eol.md
+  scope: "git diff f404ef88..068c77c1 (branch fix/release-changelog-eol): .aai/scripts/release-finish.mjs tests/skills/test-aai-release.sh docs/product/release-command-finish.md CHANGELOG.md docs/specs/SPEC-0235-spec-release-changelog-eol.md docs/issues/ISSUE-0102-release-changelog-eol.md (+ ledger/index companions docs/INDEX.md docs/ai/EVENTS.jsonl docs/ai/decisions.jsonl)"
+  spec: docs/specs/SPEC-0235-spec-release-changelog-eol.md
   spec_compliance:
     verdict: pass
     ac_walk:

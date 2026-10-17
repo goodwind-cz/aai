@@ -1,9 +1,9 @@
 ---
 id: spec-release-changelog-eol
 type: spec
-number: null
-status: implementing
-frozen_sha256: 059b0293e0844c0ebd289a120bdf9b3fbbc73b2947f5c12f7aa9bc77cd1c1a99
+number: 235
+status: done
+frozen_sha256: 422c4347a9006ec8ac4f26da0a1b2e9e8416471304bda06ebd6106800f9ad03f
 mutation_gate: v1
 ceremony_level: 2
 capability: release-command-finish
@@ -20,7 +20,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-release-changelog-eol.md
+- Requirement: docs/issues/ISSUE-0102-release-changelog-eol.md
 - Parent capability spec: docs/specs/SPEC-0233-spec-release-command-finish.md (the finish engine and its journal/resume model)
 - Sibling spec, same engine: docs/specs/SPEC-0234-spec-release-checks-registration-grace.md
 - Technology contract: docs/TECHNOLOGY.md
@@ -35,7 +35,7 @@ SPEC-FROZEN: true
 - Worktree rationale: one engine file plus its suite; already isolated in its own worktree, decided before intake.
 - User decision: worktree (already set: branch fix/release-changelog-eol, path /Users/ales/Projects/aai-fix-release-changelog-eol, base f404ef88)
 - Base ref: main at f404ef88
-- Inline review scope: .aai/scripts/release-finish.mjs tests/skills/test-aai-release.sh docs/product/release-command-finish.md CHANGELOG.md docs/specs/SPEC-DRAFT-spec-release-changelog-eol.md docs/issues/ISSUE-DRAFT-release-changelog-eol.md
+- Inline review scope: .aai/scripts/release-finish.mjs tests/skills/test-aai-release.sh docs/product/release-command-finish.md CHANGELOG.md docs/specs/SPEC-0235-spec-release-changelog-eol.md docs/issues/ISSUE-0102-release-changelog-eol.md
 - Code review required: true
 
 ## Constitution deviations
@@ -69,12 +69,12 @@ R = `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release.sh <s
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the base CHANGELOG blob ends with a newline (the stock finish fixture) the CHANGELOG blob of the prepared release commit on chore/release-v1 SHALL equal byte for byte the expected rollup `# Changelog\n\n## [unreleased]\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n`, read as a Buffer, not trimmed | planned | — | — | — |
-| Spec-AC-02 | WHEN the base CHANGELOG blob is the stock fixture with a leading UTF-8 BOM and without its final newline the prepared CHANGELOG blob SHALL equal the Spec-AC-01 expected string with the same BOM prefixed and its final newline removed | planned | — | — | — |
-| Spec-AC-03 | WHEN every line of the base CHANGELOG blob ends with CR LF the prepared CHANGELOG blob SHALL equal the Spec-AC-01 expected string with every LF replaced by CR LF, including the two inserted scaffold lines, and SHALL contain zero LF bytes not preceded by CR | planned | — | — | — |
-| Spec-AC-04 | WHEN a resume finds a prepared commit on the release branch with the authorized parent, subject and two paths, but whose CHANGELOG blob differs from the journal content in any byte (variants: final newline toggled; every LF turned into CR LF) the engine SHALL refuse exactly once with cause `identity` (`Unbound prepared release branch`) and make no pr create call; a prepared commit with the exact journal bytes SHALL still be adopted and the run SHALL exit 0 with one PR and one merge | planned | — | — | — |
-| Spec-AC-05 | WHEN a resume loads a journal with no PR yet whose content differs in any byte from the rollup of the exact base blob at the journal's baseHead (the defective-engine shape: final newline toggled) the engine SHALL refuse exactly once with cause `identity` and detail `Journal content differs from the base rollup`, before any worktree write, commit, push or pr create call | planned | — | — | — |
-| Spec-AC-06 | WHEN the released-region guard `released_region_verdict` (the function CI runs as TEST-025) is run on a repo whose HEAD is the prepared release commit and whose tag v0 is the base commit, its verdict SHALL be `PASS v0`, for a base CHANGELOG ending with a newline and for one ending without | planned | — | — | — |
+| Spec-AC-01 | WHEN the base CHANGELOG blob ends with a newline (the stock finish fixture) the CHANGELOG blob of the prepared release commit on chore/release-v1 SHALL equal byte for byte the expected rollup `# Changelog\n\n## [unreleased]\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n`, read as a Buffer, not trimmed | done | TEST-067 PASS, 6 variants oracle byte-equal; docs/ai/reports/VALIDATION-20261017T203450Z-release-changelog-eol.md | — | — |
+| Spec-AC-02 | WHEN the base CHANGELOG blob is the stock fixture with a leading UTF-8 BOM and without its final newline the prepared CHANGELOG blob SHALL equal the Spec-AC-01 expected string with the same BOM prefixed and its final newline removed | done | TEST-068 PASS, 8 BOM variants oracle byte-equal; docs/ai/reports/VALIDATION-20261017T203450Z-release-changelog-eol.md | — | — |
+| Spec-AC-03 | WHEN every line of the base CHANGELOG blob ends with CR LF the prepared CHANGELOG blob SHALL equal the Spec-AC-01 expected string with every LF replaced by CR LF, including the two inserted scaffold lines, and SHALL contain zero LF bytes not preceded by CR | done | TEST-069 PASS, 6 CRLF variants oracle byte-equal; docs/ai/reports/VALIDATION-20261017T203450Z-release-changelog-eol.md | — | — |
+| Spec-AC-04 | WHEN a resume finds a prepared commit on the release branch with the authorized parent, subject and two paths, but whose CHANGELOG blob differs from the journal content in any byte (variants: final newline toggled; every LF turned into CR LF) the engine SHALL refuse exactly once with cause `identity` (`Unbound prepared release branch`) and make no pr create call; a prepared commit with the exact journal bytes SHALL still be adopted and the run SHALL exit 0 with one PR and one merge | done | TEST-070 PASS, REFUSED identity per variant; docs/ai/reports/VALIDATION-20261017T203450Z-release-changelog-eol.md | — | — |
+| Spec-AC-05 | WHEN a resume loads a journal with no PR yet whose content differs in any byte from the rollup of the exact base blob at the journal's baseHead (the defective-engine shape: final newline toggled) the engine SHALL refuse exactly once with cause `identity` and detail `Journal content differs from the base rollup`, before any worktree write, commit, push or pr create call | done | TEST-071 PASS, REFUSED identity naming base rollup; docs/ai/reports/VALIDATION-20261017T203450Z-release-changelog-eol.md | — | — |
+| Spec-AC-06 | WHEN the released-region guard `released_region_verdict` (the function CI runs as TEST-025) is run on a repo whose HEAD is the prepared release commit and whose tag v0 is the base commit, its verdict SHALL be `PASS v0`, for a base CHANGELOG ending with a newline and for one ending without | done | TEST-072 PASS, released_region_verdict PASS v0 on 22 prepared commits; docs/ai/reports/VALIDATION-20261017T203450Z-release-changelog-eol.md | — | — |
 
 ## Implementation plan
 
@@ -111,12 +111,12 @@ Hash pins: none. A repo-wide search for the sha256 prefix of release-finish.mjs 
 
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---------|---------|------|----------------------|-------------|----------|--------|
-| TEST-067 | Spec-AC-01 | integration | tests/skills/test-aai-release.sh | test_711_rollup_keeps_trailing_newline: stock fixture to stage prepared; the chore/release-v1 CHANGELOG blob as a Buffer deep-equals the expected bytes | sed:s/\['cat-file','blob',spec\]\)\.stdout;/['cat-file','blob',spec]).stdout.trim();/ | pending |
-| TEST-068 | Spec-AC-02 | integration | tests/skills/test-aai-release.sh | test_712_rollup_keeps_missing_newline_and_bom: base is BOM plus the stock bytes minus the final newline; prepared blob deep-equals BOM plus the expected bytes minus the final newline | sed:s/if\(newline\)lines\.pop\(\);/if(newline)lines.pop();else lines.push('');/ | pending |
-| TEST-069 | Spec-AC-03 | integration | tests/skills/test-aai-release.sh | test_713_rollup_keeps_crlf: base is the stock bytes with every LF as CR LF; prepared blob deep-equals the expected bytes with every LF as CR LF and holds zero bare LF | sed:s/const lines=source\.split\('\\n'\);/const lines=source.replace(RegExp('\r\n','g'),'\n').split('\n');/ | pending |
-| TEST-070 | Spec-AC-04 | integration | tests/skills/test-aai-release.sh | test_714_resume_adopts_exact_bytes_only: stop after payload, commit a variant CHANGELOG in the journal worktree, resume; final-newline-toggled and CR LF variants each refuse identity once with zero pr create calls; the exact-bytes control exits 0 with one PR and one merge | sed:s/blob\(head\+':CHANGELOG\.md'\)!==record\.content/trim(blob(head+':CHANGELOG.md'))!==trim(record.content)/ | pending |
-| TEST-071 | Spec-AC-05 | integration | tests/skills/test-aai-release.sh | test_715_resume_refuses_stale_journal: stop after worktree, toggle the journal content's final newline, resume; one REFUSED identity line naming Journal content differs from the base rollup, zero pr create calls, no remote release branch | sed:s/\)\)\.content!==record\.content/)).content===null/ | pending |
-| TEST-072 | Spec-AC-06 | integration | tests/skills/test-aai-release.sh | test_716_rolled_file_passes_released_region_guard: prepared commit from the stock and the no-newline fixture, tag v0 at base, HEAD detached at the release branch; released_region_verdict prints PASS v0 for both | sed:s/\['cat-file','blob',spec\]\)\.stdout;/['cat-file','blob',spec]).stdout.trim();/ | pending |
+| TEST-067 | Spec-AC-01 | integration | tests/skills/test-aai-release.sh | test_711_rollup_keeps_trailing_newline: stock fixture to stage prepared; the chore/release-v1 CHANGELOG blob as a Buffer deep-equals the expected bytes | sed:s/\['cat-file','blob',spec\]\)\.stdout;/['cat-file','blob',spec]).stdout.trim();/ | green |
+| TEST-068 | Spec-AC-02 | integration | tests/skills/test-aai-release.sh | test_712_rollup_keeps_missing_newline_and_bom: base is BOM plus the stock bytes minus the final newline; prepared blob deep-equals BOM plus the expected bytes minus the final newline | sed:s/if\(newline\)lines\.pop\(\);/if(newline)lines.pop();else lines.push('');/ | green |
+| TEST-069 | Spec-AC-03 | integration | tests/skills/test-aai-release.sh | test_713_rollup_keeps_crlf: base is the stock bytes with every LF as CR LF; prepared blob deep-equals the expected bytes with every LF as CR LF and holds zero bare LF | sed:s/const lines=source\.split\('\\n'\);/const lines=source.replace(RegExp('\r\n','g'),'\n').split('\n');/ | green |
+| TEST-070 | Spec-AC-04 | integration | tests/skills/test-aai-release.sh | test_714_resume_adopts_exact_bytes_only: stop after payload, commit a variant CHANGELOG in the journal worktree, resume; final-newline-toggled and CR LF variants each refuse identity once with zero pr create calls; the exact-bytes control exits 0 with one PR and one merge | sed:s/blob\(head\+':CHANGELOG\.md'\)!==record\.content/trim(blob(head+':CHANGELOG.md'))!==trim(record.content)/ | green |
+| TEST-071 | Spec-AC-05 | integration | tests/skills/test-aai-release.sh | test_715_resume_refuses_stale_journal: stop after worktree, toggle the journal content's final newline, resume; one REFUSED identity line naming Journal content differs from the base rollup, zero pr create calls, no remote release branch | sed:s/\)\)\.content!==record\.content/)).content===null/ | green |
+| TEST-072 | Spec-AC-06 | integration | tests/skills/test-aai-release.sh | test_716_rolled_file_passes_released_region_guard: prepared commit from the stock and the no-newline fixture, tag v0 at base, HEAD detached at the release branch; released_region_verdict prints PASS v0 for both | sed:s/\['cat-file','blob',spec\]\)\.stdout;/['cat-file','blob',spec]).stdout.trim();/ | green |
 
 Mutation targets: every row mutates `.aai/scripts/release-finish.mjs`. Patterns are JavaScript RegExp as `mutation-run.mjs --sed` reads them; replacements are literal.
 

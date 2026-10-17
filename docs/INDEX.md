@@ -6,12 +6,11 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-release-changelog-eol | specs | implementing | 6 planned | docs/specs/SPEC-DRAFT-spec-release-changelog-eol.md |
 
 ## Canonical layer (0)
 
@@ -57,7 +56,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (543)
+## Done (545)
 
 | ID | Type | Path |
 |---|---|---|
@@ -350,6 +349,7 @@ _None._
 | ISSUE-0099 | issues | docs/issues/ISSUE-0099-notes-content-and-merged-links.md |
 | ISSUE-0100 | issues | docs/issues/ISSUE-0100-docs-index-broken-refs-scope.md |
 | ISSUE-0101 | issues | docs/issues/ISSUE-0101-release-checks-registration-grace.md |
+| ISSUE-0102 | issues | docs/issues/ISSUE-0102-release-changelog-eol.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -602,10 +602,11 @@ _None._
 | SPEC-0232 | specs | docs/specs/SPEC-0232-spec-git-platform-detected-at-bootstrap.md |
 | SPEC-0233 | specs | docs/specs/SPEC-0233-spec-release-command-finish.md |
 | SPEC-0234 | specs | docs/specs/SPEC-0234-spec-release-checks-registration-grace.md |
+| SPEC-0235 | specs | docs/specs/SPEC-0235-spec-release-changelog-eol.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -623,7 +624,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| release-changelog-eol (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-release-changelog-eol.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)

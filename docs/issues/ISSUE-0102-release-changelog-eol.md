@@ -1,8 +1,8 @@
 ---
 id: release-changelog-eol
 type: issue
-number: null
-status: draft
+number: 102
+status: done
 user_visible: false
 capability: release-command-finish
 links:
