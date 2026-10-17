@@ -1,0 +1,166 @@
+---
+id: spec-release-one-shot-finish
+type: spec
+number: null
+status: implementing
+mutation_gate: v1
+frozen_sha256: e0b813b0ca09bb86d7cef5bf52087686c0fc659ab277125ef19e46e174299e66
+ceremony_level: 2
+capability: release-command-finish
+user_visible: true
+links:
+  requirement: release-one-shot-finish
+  rfc: null
+  pr: []
+  commits: []
+---
+
+# Release finish completes in one run: every required context awaited, policy refusal pending, base sync through a narrow ref-guard exception
+
+SPEC-FROZEN: true
+
+## Links
+- Requirement: docs/issues/ISSUE-DRAFT-release-one-shot-finish.md
+- Parent capability spec: docs/specs/SPEC-0233-spec-release-command-finish.md (the finish engine, journal and resume model; Spec-AC-02 there: required checks must pass before merge)
+- Sibling specs, same engine: docs/specs/SPEC-0234-spec-release-checks-registration-grace.md (pre-watch registration grace, kept unchanged), docs/specs/SPEC-0235-spec-release-changelog-eol.md
+- Ref-guard canon (read, not changed): docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md and the hook body printed by `bash .aai/scripts/install-pre-commit-hook.sh --print ref-guard`; the /aai-merge precedent in .aai/SKILL_MERGE.prompt.md
+- Technology contract: docs/TECHNOLOGY.md
+
+## Implementation strategy
+- Strategy: tdd
+- Rationale: two behavior changes on a fail-closed merge gate and on the one write into the operator's base branch, plus a new pending outcome. Every new arm can be observed RED on the pre-change engine with the existing deny-default gh stub (an unreported required context makes today's engine merge early and the stub then refuses exactly as GitHub did on PR #476; the real ref-guard hook makes today's base sync refuse), and a mutation per row proves each assertion bites.
+
+## Isolation and review
+- Worktree recommendation: optional
+- Worktree rationale: one engine file, its suite, one product doc and a byte-neutral prompt line; the ride was isolated before intake (autopilot default, shared main checkout).
+- User decision: worktree (already set: branch fix/release-one-shot-finish, path /Users/ales/Projects/aai-fix-release-one-shot-finish, base b0b9ab15)
+- Base ref: main at b0b9ab15
+- Inline review scope: .aai/scripts/release-finish.mjs tests/skills/test-aai-release.sh docs/product/release-command-finish.md .aai/SKILL_RELEASE.prompt.md CHANGELOG.md docs/specs/SPEC-DRAFT-spec-release-one-shot-finish.md docs/issues/ISSUE-DRAFT-release-one-shot-finish.md
+- Code review required: true
+
+## Constitution deviations
+
+None.
+
+Article 7 is untouched: the engine still squash-merges only the operator-confirmed release PR it bound (SPEC-0233), and the new merge-policy outcome makes it merge less eagerly, never more. Article 4 is served: an unreadable required-context source is named on stdout, never skipped in silence.
+
+## Root cause (read by Planning, 2026-10-18)
+
+- Required checks: `requiredChecks()` reads `gh pr checks <pr> --required`. gh derives "required" from the PR's status-check rollup, which only holds checks that have already been created. A required context with no check run yet is absent from the list, so `watch-ci.mjs --required` and the post-watch read both settle on the reported subset. Branch protection on main requires 3 contexts; "skill test suite (tests/skills/, via test-framework.sh)" reports late. GitHub then refuses `gh pr merge` with "the base branch policy prohibits the merge", which `command()` turns into the generic refusal `github-command` (exit 20).
+- Read access, measured on goodwind-cz/aai: `gh api repos/goodwind-cz/aai/branches/main` returns `protected: true` and `protection.required_status_checks.contexts` (all 3) plus `checks[].context`; `gh api repos/goodwind-cz/aai/rules/branches/main` returns `[]` (no rulesets). The admin-only endpoint `branches/main/protection` is not needed. The rules endpoint returns `required_status_checks` rules as `{type: "required_status_checks", parameters: {required_status_checks: [{context, integration_id}]}}`.
+- Base sync: `baseTransaction()` spawns `git update-ref --stdin` with the caller's environment. The `AAI:REF-GUARD` reference-transaction hook refuses any transaction touching `refs/heads/main` at state `prepared` unless `AAI_GIT_WRITE=1`, so `prepare` fails and `syncBase()` refuses `base-transaction` after merge, publication and cleanup.
+- Closed PR: `pr list --head chore/release-<v> --state all` returning one CLOSED PR with no journal hits the generic "Existing or ambiguous release PR has no matching journal"; a journal-bound closed PR hits "Bound release PR is closed without merge". Neither names the PR or the remedy.
+
+## Design decisions
+
+- D1 Required contexts come from GitHub, read-access only. The engine reads, once per run and before the checks wait, `gh api repos/<repo>/branches/<base>` (classic protection: the union of `protection.required_status_checks.contexts` and `protection.required_status_checks.checks[].context`; `protected: false`, an absent `required_status_checks` or `enforcement_level: off` give zero contexts) and `gh api repos/<repo>/rules/branches/<base>` (rulesets: the `context` of every entry of every rule whose `type` is `required_status_checks`). The required set is the union. `<base>` is `encodeURIComponent(record.base)`; `<repo>` is the bound `record.repo`, never the `{owner}/{repo}` placeholder.
+- D2 Explicit degrade, never silent. A source whose gh call fails (non-zero exit, for example HTTP 403 or 404) or whose classic answer says `protected: true` without a `protection` object is UNREADABLE. The engine prints exactly one line starting `- Required contexts:` that names every unreadable source as `UNREADABLE <source> (<first stderr line>)`; when both sources are unreadable it adds `waiting on reported required checks only` and proceeds exactly as today. This keeps downstream repos without admin rights or without rulesets working. GitHub's own merge-time policy remains the final gate (D4), so a degrade cannot produce an unsafe merge.
+- D3 Malformed is not degrade. A source that exits 0 with invalid JSON or an unexpected shape (classic answer not an object or `protected` not a boolean; rules answer not an array; a matching rule without a `required_status_checks` array of string contexts) refuses with cause `required-contexts` before any merge attempt: a transport that answers but answers nonsense is an anomaly, consistent with `github-data`.
+- D4 Wait for every required context, bounded. After `watch-ci.mjs` succeeds, the engine polls `gh pr checks --required` (existing strict `requiredChecks()`: an empty list still refuses `required-checks`, keeping SPEC-0234's post-watch strictness) every `AAI_RELEASE_POLL_SECONDS` until every reported check is `pass` and every required context appears by name with bucket `pass`. A reported check with any bucket other than `pass` or `pending` refuses `required-checks` at once, naming it. When `AAI_RELEASE_WAIT_SECONDS` elapses with a context still not passed, the engine refuses `required-contexts`, naming the missing contexts. No new environment variable.
+- D5 Policy refusal is pending. When `gh pr merge` exits non-zero, the engine re-reads the PR. A PR now MERGED continues as success. An OPEN PR in a merge queue stays `PENDING: merge-queue`. Otherwise, when the merge stderr contains `the base branch policy prohibits the merge`, the engine exits 8 with `PENDING: merge-policy` and the resume command (journal stage `pr`, PR retained); any other failure keeps `REFUSED: github-command` (exit 20). A resume re-reads contexts and checks and merges once. The merge argv keeps the literal `'--match-head-commit',record.head` (pinned by tests/skills/aai-win-dispatch.Tests.ps1).
+- D6 The ref-guard exception lives in the engine, on the one transaction. `baseTransaction()` passes `AAI_GIT_WRITE: '1'` only in the environment of its own `git update-ref --stdin` child. That transaction is already the narrowest possible base write: reached only under `--confirm`, after merge, publication verification and leased cleanup, as a prepared expected-old update to the verified merge SHA after a fast-forward ancestry check, with HEAD and the ref re-verified. Rejected alternatives: setting the variable in `aai-release.sh`/`aai-release.ps1` or telling the agent in SKILL_RELEASE to prefix it would make it ambient for every git child of the engine (pushes, fetches, the release commit, the private-index worker), which is exactly what the hook's message forbids; /aai-merge sets it on its whole engine only because its cleanup owns several base writes. The engine never assigns `process.env.AAI_GIT_WRITE`. Repos without the hook ignore the variable, so downstream behavior is unchanged.
+- D7 Closed release PR refusals name the PR and the remedy, keeping cause `identity`: with no journal and exactly one CLOSED PR on the release branch, `Release PR #<n> on chore/release-<v> is closed without a matching journal; cut this release under a new --version`; with a journal-bound PR that is CLOSED, `Bound release PR #<n> is closed without merge; reopen it to resume, or cut a fresh audited release under a new --version`.
+- D8 Docs. The product doc gains the required-contexts wait and degrade, `PENDING: merge-policy`, and the narrow `AAI_GIT_WRITE` exception. SKILL_RELEASE's exit-8 line changes `(release PR queued in a merge queue)` to `(merge queue or branch policy)`, a 6-byte shrink, so no prompt-diet ledger entry, no TEST-012 bump and no pr-preflight formula change are owed; PROFILES is unchanged (no new `.aai/**` file).
+
+## Acceptance Criteria Mapping
+
+| Requirement | Spec-AC | Verification | Observable |
+|-------------|---------|--------------|------------|
+| Expected: wait until every required context reported and passed (protection) | Spec-AC-01 | R TEST-074 | exit 0, one merge call, issued after a checks read where the late context is pass |
+| Expected: rulesets as a source, union with protection | Spec-AC-02 | R TEST-075 | exit 0 and one late merge call for ruleset-only and union fixtures |
+| Expected: never-reporting context refuses with a named cause | Spec-AC-03 | R TEST-076 | one REFUSED required-contexts line naming the context, zero merge calls |
+| Expected: failed required context refuses at once | Spec-AC-04 | R TEST-077 | one REFUSED required-checks line naming the context, zero merge calls |
+| Expected: unreadable sources degrade explicitly | Spec-AC-05 | R TEST-078 | one Required contexts line naming each unreadable source; exit 0 |
+| Constraints: malformed answers fail closed | Spec-AC-06 | R TEST-079 | one REFUSED required-contexts line, zero merge calls |
+| Expected: policy refusal is a named pending state | Spec-AC-07 | R TEST-080 | exit 8 with PENDING merge-policy; resume exit 0 with one merged PR; other failures still REFUSED github-command |
+| Expected: base sync completes under the ref-guard | Spec-AC-08 | R TEST-081 | exit 0, Base synced, local main equals the merge SHA |
+| Expected: the exception is narrow, never ambient | Spec-AC-09 | R TEST-082 | exactly one git invocation sees AAI_GIT_WRITE=1 and it is update-ref --stdin |
+| Expected: closed release PR refusal names cause and remedy | Spec-AC-10 | R TEST-083 | REFUSED identity naming PR number, closed and the new-version remedy |
+| Impact: operators read the new outcomes | Spec-AC-11 | R TEST-084 | product doc and SKILL_RELEASE carry the named strings; SKILL_RELEASE not larger |
+| Verification hygiene: each finish case runs once | Spec-AC-12 | R TEST-085 | every selector-wired id matches ownSelector and every ownSelector id has a registered selector |
+
+R = `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release.sh <selector>` with the selector named in the Test Plan row; exit 0 and a `PASS: TEST-0xx` line decide each row.
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Evidence | Review-By | Notes |
+|---------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | WHEN the base branch's classic protection lists the contexts `required` and `late-suite` and `gh pr checks --required` omits `late-suite` on engine reads 1 and 2, shows it pending on read 3 and pass from read 4, the confirmed run SHALL exit 0 with exactly one `gh pr merge` call, issued after the first checks read in which `late-suite` has bucket pass | planned | — | — | — |
+| Spec-AC-02 | WHEN `late-suite` is required only by a ruleset `required_status_checks` rule (classic answer `protected: false`), and separately WHEN protection requires `required` while a ruleset requires `late-suite`, each confirmed run SHALL exit 0 with exactly one `gh pr merge` call issued after `late-suite` read pass | planned | — | — | — |
+| Spec-AC-03 | WHEN a required context never appears in `gh pr checks --required` the engine SHALL refuse exactly once with cause `required-contexts` naming that context after the `AAI_RELEASE_WAIT_SECONDS` bound, print the resume command, exit 20 and make zero `gh pr merge` calls | planned | — | — | — |
+| Spec-AC-04 | WHEN a required context that was not reported on the first post-watch read is later reported with bucket fail the engine SHALL refuse exactly once with cause `required-checks` naming that context on that read, without waiting for the bound, and make zero `gh pr merge` calls | planned | — | — | — |
+| Spec-AC-05 | WHEN both context sources fail (classic HTTP 403, rules HTTP 404) the engine SHALL print exactly one line starting `- Required contexts:` containing `UNREADABLE protection`, `UNREADABLE rulesets` and `waiting on reported required checks only`, and the run SHALL exit 0 with one merge; WHEN only the rules source fails the line SHALL contain `UNREADABLE rulesets` and not `waiting on reported required checks only`, the protection contexts SHALL still be awaited, and the run SHALL exit 0 | planned | — | — | — |
+| Spec-AC-06 | WHEN a context source exits 0 with invalid JSON, or with an unexpected shape (classic `protected` not a boolean; rules answer not an array) the engine SHALL refuse exactly once with cause `required-contexts` and make zero `gh pr merge` calls | planned | — | — | — |
+| Spec-AC-07 | WHEN `gh pr merge` fails with stderr containing `the base branch policy prohibits the merge` and the PR is still OPEN the run SHALL exit 8 with exactly one `PENDING: merge-policy` line, zero `REFUSED:` lines and the resume command, and a resume after the policy clears SHALL exit 0 with one PR, one MERGED state and two merge calls in total; WHEN the merge fails with any other stderr (HTTP 502) the run SHALL still refuse exactly once with cause `github-command` and exit 20 | planned | — | — | — |
+| Spec-AC-08 | WHEN the fixture repo runs the real `AAI:REF-GUARD` hook (proven armed: a direct `git update-ref refs/heads/main` to another commit without `AAI_GIT_WRITE` is refused and main is unchanged) and the caller environment has `AAI_GIT_WRITE` empty, the confirmed run SHALL exit 0 printing `- Base: synced` with zero `REFUSED:` lines, and local `main` SHALL equal the release merge SHA | planned | — | — | — |
+| Spec-AC-09 | WHEN the Spec-AC-08 run is logged per git invocation, exactly one invocation SHALL see `AAI_GIT_WRITE=1` and its argv SHALL be `update-ref --stdin`; `aai-release.sh` and `aai-release.ps1` SHALL contain no `AAI_GIT_WRITE`, and `release-finish.mjs` SHALL contain no assignment to `process.env.AAI_GIT_WRITE` | planned | — | — | — |
+| Spec-AC-10 | WHEN exactly one CLOSED PR #7 exists on `chore/release-v1` and no journal exists the engine SHALL refuse once with cause `identity` and the detail `Release PR #7 on chore/release-v1 is closed without a matching journal; cut this release under a new --version`; WHEN the journal-bound PR #1 is CLOSED on resume the detail SHALL name `Bound release PR #1 is closed without merge` and both remedies (reopen, new --version); both arms make zero `gh pr create` and zero `gh pr merge` calls | planned | — | — | — |
+| Spec-AC-11 | docs/product/release-command-finish.md SHALL contain `PENDING: merge-policy` exactly once, `UNREADABLE` and `AAI_GIT_WRITE`, and SHALL NOT contain `fu-release-required-contexts-unreported`; the exit 8 line of .aai/SKILL_RELEASE.prompt.md SHALL contain `branch policy`, and that file SHALL be at most 4927 bytes (its size at b0b9ab15) | planned | — | — | — |
+| Spec-AC-12 | WHEN tests/skills/test-aai-release.sh is read, every id named by a `RELEASE_FINISH_CASE=TEST-` wrapper SHALL match `ownSelector`, and every `check('TEST-` id that matches `ownSelector` SHALL have such a wrapper whose `test_` function is called from `main` (so each finish case, TEST-073 included, runs exactly once in a full run) | planned | — | — | — |
+
+## Implementation plan
+
+Components: `.aai/scripts/release-finish.mjs` (engine); `tests/skills/test-aai-release.sh` (stub endpoints, fixture modes, cases); `docs/product/release-command-finish.md`; `.aai/SKILL_RELEASE.prompt.md` (one line, byte-neutral or smaller); a `## [unreleased] — <title>` CHANGELOG entry at ship time. Both frontends only exec the engine, so PowerShell parity is inherited; the TEST-033 `PS` case must stay green.
+
+1. Required contexts (D1 to D3). Add `requiredContexts()` called once, after `unchangedBase()` and before `registeredChecks()`. Its JSON parse failure uses the literal `catch{refuse('required-contexts','Invalid JSON from gh api '+endpoint);}`; the rules filter uses the literal `.filter(r=>r&&r.type==='required_status_checks')`; the both-unreadable line carries the literal phrase `waiting on reported required checks only`.
+2. Bounded wait (D4). Replace the post-watch `const settled=requiredChecks();if(...)refuse('required-checks','Required checks did not all pass');` with a loop over `requiredChecks()` using the literals `const bad=settled.filter(c=>!['pass','pending'].includes(c.bucket));`, `const unsettled=contexts.filter(n=>!settled.some(c=>c.name===n&&c.bucket==='pass'));` and `if(Date.now()>=end)refuse('required-contexts',` (deadline `Date.now()+maxWait*1000`, sleep `interval`). The loop returns when `bad` and `unsettled` are empty and every reported check is pass.
+3. Merge outcome (D5). Run the merge with `allowFailure`, keeping the literal `'--match-head-commit',record.head`; on failure re-read the PR via `identity(...)`; MERGED continues; else `queuedOrRefuse()`; then the literal `if(policyRefusal.test(attempt.stderr||''))pending('merge-policy',` with `const policyRefusal=/the base branch policy prohibits the merge/;`; else refuse `github-command` with the gh stderr.
+4. Ref-guard exception (D6). In `baseTransaction()` the spawn env becomes the literal `env:{...process.env,GIT_NO_LAZY_FETCH:'1',AAI_GIT_WRITE:'1'}`. Nothing else sets the variable. Keep the existing literal `const here=path.dirname(fileURLToPath(import.meta.url));` (a mutation anchor).
+5. Closed PR (D7). The no-journal branch distinguishes `ambiguous.length===1&&ambiguous[0].state==='CLOSED'` and uses the literal detail text of Spec-AC-10 (anchor `is closed without a matching journal`); the bound-PR branch extends its detail as in Spec-AC-10.
+6. Stub (tests). Teach the deny-default gh stub `api repos/test/release/branches/main` and `api repos/test/release/rules/branches/main`. Default answers keep every existing case green: classic `{protected:true,protection:{enabled:true,required_status_checks:{enforcement_level:'everyone',contexts:['required'],checks:[{context:'required',app_id:1}]}}}`, rules `[]`. The stub's `pr merge` emulates GitHub: when any context in its configured required set (classic union rules, configured even when the endpoints answer unreadable) lacks bucket pass in the current checks schedule, it writes `X Pull request test/release#1 is not mergeable: the base branch policy prohibits the merge.` to stderr and exits 1. New fixture modes: `late-context`, `late-ruleset`, `late-union`, `context-never`, `context-failed` (late-suite absent on engine reads 1 and 2, then pending or fail per mode), `contexts-unreadable`, `rules-unreadable`, `contexts-bad-json`, `contexts-bad-shape`, `rules-bad-shape`, `policy-hold` (first merge refused by policy, later merges allowed), `merge-502`, and a preset CLOSED PR #7. Engine reads stay counted as `pr checks` calls carrying `--repo`.
+7. Ref-guard fixture (TEST-081, TEST-082). After the seed commit, set the fixture repo's local `core.hooksPath` to a fixture-owned directory (never the machine's global hooks path) and write there the body printed by `bash .aai/scripts/install-pre-commit-hook.sh --print ref-guard` as an executable `reference-transaction`. Set `AAI_GIT_WRITE` to the empty string in the fixture env. The git wrapper appends one line per invocation to a new `FIXTURE_GIT_ENV_LOG` (value of `AAI_GIT_WRITE`, a tab, the argv joined by spaces), leaving the existing `git-argv.log` format unchanged.
+8. Case wiring. Node `check()` cases TEST-074 to TEST-085 run only when `RELEASE_FINISH_CASE` equals their id. `ownSelector` becomes the literal `const ownSelector=/^TEST-0[6-8][0-9]$/;` (pipe-free, covers TEST-060 to TEST-089, so TEST-073 stops running twice). Bash selectors, registered in `main` after `test_717_attribute_normalized_changelog_refused`: `test_718_required_context_late` (TEST-074), `test_719_required_context_ruleset` (TEST-075), `test_720_required_context_never` (TEST-076), `test_721_required_context_failed` (TEST-077), `test_722_required_contexts_unreadable` (TEST-078), `test_723_required_contexts_malformed` (TEST-079), `test_724_merge_policy_pending` (TEST-080), `test_725_ref_guard_base_sync` (TEST-081), `test_726_ref_guard_exception_narrow` (TEST-082), `test_727_closed_release_pr_named` (TEST-083), `test_728_docs_merge_policy` (TEST-084), `test_729_finish_cases_run_once` (TEST-085).
+9. Mutation anchors. The Test Plan mutations target the literals in steps 1 to 5 and 8. Keep those spellings; renaming one obliges a recorded spec amendment of the matching Mutation cell. A new message must not repeat an existing refusal sentence verbatim (fu-duplicate-message-collides-mutation).
+
+Edge cases decided here: context names are matched to `gh pr checks` `name` exactly (GitHub Actions job names are the protection contexts); `app_id`/`integration_id` pinning is ignored (residual risk below). A branch with no protection and no rulesets reads zero contexts and keeps today's behavior, including SPEC-0234's empty-list refusal. Contexts are read once per run; a resume re-reads them.
+
+## Seams
+
+- Engine to GitHub branch policy: the stub's merge enforces the same required set the endpoints describe, so TEST-074 to TEST-077 cross the real failure shape of PR #476 (merge attempted with an unreported required context) rather than asserting call order alone.
+- Engine to the AAI:REF-GUARD hook: TEST-081 installs the hook body the installer actually ships (`--print ref-guard`) and proves it armed before the run; TEST-082 measures which git children received the exception.
+- Engine to watch-ci: watch-ci is unchanged; TEST-074 asserts watch-ci still ran (watch reads at least 1) before the context loop.
+- Engine to resume: TEST-080 resumes from the pending stage with the real engine; SPEC-0233 TEST-011 (resume from every stage) and TEST-021 must stay green with the new stub defaults.
+- Frontends: TEST-033 (`PS` selector, pwsh present) exercises aai-release.ps1 through the new stub endpoints.
+- Residual risk, no automated test crosses it: the live GitHub response shapes (only measured once, on this repo, with an owner token), a required check pinned to a specific app (`app_id`) whose name collides with another app's check, and a non-admin token's view of `protection` on the branch endpoint. The next live `/aai-release --confirm` is the proof; D2 degrades to today's behavior plus the D5 pending outcome if a shape differs.
+
+Registry items with the same capability or subject left open: fu-release-normalized-test-and-notes (its double-run part is fixed by step 8; its CHANGELOG and Spec-AC-07 evidence parts belong to a released entry and a done frozen spec, so it is not closed here), fu-release-notes-heading-multiset, fu-release-grace-upper-bound, fu-platform-adapter-release (different subjects).
+
+Registry items closed by this scope: fu-release-required-contexts-unreported
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
+|---------|---------|------|----------------------|-------------|----------|--------|
+| TEST-074 | Spec-AC-01 | integration | tests/skills/test-aai-release.sh | test_718_required_context_late: mode late-context; exit 0, merges 1, watch reads at least 1, the merge call index is after the first engine checks call whose answer had late-suite pass | sed:s/const unsettled=contexts\.filter\(/const unsettled=[].filter(/ | pending |
+| TEST-075 | Spec-AC-02 | integration | tests/skills/test-aai-release.sh | test_719_required_context_ruleset: modes late-ruleset and late-union; each exit 0 with merges 1 after late-suite read pass | sed:s/r\.type==='required_status_checks'/r.type==='required_status_checks_off'/ | pending |
+| TEST-076 | Spec-AC-03 | integration | tests/skills/test-aai-release.sh | test_720_required_context_never: mode context-never with wait 1s; exit 20, one REFUSED required-contexts naming late-suite, resume line, merges 0 | sed:s/if\(Date\.now\(\)>=end\)refuse\('required-contexts',/if(Date.now()>=end)return settled;refuse('required-contexts',/ | pending |
+| TEST-077 | Spec-AC-04 | integration | tests/skills/test-aai-release.sh | test_721_required_context_failed: mode context-failed with wait 5s; one REFUSED required-checks naming late-suite (fail), engine reads exactly 3, merges 0 | sed:s/const bad=settled\.filter\(c=>!\['pass','pending'\]\.includes\(c\.bucket\)\);/const bad=[];/ | pending |
+| TEST-078 | Spec-AC-05 | integration | tests/skills/test-aai-release.sh | test_722_required_contexts_unreadable: mode contexts-unreadable then rules-unreadable; one Required contexts line each with the named UNREADABLE sources and the both-unreadable phrase only in the first; both exit 0 with merges 1 | sed:s/waiting on reported required checks only/waiting/ | pending |
+| TEST-079 | Spec-AC-06 | integration | tests/skills/test-aai-release.sh | test_723_required_contexts_malformed: modes contexts-bad-json, contexts-bad-shape, rules-bad-shape; each one REFUSED required-contexts, merges 0 | sed:s/catch\{refuse\('required-contexts','Invalid JSON from gh api '/catch{return {source,unreadable:'mutant'};refuse('required-contexts','Invalid JSON from gh api '/ | pending |
+| TEST-080 | Spec-AC-07 | integration | tests/skills/test-aai-release.sh | test_724_merge_policy_pending: mode policy-hold exits 8 with one PENDING merge-policy, zero REFUSED, resume line; resume exits 0, one PR MERGED, merge calls 2, one release; mode merge-502 exits 20 with one REFUSED github-command | sed:s/if\(policyRefusal\.test\(/if(false&&policyRefusal.test(/ | pending |
+| TEST-081 | Spec-AC-08 | integration | tests/skills/test-aai-release.sh | test_725_ref_guard_base_sync: real hook armed (direct update-ref refused, main unchanged), AAI_GIT_WRITE empty; confirmed run exits 0 with Base synced, zero REFUSED, local main equals merge SHA | sed:s/GIT_NO_LAZY_FETCH:'1',AAI_GIT_WRITE:'1'\}/GIT_NO_LAZY_FETCH:'1'}/ | pending |
+| TEST-082 | Spec-AC-09 | integration | tests/skills/test-aai-release.sh | test_726_ref_guard_exception_narrow: same run with FIXTURE_GIT_ENV_LOG; exactly one line with value 1 and argv update-ref --stdin; static: no AAI_GIT_WRITE in either frontend, no process.env.AAI_GIT_WRITE assignment in the engine | sed:s/const here=path\.dirname\(fileURLToPath\(import\.meta\.url\)\);/process.env.AAI_GIT_WRITE='1';const here=path.dirname(fileURLToPath(import.meta.url));/ | pending |
+| TEST-083 | Spec-AC-10 | integration | tests/skills/test-aai-release.sh | test_727_closed_release_pr_named: preset CLOSED PR #7 without journal refuses identity with the exact detail; stop after pr, close PR #1, resume refuses identity naming PR #1 and both remedies; creates and merges 0 after the refusal | sed:s/is closed without a matching journal/has no matching journal/ | pending |
+| TEST-084 | Spec-AC-11 | static | tests/skills/test-aai-release.sh | test_728_docs_merge_policy: product doc strings and counts, SKILL_RELEASE exit 8 line names branch policy, SKILL_RELEASE at most 4927 bytes, ledger id absent from the product doc | sed:s/PENDING: merge-policy/PENDING: merge-queue/ (target docs/product/release-command-finish.md) | pending |
+| TEST-085 | Spec-AC-12 | static | tests/skills/test-aai-release.sh | test_729_finish_cases_run_once: parse the suite; wrapper ids all match ownSelector; ownSelector-matching check ids all have a wrapper called from main | sed:s/const ownSelector=\/\^TEST-0\[6-8\]\[0-9\]\$\/;/const ownSelector=\/^TEST-06[0-9]$\/;/ (target tests/skills/test-aai-release.sh) | pending |
+
+Mutation targets: rows TEST-074 to TEST-083 mutate `.aai/scripts/release-finish.mjs`; TEST-084 mutates `docs/product/release-command-finish.md`; TEST-085 mutates `tests/skills/test-aai-release.sh`. Patterns are JavaScript RegExp as `mutation-run.mjs --sed` reads them; replacements are literal.
+
+## Verification
+
+- RED first: add the stub endpoints, fixture modes and cases with the engine and docs untouched, and run each selector. TEST-074, TEST-075 and TEST-077 must fail on `REFUSED: github-command` (merge attempted early, stub policy refusal); TEST-076 on the wrong cause and one merge call; TEST-078 on the missing Required contexts line; TEST-079 because the run exits 0; TEST-080 on exit 20 github-command; TEST-081 on `REFUSED: base-transaction`; TEST-082 on zero invocations seeing the variable; TEST-083 on the generic details; TEST-084 on the missing doc strings; TEST-085 on TEST-073 not matching the old ownSelector. Record each observation in docs/ai/tdd/release-one-shot-finish-red.log. Before the engine change, also confirm the existing suite stays green with the new stub defaults (proves the defaults are neutral).
+- GREEN: `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release.sh <selector>` for test_718 to test_729, each exit 0 with its `PASS: TEST-0xx` line, logged to docs/ai/tdd/release-one-shot-finish-green.log.
+- Mutations: `node .aai/scripts/mutation-run.mjs --spec <this spec> --test-id TEST-0xx --suite tests/skills/test-aai-release.sh --selector <row selector> --target <row target> --sed '<row pattern>'` per row, each verdict RED; then `node .aai/scripts/mutation-gate.mjs --spec <this spec>` exit 0.
+- Regression: `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release.sh` exit 0 (whole suite incl. TEST-010, TEST-011, TEST-021, TEST-033 when pwsh is present, TEST-060 to TEST-073); `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-prompt-diet.sh` exit 0 (TEST-010 and TEST-012 unchanged by the shrink); `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh --skill aai-release --skill aai-learned-routing --skill aai-pr-preflight` exit 0.
+- Docs: `node .aai/scripts/spec-lint.mjs --path <this spec>` exit 0; `node .aai/scripts/docs-audit.mjs --strict` before close; `node .aai/scripts/follow-ups.mjs verify-closures` reads exactly one closure claim for this spec.
+
+## Evidence contract
+
+- ref_id release-one-shot-finish; for each TEST-074 to TEST-085: the exact command, exit code, and the `PASS:` line or the failing assertion.
+- RED observations: docs/ai/tdd/release-one-shot-finish-red.log. GREEN runs: docs/ai/tdd/release-one-shot-finish-green.log. Mutation records: docs/ai/tdd/spec-release-one-shot-finish/mutation-TEST-0xx.txt (written by mutation-run.mjs).
+- The diff range against b0b9ab15 and the head commit SHA at validation.
+- Planning claims no PASS; the verdict belongs to Validation.
+
+### Evidence by strategy
+
+tdd: stored RED artifact per AC-gating test (docs/ai/tdd/) plus the verification matrix above.
