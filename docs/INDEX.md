@@ -47,7 +47,7 @@ _None._
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
-| release-command-finish | release-command-finish | 2 | docs/product/release-command-finish.md |
+| release-command-finish | release-command-finish | 3 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | roadmap | roadmap | 1 | docs/product/roadmap.md |
