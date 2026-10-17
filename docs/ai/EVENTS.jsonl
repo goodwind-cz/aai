@@ -3136,3 +3136,4 @@
 {"v":1,"ts":"2026-10-17T20:41:11Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":620,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-17T21:03:44Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":620,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-17T21:19:32Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0235/Spec-AC-07","payload":{"commit":"0323af4f"}}
+{"v":1,"ts":"2026-10-17T21:19:49Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"release-changelog-eol","payload":{"pr":475,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"e0d268cb0eb4af21d7f08d7b556b0fa2a95b3378"}}
