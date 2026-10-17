@@ -36,6 +36,9 @@ root=root||process.cwd();
 let journal,record,claimPath,claimToken;
 const maxWait=Number(process.env.AAI_RELEASE_WAIT_SECONDS||3600);
 const interval=Number(process.env.AAI_RELEASE_POLL_SECONDS||15);
+const graceRaw=String(process.env.AAI_RELEASE_CHECKS_GRACE_SECONDS??60).trim();
+// Unset or blank means the default; only a plain decimal is a number (no hex, exponent or Infinity), anything else refuses `arguments`.
+const checksGrace=graceRaw===''?60:/^[+-]?(\d+\.?\d*|\.\d+)$/.test(graceRaw)?Number(graceRaw):NaN;
 function refuse(cause,detail) {const e=new Error(detail);e.causeName=cause;throw e;}
 // Not a refusal: the release is progressing remotely (exit 8, the gh pending code); resume re-reads it.
 function pending(cause,detail) {const e=new Error(detail);e.causeName=cause;e.pending=true;throw e;}
@@ -349,18 +352,29 @@ function queuedOrRefuse(){
  let q=null;if(!r.error&&r.status===0)try{q=JSON.parse(r.stdout);}catch{}
  if(q&&q.state==='OPEN'&&q.isInMergeQueue===true)pending('merge-queue',`Release PR #${record.pr} is queued in the merge queue and has not merged yet`);
 }
-function requiredChecks(){
+function requiredChecks(allowEmpty=false){
  const args=['pr','checks',String(record.pr),'--repo',record.repo,'--required','--json','name,bucket,link'];
  const r=command('gh',args,root,true);
  if(r.error||![0,1,8].includes(r.status))refuse('github-checks',r.error?.message||`gh checks transport exited ${r.status}`);
- let checks;try{checks=JSON.parse(r.stdout);}catch{refuse('github-checks','gh checks returned invalid JSON');}
- if(!Array.isArray(checks)||!checks.length)refuse('required-checks','No required checks reported');
+ // gh 2.93 prints nothing on stdout and exits 1 with this stderr while no (required) check is registered yet.
+ const notRegistered=r.status===1&&!r.stdout.trim()&&/^no (required )?checks reported on the '[^']*' branch$/.test((r.stderr||'').trim());
+ let checks;if(notRegistered)checks=[];else{try{checks=JSON.parse(r.stdout);}catch{refuse('github-checks','gh checks returned invalid JSON');}}
+ if(!Array.isArray(checks)||!checks.length){if(allowEmpty&&Array.isArray(checks))return checks;refuse('required-checks','No required checks reported');}
  if(r.status===8&&!checks.some(c=>c.bucket==='pending'))refuse('github-checks','Pending exit status without a pending check');
  if(r.status===1&&!checks.some(c=>['fail','cancel'].includes(c.bucket)))refuse('github-checks','Failure exit status without a failed check');
  return checks;
 }
+function registeredChecks(){
+ const end=Date.now()+checksGrace*1000;
+ for(;;){
+  const c=requiredChecks(true);
+  if(c.length)return c;
+  if(Date.now()>=end)refuse('required-checks',`No required checks registered within ${checksGrace}s`);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,interval*1000);
+ }
+}
 async function main(){
- if(!Number.isFinite(maxWait)||maxWait<0||!Number.isFinite(interval)||interval<0)refuse('arguments','Invalid wait interval');
+ if(!Number.isFinite(maxWait)||maxWait<0||!Number.isFinite(interval)||interval<0||!Number.isFinite(checksGrace)||checksGrace<0)refuse('arguments','Invalid wait interval');
  root=git('rev-parse','--show-toplevel');
  if(auditOnly){const local=releaseBase();const head=onlineAudit?authoritativeBase(local.base,false):local.baseHead;const missing=audit(fs.readFileSync(auditFile,'utf8'),onlineAudit,head);for(const item of missing)console.log(item);return;}
  if(!confirmed)refuse('confirmation','Explicit --confirm is required for release mutations');
@@ -438,7 +452,7 @@ async function main(){
   if(pr.state!=='OPEN')refuse('identity','Bound release PR is closed without merge');
   queuedOrRefuse();
   unchangedBase();
-  const required=requiredChecks();if(!Array.isArray(required)||!required.length||required.some(c=>!['pass','pending'].includes(c.bucket))){const bad=Array.isArray(required)?required.filter(c=>!['pass','pending'].includes(c.bucket)).map(c=>`${c.name} (${c.bucket})`):[];refuse('required-checks','Required checks missing, skipped or failed'+(bad.length?': '+bad.join(', '):''));}
+  const required=registeredChecks();if(!Array.isArray(required)||!required.length||required.some(c=>!['pass','pending'].includes(c.bucket))){const bad=Array.isArray(required)?required.filter(c=>!['pass','pending'].includes(c.bucket)).map(c=>`${c.name} (${c.bucket})`):[];refuse('required-checks','Required checks missing, skipped or failed'+(bad.length?': '+bad.join(', '):''));}
   console.log(`release: waiting for required CI on PR #${record.pr}`);
   const watcher=spawnSync(process.execPath,[path.join(here,'watch-ci.mjs'),'--pr',String(record.pr),'--required','--interval-seconds',String(interval),'--max-wait-seconds',String(maxWait)],{cwd:root,encoding:'utf8',timeout:(maxWait+15)*1000,stdio:['ignore','inherit','pipe']});
   if(watcher.error||watcher.status!==0)refuse('ci',watcher.error?.message||trim(watcher.stderr||'CI watcher failed'));
