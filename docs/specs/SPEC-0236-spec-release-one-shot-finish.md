@@ -4,7 +4,7 @@ type: spec
 number: 236
 status: done
 mutation_gate: v1
-frozen_sha256: 42d9ce507c8c1352cbd1b6591d8d0325ba705083ddc99f3d697b47f077da51d9
+frozen_sha256: 4070259fbdd76ee6765832881d142cced512c3e2f4f4e4d948019ce327a7ffa3
 ceremony_level: 2
 capability: release-command-finish
 user_visible: true
@@ -61,6 +61,7 @@ Article 7 is untouched: the engine still squash-merges only the operator-confirm
 - D6 The ref-guard exception lives in the engine, on the one transaction. `baseTransaction()` passes `AAI_GIT_WRITE: '1'` only in the environment of its own `git update-ref --stdin` child. That transaction is already the narrowest possible base write: reached only under `--confirm`, after merge, publication verification and leased cleanup, as a prepared expected-old update to the verified merge SHA after a fast-forward ancestry check, with HEAD and the ref re-verified. Rejected alternatives: setting the variable in `aai-release.sh`/`aai-release.ps1` or telling the agent in SKILL_RELEASE to prefix it would make it ambient for every git child of the engine (pushes, fetches, the release commit, the private-index worker), which is exactly what the hook's message forbids; /aai-merge sets it on its whole engine only because its cleanup owns several base writes. The engine never assigns `process.env.AAI_GIT_WRITE`. Repos without the hook ignore the variable, so downstream behavior is unchanged.
 - D7 Closed release PR refusals name the PR and the remedy, keeping cause `identity`: with no journal and exactly one CLOSED PR on the release branch, `Release PR #<n> on chore/release-<v> is closed without a matching journal; cut this release under a new --version`; with a journal-bound PR that is CLOSED, `Bound release PR #<n> is closed without merge; reopen it to resume, or cut a fresh audited release under a new --version`.
 - D8 Docs. The product doc gains the required-contexts wait and degrade, `PENDING: merge-policy`, and the narrow `AAI_GIT_WRITE` exception. SKILL_RELEASE's exit-8 line changes `(release PR queued in a merge queue)` to `(merge queue or branch policy)`, a 6-byte shrink, so no prompt-diet ledger entry, no TEST-012 bump and no pr-preflight formula change are owed; PROFILES is unchanged (no new `.aai/**` file).
+- D9 (post-freeze) The rulesets read is paginated. `gh api repos/<repo>/rules/branches/<base>` returns 30 rules per page, so a `required_status_checks` rule past the first page was dropped. The engine now calls `gh api --paginate --slurp <endpoint>?per_page=100` and flattens the array of page arrays; a page that is not an array keeps the `Unexpected shape` refusal. `--slurp` needs gh 2.48 or newer; an older gh rejects the flag, which lands in the existing UNREADABLE rulesets line (never a silent first-page read). The classic protection read is a single object and stays unpaginated. Verified by TEST-086, an addition under Spec-AC-02.
 
 ## Acceptance Criteria Mapping
 
@@ -143,6 +144,7 @@ Registry items closed by this scope: fu-release-required-contexts-unreported
 | TEST-083 | Spec-AC-10 | integration | tests/skills/test-aai-release.sh | test_727_closed_release_pr_named: preset CLOSED PR #7 without journal refuses identity with the exact detail; stop after pr, close PR #1, resume refuses identity naming PR #1 and both remedies; creates and merges 0 after the refusal | sed:s/is closed without a matching journal/has no matching journal/ | green |
 | TEST-084 | Spec-AC-11 | static | tests/skills/test-aai-release.sh | test_728_docs_merge_policy: product doc strings and counts, SKILL_RELEASE exit 8 line names branch policy, SKILL_RELEASE at most 4927 bytes, ledger id absent from the product doc | sed:s/PENDING: merge-policy/PENDING: merge-queue/ (target docs/product/release-command-finish.md) | green |
 | TEST-085 | Spec-AC-12 | static | tests/skills/test-aai-release.sh | test_729_finish_cases_run_once: parse the suite; wrapper ids all match ownSelector; ownSelector-matching check ids all have a wrapper called from main | sed:s/const ownSelector=\/\^TEST-0\[6-8\]\[0-9\]\$\/;/const ownSelector=\/^TEST-06[0-9]$\/;/ (target tests/skills/test-aai-release.sh) | green |
+| TEST-086 | Spec-AC-02 | integration | tests/skills/test-aai-release.sh | test_730_ruleset_pages_read: mode late-ruleset-paged puts the required_status_checks rule on page 2 of the rules list; exit 0 with merge after the late-suite pass read, every rules read carries --paginate, --slurp and per_page=100; mode rules-no-slurp (old gh) prints the UNREADABLE rulesets line | sed:s/'--paginate',// | green |
 
 Mutation targets: rows TEST-074 to TEST-083 mutate `.aai/scripts/release-finish.mjs`; TEST-084 mutates `docs/product/release-command-finish.md`; TEST-085 mutates `tests/skills/test-aai-release.sh`. Patterns are JavaScript RegExp as `mutation-run.mjs --sed` reads them; replacements are literal.
 

@@ -1423,10 +1423,10 @@ const releasePr=()=>s.prs.find(p=>p.headRefName==='chore/release-v1');
 const git=(...x)=>{const r=cp.spawnSync('git',x,{cwd:repo,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};
 function save(){fs.writeFileSync(f,JSON.stringify(s))}
 // release-one-shot-finish: the stub describes the base branch policy through the endpoints AND enforces the same set at merge time, as GitHub does.
-const lateModes=['late-context','late-ruleset','late-union','context-never','context-failed','rules-unreadable'];
+const lateModes=['late-context','late-ruleset','late-ruleset-paged','late-union','context-never','context-failed','rules-unreadable'];
 const lateBucket=n=>s.mode==='context-never'||n<=2?null:s.mode==='context-failed'?'fail':n===3?'pending':'pass';
-const classicSet=()=>['late-context','context-never','context-failed','rules-unreadable'].includes(s.mode)?['required','late-suite']:s.mode==='late-ruleset'?[]:['required'];
-const rulesSet=()=>['late-ruleset','late-union'].includes(s.mode)?['late-suite']:[];
+const classicSet=()=>['late-context','context-never','context-failed','rules-unreadable'].includes(s.mode)?['required','late-suite']:['late-ruleset','late-ruleset-paged'].includes(s.mode)?[]:['required'];
+const rulesSet=()=>['late-ruleset','late-ruleset-paged','late-union'].includes(s.mode)?['late-suite']:[];
 const policyBlocked=()=>classicSet().concat(rulesSet()).some(c=>c==='late-suite'&&lateBucket(s.engineReads||0)!=='pass');
 if(eq(['--version']))out('gh fixture');
 else if(eq(['auth','status'])){if(s.mode==='gh')process.exit(1)}
@@ -1434,14 +1434,20 @@ else if(eq(['repo','view','--json','nameWithOwner']))out({nameWithOwner:s.mode==
 else if(eq(['pr','view','1','--repo','test/release','--json','state,isInMergeQueue,autoMergeRequest'])) {
  const p=releasePr();out({state:p.state,isInMergeQueue:Boolean(s.queued&&p.state==='OPEN'),autoMergeRequest:s.armed&&p.state==='OPEN'?{enabledAt:'2026-10-17T00:00:00Z'}:null});
 }
-else if(a[0]==='api'&&a.length===2&&(a[1]==='repos/test/release/branches/main'||a[1]==='repos/test/release/rules/branches/main')){
- const rules=a[1].indexOf('/rules/')>0;
+else if(a[0]==='api'&&(a[a.length-1]==='repos/test/release/branches/main'||a[a.length-1].startsWith('repos/test/release/rules/branches/main'))){
+ const rules=a[a.length-1].indexOf('/rules/')>0;
+ // Real gh semantics: the classic endpoint is a single answer; the rules list is paged (30 per page unless per_page says otherwise) and only --paginate follows the pages, --slurp wraps them as one array.
+ const flags=a.slice(1,-1),pageSize=Number((/[?&]per_page=(\d+)/.exec(a[a.length-1])||[])[1]||30),paginate=flags.includes('--paginate'),slurp=flags.includes('--slurp');
+ if(flags.some(x=>!['--paginate','--slurp'].includes(x))||(!rules&&a.length!==2)||(slurp&&!paginate))die('bad api flags '+JSON.stringify(a));
+ const page=list=>{if(!paginate)return list.slice(0,pageSize);const pages=[];for(let i=0;i<list.length||!pages.length;i+=pageSize)pages.push(list.slice(i,i+pageSize));return slurp?pages:pages.flat();};
+ if(rules&&paginate&&!slurp)die('unslurped pagination is not parsed by the engine');
  if(!rules&&s.mode==='contexts-unreadable'){process.stderr.write('gh: Resource not accessible by integration (HTTP 403)\n');process.exit(1);}
+ if(rules&&s.mode==='rules-no-slurp'&&slurp){process.stderr.write('unknown flag: --slurp\n');process.exit(1);}
  if(rules&&(s.mode==='contexts-unreadable'||s.mode==='rules-unreadable')){process.stderr.write('gh: Not Found (HTTP 404)\n');process.exit(1);}
  if(!rules&&s.mode==='contexts-bad-json')out('not json');
  else if(!rules&&s.mode==='contexts-bad-shape')out({protected:'yes'});
- else if(rules&&s.mode==='rules-bad-shape')out({message:'not an array'});
- else if(rules){const list=rulesSet();out(list.length?[{type:'deletion'},{type:'required_status_checks',parameters:{required_status_checks:list.map(c=>({context:c,integration_id:15368}))}}]:[]);}
+ else if(rules&&s.mode==='rules-bad-shape')out(slurp?[{message:'not an array'}]:{message:'not an array'});
+ else if(rules){const list=rulesSet();const filler=s.mode==='late-ruleset-paged'?Array.from({length:35},()=>({type:'deletion'})):[{type:'deletion'}];const all=list.length?[...filler,{type:'required_status_checks',parameters:{required_status_checks:list.map(c=>({context:c,integration_id:15368}))}}]:[];const r=page(all);out(r);}
  else if(s.mode==='late-ruleset')out({name:'main',protected:false});
  else{const c=classicSet();out({name:'main',protected:true,protection:{enabled:true,required_status_checks:{enforcement_level:'everyone',contexts:c,checks:c.map(x=>({context:x,app_id:1}))}}});}
 }
@@ -1829,6 +1835,14 @@ function mergedAfterLate(f,r,label){
 }
 check('TEST-074',()=>{const {f,r}=lateRun('late-context');mergedAfterLate(f,r,'late-context ');});
 check('TEST-075',()=>{for(const mode of ['late-ruleset','late-union']){const {f,r}=lateRun(mode);mergedAfterLate(f,r,mode+' ');}});
+check('TEST-086',()=>{
+ // The rules list is paged (30 per page): the required_status_checks rule sits on page 2 and only a paginated read sees it.
+ const {f,r}=lateRun('late-ruleset-paged');mergedAfterLate(f,r,'late-ruleset-paged ');
+ const reads=f.transport().calls.filter(a=>a[0]==='api'&&a[a.length-1].includes('/rules/branches/'));
+ assert.ok(reads.length>=1&&reads.every(a=>a.includes('--paginate')&&a.includes('--slurp')&&/[?&]per_page=100$/.test(a[a.length-1])),'rules reads must be paginated: '+JSON.stringify(reads));
+ // Older gh without --slurp answers the flag error: unreadable (named line), never a silent first-page read.
+ const old=lateRun('rules-no-slurp','1');assert.match(old.r.stdout,/Required contexts: UNREADABLE rulesets/,old.r.stdout+old.r.stderr);
+});
 check('TEST-076',()=>{
  const {f,r}=lateRun('context-never','1');assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);
  assert.match(r.stderr,/REFUSED: required-contexts/);assert.match(r.stderr,/late-suite/);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);
@@ -2177,6 +2191,10 @@ test_728_docs_merge_policy() {
   RELEASE_FINISH_CASE=TEST-084 test_700_one_command_finish
 }
 
+test_730_ruleset_pages_read() {
+  RELEASE_FINISH_CASE=TEST-086 test_700_one_command_finish
+}
+
 test_729_finish_cases_run_once() {
   RELEASE_FINISH_CASE=TEST-085 test_700_one_command_finish
 }
@@ -2355,6 +2373,7 @@ main() {
   test_727_closed_release_pr_named
   test_728_docs_merge_policy
   test_729_finish_cases_run_once
+  test_730_ruleset_pages_read
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
   test_625_fallback_branch_failure_reports

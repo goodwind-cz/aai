@@ -370,11 +370,13 @@ function requiredChecks(allowEmpty=false){
  return checks;
 }
 // Required contexts of the base branch, read-access only: classic protection (branch endpoint) plus rulesets. Unreadable = named degrade (D2); malformed = refusal (D3).
-function contextSource(source,endpoint,extract) {
- const r=command('gh',['api',endpoint],root,true);
+// paged: read every page of a list endpoint. `gh api --paginate --slurp` (gh 2.48+) answers one array of page arrays; an older gh rejects --slurp, which lands in the unreadable branch below (named line), never a silent first-page read.
+function contextSource(source,endpoint,extract,paged=false) {
+ const r=command('gh',paged?['api','--paginate','--slurp',`${endpoint}?per_page=100`]:['api',endpoint],root,true);
  if(r.error||r.status!==0)return {source,unreadable:r.error?.message||(r.stderr||'').split('\n')[0].trim()||`exit ${r.status}`};
  let data;try{data=JSON.parse(r.stdout);}catch{refuse('required-contexts','Invalid JSON from gh api '+endpoint);}
  const shape=why=>refuse('required-contexts',`Unexpected shape from gh api ${endpoint}: ${why}`);
+ if(paged){if(!Array.isArray(data)||data.some(p=>!Array.isArray(p)))shape('rules answer is not an array');data=data.flat();}
  const found=extract(data,shape);
  return found===null?{source,unreadable:'protected branch without a readable protection object'}:{source,contexts:found};
 }
@@ -404,7 +406,7 @@ function rulesetContexts(data,shape) {
 }
 function requiredContexts() {
  const base=`repos/${record.repo}`,branch=encodeURIComponent(record.base);
- const answers=[contextSource('protection',`${base}/branches/${branch}`,classicContexts),contextSource('rulesets',`${base}/rules/branches/${branch}`,rulesetContexts)];
+ const answers=[contextSource('protection',`${base}/branches/${branch}`,classicContexts),contextSource('rulesets',`${base}/rules/branches/${branch}`,rulesetContexts,true)];
  const lost=answers.filter(a=>a.unreadable!==undefined);
  if(lost.length)console.log(`- Required contexts: ${lost.map(a=>`UNREADABLE ${a.source} (${a.unreadable})`).join('; ')}${lost.length===answers.length?'; waiting on reported required checks only':''}`);
  return [...new Set(answers.flatMap(a=>a.contexts||[]))];
