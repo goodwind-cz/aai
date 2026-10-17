@@ -1707,8 +1707,6 @@ check('TEST-062',()=>{
   assert.match(r.stderr,/REFUSED: required-checks/);assert.match(r.stderr,/No required checks registered within 1s/);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);
   const t=f.transport();assert.ok(engineReads(t)>=2,mode+' engine reads '+engineReads(t));assert.equal(watchReads(t),0,mode);assert.equal(merges(t),0,mode);
  }
-});
-check('TEST-062',()=>{
  const {f,r}=graceCase('TEST-062','missing-checks','0','0.05');assert.notEqual(r.status,0);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/No required checks registered within 0s/);
  assert.equal(engineReads(f.transport()),1,'explicit 0 means exactly one read');
 });
