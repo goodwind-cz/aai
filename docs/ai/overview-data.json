@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-17T18:11:10.755Z",
+  "generatedAt": "2026-10-17T20:37:30.231Z",
   "project": "aai",
   "counts": {
-    "delivered": 304,
+    "delivered": 305,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 77863744
@@ -245,7 +245,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0234-spec-release-checks-registration-grace.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20261017T185642Z-r2-release-checks-registration-grace.md"
+    },
+    {
+      "ref": "release-changelog-eol",
+      "title": "Release finish drops the CHANGELOG trailing newline when it rolls the release",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0102-release-changelog-eol.md",
+      "closed_on": "2026-10-17",
+      "agent_minutes": 93,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0235-spec-release-changelog-eol.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261017T194555Z-release-changelog-eol.md"
     },
     {
       "ref": "git-platform-detected-at-bootstrap",
@@ -4224,7 +4237,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0234-spec-release-checks-registration-grace.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-20261017T185642Z-r2-release-checks-registration-grace.md"
+        },
+        {
+          "ref": "release-changelog-eol",
+          "title": "Release finish drops the CHANGELOG trailing newline when it rolls the release",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0102-release-changelog-eol.md",
+          "closed_on": "2026-10-17",
+          "agent_minutes": 93,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0235-spec-release-changelog-eol.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261017T194555Z-release-changelog-eol.md"
         },
         {
           "ref": "git-platform-detected-at-bootstrap",

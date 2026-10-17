@@ -39,7 +39,7 @@ A per-version `.claim` file carries the running confirmation’s PID, host and o
 
 Registered-base synchronization uses an exclusive token-owned Git index lock, a private index and a prepared expected-old Git ref transaction. A checkout or base-ref move at the mutation boundary refuses rather than advancing a feature branch. A killed same-host helper can recover its own completed private-index update after the recorded worker PID is proven absent; a live worker, changed caller index/data, failed or incomplete native update, unknown Git lock or foreign owner requires conservative refusal and inspection. These temporary files do not replace or delete the durable authorization journal.
 
-The prepared commit changes only `CHANGELOG.md` and `docs/ai/AAI_VERSION.md`. Required remote PR/check/workflow/tag/release facts are reread on resume. Notes comparison normalizes line endings and outer whitespace.
+The prepared commit changes only `CHANGELOG.md` and `docs/ai/AAI_VERSION.md`. The rolled `CHANGELOG.md` is byte-exact: the base file's BOM, per-line line endings and final-newline state are kept, and the inserted scaffold lines follow the file's line ending. If git attributes (for example `CHANGELOG.md text eol=lf` over a CRLF base) make the committed blob differ from the journaled rollup, the cut refuses with `changelog-normalized` before the head is journaled or pushed. Resume adopts a prepared branch only when its `CHANGELOG.md` equals the journal content byte for byte, and refuses a journal without a PR whose content differs from the rollup of the exact base file. Required remote PR/check/workflow/tag/release facts are reread on resume. Notes comparison normalizes line endings and outer whitespace.
 
 ## Interfaces and contracts
 

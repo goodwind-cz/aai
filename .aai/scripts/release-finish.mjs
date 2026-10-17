@@ -48,6 +48,8 @@ function command(exe,args,cwd=root,allowFailure=false,timeout=60000,env={}) {
  return r;
 }
 function git(...args){return command('git',args).stdout.trim();}
+// Exact bytes (no trim): a release payload must keep the file's own BOM, line endings and EOF state.
+function blob(spec){return command('git',['cat-file','blob',spec]).stdout;}
 function gh(...args){return command('gh',args).stdout.trim();}
 function json(...args){const s=gh(...args);try{return JSON.parse(s);}catch{refuse('github-data',`Invalid JSON for gh ${args.join(' ')}`);}}
 function sha(value,name){if(!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(value||''))refuse('empty-sha',`${name} did not return a full SHA`);return value;}
@@ -105,8 +107,10 @@ function stage(name){record.stage=name;atomicSave();console.log(`release: ${name
 function remoteHead(ref){return git('ls-remote','origin',ref).split(/\s/)[0]||'';}
 function trim(s){return s.replace(/\r\n/g,'\n').trim();}
 function rollup(source) {
- const newline=source.endsWith('\n');const lines=source.replace(/\r\n/g,'\n').split('\n');if(newline)lines.pop();
+ const bom=source.startsWith('\uFEFF')?'\uFEFF':'';if(bom)source=source.slice(1);
+ const newline=source.endsWith('\n');const lines=source.split('\n');if(newline)lines.pop();
  const first=lines.findIndex(l=>/^## \[/.test(l));if(first<0)refuse('empty-notes','No rollable entries');
+ const cr=lines[first].endsWith('\r')?'\r':'';
  const heads=[];for(let i=first;i<lines.length;i++)if(/^## /.test(lines[i]))heads.push(i);heads.push(lines.length);
  const sections=[];for(let k=0;k<heads.length-1;k++){
   const text=lines.slice(heads[k],heads[k+1]);const heading=text[0];
@@ -117,9 +121,9 @@ function rollup(source) {
   }else sections.push({entry:false,text});
  }
  if(!sections.some(s=>s.entry))refuse('empty-notes','No rollable entries');
- const notes=sections.filter(s=>s.entry).flatMap(s=>s.text).join('\n').trim();
+ const notes=sections.filter(s=>s.entry).flatMap(s=>s.text).map(l=>l.replace(/\r$/,'')).join('\n').trim();
  const ordered=[...sections.filter(s=>s.entry),...sections.filter(s=>!s.entry)];
- return {content:[...lines.slice(0,first),'## [unreleased]','',...ordered.flatMap(s=>s.text)].join('\n')+(newline?'\n':''),notes};
+ return {content:bom+[...lines.slice(0,first),'## [unreleased]'+cr,''+cr,...ordered.flatMap(s=>s.text)].join('\n')+(newline?'\n':''),notes};
 }
 function historyBoundary(head,online){
  if(git('rev-parse','--is-shallow-repository')!=='false')refuse('notes-history','Complete release history is required; obtain full history before retrying');
@@ -390,12 +394,13 @@ async function main(){
  if(loaded.status==='ok'){
   record=loaded.data;
   if(record.repo!==repo||record.origin!==origin||record.version!==version||record.branch!==branch)refuse('identity','Journal repository/version/branch mismatch');
+  if(!record.pr&&rollup(blob(`${record.baseHead}:CHANGELOG.md`)).content!==record.content)refuse('identity','Journal content differs from the base rollup');
  }else{
   // Preflight before persistent refs, journal, worktree, commit or push.
   const {base,baseRef}=releaseBase();const baseHead=authoritativeBase(base,true);
   if(remoteHead(`refs/heads/${branch}`)||command('git',['rev-parse','--verify',`refs/heads/${branch}`],root,true).status===0)refuse('identity','Release branch exists without durable authorization');
   if(remoteHead(`refs/tags/${version}`)||command('git',['rev-parse','--verify',`refs/tags/${version}`],root,true).status===0)refuse('tag-exists',`Tag ${version} exists without a matching journal`);
-  const rolled=rollup(git('show',`${baseHead}:CHANGELOG.md`));const missing=audit(rolled.notes,true,baseHead);if(missing.length)refuse('missing-notes',missing.join('; '));
+  const rolled=rollup(blob(`${baseHead}:CHANGELOG.md`));const missing=audit(rolled.notes,true,baseHead);if(missing.length)refuse('missing-notes',missing.join('; '));
   if(authoritativeBase(base,true)!==baseHead)refuse('base-moved','Remote release base moved during notes audit; retry confirmation');
   const ambiguous=json('pr','list','--repo',repo,'--head',branch,'--state','all','--json',fields);if(!Array.isArray(ambiguous)||ambiguous.length)refuse('identity','Existing or ambiguous release PR has no matching journal');
   record={version,repo,origin,base,baseRef,baseHead,branch,notes:rolled.notes,content:rolled.content,head:null,pr:null,merge:null,stage:'initialized'};
@@ -408,7 +413,7 @@ async function main(){
    // A crash after commit may precede saving its SHA. Recover only the exact
    // payload and parent authorized by the initialized journal.
    const head=sha(existing.stdout.trim(),'prepared');
-   if(git('rev-parse',head+'^')!==record.baseHead||git('log','-1','--format=%s',head)!==`chore(release): ${version}`||git('diff-tree','--no-commit-id','--name-only','-r',head)!=='CHANGELOG.md\ndocs/ai/AAI_VERSION.md'||trim(git('show',head+':CHANGELOG.md'))!==trim(record.content))refuse('identity','Unbound prepared release branch');
+   if(git('rev-parse',head+'^')!==record.baseHead||git('log','-1','--format=%s',head)!==`chore(release): ${version}`||git('diff-tree','--no-commit-id','--name-only','-r',head)!=='CHANGELOG.md\ndocs/ai/AAI_VERSION.md'||blob(head+':CHANGELOG.md')!==record.content)refuse('identity','Unbound prepared release branch');
    record.head=head;atomicSave();
   }else{
    if(existing.status===0&&!record.worktree)refuse('identity','Unbound uncommitted release branch');
@@ -425,7 +430,11 @@ async function main(){
    fs.writeFileSync(path.join(wt,'CHANGELOG.md'),record.content);fs.mkdirSync(path.join(wt,'docs/ai'),{recursive:true});
    fs.writeFileSync(path.join(wt,'docs/ai/AAI_VERSION.md'),`# AAI Version\n\n- Version: ${version}\n\nNotes:\n- Written by the release engines at each cut.\n`);
    stage('payload');
-   command('git',['add','--','CHANGELOG.md','docs/ai/AAI_VERSION.md'],wt);command('git',['commit','-q','-m',`chore(release): ${version}`],wt);record.head=sha(command('git',['rev-parse','HEAD'],wt).stdout.trim(),'release');atomicSave();
+   command('git',['add','--','CHANGELOG.md','docs/ai/AAI_VERSION.md'],wt);command('git',['commit','-q','-m',`chore(release): ${version}`],wt);
+   const made=sha(command('git',['rev-parse','HEAD'],wt).stdout.trim(),'release');
+   // .gitattributes (text/eol/filter) can make `git add` rewrite the bytes; fail closed before the head is journaled or pushed.
+   if(blob(made+':CHANGELOG.md')!==record.content)refuse('changelog-normalized','Committed CHANGELOG.md differs from the journaled rollup (git attributes such as eol/text/filter rewrote it); release refused so the byte-exact guarantee is not broken silently');
+   record.head=made;atomicSave();
   }
  }
  if(record.worktree){
