@@ -6,14 +6,14 @@ status: draft
 delivered_by:
   - release-command-finish
 spec: docs/specs/SPEC-DRAFT-spec-release-command-finish.md
-updated: 2026-10-14
+updated: 2026-10-17
 ---
 
 # Complete and resume a release
 
 ## What it does
 
-The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. This document describes development work awaiting independent validation and delivery; actual Windows 5.1/7 runtime and hosted Linux repetition proof remain pending.
+The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
 
 ## How to use it
 
@@ -26,7 +26,7 @@ bash .aai/scripts/aai-release.sh --confirm --version v1.2.3
 
 PowerShell uses `powershell -NoProfile -File .aai/scripts/aai-release.ps1 -Version v1.2.3 -Confirm`, or `pwsh` with the same parameters. Omit confirmation to preview; dry-run wins even alongside confirmation. Versions default to UTC CalVer `vYYYY.MM.DD`; `AAI_RELEASE_DATE` pins the date. Resume with the exact explicit version printed in the failure's executable resume command.
 
-Remote preview reads the authoritative base SHA but never fetches missing objects. If its object is unavailable, follow the printed fetch-before-preview remedy, then preview again. Confirm may fetch missing objects without changing tracking refs or FETCH_HEAD, and audits that exact remote snapshot before preparing release mutations. The audit derives its previous-release boundary from authoritative remote tags and their peeled commits, even when local tag refs are absent. Incomplete or unavailable history refuses; a true first release audits the complete shipped history. Genuine unnoted shipped history refuses; CHANGELOG-only history, proven previous release PRs and valid same-line nonempty `no-notes: <reason>` markers are exempt under the existing notes classifier.
+Remote preview reads the authoritative base SHA but never fetches missing objects. If its object is unavailable, follow the printed fetch-before-preview remedy, then preview again. Confirm may fetch missing objects without changing tracking refs or FETCH_HEAD, and audits that exact remote snapshot before preparing release mutations. The audit derives its previous-release boundary from authoritative remote tags and their peeled commits, even when local tag refs are absent. Incomplete or unavailable history refuses; a true first release audits the complete shipped history. Genuine unnoted shipped history refuses; CHANGELOG-only history, proven previous release PRs and valid same-line nonempty `no-notes: <reason>` markers are exempt under the existing notes classifier. A shipped PR counts as noted when its `#N` or title is in the rolled notes, or when an `## [unreleased] — <title>` heading it added is present (rewritten to the version) among the rolled headings, so slug-cited headings need no `#N`. Only tags matching `v?[0-9]` are release boundaries; tags that do not peel to a commit are ignored.
 
 `--no-remote` / `-NoRemote`, or `AAI_RELEASE_NO_REMOTE=1`, makes a local cut with a named remote-finish skip. Repositories without `release.yml` receive a manual-tagging skip after merge. The client does not publish tags or releases directly.
 
@@ -47,6 +47,7 @@ The prepared commit changes only `CHANGELOG.md` and `docs/ai/AAI_VERSION.md`. Re
 - Merge: only the bound release PR is squash-merged after required checks pass, with `--match-head-commit`; no auto/admin bypass. Real pending checks wait; errors, empty/malformed or degraded results refuse.
 - Publication: await successful `release.yml` for the merge SHA; verify the peeled tag SHA and every rolled section in the release body before cleanup.
 - Cleanup: expected-head leased deletion refuses moved branches or dependent PRs. Safe registered-base fast-forward preserves unrelated dirty/detached/feature callers; unsafe overlap/divergence refuses, absent base names a skip.
+- Version: must match `release.yml`'s tag pattern `v?[0-9]…`; anything else refuses `version` before any GitHub call.
 - Result: version, PR, merge/tag SHA, release URL, cleanup and sync status. Finish refusal exits 20 with one named cause, completed facts and an explicit resume command; local/parser exit codes are listed in the release skill.
 - Wait limits: `AAI_RELEASE_WAIT_SECONDS` defaults to 3600; `AAI_RELEASE_POLL_SECONDS` defaults to 15.
 
@@ -56,7 +57,7 @@ The payload and history audit use one observed authoritative remote base snapsho
 
 GitHub's match-head option pins the PR head only. An external race remains: A base push between the final observation and GitHub merge can enter the merge unseen. There is no atomic base condition or guarantee that every commit at the eventual merge was audited. A failed publication can leave an already merged PR/tag; no rollback or globally atomic release is promised.
 
-Confirmation applies only to this invocation's bound repository/version/base/branch/head and its proven resume, not other PRs. Dry-run writes no objects, refs, FETCH_HEAD, index, files, journal or GitHub state. No live release is part of this development work. Local/container execution does not substitute for hosted Linux proof or actual Windows PowerShell 5.1 and Windows pwsh7 execution.
+Confirmation applies only to this invocation's bound repository/version/base/branch/head and its proven resume, not other PRs. Dry-run writes no objects, refs, FETCH_HEAD, index, files, journal or GitHub state. No live end-to-end release has run yet; the first `/aai-release --confirm` after merge is the live proof. Known gaps are tracked as `fu-release-checks-registration-grace` (the first required-checks read can come before GitHub registers checks; resume continues) and `fu-release-notes-heading-multiset` (two PRs adding a byte-identical heading are covered by one surviving heading).
 
 ## Links
 

@@ -271,7 +271,14 @@ jobs:
         # worktree paths, Node's native realpath prints backslashes. The helper
         # must still recognise (and so remove) its own preparation worktree.
         shell: pwsh
-        run: node tests/skills/lib/release-finish-worktree-identity.mjs
+        run: |
+          node tests/skills/lib/release-finish-worktree-identity.mjs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # The run-directly guard must fire on win32: without --confirm the
+          # helper refuses (exit 20); a silent exit 0 means main() never ran.
+          $out = node .aai/scripts/release-finish.mjs --root $PWD --version v1 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 20 -or $out -notmatch 'REFUSED: confirmation') { Write-Host $out; throw 'release-finish main() did not run when executed directly on win32' }
+          Write-Host 'PASS: release-finish runs directly on win32'
 
       - name: "Prepare real-wrapper smoke fixtures (CHANGE-0133 Spec-AC-05)"
         # LF-only fixture scripts, written once and shared by both engine
