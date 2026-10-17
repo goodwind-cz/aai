@@ -168,8 +168,9 @@ function audit(notes,online,head) {
   const parents=git('rev-list','--parents','-n','1',commit).split(' ');
   if(parents.length>2)for(const c of git('rev-list',`${parents[1]}..${parents[2]}`).split('\n').filter(Boolean))covered.add(c);}
  for(const line of lines){const [commit,subject]=line.split('\t');
- if(covered.has(commit))continue;
  const {last,merge}=number(subject);
+ // A covered commit with its own PR number is audited as that PR; only unnumbered ones stay attributed to the outer merge.
+ if(covered.has(commit)&&!last&&!merge)continue;
  let numbered=Boolean(last||merge);
  let n=last?last[1]:merge?merge[1]:'',title=last?subject.slice(0,last.index).trim():subject;
  const parents=git('rev-list','--parents','-n','1',commit).split(' ');

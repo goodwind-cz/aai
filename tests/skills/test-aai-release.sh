@@ -1607,6 +1607,20 @@ check('TEST-050',()=>{
  // B-1: a rebase-merged PR (no merge commit, no number in the subjects) resolves through the commit-to-PR lookup and is audited as that PR.
  const rebased=fixture(),rshas=branchPr(rebased,'','',{noff:false});run('git',['fetch','-q','origin'],rebased.repo);const rt=rebased.transport();rt.apiPulls={};for(const x of run('git',['rev-list','origin/main','^v0'],rebased.repo).split('\n').filter(Boolean))rt.apiPulls[x]=[{number:101,title:'feat: alpha',merged_at:'2026-10-17T00:00:00Z'}];fs.writeFileSync(rebased.state,JSON.stringify(rt));
  const rr=rebased.invoke();assert.equal(rr.status,0,'rebase-merged PR: '+rr.stdout+rr.stderr);
+ // R12-2: the lookup only attributes to a MERGED PR; an unmerged association must not excuse the commit.
+ const unmerged=fixture();branchPr(unmerged,'','',{noff:false});run('git',['fetch','-q','origin'],unmerged.repo);const ut=unmerged.transport();ut.apiPulls={};for(const x of run('git',['rev-list','origin/main','^v0'],unmerged.repo).split('\n').filter(Boolean))ut.apiPulls[x]=[{number:101,title:'feat: alpha',merged_at:null}];fs.writeFileSync(unmerged.state,JSON.stringify(ut));
+ const ur=unmerged.invoke();assert.equal(ur.status,20,'unmerged PR must not attribute: '+ur.stdout+ur.stderr);assert.match(ur.stderr,/missing-notes/);
+ // S9 (gitflow): a numbered squash commit inside a numbered merge's M^1..M^2 is audited as its own PR.
+ for(const [cite,expect] of [['',20],['\n\n## [v1] — feat: s (#31)\n\n- s',0]]){
+  const g=fixture(),clone=path.join(g.d,'gitflow-'+crypto.randomBytes(4).toString('hex'));g.git('clone','-q',g.origin,clone);
+  const x=(...a)=>run('git',a,clone);x('checkout','-q','main');x('config','user.name','Writer');x('config','user.email','writer@test.invalid');
+  x('checkout','-q','-b','develop');fs.mkdirSync(path.join(clone,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(clone,'.aai/scripts/s.mjs'),'s\n');x('add','-A');x('commit','-qm','feat: s (#31)');
+  x('checkout','-q','main');x('merge','--no-ff','-q','-m','Merge pull request #30 from o/develop','develop');
+  const cl=path.join(clone,'CHANGELOG.md');fs.writeFileSync(cl,fs.readFileSync(cl,'utf8').replace('# Changelog\n','# Changelog\n\n## [unreleased] — feat: release (#30)\n\n- release'+cite.replace('[v1]','[unreleased]')+'\n'));x('add','-A');x('commit','-qm','docs: notes');x('push','-q','origin','main');
+  const gt=g.transport();for(const n of [30,31])gt.prs.push({number:n,body:'',files:[{path:'.aai/scripts/s.mjs'}]});gt.notes='## [v1] — feat: release (#30)\n\n- release'+cite+'\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta';fs.writeFileSync(g.state,JSON.stringify(gt));
+  const gr=g.invoke();assert.equal(gr.status,expect,'gitflow inner numbered commit (cite='+Boolean(cite)+'): '+gr.stdout+gr.stderr);
+  if(expect)assert.match(gr.stderr,/#31/);
+ }
  // The lookup does not excuse a direct commit: no associated PR still refuses.
  const lone=fixture(),lsha=direct(lone,'.aai/scripts/direct.mjs','feat: direct push without a PR number');const lt=lone.transport();lt.apiPulls={[lsha]:[]};fs.writeFileSync(lone.state,JSON.stringify(lt));const lr=lone.invoke();assert.equal(lr.status,20,lr.stdout+lr.stderr);assert.match(lr.stderr,/missing-notes/);assert.ok(lr.stderr.includes(lsha.slice(0,12)));
  // An unnumbered merge commit adds nothing itself; its merged commits are audited individually (here exempt by a no-notes body).
