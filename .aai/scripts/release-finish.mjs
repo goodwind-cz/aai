@@ -7,7 +7,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawn,spawnSync} from 'node:child_process';
 import {fileURLToPath,pathToFileURL} from 'node:url';
-import {isShipped, hasNoNotesReason} from './release-notes-gate.mjs';
+import {isShipped, hasNoNotesReason, hasAddedNotes} from './release-notes-gate.mjs';
 import {atomicWrite,loadOrDegrade,claimExclusive} from './lib/runtime-file.mjs';
 
 const here=path.dirname(fileURLToPath(import.meta.url));
@@ -114,8 +114,8 @@ function historyBoundary(head,online){
  for(const line of snapshot.split('\n').filter(Boolean)){
   const match=/^([a-f0-9]{40}|[a-f0-9]{64})\s+(refs\/tags\/.+?)(\^\{\})?$/.exec(line);
   if(!match)refuse('notes-history','Malformed release tag history');
-  // Only release tags (the release.yml 'v*' trigger followed by a version digit) bound the audit.
-  if(!/^refs\/tags\/v[0-9]/.test(match[2]))continue;
+  // Only release tags (release.yml cuts tags named by its 'v?[0-9]' commit-message pattern) bound the audit.
+  if(!/^refs\/tags\/v?[0-9]/.test(match[2]))continue;
   (match[3]?peeled:tags).set(match[2],match[1]);
  }
  let previous='',distance=Infinity;
@@ -131,6 +131,15 @@ function historyBoundary(head,online){
  // A genuine first release still audits all shipped changes in the full graph.
  command('git',['rev-list','--count',head]);
  return {previous,snapshot};
+}
+// A PR's own diff added rollable unreleased notes (shared classifier) that survive in the rolled notes.
+function addedRolledNotes(commit,parents,notes){
+ const range=parents.length>1?[parents[1],commit]:['--root',commit];
+ const patch=command('git',parents.length>1?['diff','--no-ext-diff','--no-textconv','--no-renames','--ignore-space-at-eol','--unified=0',...range,'--','CHANGELOG.md']:['diff-tree','-p','--root','--no-commit-id','--no-ext-diff','--no-textconv','--no-renames','--ignore-space-at-eol','--unified=0',commit,'--','CHANGELOG.md']).stdout;
+ const content=command('git',['show',`${commit}:CHANGELOG.md`],root,true);
+ if(content.status!==0||!hasAddedNotes(content.stdout,patch))return false;
+ const rolled=new Set(notes.split('\n').map(l=>l.trimEnd()));
+ return patch.split('\n').some(l=>/^\+(?!\+\+)/.test(l)&&l.slice(1).trim()&&rolled.has(l.slice(1).trimEnd().replace('## [unreleased]',`## [${version}]`)));
 }
 function audit(notes,online,head) {
  const history=historyBoundary(head,online);
@@ -153,6 +162,7 @@ function audit(notes,online,head) {
  // A preceding release cut has no new shipped behavior; validate its payload.
  if(/^chore\(release\): /.test(subject)&&files.every(f=>['CHANGELOG.md','docs/ai/AAI_VERSION.md'].includes(f)))continue;
  if(new RegExp(`(?:#|/)${n}(?![0-9])`).test(notes)||notes.includes(title))continue;
+ if(files.includes('CHANGELOG.md')&&addedRolledNotes(commit,parents,notes))continue;
  if(online){const pr=json('pr','view',n,'--json','body,files');if(!Array.isArray(pr.files)||typeof pr.body!=='string')refuse('notes-history',`Unknown changed files/body for PR #${n}`);if(hasNoNotesReason(pr.body))continue;}
  missing.push(`#${n} ${title}`);
  }

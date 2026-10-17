@@ -1471,7 +1471,7 @@ else if(a[0]==='pr'&&a[1]==='create') {
  const client=eq(['release','view','v1','--repo','test/release','--json','body,url']);const workflow=eq(['release','view','v1']);if(!client&&!workflow)die('bad release view argv');
  const release=s.releases.v1;if(!release)process.exit(1);out(client?release:'release exists');
 }
-else if(a[0]==='release'&&a[1]==='create') {const notes=get('--notes-file');if(s.mode==='create-error'){process.stderr.write('workflow publication failure control\n');process.exit(7);}if(!eq(['release','create','v1','--title','v1','--notes-file',notes])||!notes||!path.isAbsolute(notes)||!fs.existsSync(notes))die('bad release create argv');if(fs.realpathSync(path.dirname(notes))!==fs.realpathSync(path.dirname(f))||fs.readFileSync(notes,'utf8').trim()!=='## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta')die('bad notes file binding/content'); s.releases[a[2]]={body:fs.readFileSync(get('--notes-file'),'utf8'),url:'https://github.com/test/release/releases/tag/'+a[2]};if(s.mode==='notes')s.releases[a[2]].body='wrong';save();out(s.releases[a[2]].url)}
+else if(a[0]==='release'&&a[1]==='create') {const notes=get('--notes-file');if(s.mode==='create-error'){process.stderr.write('workflow publication failure control\n');process.exit(7);}if(!eq(['release','create','v1','--title','v1','--notes-file',notes])||!notes||!path.isAbsolute(notes)||!fs.existsSync(notes))die('bad release create argv');if(fs.realpathSync(path.dirname(notes))!==fs.realpathSync(path.dirname(f))||fs.readFileSync(notes,'utf8').trim()!==(s.notes||'## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta'))die('bad notes file binding/content'); s.releases[a[2]]={body:fs.readFileSync(get('--notes-file'),'utf8'),url:'https://github.com/test/release/releases/tag/'+a[2]};if(s.mode==='notes')s.releases[a[2]].body='wrong';save();out(s.releases[a[2]].url)}
 else die(JSON.stringify(a));
 `;
  fs.writeFileSync(path.join(bin,'gh'),stub,{mode:0o755});
@@ -1632,6 +1632,27 @@ check('TEST-029',()=>{
  const r=f.invoke();assert.equal(r.status,0,'blob tag on origin refused an otherwise clean release: '+r.stdout+r.stderr);
  const audit=fixture();audit.git('tag','fixture-blob',audit.git('rev-parse','HEAD:CHANGELOG.md'));const notes=path.join(audit.d,'n');fs.writeFileSync(notes,'notes');fs.writeFileSync(path.join(audit.repo,'.git/shallow'),audit.git('rev-parse','HEAD')+'\n');
  const a=spawnSync(process.execPath,[path.join(root,'.aai/scripts/release-finish.mjs'),'--root',audit.repo,'--audit',notes,'--online'],{cwd:audit.repo,env:{...process.env,...audit.env},encoding:'utf8'});assert.equal(a.status,20);assert.doesNotMatch(a.stderr,/--version ''/);
+});
+function slugNoted(f,number,slug,file='.aai/scripts/slug-x.mjs'){
+ fs.mkdirSync(path.dirname(path.join(f.repo,file)),{recursive:true});fs.writeFileSync(path.join(f.repo,file),'change '+number+'\n');
+ const log=path.join(f.repo,'CHANGELOG.md');fs.writeFileSync(log,fs.readFileSync(log,'utf8').replace('## [unreleased] — feat: alpha',`## [unreleased] — feat: slug ${number} (${slug})\n\n- slug note ${number}\n\n## [unreleased] — feat: alpha`));
+ f.git('add','.');f.git('commit','-qm',`feat: shipped ${number} (CHANGE-${number}) (#${number})`);f.git('push','-q','origin','main');
+const t=f.transport();t.prs.push({number,body:'',files:[{path:file},{path:'CHANGELOG.md'}],headRefName:'slug-'+number});t.notes=`## [v1] — feat: slug ${number} (${slug})\n\n- slug note ${number}\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta`;fs.writeFileSync(f.state,JSON.stringify(t));
+}
+check('TEST-030',()=>{
+ const f=fixture();slugNoted(f,310,'slug-cited-ride');
+ const dry=spawnSync('bash',[sh,'--version','v1','--dry-run'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(dry.status,0,dry.stderr);assert.ok(!dry.stdout.includes('NAMED'),'preview named a PR whose own diff added rolled notes: '+dry.stdout);
+ const r=f.invoke();assert.equal(r.status,0,'slug-cited rolled notes (no #N, no squash title) falsely refused: '+r.stdout+r.stderr);
+ const gone=fixture();slugNoted(gone,311,'slug-dropped');const log=path.join(gone.repo,'CHANGELOG.md');fs.writeFileSync(log,fs.readFileSync(log,'utf8').replace(/## \[unreleased\] — feat: slug 311 \(slug-dropped\)\n\n- slug note 311\n\n/,''));gone.git('add','.');gone.git('commit','-qm','chore: drop entry');gone.git('push','-q','origin','main');
+ const m=gone.invoke();assert.equal(m.status,20,'notes absent from the rollup must still refuse: '+m.stdout+m.stderr);assert.match(m.stderr,/missing-notes.*#311/);
+});
+check('TEST-031',()=>{
+ const f=fixture();historical(f,299,'.aai/scripts/shipped-before.mjs');f.git('tag','1.0.0');f.git('push','-q','origin','refs/tags/1.0.0');
+ const r=f.invoke();assert.equal(r.status,0,'release tagged without a v prefix was ignored as the audit boundary: '+r.stdout+r.stderr);
+});
+check('TEST-032',()=>{
+ const f=fixture();f.git('tag','v1-blob',f.git('rev-parse','HEAD:CHANGELOG.md'));f.git('push','-q','origin','refs/tags/v1-blob');
+ const r=f.invoke();assert.equal(r.status,0,'release-shaped tag naming a non-commit refused an otherwise clean release: '+r.stdout+r.stderr);
 });
 check('TEST-025',()=>{
  const f=fixture();const base=f.git('rev-parse','main');const foreign=f.git('commit-tree',f.git('rev-parse','HEAD^{tree}'),'-p',base,'-m','concurrent foreign base move');f.git('branch','feature',foreign);
