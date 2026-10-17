@@ -107,6 +107,7 @@ function stage(name){record.stage=name;atomicSave();console.log(`release: ${name
 function remoteHead(ref){return git('ls-remote','origin',ref).split(/\s/)[0]||'';}
 function trim(s){return s.replace(/\r\n/g,'\n').trim();}
 function rollup(source) {
+ const bom=source.startsWith('\uFEFF')?'\uFEFF':'';if(bom)source=source.slice(1);
  const newline=source.endsWith('\n');const lines=source.split('\n');if(newline)lines.pop();
  const first=lines.findIndex(l=>/^## \[/.test(l));if(first<0)refuse('empty-notes','No rollable entries');
  const cr=lines[first].endsWith('\r')?'\r':'';
@@ -122,7 +123,7 @@ function rollup(source) {
  if(!sections.some(s=>s.entry))refuse('empty-notes','No rollable entries');
  const notes=sections.filter(s=>s.entry).flatMap(s=>s.text).map(l=>l.replace(/\r$/,'')).join('\n').trim();
  const ordered=[...sections.filter(s=>s.entry),...sections.filter(s=>!s.entry)];
- return {content:[...lines.slice(0,first),'## [unreleased]'+cr,''+cr,...ordered.flatMap(s=>s.text)].join('\n')+(newline?'\n':''),notes};
+ return {content:bom+[...lines.slice(0,first),'## [unreleased]'+cr,''+cr,...ordered.flatMap(s=>s.text)].join('\n')+(newline?'\n':''),notes};
 }
 function historyBoundary(head,online){
  if(git('rev-parse','--is-shallow-repository')!=='false')refuse('notes-history','Complete release history is required; obtain full history before retrying');

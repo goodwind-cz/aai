@@ -3,7 +3,7 @@ id: spec-release-changelog-eol
 type: spec
 number: null
 status: implementing
-frozen_sha256: 8c1f0afc5ebb8d5449ca24aa77fd2c4e4ffd36e63a769c9ada771a5016315188
+frozen_sha256: 059b0293e0844c0ebd289a120bdf9b3fbbc73b2947f5c12f7aa9bc77cd1c1a99
 mutation_gate: v1
 ceremony_level: 2
 capability: release-command-finish
@@ -101,9 +101,9 @@ Operator recovery out of scope: release PR #473 (v2026.10.17.2) already has a PR
 - SPEC-0233 regression: TEST-011 (resume from every stage) and TEST-021 (SIGKILL resume) must still pass, which proves the fixed engine's own journals pass the re-derivation.
 - Residual risk (no automated test crosses it): the live GitHub release workflow publishing from the rolled file; the first `/aai-release --confirm` after merge is the live proof.
 
-Registry items closed by this scope: none.
-
 Registry items with the same capability left open (different subjects, not touched): fu-release-notes-heading-multiset, fu-aai-update-guard-test-isolation, fu-release-required-contexts-unreported.
+
+Registry items closed by this scope: none.
 
 Hash pins: none. A repo-wide search for the sha256 prefix of release-finish.mjs (5b7cdfea6d615ec2) found no pin. tests/skills/test-aai-learned-routing.sh copies the engine into fixtures and must stay green.
 

@@ -1739,7 +1739,7 @@ check('TEST-066',()=>{
 // never through the trimming run() helper.
 const EOL_BASE='# Changelog\n\n## [unreleased] — feat: alpha (#101)\n\n- alpha\n\n## [unreleased] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n';
 const EOL_WANT='# Changelog\n\n## [unreleased]\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n';
-const BOM='﻿', crlf=x=>x.replace(/\n/g,'\r\n'), noFinal=x=>x.slice(0,-1);
+const BOM='\uFEFF', crlf=x=>x.replace(/\n/g,'\r\n'), noFinal=x=>x.slice(0,-1);
 function blobBuf(f,spec){const r=spawnSync('git',['cat-file','blob',spec],{cwd:f.repo});assert.equal(r.status,0,String(r.stderr));return r.stdout;}
 function stopAt(f,step){const r=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:step},encoding:'utf8'});assert.notEqual(r.status,0,step);assert.match(r.stderr,/interrupted/,r.stderr);return r;}
 function journalOf(f){const dir=path.join(f.repo,'.git/aai/releases'),file=path.join(dir,fs.readdirSync(dir).find(n=>n.endsWith('.json')));return {file,data:JSON.parse(fs.readFileSync(file,'utf8'))};}
@@ -1748,7 +1748,10 @@ function preparedBytes(base){const f=fixture('',base);stopAt(f,'prepared');retur
 function bytesEqual(got,want){assert.ok(Buffer.from(want).equals(got),'first differing offset '+firstDiff(got,Buffer.from(want))+' got '+JSON.stringify(got.toString('utf8')));}
 const creates=f=>f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='create').length;
 check('TEST-067',()=>{const {got}=preparedBytes(null);bytesEqual(got,EOL_WANT);assert.equal(got[got.length-1],0x0a);});
-check('TEST-068',()=>{const {got}=preparedBytes(noFinal(BOM+EOL_BASE));const want=noFinal(BOM+EOL_WANT);bytesEqual(got,want);assert.deepEqual([...got.subarray(0,3)],[0xEF,0xBB,0xBF]);assert.notEqual(got[got.length-1],0x0a);});
+check('TEST-068',()=>{const {got}=preparedBytes(noFinal(BOM+EOL_BASE));const want=noFinal(BOM+EOL_WANT);bytesEqual(got,want);assert.deepEqual([...got.subarray(0,3)],[0xEF,0xBB,0xBF]);assert.notEqual(got[got.length-1],0x0a);
+ const heading='## [unreleased] \u2014 feat: alpha (#101)\n\n- alpha\n\n## [v0] \u2014 old\n- old\n';
+ const headWant='## [unreleased]\n\n## [v1] \u2014 feat: alpha (#101)\n\n- alpha\n\n## [v0] \u2014 old\n- old\n';
+ bytesEqual(preparedBytes(BOM+heading).got,BOM+headWant);});
 check('TEST-069',()=>{const {got}=preparedBytes(crlf(EOL_BASE));bytesEqual(got,crlf(EOL_WANT));for(let i=0;i<got.length;i++)if(got[i]===0x0a)assert.equal(got[i-1],0x0d,'bare LF at '+i);});
 check('TEST-070',()=>{
  for(const [name,variant] of [['final-newline',c=>c.endsWith('\n')?c.slice(0,-1):c+'\n'],['crlf',c=>crlf(c)]]) {
@@ -1997,7 +2000,7 @@ test_715_resume_refuses_stale_journal() {
 
 test_716_rolled_file_passes_released_region_guard() {
   local out line n repo verdict seen=0
-  out="$(RELEASE_FINISH_CASE=TEST-072 test_700_one_command_finish)"
+  out="$(RELEASE_FINISH_CASE=TEST-072 test_700_one_command_finish 2>&1)" || { printf '%s\n' "$out" >&2; log_fail "TEST-072: fixture run failed"; return 0; }
   while IFS= read -r line; do
     case "$line" in
       "T072REPO "*)
