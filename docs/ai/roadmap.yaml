@@ -68,7 +68,7 @@ pairs:
     status: done
   - capability: release-notes-gate
     status: done
-  - capability: release-finish-one-command
+  - capability: release-command-finish
     status: planned
   - capability: git-platform-detected-at-bootstrap
     status: done

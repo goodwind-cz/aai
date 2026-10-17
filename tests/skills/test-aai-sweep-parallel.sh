@@ -1021,7 +1021,9 @@ test_416_heartbeat_pulses_while_the_sweep_runs() {
   local slot="$d/.git/aai/heartbeat/hb-sweep__Sweep.json"
   out_file="$(mktemp "${TMPDIR:-/tmp}/aai-sweep-parallel-out.XXXXXX")" || { log_fail "TEST-416: mktemp failed"; return; }
 
-  ( cd "$d" && AAI_TEST_PARALLEL="$width" bash "$d/tests/skills/test-framework.sh" ) >"$out_file" 2>&1 &
+  # The inner fixture asks for the generic sweep slot, independently of the
+  # dispatch ref inherited from its caller. The real heartbeat assertions stay.
+  ( cd "$d" && AAI_TEST_REF_ID=sweep AAI_TEST_PARALLEL="$width" bash "$d/tests/skills/test-framework.sh" ) >"$out_file" 2>&1 &
   bg_pid=$!
 
   local seen_ns="" msg n before_end_updated

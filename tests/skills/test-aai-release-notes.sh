@@ -113,15 +113,12 @@ if (typeof isShipped !== "function" || typeof hasNoNotesReason !== "function") p
 if (!isShipped(".aai/x", "") || !isShipped("tool", "100755") || isShipped("README.md", "100644")) process.exit(2);
 if (!hasNoNotesReason("no-notes: because\n") || hasNoNotesReason("no-notes:   \n")) process.exit(3);
 ' && echo 'TEST-004 PASS exports' || { echo 'TEST-004 FAIL exports'; FAILURES=$((FAILURES + 1)); }
-if [ -e "$ROOT/.aai/scripts/release-finish.mjs" ]; then
-  echo 'TEST-004 FAIL finish module present'; FAILURES=$((FAILURES + 1))
+# SPEC-0229's notes-only absence assertions ended with its original ride.
+# Finish composition is now checked in release TEST-015; retain this live gate pin.
+if grep -q '  - .aai/scripts/release-notes-gate.mjs' "$ROOT/.aai/system/PROFILES.yaml"; then
+  echo 'TEST-004 PASS gate profile'
 else
-  echo 'TEST-004 PASS finish module absent'
-fi
-if grep -q 'release-notes-gate.mjs' "$ROOT/.aai/system/PROFILES.yaml" && ! grep -q 'release-finish.mjs' "$ROOT/.aai/system/PROFILES.yaml"; then
-  echo 'TEST-004 PASS profiles'
-else
-  echo 'TEST-004 FAIL profiles'; FAILURES=$((FAILURES + 1))
+  echo 'TEST-004 FAIL gate profile'; FAILURES=$((FAILURES + 1))
 fi
 # A later base commit is not part of the pull request. Two-dot diff would
 # treat that base-only shipped edit as a reverse change, and a base-deleted

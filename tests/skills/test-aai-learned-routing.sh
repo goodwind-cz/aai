@@ -72,6 +72,9 @@ test_002_release_names_unlogged_pr() {
   local d="$TEST_DIR/rel"; mkrepo "$d"
   mkdir -p "$d/.aai/scripts"
   cp "$RELEASE" "$d/.aai/scripts/aai-release.sh"
+  cp "$PROJECT_ROOT/.aai/scripts/release-finish.mjs" "$PROJECT_ROOT/.aai/scripts/release-notes-gate.mjs" "$d/.aai/scripts/"
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$d/.aai/scripts/lib/"
   # The second section is the DISCRIMINATOR for the two-token subject below.
   # It carries the TRUNCATED body text (`fix(z): a`) and NOT the number, so a
   # parser that cuts the body at the FIRST `(#` finds a match here and calls
@@ -81,16 +84,16 @@ test_002_release_names_unlogged_pr() {
   git -C "$d" add -A >/dev/null && git -C "$d" commit -qm "base"
   git -C "$d" tag -a v0.0.1 -m v0.0.1
   # two merged PRs after the tag; only #101 has a section
-  printf 'a\n' > "$d/a.txt"; git -C "$d" add a.txt; git -C "$d" commit -qm "feat(x): the logged one (#101)"
-  printf 'b\n' > "$d/b.txt"; git -C "$d" add b.txt; git -C "$d" commit -qm "feat(y): the FORGOTTEN one (#102)"
+  printf 'a\n' > "$d/.aai/scripts/a.mjs"; git -C "$d" add .aai/scripts/a.mjs; git -C "$d" commit -qm "feat(x): the logged one (#101)"
+  printf 'b\n' > "$d/.aai/scripts/b.mjs"; git -C "$d" add .aai/scripts/b.mjs; git -C "$d" commit -qm "feat(y): the FORGOTTEN one (#102)"
   # A PR merged with GitHub's merge-commit strategy carries its number in a
   # different shape and used to be skipped in silence, while this block promised
   # to name EVERY merged PR since the tag (bot review, PR #349).
-  printf 'c\n' > "$d/c.txt"; git -C "$d" add c.txt
+  printf 'c\n' > "$d/.aai/scripts/c.mjs"; git -C "$d" add .aai/scripts/c.mjs
   git -C "$d" commit -qm "Merge pull request #103 from goodwind-cz/some-branch"
   # a subject carrying two PR tokens must be matched on the LAST one, with the
   # body taken from before that same token — not truncated at the first
-  printf 'e\n' > "$d/e.txt"; git -C "$d" add e.txt
+  printf 'e\n' > "$d/.aai/scripts/e.mjs"; git -C "$d" add .aai/scripts/e.mjs
   git -C "$d" commit -qm "fix(z): a (#12) thing (#104)"
   local out; out="$(cd "$d" && AAI_RELEASE_NO_REMOTE=1 bash .aai/scripts/aai-release.sh --dry-run 2>&1)"
   printf '%s' "$out" > "$TEST_DIR/rel.out"

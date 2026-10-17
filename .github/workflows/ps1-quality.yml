@@ -70,6 +70,10 @@ on:
       - '.aai/scripts/**.ps1'
       - '.aai/scripts/worktree-seed.mjs'
       - '.aai/scripts/merge-cleanup.mjs'
+      - '.aai/scripts/release-finish.mjs'
+      - '.aai/scripts/release-notes-gate.mjs'
+      - '.aai/scripts/aai-release.sh'
+      - 'tests/skills/test-aai-release.sh'
       - '.aai/SKILL_MERGE.prompt.md'
       - '.aai/SKILL_WORKTREE.prompt.md'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
@@ -85,6 +89,10 @@ on:
       - '.aai/scripts/**.ps1'
       - '.aai/scripts/worktree-seed.mjs'
       - '.aai/scripts/merge-cleanup.mjs'
+      - '.aai/scripts/release-finish.mjs'
+      - '.aai/scripts/release-notes-gate.mjs'
+      - '.aai/scripts/aai-release.sh'
+      - 'tests/skills/test-aai-release.sh'
       - '.aai/SKILL_MERGE.prompt.md'
       - '.aai/SKILL_WORKTREE.prompt.md'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
@@ -159,6 +167,26 @@ jobs:
             exit 0
           fi
           exit "$rc"
+
+      - name: Release PowerShell native capture - 20 Linux repetitions (TEST-014)
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v pwsh
+          completed=0
+          for repetition in $(seq 1 20); do
+            output="$RUNNER_TEMP/release-test-033-$repetition.log"
+            bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release.sh test_033_ps1_fallback_parity > "$output" 2>&1
+            cat "$output"
+            if grep -q 'SKIP' "$output"; then
+              echo "::error::TEST-014 repetition $repetition skipped"
+              exit 1
+            fi
+            grep -q 'PASS: TEST-033' "$output"
+            completed=$((completed + 1))
+          done
+          test "$completed" -eq 20
+          echo "PASS TEST-014 completed=20 skips=0 Linux pwsh"
 
   windows-5_1:
     name: parse-check + functional sync smoke + full Pester suite (both engines)

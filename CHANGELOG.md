@@ -22,6 +22,13 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(release): finish a confirmed release with safe resume
+
+- Confirmation audits the authoritative remote base before preparing its bound release PR, waits for required checks, merges that head, and verifies CI publication of every rolled notes section before leased cleanup and safe base synchronization.
+- A durable version-specific journal resumes missing steps while identity or observed base changes refuse conservatively. The final base observation and GitHub merge still have an external race; offline cuts and repositories without the publication workflow keep their explicit compatibility skips.
+- Native output must contain the required SHA or URL before reuse. Hosted Linux repetition and real Windows runtime proof remain pending for this scope.
+- Traceability: release-command-finish / spec-release-command-finish.
+
 ## [v2026.10.17] — feat(platform): bootstrap records the git platform and /aai-merge works on Azure DevOps (git-platform-detected-at-bootstrap)
 
 - `aai-bootstrap` records `platform: github|azure|unknown|none` in `docs/ai/pr-config.yaml` (via the new `.aai/scripts/platform.mjs record`) and reports whether the host's CLI is signed in. An existing value is never overwritten silently; `record --force` replaces it.

@@ -1038,6 +1038,23 @@ Describe 'aai-release.ps1' {
         }
     }
 
+    Context 'TEST-013 release-one-command required captures' {
+        It 'refuses an empty required SHA or PR URL before binding' {
+            { Select-CapturedValue -Captured @() -Pattern '^[0-9a-f]{40}$' -Name 'release-sha' } | Should -Throw '*REFUSED: empty-native-output*release-sha*'
+            { Select-CapturedValue -Captured @('progress') -Pattern '^https://github\.com/.+/pull/[0-9]+$' -Name 'pr-url' } | Should -Throw '*REFUSED: empty-native-output*pr-url*'
+        }
+        It 'refuses actual empty native stdout before SHA or URL reuse' {
+            $captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', 'exit 0')
+            { Select-CapturedValue -Captured $captured -Pattern '^[0-9a-f]{40}$' -Name 'native-sha' } | Should -Throw '*REFUSED: empty-native-output*native-sha*'
+            { Select-CapturedValue -Captured $captured -Pattern '^https://github\.com/.+/pull/[0-9]+$' -Name 'native-url' } | Should -Throw '*REFUSED: empty-native-output*native-url*'
+        }
+        It 'returns normal native SHA and URL lines with benign stderr' {
+            $captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::Error.WriteLine('benign progress'); [Console]::WriteLine('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'); [Console]::WriteLine('https://github.com/test/release/pull/1')")
+            Select-CapturedValue -Captured $captured -Pattern '^[0-9a-f]{40}$' -Name 'native-sha' | Should -Be 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+            Select-CapturedValue -Captured $captured -Pattern '^https://github\.com/.+/pull/[0-9]+$' -Name 'native-url' | Should -Be 'https://github.com/test/release/pull/1'
+        }
+    }
+
     Context 'TEST-004 (Spec-AC-02): every cut-path native call is routed through the helper; probes untouched' {
         It 'no bare git -C $Root push/add/commit/tag statement remains' {
             $content = Get-Content -Raw $script:ReleaseScript
@@ -1071,21 +1088,14 @@ Describe 'aai-release.ps1' {
             $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'rev-parse',\s*'--short',\s*\`$releaseSha\)"
         }
 
-        It 'every git push is invoked through Invoke-NativeChecked (release branch)' {
+        It 'remote confirm delegates to shared checked finish before local preparation' {
             $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'push',\s*'--no-follow-tags',\s*'origin',\s*\`$releaseBranch\)"
+            $content | Should -Match 'if \(\$Confirm -and -not \$NoRemote\)'
+            $content | Should -Match 'Join-Path \$PSScriptRoot ''release-finish.mjs'''
+            $finish = Get-Content -Raw (Join-Path $RepoRoot '.aai/scripts/release-finish.mjs')
+            $finish | Should -Match "'--match-head-commit',record.head"
         }
 
-        It 'gh pr create is invoked through Invoke-NativeChecked' {
-            $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'gh'\s+-Arguments\s+@\('pr',\s*'create'"
-        }
-
-        It 'the tolerant probes (rev-parse -q --verify, gh auth status) keep their existing *> $null handling' {
-            $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match 'rev-parse\s+-q\s+--verify\s+"refs/tags/\$Version"\s+\*>\s+\$null'
-            $content | Should -Match 'gh\s+auth\s+status\s+\*>\s+\$null'
-        }
     }
 
     Context 'TEST-006 (Spec-AC-03): dot-source guard — defines the helper WITHOUT running a release' {
