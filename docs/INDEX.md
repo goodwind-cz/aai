@@ -6,11 +6,12 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (1)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
+| spec-release-checks-registration-grace | specs | implementing | 6 planned | docs/specs/SPEC-DRAFT-release-checks-registration-grace.md |
 
 ## Canonical layer (0)
 
