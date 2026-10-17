@@ -138,8 +138,12 @@ function addedRolledNotes(commit,parents,notes){
  const patch=command('git',parents.length>1?['diff','--no-ext-diff','--no-textconv','--no-renames','--ignore-space-at-eol','--unified=0',...range,'--','CHANGELOG.md']:['diff-tree','-p','--root','--no-commit-id','--no-ext-diff','--no-textconv','--no-renames','--ignore-space-at-eol','--unified=0',commit,'--','CHANGELOG.md']).stdout;
  const content=command('git',['show',`${commit}:CHANGELOG.md`],root,true);
  if(content.status!==0||!hasAddedNotes(content.stdout,patch))return false;
- const rolled=new Set(notes.split('\n').map(l=>l.trimEnd()));
- return patch.split('\n').some(l=>/^\+(?!\+\+)/.test(l)&&l.slice(1).trim()&&rolled.has(l.slice(1).trimEnd().replace('## [unreleased]',`## [${version}]`)));
+ // The PR's own added entry heading, rewritten to this version, must survive as a rolled heading.
+ // Preview audits (--audit) run without --version and compare headings regardless of the version bracket.
+ const norm=l=>l.trim().replace(/\s+/g,' ');
+ const key=l=>version?norm(l):norm(l).replace(/^## \[[^\]]*\]/,'##');
+ const rolled=new Set(notes.split('\n').filter(l=>/^## /.test(l)).map(key));
+ return patch.split('\n').some(l=>/^\+## \[unreleased\] — \S/.test(l)&&rolled.has(key(l.slice(1).replace('## [unreleased]',`## [${version}]`))));
 }
 function audit(notes,online,head) {
  const history=historyBoundary(head,online);

@@ -1646,6 +1646,34 @@ check('TEST-030',()=>{
  const gone=fixture();slugNoted(gone,311,'slug-dropped');const log=path.join(gone.repo,'CHANGELOG.md');fs.writeFileSync(log,fs.readFileSync(log,'utf8').replace(/## \[unreleased\] — feat: slug 311 \(slug-dropped\)\n\n- slug note 311\n\n/,''));gone.git('add','.');gone.git('commit','-qm','chore: drop entry');gone.git('push','-q','origin','main');
  const m=gone.invoke();assert.equal(m.status,20,'notes absent from the rollup must still refuse: '+m.stdout+m.stderr);assert.match(m.stderr,/missing-notes.*#311/);
 });
+function probeCommit(f,number,mutateLog){
+ const file='.aai/scripts/probe-'+number+'.mjs';fs.mkdirSync(path.join(f.repo,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(f.repo,file),'probe '+number+'\n');
+ const log=path.join(f.repo,'CHANGELOG.md');if(mutateLog)fs.writeFileSync(log,mutateLog(fs.readFileSync(log,'utf8')));
+ f.git('add','.');f.git('commit','-qm',`feat: probe ${number} (CHANGE-${number}) (#${number})`);f.git('push','-q','origin','main');
+ const t=f.transport();t.prs.push({number,body:'',files:[{path:file},{path:'CHANGELOG.md'}],headRefName:'probe-'+number});fs.writeFileSync(f.state,JSON.stringify(t));
+}
+function plainLog(f,mutateLog,msg){const log=path.join(f.repo,'CHANGELOG.md');fs.writeFileSync(log,mutateLog(fs.readFileSync(log,'utf8')));f.git('add','.');f.git('commit','-qm',msg);f.git('push','-q','origin','main');}
+function refusesMissing(f,n,label){const r=f.invoke();assert.equal(r.status,20,label+': '+r.stdout+r.stderr);assert.match(r.stderr,new RegExp('missing-notes.*#'+n));assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);}
+const topOf=(s,add)=>s.replace('## [unreleased] — feat: alpha',add+'## [unreleased] — feat: alpha');
+// V5-1: a coincident non-heading line (### Added, a generic bullet) elsewhere in the rollup must not stand in for the PR's own dropped entry.
+check('TEST-041',()=>{
+ const f=fixture();plainLog(f,s=>s.replace('- beta\n','### Added\n\n- beta\n'),'docs: keep-a-changelog subsection in beta');
+ probeCommit(f,328,s=>topOf(s,'## [unreleased] — feat: s328 (slug-s)\n\n### Added\n\n- unique feature 328\n\n'));
+ plainLog(f,s=>s.replace('## [unreleased] — feat: s328 (slug-s)\n\n### Added\n\n- unique feature 328\n\n',''),'chore: drop entry');
+ refusesMissing(f,328,'own entry dropped, only a ### Added subheading coincides');
+});
+check('TEST-042',()=>{
+ const f=fixture();plainLog(f,s=>s.replace('- beta\n','- beta\n- Documentation updated.\n'),'docs: generic line in beta');
+ probeCommit(f,324,s=>topOf(s,'## [unreleased] — feat: c324 (slug-c)\n\n- Documentation updated.\n\n'));
+ plainLog(f,s=>s.replace('## [unreleased] — feat: c324 (slug-c)\n\n- Documentation updated.\n\n',''),'chore: drop entry');
+ refusesMissing(f,324,'own entry dropped, generic bullet duplicated in another entry');
+});
+// Guards hasAddedNotes: the heading survives in the rollup, but the PR's own diff added only the heading (body arrived later).
+check('TEST-043',()=>{
+ const f=fixture();probeCommit(f,322,s=>topOf(s,'## [unreleased] — feat: h322 (slug-h)\n\n'));
+ plainLog(f,s=>s.replace('## [unreleased] — feat: h322 (slug-h)\n\n','## [unreleased] — feat: h322 (slug-h)\n\n- body added later by someone else\n\n'),'docs: fill body');
+ refusesMissing(f,322,'heading-only own diff must not count as added notes');
+});
 check('TEST-031',()=>{
  const f=fixture();historical(f,299,'.aai/scripts/shipped-before.mjs');f.git('tag','1.0.0');f.git('push','-q','origin','refs/tags/1.0.0');
  const r=f.invoke();assert.equal(r.status,0,'release tagged without a v prefix was ignored as the audit boundary: '+r.stdout+r.stderr);
