@@ -22,6 +22,12 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(release): roll the CHANGELOG byte-exactly and resume only on exact bytes
+
+- The release finish read the base CHANGELOG through a trimming helper, so a rolled file lost its final newline, a leading BOM and its CRLF line endings, which failed the CI released-region guard (EOF state differs) on the release PR. The base is now read as exact bytes: the rollup keeps the BOM, each line's own ending and the presence or absence of the final newline, and the inserted scaffold lines follow the first heading's line ending.
+- Resume now adopts a prepared release branch only when its CHANGELOG blob equals the journal content byte for byte, and refuses (`identity`) a journal without a PR whose content differs from the rollup of the exact base blob at its recorded base, so a journal written by the earlier engine is not resumed.
+- Traceability: release-changelog-eol / spec-release-changelog-eol.
+
 ## [unreleased] — fix(release): wait a bounded grace for required checks to register
 
 - The release finish re-reads required checks before the empty refusal for `AAI_RELEASE_CHECKS_GRACE_SECONDS` (default 60), so the first `/aai-release --confirm` no longer refuses when GitHub has not registered checks yet; it recognizes an empty list and gh's exit-1 "no (required) checks reported" shape, and still refuses `required-checks` after the grace. Failed or skipped checks refuse at once and the post-watch read stays strict.

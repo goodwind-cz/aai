@@ -1393,13 +1393,13 @@ const sh=path.join(root,'.aai/scripts/aai-release.sh');
 const ps=path.join(root,'.aai/scripts/aai-release.ps1');
 let sequence=0;
 function run(cmd,args,cwd,env={}) { const r=spawnSync(cmd,args,{cwd,env:{...process.env,...env},encoding:'utf8'}); if(r.status!==0) throw Error(`${cmd} ${args.join(' ')}: ${r.status} ${r.stderr}`); return r.stdout.trim(); }
-function fixture(mode='') {
+function fixture(mode='',baseChangelog=null) {
  const d=fs.mkdtempSync(path.join(tmp,'finish-')); const repo=path.join(d,'repo'), origin=path.join(d,'origin.git'), bin=path.join(d,'bin'); fs.mkdirSync(bin);
  run('git',['init','--bare','-q',origin],d); run('git',['init','-q','-b','main',repo],d);
  const git=(...args)=>run('git',args,repo);
  git('config','user.name','Release Test');git('config','user.email','release@test.invalid');
  git('config',`url.file://${origin}.insteadOf`,'https://github.com/test/release.git');git('remote','add','origin','https://github.com/test/release.git');
- fs.writeFileSync(path.join(repo,'CHANGELOG.md'),'# Changelog\n\n## [unreleased] — feat: alpha (#101)\n\n- alpha\n\n## [unreleased] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n');
+ fs.writeFileSync(path.join(repo,'CHANGELOG.md'),baseChangelog??'# Changelog\n\n## [unreleased] — feat: alpha (#101)\n\n- alpha\n\n## [unreleased] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n');
  fs.mkdirSync(path.join(repo,'.github/workflows'),{recursive:true}); const workflow=fs.readFileSync(path.join(root,'.github/workflows/release.yml'),'utf8');fs.writeFileSync(path.join(repo,'.github/workflows/release.yml'),workflow);
  const shell=workflow.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');fs.writeFileSync(path.join(d,'publish.sh'),shell);
  fs.writeFileSync(path.join(repo,'keep.txt'),'keep\n');git('add','.');git('commit','-qm','seed');git('tag','v0');git('push','-q','origin','main','--tags');
@@ -1539,7 +1539,7 @@ function remoteCommit(f,number,file,body='') {
  return run('git',['rev-parse','HEAD'],clone);
 }
 const selected=process.env.RELEASE_FINISH_CASE||'all';
-const ownSelector=/^TEST-06[0-6]$/;
+const ownSelector=/^TEST-(06[0-6]|067|068|069|07[0-2])$/;
 function check(id,fn){if(selected!=='all'&&selected!==id)return;if(selected==='all'&&ownSelector.test(id))return;try{fn();}catch(e){console.log('FAIL: '+id+' release-command-finish: '+String(e.message).split('\n')[0]);throw e;}console.log('PASS: '+id+' release-command-finish');}
 check('TEST-004',()=>{const f=fixture();historical(f,201,'CHANGELOG.md');historical(f,202,'docs/ai/AAI_VERSION.md');historical(f,203,'.aai/scripts/exempt.mjs','no-notes: internal refactor');historical(f,101,'.aai/scripts/noted.mjs');const r=spawnSync('bash',[sh,'--version','v1','--dry-run'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.ok(!r.stdout.includes('NAMED'),r.stdout);});
 check('TEST-005',()=>{const f=fixture();historical(f,205,'.aai/scripts/missing.mjs');const refs=f.git('show-ref'),bytes=fs.readFileSync(path.join(f.repo,'CHANGELOG.md'));for(const args of [[],['--dry-run'],['--dry-run','--confirm']]){const r=spawnSync('bash',[sh,'--version','v1',...args],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.match(r.stdout,/NAMED/);assert.equal(f.git('show-ref'),refs);assert.deepEqual(fs.readFileSync(path.join(f.repo,'CHANGELOG.md')),bytes);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);}const r=f.invoke();assert.notEqual(r.status,0);assert.match(r.stderr,/REFUSED: missing-notes/);assert.equal(f.git('show-ref'),refs);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
@@ -1734,6 +1734,45 @@ check('TEST-066',()=>{
  const line=product.split('\n').find(l=>l.startsWith('- Wait limits:'));assert.ok(line,'wait limits line');
  assert.match(line,/AAI_RELEASE_CHECKS_GRACE_SECONDS[^;.]*60/);
  assert.ok(!product.includes('fu-release-checks-registration-grace'));
+});
+// Byte-exact CHANGELOG rollup (SPEC release-changelog-eol). Blobs are read as Buffers,
+// never through the trimming run() helper.
+const EOL_BASE='# Changelog\n\n## [unreleased] — feat: alpha (#101)\n\n- alpha\n\n## [unreleased] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n';
+const EOL_WANT='# Changelog\n\n## [unreleased]\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n';
+const BOM='﻿', crlf=x=>x.replace(/\n/g,'\r\n'), noFinal=x=>x.slice(0,-1);
+function blobBuf(f,spec){const r=spawnSync('git',['cat-file','blob',spec],{cwd:f.repo});assert.equal(r.status,0,String(r.stderr));return r.stdout;}
+function stopAt(f,step){const r=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:step},encoding:'utf8'});assert.notEqual(r.status,0,step);assert.match(r.stderr,/interrupted/,r.stderr);return r;}
+function journalOf(f){const dir=path.join(f.repo,'.git/aai/releases'),file=path.join(dir,fs.readdirSync(dir).find(n=>n.endsWith('.json')));return {file,data:JSON.parse(fs.readFileSync(file,'utf8'))};}
+function firstDiff(a,b){let i=0;while(i<a.length&&i<b.length&&a[i]===b[i])i++;return i;}
+function preparedBytes(base){const f=fixture('',base);stopAt(f,'prepared');return {f,got:blobBuf(f,'chore/release-v1:CHANGELOG.md')};}
+function bytesEqual(got,want){assert.ok(Buffer.from(want).equals(got),'first differing offset '+firstDiff(got,Buffer.from(want))+' got '+JSON.stringify(got.toString('utf8')));}
+const creates=f=>f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='create').length;
+check('TEST-067',()=>{const {got}=preparedBytes(null);bytesEqual(got,EOL_WANT);assert.equal(got[got.length-1],0x0a);});
+check('TEST-068',()=>{const {got}=preparedBytes(noFinal(BOM+EOL_BASE));const want=noFinal(BOM+EOL_WANT);bytesEqual(got,want);assert.deepEqual([...got.subarray(0,3)],[0xEF,0xBB,0xBF]);assert.notEqual(got[got.length-1],0x0a);});
+check('TEST-069',()=>{const {got}=preparedBytes(crlf(EOL_BASE));bytesEqual(got,crlf(EOL_WANT));for(let i=0;i<got.length;i++)if(got[i]===0x0a)assert.equal(got[i-1],0x0d,'bare LF at '+i);});
+check('TEST-070',()=>{
+ for(const [name,variant] of [['final-newline',c=>c.endsWith('\n')?c.slice(0,-1):c+'\n'],['crlf',c=>crlf(c)]]) {
+  const f=fixture();stopAt(f,'payload');const j=journalOf(f).data;
+  fs.writeFileSync(path.join(j.worktree,'CHANGELOG.md'),variant(j.content));
+  run('git',['add','--','CHANGELOG.md','docs/ai/AAI_VERSION.md'],j.worktree);run('git',['commit','-qm','chore(release): v1'],j.worktree);
+  const r=f.invoke();assert.notEqual(r.status,0,name+r.stdout+r.stderr);assert.equal(refusals(r),1,name+r.stderr);assert.match(r.stderr,/REFUSED: identity/,name);assert.match(r.stderr,/Unbound prepared release branch/,name);assert.equal(creates(f),0,name);
+ }
+ const f=fixture();stopAt(f,'payload');const j=journalOf(f).data;
+ fs.writeFileSync(path.join(j.worktree,'CHANGELOG.md'),j.content);
+ run('git',['add','--','CHANGELOG.md','docs/ai/AAI_VERSION.md'],j.worktree);run('git',['commit','-qm','chore(release): v1'],j.worktree);
+ const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);assert.equal(f.transport().prs.length,1);assert.equal(merges(f.transport()),1);
+});
+check('TEST-071',()=>{
+ const f=fixture();stopAt(f,'worktree');const {file,data}=journalOf(f);
+ data.content=data.content.endsWith('\n')?data.content.slice(0,-1):data.content+'\n';fs.writeFileSync(file,JSON.stringify(data));
+ const r=f.invoke();assert.notEqual(r.status,0,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: identity/);assert.match(r.stderr,/Journal content differs from the base rollup/);
+ assert.equal(creates(f),0);assert.equal(f.git('ls-remote','origin','refs/heads/chore/release-v1'),'');
+});
+check('TEST-072',()=>{
+ for(const [n,base] of [['nl',null],['nonl',noFinal(EOL_BASE)]]) {
+  const f=fixture('',base);stopAt(f,'prepared');f.git('checkout','--detach','-q','chore/release-v1');
+  console.log('T072REPO '+n+' '+f.repo);
+ }
 });
 check('TEST-010',()=>{for(const mode of ['ci','missing-checks','checks-error','pending-empty','pending-malformed','pending-forever','head','workflow','notes','tag','cleanup-head','lease-race','dependent','gh']){const f=fixture(mode),r=f.invoke();assert.notEqual(r.status,0,mode);assert.equal((r.stderr.match(/REFUSED:/g)||[]).length,1,r.stderr);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);const t=f.transport();if(['ci','missing-checks','checks-error','pending-empty','pending-malformed','pending-forever','head','gh'].includes(mode))assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);if(mode==='head'){assert.ok(t.prs[0],r.stdout+r.stderr);assert.equal(t.prs[0].state,'OPEN');assert.ok(t.movedHead);assert.match(r.stderr,/head-moved/);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1').split(/\s/)[0],t.prs[0].headRefOid);}if(['workflow','notes','tag','cleanup-head','lease-race','dependent'].includes(mode))assert.ok(f.git('ls-remote','origin','refs/heads/chore/release-v1'));if(mode==='dependent'){assert.match(r.stderr,/dependent-pr/);assert.ok(f.git('branch','--list','chore/release-v1'));}if(mode==='tag')assert.match(r.stderr,/tag-mismatch/);if(mode==='cleanup-head')assert.match(r.stderr,/cleanup-head-moved/);if(mode==='lease-race'){assert.match(r.stderr,/stale info/);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1').split(/\s/)[0],t.prs[0].headRefOid);assert.ok(f.git('branch','--list','chore/release-v1'));}}});
 check('TEST-011',()=>{for(const step of ['worktree','payload','prepared','pushed','pr','merged','workflow','verified','remote-deleted','local-deleted','synced']){const f=fixture();const first=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:step},encoding:'utf8'});assert.notEqual(first.status,0,step);const next=f.invoke();assert.equal(next.status,0,step+next.stdout+next.stderr);assert.equal(f.transport().prs.length,1,step);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1,step);assert.equal(Object.keys(f.transport().releases).length,1,step);}});
@@ -1936,6 +1975,43 @@ test_710_grace_docs() {
   RELEASE_FINISH_CASE=TEST-066 test_700_one_command_finish
 }
 
+test_711_rollup_keeps_trailing_newline() {
+  RELEASE_FINISH_CASE=TEST-067 test_700_one_command_finish
+}
+
+test_712_rollup_keeps_missing_newline_and_bom() {
+  RELEASE_FINISH_CASE=TEST-068 test_700_one_command_finish
+}
+
+test_713_rollup_keeps_crlf() {
+  RELEASE_FINISH_CASE=TEST-069 test_700_one_command_finish
+}
+
+test_714_resume_adopts_exact_bytes_only() {
+  RELEASE_FINISH_CASE=TEST-070 test_700_one_command_finish
+}
+
+test_715_resume_refuses_stale_journal() {
+  RELEASE_FINISH_CASE=TEST-071 test_700_one_command_finish
+}
+
+test_716_rolled_file_passes_released_region_guard() {
+  local out line n repo verdict seen=0
+  out="$(RELEASE_FINISH_CASE=TEST-072 test_700_one_command_finish)"
+  while IFS= read -r line; do
+    case "$line" in
+      "T072REPO "*)
+        n="${line#T072REPO }"; repo="${n#* }"; n="${n%% *}"
+        verdict="$(released_region_verdict "$repo" "$TMP_ROOT/t716-$n")"
+        [[ "$verdict" == "PASS v0" ]] || log_fail "TEST-072: released_region_verdict for $n gave: $verdict"
+        seen=$((seen + 1))
+        ;;
+    esac
+  done <<<"$out"
+  [[ "$seen" == "2" ]] || log_fail "TEST-072: expected 2 prepared repos, saw $seen"
+  log_pass "TEST-072 rolled file passes the released-region guard (PASS v0 for both base shapes)"
+}
+
 test_701_native_capture_controls() {
   if ! command -v pwsh >/dev/null 2>&1; then
     log_info "TEST-013: NOT VERIFIED native capture (pwsh absent)"
@@ -2074,6 +2150,12 @@ main() {
   test_708_post_watch_strict
   test_709_grace_env_invalid
   test_710_grace_docs
+  test_711_rollup_keeps_trailing_newline
+  test_712_rollup_keeps_missing_newline_and_bom
+  test_713_rollup_keeps_crlf
+  test_714_resume_adopts_exact_bytes_only
+  test_715_resume_refuses_stale_journal
+  test_716_rolled_file_passes_released_region_guard
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
   test_625_fallback_branch_failure_reports
