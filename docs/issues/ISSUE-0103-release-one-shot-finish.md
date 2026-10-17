@@ -1,8 +1,8 @@
 ---
 id: release-one-shot-finish
-number: null
+number: 103
 type: issue
-status: draft
+status: done
 user_visible: true
 capability: release-command-finish
 links:
