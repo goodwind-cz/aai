@@ -1,8 +1,8 @@
 ---
 id: release-command-finish
 type: change
-number: null
-status: draft
+number: 213
+status: done
 capability: release-command-finish
 user_visible: true
 links:

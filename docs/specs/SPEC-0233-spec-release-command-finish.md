@@ -1,9 +1,9 @@
 ---
 id: spec-release-command-finish
 type: spec
-number: null
-status: implementing
-frozen_sha256: dacfccbaab7228d8cb9efc35bd8fe6a1f21740b40d4a350b6a791ad066f6f711
+number: 233
+status: done
+frozen_sha256: ce9bcf837327a094ab0a42f436df748c13374ce08fd6c6cdca27c83928a04b84
 ceremony_level: 2
 capability: release-command-finish
 user_visible: true
@@ -19,7 +19,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-release-command-finish.md
+- Requirement: docs/issues/CHANGE-0213-release-command-finish.md
 - Dependency: standalone release-notes-pr-gate reviewed commit, supplied by orchestration before Implementation; shared isShipped and same-line hasNoNotesReason contracts are consumed, not reimplemented here.
 - Technology contract: docs/TECHNOLOGY.md
 - Prior evidence: docs/ai/reports/VALIDATION-20261013T205600Z-release-one-command-no-findings.md; docs/ai/reports/VALIDATION-20261013T220533Z-release-one-command-no-findings.md; docs/ai/tdd/release-one-command-audit-split-fixes.log. Original broad FAIL reports and spec are immutable context, not this split's verdict.
@@ -58,12 +58,12 @@ Commands R, P, H, C below decide named assertions, with exact logs under Evidenc
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN confirming a release the audit SHALL use the authoritative remote base SHA and both Git change modes, refuse genuine unnoted shipped history before release mutations, and exempt only proven CHANGELOG-only, previous release or valid same-line marker history; write-free preview SHALL refuse unavailable remote objects | planned | — | — | — |
-| Spec-AC-02 | WHEN CI settles green and bound release identity remains valid the engine SHALL merge only that PR/head with match-head-commit after rechecking its audited remote base; pending exit8 SHALL wait, while failed/degraded/malformed/empty checks, moved base or head SHALL refuse before merge | planned | — | — | — |
-| Spec-AC-03 | WHEN the PR merges the engine SHALL await successful release.yml for its merge SHA and verify the remote peeled tag SHA and exact rolled multi-section release notes before cleanup | planned | — | — | — |
-| Spec-AC-04 | WHEN resumed at any recorded transition the engine SHALL complete only missing actions without a duplicate PR/merge/tag/release; leased branch cleanup and safe registered-base sync SHALL preserve unrelated caller bytes and refuse unsafe changes truthfully | planned | — | — | — |
-| Spec-AC-05 | Required native SHA/URL normal, empty and error cases SHALL execute successfully on actual Windows PowerShell5.1 and Windows pwsh7 plus Linux pwsh; TEST033 SHALL complete20 consecutive actual executions on the hosted Linux CI runner with zero skips | planned | — | — | — |
-| Spec-AC-06 | Finish prompt and product docs SHALL describe narrow authorization, version-specific resume, compatibility skips and remote-snapshot/race limits; actual profiles/selector/fixture/prompt-accounting/generated companion checks SHALL pass | planned | — | — | — |
+| Spec-AC-01 | WHEN confirming a release the audit SHALL use the authoritative remote base SHA and both Git change modes, refuse genuine unnoted shipped history before release mutations, and exempt only proven CHANGELOG-only, previous release or valid same-line marker history; write-free preview SHALL refuse unavailable remote objects | done | TEST-001..003 green (test-aai-release rc 0 at 4833ed55); docs/ai/reports/VALIDATION-20261017T120212Z-release-command-finish.md | — | — |
+| Spec-AC-02 | WHEN CI settles green and bound release identity remains valid the engine SHALL merge only that PR/head with match-head-commit after rechecking its audited remote base; pending exit8 SHALL wait, while failed/degraded/malformed/empty checks, moved base or head SHALL refuse before merge | done | TEST-004..005 green (test-aai-release rc 0 at 4833ed55); docs/ai/reports/VALIDATION-20261017T120212Z-release-command-finish.md | — | — |
+| Spec-AC-03 | WHEN the PR merges the engine SHALL await successful release.yml for its merge SHA and verify the remote peeled tag SHA and exact rolled multi-section release notes before cleanup | done | TEST-006 green (test-aai-release rc 0 at 4833ed55); docs/ai/reports/VALIDATION-20261017T120212Z-release-command-finish.md | — | — |
+| Spec-AC-04 | WHEN resumed at any recorded transition the engine SHALL complete only missing actions without a duplicate PR/merge/tag/release; leased branch cleanup and safe registered-base sync SHALL preserve unrelated caller bytes and refuse unsafe changes truthfully | done | TEST-007..009 green (test-aai-release rc 0, test_702); hosted CR-3 identity PASS on win32 (ps1-quality 39030229655); docs/ai/reports/VALIDATION-20261017T120212Z-release-command-finish.md | — | — |
+| Spec-AC-05 | Required native SHA/URL normal, empty and error cases SHALL execute successfully on actual Windows PowerShell5.1 and Windows pwsh7 plus Linux pwsh; TEST033 SHALL complete20 consecutive actual executions on the hosted Linux CI runner with zero skips | done | TEST-010/011 green: hosted ps1-quality 39030229655 on 4833ed55 (Linux TEST033 completed=20 skips=0, Pester 156/0/0; Windows 5.1 and pwsh7 152/0/4); docs/ai/reports/VALIDATION-20261017T120212Z-release-command-finish.md | — | — |
+| Spec-AC-06 | Finish prompt and product docs SHALL describe narrow authorization, version-specific resume, compatibility skips and remote-snapshot/race limits; actual profiles/selector/fixture/prompt-accounting/generated companion checks SHALL pass | done | TEST-012/013 green (win-fallback, follow-ups, release rc 0; spec-lint 0; full sweep r8 109/109 at 2f13ad79); docs/ai/reports/VALIDATION-20261017T120212Z-release-command-finish.md | — | — |
 
 ## Implementation plan
 

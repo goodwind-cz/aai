@@ -2,10 +2,11 @@
 id: release-command-finish
 type: product
 capability: release-command-finish
-status: draft
+status: current
 delivered_by:
+  - CHANGE-0213
   - release-command-finish
-spec: docs/specs/SPEC-DRAFT-spec-release-command-finish.md
+spec: docs/specs/SPEC-0233-spec-release-command-finish.md
 updated: 2026-10-17
 ---
 
@@ -61,6 +62,6 @@ Confirmation applies only to this invocation's bound repository/version/base/bra
 
 ## Links
 
-- Request: [Release completion change](../issues/CHANGE-DRAFT-release-command-finish.md)
-- Spec: [Release completion specification](../specs/SPEC-DRAFT-spec-release-command-finish.md)
+- Request: [Release completion change](../issues/CHANGE-0213-release-command-finish.md)
+- Spec: [Release completion specification](../specs/SPEC-0233-spec-release-command-finish.md)
 - Validation evidence: Pending independent validation for this split scope; evidence paths will be added when produced.

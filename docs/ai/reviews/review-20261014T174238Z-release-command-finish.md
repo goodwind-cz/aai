@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "c9a04429d6e2af0c133a86c0b3d2c2662572442f to complete local working/staged/untracked 29-path snapshot in /private/tmp/aai-finish-r2-local-source.json"
-  spec: docs/specs/SPEC-DRAFT-spec-release-command-finish.md
+  spec: docs/specs/SPEC-0233-spec-release-command-finish.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -52,10 +52,10 @@ docs/USER_GUIDE.md
 docs/ai/EVENTS.jsonl
 docs/ai/decisions.jsonl
 docs/ai/tests/test-runs.jsonl
-docs/issues/CHANGE-DRAFT-release-command-finish.md
+docs/issues/CHANGE-0213-release-command-finish.md
 docs/product/release-command-finish.md
 docs/skill-catalog-data.json
-docs/specs/SPEC-DRAFT-spec-release-command-finish.md
+docs/specs/SPEC-0233-spec-release-command-finish.md
 tests/skills/aai-win-dispatch.Tests.ps1
 tests/skills/lib/prompt-diet-ledger.sh
 tests/skills/suite-map.yaml

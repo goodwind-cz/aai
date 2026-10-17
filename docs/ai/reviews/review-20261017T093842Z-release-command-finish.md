@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "git diff b6f740783f6df8885bfc49a56fb3b4225f7538e5..cbf0cdcd (31 files, +1537/-438; branch change/release-finish-one-command)"
-  spec: docs/specs/SPEC-DRAFT-spec-release-command-finish.md
+  spec: docs/specs/SPEC-0233-spec-release-command-finish.md
   spec_compliance:
     verdict: fail
     ac_walk:

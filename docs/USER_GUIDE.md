@@ -2795,6 +2795,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Complete and resume a release
+
+The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
+
+[Product doc](product/release-command-finish.md) · [Spec](specs/SPEC-0233-spec-release-command-finish.md)
+
 ### Platform-portable PR ceremony
 
 Bootstrap records which git host the project lives on (GitHub, Azure DevOps, unknown or none) once, and `/aai-merge` follows that record: a directed merge and the post-merge cleanup now work on Azure DevOps as well as on GitHub, without ever calling `gh` there.

@@ -69,7 +69,7 @@ pairs:
   - capability: release-notes-gate
     status: done
   - capability: release-command-finish
-    status: planned
+    status: done
   - capability: git-platform-detected-at-bootstrap
     status: done
 wave_2:
