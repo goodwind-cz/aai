@@ -51,7 +51,7 @@ The prepared commit changes only `CHANGELOG.md` and `docs/ai/AAI_VERSION.md`. Re
 - Audit: commits without a PR number in their subject are classified by their changed paths; a shipped one needs notes it added that survive in the rollup or a `no-notes:` line in its commit message, otherwise `missing-notes` names the commit. Commits merged through a numbered `Merge pull request #N` count as part of PR #N, and on the online path a rebase-merged commit is attributed to its merged PR through GitHub's commit-to-PR lookup; an unnumbered merge commit is skipped and the commits it merged are audited individually (content introduced only by the merge itself is not audited).
 - Version: must match `release.yml`'s tag pattern `v?[0-9]…`; anything else refuses `version` before any GitHub call.
 - Result: version, PR, merge/tag SHA, release URL, cleanup and sync status. Finish refusal exits 20 with one named cause, completed facts and an explicit resume command; local/parser exit codes are listed in the release skill.
-- Wait limits: `AAI_RELEASE_WAIT_SECONDS` defaults to 3600; `AAI_RELEASE_POLL_SECONDS` defaults to 15; `AAI_RELEASE_CHECKS_GRACE_SECONDS` defaults to 60 (how long the first required-checks read waits for GitHub to register checks).
+- Wait limits: `AAI_RELEASE_WAIT_SECONDS` defaults to 3600; `AAI_RELEASE_POLL_SECONDS` defaults to 15; `AAI_RELEASE_CHECKS_GRACE_SECONDS` defaults to 60 when unset or blank (how long the first required-checks read waits for GitHub to register checks; an explicit 0 means one read, and a value that is not a plain decimal number refuses `arguments`).
 
 ## Limits and non-goals
 

@@ -1463,6 +1463,7 @@ else if(a[0]==='pr'&&a[1]==='create') {
  if(required&&s.mode==='odd-error'){process.stderr.write('HTTP 502: Bad Gateway\n');process.exit(1);}
  if(required&&s.mode==='skipped'){out([{name:'required',bucket:'skipping',link:''}]);process.exit(0);}
  if(required&&s.mode==='settle-empty'&&reads>=2){out([]);process.exit(0);}
+ if(required&&s.mode==='settle-gh'&&reads>=2){process.stderr.write("no checks reported on the 'chore/release-v1' branch\n");process.exit(1);}
  if(s.mode==='checks-error'){out([{name:'required',bucket:'pass',link:''}]);process.exit(3);}
  if(s.mode==='pending-empty'){out([]);process.exit(8);}
  if(s.mode==='pending-malformed'){out('not JSON');process.exit(8);}
@@ -1538,7 +1539,8 @@ function remoteCommit(f,number,file,body='') {
  return run('git',['rev-parse','HEAD'],clone);
 }
 const selected=process.env.RELEASE_FINISH_CASE||'all';
-function check(id,fn){if(selected!=='all'&&selected!==id)return;try{fn();}catch(e){console.log('FAIL: '+id+' release-command-finish: '+String(e.message).split('\n')[0]);throw e;}console.log('PASS: '+id+' release-command-finish');}
+const ownSelector=/^TEST-06[0-6]$/;
+function check(id,fn){if(selected!=='all'&&selected!==id)return;if(selected==='all'&&ownSelector.test(id))return;try{fn();}catch(e){console.log('FAIL: '+id+' release-command-finish: '+String(e.message).split('\n')[0]);throw e;}console.log('PASS: '+id+' release-command-finish');}
 check('TEST-004',()=>{const f=fixture();historical(f,201,'CHANGELOG.md');historical(f,202,'docs/ai/AAI_VERSION.md');historical(f,203,'.aai/scripts/exempt.mjs','no-notes: internal refactor');historical(f,101,'.aai/scripts/noted.mjs');const r=spawnSync('bash',[sh,'--version','v1','--dry-run'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.ok(!r.stdout.includes('NAMED'),r.stdout);});
 check('TEST-005',()=>{const f=fixture();historical(f,205,'.aai/scripts/missing.mjs');const refs=f.git('show-ref'),bytes=fs.readFileSync(path.join(f.repo,'CHANGELOG.md'));for(const args of [[],['--dry-run'],['--dry-run','--confirm']]){const r=spawnSync('bash',[sh,'--version','v1',...args],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.match(r.stdout,/NAMED/);assert.equal(f.git('show-ref'),refs);assert.deepEqual(fs.readFileSync(path.join(f.repo,'CHANGELOG.md')),bytes);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);}const r=f.invoke();assert.notEqual(r.status,0);assert.match(r.stderr,/REFUSED: missing-notes/);assert.equal(f.git('show-ref'),refs);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
  const stale=fixture();historical(stale,206,'.aai/scripts/forgotten.mjs');stale.git('checkout','--detach','-q','v0');const before=stale.git('show-ref');const refused=stale.invoke();assert.equal(refused.status,20,refused.stderr);assert.match(refused.stderr,/missing-notes/);assert.equal(stale.git('show-ref'),before);assert.equal(stale.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);assert.equal(Object.keys(stale.transport().releases).length,0);
@@ -1689,6 +1691,11 @@ function graceCase(id,mode,grace,poll){
 check('TEST-060',()=>{
  const {f,r}=graceCase('TEST-060','late-empty',null,'0.01');assert.equal(r.status,0,r.stdout+r.stderr);assert.ok(!/REFUSED/.test(r.stderr),r.stderr);
  const t=f.transport();assert.equal(merges(t),1);assert.ok(engineReads(t)>=3,'engine reads '+engineReads(t));assert.ok(watchReads(t)>=1,'watch-ci reads');
+
+ for(const blank of ['','   ','\t ']){
+  const {f,r}=graceCase('TEST-060','late-empty',blank,'0.01');assert.equal(r.status,0,JSON.stringify(blank)+r.stdout+r.stderr);assert.ok(!/REFUSED/.test(r.stderr),r.stderr);
+  const t=f.transport();assert.equal(merges(t),1,JSON.stringify(blank));assert.ok(engineReads(t)>=3,'engine reads '+engineReads(t));assert.ok(watchReads(t)>=1,'watch-ci reads');
+ }
 });
 check('TEST-061',()=>{
  const {f,r}=graceCase('TEST-061','late-gh','5','0.01');assert.equal(r.status,0,r.stdout+r.stderr);assert.ok(!/REFUSED/.test(r.stderr),r.stderr);
@@ -1701,6 +1708,10 @@ check('TEST-062',()=>{
   const t=f.transport();assert.ok(engineReads(t)>=2,mode+' engine reads '+engineReads(t));assert.equal(watchReads(t),0,mode);assert.equal(merges(t),0,mode);
  }
 });
+check('TEST-062',()=>{
+ const {f,r}=graceCase('TEST-062','missing-checks','0','0.05');assert.notEqual(r.status,0);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/No required checks registered within 0s/);
+ assert.equal(engineReads(f.transport()),1,'explicit 0 means exactly one read');
+});
 check('TEST-063',()=>{
  for(const [mode,cause,detail] of [['ci','required-checks',/required \(fail\)/],['skipped','required-checks',/required \(skipping\)/],['odd-error','github-checks',/invalid JSON/]]){
   const {f,r}=graceCase('TEST-063',mode,'2','0.05');assert.notEqual(r.status,0,mode);assert.equal(refusals(r),1,mode+r.stderr);
@@ -1711,9 +1722,11 @@ check('TEST-063',()=>{
 check('TEST-064',()=>{
  const {f,r}=graceCase('TEST-064','settle-empty','1','0.01');assert.notEqual(r.status,0,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: required-checks/);
  const t=f.transport();assert.equal(engineReads(t),2,'engine reads');assert.ok(watchReads(t)>=1,'watch-ci reads');assert.equal(merges(t),0);
+ const g=graceCase('TEST-064','settle-gh','1','0.01');assert.notEqual(g.r.status,0,g.r.stdout+g.r.stderr);assert.equal(refusals(g.r),1,g.r.stderr);assert.match(g.r.stderr,/REFUSED: required-checks/);
+ const gt=g.f.transport();assert.equal(engineReads(gt),2,'gh-shape engine reads');assert.ok(watchReads(gt)>=1,'gh-shape watch-ci reads');assert.equal(merges(gt),0);
 });
 check('TEST-065',()=>{
- for(const bad of ['-1','abc']){
+ for(const bad of ['-1','abc','NaN','Infinity','1e400','1,5','0x10']){
   const {f,r}=graceCase('TEST-065','',bad);assert.notEqual(r.status,0,bad);assert.equal(refusals(r),1,bad+r.stderr);assert.match(r.stderr,/REFUSED: arguments/);
   const t=f.transport();assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='create').length,0,bad);assert.equal(t.prs.length,0,bad);
  }

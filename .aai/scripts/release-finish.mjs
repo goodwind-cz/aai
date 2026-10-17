@@ -36,7 +36,9 @@ root=root||process.cwd();
 let journal,record,claimPath,claimToken;
 const maxWait=Number(process.env.AAI_RELEASE_WAIT_SECONDS||3600);
 const interval=Number(process.env.AAI_RELEASE_POLL_SECONDS||15);
-const checksGrace=Number(process.env.AAI_RELEASE_CHECKS_GRACE_SECONDS??60);
+const graceRaw=String(process.env.AAI_RELEASE_CHECKS_GRACE_SECONDS??60).trim();
+// Unset or blank means the default; only a plain decimal is a number (no hex, exponent or Infinity), anything else refuses `arguments`.
+const checksGrace=graceRaw===''?60:/^[+-]?(\d+\.?\d*|\.\d+)$/.test(graceRaw)?Number(graceRaw):NaN;
 function refuse(cause,detail) {const e=new Error(detail);e.causeName=cause;throw e;}
 // Not a refusal: the release is progressing remotely (exit 8, the gh pending code); resume re-reads it.
 function pending(cause,detail) {const e=new Error(detail);e.causeName=cause;e.pending=true;throw e;}
