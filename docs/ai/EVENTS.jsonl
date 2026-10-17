@@ -3134,3 +3134,5 @@
 {"v":1,"ts":"2026-10-17T20:37:23Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-changelog-eol","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-17T20:37:24Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-changelog-eol","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-17T20:41:11Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":620,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-17T21:03:44Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":620,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-17T21:19:32Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0235/Spec-AC-07","payload":{"commit":"0323af4f"}}
