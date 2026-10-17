@@ -279,6 +279,8 @@ jobs:
           $out = node .aai/scripts/release-finish.mjs --root $PWD --version v1 2>&1 | Out-String
           if ($LASTEXITCODE -ne 20 -or $out -notmatch 'REFUSED: confirmation') { Write-Host $out; throw 'release-finish main() did not run when executed directly on win32' }
           Write-Host 'PASS: release-finish runs directly on win32'
+          # The intended refusal leaves $LASTEXITCODE=20; the pwsh step template exits with it.
+          exit 0
 
       - name: "Prepare real-wrapper smoke fixtures (CHANGE-0133 Spec-AC-05)"
         # LF-only fixture scripts, written once and shared by both engine
