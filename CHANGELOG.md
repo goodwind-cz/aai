@@ -22,6 +22,11 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(release): wait a bounded grace for required checks to register
+
+- The release finish re-reads required checks before the empty refusal for `AAI_RELEASE_CHECKS_GRACE_SECONDS` (default 60), so the first `/aai-release --confirm` no longer refuses when GitHub has not registered checks yet; it recognizes an empty list and gh's exit-1 "no (required) checks reported" shape, and still refuses `required-checks` after the grace. Failed or skipped checks refuse at once and the post-watch read stays strict.
+- Traceability: release-checks-registration-grace / spec-release-checks-registration-grace.
+
 ## [unreleased] — feat(release): finish a confirmed release with safe resume
 
 - Confirmation audits the authoritative remote base before preparing its bound release PR, waits for required checks, merges that head, and verifies CI publication of every rolled notes section before leased cleanup and safe base synchronization.

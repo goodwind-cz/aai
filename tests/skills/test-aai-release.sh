@@ -1455,6 +1455,14 @@ else if(a[0]==='pr'&&a[1]==='create') {
  const watchedRequired=eq(['pr','checks','1','--required','--json','name,bucket,link']);
  const watched=watchedRequired||eq(['pr','checks','1','--json','name,bucket,link']);if(!required&&!watched)die('bad checks argv');
  if(s.mode==='optional-fail'&&!required&&!watchedRequired){out([{name:'required',bucket:'pass',link:''},{name:'optional-lint',bucket:'fail',link:''}]);process.exit(1);}
+ if(required){s.engineReads=(s.engineReads||0)+1;save();}
+ const reads=s.engineReads||0;
+ if(required&&s.mode==='late-empty'&&reads<=2){out([]);process.exit(0);}
+ if(required&&s.mode==='late-gh'&&reads<=2){process.stderr.write(reads===1?"no checks reported on the 'chore/release-v1' branch\n":"no required checks reported on the 'chore/release-v1' branch\n");process.exit(1);}
+ if(required&&s.mode==='never-gh'){process.stderr.write("no required checks reported on the 'chore/release-v1' branch\n");process.exit(1);}
+ if(required&&s.mode==='odd-error'){process.stderr.write('HTTP 502: Bad Gateway\n');process.exit(1);}
+ if(required&&s.mode==='skipped'){out([{name:'required',bucket:'skipping',link:''}]);process.exit(0);}
+ if(required&&s.mode==='settle-empty'&&reads>=2){out([]);process.exit(0);}
  if(s.mode==='checks-error'){out([{name:'required',bucket:'pass',link:''}]);process.exit(3);}
  if(s.mode==='pending-empty'){out([]);process.exit(8);}
  if(s.mode==='pending-malformed'){out('not JSON');process.exit(8);}
@@ -1514,7 +1522,7 @@ if [ "$*" = "remote get-url origin" ]; then printf '%s\\n' https://github.com/te
   run('git',['checkout','-q','main'],lateWriter);run('git',['config','user.name','Late Writer'],lateWriter);run('git',['config','user.email','late@test.invalid'],lateWriter);
   fs.mkdirSync(path.join(lateWriter,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(lateWriter,'.aai/scripts/last-window.mjs'),'new late behavior\n');run('git',['add','.'],lateWriter);run('git',['commit','-qm','feat: final observation window (#212)'],lateWriter);
  }
- const env={FIXTURE_LATE_WRITER:lateWriter,FIXTURE_BASE_READS:path.join(d,'base-reads'),TMPDIR:d,TEMP:d,TMP:d,PATH:bin+path.delimiter+process.env.PATH,FIXTURE_MODE:mode,FIXTURE_GIT_LOG:path.join(d,'git-argv.log'),TRANSPORT:state,FIXTURE_REPO:repo,FIXTURE_ORIGIN:origin,AAI_RELEASE_POLL_SECONDS:'0.01',AAI_RELEASE_WAIT_SECONDS:'2'};
+ const env={FIXTURE_LATE_WRITER:lateWriter,FIXTURE_BASE_READS:path.join(d,'base-reads'),TMPDIR:d,TEMP:d,TMP:d,PATH:bin+path.delimiter+process.env.PATH,FIXTURE_MODE:mode,FIXTURE_GIT_LOG:path.join(d,'git-argv.log'),TRANSPORT:state,FIXTURE_REPO:repo,FIXTURE_ORIGIN:origin,AAI_RELEASE_POLL_SECONDS:'0.01',AAI_RELEASE_WAIT_SECONDS:'2',AAI_RELEASE_CHECKS_GRACE_SECONDS:'0.2'};
  const invoke=(extra=[],engine='sh',caller=repo)=>spawnSync(engine==='ps'?'pwsh':'bash',engine==='ps'?['-NoProfile','-File',ps,'--version','v1','--confirm',...extra]:[sh,'--version','v1','--confirm',...extra],{cwd:caller,env:{...process.env,...env},encoding:'utf8'});
  return {d,repo,origin,state,env,git,invoke,transport:()=>JSON.parse(fs.readFileSync(state))};
 }
@@ -1530,7 +1538,7 @@ function remoteCommit(f,number,file,body='') {
  return run('git',['rev-parse','HEAD'],clone);
 }
 const selected=process.env.RELEASE_FINISH_CASE||'all';
-function check(id,fn){if(selected!=='all'&&selected!==id)return;fn();console.log('PASS: '+id+' release-command-finish');}
+function check(id,fn){if(selected!=='all'&&selected!==id)return;try{fn();}catch(e){console.log('FAIL: '+id+' release-command-finish: '+String(e.message).split('\n')[0]);throw e;}console.log('PASS: '+id+' release-command-finish');}
 check('TEST-004',()=>{const f=fixture();historical(f,201,'CHANGELOG.md');historical(f,202,'docs/ai/AAI_VERSION.md');historical(f,203,'.aai/scripts/exempt.mjs','no-notes: internal refactor');historical(f,101,'.aai/scripts/noted.mjs');const r=spawnSync('bash',[sh,'--version','v1','--dry-run'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.ok(!r.stdout.includes('NAMED'),r.stdout);});
 check('TEST-005',()=>{const f=fixture();historical(f,205,'.aai/scripts/missing.mjs');const refs=f.git('show-ref'),bytes=fs.readFileSync(path.join(f.repo,'CHANGELOG.md'));for(const args of [[],['--dry-run'],['--dry-run','--confirm']]){const r=spawnSync('bash',[sh,'--version','v1',...args],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.match(r.stdout,/NAMED/);assert.equal(f.git('show-ref'),refs);assert.deepEqual(fs.readFileSync(path.join(f.repo,'CHANGELOG.md')),bytes);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);}const r=f.invoke();assert.notEqual(r.status,0);assert.match(r.stderr,/REFUSED: missing-notes/);assert.equal(f.git('show-ref'),refs);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
  const stale=fixture();historical(stale,206,'.aai/scripts/forgotten.mjs');stale.git('checkout','--detach','-q','v0');const before=stale.git('show-ref');const refused=stale.invoke();assert.equal(refused.status,20,refused.stderr);assert.match(refused.stderr,/missing-notes/);assert.equal(stale.git('show-ref'),before);assert.equal(stale.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);assert.equal(Object.keys(stale.transport().releases).length,0);
@@ -1669,6 +1677,52 @@ check('TEST-009',()=>{const f=fixture();f.git('checkout','--detach','-q');fs.wri
  const work=fixture(),feature=path.join(work.d,'feature');work.git('worktree','add','-q','-b','feature',feature);fs.writeFileSync(path.join(feature,'keep.txt'),'feature owner dirty\n');fs.writeFileSync(path.join(feature,'untracked.txt'),'owner untracked\n');const featureHead=run('git',['rev-parse','HEAD'],feature),featureStatus=run('git',['status','--porcelain'],feature);const cut=work.invoke([],'sh',feature);assert.equal(cut.status,0,cut.stderr);assert.equal(work.git('rev-parse','HEAD'),work.transport().prs.find(p=>p.headRefName==='chore/release-v1').mergeCommit.oid);assert.equal(run('git',['rev-parse','HEAD'],feature),featureHead);assert.equal(run('git',['status','--porcelain'],feature),featureStatus);assert.equal(fs.readFileSync(path.join(feature,'keep.txt'),'utf8'),'feature owner dirty\n');assert.equal(fs.readFileSync(path.join(feature,'untracked.txt'),'utf8'),'owner untracked\n');
  const hidden=fixture();hidden.git('update-index','--assume-unchanged','CHANGELOG.md');fs.appendFileSync(path.join(hidden.repo,'CHANGELOG.md'),'hidden owner bytes\n');const hiddenBytes=fs.readFileSync(path.join(hidden.repo,'CHANGELOG.md'));const hiddenCut=hidden.invoke();assert.equal(hiddenCut.status,20,hiddenCut.stderr);assert.match(hiddenCut.stderr,/base-hidden-edits/);assert.deepEqual(fs.readFileSync(path.join(hidden.repo,'CHANGELOG.md')),hiddenBytes);
  const divergent=fixture();fs.writeFileSync(path.join(divergent.repo,'local.txt'),'local only\n');divergent.git('add','local.txt');divergent.git('commit','-qm','unpublished base commit');const ownHead=divergent.git('rev-parse','HEAD'),localBytes=fs.readFileSync(path.join(divergent.repo,'local.txt'));const diverged=divergent.invoke();assert.notEqual(diverged.status,0);assert.match(diverged.stderr,/base-diverged/);assert.equal(divergent.git('rev-parse','HEAD'),ownHead);assert.deepEqual(fs.readFileSync(path.join(divergent.repo,'local.txt')),localBytes);
+});
+const engineReads=t=>t.calls.filter(a=>a[0]==='pr'&&a[1]==='checks'&&a.includes('--repo')).length;
+const watchReads=t=>t.calls.filter(a=>a[0]==='pr'&&a[1]==='checks'&&!a.includes('--repo')).length;
+const merges=t=>t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length;
+const refusals=r=>(r.stderr.match(/REFUSED:/g)||[]).length;
+function graceCase(id,mode,grace,poll){
+ const f=fixture(mode);if(grace===null)delete f.env.AAI_RELEASE_CHECKS_GRACE_SECONDS;else f.env.AAI_RELEASE_CHECKS_GRACE_SECONDS=grace;if(poll)f.env.AAI_RELEASE_POLL_SECONDS=poll;
+ return {f,r:f.invoke()};
+}
+check('TEST-060',()=>{
+ const {f,r}=graceCase('TEST-060','late-empty',null,'0.01');assert.equal(r.status,0,r.stdout+r.stderr);assert.ok(!/REFUSED/.test(r.stderr),r.stderr);
+ const t=f.transport();assert.equal(merges(t),1);assert.ok(engineReads(t)>=3,'engine reads '+engineReads(t));assert.ok(watchReads(t)>=1,'watch-ci reads');
+});
+check('TEST-061',()=>{
+ const {f,r}=graceCase('TEST-061','late-gh','5','0.01');assert.equal(r.status,0,r.stdout+r.stderr);assert.ok(!/REFUSED/.test(r.stderr),r.stderr);
+ const t=f.transport();assert.equal(merges(t),1);assert.ok(engineReads(t)>=3,'engine reads '+engineReads(t));assert.ok(watchReads(t)>=1,'watch-ci reads');
+});
+check('TEST-062',()=>{
+ for(const mode of ['missing-checks','never-gh']){
+  const {f,r}=graceCase('TEST-062',mode,'1','0.05');assert.notEqual(r.status,0,mode);assert.equal(refusals(r),1,r.stderr);
+  assert.match(r.stderr,/REFUSED: required-checks/);assert.match(r.stderr,/No required checks registered within 1s/);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);
+  const t=f.transport();assert.ok(engineReads(t)>=2,mode+' engine reads '+engineReads(t));assert.equal(watchReads(t),0,mode);assert.equal(merges(t),0,mode);
+ }
+});
+check('TEST-063',()=>{
+ for(const [mode,cause,detail] of [['ci','required-checks',/required \(fail\)/],['skipped','required-checks',/required \(skipping\)/],['odd-error','github-checks',/invalid JSON/]]){
+  const {f,r}=graceCase('TEST-063',mode,'2','0.05');assert.notEqual(r.status,0,mode);assert.equal(refusals(r),1,mode+r.stderr);
+  assert.match(r.stderr,new RegExp('REFUSED: '+cause));assert.match(r.stderr,detail);
+  const t=f.transport();assert.equal(engineReads(t),1,mode+' engine reads');assert.equal(merges(t),0,mode);
+ }
+});
+check('TEST-064',()=>{
+ const {f,r}=graceCase('TEST-064','settle-empty','1','0.01');assert.notEqual(r.status,0,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: required-checks/);
+ const t=f.transport();assert.equal(engineReads(t),2,'engine reads');assert.ok(watchReads(t)>=1,'watch-ci reads');assert.equal(merges(t),0);
+});
+check('TEST-065',()=>{
+ for(const bad of ['-1','abc']){
+  const {f,r}=graceCase('TEST-065','',bad);assert.notEqual(r.status,0,bad);assert.equal(refusals(r),1,bad+r.stderr);assert.match(r.stderr,/REFUSED: arguments/);
+  const t=f.transport();assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='create').length,0,bad);assert.equal(t.prs.length,0,bad);
+ }
+});
+check('TEST-066',()=>{
+ const product=fs.readFileSync(path.join(root,'docs/product/release-command-finish.md'),'utf8');
+ const line=product.split('\n').find(l=>l.startsWith('- Wait limits:'));assert.ok(line,'wait limits line');
+ assert.match(line,/AAI_RELEASE_CHECKS_GRACE_SECONDS[^;.]*60/);
+ assert.ok(!product.includes('fu-release-checks-registration-grace'));
 });
 check('TEST-010',()=>{for(const mode of ['ci','missing-checks','checks-error','pending-empty','pending-malformed','pending-forever','head','workflow','notes','tag','cleanup-head','lease-race','dependent','gh']){const f=fixture(mode),r=f.invoke();assert.notEqual(r.status,0,mode);assert.equal((r.stderr.match(/REFUSED:/g)||[]).length,1,r.stderr);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);const t=f.transport();if(['ci','missing-checks','checks-error','pending-empty','pending-malformed','pending-forever','head','gh'].includes(mode))assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);if(mode==='head'){assert.ok(t.prs[0],r.stdout+r.stderr);assert.equal(t.prs[0].state,'OPEN');assert.ok(t.movedHead);assert.match(r.stderr,/head-moved/);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1').split(/\s/)[0],t.prs[0].headRefOid);}if(['workflow','notes','tag','cleanup-head','lease-race','dependent'].includes(mode))assert.ok(f.git('ls-remote','origin','refs/heads/chore/release-v1'));if(mode==='dependent'){assert.match(r.stderr,/dependent-pr/);assert.ok(f.git('branch','--list','chore/release-v1'));}if(mode==='tag')assert.match(r.stderr,/tag-mismatch/);if(mode==='cleanup-head')assert.match(r.stderr,/cleanup-head-moved/);if(mode==='lease-race'){assert.match(r.stderr,/stale info/);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1').split(/\s/)[0],t.prs[0].headRefOid);assert.ok(f.git('branch','--list','chore/release-v1'));}}});
 check('TEST-011',()=>{for(const step of ['worktree','payload','prepared','pushed','pr','merged','workflow','verified','remote-deleted','local-deleted','synced']){const f=fixture();const first=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:step},encoding:'utf8'});assert.notEqual(first.status,0,step);const next=f.invoke();assert.equal(next.status,0,step+next.stdout+next.stderr);assert.equal(f.transport().prs.length,1,step);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1,step);assert.equal(Object.keys(f.transport().releases).length,1,step);}});
@@ -1843,6 +1897,34 @@ JS
 
 # Native capture is tested independently from the Node finish delegation so the
 # same controls can run under Linux pwsh and both declared Windows runtimes.
+test_704_grace_late_empty() {
+  RELEASE_FINISH_CASE=TEST-060 test_700_one_command_finish
+}
+
+test_705_grace_late_gh_shape() {
+  RELEASE_FINISH_CASE=TEST-061 test_700_one_command_finish
+}
+
+test_706_grace_never_registered() {
+  RELEASE_FINISH_CASE=TEST-062 test_700_one_command_finish
+}
+
+test_707_grace_terminal_bad_immediate() {
+  RELEASE_FINISH_CASE=TEST-063 test_700_one_command_finish
+}
+
+test_708_post_watch_strict() {
+  RELEASE_FINISH_CASE=TEST-064 test_700_one_command_finish
+}
+
+test_709_grace_env_invalid() {
+  RELEASE_FINISH_CASE=TEST-065 test_700_one_command_finish
+}
+
+test_710_grace_docs() {
+  RELEASE_FINISH_CASE=TEST-066 test_700_one_command_finish
+}
+
 test_701_native_capture_controls() {
   if ! command -v pwsh >/dev/null 2>&1; then
     log_info "TEST-013: NOT VERIFIED native capture (pwsh absent)"
@@ -1974,6 +2056,13 @@ main() {
   test_701_native_capture_controls
   test_702_finish_path_identity_and_version_pattern
   test_703_ps1_preview_without_origin
+  test_704_grace_late_empty
+  test_705_grace_late_gh_shape
+  test_706_grace_never_registered
+  test_707_grace_terminal_bad_immediate
+  test_708_post_watch_strict
+  test_709_grace_env_invalid
+  test_710_grace_docs
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
   test_625_fallback_branch_failure_reports
