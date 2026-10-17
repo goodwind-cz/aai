@@ -37,6 +37,8 @@ let journal,record,claimPath,claimToken;
 const maxWait=Number(process.env.AAI_RELEASE_WAIT_SECONDS||3600);
 const interval=Number(process.env.AAI_RELEASE_POLL_SECONDS||15);
 function refuse(cause,detail) {const e=new Error(detail);e.causeName=cause;throw e;}
+// Not a refusal: the release is progressing remotely (exit 8, the gh pending code); resume re-reads it.
+function pending(cause,detail) {const e=new Error(detail);e.causeName=cause;e.pending=true;throw e;}
 function command(exe,args,cwd=root,allowFailure=false,timeout=60000,env={}) {
  const r=spawnSync(exe,args,{cwd,encoding:'utf8',timeout,maxBuffer:8*1024*1024,env:exe==='git'?{...process.env,GIT_NO_LAZY_FETCH:'1',...env}:{...process.env,...env}});
  if(!allowFailure&&(r.error||r.status!==0))refuse(exe==='gh'?'github-command':'git-command',`${exe} ${args.join(' ')}: ${r.error?.message||r.stderr?.trim()||`exit ${r.status}`}`);
@@ -59,7 +61,7 @@ function journalShape(value){
 function claimShape(value){return value!==null&&typeof value==='object'&&Number.isSafeInteger(value.pid)&&value.pid>0&&typeof value.host==='string'&&/^[a-f0-9]{32}$/.test(value.token||'')&&value.version===version;}
 function deadOwner(owner){
  if(owner.host!==os.hostname())return false;
- try{process.kill(owner.pid,0);return false;}catch(e){return e.code==='ESRCH';}
+ return !processAlive(owner.pid);
 }
 function removeOwnClaim(file,token){
  const current=loadOrDegrade(file,{isShape:claimShape});
@@ -162,9 +164,11 @@ function audit(notes,online,head) {
  for(const line of lines){const [commit,subject]=line.split('\t');
  const tokens=[...subject.matchAll(/\((?:[\w.-]+\/[\w.-]+)?#(\d+)\)/g)];
  const last=tokens[tokens.length-1];const merge=subject.match(/^Merge pull request #(\d+)/);
- if(!last&&!merge)continue;
- const n=last?last[1]:merge[1],title=last?subject.slice(0,last.index).trim():subject;
+ const numbered=Boolean(last||merge);
+ const n=last?last[1]:merge?merge[1]:'',title=last?subject.slice(0,last.index).trim():subject;
  const parents=git('rev-list','--parents','-n','1',commit).split(' ');
+ // An unnumbered merge commit adds nothing of its own; the commits it merged are in this range and audited individually.
+ if(!numbered&&parents.length>2)continue;
  const diff=parents.length>1?['diff','--raw','-z','--no-renames','--no-ext-diff',parents[1],commit,'--']:['diff-tree','--root','--no-commit-id','-r','--raw','-z','--no-renames','--no-ext-diff',commit,'--'];
  const raw=command('git',diff).stdout.split('\0');
  const files=[];let shipped=false;
@@ -176,6 +180,12 @@ function audit(notes,online,head) {
  if(!shipped)continue;
  // A preceding release cut has no new shipped behavior; validate its payload.
  if(/^chore\(release\): /.test(subject)&&files.every(f=>['CHANGELOG.md','docs/ai/AAI_VERSION.md'].includes(f)))continue;
+ if(!numbered){
+  // A direct or rebase-merged commit has no PR number: its own added notes or its message body must cover it.
+  if(files.includes('CHANGELOG.md')&&addedRolledNotes(commit,parents,notes))continue;
+  if(hasNoNotesReason(git('show','-s','--format=%B',commit)))continue;
+  missing.push(`${commit.slice(0,12)} ${subject} (no PR number; add notes or a no-notes: line to the commit message)`);continue;
+ }
  if(new RegExp(`(?:#|/)${n}(?![0-9])`).test(notes)||notes.includes(title))continue;
  if(files.includes('CHANGELOG.md')&&addedRolledNotes(commit,parents,notes))continue;
  if(online){const pr=json('pr','view',n,'--json','body,files');if(!Array.isArray(pr.files)||typeof pr.body!=='string')refuse('notes-history',`Unknown changed files/body for PR #${n}`);if(hasNoNotesReason(pr.body))continue;}
@@ -191,8 +201,9 @@ function identity(pr){
  return pr;
 }
 function boundedPoll(read,ready,cause){const end=Date.now()+maxWait*1000;for(;;){const v=read();if(ready(v))return v;if(Date.now()>=end)refuse(cause,'Bounded wait expired');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,interval*1000);}}
-// Keep the expected-old base ref locked while updating its checkout. HEAD and
-// index locks prevent a concurrent checkout from redirecting that update.
+// Keep the expected-old base ref locked while updating its checkout. HEAD is not
+// locked: the base index.lock (baseIndexClaim) keeps porcelain checkouts out, and
+// syncBase re-verifies HEAD and the ref after the update.
 async function baseTransaction(cwd,ref,oldHead,newHead){
  const child=spawn('git',['update-ref','--stdin'],{cwd,env:{...process.env,GIT_NO_LAZY_FETCH:'1'},stdio:['pipe','pipe','pipe']});
  let output='',errors='',failure=null;const waiters=new Set();
@@ -213,14 +224,23 @@ async function baseTransaction(cwd,ref,oldHead,newHead){
  return {async commit(){await send('commit','commit: ok');child.stdin.end();const code=await closed;if(code!==0)refuse('base-transaction',errors||`exit ${code}`);},async abort(){if(!failure){try{await send('abort','abort: ok');}catch{child.kill();}}child.stdin.end();await closed;}};
 }
 function baseIndexShape(o){return o&&o.kind==='aai-release-base-index'&&Number.isSafeInteger(o.pid)&&o.pid>0&&typeof o.host==='string'&&/^[a-f0-9]{32}$/.test(o.token||'')&&['claimed','updating','updated'].includes(o.phase)&&[o.version,o.repo,o.base].every(v=>typeof v==='string'&&v.length)&&[o.old,o.merge].every(v=>/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v||''))&&/^[a-f0-9]{64}$/.test(o.indexHash||'')&& (o.worker===null||Number.isSafeInteger(o.worker)&&o.worker>0);}
-function processAlive(pid){try{process.kill(pid,0);return true;}catch(e){return e.code!=='ESRCH';}}
+// An exited-but-unreaped child (zombie) still answers kill(pid,0); containers without a reaping init leave
+// orphaned workers in that state, so state Z/X counts as dead.
+export function processAlive(pid,platform=process.platform){
+ try{process.kill(pid,0);}catch(e){return e.code!=='ESRCH';}
+ if(platform==='win32')return true;
+ let state='';
+ try{state=fs.readFileSync(`/proc/${pid}/stat`,'utf8').replace(/^.*\) /s,'').slice(0,1);}
+ catch{const r=spawnSync('ps',['-o','stat=','-p',String(pid)],{encoding:'utf8'});if(r.status===0)state=(r.stdout||'').trim().slice(0,1);else if(r.status===1&&!(r.stdout||'').trim())return false;}
+ return !['Z','X'].includes(state);
+}
 function baseIndexClaim(index,cwd,ref){
  const file=index+'.lock',hash=()=>crypto.createHash('sha256').update(fs.readFileSync(index)).digest('hex');
  let owner={kind:'aai-release-base-index',pid:process.pid,host:os.hostname(),token:crypto.randomBytes(16).toString('hex'),phase:'claimed',worker:null,version,repo:record.repo,base:ref,old:command('git',['rev-parse',ref],cwd).stdout.trim(),merge:record.merge,indexHash:hash()};
  const claimed=claimExclusive(file,JSON.stringify(owner)+'\n');let recovered=false;
  if(claimed.status==='held'){
   const saved=loadOrDegrade(file,{isShape:baseIndexShape});
-  if(saved.status!=='ok'||!deadOwner(saved.data)||saved.data.version!==version||saved.data.repo!==record.repo||saved.data.base!==ref||saved.data.merge!==record.merge||saved.data.worker&&processAlive(saved.data.worker))refuse('base-busy','Registered base index lock has an unknown, live or foreign owner; preserve it and retry after its owner finishes');
+  if(saved.status!=='ok'||!deadOwner(saved.data)||saved.data.version!==version||saved.data.repo!==record.repo||saved.data.base!==ref||saved.data.merge!==record.merge||saved.data.worker&&saved.data.phase!=='updated'&&processAlive(saved.data.worker))refuse('base-busy','Registered base index lock has an unknown, live or foreign owner; preserve it and retry after its owner finishes');
   owner=saved.data;const privateIndex=index+'.aai-release-'+owner.token;
   if(![owner.indexHash,owner.updatedHash].includes(hash())||owner.phase==='updating'||owner.phase==='updated'&&owner.result!==0)refuse('base-busy','Interrupted base index update cannot be safely recovered; preserve its lock and private index for Git recovery');
   // Native ref transactions release their locks when their parent's pipe closes.
@@ -309,6 +329,12 @@ function authoritativeBase(base,obtainObjects){
 function unchangedBase(){
  if(authoritativeBase(record.base,true)!==record.baseHead)refuse('base-moved','Remote release base differs from the audited payload; retain this journal/PR and prepare a newly audited release before merging');
 }
+// A merge queue only enqueues: an OPEN PR that is queued (or auto-merge armed) is pending, not refused.
+function queuedOrRefuse(){
+ const r=command('gh',['pr','view',String(record.pr),'--repo',record.repo,'--json','state,isInMergeQueue,autoMergeRequest'],root,true);
+ let q=null;if(!r.error&&r.status===0)try{q=JSON.parse(r.stdout);}catch{}
+ if(q&&q.state==='OPEN'&&(q.isInMergeQueue===true||q.autoMergeRequest))pending('merge-queue',`Release PR #${record.pr} is queued in the merge queue and has not merged yet`);
+}
 function requiredChecks(){
  const args=['pr','checks',String(record.pr),'--repo',record.repo,'--required','--json','name,bucket,link'];
  const r=command('gh',args,root,true);
@@ -396,16 +422,17 @@ async function main(){
  }else{record.pr=pr.number;atomicSave();}
  if(pr.state!=='MERGED'){
   if(pr.state!=='OPEN')refuse('identity','Bound release PR is closed without merge');
+  queuedOrRefuse();
   unchangedBase();
   const required=requiredChecks();if(!Array.isArray(required)||!required.length||required.some(c=>!['pass','pending'].includes(c.bucket)))refuse('required-checks','Required checks missing, skipped or failed');
   console.log(`release: waiting for required CI on PR #${record.pr}`);
-  const watcher=spawnSync(process.execPath,[path.join(here,'watch-ci.mjs'),'--pr',String(record.pr),'--interval-seconds',String(interval),'--max-wait-seconds',String(maxWait)],{cwd:root,encoding:'utf8',timeout:(maxWait+15)*1000,stdio:['ignore','inherit','pipe']});
+  const watcher=spawnSync(process.execPath,[path.join(here,'watch-ci.mjs'),'--pr',String(record.pr),'--required','--interval-seconds',String(interval),'--max-wait-seconds',String(maxWait)],{cwd:root,encoding:'utf8',timeout:(maxWait+15)*1000,stdio:['ignore','inherit','pipe']});
   if(watcher.error||watcher.status!==0)refuse('ci',watcher.error?.message||trim(watcher.stderr||'CI watcher failed'));
   const settled=requiredChecks();if(!settled.length||settled.some(c=>c.bucket!=='pass'))refuse('required-checks','Required checks did not all pass');
   pr=identity(json('pr','view',String(record.pr),'--repo',repo,'--json',fields));if(remoteHead(`refs/heads/${branch}`)!==record.head)refuse('head-moved','Release head moved before merge');
   unchangedBase();
   gh('pr','merge',String(record.pr),'--repo',repo,'--squash','--match-head-commit',record.head);
-  pr=identity(json('pr','view',String(record.pr),'--repo',repo,'--json',fields));if(pr.state!=='MERGED')refuse('merge','Release PR did not merge');
+  pr=identity(json('pr','view',String(record.pr),'--repo',repo,'--json',fields));if(pr.state!=='MERGED'){queuedOrRefuse();refuse('merge','Release PR did not merge');}
  }
  record.merge=sha(pr.mergeCommit?.oid,'merge');stage('merged');
  command('git',['fetch','--no-tags','origin',record.base]);
@@ -420,4 +447,4 @@ async function main(){
 }
 function shellQuote(value){return "'"+String(value).replaceAll("'",process.platform==='win32'?"''":"'\\''")+"'";}
 const realOrResolve=p=>{try{return fs.realpathSync(p);}catch{return path.resolve(p);}};
-if(process.argv[1]&&import.meta.url===pathToFileURL(realOrResolve(process.argv[1])).href)try{await main();}catch(e){console.error(`REFUSED: ${e.causeName||'release'} — ${e.message}`);if(record)console.error(`Completed: stage=${record.stage}; release-head=${record.head||'pending'}; PR=${record.pr||'pending'}; merge=${record.merge||'pending'}`);if(version)console.error(`Resume: node ${shellQuote(path.join(here,'release-finish.mjs'))} --root ${shellQuote(root)} --version ${/^[A-Za-z0-9._/+\-]+$/.test(version)?version:shellQuote(version)} --confirm`);process.exitCode=20;}finally{try{releaseClaim();}catch(e){console.error('Release claim cleanup failed: '+e.message);process.exitCode=20;}}
+if(process.argv[1]&&import.meta.url===pathToFileURL(realOrResolve(process.argv[1])).href)try{await main();}catch(e){console.error(`${e.pending?'PENDING':'REFUSED'}: ${e.causeName||'release'} — ${e.message}`);if(record)console.error(`Completed: stage=${record.stage}; release-head=${record.head||'pending'}; PR=${record.pr||'pending'}; merge=${record.merge||'pending'}`);if(version)console.error(`Resume: node ${shellQuote(path.join(here,'release-finish.mjs'))} --root ${shellQuote(root)} --version ${/^[A-Za-z0-9._/+\-]+$/.test(version)?version:shellQuote(version)} --confirm`);process.exitCode=e.pending?8:20;}finally{try{releaseClaim();}catch(e){console.error('Release claim cleanup failed: '+e.message);process.exitCode=20;}}

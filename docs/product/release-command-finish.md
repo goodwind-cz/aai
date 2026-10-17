@@ -45,9 +45,10 @@ The prepared commit changes only `CHANGELOG.md` and `docs/ai/AAI_VERSION.md`. Re
 
 - Shell: bare / `--dry-run` previews; `--confirm --version <version>` completes or resumes; `--no-remote` cuts locally.
 - PowerShell: `-DryRun`, `-Confirm`, `-Version`, `-NoRemote` mirror the shell behavior.
-- Merge: only the bound release PR is squash-merged after required checks pass, with `--match-head-commit`; no auto/admin bypass. Real pending checks wait; errors, empty/malformed or degraded results refuse.
+- Merge: only the bound release PR is squash-merged after required checks pass, with `--match-head-commit`; no auto/admin bypass. Real pending checks wait; errors, empty/malformed or degraded results refuse. Only required checks are read and watched. If the base uses a merge queue, the PR is enqueued and the command exits 8 with `PENDING: merge-queue` and the resume command (not a refusal); resume once the queue merges it.
 - Publication: await successful `release.yml` for the merge SHA; verify the peeled tag SHA and every rolled section in the release body before cleanup.
 - Cleanup: expected-head leased deletion refuses moved branches or dependent PRs. Safe registered-base fast-forward preserves unrelated dirty/detached/feature callers; unsafe overlap/divergence refuses, absent base names a skip.
+- Audit: commits without a PR number in their subject are classified by their changed paths; a shipped one needs notes it added that survive in the rollup or a `no-notes:` line in its commit message, otherwise `missing-notes` names the commit.
 - Version: must match `release.yml`'s tag pattern `v?[0-9]…`; anything else refuses `version` before any GitHub call.
 - Result: version, PR, merge/tag SHA, release URL, cleanup and sync status. Finish refusal exits 20 with one named cause, completed facts and an explicit resume command; local/parser exit codes are listed in the release skill.
 - Wait limits: `AAI_RELEASE_WAIT_SECONDS` defaults to 3600; `AAI_RELEASE_POLL_SECONDS` defaults to 15.

@@ -637,7 +637,7 @@ _None._
 
 _None._
 
-## Broken references (478)
+## Broken references (479)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1021,6 +1021,7 @@ _None._
 | tests/skills/test-aai-product-docs.sh | docs/product/widget-export.md | NOT FOUND |
 | tests/skills/test-aai-prompt-diet.sh | docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/change.md | NOT FOUND |
+| tests/skills/test-aai-release.sh | docs/direct.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/known.md | NOT FOUND |
 | tests/skills/test-aai-roadmap.sh | docs/issues/CHANGE-0001-none.md | NOT FOUND |
 | tests/skills/test-aai-roadmap.sh | docs/issues/CHANGE-0002-fx.md | NOT FOUND |

@@ -1387,6 +1387,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import {spawnSync,spawn} from 'node:child_process';
+import {pathToFileURL} from 'node:url';
 const root=process.env.PROJECT_ROOT, tmp=process.env.TMP_ROOT;
 const sh=path.join(root,'.aai/scripts/aai-release.sh');
 const ps=path.join(root,'.aai/scripts/aai-release.ps1');
@@ -1418,6 +1419,9 @@ function save(){fs.writeFileSync(f,JSON.stringify(s))}
 if(eq(['--version']))out('gh fixture');
 else if(eq(['auth','status'])){if(s.mode==='gh')process.exit(1)}
 else if(eq(['repo','view','--json','nameWithOwner']))out({nameWithOwner:s.mode==='foreign-repo'?'foreign/repo':'test/release'});
+else if(eq(['pr','view','1','--repo','test/release','--json','state,isInMergeQueue,autoMergeRequest'])) {
+ const p=releasePr();out({state:p.state,isInMergeQueue:Boolean(s.queued&&p.state==='OPEN'),autoMergeRequest:null});
+}
 else if(a[0]==='pr'&&a[1]==='view') {
  const p=s.prs.find(p=>String(p.number)===a[2]);if(!p)die('unknown PR');
  const expected=p.headRefName==='chore/release-v1'?['pr','view','1','--repo','test/release','--json',fields]:['pr','view',String(p.number),'--json','body,files'];
@@ -1426,6 +1430,7 @@ else if(a[0]==='pr'&&a[1]==='view') {
  out(p);
 }
 else if(a[0]==='pr'&&a[1]==='list') {
+ if(s.queued&&s.queueSettles){s.queued=false;s.mode='';save();const p0=releasePr();const md=path.join(path.dirname(f),'runner');git('clone','-q',origin,md);const g0=(...x)=>{const r=cp.spawnSync('git',x,{cwd:md,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};g0('checkout','-q','main');g0('config','user.name','CI');g0('config','user.email','ci@test.invalid');g0('merge','--squash','origin/'+p0.headRefName);g0('commit','-qm',p0.title);p0.state='MERGED';p0.mergeCommit={oid:g0('rev-parse','HEAD')};g0('push','-q','origin','main');s.runner=md;save();}
  const dependent=eq(['pr','list','--repo','test/release','--base','chore/release-v1','--state','open','--json','number']);
  const release=eq(['pr','list','--repo','test/release','--head','chore/release-v1','--state','all','--json',fields]);
  if(!dependent&&!release)die('bad list argv');
@@ -1443,7 +1448,9 @@ else if(a[0]==='pr'&&a[1]==='create') {
  const p={number:1,url:'https://github.com/test/release/pull/1',title:get('--title'),baseRefName:'main',headRefName:branch,headRefOid:sha,state:'OPEN',mergeCommit:null,headRepository:{nameWithOwner:'test/release'},isCrossRepository:false};s.prs.push(p);save();out(p.url);
 } else if(a[0]==='pr'&&a[1]==='checks') {
  const required=eq(['pr','checks','1','--repo','test/release','--required','--json','name,bucket,link']);
- const watched=eq(['pr','checks','1','--json','name,bucket,link']);if(!required&&!watched)die('bad checks argv');
+ const watchedRequired=eq(['pr','checks','1','--required','--json','name,bucket,link']);
+ const watched=watchedRequired||eq(['pr','checks','1','--json','name,bucket,link']);if(!required&&!watched)die('bad checks argv');
+ if(s.mode==='optional-fail'&&!required&&!watchedRequired){out([{name:'required',bucket:'pass',link:''},{name:'optional-lint',bucket:'fail',link:''}]);process.exit(1);}
  if(s.mode==='checks-error'){out([{name:'required',bucket:'pass',link:''}]);process.exit(3);}
  if(s.mode==='pending-empty'){out([]);process.exit(8);}
  if(s.mode==='pending-malformed'){out('not JSON');process.exit(8);}
@@ -1461,6 +1468,7 @@ else if(a[0]==='pr'&&a[1]==='create') {
  if(bucket==='pending')process.exit(8);if(bucket==='fail')process.exit(1);
 } else if(a[0]==='pr'&&a[1]==='merge') {
  const p=releasePr();const expected=['pr','merge','1','--repo','test/release','--squash','--match-head-commit',p.headRefOid];if(!eq(expected))die('unbound merge '+JSON.stringify(a));
+ if(s.mode==='queue'){s.queued=true;save();process.exit(0);}
  const mergeDir=path.join(path.dirname(f),'runner');git('clone','-q',origin,mergeDir);const g=(...x)=>{const r=cp.spawnSync('git',x,{cwd:mergeDir,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};
  g('checkout','-q','main');g('config','user.name','CI');g('config','user.email','ci@test.invalid');g('merge','--squash','origin/'+p.headRefName);g('commit','-qm',p.title);p.state='MERGED';p.mergeCommit={oid:g('rev-parse','HEAD')};g('push','-q','origin','main');s.runner=mergeDir;save();
 } else if(a[0]==='run'&&a[1]==='list') {
@@ -1564,6 +1572,51 @@ check('TEST-019',()=>{
   const f=fixture();f.git('config',`url.file://${f.origin}.insteadOf`,origin);f.git('remote','set-url','origin',origin);const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/identity/);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
  }
 });
+function direct(f,file,subject,body='',notes=''){
+ const clone=path.join(f.d,'direct-'+crypto.randomBytes(4).toString('hex'));f.git('clone','-q',f.origin,clone);
+ run('git',['checkout','-q','main'],clone);run('git',['config','user.name','Writer'],clone);run('git',['config','user.email','writer@test.invalid'],clone);
+ fs.mkdirSync(path.dirname(path.join(clone,file)),{recursive:true});fs.writeFileSync(path.join(clone,file),'direct\n');
+ if(notes){const c=path.join(clone,'CHANGELOG.md');fs.writeFileSync(c,fs.readFileSync(c,'utf8').replace('# Changelog\n','# Changelog\n\n'+notes));}
+ run('git',['add','-A'],clone);run('git',['commit','-qm',subject+(body?'\n\n'+body:'')],clone);run('git',['push','-q','origin','main'],clone);
+ return run('git',['rev-parse','HEAD'],clone);
+}
+check('TEST-050',()=>{
+ // P1: a shipped commit whose subject carries no PR number must still be classified by its changed paths.
+ const bare=fixture(),sha=direct(bare,'.aai/scripts/direct.mjs','feat: direct push without a PR number');
+ const refs=bare.git('show-ref'),r=bare.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/missing-notes/);assert.ok(r.stderr.includes(sha.slice(0,12)),'refusal names the commit sha: '+r.stderr);assert.equal(bare.git('show-ref'),refs);assert.equal(bare.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+ const exempt=fixture();direct(exempt,'.aai/scripts/direct.mjs','feat: direct push','no-notes: internal refactor with no user-visible change');const ok=exempt.invoke();assert.equal(ok.status,0,ok.stdout+ok.stderr);
+ const docs=fixture();direct(docs,'docs/direct.md','docs: direct docs push');const fine=docs.invoke();assert.equal(fine.status,0,fine.stdout+fine.stderr);
+ const noted=fixture();direct(noted,'.aai/scripts/direct.mjs','feat: gamma direct','', '## [unreleased] — feat: gamma direct\n\n- gamma behavior is documented here\n');const nt=noted.transport();nt.notes='## [v1] — feat: gamma direct\n\n- gamma behavior is documented here\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta';fs.writeFileSync(noted.state,JSON.stringify(nt));const accepted=noted.invoke();assert.equal(accepted.status,0,accepted.stdout+accepted.stderr);
+});
+if(selected==='all'||selected==='TEST-051'){
+ // P1: an exited but unreaped worker (zombie) must not read as alive.
+ const mod=await import(pathToFileURL(path.join(root,'.aai/scripts/release-finish.mjs')).href);
+ assert.equal(typeof mod.processAlive,'function','release-finish.mjs must export processAlive');
+ assert.equal(mod.processAlive(process.pid),true);
+ if(process.platform!=='win32'){
+  const parent=spawn('bash',['-c','sleep 0.05 & echo $!; exec sleep 20'],{stdio:['ignore','pipe','ignore']});
+  let out='';parent.stdout.on('data',b=>{out+=b;});
+  while(!out.includes('\n'))await new Promise(r=>setTimeout(r,10));
+  const pid=Number(out.trim());await new Promise(r=>setTimeout(r,600));
+  try{process.kill(pid,0);assert.equal(mod.processAlive(pid),false,'zombie worker '+pid+' must not count as alive');}finally{parent.kill('SIGKILL');}
+ }
+ let dead=0;{const c=spawnSync(process.execPath,['-e','process.stdout.write(String(process.pid))'],{encoding:'utf8'});dead=Number(c.stdout);}
+ assert.equal(mod.processAlive(dead),false);console.log('PASS: TEST-051 zombie worker is not alive release-command-finish');
+}
+check('TEST-052',()=>{
+ // P2: CI watching considers required checks only, so an optional failing check cannot block an otherwise permitted release.
+ const f=fixture('optional-fail'),r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+ const t=f.transport();assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
+ assert.ok(t.calls.filter(a=>a[0]==='pr'&&a[1]==='checks').every(a=>a.includes('--required')),'every checks poll passes --required: '+JSON.stringify(t.calls.filter(a=>a[1]==='checks')));
+});
+check('TEST-053',()=>{
+ // P2: a merge queue only enqueues; queued OPEN is a named pending exit 8 with a resume command, not a refusal.
+ const f=fixture('queue'),r=f.invoke();assert.equal(r.status,8,r.stdout+r.stderr);assert.match(r.stderr,/PENDING: merge-queue/);assert.doesNotMatch(r.stderr,/REFUSED/);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);
+ assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
+ const again=f.invoke();assert.equal(again.status,8,again.stdout+again.stderr);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1,'resume while queued does not merge again');
+ const t=f.transport();t.queueSettles=true;fs.writeFileSync(f.state,JSON.stringify(t));
+ const done=f.invoke();assert.equal(done.status,0,done.stdout+done.stderr);assert.match(done.stdout,/complete/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
+});
 check('TEST-006',()=>{const f=fixture(),r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);const t=f.transport();assert.equal(t.prs.length,1);assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);assert.ok(t.calls.some(a=>a[0]==='pr'&&a[1]==='checks'&&a.includes('--required')));assert.match(r.stdout,/- Merge SHA:/);const waiting=fixture('pending'),wait=waiting.invoke();assert.equal(wait.status,0,wait.stderr);assert.ok(waiting.transport().checkPolls>=3);assert.match(wait.stdout,/waiting for required CI/);});
 check('TEST-007',()=>{const f=fixture(),r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);const t=f.transport(),tag=f.git('ls-remote','origin','refs/tags/v1^{}').split(/\s/)[0];assert.equal(tag,t.prs[0].mergeCommit.oid);assert.equal(t.releases.v1.body.trim(),'## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta');const bad=fixture('notes'),b=bad.invoke();assert.notEqual(b.status,0);assert.match(b.stderr,/REFUSED: notes-mismatch/);assert.ok(bad.git('ls-remote','origin','refs/heads/chore/release-v1'));});
 check('TEST-008',()=>{const f=fixture(),r=f.invoke();assert.equal(r.status,0,r.stderr);assert.equal(f.git('ls-remote','origin','refs/heads/chore/release-v1'),'');assert.equal(f.git('branch','--list','chore/release-v1'),'');assert.equal(f.git('rev-parse','HEAD'),f.transport().prs[0].mergeCommit.oid);const transcript=fs.readFileSync(path.join(f.d,'git-argv.log'),'utf8').split('--END--\n').map(block=>block.trimEnd().split('\n'));assert.ok(transcript.some(args=>JSON.stringify(args)===JSON.stringify(['push','--force-with-lease=refs/heads/chore/release-v1:'+f.transport().prs[0].headRefOid,'origin',':refs/heads/chore/release-v1'])),'expected-head lease deletion argv absent');const d=fixture('dependent'),b=d.invoke();assert.notEqual(b.status,0);assert.match(b.stderr,/REFUSED: dependent-pr/);assert.ok(d.git('ls-remote','origin','refs/heads/chore/release-v1'));});
@@ -1577,7 +1630,7 @@ check('TEST-011',()=>{for(const step of ['worktree','payload','prepared','pushed
 check('TEST-012',()=>{const f=fixture();let r=spawnSync('bash',[sh,'--version','v1','--dry-run','--confirm'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.equal(f.git('branch','--list','chore/release-v1'),'');const gitDir=f.git('rev-parse','--git-common-dir');assert.ok(!fs.existsSync(path.resolve(f.repo,gitDir,'aai/releases')));r=f.invoke();assert.equal(r.status,0,r.stderr);let t=f.transport();t.prs[0].headRefOid='f'.repeat(40);fs.writeFileSync(f.state,JSON.stringify(t));r=f.invoke();assert.notEqual(r.status,0);assert.match(r.stderr,/REFUSED: identity/);
  const foreign=fixture('foreign-repo');assert.notEqual(foreign.invoke().status,0);assert.equal(foreign.git('branch','--list','chore/release-v1'),'');
  const ambiguous=fixture('ambiguous');assert.notEqual(ambiguous.invoke().status,0);assert.equal(ambiguous.git('branch','--list','chore/release-v1'),'');
- const manual=fixture();manual.git('rm','.github/workflows/release.yml');manual.git('commit','-qm','manual tagging');manual.git('push','-q','origin','main');const m=manual.invoke();assert.equal(m.status,0,m.stderr);assert.match(m.stdout,/SKIPPED.*manual tagging/);assert.equal(Object.keys(manual.transport().releases).length,0);
+ const manual=fixture();manual.git('rm','.github/workflows/release.yml');manual.git('commit','-qm','manual tagging','-m','no-notes: fixture drops the publication workflow');manual.git('push','-q','origin','main');const m=manual.invoke();assert.equal(m.status,0,m.stderr);assert.match(m.stdout,/SKIPPED.*manual tagging/);assert.equal(Object.keys(manual.transport().releases).length,0);
 });
 if(selected==='all'||selected==='TEST-020'){
  const f=fixture('hold-pr');const first=spawn('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env},stdio:['ignore','pipe','pipe']});let firstOutput='';first.stdout.on('data',b=>firstOutput+=b);first.stderr.on('data',b=>firstOutput+=b);const closed=new Promise(resolve=>first.on('close',code=>resolve(code)));
