@@ -1,8 +1,8 @@
 ---
 id: release-checks-registration-grace
-number: null
+number: 101
 type: issue
-status: draft
+status: done
 user_visible: false
 capability: release-command-finish
 links:

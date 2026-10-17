@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-17T12:08:48.053Z",
+  "generatedAt": "2026-10-17T18:11:10.755Z",
   "project": "aai",
   "counts": {
-    "delivered": 303,
+    "delivered": 304,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 77863744
@@ -232,7 +232,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0233-spec-release-command-finish.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20261017T112827Z-release-command-finish-r2.md"
+      "review": "docs/ai/reviews/review-20261017T162126Z-r5-release-command-finish.md"
+    },
+    {
+      "ref": "release-checks-registration-grace",
+      "title": "Release finish refuses before GitHub registers the required checks",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0101-release-checks-registration-grace.md",
+      "closed_on": "2026-10-17",
+      "agent_minutes": 34,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0234-spec-release-checks-registration-grace.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "git-platform-detected-at-bootstrap",
@@ -4198,7 +4211,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0233-spec-release-command-finish.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-20261017T112827Z-release-command-finish-r2.md"
+          "review": "docs/ai/reviews/review-20261017T162126Z-r5-release-command-finish.md"
+        },
+        {
+          "ref": "release-checks-registration-grace",
+          "title": "Release finish refuses before GitHub registers the required checks",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0101-release-checks-registration-grace.md",
+          "closed_on": "2026-10-17",
+          "agent_minutes": 34,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0234-spec-release-checks-registration-grace.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "git-platform-detected-at-bootstrap",

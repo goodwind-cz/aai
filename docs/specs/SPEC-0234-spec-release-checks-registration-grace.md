@@ -1,10 +1,10 @@
 ---
 id: spec-release-checks-registration-grace
 type: spec
-number: null
-status: implementing
+number: 234
+status: done
 mutation_gate: v1
-frozen_sha256: 926bd9ee7229b20d9c9ee8330561a5075b81fb2fa2a46847c62d5805e80826f0
+frozen_sha256: 68dacbe4ae668e8147608f924524766a839878a76bc1574d3a3fe1ebe46064b7
 ceremony_level: 2
 capability: release-command-finish
 user_visible: false
@@ -20,7 +20,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-release-checks-registration-grace.md
+- Requirement: docs/issues/ISSUE-0101-release-checks-registration-grace.md
 - Parent capability spec: docs/specs/SPEC-0233-spec-release-command-finish.md (Spec-AC-02: empty checks SHALL refuse before merge; this scope keeps that, after a bounded grace)
 - Technology contract: docs/TECHNOLOGY.md
 - Seam partner (read, not changed): .aai/scripts/watch-ci.mjs empty-list handling (an empty array is "not registered yet", polled until its deadline)
@@ -34,7 +34,7 @@ SPEC-FROZEN: true
 - Worktree rationale: one engine file plus its suite and one product doc; already isolated in its own worktree, decided at intake.
 - User decision: worktree (already set: branch fix/release-checks-registration-grace, path /Users/ales/Projects/aai-fix-release-checks-registration-grace, base ac42210e)
 - Base ref: main at ac42210e
-- Inline review scope: .aai/scripts/release-finish.mjs tests/skills/test-aai-release.sh docs/product/release-command-finish.md CHANGELOG.md docs/specs/SPEC-DRAFT-release-checks-registration-grace.md docs/issues/ISSUE-DRAFT-release-checks-registration-grace.md
+- Inline review scope: .aai/scripts/release-finish.mjs tests/skills/test-aai-release.sh docs/product/release-command-finish.md CHANGELOG.md docs/specs/SPEC-0234-spec-release-checks-registration-grace.md docs/issues/ISSUE-0101-release-checks-registration-grace.md
 - Code review required: true
 
 ## Constitution deviations
@@ -74,12 +74,12 @@ R = `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release.sh <s
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the pre-watch required-checks read returns a not-registered shape (an empty JSON array, or gh exit 1 with empty stdout and stderr `no checks reported on the '<branch>' branch` or `no required checks reported on the '<branch>' branch`) the engine SHALL re-poll every AAI_RELEASE_POLL_SECONDS until a non-empty list appears or AAI_RELEASE_CHECKS_GRACE_SECONDS (default 60) elapses; with the variable unset and checks appearing on the third read it SHALL reach watch-ci, merge exactly once and exit 0 | planned | — | — | — |
-| Spec-AC-02 | WHEN every pre-watch read inside the grace returns a not-registered shape the engine SHALL refuse exactly once with cause `required-checks` and detail `No required checks registered within <N>s` (N the configured grace), plus the existing resume line, without starting watch-ci and without any merge call | planned | — | — | — |
-| Spec-AC-03 | WHEN the first pre-watch read returns a non-empty list holding a fail, cancel or skipping bucket, or a non-JSON output that is not the recognized gh not-registered shape, the engine SHALL refuse on that first read with today's cause (`required-checks` or `github-checks`) and SHALL NOT poll again | planned | — | — | — |
-| Spec-AC-04 | WHEN watch-ci has exited 0 the post-watch required-checks read SHALL stay strict: an empty or not-registered result refuses `required-checks` after exactly one post-watch read and no merge call is made | planned | — | — | — |
-| Spec-AC-05 | WHEN AAI_RELEASE_CHECKS_GRACE_SECONDS is set to a value that is not a finite number of at least 0 the engine SHALL refuse once with cause `arguments` before any gh pr create call | planned | — | — | — |
-| Spec-AC-06 | docs/product/release-command-finish.md SHALL name AAI_RELEASE_CHECKS_GRACE_SECONDS with default 60 in its wait-limits line, and SHALL no longer list fu-release-checks-registration-grace as a known gap | planned | — | — | — |
+| Spec-AC-01 | WHEN the pre-watch required-checks read returns a not-registered shape (an empty JSON array, or gh exit 1 with empty stdout and stderr `no checks reported on the '<branch>' branch` or `no required checks reported on the '<branch>' branch`) the engine SHALL re-poll every AAI_RELEASE_POLL_SECONDS until a non-empty list appears or AAI_RELEASE_CHECKS_GRACE_SECONDS (default 60) elapses; with the variable unset and checks appearing on the third read it SHALL reach watch-ci, merge exactly once and exit 0 | done | TEST-060, TEST-061 green (test-aai-release full rc 0); docs/ai/reports/VALIDATION-20261017T180824Z-release-checks-registration-grace.md | — | — |
+| Spec-AC-02 | WHEN every pre-watch read inside the grace returns a not-registered shape the engine SHALL refuse exactly once with cause `required-checks` and detail `No required checks registered within <N>s` (N the configured grace), plus the existing resume line, without starting watch-ci and without any merge call | done | TEST-062 green (test-aai-release full rc 0); docs/ai/reports/VALIDATION-20261017T180824Z-release-checks-registration-grace.md | — | — |
+| Spec-AC-03 | WHEN the first pre-watch read returns a non-empty list holding a fail, cancel or skipping bucket, or a non-JSON output that is not the recognized gh not-registered shape, the engine SHALL refuse on that first read with today's cause (`required-checks` or `github-checks`) and SHALL NOT poll again | done | TEST-063 green (test-aai-release full rc 0); docs/ai/reports/VALIDATION-20261017T180824Z-release-checks-registration-grace.md | — | — |
+| Spec-AC-04 | WHEN watch-ci has exited 0 the post-watch required-checks read SHALL stay strict: an empty or not-registered result refuses `required-checks` after exactly one post-watch read and no merge call is made | done | TEST-064 green (test-aai-release full rc 0); docs/ai/reports/VALIDATION-20261017T180824Z-release-checks-registration-grace.md | — | — |
+| Spec-AC-05 | WHEN AAI_RELEASE_CHECKS_GRACE_SECONDS is set to a value that is not a finite number of at least 0 the engine SHALL refuse once with cause `arguments` before any gh pr create call | done | TEST-065 green (test-aai-release full rc 0); docs/ai/reports/VALIDATION-20261017T180824Z-release-checks-registration-grace.md | — | — |
+| Spec-AC-06 | docs/product/release-command-finish.md SHALL name AAI_RELEASE_CHECKS_GRACE_SECONDS with default 60 in its wait-limits line, and SHALL no longer list fu-release-checks-registration-grace as a known gap | done | TEST-066 green (test-aai-release full rc 0); docs/ai/reports/VALIDATION-20261017T180824Z-release-checks-registration-grace.md | — | — |
 
 ## Implementation plan
 
