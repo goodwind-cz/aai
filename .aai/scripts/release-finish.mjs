@@ -114,11 +114,15 @@ function historyBoundary(head,online){
  for(const line of snapshot.split('\n').filter(Boolean)){
   const match=/^([a-f0-9]{40}|[a-f0-9]{64})\s+(refs\/tags\/.+?)(\^\{\})?$/.exec(line);
   if(!match)refuse('notes-history','Malformed release tag history');
+  // Only release tags (the release.yml 'v*' trigger followed by a version digit) bound the audit.
+  if(!/^refs\/tags\/v[0-9]/.test(match[2]))continue;
   (match[3]?peeled:tags).set(match[2],match[1]);
  }
  let previous='',distance=Infinity;
  for(const [ref,object] of tags){
   const commit=peeled.get(ref)||object;
+  const kind=command('git',['cat-file','-t',commit],root,true);
+  if(kind.status===0&&kind.stdout.trim()!=='commit')continue;
   if(command('git',['cat-file','-e',commit+'^{commit}'],root,true).status!==0)refuse('notes-history',`Release history for ${ref} is unavailable; obtain its objects before retrying`);
   const ancestor=command('git',['merge-base','--is-ancestor',commit,head],root,true);
   if(ancestor.error||![0,1].includes(ancestor.status))refuse('notes-history',`Cannot establish release ancestry for ${ref}`);
@@ -208,8 +212,8 @@ async function updateBaseTree(lock,cwd,oldHead){
  // helper is killed, this PID remains live through the native Git operation;
  // a resume never reclaims the index while that operation can still mutate it.
  const source=`import fs from 'node:fs';import crypto from 'node:crypto';import {spawnSync} from 'node:child_process';import {atomicWrite} from ${JSON.stringify(pathToFileURL(path.join(here,'lib/runtime-file.mjs')).href)};
- const c=JSON.parse(process.argv[1]);let allowed=false;process.stdin.once('data',()=>{allowed=true;const r=spawnSync('git',c.args,{cwd:c.cwd,env:{...process.env,GIT_NO_LAZY_FETCH:'1',GIT_INDEX_FILE:c.index},encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024});const owner=JSON.parse(fs.readFileSync(c.lock));if(owner.token!==c.token)process.exit(21);atomicWrite(c.lock,JSON.stringify({...owner,phase:'updated',result:r.status,updatedHash:r.status===0?crypto.createHash('sha256').update(fs.readFileSync(c.index)).digest('hex'):null,error:r.error?.message||r.stderr||''})+'\\n');process.exitCode=r.status===0?0:20;});process.stdin.on('end',()=>{if(!allowed)process.exitCode=20;});`;
- const child=spawn(process.execPath,['--input-type=module','-e',source,JSON.stringify({cwd,args:['read-tree','-u','-m',oldHead,record.merge],index:lock.privateIndex,lock:lock.file,token:lock.owner.token})],{cwd,stdio:['pipe','ignore','ignore']});
+ const c=JSON.parse(process.env.AAI_RELEASE_BASE_WORKER);let allowed=false;process.stdin.once('data',()=>{allowed=true;const r=spawnSync('git',c.args,{cwd:c.cwd,env:{...process.env,GIT_NO_LAZY_FETCH:'1',GIT_INDEX_FILE:c.index},encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024});const owner=JSON.parse(fs.readFileSync(c.lock));if(owner.token!==c.token)process.exit(21);atomicWrite(c.lock,JSON.stringify({...owner,phase:'updated',result:r.status,updatedHash:r.status===0?crypto.createHash('sha256').update(fs.readFileSync(c.index)).digest('hex'):null,error:r.error?.message||r.stderr||''})+'\\n');process.exitCode=r.status===0?0:20;});process.stdin.on('end',()=>{if(!allowed)process.exitCode=20;});`;
+ const child=spawn(process.execPath,['--input-type=module','-e',source],{cwd,stdio:['pipe','ignore','ignore'],env:{...process.env,AAI_RELEASE_BASE_WORKER:JSON.stringify({cwd,args:['read-tree','-u','-m',oldHead,record.merge],index:lock.privateIndex,lock:lock.file,token:lock.owner.token})}});
  child.stdin.on('error',()=>{});
  const closed=new Promise((resolve,reject)=>{child.on('error',reject);child.on('close',resolve);});
  if(!Number.isSafeInteger(child.pid)){try{await closed;}catch(e){refuse('base-update',e.message);}refuse('base-update','Base worker did not start');}
@@ -389,4 +393,4 @@ async function main(){
  await syncBase();console.log(`## aai-release — complete\n- Version: ${version}\n- PR: ${pr.url}\n- Merge SHA: ${record.merge}\n- Tag SHA: ${record.merge}\n- Release: ${record.releaseUrl}\n- Branch: deleted`);
 }
 function shellQuote(value){return "'"+String(value).replaceAll("'",process.platform==='win32'?"''":"'\\''")+"'";}
-try{await main();}catch(e){console.error(`REFUSED: ${e.causeName||'release'} — ${e.message}`);if(record)console.error(`Completed: stage=${record.stage}; release-head=${record.head||'pending'}; PR=${record.pr||'pending'}; merge=${record.merge||'pending'}`);console.error(`Resume: node ${shellQuote(path.join(here,'release-finish.mjs'))} --root ${shellQuote(root)} --version ${/^[A-Za-z0-9._/+\-]+$/.test(version)?version:shellQuote(version)} --confirm`);process.exitCode=20;}finally{try{releaseClaim();}catch(e){console.error('Release claim cleanup failed: '+e.message);process.exitCode=20;}}
+try{await main();}catch(e){console.error(`REFUSED: ${e.causeName||'release'} — ${e.message}`);if(record)console.error(`Completed: stage=${record.stage}; release-head=${record.head||'pending'}; PR=${record.pr||'pending'}; merge=${record.merge||'pending'}`);if(version)console.error(`Resume: node ${shellQuote(path.join(here,'release-finish.mjs'))} --root ${shellQuote(root)} --version ${/^[A-Za-z0-9._/+\-]+$/.test(version)?version:shellQuote(version)} --confirm`);process.exitCode=20;}finally{try{releaseClaim();}catch(e){console.error('Release claim cleanup failed: '+e.message);process.exitCode=20;}}

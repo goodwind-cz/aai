@@ -1623,6 +1623,16 @@ check('TEST-027',()=>{
  const shallow=fixture();fs.writeFileSync(path.join(shallow.repo,'.git/shallow'),shallow.git('rev-parse','HEAD')+'\n');const notes=path.join(shallow.d,'notes');fs.writeFileSync(notes,'notes');const r=spawnSync(process.execPath,[path.join(root,'.aai/scripts/release-finish.mjs'),'--root',shallow.repo,'--audit',notes,'--online'],{cwd:shallow.repo,env:{...process.env,...shallow.env},encoding:'utf8'});assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/notes-history.*Complete release history/);assert.equal(shallow.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
  const moving=fixture();historical(moving,296,'docs/known.md');const wrapperFile=path.join(moving.d,'bin/git'),real=run('which',['git'],moving.repo);let wrapper=fs.readFileSync(wrapperFile,'utf8');wrapper=wrapper.replace('if [ "$*" = "remote get-url origin" ]; then',`if [ "$*" = "ls-remote --tags origin" ] && [ ! -f "$TMPDIR/tags-moved" ]; then\n "${real}" "$@" || exit $?\n "${real}" -C "$FIXTURE_ORIGIN" update-ref refs/tags/v0 refs/heads/main || exit $?\n touch "$TMPDIR/tags-moved"\n exit 0\nfi\nif [ "$*" = "remote get-url origin" ]; then`);fs.writeFileSync(wrapperFile,wrapper);const moved=moving.invoke();assert.equal(moved.status,20,moved.stdout+moved.stderr);assert.match(moved.stderr,/notes-history.*tags moved/);assert.equal(moving.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
 });
+check('TEST-028',()=>{
+ const f=fixture();historical(f,299,'.aai/scripts/omission.mjs');historical(f,300,'CHANGELOG.md');f.git('tag','ci-marker');f.git('push','-q','origin','refs/tags/ci-marker');
+ const r=f.invoke();assert.equal(r.status,20,'non-release tag narrowed the audit boundary: '+r.stdout+r.stderr);assert.match(r.stderr,/missing-notes.*#299/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);
+});
+check('TEST-029',()=>{
+ const f=fixture();f.git('tag','fixture-blob',f.git('rev-parse','HEAD:CHANGELOG.md'));f.git('push','-q','origin','refs/tags/fixture-blob');
+ const r=f.invoke();assert.equal(r.status,0,'blob tag on origin refused an otherwise clean release: '+r.stdout+r.stderr);
+ const audit=fixture();audit.git('tag','fixture-blob',audit.git('rev-parse','HEAD:CHANGELOG.md'));const notes=path.join(audit.d,'n');fs.writeFileSync(notes,'notes');fs.writeFileSync(path.join(audit.repo,'.git/shallow'),audit.git('rev-parse','HEAD')+'\n');
+ const a=spawnSync(process.execPath,[path.join(root,'.aai/scripts/release-finish.mjs'),'--root',audit.repo,'--audit',notes,'--online'],{cwd:audit.repo,env:{...process.env,...audit.env},encoding:'utf8'});assert.equal(a.status,20);assert.doesNotMatch(a.stderr,/--version ''/);
+});
 check('TEST-025',()=>{
  const f=fixture();const base=f.git('rev-parse','main');const foreign=f.git('commit-tree',f.git('rev-parse','HEAD^{tree}'),'-p',base,'-m','concurrent foreign base move');f.git('branch','feature',foreign);
  const index=fs.readFileSync(path.join(f.repo,'.git/index')),files=fs.readFileSync(path.join(f.repo,'CHANGELOG.md'));

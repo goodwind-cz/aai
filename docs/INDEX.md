@@ -11,7 +11,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-release-command-finish | specs | implementing | 5 done, 1 planned | docs/specs/SPEC-DRAFT-spec-release-command-finish.md |
+| spec-release-command-finish | specs | implementing | 6 planned | docs/specs/SPEC-DRAFT-spec-release-command-finish.md |
 
 ## Canonical layer (0)
 
