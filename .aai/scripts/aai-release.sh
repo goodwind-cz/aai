@@ -24,7 +24,8 @@
 # Exit codes: 0 success (plan or cut) | 1 bad argument | 10 not a git repo |
 #   11 no CHANGELOG.md | 12 malformed [unreleased] region | 13 no rollable
 #   [unreleased] entries (absent/empty) | 15 tag already exists (cut path) |
-#   16 gh absent/unauthenticated (when remote PR creation is attempted).
+#   16 gh absent/unauthenticated (when remote PR creation is attempted) |
+#   8 finish pending in a merge queue (resume) | 20 finish refused.
 set -euo pipefail
 
 VERSION=""

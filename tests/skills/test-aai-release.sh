@@ -1420,7 +1420,11 @@ if(eq(['--version']))out('gh fixture');
 else if(eq(['auth','status'])){if(s.mode==='gh')process.exit(1)}
 else if(eq(['repo','view','--json','nameWithOwner']))out({nameWithOwner:s.mode==='foreign-repo'?'foreign/repo':'test/release'});
 else if(eq(['pr','view','1','--repo','test/release','--json','state,isInMergeQueue,autoMergeRequest'])) {
- const p=releasePr();out({state:p.state,isInMergeQueue:Boolean(s.queued&&p.state==='OPEN'),autoMergeRequest:null});
+ const p=releasePr();out({state:p.state,isInMergeQueue:Boolean(s.queued&&p.state==='OPEN'),autoMergeRequest:s.armed&&p.state==='OPEN'?{enabledAt:'2026-10-17T00:00:00Z'}:null});
+}
+else if(a[0]==='api'){
+ const m=/^repos\/\{owner\}\/\{repo\}\/commits\/([0-9a-f]{40})\/pulls$/.exec(a[1]||'');if(!m||a.length!==2)die('bad api argv '+JSON.stringify(a));
+ out((s.apiPulls||{})[m[1]]||[]);
 }
 else if(a[0]==='pr'&&a[1]==='view') {
  const p=s.prs.find(p=>String(p.number)===a[2]);if(!p)die('unknown PR');
@@ -1580,6 +1584,17 @@ function direct(f,file,subject,body='',notes=''){
  run('git',['add','-A'],clone);run('git',['commit','-qm',subject+(body?'\n\n'+body:'')],clone);run('git',['push','-q','origin','main'],clone);
  return run('git',['rev-parse','HEAD'],clone);
 }
+
+function branchPr(f,subject,mergeSubject,{noff=true,bodies=['','']}={}){
+ const clone=path.join(f.d,'branch-'+crypto.randomBytes(4).toString('hex'));f.git('clone','-q',f.origin,clone);
+ const g=(...x)=>run('git',x,clone);g('checkout','-q','main');g('config','user.name','Writer');g('config','user.email','writer@test.invalid');
+ g('checkout','-q','-b','feat');const shas=[];
+ for(const [i,file] of ['.aai/scripts/b.mjs','.aai/scripts/b.mjs'].entries()){fs.mkdirSync(path.join(clone,path.dirname(file)),{recursive:true});fs.appendFileSync(path.join(clone,file),'branch '+i+'\n');g('add','-A');g('commit','-qm',(i?'address review':'wip: add b')+(bodies[i]?'\n\n'+bodies[i]:''));shas.push(g('rev-parse','HEAD'));}
+ g('checkout','-q','main');
+ if(noff)g('merge','--no-ff','-q','-m',mergeSubject,'feat');else g('rebase','-q','feat');
+ g('push','-q','origin','main');
+ return shas;
+}
 check('TEST-050',()=>{
  // P1: a shipped commit whose subject carries no PR number must still be classified by its changed paths.
  const bare=fixture(),sha=direct(bare,'.aai/scripts/direct.mjs','feat: direct push without a PR number');
@@ -1587,6 +1602,16 @@ check('TEST-050',()=>{
  const exempt=fixture();direct(exempt,'.aai/scripts/direct.mjs','feat: direct push','no-notes: internal refactor with no user-visible change');const ok=exempt.invoke();assert.equal(ok.status,0,ok.stdout+ok.stderr);
  const docs=fixture();direct(docs,'docs/direct.md','docs: direct docs push');const fine=docs.invoke();assert.equal(fine.status,0,fine.stdout+fine.stderr);
  const noted=fixture();direct(noted,'.aai/scripts/direct.mjs','feat: gamma direct','', '## [unreleased] — feat: gamma direct\n\n- gamma behavior is documented here\n');const nt=noted.transport();nt.notes='## [v1] — feat: gamma direct\n\n- gamma behavior is documented here\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta';fs.writeFileSync(noted.state,JSON.stringify(nt));const accepted=noted.invoke();assert.equal(accepted.status,0,accepted.stdout+accepted.stderr);
+ // B-1: commits behind a numbered 'Merge pull request #N' merge are covered by that PR's notes (PR #101 is cited by the rolled notes).
+ const merged=fixture();branchPr(merged,'','Merge pull request #101 from o/feat');const mr=merged.invoke();assert.equal(mr.status,0,'numbered merge with branch commits: '+mr.stdout+mr.stderr);
+ // B-1: a rebase-merged PR (no merge commit, no number in the subjects) resolves through the commit-to-PR lookup and is audited as that PR.
+ const rebased=fixture(),rshas=branchPr(rebased,'','',{noff:false});run('git',['fetch','-q','origin'],rebased.repo);const rt=rebased.transport();rt.apiPulls={};for(const x of run('git',['rev-list','origin/main','^v0'],rebased.repo).split('\n').filter(Boolean))rt.apiPulls[x]=[{number:101,title:'feat: alpha',merged_at:'2026-10-17T00:00:00Z'}];fs.writeFileSync(rebased.state,JSON.stringify(rt));
+ const rr=rebased.invoke();assert.equal(rr.status,0,'rebase-merged PR: '+rr.stdout+rr.stderr);
+ // The lookup does not excuse a direct commit: no associated PR still refuses.
+ const lone=fixture(),lsha=direct(lone,'.aai/scripts/direct.mjs','feat: direct push without a PR number');const lt=lone.transport();lt.apiPulls={[lsha]:[]};fs.writeFileSync(lone.state,JSON.stringify(lt));const lr=lone.invoke();assert.equal(lr.status,20,lr.stdout+lr.stderr);assert.match(lr.stderr,/missing-notes/);assert.ok(lr.stderr.includes(lsha.slice(0,12)));
+ // An unnumbered merge commit adds nothing itself; its merged commits are audited individually (here exempt by a no-notes body).
+ const plain=fixture();branchPr(plain,'','Merge branch feat',{bodies:['no-notes: internal','no-notes: internal']});const pr1=plain.invoke();assert.equal(pr1.status,0,'unnumbered merge skip: '+pr1.stdout+pr1.stderr);
+ const plainBad=fixture();branchPr(plainBad,'','Merge branch feat');const pr2=plainBad.invoke();assert.equal(pr2.status,20,pr2.stdout+pr2.stderr);assert.match(pr2.stderr,/missing-notes/);
 });
 if(selected==='all'||selected==='TEST-051'){
  // P1: an exited but unreaped worker (zombie) must not read as alive.
@@ -1616,6 +1641,12 @@ check('TEST-053',()=>{
  const again=f.invoke();assert.equal(again.status,8,again.stdout+again.stderr);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1,'resume while queued does not merge again');
  const t=f.transport();t.queueSettles=true;fs.writeFileSync(f.state,JSON.stringify(t));
  const done=f.invoke();assert.equal(done.status,0,done.stdout+done.stderr);assert.match(done.stdout,/complete/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
+});
+check('TEST-054',()=>{
+ // N-2: an armed auto-merge is not a merge queue; a failing required check is named and refused, not reported as queued.
+ const f=fixture('ci');const t=f.transport();t.armed=true;fs.writeFileSync(f.state,JSON.stringify(t));
+ const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.doesNotMatch(r.stderr,/PENDING/);assert.match(r.stderr,/REFUSED: (ci|required-checks)/);assert.match(r.stderr,/required/);
+ assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);
 });
 check('TEST-006',()=>{const f=fixture(),r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);const t=f.transport();assert.equal(t.prs.length,1);assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);assert.ok(t.calls.some(a=>a[0]==='pr'&&a[1]==='checks'&&a.includes('--required')));assert.match(r.stdout,/- Merge SHA:/);const waiting=fixture('pending'),wait=waiting.invoke();assert.equal(wait.status,0,wait.stderr);assert.ok(waiting.transport().checkPolls>=3);assert.match(wait.stdout,/waiting for required CI/);});
 check('TEST-007',()=>{const f=fixture(),r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);const t=f.transport(),tag=f.git('ls-remote','origin','refs/tags/v1^{}').split(/\s/)[0];assert.equal(tag,t.prs[0].mergeCommit.oid);assert.equal(t.releases.v1.body.trim(),'## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta');const bad=fixture('notes'),b=bad.invoke();assert.notEqual(b.status,0);assert.match(b.stderr,/REFUSED: notes-mismatch/);assert.ok(bad.git('ls-remote','origin','refs/heads/chore/release-v1'));});

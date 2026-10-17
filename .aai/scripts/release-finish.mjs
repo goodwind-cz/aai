@@ -161,11 +161,17 @@ function addedRolledNotes(commit,parents,notes){
 function audit(notes,online,head) {
  const history=historyBoundary(head,online);
  const lines=git('log','--format=%H%x09%s',history.previous?`${history.previous}..${head}`:head).split('\n').filter(Boolean);const missing=[];
+ const number=subject=>{const tokens=[...subject.matchAll(/\((?:[\w.-]+\/[\w.-]+)?#(\d+)\)/g)];const last=tokens[tokens.length-1];const merge=subject.match(/^Merge pull request #(\d+)/);return {last,merge};};
+ // Commits reachable from M^2 but not M^1 of a numbered merge M belong to that PR; M's own audit (diff vs M^1) covers them.
+ const covered=new Set();
+ for(const line of lines){const [commit,subject]=line.split('\t');const {last,merge}=number(subject);if(!last&&!merge)continue;
+  const parents=git('rev-list','--parents','-n','1',commit).split(' ');
+  if(parents.length>2)for(const c of git('rev-list',`${parents[1]}..${parents[2]}`).split('\n').filter(Boolean))covered.add(c);}
  for(const line of lines){const [commit,subject]=line.split('\t');
- const tokens=[...subject.matchAll(/\((?:[\w.-]+\/[\w.-]+)?#(\d+)\)/g)];
- const last=tokens[tokens.length-1];const merge=subject.match(/^Merge pull request #(\d+)/);
- const numbered=Boolean(last||merge);
- const n=last?last[1]:merge?merge[1]:'',title=last?subject.slice(0,last.index).trim():subject;
+ if(covered.has(commit))continue;
+ const {last,merge}=number(subject);
+ let numbered=Boolean(last||merge);
+ let n=last?last[1]:merge?merge[1]:'',title=last?subject.slice(0,last.index).trim():subject;
  const parents=git('rev-list','--parents','-n','1',commit).split(' ');
  // An unnumbered merge commit adds nothing of its own; the commits it merged are in this range and audited individually.
  if(!numbered&&parents.length>2)continue;
@@ -180,6 +186,13 @@ function audit(notes,online,head) {
  if(!shipped)continue;
  // A preceding release cut has no new shipped behavior; validate its payload.
  if(/^chore\(release\): /.test(subject)&&files.every(f=>['CHANGELOG.md','docs/ai/AAI_VERSION.md'].includes(f)))continue;
+ if(!numbered&&online&&parents.length===2){
+  // A rebase-merged PR leaves unnumbered commits; GitHub knows which merged PR each belongs to.
+  const r=command('gh',['api','repos/{owner}/{repo}/commits/'+commit+'/pulls'],root,true);
+  let prs=[];if(!r.error&&r.status===0)try{prs=JSON.parse(r.stdout);}catch{}
+  const hit=Array.isArray(prs)?prs.find(p=>p&&Number.isSafeInteger(p.number)&&p.merged_at):null;
+  if(hit){numbered=true;n=String(hit.number);title=typeof hit.title==='string'?hit.title:subject;}
+ }
  if(!numbered){
   // A direct or rebase-merged commit has no PR number: its own added notes or its message body must cover it.
   if(files.includes('CHANGELOG.md')&&addedRolledNotes(commit,parents,notes))continue;
@@ -329,11 +342,11 @@ function authoritativeBase(base,obtainObjects){
 function unchangedBase(){
  if(authoritativeBase(record.base,true)!==record.baseHead)refuse('base-moved','Remote release base differs from the audited payload; retain this journal/PR and prepare a newly audited release before merging');
 }
-// A merge queue only enqueues: an OPEN PR that is queued (or auto-merge armed) is pending, not refused.
+// A merge queue only enqueues: an OPEN PR that is in the queue is pending, not refused. An armed auto-merge alone is not a queue; its checks are still evaluated.
 function queuedOrRefuse(){
  const r=command('gh',['pr','view',String(record.pr),'--repo',record.repo,'--json','state,isInMergeQueue,autoMergeRequest'],root,true);
  let q=null;if(!r.error&&r.status===0)try{q=JSON.parse(r.stdout);}catch{}
- if(q&&q.state==='OPEN'&&(q.isInMergeQueue===true||q.autoMergeRequest))pending('merge-queue',`Release PR #${record.pr} is queued in the merge queue and has not merged yet`);
+ if(q&&q.state==='OPEN'&&q.isInMergeQueue===true)pending('merge-queue',`Release PR #${record.pr} is queued in the merge queue and has not merged yet`);
 }
 function requiredChecks(){
  const args=['pr','checks',String(record.pr),'--repo',record.repo,'--required','--json','name,bucket,link'];
@@ -424,7 +437,7 @@ async function main(){
   if(pr.state!=='OPEN')refuse('identity','Bound release PR is closed without merge');
   queuedOrRefuse();
   unchangedBase();
-  const required=requiredChecks();if(!Array.isArray(required)||!required.length||required.some(c=>!['pass','pending'].includes(c.bucket)))refuse('required-checks','Required checks missing, skipped or failed');
+  const required=requiredChecks();if(!Array.isArray(required)||!required.length||required.some(c=>!['pass','pending'].includes(c.bucket))){const bad=Array.isArray(required)?required.filter(c=>!['pass','pending'].includes(c.bucket)).map(c=>`${c.name} (${c.bucket})`):[];refuse('required-checks','Required checks missing, skipped or failed'+(bad.length?': '+bad.join(', '):''));}
   console.log(`release: waiting for required CI on PR #${record.pr}`);
   const watcher=spawnSync(process.execPath,[path.join(here,'watch-ci.mjs'),'--pr',String(record.pr),'--required','--interval-seconds',String(interval),'--max-wait-seconds',String(maxWait)],{cwd:root,encoding:'utf8',timeout:(maxWait+15)*1000,stdio:['ignore','inherit','pipe']});
   if(watcher.error||watcher.status!==0)refuse('ci',watcher.error?.message||trim(watcher.stderr||'CI watcher failed'));
