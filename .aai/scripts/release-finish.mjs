@@ -10,6 +10,17 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {isShipped, hasNoNotesReason, hasAddedNotes} from './release-notes-gate.mjs';
 import {atomicWrite,loadOrDegrade,claimExclusive} from './lib/runtime-file.mjs';
 
+// Canonical path identity: Git for Windows prints forward slashes while Node
+// realpaths use backslashes (and win32 paths are case-insensitive).
+export function samePath(a,b,platform=process.platform) {
+  const norm=p=>{let n=String(p).replace(/\\/g,'/').replace(/\/+$/,'');if(platform==='win32')n=n.toLowerCase();return n;};
+  return norm(a)===norm(b);
+}
+export function worktreeBlock(porcelain,wt,platform=process.platform) {
+  return porcelain.split('\n\n').find(block=>block.split('\n').some(l=>l.startsWith('worktree ')&&samePath(l.slice(9),wt,platform)));
+}
+// Tag shape the publication workflow (release.yml) accepts: v?[0-9][^\s]*
+export function validTagVersion(v) {return /^v?[0-9]\S*$/.test(String(v||''));}
 const here=path.dirname(fileURLToPath(import.meta.url));
 const argv=process.argv.slice(2);
 let version='',root='',auditFile='',auditOnly=false,onlineAudit=false,confirmed=false;
@@ -314,6 +325,7 @@ async function main(){
  if(auditOnly){const local=releaseBase();const head=onlineAudit?authoritativeBase(local.base,false):local.baseHead;const missing=audit(fs.readFileSync(auditFile,'utf8'),onlineAudit,head);for(const item of missing)console.log(item);return;}
  if(!confirmed)refuse('confirmation','Explicit --confirm is required for release mutations');
  if(!version||command('git',['check-ref-format',`refs/tags/${version}`],root,true).status!==0)refuse('version','Explicit valid tag version is required');
+ if(!validTagVersion(version))refuse('version',`Version ${version} does not match the release.yml tag pattern v?[0-9]...; the release would merge but never publish`);
  gh('auth','status');const repo=json('repo','view','--json','nameWithOwner').nameWithOwner;if(!/^[\w.-]+\/[\w.-]+$/.test(repo||''))refuse('identity','Unknown GitHub repository');
  const origin=git('config','--get','remote.origin.url');if(githubOrigin(origin)!==repo)refuse('identity','Origin and GitHub repository disagree');
  const common=path.resolve(root,git('rev-parse','--git-common-dir'));journal=path.join(common,'aai/releases',crypto.createHash('sha256').update(version).digest('hex')+'.json');
@@ -346,9 +358,9 @@ async function main(){
    record.head=head;atomicSave();
   }else{
    if(existing.status===0&&!record.worktree)refuse('identity','Unbound uncommitted release branch');
-   if(!record.worktree){record.worktree=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'aai-release-wt.')));atomicSave();}
+   if(!record.worktree){record.worktree=fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(),'aai-release-wt.')));atomicSave();}
    const wt=record.worktree;
-   const registered=git('worktree','list','--porcelain').split('\n\n').find(block=>block.split('\n').includes(`worktree ${wt}`));
+   const registered=worktreeBlock(git('worktree','list','--porcelain'),wt);
    if(registered){
     if(!registered.split('\n').includes(`branch refs/heads/${branch}`))refuse('identity','Preparation worktree changed branch');
     const dirty=command('git',['status','--porcelain','--untracked-files=all'],wt).stdout.trimEnd().split('\n').filter(Boolean).map(l=>l.slice(3));
@@ -363,7 +375,7 @@ async function main(){
   }
  }
  if(record.worktree){
-  const registered=git('worktree','list','--porcelain').split('\n\n').find(block=>block.split('\n').includes(`worktree ${record.worktree}`));
+  const registered=worktreeBlock(git('worktree','list','--porcelain'),record.worktree);
   if(registered){
    if(!registered.split('\n').includes(`branch refs/heads/${branch}`)||command('git',['status','--porcelain'],record.worktree).stdout.trim())refuse('preparation-dirty','Prepared worktree changed after commit');
    command('git',['worktree','remove',record.worktree]);
@@ -403,8 +415,9 @@ async function main(){
  const release=json('release','view',version,'--repo',repo,'--json','body,url');if(typeof release.body!=='string'||trim(release.body)!==trim(record.notes))refuse('notes-mismatch','Published release body differs from rolled notes');if(!/^https:\/\/github\.com\//.test(release.url||''))refuse('release-url','Published release URL is missing');record.releaseUrl=release.url;stage('verified');
  const dependents=json('pr','list','--repo',repo,'--base',branch,'--state','open','--json','number');if(!Array.isArray(dependents)||dependents.length)refuse('dependent-pr','Release branch has dependent PRs');
  const head=remoteHead(`refs/heads/${branch}`);if(head&&head!==record.head)refuse('cleanup-head-moved','Release branch moved before deletion');if(head)command('git',['push',`--force-with-lease=refs/heads/${branch}:${record.head}`,'origin',`:refs/heads/${branch}`]);stage('remote-deleted');
- const local=command('git',['rev-parse','--verify',`refs/heads/${branch}`],root,true);if(local.status===0){if(local.stdout.trim()!==record.head)refuse('cleanup-local-head','Local release branch moved');if(git('worktree','list','--porcelain').split('\n').includes(`branch refs/heads/${branch}`))refuse('cleanup-worktree','Release branch is checked out');command('git',['update-ref','-d',`refs/heads/${branch}`,record.head]);}stage('local-deleted');
+ const local=command('git',['rev-parse','--verify',`refs/heads/${branch}`],root,true);if(local.status===0){if(local.stdout.trim()!==record.head)refuse('cleanup-local-head','Local release branch moved');if(git('worktree','list','--porcelain').split('\n').map(l=>l.trimEnd()).includes(`branch refs/heads/${branch}`))refuse('cleanup-worktree','Release branch is checked out');command('git',['update-ref','-d',`refs/heads/${branch}`,record.head]);}stage('local-deleted');
  await syncBase();console.log(`## aai-release — complete\n- Version: ${version}\n- PR: ${pr.url}\n- Merge SHA: ${record.merge}\n- Tag SHA: ${record.merge}\n- Release: ${record.releaseUrl}\n- Branch: deleted`);
 }
 function shellQuote(value){return "'"+String(value).replaceAll("'",process.platform==='win32'?"''":"'\\''")+"'";}
-try{await main();}catch(e){console.error(`REFUSED: ${e.causeName||'release'} — ${e.message}`);if(record)console.error(`Completed: stage=${record.stage}; release-head=${record.head||'pending'}; PR=${record.pr||'pending'}; merge=${record.merge||'pending'}`);if(version)console.error(`Resume: node ${shellQuote(path.join(here,'release-finish.mjs'))} --root ${shellQuote(root)} --version ${/^[A-Za-z0-9._/+\-]+$/.test(version)?version:shellQuote(version)} --confirm`);process.exitCode=20;}finally{try{releaseClaim();}catch(e){console.error('Release claim cleanup failed: '+e.message);process.exitCode=20;}}
+const realOrResolve=p=>{try{return fs.realpathSync(p);}catch{return path.resolve(p);}};
+if(process.argv[1]&&import.meta.url===pathToFileURL(realOrResolve(process.argv[1])).href)try{await main();}catch(e){console.error(`REFUSED: ${e.causeName||'release'} — ${e.message}`);if(record)console.error(`Completed: stage=${record.stage}; release-head=${record.head||'pending'}; PR=${record.pr||'pending'}; merge=${record.merge||'pending'}`);if(version)console.error(`Resume: node ${shellQuote(path.join(here,'release-finish.mjs'))} --root ${shellQuote(root)} --version ${/^[A-Za-z0-9._/+\-]+$/.test(version)?version:shellQuote(version)} --confirm`);process.exitCode=20;}finally{try{releaseClaim();}catch(e){console.error('Release claim cleanup failed: '+e.message);process.exitCode=20;}}

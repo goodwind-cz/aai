@@ -280,7 +280,10 @@ try {
   }
 
   $auditArgs = @((Join-Path $PSScriptRoot 'release-finish.mjs'), '--root', $Root, '--audit', $NotesFile)
-  if (-not $ghBlock -and -not $NoRemote) { $auditArgs += '--online' }
+  if (-not $ghBlock -and -not $NoRemote) {
+    git -C $Root remote get-url origin *> $null
+    if ($LASTEXITCODE -eq 0) { $auditArgs += '--online' }
+  }
   $unlogged = @(& node @auditArgs)
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

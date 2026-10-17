@@ -1782,6 +1782,58 @@ NATIVE_PROBE
   AAI_RELEASE_PS1_PROBE="$RELEASE_PS1" pwsh -NoProfile -File "$probe"
 }
 
+# release-command-finish remediation (CR-3, NB-4): canonical worktree identity
+# with Windows-style inputs on any OS, and the tag-pattern refusal before any
+# mutation. RELEASE_FINISH_MJS lets a RED run target a pre-fix copy.
+test_702_finish_path_identity_and_version_pattern() {
+  local finish="${RELEASE_FINISH_MJS:-$PROJECT_ROOT/.aai/scripts/release-finish.mjs}"
+  FINISH_MJS="$finish" node --input-type=module <<'JS'
+import assert from 'node:assert/strict';
+import {pathToFileURL} from 'node:url';
+const m=await import(pathToFileURL(process.env.FINISH_MJS).href);
+assert.equal(typeof m.samePath,'function','CR-3: release-finish.mjs must export samePath');
+assert.equal(typeof m.worktreeBlock,'function','CR-3: release-finish.mjs must export worktreeBlock');
+assert.equal(typeof m.validTagVersion,'function','NB-4: release-finish.mjs must export validTagVersion');
+assert.equal(m.samePath('C:\\Users\\RUNNER~1\\Temp\\aai-release-wt.X','C:/Users/RUNNER~1/Temp/aai-release-wt.X','win32'),true,'backslash vs forward slash must match on win32');
+assert.equal(m.samePath('C:\\Users\\Runner\\Temp\\wt','c:/users/runner/temp/wt/','win32'),true,'case and trailing slash fold on win32');
+assert.equal(m.samePath('/tmp/Wt','/tmp/wt','linux'),false,'POSIX stays case-sensitive');
+assert.equal(m.samePath('/tmp/a','/tmp/b','win32'),false);
+const por='worktree D:/repo\nHEAD aaa\nbranch refs/heads/main\n\nworktree C:/Users/x/Temp/aai-release-wt.X\nHEAD bbb\nbranch refs/heads/chore/release-v1\n';
+const blk=m.worktreeBlock(por,'C:\\Users\\x\\Temp\\aai-release-wt.X','win32');
+assert.ok(blk&&blk.includes('branch refs/heads/chore/release-v1'),'Windows-style worktree path must find its registered block');
+assert.equal(m.worktreeBlock(por,'C:\\Users\\x\\Temp\\other','win32'),undefined);
+for(const v of ['v1','1.2.3','v2026.10.17','v1.0.0-rc.1'])assert.equal(m.validTagVersion(v),true,v);
+for(const v of ['stable-2026','','x1','v','v 1'])assert.equal(m.validTagVersion(v),false,'invalid: '+v);
+JS
+  node "$PROJECT_ROOT/tests/skills/lib/release-finish-worktree-identity.mjs" >"$TMP_ROOT/t702-wt.out" 2>&1 \
+    || log_fail "TEST-702: real-git worktree identity probe failed: $(cat "$TMP_ROOT/t702-wt.out")"
+  local repo="$TMP_ROOT/t702" rc=0
+  build_repo "$repo" two_entries
+  ( cd "$repo" && node "$finish" --root "$repo" --version stable-2026 --confirm ) >"$TMP_ROOT/t702.out" 2>&1 || rc=$?
+  [[ "$rc" == "20" ]] || log_fail "TEST-702: non-tag-pattern version must refuse exit 20, got $rc: $(cat "$TMP_ROOT/t702.out")"
+  grep -q "REFUSED: version" "$TMP_ROOT/t702.out" || log_fail "TEST-702: refusal must be cause 'version' before any gh call: $(cat "$TMP_ROOT/t702.out")"
+  grep -qF "tag pattern" "$TMP_ROOT/t702.out" || log_fail "TEST-702: refusal must name the tag pattern: $(cat "$TMP_ROOT/t702.out")"
+  log_pass "TEST-702: Windows-style worktree paths compare canonically; non-tag version refuses before mutation"
+}
+
+# NB-1: PowerShell preview must not add --online without an origin remote.
+test_703_ps1_preview_without_origin() {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_info "TEST-703: NOT VERIFIED (pwsh absent)"
+    return 0
+  fi
+  local repo="$TMP_ROOT/t703" stub_bin="$TMP_ROOT/t703-stub" log_file="$TMP_ROOT/t703-ghlog" rc=0
+  build_repo "$repo" two_entries
+  git -C "$repo" remote get-url origin >/dev/null 2>&1 && log_fail "TEST-703: fixture must have no origin"
+  build_stub_gh "$stub_bin" "$log_file" 0
+  ( cd "$repo" && PATH="$stub_bin:$PATH" pwsh -NoProfile -File "$RELEASE_PS1" -DryRun ) >"$TMP_ROOT/t703.out" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-703: ps1 -DryRun without origin and authenticated gh must exit 0 like the shell, got $rc: $(cat "$TMP_ROOT/t703.out")"
+  rc=0
+  ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --dry-run ) >"$TMP_ROOT/t703sh.out" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-703: shell parity control failed: $(cat "$TMP_ROOT/t703sh.out")"
+  log_pass "TEST-703: ps1 preview keeps offline audit without an origin remote (parity with shell)"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -1822,6 +1874,8 @@ main() {
   test_032_non_protected_failure_degrades_raw
   test_033_ps1_fallback_parity
   test_701_native_capture_controls
+  test_702_finish_path_identity_and_version_pattern
+  test_703_ps1_preview_without_origin
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
   test_625_fallback_branch_failure_reports

@@ -83,4 +83,4 @@ merge history or publication-prevention guarantee is promised for that race.
 - exit 13 = no rollable entries
 - exit 15 = existing tag without bound resumable progress
 - exit 16 = gh absent/unauthenticated on the remote path
-- exit 20 = finish refused; relay one named cause and exact version-specific resume
+- exit 20 = finish refused; relay one named cause and exact version-specific resume. On remote `--confirm`, 12/13/15/16 conditions surface as 20 with that cause

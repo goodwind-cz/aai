@@ -74,6 +74,7 @@ on:
       - '.aai/scripts/release-notes-gate.mjs'
       - '.aai/scripts/aai-release.sh'
       - 'tests/skills/test-aai-release.sh'
+      - 'tests/skills/lib/release-finish-worktree-identity.mjs'
       - '.aai/SKILL_MERGE.prompt.md'
       - '.aai/SKILL_WORKTREE.prompt.md'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
@@ -93,6 +94,7 @@ on:
       - '.aai/scripts/release-notes-gate.mjs'
       - '.aai/scripts/aai-release.sh'
       - 'tests/skills/test-aai-release.sh'
+      - 'tests/skills/lib/release-finish-worktree-identity.mjs'
       - '.aai/SKILL_MERGE.prompt.md'
       - '.aai/SKILL_WORKTREE.prompt.md'
       - '.aai/scripts/PSScriptAnalyzerSettings.psd1'
@@ -265,6 +267,13 @@ jobs:
             if ($errs -and $errs.Count) { $bad++; Write-Host "PARSEFAIL $($_.Name)"; $errs | ForEach-Object { Write-Host "  $($_.Message)" } }
           }
           if ($bad -gt 0) { Write-Error "$bad .ps1 file(s) fail to parse under pwsh 7"; exit 1 }
+
+      - name: Release finish worktree identity on Windows (CR-3)
+        # Bounded real-Windows proof: Git for Windows prints forward-slash
+        # worktree paths, Node's native realpath prints backslashes. The helper
+        # must still recognise (and so remove) its own preparation worktree.
+        shell: pwsh
+        run: node tests/skills/lib/release-finish-worktree-identity.mjs
 
       - name: "Prepare real-wrapper smoke fixtures (CHANGE-0133 Spec-AC-05)"
         # LF-only fixture scripts, written once and shared by both engine
