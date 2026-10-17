@@ -1,88 +1,87 @@
-# Release Skill - Cut a Release
+# Release Skill - Cut and Finish a Release
 
 ## Goal
-Roll the current repo's `CHANGELOG.md` `[unreleased]` blocks into a versioned
-section, commit on `chore/release-<version>` in an isolated temporary worktree,
-and open a release PR — in one deterministic, operator-gated run. On merge of
-the PR, CI (via `.github/workflows/release.yml`) creates the annotated tag and
-publishes the GitHub release. Downstream repos lacking that workflow tag and
-publish after merge (or vendor `release.yml`). Inputs: repo root,
-`CHANGELOG.md`, and git/`gh` remote.
+Roll root `CHANGELOG.md` `[unreleased]` sections in an isolated temporary
+worktree, push `chore/release-<version>`, and finish its release PR in one
+operator-confirmed run. CI `release.yml` tags the merge SHA and publishes all
+rolled sections. Verify publication before leased cleanup and safe base sync.
 
 ## Usage
 ```bash
-/aai-release                        # plan-only (default-safe): prints the plan, changes nothing
-/aai-release --dry-run              # same as bare invocation, explicit
-/aai-release --version v1.2.3       # verbatim version (any scheme, incl. SemVer)
-/aai-release --confirm              # THE CUT: open release PR
-/aai-release --confirm --no-remote  # THE CUT, but skip push + gh pr create
+/aai-release                          # plan only, zero writes
+/aai-release --dry-run                # explicit plan; wins over --confirm
+/aai-release --version v1.2.3         # verbatim version, any scheme
+/aai-release --confirm                # cut and finish this release PR
+/aai-release --version v1.2.3 --confirm # resume this explicit version
+/aai-release --confirm --no-remote    # local cut; remote finish skipped
 ```
 
-Flags:
-- `--dry-run` — print the plan (resolved version, CHANGELOG rollup preview,
-  tag name, release-notes preview); changes NOTHING. Default-safe: a bare
-  invocation (neither `--dry-run` nor `--confirm`) behaves identically.
-- `--version <v>` — use this version verbatim (any scheme). Omitted → CalVer
-  `vYYYY.MM.DD` (env `AAI_RELEASE_DATE` pins the date for testing/CI; unset
-  uses the real UTC clock).
-- `--confirm` (alias `--yes`) — required to actually cut. If `--dry-run` is
-  also present, `--dry-run` wins (never auto-publish by accident).
-- `--no-remote` (env twin `AAI_RELEASE_NO_REMOTE=1`) — performs the cut on a
-  local `chore/release-<version>` branch but SKIPS `git push` and `gh pr create`.
+`--version` defaults to UTC CalVer `vYYYY.MM.DD` (`AAI_RELEASE_DATE` pins
+the date). `--yes` aliases confirm; `AAI_RELEASE_NO_REMOTE=1` aliases
+no-remote. Bare/dry-run, including dry-run plus confirm, writes no objects,
+refs, FETCH_HEAD, index, files, journal or GitHub state. Remote preview needs
+available objects: if the observed remote base object is missing, relay the
+printed fetch-before-preview remedy and stop; do not fetch during preview.
 
 ## Instructions
+Run from the target repository, forwarding user flags verbatim. Do not
+implement the transform, checks or finish stages by hand:
+```bash
+.aai/scripts/aai-release.sh
+```
+```powershell
+.aai/scripts/aai-release.ps1
+```
+Relay a short report: version, plan/cut, branch, PR URL, merge SHA, verified
+tag SHA and release URL, cleanup and base sync result. Relay named skips and
+refusals verbatim. On failure stop, report completed irreversible steps and
+show the exact version-specific resume command; never change flags yourself.
+Resume uses durable repository-local metadata and reread remote facts, without
+duplicate PRs, merges, tags or releases. It does not silently absorb a moved
+base: the same version can keep refusing. Operator recovery requires a fresh
+audited cut or deliberate repair of the retained PR/journal, not automatic
+rebase or deletion of progress.
 
-The whole cut flow is scripted. Do NOT re-implement the CHANGELOG rollup or
-the precondition checks by hand and do NOT narrate the steps — run the one
-script for the current OS, forwarding the user's flags verbatim, and relay
-its output.
+## Audit and remote snapshot
+Resolve the authoritative remote base SHA, not a possibly stale tracking ref
+or detached caller HEAD. Confirm can obtain missing objects with no tracking
+ref or FETCH_HEAD update. Roll and audit the same verified snapshot before
+release branch, commit, push or PR creation. The shared `release-notes-gate.mjs` classifier checks
+Git old/new modes as well as paths, including extensionless executables. Genuine
+unnoted shipped history refuses; proven CHANGELOG-only, previous release PRs,
+and valid same-line nonempty `no-notes: <reason>` history are exempt. Missing
+history or required PR metadata never guesses clean.
 
-1. From the target project root (or anywhere inside it), run:
+Recheck the audited remote base before resumed preparation, waiting and merge.
+An observed move refuses and retains progress. `--match-head-commit` pins only
+the PR head: a base push between the last observation and GitHub's merge can
+enter the merge unseen. No atomic base condition, universal audit of eventual
+merge history or publication-prevention guarantee is promised for that race.
 
-   ```bash
-   .aai/scripts/aai-release.sh            # bash / macOS / Linux
-   ```
-   ```powershell
-   .aai/scripts/aai-release.ps1           # PowerShell / Windows
-   ```
+## Authorization and safety
+- Never add confirm/yes yourself. Owner confirmation authorizes only this
+  invocation's release PR: repository, version, base, branch and pushed head.
+  Resume must prove the binding again; other PRs retain operator-only merge.
+- Wait for all required checks to pass. Real pending exit8 reaches the watcher;
+  failed, degraded, empty or malformed checks refuse. Squash-merge only the
+  bound PR with `--match-head-commit <pushed-head>`; no auto/admin bypass.
+- Await successful `release.yml` on the merge SHA; verify the peeled remote
+  tag SHA and complete release body before cleanup. Delete remotely using an
+  expected-head lease and refuse dependent PRs or changed branches. Safely
+  fast-forward an available registered base checkout. Preserve unrelated
+  dirty/detached/feature caller bytes; never stash/reset/overwrite or prune.
+- No-remote makes a local cut with a named remote-finish skip. Without
+  `release.yml`, report the manual-tagging skip after merge; the client never
+  publishes tags/releases. No registered base means a named base-sync skip.
+  Failed publication can leave a merged PR/tag; there is no rollback claim.
 
-   The script handles everything: version resolution, the CHANGELOG rollup
-   transform (byte-preserving, idempotent), the fail-closed precondition
-   matrix, the temporary worktree commit, and — unless `--no-remote` — the push
-   and release PR creation.
-
-2. Relay the script's output as a SHORT report: resolved version, whether it
-   was a plan or a cut, the release branch name, and (on a cut) the commit SHA
-   and the opened PR URL. Do not paste the full rollup preview verbatim unless
-   the user asks for it.
-
-3. If the script exits non-zero, report the cause plainly and stop — do not
-   retry with different flags on the agent's own initiative:
-   - exit 1 = bad argument (the script prints its own usage)
-   - exit 10 = not a git repository
-   - exit 11 = no `CHANGELOG.md` at the repo root
-   - exit 12 = malformed `[unreleased]` heading in `CHANGELOG.md` (fix the
-     CHANGELOG by hand — the script never guesses at a malformed entry)
-   - exit 13 = no rollable `[unreleased]` entries (absent or empty — nothing
-     to release yet)
-   - exit 15 = a tag for the resolved version already exists
-   - exit 16 = `gh` absent or unauthenticated on the publish path (dry-run
-     still works offline; pass `--no-remote` to skip publishing, or fix `gh
-     auth login`)
-
-## Safety
-- NEVER pass `--confirm`/`--yes` on the agent's own initiative — cutting a
-  release is an operator decision (mirrors the operator-only-merge boundary).
-  Always run (or default to) `--dry-run` first and let the user review the
-  plan before confirming.
-- NEVER auto-publish. The script opens a `chore/release-<version>` PR; it calls
-  neither `gh pr merge` nor `gh release create` directly — tagging and release
-  publication occur automatically in CI upon PR merge.
-- Under `--no-remote`/`AAI_RELEASE_NO_REMOTE=1`, the script never pushes or
-  calls `gh pr create`, and a bare/`--dry-run` invocation never writes anything
-  at all.
-- The cut builds in an isolated temporary worktree from `origin/main` (or the
-  target branch), so the caller's working tree is never touched or dirtied.
-- The CHANGELOG rewrite is line-surgical and idempotent — re-running after a
-  successful cut with no new `[unreleased]` entries correctly REFUSES (there
-  is nothing left to roll); that refusal is expected, not a bug.
+## Exit codes
+- exit 1 = bad arguments
+- exit 10 = not a git repository
+- exit 11 = missing root CHANGELOG.md
+- exit 12 = malformed unreleased heading/body
+- exit 13 = no rollable entries
+- exit 15 = existing tag without bound resumable progress
+- exit 16 = gh absent/unauthenticated on the remote path
+- exit 8 = finish pending (release PR queued in a merge queue); relay `PENDING` and the exact resume command, not a failure
+- exit 20 = finish refused; relay one named cause and exact version-specific resume. On remote `--confirm`, 12/13/15/16 conditions surface as 20 with that cause

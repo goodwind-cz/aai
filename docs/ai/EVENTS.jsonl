@@ -3112,3 +3112,8 @@
 {"v":1,"ts":"2026-10-16T18:31:52Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"git-platform-detected-at-bootstrap","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-16T18:31:52Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-git-platform-detected-at-bootstrap","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-16T18:31:52Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-git-platform-detected-at-bootstrap","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-17T12:08:41Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"release-command-finish","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-17T12:08:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"release-command-finish","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-17T12:08:41Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-command-finish","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-17T12:08:41Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-command-finish","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-17T16:23:43Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"release-command-finish","payload":{"pr":471,"lane":"heavy","reviewer_bots":"expected","threads_seen":5,"threads_unresolved":0,"outcome":"swept","head_sha":"18e5bdf1fd6986ba69369cbbb4cb43345ddcec0a"}}

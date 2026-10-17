@@ -3,7 +3,7 @@
 #
 # Rolls the repo root's CHANGELOG.md `[unreleased]` blocks into a versioned
 # section, commits in an isolated temporary worktree, pushes a release branch,
-# and opens a release PR — behind an operator gate with a safe default
+# and finishes a bound release PR — behind an operator gate with a safe default
 # (plan-only) mode. On merge to main, CI creates the annotated tag and
 # publishes the GitHub release.
 #
@@ -11,7 +11,7 @@
 #   ./.aai/scripts/aai-release.ps1                          # plan-only (default-safe), no writes
 #   ./.aai/scripts/aai-release.ps1 -DryRun                  # same as bare invocation, explicit
 #   ./.aai/scripts/aai-release.ps1 -Version v1.2.3          # verbatim version (any scheme)
-#   ./.aai/scripts/aai-release.ps1 -Confirm                 # CUT: open release PR
+#   ./.aai/scripts/aai-release.ps1 -Confirm                 # CUT: merge, verify, clean up
 #   ./.aai/scripts/aai-release.ps1 -Confirm -NoRemote       # CUT, skip push + gh pr create
 #   $env:AAI_RELEASE_DATE="2026-07-20"; ./.aai/scripts/aai-release.ps1 -DryRun
 #   $env:AAI_RELEASE_NO_REMOTE="1"; ./.aai/scripts/aai-release.ps1 -Confirm
@@ -19,7 +19,8 @@
 # Exit codes: 0 success (plan or cut) | 1 bad argument | 10 not a git repo |
 #   11 no CHANGELOG.md | 12 malformed [unreleased] region | 13 no rollable
 #   [unreleased] entries (absent/empty) | 15 tag already exists (cut path) |
-#   16 gh absent/unauthenticated (when remote PR creation is attempted).
+#   16 gh absent/unauthenticated (when remote PR creation is attempted) |
+#   8 finish pending in a merge queue (resume) | 20 finish refused.
 param(
   [string]$Version = "",
   [switch]$DryRun,
@@ -54,7 +55,7 @@ function Invoke-NativeChecked {
     $joined = ($out | ForEach-Object { "$_" }) -join [Environment]::NewLine
     throw "$Exe $($Arguments -join ' ') failed (exit ${exitCode}): $joined"
   }
-  return ,$out
+  return $out
 }
 
 
@@ -63,13 +64,14 @@ function Select-CapturedValue {
   [CmdletBinding()]
   param(
     [Parameter(Mandatory)][AllowNull()][AllowEmptyCollection()][object]$Captured,
-    [Parameter(Mandatory)][string]$Pattern
+    [Parameter(Mandatory)][string]$Pattern,
+    [string]$Name = 'required-native-output'
   )
   foreach ($line in @($Captured)) {
     $text = "$line".Trim()
     if ($text -match $Pattern) { return $text }
   }
-  return ''
+  throw "REFUSED: empty-native-output - $Name did not return a validated value"
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
@@ -116,8 +118,18 @@ try {
     if ($releaseDate) {
       $Version = "v" + ($releaseDate -replace '-', '.')
     } else {
-      $Version = "v" + (Get-Date -AsUTC -Format "yyyy.MM.dd")
+      $Version = "v" + ((Get-Date).ToUniversalTime().ToString("yyyy.MM.dd"))
     }
+  }
+
+  if ($Confirm -and -not $NoRemote) {
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+      [Console]::Error.WriteLine("REFUSED: missing-node - Node.js is required for release finish")
+      [Console]::Error.WriteLine("Resume: pwsh -NoProfile -File `"$PSCommandPath`" -Version $Version -Confirm")
+      exit 20
+    }
+    & node (Join-Path $PSScriptRoot 'release-finish.mjs') --root $Root --version $Version --confirm
+    exit $LASTEXITCODE
   }
 
   function Invoke-ChangelogRollup {
@@ -268,6 +280,16 @@ try {
     }
   }
 
+  $auditArgs = @((Join-Path $PSScriptRoot 'release-finish.mjs'), '--root', $Root, '--audit', $NotesFile)
+  if (-not $ghBlock -and -not $NoRemote) {
+    # config --get exits 1 silently without origin; remote get-url writes
+    # stderr, which PS 5.1 turns into a terminating error under Stop.
+    git -C $Root config --get remote.origin.url *> $null
+    if ($LASTEXITCODE -eq 0) { $auditArgs += '--online' }
+  }
+  $unlogged = @(& node @auditArgs)
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   if (-not $Confirm) {
     Write-Host "## aai-release (plan) - no files changed"
     Write-Host "- Resolved version: $Version"
@@ -283,9 +305,11 @@ try {
     Write-Host ""
     Write-Host "## Preconditions"
     $blocked = $false
+    if ($unlogged.Count -gt 0) { Write-Host "- NAMED (not blocking): missing notes"; $unlogged | ForEach-Object { Write-Host "    - $_" } }
     if ($tagExists) { Write-Host "- would block: tag $Version already exists"; $blocked = $true }
     if ($ghBlock) { Write-Host "- would block (publish path): $ghReason"; $blocked = $true }
-    if (-not $blocked) { Write-Host "- none - ready to cut with -Confirm" }
+    if (-not $blocked -and $unlogged.Count -eq 0) { Write-Host "- none - ready to cut with -Confirm" }
+    elseif ($unlogged.Count -gt 0) { Write-Host "- confirm will refuse until missing release notes are resolved" }
     Write-Host ""
     Write-Host "## Remote"
     if ($NoRemote) {
@@ -303,6 +327,12 @@ try {
   if ($ghBlock) {
     [Console]::Error.WriteLine("REFUSED: $ghReason (publish path) - dry-run works offline; pass -NoRemote/AAI_RELEASE_NO_REMOTE=1 to skip publish, or fix gh auth.")
     exit 16
+  }
+
+  if ($unlogged.Count -gt 0) {
+    [Console]::Error.WriteLine("REFUSED: missing-notes - $($unlogged -join '; ')")
+    [Console]::Error.WriteLine("Resume: pwsh -NoProfile -File `"$PSCommandPath`" -Version $Version -Confirm -NoRemote")
+    exit 20
   }
 
   $releaseBranch = "chore/release-$Version"
@@ -357,32 +387,20 @@ try {
     Set-Content -LiteralPath (Join-Path $wtAiDir 'AAI_VERSION.md') -Value ($versionDoc -join "`n") -NoNewline:$false
     Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $wtDir, 'add', '--', 'CHANGELOG.md', 'docs/ai/AAI_VERSION.md') | Out-Null
     Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $wtDir, 'commit', '-q', '-m', "chore(release): $Version") | Out-Null
-    $releaseSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $wtDir, 'rev-parse', 'HEAD')) -Pattern '^[0-9a-f]{7,40}$'
+    $releaseSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $wtDir, 'rev-parse', 'HEAD')) -Pattern '^(?:[0-9a-f]{40}|[0-9a-f]{64})$' -Name 'release-sha'
   } finally {
     git -C $Root worktree remove --force $wtDir *> $null
     if (Test-Path $wtDir) { Remove-Item -Recurse -Force $wtDir -ErrorAction SilentlyContinue }
     $wtDir = $null
   }
 
-  $shortSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', '--short', $releaseSha)) -Pattern '^[0-9a-f]{7,40}$'
+  $shortSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'rev-parse', '--short', $releaseSha)) -Pattern '^[0-9a-f]{7,64}$' -Name 'short-sha'
   Write-Host "## aai-release - cut complete"
   Write-Host "- Version: $Version"
   Write-Host "- Commit:  $shortSha"
   Write-Host "- Release branch: $releaseBranch ($releaseSha)"
 
-  if (-not $NoRemote) {
-    Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'push', '--no-follow-tags', 'origin', $releaseBranch) | Out-Null
-    $prBody = "Automated release cut for $Version.`n`nOpened by .aai/scripts/aai-release.ps1. On merge to $branch, CI tags and publishes the release.`nIt never merges this PR."
-    Push-Location $Root
-    $prUrl = ''
-    try {
-      $prUrl = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'gh' -Arguments @('pr', 'create', '--base', $branch, '--head', $releaseBranch, '--title', "chore(release): $Version", '--body', $prBody)) -Pattern '^https?://'
-    } finally { Pop-Location }
-    Write-Host "- PR:      $prUrl"
-    Write-Host "- Status:  Release PR opened - CI tags and publishes upon merge."
-  } else {
-    Write-Host "- Remote:  SKIPPED (-NoRemote/AAI_RELEASE_NO_REMOTE=1) - release branch $releaseBranch created locally"
-  }
+  Write-Host "- Remote:  SKIPPED (-NoRemote/AAI_RELEASE_NO_REMOTE=1) - release branch $releaseBranch created locally"
   exit 0
 } finally {
   if ($OutFile -and (Test-Path $OutFile)) { Remove-Item -Force $OutFile -ErrorAction SilentlyContinue }

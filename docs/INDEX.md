@@ -16,7 +16,7 @@ _None._
 
 _None._
 
-## Product (34)
+## Product (35)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -46,6 +46,7 @@ _None._
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
+| release-command-finish | release-command-finish | 2 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | roadmap | roadmap | 1 | docs/product/roadmap.md |
@@ -55,7 +56,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (539)
+## Done (541)
 
 | ID | Type | Path |
 |---|---|---|
@@ -267,6 +268,7 @@ _None._
 | CHANGE-0210 | issues | docs/issues/CHANGE-0210-merge-cleanup-ride-leftovers.md |
 | CHANGE-0211 | issues | docs/issues/CHANGE-0211-release-notes-gate.md |
 | CHANGE-0212 | issues | docs/issues/CHANGE-0212-git-platform-detected-at-bootstrap.md |
+| CHANGE-0213 | issues | docs/issues/CHANGE-0213-release-command-finish.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -596,6 +598,7 @@ _None._
 | SPEC-0230 | specs | docs/specs/SPEC-0230-spec-notes-content-and-merged-links.md |
 | SPEC-0231 | specs | docs/specs/SPEC-0231-spec-docs-index-broken-refs-scope.md |
 | SPEC-0232 | specs | docs/specs/SPEC-0232-spec-git-platform-detected-at-bootstrap.md |
+| SPEC-0233 | specs | docs/specs/SPEC-0233-spec-release-command-finish.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -634,7 +637,7 @@ _None._
 
 _None._
 
-## Broken references (476)
+## Broken references (479)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1017,6 +1020,9 @@ _None._
 | tests/skills/test-aai-product-docs.sh | docs/product/cap-t013.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/widget-export.md | NOT FOUND |
 | tests/skills/test-aai-prompt-diet.sh | docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md | NOT FOUND |
+| tests/skills/test-aai-release.sh | docs/change.md | NOT FOUND |
+| tests/skills/test-aai-release.sh | docs/direct.md | NOT FOUND |
+| tests/skills/test-aai-release.sh | docs/known.md | NOT FOUND |
 | tests/skills/test-aai-roadmap.sh | docs/issues/CHANGE-0001-none.md | NOT FOUND |
 | tests/skills/test-aai-roadmap.sh | docs/issues/CHANGE-0002-fx.md | NOT FOUND |
 | tests/skills/test-aai-role-output.sh | docs/ai/reports/different.md | NOT FOUND |

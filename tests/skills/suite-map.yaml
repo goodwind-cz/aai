@@ -402,6 +402,7 @@ suites:
       - .aai/AGENTS.md
       - .aai/SKILL_PR.prompt.md
       - .aai/scripts/aai-release.sh
+      - .aai/scripts/release-finish.mjs
 
   aai-ride-select:
     globs:
@@ -930,8 +931,10 @@ suites:
     companions:
       - aai-layer-profiles
     globs:
+      - tests/skills/lib/release-finish-worktree-identity.mjs
       - .aai/scripts/aai-release.sh
       - .aai/scripts/aai-release.ps1
+      - .aai/scripts/release-finish.mjs
       - .aai/SKILL_RELEASE.prompt.md
       # simple-and-friendly-to-use (Spec-AC-07 / D5): the version stamp was
       # unmapped, so every release PR escalated to the full sweep; this suite

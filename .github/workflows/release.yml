@@ -78,11 +78,11 @@ jobs:
 
           publish() {
             if [ -s "$notes" ]; then
-              gh release create "$TAG" --title "$TAG" --notes-file "$notes"
+              gh release create "$TAG" --title "$TAG" --notes-file "$notes" || return $?
               echo "Published $TAG with notes from the CHANGELOG [$TAG] section."
             else
-              echo "No '## [$TAG]' section in CHANGELOG.md — using auto-generated notes."
-              gh release create "$TAG" --title "$TAG" --generate-notes
+              echo "No rollable '## [$TAG]' section in CHANGELOG.md — refusing publication." >&2
+              return 1
             fi
           }
 

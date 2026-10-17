@@ -3,7 +3,7 @@
 #
 # Rolls the repo root's CHANGELOG.md `[unreleased]` blocks into a versioned
 # section, commits in an isolated temporary worktree, pushes a release branch,
-# and opens a release PR — behind an operator gate with a safe default
+# and finishes a bound release PR — behind an operator gate with a safe default
 # (plan-only) mode. On merge to main, CI creates the annotated tag and
 # publishes the GitHub release.
 #
@@ -11,7 +11,7 @@
 #   ./.aai/scripts/aai-release.sh                       # plan-only (default-safe), no writes
 #   ./.aai/scripts/aai-release.sh --dry-run             # same as bare invocation, explicit
 #   ./.aai/scripts/aai-release.sh --version v1.2.3      # verbatim version (any scheme)
-#   ./.aai/scripts/aai-release.sh --confirm             # CUT: open release PR
+#   ./.aai/scripts/aai-release.sh --confirm             # CUT: merge, verify, clean up
 #   ./.aai/scripts/aai-release.sh --confirm --no-remote # CUT, skip push + gh pr create
 #   AAI_RELEASE_DATE=2026-07-20 ./.aai/scripts/aai-release.sh --dry-run
 #                                                        # pin the CalVer date (tests)
@@ -24,7 +24,8 @@
 # Exit codes: 0 success (plan or cut) | 1 bad argument | 10 not a git repo |
 #   11 no CHANGELOG.md | 12 malformed [unreleased] region | 13 no rollable
 #   [unreleased] entries (absent/empty) | 15 tag already exists (cut path) |
-#   16 gh absent/unauthenticated (when remote PR creation is attempted).
+#   16 gh absent/unauthenticated (when remote PR creation is attempted) |
+#   8 finish pending in a merge queue (resume) | 20 finish refused.
 set -euo pipefail
 
 VERSION=""
@@ -68,33 +69,10 @@ cleanup() {
 trap cleanup EXIT
 
 # --- unlogged-PR precondition
-unlogged_prs() {  # $1 = rolled-up notes file
-  local notes="$1" prev
-  prev="$(git describe --tags --abbrev=0 2>/dev/null || true)"
-  [ -n "$prev" ] || return 0
-  git log --format='%s' "$prev"..HEAD 2>/dev/null | while IFS= read -r subj; do
-    case "$subj" in
-      *'(#'*')'*) ;;
-      'Merge pull request #'*)
-        mnum="${subj#Merge pull request #}"; mnum="${mnum%% *}"
-        case "$mnum" in ''|*[!0-9]*) continue ;; esac
-        grep -qE -- "(#|/)${mnum}\b" "$notes" 2>/dev/null || echo "#${mnum} (merge commit, no subject text)"
-        continue
-        ;;
-      *) continue ;;
-    esac
-    num="${subj##*(#}"; num="${num%%)*}"
-    case "$num" in ''|*[!0-9]*) continue ;; esac
-    body="${subj% (#${num})*}"
-    if [ -z "$body" ]; then
-      grep -qE -- "(#|/)${num}\b" "$notes" 2>/dev/null || echo "#${num} (no subject text)"
-      continue
-    fi
-    if ! grep -qE -- "(#|/)${num}\b" "$notes" 2>/dev/null && ! grep -qF -- "$body" "$notes" 2>/dev/null; then
-      echo "#${num} ${body}"
-    fi
-  done || true
-  return 0
+unlogged_prs() {
+  local online=""
+  [[ "${GH_BLOCK:-1}" == "0" && "$NO_REMOTE" != "1" ]] && git -C "$ROOT" remote get-url origin >/dev/null 2>&1 && online="--online"
+  node "$(dirname "$0")/release-finish.mjs" --root "$ROOT" --audit "$1" $online
 }
 
 # --- ALWAYS-checked preconditions: not a git repo / no CHANGELOG --
@@ -118,6 +96,16 @@ if [[ -z "$VERSION" ]]; then
   else
     VERSION="$(date -u +v%Y.%m.%d)"
   fi
+fi
+
+# Remote confirm uses the shared durable finish sequence before parsing caller notes.
+if [[ "$CONFIRM" == "1" && "$NO_REMOTE" != "1" ]]; then
+  if ! command -v node >/dev/null 2>&1; then
+    echo "REFUSED: missing-node — Node.js is required for release finish" >&2
+    echo "Resume: bash \"$0\" --version $VERSION --confirm" >&2
+    exit 20
+  fi
+  exec node "$(dirname "$0")/release-finish.mjs" --root "$ROOT" --version "$VERSION" --confirm
 fi
 
 # --- CHANGELOG rollup transform
@@ -271,7 +259,7 @@ if [[ "$CONFIRM" != "1" ]]; then
   blocked=0
   [[ "$TAG_EXISTS" == "1" ]] && { echo "- would block: tag $VERSION already exists"; blocked=1; }
   [[ "$GH_BLOCK" == "1" ]] && { echo "- would block (publish path): $GH_REASON"; blocked=1; }
-  UNLOGGED="$(unlogged_prs "$NOTES" || true)"
+  UNLOGGED="$(unlogged_prs "$NOTES")"
   if [[ -n "$UNLOGGED" ]]; then
     echo "- NAMED (not blocking): $(printf '%s\n' "$UNLOGGED" | wc -l | tr -d ' ') PR(s) merged since the previous tag have no matching section in these notes:"
     printf '%s\n' "$UNLOGGED" | sed 's/^/    - /'
@@ -280,7 +268,7 @@ if [[ "$CONFIRM" != "1" ]]; then
   if [[ "$blocked" == "0" && -z "$UNLOGGED" ]]; then
     echo "- none — ready to cut with --confirm"
   elif [[ "$blocked" == "0" ]]; then
-    echo "- nothing blocks the cut; the NAMED item above is for you to confirm first"
+    echo "- confirm will refuse until the NAMED missing release notes are resolved"
   fi
   echo
   echo "## Remote"
@@ -302,11 +290,11 @@ if [[ "$GH_BLOCK" == "1" ]]; then
   exit 16
 fi
 
-UNLOGGED_CUT="$(unlogged_prs "$NOTES" || true)"
+UNLOGGED_CUT="$(unlogged_prs "$NOTES")"
 if [[ -n "$UNLOGGED_CUT" ]]; then
-  echo "NOTE (not blocking): $(printf '%s\n' "$UNLOGGED_CUT" | wc -l | tr -d ' ') PR(s) merged since the previous tag have no matching section in these notes:" >&2
-  printf '%s\n' "$UNLOGGED_CUT" | sed 's/^/  - /' >&2
-  echo "  They are being released WITHOUT a notes entry. Re-run with --dry-run to review." >&2
+  echo "REFUSED: missing-notes — $UNLOGGED_CUT" >&2
+  echo "Resume: bash \"$0\" --version $VERSION --confirm --no-remote" >&2
+  exit 20
 fi
 
 # --- CUT IN TEMPORARY WORKTREE
@@ -372,35 +360,6 @@ echo "- Version: $VERSION"
 echo "- Commit:  $(git -C "$ROOT" rev-parse --short "$RELEASE_SHA")"
 echo "- Release branch: $RELEASE_BRANCH ($RELEASE_SHA)"
 
-if [[ "$NO_REMOTE" != "1" ]]; then
-  PUSH_LOG="$(mktemp "${TMPDIR:-/tmp}/aai-release-push.XXXXXX")"
-  push_rc=0
-  git -C "$ROOT" push --no-follow-tags origin "$RELEASE_BRANCH" >"$PUSH_LOG" 2>&1 || push_rc=$?
-  cat "$PUSH_LOG" >&2
-  rm -f "$PUSH_LOG"; PUSH_LOG=""
-  if [[ "$push_rc" != "0" ]]; then
-    exit "$push_rc"
-  fi
-
-  PR_BODY="Automated release cut for $VERSION.
-
-Opened by .aai/scripts/aai-release.sh. On merge to $TARGET_BRANCH, CI tags and publishes the release.
-It never merges this PR."
-
-  PR_OUT="$(mktemp "${TMPDIR:-/tmp}/aai-release-pr.XXXXXX")"
-  pr_rc=0
-  ( cd "$ROOT" && gh pr create --base "$TARGET_BRANCH" --head "$RELEASE_BRANCH" \
-      --title "chore(release): $VERSION" --body "$PR_BODY" ) >"$PR_OUT" || pr_rc=$?
-  PR_URL="$(cat "$PR_OUT")"
-  rm -f "$PR_OUT"; PR_OUT=""
-  if [[ "$pr_rc" != "0" ]]; then
-    exit "$pr_rc"
-  fi
-
-  echo "- PR:      $PR_URL"
-  echo "- Status:  Release PR opened — CI tags and publishes upon merge."
-else
-  echo "- Remote:  SKIPPED (--no-remote/AAI_RELEASE_NO_REMOTE=1) — release branch $RELEASE_BRANCH created locally at $RELEASE_SHA"
-fi
+echo "- Remote:  SKIPPED (--no-remote/AAI_RELEASE_NO_REMOTE=1) — release branch $RELEASE_BRANCH created locally at $RELEASE_SHA"
 
 exit 0

@@ -67,6 +67,10 @@
     OPTIONAL `coupled_families` key in `docs/ai/docs-audit.yaml` (parsed only
     by `.aai/scripts/lib/guard-config.mjs`) lets doc-type families share one
     counter (AAI core ships this key ABSENT).
+  - Release completion journal: JSON under the shared Git directory at
+    `aai/releases/<SHA256-of-version>.json`; repository/version/base/head/PR
+    identity and completed transitions support resumable completion. Retained
+    progress is checked against authoritative remote facts, not trusted alone.
 - Messaging / jobs: none
 - Auth / identity: none in-repo (gh CLI and Wrangler authentication are
   external operator concerns)
@@ -187,7 +191,21 @@
     see git history)
   - Keep a Changelog format for `CHANGELOG.md`
 - Operational:
-  - PRs are opened via `/aai-pr`; merging is an operator-only action
+  - PRs are opened via `/aai-pr`; merging is an operator-only action except
+    explicit `/aai-release --confirm` authorization for its bound release PR.
+    Both release frontends delegate finish behavior to dependency-free
+    `release-finish.mjs`, consuming the existing notes classifier. Roll/audit
+    binds one observed authoritative remote base SHA; missing objects may be
+    fetched during confirm without tracking-ref/FETCH_HEAD writes, never in
+    preview. Observed base moves refuse conservatively on resume. GitHub's
+    match-head merge pins only the PR head; the final base-check/merge race is
+    external and is not an atomic base-conditional guarantee.
+  - Release publication belongs to `release.yml`; the client waits for its
+    merge-SHA run and verifies peeled tag SHA and all rolled notes before
+    expected-head leased cleanup and safe registered-base fast-forward.
+    Native capture requires actual nonempty SHA/URL results. Finish-specific
+    Windows 5.1/7 runtime and hosted Linux repetition evidence remain pending;
+    local/container or static checks alone do not establish those guarantees.
   - `.aai/scripts/release-notes-gate.mjs` checks the staged patch plus the final PR-body file locally, and the PR commit range plus body in CI. Shipped surfaces require newly added nonempty rollable notes or `no-notes: <reason>`. Docs and test-only changes are exempt. Body content is data. Operators may mark the `release notes` job required; this repository does not change branch protection.
   - Pre-commit quality gates run via `.aai/scripts/pre-commit-checks.sh`/`.ps1`
     and the installed hook; docs close gate and body lint are controlled by the

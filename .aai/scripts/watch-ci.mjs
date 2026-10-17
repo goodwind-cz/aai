@@ -10,7 +10,10 @@
 // named, and exit-coded.
 //
 // CLI
-//   node watch-ci.mjs [--pr <N>] [--interval-seconds <N>] [--max-wait-seconds <N>]
+//   node watch-ci.mjs [--pr <N>] [--required] [--interval-seconds <N>] [--max-wait-seconds <N>]
+//     --required             watch only branch-protection required checks
+//                             (`gh pr checks --required`), so an optional
+//                             check cannot block or fail the wait.
 //     --pr <N>               the PR number; omitted, `gh` resolves it from
 //                             the current branch (its own documented default).
 //     --interval-seconds <N> poll interval, default 15; test-only knob.
@@ -53,7 +56,7 @@ function degrade(reason) {
 }
 
 function parseArgs(argv) {
-  const opts = { pr: undefined, intervalSeconds: 15, maxWaitSeconds: 3600 };
+  const opts = { pr: undefined, required: false, intervalSeconds: 15, maxWaitSeconds: 3600 };
   for (let i = 0; i < argv.length; i += 1) {
     const tok = argv[i];
     if (tok === '--pr') {
@@ -73,8 +76,10 @@ function parseArgs(argv) {
       if (!/^\d+(\.\d+)?$/.test(v) || Number(v) <= 0) usage(`--max-wait-seconds must be a positive number (got "${v}")`);
       opts.maxWaitSeconds = Number(v);
       i += 1;
+    } else if (tok === '--required') {
+      opts.required = true;
     } else if (tok === '-h' || tok === '--help') {
-      process.stdout.write('usage: node watch-ci.mjs [--pr <N>] [--interval-seconds <N>] [--max-wait-seconds <N>]\n');
+      process.stdout.write('usage: node watch-ci.mjs [--pr <N>] [--required] [--interval-seconds <N>] [--max-wait-seconds <N>]\n');
       exit(0);
     } else {
       usage(`unknown argument "${tok}"`);
@@ -114,9 +119,10 @@ function originIsGithub() {
 // resolve the PR/checks at all (e.g. no commit found), which must never be
 // read as "zero checks, all passed" — the exact D8-forbidden shape this
 // probe exists to prevent.
-function pollOnce(pr) {
+function pollOnce(pr, required) {
   const args = ['pr', 'checks'];
   if (pr !== undefined) args.push(pr);
+  if (required) args.push('--required');
   args.push('--json', 'name,bucket,link');
   const r = spawnSync('gh', args, { encoding: 'utf8' });
   if (r.error) return { error: `gh pr checks failed to run (${r.error.code || 'unknown'})` };
@@ -142,7 +148,7 @@ function main(argv) {
   const deadlineMs = Date.now() + opts.maxWaitSeconds * 1000;
   let lastSummary = null;
   for (;;) {
-    const res = pollOnce(opts.pr);
+    const res = pollOnce(opts.pr, opts.required);
     if (res.error) degrade(res.error);
     const { checks } = res;
     // validation-round1 N1: an EMPTY checks array is "no checks reported

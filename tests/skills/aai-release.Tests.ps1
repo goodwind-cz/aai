@@ -53,9 +53,8 @@ Describe 'aai-release.ps1 exports and direct-push classifier elimination' {
         $val | Should -Be 'https://github.com/goodwind-cz/aai/pull/462'
     }
 
-    It 'Select-CapturedValue returns empty string when no line matches' {
+    It 'Select-CapturedValue refuses empty-native-output when no line matches' {
         $sample = @('first line', 'second line')
-        $val = Select-CapturedValue -Captured $sample -Pattern '^https?://'
-        $val | Should -Be ''
+        { Select-CapturedValue -Captured $sample -Pattern '^https?://' } | Should -Throw '*REFUSED: empty-native-output*'
     }
 }

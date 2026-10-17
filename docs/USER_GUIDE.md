@@ -244,7 +244,7 @@ AAI uses two different classes of documentation:
 | `/aai-test-canon` | Test consolidation | Fragmented tests → canonical per-domain suites + RED stubs for gaps |
 | `/aai-pr` | Open a PR | Scope-only staging, staged-vs-scope audit, PR body; never merges |
 | `/aai-merge` | Merge and clean up | You name the PR: gates, one pinned merge command, then archive-first cleanup of the merged ride |
-| `/aai-release` | Cut a release | Roll CHANGELOG, commit, tag, publish, push; operator-gated, safe dry-run |
+| `/aai-release` | Cut and finish a release | Preview safely; confirm the bound release PR through checks, merge, publication verification and cleanup |
 | `/aai-profile` | Optimize | Performance analysis |
 | `/aai-worktree` | Isolate the work | Create and manage a git worktree for a scope |
 | `/aai-bootstrap` | New project | Detect the stack and generate project-specific skills |
@@ -717,33 +717,41 @@ unresolvable / ambiguous / duplicate id, or a non-done-terminal status (nothing
 written).
 
 #### `/aai-release`
-**What:** Cuts a release. `.aai/scripts/aai-release.{sh,ps1}` rolls the root
-`CHANGELOG.md`'s `[unreleased]` blocks into a versioned section (byte-preserved,
-idempotent), commits `chore(release): <version>`, creates an annotated git tag,
-publishes a GitHub release with notes derived from that section, and pushes —
-behind an operator gate with a safe default plan-only mode. Works identically
-releasing AAI itself or a downstream project with the AAI layer deployed.
-
-**When to use:**
-- A validated, merged scope is ready to ship as a versioned release
-- Previewing what the next cut would look like (default-safe: no flags needed)
+**What:** Previews or completes a versioned release. The shell and PowerShell
+frontends roll all root `CHANGELOG.md` unreleased sections on an isolated
+release branch. Owner confirmation pushes and binds its release PR, waits for
+required checks, merges that exact head, verifies CI's tag and release body,
+and cleans up safely. See [Release completion](product/release-command-finish.md)
+for the development status and platform evidence limits.
 
 **Example:**
 ```bash
-/aai-release                        # plan-only: prints the plan, changes nothing
-/aai-release --version v1.2.3       # verbatim version (any scheme, incl. SemVer)
-/aai-release --confirm              # THE CUT: roll + commit + tag + push + publish
-/aai-release --confirm --no-remote  # THE CUT, but skip push + gh release create
+/aai-release --dry-run --version v1.2.3
+/aai-release --confirm --version v1.2.3
+/aai-release --confirm --version v1.2.3 # resume unfinished stages
+/aai-release --confirm --no-remote    # local cut; remote finish skipped
 ```
 
-**Safety:**
-- Default-safe: a bare invocation and `--dry-run` behave identically — zero
-  writes, exit 0. The agent never passes `--confirm` on its own initiative;
-  publishing is an operator decision.
-- Fail-closed preconditions (zero writes on refusal): dirty tree, missing/empty/
-  malformed `[unreleased]` region, an existing tag for the resolved version, or
-  `gh` absent/unauthenticated on the publish path (dry-run still works offline).
-- Version defaults to CalVer `vYYYY.MM.DD` when `--version` is omitted.
+**Safety and recovery:** Bare invocation and dry-run make zero writes;
+dry-run wins alongside confirm. Versions default to UTC CalVer `vYYYY.MM.DD`.
+A remote preview refuses if the observed base object is unavailable and prints
+a fetch-before-preview remedy. Confirm audits the authoritative remote base
+snapshot before creating release refs or a PR, including executable-mode
+changes. Missing notes or missing required history/metadata refuse.
+
+Confirmation authorizes only the bound release PR/head, with all required
+checks passing and no auto/admin bypass. Observed base moves refuse and retain
+progress; repeating the printed explicit version resumes missing stages but
+can keep refusing a moved base. A fresh audited cut or deliberate operator
+repair is required in that case. The final base observation and GitHub merge
+are separate: a base push in between may enter the merge unseen. The command
+does not promise atomic base pinning or rollback of a merged PR/published tag.
+
+Cleanup uses a remote head lease and safely advances an available registered
+base checkout while preserving unrelated caller bytes. No base checkout is a
+named skip. No-remote skips remote completion; repositories without
+`release.yml` receive a manual-tagging skip. The client never publishes tags
+or releases directly.
 
 **Release notes for pull requests:** `release-notes-gate.mjs` requires a shipped-surface change to add nonempty rollable unreleased notes, or to include `no-notes: <reason>` in the PR body. Docs and test-only changes are exempt. Old unchanged notes, empty scaffolds, and blank reasons do not pass. `/aai-pr` runs the gate on the staged patch and the final proposed body. CI checks the PR commit range and body as data. An operator may mark the `release notes` job required. AAI does not change branch protection.
 
@@ -2786,6 +2794,12 @@ read its gate warning) to see which section is missing.
 <!-- AAI:USERGUIDE-ROLLUP:BEGIN (auto-generated by generate-userguide-rollup.mjs, do not edit by hand) -->
 
 ## Delivered features (generated)
+
+### Complete and resume a release
+
+The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
+
+[Product doc](product/release-command-finish.md) · [Spec](specs/SPEC-0233-spec-release-command-finish.md)
 
 ### Platform-portable PR ceremony
 

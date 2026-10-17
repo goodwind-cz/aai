@@ -6664,7 +6664,7 @@ test_spec0057_real_repo_known_collisions() {  # TEST-104 / Spec-AC-04
 }
 
 test_pdcm_product_family_repo_wide_clean() {  # spec-product-docs-capability-model TEST-011 / Spec-AC-04
-  log_info "Test: post-migration docs/product/ is scanned and CLEAN; all product docs classify tracked-open/aligned (spec-product-docs-capability-model TEST-011)..."
+  log_info "Test: post-migration docs/product/ is scanned and CLEAN; all open product docs preserve current/draft lifecycle and tracked-open/aligned verdict (spec-product-docs-capability-model TEST-011)..."
   # Scope the CLEAN assertion to docs/product — NOT the whole repo. A repo-wide
   # --check would transiently include THIS ride's own draft spec as a
   # probable-false-open (terminal AC table, status:draft) until its close
@@ -6683,10 +6683,30 @@ test_pdcm_product_family_repo_wide_clean() {  # spec-product-docs-capability-mod
   local expected
   expected=$(ls "$PROJECT_ROOT"/docs/product/*.md 2>/dev/null | wc -l | tr -d ' ')
   assert_contains "$TEST_DIR/pdcm-list.log" "Scanned: $expected docs"
-  local unaligned
-  unaligned=$(grep -c '| tracked-open | current | aligned |' "$TEST_DIR/pdcm-list.log")
-  [[ "$unaligned" == "$expected" ]] \
-    || log_fail "TEST-011: expected all $expected product docs classified tracked-open/current/aligned, got $unaligned: $(cat "$TEST_DIR/pdcm-list.log")"
+  # Product prose may be prepared before delivery. Verify each actual lifecycle
+  # status without promoting a draft or weakening the class/alignment checks.
+  PRODUCT_ROOT="$PROJECT_ROOT" PRODUCT_LIST="$TEST_DIR/pdcm-list.log" node --input-type=module <<'PRODUCT_LIFECYCLE'
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {pathToFileURL} from 'node:url';
+const root=process.env.PRODUCT_ROOT;
+const {parseFrontmatter}=await import(pathToFileURL(path.join(root,'.aai/scripts/lib/docs-model.mjs')));
+const rows=fs.readFileSync(process.env.PRODUCT_LIST,'utf8').split('\n').filter(l=>l.startsWith('| ')).map(l=>l.split('|').slice(1,-1).map(c=>c.trim()));
+function verify(row,fm){
+  assert.ok(['current','draft'].includes(fm.status),'unsupported open product lifecycle '+fm.status);
+  assert.equal(row[1],'tracked-open');assert.equal(row[2],fm.status);assert.equal(row[3],'aligned');
+}
+for(const file of fs.readdirSync(path.join(root,'docs/product')).filter(f=>f.endsWith('.md'))){
+ const rel='docs/product/'+file,fm=parseFrontmatter(fs.readFileSync(path.join(root,rel),'utf8'));
+ const found=rows.filter(r=>r[5]===rel);assert.equal(found.length,1,'exactly one classified row for '+rel);
+ verify(found[0],fm);
+ // Negative controls keep misclassification and a false lifecycle promotion fatal.
+ const drift=found[0].slice();drift[3]='probable-partial';assert.throws(()=>verify(drift,fm));
+ const mislabeled=found[0].slice();mislabeled[2]=fm.status==='draft'?'current':'draft';assert.throws(()=>verify(mislabeled,fm));
+}
+console.log('TEST-011 PASS every product preserves its actual current/draft lifecycle and strict tracked-open/aligned verdict');
+PRODUCT_LIFECYCLE
 
   log_pass "docs/product CLEAN + scanned; all $expected product docs tracked-open/aligned (spec-product-docs-capability-model TEST-011)"
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-16T18:31:59.027Z",
+  "generatedAt": "2026-10-17T12:08:48.116Z",
   "skillsCount": 42,
   "degradedCount": 27,
   "skills": [
@@ -281,7 +281,7 @@
       "description": "Use when a validated scope is ready to ship a release — rolls CHANGELOG.md [unreleased] into a versioned section, commits, tags, publishes a GitHub release, and pushes, behind an operator-gated confirm with a safe default dry-run.",
       "model": null,
       "promptFile": ".aai/SKILL_RELEASE.prompt.md",
-      "goal": "Roll the current repo's `CHANGELOG.md` `[unreleased]` blocks into a versioned\nsection, commit on `chore/release-<version>` in an isolated temporary worktree,\nand open a release PR — in one deterministic, operator-gated run. On merge of\nthe PR, CI (via `.github/workflows/release.yml`) creates the annotated tag and\npublishes the GitHub release. Downstream repos lacking that workflow tag and\npublish after merge (or vendor `release.yml`). Inputs: repo root,\n`CHANGELOG.md`, and git/`gh` remote.",
+      "goal": "Roll root `CHANGELOG.md` `[unreleased]` sections in an isolated temporary\nworktree, push `chore/release-<version>`, and finish its release PR in one\noperator-confirmed run. CI `release.yml` tags the merge SHA and publishes all\nrolled sections. Verify publication before leased cleanup and safe base sync.",
       "notes": []
     },
     {

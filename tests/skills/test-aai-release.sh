@@ -196,7 +196,7 @@ STUBEOF
 build_isolated_path() {
   local bin="$1" tool resolved
   mkdir -p "$bin"
-  for tool in bash sh git awk sed grep tr sort cat cp mv rm mkdir dirname \
+  for tool in node bash sh git awk sed grep tr sort cat cp mv rm mkdir dirname \
               basename comm wc diff find xargs head tail id chmod printf \
               date mktemp od env true false ls; do
     resolved="$(command -v "$tool" 2>/dev/null || true)"
@@ -475,73 +475,9 @@ test_005_annotated_tag() {
 
 # --- TEST-006 (Spec-AC-02, SEAM-1): notes == rolled CHANGELOG section -------
 
-test_006_seam1_notes_equal_rolled_section() {
-  log_info "TEST-006: SEAM-1 — gh pr create called with correct title, base, head, and rolled notes match..."
-  local repo="$TMP_ROOT/t006" bare="$TMP_ROOT/t006-bare.git" stub_bin="$TMP_ROOT/t006-stub" log_file="$TMP_ROOT/t006-ghlog"
-  build_repo "$repo" two_entries
-  git init -q --bare "$bare"
-  # `git init --bare` sets HEAD from the PER-MACHINE init.defaultBranch, not
-  # from whatever the fixture branches its own clones to. A runner whose
-  # default is `master` leaves any clone of this bare on a nonexistent ref
-  # ("remote HEAD refers to nonexistent ref"), so the next `push origin main`
-  # dies with "src refspec main does not match any" — CI-only, invisible
-  # locally. Pin it explicitly.
-  git -C "$bare" symbolic-ref HEAD refs/heads/main
-  git -C "$repo" remote add origin "file://$bare"
-  build_stub_gh "$stub_bin" "$log_file" 0
-
-  local rc=0
-  ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --version v9.1.0 --confirm ) >"$TMP_ROOT/t006.out" 2>&1 || rc=$?
-  [[ "$rc" == "0" ]] || log_fail "TEST-006: cut failed: $(cat "$TMP_ROOT/t006.out")"
-
-  [[ -f "$log_file" ]] || log_fail "TEST-006: stub gh never invoked"
-  grep -q "pr create" "$log_file" || log_fail "TEST-006: gh pr create was not called"
-  grep -q -- "--base main" "$log_file" || log_fail "TEST-006: gh pr create did not specify --base main"
-  grep -q -- "--head chore/release-v9.1.0" "$log_file" || log_fail "TEST-006: gh pr create did not specify --head chore/release-v9.1.0"
-  grep -q -- "--title chore(release): v9.1.0" "$log_file" || log_fail "TEST-006: gh pr create title mismatch"
-
-  local rolled_cl="$TMP_ROOT/t006-rolled.md" expected
-  git -C "$repo" show chore/release-v9.1.0:CHANGELOG.md > "$rolled_cl"
-  expected="$(extract_rolled_section "$rolled_cl" "v9.1.0")"
-  [[ -n "$expected" ]] || log_fail "TEST-006: rolled section for v9.1.0 is empty"
-  log_pass "TEST-006 SEAM-1: gh pr create called with correct arguments and rolled section intact"
-}
 
 # --- TEST-007 (Spec-AC-02): remote arm attempted, --no-remote arm skipped --
 
-test_007_remote_seam() {
-  log_info "TEST-007: remote-enabled arm pushes release branch + opens PR (no tag push); --no-remote arm skips both..."
-
-  # (a) remote-enabled arm
-  local repo="$TMP_ROOT/t007a" bare="$TMP_ROOT/t007a-bare.git" stub_bin="$TMP_ROOT/t007a-stub" log_file="$TMP_ROOT/t007a-ghlog"
-  build_repo "$repo" two_entries
-  git init -q --bare "$bare"
-  git -C "$bare" symbolic-ref HEAD refs/heads/main
-  git -C "$repo" remote add origin "file://$bare"
-  build_stub_gh "$stub_bin" "$log_file" 0
-  local rc=0
-  ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --version v9.2.0 --confirm ) >"$TMP_ROOT/t007a.out" 2>&1 || rc=$?
-  [[ "$rc" == "0" ]] || log_fail "TEST-007a: cut failed: $(cat "$TMP_ROOT/t007a.out")"
-  git -C "$bare" show-ref --heads | qgrep -q "refs/heads/chore/release-v9.2.0" || log_fail "TEST-007a: release branch was not pushed to the remote"
-  [[ -z "$(git -C "$bare" show-ref --tags 2>/dev/null || true)" ]] || log_fail "TEST-007a: tags were pushed to remote (must be deferred to CI)"
-  [[ -f "$log_file" ]] || log_fail "TEST-007a: gh was never invoked"
-  grep -q "pr create" "$log_file" || log_fail "TEST-007a: gh pr create was not attempted"
-
-  # (b) --no-remote arm: negative control — must skip both push and gh
-  local repo2="$TMP_ROOT/t007b" bare2="$TMP_ROOT/t007b-bare.git" stub_bin2="$TMP_ROOT/t007b-stub" log_file2="$TMP_ROOT/t007b-ghlog"
-  build_repo "$repo2" two_entries
-  git init -q --bare "$bare2"
-  git -C "$bare2" symbolic-ref HEAD refs/heads/main
-  git -C "$repo2" remote add origin "file://$bare2"
-  build_stub_gh "$stub_bin2" "$log_file2" 0
-  rc=0
-  ( cd "$repo2" && PATH="$stub_bin2:$PATH" bash "$RELEASE_SH" --version v9.2.0 --confirm --no-remote ) >"$TMP_ROOT/t007b.out" 2>&1 || rc=$?
-  [[ "$rc" == "0" ]] || log_fail "TEST-007b: --no-remote cut failed: $(cat "$TMP_ROOT/t007b.out")"
-  [[ -z "$(git -C "$bare2" show-ref 2>/dev/null || true)" ]] || log_fail "TEST-007b: --no-remote pushed something to the remote"
-  [[ ! -f "$log_file2" ]] || log_fail "TEST-007b: --no-remote invoked gh ($(cat "$log_file2"))"
-
-  log_pass "TEST-007 remote seam: enabled arm pushes release branch + opens PR, --no-remote arm skips both"
-}
 
 # --- TEST-008 (Spec-AC-02): idempotence — re-run refuses, zero writes ------
 
@@ -1147,97 +1083,12 @@ setup_protected_fixture() {
 
 # --- TEST-027 (Spec-AC-01): clean branch worktree PR cut --------------------
 
-test_027_protected_branch_fallback() {
-  log_info "TEST-027: cut on clean branch creates release commit in worktree, pushes release branch, opens PR, exit 0, caller clean..."
-  local repo="$TMP_ROOT/t027" bare="$TMP_ROOT/t027-bare.git" stub="$TMP_ROOT/t027-stub" log="$TMP_ROOT/t027-ghlog"
-  setup_protected_fixture t027
-  local pre_sha rc=0 n
-  pre_sha="$(git -C "$repo" rev-parse HEAD)"
-
-  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.3.0 --confirm ) \
-    >"$TMP_ROOT/t027.out" 2>"$TMP_ROOT/t027.err" || rc=$?
-
-  [[ "$rc" == "0" ]] || log_fail "TEST-027: expected exit 0, got $rc:"$'\n'"$(cat "$TMP_ROOT/t027.out" "$TMP_ROOT/t027.err")"
-  git -C "$repo" rev-parse -q --verify "refs/heads/chore/release-v9.3.0" >/dev/null 2>&1 \
-    || log_fail "TEST-027: local release branch chore/release-v9.3.0 was not created"
-  [[ "$(git -C "$repo" rev-parse HEAD)" == "$pre_sha" ]] \
-    || log_fail "TEST-027: caller branch main HEAD moved ($pre_sha)"
-  [[ -z "$(git -C "$repo" status --porcelain)" ]] \
-    || log_fail "TEST-027: caller working tree dirty"
-  git -C "$bare" show-ref --verify --quiet "refs/heads/chore/release-v9.3.0" \
-    || log_fail "TEST-027: release branch was not pushed to remote"
-  [[ -z "$(git -C "$bare" show-ref --tags 2>/dev/null || true)" ]] \
-    || log_fail "TEST-027: remote carries tags -- tagging must be deferred to CI"
-  [[ -z "$(git -C "$repo" tag -l v9.3.0)" ]] \
-    || log_fail "TEST-027: local tag was created -- tagging must be deferred to CI"
-  [[ -f "$log" ]] || log_fail "TEST-027: gh was never invoked (no PR opened)"
-  n="$(grep -c '^ARGS: pr create ' "$log" || true)"
-  [[ "$n" == "1" ]] || log_fail "TEST-027: expected exactly 1 'gh pr create', got $n"
-  grep -qF -- "--base main" "$log" || log_fail "TEST-027: gh pr create missing --base main"
-  grep -qF -- "--head chore/release-v9.3.0" "$log" || log_fail "TEST-027: gh pr create missing --head chore/release-v9.3.0"
-  log_pass "TEST-027 clean branch worktree cut: release branch created+pushed, caller clean, PR opened, exit 0"
-}
 
 # --- TEST-028 (Spec-AC-01): dirty checkout tolerated via worktree -----------
 
-test_028_fallback_never_publishes_or_merges() {
-  log_info "TEST-028: dirty caller checkout is tolerated via worktree cut; caller checkout remains byte-identical..."
-  local repo="$TMP_ROOT/t028" bare="$TMP_ROOT/t028-bare.git" stub="$TMP_ROOT/t028-stub" log="$TMP_ROOT/t028-ghlog" rc=0
-  setup_protected_fixture t028
-
-  echo "untracked content" > "$repo/untracked.txt"
-  echo "unstaged edit" >> "$repo/CHANGELOG.md"
-  local cl_sha; cl_sha="$(sha_of "$repo/CHANGELOG.md")"
-
-  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.3.1 --confirm ) \
-    >"$TMP_ROOT/t028.out" 2>"$TMP_ROOT/t028.err" || rc=$?
-  [[ "$rc" == "0" ]] || log_fail "TEST-028: expected exit 0, got $rc:"$'\n'"$(cat "$TMP_ROOT/t028.out" "$TMP_ROOT/t028.err")"
-
-  [[ "$(cat "$repo/untracked.txt")" == "untracked content" ]] \
-    || log_fail "TEST-028: caller untracked file modified"
-  [[ "$(sha_of "$repo/CHANGELOG.md")" == "$cl_sha" ]] \
-    || log_fail "TEST-028: caller CHANGELOG.md modified"
-
-  if grep -q 'release create' "$log"; then
-    log_fail "TEST-028: invoked 'gh release create' — tagging and release publication are done by CI"
-  fi
-  if grep -q 'pr merge' "$log"; then
-    log_fail "TEST-028: invoked 'gh pr merge' — Constitution article 7 (operator-only merge)"
-  fi
-  log_pass "TEST-028 dirty checkout tolerated via worktree; caller byte-identical, no release create, no pr merge"
-}
 
 # --- TEST-029 (Spec-AC-01): detached HEAD tolerated via worktree ------------
 
-test_029_tag_is_local_and_report_names_the_repoint() {
-  log_info "TEST-029: detached HEAD caller is tolerated via worktree cut from base branch, caller preserved..."
-  local repo="$TMP_ROOT/t029" bare="$TMP_ROOT/t029-bare.git" stub="$TMP_ROOT/t029-stub" log="$TMP_ROOT/t029-ghlog" rc=0 out="$TMP_ROOT/t029.out"
-  setup_protected_fixture t029
-
-  local pre_sha
-  pre_sha="$(git -C "$repo" rev-parse HEAD)"
-  git -C "$repo" checkout -q --detach HEAD
-  [[ "$(git -C "$repo" rev-parse --abbrev-ref HEAD)" == "HEAD" ]] \
-    || log_fail "TEST-029 fixture bug: not on detached HEAD"
-
-  ( cd "$repo" && PATH="$stub:$PATH" bash "$RELEASE_SH" --version v9.3.2 --confirm ) \
-    >"$out" 2>"$TMP_ROOT/t029.err" || rc=$?
-  [[ "$rc" == "0" ]] || log_fail "TEST-029: expected exit 0, got $rc:"$'\n'"$(cat "$out" "$TMP_ROOT/t029.err")"
-
-  # Caller remains on detached HEAD at pre_sha
-  [[ "$(git -C "$repo" rev-parse --abbrev-ref HEAD)" == "HEAD" ]] \
-    || log_fail "TEST-029: caller detached HEAD moved to branch"
-  [[ "$(git -C "$repo" rev-parse HEAD)" == "$pre_sha" ]] \
-    || log_fail "TEST-029: caller detached HEAD SHA moved"
-
-  local pr_line
-  pr_line="$(sed -n 's/^- PR:[[:space:]]*//p' "$out")"
-  [[ "$pr_line" == "$STUB_PR_URL" ]] \
-    || log_fail "TEST-029: report - PR: line mismatch: got '$pr_line'"
-  grep -q "Status:.*Release PR opened" "$out" \
-    || log_fail "TEST-029: report missing release PR opened confirmation"
-  log_pass "TEST-029 detached HEAD caller tolerated and preserved; release PR opened"
-}
 
 # --- TEST-030 (Spec-AC-02): CI release workflow tags and publishes on merge -
 
@@ -1314,9 +1165,9 @@ test_031_unprotected_path_byte_identical() {
   git -C "$repo" tag v9.0.0
 
   # Add 3 commits with different house link styles
-  echo "c1" > "$repo/f1"; git -C "$repo" add f1; git -C "$repo" commit -q -m "feat: feature one (#101)"
-  echo "c2" > "$repo/f2"; git -C "$repo" add f2; git -C "$repo" commit -q -m "fix: fix two (goodwind-cz/aai#102)"
-  echo "c3" > "$repo/f3"; git -C "$repo" add f3; git -C "$repo" commit -q -m "chore: chore three (#103)"
+  echo "c1" > "$repo/f1.sh"; git -C "$repo" add f1.sh; git -C "$repo" commit -q -m "feat: feature one (#101)"
+  echo "c2" > "$repo/f2.sh"; git -C "$repo" add f2.sh; git -C "$repo" commit -q -m "fix: fix two (goodwind-cz/aai#102)"
+  echo "c3" > "$repo/f3.sh"; git -C "$repo" add f3.sh; git -C "$repo" commit -q -m "chore: chore three (#103)"
 
   # Update CHANGELOG with entries referencing #101 and #102, but omitting #103
   cat > "$repo/CHANGELOG.md" <<'EOF'
@@ -1333,7 +1184,7 @@ test_031_unprotected_path_byte_identical() {
 EOF
 
   out="$TMP_ROOT/t031.out"
-  ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --dry-run ) > "$out" 2>&1 || true
+  ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --dry-run --no-remote ) > "$out" 2>&1 || true
 
   # Verify that unlogged_prs correctly identified only unlogged PR #103, and accepted #101 and #102
   grep -q "NAMED (not blocking): 1 PR(s)" "$out" || log_fail "TEST-031: expected exactly 1 unlogged PR, got output: $(cat "$out")"
@@ -1358,7 +1209,7 @@ EOF
 - base
 EOF
 
-  ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --dry-run ) > "$out" 2>&1 || true
+  ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --dry-run --no-remote ) > "$out" 2>&1 || true
   grep -q "NAMED" "$out" && log_fail "TEST-031: NAMED warning appeared despite all PRs documented: $(cat "$out")"
   grep -q "ready to cut with --confirm" "$out" || log_fail "TEST-031: ready confirmation missing"
 
@@ -1386,40 +1237,11 @@ test_032_non_protected_failure_degrades_raw() {
 # --- TEST-033 (Spec-AC-06, SEAM-3): ps1 twin worktree parity ---------------
 
 test_033_ps1_fallback_parity() {
-  log_info "TEST-033: SEAM-3 — aai-release.ps1 worktree cut and PR opening match bash engine..."
   if ! command -v pwsh >/dev/null 2>&1; then
-    log_info "TEST-033: pwsh is absent on this host — skipping"
-    log_pass "TEST-033 SKIPPED with a named reason (pwsh absent)"
+    log_info "TEST-033: SKIPPED (pwsh absent); Linux CI requires pwsh and zero skips"
     return 0
   fi
-
-  local repo="$TMP_ROOT/t033" bare="$TMP_ROOT/t033-bare.git" stub="$TMP_ROOT/t033-stub" log="$TMP_ROOT/t033-ghlog" rc=0 pre_sha n pr_line
-  setup_protected_fixture t033
-  pre_sha="$(git -C "$repo" rev-parse HEAD)"
-
-  ( cd "$repo" && PATH="$stub:$PATH" pwsh -NoProfile -File "$RELEASE_PS1" --version v9.7.5 --confirm ) \
-    >"$TMP_ROOT/t033.out" 2>"$TMP_ROOT/t033.err" || rc=$?
-  [[ "$rc" == "0" ]] || log_fail "TEST-033: ps1 engine exited $rc, expected 0:"$'\n'"$(cat "$TMP_ROOT/t033.out" "$TMP_ROOT/t033.err")"
-
-  git -C "$repo" rev-parse -q --verify "refs/heads/chore/release-v9.7.5" >/dev/null 2>&1 \
-    || log_fail "TEST-033: ps1 engine did not create chore/release-v9.7.5"
-  [[ "$(git -C "$repo" rev-parse HEAD)" == "$pre_sha" ]] \
-    || log_fail "TEST-033: ps1 engine moved caller HEAD"
-  [[ -z "$(git -C "$repo" status --porcelain)" ]] \
-    || log_fail "TEST-033: ps1 engine left caller dirty"
-  git -C "$bare" show-ref --verify --quiet "refs/heads/chore/release-v9.7.5" \
-    || log_fail "TEST-033: ps1 engine did not push the release branch"
-  [[ -z "$(git -C "$bare" show-ref --tags 2>/dev/null || true)" ]] \
-    || log_fail "TEST-033: ps1 engine published a tag (tagging must be deferred to CI)"
-  [[ -z "$(git -C "$repo" tag -l v9.7.5)" ]] \
-    || log_fail "TEST-033: ps1 engine created local tag"
-
-  n="$(grep -c '^ARGS: pr create ' "$log" || true)"
-  [[ "$n" == "1" ]] || log_fail "TEST-033: expected exactly 1 ps1-side 'gh pr create', got $n"
-  pr_line="$(sed -n 's/^- PR:[[:space:]]*//p' "$TMP_ROOT/t033.out")"
-  [[ "$pr_line" == "$STUB_PR_URL" ]] \
-    || log_fail "TEST-033: ps1 report - PR: line mismatch: got '$pr_line'"
-  log_pass "TEST-033 SEAM-3: ps1 twin worktree cut matches bash engine (exit 0, branch pushed, caller clean, PR opened)"
+  RELEASE_FINISH_CASE=PS test_700_one_command_finish
 }
 
 # --- TEST-034 (Spec-AC-07, SEAM-2): exit codes documented + ledger true-up --
@@ -1553,6 +1375,563 @@ test_570_changelog_shape_is_documented() {
   log_pass "TEST-570: CHANGELOG preamble documents the heading shape + exits 12/13; --dry-run still refuses a scaffold with a body"
 }
 
+# release-command-finish: disposable Git/GitHub transport integration.
+# Split mapping: 001=004/005; 002/003=016; 004=006/010; 005=016/017/010;
+# 006=007/010; 007=011/012; 008=010; 009=009/legacy; 010=701/Pester;
+# 011=014/hosted proof; 012=015; 013=declared companion suites.
+test_700_one_command_finish() {
+  PROJECT_ROOT="$PROJECT_ROOT" TMP_ROOT="$TMP_ROOT" node --input-type=module <<'JS'
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import os from 'node:os';
+import {spawnSync,spawn} from 'node:child_process';
+import {pathToFileURL} from 'node:url';
+const root=process.env.PROJECT_ROOT, tmp=process.env.TMP_ROOT;
+const sh=path.join(root,'.aai/scripts/aai-release.sh');
+const ps=path.join(root,'.aai/scripts/aai-release.ps1');
+let sequence=0;
+function run(cmd,args,cwd,env={}) { const r=spawnSync(cmd,args,{cwd,env:{...process.env,...env},encoding:'utf8'}); if(r.status!==0) throw Error(`${cmd} ${args.join(' ')}: ${r.status} ${r.stderr}`); return r.stdout.trim(); }
+function fixture(mode='') {
+ const d=fs.mkdtempSync(path.join(tmp,'finish-')); const repo=path.join(d,'repo'), origin=path.join(d,'origin.git'), bin=path.join(d,'bin'); fs.mkdirSync(bin);
+ run('git',['init','--bare','-q',origin],d); run('git',['init','-q','-b','main',repo],d);
+ const git=(...args)=>run('git',args,repo);
+ git('config','user.name','Release Test');git('config','user.email','release@test.invalid');
+ git('config',`url.file://${origin}.insteadOf`,'https://github.com/test/release.git');git('remote','add','origin','https://github.com/test/release.git');
+ fs.writeFileSync(path.join(repo,'CHANGELOG.md'),'# Changelog\n\n## [unreleased] — feat: alpha (#101)\n\n- alpha\n\n## [unreleased] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n');
+ fs.mkdirSync(path.join(repo,'.github/workflows'),{recursive:true}); const workflow=fs.readFileSync(path.join(root,'.github/workflows/release.yml'),'utf8');fs.writeFileSync(path.join(repo,'.github/workflows/release.yml'),workflow);
+ const shell=workflow.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');fs.writeFileSync(path.join(d,'publish.sh'),shell);
+ fs.writeFileSync(path.join(repo,'keep.txt'),'keep\n');git('add','.');git('commit','-qm','seed');git('tag','v0');git('push','-q','origin','main','--tags');
+ const state=path.join(d,'transport.json');fs.writeFileSync(state,JSON.stringify({mode,calls:[],prs:[],releases:{}}));
+ const stub=String.raw`#!/usr/bin/env node
+const fs=require('fs'),cp=require('child_process'),path=require('path');
+const f=process.env.TRANSPORT, s=JSON.parse(fs.readFileSync(f)), a=process.argv.slice(2), repo=process.env.FIXTURE_REPO, origin=process.env.FIXTURE_ORIGIN;
+s.calls.push(a);fs.writeFileSync(f,JSON.stringify(s));
+const out=x=>process.stdout.write(typeof x==='string'?x+'\n':JSON.stringify(x)+'\n');
+const die=m=>{process.stderr.write('deny-default gh stub: '+m+'\n');process.exit(91)};
+const eq=x=>JSON.stringify(a)===JSON.stringify(x);
+const get=x=>a[a.indexOf(x)+1];
+const fields='number,url,title,baseRefName,headRefName,headRefOid,state,mergeCommit,headRepository,isCrossRepository';
+const releasePr=()=>s.prs.find(p=>p.headRefName==='chore/release-v1');
+const git=(...x)=>{const r=cp.spawnSync('git',x,{cwd:repo,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};
+function save(){fs.writeFileSync(f,JSON.stringify(s))}
+if(eq(['--version']))out('gh fixture');
+else if(eq(['auth','status'])){if(s.mode==='gh')process.exit(1)}
+else if(eq(['repo','view','--json','nameWithOwner']))out({nameWithOwner:s.mode==='foreign-repo'?'foreign/repo':'test/release'});
+else if(eq(['pr','view','1','--repo','test/release','--json','state,isInMergeQueue,autoMergeRequest'])) {
+ const p=releasePr();out({state:p.state,isInMergeQueue:Boolean(s.queued&&p.state==='OPEN'),autoMergeRequest:s.armed&&p.state==='OPEN'?{enabledAt:'2026-10-17T00:00:00Z'}:null});
+}
+else if(a[0]==='api'){
+ const m=/^repos\/\{owner\}\/\{repo\}\/commits\/([0-9a-f]{40})\/pulls$/.exec(a[1]||'');if(!m||a.length!==2)die('bad api argv '+JSON.stringify(a));
+ out((s.apiPulls||{})[m[1]]||[]);
+}
+else if(a[0]==='pr'&&a[1]==='view') {
+ const p=s.prs.find(p=>String(p.number)===a[2]);if(!p)die('unknown PR');
+ const expected=p.headRefName==='chore/release-v1'?['pr','view','1','--repo','test/release','--json',fields]:['pr','view',String(p.number),'--json','body,files'];
+ if(!eq(expected))die('bad view argv');
+ if(s.mode==='head'&&p.headRefName==='chore/release-v1'){const r=cp.spawnSync('git',['update-ref','refs/heads/'+p.headRefName,git('rev-parse','HEAD')],{cwd:origin,encoding:'utf8'});if(r.status)die(r.stderr);s.movedHead=true;save();}
+ out(p);
+}
+else if(a[0]==='pr'&&a[1]==='list') {
+ if(s.queued&&s.queueSettles){s.queued=false;s.mode='';save();const p0=releasePr();const md=path.join(path.dirname(f),'runner');git('clone','-q',origin,md);const g0=(...x)=>{const r=cp.spawnSync('git',x,{cwd:md,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};g0('checkout','-q','main');g0('config','user.name','CI');g0('config','user.email','ci@test.invalid');g0('merge','--squash','origin/'+p0.headRefName);g0('commit','-qm',p0.title);p0.state='MERGED';p0.mergeCommit={oid:g0('rev-parse','HEAD')};g0('push','-q','origin','main');s.runner=md;save();}
+ const dependent=eq(['pr','list','--repo','test/release','--base','chore/release-v1','--state','open','--json','number']);
+ const release=eq(['pr','list','--repo','test/release','--head','chore/release-v1','--state','all','--json',fields]);
+ if(!dependent&&!release)die('bad list argv');
+ if(dependent){if(s.mode==='cleanup-head'){const p=releasePr();const r=cp.spawnSync('git',['update-ref','refs/heads/'+p.headRefName,p.mergeCommit.oid],{cwd:origin,encoding:'utf8'});if(r.status)die(r.stderr);}out(s.mode==='dependent'?[{number:99}]:[]);}
+ else if(s.mode==='ambiguous')out([{number:7},{number:8}]);else out(s.prs.filter(p=>p.headRefName==='chore/release-v1'));
+}
+else if(a[0]==='pr'&&a[1]==='create') {
+ if(s.mode==='hold-pr'&&!fs.existsSync(path.join(path.dirname(f),'pr-held'))){fs.writeFileSync(path.join(path.dirname(f),'pr-held'),'held');while(!fs.existsSync(path.join(path.dirname(f),'pr-go')))Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);}
+ const body=get('--body-file');
+ const expected=['pr','create','--repo','test/release','--base','main','--head','chore/release-v1','--title','chore(release): v1','--body-file',body];
+ const journal=path.join(fs.realpathSync(path.resolve(repo,git('rev-parse','--git-common-dir'))),'aai/releases');
+ if(!eq(expected)||!body||path.dirname(body)!==journal||!/^body-[a-f0-9]{12}\.md$/.test(path.basename(body)))die('bad create argv');
+ const branch=get('--head'), sha=git('ls-remote','origin','refs/heads/'+branch).split(/\s/)[0];
+ if(fs.readFileSync(body,'utf8')!==('Automated release cut for v1.\n\nBound release: test/release '+branch+' '+sha+'.\n\nno-notes: release rollup contains the previously recorded entries.\n'))die('bad bound PR body'); if(!/^[a-f0-9]{40}$/.test(sha))die('unpushed head');
+ const p={number:1,url:'https://github.com/test/release/pull/1',title:get('--title'),baseRefName:'main',headRefName:branch,headRefOid:sha,state:'OPEN',mergeCommit:null,headRepository:{nameWithOwner:'test/release'},isCrossRepository:false};s.prs.push(p);save();out(p.url);
+} else if(a[0]==='pr'&&a[1]==='checks') {
+ const required=eq(['pr','checks','1','--repo','test/release','--required','--json','name,bucket,link']);
+ const watchedRequired=eq(['pr','checks','1','--required','--json','name,bucket,link']);
+ const watched=watchedRequired||eq(['pr','checks','1','--json','name,bucket,link']);if(!required&&!watched)die('bad checks argv');
+ if(s.mode==='optional-fail'&&!required&&!watchedRequired){out([{name:'required',bucket:'pass',link:''},{name:'optional-lint',bucket:'fail',link:''}]);process.exit(1);}
+ if(s.mode==='checks-error'){out([{name:'required',bucket:'pass',link:''}]);process.exit(3);}
+ if(s.mode==='pending-empty'){out([]);process.exit(8);}
+ if(s.mode==='pending-malformed'){out('not JSON');process.exit(8);}
+ if(s.mode==='base-move'&&!s.baseMoved){
+  const d=path.join(path.dirname(f),'ci-writer');git('clone','-q',origin,d);
+  const g=(...x)=>{const r=cp.spawnSync('git',x,{cwd:d,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};
+  g('checkout','-q','main');g('config','user.name','Writer');g('config','user.email','writer@test.invalid');
+  fs.mkdirSync(path.join(d,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(d,'.aai/scripts/ci-unnoted.mjs'),'new behavior\n');g('add','.');g('commit','-qm','feat: during CI (#211)');g('push','-q','origin','main');s.baseMoved=true;save();
+ }
+ let bucket=s.mode==='ci'?'fail':'pass';
+ if(s.mode==='pending'||s.mode==='pending-forever'){
+  s.checkPolls=(s.checkPolls||0)+1;bucket=s.mode==='pending-forever'||s.checkPolls<=2?'pending':'pass';save();
+ }
+ out(s.mode==='missing-checks'?[]:[{name:'required',bucket,link:''}]);
+ if(bucket==='pending')process.exit(8);if(bucket==='fail')process.exit(1);
+} else if(a[0]==='pr'&&a[1]==='merge') {
+ const p=releasePr();const expected=['pr','merge','1','--repo','test/release','--squash','--match-head-commit',p.headRefOid];if(!eq(expected))die('unbound merge '+JSON.stringify(a));
+ if(s.mode==='queue'){s.queued=true;save();process.exit(0);}
+ const mergeDir=path.join(path.dirname(f),'runner');git('clone','-q',origin,mergeDir);const g=(...x)=>{const r=cp.spawnSync('git',x,{cwd:mergeDir,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};
+ g('checkout','-q','main');g('config','user.name','CI');g('config','user.email','ci@test.invalid');g('merge','--squash','origin/'+p.headRefName);g('commit','-qm',p.title);p.state='MERGED';p.mergeCommit={oid:g('rev-parse','HEAD')};g('push','-q','origin','main');s.runner=mergeDir;save();
+} else if(a[0]==='run'&&a[1]==='list') {
+ const p=releasePr();if(!p||p.state!=='MERGED'||!eq(['run','list','--repo','test/release','--workflow','release.yml','--commit',p.mergeCommit.oid,'--json','databaseId,headSha,status,conclusion']))die('bad workflow argv/SHA');
+ if(s.mode==='workflow')out([{databaseId:8,headSha:p.mergeCommit.oid,status:'completed',conclusion:'failure'}]);
+ else {if(!s.published){s.published=true;save(); const shell=s.mode==='workflow-spawn-error'?path.join(path.dirname(f),'missing-workflow-shell'):'bash';const r=cp.spawnSync(shell,[path.join(path.dirname(f),'publish.sh')],{cwd:s.runner,env:{...process.env,REF_TYPE:'branch',REF_NAME:'main'},encoding:'utf8'});if(r.status!==0)die('workflow shell '+(r.error?.code||('exit '+r.status))+' '+r.stderr+' '+r.stdout);Object.assign(s,JSON.parse(fs.readFileSync(f)));if(s.mode==='tag'){const bad=cp.spawnSync('git',['update-ref','refs/tags/v1',git('rev-parse','HEAD')],{cwd:origin,encoding:'utf8'});if(bad.status)die(bad.stderr);}}out([{databaseId:8,headSha:p.mergeCommit.oid,status:'completed',conclusion:'success'}]);}
+} else if(a[0]==='release'&&a[1]==='view') {
+ const client=eq(['release','view','v1','--repo','test/release','--json','body,url']);const workflow=eq(['release','view','v1']);if(!client&&!workflow)die('bad release view argv');
+ const release=s.releases.v1;if(!release)process.exit(1);out(client?release:'release exists');
+}
+else if(a[0]==='release'&&a[1]==='create') {const notes=get('--notes-file');if(s.mode==='create-error'){process.stderr.write('workflow publication failure control\n');process.exit(7);}if(!eq(['release','create','v1','--title','v1','--notes-file',notes])||!notes||!path.isAbsolute(notes)||!fs.existsSync(notes))die('bad release create argv');if(fs.realpathSync(path.dirname(notes))!==fs.realpathSync(path.dirname(f))||fs.readFileSync(notes,'utf8').trim()!==(s.notes||'## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta'))die('bad notes file binding/content'); s.releases[a[2]]={body:fs.readFileSync(get('--notes-file'),'utf8'),url:'https://github.com/test/release/releases/tag/'+a[2]};if(s.mode==='notes')s.releases[a[2]].body='wrong';save();out(s.releases[a[2]].url)}
+else die(JSON.stringify(a));
+`;
+ fs.writeFileSync(path.join(bin,'gh'),stub,{mode:0o755});
+ // BSD/macOS mktemp ignores TMPDIR when called bare; the CI runner's GNU mktemp honors it.
+ const realMktemp=run('which',['mktemp'],repo);fs.writeFileSync(path.join(bin,'mktemp'),`#!/bin/sh\nif [ "$#" -eq 0 ]; then exec "${realMktemp}" "\${TMPDIR:-/tmp}/tmp.XXXXXXXXXX"; fi\nexec "${realMktemp}" "$@"\n`,{mode:0o755});
+ const realGit=run('which',['git'],repo);fs.writeFileSync(path.join(bin,'git'),`#!/bin/sh
+if [ -n "$FIXTURE_GIT_LOG" ]; then
+  for arg in "$@"; do printf '%s\\n' "$arg" >> "$FIXTURE_GIT_LOG"; done
+  printf '%s\\n' '--END--' >> "$FIXTURE_GIT_LOG"
+fi
+if [ "$FIXTURE_MODE" = "lease-race" ] && [ "$1" = "push" ] && [ "$4" = ":refs/heads/chore/release-v1" ]; then
+  "${realGit}" -C "$FIXTURE_ORIGIN" update-ref refs/heads/chore/release-v1 refs/heads/main
+fi
+if [ "$FIXTURE_MODE" = "late-base" ] && [ "$*" = "ls-remote origin refs/heads/main" ]; then
+  count=0
+  if [ -f "$FIXTURE_BASE_READS" ]; then read count < "$FIXTURE_BASE_READS"; fi
+  count=$((count + 1))
+  printf '%s\\n' "$count" > "$FIXTURE_BASE_READS"
+  "${realGit}" "$@" || exit $?
+  if [ "$count" = "10" ]; then "${realGit}" -C "$FIXTURE_LATE_WRITER" push -q origin main || exit $?; fi
+  exit 0
+fi
+if [ "$*" = "remote get-url origin" ]; then printf '%s\\n' https://github.com/test/release.git; else exec "${realGit}" "$@"; fi
+`,{mode:0o755});
+ let lateWriter='';
+ if(mode==='late-base'){
+  lateWriter=path.join(d,'last-window-writer');git('clone','-q',origin,lateWriter);
+  run('git',['checkout','-q','main'],lateWriter);run('git',['config','user.name','Late Writer'],lateWriter);run('git',['config','user.email','late@test.invalid'],lateWriter);
+  fs.mkdirSync(path.join(lateWriter,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(lateWriter,'.aai/scripts/last-window.mjs'),'new late behavior\n');run('git',['add','.'],lateWriter);run('git',['commit','-qm','feat: final observation window (#212)'],lateWriter);
+ }
+ const env={FIXTURE_LATE_WRITER:lateWriter,FIXTURE_BASE_READS:path.join(d,'base-reads'),TMPDIR:d,TEMP:d,TMP:d,PATH:bin+path.delimiter+process.env.PATH,FIXTURE_MODE:mode,FIXTURE_GIT_LOG:path.join(d,'git-argv.log'),TRANSPORT:state,FIXTURE_REPO:repo,FIXTURE_ORIGIN:origin,AAI_RELEASE_POLL_SECONDS:'0.01',AAI_RELEASE_WAIT_SECONDS:'2'};
+ const invoke=(extra=[],engine='sh',caller=repo)=>spawnSync(engine==='ps'?'pwsh':'bash',engine==='ps'?['-NoProfile','-File',ps,'--version','v1','--confirm',...extra]:[sh,'--version','v1','--confirm',...extra],{cwd:caller,env:{...process.env,...env},encoding:'utf8'});
+ return {d,repo,origin,state,env,git,invoke,transport:()=>JSON.parse(fs.readFileSync(state))};
+}
+function historical(f,number,file,body='') {
+ fs.mkdirSync(path.dirname(path.join(f.repo,file)),{recursive:true});if(file==='CHANGELOG.md')fs.appendFileSync(path.join(f.repo,file),'\nnotes-only amendment\n');else fs.writeFileSync(path.join(f.repo,file),'change '+number+'\n');f.git('add',file);f.git('commit','-qm',`feat: shipped ${number} (#${number})`);f.git('push','-q','origin','main');const t=f.transport();t.prs.push({number,body,files:[{path:file}],headRefName:'historical-'+number});fs.writeFileSync(f.state,JSON.stringify(t));
+}
+function remoteCommit(f,number,file,body='') {
+ const clone=path.join(f.d,'writer-'+number);f.git('clone','-q',f.origin,clone);
+ run('git',['checkout','-q','main'],clone);run('git',['config','user.name','Writer'],clone);run('git',['config','user.email','writer@test.invalid'],clone);
+ fs.mkdirSync(path.dirname(path.join(clone,file)),{recursive:true});fs.writeFileSync(path.join(clone,file),'remote '+number+'\n');
+ run('git',['add',file],clone);run('git',['commit','-qm',`feat: remote ${number} (#${number})`],clone);run('git',['push','-q','origin','main'],clone);
+ const t=f.transport();t.prs.push({number,body,files:[{path:file}],headRefName:'historical-'+number});fs.writeFileSync(f.state,JSON.stringify(t));
+ return run('git',['rev-parse','HEAD'],clone);
+}
+const selected=process.env.RELEASE_FINISH_CASE||'all';
+function check(id,fn){if(selected!=='all'&&selected!==id)return;fn();console.log('PASS: '+id+' release-command-finish');}
+check('TEST-004',()=>{const f=fixture();historical(f,201,'CHANGELOG.md');historical(f,202,'docs/ai/AAI_VERSION.md');historical(f,203,'.aai/scripts/exempt.mjs','no-notes: internal refactor');historical(f,101,'.aai/scripts/noted.mjs');const r=spawnSync('bash',[sh,'--version','v1','--dry-run'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.ok(!r.stdout.includes('NAMED'),r.stdout);});
+check('TEST-005',()=>{const f=fixture();historical(f,205,'.aai/scripts/missing.mjs');const refs=f.git('show-ref'),bytes=fs.readFileSync(path.join(f.repo,'CHANGELOG.md'));for(const args of [[],['--dry-run'],['--dry-run','--confirm']]){const r=spawnSync('bash',[sh,'--version','v1',...args],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.match(r.stdout,/NAMED/);assert.equal(f.git('show-ref'),refs);assert.deepEqual(fs.readFileSync(path.join(f.repo,'CHANGELOG.md')),bytes);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);}const r=f.invoke();assert.notEqual(r.status,0);assert.match(r.stderr,/REFUSED: missing-notes/);assert.equal(f.git('show-ref'),refs);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+ const stale=fixture();historical(stale,206,'.aai/scripts/forgotten.mjs');stale.git('checkout','--detach','-q','v0');const before=stale.git('show-ref');const refused=stale.invoke();assert.equal(refused.status,20,refused.stderr);assert.match(refused.stderr,/missing-notes/);assert.equal(stale.git('show-ref'),before);assert.equal(stale.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);assert.equal(Object.keys(stale.transport().releases).length,0);
+ const blank=fixture();historical(blank,207,'.aai/scripts/forgotten.mjs','no-notes:\n\nUnrelated paragraph');const blocked=blank.invoke();assert.equal(blocked.status,20,blocked.stderr);assert.match(blocked.stderr,/missing-notes/);assert.equal(blank.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+});
+check('TEST-016',()=>{
+ for(const change of ['added','deleted','mode']) {
+  const f=fixture();fs.writeFileSync(path.join(f.repo,'run-service'),'#!/bin/sh\necho behavior\n',{mode:0o755});
+  if(change!=='added'){f.git('add','run-service');f.git('commit','-qm','seed executable');f.git('tag','-f','v0');}
+  if(change==='deleted')f.git('rm','run-service');else if(change==='mode')fs.chmodSync(path.join(f.repo,'run-service'),0o644);
+  f.git('add','-A');f.git('commit','-qm',`feat: executable ${change} (#208)`);f.git('push','-q','origin','main');
+  const t=f.transport();t.prs.push({number:208,body:'',files:[{path:'run-service'}],headRefName:'historical-208'});fs.writeFileSync(f.state,JSON.stringify(t));
+  const refs=f.git('show-ref'),r=f.invoke();assert.equal(r.status,20,change+r.stdout+r.stderr);assert.match(r.stderr,/missing-notes/);assert.equal(f.git('show-ref'),refs);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+ }
+ const stale=fixture(),before=stale.git('rev-parse','origin/main'),actual=remoteCommit(stale,209,'.aai/scripts/unnoted.mjs');assert.notEqual(actual,before);
+ const fetchHead=path.join(stale.repo,'.git/FETCH_HEAD');fs.writeFileSync(fetchHead,'owner-fetch-head\n');
+ const refs=stale.git('show-ref');const preview=spawnSync('bash',[sh,'--version','v1','--dry-run'],{cwd:stale.repo,env:{...process.env,...stale.env},encoding:'utf8'});
+ assert.equal(preview.status,20,preview.stdout+preview.stderr);assert.match(preview.stderr,/base-history/);assert.equal(stale.git('show-ref'),refs);assert.equal(fs.readFileSync(fetchHead,'utf8'),'owner-fetch-head\n');assert.ok(!fs.existsSync(path.join(stale.repo,'.git/aai/releases')));
+ const r=stale.invoke();assert.equal(fs.readFileSync(fetchHead,'utf8'),'owner-fetch-head\n');assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/missing-notes.*#209/);assert.equal(stale.git('show-ref'),refs);assert.equal(stale.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+ // A benign stale tracking ref succeeds using the real remote base, proving
+ // this is authoritative audit rather than blanket stale-ref refusal.
+ const benign=fixture(),remote=remoteCommit(benign,210,'docs/change.md');const ok=benign.invoke();assert.equal(ok.status,0,ok.stdout+ok.stderr);
+ const journal=JSON.parse(fs.readFileSync(path.join(benign.repo,'.git/aai/releases',fs.readdirSync(path.join(benign.repo,'.git/aai/releases')).find(n=>n.endsWith('.json')))));assert.equal(journal.baseHead,remote);
+ // Move the real bare-origin base during the checks transport, not merge.
+ const moving=fixture('base-move');const blocked=moving.invoke();assert.equal(blocked.status,20,blocked.stdout+blocked.stderr);assert.match(blocked.stderr,/base-moved/);assert.equal(moving.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);assert.match(blocked.stderr,/Resume: .*--version v1 --confirm/);assert.equal(moving.invoke().status,20);
+});
+check('TEST-017',()=>{
+ const f=fixture('late-base'),r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+ const journal=JSON.parse(fs.readFileSync(path.join(f.repo,'.git/aai/releases',fs.readdirSync(path.join(f.repo,'.git/aai/releases')).find(n=>n.endsWith('.json')))));
+ const merge=f.transport().prs[0].mergeCommit.oid;assert.notEqual(f.git('rev-parse',merge+'^'),journal.baseHead);assert.equal(f.git('show',merge+':.aai/scripts/last-window.mjs'),'new late behavior');assert.ok(f.transport().releases.v1);assert.equal(fs.readFileSync(path.join(f.d,'base-reads'),'utf8').trim(),'10');
+ console.log('KNOWN EXTERNAL LIMIT: real remote base push after final observation entered published merge; PR head pin is not an atomic base pin');
+});
+check('TEST-018',()=>{
+ const noConfirm=fixture();const refs=noConfirm.git('show-ref');const denied=spawnSync(process.execPath,[path.join(root,'.aai/scripts/release-finish.mjs'),'--root',noConfirm.repo,'--version','v1'],{cwd:noConfirm.repo,env:{...process.env,...noConfirm.env},encoding:'utf8'});assert.equal(denied.status,20,denied.stdout+denied.stderr);assert.match(denied.stderr,/confirmation/);assert.equal(noConfirm.git('show-ref'),refs);assert.equal(noConfirm.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+ const collision=fixture();const dir=path.join(collision.repo,'.git/aai/releases');fs.mkdirSync(dir,{recursive:true});const name=crypto.createHash('sha256').update('v1').digest('hex')+'.json';const owner=path.join(collision.d,'owner.txt');fs.writeFileSync(owner,'owner bytes\n');fs.symlinkSync(owner,path.join(dir,name+'.tmp'));const completed=collision.invoke();assert.equal(completed.status,0,completed.stderr);assert.equal(fs.readFileSync(owner,'utf8'),'owner bytes\n');assert.ok(fs.lstatSync(path.join(dir,name+'.tmp')).isSymbolicLink());if(process.platform!=='win32')assert.equal(fs.statSync(path.join(dir,name)).mode&0o777,0o600);
+ const corrupt=fixture();const corruptDir=path.join(corrupt.repo,'.git/aai/releases');fs.mkdirSync(corruptDir,{recursive:true});fs.writeFileSync(path.join(corruptDir,name),'null');const refused=corrupt.invoke();assert.equal(refused.status,20,refused.stderr);assert.match(refused.stderr,/journal-corrupt/);assert.equal(fs.readFileSync(path.join(corruptDir,name),'utf8'),'null');assert.equal(corrupt.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+});
+check('TEST-019',()=>{
+ for(const origin of ['git@github.com:test/release.git','ssh://git@github.com/test/release.git']){
+  const f=fixture();f.git('config',`url.file://${f.origin}.insteadOf`,origin);f.git('remote','set-url','origin',origin);const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
+ }
+ for(const origin of ['https://evilgithub.com/test/release.git','https://example.invalid/github.com/test/release.git','git@evilgithub.com:test/release.git']){
+  const f=fixture();f.git('config',`url.file://${f.origin}.insteadOf`,origin);f.git('remote','set-url','origin',origin);const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/identity/);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+ }
+});
+function direct(f,file,subject,body='',notes=''){
+ const clone=path.join(f.d,'direct-'+crypto.randomBytes(4).toString('hex'));f.git('clone','-q',f.origin,clone);
+ run('git',['checkout','-q','main'],clone);run('git',['config','user.name','Writer'],clone);run('git',['config','user.email','writer@test.invalid'],clone);
+ fs.mkdirSync(path.dirname(path.join(clone,file)),{recursive:true});fs.writeFileSync(path.join(clone,file),'direct\n');
+ if(notes){const c=path.join(clone,'CHANGELOG.md');fs.writeFileSync(c,fs.readFileSync(c,'utf8').replace('# Changelog\n','# Changelog\n\n'+notes));}
+ run('git',['add','-A'],clone);run('git',['commit','-qm',subject+(body?'\n\n'+body:'')],clone);run('git',['push','-q','origin','main'],clone);
+ return run('git',['rev-parse','HEAD'],clone);
+}
+
+function branchPr(f,subject,mergeSubject,{noff=true,bodies=['','']}={}){
+ const clone=path.join(f.d,'branch-'+crypto.randomBytes(4).toString('hex'));f.git('clone','-q',f.origin,clone);
+ const g=(...x)=>run('git',x,clone);g('checkout','-q','main');g('config','user.name','Writer');g('config','user.email','writer@test.invalid');
+ g('checkout','-q','-b','feat');const shas=[];
+ for(const [i,file] of ['.aai/scripts/b.mjs','.aai/scripts/b.mjs'].entries()){fs.mkdirSync(path.join(clone,path.dirname(file)),{recursive:true});fs.appendFileSync(path.join(clone,file),'branch '+i+'\n');g('add','-A');g('commit','-qm',(i?'address review':'wip: add b')+(bodies[i]?'\n\n'+bodies[i]:''));shas.push(g('rev-parse','HEAD'));}
+ g('checkout','-q','main');
+ if(noff)g('merge','--no-ff','-q','-m',mergeSubject,'feat');else g('rebase','-q','feat');
+ g('push','-q','origin','main');
+ return shas;
+}
+check('TEST-050',()=>{
+ // P1: a shipped commit whose subject carries no PR number must still be classified by its changed paths.
+ const bare=fixture(),sha=direct(bare,'.aai/scripts/direct.mjs','feat: direct push without a PR number');
+ const refs=bare.git('show-ref'),r=bare.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/missing-notes/);assert.ok(r.stderr.includes(sha.slice(0,12)),'refusal names the commit sha: '+r.stderr);assert.equal(bare.git('show-ref'),refs);assert.equal(bare.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+ const exempt=fixture();direct(exempt,'.aai/scripts/direct.mjs','feat: direct push','no-notes: internal refactor with no user-visible change');const ok=exempt.invoke();assert.equal(ok.status,0,ok.stdout+ok.stderr);
+ const docs=fixture();direct(docs,'docs/direct.md','docs: direct docs push');const fine=docs.invoke();assert.equal(fine.status,0,fine.stdout+fine.stderr);
+ const noted=fixture();direct(noted,'.aai/scripts/direct.mjs','feat: gamma direct','', '## [unreleased] — feat: gamma direct\n\n- gamma behavior is documented here\n');const nt=noted.transport();nt.notes='## [v1] — feat: gamma direct\n\n- gamma behavior is documented here\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta';fs.writeFileSync(noted.state,JSON.stringify(nt));const accepted=noted.invoke();assert.equal(accepted.status,0,accepted.stdout+accepted.stderr);
+ // B-1: commits behind a numbered 'Merge pull request #N' merge are covered by that PR's notes (PR #101 is cited by the rolled notes).
+ const merged=fixture();branchPr(merged,'','Merge pull request #101 from o/feat');const mr=merged.invoke();assert.equal(mr.status,0,'numbered merge with branch commits: '+mr.stdout+mr.stderr);
+ // B-1: a rebase-merged PR (no merge commit, no number in the subjects) resolves through the commit-to-PR lookup and is audited as that PR.
+ const rebased=fixture(),rshas=branchPr(rebased,'','',{noff:false});run('git',['fetch','-q','origin'],rebased.repo);const rt=rebased.transport();rt.apiPulls={};for(const x of run('git',['rev-list','origin/main','^v0'],rebased.repo).split('\n').filter(Boolean))rt.apiPulls[x]=[{number:101,title:'feat: alpha',merged_at:'2026-10-17T00:00:00Z'}];fs.writeFileSync(rebased.state,JSON.stringify(rt));
+ const rr=rebased.invoke();assert.equal(rr.status,0,'rebase-merged PR: '+rr.stdout+rr.stderr);
+ // R12-2: the lookup only attributes to a MERGED PR; an unmerged association must not excuse the commit.
+ const unmerged=fixture();branchPr(unmerged,'','',{noff:false});run('git',['fetch','-q','origin'],unmerged.repo);const ut=unmerged.transport();ut.apiPulls={};for(const x of run('git',['rev-list','origin/main','^v0'],unmerged.repo).split('\n').filter(Boolean))ut.apiPulls[x]=[{number:101,title:'feat: alpha',merged_at:null}];fs.writeFileSync(unmerged.state,JSON.stringify(ut));
+ const ur=unmerged.invoke();assert.equal(ur.status,20,'unmerged PR must not attribute: '+ur.stdout+ur.stderr);assert.match(ur.stderr,/missing-notes/);
+ // S9 (gitflow): a numbered squash commit inside a numbered merge's M^1..M^2 is audited as its own PR.
+ for(const [cite,expect] of [['',20],['\n\n## [v1] — feat: s (#31)\n\n- s',0]]){
+  const g=fixture(),clone=path.join(g.d,'gitflow-'+crypto.randomBytes(4).toString('hex'));g.git('clone','-q',g.origin,clone);
+  const x=(...a)=>run('git',a,clone);x('checkout','-q','main');x('config','user.name','Writer');x('config','user.email','writer@test.invalid');
+  x('checkout','-q','-b','develop');fs.mkdirSync(path.join(clone,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(clone,'.aai/scripts/s.mjs'),'s\n');x('add','-A');x('commit','-qm','feat: s (#31)');
+  x('checkout','-q','main');x('merge','--no-ff','-q','-m','Merge pull request #30 from o/develop','develop');
+  const cl=path.join(clone,'CHANGELOG.md');fs.writeFileSync(cl,fs.readFileSync(cl,'utf8').replace('# Changelog\n','# Changelog\n\n## [unreleased] — feat: release (#30)\n\n- release'+cite.replace('[v1]','[unreleased]')+'\n'));x('add','-A');x('commit','-qm','docs: notes');x('push','-q','origin','main');
+  const gt=g.transport();for(const n of [30,31])gt.prs.push({number:n,body:'',files:[{path:'.aai/scripts/s.mjs'}]});gt.notes='## [v1] — feat: release (#30)\n\n- release'+cite+'\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta';fs.writeFileSync(g.state,JSON.stringify(gt));
+  const gr=g.invoke();assert.equal(gr.status,expect,'gitflow inner numbered commit (cite='+Boolean(cite)+'): '+gr.stdout+gr.stderr);
+  if(expect)assert.match(gr.stderr,/#31/);
+ }
+ // The lookup does not excuse a direct commit: no associated PR still refuses.
+ const lone=fixture(),lsha=direct(lone,'.aai/scripts/direct.mjs','feat: direct push without a PR number');const lt=lone.transport();lt.apiPulls={[lsha]:[]};fs.writeFileSync(lone.state,JSON.stringify(lt));const lr=lone.invoke();assert.equal(lr.status,20,lr.stdout+lr.stderr);assert.match(lr.stderr,/missing-notes/);assert.ok(lr.stderr.includes(lsha.slice(0,12)));
+ // An unnumbered merge commit adds nothing itself; its merged commits are audited individually (here exempt by a no-notes body).
+ const plain=fixture();branchPr(plain,'','Merge branch feat',{bodies:['no-notes: internal','no-notes: internal']});const pr1=plain.invoke();assert.equal(pr1.status,0,'unnumbered merge skip: '+pr1.stdout+pr1.stderr);
+ const plainBad=fixture();branchPr(plainBad,'','Merge branch feat');const pr2=plainBad.invoke();assert.equal(pr2.status,20,pr2.stdout+pr2.stderr);assert.match(pr2.stderr,/missing-notes/);
+});
+if(selected==='all'||selected==='TEST-051'){
+ // P1: an exited but unreaped worker (zombie) must not read as alive.
+ const mod=await import(pathToFileURL(path.join(root,'.aai/scripts/release-finish.mjs')).href);
+ assert.equal(typeof mod.processAlive,'function','release-finish.mjs must export processAlive');
+ assert.equal(mod.processAlive(process.pid),true);
+ if(process.platform!=='win32'){
+  const parent=spawn('bash',['-c','sleep 0.05 & echo $!; exec sleep 20'],{stdio:['ignore','pipe','ignore']});
+  let out='';parent.stdout.on('data',b=>{out+=b;});
+  while(!out.includes('\n'))await new Promise(r=>setTimeout(r,10));
+  const pid=Number(out.trim());await new Promise(r=>setTimeout(r,600));
+  try{process.kill(pid,0);assert.equal(mod.processAlive(pid),false,'zombie worker '+pid+' must not count as alive');}finally{parent.kill('SIGKILL');}
+ }
+ let dead=0;{const c=spawnSync(process.execPath,['-e','process.stdout.write(String(process.pid))'],{encoding:'utf8'});dead=Number(c.stdout);}
+ assert.equal(mod.processAlive(dead),false);console.log('PASS: TEST-051 zombie worker is not alive release-command-finish');
+}
+check('TEST-052',()=>{
+ // P2: CI watching considers required checks only, so an optional failing check cannot block an otherwise permitted release.
+ const f=fixture('optional-fail'),r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+ const t=f.transport();assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
+ assert.ok(t.calls.filter(a=>a[0]==='pr'&&a[1]==='checks').every(a=>a.includes('--required')),'every checks poll passes --required: '+JSON.stringify(t.calls.filter(a=>a[1]==='checks')));
+});
+check('TEST-053',()=>{
+ // P2: a merge queue only enqueues; queued OPEN is a named pending exit 8 with a resume command, not a refusal.
+ const f=fixture('queue'),r=f.invoke();assert.equal(r.status,8,r.stdout+r.stderr);assert.match(r.stderr,/PENDING: merge-queue/);assert.doesNotMatch(r.stderr,/REFUSED/);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);
+ assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
+ const again=f.invoke();assert.equal(again.status,8,again.stdout+again.stderr);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1,'resume while queued does not merge again');
+ const t=f.transport();t.queueSettles=true;fs.writeFileSync(f.state,JSON.stringify(t));
+ const done=f.invoke();assert.equal(done.status,0,done.stdout+done.stderr);assert.match(done.stdout,/complete/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
+});
+check('TEST-054',()=>{
+ // N-2: an armed auto-merge is not a merge queue; a failing required check is named and refused, not reported as queued.
+ const f=fixture('ci');const t=f.transport();t.armed=true;fs.writeFileSync(f.state,JSON.stringify(t));
+ const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.doesNotMatch(r.stderr,/PENDING/);assert.match(r.stderr,/REFUSED: (ci|required-checks)/);assert.match(r.stderr,/required/);
+ assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);
+});
+check('TEST-006',()=>{const f=fixture(),r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);const t=f.transport();assert.equal(t.prs.length,1);assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);assert.ok(t.calls.some(a=>a[0]==='pr'&&a[1]==='checks'&&a.includes('--required')));assert.match(r.stdout,/- Merge SHA:/);const waiting=fixture('pending'),wait=waiting.invoke();assert.equal(wait.status,0,wait.stderr);assert.ok(waiting.transport().checkPolls>=3);assert.match(wait.stdout,/waiting for required CI/);});
+check('TEST-007',()=>{const f=fixture(),r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);const t=f.transport(),tag=f.git('ls-remote','origin','refs/tags/v1^{}').split(/\s/)[0];assert.equal(tag,t.prs[0].mergeCommit.oid);assert.equal(t.releases.v1.body.trim(),'## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta');const bad=fixture('notes'),b=bad.invoke();assert.notEqual(b.status,0);assert.match(b.stderr,/REFUSED: notes-mismatch/);assert.ok(bad.git('ls-remote','origin','refs/heads/chore/release-v1'));});
+check('TEST-008',()=>{const f=fixture(),r=f.invoke();assert.equal(r.status,0,r.stderr);assert.equal(f.git('ls-remote','origin','refs/heads/chore/release-v1'),'');assert.equal(f.git('branch','--list','chore/release-v1'),'');assert.equal(f.git('rev-parse','HEAD'),f.transport().prs[0].mergeCommit.oid);const transcript=fs.readFileSync(path.join(f.d,'git-argv.log'),'utf8').split('--END--\n').map(block=>block.trimEnd().split('\n'));assert.ok(transcript.some(args=>JSON.stringify(args)===JSON.stringify(['push','--force-with-lease=refs/heads/chore/release-v1:'+f.transport().prs[0].headRefOid,'origin',':refs/heads/chore/release-v1'])),'expected-head lease deletion argv absent');const d=fixture('dependent'),b=d.invoke();assert.notEqual(b.status,0);assert.match(b.stderr,/REFUSED: dependent-pr/);assert.ok(d.git('ls-remote','origin','refs/heads/chore/release-v1'));});
+check('TEST-009',()=>{const f=fixture();f.git('checkout','--detach','-q');fs.writeFileSync(path.join(f.repo,'keep.txt'),'owner dirty\n');const head=f.git('rev-parse','HEAD'),bytes=fs.readFileSync(path.join(f.repo,'keep.txt'));const r=f.invoke();assert.equal(r.status,0,r.stderr);assert.equal(f.git('rev-parse','HEAD'),head);assert.deepEqual(fs.readFileSync(path.join(f.repo,'keep.txt')),bytes);assert.match(r.stdout,/SKIPPED.*base checkout/);const d=fixture();fs.appendFileSync(path.join(d.repo,'CHANGELOG.md'),'dirty\n');const b=d.invoke();assert.notEqual(b.status,0);assert.match(b.stderr,/REFUSED: base-dirty-overlap/);
+ const work=fixture(),feature=path.join(work.d,'feature');work.git('worktree','add','-q','-b','feature',feature);fs.writeFileSync(path.join(feature,'keep.txt'),'feature owner dirty\n');fs.writeFileSync(path.join(feature,'untracked.txt'),'owner untracked\n');const featureHead=run('git',['rev-parse','HEAD'],feature),featureStatus=run('git',['status','--porcelain'],feature);const cut=work.invoke([],'sh',feature);assert.equal(cut.status,0,cut.stderr);assert.equal(work.git('rev-parse','HEAD'),work.transport().prs.find(p=>p.headRefName==='chore/release-v1').mergeCommit.oid);assert.equal(run('git',['rev-parse','HEAD'],feature),featureHead);assert.equal(run('git',['status','--porcelain'],feature),featureStatus);assert.equal(fs.readFileSync(path.join(feature,'keep.txt'),'utf8'),'feature owner dirty\n');assert.equal(fs.readFileSync(path.join(feature,'untracked.txt'),'utf8'),'owner untracked\n');
+ const hidden=fixture();hidden.git('update-index','--assume-unchanged','CHANGELOG.md');fs.appendFileSync(path.join(hidden.repo,'CHANGELOG.md'),'hidden owner bytes\n');const hiddenBytes=fs.readFileSync(path.join(hidden.repo,'CHANGELOG.md'));const hiddenCut=hidden.invoke();assert.equal(hiddenCut.status,20,hiddenCut.stderr);assert.match(hiddenCut.stderr,/base-hidden-edits/);assert.deepEqual(fs.readFileSync(path.join(hidden.repo,'CHANGELOG.md')),hiddenBytes);
+ const divergent=fixture();fs.writeFileSync(path.join(divergent.repo,'local.txt'),'local only\n');divergent.git('add','local.txt');divergent.git('commit','-qm','unpublished base commit');const ownHead=divergent.git('rev-parse','HEAD'),localBytes=fs.readFileSync(path.join(divergent.repo,'local.txt'));const diverged=divergent.invoke();assert.notEqual(diverged.status,0);assert.match(diverged.stderr,/base-diverged/);assert.equal(divergent.git('rev-parse','HEAD'),ownHead);assert.deepEqual(fs.readFileSync(path.join(divergent.repo,'local.txt')),localBytes);
+});
+check('TEST-010',()=>{for(const mode of ['ci','missing-checks','checks-error','pending-empty','pending-malformed','pending-forever','head','workflow','notes','tag','cleanup-head','lease-race','dependent','gh']){const f=fixture(mode),r=f.invoke();assert.notEqual(r.status,0,mode);assert.equal((r.stderr.match(/REFUSED:/g)||[]).length,1,r.stderr);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);const t=f.transport();if(['ci','missing-checks','checks-error','pending-empty','pending-malformed','pending-forever','head','gh'].includes(mode))assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);if(mode==='head'){assert.ok(t.prs[0],r.stdout+r.stderr);assert.equal(t.prs[0].state,'OPEN');assert.ok(t.movedHead);assert.match(r.stderr,/head-moved/);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1').split(/\s/)[0],t.prs[0].headRefOid);}if(['workflow','notes','tag','cleanup-head','lease-race','dependent'].includes(mode))assert.ok(f.git('ls-remote','origin','refs/heads/chore/release-v1'));if(mode==='dependent'){assert.match(r.stderr,/dependent-pr/);assert.ok(f.git('branch','--list','chore/release-v1'));}if(mode==='tag')assert.match(r.stderr,/tag-mismatch/);if(mode==='cleanup-head')assert.match(r.stderr,/cleanup-head-moved/);if(mode==='lease-race'){assert.match(r.stderr,/stale info/);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1').split(/\s/)[0],t.prs[0].headRefOid);assert.ok(f.git('branch','--list','chore/release-v1'));}}});
+check('TEST-011',()=>{for(const step of ['worktree','payload','prepared','pushed','pr','merged','workflow','verified','remote-deleted','local-deleted','synced']){const f=fixture();const first=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:step},encoding:'utf8'});assert.notEqual(first.status,0,step);const next=f.invoke();assert.equal(next.status,0,step+next.stdout+next.stderr);assert.equal(f.transport().prs.length,1,step);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1,step);assert.equal(Object.keys(f.transport().releases).length,1,step);}});
+check('TEST-012',()=>{const f=fixture();let r=spawnSync('bash',[sh,'--version','v1','--dry-run','--confirm'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.equal(f.git('branch','--list','chore/release-v1'),'');const gitDir=f.git('rev-parse','--git-common-dir');assert.ok(!fs.existsSync(path.resolve(f.repo,gitDir,'aai/releases')));r=f.invoke();assert.equal(r.status,0,r.stderr);let t=f.transport();t.prs[0].headRefOid='f'.repeat(40);fs.writeFileSync(f.state,JSON.stringify(t));r=f.invoke();assert.notEqual(r.status,0);assert.match(r.stderr,/REFUSED: identity/);
+ const foreign=fixture('foreign-repo');assert.notEqual(foreign.invoke().status,0);assert.equal(foreign.git('branch','--list','chore/release-v1'),'');
+ const ambiguous=fixture('ambiguous');assert.notEqual(ambiguous.invoke().status,0);assert.equal(ambiguous.git('branch','--list','chore/release-v1'),'');
+ const manual=fixture();manual.git('rm','.github/workflows/release.yml');manual.git('commit','-qm','manual tagging','-m','no-notes: fixture drops the publication workflow');manual.git('push','-q','origin','main');const m=manual.invoke();assert.equal(m.status,0,m.stderr);assert.match(m.stdout,/SKIPPED.*manual tagging/);assert.equal(Object.keys(manual.transport().releases).length,0);
+});
+if(selected==='all'||selected==='TEST-020'){
+ const f=fixture('hold-pr');const first=spawn('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env},stdio:['ignore','pipe','pipe']});let firstOutput='';first.stdout.on('data',b=>firstOutput+=b);first.stderr.on('data',b=>firstOutput+=b);const closed=new Promise(resolve=>first.on('close',code=>resolve(code)));
+ try {
+  const deadline=Date.now()+10000;while(!fs.existsSync(path.join(f.d,'pr-held'))){if(Date.now()>deadline)throw Error('first confirm did not reach actual PR create barrier: '+firstOutput);await new Promise(resolve=>setTimeout(resolve,10));}
+  const second=f.invoke();assert.equal(second.status,20,second.stdout+second.stderr);assert.match(second.stderr,/release-busy/);assert.match(second.stderr,/Resume: .*--version v1 --confirm/);
+ }finally{fs.writeFileSync(path.join(f.d,'pr-go'),'go');const result=await closed;if(result!==0)throw Error('first confirm failed: '+firstOutput);}
+ assert.equal(f.transport().prs.length,1);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);console.log('PASS: TEST-020 simultaneous confirm exclusive ownership release-command-finish');
+}
+if(selected==='all'||selected==='TEST-021'){
+ const f=fixture('hold-pr');const first=spawn('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env},stdio:['ignore','pipe','pipe']});const closed=new Promise(resolve=>first.on('close',(code,signal)=>resolve({code,signal})));first.stdout.resume();first.stderr.resume();
+ const deadline=Date.now()+10000;while(!fs.existsSync(path.join(f.d,'pr-held'))){if(Date.now()>deadline)throw Error('kill control failed to reach prepared/pushed PR-create stage');await new Promise(resolve=>setTimeout(resolve,10));}
+ first.kill('SIGKILL');const killed=await closed;assert.equal(killed.signal,'SIGKILL');fs.writeFileSync(path.join(f.d,'pr-go'),'go');
+ const ready=Date.now()+10000;while(f.transport().prs.length!==1){if(Date.now()>ready)throw Error('orphan transport did not finish its bound create');await new Promise(resolve=>setTimeout(resolve,10));}
+ const dir=path.join(f.repo,'.git/aai/releases');const journalPath=path.join(dir,crypto.createHash('sha256').update('v1').digest('hex')+'.json');assert.ok(fs.existsSync(journalPath+'.claim'));const saved=JSON.parse(fs.readFileSync(journalPath));assert.equal(saved.stage,'pushed');const abandoned=JSON.parse(fs.readFileSync(journalPath+'.claim'));const reclaimPath=journalPath+'.claim.reclaim.'+abandoned.token;fs.writeFileSync(reclaimPath,JSON.stringify({pid:first.pid,host:os.hostname(),token:'e'.repeat(32),version:'v1'}));
+ const resumed=f.invoke();assert.equal(resumed.status,0,resumed.stdout+resumed.stderr);assert.equal(f.transport().prs.length,1);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);assert.ok(!fs.existsSync(journalPath+'.claim'));assert.ok(!fs.existsSync(reclaimPath));assert.equal(fs.readdirSync(dir).filter(n=>n.includes('.reclaim.')).length,0);assert.equal(JSON.parse(fs.readFileSync(journalPath)).head,saved.head);console.log('PASS: TEST-021 actual SIGKILL owner resumes same durable journal once');
+ const foreign=fixture();const foreignDir=path.join(foreign.repo,'.git/aai/releases');fs.mkdirSync(foreignDir,{recursive:true});const foreignClaim=path.join(foreignDir,path.basename(journalPath)+'.claim');const foreignBody=JSON.stringify({pid:first.pid,host:'different-host.invalid',token:'d'.repeat(32),version:'v1'});fs.writeFileSync(foreignClaim,foreignBody);const refused=foreign.invoke();assert.equal(refused.status,20,refused.stderr);assert.match(refused.stderr,/release-busy/);assert.equal(fs.readFileSync(foreignClaim,'utf8'),foreignBody);assert.equal(foreign.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+}
+check('TEST-023',()=>{
+ const f=fixture();historical(f,299,'.aai/scripts/omission.mjs');f.git('tag','-d','v0');
+ const before=f.git('show-ref'),head=f.git('rev-parse','HEAD'),index=fs.readFileSync(path.join(f.repo,'.git/index'));
+ fs.writeFileSync(path.join(f.repo,'.git/FETCH_HEAD'),'caller fetch sentinel\n');
+ const snapshot=()=>{const entries=[];function walk(dir){for(const name of fs.readdirSync(dir).sort()){const file=path.join(dir,name),st=fs.lstatSync(file);if(st.isDirectory())walk(file);else entries.push([path.relative(f.repo,file),st.mode,st.isSymbolicLink()?fs.readlinkSync(file):crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')]);}}walk(f.repo);return entries;};const beforeFiles=snapshot();
+ const notes=path.join(f.d,'audit-notes');fs.writeFileSync(notes,'unrelated notes');
+ const preview=spawnSync('node',[path.join(root,'.aai/scripts/release-finish.mjs'),'--root',f.repo,'--audit',notes,'--online'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});
+ assert.equal(preview.status,0,preview.stderr);assert.match(preview.stdout,/#299/);
+ assert.equal(f.git('show-ref'),before);assert.equal(f.git('rev-parse','HEAD'),head);assert.deepEqual(fs.readFileSync(path.join(f.repo,'.git/index')),index);assert.deepEqual(snapshot(),beforeFiles);
+ const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/missing-notes.*#299/);assert.equal(f.transport().prs.filter(p=>p.headRefName==='chore/release-v1').length,0);
+ const first=fixture();first.git('tag','-d','v0');first.git('push','-q','origin',':refs/tags/v0');historical(first,298,'.aai/scripts/first-omission.mjs');const denied=first.invoke();assert.equal(denied.status,20,denied.stdout+denied.stderr);assert.match(denied.stderr,/missing-notes.*#298/);
+ const valid=fixture();valid.git('tag','-d','v0');valid.git('push','-q','origin',':refs/tags/v0');const ok=valid.invoke();assert.equal(ok.status,0,ok.stderr);
+});
+check('TEST-024',()=>{
+ const f=fixture();f.git('branch','feature');const base=f.git('rev-parse','main'),feature=f.git('rev-parse','feature');
+ const file=path.join(f.d,'bin/git'),real=run('which',['git'],f.repo);let wrapper=fs.readFileSync(file,'utf8');
+ wrapper=wrapper.replace('if [ "$*" = "remote get-url origin" ]; then',`if { [ "$1" = "merge" ] && [ "$2" = "--ff-only" ]; } || [ "$1" = "read-tree" ]; then\n "${real}" checkout -q feature || exit $?\nfi\nif [ "$*" = "remote get-url origin" ]; then`);fs.writeFileSync(file,wrapper);
+ const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.doesNotMatch(r.stdout,/- Base: synced/);assert.equal(f.git('rev-parse','feature'),feature);assert.equal(f.git('rev-parse','main'),base);
+ const t=f.transport();assert.equal(t.prs.find(p=>p.headRefName==='chore/release-v1').state,'MERGED');assert.ok(t.releases.v1);
+ wrapper=wrapper.replace(/if \{ \[ "\$1" = "merge" \][\s\S]*?fi\n(?=if \[ "\$\*" = "remote get-url origin")/,'');fs.writeFileSync(file,wrapper);
+ const resume=f.invoke();assert.equal(resume.status,0,resume.stdout+resume.stderr);assert.equal(f.git('rev-parse','main'),t.prs.find(p=>p.headRefName==='chore/release-v1').mergeCommit.oid);assert.equal(f.git('rev-parse','feature'),feature);
+});
+check('TEST-027',()=>{
+ const annotated=fixture();annotated.git('tag','-d','v0');annotated.git('tag','-a','v0','-m','previous release');annotated.git('push','-q','--force','origin','refs/tags/v0');historical(annotated,297,'.aai/scripts/annotated-omission.mjs');annotated.git('tag','-d','v0');const missing=annotated.invoke();assert.equal(missing.status,20,missing.stderr);assert.match(missing.stderr,/missing-notes.*#297/);
+ const shallow=fixture();fs.writeFileSync(path.join(shallow.repo,'.git/shallow'),shallow.git('rev-parse','HEAD')+'\n');const notes=path.join(shallow.d,'notes');fs.writeFileSync(notes,'notes');const r=spawnSync(process.execPath,[path.join(root,'.aai/scripts/release-finish.mjs'),'--root',shallow.repo,'--audit',notes,'--online'],{cwd:shallow.repo,env:{...process.env,...shallow.env},encoding:'utf8'});assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/notes-history.*Complete release history/);assert.equal(shallow.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+ const moving=fixture();historical(moving,296,'docs/known.md');const wrapperFile=path.join(moving.d,'bin/git'),real=run('which',['git'],moving.repo);let wrapper=fs.readFileSync(wrapperFile,'utf8');wrapper=wrapper.replace('if [ "$*" = "remote get-url origin" ]; then',`if [ "$*" = "ls-remote --tags origin" ] && [ ! -f "$TMPDIR/tags-moved" ]; then\n "${real}" "$@" || exit $?\n "${real}" -C "$FIXTURE_ORIGIN" update-ref refs/tags/v0 refs/heads/main || exit $?\n touch "$TMPDIR/tags-moved"\n exit 0\nfi\nif [ "$*" = "remote get-url origin" ]; then`);fs.writeFileSync(wrapperFile,wrapper);const moved=moving.invoke();assert.equal(moved.status,20,moved.stdout+moved.stderr);assert.match(moved.stderr,/notes-history.*tags moved/);assert.equal(moving.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
+});
+check('TEST-028',()=>{
+ const f=fixture();historical(f,299,'.aai/scripts/omission.mjs');historical(f,300,'CHANGELOG.md');f.git('tag','ci-marker');f.git('push','-q','origin','refs/tags/ci-marker');
+ const r=f.invoke();assert.equal(r.status,20,'non-release tag narrowed the audit boundary: '+r.stdout+r.stderr);assert.match(r.stderr,/missing-notes.*#299/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);
+});
+check('TEST-029',()=>{
+ const f=fixture();f.git('tag','fixture-blob',f.git('rev-parse','HEAD:CHANGELOG.md'));f.git('push','-q','origin','refs/tags/fixture-blob');
+ const r=f.invoke();assert.equal(r.status,0,'blob tag on origin refused an otherwise clean release: '+r.stdout+r.stderr);
+ const audit=fixture();audit.git('tag','fixture-blob',audit.git('rev-parse','HEAD:CHANGELOG.md'));const notes=path.join(audit.d,'n');fs.writeFileSync(notes,'notes');fs.writeFileSync(path.join(audit.repo,'.git/shallow'),audit.git('rev-parse','HEAD')+'\n');
+ const a=spawnSync(process.execPath,[path.join(root,'.aai/scripts/release-finish.mjs'),'--root',audit.repo,'--audit',notes,'--online'],{cwd:audit.repo,env:{...process.env,...audit.env},encoding:'utf8'});assert.equal(a.status,20);assert.doesNotMatch(a.stderr,/--version ''/);
+});
+function slugNoted(f,number,slug,file='.aai/scripts/slug-x.mjs'){
+ fs.mkdirSync(path.dirname(path.join(f.repo,file)),{recursive:true});fs.writeFileSync(path.join(f.repo,file),'change '+number+'\n');
+ const log=path.join(f.repo,'CHANGELOG.md');fs.writeFileSync(log,fs.readFileSync(log,'utf8').replace('## [unreleased] — feat: alpha',`## [unreleased] — feat: slug ${number} (${slug})\n\n- slug note ${number}\n\n## [unreleased] — feat: alpha`));
+ f.git('add','.');f.git('commit','-qm',`feat: shipped ${number} (CHANGE-${number}) (#${number})`);f.git('push','-q','origin','main');
+const t=f.transport();t.prs.push({number,body:'',files:[{path:file},{path:'CHANGELOG.md'}],headRefName:'slug-'+number});t.notes=`## [v1] — feat: slug ${number} (${slug})\n\n- slug note ${number}\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta`;fs.writeFileSync(f.state,JSON.stringify(t));
+}
+check('TEST-030',()=>{
+ const f=fixture();slugNoted(f,310,'slug-cited-ride');
+ const dry=spawnSync('bash',[sh,'--version','v1','--dry-run'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(dry.status,0,dry.stderr);assert.ok(!dry.stdout.includes('NAMED'),'preview named a PR whose own diff added rolled notes: '+dry.stdout);
+ const r=f.invoke();assert.equal(r.status,0,'slug-cited rolled notes (no #N, no squash title) falsely refused: '+r.stdout+r.stderr);
+ const gone=fixture();slugNoted(gone,311,'slug-dropped');const log=path.join(gone.repo,'CHANGELOG.md');fs.writeFileSync(log,fs.readFileSync(log,'utf8').replace(/## \[unreleased\] — feat: slug 311 \(slug-dropped\)\n\n- slug note 311\n\n/,''));gone.git('add','.');gone.git('commit','-qm','chore: drop entry');gone.git('push','-q','origin','main');
+ const m=gone.invoke();assert.equal(m.status,20,'notes absent from the rollup must still refuse: '+m.stdout+m.stderr);assert.match(m.stderr,/missing-notes.*#311/);
+});
+function probeCommit(f,number,mutateLog){
+ const file='.aai/scripts/probe-'+number+'.mjs';fs.mkdirSync(path.join(f.repo,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(f.repo,file),'probe '+number+'\n');
+ const log=path.join(f.repo,'CHANGELOG.md');if(mutateLog)fs.writeFileSync(log,mutateLog(fs.readFileSync(log,'utf8')));
+ f.git('add','.');f.git('commit','-qm',`feat: probe ${number} (CHANGE-${number}) (#${number})`);f.git('push','-q','origin','main');
+ const t=f.transport();t.prs.push({number,body:'',files:[{path:file},{path:'CHANGELOG.md'}],headRefName:'probe-'+number});fs.writeFileSync(f.state,JSON.stringify(t));
+}
+function plainLog(f,mutateLog,msg){const log=path.join(f.repo,'CHANGELOG.md');fs.writeFileSync(log,mutateLog(fs.readFileSync(log,'utf8')));f.git('add','.');f.git('commit','-qm',msg);f.git('push','-q','origin','main');}
+function refusesMissing(f,n,label){const r=f.invoke();assert.equal(r.status,20,label+': '+r.stdout+r.stderr);assert.match(r.stderr,new RegExp('missing-notes.*#'+n));assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);}
+const topOf=(s,add)=>s.replace('## [unreleased] — feat: alpha',add+'## [unreleased] — feat: alpha');
+// V5-1: a coincident non-heading line (### Added, a generic bullet) elsewhere in the rollup must not stand in for the PR's own dropped entry.
+check('TEST-041',()=>{
+ const f=fixture();plainLog(f,s=>s.replace('- beta\n','### Added\n\n- beta\n'),'docs: keep-a-changelog subsection in beta');
+ probeCommit(f,328,s=>topOf(s,'## [unreleased] — feat: s328 (slug-s)\n\n### Added\n\n- unique feature 328\n\n'));
+ plainLog(f,s=>s.replace('## [unreleased] — feat: s328 (slug-s)\n\n### Added\n\n- unique feature 328\n\n',''),'chore: drop entry');
+ refusesMissing(f,328,'own entry dropped, only a ### Added subheading coincides');
+});
+check('TEST-042',()=>{
+ const f=fixture();plainLog(f,s=>s.replace('- beta\n','- beta\n- Documentation updated.\n'),'docs: generic line in beta');
+ probeCommit(f,324,s=>topOf(s,'## [unreleased] — feat: c324 (slug-c)\n\n- Documentation updated.\n\n'));
+ plainLog(f,s=>s.replace('## [unreleased] — feat: c324 (slug-c)\n\n- Documentation updated.\n\n',''),'chore: drop entry');
+ refusesMissing(f,324,'own entry dropped, generic bullet duplicated in another entry');
+});
+// Guards hasAddedNotes: the heading survives in the rollup, but the PR's own diff added only the heading (body arrived later).
+check('TEST-043',()=>{
+ const f=fixture();probeCommit(f,322,s=>topOf(s,'## [unreleased] — feat: h322 (slug-h)\n\n'));
+ plainLog(f,s=>s.replace('## [unreleased] — feat: h322 (slug-h)\n\n','## [unreleased] — feat: h322 (slug-h)\n\n- body added later by someone else\n\n'),'docs: fill body');
+ refusesMissing(f,322,'heading-only own diff must not count as added notes');
+});
+check('TEST-031',()=>{
+ const f=fixture();historical(f,299,'.aai/scripts/shipped-before.mjs');f.git('tag','1.0.0');f.git('push','-q','origin','refs/tags/1.0.0');
+ const r=f.invoke();assert.equal(r.status,0,'release tagged without a v prefix was ignored as the audit boundary: '+r.stdout+r.stderr);
+});
+check('TEST-032',()=>{
+ const f=fixture();f.git('tag','v1-blob',f.git('rev-parse','HEAD:CHANGELOG.md'));f.git('push','-q','origin','refs/tags/v1-blob');
+ const r=f.invoke();assert.equal(r.status,0,'release-shaped tag naming a non-commit refused an otherwise clean release: '+r.stdout+r.stderr);
+});
+check('TEST-025',()=>{
+ const f=fixture();const base=f.git('rev-parse','main');const foreign=f.git('commit-tree',f.git('rev-parse','HEAD^{tree}'),'-p',base,'-m','concurrent foreign base move');f.git('branch','feature',foreign);
+ const index=fs.readFileSync(path.join(f.repo,'.git/index')),files=fs.readFileSync(path.join(f.repo,'CHANGELOG.md'));
+ const file=path.join(f.d,'bin/git'),real=run('which',['git'],f.repo);let wrapper=fs.readFileSync(file,'utf8');wrapper=wrapper.replace('if [ "$*" = "remote get-url origin" ]; then',`if { [ "$1" = "merge" ] && [ "$2" = "--ff-only" ]; } || [ "$1" = "read-tree" ]; then\n "${real}" update-ref refs/heads/main refs/heads/feature || exit $?\nfi\nif [ "$*" = "remote get-url origin" ]; then`);fs.writeFileSync(file,wrapper);
+ const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.doesNotMatch(r.stdout,/- Base: synced/);assert.equal(f.git('rev-parse','main'),base);assert.equal(f.git('rev-parse','feature'),foreign);assert.deepEqual(fs.readFileSync(path.join(f.repo,'.git/index')),index);assert.deepEqual(fs.readFileSync(path.join(f.repo,'CHANGELOG.md')),files);assert.equal(f.git('branch','--show-current'),'main');
+});
+if(selected==='all'||selected==='TEST-026'){
+ const f=fixture();f.git('branch','feature');const old=f.git('rev-parse','main'),feature=f.git('rev-parse','feature');const wrapperFile=path.join(f.d,'bin/git');let wrapper=fs.readFileSync(wrapperFile,'utf8');
+ wrapper=wrapper.replace('if [ "$*" = "remote get-url origin" ]; then',`if [ "$1" = "read-tree" ]; then\n touch "$TMPDIR/sync-held"\n while [ ! -f "$TMPDIR/sync-go" ]; do sleep 0.01; done\nfi\nif [ "$*" = "remote get-url origin" ]; then`);fs.writeFileSync(wrapperFile,wrapper);
+ const child=spawn(process.execPath,[path.join(root,'.aai/scripts/release-finish.mjs'),'--root',f.repo,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env},stdio:'ignore'});const closed=new Promise(resolve=>child.on('close',(code,signal)=>resolve({code,signal})));
+ const deadline=Date.now()+15000;while(!fs.existsSync(path.join(f.d,'sync-held'))){if(Date.now()>deadline)throw Error('sync kill barrier not reached');await new Promise(resolve=>setTimeout(resolve,10));}
+ child.kill('SIGKILL');assert.equal((await closed).signal,'SIGKILL');
+ const busy=f.invoke();assert.equal(busy.status,20,busy.stdout+busy.stderr);assert.match(busy.stderr,/base-busy/);assert.equal(f.git('rev-parse','main'),old);assert.equal(f.git('rev-parse','feature'),feature);
+ fs.writeFileSync(path.join(f.d,'sync-go'),'go');
+ let resumed;const end=Date.now()+15000;do{await new Promise(resolve=>setTimeout(resolve,50));resumed=f.invoke();if(resumed.status===0)break;assert.match(resumed.stderr,/base-busy/);if(Date.now()>end)throw Error('killed sync owner did not recover: '+resumed.stderr);}while(true);
+ assert.equal(f.git('rev-parse','main'),f.transport().prs.find(p=>p.headRefName==='chore/release-v1').mergeCommit.oid);assert.equal(f.git('rev-parse','feature'),feature);assert.equal(f.transport().prs.filter(p=>p.headRefName==='chore/release-v1').length,1);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);assert.ok(!fs.existsSync(path.join(f.repo,'.git/index.lock')));console.log('PASS: TEST-026 actual sync SIGKILL live worker refusal and same-journal recovery');
+}
+check('TEST-022',()=>{for(const [mode,cause] of [['workflow-spawn-error',/workflow shell ENOENT/],['create-error',/workflow shell exit 7.*workflow publication failure control/s]]){
+ const f=fixture(mode),failed=f.invoke();assert.equal(failed.status,20,failed.stdout+failed.stderr);assert.match(failed.stderr,cause);assert.equal(f.transport().prs.filter(p=>p.headRefName==='chore/release-v1').length,1);assert.equal(Object.keys(f.transport().releases).length,0);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1'),'','no cleanup after failed publication');
+ // A failed native/workflow attempt is not a completed publication. Permit the
+ // same fixture run to retry it, then assert one bound PR/merge/release only.
+ const t=f.transport();t.mode='';t.published=false;fs.writeFileSync(f.state,JSON.stringify(t));const resumed=f.invoke();assert.equal(resumed.status,0,resumed.stdout+resumed.stderr);assert.equal(f.transport().prs.length,1);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);assert.equal(Object.keys(f.transport().releases).length,1);
+}});
+check('TEST-014',()=>{const ci=fs.readFileSync(path.join(root,'.github/workflows/ps1-quality.yml'),'utf8');assert.match(ci,/test_033_ps1_fallback_parity/);assert.match(ci,/completed=20 skips=0/);assert.match(ci,/command -v pwsh/);});
+check('TEST-015',()=>{const product=fs.readFileSync(path.join(root,'docs/product/release-command-finish.md'),'utf8');assert.match(product,/race/i);assert.match(product,/base-moved/);assert.match(product,/fresh audited cut|deliberate repair/i);assert.match(product,/fetch/i);for(const [file,need] of [['.aai/SKILL_RELEASE.prompt.md',['--match-head-commit','release-notes-gate.mjs','resume']],['.aai/system/PROFILES.yaml',['release-notes-gate.mjs','release-finish.mjs']],['tests/skills/suite-map.yaml',['release-notes-gate.mjs','release-finish.mjs','test-aai-release-notes.sh']],['docs/USER_GUIDE.md',['release notes','no-notes:']]]){const text=fs.readFileSync(path.join(root,file),'utf8');for(const token of need)assert.ok(text.toLowerCase().includes(token.toLowerCase()),file+' missing '+token);}});
+// TEST-012/013 current composition replaces the dependency ride's obsolete
+// absence assertions. Execute the copied stdlib import closure and prove both
+// shared exports are reached by the actual audit, using scratch-only sentinels.
+check('TEST-015',()=>{
+ const helper=path.join(root,'.aai/scripts/release-finish.mjs');assert.ok(fs.statSync(helper).isFile());
+ const profile=fs.readFileSync(path.join(root,'.aai/system/PROFILES.yaml'),'utf8');
+ const core=profile.split('\ncore:\n')[1].split('\nextended:\n')[0];
+ for(const file of ['.aai/scripts/release-finish.mjs','.aai/scripts/release-notes-gate.mjs','.aai/scripts/lib/runtime-file.mjs']){
+  assert.equal(profile.split('\n').filter(l=>l==='  - '+file).length,1,'exact profile membership '+file);
+  assert.ok(core.split('\n').includes('  - '+file),'core classification '+file);
+ }
+ const f=fixture();historical(f,220,'.aai/scripts/unnoted.mjs');
+ const scripts=path.join(f.repo,'.aai/scripts'),lib=path.join(scripts,'lib');fs.mkdirSync(lib,{recursive:true});
+ for(const name of ['aai-release.sh','aai-release.ps1','release-finish.mjs','release-notes-gate.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts',name),path.join(scripts,name));
+ fs.copyFileSync(path.join(root,'.aai/scripts/lib/runtime-file.mjs'),path.join(lib,'runtime-file.mjs'));
+ const copied=path.join(scripts,'release-finish.mjs'),gate=path.join(scripts,'release-notes-gate.mjs'),notes=path.join(f.d,'audit-notes');fs.writeFileSync(notes,'unrelated notes');
+ const audit=()=>spawnSync('node',[copied,'--root',f.repo,'--audit',notes,'--online'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});
+ const normal=audit();assert.equal(normal.status,0,normal.stderr);assert.match(normal.stdout,/#220 feat: shipped 220/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='view'&&a[2]==='220').length,1,'real historical metadata read');
+ // Also execute the copied frontend, which must find the complete helper closure.
+ const preview=spawnSync('bash',[path.join(scripts,'aai-release.sh'),'--dry-run','--version','v1'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(preview.status,0,preview.stdout+preview.stderr);assert.match(preview.stdout,/NAMED/);assert.match(preview.stdout,/#220 feat: shipped 220/);
+ const original=fs.readFileSync(gate,'utf8');
+ for(const [declaration,label] of [['export function isShipped(path, mode = \'\') {','shared-classifier-reached'],['export function hasNoNotesReason(body) {','shared-marker-reached']]){
+  assert.ok(original.includes(declaration),'actual shared export declaration');
+  fs.writeFileSync(gate,original.replace(declaration,declaration+' throw Error(\''+label+'\');'));
+  const changed=audit();assert.notEqual(changed.status,0);assert.match(changed.stderr,new RegExp(label));
+ }
+ // Only the disposable copied module changed; source dependency stays immutable.
+ assert.equal(fs.readFileSync(path.join(root,'.aai/scripts/release-notes-gate.mjs'),'utf8'),original);
+ assert.ok(!fs.existsSync(path.join(f.repo,'.git/aai/releases')),'read-only audit/preview writes no journal');
+ console.log('PASS: TEST-012/013 real helper, exact core profile, copied import closure and actual shared audit consumption');
+});
+if(selected==='PS'){const f=fixture(),r=f.invoke([],'ps');assert.equal(r.status,0,r.stdout+r.stderr);assert.equal(f.transport().prs.length,1);assert.equal(f.git('ls-remote','origin','refs/heads/chore/release-v1'),'');console.log('PASS: TEST-033 one-command PowerShell finish parity');}
+JS
+}
+
+
+# Native capture is tested independently from the Node finish delegation so the
+# same controls can run under Linux pwsh and both declared Windows runtimes.
+test_701_native_capture_controls() {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_info "TEST-013: NOT VERIFIED native capture (pwsh absent)"
+    return 0
+  fi
+  local probe="$TMP_ROOT/native-capture.ps1"
+  cat > "$probe" <<'NATIVE_PROBE'
+$ErrorActionPreference = 'Stop'
+. $env:AAI_RELEASE_PS1_PROBE
+$sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+$captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::WriteLine('$sha')")
+$value = Select-CapturedValue -Captured $captured -Pattern '^(?:[0-9a-f]{40}|[0-9a-f]{64})$' -Name 'native-sha'
+if ($value -ne $sha) { throw 'normal native SHA was not captured' }
+$url = 'https://github.com/test/release/pull/1'
+$captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::Error.WriteLine('benign progress'); [Console]::WriteLine('$url')")
+$value = Select-CapturedValue -Captured $captured -Pattern '^https://github\.com/.+/pull/[0-9]+$' -Name 'native-url'
+if ($value -ne $url) { throw 'normal native URL was not captured separately from progress' }
+$captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', 'exit 0')
+foreach ($name in @('native-sha', 'native-url')) {
+  $refused = $false
+  try {
+    $pattern = '^(?:[0-9a-f]{40}|[0-9a-f]{64})$'
+    if ($name -eq 'native-url') { $pattern = '^https://github\.com/.+/pull/[0-9]+$' }
+    Select-CapturedValue -Captured $captured -Pattern $pattern -Name $name | Out-Null
+  }
+  catch { if ($_.Exception.Message -notlike "*REFUSED: empty-native-output*$name*") { throw }; $refused = $true }
+  if (-not $refused) { throw "empty $name accepted before reuse" }
+}
+$failed = $false
+try { Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::Error.WriteLine('native failure control'); exit 7") | Out-Null }
+catch { if ($_.Exception.Message -notlike '*exit 7*native failure control*') { throw }; $failed = $true }
+if (-not $failed) { throw 'failed native command accepted' }
+Write-Output 'PASS: TEST-013 native SHA/URL normal, empty refused, failed native refused'
+NATIVE_PROBE
+  AAI_RELEASE_PS1_PROBE="$RELEASE_PS1" pwsh -NoProfile -File "$probe"
+}
+
+# release-command-finish remediation (CR-3, NB-4): canonical worktree identity
+# with Windows-style inputs on any OS, and the tag-pattern refusal before any
+# mutation. RELEASE_FINISH_MJS lets a RED run target a pre-fix copy.
+test_702_finish_path_identity_and_version_pattern() {
+  local finish="${RELEASE_FINISH_MJS:-$PROJECT_ROOT/.aai/scripts/release-finish.mjs}"
+  FINISH_MJS="$finish" node --input-type=module <<'JS'
+import assert from 'node:assert/strict';
+import {pathToFileURL} from 'node:url';
+const m=await import(pathToFileURL(process.env.FINISH_MJS).href);
+assert.equal(typeof m.samePath,'function','CR-3: release-finish.mjs must export samePath');
+assert.equal(typeof m.worktreeBlock,'function','CR-3: release-finish.mjs must export worktreeBlock');
+assert.equal(typeof m.validTagVersion,'function','NB-4: release-finish.mjs must export validTagVersion');
+assert.equal(m.samePath('C:\\Users\\RUNNER~1\\Temp\\aai-release-wt.X','C:/Users/RUNNER~1/Temp/aai-release-wt.X','win32'),true,'backslash vs forward slash must match on win32');
+assert.equal(m.samePath('C:\\Users\\Runner\\Temp\\wt','c:/users/runner/temp/wt/','win32'),true,'case and trailing slash fold on win32');
+assert.equal(m.samePath('/tmp/Wt','/tmp/wt','linux'),false,'POSIX stays case-sensitive');
+assert.equal(m.samePath('/tmp/a','/tmp/b','win32'),false);
+const por='worktree D:/repo\nHEAD aaa\nbranch refs/heads/main\n\nworktree C:/Users/x/Temp/aai-release-wt.X\nHEAD bbb\nbranch refs/heads/chore/release-v1\n';
+const blk=m.worktreeBlock(por,'C:\\Users\\x\\Temp\\aai-release-wt.X','win32');
+assert.ok(blk&&blk.includes('branch refs/heads/chore/release-v1'),'Windows-style worktree path must find its registered block');
+assert.equal(m.worktreeBlock(por,'C:\\Users\\x\\Temp\\other','win32'),undefined);
+for(const v of ['v1','1.2.3','v2026.10.17','v1.0.0-rc.1'])assert.equal(m.validTagVersion(v),true,v);
+for(const v of ['stable-2026','','x1','v','v 1'])assert.equal(m.validTagVersion(v),false,'invalid: '+v);
+JS
+  node "$PROJECT_ROOT/tests/skills/lib/release-finish-worktree-identity.mjs" >"$TMP_ROOT/t702-wt.out" 2>&1 \
+    || log_fail "TEST-702: real-git worktree identity probe failed: $(cat "$TMP_ROOT/t702-wt.out")"
+  local repo="$TMP_ROOT/t702" rc=0
+  build_repo "$repo" two_entries
+  ( cd "$repo" && node "$finish" --root "$repo" --version stable-2026 --confirm ) >"$TMP_ROOT/t702.out" 2>&1 || rc=$?
+  [[ "$rc" == "20" ]] || log_fail "TEST-702: non-tag-pattern version must refuse exit 20, got $rc: $(cat "$TMP_ROOT/t702.out")"
+  grep -q "REFUSED: version" "$TMP_ROOT/t702.out" || log_fail "TEST-702: refusal must be cause 'version' before any gh call: $(cat "$TMP_ROOT/t702.out")"
+  grep -qF "tag pattern" "$TMP_ROOT/t702.out" || log_fail "TEST-702: refusal must name the tag pattern: $(cat "$TMP_ROOT/t702.out")"
+  log_pass "TEST-702: Windows-style worktree paths compare canonically; non-tag version refuses before mutation"
+}
+
+# NB-1: PowerShell preview must not add --online without an origin remote.
+test_703_ps1_preview_without_origin() {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    log_info "TEST-703: NOT VERIFIED (pwsh absent)"
+    return 0
+  fi
+  local repo="$TMP_ROOT/t703" stub_bin="$TMP_ROOT/t703-stub" log_file="$TMP_ROOT/t703-ghlog" rc=0
+  build_repo "$repo" two_entries
+  git -C "$repo" remote get-url origin >/dev/null 2>&1 && log_fail "TEST-703: fixture must have no origin"
+  build_stub_gh "$stub_bin" "$log_file" 0
+  ( cd "$repo" && PATH="$stub_bin:$PATH" pwsh -NoProfile -File "$RELEASE_PS1" -DryRun ) >"$TMP_ROOT/t703.out" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-703: ps1 -DryRun without origin and authenticated gh must exit 0 like the shell, got $rc: $(cat "$TMP_ROOT/t703.out")"
+  rc=0
+  ( cd "$repo" && PATH="$stub_bin:$PATH" bash "$RELEASE_SH" --dry-run ) >"$TMP_ROOT/t703sh.out" 2>&1 || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-703: shell parity control failed: $(cat "$TMP_ROOT/t703sh.out")"
+  log_pass "TEST-703: ps1 preview keeps offline audit without an origin remote (parity with shell)"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   check_deps
@@ -1563,13 +1942,12 @@ main() {
     return
   fi
 
+  test_700_one_command_finish
   test_001_dry_run_plan_only
   test_002_bare_invocation_plan_only
   test_003_cut_rolls_changelog
   test_004_commit_message_and_staged_path
   test_005_annotated_tag
-  test_006_seam1_notes_equal_rolled_section
-  test_007_remote_seam
   test_008_idempotence
   test_009_dirty_tree_refuses
   test_010_empty_unreleased_refuses
@@ -1589,13 +1967,13 @@ main() {
   test_024_no_deleted_unreleased_heading_vs_main
   test_025_released_region_pin_vs_tag
   test_026_released_region_scratch_matrix
-  test_027_protected_branch_fallback
-  test_028_fallback_never_publishes_or_merges
-  test_029_tag_is_local_and_report_names_the_repoint
   test_030_followtags_cannot_orphan_the_tag
   test_031_unprotected_path_byte_identical
   test_032_non_protected_failure_degrades_raw
   test_033_ps1_fallback_parity
+  test_701_native_capture_controls
+  test_702_finish_path_identity_and_version_pattern
+  test_703_ps1_preview_without_origin
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
   test_625_fallback_branch_failure_reports
