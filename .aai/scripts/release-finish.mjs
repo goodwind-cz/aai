@@ -430,7 +430,11 @@ async function main(){
    fs.writeFileSync(path.join(wt,'CHANGELOG.md'),record.content);fs.mkdirSync(path.join(wt,'docs/ai'),{recursive:true});
    fs.writeFileSync(path.join(wt,'docs/ai/AAI_VERSION.md'),`# AAI Version\n\n- Version: ${version}\n\nNotes:\n- Written by the release engines at each cut.\n`);
    stage('payload');
-   command('git',['add','--','CHANGELOG.md','docs/ai/AAI_VERSION.md'],wt);command('git',['commit','-q','-m',`chore(release): ${version}`],wt);record.head=sha(command('git',['rev-parse','HEAD'],wt).stdout.trim(),'release');atomicSave();
+   command('git',['add','--','CHANGELOG.md','docs/ai/AAI_VERSION.md'],wt);command('git',['commit','-q','-m',`chore(release): ${version}`],wt);
+   const made=sha(command('git',['rev-parse','HEAD'],wt).stdout.trim(),'release');
+   // .gitattributes (text/eol/filter) can make `git add` rewrite the bytes; fail closed before the head is journaled or pushed.
+   if(blob(made+':CHANGELOG.md')!==record.content)refuse('changelog-normalized','Committed CHANGELOG.md differs from the journaled rollup (git attributes such as eol/text/filter rewrote it); release refused so the byte-exact guarantee is not broken silently');
+   record.head=made;atomicSave();
   }
  }
  if(record.worktree){

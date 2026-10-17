@@ -3,7 +3,7 @@ id: spec-release-changelog-eol
 type: spec
 number: 235
 status: done
-frozen_sha256: 422c4347a9006ec8ac4f26da0a1b2e9e8416471304bda06ebd6106800f9ad03f
+frozen_sha256: 8d00259eb95377d69006439d110a8ec2480aca80f1ea77aa0f5d6934cdc7c2e2
 mutation_gate: v1
 ceremony_level: 2
 capability: release-command-finish
@@ -62,6 +62,7 @@ Article 7 is untouched: the engine's merge path is not changed, and the ride its
 | Expected Behavior: resume compares exact bytes | Spec-AC-04 | R TEST-070 | one REFUSED identity line per near-identical variant, zero pr create calls; the exact-bytes control exits 0 |
 | Constraints: a defective-engine journal is not resumed | Spec-AC-05 | R TEST-071 | one REFUSED identity line naming the base rollup, zero pr create calls |
 | Impact: the CI released-region guard passes on the rolled file | Spec-AC-06 | R TEST-072 | released_region_verdict prints PASS v0 for both base shapes |
+| Constraints: git attributes cannot silently rewrite the cut bytes | Spec-AC-07 | R TEST-073 | one REFUSED changelog-normalized line, zero pr create calls, no release branch on the remote |
 
 R = `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release.sh <selector>` with the selector named in the Test Plan row; exit 0 and a `PASS: TEST-0xx` line decide each row.
 
@@ -75,6 +76,7 @@ R = `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release.sh <s
 | Spec-AC-04 | WHEN a resume finds a prepared commit on the release branch with the authorized parent, subject and two paths, but whose CHANGELOG blob differs from the journal content in any byte (variants: final newline toggled; every LF turned into CR LF) the engine SHALL refuse exactly once with cause `identity` (`Unbound prepared release branch`) and make no pr create call; a prepared commit with the exact journal bytes SHALL still be adopted and the run SHALL exit 0 with one PR and one merge | done | TEST-070 PASS, REFUSED identity per variant; docs/ai/reports/VALIDATION-20261017T203450Z-release-changelog-eol.md | — | — |
 | Spec-AC-05 | WHEN a resume loads a journal with no PR yet whose content differs in any byte from the rollup of the exact base blob at the journal's baseHead (the defective-engine shape: final newline toggled) the engine SHALL refuse exactly once with cause `identity` and detail `Journal content differs from the base rollup`, before any worktree write, commit, push or pr create call | done | TEST-071 PASS, REFUSED identity naming base rollup; docs/ai/reports/VALIDATION-20261017T203450Z-release-changelog-eol.md | — | — |
 | Spec-AC-06 | WHEN the released-region guard `released_region_verdict` (the function CI runs as TEST-025) is run on a repo whose HEAD is the prepared release commit and whose tag v0 is the base commit, its verdict SHALL be `PASS v0`, for a base CHANGELOG ending with a newline and for one ending without | done | TEST-072 PASS, released_region_verdict PASS v0 on 22 prepared commits; docs/ai/reports/VALIDATION-20261017T203450Z-release-changelog-eol.md | — | — |
+| Spec-AC-07 | WHEN `.gitattributes` makes `git add` rewrite CHANGELOG.md (`CHANGELOG.md text eol=lf` over a CR LF base blob) so the committed blob of the prepared release commit differs from the journal content the engine SHALL refuse exactly once with cause `changelog-normalized` before the head is journaled, pushed or a PR created | done | TEST-073 PASS (post-freeze amendment, see decisions.jsonl) | — | — |
 
 ## Implementation plan
 
@@ -117,6 +119,7 @@ Hash pins: none. A repo-wide search for the sha256 prefix of release-finish.mjs 
 | TEST-070 | Spec-AC-04 | integration | tests/skills/test-aai-release.sh | test_714_resume_adopts_exact_bytes_only: stop after payload, commit a variant CHANGELOG in the journal worktree, resume; final-newline-toggled and CR LF variants each refuse identity once with zero pr create calls; the exact-bytes control exits 0 with one PR and one merge | sed:s/blob\(head\+':CHANGELOG\.md'\)!==record\.content/trim(blob(head+':CHANGELOG.md'))!==trim(record.content)/ | green |
 | TEST-071 | Spec-AC-05 | integration | tests/skills/test-aai-release.sh | test_715_resume_refuses_stale_journal: stop after worktree, toggle the journal content's final newline, resume; one REFUSED identity line naming Journal content differs from the base rollup, zero pr create calls, no remote release branch | sed:s/\)\)\.content!==record\.content/)).content===null/ | green |
 | TEST-072 | Spec-AC-06 | integration | tests/skills/test-aai-release.sh | test_716_rolled_file_passes_released_region_guard: prepared commit from the stock and the no-newline fixture, tag v0 at base, HEAD detached at the release branch; released_region_verdict prints PASS v0 for both | sed:s/\['cat-file','blob',spec\]\)\.stdout;/['cat-file','blob',spec]).stdout.trim();/ | green |
+| TEST-073 | Spec-AC-07 | integration | tests/skills/test-aai-release.sh | test_717_attribute_normalized_changelog_refused: CR LF base blob, then a commit adding `.gitattributes` `CHANGELOG.md text eol=lf`; the confirm run refuses once with changelog-normalized, makes no pr create call and leaves no release branch on the remote | sed:s/if\(blob\(made\+':CHANGELOG\.md'\)!==record\.content\)refuse/if(false)refuse/ | green |
 
 Mutation targets: every row mutates `.aai/scripts/release-finish.mjs`. Patterns are JavaScript RegExp as `mutation-run.mjs --sed` reads them; replacements are literal.
 

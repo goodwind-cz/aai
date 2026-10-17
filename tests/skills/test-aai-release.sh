@@ -1771,6 +1771,13 @@ check('TEST-071',()=>{
  const r=f.invoke();assert.notEqual(r.status,0,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: identity/);assert.match(r.stderr,/Journal content differs from the base rollup/);
  assert.equal(creates(f),0);assert.equal(f.git('ls-remote','origin','refs/heads/chore/release-v1'),'');
 });
+check('TEST-073',()=>{
+ // Base blob holds CRLF; a later .gitattributes makes `git add` normalize CHANGELOG.md to LF.
+ const f=fixture('',crlf(EOL_BASE));
+ fs.writeFileSync(path.join(f.repo,'.gitattributes'),'CHANGELOG.md text eol=lf\n');f.git('add','.gitattributes');f.git('commit','-qm','normalize changelog eol');f.git('push','-q','origin','main');
+ const r=f.invoke();assert.notEqual(r.status,0,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: changelog-normalized/);assert.match(r.stderr,/differs from the journaled rollup/);
+ assert.equal(creates(f),0);assert.equal(f.git('ls-remote','origin','refs/heads/chore/release-v1'),'');
+});
 check('TEST-072',()=>{
  for(const [n,base] of [['nl',null],['nonl',noFinal(EOL_BASE)]]) {
   const f=fixture('',base);stopAt(f,'prepared');f.git('checkout','--detach','-q','chore/release-v1');
@@ -1998,6 +2005,10 @@ test_715_resume_refuses_stale_journal() {
   RELEASE_FINISH_CASE=TEST-071 test_700_one_command_finish
 }
 
+test_717_attribute_normalized_changelog_refused() {
+  RELEASE_FINISH_CASE=TEST-073 test_700_one_command_finish
+}
+
 test_716_rolled_file_passes_released_region_guard() {
   local out line n repo verdict seen=0
   out="$(RELEASE_FINISH_CASE=TEST-072 test_700_one_command_finish 2>&1)" || { printf '%s\n' "$out" >&2; log_fail "TEST-072: fixture run failed"; return 0; }
@@ -2159,6 +2170,7 @@ main() {
   test_714_resume_adopts_exact_bytes_only
   test_715_resume_refuses_stale_journal
   test_716_rolled_file_passes_released_region_guard
+  test_717_attribute_normalized_changelog_refused
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
   test_625_fallback_branch_failure_reports
