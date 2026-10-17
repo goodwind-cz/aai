@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat(platform): bootstrap records the git platform and /aai-merge works on Azure DevOps (git-platform-detected-at-bootstrap)
+## [v2026.10.17] — feat(platform): bootstrap records the git platform and /aai-merge works on Azure DevOps (git-platform-detected-at-bootstrap)
 
 - `aai-bootstrap` records `platform: github|azure|unknown|none` in `docs/ai/pr-config.yaml` (via the new `.aai/scripts/platform.mjs record`) and reports whether the host's CLI is signed in. An existing value is never overwritten silently; `record --force` replaces it.
 - `/aai-merge` goes through one platform adapter (`.aai/scripts/lib/platform-adapter.mjs`). On Azure DevOps the preflight, the directed merge (`platform.mjs merge`, head checked before and after completion, exit 5 `head_race_lost`) and the cleanup run without any `gh` call. Fixes goodwind-cz/aai#468.
@@ -30,12 +30,12 @@ fine — it is the marker a cut leaves on top.
 - On Windows the Azure CLI runs through `cmd.exe` with a strict argument allow-list and without searching the checkout for `az`.
 - Not yet moved to the adapter: CI watching, merge lanes, PR preflight, close ceremony, release and the merge hook (tracked as follow-ups).
 
-## [unreleased] — fix: ignore cosmetic replacements when checking release notes
+## [v2026.10.17] — fix: ignore cosmetic replacements when checking release notes
 
 - Trailing spaces/tabs and LF/CRLF-only edits to existing notes no longer satisfy the shipped-change gate. New words, new notes and interior inline-code spacing still count as content changes.
 - Traceability: notes-content-and-merged-links / spec-notes-content-and-merged-links.
 
-## [unreleased] — feat(pr): shipped changes need new notes or an explicit exemption (release-notes-gate)
+## [v2026.10.17] — feat(pr): shipped changes need new notes or an explicit exemption (release-notes-gate)
 
 - A pull request that changes a shipped surface must add a nonempty rollable `## [unreleased]` entry, or carry `no-notes: <reason>` in the PR body. Docs, tests, and evidence-only diffs are exempt.
 - `/aai-pr` runs the same check on the staged patch and the final proposed body. CI runs it on the pull request range and body. The body is data and is never executed.
