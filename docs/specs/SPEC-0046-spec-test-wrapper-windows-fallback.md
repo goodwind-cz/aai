@@ -214,7 +214,7 @@ fail fast, documented degraded mode). 5 — additive: new .ps1 entry points; the
 | Spec-AC-07 | 5-row platform matrix in headers + TECHNOLOGY.md   | done     | TEST-009 green; tests/skills/test-aai-win-fallback.sh | —         | — |
 | Spec-AC-08 | BOM strip in tdd-evidence-check.mjs (NB-1)         | done     | TEST-010/011 green; docs/ai/tdd/green-20260717T154550Z-test010-011-bom-foldin.log | — | — |
 | Spec-AC-09 | ps1 parse/analyzer/Pester gate wiring              | done     | TEST-012 green; tests/skills/test-ps1-quality.sh (local pwsh; CI is authoritative) | — | — |
-| Spec-AC-10 | Manual Windows protocol documented + residual risk | deferred | TEST-013 doc-presence green; tests/skills/test-aai-win-fallback.sh | 2026-10-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
+| Spec-AC-10 | Manual Windows protocol documented + residual risk | deferred | TEST-013 doc-presence green; tests/skills/test-aai-win-fallback.sh | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Implementation plan
 
