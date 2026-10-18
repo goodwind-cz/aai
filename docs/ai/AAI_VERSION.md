@@ -1,6 +1,6 @@
 # AAI Version
 
-- Version: v2026.10.17.3
+- Version: v2026.10.18
 
 Notes:
 - Written by the release engines at each cut.
