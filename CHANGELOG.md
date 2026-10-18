@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — fix(release): finish in one run, awaiting every required context and reporting policy holds as pending
+## [v2026.10.18] — fix(release): finish in one run, awaiting every required context and reporting policy holds as pending
 
 - `/aai-release --confirm` no longer merges before every required status check has reported: the engine reads the base branch's required contexts (classic protection and rulesets, read access only), waits bounded until each has passed, and degrades with a named `- Required contexts:` line when a source is unreadable.
 - GitHub's "base branch policy prohibits the merge" refusal now ends as `PENDING: merge-policy` (exit 8, resumable) instead of a generic `github-command` refusal.
