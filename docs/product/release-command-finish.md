@@ -6,8 +6,9 @@ status: current
 delivered_by:
   - CHANGE-0213
   - release-command-finish
+  - release-one-shot-finish
 spec: docs/specs/SPEC-0233-spec-release-command-finish.md
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 
 # Complete and resume a release
@@ -46,6 +47,10 @@ The prepared commit changes only `CHANGELOG.md` and `docs/ai/AAI_VERSION.md`. Th
 - Shell: bare / `--dry-run` previews; `--confirm --version <version>` completes or resumes; `--no-remote` cuts locally.
 - PowerShell: `-DryRun`, `-Confirm`, `-Version`, `-NoRemote` mirror the shell behavior.
 - Merge: only the bound release PR is squash-merged after required checks pass, with `--match-head-commit`; no auto/admin bypass. Real pending checks wait, and a not-yet-registered required list is re-read for a bounded grace before the empty refusal; errors, empty/malformed or degraded results refuse. Only required checks are read and watched. If the base uses a merge queue, the PR is enqueued and the command exits 8 with `PENDING: merge-queue` and the resume command (not a refusal); resume once the queue merges it.
+- Required contexts: once per run, before the checks wait, the engine reads the base branch's required status-check contexts with read access only: classic protection from `gh api repos/<repo>/branches/<base>` and rulesets from `gh api repos/<repo>/rules/branches/<base>`; the required set is their union. After the watcher settles, the engine re-reads the required checks every `AAI_RELEASE_POLL_SECONDS` until every reported check and every required context, matched by exact name, has passed, bounded by `AAI_RELEASE_WAIT_SECONDS`. A context that never reports refuses `required-contexts` naming it; a reported check that is neither pass nor pending refuses `required-checks` at once. A source that cannot be read (for example HTTP 403 or 404) degrades explicitly: one stdout line starting `- Required contexts:` names each source as `UNREADABLE <source> (<reason>)`, and when both are unreadable the engine waits on the reported required checks only, as before. A source that answers with invalid JSON or an unexpected shape is not a degrade; it refuses `required-contexts`. Contexts are matched by name, not by pinned app.
+- Policy pending: if `gh pr merge` fails with GitHub's "the base branch policy prohibits the merge" while the PR is still open and not queued, the command exits 8 with `PENDING: merge-policy` and the resume command (journal and PR retained); resume re-reads contexts and checks and merges once the policy is satisfied. Any other merge failure still refuses `github-command`.
+- Base sync and the ref guard: the final registered-base fast-forward is one prepared `git update-ref --stdin` transaction. Only that child process receives `AAI_GIT_WRITE=1`, which lets the `AAI:REF-GUARD` hook allow it; the variable is never set on the engine itself, the frontends or any other git call. Repositories without the hook ignore it.
+- Closed release PR: a closed PR on the release branch refuses `identity` naming the PR number and the remedy (cut the release under a new `--version`; with a journal, reopen the PR or cut a fresh audited release).
 - Publication: await successful `release.yml` for the merge SHA; verify the peeled tag SHA and every rolled section in the release body before cleanup.
 - Cleanup: expected-head leased deletion refuses moved branches or dependent PRs. Safe registered-base fast-forward preserves unrelated dirty/detached/feature callers; unsafe overlap/divergence refuses, absent base names a skip.
 - Audit: commits without a PR number in their subject are classified by their changed paths; a shipped one needs notes it added that survive in the rollup or a `no-notes:` line in its commit message, otherwise `missing-notes` names the commit. Commits merged through a numbered `Merge pull request #N` count as part of PR #N, and on the online path a rebase-merged commit is attributed to its merged PR through GitHub's commit-to-PR lookup; an unnumbered merge commit is skipped and the commits it merged are audited individually (content introduced only by the merge itself is not audited).
