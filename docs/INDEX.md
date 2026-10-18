@@ -46,7 +46,7 @@ _None._
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
-| release-command-finish | release-command-finish | 2 | docs/product/release-command-finish.md |
+| release-command-finish | release-command-finish | 3 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | roadmap | roadmap | 1 | docs/product/roadmap.md |
@@ -56,7 +56,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (545)
+## Done (547)
 
 | ID | Type | Path |
 |---|---|---|
@@ -350,6 +350,7 @@ _None._
 | ISSUE-0100 | issues | docs/issues/ISSUE-0100-docs-index-broken-refs-scope.md |
 | ISSUE-0101 | issues | docs/issues/ISSUE-0101-release-checks-registration-grace.md |
 | ISSUE-0102 | issues | docs/issues/ISSUE-0102-release-changelog-eol.md |
+| ISSUE-0103 | issues | docs/issues/ISSUE-0103-release-one-shot-finish.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -603,6 +604,7 @@ _None._
 | SPEC-0233 | specs | docs/specs/SPEC-0233-spec-release-command-finish.md |
 | SPEC-0234 | specs | docs/specs/SPEC-0234-spec-release-checks-registration-grace.md |
 | SPEC-0235 | specs | docs/specs/SPEC-0235-spec-release-changelog-eol.md |
+| SPEC-0236 | specs | docs/specs/SPEC-0236-spec-release-one-shot-finish.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

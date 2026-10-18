@@ -222,11 +222,12 @@ function identity(pr){
  return pr;
 }
 function boundedPoll(read,ready,cause){const end=Date.now()+maxWait*1000;for(;;){const v=read();if(ready(v))return v;if(Date.now()>=end)refuse(cause,'Bounded wait expired');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,interval*1000);}}
+// The AAI:REF-GUARD hook refuses a refs/heads/main update unless AAI_GIT_WRITE=1. This one transaction (confirmed run, verified merge SHA, fast-forward only) is the narrow exception: the variable is set on this child alone, never on process.env or the frontends.
 // Keep the expected-old base ref locked while updating its checkout. HEAD is not
 // locked: the base index.lock (baseIndexClaim) keeps porcelain checkouts out, and
 // syncBase re-verifies HEAD and the ref after the update.
 async function baseTransaction(cwd,ref,oldHead,newHead){
- const child=spawn('git',['update-ref','--stdin'],{cwd,env:{...process.env,GIT_NO_LAZY_FETCH:'1'},stdio:['pipe','pipe','pipe']});
+ const child=spawn('git',['update-ref','--stdin'],{cwd,env:{...process.env,GIT_NO_LAZY_FETCH:'1',AAI_GIT_WRITE:'1'},stdio:['pipe','pipe','pipe']});
  let output='',errors='',failure=null;const waiters=new Set();
  const wake=()=>{for(const fn of waiters)fn();};
  child.stdout.on('data',b=>{output+=b;wake();});child.stderr.on('data',b=>{errors+=b;});
@@ -368,12 +369,68 @@ function requiredChecks(allowEmpty=false){
  if(r.status===1&&!checks.some(c=>['fail','cancel'].includes(c.bucket)))refuse('github-checks','Failure exit status without a failed check');
  return checks;
 }
+// Required contexts of the base branch, read-access only: classic protection (branch endpoint) plus rulesets. Unreadable = named degrade (D2); malformed = refusal (D3).
+// paged: read every page of a list endpoint. `gh api --paginate --slurp` (gh 2.48+) answers one array of page arrays; an older gh rejects --slurp, which lands in the unreadable branch below (named line), never a silent first-page read.
+function contextSource(source,endpoint,extract,paged=false) {
+ const r=command('gh',paged?['api','--paginate','--slurp',`${endpoint}?per_page=100`]:['api',endpoint],root,true);
+ if(r.error||r.status!==0)return {source,unreadable:r.error?.message||(r.stderr||'').split('\n')[0].trim()||`exit ${r.status}`};
+ let data;try{data=JSON.parse(r.stdout);}catch{refuse('required-contexts','Invalid JSON from gh api '+endpoint);}
+ const shape=why=>refuse('required-contexts',`Unexpected shape from gh api ${endpoint}: ${why}`);
+ if(paged){if(!Array.isArray(data)||data.some(p=>!Array.isArray(p)))shape('rules answer is not an array');data=data.flat();}
+ const found=extract(data,shape);
+ return found===null?{source,unreadable:'protected branch without a readable protection object'}:{source,contexts:found};
+}
+function classicContexts(data,shape) {
+ if(data===null||typeof data!=='object'||Array.isArray(data)||typeof data.protected!=='boolean')shape('branch answer without a boolean protected');
+ if(!data.protected)return [];
+ if(data.protection===undefined||data.protection===null)return null;
+ if(typeof data.protection!=='object'||Array.isArray(data.protection))shape('protection is not an object');
+ const rsc=data.protection.required_status_checks;
+ if(rsc===undefined||rsc===null)return [];
+ if(typeof rsc!=='object'||Array.isArray(rsc))shape('required_status_checks is not an object');
+ if(rsc.enforcement_level==='off')return [];
+ const names=[];
+ if(rsc.contexts!==undefined){if(!Array.isArray(rsc.contexts)||rsc.contexts.some(c=>typeof c!=='string'))shape('contexts is not a list of strings');names.push(...rsc.contexts);}
+ if(rsc.checks!==undefined){if(!Array.isArray(rsc.checks)||rsc.checks.some(c=>!c||typeof c.context!=='string'))shape('checks is not a list of context entries');names.push(...rsc.checks.map(c=>c.context));}
+ return names;
+}
+function rulesetContexts(data,shape) {
+ if(!Array.isArray(data))shape('rules answer is not an array');
+ const names=[];
+ for(const rule of data.filter(r=>r&&r.type==='required_status_checks')){
+  const list=rule.parameters&&rule.parameters.required_status_checks;
+  if(!Array.isArray(list)||list.some(c=>!c||typeof c.context!=='string'))shape('required_status_checks rule without a list of contexts');
+  names.push(...list.map(c=>c.context));
+ }
+ return names;
+}
+function requiredContexts() {
+ const base=`repos/${record.repo}`,branch=encodeURIComponent(record.base);
+ const answers=[contextSource('protection',`${base}/branches/${branch}`,classicContexts),contextSource('rulesets',`${base}/rules/branches/${branch}`,rulesetContexts,true)];
+ const lost=answers.filter(a=>a.unreadable!==undefined);
+ if(lost.length)console.log(`- Required contexts: ${lost.map(a=>`UNREADABLE ${a.source} (${a.unreadable})`).join('; ')}${lost.length===answers.length?'; waiting on reported required checks only':''}`);
+ return [...new Set(answers.flatMap(a=>a.contexts||[]))];
+}
 function registeredChecks(){
  const end=Date.now()+checksGrace*1000;
  for(;;){
   const c=requiredChecks(true);
   if(c.length)return c;
   if(Date.now()>=end)refuse('required-checks',`No required checks registered within ${checksGrace}s`);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,interval*1000);
+ }
+}
+// After watch-ci: every reported check passes and every required context appears by name with bucket pass, bounded by AAI_RELEASE_WAIT_SECONDS.
+function awaitContexts(contexts) {
+ const end=Date.now()+maxWait*1000;
+ for(;;){
+  const settled=requiredChecks();
+  const bad=settled.filter(c=>!['pass','pending'].includes(c.bucket));
+  if(bad.length)refuse('required-checks',`Required check not passing: ${bad.map(c=>`${c.name} (${c.bucket})`).join(', ')}`);
+  const unsettled=contexts.filter(n=>!settled.some(c=>c.name===n&&c.bucket==='pass'));
+  const waiting=settled.filter(c=>c.bucket==='pending').map(c=>c.name);
+  if(!unsettled.length&&!waiting.length)return settled;
+  if(Date.now()>=end)refuse('required-contexts',`Required contexts not passed within ${maxWait}s: ${[...new Set([...unsettled,...waiting])].join(', ')}`);
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,interval*1000);
  }
 }
@@ -402,7 +459,7 @@ async function main(){
   if(remoteHead(`refs/tags/${version}`)||command('git',['rev-parse','--verify',`refs/tags/${version}`],root,true).status===0)refuse('tag-exists',`Tag ${version} exists without a matching journal`);
   const rolled=rollup(blob(`${baseHead}:CHANGELOG.md`));const missing=audit(rolled.notes,true,baseHead);if(missing.length)refuse('missing-notes',missing.join('; '));
   if(authoritativeBase(base,true)!==baseHead)refuse('base-moved','Remote release base moved during notes audit; retry confirmation');
-  const ambiguous=json('pr','list','--repo',repo,'--head',branch,'--state','all','--json',fields);if(!Array.isArray(ambiguous)||ambiguous.length)refuse('identity','Existing or ambiguous release PR has no matching journal');
+  const ambiguous=json('pr','list','--repo',repo,'--head',branch,'--state','all','--json',fields);if(Array.isArray(ambiguous)&&ambiguous.length===1&&ambiguous[0].state==='CLOSED')refuse('identity',`Release PR #${ambiguous[0].number} on ${branch} is closed without a matching journal; cut this release under a new --version`);if(!Array.isArray(ambiguous)||ambiguous.length)refuse('identity','Existing or ambiguous release PR has no matching journal');
   record={version,repo,origin,base,baseRef,baseHead,branch,notes:rolled.notes,content:rolled.content,head:null,pr:null,merge:null,stage:'initialized'};
   fs.mkdirSync(path.dirname(journal),{recursive:true});atomicSave();
  }
@@ -458,18 +515,29 @@ async function main(){
   prs=json('pr','list','--repo',repo,'--head',branch,'--state','all','--json',fields);if(prs.length!==1)refuse('identity','Could not bind unique created PR');pr=identity(prs[0]);record.pr=pr.number;stage('pr');
  }else{record.pr=pr.number;atomicSave();}
  if(pr.state!=='MERGED'){
-  if(pr.state!=='OPEN')refuse('identity','Bound release PR is closed without merge');
+  if(pr.state!=='OPEN')refuse('identity',`Bound release PR #${record.pr} is closed without merge; reopen it to resume, or cut a fresh audited release under a new --version`);
   queuedOrRefuse();
   unchangedBase();
+  const contexts=requiredContexts();
   const required=registeredChecks();if(!Array.isArray(required)||!required.length||required.some(c=>!['pass','pending'].includes(c.bucket))){const bad=Array.isArray(required)?required.filter(c=>!['pass','pending'].includes(c.bucket)).map(c=>`${c.name} (${c.bucket})`):[];refuse('required-checks','Required checks missing, skipped or failed'+(bad.length?': '+bad.join(', '):''));}
   console.log(`release: waiting for required CI on PR #${record.pr}`);
   const watcher=spawnSync(process.execPath,[path.join(here,'watch-ci.mjs'),'--pr',String(record.pr),'--required','--interval-seconds',String(interval),'--max-wait-seconds',String(maxWait)],{cwd:root,encoding:'utf8',timeout:(maxWait+15)*1000,stdio:['ignore','inherit','pipe']});
   if(watcher.error||watcher.status!==0)refuse('ci',watcher.error?.message||trim(watcher.stderr||'CI watcher failed'));
-  const settled=requiredChecks();if(!settled.length||settled.some(c=>c.bucket!=='pass'))refuse('required-checks','Required checks did not all pass');
+  awaitContexts(contexts);
   pr=identity(json('pr','view',String(record.pr),'--repo',repo,'--json',fields));if(remoteHead(`refs/heads/${branch}`)!==record.head)refuse('head-moved','Release head moved before merge');
   unchangedBase();
-  gh('pr','merge',String(record.pr),'--repo',repo,'--squash','--match-head-commit',record.head);
-  pr=identity(json('pr','view',String(record.pr),'--repo',repo,'--json',fields));if(pr.state!=='MERGED'){queuedOrRefuse();refuse('merge','Release PR did not merge');}
+  const attempt=command('gh',['pr','merge',String(record.pr),'--repo',repo,'--squash','--match-head-commit',record.head],root,true);
+  const failed=Boolean(attempt.error)||attempt.status!==0;
+  pr=identity(json('pr','view',String(record.pr),'--repo',repo,'--json',fields));
+  if(pr.state!=='MERGED'){
+   queuedOrRefuse();
+   const policyRefusal=/the base branch policy prohibits the merge/;
+   if(failed){
+    if(policyRefusal.test(attempt.stderr||''))pending('merge-policy',`Release PR #${record.pr} is still open: GitHub's base branch policy has not accepted the merge yet; resume once it is satisfied`);
+    refuse('github-command',`gh pr merge ${record.pr}: ${attempt.error?.message||(attempt.stderr||'').trim()||`exit ${attempt.status}`}`);
+   }
+   refuse('merge','Release PR did not merge');
+  }
  }
  record.merge=sha(pr.mergeCommit?.oid,'merge');stage('merged');
  command('git',['fetch','--no-tags','origin',record.base]);

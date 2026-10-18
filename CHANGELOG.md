@@ -22,6 +22,14 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(release): finish in one run, awaiting every required context and reporting policy holds as pending
+
+- `/aai-release --confirm` no longer merges before every required status check has reported: the engine reads the base branch's required contexts (classic protection and rulesets, read access only), waits bounded until each has passed, and degrades with a named `- Required contexts:` line when a source is unreadable.
+- GitHub's "base branch policy prohibits the merge" refusal now ends as `PENDING: merge-policy` (exit 8, resumable) instead of a generic `github-command` refusal.
+- The final base sync passes `AAI_GIT_WRITE=1` to its single `git update-ref --stdin` transaction only, so the ref-guard hook no longer stops a confirmed release after merge.
+- A closed release PR now refuses with the PR number and the remedy.
+- Traceability: release-one-shot-finish / spec-release-one-shot-finish; closes fu-release-required-contexts-unreported.
+
 ## [v2026.10.17.3] — fix(release): roll the CHANGELOG byte-exactly and resume only on exact bytes
 
 - The release finish read the base CHANGELOG through a trimming helper, so a rolled file lost its final newline, a leading BOM and its CRLF line endings, which failed the CI released-region guard (EOF state differs) on the release PR. The base is now read as exact bytes: the rollup keeps the BOM, each line's own ending and the presence or absence of the final newline, and the inserted scaffold lines follow the first heading's line ending.
