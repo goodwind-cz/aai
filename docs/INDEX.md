@@ -11,7 +11,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-sync-prune-retired-skill-wrappers | specs | implementing | 7 planned | docs/specs/SPEC-DRAFT-spec-sync-prune-retired-skill-wrappers.md |
+| spec-sync-prune-retired-skill-wrappers | specs | implementing | 7 done | docs/specs/SPEC-DRAFT-spec-sync-prune-retired-skill-wrappers.md |
 
 ## Canonical layer (0)
 

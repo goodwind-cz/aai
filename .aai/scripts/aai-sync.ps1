@@ -338,6 +338,81 @@ if ($Profile -eq "core") {
   }
 }
 
+# Retired template skill wrappers (sync-prune-retired-skill-wrappers).
+# Mirror of is_retired_skill_wrapper / remove_retired_skill_wrappers in aai-sync.sh:
+# a target-only entry under .claude/skills or .agents/skills is removed ONLY when it
+# is provably a template shim whose .aai/SKILL_<X>.prompt.md the SOURCE layer no
+# longer ships. Everything else is left untouched.
+function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
+  try {
+    $item = Get-Item -LiteralPath $EntryPath -Force -ErrorAction Stop
+    if (-not $item.PSIsContainer) { return $false }
+    if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
+    if ($EntryName -clike "aai-project-*") { return $false }
+    $children = @(Get-ChildItem -LiteralPath $EntryPath -Force -ErrorAction Stop)
+    if ($children.Count -ne 1) { return $false }
+    $child = $children[0]
+    if (($child.Name -cne "SKILL.md") -or $child.PSIsContainer) { return $false }
+    if ($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
+    $raw = Get-Content -LiteralPath $child.FullName -Raw -Encoding UTF8 -ErrorAction Stop
+    $text = $raw.Replace("`r", "")
+    $lines = @($text -split "`n")
+    $n = $lines.Count
+    while (($n -gt 0) -and ($lines[$n - 1] -cmatch '^[ \t]*$')) { $n-- }
+    if (($n -lt 1) -or ($lines[0] -cne "---")) { return $false }
+    $close = -1
+    for ($i = 1; $i -lt $n; $i++) { if ($lines[$i] -ceq "---") { $close = $i; break } }
+    if ($close -lt 0) { return $false }
+    $hasName = $false
+    for ($i = 1; $i -lt $close; $i++) { if ($lines[$i] -ceq "name: $EntryName") { $hasName = $true } }
+    if (-not $hasName) { return $false }
+    $body = @()
+    for ($i = $close + 1; $i -lt $n; $i++) { if ($lines[$i] -cnotmatch '^[ \t]*$') { $body += $lines[$i] } }
+    $k = 0
+    if ($body.Count -gt 0 -and $body[0] -ceq "<SUBAGENT-STOP>") {
+      $j = 1
+      $found = $false
+      while ($j -lt $body.Count) { if ($body[$j] -ceq "</SUBAGENT-STOP>") { $found = $true; break }; $j++ }
+      if ((-not $found) -or ($j -eq 1)) { return $false }
+      $k = $j + 1
+    }
+    if (($body.Count - $k) -ne 2) { return $false }
+    $pre = 'Read the file `.aai/SKILL_'
+    $a = $body[$k]
+    if (-not $a.StartsWith($pre, [System.StringComparison]::Ordinal)) { return $false }
+    $r = $a.Substring($pre.Length)
+    $e = $r.IndexOf('.prompt.md`', [System.StringComparison]::Ordinal)
+    if ($e -lt 0) { return $false }
+    $x = $r.Substring(0, $e)
+    if ($x -cnotmatch '^[A-Z0-9_]+$') { return $false }
+    $r = $r.Substring($e + '.prompt.md`'.Length)
+    $mid = ' from the current project root and follow its instructions exactly'
+    if (-not $r.StartsWith($mid, [System.StringComparison]::Ordinal)) { return $false }
+    if ($r.Substring($mid.Length).IndexOf(' Invoke this as `', [System.StringComparison]::Ordinal) -lt 0) { return $false }
+    if (-not $a.EndsWith('.', [System.StringComparison]::Ordinal)) { return $false }
+    $want = 'If `.aai/SKILL_' + $x + '.prompt.md` does not exist, say: "SKILL_' + $x + ' not found ' + [string][char]0x2014 + ' are you in an AAI project? Expected: .aai/SKILL_' + $x + '.prompt.md"'
+    if ($body[$k + 1] -cne $want) { return $false }
+    if (Test-Path -LiteralPath (Join-Path $SrcRoot ".aai/SKILL_$x.prompt.md")) { return $false }
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Remove-RetiredSkillWrappers([string]$Tree) {
+  $dstTree = Join-Path $TargetRoot $Tree
+  if (!(Test-Path -LiteralPath $dstTree)) { return }
+  Get-ChildItem -LiteralPath $dstTree -Force | ForEach-Object {
+    $entryName = $_.Name
+    if (Test-Path -LiteralPath (Join-Path (Join-Path $SrcRoot $Tree) $entryName)) { return }
+    if (Test-RetiredSkillWrapper $_.FullName $entryName) {
+      Remove-Item -LiteralPath $_.FullName -Recurse -Force
+      $script:deletions += "$Tree/$entryName"
+      Write-Host "  CLEAN removed retired skill wrapper: $Tree/$entryName"
+    }
+  }
+}
+
 # Claude Code skills (session helpers):
 # copy template skills entry-by-entry and preserve target-only local skills.
 $claudeSkills = Join-Path $SrcRoot ".claude/skills"
@@ -365,6 +440,7 @@ if (Test-Path $claudeSkills) {
     }
     Copy-Replace $_.FullName $dstEntry
   }
+  Remove-RetiredSkillWrappers ".claude/skills"
   Write-Host "  PRESERVE target-only skills under: $targetClaudeSkills"
 }
 
@@ -547,6 +623,7 @@ if (Test-Path $agentsSkills) {
     }
     Copy-Replace $_.FullName $dstEntry
   }
+  Remove-RetiredSkillWrappers ".agents/skills"
   Write-Host "  PRESERVE target-only skills under: $targetAgentsSkills"
 }
 

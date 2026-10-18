@@ -1961,6 +1961,358 @@ test_796_sync_cache_adoption() {
   log_pass "TEST-796 $calls first syncs go through _sync_cached, none captures output, $direct direct engine calls remain"
 }
 
+# --- TEST-820..830 (sync-prune-retired-skill-wrappers) -------------------------
+# aai-sync removes a target-only entry under .claude/skills / .agents/skills only
+# when it is provably a template shim wrapper whose .aai/SKILL_<X>.prompt.md the
+# SOURCE layer no longer ships. Everything else stays byte-identical.
+RETIRED_CLEAN_PREFIX="  CLEAN removed retired skill wrapper: "
+
+_retired_sha256() {
+  { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | awk '{print $1}'
+}
+
+# _retired_shim_text <name> <X> <variant> -- the decapod-shaped shim (variant:
+# plain | stop | arg | mixed | extra | crlf). crlf has CRLF endings and no final newline.
+_retired_shim_text() {
+  local name="$1" x="$2" variant="${3:-plain}" invoke y="$2" text
+  invoke="/$name"
+  [[ "$variant" == "arg" ]] && invoke="/$name <PR>"
+  [[ "$variant" == "mixed" ]] && y="${2}_OTHER"
+  text="$(
+    printf '%s\n' '---' "name: $name" 'description: Use when exercising a retired template shim in a fixture.' '---' ''
+    if [[ "$variant" == "stop" || "$variant" == "arg" ]]; then
+      printf '%s\n' '<SUBAGENT-STOP>' 'If you were dispatched as a subagent, skip this skill.' 'Top-level only.' '</SUBAGENT-STOP>' ''
+    fi
+    printf '%s\n' "Read the file \`.aai/SKILL_${x}.prompt.md\` from the current project root and follow its instructions exactly. Invoke this as \`${invoke}\`."
+    [[ "$variant" == "extra" ]] && printf '%s\n' '' 'Also remember the project deploy checklist.'
+    printf '%s\n' '' "If \`.aai/SKILL_${y}.prompt.md\` does not exist, say: \"SKILL_${y} not found — are you in an AAI project? Expected: .aai/SKILL_${y}.prompt.md\""
+  )"
+  if [[ "$variant" == "crlf" ]]; then
+    text="$(awk '{ printf "%s\r\n", $0 }' <<< "$text")"
+    printf '%s' "$text"
+  else
+    printf '%s\n' "$text"
+  fi
+}
+
+# _retired_install <root> <name> <X> <variant> [extra-file] -- shim in BOTH trees.
+_retired_install() {
+  local root="$1" name="$2" x="$3" variant="${4:-plain}" extra="${5:-}" tree
+  for tree in .claude/skills .agents/skills; do
+    mkdir -p "$root/$tree/$name"
+    _retired_shim_text "$name" "$x" "$variant" > "$root/$tree/$name/SKILL.md"
+    if [[ -n "$extra" ]]; then printf 'notes\n' > "$root/$tree/$name/$extra"; fi
+  done
+}
+
+# _retired_snapshot <root> -- sorted listing of both skill trees: sha256 per file,
+# the link target per symlink, and every directory.
+_retired_snapshot() {
+  local root="$1" f
+  ( cd "$root" || exit 1
+    find .claude/skills .agents/skills -mindepth 1 | LC_ALL=C sort | while IFS= read -r f; do
+      if [[ -L "$f" ]]; then printf 'L %s -> %s\n' "$f" "$(readlink "$f")"
+      elif [[ -d "$f" ]]; then printf 'D %s\n' "$f"
+      else printf 'F %s %s\n' "$f" "$(_retired_sha256 "$f")"
+      fi
+    done
+  )
+}
+
+_retired_clean_lines() { grep -F -- "$RETIRED_CLEAN_PREFIX" <<< "$1" | LC_ALL=C sort || true; }
+
+_retired_count_line() { # <output> <exact line>
+  local n
+  n="$(grep -cxF -- "$2" <<< "$1" || true)"
+  printf '%s' "$n"
+}
+
+# Two-step fixture (Spec-AC-01): target synced from a source carrying aai-retired
+# plus its prompt, then returned in $1 ready for the second sync.
+_retired_two_step_target() {
+  local dst="$1" srcA="${1}-srcA"
+  _fixture_source_copy "$srcA"
+  _retired_install "$srcA" aai-retired RETIRED plain
+  printf '# retired prompt\n' > "$srcA/.aai/SKILL_RETIRED.prompt.md"
+  mkdir -p "$dst"
+  _hooks_run_engine sh "$srcA" "$dst" >/dev/null 2>&1 || log_fail "retired fixture: first sync from the retiring-source failed"
+  [[ -f "$dst/.claude/skills/aai-retired/SKILL.md" && -f "$dst/.agents/skills/aai-retired/SKILL.md" && -f "$dst/.aai/SKILL_RETIRED.prompt.md" ]] \
+    || log_fail "retired fixture: first sync did not carry aai-retired into the target"
+}
+
+test_820_retired_wrapper_removed_both_trees() {
+  log_info "TEST-820: a shim whose prompt the source dropped is removed from both skill trees, named once each, doctor CAT-03 PASS..."
+  local dst="$TMP_ROOT/retired-820" out cat03
+  _retired_two_step_target "$dst"
+  _sync_fixture_canon
+  out="$(_hooks_run_engine sh "$SYNC_FIXTURE_CANON" "$dst" 2>&1)" || log_fail "TEST-820: second sync failed: $out"
+  [[ ! -e "$dst/.claude/skills/aai-retired" ]] || log_fail "TEST-820: .claude/skills/aai-retired survived the sync"
+  [[ ! -e "$dst/.agents/skills/aai-retired" ]] || log_fail "TEST-820: .agents/skills/aai-retired survived the sync"
+  [[ ! -e "$dst/.aai/SKILL_RETIRED.prompt.md" ]] || log_fail "TEST-820: the stale prompt survived (stale-cleanup seam)"
+  [[ "$(_retired_count_line "$out" "${RETIRED_CLEAN_PREFIX}.claude/skills/aai-retired")" == "1" ]] \
+    || log_fail "TEST-820: expected exactly one CLEAN line for .claude/skills/aai-retired: $out"
+  [[ "$(_retired_count_line "$out" "${RETIRED_CLEAN_PREFIX}.agents/skills/aai-retired")" == "1" ]] \
+    || log_fail "TEST-820: expected exactly one CLEAN line for .agents/skills/aai-retired: $out"
+  command -v node >/dev/null 2>&1 || log_fail "TEST-820: node not found (doctor CAT-03 arm)"
+  cat03="$({ node "$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs" --root "$dst" --json || true; } | node -e '
+    let s = ""; process.stdin.on("data", (d) => { s += d; });
+    process.stdin.on("end", () => { const c = JSON.parse(s).categories.find((x) => x.id === "CAT-03"); console.log(c.status + " " + c.reason); });')" \
+    || log_fail "TEST-820: aai-doctor failed"
+  [[ "$cat03" == PASS* ]] || log_fail "TEST-820: doctor CAT-03 is not PASS: $cat03"
+  log_pass "TEST-820 retired shim removed from both trees, one CLEAN line each, prompt gone, doctor CAT-03 PASS"
+}
+
+test_821_subagent_stop_and_arg_invoke_shim_removed() {
+  log_info "TEST-821: a SUBAGENT-STOP shim invoked with an argument is removed from both trees..."
+  local dst="$TMP_ROOT/retired-821" out
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$dst" empty
+  _retired_install "$dst" aai-gone GONE arg
+  out="$(_hooks_run_engine sh "$SYNC_FIXTURE_CANON" "$dst" 2>&1)" || log_fail "TEST-821: re-sync failed: $out"
+  [[ ! -e "$dst/.claude/skills/aai-gone" && ! -e "$dst/.agents/skills/aai-gone" ]] \
+    || log_fail "TEST-821: the SUBAGENT-STOP / argument-invoke shim survived"
+  [[ "$(_retired_count_line "$out" "${RETIRED_CLEAN_PREFIX}.claude/skills/aai-gone")" == "1" \
+     && "$(_retired_count_line "$out" "${RETIRED_CLEAN_PREFIX}.agents/skills/aai-gone")" == "1" ]] \
+    || log_fail "TEST-821: expected one CLEAN line per tree for aai-gone: $out"
+  log_pass "TEST-821 SUBAGENT-STOP + argument-invoke shim removed in both trees"
+}
+
+test_822_crlf_no_final_newline_shim_removed() {
+  log_info "TEST-822: a CRLF shim without a final newline is removed from both trees..."
+  local dst="$TMP_ROOT/retired-822" out
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$dst" empty
+  _retired_install "$dst" aai-crlf CRLFGONE crlf
+  grep -q $'\r' "$dst/.claude/skills/aai-crlf/SKILL.md" || log_fail "TEST-822: fixture is not CRLF"
+  [[ "$(tail -c1 "$dst/.claude/skills/aai-crlf/SKILL.md" | od -An -c | tr -d ' ')" != '\n' ]] \
+    || log_fail "TEST-822: fixture still ends with a newline"
+  out="$(_hooks_run_engine sh "$SYNC_FIXTURE_CANON" "$dst" 2>&1)" || log_fail "TEST-822: re-sync failed: $out"
+  [[ ! -e "$dst/.claude/skills/aai-crlf" && ! -e "$dst/.agents/skills/aai-crlf" ]] \
+    || log_fail "TEST-822: the CRLF shim survived"
+  [[ "$(_retired_count_line "$out" "${RETIRED_CLEAN_PREFIX}.claude/skills/aai-crlf")" == "1" \
+     && "$(_retired_count_line "$out" "${RETIRED_CLEAN_PREFIX}.agents/skills/aai-crlf")" == "1" ]] \
+    || log_fail "TEST-822: expected one CLEAN line per tree for aai-crlf: $out"
+  log_pass "TEST-822 CRLF no-final-newline shim removed in both trees"
+}
+
+# Preserved-entry fixture set (Spec-AC-03). $2 = set: all | project | shipped
+_retired_preserve_fixtures() {
+  local dst="$1" set="$2" tree
+  case "$set" in
+    project) _retired_install "$dst" aai-project-x PROJECTX plain ;;
+    shipped) _retired_install "$dst" aai-uses-tdd TDD plain ;;
+    all)
+      _retired_install "$dst" aai-extra-line EXTRALINE extra
+      _retired_install "$dst" aai-extra-file EXTRAFILE plain notes.md
+      _retired_install "$dst" aai-name-mismatch NAMEMISMATCH plain
+      for tree in .claude/skills .agents/skills; do
+        sed 's/^name: aai-name-mismatch$/name: aai-someone-else/' "$dst/$tree/aai-name-mismatch/SKILL.md" > "$dst/$tree/aai-name-mismatch/SKILL.md.new"
+        mv "$dst/$tree/aai-name-mismatch/SKILL.md.new" "$dst/$tree/aai-name-mismatch/SKILL.md"
+      done
+      _retired_install "$dst" aai-mixed-refs MIXEDREFS mixed
+      mkdir -p "$dst/external-shim"
+      _retired_shim_text external-shim EXTERNAL plain > "$dst/external-shim/SKILL.md"
+      for tree in .claude/skills .agents/skills; do
+        _retired_shim_text aai-file FILEENTRY plain > "$dst/$tree/aai-file.md"
+        ln -s "$dst/external-shim" "$dst/$tree/aai-link"
+      done
+      ;;
+    *) log_fail "bad preserve set [$set]" ;;
+  esac
+}
+
+_retired_assert_preserved() { # <test-id> <dst> <set>
+  local id="$1" dst="$2" set="$3" before after out
+  _retired_preserve_fixtures "$dst" "$set"
+  before="$(_retired_snapshot "$dst")$(find "$dst/external-shim" -type f 2>/dev/null | LC_ALL=C sort || true)"
+  out="$(_hooks_run_engine sh "$SYNC_FIXTURE_CANON" "$dst" 2>&1)" || log_fail "$id: re-sync failed: $out"
+  after="$(_retired_snapshot "$dst")$(find "$dst/external-shim" -type f 2>/dev/null | LC_ALL=C sort || true)"
+  [[ "$before" == "$after" ]] || log_fail "$id: a preserved entry changed or vanished"
+  if grep -qF -- "$RETIRED_CLEAN_PREFIX" <<< "$out"; then
+    log_fail "$id: a CLEAN retired line was printed: $(_retired_clean_lines "$out")"
+  fi
+}
+
+test_823_non_shim_entries_preserved() {
+  log_info "TEST-823: entries failing any one shape condition, a symlink and a bootstrap dynamic skill are all preserved byte-identical..."
+  local dst="$TMP_ROOT/retired-823"
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$dst" empty
+  printf '{"name":"fx","scripts":{"test":"echo ok"}}\n' > "$dst/package.json"
+  bash "$dst/.aai/scripts/aai-bootstrap.sh" "$dst" >/dev/null 2>&1 || log_fail "TEST-823: aai-bootstrap.sh failed in the fixture"
+  [[ -f "$dst/.claude/skills/aai-test-unit/SKILL.md" ]] \
+    || log_fail "TEST-823: bootstrap did not generate a dynamic skill (fixture precondition)"
+  _retired_assert_preserved "TEST-823" "$dst" all
+  [[ -f "$dst/.claude/skills/aai-test-unit/SKILL.md" && -L "$dst/.claude/skills/aai-link" && -f "$dst/.agents/skills/aai-file.md" ]] \
+    || log_fail "TEST-823: a spot-check entry is gone"
+  log_pass "TEST-823 non-shim entries, symlink and bootstrap dynamic skill preserved byte-identical"
+}
+
+test_824_project_prefixed_shim_preserved() {
+  log_info "TEST-824: an aai-project-x shim with an absent prompt is preserved in both trees..."
+  local dst="$TMP_ROOT/retired-824"
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$dst" empty
+  _retired_assert_preserved "TEST-824" "$dst" project
+  [[ -f "$dst/.claude/skills/aai-project-x/SKILL.md" && -f "$dst/.agents/skills/aai-project-x/SKILL.md" ]] \
+    || log_fail "TEST-824: aai-project-x is gone"
+  log_pass "TEST-824 aai-project-x shim preserved in both trees"
+}
+
+test_825_shim_with_shipped_prompt_preserved() {
+  log_info "TEST-825: a target-only shim delegating to a prompt the source ships is preserved..."
+  local dst="$TMP_ROOT/retired-825"
+  [[ -f "$SYNC_FIXTURE_CANON/.aai/SKILL_TDD.prompt.md" ]] || { _sync_fixture_canon; }
+  [[ -f "$SYNC_FIXTURE_CANON/.aai/SKILL_TDD.prompt.md" ]] || log_fail "TEST-825: fixture source lacks SKILL_TDD.prompt.md"
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$dst" empty
+  _retired_assert_preserved "TEST-825" "$dst" shipped
+  [[ -f "$dst/.claude/skills/aai-uses-tdd/SKILL.md" && -f "$dst/.agents/skills/aai-uses-tdd/SKILL.md" ]] \
+    || log_fail "TEST-825: aai-uses-tdd is gone"
+  log_pass "TEST-825 shim delegating to a shipped prompt preserved in both trees"
+}
+
+test_826_removal_listed_in_advisory() {
+  log_info "TEST-826: the advisory report lists both removed paths under Deleted items..."
+  local dst="$TMP_ROOT/retired-826" out report
+  _retired_two_step_target "$dst"
+  _sync_fixture_canon
+  out="$(_hooks_run_engine sh "$SYNC_FIXTURE_CANON" "$dst" 2>&1)" || log_fail "TEST-826: second sync failed: $out"
+  report="$(sed -n 's/^  Advisory report: //p' <<< "$out" | tail -n1)"
+  [[ -n "$report" && -f "$report" ]] || log_fail "TEST-826: no advisory report named on stdout: $out"
+  grep -qF -- '## Deleted items' "$report" || log_fail "TEST-826: report lacks a Deleted items section: $(cat "$report")"
+  grep -qxF -- '- Path: .claude/skills/aai-retired' "$report" || log_fail "TEST-826: report does not list .claude/skills/aai-retired"
+  grep -qxF -- '- Path: .agents/skills/aai-retired' "$report" || log_fail "TEST-826: report does not list .agents/skills/aai-retired"
+  log_pass "TEST-826 advisory lists both removed paths under Deleted items"
+}
+
+test_827_every_shipped_shim_shape_recognized() {
+  log_info "TEST-827: every shipped single-file prompt-delegating wrapper is recognized once its prompt is retired..."
+  local dst="$TMP_ROOT/retired-827" strip="$TMP_ROOT/retired-827-src" out tree d name x n_expected=0 n_got
+  local expected=""
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$dst" empty
+  _fixture_source_copy "$strip"
+  for d in "$SYNC_FIXTURE_CANON/.claude/skills/"*/; do
+    name="$(basename "$d")"
+    x="$(grep -o '\.aai/SKILL_[A-Z0-9_]*\.prompt\.md' "$d/SKILL.md" | sed -n '1p' || true)"
+    [[ -n "$x" ]] || continue
+    for tree in .claude/skills .agents/skills; do
+      rm -rf "$strip/$tree/$name"
+    done
+    rm -f "$strip/$x"
+    if [[ "$(find "$d" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" == "1" ]]; then
+      n_expected=$((n_expected + 1))
+      expected="${expected}${name}"$'\n'
+    fi
+  done
+  [[ "$n_expected" -ge 38 ]] || log_fail "TEST-827: only $n_expected single-file delegating wrappers found in the fixture (expected at least 38)"
+  out="$(_hooks_run_engine sh "$strip" "$dst" 2>&1)" || log_fail "TEST-827: sync from the stripped source failed: $out"
+  for tree in .claude/skills .agents/skills; do
+    n_got="$(grep -cF -- "${RETIRED_CLEAN_PREFIX}${tree}/" <<< "$out" || true)"
+    [[ "$n_got" -eq "$n_expected" ]] || log_fail "TEST-827: $tree: $n_got CLEAN lines, expected $n_expected"
+    while IFS= read -r name; do
+      [[ -n "$name" ]] || continue
+      [[ ! -e "$dst/$tree/$name" ]] || log_fail "TEST-827: $tree/$name survived although its prompt was retired"
+    done <<< "$expected"
+    [[ -f "$dst/$tree/aai-docs-hub/SKILL.md" ]] || log_fail "TEST-827: $tree/aai-docs-hub (multi-file wrapper) was removed"
+  done
+  log_pass "TEST-827 all $n_expected single-file shipped wrappers recognized per tree; aai-docs-hub kept"
+}
+
+test_828_quiet_resync_prints_no_retired_clean() {
+  log_info "TEST-828: a re-sync with only an aai-project-x target-only skill prints no retired CLEAN line and writes no advisory..."
+  local dst="$TMP_ROOT/retired-828" out
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$dst" empty
+  mkdir -p "$dst/.claude/skills/aai-project-x"
+  printf 'project-owned\n' > "$dst/.claude/skills/aai-project-x/SKILL.md"
+  out="$(_hooks_run_engine sh "$SYNC_FIXTURE_CANON" "$dst" 2>&1)" || log_fail "TEST-828: re-sync failed: $out"
+  if grep -qF -- 'CLEAN removed retired skill wrapper' <<< "$out"; then
+    log_fail "TEST-828: a quiet re-sync printed a retired CLEAN line: $out"
+  fi
+  # The golden carries the first sync's own advisory; assert on THIS run only.
+  if grep -qF -- 'Advisory report:' <<< "$out"; then
+    log_fail "TEST-828: a quiet re-sync wrote an advisory report: $out"
+  fi
+  log_pass "TEST-828 quiet re-sync prints no retired CLEAN line and writes no advisory"
+}
+
+# Snapshot with the root-dependent link target normalized.
+_retired_snapshot_norm() { _retired_snapshot "$1" | sed "s#$1#<ROOT>#g"; }
+
+# ps1 parity: identical injected targets run through both engines.
+_retired_parity_pair() { # <id> <set: removal|preserve> -> sets PARITY_SH PARITY_PS1 PARITY_OUT_SH PARITY_OUT_PS1
+  local id="$1" set="$2" base="$TMP_ROOT/retired-parity-$2"
+  _sync_cached sh "$SYNC_FIXTURE_CANON" "$base-sh" empty
+  if [[ "$set" == "removal" ]]; then
+    _retired_install "$base-sh" aai-retired RETIRED plain
+    _retired_install "$base-sh" aai-gone GONE arg
+    _retired_install "$base-sh" aai-crlf CRLFGONE crlf
+  else
+    _retired_preserve_fixtures "$base-sh" all
+    _retired_preserve_fixtures "$base-sh" project
+    _retired_preserve_fixtures "$base-sh" shipped
+  fi
+  PARITY_PRE="$(_retired_snapshot_norm "$base-sh")"
+  mkdir -p "$base-ps1"
+  cp -Rp "$base-sh/." "$base-ps1/" || log_fail "$id: fixture copy failed"
+  if [[ "$set" == "preserve" ]]; then
+    # the symlinks point at the sh copy's external dir; repoint the ps1 copy
+    local tree
+    for tree in .claude/skills .agents/skills; do
+      rm -f "$base-ps1/$tree/aai-link"
+      ln -s "$base-ps1/external-shim" "$base-ps1/$tree/aai-link"
+    done
+  fi
+  PARITY_SH="$base-sh"; PARITY_PS1="$base-ps1"
+  PARITY_OUT_SH="$(_hooks_run_engine sh "$SYNC_FIXTURE_CANON" "$base-sh" 2>&1)" || log_fail "$id: bash sync failed: $PARITY_OUT_SH"
+  PARITY_OUT_PS1="$(_hooks_run_engine ps1 "$SYNC_FIXTURE_CANON" "$base-ps1" 2>&1)" || log_fail "$id: ps1 sync failed: $PARITY_OUT_PS1"
+}
+
+test_829_ps1_retired_removal_parity() {
+  log_info "TEST-829: aai-sync.ps1 removes the same retired shims as bash and lists them in its advisory..."
+  if ! command -v pwsh >/dev/null 2>&1; then
+    PWSH_ARM_SKIPPED=1
+    log_info "TEST-829 note: pwsh absent - ps1 parity arm SKIPPED"
+    return 0
+  fi
+  _retired_parity_pair "TEST-829" removal
+  local a b report
+  a="$(_retired_clean_lines "$PARITY_OUT_SH")"; b="$(_retired_clean_lines "$PARITY_OUT_PS1")"
+  [[ -n "$a" ]] || log_fail "TEST-829: bash printed no CLEAN lines (fixture precondition)"
+  [[ "$a" == "$b" ]] || log_fail "TEST-829: CLEAN line sets differ. bash: $a | ps1: $b"
+  [[ "$(_retired_snapshot_norm "$PARITY_SH")" == "$(_retired_snapshot_norm "$PARITY_PS1")" ]] \
+    || log_fail "TEST-829: surviving trees differ between engines"
+  report="$(sed -n 's/^  Advisory report: //p' <<< "$PARITY_OUT_PS1" | tail -n1)"
+  [[ -n "$report" && -f "$report" ]] || log_fail "TEST-829: ps1 named no advisory report: $PARITY_OUT_PS1"
+  grep -qF -- '## Deleted items' "$report" \
+    && grep -qxF -- '- Path: .claude/skills/aai-retired' "$report" \
+    && grep -qxF -- '- Path: .agents/skills/aai-retired' "$report" \
+    || log_fail "TEST-829: ps1 advisory does not list both aai-retired paths: $(cat "$report")"
+  log_pass "TEST-829 ps1 removal parity: identical CLEAN set, identical surviving trees, advisory lists both aai-retired paths"
+}
+
+test_830_ps1_preservation_parity() {
+  log_info "TEST-830: aai-sync.ps1 preserves every non-shim entry and ends with the bash engine's tree..."
+  if ! command -v pwsh >/dev/null 2>&1; then
+    PWSH_ARM_SKIPPED=1
+    log_info "TEST-830 note: pwsh absent - ps1 preservation arm SKIPPED"
+    return 0
+  fi
+  local name tree
+  _retired_parity_pair "TEST-830" preserve
+  # The pair already ran both engines; compare the ps1 tree with the pre-sync fixture shape.
+  if grep -qF -- "$RETIRED_CLEAN_PREFIX" <<< "$PARITY_OUT_PS1"; then
+    log_fail "TEST-830: ps1 printed a CLEAN retired line: $(_retired_clean_lines "$PARITY_OUT_PS1")"
+  fi
+  [[ "$(_retired_snapshot_norm "$PARITY_SH")" == "$(_retired_snapshot_norm "$PARITY_PS1")" ]] \
+    || log_fail "TEST-830: surviving trees differ between engines"
+  [[ "$PARITY_PRE" == "$(_retired_snapshot_norm "$PARITY_PS1")" ]] \
+    || log_fail "TEST-830: a preserved entry changed under ps1 (pre-sync tree != post-sync tree)"
+  for name in aai-extra-line aai-extra-file aai-name-mismatch aai-mixed-refs aai-project-x aai-uses-tdd aai-link; do
+    for tree in .claude/skills .agents/skills; do
+      [[ -e "$PARITY_PS1/$tree/$name" || -L "$PARITY_PS1/$tree/$name" ]] || log_fail "TEST-830: ps1 removed $tree/$name"
+    done
+  done
+  [[ -L "$PARITY_PS1/.claude/skills/aai-link" && -f "$PARITY_PS1/.agents/skills/aai-file.md" ]] \
+    || log_fail "TEST-830: ps1 lost the symlink or the non-directory entry"
+  log_pass "TEST-830 ps1 preservation parity: every preserved entry intact, tree equals bash's"
+}
+
 main() {
   echo "=== Test Suite: $TEST_NAME ==="
   check_deps
@@ -2027,6 +2379,17 @@ main() {
   test_794_sync_cache_golden_isolation
   test_795_sync_cache_equivalence
   test_796_sync_cache_adoption
+  test_820_retired_wrapper_removed_both_trees
+  test_821_subagent_stop_and_arg_invoke_shim_removed
+  test_822_crlf_no_final_newline_shim_removed
+  test_823_non_shim_entries_preserved
+  test_824_project_prefixed_shim_preserved
+  test_825_shim_with_shipped_prompt_preserved
+  test_826_removal_listed_in_advisory
+  test_827_every_shipped_shim_shape_recognized
+  test_828_quiet_resync_prints_no_retired_clean
+  test_829_ps1_retired_removal_parity
+  test_830_ps1_preservation_parity
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi
