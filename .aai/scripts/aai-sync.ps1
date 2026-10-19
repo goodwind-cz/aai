@@ -343,39 +343,46 @@ if ($Profile -eq "core") {
 # a target-only entry under .claude/skills or .agents/skills is removed ONLY when it
 # is provably a template shim whose .aai/SKILL_<X>.prompt.md the SOURCE layer no
 # longer ships. Everything else is left untouched.
+# EVERY string comparison in the predicate is ordinal (byte-exact): -ceq/-cne/-clike are
+# culture-aware in pwsh 7 (ICU skips U+200B/U+FEFF/U+00AD, equates NFC with NFD), which
+# would let ps1 delete an entry bash keeps.
+function Test-OrdEq([string]$A, [string]$B) {
+  return [string]::Equals($A, $B, [System.StringComparison]::Ordinal)
+}
 function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
   try {
     $item = Get-Item -LiteralPath $EntryPath -Force -ErrorAction Stop
     if (-not $item.PSIsContainer) { return $false }
     if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
-    if ($EntryName -clike "aai-project-*") { return $false }
+    if ($EntryName.StartsWith("aai-project-", [System.StringComparison]::Ordinal)) { return $false }
+    # Mirror of bash: a backslash in the name is never a candidate (pwsh on Unix rewrites it to "/" in cmdlet paths).
+    if ($EntryName.IndexOf([string][char]92, [System.StringComparison]::Ordinal) -ge 0) { return $false }
     $children = @(Get-ChildItem -LiteralPath $EntryPath -Force -ErrorAction Stop)
     if ($children.Count -ne 1) { return $false }
     $child = $children[0]
-    if (($child.Name -cne "SKILL.md") -or $child.PSIsContainer) { return $false }
+    if ((-not (Test-OrdEq $child.Name "SKILL.md")) -or $child.PSIsContainer) { return $false }
     if ($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
     # Raw bytes, never Get-Content: it drops a leading UTF-8 BOM, which bash keeps (a BOM means not-a-shim).
     $raw = (New-Object System.Text.UTF8Encoding($false)).GetString([System.IO.File]::ReadAllBytes($child.FullName))
-    # -ceq/-cne compare culture-aware and treat U+FEFF as ignorable, so test the BOM ordinally.
-    if (($raw.Length -gt 0) -and ($raw[0] -eq [char]0xFEFF)) { return $false }
+    # The ordinal compares below also reject a leading U+FEFF (line 1 would not equal "---").
     $text = $raw.Replace("`r", "")
     $lines = @($text -split "`n")
     $n = $lines.Count
-    while (($n -gt 0) -and ($lines[$n - 1] -cmatch '^[ \t]*$')) { $n-- }
-    if (($n -lt 1) -or ($lines[0] -cne "---")) { return $false }
+    while (($n -gt 0) -and ([regex]::IsMatch($lines[$n - 1], '^[ \t]*\z'))) { $n-- }
+    if (($n -lt 1) -or (-not (Test-OrdEq $lines[0] "---"))) { return $false }
     $close = -1
-    for ($i = 1; $i -lt $n; $i++) { if ($lines[$i] -ceq "---") { $close = $i; break } }
+    for ($i = 1; $i -lt $n; $i++) { if (Test-OrdEq $lines[$i] "---") { $close = $i; break } }
     if ($close -lt 0) { return $false }
     $hasName = $false
-    for ($i = 1; $i -lt $close; $i++) { if ($lines[$i] -ceq "name: $EntryName") { $hasName = $true } }
+    for ($i = 1; $i -lt $close; $i++) { if (Test-OrdEq $lines[$i] ("name: " + $EntryName)) { $hasName = $true } }
     if (-not $hasName) { return $false }
     $body = @()
-    for ($i = $close + 1; $i -lt $n; $i++) { if ($lines[$i] -cnotmatch '^[ \t]*$') { $body += $lines[$i] } }
+    for ($i = $close + 1; $i -lt $n; $i++) { if (-not [regex]::IsMatch($lines[$i], '^[ \t]*\z')) { $body += $lines[$i] } }
     $k = 0
-    if ($body.Count -gt 0 -and $body[0] -ceq "<SUBAGENT-STOP>") {
+    if ($body.Count -gt 0 -and (Test-OrdEq $body[0] "<SUBAGENT-STOP>")) {
       $j = 1
       $found = $false
-      while ($j -lt $body.Count) { if ($body[$j] -ceq "</SUBAGENT-STOP>") { $found = $true; break }; $j++ }
+      while ($j -lt $body.Count) { if (Test-OrdEq $body[$j] "</SUBAGENT-STOP>") { $found = $true; break }; $j++ }
       if ((-not $found) -or ($j -eq 1)) { return $false }
       $k = $j + 1
     }
@@ -387,7 +394,7 @@ function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
     $e = $r.IndexOf('.prompt.md`', [System.StringComparison]::Ordinal)
     if ($e -lt 0) { return $false }
     $x = $r.Substring(0, $e)
-    if ($x -cnotmatch '^[A-Z0-9_]+$') { return $false }
+    if (-not [regex]::IsMatch($x, '^[A-Z0-9_]+\z')) { return $false }
     $r = $r.Substring($e + '.prompt.md`'.Length)
     $mid = ' from the current project root and follow its instructions exactly'
     if (-not $r.StartsWith($mid, [System.StringComparison]::Ordinal)) { return $false }
@@ -396,7 +403,7 @@ function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
     if ($rest.IndexOf('.aai/', [System.StringComparison]::Ordinal) -ge 0) { return $false }
     if (-not $a.EndsWith('.', [System.StringComparison]::Ordinal)) { return $false }
     $want = 'If `.aai/SKILL_' + $x + '.prompt.md` does not exist, say: "SKILL_' + $x + ' not found ' + [string][char]0x2014 + ' are you in an AAI project? Expected: .aai/SKILL_' + $x + '.prompt.md"'
-    if ($body[$k + 1] -cne $want) { return $false }
+    if (-not (Test-OrdEq $body[$k + 1] $want)) { return $false }
     if (Test-Path -LiteralPath (Join-Path $SrcRoot ".aai/SKILL_$x.prompt.md")) { return $false }
     return $true
   } catch {

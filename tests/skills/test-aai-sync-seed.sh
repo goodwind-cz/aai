@@ -2095,6 +2095,41 @@ test_822_crlf_no_final_newline_shim_removed() {
   log_pass "TEST-822 CRLF no-final-newline shim removed in both trees"
 }
 
+# Byte-exactness class fixtures (round-2 F3/F4): each differs from a deletable shim
+# by ONE invisible/escape byte sequence, so any engine that compares culture-aware
+# (ps1 -ceq: ignores U+200B/U+FEFF/U+00AD, equates NFC with NFD) or lets awk -v
+# interpret backslashes would delete what the byte-exact predicate forbids.
+# Names are built from printf-style byte escapes; the cafe DIR is NFC and only the
+# name: line is NFD (APFS preserves bytes but looks names up normalization-insensitively).
+_retired_byte_class_fixtures() {
+  local dst="$1" tree d t
+  local ZW=$'\xe2\x80\x8b' FEFF=$'\xef\xbb\xbf' SHY=$'\xc2\xad'
+  local NFC_E=$'\xc3\xa9' NFD_E=$'e\xcc\x81'
+  for tree in .claude/skills .agents/skills; do
+    d="$dst/$tree"
+    mkdir -p "$d/aai-zwfile" "$d/aai-dashzw" "$d/aai-namefeff" "$d/aai-midfeff" "$d/aai-shy" "$d/aai-stopzw" "$d/aai-caf${NFC_E}"
+    _retired_shim_text aai-zwfile ZWFILE plain > "$d/aai-zwfile/SKILL.md${ZW}"
+    t="$(_retired_shim_text aai-dashzw DASHZW plain)"; t="${t/#---/---${ZW}}"
+    printf '%s\n' "$t" > "$d/aai-dashzw/SKILL.md"
+    t="$(_retired_shim_text aai-namefeff NAMEFEFF plain)"; t="${t/"name: aai-namefeff"/"name: aai-namefeff${FEFF}"}"
+    printf '%s\n' "$t" > "$d/aai-namefeff/SKILL.md"
+    t="$(_retired_shim_text aai-midfeff MIDFEFF plain)"; t="${t/"not found"/"not${FEFF} found"}"
+    printf '%s\n' "$t" > "$d/aai-midfeff/SKILL.md"
+    t="$(_retired_shim_text aai-shy SHYX plain)"; t="${t/"are you"/"are${SHY} you"}"
+    printf '%s\n' "$t" > "$d/aai-shy/SKILL.md"
+    t="$(_retired_shim_text aai-stopzw STOPZW stop)"; t="${t/"<SUBAGENT-STOP>"/"<SUBAGENT-STOP>${ZW}"}"
+    printf '%s\n' "$t" > "$d/aai-stopzw/SKILL.md"
+    t="$(_retired_shim_text "aai-caf${NFC_E}" CAFE plain)"; t="${t/"name: aai-caf${NFC_E}"/"name: aai-caf${NFD_E}"}"
+    printf '%s\n' "$t" > "$d/aai-caf${NFC_E}/SKILL.md"
+    # backslash directory name whose frontmatter says the backslash-free name (awk -v would unescape \q)
+    mkdir -p "$d"'/aai-bs\qx'
+    _retired_shim_text aai-bsqx BSQX plain > "$d"'/aai-bs\qx/SKILL.md'
+    # a self-consistent shim whose NAME holds a backslash: both engines refuse it (pwsh rewrites \ to /)
+    mkdir -p "$d"'/aai-bs\tx'
+    _retired_shim_text 'aai-bs\tx' BSTX plain > "$d"'/aai-bs\tx/SKILL.md'
+  done
+}
+
 # Preserved-entry fixture set (Spec-AC-03). $2 = set: all | project | shipped
 _retired_preserve_fixtures() {
   local dst="$1" set="$2" tree
@@ -2119,6 +2154,7 @@ _retired_preserve_fixtures() {
         { printf '\357\273\277'; _retired_shim_text aai-bom BOMGONE plain; } > "$dst/$tree/aai-bom/SKILL.md"
         _retired_shim_text .aai-hidden HIDDENGONE plain > "$dst/$tree/.aai-hidden/SKILL.md"
       done
+      _retired_byte_class_fixtures "$dst"
       mkdir -p "$dst/external-shim"
       _retired_shim_text external-shim EXTERNAL plain > "$dst/external-shim/SKILL.md"
       for tree in .claude/skills .agents/skills; do
@@ -2314,7 +2350,7 @@ test_830_ps1_preservation_parity() {
     || log_fail "TEST-830: surviving trees differ between engines"
   [[ "$PARITY_PRE" == "$(_retired_snapshot_norm "$PARITY_PS1")" ]] \
     || log_fail "TEST-830: a preserved entry changed under ps1 (pre-sync tree != post-sync tree)"
-  for name in aai-extra-line aai-extra-file aai-name-mismatch aai-mixed-refs aai-two-refs aai-lower-case aai-bom .aai-hidden aai-project-x aai-uses-tdd aai-link; do
+  for name in aai-extra-line aai-extra-file aai-name-mismatch aai-mixed-refs aai-two-refs aai-lower-case aai-bom aai-zwfile aai-dashzw aai-namefeff aai-midfeff aai-shy aai-stopzw aai-caf$'\xc3\xa9' aai-bs\\qx aai-bs\\tx .aai-hidden aai-project-x aai-uses-tdd aai-link; do
     for tree in .claude/skills .agents/skills; do
       [[ -e "$PARITY_PS1/$tree/$name" || -L "$PARITY_PS1/$tree/$name" ]] || log_fail "TEST-830: ps1 removed $tree/$name"
     done

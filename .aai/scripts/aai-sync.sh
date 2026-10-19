@@ -384,15 +384,22 @@ fi
 # dynamic skills) is left untouched. Every check lives inside the predicate.
 is_retired_skill_wrapper() {
   local entry="$1" name="$2" content prompt only
+  # Byte-exact by construction: C collation/ctype so no locale changes a comparison.
+  local LC_ALL=C
   [[ -d "$entry" && ! -L "$entry" ]] || return 1
   case "$name" in aai-project-*) return 1 ;; esac
+  # A backslash in the name is never a candidate: pwsh on Unix rewrites it to "/" in cmdlet
+  # paths, so the two engines could not agree on such an entry; both refuse it.
+  case "$name" in *\\*) return 1 ;; esac
   [[ "$(find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')" == "1" ]] || return 1
   # Compare the on-disk name byte-exactly: a bare -f "$entry/SKILL.md" also matches
   # a lowercase skill.md on a case-insensitive filesystem (macOS, Windows).
   only="$(find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null)"
   [[ "${only##*/}" == "SKILL.md" && -f "$only" && ! -L "$only" ]] || return 1
   content="$(tr -d '\r' < "$entry/SKILL.md" 2>/dev/null)" || return 1
-  prompt="$(awk -v NAME="$name" '
+  # The entry name goes through the environment: awk -v interprets backslash escapes.
+  prompt="$(NAME="$name" awk '
+    BEGIN { NAME = ENVIRON["NAME"] }
     { l[++n] = $0 }
     END {
       while (n > 0 && l[n] ~ /^[ \t]*$/) n--

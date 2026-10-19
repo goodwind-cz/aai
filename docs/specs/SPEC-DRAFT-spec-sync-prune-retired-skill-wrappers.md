@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 59498bbd9356f395ee078f46b83fe3e479dbae5d9c10f5691ed9476769d4361f
+frozen_sha256: 7f1a9149e915c706f9d8d91aa7b65b00e542ca7d3521674e2fff9e23ea1ef6d0
 ceremony_level: 2
 capability: aai-update
 user_visible: true
@@ -60,7 +60,7 @@ Article 5 (additive first): this is a deliberate behavior change at the sync bou
 - D1 Placement. In each of the two blocks, after the existing source-copy loop and before the `PRESERVE target-only skills under:` line, one shared bash helper `remove_retired_skill_wrappers() {` (taking the tree's relative path, `.claude/skills` or `.agents/skills`) walks the TARGET tree and, for each entry whose name has no entry in the SOURCE tree of the same path, calls `is_retired_skill_wrapper() {` and removes the entry when it returns 0. The PowerShell mirror uses one helper for both trees and `function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {` (inline parameter list; no `param()` block). The `PRESERVE target-only skills under:` line stays.
 - D2 Retired-wrapper predicate. `is_retired_skill_wrapper` / `Test-RetiredSkillWrapper` return true only when ALL hold, and every check lives inside the predicate:
   1. the entry is a real directory, not a symlink and not a file;
-  2. the entry name does not match `aai-project-*` (project-owned by convention);
+  2. the entry name does not match `aai-project-*` (project-owned by convention) and contains no backslash (pwsh on Unix rewrites `\` to `/` in cmdlet paths, so the engines could not agree on such an entry; both refuse it);
   3. the directory contains exactly one entry, a regular file whose on-disk name is exactly `SKILL.md` (byte-exact, case-sensitive: a lowercase `skill.md` does not qualify even on a case-insensitive filesystem);
   4. the file, read as raw bytes (a leading UTF-8 BOM is NOT stripped, so a BOM-prefixed file is not a shim and is preserved by both engines), after removing every CR byte and ignoring trailing blank lines, starts with a `---` line, has a closing `---` line, and its frontmatter has a line `name: <entry name>` (other frontmatter lines are not inspected);
   5. the body's non-blank lines are exactly, in order: an optional block of a `<SUBAGENT-STOP>` line, one or more lines, and a `</SUBAGENT-STOP>` line; then the line ``Read the file `.aai/SKILL_<X>.prompt.md` from the current project root and follow its instructions exactly`` continued on the same line by any text that contains ``Invoke this as ` ``, ends with `.` and contains no further `.aai/` reference (AMENDED during implementation and tightened in remediation, see the spec_amendment records for this ref_id in docs/ai/decisions.jsonl: the shipped `aai-auto-trigger` and `aai-roadmap` wrappers carry extra clauses and backticks around the invoke text, but a wrapper that also names another `.aai/` path is not a pure shim); then the line ``If `.aai/SKILL_<X>.prompt.md` does not exist, say: "SKILL_<X> not found — are you in an AAI project? Expected: .aai/SKILL_<X>.prompt.md"``; where `<X>` matches `[A-Z0-9_]+` and is the same in all four places;
@@ -69,7 +69,7 @@ Article 5 (additive first): this is a deliberate behavior change at the sync bou
 - D3 Removal record. The helper removes the directory, appends `<tree>/<name>` (for example `.claude/skills/aai-retired`) to `DELETIONS` / `$deletions`, and prints exactly `  CLEAN removed retired skill wrapper: <tree>/<name>` once per removed entry. The existing advisory report then lists it under `## Deleted items` with no new code.
 - D4 Pinned literals (the Test Plan's mutations address them; changing one is a spec amendment): in aai-sync.sh the strings `remove_retired_skill_wrappers() {`, `is_retired_skill_wrapper() {`, `CLEAN removed retired skill wrapper: `, `<SUBAGENT-STOP>`, `follow its instructions exactly`, `aai-project-*` and `"$SRC_ROOT/.aai/SKILL_` each first occur inside the new helper or predicate, and the predicate strips CR with `tr -d '\r'` (the idiom aai-sync.sh already uses at line 76) as the first `tr -d '\r'` after the predicate's header; in aai-sync.ps1 `function Test-RetiredSkillWrapper(` and the same CLEAN text.
 - D5 Profile independence. The predicate runs identically under `--profile core` and `extended` and always consults the source layer. Core-profile targets that receive wrappers whose prompts the core prune removed are a different defect and out of scope (see Out of scope).
-- D6 Engine portability. bash 3.2 (no associative arrays, no `mapfile`, no `${var,,}`), no node dependency added to the sync path; PowerShell 5.1 (`Get-Content -Raw`, `-ceq`/`-cmatch` for case-sensitive comparison of names and lines).
+- D6 Engine portability. bash 3.2 (no associative arrays, no `mapfile`, no `${var,,}`), no node dependency added to the sync path; PowerShell 5.1 (raw-byte read, never `Get-Content`). Every string comparison in the predicate is byte-exact in both engines: ps1 uses `[string]::Equals(..., Ordinal)`, `StartsWith`/`IndexOf` with `Ordinal` and `[regex]::IsMatch` (never `-ceq`/`-cne`/`-clike`, which are culture-aware and ignore U+200B/U+FEFF/U+00AD or equate NFC with NFD), and bash runs the predicate under `LC_ALL=C` and passes the entry name to awk through the environment (never `awk -v`, which interprets backslash escapes).
 
 ## Out of scope
 
