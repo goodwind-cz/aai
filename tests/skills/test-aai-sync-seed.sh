@@ -1978,12 +1978,14 @@ _retired_shim_text() {
   invoke="/$name"
   [[ "$variant" == "arg" ]] && invoke="/$name <PR>"
   [[ "$variant" == "mixed" ]] && y="${2}_OTHER"
+  local tail_ref=""
+  [[ "$variant" == "tworef" ]] && tail_ref=' Also read `.aai/SKILL_TDD.prompt.md`.'
   text="$(
     printf '%s\n' '---' "name: $name" 'description: Use when exercising a retired template shim in a fixture.' '---' ''
     if [[ "$variant" == "stop" || "$variant" == "arg" ]]; then
       printf '%s\n' '<SUBAGENT-STOP>' 'If you were dispatched as a subagent, skip this skill.' 'Top-level only.' '</SUBAGENT-STOP>' ''
     fi
-    printf '%s\n' "Read the file \`.aai/SKILL_${x}.prompt.md\` from the current project root and follow its instructions exactly. Invoke this as \`${invoke}\`."
+    printf '%s\n' "Read the file \`.aai/SKILL_${x}.prompt.md\` from the current project root and follow its instructions exactly. Invoke this as \`${invoke}\`.${tail_ref}"
     [[ "$variant" == "extra" ]] && printf '%s\n' '' 'Also remember the project deploy checklist.'
     printf '%s\n' '' "If \`.aai/SKILL_${y}.prompt.md\` does not exist, say: \"SKILL_${y} not found — are you in an AAI project? Expected: .aai/SKILL_${y}.prompt.md\""
   )"
@@ -2108,6 +2110,15 @@ _retired_preserve_fixtures() {
         mv "$dst/$tree/aai-name-mismatch/SKILL.md.new" "$dst/$tree/aai-name-mismatch/SKILL.md"
       done
       _retired_install "$dst" aai-mixed-refs MIXEDREFS mixed
+      # remediation round: F1 lowercase skill.md-only dir, F2 BOM-prefixed shim,
+      # N1 shim with a further .aai/ reference, N5 hidden dot-dir shim.
+      _retired_install "$dst" aai-two-refs TWOREFS tworef
+      for tree in .claude/skills .agents/skills; do
+        mkdir -p "$dst/$tree/aai-lower-case" "$dst/$tree/aai-bom" "$dst/$tree/.aai-hidden"
+        _retired_shim_text aai-lower-case LOWERCASE plain > "$dst/$tree/aai-lower-case/skill.md"
+        { printf '\357\273\277'; _retired_shim_text aai-bom BOMGONE plain; } > "$dst/$tree/aai-bom/SKILL.md"
+        _retired_shim_text .aai-hidden HIDDENGONE plain > "$dst/$tree/.aai-hidden/SKILL.md"
+      done
       mkdir -p "$dst/external-shim"
       _retired_shim_text external-shim EXTERNAL plain > "$dst/external-shim/SKILL.md"
       for tree in .claude/skills .agents/skills; do
@@ -2303,7 +2314,7 @@ test_830_ps1_preservation_parity() {
     || log_fail "TEST-830: surviving trees differ between engines"
   [[ "$PARITY_PRE" == "$(_retired_snapshot_norm "$PARITY_PS1")" ]] \
     || log_fail "TEST-830: a preserved entry changed under ps1 (pre-sync tree != post-sync tree)"
-  for name in aai-extra-line aai-extra-file aai-name-mismatch aai-mixed-refs aai-project-x aai-uses-tdd aai-link; do
+  for name in aai-extra-line aai-extra-file aai-name-mismatch aai-mixed-refs aai-two-refs aai-lower-case aai-bom .aai-hidden aai-project-x aai-uses-tdd aai-link; do
     for tree in .claude/skills .agents/skills; do
       [[ -e "$PARITY_PS1/$tree/$name" || -L "$PARITY_PS1/$tree/$name" ]] || log_fail "TEST-830: ps1 removed $tree/$name"
     done

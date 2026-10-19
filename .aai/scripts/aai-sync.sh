@@ -383,11 +383,14 @@ fi
 # longer ships. Anything else (project skills, notes, symlinks, generated
 # dynamic skills) is left untouched. Every check lives inside the predicate.
 is_retired_skill_wrapper() {
-  local entry="$1" name="$2" content prompt
+  local entry="$1" name="$2" content prompt only
   [[ -d "$entry" && ! -L "$entry" ]] || return 1
   case "$name" in aai-project-*) return 1 ;; esac
   [[ "$(find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')" == "1" ]] || return 1
-  [[ -f "$entry/SKILL.md" && ! -L "$entry/SKILL.md" ]] || return 1
+  # Compare the on-disk name byte-exactly: a bare -f "$entry/SKILL.md" also matches
+  # a lowercase skill.md on a case-insensitive filesystem (macOS, Windows).
+  only="$(find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null)"
+  [[ "${only##*/}" == "SKILL.md" && -f "$only" && ! -L "$only" ]] || return 1
   content="$(tr -d '\r' < "$entry/SKILL.md" 2>/dev/null)" || return 1
   prompt="$(awk -v NAME="$name" '
     { l[++n] = $0 }
@@ -420,7 +423,9 @@ is_retired_skill_wrapper() {
       r = substr(r, e + length(".prompt.md`"))
       mid = " from the current project root and follow its instructions exactly"
       if (substr(r, 1, length(mid)) != mid) exit 1
-      if (!index(substr(r, length(mid) + 1), " Invoke this as `")) exit 1
+      rest = substr(r, length(mid) + 1)
+      if (!index(rest, " Invoke this as `")) exit 1
+      if (index(rest, ".aai/")) exit 1
       if (substr(b[k], length(b[k])) != ".") exit 1
       want = "If `.aai/SKILL_" x ".prompt.md` does not exist, say: \"SKILL_" x " not found — are you in an AAI project? Expected: .aai/SKILL_" x ".prompt.md\""
       if (b[k + 1] != want) exit 1

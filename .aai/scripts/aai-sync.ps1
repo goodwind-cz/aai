@@ -354,7 +354,10 @@ function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
     $child = $children[0]
     if (($child.Name -cne "SKILL.md") -or $child.PSIsContainer) { return $false }
     if ($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
-    $raw = Get-Content -LiteralPath $child.FullName -Raw -Encoding UTF8 -ErrorAction Stop
+    # Raw bytes, never Get-Content: it drops a leading UTF-8 BOM, which bash keeps (a BOM means not-a-shim).
+    $raw = (New-Object System.Text.UTF8Encoding($false)).GetString([System.IO.File]::ReadAllBytes($child.FullName))
+    # -ceq/-cne compare culture-aware and treat U+FEFF as ignorable, so test the BOM ordinally.
+    if (($raw.Length -gt 0) -and ($raw[0] -eq [char]0xFEFF)) { return $false }
     $text = $raw.Replace("`r", "")
     $lines = @($text -split "`n")
     $n = $lines.Count
@@ -388,7 +391,9 @@ function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
     $r = $r.Substring($e + '.prompt.md`'.Length)
     $mid = ' from the current project root and follow its instructions exactly'
     if (-not $r.StartsWith($mid, [System.StringComparison]::Ordinal)) { return $false }
-    if ($r.Substring($mid.Length).IndexOf(' Invoke this as `', [System.StringComparison]::Ordinal) -lt 0) { return $false }
+    $rest = $r.Substring($mid.Length)
+    if ($rest.IndexOf(' Invoke this as `', [System.StringComparison]::Ordinal) -lt 0) { return $false }
+    if ($rest.IndexOf('.aai/', [System.StringComparison]::Ordinal) -ge 0) { return $false }
     if (-not $a.EndsWith('.', [System.StringComparison]::Ordinal)) { return $false }
     $want = 'If `.aai/SKILL_' + $x + '.prompt.md` does not exist, say: "SKILL_' + $x + ' not found ' + [string][char]0x2014 + ' are you in an AAI project? Expected: .aai/SKILL_' + $x + '.prompt.md"'
     if ($body[$k + 1] -cne $want) { return $false }
@@ -404,6 +409,7 @@ function Remove-RetiredSkillWrappers([string]$Tree) {
   if (!(Test-Path -LiteralPath $dstTree)) { return }
   Get-ChildItem -LiteralPath $dstTree -Force | ForEach-Object {
     $entryName = $_.Name
+    if ($entryName.StartsWith('.', [System.StringComparison]::Ordinal)) { return }
     if (Test-Path -LiteralPath (Join-Path (Join-Path $SrcRoot $Tree) $entryName)) { return }
     if (Test-RetiredSkillWrapper $_.FullName $entryName) {
       Remove-Item -LiteralPath $_.FullName -Recurse -Force
