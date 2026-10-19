@@ -380,23 +380,30 @@ fi
 # A target-only entry under .claude/skills or .agents/skills is removed ONLY when
 # it is provably a template shim: a real directory holding exactly one SKILL.md
 # whose whole body is the delegation text, naming a prompt the SOURCE layer no
-# longer ships. Anything else (project skills, notes, symlinks, generated
-# dynamic skills) is left untouched. Every check lives inside the predicate.
+# longer ships. Only names matching ^aai-[a-z0-9-]+$ (minus the project-owned prefix) are ever
+# considered; SKILL.md must be a regular, NUL-free file of 1..65536 bytes. Anything
+# else (project skills, notes, symlinks, generated dynamic skills) is left untouched.
 is_retired_skill_wrapper() {
-  local entry="$1" name="$2" content prompt only
+  local entry="$1" name="$2" content prompt only size
   # Byte-exact by construction: C collation/ctype so no locale changes a comparison.
+  # (A shell-local LC_ALL does not reach child processes; children get the prefix explicitly.)
   local LC_ALL=C
-  [[ -d "$entry" && ! -L "$entry" ]] || return 1
+  # NAME ALLOWLIST, checked before any filesystem call on the entry: ASCII aai-[a-z0-9-]+ only.
+  # Wildcards, backslashes, uppercase, non-ASCII and hidden names are never candidates.
+  [[ "$name" =~ ^aai-[a-z0-9-]+$ ]] || return 1
   case "$name" in aai-project-*) return 1 ;; esac
-  # A backslash in the name is never a candidate: pwsh on Unix rewrites it to "/" in cmdlet
-  # paths, so the two engines could not agree on such an entry; both refuse it.
-  case "$name" in *\\*) return 1 ;; esac
-  [[ "$(find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')" == "1" ]] || return 1
+  [[ -d "$entry" && ! -L "$entry" ]] || return 1
+  [[ "$(LC_ALL=C find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')" == "1" ]] || return 1
   # Compare the on-disk name byte-exactly: a bare -f "$entry/SKILL.md" also matches
   # a lowercase skill.md on a case-insensitive filesystem (macOS, Windows).
-  only="$(find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null)"
+  only="$(LC_ALL=C find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null)"
   [[ "${only##*/}" == "SKILL.md" && -f "$only" && ! -L "$only" ]] || return 1
-  content="$(tr -d '\r' < "$entry/SKILL.md" 2>/dev/null)" || return 1
+  # SKILL.md must be a REGULAR file (-f is false for a FIFO or device, so nothing is opened),
+  # non-empty and at most 64 KiB, and must hold no NUL byte (a command substitution would drop it).
+  size="$(wc -c < "$only" 2>/dev/null | tr -d ' ')" || return 1
+  [[ "$size" =~ ^[0-9]+$ ]] && (( size >= 1 && size <= 65536 )) || return 1
+  [[ "$(LC_ALL=C tr -d '\000' < "$only" | wc -c | tr -d ' ')" == "$size" ]] || return 1
+  content="$(LC_ALL=C tr -d '\r' < "$only" 2>/dev/null)" || return 1
   # The entry name goes through the environment: awk -v interprets backslash escapes.
   prompt="$(NAME="$name" awk '
     BEGIN { NAME = ENVIRON["NAME"] }
@@ -447,8 +454,10 @@ remove_retired_skill_wrappers() {
   local tree="$1" dst_entry entry_name
   [[ -d "$DST_ROOT/$tree" ]] || return 0
   for dst_entry in "$DST_ROOT/$tree/"*; do
+    entry_name="${dst_entry##*/}"
+    # Allowlist first: no filesystem call touches a name outside aai-[a-z0-9-]+.
+    [[ "$entry_name" =~ ^aai-[a-z0-9-]+$ ]] || continue
     [[ -e "$dst_entry" || -L "$dst_entry" ]] || continue
-    entry_name="$(basename "$dst_entry")"
     if [[ -e "$SRC_ROOT/$tree/$entry_name" || -L "$SRC_ROOT/$tree/$entry_name" ]]; then
       continue
     fi

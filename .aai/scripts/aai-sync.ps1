@@ -349,21 +349,41 @@ if ($Profile -eq "core") {
 function Test-OrdEq([string]$A, [string]$B) {
   return [string]::Equals($A, $B, [System.StringComparison]::Ordinal)
 }
+# System.IO only inside the predicate: provider cmdlets expand wildcards/backslashes in names.
+function Test-RetiredNameAllowed([string]$Name) {
+  # ASCII allowlist, ordinal ranges (no IgnoreCase), CultureInvariant; \z not $ so no trailing-newline match.
+  if (-not [regex]::IsMatch($Name, '^aai-[a-z0-9-]+\z', [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)) { return $false }
+  return (-not $Name.StartsWith('aai-project-', [System.StringComparison]::Ordinal))
+}
+# True for anything at the path, including a dangling symlink (mirror of bash -e || -L).
+function Test-AnyEntry([string]$Path) {
+  try {
+    if ([System.IO.File]::Exists($Path) -or [System.IO.Directory]::Exists($Path)) { return $true }
+    $fi = New-Object System.IO.FileInfo($Path)
+    # A missing path reports Attributes -1 (all bits set): never read that as a ReparsePoint.
+    $attr = [int]$fi.Attributes
+    return (($attr -ne -1) -and (($attr -band [int][System.IO.FileAttributes]::ReparsePoint) -ne 0))
+  } catch { return $false }
+}
 function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
   try {
-    $item = Get-Item -LiteralPath $EntryPath -Force -ErrorAction Stop
-    if (-not $item.PSIsContainer) { return $false }
-    if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
-    if ($EntryName.StartsWith("aai-project-", [System.StringComparison]::Ordinal)) { return $false }
-    # Mirror of bash: a backslash in the name is never a candidate (pwsh on Unix rewrites it to "/" in cmdlet paths).
-    if ($EntryName.IndexOf([string][char]92, [System.StringComparison]::Ordinal) -ge 0) { return $false }
-    $children = @(Get-ChildItem -LiteralPath $EntryPath -Force -ErrorAction Stop)
+    if (-not (Test-RetiredNameAllowed $EntryName)) { return $false }
+    $dir = New-Object System.IO.DirectoryInfo($EntryPath)
+    if (-not $dir.Exists) { return $false }
+    if ($dir.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
+    $children = @([System.IO.Directory]::GetFileSystemEntries($EntryPath))
     if ($children.Count -ne 1) { return $false }
-    $child = $children[0]
-    if ((-not (Test-OrdEq $child.Name "SKILL.md")) -or $child.PSIsContainer) { return $false }
-    if ($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
+    $childPath = $children[0]
+    if (-not (Test-OrdEq ([System.IO.Path]::GetFileName($childPath)) "SKILL.md")) { return $false }
+    # Regular file only: not a directory, not a symlink; a FIFO/device reports Length 0 and is
+    # rejected below before anything opens it. Bounded: 1..65536 bytes.
+    $fi = New-Object System.IO.FileInfo($childPath)
+    if ((-not $fi.Exists) -or ($fi.Attributes -band ([System.IO.FileAttributes]::ReparsePoint -bor [System.IO.FileAttributes]::Directory -bor [System.IO.FileAttributes]::Device))) { return $false }
+    if (($fi.Length -lt 1) -or ($fi.Length -gt 65536)) { return $false }
     # Raw bytes, never Get-Content: it drops a leading UTF-8 BOM, which bash keeps (a BOM means not-a-shim).
-    $raw = (New-Object System.Text.UTF8Encoding($false)).GetString([System.IO.File]::ReadAllBytes($child.FullName))
+    $bytes = [System.IO.File]::ReadAllBytes($childPath)
+    if ([Array]::IndexOf($bytes, [byte]0) -ge 0) { return $false }
+    $raw = (New-Object System.Text.UTF8Encoding($false)).GetString($bytes)
     # The ordinal compares below also reject a leading U+FEFF (line 1 would not equal "---").
     $text = $raw.Replace("`r", "")
     $lines = @($text -split "`n")
@@ -404,7 +424,7 @@ function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
     if (-not $a.EndsWith('.', [System.StringComparison]::Ordinal)) { return $false }
     $want = 'If `.aai/SKILL_' + $x + '.prompt.md` does not exist, say: "SKILL_' + $x + ' not found ' + [string][char]0x2014 + ' are you in an AAI project? Expected: .aai/SKILL_' + $x + '.prompt.md"'
     if (-not (Test-OrdEq $body[$k + 1] $want)) { return $false }
-    if (Test-Path -LiteralPath (Join-Path $SrcRoot ".aai/SKILL_$x.prompt.md")) { return $false }
+    if (Test-AnyEntry ([System.IO.Path]::Combine($SrcRoot, ".aai", "SKILL_$x.prompt.md"))) { return $false }
     return $true
   } catch {
     return $false
@@ -412,14 +432,15 @@ function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
 }
 
 function Remove-RetiredSkillWrappers([string]$Tree) {
-  $dstTree = Join-Path $TargetRoot $Tree
-  if (!(Test-Path -LiteralPath $dstTree)) { return }
-  Get-ChildItem -LiteralPath $dstTree -Force | ForEach-Object {
-    $entryName = $_.Name
-    if ($entryName.StartsWith('.', [System.StringComparison]::Ordinal)) { return }
-    if (Test-Path -LiteralPath (Join-Path (Join-Path $SrcRoot $Tree) $entryName)) { return }
-    if (Test-RetiredSkillWrapper $_.FullName $entryName) {
-      Remove-Item -LiteralPath $_.FullName -Recurse -Force
+  $dstTree = [System.IO.Path]::Combine($TargetRoot, $Tree)
+  if (-not [System.IO.Directory]::Exists($dstTree)) { return }
+  foreach ($entryPath in [System.IO.Directory]::GetFileSystemEntries($dstTree)) {
+    $entryName = [System.IO.Path]::GetFileName($entryPath)
+    # Allowlist first: no filesystem call touches a name outside aai-[a-z0-9-]+.
+    if (-not (Test-RetiredNameAllowed $entryName)) { continue }
+    if (Test-AnyEntry ([System.IO.Path]::Combine($SrcRoot, $Tree, $entryName))) { continue }
+    if (Test-RetiredSkillWrapper $entryPath $entryName) {
+      [System.IO.Directory]::Delete($entryPath, $true)
       $script:deletions += "$Tree/$entryName"
       Write-Host "  CLEAN removed retired skill wrapper: $Tree/$entryName"
     }

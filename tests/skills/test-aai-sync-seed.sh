@@ -2015,6 +2015,7 @@ _retired_snapshot() {
     find .claude/skills .agents/skills -mindepth 1 | LC_ALL=C sort | while IFS= read -r f; do
       if [[ -L "$f" ]]; then printf 'L %s -> %s\n' "$f" "$(readlink "$f")"
       elif [[ -d "$f" ]]; then printf 'D %s\n' "$f"
+      elif [[ -p "$f" ]]; then printf 'P %s\n' "$f"
       else printf 'F %s %s\n' "$f" "$(_retired_sha256 "$f")"
       fi
     done
@@ -2130,6 +2131,54 @@ _retired_byte_class_fixtures() {
   done
 }
 
+# Round-3 structural class (name allowlist ^aai-[a-z0-9-]+$, regular NUL-free bounded SKILL.md):
+# every fixture below is a VALID-looking shim whose only defect is the name or the file kind, so
+# any engine without the allowlist / file-kind gate would delete it. Wildcard names are Unix-only
+# (probe: a name the filesystem cannot hold is skipped, named, never failed).
+_retired_allowlist_class_fixtures() {
+  local dst="$1" tree d t i pad
+  local NAIVE=$'na\xc3\xafve'
+  for tree in .claude/skills .agents/skills; do
+    d="$dst/$tree"
+    if mkdir -p "$d/aai-*" "$d/zz-?" "$d/zz-*" 2>/dev/null; then
+      _retired_shim_text 'aai-*' STARGONE plain > "$d/aai-*/SKILL.md"
+      printf 'project-owned wildcard skill\n' > "$d/zz-?/SKILL.md"
+      _retired_shim_text 'zz-*' ZZSTAR plain > "$d/zz-*/SKILL.md"
+      # a *-named shim naming zz-? (the wildcard-resolution pair of the F5 probe)
+      t="$(_retired_shim_text 'zz-*' ZZSTAR plain)"; t="${t/"name: zz-*"/"name: zz-?"}"
+      printf '%s\n' "$t" > "$d/zz-*/SKILL.md"
+    else
+      log_info "allowlist fixtures: wildcard names not creatable on this filesystem - named skip (aai-*, zz-?, zz-*)"
+    fi
+    mkdir -p "$d/aai-nulgone" "$d/aai-fifo" "$d/aai-bigshim" "$d/aai-Foo" "$d/aai-${NAIVE}"
+    t="$(_retired_shim_text aai-nulgone NULGONE plain)"
+    # NUL inside the Read line: the command-substitution drop would otherwise leave a perfect shim
+    { printf '%s' "${t%%" Invoke this"*}"; printf '\000'; printf '%s\n' " Invoke this${t#*" Invoke this"}"; } > "$d/aai-nulgone/SKILL.md"
+    mkfifo "$d/aai-fifo/SKILL.md"
+    pad="$(head -c 70000 /dev/zero | tr '\0' 'x')"
+    t="$(_retired_shim_text aai-bigshim BIGGONE plain)"
+    printf '%s\n' "${t/"description: "/"description: ${pad} "}" > "$d/aai-bigshim/SKILL.md"
+    _retired_shim_text aai-Foo FOOGONE plain > "$d/aai-Foo/SKILL.md"
+    _retired_shim_text "aai-${NAIVE}" NAIVEGONE plain > "$d/aai-${NAIVE}/SKILL.md"
+  done
+}
+
+# Run the sync engine bounded: a FIFO SKILL.md must never make either engine hang.
+_retired_run_bounded() { # <id> <engine> <source> <target> -> prints output; fails on hang
+  local id="$1" engine="$2" src="$3" dst="$4" outf pid wd rc=0
+  outf="$(mktemp "${TMPDIR:-/tmp}/retired-bounded.XXXXXX")"
+  ( _hooks_run_engine "$engine" "$src" "$dst" > "$outf" 2>&1 ) &
+  pid=$!
+  ( sleep 180; kill -9 "$pid" 2>/dev/null; true ) &
+  wd=$!
+  wait "$pid" || rc=$?
+  kill "$wd" 2>/dev/null || true
+  wait "$wd" 2>/dev/null || true
+  if [[ "$rc" -eq 137 ]]; then pkill -P "$pid" 2>/dev/null || true; rm -f "$outf"; log_fail "$id: $engine engine hung (killed after 180s) on a FIFO SKILL.md"; fi
+  cat "$outf"; rm -f "$outf"
+  return "$rc"
+}
+
 # Preserved-entry fixture set (Spec-AC-03). $2 = set: all | project | shipped
 _retired_preserve_fixtures() {
   local dst="$1" set="$2" tree
@@ -2155,6 +2204,7 @@ _retired_preserve_fixtures() {
         _retired_shim_text .aai-hidden HIDDENGONE plain > "$dst/$tree/.aai-hidden/SKILL.md"
       done
       _retired_byte_class_fixtures "$dst"
+      _retired_allowlist_class_fixtures "$dst"
       mkdir -p "$dst/external-shim"
       _retired_shim_text external-shim EXTERNAL plain > "$dst/external-shim/SKILL.md"
       for tree in .claude/skills .agents/skills; do
@@ -2170,7 +2220,7 @@ _retired_assert_preserved() { # <test-id> <dst> <set>
   local id="$1" dst="$2" set="$3" before after out
   _retired_preserve_fixtures "$dst" "$set"
   before="$(_retired_snapshot "$dst")$(find "$dst/external-shim" -type f 2>/dev/null | LC_ALL=C sort || true)"
-  out="$(_hooks_run_engine sh "$SYNC_FIXTURE_CANON" "$dst" 2>&1)" || log_fail "$id: re-sync failed: $out"
+  out="$(_retired_run_bounded "$id" sh "$SYNC_FIXTURE_CANON" "$dst")" || log_fail "$id: re-sync failed: $out"
   after="$(_retired_snapshot "$dst")$(find "$dst/external-shim" -type f 2>/dev/null | LC_ALL=C sort || true)"
   [[ "$before" == "$after" ]] || log_fail "$id: a preserved entry changed or vanished"
   if grep -qF -- "$RETIRED_CLEAN_PREFIX" <<< "$out"; then
@@ -2306,8 +2356,8 @@ _retired_parity_pair() { # <id> <set: removal|preserve> -> sets PARITY_SH PARITY
     done
   fi
   PARITY_SH="$base-sh"; PARITY_PS1="$base-ps1"
-  PARITY_OUT_SH="$(_hooks_run_engine sh "$SYNC_FIXTURE_CANON" "$base-sh" 2>&1)" || log_fail "$id: bash sync failed: $PARITY_OUT_SH"
-  PARITY_OUT_PS1="$(_hooks_run_engine ps1 "$SYNC_FIXTURE_CANON" "$base-ps1" 2>&1)" || log_fail "$id: ps1 sync failed: $PARITY_OUT_PS1"
+  PARITY_OUT_SH="$(_retired_run_bounded "$id" sh "$SYNC_FIXTURE_CANON" "$base-sh")" || log_fail "$id: bash sync failed: $PARITY_OUT_SH"
+  PARITY_OUT_PS1="$(_retired_run_bounded "$id" ps1 "$SYNC_FIXTURE_CANON" "$base-ps1")" || log_fail "$id: ps1 sync failed: $PARITY_OUT_PS1"
 }
 
 test_829_ps1_retired_removal_parity() {
@@ -2350,7 +2400,7 @@ test_830_ps1_preservation_parity() {
     || log_fail "TEST-830: surviving trees differ between engines"
   [[ "$PARITY_PRE" == "$(_retired_snapshot_norm "$PARITY_PS1")" ]] \
     || log_fail "TEST-830: a preserved entry changed under ps1 (pre-sync tree != post-sync tree)"
-  for name in aai-extra-line aai-extra-file aai-name-mismatch aai-mixed-refs aai-two-refs aai-lower-case aai-bom aai-zwfile aai-dashzw aai-namefeff aai-midfeff aai-shy aai-stopzw aai-caf$'\xc3\xa9' aai-bs\\qx aai-bs\\tx .aai-hidden aai-project-x aai-uses-tdd aai-link; do
+  for name in aai-extra-line aai-extra-file aai-name-mismatch aai-mixed-refs aai-two-refs aai-lower-case aai-bom aai-zwfile aai-dashzw aai-namefeff aai-midfeff aai-shy aai-stopzw aai-caf$'\xc3\xa9' aai-bs\\qx aai-bs\\tx aai-nulgone aai-fifo aai-bigshim aai-Foo "aai-na"$'\xc3\xaf'"ve" 'aai-*' 'zz-?' 'zz-*' .aai-hidden aai-project-x aai-uses-tdd aai-link; do
     for tree in .claude/skills .agents/skills; do
       [[ -e "$PARITY_PS1/$tree/$name" || -L "$PARITY_PS1/$tree/$name" ]] || log_fail "TEST-830: ps1 removed $tree/$name"
     done
