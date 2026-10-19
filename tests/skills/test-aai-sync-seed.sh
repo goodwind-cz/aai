@@ -2169,12 +2169,15 @@ _retired_run_bounded() { # <id> <engine> <source> <target> -> prints output; fai
   outf="$(mktemp "${TMPDIR:-/tmp}/retired-bounded.XXXXXX")"
   ( _hooks_run_engine "$engine" "$src" "$dst" > "$outf" 2>&1 ) &
   pid=$!
-  ( sleep 180; kill -9 "$pid" 2>/dev/null; true ) &
+  # Watchdog stdio goes to /dev/null: an inherited $(...) pipe held open by the
+  # orphaned sleep would make every caller wait the full 180 s.
+  ( sleep 180; kill -9 "$pid" 2>/dev/null; true ) >/dev/null 2>&1 &
   wd=$!
   wait "$pid" || rc=$?
+  pkill -P "$wd" 2>/dev/null || true
   kill "$wd" 2>/dev/null || true
   wait "$wd" 2>/dev/null || true
-  if [[ "$rc" -eq 137 ]]; then pkill -P "$pid" 2>/dev/null || true; rm -f "$outf"; log_fail "$id: $engine engine hung (killed after 180s) on a FIFO SKILL.md"; fi
+  if [[ "$rc" -eq 137 ]]; then pkill -P "$pid" 2>/dev/null || true; cat "$outf"; rm -f "$outf"; log_fail "$id: $engine engine hung (killed after 180s) on a FIFO SKILL.md"; fi
   cat "$outf"; rm -f "$outf"
   return "$rc"
 }
