@@ -634,11 +634,10 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (2)
+## Deferred items (per-AC, across all specs) (1)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| SPEC-0209 | Spec-AC-06 | 2026-10-20 | Pre-PR Bash real downstream and macOS pwsh evidence passed; neither proves native Windows. Windows PowerShell 5.1 and pwsh 7 Pester fixture checks are required in PR CI before merge; see the measurement amendment below. |
 | SPEC-0046 | Spec-AC-10 | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
