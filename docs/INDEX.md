@@ -24,7 +24,7 @@ _None._
 | aai-decisions | aai-decisions | 3 | docs/product/aai-decisions.md |
 | aai-deslop | aai-deslop | 2 | docs/product/aai-deslop.md |
 | aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
-| aai-update | aai-update | 6 | docs/product/aai-update.md |
+| aai-update | aai-update | 7 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 1 | docs/product/ci-test-impact-selection.md |
@@ -56,7 +56,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (547)
+## Done (549)
 
 | ID | Type | Path |
 |---|---|---|
@@ -351,6 +351,7 @@ _None._
 | ISSUE-0101 | issues | docs/issues/ISSUE-0101-release-checks-registration-grace.md |
 | ISSUE-0102 | issues | docs/issues/ISSUE-0102-release-changelog-eol.md |
 | ISSUE-0103 | issues | docs/issues/ISSUE-0103-release-one-shot-finish.md |
+| ISSUE-0104 | issues | docs/issues/ISSUE-0104-sync-prune-retired-skill-wrappers.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -605,6 +606,7 @@ _None._
 | SPEC-0234 | specs | docs/specs/SPEC-0234-spec-release-checks-registration-grace.md |
 | SPEC-0235 | specs | docs/specs/SPEC-0235-spec-release-changelog-eol.md |
 | SPEC-0236 | specs | docs/specs/SPEC-0236-spec-release-one-shot-finish.md |
+| SPEC-0237 | specs | docs/specs/SPEC-0237-spec-sync-prune-retired-skill-wrappers.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

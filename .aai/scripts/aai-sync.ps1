@@ -338,6 +338,124 @@ if ($Profile -eq "core") {
   }
 }
 
+# Retired template skill wrappers (sync-prune-retired-skill-wrappers).
+# Mirror of is_retired_skill_wrapper / remove_retired_skill_wrappers in aai-sync.sh:
+# a target-only entry under .claude/skills or .agents/skills is removed ONLY when it
+# is provably a template shim whose .aai/SKILL_<X>.prompt.md the SOURCE layer no
+# longer ships. Everything else is left untouched.
+# EVERY string comparison in the predicate is ordinal (byte-exact): -ceq/-cne/-clike are
+# culture-aware in pwsh 7 (ICU skips U+200B/U+FEFF/U+00AD, equates NFC with NFD), which
+# would let ps1 delete an entry bash keeps.
+function Test-OrdEq([string]$A, [string]$B) {
+  return [string]::Equals($A, $B, [System.StringComparison]::Ordinal)
+}
+# System.IO only inside the predicate: provider cmdlets expand wildcards/backslashes in names.
+function Test-RetiredNameAllowed([string]$Name) {
+  # ASCII allowlist, ordinal ranges (no IgnoreCase), CultureInvariant; \z not $ so no trailing-newline match.
+  if (-not [regex]::IsMatch($Name, '^aai-[a-z0-9-]+\z', [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)) { return $false }
+  return (-not $Name.StartsWith('aai-project-', [System.StringComparison]::Ordinal))
+}
+# True for anything at the path, including a dangling symlink (mirror of bash -e || -L).
+function Test-AnyEntry([string]$Path) {
+  try {
+    if ([System.IO.File]::Exists($Path) -or [System.IO.Directory]::Exists($Path)) { return $true }
+    $fi = New-Object System.IO.FileInfo($Path)
+    # A missing path reports Attributes -1 (all bits set): never read that as a ReparsePoint.
+    $attr = [int]$fi.Attributes
+    return (($attr -ne -1) -and (($attr -band [int][System.IO.FileAttributes]::ReparsePoint) -ne 0))
+  } catch { return $false }
+}
+function Test-RetiredSkillWrapper([string]$EntryPath, [string]$EntryName) {
+  try {
+    if (-not (Test-RetiredNameAllowed $EntryName)) { return $false }
+    $dir = New-Object System.IO.DirectoryInfo($EntryPath)
+    if (-not $dir.Exists) { return $false }
+    if ($dir.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
+    $children = @([System.IO.Directory]::GetFileSystemEntries($EntryPath))
+    if ($children.Count -ne 1) { return $false }
+    $childPath = $children[0]
+    if (-not (Test-OrdEq ([System.IO.Path]::GetFileName($childPath)) "SKILL.md")) { return $false }
+    # Regular file only: not a directory, not a symlink; a FIFO/device reports Length 0 and is
+    # rejected below before anything opens it. Bounded: 1..65536 bytes.
+    $fi = New-Object System.IO.FileInfo($childPath)
+    if ((-not $fi.Exists) -or ($fi.Attributes -band ([System.IO.FileAttributes]::ReparsePoint -bor [System.IO.FileAttributes]::Directory -bor [System.IO.FileAttributes]::Device))) { return $false }
+    if (($fi.Length -lt 1) -or ($fi.Length -gt 65536)) { return $false }
+    # Raw bytes, never Get-Content: it drops a leading UTF-8 BOM, which bash keeps (a BOM means not-a-shim).
+    $bytes = [System.IO.File]::ReadAllBytes($childPath)
+    if ([Array]::IndexOf($bytes, [byte]0) -ge 0) { return $false }
+    $raw = (New-Object System.Text.UTF8Encoding($false)).GetString($bytes)
+    # The ordinal compares below also reject a leading U+FEFF (line 1 would not equal "---").
+    $text = $raw.Replace("`r", "")
+    $lines = @($text -split "`n")
+    $n = $lines.Count
+    while (($n -gt 0) -and ([regex]::IsMatch($lines[$n - 1], '^[ \t]*\z'))) { $n-- }
+    if (($n -lt 1) -or (-not (Test-OrdEq $lines[0] "---"))) { return $false }
+    $close = -1
+    for ($i = 1; $i -lt $n; $i++) { if (Test-OrdEq $lines[$i] "---") { $close = $i; break } }
+    if ($close -lt 0) { return $false }
+    $hasName = $false
+    for ($i = 1; $i -lt $close; $i++) { if (Test-OrdEq $lines[$i] ("name: " + $EntryName)) { $hasName = $true } }
+    if (-not $hasName) { return $false }
+    $body = @()
+    for ($i = $close + 1; $i -lt $n; $i++) { if (-not [regex]::IsMatch($lines[$i], '^[ \t]*\z')) { $body += $lines[$i] } }
+    $k = 0
+    if ($body.Count -gt 0 -and (Test-OrdEq $body[0] "<SUBAGENT-STOP>")) {
+      $j = 1
+      $found = $false
+      while ($j -lt $body.Count) { if (Test-OrdEq $body[$j] "</SUBAGENT-STOP>") { $found = $true; break }; $j++ }
+      if ((-not $found) -or ($j -eq 1)) { return $false }
+      $k = $j + 1
+    }
+    if (($body.Count - $k) -ne 2) { return $false }
+    $pre = 'Read the file `.aai/SKILL_'
+    $a = $body[$k]
+    if (-not $a.StartsWith($pre, [System.StringComparison]::Ordinal)) { return $false }
+    $r = $a.Substring($pre.Length)
+    $e = $r.IndexOf('.prompt.md`', [System.StringComparison]::Ordinal)
+    if ($e -lt 0) { return $false }
+    $x = $r.Substring(0, $e)
+    if (-not [regex]::IsMatch($x, '^[A-Z0-9_]+\z')) { return $false }
+    $r = $r.Substring($e + '.prompt.md`'.Length)
+    $mid = ' from the current project root and follow its instructions exactly'
+    if (-not $r.StartsWith($mid, [System.StringComparison]::Ordinal)) { return $false }
+    $rest = $r.Substring($mid.Length)
+    if ($rest.IndexOf(' Invoke this as `', [System.StringComparison]::Ordinal) -lt 0) { return $false }
+    if ($rest.IndexOf('.aai/', [System.StringComparison]::Ordinal) -ge 0) { return $false }
+    if (-not $a.EndsWith('.', [System.StringComparison]::Ordinal)) { return $false }
+    $want = 'If `.aai/SKILL_' + $x + '.prompt.md` does not exist, say: "SKILL_' + $x + ' not found ' + [string][char]0x2014 + ' are you in an AAI project? Expected: .aai/SKILL_' + $x + '.prompt.md"'
+    if (-not (Test-OrdEq $body[$k + 1] $want)) { return $false }
+    if (Test-AnyEntry ([System.IO.Path]::Combine($SrcRoot, ".aai", "SKILL_$x.prompt.md"))) { return $false }
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Remove-RetiredSkillWrappers([string]$Tree) {
+  $dstTree = [System.IO.Path]::Combine($TargetRoot, $Tree)
+  if (-not [System.IO.Directory]::Exists($dstTree)) { return }
+  foreach ($entryPath in [System.IO.Directory]::GetFileSystemEntries($dstTree)) {
+    $entryName = [System.IO.Path]::GetFileName($entryPath)
+    # Allowlist first: no filesystem call touches a name outside aai-[a-z0-9-]+.
+    if (-not (Test-RetiredNameAllowed $entryName)) { continue }
+    if (Test-AnyEntry ([System.IO.Path]::Combine($SrcRoot, $Tree, $entryName))) { continue }
+    if (Test-RetiredSkillWrapper $entryPath $entryName) {
+      # A failed removal must neither abort the sync nor be recorded as a deletion.
+      # SKILL.md was vetted as a regular, non-reparse file: clear ReadOnly so Delete(..., $true) cannot throw on it.
+      try {
+        $skillMd = [System.IO.Path]::Combine($entryPath, "SKILL.md")
+        [System.IO.File]::SetAttributes($skillMd, [System.IO.FileAttributes]::Normal)
+        [System.IO.Directory]::Delete($entryPath, $true)
+        if ([System.IO.Directory]::Exists($entryPath)) { throw "entry still present after delete" }
+        $script:deletions += "$Tree/$entryName"
+        Write-Host "  CLEAN removed retired skill wrapper: $Tree/$entryName"
+      } catch {
+        Write-Host "  WARN could not remove retired skill wrapper (left in place): $Tree/$entryName ($($_.Exception.Message))"
+      }
+    }
+  }
+}
+
 # Claude Code skills (session helpers):
 # copy template skills entry-by-entry and preserve target-only local skills.
 $claudeSkills = Join-Path $SrcRoot ".claude/skills"
@@ -365,6 +483,7 @@ if (Test-Path $claudeSkills) {
     }
     Copy-Replace $_.FullName $dstEntry
   }
+  Remove-RetiredSkillWrappers ".claude/skills"
   Write-Host "  PRESERVE target-only skills under: $targetClaudeSkills"
 }
 
@@ -547,6 +666,7 @@ if (Test-Path $agentsSkills) {
     }
     Copy-Replace $_.FullName $dstEntry
   }
+  Remove-RetiredSkillWrappers ".agents/skills"
   Write-Host "  PRESERVE target-only skills under: $targetAgentsSkills"
 }
 

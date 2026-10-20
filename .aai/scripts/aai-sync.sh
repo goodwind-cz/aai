@@ -376,6 +376,104 @@ else
   done
 fi
 
+# Retired template skill wrappers (sync-prune-retired-skill-wrappers).
+# A target-only entry under .claude/skills or .agents/skills is removed ONLY when
+# it is provably a template shim: a real directory holding exactly one SKILL.md
+# whose whole body is the delegation text, naming a prompt the SOURCE layer no
+# longer ships. Only names matching ^aai-[a-z0-9-]+$ (minus the project-owned prefix) are ever
+# considered; SKILL.md must be a regular, NUL-free file of 1..65536 bytes. Anything
+# else (project skills, notes, symlinks, generated dynamic skills) is left untouched.
+is_retired_skill_wrapper() {
+  local entry="$1" name="$2" content prompt only size
+  # Byte-exact by construction: C collation/ctype so no locale changes a comparison.
+  # (A function-local LC_ALL is not exported to child processes: every child below -- find, tr, awk --
+  # gets an explicit LC_ALL=C prefix of its own.)
+  local LC_ALL=C
+  # NAME ALLOWLIST, checked before any filesystem call on the entry: ASCII aai-[a-z0-9-]+ only.
+  # Wildcards, backslashes, uppercase, non-ASCII and hidden names are never candidates.
+  [[ "$name" =~ ^aai-[a-z0-9-]+$ ]] || return 1
+  case "$name" in aai-project-*) return 1 ;; esac
+  [[ -d "$entry" && ! -L "$entry" ]] || return 1
+  [[ "$(LC_ALL=C find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ')" == "1" ]] || return 1
+  # Compare the on-disk name byte-exactly: a bare -f "$entry/SKILL.md" also matches
+  # a lowercase skill.md on a case-insensitive filesystem (macOS, Windows).
+  only="$(LC_ALL=C find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null)"
+  [[ "${only##*/}" == "SKILL.md" && -f "$only" && ! -L "$only" ]] || return 1
+  # SKILL.md must be a REGULAR file (-f is false for a FIFO or device, so nothing is opened),
+  # non-empty and at most 64 KiB, and must hold no NUL byte (a command substitution would drop it).
+  size="$(LC_ALL=C wc -c < "$only" 2>/dev/null | LC_ALL=C tr -d ' ')" || return 1
+  [[ "$size" =~ ^[0-9]+$ ]] && (( size >= 1 && size <= 65536 )) || return 1
+  [[ "$(LC_ALL=C tr -d '\000' < "$only" | LC_ALL=C wc -c | LC_ALL=C tr -d ' ')" == "$size" ]] || return 1
+  content="$(LC_ALL=C tr -d '\r' < "$only" 2>/dev/null)" || return 1
+  # The entry name goes through the environment: awk -v interprets backslash escapes.
+  prompt="$(NAME="$name" LC_ALL=C awk '
+    BEGIN { NAME = ENVIRON["NAME"] }
+    { l[++n] = $0 }
+    END {
+      while (n > 0 && l[n] ~ /^[ \t]*$/) n--
+      if (l[1] != "---") exit 1
+      c = 0
+      for (i = 2; i <= n; i++) if (l[i] == "---") { c = i; break }
+      if (!c) exit 1
+      ok = 0
+      for (i = 2; i < c; i++) if (l[i] == "name: " NAME) ok = 1
+      if (!ok) exit 1
+      m = 0
+      for (i = c + 1; i <= n; i++) if (l[i] !~ /^[ \t]*$/) b[++m] = l[i]
+      k = 1
+      if (b[k] == "<SUBAGENT-STOP>") {
+        k++; j = k; f = 0
+        while (j <= m) { if (b[j] == "</SUBAGENT-STOP>") { f = 1; break } j++ }
+        if (!f || j == k) exit 1
+        k = j + 1
+      }
+      if (m - k != 1) exit 1
+      pre = "Read the file `.aai/SKILL_"
+      if (substr(b[k], 1, length(pre)) != pre) exit 1
+      r = substr(b[k], length(pre) + 1)
+      e = index(r, ".prompt.md`")
+      if (!e) exit 1
+      x = substr(r, 1, e - 1)
+      if (x !~ /^[A-Z0-9_]+$/) exit 1
+      r = substr(r, e + length(".prompt.md`"))
+      mid = " from the current project root and follow its instructions exactly"
+      if (substr(r, 1, length(mid)) != mid) exit 1
+      rest = substr(r, length(mid) + 1)
+      if (!index(rest, " Invoke this as `")) exit 1
+      if (index(rest, ".aai/")) exit 1
+      if (substr(b[k], length(b[k])) != ".") exit 1
+      want = "If `.aai/SKILL_" x ".prompt.md` does not exist, say: \"SKILL_" x " not found — are you in an AAI project? Expected: .aai/SKILL_" x ".prompt.md\""
+      if (b[k + 1] != want) exit 1
+      print x
+    }' <<< "$content")" || return 1
+  [[ -n "$prompt" ]] || return 1
+  [[ ! -e "$SRC_ROOT/.aai/SKILL_${prompt}.prompt.md" ]] || return 1
+  return 0
+}
+
+remove_retired_skill_wrappers() {
+  local tree="$1" dst_entry entry_name
+  [[ -d "$DST_ROOT/$tree" ]] || return 0
+  for dst_entry in "$DST_ROOT/$tree/"*; do
+    entry_name="${dst_entry##*/}"
+    # Allowlist first: no filesystem call touches a name outside aai-[a-z0-9-]+.
+    [[ "$entry_name" =~ ^aai-[a-z0-9-]+$ ]] || continue
+    [[ -e "$dst_entry" || -L "$dst_entry" ]] || continue
+    if [[ -e "$SRC_ROOT/$tree/$entry_name" || -L "$SRC_ROOT/$tree/$entry_name" ]]; then
+      continue
+    fi
+    if is_retired_skill_wrapper "$dst_entry" "$entry_name"; then
+      # A failed removal must neither abort the sync (set -e) nor be recorded as a deletion.
+      if rm -rf "$dst_entry" 2>/dev/null && [[ ! -e "$dst_entry" && ! -L "$dst_entry" ]]; then
+        DELETIONS+=("$tree/$entry_name")
+        echo "  CLEAN removed retired skill wrapper: $tree/$entry_name"
+      else
+        echo "  WARN could not remove retired skill wrapper (left in place): $tree/$entry_name"
+      fi
+    fi
+  done
+}
+
 # Claude Code skills (session helpers):
 # copy template skills file-by-file and preserve target-only local skills.
 if [[ -d "$SRC_ROOT/.claude/skills" ]]; then
@@ -395,6 +493,7 @@ if [[ -d "$SRC_ROOT/.claude/skills" ]]; then
     fi
     copy_replace "$src_entry" "$dst_entry"
   done
+  remove_retired_skill_wrappers ".claude/skills"
   echo "  PRESERVE target-only skills under: $DST_ROOT/.claude/skills"
 fi
 
@@ -539,6 +638,7 @@ if [[ -d "$SRC_ROOT/.agents/skills" ]]; then
     fi
     copy_replace "$src_entry" "$dst_entry"
   done
+  remove_retired_skill_wrappers ".agents/skills"
   echo "  PRESERVE target-only skills under: $DST_ROOT/.agents/skills"
 fi
 

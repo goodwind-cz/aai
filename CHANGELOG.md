@@ -22,6 +22,11 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(sync): remove retired template skill wrappers downstream
+
+- `aai-sync.sh` and `aai-sync.ps1` now remove a `.claude/skills/` or `.agents/skills/` entry that is a retired template wrapper (for example `aai-decapod`), which previously stayed in the skill menu and answered "SKILL_<NAME> not found".
+- Only an `aai-*` single-file shim whose prompt the source no longer ships is removed, compared byte-exactly in both engines; project skills, hand-edited wrappers and anything unusual are kept. Each removal prints `CLEAN removed retired skill wrapper: <path>`.
+
 ## [v2026.10.18] — fix(release): finish in one run, awaiting every required context and reporting policy holds as pending
 
 - `/aai-release --confirm` no longer merges before every required status check has reported: the engine reads the base branch's required contexts (classic protection and rulesets, read access only), waits bounded until each has passed, and degrades with a named `- Required contexts:` line when a source is unreadable.

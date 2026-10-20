@@ -10,6 +10,7 @@ delivered_by:
   - spec-doctor-honesty-batch
   - doctor-honesty-batch
   - aai-update-gitignore-drift-reconcile
+  - sync-prune-retired-skill-wrappers
 spec: docs/specs/SPEC-0124-spec-update-doctor-field-report.md
 updated: 2026-08-31
 ---
@@ -104,6 +105,35 @@ present is never duplicated), preserves every pre-existing user entry in the
 target `.gitignore` verbatim, and degrades to a named skip (never a hard
 failure) when the shared list or library file is missing.
 
+## Retired template skill wrappers are removed
+
+The sync copies `.claude/skills/` and `.agents/skills/` entry by entry and
+keeps every entry the target has on its own, so a project's own skills
+survive. Before this change that also kept a template skill that upstream
+had retired (for example `aai-decapod`): its `.aai/SKILL_<NAME>.prompt.md`
+was removed, but the wrapper stayed in the skill menu and answered
+`SKILL_<NAME> not found` when invoked.
+
+Both engines (`aai-sync.sh` and `aai-sync.ps1`) now remove such an entry,
+and only when every condition holds:
+
+- the name is absent from the source tree and matches `^aai-[a-z0-9-]+$`
+  (never `aai-project-*`);
+- the entry is a real directory (not a symlink) holding exactly one regular
+  file named `SKILL.md`, 1 to 65536 bytes, with no NUL byte;
+- that file has the template shim shape: frontmatter `name:` equal to the
+  directory name, optional `<SUBAGENT-STOP>` block, the single "Read the file
+  `.aai/SKILL_<X>.prompt.md` ..." line and the matching "not found" line,
+  compared byte-exactly (only CR bytes and trailing blank lines are ignored);
+- the referenced `.aai/SKILL_<X>.prompt.md` does not exist in the source layer.
+
+Each removal prints `CLEAN removed retired skill wrapper: <path>` and is
+listed with the other sync deletions in the advisory. Anything else —
+project skills, hand-edited wrappers, multi-file skill directories, entries
+whose prompt is still shipped, hidden or non-ASCII names — is kept exactly as
+before. A target synced with `--profile core` that receives wrappers for
+extended prompts is out of scope (tracked as a follow-up).
+
 ## Data model
 
 - `docs/ai/reports/doctor-<yyyymmdd>T<HHMMSS>Z-<machine>.md` — the field
@@ -173,4 +203,6 @@ failure) when the shared list or library file is missing.
 - Spec (gitignore reconciliation): docs/specs/SPEC-0157-spec-aai-update-gitignore-drift-reconcile.md
 - Validation evidence: docs/ai/reports/ (gitignored runtime directory —
   evidence lands per ride, not committed)
+- Request (retired wrappers): docs/issues/ISSUE-0104-sync-prune-retired-skill-wrappers.md
+- Spec (retired wrappers): docs/specs/SPEC-0237-spec-sync-prune-retired-skill-wrappers.md
 - Doctor engine: docs/product/aai-doctor.md
