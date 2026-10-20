@@ -3150,3 +3150,8 @@
 {"v":1,"ts":"2026-10-18T22:23:35Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-sync-prune-retired-skill-wrappers","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-10-19T12:29:01Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"sync-prune-retired-skill-wrappers","payload":{"status":"pass","hash":"d3dd8b404e6684c67ea8ef22e0f31cdd2ef7793308025cf76d599496f2faaba1"}}
 {"v":1,"ts":"2026-10-19T12:29:08Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"sync-prune-retired-skill-wrappers","payload":{"status":"pass","hash":"d3dd8b404e6684c67ea8ef22e0f31cdd2ef7793308025cf76d599496f2faaba1"}}
+{"v":1,"ts":"2026-10-19T12:43:34Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"sync-prune-retired-skill-wrappers","payload":{"status":"pass","hash":"1f71157e3c352a951ea7b62582f449772cf3eb02492fa4ac25b94f0a569345df"}}
+{"v":1,"ts":"2026-10-20T14:57:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"sync-prune-retired-skill-wrappers","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-20T14:57:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"sync-prune-retired-skill-wrappers","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-20T14:57:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-sync-prune-retired-skill-wrappers","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-20T14:57:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-sync-prune-retired-skill-wrappers","payload":{"validation":"pass","code_review":"pass"}}

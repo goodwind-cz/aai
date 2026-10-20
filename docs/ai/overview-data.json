@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-17T23:06:03.243Z",
+  "generatedAt": "2026-10-20T14:57:08.590Z",
   "project": "aai",
   "counts": {
-    "delivered": 306,
+    "delivered": 307,
     "in_progress": 16,
     "releases": 1,
     "tokens_total": 77863744
@@ -222,6 +222,19 @@
   ],
   "delivered": [
     {
+      "ref": "sync-prune-retired-skill-wrappers",
+      "title": "Sync leaves retired template skill wrappers behind in .claude/skills and .agents/skills",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0104-sync-prune-retired-skill-wrappers.md",
+      "closed_on": "2026-10-20",
+      "agent_minutes": 932,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0237-spec-sync-prune-retired-skill-wrappers.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "release-command-finish",
       "title": "Complete a release through one resumable owner-confirmed command",
       "type": "change",
@@ -271,7 +284,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0236-spec-release-one-shot-finish.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20261017T234610Z-r2-release-one-shot-finish.md"
     },
     {
       "ref": "git-platform-detected-at-bootstrap",
@@ -293,7 +306,7 @@
       "status": "done",
       "path": "docs/issues/ISSUE-0100-docs-index-broken-refs-scope.md",
       "closed_on": "2026-10-15",
-      "agent_minutes": null,
+      "agent_minutes": 118,
       "token_total": null,
       "spec": "docs/specs/SPEC-0231-spec-docs-index-broken-refs-scope.md",
       "validation": null,
@@ -4227,6 +4240,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "sync-prune-retired-skill-wrappers",
+          "title": "Sync leaves retired template skill wrappers behind in .claude/skills and .agents/skills",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0104-sync-prune-retired-skill-wrappers.md",
+          "closed_on": "2026-10-20",
+          "agent_minutes": 932,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0237-spec-sync-prune-retired-skill-wrappers.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "release-command-finish",
           "title": "Complete a release through one resumable owner-confirmed command",
           "type": "change",
@@ -4276,7 +4302,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0236-spec-release-one-shot-finish.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-20261017T234610Z-r2-release-one-shot-finish.md"
         },
         {
           "ref": "git-platform-detected-at-bootstrap",
@@ -4298,7 +4324,7 @@
           "status": "done",
           "path": "docs/issues/ISSUE-0100-docs-index-broken-refs-scope.md",
           "closed_on": "2026-10-15",
-          "agent_minutes": null,
+          "agent_minutes": 118,
           "token_total": null,
           "spec": "docs/specs/SPEC-0231-spec-docs-index-broken-refs-scope.md",
           "validation": null,

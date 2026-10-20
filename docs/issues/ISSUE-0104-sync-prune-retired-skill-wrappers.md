@@ -1,8 +1,8 @@
 ---
 id: sync-prune-retired-skill-wrappers
-number: null
+number: 104
 type: issue
-status: draft
+status: done
 user_visible: true
 capability: aai-update
 links:

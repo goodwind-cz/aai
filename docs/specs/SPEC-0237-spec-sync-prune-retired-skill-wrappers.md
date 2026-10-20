@@ -1,10 +1,10 @@
 ---
 id: spec-sync-prune-retired-skill-wrappers
 type: spec
-number: null
-status: implementing
+number: 237
+status: done
 mutation_gate: v1
-frozen_sha256: c054159230680c637a4d144cb72920e38affb59a6daf6821ec95272cad2ee1fc
+frozen_sha256: c99e518599342fcfea2477af1406f7514417a113c5943c752ec490929d93f648
 ceremony_level: 2
 capability: aai-update
 user_visible: true
@@ -20,7 +20,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-sync-prune-retired-skill-wrappers.md
+- Requirement: docs/issues/ISSUE-0104-sync-prune-retired-skill-wrappers.md
 - Engines changed: .aai/scripts/aai-sync.sh, .aai/scripts/aai-sync.ps1
 - Read, not changed: .aai/scripts/sync-harness-skills.mjs (carries `.claude/skills` bodies verbatim into `.agents/skills`), .aai/scripts/aai-doctor.mjs (CAT-03 orphaned-wrapper check), .aai/scripts/aai-bootstrap.sh (`render_skill`, target-only dynamic skills)
 - Retirement precedent: commit 070a6163 (CHANGE-0077 / PR #177) removed `aai-decapod` from both trees and `.aai/SKILL_DECAPOD.prompt.md`
@@ -37,7 +37,7 @@ SPEC-FROZEN: true
 - Base ref: main
 - Worktree branch/path: fix/sync-prune-retired-skill-wrappers at /private/tmp/aai-sync-prune-retired-skill-wrappers-worktree
 - Inline review scope: n/a (worktree)
-- Code review required: true; scope .aai/scripts/aai-sync.sh .aai/scripts/aai-sync.ps1 tests/skills/test-aai-sync-seed.sh docs/product/aai-update.md CHANGELOG.md docs/specs/SPEC-DRAFT-spec-sync-prune-retired-skill-wrappers.md docs/issues/ISSUE-DRAFT-sync-prune-retired-skill-wrappers.md
+- Code review required: true; scope .aai/scripts/aai-sync.sh .aai/scripts/aai-sync.ps1 tests/skills/test-aai-sync-seed.sh docs/product/aai-update.md CHANGELOG.md docs/specs/SPEC-0237-spec-sync-prune-retired-skill-wrappers.md docs/issues/ISSUE-0104-sync-prune-retired-skill-wrappers.md
 
 ## Constitution deviations
 
@@ -145,7 +145,7 @@ RED plan: TEST-820, 821, 822, 826, 827 and 829 must be observed failing on the p
 
 - Per row: `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-sync-seed.sh <test_82x_...>`.
 - Whole suite and the other sync consumers stay green: `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-sync-seed.sh`, `... tests/skills/test-aai-layer-profiles.sh`, `... tests/skills/test-aai-layer-drift.sh`, `... tests/skills/test-aai-update.sh`, `... tests/skills/test-aai-doctor.sh`, plus `node .aai/scripts/sync-harness-skills.mjs --check` exit 0 (no skill tree changed). Full sweep with `AAI_TEST_TIMEOUT=3000` once before close.
-- Mutation evidence: `node .aai/scripts/mutation-run.mjs --spec docs/specs/SPEC-DRAFT-spec-sync-prune-retired-skill-wrappers.md ...` per row, then `node .aai/scripts/mutation-gate.mjs --spec <spec>` exit 0.
+- Mutation evidence: `node .aai/scripts/mutation-run.mjs --spec docs/specs/SPEC-0237-spec-sync-prune-retired-skill-wrappers.md ...` per row, then `node .aai/scripts/mutation-gate.mjs --spec <spec>` exit 0.
 - PASS criteria: all TEST rows green with pwsh present (exit 0, not 42), all Spec-AC terminal, mutation gate clean.
 
 ## Evidence contract
