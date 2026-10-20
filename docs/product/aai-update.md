@@ -112,7 +112,7 @@ keeps every entry the target has on its own, so a project's own skills
 survive. Before this change that also kept a template skill that upstream
 had retired (for example `aai-decapod`): its `.aai/SKILL_<NAME>.prompt.md`
 was removed, but the wrapper stayed in the skill menu and answered
-"SKILL_<NAME> not found" when invoked.
+`SKILL_<NAME> not found` when invoked.
 
 Both engines (`aai-sync.sh` and `aai-sync.ps1`) now remove such an entry,
 and only when every condition holds:
