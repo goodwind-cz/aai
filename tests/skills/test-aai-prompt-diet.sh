@@ -1006,7 +1006,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 55944 -> 56836: git-platform-detected-at-bootstrap (SKILL_BOOTSTRAP +442 B,
   # SKILL_MERGE +450 B incl. the NB-1 exit outcomes and r2-NB-1 re-run wording), credited 1:1 (cap 900 B).
   # Then 56836 -> 57083: release-command-finish (+247 B SKILL_RELEASE, c9a04429 base).
-  local want_growth=57083
+  # Then 57083 -> 57344: intake-closing-questions-as-one-menu (+261 B SKILL_INTAKE/INTAKE_COMMON, cap 900 B).
+  local want_growth=57344
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1016,7 +1017,7 @@ test_012_growth_sum_matches_ledger() {
     ok=0
   fi
   [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == $want_growth == independent re-sum" \
-    || log_fail "TEST-012 (spec TEST-001) growth sum mismatch"
+    || log_fail "TEST-012 (spec TEST-001; intake-closing-questions-as-one-menu TEST-006) growth sum mismatch"
 }
 
 # TEST-013 (spec TEST-002, SPEC-0059 Spec-AC-01) — array has >=3 entries;

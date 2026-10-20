@@ -11,7 +11,7 @@ _None._
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-intake-closing-questions-as-one-menu | specs | implementing | 6 planned | docs/specs/SPEC-DRAFT-spec-intake-closing-questions-as-one-menu.md |
+| spec-intake-closing-questions-as-one-menu | specs | implementing | 6 done | docs/specs/SPEC-DRAFT-spec-intake-closing-questions-as-one-menu.md |
 
 ## Canonical layer (0)
 

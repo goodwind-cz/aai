@@ -65,13 +65,11 @@ path for the intake flow. The opt-in pre-commit hook
 safety net for any docs/ commit made outside intake. CI should gate with
 `node .aai/scripts/generate-docs-index.mjs --strict` (non-zero on violations).
 
-STEP 2.7 — IMPLEMENTATION MODE CHOICE (before the completion output —
-asking after "INTAKE COMPLETE" reads as done and gets skipped)
-Apply the "IMPLEMENTATION MODE CHOICE (end of intake, spec-implementation-mode-choice)"
-block from .aai/INTAKE_COMMON.md exactly: present the 3-way choice with a
-signal-derived recommendation and, only if the user chooses, record it via
-`state.mjs set-strategy --source intake --ref <this intake's ref_id>`. If the user does not choose, do nothing
-(Planning decides — back-compat).
+STEP 2.7 — CLOSING QUESTIONS (one menu, before the completion output)
+Apply the METRICS block and the IMPLEMENTATION MODE CHOICE block from
+.aai/INTAKE_COMMON.md exactly, together as ONE menu. Record the choice only if
+the user makes one, via `state.mjs set-strategy --source intake --ref <this intake's ref_id>`;
+otherwise do nothing (Planning decides).
 
 STEP 3 — CONFIRM ARTIFACT
 After the intake artifact is saved, output:
