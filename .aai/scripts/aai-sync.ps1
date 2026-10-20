@@ -440,9 +440,18 @@ function Remove-RetiredSkillWrappers([string]$Tree) {
     if (-not (Test-RetiredNameAllowed $entryName)) { continue }
     if (Test-AnyEntry ([System.IO.Path]::Combine($SrcRoot, $Tree, $entryName))) { continue }
     if (Test-RetiredSkillWrapper $entryPath $entryName) {
-      [System.IO.Directory]::Delete($entryPath, $true)
-      $script:deletions += "$Tree/$entryName"
-      Write-Host "  CLEAN removed retired skill wrapper: $Tree/$entryName"
+      # A failed removal must neither abort the sync nor be recorded as a deletion.
+      # SKILL.md was vetted as a regular, non-reparse file: clear ReadOnly so Delete(..., $true) cannot throw on it.
+      try {
+        $skillMd = [System.IO.Path]::Combine($entryPath, "SKILL.md")
+        [System.IO.File]::SetAttributes($skillMd, [System.IO.FileAttributes]::Normal)
+        [System.IO.Directory]::Delete($entryPath, $true)
+        if ([System.IO.Directory]::Exists($entryPath)) { throw "entry still present after delete" }
+        $script:deletions += "$Tree/$entryName"
+        Write-Host "  CLEAN removed retired skill wrapper: $Tree/$entryName"
+      } catch {
+        Write-Host "  WARN could not remove retired skill wrapper (left in place): $Tree/$entryName ($($_.Exception.Message))"
+      }
     }
   }
 }

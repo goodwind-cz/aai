@@ -386,26 +386,27 @@ fi
 is_retired_skill_wrapper() {
   local entry="$1" name="$2" content prompt only size
   # Byte-exact by construction: C collation/ctype so no locale changes a comparison.
-  # (A shell-local LC_ALL does not reach child processes; children get the prefix explicitly.)
+  # (A function-local LC_ALL is not exported to child processes: every child below -- find, tr, awk --
+  # gets an explicit LC_ALL=C prefix of its own.)
   local LC_ALL=C
   # NAME ALLOWLIST, checked before any filesystem call on the entry: ASCII aai-[a-z0-9-]+ only.
   # Wildcards, backslashes, uppercase, non-ASCII and hidden names are never candidates.
   [[ "$name" =~ ^aai-[a-z0-9-]+$ ]] || return 1
   case "$name" in aai-project-*) return 1 ;; esac
   [[ -d "$entry" && ! -L "$entry" ]] || return 1
-  [[ "$(LC_ALL=C find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')" == "1" ]] || return 1
+  [[ "$(LC_ALL=C find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ')" == "1" ]] || return 1
   # Compare the on-disk name byte-exactly: a bare -f "$entry/SKILL.md" also matches
   # a lowercase skill.md on a case-insensitive filesystem (macOS, Windows).
   only="$(LC_ALL=C find "$entry" -mindepth 1 -maxdepth 1 2>/dev/null)"
   [[ "${only##*/}" == "SKILL.md" && -f "$only" && ! -L "$only" ]] || return 1
   # SKILL.md must be a REGULAR file (-f is false for a FIFO or device, so nothing is opened),
   # non-empty and at most 64 KiB, and must hold no NUL byte (a command substitution would drop it).
-  size="$(wc -c < "$only" 2>/dev/null | tr -d ' ')" || return 1
+  size="$(LC_ALL=C wc -c < "$only" 2>/dev/null | LC_ALL=C tr -d ' ')" || return 1
   [[ "$size" =~ ^[0-9]+$ ]] && (( size >= 1 && size <= 65536 )) || return 1
-  [[ "$(LC_ALL=C tr -d '\000' < "$only" | wc -c | tr -d ' ')" == "$size" ]] || return 1
+  [[ "$(LC_ALL=C tr -d '\000' < "$only" | LC_ALL=C wc -c | LC_ALL=C tr -d ' ')" == "$size" ]] || return 1
   content="$(LC_ALL=C tr -d '\r' < "$only" 2>/dev/null)" || return 1
   # The entry name goes through the environment: awk -v interprets backslash escapes.
-  prompt="$(NAME="$name" awk '
+  prompt="$(NAME="$name" LC_ALL=C awk '
     BEGIN { NAME = ENVIRON["NAME"] }
     { l[++n] = $0 }
     END {
@@ -462,9 +463,13 @@ remove_retired_skill_wrappers() {
       continue
     fi
     if is_retired_skill_wrapper "$dst_entry" "$entry_name"; then
-      rm -rf "$dst_entry"
-      DELETIONS+=("$tree/$entry_name")
-      echo "  CLEAN removed retired skill wrapper: $tree/$entry_name"
+      # A failed removal must neither abort the sync (set -e) nor be recorded as a deletion.
+      if rm -rf "$dst_entry" 2>/dev/null && [[ ! -e "$dst_entry" && ! -L "$dst_entry" ]]; then
+        DELETIONS+=("$tree/$entry_name")
+        echo "  CLEAN removed retired skill wrapper: $tree/$entry_name"
+      else
+        echo "  WARN could not remove retired skill wrapper (left in place): $tree/$entry_name"
+      fi
     fi
   done
 }

@@ -1972,7 +1972,7 @@ _retired_sha256() {
 }
 
 # _retired_shim_text <name> <X> <variant> -- the decapod-shaped shim (variant:
-# plain | stop | arg | mixed | extra | crlf). crlf has CRLF endings and no final newline.
+# plain | stop | arg | mixed | extra | tworef | crlf). tworef appends a second SKILL_ reference; crlf has CRLF endings and no final newline.
 _retired_shim_text() {
   local name="$1" x="$2" variant="${3:-plain}" invoke y="$2" text
   invoke="/$name"
@@ -2413,6 +2413,68 @@ test_830_ps1_preservation_parity() {
   log_pass "TEST-830 ps1 preservation parity: every preserved entry intact, tree equals bash's"
 }
 
+test_831_predicate_awk_child_runs_under_c_locale() {
+  log_info "TEST-831: the retired-shim predicate's awk child receives LC_ALL=C even when the caller exports a UTF-8 locale..."
+  local dst="$TMP_ROOT/retired-831" shimdir="$TMP_ROOT/retired-831-bin" real log out
+  real="$(command -v awk)"; log="$TMP_ROOT/retired-831.awk.log"
+  mkdir -p "$shimdir"; : > "$log"
+  # Logging pass-through (not a behaviour stub): records LC_ALL for the predicate's awk, then execs the real awk.
+  cat > "$shimdir/awk" <<SHIM
+#!/bin/sh
+case "\$*" in *'l[++n] = \$0'*) printf '%s\n' "\${LC_ALL-unset}" >> "$log" ;; esac
+exec "$real" "\$@"
+SHIM
+  chmod +x "$shimdir/awk"
+  _retired_two_step_target "$dst"
+  _sync_fixture_canon
+  out="$(env -u LC_ALL LANG=en_US.UTF-8 PATH="$shimdir:$PATH" bash "$SYNC_FIXTURE_CANON/.aai/scripts/aai-sync.sh" "$dst" 2>&1)" || log_fail "TEST-831: sync failed: $out"
+  [[ -s "$log" ]] || log_fail "TEST-831: the predicate's awk was never observed (shim not reached): $out"
+  ! grep -qvx 'C' "$log" || log_fail "TEST-831: predicate awk ran without LC_ALL=C: $(sort "$log" | uniq -c)"
+  log_pass "TEST-831 predicate awk child runs under LC_ALL=C (host-locale misbehaviour itself not reproducible here)"
+}
+
+# Make deletion of an otherwise-vetted retired shim fail: a read-only entry dir blocks unlinking SKILL.md.
+_retired_delete_failure_check() { # <id> <engine>
+  local id="$1" engine="$2" dst="$TMP_ROOT/retired-$1-$2" out rc=0 report
+  [[ "$(id -u)" != "0" ]] || { log_info "$id note: running as root - delete-failure arm SKIPPED"; return 0; }
+  _retired_two_step_target "$dst"
+  _retired_install "$dst" aai-wontdie WONTDIE plain
+  chmod a-w "$dst/.claude/skills/aai-wontdie"
+  _sync_fixture_canon
+  out="$(_hooks_run_engine "$engine" "$SYNC_FIXTURE_CANON" "$dst" 2>&1)" || rc=$?
+  chmod u+w "$dst/.claude/skills/aai-wontdie"
+  [[ "$rc" -eq 0 ]] || log_fail "$id: $engine sync aborted (rc=$rc) on an undeletable retired shim: $out"
+  grep -qF -- 'WARN' <<< "$out" && grep -qF -- 'aai-wontdie' <<< "$(grep -F WARN <<< "$out")" \
+    || log_fail "$id: $engine printed no WARN naming aai-wontdie: $out"
+  [[ "$(_retired_count_line "$out" "${RETIRED_CLEAN_PREFIX}.claude/skills/aai-wontdie")" == "0" ]] \
+    || log_fail "$id: $engine claimed removal of the undeletable entry: $out"
+  [[ -f "$dst/.claude/skills/aai-wontdie/SKILL.md" ]] || log_fail "$id: undeletable entry vanished"
+  [[ ! -e "$dst/.claude/skills/aai-retired" && ! -e "$dst/.agents/skills/aai-retired" ]] \
+    || log_fail "$id: $engine did not continue pruning other retired shims after the failure"
+  [[ ! -e "$dst/.agents/skills/aai-wontdie" ]] || log_fail "$id: $engine did not continue into .agents/skills"
+  report="$(sed -n 's/^  Advisory report: //p' <<< "$out" | tail -n1)"
+  if [[ -n "$report" && -f "$report" ]]; then
+    ! grep -qxF -- '- Path: .claude/skills/aai-wontdie' "$report" || log_fail "$id: $engine listed the undeletable entry as deleted"
+  fi
+}
+
+test_832_bash_delete_failure_warns_and_continues() {
+  log_info "TEST-832: bash sync WARNs, records nothing, and continues when a retired shim cannot be deleted..."
+  _retired_delete_failure_check "TEST-832" sh
+  log_pass "TEST-832 bash: undeletable retired shim -> WARN, not recorded, sync continues, rc 0"
+}
+
+test_833_ps1_delete_failure_warns_and_continues() {
+  log_info "TEST-833: aai-sync.ps1 WARNs, records nothing, and continues when a retired shim cannot be deleted..."
+  if ! command -v pwsh >/dev/null 2>&1; then
+    PWSH_ARM_SKIPPED=1
+    log_info "TEST-833 note: pwsh absent - ps1 delete-failure arm SKIPPED"
+    return 0
+  fi
+  _retired_delete_failure_check "TEST-833" ps1
+  log_pass "TEST-833 ps1: undeletable retired shim -> WARN, not recorded, sync continues, rc 0 (Windows ReadOnly attribute itself unverified)"
+}
+
 main() {
   echo "=== Test Suite: $TEST_NAME ==="
   check_deps
@@ -2490,6 +2552,9 @@ main() {
   test_828_quiet_resync_prints_no_retired_clean
   test_829_ps1_retired_removal_parity
   test_830_ps1_preservation_parity
+  test_831_predicate_awk_child_runs_under_c_locale
+  test_832_bash_delete_failure_warns_and_continues
+  test_833_ps1_delete_failure_warns_and_continues
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 ]]; then
     log_skip "pwsh absent — one or more PowerShell assertions were not exercised (all bash-only assertions above passed)"
   fi
