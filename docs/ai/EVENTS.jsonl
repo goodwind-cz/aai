@@ -3155,3 +3155,4 @@
 {"v":1,"ts":"2026-10-20T14:57:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"sync-prune-retired-skill-wrappers","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-20T14:57:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-sync-prune-retired-skill-wrappers","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-20T14:57:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-sync-prune-retired-skill-wrappers","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-20T15:59:53Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"sync-prune-retired-skill-wrappers","payload":{"pr":482,"lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"swept","head_sha":"3c3e126074f7b885c6eda5fbc0b47dc1185d917a"}}
