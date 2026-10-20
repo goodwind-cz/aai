@@ -69,18 +69,24 @@ and re-run until both pass. Do not report the artifact as saved while a check
 fails. If the script does not exist (older AAI layer), note that and continue.
 
 ## METRICS (after saving the document)
-Ask the user (in their language):
-"How many minutes did you spend on this intake? (Enter a number or press Enter to skip)"
-If the user provides a number N, append or update in docs/ai/STATE.yaml:
+Ask only in the closing menu, in ONE menu together with the IMPLEMENTATION MODE CHOICE,
+after the save and before the completion output. Use the harness
+structured-question facility (Claude Code AskUserQuestion, Codex
+request_user_input, the Gemini equivalent), else a numbered text menu.
+An autopilot caller (/aai-ship) skips the whole menu and records its own defaults.
+Option cap (both questions): the facility's own free-text Other is not yours to list; if it caps options per question (Codex 3), keep the default first, fit the cap, and name each dropped choice in the question text so Other carries it.
+Question (in their language): minutes spent on this intake? Options:
+Skip (default) / 15 / 30 / Other (a number).
+If the user picks a number N, append or update in docs/ai/STATE.yaml:
   metrics:
     work_items:
       <ref_id>:
         human_time_minutes:
           intake: N
-If the user skips or ref_id is not yet known, leave intake: null.
+If the user skips (or replies empty) or ref_id is not yet known, leave intake: null.
 
 ## IMPLEMENTATION MODE CHOICE (end of intake, spec-implementation-mode-choice)
-After the artifact is saved (the LAST step of intake), PRESENT the user a 4-way
+After the artifact is saved (the LAST step of intake), in the same menu as the METRICS question, PRESENT the user a 4-way
 implementation-mode choice WITH a recommendation, in their language:
 1. Let Planning decide — the DEFAULT, listed FIRST; record nothing. ALWAYS an
    explicit numbered option (never rely on detecting silence/enter); an empty

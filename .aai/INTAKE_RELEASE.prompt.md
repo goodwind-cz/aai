@@ -33,7 +33,7 @@ PROCESS
 10) If enough information is available, stop questions early.
 11) Output summary + completed Release Plan markdown + the DRAFT filename.
 
-SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its five blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question) exactly.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its six blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question, implementation mode choice) exactly.
 
 BEGIN with (in the user's language):
 "Is this a standard release or a hotfix, and what target version (e.g. 1.8.0)?"

@@ -202,6 +202,82 @@ test_009_intake_bind_ref_before_focus() {
     || log_fail "SPEC-0192 TEST-009 intake bind documentation"
 }
 
+# Block-body helper: lines of INTAKE_COMMON from "## <heading prefix>" up to the next "## ".
+common_block() {
+  awk -v h="$1" 'index($0, "## " h) == 1 { on = 1; next } on && /^## / { on = 0 } on { print }' "$INTAKE_COMMON"
+}
+
+# TEST-010 (spec intake-closing-questions-as-one-menu TEST-001) — one closing step, before the completion output.
+test_010_closing_step_single_menu() {
+  local ok=1 n step_ln done_ln body
+  n=$(grep -c '^STEP 2.7 — CLOSING QUESTIONS' "$SKILL_INTAKE" || true)
+  [[ "$n" == "1" ]] || { log_info "TEST-010: STEP 2.7 — CLOSING QUESTIONS lines=$n (want 1)"; ok=0; }
+  step_ln=$(grep -n '^STEP 2.7 — CLOSING QUESTIONS' "$SKILL_INTAKE" | qhead -1 | cut -d: -f1)
+  done_ln=$(grep -n 'INTAKE COMPLETE' "$SKILL_INTAKE" | qhead -1 | cut -d: -f1)
+  { [[ -n "$step_ln" && -n "$done_ln" && "$step_ln" -lt "$done_ln" ]]; } \
+    || { log_info "TEST-010: closing step must precede INTAKE COMPLETE"; ok=0; }
+  body=$(awk '/^STEP 2.7 — CLOSING QUESTIONS/ { on = 1 } on && /^STEP 3/ { on = 0 } on { print }' "$SKILL_INTAKE")
+  local t
+  for t in "METRICS" "IMPLEMENTATION MODE CHOICE" "ONE menu"; do
+    case "$body" in *"$t"*) ;; *) log_info "TEST-010: step body missing '$t'"; ok=0 ;; esac
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-010 single closing-questions step before INTAKE COMPLETE" \
+    || log_fail "TEST-010 (spec TEST-001) closing step single menu"
+}
+
+# TEST-011 (spec TEST-002) — structured-question facility named only in INTAKE_COMMON.
+test_011_structured_menu_harness_neutral() {
+  local ok=1 t
+  for t in "AskUserQuestion" "request_user_input" "Gemini" "numbered text menu"; do
+    grep -qF "$t" "$INTAKE_COMMON" || { log_info "TEST-011: INTAKE_COMMON missing '$t'"; ok=0; }
+  done
+  for t in "AskUserQuestion" "request_user_input"; do
+    if grep -qF "$t" "$SKILL_INTAKE"; then log_info "TEST-011: SKILL_INTAKE must not name '$t'"; ok=0; fi
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-011 structured menu harness-neutral, single-sourced" \
+    || log_fail "TEST-011 (spec TEST-002) structured menu harness neutral"
+}
+
+# TEST-012 (spec TEST-003) — minutes question is a menu, recording unchanged.
+test_012_minutes_question_is_a_menu() {
+  local ok=1 body t
+  body=$(common_block "METRICS")
+  for t in "Skip (default) / 15 / 30 / Other (a number)" "Option cap (both questions)" "name each dropped choice" "intake: N" "leave intake: null"; do
+    case "$body" in *"$t"*) ;; *) log_info "TEST-012: METRICS body missing '$t'"; ok=0 ;; esac
+  done
+  case "$body" in *"Enter a number or press Enter to skip"*) log_info "TEST-012: free-text prompt still present"; ok=0 ;; esac
+  [[ $ok -eq 1 ]] && log_pass "TEST-012 minutes question is a menu with unchanged recording" \
+    || log_fail "TEST-012 (spec TEST-003) minutes question is a menu"
+}
+
+# TEST-013 (spec TEST-004) — both questions in ONE menu from every entry point.
+test_013_one_menu_from_every_entry() {
+  local ok=1 metrics mode t f
+  metrics=$(common_block "METRICS")
+  mode=$(common_block "IMPLEMENTATION MODE CHOICE")
+  for t in "in ONE menu together with the IMPLEMENTATION MODE CHOICE" "before the completion output"; do
+    case "$metrics" in *"$t"*) ;; *) log_info "TEST-013: METRICS body missing '$t'"; ok=0 ;; esac
+  done
+  case "$mode" in *"same menu as the METRICS question"*) ;; *) log_info "TEST-013: mode block missing 'same menu as the METRICS question'"; ok=0 ;; esac
+  for f in .aai/INTAKE_*.prompt.md; do
+    grep -qF "metrics question" "$f" || { log_info "TEST-013: $f lost 'metrics question'"; ok=0; }
+    grep -qF "implementation mode choice" "$f" || { log_info "TEST-013: $f SHARED POLICY omits 'implementation mode choice'"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-013 one menu reachable from every intake entry" \
+    || log_fail "TEST-013 (spec TEST-004) one menu from every entry"
+}
+
+# TEST-014 (spec TEST-005) — autopilot keeps skipping the menu.
+test_014_autopilot_skips_menu() {
+  local ok=1 trimmed
+  trimmed=$(sed 's/^[[:space:]]*//' .aai/SKILL_SHIP.prompt.md)
+  grep -qxF "1. Intake metrics question: do not ask; record human_time_minutes null." <<<"$trimmed" \
+    || { log_info "TEST-014: SKILL_SHIP autopilot default 1 changed"; ok=0; }
+  grep -qF "skips the whole menu" "$INTAKE_COMMON" || { log_info "TEST-014: INTAKE_COMMON missing 'skips the whole menu'"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-014 autopilot skips the whole menu" \
+    || log_fail "TEST-014 (spec TEST-005) autopilot skips menu"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -215,6 +291,11 @@ main() {
   test_007_enum_seam
   test_008_stale_strategy_binding_prompts
   test_009_intake_bind_ref_before_focus
+  test_010_closing_step_single_menu
+  test_011_structured_menu_harness_neutral
+  test_012_minutes_question_is_a_menu
+  test_013_one_menu_from_every_entry
+  test_014_autopilot_skips_menu
   echo ""
   if [[ $FAILED -eq 0 ]]; then
     echo "All tests passed!"

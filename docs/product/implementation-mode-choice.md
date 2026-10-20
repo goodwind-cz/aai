@@ -5,6 +5,7 @@ capability: implementation-mode-choice
 status: current
 delivered_by:
   - CHANGE-0100
+  - intake-closing-questions-as-one-menu
 spec: docs/specs/SPEC-0109-spec-implementation-mode-choice.md
 updated: 2026-07-31
 ---
@@ -31,7 +32,15 @@ planner decides exactly as before.
 
 ## How to use it
 
-- Answer the intake's closing question ("Jak implementovat?") — or just say it
+- Intake ends with ONE closing menu, shown before it reports the intake as
+  complete: how many minutes you spent (Skip / 15 / 30 / another number)
+  and how to implement (the options above, recommendation first). The agent
+  uses its harness's question tool when there is one (Claude Code
+  AskUserQuestion, Codex request_user_input, the Gemini equivalent) and a
+  numbered text menu otherwise (within the tool's option cap: default first, any dropped choice named in the question and answered through its own Other); an empty answer keeps the defaults (minutes
+  not recorded, Planning decides). `/aai-ship` skips the menu and records its
+  autopilot defaults.
+- Answer the menu's implementation question ("Jak implementovat?") — or just say it
   up front in the intake text ("bez TDD, jen cílené testy"). Your words are
   recorded as the rationale.
 - Change your mind later: Planning respects a recorded intake choice and will
@@ -69,3 +78,5 @@ planner decides exactly as before.
 
 - Request: docs/issues/CHANGE-0100-implementation-mode-choice.md
 - Spec: docs/specs/SPEC-0109-spec-implementation-mode-choice.md
+- Request (closing menu): docs/issues/ISSUE-0105-intake-closing-questions-as-one-menu.md (GitHub #480)
+- Spec (closing menu): docs/specs/SPEC-0238-spec-intake-closing-questions-as-one-menu.md

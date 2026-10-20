@@ -24,7 +24,7 @@ PROCESS
 7) If enough information is available, stop questions early.
 8) Output summary + completed PRD markdown + the DRAFT filename.
 
-SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its five blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question) exactly.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its six blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question, implementation mode choice) exactly.
 
 BEGIN with (in the user's language):
 "What is the product intent (what and why) for this PRD?"
