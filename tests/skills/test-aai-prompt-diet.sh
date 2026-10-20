@@ -1007,7 +1007,8 @@ test_012_growth_sum_matches_ledger() {
   # SKILL_MERGE +450 B incl. the NB-1 exit outcomes and r2-NB-1 re-run wording), credited 1:1 (cap 900 B).
   # Then 56836 -> 57083: release-command-finish (+247 B SKILL_RELEASE, c9a04429 base).
   # Then 57083 -> 57344: intake-closing-questions-as-one-menu (+261 B SKILL_INTAKE/INTAKE_COMMON, cap 900 B).
-  local want_growth=57344
+  # Then 57344 -> 57793: intake-closing-questions-as-one-menu-round1 (+449 B option cap + six-block per-type pointers, Codex PR #483).
+  local want_growth=57793
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

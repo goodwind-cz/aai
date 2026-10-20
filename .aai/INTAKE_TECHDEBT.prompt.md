@@ -22,7 +22,7 @@ PROCESS
 6) If enough information is available, stop questions early.
 7) Output summary + completed Tech Debt markdown + the DRAFT filename.
 
-SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its five blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question) exactly.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its six blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question, implementation mode choice) exactly.
 
 BEGIN with (in the user's language):
 "What tech debt should be addressed and why?"

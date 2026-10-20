@@ -74,8 +74,9 @@ after the save and before the completion output. Use the harness
 structured-question facility (Claude Code AskUserQuestion, Codex
 request_user_input, the Gemini equivalent), else a numbered text menu.
 An autopilot caller (/aai-ship) skips the whole menu and records its own defaults.
+Option cap (both questions): the facility's own free-text Other is not yours to list; if it caps options per question (Codex 3), keep the default first, fit the cap, and name each dropped choice in the question text so Other carries it.
 Question (in their language): minutes spent on this intake? Options:
-Skip (default) / 5 / 15 / 30 / Other (a number).
+Skip (default) / 15 / 30 / Other (a number).
 If the user picks a number N, append or update in docs/ai/STATE.yaml:
   metrics:
     work_items:

@@ -22,7 +22,7 @@ PROCESS
 6) If enough information is available, stop questions early.
 7) Output summary + completed Change markdown + the DRAFT filename.
 
-SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its five blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question) exactly, plus the SECRETS PREFLIGHT block when the scope references a local secret.
+SHARED POLICY — Read .aai/INTAKE_COMMON.md and apply its six blocks (staleness preflight, language policy, durable doc identity, post-save check, metrics question, implementation mode choice) exactly, plus the SECRETS PREFLIGHT block when the scope references a local secret.
 
 BEGIN with (in the user's language):
 "What small change do you want and why?"

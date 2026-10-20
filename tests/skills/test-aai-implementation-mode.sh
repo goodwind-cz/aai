@@ -242,7 +242,7 @@ test_011_structured_menu_harness_neutral() {
 test_012_minutes_question_is_a_menu() {
   local ok=1 body t
   body=$(common_block "METRICS")
-  for t in "Skip (default) / 5 / 15 / 30 / Other (a number)" "intake: N" "leave intake: null"; do
+  for t in "Skip (default) / 15 / 30 / Other (a number)" "Option cap (both questions)" "name each dropped choice" "intake: N" "leave intake: null"; do
     case "$body" in *"$t"*) ;; *) log_info "TEST-012: METRICS body missing '$t'"; ok=0 ;; esac
   done
   case "$body" in *"Enter a number or press Enter to skip"*) log_info "TEST-012: free-text prompt still present"; ok=0 ;; esac
@@ -261,6 +261,7 @@ test_013_one_menu_from_every_entry() {
   case "$mode" in *"same menu as the METRICS question"*) ;; *) log_info "TEST-013: mode block missing 'same menu as the METRICS question'"; ok=0 ;; esac
   for f in .aai/INTAKE_*.prompt.md; do
     grep -qF "metrics question" "$f" || { log_info "TEST-013: $f lost 'metrics question'"; ok=0; }
+    grep -qF "implementation mode choice" "$f" || { log_info "TEST-013: $f SHARED POLICY omits 'implementation mode choice'"; ok=0; }
   done
   [[ $ok -eq 1 ]] && log_pass "TEST-013 one menu reachable from every intake entry" \
     || log_fail "TEST-013 (spec TEST-004) one menu from every entry"
