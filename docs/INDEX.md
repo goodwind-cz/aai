@@ -646,7 +646,7 @@ _None._
 
 _None._
 
-## Broken references (479)
+## Broken references (481)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -690,9 +690,11 @@ _None._
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0524-t524.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0525-t525.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0527-t527.md | NOT FOUND |
+| tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0528-t528typed.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0594-t594.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0595-t595.md | NOT FOUND |
 | tests/skills/test-aai-close-reconcile.sh | docs/issues/ISSUE-0810-t810a.md | NOT FOUND |
+| tests/skills/test-aai-close-reconcile.sh | docs/product/t528-cap.md | NOT FOUND |
 | tests/skills/test-aai-close-work-item.sh | docs/ai/reports/VALIDATION-x.md | NOT FOUND |
 | tests/skills/test-aai-close-work-item.sh | docs/ai/reports/exists-1731.md | NOT FOUND |
 | tests/skills/test-aai-close-work-item.sh | docs/ai/reports/link-1731.md | NOT FOUND |

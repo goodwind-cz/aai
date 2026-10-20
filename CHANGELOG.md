@@ -26,6 +26,11 @@ fine — it is the marker a cut leaves on top.
 
 - Interactive intake now ends with ONE closing menu, before it reports completion, asking both how many minutes the intake took and how to implement it (GitHub #480). Agents use the harness's question tool (AskUserQuestion, request_user_input, Gemini equivalent) or a numbered text menu; an empty answer keeps the defaults. `/aai-ship` still skips it.
 
+## [unreleased] — fix(gates): main red after #482 — Cursor model id pricing and product-doc close check
+
+- `PRICING.yaml` gains a null-priced `cursor-grok-4.6` key (per its own on_unknown_model rule) now that a run of that Cursor model is in METRICS history; the pricing test allows an omitted family a key only once it is in history, and only null-priced.
+- `close-reconcile.mjs` no longer treats an updated `docs/product/` capability doc as an unclosed work item (close-work-item never closes product docs, so the check could not be satisfied).
+
 ## [unreleased] — fix(sync): remove retired template skill wrappers downstream
 
 - `aai-sync.sh` and `aai-sync.ps1` now remove a `.claude/skills/` or `.agents/skills/` entry that is a retired template wrapper (for example `aai-decapod`), which previously stayed in the skill menu and answered "SKILL_<NAME> not found".

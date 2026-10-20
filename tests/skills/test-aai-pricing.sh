@@ -189,8 +189,14 @@ for (const id of catalog) {
   if (!e.last_verified) fail('010', `catalog family "${id}" missing last_verified_utc`);
 }
 for (const id of omitted) {
+  // An omitted family stays key-less until a run of it lands in METRICS.jsonl
+  // history; from then on PRICING's own on_unknown_model / prune_rule require a
+  // NULL-priced key so Assert 1 resolves it. A priced key is never allowed.
+  const inHistory = [...historyIds].some((h) => h.startsWith(id));
   if (Object.prototype.hasOwnProperty.call(models, id)) {
-    fail('011', `omitted catalog family "${id}" must not have a models key`);
+    const e = models[id];
+    if (!inHistory) fail('011', `omitted catalog family "${id}" must not have a models key`);
+    else if (e.input !== null || e.output !== null) fail('011', `omitted catalog family "${id}" recorded in history must be null-priced`);
   }
   const noteLine = pricingText.split('\n').find((l) => l.includes(id) && /https?:\/\//.test(l));
   if (!noteLine) {
