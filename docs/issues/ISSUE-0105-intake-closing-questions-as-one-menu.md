@@ -1,10 +1,10 @@
 ---
 id: intake-closing-questions-as-one-menu
-number: null
+number: 105
 type: issue
-status: draft
+status: done
 user_visible: true
-capability: intake-closing-questions-as-one-menu
+capability: implementation-mode-choice
 links:
   pr: []
   commits: []

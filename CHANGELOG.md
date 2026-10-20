@@ -22,6 +22,10 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(intake): ask the closing questions as one menu
+
+- Interactive intake now ends with ONE closing menu, before it reports completion, asking both how many minutes the intake took and how to implement it (GitHub #480). Agents use the harness's question tool (AskUserQuestion, request_user_input, Gemini equivalent) or a numbered text menu; an empty answer keeps the defaults. `/aai-ship` still skips it.
+
 ## [unreleased] — fix(sync): remove retired template skill wrappers downstream
 
 - `aai-sync.sh` and `aai-sync.ps1` now remove a `.claude/skills/` or `.agents/skills/` entry that is a retired template wrapper (for example `aai-decapod`), which previously stayed in the skill menu and answered "SKILL_<NAME> not found".

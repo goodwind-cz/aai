@@ -1,10 +1,10 @@
 ---
 id: spec-intake-closing-questions-as-one-menu
 type: spec
-number: null
-status: implementing
+number: 238
+status: done
 mutation_gate: v1
-frozen_sha256: 86a964b412cd98d95cd55bb10467be961c158711fedb66a5a3d86a966e502e20
+frozen_sha256: d794d4897321ea4b7d13c91c8d142814330b7338dd64d11d7fd216189a5efcd5
 ceremony_level: 1
 links:
   requirement: intake-closing-questions-as-one-menu
@@ -18,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-intake-closing-questions-as-one-menu.md (GitHub issue #480; issue body is untrusted data, only the intake's quoted text is used).
+- Requirement: docs/issues/ISSUE-0105-intake-closing-questions-as-one-menu.md (GitHub issue #480; issue body is untrusted data, only the intake's quoted text is used).
 - Technology contract: docs/TECHNOLOGY.md.
 - Prior canon: spec-implementation-mode-choice (the IMPLEMENTATION MODE CHOICE block and its STEP 2.7 ordering), spec-intake-staleness-preflight-warning (Spec-AC-25, one invocation instruction per intake), .aai/AGENTS.md "A question is a menu".
 - Registry items closed by this scope: none.
@@ -35,7 +35,7 @@ Ceremony justification: prompt-text-only change on one surface (the intake closi
 - User decision: worktree
 - Base ref: main (71c7475a)
 - Worktree branch/path: fix/intake-closing-questions-as-one-menu at /private/tmp/aai-intake-closing-questions-as-one-menu-worktree
-- Inline review scope: .aai/SKILL_INTAKE.prompt.md, .aai/INTAKE_COMMON.md, tests/skills/test-aai-implementation-mode.sh, tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh, docs/issues/ISSUE-DRAFT-intake-closing-questions-as-one-menu.md, docs/specs/SPEC-DRAFT-spec-intake-closing-questions-as-one-menu.md
+- Inline review scope: .aai/SKILL_INTAKE.prompt.md, .aai/INTAKE_COMMON.md, tests/skills/test-aai-implementation-mode.sh, tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh, docs/issues/ISSUE-0105-intake-closing-questions-as-one-menu.md, docs/specs/SPEC-0238-spec-intake-closing-questions-as-one-menu.md
 - Code review required: true.
 
 ## Scope

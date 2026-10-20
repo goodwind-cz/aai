@@ -6,12 +6,11 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (1)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
-| spec-intake-closing-questions-as-one-menu | specs | implementing | 6 done | docs/specs/SPEC-DRAFT-spec-intake-closing-questions-as-one-menu.md |
 
 ## Canonical layer (0)
 
@@ -36,7 +35,7 @@ _None._
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
 | friction-capture-default-on | friction-capture-default-on | 1 | docs/product/friction-capture-default-on.md |
-| implementation-mode-choice | implementation-mode-choice | 1 | docs/product/implementation-mode-choice.md |
+| implementation-mode-choice | implementation-mode-choice | 2 | docs/product/implementation-mode-choice.md |
 | intake-staleness-preflight-warning | intake-staleness-preflight-warning | 1 | docs/product/intake-staleness-preflight-warning.md |
 | issues-skill | issues-skill | 1 | docs/product/issues-skill.md |
 | learned-append-gate | learned-append-gate | 1 | docs/product/learned-append-gate.md |
@@ -57,7 +56,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (549)
+## Done (551)
 
 | ID | Type | Path |
 |---|---|---|
@@ -353,6 +352,7 @@ _None._
 | ISSUE-0102 | issues | docs/issues/ISSUE-0102-release-changelog-eol.md |
 | ISSUE-0103 | issues | docs/issues/ISSUE-0103-release-one-shot-finish.md |
 | ISSUE-0104 | issues | docs/issues/ISSUE-0104-sync-prune-retired-skill-wrappers.md |
+| ISSUE-0105 | issues | docs/issues/ISSUE-0105-intake-closing-questions-as-one-menu.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -608,10 +608,11 @@ _None._
 | SPEC-0235 | specs | docs/specs/SPEC-0235-spec-release-changelog-eol.md |
 | SPEC-0236 | specs | docs/specs/SPEC-0236-spec-release-one-shot-finish.md |
 | SPEC-0237 | specs | docs/specs/SPEC-0237-spec-sync-prune-retired-skill-wrappers.md |
+| SPEC-0238 | specs | docs/specs/SPEC-0238-spec-intake-closing-questions-as-one-menu.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -629,7 +630,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| intake-closing-questions-as-one-menu (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-intake-closing-questions-as-one-menu.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
