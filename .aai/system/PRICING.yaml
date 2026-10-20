@@ -232,6 +232,17 @@ models:
     last_verified_utc: "2026-09-29T23:25:19Z"
     notes: "Gemini 3.8 Flash Standard paid tier through 2026-12-31 ($0.75/$3.75); $1.50/$7.50 from 2027-01-01 per source page."
 
+  # Cursor runtime id recorded in METRICS.jsonl (docs-index-broken-refs-scope,
+  # 2026-10-20): no public USD/1M list price (see the CHANGE-0197 note above),
+  # so it is null-priced per on_unknown_model; longest-prefix resolves the
+  # recorded cursor-grok-4.6-high to this key instead of `unknown`.
+  cursor-grok-4.6:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: xai-pricing
+    last_verified_utc: "2026-10-21T00:00:00Z"
+    notes: "Cursor/Grok Build runtime id; no API list price published."
+
   grok-4.7:
     input_usd_per_m: 2.00
     output_usd_per_m: 6.00

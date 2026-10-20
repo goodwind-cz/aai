@@ -436,6 +436,10 @@ function computeItems(root, a, b, platform, grammars) {
     }
     const fm = parseFrontmatter(content);
     if (isUmbrellaDoc(fm)) continue; // BLOCKING-2 — exempt, full stop, either role
+    // A docs/product capability doc is not a work item: rides update it in
+    // place and close-work-item.mjs never closes it (it filters type product),
+    // so the terminal/frozen arms below can never be satisfied for it.
+    if (String(fm?.type ?? '').toLowerCase() === 'product' || rel.startsWith('docs/product/')) continue;
     const status = String(fm?.status ?? '').toLowerCase();
     const linksCommits = Array.isArray(fm?.links?.commits) ? fm.links.commits : [];
     touched.push({

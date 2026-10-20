@@ -748,6 +748,43 @@ test_015_unreadable_doc_never_reads_clean() {
   log_pass "TEST-015: an unreadable touched document fails the gate closed (named path, non-zero exit) in both --check and --apply, instead of vanishing into a false CLEAN"
 }
 
+# --- TEST-528 (product docs are capability docs, not work items) -------------
+test_528_product_doc_not_a_work_item() {
+  log_info "TEST-528: a touched docs/product capability doc (status current, no links, no close event) is not itemed..."
+  local dir base head out rc
+  dir=$(init_range_repo "t528")
+  mkdir -p "$dir/docs/product"
+  cat > "$dir/docs/product/t528-cap.md" <<'DOC'
+---
+id: t528-cap
+type: product
+capability: t528-cap
+status: current
+delivered_by:
+  - t528-first
+updated: 2026-10-21
+---
+
+# Fixture capability t528
+
+## What it does
+- fixture product doc for close-reconcile tests.
+DOC
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "seed product doc (#5280)"
+  base=$(git -C "$dir" rev-parse HEAD)
+  printf '%s\n' '- second ride adds a paragraph.' >> "$dir/docs/product/t528-cap.md"
+  git -C "$dir" add -A
+  git -C "$dir" commit -q -m "update product doc from another ride (#528)"
+  head=$(git -C "$dir" rev-parse HEAD)
+
+  out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-528: a product doc update must not fail the close gate, got rc=$rc. Output:\n$out"
+  assert_payload_contains "$out" "close-reconcile: CLEAN" "TEST-528: expected CLEAN for a product-doc-only range"
+  assert_payload_not_contains "$out" "docs/product/t528-cap.md" "TEST-528: the product doc must not be itemed"
+  log_pass "TEST-528: an updated docs/product capability doc is not treated as an unclosed work item"
+}
+
 # --- TEST-524 (Spec-AC-04(a)) ------------------------------------------------
 test_524_terminal_without_telemetry() {
   log_info "TEST-524 (Spec-AC-04): a doc terminal at the delivery sha with empty links.commits and no work_item_closed event is itemed by --check..."
@@ -1333,6 +1370,7 @@ main() {
   test_014_attribution_is_resolved_per_item_not_per_range
   test_015_unreadable_doc_never_reads_clean
   test_524_terminal_without_telemetry
+  test_528_product_doc_not_a_work_item
   test_525_unpaired_draft_intake
   test_526_replays_the_two_real_ranges
   test_527_pairs_by_links_requirement
