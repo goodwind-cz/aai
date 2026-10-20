@@ -3150,3 +3150,4 @@
 {"v":1,"ts":"2026-10-20T14:54:42Z","actor":"ales_holubec.net","event":"ac_status","ref":"SPEC-0209/Spec-AC-06","payload":{"from":"deferred","to":"done","notes":"deferral condition met: native Windows PowerShell 5.1 + pwsh 7 Pester fixture passed in CI run 39393915564 (main cb43e894), 3/3 cases per engine, 0 skipped"}}
 {"v":1,"ts":"2026-10-20T14:54:54Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0209/Spec-AC-06","payload":{"evidence":"https://github.com/goodwind-cz/aai/actions/runs/39393915564"}}
 {"v":1,"ts":"2026-10-20T14:54:55Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":622,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-20T20:46:16Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"SPEC-0209/Spec-AC-06","payload":{"evidence":"docs/ai/tdd/spec-worktree-lacks-vendored-aai-layer-downstream/windows-ci-TEST-008-run-39393915564.log"}}
