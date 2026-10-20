@@ -3168,3 +3168,4 @@
 {"v":1,"ts":"2026-10-20T21:57:26Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"intake-closing-questions-as-one-menu","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-20T21:57:26Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-intake-closing-questions-as-one-menu","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-20T21:57:26Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-intake-closing-questions-as-one-menu","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-20T23:09:10Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"intake-closing-questions-as-one-menu","payload":{"pr":483,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"f376d2b7c0c86142672f6af10b97c170cc2944a9"}}
