@@ -781,8 +781,24 @@ DOC
   out="$(node "$CLOSE_RECONCILE" --check --range "$base..$head" --root "$dir" 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "TEST-528: a product doc update must not fail the close gate, got rc=$rc. Output:\n$out"
   assert_payload_contains "$out" "close-reconcile: CLEAN" "TEST-528: expected CLEAN for a product-doc-only range"
-  assert_payload_not_contains "$out" "docs/product/t528-cap.md" "TEST-528: the product doc must not be itemed"
-  log_pass "TEST-528: an updated docs/product capability doc is not treated as an unclosed work item"
+  assert_payload_not_contains "$out" "OPEN docs/product/t528-cap.md" "TEST-528: the product doc must not be itemed"
+  assert_payload_contains "$out" "EXCLUDED docs/product/t528-cap.md reason=product-capability-doc" "TEST-528: the exclusion must be disclosed"
+
+  # negative control: the exemption keys on the registered path, never on the
+  # frontmatter type — a terminal docs/issues doc typed product is still itemed.
+  local dir2 base2 head2 out2 rc2
+  dir2=$(init_range_repo "t528typed")
+  base2=$(git -C "$dir2" rev-parse HEAD)
+  write_issue_doc "$dir2/docs/issues/ISSUE-0528-t528typed.md" "t528typed-ref" "done"
+  sed 's/^type: issue$/type: product/' "$dir2/docs/issues/ISSUE-0528-t528typed.md" > "$dir2/x.md" && mv "$dir2/x.md" "$dir2/docs/issues/ISSUE-0528-t528typed.md"
+  grep -q '^type: product$' "$dir2/docs/issues/ISSUE-0528-t528typed.md" || log_fail "TEST-528: fixture did not get type: product"
+  git -C "$dir2" add -A
+  git -C "$dir2" commit -q -m "flip typed-product issue done (#529)"
+  head2=$(git -C "$dir2" rev-parse HEAD)
+  out2="$(node "$CLOSE_RECONCILE" --check --range "$base2..$head2" --root "$dir2" 2>&1)" && rc2=0 || rc2=$?
+  [[ "$rc2" -eq 1 ]] || log_fail "TEST-528: a docs/issues doc typed product must still be itemed (rc=1), got $rc2. Output:\n$out2"
+  assert_payload_contains "$out2" "OPEN docs/issues/ISSUE-0528-t528typed.md" "TEST-528: typed-product issue must be OPEN"
+  log_pass "TEST-528: an updated docs/product capability doc is excluded (disclosed) from the item set; the exemption keys on the registered path, not the type field"
 }
 
 # --- TEST-524 (Spec-AC-04(a)) ------------------------------------------------
