@@ -185,7 +185,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { scanAuditDocs, loadConfig, readEvents } from './lib/docs-audit-core.mjs';
-import { parseFrontmatter, TERMINAL_DOC_STATUS } from './lib/docs-model.mjs';
+import { parseFrontmatter, TERMINAL_DOC_STATUS, slugFamilyForPath } from './lib/docs-model.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { classify, extractHost } from './pr-platform.mjs';
 
@@ -422,6 +422,7 @@ function computeItems(root, a, b, platform, grammars) {
   // excluded per-purpose (own-arm firing skips them; pairing does not).
   const touched = [];
   const unreadable = [];
+  const excluded = [];
   for (const rel of docPaths) {
     const abs = path.join(root, rel);
     if (!fs.existsSync(abs)) continue; // deleted by the range: nothing to close
@@ -436,6 +437,12 @@ function computeItems(root, a, b, platform, grammars) {
     }
     const fm = parseFrontmatter(content);
     if (isUmbrellaDoc(fm)) continue; // BLOCKING-2 — exempt, full stop, either role
+    // A docs/product capability doc is not a work item: rides update it in
+    // place and close-work-item.mjs never closes it, so the terminal/frozen
+    // arms below can never be satisfied for it. Keyed on the REGISTERED PATH
+    // (slugFamilyForPath, the same classifier close-work-item.mjs uses), never
+    // on the frontmatter type, and disclosed as an EXCLUDED line, not dropped.
+    if (slugFamilyForPath(rel)?.type === 'product') { excluded.push({ rel, reason: 'product-capability-doc' }); continue; }
     const status = String(fm?.status ?? '').toLowerCase();
     const linksCommits = Array.isArray(fm?.links?.commits) ? fm.links.commits : [];
     touched.push({
@@ -618,11 +625,12 @@ function computeItems(root, a, b, platform, grammars) {
     pushItem(primary);
   }
 
-  return { items, unreadable };
+  return { items, unreadable, excluded };
 }
 
 function runCheck(root, a, b, platform, grammars) {
-  const { items, unreadable } = computeItems(root, a, b, platform, grammars);
+  const { items, unreadable, excluded } = computeItems(root, a, b, platform, grammars);
+  for (const x of excluded) console.log(`close-reconcile: EXCLUDED ${x.rel} reason=${x.reason}`);
   // REMEDIATION ROUND 4 (P2) — an unreadable doc is reported and forces a
   // non-CLEAN result UNCONDITIONALLY, even when `items` is otherwise empty:
   // a gate that could not read part of its input has not verified anything
@@ -711,7 +719,8 @@ function pairItems(items) {
 }
 
 function runApply(root, a, b, platform, grammars) {
-  const { items, unreadable } = computeItems(root, a, b, platform, grammars);
+  const { items, unreadable, excluded } = computeItems(root, a, b, platform, grammars);
+  for (const x of excluded) console.log(`close-reconcile: EXCLUDED ${x.rel} reason=${x.reason}`);
   if (items.length === 0 && unreadable.length === 0) {
     console.log('close-reconcile: CLEAN — nothing to apply');
     exit(0);
