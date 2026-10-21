@@ -1977,12 +1977,16 @@ fs.writeFileSync(weights,'aai-a 1\naai-b 9\naai-c 9\n');
 let r=run(); assert.equal(r.status,0); assert.equal(r.stdout,'aai-b\naai-c\naai-a\n','TEST-002 longest first, ties, duplicates');
 fs.writeFileSync(weights,'aai-a 1\naai-b 9\n');
 r=run(); assert.equal(r.stdout,'aai-b\naai-c\naai-a\n','TEST-003 missing suite uses max');
-for(const bad of ['missing','malformed','unreadable']) {
+const missingDiagnostics=[];
+for(const bad of ['missing','malformed','unreadable','empty','comments']) {
  fs.rmSync(weights,{recursive:true,force:true});
  if(bad==='malformed') fs.writeFileSync(weights,'aai-a nope\n');
  if(bad==='unreadable') fs.mkdirSync(weights);
- r=run(); assert.equal(r.status,0); assert.equal(r.stdout,'aai-a\naai-b\naai-c\n'); assert(r.stderr.includes('WEIGHTS_IGNORED'),bad+' diagnostic');
+ if(bad==='empty') fs.writeFileSync(weights,'');
+ if(bad==='comments') fs.writeFileSync(weights,'# provenance only\n  # no samples\n\n');
+ r=run(); assert.equal(r.status,0); assert.equal(r.stdout,'aai-a\naai-b\naai-c\n'); if(!r.stderr.includes('WEIGHTS_IGNORED')) missingDiagnostics.push(bad);
 }
+assert.deepEqual(missingDiagnostics,[],'TEST-003 unusable weight diagnostics');
 for(const invalid of ['', '../aai-a','aai-a;echo owned','aai-unknown','aai-nested']) {
  fs.writeFileSync(input,invalid+'\n'); r=run(); assert.notEqual(r.status,0,'TEST-003 rejects '+invalid); assert.equal(r.stdout,'');
 }

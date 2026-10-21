@@ -224,6 +224,7 @@ function orderMain(opts) {
     const parsed = parseWeights(readFileSync(resolve(opts.repoRoot,
       opts.weightsPath || 'tests/skills/suite-weights.tsv'), 'utf8'));
     if (parsed.ignored) throw new Error('malformed-line line=' + parsed.ignored.line);
+    if (parsed.weights.size === 0) throw new Error('no weight rows');
     weights = parsed.weights;
   } catch (err) {
     console.error('WEIGHTS_IGNORED reason=' + err.message);

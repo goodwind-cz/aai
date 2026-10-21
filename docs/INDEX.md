@@ -649,7 +649,7 @@ _None._
 
 _None._
 
-## Broken references (481)
+## Broken references (484)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1032,6 +1032,9 @@ _None._
 | tests/skills/test-aai-product-docs.sh | docs/canonical/auth.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/issues/CHANGE-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/cap-t013.md | NOT FOUND |
+| tests/skills/test-aai-product-docs.sh | docs/product/prompt-hash-telemetry.md | NOT FOUND |
+| tests/skills/test-aai-product-docs.sh | docs/product/token-capture-canary.md | NOT FOUND |
+| tests/skills/test-aai-product-docs.sh | docs/product/token-economics-end-to-end.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/widget-export.md | NOT FOUND |
 | tests/skills/test-aai-prompt-diet.sh | docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/change.md | NOT FOUND |

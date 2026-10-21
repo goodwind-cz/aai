@@ -859,6 +859,7 @@ suites:
 
   aai-product-docs:
     globs:
+      - tests/fixtures/product-docs/**
       - .aai/scripts/lib/docs-model.mjs
       - .aai/scripts/lib/docs-audit-core.mjs
       - .aai/scripts/generate-docs-index.mjs
