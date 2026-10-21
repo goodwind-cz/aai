@@ -25,8 +25,9 @@
 #     DOC_FAMILIES entry drops the product doc from BOTH engines in lockstep.
 #   - TEST-012 (Spec-AC-04, unit): each of the real repo's 12 migrated
 #     docs/product/*.md carries capability==its own filename slug + a
-#     non-empty delivered_by, is not a placeholder, AND (PR-time baseline)
-#     its body is byte-identical to the git HEAD blob's body region.
+#     non-empty delivered_by and is not a placeholder. The original migration
+#     preserves all 12 bodies across its fixed historical boundary; later
+#     capability updates are permitted by SPEC-0105 D3.
 #   - TEST-013 (Spec-AC-05, e2e): a fresh user_visible ride — template ->
 #     docs/product/<capability>.md -> audit clean + INDEX Product row + close
 #     gate pass + delivered_by stamped (the inverse of #189).
@@ -440,12 +441,12 @@ test_005_anti_duplication() {
 # --- TEST-012 (Spec-AC-04, unit): migrated docs — structural + body-diff ----
 
 test_012_migration_body_diff_zero() {
-  log_info "Test: all 12 real docs/product/*.md carry capability==own slug + non-empty delivered_by, are non-placeholder, and their body is byte-identical to the git HEAD blob's body (TEST-012)..."
+  log_info "Test: live product docs retain structure; the fixed original migration preserves all 12 bodies (TEST-012)..."
   local probe="$TEST_DIR/t012-probe.mjs"
   cat > "$probe" <<PROBE
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { parseFrontmatter } from '$DOCS_MODEL_LIB';
 import { missingProductSections } from '$PROJECT_ROOT/.aai/scripts/lib/product-doc.mjs';
 
@@ -458,8 +459,9 @@ if (files.length < 1) { console.error('expected at least one product doc, found 
 // time; assert the per-doc invariants below over whatever the live set is.
 
 const bodyOf = (s) => {
-  const parts = String(s).split('---\n');
-  return parts.slice(2).join('---\n');
+  const match = String(s).match(/^---\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n/);
+  if (!match) throw new Error('missing frontmatter boundary');
+  return String(s).slice(match[0].length);
 };
 
 let bad = [];
@@ -472,16 +474,23 @@ for (const f of files) {
   if (!Array.isArray(fm.delivered_by) || fm.delivered_by.length === 0) bad.push(f + ': empty/missing delivered_by');
   const missing = missingProductSections(content);
   if (missing.length > 0) bad.push(f + ': placeholder section(s) ' + missing.join(','));
-  let before;
-  try {
-    before = execSync('git show HEAD:docs/product/' + f, { cwd: root, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
-  } catch {
-    before = null; // untracked (new file, no HEAD blob yet) -- nothing to diff
-  }
-  if (before != null && bodyOf(before) !== bodyOf(content)) {
-    bad.push(f + ': body differs from git HEAD blob (prose loss risk)');
-  }
 }
+// SPEC-0105 D4 / TEST-012 concerns the initial frontmatter migration only.
+// Pin the commit itself: moving HEAD would forbid D3's later prose updates.
+const migration = 'a93bdfedc786c8cbd2c92a4ef5aba0ec62c13c22';
+const git = (...args) => execFileSync('git', args, {cwd: root, encoding: 'utf8'});
+const migrated = git('diff-tree', '--no-commit-id', '--name-only', '-r', migration, '--', 'docs/product/').trim().split('\\n');
+if (migrated.length !== 12) bad.push('expected all 12 original migrated docs');
+for (const file of migrated) {
+  const before = git('show', migration + '^:' + file);
+  const after = git('show', migration + ':' + file);
+  if (!bodyOf(before).trim()) bad.push(file + ': empty historical body');
+  if (bodyOf(before) !== bodyOf(after)) bad.push(file + ': migration changed prose');
+  // Positive/negative controls ensure extraction detects lost prose, including
+  // content containing another delimiter after frontmatter.
+  if (bodyOf(after + '\\n---\\nbody sentinel') === bodyOf(after)) bad.push(file + ': body comparison vacuous');
+}
+
 if (bad.length > 0) { console.error(bad.join('\\n')); process.exit(1); }
 console.log('OK ' + files.length + ' product docs verified');
 PROBE

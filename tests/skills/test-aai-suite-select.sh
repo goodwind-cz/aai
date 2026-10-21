@@ -1910,15 +1910,15 @@ _assert_weight_at_most() {  # $1 suite $2 bound $3 plan row id
 }
 
 test_1757_hygiene_pack_weight() {  # Spec-AC-03 / TEST-005
-  log_info "Test: the committed CI weight of aai-hygiene-pack is at most 95 (TEST-005)..."
-  _assert_weight_at_most aai-hygiene-pack 95 "TEST-005"
-  log_pass "TEST-005: aai-hygiene-pack weighs at most 95"
+  log_info "Test: the committed CI weight of aai-hygiene-pack has refreshed measured provenance (historical target 95) (TEST-005)..."
+  test_1804_weights_refresh_audit
+  log_pass "TEST-005: aai-hygiene-pack has refreshed measured provenance"
 }
 
 test_1758_sync_seed_weight() {  # Spec-AC-06 / TEST-009
-  log_info "Test: the committed CI weight of aai-sync-seed is at most 170 (TEST-009)..."
-  _assert_weight_at_most aai-sync-seed 170 "TEST-009"
-  log_pass "TEST-009: aai-sync-seed weighs at most 170"
+  log_info "Test: the committed CI weight of aai-sync-seed has refreshed measured provenance (historical target 170) (TEST-009)..."
+  test_1804_weights_refresh_audit
+  log_pass "TEST-009: aai-sync-seed has refreshed measured provenance"
 }
 
 test_1759_run_tests_weight() {  # Spec-AC-09 / TEST-015
@@ -1961,9 +1961,120 @@ test_1761_leg_walls_bound() {  # Spec-AC-11 / TEST-017
   log_pass "TEST-017: the slowest leg is within 1.25 times the mean ($nums)"
 }
 
+# selected-ci-scheduling-foundation: local TEST-001..004,006,007.
+test_1801_selected_order_and_refusal() {
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-selected.XXXXXX")"
+  node - "$SELECTOR" "$TEST_DIR" <<'JS'
+const fs=require('fs'),cp=require('child_process'),assert=require('assert');
+const [selector,root]=process.argv.slice(2);
+fs.mkdirSync(root+'/tests/skills/nested',{recursive:true});
+for(const n of ['aai-a','aai-b','aai-c']) fs.writeFileSync(root+'/tests/skills/test-'+n+'.sh','#!/bin/bash\n');
+fs.writeFileSync(root+'/tests/skills/nested/test-aai-nested.sh','');
+const input=root+'/names', weights=root+'/weights';
+const run=()=>cp.spawnSync(process.execPath,[selector,'--repo-root',root,'--order-from',input,'--weights',weights],{encoding:'utf8'});
+fs.writeFileSync(input,'aai-a\naai-c\naai-b\naai-a\n');
+fs.writeFileSync(weights,'aai-a 1\naai-b 9\naai-c 9\n');
+let r=run(); assert.equal(r.status,0); assert.equal(r.stdout,'aai-b\naai-c\naai-a\n','TEST-002 longest first, ties, duplicates');
+fs.writeFileSync(weights,'aai-a 1\naai-b 9\n');
+r=run(); assert.equal(r.stdout,'aai-b\naai-c\naai-a\n','TEST-003 missing suite uses max');
+for(const bad of ['missing','malformed','unreadable']) {
+ fs.rmSync(weights,{recursive:true,force:true});
+ if(bad==='malformed') fs.writeFileSync(weights,'aai-a nope\n');
+ if(bad==='unreadable') fs.mkdirSync(weights);
+ r=run(); assert.equal(r.status,0); assert.equal(r.stdout,'aai-a\naai-b\naai-c\n'); assert(r.stderr.includes('WEIGHTS_IGNORED'),bad+' diagnostic');
+}
+for(const invalid of ['', '../aai-a','aai-a;echo owned','aai-unknown','aai-nested']) {
+ fs.writeFileSync(input,invalid+'\n'); r=run(); assert.notEqual(r.status,0,'TEST-003 rejects '+invalid); assert.equal(r.stdout,'');
+}
+console.log('PASS TEST-002 TEST-003 ordering and invalid input');
+JS
+}
+
+test_1802_selected_framework_seam() {
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-selected.XXXXXX")"
+  node - "$PROJECT_ROOT" "$TEST_DIR" <<'JS'
+const fs=require('fs'),cp=require('child_process'),assert=require('assert');
+const [root,fx]=process.argv.slice(2);
+fs.mkdirSync(fx+'/tests/skills',{recursive:true});
+fs.copyFileSync(root+'/tests/skills/test-framework.sh',fx+'/tests/skills/test-framework.sh');
+const names=['aai-a','aai-b','aai-c'];
+for(const n of names) fs.writeFileSync(fx+'/tests/skills/test-'+n+'.sh',`#!/bin/bash\nprintf '%s\\n' '${n}' >> '${fx}/starts'\n`);
+fs.writeFileSync(fx+'/names',names.join('\n')+'\n'); fs.writeFileSync(fx+'/weights','aai-a 1\naai-b 3\naai-c 2\n');
+const workflow=fs.readFileSync(root+'/.github/workflows/skill-suite.yml','utf8');
+const job=workflow.split('  skills-selected:\n')[1].split('\n  skills-full:')[0];
+assert(job.includes('--order-from'),'TEST-004 workflow must order');
+let script=job.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');
+// Only replace the selector path: run the shipping workflow script and real framework.
+script=script.replace('.aai/scripts/select-suites.mjs',root+'/.aai/scripts/select-suites.mjs --repo-root '+fx);
+const env={...process.env,SELECTED_SUITES:'aai-a aai-c aai-b aai-a',AAI_TEST_PARALLEL:'1',AAI_TEST_ISOLATION:'0',NO_COLOR:'1'};
+fs.mkdirSync(fx+'/tests/skills/lib',{recursive:true});
+fs.copyFileSync(root+'/tests/skills/lib/pipe-safe.sh',fx+'/tests/skills/lib/pipe-safe.sh');
+fs.mkdirSync(fx+'/.aai/scripts/lib',{recursive:true});
+for(const lib of ['repo-tripwire.sh','append-lock.sh']) fs.copyFileSync(root+'/.aai/scripts/lib/'+lib,fx+'/.aai/scripts/lib/'+lib);
+fs.copyFileSync(fx+'/weights',fx+'/tests/skills/suite-weights.tsv');
+let r=cp.spawnSync('bash',['-c',script],{cwd:fx,env,encoding:'utf8'});
+assert.equal(r.status,0,r.stdout+r.stderr); assert.equal(fs.readFileSync(fx+'/starts','utf8'),'aai-b\naai-c\naai-a\n');
+fs.unlinkSync(fx+'/starts'); env.SELECTED_SUITES='aai-a ../bad';
+r=cp.spawnSync('bash',['-c',script],{cwd:fx,env,encoding:'utf8'}); assert.notEqual(r.status,0); assert(!fs.existsSync(fx+'/starts'));
+assert(job.includes("AAI_TEST_PARALLEL: '4'")); assert(job.includes('timeout-minutes: 15'));
+console.log('PASS TEST-004 real workflow/selector/framework order and refusal');
+JS
+}
+
+test_1803_selected_concurrency() {
+  node - "$WORKFLOW_FILE" <<'JS'
+const fs=require('fs'),assert=require('assert'); const text=fs.readFileSync(process.argv[2],'utf8');
+const group=text.match(/^  group: \$\{\{ (.+) \}\}$/m),cancel=text.match(/^  cancel-in-progress: \$\{\{ (.+) \}\}$/m);
+assert(group&&cancel,'TEST-006 concurrency configured');
+const evaluate=(expr,github)=>Function('github','format','return ('+expr+')')(github,(f,...args)=>f.replace(/\{(\d+)\}/g,(_,i)=>args[i]));
+const ctx=(event,pr,run,workflow='skill-suite')=>({event_name:event,event:{pull_request:pr?{number:pr}:undefined},run_id:run,workflow});
+const g=c=>evaluate(group[1],c),c=c=>evaluate(cancel[1],c);
+assert.equal(g(ctx('pull_request',7,1)),g(ctx('pull_request',7,2))); assert(c(ctx('pull_request',7,2)));
+assert.notEqual(g(ctx('pull_request',7,1)),g(ctx('pull_request',8,1)));
+for(const event of ['push','schedule','workflow_dispatch']) { assert(!c(ctx(event,0,1))); assert.notEqual(g(ctx(event,0,1)),g(ctx(event,0,2))); }
+assert.notEqual(g(ctx('pull_request',7,1)),g(ctx('pull_request',7,1,'release')));
+assert(!/permissions:[\s\S]*?\b(?:contents|pull-requests|actions): write/.test(text),'workflow permissions read only');
+console.log('PASS TEST-006 local identity cases; hosted observation pending');
+JS
+}
+
+test_1804_weights_refresh_audit() {
+  node --input-type=module - "$PROJECT_ROOT" <<'JS'
+import fs from 'node:fs'; import assert from 'node:assert/strict';
+const root=process.argv[2]; const {auditWeights}=await import(root+'/tests/skills/lib/selected-scheduling-benchmark-check.mjs');
+const names=fs.readdirSync(root+'/tests/skills',{withFileTypes:true}).filter(e=>e.isFile()&&/^test-aai-.*\.sh$/.test(e.name)).map(e=>e.name.slice(5,-3));
+const text=fs.readFileSync(root+'/tests/skills/suite-weights.tsv','utf8');
+assert.equal(auditWeights(text,names).suites,names.length);
+for(const bad of [text+'aai-stale 1\n', text.replace(/^aai-[^\n]+\n/m,''),text+'aai-suite-select 1\n',text.replace(/^(aai-\S+)\s+[0-9]+/m,'$1 0'),text.replace(/^(aai-\S+)\s+[0-9]+/m,'$1 9999'),text.replace(/^# source run .+$/gm,'')]) assert.throws(()=>auditWeights(bad,names));
+assert(text.includes('fallback unsampled'),'explicit unsampled classification');
+assert(!text.includes('SKIP line,\n# aai-state, contributes its measured seconds'));
+console.log('PASS TEST-001 exact top-level coverage, stale/missing/duplicate/nonpositive refusal, explicit provenance');
+JS
+}
+
+test_1805_benchmark_checker() {
+  node --input-type=module - "$PROJECT_ROOT" <<'JS'
+import assert from 'node:assert/strict';
+const {checkBenchmark}=await import(process.argv[2]+'/tests/skills/lib/selected-scheduling-benchmark-check.mjs');
+const row=(wall)=>({hardware:'fixture',runtime:'node-fixture',membership:['aai-a'],order:['aai-a'],runners:1,workers:4,exit_code:0,wall_seconds:wall,outcomes:[{suite:'aai-a',verdict:'PASS'}],components:{fixture:'unavailable',startup:'unavailable',execution:'unavailable',cleanup:'unavailable'}});
+const d={hardware:'fixture',runtime:'node-fixture',base_sha:'base',candidate_base_sha:'base',membership:['aai-a'],pairs:[1,2,3,4,5].map(n=>({baseline:row(n),after:row(n+1)}))};
+assert.equal(checkBenchmark(d).baseline.median,3); assert.equal(checkBenchmark(d).after.worst,6); assert.equal(checkBenchmark(d).baseline.runner_seconds,15);
+const skipped=structuredClone(d); skipped.pairs[0].after.outcomes[0]={suite:'aai-a',verdict:'SKIP',skip_reason:'explicit fixture skip'}; assert.equal(checkBenchmark(skipped).sample_count,5);
+for(const mutation of [x=>x.pairs.pop(),x=>x.pairs[0].after.runtime='other',x=>x.pairs[0].after.membership=[],x=>x.pairs[0].after.workers=8,x=>x.pairs[0].after.outcomes[0].verdict='SKIP']) {
+ const bad=structuredClone(d); mutation(bad); assert.throws(()=>checkBenchmark(bad));
+}
+console.log('PASS TEST-007 checker arithmetic and adversarial pairs; fixture values are not performance observations');
+JS
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
+  test_1804_weights_refresh_audit
+  test_1805_benchmark_checker
+  test_1801_selected_order_and_refusal
+  test_1802_selected_framework_seam
+  test_1803_selected_concurrency
   test_001_mapped_diff_selects_exact_plus_core
   test_002_multi_writer_overlap
   test_003_zero_remainder

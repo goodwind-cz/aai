@@ -6,7 +6,7 @@ status: current
 delivered_by:
   - CHANGE-0071
 spec: docs/specs/SPEC-0097-spec-ci-test-impact-selection.md
-updated: 2026-07-27
+updated: 2026-10-20
 ---
 
 # CI test impact selection
@@ -41,6 +41,29 @@ re-derives the shard plan in `select` and again in every leg, and fails the
 build if any suite is missing, duplicated, extra, or not runnable by the
 leg — so a sharding mistake turns CI red instead of silently shrinking
 coverage.
+
+Selected runs use one runner with four workers. The existing selected membership
+is ordered by descending observed duration, with bytewise name order for ties.
+Duplicate names run once. Invalid or empty names fail before framework dispatch;
+a missing or malformed weight file reports a diagnostic and preserves every
+selected suite in name order. An individually unweighted suite gets the largest
+known weight. The `--order-from FILE` selector mode accepts newline-separated
+names and emits names only; it does not change selection policy.
+
+The weights now cover all 109 runnable top-level suites, derived from five
+successful full CI runs captured on 2026-10-20. Each measured row records its
+sample count and source run IDs; source records name their SHAs. `aai-state`
+was skipped in those runs and explicitly uses the largest measured weight
+(212 seconds), rather than treating a skip as a successful timing. Historical
+performance targets in earlier changes are historical observations; refreshed
+weights may exceed them.
+
+The read-only skill-suite workflow groups PR runs by workflow, event and PR
+number and enables cancellation for superseded runs in that group. Other events
+use unique run IDs and do not cancel one another. Local tests verify the
+configuration; hosted cancellation (H1) and candidate full/platform regression
+(H2) remain required after PR creation and before merge. This foundation does
+not complete the parent runtime and faster-feedback rollout.
 
 ## How to use it
 

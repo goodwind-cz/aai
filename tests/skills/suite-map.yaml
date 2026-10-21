@@ -1256,6 +1256,7 @@ suites:
 
   aai-suite-select:
     globs:
+      - tests/skills/lib/selected-scheduling-benchmark-check.mjs
       - tests/skills/suite-map.yaml
       - .aai/scripts/select-suites.mjs
       - .github/workflows/skill-suite.yml

@@ -44,7 +44,8 @@
 // uses to fixture every case without needing a throwaway git repo per case.
 //
 // Zero dependencies (Node stdlib only, per docs/TECHNOLOGY.md). Exit code is
-// ALWAYS 0 — selection must never fail the build itself; any script-internal
+// ALWAYS 0 for selection/shard modes (order mode is fail-closed). Selection
+// must never fail the build itself; any script-internal
 // error (unreadable map, bad base-ref, git failure) degrades to FULL_RUN
 // with reason=internal-error rather than a non-zero exit.
 //
@@ -65,6 +66,10 @@
 // A malformed companion (no row, its own row, bad name) is a malformed map:
 // FULL_RUN reason=internal-error (DELTA_REFUSED in delta mode).
 //
+// ORDER MODE: --order-from FILE [--weights FILE] [--repo-root DIR] emits
+// unique runnable top-level names longest-first. Invalid input exits nonzero;
+// weight-file failure diagnoses to stderr and falls back to name order.
+//
 // SHARD MODE (D1, SPEC-0206-spec-ci-test-selection-narrowing-and-sharding):
 //   node .aai/scripts/select-suites.mjs --shards <N> [--repo-root <dir>]
 //     [--weights <path>]
@@ -82,7 +87,7 @@
 //   WEIGHTS_IGNORED reason=<...>     the whole weights file was malformed
 //
 // On a degrade it prints `SHARD_FALLBACK reason=<...>` and NO `SHARD` line.
-// Exit is always 0, like every other mode. With no `--shards` flag, every
+// Exit is always 0, like the selection modes. With no `--shards` flag, every
 // existing mode is byte-for-byte unchanged.
 
 import { execFileSync } from 'node:child_process';
@@ -101,7 +106,7 @@ const MAX_SHARDS = 8;
 function parseArgs(argv) {
   const out = {
     baseRef: null, filesFrom: null, repoRoot: null, mapPath: null, auditPath: null,
-    shards: null, weightsPath: null, deltaBase: null, head: null,
+    shards: null, weightsPath: null, deltaBase: null, head: null, orderFrom: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -111,6 +116,7 @@ function parseArgs(argv) {
     else if (a === '--map') out.mapPath = argv[++i];
     else if (a === '--docs-audit') out.auditPath = argv[++i];
     else if (a === '--shards') out.shards = argv[++i];
+    else if (a === '--order-from') out.orderFrom = argv[++i] ?? '';
     else if (a === '--weights') out.weightsPath = argv[++i];
     else if (a === '--delta-base') out.deltaBase = argv[++i];
     else if (a === '--head') out.head = argv[++i];
@@ -191,6 +197,42 @@ function parseWeights(text) {
 // order): determinism, and longest-first inside each shard (D2).
 function byWeightDescThenName(a, b) {
   return b.w - a.w || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+}
+
+// Selected execution is fail-closed: never turn invalid/empty names into a bare
+// framework invocation. Weight failures affect order only, never membership.
+function orderMain(opts) {
+  let names;
+  try {
+    const text = readFileSync(resolve(opts.repoRoot, opts.orderFrom), 'utf8');
+    names = [...new Set(text.split(/\r?\n/).filter((s) => s !== ''))];
+    if (names.length === 0) throw new Error('empty suite list');
+    const runnable = new Set(readdirSync(resolve(opts.repoRoot, 'tests/skills'), { withFileTypes: true })
+      .filter((e) => e.isFile() && SUITE_FILE_RE.test(e.name))
+      .map((e) => e.name.slice(5, -3)));
+    for (const name of names) {
+      if (!/^[A-Za-z0-9_-]+$/.test(name) || !runnable.has(name)) {
+        throw new Error('unsafe or non-runnable suite: ' + name);
+      }
+    }
+  } catch (err) {
+    console.error('ORDER_REFUSED ' + err.message);
+    return exit(1);
+  }
+  let weights = new Map();
+  try {
+    const parsed = parseWeights(readFileSync(resolve(opts.repoRoot,
+      opts.weightsPath || 'tests/skills/suite-weights.tsv'), 'utf8'));
+    if (parsed.ignored) throw new Error('malformed-line line=' + parsed.ignored.line);
+    weights = parsed.weights;
+  } catch (err) {
+    console.error('WEIGHTS_IGNORED reason=' + err.message);
+  }
+  const max = weights.size ? Math.max(...weights.values()) : 1;
+  const ordered = names.map((name) => ({ name, w: weights.get(name) ?? max }))
+    .sort(byWeightDescThenName);
+  for (const { name } of ordered) console.log(name);
+  exit(0);
 }
 
 function shardMain(opts) {
@@ -636,6 +678,7 @@ function deltaMain(opts) {
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   opts.repoRoot = resolve(opts.repoRoot || DEFAULT_REPO_ROOT);
+  if (opts.orderFrom !== null) return orderMain(opts);
   if (opts.shards !== null) return shardMain(opts);
   if (opts.deltaBase !== null) return deltaMain(opts);
 

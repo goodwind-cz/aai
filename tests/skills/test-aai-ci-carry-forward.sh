@@ -645,9 +645,30 @@ test_1738_anchor_bound_to_current_pr() {  # Spec-AC-08, review P1 (PR #435)
   log_pass "TEST-1738: carry-forward anchors only a run of the same PR number, base ref and base sha (TEST-1738)"
 }
 
+test_1806_selected_gate_failure_cases() {
+  node - "$WORKFLOW_FILE" <<'JS'
+const fs=require('fs'),cp=require('child_process'),assert=require('assert');
+const workflow=fs.readFileSync(process.argv[2],'utf8');
+const job=workflow.split('  gate:\n')[1].split('\n  self-hosting-smoke:')[0];
+const script=job.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');
+const good={'select.result':'success','select.outputs.mode':'selected','skills-selected.result':'success','skills-full.result':'skipped','native-worktree-seed.result':'success','tracked-ignored.result':'success'};
+const run=data=>cp.spawnSync('bash',['-c',script.replace(/\$\{\{ needs\.([^} ]+) \}\}/g,(_,k)=>data[k]??'')],{encoding:'utf8'}).status;
+assert.equal(run(good),0); assert.equal(run({...good,'select.outputs.mode':'full','skills-full.result':'success','skills-selected.result':'skipped'}),0);
+for(const mode of ['selected','full']) for(const key of ['select.result','native-worktree-seed.result','tracked-ignored.result',mode==='selected'?'skills-selected.result':'skills-full.result']) for(const fail of ['failure','cancelled','skipped','']) {
+ const data={...good,'select.outputs.mode':mode,'skills-full.result':'success',[key]:fail}; assert.notEqual(run(data),0,mode+' '+key+' '+fail);
+}
+const selected=workflow.split('  skills-selected:\n')[1].split('\n  skills-full:')[0];
+assert(selected.includes('SELECTED_SUITES: ${{ needs.select.outputs.suites }}'));assert(selected.includes('--order-from selected-input.txt'));
+assert.equal((selected.match(/bash tests\/skills\/test-framework\.sh /g)||[]).length,1);
+assert(workflow.includes('shard-plan-check.sh --check'));
+console.log('PASS TEST-005 real aggregate script success/failure/missing cases and ordered data wiring');
+JS
+}
+
 main() {
   echo "Testing $TEST_NAME (post-validation-pushes-reuse-test-results, Batch D)"
   check_deps
+  test_1806_selected_gate_failure_cases
   test_1720_anchor_found_past_failed_run_and_logged
   test_1721_job_name_constants_match_workflow
   test_1722_workflow_select_job_wiring
