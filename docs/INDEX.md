@@ -56,7 +56,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (555)
+## Done (557)
 
 | ID | Type | Path |
 |---|---|---|
@@ -271,6 +271,7 @@ _None._
 | CHANGE-0213 | issues | docs/issues/CHANGE-0213-release-command-finish.md |
 | CHANGE-0214 | issues | docs/issues/CHANGE-0214-selected-ci-scheduling-foundation.md |
 | CHANGE-0215 | issues | docs/issues/CHANGE-0215-selected-ci-conditional-sharding.md |
+| CHANGE-0216 | issues | docs/issues/CHANGE-0216-docs-audit-node-test-pilot.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -613,6 +614,7 @@ _None._
 | SPEC-0238 | specs | docs/specs/SPEC-0238-spec-intake-closing-questions-as-one-menu.md |
 | SPEC-0239 | specs | docs/specs/SPEC-0239-spec-selected-ci-scheduling-foundation.md |
 | SPEC-0240 | specs | docs/specs/SPEC-0240-spec-selected-ci-conditional-sharding.md |
+| SPEC-0241 | specs | docs/specs/SPEC-0241-spec-docs-audit-node-test-pilot.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

@@ -78,6 +78,8 @@ pairs:
     status: done
   - capability: selected-ci-conditional-sharding
     status: done
+  - capability: docs-audit-node-test-pilot
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

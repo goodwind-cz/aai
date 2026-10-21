@@ -82,6 +82,31 @@ configuration; hosted cancellation (H1) and candidate full/platform regression
 (H2) remain required after PR creation and before merge. This foundation does
 not complete the parent runtime and faster-feedback rollout.
 
+## Docs-audit body-lint test pilot
+
+The always-on `aai-docs-audit` suite now invokes ten direct `node:test` cases
+for five body-lint behavior groups, including separately counted CRLF variants.
+The exact Node file path is in the suite map, so a change to it selects the
+existing core suite. To run only those in-memory parser cases:
+
+```bash
+bash .aai/scripts/aai-run-tests.sh node --test tests/skills/lib/docs-audit-body.test.mjs
+```
+
+To run the complete docs-audit suite, including its retained CLI, staged-hook
+and real-corpus checks:
+
+```bash
+AAI_TEST_PARALLEL=1 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh --skill aai-docs-audit
+```
+
+A five-pair local matched-workload measurement found a 0.570-second median for
+the Node cases versus 2.006 seconds for the five original Bash behavior groups.
+The ordinary suite ran once before and once after as correctness checks; those
+two observations do not establish a full-suite speed change. See the
+[tracked pilot report](../analysis/docs-audit-node-test-pilot.md) for every
+sample, setup cost and coverage limit.
+
 ## How to use it
 
 Nothing is required for a normal PR — selection is automatic:

@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-21T09:12:30.844Z",
+  "generatedAt": "2026-10-21T14:46:25.241Z",
   "project": "aai",
   "counts": {
-    "delivered": 310,
+    "delivered": 311,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -257,6 +257,19 @@
       "agent_minutes": 122,
       "token_total": null,
       "spec": "docs/specs/SPEC-0240-spec-selected-ci-conditional-sharding.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "docs-audit-node-test-pilot",
+      "title": "Docs-audit Node test pilot",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0216-docs-audit-node-test-pilot.md",
+      "closed_on": "2026-10-21",
+      "agent_minutes": 80,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0241-spec-docs-audit-node-test-pilot.md",
       "validation": null,
       "review": null
     },
@@ -4314,6 +4327,19 @@
           "agent_minutes": 122,
           "token_total": null,
           "spec": "docs/specs/SPEC-0240-spec-selected-ci-conditional-sharding.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "docs-audit-node-test-pilot",
+          "title": "Docs-audit Node test pilot",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0216-docs-audit-node-test-pilot.md",
+          "closed_on": "2026-10-21",
+          "agent_minutes": 80,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0241-spec-docs-audit-node-test-pilot.md",
           "validation": null,
           "review": null
         },

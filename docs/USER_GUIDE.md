@@ -933,6 +933,25 @@ default; `--strict` promotes findings to exit 1. `--lint-body-file <file>` is
 the pure single-file predicate (exit 1 findings / 0 clean / 2 unreadable),
 again used by the pre-commit hook against staged content.
 
+For fast feedback on the body-lint parser alone, run the direct Node cases:
+
+```bash
+bash .aai/scripts/aai-run-tests.sh node --test tests/skills/lib/docs-audit-body.test.mjs
+```
+
+For the complete docs-audit skill suite, including CLI rendering, hooks,
+predicates and corpus checks, run:
+
+```bash
+AAI_TEST_PARALLEL=1 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh --skill aai-docs-audit
+```
+
+For bounded local runs, set `AAI_TEST_TIMEOUT=120` for the direct command and
+`AAI_TEST_TIMEOUT=900` for the skill suite. The direct cases use in-memory
+Markdown strings and do not replace the broader audit suite. The
+[body-lint test pilot](analysis/docs-audit-node-test-pilot.md) records the
+five-pair focused measurement and the separate one-off integration checks.
+
 **What the audit now reports** (report-only verdicts, never hard-fail):
 - `missing-close-telemetry` — a done doc with no `work_item_closed` close
   event in EVENTS.jsonl (close events — `work_item_closed`,

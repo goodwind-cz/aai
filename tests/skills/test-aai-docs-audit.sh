@@ -4064,6 +4064,13 @@ test_559_posix_predicate_infra_exit() {  # TEST-559 / Spec-AC-24
 
 # --- CHANGE-0007 / SPEC-0013 H1 — body lint (TEST-001..009) ------------------
 
+test_change0007_lint_body_node() {
+  log_info "Test: body-lint pure cases through node:test..."
+  (cd "$PROJECT_ROOT" && node --test tests/skills/lib/docs-audit-body.test.mjs) \
+    || log_fail "body-lint Node assertions failed"
+  log_pass "Body-lint Node cases passed"
+}
+
 test_change0007_lint_stray_markup() {  # TEST-001 / Spec-AC-01
   log_info "Test: stray </content> outside code -> stray-tool-markup finding with rule id + line (TEST-001)..."
   local d; d="$(setup_iso_repo c7-stray)"
@@ -4093,170 +4100,25 @@ MD
   (cd "$d" && node .aai/scripts/docs-audit.mjs --check --no-event > check.log 2>&1) || true
   grep -qE '^### Body lint: [1-9]' "$d/check.log" \
     || log_fail "--check digest must carry a non-zero '### Body lint:' section: $(cat "$d/check.log")"
+  # Reuse the same doc path as a clean control for the CLI's zero-count rendering.
+  cat > "$d/docs/specs/SPEC-7701-stray.md" <<'MD'
+---
+id: SPEC-7701
+type: spec
+status: draft
+links:
+  pr: []
+---
+# Spec with clean body
+
+Some prose.
+MD
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > clean.log 2>&1) \
+    || log_fail "clean --lint-body must exit 0: $(cat "$d/clean.log")"
+  grep -qE '^### Body lint: 0' "$d/clean.log" \
+    || log_fail "clean fixture must render zero body-lint findings: $(cat "$d/clean.log")"
   rm -rf "$d"
   log_pass "Stray tool markup flagged with rule id + line in the Body lint section (TEST-001)"
-}
-
-test_change0007_lint_unbalanced_fence() {  # TEST-002 / Spec-AC-01
-  log_info "Test: unclosed \`\`\` fence at EOF -> unbalanced-fence finding (TEST-002)..."
-  local d; d="$(setup_iso_repo c7-fence)"
-  cat > "$d/docs/specs/SPEC-7702-fence.md" <<'MD'
----
-id: SPEC-7702
-type: spec
-status: draft
-links:
-  pr: []
----
-# Spec with an unclosed fence
-
-Prose.
-```js
-const x = 1;
-MD
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
-    || log_fail "--lint-body must exit 0 without --strict: $(cat "$d/lint.log")"
-  grep -qE 'SPEC-7702-fence\.md:11 .*unbalanced-fence' "$d/lint.log" \
-    || log_fail "unclosed fence must be flagged as unbalanced-fence at its opening line 11: $(cat "$d/lint.log")"
-  rm -rf "$d"
-  log_pass "Unclosed fence at EOF flagged as unbalanced-fence (TEST-002)"
-}
-
-test_change0007_lint_placeholder() {  # TEST-003 / Spec-AC-01
-  log_info "Test: SPEC-XXXX residue + <PLACEHOLDER> flagged; mixed-case angle prose NOT flagged (TEST-003)..."
-  local d; d="$(setup_iso_repo c7-ph)"
-  cat > "$d/docs/specs/SPEC-7703-ph.md" <<'MD'
----
-id: SPEC-7703
-type: spec
-status: draft
-links:
-  pr: []
----
-# Spec with template residue
-
-Unfilled id SPEC-XXXX left in the body.
-An all-caps token <PLACEHOLDER> and <TODO_FILL> too.
-But <why isolation is or is not useful> is legitimate prose.
-MD
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
-    || log_fail "--lint-body must exit 0 without --strict: $(cat "$d/lint.log")"
-  grep -qE 'SPEC-7703-ph\.md:10 .*template-placeholder' "$d/lint.log" \
-    || log_fail "SPEC-XXXX body residue must be flagged as template-placeholder: $(cat "$d/lint.log")"
-  grep -qE 'SPEC-7703-ph\.md:11 .*template-placeholder' "$d/lint.log" \
-    || log_fail "<PLACEHOLDER>/<TODO_FILL> must be flagged as template-placeholder: $(cat "$d/lint.log")"
-  grep -qF "why isolation" "$d/lint.log" \
-    && log_fail "mixed-case angle prose must NOT be flagged (false-positive posture): $(cat "$d/lint.log")"
-  grep -qE ':12 ' "$d/lint.log" \
-    && log_fail "line 12 (mixed-case angle prose) must carry no finding: $(cat "$d/lint.log")"
-  rm -rf "$d"
-  log_pass "Template placeholders flagged; mixed-case angle prose spared (TEST-003)"
-}
-
-test_change0007_lint_negative_controls() {  # TEST-004 / Spec-AC-01
-  log_info "Test: clean doc + stray tag inside fence/inline code -> zero findings (TEST-004)..."
-  local d; d="$(setup_iso_repo c7-neg)"
-  cat > "$d/docs/specs/SPEC-7704-clean.md" <<'MD'
----
-id: SPEC-7704
-type: spec
-status: draft
-links:
-  pr: []
----
-# Entirely clean spec
-
-Ordinary prose only.
-MD
-  cat > "$d/docs/specs/SPEC-7705-examples.md" <<'MD'
----
-id: SPEC-7705
-type: spec
-status: draft
-links:
-  pr: []
----
-# Spec whose EXAMPLES carry the tokens (fences-in-examples control)
-
-```text
-</content>
-<PLACEHOLDER>
-SPEC-XXXX
-```
-
-Inline `</content>` and `SPEC-XXXX` and `<PLACEHOLDER>` in code spans.
-MD
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
-    || log_fail "--lint-body must exit 0: $(cat "$d/lint.log")"
-  grep -qE '^### Body lint: 0' "$d/lint.log" \
-    || log_fail "clean + examples-only corpus must yield zero findings: $(cat "$d/lint.log")"
-  rm -rf "$d"
-  log_pass "Fenced and inline-code examples never flagged; clean doc clean (TEST-004)"
-}
-
-test_change0007_lint_degenerate_fixtures() {  # TEST-005 / Spec-AC-01
-  log_info "Test: empty body / frontmatter-only / 4-backtick-wraps-3 / tilde fences -> no crash, correct verdicts (TEST-005)..."
-  local d; d="$(setup_iso_repo c7-degen)"
-  # degenerate: empty body
-  printf -- '---\nid: SPEC-7706\ntype: spec\nstatus: draft\nlinks:\n  pr: []\n---\n' \
-    > "$d/docs/specs/SPEC-7706-emptybody.md"
-  # degenerate: frontmatter-only, no trailing newline
-  printf -- '---\nid: SPEC-7707\ntype: spec\nstatus: draft\nlinks:\n  pr: []\n---' \
-    > "$d/docs/specs/SPEC-7707-fmonly.md"
-  # nesting: 4-backtick fence wrapping a 3-backtick example — balanced, clean
-  cat > "$d/docs/specs/SPEC-7708-nested.md" <<'MD'
----
-id: SPEC-7708
-type: spec
-status: draft
-links:
-  pr: []
----
-# Four-backtick fence wrapping a three-backtick example
-
-````markdown
-```js
-</content>
-```
-````
-MD
-  # tilde fence: balanced, tokens inside are content
-  cat > "$d/docs/specs/SPEC-7709-tilde.md" <<'MD'
----
-id: SPEC-7709
-type: spec
-status: draft
-links:
-  pr: []
----
-# Tilde fence
-
-~~~
-</content>
-~~~
-MD
-  # tilde fence left open -> flagged
-  cat > "$d/docs/specs/SPEC-7710-tildeopen.md" <<'MD'
----
-id: SPEC-7710
-type: spec
-status: draft
-links:
-  pr: []
----
-# Unclosed tilde fence
-
-~~~
-still open at EOF
-MD
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
-    || log_fail "--lint-body must not crash on degenerate fixtures: $(cat "$d/lint.log")"
-  grep -qE '^### Body lint: 1' "$d/lint.log" \
-    || log_fail "exactly ONE finding expected (the open tilde fence): $(cat "$d/lint.log")"
-  grep -qE 'SPEC-7710-tildeopen\.md:10 .*unbalanced-fence' "$d/lint.log" \
-    || log_fail "the open tilde fence must be the flagged finding: $(cat "$d/lint.log")"
-  rm -rf "$d"
-  log_pass "Degenerate + nesting fixtures: no crash, only the open tilde fence flagged (TEST-005)"
 }
 
 test_change0007_lint_promotion_pair() {  # TEST-006 / Spec-AC-01
@@ -4600,56 +4462,6 @@ MD
   grep -qiF "close-gate" "$d/b.out" || log_fail "abort must name close-gate: $(cat "$d/b.out")"
   rm -rf "$d"
   log_pass "Space-named staged docs are gated, not silently skipped (TEST-020)"
-}
-
-test_change0007_lint_span_edges() {  # TEST-021 / Spec-AC-01 (review-20260704T110648Z W3)
-  log_info "Test: multi-line inline span masked; line-initial \`\`\` x \`\`\` is a span, not a fence — no swallow (TEST-021)..."
-  local d; d="$(setup_iso_repo c7-spanedges)"
-  # (a) a CommonMark inline code span crossing line breaks: its interior must
-  # never be flagged (D1: content inside inline code is NEVER flagged).
-  cat > "$d/docs/specs/SPEC-7920-mlspan.md" <<'MD'
----
-id: SPEC-7920
-type: spec
-status: draft
-links:
-  pr: []
----
-# Multi-line inline code span
-
-Prose with `code that
-</content>
-keeps going` and ends clean.
-MD
-  # (b) a line-initial 3-run code span that CLOSES on the same line is an inline
-  # span (backtick fence info strings may not contain backticks), NOT a fence
-  # open — no spurious unbalanced-fence, and the rest of the doc is NOT swallowed.
-  cat > "$d/docs/specs/SPEC-7921-inlinefence.md" <<'MD'
----
-id: SPEC-7921
-type: spec
-status: draft
-links:
-  pr: []
----
-# Line-initial two-run code span
-
-``` x ```
-prose after the span
-</content>
-MD
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --lint-body > lint.log 2>&1) \
-    || log_fail "--lint-body must exit 0 without --strict: $(cat "$d/lint.log")"
-  grep -qF "unbalanced-fence" "$d/lint.log" \
-    && log_fail "\`\`\` x \`\`\` on one line is an inline span, not a fence open: $(cat "$d/lint.log")"
-  grep -qF "SPEC-7920-mlspan.md" "$d/lint.log" \
-    && log_fail "no finding may fire inside a multi-line inline code span: $(cat "$d/lint.log")"
-  grep -qE 'SPEC-7921-inlinefence\.md:12 .*stray-tool-markup' "$d/lint.log" \
-    || log_fail "the real </content> AFTER the inline span must still be flagged (no false-negative cascade): $(cat "$d/lint.log")"
-  grep -qE '^### Body lint: 1' "$d/lint.log" \
-    || log_fail "exactly ONE finding expected across both fixtures: $(cat "$d/lint.log")"
-  rm -rf "$d"
-  log_pass "Multi-line spans masked; same-line backtick-run pairs are spans, not fences (TEST-021)"
 }
 
 # --- CHANGE-0012 / spec-slug-refs-across-tooling: DRAFT docs in the scan set +
@@ -8612,6 +8424,7 @@ main() {
   echo "Testing $TEST_NAME skill (engine + fixtures)"
   test_broken_refs_selector_isolates
   check_deps
+  test_change0007_lint_body_node
   setup_fixture
   test_deterministic_index_no_clock_line
   test_1351_live_corpus_near_miss_set_is_dispositioned
@@ -8712,17 +8525,12 @@ main() {
   test_581_stat_error_other_than_enoent_is_never_swallowed
   test_559_posix_predicate_infra_exit
   test_change0007_lint_stray_markup
-  test_change0007_lint_unbalanced_fence
-  test_change0007_lint_placeholder
-  test_change0007_lint_negative_controls
-  test_change0007_lint_degenerate_fixtures
   test_change0007_lint_promotion_pair
   test_change0007_lint_body_file_predicate
   test_change0007_hook_body_lint
   test_change0007_regression
   test_change0007_hook_config_staged
   test_change0007_hook_space_filename
-  test_change0007_lint_span_edges
   test_index_continue_on_error
   test_change0012_gate_slug_draft
   test_change0012_draft_scanned_nonvacuous
