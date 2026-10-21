@@ -98,6 +98,12 @@ on:
 permissions:
   contents: read
 
+# Every job below has read-only permissions and performs verification only.
+# Non-PR events get a unique run identity and never cancel one another.
+concurrency:
+  group: ${{ format('{0}-{1}-{2}', github.workflow, github.event_name, github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   release-notes:
     name: release notes
@@ -207,20 +213,18 @@ jobs:
           node-version: '20'
 
       - name: Run selected suites (one test-framework.sh invocation, repeated --skill)
+        env:
+          SELECTED_SUITES: ${{ needs.select.outputs.suites }}
         run: |
           set -euo pipefail
           args=()
-          # Actions interpolates the suite list before bash parses the script.
-          # Expanding that list in a `for s in ...; do` clause becomes
-          # `for s in ; do` (syntax error) when the output is empty,
-          # and the empty-args guard below never runs. Bind first, then
-          # word-split: suite names are charset-validated [A-Za-z0-9_-]+.
-          suite_list="${{ needs.select.outputs.suites }}"
-          # shellcheck disable=SC2086
-          set -- $suite_list
-          for s in "$@"; do
+          # Suite names enter bash as data, before the selector validates them.
+          suite_list="$SELECTED_SUITES"
+          printf '%s\n' "$suite_list" | tr ' ' '\n' > selected-input.txt
+          node .aai/scripts/select-suites.mjs --order-from selected-input.txt > selected-order.txt
+          while IFS= read -r s; do
             args+=(--skill "$s")
-          done
+          done < selected-order.txt
           if [ "${#args[@]}" -eq 0 ]; then
             echo "select produced an empty suite list; refusing to fall through to a full sweep"
             exit 1

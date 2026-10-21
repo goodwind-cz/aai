@@ -72,6 +72,10 @@ pairs:
     status: done
   - capability: git-platform-detected-at-bootstrap
     status: done
+  - capability: smaller-node-core-and-faster-feedback
+    status: active
+  - capability: selected-ci-scheduling-foundation
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

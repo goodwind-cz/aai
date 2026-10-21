@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-20T21:57:34.578Z",
+  "generatedAt": "2026-10-21T00:51:33.721Z",
   "project": "aai",
   "counts": {
-    "delivered": 308,
-    "in_progress": 16,
+    "delivered": 309,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
   },
@@ -218,9 +218,35 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "smaller-node-core-and-faster-feedback",
+      "title": "RFC: A smaller Node.js core and faster development feedback",
+      "type": "rfc",
+      "status": "draft",
+      "path": "docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
     }
   ],
   "delivered": [
+    {
+      "ref": "selected-ci-scheduling-foundation",
+      "title": "Selected CI scheduling foundation",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0214-selected-ci-scheduling-foundation.md",
+      "closed_on": "2026-10-21",
+      "agent_minutes": 101,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0239-spec-selected-ci-scheduling-foundation.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261021T003754Z-selected-ci-scheduling-foundation.md"
+    },
     {
       "ref": "sync-prune-retired-skill-wrappers",
       "title": "Sync leaves retired template skill wrappers behind in .claude/skills and .agents/skills",
@@ -245,7 +271,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0238-spec-intake-closing-questions-as-one-menu.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20261020T220500Z-intake-closing-questions-as-one-menu.md"
     },
     {
       "ref": "release-command-finish",
@@ -4253,6 +4279,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "selected-ci-scheduling-foundation",
+          "title": "Selected CI scheduling foundation",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0214-selected-ci-scheduling-foundation.md",
+          "closed_on": "2026-10-21",
+          "agent_minutes": 101,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0239-spec-selected-ci-scheduling-foundation.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261021T003754Z-selected-ci-scheduling-foundation.md"
+        },
+        {
           "ref": "sync-prune-retired-skill-wrappers",
           "title": "Sync leaves retired template skill wrappers behind in .claude/skills and .agents/skills",
           "type": "issue",
@@ -4276,7 +4315,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0238-spec-intake-closing-questions-as-one-menu.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-20261020T220500Z-intake-closing-questions-as-one-menu.md"
         },
         {
           "ref": "release-command-finish",

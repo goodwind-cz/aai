@@ -25,8 +25,9 @@
 #     DOC_FAMILIES entry drops the product doc from BOTH engines in lockstep.
 #   - TEST-012 (Spec-AC-04, unit): each of the real repo's 12 migrated
 #     docs/product/*.md carries capability==its own filename slug + a
-#     non-empty delivered_by, is not a placeholder, AND (PR-time baseline)
-#     its body is byte-identical to the git HEAD blob's body region.
+#     non-empty delivered_by and is not a placeholder. The original migration
+#     preserves all 12 bodies in committed historical fixtures; later
+#     capability updates are permitted by SPEC-0105 D3.
 #   - TEST-013 (Spec-AC-05, e2e): a fresh user_visible ride — template ->
 #     docs/product/<capability>.md -> audit clean + INDEX Product row + close
 #     gate pass + delivered_by stamped (the inverse of #189).
@@ -440,12 +441,11 @@ test_005_anti_duplication() {
 # --- TEST-012 (Spec-AC-04, unit): migrated docs — structural + body-diff ----
 
 test_012_migration_body_diff_zero() {
-  log_info "Test: all 12 real docs/product/*.md carry capability==own slug + non-empty delivered_by, are non-placeholder, and their body is byte-identical to the git HEAD blob's body (TEST-012)..."
+  log_info "Test: live product docs retain structure; committed fixtures preserve all 12 original migration bodies (TEST-012)..."
   local probe="$TEST_DIR/t012-probe.mjs"
   cat > "$probe" <<PROBE
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
 import { parseFrontmatter } from '$DOCS_MODEL_LIB';
 import { missingProductSections } from '$PROJECT_ROOT/.aai/scripts/lib/product-doc.mjs';
 
@@ -458,8 +458,9 @@ if (files.length < 1) { console.error('expected at least one product doc, found 
 // time; assert the per-doc invariants below over whatever the live set is.
 
 const bodyOf = (s) => {
-  const parts = String(s).split('---\n');
-  return parts.slice(2).join('---\n');
+  const match = String(s).match(/^---\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n/);
+  if (!match) throw new Error('missing frontmatter boundary');
+  return String(s).slice(match[0].length);
 };
 
 let bad = [];
@@ -472,18 +473,25 @@ for (const f of files) {
   if (!Array.isArray(fm.delivered_by) || fm.delivered_by.length === 0) bad.push(f + ': empty/missing delivered_by');
   const missing = missingProductSections(content);
   if (missing.length > 0) bad.push(f + ': placeholder section(s) ' + missing.join(','));
-  let before;
-  try {
-    before = execSync('git show HEAD:docs/product/' + f, { cwd: root, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
-  } catch {
-    before = null; // untracked (new file, no HEAD blob yet) -- nothing to diff
-  }
-  if (before != null && bodyOf(before) !== bodyOf(content)) {
-    bad.push(f + ': body differs from git HEAD blob (prose loss risk)');
-  }
 }
+// SPEC-0105 D4 / TEST-012 concerns the initial migration only. Exact
+// before/after snapshots keep its evidence available in source/shallow copies.
+const fixture = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/product-docs/migration.json'), 'utf8'));
+const originalPaths = ["docs/product/ci-test-impact-selection.md", "docs/product/dev-progress-hub.md", "docs/product/docs-hub-generator.md", "docs/product/friction-capture-default-on.md", "docs/product/issues-skill.md", "docs/product/learned-append-gate.md", "docs/product/platform-portable-pr.md", "docs/product/product-docs-enforced.md", "docs/product/prompt-hash-telemetry.md", "docs/product/role-output-contracts.md", "docs/product/token-capture-canary.md", "docs/product/token-economics-end-to-end.md"];
+if (fixture.migration_commit !== 'a93bdfedc786c8cbd2c92a4ef5aba0ec62c13c22') bad.push('wrong migration provenance');
+if (!Array.isArray(fixture.documents) || fixture.documents.length !== 12) throw new Error('expected all 12 original migration pairs');
+if (JSON.stringify(fixture.documents.map(d => d.path).sort()) !== JSON.stringify(originalPaths.sort())) bad.push('original migration membership changed');
+for (const {path: file, before, after} of fixture.documents) {
+  if (!bodyOf(before).trim()) bad.push(file + ': empty historical body');
+  if (bodyOf(before) !== bodyOf(after)) bad.push(file + ': migration changed prose');
+  const fm = parseFrontmatter(after);
+  if (fm.capability !== path.basename(file, '.md') || !Array.isArray(fm.delivered_by) || fm.delivered_by.length === 0) bad.push(file + ': migration metadata missing');
+  // A constant/empty extractor would make equality vacuous.
+  if (bodyOf(after + '\\n---\\nbody sentinel') === bodyOf(after)) bad.push(file + ': body comparison vacuous');
+}
+
 if (bad.length > 0) { console.error(bad.join('\\n')); process.exit(1); }
-console.log('OK ' + files.length + ' product docs verified');
+console.log('OK ' + files.length + ' live product docs and 12 original migration pairs verified');
 PROBE
   node "$probe" > "$TEST_DIR/t012.out" 2>&1 \
     || { log_fail "t012: migration structural/body-diff check failed:\n$(cat "$TEST_DIR/t012.out")"; return; }
@@ -608,6 +616,35 @@ PROBE
   log_pass "docs/product/windows-test-wrapper.md: missingProductSections empty, close-work-item gate severity none (TEST-014/spec TEST-014)"
 }
 
+# TEST-016: source distributions have no Git object database. TEST-012 still
+# must execute all live invariants and all twelve committed migration pairs.
+test_016_migration_without_git_history() {
+  log_info "Test: TEST-012 works in a source copy with no Git history (TEST-016)..."
+  local dir="$TEST_DIR/t016-source"
+  mkdir -p "$dir/.aai/scripts/lib" "$dir/tests/skills" "$dir/tests/fixtures/product-docs"
+  cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$dir/.aai/scripts/lib/"
+  cp "$DOCS_AUDIT" "$GENERATE_INDEX" "$dir/.aai/scripts/"
+  cp "$PROJECT_ROOT/tests/skills/test-aai-product-docs.sh" "$dir/tests/skills/"
+  cp "$PROJECT_ROOT/tests/fixtures/product-docs/migration.json" "$dir/tests/fixtures/product-docs/"
+  write_product_doc "$dir" "source-capability"
+  [[ ! -e "$dir/.git" ]] || { log_fail "t016: source fixture unexpectedly has .git"; return; }
+  local out="$TEST_DIR/t016.out" code=0
+  bash "$dir/tests/skills/test-aai-product-docs.sh" test_012_migration_body_diff_zero > "$out" 2>&1 || code=$?
+  [[ "$code" == 0 ]] || { log_fail "t016: history-free TEST-012 failed (exit $code): $(cat "$out")"; return; }
+  grep -qF '12 original migration pairs' "$out" || { log_fail "t016: original migration coverage was not attested: $(cat "$out")"; return; }
+  node - "$dir/tests/fixtures/product-docs/migration.json" <<'JS'
+const fs = require('fs'), file = process.argv[2];
+const fixture = JSON.parse(fs.readFileSync(file, 'utf8'));
+fixture.documents[0].after += '\nLost-prose regression control\n';
+fs.writeFileSync(file, JSON.stringify(fixture));
+JS
+  code=0
+  bash "$dir/tests/skills/test-aai-product-docs.sh" test_012_migration_body_diff_zero > "$out" 2>&1 || code=$?
+  [[ "$code" == 1 ]] && grep -qF 'migration changed prose' "$out" \
+    || { log_fail "t016: changed migration prose was not detected (exit $code): $(cat "$out")"; return; }
+  log_pass "TEST-012 verifies live docs and all 12 original migration pairs without Git history (TEST-016)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -630,6 +667,7 @@ main() {
   test_004_seam1_dual_family
   test_005_anti_duplication
   test_012_migration_body_diff_zero
+  test_016_migration_without_git_history
   test_013_fresh_ride_e2e
   test_014_validation_cost_calibration_product_doc
   test_015_windows_test_wrapper_product_doc

@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-20T21:57:34.913Z",
+  "generatedAt": "2026-10-21T00:51:34.257Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 172,
-    "delivered": 557,
+    "rides": 173,
+    "delivered": 559,
     "active_weeks": 17,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (557 closes vs 172 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 557,
-    "delivered_per_week_avg": 32.8,
+    "note": "\"delivered\" counts every work_item_closed event (559 closes vs 173 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 559,
+    "delivered_per_week_avg": 32.9,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -31,7 +31,7 @@
       "2026-W40": 35,
       "2026-W41": 36,
       "2026-W42": 24,
-      "2026-W43": 4
+      "2026-W43": 6
     },
     "delivered_groups": [
       {
@@ -541,7 +541,7 @@
         "key": "month:2026-10",
         "kind": "month",
         "label": "2026-10",
-        "count": 78,
+        "count": 80,
         "refs": [
           "downstream-rides-ask-no-governance-questions",
           "spec-downstream-rides-ask-no-governance-questions",
@@ -620,7 +620,9 @@
           "sync-prune-retired-skill-wrappers",
           "spec-sync-prune-retired-skill-wrappers",
           "intake-closing-questions-as-one-menu",
-          "spec-intake-closing-questions-as-one-menu"
+          "spec-intake-closing-questions-as-one-menu",
+          "selected-ci-scheduling-foundation",
+          "spec-selected-ci-scheduling-foundation"
         ]
       }
     ],
@@ -2853,19 +2855,27 @@
         {
           "ref": "spec-intake-closing-questions-as-one-menu",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "selected-ci-scheduling-foundation",
+          "lead_time_seconds": 6805
+        },
+        {
+          "ref": "spec-selected-ci-scheduling-foundation",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 4643,
-      "mean_seconds": 104563.8,
-      "measured": 168,
-      "unmeasurable": 389
+      "median_seconds": 4702,
+      "mean_seconds": 103985.4,
+      "measured": 169,
+      "unmeasurable": 390
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2833,
-      "mean": 8503.2,
-      "measured": 170
+      "median": 2843,
+      "mean": 8489,
+      "measured": 171
     },
     "role_split": [
       {
@@ -2875,27 +2885,27 @@
       },
       {
         "role": "Implementation",
-        "duration_seconds": 66340,
+        "duration_seconds": 67273,
         "tokens": 2702847
       },
       {
         "role": "Code Review",
-        "duration_seconds": 136475,
+        "duration_seconds": 136907,
         "tokens": 12266912
       },
       {
         "role": "Remediation",
-        "duration_seconds": 305523,
+        "duration_seconds": 305957,
         "tokens": 13456553
       },
       {
         "role": "Validation",
-        "duration_seconds": 434289,
+        "duration_seconds": 438116,
         "tokens": 17391218
       },
       {
         "role": "Planning",
-        "duration_seconds": 120619,
+        "duration_seconds": 121079,
         "tokens": 11557457
       },
       {
@@ -3764,6 +3774,11 @@
         "ref": "intake-closing-questions-as-one-menu",
         "busy_seconds": 2224,
         "remediation_runs": 0
+      },
+      {
+        "ref": "selected-ci-scheduling-foundation",
+        "busy_seconds": 6086,
+        "remediation_runs": 1
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -3810,7 +3825,7 @@
     ],
     "capture_coverage": {
       "runs_with_marker": 477,
-      "total_runs": 1075,
+      "total_runs": 1081,
       "pct": 44,
       "by_week": [
         {
@@ -3912,7 +3927,7 @@
         {
           "week": "2026-W43",
           "runs_with_marker": 0,
-          "total_runs": 26,
+          "total_runs": 32,
           "pct": 0
         }
       ]
@@ -3931,50 +3946,50 @@
         },
         {
           "role": "Implementation",
-          "runs_total": 55,
+          "runs_total": 56,
           "runs_marked": 10,
           "runs_sentinel": 0,
-          "runs_unmarked": 45,
+          "runs_unmarked": 46,
           "tokens_total": 2702847,
           "median_tokens_per_run": 240268,
           "share_pct": 3
         },
         {
           "role": "Code Review",
-          "runs_total": 211,
+          "runs_total": 212,
           "runs_marked": 110,
           "runs_sentinel": 5,
-          "runs_unmarked": 96,
+          "runs_unmarked": 97,
           "tokens_total": 12266912,
           "median_tokens_per_run": 103482,
           "share_pct": 15
         },
         {
           "role": "Remediation",
-          "runs_total": 177,
+          "runs_total": 178,
           "runs_marked": 70,
           "runs_sentinel": 9,
-          "runs_unmarked": 98,
+          "runs_unmarked": 99,
           "tokens_total": 13456553,
           "median_tokens_per_run": 173777,
           "share_pct": 17
         },
         {
           "role": "Validation",
-          "runs_total": 273,
+          "runs_total": 275,
           "runs_marked": 122,
           "runs_sentinel": 13,
-          "runs_unmarked": 138,
+          "runs_unmarked": 140,
           "tokens_total": 17391218,
           "median_tokens_per_run": 137186,
           "share_pct": 22
         },
         {
           "role": "Planning",
-          "runs_total": 144,
+          "runs_total": 145,
           "runs_marked": 76,
           "runs_sentinel": 1,
-          "runs_unmarked": 67,
+          "runs_unmarked": 68,
           "tokens_total": 11557457,
           "median_tokens_per_run": 148839,
           "share_pct": 14
@@ -4677,13 +4692,13 @@
   "quality": {
     "first_pass_clean": {
       "clean": 91,
-      "flagged": 146,
+      "flagged": 147,
       "rate_pct": 62
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 91,
-      "1": 19,
+      "1": 20,
       "2": 13,
       "3": 7,
       "4": 7,
@@ -4697,7 +4712,7 @@
     "avg_validation_fails": 0.4,
     "avg_review_fails": 0.1,
     "verdict_mix": {
-      "PASS": 159,
+      "PASS": 160,
       "null": 13
     },
     "review_events": 26,
@@ -4712,7 +4727,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 34,
+    "field_derived": 35,
     "marker_derived": 2,
     "mixed": 0,
     "no_basis": 136,
@@ -5576,6 +5591,11 @@
         "ref": "intake-closing-questions-as-one-menu",
         "verdict_source": "field",
         "cost_basis": "mixed"
+      },
+      {
+        "ref": "selected-ci-scheduling-foundation",
+        "verdict_source": "field",
+        "cost_basis": "none"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -5711,16 +5731,16 @@
     },
     {
       "week": "2026-W43",
-      "delivered": 4,
-      "median_lead_time_seconds": 74683,
-      "busy_seconds": 65203,
+      "delivered": 6,
+      "median_lead_time_seconds": 6805,
+      "busy_seconds": 71289,
       "tokens": null,
-      "first_pass_rate": 33
+      "first_pass_rate": 25
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 223,
+    "open_count": 222,
     "oldest_age_days": 60,
     "items": [
       {
@@ -5815,7 +5835,7 @@
         "id": "fu-clearfocus-announces-unwritten-phase",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 36,
+        "age_days": 37,
         "what": "clear-focus REPLACES an existing phase:/status: line on the focused work item but never INSERTS a missing one, and prints 'work item phase=closed status=done' unconditionally even when the item carries no phase key at all (or there is no focused item).",
         "status": "open"
       },
@@ -5823,7 +5843,7 @@
         "id": "fu-dispatch-text-detector-self-ref-fp",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 36,
+        "age_days": 37,
         "what": "check-dispatch-text.mjs's PRE_RATING_PHRASE_RE is a bare substring match with no exclusion for quoting, negation, or work-ordering prose, so it fires on the very D11 rule it enforces and on legitimate orchestration text.",
         "status": "open"
       },
@@ -5831,7 +5851,7 @@
         "id": "fu-verdict-coverage-same-second-true",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 36,
+        "age_days": 37,
         "what": "metrics-flush.mjs's verdictAfterLastImplementer uses >= where Spec-AC-19 says 'later than', and no test pins the boundary; D7's second-precision coarsening widens the same-second window this decides wrongly.",
         "status": "open"
       },
@@ -5839,7 +5859,7 @@
         "id": "fu-ledger-shrink-arm-unpinned",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 36,
+        "age_days": 37,
         "what": "tests/skills/test-aai-learned-routing.sh's TEST-008 does not pin the SHRINK arm of D15 — a ledger whose worktree content is SHORTER than the committed blob.",
         "status": "open"
       },
@@ -5847,7 +5867,7 @@
         "id": "fu-test454-4c-arm-uses-guard-proxy",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 36,
+        "age_days": 37,
         "what": "TEST-454's step-4c arm exercises the exported checkBranchPin function rather than close-work-item.mjs's real CLI, disclosed in its own comment as a STATE.yaml-fixture limitation. Validation round 5 proved the real CLI passes too (rc 0, --dry-run needs no live active_work_items entry), showing the fixture limitation is surmountable.",
         "status": "open"
       },
@@ -5855,7 +5875,7 @@
         "id": "fu-tripwire-attributes-concurrent-writes",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 36,
+        "age_days": 37,
         "what": "repo-tripwire attributes a shipping-tree write to the suite it is currently running, even when the writer is a DIFFERENT concurrent process (validation round 5: \"AAI-TRIPWIRE FAIL: test-aai-doc-numbering changed the shipping repository\" was actually the orchestrator's own concurrent full sweep, not doc-numbering).",
         "status": "open"
       },
@@ -5935,7 +5955,7 @@
         "id": "fu-sed-replacement-dollar-trap",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 35,
+        "age_days": 36,
         "what": "applySedExpr (mutation-run.mjs:324) still uses the STRING form of String.replace, the same js-replace-dollar-quote-corrupts trap NB3-r3 already fixed 210 lines below it in rotateExisting",
         "status": "open"
       },
@@ -5943,7 +5963,7 @@
         "id": "fu-writerecord-rotates-before-patch-copy",
         "ref": "mutation-gate-for-tests",
         "severity": "P2",
-        "age_days": 35,
+        "age_days": 36,
         "what": "mutation-run.mjs writeRecord() rotates the live record and patch aside BEFORE storePatchCopy() reads the caller's --patch path, so regenerating a patch-based record via its own live patch path (re-running the same command) throws ENOENT and destroys the live record",
         "status": "open"
       },
@@ -6127,7 +6147,7 @@
         "id": "fu-issue-0040-closed-as-data-no-event",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 31,
+        "age_days": 32,
         "what": "ISSUE-0040 reads probable-false-done: it was closed as data by Spec-AC-10 with PR 382's real commit, but no ac_evidence event references it, so the drift report flags it",
         "status": "open"
       },
@@ -6135,7 +6155,7 @@
         "id": "fu-reconcile-mention-vs-disclosure",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 31,
+        "age_days": 32,
         "what": "close-reconcile's id-mention-unpaired arm fires on an id a delivered doc names to disclose that it is owned ELSEWHERE, not claimed; six such items on this ride's own merge",
         "status": "open"
       },
@@ -6143,7 +6163,7 @@
         "id": "fu-issue-0042-half-delivered",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 31,
+        "age_days": 32,
         "what": "ISSUE-0042 is half delivered: SPEC-0182 Spec-AC-21 shipped the template number: null half, but its Verification also requires allocate-doc-number.mjs to accept --type research and --type hotfix, which TYPE_MAP still lacks",
         "status": "open"
       },
@@ -6655,7 +6675,7 @@
         "id": "fu-set-strategy-ref-shape",
         "ref": "strategy-unscoped-from-current-focus",
         "severity": "P2",
-        "age_days": 21,
+        "age_days": 22,
         "what": "set-strategy --ref is not shape-validated; empty --ref with unset focus writes ref_id empty and Planning retarget then treats the intake stamp as stale",
         "status": "open"
       },
@@ -6679,7 +6699,7 @@
         "id": "fu-ride-select-absent-intake-mismatch",
         "ref": "downstream-rides-ask-no-governance-questions",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "pin the gate's --intake id-mismatch usage check under an ABSENT roadmap: add one arm to test_1206_usage_checks_before_absent (no roadmap + mismatched --intake must exit 2), shown RED by moving the check below the absent-roadmap branch",
         "status": "open"
       },
@@ -6847,7 +6867,7 @@
         "id": "fu-merge-policy-decision-ref-frac-ts",
         "ref": "configurable-merge-policy-lanes",
         "severity": "P3",
-        "age_days": 15,
+        "age_days": 16,
         "what": "DECISION_REF_RE accepts whole-second timestamps only; a hitl_decision stamped with fractional seconds cannot be bound by a lane",
         "status": "open"
       },
@@ -6919,7 +6939,7 @@
         "id": "fu-tracked-ignored-rev-cat-file-batch",
         "ref": "post-validation-pushes-reuse-test-results",
         "severity": "P3",
-        "age_days": 11,
+        "age_days": 12,
         "what": "tracked-ignored.mjs --rev spawns one git cat-file per .gitignore (2000 files: 13.8 s vs 0.08 s)",
         "status": "open"
       },
@@ -7415,7 +7435,7 @@
         "id": "fu-release-policy-pending-reason",
         "ref": "release-one-shot-finish",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "PENDING: merge-policy cannot tell a checks lag from a block needing a person (missing approval, CODEOWNERS, unresolved conversations) — gh prints the same text",
         "status": "open"
       },
@@ -7423,7 +7443,7 @@
         "id": "fu-amend-spec-release-one-shot-finish",
         "ref": "release-one-shot-finish",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-release-one-shot-finish: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
         "status": "open"
       },
@@ -7431,7 +7451,7 @@
         "id": "fu-release-ruleset-paging-test",
         "ref": "release-one-shot-finish",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "TEST-086 fixture has 36 rules, so at the engine's per_page=100 it is a single page and the multi-page flatten never runs (a first-page-only mutant like data=data[0] stays green); make the filler >=105 rules. Also document that the rulesets read needs gh >= 2.48 (--slurp) in the product doc / SKILL_RELEASE, and fix the spec's Mutation targets sentence to include TEST-086",
         "status": "open"
       },
@@ -7439,7 +7459,7 @@
         "id": "fu-amend-sync-prune-retired-skill-a93b78",
         "ref": "sync-prune-retired-skill-wrappers",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-sync-prune-retired-skill-wrappers: D2 item 5: the invoke clause of the Read line is widened from 'Invoke this as <no-backtick>.' to 'any same-line text containing Invoke this as backtick, ending with a period'",
         "status": "open"
       },
@@ -7484,27 +7504,19 @@
         "status": "open"
       },
       {
-        "id": "fu-intake-menu-option-caps",
-        "ref": "intake-closing-questions-as-one-menu",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "minutes menu lists 5 options incl. Other; AskUserQuestion caps at 4 and adds its own Other (Codex may cap tighter)",
-        "status": "open"
-      },
-      {
-        "id": "fu-intake-pertype-closing-step",
-        "ref": "intake-closing-questions-as-one-menu",
-        "severity": "P3",
-        "age_days": 0,
-        "what": "per-type INTAKE_* prompts apply the metrics block but not the mode-choice block; menu reached only indirectly",
-        "status": "open"
-      },
-      {
         "id": "fu-amend-intake-closing-questions-83e5ca",
         "ref": "intake-closing-questions-as-one-menu",
         "severity": "P2",
         "age_days": 0,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-intake-closing-questions-as-one-menu: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-selected-ci-scheduling-f-3b2ba6",
+        "ref": "selected-ci-scheduling-foundation",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-selected-ci-scheduling-foundation: Separate pre-PR local validation from required post-PR pre-merge hosted cancellation and full-regression evidence; keep the child open until hosted verification.",
         "status": "open"
       }
     ]
@@ -9182,6 +9194,40 @@
         "runs_marked": 0,
         "tokens_total": null,
         "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "selected-ci-scheduling-foundation",
+        "date_utc": "2026-10-21",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 6426,
+        "agent_seconds": 6086,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -12667,7 +12713,7 @@
     "NOTE 7 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
     "NOTE 24 agent_run(s) had a role that matched no canonical role — bucketed as Other",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
-    "NOTE 75 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 76 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 5 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
     "NOTE 37 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"

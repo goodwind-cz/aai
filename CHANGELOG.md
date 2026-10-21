@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — ci: schedule selected suites longest first
+
+- Refresh all 109 suite weights from five successful full CI observations,
+  explicitly using a maximum-weight fallback for skipped `aai-state`.
+- Order the existing selected set longest first on one runner with four workers;
+  validate names before dispatch and preserve membership when weights fail.
+- Configure cancellation of superseded read-only checks for the same PR. Hosted
+  cancellation and candidate full/platform regression remain pre-merge checks.
+
 ## [unreleased] — fix(intake): ask the closing questions as one menu
 
 - Interactive intake now ends with ONE closing menu, before it reports completion, asking both how many minutes the intake took and how to implement it (GitHub #480). Agents use the harness's question tool (AskUserQuestion, request_user_input, Gemini equivalent) or a numbered text menu; an empty answer keeps the defaults. `/aai-ship` still skips it.

@@ -2795,6 +2795,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### CI test impact selection
+
+CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on every single push to a pull request — including review-fix pushes that touch one file. A weekend of iteration on one PR could burn 12+ CI-hours this way.
+
+[Product doc](product/ci-test-impact-selection.md) · [Spec](specs/SPEC-0097-spec-ci-test-impact-selection.md)
+
 ### Complete and resume a release
 
 The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
@@ -2968,12 +2974,6 @@ A project built on AAI finds out that a newer AAI release exists **as a side eff
 Product docs — the user-facing "what shipped" layer — are a first-class doc family: keyed by user capability, scanned by docs-audit, listed in docs/INDEX.md under a Product section, and updated in place as multiple rides extend one capability.
 
 [Product doc](product/product-docs-capability-model.md) · [Spec](specs/SPEC-0105-spec-product-docs-capability-model.md)
-
-### CI test impact selection
-
-CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on every single push to a pull request — including review-fix pushes that touch one file. A weekend of iteration on one PR could burn 12+ CI-hours this way.
-
-[Product doc](product/ci-test-impact-selection.md) · [Spec](specs/SPEC-0097-spec-ci-test-impact-selection.md)
 
 ### Dev-progress view in the overview: what the factory is doing right now
 
