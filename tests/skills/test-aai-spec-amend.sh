@@ -5328,3 +5328,5 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   if [[ $# -ge 1 ]]; then check_deps; setup_fixture; "$1"; else main; fi
 fi
+
+# Hosted H1 proof: comment-only eligible large selection case for SPEC-0240.

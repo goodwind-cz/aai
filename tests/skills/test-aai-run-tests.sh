@@ -1299,3 +1299,5 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"
 fi
+
+# Hosted H1 proof: comment-only eligible large selection case for SPEC-0240.

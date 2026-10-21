@@ -5985,3 +5985,5 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 2
   fi
 fi
+
+# Hosted H1 proof: comment-only eligible large selection case for SPEC-0240.

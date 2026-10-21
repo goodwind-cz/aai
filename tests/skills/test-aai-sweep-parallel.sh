@@ -1117,3 +1117,5 @@ main() {
 }
 
 main "$@"
+
+# Hosted H1 proof: comment-only eligible large selection case for SPEC-0240.

@@ -3157,3 +3157,5 @@ case "$SELECTED" in
   TEST-074|test_074_github_recorded_and_legacy_unchanged) test_074_github_recorded_and_legacy_unchanged ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac
+
+# Hosted H1 proof: comment-only eligible large selection case for SPEC-0240.
