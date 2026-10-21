@@ -300,8 +300,8 @@ behavior. Completing that child must not close this umbrella RFC.
 | Phase | Description | Status | Delivered by |
 |---|---|---|---|
 | 0 | Baseline representative local/CI checks; separate the observed main pricing failure and state-suite skip from speed work | in progress | `selected-ci-scheduling-foundation`; main pricing repair landed separately in #484 |
-| 1 | Refresh scheduling weights, selected longest-first, conditional reuse of existing sharding, superseded-run cancellation | in progress | [Scheduling foundations](../issues/CHANGE-0214-selected-ci-scheduling-foundation.md); conditional selected sharding and body-edit handling remain separate follow-ons |
-| 2 | Move docs-audit logic cases to `node:test`; retain CLI/corpus tests; split always-on content validation from engine regression | not started | No child intake yet |
+| 1 | Refresh scheduling weights, selected longest-first, conditional reuse of existing sharding, superseded-run cancellation | in progress | Scheduling foundations merged in #485; conditional selected sharding merged in #486; body-edit handling remains a separate follow-on |
+| 2 | Move docs-audit logic cases to `node:test`; retain CLI/corpus tests; split always-on content validation from engine regression | in progress | [Body-lint Node test pilot](../issues/CHANGE-0216-docs-audit-node-test-pilot.md) migrated five body-lint groups; [matched measurements](../analysis/docs-audit-node-test-pilot.md); content/engine CI separation remains outside this child |
 | 3 | Migrate common sync/hook behavior to Node in small slices, with native platform parity and retired counterparts | not started | No child intake yet |
 | 4 | Slim role context and generate provider adapters; extend existing lightweight and resume paths | not started | No child intake yet |
 | 5 | Introduce precise evidence reuse where inputs are declared; migrate remaining process adapters only with native evidence | not started | No child intake yet |
@@ -312,17 +312,21 @@ and Windows process supervision into one large specification.
 
 The scheduling foundation child is done and merged in #485:
 [Selected CI scheduling foundation](../specs/SPEC-0239-spec-selected-ci-scheduling-foundation.md).
-The current child,
 [Conditional selected CI sharding](../specs/SPEC-0240-spec-selected-ci-conditional-sharding.md),
 with its [intake](../issues/CHANGE-0215-selected-ci-conditional-sharding.md),
-has a local implementation and five paired real framework measurements:
-median wall time fell from 279.169 to 172.843 seconds for one fixed nine-suite
-set, while summed runner time rose 17.894%. This is local implementation
-evidence, pending independent Validation and hosted small/large selected plus
-full/platform checks before merge-readiness. Body-only rechecks remain a
-separate follow-on; this umbrella RFC stays open.
-The next slices are selected sharding/body rechecks, a pure `docs-audit` Node
-pilot, and document-content CI/hygiene separation. Runtime support changes,
+merged in #486 at `a15065159a26af9cdbe6d57a193de9ca35da7389`.
+Its five paired local measurements recorded median wall time 279.169 to 172.843
+seconds for one fixed nine-suite set, with summed runner time up 17.894%; those
+figures describe that child, not this program's aggregate improvement.
+The current child is the [docs-audit body-lint Node pilot](../specs/SPEC-0241-spec-docs-audit-node-test-pilot.md):
+five legacy body-lint groups now use direct `node:test` cases while CLI/corpus
+coverage stays in Bash. Its [pilot report](../analysis/docs-audit-node-test-pilot.md)
+records five paired matched runs: median 2.005992 to 0.569638 seconds and 126
+fewer lines across the three test files. These figures describe only the
+matched cluster; no whole-suite speedup or production PowerShell/Bash reduction
+is claimed.
+Body-only rechecks and document-content CI/hygiene separation remain separate
+follow-ons; this umbrella RFC stays open. Runtime support changes,
 sync policy, hook policy, lean context/generated adapters, resume/status,
 deterministic evidence reuse and process adapters each require their own
 bounded contract and evidence before a final program-wide reconciliation.
