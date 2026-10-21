@@ -45,17 +45,15 @@ name: skill-suite
 # moment the workflow run STARTS. Adding the label after a PR is already open
 # does not retroactively re-run this workflow — push an empty commit,
 # `workflow_dispatch` it, or resync the PR (e.g. a rebase) after labeling.
-# `pull_request` intentionally uses the default `types` (opened, synchronize,
-# reopened) — NOT `labeled` — so merely adding/removing an unrelated label
-# never re-triggers the whole suite.
+# `pull_request` includes `edited` so body-dependent checks refresh when PR
+# text changes. `labeled` is intentionally excluded: adding/removing an
+# unrelated label never re-triggers the whole suite.
 #
-# `self-hosting-smoke` job: kept SEPARATE from the skill suite jobs with its
-# own `timeout-minutes`, UNCONDITIONED by selection (out of scope for this
-# feature — it is not one of the tests/skills/ suites test-framework.sh
-# loops over). It runs on every push/PR/dispatch exactly as before, and now
-# also on the nightly schedule (a new trigger this change adds to the whole
-# workflow) — a deliberate widening: a comprehensive nightly gate should
-# include the self-hosting smoke test too.
+# `self-hosting-smoke` stays SEPARATE from the skill suite jobs with its own
+# `timeout-minutes`; it is not a tests/skills/ suite. Ordinary push/PR/dispatch
+# and nightly runs execute it. A proven `body-reuse` PR edit skips it and
+# directly cites the matching successful source run instead. Ordinary suite
+# selection does not otherwise narrow smoke coverage.
 #
 # fetch-depth: 0 is required on every job that runs tests/skills/ or the
 # selector: tests/skills/test-aai-layer-profiles.sh probes full git history,
