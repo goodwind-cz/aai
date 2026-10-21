@@ -62,8 +62,9 @@ A fixed nine-suite local benchmark ran five paired real framework executions
 on an Apple M4 Max with Node 26 and four workers per runner. Median wall time
 was 279.169 seconds on one runner and 172.843 seconds on two, a 38.086% drop;
 summed runner time rose 17.894%, within the policy's 25% modeled budget.
-Every leg passed with no skips. These [raw local measurements](../ai/validation/selected-ci-conditional-sharding-benchmark.md)
-cover that workload and hardware class. Hosted small/large selected cases and
+Every leg passed with no skips. The [benchmark review](../ai/reviews/review-20261021T094823Z-selected-sharding-follow-up.md)
+records the five-pair method, measurements and limitations for that workload
+and hardware class. Hosted small/large selected cases and
 the full/platform regression are still required before merge-readiness.
 
 The weights now cover all 109 runnable top-level suites, derived from five

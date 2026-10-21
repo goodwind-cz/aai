@@ -1,6 +1,6 @@
 ```yaml
 review:
-  scope: "89e7150e3bdf38c4c61bacacf27a8f9d07cd05af to working tree at HEAD 61928d867a6265c0b62bd8bb24d6ab06af7845e4, including checker help remediation"
+  scope: "89e7150e3bdf38c4c61bacacf27a8f9d07cd05af to working tree at HEAD a786087861a231e554c38b5e885efde76151d62f, including tracked benchmark-summary link remediation"
   spec: docs/specs/SPEC-0240-spec-selected-ci-conditional-sharding.md
   spec_compliance:
     verdict: pass
@@ -21,11 +21,37 @@ review:
   overall: pass
 ```
 
-# Code Review — PR 486 final diff and help follow-up
+# Code Review — PR 486 help and benchmark-link follow-ups
 
-**PASS for local acceptance. This review does not establish hosted H1/H2 or merge readiness.** No blocking or non-blocking code-quality finding remains established. The two external comments have the dispositions below.
+**PASS for local acceptance. This review does not establish hosted H1/H2 or merge readiness.** No blocking or non-blocking code-quality finding remains established. The three external comments across two finding-bearing external rounds have the dispositions below.
 
-## Scope and method
+## Second external round: benchmark link
+
+Re-review window from system clock: 2026-10-21T10:02:39Z to 2026-10-21T10:04:47Z. Current HEAD is `a786087861a231e554c38b5e885efde76151d62f`; the explicit final scope remains the entire base-to-working-tree PR diff. Git showed only the product-document link delta before this report update. Read the final delta directly and refreshed the source-byte attestation: the selector, workflow, benchmark checker and both test suites still match independent local Validation's final hashes; the selected checker is unchanged from the previous review's help fix. No additional executable or test change occurred. The six AC calls above and below remain compliant on this freshness evidence, not on a new full-suite execution.
+
+[External comment 4335453575](https://github.com/goodwind-cz/aai/pull/486#discussion_r4335453575): **real P2, remediated in-tree**. The former product link at `docs/product/ci-test-impact-selection.md:65` pointed to a gitignored report unavailable in a normal repository checkout. A reader could not inspect the evidence summary for the published performance numbers. It now links to this already tracked report and calls it a benchmark review, without suggesting the raw artifacts are published. Independently resolved the Markdown-relative path, checked `git ls-files --error-unmatch`, read the target, and confirmed the method/measurements/limitations support the surrounding claim. H6 disposition is remediation in this PR; no residual warning or follow-up is required. Parent owns the inline reply and eventual commit citation. Read `/private/tmp/aai-sharding-benchmark-link-remediation-result.md` after it was available; its original tracked-file absence and replacement-file check agree with the independently inspected delta. The five-row public summary table was independently compared against every raw JSON pair, and all rounded values match.
+
+Read the independent checker-help Validation addendum `docs/ai/reports/VALIDATION-ADDENDUM-20261021-selected-sharding-checker-help.md`: it attests the help-only executable equivalence, syntax/usage checks, both real small/large plans and omission refusals. Its local PASS does not close hosted final-SHA H1/H2. The separately running hosted Validation remains authoritative for that delivery boundary.
+
+The reviewer link probe initially used a case-sensitive lowercase `tripwire` assertion against the report's uppercase diagnostic and failed. After reading the text, the corrected case-insensitive content probe passed; neither product content nor evidence was changed to satisfy it. No redundant full sweep was run for the link-only delta. All earlier failed-aggregate/retry and benchmark-warning facts below are preserved.
+
+## Durable benchmark summary
+
+Five paired real framework executions used one fixed nine-suite workload on the same shared local Apple M4 Max, Darwin/arm64, Node v26.12.0 hardware/runtime class, with four framework workers per active runner. The baseline used one runner ordered longest-first; the candidate used two independent runner checkouts with the same suite/framework/wrapper/weight bytes at base `89e7150e3bdf38c4c61bacacf27a8f9d07cd05af`, plus the candidate selector/workflow snapshot. This is a local execution comparison, not a hosted-runner measurement.
+
+The fixed workload was `aai-hygiene-pack`, `aai-golden-flow`, `aai-pr-preflight`, `aai-layer-profiles`, `aai-mutation-gate`, `aai-follow-ups`, `aai-repo-tripwire`, `aai-doctor` and `aai-orchestration-dispatch`. Candidate runner 1 received hygiene-pack, layer-profiles, follow-ups, repo-tripwire and orchestration-dispatch; runner 2 received golden-flow, pr-preflight, mutation-gate and doctor. Each active runner invoked the real framework once. Fifteen legs completed with exit 0 and 90 suite PASS outcomes, no skips. Failed pre-measurement calibrations were retained and excluded before the accepted five-pair run started; no accepted slow sample was discarded.
+
+| Pair | Baseline wall seconds | Candidate wall seconds | Baseline runner seconds | Candidate summed runner seconds |
+|---|---:|---:|---:|---:|
+| 1 | 278.603 | 173.198 | 278.592 | 330.004 |
+| 2 | 279.169 | 172.740 | 279.157 | 328.652 |
+| 3 | 279.614 | 172.843 | 279.603 | 328.679 |
+| 4 | 280.330 | 173.384 | 280.318 | 330.505 |
+| 5 | 278.432 | 172.623 | 278.421 | 328.068 |
+
+Full-precision medians, worst values and runner totals are reproduced in the verification section below. Model estimates were W1=240, W2=153, R1=240 and R2=270 seconds, including a fixed 30-second startup allowance. They are separate from measured durations. Local results exclude GitHub queueing/provisioning and do not establish universal speedup or runner budget compliance; five samples do not support p95. The outer ledger tripwire warning described below remains part of this evidence. Raw benchmark files were inspected locally by prior independent validation/review and are gitignored; this tracked summary provides public evidence context without claiming those raw files are published.
+
+## Initial review scope and method (preserved)
 
 First system-clock capture: 2026-10-21T09:48:23Z (after initial canonical-payload read). Requested model gpt-6-astra; actual granted identity unavailable. Used the aai-code-review skill and canonical Code Review payload. No caller-provided answer key or coaching was present. Read STATE: worktree mode, no inline scope. Git status showed only the checker help edit. Reviewed the explicit base-to-working-tree range directly through Git, including the complete executable/test diff and scope documents. Also inspected lifecycle/ledger, product/release, index and generated-report companions. Long generated HTML rows were considered alongside their source JSON; no visual browser inspection was performed.
 
