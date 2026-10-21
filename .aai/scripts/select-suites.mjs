@@ -70,6 +70,10 @@
 // unique runnable top-level names longest-first. Invalid input exits nonzero;
 // weight-file failure diagnoses to stderr and falls back to name order.
 //
+// SELECTED PLAN: --selected-plan-from FILE [--weights FILE] validates exact
+// top-level membership and emits one/two SHARD groups plus SELECTED_DECISION.
+// Weight failures select one runner; unsafe inputs exit nonzero.
+//
 // SHARD MODE (D1, SPEC-0206-spec-ci-test-selection-narrowing-and-sharding):
 //   node .aai/scripts/select-suites.mjs --shards <N> [--repo-root <dir>]
 //     [--weights <path>]
@@ -106,7 +110,7 @@ const MAX_SHARDS = 8;
 function parseArgs(argv) {
   const out = {
     baseRef: null, filesFrom: null, repoRoot: null, mapPath: null, auditPath: null,
-    shards: null, weightsPath: null, deltaBase: null, head: null, orderFrom: null,
+    shards: null, weightsPath: null, deltaBase: null, head: null, orderFrom: null, selectedPlanFrom: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -116,6 +120,7 @@ function parseArgs(argv) {
     else if (a === '--map') out.mapPath = argv[++i];
     else if (a === '--docs-audit') out.auditPath = argv[++i];
     else if (a === '--shards') out.shards = argv[++i];
+    else if (a === '--selected-plan-from') out.selectedPlanFrom = argv[++i] ?? '';
     else if (a === '--order-from') out.orderFrom = argv[++i] ?? '';
     else if (a === '--weights') out.weightsPath = argv[++i];
     else if (a === '--delta-base') out.deltaBase = argv[++i];
@@ -233,6 +238,70 @@ function orderMain(opts) {
   const ordered = names.map((name) => ({ name, w: weights.get(name) ?? max }))
     .sort(byWeightDescThenName);
   for (const { name } of ordered) console.log(name);
+  exit(0);
+}
+
+// Conditional selected scheduling: these are conservative estimates, not timings.
+// Keep this parser separate from legacy full/order modes to retain their contract.
+function selectedPlanMain(opts) {
+  let names;
+  try {
+    names = [...new Set(readFileSync(resolve(opts.repoRoot, opts.selectedPlanFrom), 'utf8')
+      .split(/\r?\n/).filter((s) => s !== ''))];
+    if (!names.length) throw new Error('empty suite list');
+    const runnable = new Set(readdirSync(resolve(opts.repoRoot, 'tests/skills'), { withFileTypes: true })
+      .filter((e) => e.isFile() && SUITE_FILE_RE.test(e.name)).map((e) => e.name.slice(5, -3)));
+    for (const name of names) if (!/^[A-Za-z0-9_-]+$/.test(name) || !runnable.has(name)) {
+      throw new Error('unsafe or non-runnable suite: ' + name);
+    }
+  } catch (err) {
+    console.error('SELECTED_PLAN_REFUSED ' + err.message);
+    return exit(1);
+  }
+  let weights = new Map(), degraded = false;
+  try {
+    const text = readFileSync(resolve(opts.repoRoot, opts.weightsPath || 'tests/skills/suite-weights.tsv'), 'utf8');
+    for (const [i, raw] of text.split('\n').entries()) {
+      if (!raw.trim() || /^\s*#/.test(raw)) continue;
+      const m = raw.trim().match(/^([A-Za-z0-9_-]+)\s+([1-9][0-9]*)$/);
+      if (!m || !Number.isSafeInteger(Number(m[2])) || weights.has(m[1])) {
+        throw new Error('invalid-or-duplicate-weight-line-' + (i + 1));
+      }
+      weights.set(m[1], Number(m[2]));
+    }
+    for (const name of names) if (!weights.has(name)) throw new Error('missing-weight-' + name);
+    if (!Number.isSafeInteger([...weights.values()].reduce((a, b) => a + b, 0) + 60)) {
+      throw new Error('weight-total-overflow');
+    }
+  } catch (err) {
+    console.error('WEIGHTS_IGNORED reason=' + err.message);
+    degraded = true;
+    // Same safe ordering as --order-from: usable rows retain their order,
+    // unknown names use the maximum. A malformed file is ignored wholesale.
+    if (!String(err.message).startsWith('missing-weight-')) weights = new Map();
+  }
+  const fallback = weights.size ? Math.max(...weights.values()) : 1;
+  const ordered = names.map((name) => ({ name, w: weights.get(name) ?? fallback })).sort(byWeightDescThenName);
+  const wall = (queue) => {
+    const clocks = [0, 0, 0, 0];
+    for (const item of queue) clocks[clocks.indexOf(Math.min(...clocks))] += item.w;
+    return Math.max(...clocks) + 30;
+  };
+  const buckets = [[], []], loads = [0, 0];
+  for (const item of ordered) {
+    const idx = loads[0] <= loads[1] ? 0 : 1;
+    buckets[idx].push(item); loads[idx] += item.w;
+  }
+  const w1 = wall(ordered), walls = buckets.map(wall), w2 = Math.max(...walls), r2 = walls[0] + walls[1];
+  const reason = degraded ? 'unusable-weights' : names.length < 8 ? 'suite-count' : w1 < 120 ? 'minimum-wall' :
+    w1 - w2 < 30 ? 'minimum-saving' : w2 > 0.80 * w1 ? 'wall-ratio' : r2 > 1.25 * w1 ? 'runner-budget' : 'eligible';
+  const runners = reason === 'eligible' ? 2 : 1;
+  const chosen = runners === 2 ? buckets : [ordered];
+  for (const [i, queue] of chosen.entries()) for (const item of queue) {
+    console.log(`SHARD ${i + 1} ${item.name} weight=${item.w}`);
+  }
+  console.log(`SHARDS count=${runners} suites=${names.length}`);
+  console.log(`SELECTED_DECISION runners=${runners} reason=${reason} suites=${names.length} workers=4 startup_seconds=30 min_suites=8 min_wall_seconds=120 min_saving_seconds=30 max_wall_ratio=0.8 max_runner_ratio=1.25 w1=${w1} w2=${w2} r1=${w1} r2=${r2}`);
   exit(0);
 }
 
@@ -679,6 +748,7 @@ function deltaMain(opts) {
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   opts.repoRoot = resolve(opts.repoRoot || DEFAULT_REPO_ROOT);
+  if (opts.selectedPlanFrom !== null) return selectedPlanMain(opts);
   if (opts.orderFrom !== null) return orderMain(opts);
   if (opts.shards !== null) return shardMain(opts);
   if (opts.deltaBase !== null) return deltaMain(opts);

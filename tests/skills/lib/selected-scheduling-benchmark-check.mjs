@@ -37,16 +37,35 @@ export function auditWeights(text, names) {
 }
 const median = a => { const b=[...a].sort((x,y)=>x-y); return (b[Math.floor((b.length-1)/2)]+b[Math.ceil((b.length-1)/2)])/2; };
 export function checkBenchmark(data) {
+  const sharded = data.variant === 'selected-conditional-sharding-v1';
+  assert(!data.variant || sharded, 'unknown benchmark variant');
   assert.equal(data.pairs.length,5,'exactly five pairs required');
   assert(data.hardware && data.runtime && data.base_sha && data.candidate_base_sha,'environment identity required');
   assert(data.membership.length>0); assert.equal(new Set(data.membership).size,data.membership.length);
   const sides={baseline:[],after:[]};
   for(let i=0;i<5;i++) for(const side of Object.keys(sides)) {
+    if (sharded) assert.equal(data.pairs[i].pair,i+1,'distinct ordered pair IDs required');
     const row=data.pairs[i][side]; assert(row, 'paired record missing');
     assert.equal(row.hardware,data.hardware); assert.equal(row.runtime,data.runtime);
     assert.deepEqual([...row.membership].sort(),[...data.membership].sort());
     assert.deepEqual([...row.order].sort(),[...data.membership].sort());
-    assert.equal(row.runners,1); assert.equal(row.workers,4); assert.equal(row.exit_code,0);
+    assert.equal(row.runners,sharded && side==='after' ? 2 : 1); assert.equal(row.workers,4); assert.equal(row.exit_code,0);
+    if (sharded) {
+      assert.equal(row.legs.length,row.runners,'one actual record per runner');
+      assert.deepEqual(row.legs.map(l=>l.id),Array.from({length:row.runners},(_,i)=>i+1));
+      assert.deepEqual(row.legs.flatMap(l=>l.membership).sort(),[...data.membership].sort(),'leg membership differs');
+      let seconds=0;
+      for (const leg of row.legs) {
+        assert(leg.membership.length>0); assert.equal(leg.exit_code,0); assert.equal(leg.workers,4,'four workers per runner');
+        assert(Number.isFinite(leg.wall_seconds)&&leg.wall_seconds>0);
+        assert(typeof leg.log==='string' && leg.log.length>0,'raw leg log required');
+        seconds+=leg.wall_seconds;
+      }
+      assert(Math.abs(row.runner_seconds-seconds)<1e-6,'bad runner-second arithmetic');
+      assert(row.wall_seconds+0.001>=Math.max(...row.legs.map(l=>l.wall_seconds)),'wall shorter than a runner');
+      assert.equal(row.skip_count,row.outcomes.filter(x=>x.verdict==='SKIP').length,'hidden skips');
+      for(const outcome of row.outcomes) assert.equal(outcome.exit_code,outcome.verdict==='SKIP'?42:0,'outcome exit differs');
+    }
     assert(Number.isFinite(row.wall_seconds)&&row.wall_seconds>0);
     assert.equal(row.outcomes.length,data.membership.length);
     assert.deepEqual(row.outcomes.map(x=>x.suite).sort(),[...data.membership].sort());
@@ -55,8 +74,18 @@ export function checkBenchmark(data) {
     sides[side].push(row.wall_seconds);
   }
   const result={sample_count:5};
-  for(const [side,values] of Object.entries(sides)) result[side]={median:median(values),worst:Math.max(...values),runner_seconds:values.reduce((a,b)=>a+b,0)};
+  for(const [side,values] of Object.entries(sides)) result[side]={median:median(values),worst:Math.max(...values),runner_seconds:sharded ? data.pairs.reduce((sum,pair)=>sum+pair[side].runner_seconds,0) : values.reduce((a,b)=>a+b,0)};
   result.speedup_percent=100*(result.baseline.median-result.after.median)/result.baseline.median;
+  if (sharded) {
+    assert(/^[a-f0-9]{40}$/.test(data.base_sha) && data.candidate_base_sha===data.base_sha,'fixed benchmark checkout required');
+    assert(data.membership.length>=8,'eligible workload requires at least eight suites');
+    assert(data.policy && data.policy.runners===2 && data.policy.w1>=120 && data.policy.w1-data.policy.w2>=30 &&
+      data.policy.w2<=0.8*data.policy.w1 && data.policy.r2<=1.25*data.policy.r1,'modeled eligible policy required');
+    result.runner_cost_change_percent=100*(result.after.runner_seconds-result.baseline.runner_seconds)/result.baseline.runner_seconds;
+    result.runner_budget_overrun=result.after.runner_seconds>1.25*result.baseline.runner_seconds;
+    result.slowed_pairs=data.pairs.map((p,i)=>p.after.wall_seconds>p.baseline.wall_seconds?i+1:null).filter(Boolean);
+    if(data.summary) assert.deepEqual(data.summary,result,'bad summary arithmetic');
+  }
   return result;
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {

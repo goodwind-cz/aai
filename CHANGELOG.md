@@ -22,6 +22,19 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — ci: conditionally shard selected skill suites
+
+- Plan one or two four-worker selected runners from measured suite weights,
+  expanding only when the conservative wall-time and runner-budget thresholds
+  are met; missing or invalid weights retain one runner.
+- Independently check selected membership and runnable shards before each
+  framework invocation, and require the active selected path to pass the
+  existing aggregate gate. Full-mode and carry-forward anchors stay scoped
+  to their previous paths.
+- Five paired local runs of one fixed nine-suite set measured a 38.086% lower
+  median wall time with two runners and 17.894% more total runner time; hosted
+  selected and full/platform checks remain pending before merge-readiness.
+
 ## [unreleased] — ci: schedule selected suites longest first
 
 - Refresh all 109 suite weights from five successful full CI observations,

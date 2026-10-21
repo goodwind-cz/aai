@@ -310,8 +310,17 @@ Suggested first implementation scope: scheduling improvements plus a separate
 docs-audit pilot. Do not combine scheduler, state storage, prompt governance,
 and Windows process supervision into one large specification.
 
-The current child spec is
+The scheduling foundation child is done and merged in #485:
 [Selected CI scheduling foundation](../specs/SPEC-0239-spec-selected-ci-scheduling-foundation.md).
+The current child,
+[Conditional selected CI sharding](../specs/SPEC-0240-spec-selected-ci-conditional-sharding.md),
+with its [intake](../issues/CHANGE-0215-selected-ci-conditional-sharding.md),
+has a local implementation and five paired real framework measurements:
+median wall time fell from 279.169 to 172.843 seconds for one fixed nine-suite
+set, while summed runner time rose 17.894%. This is local implementation
+evidence, pending independent Validation and hosted small/large selected plus
+full/platform checks before merge-readiness. Body-only rechecks remain a
+separate follow-on; this umbrella RFC stays open.
 The next slices are selected sharding/body rechecks, a pure `docs-audit` Node
 pilot, and document-content CI/hygiene separation. Runtime support changes,
 sync policy, hook policy, lean context/generated adapters, resume/status,
