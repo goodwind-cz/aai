@@ -429,8 +429,8 @@ test_013_workflow_wiring() {  # Spec-AC-04
     && log_fail "skills-selected must not invoke the framework once per suite (serial isolation clones, ignores PARALLEL_WIDTH)"
   grep -qF 'for s in ${{ needs.select.outputs.suites }}' "$WORKFLOW_FILE" \
     && log_fail "skills-selected must not interpolate suites into 'for s in' (empty output becomes a bash syntax error)"
-  grep -qF 'suite_list="' "$WORKFLOW_FILE" \
-    || log_fail "skills-selected must bind the suite list to a variable before word-splitting"
+  grep -qF 'SELECTED_SUITES: ${{ needs.select.outputs.suites }}' "$WORKFLOW_FILE" \
+    || log_fail "skills-selected must receive the suite list through an environment data variable"
   FRAMEWORK_FILE="$PROJECT_ROOT/tests/skills/test-framework.sh"
   grep -qF 'SPECIFIC_SKILLS+=("$2")' "$FRAMEWORK_FILE" \
     || log_fail "test-framework.sh --skill must be repeatable (append to SPECIFIC_SKILLS), not a single overwrite"
@@ -479,7 +479,7 @@ test_018_gate_job_contract() {  # review remediation: required-check continuity
   log_info "Test: aggregating gate keeps its required-check name and needs native Windows worktree seed (TEST-018)..."
   grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$WORKFLOW_FILE" \
     || log_fail "gate job must keep the exact required-check name 'skill test suite (tests/skills/, via test-framework.sh)'"
-  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed, tracked-ignored\]' "$WORKFLOW_FILE" \
+  grep -qE 'needs:\s*\[select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, tracked-ignored\]' "$WORKFLOW_FILE" \
     || log_fail "gate job must need select + skills-selected + skills-full + native-worktree-seed"
   grep -qF 'needs.native-worktree-seed.result' "$WORKFLOW_FILE" \
     || log_fail "gate job must reject a failed or skipped native Windows worktree seed"
@@ -941,7 +941,7 @@ test_1437_gate_unchanged_negative_control() {  # Spec-AC-05, negative control
   local wf="$SHARD_WORKFLOW_FILE"
   grep -qF 'name: skill test suite (tests/skills/, via test-framework.sh)' "$wf" \
     || log_fail "TEST-1437: the gate job must keep its exact required-check name"
-  grep -qE 'needs:\s*\[select, skills-selected, skills-full, native-worktree-seed, tracked-ignored\]' "$wf" \
+  grep -qE 'needs:\s*\[select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, tracked-ignored\]' "$wf" \
     || log_fail "TEST-1437: the gate job must require the selected/full suite and native Windows seed jobs"
   grep -qE 'if:\s*always\(\)' "$wf" \
     || log_fail "TEST-1437: the gate job must keep if: always()"
@@ -954,7 +954,9 @@ test_1437_gate_unchanged_negative_control() {  # Spec-AC-05, negative control
 
 test_1438_leg_rechecks_before_extract() {  # Spec-AC-05
   log_info "Test: the skills-full leg re-runs --check on its own checkout before --extract (TEST-1438)..."
-  local wf="$SHARD_WORKFLOW_FILE"
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-selected-full-step.XXXXXX")"
+  local wf="$TEST_DIR/full-job.yml"
+  awk '/^  skills-full:/ {on=1; next} on && /^  [a-z-]+:/ {exit} on {print}' "$SHARD_WORKFLOW_FILE" > "$wf"
   local check_line='bash tests/skills/lib/shard-plan-check.sh --check shard-plan.txt tests/skills >/dev/null'
   local check_hits extract_hits check_ln extract_ln
   check_hits="$(grep -nF -- "$check_line" "$wf" || true)"
@@ -1911,6 +1913,9 @@ _assert_weight_at_most() {  # $1 suite $2 bound $3 plan row id
 
 test_1757_hygiene_pack_weight() {  # Spec-AC-03 / TEST-005
   log_info "Test: the committed CI weight of aai-hygiene-pack has refreshed measured provenance (historical target 95) (TEST-005)..."
+  test_1901_conditional_policy
+  test_1902_conditional_refusal
+  test_1903_conditional_checker
   test_1804_weights_refresh_audit
   log_pass "TEST-005: aai-hygiene-pack has refreshed measured provenance"
 }
@@ -1995,34 +2000,7 @@ JS
 }
 
 test_1802_selected_framework_seam() {
-  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-selected.XXXXXX")"
-  node - "$PROJECT_ROOT" "$TEST_DIR" <<'JS'
-const fs=require('fs'),cp=require('child_process'),assert=require('assert');
-const [root,fx]=process.argv.slice(2);
-fs.mkdirSync(fx+'/tests/skills',{recursive:true});
-fs.copyFileSync(root+'/tests/skills/test-framework.sh',fx+'/tests/skills/test-framework.sh');
-const names=['aai-a','aai-b','aai-c'];
-for(const n of names) fs.writeFileSync(fx+'/tests/skills/test-'+n+'.sh',`#!/bin/bash\nprintf '%s\\n' '${n}' >> '${fx}/starts'\n`);
-fs.writeFileSync(fx+'/names',names.join('\n')+'\n'); fs.writeFileSync(fx+'/weights','aai-a 1\naai-b 3\naai-c 2\n');
-const workflow=fs.readFileSync(root+'/.github/workflows/skill-suite.yml','utf8');
-const job=workflow.split('  skills-selected:\n')[1].split('\n  skills-full:')[0];
-assert(job.includes('--order-from'),'TEST-004 workflow must order');
-let script=job.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');
-// Only replace the selector path: run the shipping workflow script and real framework.
-script=script.replace('.aai/scripts/select-suites.mjs',root+'/.aai/scripts/select-suites.mjs --repo-root '+fx);
-const env={...process.env,SELECTED_SUITES:'aai-a aai-c aai-b aai-a',AAI_TEST_PARALLEL:'1',AAI_TEST_ISOLATION:'0',NO_COLOR:'1'};
-fs.mkdirSync(fx+'/tests/skills/lib',{recursive:true});
-fs.copyFileSync(root+'/tests/skills/lib/pipe-safe.sh',fx+'/tests/skills/lib/pipe-safe.sh');
-fs.mkdirSync(fx+'/.aai/scripts/lib',{recursive:true});
-for(const lib of ['repo-tripwire.sh','append-lock.sh']) fs.copyFileSync(root+'/.aai/scripts/lib/'+lib,fx+'/.aai/scripts/lib/'+lib);
-fs.copyFileSync(fx+'/weights',fx+'/tests/skills/suite-weights.tsv');
-let r=cp.spawnSync('bash',['-c',script],{cwd:fx,env,encoding:'utf8'});
-assert.equal(r.status,0,r.stdout+r.stderr); assert.equal(fs.readFileSync(fx+'/starts','utf8'),'aai-b\naai-c\naai-a\n');
-fs.unlinkSync(fx+'/starts'); env.SELECTED_SUITES='aai-a ../bad';
-r=cp.spawnSync('bash',['-c',script],{cwd:fx,env,encoding:'utf8'}); assert.notEqual(r.status,0); assert(!fs.existsSync(fx+'/starts'));
-assert(job.includes("AAI_TEST_PARALLEL: '4'")); assert(job.includes('timeout-minutes: 15'));
-console.log('PASS TEST-004 real workflow/selector/framework order and refusal');
-JS
+  test_1900_conditional_contract 004
 }
 
 test_1803_selected_concurrency() {
@@ -2071,11 +2049,106 @@ console.log('PASS TEST-007 checker arithmetic and adversarial pairs; fixture val
 JS
 }
 
+# Conditional selected sharding: independent policy arithmetic and execution.
+test_1900_conditional_contract() {
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-selected-conditional.XXXXXX")"
+  node --input-type=module - "$PROJECT_ROOT" "$TEST_DIR" "$1" <<'JS'
+import fs from 'node:fs'; import cp from 'node:child_process'; import assert from 'node:assert/strict';
+const [root,fx,row]=process.argv.slice(2), selector=root+'/.aai/scripts/select-suites.mjs';
+fs.mkdirSync(fx+'/tests/skills/nested',{recursive:true});
+const names=Array.from({length:16},(_,i)=>'aai-s'+String(i).padStart(2,'0'));
+for(const n of names) fs.writeFileSync(fx+'/tests/skills/test-'+n+'.sh','#!/bin/bash\n');
+fs.writeFileSync(fx+'/tests/skills/nested/test-aai-nested.sh','');
+const input=fx+'/names',weights=fx+'/weights',plan=fx+'/plan';
+const run=()=>cp.spawnSync('node',[selector,'--repo-root',fx,'--selected-plan-from',input,'--weights',weights],{encoding:'utf8'});
+const set=(values)=>{fs.writeFileSync(input,names.slice(0,values.length).join('\n')+'\n');fs.writeFileSync(weights,values.map((w,i)=>names[i]+' '+w).join('\n')+'\n');};
+const decision=r=>{assert.equal(r.status,0,r.stdout+r.stderr); const line=r.stdout.split('\n').find(l=>l.startsWith('SELECTED_DECISION '));assert(line,'missing decision');return Object.fromEntries(line.split(' ').slice(1).map(x=>x.split('=')));};
+const members=text=>text.split('\n').filter(l=>l.startsWith('SHARD ')).map(l=>l.split(' ')[2]);
+const check=()=>cp.spawnSync('bash',[root+'/tests/skills/lib/shard-plan-check.sh','--check-selected',plan,fx+'/tests/skills',input],{encoding:'utf8'});
+if(row==='001') {
+ const estimate=values=>{const ordered=values.map((w,i)=>({w,name:names[i]})).sort((a,b)=>b.w-a.w||a.name.localeCompare(b.name));const wall=q=>{const c=[0,0,0,0];for(const x of q)c[c.indexOf(Math.min(...c))]+=x.w;return Math.max(...c)+30;};const b=[[],[]],load=[0,0];for(const x of ordered){const i=load.indexOf(Math.min(...load));load[i]+=x.w;b[i].push(x);}const w1=wall(ordered),w2=Math.max(...b.map(wall)),r2=b.map(wall).reduce((a,b)=>a+b,0);const reason=values.length<8?'suite-count':w1<120?'minimum-wall':w1-w2<30?'minimum-saving':w2>.8*w1?'wall-ratio':r2>1.25*w1?'runner-budget':'eligible';return {ordered,b,w1,w2,r2,reason};};
+ const cases=[[45,45,45,45,45,45,45,45],[44,44,44,44,44,44,44,44],[46,46,46,46,46,46,46,46],Array(7).fill(100),Array(9).fill(100),[200,1,1,1,1,1,1,1],Array(10).fill(45),[150,120,100,90,80,70,60,50]];
+ // Dense deterministic vectors exercise either side of every policy predicate,
+ // including scheduler imbalance and the ten-suite runner-budget rejection.
+ let seed=21;for(let i=0;i<90;i++){const v=[];for(let j=0;j<8+i%8;j++){seed=(seed*16807)%2147483647;v.push(1+seed%240);}cases.push(v);}
+ const boundaryVectors=[[49, 17, 158, 84, 52, 91, 17, 82, 108, 28, 20, 19], [70, 26, 49, 56, 9, 90, 95, 5, 20, 129, 149, 11], [97, 42, 47, 138, 129, 106, 53, 58], [111, 97, 57, 126, 123, 68, 11, 138, 118], [43, 111, 98, 76, 34, 133, 99, 13, 36], [137, 70, 64, 129, 66, 23, 155, 30, 76, 145, 17, 53], [23, 91, 50, 63, 110, 112, 144, 77], [11, 133, 122, 158, 138, 49, 135, 67, 40, 59], [15, 73, 139, 56, 103, 28, 42, 10, 78, 83, 66, 20], [34, 37, 90, 8, 9, 70, 6, 76], [11, 64, 54, 45, 33, 84, 30, 18], [47, 44, 12, 21, 13, 69, 50, 52, 5]];
+ cases.push(...boundaryVectors);
+ const boundaries={wall:new Set(),saving:new Set(),wall_ratio:new Set(),runner_ratio:new Set()};
+ for(const v of boundaryVectors){const e=estimate(v);for(const [k,n] of Object.entries({wall:e.w1-120,saving:e.w1-e.w2-30,wall_ratio:5*e.w2-4*e.w1,runner_ratio:4*e.r2-5*e.w1}))if(Math.abs(n)<=1)boundaries[k].add(n);}
+ for(const [key,values] of Object.entries(boundaries))assert.deepEqual([...values].sort(),[-1,0,1],key+' below/at/above boundary');
+ const reasons=new Set();
+ for(const values of cases){set(values);fs.appendFileSync(input,names[0]+'\n');const r=run(),d=decision(r),e=estimate(values);reasons.add(d.reason);assert.equal(d.reason,e.reason);assert.equal(+d.runners,e.reason==='eligible'?2:1);for(const k of ['w1','w2','r2'])assert.equal(+d[k],e[k]);assert.equal(+d.r1,e.w1);assert.deepEqual(members(r.stdout).sort(),names.slice(0,values.length).sort());assert.equal(run().stdout,r.stdout,'determinism');if(+d.runners===2)for(let i=0;i<2;i++)assert.deepEqual(r.stdout.split('\n').filter(l=>l.startsWith('SHARD '+(i+1)+' ')).map(l=>l.split(' ')[2]),e.b[i].map(x=>x.name));}
+ for(const reason of ['suite-count','minimum-wall','minimum-saving','wall-ratio','runner-budget','eligible'])assert(reasons.has(reason),'unexercised reason '+reason);
+ set(Array(8).fill(90));const d=decision(run());assert.equal(+d.w1,210);assert.equal(+d.w2,120);assert.equal(+d.r2,240);
+ console.log('PASS conditional TEST-001 independently computed policy, tie order, thresholds, membership and determinism');
+}
+if(row==='002') {
+ for(const bad of ['missing','directory','malformed','duplicate','overflow','incomplete','empty','nonfinite']){set(Array(8).fill(90));if(bad==='missing')fs.unlinkSync(weights);if(bad==='directory'){fs.unlinkSync(weights);fs.mkdirSync(weights);}if(bad==='malformed')fs.appendFileSync(weights,'bad weight\n');if(bad==='duplicate')fs.appendFileSync(weights,names[0]+' 90\n');if(bad==='overflow')fs.appendFileSync(weights,'aai-other '+('9'.repeat(400))+'\n');if(bad==='incomplete')fs.writeFileSync(weights,names[0]+' 90\n');if(bad==='empty')fs.writeFileSync(weights,'# empty\n');if(bad==='nonfinite')fs.appendFileSync(weights,'aai-other Infinity\n');const r=run(),d=decision(r);assert.equal(+d.runners,1,bad);assert.match(r.stderr,/WEIGHTS_IGNORED/,bad);assert.deepEqual(members(r.stdout).sort(),names.slice(0,8).sort());fs.rmSync(weights,{recursive:true,force:true});}
+ for(const invalid of ['', '../aai-s00','aai-s00;echo owned','aai-unknown','aai-nested',' aai-s00']){set(Array(8).fill(90));fs.writeFileSync(input,invalid+'\n');const r=run();assert.notEqual(r.status,0,invalid);assert.equal(r.stdout,'');assert.match(r.stderr,/REFUSED/);}
+ for(const bad of ['missing','directory']){fs.rmSync(input,{force:true});if(bad==='directory')fs.mkdirSync(input);assert.notEqual(run().status,0);fs.rmSync(input,{recursive:true,force:true});}
+ set(Array(8).fill(90));assert.equal(+decision(run()).runners,2,'positive control');
+ console.log('PASS conditional TEST-002 weights degrade safely; unsafe/missing/empty/unrunnable inputs fail closed');
+}
+if(row==='003') {
+ set(Array(8).fill(90));const good=run().stdout;fs.writeFileSync(plan,good);assert.equal(check().status,0);
+ const corruptions=[good.replace(/^SHARD 1 [^\n]+\n/m,''),good+'SHARD 1 aai-extra weight=90\n',good+good.split('\n')[0]+'\n',good.replace(/SHARD 1 /,'SHARD 3 '),good.replace(/SHARD 1 /g,'SHARD 2 '),good.replace(/SHARD 1 /,'SHARD 01 '),good.replace(/SHARD 1 aai-s00/,'SHARD 1 ../aai-s00'),good.replace('weight=90','weight=NaN'),good+'BOGUS metadata\n',good+'SHARD_FALLBACK reason=bad\n',good.replace('suites=8','suites=9'),good.replace(/^SHARDS .+\n/m,''),good.replace(/^SELECTED_DECISION .+\n/m,''),good+'SHARDS count=2 suites=8\n',good.replace(/SHARD 1 aai-s00/,'SHARD 1 aai-nested')];
+ for(const bad of corruptions){fs.writeFileSync(plan,bad);const r=check();assert.notEqual(r.status,0,bad);assert(r.stderr.trim(),'refusal names reason/offender');}
+ fs.writeFileSync(plan,good);fs.appendFileSync(input,names[0]+'\n');assert.match(check().stderr,/duplicate expected/);fs.writeFileSync(input,names.slice(0,8).join('\n')+'\n');fs.appendFileSync(input,'../bad\n');assert.match(check().stderr,/bad/);fs.writeFileSync(input,names.slice(0,8).join('\n')+'\n');fs.unlinkSync(fx+'/tests/skills/test-'+names[0]+'.sh');assert.match(check().stderr,new RegExp(names[0]));fs.writeFileSync(input,'');assert.notEqual(check().status,0);
+ console.log('PASS conditional TEST-003 independent selected checker rejects adversarial plans, expected names and changed checkout');
+}
+if(row==='004') {
+ const workflow=fs.readFileSync(root+'/.github/workflows/skill-suite.yml','utf8');
+ const section=id=>workflow.split('  '+id+':\n')[1].split(/^  [a-z][a-z-]+:\n/m)[0];
+ assert(workflow.includes('  skills-selected-sharded:\n'),'selected matrix missing');
+ fs.mkdirSync(fx+'/tests/skills/lib',{recursive:true});fs.mkdirSync(fx+'/.aai/scripts/lib',{recursive:true});
+ for(const f of ['pipe-safe.sh','shard-plan-check.sh'])fs.copyFileSync(root+'/tests/skills/lib/'+f,fx+'/tests/skills/lib/'+f);
+ for(const f of ['repo-tripwire.sh','append-lock.sh'])fs.copyFileSync(root+'/.aai/scripts/lib/'+f,fx+'/.aai/scripts/lib/'+f);
+ fs.copyFileSync(root+'/tests/skills/test-framework.sh',fx+'/tests/skills/test-framework.sh');
+ // Instrument invocation/starts while retaining the real framework dispatcher,
+ // actual isolation clones, worker scheduler, SKIP handling and exit status.
+ let framework=fs.readFileSync(fx+'/tests/skills/test-framework.sh','utf8');framework=framework.replace('#!/usr/bin/env bash','#!/usr/bin/env bash\nprintf "framework workers=%s\\n" "$AAI_TEST_PARALLEL" >> "$INVOCATIONS"');fs.writeFileSync(fx+'/tests/skills/test-framework.sh',framework);
+ for(const n of names.slice(0,8))fs.writeFileSync(fx+'/tests/skills/test-'+n+'.sh',`#!/bin/bash\nprintf '%s\\n' '${n}' >> "$STARTS"\nif [ "${n}" = "$FAIL_SUITE" ]; then exit 1; fi\n`);
+ fs.mkdirSync(fx+'/observations');fs.writeFileSync(fx+'/.gitignore','observations/\ntests/skills/results/\n');
+ cp.execFileSync('git',['init','-q',fx]);cp.execFileSync('git',['-C',fx,'-c','user.name=Fixture','-c','user.email=fixture@local','commit','--allow-empty','-qm','fixture']);
+ const sha=cp.execFileSync('git',['-C',fx,'rev-parse','HEAD'],{encoding:'utf8'}).trim();
+ // Files stay untracked and are really seeded into each framework clone.
+ const env={...process.env,AAI_TEST_PARALLEL:'4',AAI_TEST_ISOLATION:'1',CHECKOUT_SHA:sha,SELECTED_SUITES:names.slice(0,8).join(' '),INVOCATIONS:fx+'/observations/invocations',STARTS:fx+'/observations/starts',FAIL_SUITE:'',NO_COLOR:'1'};
+ const execute=(id,shard,selectedPlan)=>{const job=section(id);assert(job.includes("AAI_TEST_PARALLEL: '4'"));assert(job.includes('ref: ${{ needs.select.outputs.checkout_sha }}'));const script=job.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');return cp.spawnSync('bash',['-c',script],{cwd:fx,env:{...env,SELECTED_PLAN:selectedPlan,SELECTED_SHARD:String(shard)},encoding:'utf8'});};
+ for(const count of [1,2]){set(Array(8).fill(count===1?1:90));const good=run().stdout;for(let i=1;i<=count;i++){const r=execute(count===1?'skills-selected':'skills-selected-sharded',i,good);assert.equal(r.status,0,r.stdout+r.stderr);assert.match(r.stdout,/AAI_TEST_PARALLEL=4/);}assert.equal(fs.readFileSync(env.INVOCATIONS,'utf8').trim().split('\n').length,count);assert.deepEqual(fs.readFileSync(env.STARTS,'utf8').trim().split('\n').sort(),names.slice(0,8).sort());console.log('ACTUAL_START_UNION runners='+count+' '+fs.readFileSync(env.STARTS,'utf8').trim().split('\n').join(',')+'; '+fs.readFileSync(env.INVOCATIONS,'utf8').trim().split('\n').join('; '));fs.unlinkSync(env.STARTS);fs.unlinkSync(env.INVOCATIONS);}
+ set(Array(8).fill(90));const good=run().stdout;env.FAIL_SUITE=names[0];assert.notEqual(execute('skills-selected-sharded',1,good).status,0,'suite failure propagates');fs.unlinkSync(env.STARTS);fs.unlinkSync(env.INVOCATIONS);env.FAIL_SUITE='';
+ for(const bad of [good.replace(/^SHARD 1 [^\n]+\n/m,''),good+'SHARD_FALLBACK reason=bad\n']){assert.notEqual(execute('skills-selected-sharded',1,bad).status,0);assert(!fs.existsSync(env.STARTS));assert(!fs.existsSync(env.INVOCATIONS));}
+ env.CHECKOUT_SHA='0'.repeat(40);assert.notEqual(execute('skills-selected-sharded',1,good).status,0);assert(!fs.existsSync(env.STARTS));assert(!fs.existsSync(env.INVOCATIONS));
+ console.log('PASS conditional TEST-004 real production steps/framework, four workers, exactly-once union, failure and pre-start refusal');
+}
+JS
+}
+
+test_1906_conditional_benchmark() {
+  node --input-type=module - "$PROJECT_ROOT" <<'JS'
+import assert from 'node:assert/strict';
+const {checkBenchmark}=await import(process.argv[2]+'/tests/skills/lib/selected-scheduling-benchmark-check.mjs');
+const names=Array.from({length:8},(_,i)=>'aai-s'+i);
+const record=runners=>({hardware:'schema-fixture',runtime:'node-schema-fixture',membership:names,order:names,runners,workers:4,exit_code:0,wall_seconds:runners===1?4:3,runner_seconds:runners===1?4:5,legs:Array.from({length:runners},(_,i)=>({id:i+1,workers:4,wall_seconds:runners===1?4:3-i,exit_code:0,membership:names.filter((_,j)=>j%runners===i),log:'schema-fixture.log'})),skip_count:0,outcomes:names.map(suite=>({suite,verdict:'PASS',exit_code:0})),components:{fixture:'unavailable',startup:'unavailable',execution:'unavailable',cleanup:'unavailable'}});
+const d={variant:'selected-conditional-sharding-v1',hardware:'schema-fixture',runtime:'node-schema-fixture',base_sha:'a'.repeat(40),candidate_base_sha:'a'.repeat(40),membership:names,policy:{runners:2,w1:210,w2:120,r1:210,r2:240},pairs:Array.from({length:5},(_,i)=>({pair:i+1,baseline:record(1),after:record(2)}))};
+const expected={sample_count:5,baseline:{median:4,worst:4,runner_seconds:20},after:{median:3,worst:3,runner_seconds:25},speedup_percent:25,runner_cost_change_percent:25,runner_budget_overrun:false,slowed_pairs:[]};
+assert.deepEqual(checkBenchmark(d),expected);d.summary=expected;assert.deepEqual(checkBenchmark(d),expected);
+for(const mutate of [x=>x.pairs.pop(),x=>x.pairs[1].pair=1,x=>x.membership.pop(),x=>x.pairs[0].after.runtime='different',x=>x.pairs[0].after.hardware='different',x=>x.pairs[0].after.membership.pop(),x=>x.pairs[0].after.legs[1].membership.pop(),x=>x.pairs[0].after.legs[0].exit_code=1,x=>x.pairs[0].after.workers=8,x=>x.pairs[0].after.legs[0].workers=8,x=>x.pairs[0].after.runner_seconds=3,x=>x.summary.after.median=2,x=>x.pairs[0].after.outcomes[0].verdict='SKIP',x=>x.pairs[0].after.outcomes[0].exit_code=42,x=>x.pairs[0].after.skip_count=1,x=>x.policy.runners=1]){const bad=structuredClone(d);mutate(bad);assert.throws(()=>checkBenchmark(bad));}
+const skipped=structuredClone(d);skipped.pairs[0].after.outcomes[0]={suite:names[0],verdict:'SKIP',exit_code:42,skip_reason:'schema positive control'};skipped.pairs[0].after.skip_count=1;assert.equal(checkBenchmark(skipped).sample_count,5);
+const slower=structuredClone(d);delete slower.summary;for(const p of slower.pairs){p.after.wall_seconds=5;p.after.legs[0].wall_seconds=5;p.after.runner_seconds=7;}const result=checkBenchmark(slower);assert(result.runner_budget_overrun);assert.deepEqual(result.slowed_pairs,[1,2,3,4,5]);assert(result.speedup_percent<0);
+console.log('PASS conditional TEST-006 schema arithmetic, five-pair/membership/runtime/skip/exit adversaries, explicit slowdown and budget overrun');
+JS
+}
+
+test_1901_conditional_policy() { test_1900_conditional_contract 001; }
+test_1902_conditional_refusal() { test_1900_conditional_contract 002; }
+test_1903_conditional_checker() { test_1900_conditional_contract 003; }
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
   test_1804_weights_refresh_audit
   test_1805_benchmark_checker
+  test_1906_conditional_benchmark
   test_1801_selected_order_and_refusal
   test_1802_selected_framework_seam
   test_1803_selected_concurrency

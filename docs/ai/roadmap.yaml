@@ -76,6 +76,8 @@ pairs:
     status: active
   - capability: selected-ci-scheduling-foundation
     status: done
+  - capability: selected-ci-conditional-sharding
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

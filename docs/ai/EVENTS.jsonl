@@ -3177,3 +3177,15 @@
 {"v":1,"ts":"2026-10-21T00:51:25Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-selected-ci-scheduling-foundation","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-21T01:19:14Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"selected-ci-scheduling-foundation","payload":{"status":"pass","hash":"cc1ddd14982c0e93510959a49ad4b6d739e0541e9a9735081b203dd4be532dae"}}
 {"v":1,"ts":"2026-10-21T01:46:24Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"selected-ci-scheduling-foundation","payload":{"status":"pass","hash":"ba94ad731460b6451414e5e52d4c6f5484bcc3d2f89d1bf53d4cd1f58fb10377"}}
+{"v":1,"ts":"2026-10-21T07:02:18Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-selected-ci-conditional-sharding","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-21T08:21:53Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-selected-ci-conditional-sharding/Spec-AC-01","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-21T08:21:53Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-selected-ci-conditional-sharding/Spec-AC-02","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-21T08:21:53Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-selected-ci-conditional-sharding/Spec-AC-03","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-21T08:21:53Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-selected-ci-conditional-sharding/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-21T08:21:53Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-selected-ci-conditional-sharding/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-21T08:21:53Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-selected-ci-conditional-sharding/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-21T09:01:28Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"selected-ci-conditional-sharding","payload":{"status":"pass","hash":"e44d714c9e8f555a74b3cdfc95f5738198457be55698202963d4bdaa58ed8cee"}}
+{"v":1,"ts":"2026-10-21T09:12:22Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"selected-ci-conditional-sharding","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-21T09:12:22Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"selected-ci-conditional-sharding","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-21T09:12:22Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-selected-ci-conditional-sharding","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-21T09:12:22Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-selected-ci-conditional-sharding","payload":{"validation":"pass","code_review":"pass"}}

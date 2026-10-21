@@ -8,6 +8,7 @@
 #
 # USAGE
 #   bash tests/skills/lib/shard-plan-check.sh --check   <plan-file> <skills-dir>
+#   bash tests/skills/lib/shard-plan-check.sh --check-selected <plan-file> <skills-dir> <expected-list>
 #   bash tests/skills/lib/shard-plan-check.sh --extract <shard-id|all> <plan-file>
 #
 # --check exits non-zero, naming the offender on stderr, unless the plan's
@@ -19,6 +20,10 @@
 # one line: shard_ids=[<distinct shard ids, ascending, comma-separated>]. A
 # plan whose only content is a SHARD_FALLBACK line passes and prints the
 # literal all-shards marker instead (see check_mode below).
+#
+# --check-selected requires one or two nonempty, contiguous shards containing
+# each suite in <expected-list> exactly once. It rejects malformed plans and
+# unsafe or non-runnable suites; on success it prints shard_ids=[1] or [1,2].
 #
 # --extract <i> prints shard i's suites in plan order, one per line. An id
 # with no suites exits non-zero. --extract all on a fallback plan prints
@@ -49,6 +54,7 @@ trap cleanup EXIT
 
 usage() {
   echo "usage: shard-plan-check.sh --check <plan-file> <skills-dir>" >&2
+  echo "       shard-plan-check.sh --check-selected <plan-file> <skills-dir> <expected-list>" >&2
   echo "       shard-plan-check.sh --extract <shard-id|all> <plan-file>" >&2
   exit 2
 }
@@ -131,6 +137,67 @@ check_mode() {
   echo "shard_ids=[${ids}]"
 }
 
+# Selected mode is fail-closed and independent of the Node producer. Check
+# grammar before extracting any fields; full-mode fallback stays unchanged.
+check_selected_mode() {
+  local plan="$1" skills_dir="$2" expected="$3" tmp name ids
+  [[ -f "$plan" && -d "$skills_dir" && -f "$expected" ]] || {
+    echo "selected-plan-check: unreadable plan, skills directory or expected list" >&2; exit 1;
+  }
+  tmp="$(mktemp -d "${TMP_PREFIX}-selected.XXXXXX")"
+  # Reuse the file cleanup list; remove the directory explicitly on success.
+  ALL_TMP_FILES+=("$tmp/expected" "$tmp/expected-unique" "$tmp/planned" "$tmp/raw")
+  awk '
+    /^$/ { next }
+    /^SHARD [12] [A-Za-z0-9_-]+ weight=[1-9][0-9]*$/ { print $3; next }
+    /^SHARDS count=[12] suites=[1-9][0-9]*$/ { summary++; next }
+    /^SELECTED_DECISION runners=[12] reason=[a-z-]+ suites=[1-9][0-9]* workers=4 startup_seconds=30 min_suites=8 min_wall_seconds=120 min_saving_seconds=30 max_wall_ratio=0\.8 max_runner_ratio=1\.25 w1=[0-9]+ w2=[0-9]+ r1=[0-9]+ r2=[0-9]+$/ { decision++; next }
+    { print "selected-plan-check: malformed record: " $0 > "/dev/stderr"; bad=1 }
+    END { if (summary != 1 || decision != 1) { print "selected-plan-check: invalid metadata record count" > "/dev/stderr"; bad=1 } if (bad) exit 1 }
+  ' "$plan" > "$tmp/raw" || exit 1
+  [[ -s "$tmp/raw" ]] || { echo 'selected-plan-check: empty plan' >&2; exit 1; }
+  sort "$tmp/raw" > "$tmp/planned"
+  sort -u "$tmp/raw" > "$tmp/expected"
+  if ! cmp -s "$tmp/planned" "$tmp/expected"; then
+    echo "selected-plan-check: duplicate suite: $(sort "$tmp/raw" | uniq -d)" >&2; exit 1
+  fi
+  while IFS= read -r name || [[ -n "$name" ]]; do
+    [[ -n "$name" ]] || continue
+    [[ "$name" =~ ^aai-[A-Za-z0-9_-]+$ && -f "$skills_dir/test-$name.sh" ]] || {
+      echo "selected-plan-check: unsafe or non-runnable expected suite: $name" >&2; exit 1;
+    }
+  done < "$expected"
+  sed '/^$/d' "$expected" | sort > "$tmp/expected"
+  [[ -s "$tmp/expected" ]] || { echo 'selected-plan-check: empty expected list' >&2; exit 1; }
+  sort -u "$tmp/expected" > "$tmp/expected-unique"
+  if ! cmp -s "$tmp/expected" "$tmp/expected-unique"; then
+    echo "selected-plan-check: duplicate expected suite: $(uniq -d "$tmp/expected")" >&2; exit 1
+  fi
+  if ! cmp -s "$tmp/planned" "$tmp/expected"; then
+    echo "selected-plan-check: membership mismatch: $(comm -3 "$tmp/expected" "$tmp/planned")" >&2; exit 1
+  fi
+  while IFS= read -r name; do
+    [[ "$name" =~ ^aai-[A-Za-z0-9_-]+$ && -f "$skills_dir/test-$name.sh" ]] || {
+      echo "selected-plan-check: unsafe or non-runnable planned suite: $name" >&2; exit 1;
+    }
+  done < "$tmp/planned"
+  ids="$(awk '$1=="SHARD"{print $2}' "$plan" | sort -un | tr '\n' ',')"
+  [[ "$ids" == '1,' || "$ids" == '1,2,' ]] || {
+    echo "selected-plan-check: noncontiguous shard ids: $ids" >&2; exit 1;
+  }
+  awk '
+    $1=="SHARD" { n++; seen[$2]=1 }
+    $1=="SHARDS" { split($2,a,"="); count=a[2]; split($3,b,"="); total=b[2] }
+    $1=="SELECTED_DECISION" { split($2,a,"="); runners=a[2]; split($4,b,"="); suites=b[2] }
+    END { k=seen[1]+seen[2]; if (k!=count || n!=total || (runners && (runners!=k || suites!=n))) {
+      print "selected-plan-check: inconsistent SHARDS/SELECTED_DECISION counts" > "/dev/stderr"; exit 1
+    } }
+  ' "$plan" || exit 1
+  rm -f "$tmp/expected" "$tmp/expected-unique" "$tmp/planned" "$tmp/raw"
+  rmdir "$tmp"
+  echo "shard_ids=[${ids%,}]"
+}
+
 extract_mode() {
   local idx="$1" plan="$2"
   [[ -f "$plan" ]] || { echo "shard-plan-check: plan file not found: $plan" >&2; exit 1; }
@@ -161,6 +228,10 @@ main() {
   [[ $# -ge 1 ]] || usage
   local mode="$1"; shift
   case "$mode" in
+    --check-selected)
+      [[ $# -eq 3 ]] || usage
+      check_selected_mode "$1" "$2" "$3"
+      ;;
     --check)
       [[ $# -eq 2 ]] || usage
       check_mode "$1" "$2"

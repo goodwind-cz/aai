@@ -195,6 +195,10 @@ jobs_resp() {
       printf '{"total_count":5,"jobs":[%s,%s,%s,%s,%s]}' \
         "$(job "$J_SELECT" success)" "$(job "$J_LEG (1)" success)" "$(job "$J_LEG (2)" success)" \
         "$(job "$J_SELECTED" skipped)" "$(job "$J_GATE" success)" ;;
+    sharded-selected-mode)
+      printf '{"total_count":5,"jobs":[%s,%s,%s,%s,%s]}' \
+        "$(job "$J_SELECT" success)" "$(job "$J_LEG" skipped)" \
+        "$(job "$J_SELECTED" skipped)" "$(job 'skill suite (selected sharded, via test-framework.sh --skill) (1)' success)" "$(job "$J_GATE" success)" ;;
     selected-mode)
       printf '{"total_count":4,"jobs":[%s,%s,%s,%s]}' \
         "$(job "$J_SELECT" success)" "$(job "$J_LEG" skipped)" \
@@ -482,6 +486,8 @@ test_1724_failsafe_table_anchor_cells() {  # Spec-AC-08
   local ev="$TEST_DIR/t1724.event" fx="$TEST_DIR/t1724.fx" lg="$TEST_DIR/t1724.log"
   write_event "$ev" synchronize "$C3"
 
+  std_fixture "$fx" sharded-selected-mode
+  cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "conditional TEST-005 matrix success cannot anchor" no-full-mode-run
   std_fixture "$fx" selected-mode
   cs_run "$REPO" "$ev" "$fx" "$lg"; expect_none "TEST-1724 selected-mode success" no-full-mode-run
   std_fixture "$fx" both-ran
@@ -585,14 +591,19 @@ test_1726_no_requests_when_selected_and_workflow_lines_pinned() {  # Spec-AC-08
   b="$(job_run_text "$base" select | awk '/^if echo "\$OUT"/ { on=1 } on { print } on && /^fi$/ { exit }')"
   c="$(job_run_text "$WORKFLOW_FILE" select | awk '/^if echo "\$OUT"/ { on=1 } on { print } on && /^fi$/ { exit }')"
   [[ -n "$b" && "$b" == "$c" ]] || log_fail "TEST-1726: the mode/SUITES derivation changed against $BASE_WORKFLOW_SHA"
-  # gate job: identical apart from the Spec-AC-01 tracked-ignored lines
-  b="$(job_block "$base" gate)"
-  c="$(job_block "$WORKFLOW_FILE" gate | sed 's/, tracked-ignored\]/]/' | awk '
-    /needs\.tracked-ignored\.result/ { skip=3 }
-    skip > 0 { skip--; next }
-    { print }')"
-  [[ -n "$b" && "$b" == "$c" ]] || log_fail "TEST-1726: the gate job name or mode logic changed against $BASE_WORKFLOW_SHA"
-  log_pass "TEST-1726: zero requests for a selected PR; non-PR, ci-full and gate logic equal the base (TEST-1726)"
+  # Conditional sharding extends the selected branch. Pin the required name
+  # and exact full success line; TEST-005 executes the entire new gate table.
+  b="$(job_block "$base" gate | awk '/^    name:/ {print}')"
+  c="$(job_block "$WORKFLOW_FILE" gate | awk '/^    name:/ {print}')"
+  [[ -n "$b" && "$b" == "$c" ]] || log_fail "TEST-1726: required gate name changed"
+  b="$(job_run_text "$base" gate | awk '/needs.skills-full.result.*full-mode run failed/ {print}')"
+  c="$(job_run_text "$WORKFLOW_FILE" gate | awk '/needs.skills-full.result.*full-mode run failed/ {print}')"
+  [[ -n "$b" && "$b" == "$c" ]] || log_fail "TEST-1726: full-mode success line changed"
+  b="$(job_block "$base" skills-full | sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d')"
+  c="$(job_block "$WORKFLOW_FILE" skills-full | sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d')"
+  [[ -n "$b" && "$b" == "$c" ]] || log_fail "TEST-1726: full job changed against $BASE_WORKFLOW_SHA"
+  log_pass "TEST-1726: zero selected requests; non-PR, ci-full, full job and required gate name retain the base contracts"
+
 }
 
 test_1738_anchor_bound_to_current_pr() {  # Spec-AC-08, review P1 (PR #435)
@@ -651,14 +662,24 @@ const fs=require('fs'),cp=require('child_process'),assert=require('assert');
 const workflow=fs.readFileSync(process.argv[2],'utf8');
 const job=workflow.split('  gate:\n')[1].split('\n  self-hosting-smoke:')[0];
 const script=job.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');
-const good={'select.result':'success','select.outputs.mode':'selected','skills-selected.result':'success','skills-full.result':'skipped','native-worktree-seed.result':'success','tracked-ignored.result':'success'};
+const good={'select.outputs.selected_runners':'1','skills-selected-sharded.result':'skipped','select.result':'success','select.outputs.mode':'selected','skills-selected.result':'success','skills-full.result':'skipped','native-worktree-seed.result':'success','tracked-ignored.result':'success'};
 const run=data=>cp.spawnSync('bash',['-c',script.replace(/\$\{\{ needs\.([^} ]+) \}\}/g,(_,k)=>data[k]??'')],{encoding:'utf8'}).status;
 assert.equal(run(good),0); assert.equal(run({...good,'select.outputs.mode':'full','skills-full.result':'success','skills-selected.result':'skipped'}),0);
 for(const mode of ['selected','full']) for(const key of ['select.result','native-worktree-seed.result','tracked-ignored.result',mode==='selected'?'skills-selected.result':'skills-full.result']) for(const fail of ['failure','cancelled','skipped','']) {
  const data={...good,'select.outputs.mode':mode,'skills-full.result':'success',[key]:fail}; assert.notEqual(run(data),0,mode+' '+key+' '+fail);
 }
-const selected=workflow.split('  skills-selected:\n')[1].split('\n  skills-full:')[0];
-assert(selected.includes('SELECTED_SUITES: ${{ needs.select.outputs.suites }}'));assert(selected.includes('--order-from selected-input.txt'));
+const sharded={...good,'select.outputs.selected_runners':'2','skills-selected.result':'skipped','skills-selected-sharded.result':'success'};
+assert.equal(run(sharded),0);
+for(const key of ['select.result','native-worktree-seed.result','tracked-ignored.result','skills-selected-sharded.result']) for(const fail of ['failure','cancelled','skipped','']) assert.notEqual(run({...sharded,[key]:fail}),0,'sharded '+key+' '+fail);
+for(const count of ['', '0', '3', 'all']) assert.notEqual(run({...good,'select.outputs.selected_runners':count}),0);
+for(const mode of ['', 'invalid']) assert.notEqual(run({...good,'select.outputs.mode':mode,'skills-full.result':'success'}),0);
+assert(job.includes('needs: [select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, tracked-ignored]'));
+assert(workflow.includes('name: skill suite (selected, via test-framework.sh --skill)'));
+assert(workflow.includes('name: skill test suite (full framework, via test-framework.sh)'));
+assert(workflow.includes('native-worktree-seed:') && workflow.includes('runs-on: windows-latest'));
+console.log('PASS conditional TEST-005 single/sharded/full aggregate truth table, stable jobs and platform dependency');
+const selected=workflow.split('  skills-selected:\n')[1].split('\n  skills-selected-sharded:')[0];
+assert(selected.includes('SELECTED_SUITES: ${{ needs.select.outputs.suites }}'));assert(selected.includes('--check-selected selected-plan.txt tests/skills selected-input.txt'));
 assert.equal((selected.match(/bash tests\/skills\/test-framework\.sh /g)||[]).length,1);
 assert(workflow.includes('shard-plan-check.sh --check'));
 console.log('PASS TEST-005 real aggregate script success/failure/missing cases and ordered data wiring');

@@ -6,6 +6,7 @@ status: current
 delivered_by:
   - CHANGE-0071
   - selected-ci-scheduling-foundation
+  - selected-ci-conditional-sharding
 spec: docs/specs/SPEC-0097-spec-ci-test-impact-selection.md
 updated: 2026-10-21
 ---
@@ -43,13 +44,28 @@ build if any suite is missing, duplicated, extra, or not runnable by the
 leg — so a sharding mistake turns CI red instead of silently shrinking
 coverage.
 
-Selected runs use one runner with four workers. The existing selected membership
-is ordered by descending observed duration, with bytewise name order for ties.
-Duplicate names run once. Invalid or empty names fail before framework dispatch;
-a missing or malformed weight file reports a diagnostic and preserves every
-selected suite in name order. An individually unweighted suite gets the largest
-known weight. The `--order-from FILE` selector mode accepts newline-separated
-names and emits names only; it does not change selection policy.
+Selected runs use one or two runners, each with four workers. The selected
+membership is ordered by descending observed duration, with bytewise name order
+for ties; duplicate names run once. A two-runner plan is eligible only when at
+least eight suites are selected and the weight model predicts at least 120
+seconds on one runner, at least 30 seconds saved, at least 20% shorter wall
+time, and at most 25% more runner time. The model adds 30 seconds per runner
+for startup. These are planning estimates, not a hosted speed guarantee.
+Small sets and sets with missing, malformed or incomplete weights use one
+runner. Invalid or empty suite names fail before framework dispatch. The
+independent selected-plan checker verifies the selected set and each runnable
+shard in the selection job and again in the consuming checkout. Each active
+runner makes one framework invocation. `--order-from FILE` remains the
+name-only ordering interface.
+
+A fixed nine-suite local benchmark ran five paired real framework executions
+on an Apple M4 Max with Node 26 and four workers per runner. Median wall time
+was 279.169 seconds on one runner and 172.843 seconds on two, a 38.086% drop;
+summed runner time rose 17.894%, within the policy's 25% modeled budget.
+Every leg passed with no skips. The [benchmark review](../ai/reviews/review-20261021T094823Z-selected-sharding-follow-up.md)
+records the five-pair method, measurements and limitations for that workload
+and hardware class. Hosted small/large selected cases and
+the full/platform regression are still required before merge-readiness.
 
 The weights now cover all 109 runnable top-level suites, derived from five
 successful full CI runs captured on 2026-10-20. Each measured row records its
@@ -123,8 +139,18 @@ Nothing is required for a normal PR — selection is automatic:
     and exactly one `DROPPED <n>` line naming how many mapped suites were
     skipped.
 - `.github/workflows/skill-suite.yml` — the `select` job resolves a
-  `mode: full|selected` output (and the suite list, when selected) on
-  every trigger; `skills-selected` and `skills-full` key off it.
+  `mode: full|selected` output. Selected mode uses `skills-selected` for one
+  runner or `skills-selected-sharded` for two; full mode uses `skills-full`.
+  The required `gate` job accepts only the successful path for that mode.
+- `.aai/scripts/select-suites.mjs --selected-plan-from <file>` — reads
+  newline-separated selected names and emits `SHARD` lines, `SHARDS` count
+  and a `SELECTED_DECISION` record with the model inputs, predicted wall and
+  runner seconds, chosen runner count and reason. Invalid names exit nonzero;
+  unusable weights retain one runner with a diagnostic.
+- `tests/skills/lib/shard-plan-check.sh --check-selected <plan>
+  <skills_dir> <expected_list>` — independently checks the selected set,
+  record grammar and one or two contiguous nonempty runnable shards before
+  names are extracted for framework execution.
 - `.aai/scripts/select-suites.mjs --shards <N>` — prints one
   `SHARD <id> <suite> weight=<w>` line per suite (longest first, greedy
   balance, deterministic across runs). Still always exits 0; any internal
