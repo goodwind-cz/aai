@@ -8,6 +8,7 @@
 #
 # USAGE
 #   bash tests/skills/lib/shard-plan-check.sh --check   <plan-file> <skills-dir>
+#   bash tests/skills/lib/shard-plan-check.sh --check-selected <plan-file> <skills-dir> <expected-list>
 #   bash tests/skills/lib/shard-plan-check.sh --extract <shard-id|all> <plan-file>
 #
 # --check exits non-zero, naming the offender on stderr, unless the plan's
@@ -19,6 +20,10 @@
 # one line: shard_ids=[<distinct shard ids, ascending, comma-separated>]. A
 # plan whose only content is a SHARD_FALLBACK line passes and prints the
 # literal all-shards marker instead (see check_mode below).
+#
+# --check-selected requires one or two nonempty, contiguous shards containing
+# each suite in <expected-list> exactly once. It rejects malformed plans and
+# unsafe or non-runnable suites; on success it prints shard_ids=[1] or [1,2].
 #
 # --extract <i> prints shard i's suites in plan order, one per line. An id
 # with no suites exits non-zero. --extract all on a fallback plan prints
@@ -49,6 +54,7 @@ trap cleanup EXIT
 
 usage() {
   echo "usage: shard-plan-check.sh --check <plan-file> <skills-dir>" >&2
+  echo "       shard-plan-check.sh --check-selected <plan-file> <skills-dir> <expected-list>" >&2
   echo "       shard-plan-check.sh --extract <shard-id|all> <plan-file>" >&2
   exit 2
 }
