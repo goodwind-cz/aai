@@ -4,6 +4,7 @@ type: change
 number: 214
 status: done
 capability: ci-test-impact-selection
+user_visible: true
 links:
   rfc: docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   spec: docs/specs/SPEC-0239-spec-selected-ci-scheduling-foundation.md

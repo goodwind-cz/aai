@@ -5,8 +5,9 @@ capability: ci-test-impact-selection
 status: current
 delivered_by:
   - CHANGE-0071
+  - selected-ci-scheduling-foundation
 spec: docs/specs/SPEC-0097-spec-ci-test-impact-selection.md
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # CI test impact selection
