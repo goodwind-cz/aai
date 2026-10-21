@@ -10,7 +10,7 @@ links:
   rfc: docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   intake: docs/issues/CHANGE-0215-selected-ci-conditional-sharding.md
   pr:
-    - TBD
+    - 486
   commits: []
 ---
 
