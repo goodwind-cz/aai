@@ -80,6 +80,8 @@ pairs:
     status: done
   - capability: docs-audit-node-test-pilot
     status: done
+  - capability: ci-body-only-rechecks
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

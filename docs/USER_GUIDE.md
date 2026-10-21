@@ -2820,6 +2820,12 @@ CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on 
 
 [Product doc](product/ci-test-impact-selection.md) · [Spec](specs/SPEC-0097-spec-ci-test-impact-selection.md)
 
+### Release notes gate
+
+A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, and root executables. Documentation, tests, and evidence-only changes are exempt. An old unchanged entry, an empty scaffold, and a blank reason do not count.
+
+[Product doc](product/release-notes-gate.md) · [Spec](specs/SPEC-0229-spec-release-notes-gate.md)
+
 ### Complete and resume a release
 
 The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
@@ -2831,12 +2837,6 @@ The release command prepares a release PR, waits for required checks, merges its
 Bootstrap records which git host the project lives on (GitHub, Azure DevOps, unknown or none) once, and `/aai-merge` follows that record: a directed merge and the post-merge cleanup now work on Azure DevOps as well as on GitHub, without ever calling `gh` there.
 
 [Product doc](product/platform-portable-pr.md) · [Spec](specs/SPEC-0103-spec-platform-portable-pr.md)
-
-### Release notes gate
-
-A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, and root executables. Documentation, tests, and evidence-only changes are exempt. An old unchanged entry, an empty scaffold, and a blank reason do not count.
-
-[Product doc](product/release-notes-gate.md) · [Spec](specs/SPEC-0229-spec-release-notes-gate.md)
 
 ### Merge a named pull request and clean up after it
 

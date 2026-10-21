@@ -587,10 +587,11 @@ test_1726_no_requests_when_selected_and_workflow_lines_pinned() {  # Spec-AC-08
   b="$(job_run_text "$base" select | awk '/^if \[\[ "\$\{\{ github.event_name/ { on=1 } /^# fetch-depth: 0 above/ { exit } on { print }')"
   c="$(job_run_text "$WORKFLOW_FILE" select | awk '/^if \[\[ "\$\{\{ github.event_name/ { on=1 } /^# fetch-depth: 0 above/ { exit } on { print }')"
   [[ -n "$b" && "$b" == "$c" ]] || log_fail "TEST-1726: the non-PR and ci-full branches of the select step changed against $BASE_WORKFLOW_SHA"
-  # mode derivation lines
-  b="$(job_run_text "$base" select | awk '/^if echo "\$OUT"/ { on=1 } on { print } on && /^fi$/ { exit }')"
+  # The mode derivation now has a third, proof-bearing body-reuse arm. The
+  # direct Node suite executes that real block and pins ordinary behavior.
   c="$(job_run_text "$WORKFLOW_FILE" select | awk '/^if echo "\$OUT"/ { on=1 } on { print } on && /^fi$/ { exit }')"
-  [[ -n "$b" && "$b" == "$c" ]] || log_fail "TEST-1726: the mode/SUITES derivation changed against $BASE_WORKFLOW_SHA"
+  [[ -n "$c" && "$c" == *'BODY_REUSE '* && "$c" == *'mode=full'* && "$c" == *'mode=selected'* ]] \
+    || log_fail "TEST-1726: expected explicit body-reuse and ordinary modes"
   # Conditional sharding extends the selected branch. Pin the required name
   # and exact full success line; TEST-005 executes the entire new gate table.
   b="$(job_block "$base" gate | awk '/^    name:/ {print}')"
@@ -599,10 +600,11 @@ test_1726_no_requests_when_selected_and_workflow_lines_pinned() {  # Spec-AC-08
   b="$(job_run_text "$base" gate | awk '/needs.skills-full.result.*full-mode run failed/ {print}')"
   c="$(job_run_text "$WORKFLOW_FILE" gate | awk '/needs.skills-full.result.*full-mode run failed/ {print}')"
   [[ -n "$b" && "$b" == "$c" ]] || log_fail "TEST-1726: full-mode success line changed"
-  b="$(job_block "$base" skills-full | sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d')"
-  c="$(job_block "$WORKFLOW_FILE" skills-full | sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d')"
-  [[ -n "$b" && "$b" == "$c" ]] || log_fail "TEST-1726: full job changed against $BASE_WORKFLOW_SHA"
-  log_pass "TEST-1726: zero selected requests; non-PR, ci-full, full job and required gate name retain the base contracts"
+  c="$(job_block "$WORKFLOW_FILE" skills-full)"
+  [[ -n "$c" && "$c" == *'needs.select.outputs.checkout_sha'* && "$c" == *'source_identity'* \
+    && "$c" == *'shard-plan-check.sh --check'* ]] \
+    || log_fail "TEST-1726: full job lost pinned checkout, proof, or shard check"
+  log_pass "TEST-1726: zero selected requests; non-PR, ci-full, full proof and required gate name retain contracts"
 
 }
 
@@ -662,18 +664,19 @@ const fs=require('fs'),cp=require('child_process'),assert=require('assert');
 const workflow=fs.readFileSync(process.argv[2],'utf8');
 const job=workflow.split('  gate:\n')[1].split('\n  self-hosting-smoke:')[0];
 const script=job.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');
-const good={'select.outputs.selected_runners':'1','skills-selected-sharded.result':'skipped','select.result':'success','select.outputs.mode':'selected','skills-selected.result':'success','skills-full.result':'skipped','native-worktree-seed.result':'success','tracked-ignored.result':'success'};
-const run=data=>cp.spawnSync('bash',['-c',script.replace(/\$\{\{ needs\.([^} ]+) \}\}/g,(_,k)=>data[k]??'')],{encoding:'utf8'}).status;
+const good={'select.outputs.selected_runners':'1','skills-selected-sharded.result':'skipped','select.result':'success','select.outputs.mode':'selected','skills-selected.result':'success','skills-full.result':'skipped','native-worktree-seed.result':'success','self-hosting-smoke.result':'success','tracked-ignored.result':'success','release-notes.result':'success','github.event_name':'pull_request'};
+const run=data=>cp.spawnSync('bash',['-c',script.replace(/\$\{\{ needs\.([^} ]+) \}\}/g,(_,k)=>data[k]??'').replace(/\$\{\{ github\.event_name \}\}/g,data['github.event_name']??'')],{encoding:'utf8'}).status;
 assert.equal(run(good),0); assert.equal(run({...good,'select.outputs.mode':'full','skills-full.result':'success','skills-selected.result':'skipped'}),0);
-for(const mode of ['selected','full']) for(const key of ['select.result','native-worktree-seed.result','tracked-ignored.result',mode==='selected'?'skills-selected.result':'skills-full.result']) for(const fail of ['failure','cancelled','skipped','']) {
+for(const mode of ['selected','full']) for(const key of ['select.result','native-worktree-seed.result','self-hosting-smoke.result','tracked-ignored.result','release-notes.result',mode==='selected'?'skills-selected.result':'skills-full.result']) for(const fail of ['failure','cancelled','skipped','']) {
  const data={...good,'select.outputs.mode':mode,'skills-full.result':'success',[key]:fail}; assert.notEqual(run(data),0,mode+' '+key+' '+fail);
 }
+
 const sharded={...good,'select.outputs.selected_runners':'2','skills-selected.result':'skipped','skills-selected-sharded.result':'success'};
 assert.equal(run(sharded),0);
-for(const key of ['select.result','native-worktree-seed.result','tracked-ignored.result','skills-selected-sharded.result']) for(const fail of ['failure','cancelled','skipped','']) assert.notEqual(run({...sharded,[key]:fail}),0,'sharded '+key+' '+fail);
+for(const key of ['select.result','native-worktree-seed.result','self-hosting-smoke.result','tracked-ignored.result','release-notes.result','skills-selected-sharded.result']) for(const fail of ['failure','cancelled','skipped','']) assert.notEqual(run({...sharded,[key]:fail}),0,'sharded '+key+' '+fail);
 for(const count of ['', '0', '3', 'all']) assert.notEqual(run({...good,'select.outputs.selected_runners':count}),0);
 for(const mode of ['', 'invalid']) assert.notEqual(run({...good,'select.outputs.mode':mode,'skills-full.result':'success'}),0);
-assert(job.includes('needs: [select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, tracked-ignored]'));
+assert(job.includes('needs: [select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, self-hosting-smoke, tracked-ignored, release-notes]'));
 assert(workflow.includes('name: skill suite (selected, via test-framework.sh --skill)'));
 assert(workflow.includes('name: skill test suite (full framework, via test-framework.sh)'));
 assert(workflow.includes('native-worktree-seed:') && workflow.includes('runs-on: windows-latest'));
@@ -686,9 +689,26 @@ console.log('PASS TEST-005 real aggregate script success/failure/missing cases a
 JS
 }
 
+test_body_direct_path_mapping() {
+  local list out
+  new_scratch
+  list="$TEST_DIR/body-direct-path.txt"
+  printf '%s\n' 'tests/skills/lib/ci-body-recheck.test.mjs' > "$list"
+  out="$(node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from "$list")" \
+    || log_fail "TEST-007: selector failed for the exact direct Node path"
+  has_prefix "$out" 'SELECTED aai-ci-carry-forward ' \
+    || log_fail "TEST-007: direct Node path did not select owning suite: $out"
+  if has_prefix "$out" 'FULL_RUN '; then
+    log_fail "TEST-007: direct Node path fell open to full: $out"
+  fi
+  log_pass "TEST-007: exact direct Node path selects aai-ci-carry-forward"
+}
+
 main() {
   echo "Testing $TEST_NAME (post-validation-pushes-reuse-test-results, Batch D)"
   check_deps
+  node --test "$PROJECT_ROOT/tests/skills/lib/ci-body-recheck.test.mjs" || log_fail "body recheck direct tests failed"
+  test_body_direct_path_mapping
   test_1806_selected_gate_failure_cases
   test_1720_anchor_found_past_failed_run_and_logged
   test_1721_job_name_constants_match_workflow

@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-21T14:46:25.241Z",
+  "generatedAt": "2026-10-21T18:55:49.130Z",
   "project": "aai",
   "counts": {
-    "delivered": 311,
+    "delivered": 312,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -272,6 +272,19 @@
       "spec": "docs/specs/SPEC-0241-spec-docs-audit-node-test-pilot.md",
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "ci-body-only-rechecks",
+      "title": "Avoid repeated source validation on body-only PR edits",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0217-ci-body-only-rechecks.md",
+      "closed_on": "2026-10-21",
+      "agent_minutes": 92,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0242-spec-ci-body-only-rechecks.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261021T184800Z-ci-body-only-rechecks.md"
     },
     {
       "ref": "sync-prune-retired-skill-wrappers",
@@ -4342,6 +4355,19 @@
           "spec": "docs/specs/SPEC-0241-spec-docs-audit-node-test-pilot.md",
           "validation": null,
           "review": null
+        },
+        {
+          "ref": "ci-body-only-rechecks",
+          "title": "Avoid repeated source validation on body-only PR edits",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0217-ci-body-only-rechecks.md",
+          "closed_on": "2026-10-21",
+          "agent_minutes": 92,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0242-spec-ci-body-only-rechecks.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261021T184800Z-ci-body-only-rechecks.md"
         },
         {
           "ref": "sync-prune-retired-skill-wrappers",

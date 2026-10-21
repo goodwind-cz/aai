@@ -6,7 +6,7 @@ status: current
 delivered_by:
   - release-notes-gate
 spec: docs/specs/SPEC-0229-spec-release-notes-gate.md
-updated: 2026-10-13
+updated: 2026-10-21
 ---
 
 # Release notes gate
@@ -17,7 +17,7 @@ A pull request that changes a shipped surface must add a new unreleased changelo
 
 ## How to use it
 
-`/aai-pr` runs the check on the staged patch and the final proposed pull request body before commit or push. To skip notes, put one line in that body: `no-notes: <reason>`. The reason must contain text after the colon. CI runs the same check on the pull request range and body. An operator may mark the `release notes` job required. This repository does not change branch protection.
+`/aai-pr` runs the check on the staged patch and the final proposed pull request body before commit or push. To skip notes, put one line in that body: `no-notes: <reason>`. The reason must contain text after the colon. CI runs the same check on the pull request range and body. The skill-suite aggregate now requires `release notes` to succeed on every PR run, including an eligible body-only edit that reuses source validation. The event body is written to a file and checked against the current base/head range; removing an exemption can fail the current run even when source jobs are skipped. This repository does not change branch protection.
 
 ## Data model
 
