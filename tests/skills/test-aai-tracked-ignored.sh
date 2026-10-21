@@ -771,3 +771,5 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
   fi
 fi
+
+# Hosted H1 proof: comment-only small selection case for SPEC-0240.
