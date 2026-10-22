@@ -1,10 +1,10 @@
 ---
 id: spec-ride-state-handoff-to-worktree
 type: spec
-number: null
-status: implementing
+number: 244
+status: done
 mutation_gate: v1
-frozen_sha256: 464a179bb2e09420a7413c8feaa4f2c7ee934ab7a593ca609f1ab61292da0682
+frozen_sha256: 4b218329f3a11ba4983801bd59480089d66531f1f7685ff00439801b0f40dd6f
 ceremony_level: 2
 links:
   requirement: ride-state-handoff-to-worktree
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-ride-state-handoff-to-worktree.md
+- Requirement: docs/issues/CHANGE-0219-ride-state-handoff-to-worktree.md
 - Parent: docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md (owner decisions of 2026-10-22, order item 2, "ride reliability")
 - Reused, not duplicated: .aai/SKILL_WORKTREE.prompt.md (fresh init), .aai/scripts/lib/state-engine.mjs (atomic write), .aai/scripts/metrics-flush.mjs (ledger gates), .aai/scripts/merge-cleanup.mjs (post-merge steps), .aai/scripts/orchestration-dispatch.mjs (rule 5/6 closed-focus guard)
 - Technology contract: docs/TECHNOLOGY.md

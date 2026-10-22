@@ -1,8 +1,8 @@
 ---
 id: ride-state-handoff-to-worktree
 type: change
-number: null
-status: draft
+number: 219
+status: done
 links:
   pr: []
   commits: []
