@@ -1,10 +1,10 @@
 ---
 id: spec-slim-standing-role-context
 type: spec
-number: null
-status: implementing
+number: 243
+status: done
 mutation_gate: v1
-frozen_sha256: 8bcf18fac5665c4e773d88f6da8909e3ab96b2da4a45a2fa5d46729e72e30eef
+frozen_sha256: a98ab11d0ae6f2a20b0405c89874bbac2a68cd9a69679d9d98eb10fee26edcbd
 ceremony_level: 2
 links:
   requirement: slim-standing-role-context
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-slim-standing-role-context.md
+- Requirement: docs/issues/CHANGE-0218-slim-standing-role-context.md
 - Parent: docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md (phase 4, child 1 of the owner-approved order of 2026-10-22)
 - Related, not absorbed: docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md
 - Technology contract: docs/TECHNOLOGY.md
@@ -80,7 +80,7 @@ the slice.
 - Worktree rationale: PR-bound multi-surface change (knowledge file, lint, five suites, one prompt, prompt-diet ledger) in a checkout shared with other sessions that hold unrelated untracked drafts and an uncommitted INDEX/roadmap edit; the split must be committed as one coherent diff. Not L3: no protected path is touched. Planning creates nothing; Implementation Preparation decides.
 - User decision: undecided
 - Base ref: main
-- Inline review scope: docs/knowledge/LEARNED.md, docs/knowledge/history/LEARNED-HISTORY.md, .aai/SKILL_REPLAY.prompt.md, tests/skills/lib/learned-guard-lints.mjs, tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh, tests/skills/test-aai-hygiene-pack.sh, tests/skills/test-aai-learned-routing.sh, tests/skills/test-aai-canon.sh, tests/skills/suite-map.yaml, CHANGELOG.md, docs/issues/CHANGE-DRAFT-slim-standing-role-context.md, docs/specs/SPEC-DRAFT-spec-slim-standing-role-context.md
+- Inline review scope: docs/knowledge/LEARNED.md, docs/knowledge/history/LEARNED-HISTORY.md, .aai/SKILL_REPLAY.prompt.md, tests/skills/lib/learned-guard-lints.mjs, tests/skills/lib/prompt-diet-ledger.sh, tests/skills/test-aai-prompt-diet.sh, tests/skills/test-aai-hygiene-pack.sh, tests/skills/test-aai-learned-routing.sh, tests/skills/test-aai-canon.sh, tests/skills/suite-map.yaml, CHANGELOG.md, docs/issues/CHANGE-0218-slim-standing-role-context.md, docs/specs/SPEC-0243-spec-slim-standing-role-context.md
 - Code review: required, independent dual verdict over this explicit scope against main.
 
 ## Design and boundaries
