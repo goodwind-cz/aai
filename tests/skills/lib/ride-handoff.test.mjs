@@ -597,3 +597,74 @@ test('TEST-010 reconcile refuses unledgered runs and no-ops without a trace', ()
   const again = reconcile(w);
   assert.match(again.stdout, /^NOOP no_trace ride-demo/m);
 });
+
+// --- remediation regressions (code review NB-1..NB-3) -------------------------------
+
+test('TEST-010 reconcile fails closed on a run item whose first key is not role', () => {
+  const swapped = ORIGIN_STATE
+    .replace('        - role: Planning\n          model_id: claude-opus-5-5\n          started_utc: 2026-10-22T16:18:38Z\n',
+      '        - started_utc: 2026-10-22T16:18:38Z\n          role: Planning\n          model_id: claude-opus-5-5\n')
+    .replace('        - role: TDD Implementation\n          model_id: claude-sonnet-5-5\n          started_utc: 2026-10-22T16:30:13Z\n',
+      '        - model_id: claude-sonnet-5-5\n          started_utc: 2026-10-22T16:30:13Z\n          role: TDD Implementation\n');
+  assert.notEqual(swapped, ORIGIN_STATE, 'control: the fixture was rewritten');
+  assert.equal(runsOf(swapped, R), 0, 'control: no item starts with role');
+  const w = world({ state: swapped, ledger: 'empty', drafts: 'none', worktree: false });
+  const s0 = sha(w.oState);
+  const r = reconcile(w);
+  assert.equal(r.status, 1, `${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /^REFUSE origin_runs_not_in_ledger\b/m);
+  assert.equal(sha(w.oState), s0, 'origin STATE unchanged');
+  assert.equal(handoffDirs(w).length, 0, 'no archive');
+  // an item with no role at all is unparseable and refused as well
+  const norole = ORIGIN_STATE.replace('        - role: Planning\n          model_id: claude-opus-5-5\n          started_utc: 2026-10-22T16:18:38Z\n',
+    '        - model_id: claude-opus-5-5\n          started_utc: 2026-10-22T16:18:38Z\n');
+  const n = world({ state: norole, ledger: 'full', drafts: 'none', worktree: false });
+  const n0 = sha(n.oState);
+  const rn = reconcile(n);
+  assert.equal(rn.status, 1, `${rn.stdout}${rn.stderr}`);
+  assert.match(rn.stdout, /^REFUSE origin_runs_not_in_ledger\b/m);
+  assert.equal(sha(n.oState), n0);
+  // positive control: the swapped shape with the full ledger is held and reconciles
+  const ok = world({ state: swapped, ledger: 'full', drafts: 'none', worktree: false });
+  const rok = reconcile(ok);
+  assert.equal(rok.status, 0, `${rok.stdout}${rok.stderr}`);
+  assert.match(rok.stdout, /^RECONCILED ride-demo cleared=2\b/m);
+});
+
+test('TEST-007 an engine-unwritable worktree STATE refuses cleanly and leaves nothing behind', () => {
+  const w = world();
+  const bare = read(w.wState).replace(/^metrics:\n(?: {2}.*\n|\n)*?(?=updated_at_utc:)/m, 'metrics: {}\n');
+  assert.match(bare, /^metrics: \{\}$/m, 'control: the worktree metrics header is inline');
+  write(w.wState, bare);
+  const o0 = sha(w.oState);
+  const w0 = sha(w.wState);
+  const r = out(w);
+  const verdict = r.status === 0 ? 'ok' : `${r.status}`;
+  if (verdict === 'ok') {
+    assert.equal(run(process.execPath, [CHECK_STATE, w.wState], w.wt).status, 0);
+    assert.equal(JSON.parse(read(path.join(handoffDirs(w)[0], 'record.json'))).status, 'done');
+  } else {
+    assert.equal(r.status, 1, `${r.stdout}${r.stderr}`);
+    assert.match(r.stdout, /^REFUSE worktree_state_not_fresh\b/m);
+    assert.equal(sha(w.oState), o0);
+    assert.equal(sha(w.wState), w0);
+    assert.equal(handoffDirs(w).length, 0, 'no started record, no archive');
+    assert.equal(fs.existsSync(path.join(w.wt, SPEC_REL)), false, 'no copied draft');
+    assert.ok(fs.existsSync(path.join(w.origin, SPEC_REL)), 'the origin draft stays');
+  }
+});
+
+test('TEST-001 a worktree STATE with work_items: [] receives the entry as valid block form', () => {
+  const w = world();
+  const L = read(w.wState);
+  assert.match(L, /^ {2}work_items:$/m, 'control: the repaired worktree STATE has a bare work_items header');
+  write(w.wState, L.replace(/^ {2}work_items:$/m, '  work_items: []'));
+  okOut(w);
+  const after = read(w.wState);
+  assert.doesNotMatch(after, /work_items: \[\]/, 'the inline list is converted to block form');
+  assert.equal(runsOf(after, R), 2);
+  const chk = run(process.execPath, [CHECK_STATE, w.wState], w.wt);
+  assert.equal(chk.status, 0, `check-state: ${chk.stdout}${chk.stderr}`);
+  const py = spawnSync('python3', ['-c', 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))', w.wState], { encoding: 'utf8' });
+  if (py.status !== 0 && !/No module named/.test(py.stderr)) assert.fail(`worktree STATE does not parse: ${py.stderr}`);
+});

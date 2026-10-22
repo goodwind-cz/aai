@@ -26,6 +26,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { duplicateKeys, inlineChildConflicts } from './lib/state-core.mjs';
 import {
   bumpUpdatedAt, editBlock, ensureBlock, fieldRe, fieldSpan, findBlock, loadState, metricsEntrySpan,
   readScalar, scalarLine, setEngineFailPrefix, setField, unquoteScalar, writeState, yq,
@@ -231,12 +232,23 @@ function entryRuns(lines, ref) {
   const s = entrySpan(lines, ref);
   const runs = [];
   if (!s) return runs;
+  let inRuns = false;
   let cur = null;
+  const field = (item, text) => {
+    const m = text.match(/^(role|started_utc):\s*(.*)$/);
+    if (!m) return;
+    const v = unq(m[2]);
+    if (m[1] === 'role') item.role = v; else item.started = v;
+  };
   for (let i = s.start + 1; i < s.end; i += 1) {
-    const m = lines[i].match(/^ {8}- role:\s*(.*)$/);
-    if (m) { cur = { role: unq(m[1]), started: null }; runs.push(cur); continue; }
-    const st = lines[i].match(/^ {10}started_utc:\s*(.*)$/);
-    if (st && cur) cur.started = unq(st[1]);
+    const l = lines[i];
+    if (/^ {6}\S/.test(l)) { inRuns = /^ {6}agent_runs:/.test(l); cur = null; continue; }
+    if (!inRuns) continue;
+    const it = l.match(/^ {8}- (.*)$/);
+    if (it) { cur = { role: null, started: null }; runs.push(cur); field(cur, it[1]); continue; }
+    if (/^ {8}-\s*$/.test(l)) { cur = { role: null, started: null }; runs.push(cur); continue; }
+    const kv = l.match(/^ {10}(\S.*)$/);
+    if (kv && cur) field(cur, kv[1]);
   }
   return runs;
 }
@@ -270,7 +282,7 @@ function putEntry(lines, ref, entryLines) {
     lines.splice(last, 0, '  work_items:', ...entryLines);
     return;
   }
-  if (/^ {2}work_items:\s*(\{\}|null|~)\s*$/.test(lines[wi])) lines[wi] = '  work_items:';
+  if (/^ {2}work_items:\s*(\{\}|\[\]|null|~)\s*$/.test(lines[wi])) lines[wi] = '  work_items:';
   lines.splice(last, 0, ...entryLines);
 }
 
@@ -510,6 +522,10 @@ function cmdOut(f) {
     return (info.branch && branch === info.branch) || (p !== null && p !== 'null' && realOr(p) === wtReal);
   };
   resetOrigin(originNext, ref, parts, wtBlockNamesThis);
+  for (const [target, next] of [[wtState, candidate], [statePath, originNext]]) {
+    const bad = duplicateKeys(next).map((d) => d.key).concat(inlineChildConflicts(next).map((c) => c.key));
+    if (bad.length > 0) refuse('worktree_state_not_fresh', `${target} cannot take the handoff (inline-valued or duplicate top-level key: ${bad.join(', ')}); nothing was written`);
+  }
 
   let dir;
   let recFile;
