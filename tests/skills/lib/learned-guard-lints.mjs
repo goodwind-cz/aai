@@ -589,4 +589,10 @@ export function main() {
 }
 
 import { pathToFileURL } from "node:url";
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main();
+// Node resolves symlinks for the main module, so compare against the real path of argv[1].
+function invokedAsMain() {
+  if (!process.argv[1]) return false;
+  try { return import.meta.url === pathToFileURL(fs.realpathSync(path.resolve(process.argv[1]))).href; }
+  catch { return false; }
+}
+if (invokedAsMain()) main();

@@ -9,6 +9,7 @@ The split was not theoretical. The entry of 2026-07-03 below said a content
 check must read the staged blob, never the worktree; the same mistake shipped
 twice on 2026-09-06 (PR #346, PR #347). A note asks the next author to remember.
 A guard does not.
+(That 2026-07-03 entry now lives in `history/LEARNED-HISTORY.md`.)
 
 Every **dated** entry — the `- [YYYY-MM-DD] …` lines below — carries one marker:
 - `[local]` — a quirk of this repository or its environment; the note IS the fix.
