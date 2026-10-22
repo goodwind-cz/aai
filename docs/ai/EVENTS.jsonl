@@ -3203,3 +3203,4 @@
 {"v":1,"ts":"2026-10-21T18:55:39Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-ci-body-only-rechecks","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-22T16:16:57Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":635,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-22T16:17:04Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":635,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-22T16:21:04Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"smaller-node-core-and-faster-feedback","payload":{"from":"draft","to":"implementing"}}

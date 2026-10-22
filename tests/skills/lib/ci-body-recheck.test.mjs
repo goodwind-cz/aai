@@ -293,5 +293,5 @@ test('TEST-008 report states pending hosted protocol with complete evidence fiel
   assert.match(notes, /body-only edit/);
   assert.match(notes, /removing an exemption can fail/);
   assert.doesNotMatch(report, /H[12]\s*—\s*(?:DONE|PASS)/);
-  assert.match(readFileSync(join(ROOT, 'docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md'), 'utf8'), /status: (?:draft|active|in_progress|accepted)/);
+  assert.match(readFileSync(join(ROOT, 'docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md'), 'utf8'), /status: (?:draft|implementing|active|in_progress|accepted)/);
 });
