@@ -2143,6 +2143,25 @@ test_1901_conditional_policy() { test_1900_conditional_contract 001; }
 test_1902_conditional_refusal() { test_1900_conditional_contract 002; }
 test_1903_conditional_checker() { test_1900_conditional_contract 003; }
 
+# TEST-012 (spec-slim-standing-role-context, Spec-AC-07): a change to the
+# on-demand LEARNED history file selects the suites that read it.
+test_1762_learned_history_selects_its_readers() {
+  log_info "Test: docs/knowledge/history/LEARNED-HISTORY.md selects aai-learned-routing, aai-hygiene-pack and aai-canon (TEST-1762)..."
+  TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-suite-select.XXXXXX")"
+  real_select docs/knowledge/history/LEARNED-HISTORY.md
+  case "$OUT" in
+    *FULL_RUN*) log_fail "TEST-1762 (TEST-012): the history file is a mapped surface, not FULL_RUN, got: $OUT" ;;
+  esac
+  local suite
+  for suite in aai-learned-routing aai-hygiene-pack aai-canon; do
+    case "$OUT" in
+      *" $suite "*) ;;
+      *) log_fail "TEST-1762 (TEST-012): $suite must be selected for the history file, got: $OUT" ;;
+    esac
+  done
+  log_pass "TEST-1762: the history file selects aai-learned-routing, aai-hygiene-pack and aai-canon"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -2213,6 +2232,7 @@ main() {
   test_1759_run_tests_weight
   test_1760_weights_provenance
   test_1761_leg_walls_bound
+  test_1762_learned_history_selects_its_readers
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

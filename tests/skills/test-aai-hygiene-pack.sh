@@ -2666,9 +2666,13 @@ test_126_learned_guard_lints_live_and_markers() {  # TEST-428 / Spec-AC-15
   # fu-learned-positive-control-for-absence exists to refuse. The explicit
   # found-count check below is this arm's own positive control.
   local marker_check_out marker_check_rc=0
-  marker_check_out="$(node - "$learned" <<'NODE' 2>&1
+  # spec-slim-standing-role-context D5: the six shipped-guard entries moved to the
+  # on-demand history file, so the marker check reads LEARNED.md plus that file.
+  local learned_history="$PROJECT_ROOT/docs/knowledge/history/LEARNED-HISTORY.md"
+  marker_check_out="$(node - "$learned" "$learned_history" <<'NODE' 2>&1
 const fs = require("fs");
-const text = fs.readFileSync(process.argv[2], "utf8");
+const text = fs.readFileSync(process.argv[2], "utf8")
+  + (fs.existsSync(process.argv[3]) ? "\n" + fs.readFileSync(process.argv[3], "utf8") : "");
 // fu-empty-path-cd-stays-in-shipping-repo is deliberately NOT a target here:
 // it carries no `[guard -> ...]` marker in LEARNED.md at all (measured) — its
 // origin is the SUBAGENT_CONTRACT.md Standing hazards section, a different
@@ -2716,6 +2720,136 @@ NODE
     || log_fail "test_126: expected exactly 6 Spec-AC-15 LEARNED markers checked, got: $marker_check_out"
 
   log_pass "test_126: all five tests/skills lints and the external-runner lint are 0 over the live corpus, and every Spec-AC-15 LEARNED marker cites its shipped guard (TEST-428)"
+}
+
+# --- slim-standing-role-context (spec-slim-standing-role-context, TEST-003/004/007) ---
+# LEARNED.md keeps the always-loaded entries; docs/knowledge/history/
+# LEARNED-HISTORY.md holds the entries whose guard is in force (D2). The base
+# blob is an immutable SHA, never a moving ref.
+SLIM_BASE_SHA="01de211960bf3df94c70da2d98d3a6fb81f50528"
+SLIM_HISTORY_REL="docs/knowledge/history/LEARNED-HISTORY.md"
+
+# slim_base_blob <out-file> — extract the base blob; returns 1 with a NAMED skip
+# note when the commit is absent (shallow clone).
+slim_base_blob() {
+  if git -C "$PROJECT_ROOT" cat-file -e "$SLIM_BASE_SHA:docs/knowledge/LEARNED.md" 2>/dev/null; then
+    git -C "$PROJECT_ROOT" show "$SLIM_BASE_SHA:docs/knowledge/LEARNED.md" > "$1"
+    return 0
+  fi
+  log_info "base commit $SLIM_BASE_SHA not present (shallow clone) - the base-blob comparison is SKIPPED, not silently passed"
+  return 1
+}
+
+test_830_learned_split_conserves_every_line() {  # TEST-003 / Spec-AC-03
+  log_info "test_830: every base LEARNED line survives in LEARNED.md or the history file, and the history entries equal the D2 move set in base order (TEST-003)..."
+  local d; d="$(ap_tmpdir)"
+  local base="$d/t830-base.md" live="$PROJECT_ROOT/docs/knowledge/LEARNED.md" hist="$PROJECT_ROOT/$SLIM_HISTORY_REL"
+  slim_base_blob "$base" || return 0
+  [[ -f "$hist" ]] || log_fail "TEST-003 test_830: $SLIM_HISTORY_REL is absent - the on-demand part of the split has not landed"
+  local out rc=0
+  out="$(node --input-type=module - "$PROJECT_ROOT/$LGL_SCRIPT_REL" "$base" "$live" "$hist" <<'NODE' 2>&1
+import fs from "node:fs";
+import { pathToFileURL } from "node:url";
+const [lib, basePath, livePath, histPath] = process.argv.slice(2);
+const { splitEntries, isMovedClass } = await import(pathToFileURL(lib).href);
+const norm = (t) => t.replace(/\r\n/g, "\n");
+const base = norm(fs.readFileSync(basePath, "utf8"));
+const live = norm(fs.readFileSync(livePath, "utf8"));
+const hist = norm(fs.readFileSync(histPath, "utf8"));
+const liveLines = new Set(live.split("\n"));
+const histLines = new Set(hist.split("\n"));
+const lost = base.split("\n").filter((l) => l.trim() !== "" && !liveLines.has(l) && !histLines.has(l));
+if (lost.length) { console.log("LOST " + lost.length + ": " + lost[0].slice(0, 90)); process.exit(1); }
+const moved = splitEntries(base).filter(isMovedClass);
+if (moved.length < 10) { console.log("CONTROL-FAIL move set: " + moved.length); process.exit(2); }
+let at = -1;
+for (const e of moved) {
+  const i = hist.indexOf(e.text, at + 1);
+  if (i < 0) { console.log("HISTORY MISSING OR OUT OF ORDER: " + e.lines[0].slice(0, 90)); process.exit(1); }
+  at = i;
+}
+const inHist = splitEntries(hist);
+const extra = inHist.filter((e) => !moved.some((m) => m.text === e.text));
+if (extra.length) { console.log("HISTORY HOLDS NON-MOVE ENTRY ABSENT FROM BASE SET (appends are legal only if they are move-class): " + extra.filter((e) => !isMovedClass(e)).length); if (extra.some((e) => !isMovedClass(e))) process.exit(1); }
+console.log(moved.length);
+NODE
+)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-003 test_830: $out"
+  log_pass "test_830: every base line is in the union, and the history file holds the $out D2 move-set entries verbatim in base order (TEST-003)"
+}
+
+test_831_learned_standing_lint_live_and_bites() {  # TEST-004 / Spec-AC-03
+  log_info "test_831: learned-standing is zero on the live LEARNED.md, flags planted moved-class entries, spares a pending guard (TEST-004)..."
+  local d; d="$(ap_tmpdir)"
+  # 0. The rule must exist (a usage error is not a pass).
+  local probe_rc=0 probe_out
+  probe_out="$(node "$PROJECT_ROOT/$LGL_SCRIPT_REL" learned-standing "$PROJECT_ROOT/docs/knowledge" 2>&1)" || probe_rc=$?
+  [[ "$probe_rc" -eq 0 ]] || log_fail "TEST-004 test_831: learned-standing is not a recognised rule (rc=$probe_rc): ${probe_out:0:200}"
+  # 1. Live corpus: zero findings (the live file holds no moved-class entry).
+  lgl_run learned-standing "$PROJECT_ROOT/docs/knowledge"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "TEST-004 test_831: learned-standing over the live docs/knowledge must report 0, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  # 2. Positive control on the real corpus shape: the base blob holds 18.
+  local base="$d/t831-base"; rm -rf "$base"; mkdir -p "$base"
+  if slim_base_blob "$base/LEARNED.md"; then
+    lgl_run learned-standing "$base"
+    [[ "$LGL_TOTAL" == "18" ]] \
+      || log_fail "TEST-004 test_831: the base blob carries 18 moved-class entries, the lint reported TOTAL=$LGL_TOTAL: $LGL_OUT"
+  fi
+  # 3. Fixture: planted shipped-guard, planted RESOLVED, spared pending + local.
+  local fx="$d/t831-fixture"; rm -rf "$fx"; mkdir -p "$fx"
+  cat > "$fx/LEARNED.md" <<'MD'
+# Fixture
+
+## Workflow
+
+- [2099-01-01] [guard → fu-fixture-pending] a pending guard stays loaded (control).
+- [2099-01-02] [local] a local note stays loaded (control).
+- [2099-01-03] [guard → fu-fixture-shipped] a shipped guard moves. (guard shipped: lint X.)
+- [2099-01-04] [guard → some-existing-guard.mjs] a guard that already exists moves.
+- [local] a note with a resolution moves. **RESOLVED 2099-01-05:** fixed.
+MD
+  lgl_run learned-standing "$fx"
+  [[ "$LGL_TOTAL" == "3" ]] \
+    || log_fail "TEST-004 test_831: the fixture plants exactly 3 moved-class entries, the lint reported TOTAL=$LGL_TOTAL: $LGL_OUT"
+  [[ "$LGL_OUT" == *"LEARNED.md:7:"* && "$LGL_OUT" == *"LEARNED.md:8:"* && "$LGL_OUT" == *"LEARNED.md:9:"* ]] \
+    || log_fail "TEST-004 test_831: findings must name the planted entry lines 7, 8, 9, got: $LGL_OUT"
+  [[ "$LGL_OUT" != *"LEARNED.md:5:"* && "$LGL_OUT" != *"LEARNED.md:6:"* ]] \
+    || log_fail "TEST-004 test_831 CONTROL: the pending-guard and local entries must be spared: $LGL_OUT"
+  # 4. The rule reads a file named LEARNED.md only: the same planted text in the
+  #    history file is its legitimate home.
+  mkdir -p "$fx/history"; cp "$fx/LEARNED.md" "$fx/history/LEARNED-HISTORY.md"; rm -f "$fx/LEARNED.md"
+  lgl_run learned-standing "$fx"
+  [[ "$LGL_TOTAL" == "0" ]] \
+    || log_fail "TEST-004 test_831 CONTROL: moved-class entries in LEARNED-HISTORY.md are legitimate, got TOTAL=$LGL_TOTAL: $LGL_OUT"
+  log_pass "test_831: learned-standing is 0 live, 18 on the base blob, flags the 3 planted entries by line, and spares pending, local and history-file entries (TEST-004)"
+}
+
+test_832_sync_leaves_history_out_of_downstream() {  # TEST-007 / Spec-AC-05
+  log_info "test_832: aai-sync.sh keeps an owned LEARNED.md byte-identical and creates no docs/knowledge/history in any target (TEST-007)..."
+  local d; d="$(ap_tmpdir)"
+  local root="$d/t832"; rm -rf "$root"; mkdir -p "$root"
+  [[ -n "$root" && "$root" == /* ]] || log_fail "TEST-007 test_832: scratch root must be absolute and non-empty"
+  local owned="$root/owned" fresh="$root/fresh"
+  mkdir -p "$owned/docs/knowledge" "$fresh"
+  printf '# Their own lessons\n\n- [local] project-owned content without the template sentinel.\n' > "$owned/docs/knowledge/LEARNED.md"
+  local before after out_owned out_fresh
+  before="$(shasum -a 256 "$owned/docs/knowledge/LEARNED.md" | cut -d' ' -f1)"
+  out_owned="$(bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$owned" 2>&1)" || log_fail "TEST-007 test_832: sync into the owned target failed: ${out_owned:0:300}"
+  out_fresh="$(bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$fresh" 2>&1)" || log_fail "TEST-007 test_832: sync into the fresh target failed: ${out_fresh:0:300}"
+  # Positive controls: the sync reached its knowledge step in both targets.
+  [[ "$out_owned" == *"SKIP (project-owned, sentinel removed): "*"/owned/docs/knowledge/LEARNED.md"* ]] \
+    || log_fail "TEST-007 test_832 control: the owned target's sync did not report its knowledge step: ${out_owned:0:300}"
+  [[ -f "$fresh/docs/knowledge/PATTERNS.md" ]] \
+    || log_fail "TEST-007 test_832 control: the fresh target did not receive the top-level knowledge files"
+  after="$(shasum -a 256 "$owned/docs/knowledge/LEARNED.md" | cut -d' ' -f1)"
+  [[ "$before" == "$after" ]] || log_fail "TEST-007 test_832: sync rewrote an owned LEARNED.md"
+  [[ ! -e "$owned/docs/knowledge/history" ]] || log_fail "TEST-007 test_832: sync created docs/knowledge/history in the owned target"
+  [[ ! -e "$fresh/docs/knowledge/history" ]] || log_fail "TEST-007 test_832: sync created docs/knowledge/history in the fresh target"
+  [[ -f "$fresh/docs/knowledge/LEARNED.md" ]] || log_fail "TEST-007 test_832: the fresh target was not seeded a LEARNED.md"
+  grep -qF "when present" "$fresh/docs/knowledge/LEARNED.md" \
+    || log_fail "TEST-007 test_832: the seeded LEARNED.md pointer must carry the 'when present' qualifier (the history file is not seeded)"
+  log_pass "test_832: owned LEARNED.md untouched, no history directory in either target, seeded pointer says 'when present' (TEST-007)"
 }
 
 # --- TEST-668 (Spec-AC-10) — session-marker lint --------------------------
@@ -5923,6 +6057,9 @@ main() {
   test_125_learned_guard_lints_bite
   test_126_learned_guard_lints_live_and_markers
   test_668_session_bullets_carry_a_marker
+  test_830_learned_split_conserves_every_line
+  test_831_learned_standing_lint_live_and_bites
+  test_832_sync_leaves_history_out_of_downstream
   test_105_converted_sites_keep_their_needles
   test_121_new_assert_payload_helpers
   test_106_base_ref_pin_gate_and_bite

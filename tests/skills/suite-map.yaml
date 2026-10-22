@@ -146,6 +146,7 @@ suites:
       - .aai/scripts/canon.mjs
       - .aai/system/CANON.yaml
       - .aai/ORCHESTRATION.prompt.md
+      - docs/knowledge/history/**
 
   aai-ceremony-levels:
     companions:
@@ -397,6 +398,7 @@ suites:
     globs:
       - .aai/scripts/check-committed-scope.mjs
       - docs/knowledge/LEARNED.md
+      - docs/knowledge/history/**
       # TEST-001 asserts on AGENTS, TEST-002 executes aai-release.sh and
       # TEST-005 asserts on SKILL_PR — editing any of them must select this
       # suite, or its assertions guard nothing (code review, 2026-09-06).
@@ -565,6 +567,7 @@ suites:
 
   aai-hygiene-pack:
     globs:
+      - docs/knowledge/history/**
       # shipped-guards-have-no-downstream-trigger: TEST-800..807/813..816 run the
       # real installer (guard block, pre-push hook, upgrade-by-insertion).
       - .aai/scripts/install-pre-commit-hook.sh

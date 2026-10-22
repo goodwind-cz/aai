@@ -20,7 +20,8 @@
 // Usage:
 //   node learned-guard-lints.mjs <rule> <root> [<root> ...]
 //   rule one of: local-crossref | cd-underived | immutable-pin |
-//                deny-default-mock | absence-no-control | external-runner
+//                deny-default-mock | absence-no-control | external-runner |
+//                session-marker | learned-standing
 //
 // Output: one `<relpath>:<line>: <message>` per finding, then a final
 // `TOTAL: <n>` line. Exit code is always 0 — the CALLER (the hygiene-pack
@@ -59,6 +60,65 @@ function relOf(root, p) {
 
 function readLines(p) {
   return fs.readFileSync(p, "utf8").split("\n");
+}
+
+// ---------------------------------------------------------------------------
+// D2 CLASSIFIER (spec-slim-standing-role-context): one pure definition shared
+// by the `learned-standing` rule below and by the conservation / classification
+// tests, so what "moves to the on-demand history file" is stated exactly once.
+//
+// An ENTRY is a line starting `- ` that follows the first `## ` heading,
+// together with its continuation lines up to the next line starting `- ` or
+// `## ` (trailing blank lines are not part of the entry). The preamble
+// (everything before the first `## ` heading) is not an entry.
+export function splitEntries(text) {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const entries = [];
+  let heading = null;
+  let cur = null;
+  const close = () => {
+    if (!cur) return;
+    while (cur.lines.length > 1 && cur.lines[cur.lines.length - 1].trim() === "") cur.lines.pop();
+    cur.text = cur.lines.join("\n");
+    entries.push(cur);
+    cur = null;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^## /.test(line)) {
+      close();
+      heading = line;
+      continue;
+    }
+    if (heading === null) continue;
+    if (/^- /.test(line)) {
+      close();
+      cur = { heading, line: i + 1, lines: [line] };
+      continue;
+    }
+    if (cur) cur.lines.push(line);
+  }
+  close();
+  return entries;
+}
+
+// The guard marker, anchored on the first line after an optional date prefix.
+// The arrow is U+2192 in the live file; ASCII "->" is accepted as well (an
+// ASCII-only regex once passed vacuously over this file).
+const STANDING_GUARD_RE = /^- (?:\[\d{4}-\d{2}-\d{2}\] )?\[guard\s*(?:->|\u2192)\s*([^\]\s]+)\]/;
+
+// isMovedClass(entry) -> true iff D2 sends the entry to the history file:
+//   (a) a guard marker whose id does not start `fu-` (the guard already
+//       exists) or whose text says `guard shipped:` / `routed to canon`; or
+//   (b) the text contains `**RESOLVED `.
+// Every other entry stays (every [local] entry, every pending-guard entry).
+export function isMovedClass(entry) {
+  const text = entry.text;
+  if (text.includes("**RESOLVED ")) return true;
+  const m = STANDING_GUARD_RE.exec(entry.lines[0]);
+  if (!m) return false;
+  if (!m[1].startsWith("fu-")) return true;
+  return text.includes("guard shipped:") || text.includes("routed to canon");
 }
 
 // ---------------------------------------------------------------------------
@@ -465,6 +525,32 @@ function sessionMarkerFindings(root, files) {
   return findings;
 }
 
+// ---------------------------------------------------------------------------
+// RULE: learned-standing (spec-slim-standing-role-context D3)
+//
+// docs/knowledge/LEARNED.md is the ALWAYS-LOADED part of the learned section,
+// so an entry whose guard is already in force (or that is marked RESOLVED) is
+// history and belongs in docs/knowledge/history/LEARNED-HISTORY.md. Reports
+// every D2 moved-class entry (see isMovedClass) found in a file NAMED
+// LEARNED.md; the history file and every other .md are not scanned, so the
+// moved text has a legitimate home. Downstream projects are not linted
+// (tests/skills is not vendored).
+function learnedStandingFindings(root, files) {
+  const findings = [];
+  for (const f of files) {
+    if (path.basename(f) !== "LEARNED.md") continue;
+    for (const e of splitEntries(fs.readFileSync(f, "utf8"))) {
+      if (!isMovedClass(e)) continue;
+      findings.push({
+        file: relOf(root, f),
+        line: e.line,
+        msg: `entry is moved-class (its guard is in force, or it is RESOLVED) but still stands in the always-loaded LEARNED.md - move it verbatim to docs/knowledge/history/LEARNED-HISTORY.md: ${e.lines[0].slice(0, 70)}`,
+      });
+    }
+  }
+  return findings;
+}
+
 const RULES = {
   "local-crossref": { fn: localCrossrefFindings, exts: [".sh"] },
   "cd-underived": { fn: cdUnderivedFindings, exts: [".sh"] },
@@ -473,9 +559,10 @@ const RULES = {
   "absence-no-control": { fn: absenceNoControlFindings, exts: [".sh"] },
   "external-runner": { fn: externalRunnerFindings, exts: [".prompt.md"] },
   "session-marker": { fn: sessionMarkerFindings, exts: [".md"] },
+  "learned-standing": { fn: learnedStandingFindings, exts: [".md"] },
 };
 
-function main() {
+export function main() {
   const [, , rule, ...roots] = process.argv;
   if (!rule || !RULES[rule] || roots.length === 0) {
     console.error(
@@ -501,4 +588,5 @@ function main() {
   process.exit(0);
 }
 
-main();
+import { pathToFileURL } from "node:url";
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main();

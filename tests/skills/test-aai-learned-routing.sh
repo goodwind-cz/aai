@@ -303,17 +303,43 @@ test_568_every_ceremony_commit_is_verified() {
   log_pass "SKILL_PR 4c and 5c each verify their own committed blob by explicit paths (TEST-568)"
 }
 
+# learned_union <out> — LEARNED.md followed by the on-demand history file when
+# present (spec-slim-standing-role-context D5).
+LEARNED_HISTORY="$PROJECT_ROOT/docs/knowledge/history/LEARNED-HISTORY.md"
+learned_union() {
+  cat "$LEARNED" > "$1"
+  if [ -f "$LEARNED_HISTORY" ]; then cat "$LEARNED_HISTORY" >> "$1"; fi
+}
+
+# learned_missing_bodies <base> <union> <out> — writes one line per base entry
+# body (date prefix stripped) that no longer occurs verbatim in <union>.
+learned_missing_bodies() {
+  : > "$3"
+  local body
+  while IFS= read -r body; do
+    [ -n "$body" ] || continue
+    if ! grep -qF -- "$body" "$2"; then printf '%s\n' "$body" >> "$3"; fi
+  done <<BODIES
+$(sed -n 's/^- \[20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]\] //p' "$1")
+BODIES
+}
+
 # --- TEST-006 (Spec-AC-05): the triage is complete and honest -----------------
 test_006_learned_triaged() {
   log_info "Test: every LEARNED entry is triaged, guard ids are OPEN follow-ups, nothing was deleted (TEST-006)..."
   [ -f "$LEARNED" ] || log_fail "TEST-006: $LEARNED missing"
   grep -qi 'guard' "$LEARNED" || log_fail "TEST-006: the header must state the routing rule"
+  # spec-slim-standing-role-context D5: the entries are split across LEARNED.md
+  # (always loaded) and the on-demand history file; every check below reads the
+  # UNION, in file order, so a split loses nothing it used to see.
+  local UNION="$TEST_DIR/learned.union"
+  learned_union "$UNION"
   local total tagged
-  total="$(grep -c '^- \[20' "$LEARNED" | tr -d ' ')"
+  total="$(grep -c '^- \[20' "$UNION" | tr -d ' ')"
   # A guard marker names EITHER the follow-up that will build the guard, OR a
   # guard that already exists (a script in the vendored layer). Requiring a
   # follow-up for a guard already shipped would force a fake open item.
-  tagged="$(grep -cE '^- \[20[0-9]{2}-[0-9]{2}-[0-9]{2}\] \[(local|guard → (fu-[a-z0-9-]+|[a-z0-9.-]+\.(mjs|sh|ps1)))\]' "$LEARNED" | tr -d ' ')"
+  tagged="$(grep -cE '^- \[20[0-9]{2}-[0-9]{2}-[0-9]{2}\] \[(local|guard → (fu-[a-z0-9-]+|[a-z0-9.-]+\.(mjs|sh|ps1)))\]' "$UNION" | tr -d ' ')"
   [ "$total" = "$tagged" ] || log_fail "TEST-006: all $total entries must carry exactly one [local] or [guard → …] marker, $tagged do"
   # a follow-up id must resolve to an OPEN item, UNLESS its own marker LINE
   # already carries "guard shipped:" (spec-test-framework-sweep D10 / TEST-428:
@@ -325,7 +351,7 @@ test_006_learned_triaged() {
   # "guard shipped:" annotation is still a real defect: this only forgives
   # the documented, cited case.
   node "$FOLLOWUPS" list --status open > "$TEST_DIR/open.txt" 2>&1 || log_fail "TEST-006: follow-ups list failed"
-  grep -E '\[guard → fu-[a-z0-9-]+\]' "$LEARNED" > "$TEST_DIR/guard-id-lines.txt" || true
+  grep -E '\[guard → fu-[a-z0-9-]+\]' "$UNION" > "$TEST_DIR/guard-id-lines.txt" || true
   local missing=""
   while IFS= read -r id; do
     [ -n "$id" ] || continue
@@ -333,7 +359,7 @@ test_006_learned_triaged() {
     grep -F -- "[guard → $id]" "$TEST_DIR/guard-id-lines.txt" | qgrep -qE "guard shipped:|routed to canon" && continue
     missing="$missing $id"
   done <<EOF
-$(grep -oE 'guard → fu-[a-z0-9-]+' "$LEARNED" | sed 's/^guard → //' | sort -u)
+$(grep -oE 'guard → fu-[a-z0-9-]+' "$UNION" | sed 's/^guard → //' | sort -u)
 EOF
   [ -z "$missing" ] || log_fail "TEST-006: guard marker(s) name follow-ups that are neither open nor cited as guard-shipped on their own line:$missing"
   # a named script must actually exist, or the pointer is a dead end. Guards
@@ -354,7 +380,7 @@ EOF
       absent="$absent $sc"
     fi
   done <<EOF
-$(grep -oE 'guard → [a-z0-9.-]+\.(mjs|sh|ps1)' "$LEARNED" | sed 's/^guard → //' | sort -u)
+$(grep -oE 'guard → [a-z0-9.-]+\.(mjs|sh|ps1)' "$UNION" | sed 's/^guard → //' | sort -u)
 EOF
   [ -z "$absent" ] || log_fail "TEST-006: guard marker(s) name a script that does not exist:$absent"
 
@@ -384,14 +410,9 @@ EOF
     # text after this scope's marker was inserted, so the comparison strips the
     # date prefix and compares the remainder as a fixed string.
     local gone=0 first=""
-    while IFS= read -r body; do
-      [ -n "$body" ] || continue
-      if ! grep -qF -- "$body" "$LEARNED"; then
-        gone=$((gone + 1)); [ -n "$first" ] || first="$body"
-      fi
-    done <<EOF
-$(sed -n 's/^- \[20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]\] //p' "$TEST_DIR/learned.base")
-EOF
+    learned_missing_bodies "$TEST_DIR/learned.base" "$UNION" "$TEST_DIR/missing.txt"
+    gone="$(wc -l < "$TEST_DIR/missing.txt" | tr -d ' ')"
+    first="$(head -n 1 "$TEST_DIR/missing.txt")"
     [ "$gone" -eq 0 ] \
       || log_fail "TEST-006: $gone pre-edit entry body/bodies no longer occur in LEARNED.md — the triage may mark entries, never remove them. First: ${first:0:70}"
   else
@@ -738,6 +759,97 @@ test_520_scope_folded_block_split() {
   log_pass "a space-separated folded scope is split and every path checked; a NOTHING CHECKED --from-state result exits non-zero with or without --strict (TEST-520)"
 }
 
+# --- slim-standing-role-context (spec-slim-standing-role-context) -------------
+# TEST-008 (Spec-AC-06): LEARNED.md carries ONE pointer paragraph to the
+# on-demand history file, and replay step 3a reaches the same path.
+test_008_pointer_and_replay_name_history() {
+  log_info "Test: LEARNED.md has one pointer paragraph naming the history path; replay step 3a names it too (TEST-008)..."
+  local rel="docs/knowledge/history/LEARNED-HISTORY.md" replay="$PROJECT_ROOT/.aai/SKILL_REPLAY.prompt.md"
+  [ -f "$PROJECT_ROOT/$rel" ] || log_fail "TEST-008: $rel does not exist - the on-demand part of the split has not landed"
+  node --input-type=module - "$LEARNED" "$rel" > "$TEST_DIR/pointer.out" 2>&1 <<'NODE' || log_fail "TEST-008: $(cat "$TEST_DIR/pointer.out")"
+import fs from "node:fs";
+const [learnedPath, rel] = process.argv.slice(2);
+const text = fs.readFileSync(learnedPath, "utf8").replace(/\r\n/g, "\n");
+const paras = text.split(/\n[ \t]*\n/).filter((p) => p.includes(rel));
+if (paras.length !== 1) { console.log("expected exactly one paragraph naming " + rel + ", found " + paras.length); process.exit(1); }
+const p = paras[0];
+const bytes = Buffer.byteLength(p, "utf8");
+if (bytes > 900) { console.log("pointer paragraph is " + bytes + " bytes, cap is 900"); process.exit(1); }
+const need = ["when present", "grep -n '^## \\|^- ' " + rel, "guard shipped", "RESOLVED", "learned-append.mjs", "verbatim"];
+const gone = need.filter((n) => !p.includes(n));
+if (gone.length) { console.log("pointer paragraph lacks: " + gone.join(" | ")); process.exit(1); }
+console.log(bytes + " B");
+NODE
+  local step
+  step="$(awk '/^   a\) /{f=1} /^   b\) /{f=0} f' "$replay")"
+  case "$step" in *"$rel"*) : ;; *) log_fail "TEST-008: SKILL_REPLAY step 3a must name $rel" ;; esac
+  log_pass "TEST-008 one pointer paragraph ($(cat "$TEST_DIR/pointer.out")) names the history path, read command, rule and forward rule; replay 3a names it"
+}
+
+# TEST-009 (Spec-AC-06): the wrap-up writer's default target is LEARNED.md. A real
+# append in a scratch copy of the live pair lands in LEARNED.md, leaves the
+# history file byte-identical, and the learned-standing lint accepts the result.
+test_009_writer_lands_in_learned_and_passes_lint() {
+  log_info "Test: learned-append.mjs lands in LEARNED.md, history untouched, lint accepts the candidate (TEST-009)..."
+  local d="$TEST_DIR/t009"
+  [ -f "$LEARNED_HISTORY" ] || log_fail "TEST-009: docs/knowledge/history/LEARNED-HISTORY.md does not exist - the split has not landed"
+  rm -rf "$d"; mkdir -p "$d/docs/knowledge/history"
+  cp "$LEARNED" "$d/docs/knowledge/LEARNED.md"
+  cp "$LEARNED_HISTORY" "$d/docs/knowledge/history/LEARNED-HISTORY.md"
+  local h_before h_after l_before l_after out rc=0 guard
+  h_before="$(shasum -a 256 "$d/docs/knowledge/history/LEARNED-HISTORY.md" | cut -d' ' -f1)"
+  for guard in "" "fu-sample-pending"; do
+    l_before="$(shasum -a 256 "$d/docs/knowledge/LEARNED.md" | cut -d' ' -f1)"
+    rc=0
+    if [ -n "$guard" ]; then
+      ( cd "$d" && node "$PROJECT_ROOT/.aai/scripts/learned-append.mjs" --text "sample rule for TEST-009 guarded" --source "TEST-009" --guard "$guard" > "$d/append.out" 2>&1 ) || rc=$?
+    else
+      ( cd "$d" && node "$PROJECT_ROOT/.aai/scripts/learned-append.mjs" --text "sample rule for TEST-009 plain" --source "TEST-009" > "$d/append.out" 2>&1 ) || rc=$?
+    fi
+    out="$(cat "$d/append.out")"
+    [ "$rc" -eq 0 ] || log_fail "TEST-009: learned-append.mjs (guard='$guard') exited $rc: ${out:0:300}"
+    l_after="$(shasum -a 256 "$d/docs/knowledge/LEARNED.md" | cut -d' ' -f1)"
+    [ "$l_before" != "$l_after" ] || log_fail "TEST-009 control: the append did not change LEARNED.md (guard='$guard')"
+  done
+  grep -qF "sample rule for TEST-009 plain" "$d/docs/knowledge/LEARNED.md" || log_fail "TEST-009: the plain rule is not in LEARNED.md"
+  grep -qF "sample rule for TEST-009 guarded" "$d/docs/knowledge/LEARNED.md" || log_fail "TEST-009: the guarded rule is not in LEARNED.md"
+  h_after="$(shasum -a 256 "$d/docs/knowledge/history/LEARNED-HISTORY.md" | cut -d' ' -f1)"
+  [ "$h_before" = "$h_after" ] || log_fail "TEST-009: the writer touched the history file"
+  rc=0
+  out="$(node "$PROJECT_ROOT/tests/skills/lib/learned-guard-lints.mjs" learned-standing "$d/docs/knowledge" 2>&1)" || rc=$?
+  case "$out" in *"TOTAL: 0") : ;; *) log_fail "TEST-009: learned-standing over the appended LEARNED.md must report 0 (rc=$rc): ${out:0:300}" ;; esac
+  log_pass "TEST-009 default target is LEARNED.md (plain and pending-guard appends), history byte-identical, learned-standing reports 0"
+}
+
+# TEST-011 (Spec-AC-07): the union readers detect a planted deletion of a moved
+# body. The live union is clean; the same union minus one moved entry is not.
+test_011_union_readers_see_moved_bodies() {
+  log_info "Test: the union reader finds no missing pinned body, and flags a planted deletion of a moved one (TEST-011)..."
+  local pin=9296160c5e89900fd2f754daf80c660c2521ec75 union="$TEST_DIR/t011.union" base="$TEST_DIR/t011.base" planted="$TEST_DIR/t011.planted"
+  [ -f "$LEARNED_HISTORY" ] || log_fail "TEST-011: docs/knowledge/history/LEARNED-HISTORY.md does not exist - the split has not landed"
+  if ! git -C "$PROJECT_ROOT" cat-file -e "$pin:docs/knowledge/LEARNED.md" 2>/dev/null; then
+    log_info "TEST-011: pin $pin not present (shallow clone) - SKIPPED, not silently passed"; return 0
+  fi
+  git -C "$PROJECT_ROOT" show "$pin:docs/knowledge/LEARNED.md" > "$base"
+  learned_union "$union"
+  learned_missing_bodies "$base" "$union" "$TEST_DIR/t011.missing"
+  [ ! -s "$TEST_DIR/t011.missing" ] || log_fail "TEST-011: pinned bodies missing from the union: $(head -n 1 "$TEST_DIR/t011.missing" | cut -c1-80)"
+  # The pinned bodies that live ONLY in the history file are the ones the old
+  # single-file reader could not see: at least one must exist (positive control).
+  local only_hist=0 body
+  while IFS= read -r body; do
+    [ -n "$body" ] || continue
+    if grep -qF -- "$body" "$LEARNED_HISTORY" && ! grep -qF -- "$body" "$LEARNED"; then only_hist=$((only_hist + 1)); fi
+  done <<BODIES
+$(sed -n 's/^- \[20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]\] //p' "$base")
+BODIES
+  [ "$only_hist" -gt 0 ] || log_fail "TEST-011 control: no pinned body lives only in the history file"
+  grep -vF 'fu-learned-immutable-pin-lint' "$union" > "$planted" || true
+  learned_missing_bodies "$base" "$planted" "$TEST_DIR/t011.missing2"
+  [ -s "$TEST_DIR/t011.missing2" ] || log_fail "TEST-011: a planted deletion of a moved entry was NOT detected"
+  log_pass "TEST-011 the union carries every pinned body ($only_hist only in history) and a planted deletion is detected"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   [ -f "$CHECK" ] || log_fail "engine missing: $CHECK"
@@ -756,6 +868,9 @@ main() {
   test_568_every_ceremony_commit_is_verified
   test_010_strict_rejects_pending_append
   test_520_scope_folded_block_split
+  test_008_pointer_and_replay_name_history
+  test_009_writer_lands_in_learned_and_passes_lint
+  test_011_union_readers_see_moved_bodies
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }
 main "$@"
