@@ -3201,3 +3201,5 @@
 {"v":1,"ts":"2026-10-21T18:55:38Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"ci-body-only-rechecks","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-21T18:55:39Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ci-body-only-rechecks","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-21T18:55:39Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-ci-body-only-rechecks","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-22T16:27:35Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-slim-standing-role-context","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-22T16:54:09Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":637,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}

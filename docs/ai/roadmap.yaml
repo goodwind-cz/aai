@@ -82,6 +82,8 @@ pairs:
     status: done
   - capability: ci-body-only-rechecks
     status: done
+  - capability: slim-standing-role-context
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
