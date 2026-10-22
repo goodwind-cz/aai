@@ -1712,9 +1712,168 @@ Code Review"
   log_pass "TEST-699 build --role <R> exits 0 for every one of the $count declared roles, and the declared role SET equals the known six (not merely self-consistent with its own count)"
 }
 
+# --- slim-standing-role-context (spec-slim-standing-role-context, TEST-001/002/005/006) ---
+# docs/knowledge/LEARNED.md is the ALWAYS-LOADED part of the learned section;
+# docs/knowledge/history/LEARNED-HISTORY.md is the on-demand part and is neither
+# assembled nor hashed. The base blob is an immutable SHA, never a moving ref.
+SLIM_BASE_SHA="01de211960bf3df94c70da2d98d3a6fb81f50528"
+SLIM_ROLES=("Planning" "Implementation" "Validation" "Remediation" "TDD Implementation" "Code Review")
+SLIM_HISTORY_REL="docs/knowledge/history/LEARNED-HISTORY.md"
+
+# slim_base_blob <out-file> — extracts the base LEARNED blob; returns 1 (and
+# prints a NAMED skip line) when the commit is absent (shallow clone).
+slim_base_blob() {
+  if git -C "$PROJECT_ROOT" cat-file -e "$SLIM_BASE_SHA:docs/knowledge/LEARNED.md" 2>/dev/null; then
+    git -C "$PROJECT_ROOT" show "$SLIM_BASE_SHA:docs/knowledge/LEARNED.md" > "$1"
+    return 0
+  fi
+  log_info "base commit $SLIM_BASE_SHA not present (shallow clone) - the base-blob comparison is SKIPPED, not silently passed"
+  return 1
+}
+
+# slim_payload_size <manifest> <role> -> bytes of the real assembled payload (cwd = live tree)
+slim_payload_size() {
+  run_canon "$PROJECT_ROOT" "$1" "$2" "slim-standing-role-context"
+  expect_rc 0 "slim build --role $2"
+  wc -c < "$CANON_OUT" | tr -d ' '
+}
+
+# slim_role_prompt <role> -> the role prompt path the live manifest declares
+slim_role_prompt() {
+  sed -n -E "s/^  $1: (.*)\$/\\1/p" "$LIVE_MANIFEST"
+}
+
+# TEST-001 (Spec-AC-01): every manifest role shrinks by exactly
+# bytes(base LEARNED) - bytes(LEARNED.md) against the base-blob build of the
+# same tree, and the shrink is real (positive control: the split happened).
+test_700_slim_delta_equals_moved_bytes() {
+  local base="$TEST_DIR/t700-base.md" real="$PROJECT_ROOT/docs/knowledge/LEARNED.md"
+  slim_base_blob "$base" || return 0
+  local scratch_manifest="$TEST_DIR/t700-manifest.yaml"
+  sed "s#path: docs/knowledge/LEARNED.md#path: $base#" "$LIVE_MANIFEST" > "$scratch_manifest"
+  grep -qF "path: $base" "$scratch_manifest" || log_fail "TEST-001: scratch manifest was not rewritten (control)"
+  local base_b real_b want role got_real got_base delta
+  base_b="$(wc -c < "$base" | tr -d ' ')"
+  real_b="$(wc -c < "$real" | tr -d ' ')"
+  want=$(( base_b - real_b ))
+  [[ "$want" -gt 0 ]] || log_fail "TEST-001: LEARNED.md ($real_b B) must be smaller than the base blob ($base_b B) - no split has landed"
+  for role in "${SLIM_ROLES[@]}"; do
+    got_real="$(slim_payload_size ".aai/system/CANON.yaml" "$role")"
+    got_base="$(slim_payload_size "$scratch_manifest" "$role")"
+    delta=$(( got_base - got_real ))
+    [[ "$delta" -eq "$want" ]] \
+      || log_fail "TEST-001: $role payload shrank by $delta B, expected exactly $want B (base $got_base, real $got_real)"
+  done
+  log_pass "TEST-001 all ${#SLIM_ROLES[@]} role payloads shrink by exactly $want B (base blob $base_b B -> LEARNED.md $real_b B)"
+}
+
+# TEST-002 (Spec-AC-02): the five HAZ lines are byte-identical in every role
+# payload versus the base build, and every D2-stay entry of the base blob is
+# present verbatim in LEARNED.md.
+test_701_hazards_and_stay_entries_survive() {
+  local base="$TEST_DIR/t701-base.md" real="$PROJECT_ROOT/docs/knowledge/LEARNED.md"
+  slim_base_blob "$base" || return 0
+  local scratch_manifest="$TEST_DIR/t701-manifest.yaml" role n_real n_base
+  sed "s#path: docs/knowledge/LEARNED.md#path: $base#" "$LIVE_MANIFEST" > "$scratch_manifest"
+  for role in "${SLIM_ROLES[@]}"; do
+    run_canon "$PROJECT_ROOT" ".aai/system/CANON.yaml" "$role" "slim-standing-role-context"
+    expect_rc 0 "TEST-002 real build $role"
+    grep '^- HAZ-' "$CANON_OUT" > "$TEST_DIR/t701-haz-real.txt" || true
+    run_canon "$PROJECT_ROOT" "$scratch_manifest" "$role" "slim-standing-role-context"
+    expect_rc 0 "TEST-002 base build $role"
+    grep '^- HAZ-' "$CANON_OUT" > "$TEST_DIR/t701-haz-base.txt" || true
+    n_real="$(wc -l < "$TEST_DIR/t701-haz-real.txt" | tr -d ' ')"
+    n_base="$(wc -l < "$TEST_DIR/t701-haz-base.txt" | tr -d ' ')"
+    [[ "$n_base" -eq 5 ]] || log_fail "TEST-002 control: base build of $role must carry 5 HAZ lines, got $n_base"
+    cmp -s "$TEST_DIR/t701-haz-real.txt" "$TEST_DIR/t701-haz-base.txt" \
+      || log_fail "TEST-002: $role HAZ lines differ from the base build (real=$n_real base=$n_base)"
+  done
+  local out rc=0
+  out="$(node --input-type=module - "$PROJECT_ROOT/tests/skills/lib/learned-guard-lints.mjs" "$base" "$real" <<'NODE' 2>&1
+import fs from "node:fs";
+import { pathToFileURL } from "node:url";
+const [lib, basePath, realPath] = process.argv.slice(2);
+const { splitEntries, isMovedClass } = await import(pathToFileURL(lib).href);
+const norm = (t) => t.replace(/\r\n/g, "\n");
+const real = norm(fs.readFileSync(realPath, "utf8"));
+const stay = splitEntries(norm(fs.readFileSync(basePath, "utf8"))).filter((e) => !isMovedClass(e));
+const missing = stay.filter((e) => !real.includes(e.text));
+if (stay.length < 10) { console.log("CONTROL-FAIL stay entries: " + stay.length); process.exit(2); }
+if (missing.length) { console.log("MISSING " + missing.length + ": " + missing[0].lines[0].slice(0, 80)); process.exit(1); }
+console.log(stay.length);
+NODE
+)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-002: stay entries of the base blob must occur verbatim in LEARNED.md: $out"
+  log_pass "TEST-002 five HAZ lines byte-identical in all ${#SLIM_ROLES[@]} payloads; $out base stay entries verbatim in LEARNED.md"
+}
+
+# TEST-005 (Spec-AC-04): the digests agree on the live tree for all six roles;
+# a history edit moves neither the payload nor either digest; a LEARNED.md
+# edit moves all three. The history file must exist on the live tree.
+test_702_history_is_outside_payload_and_digests() {
+  [[ -f "$PROJECT_ROOT/$SLIM_HISTORY_REL" ]] \
+    || log_fail "TEST-005: $SLIM_HISTORY_REL is absent - the on-demand part of the split has not landed"
+  local role rel a b
+  for role in "${SLIM_ROLES[@]}"; do
+    rel="$(slim_role_prompt "$role")"
+    run_canon_hash "$PROJECT_ROOT" ".aai/system/CANON.yaml" "$role"
+    expect_rc 0 "TEST-005 live print-hash $role"
+    a="$(cat "$CANON_OUT")"
+    b="$(reference_prompt_hash "$PROJECT_ROOT" "$rel")"
+    [[ -n "$a" && "$a" == "$b" ]] || log_fail "TEST-005: live $role print-hash ($a) != computeEffectivePromptHash ($b)"
+  done
+  local d="$TEST_DIR/t702" p0 p1 p2 h0 h1 h2 r0 r1 r2 s0 s1
+  mkdir -p "$d"
+  base_fixture_tree "$d"
+  mkdir -p "$d/docs/knowledge/history"
+  printf '# History\n\n## Session x\n\n- [local] a moved note.\n' > "$d/$SLIM_HISTORY_REL"
+  run_canon "$d" "CANON.yaml" "FixtureRole" "t702"; expect_rc 0 "TEST-005 fixture build 0"
+  p0="$(cat "$CANON_OUT")"; run_canon_hash "$d" "CANON.yaml" "FixtureRole"; h0="$(cat "$CANON_OUT")"; r0="$(reference_prompt_hash "$d" ".aai/ROLE.prompt.md")"
+  s0="$(shasum -a 256 "$d/$SLIM_HISTORY_REL" | cut -d' ' -f1)"
+  printf -- '- [local] appended history line.\n' >> "$d/$SLIM_HISTORY_REL"
+  s1="$(shasum -a 256 "$d/$SLIM_HISTORY_REL" | cut -d' ' -f1)"
+  [[ "$s0" != "$s1" ]] || log_fail "TEST-005 control: the history edit did not change the file"
+  run_canon "$d" "CANON.yaml" "FixtureRole" "t702"; expect_rc 0 "TEST-005 fixture build 1"
+  p1="$(cat "$CANON_OUT")"; run_canon_hash "$d" "CANON.yaml" "FixtureRole"; h1="$(cat "$CANON_OUT")"; r1="$(reference_prompt_hash "$d" ".aai/ROLE.prompt.md")"
+  [[ "$p0" == "$p1" ]] || log_fail "TEST-005: a history edit changed the assembled payload"
+  [[ "$h0" == "$h1" && "$r0" == "$r1" ]] || log_fail "TEST-005: a history edit changed a digest (canon $h0 -> $h1, prompt-hash $r0 -> $r1)"
+  printf -- '- A new always-loaded lesson.\n' >> "$d/docs/knowledge/LEARNED.md"
+  run_canon "$d" "CANON.yaml" "FixtureRole" "t702"; expect_rc 0 "TEST-005 fixture build 2"
+  p2="$(cat "$CANON_OUT")"; run_canon_hash "$d" "CANON.yaml" "FixtureRole"; h2="$(cat "$CANON_OUT")"; r2="$(reference_prompt_hash "$d" ".aai/ROLE.prompt.md")"
+  [[ "$p1" != "$p2" ]] || log_fail "TEST-005: a LEARNED.md edit did not change the payload"
+  [[ "$h1" != "$h2" && "$r1" != "$r2" && "$h2" == "$r2" ]] \
+    || log_fail "TEST-005: a LEARNED.md edit must move BOTH digests to the same new value (canon $h1 -> $h2, prompt-hash $r1 -> $r2)"
+  log_pass "TEST-005 digests agree for ${#SLIM_ROLES[@]} live roles; a history edit moves neither payload nor digests; a LEARNED.md edit moves all three"
+}
+
+# TEST-006 (Spec-AC-05): a project with a single unsplit LEARNED.md and no
+# history directory builds all six roles, learned section byte-equal to it.
+test_703_unsplit_project_builds_unchanged() {
+  local base="$TEST_DIR/t703-base.md"
+  slim_base_blob "$base" || return 0
+  local d="$TEST_DIR/t703" role rel section
+  mkdir -p "$d/.aai/system" "$d/docs/knowledge"
+  cp "$LIVE_MANIFEST" "$d/.aai/system/CANON.yaml"
+  cp "$PROJECT_ROOT/.aai/SUBAGENT_CONTRACT.md" "$d/.aai/SUBAGENT_CONTRACT.md"
+  cp "$base" "$d/docs/knowledge/LEARNED.md"
+  for role in "${SLIM_ROLES[@]}"; do
+    rel="$(slim_role_prompt "$role")"
+    cp "$PROJECT_ROOT/$rel" "$d/$rel"
+  done
+  [[ ! -e "$d/docs/knowledge/history" ]] || log_fail "TEST-006 control: fixture must have no history directory"
+  for role in "${SLIM_ROLES[@]}"; do
+    run_canon "$d" ".aai/system/CANON.yaml" "$role" "t703"
+    expect_rc 0 "TEST-006 unsplit build $role"
+    section="$(awk '/^<<<AAI-CANON-SECTION learned$/{f=1;next} /^>>>AAI-CANON-SECTION learned$/{f=0} f' "$CANON_OUT")"
+    [[ "$section" == "$(cat "$base")" ]] \
+      || log_fail "TEST-006: $role learned section is not byte-equal to the unsplit LEARNED.md"
+  done
+  log_pass "TEST-006 an unsplit project builds all ${#SLIM_ROLES[@]} roles with the learned section equal to its LEARNED.md"
+}
+
 # --- runner ------------------------------------------------------------------
 
-ALL_TESTS="674_build_order_live 675_order_follows_manifest_not_code 676_absent_section_fails_closed 677_hazard_count_asserted 678_duplicate_rule_refused 679_declared_exception_admitted 680_over_budget_refused 681_size_is_the_real_size 682_hash_matches_prompt_hash 683_hash_moves_with_the_contract 684_prompt_command_runs 685_claim_record_must_resolve 686_live_claims_clean 687_root_changelog_in_corpus 688_present_tense_matched 689_negative_control 690_enumeration_is_generated 691_spec0148_block_matches_report 692_grammar_rendered_from_code 693_version_bump_names_every_stale_literal 694_round_cap_amendment_present 695_citation_must_resolve 698_live_check_all 699_live_build_every_role"
+ALL_TESTS="674_build_order_live 675_order_follows_manifest_not_code 676_absent_section_fails_closed 677_hazard_count_asserted 678_duplicate_rule_refused 679_declared_exception_admitted 680_over_budget_refused 681_size_is_the_real_size 682_hash_matches_prompt_hash 683_hash_moves_with_the_contract 684_prompt_command_runs 685_claim_record_must_resolve 686_live_claims_clean 687_root_changelog_in_corpus 688_present_tense_matched 689_negative_control 690_enumeration_is_generated 691_spec0148_block_matches_report 692_grammar_rendered_from_code 693_version_bump_names_every_stale_literal 694_round_cap_amendment_present 695_citation_must_resolve 698_live_check_all 699_live_build_every_role 700_slim_delta_equals_moved_bytes 701_hazards_and_stay_entries_survive 702_history_is_outside_payload_and_digests 703_unsplit_project_builds_unchanged"
 
 main() {
   local requested="${1:-}"

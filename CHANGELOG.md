@@ -22,6 +22,16 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — perf: load only standing lessons into every role prompt
+
+- Lessons whose guard already ships, or that are resolved, move verbatim from
+  `docs/knowledge/LEARNED.md` to `docs/knowledge/history/LEARNED-HISTORY.md`;
+  every role prompt shrinks by about 14 KB (Validation about 24% smaller).
+- A new `learned-standing` lint keeps such lessons out of the always-loaded
+  file; replay also searches the history file. Downstream projects are
+  unaffected: sync never seeds `history/`, and an unsplit LEARNED.md loads as
+  before.
+
 ## [unreleased] — ci: reuse proven source checks on body-only PR edits
 
 - Require same-head, base, checkout, workflow and complete successful attempt

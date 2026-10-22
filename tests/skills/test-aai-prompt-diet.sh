@@ -1008,7 +1008,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 56836 -> 57083: release-command-finish (+247 B SKILL_RELEASE, c9a04429 base).
   # Then 57083 -> 57344: intake-closing-questions-as-one-menu (+261 B SKILL_INTAKE/INTAKE_COMMON, cap 900 B).
   # Then 57344 -> 57793: intake-closing-questions-as-one-menu-round1 (+449 B option cap + six-block per-type pointers, Codex PR #483).
-  local want_growth=57793
+  # Then 57793 -> 57901: slim-standing-role-context (+108 B SKILL_REPLAY step 3a history search, measured against 01de2119).
+  local want_growth=57901
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1017,8 +1018,28 @@ test_012_growth_sum_matches_ledger() {
     log_info "TEST-012 (spec TEST-001): independent re-sum=$independent_sum != JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES"
     ok=0
   fi
+  # spec-slim-standing-role-context TEST-010 (Spec-AC-07): the SKILL_REPLAY step
+  # 3a growth (history path search) is credited by exactly one ledger entry whose
+  # byte value equals the MEASURED growth over the base blob at 01de2119.
+  local replay_base_sha="01de211960bf3df94c70da2d98d3a6fb81f50528" replay_entry="" replay_now replay_then
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    case "$_e" in *" slim-standing-role-context "*) replay_entry="${_e%% *}" ;; esac
+  done
+  if git -C "$PROJECT_ROOT" cat-file -e "$replay_base_sha:.aai/SKILL_REPLAY.prompt.md" 2>/dev/null; then
+    replay_then="$(git -C "$PROJECT_ROOT" show "$replay_base_sha:.aai/SKILL_REPLAY.prompt.md" | wc -c | tr -d ' ')"
+    replay_now="$(wc -c < "$PROJECT_ROOT/.aai/SKILL_REPLAY.prompt.md" | tr -d ' ')"
+    if [[ -z "$replay_entry" ]]; then
+      log_info "TEST-012 (slim-standing-role-context TEST-010): no slim-standing-role-context ledger entry (SKILL_REPLAY grew $(( replay_now - replay_then )) B)"
+      ok=0
+    elif [[ "$replay_entry" -ne $(( replay_now - replay_then )) ]]; then
+      log_info "TEST-012 (slim-standing-role-context TEST-010): ledger entry $replay_entry != measured SKILL_REPLAY growth $(( replay_now - replay_then ))"
+      ok=0
+    fi
+  else
+    log_info "TEST-012 (slim TEST-010): base commit $replay_base_sha not present (shallow clone) - SKIPPED, not silently passed"
+  fi
   [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == $want_growth == independent re-sum" \
-    || log_fail "TEST-012 (spec TEST-001; intake-closing-questions-as-one-menu TEST-006) growth sum mismatch"
+    || log_fail "TEST-012 (spec TEST-001; intake-closing-questions-as-one-menu TEST-006; slim-standing-role-context TEST-010) growth sum mismatch"
 }
 
 # TEST-013 (spec TEST-002, SPEC-0059 Spec-AC-01) — array has >=3 entries;

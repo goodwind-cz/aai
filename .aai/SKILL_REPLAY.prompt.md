@@ -30,6 +30,7 @@ PROCESS
       - Search for keyword matches in rule text
       - Include date and source annotation
       - Label: "From LEARNED.md"
+      - Also search docs/knowledge/history/LEARNED-HISTORY.md (when present); label: "From LEARNED history"
 
    b) docs/knowledge/PATTERNS.md (if exists)
       - Search for keyword matches in pattern descriptions

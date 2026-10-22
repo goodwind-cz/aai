@@ -1,0 +1,129 @@
+# Learned lessons - on-demand history
+
+Lessons moved verbatim out of the always-loaded `docs/knowledge/LEARNED.md` once their guard is in force or they are marked `**RESOLVED` (the rule and the forward rule are stated in LEARNED.md). Nothing here is assembled into a role payload or hashed; read it on demand with `grep -n '^## \|^- ' docs/knowledge/history/LEARNED-HISTORY.md`.
+
+## Testing
+
+- [2026-07-01] [guard → fu-learned-vitest-leak-is-a-guard] A `vitest run` (or any runner) that does not exit on its own is a test-leak bug — an open handle / unhandled rejection (timer, unclosed mock client, dangling promise), NOT "pre-existing teardown noise". Fix the open handle so the process exits; consider `test.dangerouslyIgnoreUnhandledErrors=false` so it FAILS loud instead of hanging (source: ISSUE-0002 — a long aai-loop orphaned ~40 vitest trees / ~5.6 GB). (guard shipped: the reaper already enforces this at the harness level — `.aai/scripts/aai-run-tests.sh`'s process-group reap, `tests/skills/test-aai-run-tests.sh` — rather than a lint asking the next author to recognise the shape.)
+
+## Workflow
+
+- [2026-07-01] [guard → fu-learned-external-runner-routing] The loop and test skills must NEVER launch `vitest`/`tsc`/dev-servers directly — route every externally-spawned command through the AAI test wrapper (`.aai/scripts/aai-run-tests.sh`) so a hung process can't outlive the step that spawned it (source: ISSUE-0002). (guard shipped: `tests/skills/lib/learned-guard-lints.mjs` rule `external-runner`, enforced by `tests/skills/test-aai-hygiene-pack.sh` test_125/test_126 over the `.aai` prompt corpus.)
+- [2026-07-04] [guard → fu-learned-worktree-seeded-copies] When a feature worktree was seeded with copies of not-yet-committed docs from the main checkout, delete those stale untracked copies in the main checkout (and reset generated files like docs/INDEX.md) BEFORE `git pull` after the PR merges — otherwise the pull silently aborts on the untracked-vs-incoming collision while its output still prints "Updating …" (source: post-merge of PR #34/#36; the tail of the pull output hid the abort). (guard shipped: indirectly — spec-test-framework-sweep Spec-AC-05's per-worktree session lock, `.aai/scripts/lib/session-lock.mjs`, refuses a second live session in the same worktree, closing the CONCURRENT-session shape this collision comes from; the pre-pull stale-untracked-copy cleanup habit itself remains an operator action, not automated.)
+
+## Architecture
+
+- [2026-07-01] [guard → fu-learned-framework-owns-how] Framework-owns-HOW invariant: the target project declares WHAT to run (its test/build command); AAI owns HOW it runs. Every externally-spawned process must be (a) in its own killable process group, (b) resource-bounded (e.g. vitest `maxForks`), (c) reaped on the step boundary (scoped to `$PWD`+etime, never global), and (d) accounted for in the tick log. Prefer safe-by-construction via `aai-bootstrap` defaults over post-hoc remediation. Silent resource growth is a bug — make it visible (source: ISSUE-0002). (routed to canon, not shipped as a guard here: this entry's own text states its right home is canon rather than a lint — spec-test-framework-sweep D10 — so the registry item is dropped to the sweep that owns canon rather than closed against a guard in this layer.)
+- [2026-07-03] [guard → check-committed-scope.mjs] A pre-commit content check must evaluate the STAGED blob (`git show ":<path>"`), never the worktree file. Detecting a change via `git diff --cached` but then validating the on-disk file is a TOCTOU hole: a staged, unreconciled change can pass whenever the worktree holds compensating unstaged edits, so the bad staged version is still committed. Gate what is actually being committed (source: PR #27 F2 — Codex found the SPEC-0011 G5 close-gate hook gating the worktree instead of the staged spec).
+
+## Session 2026-07-17 (CHANGE-0030/SPEC-0041 TDD)
+
+- [local] `tests/skills/test-aai-prompt-diet.sh` TEST-010 (corpus byte-budget floor,
+  `BASELINE_PROMPT_BYTES` / `REQUIRED_REDUCTION_BYTES`) already FAILS on clean
+  main — reproduced via git-stash comparison before touching anything (net
+  reduction 28187 bytes < 28672 required, ~485B short at c144736/PR #92).
+  *(That is what was done on the day and the record stands. Do not repeat the
+  method: stashing reverts the SHARED working tree and HAZ-RESTORE now
+  prohibits it. Reproduce against a disposable worktree cut from the BASE ref
+  instead — `git worktree add --detach <path> main`, not the default HEAD,
+  which on a working branch is the role's own commits.)*
+  Known pre-existing, out-of-scope environmental failure, same category as
+  the 2026-07-15 `test-aai-worktree.sh` entry above: verify in a disposable
+  worktree before chasing it as a regression. `test_010_seam_survival` in
+  `tests/skills/test-aai-ceremony-levels.sh` re-runs this suite and therefore
+  ALSO fails pre-existing (the whole `set -euo pipefail` script aborts at that
+  point) — run new/other stanzas via the file's single-function invocation
+  mode (`bash tests/skills/test-aai-ceremony-levels.sh <fn>`), or order `main`
+  to run unrelated stanzas before `test_010_seam_survival`, to avoid masking
+  their results. (Source: CHANGE-0030/SPEC-0041 TDD Implementation, TEST-007
+  RED/GREEN evidence, docs/ai/tdd/ceremony-lane-green.log.)
+  **RESOLVED 2026-07-17 (DEBT-0002/SPEC-0048):** the fixed byte floor was
+  calibrated for the SPEC-0017 diet corpus and never re-baselined as later
+  canon-mandated additions (dual-verdict review taxonomy, VALIDATION 8a,
+  CEREMONY LANE, RED_CLASS, SECRETS PREFLIGHT, doc-number reservation,
+  ceremony-lane surfaces) legitimately grew it. Fix: a `JUSTIFIED_GROWTH_BYTES`
+  ledger constant (6144 B, itemized inline) is credited into the reduction —
+  `BASELINE_PROMPT_BYTES`/`REQUIRED_REDUCTION_BYTES` stay unchanged (rewriting
+  them would erase history and IS the blank-raise anti-pattern) — plus a new
+  `0 <= headroom <= HEADROOM_CAP` (2048 B) anti-bloat guard so the credit
+  cannot be padded and future unjustified growth still fails. Also raised the
+  TEST-011 thin-wrapper line ceiling 40->45 (zero headroom broke live on a
+  1-line canon growth). `test_017`'s pre-existing-shortfall tolerance in
+  `test-aai-ceremony-levels.sh` is removed — a plain exit-0 assertion now
+  suffices, and the full ceremony suite is green end to end. (Source:
+  DEBT-0002 TDD Implementation, docs/ai/tdd/red-20260717T185005Z-*.log,
+  docs/ai/tdd/red-20260717T185240Z-*.log,
+  docs/ai/tdd/green-20260717T185321Z-*.log,
+  docs/ai/tdd/green-20260717T185451Z-*.log.)
+
+## Session 2026-07-17/19 (workflow-hardening arc + spec-id collision cascade)
+
+- [guard → spec-id-shape-lint] Spec DRAFT slugs MUST be `spec-`-prefixed (`id: spec-<change-slug>`). A spec
+  named with a bare-slug id collides with its change/issue's id; the audit's
+  `byId` map is last-writer-wins, so one doc silently overwrites the other and
+  the audit still reports CLEAN. Four collisions shipped this session
+  (SPEC-0048/0049/0051/0056) before being caught. Defence-in-depth now exists
+  at three layers: lint at freeze (`spec-lint` `spec-id-shape`, SPEC-0058),
+  detect at audit (`docs-audit` duplicate-doc-id, SPEC-0057), fail-closed at
+  close (`close-work-item.mjs`). (Source: ISSUE-0015 remediation; SPEC-0057/0058.)
+- [guard → close-work-item-mechanization] Mechanize any recurring agent-hand-performed governance ceremony that has
+  correctness rules. The close ceremony (status flip + links + the exact
+  slug-ref event set + re-audit) was ~10 manual steps and tripped
+  false-open/false-done 3× before `close-work-item.mjs` made it
+  correct-by-construction (snapshot -> apply -> self-verify via the real audit
+  -> rollback on drift). Same for `metrics-flush` (stop emitting wrong-ref
+  close events) and worktree telemetry (reconcile at PR). (Source: CHANGE-0037/
+  0038/0039.)
+- [guard → close-work-item-self-verify] `close-work-item.mjs` self-verifies full-CLEAN, so it CANNOT close a scope
+  whose own change makes the repo NEEDS-TRIAGE (e.g. shipping a detector that
+  flags pre-existing debt) — hand-close those, then remediate. It also
+  fail-closes on an ambiguous/duplicate id — a guardrail that caught the
+  SPEC-0056 collision. (Source: SPEC-0056/0057 close.)
+- [guard → prompt-diet-justified-additions] The prompt-diet byte floor re-breaches on EVERY scope that adds
+  `.aai/*.prompt.md` prose; the anti-bloat guard only flags it when the suite
+  runs (main was silently red by 764 B this session). Bumping the
+  `JUSTIFIED_ADDITIONS` ledger is now part of definition-of-done for any
+  prompt-touching scope, and the credit is an itemized summed array (not a magic
+  number) so the fix is a self-documenting data append. (Source: DEBT-0002,
+  CHANGE-0040.)
+- [guard → haz-restore-subagent-contract] Two operational hazards for the loop: (1) inline validation that runs
+  `git checkout`/`stash` mutates the SHARED working tree. HAZ-RESTORE in
+  `.aai/SUBAGENT_CONTRACT.md` prohibits those COMMANDS outright — it does not
+  ban inline work, which stays a supported mode. A role that needs to mutate
+  git state needs a disposable worktree; a role that only reads does not. (2) Concurrent audit-touching test suites
+  cross-contaminate: each drops ephemeral DRAFT docs into `docs/` while another
+  runs a repo-wide strict audit -> spurious failures. Serialize them.
+  (Source: ISSUE-0012 validation; CHANGE-0040 validation.)
+
+## Session 2026-07-19 (skill-suite CI gate + Linux portability)
+
+- [guard → aai-run-tests-shebang-honoring] A test runner that forces `sh <file>` on `#!/usr/bin/env bash` suites produces
+  FALSE PASSES (bash-only syntax like process substitution `< <(…)` or arrays
+  either errors early or is silently mis-parsed). Honor each suite's shebang
+  (`bash "$f"` or execute directly). A serialized full-suite sweep that forced
+  `sh` hid a real red (`verify-gate` TEST-006) and mis-flagged `hooks-overlay`;
+  the shebang-honoring rerun surfaced 15 real failures the first pass masked.
+  (Source: this session's `otestuj` v1 vs v2 runners.)
+- [guard → skill-suite-ci-workflow] The single highest-leverage structural win: skill suites were never gated in CI
+  (only docs-numbering + ps1-quality ran), so reds accumulated invisibly — one
+  merged red (verify-gate), three test-infra reds, and 15 Linux-portability
+  failures. Adding `.github/workflows/skill-suite.yml` (run every suite honoring
+  shebangs, fail on any red, slow self-hosting smoke in a separate timeboxed job)
+  is the prevention. Corollary: an aggregate runner MUST dump a failing suite's
+  output tail ALWAYS (not only under `--verbose`), else CI failures are opaque —
+  this diagnostic change is what made the Linux root-cause analysis possible from
+  the CI log alone. (Source: CHANGE-0042/0043.)
+- [2026-07-27] [guard → fu-learned-bash32-local-crossref] Bash 3.2 (macOS default): never cross-reference variables inside ONE local statement (local name="$1" d="$ROOT/$name" leaves d empty under set -u) — split into two local lines; and every git-fixture helper must refuse to run when its target dir is empty or non-absolute (guard [[ -n "$d" && "$d" = /* ]] before any git -C "$d"), otherwise a broken fixture silently operates on the REAL repository. (source: doctor-determinize ride 2026-07-28: fixture helper bug executed git -C '' against the real repo (self-corrected; forensically verified)) (guard shipped: `tests/skills/lib/learned-guard-lints.mjs` rules `local-crossref` and `cd-underived`, enforced by `tests/skills/test-aai-hygiene-pack.sh` test_125/test_126.)
+
+## Session 2026-08-24 (registry triage — the-registry-has-no-outflow)
+
+- [2026-08-24] [guard → fu-learned-ledger-merge-procedure] (guard shipped: `.aai/scripts/ledger-merge.mjs` — spec-friction-channel-sweep Spec-AC-09 ships this procedure as a command instead of prose.) Merge an append-only ledger (docs/ai/decisions.jsonl,
+  docs/ai/EVENTS.jsonl) by keeping the BASE side a byte-exact prefix and
+  appending both branches' new lines after it; a union in any other order
+  rewrites existing bytes from the base's point of view even when no record
+  is lost. Never accept an auto-merge of these files without diffing the
+  prefix. (Source: cli-output-survives-a-pipe ride; closes
+  fu-append-only-merge-needs-prefix-order.)
+- [2026-09-05] [guard → fu-learned-deny-by-default-mocks] An enumerated allowlist's forgotten member IS the hole — pin the expected SHAPE and deny everything else. Four consecutive review rounds each escaped a different version of one gh-stub flag gate (subcommand-prefix match; unknown-flag-only with no required flags; a `--[a-z]*` detector blind to `--Force` and `-Z`; unvalidated `--match`/`--sort`/`--json`/`--repo` VALUES, where `--repo ''` makes gh fall back to the local repo and a duplicate `--repo` retargets the write). Premise: a mock more permissive than the real tool attests that a call happened, never that the tool would accept it. TWO layers were needed and the first alone was not enough — a deny-by-default stub pinning the exact FLAG SKELETON (which flags, in which order, how many tokens) for each call the engine may emit, PLUS a separate case pinning the VALUES on the mutating path (destination, title, filed body, redaction). Round 4 still shipped `issue create --repo attacker/evil` green against the skeleton alone. (source: ISSUE-0080/SPEC-0166, PR #337 — validation rounds 1-4 plus code review, 24 blocking findings) (guard shipped: `tests/skills/lib/learned-guard-lints.mjs` rule `deny-default-mock`, enforced by `tests/skills/test-aai-hygiene-pack.sh` test_125/test_126.)
+- [2026-09-05] [guard → fu-learned-immutable-pin-lint] A pin described as immutable must READ an immutable ref. tests/skills/test-aai-spec-amend.sh TEST-003 asserted the base ledger carries exactly 10 spec_amendment records, and its own comment claimed the pin "cannot rot as later rides append their own amendments" — while the code resolved the base to `origin/main`, a moving ref. The first merge that added amendments turned main red for everyone branching off it, not just for the branch that added them. Pin the SHA the comment describes; keep a moving base only for arms genuinely asking about the branch base (append-only check, touched-files check), and prefer a FLOOR plus an independent recount over an equality for anything measured against the live tree. (source: PR #340 — main was red and the PR that surfaced it did not cause it) (guard shipped: `tests/skills/lib/learned-guard-lints.mjs` rule `immutable-pin`, enforced by `tests/skills/test-aai-hygiene-pack.sh` test_125/test_126.)
+- [2026-09-05] [guard → fu-learned-positive-control-for-absence] A new early-exit gate can make a distant assertion unreachable, and a vacuous pass is indistinguishable from a real one. The local-ledger duplicate gate added by ISSUE-0080 short-circuited TEST-010's secret-token arm (it reused one fingerprint), so the arm recorded no gh call at all and grepped an empty string — and a mutation making `passesRedactor` return true, which would send a live `ghp_`/`sk_live_`/`AKIA` credential verbatim to a PUBLIC issue, shipped a fully green suite. When adding a gate, sweep every test that depends on reaching code past it. An assertion about an ABSENCE (nothing leaked) needs a positive control that the thing under test actually ran — assert `creates=1`, not only that nothing bad appeared. (source: ISSUE-0080 validation round 4, PR #337 — a fourth shape of the 2026-08-05 vacuous-green family) (guard shipped: `tests/skills/lib/learned-guard-lints.mjs` rule `absence-no-control`, enforced by `tests/skills/test-aai-hygiene-pack.sh` test_125/test_126.)
