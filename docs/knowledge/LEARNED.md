@@ -30,7 +30,7 @@ bullet that carries no marker — it pins that a marker EXISTS, not that it is
 the right one; the triage judgement itself was applied by one reader to
 twenty bullets in one pass and is disclosed as a residual risk of that scope.
 
-**On-demand history.** Lessons whose guard is already in force, or that are marked `**RESOLVED`, live in `docs/knowledge/history/LEARNED-HISTORY.md` (when present; a project that never split this file has no such file). Read it on demand: `grep -n '^## \|^- ' docs/knowledge/history/LEARNED-HISTORY.md`. The rule: a guard entry whose id does not start `fu-`, or whose text says `guard shipped:` or `routed to canon`, and any entry marked `**RESOLVED`, is history; every `[local]` entry and every pending guard stays here. New lessons append here (`learned-append.mjs`, default target); a scope that ships an entry's guard, or marks it `**RESOLVED`, moves that entry verbatim to the history file in the same change.
+**On-demand history.** Lessons whose guard is already in force, or that are marked `**RESOLVED`, live in `docs/knowledge/history/LEARNED-HISTORY.md` (when present; a project that never split this file has no such file). Read it on demand: `grep -n '^## \|^- ' docs/knowledge/history/LEARNED-HISTORY.md`. The rule: a guard entry whose id does not start `fu-`, or whose text says `guard shipped:` or `routed to canon`, and any entry marked `**RESOLVED`, is history (`**RESOLVED` wins over `[local]`); every other `[local]` entry and every pending guard stays here. New lessons append here (`learned-append.mjs`, default target); a scope that ships an entry's guard, or marks it `**RESOLVED`, moves that entry verbatim to the history file in the same change.
 
 <!--
   This file captures corrections and learnings from user feedback.
