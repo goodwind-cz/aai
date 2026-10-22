@@ -67,6 +67,7 @@ worktree is created.
 
 4. **If the user chooses worktree**
    - Run Setup Worktree using the current scope name and chosen base branch.
+   - Ride already in the origin STATE (chosen after Planning): run `ride-handoff.mjs out` (see Setup Worktree) instead of `set-focus`; never copy STATE.yaml whole.
    - Update `docs/ai/STATE.yaml`:
      ```yaml
      worktree:
@@ -175,6 +176,8 @@ Create a new worktree for a feature/task.
    [ -f docs/ai/STATE.yaml ] && mv docs/ai/STATE.yaml docs/ai/STATE.yaml.pre-worktree
    node .aai/scripts/check-state.mjs --repair
    # AAI_WORKTREE_SEED_GATE_END
+   # Mid-ride (origin STATE holds the ref), instead of set-focus below:
+   # node "$AAI_SOURCE_ROOT"/.aai/scripts/ride-handoff.mjs out --ref "$ref_id" --worktree "$AAI_TARGET_ROOT" --state "$AAI_SOURCE_ROOT"/docs/ai/STATE.yaml
    ```
 
    PowerShell, after `git worktree add` succeeds (Windows PowerShell 5.1 and
@@ -191,6 +194,7 @@ Create a new worktree for a feature/task.
    & node '.aai/scripts/check-state.mjs' --repair
    if ($LASTEXITCODE -ne 0) { throw 'WORKTREE SETUP STOPPED: state initializer failed' }
    # AAI_WORKTREE_PS_SEED_GATE_END
+   # Mid-ride: & node $AaiSourceRoot/.aai/scripts/ride-handoff.mjs out --ref $ref_id --worktree $AaiTargetRoot --state $AaiSourceRoot/docs/ai/STATE.yaml
    ```
 
    This is an independent installed snapshot. Updating the origin does not

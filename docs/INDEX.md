@@ -6,12 +6,13 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-ride-state-handoff-to-worktree | specs | implementing | 13 done | docs/specs/SPEC-DRAFT-spec-ride-state-handoff-to-worktree.md |
 
 ## Canonical layer (0)
 
@@ -623,13 +624,14 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (16)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
+| ride-state-handoff-to-worktree (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-ride-state-handoff-to-worktree.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -657,7 +659,7 @@ _None._
 
 _None._
 
-## Broken references (484)
+## Broken references (488)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -677,6 +679,10 @@ _None._
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-variants/V2-PLANNING.md | NOT FOUND |
+| tests/skills/lib/ride-handoff.test.mjs | docs/ai/briefs/ride-demo.md | NOT FOUND |
+| tests/skills/lib/ride-handoff.test.mjs | docs/issues/CHANGE-DRAFT-ride-demo.md | NOT FOUND |
+| tests/skills/lib/ride-handoff.test.mjs | docs/specs/SPEC-0900-foreign-alpha.md | NOT FOUND |
+| tests/skills/lib/ride-handoff.test.mjs | docs/specs/SPEC-DRAFT-spec-ride-demo.md | NOT FOUND |
 | tests/skills/test-aai-branch-guard.sh | docs/issues/CHANGE-0001-t454.md | NOT FOUND |
 | tests/skills/test-aai-canon.sh | docs/generated-687.md | NOT FOUND |
 | tests/skills/test-aai-canon.sh | docs/generated-sub/687.md | NOT FOUND |

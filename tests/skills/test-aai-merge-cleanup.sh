@@ -657,8 +657,8 @@ test_011_worktree_refusals() {
 # Batch B3: focus, index and report (TEST-012), idempotence and resume (TEST-013/014)
 
 STATE_REL='docs/ai/STATE.yaml'
-ACTION_STEPS='archive-runtime sync-base remove-worktree delete-branch report'
-ALL_STEPS='resolve plan archive-runtime sync-base remove-worktree delete-branch report'
+ACTION_STEPS='archive-runtime sync-base reconcile-origin remove-worktree delete-branch report'
+ALL_STEPS='resolve plan archive-runtime sync-base reconcile-origin remove-worktree delete-branch report'
 
 # seed_state [ref]: the real check-state.mjs creates the origin STATE; with a
 # ref the real state.mjs puts that ref in focus with an in-progress work item.
@@ -730,7 +730,7 @@ norm_sha() {
 tree_sig() {
   [[ -n "$ORIGIN" && "$ORIGIN" = /* ]] || fail SETUP 'tree_sig origin'
   ( cd "$ORIGIN" && find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | while IFS= read -r f; do
-      case "$f" in ./docs/ai/reports/merge-cleanup-pr*|*/journal.jsonl) continue ;; esac
+      case "$f" in ./docs/ai/reports/merge-cleanup-pr*|*/journal.jsonl|./docs/ai/archive/handoffs/*) continue ;; esac
       printf '%s %s\n' "$f" "$(norm_sha "$f")"
     done )
 }
@@ -758,7 +758,7 @@ test_013_second_apply_is_noop() {
     want TEST-013 "$(json_get "$second" 'j.noops')" "noop:$s:"
   done
   unwanted TEST-013 "$(json_get "$second" 'j.noops')" 'sign-amendments'
-  [[ "$(json_get "$second" 'j.noops.length')" == 5 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 5"
+  [[ "$(json_get "$second" 'j.noops.length')" == 6 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 6"
   [[ "$(world_digest)" == "$before" ]] || fail TEST-013 'second apply changed files, refs, worktrees or the reflog'
   [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-013 'second run duplicated a ledger line'
   [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-013 'the ledger holds a duplicate line'
@@ -3072,6 +3072,62 @@ test_074_github_recorded_and_legacy_unchanged() {
   echo 'PASS: TEST-074 recorded github prints the pinned line; unrecorded adds one notice only'
 }
 
+# ---------------------------------------------------------------------------
+# spec-ride-state-handoff-to-worktree TEST-011 (Spec-AC-11): the reconcile-origin step.
+# The origin STATE still holds the merged ride's focus, work item and a run that the merged
+# METRICS ledger already carries; apply clears them through ride-handoff.mjs reconcile.
+RH_RUN_ROLE='Planning'
+RH_RUN_STARTED='2026-10-10T08:00:00Z'
+seed_ride_075() {
+  printf '{"date_utc":"2026-10-10","ref_id":"%s","title":"foo","agent_runs":[{"role":"%s","model_id":"claude-opus-5-5","started_utc":"%s","ended_utc":"2026-10-10T08:10:00Z"}]}\n' \
+    "$ISSUE_ID" "$RH_RUN_ROLE" "$RH_RUN_STARTED" > "$RIDE/docs/ai/METRICS.jsonl"
+  run git -C "$RIDE" add docs/ai/METRICS.jsonl
+}
+# origin_state_075 <run started>: an origin STATE with the stale focus and one foo run
+origin_state_075() {
+  printf 'project_status: active\ncurrent_focus:\n  type: intake_change\n  ref_id: foo\n  primary_path: docs/issues/ISSUE-DRAFT-foo.md\n  spec_path: null\nactive_work_items:\n  - ref_id: foo\n    status: in_progress\n    phase: planning\nmetrics:\n  work_items:\n    foo:\n      agent_runs:\n        - role: %s\n          model_id: claude-opus-5-5\n          started_utc: %s\n          ended_utc: 2026-10-10T08:10:00Z\n    other-ride:\n      agent_runs:\n        - role: Planning\n          model_id: claude-opus-5-5\n          started_utc: 2026-10-09T08:00:00Z\n          ended_utc: 2026-10-09T08:10:00Z\nupdated_at_utc: 2026-10-10T09:00:00Z\n' \
+    "$RH_RUN_ROLE" "$1" > "$ORIGIN/$STATE_REL"
+}
+
+test_075_reconcile_origin_step() {
+  local rep second journal steps other_before
+  RIDE_SEED=seed_ride_075 build_world rh075
+  origin_state_075 "$RH_RUN_STARTED"
+  other_before="$(state_block "$ORIGIN/$STATE_REL" metrics | awk '/other-ride:/ {f=1} f')"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-075 "ride-handoff TEST-011 apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  rep="$ENG_OUT"
+  steps="$(json_get "$rep" 'j.steps.map(s=>s.id).join(" ")')"
+  [[ "$steps" == 'resolve plan archive-runtime sync-base reconcile-origin remove-worktree delete-branch report' ]] || fail TEST-075 "ride-handoff TEST-011 step list is: $steps"
+  [[ "$(step_status "$rep" reconcile-origin)" == done ]] || fail TEST-075 "ride-handoff TEST-011 reconcile-origin reported $(step_status "$rep" reconcile-origin), want done"
+  journal="$(cat "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/journal.jsonl")"
+  want TEST-075 "$journal" '"step":"reconcile-origin"'
+  unwanted TEST-075 "$(state_block "$ORIGIN/$STATE_REL" current_focus)" 'ref_id: foo'
+  unwanted TEST-075 "$(cat "$ORIGIN/$STATE_REL")" 'ref_id: foo'
+  unwanted TEST-075 "$(state_block "$ORIGIN/$STATE_REL" metrics)" '    foo:'
+  [[ "$(state_block "$ORIGIN/$STATE_REL" metrics | awk '/other-ride:/ {f=1} f')" == "$other_before" ]] || fail TEST-075 'ride-handoff TEST-011 the foreign metrics entry changed'
+  [[ "$(find "$ORIGIN/docs/ai/archive/handoffs" -name record.json | wc -l | tr -d ' ')" == 1 ]] || fail TEST-075 'ride-handoff TEST-011 want one reconcile archive'
+  [[ "$(json_get "$rep" 'j.remaining.filter(r=>r.includes("reconcile")).length')" == 0 ]] || fail TEST-075 'ride-handoff TEST-011 a clean reconcile left a remaining entry'
+  # a re-run reports the step as a no-op and changes nothing
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-075 "ride-handoff TEST-011 rerun exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  second="$ENG_OUT"
+  [[ "$(step_status "$second" reconcile-origin)" == noop ]] || fail TEST-075 "ride-handoff TEST-011 rerun reconcile-origin reported $(step_status "$second" reconcile-origin), want noop"
+  [[ "$(find "$ORIGIN/docs/ai/archive/handoffs" -name record.json | wc -l | tr -d ' ')" == 1 ]] || fail TEST-075 'ride-handoff TEST-011 the rerun wrote a second archive'
+
+  # an unledgered run: retained, named in remaining, apply still exits 0, STATE untouched
+  RIDE_SEED=seed_ride_075 build_world rh075b
+  origin_state_075 '2026-10-10T08:05:00Z'
+  local pre; pre="$(sha_of "$ORIGIN/$STATE_REL")"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-075 "ride-handoff TEST-011 unledgered apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status "$ENG_OUT" reconcile-origin)" == retained ]] || fail TEST-075 "ride-handoff TEST-011 unledgered reconcile-origin reported $(step_status "$ENG_OUT" reconcile-origin), want retained"
+  want TEST-075 "$(json_get "$ENG_OUT" 'j.remaining')" 'origin_runs_not_in_ledger'
+  [[ "$(sha_of "$ORIGIN/$STATE_REL")" == "$pre" ]] || fail TEST-075 'ride-handoff TEST-011 a refused reconcile changed the origin STATE'
+  [[ "$(step_status "$ENG_OUT" report)" != "" ]] || fail TEST-075 'ride-handoff TEST-011 the later steps did not run'
+  echo 'PASS: TEST-075 reconcile-origin is done, journalled, a no-op on rerun, retained on an unledgered run'
+}
+
 case "$SELECTED" in
   '') test_005_apply_readback_gate;
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -3094,7 +3150,8 @@ case "$SELECTED" in
      test_054_resume_matches_the_appended_segment; test_055_unappended_intent_is_not_counted
      test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite; test_058_merge_cleanup_line_ceiling; test_059_lane_gate_passes_without_pr_sweep; test_060_skill_pr_prompt_free_of_pr_sweep; test_061_prompt_diet_passes
      test_068_generic_refuses_with_manual; test_070_azure_preflight_ready_and_refusals; test_072_azure_apply_cleanup
-     test_073_platform_mismatch_refuses_before_any_read; test_074_github_recorded_and_legacy_unchanged ;;
+     test_073_platform_mismatch_refuses_before_any_read; test_074_github_recorded_and_legacy_unchanged
+     test_075_reconcile_origin_step ;;
   TEST-059|test_059_lane_gate_passes_without_pr_sweep) test_059_lane_gate_passes_without_pr_sweep ;;
   TEST-060|test_060_skill_pr_prompt_free_of_pr_sweep) test_060_skill_pr_prompt_free_of_pr_sweep ;;
   TEST-061|test_061_prompt_diet_passes) test_061_prompt_diet_passes ;;
@@ -3155,5 +3212,6 @@ case "$SELECTED" in
   TEST-072|test_072_azure_apply_cleanup) test_072_azure_apply_cleanup ;;
   TEST-073|test_073_platform_mismatch_refuses_before_any_read) test_073_platform_mismatch_refuses_before_any_read ;;
   TEST-074|test_074_github_recorded_and_legacy_unchanged) test_074_github_recorded_and_legacy_unchanged ;;
+  TEST-075|test_075_reconcile_origin_step) test_075_reconcile_origin_step ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

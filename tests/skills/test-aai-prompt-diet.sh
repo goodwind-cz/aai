@@ -1009,7 +1009,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 57083 -> 57344: intake-closing-questions-as-one-menu (+261 B SKILL_INTAKE/INTAKE_COMMON, cap 900 B).
   # Then 57344 -> 57793: intake-closing-questions-as-one-menu-round1 (+449 B option cap + six-block per-type pointers, Codex PR #483).
   # Then 57793 -> 57901: slim-standing-role-context (+108 B SKILL_REPLAY step 3a history search, measured against 01de2119).
-  local want_growth=57901
+  # Then 57901 -> 58478: ride-state-handoff-to-worktree (+577 B SKILL_WORKTREE step 4 and setup comments, SKILL_SHIP default 2; cap 900 B).
+  local want_growth=58478
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1038,8 +1039,29 @@ test_012_growth_sum_matches_ledger() {
   else
     log_info "TEST-012 (slim TEST-010): base commit $replay_base_sha not present (shallow clone) - SKIPPED, not silently passed"
   fi
+  # spec-ride-state-handoff-to-worktree TEST-013 (Spec-AC-13): the SKILL_WORKTREE + SKILL_SHIP growth is
+  # credited by exactly one ledger entry equal to the MEASURED growth over the base blob, and stays <= 900 B.
+  local rh_base_sha="d28244196e8d4b9e78b03b181f7dfc3dfde34bf2" rh_entry="" rh_then=0 rh_now=0 rh_f
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    case "$_e" in *" ride-state-handoff-to-worktree "*) rh_entry="${_e%% *}" ;; esac
+  done
+  if git -C "$PROJECT_ROOT" cat-file -e "$rh_base_sha:.aai/SKILL_WORKTREE.prompt.md" 2>/dev/null; then
+    for rh_f in SKILL_WORKTREE SKILL_SHIP; do
+      rh_then=$(( rh_then + $(git -C "$PROJECT_ROOT" show "$rh_base_sha:.aai/$rh_f.prompt.md" | wc -c | tr -d ' ') ))
+      rh_now=$(( rh_now + $(wc -c < "$PROJECT_ROOT/.aai/$rh_f.prompt.md" | tr -d ' ') ))
+    done
+    if [[ -z "$rh_entry" ]]; then
+      log_info "TEST-012 (ride-state-handoff TEST-013): no ride-state-handoff-to-worktree ledger entry (prompts grew $(( rh_now - rh_then )) B)"
+      ok=0
+    elif [[ "$rh_entry" -ne $(( rh_now - rh_then )) || "$rh_entry" -gt 900 ]]; then
+      log_info "TEST-012 (ride-state-handoff TEST-013): ledger entry $rh_entry != measured growth $(( rh_now - rh_then )) (cap 900)"
+      ok=0
+    fi
+  else
+    log_info "TEST-012 (ride-state-handoff TEST-013): base commit $rh_base_sha not present (shallow clone) - SKIPPED, not silently passed"
+  fi
   [[ $ok -eq 1 ]] && log_pass "TEST-012 (spec TEST-001) JUSTIFIED_GROWTH_BYTES == $want_growth == independent re-sum" \
-    || log_fail "TEST-012 (spec TEST-001; intake-closing-questions-as-one-menu TEST-006; slim-standing-role-context TEST-010) growth sum mismatch"
+    || log_fail "TEST-012 (spec TEST-001; intake-closing-questions-as-one-menu TEST-006; slim-standing-role-context TEST-010; ride-state-handoff-to-worktree TEST-013) growth sum mismatch"
 }
 
 # TEST-013 (spec TEST-002, SPEC-0059 Spec-AC-01) — array has >=3 entries;
