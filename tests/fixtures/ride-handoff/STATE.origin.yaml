@@ -1,0 +1,124 @@
+# docs/ai/STATE.yaml - AAI runtime state (managed by orchestration; humans need not edit)
+#
+# CANONICAL SCHEMA / INVARIANTS (authoritative; see .aai/SKILL_CHECK_STATE.prompt.md)
+#   project_status:            active | paused
+#   current_focus.type:        intake_change | intake_issue | intake_prd | intake_hotfix |
+#                              intake_research | intake_rfc | intake_release |
+#                              technology_extraction | maintenance | none
+#   active_work_items[].status: planned | in_progress | blocked | done
+#   active_work_items[].phase:  planning | preparation | implementation | validation |
+#                              code_review | remediation
+#   implementation_strategy.selected: loop | tdd | hybrid | direct | untested | undecided
+#   worktree.recommendation:   not_needed | optional | recommended | required
+#   worktree.user_decision:    undecided | worktree | inline | waived
+#   code_review.status:        not_run | pass | fail | waived
+#   last_validation.status:    pass | fail | not_run
+#   updated_at_utc:            ISO 8601 UTC
+#   orchestration.mode:        auto | single | parallel   (RFC-0005 / SPEC-0005; default auto)
+#   orchestration.k:           integer chosen fan-out for the last tick (1 when single)
+#   orchestration.groups:      last selector partition [{kind: parallel|sequential, scopes: [...]}]
+#     The whole orchestration block is OPTIONAL and non-breaking: an absent block == auto
+#     (back-compat) - existing single-scope projects behave exactly as before.
+#     orchestration.mode is also the durable override input (a loop arg may
+#     override it per tick). Written by SKILL_LOOP from .aai/scripts/orchestration-mode.mjs.
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: ride-demo
+  primary_path: docs/issues/CHANGE-DRAFT-ride-demo.md
+  spec_path: docs/specs/SPEC-DRAFT-spec-ride-demo.md
+active_work_items:
+  - ref_id: foreign-alpha
+    status: in_progress
+    phase: implementation
+    spec_path: docs/specs/SPEC-0900-foreign-alpha.md
+  - ref_id: ride-demo
+    status: in_progress
+    phase: planning
+    spec_path: docs/specs/SPEC-DRAFT-spec-ride-demo.md
+  - ref_id: foreign-beta
+    status: planned
+    phase: planning
+implementation_strategy:
+  selected: tdd
+  source: docs/specs/SPEC-DRAFT-spec-ride-demo.md
+  rationale: >-
+    Demo ride: deterministic writer, observed RED first
+  ref_id: ride-demo
+worktree:
+  recommendation: recommended
+  user_decision: worktree
+  base_ref: main
+  branch: change/foreign-beta
+  path: /var/empty/foreign-beta-worktree
+  inline_review_scope: null
+  rationale: >-
+    Demo ride is PR-bound and multi-surface
+code_review:
+  required: true
+  status: not_run
+  scope: >-
+    .aai/scripts/demo.mjs tests/demo.test.mjs
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+  scope_ref_id: ride-demo
+last_validation:
+  status: pass
+  run_at_utc: 2026-10-22T16:50:00Z
+  ref_id: ride-demo
+  evidence_paths:
+    - docs/ai/validation/VALIDATION-ride-demo.md
+  notes: null
+tdd_cycle:
+  status: RED
+  test_id: TEST-900
+  spec_path: docs/specs/SPEC-0900-foreign-alpha.md
+  test_path: tests/foreign-alpha.test.mjs
+  evidence:
+    red: docs/ai/tdd/red-foreign-alpha.log
+    green: null
+    refactor: null
+metrics:
+  # bare (empty-mapping) form — the ONLY empty representation state.mjs
+  # append-run extends in place; a literal {} would be left orphaned above
+  # a duplicated key on the first run append (PR #176 Codex P1)
+  work_items:
+    foreign-alpha:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Planning
+          model_id: claude-opus-5-5
+          started_utc: 2026-10-20T08:00:00Z
+          ended_utc: 2026-10-20T08:10:00Z
+        - role: Implementation
+          model_id: claude-sonnet-5-5
+          started_utc: 2026-10-20T08:20:00Z
+          ended_utc: 2026-10-20T08:40:00Z
+    ride-demo:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Planning
+          model_id: claude-opus-5-5
+          started_utc: 2026-10-22T16:18:38Z
+          ended_utc: 2026-10-22T16:28:46Z
+        - role: TDD Implementation
+          model_id: claude-sonnet-5-5
+          started_utc: 2026-10-22T16:30:13Z
+          ended_utc: 2026-10-22T16:45:00Z
+    foreign-beta:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Planning
+          model_id: claude-opus-5-5
+          started_utc: 2026-10-21T09:00:00Z
+          ended_utc: 2026-10-21T09:12:00Z
+updated_at_utc: 2026-10-22T17:00:00Z

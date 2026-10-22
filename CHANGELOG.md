@@ -22,6 +22,18 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat: hand one ride's STATE to its worktree and reconcile after merge
+
+- New `.aai/scripts/ride-handoff.mjs out` moves only the ride's own focus,
+  work item, agent runs and verdict blocks (plus untracked drafts) into a
+  fresh worktree STATE, archiving first and resuming after interruption; a
+  whole-STATE copy no longer leaks other rides' runs into the worktree flush.
+- `ride-handoff.mjs reconcile` and a new `reconcile-origin` merge-cleanup step
+  clear the merged ride's stale focus from the main checkout, removing runs
+  only when the METRICS ledger already holds them (otherwise retained).
+- `/aai-worktree` and `/aai-ship` name the handoff for a worktree decided
+  after Planning.
+
 ## [unreleased] — perf: load only standing lessons into every role prompt
 
 - Lessons whose guard already ships, or that are resolved, move verbatim from

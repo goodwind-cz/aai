@@ -66,7 +66,7 @@ exit: 0 complete, 2 usage, 3 refused, 4 stopped mid-way, 10 preflight ready
 `;
 
 const STEP_IDS = [
-  'resolve', 'plan', 'archive-runtime', 'sync-base',
+  'resolve', 'plan', 'archive-runtime', 'sync-base', 'reconcile-origin',
   'remove-worktree', 'delete-branch', 'report',
 ];
 const DRAFT_BASENAME_RE = /^[A-Z]+(?:-[A-Z]+)*-DRAFT-.+\.md$/;
@@ -725,6 +725,34 @@ function worktreeVerdict(ctx, wt, { allowTails = false } = {}) {
   return null;
 }
 
+// spec-ride-state-handoff-to-worktree D8: after the merged ledger is here, clear the merged ride's stale traces
+// from the origin STATE through ride-handoff.mjs reconcile. A refusal is the owner's decision, never a stop.
+function reconcileRefs(ctx, extra) {
+  const statePath = path.join(ctx.origin, STATE_REL);
+  const script = path.join(SCRIPT_DIR, 'ride-handoff.mjs');
+  const metrics = path.join(ctx.origin, 'docs', 'ai', 'METRICS.jsonl');
+  return [...mergedRefs(ctx)].sort().map((ref) => {
+    const r = spawnSync(process.execPath, [script, 'reconcile', '--ref', ref, '--state', statePath, '--metrics', metrics, '--branch', ctx.headRef, ...extra],
+      { cwd: ctx.origin, encoding: 'utf8' });
+    const line = (r.stdout ?? '').split('\n').find((l) => /^(RECONCILED|NOOP|REFUSE) /.test(l)) ?? '';
+    return { ref, kind: line.split(' ')[0] || 'ERROR', line: line || (r.stderr ?? '').trim().split('\n')[0] || `exit ${r.status}` };
+  });
+}
+
+function reconcileOrigin(ctx) {
+  if (!fs.existsSync(path.join(ctx.origin, STATE_REL))) return { status: 'noop', detail: 'no_state' };
+  const results = reconcileRefs(ctx, []);
+  // Only a printed REFUSE is the owner's decision; a child that failed without one (malformed STATE, killed,
+  // missing template) is a failed step: stop resumable, like every other step that cannot finish.
+  const broke = results.find((x) => x.kind === 'ERROR');
+  if (broke) stop('reconcile_origin_failed', `${broke.ref}: ${broke.line}`);
+  const bad = results.filter((x) => x.kind !== 'RECONCILED' && x.kind !== 'NOOP');
+  ctx.reconcileRetained = bad.map((x) => `${STATE_REL} ${x.ref}: reconcile refused (${x.line}): owner decision, not changed`);
+  if (bad.length > 0) return { status: 'retained', detail: bad.map((x) => x.line).join('; ') };
+  const done = results.filter((x) => x.kind === 'RECONCILED');
+  return done.length > 0 ? { status: 'done', detail: `${done.length} reconciled` } : { status: 'noop', detail: 'no_trace' };
+}
+
 function branchTip(ctx) {
   const r = git(ctx.origin, ['rev-parse', '--verify', '-q', `refs/heads/${ctx.headRef}`]);
   return r.status === 0 ? r.stdout.trim() : null;
@@ -1107,6 +1135,7 @@ const HANDLERS = {
   plan: () => ({ status: 'read' }),
   'archive-runtime': archiveRuntime,
   'sync-base': syncBase,
+  'reconcile-origin': reconcileOrigin,
   'remove-worktree': removeWorktree,
   'delete-branch': deleteBranch,
 };
@@ -1129,6 +1158,10 @@ const PLANNERS = {
       `${ctx.base} ${plan.head.slice(0, 12)}..${plan.target.slice(0, 12)}`,
       ...(plan.roadmap ? [`take incoming ${ROADMAP_PATH} (archive ride entry ${t ? rideChangedRefs(mergedRefs(ctx), t).join(', ') : ''})`] : []),
     ];
+  },
+  'reconcile-origin': (ctx) => {
+    if (!fs.existsSync(path.join(ctx.origin, STATE_REL))) return [];
+    return reconcileRefs(ctx, ['--dry-run']).filter((x) => x.kind !== 'NOOP').map((x) => (x.kind === 'RECONCILED' ? `reconcile ${x.ref}` : `retain ${x.ref} (${x.line})`));
   },
   'remove-worktree': (ctx) => {
     const wt = findRideWorktree(ctx);
@@ -1191,6 +1224,7 @@ function buildReport(ctx, steps) {
     remaining: [
       ...ctx.drafts.retained.map((r) => `${r.path}: unexpected leftover draft; owner decision`),
       ...remoteBranchNote(ctx, steps),
+      ...(ctx.reconcileRetained ?? []),
     ],
   };
 }

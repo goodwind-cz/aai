@@ -33,7 +33,7 @@ AUTOPILOT DEFAULTS (recorded, never silent)
 1. Intake metrics question: do not ask; record human_time_minutes null.
 2. Worktree gate (recommendation -> decision, via state.mjs set-worktree):
    - not_needed | optional  -> inline
-   - recommended            -> worktree
+   - recommended            -> worktree (mid-ride: ride-handoff.mjs out)
    - required OR ceremony L3 -> STOP; a human decides (protected surfaces
      keep their human gate; autopilot never records this decision itself).
    Record rationale "autopilot default" with every auto decision.

@@ -84,6 +84,8 @@ pairs:
     status: done
   - capability: slim-standing-role-context
     status: done
+  - capability: ride-state-handoff-to-worktree
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
