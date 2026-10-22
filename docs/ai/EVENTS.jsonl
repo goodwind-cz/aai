@@ -3213,3 +3213,4 @@
 {"v":1,"ts":"2026-10-22T18:13:40Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"slim-standing-role-context","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-22T18:13:40Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-slim-standing-role-context","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-22T18:13:40Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-slim-standing-role-context","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-22T18:20:23Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"slim-standing-role-context","payload":{"pr":491,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"4f667f1225b874ce45ee33a78a1135999a173ed5"}}
