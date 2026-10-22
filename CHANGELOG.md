@@ -22,6 +22,16 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — ci: reuse proven source checks on body-only PR edits
+
+- Require same-head, base, checkout, workflow and complete successful attempt
+  evidence before skipping unchanged skill, Windows and smoke jobs on a
+  body-only edit. Unknown evidence falls back to normal source validation.
+- Keep release notes, tracked-ignored and the required skill aggregate current
+  on every edit; the aggregate fails when the current body violates notes rules.
+- Local regression evidence is prepared; hosted H1/H2 source and repeated
+  body-edit runs remain required before delivery.
+
 ## [unreleased] — ci: conditionally shard selected skill suites
 
 - Plan one or two four-worker selected runners from measured suite weights,

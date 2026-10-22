@@ -1292,6 +1292,7 @@ suites:
       - .aai/scripts/ci-select.mjs
       - .aai/scripts/select-suites.mjs
       - .github/workflows/skill-suite.yml
+      - tests/skills/lib/ci-body-recheck.test.mjs
       - tests/skills/test-aai-ci-carry-forward.sh
 
   aai-pr-preflight:

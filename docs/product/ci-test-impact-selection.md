@@ -7,6 +7,7 @@ delivered_by:
   - CHANGE-0071
   - selected-ci-scheduling-foundation
   - selected-ci-conditional-sharding
+  - ci-body-only-rechecks
 spec: docs/specs/SPEC-0097-spec-ci-test-impact-selection.md
 updated: 2026-10-21
 ---
@@ -33,6 +34,18 @@ a path it can't confidently classify. Any changed path that isn't mapped to
 a suite, that touches shared library code (`.aai/scripts/lib/**`), or that
 touches a protected surface (`docs/ai/docs-audit.yaml` `protected_paths_l3`)
 escalates straight back to a full run instead of guessing.
+
+For a PR event that changes only the body, `ci-select.mjs` can emit the explicit
+`body-reuse` mode. It requires a completed successful run at the same head,
+base, PR, repository, workflow and pinned merge checkout. That run must publish
+its execution identity and complete source-job plan through successful workflow
+steps, and every expected source job must have succeeded in one attempt. The
+current run still executes `select`, `release notes`, `tracked-ignored`, and
+the required aggregate gate. The skill jobs, Windows seed and self-hosting
+smoke are skipped. A missing or ambiguous field, API error, changed attempt,
+cancelled source run, moved base, fork, `ci-full` label or mixed edit returns
+to ordinary selection with a fallback reason in the select log. A body edit that cancels
+its first source run therefore performs source validation again.
 
 When the full framework does run, it no longer runs on one machine. The
 `select` job splits the suites into four deterministic, weight-balanced
@@ -164,9 +177,12 @@ Nothing is required for a normal PR — selection is automatic:
     and exactly one `DROPPED <n>` line naming how many mapped suites were
     skipped.
 - `.github/workflows/skill-suite.yml` — the `select` job resolves a
-  `mode: full|selected` output. Selected mode uses `skills-selected` for one
-  runner or `skills-selected-sharded` for two; full mode uses `skills-full`.
-  The required `gate` job accepts only the successful path for that mode.
+  `mode: full|selected|body-reuse` output. Selected mode uses `skills-selected`
+  for one runner or `skills-selected-sharded` for two; full mode uses
+  `skills-full`. Body reuse carries a `BODY_REUSE` line naming the earlier run
+  and its source/base/checkout/workflow identity. The required `gate` job
+  accepts only the successful path for that mode and requires the current
+  `release notes` result on PRs.
 - `.aai/scripts/select-suites.mjs --selected-plan-from <file>` — reads
   newline-separated selected names and emits `SHARD` lines, `SHARDS` count
   and a `SELECTED_DECISION` record with the model inputs, predicted wall and

@@ -45,17 +45,15 @@ name: skill-suite
 # moment the workflow run STARTS. Adding the label after a PR is already open
 # does not retroactively re-run this workflow — push an empty commit,
 # `workflow_dispatch` it, or resync the PR (e.g. a rebase) after labeling.
-# `pull_request` intentionally uses the default `types` (opened, synchronize,
-# reopened) — NOT `labeled` — so merely adding/removing an unrelated label
-# never re-triggers the whole suite.
+# `pull_request` includes `edited` so body-dependent checks refresh when PR
+# text changes. `labeled` is intentionally excluded: adding/removing an
+# unrelated label never re-triggers the whole suite.
 #
-# `self-hosting-smoke` job: kept SEPARATE from the skill suite jobs with its
-# own `timeout-minutes`, UNCONDITIONED by selection (out of scope for this
-# feature — it is not one of the tests/skills/ suites test-framework.sh
-# loops over). It runs on every push/PR/dispatch exactly as before, and now
-# also on the nightly schedule (a new trigger this change adds to the whole
-# workflow) — a deliberate widening: a comprehensive nightly gate should
-# include the self-hosting smoke test too.
+# `self-hosting-smoke` stays SEPARATE from the skill suite jobs with its own
+# `timeout-minutes`; it is not a tests/skills/ suite. Ordinary push/PR/dispatch
+# and nightly runs execute it. A proven `body-reuse` PR edit skips it and
+# directly cites the matching successful source run instead. Ordinary suite
+# selection does not otherwise narrow smoke coverage.
 #
 # fetch-depth: 0 is required on every job that runs tests/skills/ or the
 # selector: tests/skills/test-aai-layer-profiles.sh probes full git history,
@@ -118,6 +116,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -147,6 +146,8 @@ jobs:
       shard_ids: ${{ steps.shard.outputs.shard_ids }}
       shard_plan: ${{ steps.shard.outputs.shard_plan }}
       checkout_sha: ${{ steps.identity.outputs.sha }}
+      source_identity: ${{ steps.identity.outputs.source_identity }}
+      body_proof: ${{ steps.select.outputs.body_proof }}
       selected_plan: ${{ steps.selected-plan.outputs.selected_plan }}
       selected_shard_ids: ${{ steps.selected-plan.outputs.shard_ids }}
       selected_runners: ${{ steps.selected-plan.outputs.runners }}
@@ -154,6 +155,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -161,7 +163,10 @@ jobs:
 
       - id: identity
         name: Pin the selection checkout identity
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "source_identity=ci-source-identity-v1 head=${{ github.event.pull_request.head.sha }} base=${{ github.event.pull_request.base.sha }} checkout=$sha workflow=${{ github.workflow_sha }}" >> "$GITHUB_OUTPUT"
 
       - id: shard
         name: Compute the shard plan (unconditional; every event gets it, --shards 4)
@@ -193,16 +198,23 @@ jobs:
           fi
           # fetch-depth: 0 above already fetched full history for every
           # branch (including the base), so origin/<base> is resolvable here.
-          OUT="$(node .aai/scripts/ci-select.mjs --base-ref "origin/${{ github.event.pull_request.base.ref }}" --event "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY" --workflow-file skill-suite.yml)"
+          OUT="$(node .aai/scripts/ci-select.mjs --base-ref "origin/${{ github.event.pull_request.base.ref }}" --event "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY" --workflow-file skill-suite.yml --checkout-sha "${{ steps.identity.outputs.sha }}" --workflow-sha "${{ github.workflow_sha }}" --current-run-id "${{ github.run_id }}")"
           echo "$OUT"
           echo "$OUT" | grep '^CARRY_FORWARD ' >> "$GITHUB_STEP_SUMMARY" || true
-          if echo "$OUT" | grep -q '^FULL_RUN'; then
+          if echo "$OUT" | grep -q '^BODY_REUSE '; then
+            echo "mode=body-reuse" >> "$GITHUB_OUTPUT"
+            echo "body_proof=$(echo "$OUT" | grep '^BODY_REUSE ')" >> "$GITHUB_OUTPUT"
+          elif echo "$OUT" | grep -q '^FULL_RUN'; then
             echo "mode=full" >> "$GITHUB_OUTPUT"
           else
             echo "mode=selected" >> "$GITHUB_OUTPUT"
             SUITES="$(echo "$OUT" | grep -E '^(SELECTED|CORE) ' | awk '{print $2}' | sort -u | tr '\n' ' ')"
             echo "suites=$SUITES" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: ${{ steps.identity.outputs.source_identity }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ steps.identity.outputs.sha }}"
 
       - id: selected-plan
         name: Plan and independently check selected execution
@@ -222,6 +234,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           cat selected-plan.txt >> "$GITHUB_STEP_SUMMARY"
 
+      - name: ci-source-plan-v1 full=${{ steps.shard.outputs.shard_ids }} selected=${{ steps.selected-plan.outputs.shard_ids || 'none' }} runners=${{ steps.selected-plan.outputs.runners || 'none' }}
+        run: test -n "${{ steps.shard.outputs.shard_ids }}"
+
   skills-selected:
     name: skill suite (selected, via test-framework.sh --skill)
     needs: select
@@ -239,6 +254,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: ${{ needs.select.outputs.source_identity }}
+        run: test "$(git rev-parse HEAD)" = "${{ needs.select.outputs.checkout_sha }}"
 
       - name: Re-check selected membership and run one framework invocation
         env:
@@ -285,6 +303,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: ${{ needs.select.outputs.source_identity }}
+        run: test "$(git rev-parse HEAD)" = "${{ needs.select.outputs.checkout_sha }}"
+
       - name: Re-check selected membership and run one framework invocation
         env:
           SELECTED_SUITES: ${{ needs.select.outputs.suites }}
@@ -324,10 +345,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ needs.select.outputs.checkout_sha }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: ${{ needs.select.outputs.source_identity }}
+        run: test "$(git rev-parse HEAD)" = "${{ needs.select.outputs.checkout_sha }}"
 
       - name: Re-check the shard plan on this checkout, then run this leg's shard
         env:
@@ -370,13 +395,21 @@ jobs:
 
   native-worktree-seed:
     name: worktree seed (native Windows PowerShell 5.1 and pwsh 7)
+    needs: select
+    if: needs.select.outputs.mode != 'body-reuse'
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.select.outputs.checkout_sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: ${{ needs.select.outputs.source_identity }}
+        shell: pwsh
+        run: if ((git rev-parse HEAD) -ne '${{ needs.select.outputs.checkout_sha }}') { throw 'checkout identity changed' }
 
       - name: TEST-008 under native Windows PowerShell 5.1
         shell: powershell
@@ -422,25 +455,39 @@ jobs:
   # succeeded.
   gate:
     name: skill test suite (tests/skills/, via test-framework.sh)
-    needs: [select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, tracked-ignored]
+    needs: [select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, self-hosting-smoke, tracked-ignored, release-notes]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require the mode-relevant skills job to have succeeded
+        env:
+          BODY_PROOF: ${{ needs.select.outputs.body_proof }}
         run: |
           set -e
           echo "select=${{ needs.select.result }} mode=${{ needs.select.outputs.mode }} selected=${{ needs.skills-selected.result }} full=${{ needs.skills-full.result }}"
           if [ "${{ needs.select.result }}" != "success" ]; then
             echo "select job did not succeed"; exit 1
           fi
-          if [ "${{ needs.native-worktree-seed.result }}" != "success" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ needs.release-notes.result }}" != "success" ]; then
+            echo "current release notes job did not succeed"; exit 1
+          fi
+          if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ needs.release-notes.result }}" != "skipped" ]; then
+            echo "unexpected release notes result"; exit 1
+          fi
+          if [ "${{ needs.select.outputs.mode }}" != "body-reuse" ] && [ "${{ needs.native-worktree-seed.result }}" != "success" ]; then
             echo "native Windows worktree seed job did not succeed"; exit 1
+          fi
+          if [ "${{ needs.select.outputs.mode }}" != "body-reuse" ] && [ "${{ needs.self-hosting-smoke.result }}" != "success" ]; then
+            echo "self-hosting smoke job did not succeed"; exit 1
           fi
           if [ "${{ needs.tracked-ignored.result }}" != "success" ]; then
             echo "tracked-ignored guard job did not succeed"; exit 1
           fi
-          if [ "${{ needs.select.outputs.mode }}" = "selected" ]; then
+          if [ "${{ needs.select.outputs.mode }}" = "body-reuse" ]; then
+            [ "${{ github.event_name }}" = "pull_request" ] && [ -n "$BODY_PROOF" ] || { echo 'missing body reuse proof'; exit 1; }
+            [ "${{ needs.skills-selected.result }}" = "skipped" ] && [ "${{ needs.skills-selected-sharded.result }}" = "skipped" ] && [ "${{ needs.skills-full.result }}" = "skipped" ] && [ "${{ needs.native-worktree-seed.result }}" = "skipped" ] && [ "${{ needs.self-hosting-smoke.result }}" = "skipped" ] || { echo 'source job ran in body reuse mode'; exit 1; }
+          elif [ "${{ needs.select.outputs.mode }}" = "selected" ]; then
             if [ "${{ needs.select.outputs.selected_runners }}" = "1" ]; then
               [ "${{ needs.skills-selected.result }}" = "success" ] || { echo "selected-mode run failed"; exit 1; }
             elif [ "${{ needs.select.outputs.selected_runners }}" = "2" ]; then
@@ -456,16 +503,22 @@ jobs:
 
   self-hosting-smoke:
     name: self-hosting smoke (separate job — bootstraps + re-validates a full copy, ~2-3 min)
+    needs: select
+    if: needs.select.outputs.mode != 'body-reuse'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ needs.select.outputs.checkout_sha }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: ${{ needs.select.outputs.source_identity }}
+        run: test "$(git rev-parse HEAD)" = "${{ needs.select.outputs.checkout_sha }}"
 
       - name: Run self-hosting smoke test
         run: bash tests/self-hosting/test-self-hosting-smoke.sh
