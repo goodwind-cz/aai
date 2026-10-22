@@ -3125,7 +3125,26 @@ test_075_reconcile_origin_step() {
   want TEST-075 "$(json_get "$ENG_OUT" 'j.remaining')" 'origin_runs_not_in_ledger'
   [[ "$(sha_of "$ORIGIN/$STATE_REL")" == "$pre" ]] || fail TEST-075 'ride-handoff TEST-011 a refused reconcile changed the origin STATE'
   [[ "$(step_status "$ENG_OUT" report)" != "" ]] || fail TEST-075 'ride-handoff TEST-011 the later steps did not run'
-  echo 'PASS: TEST-075 reconcile-origin is done, journalled, a no-op on rerun, retained on an unledgered run'
+
+  # a child that fails WITHOUT printing REFUSE (a STATE with a duplicate top-level key) is a failed step, not an owner decision:
+  # apply stops (exit 4, resumable), reports no retained step, and removes neither worktree nor branch
+  RIDE_SEED=seed_ride_075 build_world rh075c
+  printf 'current_focus:\n  ref_id: foo\ncurrent_focus:\n  ref_id: foo\n' > "$ORIGIN/$STATE_REL"
+  pre="$(sha_of "$ORIGIN/$STATE_REL")"
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-075 "ride-handoff malformed-STATE apply exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-075 "$ENG_OUT" 'STOPPED reconcile_origin_failed'
+  unwanted TEST-075 "$ENG_OUT" 'retained'
+  [[ -d "$RIDE" ]] || fail TEST-075 'a failed reconcile child still removed the ride worktree'
+  has "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE" || fail TEST-075 'a failed reconcile child dropped the worktree from the list'
+  git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-075 'a failed reconcile child still deleted the ride branch'
+  [[ "$(sha_of "$ORIGIN/$STATE_REL")" == "$pre" ]] || fail TEST-075 'a failed reconcile child changed the origin STATE'
+  # the owner repairs the STATE; the re-run resumes and completes
+  origin_state_075 "$RH_RUN_STARTED"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-075 "ride-handoff resume after repair exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status "$ENG_OUT" reconcile-origin)" == done ]] || fail TEST-075 'resume after repair did not reconcile'
+  echo 'PASS: TEST-075 reconcile-origin is done, journalled, a no-op on rerun, retained on an unledgered run, stopped on a failed child'
 }
 
 case "$SELECTED" in

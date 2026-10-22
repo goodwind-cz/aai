@@ -742,6 +742,10 @@ function reconcileRefs(ctx, extra) {
 function reconcileOrigin(ctx) {
   if (!fs.existsSync(path.join(ctx.origin, STATE_REL))) return { status: 'noop', detail: 'no_state' };
   const results = reconcileRefs(ctx, []);
+  // Only a printed REFUSE is the owner's decision; a child that failed without one (malformed STATE, killed,
+  // missing template) is a failed step: stop resumable, like every other step that cannot finish.
+  const broke = results.find((x) => x.kind === 'ERROR');
+  if (broke) stop('reconcile_origin_failed', `${broke.ref}: ${broke.line}`);
   const bad = results.filter((x) => x.kind !== 'RECONCILED' && x.kind !== 'NOOP');
   ctx.reconcileRetained = bad.map((x) => `${STATE_REL} ${x.ref}: reconcile refused (${x.line}): owner decision, not changed`);
   if (bad.length > 0) return { status: 'retained', detail: bad.map((x) => x.line).join('; ') };

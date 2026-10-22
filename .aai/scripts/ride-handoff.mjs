@@ -395,7 +395,7 @@ function planDrafts(originRoot, wtRoot, ref, parts) {
   const plan = [];
   const conflicts = [];
   for (const rel of [...new Set(rels)]) {
-    if (!safeRel(rel)) continue;
+    if (!safeRel(rel)) refuse('unsafe_draft_path', `${rel} (absolute or contains ..); nothing was written`);
     const src = path.join(originRoot, rel);
     if (!fs.existsSync(src) || !fs.statSync(src).isFile()) continue;
     const tracked = git(originRoot, ['ls-files', '--error-unmatch', '--', rel]).status === 0;
@@ -439,7 +439,7 @@ function checkFresh(wLines, ref, originEntry) {
       if (entryRuns(wLines, key).length === 0) continue;
       return `metrics entry ${key} differs from the origin's`;
     }
-    if (entryRuns(wLines, key).length > 0) return `metrics entry ${key} holds runs`;
+    return `foreign metrics entry ${key}`;
   }
   return null;
 }

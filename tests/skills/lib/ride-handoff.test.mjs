@@ -668,3 +668,58 @@ test('TEST-001 a worktree STATE with work_items: [] receives the entry as valid 
   const py = spawnSync('python3', ['-c', 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))', w.wState], { encoding: 'utf8' });
   if (py.status !== 0 && !/No module named/.test(py.stderr)) assert.fail(`worktree STATE does not parse: ${py.stderr}`);
 });
+
+// --- PR #492 review findings -------------------------------------------------------
+
+test('TEST-007 an unsafe draft path in the accepted STATE refuses before any write', () => {
+  const variants = [
+    ['primary_path', `  primary_path: ${INTAKE_REL}`, '  primary_path: /etc/hosts'],
+    ['primary_path ..', `  primary_path: ${INTAKE_REL}`, `  primary_path: docs/../../${path.basename(INTAKE_REL)}`],
+    ['spec_path', `  spec_path: ${SPEC_REL}`, '  spec_path: /etc/hosts'],
+    ['spec_path ..', `  spec_path: ${SPEC_REL}`, '  spec_path: ../outside/SPEC.md'],
+  ];
+  for (const [label, from, to] of variants) {
+    assert.ok(ORIGIN_STATE.includes(from), `control: fixture holds ${from}`);
+    const w = world({ state: ORIGIN_STATE.replace(from, to) });
+    const o0 = sha(w.oState);
+    const w0 = sha(w.wState);
+    const r = out(w);
+    assert.equal(r.status, 1, `${label}: exit ${r.status} ${r.stdout}${r.stderr}`);
+    assert.match(r.stdout, /^REFUSE unsafe_draft_path\b/m, label);
+    assert.equal(sha(w.oState), o0, `${label}: origin STATE unchanged`);
+    assert.equal(sha(w.wState), w0, `${label}: worktree STATE unchanged`);
+    assert.equal(handoffDirs(w).length, 0, `${label}: no archive`);
+    assert.equal(fs.existsSync(path.join(w.wt, SPEC_REL)), false, `${label}: no draft carried`);
+  }
+});
+
+test('TEST-007 a foreign metrics entry or item in the worktree STATE is not fresh, even with zero runs', () => {
+  const withEntry = (txt, body) => txt.replace(/^ {2}work_items:.*$/m, `  work_items:\n${body}`);
+  const foreignZero = [
+    ['zero-run entry', (t) => withEntry(t, '    foreign-zero:\n      agent_runs: []')],
+    ['entry without runs key', (t) => withEntry(t, '    foreign-bare:\n      note: x')],
+  ];
+  for (const [label, edit] of foreignZero) {
+    const w = world();
+    write(w.wState, edit(read(w.wState)));
+    const o0 = sha(w.oState);
+    const w0 = sha(w.wState);
+    const r = out(w);
+    assert.equal(r.status, 1, `${label}: exit ${r.status} ${r.stdout}${r.stderr}`);
+    assert.match(r.stdout, /^REFUSE worktree_state_not_fresh\b/m, label);
+    assert.equal(sha(w.oState), o0, `${label}: origin STATE unchanged`);
+    assert.equal(sha(w.wState), w0, `${label}: worktree STATE unchanged`);
+    assert.equal(handoffDirs(w).length, 0, `${label}: no archive`);
+  }
+  // control: legitimate fresh shapes are still accepted
+  for (const shape of ['  work_items: null', '  work_items: {}', '  work_items: []']) {
+    const w = world();
+    const L = read(w.wState);
+    assert.match(L, /^ {2}work_items:$/m, 'control: repaired STATE has a bare work_items header');
+    write(w.wState, L.replace(/^ {2}work_items:$/m, shape));
+    okOut(w);
+    assert.equal(runsOf(read(w.wState), R), 2, shape);
+    assert.equal(count(read(w.wState), 'foreign'), 0, `${shape}: no foreign line survives`);
+  }
+  okOut(world());
+});
