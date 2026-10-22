@@ -2,7 +2,7 @@
 id: smaller-node-core-and-faster-feedback
 type: rfc
 number: 17
-status: draft
+status: implementing
 links:
   spec: null
   pr: []
@@ -300,7 +300,7 @@ behavior. Completing that child must not close this umbrella RFC.
 | Phase | Description | Status | Delivered by |
 |---|---|---|---|
 | 0 | Baseline representative local/CI checks; separate the observed main pricing failure and state-suite skip from speed work | in progress | `selected-ci-scheduling-foundation`; main pricing repair landed separately in #484 |
-| 1 | Refresh scheduling weights, selected longest-first, conditional reuse of existing sharding, superseded-run cancellation | in progress | Scheduling foundations merged in #485; conditional selected sharding merged in #486; body-edit handling remains a separate follow-on |
+| 1 | Refresh scheduling weights, selected longest-first, conditional reuse of existing sharding, superseded-run cancellation | done | Scheduling foundations merged in #485; conditional selected sharding merged in #486; body-only rechecks merged in #489; superseded pull-request runs are cancelled by the workflow concurrency group |
 | 2 | Move docs-audit logic cases to `node:test`; retain CLI/corpus tests; split always-on content validation from engine regression | in progress | [Body-lint Node test pilot](../issues/CHANGE-0216-docs-audit-node-test-pilot.md) migrated five body-lint groups; [matched measurements](../analysis/docs-audit-node-test-pilot.md); content/engine CI separation remains outside this child |
 | 3 | Migrate common sync/hook behavior to Node in small slices, with native platform parity and retired counterparts | not started | No child intake yet |
 | 4 | Slim role context and generate provider adapters; extend existing lightweight and resume paths | not started | No child intake yet |
@@ -325,8 +325,8 @@ records five paired matched runs: median 2.005992 to 0.569638 seconds and 126
 fewer lines across the three test files. These figures describe only the
 matched cluster; no whole-suite speedup or production PowerShell/Bash reduction
 is claimed.
-Body-only rechecks and document-content CI/hygiene separation remain separate
-follow-ons; this umbrella RFC stays open. Runtime support changes,
+Body-only rechecks merged in #489. Document-content CI/hygiene separation
+remains a separate follow-on; this umbrella RFC stays open. Runtime support changes,
 sync policy, hook policy, lean context/generated adapters, resume/status,
 deterministic evidence reuse and process adapters each require their own
 bounded contract and evidence before a final program-wide reconciliation.
@@ -374,22 +374,41 @@ observed time, and runner-seconds. Measure p95 only once enough samples exist.
 
 ## Open Questions
 
-No missing information blocks this analysis. Before implementation, Planning
-should resolve these decision points from a pilot and the owner's priorities:
+None open. The owner resolved the four decision points on 2026-10-22; see
+Owner decisions below.
 
-- Approve the Node-first direction and migration order; the recommendation is
-  incremental consolidation with native platform support retained.
-- Confirm the downstream Node support floor; recommend 24 as the development/CI
-  baseline and an explicit transition decision for 22.
-- Choose whether YAML remains a public editable format; machine-only manifests
-  can use JSON without deciding the STATE migration question.
-- Set the wall-time versus runner-cost budget for selected-mode sharding.
+### Owner decisions (2026-10-22)
+
+1. **Direction.** Node-first incremental consolidation is approved, with native
+   platform support retained. Remaining work runs in this order, one bounded
+   child scope each:
+   1. Slim the standing role context (phase 4, first slice): `LEARNED.md` is
+      about 46% of the Validation prefix; mandatory hazards stay always loaded,
+      incident narratives load only when relevant.
+   2. Ride reliability (not in the original phases): a ride worktree starts
+      from a STATE that carries only its own work item, so foreign runs never
+      reach the metrics flush. Observed in #482/#484, where a copied STATE
+      flushed another ref's run and turned main red.
+   3. Finish the phase 2 docs-audit `node:test` migration and the
+      content/engine CI separation.
+   4. Move CI to Node 24.
+   5. Phases 3 to 5 in order, each with its own specification.
+2. **Node support floor.** Node 24 is the development and CI baseline. Node 22
+   stays supported downstream until an announced transition; Node 20 is
+   end-of-life and is dropped from CI.
+3. **Data formats.** YAML stays where a human edits the file (STATE, roadmap,
+   PRICING). New machine-only manifests use JSON. Existing machine-only YAML is
+   not migrated by this RFC.
+4. **Runner budget.** Selected-mode sharding adds a runner only when it is
+   expected to cut wall time by more than two minutes; otherwise one runner.
 
 ## Approvals
 
 Required approver for the architectural direction and explicit contract changes:
-the project owner. This RFC remains draft; no runtime, workflow, roadmap, or
-technology-contract change has been made by the analysis.
+the project owner. The owner approved the direction and the four decisions
+above on 2026-10-22 (recorded in `docs/ai/decisions.jsonl`). Each child scope
+still carries its own specification, validation and review; this approval
+changes no runtime, workflow or technology contract by itself.
 
 ## Notes
 
