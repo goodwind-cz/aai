@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T12:36:12.122Z",
+  "generatedAt": "2026-10-23T12:52:59.680Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -2928,29 +2928,29 @@
         },
         {
           "ref": "ci-node-24-baseline",
-          "lead_time_seconds": 12964
+          "lead_time_seconds": 3190
         },
         {
           "ref": "spec-ci-node-24-baseline",
           "lead_time_seconds": null
         }
       ],
-      "median_seconds": 5087,
-      "mean_seconds": 100193.2,
+      "median_seconds": 4915,
+      "mean_seconds": 100137.7,
       "measured": 176,
       "unmeasurable": 397
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2994,
-      "mean": 8489.8,
+      "median": 2909,
+      "mean": 8432.1,
       "measured": 178
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 382179,
+        "duration_seconds": 371912,
         "tokens": 22820430
       },
       {
@@ -3882,7 +3882,7 @@
       },
       {
         "ref": "ci-node-24-baseline",
-        "busy_seconds": 13173,
+        "busy_seconds": 2906,
         "remediation_runs": 0
       }
     ],
@@ -5872,15 +5872,15 @@
     {
       "week": "2026-W43",
       "delivered": 20,
-      "median_lead_time_seconds": 7442,
-      "busy_seconds": 130851,
+      "median_lead_time_seconds": 6854,
+      "busy_seconds": 120584,
       "tokens": null,
       "first_pass_rate": 36
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 233,
+    "open_count": 234,
     "oldest_age_days": 63,
     "items": [
       {
@@ -6807,7 +6807,7 @@
         "id": "fu-backlog-is-not-queryable",
         "ref": "polydao-graph-loop-ideas-for-aai",
         "severity": "P2",
-        "age_days": 24,
+        "age_days": 25,
         "what": "the ride selector cannot ask the backlog what needs doing: it walks an ordered roadmap list and skips done, while the state that knows (follow-up ledger, doc lifecycle, mutation-record drift, ac_evidence gaps) is never read as a selection source",
         "status": "open"
       },
@@ -6967,7 +6967,7 @@
         "id": "fu-framework-discover-exit-swallowed",
         "ref": "ci-test-selection-narrowing-and-sharding",
         "severity": "P2",
-        "age_days": 19,
+        "age_days": 20,
         "what": "test-framework.sh --skill: a missing test file makes discover_tests exit 2 inside < <(...), the exit is lost and the run continues with only the suites listed before it",
         "status": "open"
       },
@@ -7745,6 +7745,14 @@
         "severity": "P2",
         "age_days": 0,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-ci-node-24-baseline: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
+        "status": "open"
+      },
+      {
+        "id": "fu-restamp-slug-links-unverified",
+        "ref": "ci-node-24-baseline",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "spec-amend restamp reports UNVERIFIED cause for specs whose frontmatter links name slug ids (requirement/rfc), so every allocator rename becomes a contract record owing an owner signature",
         "status": "open"
       }
     ]
@@ -8948,36 +8956,6 @@
         "runs_marked": 0,
         "tokens_total": null,
         "remediation_runs": 1,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
-      },
-      {
-        "ref": "ci-node-24-baseline",
-        "date_utc": "2026-10-23",
-        "runs_total": 5,
-        "elapsed_wall_seconds": 12794,
-        "agent_seconds": 13173,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 1
-          },
-          {
-            "role": "Code Review",
-            "runs": 1
-          },
-          {
-            "role": "Validation",
-            "runs": 2
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -10997,6 +10975,36 @@
         ],
         "runs_marked": 4,
         "tokens_total": 681602,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "ci-node-24-baseline",
+        "date_utc": "2026-10-23",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 3020,
+        "agent_seconds": 2906,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -13169,7 +13177,7 @@
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
     "NOTE 83 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 5 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
-    "NOTE 39 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
+    "NOTE 38 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"
   ]
 }
