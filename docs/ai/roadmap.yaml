@@ -91,7 +91,7 @@ pairs:
   - capability: ci-node-24-baseline
     status: done
   - capability: node-first-sync-hook-slice
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

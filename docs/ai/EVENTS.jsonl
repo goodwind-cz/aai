@@ -3252,3 +3252,9 @@
 {"v":1,"ts":"2026-10-23T13:58:03Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-node-first-sync-hook-slice/Spec-AC-08","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-23T13:58:03Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-node-first-sync-hook-slice/Spec-AC-09","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-23T13:58:03Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-node-first-sync-hook-slice/Spec-AC-10","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-23T15:51:18Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"node-first-sync-hook-slice","payload":{"status":"pass","hash":"84065b27b8be7cedc9a8c45de94640058229991b654b6fbdc1a00c7ca6476f04"}}
+{"v":1,"ts":"2026-10-23T18:30:02Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"node-first-sync-hook-slice","payload":{"status":"pass","hash":"a9aa9daaff0a5817576f2bff60ef3f57dadb253a6e17e426b020679e4dd43d54"}}
+{"v":1,"ts":"2026-10-23T18:32:38Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"node-first-sync-hook-slice","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-23T18:32:38Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"node-first-sync-hook-slice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-23T18:32:38Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-sync-hook-slice","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-23T18:32:38Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-sync-hook-slice","payload":{"validation":"pass","code_review":"pass"}}

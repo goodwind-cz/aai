@@ -1,10 +1,10 @@
 ---
 id: spec-node-first-sync-hook-slice
 type: spec
-number: null
-status: implementing
+number: 247
+status: done
 mutation_gate: v1
-frozen_sha256: 2efa069bad97d2a0a20342e91e55d259e74c31a3fbcd5c055da8cacdfd3ac561
+frozen_sha256: c3fff5fe40c74fb325e7f4747d3a6646e432bbff4c5ac268285dd1ffe79c8c07
 ceremony_level: 2
 links:
   requirement: node-first-sync-hook-slice
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [First Node-first slice of paired sync/hook scripts](../issues/CHANGE-DRAFT-node-first-sync-hook-slice.md).
+- Requirement: [First Node-first slice of paired sync/hook scripts](../issues/CHANGE-0222-node-first-sync-hook-slice.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   Proposal section 1 and owner decisions 1.5 (phases 3 to 5 in order), 2 (Node
   22 floor downstream, Node 24 CI) and 4 (no new runner).
@@ -52,7 +52,7 @@ SPEC-FROZEN: true
   tests/skills/lib/cd-subshell-leak-baseline.tsv (only if the checker asks for a re-record);
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md;
   docs/product/live-status-dashboard.md; CHANGELOG.md;
-  docs/issues/CHANGE-DRAFT-node-first-sync-hook-slice.md; this spec.
+  docs/issues/CHANGE-0222-node-first-sync-hook-slice.md; this spec.
 - Code review required: true.
 
 ## Pair selection (measured)

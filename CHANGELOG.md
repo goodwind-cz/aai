@@ -22,6 +22,17 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — refactor(live): one Node module owns the live-status spool
+
+- The live-status spool writer is now one Node module,
+  `.aai/scripts/live-spool.mjs`; `live-spool.sh` and `live-spool.ps1` are thin
+  launchers (the pair went from 133 to 116 lines). First slice of RFC-0017
+  phase 3. Behaviour changes, all toward the old Bash copy: timestamps have 3
+  fractional digits on Windows too, an array or scalar payload writes no
+  line, and a host without Node writes no spool line (the statusline still
+  prints `(aai-live tap active)`). If Node is present but the module is
+  missing or broken, the launchers fall back the same way and always exit 0.
+
 ## [unreleased] — ci: Node 24 baseline and a published Node floor
 
 - CI runs on Node 24 (Node 20, end-of-life, is gone from every workflow). The

@@ -1,5 +1,5 @@
 // live-spool.test.mjs — node:test cases for .aai/scripts/live-spool.mjs
-// (docs/specs/SPEC-DRAFT-spec-node-first-sync-hook-slice.md, TEST-2401..2407).
+// (docs/specs/SPEC-0247-spec-node-first-sync-hook-slice.md, TEST-2401..2407).
 // Direct imports, temp directories only, no repository clone.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';

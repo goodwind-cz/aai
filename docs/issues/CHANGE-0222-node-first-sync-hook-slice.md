@@ -1,8 +1,8 @@
 ---
 id: node-first-sync-hook-slice
 type: change
-number: null
-status: draft
+number: 222
+status: done
 capability: node-first-core
 parent: smaller-node-core-and-faster-feedback
 links:

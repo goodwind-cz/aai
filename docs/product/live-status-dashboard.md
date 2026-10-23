@@ -96,8 +96,19 @@ ever invokes it, and it is never coupled to ride ceremony.
   liveness `heuristic`) — never a broken one.
 - Cross-platform: every root and spool path is built through `os.homedir()`
   or an env override joined with `path.join` — no hardcoded POSIX string.
-  `live-spool.sh`/`aai-live.sh` ship PowerShell twins
-  (`live-spool.ps1`/`aai-live.ps1`).
+  `aai-live.sh` ships a PowerShell twin (`aai-live.ps1`). The spool logic
+  lives in one Node module, `.aai/scripts/live-spool.mjs` (RFC-0017 phase 3);
+  `live-spool.sh` and `live-spool.ps1` are 17-line launchers that call it.
+  Moving to one module settled three differences between the old copies:
+  every `ts` has exactly 3 fractional digits (the PowerShell copy wrote 7,
+  which could misorder lines in the reader's string comparison); a JSON
+  array or scalar payload writes no line (the PowerShell copy wrote a bare
+  `{"ts":...}` line that hid the quotas); and without Node no line is
+  written on either platform, while the statusline launcher still prints
+  `(aai-live tap active)`. The same fallback runs when Node is present but
+  the module is missing or fails to load: the launcher reads stdin to the
+  end, prints the passthrough line for `statusline` only, writes nothing to
+  stderr and exits 0.
 
 ## Limits and non-goals
 
@@ -108,9 +119,13 @@ ever invokes it, and it is never coupled to ride ceremony.
 - No config-drift detection, no LLM-generated suggestions, no OAuth
   usage-API polling — those are explicitly out of scope (see the change
   request's non-goals).
-- Real Windows execution is not exercised by this repo's CI; the `.ps1`
-  twins get parse-level and PSScriptAnalyzer coverage plus path-construction
-  assertions.
+- Real Windows execution of `aai-live.ps1` is not exercised by this repo's
+  CI; it gets parse-level and PSScriptAnalyzer coverage plus
+  path-construction assertions. The `live-spool.ps1` launcher runs under
+  Pester on the native Windows CI job.
+- A payload that starts with a UTF-8 byte-order mark is not parsed and
+  writes no line (the old Bash copy behaved the same); no shipped harness
+  sends one.
 
 ## Links
 
