@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-23T12:36:11.806Z",
+  "generatedAt": "2026-10-23T18:32:45.542Z",
   "project": "aai",
   "counts": {
-    "delivered": 316,
+    "delivered": 317,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -254,11 +254,24 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0221-ci-node-24-baseline.md",
       "closed_on": "2026-10-23",
-      "agent_minutes": 220,
+      "agent_minutes": 48,
       "token_total": null,
       "spec": "docs/specs/SPEC-0246-spec-ci-node-24-baseline.md",
       "validation": null,
       "review": "docs/ai/reviews/review-ci-node-24-baseline-20261023T122745Z.md"
+    },
+    {
+      "ref": "node-first-sync-hook-slice",
+      "title": "Move the first sync/hook behavior from paired Bash and PowerShell scripts to one Node module",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0222-node-first-sync-hook-slice.md",
+      "closed_on": "2026-10-23",
+      "agent_minutes": 375,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0247-spec-node-first-sync-hook-slice.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "slim-standing-role-context",
@@ -4389,11 +4402,24 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0221-ci-node-24-baseline.md",
           "closed_on": "2026-10-23",
-          "agent_minutes": 220,
+          "agent_minutes": 48,
           "token_total": null,
           "spec": "docs/specs/SPEC-0246-spec-ci-node-24-baseline.md",
           "validation": null,
           "review": "docs/ai/reviews/review-ci-node-24-baseline-20261023T122745Z.md"
+        },
+        {
+          "ref": "node-first-sync-hook-slice",
+          "title": "Move the first sync/hook behavior from paired Bash and PowerShell scripts to one Node module",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0222-node-first-sync-hook-slice.md",
+          "closed_on": "2026-10-23",
+          "agent_minutes": 375,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0247-spec-node-first-sync-hook-slice.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "slim-standing-role-context",
