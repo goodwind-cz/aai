@@ -8602,21 +8602,47 @@ test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
   # the line does not first cd into some other (fixture) directory. Comments,
   # table rows and the quoted text an echo or printf prints are not launches;
   # whatever else such a line runs (after |, &&, ; and so on) is still scanned.
-  local audit_prog gen_prog control
-  audit_prog='
+  local audit_prog gen_prog control lits_fn
+  # The quoted text an echo or printf prints, removed with quote pairing kept.
+  # A $( ) inside double quotes is code and is kept, so is a word that starts
+  # with $ (the script may sit in a variable); single-quoted text is dropped.
+  lits_fn='
+    function lits(s,   o, i, c, q, t, d) {
+      o = ""; q = ""; d = 0
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (q == "") {
+          if (d > 0 && c == "(") d++
+          if (d > 0 && c == ")" && --d == 0) { o = o c; q = "\""; t = q; continue }
+          if (c == "\"" || c == "\047") { q = c; t = c } else o = o c
+          continue
+        }
+        if (q == "\"" && c == "$" && substr(s, i + 1, 1) == "(") {
+          if (t ~ /^"\$/) o = o t
+          o = o "$("; i++; q = ""; d = 1; continue
+        }
+        t = t c
+        if (c == q && (q == "\047" || substr(s, i - 1, 1) != "\\")) {
+          if (q == "\"" && t ~ /^"\$|`/) o = o t
+          q = ""
+        }
+      }
+      return o (q == "" ? "" : t)
+    }'
+  audit_prog="$lits_fn"'
     /^[[:space:]]*#/ { next }
     /^[[:space:]]*[|] / { next }
-    /^[[:space:]]*(echo|printf) / { gsub(/"[^"$][^"]*"/, ""); gsub(/\047[^\047]*\047/, "") }
+    /^[[:space:]]*(echo|printf) / { $0 = lits($0) }
     /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*(docs-audit\.mjs|\$\{?AUDIT_SCRIPT\}?)/ {
-      if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
-      if ($0 ~ /--path|--quick|--lint-body|--ac-flip-check|--list/) next
+      if ($0 ~ /cd "\$[^"]*"[^)]*node[[:space:]]/ && $0 !~ /cd "\$\{?PROJECT_ROOT\}?\/?"/) next
+      if ($0 ~ /[[:space:]]--(path|quick|lint-body|ac-flip-check|list)([[:space:]=]|$)/) next
       print NR ": " $0 }'
-  gen_prog='
+  gen_prog="$lits_fn"'
     /^[[:space:]]*#/ { next }
     /^[[:space:]]*[|] / { next }
-    /^[[:space:]]*(echo|printf) / { gsub(/"[^"$][^"]*"/, ""); gsub(/\047[^\047]*\047/, "") }
+    /^[[:space:]]*(echo|printf) / { $0 = lits($0) }
     /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*generate-docs-index\.mjs/ {
-      if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
+      if ($0 ~ /cd "\$[^"]*"[^)]*node[[:space:]]/ && $0 !~ /cd "\$\{?PROJECT_ROOT\}?\/?"/) next
       print NR ": " $0 }'
   # Positive controls: the scan must flag every launch shape it claims to cover.
   for control in \
@@ -8629,7 +8655,11 @@ test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
     '  echo y | node "$AUDIT_SCRIPT" --check' \
     '  echo x && node "$AUDIT_SCRIPT" --check' \
     '  echo start; (node .aai/scripts/docs-audit.mjs --check)' \
-    '  printf "%s\\n" go && if node "$AUDIT_SCRIPT" --check; then :; fi'; do
+    '  printf "%s\\n" go && if node "$AUDIT_SCRIPT" --check; then :; fi' \
+    '  echo "$msg" && node "$AUDIT_SCRIPT" --check' \
+    '  echo "audit: $(node "$AUDIT_SCRIPT" --check)"' \
+    '  (cd "${PROJECT_ROOT}" && node .aai/scripts/docs-audit.mjs --check)' \
+    '  (cd "$d" && git add -A) && node "$AUDIT_SCRIPT" --check'; do
     [[ -n "$(awk "$audit_prog" <<<"$control")" ]] \
       || log_fail "TEST-2206: the audit scan misses the launch shape: $control"
   done
@@ -8637,7 +8667,8 @@ test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
     '  (cd "$PROJECT_ROOT" && if node .aai/scripts/generate-docs-index.mjs; then :; fi)' \
     '  true || node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs"' \
     '  printf x | node .aai/scripts/generate-docs-index.mjs' \
-    '  cp a b; node .aai/scripts/generate-docs-index.mjs'; do
+    '  cp a b; node .aai/scripts/generate-docs-index.mjs' \
+    '  echo "$v" > "$f"; node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs"'; do
     [[ -n "$(awk "$gen_prog" <<<"$control")" ]] \
       || log_fail "TEST-2206: the generator scan misses the launch shape: $control"
   done
