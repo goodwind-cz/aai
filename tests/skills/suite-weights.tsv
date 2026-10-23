@@ -213,6 +213,8 @@ aai-test-canon	6
 aai-token-capture	5
 # sample aai-tracked-ignored measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=25,26,26,25,19
 aai-tracked-ignored	25
+# sample aai-triage fallback unsampled (SKIP or absent; no successful observation)
+aai-triage	212
 # sample aai-unattended measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=7,7,7,7,6
 aai-unattended	7
 # sample aai-update measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,5,7,6,6

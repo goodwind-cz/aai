@@ -714,6 +714,14 @@ suites:
       - .aai/templates/hooks/live-status-hooks.json
       - docs/product/live-status-dashboard.md
 
+  aai-triage:
+    globs:
+      - .aai/scripts/triage.sh
+      - .aai/scripts/triage.ps1
+      - .aai/scripts/triage.mjs
+      - tests/skills/lib/triage.test.mjs
+      - tests/skills/triage.Tests.ps1
+
   aai-sync-seed:
     companions:
       - aai-bootstrap

@@ -125,6 +125,7 @@
 2	tests/skills/test-aai-tdd.sh
 3	tests/skills/test-aai-test-canon.sh
 3	tests/skills/test-aai-token-capture.sh
+2	tests/skills/test-aai-triage.sh
 3	tests/skills/test-aai-unattended.sh
 33	tests/skills/test-aai-update-check.sh
 18	tests/skills/test-aai-update.sh
