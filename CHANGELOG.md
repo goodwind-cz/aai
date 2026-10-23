@@ -29,8 +29,8 @@ fine — it is the marker a cut leaves on top.
   launchers (the pair went from 133 to 116 lines). First slice of RFC-0017
   phase 3. Behaviour changes, all toward the old Bash copy: timestamps have 3
   fractional digits on Windows too, an array or scalar payload writes no
-  line, a leading UTF-8 BOM on the payload is ignored (Windows PowerShell 5.1
-  adds one), and a host without Node writes no spool line (the statusline still
+  line, a leading UTF-8 BOM on the payload is ignored (a .NET Framework stdin
+  writer, such as the Windows PowerShell 5.1 Pester harness, adds one), and a host without Node writes no spool line (the statusline still
   prints `(aai-live tap active)`). If Node is present but the module is
   missing or broken, the launchers fall back the same way and always exit 0.
 

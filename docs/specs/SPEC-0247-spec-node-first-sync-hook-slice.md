@@ -4,7 +4,7 @@ type: spec
 number: 247
 status: done
 mutation_gate: v1
-frozen_sha256: f901c5787c33d6eb1d25c16064b3dd996824d7f687ced99793df529ed587a9f7
+frozen_sha256: 690a219faa71d27b0748a23077d19d587191283fce37c67d10402aff0e9cd174
 ceremony_level: 2
 links:
   requirement: node-first-sync-hook-slice
@@ -226,7 +226,10 @@ else still gives no line). Two earlier hypotheses, that 5.1 does not forward std
 (rewrite b168d458) and that `fs.readFileSync(0)` throws EOF on Windows pipes
 (`readStdin`, eb109b01), were disproven by a hosted diagnostic (CI run 40011517525,
 `readFileSync(0)` read all 33 bytes) and both were reverted. The launchers and
-their 20-line cap are as first frozen; the live-spool line total is 116.
+their 20-line cap are as first frozen; the live-spool line total is 116. Kept from
+the reverted rounds: the widened TEST-2410 row (1 MB drain, empty stderr and the
+node-and-module-present case for the ps1 launcher) and the Pester stderr capture,
+empty-stderr assertions and 1 MB payload case.
 
 `.aai/templates/hooks/live-status-hooks.json` is not changed (byte-identical),
 so installed overlays and approval prefixes keep working.
