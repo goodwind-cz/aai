@@ -32,8 +32,8 @@
 # shell, no test execution. It relies on log_fail from the sourcing suite.
 # bash-3.2 safe: no `declare -A`, no `mapfile`, no `$EPOCHREALTIME`.
 
-LIVE_ROOT="${LIVE_ROOT:-}"
-LIVE_CACHE_DIR="${LIVE_CACHE_DIR:-}"
+LIVE_ROOT=""
+LIVE_CACHE_DIR=""
 LIVE_PAIR_DIR=""
 
 live_cache_init() {

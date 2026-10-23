@@ -8589,20 +8589,36 @@ test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
     skip && /^}/ { skip = 0 }
   ' "$SUITE_FILE")"
   [[ -n "$text" ]] || log_fail "TEST-2206: could not read the suite text"
+  # Join backslash-continued lines first, so a launch split over two lines is
+  # still one logical line; then drop comments and file copies.
+  text="$(awk '
+    { l = $0
+      while (l ~ /\\$/ && (getline nxt) > 0) { sub(/\\$/, " ", l); sub(/^[ \t]+/, "", nxt); l = l nxt }
+      print l }
+  ' <<<"$text")"
+  # A real-corpus launch: node runs docs-audit.mjs, generate-docs-index.mjs or
+  # $AUDIT_SCRIPT (literal, absolute $PROJECT_ROOT/... or ${AUDIT_SCRIPT}) and the
+  # line does not first cd into some other (fixture) directory.
   bad_audit="$(awk '
-    /cd "\$PROJECT_ROOT"/ && /docs-audit\.mjs/ && !/^[[:space:]]*#/ \
-      && !/--path|--quick|--lint-body|--ac-flip-check|--list/ { print NR ": " $0 }
+    /^[[:space:]]*#/ || /^[[:space:]]*cp / { next }
+    /(^|[(;&{]|then|do)[[:space:]]*([A-Za-z_]+=[^[:space:]]*[[:space:]]+)*node[[:space:]]+[^|;&]*(docs-audit\.mjs|\$\{?AUDIT_SCRIPT\}?)/ {
+      if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
+      if ($0 ~ /--path|--quick|--lint-body|--ac-flip-check|--list/) next
+      print NR ": " $0 }
   ' <<<"$text")"
   [[ -z "$bad_audit" ]] \
     || log_fail "TEST-2206: a real-corpus docs-audit launch bypasses live_audit: $(payload_preview "$bad_audit")"
   bad_gen="$(awk '
-    /cd "\$PROJECT_ROOT"/ && /generate-docs-index\.mjs/ && !/^[[:space:]]*#/ { print NR ": " $0 }
+    /^[[:space:]]*#/ || /^[[:space:]]*cp / { next }
+    /(^|[(;&{]|then|do)[[:space:]]*([A-Za-z_]+=[^[:space:]]*[[:space:]]+)*node[[:space:]]+[^|;&]*generate-docs-index\.mjs/ {
+      if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
+      print NR ": " $0 }
   ' <<<"$text")"
   [[ -z "$bad_gen" ]] \
     || log_fail "TEST-2206: a real-corpus generator launch bypasses live_index_pair: $(payload_preview "$bad_gen")"
   sites="$(awk '/live_audit "\$(TEST_DIR|out)/ { n++ } END { print n + 0 }' <<<"$text")"
-  [[ "$sites" -ge 14 ]] \
-    || log_fail "TEST-2206: expected at least 14 live_audit call sites over the real corpus, found $sites"
+  [[ "$sites" -ge 15 ]] \
+    || log_fail "TEST-2206: expected at least 15 live_audit call sites over the real corpus, found $sites"
   log_pass "No direct real-corpus launch; $sites live_audit call sites (TEST-2206)"
 }
 
