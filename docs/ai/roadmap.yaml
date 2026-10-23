@@ -86,6 +86,8 @@ pairs:
     status: done
   - capability: ride-state-handoff-to-worktree
     status: done
+  - capability: content-only-ci-lane
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
