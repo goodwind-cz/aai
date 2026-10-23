@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 55c80fc0443b656190ee57637ef9a9b0d605ba7543679e6209c49a95848ab1b6
+frozen_sha256: bed44380a76468844f24ef6e65aa6b8c56f41a5ba8cc5929bb95c1785d9dac35
 ceremony_level: 2
 links:
   requirement: docs-audit-suite-speed
@@ -362,7 +362,7 @@ implementation.
 
 ## Registry disposition
 
-Registry items closed by this scope: none.
+Related open registry items, all left open:
 
 - `fu-docs-audit-suite-has-no-selector` is not closed. The suite already
   dispatches one function (TEST-012), and every row here relies on that, so the
@@ -372,3 +372,5 @@ Registry items closed by this scope: none.
   is the same class and is disclosed, not fixed.
 - `fu-runmain-runs-main-on-import` stays open. The Node batch imports only the
   library.
+
+Registry items closed by this scope: none.
