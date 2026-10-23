@@ -2652,6 +2652,111 @@ JSONL
     || log_fail "TEST-1558 CAT-19 noncanonical names --canonical"
 }
 
+# --- ci-node-24-baseline (SPEC ci-node-24-baseline, TEST-2305..2307) ----------
+# CAT-20 Node Runtime. The runtime version is faked through a --import preload
+# that redefines process.version / process.versions.node, so the REAL doctor CLI
+# runs end to end with no production test seam.
+
+# nr_preload <version> — echoes the path of a preload file faking <version>.
+nr_preload() {
+  local v="$1" f
+  f="$TMP_ROOT/fake-node-${v//[^A-Za-z0-9.]/_}.mjs"
+  if [[ ! -f "$f" ]]; then
+    cat >"$f" <<JS
+Object.defineProperty(process, "version", { value: "$v", configurable: true });
+Object.defineProperty(process.versions, "node", { value: "${v#v}", configurable: true });
+JS
+  fi
+  echo "$f"
+}
+
+# nr_run <version|-> <text|json|strict> — runs the real doctor on this repo;
+# sets NR_OUT (stdout only) and NR_RC. "-" means the real runtime, no preload.
+nr_run() {
+  local v="$1" mode="$2" pre="" flag=""
+  NR_RC=0
+  [[ "$v" == "-" ]] || pre="$(nr_preload "$v")"
+  case "$mode" in json) flag="--json" ;; strict) flag="--strict" ;; esac
+  if [[ -n "$pre" ]]; then
+    NR_OUT="$(node --import "$pre" "$DOCTOR" --root "$PROJECT_ROOT" $flag 2>/dev/null)" || NR_RC=$?
+  else
+    NR_OUT="$(node "$DOCTOR" --root "$PROJECT_ROOT" $flag 2>/dev/null)" || NR_RC=$?
+  fi
+}
+
+# nr_cat20_lines <text> — number of lines starting "CAT-20 ".
+nr_cat20_lines() {
+  local n=0 l
+  while IFS= read -r l; do
+    if [[ "$l" == "CAT-20 "* ]]; then n=$((n + 1)); fi
+  done <<EOF2
+$1
+EOF2
+  echo "$n"
+}
+
+# nr_json_field <json> <js-expression over j> — prints the expression's value.
+nr_json_field() {
+  node -e '
+    let d = ""; process.stdin.on("data", (c) => d += c);
+    process.stdin.on("end", () => { const j = JSON.parse(d); console.log(String(eval(process.argv[1]))); });
+  ' "$2" <<<"$1"
+}
+
+test_2305_node_floor_warn_below() {  # ci-node-24-baseline TEST-2305 / Spec-AC-05
+  log_info "TEST-2305: below Node 22 the doctor prints one CAT-20 WARN line and a --json entry..."
+  local v ok=1 txt js n entry m
+  for v in v20.11.1 v21.7.3; do
+    nr_run "$v" text; txt="$NR_OUT"
+    n="$(nr_cat20_lines "$txt")"
+    if [[ "$n" != "1" ]]; then log_fail "TEST-2305 $v: expected exactly one CAT-20 line, got $n"; ok=0; continue; fi
+    dr_line_hit "$txt" "^CAT-20 WARN .*${v//./\\.}.*22.*24" || { log_fail "TEST-2305 $v: CAT-20 WARN line must name $v, 22 and 24: $(payload_preview "$txt")"; ok=0; }
+    nr_run "$v" json; js="$NR_OUT"
+    entry="$(nr_json_field "$js" 'JSON.stringify(j.categories.filter((c) => c.id === "CAT-20"))' 2>&1)" || { log_fail "TEST-2305 $v: --json unreadable: $(payload_preview "$js")"; ok=0; continue; }
+    [[ "$(nr_json_field "$js" 'j.categories.filter((c) => c.id === "CAT-20").length')" == "1" ]] || { log_fail "TEST-2305 $v: want exactly one CAT-20 entry in --json: $entry"; ok=0; continue; }
+    [[ "$(nr_json_field "$js" 'j.categories.find((c) => c.id === "CAT-20").status')" == "WARN" ]] || { log_fail "TEST-2305 $v: CAT-20 status is not WARN: $entry"; ok=0; }
+    [[ "$(nr_json_field "$js" 'j.categories.find((c) => c.id === "CAT-20").name')" == "Node Runtime" ]] || { log_fail "TEST-2305 $v: CAT-20 name is not Node Runtime: $entry"; ok=0; }
+    [[ "$(nr_json_field "$js" 'const d = j.categories.find((c) => c.id === "CAT-20").detail; d.running + "," + d.floor_major + "," + d.baseline_major')" == "$v,22,24" ]] || { log_fail "TEST-2305 $v: detail must carry running, floor_major 22 and baseline_major 24: $entry"; ok=0; }
+    m="${v#v}"; [[ "$(nr_json_field "$js" 'j.categories.find((c) => c.id === "CAT-20").detail.running_major')" == "${m%%.*}" ]] || { log_fail "TEST-2305 $v: detail.running_major wrong: $entry"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-2305 CAT-20 WARN line and --json entry at v20.11.1 and v21.7.3"
+}
+
+test_2306_node_floor_warn_not_fail() {  # ci-node-24-baseline TEST-2306 / Spec-AC-06
+  log_info "TEST-2306: CAT-20 is WARN, never FAIL: FAIL count and exit code match the v22 run, --strict exits 1..."
+  local lo_js hi_js lo_rc hi_rc lo_fail hi_fail lo_iss hi_iss
+  nr_run v20.11.1 json; lo_js="$NR_OUT"
+  [[ "$(nr_json_field "$lo_js" 'j.categories.filter((c) => c.id === "CAT-20" && c.status === "WARN").length')" == "1" ]] \
+    || { log_fail "TEST-2306 positive control: no CAT-20 WARN at v20.11.1, so nothing below is meaningful"; return; }
+  nr_run v22.0.0 json; hi_js="$NR_OUT"
+  lo_fail="$(nr_json_field "$lo_js" 'j.categories.filter((c) => c.status === "FAIL").length')"
+  hi_fail="$(nr_json_field "$hi_js" 'j.categories.filter((c) => c.status === "FAIL").length')"
+  [[ "$lo_fail" == "$hi_fail" ]] || log_fail "TEST-2306: FAIL count $lo_fail at v20.11.1 differs from $hi_fail at v22.0.0"
+  lo_iss="$(nr_json_field "$lo_js" 'j.issues')"; hi_iss="$(nr_json_field "$hi_js" 'j.issues')"
+  [[ "$lo_iss" == "$((hi_iss + 1))" ]] || log_fail "TEST-2306: issues $lo_iss at v20.11.1 should be $hi_iss + 1 (one WARN)"
+  nr_run v20.11.1 text; lo_rc="$NR_RC"
+  nr_run v22.0.0 text; hi_rc="$NR_RC"
+  [[ "$lo_rc" == "$hi_rc" ]] || log_fail "TEST-2306: plain exit $lo_rc at v20.11.1 differs from $hi_rc at v22.0.0"
+  nr_run v20.11.1 strict
+  [[ "$NR_RC" == "1" ]] || log_fail "TEST-2306: --strict at v20.11.1 exited $NR_RC, want 1"
+  [[ $FAILED -eq 0 ]] && log_pass "TEST-2306 CAT-20 is WARN: FAIL=$lo_fail and exit=$lo_rc as at v22.0.0, --strict exits 1"
+}
+
+test_2307_node_floor_silent_at_floor() {  # ci-node-24-baseline TEST-2307 / Spec-AC-06
+  log_info "TEST-2307: no CAT-20 line or id at v22.0.0, v24.0.0, an unparseable version and the real runtime..."
+  local v txt js
+  nr_run v20.11.1 text; txt="$NR_OUT"
+  [[ "$(nr_cat20_lines "$txt")" == "1" ]] || { log_fail "TEST-2307 positive control: the v20.11.1 run must print CAT-20"; return; }
+  for v in v22.0.0 v24.0.0 vX -; do
+    nr_run "$v" text; txt="$NR_OUT"
+    [[ "$(nr_cat20_lines "$txt")" == "0" ]] || log_fail "TEST-2307 ${v/#-/real runtime}: unexpected CAT-20 text line"
+    nr_run "$v" json; js="$NR_OUT"
+    [[ "$(nr_json_field "$js" 'j.categories.filter((c) => c.id === "CAT-20").length')" == "0" ]] || log_fail "TEST-2307 ${v/#-/real runtime}: unexpected CAT-20 id in --json"
+    [[ "$(nr_json_field "$js" 'j.categories.length')" -ge 15 ]] || log_fail "TEST-2307 ${v/#-/real runtime}: --json carries fewer than 15 categories, the run did not execute the doctor"
+  done
+  [[ $FAILED -eq 0 ]] && log_pass "TEST-2307 CAT-20 silent at v22.0.0, v24.0.0, vX and the real runtime; v20.11.1 control prints it"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2723,6 +2828,9 @@ main() {
   test_1528_cat19_merge_policy
   test_1558_cat19_noncanonical_names_canonical_mode
   test_439_argv1_guard_resolves_symlinks
+  test_2305_node_floor_warn_below
+  test_2306_node_floor_warn_not_fail
+  test_2307_node_floor_silent_at_floor
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

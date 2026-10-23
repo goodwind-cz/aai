@@ -28,8 +28,10 @@
 - OS / platform: cross-platform developer tooling — macOS/Linux via POSIX
   shell, Windows via PowerShell mirrors (Windows PowerShell 5.1 and pwsh 7)
 - Runtime(s): Node.js for all `.mjs` tooling, invoked as plain `node`
-  (`#!/usr/bin/env node`); no minimum version is pinned anywhere (UNKNOWN
-  floor — scripts use only `node:` stdlib imports and modern ESM)
+  (`#!/usr/bin/env node`). Node 24 is the development and CI baseline, Node 22
+  is the minimum supported downstream, and Node 20 is unsupported
+  (end-of-life); doctor CAT-20 warns below the floor. Scripts use only
+  `node:` stdlib imports and modern ESM
 - Deployment target(s): none — this repository is a vendored documentation and
   workflow layer, not a deployed service. Optional report publishing to
   Cloudflare Pages via the Wrangler CLI (`.aai/scripts/cloudflare-share.sh`/
@@ -224,14 +226,13 @@
 
 ## Open Questions / Uncertainties
 
-- Minimum supported Node.js version is not pinned or documented anywhere
-  (developed and tested against current Node releases; floor is UNKNOWN)
+- None currently open.
 
 ## Version Matrix
 
 | Technology | Version | Status | Evidence |
 |------------|---------|--------|----------|
-| Node.js | UNKNOWN (no pin) | confirmed in use | `#!/usr/bin/env node` in `.aai/scripts/*.mjs` |
+| Node.js | 24 baseline; 22 minimum downstream; 20 unsupported | confirmed | setup-node pins in .github/workflows; NODE_FLOOR_MAJOR in .aai/scripts/aai-doctor.mjs |
 | bash | 3.2 compatibility floor (tests) | confirmed | `tests/skills/test-aai-state.sh` header |
 | PowerShell | 5.1 and 7.x | confirmed | `.github/workflows/ps1-quality.yml` |
 | PSScriptAnalyzer | UNKNOWN (PSGallery latest) | confirmed in CI | `.github/workflows/ps1-quality.yml` |

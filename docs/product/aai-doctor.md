@@ -12,8 +12,9 @@ delivered_by:
   - CHANGE-0138
   - spec-doctor-honesty-batch
   - doctor-honesty-batch
+  - ci-node-24-baseline
 spec: docs/specs/SPEC-0122-spec-doctor-win-selftest.md
-updated: 2026-08-13
+updated: 2026-10-23
 ---
 
 # `/aai-doctor` diagnoses the real Windows and agent-CLI environment it runs on
@@ -101,6 +102,16 @@ with neither engine installed) both report a named `SKIP` and spawn
 nothing. CAT-16 runs on every host — the agent-CLI probe has no
 Windows-specific dependency.
 
+As of the Node 24 CI baseline (RFC-0017), **CAT-20 (Node Runtime)** reports
+a Node.js runtime below the supported floor. AAI is developed and tested on
+Node 24 and supports Node 22 downstream (docs/TECHNOLOGY.md). Below Node 22
+the doctor prints one `CAT-20 WARN` line naming the running version, the
+floor and the baseline, and `--json` carries
+`detail: { running, running_major, floor_major, baseline_major }`. CAT-20 is
+advisory: it never becomes FAIL, and no AAI script refuses to run on an old
+Node. On Node 22 or newer, or when the version cannot be parsed, CAT-20 is
+not reported at all, so category counts are unchanged.
+
 ## Data model
 
 None persisted. Every category is computed fresh on each invocation from
@@ -122,6 +133,11 @@ disk.
   by `aai-doctor.mjs`; it is not a standalone user-facing command, though it
   can be run directly (`pwsh -File .aai/scripts/aai-win-selftest.ps1`) for
   manual inspection — it prints the same JSON document to stdout.
+- CAT-20 is additive and reported only below the floor; its floor and
+  baseline are the exported constants `NODE_FLOOR_MAJOR` (22) and
+  `NODE_BASELINE_MAJOR` (24) in `aai-doctor.mjs`, which a test keeps equal
+  to docs/TECHNOLOGY.md and the CI workflow pins. Under `--strict` its WARN
+  counts like any other warning.
 - Zero network access and zero LLM calls, on every platform, in both the
   Node and PowerShell halves of this feature.
 - CHANGE-0138 widened `detail.clis.<name>.present` from a boolean to

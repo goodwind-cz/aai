@@ -21,7 +21,8 @@
 //   .aai/SKILL_CHECK_STATE.prompt.md (the doctor wrapper says so; it does
 //   not force-fit them into this script).
 // - Only CAT-01, CAT-02, and CAT-06 (on a real detected structural failure)
-//   can produce FAIL. Every other category caps at WARN — this mirrors the
+//   can produce FAIL. Every other category, including CAT-20 (Node Runtime,
+//   advisory below the Node 22 floor), caps at WARN — this mirrors the
 //   original prompt's explicit "informational, never blocks" language for
 //   CAT-10/11/12/13, and extends the same posture to CAT-03/04/05/07/08/09
 //   which the original prose never named a required/BROKEN trigger for.
@@ -627,6 +628,26 @@ function catMergePolicy(root, scriptDir) {
     : `merge-policy.mjs --validate failed: ${out.trim().slice(0, 200) || 'no output'}`);
 }
 
+// --- CAT-20 Node Runtime (SPEC ci-node-24-baseline) ----------------------
+// Advisory: AAI is developed and tested on Node 24 and supports Node 22 as the
+// downstream floor (docs/TECHNOLOGY.md). Below the floor the doctor warns; it
+// never fails and no script refuses to run. At or above the floor, and on an
+// unparseable version, the category is not reported (null), so the category
+// counts everywhere else are unchanged.
+export const NODE_FLOOR_MAJOR = 22;
+export const NODE_BASELINE_MAJOR = 24;
+
+export function catNodeRuntime(version = process.version) {
+  const m = /^v(\d+)\./.exec(String(version));
+  if (!m) return null;
+  const major = Number(m[1]);
+  if (major >= NODE_FLOOR_MAJOR) return null;
+  const res = cat('CAT-20', 'Node Runtime', 'WARN',
+    `Node ${version} is below the supported floor (Node ${NODE_FLOOR_MAJOR}); AAI is developed and tested on Node ${NODE_BASELINE_MAJOR} \u2014 upgrade Node`);
+  res.detail = { running: version, running_major: major, floor_major: NODE_FLOOR_MAJOR, baseline_major: NODE_BASELINE_MAJOR };
+  return res;
+}
+
 // The literal the AAI reference-transaction hook body writes to stderr when it
 // refuses (install-pre-commit-hook.sh's AAI_REF_GUARD_MSG here-doc). SEAM-1:
 // one contract across two files — the installer emits it, this probe reads it.
@@ -1082,7 +1103,8 @@ export function runDoctor(root, scriptDir) {
     catGitRefGuard(root),
     catGuardWiring(root),
     catMergePolicy(root, scriptDir),
-  ].filter(Boolean); // CAT-19 returns null (not reported) when nothing was ever adopted
+    catNodeRuntime(),
+  ].filter(Boolean); // CAT-19 and CAT-20 return null (not reported) when nothing applies
 }
 
 function main() {

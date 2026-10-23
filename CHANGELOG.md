@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — ci: Node 24 baseline and a published Node floor
+
+- CI runs on Node 24 (Node 20, end-of-life, is gone from every workflow). The
+  `self-hosting-smoke` job also runs a short Node 22 compatibility step, with
+  no extra runner. docs/TECHNOLOGY.md now states the floor: Node 24 baseline,
+  Node 22 minimum downstream, Node 20 unsupported.
+- `/aai-doctor` reports a new advisory `CAT-20 Node Runtime` WARN when Node
+  is below 22; it never fails and is silent on Node 22 or newer.
+
 ## [unreleased] — perf: share real-corpus work across the always-on docs-audit suite
 
 - The docs-audit suite runs each distinct full real-corpus audit once and the

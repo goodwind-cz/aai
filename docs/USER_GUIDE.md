@@ -2814,6 +2814,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### `/aai-doctor` diagnoses the real Windows and agent-CLI environment it runs on
+
+`/aai-doctor` (`node .aai/scripts/aai-doctor.mjs`) is the AAI environment health check — a deterministic, zero-dependency script that reports one `PASS`/`WARN`/`FAIL`/`SKIP` line per category plus an overall verdict. The original 13 categories cover core files, role prompts, skills, knowledge files, `STATE.yaml` health, telemetry, git status, hooks, the RFC-0001 migration matrix, docs hygiene and vendored-layer drift.
+
+[Product doc](product/aai-doctor.md) · [Spec](specs/SPEC-0122-spec-doctor-win-selftest.md)
+
 ### CI test impact selection
 
 CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on every single push to a pull request — including review-fix pushes that touch one file. A weekend of iteration on one PR could burn 12+ CI-hours this way.
@@ -2915,12 +2921,6 @@ Answers "how efficiently is the factory running" in one self-contained page: **w
 Turns the local metrics ledger (`docs/ai/METRICS.jsonl`) into one self-contained interactive HTML page of per-run operational charts: token usage over time, per-skill usage frequency and cost, TDD cycle durations, worktree distribution, and publishing timeline. Token totals are real even though the ledger rarely records decomposed input/output numbers — harness usage captured as an undecomposed `usage_total_tokens=<N>` note on a run is parsed and reported as a total (never fabricated into an input/output split). Chart sections whose source data is absent across the whole dataset show a named "No data recorded in this dataset" state instead of an empty axis, so a blank chart always means "nothing recorded", never "broken page".
 
 [Product doc](product/aai-dashboard.md) · [Spec](specs/SPEC-0127-spec-reporting-docs-true-up.md)
-
-### `/aai-doctor` diagnoses the real Windows and agent-CLI environment it runs on
-
-`/aai-doctor` (`node .aai/scripts/aai-doctor.mjs`) is the AAI environment health check — a deterministic, zero-dependency script that reports one `PASS`/`WARN`/`FAIL`/`SKIP` line per category plus an overall verdict. The original 13 categories cover core files, role prompts, skills, knowledge files, `STATE.yaml` health, telemetry, git status, hooks, the RFC-0001 migration matrix, docs hygiene and vendored-layer drift.
-
-[Product doc](product/aai-doctor.md) · [Spec](specs/SPEC-0122-spec-doctor-win-selftest.md)
 
 ### Windows test wrapper stops lying about timeouts it never caused
 

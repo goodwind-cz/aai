@@ -24,7 +24,7 @@ _None._
 | aai-dashboard | aai-dashboard | 2 | docs/product/aai-dashboard.md |
 | aai-decisions | aai-decisions | 3 | docs/product/aai-decisions.md |
 | aai-deslop | aai-deslop | 2 | docs/product/aai-deslop.md |
-| aai-doctor | aai-doctor | 8 | docs/product/aai-doctor.md |
+| aai-doctor | aai-doctor | 9 | docs/product/aai-doctor.md |
 | aai-update | aai-update | 7 | docs/product/aai-update.md |
 | async-hitl-platform-comments | async-hitl-platform-comments | 1 | docs/product/async-hitl-platform-comments.md |
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
@@ -57,7 +57,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (565)
+## Done (567)
 
 | ID | Type | Path |
 |---|---|---|
@@ -277,6 +277,7 @@ _None._
 | CHANGE-0218 | issues | docs/issues/CHANGE-0218-slim-standing-role-context.md |
 | CHANGE-0219 | issues | docs/issues/CHANGE-0219-ride-state-handoff-to-worktree.md |
 | CHANGE-0220 | issues | docs/issues/CHANGE-0220-docs-audit-suite-speed.md |
+| CHANGE-0221 | issues | docs/issues/CHANGE-0221-ci-node-24-baseline.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -624,6 +625,7 @@ _None._
 | SPEC-0243 | specs | docs/specs/SPEC-0243-spec-slim-standing-role-context.md |
 | SPEC-0244 | specs | docs/specs/SPEC-0244-spec-ride-state-handoff-to-worktree.md |
 | SPEC-0245 | specs | docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md |
+| SPEC-0246 | specs | docs/specs/SPEC-0246-spec-ci-node-24-baseline.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
