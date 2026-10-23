@@ -92,6 +92,8 @@ pairs:
     status: done
   - capability: node-first-sync-hook-slice
     status: done
+  - capability: node-first-second-slice
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
