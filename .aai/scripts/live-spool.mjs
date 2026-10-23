@@ -64,15 +64,12 @@ export function runLiveSpool({ argv = [], env = {}, stdinText = '', stdout }) {
   }
 }
 
-function isMainModule() {
-  try {
-    return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
+function realOrResolve(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
 }
+const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 
-if (isMainModule()) {
+if (isMain) {
   let stdinText = '';
   try { stdinText = fs.readFileSync(0, 'utf8'); } catch { stdinText = ''; }
   runLiveSpool({

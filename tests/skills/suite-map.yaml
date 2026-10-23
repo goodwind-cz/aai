@@ -365,6 +365,7 @@ suites:
       - aai-suite-select
     globs:
       - .aai/scripts/aai-doctor.mjs
+      - .aai/scripts/live-spool.*
       - .aai/SKILL_DOCTOR.prompt.md
       - .aai/scripts/aai-win-selftest.ps1
       - tests/skills/aai-win-dispatch.Tests.ps1

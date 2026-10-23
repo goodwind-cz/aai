@@ -1,7 +1,7 @@
 // live-spool.test.mjs — node:test cases for .aai/scripts/live-spool.mjs
 // (docs/specs/SPEC-DRAFT-spec-node-first-sync-hook-slice.md, TEST-2401..2407).
 // Direct imports, temp directories only, no repository clone.
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,9 +12,15 @@ import { projectPayload, appendCapped, runLiveSpool, MAX_LINES, PASSTHROUGH } fr
 
 const MODULE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.aai/scripts/live-spool.mjs');
 
+const made = [];
 function tmp() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'aai-live-spool-'));
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'aai-live-spool-'));
+  made.push(d);
+  return d;
 }
+after(() => {
+  for (const d of made) fs.rmSync(d, { recursive: true, force: true });
+});
 
 const FIXED = new Date('2026-10-23T13:36:09.977Z');
 const EXTRA = { transcript_path: '/t', message: 'hello' };
