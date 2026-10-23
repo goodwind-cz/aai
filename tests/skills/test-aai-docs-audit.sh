@@ -8600,18 +8600,21 @@ test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
   # while, bash -c and so on), runs docs-audit.mjs, generate-docs-index.mjs or
   # $AUDIT_SCRIPT (literal, absolute $PROJECT_ROOT/... or ${AUDIT_SCRIPT}) and
   # the line does not first cd into some other (fixture) directory. Comments,
-  # file copies and echoed or table text are not launches.
+  # table rows and the quoted text an echo or printf prints are not launches;
+  # whatever else such a line runs (after |, &&, ; and so on) is still scanned.
   local audit_prog gen_prog control
   audit_prog='
     /^[[:space:]]*#/ { next }
-    /^[[:space:]]*(cp|echo|printf|[|]) / && !/[|][[:space:]]*node[[:space:]]/ { next }
+    /^[[:space:]]*[|] / { next }
+    /^[[:space:]]*(echo|printf) / { gsub(/"[^"$][^"]*"/, ""); gsub(/\047[^\047]*\047/, "") }
     /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*(docs-audit\.mjs|\$\{?AUDIT_SCRIPT\}?)/ {
       if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
       if ($0 ~ /--path|--quick|--lint-body|--ac-flip-check|--list/) next
       print NR ": " $0 }'
   gen_prog='
     /^[[:space:]]*#/ { next }
-    /^[[:space:]]*(cp|echo|printf|[|]) / && !/[|][[:space:]]*node[[:space:]]/ { next }
+    /^[[:space:]]*[|] / { next }
+    /^[[:space:]]*(echo|printf) / { gsub(/"[^"$][^"]*"/, ""); gsub(/\047[^\047]*\047/, "") }
     /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*generate-docs-index\.mjs/ {
       if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
       print NR ": " $0 }'
@@ -8623,14 +8626,18 @@ test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
     '  true || node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check' \
     '  while node .aai/scripts/docs-audit.mjs --check; do break; done' \
     '  out="$(bash -c "node .aai/scripts/docs-audit.mjs --check")"' \
-    '  echo y | node "$AUDIT_SCRIPT" --check'; do
+    '  echo y | node "$AUDIT_SCRIPT" --check' \
+    '  echo x && node "$AUDIT_SCRIPT" --check' \
+    '  echo start; (node .aai/scripts/docs-audit.mjs --check)' \
+    '  printf "%s\\n" go && if node "$AUDIT_SCRIPT" --check; then :; fi'; do
     [[ -n "$(awk "$audit_prog" <<<"$control")" ]] \
       || log_fail "TEST-2206: the audit scan misses the launch shape: $control"
   done
   for control in \
     '  (cd "$PROJECT_ROOT" && if node .aai/scripts/generate-docs-index.mjs; then :; fi)' \
     '  true || node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs"' \
-    '  printf x | node .aai/scripts/generate-docs-index.mjs'; do
+    '  printf x | node .aai/scripts/generate-docs-index.mjs' \
+    '  cp a b; node .aai/scripts/generate-docs-index.mjs'; do
     [[ -n "$(awk "$gen_prog" <<<"$control")" ]] \
       || log_fail "TEST-2206: the generator scan misses the launch shape: $control"
   done
