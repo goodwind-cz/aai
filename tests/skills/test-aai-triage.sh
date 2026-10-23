@@ -159,6 +159,12 @@ test_2507_module_cli_gate() {
   cli_run "$FX" "foo audit, --check" --check
   [[ "$CLI_OUT" == *"- Docs audit: (no output)"* ]] || log_fail "TEST-2507: the no-output line is missing, got: $CLI_OUT"
   [[ "$CLI_RC" == 0 ]] || log_fail "TEST-2507: an unmatched audit must exit 0 under --check, got $CLI_RC"
+  # D-12: a root that is not a git repository reads clean and git's stderr stays discarded.
+  FX="$TEST_DIR/t2507d"; rm -rf "$FX"; mkdir -p "$FX/.aai/scripts"
+  cp "$TRIAGE_MJS" "$FX/.aai/scripts/" || log_fail "TEST-2507: cannot copy the module"
+  GIT_CEILING_DIRECTORIES="$TEST_DIR" cli_run "$FX" "not a git repository, --check" --check
+  [[ "$CLI_OUT" == *"- Working tree: clean"* ]] || log_fail "TEST-2507: a non-git root must read clean, got: $CLI_OUT"
+  [[ "$CLI_RC" == 0 ]] || log_fail "TEST-2507: a non-git root must exit 0, got $CLI_RC"
   log_pass "TEST-2507: the module CLI counts porcelain lines, gates on NEEDS-TRIAGE only, keeps stderr empty"
 }
 
@@ -265,6 +271,9 @@ test_2511_ps1_launcher_fallback_and_exit() {
   [[ "$rc" == 1 ]] || log_fail "TEST-2511: -Check against a NEEDS-TRIAGE audit must exit 1, got $rc"
   rc=0; pwsh -NoProfile -File "$FX/.aai/scripts/triage.ps1" > "$TEST_DIR/t2511.out" 2>&1 || rc=$?
   [[ "$rc" == 0 ]] || log_fail "TEST-2511: without -Check the exit code must be 0, got $rc"
+  # In-session call: --check lands in $args (not bound to -Check), so the launcher's $args clause decides.
+  rc=0; pwsh -NoProfile -Command "& '$FX/.aai/scripts/triage.ps1' --check; exit \$LASTEXITCODE" > "$TEST_DIR/t2511.out" 2>&1 || rc=$?
+  [[ "$rc" == 1 ]] || log_fail "TEST-2511: an in-session --check against a NEEDS-TRIAGE audit must exit 1, got $rc"
   log_pass "TEST-2511: triage.ps1 degrades to the UNKNOWN line and returns the module exit code"
 }
 
@@ -317,6 +326,13 @@ test_2512_launcher_parity() {
     fi
   done
   [[ "$i" == 7 ]] || log_fail "TEST-2512: expected seven fixtures, ran $i"
+  # D-6: non-ASCII bytes (em dash, e-acute) in the audit and tick text pass through both launchers unchanged.
+  par_fixture t2512-nonascii $'- Mode: quick \xe2\x80\x94 caf\xc3\xa9\n### Verdict: OK \xe2\x80\x94 caf\xc3\xa9\n' - '{"t":"caf\xc3\xa9 \xe2\x80\x94"}\n' 0
+  run_side "$FX" "$d/nonascii.sh" bash "$FX/.aai/scripts/triage.sh" --check; rc_sh="$SIDE_RC"
+  run_side "$FX" "$d/nonascii.ps" pwsh -NoProfile -File "$FX/.aai/scripts/triage.ps1" -Check; rc_ps="$SIDE_RC"
+  [[ "$rc_sh" == 0 && "$rc_ps" == 0 ]] || log_fail "TEST-2512: the non-ASCII fixture must exit 0 on both sides (sh=$rc_sh ps=$rc_ps)"
+  cmp -s "$d/nonascii.sh" "$d/nonascii.ps" || log_fail "TEST-2512: non-ASCII stdout differs between triage.sh and triage.ps1"
+  [[ "$(LC_ALL=C grep -c $'\xe2\x80\x94' "$d/nonascii.sh")" -ge 1 ]] || log_fail "TEST-2512: positive control failed, the em dash did not reach the output"
   log_pass "TEST-2512: triage.sh and triage.ps1 give identical stdout and exit codes for seven fixtures"
 }
 

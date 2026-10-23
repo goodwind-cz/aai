@@ -106,6 +106,16 @@ Describe 'triage launcher' {
     $r.ExitCode | Should -Be 1
   }
 
+  It 'exits 1 for an in-session call with a literal --check (it lands in $args)' {
+    $dir = New-Fixture -AuditJs 'process.stdout.write("- Mode: quick\n### Verdict: NEEDS-TRIAGE\n");'
+    $launcher = Join-Path $dir '.aai/scripts/triage.ps1'
+    $cmd = "& '" + $launcher + "' --check; exit `$LASTEXITCODE"
+    $argLine = '-NoProfile -ExecutionPolicy Bypass -Command "' + $cmd + '"'
+    $r = Invoke-Proc -File $script:Engine -ArgLine $argLine -WorkDir $dir
+    $r.ExitCode | Should -Be 1
+    (Get-Lines $r) | Should -Contain '### Triage verdict: NEEDS-ATTENTION (1 area(s))'
+  }
+
   It 'treats a lower-case needs-triage as CLEAN and exits 0 under -Check' {
     $dir = New-Fixture -AuditJs 'process.stdout.write("- mode: quick\n### verdict: needs-triage\n");'
     $r = Invoke-Launcher -Dir $dir -Flag '-Check'
