@@ -22,6 +22,9 @@ AUDIT_SCRIPT="$PROJECT_ROOT/.aai/scripts/docs-audit.mjs"
 # 46 KB; every one of them must stay off a pipe and must bound what it prints.
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
+# Shared real-corpus audit and index helpers (docs-audit-suite-speed D1).
+# shellcheck source=lib/docs-audit-live.sh
+. "$SCRIPT_DIR/lib/docs-audit-live.sh"
 # Absolute self-path captured BEFORE any cd (review CHANGE-0009 W1: a bare
 # relative BASH_SOURCE is unresolvable after setup_fixture's cd, which made
 # the self-containment guard vacuous — grep exit 2 slipped through '&&').
@@ -1379,34 +1382,8 @@ MD
   log_pass "Closeout fixture ready"
 }
 
-test_closeout_candidate_flagged() {
-  log_info "Test: non-terminal rfc parent with all-done specs flagged (TEST-001)..."
-  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
-  assert_contains "$TEST_DIR/closeout.log" "Closeout candidates"
-  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
-  grep -F "RFC-0010" "$TEST_DIR/closeout.log" | qgrep -qF "SPEC-0010" \
-    || log_fail "Closeout row must name both parent RFC-0010 and done SPEC-0010"
-  log_pass "Closeout candidate flagged with parent + satisfying spec id"
-}
 
-test_closeout_spec_not_all_done() {
-  log_info "Test: parent with a non-done linked spec is NOT flagged; control IS (TEST-002)..."
-  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
-  # positive control (RED-proof): flagging must genuinely work before this passes
-  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
-  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0020 to"
-  log_pass "Mixed-status parent withheld; positive control flagged"
-}
 
-test_closeout_terminal_parent() {
-  log_info "Test: terminal/draft parents never flagged; control IS (TEST-003)..."
-  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
-  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
-  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0030 to"
-  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0032 to"
-  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0034 to"
-  log_pass "Terminal (done/superseded) and draft parents excluded"
-}
 
 test_closeout_read_only() {
   log_info "Test: audit makes zero doc mutations over closeout fixture (TEST-004)..."
@@ -1422,79 +1399,33 @@ test_closeout_read_only() {
   log_pass "Audit is read-only over the closeout fixture"
 }
 
-test_closeout_no_false_positive() {
-  log_info "Test: no-link / change-type / unresolvable parents not flagged; control IS (TEST-005)..."
-  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
-  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"
-  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0050 to"
-  assert_not_contains "$TEST_DIR/closeout.log" "advance CHANGE-0050 to"
-  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0052 to"
-  log_pass "No new false positives from the closeout pass"
-}
 
-test_closeout_report_only_gate() {
-  log_info "Test: closeout pass is report-only; --check --strict still exits 0 (TEST-006)..."
+test_closeout_report_only_gate() {  # TEST-006 / TEST-2209
+  log_info "Test: closeout pass is report-only; --check --strict still exits 0; the section renders its rows (TEST-006 / TEST-2209)..."
+  # Self-sufficient under single-function dispatch: build what main() builds.
+  if [[ -z "${TEST_DIR:-}" ]]; then
+    setup_fixture
+    setup_closeout_fixture
+  fi
   run_audit --check --strict --no-event --path docs/closeout > "$TEST_DIR/closeout-gate.log" \
-    || log_fail "Closeout candidates must not change the --check --strict exit code"
-  assert_contains "$TEST_DIR/closeout-gate.log" "Closeout candidates"
-  assert_contains "$TEST_DIR/closeout-gate.log" "advance RFC-0010 to"
-  log_pass "Closeout classification is report-only (gate-neutral)"
+    || log_fail "TEST-2209: Closeout candidates must not change the --check --strict exit code"
+  grep -qF "### Closeout candidates: " "$TEST_DIR/closeout-gate.log" \
+    || log_fail "TEST-2209: the report must carry the '### Closeout candidates: ' heading"
+  grep -qF "advance RFC-0010 to" "$TEST_DIR/closeout-gate.log" \
+    || log_fail "TEST-2209: the report must carry the 'advance RFC-0010 to' next step"
+  # Rendering (migration map C1 and C5): the parent row names its satisfying
+  # spec, for a forward-linked and for a reverse-only parent.
+  grep -F "RFC-0010" "$TEST_DIR/closeout-gate.log" | qgrep -qF "SPEC-0010" \
+    || log_fail "TEST-2209: the rendered RFC-0010 row must name SPEC-0010"
+  grep -F "RFC-0060" "$TEST_DIR/closeout-gate.log" | qgrep -qF "SPEC-0060" \
+    || log_fail "TEST-2209: the rendered reverse-only RFC-0060 row must name SPEC-0060"
+  log_pass "Closeout classification is report-only (gate-neutral) and renders parent plus satisfying spec (TEST-2209)"
 }
 
-test_closeout_reverse_only() {
-  log_info "Test: reverse-only association (child links.rfc, parent has no links.spec) flagged (TEST-007)..."
-  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
-  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"   # positive control
-  # the parent is reachable ONLY through the spec's reverse links.rfc
-  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0060 to"
-  grep -F "RFC-0060" "$TEST_DIR/closeout.log" | qgrep -qF "SPEC-0060" \
-    || log_fail "Reverse-only closeout row must name parent RFC-0060 and done SPEC-0060"
-  log_pass "Reverse-only (links.rfc) association independently flagged"
-}
 
-test_closeout_forward_nonspec_not_flagged() {
-  log_info "Test: forward links.spec to a NON-spec done doc is NOT flagged; control IS (TEST-008)..."
-  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
-  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0010 to"   # positive control
-  # RFC-0070's links.spec names CHANGE-0070 (type change, done) — not a spec
-  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0070 to"
-  log_pass "Forward link to a non-spec done doc does not satisfy all-specs-done"
-}
 
-test_closeout_display_id_match() {  # CHANGE-0056 Spec-AC-01
-  log_info "Test: a SLUG-id parent whose done spec links by DISPLAY id is flagged (CHANGE-0056)..."
-  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
-  # RED without the id-and-display match: reverse.includes(slug) misses a display-id link.
-  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0080 to"
-  log_pass "Closeout resolves a display-id reverse link on a slug-id parent (RFC-0080 flagged)"
-}
 
-test_closeout_rollout_guard() {  # CHANGE-0056 Spec-AC-02
-  log_info "Test: an all-specs-done umbrella with a not-started Rollout phase is NOT flagged (CHANGE-0056)..."
-  run_audit --no-event --path docs/closeout > "$TEST_DIR/closeout.log"
-  # positive control (RED-proof): flagging genuinely works for a roadmap-free parent
-  assert_contains "$TEST_DIR/closeout.log" "advance RFC-0080 to"
-  # RFC-0090's specs are all done, but its Rollout Status declares a not-started
-  # phase -> the guard withholds the close suggestion.
-  assert_not_contains "$TEST_DIR/closeout.log" "advance RFC-0090 to"
-  log_pass "Rollout-Status guard withholds close on an umbrella with pending phases"
-}
 
-test_rollout_status_pipe_styles() {  # CHANGE-0056 Spec-AC-02 (Codex P2)
-  log_info "Test: hasUnfinishedRolloutPhases parses Rollout tables WITH and WITHOUT outer pipes (CHANGE-0056)..."
-  local out
-  out=$(cd "$PROJECT_ROOT" && node --input-type=module -e '
-    import { hasUnfinishedRolloutPhases } from "./.aai/scripts/lib/docs-audit-core.mjs";
-    const outer = "## Rollout Status\n\n| Phase | Status | By |\n|---|---|---|\n| 0 | done | x |\n| 1 | not started | — |\n";
-    const noOuter = "## Rollout Status\n\nPhase | Status | By\n--- | --- | ---\n0 | done | x\n1 | not started | —\n";
-    const allDone = "## Rollout Status\n\nPhase | Status | By\n--- | --- | ---\n0 | done | x\n1 | done | y\n";
-    const none = "## Other\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
-    console.log([hasUnfinishedRolloutPhases(outer), hasUnfinishedRolloutPhases(noOuter), hasUnfinishedRolloutPhases(allDone), hasUnfinishedRolloutPhases(none)].join(","));
-  ')
-  [[ "$out" == "true,true,false,false" ]] \
-    || log_fail "hasUnfinishedRolloutPhases pipe-style handling wrong: got [$out], want [true,true,false,false]"
-  log_pass "Rollout Status parsed with and without outer pipes; all-done and no-table -> false"
-}
 
 # --- Rollout progress rollup (CHANGE-0055): done/total children per in-flight parent ---
 
@@ -1903,7 +1834,7 @@ test_spec0006_open_decision_guard() {  # TEST-006 / Spec-AC-06
 
 test_spec0006_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
   log_info "Test: real-repo docs-audit CLEAN and index idempotent — no regression (TEST-007)..."
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/repo-audit.log" 2>&1) \
+  live_audit "$TEST_DIR/repo-audit.log" --check --strict --no-event \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/repo-audit.log")"
   # SPEC-0057: the whole-digest Verdict line now correctly reads NEEDS-TRIAGE
   # on the real repo (3 pre-existing, tracked duplicate-doc-id collisions,
@@ -1916,16 +1847,13 @@ test_spec0006_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
   # Regenerating writes the real docs/INDEX.md (a fresh Generated: timestamp), so
   # back it up first and restore it after the idempotence check — the suite must
   # leave the worktree clean for CI/pre-commit clean-tree gates.
-  local idx_backup="$TEST_DIR/INDEX.md.orig"
-  cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/repo-idx1.log" 2>&1) \
-    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 1) failed: $(cat "$TEST_DIR/repo-idx1.log")"; }
-  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/repo-idx1.snap"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/repo-idx2.log" 2>&1) \
-    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 2) failed: $(cat "$TEST_DIR/repo-idx2.log")"; }
-  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/repo-idx2.snap"
-  # Restore the real index before asserting (so a diff failure can't leave it dirty).
-  cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"
+  # The pair is generated and the real index restored by live_index_pair, once
+  # per run, BEFORE any assertion below reads a snapshot (the suite must leave
+  # the worktree clean for CI/pre-commit clean-tree gates).
+  live_index_pair
+  live_pair_require_ok "real-repo index gen"
+  grep -v '^Generated:' "$LIVE_PAIR_DIR/run1.INDEX.md" > "$TEST_DIR/repo-idx1.snap"
+  grep -v '^Generated:' "$LIVE_PAIR_DIR/run2.INDEX.md" > "$TEST_DIR/repo-idx2.snap"
   diff -q "$TEST_DIR/repo-idx1.snap" "$TEST_DIR/repo-idx2.snap" >/dev/null \
     || log_fail "real-repo INDEX must be idempotent modulo the Generated line"
   log_pass "Real-repo audit CLEAN and INDEX idempotent (no regression)"
@@ -2246,7 +2174,7 @@ INDEX_SNAP_COMMITTED=""
 INDEX_SNAP_EARLIER=""
 INDEX_SNAP_FRESH=""
 setup_indexarm_snapshots() {
-  log_info "Setting up real-repo INDEX snapshots (earlier-day + fresh; the generator runs twice)..."
+  log_info "Setting up real-repo INDEX snapshots (earlier-day pinned run + the shared fresh pair)..."
   index_write_posix_check
   local idx="$PROJECT_ROOT/docs/INDEX.md"
   [[ -f "$idx" ]] || log_fail "real repository has no docs/INDEX.md"
@@ -2262,13 +2190,19 @@ setup_indexarm_snapshots() {
   anchor="$(node -e 'console.log(Date.now())')"
   earlier_day="$(utc_day "$anchor" -3)"
   local rc_earlier=0 rc_fresh=0
+  # The fresh snapshot is run 1 of the shared pair (live_index_pair restores the
+  # real files itself). It runs BEFORE the pinned-clock generation so that
+  # generation, which stays here, is the only writer left to restore.
+  live_index_pair
+  rc_fresh="$(live_pair_rc 1)"
+  if [[ "$rc_fresh" -eq 0 ]]; then cp "$LIVE_PAIR_DIR/run1.INDEX.md" "$INDEX_SNAP_FRESH"; fi
+  cp "$LIVE_PAIR_DIR/gen1.log" "$TEST_DIR/indexarm-fresh.log"
+  live_backup_real "$TEST_DIR/indexarm-real"
   index_generate_at "$PROJECT_ROOT" "${earlier_day}T12:00:00.000Z" \
     "$TEST_DIR/indexarm-earlier.log" || rc_earlier=$?
   if [[ "$rc_earlier" -eq 0 ]]; then cp "$idx" "$INDEX_SNAP_EARLIER"; fi
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs) \
-    > "$TEST_DIR/indexarm-fresh.log" 2>&1 || rc_fresh=$?
-  if [[ "$rc_fresh" -eq 0 ]]; then cp "$idx" "$INDEX_SNAP_FRESH"; fi
   # Restore FIRST, assert second: a failure below must not leave the real index dirty.
+  live_restore_real "$TEST_DIR/indexarm-real"
   cp "$INDEX_REAL_BACKUP" "$idx"
   [[ "$rc_earlier" -eq 0 ]] \
     || log_fail "pinned-clock index generation failed: $(cat "$TEST_DIR/indexarm-earlier.log")"
@@ -2685,7 +2619,7 @@ MD
 
 test_issue0001_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
   log_info "Test: real-repo docs-audit CLEAN and INDEX idempotent — no regression (TEST-007)..."
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/t007-audit.log" 2>&1) \
+  live_audit "$TEST_DIR/t007-audit.log" --check --strict --no-event \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/t007-audit.log")"
   # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
   # real-repo Verdict line now correctly reads NEEDS-TRIAGE (3 pre-existing,
@@ -2693,15 +2627,12 @@ test_issue0001_no_regression_real_repo() {  # TEST-007 / Spec-AC-07
   # signal this stanza actually guards instead.
   assert_contains "$TEST_DIR/t007-audit.log" "Orphans (need triage): 0"
   assert_not_contains "$TEST_DIR/t007-audit.log" "CHECK FAILED"
-  local idx_backup="$TEST_DIR/INDEX.t007.orig"
-  cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/t007-idx1.log" 2>&1) \
-    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 1) failed: $(cat "$TEST_DIR/t007-idx1.log")"; }
-  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/t007-idx1.snap"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/t007-idx2.log" 2>&1) \
-    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 2) failed: $(cat "$TEST_DIR/t007-idx2.log")"; }
-  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/t007-idx2.snap"
-  cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"
+  # The pair is generated and the real index restored by live_index_pair, once
+  # per run, BEFORE any assertion below reads a snapshot.
+  live_index_pair
+  live_pair_require_ok "real-repo index gen"
+  grep -v '^Generated:' "$LIVE_PAIR_DIR/run1.INDEX.md" > "$TEST_DIR/t007-idx1.snap"
+  grep -v '^Generated:' "$LIVE_PAIR_DIR/run2.INDEX.md" > "$TEST_DIR/t007-idx2.snap"
   diff -q "$TEST_DIR/t007-idx1.snap" "$TEST_DIR/t007-idx2.snap" >/dev/null \
     || log_fail "real-repo INDEX must be idempotent modulo the Generated line"
   log_pass "Real-repo audit CLEAN and INDEX idempotent (no regression)"
@@ -3559,7 +3490,7 @@ MD
 
 test_spec0011_regression() {  # TEST-015 / Spec-AC-12
   log_info "Test: real-repo docs-audit CLEAN, INDEX idempotent (TEST-015)..."
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/s11-audit.log" 2>&1) \
+  live_audit "$TEST_DIR/s11-audit.log" --check --strict --no-event \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/s11-audit.log")"
   # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
   # real-repo Verdict line now correctly reads NEEDS-TRIAGE (3 pre-existing,
@@ -3576,16 +3507,13 @@ test_spec0011_regression() {  # TEST-015 / Spec-AC-12
   # concern (test_537_shape_check_live_yield owns the exact count and the
   # terminal/non-terminal --strict split).
   assert_not_contains "$TEST_DIR/s11-audit.log" "CHECK FAILED"
-  # INDEX idempotent (backup/restore the real committed index).
-  local idx_backup="$TEST_DIR/INDEX.s11.orig"
-  cp "$PROJECT_ROOT/docs/INDEX.md" "$idx_backup"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/s11-idx1.log" 2>&1) \
-    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 1) failed: $(cat "$TEST_DIR/s11-idx1.log")"; }
-  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/s11-idx1.snap"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > "$TEST_DIR/s11-idx2.log" 2>&1) \
-    || { cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"; log_fail "real-repo index gen (run 2) failed: $(cat "$TEST_DIR/s11-idx2.log")"; }
-  grep -v '^Generated:' "$PROJECT_ROOT/docs/INDEX.md" > "$TEST_DIR/s11-idx2.snap"
-  cp "$idx_backup" "$PROJECT_ROOT/docs/INDEX.md"
+  # INDEX idempotent (the shared pair restores the real committed index itself).
+  # The pair is generated and the real index restored by live_index_pair, once
+  # per run, BEFORE any assertion below reads a snapshot.
+  live_index_pair
+  live_pair_require_ok "real-repo index gen"
+  grep -v '^Generated:' "$LIVE_PAIR_DIR/run1.INDEX.md" > "$TEST_DIR/s11-idx1.snap"
+  grep -v '^Generated:' "$LIVE_PAIR_DIR/run2.INDEX.md" > "$TEST_DIR/s11-idx2.snap"
   diff -q "$TEST_DIR/s11-idx1.snap" "$TEST_DIR/s11-idx2.snap" >/dev/null \
     || log_fail "real-repo INDEX must be idempotent modulo the Generated line"
   log_pass "Real-repo audit CLEAN, INDEX idempotent"
@@ -3735,9 +3663,9 @@ test_537_shape_check_live_yield() {  # TEST-537 / Spec-AC-11
   log_info "Test: over the live corpus the near-miss column-set kind names exactly the 8 M9 documents (all status: done), the status-vocabulary arm is empty, --check exits 0 without --strict, and --check --strict ALSO stays CLEAN (every M9 doc is terminal) (TEST-537)..."
   [[ -n "$TEST_DIR" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
   local rc=0 out
-  out="$(cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --no-event 2>&1)" || rc=$?
+  live_audit "$TEST_DIR/s537-plain.log" --check --no-event || rc=$?
+  out="$(cat "$TEST_DIR/s537-plain.log")"
   [[ "$rc" -eq 0 ]] || log_fail "TEST-537: live corpus --check without --strict must exit 0 (got $rc): $(printf '%s' "$out" | tail -20)"
-  printf '%s' "$out" > "$TEST_DIR/s537-plain.log"
   extract_section_h3 "$TEST_DIR/s537-plain.log" "### Near-miss AC tables" > "$TEST_DIR/s537-nm.txt" 2>/dev/null || true
   local nm_docs
   nm_docs="$(/usr/bin/grep -c '| column-set |' "$TEST_DIR/s537-nm.txt" 2>/dev/null || true)"
@@ -3750,7 +3678,8 @@ test_537_shape_check_live_yield() {  # TEST-537 / Spec-AC-11
   # status: done (terminal) — --strict must stay CLEAN, so this pre-existing
   # seam (and the other ~15 like it across the suite corpus) keeps its teeth.
   rc=0
-  out="$(cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event 2>&1)" || rc=$?
+  live_audit "$TEST_DIR/s537-strict.log" --check --strict --no-event || rc=$?
+  out="$(cat "$TEST_DIR/s537-strict.log")"
   [[ "$rc" -eq 0 ]] \
     || log_fail "TEST-537: live corpus --check --strict must stay exit 0 — every M9 near-miss document is terminal (status: done): $(printf '%s' "$out" | tail -20)"
   grep -qF "CHECK FAILED" <<<"$out" \
@@ -4294,7 +4223,7 @@ test_change0007_regression() {  # TEST-009 / Spec-AC-09
     || log_fail "real-repo --lint-body must exit 0: $(tail -10 "$TEST_DIR/c7-lint.log")"
   grep -qE '^### Body lint: 0' "$TEST_DIR/c7-lint.log" \
     || log_fail "real-repo governed corpus must carry ZERO body-lint findings: $(cat "$TEST_DIR/c7-lint.log")"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/c7-strict.log" 2>&1) \
+  live_audit "$TEST_DIR/c7-strict.log" --check --strict --no-event \
     || log_fail "real-repo --check --strict must exit 0 with body lint active: $(tail -10 "$TEST_DIR/c7-strict.log")"
   # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
   # real-repo Verdict line now correctly reads NEEDS-TRIAGE (3 pre-existing,
@@ -4628,7 +4557,7 @@ test_change0012_regression() {  # CHANGE-0012 TEST-011 / Spec-AC-04 (Seam 2)
   # Real repo: the scan widening makes DRAFT docs visible WITHOUT introducing
   # new orphans/violations. (Verdict text may carry pre-existing report-only
   # drift — e.g. RES-0001 — so assert the hard-gate signals, not CLEAN.)
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/c12-repo-audit.log" 2>&1) \
+  live_audit "$TEST_DIR/c12-repo-audit.log" --check --strict --no-event \
     || log_fail "real-repo --check --strict must stay exit 0 after the scan widening: $(tail -5 "$TEST_DIR/c12-repo-audit.log")"
   assert_contains "$TEST_DIR/c12-repo-audit.log" "Orphans (need triage): 0"
   assert_not_contains "$TEST_DIR/c12-repo-audit.log" "CHECK FAILED"
@@ -5994,7 +5923,7 @@ MD
 
 test_change0028_real_repo_clean() {  # TEST-009 / Spec-AC-08
   log_info "Test: real-repo docs-audit stays CLEAN with zero false-open verdicts after D2 hardening (TEST-009)..."
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/c0028-audit.log" 2>&1) \
+  live_audit "$TEST_DIR/c0028-audit.log" --check --strict --no-event \
     || log_fail "real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/c0028-audit.log")"
   # SPEC-0057: see test_spec0006_no_regression_real_repo's comment — the
   # real-repo Verdict line now correctly reads NEEDS-TRIAGE (3 pre-existing,
@@ -6467,10 +6396,10 @@ test_spec0057_real_repo_known_collisions() {  # TEST-104 / Spec-AC-04
   # spec-lint-duplicate-ac-id — specs created without the spec- prefix) were
   # remediated (ISSUE-0015: spec ids -> spec-<slug> + telemetry backfill). This
   # control now guards that the detector runs on the real repo and finds NONE.
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --no-event > "$TEST_DIR/s57-real.log" 2>&1) \
+  live_audit "$TEST_DIR/s57-real.log" --no-event \
     || log_fail "real-repo docs-audit must exit 0: $(tail -5 "$TEST_DIR/s57-real.log")"
   assert_contains "$TEST_DIR/s57-real.log" "### Duplicate doc ids: 0"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/s57-check.log" 2>&1) \
+  live_audit "$TEST_DIR/s57-check.log" --check --strict --no-event \
     || log_fail "TEST-104: real-repo --check --strict must exit 0: $(tail -10 "$TEST_DIR/s57-check.log")"
   log_pass "Real repo has zero duplicate-doc-id collisions post-remediation; CI exit 0 (TEST-104)"
 }
@@ -6744,15 +6673,28 @@ YAML
 }
 
 test_histmap_corpus_equivalence() {  # TEST-001 / Spec-AC-01
-  log_info "Test: the bulk add-history map equals the shipped per-file firstCommitDate over the WHOLE corpus (TEST-001)..."
+  log_info "Test: the bulk add-history map equals the shipped per-file firstCommitDate over the WHOLE corpus (TEST-001 / TEST-2207)..."
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
   cat > "$TEST_DIR/histmap-corpus.mjs" <<'EOF'
 // Every tracked docs/**/*.md, both strategies, byte-compared. The per-file side
 // is the expensive one (one subprocess per document) so it is computed ONCE and
-// reused for the mutation proof — the arm pays for it a single time.
+// reused for the mutation proof — the arm pays for it a single time. It runs in
+// worker_threads shards (docs-audit-suite-speed, Lever C): every shard imports
+// the SHIPPED firstCommitDate and answers for its own slice of the corpus, so
+// the oracle still covers every document and still shells out to git per file.
 import { execFileSync } from 'node:child_process';
+import os from 'node:os';
 import { pathToFileURL } from 'node:url';
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+
+if (!isMainThread) {
+  const { firstCommitDate } = await import(pathToFileURL(workerData.corePath).href);
+  parentPort.postMessage(workerData.slice.map((f) => [f, firstCommitDate(workerData.root, f)]));
+  process.exit(0);
+}
+
 const [corePath, root] = process.argv.slice(2);
-const { firstCommitDate, buildFirstCommitDateMap } = await import(pathToFileURL(corePath).href);
+const { buildFirstCommitDateMap } = await import(pathToFileURL(corePath).href);
 const files = execFileSync('git', ['ls-files', '--', 'docs'],
   { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 }).split('\n').filter((f) => f.endsWith('.md'));
 const map = buildFirstCommitDateMap(root);
@@ -6760,7 +6702,27 @@ if (map === null) {
   console.log('FINDING: the bulk walk returned null on a repository that HAS history');
   process.exit(1);
 }
-const perFile = new Map(files.map((f) => [f, firstCommitDate(root, f)]));
+const cpus = typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length;
+const shardCount = Math.max(1, Math.min(8, cpus, files.length));
+const slices = Array.from({ length: shardCount }, () => []);
+files.forEach((f, i) => slices[i % shardCount].push(f));
+const perFile = new Map();
+await Promise.all(slices.map((slice) => new Promise((resolve, reject) => {
+  const w = new Worker(new URL(import.meta.url), { workerData: { corePath, root, slice } });
+  w.once('message', (pairs) => { for (const [f, d] of pairs) perFile.set(f, d); });
+  w.once('error', reject);
+  w.once('exit', (code) => (code === 0 ? resolve() : reject(new Error('shard exited ' + code))));
+})));
+console.log(`shards=${shardCount} cpus=${cpus} per_file_entries=${perFile.size}`);
+// TEST-2207 shape checks: one entry per document, and the work really was split.
+if (perFile.size !== files.length) {
+  console.log(`FINDING: ${perFile.size} per-file entries for ${files.length} documents`);
+  process.exit(1);
+}
+if (cpus >= 2 && shardCount < 2) {
+  console.log('FINDING: the host has 2 or more CPUs but the oracle ran in fewer than 2 shards');
+  process.exit(1);
+}
 const compare = (m) => {
   const out = { mismatches: [], bothNull: 0, dated: 0 };
   for (const f of files) {
@@ -6804,7 +6766,7 @@ EOF
     "$PROJECT_ROOT/.aai/scripts/lib/docs-audit-core.mjs" "$PROJECT_ROOT" 2>&1)" || rc=$?
   log_info "  $(printf '%s' "$out" | tr '\n' ' ')"
   [[ "$rc" -eq 0 ]] \
-    || log_fail "the bulk map is not equivalent to the shipped per-file firstCommitDate: $(payload_preview "$out")"
+    || log_fail "TEST-2207: the bulk map is not equivalent to the shipped per-file firstCommitDate: $(payload_preview "$out")"
   log_pass "Bulk add-history map equals per-file over the whole corpus; the wrong-date mutation bites"
 }
 
@@ -7607,7 +7569,7 @@ test_acflip_remediation_is_reachable() {  # TEST-008 / Spec-AC-08
 
 test_acflip_real_repo_clean() {  # TEST-005 / Spec-AC-05
   log_info "Test: real-repo strict audit stays CLEAN after the extraction; index generation idempotent (TEST-005)..."
-  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event > "$TEST_DIR/acflip-audit.log" 2>&1) \
+  live_audit "$TEST_DIR/acflip-audit.log" --check --strict --no-event \
     || log_fail "TEST-005: real-repo docs-audit --check --strict must exit 0: $(tail -5 "$TEST_DIR/acflip-audit.log")"
   assert_contains "$TEST_DIR/acflip-audit.log" "Verdict: CLEAN"
   assert_contains "$TEST_DIR/acflip-audit.log" "False-open: 0"
@@ -7624,14 +7586,13 @@ test_acflip_real_repo_clean() {  # TEST-005 / Spec-AC-05
   # audit that also exits 0, so the exit code alone cannot tell "the guard
   # passed" from "the guard does not exist".
   assert_contains "$TEST_DIR/acflip-self.log" "AC-FLIP PASS"
-  # docs/INDEX.md regeneration is idempotent on a second run (the restore floor
-  # armed by setup_fixture puts the tracked file back on every exit path).
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1) \
-    || log_fail "TEST-005: generate-docs-index.mjs must exit 0"
-  cp "$PROJECT_ROOT/docs/INDEX.md" "$TEST_DIR/acflip-index-1.md"
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs > /dev/null 2>&1) \
-    || log_fail "TEST-005: generate-docs-index.mjs must exit 0 on the second run"
-  diff <(index_strip_dated "$TEST_DIR/acflip-index-1.md") <(index_strip_dated "$PROJECT_ROOT/docs/INDEX.md") > "$TEST_DIR/acflip-index-diff.txt" 2>&1 \
+  # docs/INDEX.md regeneration is idempotent on a second run (live_index_pair
+  # generated both runs once and restored the tracked file before returning).
+  live_index_pair
+  [[ "$(live_pair_rc 1)" == "0" ]] || log_fail "TEST-005: generate-docs-index.mjs must exit 0"
+  [[ "$(live_pair_rc 2)" == "0" ]] || log_fail "TEST-005: generate-docs-index.mjs must exit 0 on the second run"
+  cp "$LIVE_PAIR_DIR/run1.INDEX.md" "$TEST_DIR/acflip-index-1.md"
+  diff <(index_strip_dated "$TEST_DIR/acflip-index-1.md") <(index_strip_dated "$LIVE_PAIR_DIR/run2.INDEX.md") > "$TEST_DIR/acflip-index-diff.txt" 2>&1 \
     || log_fail "TEST-005: generate-docs-index.mjs is not idempotent: $(head -20 "$TEST_DIR/acflip-index-diff.txt")"
   log_pass "Real-repo strict audit CLEAN, own spec passes its own guard, index generation idempotent (TEST-005)"
 }
@@ -7819,7 +7780,7 @@ MD
 silence_live_audit() {
   local out="$1"; shift
   local rc=0
-  ( cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --no-event "$@" ) > "$out" 2>&1 || rc=$?
+  live_audit "$out" --check --no-event "$@" || rc=$?
   printf '%s' "$rc"
 }
 
@@ -7962,7 +7923,7 @@ test_1351_live_corpus_near_miss_set_is_dispositioned() {   # TEST-1351 / Spec-AC
     || log_fail "TEST-1351: the ride's spec is not on disk — the disposition gate has nothing to read"
 
   rc=0
-  ( cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event ) > "$TEST_DIR/silence-strict.log" 2>&1 || rc=$?
+  live_audit "$TEST_DIR/silence-strict.log" --check --strict --no-event || rc=$?
   [[ "$rc" -eq 0 ]] \
     || log_fail "TEST-1351: --check --strict over the live tree must stay exit 0 (got $rc): $(payload_preview "$(cat "$TEST_DIR/silence-strict.log")")"
 
@@ -7987,33 +7948,27 @@ test_1351_live_corpus_near_miss_set_is_dispositioned() {   # TEST-1351 / Spec-AC
 
 test_deterministic_index_no_clock_line() { # TEST-001 / Spec-AC-01 (SPEC-0227)
   log_info "Test: generate-docs-index produces deterministic output with no clock line (TEST-001)..."
-  local idx="$PROJECT_ROOT/docs/INDEX.md"
-  local audit_idx="$PROJECT_ROOT/docs/INDEX.audit.md"
-  local viol_idx="$PROJECT_ROOT/docs/INDEX.violations.md"
+  # The pair was generated, snapshotted and the real files restored by
+  # live_index_pair BEFORE any assertion here, so this arm no longer leaves a
+  # regenerated INDEX.md behind for setup_indexarm_snapshots to read as the
+  # "committed" index (the restore-order defect, TEST-2205).
+  live_index_pair
+  [[ "$(live_pair_rc 1)" == "0" ]] || log_fail "TEST-001: generate-docs-index.mjs must exit 0 on run 1"
+  [[ "$(live_pair_rc 2)" == "0" ]] || log_fail "TEST-001: generate-docs-index.mjs must exit 0 on run 2"
 
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
-    || log_fail "TEST-001: generate-docs-index.mjs must exit 0 on run 1"
+  local n f
+  for n in 1 2; do
+    for f in INDEX.md INDEX.audit.md INDEX.violations.md; do
+      if [[ -f "$LIVE_PAIR_DIR/run$n.$f" ]]; then
+        grep -q '^Generated:' "$LIVE_PAIR_DIR/run$n.$f" \
+          && log_fail "TEST-001: docs/$f (run $n) must not carry a Generated: clock line"
+      fi
+    done
+  done
+  [[ -s "$LIVE_PAIR_DIR/run1.INDEX.md" ]] || log_fail "TEST-001: run 1 produced no docs/INDEX.md"
 
-  grep -q '^Generated:' "$idx" \
-    && log_fail "TEST-001: docs/INDEX.md must not carry a Generated: clock line"
-
-  if [[ -f "$audit_idx" ]]; then
-    grep -q '^Generated:' "$audit_idx" \
-      && log_fail "TEST-001: docs/INDEX.audit.md must not carry a Generated: clock line"
-  fi
-
-  if [[ -f "$viol_idx" ]]; then
-    grep -q '^Generated:' "$viol_idx" \
-      && log_fail "TEST-001: docs/INDEX.violations.md must not carry a Generated: clock line"
-  fi
-
-  local snap1="$TEST_DIR/index-det1.snap"
-  local snap2="$TEST_DIR/index-det2.snap"
-  cp "$idx" "$snap1"
-
-  (cd "$PROJECT_ROOT" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) \
-    || log_fail "TEST-001: generate-docs-index.mjs must exit 0 on run 2"
-  cp "$idx" "$snap2"
+  local snap1="$LIVE_PAIR_DIR/run1.INDEX.md"
+  local snap2="$LIVE_PAIR_DIR/run2.INDEX.md"
 
   diff -u "$snap1" "$snap2" >/dev/null \
     || log_fail "TEST-001: multiple runs of generate-docs-index.mjs over an unmodified tree must produce 0 diff"
@@ -8416,6 +8371,515 @@ test_broken_refs_retired_draft_not_a_row() {
   log_pass "a draft path with a numbered successor is not a broken ref"
 }
 
+# ============================================================================
+# docs-audit-suite-speed (TEST-2201..2211): the shared live-corpus helper
+# library, its self-tests, the Node closeout batch and the note/measurement
+# checks. Every function below runs alone under single-function dispatch
+# (`bash tests/skills/test-aai-docs-audit.sh <function>`) and names its TEST id
+# in every failure message.
+# ============================================================================
+
+# Gate shared by the TEST-2202..2205 selectors: the helper must be loaded, and
+# a scratch directory must exist (single dispatch skips setup_fixture).
+live_test_prepare() {  # $1 = TEST id
+  declare -F live_audit >/dev/null 2>&1 \
+    || log_fail "$1: live_audit is not defined — tests/skills/lib/docs-audit-live.sh is not sourced by the suite"
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+}
+
+# A committed fixture repository with a generated, committed docs/INDEX.md and
+# NO violations companion. Echoes the repo path.
+live_test_repo() {  # $1 = name
+  local d
+  d="$(setup_silence_fixture "$1" "plain")"
+  (cd "$d" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1 \
+    && git add docs/INDEX.md && git commit -qm "docs: index") \
+    || log_fail "live fixture $1: could not generate and commit the fixture index"
+  printf '%s' "$d"
+}
+
+# Point the helper at a fixture for one test; live_test_leave undoes it.
+LIVE_TEST_SAVED_ROOT=""
+LIVE_TEST_SAVED_CACHE=""
+live_test_enter() {  # $1 = fixture root, $2 = cache dir
+  LIVE_TEST_SAVED_ROOT="${LIVE_ROOT:-}"
+  LIVE_TEST_SAVED_CACHE="${LIVE_CACHE_DIR:-}"
+  LIVE_ROOT="$1"
+  LIVE_CACHE_DIR="$2"
+}
+live_test_leave() {
+  LIVE_ROOT="$LIVE_TEST_SAVED_ROOT"
+  LIVE_CACHE_DIR="$LIVE_TEST_SAVED_CACHE"
+}
+
+test_2202_live_audit_memo() {  # TEST-2202 / Spec-AC-02
+  log_info "Test: live_audit launches once per argument list and fingerprint, relaunches after an index change (TEST-2202)..."
+  live_test_prepare TEST-2202
+  local d rc1=0 rc2=0 rc3=0 rc4=0 n
+  d="$(live_test_repo t2202)"
+  live_test_enter "$d" "$TEST_DIR/live-cache-t2202"
+
+  live_audit "$d/o1.log" --check --no-event || rc1=$?
+  live_audit "$d/o2.log" --check --no-event || rc2=$?
+  [[ -s "$d/o1.log" ]] || log_fail "TEST-2202: the first live_audit produced no output"
+  [[ "$rc1" -eq "$rc2" ]] || log_fail "TEST-2202: a cache hit must return the stored exit code ($rc1 vs $rc2)"
+  cmp -s "$d/o1.log" "$d/o2.log" || log_fail "TEST-2202: a cache hit must hand back byte-identical output"
+  n="$(live_launch_count audit)"
+  [[ "$n" -eq 1 ]] || log_fail "TEST-2202: one argument list must launch once, got $n launches"
+
+  # Positive control: a DIFFERENT argument list launches, and a nonzero exit
+  # code is stored and returned from the cache too.
+  live_audit "$d/g1.log" --gate SPEC-9999 || rc3=$?
+  live_audit "$d/g2.log" --gate SPEC-9999 || rc4=$?
+  [[ "$rc3" -eq 2 && "$rc4" -eq 2 ]] \
+    || log_fail "TEST-2202: --gate on an unresolved id exits 2 from a launch and from the cache (got $rc3 and $rc4)"
+  cmp -s "$d/g1.log" "$d/g2.log" || log_fail "TEST-2202: the cached nonzero run must hand back identical output"
+  n="$(live_launch_count audit)"
+  [[ "$n" -eq 2 ]] || log_fail "TEST-2202: a second argument list must launch once more, got $n launches"
+
+  # Invalidation: rewriting INDEX.md, adding a violations companion and moving
+  # HEAD each relaunch the first argument list.
+  printf '\n<!-- rewritten by TEST-2202 -->\n' >> "$d/docs/INDEX.md"
+  live_audit "$d/o3.log" --check --no-event || true
+  n="$(live_launch_count audit)"
+  [[ "$n" -eq 3 ]] || log_fail "TEST-2202: rewriting docs/INDEX.md must relaunch, got $n launches"
+  printf 'companion\n' > "$d/docs/INDEX.violations.md"
+  live_audit "$d/o4.log" --check --no-event || true
+  n="$(live_launch_count audit)"
+  [[ "$n" -eq 4 ]] || log_fail "TEST-2202: a new docs/INDEX.violations.md must relaunch, got $n launches"
+  (cd "$d" && git commit -q --allow-empty -m "chore: move HEAD")
+  live_audit "$d/o5.log" --check --no-event || true
+  n="$(live_launch_count audit)"
+  [[ "$n" -eq 5 ]] || log_fail "TEST-2202: a new HEAD commit must relaunch, got $n launches"
+
+  live_test_leave
+  log_pass "live_audit memoizes per argument list and fingerprint, and relaunches on each fingerprint input (TEST-2202)"
+}
+
+test_2203_live_audit_verify_mode() {  # TEST-2203 / Spec-AC-02
+  log_info "Test: AAI_DOCS_AUDIT_LIVE_VERIFY=1 re-runs every cache hit and fails on a difference (TEST-2203)..."
+  live_test_prepare TEST-2203
+  local d out rc cached
+  d="$(live_test_repo t2203)"
+  live_test_enter "$d" "$TEST_DIR/live-cache-t2203"
+
+  live_audit "$d/o1.log" --check --no-event || true
+  # Control: an uncorrupted hit under verify mode passes and says nothing.
+  rc=0
+  out="$( ( AAI_DOCS_AUDIT_LIVE_VERIFY=1 live_audit "$d/o2.log" --check --no-event ) 2>&1 )" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-2203: an uncorrupted cache hit must pass under verify mode: $(payload_preview "$out")"
+  assert_payload_not_contains "$out" "LIVE-CACHE MISMATCH" "TEST-2203: an uncorrupted hit must not report a mismatch"
+
+  # Corrupt the stored output; the next verified hit must fail by name.
+  cached=( "$LIVE_CACHE_DIR"/audit-*.out )
+  [[ -f "${cached[0]}" ]] || log_fail "TEST-2203: the cache holds no stored output to corrupt"
+  printf 'corrupted by TEST-2203\n' >> "${cached[0]}"
+  rc=0
+  out="$( ( AAI_DOCS_AUDIT_LIVE_VERIFY=1 live_audit "$d/o3.log" --check --no-event ) 2>&1 )" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-2203: a corrupted cache hit must fail under verify mode"
+  assert_payload_contains "$out" "LIVE-CACHE MISMATCH" "TEST-2203: the failure must name LIVE-CACHE MISMATCH"
+
+  live_test_leave
+  log_pass "Verify mode passes an intact hit and fails a corrupted one by name (TEST-2203)"
+}
+
+test_2204_live_index_pair_restores() {  # TEST-2204 / Spec-AC-03
+  log_info "Test: live_index_pair restores INDEX.md and removes a companion it created (TEST-2204)..."
+  live_test_prepare TEST-2204
+  local d before n rc1 rc2
+  d="$(live_test_repo t2204)"
+  # A tracked near-miss document the committed index does not list: the
+  # generator now writes a violations companion the repository did not have.
+  cat > "$d/docs/issues/ISSUE-9241-colset-open.md" <<'MD'
+---
+id: ISSUE-9241
+type: issue
+status: draft
+links:
+  pr: []
+---
+# Column-set shape on a NON-terminal doc
+
+## Acceptance Criteria
+
+| AC | Requirement | Status |
+|----|-------------|--------|
+| AC-001 | first table entry | green |
+MD
+  (cd "$d" && git add docs/issues && git commit -qm "docs: add near-miss doc") \
+    || log_fail "TEST-2204: could not commit the near-miss fixture document"
+  before="$TEST_DIR/t2204-index.before"
+  cp "$d/docs/INDEX.md" "$before"
+  [[ ! -e "$d/docs/INDEX.violations.md" ]] || log_fail "TEST-2204: the fixture must start without a violations companion"
+
+  live_test_enter "$d" "$TEST_DIR/live-cache-t2204"
+  live_index_pair
+  cmp -s "$before" "$d/docs/INDEX.md" \
+    || log_fail "TEST-2204: INDEX.md must be byte-identical to its pre-pair content after live_index_pair"
+  [[ ! -e "$d/docs/INDEX.violations.md" ]] \
+    || log_fail "TEST-2204: a violations companion created by the pair must be removed again"
+  rc1="$(live_pair_rc 1)"; rc2="$(live_pair_rc 2)"
+  [[ "$rc1" -eq 0 && "$rc2" -eq 0 ]] || log_fail "TEST-2204: both generator runs must exit 0 (got $rc1 and $rc2)"
+  [[ -s "$LIVE_PAIR_DIR/run1.INDEX.md" && -s "$LIVE_PAIR_DIR/run2.INDEX.md" ]] \
+    || log_fail "TEST-2204: both INDEX.md snapshots must exist and be non-empty"
+  [[ -s "$LIVE_PAIR_DIR/run1.INDEX.violations.md" && -s "$LIVE_PAIR_DIR/run2.INDEX.violations.md" ]] \
+    || log_fail "TEST-2204: both violations snapshots must exist — the pair must have produced the companion before removing it"
+  cmp -s "$before" "$LIVE_PAIR_DIR/run1.INDEX.md" \
+    && log_fail "TEST-2204: the snapshot equals the committed index — the generation changed nothing, the restore proof is vacuous"
+  # A second consumer adds no launch.
+  live_index_pair
+  n="$(live_launch_count index)"
+  [[ "$n" -eq 2 ]] || log_fail "TEST-2204: the pair must generate exactly twice per run, got $n generator launches"
+
+  # Positive control: a companion that existed before comes back byte for byte.
+  printf 'pre-existing companion\n' > "$d/docs/INDEX.violations.md"
+  live_test_leave
+  live_test_enter "$d" "$TEST_DIR/live-cache-t2204b"
+  live_index_pair
+  [[ "$(cat "$d/docs/INDEX.violations.md")" == "pre-existing companion" ]] \
+    || log_fail "TEST-2204: a pre-existing violations companion must be restored byte for byte"
+  cmp -s "$before" "$d/docs/INDEX.md" \
+    || log_fail "TEST-2204: INDEX.md must be restored after the second pair too"
+
+  live_test_leave
+  log_pass "live_index_pair snapshots both runs, restores INDEX.md, removes a created companion, restores a pre-existing one (TEST-2204)"
+}
+
+test_2205_committed_index_staleness_survives() {  # TEST-2205 / Spec-AC-03
+  log_info "Test: a stale committed INDEX.md still fails the staleness check after live_index_pair (TEST-2205)..."
+  live_test_prepare TEST-2205
+  local d out rc=0
+  d="$(live_test_repo t2205)"
+  cat > "$d/docs/issues/ISSUE-9251-late-doc.md" <<'MD'
+---
+id: ISSUE-9251
+type: issue
+status: draft
+links:
+  pr: []
+---
+# A tracked document committed after the index was generated
+MD
+  (cd "$d" && git add docs/issues && git commit -qm "docs: add late doc without regenerating the index") \
+    || log_fail "TEST-2205: could not commit the late document"
+  # Positive control: the committed index IS stale before anything runs.
+  out="$(index_stale_findings "$d" "$d/docs/INDEX.md")" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-2205: the fixture index must be stale before the pair (control)"
+
+  live_test_enter "$d" "$TEST_DIR/live-cache-t2205"
+  live_index_pair
+  rc=0
+  out="$(index_stale_findings "$d" "$d/docs/INDEX.md")" || rc=$?
+  [[ "$rc" -ne 0 ]] \
+    || log_fail "TEST-2205: live_index_pair masked a stale committed index — the staleness check no longer bites"
+  assert_payload_contains "$out" "STALE" "TEST-2205: the finding must say the index is STALE"
+  assert_payload_contains "$out" "ISSUE-9251" "TEST-2205: the finding must name the missing document"
+
+  live_test_leave
+  log_pass "A stale committed index stays stale across live_index_pair (TEST-2205)"
+}
+
+test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
+  log_info "Test: no suite line launches the real-corpus audit or generator outside the helper (TEST-2206)..."
+  local text bad_audit bad_gen sites
+  # The suite text WITHOUT this function (it spells the patterns it hunts for).
+  text="$(awk '
+    /^test_2206_no_direct_live_corpus_launch\(\) \{/ { skip = 1 }
+    !skip { print }
+    skip && /^}/ { skip = 0 }
+  ' "$SUITE_FILE")"
+  [[ -n "$text" ]] || log_fail "TEST-2206: could not read the suite text"
+  # Join backslash-continued lines first, so a launch split over two lines is
+  # still one logical line; then drop comments and file copies.
+  text="$(awk '
+    { l = $0
+      while (l ~ /\\$/ && (getline nxt) > 0) { sub(/\\$/, " ", l); sub(/^[ \t]+/, "", nxt); l = l nxt }
+      print l }
+  ' <<<"$text")"
+  # A real-corpus launch: node, at ANY command position (after if, !, ||,
+  # while, bash -c and so on), runs docs-audit.mjs, generate-docs-index.mjs or
+  # $AUDIT_SCRIPT (literal, absolute $PROJECT_ROOT/... or ${AUDIT_SCRIPT}) and
+  # the line does not first cd into some other (fixture) directory. Comments,
+  # table rows and the quoted text an echo or printf prints are not launches;
+  # whatever else such a line runs (after |, &&, ; and so on) is still scanned.
+  local audit_prog gen_prog control lits_fn
+  # The quoted text an echo or printf prints, removed with quote pairing kept.
+  # A $( ) inside double quotes is code and is kept, so is a word that starts
+  # with $ (the script may sit in a variable); single-quoted text is dropped.
+  lits_fn='
+    function lits(s,   o, i, c, q, t, d) {
+      o = ""; q = ""; d = 0
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (q == "") {
+          if (d > 0 && c == "(") d++
+          if (d > 0 && c == ")" && --d == 0) { o = o c; q = "\""; t = q; continue }
+          if (c == "\"" || c == "\047") { q = c; t = c } else o = o c
+          continue
+        }
+        if (q == "\"" && c == "$" && substr(s, i + 1, 1) == "(") {
+          if (t ~ /^"\$/) o = o t
+          o = o "$("; i++; q = ""; d = 1; continue
+        }
+        t = t c
+        if (c == q && (q == "\047" || substr(s, i - 1, 1) != "\\")) {
+          if (q == "\"" && t ~ /^"\$|`/) o = o t
+          q = ""
+        }
+      }
+      return o (q == "" ? "" : t)
+    }'
+  audit_prog="$lits_fn"'
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*[|] / { next }
+    /^[[:space:]]*(echo|printf) / { $0 = lits($0) }
+    /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*(docs-audit\.mjs|\$\{?AUDIT_SCRIPT\}?)/ {
+      if ($0 ~ /cd "\$[^"]*"[^)]*node[[:space:]]/ && $0 !~ /cd "\$\{?PROJECT_ROOT\}?\/?"/) next
+      if ($0 ~ /[[:space:]]--(path|quick|lint-body|ac-flip-check|list)([[:space:]=]|$)/) next
+      print NR ": " $0 }'
+  gen_prog="$lits_fn"'
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*[|] / { next }
+    /^[[:space:]]*(echo|printf) / { $0 = lits($0) }
+    /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*generate-docs-index\.mjs/ {
+      if ($0 ~ /cd "\$[^"]*"[^)]*node[[:space:]]/ && $0 !~ /cd "\$\{?PROJECT_ROOT\}?\/?"/) next
+      print NR ": " $0 }'
+  # Positive controls: the scan must flag every launch shape it claims to cover.
+  for control in \
+    '  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check)' \
+    '  if node "$AUDIT_SCRIPT" --check; then' \
+    '  ! node "${AUDIT_SCRIPT}" --check --strict' \
+    '  true || node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check' \
+    '  while node .aai/scripts/docs-audit.mjs --check; do break; done' \
+    '  out="$(bash -c "node .aai/scripts/docs-audit.mjs --check")"' \
+    '  echo y | node "$AUDIT_SCRIPT" --check' \
+    '  echo x && node "$AUDIT_SCRIPT" --check' \
+    '  echo start; (node .aai/scripts/docs-audit.mjs --check)' \
+    '  printf "%s\\n" go && if node "$AUDIT_SCRIPT" --check; then :; fi' \
+    '  echo "$msg" && node "$AUDIT_SCRIPT" --check' \
+    '  echo "audit: $(node "$AUDIT_SCRIPT" --check)"' \
+    '  (cd "${PROJECT_ROOT}" && node .aai/scripts/docs-audit.mjs --check)' \
+    '  (cd "$d" && git add -A) && node "$AUDIT_SCRIPT" --check'; do
+    [[ -n "$(awk "$audit_prog" <<<"$control")" ]] \
+      || log_fail "TEST-2206: the audit scan misses the launch shape: $control"
+  done
+  for control in \
+    '  (cd "$PROJECT_ROOT" && if node .aai/scripts/generate-docs-index.mjs; then :; fi)' \
+    '  true || node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs"' \
+    '  printf x | node .aai/scripts/generate-docs-index.mjs' \
+    '  cp a b; node .aai/scripts/generate-docs-index.mjs' \
+    '  echo "$v" > "$f"; node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs"'; do
+    [[ -n "$(awk "$gen_prog" <<<"$control")" ]] \
+      || log_fail "TEST-2206: the generator scan misses the launch shape: $control"
+  done
+  bad_audit="$(awk "$audit_prog" <<<"$text")"
+  [[ -z "$bad_audit" ]] \
+    || log_fail "TEST-2206: a real-corpus docs-audit launch bypasses live_audit: $(payload_preview "$bad_audit")"
+  bad_gen="$(awk "$gen_prog" <<<"$text")"
+  [[ -z "$bad_gen" ]] \
+    || log_fail "TEST-2206: a real-corpus generator launch bypasses live_index_pair: $(payload_preview "$bad_gen")"
+  sites="$(awk '/live_audit "\$(TEST_DIR|out)/ { n++ } END { print n + 0 }' <<<"$text")"
+  [[ "$sites" -ge 15 ]] \
+    || log_fail "TEST-2206: expected at least 15 live_audit call sites over the real corpus, found $sites"
+  log_pass "No direct real-corpus launch; $sites live_audit call sites (TEST-2206)"
+}
+
+test_2208_closeout_node() {  # TEST-2208 / Spec-AC-05
+  log_info "Test: closeout candidate cases C1 to C9 through node:test (TEST-2208)..."
+  [[ -f "$PROJECT_ROOT/tests/skills/lib/docs-audit-closeout.test.mjs" ]] \
+    || log_fail "TEST-2208: tests/skills/lib/docs-audit-closeout.test.mjs does not exist"
+  (cd "$PROJECT_ROOT" && node --test tests/skills/lib/docs-audit-closeout.test.mjs) \
+    || log_fail "TEST-2208: closeout Node assertions (C1 to C9) failed"
+  log_pass "Closeout Node cases C1 to C9 passed (TEST-2208)"
+}
+
+# Shared by TEST-2201 and TEST-2210: write the note parser once per run.
+speed_note_path() { printf '%s' "$PROJECT_ROOT/docs/analysis/docs-audit-suite-speed.md"; }
+
+test_2201_speed_note_profile() {  # TEST-2201 / Spec-AC-01
+  log_info "Test: the analysis note lists a per-function cost profile whose total equals its rows (TEST-2201)..."
+  local note out rc=0
+  note="$(speed_note_path)"
+  [[ -f "$note" ]] || log_fail "TEST-2201: $note does not exist"
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  cat > "$TEST_DIR/note-profile.mjs" <<'EOF'
+import fs from 'node:fs';
+const [notePath, suitePath] = process.argv.slice(2);
+const text = fs.readFileSync(notePath, 'utf8');
+const suite = fs.readFileSync(suitePath, 'utf8');
+const EXPECTED_ROWS = 195; // functions main() ran at the 34f0cbca baseline
+const findings = [];
+const section = (name) => {
+  const m = text.match(new RegExp('^## ' + name + '[^\\n]*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))', 'm'));
+  return m ? m[1] : null;
+};
+const tableRows = (body) => body.split('\n').filter((l) => l.startsWith('|'))
+  .map((l) => l.replace(/^\||\|$/g, '').split('|').map((c) => c.trim()));
+const profile = section('Cost profile');
+const levers = section('Levers');
+const migration = section('Migration map');
+if (profile === null) findings.push('no "## Cost profile" section');
+if (levers === null) findings.push('no "## Levers" section');
+if (migration === null) findings.push('no "## Migration map" section');
+const rows = [];
+if (profile !== null) {
+  const all = tableRows(profile);
+  const header = all[0] || [];
+  if (header.join('|') !== 'Function|Pass 1 s|Pass 2 s|Lever') findings.push(`profile header is "${header.join(' | ')}"`);
+  for (const r of all.slice(2)) {
+    if (r.length !== 4) { findings.push(`profile row has ${r.length} cells: ${r.join(' | ')}`); continue; }
+    if (!/^[a-z_0-9]+$/.test(r[0])) findings.push(`profile row name is not a function: ${r[0]}`);
+    if (!/^\d+(\.\d+)?$/.test(r[1]) || !/^\d+(\.\d+)?$/.test(r[2])) findings.push(`profile row ${r[0]} has a non-numeric cost`);
+    if (!/^(-|[ABCN](\+[ABCN])*)$/.test(r[3])) findings.push(`profile row ${r[0]} has lever "${r[3]}"`);
+    rows.push({ name: r[0], pass1: Number(r[1]), lever: r[3] });
+  }
+  const names = new Set(rows.map((r) => r.name));
+  if (names.size !== rows.length) findings.push('profile lists a function twice');
+  if (rows.length !== EXPECTED_ROWS) findings.push(`profile has ${rows.length} rows, expected ${EXPECTED_ROWS}`);
+  const mig = migration || '';
+  for (const r of rows) {
+    const defined = new RegExp('^' + r.name + '\\(\\) \\{', 'm').test(suite);
+    if (!defined && !mig.includes('`' + r.name + '`')) findings.push(`profile function ${r.name} is neither defined nor in the migration map`);
+  }
+  const m = text.match(/^Profiled total \(pass 1\): (\d+(?:\.\d+)?) s$/m);
+  if (!m) findings.push('no "Profiled total (pass 1): <seconds> s" line');
+  else {
+    const sum = rows.reduce((a, r) => a + r.pass1, 0);
+    if (Math.abs(Number(m[1]) - sum) > 0.5) findings.push(`profiled total ${m[1]} s differs from the row sum ${sum.toFixed(3)} s by more than 0.5 s`);
+  }
+  if (levers !== null) {
+    for (const label of ['A', 'B', 'C', 'N']) {
+      const line = levers.split('\n').find((l) => l.startsWith(`- ${label}:`));
+      if (!line) { findings.push(`levers section has no "- ${label}:" line`); continue; }
+      const listed = new Set([...line.matchAll(/`([a-z_0-9]+)`/g)].map((x) => x[1]));
+      const tagged = new Set(rows.filter((r) => r.lever.split('+').includes(label)).map((r) => r.name));
+      for (const f of listed) if (!names.has(f)) findings.push(`lever ${label} names ${f}, which is not in the profile table`);
+      for (const f of tagged) if (!listed.has(f)) findings.push(`lever ${label} omits ${f}, which the profile tags ${label}`);
+      for (const f of listed) if (names.has(f) && !tagged.has(f)) findings.push(`lever ${label} names ${f}, which the profile does not tag ${label}`);
+      if (listed.size === 0) findings.push(`lever ${label} names no function`);
+    }
+  }
+}
+console.log(`rows=${rows.length}`);
+for (const f of findings) console.log(`FINDING: ${f}`);
+process.exit(findings.length ? 1 : 0);
+EOF
+  out="$(node "$TEST_DIR/note-profile.mjs" "$note" "$SUITE_FILE" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-2201: the analysis note's cost profile is inconsistent: $(payload_preview "$out")"
+  log_pass "Cost profile: ${out%%$'\n'*} and the total equals the row sum (TEST-2201)"
+}
+
+test_2210_speed_note_measurement() {  # TEST-2210 / Spec-AC-06
+  log_info "Test: the analysis note's paired measurement recomputes to its stated reduction (TEST-2210)..."
+  local note out rc=0
+  note="$(speed_note_path)"
+  [[ -f "$note" ]] || log_fail "TEST-2210: $note does not exist"
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  cat > "$TEST_DIR/note-measure.mjs" <<'EOF'
+import fs from 'node:fs';
+const text = fs.readFileSync(process.argv[2], 'utf8');
+const findings = [];
+const section = (name) => {
+  const m = text.match(new RegExp('^## ' + name + '[^\\n]*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))', 'm'));
+  return m ? m[1] : null;
+};
+const tableRows = (body) => body.split('\n').filter((l) => l.startsWith('|'))
+  .map((l) => l.replace(/^\||\|$/g, '').split('|').map((c) => c.trim()));
+const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+const measure = section('Ordinary suite measurement');
+if (measure === null) findings.push('no "## Ordinary suite measurement" section');
+else {
+  const all = tableRows(measure);
+  if ((all[0] || []).join('|') !== 'Pair|Order|Before s|After s') findings.push(`pair header is "${(all[0] || []).join(' | ')}"`);
+  const pairs = all.slice(2);
+  if (pairs.length !== 5) findings.push(`expected exactly 5 pair rows, found ${pairs.length}`);
+  const before = pairs.map((r) => Number(r[2]));
+  const after = pairs.map((r) => Number(r[3]));
+  if ([...before, ...after].some((x) => !Number.isFinite(x) || x <= 0)) findings.push('a pair row carries a non-numeric or non-positive duration');
+  else if (pairs.length === 5) {
+    const stated = (label) => { const m = measure.match(new RegExp('^' + label + ': (\\d+(?:\\.\\d+)?)( s|%)$', 'm')); return m ? Number(m[1]) : null; };
+    const bm = median(before), am = median(after);
+    const sb = stated('Before median'), sa = stated('After median'), sr = stated('Median reduction');
+    if (sb === null) findings.push('no "Before median: <seconds> s" line');
+    else if (Math.abs(sb - bm) > 0.05) findings.push(`Before median ${sb} differs from the recomputed ${bm}`);
+    if (sa === null) findings.push('no "After median: <seconds> s" line');
+    else if (Math.abs(sa - am) > 0.05) findings.push(`After median ${sa} differs from the recomputed ${am}`);
+    const red = Math.round((1 - am / bm) * 1000) / 10;
+    if (sr === null) findings.push('no "Median reduction: <percent>%" line');
+    else {
+      if (Math.abs(sr - red) > 0.1) findings.push(`Median reduction ${sr}% differs from the recomputed ${red}%`);
+      if (sr < 30.0) findings.push(`Median reduction ${sr}% is below the 30.0% target`);
+    }
+    console.log(`before_median=${bm} after_median=${am} reduction=${red}`);
+  }
+}
+const hosted = section('Hosted CI');
+if (hosted === null) findings.push('no "## Hosted CI" section');
+else {
+  const rows = tableRows(hosted).slice(2);
+  const count = (phase) => rows.filter((r) => r[0] === phase && /^\d+$/.test(r[1]) && /^[0-9a-f]{7,40}$/.test(r[2]) && /^\d+(\.\d+)?$/.test(r[3])).length;
+  const nb = count('before'), na = count('after');
+  if (nb < 5) findings.push(`expected at least 5 hosted before rows, found ${nb}`);
+  // The after rows need a pushed branch. Until the orchestrator fills them in
+  // the note says so explicitly; the check bites the moment that line is removed.
+  const pending = /^Hosted after status: pending/m.test(hosted);
+  if (na < 3 && !pending) findings.push(`expected at least 3 hosted after rows, found ${na}`);
+  if (na >= 3 && pending) findings.push('the note still says hosted after is pending although it carries 3 or more rows');
+  console.log(`hosted_before=${nb} hosted_after=${na} pending=${pending}`);
+}
+for (const f of findings) console.log(`FINDING: ${f}`);
+process.exit(findings.length ? 1 : 0);
+EOF
+  out="$(node "$TEST_DIR/note-measure.mjs" "$note" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-2210: the analysis note's measurement is inconsistent: $(payload_preview "$out")"
+  log_pass "Measurement recomputes: $(printf '%s' "$out" | tr '\n' ' ') (TEST-2210)"
+}
+
+test_2211_migration_map_owners() {  # TEST-2211 / Spec-AC-07
+  log_info "Test: removed functions are gone, every retained owner is defined and registered once, new lib files select this suite (TEST-2211)..."
+  local text fn defs regs removed owners map_block sel
+  removed="test_closeout_candidate_flagged test_closeout_spec_not_all_done test_closeout_terminal_parent test_closeout_no_false_positive test_closeout_reverse_only test_closeout_forward_nonspec_not_flagged test_closeout_display_id_match test_closeout_rollout_guard test_rollout_status_pipe_styles"
+  owners="test_closeout_read_only test_closeout_report_only_gate test_histmap_corpus_equivalence test_2201_speed_note_profile test_2202_live_audit_memo test_2203_live_audit_verify_mode test_2204_live_index_pair_restores test_2205_committed_index_staleness_survives test_2206_no_direct_live_corpus_launch test_2208_closeout_node test_2210_speed_note_measurement test_2211_migration_map_owners"
+  # The whole suite text: this function names the functions only inside quoted
+  # lists, never as a definition or a bare registration line.
+  text="$(cat "$SUITE_FILE")"
+  [[ -n "$text" ]] || log_fail "TEST-2211: could not read the suite text"
+  for fn in $removed; do
+    defs="$(awk -v n="$fn" 'index($0, n "() {") == 1 { c++ } END { print c + 0 }' <<<"$text")"
+    regs="$(awk -v n="$fn" '$0 == "  " n { c++ } END { print c + 0 }' <<<"$text")"
+    [[ "$defs" -eq 0 && "$regs" -eq 0 ]] \
+      || log_fail "TEST-2211: removed function $fn is still present (defined $defs, registered $regs)"
+  done
+  for fn in $owners; do
+    defs="$(awk -v n="$fn" 'index($0, n "() {") == 1 { c++ } END { print c + 0 }' <<<"$text")"
+    regs="$(awk -v n="$fn" '$0 == "  " n { c++ } END { print c + 0 }' <<<"$text")"
+    [[ "$defs" -eq 1 && "$regs" -eq 1 ]] \
+      || log_fail "TEST-2211: retained owner $fn must be defined once and registered once (defined $defs, registered $regs)"
+  done
+  # Mapping: both new lib files sit under aai-docs-audit in the suite map, and
+  # the selector does not escalate them to a full run.
+  map_block="$(awk '
+    /^  aai-docs-audit:/ { on = 1; next }
+    on && /^  [a-z0-9-]+:/ { on = 0 }
+    on { print }
+  ' "$PROJECT_ROOT/tests/skills/suite-map.yaml")"
+  for fn in tests/skills/lib/docs-audit-live.sh tests/skills/lib/docs-audit-closeout.test.mjs; do
+    case "$map_block" in
+      *"- $fn"*) : ;;
+      *) log_fail "TEST-2211: tests/skills/suite-map.yaml does not map $fn under aai-docs-audit" ;;
+    esac
+  done
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  printf '%s\n%s\n' tests/skills/lib/docs-audit-live.sh tests/skills/lib/docs-audit-closeout.test.mjs > "$TEST_DIR/t2211-files.txt"
+  sel="$(cd "$PROJECT_ROOT" && node .aai/scripts/select-suites.mjs --files-from "$TEST_DIR/t2211-files.txt" 2>&1)" \
+    || log_fail "TEST-2211: select-suites failed: $(payload_preview "$sel")"
+  case "$sel" in
+    *FULL_RUN*) log_fail "TEST-2211: select-suites escalates the new lib files to a full run: $(payload_preview "$sel")" ;;
+  esac
+  assert_payload_contains "$sel" "aai-docs-audit" "TEST-2211: select-suites must select aai-docs-audit for the new lib files"
+  log_pass "Nine removed functions gone; every retained owner defined and registered once; new lib files map to aai-docs-audit (TEST-2211)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -8425,6 +8889,7 @@ main() {
   test_broken_refs_selector_isolates
   check_deps
   test_change0007_lint_body_node
+  test_2208_closeout_node
   setup_fixture
   test_deterministic_index_no_clock_line
   test_1351_live_corpus_near_miss_set_is_dispositioned
@@ -8453,17 +8918,8 @@ main() {
   test_index_legacy_autoskip
   test_skill_prompt_modes
   setup_closeout_fixture
-  test_closeout_candidate_flagged
-  test_closeout_spec_not_all_done
-  test_closeout_terminal_parent
   test_closeout_read_only
-  test_closeout_no_false_positive
   test_closeout_report_only_gate
-  test_closeout_reverse_only
-  test_closeout_forward_nonspec_not_flagged
-  test_closeout_display_id_match
-  test_closeout_rollout_guard
-  test_rollout_status_pipe_styles
   setup_rollout_fixture
   test_rollout_progress_partial
   test_rollout_progress_summary_line
@@ -8617,6 +9073,14 @@ main() {
   test_broken_refs_vanished_tracked_skipped
   test_broken_refs_generator_companions_ignored
   test_broken_refs_retired_draft_not_a_row
+  test_2202_live_audit_memo
+  test_2203_live_audit_verify_mode
+  test_2204_live_index_pair_restores
+  test_2205_committed_index_staleness_survives
+  test_2206_no_direct_live_corpus_launch
+  test_2201_speed_note_profile
+  test_2210_speed_note_measurement
+  test_2211_migration_map_owners
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

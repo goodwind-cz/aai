@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-22T20:51:08.081Z",
+  "generatedAt": "2026-10-23T09:14:46.578Z",
   "project": "aai",
   "counts": {
-    "delivered": 314,
+    "delivered": 315,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -235,6 +235,19 @@
   ],
   "delivered": [
     {
+      "ref": "docs-audit-suite-speed",
+      "title": "Make the always-on docs-audit suite measurably faster",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0220-docs-audit-suite-speed.md",
+      "closed_on": "2026-10-23",
+      "agent_minutes": 235,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "slim-standing-role-context",
       "title": "Change: Slim the standing role context (LEARNED.md first)",
       "type": "change",
@@ -258,7 +271,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0244-spec-ride-state-handoff-to-worktree.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-ride-state-handoff-to-worktree-20261022T202641Z.md"
     },
     {
       "ref": "selected-ci-scheduling-foundation",
@@ -4344,6 +4357,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "docs-audit-suite-speed",
+          "title": "Make the always-on docs-audit suite measurably faster",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0220-docs-audit-suite-speed.md",
+          "closed_on": "2026-10-23",
+          "agent_minutes": 235,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "slim-standing-role-context",
           "title": "Change: Slim the standing role context (LEARNED.md first)",
           "type": "change",
@@ -4367,7 +4393,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0244-spec-ride-state-handoff-to-worktree.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-ride-state-handoff-to-worktree-20261022T202641Z.md"
         },
         {
           "ref": "selected-ci-scheduling-foundation",

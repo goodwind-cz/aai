@@ -22,6 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — perf: share real-corpus work across the always-on docs-audit suite
+
+- The docs-audit suite runs each distinct full real-corpus audit once and the
+  real index pair once, shards the history oracle across worker threads and
+  moves the closeout cases to `node:test`; ordinary local median 116.5 s to
+  79.3 s. Every assertion is kept; production code is unchanged.
+- A stale committed `docs/INDEX.md` now fails the staleness check in suite
+  order (a prior arm used to leave a regenerated index behind).
+
 ## [unreleased] — feat: hand one ride's STATE to its worktree and reconcile after merge
 
 - New `.aai/scripts/ride-handoff.mjs out` moves only the ride's own focus,

@@ -307,6 +307,9 @@ suites:
   aai-docs-audit:
     globs:
       - tests/skills/lib/docs-audit-body.test.mjs
+      - tests/skills/lib/docs-audit-closeout.test.mjs
+      - tests/skills/lib/docs-audit-live.sh
+      - docs/analysis/docs-audit-suite-speed.md
       - .aai/scripts/docs-audit.mjs
       - .aai/scripts/lib/docs-audit-core.mjs
       - .aai/system/DOCS_AI_CANON.list

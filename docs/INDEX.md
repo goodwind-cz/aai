@@ -57,7 +57,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (563)
+## Done (565)
 
 | ID | Type | Path |
 |---|---|---|
@@ -276,6 +276,7 @@ _None._
 | CHANGE-0217 | issues | docs/issues/CHANGE-0217-ci-body-only-rechecks.md |
 | CHANGE-0218 | issues | docs/issues/CHANGE-0218-slim-standing-role-context.md |
 | CHANGE-0219 | issues | docs/issues/CHANGE-0219-ride-state-handoff-to-worktree.md |
+| CHANGE-0220 | issues | docs/issues/CHANGE-0220-docs-audit-suite-speed.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -622,6 +623,7 @@ _None._
 | SPEC-0242 | specs | docs/specs/SPEC-0242-spec-ci-body-only-rechecks.md |
 | SPEC-0243 | specs | docs/specs/SPEC-0243-spec-slim-standing-role-context.md |
 | SPEC-0244 | specs | docs/specs/SPEC-0244-spec-ride-state-handoff-to-worktree.md |
+| SPEC-0245 | specs | docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -649,10 +651,11 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (1)
+## Deferred items (per-AC, across all specs) (2)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
+| SPEC-0245 | Spec-AC-06 | 2026-11-06 | TEST-2210; local paired runs done (31.9% reduction); hosted after rows and suite-weights re-measure pending push |
 | SPEC-0046 | Spec-AC-10 | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
@@ -1186,4 +1189,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-22 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-23 — counts above use this date for overdue checks.
