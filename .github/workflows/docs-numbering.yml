@@ -48,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: "lane-gate.mjs --sweep-check --pr <N> (report-only)"
         run: |
@@ -73,7 +73,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       # Report-only: never fails the job. Captures the guard output for the summary
       # and the enforce gate below. --base-ref is the PR's target branch on

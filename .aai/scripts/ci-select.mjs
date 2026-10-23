@@ -27,7 +27,7 @@
 // Exit is 0 whenever the selector exits 0; the API is only ever reached with
 // GITHUB_TOKEN (job permission `actions: read`), two GET endpoints.
 //
-// Node stdlib only (Node 20 global fetch).
+// Node stdlib only (Node 22+ global fetch).
 
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, readFileSync, realpathSync } from 'node:fs';
