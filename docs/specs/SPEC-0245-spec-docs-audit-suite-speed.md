@@ -1,10 +1,10 @@
 ---
 id: spec-docs-audit-suite-speed
 type: spec
-number: null
-status: implementing
+number: 245
+status: done
 mutation_gate: v1
-frozen_sha256: bed44380a76468844f24ef6e65aa6b8c56f41a5ba8cc5929bb95c1785d9dac35
+frozen_sha256: 0cf10113d1d71ac8825dccff88ce6977e0a0082e9db4d7a9957a718ab2c522ad
 ceremony_level: 2
 links:
   requirement: docs-audit-suite-speed
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Docs-audit suite speed](../issues/CHANGE-DRAFT-docs-audit-suite-speed.md).
+- Requirement: [Docs-audit suite speed](../issues/CHANGE-0220-docs-audit-suite-speed.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md), phase 2, child 3.
 - Prior child: [SPEC-0241](SPEC-0241-spec-docs-audit-node-test-pilot.md) and
   [its report](../analysis/docs-audit-node-test-pilot.md).
@@ -52,7 +52,7 @@ SPEC-FROZEN: true
   tests/skills/suite-map.yaml; tests/skills/suite-weights.tsv;
   docs/analysis/docs-audit-suite-speed.md; docs/product/ci-test-impact-selection.md;
   CHANGELOG.md; docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md;
-  docs/issues/CHANGE-DRAFT-docs-audit-suite-speed.md; this spec.
+  docs/issues/CHANGE-0220-docs-audit-suite-speed.md; this spec.
 - Code review required: true.
 
 ## What the profile says (Planning measurement)
