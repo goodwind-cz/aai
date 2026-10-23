@@ -1075,6 +1075,322 @@ JSONL
   log_pass "TEST-039: partial-unknown-usage harness keeps the real numeric sum AND names the excluded record"
 }
 
+# ======================= TEST-2401..2420 (spec-node-first-sync-hook-slice) =====
+# The live-spool pair is one Node module (.aai/scripts/live-spool.mjs) plus two
+# thin launchers. Each function below runs alone under single-function dispatch.
+SPOOL_MJS="$PROJECT_ROOT/.aai/scripts/live-spool.mjs"
+SPOOL_PS1="$PROJECT_ROOT/.aai/scripts/live-spool.ps1"
+SPOOL_NODE_TEST="$PROJECT_ROOT/tests/skills/lib/live-spool.test.mjs"
+SPOOL_PESTER="$PROJECT_ROOT/tests/skills/live-spool.Tests.ps1"
+HOOKS_TEMPLATE="$PROJECT_ROOT/.aai/templates/hooks/live-status-hooks.json"
+RFC17="$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"
+
+# need_tool <TEST id> <tool>: 0 when present; otherwise fail when CI is set, and
+# print a named SKIP-CASE line (still 0 after the caller returns) when it is not.
+need_tool() {
+  command -v "$2" >/dev/null 2>&1 && return 0
+  [[ -z "${CI:-}" ]] || log_fail "$1: $2 is required on CI but is not on PATH"
+  echo "SKIP-CASE: $1 needs $2, which is not installed here"
+  return 1
+}
+
+# run_spool_node_tests <TEST id>: the module must exist, the node:test cases that
+# start with the id must pass, and zero passing tests is a failure (a pattern
+# that matches nothing is not a pass).
+run_spool_node_tests() {
+  local id="$1" out rc=0
+  [[ -f "$SPOOL_MJS" ]] || log_fail "$id: .aai/scripts/live-spool.mjs does not exist"
+  [[ -f "$SPOOL_NODE_TEST" ]] || log_fail "$id: tests/skills/lib/live-spool.test.mjs does not exist"
+  out="$(node --test --test-name-pattern "$id" "$SPOOL_NODE_TEST" 2>&1)" || rc=$?
+  if [[ "$rc" != 0 ]]; then
+    printf '%s\n' "$out" >&2
+    log_fail "$id: node --test exited $rc"
+  fi
+  if [[ ! "$out" =~ pass\ [1-9] ]]; then
+    printf '%s\n' "$out" >&2
+    log_fail "$id: node --test reported zero passing tests for the pattern"
+  fi
+}
+
+test_2401_module_whitelist() {
+  run_spool_node_tests TEST-2401
+  log_pass "TEST-2401: module projects exactly the whitelisted keys per kind"
+}
+
+test_2402_module_ts_precision() {
+  run_spool_node_tests TEST-2402
+  log_pass "TEST-2402: ts has exactly 3 fractional digits"
+}
+
+test_2403_module_non_object() {
+  run_spool_node_tests TEST-2403
+  log_pass "TEST-2403: array and scalar payloads write no line"
+}
+
+test_2404_module_deep_nesting() {
+  run_spool_node_tests TEST-2404
+  log_pass "TEST-2404: a 12-level nested value is written whole"
+}
+
+test_2405_module_utf8_lf() {
+  run_spool_node_tests TEST-2405
+  log_pass "TEST-2405: non-ASCII payload is UTF-8 without BOM and without CR"
+}
+
+test_2406_module_line_cap() {
+  run_spool_node_tests TEST-2406
+  log_pass "TEST-2406: the line cap keeps the last 500 lines"
+}
+
+test_2407_module_cli_exit_and_passthrough() {
+  run_spool_node_tests TEST-2407
+  log_pass "TEST-2407: module CLI passes through, exits 0, keeps stderr empty"
+}
+
+# launcher_check <file>: prints one reason per violated rule (empty when thin).
+launcher_check() {
+  node -e '
+    const fs = require("fs");
+    const f = process.argv[1];
+    const buf = fs.readFileSync(f);
+    const text = buf.toString("latin1");
+    const bad = [];
+    if (buf.some((b) => b > 0x7e)) bad.push("non-ASCII byte");
+    const lines = text.split("\n"); if (lines[lines.length - 1] === "") lines.pop();
+    if (lines.length > 20) bad.push("more than 20 lines (" + lines.length + ")");
+    if (!text.includes("live-spool.mjs")) bad.push("no reference to live-spool.mjs");
+    for (const t of ["session_id", "rate_limits", "hook_event_name", "cost", "500", "JSON",
+      "ConvertFrom-Json", "ConvertTo-Json", "Add-Content", "Set-Content", "tail"]) {
+      if (text.includes(t)) bad.push("logic token " + t);
+    }
+    if (text.split("(aai-live tap active)").length - 1 > 1) bad.push("passthrough literal more than once");
+    process.stdout.write(bad.join("; "));
+  ' "$1"
+}
+
+test_2408_launchers_thin() {
+  local f bad
+  for f in "$SPOOL" "$SPOOL_PS1"; do
+    bad="$(launcher_check "$f")"
+    [[ -z "$bad" ]] || log_fail "TEST-2408: ${f##*/} is not a thin launcher: $bad"
+  done
+  log_pass "TEST-2408: both launchers are ASCII, short, logic-free and call the module"
+}
+
+test_2409_sh_launcher_without_node() {
+  local bin="$TEST_DIR/t2409-bin" sp="$TEST_DIR/t2409-spool" t out rc
+  rm -rf "$bin" "$sp"; mkdir -p "$bin"
+  for t in bash cat dirname; do ln -s "$(command -v "$t")" "$bin/$t"; done
+  rc=0; PATH="$bin" "$bin/bash" -c 'command -v node >/dev/null 2>&1' || rc=$?
+  [[ "$rc" != 0 ]] || log_fail "TEST-2409: positive control failed, node still resolves under the test PATH"
+  rc=0; out="$(printf '%s' '{"cwd":"/x"}' | PATH="$bin" AAI_LIVE_SPOOL_DIR="$sp" "$bin/bash" "$SPOOL" statusline)" || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-2409: statusline without node must exit 0, got $rc"
+  [[ "$out" == "(aai-live tap active)" ]] || log_fail "TEST-2409: statusline without node must print the passthrough, got: $out"
+  rc=0; out="$(printf '%s' '{"cwd":"/x"}' | PATH="$bin" AAI_LIVE_SPOOL_DIR="$sp" "$bin/bash" "$SPOOL" hooks)" || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-2409: hooks without node must exit 0, got $rc"
+  [[ -z "$out" ]] || log_fail "TEST-2409: hooks without node must print nothing, got: $out"
+  [[ ! -e "$sp" ]] || log_fail "TEST-2409: no spool file may be created without node"
+  log_pass "TEST-2409: sh launcher degrades without node (exit 0, passthrough, no spool)"
+}
+
+test_2410_ps1_launcher_without_node() {
+  need_tool TEST-2410 pwsh || return 0
+  local bin="$TEST_DIR/t2410-bin" sp="$TEST_DIR/t2410-spool" out rc
+  rm -rf "$bin" "$sp"; mkdir -p "$bin"
+  ln -s "$(command -v pwsh)" "$bin/pwsh"
+  rc=0; PATH="$bin" "$bin/pwsh" -NoProfile -Command 'if (Get-Command node -ErrorAction SilentlyContinue) { exit 1 } else { exit 0 }' || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-2410: positive control failed, node still resolves under the test PATH"
+  rc=0; out="$(printf '%s' '{"cwd":"/x"}' | PATH="$bin" AAI_LIVE_SPOOL_DIR="$sp" "$bin/pwsh" -NoProfile -File "$SPOOL_PS1" statusline)" || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-2410: statusline without node must exit 0, got $rc"
+  [[ "$out" == "(aai-live tap active)" ]] || log_fail "TEST-2410: statusline without node must print the passthrough, got: $out"
+  [[ ! -e "$sp" ]] || log_fail "TEST-2410: no spool file may be created without node"
+  log_pass "TEST-2410: ps1 launcher degrades without node (exit 0, passthrough, no spool)"
+}
+
+test_2411_launcher_parity() {
+  need_tool TEST-2411 pwsh || return 0
+  local d="$TEST_DIR/t2411" deep='"leaf"' i name kind rc a b
+  rm -rf "$d"; mkdir -p "$d/in" "$d/sh" "$d/ps"
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do deep="{\"n\":$deep}"; done
+  printf '%s' '{"session_id":"s1","cwd":"/x","model":"m","rate_limits":{"five_hour":{"used_percent":33}},"cost":{"t":1},"hook_event_name":"Stop","transcript_path":"/t"}' > "$d/in/object-statusline"
+  cp "$d/in/object-statusline" "$d/in/object-hooks"
+  printf '%s' '[1,2,3]' > "$d/in/array"
+  printf '%s' '{not json' > "$d/in/invalid"
+  printf '%s' '{"model":{"display_name":"Opus ✓ čř"},"cwd":"/x"}' > "$d/in/non-ascii"
+  printf '%s' "{\"cost\":$deep}" > "$d/in/deep"
+  for name in object-statusline object-hooks array invalid non-ascii deep; do
+    kind=statusline; [[ "$name" != object-hooks ]] || kind=hooks
+    mkdir -p "$d/sh/$name" "$d/ps/$name"
+    rc=0; AAI_LIVE_SPOOL_DIR="$d/sh/$name" bash "$SPOOL" "$kind" < "$d/in/$name" > "$d/sh/$name.out" || rc=$?
+    [[ "$rc" == 0 ]] || log_fail "TEST-2411: live-spool.sh exited $rc for $name"
+    rc=0; AAI_LIVE_SPOOL_DIR="$d/ps/$name" pwsh -NoProfile -File "$SPOOL_PS1" "$kind" < "$d/in/$name" > "$d/ps/$name.out" || rc=$?
+    [[ "$rc" == 0 ]] || log_fail "TEST-2411: live-spool.ps1 exited $rc for $name"
+    cmp -s "$d/sh/$name.out" "$d/ps/$name.out" || log_fail "TEST-2411: stdout differs between launchers for $name"
+    if [[ -e "$d/sh/$name/$kind.jsonl" || -e "$d/ps/$name/$kind.jsonl" ]]; then
+      [[ -e "$d/sh/$name/$kind.jsonl" && -e "$d/ps/$name/$kind.jsonl" ]] \
+        || log_fail "TEST-2411: only one launcher wrote a spool file for $name"
+      sed 's/"ts":"[^"]*"/"ts":"T"/' "$d/sh/$name/$kind.jsonl" > "$d/sh/$name.norm"
+      sed 's/"ts":"[^"]*"/"ts":"T"/' "$d/ps/$name/$kind.jsonl" > "$d/ps/$name.norm"
+      cmp -s "$d/sh/$name.norm" "$d/ps/$name.norm" || log_fail "TEST-2411: spool files differ between launchers for $name (ts removed)"
+    fi
+  done
+  for name in object-statusline object-hooks; do
+    kind=statusline; [[ "$name" != object-hooks ]] || kind=hooks
+    a="$(wc -l < "$d/sh/$name/$kind.jsonl")"; b="$(wc -l < "$d/ps/$name/$kind.jsonl")"
+    [[ "${a//[[:space:]]/}" == 1 && "${b//[[:space:]]/}" == 1 ]] \
+      || log_fail "TEST-2411: positive control failed, $name must give one line on each side (sh=$a ps=$b)"
+  done
+  log_pass "TEST-2411: sh and ps1 launchers give identical stdout and spool files for six payloads"
+}
+
+test_2412_pester_live_spool() {
+  [[ -f "$SPOOL_PESTER" ]] || log_fail "TEST-2412: tests/skills/live-spool.Tests.ps1 does not exist"
+  need_tool TEST-2412 pwsh || return 0
+  local has out rc=0
+  has="$(pwsh -NoProfile -Command 'if (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 }) { "yes" } else { "no" }' 2>/dev/null || echo no)"
+  if [[ "$has" != yes ]]; then
+    echo "SKIP-CASE: TEST-2412 needs Pester 5 (the ps1-quality gate job is the authoritative runner)"
+    return 0
+  fi
+  out="$(PESTER_FILE="$SPOOL_PESTER" pwsh -NoProfile -Command '
+    $cfg = New-PesterConfiguration
+    $cfg.Run.Path = $env:PESTER_FILE
+    $cfg.Run.PassThru = $true
+    $cfg.Output.Verbosity = "Normal"
+    $r = Invoke-Pester -Configuration $cfg
+    Write-Host "LIVE-SPOOL-PESTER: Total=$($r.TotalCount) Passed=$($r.PassedCount) Failed=$($r.FailedCount) Skipped=$($r.SkippedCount)"
+    if ($r.FailedCount -gt 0 -or $r.SkippedCount -gt 0 -or $r.TotalCount -lt 6) { exit 1 }
+    exit 0
+  ' 2>&1)" || rc=$?
+  if [[ "$rc" != 0 ]]; then
+    printf '%s\n' "$out" >&2
+    log_fail "TEST-2412: live-spool.Tests.ps1 failed, skipped a case or ran fewer than 6 cases (rc=$rc)"
+  fi
+  log_pass "TEST-2412: live-spool.Tests.ps1 passes with no skip ($(printf '%s\n' "$out" | sed -n 's/^LIVE-SPOOL-PESTER: //p'))"
+}
+
+test_2413_seam_ps1_tap_quotas_render() {
+  need_tool TEST-2413 pwsh || return 0
+  local h; h="$(mk_home t2413)"
+  mkdir -p "$h/spool"
+  printf '%s' '{"session_id":"s1","cwd":"/x","model":"m","rate_limits":{"five_hour":{"used_percent":33,"resets_at":"2026-08-08T15:00:00Z"},"seven_day":{"used_percent":12,"resets_at":"2026-08-14T00:00:00Z"}}}' \
+    | AAI_LIVE_SPOOL_DIR="$h/spool" pwsh -NoProfile -File "$SPOOL_PS1" statusline >/dev/null
+  run_gen "$h"
+  [[ "$EC" == 0 ]] || log_fail "TEST-2413: generator must exit 0: $(cat "$OUT")"
+  [[ "$(node_get "$DATA" 'm.quotas.source')" == "tap" ]] || log_fail "TEST-2413: quotas source must be tap"
+  [[ "$(node_get "$DATA" 'm.quotas.five_hour.used_percent')" == "33" ]] || log_fail "TEST-2413: five_hour used_percent must be 33"
+  [[ "$(node_get "$DATA" 'm.quotas.seven_day.used_percent')" == "12" ]] || log_fail "TEST-2413: seven_day used_percent must be 12"
+  grep -q "33%" "$HTML" || log_fail "TEST-2413: html must render 33%"
+  grep -q "12%" "$HTML" || log_fail "TEST-2413: html must render 12%"
+  log_pass "TEST-2413: a payload written through live-spool.ps1 renders both quotas"
+}
+
+test_2414_downstream_sync_runs_tap() {
+  local t="$TEST_DIR/t2414/target dir" sc sl st rc
+  rm -rf "$TEST_DIR/t2414"; mkdir -p "$t"
+  rc=0; bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$t" > "$TEST_DIR/t2414.sync.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-2414: aai-sync.sh exited $rc: $(cat "$TEST_DIR/t2414.sync.log")"
+  [[ -f "$t/.aai/scripts/live-spool.mjs" ]] || log_fail "TEST-2414: the synced target lacks .aai/scripts/live-spool.mjs"
+  sl="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).statusLine.command)' "$HOOKS_TEMPLATE")"
+  st="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).hooks.Stop[0].hooks[0].command)' "$HOOKS_TEMPLATE")"
+  sc="$(printf '%s' '{"session_id":"s1","cwd":"/x","model":"m","hook_event_name":"Stop","rate_limits":{"five_hour":{"used_percent":5}}}' \
+    | CLAUDE_PROJECT_DIR="$t" bash -c "$sl")" || log_fail "TEST-2414: the statusLine command failed"
+  [[ "$sc" == "(aai-live tap active)" ]] || log_fail "TEST-2414: the statusLine run must print the passthrough, got: $sc"
+  printf '%s' '{"session_id":"s1","cwd":"/x","model":"m","hook_event_name":"Stop"}' \
+    | CLAUDE_PROJECT_DIR="$t" bash -c "$st" || log_fail "TEST-2414: the Stop hook command failed"
+  [[ "$(wc -l < "$t/docs/ai/live/statusline.jsonl" | tr -d '[:space:]')" == 1 ]] || log_fail "TEST-2414: statusline.jsonl must hold exactly one line"
+  [[ "$(wc -l < "$t/docs/ai/live/hooks.jsonl" | tr -d '[:space:]')" == 1 ]] || log_fail "TEST-2414: hooks.jsonl must hold exactly one line"
+  log_pass "TEST-2414: a synced downstream target (spaced path) runs the template commands"
+}
+
+test_2415_template_still_calls_sh_launcher() {
+  local out
+  out="$(node -e '
+    const t = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const cmds = { statusLine: [t.statusLine.command, "statusline"],
+      Stop: [t.hooks.Stop[0].hooks[0].command, "hooks"],
+      Notification: [t.hooks.Notification[0].hooks[0].command, "hooks"] };
+    const bad = [];
+    for (const [name, [cmd, kind]] of Object.entries(cmds)) {
+      if (!/(^|[ ;])bash /.test(cmd)) bad.push(name + ": does not invoke bash");
+      if (!cmd.includes(".aai/scripts/live-spool.sh")) bad.push(name + ": does not name live-spool.sh");
+      if (cmd.includes("live-spool.mjs")) bad.push(name + ": names the module");
+      const kindOk = kind === "statusline" ? cmd.endsWith(" statusline") : cmd.includes("\" hooks");
+      if (!kindOk) bad.push(name + ": kind is not " + kind);
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$HOOKS_TEMPLATE")"
+  [[ -z "$out" ]] || log_fail "TEST-2415: live-status-hooks.json drifted: $out"
+  log_pass "TEST-2415: the template still calls bash on live-spool.sh for all three hooks"
+}
+
+test_2417_suite_map_selects_live_status() {
+  local p out
+  for p in .aai/scripts/live-spool.mjs tests/skills/lib/live-spool.test.mjs tests/skills/live-spool.Tests.ps1; do
+    out="$(node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - <<<"$p")"
+    [[ "$out" != *FULL_RUN* ]] || log_fail "TEST-2417: $p gives a FULL_RUN line: $out"
+    [[ "$out" == *"SELECTED aai-live-status"* ]] || log_fail "TEST-2417: $p does not select aai-live-status: $out"
+  done
+  log_pass "TEST-2417: all three new paths select aai-live-status"
+}
+
+test_2418_ps1_quality_filter_has_module() {
+  local wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" out
+  out="$(node -e '
+    const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n");
+    const lists = {}; let ev = null, inPaths = false;
+    for (const l of lines) {
+      let m;
+      if ((m = /^  (push|pull_request):\s*$/.exec(l))) { ev = m[1]; inPaths = false; lists[ev] = []; continue; }
+      if (/^  \S/.test(l)) { ev = null; inPaths = false; continue; }
+      if (ev && /^    paths:\s*$/.test(l)) { inPaths = true; continue; }
+      if (ev && inPaths) { if ((m = /^      - (.+)$/.exec(l))) lists[ev].push(m[1].trim()); else inPaths = false; }
+    }
+    const want = "\x27.aai/scripts/live-spool.mjs\x27";
+    const bad = [];
+    for (const k of ["push", "pull_request"]) {
+      if (!lists[k] || lists[k].length === 0) bad.push(k + ": no path list");
+      else if (!lists[k].includes(want)) bad.push(k + ": lacks the module");
+    }
+    if (lists.push && lists.pull_request && JSON.stringify(lists.push) !== JSON.stringify(lists.pull_request)) bad.push("lists differ");
+    process.stdout.write(bad.join("; "));
+  ' "$wf")"
+  [[ -z "$out" ]] || log_fail "TEST-2418: ps1-quality.yml path filter: $out"
+  log_pass "TEST-2418: both path lists contain the module and are identical"
+}
+
+# rfc_phase3_row: the Rollout Status row whose first cell is 3.
+rfc_phase3_row() {
+  node -e '
+    for (const l of require("fs").readFileSync(process.argv[1], "utf8").split("\n")) {
+      if (/^\| 3 \|/.test(l)) { process.stdout.write(l); break; }
+    }
+  ' "$RFC17"
+}
+
+test_2419_rfc_phase3_row() {
+  local row; row="$(rfc_phase3_row)"
+  [[ -n "$row" ]] || log_fail "TEST-2419: RFC-0017 has no Rollout Status row 3"
+  [[ "$row" == *"| Migrate common sync/hook behavior to Node in small slices, with native platform parity and retired counterparts |"* ]] \
+    || log_fail "TEST-2419: the phase 3 description cell changed"
+  [[ "$row" == *"| in progress |"* ]] || log_fail "TEST-2419: the phase 3 status cell must be in progress"
+  [[ "$row" =~ \]\([^\)]*node-first-sync-hook-slice\.md\) ]] || log_fail "TEST-2419: the phase 3 row lacks a link to node-first-sync-hook-slice.md"
+  [[ "$row" == *live-spool* ]] || log_fail "TEST-2419: the phase 3 row does not name live-spool"
+  log_pass "TEST-2419: RFC-0017 phase 3 row is in progress and links the slice"
+}
+
+test_2420_line_budget_recorded() {
+  local row n sum
+  row="$(rfc_phase3_row)"
+  if [[ "$row" =~ live-spool\ pair\ 133\ to\ ([0-9]+)\ lines ]]; then n="${BASH_REMATCH[1]}"; else
+    log_fail "TEST-2420: the phase 3 row does not record 'live-spool pair 133 to N lines'"
+  fi
+  sum="$(cat "$SPOOL" "$SPOOL_PS1" "$SPOOL_MJS" | wc -l | tr -d '[:space:]')"
+  [[ "$n" == "$sum" ]] || log_fail "TEST-2420: the row records $n lines but the three files total $sum"
+  [[ "$n" -lt 133 ]] || log_fail "TEST-2420: N=$n must be below 133"
+  log_pass "TEST-2420: the RFC row records the live line total ($n < 133)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..039)"
   check_deps
@@ -1115,6 +1431,25 @@ main() {
   test_037_one_shot_output_flag_opens_correct_file
   test_038_all_unknown_usage_reports_null_not_zero
   test_039_partial_unknown_usage_keeps_sum_and_notes_exclusion
+  test_2401_module_whitelist
+  test_2402_module_ts_precision
+  test_2403_module_non_object
+  test_2404_module_deep_nesting
+  test_2405_module_utf8_lf
+  test_2406_module_line_cap
+  test_2407_module_cli_exit_and_passthrough
+  test_2408_launchers_thin
+  test_2409_sh_launcher_without_node
+  test_2410_ps1_launcher_without_node
+  test_2411_launcher_parity
+  test_2412_pester_live_spool
+  test_2413_seam_ps1_tap_quotas_render
+  test_2414_downstream_sync_runs_tap
+  test_2415_template_still_calls_sh_launcher
+  test_2417_suite_map_selects_live_status
+  test_2418_ps1_quality_filter_has_module
+  test_2419_rfc_phase3_row
+  test_2420_line_budget_recorded
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

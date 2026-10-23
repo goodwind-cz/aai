@@ -329,6 +329,7 @@ extended:
   - .aai/scripts/live-parsers/codex.mjs
   - .aai/scripts/live-parsers/gemini-cli.mjs
   - .aai/scripts/live-parsers/registry.mjs
+  - .aai/scripts/live-spool.mjs
   - .aai/scripts/live-spool.ps1
   - .aai/scripts/live-spool.sh
   - .aai/scripts/metrics-report.mjs

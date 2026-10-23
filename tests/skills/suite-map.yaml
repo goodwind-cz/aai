@@ -705,6 +705,9 @@ suites:
       - .aai/scripts/live-parsers/**
       - .aai/scripts/live-spool.sh
       - .aai/scripts/live-spool.ps1
+      - .aai/scripts/live-spool.mjs
+      - tests/skills/lib/live-spool.test.mjs
+      - tests/skills/live-spool.Tests.ps1
       - .aai/scripts/aai-live.sh
       - .aai/scripts/aai-live.ps1
       - .aai/templates/hooks/live-status-hooks.json
