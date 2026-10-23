@@ -120,6 +120,28 @@ two observations do not establish a full-suite speed change. See the
 [tracked pilot report](../analysis/docs-audit-node-test-pilot.md) for every
 sample, setup cost and coverage limit.
 
+## Docs-audit suite speed
+
+The always-on `aai-docs-audit` suite no longer repeats real-corpus work. Each
+distinct full real-corpus audit runs once per suite run through `live_audit`
+(14 launches became 3), and the real index is generated twice once through
+`live_index_pair`, which restores `docs/INDEX.md` and the violations
+companion before any assertion reads a snapshot. This also fixed a masked check:
+a stale committed index now fails the staleness arm in `main()` order. The
+per-file history oracle runs in worker-thread shards, and the closeout candidate
+cases run as one `node:test` file. To prove the shared audit copies equal fresh
+runs on your tree:
+
+```bash
+AAI_DOCS_AUDIT_LIVE_VERIFY=1 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-docs-audit.sh
+```
+
+Five alternating paired local runs of the ordinary suite gave a 116.5-second
+median before and 79.3 seconds after (31.9% lower). Hosted durations vary far
+more and are reported, not gated. See the
+[analysis note](../analysis/docs-audit-suite-speed.md) for the per-function
+profile, the closeout migration map and every sample.
+
 ## How to use it
 
 Nothing is required for a normal PR — selection is automatic:

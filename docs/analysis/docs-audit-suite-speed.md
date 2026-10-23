@@ -241,21 +241,23 @@ Nine Bash functions were removed. The Node file writes the complete 23 `setup_cl
 
 ## Ordinary suite measurement
 
-PROVISIONAL: these rows are placeholders so the candidate can be timed; the matched measurement replaces them.
-
 Before (B) is the baseline commit in a disposable checkout with its own git directory; after (F) is the candidate in another. Both run the ordinary wrapper command `env -u AAI_ROLE AAI_TEST_TIMEOUT=900 bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-docs-audit.sh` on the same host, Node, Bash, Git and serial width, with external wall time per run, one untimed warm-up per side, and alternating order.
 
 | Pair | Order | Before s | After s |
 |---|---|---|---|
-| 1 | B-F | 115.2 | 69.0 |
-| 2 | F-B | 114.6 | 68.8 |
-| 3 | B-F | 115.2 | 69.1 |
-| 4 | F-B | 114.6 | 68.9 |
-| 5 | B-F | 115.2 | 69.0 |
+| 1 | B-F | 116.6 | 79.3 |
+| 2 | F-B | 115.6 | 78.5 |
+| 3 | B-F | 116.5 | 79.4 |
+| 4 | F-B | 115.5 | 79.3 |
+| 5 | B-F | 116.5 | 79.4 |
 
-Before median: 115.2 s
-After median: 69.0 s
-Median reduction: 40.1%
+Before median: 116.5 s
+After median: 79.3 s
+Median reduction: 31.9%
+
+Environment: macOS arm64, 16 CPUs, Node 22.23.1, Bash 3.2.57, Git 2.54.0, wrapper `aai-run-tests.sh` serial. B is `34f0cbcad78fc851ed60972b1c527dcbc4c47779`; F is candidate commit `7767338470761a52fb86bd95740ffae98c5859d1` (the final commit changes only this note, spec status cells and product docs, none of which the ordinary run's cost depends on). B and F are `git clone` checkouts, each with its own git directory; the candidate carries a few extra tracked docs. One untimed warm-up per side (B 118.6 s, F 79.6 s). Every run exited 0 and printed `PASS: All aai-docs-audit tests passed`; no attempt was voided. Times are external monotonic wall seconds rounded to 0.1 s; raw JSON lines and logs are under `docs/ai/tdd/docs-audit-suite-speed/measurement/`.
+
+Launch budget under a node shim (full run): 3 full real-corpus docs-audit launches (was 14) and 2 real-corpus index generations plus the pinned-clock one (was 11 plus the pinned one).
 
 ## Hosted CI
 

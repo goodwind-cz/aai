@@ -90,7 +90,7 @@ live_audit() {  # $1 = dest, $2... = docs-audit arguments
     if [[ "${AAI_DOCS_AUDIT_LIVE_VERIFY:-}" == "1" ]]; then
       local fresh_out="$base.verify" fresh_rc=0
       (cd "$root" && node .aai/scripts/docs-audit.mjs "$@") > "$fresh_out" 2>&1 || fresh_rc=$?
-      live_log_launch audit "$*"
+      live_log_launch audit-verify "$*"
       if [[ "$fresh_rc" != "$cache_rc" ]] || ! cmp -s "$fresh_out" "$cache_out"; then
         log_fail "LIVE-CACHE MISMATCH for 'docs-audit $*' in $root: cached exit $cache_rc, fresh exit $fresh_rc, output differs or exit codes differ"
       fi

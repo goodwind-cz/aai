@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-docs-audit-suite-speed | specs | implementing | 7 planned | docs/specs/SPEC-DRAFT-spec-docs-audit-suite-speed.md |
+| spec-docs-audit-suite-speed | specs | implementing | 6 done, 1 deferred | docs/specs/SPEC-DRAFT-spec-docs-audit-suite-speed.md |
 
 ## Canonical layer (0)
 
@@ -651,10 +651,11 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (1)
+## Deferred items (per-AC, across all specs) (2)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
+| spec-docs-audit-suite-speed | Spec-AC-06 | 2026-11-06 | TEST-2210; local paired runs done (31.9% reduction); hosted after rows and suite-weights re-measure pending push |
 | SPEC-0046 | Spec-AC-10 | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 
 ## Blocked items (per-AC, across all specs) (0)
