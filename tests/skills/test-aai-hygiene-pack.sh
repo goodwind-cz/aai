@@ -6012,6 +6012,202 @@ test_137_hot_spot_disclosures() {  # slowest-suite-hot-spots TEST-018 / Spec-AC-
   log_pass "test_137: all 11 pinned specs carry a measurement disclosure for the ride; SPEC-0181 and SPEC-0182 carry none (TEST-018)"
 }
 
+# --- ci-node-24-baseline (SPEC ci-node-24-baseline, TEST-2301..2304, 2308) ----
+# Shared reader: prints one "file<TAB>job<TAB>value" line per node-version pin
+# in .github/workflows/*.yml. Heredoc to `node -` keeps it pipe-free.
+node24_workflow_pins() {
+  node - "$PROJECT_ROOT" <<'JS'
+const fs = require("fs"), path = require("path");
+const dir = path.join(process.argv[2], ".github", "workflows");
+const out = [];
+for (const f of fs.readdirSync(dir).filter((n) => n.endsWith(".yml")).sort()) {
+  let inJobs = false, job = "";
+  for (const line of fs.readFileSync(path.join(dir, f), "utf8").split("\n")) {
+    if (/^jobs:\s*$/.test(line)) { inJobs = true; continue; }
+    if (inJobs) { const m = /^  ([A-Za-z0-9_-]+):\s*$/.exec(line); if (m) job = m[1]; }
+    const v = /^\s*(?:-\s*)?node-version:\s*['"]?([^'"\s#]+)/.exec(line);
+    if (v) out.push([f, job, v[1]].join("\t"));
+  }
+}
+process.stdout.write(out.join("\n") + (out.length ? "\n" : ""));
+JS
+}
+
+test_138_ci_node_pins() {  # ci-node-24-baseline TEST-2301 / Spec-AC-01
+  log_info "test_138: every workflow node-version is 24 except one 22 in self-hosting-smoke; no Node 20 text (TEST-2301)..."
+  local pins n24=0 n22=0 line f j v stale
+  pins="$(node24_workflow_pins)"
+  while IFS=$'\t' read -r f j v; do
+    [[ -n "$f" ]] || continue
+    if [[ "$v" == "24" ]]; then
+      n24=$((n24 + 1))
+    elif [[ "$v" == "22" && "$j" == "self-hosting-smoke" ]]; then
+      n22=$((n22 + 1))
+    else
+      log_fail "test_138 (plan row TEST-2301): $f job $j pins node-version '$v' (want 24, or the one 22 in self-hosting-smoke)"
+    fi
+  done <<EOT
+$pins
+EOT
+  [[ "$n24" -ge 11 ]] || log_fail "test_138 (plan row TEST-2301): only $n24 node-version '24' pins, want at least 11"
+  [[ "$n22" -eq 1 ]] || log_fail "test_138 (plan row TEST-2301): $n22 node-version '22' pins in self-hosting-smoke, want exactly 1"
+  stale="$(/usr/bin/grep -rnE "Node 20|node-version: ['\"]?20['\"]?" "$PROJECT_ROOT/.github/workflows" "$PROJECT_ROOT/.aai/scripts" || true)"
+  [[ -z "$stale" ]] || log_fail "test_138 (plan row TEST-2301): stale Node 20 text: $(payload_preview "$stale")"
+  log_pass "test_138: $n24 pins at 24, $n22 compatibility pin at 22, no Node 20 text (TEST-2301)"
+}
+
+node22_compat_findings() {
+  node - "$PROJECT_ROOT/.github/workflows/skill-suite.yml" <<'JS'
+const fs = require("fs");
+const lines = fs.readFileSync(process.argv[2], "utf8").split("\n");
+const bad = [];
+let inJobs = false; const jobs = []; let start = -1, end = lines.length;
+lines.forEach((l, i) => {
+  if (/^jobs:\s*$/.test(l)) { inJobs = true; return; }
+  const m = inJobs && /^  ([A-Za-z0-9_-]+):\s*$/.exec(l);
+  if (m) { jobs.push(m[1]); if (m[1] === "self-hosting-smoke") start = i; else if (start >= 0 && end === lines.length) end = i; }
+});
+if (jobs.length !== 9) bad.push("top-level job count " + jobs.length + ", baseline is 9");
+if (start < 0) { console.log("no self-hosting-smoke job"); process.exit(0); }
+const blk = lines.slice(start, end);
+const has = (s) => blk.includes(s);
+for (const s of [
+  "    name: self-hosting smoke (separate job — bootstraps + re-validates a full copy, ~2-3 min)",
+  "    needs: select",
+  "    if: needs.select.outputs.mode != 'body-reuse'",
+  "    runs-on: ubuntu-latest",
+  "    timeout-minutes: 10",
+]) if (!has(s)) bad.push("missing job line: " + s.trim());
+const iSmoke = blk.findIndex((l) => l.includes("name: Run self-hosting smoke test"));
+const iNode22 = blk.findIndex((l) => /^\s*node-version:\s*'22'\s*$/.test(l));
+const iCompat = blk.findIndex((l) => l === "      - name: Node 22 compatibility (downstream floor)");
+if (iSmoke < 0) bad.push("smoke step missing");
+if (iNode22 < 0) bad.push("setup-node 22 missing");
+if (iCompat < 0) bad.push("compat step missing");
+if (iSmoke >= 0 && iNode22 >= 0 && iCompat >= 0 && !(iSmoke < iNode22 && iNode22 < iCompat)) bad.push("step order is not smoke, setup-node 22, compat");
+if (iNode22 >= 1 && !/uses:\s*actions\/setup-node@v4/.test(blk[iNode22 - 2] || "")) bad.push("node 22 pin is not under actions/setup-node@v4");
+if (iCompat >= 0) {
+  const run = blk.slice(iCompat).join("\n");
+  for (const need of [
+    "set -euo pipefail",
+    "v22.*",
+    "find .aai/scripts -name '*.mjs' -print0 | xargs -0 -n1 node --check",
+    "node --test tests/skills/lib/*.test.mjs",
+    "bash tests/self-hosting/test-self-hosting-smoke.sh",
+    "aai-doctor.mjs --json",
+    "CAT-20",
+  ]) if (!run.includes(need)) bad.push("compat run block lacks: " + need);
+  if (!/^\s*run: \|\s*$/m.test(run)) bad.push("compat step has no run block");
+  const first = run.split("\n").find((l) => l.trim() && !/^\s*-?\s*(name|run):/.test(l));
+  if (first && first.trim() !== "set -euo pipefail") bad.push("run block does not start with set -euo pipefail");
+  if (/\|\s*grep\s+-q/.test(run)) bad.push("compat step pipes into grep -q");
+}
+console.log(bad.length ? bad.join("; ") : "OK");
+JS
+}
+
+test_139_node22_compat_step() {  # ci-node-24-baseline TEST-2302 / Spec-AC-02
+  log_info "test_139: self-hosting-smoke keeps its identity and carries the Node 22 compatibility step (TEST-2302)..."
+  local res
+  res="$(node22_compat_findings)"
+  [[ "$res" == "OK" ]] || log_fail "test_139 (plan row TEST-2302): $(payload_preview "$res")"
+  log_pass "test_139: self-hosting-smoke identity intact, Node 22 compat step ordered and complete, 9 jobs (TEST-2302)"
+}
+
+# Prints "<baseline> <floor>" from the docs/TECHNOLOGY.md Version Matrix row, or "ERR <why>".
+technology_node_row() {
+  node - "$PROJECT_ROOT/docs/TECHNOLOGY.md" <<'JS'
+const fs = require("fs");
+const rows = fs.readFileSync(process.argv[2], "utf8").split("\n").filter((l) => /^\|\s*Node\.js\s*\|/.test(l));
+if (rows.length !== 1) { console.log("ERR Version Matrix Node.js rows: " + rows.length); process.exit(0); }
+const c = rows[0].split("|").map((s) => s.trim());
+const m = /^(\d+) baseline; (\d+) minimum downstream; (\d+) unsupported$/.exec(c[2]);
+if (!m) { console.log("ERR Node.js version cell is '" + c[2] + "'"); process.exit(0); }
+if (c[3] !== "confirmed") { console.log("ERR Node.js status cell is '" + c[3] + "'"); process.exit(0); }
+console.log(m[1] + " " + m[2] + " " + m[3]);
+JS
+}
+
+technology_floor_findings() {
+  node - "$PROJECT_ROOT/docs/TECHNOLOGY.md" <<'JS'
+const fs = require("fs");
+const lines = fs.readFileSync(process.argv[2], "utf8").split("\n");
+const units = []; let cur = null;
+for (const l of lines) {
+  if (/^(\s*[-*]\s|\||#)/.test(l) && !/^\s{2,}\S/.test(l) || l.trim() === "") { if (cur) units.push(cur); cur = l.trim() ? l : null; }
+  else cur = cur === null ? l : cur + " " + l.trim();
+}
+if (cur) units.push(cur);
+const bad = [];
+const rt = units.find((u) => /^- Runtime\(s\):/.test(u));
+if (!rt) bad.push("no Runtime(s) bullet");
+else {
+  if (!/Node 24[^.;]*baseline|baseline[^.;]*Node 24/i.test(rt)) bad.push("Runtime(s) does not name Node 24 as baseline");
+  if (!/Node 22[^.;]*minimum|minimum[^.;]*Node 22/i.test(rt)) bad.push("Runtime(s) does not name Node 22 as minimum");
+  if (!/Node 20[^.;]*unsupported|unsupported[^.;]*Node 20/i.test(rt)) bad.push("Runtime(s) does not name Node 20 as unsupported");
+}
+for (const u of units) if (/UNKNOWN/.test(u) && /\bnode(\.js)?\b/i.test(u) && /floor|minimum|pin/i.test(u)) bad.push("still calls the Node floor UNKNOWN: " + u.slice(0, 80));
+console.log(bad.length ? bad.join("; ") : "OK");
+JS
+}
+
+test_140_technology_node_floor() {  # ci-node-24-baseline TEST-2303 / Spec-AC-03
+  log_info "test_140: TECHNOLOGY.md declares the Node floor and never calls it UNKNOWN (TEST-2303)..."
+  local row res
+  row="$(technology_node_row)"
+  [[ "$row" == "24 22 20" ]] || log_fail "test_140 (plan row TEST-2303): Node.js matrix row: $row"
+  res="$(technology_floor_findings)"
+  [[ "$res" == "OK" ]] || log_fail "test_140 (plan row TEST-2303): $(payload_preview "$res")"
+  log_pass "test_140: Runtime(s) bullet and Version Matrix row declare 24 / 22 / 20; no UNKNOWN floor (TEST-2303)"
+}
+
+test_141_node_floor_single_value() {  # ci-node-24-baseline TEST-2304 / Spec-AC-04
+  log_info "test_141: doctor constants, TECHNOLOGY.md row and workflow pins agree on one floor and one baseline (TEST-2304)..."
+  local consts row pins f j v want_base want_floor
+  consts="$(node --input-type=module -e '
+    const m = await import(process.argv[1]);
+    console.log(String(m.NODE_BASELINE_MAJOR) + " " + String(m.NODE_FLOOR_MAJOR));
+  ' "file://$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs" 2>&1)" || log_fail "test_141 (plan row TEST-2304): cannot read doctor constants: $(payload_preview "$consts")"
+  row="$(technology_node_row)"
+  [[ "$row" == "ERR"* ]] && log_fail "test_141 (plan row TEST-2304): $row"
+  want_base="${row%% *}"; want_floor="${row#* }"; want_floor="${want_floor%% *}"
+  [[ "$consts" == "$want_base $want_floor" ]] || log_fail "test_141 (plan row TEST-2304): doctor says '$consts' (baseline floor), TECHNOLOGY.md says '$want_base $want_floor'"
+  pins="$(node24_workflow_pins)"
+  while IFS=$'\t' read -r f j v; do
+    [[ -n "$f" ]] || continue
+    if [[ "$j" == "self-hosting-smoke" && "$v" == "$want_floor" ]]; then continue; fi
+    [[ "$v" == "$want_base" ]] || log_fail "test_141 (plan row TEST-2304): $f job $j pins '$v', baseline is $want_base (floor $want_floor only in self-hosting-smoke)"
+  done <<EOT
+$pins
+EOT
+  [[ "$pins" == *$'\t'"self-hosting-smoke"$'\t'"$want_floor" ]] || [[ "$pins" == *"self-hosting-smoke"$'\t'"$want_floor"$'\n'* ]] || log_fail "test_141 (plan row TEST-2304): no compatibility pin '$want_floor' in self-hosting-smoke"
+  log_pass "test_141: floor $want_floor and baseline $want_base agree across doctor, TECHNOLOGY.md and workflows (TEST-2304)"
+}
+
+rfc0017_node_row_findings() {
+  node - "$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md" <<'JS'
+const fs = require("fs");
+const rows = fs.readFileSync(process.argv[2], "utf8").split("\n")
+  .filter((l) => l.startsWith("|")).map((l) => l.split("|").map((s) => s.trim()))
+  .filter((c) => c[2] === "Node 24 CI baseline and published floor");
+if (rows.length !== 1) { console.log("rows with that description: " + rows.length); process.exit(0); }
+const c = rows[0];
+const bad = [];
+if (c[1] !== "order 4") bad.push("first cell is '" + c[1] + "'");
+if (c[3] !== "done") bad.push("status cell is '" + c[3] + "'");
+if (!/\]\([^)]*ci-node-24-baseline\.md\)/.test(c[4] || "")) bad.push("link cell is '" + c[4] + "'");
+console.log(bad.length ? bad.join("; ") : "OK");
+JS
+}
+
+test_142_rfc0017_node_row() {  # ci-node-24-baseline TEST-2308 / Spec-AC-07
+  log_info "test_142: RFC-0017 Rollout Status carries the done Node 24 row linking the intake (TEST-2308)..."
+  local res
+  res="$(rfc0017_node_row_findings)"
+  [[ "$res" == "OK" ]] || log_fail "test_142 (plan row TEST-2308): $(payload_preview "$res")"
+  log_pass "test_142: RFC-0017 has the done Node 24 CI baseline row linking ci-node-24-baseline.md (TEST-2308)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -6089,6 +6285,11 @@ main() {
   test_133_nested_suite_lint_live_and_base
   test_134_nested_suite_disclosures
   test_137_hot_spot_disclosures
+  test_138_ci_node_pins
+  test_139_node22_compat_step
+  test_140_technology_node_floor
+  test_141_node_floor_single_value
+  test_142_rfc0017_node_row
   test_618_ref_guard_grep_conformance
   test_800_installed_hook_reaches_guard
   test_801_guard_block_propagates_block
