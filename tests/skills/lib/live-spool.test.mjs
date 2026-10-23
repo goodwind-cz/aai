@@ -1,5 +1,5 @@
 // live-spool.test.mjs — node:test cases for .aai/scripts/live-spool.mjs
-// (docs/specs/SPEC-0247-spec-node-first-sync-hook-slice.md, TEST-2401..2407).
+// (docs/specs/SPEC-0247-spec-node-first-sync-hook-slice.md, TEST-2401..2407; readStdin cases under TEST-2407).
 // Direct imports, temp directories only, no repository clone.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { projectPayload, appendCapped, runLiveSpool, MAX_LINES, PASSTHROUGH } from '../../../.aai/scripts/live-spool.mjs';
+import { projectPayload, appendCapped, readStdin, runLiveSpool, MAX_LINES, PASSTHROUGH } from '../../../.aai/scripts/live-spool.mjs';
 
 const MODULE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.aai/scripts/live-spool.mjs');
 
@@ -112,6 +112,37 @@ test('TEST-2407 CLI statusline and no-kind print exactly the passthrough and exi
     assert.equal(r.stdout, PASSTHROUGH + '\n');
     assert.equal(r.stderr, '');
   }
+});
+
+function fakeRead(steps) {
+  let i = 0;
+  return (fd, buf) => {
+    const step = steps[i++];
+    if (step instanceof Error) throw step;
+    return step.copy(buf);
+  };
+}
+const eofError = () => Object.assign(new Error('EOF'), { code: 'EOF' });
+
+test('TEST-2407 readStdin keeps the data read before a Windows EOF error', () => {
+  const read = fakeRead([Buffer.from('{"a":'), Buffer.from('1}'), eofError()]);
+  assert.equal(readStdin(read), '{"a":1}');
+});
+
+test('TEST-2407 readStdin treats a 0-byte read as end of input', () => {
+  const read = fakeRead([Buffer.from('abc'), Buffer.alloc(0)]);
+  assert.equal(readStdin(read), 'abc');
+});
+
+test('TEST-2407 readStdin decodes a multi-byte character split across chunks', () => {
+  const bytes = Buffer.from('\u010d\u2713');
+  const read = fakeRead([bytes.subarray(0, 1), bytes.subarray(1, 3), bytes.subarray(3), eofError()]);
+  assert.equal(readStdin(read), '\u010d\u2713');
+});
+
+test('TEST-2407 readStdin returns an empty string on a non-EOF error', () => {
+  const read = fakeRead([Buffer.from('abc'), Object.assign(new Error('boom'), { code: 'EIO' })]);
+  assert.equal(readStdin(read), '');
 });
 
 test('TEST-2407 CLI hooks prints nothing and exits 0', () => {

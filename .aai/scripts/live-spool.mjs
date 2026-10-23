@@ -50,6 +50,23 @@ export function appendCapped(file, line, maxLines = MAX_LINES) {
   }
 }
 
+// Windows reports end of a pipe as an EOF error, not a 0-byte read: both end the input.
+export function readStdin(readSync = fs.readSync) {
+  const chunks = [];
+  const buf = Buffer.alloc(65536);
+  for (;;) {
+    let n;
+    try { n = readSync(0, buf, 0, buf.length, null); } catch (e) {
+      if (e?.code === 'EAGAIN') continue;
+      if (e?.code === 'EOF') break;
+      return '';
+    }
+    if (n === 0) break;
+    chunks.push(Buffer.from(buf.subarray(0, n)));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 export function runLiveSpool({ argv = [], env = {}, stdinText = '', stdout }) {
   const kind = argv[0] || 'statusline';
   try {
@@ -70,8 +87,7 @@ function realOrResolve(p) {
 const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
-  let stdinText = '';
-  try { stdinText = fs.readFileSync(0, 'utf8'); } catch { stdinText = ''; }
+  const stdinText = readStdin();
   runLiveSpool({
     argv: process.argv.slice(2),
     env: process.env,

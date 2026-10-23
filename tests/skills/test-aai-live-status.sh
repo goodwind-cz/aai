@@ -1157,7 +1157,7 @@ launcher_check() {
     const bad = [];
     if (buf.some((b) => b > 0x7e)) bad.push("non-ASCII byte");
     const lines = text.split("\n"); if (lines[lines.length - 1] === "") lines.pop();
-    if (lines.length > 30) bad.push("more than 30 lines (" + lines.length + ")");
+    if (lines.length > 20) bad.push("more than 20 lines (" + lines.length + ")");
     if (!text.includes("live-spool.mjs")) bad.push("no reference to live-spool.mjs");
     for (const t of ["session_id", "rate_limits", "hook_event_name", "cost", "500", "JSON",
       "ConvertFrom-Json", "ConvertTo-Json", "Add-Content", "Set-Content", "tail"]) {
