@@ -24,7 +24,7 @@ const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 export function projectPayload(raw, kind, now = new Date()) {
   let obj;
-  try { obj = JSON.parse(raw); } catch { return null; }
+  try { obj = JSON.parse(raw.replace(/^\uFEFF/, '')); } catch { return null; }
   if (obj === null || typeof obj !== 'object') return null;
   if (Array.isArray(obj)) return null;
   const allow = COMMON_FIELDS.concat(kind === 'hooks' ? HOOK_FIELDS : STATUSLINE_FIELDS);
@@ -50,23 +50,6 @@ export function appendCapped(file, line, maxLines = MAX_LINES) {
   }
 }
 
-// Windows reports end of a pipe as an EOF error, not a 0-byte read: both end the input.
-export function readStdin(readSync = fs.readSync) {
-  const chunks = [];
-  const buf = Buffer.alloc(65536);
-  for (;;) {
-    let n;
-    try { n = readSync(0, buf, 0, buf.length, null); } catch (e) {
-      if (e?.code === 'EAGAIN') continue;
-      if (e?.code === 'EOF') break;
-      return '';
-    }
-    if (n === 0) break;
-    chunks.push(Buffer.from(buf.subarray(0, n)));
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
-
 export function runLiveSpool({ argv = [], env = {}, stdinText = '', stdout }) {
   const kind = argv[0] || 'statusline';
   try {
@@ -87,7 +70,8 @@ function realOrResolve(p) {
 const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
-  const stdinText = readStdin();
+  let stdinText = '';
+  try { stdinText = fs.readFileSync(0, 'utf8'); } catch { stdinText = ''; }
   runLiveSpool({
     argv: process.argv.slice(2),
     env: process.env,

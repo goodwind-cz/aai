@@ -123,9 +123,9 @@ ever invokes it, and it is never coupled to ride ceremony.
   CI; it gets parse-level and PSScriptAnalyzer coverage plus
   path-construction assertions. The `live-spool.ps1` launcher runs under
   Pester on the native Windows CI job.
-- A payload that starts with a UTF-8 byte-order mark is not parsed and
-  writes no line (the old Bash copy behaved the same); no shipped harness
-  sends one.
+- One leading UTF-8 byte-order mark on a payload is ignored (Windows
+  PowerShell 5.1 and other .NET Framework writers add one to a piped stdin);
+  a mark anywhere else still makes the payload unparseable and writes no line.
 
 ## Links
 

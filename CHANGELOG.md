@@ -26,10 +26,11 @@ fine — it is the marker a cut leaves on top.
 
 - The live-status spool writer is now one Node module,
   `.aai/scripts/live-spool.mjs`; `live-spool.sh` and `live-spool.ps1` are thin
-  launchers (the pair went from 133 to 132 lines). First slice of RFC-0017
+  launchers (the pair went from 133 to 116 lines). First slice of RFC-0017
   phase 3. Behaviour changes, all toward the old Bash copy: timestamps have 3
   fractional digits on Windows too, an array or scalar payload writes no
-  line, and a host without Node writes no spool line (the statusline still
+  line, a leading UTF-8 BOM on the payload is ignored (Windows PowerShell 5.1
+  adds one), and a host without Node writes no spool line (the statusline still
   prints `(aai-live tap active)`). If Node is present but the module is
   missing or broken, the launchers fall back the same way and always exit 0.
 

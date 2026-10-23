@@ -4,7 +4,7 @@ type: spec
 number: 247
 status: done
 mutation_gate: v1
-frozen_sha256: 2b4a45474fd2e42cd8f8706366472df01a563c7a563eec221a6a75de2ebc57d9
+frozen_sha256: f901c5787c33d6eb1d25c16064b3dd996824d7f687ced99793df529ed587a9f7
 ceremony_level: 2
 links:
   requirement: node-first-sync-hook-slice
@@ -155,15 +155,11 @@ Exports:
   directory (never the caller's cwd); a non-empty projected line is appended;
   every error is caught; for kind `statusline` it writes `PASSTHROUGH` plus a
   newline to `stdout` whether or not anything was written.
-- `readStdin(readSync = fs.readSync)` reads fd 0 in 64 KiB chunks, retries on
-  `EAGAIN`, ends on a 0-byte read or an `EOF` error keeping the bytes already
-  read, returns `""` on any other error and decodes once as UTF-8 (amended).
 
 CLI: when run as the main module (main-module check by comparing the real path
 of `process.argv[1]` with the real path of `fileURLToPath(import.meta.url)`, so a
-script path containing a space still works), it reads all of stdin as UTF-8
-(`readStdin`: Windows pipes report end of input as an `EOF` error, which ends the
-read and keeps the bytes already read), calls `runLiveSpool`, and ends with the exact line `process.exit(0);`. Nothing
+script path containing a space still works), it reads all of stdin as UTF-8,
+calls `runLiveSpool`, and ends with the exact line `process.exit(0);`. Nothing
 is written to stderr.
 
 ### D2. The launchers
@@ -221,14 +217,16 @@ with `$OutputEncoding` and `[Console]::InputEncoding` set to UTF-8 without BOM;
 that is a recorded amendment, and the non-ASCII Pester case decides it.
 
 Disclosure (amendment): hosted check H1 on PR #495 failed every Pester case that
-expects a spool line. A first reading blamed the launcher (Windows PowerShell 5.1
-not forwarding stdin to `& node`) and rewrote it; that was wrong, because Node
-wrote nothing even when handed the bytes on an explicit pipe. The cause was the
-module's stdin read: on Windows a pipe at end of input raises `EOF` from
-`fs.readFileSync(0)`, the catch yielded an empty payload and no line was written.
-`readStdin` in the module now treats `EOF` as end of input, and the launcher
-rewrite was reverted to the shape above (20-line cap kept). The live-spool line
-total is now 132.
+expects a spool line. The cause was a UTF-8 byte-order mark: the Windows PowerShell
+5.1 Pester harness (and any .NET Framework writer to a child's redirected stdin)
+writes EF BB BF before the payload (33 bytes on Windows against 30 on Linux for
+the same payload), and the module's JSON parse rejected the leading U+FEFF. The
+module now strips one leading BOM before parsing (`projectPayload`; a BOM anywhere
+else still gives no line). Two earlier hypotheses, that 5.1 does not forward stdin
+(rewrite b168d458) and that `fs.readFileSync(0)` throws EOF on Windows pipes
+(`readStdin`, eb109b01), were disproven by a hosted diagnostic (CI run 40011517525,
+`readFileSync(0)` read all 33 bytes) and both were reverted. The launchers and
+their 20-line cap are as first frozen; the live-spool line total is 116.
 
 `.aai/templates/hooks/live-status-hooks.json` is not changed (byte-identical),
 so installed overlays and approval prefixes keep working.
@@ -362,8 +360,9 @@ result on the other):
 
 Residual risks, written down:
 
-- Whether Windows PowerShell 5.1 hands its standard input to a native child is
-  proved only by H1 (D2 names the fallback).
+- Whether Windows PowerShell 5.1 hands its standard input to a native child was
+  proved by H1; a leading UTF-8 BOM, which the 5.1 harness adds, is now ignored by
+  the module (resolved, see the D2 disclosure).
 - The Windows job uses the runner image's preinstalled Node (ps1-quality.yml
   has no setup-node step); the Pester version case makes its major visible and
   fails below 22.
@@ -378,11 +377,11 @@ Residual risks, written down:
 |---|---|---|---|---|---|---|
 | TEST-2401 | Spec-AC-01 | unit | tests/skills/test-aai-live-status.sh | test_2401_module_whitelist runs node --test --test-name-pattern TEST-2401 on tests/skills/lib/live-spool.test.mjs: statusline, hooks and kind foo payloads carrying every whitelisted key plus transcript_path and message give lines with exactly ts plus the kind's keys in allow-list order; null, 0 and empty-string values are kept | `sed:s/const HOOK_FIELDS = \['hook_event_name'\];/const HOOK_FIELDS = [];/` on .aai/scripts/live-spool.mjs | green |
 | TEST-2402 | Spec-AC-02 | unit | tests/skills/test-aai-live-status.sh | test_2402_module_ts_precision runs the TEST-2402 node cases: with a fixed Date the ts equals its toISOString and matches 3 fractional digits then Z | `sed:s/const ts = now\.toISOString\(\);/const ts = now.toISOString().replace('Z', '0000Z');/` on .aai/scripts/live-spool.mjs | green |
-| TEST-2403 | Spec-AC-02 | unit | tests/skills/test-aai-live-status.sh | test_2403_module_non_object runs the TEST-2403 node cases: an array, a number, a string and null payload each return null and create no spool file | `sed:s/if \(Array\.isArray\(obj\)\) return null;//` on .aai/scripts/live-spool.mjs | green |
+| TEST-2403 | Spec-AC-02 | unit | tests/skills/test-aai-live-status.sh | test_2403_module_non_object runs the TEST-2403 node cases: an array, a number, a string and null payload each return null and create no spool file; a payload with one leading U+FEFF projects to the same line as without it, while two leading, a middle and a trailing U+FEFF give null | `sed:s/if \(Array\.isArray\(obj\)\) return null;//` on .aai/scripts/live-spool.mjs | green |
 | TEST-2404 | Spec-AC-02 | unit | tests/skills/test-aai-live-status.sh | test_2404_module_deep_nesting runs the TEST-2404 node cases: a cost value nested 12 levels deep is written equal to JSON.stringify of the input value | `sed:s/out\[key\] = obj\[key\];/out[key] = typeof obj[key] === 'object' ? {} : obj[key];/` on .aai/scripts/live-spool.mjs | green |
 | TEST-2405 | Spec-AC-02 | unit | tests/skills/test-aai-live-status.sh | test_2405_module_utf8_lf runs the TEST-2405 node cases: a payload with model display_name Opus ✓ čř is written so the file bytes decode as UTF-8 to that text, start without EF BB BF and contain no 0D byte | `sed:s/line \+ EOL, 'utf8'/line + EOL, 'latin1'/` on .aai/scripts/live-spool.mjs | green |
 | TEST-2406 | Spec-AC-02 | unit | tests/skills/test-aai-live-status.sh | test_2406_module_line_cap runs the TEST-2406 node cases: a spool of 505 valid lines plus one append holds exactly 500 lines whose last is the new line and no .tmp file remains | `sed:s/export const MAX_LINES = 500;/export const MAX_LINES = 5000;/` on .aai/scripts/live-spool.mjs | green |
-| TEST-2407 | Spec-AC-03 | integration | tests/skills/test-aai-live-status.sh | test_2407_module_cli_exit_and_passthrough runs node .aai/scripts/live-spool.mjs as a CLI: statusline and no-kind print exactly the passthrough line, hooks prints nothing, and with AAI_LIVE_SPOOL_DIR pointing at a regular file the exit code is 0, stderr is empty and statusline still prints the passthrough; the same function also runs four readStdin cases with an injected readSync (data then EOF error, data then 0 bytes, a multi-byte character split across chunks, a non-EOF error giving an empty string) | `sed:s/process\.exit\(0\);/process.exit(1);/` on .aai/scripts/live-spool.mjs | green |
+| TEST-2407 | Spec-AC-03 | integration | tests/skills/test-aai-live-status.sh | test_2407_module_cli_exit_and_passthrough runs node .aai/scripts/live-spool.mjs as a CLI: statusline and no-kind print exactly the passthrough line, hooks prints nothing, and with AAI_LIVE_SPOOL_DIR pointing at a regular file the exit code is 0, stderr is empty and statusline still prints the passthrough | `sed:s/process\.exit\(0\);/process.exit(1);/` on .aai/scripts/live-spool.mjs | green |
 | TEST-2408 | Spec-AC-04 | inspection | tests/skills/test-aai-live-status.sh | test_2408_launchers_thin checks both launchers: no byte above 0x7E, at most 20 lines, a reference to live-spool.mjs, none of the D2 logic tokens, and the passthrough literal at most once | `sed:s/pwd\)\/live-spool\.mjs"/pwd)\/live-spool.mjs" session_id/` on .aai/scripts/live-spool.sh | green |
 | TEST-2409 | Spec-AC-04 | integration | tests/skills/test-aai-live-status.sh | test_2409_sh_launcher_without_node runs live-spool.sh with PATH set to a TEST_DIR bin holding only bash, cat, dirname and the shell builtins it needs (positive control: command -v node fails under that PATH): exit 0, statusline prints the passthrough, hooks prints nothing, no spool file; then, with node on PATH, runs a copy of the launcher in a TEST_DIR directory without live-spool.mjs: exit 0, empty stderr, statusline prints the passthrough, a redirected 1 MB hooks payload is drained without a broken pipe | `sed:s/if \[\[ \$rc -ne 0 \]\]; then/if false; then/` on .aai/scripts/live-spool.sh | green |
 | TEST-2410 | Spec-AC-04 | integration | tests/skills/test-aai-live-status.sh | test_2410_ps1_launcher_without_node runs live-spool.ps1 under pwsh with a PATH that resolves pwsh but not node (same positive control): exit 0, statusline prints the passthrough, no spool file; then, with node on PATH, runs a copy of the launcher in a TEST_DIR directory without live-spool.mjs: exit 0, empty stderr, statusline prints the passthrough, a redirected 1 MB hooks payload is drained; finally the real launcher with node and the module present exits 0, keeps stderr empty and writes exactly one line | `sed:s/if \(-not \$Ran\)/if ($false)/` on .aai/scripts/live-spool.ps1 | green |

@@ -124,50 +124,6 @@ Describe 'live-spool launcher' {
     Test-Path -LiteralPath $dir | Should -BeFalse
   }
 
-  It 'DIAGNOSTIC (temporary, PR #495): reports how stdin reaches the launcher and node' {
-    function Invoke-Raw {
-      param([string]$File, [string]$Arguments, [string]$Payload, [string]$SpoolDir)
-      $psi = New-Object System.Diagnostics.ProcessStartInfo
-      $psi.FileName = $File
-      $psi.Arguments = $Arguments
-      $psi.UseShellExecute = $false
-      $psi.RedirectStandardInput = $true
-      $psi.RedirectStandardOutput = $true
-      $psi.RedirectStandardError = $true
-      if ($SpoolDir) { $psi.EnvironmentVariables['AAI_LIVE_SPOOL_DIR'] = $SpoolDir }
-      $p = [System.Diagnostics.Process]::Start($psi)
-      $bytes = $script:Utf8.GetBytes($Payload)
-      $p.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
-      $p.StandardInput.BaseStream.Flush()
-      $p.StandardInput.Close()
-      $out = $p.StandardOutput.ReadToEnd()
-      $err = $p.StandardError.ReadToEnd()
-      $p.WaitForExit()
-      return "rc=$($p.ExitCode) out=[$($out.Trim())] err=[$($err.Trim())]"
-    }
-    $payload = '{"session_id":"s1","cwd":"/x"}'
-    $d = Join-Path $script:Scratch 'diag'
-    New-Item -ItemType Directory -Force -Path $d | Out-Null
-    $nodePath = (Get-Command node -CommandType Application | Select-Object -First 1).Source
-    $module = Join-Path $script:Root '.aai/scripts/live-spool.mjs'
-    Set-Content -LiteralPath (Join-Path $d 'p1.ps1') -Value 'Write-Output ("redir=" + [Console]::IsInputRedirected + " inenc=" + [Console]::InputEncoding.WebName)'
-    Set-Content -LiteralPath (Join-Path $d 'p2.ps1') -Value '$ms = New-Object System.IO.MemoryStream; [Console]::OpenStandardInput().CopyTo($ms); Write-Output ("openstdin_bytes=" + $ms.Length)'
-    Set-Content -LiteralPath (Join-Path $d 'p3.ps1') -Value '$a = @($input); Write-Output ("input_count=" + $a.Count + " first=" + ($a | Select-Object -First 1))'
-    Set-Content -LiteralPath (Join-Path $d 'p4.ps1') -Value '& node -e "let n=0;try{n=require(''fs'').readFileSync(0).length}catch(e){console.log(''node_err=''+e.code)};console.log(''node_inherited_bytes=''+n)"'
-    $js = Join-Path $d 'p5.mjs'
-    Set-Content -LiteralPath $js -Value ("import { pathToFileURL } from 'node:url'; const m = await import(pathToFileURL(process.argv[2]).href); const t = m.readStdin(); console.log('readStdin_len=' + t.length); const l = m.projectPayload(t, 'statusline'); console.log('line=' + l); try { m.appendCapped(process.argv[3] + '/x.jsonl', l || '{}'); console.log('append=ok') } catch (e) { console.log('append_err=' + e.stack) }")
-    foreach ($n in 'p1','p2','p3','p4') {
-      $r = Invoke-Raw -File $script:Engine -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $d ($n + '.ps1')) + '"') -Payload $payload
-      Write-Host "AAI-DIAG $n $r"
-    }
-    Write-Host ("AAI-DIAG node-direct-module " + (Invoke-Raw -File $nodePath -Arguments ('"' + $module + '" statusline') -Payload $payload -SpoolDir (Join-Path $d 'sp1')))
-    Write-Host ("AAI-DIAG node-direct-module spool exists=" + (Test-Path -LiteralPath (Join-Path $d 'sp1\statusline.jsonl')))
-    Write-Host ("AAI-DIAG node-p5 " + (Invoke-Raw -File $nodePath -Arguments ('"' + $js + '" "' + $module + '" "' + $d + '"') -Payload $payload))
-    $r6 = Invoke-Raw -File $script:Engine -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "' + $script:Launcher + '" statusline') -Payload $payload -SpoolDir (Join-Path $d 'sp2')
-    Write-Host ("AAI-DIAG launcher " + $r6 + " spool exists=" + (Test-Path -LiteralPath (Join-Path $d 'sp2\statusline.jsonl')))
-    $true | Should -BeTrue
-  }
-
   It 'runs on Node 22 or newer' {
     $v = (& node --version) | Select-Object -First 1
     Write-Host "node --version: $v"
