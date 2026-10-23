@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 53442aa0a20bd42fc5d150f0b1a1cf4b24e56e1121a82a8f828bacb0dea2c12b
+frozen_sha256: 2efa069bad97d2a0a20342e91e55d259e74c31a3fbcd5c055da8cacdfd3ac561
 ceremony_level: 2
 links:
   requirement: node-first-sync-hook-slice
@@ -169,17 +169,25 @@ Both keep their names, their position-zero `kind` argument and the
 none of these tokens: `session_id`, `rate_limits`, `hook_event_name`, `cost`,
 `500`, `JSON`, `ConvertFrom-Json`, `ConvertTo-Json`, `Add-Content`,
 `Set-Content`, `tail`. The literal `(aai-live tap active)` is allowed once, in
-the Node-absent branch only (D-9).
+the fallback branch only (D-9). The fallback runs when Node is absent OR when
+Node could not run the module (a non-zero exit, which the module itself never
+returns, so it means the module was missing or failed to load); it drains a
+redirected standard input and prints the passthrough for statusline only.
+Amended after code review NB-1/NB-2 (2026-10-23): the frozen shape printed
+nothing when Node was present but the module could not run, and left standing
+input unread in the Node-absent hooks branch.
 
 `live-spool.sh`, shape (the anchored lines are exact):
 
 ```bash
-MODULE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/live-spool.mjs"
+MODULE="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/live-spool.mjs"
+rc=1
 if command -v node >/dev/null 2>&1; then
-  node "$MODULE" "$@" 2>/dev/null
-elif [[ "${1:-statusline}" == "statusline" ]]; then
-  cat >/dev/null 2>&1
-  echo "(aai-live tap active)"
+  node "$MODULE" "$@" 2>/dev/null && rc=0
+fi
+if [[ $rc -ne 0 ]]; then
+  [[ -t 0 ]] || cat >/dev/null 2>&1
+  [[ "${1:-statusline}" == "statusline" ]] && echo "(aai-live tap active)"
 fi
 exit 0
 ```
@@ -189,10 +197,14 @@ exit 0
 ```powershell
 param([Parameter(Position = 0)][string]$Kind = 'statusline')
 $Module = Join-Path $PSScriptRoot 'live-spool.mjs'
+$Ran = $false
 if (Get-Command node -ErrorAction SilentlyContinue) {
   & node $Module $Kind 2>$null
-} elseif ($Kind -eq 'statusline') {
-  Write-Output '(aai-live tap active)'
+  $Ran = ($LASTEXITCODE -eq 0)
+}
+if (-not $Ran) {
+  if ([Console]::IsInputRedirected) { $null = [Console]::In.ReadToEnd() }
+  if ($Kind -eq 'statusline') { Write-Output '(aai-live tap active)' }
 }
 exit 0
 ```
@@ -290,7 +302,7 @@ harness; that contract predates this scope and is unchanged.
 | Spec-AC-01 | WHEN runLiveSpool from .aai/scripts/live-spool.mjs receives an object payload the system SHALL append one line holding ts and exactly the whitelisted keys present (statusline and any non-hooks kind: session_id, cwd, model, rate_limits, cost; hooks: session_id, cwd, model, hook_event_name) and SHALL drop every other key such as transcript_path and message. | done | docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2401.log | tdd | TEST-2401 |
 | Spec-AC-02 | The module SHALL resolve the recorded drift: ts has exactly 3 fractional digits (D-1); an array or scalar payload writes no line (D-2); a 12-level nested value is written byte-identical to JSON.stringify of the input (D-3); a non-ASCII payload is written as UTF-8 without BOM and without CR (D-5, D-6); a file of 505 lines plus one append holds 500 lines ending with the new one (D-7). | done | docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2402.log, docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2403.log, docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2404.log, docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2405.log, docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2406.log | tdd | TEST-2402, TEST-2403, TEST-2404, TEST-2405, TEST-2406 |
 | Spec-AC-03 | WHEN the module CLI runs with kind statusline or no kind it SHALL print exactly one line (aai-live tap active) and exit 0; with kind hooks it SHALL print nothing and exit 0; WHEN AAI_LIVE_SPOOL_DIR names an existing regular file it SHALL still exit 0 with empty stderr and print the passthrough for statusline. | done | docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2407.log | tdd | TEST-2407 |
-| Spec-AC-04 | live-spool.sh and live-spool.ps1 are each ASCII only, at most 20 lines, call live-spool.mjs from their own directory and contain none of the D2 logic tokens; WHEN node is not on PATH each launcher SHALL exit 0, create no spool file and print the passthrough line for statusline only. | done | docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2408.log, docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2409.log, docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2410.log | tdd | TEST-2408, TEST-2409, TEST-2410 |
+| Spec-AC-04 | live-spool.sh and live-spool.ps1 are each ASCII only, at most 20 lines, call live-spool.mjs from their own directory and contain none of the D2 logic tokens; WHEN node is not on PATH, or node cannot run live-spool.mjs (module absent next to the launcher), each launcher SHALL exit 0, create no spool file, write nothing to stderr and print the passthrough line for statusline only. | done | docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2408.log, docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2409.log, docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2410.log | tdd | TEST-2408, TEST-2409, TEST-2410 |
 | Spec-AC-05 | WHEN the same six payloads (object statusline, object hooks, array, invalid, non-ASCII, deep) are piped through live-spool.sh and through live-spool.ps1 under pwsh the spool files SHALL be identical after removing ts values and stdout SHALL be identical; tests/skills/live-spool.Tests.ps1 SHALL pass at least 6 cases with 0 skipped and 0 failed under local pwsh 7; the existing test-aai-live-status.sh functions test_001 to test_039 pass with their bodies unchanged. | done | docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2411.log, docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2412.log | tdd | TEST-2411, TEST-2412 |
 | Spec-AC-06 | WHEN a statusline payload with five_hour and seven_day rate limits is written through live-spool.ps1 under pwsh, generate-live-status.mjs over that spool SHALL report quotas source tap with both used_percent values and render both percentages in the HTML. | done | docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2413.log | tdd | TEST-2413 |
 | Spec-AC-07 | WHEN aai-sync.sh installs the layer into a scratch target whose path contains a space, the target SHALL contain .aai/scripts/live-spool.mjs, and running the statusLine command and the Stop hook command taken from the real live-status-hooks.json with CLAUDE_PROJECT_DIR set to the target SHALL append one line each to the target's docs/ai/live/statusline.jsonl and hooks.jsonl, with the statusLine run printing the passthrough. | done | docs/ai/tdd/node-first-sync-hook-slice/green/TEST-2414.log | tdd | TEST-2414 |
@@ -358,8 +370,8 @@ Residual risks, written down:
 | TEST-2406 | Spec-AC-02 | unit | tests/skills/test-aai-live-status.sh | test_2406_module_line_cap runs the TEST-2406 node cases: a spool of 505 valid lines plus one append holds exactly 500 lines whose last is the new line and no .tmp file remains | `sed:s/export const MAX_LINES = 500;/export const MAX_LINES = 5000;/` on .aai/scripts/live-spool.mjs | green |
 | TEST-2407 | Spec-AC-03 | integration | tests/skills/test-aai-live-status.sh | test_2407_module_cli_exit_and_passthrough runs node .aai/scripts/live-spool.mjs as a CLI: statusline and no-kind print exactly the passthrough line, hooks prints nothing, and with AAI_LIVE_SPOOL_DIR pointing at a regular file the exit code is 0, stderr is empty and statusline still prints the passthrough | `sed:s/process\.exit\(0\);/process.exit(1);/` on .aai/scripts/live-spool.mjs | green |
 | TEST-2408 | Spec-AC-04 | inspection | tests/skills/test-aai-live-status.sh | test_2408_launchers_thin checks both launchers: no byte above 0x7E, at most 20 lines, a reference to live-spool.mjs, none of the D2 logic tokens, and the passthrough literal at most once | `sed:s/pwd\)\/live-spool\.mjs"/pwd)\/live-spool.mjs" session_id/` on .aai/scripts/live-spool.sh | green |
-| TEST-2409 | Spec-AC-04 | integration | tests/skills/test-aai-live-status.sh | test_2409_sh_launcher_without_node runs live-spool.sh with PATH set to a TEST_DIR bin holding only bash, cat, dirname and the shell builtins it needs (positive control: command -v node fails under that PATH): exit 0, statusline prints the passthrough, hooks prints nothing, no spool file | `sed:s/if command -v node >\/dev\/null 2>&1; then/if true; then/` on .aai/scripts/live-spool.sh | green |
-| TEST-2410 | Spec-AC-04 | integration | tests/skills/test-aai-live-status.sh | test_2410_ps1_launcher_without_node runs live-spool.ps1 under pwsh with a PATH that resolves pwsh but not node (same positive control): exit 0, statusline prints the passthrough, no spool file | `sed:s/if \(Get-Command node -ErrorAction SilentlyContinue\)/if ($true)/` on .aai/scripts/live-spool.ps1 | green |
+| TEST-2409 | Spec-AC-04 | integration | tests/skills/test-aai-live-status.sh | test_2409_sh_launcher_without_node runs live-spool.sh with PATH set to a TEST_DIR bin holding only bash, cat, dirname and the shell builtins it needs (positive control: command -v node fails under that PATH): exit 0, statusline prints the passthrough, hooks prints nothing, no spool file; then, with node on PATH, runs a copy of the launcher in a TEST_DIR directory without live-spool.mjs: exit 0, empty stderr, statusline prints the passthrough, a redirected 1 MB hooks payload is drained without a broken pipe | `sed:s/if \[\[ \$rc -ne 0 \]\]; then/if false; then/` on .aai/scripts/live-spool.sh | green |
+| TEST-2410 | Spec-AC-04 | integration | tests/skills/test-aai-live-status.sh | test_2410_ps1_launcher_without_node runs live-spool.ps1 under pwsh with a PATH that resolves pwsh but not node (same positive control): exit 0, statusline prints the passthrough, no spool file; then, with node on PATH, runs a copy of the launcher in a TEST_DIR directory without live-spool.mjs: exit 0, statusline prints the passthrough | `sed:s/if \(-not \$Ran\)/if ($false)/` on .aai/scripts/live-spool.ps1 | green |
 | TEST-2411 | Spec-AC-05 | integration | tests/skills/test-aai-live-status.sh | test_2411_launcher_parity pipes the six payloads through live-spool.sh and through pwsh -File live-spool.ps1 into separate spool dirs and compares stdout and the spool files after replacing ts values; positive control: the object payload produced one line on each side | `sed:s/& node \$Module \$Kind/& node $Module 'hooks'/` on .aai/scripts/live-spool.ps1 | green |
 | TEST-2412 | Spec-AC-05 | integration | tests/skills/test-aai-live-status.sh | test_2412_pester_live_spool runs Invoke-Pester on tests/skills/live-spool.Tests.ps1 with PassThru and fails on FailedCount above 0, SkippedCount above 0 or TotalCount below 6 | `sed:s/\[string\]\$Kind = 'statusline'/[string]$Kind = 'hooks'/` on .aai/scripts/live-spool.ps1 | green |
 | TEST-2413 | Spec-AC-06 | integration | tests/skills/test-aai-live-status.sh | test_2413_seam_ps1_tap_quotas_render writes the test_011 payload through live-spool.ps1 under pwsh, runs the real generator on that spool and asserts quotas source tap, five_hour 33 and seven_day 12, and both percentages in the HTML | `sed:s/const STATUSLINE_FIELDS = \['rate_limits', 'cost'\];/const STATUSLINE_FIELDS = ['cost'];/` on .aai/scripts/live-spool.mjs | green |
