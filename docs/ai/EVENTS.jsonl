@@ -3232,3 +3232,4 @@
 {"v":1,"ts":"2026-10-23T09:14:39Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"docs-audit-suite-speed","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-23T09:14:39Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-audit-suite-speed","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-23T09:14:39Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-docs-audit-suite-speed","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-23T09:21:58Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"docs-audit-suite-speed","payload":{"pr":493,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"5895a63dfd1e81705763319578d70a602eca1201"}}
