@@ -8596,24 +8596,44 @@ test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
       while (l ~ /\\$/ && (getline nxt) > 0) { sub(/\\$/, " ", l); sub(/^[ \t]+/, "", nxt); l = l nxt }
       print l }
   ' <<<"$text")"
-  # A real-corpus launch: node runs docs-audit.mjs, generate-docs-index.mjs or
-  # $AUDIT_SCRIPT (literal, absolute $PROJECT_ROOT/... or ${AUDIT_SCRIPT}) and the
-  # line does not first cd into some other (fixture) directory.
-  bad_audit="$(awk '
-    /^[[:space:]]*#/ || /^[[:space:]]*cp / { next }
-    /(^|[(;&{]|then|do)[[:space:]]*([A-Za-z_]+=[^[:space:]]*[[:space:]]+)*node[[:space:]]+[^|;&]*(docs-audit\.mjs|\$\{?AUDIT_SCRIPT\}?)/ {
+  # A real-corpus launch: node, at ANY command position (after if, !, ||,
+  # while, bash -c and so on), runs docs-audit.mjs, generate-docs-index.mjs or
+  # $AUDIT_SCRIPT (literal, absolute $PROJECT_ROOT/... or ${AUDIT_SCRIPT}) and
+  # the line does not first cd into some other (fixture) directory. Comments,
+  # file copies and echoed or table text are not launches.
+  local audit_prog gen_prog control
+  audit_prog='
+    /^[[:space:]]*#/ || /^[[:space:]]*(cp|echo|printf|[|]) / { next }
+    /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*(docs-audit\.mjs|\$\{?AUDIT_SCRIPT\}?)/ {
       if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
       if ($0 ~ /--path|--quick|--lint-body|--ac-flip-check|--list/) next
-      print NR ": " $0 }
-  ' <<<"$text")"
+      print NR ": " $0 }'
+  gen_prog='
+    /^[[:space:]]*#/ || /^[[:space:]]*(cp|echo|printf|[|]) / { next }
+    /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*generate-docs-index\.mjs/ {
+      if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
+      print NR ": " $0 }'
+  # Positive controls: the scan must flag every launch shape it claims to cover.
+  for control in \
+    '  (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check)' \
+    '  if node "$AUDIT_SCRIPT" --check; then' \
+    '  ! node "${AUDIT_SCRIPT}" --check --strict' \
+    '  true || node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check' \
+    '  while node .aai/scripts/docs-audit.mjs --check; do break; done' \
+    '  out="$(bash -c "node .aai/scripts/docs-audit.mjs --check")"'; do
+    [[ -n "$(awk "$audit_prog" <<<"$control")" ]] \
+      || log_fail "TEST-2206: the audit scan misses the launch shape: $control"
+  done
+  for control in \
+    '  (cd "$PROJECT_ROOT" && if node .aai/scripts/generate-docs-index.mjs; then :; fi)' \
+    '  true || node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs"'; do
+    [[ -n "$(awk "$gen_prog" <<<"$control")" ]] \
+      || log_fail "TEST-2206: the generator scan misses the launch shape: $control"
+  done
+  bad_audit="$(awk "$audit_prog" <<<"$text")"
   [[ -z "$bad_audit" ]] \
     || log_fail "TEST-2206: a real-corpus docs-audit launch bypasses live_audit: $(payload_preview "$bad_audit")"
-  bad_gen="$(awk '
-    /^[[:space:]]*#/ || /^[[:space:]]*cp / { next }
-    /(^|[(;&{]|then|do)[[:space:]]*([A-Za-z_]+=[^[:space:]]*[[:space:]]+)*node[[:space:]]+[^|;&]*generate-docs-index\.mjs/ {
-      if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
-      print NR ": " $0 }
-  ' <<<"$text")"
+  bad_gen="$(awk "$gen_prog" <<<"$text")"
   [[ -z "$bad_gen" ]] \
     || log_fail "TEST-2206: a real-corpus generator launch bypasses live_index_pair: $(payload_preview "$bad_gen")"
   sites="$(awk '/live_audit "\$(TEST_DIR|out)/ { n++ } END { print n + 0 }' <<<"$text")"
