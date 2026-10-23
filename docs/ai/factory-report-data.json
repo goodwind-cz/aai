@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T12:52:59.680Z",
+  "generatedAt": "2026-10-23T12:53:18.315Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -5880,7 +5880,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 234,
+    "open_count": 235,
     "oldest_age_days": 63,
     "items": [
       {
@@ -7753,6 +7753,14 @@
         "severity": "P3",
         "age_days": 0,
         "what": "spec-amend restamp reports UNVERIFIED cause for specs whose frontmatter links name slug ids (requirement/rfc), so every allocator rename becomes a contract record owing an owner signature",
+        "status": "open"
+      },
+      {
+        "id": "fu-append-run-started-guard",
+        "ref": "ci-node-24-baseline",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "state.mjs append-run accepts a --started before the ref's previous run ended (placeholder 09:00:00Z recorded a 10738 s TDD run)",
         "status": "open"
       }
     ]
