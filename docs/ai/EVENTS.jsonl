@@ -3227,3 +3227,4 @@
 {"v":1,"ts":"2026-10-22T20:51:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ride-state-handoff-to-worktree","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-22T20:51:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-ride-state-handoff-to-worktree","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-22T21:30:51Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"ride-state-handoff-to-worktree","payload":{"pr":492,"lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"swept","head_sha":"4f3f231a4e1383ab55f2a3e87e4687cb9c107f1f"}}
+{"v":1,"ts":"2026-10-23T06:03:54Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-audit-suite-speed","payload":{"from":"draft","to":"implementing"}}
