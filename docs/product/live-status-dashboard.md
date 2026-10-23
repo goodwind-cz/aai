@@ -98,7 +98,7 @@ ever invokes it, and it is never coupled to ride ceremony.
   or an env override joined with `path.join` — no hardcoded POSIX string.
   `aai-live.sh` ships a PowerShell twin (`aai-live.ps1`). The spool logic
   lives in one Node module, `.aai/scripts/live-spool.mjs` (RFC-0017 phase 3);
-  `live-spool.sh` and `live-spool.ps1` are 17-line launchers that call it.
+  `live-spool.sh` and `live-spool.ps1` are thin launchers (17 and 28 lines) that call it.
   Moving to one module settled three differences between the old copies:
   every `ts` has exactly 3 fractional digits (the PowerShell copy wrote 7,
   which could misorder lines in the reader's string comparison); a JSON

@@ -33,9 +33,9 @@ Describe 'live-spool launcher' {
       $p.StandardInput.BaseStream.Flush()
       $p.StandardInput.Close()
       $out = $p.StandardOutput.ReadToEnd()
-      $null = $p.StandardError.ReadToEnd()
+      $err = $p.StandardError.ReadToEnd()
       $p.WaitForExit()
-      return [pscustomobject]@{ ExitCode = $p.ExitCode; Stdout = $out }
+      return [pscustomobject]@{ ExitCode = $p.ExitCode; Stdout = $out; Stderr = $err }
     }
     function New-SpoolDir {
       $script:Counter++
@@ -59,6 +59,7 @@ Describe 'live-spool launcher' {
     $dir = New-SpoolDir
     $r = Invoke-Launcher -Payload '{"session_id":"s1","cwd":"/x","model":"m","rate_limits":{"five_hour":{"used_percent":33}},"transcript_path":"/t"}' -Kind 'statusline' -SpoolDir $dir
     $r.ExitCode | Should -Be 0
+    $r.Stderr | Should -BeExactly ''
     $lines = @(Get-Content -LiteralPath (Join-Path $dir 'statusline.jsonl'))
     $lines.Count | Should -Be 1
     $lines[0] | Should -Match '^\{"ts":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z","session_id":"s1","cwd":"/x","model":"m","rate_limits":\{"five_hour":\{"used_percent":33\}\}\}$'
@@ -70,6 +71,7 @@ Describe 'live-spool launcher' {
     $text = 'Opus ' + [char]0x2713 + ' ' + [char]0x010D + [char]0x0159
     $r = Invoke-Launcher -Payload ('{"model":{"display_name":"' + $text + '"}}') -Kind 'statusline' -SpoolDir $dir
     $r.ExitCode | Should -Be 0
+    $r.Stderr | Should -BeExactly ''
     $bytes = [IO.File]::ReadAllBytes((Join-Path $dir 'statusline.jsonl'))
     ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) | Should -BeFalse
     ($bytes -contains 13) | Should -BeFalse
@@ -90,7 +92,17 @@ Describe 'live-spool launcher' {
     $r = Invoke-Launcher -Payload '{"hook_event_name":"Stop"}' -Kind 'hooks' -SpoolDir $dir
     $r.ExitCode | Should -Be 0
     $r.Stdout | Should -BeExactly ''
+    $r.Stderr | Should -BeExactly ''
     @(Get-Content -LiteralPath (Join-Path $dir 'hooks.jsonl')).Count | Should -Be 1
+  }
+
+  It 'writes exactly one line for a 1 MB object payload and keeps stderr empty' {
+    $dir = New-SpoolDir
+    $pad = 'a' * 1048576
+    $r = Invoke-Launcher -Payload ('{"session_id":"s1","cwd":"/x","pad":"' + $pad + '"}') -Kind 'statusline' -SpoolDir $dir
+    $r.ExitCode | Should -Be 0
+    $r.Stderr | Should -BeExactly ''
+    @(Get-Content -LiteralPath (Join-Path $dir 'statusline.jsonl')).Count | Should -Be 1
   }
 
   It 'prints exactly the passthrough line when no argument is given' {

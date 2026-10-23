@@ -1157,7 +1157,7 @@ launcher_check() {
     const bad = [];
     if (buf.some((b) => b > 0x7e)) bad.push("non-ASCII byte");
     const lines = text.split("\n"); if (lines[lines.length - 1] === "") lines.pop();
-    if (lines.length > 20) bad.push("more than 20 lines (" + lines.length + ")");
+    if (lines.length > 30) bad.push("more than 30 lines (" + lines.length + ")");
     if (!text.includes("live-spool.mjs")) bad.push("no reference to live-spool.mjs");
     for (const t of ["session_id", "rate_limits", "hook_event_name", "cost", "500", "JSON",
       "ConvertFrom-Json", "ConvertTo-Json", "Add-Content", "Set-Content", "tail"]) {
@@ -1223,10 +1223,24 @@ test_2410_ps1_launcher_without_node() {
   local cp="$TEST_DIR/t2410-copy"
   command -v node >/dev/null 2>&1 || log_fail "TEST-2410: positive control failed, node must resolve on the real PATH"
   rm -rf "$cp" "$sp"; mkdir -p "$cp"; cp "$SPOOL_PS1" "$cp/live-spool.ps1"
-  rc=0; out="$(printf '%s' '{"cwd":"/x"}' | AAI_LIVE_SPOOL_DIR="$sp" pwsh -NoProfile -File "$cp/live-spool.ps1" statusline 2>/dev/null)" || rc=$?
+  rc=0; out="$(printf '%s' '{"cwd":"/x"}' | AAI_LIVE_SPOOL_DIR="$sp" pwsh -NoProfile -File "$cp/live-spool.ps1" statusline 2>"$TEST_DIR/t2410-err")" || rc=$?
   [[ "$rc" == 0 ]] || log_fail "TEST-2410: statusline with the module absent must exit 0, got $rc"
   [[ "$out" == "(aai-live tap active)" ]] || log_fail "TEST-2410: statusline with the module absent must print the passthrough, got: $out"
+  [[ ! -s "$TEST_DIR/t2410-err" ]] || log_fail "TEST-2410: stderr must stay empty with the module absent"
   [[ ! -e "$sp" ]] || log_fail "TEST-2410: no spool file may be created with the module absent"
+  local big="$TEST_DIR/t2410-big" wrc err
+  head -c 1048576 /dev/zero | tr '\0' 'a' > "$big"
+  rc=0
+  out="$({ cat "$big"; echo $? > "$TEST_DIR/t2410-wrc"; } | AAI_LIVE_SPOOL_DIR="$sp" pwsh -NoProfile -File "$cp/live-spool.ps1" hooks 2>"$TEST_DIR/t2410-err")" || rc=$?
+  wrc="$(cat "$TEST_DIR/t2410-wrc" 2>/dev/null || echo none)"; err="$(cat "$TEST_DIR/t2410-err")"
+  [[ "$rc" == 0 && -z "$out" && -z "$err" ]] || log_fail "TEST-2410: hooks with the module absent must exit 0 and print nothing (rc=$rc out=$out err=$err)"
+  [[ "$wrc" == 0 ]] || log_fail "TEST-2410: the 1 MB hooks payload was not drained (writer rc=$wrc, broken pipe)"
+  [[ ! -e "$sp" ]] || log_fail "TEST-2410: no spool file may be created with the module absent"
+  # Node and module both present (hosted-5.1 regression): the launcher hands stdin to Node and Node writes the line.
+  rm -rf "$sp"
+  rc=0; out="$(printf '%s' '{"cwd":"/x"}' | AAI_LIVE_SPOOL_DIR="$sp" pwsh -NoProfile -File "$SPOOL_PS1" statusline 2>"$TEST_DIR/t2410-err")" || rc=$?
+  [[ "$rc" == 0 && "$out" == "(aai-live tap active)" && ! -s "$TEST_DIR/t2410-err" ]] || log_fail "TEST-2410: real launcher must exit 0, print the passthrough once and keep stderr empty (rc=$rc out=$out)"
+  [[ "$(wc -l < "$sp/statusline.jsonl" 2>/dev/null | tr -d ' ')" == 1 ]] || log_fail "TEST-2410: real launcher must write exactly one statusline line"
   log_pass "TEST-2410: ps1 launcher degrades without node (exit 0, passthrough, no spool)"
 }
 
