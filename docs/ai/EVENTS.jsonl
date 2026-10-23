@@ -3258,3 +3258,4 @@
 {"v":1,"ts":"2026-10-23T18:32:38Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"node-first-sync-hook-slice","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-23T18:32:38Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-sync-hook-slice","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-23T18:32:38Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-sync-hook-slice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-23T18:41:54Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"node-first-sync-hook-slice","payload":{"pr":495,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"999711ae1b4a54f5a98800b3791a0ffe843a10e7"}}
