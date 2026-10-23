@@ -1,10 +1,10 @@
 ---
 id: spec-ci-node-24-baseline
 type: spec
-number: null
-status: implementing
+number: 246
+status: done
 mutation_gate: v1
-frozen_sha256: 77f3d2887ab7b335e73eb4126e8cb0e218d952dc9957ddfd1785e780f69e2d12
+frozen_sha256: 5527ed2fe70e9af9d4ea5f9b53f5a15a5b3353c06334d43b70de5dc04c833e6c
 ceremony_level: 2
 links:
   requirement: ci-node-24-baseline
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Move CI to Node 24 and publish the supported Node floor](../issues/CHANGE-DRAFT-ci-node-24-baseline.md).
+- Requirement: [Move CI to Node 24 and publish the supported Node floor](../issues/CHANGE-0221-ci-node-24-baseline.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   owner decisions 1.4 (order step 4), 2 (Node floor) and 4 (runner budget).
 - Technology contract: docs/TECHNOLOGY.md (Node stdlib only, Bash 3.2 and GNU Bash).
@@ -51,7 +51,7 @@ SPEC-FROZEN: true
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md;
   tests/skills/test-aai-doctor.sh; tests/skills/test-aai-hygiene-pack.sh;
   docs/product/aai-doctor.md; CHANGELOG.md;
-  docs/issues/CHANGE-DRAFT-ci-node-24-baseline.md; this spec.
+  docs/issues/CHANGE-0221-ci-node-24-baseline.md; this spec.
 - Code review required: true.
 
 ## What Planning measured
@@ -216,13 +216,13 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | Every node-version value in .github/workflows/*.yml is '24' except exactly one '22' inside job self-hosting-smoke; at least 11 '24' pins exist; no workflow and no .aai/scripts file contains the text Node 20 or node-version '20'. | planned | — | — | TEST-2301 |
-| Spec-AC-02 | Job self-hosting-smoke keeps its exact name, needs, if, runs-on and timeout; after its existing smoke step it has a setup-node step with node-version '22' followed by the step Node 22 compatibility (downstream floor), which runs set -euo pipefail, a Node 22 version assertion with no pipe into grep -q, node --check over every .aai/scripts mjs file, node --test tests/skills/lib/*.test.mjs, the self-hosting smoke script and the doctor JSON check for no CAT-20; skill-suite.yml has the baseline number of jobs. | planned | — | — | TEST-2302 |
-| Spec-AC-03 | docs/TECHNOLOGY.md declares the floor: the Version Matrix Node.js row has the version cell 24 baseline; 22 minimum downstream; 20 unsupported, the Runtime(s) bullet names all three, and no line of the file still calls the Node floor UNKNOWN. | planned | — | — | TEST-2303 |
-| Spec-AC-04 | The floor has one value across its three holders: the doctor's exported NODE_FLOOR_MAJOR equals the TECHNOLOGY.md minimum and the compatibility pin, and NODE_BASELINE_MAJOR equals the TECHNOLOGY.md baseline and every other workflow pin. | planned | — | — | TEST-2304 |
-| Spec-AC-05 | WHEN the doctor runs on a Node whose major is below 22 (v20.11.1 and v21.7.3 through a preload), the system SHALL print one line starting CAT-20 WARN that names the running version, 22 and 24, and --json SHALL carry a CAT-20 entry with status WARN and detail floor_major 22 and baseline_major 24. | planned | — | — | TEST-2305 |
-| Spec-AC-06 | WHEN the doctor runs below the floor its FAIL count and plain exit code SHALL equal the same run at v22.0.0 and --strict SHALL exit 1; WHEN it runs at v22.0.0, v24.0.0, an unparseable version or the real runtime it SHALL print no CAT-20 line and --json SHALL carry no CAT-20 id. | planned | — | — | TEST-2306, TEST-2307 |
-| Spec-AC-07 | The RFC-0017 Rollout Status table has one row whose second cell is Node 24 CI baseline and published floor, whose status cell is done and whose link target ends in ci-node-24-baseline.md. | planned | — | — | TEST-2308 |
+| Spec-AC-01 | Every node-version value in .github/workflows/*.yml is '24' except exactly one '22' inside job self-hosting-smoke; at least 11 '24' pins exist; no workflow and no .aai/scripts file contains the text Node 20 or node-version '20'. | done | docs/ai/tdd/ci-node-24-baseline/green/test_138_ci_node_pins.log | — | TEST-2301 |
+| Spec-AC-02 | Job self-hosting-smoke keeps its exact name, needs, if, runs-on and timeout; after its existing smoke step it has a setup-node step with node-version '22' followed by the step Node 22 compatibility (downstream floor), which runs set -euo pipefail, a Node 22 version assertion with no pipe into grep -q, node --check over every .aai/scripts mjs file, node --test tests/skills/lib/*.test.mjs, the self-hosting smoke script and the doctor JSON check for no CAT-20; skill-suite.yml has the baseline number of jobs. | done | docs/ai/tdd/ci-node-24-baseline/green/test_139_node22_compat_step.log, docs/ai/tdd/ci-node-24-baseline/green/compat-run-node22.log | — | TEST-2302 |
+| Spec-AC-03 | docs/TECHNOLOGY.md declares the floor: the Version Matrix Node.js row has the version cell 24 baseline; 22 minimum downstream; 20 unsupported, the Runtime(s) bullet names all three, and no line of the file still calls the Node floor UNKNOWN. | done | docs/ai/tdd/ci-node-24-baseline/green/test_140_technology_node_floor.log | — | TEST-2303 |
+| Spec-AC-04 | The floor has one value across its three holders: the doctor's exported NODE_FLOOR_MAJOR equals the TECHNOLOGY.md minimum and the compatibility pin, and NODE_BASELINE_MAJOR equals the TECHNOLOGY.md baseline and every other workflow pin. | done | docs/ai/tdd/ci-node-24-baseline/green/test_141_node_floor_single_value.log | — | TEST-2304 |
+| Spec-AC-05 | WHEN the doctor runs on a Node whose major is below 22 (v20.11.1 and v21.7.3 through a preload), the system SHALL print one line starting CAT-20 WARN that names the running version, 22 and 24, and --json SHALL carry a CAT-20 entry with status WARN and detail floor_major 22 and baseline_major 24. | done | docs/ai/tdd/ci-node-24-baseline/green/test_2305_node_floor_warn_below.log | — | TEST-2305 |
+| Spec-AC-06 | WHEN the doctor runs below the floor its FAIL count and plain exit code SHALL equal the same run at v22.0.0 and --strict SHALL exit 1; WHEN it runs at v22.0.0, v24.0.0, an unparseable version or the real runtime it SHALL print no CAT-20 line and --json SHALL carry no CAT-20 id. | done | docs/ai/tdd/ci-node-24-baseline/green/test_2306_node_floor_warn_not_fail.log, docs/ai/tdd/ci-node-24-baseline/green/test_2307_node_floor_silent_at_floor.log | — | TEST-2306, TEST-2307 |
+| Spec-AC-07 | The RFC-0017 Rollout Status table has one row whose second cell is Node 24 CI baseline and published floor, whose status cell is done and whose link target ends in ci-node-24-baseline.md. | done | docs/ai/tdd/ci-node-24-baseline/green/test_142_rfc0017_node_row.log | — | TEST-2308 |
 
 ## Implementation plan
 
@@ -259,14 +259,14 @@ Seams crossed:
 
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
-| TEST-2301 | Spec-AC-01 | integration | tests/skills/test-aai-hygiene-pack.sh | test_138_ci_node_pins reads every .github/workflows/*.yml, collects each node-version value with its job, requires all to be 24 except exactly one 22 in self-hosting-smoke and at least 11 pins of 24, and fails on the text Node 20 or node-version '20' in any workflow or .aai/scripts file | `sed:s/node-version: '24'/node-version: '20'/` on .github/workflows/close-gate.yml | pending |
-| TEST-2302 | Spec-AC-02 | integration | tests/skills/test-aai-hygiene-pack.sh | test_139_node22_compat_step extracts the self-hosting-smoke job block and checks its name, needs, if, runs-on and timeout lines, the step order (smoke, setup-node 22, compat step), each required command in the compat run block, no grep -q pipe, and the top-level job count of skill-suite.yml | `sed:s/node --test tests\/skills\/lib\/\*\.test\.mjs/true/` on .github/workflows/skill-suite.yml | pending |
-| TEST-2303 | Spec-AC-03 | inspection | tests/skills/test-aai-hygiene-pack.sh | test_140_technology_node_floor parses the Version Matrix Node.js row and the Runtime(s) bullet of docs/TECHNOLOGY.md and fails on a missing value or any line calling the Node floor UNKNOWN | `sed:s/24 baseline; 22 minimum downstream; 20 unsupported/UNKNOWN (no pin)/` on docs/TECHNOLOGY.md | pending |
-| TEST-2304 | Spec-AC-04 | integration | tests/skills/test-aai-hygiene-pack.sh | test_141_node_floor_single_value imports NODE_FLOOR_MAJOR and NODE_BASELINE_MAJOR from the real aai-doctor.mjs and compares them with the TECHNOLOGY.md row values and with the workflow pins collected as in TEST-2301 | `sed:s/export const NODE_FLOOR_MAJOR = 22;/export const NODE_FLOOR_MAJOR = 21;/` on .aai/scripts/aai-doctor.mjs | pending |
-| TEST-2305 | Spec-AC-05 | integration | tests/skills/test-aai-doctor.sh | test_2305_node_floor_warn_below runs the real doctor CLI with a TEST_DIR preload faking v20.11.1, then v21.7.3, and asserts one CAT-20 WARN text line naming the version, 22 and 24, plus the --json CAT-20 entry status and detail | `sed:s/if \(major >= NODE_FLOOR_MAJOR\) return null;/return null;/` on .aai/scripts/aai-doctor.mjs | pending |
-| TEST-2306 | Spec-AC-06 | integration | tests/skills/test-aai-doctor.sh | test_2306_node_floor_warn_not_fail compares the --json FAIL count and the plain exit code at fake v20.11.1 with the same run at fake v22.0.0, and asserts --strict exits 1 at v20.11.1 | `sed:s/'Node Runtime', 'WARN'/'Node Runtime', 'FAIL'/` on .aai/scripts/aai-doctor.mjs | pending |
-| TEST-2307 | Spec-AC-06 | integration | tests/skills/test-aai-doctor.sh | test_2307_node_floor_silent_at_floor runs the doctor at fake v22.0.0, v24.0.0, an unparseable vX and without a preload, and asserts no CAT-20 text line and no CAT-20 id in --json each time; positive control: the v20.11.1 run of the same helper does print CAT-20 | `sed:s/major >= NODE_FLOOR_MAJOR/major > NODE_FLOOR_MAJOR/` on .aai/scripts/aai-doctor.mjs | pending |
-| TEST-2308 | Spec-AC-07 | inspection | tests/skills/test-aai-hygiene-pack.sh | test_142_rfc0017_node_row finds the Rollout Status row of RFC-0017 by its second cell and checks the done status and the link target suffix | `sed:s/Node 24 CI baseline and published floor/Node 24 CI move/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | pending |
+| TEST-2301 | Spec-AC-01 | integration | tests/skills/test-aai-hygiene-pack.sh | test_138_ci_node_pins reads every .github/workflows/*.yml, collects each node-version value with its job, requires all to be 24 except exactly one 22 in self-hosting-smoke and at least 11 pins of 24, and fails on the text Node 20 or node-version '20' in any workflow or .aai/scripts file | `sed:s/node-version: '24'/node-version: '20'/` on .github/workflows/close-gate.yml | green |
+| TEST-2302 | Spec-AC-02 | integration | tests/skills/test-aai-hygiene-pack.sh | test_139_node22_compat_step extracts the self-hosting-smoke job block and checks its name, needs, if, runs-on and timeout lines, the step order (smoke, setup-node 22, compat step), each required command in the compat run block, no grep -q pipe, and the top-level job count of skill-suite.yml | `sed:s/node --test tests\/skills\/lib\/\*\.test\.mjs/true/` on .github/workflows/skill-suite.yml | green |
+| TEST-2303 | Spec-AC-03 | inspection | tests/skills/test-aai-hygiene-pack.sh | test_140_technology_node_floor parses the Version Matrix Node.js row and the Runtime(s) bullet of docs/TECHNOLOGY.md and fails on a missing value or any line calling the Node floor UNKNOWN | `sed:s/24 baseline; 22 minimum downstream; 20 unsupported/UNKNOWN (no pin)/` on docs/TECHNOLOGY.md | green |
+| TEST-2304 | Spec-AC-04 | integration | tests/skills/test-aai-hygiene-pack.sh | test_141_node_floor_single_value imports NODE_FLOOR_MAJOR and NODE_BASELINE_MAJOR from the real aai-doctor.mjs and compares them with the TECHNOLOGY.md row values and with the workflow pins collected as in TEST-2301 | `sed:s/export const NODE_FLOOR_MAJOR = 22;/export const NODE_FLOOR_MAJOR = 21;/` on .aai/scripts/aai-doctor.mjs | green |
+| TEST-2305 | Spec-AC-05 | integration | tests/skills/test-aai-doctor.sh | test_2305_node_floor_warn_below runs the real doctor CLI with a TEST_DIR preload faking v20.11.1, then v21.7.3, and asserts one CAT-20 WARN text line naming the version, 22 and 24, plus the --json CAT-20 entry status and detail | `sed:s/if \(major >= NODE_FLOOR_MAJOR\) return null;/return null;/` on .aai/scripts/aai-doctor.mjs | green |
+| TEST-2306 | Spec-AC-06 | integration | tests/skills/test-aai-doctor.sh | test_2306_node_floor_warn_not_fail compares the --json FAIL count and the plain exit code at fake v20.11.1 with the same run at fake v22.0.0, and asserts --strict exits 1 at v20.11.1 | `sed:s/'Node Runtime', 'WARN'/'Node Runtime', 'FAIL'/` on .aai/scripts/aai-doctor.mjs | green |
+| TEST-2307 | Spec-AC-06 | integration | tests/skills/test-aai-doctor.sh | test_2307_node_floor_silent_at_floor runs the doctor at fake v22.0.0, v24.0.0, an unparseable vX and without a preload, and asserts no CAT-20 text line and no CAT-20 id in --json each time; positive control: the v20.11.1 run of the same helper does print CAT-20 | `sed:s/major >= NODE_FLOOR_MAJOR/major > NODE_FLOOR_MAJOR/` on .aai/scripts/aai-doctor.mjs | green |
+| TEST-2308 | Spec-AC-07 | inspection | tests/skills/test-aai-hygiene-pack.sh | test_142_rfc0017_node_row finds the Rollout Status row of RFC-0017 by its second cell and checks the done status and the link target suffix | `sed:s/Node 24 CI baseline and published floor/Node 24 CI move/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | green |
 
 Test-file note: every row's selector is one function that runs alone under
 single-function dispatch (`bash tests/skills/test-aai-hygiene-pack.sh <function>`,

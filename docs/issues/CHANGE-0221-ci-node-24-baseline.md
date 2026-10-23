@@ -1,8 +1,8 @@
 ---
 id: ci-node-24-baseline
 type: change
-number: null
-status: draft
+number: 221
+status: done
 capability: ci-feedback-speed
 parent: smaller-node-core-and-faster-feedback
 links:

@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: c6d86ed8..78f75635 (branch change/ci-node-24; f4cf6476 is a test-runs ledger line only)
-  spec: docs/specs/SPEC-DRAFT-spec-ci-node-24-baseline.md
+  spec: docs/specs/SPEC-0246-spec-ci-node-24-baseline.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -42,7 +42,7 @@ review:
 - Scope: `git diff c6d86ed8..78f75635` in worktree `/private/tmp/aai-ci-node-24`
   (branch `change/ci-node-24`). `f4cf6476` only appends one line to
   `docs/ai/tests/test-runs.jsonl`.
-- Spec: `docs/specs/SPEC-DRAFT-spec-ci-node-24-baseline.md` (frozen, ceremony 2).
+- Spec: `docs/specs/SPEC-0246-spec-ci-node-24-baseline.md` (frozen, ceremony 2).
 - Dispatch note: the dispatch named two validation findings (NB-1, NB-6) and
   focus areas. Recorded per the anti-gaming contract; the full scope was
   reviewed and both were judged independently below.

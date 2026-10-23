@@ -89,7 +89,7 @@ pairs:
   - capability: docs-audit-suite-speed
     status: done
   - capability: ci-node-24-baseline
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

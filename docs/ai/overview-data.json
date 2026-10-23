@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-23T09:14:46.578Z",
+  "generatedAt": "2026-10-23T12:36:11.806Z",
   "project": "aai",
   "counts": {
-    "delivered": 315,
+    "delivered": 316,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -245,7 +245,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-docs-audit-suite-speed-20261023T091000Z.md"
+    },
+    {
+      "ref": "ci-node-24-baseline",
+      "title": "Move CI to Node 24 and publish the supported Node floor",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0221-ci-node-24-baseline.md",
+      "closed_on": "2026-10-23",
+      "agent_minutes": 220,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0246-spec-ci-node-24-baseline.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-ci-node-24-baseline-20261023T122745Z.md"
     },
     {
       "ref": "slim-standing-role-context",
@@ -4367,7 +4380,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-docs-audit-suite-speed-20261023T091000Z.md"
+        },
+        {
+          "ref": "ci-node-24-baseline",
+          "title": "Move CI to Node 24 and publish the supported Node floor",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0221-ci-node-24-baseline.md",
+          "closed_on": "2026-10-23",
+          "agent_minutes": 220,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0246-spec-ci-node-24-baseline.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-ci-node-24-baseline-20261023T122745Z.md"
         },
         {
           "ref": "slim-standing-role-context",

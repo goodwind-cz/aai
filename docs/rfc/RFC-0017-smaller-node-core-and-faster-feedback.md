@@ -306,7 +306,7 @@ behavior. Completing that child must not close this umbrella RFC.
 | 3 | Migrate common sync/hook behavior to Node in small slices, with native platform parity and retired counterparts | not started | No child intake yet |
 | 4 | Slim role context and generate provider adapters; extend existing lightweight and resume paths | not started | No child intake yet |
 | 5 | Introduce precise evidence reuse where inputs are declared; migrate remaining process adapters only with native evidence | not started | No child intake yet |
-| order 4 | Node 24 CI baseline and published floor | done | [Node 24 CI baseline](../issues/CHANGE-DRAFT-ci-node-24-baseline.md) |
+| order 4 | Node 24 CI baseline and published floor | done | [Node 24 CI baseline](../issues/CHANGE-0221-ci-node-24-baseline.md) |
 
 Suggested first implementation scope: scheduling improvements plus a separate
 docs-audit pilot. Do not combine scheduler, state storage, prompt governance,
