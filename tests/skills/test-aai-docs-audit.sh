@@ -8603,13 +8603,15 @@ test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
   # file copies and echoed or table text are not launches.
   local audit_prog gen_prog control
   audit_prog='
-    /^[[:space:]]*#/ || /^[[:space:]]*(cp|echo|printf|[|]) / { next }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*(cp|echo|printf|[|]) / && !/[|][[:space:]]*node[[:space:]]/ { next }
     /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*(docs-audit\.mjs|\$\{?AUDIT_SCRIPT\}?)/ {
       if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
       if ($0 ~ /--path|--quick|--lint-body|--ac-flip-check|--list/) next
       print NR ": " $0 }'
   gen_prog='
-    /^[[:space:]]*#/ || /^[[:space:]]*(cp|echo|printf|[|]) / { next }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*(cp|echo|printf|[|]) / && !/[|][[:space:]]*node[[:space:]]/ { next }
     /(^|[^[:alnum:]_.\/-])node[[:space:]]+[^|;&]*generate-docs-index\.mjs/ {
       if ($0 ~ /cd "\$/ && $0 !~ /cd "\$PROJECT_ROOT"/) next
       print NR ": " $0 }'
@@ -8620,13 +8622,15 @@ test_2206_no_direct_live_corpus_launch() {  # TEST-2206 / Spec-AC-02
     '  ! node "${AUDIT_SCRIPT}" --check --strict' \
     '  true || node "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" --check' \
     '  while node .aai/scripts/docs-audit.mjs --check; do break; done' \
-    '  out="$(bash -c "node .aai/scripts/docs-audit.mjs --check")"'; do
+    '  out="$(bash -c "node .aai/scripts/docs-audit.mjs --check")"' \
+    '  echo y | node "$AUDIT_SCRIPT" --check'; do
     [[ -n "$(awk "$audit_prog" <<<"$control")" ]] \
       || log_fail "TEST-2206: the audit scan misses the launch shape: $control"
   done
   for control in \
     '  (cd "$PROJECT_ROOT" && if node .aai/scripts/generate-docs-index.mjs; then :; fi)' \
-    '  true || node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs"'; do
+    '  true || node "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs"' \
+    '  printf x | node .aai/scripts/generate-docs-index.mjs'; do
     [[ -n "$(awk "$gen_prog" <<<"$control")" ]] \
       || log_fail "TEST-2206: the generator scan misses the launch shape: $control"
   done
