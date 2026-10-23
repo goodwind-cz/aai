@@ -14,12 +14,13 @@ Describe 'live-spool launcher' {
     $script:Counter = 0
 
     function Invoke-Launcher {
-      param([string]$Payload, [string]$Kind, [string]$SpoolDir)
+      param([string]$Payload, [string]$Kind, [string]$SpoolDir, [string]$LauncherPath)
       $psi = New-Object System.Diagnostics.ProcessStartInfo
       $psi.FileName = $script:Engine
+      if (-not $LauncherPath) { $LauncherPath = $script:Launcher }
       $kindArg = ''
       if ($Kind) { $kindArg = ' ' + $Kind }
-      $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $script:Launcher + '"' + $kindArg
+      $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $LauncherPath + '"' + $kindArg
       $psi.UseShellExecute = $false
       $psi.RedirectStandardInput = $true
       $psi.RedirectStandardOutput = $true
@@ -97,6 +98,18 @@ Describe 'live-spool launcher' {
     $r = Invoke-Launcher -Payload '' -Kind '' -SpoolDir $dir
     $r.ExitCode | Should -Be 0
     $r.Stdout.TrimEnd("`r", "`n") | Should -BeExactly '(aai-live tap active)'
+  }
+
+  It 'prints the passthrough and writes nothing when the module is absent' {
+    $dir = New-SpoolDir
+    $copyDir = Join-Path $script:Scratch 'nomodule'
+    New-Item -ItemType Directory -Force -Path $copyDir | Out-Null
+    $copy = Join-Path $copyDir 'live-spool.ps1'
+    Copy-Item -LiteralPath $script:Launcher -Destination $copy
+    $r = Invoke-Launcher -Payload '{"cwd":"/x"}' -Kind 'statusline' -SpoolDir $dir -LauncherPath $copy
+    $r.ExitCode | Should -Be 0
+    $r.Stdout.TrimEnd("`r", "`n") | Should -BeExactly '(aai-live tap active)'
+    Test-Path -LiteralPath $dir | Should -BeFalse
   }
 
   It 'runs on Node 22 or newer' {

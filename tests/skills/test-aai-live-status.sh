@@ -1190,6 +1190,21 @@ test_2409_sh_launcher_without_node() {
   [[ "$rc" == 0 ]] || log_fail "TEST-2409: hooks without node must exit 0, got $rc"
   [[ -z "$out" ]] || log_fail "TEST-2409: hooks without node must print nothing, got: $out"
   [[ ! -e "$sp" ]] || log_fail "TEST-2409: no spool file may be created without node"
+  # Node present, module absent next to the launcher (NB-1/NB-2): same fallback, drained stdin.
+  local cp="$TEST_DIR/t2409-copy" big="$TEST_DIR/t2409-big" wrc err
+  command -v node >/dev/null 2>&1 || log_fail "TEST-2409: positive control failed, node must resolve on the real PATH"
+  rm -rf "$cp" "$sp"; mkdir -p "$cp"; cp "$SPOOL" "$cp/live-spool.sh"
+  rc=0; out="$(printf '%s' '{"cwd":"/x"}' | AAI_LIVE_SPOOL_DIR="$sp" bash "$cp/live-spool.sh" statusline 2>"$TEST_DIR/t2409-err")" || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-2409: statusline with the module absent must exit 0, got $rc"
+  [[ "$out" == "(aai-live tap active)" ]] || log_fail "TEST-2409: statusline with the module absent must print the passthrough, got: $out"
+  [[ ! -s "$TEST_DIR/t2409-err" ]] || log_fail "TEST-2409: stderr must stay empty with the module absent"
+  head -c 1048576 /dev/zero | tr '\0' 'a' > "$big"
+  wrc=none; rc=0
+  out="$({ cat "$big"; echo $? > "$TEST_DIR/t2409-wrc"; } | AAI_LIVE_SPOOL_DIR="$sp" bash "$cp/live-spool.sh" hooks 2>"$TEST_DIR/t2409-err")" || rc=$?
+  wrc="$(cat "$TEST_DIR/t2409-wrc" 2>/dev/null || echo none)"; err="$(cat "$TEST_DIR/t2409-err")"
+  [[ "$rc" == 0 && -z "$out" && -z "$err" ]] || log_fail "TEST-2409: hooks with the module absent must exit 0 and print nothing (rc=$rc out=$out err=$err)"
+  [[ "$wrc" == 0 ]] || log_fail "TEST-2409: the 1 MB hooks payload was not drained (writer rc=$wrc, broken pipe)"
+  [[ ! -e "$sp" ]] || log_fail "TEST-2409: no spool file may be created with the module absent"
   log_pass "TEST-2409: sh launcher degrades without node (exit 0, passthrough, no spool)"
 }
 
@@ -1204,6 +1219,14 @@ test_2410_ps1_launcher_without_node() {
   [[ "$rc" == 0 ]] || log_fail "TEST-2410: statusline without node must exit 0, got $rc"
   [[ "$out" == "(aai-live tap active)" ]] || log_fail "TEST-2410: statusline without node must print the passthrough, got: $out"
   [[ ! -e "$sp" ]] || log_fail "TEST-2410: no spool file may be created without node"
+  # Node present, module absent next to the launcher (NB-1): same fallback.
+  local cp="$TEST_DIR/t2410-copy"
+  command -v node >/dev/null 2>&1 || log_fail "TEST-2410: positive control failed, node must resolve on the real PATH"
+  rm -rf "$cp" "$sp"; mkdir -p "$cp"; cp "$SPOOL_PS1" "$cp/live-spool.ps1"
+  rc=0; out="$(printf '%s' '{"cwd":"/x"}' | AAI_LIVE_SPOOL_DIR="$sp" pwsh -NoProfile -File "$cp/live-spool.ps1" statusline 2>/dev/null)" || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-2410: statusline with the module absent must exit 0, got $rc"
+  [[ "$out" == "(aai-live tap active)" ]] || log_fail "TEST-2410: statusline with the module absent must print the passthrough, got: $out"
+  [[ ! -e "$sp" ]] || log_fail "TEST-2410: no spool file may be created with the module absent"
   log_pass "TEST-2410: ps1 launcher degrades without node (exit 0, passthrough, no spool)"
 }
 
