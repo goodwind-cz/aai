@@ -3074,7 +3074,7 @@ test('TEST-2836 a spec path re-pointed after a focus switch cannot lower the cer
   assert.equal(c.mode, 'delta', 'control: ' + reasonsOf(c));
 });
 
-test('TEST-2837 the record is raise-only: a partial flush, a full flush and reset-block leave it, and an absent or unparseable record gives full', async () => {
+test('TEST-2837 the record is kept by flush and reset-block: a partial flush, a full flush and reset-block leave it, and an absent or unparseable record gives full', async () => {
   const L = await lib();
   const mk = (name) => {
     const fx = mkRepo(name, { verdicts: false });

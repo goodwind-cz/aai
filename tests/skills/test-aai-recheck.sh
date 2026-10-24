@@ -457,7 +457,7 @@ test_2836_specpath_record() {
   log_pass "TEST-2836: a spec path re-pointed after a focus switch is added to the record, never replacing the L3 path"
 }
 
-test_2837_record_raise_only() {
+test_2837_record_kept_by_flush_and_reset() {
   run_recheck_node_tests TEST-2837
   log_pass "TEST-2837: a flush and reset-block leave the record, and an absent or unparseable record gives full"
 }
@@ -553,7 +553,7 @@ main() {
   test_2834_worktree_move_sticky
   test_2835_handoff_sticky
   test_2836_specpath_record
-  test_2837_record_raise_only
+  test_2837_record_kept_by_flush_and_reset
   test_2838_unparsable_item_kept
   test_2839_duplicate_items_merged
   test_2820_default_on
