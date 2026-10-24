@@ -1017,7 +1017,9 @@ test_012_growth_sum_matches_ledger() {
   # carries no credit, so the round 4 and 5 SUBAGENT_PROTOCOL credits are withdrawn, review r6 NB-15).
   # Then 62478 -> 62785: cheap-transitions-slice-round6 (+307 B: the needs_full_recheck exception in ORCHESTRATION and the
   # matching RECHECK_DELTA sentence, measured deficit by TEST-010 against ba552b89, credited 1:1).
-  local want_growth=62785
+  # Then 62785 -> 63092: recheck-verdict-binding (+307 B: check-role-output.mjs --recheck-mode and the merge-nothing clause in
+  # ORCHESTRATION (+77 B) and ORCHESTRATION_PARALLEL (+230 B), measured by TEST-010 against 59ee0ff2, credited 1:1).
+  local want_growth=63092
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2718,6 +2720,50 @@ test_2722_diet_entry_for_slice() {
   log_pass "TEST-2722: one cheap-transitions-slice ledger entry crediting $lead B"
 }
 
+# TEST-2824 (spec-recheck-verdict-binding Spec-AC-12): the .aai/*.prompt.md glob measured 370992 bytes
+# at 59ee0ff2. When it grew, exactly one JUSTIFIED_ADDITIONS entry whose ref field is
+# recheck-verdict-binding carries a leading byte count equal to that growth; when it did not, no such
+# entry exists. TEST-010's headroom, computed with the same formula, stays 0 in both cases.
+test_2824_diet_entry_for_binding() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-2824 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local base_glob=370992 glob growth _e entry='' n=0 ref lead
+  glob=$(cat .aai/*.prompt.md | wc -c | tr -d ' ')
+  growth=$(( glob - base_glob ))
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    ref="${_e#* }"; ref="${ref%% *}"
+    if [[ "$ref" == "recheck-verdict-binding" ]]; then entry="$_e"; n=$((n + 1)); fi
+  done
+  lead="${entry%% *}"
+  if [[ "$growth" -gt 0 ]]; then
+    if [[ "$n" -ne 1 ]]; then
+      log_fail "TEST-2824: the glob grew $growth B over $base_glob but $n ledger entries have ref recheck-verdict-binding (want exactly 1)"
+      return
+    fi
+    if [[ "$lead" != "$growth" ]]; then
+      log_fail "TEST-2824: the recheck-verdict-binding entry credits '$lead' B but the glob grew $growth B"
+      return
+    fi
+  elif [[ "$n" -ne 0 ]]; then
+    log_fail "TEST-2824: the glob did not grow ($growth B) but $n recheck-verdict-binding entries exist"
+    return
+  fi
+  local after extra reduction headroom
+  after=$glob
+  extra=0
+  [[ -f .aai/INTAKE_COMMON.md ]] && extra=$((extra + $(wc -c < .aai/INTAKE_COMMON.md)))
+  [[ -f .aai/STATE_FALLBACK.md ]] && extra=$((extra + $(wc -c < .aai/STATE_FALLBACK.md)))
+  [[ -f .aai/ROLE_COMMON.md ]] && extra=$((extra + $(wc -c < .aai/ROLE_COMMON.md)))
+  read -r reduction headroom <<<"$(compute_reduction_headroom "$BASELINE_PROMPT_BYTES" "$after" "$extra" "$JUSTIFIED_GROWTH_BYTES" "$REQUIRED_REDUCTION_BYTES")"
+  if [[ "$headroom" -ne 0 ]]; then
+    log_fail "TEST-2824: TEST-010 headroom is $headroom (want 0) with growth $growth B and credit $JUSTIFIED_GROWTH_BYTES B"
+    return
+  fi
+  log_pass "TEST-2824: glob growth $growth B over $base_glob, $n recheck-verdict-binding ledger entry crediting '${lead:-none}' B, headroom $headroom"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2776,6 +2822,7 @@ main() {
   test_1641_roadmap_advisory_growth_ledgered
   test_1734_local_evidence_growth_ledgered
   test_2722_diet_entry_for_slice
+  test_2824_diet_entry_for_binding
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

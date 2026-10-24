@@ -156,7 +156,9 @@ When the platform supports concurrent subagent spawning:
 2. Each subagent MUST return a result block as defined in .aai/SUBAGENT_CONTRACT.md.
 3. DO NOT report to the user until ALL subagent result blocks are collected.
 4. Apply the merge protocol from .aai/SUBAGENT_PROTOCOL.md — you are the sole
-   writer of docs/ai/STATE.yaml.
+   writer of docs/ai/STATE.yaml. Check each block with check-role-output.mjs
+   --recheck-mode <recheck.mode>; a delta round that escalates (needs_full_recheck)
+   merges nothing: run none of its state_update_commands, re-run the tick with AAI_RECHECK_MODE=full.
 5. Update docs/ai/STATE.yaml with merged results — apply each merged field
    through the transactional CLI (`node .aai/scripts/state.mjs set-* /
    append-run / reset-block`, per the State update summary above; subagents

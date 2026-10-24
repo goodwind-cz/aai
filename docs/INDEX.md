@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-recheck-verdict-binding | specs | implementing | 18 planned | docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md |
+| spec-recheck-verdict-binding | specs | implementing | 17 done, 1 planned | docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md |
 
 ## Canonical layer (0)
 
@@ -674,7 +674,7 @@ _None._
 
 _None._
 
-## Broken references (499)
+## Broken references (505)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -700,10 +700,16 @@ _None._
 | tests/skills/lib/recheck.test.mjs | docs/ai/reports/VALIDATION-1.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/ai/reports/VALIDATION-2.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/ai/reports/VALIDATION-never-written.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/c1.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/c2.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-1.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-2.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-o.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-q8.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/issues/CHANGE-0002-other.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/specs/SPEC-0001-fx.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/specs/SPEC-0002-low.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/specs/new-note.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/ai/briefs/ride-demo.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/issues/CHANGE-DRAFT-ride-demo.md | NOT FOUND |

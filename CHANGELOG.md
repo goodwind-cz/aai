@@ -22,6 +22,21 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(recheck): bind each judged re-check verdict to STATE (recheck-verdict-binding)
+
+- A delta re-check round no longer reads the `check_verdict` stamps of `docs/ai/EVENTS.jsonl` to learn which round was judged. The
+  `--confirm` tick now runs the new `state.mjs bind-check` (refused under any non-empty `AAI_ROLE`), which writes a `check_binding` block into
+  the gitignored `docs/ai/STATE.yaml`: the head of the first dispatch, the verdict, the sha256 of each report and the `security_relevant`
+  marker. `recheckMode` compares that block, so a stamp rewrite or a hand-appended stamp changes nothing it reads. Git reads run without
+  inherited `GIT_*` variables and without replace objects, and `refs/replace/` or `info/grafts` gives `full`.
+- Two more cases give `full` (owner decision 2026-10-24): a `security_relevant: false` line inside a fenced code block no longer counts as
+  the report marker, and the ceremony level is the stricter of the spec the binding recorded and the spec STATE names now.
+- `check-role-output.mjs` takes `--recheck-mode <delta|full>` and prints `RECHECK-ESCALATION` only for a delta round; the prompts say an
+  escalated round merges nothing (`run none of its state_update_commands`). The delta default itself is unchanged in this entry.
+- Residual: the comparisons read `docs/ai/STATE.yaml` and the bound report files as they are on disk, so an edit to either made outside
+  `state.mjs` before the tick that binds or reads it, and a verdict the orchestrator itself records for the dispatched role with a new report,
+  are taken as written; no shape outside the D5 table is claimed.
+
 ## [unreleased] — feat(recheck): an opt-in slim payload for a re-check round with a non-production delta
 
 - With `AAI_RECHECK_MODE=delta` set (the default is unchanged: full), a Validation or Code Review round that follows an already-judged round can run

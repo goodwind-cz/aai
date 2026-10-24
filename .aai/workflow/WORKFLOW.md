@@ -65,7 +65,7 @@ finding. Gates prune by THIS table only, never silently:
 | Close gate (docs-audit)     | justification line required                          | justification line required         | —              | —                                                                |
 | PR ceremony                 | unchanged                                            | unchanged                           | unchanged      | + operator checkpoint before merge (explicit final-diff sign-off) |
 
-A re-check round (rules 11, 11s and 13 after an already-judged round) may run, only when the operator opts in with `AAI_RECHECK_MODE=delta` (off by default until the verdict is bound to STATE, `fu-recheck-verdict-not-bound-to-check`), as a delta re-check at L0 to L2 on the slim payload described in `.aai/SUBAGENT_PROTOCOL.md`; never at L3, and never for a production, protected or security-relevant delta. The independent model and the validator-differs rule are unchanged.
+A re-check round (rules 11, 11s and 13 after an already-judged round) may run, only when the operator opts in with `AAI_RECHECK_MODE=delta`, as a delta re-check at L0 to L2 on the slim payload described in `.aai/SUBAGENT_PROTOCOL.md`, when the `check_binding` block that `state.mjs bind-check` writes into STATE matches the compared round; never at L3, and never for a production, protected or security-relevant delta. The independent model and the validator-differs rule are unchanged.
 
 Protected surfaces (L3 canonical defaults; project-owned override/extension:
 `protected_paths_l3` in docs/ai/docs-audit.yaml):
