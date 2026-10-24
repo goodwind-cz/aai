@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-24T17:26:39.655Z",
+  "generatedAt": "2026-10-24T19:46:01.990Z",
   "project": "aai",
   "counts": {
     "delivered": 320,
-    "in_progress": 17,
+    "in_progress": 18,
     "releases": 1,
     "tokens_total": 77863744
   },
@@ -47,6 +47,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "recheck-verdict-binding",
+      "title": "Bind re-check verdicts to STATE and turn delta re-checks on by default",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-DRAFT-recheck-verdict-binding.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md",
       "validation": null,
       "review": null
     },
@@ -271,7 +284,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0250-spec-cheap-transitions-slice.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T171650Z.md"
+      "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T181227Z.md"
     },
     {
       "ref": "docs-audit-suite-speed",
@@ -4458,7 +4471,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0250-spec-cheap-transitions-slice.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T171650Z.md"
+          "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T181227Z.md"
         },
         {
           "ref": "docs-audit-suite-speed",
