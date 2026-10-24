@@ -168,8 +168,8 @@ function mkRepo(name, o = {}) {
   write(root, 'docs/TECHNOLOGY.md', '# Technology fixture\n');
   write(root, 'docs/knowledge/LEARNED.md', '# Learned fixture\n');
   write(root, 'docs/ai/decisions.jsonl', '{"type":"x"}\n');
-  write(root, 'tests/skills/base-test.sh', '#!/usr/bin/env bash\necho base\n');
-  write(root, 'tests/skills/guarded.sh', '#!/usr/bin/env bash\necho guarded\n');
+  write(root, 'tests/skills/test-aai-base.sh', '#!/usr/bin/env bash\necho base\n');
+  write(root, 'tests/skills/test-aai-guarded.sh', '#!/usr/bin/env bash\necho guarded\n');
   if (o.canon) {
     for (const rel of ['.aai/SUBAGENT_CONTRACT.md', '.aai/RECHECK_DELTA.prompt.md', '.aai/system/CANON.yaml',
       '.aai/system/MODEL_ROUTING.yaml', 'docs/knowledge/LEARNED.md',
@@ -244,7 +244,7 @@ test('TEST-2701 the Measured baseline table equals the values recomputed from ME
 test('TEST-2702 delta applies on an eligible fixture and every TREE_HASH_EXCLUDE_PATHS member is non-production', async () => {
   const L = await lib();
   const { root, base } = mkRepo('t2702');
-  fs.appendFileSync(path.join(root, 'tests/skills/base-test.sh'), 'echo more\n');
+  fs.appendFileSync(path.join(root, 'tests/skills/test-aai-base.sh'), 'echo more\n');
   write(root, 'docs/specs/new-note.md', '# note\n');
   fs.appendFileSync(path.join(root, 'docs/ai/decisions.jsonl'), '{"type":"y"}\n');
   const head = git(root, ['rev-parse', 'HEAD']);
@@ -254,7 +254,7 @@ test('TEST-2702 delta applies on an eligible fixture and every TREE_HASH_EXCLUDE
     assert.equal(r.mode, 'delta');
     assert.equal(r.base, base);
     assert.equal(r.head, head);
-    assert.deepEqual(r.changed_paths, ['docs/ai/decisions.jsonl', 'docs/specs/new-note.md', 'tests/skills/base-test.sh']);
+    assert.deepEqual(r.changed_paths, ['docs/ai/decisions.jsonl', 'docs/specs/new-note.md', 'tests/skills/test-aai-base.sh']);
     assert.ok(r.prior_reports.includes(REV_REL) && r.prior_reports.includes(VAL_REL), JSON.stringify(r.prior_reports));
   }
   const dispatch = await import(pathToFileURL(path.join(SCRIPTS, 'orchestration-dispatch.mjs')).href);
@@ -283,7 +283,7 @@ test('TEST-2703 production paths refuse delta and name the path', async () => {
   }
   const { root } = mkRepo('t2703-mixed');
   fs.appendFileSync(path.join(root, '.aai/scripts/x.mjs'), '// edit\n');
-  fs.appendFileSync(path.join(root, 'tests/skills/base-test.sh'), 'echo more\n');
+  fs.appendFileSync(path.join(root, 'tests/skills/test-aai-base.sh'), 'echo more\n');
   const r = L.recheckMode({ root, ref: REF, role: 'Code Review', env: {} });
   assert.deepEqual(r.reasons.filter((x) => x.startsWith('production_path:')), ['production_path:.aai/scripts/x.mjs']);
 });
@@ -291,8 +291,8 @@ test('TEST-2703 production paths refuse delta and name the path', async () => {
 // ------------------------------------------------------------------ TEST-2704
 test('TEST-2704 a protected path refuses delta; the same change without the entry gives delta', async () => {
   const L = await lib();
-  const guardedAudit = 'protected_paths_l3:\n  - tests/skills/guarded.sh\n';
-  const change = (root) => fs.appendFileSync(path.join(root, 'tests/skills/guarded.sh'), 'echo more\n');
+  const guardedAudit = 'protected_paths_l3:\n  - tests/skills/test-aai-guarded.sh\n';
+  const change = (root) => fs.appendFileSync(path.join(root, 'tests/skills/test-aai-guarded.sh'), 'echo more\n');
   const control = mkRepo('t2704-control');
   change(control.root);
   const c = L.recheckMode({ root: control.root, ref: REF, role: 'Validation', env: {} });
@@ -301,7 +301,7 @@ test('TEST-2704 a protected path refuses delta; the same change without the entr
   change(prot.root);
   const p = L.recheckMode({ root: prot.root, ref: REF, role: 'Validation', env: {} });
   assert.equal(p.mode, 'full');
-  assert.ok(p.reasons.includes('protected_path:tests/skills/guarded.sh'), reasonsOf(p));
+  assert.ok(p.reasons.includes('protected_path:tests/skills/test-aai-guarded.sh'), reasonsOf(p));
   const bad = mkRepo('t2704-unreadable');
   fs.rmSync(path.join(bad.root, 'docs/ai/docs-audit.yaml'));
   fs.mkdirSync(path.join(bad.root, 'docs/ai/docs-audit.yaml'));
@@ -317,7 +317,7 @@ test('TEST-2704 a protected path refuses delta; the same change without the entr
 // ------------------------------------------------------------------ TEST-2705
 test('TEST-2705 security marker refusals', async () => {
   const L = await lib();
-  const touch = (root) => fs.appendFileSync(path.join(root, 'tests/skills/base-test.sh'), 'echo more\n');
+  const touch = (root) => fs.appendFileSync(path.join(root, 'tests/skills/test-aai-base.sh'), 'echo more\n');
   const ok = mkRepo('t2705-ok');
   touch(ok.root);
   assert.equal(L.recheckMode({ root: ok.root, ref: REF, role: 'Validation', env: {} }).mode, 'delta', 'positive control');
@@ -336,10 +336,15 @@ test('TEST-2705 security marker refusals', async () => {
   touch(twice.root);
   assert.ok(L.recheckMode({ root: twice.root, ref: REF, role: 'Validation', env: {} }).reasons.includes('security_marker_absent:' + VAL_REL));
 
-  const missing = mkRepo('t2705-missing');
-  fs.rmSync(path.join(missing.root, VAL_REL));
+  const NOPE = 'docs/ai/reports/VALIDATION-never-written.md';
+  const missing = mkRepo('t2705-missing', { state: { evidence: [NOPE] } });
+  touch(missing.root);
   const rm = L.recheckMode({ root: missing.root, ref: REF, role: 'Validation', env: {} });
-  assert.ok(rm.reasons.includes('prior_report_unreadable:' + VAL_REL), reasonsOf(rm));
+  assert.ok(rm.reasons.includes('prior_report_unreadable:' + NOPE), reasonsOf(rm));
+  // a report that existed at the base and is deleted inside the delta is a changed report (TEST-2729)
+  const gone = mkRepo('t2705-gone');
+  fs.rmSync(path.join(gone.root, VAL_REL));
+  assert.ok(L.recheckMode({ root: gone.root, ref: REF, role: 'Validation', env: {} }).reasons.includes('prior_report_changed:' + VAL_REL));
 
   const noReport = mkRepo('t2705-noreport', { state: { evidence: [] } });
   touch(noReport.root);
@@ -350,7 +355,7 @@ test('TEST-2705 security marker refusals', async () => {
 // ------------------------------------------------------------------ TEST-2706
 test('TEST-2706 first round, ceremony, ancestry, empty delta, forced and git refusals', async () => {
   const L = await lib();
-  const touch = (root) => fs.appendFileSync(path.join(root, 'tests/skills/base-test.sh'), 'echo more\n');
+  const touch = (root) => fs.appendFileSync(path.join(root, 'tests/skills/test-aai-base.sh'), 'echo more\n');
 
   const first = mkRepo('t2706-first', { verdicts: false });
   touch(first.root);
@@ -442,7 +447,7 @@ function canonRun(root, args, envExtra = {}) {
 
 function eligibleCanon(name, o = {}) {
   const fx = mkRepo(name, { canon: true, ...o });
-  fs.appendFileSync(path.join(fx.root, 'tests/skills/base-test.sh'), 'echo more\n');
+  fs.appendFileSync(path.join(fx.root, 'tests/skills/test-aai-base.sh'), 'echo more\n');
   return fx;
 }
 
@@ -456,15 +461,19 @@ test('TEST-2707 the dispatch carries a recheck object equal to recheckMode; othe
   assert.equal(a.out.rule, '11');
   assert.equal(a.out.role, 'Validation');
   assert.equal(rc(a).mode, 'delta', JSON.stringify(a.out.recheck));
-  assert.deepEqual(rc(a), L.recheckMode({ root, ref: REF, role: 'Validation', env: {} }));
+  const { fallback: fbA, ...restA } = rc(a);
+  assert.deepEqual(restA, L.recheckMode({ root, ref: REF, role: 'Validation', env: {} }));
   assert.equal(a.out.system_prompt, '.aai/RECHECK_DELTA.prompt.md');
+  assert.equal(fbA.system_prompt, '.aai/VALIDATION.prompt.md', 'a delta dispatch carries the full identity as recheck.fallback');
   // rule 13: validation passed, review required and missing
   write(root, 'docs/ai/STATE.yaml', stateYaml({ vstatus: 'pass', rstatus: 'not_run' }));
   const b = runDispatch(root);
   assert.equal(b.out.rule, '13', JSON.stringify(b.out));
   assert.equal(b.out.role, 'Code Review');
   assert.equal(rc(b).mode, 'delta', JSON.stringify(b.out.recheck));
-  assert.deepEqual(rc(b), L.recheckMode({ root, ref: REF, role: 'Code Review', env: {} }));
+  const { fallback: fbB, ...restB } = rc(b);
+  assert.deepEqual(restB, L.recheckMode({ root, ref: REF, role: 'Code Review', env: {} }));
+  assert.equal(fbB.system_prompt, '.aai/SKILL_CODE_REVIEW.prompt.md');
   assert.equal(b.out.system_prompt, '.aai/RECHECK_DELTA.prompt.md');
   // a Remediation dispatch (rule 10) and a no_action verdict carry null
   write(root, 'docs/ai/STATE.yaml', stateYaml({ vstatus: 'fail' }));
@@ -480,6 +489,7 @@ test('TEST-2707 the dispatch carries a recheck object equal to recheckMode; othe
   const e = runDispatch(root, [], { AAI_RECHECK_MODE: 'full' });
   assert.equal(rc(e).mode, 'full');
   assert.ok(rc(e).reasons.includes('forced_full'));
+  assert.equal(rc(e).fallback, null, 'a full dispatch has no fallback');
   assert.equal(e.out.system_prompt, '.aai/VALIDATION.prompt.md');
 });
 
@@ -632,7 +642,7 @@ test('TEST-2714 end to end: real ticks, state.mjs writes and canon agree', () =>
   assert.equal(stamps.length, 1, JSON.stringify(readEvents(root)));
   assert.equal(stamps[0].payload.head, H1);
   // remediation: a test-only commit, then the reset the remediation role runs
-  fs.appendFileSync(path.join(root, 'tests/skills/base-test.sh'), 'echo fixed\n');
+  fs.appendFileSync(path.join(root, 'tests/skills/test-aai-base.sh'), 'echo fixed\n');
   git(root, ['commit', '-q', '-am', 'test-only fix']);
   const rb = stateCli(root, ['reset-block', 'last_validation']);
   assert.equal(rb.status, 0, rb.stderr + rb.stdout);
@@ -640,10 +650,10 @@ test('TEST-2714 end to end: real ticks, state.mjs writes and canon agree', () =>
   assert.equal(t3.out.rule, '11');
   assert.equal(rc(t3).mode, 'delta', JSON.stringify(t3.out.recheck));
   assert.equal(rc(t3).base, H1);
-  assert.deepEqual(rc(t3).changed_paths, ['tests/skills/base-test.sh']);
+  assert.deepEqual(rc(t3).changed_paths, ['tests/skills/test-aai-base.sh']);
   const c = canonRun(root, ['build', '--role', 'Validation', '--ref', REF, '--recheck', 'delta']);
   assert.equal(c.status, 0, c.stderr);
-  assert.ok(c.stdout.includes('tests/skills/base-test.sh'), 'canon scope must list the same path');
+  assert.ok(c.stdout.includes('tests/skills/test-aai-base.sh'), 'canon scope must list the same path');
   assert.ok(c.stdout.includes(H1), 'canon scope must carry the base');
   // a production commit turns the next dispatch and canon to full and exit 11
   write(root, '.aai/scripts/fixture.mjs', 'export const y = 2;\n');
@@ -672,7 +682,7 @@ test('TEST-2712 canon --recheck delta assembles contract, recheck, scope only', 
   assert.deepEqual(sectionIds(r.stdout), ['contract', 'recheck', 'scope']);
   assert.equal(r.stdout.split('\n').filter((l) => l.startsWith('- HAZ-')).length, 5);
   const scope = r.stdout.slice(r.stdout.indexOf('<<<AAI-CANON-SECTION scope'));
-  for (const needle of ['Code Review', REF, base, head, 'tests/skills/base-test.sh', 'tests/skills/lib/extra.test.mjs', REV_REL, VAL_REL]) {
+  for (const needle of ['Code Review', REF, base, head, 'tests/skills/test-aai-base.sh', 'tests/skills/lib/extra.test.mjs', REV_REL, VAL_REL]) {
     assert.ok(scope.includes(needle), 'scope section lacks ' + needle);
   }
   const full = canonRun(root, ['build', '--role', 'Code Review', '--ref', REF]);
@@ -693,7 +703,7 @@ test('TEST-2712 canon --recheck delta assembles contract, recheck, scope only', 
 // ------------------------------------------------------------------ TEST-2713
 test('TEST-2713 canon refuses an ineligible tree with exit 11 and an empty stdout', () => {
   const first = mkRepo('t2713-first', { canon: true, verdicts: false });
-  fs.appendFileSync(path.join(first.root, 'tests/skills/base-test.sh'), 'echo more\n');
+  fs.appendFileSync(path.join(first.root, 'tests/skills/test-aai-base.sh'), 'echo more\n');
   const a = canonRun(first.root, ['build', '--role', 'Validation', '--ref', REF, '--recheck', 'delta']);
   assert.equal(a.status, 11, a.stderr);
   assert.equal(a.stdout, '');
@@ -801,7 +811,7 @@ test('TEST-2717 this ride stays full: ceremony_l3 on its own spec', async () => 
     { event: 'check_verdict', ref: 'cheap-transitions-slice', payload: { role: 'validation', head: fx.base, status: 'fail' } },
     { event: 'check_verdict', ref: 'cheap-transitions-slice', payload: { role: 'code_review', head: fx.base, status: 'fail' } },
   ]);
-  fs.appendFileSync(path.join(fx.root, 'tests/skills/base-test.sh'), 'echo more\n');
+  fs.appendFileSync(path.join(fx.root, 'tests/skills/test-aai-base.sh'), 'echo more\n');
   for (const role of ['Validation', 'Code Review']) {
     const r = L.recheckMode({ root: fx.root, ref: 'cheap-transitions-slice', role, env: {} });
     assert.equal(r.mode, 'full', role);
@@ -823,8 +833,16 @@ test('TEST-2718 the delta prompt and the wired prompts carry the required litera
   const orch = readRel('.aai/ORCHESTRATION.prompt.md');
   assert.ok(orch.includes('--recheck delta'), 'ORCHESTRATION.prompt.md lacks --recheck delta');
   assert.ok(orch.split('\n').length - (orch.endsWith('\n') ? 1 : 0) <= 45, 'ORCHESTRATION.prompt.md is over 45 lines');
+  // B-1: canon keys the stamps on the ref, so the documented command must pass the dispatch
+  // JSON's ref_id, never HEAD. The wiring is pinned on the ref argument, not on a literal.
+  const orchBuild = /canon\.mjs build --role (<[^>]+>|\S+) --ref ([^\s`]+)/.exec(orch);
+  assert.ok(orchBuild, 'ORCHESTRATION.prompt.md has no canon.mjs build --role --ref command');
+  assert.equal(orchBuild[2], '<ref_id>', 'ORCHESTRATION.prompt.md must build with --ref <ref_id>, got ' + orchBuild[2]);
+  assert.ok(!/--ref HEAD\b/.test(orch), 'ORCHESTRATION.prompt.md still builds with --ref HEAD');
+  assert.ok(orch.includes('recheck.fallback'), 'ORCHESTRATION.prompt.md does not say where the full identity comes from after a canon refusal');
   const par = readRel('.aai/ORCHESTRATION_PARALLEL.prompt.md');
   assert.ok(par.includes('canon.mjs build'), 'ORCHESTRATION_PARALLEL.prompt.md lacks canon.mjs build');
+  assert.ok(/canon\.mjs build --role <R> --ref <r>`\s+\(<r> = the dispatch JSON's ref_id, never HEAD/.test(par) && !/--ref HEAD\b/.test(par), 'ORCHESTRATION_PARALLEL.prompt.md must define <r> as the dispatch ref_id');
   assert.ok(!par.includes('a copy of .aai/SUBAGENT_CONTRACT.md'), 'ORCHESTRATION_PARALLEL.prompt.md still pastes a copy of the contract');
   assert.ok(readRel('.aai/SKILL_CODE_REVIEW.prompt.md').includes('security_relevant'), 'SKILL_CODE_REVIEW.prompt.md lacks security_relevant');
   assert.ok(readRel('.aai/VALIDATION.prompt.md').includes('security_relevant'), 'VALIDATION.prompt.md lacks security_relevant');
@@ -862,9 +880,10 @@ test('TEST-2721 the suite map selects aai-recheck for each new file', () => {
     assert.match(r.stdout, /^SELECTED aai-recheck\b/m, p + ' did not select aai-recheck: ' + r.stdout);
     assert.doesNotMatch(r.stdout, /FULL_RUN/, p + ' forced a full run');
   }
-  // A path under .aai/scripts/lib/ is a shared-library change: the selector escalates it
-  // to a full run by design (suite-map.yaml full_run_triggers.shared_lib_globs), so the
-  // map row must LIST the library even though the selector answers FULL_RUN for it.
+  // Spec-AC-12 (amended): a path under .aai/scripts/lib/ is a shared-library change, which
+  // the selector escalates to a full run by design (suite-map.yaml
+  // full_run_triggers.shared_lib_globs); a full run includes aai-recheck. The map row must
+  // LIST the library even though the selector answers FULL_RUN, not SELECTED, for it.
   const map = readRel('tests/skills/suite-map.yaml');
   const row = map.slice(map.search(/^ {2}aai-recheck:\s*$/m));
   assert.ok(row.length < map.length, 'suite-map.yaml has no aai-recheck row');
@@ -886,4 +905,322 @@ test('TEST-2723 the six #497 amendments are signed and their follow-up is done',
   const f = fu.items.find((i) => i.id === 'fu-amend-spec-node-first-third-slice');
   assert.ok(f, 'fu-amend-spec-node-first-third-slice is not listed');
   assert.equal(f.status, 'done');
+});
+
+// ================================================== remediation round 1 (TEST-2724..2733)
+const touchTest = (root) => fs.appendFileSync(path.join(root, 'tests/skills/test-aai-base.sh'), 'echo more\n');
+
+// ------------------------------------------------------------------ TEST-2724
+test('TEST-2724 the verdict base is the earliest unjudged dispatch head, never a re-tick head', async () => {
+  const L = await lib();
+  const { root } = mkRepo('t2724', { canon: true, verdicts: false });
+  const H1 = git(root, ['rev-parse', 'HEAD']);
+  const t1 = runDispatch(root, ['--confirm']);
+  assert.equal(t1.out.role, 'Validation');
+  // a production commit lands while the validator is still working, then the orchestrator re-ticks
+  write(root, '.aai/scripts/inflight.mjs', 'export const inflight = 1;\n');
+  git(root, ['add', '-A']);
+  git(root, ['commit', '-q', '-m', 'production commit during the check']);
+  const H2 = git(root, ['rev-parse', 'HEAD']);
+  assert.notEqual(H1, H2);
+  runDispatch(root, ['--confirm']);
+  const dispatched = readEvents(root).filter((e) => e.event === 'check_dispatched' && e.payload.role === 'validation');
+  assert.deepEqual(dispatched.map((e) => e.payload.head), [H1, H2], 'the re-tick at a new head appends a second dispatch');
+  // the H1 validator returns fail; the next tick stamps the verdict
+  const sv = stateCli(root, ['set-validation', '--status', 'fail', '--ref', REF, '--evidence', VAL_REL, '--notes', 'round 1']);
+  assert.equal(sv.status, 0, sv.stderr + sv.stdout);
+  runDispatch(root, ['--confirm']);
+  const stamps = readEvents(root).filter((e) => e.event === 'check_verdict' && e.payload.role === 'validation');
+  assert.equal(stamps.length, 1);
+  assert.equal(stamps[0].payload.head, H1, 'the base is the head the checker was handed, not the re-tick head');
+  // a test-only fix and the reset: the delta must still contain the unjudged production commit
+  fs.appendFileSync(path.join(root, 'tests/skills/test-aai-base.sh'), 'echo fixed\n');
+  git(root, ['commit', '-q', '-am', 'test-only fix']);
+  const rb = stateCli(root, ['reset-block', 'last_validation']);
+  assert.equal(rb.status, 0, rb.stderr + rb.stdout);
+  const t3 = runDispatch(root, ['--confirm']);
+  assert.equal(t3.out.role, 'Validation');
+  assert.equal(rc(t3).mode, 'full', JSON.stringify(t3.out.recheck));
+  assert.equal(rc(t3).base, H1);
+  assert.ok(rc(t3).reasons.includes('production_path:.aai/scripts/inflight.mjs'), JSON.stringify(rc(t3).reasons));
+  // fail closed: heads that are not on one line of history stamp an ambiguous base
+  const amb = mkRepo('t2724-ambiguous', { verdicts: false });
+  git(amb.root, ['checkout', '-q', '-b', 'side']);
+  write(amb.root, 'tests/skills/side.sh', 'x\n');
+  git(amb.root, ['add', '-A']);
+  git(amb.root, ['commit', '-q', '-m', 'side']);
+  const side = git(amb.root, ['rev-parse', 'HEAD']);
+  git(amb.root, ['checkout', '-q', 'main']);
+  const seen = 'run_at:2026-07-01T00:00:00Z';
+  appendEvents(amb.root, [
+    { event: 'check_dispatched', ref: REF, payload: { role: 'validation', head: side, seen } },
+    { event: 'check_dispatched', ref: REF, payload: { role: 'validation', head: amb.base, seen } },
+  ]);
+  write(amb.root, 'docs/ai/STATE.yaml', stateYaml({ vstatus: 'fail', runAt: '2026-07-02T00:00:00Z' }));
+  const plan = L.planCheckStamps({ root: amb.root, ref: REF, dispatchRole: null });
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].head, L.AMBIGUOUS_HEAD, 'divergent unjudged heads must stamp the ambiguous head');
+  appendEvents(amb.root, [{ event: 'check_verdict', ref: REF, payload: { role: 'validation', head: plan[0].head, status: 'fail' } }]);
+  touchTest(amb.root);
+  const r = L.recheckMode({ root: amb.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(r.mode, 'full');
+  assert.ok(r.reasons.includes('base_not_ancestor'), reasonsOf(r));
+  // positive control: two dispatches on one line of history stamp the earlier one
+  const lin = mkRepo('t2724-linear', { verdicts: false });
+  write(lin.root, 'tests/skills/test-aai-more.sh', 'x\n');
+  git(lin.root, ['add', '-A']);
+  git(lin.root, ['commit', '-q', '-m', 'later']);
+  appendEvents(lin.root, [
+    { event: 'check_dispatched', ref: REF, payload: { role: 'validation', head: lin.base, seen } },
+    { event: 'check_dispatched', ref: REF, payload: { role: 'validation', head: git(lin.root, ['rev-parse', 'HEAD']), seen } },
+  ]);
+  write(lin.root, 'docs/ai/STATE.yaml', stateYaml({ vstatus: 'fail', runAt: '2026-07-02T00:00:00Z' }));
+  assert.equal(L.planCheckStamps({ root: lin.root, ref: REF, dispatchRole: null })[0].head, lin.base);
+});
+
+// ------------------------------------------------------------------ TEST-2725
+test('TEST-2725 the documented canon command engages delta with the dispatch ref_id and a refusal keeps the full identity', () => {
+  const orch = readRel('.aai/ORCHESTRATION.prompt.md');
+  const m = /canon\.mjs build --role (<[^>]+>|\S+) --ref ([^\s`]+)/.exec(orch);
+  assert.ok(m, 'ORCHESTRATION.prompt.md has no canon.mjs build command');
+  const argv = (role, ref, extra) => ['build', '--role', role, '--ref', ref, ...extra];
+  const { root } = eligibleCanon('t2725');
+  const d = runDispatch(root);
+  assert.equal(d.out.role, 'Validation');
+  assert.equal(rc(d).mode, 'delta');
+  // run the documented command literally: the template's ref argument filled from the dispatch JSON
+  const refArg = m[2] === '<ref_id>' ? d.out.ref_id : m[2];
+  const ok = canonRun(root, argv(d.out.role, refArg, ['--recheck', 'delta']));
+  assert.equal(ok.status, 0, 'the documented command (--ref ' + m[2] + ') must engage delta: ' + ok.stderr);
+  assert.ok(ok.stdout.includes('<<<AAI-CANON-SECTION recheck'), 'the delta payload was not assembled');
+  // control: HEAD as the ref is the old wiring and canon refuses it
+  const head = canonRun(root, argv(d.out.role, 'HEAD', ['--recheck', 'delta']));
+  assert.equal(head.status, 11, '--ref HEAD must be refused: that is why the prompt passes ref_id');
+  // the tree moves after the dispatch: canon refuses, and the dispatch already carries the full identity
+  write(root, '.aai/scripts/late.mjs', 'export const late = 1;\n');
+  git(root, ['add', '-A']);
+  git(root, ['commit', '-q', '-m', 'production change after the dispatch']);
+  const refused = canonRun(root, argv(d.out.role, d.out.ref_id, ['--recheck', 'delta']));
+  assert.equal(refused.status, 11, refused.stderr);
+  const fb = rc(d).fallback;
+  assert.ok(fb && typeof fb.prompt_hash === 'string', 'a delta dispatch must carry recheck.fallback');
+  assert.equal(fb.system_prompt, '.aai/VALIDATION.prompt.md');
+  const fullHash = canonRun(root, ['build', '--role', 'Validation', '--ref', d.out.ref_id, '--print-hash']);
+  assert.equal(fb.prompt_hash, fullHash.stdout.trim(), 'fallback.prompt_hash must be the full prompt hash canon computes');
+  assert.notEqual(fb.prompt_hash, d.out.prompt_hash, 'the delta identity and the full identity must differ');
+  const forced = runDispatch(root, [], { AAI_RECHECK_MODE: 'full' });
+  assert.equal(forced.out.prompt_hash, fb.prompt_hash, 'the full dispatch records exactly the identity the fallback names');
+  assert.equal(forced.out.system_prompt, fb.system_prompt);
+  const proto = readRel('.aai/SUBAGENT_PROTOCOL.md');
+  assert.ok(/recheck\.fallback/.test(proto) && /delta payload was actually sent/.test(proto), 'the protocol must say the delta note and hash are recorded only for a sent delta payload');
+});
+
+// ------------------------------------------------------------------ TEST-2726 / 2727
+test('TEST-2726 a rename out of a production path refuses delta', async () => {
+  const L = await lib();
+  const { root } = mkRepo('t2726');
+  git(root, ['mv', '.aai/scripts/x.mjs', 'tests/skills/test-aai-moved.sh']);
+  const r = L.recheckMode({ root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(r.mode, 'full', 'a staged rename from .aai/scripts into tests must not be delta: ' + JSON.stringify(r.changed_paths));
+  assert.ok(r.reasons.includes('production_path:.aai/scripts/x.mjs'), reasonsOf(r));
+  assert.ok(r.changed_paths.includes('.aai/scripts/x.mjs') && r.changed_paths.includes('tests/skills/test-aai-moved.sh'), 'both ends of the rename are listed: ' + JSON.stringify(r.changed_paths));
+  const ctl = mkRepo('t2726-control');
+  git(ctl.root, ['mv', 'tests/skills/test-aai-base.sh', 'tests/skills/test-aai-renamed.sh']);
+  const c = L.recheckMode({ root: ctl.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(c.mode, 'delta', 'control, a rename inside tests: ' + reasonsOf(c));
+  assert.deepEqual(c.changed_paths, ['tests/skills/test-aai-base.sh', 'tests/skills/test-aai-renamed.sh']);
+});
+
+test('TEST-2727 a deleted production file refuses delta', async () => {
+  const L = await lib();
+  const staged = mkRepo('t2727-staged');
+  git(staged.root, ['rm', '-q', '.aai/scripts/x.mjs']);
+  touchTest(staged.root);
+  const a = L.recheckMode({ root: staged.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(a.mode, 'full');
+  assert.ok(a.reasons.includes('production_path:.aai/scripts/x.mjs'), reasonsOf(a));
+  const loose = mkRepo('t2727-loose');
+  fs.rmSync(path.join(loose.root, 'docs/knowledge/LEARNED.md'));
+  touchTest(loose.root);
+  const b = L.recheckMode({ root: loose.root, ref: REF, role: 'Code Review', env: {} });
+  assert.ok(b.reasons.includes('production_path:docs/knowledge/LEARNED.md'), reasonsOf(b));
+  const ctl = mkRepo('t2727-control');
+  fs.rmSync(path.join(ctl.root, 'tests/skills/test-aai-guarded.sh'));
+  touchTest(ctl.root);
+  const c = L.recheckMode({ root: ctl.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(c.mode, 'delta', 'control, a deleted test file: ' + reasonsOf(c));
+  assert.deepEqual(c.changed_paths, ['tests/skills/test-aai-base.sh', 'tests/skills/test-aai-guarded.sh']);
+});
+
+// ------------------------------------------------------------------ TEST-2728
+test('TEST-2728 the delta cannot lower the ceremony level that decides its own eligibility', async () => {
+  const L = await lib();
+  const lowered = mkRepo('t2728-lowered', { level: 3 });
+  write(lowered.root, SPEC_REL, specText(2));
+  const a = L.recheckMode({ root: lowered.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(a.mode, 'full');
+  assert.ok(a.reasons.includes('ceremony_l3'), 'an L3 spec rewritten to 2 inside the delta is still L3: ' + reasonsOf(a));
+  const raised = mkRepo('t2728-raised', { level: 2 });
+  write(raised.root, SPEC_REL, specText(3));
+  assert.ok(L.recheckMode({ root: raised.root, ref: REF, role: 'Validation', env: {} }).reasons.includes('ceremony_l3'), 'a level raised inside the delta counts');
+  const gone = mkRepo('t2728-deleted', { level: 2 });
+  fs.rmSync(path.join(gone.root, SPEC_REL));
+  assert.ok(L.recheckMode({ root: gone.root, ref: REF, role: 'Validation', env: {} }).reasons.includes('ceremony_unknown'), 'a spec deleted in the delta is unknown');
+  const added = mkRepo('t2728-added', { spec: false });
+  write(added.root, SPEC_REL, specText(2));
+  const ad = L.recheckMode({ root: added.root, ref: REF, role: 'Validation', env: {} });
+  assert.ok(ad.reasons.includes('ceremony_unknown'), 'a spec that did not exist at the base is unknown: ' + reasonsOf(ad));
+  const stripped = mkRepo('t2728-stripped', { level: 2 });
+  write(stripped.root, SPEC_REL, specText(undefined));
+  assert.ok(L.recheckMode({ root: stripped.root, ref: REF, role: 'Validation', env: {} }).reasons.includes('ceremony_unknown'), 'a level removed in the delta is unknown');
+  // control: a body edit that leaves the level alone stays delta
+  const ok = mkRepo('t2728-body', { level: 2 });
+  fs.appendFileSync(path.join(ok.root, SPEC_REL), '\nAmended.\n');
+  const o = L.recheckMode({ root: ok.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(o.mode, 'delta', 'control: ' + reasonsOf(o));
+  assert.equal(o.spec_path, SPEC_REL);
+});
+
+// ------------------------------------------------------------------ TEST-2729
+test('TEST-2729 prior-report markers come from the base commit and a changed prior report refuses', async () => {
+  const L = await lib();
+  const flipped = mkRepo('t2729-flipped', { revText: '# Review\n\nsecurity_relevant: true\n' });
+  write(flipped.root, REV_REL, '# Review\n\nsecurity_relevant: false\n');
+  const a = L.recheckMode({ root: flipped.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(a.mode, 'full');
+  assert.ok(a.reasons.includes('prior_report_changed:' + REV_REL), reasonsOf(a));
+  assert.ok(a.reasons.includes('security_relevant:' + REV_REL), 'the base blob still says true: ' + reasonsOf(a));
+  const dropped = mkRepo('t2729-deleted');
+  fs.rmSync(path.join(dropped.root, VAL_REL));
+  const b = L.recheckMode({ root: dropped.root, ref: REF, role: 'Validation', env: {} });
+  assert.ok(b.reasons.includes('prior_report_changed:' + VAL_REL), reasonsOf(b));
+  const edited = mkRepo('t2729-edited');
+  fs.appendFileSync(path.join(edited.root, REV_REL), '\nA late edit.\n');
+  assert.ok(L.recheckMode({ root: edited.root, ref: REF, role: 'Code Review', env: {} }).reasons.includes('prior_report_changed:' + REV_REL), 'any edit of a prior report that existed at the base refuses');
+  // control: the judged round's own report is written after the base and is read live
+  const NEW_VAL = 'docs/ai/reports/VALIDATION-2.md';
+  const NEW_REV = 'docs/ai/reviews/rev-2.md';
+  const fresh = mkRepo('t2729-fresh', { state: { evidence: [NEW_VAL], reports: [NEW_REV] } });
+  write(fresh.root, NEW_VAL, `# Validation 2\n\n${MARK_FALSE}`);
+  write(fresh.root, NEW_REV, `# Review 2\n\n${MARK_FALSE}`);
+  const c = L.recheckMode({ root: fresh.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(c.mode, 'delta', 'control: ' + reasonsOf(c));
+  assert.deepEqual([...c.prior_reports].sort(), [NEW_REV, NEW_VAL].sort());
+  const bad = mkRepo('t2729-fresh-true', { state: { evidence: [NEW_VAL], reports: [NEW_REV] } });
+  write(bad.root, NEW_VAL, '# Validation 2\n\nsecurity_relevant: true\n');
+  write(bad.root, NEW_REV, `# Review 2\n\n${MARK_FALSE}`);
+  assert.ok(L.recheckMode({ root: bad.root, ref: REF, role: 'Validation', env: {} }).reasons.includes('security_relevant:' + NEW_VAL), 'a new report that says true refuses');
+});
+
+// ------------------------------------------------------------------ TEST-2730
+test('TEST-2730 gate inputs under tests/ are production; only test code is not', async () => {
+  const L = await lib();
+  for (const p of ['tests/skills/test-aai-x.sh', 'tests/skills/aai-y.Tests.ps1', 'tests/skills/lib/z.test.mjs']) assert.equal(L.isNonProduction(p), true, p);
+  const gateInputs = [
+    'tests/skills/suite-map.yaml', 'tests/skills/suite-weights.tsv', 'tests/skills/lib/base-ref-pin-baseline.tsv',
+    'tests/skills/lib/cd-subshell-leak-baseline.tsv', 'tests/skills/lib/prompt-diet-ledger.sh', 'tests/skills/lib/pipe-grep-q-ratchet.sh',
+    'tests/skills/test-framework.sh', 'tests/new-top-level/anything.yaml',
+  ];
+  for (const p of gateInputs) assert.equal(L.isNonProduction(p), false, p + ' is read by a production script and must be production');
+  // the shared list: every tests/ path merge-policy guards is production here too
+  const mp = await import(pathToFileURL(path.join(SCRIPTS, 'merge-policy.mjs')).href);
+  const guarded = mp.GUARD_PATHS.filter((p) => p.startsWith('tests/'));
+  assert.ok(guarded.length >= 1, 'merge-policy GUARD_PATHS names no tests/ file any more');
+  for (const p of guarded) assert.equal(L.isNonProduction(p), false, 'merge-policy guards ' + p);
+  // the derivation: every file under tests/ that a production script names by literal path
+  const named = new Set();
+  const scan = (dir) => {
+    for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, f.name);
+      if (f.isDirectory()) { scan(abs); continue; }
+      if (!/\.(mjs|sh)$/.test(f.name)) continue;
+      for (const m of fs.readFileSync(abs, 'utf8').matchAll(/\btests\/[A-Za-z0-9_./-]+\.(?:yaml|yml|tsv|jsonl|json|sh|mjs|ps1)\b/g)) {
+        if (fs.existsSync(path.join(PROJECT_ROOT, m[0])) && fs.statSync(path.join(PROJECT_ROOT, m[0])).isFile()) named.add(m[0]);
+      }
+    }
+  };
+  scan(SCRIPTS);
+  assert.ok(named.size >= 8, 'the scan found only ' + named.size + ' named tests/ files; the derivation is broken');
+  for (const p of ['tests/skills/suite-map.yaml', 'tests/skills/suite-weights.tsv', 'tests/skills/lib/base-ref-pin-baseline.tsv']) assert.ok(named.has(p), 'derivation must find ' + p);
+  const isSuite = (p) => /^tests\/skills\/test-aai-[^/]+\.sh$/.test(p) || /^tests\/skills\/[^/]+\.Tests\.ps1$/.test(p) || /^tests\/skills\/lib\/[^/]+\.test\.mjs$/.test(p);
+  for (const p of named) {
+    assert.equal(L.isNonProduction(p), isSuite(p), p + (isSuite(p) ? ' is test code and must stay non-production' : ' is named by a production script and must be production'));
+  }
+  // end to end: a remediation that only raises a baseline or drops a suite-map row is not a delta
+  const fx = mkRepo('t2730');
+  write(fx.root, 'tests/skills/suite-map.yaml', 'suites: {}\n');
+  git(fx.root, ['add', '-A']);
+  git(fx.root, ['commit', '-q', '-m', 'map']);
+  appendEvents(fx.root, verdictEvents(git(fx.root, ['rev-parse', 'HEAD'])));
+  fs.appendFileSync(path.join(fx.root, 'tests/skills/suite-map.yaml'), '# dropped a row\n');
+  const r = L.recheckMode({ root: fx.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(r.mode, 'full');
+  assert.ok(r.reasons.includes('production_path:tests/skills/suite-map.yaml'), reasonsOf(r));
+});
+
+// ------------------------------------------------------------------ TEST-2731
+test('TEST-2731 AAI_RECHECK_MODE fails closed: any value but unset, empty or delta forces full', async () => {
+  const L = await lib();
+  for (const v of ['full', 'FULL', ' Full ', 'full\n', '\tfull', 'off', '0', 'false', 'no', 'deltas', 'ful']) {
+    assert.equal(L.forcedFull({ AAI_RECHECK_MODE: v }), true, JSON.stringify(v));
+  }
+  for (const v of [undefined, '', '   ', 'delta', ' Delta ', 'DELTA']) {
+    assert.equal(L.forcedFull({ AAI_RECHECK_MODE: v }), false, JSON.stringify(v));
+  }
+  assert.equal(L.forcedFull({}), false);
+  assert.equal(L.forcedFull(null), false);
+  const { root } = mkRepo('t2731');
+  touchTest(root);
+  for (const v of [' FULL ', 'Full', 'nonsense']) {
+    const r = L.recheckMode({ root, ref: REF, role: 'Validation', env: { AAI_RECHECK_MODE: v } });
+    assert.equal(r.mode, 'full', JSON.stringify(v));
+    assert.ok(r.reasons.includes('forced_full'), JSON.stringify(v));
+  }
+  assert.equal(L.recheckMode({ root, ref: REF, role: 'Validation', env: { AAI_RECHECK_MODE: ' Delta ' } }).mode, 'delta');
+  // the same through the dispatch (the env the orchestrator exports)
+  const fx = eligibleCanon('t2731-dispatch');
+  const d = runDispatch(fx.root, [], { AAI_RECHECK_MODE: ' FULL ' });
+  assert.equal(rc(d).mode, 'full');
+  assert.equal(d.out.system_prompt, '.aai/VALIDATION.prompt.md');
+});
+
+// ------------------------------------------------------------------ TEST-2732
+test('TEST-2732 an inherited property name is an unknown role, not a crash', async () => {
+  const L = await lib();
+  const { root } = mkRepo('t2732');
+  touchTest(root);
+  for (const role of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+    let r;
+    assert.doesNotThrow(() => { r = L.recheckMode({ root, ref: REF, role, env: {} }); }, role);
+    assert.equal(r.mode, 'full', role);
+    assert.ok(r.reasons.includes('role_not_rechecked'), role + ': ' + reasonsOf(r));
+    assert.doesNotThrow(() => L.planCheckStamps({ root, ref: REF, dispatchRole: role }), role);
+  }
+  assert.equal(L.tokenOfRole('Validation'), 'validation');
+  assert.equal(L.tokenOfRole('Code Review'), 'code_review');
+  assert.equal(L.tokenOfRole('__proto__'), null);
+  const c = canonRun(root, ['build', '--role', '__proto__', '--ref', REF, '--recheck', 'delta']);
+  assert.ok(!/at .*recheck\.mjs/.test(c.stderr), 'canon must refuse an inherited role name without a stack trace: ' + c.stderr.slice(0, 300));
+  assert.notEqual(c.status, 0);
+});
+
+// ------------------------------------------------------------------ TEST-2733
+test('TEST-2733 the delta payload carries the output contracts and the scope names the spec', () => {
+  const prompt = readRel('.aai/RECHECK_DELTA.prompt.md');
+  assert.ok(Buffer.byteLength(prompt, 'utf8') <= 4096, 'RECHECK_DELTA.prompt.md is over 4096 bytes');
+  for (const lit of ['docs/ai/reviews/review-', 'docs/validation', 'H6', 'accepted residual', 'set-code-review', 'set-validation',
+    'aai-outcome-v1', 'validation-outcome-check.mjs', 'Before any PASS', 'outcome_report', 'state_update_commands', 'security_relevant']) {
+    assert.ok(prompt.includes(lit), 'RECHECK_DELTA.prompt.md lacks ' + lit);
+  }
+  // each contract section the prompt points at exists in the full prompt it names
+  assert.match(readRel('.aai/SKILL_CODE_REVIEW.prompt.md'), /^## REPORT$/m);
+  assert.match(readRel('.aai/SKILL_CODE_REVIEW.prompt.md'), /^## WARNINGS POLICY WITH TEETH/m);
+  assert.match(readRel('.aai/VALIDATION.prompt.md'), /^6\) Build the coverage table/m);
+  const { root } = eligibleCanon('t2733');
+  for (const role of ['Validation', 'Code Review']) {
+    const r = canonRun(root, ['build', '--role', role, '--ref', REF, '--recheck', 'delta']);
+    assert.equal(r.status, 0, r.stderr);
+    const scope = r.stdout.slice(r.stdout.indexOf('<<<AAI-CANON-SECTION scope'));
+    assert.ok(scope.split('\n').includes('spec: ' + SPEC_REL), role + ': the scope must name the spec path: ' + scope.slice(0, 300));
+  }
 });

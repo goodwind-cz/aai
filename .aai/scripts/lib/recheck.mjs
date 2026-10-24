@@ -31,8 +31,18 @@ const HEX40 = /^[0-9a-f]{40}$/;
 // generated page below) is production, including .aai/**, .github/**, .claude/**,
 // docs/knowledge/** (LEARNED is part of every payload), docs/ai/*.yaml and every
 // root file except CHANGELOG.md.
+//
+// Under tests/ only TEST CODE is non-production: a suite, a Pester file or a node:test
+// file, named by pattern. Production scripts read other files under tests/ as gate
+// inputs (suite-map.yaml and suite-weights.tsv choose which suites CI runs, the
+// *-baseline.tsv, *-ratchet.sh and prompt-diet-ledger.sh files set ratchets, and
+// merge-policy.mjs lists suite-map.yaml among its GUARD_PATHS), so a new file there
+// defaults to production and a remediation that edits one gets the full payload.
+// TEST-2730 derives the files the scripts name and holds this list to them.
 export const NON_PRODUCTION_PATTERNS = [
-  /^tests\//,
+  /^tests\/skills\/test-aai-[^/]+\.sh$/,
+  /^tests\/skills\/[^/]+\.Tests\.ps1$/,
+  /^tests\/skills\/lib\/[^/]+\.test\.mjs$/,
   /^docs\/specs\//,
   /^docs\/issues\//,
   /^docs\/rfc\//,
@@ -56,6 +66,23 @@ export const LEDGER_AND_PAGE_PATHS = new Set([
   ...SHARED_GENERATED_PAGES,
 ]);
 
+// N1: AAI_RECHECK_MODE is a rollback switch, so it fails closed. A value that trims and
+// lower-cases to `full` forces full; so does any other non-empty value that is not the
+// one recognised opt-in word `delta`. Only unset, empty or `delta` leave the decision to
+// the conditions below.
+export function forcedFull(env) {
+  const raw = env ? env[FORCE_ENV] : undefined;
+  if (raw === undefined || raw === null) return false;
+  const v = String(raw).trim().toLowerCase();
+  return v !== '' && v !== 'delta';
+}
+
+// N5: a role name is looked up as an own key only, so `__proto__`, `constructor` and the
+// like are unknown roles (role_not_rechecked), never a prototype property.
+export function tokenOfRole(role) {
+  return Object.hasOwn(ROLE_TOKENS, role) ? ROLE_TOKENS[role] : null;
+}
+
 export function isNonProduction(p) {
   return LEDGER_AND_PAGE_PATHS.has(p) || NON_PRODUCTION_PATTERNS.some((re) => re.test(p));
 }
@@ -64,6 +91,15 @@ function git(root, args) {
   return execFileSync('git', args, {
     cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024,
   });
+}
+
+function git_ok(root, args) {
+  try {
+    git(root, args);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function gitHead(root) {
@@ -195,14 +231,20 @@ const MARK_TRUE_RE = /^security_relevant: true\s*$/m;
 const MARK_FALSE_RE = /^security_relevant: false\s*$/gm;
 const MARK_ANY_RE = /^security_relevant:/gm;
 
-function ceremonyLevel(root, specPath) {
+// The level of a spec as one source states it: the live file, or the blob at `base`.
+// The delta may edit the focus spec (docs/specs/** is non-production), so the decision
+// reads BOTH and takes the stricter one (NB-1); a source that cannot be read is null.
+function ceremonyLevelAt(root, specPath, base = null) {
   if (!specPath) return null;
   let body;
   try {
-    body = fs.readFileSync(path.resolve(root, specPath), 'utf8').replace(/\r\n?/g, '\n');
+    body = base
+      ? git(root, ['show', `${base}:${specPath}`])
+      : fs.readFileSync(path.resolve(root, specPath), 'utf8');
   } catch {
     return null;
   }
+  body = body.replace(/\r\n?/g, '\n');
   const fm = /^---\n([\s\S]*?)\n---/.exec(body);
   if (!fm) return null;
   const m = /^ceremony_level:\s*(\S+)\s*$/m.exec(fm[1]);
@@ -216,16 +258,16 @@ function ceremonyLevel(root, specPath) {
 // first-match, in the order of the D1 table.
 export function recheckMode({ root, ref, role, env = process.env, statePath = null }) {
   const reasons = [];
-  const roleToken = ROLE_TOKENS[role] ?? null;
+  const token = tokenOfRole(role);
   if (!RECHECK_ROLES.has(role)) reasons.push('role_not_rechecked');
-  if (env && env[FORCE_ENV] === 'full') reasons.push('forced_full');
+  if (forcedFull(env)) reasons.push('forced_full');
 
   let gitFailed = false;
   const head = gitHead(root);
   if (head === null) gitFailed = true;
 
   const events = readEvents(root);
-  const priorVerdict = roleToken ? stampOf(events, 'check_verdict', ref, roleToken) : null;
+  const priorVerdict = token ? stampOf(events, 'check_verdict', ref, token) : null;
   let base = null;
   if (!priorVerdict) {
     reasons.push('first_round');
@@ -284,9 +326,12 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
 
   const state = readCheckState(statePath || path.join(root, 'docs/ai/STATE.yaml'));
   const mine = state && refMatches(state.focusRef, ref) ? state : null;
-  const level = mine ? ceremonyLevel(root, mine.specPath) : null;
-  if (level === PROTECTED_LEVEL) reasons.push('ceremony_l3');
-  else if (![0, 1, 2].includes(level)) reasons.push('ceremony_unknown');
+  const specPath = mine ? mine.specPath : null;
+  const levels = [mine ? ceremonyLevelAt(root, specPath) : null];
+  if (base && !gitFailed) levels.push(ceremonyLevelAt(root, specPath, base));
+  const known = levels.filter((l) => l !== null);
+  if (known.includes(PROTECTED_LEVEL)) reasons.push('ceremony_l3');
+  if (known.length !== levels.length || !known.every((l) => [0, 1, 2, PROTECTED_LEVEL].includes(l))) reasons.push('ceremony_unknown');
 
   const priorReports = [];
   const roleReports = { validation: [], code_review: [] };
@@ -300,9 +345,14 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
   }
   for (const p of [...roleReports.validation, ...roleReports.code_review]) if (!priorReports.includes(p)) priorReports.push(p);
   for (const p of priorReports) {
+    // NB-1: a report that already existed at the base is judged from the base blob and
+    // refuses delta when the delta touched it (an edit there could flip the marker).
+    // A report written after the base is the judged round's own output and is read live.
     let text;
+    const atBase = base && !gitFailed && git_ok(root, ['cat-file', '-e', `${base}:${p}`]);
+    if (atBase && changed.includes(p)) reasons.push(`prior_report_changed:${p}`);
     try {
-      text = fs.readFileSync(path.resolve(root, p), 'utf8');
+      text = atBase ? git(root, ['show', `${base}:${p}`]) : fs.readFileSync(path.resolve(root, p), 'utf8');
     } catch {
       reasons.push(`prior_report_unreadable:${p}`);
       continue;
@@ -313,12 +363,12 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
       reasons.push(`security_marker_absent:${p}`);
     }
   }
-  if (roleToken && roleReports[roleToken].length === 0) reasons.push(`security_marker_absent:${roleToken}`);
+  if (token && roleReports[token].length === 0) reasons.push(`security_marker_absent:${token}`);
 
   if (reasons.length === 0) {
-    return { mode: 'delta', reasons, base, head, changed_paths: changed, prior_reports: priorReports };
+    return { mode: 'delta', reasons, base, head, spec_path: specPath, changed_paths: changed, prior_reports: priorReports };
   }
-  return { mode: 'full', reasons, base, head, changed_paths: changed, prior_reports: priorReports };
+  return { mode: 'full', reasons, base, head, spec_path: specPath, changed_paths: changed, prior_reports: priorReports };
 }
 
 // --- verdict stamps (D4), planned here and written by the dispatch -----------
@@ -351,8 +401,42 @@ function isNewer(roleToken, marker, cur) {
   return m ? cur.count > Number(m[1]) : false;
 }
 
+// The head a verdict is stamped with when it cannot be placed (D4): forty zeros are a
+// valid HEAD_SHA_RE value that is never a commit, so the next round's ancestry test
+// fails and the round runs full. The stamp still lands, so the role is not stuck.
+export const AMBIGUOUS_HEAD = '0'.repeat(40);
+
+// The unverdicted dispatches of one role: every check_dispatched of the ref and role
+// after the last check_verdict of that role, in append order.
+function unjudgedDispatches(events, ref, roleToken) {
+  const lastV = lastIndexWhere(events, (e) => e && e.event === 'check_verdict' && e.ref === ref
+    && e.payload && e.payload.role === roleToken);
+  const out = [];
+  for (let i = lastV + 1; i < events.length; i += 1) {
+    const e = events[i];
+    if (e && e.event === 'check_dispatched' && e.ref === ref && e.payload && e.payload.role === roleToken) out.push({ idx: i, payload: e.payload });
+  }
+  return out;
+}
+
+// D4: the verdict base is the head the checker was actually handed. A --confirm re-tick
+// while a check is in flight appends a newer check_dispatched, so the base is the
+// EARLIEST unjudged dispatch of the role, never the latest. When the other unjudged
+// heads do not all descend from it (or git cannot say), the base is ambiguous and the
+// stamp carries AMBIGUOUS_HEAD: fail closed, no delta from it.
+function verdictBase(root, dispatches) {
+  const first = dispatches[0].payload.head;
+  if (!HEX40.test(String(first))) return AMBIGUOUS_HEAD;
+  for (const d of dispatches.slice(1)) {
+    const h = d.payload.head;
+    if (h === first) continue;
+    if (!HEX40.test(String(h)) || !git_ok(root, ['merge-base', '--is-ancestor', first, h])) return AMBIGUOUS_HEAD;
+  }
+  return first;
+}
+
 // planCheckStamps({ root, statePath, ref, dispatchRole }) -> [{ event, role, head, status|seen }]
-// in append order. Pure: reads EVENTS, STATE and git HEAD, writes nothing.
+// in append order. Pure: reads EVENTS, STATE and git, writes nothing.
 export function planCheckStamps({ root, statePath = null, ref, dispatchRole = null }) {
   const head = gitHead(root);
   if (head === null || !ref) return [];
@@ -362,18 +446,15 @@ export function planCheckStamps({ root, statePath = null, ref, dispatchRole = nu
   const stamps = [];
   const verdictPlanned = new Set();
   for (const roleToken of ['validation', 'code_review']) {
-    const lastD = stampOf(events, 'check_dispatched', ref, roleToken);
-    if (!lastD) continue;
-    const verdictAfter = lastIndexWhere(events, (e) => e && e.event === 'check_verdict' && e.ref === ref
-      && e.payload && e.payload.role === roleToken) > lastD.idx;
-    if (verdictAfter) continue;
+    const open = unjudgedDispatches(events, ref, roleToken);
+    if (open.length === 0) continue;
     const cur = currentIdentity(state, roleToken, ref);
-    if (cur && cur.status && isNewer(roleToken, lastD.payload.seen, cur) && HEX40.test(String(lastD.payload.head))) {
-      stamps.push({ event: 'check_verdict', role: roleToken, head: lastD.payload.head, status: cur.status });
+    if (cur && cur.status && isNewer(roleToken, open[0].payload.seen, cur)) {
+      stamps.push({ event: 'check_verdict', role: roleToken, head: verdictBase(root, open), status: cur.status });
       verdictPlanned.add(roleToken);
     }
   }
-  const dispatchToken = ROLE_TOKENS[dispatchRole] ?? null;
+  const dispatchToken = tokenOfRole(dispatchRole);
   if (dispatchToken) {
     const cur = currentIdentity(state, dispatchToken, ref);
     const lastD = stampOf(events, 'check_dispatched', ref, dispatchToken);

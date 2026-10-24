@@ -1704,7 +1704,18 @@ function main() {
     out.recheck = null;
     if (out.verdict === 'dispatch' && RECHECK_ROLES.has(out.role)) {
       out.recheck = recheckMode({ root, ref: out.ref_id, role: out.role, env: process.env, statePath });
-      if (out.recheck.mode === 'delta') out.system_prompt = RECHECK_PROMPT;
+      if (out.recheck.mode === 'delta') {
+        // The identity of the FULL payload, so a canon refusal after this dispatch (the tree
+        // moved, or canon was handed another ref) can record what was actually sent: the
+        // delta identity is only ever recorded for a delta payload that was assembled.
+        out.recheck.fallback = {
+          system_prompt: out.system_prompt,
+          prompt_hash: computeEffectivePromptHash(out.system_prompt, root),
+        };
+        out.system_prompt = RECHECK_PROMPT;
+      } else {
+        out.recheck.fallback = null;
+      }
     }
     for (const stamp of planned.filter((x) => x.event === 'check_dispatched')) recordCheckEvent(root, stampRef, stamp);
     // role-verification-guards G2 (D2) — validation-verdict stamp, under the

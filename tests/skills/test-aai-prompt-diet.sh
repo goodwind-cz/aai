@@ -1010,10 +1010,11 @@ test_012_growth_sum_matches_ledger() {
   # Then 57344 -> 57793: intake-closing-questions-as-one-menu-round1 (+449 B option cap + six-block per-type pointers, Codex PR #483).
   # Then 57793 -> 57901: slim-standing-role-context (+108 B SKILL_REPLAY step 3a history search, measured against 01de2119).
   # Then 57901 -> 58478: ride-state-handoff-to-worktree (+577 B SKILL_WORKTREE step 4 and setup comments, SKILL_SHIP default 2; cap 900 B).
-  # Then 58478 -> 60996: cheap-transitions-slice (RECHECK_DELTA.prompt.md +2433 B, the security_relevant marker line in
-  # VALIDATION and SKILL_CODE_REVIEW, the --recheck delta clause in ORCHESTRATION, the canon pointer in ORCHESTRATION_PARALLEL;
-  # measured deficit 2518 B by TEST-010), credited 1:1.
-  local want_growth=60996
+  # Then 58478 -> 62357: cheap-transitions-slice (RECHECK_DELTA.prompt.md +3525 B with the output contracts, the security_relevant
+  # marker line in VALIDATION and SKILL_CODE_REVIEW, the --recheck delta and ref_id clause in ORCHESTRATION, the canon pointer in
+  # ORCHESTRATION_PARALLEL, the SUBAGENT_PROTOCOL wording; measured deficit 2518 B at delivery plus 1361 B of remediation round 1,
+  # by TEST-010), credited 1:1.
+  local want_growth=62357
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

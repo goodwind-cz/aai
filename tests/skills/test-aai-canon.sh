@@ -992,6 +992,13 @@ test_684_prompt_command_runs() {
     || log_fail "TEST-684: expected exactly one pinned canon.mjs build command line in $orch, found $match_count"
   extracted="${matches#\`}"
   extracted="${extracted%\`}"
+  # spec-cheap-transitions-slice B-1 (contract amendment, --signoff none): the command now
+  # names the dispatch JSON's ref_id as the placeholder <ref_id> (it used to say HEAD, which
+  # canon --recheck delta always refuses). Filling the placeholder is what the orchestrator
+  # does; any other placeholder left in the command is still a failure.
+  extracted="${extracted//<ref_id>/x}"
+  [[ "$extracted" != *"<"* ]] \
+    || log_fail "TEST-684: the pinned command still holds an unfilled placeholder: $extracted"
 
   local run_out run_err run_rc
   run_out="$(mktemp "$TEST_DIR/t684-run-out.XXXXXX")"

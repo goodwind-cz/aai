@@ -145,8 +145,9 @@ When the platform supports concurrent subagent spawning:
      premium tier); for Validation, a model DIFFERENT from the implementer's
      recorded model (VALIDATOR INDEPENDENCE)
    - Context: the prefix from `node .aai/scripts/canon.mjs build --role <R> --ref <r>`
-     (stable, first; add `--recheck delta` when the dispatch JSON has recheck.mode
-     delta, and if canon refuses build without it), then scope and inputs
+     (<r> = the dispatch JSON's ref_id, never HEAD; stable, first; add `--recheck delta`
+     when recheck.mode is delta, and if canon exits 11 build without it and take
+     system_prompt and prompt_hash from recheck.fallback), then scope and inputs
      (variable, last — keeps the prefix cacheable)
    - Env: export `AAI_ROLE=subagent` in the subagent's environment/instructions
      (R-GUARD S1, SPEC-0113 — its `state.mjs` STATE mutations then refuse

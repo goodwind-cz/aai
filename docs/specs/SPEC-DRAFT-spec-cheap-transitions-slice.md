@@ -3,7 +3,7 @@ id: spec-cheap-transitions-slice
 type: spec
 number: null
 status: implementing
-frozen_sha256: 675f805c728f359244d301da0c6ac492ebea4021c8e8df11c11f3b370f350bb6
+frozen_sha256: 6d77d1d0a6aec76eb6291baa9f9d0b68a1ad6e714f0c91fd096a9bee3a2de316
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -178,26 +178,27 @@ owner decision blocks this spec.
 
 The library `.aai/scripts/lib/recheck.mjs` (new, Node stdlib only) exports
 `recheckMode({ root, ref, role, env })` and the constants named below. It
-returns `{ mode, reasons, base, head, changed_paths, prior_reports }`, where
+returns `{ mode, reasons, base, head, spec_path, changed_paths, prior_reports }`, where
 `mode` is `delta` only when every condition holds, and otherwise `full` with
 every failing condition named in `reasons` (closed vocabulary, collected, not
 first-match):
 
 | Condition for delta | Reason token when it fails |
 |---|---|
-| role is Validation or Code Review (`RECHECK_ROLES`) | `role_not_rechecked` |
-| `AAI_RECHECK_MODE` is not `full` (`FORCE_ENV`; the rollback switch) | `forced_full` |
+| role is Validation or Code Review (`RECHECK_ROLES`; looked up as an own key, so `__proto__` and kin are unknown roles) | `role_not_rechecked` |
+| `AAI_RECHECK_MODE`, trimmed and lower-cased, is unset, empty or `delta` (`FORCE_ENV`; the rollback switch: `full` and every other value force full) | `forced_full` |
 | a `check_verdict` event exists for this ref and role (D4) | `first_round` |
 | its `head` is an ancestor of HEAD | `base_not_ancestor` |
 | the delta is non-empty | `no_delta` |
 | every changed path matches `NON_PRODUCTION_PATTERNS` (D2) | `production_path:<path>` per path |
 | no changed path matches `protected_paths_l3` read live (D3) | `protected_path:<path>` per path, or `protected_config_unreadable` |
-| the focus spec's `ceremony_level` parses as 0, 1 or 2 | `ceremony_l3` when it is 3 (`PROTECTED_LEVEL`), `ceremony_unknown` when absent, unparseable or the spec is missing |
-| every prior report of the ref carries exactly one `security_relevant: false` line and none says true (D5) | `security_relevant:<path>`, `security_marker_absent:<path>`, `prior_report_unreadable:<path>`, or `security_marker_absent:<role>` when the re-checked role has no prior report |
+| the focus spec's `ceremony_level` parses as 0, 1 or 2 in BOTH the live file and the blob at the base, and neither says 3 (the delta may edit the spec, so the stricter of the two decides) | `ceremony_l3` when either reads 3 (`PROTECTED_LEVEL`), `ceremony_unknown` when either is absent, unparseable or unreadable, or the spec is missing at either end |
+| every prior report of the ref carries exactly one `security_relevant: false` line and none says true (D5), read from the blob at the base when the report existed there, and none of those was changed inside the delta | `security_relevant:<path>`, `security_marker_absent:<path>`, `prior_report_unreadable:<path>`, `prior_report_changed:<path>`, or `security_marker_absent:<role>` when the re-checked role has no prior report |
 | every git call succeeds | `git_error` |
 
-The delta is the union of `git diff --name-only <base>` (committed and
-uncommitted tracked changes against the base) and
+The delta is the union of `git diff --name-only --no-renames <base>` (committed and
+uncommitted tracked changes against the base; `--no-renames` so that both ends of a
+rename and every deletion are listed) and
 `git ls-files --others --exclude-standard` (untracked, not ignored), sorted and
 de-duplicated. The library reads STATE (focus ref, spec path,
 `code_review.report_paths`, `last_validation.evidence_paths`) and
@@ -206,7 +207,14 @@ condition resolves to `full`; the mode is opt-in by proof, never by default.
 
 ### D2. Non-production paths
 
-`NON_PRODUCTION_PATTERNS` is an explicit allowlist: `tests/**`,
+`NON_PRODUCTION_PATTERNS` is an explicit allowlist: test code under `tests/`
+(`tests/skills/test-aai-*.sh`, `tests/skills/*.Tests.ps1` and
+`tests/skills/lib/*.test.mjs`; every other file under `tests/` is production,
+because production scripts read gate inputs there: `suite-map.yaml` and
+`suite-weights.tsv` choose which suites CI runs, the `*-baseline.tsv`,
+`*-ratchet.sh` and `prompt-diet-ledger.sh` files set ratchets, and
+`merge-policy.mjs` lists `suite-map.yaml` among its `GUARD_PATHS`; TEST-2730
+derives the files the scripts name and holds the allowlist to them),
 `docs/specs/**`, `docs/issues/**`, `docs/rfc/**`, `docs/analysis/**`,
 `docs/product/**`, `docs/ai/reviews/**`, `docs/ai/tdd/**`,
 `docs/ai/reports/**`, `CHANGELOG.md`, and every member of
@@ -236,16 +244,23 @@ production under D2; the arm exists for a project that protects a path under
   Validation or Code Review (rules 11, 11s, 13), full or delta alike. `head`
   is `git rev-parse HEAD` at that tick. A repeated tick whose head and seen
   marker equal the latest `check_dispatched` of that ref and role, with no
-  `check_verdict` since, appends nothing. `seen` records the verdict identity at
+  `check_verdict` since, appends nothing; a repeated tick at a newer head appends
+  a further `check_dispatched`. `seen` records the verdict identity at
   dispatch time: `run_at:<last_validation.run_at_utc>` for Validation,
   `reports:<count of code_review.report_paths>` for Code Review.
 - `check_verdict` with `--status <pass or fail>`: written by the first
   `--confirm` tick that sees, for the focus ref, a verdict of that role whose
-  identity differs from the latest `check_dispatched` marker (a newer
-  `run_at_utc`, compared as instants, or more review reports) and that has no
-  `check_verdict` after that `check_dispatched`. `head` is copied from that
-  `check_dispatched` event: the base is what the checker was handed, never a
-  later head.
+  identity differs from the marker of the EARLIEST unjudged `check_dispatched`
+  (a newer `run_at_utc`, compared as instants, or more review reports), where
+  the unjudged dispatches of a role are its `check_dispatched` events after the
+  last `check_verdict` of that role. `head` is copied from that earliest
+  unjudged `check_dispatched`: the base is what the checker was actually handed,
+  never the head of a re-tick that landed while the check was in flight (a
+  production commit made in between would otherwise be absorbed into the base
+  and never re-checked). Fail closed: when another unjudged head does not
+  descend from the earliest one, or git cannot say, the base is ambiguous and
+  the stamp carries `AMBIGUOUS_HEAD` (forty zeros, never a commit), so the next
+  round is `base_not_ancestor` and runs full.
 
 No `check_dispatched`, no stamp; no stamp, `first_round`. A crashed check
 leaves no new verdict identity, so it is never stamped. Without `--confirm`
@@ -266,11 +281,16 @@ reads it, and a missing or ambiguous line refuses delta.
 ### D6. The dispatch field
 
 For a dispatch of Validation or Code Review, `orchestration-dispatch.mjs` adds
-`recheck: { mode, reasons, base, head, changed_paths, prior_reports }` from the
-same `recheckMode` call; every other verdict carries `recheck: null`
+`recheck: { mode, reasons, base, head, spec_path, changed_paths, prior_reports, fallback }`
+from the same `recheckMode` call; every other verdict carries `recheck: null`
 (additive; the D3 key set test still holds). On `mode: delta` the
 `system_prompt` is `.aai/RECHECK_DELTA.prompt.md` (`RECHECK_PROMPT` in the
-library) and `prompt_hash` is computed over it by the existing function.
+library) and `prompt_hash` is computed over it by the existing function, and
+`recheck.fallback` is `{ system_prompt, prompt_hash }` of the FULL role payload
+(the stock role prompt and its hash); on `mode: full` `fallback` is `null`.
+The fallback is what the orchestrator records when canon refuses the delta
+build after the dispatch: only a delta payload that was actually sent is
+recorded with the delta identity or the `recheck=delta` note.
 `role`, `rule`, `suggested_tier`, `suggested_model`, `suggested_effort`,
 `validator_independence` and `lane` are identical to what the same snapshot
 yields with `AAI_RECHECK_MODE=full`. No rule predicate, rule order or verdict
@@ -285,8 +305,8 @@ stdout, and exits 11. When it returns `delta`, canon assembles the sections
 declared under a new top-level `delta_sections:` key in `.aai/system/CANON.yaml`,
 in order `contract` (file `.aai/SUBAGENT_CONTRACT.md`), `recheck` (file
 `.aai/RECHECK_DELTA.prompt.md`) and `scope` (new type `recheck_scope`). The
-`recheck_scope` text names the role, the ref, the base, the head, every changed
-path and every prior report path, one per line. Every existing build check
+`recheck_scope` text names the role, the ref, the spec path (`spec:`), the base,
+the head, every changed path and every prior report path, one per line. Every existing build check
 applies unchanged: the five standing hazards, the duplicate-rule scan and the
 byte ceiling. `--recheck full` and no flag build exactly what the base commit's `canon.mjs` builds from the same inputs (the full Code Review and Validation payloads still grow by the D5 marker line).
 `--print-hash --recheck delta` prints the digest of the delta stack (the
@@ -305,25 +325,39 @@ defects, including weakened assertions, deleted cases and mutation cells that
 no longer bite; re-run the spec's Test Plan commands the delta touches and the
 ones the prior findings name. A Validation re-check still writes the single
 `aai-outcome-v1` block that `validation-outcome-check.mjs` checks, with every
-outcome re-observed in this round. Every report carries the D5 marker. If the
+outcome re-observed in this round. The prompt also carries the output
+contracts a checker needs, as short statements that name the full prompt's
+sections instead of copying them: the report path (`docs/ai/reviews/review-<timestamp>.md`,
+never `docs/validation/`, and the Validation report path), the H6 disposition of
+every NON-BLOCKING finding, the `set-code-review` and `set-validation` shapes,
+the `aai-outcome-v1` schema pointer, `validation-outcome-check.mjs` run before
+any PASS, and `state_update_commands` for a dispatched role. Every report
+carries the D5 marker. If the
 delta cannot be judged without the full context, return status BLOCKED with
 the literal reason `needs_full_recheck`; the orchestrator then dispatches the
 full role with `AAI_RECHECK_MODE=full`.
 
 ### D9. Wiring and documentation
 
-- `.aai/ORCHESTRATION.prompt.md` step 2: when the dispatch JSON has
-  `recheck.mode` delta, build the prefix with `--recheck delta`; if canon
-  refuses, build without it. The file stays at or under 45 lines.
+- `.aai/ORCHESTRATION.prompt.md` step 2: build the prefix with
+  `canon.mjs build --role <R> --ref <ref_id>` where `<ref_id>` is the dispatch
+  JSON's `ref_id` field, never `HEAD` (canon keys the stamps and STATE on the
+  ref, so `HEAD` always refuses); when the JSON has `recheck.mode` delta add
+  `--recheck delta`; if canon exits 11, build without it and take
+  `system_prompt` and `prompt_hash` from `recheck.fallback`, and record no
+  `recheck=delta` note. The file stays at or under 45 lines. TEST-2725 runs the
+  documented command with the dispatch `ref_id`.
 - `.aai/ORCHESTRATION_PARALLEL.prompt.md`: the Context bullet points at
   `canon.mjs build` (with the same `--recheck delta` rule) instead of "a copy
   of .aai/SUBAGENT_CONTRACT.md" (closes `fu-orchestration-parallel-still-pastes`).
 - `.aai/SUBAGENT_PROTOCOL.md`: the INPUT row names `canon.mjs build` as the
   payload builder (closes `fu-subagent-protocol-input-row-stale`), and a new
   "Delta re-check" subsection states D1, the `needs_full_recheck` escalation,
-  `AAI_RECHECK_MODE=full` as the switch, and that the `append-run` of a delta
-  round carries the note `recheck=delta base=<sha>` so its tokens can be
-  compared later.
+  `AAI_RECHECK_MODE=full` as the switch, and that the `append-run` of a round
+  whose delta payload was actually sent carries the note
+  `recheck=delta base=<sha>` so its tokens can be compared later (a round that
+  fell back to the full payload carries neither the note nor the delta
+  `prompt_hash`).
 - `.aai/workflow/WORKFLOW.md`, below the ceremony table: a re-check round
   (rules 11, 11s, 13 after a judged round) may run in delta mode at L0 to L2
   per `.aai/SUBAGENT_PROTOCOL.md`; never at L3, never for a production,
@@ -364,10 +398,14 @@ the spec and one ledger line), seeds STATE, two prior reports with
 base, then prints one JSON line per role with `full_bytes`, `delta_bytes` and
 `ratio`. Before (measured at the intake commit): Code Review 32720 bytes,
 Validation 45467 bytes per dispatch. After (delivered, output of this
-command): Code Review `full_bytes` 33082 (the D5 marker line grew the full prompt) and
-`delta_bytes` 10238, ratio 0.309; Validation `full_bytes` 45843 and `delta_bytes`
-10237, ratio 0.223. Against the intake-commit bytes that is 32720 to 10238 and 45467
-to 10237. `delta_bytes` stays at most 40% of `full_bytes` for both roles.
+command, re-measured after remediation round 1 added the output contracts to the
+delta prompt and the `spec:` line to the scope): Code Review `full_bytes` 33082
+(the D5 marker line grew the full prompt) and `delta_bytes` 11363, ratio 0.343;
+Validation `full_bytes` 45843 and `delta_bytes` 11362, ratio 0.248. Against the
+intake-commit bytes that is 32720 to 11363 and 45467 to 11362. At delivery the
+numbers were 10238 (ratio 0.309) and 10237 (ratio 0.223); round 1 spent about
+1.1 KB per delta dispatch on the contracts a checker needs. `delta_bytes` stays
+at most 40% of `full_bytes` for both roles.
 Tokens: the harness exposes `tokens_total` per run, but this ride has no delta
 round by design (D10). The first ride that runs a delta round records its
 `tokens_total` against the medians above (Code Review 91463, Validation
@@ -385,6 +423,11 @@ round by design (D10). The first ride that runs a delta round records its
 - Intake AC-004 maps to Spec-AC-03, Spec-AC-04 (independence fields
   unchanged) and Spec-AC-10 (this ride stays full).
 - Intake AC-005 maps to Spec-AC-09.
+- Remediation round 1 (code review r1 and validation r1, both FAIL) adds
+  Spec-AC-14 to Spec-AC-18: the ref wiring and the full-identity fallback
+  (B-1), the verdict base (B-2), the eligibility inputs a delta could edit
+  (NB-1 to NB-3), the fail-closed switch and role lookup (N1, N5) and the
+  payload contracts (NB-4).
 - Intake AC-006 maps to Spec-AC-13. The six sign-off records were appended by
   the intake commit `d4738f91`; the row pins them.
 
@@ -406,16 +449,21 @@ it.
 | Spec-AC-01 | For each of the seven rides in the Measured baseline table, the Runs, CR runs, V runs, Rem runs, Ride tokens, Re-check rounds and Re-check tokens cells equal the values recomputed from the last docs/ai/METRICS.jsonl row of that ref (null tokens counted as 0). | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2701.log | tdd | TEST-2701 |
 | Spec-AC-02 | WHEN recheckMode runs in a fixture repository whose focus spec is ceremony 2, with a check_verdict for the role at a base that is an ancestor of HEAD, a delta of only allowlisted paths (tracked and untracked), no protected match and prior reports each holding one security_relevant: false line, the system SHALL return mode delta with that base, the current head, the sorted changed paths and the prior report paths; every TREE_HASH_EXCLUDE_PATHS member SHALL classify as non-production. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2702.log | tdd | TEST-2702 |
 | Spec-AC-03 | WHEN any single D1 condition fails the system SHALL return mode full with its named reason: a tracked or untracked path outside the allowlist (production_path), an allowlisted path listed in a fixture protected_paths_l3 (protected_path), a prior report saying security_relevant: true, a report without the line or with it twice, an unreadable report, no prior report for the role, no check_verdict (first_round), ceremony 3 (ceremony_l3), an absent level (ceremony_unknown), a base that is not an ancestor, an empty delta, AAI_RECHECK_MODE=full (forced_full) and a failing git call (git_error); two failing conditions SHALL both be named. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2703.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2704.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2705.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2706.log | tdd | TEST-2703, TEST-2704, TEST-2705, TEST-2706 |
-| Spec-AC-04 | WHEN orchestration-dispatch.mjs dispatches Validation or Code Review the JSON SHALL carry a recheck object equal to recheckMode on the same tree, and every other verdict SHALL carry recheck null; on delta the system_prompt SHALL be .aai/RECHECK_DELTA.prompt.md and prompt_hash SHALL equal canon.mjs build --print-hash --recheck delta for that role; role, rule, suggested_tier, suggested_model, suggested_effort, validator_independence and lane SHALL equal the output for the same snapshot under AAI_RECHECK_MODE=full. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2707.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2708.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2709.log | tdd | TEST-2707, TEST-2708, TEST-2709 |
-| Spec-AC-05 | append-event.mjs SHALL accept check_dispatched and check_verdict with the D4 fields and refuse a missing role, an unknown role, a head that is not 40 lowercase hex and a check_verdict without status; WHEN a --confirm tick dispatches Validation or Code Review it SHALL append one check_dispatched with the HEAD and the seen marker, and WHEN a later --confirm tick sees a new verdict identity it SHALL append one check_verdict whose head equals that check_dispatched head; a repeated tick with the same head and seen marker and no verdict since, a repeated tick after the stamp, a tick without --confirm and a verdict with no prior check_dispatched SHALL append nothing. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2710.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2711.log | tdd | TEST-2710, TEST-2711 |
+| Spec-AC-04 | WHEN orchestration-dispatch.mjs dispatches Validation or Code Review the JSON SHALL carry a recheck object equal to recheckMode on the same tree plus a fallback key (null in mode full; on delta the full role prompt path and its prompt_hash), and every other verdict SHALL carry recheck null; on delta the system_prompt SHALL be .aai/RECHECK_DELTA.prompt.md and prompt_hash SHALL equal canon.mjs build --print-hash --recheck delta for that role; role, rule, suggested_tier, suggested_model, suggested_effort, validator_independence and lane SHALL equal the output for the same snapshot under AAI_RECHECK_MODE=full. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2707.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2708.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2709.log | tdd | TEST-2707, TEST-2708, TEST-2709 |
+| Spec-AC-05 | append-event.mjs SHALL accept check_dispatched and check_verdict with the D4 fields and refuse a missing role, an unknown role, a head that is not 40 lowercase hex and a check_verdict without status; WHEN a --confirm tick dispatches Validation or Code Review it SHALL append one check_dispatched with the HEAD and the seen marker, and WHEN a later --confirm tick sees a new verdict identity it SHALL append one check_verdict whose head equals the head of the earliest check_dispatched of that role after its last check_verdict (a re-tick at a newer head appends a further check_dispatched but never moves the base, and divergent unjudged heads stamp forty zeros); a repeated tick with the same head and seen marker and no verdict since, a repeated tick after the stamp, a tick without --confirm and a verdict with no prior check_dispatched SHALL append nothing. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2710.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2711.log | tdd | TEST-2710, TEST-2711 |
 | Spec-AC-06 | WHEN canon.mjs build runs with --recheck delta on an eligible tree the payload SHALL hold the section sequence contract, recheck, scope, exactly five HAZ lines, the role, base, head, each changed path and each prior report in the scope section, and no line unique to LEARNED.md or to the full role prompt; WHEN the tree is not eligible canon SHALL exit 11 with canon-recheck-refused and the reasons on stderr and an empty stdout; a build with --recheck full or without the flag SHALL be byte-identical to what the base commit's canon.mjs (ba552b89) builds from the same current inputs. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2712.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2713.log | tdd | TEST-2712, TEST-2713 |
 | Spec-AC-07 | WHEN a fixture repository runs real dispatch ticks with --confirm and real state.mjs writes through Validation dispatch, a fail verdict, Remediation, a test-only commit and reset-block, the next Validation dispatch SHALL carry recheck mode delta whose base equals the HEAD of the first dispatch and canon build --recheck delta SHALL succeed with the same changed paths; after a further commit to an .aai/scripts path the next dispatch SHALL carry mode full with production_path and canon SHALL refuse with exit 11. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2714.log | tdd | TEST-2714 |
 | Spec-AC-08 | node tests/skills/lib/recheck-measure.mjs SHALL exit 0 and print one JSON line for Code Review and one for Validation with integer full_bytes and delta_bytes, delta_bytes at most 0.40 times full_bytes for both, without writing to the repository it runs from; the D11 section of this spec and the RFC phase 4 row record the delivered numbers. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2715.log | tdd | TEST-2715 |
 | Spec-AC-09 | The RFC-0017 phase 4 row has status cell in progress, links a target ending in cheap-transitions-slice.md, and holds at least two N to M bytes pairs with M at most 0.40 times N; the frontmatter keeps status implementing and umbrella true; rows 0 and 2 stay in progress, rows 1 and 3 stay done and row 5 stays not started. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2716.log | tdd | TEST-2716 |
 | Spec-AC-10 | WHEN recheckMode runs on the live repository for ref cheap-transitions-slice with this spec as the focus spec, the system SHALL return mode full with ceremony_l3 among the reasons. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2717.log | tdd | TEST-2717 |
 | Spec-AC-11 | .aai/RECHECK_DELTA.prompt.md is at most 4096 bytes and contains aai-outcome-v1, validation-outcome-check, security_relevant, needs_full_recheck and independent; ORCHESTRATION.prompt.md contains --recheck delta and has at most 45 lines; ORCHESTRATION_PARALLEL.prompt.md contains canon.mjs build and no longer the phrase a copy of .aai/SUBAGENT_CONTRACT.md; SKILL_CODE_REVIEW.prompt.md and VALIDATION.prompt.md each contain security_relevant; SUBAGENT_PROTOCOL.md names canon.mjs in the INPUT row and contains recheck=delta, AAI_RECHECK_MODE and needs_full_recheck; WORKFLOW.md contains a delta re-check sentence that names L3. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2718.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2719.log | tdd | TEST-2718, TEST-2719 |
-| Spec-AC-12 | PROFILES.yaml lists .aai/scripts/lib/recheck.mjs and .aai/RECHECK_DELTA.prompt.md exactly once each, in core; select-suites.mjs selects aai-recheck for each new file with no FULL_RUN line; the prompt-diet ledger holds an entry naming cheap-transitions-slice and the prompt-diet suite passes. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2720.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2721.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2722.log | tdd | TEST-2720, TEST-2721, TEST-2722 |
+| Spec-AC-12 | PROFILES.yaml lists .aai/scripts/lib/recheck.mjs and .aai/RECHECK_DELTA.prompt.md exactly once each, in core; select-suites.mjs selects aai-recheck for each new file other than the shared library with no FULL_RUN line, and for .aai/scripts/lib/recheck.mjs it prints FULL_RUN reason=shared-lib (a shared-library file triggers a full run by design, which includes aai-recheck) while the suite-map aai-recheck row still lists that file; the prompt-diet ledger holds an entry naming cheap-transitions-slice and the prompt-diet suite passes. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2720.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2721.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2722.log | tdd | TEST-2720, TEST-2721, TEST-2722 |
 | Spec-AC-13 | spec-amend list over the repository ledger shows at least six spec_amendment records of ref node-first-third-slice in bucket signed and none in any other bucket except measurement, and follow-ups list with status all shows fu-amend-spec-node-first-third-slice as done. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2723.log | tdd | TEST-2723 |
+| Spec-AC-14 | The documented canon command in ORCHESTRATION.prompt.md and ORCHESTRATION_PARALLEL.prompt.md SHALL pass the dispatch JSON ref_id (the placeholder ref_id, never HEAD); WHEN that command is run in an eligible fixture with the dispatch ref_id and --recheck delta it SHALL exit 0 and with HEAD as the ref it SHALL exit 11; a delta dispatch SHALL carry recheck.fallback holding the full role prompt path and a prompt_hash equal to canon.mjs build --print-hash for that role and to the prompt_hash of the same dispatch under AAI_RECHECK_MODE=full, and a full dispatch SHALL carry recheck.fallback null. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2725.log | tdd | TEST-2725 |
+| Spec-AC-15 | WHEN a --confirm re-tick appends a check_dispatched at a newer head while the check has no verdict, the check_verdict SHALL carry the earliest unjudged head, so that after a test-only fix and reset-block the next dispatch SHALL be mode full with the production commit made in between named in production_path and the old head as the base; WHEN the unjudged heads do not lie on one line of history the stamp SHALL carry AMBIGUOUS_HEAD and the next round SHALL name base_not_ancestor. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2724.log | tdd | TEST-2724 |
+| Spec-AC-16 | The delta SHALL NOT decide its own eligibility: a staged rename out of a production path and a deleted production file SHALL give production_path for the production end; an L3 focus spec rewritten to a lower level, a level raised, a level removed, a spec deleted and a spec absent at the base SHALL give ceremony_l3 or ceremony_unknown; a prior report that existed at the base and was edited or deleted in the delta SHALL give prior_report_changed and its marker SHALL be read from the base blob while a report written after the base is read live; every file under tests/ other than test code (suite, Pester file, node:test file) SHALL be production, including every tests/ path merge-policy GUARD_PATHS names and every tests/ file a production script names by literal path. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2726.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2727.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2728.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2729.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2730.log | tdd | TEST-2726, TEST-2727, TEST-2728, TEST-2729, TEST-2730 |
+| Spec-AC-17 | AAI_RECHECK_MODE SHALL be trimmed and lower-cased and any value other than unset, empty or delta SHALL force full with forced_full; a role name that is an inherited property (__proto__, constructor, toString) SHALL be an unknown role with role_not_rechecked and SHALL NOT throw in recheckMode or planCheckStamps. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2731.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2732.log | tdd | TEST-2731, TEST-2732 |
+| Spec-AC-18 | RECHECK_DELTA.prompt.md (at most 4096 bytes) SHALL carry the report path docs/ai/reviews/review- with the never docs/validation rule, the H6 disposition duty with accepted residual, the set-code-review and set-validation shapes, aai-outcome-v1, validation-outcome-check.mjs with Before any PASS, outcome_report and state_update_commands, each pointing at a section that exists in the full prompt; the delta scope section SHALL name the spec path. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2733.log | tdd | TEST-2733 |
 
 ## Implementation plan
 
@@ -477,9 +525,19 @@ result on the other):
 | TEST-2718 | Spec-AC-11 | inspection | tests/skills/test-aai-recheck.sh | test_2718_prompts checks RECHECK_DELTA.prompt.md (size at most 4096 bytes, the five literals), ORCHESTRATION.prompt.md (--recheck delta, at most 45 lines), ORCHESTRATION_PARALLEL.prompt.md (canon.mjs build present, the old copy phrase absent), and security_relevant in SKILL_CODE_REVIEW.prompt.md and VALIDATION.prompt.md | `sed:s/security_relevant/security_flag/g` on .aai/SKILL_CODE_REVIEW.prompt.md | green |
 | TEST-2719 | Spec-AC-11 | inspection | tests/skills/test-aai-recheck.sh | test_2719_protocol_and_workflow checks that the SUBAGENT_PROTOCOL.md INPUT row names canon.mjs, that the file contains recheck=delta, AAI_RECHECK_MODE and needs_full_recheck, and that WORKFLOW.md has a line containing delta re-check and L3 | `sed:s/recheck=delta/recheck-delta/g` on .aai/SUBAGENT_PROTOCOL.md | green |
 | TEST-2720 | Spec-AC-12 | inspection | tests/skills/test-aai-recheck.sh | test_2720_profiles_classified asserts .aai/scripts/lib/recheck.mjs and .aai/RECHECK_DELTA.prompt.md each appear exactly once in PROFILES.yaml, inside the core list | `sed:s/lib\/recheck.mjs/lib\/recheck-gone.mjs/g` on .aai/system/PROFILES.yaml | green |
-| TEST-2721 | Spec-AC-12 | integration | tests/skills/test-aai-recheck.sh | test_2721_suite_map_selects feeds each new file path to node .aai/scripts/select-suites.mjs --files-from - and requires a SELECTED aai-recheck line and no FULL_RUN line | `sed:s/lib\/recheck.mjs/lib\/recheck-gone.mjs/g` on tests/skills/suite-map.yaml | green |
+| TEST-2721 | Spec-AC-12 | integration | tests/skills/test-aai-recheck.sh | test_2721_suite_map_selects feeds each new file path to node .aai/scripts/select-suites.mjs --files-from - and requires a SELECTED aai-recheck line and no FULL_RUN line for every new file except .aai/scripts/lib/recheck.mjs, for which it requires FULL_RUN reason=shared-lib and the suite-map aai-recheck row listing the file | `sed:s/lib\/recheck.mjs/lib\/recheck-gone.mjs/g` on tests/skills/suite-map.yaml | green |
 | TEST-2722 | Spec-AC-12 | inspection | tests/skills/test-aai-prompt-diet.sh | test_2722_diet_entry_for_slice requires one JUSTIFIED_ADDITIONS entry whose text names cheap-transitions-slice and starts with a positive byte count; the suite's TEST-012 sum check covers the total | `sed:s/cheap-transitions-slice/cheap-transitions-gone/g` on tests/skills/lib/prompt-diet-ledger.sh | green |
 | TEST-2723 | Spec-AC-13 | inspection | tests/skills/test-aai-recheck.sh | test_2723_497_amendments_signed runs node .aai/scripts/spec-amend.mjs list --json and requires at least six records of ref node-first-third-slice in bucket signed and none outside signed and measurement; then node .aai/scripts/follow-ups.mjs list --status all --json and requires fu-amend-spec-node-first-third-slice with status done | `sed:s/"classifies_ref":"node-first-third-slice","owner_signoff":true/"classifies_ref":"node-first-third-slice","owner_signoff":false/` on docs/ai/decisions.jsonl | green |
+| TEST-2724 | Spec-AC-15 | integration | tests/skills/test-aai-recheck.sh | test_2724_earliest_unjudged_head runs the probe sequence with real ticks: dispatch H1, a production commit, a --confirm re-tick at H2, set-validation fail, a tick; the check_verdict head is H1; after a test-only fix and reset-block the dispatch is full with production_path naming the in-flight file and base H1; planCheckStamps over divergent unjudged heads stamps AMBIGUOUS_HEAD and the next recheckMode names base_not_ancestor; two dispatches on one line of history stamp the earlier one | `sed:s/const first = dispatches\[0\]\.payload\.head;/const first = dispatches[dispatches.length - 1].payload.head;/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2725 | Spec-AC-14 | integration | tests/skills/test-aai-recheck.sh | test_2725_orchestration_ref_wiring extracts the canon build command from ORCHESTRATION.prompt.md and runs it with the dispatch ref_id in an eligible fixture (exit 0, recheck section present), with HEAD as the ref (exit 11), and after a production commit (exit 11); the delta dispatch recheck.fallback equals the full role prompt path and canon --print-hash and the prompt_hash of the same dispatch under AAI_RECHECK_MODE=full; the protocol states that the delta note is recorded only for a sent payload | `sed:s/--ref <ref_id>/--ref HEAD/` on .aai/ORCHESTRATION.prompt.md | green |
+| TEST-2726 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2726_rename_refused stages git mv from .aai/scripts/x.mjs into tests/skills/test-aai-moved.sh: mode full with production_path for the old path and both ends listed; a rename inside tests/ is delta | `sed:s/'--no-renames', //` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2727 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2727_delete_refused deletes a production file by git rm and another by rm, each beside a test edit: full with production_path naming it; deleting a test file is delta | `sed:s/'--no-renames'/'--diff-filter=d'/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2728 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2728_delta_cannot_lower_level rewrites an L3 spec to level 2 inside the delta (ceremony_l3), raises a level, removes a level, deletes the spec and adds a spec absent at the base (ceremony_unknown); a body edit that leaves the level alone stays delta and reports spec_path | `sed:s/if \(base && !gitFailed\) levels\.push/if (false) levels.push/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2729 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2729_prior_reports_from_base edits a true report to false inside the delta (prior_report_changed and security_relevant from the base blob), deletes one, appends to one; reports written after the base are read live and give delta, a new report that says true refuses | `sed:s/if \(atBase && changed\.includes\(p\)\) reasons/if (false) reasons/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2730 | Spec-AC-16 | integration | tests/skills/test-aai-recheck.sh | test_2730_tests_gate_inputs_production classifies suites, Pester files and node:test files as non-production and suite-map.yaml, suite-weights.tsv, the baselines, the ratchet, the diet ledger and test-framework.sh as production; every tests/ path in merge-policy GUARD_PATHS and every tests/ file a production script names by literal path is production unless it is test code; a changed suite-map.yaml gives production_path | `sed:s/export const NON_PRODUCTION_PATTERNS = \[/export const NON_PRODUCTION_PATTERNS = [\/.\/, /` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2731 | Spec-AC-17 | unit | tests/skills/test-aai-recheck.sh | test_2731_mode_switch_fails_closed requires forcedFull true for full in any case or padding, off, 0, false and a misspelling, false for unset, empty, whitespace and delta in any case; recheckMode and the dispatch give forced_full for a padded upper-case full | `sed:s/return v !== '' && v !== 'delta';/return v === 'full';/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2732 | Spec-AC-17 | unit | tests/skills/test-aai-recheck.sh | test_2732_inherited_role_names runs recheckMode and planCheckStamps with __proto__, constructor, toString, hasOwnProperty and valueOf: no throw, full with role_not_rechecked; canon refuses the role without a stack trace | `sed:s/Object\.hasOwn\(ROLE_TOKENS, role\) \? ROLE_TOKENS\[role\] : null/ROLE_TOKENS[role] ?? null/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2733 | Spec-AC-18 | inspection | tests/skills/test-aai-recheck.sh | test_2733_delta_payload_contracts checks the delta prompt size and the contract literals, that the full prompts hold the sections it names, and that the delta scope section of canon --recheck delta holds the line spec followed by the spec path | `sed:s/set-code-review/set-review/g` on .aai/RECHECK_DELTA.prompt.md | green |
 
 ### RED observations and positive controls
 

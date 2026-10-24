@@ -34,9 +34,15 @@ fine — it is the marker a cut leaves on top.
   ineligible tree with exit 11. Never at ceremony level 3, never for a
   production, protected or security-relevant delta, never on a first round. A
   checker that cannot judge the delta returns `needs_full_recheck` and the full
-  role runs. `AAI_RECHECK_MODE=full` turns the mode off. Per dispatch the
-  payload is 10.2 KB instead of 32.7 KB (Code Review) or 45.5 KB (Validation);
-  the token effect is not measured yet.
+  role runs. `AAI_RECHECK_MODE=full` turns the mode off; any value other than
+  unset, empty or `delta` also forces full. The verdict base is the head the
+  checker was handed, the stricter of the base and live spec level decides, a
+  prior report that existed at the base is read from the base, and gate inputs
+  under `tests/` (suite map, weights, baselines, ratchets, the diet ledger)
+  count as production. A delta dispatch carries `recheck.fallback`, the full
+  identity to record when canon refuses. Per dispatch the payload is 11.4 KB
+  instead of 32.7 KB (Code Review) or 45.5 KB (Validation); the token effect is
+  not measured yet.
 - Downstream impact: re-check rounds are dispatched differently after
   `/aai-update`. The full Code Review and Validation reports now carry one
   `security_relevant: true` or `security_relevant: false` line, and the dispatch

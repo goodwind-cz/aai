@@ -302,13 +302,14 @@ function resolveSections(manifest, role, ref, declared = manifest.sections, rc =
         + '(dispatch-specific scope and inputs occupy this position in the assembled payload)\n';
       resolved.push({ id: sec.id, path: '<scope>', lines: text.replace(/\n$/, '').split('\n') });
     } else if (sec.type === 'recheck_scope') {
-      // spec-cheap-transitions-slice D7: names the role, the ref, the base, the head,
+      // spec-cheap-transitions-slice D7: names the role, the ref, the spec path, the base, the head,
       // every changed path and every prior report, one per line. Lines are never
       // markdown bullets, so the duplicate-rule scan ignores them.
       const rows = [
         'Delta re-check scope',
         `role: ${role}`,
         `ref: ${ref}`,
+        `spec: ${rc && rc.spec_path ? rc.spec_path : ''}`,
         `base: ${rc ? rc.base : ''}`,
         `head: ${rc ? rc.head : ''}`,
         ...(rc ? rc.changed_paths : []).map((p) => `changed_path: ${p}`),

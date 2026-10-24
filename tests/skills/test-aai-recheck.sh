@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-recheck
-# (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723;
+# (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723..2733;
 # TEST-2722 lives in test-aai-prompt-diet.sh)
 #
 # The delta re-check mode: .aai/scripts/lib/recheck.mjs decides eligibility,
@@ -162,8 +162,58 @@ test_2723_497_amendments_signed() {
   log_pass "TEST-2723: the six #497 amendments are signed and the follow-up is done"
 }
 
+test_2724_earliest_unjudged_head() {
+  run_recheck_node_tests TEST-2724
+  log_pass "TEST-2724: the verdict base is the earliest unjudged dispatch head; an ambiguous base gives no delta"
+}
+
+test_2725_orchestration_ref_wiring() {
+  run_recheck_node_tests TEST-2725
+  log_pass "TEST-2725: the documented canon command engages delta with the dispatch ref_id; a refusal keeps the full identity"
+}
+
+test_2726_rename_refused() {
+  run_recheck_node_tests TEST-2726
+  log_pass "TEST-2726: a rename out of a production path refuses delta"
+}
+
+test_2727_delete_refused() {
+  run_recheck_node_tests TEST-2727
+  log_pass "TEST-2727: a deleted production file refuses delta"
+}
+
+test_2728_delta_cannot_lower_level() {
+  run_recheck_node_tests TEST-2728
+  log_pass "TEST-2728: the delta cannot lower the ceremony level that decides its own eligibility"
+}
+
+test_2729_prior_reports_from_base() {
+  run_recheck_node_tests TEST-2729
+  log_pass "TEST-2729: prior-report markers come from the base commit and a changed prior report refuses"
+}
+
+test_2730_tests_gate_inputs_production() {
+  run_recheck_node_tests TEST-2730
+  log_pass "TEST-2730: gate inputs under tests/ are production, only test code is not"
+}
+
+test_2731_mode_switch_fails_closed() {
+  run_recheck_node_tests TEST-2731
+  log_pass "TEST-2731: AAI_RECHECK_MODE fails closed on any value but unset, empty or delta"
+}
+
+test_2732_inherited_role_names() {
+  run_recheck_node_tests TEST-2732
+  log_pass "TEST-2732: an inherited property name is an unknown role, not a crash"
+}
+
+test_2733_delta_payload_contracts() {
+  run_recheck_node_tests TEST-2733
+  log_pass "TEST-2733: the delta payload carries the output contracts and the scope names the spec"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2723)"
+  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2733)"
   check_deps
   test_2701_baseline_table_matches_metrics
   test_2702_delta_applies
@@ -187,6 +237,16 @@ main() {
   test_2720_profiles_classified
   test_2721_suite_map_selects
   test_2723_497_amendments_signed
+  test_2724_earliest_unjudged_head
+  test_2725_orchestration_ref_wiring
+  test_2726_rename_refused
+  test_2727_delete_refused
+  test_2728_delta_cannot_lower_level
+  test_2729_prior_reports_from_base
+  test_2730_tests_gate_inputs_production
+  test_2731_mode_switch_fails_closed
+  test_2732_inherited_role_names
+  test_2733_delta_payload_contracts
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
