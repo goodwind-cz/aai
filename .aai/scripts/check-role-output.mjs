@@ -950,7 +950,17 @@ function main() {
 
   const violations = validateResult(parsed, nowMs, { intake: outcomeIntake, spec: outcomeSpec });
   violations.push(...planningGateViolations(parsed, { baseRef, worktreeBaseline, worktreeGuard }));
-  if (violations.length === 0) exit(0);
+  if (violations.length === 0) {
+    // spec-cheap-transitions-slice D7 (remediation round 6): a delta re-check that cannot
+    // judge the delta returns BLOCKED with the single blocker needs_full_recheck. That is an
+    // escalation, not a blocker: say so on stdout so the merge step re-dispatches the full
+    // role instead of mapping every BLOCKED to human_input.required (SUBAGENT_PROTOCOL).
+    const blockers = parsed.blockers.map((b) => String(b).trim());
+    if (parsed.fields.status === 'BLOCKED' && blockers.length === 1 && blockers[0] === 'needs_full_recheck') {
+      console.log('RECHECK-ESCALATION: needs_full_recheck - not a human stop: re-run the dispatch tick once with AAI_RECHECK_MODE=full and dispatch the full role');
+    }
+    exit(0);
+  }
 
   for (const [code, detail] of violations) {
     console.log(`ROLE-OUTPUT-VIOLATION: ${code} ${detail}`);

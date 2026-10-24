@@ -323,7 +323,12 @@ After all subagents complete, the orchestrator MUST:
 2. Evaluate overall status:
    - `PASS` only if every subagent returned `PASS`
    - `FAIL` if any subagent returned `FAIL` — trigger Remediation for that scope only
-   - `BLOCKED` if any subagent returned `BLOCKED` — set `human_input.required: true` in STATE.yaml
+   - `BLOCKED` if any subagent returned `BLOCKED` — set `human_input.required: true` in STATE.yaml,
+     EXCEPT a delta re-check (dispatch `recheck.mode` delta) whose `blockers` holds only `needs_full_recheck`
+     (`check-role-output.mjs` prints `RECHECK-ESCALATION: needs_full_recheck`): that is an escalation, not a
+     blocker. Set no `human_input`, merge nothing from it, re-run the dispatch tick once with
+     `AAI_RECHECK_MODE=full` in that command's env, and dispatch the full role. The same reason from a
+     full round is an ordinary BLOCKED.
    - `BLOCKED` if any subagent timing is invalid:
      missing/unparseable timestamps, duration mismatch, or timestamp > 300 seconds in the future vs orchestrator system UTC.
 3. Write merged summary to `docs/ai/STATE.yaml`:

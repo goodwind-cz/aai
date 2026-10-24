@@ -1015,7 +1015,9 @@ test_012_growth_sum_matches_ledger() {
   # the canon pointer in ORCHESTRATION_PARALLEL, the recheck.fallback clause at the SKILL_LOOP capture step; measured deficit
   # 4000 B by TEST-010 (2518 B at delivery plus 1361, 60 and 61 B of remediation rounds 1 to 3), credited 1:1; SUBAGENT_PROTOCOL.md is outside TEST-010's glob and
   # carries no credit, so the round 4 and 5 SUBAGENT_PROTOCOL credits are withdrawn, review r6 NB-15).
-  local want_growth=62478
+  # Then 62478 -> 62785: cheap-transitions-slice-round6 (+307 B: the needs_full_recheck exception in ORCHESTRATION and the
+  # matching RECHECK_DELTA sentence, measured deficit by TEST-010 against ba552b89, credited 1:1).
+  local want_growth=62785
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

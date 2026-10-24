@@ -3,7 +3,7 @@ id: spec-cheap-transitions-slice
 type: spec
 number: 250
 status: done
-frozen_sha256: a40b856598359c2ac227d75a315187dd90aafe799b64d1ebe2707828f33175b7
+frozen_sha256: 762f39bf11899d8495d0c76d388222ed2241c2af1da668fa431e4f7e53db39b1
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -346,7 +346,7 @@ For a dispatch of Validation or Code Review, `orchestration-dispatch.mjs` adds
 from the same `recheckMode` call; every other verdict carries `recheck: null`
 (additive; the D3 key set test still holds). On `mode: delta` the
 `system_prompt` is `.aai/RECHECK_DELTA.prompt.md` (`RECHECK_PROMPT` in the
-library) and `prompt_hash` is computed over it by the existing function, and
+library) and `prompt_hash` is computed over the layers the delta payload actually carries (the re-check prompt and the contract, never `LEARNED.md`; remediation round 6), and
 `recheck.fallback` is `{ system_prompt, prompt_hash }` of the FULL role payload
 (the stock role prompt and its hash); on `mode: full` `fallback` is `null`.
 The fallback is what the orchestrator records when canon refuses the delta
@@ -371,9 +371,11 @@ the head, every changed path and every prior report path, one per line. Every ex
 applies unchanged: the five standing hazards, the duplicate-rule scan and the
 byte ceiling. `--recheck full` and no flag build exactly what the base commit's `canon.mjs` builds from the same inputs (the full Code Review and Validation payloads still grow by the D5 marker line).
 `--print-hash --recheck delta` prints the digest of the delta stack (the
-`recheck` section file in the role position, then the contract and LEARNED, the
-same order and framing `prompt-hash.mjs` uses) without computing eligibility,
-so it equals the dispatch `prompt_hash` of a delta dispatch.
+`recheck` section file in the role position, then the contract, with the same
+order and framing `prompt-hash.mjs` uses and no LEARNED section, because the
+delta payload does not send LEARNED; remediation round 6) without computing
+eligibility, so it equals the dispatch `prompt_hash` of a delta dispatch. The
+dispatch `inherits.learned` of a delta dispatch is `null` for the same reason.
 
 ### D8. The delta prompt
 
@@ -395,8 +397,13 @@ the `aai-outcome-v1` schema pointer, `validation-outcome-check.mjs` run before
 any PASS, and `state_update_commands` for a dispatched role. Every report
 carries the D5 marker. If the
 delta cannot be judged without the full context, return status BLOCKED with
-the literal reason `needs_full_recheck`; the orchestrator then dispatches the
-full role.
+the literal reason `needs_full_recheck` as the only entry of `blockers`; the
+orchestrator then re-dispatches the full role (remediation round 6). That
+reason is never a human stop: `check-role-output.mjs` prints
+`RECHECK-ESCALATION: needs_full_recheck` for it, the SUBAGENT_PROTOCOL merge
+step excepts it from the BLOCKED to `human_input.required` mapping, and
+ORCHESTRATION re-runs the tick once with `AAI_RECHECK_MODE=full`. The same
+reason from a full round stays an ordinary BLOCKED.
 
 ### D9. Wiring and documentation
 
@@ -459,11 +466,12 @@ the spec and one ledger line), seeds STATE, two prior reports with
 base, then prints one JSON line per role with `full_bytes`, `delta_bytes` and
 `ratio`. Before (measured at the intake commit): Code Review 32720 bytes,
 Validation 45467 bytes per dispatch. After (delivered, output of this
-command, re-measured after remediation round 1 added the output contracts to the
-delta prompt and the `spec:` line to the scope): Code Review `full_bytes` 33082
-(the D5 marker line grew the full prompt) and `delta_bytes` 11336, ratio 0.343;
-Validation `full_bytes` 45843 and `delta_bytes` 11335, ratio 0.247. Against the
-intake-commit bytes that is 32720 to 11336 and 45467 to 11335. At delivery the
+command, re-measured after remediation round 6 added the `needs_full_recheck` sentence
+to the delta prompt, 59 bytes): Code Review `full_bytes` 33082
+(the D5 marker line grew the full prompt) and `delta_bytes` 11395, ratio 0.344;
+Validation `full_bytes` 45843 and `delta_bytes` 11394, ratio 0.249. Against the
+intake-commit bytes that is 32720 to 11395 and 45467 to 11394. Round 1 had
+measured 11336 and 11335. At delivery the
 numbers were 10238 (ratio 0.309) and 10237 (ratio 0.223); round 1 spent about
 1.1 KB per delta dispatch on the contracts a checker needs. `delta_bytes` stays
 at most 40% of `full_bytes` for both roles.
@@ -610,6 +618,8 @@ result on the other):
 | TEST-2742 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2742_uncommitted_stamp_rewrite_residual pins the KNOWN general residual of fu-recheck-verdict-not-bound-to-check: an uncommitted true stamp is sticky full, the same stamp flipped in place before its first commit, and a committed true stamp flipped with commit --amend, each give delta under AAI_RECHECK_MODE=delta without ledger_rewritten, and the default env gives full with recheck_disabled; when the binding lands the delta assertions flip | `sed:s/if \(!startsWithBytes\(live, baseBlob\)\) return false;/if (live.length > 0) return false;/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2743 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2743_merge_in_range_refused commits a true stamp on a side branch and drops it with merge -s ours: the live ledger holds no true stamp and the first-parent chain is append-only, yet the range holds a merge so the result is full with merge_in_range; a linear range of the same shape stays delta | `sed:s/--min-parents=2/--min-parents=99/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2744 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2744_whitespace_role_refused runs append-event.mjs check_verdict with AAI_ROLE set to a space, two spaces and a tab: non-zero exit naming the single-writer rule and nothing appended; unset appends | `sed:s/String\(process\.env\.AAI_ROLE \?\? ''\)/String(process.env.AAI_ROLE ?? '').trim()/` on .aai/scripts/append-event.mjs | green |
+| TEST-2745 | Spec-AC-04 | integration | tests/skills/test-aai-recheck.sh | test_2745_delta_identity_covers_sent_layers compares the delta dispatch prompt_hash and canon.mjs build --print-hash --recheck delta with an independent sha256 over the framed re-check prompt and contract bytes only (both equal), requires inherits.learned null and no LEARNED text in the delta payload, and on a copy of the three files shows a LEARNED edit moves the full hash but not the delta hash while a contract edit moves the delta hash | `sed:s/if \(opts\.delta === true && key === 'learned'\) continue;//` on .aai/scripts/canon.mjs | green |
+| TEST-2746 | Spec-AC-11 | integration | tests/skills/test-aai-recheck.sh | test_2746_needs_full_recheck_escalates checks that ORCHESTRATION.prompt.md (at most 45 lines) and SUBAGENT_PROTOCOL.md state the needs_full_recheck exception to the BLOCKED mapping and RECHECK_DELTA.prompt.md (at most 4096 bytes) says never a human stop; runs check-role-output.mjs on a BLOCKED block with the single blocker needs_full_recheck (exit 0, RECHECK-ESCALATION on stdout) and on four controls (another blocker, two blockers, PASS, none) that print no escalation; and shows the dispatch re-run under AAI_RECHECK_MODE=full keeps the role and ref and names the full role prompt | `sed:s/blockers\[0\] === 'needs_full_recheck'/blockers[0] === 'never_matches'/` on .aai/scripts/check-role-output.mjs | green |
 
 ### RED observations and positive controls
 
@@ -669,9 +679,10 @@ implementation.
   prompt text, and the token effect is unmeasured. The first ride with a delta
   round is the observation; the mode is off unless `AAI_RECHECK_MODE=delta` is
   exported, so no code change turns it off.
-- The prompt hash of a delta dispatch includes `LEARNED.md`, which the delta
-  payload does not send (the existing hash function's fixed inputs). The hash
-  over-reacts to a LEARNED edit; it never misses a change of the delta stack.
+- The prompt hash of a delta dispatch used to include `LEARNED.md`, which the
+  delta payload does not send. Remediation round 6 removed it (D6, D7): the
+  delta hash covers exactly the re-check prompt and the contract, so a LEARNED
+  edit no longer changes the identity of an otherwise identical delta round.
 - `check_dispatched` and `check_verdict` add lines to `docs/ai/EVENTS.jsonl` on
   every check round. The file is append-only and excluded from the tree hash;
   merges keep the base as a byte-exact prefix (HAZ-LEDGER).

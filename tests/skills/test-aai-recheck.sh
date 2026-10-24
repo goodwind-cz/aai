@@ -268,8 +268,18 @@ test_2744_whitespace_role_refused() {
   log_pass "TEST-2744: a whitespace-only AAI_ROLE counts as set"
 }
 
+test_2745_delta_identity_covers_sent_layers() {
+  run_recheck_node_tests TEST-2745
+  log_pass "TEST-2745: the delta prompt_hash covers the re-check prompt and the contract, never LEARNED.md"
+}
+
+test_2746_needs_full_recheck_escalates() {
+  run_recheck_node_tests TEST-2746
+  log_pass "TEST-2746: needs_full_recheck re-dispatches the full role and is no human stop"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2744)"
+  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2746)"
   check_deps
   test_2701_baseline_table_matches_metrics
   test_2702_delta_applies
@@ -314,6 +324,8 @@ main() {
   test_2742_uncommitted_stamp_rewrite_residual
   test_2743_merge_in_range_refused
   test_2744_whitespace_role_refused
+  test_2745_delta_identity_covers_sent_layers
+  test_2746_needs_full_recheck_escalates
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

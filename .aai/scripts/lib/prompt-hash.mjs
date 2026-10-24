@@ -42,12 +42,19 @@ function readOrNull(absPath) {
 // computeEffectivePromptHash(rolePromptPath, root = process.cwd())
 //   rolePromptPath: absolute, or relative to `root`.
 // Returns a lowercase 64-char sha256 hex digest. Never throws.
-function computeEffectivePromptHash(rolePromptPath, root = process.cwd()) {
+//
+// `opts.sendsLearned` (default true): a delta re-check payload (canon.mjs
+// `build --recheck delta`) carries the contract, the re-check prompt and the scope but NOT
+// LEARNED.md, so its identity must cover exactly the bytes sent. With
+// `{ sendsLearned: false }` the LEARNED section is left out of the digest entirely (not
+// an ABSENT marker: that would still be a framed section the payload never had).
+function computeEffectivePromptHash(rolePromptPath, root = process.cwd(), opts = {}) {
+  const sendsLearned = opts.sendsLearned !== false;
   const roleAbs = path.isAbsolute(rolePromptPath) ? rolePromptPath : path.resolve(root, rolePromptPath);
   const sections = [
     { name: path.basename(String(rolePromptPath)), abs: roleAbs },
     { name: path.basename(CONTRACT_REL), abs: path.resolve(root, CONTRACT_REL) },
-    { name: path.basename(LEARNED_REL), abs: path.resolve(root, LEARNED_REL) },
+    ...(sendsLearned ? [{ name: path.basename(LEARNED_REL), abs: path.resolve(root, LEARNED_REL) }] : []),
   ];
 
   const hash = crypto.createHash('sha256');
@@ -73,7 +80,9 @@ function shortHash(hash) {
 // throws. Components are BARE-FILE digests BY DESIGN — never add the
 // aggregate's "--- name ---" framing here; they intentionally do not match
 // the aggregate's sections (test-aai-prompt-hash TEST-002 locks this).
-function componentHashes(rolePromptPath, root = process.cwd()) {
+// With `{ sendsLearned: false }` (a delta re-check payload) `learned` is null: the layer
+// was not sent, so there is no version of it to report.
+function componentHashes(rolePromptPath, root = process.cwd(), opts = {}) {
   const roleAbs = path.isAbsolute(rolePromptPath) ? rolePromptPath : path.resolve(root, rolePromptPath);
   const one = (abs) => {
     const body = readOrNull(abs);
@@ -83,7 +92,7 @@ function componentHashes(rolePromptPath, root = process.cwd()) {
   return {
     role: one(roleAbs),
     contract: one(path.resolve(root, CONTRACT_REL)),
-    learned: one(path.resolve(root, LEARNED_REL)),
+    learned: opts.sendsLearned === false ? null : one(path.resolve(root, LEARNED_REL)),
   };
 }
 

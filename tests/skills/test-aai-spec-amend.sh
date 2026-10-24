@@ -73,13 +73,20 @@ unsigned_spec_ids() {
 # item was already closed by an owner signature gets a NEW disambiguated item on
 # its next amendment (spec-amend.mjs stamped id), so the open item is whichever
 # id the unsigned records point at, not only the base id.
-tracker_finding_names_spec() {  # <tracker id> <spec id> <follow-ups list --json text>
+tracker_finding_names_spec() {  # <tracker id> <spec id>; the follow-ups list --json text arrives on STDIN
+  # The JSON is ~236 KB and grows with every ride. It travels on stdin, never as an
+  # argv element: Linux caps ONE argv string at 128 KiB (MAX_ARG_STRLEN) and the
+  # exec fails with "Argument list too long", where macOS has no such cap
+  # (cheap-transitions-slice remediation round 6: hosted CI failed TEST-009 on it).
   node -e '
-    const [id, sid, raw] = process.argv.slice(1);
-    const it = (JSON.parse(raw).items || []).find((i) => i.id === id);
-    const want = "owner sign-off owed on the post-freeze amendment(s) to " + sid + ":";
-    process.exit(it && typeof it.finding === "string" && it.finding.startsWith(want) ? 0 : 1);
-  ' "$1" "$2" "$3"
+    const [id, sid] = process.argv.slice(1);
+    let raw = "";
+    process.stdin.on("data", (d) => { raw += d; }).on("end", () => {
+      const it = (JSON.parse(raw).items || []).find((i) => i.id === id);
+      const want = "owner sign-off owed on the post-freeze amendment(s) to " + sid + ":";
+      process.exit(it && typeof it.finding === "string" && it.finding.startsWith(want) ? 0 : 1);
+    });
+  ' "$1" "$2"
 }
 
 unsigned_tracker_ids_for() {  # <spec id>
@@ -921,7 +928,7 @@ test_009_live_backfill_and_whole_ledger_readers() {
       # filed for it names the spec id at the START of its finding (anchored, never a
       # substring of free prose; fu-amend-spec-node-first-third-slice-2 style ids,
       # cheap-transitions-slice remediation round 3).
-      [[ "$trk" == "$stem"* ]] || tracker_finding_names_spec "$trk" "$sid" "$open_json" || bad=1
+      [[ "$trk" == "$stem"* ]] || tracker_finding_names_spec "$trk" "$sid" <<<"$open_json" || bad=1
       grep -qxF "$trk" <<<"$open_ids" || bad=1
     done
     [[ "$found" == 1 && "$bad" == 0 ]] || missing="$missing $sid($expect)"

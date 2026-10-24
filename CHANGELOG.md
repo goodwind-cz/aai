@@ -33,8 +33,10 @@ fine — it is the marker a cut leaves on top.
   `canon.mjs build --recheck delta` builds the slim payload and refuses an
   ineligible tree with exit 11. Never at ceremony level 3, never for a
   production, protected or security-relevant delta, never on a first round. A
-  checker that cannot judge the delta returns `needs_full_recheck` and the full
-  role runs. The mode is OPT-IN: it applies only when `AAI_RECHECK_MODE`
+  checker that cannot judge the delta returns `needs_full_recheck` (never a human
+  stop: `check-role-output.mjs` flags it and the tick re-runs full) and the full
+  role runs. The `prompt_hash` of a delta dispatch covers only the layers the
+  payload sends (the re-check prompt and the contract, not `LEARNED.md`). The mode is OPT-IN: it applies only when `AAI_RECHECK_MODE`
   normalises to `delta`; unset, empty and every other value give full with the
   reason `recheck_disabled`. It ships off because, with delta opted in, the `check_*`
   stamps in `EVENTS.jsonl` are not tamper-proof: any stamp rewrite that `ledger_rewritten` does

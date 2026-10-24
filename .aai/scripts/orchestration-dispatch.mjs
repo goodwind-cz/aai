@@ -1618,7 +1618,7 @@ function humanBlock(out, routing) {
   if (typeof out.prompt_hash === 'string') {
     lines.push(`Prompt hash: ${shortHash(out.prompt_hash)} (informational — content-addressed identity of the effective instruction stack)`);
     if (out.inherits) {
-      lines.push(`Inherits: CONTRACT@${shortHash(out.inherits.contract)} LEARNED@${shortHash(out.inherits.learned)} (per-component provenance)`);
+      lines.push(`Inherits: CONTRACT@${shortHash(out.inherits.contract)} LEARNED@${out.inherits.learned === null ? '(not sent)' : shortHash(out.inherits.learned)} (per-component provenance)`);
     }
   }
   console.error(lines.join('\n'));
@@ -1786,10 +1786,13 @@ function main() {
     // (system_prompt present) gets a prompt_hash; no_action/needs_llm verdicts
     // (no role, no system_prompt) are untouched.
     if (out.system_prompt) {
-      out.prompt_hash = computeEffectivePromptHash(out.system_prompt, root);
+      // A delta re-check payload carries no LEARNED.md (RECHECK_DELTA.prompt.md), so its
+      // identity and provenance cover only the layers actually sent.
+      const hashOpts = out.recheck && out.recheck.mode === 'delta' ? { sendsLearned: false } : {};
+      out.prompt_hash = computeEffectivePromptHash(out.system_prompt, root, hashOpts);
       // Inheritance provenance (promptbook adoption 4): per-component
       // versions the role inherits, additive alongside the aggregate hash.
-      out.inherits = componentHashes(out.system_prompt, root);
+      out.inherits = componentHashes(out.system_prompt, root, hashOpts);
     }
   } catch (err) {
     console.error(`orchestration-dispatch: internal error: ${err && err.stack ? err.stack : err}`);

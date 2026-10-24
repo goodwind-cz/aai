@@ -10,6 +10,7 @@
 // rider exports AAI_RECHECK_MODE=full. TEST-2738 scrubs the variable to test the default.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -34,17 +35,23 @@ async function lib() {
 
 const DELTA_ENV = { AAI_RECHECK_MODE: 'delta' };
 
+// The harness is detected from the environment (lib/harness.mjs). MODEL_ROUTING.yaml
+// is Mode B (per-harness), so an undetected harness resolves suggested_model to null by
+// design. Locally CLAUDECODE says "claude"; a hosted runner exports nothing, and TEST-2708
+// read null there (cheap-transitions-slice remediation round 6). Pin it in the child env.
+const HARNESS_ENV = { AAI_HARNESS: 'claude' };
+
 function cleanEnv(extra = {}) {
   const env = { ...process.env };
   delete env.AAI_ROLE;
-  return { ...env, ...DELTA_ENV, ...extra };
+  return { ...env, ...HARNESS_ENV, ...DELTA_ENV, ...extra };
 }
 
 function unsetEnv() {
   const env = { ...process.env };
   delete env.AAI_RECHECK_MODE;
   delete env.AAI_ROLE;
-  return env;
+  return { ...env, ...HARNESS_ENV };
 }
 
 function git(cwd, args) {
@@ -515,6 +522,7 @@ test('TEST-2708 role, rule, tier, model, effort, independence and lane are the s
   }
   assert.equal(delta.out.validator_independence.must_differ, true);
   assert.equal(delta.out.validator_independence.implementer_model, impl);
+  assert.equal(delta.out.harness, 'claude', 'the harness is pinned by the child env, not detected from the host');
   assert.ok(typeof delta.out.suggested_model === 'string' && delta.out.suggested_model !== impl, 'suggested_model must differ from the implementer: ' + delta.out.suggested_model);
 });
 
@@ -1602,4 +1610,104 @@ test('TEST-2733 the delta payload carries the output contracts and the scope nam
     const scope = r.stdout.slice(r.stdout.indexOf('<<<AAI-CANON-SECTION scope'));
     assert.ok(scope.split('\n').includes('spec: ' + SPEC_REL), role + ': the scope must name the spec path: ' + scope.slice(0, 300));
   }
+});
+
+// ------------------------------------------------------------------ TEST-2745
+test('TEST-2745 the delta identity covers exactly the layers sent: LEARNED.md moves the full hash, never the delta hash', async () => {
+  const { root } = eligibleCanon('t2745');
+  const sha = (parts) => {
+    const h = crypto.createHash('sha256');
+    for (const [name, body] of parts) { h.update(`\n--- ${name} ---\n`); h.update(body); }
+    return h.digest('hex');
+  };
+  const bytes = (rel) => fs.readFileSync(path.join(root, rel));
+  const learnedRel = 'docs/knowledge/LEARNED.md';
+  const sentHash = () => sha([['RECHECK_DELTA.prompt.md', bytes('.aai/RECHECK_DELTA.prompt.md')], ['SUBAGENT_CONTRACT.md', bytes('.aai/SUBAGENT_CONTRACT.md')]]);
+  const measure = () => {
+    const d = runDispatch(root);
+    assert.equal(rc(d).mode, 'delta');
+    const c = canonRun(root, ['build', '--role', 'Validation', '--print-hash', '--recheck', 'delta']);
+    assert.equal(c.status, 0, c.stderr);
+    const payload = canonRun(root, ['build', '--role', 'Validation', '--ref', REF, '--recheck', 'delta']);
+    assert.equal(payload.status, 0, payload.stderr);
+    return { d, canon: c.stdout.trim(), payload: payload.stdout };
+  };
+  const one = measure();
+  // the identity is exactly sha256 over the two static layers the payload carries
+  assert.equal(one.d.out.prompt_hash, sentHash(), 'dispatch delta prompt_hash must hash only the re-check prompt and the contract');
+  assert.equal(one.canon, sentHash(), 'canon --print-hash --recheck delta must hash only the re-check prompt and the contract');
+  assert.equal(one.d.out.inherits.learned, null, 'LEARNED was not sent: no provenance version is reported for it');
+  assert.match(one.d.out.inherits.contract, /^[0-9a-f]{64}$/);
+  assert.ok(!one.payload.includes('learned v1'), 'the delta payload does not carry LEARNED.md');
+  // a LEARNED edit moves the FULL identity and leaves the delta identity alone. The edit goes
+  // into a copy of the three files (a LEARNED change in the fixture tree itself would make the
+  // tree ineligible for delta, which is not what is measured here).
+  const PH = await import(pathToFileURL(path.join(SCRIPTS, 'lib', 'prompt-hash.mjs')).href);
+  const copyRoot = path.join(tmpTop, 't2745-copy');
+  for (const rel of ['.aai/RECHECK_DELTA.prompt.md', '.aai/SUBAGENT_CONTRACT.md', learnedRel]) {
+    fs.mkdirSync(path.dirname(path.join(copyRoot, rel)), { recursive: true });
+    fs.copyFileSync(path.join(root, rel), path.join(copyRoot, rel));
+  }
+  const rp = '.aai/RECHECK_DELTA.prompt.md';
+  const before = { full: PH.computeEffectivePromptHash(rp, copyRoot), delta: PH.computeEffectivePromptHash(rp, copyRoot, { sendsLearned: false }) };
+  assert.equal(before.delta, sentHash());
+  fs.writeFileSync(path.join(copyRoot, learnedRel), 'learned v2, a different lesson\n');
+  assert.notEqual(PH.computeEffectivePromptHash(rp, copyRoot), before.full, 'positive control: the full hash does cover LEARNED.md');
+  assert.equal(PH.computeEffectivePromptHash(rp, copyRoot, { sendsLearned: false }), before.delta, 'a LEARNED change must not change the delta prompt_hash');
+  // positive control: a change to a sent layer does move the delta identity
+  fs.appendFileSync(path.join(copyRoot, '.aai/SUBAGENT_CONTRACT.md'), '\nnote\n');
+  assert.notEqual(PH.computeEffectivePromptHash(rp, copyRoot, { sendsLearned: false }), before.delta);
+});
+
+// ------------------------------------------------------------------ TEST-2746
+test('TEST-2746 needs_full_recheck is an escalation to the full role, never a human stop', () => {
+  // (a) the prose that maps BLOCKED to human_input names the exception
+  const orch = readRel('.aai/ORCHESTRATION.prompt.md');
+  assert.ok(orch.split('\n').length - (orch.endsWith('\n') ? 1 : 0) <= 45, 'ORCHESTRATION.prompt.md is over 45 lines');
+  assert.match(orch, /needs_full_recheck[\s\S]{0,200}no human stop/);
+  assert.ok(orch.includes('AAI_RECHECK_MODE=full'));
+  const proto = readRel('.aai/SUBAGENT_PROTOCOL.md');
+  const blocked = proto.slice(proto.indexOf('- `BLOCKED` if any subagent returned `BLOCKED`'));
+  assert.match(blocked.slice(0, 900), /EXCEPT a delta re-check[\s\S]*needs_full_recheck[\s\S]*Set no `human_input`[\s\S]*AAI_RECHECK_MODE=full/);
+  const delta = readRel('.aai/RECHECK_DELTA.prompt.md');
+  assert.ok(Buffer.byteLength(delta, 'utf8') <= 4096);
+  assert.match(delta, /needs_full_recheck[^\n]*never a human stop/);
+  // (b) the checker tells the merge step which BLOCKED is an escalation
+  const dir = path.join(tmpTop, 't2746');
+  fs.mkdirSync(dir, { recursive: true });
+  const block = (status, blockers) => [
+    '```yaml', 'subagent_result:', '  scope: s', '  role: Code Review', `  status: ${status}`,
+    '  started_utc: 2026-10-24T10:00:00Z', '  ended_utc: 2026-10-24T10:00:10Z', '  duration_seconds: 10',
+    '  evidence:', '    - command: git diff', '      exit_code: 0', '      output_snippet: x', '  files_changed: []',
+    blockers.length ? '  blockers:' : '  blockers: []', ...blockers.map((b) => `    - ${b}`), '```', ''].join('\n');
+  const check = (name, text) => {
+    const f = path.join(dir, name + '.md');
+    fs.writeFileSync(f, text);
+    return spawnSync(process.execPath, [path.join(SCRIPTS, 'check-role-output.mjs'), '--file', f, '--now', '2026-10-24T10:00:20Z'], { encoding: 'utf8', env: cleanEnv() });
+  };
+  const esc = check('esc', block('BLOCKED', ['needs_full_recheck']));
+  assert.equal(esc.status, 0, esc.stdout);
+  assert.match(esc.stdout, /^RECHECK-ESCALATION: needs_full_recheck /m);
+  for (const [name, text] of [
+    ['other', block('BLOCKED', ['spec is ambiguous'])],
+    ['two', block('BLOCKED', ['needs_full_recheck', 'spec is ambiguous'])],
+    ['pass', block('PASS', ['needs_full_recheck'])],
+    ['none', block('BLOCKED', [])],
+  ]) {
+    const r = check(name, text);
+    assert.equal(r.status, 0, name + ': ' + r.stdout);
+    assert.ok(!r.stdout.includes('RECHECK-ESCALATION'), name + ' must stay a plain result: ' + r.stdout);
+  }
+  // (c) the re-dispatch the prompts name lands on the SAME role and ref in full mode
+  const { root } = eligibleCanon('t2746');
+  const first = runDispatch(root);
+  assert.equal(rc(first).mode, 'delta');
+  assert.equal(first.out.system_prompt, '.aai/RECHECK_DELTA.prompt.md');
+  const again = runDispatch(root, [], { AAI_RECHECK_MODE: 'full' });
+  assert.equal(again.status, 0, again.stderr);
+  assert.equal(rc(again).mode, 'full');
+  assert.equal(again.out.role, first.out.role);
+  assert.equal(again.out.ref_id, first.out.ref_id);
+  assert.equal(again.out.system_prompt, '.aai/VALIDATION.prompt.md', 'the full role prompt, not the delta prompt');
+  assert.equal(again.out.human_input, undefined);
 });

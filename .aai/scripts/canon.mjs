@@ -399,10 +399,15 @@ const HASH_CONTRACT_REL = '.aai/SUBAGENT_CONTRACT.md';
 const HASH_LEARNED_REL = 'docs/knowledge/LEARNED.md';
 const HASH_INPUT_ORDER = ['role', 'contract', 'learned'];
 
-function computeCanonPrintHash(rolePromptRelPath, root) {
+// `opts.delta` (cheap-transitions-slice remediation round 6): the delta payload sends the
+// contract, the re-check prompt and the scope, never LEARNED.md, so the delta identity
+// hashes only the layers actually sent (role, contract) - the same rule as
+// prompt-hash.mjs `{ sendsLearned: false }`, reimplemented here on purpose (S2 above).
+function computeCanonPrintHash(rolePromptRelPath, root, opts = {}) {
   const inputs = { role: rolePromptRelPath, contract: HASH_CONTRACT_REL, learned: HASH_LEARNED_REL };
   const hash = crypto.createHash('sha256');
   for (const key of HASH_INPUT_ORDER) {
+    if (opts.delta === true && key === 'learned') continue;
     const relPath = inputs[key];
     const abs = path.resolve(root, relPath);
     let body;
@@ -520,7 +525,7 @@ function runBuild(argv) {
   if (opts.printHash) {
     const deltaSec = delta ? manifest.delta_sections.find((d) => d.id === 'recheck') : null;
     const rolePath = deltaSec ? deltaSec.path : manifest.roles[opts.role];
-    const digest = computeCanonPrintHash(rolePath, ROOT);
+    const digest = computeCanonPrintHash(rolePath, ROOT, { delta: Boolean(delta) });
     process.stdout.write(`${digest}\n`);
     exit(0);
   }

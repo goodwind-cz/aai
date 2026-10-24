@@ -16,6 +16,6 @@ A dispatched role returns the `state.mjs` commands above as `state_update_comman
 
 Every report carries exactly one line `security_relevant: true` or `security_relevant: false` at column 0. It is true when any finding of this round, open or fixed, touches a security guard, a secret, authentication, authorization, input sanitization or a sandbox boundary; once any report of the ref says true, every later report says true.
 
-If the delta cannot be judged without the full context (a changed path you cannot place, a prior fix you cannot verify from the delta, a surprise outside the listed paths), do not guess: return status BLOCKED with the literal reason needs_full_recheck. The orchestrator then dispatches the full role.
+If the delta cannot be judged without the full context (a changed path you cannot place, a prior fix you cannot verify from the delta, a surprise outside the listed paths), do not guess: return status BLOCKED with the literal reason needs_full_recheck as the only entry of blockers. The orchestrator then re-dispatches the full role; it is never a human stop.
 
 Independence is unchanged: a Validation round runs on a model that differs from the implementer's, and a Code Review round runs on the same tier as the full review.
