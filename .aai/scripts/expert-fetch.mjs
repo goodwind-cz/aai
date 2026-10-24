@@ -63,19 +63,21 @@ export function parseRegistry(text) {
     experts.set(m[1], ex);
   });
   const blocked = [];
-  const at = lines.findIndex((l) => l.startsWith('blocked_categories:'));
   const unq = (v) => v.replace(/#.*$/, '').trim().replace(/^(["'])(.*)\1$/, '$2');
-  const flow = at >= 0 ? /^\[(.*)\]\s*(#.*)?$/.exec(lines[at].slice('blocked_categories:'.length).trim()) : null;
-  if (flow) blocked.push(...flow[1].split(',').map(unq).filter(Boolean));
-  for (let i = at + 1; at >= 0 && !flow && i < lines.length; i++) {
-    const m = /^\s+-\s+(.*)$/.exec(lines[i]);
-    if (m) blocked.push(unq(m[1]));
-    else if (!/^\s*(#.*)?$/.test(lines[i])) break;
+  let emptyFlow = false;
+  const heads = lines.flatMap((l, i) => (l.startsWith('blocked_categories:') ? [i] : []));
+  for (const at of heads) {
+    const flow = /^\[(.*)\]\s*(#.*)?$/.exec(lines[at].slice('blocked_categories:'.length).trim());
+    if (flow) { emptyFlow ||= flow[1].trim() === ''; blocked.push(...flow[1].split(',').map(unq).filter(Boolean)); continue; }
+    for (let i = at + 1; i < lines.length && /^(\s|#|$)/.test(lines[i]); i++) {
+      const item = /^\s+-\s+(.*)$/.exec(lines[i]);
+      if (item && unq(item[1])) blocked.push(unq(item[1]));
+    }
   }
   const max = /^\d+$/.exec(scalar('max_prompt_bytes') ?? '');
   return {
     repo: scalar('repo'), pinnedSha: scalar('pinned_sha'), basePath: scalar('base_path'),
-    maxBytes: max ? Number(max[0]) : DEFAULT_MAX_BYTES, blocked, blockedBroken: at >= 0 && blocked.length === 0 && !(flow && flow[1].trim() === ''), keys, experts,
+    maxBytes: max ? Number(max[0]) : DEFAULT_MAX_BYTES, blocked, blockedBroken: heads.length > 0 && blocked.length === 0 && !emptyFlow, keys, experts,
   };
 }
 
@@ -159,7 +161,7 @@ export function fetchExpert({ root, reg, key, force, runGh }) {
     renameSync(tmp, cacheFile);
     writeFileSync(shaFile, reg.pinnedSha, 'utf8');
   } catch (e) {
-    rmSync(tmp, { force: true }); return { code: 1, out: '', err: 'ERROR: Cannot write the cache under ' + cacheDir + ': ' + e.code + '\n' };
+    try { rmSync(tmp, { force: true }); } catch { /* best effort */ } return { code: 1, out: '', err: 'ERROR: Cannot write the cache under ' + cacheDir + ': ' + e.code + '\n' };
   }
   return { code: 0, out: cacheFile + '\n', err: '' };
 }

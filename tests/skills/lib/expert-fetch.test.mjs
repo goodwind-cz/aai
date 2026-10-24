@@ -379,3 +379,41 @@ test('TEST-2631 a failed cache write leaves no temporary file behind', () => {
   assert.equal(run.calls.length, 1);
   assert.deepEqual(fs.readdirSync(p.dir).filter((n) => n.startsWith('.tmp_')), []);
 });
+
+// TEST-2632: a cache write that fails in any shape ends in the one clean line (code review r2 NB-A).
+test('TEST-2632 a cache path blocked by a file or a directory gives the one Cannot-write line', () => {
+  const shapes = {
+    'cache is a file': (root) => { fs.mkdirSync(path.join(root, '.aai'), { recursive: true }); fs.writeFileSync(path.join(root, '.aai', 'cache'), 'x'); },
+    'experts is a file': (root) => { fs.mkdirSync(path.join(root, '.aai', 'cache'), { recursive: true }); fs.writeFileSync(path.join(root, '.aai', 'cache', 'experts'), 'x'); },
+    'directory at the tmp path': (root) => fs.mkdirSync(path.join(cachePaths(root, 'typescript').dir, '.tmp_typescript_' + process.pid), { recursive: true }),
+  };
+  for (const [name, setup] of Object.entries(shapes)) {
+    const root = tmpRoot();
+    setup(root);
+    const r = cli(['typescript'], { root });
+    assert.equal(r.code, 1, name);
+    assert.equal(r.out, '', name);
+    assert.match(r.err, /^ERROR: Cannot write the cache under [^\n]*: [A-Z]+\n$/, name);
+    assert.doesNotMatch(r.err, /\n\s+at /, name);
+  }
+});
+
+// TEST-2633: the blocked list keeps failing closed on the three residual shapes (code review r2 NB-B).
+test('TEST-2633 duplicate headings are unioned, an empty item is dropped, and a stray line does not truncate the list', () => {
+  const two = parseRegistry(withBlocked('blocked_categories: []\n\nblocked_categories:\n  - 09-meta-orchestration'));
+  assert.deepEqual([two.blocked, two.blockedBroken], [['09-meta-orchestration'], false]);
+  const both = parseRegistry(withBlocked('blocked_categories:\n  - 08-business-product\nblocked_categories:\n  - 09-meta-orchestration'));
+  assert.deepEqual(both.blocked, ['08-business-product', '09-meta-orchestration']);
+  for (const block of ['blocked_categories:\n  - # 09-meta-orchestration', 'blocked_categories:\n  - ""', "blocked_categories:\n  - ''  # none"]) {
+    const reg = parseRegistry(withBlocked(block));
+    assert.deepEqual([reg.blocked, reg.blockedBroken], [[], true], block);
+  }
+  const mixed = parseRegistry(withBlocked('blocked_categories:\n  - ""\n  - 09-meta-orchestration'));
+  assert.deepEqual([mixed.blocked, mixed.blockedBroken], [['09-meta-orchestration'], false]);
+  const stray = parseRegistry(withBlocked('blocked_categories:\n  - 08-business-product\n  note: stray\n  - 09-meta-orchestration'));
+  assert.deepEqual(stray.blocked, ['08-business-product', '09-meta-orchestration']);
+  const run = gh(b64(PROMPT));
+  assert.equal(fetchExpert({ root: tmpRoot(), reg: stray, key: 'zblocked', force: false, runGh: run }).code, 1);
+  assert.equal(run.calls.length, 0);
+  assert.equal(parseRegistry(REAL_REGISTRY).blocked.length, 2);
+});

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-expert-fetch
-# (docs/specs/SPEC-DRAFT-spec-node-first-third-slice.md, TEST-2601..2631)
+# (docs/specs/SPEC-DRAFT-spec-node-first-third-slice.md, TEST-2601..2633)
 #
 # The expert prompt fetcher is one Node module (.aai/scripts/expert-fetch.mjs)
 # plus two thin launchers (expert-fetch.sh, expert-fetch.ps1). Every function
@@ -156,6 +156,8 @@ test_2627_blocked_list_spellings() { run_node_tests TEST-2627; log_pass "TEST-26
 test_2628_blocked_list_fails_closed() { run_node_tests TEST-2628; log_pass "TEST-2628: a heading with no readable item refuses and never calls gh"; }
 test_2629_body_blocked_check() { run_node_tests TEST-2629; log_pass "TEST-2629: --body refuses a blocked expert and a malformed list"; }
 test_2631_cache_write_failure_cleans_up() { run_node_tests TEST-2631; log_pass "TEST-2631: a failed cache write removes its temporary file"; }
+test_2632_cache_write_failure_shapes() { run_node_tests TEST-2632; log_pass "TEST-2632: a file or directory in the cache path gives one clean Cannot-write line"; }
+test_2633_blocked_list_residual_shapes() { run_node_tests TEST-2633; log_pass "TEST-2633: duplicate headings, empty items and stray lines keep the blocked list fail closed"; }
 
 # ======================= TEST-2611..2612 (module CLI) ==========================
 test_2611_cli_with_stub_gh() {
@@ -183,9 +185,9 @@ test_2612_no_stdin_and_write_set() {
   local bad rc=0
   bad="$(node -e '
     const s = require("fs").readFileSync(process.argv[1], "utf8");
-    const bad = ["readFileSync(0", "process.stdin", "/dev/stdin", "require(", "import("].filter((t) => s.includes(t));
+    const bad = ["readFileSync(0", "process.stdin", "/dev/stdin", "/dev/fd/0", "require(", "import("].filter((t) => s.includes(t));
     const want = ["node:child_process", "node:fs", "node:path", "node:url"];
-    const mods = [...s.matchAll(/^import .* from [\x27"](node:[a-z_]+)[\x27"];/gm)].map((m) => m[1]).sort();
+    const mods = [...s.matchAll(/^import .* from [\x27"]([^\x27"]+)[\x27"];/gm)].map((m) => m[1]).sort();
     if (mods.join() !== want.join()) bad.push("node imports " + mods.join(" ") + ", want " + want.join(" "));
     const fsNames = [...s.matchAll(/^import \{([^}]*)\} from \x27node:fs\x27;/gm)].map((m) => m[1].split(",").map((n) => n.trim()).sort().join(" "));
     const wantFs = "existsSync mkdirSync readFileSync realpathSync renameSync rmSync writeFileSync";
@@ -630,7 +632,7 @@ test_2626_496_amendments_signed() {
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-node-first-third-slice TEST-2601..2631)"
+  echo "Testing $TEST_NAME (SPEC spec-node-first-third-slice TEST-2601..2633)"
   check_deps
   setup_fixture
   test_2601_registry_parse
@@ -663,6 +665,8 @@ main() {
   test_2628_blocked_list_fails_closed
   test_2629_body_blocked_check
   test_2631_cache_write_failure_cleans_up
+  test_2632_cache_write_failure_shapes
+  test_2633_blocked_list_residual_shapes
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
