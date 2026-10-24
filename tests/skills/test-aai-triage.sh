@@ -429,7 +429,7 @@ test_2518_rfc_phase3_row() {
   [[ -n "$row" ]] || log_fail "TEST-2518: RFC-0017 has no Rollout Status row 3"
   [[ "$row" == *"| Migrate common sync/hook behavior to Node in small slices, with native platform parity and retired counterparts |"* ]] \
     || log_fail "TEST-2518: the phase 3 description cell changed"
-  [[ "$row" == *"| in progress |"* ]] || log_fail "TEST-2518: the phase 3 status cell must be in progress"
+  [[ "$row" == *"| in progress |"* || "$row" == *"| done |"* ]] || log_fail "TEST-2518: the phase 3 status cell must be in progress or done"
   [[ "$row" == *'[First Node-first slice](../issues/CHANGE-0222-node-first-sync-hook-slice.md) moved the live-status spool hook (live-spool pair 133 to 116 lines): one Node module and two launchers, tested with `node:test` plus Pester on the native Windows job'* ]] \
     || log_fail "TEST-2518: the first-slice link and text changed"
   [[ "$row" =~ \]\([^\)]*node-first-second-slice\.md\)[^\|]*triage ]] \

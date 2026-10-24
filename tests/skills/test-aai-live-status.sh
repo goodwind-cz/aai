@@ -1410,7 +1410,7 @@ test_2419_rfc_phase3_row() {
   [[ -n "$row" ]] || log_fail "TEST-2419: RFC-0017 has no Rollout Status row 3"
   [[ "$row" == *"| Migrate common sync/hook behavior to Node in small slices, with native platform parity and retired counterparts |"* ]] \
     || log_fail "TEST-2419: the phase 3 description cell changed"
-  [[ "$row" == *"| in progress |"* ]] || log_fail "TEST-2419: the phase 3 status cell must be in progress"
+  [[ "$row" == *"| in progress |"* || "$row" == *"| done |"* ]] || log_fail "TEST-2419: the phase 3 status cell must be in progress or done"
   [[ "$row" =~ \]\([^\)]*node-first-sync-hook-slice\.md\) ]] || log_fail "TEST-2419: the phase 3 row lacks a link to node-first-sync-hook-slice.md"
   [[ "$row" == *live-spool* ]] || log_fail "TEST-2419: the phase 3 row does not name live-spool"
   log_pass "TEST-2419: RFC-0017 phase 3 row is in progress and links the slice"
