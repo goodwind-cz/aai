@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-23T18:32:45.858Z",
+  "generatedAt": "2026-10-24T00:46:13.745Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 181,
-    "delivered": 575,
+    "rides": 182,
+    "delivered": 577,
     "active_weeks": 17,
     "releases": 0,
     "review_events": 26
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (575 closes vs 181 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 575,
-    "delivered_per_week_avg": 33.8,
+    "note": "\"delivered\" counts every work_item_closed event (577 closes vs 182 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 577,
+    "delivered_per_week_avg": 33.9,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -31,7 +31,7 @@
       "2026-W40": 35,
       "2026-W41": 36,
       "2026-W42": 24,
-      "2026-W43": 22
+      "2026-W43": 24
     },
     "delivered_groups": [
       {
@@ -541,7 +541,7 @@
         "key": "month:2026-10",
         "kind": "month",
         "label": "2026-10",
-        "count": 96,
+        "count": 98,
         "refs": [
           "downstream-rides-ask-no-governance-questions",
           "spec-downstream-rides-ask-no-governance-questions",
@@ -638,7 +638,9 @@
           "ci-node-24-baseline",
           "spec-ci-node-24-baseline",
           "node-first-sync-hook-slice",
-          "spec-node-first-sync-hook-slice"
+          "spec-node-first-sync-hook-slice",
+          "node-first-second-slice",
+          "spec-node-first-second-slice"
         ]
       }
     ],
@@ -2943,24 +2945,32 @@
         {
           "ref": "spec-node-first-sync-hook-slice",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "node-first-second-slice",
+          "lead_time_seconds": 10194
+        },
+        {
+          "ref": "spec-node-first-second-slice",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 4970,
-      "mean_seconds": 99673,
-      "measured": 177,
-      "unmeasurable": 398
+      "median_seconds": 5087,
+      "mean_seconds": 99170.3,
+      "measured": 178,
+      "unmeasurable": 399
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 2912,
-      "mean": 8510.8,
-      "measured": 179
+      "median": 2994,
+      "mean": 8525.2,
+      "measured": 180
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 372674,
+        "duration_seconds": 374482,
         "tokens": 22820430
       },
       {
@@ -2970,22 +2980,22 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 148731,
+        "duration_seconds": 149918,
         "tokens": 12266912
       },
       {
         "role": "Remediation",
-        "duration_seconds": 309110,
+        "duration_seconds": 309666,
         "tokens": 13456553
       },
       {
         "role": "Validation",
-        "duration_seconds": 472635,
+        "duration_seconds": 479459,
         "tokens": 17391218
       },
       {
         "role": "Planning",
-        "duration_seconds": 126633,
+        "duration_seconds": 127358,
         "tokens": 11557457
       },
       {
@@ -3899,6 +3909,11 @@
         "ref": "node-first-sync-hook-slice",
         "busy_seconds": 22518,
         "remediation_runs": 2
+      },
+      {
+        "ref": "node-first-second-slice",
+        "busy_seconds": 11100,
+        "remediation_runs": 1
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -3945,7 +3960,7 @@
     ],
     "capture_coverage": {
       "runs_with_marker": 477,
-      "total_runs": 1142,
+      "total_runs": 1149,
       "pct": 42,
       "by_week": [
         {
@@ -4047,7 +4062,7 @@
         {
           "week": "2026-W43",
           "runs_with_marker": 0,
-          "total_runs": 93,
+          "total_runs": 100,
           "pct": 0
         }
       ]
@@ -4056,10 +4071,10 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 195,
+          "runs_total": 196,
           "runs_marked": 89,
           "runs_sentinel": 4,
-          "runs_unmarked": 102,
+          "runs_unmarked": 103,
           "tokens_total": 22820430,
           "median_tokens_per_run": 239954,
           "share_pct": 28
@@ -4076,40 +4091,40 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 225,
+          "runs_total": 227,
           "runs_marked": 110,
           "runs_sentinel": 6,
-          "runs_unmarked": 109,
+          "runs_unmarked": 111,
           "tokens_total": 12266912,
           "median_tokens_per_run": 103482,
           "share_pct": 15
         },
         {
           "role": "Remediation",
-          "runs_total": 189,
+          "runs_total": 190,
           "runs_marked": 70,
           "runs_sentinel": 9,
-          "runs_unmarked": 110,
+          "runs_unmarked": 111,
           "tokens_total": 13456553,
           "median_tokens_per_run": 173777,
           "share_pct": 17
         },
         {
           "role": "Validation",
-          "runs_total": 295,
+          "runs_total": 297,
           "runs_marked": 122,
           "runs_sentinel": 14,
-          "runs_unmarked": 159,
+          "runs_unmarked": 161,
           "tokens_total": 17391218,
           "median_tokens_per_run": 137186,
           "share_pct": 22
         },
         {
           "role": "Planning",
-          "runs_total": 153,
+          "runs_total": 154,
           "runs_marked": 76,
           "runs_sentinel": 3,
-          "runs_unmarked": 74,
+          "runs_unmarked": 75,
           "tokens_total": 11557457,
           "median_tokens_per_run": 148839,
           "share_pct": 14
@@ -4812,13 +4827,13 @@
   "quality": {
     "first_pass_clean": {
       "clean": 94,
-      "flagged": 155,
-      "rate_pct": 61
+      "flagged": 156,
+      "rate_pct": 60
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 94,
-      "1": 23,
+      "1": 24,
       "2": 14,
       "3": 7,
       "4": 7,
@@ -4832,7 +4847,7 @@
     "avg_validation_fails": 0.4,
     "avg_review_fails": 0.1,
     "verdict_mix": {
-      "PASS": 168,
+      "PASS": 169,
       "null": 13
     },
     "review_events": 26,
@@ -4847,7 +4862,7 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 43,
+    "field_derived": 44,
     "marker_derived": 2,
     "mixed": 0,
     "no_basis": 136,
@@ -5756,6 +5771,11 @@
         "ref": "node-first-sync-hook-slice",
         "verdict_source": "field",
         "cost_basis": "mixed"
+      },
+      {
+        "ref": "node-first-second-slice",
+        "verdict_source": "field",
+        "cost_basis": "total-blended"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -5891,16 +5911,16 @@
     },
     {
       "week": "2026-W43",
-      "delivered": 22,
-      "median_lead_time_seconds": 6902,
-      "busy_seconds": 143102,
+      "delivered": 24,
+      "median_lead_time_seconds": 7442,
+      "busy_seconds": 154202,
       "tokens": null,
-      "first_pass_rate": 33
+      "first_pass_rate": 31
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 236,
+    "open_count": 237,
     "oldest_age_days": 63,
     "items": [
       {
@@ -5947,7 +5967,7 @@
         "id": "fu-pester-red-under-isolation",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "tests/skills/test-ps1-quality.sh:1 -- PRE-EXISTING, not introduced by this ride and NOT reachable in CI: run through the framework's isolation clone on a host with Pester 5, ps1-quality fails 1 of 150 Pester cases -- aai-update.Tests.ps1:77 'refuses (exit 2) when run inside the canonical AAI repo without -Force', Expected 2 but got 0, because test-framework.sh:490 rewrites the clone's origin to ORIGIN-DISABLED-BY-ISOLATION and aai-update.ps1:57-61 decides canonical-repo membership from exactly that URL.",
         "status": "open"
       },
@@ -5955,7 +5975,7 @@
         "id": "fu-pindirfast-gitdir-untested",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "branch-guard.mjs:319 -- the GIT_DIR deference in pinDirFast (added for validation round-2 NB-1) has no test a mutation reddens.",
         "status": "open"
       },
@@ -5963,7 +5983,7 @@
         "id": "fu-prompt-diet-fixture-real-root-race",
         "ref": "test-framework-sweep",
         "severity": "P2",
-        "age_days": 39,
+        "age_days": 40,
         "what": "a real-tree write hazard, observed under the validator's own concurrency: one regression run of test-aai-docs-audit.sh exited 1 with TEST-005 crashing on ENOENT for docs/issues/prompt-diet-e2e-dry-run. Mechanism: when suites are invoked BARE (outside the framework's per-suite isolation), tests/skills/test-aai-prompt-diet.sh creates and deletes that file in the REAL project root (:34 E2E_DRAFT, created in test_004, removed by rm -f and an EXIT trap), and a concurrent real-tree corpus walk by docs-audit opened it between enumeration and read.",
         "status": "open"
       },
@@ -5971,7 +5991,7 @@
         "id": "fu-ps1-quality-outside-sweep-glob",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "tests/skills/test-framework.sh:948 -- Spec-AC-08's own new guard (test-ps1-quality.sh's timeout-default parity check) lives in a suite the local evidence chain never runs. discover_tests()'s full-run branch is find $SCRIPT_DIR -name 'test-aai-*.sh'; tests/skills/test-ps1-quality.sh has no 'aai-' prefix, so it is not one of the 93 sweep suites and has no suite-map.yaml row, so select-suites.mjs cannot select it either.",
         "status": "open"
       },
@@ -5979,7 +5999,7 @@
         "id": "fu-seed-partial-verdict-unasserted",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "tests/skills/test-framework.sh:557 -- Spec-AC-18's 'partly seeded, never seeded' verdict for the step-2 enumeration case is asserted by nothing. TEST-433(b) (test-aai-suite-isolation.sh:2564) greps only for the log_warn TEXT; the iso_seed_fail call at :558 that turns the observation into the PARTIAL verdict is unasserted.",
         "status": "open"
       },
@@ -5987,7 +6007,7 @@
         "id": "fu-watchdog-3000-exceeds-ci-timeout",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": ".github/workflows/skill-suite.yml:161 -- raising the wrapper's default AAI_TEST_TIMEOUT from 300s to 3000s puts the inner watchdog ABOVE both CI job ceilings (skills-selected timeout-minutes: 15 = 900s at :123, skills-full timeout-minutes: 30 = 1800s at :161). 24 suites invoke aai-run-tests.sh inside their own fixtures.",
         "status": "open"
       },
@@ -5995,7 +6015,7 @@
         "id": "fu-clearfocus-announces-unwritten-phase",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "clear-focus REPLACES an existing phase:/status: line on the focused work item but never INSERTS a missing one, and prints 'work item phase=closed status=done' unconditionally even when the item carries no phase key at all (or there is no focused item).",
         "status": "open"
       },
@@ -6003,7 +6023,7 @@
         "id": "fu-dispatch-text-detector-self-ref-fp",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "check-dispatch-text.mjs's PRE_RATING_PHRASE_RE is a bare substring match with no exclusion for quoting, negation, or work-ordering prose, so it fires on the very D11 rule it enforces and on legitimate orchestration text.",
         "status": "open"
       },
@@ -6011,7 +6031,7 @@
         "id": "fu-verdict-coverage-same-second-true",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "metrics-flush.mjs's verdictAfterLastImplementer uses >= where Spec-AC-19 says 'later than', and no test pins the boundary; D7's second-precision coarsening widens the same-second window this decides wrongly.",
         "status": "open"
       },
@@ -6019,7 +6039,7 @@
         "id": "fu-ledger-shrink-arm-unpinned",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "tests/skills/test-aai-learned-routing.sh's TEST-008 does not pin the SHRINK arm of D15 — a ledger whose worktree content is SHORTER than the committed blob.",
         "status": "open"
       },
@@ -6027,7 +6047,7 @@
         "id": "fu-test454-4c-arm-uses-guard-proxy",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "TEST-454's step-4c arm exercises the exported checkBranchPin function rather than close-work-item.mjs's real CLI, disclosed in its own comment as a STATE.yaml-fixture limitation. Validation round 5 proved the real CLI passes too (rc 0, --dry-run needs no live active_work_items entry), showing the fixture limitation is surmountable.",
         "status": "open"
       },
@@ -6035,7 +6055,7 @@
         "id": "fu-tripwire-attributes-concurrent-writes",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "repo-tripwire attributes a shipping-tree write to the suite it is currently running, even when the writer is a DIFFERENT concurrent process (validation round 5: \"AAI-TRIPWIRE FAIL: test-aai-doc-numbering changed the shipping repository\" was actually the orchestrator's own concurrent full sweep, not doc-numbering).",
         "status": "open"
       },
@@ -6115,7 +6135,7 @@
         "id": "fu-sed-replacement-dollar-trap",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 38,
+        "age_days": 39,
         "what": "applySedExpr (mutation-run.mjs:324) still uses the STRING form of String.replace, the same js-replace-dollar-quote-corrupts trap NB3-r3 already fixed 210 lines below it in rotateExisting",
         "status": "open"
       },
@@ -6155,7 +6175,7 @@
         "id": "fu-clone-untracked-copy-not-nul-split",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 35,
+        "age_days": 36,
         "what": "buildIsolatedClone copies untracked files from git ls-files --others split on newlines while lib/tree-hash.mjs now lists with -z: an untracked file with a git-quoted name makes every run exit 3 (fail-closed, path named) until the file is gone",
         "status": "open"
       },
@@ -6163,7 +6183,7 @@
         "id": "fu-mutation-target-symlink-unchecked",
         "ref": "mutation-gate-for-tests",
         "severity": "P2",
-        "age_days": 35,
+        "age_days": 36,
         "what": "mutation-run.mjs never lstats --target: with --sed and an untracked symlink as --target the final write lands on the link's destination (e.g. the suite) and a RED is forged; it does not survive --replay on a clean checkout",
         "status": "open"
       },
@@ -6171,7 +6191,7 @@
         "id": "fu-tree-hash-nul-split-untested",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 35,
+        "age_days": 36,
         "what": "lib/tree-hash.mjs listTreeFiles -z has no test of its own: reverting it leaves the mutation-gate suite green and no record targets lib/tree-hash.mjs",
         "status": "open"
       },
@@ -6307,7 +6327,7 @@
         "id": "fu-issue-0040-closed-as-data-no-event",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 34,
+        "age_days": 35,
         "what": "ISSUE-0040 reads probable-false-done: it was closed as data by Spec-AC-10 with PR 382's real commit, but no ac_evidence event references it, so the drift report flags it",
         "status": "open"
       },
@@ -6315,7 +6335,7 @@
         "id": "fu-reconcile-mention-vs-disclosure",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 34,
+        "age_days": 35,
         "what": "close-reconcile's id-mention-unpaired arm fires on an id a delivered doc names to disclose that it is owned ELSEWHERE, not claimed; six such items on this ride's own merge",
         "status": "open"
       },
@@ -6323,7 +6343,7 @@
         "id": "fu-issue-0042-half-delivered",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 34,
+        "age_days": 35,
         "what": "ISSUE-0042 is half delivered: SPEC-0182 Spec-AC-21 shipped the template number: null half, but its Verification also requires allocate-doc-number.mjs to accept --type research and --type hotfix, which TYPE_MAP still lacks",
         "status": "open"
       },
@@ -6835,7 +6855,7 @@
         "id": "fu-set-strategy-ref-shape",
         "ref": "strategy-unscoped-from-current-focus",
         "severity": "P2",
-        "age_days": 24,
+        "age_days": 25,
         "what": "set-strategy --ref is not shape-validated; empty --ref with unset focus writes ref_id empty and Planning retarget then treats the intake stamp as stale",
         "status": "open"
       },
@@ -6859,7 +6879,7 @@
         "id": "fu-ride-select-absent-intake-mismatch",
         "ref": "downstream-rides-ask-no-governance-questions",
         "severity": "P3",
-        "age_days": 22,
+        "age_days": 23,
         "what": "pin the gate's --intake id-mismatch usage check under an ABSENT roadmap: add one arm to test_1206_usage_checks_before_absent (no roadmap + mismatched --intake must exit 2), shown RED by moving the check below the absent-roadmap branch",
         "status": "open"
       },
@@ -6891,7 +6911,7 @@
         "id": "fu-gitforwindows-shell-drive-rel",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 21,
+        "age_days": 22,
         "what": "gitForWindowsShell treats a drive-relative MSYS exec-path as absolute, so the derived sh.exe path resolves against the current working drive",
         "status": "open"
       },
@@ -6899,7 +6919,7 @@
         "id": "fu-frozen-mutation-cells-unusable",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P2",
-        "age_days": 21,
+        "age_days": 22,
         "what": "frozen Mutation cells are written at spec-freeze without ever being executed, and 8 of the 10 exercised in this ride were unusable as frozen",
         "status": "open"
       },
@@ -6907,7 +6927,7 @@
         "id": "fu-nearmiss-vocab-column-name-only",
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "severity": "P3",
-        "age_days": 21,
+        "age_days": 22,
         "what": "the Spec-AC-10 status-vocabulary widening gates on column-NAME reuse (AC plus Status plus Review-By or Evidence), not on the table actually being a spec-AC table",
         "status": "open"
       },
@@ -6915,7 +6935,7 @@
         "id": "fu-ceremony-postpush-ac-circular",
         "ref": "spec-close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 21,
+        "age_days": 22,
         "what": "a ride whose AC can only be proven by its own CI run cannot complete the close ceremony: close-before-push-guard refuses the push until the item is closed, close-work-item refuses to close while any AC is non-terminal, and the CI run that would make it terminal requires the push",
         "status": "open"
       },
@@ -6963,7 +6983,7 @@
         "id": "fu-release-unlogged-pr-three-classes",
         "ref": "release-prep-v2026-10-02",
         "severity": "P3",
-        "age_days": 20,
+        "age_days": 21,
         "what": "aai-release's unlogged-PR warning collapses three different situations into one line, so the operator cannot tell a genuine omission from a formatting artefact",
         "status": "open"
       },
@@ -6971,7 +6991,7 @@
         "id": "fu-assertions-pinned-to-one-world",
         "ref": "release-v2026-10-02",
         "severity": "P2",
-        "age_days": 20,
+        "age_days": 21,
         "what": "three separate assertions were written so they can only hold in one state of the world, by the very change that produces the other state; there is no check for the shape",
         "status": "open"
       },
@@ -7027,7 +7047,7 @@
         "id": "fu-merge-policy-decision-ref-frac-ts",
         "ref": "configurable-merge-policy-lanes",
         "severity": "P3",
-        "age_days": 18,
+        "age_days": 19,
         "what": "DECISION_REF_RE accepts whole-second timestamps only; a hitl_decision stamped with fractional seconds cannot be bound by a lane",
         "status": "open"
       },
@@ -7059,7 +7079,7 @@
         "id": "fu-worktree-seed-nul-membership",
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "A genuine registered POSIX worktree whose path contains a newline is safely but falsely refused as NOT_REGISTERED.",
         "status": "open"
       },
@@ -7067,7 +7087,7 @@
         "id": "fu-worktree-seed-privileged-skip",
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "Privileged runners can bypass chmod 000, causing the intended TEST-004 EACCES skip to fail its later unconditional postcondition.",
         "status": "open"
       },
@@ -7083,7 +7103,7 @@
         "id": "fu-rescue-dir-and-member-double-copy",
         "ref": "post-validation-pushes-reuse-test-results",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "evidence rescue plans both a cited directory and a cited file inside it; the second copy fails errorOnExist and prints a spurious rescue-failed line",
         "status": "open"
       },
@@ -7091,7 +7111,7 @@
         "id": "fu-suite-select-pin-product-docs",
         "ref": "post-validation-pushes-reuse-test-results",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "TEST-1737 asserts tracked-ignored.mjs selects aai-close-work-item but not aai-product-docs; dropping that suite-map row stays green",
         "status": "open"
       },
@@ -7099,7 +7119,7 @@
         "id": "fu-tracked-ignored-rev-cat-file-batch",
         "ref": "post-validation-pushes-reuse-test-results",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "tracked-ignored.mjs --rev spawns one git cat-file per .gitignore (2000 files: 13.8 s vs 0.08 s)",
         "status": "open"
       },
@@ -7155,7 +7175,7 @@
         "id": "fu-test013-mutation-bite-load-dependent",
         "ref": "slowest-suite-hot-spots",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "TEST-013 (test_018) mutation stays green under host load; red 4/4 standalone",
         "status": "open"
       },
@@ -7211,7 +7231,7 @@
         "id": "fu-apply-unclassified-filter-untested",
         "ref": "merge-direction-signs-amendments",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "merge-cleanup apply's sign-amendments step skips unclassified contract records but no test or mutation pins that filter (TEST-025 covers only sign-merged)",
         "status": "open"
       },
@@ -7219,7 +7239,7 @@
         "id": "fu-merge-preflight-checks-not-started",
         "ref": "merge-direction-signs-amendments",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "merge-cleanup preflight reports a required check that never started (no steps, billing or spending-limit annotation) as checks_failing; it should refuse as checks_not_started with a remedy (fix billing, re-run the jobs)",
         "status": "open"
       },
@@ -7291,7 +7311,7 @@
         "id": "fu-4b-item-absent-with-runs-wedge",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P2",
-        "age_days": 11,
+        "age_days": 12,
         "what": "a closed focus with no active_work_items entry but recorded agent_runs still dispatches Metrics Flush and no remedy acts",
         "status": "open"
       },
@@ -7299,7 +7319,7 @@
         "id": "fu-retire-hint-release-item-absent",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 11,
+        "age_days": 12,
         "what": "--retire hint suggests --release for an item-absent ref, which --release refuses",
         "status": "open"
       },
@@ -7307,7 +7327,7 @@
         "id": "fu-sweep-ignores-reopen",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 11,
+        "age_days": 12,
         "what": "metrics-flush --sweep treats a close superseded by a later reopen as closed",
         "status": "open"
       },
@@ -7315,7 +7335,7 @@
         "id": "fu-release-marker-per-ref",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 11,
+        "age_days": 12,
         "what": "one release-pending marker serves all refs; releasing another ref overwrites a pending resume record and that ref's event is lost",
         "status": "open"
       },
@@ -7323,7 +7343,7 @@
         "id": "fu-release-pending-reporter",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 11,
+        "age_days": 12,
         "what": "nothing reports a pending release marker (dispatch, check-state, doctor); the missing event is written only if the same --release is re-run",
         "status": "open"
       },
@@ -7339,7 +7359,7 @@
         "id": "fu-amend-docs-index-broken-refs-scope",
         "ref": "docs-index-broken-refs-scope",
         "severity": "P2",
-        "age_days": 8,
+        "age_days": 9,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-docs-index-broken-refs-scope: Rename the spec id so it does not collide with the issue id",
         "status": "open"
       },
@@ -7467,7 +7487,7 @@
         "id": "fu-merge-gh-line-powershell",
         "ref": "git-platform-detected-at-bootstrap",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "GitHub merge line AAI_OPERATOR_MERGE=1 gh pr merge uses a POSIX env prefix that PowerShell cannot run; the hook gate recognizes only the env form",
         "status": "open"
       },
@@ -7555,7 +7575,7 @@
         "id": "fu-release-grace-upper-bound",
         "ref": "release-checks-registration-grace",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "AAI_RELEASE_CHECKS_GRACE_SECONDS has no upper bound; a value like 1e19 (or a 300-digit plain decimal below the overflow) is accepted and waits effectively forever",
         "status": "open"
       },
@@ -7563,7 +7583,7 @@
         "id": "fu-amend-spec-release-changelog-eol",
         "ref": "release-changelog-eol",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-release-changelog-eol: Editorial, no behaviour change: the paragraph 'Registry items with the same capability left open (...)' now precedes the line 'Registry items closed by this scope: none.' so follow-ups verify-closures reads zero closure claims (it previously read the three fu- ids after the blank line as claims). Same text, order swapped.",
         "status": "open"
       },
@@ -7571,7 +7591,7 @@
         "id": "fu-verify-closures-none-blank-line",
         "ref": "release-changelog-eol",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "follow-ups verify-closures ignores an explicit 'Registry items closed by this scope: none.' when a blank line follows the label and reads the next paragraph's fu- ids as closure claims",
         "status": "open"
       },
@@ -7579,7 +7599,7 @@
         "id": "fu-release-normalized-refusal-recovery",
         "ref": "release-changelog-eol",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "After a changelog-normalized refusal the printed Resume command can never succeed (resume refuses identity 'Unbound prepared release branch'); the journal (stage payload, head null), the registered aai-release-wt worktree and the local release branch stay behind and the recovery (fix attributes / git add --renormalize on the base, then remove branch, worktree and journal) is undocumented",
         "status": "open"
       },
@@ -7587,7 +7607,7 @@
         "id": "fu-release-normalized-test-and-notes",
         "ref": "release-changelog-eol",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "TEST-073 runs twice in a full run (ownSelector regex covers 07[0-2], needs 07[0-3]); TEST-073 does not assert journal head null; the CHANGELOG entry does not mention the changelog-normalized refusal; Spec-AC-07 evidence cell cites no validation report",
         "status": "open"
       },
@@ -7595,7 +7615,7 @@
         "id": "fu-release-policy-pending-reason",
         "ref": "release-one-shot-finish",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "PENDING: merge-policy cannot tell a checks lag from a block needing a person (missing approval, CODEOWNERS, unresolved conversations) — gh prints the same text",
         "status": "open"
       },
@@ -7603,7 +7623,7 @@
         "id": "fu-amend-spec-release-one-shot-finish",
         "ref": "release-one-shot-finish",
         "severity": "P2",
-        "age_days": 5,
+        "age_days": 6,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-release-one-shot-finish: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
         "status": "open"
       },
@@ -7611,7 +7631,7 @@
         "id": "fu-release-ruleset-paging-test",
         "ref": "release-one-shot-finish",
         "severity": "P3",
-        "age_days": 5,
+        "age_days": 6,
         "what": "TEST-086 fixture has 36 rules, so at the engine's per_page=100 it is a single page and the multi-page flatten never runs (a first-page-only mutant like data=data[0] stays green); make the filler >=105 rules. Also document that the rulesets read needs gh >= 2.48 (--slurp) in the product doc / SKILL_RELEASE, and fix the spec's Mutation targets sentence to include TEST-086",
         "status": "open"
       },
@@ -7619,7 +7639,7 @@
         "id": "fu-amend-sync-prune-retired-skill-a93b78",
         "ref": "sync-prune-retired-skill-wrappers",
         "severity": "P2",
-        "age_days": 4,
+        "age_days": 5,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-sync-prune-retired-skill-wrappers: D2 item 5: the invoke clause of the Read line is widened from 'Invoke this as <no-backtick>.' to 'any same-line text containing Invoke this as backtick, ending with a period'",
         "status": "open"
       },
@@ -7667,7 +7687,7 @@
         "id": "fu-amend-intake-closing-questions-83e5ca",
         "ref": "intake-closing-questions-as-one-menu",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-intake-closing-questions-as-one-menu: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
         "status": "open"
       },
@@ -7675,7 +7695,7 @@
         "id": "fu-amend-selected-ci-scheduling-f-3b2ba6",
         "ref": "selected-ci-scheduling-foundation",
         "severity": "P2",
-        "age_days": 2,
+        "age_days": 3,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-selected-ci-scheduling-foundation: Separate pre-PR local validation from required post-PR pre-merge hosted cancellation and full-regression evidence; keep the child open until hosted verification.",
         "status": "open"
       },
@@ -7707,7 +7727,7 @@
         "id": "fu-handoff-inline-work-items-comment",
         "ref": "ride-state-handoff-to-worktree",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "ride-handoff putEntry leaves 'work_items: [] # comment' unconverted",
         "status": "open"
       },
@@ -7715,7 +7735,7 @@
         "id": "fu-origin-append-run-after-handoff",
         "ref": "ride-state-handoff-to-worktree",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "a run appended to the origin STATE after ride-handoff out is not carried to the worktree",
         "status": "open"
       },
@@ -7723,7 +7743,7 @@
         "id": "fu-prompt-diet-live-size-time-bomb",
         "ref": "ride-state-handoff-to-worktree",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "prompt-diet per-scope checks compare against the live size of SKILL_WORKTREE/SKILL_SHIP",
         "status": "open"
       },
@@ -7731,7 +7751,7 @@
         "id": "fu-reconcile-runs-indentless-flow",
         "ref": "ride-state-handoff-to-worktree",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "ride-handoff reconcile does not see agent_runs at 6-space indent or inline flow form",
         "status": "open"
       },
@@ -7739,7 +7759,7 @@
         "id": "fu-amend-ride-state-handoff-to-worktree",
         "ref": "ride-state-handoff-to-worktree",
         "severity": "P2",
-        "age_days": 0,
+        "age_days": 1,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-ride-state-handoff-to-worktree: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
         "status": "open"
       },
@@ -7776,19 +7796,27 @@
         "status": "open"
       },
       {
-        "id": "fu-amend-spec-node-first-sync-hook-slice",
-        "ref": "node-first-sync-hook-slice",
-        "severity": "P2",
+        "id": "fu-triage-crashed-audit-reads-clean",
+        "ref": "node-first-second-slice",
+        "severity": "P3",
         "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-node-first-sync-hook-slice: D2 launcher shape: fallback passthrough also when node cannot run the module; drain redirected stdin; CDPATH-safe module path; Spec-AC-04 and TEST-2409/2410 extended to the module-absent case with new mutation anchors",
+        "what": "triage reads a docs-audit that exited non-zero without a verdict line as CLEAN (D-11), so --check exits 0 over a crashed audit",
         "status": "open"
       },
       {
-        "id": "fu-live-spool-ps1-drain-test",
-        "ref": "node-first-sync-hook-slice",
+        "id": "fu-triage-marker-outside-verdict-line",
+        "ref": "node-first-second-slice",
         "severity": "P3",
         "age_days": 0,
-        "what": "Pin the live-spool.ps1 stdin drain, its no-stderr clause and both launchers' tty guards with tests (1 MB payload + stderr check in TEST-2410)",
+        "what": "triage counts NEEDS-TRIAGE anywhere in the docs-audit output as an issue (D-10), also outside the verdict line; a non-git folder also reads Working tree: clean (D-12)",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-spec-node-first-second-slice",
+        "ref": "node-first-second-slice",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-node-first-second-slice: Added drift decisions D-14 (check flag accepted in any position; PowerShell binding case-insensitive) and D-15 (repo root is the module real path, symlinked .aai follows the link target); D-13 cell points at them; TEST-2507 gains a non-git fixture, TEST-2511 an in-session --check call, TEST-2512 a non-ASCII byte-identical fixture",
         "status": "open"
       }
     ]
@@ -9288,6 +9316,40 @@
         "remediation_runs": 3,
         "remediation_tokens": 493012,
         "remediation_share_pct": 30
+      },
+      {
+        "ref": "node-first-second-slice",
+        "date_utc": "2026-10-24",
+        "runs_total": 7,
+        "elapsed_wall_seconds": 9992,
+        "agent_seconds": 11100,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
       },
       {
         "ref": "single-writer-canon-contradiction",
@@ -13245,9 +13307,9 @@
     "NOTE 7 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
     "NOTE 24 agent_run(s) had a role that matched no canonical role — bucketed as Other",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
-    "NOTE 84 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 85 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
     "NOTE 5 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
-    "NOTE 39 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
+    "NOTE 40 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"
   ]
 }

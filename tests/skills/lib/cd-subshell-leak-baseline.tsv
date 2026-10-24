@@ -24,7 +24,7 @@
 8	.aai/scripts/claude-hook-gate.sh
 1	.aai/scripts/cloudflare-share.sh
 2	.aai/scripts/expert-fetch.sh
-2	.aai/scripts/live-spool.sh
+1	.aai/scripts/live-spool.sh
 1	.aai/scripts/migrate-state-to-local.sh
 1	.aai/scripts/migrate-yaml-to-jsonl.sh
 1	.aai/scripts/pre-commit-checks.sh
@@ -51,7 +51,7 @@
 12	tests/skills/test-aai-deslop.sh
 2	tests/skills/test-aai-doc-number-reservation.sh
 11	tests/skills/test-aai-doc-numbering.sh
-26	tests/skills/test-aai-docs-audit.sh
+21	tests/skills/test-aai-docs-audit.sh
 3	tests/skills/test-aai-docs-canon.sh
 3	tests/skills/test-aai-docs-hub.sh
 3	tests/skills/test-aai-docs-lock.sh
@@ -65,13 +65,13 @@
 2	tests/skills/test-aai-friction-capture-points.sh
 3	tests/skills/test-aai-friction-wiring.sh
 3	tests/skills/test-aai-friction.sh
-25	tests/skills/test-aai-git-ref-guard.sh
+24	tests/skills/test-aai-git-ref-guard.sh
 4	tests/skills/test-aai-golden-flow.sh
 2	tests/skills/test-aai-heartbeat.sh
 2	tests/skills/test-aai-hitl-channel.sh
 4	tests/skills/test-aai-hitl-propagation.sh
 46	tests/skills/test-aai-hooks-overlay.sh
-50	tests/skills/test-aai-hygiene-pack.sh
+49	tests/skills/test-aai-hygiene-pack.sh
 3	tests/skills/test-aai-implementation-mode.sh
 15	tests/skills/test-aai-intake.sh
 3	tests/skills/test-aai-issues.sh
@@ -92,7 +92,7 @@
 2	tests/skills/test-aai-overview.sh
 2	tests/skills/test-aai-pipe-safe.sh
 2	tests/skills/test-aai-planning-probes.sh
-8	tests/skills/test-aai-pr-platform.sh
+6	tests/skills/test-aai-pr-platform.sh
 2	tests/skills/test-aai-pr-waiver.sh
 2	tests/skills/test-aai-pricing.sh
 2	tests/skills/test-aai-product-docs.sh
@@ -125,6 +125,7 @@
 2	tests/skills/test-aai-tdd.sh
 3	tests/skills/test-aai-test-canon.sh
 3	tests/skills/test-aai-token-capture.sh
+2	tests/skills/test-aai-triage.sh
 3	tests/skills/test-aai-unattended.sh
 33	tests/skills/test-aai-update-check.sh
 18	tests/skills/test-aai-update.sh

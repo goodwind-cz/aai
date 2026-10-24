@@ -907,6 +907,19 @@ test_2416_live_spool_module_classified() {
   log_pass "TEST-2416: live-spool.mjs is classified once, in extended"
 }
 
+# TEST-2515 (spec-node-first-second-slice Spec-AC-08): the triage module is
+# classified exactly once, in the core list beside its two launchers.
+test_2515_triage_module_classified() {
+  local line n=0 section="" where=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^([a-z_]+):[[:space:]]*$ ]]; then section="${BASH_REMATCH[1]}"; fi
+    if [[ "$line" == "  - .aai/scripts/triage.mjs" ]]; then n=$((n + 1)); where="$section"; fi
+  done < "$MANIFEST"
+  [[ "$n" == 1 ]] || log_fail "TEST-2515: PROFILES.yaml must list .aai/scripts/triage.mjs exactly once, found $n"
+  [[ "$where" == core ]] || log_fail "TEST-2515: .aai/scripts/triage.mjs must sit in the core list, found it in '$where'"
+  log_pass "TEST-2515: triage.mjs is classified once, in core"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   # Test-only probe entry point (Spec-AC-01, TEST-401): builds the fixture in
@@ -935,6 +948,7 @@ main() {
   test_745_roadmap_propose_classified
   test_572_new_aai_files_classified
   test_2416_live_spool_module_classified
+  test_2515_triage_module_classified
   test_696_new_canon_files_classified
   build_fixture_sources
   test_default_byte_identity

@@ -57,7 +57,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (569)
+## Done (571)
 
 | ID | Type | Path |
 |---|---|---|
@@ -279,6 +279,7 @@ _None._
 | CHANGE-0220 | issues | docs/issues/CHANGE-0220-docs-audit-suite-speed.md |
 | CHANGE-0221 | issues | docs/issues/CHANGE-0221-ci-node-24-baseline.md |
 | CHANGE-0222 | issues | docs/issues/CHANGE-0222-node-first-sync-hook-slice.md |
+| CHANGE-0223 | issues | docs/issues/CHANGE-0223-node-first-second-slice.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -628,6 +629,7 @@ _None._
 | SPEC-0245 | specs | docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md |
 | SPEC-0246 | specs | docs/specs/SPEC-0246-spec-ci-node-24-baseline.md |
 | SPEC-0247 | specs | docs/specs/SPEC-0247-spec-node-first-sync-hook-slice.md |
+| SPEC-0248 | specs | docs/specs/SPEC-0248-spec-node-first-second-slice.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -1193,4 +1195,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-23 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-24 — counts above use this date for overdue checks.
