@@ -5,6 +5,7 @@
 //   docs_audit, work_item_closed, code_review_completed (SPEC-0011 G2),
 //   phase_confirmed, spec_scope_edited (CHANGE-0120),
 //   validation_verdict (role-verification-guards G2),
+//   check_dispatched, check_verdict (spec-cheap-transitions-slice D4),
 //   pr_sweep (Spec-AC-33, CHANGE-0060 step 5d mechanization / GitHub issue 338).
 // Required: --event, --ref. Auto-filled: v=1, ts (ISO UTC), actor (git slug).
 //
@@ -31,7 +32,9 @@ import { PR_SWEEP_OUTCOMES, sweepContradictions, parseSweepCount } from './lib/p
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
-const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict', 'pr_sweep']);
+const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict', 'pr_sweep', 'check_dispatched', 'check_verdict']);
+const CHECK_ROLES = new Set(['validation', 'code_review']);
+const HEAD_SHA_RE = /^[0-9a-f]{40}$/;
 // PR_SWEEP_OUTCOMES / sweepContradictions live in lib/pr-sweep.mjs — the SAME
 // predicate lane-gate.mjs --sweep-check imports and re-runs on the read side
 // (validation-round1 NB-2: two copies of one gate is the DEBT-0002 pattern
@@ -166,6 +169,26 @@ function main() {
       entry.payload = { status: args.status, hash: args.hash };
       if (args.notes) entry.payload.notes = args.notes;
       break;
+    case 'check_dispatched':
+    case 'check_verdict': {
+      // spec-cheap-transitions-slice D4 — orchestration-dispatch.mjs stamps that a
+      // Validation or Code Review round was dispatched (check_dispatched, with the
+      // verdict identity it was handed in --seen) and, on the first tick that sees
+      // the verdict it produced, that it was judged (check_verdict, with the
+      // dispatched --head, never a later one). lib/recheck.mjs reads them back to
+      // decide whether the next round may run on the delta payload.
+      if (!args.role || !CHECK_ROLES.has(args.role)) fail(`${args.event} requires --role validation|code_review`);
+      if (typeof args.head !== 'string' || !HEAD_SHA_RE.test(args.head)) fail(`${args.event} requires --head as 40 lowercase hex characters`);
+      entry.payload = { role: args.role, head: args.head };
+      if (args.event === 'check_dispatched') {
+        if (typeof args.seen !== 'string' || args.seen === '') fail('check_dispatched requires --seen');
+        entry.payload.seen = args.seen;
+      } else {
+        if (args.status !== 'pass' && args.status !== 'fail') fail('check_verdict requires --status pass|fail');
+        entry.payload.status = args.status;
+      }
+      break;
+    }
     case 'pr_sweep': {
       // CHANGE-0060 step 5d mechanization (Spec-AC-33, GitHub issue 338): a
       // merge-readiness claim ("the post-open bot sweep happened") is a

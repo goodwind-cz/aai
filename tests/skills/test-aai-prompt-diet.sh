@@ -1010,7 +1010,10 @@ test_012_growth_sum_matches_ledger() {
   # Then 57344 -> 57793: intake-closing-questions-as-one-menu-round1 (+449 B option cap + six-block per-type pointers, Codex PR #483).
   # Then 57793 -> 57901: slim-standing-role-context (+108 B SKILL_REPLAY step 3a history search, measured against 01de2119).
   # Then 57901 -> 58478: ride-state-handoff-to-worktree (+577 B SKILL_WORKTREE step 4 and setup comments, SKILL_SHIP default 2; cap 900 B).
-  local want_growth=58478
+  # Then 58478 -> 60996: cheap-transitions-slice (RECHECK_DELTA.prompt.md +2433 B, the security_relevant marker line in
+  # VALIDATION and SKILL_CODE_REVIEW, the --recheck delta clause in ORCHESTRATION, the canon pointer in ORCHESTRATION_PARALLEL;
+  # measured deficit 2518 B by TEST-010), credited 1:1.
+  local want_growth=60996
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2685,6 +2688,32 @@ test_1734_local_evidence_growth_ledgered() {
     || log_fail "TEST-1734 (Spec-AC-11) LOCAL EVIDENCE ledger entry / PROFILES"
 }
 
+# TEST-2722 (spec-cheap-transitions-slice Spec-AC-12): the prompt-corpus growth of the delta
+# re-check mode is credited by exactly one JUSTIFIED_ADDITIONS entry whose ref field is
+# cheap-transitions-slice and whose leading byte count is positive. The suite's TEST-012 sum
+# check (above) covers the total; TEST-010 measures the growth the entry has to cover.
+test_2722_diet_entry_for_slice() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-2722 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  local _e entry='' n=0 ref lead
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    ref="${_e#* }"; ref="${ref%% *}"
+    if [[ "$ref" == "cheap-transitions-slice" ]]; then entry="$_e"; n=$((n + 1)); fi
+  done
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-2722: JUSTIFIED_ADDITIONS carries $n entries whose ref field is exactly 'cheap-transitions-slice' (want exactly 1)"
+    return
+  fi
+  lead="${entry%% *}"
+  if ! [[ "$lead" =~ ^[0-9]+$ ]] || [[ "$lead" -le 0 ]]; then
+    log_fail "TEST-2722: the cheap-transitions-slice entry must start with a positive byte count, got '$lead'"
+    return
+  fi
+  log_pass "TEST-2722: one cheap-transitions-slice ledger entry crediting $lead B"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2742,6 +2771,7 @@ main() {
   test_1531_merge_policy_lanes_growth_ledgered
   test_1641_roadmap_advisory_growth_ledgered
   test_1734_local_evidence_growth_ledgered
+  test_2722_diet_entry_for_slice
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

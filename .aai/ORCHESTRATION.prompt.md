@@ -4,7 +4,7 @@ dispatch script (CHANGE-0009). You relay decisions; you do not re-derive them.
 
 RUN THE TICK
 1. Run: node .aai/scripts/orchestration-dispatch.mjs --human --confirm
-2. Exit 0 (dispatch): assemble the prefix with `node .aai/scripts/canon.mjs build --role Validation --ref HEAD` (swap --role for the dispatched role),
+2. Exit 0 (dispatch): assemble the prefix with `node .aai/scripts/canon.mjs build --role Validation --ref HEAD` (swap --role for the dispatched role; add `--recheck delta` when the JSON has recheck.mode delta, and if canon refuses build without it),
    relay the JSON dispatch — spawn the named role per the call contract in
    .aai/SUBAGENT_PROTOCOL.md (ENV row: export
    AAI_ROLE=subagent for the role, UNSET for the orchestrator's own writes),

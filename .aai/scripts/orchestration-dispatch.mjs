@@ -63,6 +63,7 @@ import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/pr
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
+import { recheckMode, planCheckStamps, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
 
@@ -834,7 +835,7 @@ function roadmapGate(root, refId, relPath) {
 // invokes, so it is not a close-ceremony shared page, but IS the same
 // "moves within minutes of routine ride activity" class this set exists
 // for) — are still named by hand, each with its own reason above.
-const TREE_HASH_EXCLUDE_PATHS = new Set([
+export const TREE_HASH_EXCLUDE_PATHS = new Set([
   'docs/ai/EVENTS.jsonl',
   'docs/ai/METRICS.jsonl',
   'docs/ai/decisions.jsonl',
@@ -1552,6 +1553,26 @@ function recordValidationVerdict(root, ref, status, hash) {
   }
 }
 
+// recordCheckEvent (spec-cheap-transitions-slice D4) — the THIRD and FOURTH
+// --confirm writes: check_dispatched (a Validation or Code Review dispatch) and
+// check_verdict (the first --confirm tick that sees the verdict that dispatch
+// produced). Both go through append-event.mjs, the one EVENTS writer; the plan
+// itself comes from lib/recheck.mjs planCheckStamps. Like recordValidationVerdict
+// every failure is swallowed: the stamps feed a LATER tick's delta decision, a
+// missing one only keeps that decision on the full payload.
+function recordCheckEvent(root, ref, stamp) {
+  const appender = path.join(path.dirname(fileURLToPath(import.meta.url)), 'append-event.mjs');
+  const args = [appender, '--event', stamp.event, '--ref', ref, '--role', stamp.role, '--head', stamp.head];
+  if (stamp.event === 'check_dispatched') args.push('--seen', stamp.seen);
+  else args.push('--status', stamp.status);
+  try {
+    execFileSync(process.execPath, args, { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // NB-4 (review-harness-universal-routing-20260913T002056Z): the --human
 // "unbound" reason must not claim the routing file is ABSENT when it is
 // PRESENT — a cursor/unknown dispatch under the shipped Mode B file used to
@@ -1669,6 +1690,23 @@ function main() {
         out = fallback;
       }
     }
+    // spec-cheap-transitions-slice D4/D6 — verdict stamps, then the recheck field.
+    // Placed BEFORE the validation_verdict stamp below so that line stays the last one
+    // a --confirm tick appends. The verdict stamp comes first so that a verdict first seen on this very tick
+    // is already on the ledger when the delta decision below reads it. Without
+    // --confirm nothing is written and the decision reads only what is persisted.
+    const stampRef = snapshot && snapshot.focus ? snapshot.focus.ref_id : null;
+    const dispatchRole = out.verdict === 'dispatch' ? out.role : null;
+    const planned = opts.confirm && stampRef
+      ? planCheckStamps({ root, statePath, ref: stampRef, dispatchRole })
+      : [];
+    for (const stamp of planned.filter((x) => x.event === 'check_verdict')) recordCheckEvent(root, stampRef, stamp);
+    out.recheck = null;
+    if (out.verdict === 'dispatch' && RECHECK_ROLES.has(out.role)) {
+      out.recheck = recheckMode({ root, ref: out.ref_id, role: out.role, env: process.env, statePath });
+      if (out.recheck.mode === 'delta') out.system_prompt = RECHECK_PROMPT;
+    }
+    for (const stamp of planned.filter((x) => x.event === 'check_dispatched')) recordCheckEvent(root, stampRef, stamp);
     // role-verification-guards G2 (D2) — validation-verdict stamp, under the
     // SAME --confirm opt-in, independent of the rule-9x confirm_event arm
     // above (it can fire on ANY rule, e.g. the rule-14 metrics-flush arm a

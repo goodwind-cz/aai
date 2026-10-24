@@ -2959,6 +2959,8 @@ EOF
     // top-level key this pinned pre-G2 blob predates (same rationale as the
     // three state_summary keys above).
     delete post.harness;
+    // spec-cheap-transitions-slice D6: `recheck` is a later additive top-level key (null here).
+    delete post.recheck;
     const preStr = JSON.stringify(pre);
     const postStr = JSON.stringify(post);
     if (preStr !== postStr) {
@@ -3907,7 +3909,7 @@ assert_mode_a_byte_identity() {
     const [preFile, postFile] = process.argv.slice(1);
     const pre = JSON.parse(fs.readFileSync(preFile, "utf8"));
     const post = JSON.parse(fs.readFileSync(postFile, "utf8"));
-    delete post.harness;
+    delete post.harness; delete post.recheck;
     // done-work-item-stays-in-current-focus: a later, equally-additive snapshot
     // field this pinned pre-harness blob predates.
     if (post.state_summary) delete post.state_summary.focus_flushable_runs;

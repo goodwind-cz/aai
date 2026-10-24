@@ -245,6 +245,7 @@ PROCESS
    applicability and observed bytes/timestamps. The report is the evidence
    authority; `LATEST.md`, when present, is only a pointer.
    LOCAL EVIDENCE: cite runtime evidence (docs/ai/reports, docs/ai/tdd, docs/ai/validation) by path; never `git add -f` it — close-work-item.mjs copies worktree-only cited evidence into the main checkout; a project that wants shared evidence uses a project-owned path outside those folders.
+   MARKER: the report carries exactly one line `security_relevant: true` or `security_relevant: false` at column 0: true when any finding of the round, open or fixed, touches a security guard, a secret, authentication, authorization, input sanitization or a sandbox boundary; once any report of the ref says true, every later one does (it gates .aai/RECHECK_DELTA.prompt.md).
 7) Run AC STATUS GATE (see section above) and record any blocking findings.
 7b) Apply the `.aai/SKILL_VERIFY.prompt.md` gate before producing any verdict.
 7c) Before any PASS claim or step 9 command, run and honor:

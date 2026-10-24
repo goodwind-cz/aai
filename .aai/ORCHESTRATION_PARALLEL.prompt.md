@@ -144,8 +144,10 @@ When the platform supports concurrent subagent spawning:
    - Model: per MODEL SELECTION above (explicit id or mechanical | standard |
      premium tier); for Validation, a model DIFFERENT from the implementer's
      recorded model (VALIDATOR INDEPENDENCE)
-   - Context: a copy of .aai/SUBAGENT_CONTRACT.md (stable, first), then
-     scope and inputs (variable, last — keeps the prefix cacheable)
+   - Context: the prefix from `node .aai/scripts/canon.mjs build --role <R> --ref <r>`
+     (stable, first; add `--recheck delta` when the dispatch JSON has recheck.mode
+     delta, and if canon refuses build without it), then scope and inputs
+     (variable, last — keeps the prefix cacheable)
    - Env: export `AAI_ROLE=subagent` in the subagent's environment/instructions
      (R-GUARD S1, SPEC-0113 — its `state.mjs` STATE mutations then refuse
      with exit 3); keep it UNSET for YOUR own writes, or your merges are blocked.

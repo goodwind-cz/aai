@@ -101,6 +101,7 @@
 2	tests/skills/test-aai-prompt-hash.sh
 2	tests/skills/test-aai-prune-stale-briefs.sh
 2	tests/skills/test-aai-r-guard.sh
+2	tests/skills/test-aai-recheck.sh
 3	tests/skills/test-aai-reconcile-telemetry.sh
 2	tests/skills/test-aai-redact.sh
 2	tests/skills/test-aai-release-notes.sh

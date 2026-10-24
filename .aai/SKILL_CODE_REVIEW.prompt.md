@@ -142,7 +142,7 @@ review:
 
 Markdown body: scope + spec named, the AC table walk, findings with
 file:line + failure scenario, the cannot_verify list, warning dispositions
-(H6 below), and next steps.
+(H6 below), and next steps. It also carries exactly one line `security_relevant: true` or `security_relevant: false` at column 0: true when any finding of the round, open or fixed, touches a security guard, a secret, authentication, authorization, input sanitization or a sandbox boundary; once any report of the ref says true, every later one does (it gates .aai/RECHECK_DELTA.prompt.md).
 
 ## STATE CONTRACT
 
