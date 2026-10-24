@@ -1345,6 +1345,10 @@ suites:
   aai-recheck:
     globs:
       - .aai/scripts/lib/recheck.mjs
+      - .aai/scripts/lib/check-binding.mjs
+      - .aai/scripts/state.mjs
+      - .aai/scripts/metrics-flush.mjs
+      - .aai/scripts/check-role-output.mjs
       - .aai/RECHECK_DELTA.prompt.md
       - .aai/scripts/canon.mjs
       - .aai/system/CANON.yaml

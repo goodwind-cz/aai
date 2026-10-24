@@ -11,7 +11,9 @@
 // probes (TECHNOLOGY.md / WORKFLOW.md presence, focus spec file + SPEC-FROZEN
 // marker + frontmatter status, METRICS.jsonl ref presence, LOCKS.md presence).
 //
-// The script NEVER mutates STATE. Auto-init/auto-repair stays with the LLM
+// The script never mutates STATE itself, with one exception: a --confirm tick runs
+// `state.mjs bind-check` as a child process (the check_binding block, spec-recheck-verdict-binding
+// D2) and swallows its failure. Auto-init/auto-repair stays with the LLM
 // wrapper (.aai/ORCHESTRATION.prompt.md via check-state.mjs --repair); those
 // states are flagged as needs_llm edges with named, machine-greppable reasons.
 //
@@ -63,7 +65,7 @@ import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/pr
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
-import { recheckMode, planCheckStamps, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
+import { recheckMode, planCheckStamps, tokenOfRole, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
 
@@ -1155,8 +1157,9 @@ function usage() {
     + '  docs/ai/EVENTS.jsonl appends — the rule-9x arm\'s phase_confirmed line\n'
     + '  (skipped once the last recorded confirmation already matches), and a\n'
     + '  first-observation validation_verdict stamp (role-verification-guards G2,\n'
-    + '  skipped once one already exists for the ref). STATE and the spec are\n'
-    + '  NEVER written, with or without the flag.',
+    + '  skipped once one already exists for the ref). With the flag a tick also runs\n'
+    + '  `state.mjs bind-check` (the check_binding block of STATE) for a Validation or\n'
+    + '  Code Review round. The spec is NEVER written, and STATE is written only by that child.',
   );
 }
 
@@ -1576,6 +1579,22 @@ function recordCheckEvent(root, ref, stamp) {
   }
 }
 
+// bindCheck (spec-recheck-verdict-binding D2/D10) — the FIFTH --confirm write: the check_binding
+// block of STATE, written only by `state.mjs bind-check`, run here as a child process the way
+// append-event.mjs is. The child reads every value it records from STATE, the reports STATE names
+// and git; this function passes only the mode, the role and the ref. A failure (the child refuses
+// under AAI_ROLE, STATE unreadable) is swallowed: a missing binding keeps the next round full.
+function bindCheck(root, statePath, ref, roleToken, on) {
+  const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), 'state.mjs');
+  try {
+    execFileSync(process.execPath, [cli, 'bind-check', '--on', on, '--role', roleToken, '--ref', ref, '--state', statePath],
+      { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // NB-4 (review-harness-universal-routing-20260913T002056Z): the --human
 // "unbound" reason must not claim the routing file is ABSENT when it is
 // PRESENT — a cursor/unknown dispatch under the shipped Mode B file used to
@@ -1705,6 +1724,10 @@ function main() {
       ? planCheckStamps({ root, statePath, ref: stampRef, dispatchRole })
       : [];
     for (const stamp of planned.filter((x) => x.event === 'check_verdict')) recordCheckEvent(root, stampRef, stamp);
+    // D2: a verdict first seen on this tick is bound before the delta decision below reads the binding.
+    if (opts.confirm && stampRef) {
+      for (const t of ['validation', 'code_review']) bindCheck(root, statePath, stampRef, t, 'verdict');
+    }
     out.recheck = null;
     if (out.verdict === 'dispatch' && RECHECK_ROLES.has(out.role)) {
       out.recheck = recheckMode({ root, ref: out.ref_id, role: out.role, env: process.env, statePath });
@@ -1722,6 +1745,10 @@ function main() {
       }
     }
     for (const stamp of planned.filter((x) => x.event === 'check_dispatched')) recordCheckEvent(root, stampRef, stamp);
+    // D2: a Validation or Code Review dispatch, full or delta, records its head and report set.
+    if (opts.confirm && stampRef && dispatchRole && tokenOfRole(dispatchRole)) {
+      bindCheck(root, statePath, stampRef, tokenOfRole(dispatchRole), 'dispatch');
+    }
     // role-verification-guards G2 (D2) — validation-verdict stamp, under the
     // SAME --confirm opt-in, independent of the rule-9x confirm_event arm
     // above (it can fire on ANY rule, e.g. the rule-14 metrics-flush arm a

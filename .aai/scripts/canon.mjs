@@ -483,7 +483,7 @@ function runBuild(argv) {
       exit(10);
     }
     if (!opts.printHash) {
-      rc = recheckMode({ root: ROOT, ref: opts.ref, role: opts.role, env: process.env });
+      rc = recheckMode({ root: ROOT, ref: opts.ref, role: opts.role, env: process.env, ownDispatch: true });
       if (rc.mode !== 'delta') {
         process.stderr.write(`canon-recheck-refused: ${rc.reasons.join(' ')}\n`);
         exit(11);

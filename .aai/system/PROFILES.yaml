@@ -171,6 +171,7 @@ core:
   - .aai/scripts/platform.mjs
   - .aai/scripts/lib/append-lock.mjs
   - .aai/scripts/lib/append-lock.sh
+  - .aai/scripts/lib/check-binding.mjs
   - .aai/scripts/lib/cli-pipe-guard.mjs
   - .aai/scripts/lib/platform-adapter.mjs
   - .aai/scripts/lib/docs-audit-core.mjs

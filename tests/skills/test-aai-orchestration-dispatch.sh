@@ -79,6 +79,10 @@ git_init_fixture() {
   git -C "$d" init -q -b main
   git -C "$d" config user.email test@example.com
   git -C "$d" config user.name test
+  # docs/ai/STATE.yaml is gitignored in every real project; a --confirm tick now also writes the
+  # check_binding block into it (spec-recheck-verdict-binding), which must not move the tracked tree.
+  mkdir -p "$d/.git/info"
+  printf 'docs/ai/STATE.yaml\n' >> "$d/.git/info/exclude"
   git -C "$d" add -A
   git -C "$d" commit -q -m init
 }
