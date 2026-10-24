@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-recheck
-# (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723..2741;
+# (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723..2744;
 # TEST-2722 lives in test-aai-prompt-diet.sh)
 #
 # The delta re-check mode: .aai/scripts/lib/recheck.mjs decides eligibility,
@@ -253,8 +253,23 @@ test_2741_stamps_refused_for_subagent() {
   log_pass "TEST-2741: append-event refuses check stamps when AAI_ROLE is set"
 }
 
+test_2742_uncommitted_stamp_rewrite_residual() {
+  run_recheck_node_tests TEST-2742
+  log_pass "TEST-2742: the uncommitted-stamp rewrite is pinned as a known residual (delta under opt-in, full by default)"
+}
+
+test_2743_merge_in_range_refused() {
+  run_recheck_node_tests TEST-2743
+  log_pass "TEST-2743: a merge commit in the range refuses delta"
+}
+
+test_2744_whitespace_role_refused() {
+  run_recheck_node_tests TEST-2744
+  log_pass "TEST-2744: a whitespace-only AAI_ROLE counts as set"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2741)"
+  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2744)"
   check_deps
   test_2701_baseline_table_matches_metrics
   test_2702_delta_applies
@@ -296,6 +311,9 @@ main() {
   test_2739_ledger_rewrite_refused
   test_2740_committed_rewrite_refused
   test_2741_stamps_refused_for_subagent
+  test_2742_uncommitted_stamp_rewrite_residual
+  test_2743_merge_in_range_refused
+  test_2744_whitespace_role_refused
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

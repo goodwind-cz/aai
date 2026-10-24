@@ -132,7 +132,10 @@ function startsWithBytes(big, prefix) {
 // live file begins with the exact bytes of its blobs at `base` and at HEAD (so an
 // uncommitted in-place rewrite refuses too) AND every commit in
 // base..HEAD that touched it begins with its first parent's blob. Anything unreadable
-// is not append-only (fail closed).
+// is not append-only (fail closed). Scope: only lines already present in a committed
+// blob are protected. A stamp that is still uncommitted when it is rewritten leaves no
+// blob to compare with: that is the named residual
+// fu-recheck-uncommitted-stamp-rewrite (closed only by the STATE binding).
 export function eventsAppendOnly(root, base) {
   const baseBlob = eventsBlob(root, base);
   if (baseBlob === null) return false;
@@ -407,6 +410,15 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
     }
   }
   if (!gitFailed && base && diffBase === base && !eventsAppendOnly(root, base)) reasons.push('ledger_rewritten');
+  // A merge commit in the range can drop a side-branch commit (merge -s ours) that the
+  // first-parent ledger chain never sees, so any merge in base..HEAD refuses delta.
+  if (!gitFailed && base && diffBase === base) {
+    try {
+      if (git(root, ['rev-list', '--min-parents=2', '--max-count=1', `${base}..HEAD`]).trim() !== '') reasons.push('merge_in_range');
+    } catch {
+      gitFailed = true;
+    }
+  }
   if (gitFailed) reasons.push('git_error');
   if (!gitFailed && base && diffBase && changed.length === 0) reasons.push('no_delta');
 

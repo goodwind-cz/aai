@@ -22,9 +22,9 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat(recheck): a re-check round with a non-production delta gets a slim payload
+## [unreleased] — feat(recheck): an opt-in slim payload for a re-check round with a non-production delta
 
-- A Validation or Code Review round that follows an already-judged round now runs
+- With `AAI_RECHECK_MODE=delta` set (the default is unchanged: full), a Validation or Code Review round that follows an already-judged round can run
   on a slim payload (the contract, the new `.aai/RECHECK_DELTA.prompt.md` and a
   scope listing the base, the head, the changed paths and the prior reports)
   instead of the full role prompt and `LEARNED.md`, when the delta since that
@@ -40,7 +40,9 @@ fine — it is the marker a cut leaves on top.
   forgeable by a hand append to `EVENTS.jsonl` and is not yet bound to STATE
   (`fu-recheck-verdict-not-bound-to-check`); `append-event.mjs` refuses the
   two stamp events under `AAI_ROLE`, and a delta is refused with
-  `ledger_rewritten` unless `EVENTS.jsonl` is append-only across the range. The verdict base is the head the
+  `ledger_rewritten` unless `EVENTS.jsonl` is append-only across the range (only lines already in a
+  committed blob; rewriting a stamp before its first commit is the named residual
+  `fu-recheck-uncommitted-stamp-rewrite`) and with `merge_in_range` when the range holds a merge commit. The verdict base is the head the
   checker was handed, the stricter of the base and live spec level decides, a
   prior report that existed at the base is read from the base, and gate inputs
   under `tests/` (suite map, weights, baselines, ratchets, the diet ledger)
@@ -48,8 +50,8 @@ fine — it is the marker a cut leaves on top.
   identity to record when canon refuses. Per dispatch the payload is 11.4 KB
   instead of 32.7 KB (Code Review) or 45.5 KB (Validation); the token effect is
   not measured yet.
-- Downstream impact: re-check rounds are dispatched differently after
-  `/aai-update`. The full Code Review and Validation reports now carry one
+- Downstream impact: none by default. Delta re-check is available opt-in (`AAI_RECHECK_MODE=delta`) and
+  the default is unchanged: every re-check round stays full. The full Code Review and Validation reports now carry one
   `security_relevant: true` or `security_relevant: false` line, and the dispatch
   tick appends two new EVENTS types, `check_dispatched` and `check_verdict`.
 

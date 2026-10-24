@@ -1466,6 +1466,79 @@ test('TEST-2741 append-event refuses check_dispatched and check_verdict when AAI
   assert.ok(!/single-writer/.test(other.stderr), other.stderr);
 });
 
+// ------------------------------------------------------------------ TEST-2742
+// KNOWN RESIDUAL, pinned on purpose (fu-recheck-uncommitted-stamp-rewrite, P2): ledger_rewritten
+// covers only lines already present in a committed blob. A security_relevant true stamp that is
+// still UNCOMMITTED when it is flipped in place leaves no blob to compare with, so delta is
+// granted under the opt-in. It cannot be closed without the verdict-to-STATE binding
+// (fu-recheck-verdict-not-bound-to-check); delta must not become default-on until both are done.
+// When that follow-up lands, the delta assertions below flip to full and this test is rewritten.
+test('TEST-2742 KNOWN RESIDUAL: an uncommitted true stamp flipped before its first commit gives delta under the opt-in, full by default', async () => {
+  const L = await lib();
+  const fx = mkRepo('t2742', { verdicts: false, trackEvents: true });
+  appendEvents(fx.root, [
+    { event: 'check_verdict', ref: REF, payload: { role: 'validation', head: fx.base, status: 'fail', security_relevant: true } },
+    { event: 'check_verdict', ref: REF, payload: { role: 'code_review', head: fx.base, status: 'pass', security_relevant: false } },
+  ]);
+  touchTest(fx.root);
+  const before = L.recheckMode({ root: fx.root, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(before.mode, 'full', 'positive control: the unflipped true stamp is sticky');
+  assert.ok(before.reasons.includes('security_relevant:stamp:validation'), reasonsOf(before));
+  flipTrueStamp(fx.root);
+  const after = L.recheckMode({ root: fx.root, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(after.mode, 'delta', 'today the uncommitted flip is NOT caught (residual): ' + reasonsOf(after));
+  assert.ok(!after.reasons.includes('ledger_rewritten'));
+  const dflt = L.recheckMode({ root: fx.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(dflt.mode, 'full', 'the default env stays full');
+  assert.deepEqual(dflt.reasons, ['recheck_disabled']);
+});
+
+// ------------------------------------------------------------------ TEST-2743
+test('TEST-2743 a merge commit in the delta range refuses delta (merge_in_range): merge -s ours drops a committed true stamp', async () => {
+  const L = await lib();
+  const mk = (name) => {
+    const fx = mkRepo(name, { verdicts: false, trackEvents: true });
+    appendEvents(fx.root, verdictEvents(fx.base));
+    git(fx.root, ['add', '-A']);
+    git(fx.root, ['commit', '-q', '-m', 'stamps false']);
+    return { ...fx, stamped: git(fx.root, ['rev-parse', 'HEAD']) };
+  };
+  const fx = mk('t2743');
+  git(fx.root, ['checkout', '-q', '-b', 'side']);
+  appendEvents(fx.root, [{ event: 'check_verdict', ref: REF, payload: { role: 'validation', head: fx.stamped, status: 'fail', security_relevant: true } }]);
+  git(fx.root, ['commit', '-qam', 'side: true stamp']);
+  git(fx.root, ['checkout', '-q', 'main']);
+  appendEvents(fx.root, [{ event: 'check_dispatched', ref: REF, payload: { role: 'validation', head: fx.stamped, seen: 'run_at:x' } }]);
+  git(fx.root, ['commit', '-qam', 'main: append']);
+  git(fx.root, ['merge', '-q', '-s', 'ours', '-m', 'drop side', 'side']);
+  assert.ok(!fs.readFileSync(path.join(fx.root, 'docs/ai/EVENTS.jsonl'), 'utf8').includes('"security_relevant":true'), 'positive control: the true stamp is gone from the live ledger');
+  touchTest(fx.root);
+  const r = L.recheckMode({ root: fx.root, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(r.mode, 'full');
+  assert.ok(r.reasons.includes('merge_in_range'), reasonsOf(r));
+  // control: a linear range of the same shape has no merge and stays delta
+  const lin = mk('t2743-ctl');
+  appendEvents(lin.root, [{ event: 'check_dispatched', ref: REF, payload: { role: 'validation', head: lin.stamped, seen: 'run_at:x' } }]);
+  git(lin.root, ['commit', '-qam', 'append']);
+  touchTest(lin.root);
+  const k = L.recheckMode({ root: lin.root, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(k.mode, 'delta', reasonsOf(k));
+});
+
+// ------------------------------------------------------------------ TEST-2744
+test('TEST-2744 a whitespace-only AAI_ROLE counts as set: append-event refuses the check stamps', () => {
+  const { root } = mkRepo('t2744', { verdicts: false });
+  const H = 'c'.repeat(40);
+  const run = (env) => spawnSync(process.execPath, [path.join(SCRIPTS, 'append-event.mjs'), '--event', 'check_verdict', '--ref', REF, '--role', 'validation', '--head', H, '--status', 'pass', '--security-relevant', 'false'], { cwd: root, encoding: 'utf8', env });
+  for (const v of [' ', '  ', '\t']) {
+    const refused = run({ ...cleanEnv(), AAI_ROLE: v });
+    assert.notEqual(refused.status, 0, JSON.stringify(v));
+    assert.match(refused.stderr, /single-writer/, JSON.stringify(v));
+  }
+  assert.equal(readEvents(root).length, 0);
+  assert.equal(run(cleanEnv()).status, 0, 'positive control: unset appends');
+});
+
 // ------------------------------------------------------------------ TEST-2732
 test('TEST-2732 an inherited property name is an unknown role, not a crash', async () => {
   const L = await lib();

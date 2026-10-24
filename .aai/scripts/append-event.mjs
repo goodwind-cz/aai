@@ -181,7 +181,7 @@ function main() {
       // posture state.mjs enforces for STATE. A dispatched subagent (AAI_ROLE set) cannot
       // append them through this script. A raw hand append is not stopped here; that is the
       // residual delta's opt-in default exists for (fu-recheck-verdict-not-bound-to-check).
-      if (String(process.env.AAI_ROLE || '').trim() !== '') fail(`${args.event} refused: single-writer rule (AAI_ROLE is set); the orchestrator stamps check events`, 3);
+      if (String(process.env.AAI_ROLE ?? '') !== '') fail(`${args.event} refused: single-writer rule (AAI_ROLE is set); the orchestrator stamps check events`, 3);
       if (!args.role || !CHECK_ROLES.has(args.role)) fail(`${args.event} requires --role validation|code_review`);
       if (typeof args.head !== 'string' || !HEAD_SHA_RE.test(args.head)) fail(`${args.event} requires --head as 40 lowercase hex characters`);
       entry.payload = { role: args.role, head: args.head };
