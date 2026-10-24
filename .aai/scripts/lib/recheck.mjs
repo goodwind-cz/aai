@@ -4,7 +4,8 @@
 // A Validation or Code Review round that follows a judged round may run on a slim
 // payload (contract + .aai/RECHECK_DELTA.prompt.md + a scope listing the delta)
 // ONLY when every condition below holds. Anything else resolves to `full` and
-// names every failing condition: the mode is opt-in by proof, never by default.
+// names every failing condition: the mode is opt-in twice, by AAI_RECHECK_MODE=delta and
+// by proof, never by default.
 //
 // This module only READS (git, STATE, EVENTS, the reports named in STATE, the
 // docs-audit config); it never writes any of them. The verdict stamps that make a
@@ -66,15 +67,15 @@ export const LEDGER_AND_PAGE_PATHS = new Set([
   ...SHARED_GENERATED_PAGES,
 ]);
 
-// N1: AAI_RECHECK_MODE is a rollback switch, so it fails closed. A value that trims and
-// lower-cases to `full` forces full; so does any other non-empty value that is not the
-// one recognised opt-in word `delta`. Only unset, empty or `delta` leave the decision to
-// the conditions below.
-export function forcedFull(env) {
+// Owner decision 2026-10-24: delta is OPT-IN. AAI_RECHECK_MODE enables it only when it
+// trims and lower-cases to exactly `delta`; unset, empty and every other value (full,
+// off, a typo) leave the mode off and the round full. This holds until a later slice
+// binds the verdict to STATE (fu-recheck-verdict-not-bound-to-check): until then a
+// hand-appended stamp can still forge eligibility, so the default must not trust them.
+export function deltaEnabled(env) {
   const raw = env ? env[FORCE_ENV] : undefined;
   if (raw === undefined || raw === null) return false;
-  const v = String(raw).trim().toLowerCase();
-  return v !== '' && v !== 'delta';
+  return String(raw).trim().toLowerCase() === 'delta';
 }
 
 // N5: a role name is looked up as an own key only, so `__proto__`, `constructor` and the
@@ -100,6 +101,62 @@ function git_ok(root, args) {
   } catch {
     return false;
   }
+}
+
+const EVENTS_REL = 'docs/ai/EVENTS.jsonl';
+
+function gitBuf(root, args) {
+  return execFileSync('git', args, {
+    cwd: root, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+// The ledger blob of one rev as bytes; a rev that has no such file reads as empty (a
+// ledger that did not exist yet cannot have been rewritten). null when git cannot say.
+function eventsBlob(root, rev) {
+  try {
+    if (!git_ok(root, ['cat-file', '-e', `${rev}:${EVENTS_REL}`])) return Buffer.alloc(0);
+    return gitBuf(root, ['show', `${rev}:${EVENTS_REL}`]);
+  } catch {
+    return null;
+  }
+}
+
+function startsWithBytes(big, prefix) {
+  return big.length >= prefix.length && big.subarray(0, prefix.length).equals(prefix);
+}
+
+// B9/F7: a check_verdict stamp decides eligibility, and EVENTS.jsonl is a non-production
+// ledger the delta may touch. An earlier stamp (a committed security_relevant true)
+// stays sticky only if the ledger is append-only across the whole range. True when the
+// live file begins with the exact bytes of its blobs at `base` and at HEAD (so an
+// uncommitted in-place rewrite refuses too) AND every commit in
+// base..HEAD that touched it begins with its first parent's blob. Anything unreadable
+// is not append-only (fail closed).
+export function eventsAppendOnly(root, base) {
+  const baseBlob = eventsBlob(root, base);
+  if (baseBlob === null) return false;
+  let live;
+  try {
+    live = fs.existsSync(path.join(root, EVENTS_REL)) ? fs.readFileSync(path.join(root, EVENTS_REL)) : Buffer.alloc(0);
+  } catch {
+    return false;
+  }
+  if (!startsWithBytes(live, baseBlob)) return false;
+  const headBlob = eventsBlob(root, 'HEAD');
+  if (headBlob === null || !startsWithBytes(live, headBlob)) return false;
+  let commits;
+  try {
+    commits = git(root, ['rev-list', '--reverse', '--topo-order', `${base}..HEAD`, '--', EVENTS_REL]).split('\n').filter(Boolean);
+  } catch {
+    return false;
+  }
+  for (const c of commits) {
+    const prev = eventsBlob(root, `${c}^`);
+    const cur = eventsBlob(root, c);
+    if (prev === null || cur === null || !startsWithBytes(cur, prev)) return false;
+  }
+  return true;
 }
 
 export function gitHead(root) {
@@ -292,7 +349,7 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
   const reasons = [];
   const token = tokenOfRole(role);
   if (!RECHECK_ROLES.has(role)) reasons.push('role_not_rechecked');
-  if (forcedFull(env)) reasons.push('forced_full');
+  if (!deltaEnabled(env)) reasons.push('recheck_disabled');
 
   let gitFailed = false;
   const head = gitHead(root);
@@ -349,6 +406,7 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
       gitFailed = true;
     }
   }
+  if (!gitFailed && base && diffBase === base && !eventsAppendOnly(root, base)) reasons.push('ledger_rewritten');
   if (gitFailed) reasons.push('git_error');
   if (!gitFailed && base && diffBase && changed.length === 0) reasons.push('no_delta');
 

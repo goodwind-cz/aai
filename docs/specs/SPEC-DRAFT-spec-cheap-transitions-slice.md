@@ -3,7 +3,7 @@ id: spec-cheap-transitions-slice
 type: spec
 number: null
 status: implementing
-frozen_sha256: e962ca30987f0f793b6a71f59010edc48d77de95f950de4c8850878208ded4c2
+frozen_sha256: 52235c77c946cda9769619f77d01436bdbcfcaba9d99c729a0f3cfd0768e4008
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -186,7 +186,7 @@ first-match):
 | Condition for delta | Reason token when it fails |
 |---|---|
 | role is Validation or Code Review (`RECHECK_ROLES`; looked up as an own key, so `__proto__` and kin are unknown roles) | `role_not_rechecked` |
-| `AAI_RECHECK_MODE`, trimmed and lower-cased, is unset, empty or `delta` (`FORCE_ENV`; the rollback switch: `full` and every other value force full) | `forced_full` |
+| `AAI_RECHECK_MODE`, trimmed and lower-cased, is exactly `delta` (`FORCE_ENV`; delta is OPT-IN, owner decision 2026-10-24: unset, empty, `full` and every other value leave the mode off) | `recheck_disabled` |
 | a `check_verdict` event exists for this ref and role (D4) | `first_round` |
 | its `head` is an ancestor of HEAD | `base_not_ancestor` |
 | the delta is non-empty | `no_delta` |
@@ -194,7 +194,15 @@ first-match):
 | no changed path matches `protected_paths_l3` read live (D3) | `protected_path:<path>` per path, or `protected_config_unreadable` |
 | the focus spec's `ceremony_level` parses as 0, 1 or 2 in BOTH the live file and the blob at the base, and neither says 3 (the delta may edit the spec, so the stricter of the two decides) | `ceremony_l3` when either reads 3 (`PROTECTED_LEVEL`), `ceremony_unknown` when either is absent, unparseable or unreadable, or the spec is missing at either end |
 | every prior report of the ref carries exactly one `security_relevant: false` line and none says true (D5), read from the blob at the base when the report existed there, and none of those was changed inside the delta | `security_relevant:<path>`, `security_marker_absent:<path>`, `prior_report_unreadable:<path>`, `prior_report_changed:<path>`, or `security_marker_absent:<role>` when the re-checked role has no prior report |
+| `docs/ai/EVENTS.jsonl` is append-only against the base: the live file begins with the exact bytes of its blob at the base and at HEAD, and no commit of the range rewrote it (B9, F7) | `ledger_rewritten` |
 | every git call succeeds | `git_error` |
+
+Delta ships DISABLED by default (owner decision 2026-10-24, menu answer "turn the
+default off, finish the work"). A re-check round is `full` with `recheck_disabled`
+unless the operator exports `AAI_RECHECK_MODE=delta`, and then only when every other
+condition holds. The default stays off until a later slice binds the verdict to STATE
+(`fu-recheck-verdict-not-bound-to-check`): until then a hand-appended stamp can still
+forge a judged round (D4 residual), and a default must not rest on stamps anyone can write.
 
 The delta is the union of `git diff --name-only --no-renames <base>` (committed and
 uncommitted tracked changes against the base; `--no-renames` so that both ends of a
@@ -273,8 +281,22 @@ Known limit (filed as `fu-recheck-verdict-not-bound-to-check`, P2): the stamp
 cannot tell the dispatched checker's STATE write from a later `set-validation`
 of another source, because STATE carries no head or tree for a verdict; the
 verdict identity is only "newer than the dispatched marker". Without `--confirm`
-nothing is written. Both writes go through `append-event.mjs` (one EVENTS
-writer) and are swallowed on failure, like `recordValidationVerdict`.
+nothing is written. Both writes go through `append-event.mjs` and are swallowed on
+failure, like `recordValidationVerdict`.
+
+Writer guard and its exact residual (B9, F1/F2). `append-event.mjs` refuses
+`check_dispatched` and `check_verdict` when `AAI_ROLE` is set, the posture
+`state.mjs` takes for STATE writes, so a dispatched subagent cannot stamp through the
+sanctioned script. That is NOT "one EVENTS writer": `docs/ai/EVENTS.jsonl` is a tracked
+file, and a hand-appended `check_verdict` line (or a committed one inside the delta)
+with a forged head and `security_relevant:false` is still read as a judged round, so a
+production commit can be absorbed into a forged base. This residual stays open on
+purpose and is why delta is opt-in (D1); the closing remedy is the verdict-to-STATE
+binding in `fu-recheck-verdict-not-bound-to-check`. What the ledger rules DO close is
+the rewrite of an earlier stamp: delta is refused with `ledger_rewritten` unless the
+live ledger begins with the exact bytes of its blob at the base and at HEAD and no
+commit of the range changed a line it did not append (an in-place flip of a stamped
+`true` is the F7 probe).
 
 ### D5. The security marker
 
@@ -297,7 +319,8 @@ any stamp of either role for the ref that says `true` gives
 `security_relevant:stamp:<role>`, for every later round (sticky). A report that
 existed at the base is still read from the base blob and refuses when the delta
 touched it; a live read that says `true` still refuses, but no live read can
-lower a stamped `true`.
+lower a stamped `true`: the ledger that holds the stamps must be append-only across
+the range (`ledger_rewritten`, D1), so rewriting an earlier stamp in place refuses delta.
 
 ### D6. The dispatch field
 
@@ -356,7 +379,7 @@ any PASS, and `state_update_commands` for a dispatched role. Every report
 carries the D5 marker. If the
 delta cannot be judged without the full context, return status BLOCKED with
 the literal reason `needs_full_recheck`; the orchestrator then dispatches the
-full role with `AAI_RECHECK_MODE=full`.
+full role.
 
 ### D9. Wiring and documentation
 
@@ -374,7 +397,7 @@ full role with `AAI_RECHECK_MODE=full`.
 - `.aai/SUBAGENT_PROTOCOL.md`: the INPUT row names `canon.mjs build` as the
   payload builder (closes `fu-subagent-protocol-input-row-stale`), and a new
   "Delta re-check" subsection states D1, the `needs_full_recheck` escalation,
-  `AAI_RECHECK_MODE=full` as the switch, and that the `append-run` of a round
+  `AAI_RECHECK_MODE=delta` as the opt-in switch (off by default), and that the `append-run` of a round
   whose delta payload was actually sent carries the note
   `recheck=delta base=<sha>` so its tokens can be compared later (a round that
   fell back to the full payload carries neither the note nor the delta
@@ -421,9 +444,9 @@ base, then prints one JSON line per role with `full_bytes`, `delta_bytes` and
 Validation 45467 bytes per dispatch. After (delivered, output of this
 command, re-measured after remediation round 1 added the output contracts to the
 delta prompt and the `spec:` line to the scope): Code Review `full_bytes` 33082
-(the D5 marker line grew the full prompt) and `delta_bytes` 11363, ratio 0.343;
-Validation `full_bytes` 45843 and `delta_bytes` 11362, ratio 0.248. Against the
-intake-commit bytes that is 32720 to 11363 and 45467 to 11362. At delivery the
+(the D5 marker line grew the full prompt) and `delta_bytes` 11336, ratio 0.343;
+Validation `full_bytes` 45843 and `delta_bytes` 11335, ratio 0.247. Against the
+intake-commit bytes that is 32720 to 11336 and 45467 to 11335. At delivery the
 numbers were 10238 (ratio 0.309) and 10237 (ratio 0.223); round 1 spent about
 1.1 KB per delta dispatch on the contracts a checker needs. `delta_bytes` stays
 at most 40% of `full_bytes` for both roles.
@@ -459,8 +482,8 @@ executable evidence (the Validation outcome contract is unchanged). Article 2:
 one library, one CANON key, two event types; no new workflow. Article 4: every
 unknown resolves to the full payload with a named reason, and canon refuses
 with an empty stdout. Article 5: the dispatch field and the CANON key are
-additive, the default build is byte-identical, and `AAI_RECHECK_MODE=full`
-restores today's behavior. Article 6: the library reads STATE and never writes
+additive, the default build is byte-identical, and leaving `AAI_RECHECK_MODE`
+unset (the default) keeps today's behavior. Article 6: the library reads STATE and never writes
 it.
 
 ## Acceptance Criteria Status
@@ -482,8 +505,8 @@ it.
 | Spec-AC-13 | spec-amend list over the repository ledger shows at least six spec_amendment records of ref node-first-third-slice recorded before 2026-10-24T13:00:00Z (the #497 ride's own records; a later record on that ref belongs to its own tracker) in bucket signed and none in any other bucket except measurement, and follow-ups list with status all shows fu-amend-spec-node-first-third-slice as done. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2723.log | tdd | TEST-2723 |
 | Spec-AC-14 | The documented canon command in ORCHESTRATION.prompt.md and ORCHESTRATION_PARALLEL.prompt.md SHALL pass the dispatch JSON ref_id (the placeholder ref_id, never HEAD); WHEN that command is run in an eligible fixture with the dispatch ref_id and --recheck delta it SHALL exit 0 and with HEAD as the ref it SHALL exit 11; a delta dispatch SHALL carry recheck.fallback holding the full role prompt path and a prompt_hash equal to canon.mjs build --print-hash for that role and to the prompt_hash of the same dispatch under AAI_RECHECK_MODE=full, and a full dispatch SHALL carry recheck.fallback null; every append-run capture site of the dispatch prompt_hash (SUBAGENT_PROTOCOL.md twice, SKILL_LOOP.prompt.md once) SHALL name the recheck.fallback hash for a refused delta. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2725.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2737.log | tdd | TEST-2725, TEST-2737 |
 | Spec-AC-15 | WHEN a --confirm re-tick appends a check_dispatched at a newer head while the check has no verdict, the check_verdict SHALL carry the earliest unjudged head, so that after a test-only fix and reset-block the next dispatch SHALL be mode full with the production commit made in between named in production_path and the old head as the base; WHEN the unjudged heads do not lie on one line of history the stamp SHALL carry AMBIGUOUS_HEAD and the next round SHALL name base_not_ancestor. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2724.log | tdd | TEST-2724 |
-| Spec-AC-16 | The delta SHALL NOT decide its own eligibility: a staged rename out of a production path and a deleted production file SHALL give production_path for the production end; an L3 focus spec rewritten to a lower level, a level raised, a level removed, a spec deleted and a spec absent at the base SHALL give ceremony_l3 or ceremony_unknown; a prior report that existed at the base and was edited or deleted in the delta SHALL give prior_report_changed and its marker SHALL be read from the base blob while a report written after the base is read live and can only raise, never lower, the stamped marker of its verdict: the marker of the judged round's own report SHALL be taken from the check_verdict stamp written when its verdict was first seen (a committed Code Review report flipped from true to false inside the delta, and a gitignored Validation report flipped in place, SHALL both give full), a stamp without the marker SHALL count as absent, and once any stamped verdict of either role says true every later round SHALL be full; every file under tests/ other than test code (suite, Pester file, node:test file) SHALL be production, including every tests/ path merge-policy GUARD_PATHS names and every tests/ file a production script names by literal path. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2726.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2727.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2728.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2729.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2730.log | tdd | TEST-2726, TEST-2727, TEST-2728, TEST-2729, TEST-2730, TEST-2734, TEST-2735, TEST-2736 |
-| Spec-AC-17 | AAI_RECHECK_MODE SHALL be trimmed and lower-cased and any value other than unset, empty or delta SHALL force full with forced_full; a role name that is an inherited property (__proto__, constructor, toString) SHALL be an unknown role with role_not_rechecked and SHALL NOT throw in recheckMode or planCheckStamps. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2731.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2732.log | tdd | TEST-2731, TEST-2732 |
+| Spec-AC-16 | The delta SHALL NOT decide its own eligibility: a staged rename out of a production path and a deleted production file SHALL give production_path for the production end; an L3 focus spec rewritten to a lower level, a level raised, a level removed, a spec deleted and a spec absent at the base SHALL give ceremony_l3 or ceremony_unknown; a prior report that existed at the base and was edited or deleted in the delta SHALL give prior_report_changed and its marker SHALL be read from the base blob while a report written after the base is read live and can only raise, never lower, the stamped marker of its verdict: the marker of the judged round's own report SHALL be taken from the check_verdict stamp written when its verdict was first seen (a committed Code Review report flipped from true to false inside the delta, and a gitignored Validation report flipped in place, SHALL both give full), a stamp without the marker SHALL count as absent, and once any stamped verdict of either role says true every later round SHALL be full; every file under tests/ other than test code (suite, Pester file, node:test file) SHALL be production, including every tests/ path merge-policy GUARD_PATHS names and every tests/ file a production script names by literal path; an in-place rewrite of an earlier EVENTS.jsonl stamp (uncommitted, committed before the base or committed inside the range) SHALL give ledger_rewritten and full, and append-event.mjs SHALL refuse check_dispatched and check_verdict while AAI_ROLE is set (a raw hand append is the named residual of D4). | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2726.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2727.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2728.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2729.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2730.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2739.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2740.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2741.log | tdd | TEST-2726, TEST-2727, TEST-2728, TEST-2729, TEST-2730, TEST-2734, TEST-2735, TEST-2736, TEST-2739, TEST-2740, TEST-2741 |
+| Spec-AC-17 | Delta SHALL be opt-in: AAI_RECHECK_MODE SHALL be trimmed and lower-cased and only the value delta SHALL enable the mode, while unset, empty, full and any other value SHALL give full with recheck_disabled on an otherwise eligible tree, through recheckMode, the dispatch recheck field and canon build --recheck delta (exit 11); a role name that is an inherited property (__proto__, constructor, toString) SHALL be an unknown role with role_not_rechecked and SHALL NOT throw in recheckMode or planCheckStamps. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2731.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2732.log, docs/ai/tdd/cheap-transitions-slice/green/TEST-2738.log | tdd | TEST-2731, TEST-2732, TEST-2738 |
 | Spec-AC-18 | RECHECK_DELTA.prompt.md (at most 4096 bytes) SHALL carry the report path docs/ai/reviews/review- with the never docs/validation rule, the H6 disposition duty with accepted residual, the set-code-review and set-validation shapes, aai-outcome-v1, validation-outcome-check.mjs with Before any PASS, outcome_report and state_update_commands, each pointing at a section that exists in the full prompt; the delta scope section SHALL name the spec path. | done | docs/ai/tdd/cheap-transitions-slice/green/TEST-2733.log | tdd | TEST-2733 |
 
 ## Implementation plan
@@ -556,13 +579,17 @@ result on the other):
 | TEST-2728 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2728_delta_cannot_lower_level rewrites an L3 spec to level 2 inside the delta (ceremony_l3), raises a level, removes a level, deletes the spec and adds a spec absent at the base (ceremony_unknown); a body edit that leaves the level alone stays delta and reports spec_path | `sed:s/if \(base && !gitFailed\) levels\.push/if (false) levels.push/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2729 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2729_prior_reports_from_base edits a true report to false inside the delta (prior_report_changed and security_relevant from the base blob), deletes one, appends to one; reports written after the base are read live and give delta, a new report that says true refuses | `sed:s/if \(atBase && changed\.includes\(p\)\) reasons/if (false) reasons/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2730 | Spec-AC-16 | integration | tests/skills/test-aai-recheck.sh | test_2730_tests_gate_inputs_production classifies suites, Pester files and node:test files as non-production and suite-map.yaml, suite-weights.tsv, the baselines, the ratchet, the diet ledger and test-framework.sh as production; every tests/ path in merge-policy GUARD_PATHS and every tests/ file a production script names by literal path is production unless it is test code; a changed suite-map.yaml gives production_path | `sed:s/export const NON_PRODUCTION_PATTERNS = \[/export const NON_PRODUCTION_PATTERNS = [\/.\/, /` on .aai/scripts/lib/recheck.mjs | green |
-| TEST-2731 | Spec-AC-17 | unit | tests/skills/test-aai-recheck.sh | test_2731_mode_switch_fails_closed requires forcedFull true for full in any case or padding, off, 0, false and a misspelling, false for unset, empty, whitespace and delta in any case; recheckMode and the dispatch give forced_full for a padded upper-case full | `sed:s/return v !== '' && v !== 'delta';/return v === 'full';/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2731 | Spec-AC-17 | unit | tests/skills/test-aai-recheck.sh | test_2731_mode_switch_fails_closed requires deltaEnabled true only for delta in any case or padding and false for unset, empty, whitespace, full, off, 0, false and a misspelling; recheckMode and the dispatch give recheck_disabled for a padded upper-case full | `sed:s/\.toLowerCase\(\) === 'delta';/.toLowerCase() !== 'full';/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2732 | Spec-AC-17 | unit | tests/skills/test-aai-recheck.sh | test_2732_inherited_role_names runs recheckMode and planCheckStamps with __proto__, constructor, toString, hasOwnProperty and valueOf: no throw, full with role_not_rechecked; canon refuses the role without a stack trace | `sed:s/Object\.hasOwn\(ROLE_TOKENS, role\) \? ROLE_TOKENS\[role\] : null/ROLE_TOKENS[role] ?? null/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2733 | Spec-AC-18 | inspection | tests/skills/test-aai-recheck.sh | test_2733_delta_payload_contracts checks the delta prompt size and the contract literals, that the full prompts hold the sections it names, and that the delta scope section of canon --recheck delta holds the line spec followed by the spec path | `sed:s/set-code-review/set-review/g` on .aai/RECHECK_DELTA.prompt.md | green |
 | TEST-2734 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2734_stamped_security_marker builds a judged round by planCheckStamps and appends its check_verdict: a Code Review report that said true at verdict time and is flipped to false in a commit inside the delta (probe Q8), and a gitignored Validation report flipped in place (probe Q9, git status shows nothing), both give full with security_relevant:stamp:<role>; the same flow with a false report gives a false stamp and delta for each role | `sed:s/e\.payload\.security_relevant === true\)\) reasons/e.payload.security_relevant === 7)) reasons/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2735 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2735_stamp_without_marker_and_sticky: a report without a marker line plans a stamp without the field and the next round gives security_marker_absent:stamp:validation; a hand-written stamp without the field is absent too; an earlier true stamp followed by a false one stays full; a true stamp of the other role keeps the role full | `sed:s/priorVerdict\.payload\.security_relevant !== false/priorVerdict.payload.security_relevant === 5/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2736 | Spec-AC-16 | integration | tests/skills/test-aai-recheck.sh | test_2736_tick_records_marker runs real --confirm ticks: the check_verdict the tick appends carries security_relevant false read from the report STATE names; append-event accepts --security-relevant true and refuses any other value without appending | `sed:s/if \(marker !== null\) stamp\.security_relevant = marker;/if (marker !== null) stamp.security_relevant = undefined;/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2737 | Spec-AC-14 | inspection | tests/skills/test-aai-recheck.sh | test_2737_capture_sites_fallback checks that SUBAGENT_PROTOCOL.md names recheck.fallback in the delta section and at both prompt_hash capture sites, and that the SKILL_LOOP.prompt.md append-run capture step names it | `sed:s/recheck\.fallback\.prompt_hash/the fallback hash/` on .aai/SKILL_LOOP.prompt.md | green |
+| TEST-2738 | Spec-AC-17 | integration | tests/skills/test-aai-recheck.sh | test_2738_default_is_full takes an otherwise eligible tree: with AAI_RECHECK_MODE unset, empty, blank or full recheckMode gives full with exactly the reason recheck_disabled, the dispatch recheck field gives full and keeps the full system_prompt, and canon build --recheck delta exits 11 naming recheck_disabled; the same tree with delta gives delta | `sed:s/if \(!deltaEnabled\(env\)\) reasons\.push\('recheck_disabled'\);/if (false) reasons.push('recheck_disabled');/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2739 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2739_ledger_rewrite_refused uses a tracked-EVENTS fixture: flipping a committed true stamp to false in place (uncommitted), and the same flip committed after the base, each give full with ledger_rewritten; an append-only ledger is delta; a truncated ledger is first_round | `sed:s/!startsWithBytes\(live, headBlob\)\)/false)/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2740 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2740_committed_rewrite_refused commits a true stamp and then, in a later commit of the range, rewrites it to false and appends another line: the base and HEAD blobs look appended but the per-commit chain gives ledger_rewritten; a range of pure appends does not | `sed:s/!startsWithBytes\(cur, prev\)/false/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2741 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2741_stamps_refused_for_subagent runs append-event.mjs for check_verdict and check_dispatched with AAI_ROLE=subagent: non-zero exit naming the single-writer rule and nothing appended; the same commands without AAI_ROLE append; another event type is not refused by the guard | `sed:s/\.trim\(\) !== ''\) fail\(/.trim() === 'zz') fail(/` on .aai/scripts/append-event.mjs | green |
 
 ### RED observations and positive controls
 
@@ -620,8 +647,8 @@ implementation.
 - No ride in this slice runs a delta round (D10), so the seam from a delta
   Validation report to `validation-outcome-check.mjs` is pinned only by the
   prompt text, and the token effect is unmeasured. The first ride with a delta
-  round is the observation; `AAI_RECHECK_MODE=full` turns the mode off without
-  a code change.
+  round is the observation; the mode is off unless `AAI_RECHECK_MODE=delta` is
+  exported, so no code change turns it off.
 - The prompt hash of a delta dispatch includes `LEARNED.md`, which the delta
   payload does not send (the existing hash function's fixed inputs). The hash
   over-reacts to a LEARNED edit; it never misses a change of the delta stack.
@@ -635,7 +662,10 @@ implementation.
   earlier phase children did.
 - TEST-2701 and TEST-2723 pin ledger facts; a legitimate later rewrite of those
   records would redden them and must amend or retire the rows.
-- Rollback: set `AAI_RECHECK_MODE=full`, or revert the scope's files; the two
+- Delta is off by default (opt-in, owner decision 2026-10-24) because a hand-appended
+  stamp can still forge a judged round; the opt-in stays until the verdict is bound to
+  STATE (`fu-recheck-verdict-not-bound-to-check`).
+- Rollback: leave `AAI_RECHECK_MODE` unset (the default), or revert the scope's files; the two
   event types stay readable as unknown history.
 
 ## Registry disposition

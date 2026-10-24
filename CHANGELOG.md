@@ -34,8 +34,13 @@ fine — it is the marker a cut leaves on top.
   ineligible tree with exit 11. Never at ceremony level 3, never for a
   production, protected or security-relevant delta, never on a first round. A
   checker that cannot judge the delta returns `needs_full_recheck` and the full
-  role runs. `AAI_RECHECK_MODE=full` turns the mode off; any value other than
-  unset, empty or `delta` also forces full. The verdict base is the head the
+  role runs. The mode is OPT-IN: it applies only when `AAI_RECHECK_MODE`
+  normalises to `delta`; unset, empty and every other value give full with the
+  reason `recheck_disabled`. It ships off because a verdict stamp is still
+  forgeable by a hand append to `EVENTS.jsonl` and is not yet bound to STATE
+  (`fu-recheck-verdict-not-bound-to-check`); `append-event.mjs` refuses the
+  two stamp events under `AAI_ROLE`, and a delta is refused with
+  `ledger_rewritten` unless `EVENTS.jsonl` is append-only across the range. The verdict base is the head the
   checker was handed, the stricter of the base and live spec level decides, a
   prior report that existed at the base is read from the base, and gate inputs
   under `tests/` (suite map, weights, baselines, ratchets, the diet ledger)

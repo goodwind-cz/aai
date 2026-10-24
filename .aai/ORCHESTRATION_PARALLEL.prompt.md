@@ -146,7 +146,7 @@ When the platform supports concurrent subagent spawning:
      recorded model (VALIDATOR INDEPENDENCE)
    - Context: the prefix from `node .aai/scripts/canon.mjs build --role <R> --ref <r>`
      (<r> = the dispatch JSON's ref_id, never HEAD; stable, first; add `--recheck delta`
-     when recheck.mode is delta, and if canon exits 11 build without it and take
+     when recheck.mode is delta (opt-in: AAI_RECHECK_MODE=delta, else full), and if canon exits 11 build without it and take
      system_prompt and prompt_hash from recheck.fallback), then scope and inputs
      (variable, last — keeps the prefix cacheable)
    - Env: export `AAI_ROLE=subagent` in the subagent's environment/instructions

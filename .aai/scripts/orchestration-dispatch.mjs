@@ -1693,7 +1693,8 @@ function main() {
         out = fallback;
       }
     }
-    // spec-cheap-transitions-slice D4/D6 — verdict stamps, then the recheck field.
+    // spec-cheap-transitions-slice D4/D6 — verdict stamps, then the recheck field. The
+    // field is `full` (recheck_disabled) unless AAI_RECHECK_MODE=delta opts in.
     // Placed BEFORE the validation_verdict stamp below so that line stays the last one
     // a --confirm tick appends. The verdict stamp comes first so that a verdict first seen on this very tick
     // is already on the ledger when the delta decision below reads it. Without

@@ -73,6 +73,15 @@ unsigned_spec_ids() {
 # item was already closed by an owner signature gets a NEW disambiguated item on
 # its next amendment (spec-amend.mjs stamped id), so the open item is whichever
 # id the unsigned records point at, not only the base id.
+tracker_finding_names_spec() {  # <tracker id> <spec id> <follow-ups list --json text>
+  node -e '
+    const [id, sid, raw] = process.argv.slice(1);
+    const it = (JSON.parse(raw).items || []).find((i) => i.id === id);
+    const want = "owner sign-off owed on the post-freeze amendment(s) to " + sid + ":";
+    process.exit(it && typeof it.finding === "string" && it.finding.startsWith(want) ? 0 : 1);
+  ' "$1" "$2" "$3"
+}
+
 unsigned_tracker_ids_for() {  # <spec id>
   node "$SA" list --ledger "$LIVE_LEDGER" --status unsigned --json 2>/dev/null \
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log([...new Set((j.items||[]).filter(r=>r.spec_id===process.argv[1]&&r.tracked_by).map(r=>r.tracked_by))].join("\n"))})' "$1"
@@ -878,7 +887,7 @@ test_009_live_backfill_and_whole_ledger_readers() {
   # list, never the free-text row.
   run_fu list --ledger "$LIVE_LEDGER" --status open --json
   [[ "$EC" == 0 ]] || log_fail "TEST-009: follow-ups.mjs list --json must exit 0 over the live ledger, got $EC (stderr: $ERR)"
-  local open_ids sid missing="" unsigned_ids
+  local open_ids sid missing="" unsigned_ids open_json="$OUT"
   open_ids="$(node -e '
     let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
       const j=JSON.parse(s);
@@ -906,7 +915,13 @@ test_009_live_backfill_and_whole_ledger_readers() {
     local trk found=0 bad=0 stem="${expect%-*}-"
     for trk in $(unsigned_tracker_ids_for "$sid"); do
       found=1
-      [[ "$trk" == "$stem"* ]] || bad=1
+      # The stem rule holds for an id that fits the 40-char grammar whole. A long spec
+      # id is shortened (the `spec-` stem dropped, a hash appended) by spec-amend's own
+      # fitting function, so such a tracker is the spec's own when the item spec-amend
+      # filed for it names the spec id at the START of its finding (anchored, never a
+      # substring of free prose; fu-amend-spec-node-first-third-slice-2 style ids,
+      # cheap-transitions-slice remediation round 3).
+      [[ "$trk" == "$stem"* ]] || tracker_finding_names_spec "$trk" "$sid" "$open_json" || bad=1
       grep -qxF "$trk" <<<"$open_ids" || bad=1
     done
     [[ "$found" == 1 && "$bad" == 0 ]] || missing="$missing $sid($expect)"

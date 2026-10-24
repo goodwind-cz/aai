@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-recheck
-# (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723..2737;
+# (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723..2741;
 # TEST-2722 lives in test-aai-prompt-diet.sh)
 #
 # The delta re-check mode: .aai/scripts/lib/recheck.mjs decides eligibility,
@@ -11,8 +11,9 @@
 # The cases are node:test cases in tests/skills/lib/recheck.test.mjs; each builds
 # its own temporary git repository, the real repository is only read.
 #
-# SELF-HOSTING: the node cases scrub AAI_RECHECK_MODE from every child process, so
-# the suite answers the same under AAI_RECHECK_MODE=full.
+# SELF-HOSTING: delta is opt-in, so the node cases set AAI_RECHECK_MODE=delta
+# explicitly in every child process (TEST-2738 unsets it), so the suite answers the
+# same under AAI_RECHECK_MODE=full.
 #
 # bash 3.2 compatible (no ${var^^}, no declare -A).
 #
@@ -199,7 +200,7 @@ test_2730_tests_gate_inputs_production() {
 
 test_2731_mode_switch_fails_closed() {
   run_recheck_node_tests TEST-2731
-  log_pass "TEST-2731: AAI_RECHECK_MODE fails closed on any value but unset, empty or delta"
+  log_pass "TEST-2731: AAI_RECHECK_MODE enables delta only when it normalises to delta"
 }
 
 test_2732_inherited_role_names() {
@@ -232,8 +233,28 @@ test_2737_capture_sites_fallback() {
   log_pass "TEST-2737: every append-run capture site names the recheck.fallback clause"
 }
 
+test_2738_default_is_full() {
+  run_recheck_node_tests TEST-2738
+  log_pass "TEST-2738: the variable unset gives full with recheck_disabled on an eligible tree"
+}
+
+test_2739_ledger_rewrite_refused() {
+  run_recheck_node_tests TEST-2739
+  log_pass "TEST-2739: an in-place rewrite of an earlier stamp refuses delta"
+}
+
+test_2740_committed_rewrite_refused() {
+  run_recheck_node_tests TEST-2740
+  log_pass "TEST-2740: a committed non-append edit of the ledger in the range refuses delta"
+}
+
+test_2741_stamps_refused_for_subagent() {
+  run_recheck_node_tests TEST-2741
+  log_pass "TEST-2741: append-event refuses check stamps when AAI_ROLE is set"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2737)"
+  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2741)"
   check_deps
   test_2701_baseline_table_matches_metrics
   test_2702_delta_applies
@@ -271,6 +292,10 @@ main() {
   test_2735_stamp_without_marker_and_sticky
   test_2736_tick_records_marker
   test_2737_capture_sites_fallback
+  test_2738_default_is_full
+  test_2739_ledger_rewrite_refused
+  test_2740_committed_rewrite_refused
+  test_2741_stamps_refused_for_subagent
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

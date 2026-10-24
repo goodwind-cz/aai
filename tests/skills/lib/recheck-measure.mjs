@@ -91,7 +91,7 @@ updated_at_utc: 2026-07-01T00:00:00Z
   fs.appendFileSync(path.join(root, 'docs/ai/decisions.jsonl'), '{"type":"y"}\n');
 
   const env = { ...process.env };
-  delete env.AAI_RECHECK_MODE;
+  env.AAI_RECHECK_MODE = 'delta';
   delete env.AAI_ROLE;
   const build = (role, extra) => spawnSync(process.execPath, [CANON, 'build', '--role', role, '--ref', REF, ...extra], { cwd: root, encoding: 'utf8', env });
   for (const role of ['Code Review', 'Validation']) {
