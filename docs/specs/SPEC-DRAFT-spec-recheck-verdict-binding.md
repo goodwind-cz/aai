@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 6e3806cfd2c8091c16ff3582bb1646714e174bce7043687ccaa5da6c59c50ae4
+frozen_sha256: 1bdae90354c74ed863f02c01e80a38ae2ea53d65d8cfbeb4eec7b96fa7aeb43f
 ceremony_level: 3
 links:
   requirement: recheck-verdict-binding
@@ -115,6 +115,7 @@ Fields (the line engine's `  key: value` form; lists in the block-list form
 |---|---|---|
 | `ref_id` | both | the ref; a `bind-check` for another ref replaces the whole block |
 | `checkout` | both | `realpath` of `git rev-parse --show-toplevel` at write time |
+| `spec_path` | dispatch | the focus spec path STATE names (the work item `spec_path`, else `current_focus.spec_path`), recorded once while the block holds none and kept for the life of the block (D13) |
 | `security_sticky` | verdict | `true` once any bound marker of either role was `true`; never lowered while the block names this ref |
 | `<role>_pending_heads` | dispatch | the 40-hex `git rev-parse HEAD` of each dispatch of the role since its last bound verdict, in order |
 | `<role>_pending_reports` | dispatch | the report paths STATE named for the role at the FIRST pending dispatch (Validation: the `.md` entries of `last_validation.evidence_paths` when its `ref_id` names the ref; Code Review: `code_review.report_paths` when `scope_ref_id` is null or names the ref) |
@@ -182,6 +183,7 @@ prior reports read from the base blob or live, `ledger_rewritten`,
 | `<role>_pending_heads` is empty | `binding_pending:<role>` |
 | `<role>_head` is an ancestor of HEAD (`AMBIGUOUS_HEAD` never is) | `base_not_ancestor` |
 | the sha256 of each `<role>_reports` file read now equals its `<role>_digests` entry | `binding_report_changed:<path>` (also when the file is unreadable) |
+| `spec_path` is recorded and equals the focus spec path STATE names now (D13) | `spec_path_unbound:binding` when no path is recorded, `spec_path_changed:binding` when it differs |
 | `security_sticky` is not `true` and neither role's `<role>_security` is `true` | `security_relevant:binding` |
 | the role's `<role>_security` is `false` | `security_marker_absent:binding:<role>` |
 | `git for-each-ref --count=1 refs/replace/` prints nothing and `<git common dir>/info/grafts` does not exist | `replace_refs_present` |
@@ -352,6 +354,40 @@ the D5 table is claimed.
    `check_binding` block into the worktree STATE. Points 1 and 3 keep every
    round full regardless.
 
+### D13. Two more fail-open fixes folded (owner decision 2026-10-24, menu answer "Zahrnout ty dvě nebezpečné")
+
+The default flip puts every install behind two P3 findings of #498 that each
+turn a full round into a delta round, so both are fixed in this scope.
+
+- `fu-recheck-fenced-false-marker`: `markerOfText` (now in `check-binding.mjs`,
+  re-exported by `recheck.mjs`) counts a `security_relevant:` line only when it
+  starts at column 0 outside every fenced code block. A fence opens on a line
+  with at most three leading spaces and then three or more backticks or tildes,
+  and closes on a line of the same character, at least as many of them and
+  nothing else; an unclosed fence runs to the end of the text. Lines inside a
+  fence are not read. The result is `true` when a column-0 line outside a
+  fence says `true`; otherwise `null` when a fence is still open at the end of
+  the text; otherwise `false` only when exactly one marker line exists outside
+  the fences and it says `false`; otherwise `null`. Every ambiguous shape is
+  `null`, which `recheckMode` reads as absent and answers `full`
+  (`security_marker_absent:binding:<role>` for a bound report,
+  `security_marker_absent:<path>` for a prior report).
+- `fu-recheck-specpath-repoint-gives-delta`: the ceremony level was read from
+  the spec path STATE names, so re-pointing the gitignored STATE (the work item
+  `spec_path` or `current_focus.spec_path`) at a lower-level spec made a level 3
+  ride read as level 2. The binding now records `spec_path` (D1 row) at the
+  first `bind-check --on dispatch` of the block, while it holds none, from the
+  same STATE reading `recheckMode` uses. `recheckMode` reads the level of the
+  recorded path and of the path STATE names now, each live and at the base
+  commit, and takes the stricter; any level 3 gives `ceremony_l3`, any level
+  that cannot be read gives `ceremony_unknown`. A STATE path that differs from
+  the recorded one gives `spec_path_changed:binding` (a spec renamed by the
+  allocator after the judged round therefore runs full once), and a block with
+  no recorded path gives `spec_path_unbound:binding`. Residual of this row: a
+  re-point made before the first dispatch tick that records the path is taken
+  as written (the D9 residual).
+- Wording rule D9 applies to the code comments and docs of both rows.
+
 ## Acceptance Criteria Mapping
 
 - Intake AC-001 maps to Spec-AC-01 (dispatch record), Spec-AC-02 (verdict
@@ -367,6 +403,9 @@ the D5 table is claimed.
 - Intake AC-005 maps to Spec-AC-13.
 - Intake AC-006 maps to Spec-AC-14. The 15 sign-off records were appended by
   the intake commit `9981130b`; the row pins them.
+- Owner decision 2026-10-24 (D13): Spec-AC-17 (fenced marker) and Spec-AC-18
+  (spec path re-point) fold `fu-recheck-fenced-false-marker` and
+  `fu-recheck-specpath-repoint-gives-delta`; both serve Intake AC-002.
 - Spec-AC-09 (runtime safety of the switch-independent pieces: one store, one
   writer, subagent refusal) and Spec-AC-12 (governance) and Spec-AC-15
   (self-hosting) serve all of them.
@@ -400,6 +439,8 @@ runs `append-event.mjs`, and a subagent is refused.
 | Spec-AC-14 | spec-amend list over the repository ledger SHALL show every spec_amendment record of ref cheap-transitions-slice with ts before 2026-10-24T18:30:00Z in bucket signed or measurement, at least eleven of them signed, and the records at 2026-10-24T12:53:10Z of ref roadmap-serves-downstream-projects, at 2026-10-24T12:53:11Z of refs ride-state-handoff-to-worktree and canon-is-a-build-artifact and at 2026-10-24T13:42:28Z of ref node-first-third-slice signed; follow-ups list --status all SHALL show fu-amend-spec-cheap-transitions-slice, fu-amend-roadmap-serves-downstrea-fb0e2b, fu-amend-canon-is-a-build-artifac-d789f0 and fu-amend-node-first-third-slice-2-6a231a as done. | planned | — | — | TEST-2826 |
 | Spec-AC-15 | WHEN recheckMode runs on a scratch copy of the live tree with focus recheck-verdict-binding and this spec as the spec path, for Validation and Code Review, the system SHALL return full with ceremony_l3 among the reasons. | planned | — | — | TEST-2827 |
 | Spec-AC-16 | The SPEC-0250 TEST-2742 node case SHALL assert mode full for each of its shapes, the SPEC-0250 TEST-2742 row and D4 SHALL name spec-recheck-verdict-binding and SHALL NOT say the residual is pinned, docs/ai/decisions.jsonl SHALL hold a spec_amendment record of ref cheap-transitions-slice after 2026-10-24T18:30:00Z whose tracked_by is not fu-amend-spec-cheap-transitions-slice, and spec-amend list --strict SHALL exit 0. | planned | — | — | TEST-2828 |
+| Spec-AC-17 | WHEN a report is read for its security_relevant marker (markerOfText, used by bind-check at verdict and by recheckMode for prior reports) the system SHALL count a marker line only when it starts at column 0 outside every fenced code block (a fence of three or more backticks or tildes, opened with at most three leading spaces and closed by a line of the same character and at least that length); a false line inside a fence SHALL NOT make a report marked, a true line at column 0 outside a fence SHALL give true, a report with an unclosed fence and no true marker outside it SHALL give null, a report with a fence and one real false line outside it SHALL give false, and through bind-check and recheckMode a report whose only false marker sits inside a fence SHALL give full with security_marker_absent:binding:validation. | planned | — | — | TEST-2829, TEST-2830 |
+| Spec-AC-18 | WHEN recheckMode decides a bound round the system SHALL take the ceremony level from the stricter of the spec the binding records (spec_path, recorded once by bind-check dispatch from STATE) and the spec STATE names now, each read live and at the base, SHALL return full with spec_path_changed:binding when STATE names another path and with spec_path_unbound:binding when the block records none, and WHEN the work item spec_path or the focus spec_path is re-pointed at a lower-level spec after the bind of a level 3 spec it SHALL give ceremony_l3. | planned | — | — | TEST-2831, TEST-2832 |
 
 ## Implementation plan
 
@@ -465,7 +506,11 @@ them as named. A cell whose form the code cannot keep is re-anchored with a
   `if (replaceRefsPresent(root)) reasons`,
   `GIT_NO_REPLACE_OBJECTS: '1'`.
 - `recheck.mjs`: `if (!bound) reasons.push('first_round');`,
-  `const DEFAULT_ON = true;`.
+  `const DEFAULT_ON = true;`, `if (bound.specPath !== specPath)`,
+  `new Set([bound.specPath, specPath])`.
+- D13 (`check-binding.mjs`): `fence = { ch: open[1][0], len: open[1].length };`,
+  `if (fence !== null) return null;`,
+  `specPath: prior.specPath ?? stateSpecPath(lines, ref),`.
 - `state.mjs`: `const BIND_ROLE_GUARD = true;`.
 - `orchestration-dispatch.mjs`: `bindCheck(root, statePath, stampRef, t, 'verdict');`.
 - `metrics-flush.mjs`: `clearCheckBinding(lines, flushedRefs);`.
@@ -503,6 +548,10 @@ them as named. A cell whose form the code cannot keep is re-anchored with a
 | TEST-2826 | Spec-AC-14 | inspection | tests/skills/test-aai-recheck.sh | test_2826_498_amendments_signed runs node .aai/scripts/spec-amend.mjs list --json (stdout read into node, not argv) and requires every cheap-transitions-slice record with ts before 2026-10-24T18:30:00Z in signed or measurement with at least eleven signed, and the four cross-spec records at 12:53:10Z, 12:53:11Z (two refs) and 13:42:28Z signed; then follow-ups.mjs list --status all --json requires the four named trackers done (fu-amend-ride-state-handoff-to-worktree is not required: its open record dates from 2026-10-22) | `sed:s/"classifies_ts":"2026-10-24T13:42:28Z","classifies_ref":"node-first-third-slice","owner_signoff":true/"classifies_ts":"2026-10-24T13:42:28Z","classifies_ref":"node-first-third-slice","owner_signoff":false/` on docs/ai/decisions.jsonl | pending |
 | TEST-2827 | Spec-AC-15 | integration | tests/skills/test-aai-recheck.sh | test_2827_ride_stays_full runs recheckMode on a scratch copy of the live tree with STATE focus recheck-verdict-binding and this spec as spec path, role Validation and role Code Review, under AAI_RECHECK_MODE unset and delta: mode full and ceremony_l3 in the reasons for all four runs | `sed:s/const PROTECTED_LEVEL = 3;/const PROTECTED_LEVEL = 9;/` on .aai/scripts/lib/recheck.mjs | pending |
 | TEST-2828 | Spec-AC-16 | inspection | tests/skills/test-aai-recheck.sh | test_2828_spec0250_superseded runs the TEST-2742 node cases (green, asserting full) and checks the SPEC-0250 TEST-2742 row and D4 name spec-recheck-verdict-binding and do not contain pins the KNOWN general residual; reads decisions.jsonl for a spec_amendment of ref cheap-transitions-slice after 2026-10-24T18:30:00Z whose tracked_by differs from fu-amend-spec-cheap-transitions-slice; spec-amend list --strict exits 0 (rc read without a pipe) | `sed:s/spec-recheck-verdict-binding/spec-gone/g` on docs/specs/SPEC-0250-spec-cheap-transitions-slice.md | pending |
+| TEST-2829 | Spec-AC-17 | unit | tests/skills/test-aai-recheck.sh | test_2829_fenced_marker runs node --test --test-name-pattern TEST-2829: markerOfText gives false for a column-0 false line outside a fence, null for a false line only inside a backtick fence, only inside a tilde fence and only inside a fence opened with three leading spaces, null for a false line indented four spaces, true for a true line at column 0 outside a fence, null for an unclosed fence with no true marker, false for a fence followed by one real false line, null for a fence followed by two real marker lines, and a shorter closing line does not close a longer fence; the stored RED is the same text on 59ee0ff2 giving false for the fenced-only report | `sed:s/fence = \{ ch: open\[1\]\[0\], len: open\[1\]\.length \};/fence = null;/` on .aai/scripts/lib/check-binding.mjs | pending |
+| TEST-2830 | Spec-AC-17 | integration | tests/skills/test-aai-recheck.sh | test_2830_fenced_marker_seam: a two-round fixture bound through bind-check whose Validation report holds its only false marker inside a fence gives full with security_marker_absent:binding:validation and a prior-report security_marker_absent reason; the same fixture with one real false line outside the fence gives delta; a report with an unclosed fence gives null in the binding | `sed:s/if \(fence !== null\) return null;//` on .aai/scripts/lib/check-binding.mjs | pending |
+| TEST-2831 | Spec-AC-18 | unit | tests/skills/test-aai-recheck.sh | test_2831_specpath_repoint: a ride bound on a level 3 spec whose STATE work item spec_path is re-pointed at a level 2 spec, and one whose current_focus spec_path is re-pointed, each give full with spec_path_changed:binding and ceremony_l3; a block with no recorded spec_path gives spec_path_unbound:binding; the unchanged level 2 control gives delta; the stored RED is the stamp-built twin on 59ee0ff2 giving delta after the re-point | `sed:s/new Set\(\[bound\.specPath, specPath\]\)/new Set([specPath])/` on .aai/scripts/lib/recheck.mjs | pending |
+| TEST-2832 | Spec-AC-18 | unit | tests/skills/test-aai-recheck.sh | test_2832_specpath_recorded: bind-check --on dispatch records spec_path from STATE once, a later dispatch after STATE was re-pointed keeps the first path, a verdict write keeps it, a dispatch for another ref replaces the block with that ref spec path, and the flush partial reset keeps it | `sed:s/specPath: prior\.specPath \?\? stateSpecPath\(lines, ref\),/specPath: null,/` on .aai/scripts/lib/check-binding.mjs | pending |
 
 ### RED observations and positive controls
 
@@ -566,10 +615,10 @@ are inputs, not attestations of the implementation.
   install with eligible rounds. The delta round is still an independent model
   review of the delta, and a production change still gives full.
 - Open P3 items this scope does not fold, whose reach grows with the default
-  on: `fu-recheck-fenced-false-marker`, `fu-recheck-duplicate-level-keys`,
-  `fu-recheck-suite-symlink-is-test-code`, `fu-recheck-glob-matcher-limits`
-  and `fu-recheck-specpath-repoint-gives-delta` (owner decision, see the
-  hand-off).
+  on: `fu-recheck-duplicate-level-keys`, `fu-recheck-suite-symlink-is-test-code`
+  and `fu-recheck-glob-matcher-limits`. The owner folded
+  `fu-recheck-fenced-false-marker` and `fu-recheck-specpath-repoint-gives-delta`
+  on 2026-10-24 (D13).
 - `ledger_rewritten` stays and may refuse delta on a checkout whose line
   endings rewrite the ledger (Windows `core.autocrlf=true`, a carried
   cannot_verify of #498); that gives full, not delta.
@@ -591,12 +640,11 @@ are inputs, not attestations of the implementation.
 Registry items closed by this scope: `fu-recheck-verdict-not-bound-to-check`
 (D1 to D5), `fu-recheck-escalation-mode-blind` and
 `fu-recheck-escalation-merge-mismatch` (D8), `fu-recheck-comments-overclaim-scope`
-(D8).
+(D8), `fu-recheck-fenced-false-marker` and
+`fu-recheck-specpath-repoint-gives-delta` (D13, owner decision 2026-10-24).
 
-Related open items, left open: `fu-recheck-fenced-false-marker`,
-`fu-recheck-duplicate-level-keys`, `fu-recheck-glob-matcher-limits` and
+Related open items, left open: `fu-recheck-duplicate-level-keys`, `fu-recheck-glob-matcher-limits` and
 `fu-recheck-suite-symlink-is-test-code` (classification of reports, specs,
 protected entries and paths; not stamp tampering; owner decision on folding),
-`fu-recheck-specpath-repoint-gives-delta` (a STATE write, the same class as
-the D9 residual), `fu-amend-ride-state-handoff-to-worktree` (its open record
+`fu-amend-ride-state-handoff-to-worktree` (its open record
 is from the 2026-10-22 ride, not #498).
