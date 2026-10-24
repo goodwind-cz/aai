@@ -9,9 +9,13 @@
 // D4 comparisons and the git environment those reads run in.
 //
 // A second block, check_sticky, keeps one record per ref: the security flag and every spec path
-// that ref has been recorded with. bind-check writes it by raising the flag and adding paths, and
-// ride-handoff.mjs copies the entry of its ref into the worktree STATE the same way. The block
-// replacement, the metrics flush and reset-block have no code that edits it.
+// that ref has been recorded with. Two commands write it, both through putStickyRaise: state.mjs
+// bind-check (the ref it binds) and ride-handoff.mjs out (the origin entry of its ref, into the
+// worktree STATE). The block replacement, the metrics flush, reset-block and check-state have no
+// code that opens it. recheckMode compares the entry for the ref in the STATE file it decides.
+// The record is per STATE file: a STATE file with no raised entry for the ref starts unraised
+// (a worktree STATE ride-handoff.mjs out did not write, a STATE recreated in the same checkout,
+// the origin STATE after a worktree raised the flag; nothing carries a record back).
 //
 // Wording rule (D9): a comment here names the comparison a check makes; it states no more.
 // Residual: the comparisons read docs/ai/STATE.yaml and the bound report files as they are
@@ -454,32 +458,39 @@ function putBlock(lines, blockLines, key = BINDING_BLOCK) {
   lines.splice(b.start, b.end - b.start, ...blockLines, ...(blanks.length ? blanks : ['']));
 }
 
-// --- the check_sticky block: one raise-only record per ref -------------------------------
+// --- the check_sticky block: one record per ref, each write ORs the flag and adds paths ----
 
 // readStickyRecords(lines) -> { present, problems, entries: Map(ref_id -> { security, specPaths }) }.
 // Every list item is one JSON object {"ref_id": string, "security": boolean, "spec_paths": [string]};
 // an item that is anything else, a repeated ref_id or an unknown key is listed in `problems`.
 export function readStickyRecords(lines) {
-  const out = { present: false, problems: [], entries: new Map() };
+  const out = { present: false, problems: [], entries: new Map(), keptLines: [], headerLine: null };
   const b = findBlock(lines, STICKY_BLOCK);
   if (!b) return out;
   out.present = true;
-  if (lines[b.start].slice(lines[b.start].indexOf(':') + 1).trim() !== '') out.problems.push('sticky_header_inline');
+  if (lines[b.start].slice(lines[b.start].indexOf(':') + 1).trim() !== '') { out.problems.push('sticky_header_inline'); out.headerLine = lines[b.start]; }
   for (let i = b.start + 1; i < b.end; i += 1) {
     const l = lines[i];
     if (l.trim() === '' || l.startsWith('#')) continue;
     const m = /^ {2}- (.*)$/.exec(l);
-    if (!m) { out.problems.push(`sticky_unparsed_line:${i - b.start}`); continue; }
+    if (!m) { out.problems.push(`sticky_unparsed_line:${i - b.start}`); out.keptLines.push(l); continue; }
     let o;
-    try { o = JSON.parse(unquoteScalar(m[1].trim())); } catch { out.problems.push(`sticky_item:${i - b.start}`); continue; }
+    try { o = JSON.parse(unquoteScalar(m[1].trim())); } catch { out.problems.push(`sticky_item:${i - b.start}`); out.keptLines.push(l); continue; }
     const okKeys = o && typeof o === 'object' && !Array.isArray(o)
       && Object.keys(o).sort().join(',') === 'ref_id,security,spec_paths';
     if (!okKeys || typeof o.ref_id !== 'string' || o.ref_id === '' || typeof o.security !== 'boolean'
       || !Array.isArray(o.spec_paths) || !o.spec_paths.every((x) => typeof x === 'string' && x !== '')) {
       out.problems.push(`sticky_item:${i - b.start}`);
+      out.keptLines.push(l);
       continue;
     }
-    if (out.entries.has(o.ref_id)) { out.problems.push(`sticky_duplicate_ref:${i - b.start}`); continue; }
+    if (out.entries.has(o.ref_id)) {
+      // A repeated ref is a problem for the reader; the entry keeps the highest flag and every path.
+      const first = out.entries.get(o.ref_id);
+      out.problems.push(`sticky_duplicate_ref:${i - b.start}`);
+      out.entries.set(o.ref_id, { security: first.security || o.security, specPaths: [...new Set([...first.specPaths, ...o.spec_paths])] });
+      continue;
+    }
     out.entries.set(o.ref_id, { security: o.security, specPaths: [...new Set(o.spec_paths)] });
   }
   return out;
@@ -495,19 +506,23 @@ export function readSticky(statePath) {
   return readStickyRecords(splitLines(raw).lines);
 }
 
-function serializeSticky(entries) {
-  const out = [`${STICKY_BLOCK}:`];
+function serializeSticky(entries, { headerLine = null, keptLines = [] } = {}) {
+  const out = [headerLine === null ? `${STICKY_BLOCK}:` : headerLine];
   for (const ref of [...entries.keys()].sort()) {
     const e = entries.get(ref);
     out.push(`  - ${yq(JSON.stringify({ ref_id: ref, security: e.security === true, spec_paths: [...new Set(e.specPaths)].sort() }))}`);
   }
+  out.push(...keptLines);
   return out;
 }
 
 // putStickyRaise(lines, ref, { security, specPaths, unknownPrior }) -> the entry now recorded.
-// Raise-only: the flag is the OR of the recorded flag and the given one, the paths are the union.
-// A record that does not parse is rebuilt from its parseable items and, for this ref, written with
-// the flag raised; `unknownPrior` raises it as well (a prior block that did not parse).
+// The flag written is the OR of the recorded flag and the given one, the paths are the union.
+// A record that does not parse is rebuilt from its parseable items; the lines that did not parse
+// (and an inline header) are kept byte for byte, so the reader stays ambiguous for every ref they
+// might have named, and a repeated ref is merged to the highest flag and the union of its paths.
+// This ref is written with the flag raised; `unknownPrior` raises it as well (a prior block that
+// did not parse).
 export function putStickyRaise(lines, ref, { security = false, specPaths = [], unknownPrior = false } = {}) {
   const cur = readStickyRecords(lines);
   const had = cur.entries.get(ref);
@@ -517,7 +532,7 @@ export function putStickyRaise(lines, ref, { security = false, specPaths = [], u
   };
   const entries = new Map(cur.entries);
   entries.set(ref, entry);
-  putBlock(lines, serializeSticky(entries), STICKY_BLOCK);
+  putBlock(lines, serializeSticky(entries, { headerLine: cur.headerLine, keptLines: cur.keptLines }), STICKY_BLOCK);
   return entry;
 }
 

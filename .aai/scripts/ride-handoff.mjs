@@ -445,9 +445,10 @@ function checkFresh(wLines, ref, originEntry) {
   return null;
 }
 
-// The raise-only check_sticky record of the ride travels with it: the worktree STATE gets the
-// origin's entry for the ref (flag and spec paths, raised, never lowered). An origin record that
+// The check_sticky entry of the ride is copied origin to worktree: the worktree STATE gets the
+// origin's entry for the ref (flag and spec paths, through putStickyRaise). An origin record that
 // does not parse, or a check_binding block of the ref with no record, is carried as flag raised.
+// Nothing copies an entry from a worktree STATE back to the origin STATE.
 function carrySticky(lines, originLines, ref) {
   const rec = readStickyRecords(originLines);
   const e = rec.entries.get(ref);

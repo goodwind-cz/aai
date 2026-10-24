@@ -1,6 +1,6 @@
 // recheck.test.mjs - node:test cases for the delta re-check mode
 // (docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, TEST-2701..2746;
-// docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md, TEST-2801..2837).
+// docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md, TEST-2801..2839).
 // Every case builds a temporary git repository under the OS temp directory; the
 // shipping tree is only read. Each case name starts with its TEST id so
 // test-aai-recheck.sh can run one id at a time (node --test --test-name-pattern).
@@ -2770,7 +2770,7 @@ test('TEST-2826 the #498 amendments are signed and their trackers are done', () 
 });
 
 // ------------------------------------------------------------------ TEST-2827
-test('TEST-2827 this ride stays full: ceremony_l3 on its own spec, for both roles, with and without the opt-in', async () => {
+test('TEST-2827 this ride stays full: ceremony_l3 on its own spec, for both roles, under the delta value and under the unset default', async () => {
   const L = await lib();
   const specName = fs.readdirSync(path.join(PROJECT_ROOT, 'docs/specs')).find((f) => /-spec-recheck-verdict-binding\.md$/.test(f));
   assert.ok(specName, 'the recheck-verdict-binding spec is not under docs/specs');
@@ -2856,11 +2856,20 @@ test('TEST-2821 the docs state the default as on with AAI_RECHECK_MODE=full as t
   assert.ok(esc.length > 0 && esc.every((l) => l.includes('AAI_RECHECK_MODE=full') && !/full[^.]*or unset/.test(l)), 'the escalation re-dispatch must name AAI_RECHECK_MODE=full set explicitly');
   const rfc = readRel('docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md').split('\n').filter((l) => l.includes('recheck-verdict-binding'));
   assert.ok(rfc.length > 0 && rfc.every((l) => !/stays opt-in|opt-in until/.test(l)), 'the RFC-0017 row still says the mode stays opt-in');
-  const log498 = readRel('CHANGELOG.md').split(/^## \[unreleased\] — /m).find((p) => p.startsWith('feat(recheck): an opt-in slim payload'));
+  const log498 = readRel('CHANGELOG.md').split(/^## \[unreleased\] — /m).find((p) => p.startsWith('feat(recheck): a slim payload'));
   assert.ok(log498 && /changes the default/.test(log498), 'the #498 CHANGELOG entry does not say that the later entry changes the default');
   const spec250 = readRel('docs/specs/' + name);
   const stale = spec250.split('\n').filter((l) => /delta is OPT-IN|opt-in by proof|Delta is off by default|leave `AAI_RECHECK_MODE` unset \(the default\)|unset \(the default\) keeps/.test(l));
   assert.deepEqual(stale, [], 'SPEC-0250 still states the old default');
+  // wording after the flip (remediation round 2): no present-tense off/opt-in claim in SPEC-0250's risk line,
+  // no CHANGELOG heading of a recheck entry that calls the mode opt-in, and a vendored comment that names what recheck reads
+  assert.deepEqual(spec250.split('\n').filter((l) => /the mode is off unless/i.test(l)), [], 'SPEC-0250 still says the mode is off unless exported');
+  const headings = readRel('CHANGELOG.md').split('\n').filter((l) => /^## \[unreleased\] — /.test(l) && /recheck/i.test(l));
+  assert.ok(headings.length >= 2, 'both recheck CHANGELOG headings present: ' + JSON.stringify(headings));
+  assert.deepEqual(headings.filter((l) => /opt-in|off by default/i.test(l)), [], 'a recheck CHANGELOG heading still calls the mode opt-in');
+  const ae = readRel('.aai/scripts/append-event.mjs');
+  assert.ok(!/reads them back|opt-in default|decide whether the next round may run/.test(ae), 'append-event.mjs still says recheck reads the stamps or an opt-in default');
+  assert.ok(/does\s+not\s+read\s+them/.test(ae.replace(/\n\s*\/\/\s*/g, ' ')), 'append-event.mjs does not say the stamps are telemetry');
 });
 
 // =====================================================================================
@@ -3114,4 +3123,83 @@ test('TEST-2837 the record is raise-only: a partial flush, a full flush and rese
   // a bind over an unparseable record rewrites it with the flag raised
   mustBind(bad.root, 'dispatch', 'validation');
   assert.equal(stickyOf(bad.root).security, true);
+});
+
+// =====================================================================================
+// recheck-verdict-binding remediation round 2 (TEST-2838, TEST-2839): a bind over a check_sticky
+// record that has a problem must not turn the ambiguity into a lower entry for another ref.
+// =====================================================================================
+const R2_REF = 'ride-one';
+const R2_SO = { ref: R2_REF };
+function r2TrueRide(name) {
+  const fx = mkRepo(name, { verdicts: false, state: R2_SO });
+  judgeRound(fx.root, 'validation', VAL_N('t1'), '# R1\n\nsecurity_relevant: true\n', R2_SO);
+  return fx;
+}
+async function r2BindOtherThenFalseRound(root) {
+  setFocus(root, 'hotfix-two', ISSUE_2);
+  mustBind(root, 'dispatch', 'validation', 'hotfix-two');
+  setFocus(root, R2_REF, ISSUE_1);
+  judgeRound(root, 'validation', VAL_N('f1'), `# R\n\n${MARK_FALSE}`, R2_SO);
+  touchTest(root);
+  const L = await lib();
+  return [DELTA_ENV, {}].map((env) => L.recheckMode({ root, ref: R2_REF, role: 'Validation', env }));
+}
+
+test('TEST-2838 a bind for another ref keeps an unparsable check_sticky item byte for byte and the damaged ref stays full', async () => {
+  const { root } = r2TrueRide('t2838');
+  const hostile = stateText(root).replace('"security":true', '"security":"true"');
+  fs.writeFileSync(stateOf(root), hostile);
+  const badLine = hostile.split('\n').find((l) => l.includes('"security":"true"'));
+  assert.ok(badLine, 'control: the item is damaged');
+  touchTest(root);
+  const L = await lib();
+  const first = L.recheckMode({ root, ref: R2_REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(first.mode, 'full', 'control: ' + reasonsOf(first));
+  assert.ok(first.reasons.includes('sticky_record_ambiguous'), reasonsOf(first));
+  setFocus(root, 'hotfix-two', ISSUE_2);
+  mustBind(root, 'dispatch', 'validation', 'hotfix-two');
+  assert.ok(stickyRaw(root).split('\n').includes(badLine), 'the damaged line survives the bind byte for byte');
+  assert.equal(stickyOf(root, 'hotfix-two').security, true, 'the ref being written is raised');
+  setFocus(root, R2_REF, ISSUE_1);
+  judgeRound(root, 'validation', VAL_N('f1'), `# R\n\n${MARK_FALSE}`, R2_SO);
+  assert.ok(stickyRaw(root).split('\n').includes(badLine), 'the damaged line survives every later bind');
+  touchTest(root);
+  for (const env of [DELTA_ENV, {}]) {
+    const m = L.recheckMode({ root, ref: R2_REF, role: 'Validation', env });
+    assert.equal(m.mode, 'full', reasonsOf(m));
+    assert.ok(m.reasons.includes('sticky_record_ambiguous'), reasonsOf(m));
+  }
+  // control: the same alternation over an undamaged record of a false ride is delta
+  const ctl = mkRepo('t2838-ctl', { verdicts: false, state: R2_SO });
+  judgeRound(ctl.root, 'validation', VAL_N('c1'), `# R1\n\n${MARK_FALSE}`, R2_SO);
+  const [d1] = await r2BindOtherThenFalseRound(ctl.root);
+  assert.equal(d1.mode, 'delta', 'control: ' + reasonsOf(d1));
+});
+
+test('TEST-2839 a bind for another ref merges duplicated check_sticky items to the highest flag and the ref stays full', async () => {
+  const { root } = r2TrueRide('t2839');
+  const t = stateText(root);
+  const m = /^check_sticky:\n {2}- '(.*)'$/m.exec(t);
+  assert.ok(m, 'control: one item');
+  const tru = m[1];
+  const fal = tru.replace('"security":true', '"security":false');
+  assert.notEqual(fal, tru);
+  fs.writeFileSync(stateOf(root), t.replace(`  - '${tru}'`, `  - '${fal}'\n  - '${tru}'`));
+  touchTest(root);
+  const L = await lib();
+  const first = L.recheckMode({ root, ref: R2_REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(first.mode, 'full', 'control: ' + reasonsOf(first));
+  const modes = await r2BindOtherThenFalseRound(root);
+  for (const mm of modes) assert.equal(mm.mode, 'full', reasonsOf(mm));
+  assert.equal(stickyOf(root, R2_REF).security, true, 'the merged entry keeps the highest flag');
+  assert.equal(stickyRaw(root).split('\n').filter((l) => l.includes('"ref_id":"ride-one"')).length, 1, 'one merged item');
+  // reversed order gives the same entry
+  const rev = r2TrueRide('t2839-rev');
+  const t2 = stateText(rev.root);
+  const m2 = /^check_sticky:\n {2}- '(.*)'$/m.exec(t2);
+  const fal2 = m2[1].replace('"security":true', '"security":false');
+  fs.writeFileSync(stateOf(rev.root), t2.replace(`  - '${m2[1]}'`, `  - '${m2[1]}'\n  - '${fal2}'`));
+  for (const mm of await r2BindOtherThenFalseRound(rev.root)) assert.equal(mm.mode, 'full', reasonsOf(mm));
+  assert.equal(stickyOf(rev.root, R2_REF).security, true);
 });

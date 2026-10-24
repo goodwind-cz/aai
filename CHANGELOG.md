@@ -29,10 +29,15 @@ fine — it is the marker a cut leaves on top.
   the gitignored `docs/ai/STATE.yaml`: the head of the first dispatch, the verdict, the sha256 of each report and the `security_relevant`
   marker. `recheckMode` compares that block, so a stamp rewrite or a hand-appended stamp changes nothing it reads. Git reads run without
   inherited `GIT_*` variables and without replace objects, and `refs/replace/` or `info/grafts` gives `full`.
-- A second STATE block, `check_sticky`, keeps one record per ref (the `security_relevant` flag and every spec path the ref was recorded with). Only
-  `bind-check` writes it and only to raise the flag or add a path: replacing the `check_binding` block (a focus switch to another ref and back, a
-  `git worktree move`), a metrics flush and `reset-block` leave it, and `ride-handoff.mjs out` copies the record of its ref into the worktree STATE.
-  A bound block with no record, or a record that does not parse, gives `full`.
+- A second STATE block, `check_sticky`, keeps one record per ref (the `security_relevant` flag and every spec path the ref was recorded with). Two commands
+  write it: `state.mjs bind-check` (for the ref it binds) and `ride-handoff.mjs out` (it copies the origin entry of its ref into the worktree STATE). Both
+  set the flag to the OR of the recorded and the given value and add paths; a bind over a record that has an item it cannot parse keeps that line as it was
+  and merges two items of one ref to the highest flag. Replacing the `check_binding` block (a focus switch to another ref and back, a `git worktree move`),
+  a metrics flush, `reset-block` and `check-state` contain no code that opens the record. `recheckMode` compares the entry for the ref in the STATE file of the
+  tree being decided: it must exist (`sticky_record_absent:binding`), parse (`sticky_record_ambiguous`) and hold `security` other than `true`. The record is
+  per STATE file, so a STATE file without a raised entry for the ref starts unraised and its first bind writes `security` false: a worktree STATE that
+  `ride-handoff.mjs out` did not write, a STATE deleted and recreated in the same checkout, and the origin STATE after a worktree raised the flag (nothing
+  carries a record back from a worktree). An edit of the record outside `state.mjs` is the residual below.
 - Two more cases give `full` (owner decision 2026-10-24): a `security_relevant: false` line inside a fenced code block no longer counts as
   the report marker, and the ceremony level is the stricter of the spec the binding recorded and the spec STATE names now.
 - `check-role-output.mjs` takes `--recheck-mode <delta|full>` and prints `RECHECK-ESCALATION` only for a delta round; the prompts say an
@@ -45,7 +50,7 @@ fine — it is the marker a cut leaves on top.
   `state.mjs` before the tick that binds or reads it, and a verdict the orchestrator itself records for the dispatched role with a new report,
   are taken as written; no shape outside the D5 table is claimed.
 
-## [unreleased] — feat(recheck): an opt-in slim payload for a re-check round with a non-production delta
+## [unreleased] — feat(recheck): a slim payload for a re-check round with a non-production delta
 
 - With `AAI_RECHECK_MODE=delta` set (the default then was full; the entry above turned it on), a Validation or Code Review round that follows an already-judged round can run
   on a slim payload (the contract, the new `.aai/RECHECK_DELTA.prompt.md` and a

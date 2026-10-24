@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T22:01:59.894Z",
+  "generatedAt": "2026-10-24T23:17:44.783Z",
   "project": "aai",
   "counts": {
     "delivered": 320,
@@ -61,7 +61,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-recheck-verdict-binding-20261024T211719Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",

@@ -3,7 +3,7 @@ id: spec-cheap-transitions-slice
 type: spec
 number: 250
 status: done
-frozen_sha256: f0714b62f85655a2d943f93c288f9613d1f0b6396214a77b0270074900c5ad95
+frozen_sha256: 3d185ddd46c424c471f997be3da7110964db5a3cd61d67b87b6e4417afcc7e2a
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -677,8 +677,8 @@ implementation.
 - No ride in this slice runs a delta round (D10), so the seam from a delta
   Validation report to `validation-outcome-check.mjs` is pinned only by the
   prompt text, and the token effect is unmeasured. The first ride with a delta
-  round is the observation; the mode is off unless `AAI_RECHECK_MODE=delta` is
-  exported, so no code change turns it off.
+  round is the observation. This slice shipped the mode off unless `AAI_RECHECK_MODE=delta` was
+  exported; since spec-recheck-verdict-binding D7 it is on unless `AAI_RECHECK_MODE=full` is exported.
 - The prompt hash of a delta dispatch used to include `LEARNED.md`, which the
   delta payload does not send. Remediation round 6 removed it (D6, D7): the
   delta hash covers exactly the re-check prompt and the contract, so a LEARNED

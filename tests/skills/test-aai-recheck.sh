@@ -11,7 +11,7 @@
 # The cases are node:test cases in tests/skills/lib/recheck.test.mjs; each builds
 # its own temporary git repository, the real repository is only read.
 #
-# TEST-2801..2837 (docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md): the judged round is the
+# TEST-2801..2839 (docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md): the judged round is the
 # check_binding block of STATE written by state.mjs bind-check; every fixture builds it through that
 # real CLI.
 #
@@ -259,7 +259,7 @@ test_2741_stamps_refused_for_subagent() {
 
 test_2742_uncommitted_stamp_rewrite_residual() {
   run_recheck_node_tests TEST-2742
-  log_pass "TEST-2742: the uncommitted-stamp rewrite is pinned as a known residual (delta under opt-in, full by default)"
+  log_pass "TEST-2742: an uncommitted stamp rewrite gives full, because eligibility reads the STATE binding and the stamps are telemetry"
 }
 
 test_2743_merge_in_range_refused() {
@@ -462,8 +462,18 @@ test_2837_record_raise_only() {
   log_pass "TEST-2837: a flush and reset-block leave the record, and an absent or unparseable record gives full"
 }
 
+test_2838_unparsable_item_kept() {
+  run_recheck_node_tests TEST-2838
+  log_pass "TEST-2838: a bind for another ref keeps an unparsable record item byte for byte and the ref stays full"
+}
+
+test_2839_duplicate_items_merged() {
+  run_recheck_node_tests TEST-2839
+  log_pass "TEST-2839: a bind for another ref merges duplicated record items to the highest flag and the ref stays full"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2746, SPEC spec-recheck-verdict-binding TEST-2801..2837)"
+  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2746, SPEC spec-recheck-verdict-binding TEST-2801..2839)"
   check_deps
   test_2701_baseline_table_matches_metrics
   test_2702_delta_applies
@@ -544,6 +554,8 @@ main() {
   test_2835_handoff_sticky
   test_2836_specpath_record
   test_2837_record_raise_only
+  test_2838_unparsable_item_kept
+  test_2839_duplicate_items_merged
   test_2820_default_on
   test_2821_default_on_docs
   echo ""
