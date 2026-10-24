@@ -3266,3 +3266,4 @@
 {"v":1,"ts":"2026-10-24T00:46:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"node-first-second-slice","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-24T00:46:06Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-second-slice","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-24T00:46:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-second-slice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-24T01:00:15Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"node-first-second-slice","payload":{"pr":496,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"72631590e3740cbb36b87f515d37093fdcfc2d21"}}
