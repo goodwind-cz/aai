@@ -231,6 +231,38 @@ const MARK_TRUE_RE = /^security_relevant: true\s*$/m;
 const MARK_FALSE_RE = /^security_relevant: false\s*$/gm;
 const MARK_ANY_RE = /^security_relevant:/gm;
 
+// The security_relevant marker of one report text: true when a line says true, false when
+// exactly one marker line exists and it says false, null for anything else (absent,
+// duplicated, mixed). Eligibility treats null as absent.
+export function markerOfText(text) {
+  if (MARK_TRUE_RE.test(text)) return true;
+  if ((text.match(MARK_ANY_RE) || []).length === 1 && (text.match(MARK_FALSE_RE) || []).length === 1) return false;
+  return null;
+}
+
+// NB-6: the marker of one check role, read from the reports STATE names for it at the
+// moment its verdict is first seen, and recorded in the check_verdict stamp. true when any
+// report says true, false only when there is at least one report and every one says false,
+// null otherwise (the stamp then carries no marker and the role stays full).
+function markerOfRole(root, state, roleToken, ref) {
+  let paths = [];
+  if (roleToken === 'validation') {
+    if (refMatches(state.validation.ref, ref)) paths = state.validation.evidencePaths.filter((p) => /\.md$/i.test(p));
+  } else if (state.review.scopeRef == null || refMatches(state.review.scopeRef, ref)) {
+    paths = state.review.reportPaths;
+  }
+  if (paths.length === 0) return null;
+  let allFalse = true;
+  for (const p of paths) {
+    let text;
+    try { text = fs.readFileSync(path.resolve(root, p), 'utf8'); } catch { return null; }
+    const m = markerOfText(text);
+    if (m === true) return true;
+    if (m !== false) allFalse = false;
+  }
+  return allFalse ? false : null;
+}
+
 // The level of a spec as one source states it: the live file, or the blob at `base`.
 // The delta may edit the focus spec (docs/specs/** is non-production), so the decision
 // reads BOTH and takes the stricter one (NB-1); a source that cannot be read is null.
@@ -274,6 +306,17 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
   } else if (HEX40.test(String(priorVerdict.payload.head))) {
     base = priorVerdict.payload.head;
   }
+
+  // NB-6: the marker the judged round's own report carried when its verdict was stamped.
+  // A report written after the base is read live below, where an edit could flip it, so the
+  // stamp is the authority: any stamped true of either role keeps the ride full for good,
+  // and the role's latest stamp must say false (a stamp with no marker counts as absent).
+  for (const t of ['validation', 'code_review']) {
+    if (events.some((e) => e && e.event === 'check_verdict' && e.ref === ref && e.payload && e.payload.role === t
+      && e.payload.security_relevant === true)) reasons.push(`security_relevant:stamp:${t}`);
+  }
+  if (priorVerdict && priorVerdict.payload.security_relevant !== false
+    && priorVerdict.payload.security_relevant !== true) reasons.push(`security_marker_absent:stamp:${token}`);
 
   let changed = [];
   let diffBase = null;
@@ -357,11 +400,9 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
       reasons.push(`prior_report_unreadable:${p}`);
       continue;
     }
-    if (MARK_TRUE_RE.test(text)) {
-      reasons.push(`security_relevant:${p}`);
-    } else if ((text.match(MARK_ANY_RE) || []).length !== 1 || (text.match(MARK_FALSE_RE) || []).length !== 1) {
-      reasons.push(`security_marker_absent:${p}`);
-    }
+    const m = markerOfText(text);
+    if (m === true) reasons.push(`security_relevant:${p}`);
+    else if (m === null) reasons.push(`security_marker_absent:${p}`);
   }
   if (token && roleReports[token].length === 0) reasons.push(`security_marker_absent:${token}`);
 
@@ -450,7 +491,10 @@ export function planCheckStamps({ root, statePath = null, ref, dispatchRole = nu
     if (open.length === 0) continue;
     const cur = currentIdentity(state, roleToken, ref);
     if (cur && cur.status && isNewer(roleToken, open[0].payload.seen, cur)) {
-      stamps.push({ event: 'check_verdict', role: roleToken, head: verdictBase(root, open), status: cur.status });
+      const stamp = { event: 'check_verdict', role: roleToken, head: verdictBase(root, open), status: cur.status };
+      const marker = markerOfRole(root, state, roleToken, ref);
+      if (marker !== null) stamp.security_relevant = marker;
+      stamps.push(stamp);
       verdictPlanned.add(roleToken);
     }
   }

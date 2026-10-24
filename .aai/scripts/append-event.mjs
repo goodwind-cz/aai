@@ -186,6 +186,12 @@ function main() {
       } else {
         if (args.status !== 'pass' && args.status !== 'fail') fail('check_verdict requires --status pass|fail');
         entry.payload.status = args.status;
+        // NB-6: the security_relevant marker of the judged round's report at verdict time;
+        // optional, and an absent one makes the next round run full.
+        if (args.security_relevant !== undefined) {
+          if (args.security_relevant !== 'true' && args.security_relevant !== 'false') fail('check_verdict --security-relevant must be true or false');
+          entry.payload.security_relevant = args.security_relevant === 'true';
+        }
       }
       break;
     }

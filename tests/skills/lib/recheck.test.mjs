@@ -143,7 +143,7 @@ function readEvents(root) {
 }
 
 function verdictEvents(base, roles = ['validation', 'code_review']) {
-  return roles.map((role) => ({ event: 'check_verdict', ref: REF, payload: { role, head: base, status: 'fail' } }));
+  return roles.map((role) => ({ event: 'check_verdict', ref: REF, payload: { role, head: base, status: 'fail', security_relevant: false } }));
 }
 
 const DEFAULT_AUDIT = 'protected_paths_l3:\n  - .aai/workflow/WORKFLOW.md\n  - docs/CONSTITUTION.md\n';
@@ -808,8 +808,8 @@ test('TEST-2717 this ride stays full: ceremony_l3 on its own spec', async () => 
   const fx = mkRepo('t2717', { verdicts: true, state: { ref: 'cheap-transitions-slice', spec: specRel } });
   fs.copyFileSync(path.join(PROJECT_ROOT, specRel), path.join(fx.root, specRel));
   appendEvents(fx.root, [
-    { event: 'check_verdict', ref: 'cheap-transitions-slice', payload: { role: 'validation', head: fx.base, status: 'fail' } },
-    { event: 'check_verdict', ref: 'cheap-transitions-slice', payload: { role: 'code_review', head: fx.base, status: 'fail' } },
+    { event: 'check_verdict', ref: 'cheap-transitions-slice', payload: { role: 'validation', head: fx.base, status: 'fail', security_relevant: false } },
+    { event: 'check_verdict', ref: 'cheap-transitions-slice', payload: { role: 'code_review', head: fx.base, status: 'fail', security_relevant: false } },
   ]);
   fs.appendFileSync(path.join(fx.root, 'tests/skills/test-aai-base.sh'), 'echo more\n');
   for (const role of ['Validation', 'Code Review']) {
@@ -897,7 +897,9 @@ test('TEST-2723 the six #497 amendments are signed and their follow-up is done',
   const run = (script, args) => JSON.parse(execFileSync(process.execPath, [path.join(SCRIPTS, script), ...args], { cwd: PROJECT_ROOT, encoding: 'utf8', env: cleanEnv(), maxBuffer: 64 * 1024 * 1024 }));
   const sa = run('spec-amend.mjs', ['list', '--json']);
   const fu = run('follow-ups.mjs', ['list', '--status', 'all', '--json']);
-  const mine = sa.items.filter((i) => i.ref_id === 'node-first-third-slice');
+  // Only the records that existed before this ride's remediation round 2: a later amendment of that ref
+  // (remediation round 2, TEST-2623 row-4 scope) is an owner obligation of its own tracker.
+  const mine = sa.items.filter((i) => i.ref_id === 'node-first-third-slice' && String(i.ts) < '2026-10-24T13:00:00Z');
   const signed = mine.filter((i) => i.bucket === 'signed');
   assert.ok(signed.length >= 6, 'only ' + signed.length + ' signed record(s) for node-first-third-slice, want at least 6');
   const other = mine.filter((i) => i.bucket !== 'signed' && i.bucket !== 'measurement');
@@ -1110,6 +1112,140 @@ test('TEST-2729 prior-report markers come from the base commit and a changed pri
   write(bad.root, NEW_VAL, '# Validation 2\n\nsecurity_relevant: true\n');
   write(bad.root, NEW_REV, `# Review 2\n\n${MARK_FALSE}`);
   assert.ok(L.recheckMode({ root: bad.root, ref: REF, role: 'Validation', env: {} }).reasons.includes('security_relevant:' + NEW_VAL), 'a new report that says true refuses');
+});
+
+// ------------------------------------------------------------------ TEST-2734
+// NB-6: the judged round's own report is written after the base, so its marker is read live
+// and an edit could flip it. The marker is recorded in the check_verdict stamp when the
+// verdict is first seen, and eligibility trusts only the stamp.
+const Q_VAL = 'docs/ai/reports/VALIDATION-2.md';
+const Q_REV = 'docs/ai/reviews/rev-2.md';
+
+// Builds the fixture of one judged round: the dispatch stamp at the base, the checker's own
+// report (marker text given) written after the base, STATE showing the verdict, and the
+// verdict stamp planned by planCheckStamps and appended as the dispatch would.
+function judgedRound(L, name, tokenRole, markerText) {
+  const fx = mkRepo(name, { verdicts: false, state: { vstatus: 'not_run', rstatus: 'not_run' } });
+  const seen = tokenRole === 'validation' ? 'run_at:2026-07-01T00:00:00Z' : 'reports:1';
+  appendEvents(fx.root, [{ event: 'check_dispatched', ref: REF, payload: { role: tokenRole, head: fx.base, seen } }]);
+  const rel = tokenRole === 'validation' ? Q_VAL : Q_REV;
+  write(fx.root, rel, markerText);
+  write(fx.root, 'docs/ai/STATE.yaml', tokenRole === 'validation'
+    ? stateYaml({ vstatus: 'fail', runAt: '2026-07-02T00:00:00Z', evidence: [Q_VAL] })
+    : stateYaml({ vstatus: 'pass', rstatus: 'fail', reports: [REV_REL, Q_REV] }));
+  const plan = L.planCheckStamps({ root: fx.root, ref: REF, dispatchRole: null });
+  const stamp = plan.find((x) => x.event === 'check_verdict' && x.role === tokenRole);
+  assert.ok(stamp, 'a verdict stamp is planned: ' + JSON.stringify(plan));
+  appendEvents(fx.root, [{ event: 'check_verdict', ref: REF, payload: { role: tokenRole, head: stamp.head, status: stamp.status,
+    ...(stamp.security_relevant === undefined ? {} : { security_relevant: stamp.security_relevant }) } }]);
+  return { ...fx, stamp, rel };
+}
+
+test('TEST-2734 the stamped security marker decides: a flipped committed review report (Q8) and a flipped gitignored validation report (Q9) stay full', async () => {
+  const L = await lib();
+  // Q8: a committed Code Review report that said true at verdict time is flipped to false inside the delta.
+  const q8 = judgedRound(L, 't2734-q8', 'code_review', '# Review 2\n\nsecurity_relevant: true\n');
+  assert.equal(q8.stamp.security_relevant, true, 'the stamp records the marker read at verdict time');
+  git(q8.root, ['add', '-A']);
+  git(q8.root, ['commit', '-q', '-m', 'judged round report']);
+  write(q8.root, Q_REV, '# Review 2\n\nsecurity_relevant: false\n');
+  git(q8.root, ['commit', '-q', '-am', 'flip the marker inside the delta']);
+  const r8 = L.recheckMode({ root: q8.root, ref: REF, role: 'Code Review', env: {} });
+  assert.equal(r8.mode, 'full', 'Q8: ' + reasonsOf(r8));
+  assert.ok(r8.reasons.includes('security_relevant:stamp:code_review'), reasonsOf(r8));
+  // Q9: the Validation report is gitignored, so an in-place edit is not even visible in the delta.
+  const q9 = judgedRound(L, 't2734-q9', 'validation', '# Validation 2\n\nsecurity_relevant: true\n');
+  assert.equal(q9.stamp.security_relevant, true);
+  fs.appendFileSync(path.join(q9.root, '.git/info/exclude'), Q_VAL + '\n');
+  write(q9.root, Q_VAL, '# Validation 2\n\nsecurity_relevant: false\n');
+  assert.equal(git(q9.root, ['status', '--porcelain', '--', Q_VAL]), '', 'the flip is invisible to git');
+  const r9 = L.recheckMode({ root: q9.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(r9.mode, 'full', 'Q9: ' + reasonsOf(r9));
+  assert.ok(r9.reasons.includes('security_relevant:stamp:validation'), reasonsOf(r9));
+  // control: the same flow with a report that says false at verdict time stays delta, stamp false
+  for (const role of ['validation', 'code_review']) {
+    const ok = judgedRound(L, 't2734-ok-' + role, role, '# Round 2\n\nsecurity_relevant: false\n');
+    assert.equal(ok.stamp.security_relevant, false);
+    fs.appendFileSync(path.join(ok.root, 'tests/skills/test-aai-base.sh'), 'echo fix\n');
+    const o = L.recheckMode({ root: ok.root, ref: REF, role: role === 'validation' ? 'Validation' : 'Code Review', env: {} });
+    assert.equal(o.mode, 'delta', 'control ' + role + ': ' + reasonsOf(o));
+  }
+});
+
+test('TEST-2735 a stamp without a marker is absent, and one stamped true keeps the role full for every later round', async () => {
+  const L = await lib();
+  // a report with no marker line: the stamp carries no marker, so the next round is full
+  const none = judgedRound(L, 't2734-none', 'validation', '# Validation 2\n\nno marker here\n');
+  assert.equal(none.stamp.security_relevant, undefined);
+  fs.appendFileSync(path.join(none.root, 'tests/skills/test-aai-base.sh'), 'echo fix\n');
+  const a = L.recheckMode({ root: none.root, ref: REF, role: 'Validation', env: {} });
+  assert.ok(a.reasons.includes('security_marker_absent:stamp:validation'), reasonsOf(a));
+  // a hand-written verdict stamp from before this field (no marker) is absent too
+  const old = mkRepo('t2734-old', { verdicts: false });
+  appendEvents(old.root, [{ event: 'check_verdict', ref: REF, payload: { role: 'validation', head: old.base, status: 'fail' } }]);
+  fs.appendFileSync(path.join(old.root, 'tests/skills/test-aai-base.sh'), 'echo fix\n');
+  assert.ok(L.recheckMode({ root: old.root, ref: REF, role: 'Validation', env: {} }).reasons.includes('security_marker_absent:stamp:validation'));
+  // sticky: an earlier stamp true, then a later stamp false for the same role: still full
+  const st = mkRepo('t2734-sticky', { verdicts: false });
+  appendEvents(st.root, [
+    { event: 'check_verdict', ref: REF, payload: { role: 'validation', head: st.base, status: 'fail', security_relevant: true } },
+    { event: 'check_verdict', ref: REF, payload: { role: 'validation', head: st.base, status: 'fail', security_relevant: false } },
+  ]);
+  fs.appendFileSync(path.join(st.root, 'tests/skills/test-aai-base.sh'), 'echo fix\n');
+  const b = L.recheckMode({ root: st.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(b.mode, 'full');
+  assert.ok(b.reasons.includes('security_relevant:stamp:validation'), reasonsOf(b));
+  // a true stamp of the OTHER role also keeps this role full
+  const oth = mkRepo('t2734-other', { verdicts: false });
+  appendEvents(oth.root, [
+    { event: 'check_verdict', ref: REF, payload: { role: 'code_review', head: oth.base, status: 'fail', security_relevant: true } },
+    { event: 'check_verdict', ref: REF, payload: { role: 'validation', head: oth.base, status: 'fail', security_relevant: false } },
+  ]);
+  fs.appendFileSync(path.join(oth.root, 'tests/skills/test-aai-base.sh'), 'echo fix\n');
+  assert.ok(L.recheckMode({ root: oth.root, ref: REF, role: 'Validation', env: {} }).reasons.includes('security_relevant:stamp:code_review'));
+});
+
+test('TEST-2736 the real tick records the marker in the stamp and append-event validates it', () => {
+  const { root } = eligibleCanon('t2734-tick');
+  fs.rmSync(path.join(root, 'docs/ai/EVENTS.jsonl'));
+  runDispatch(root, ['--confirm']);
+  write(root, 'docs/ai/STATE.yaml', stateYaml({ vstatus: 'fail', runAt: '2026-07-02T00:00:00Z' }));
+  runDispatch(root, ['--confirm']);
+  const v = readEvents(root).filter((e) => e.event === 'check_verdict' && e.payload.role === 'validation');
+  assert.equal(v.length, 1);
+  assert.equal(v[0].payload.security_relevant, false, JSON.stringify(v[0]));
+  const append = (args) => spawnSync(process.execPath, [path.join(SCRIPTS, 'append-event.mjs'), ...args], { cwd: root, encoding: 'utf8', env: cleanEnv() });
+  const H = 'b'.repeat(40);
+  const ok = append(['--event', 'check_verdict', '--ref', REF, '--role', 'validation', '--head', H, '--status', 'pass', '--security-relevant', 'true']);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.equal(readEvents(root).pop().payload.security_relevant, true);
+  const n = readEvents(root).length;
+  const bad = append(['--event', 'check_verdict', '--ref', REF, '--role', 'validation', '--head', H, '--status', 'pass', '--security-relevant', 'maybe']);
+  assert.notEqual(bad.status, 0);
+  assert.equal(readEvents(root).length, n, 'a malformed marker appends nothing');
+});
+
+// ------------------------------------------------------------------ TEST-2737
+test('TEST-2737 every append-run capture site names the recheck.fallback clause', () => {
+  for (const rel of ['.aai/SUBAGENT_PROTOCOL.md', '.aai/SKILL_LOOP.prompt.md']) {
+    const text = readRel(rel);
+    const sites = text.split('\n').filter((l) => /prompt[_ -]hash/i.test(l) && /--prompt-hash|append-run|JSON `prompt_hash`|JSON field/.test(l));
+    assert.ok(sites.length >= 1, rel + ' has no prompt-hash capture site');
+  }
+  const proto = readRel('.aai/SUBAGENT_PROTOCOL.md');
+  const loop = readRel('.aai/SKILL_LOOP.prompt.md');
+  const count = (t) => (t.match(/recheck\.fallback/g) || []).length;
+  assert.ok(count(proto) >= 3, 'SUBAGENT_PROTOCOL.md: the delta section and both capture sites name recheck.fallback, got ' + count(proto));
+  assert.ok(count(loop) >= 1, 'SKILL_LOOP.prompt.md: the append-run capture step names recheck.fallback');
+  // the three sites the review found, each on or next to its prompt_hash instruction
+  const near = (t, anchor) => {
+    const i = t.indexOf(anchor);
+    assert.ok(i >= 0, 'anchor missing: ' + anchor);
+    return t.slice(Math.max(0, i - 400), i + 700).includes('recheck.fallback');
+  };
+  assert.ok(near(proto, 'Prompt hash (SPEC-0098 consumer wiring)'), 'capture site 1 (SUBAGENT_PROTOCOL Harness-reported usage capture)');
+  assert.ok(near(proto, 'whenever the dispatch JSON carried'), 'capture site 2 (SUBAGENT_PROTOCOL merge append)');
+  assert.ok(near(loop, 'Dispatch printed `Prompt hash: <hex>`'), 'capture site 3 (SKILL_LOOP)');
 });
 
 // ------------------------------------------------------------------ TEST-2730

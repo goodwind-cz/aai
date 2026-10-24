@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-recheck
-# (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723..2733;
+# (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723..2737;
 # TEST-2722 lives in test-aai-prompt-diet.sh)
 #
 # The delta re-check mode: .aai/scripts/lib/recheck.mjs decides eligibility,
@@ -212,8 +212,28 @@ test_2733_delta_payload_contracts() {
   log_pass "TEST-2733: the delta payload carries the output contracts and the scope names the spec"
 }
 
+test_2734_stamped_security_marker() {
+  run_recheck_node_tests TEST-2734
+  log_pass "TEST-2734: the security marker is stamped at verdict time; a flipped report stays full"
+}
+
+test_2735_stamp_without_marker_and_sticky() {
+  run_recheck_node_tests TEST-2735
+  log_pass "TEST-2735: a stamp without a marker is absent and a true stamp keeps the ride full"
+}
+
+test_2736_tick_records_marker() {
+  run_recheck_node_tests TEST-2736
+  log_pass "TEST-2736: the real tick records the marker in the stamp and append-event validates it"
+}
+
+test_2737_capture_sites_fallback() {
+  run_recheck_node_tests TEST-2737
+  log_pass "TEST-2737: every append-run capture site names the recheck.fallback clause"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2733)"
+  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2737)"
   check_deps
   test_2701_baseline_table_matches_metrics
   test_2702_delta_applies
@@ -247,6 +267,10 @@ main() {
   test_2731_mode_switch_fails_closed
   test_2732_inherited_role_names
   test_2733_delta_payload_contracts
+  test_2734_stamped_security_marker
+  test_2735_stamp_without_marker_and_sticky
+  test_2736_tick_records_marker
+  test_2737_capture_sites_fallback
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

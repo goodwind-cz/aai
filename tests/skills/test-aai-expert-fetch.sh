@@ -552,8 +552,22 @@ test_2622_line_budget_recorded() {
 }
 
 test_2623_rfc_phase3_done() {
-  local out
-  out="$(node -e '
+  local out spec49 st49
+  # Row 4 is scoped to SPEC-0249 while that spec is open (spec-cheap-transitions-slice
+  # amendment, contract, --signoff none): "rows 4 and 5 stay not started" was a constraint
+  # of the node-first-third-slice ride. Once it is done a later ride (cheap-transitions-slice,
+  # phase 4 in progress) legitimately moves row 4, so the row-4 half applies only while the
+  # ride is open. Row 5 stays pinned unconditionally.
+  spec49="$PROJECT_ROOT/docs/specs/SPEC-0249-spec-node-first-third-slice.md"
+  st49=""
+  if [[ -f "$spec49" ]]; then
+    st49="$(awk '/^---[[:space:]]*$/ { n++; next } n == 1 && /^status:/ { print $2; exit } n >= 2 { exit }' "$spec49")"
+  fi
+  if [[ ! -f "$spec49" || "$st49" == "done" ]]; then
+    log_info "TEST-2623: row-4 half RETIRED for a closed ride (SPEC-0249 status '${st49:-absent}'); row 5 stays pinned"
+    st49=retired
+  fi
+  out="$(R4_PIN="$st49" node -e '
     const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n");
     const cells = (n) => {
       const l = lines.find((x) => new RegExp("^\\| " + n + " \\|").test(x));
@@ -574,6 +588,7 @@ test_2623_rfc_phase3_done() {
     if (!/^status: implementing$/m.test(fm)) bad.push("RFC status is not implementing");
     if (!/^umbrella: true$/m.test(fm)) bad.push("RFC is not umbrella: true");
     for (const [n, want] of [["0", "in progress"], ["2", "in progress"], ["4", "not started"], ["5", "not started"]]) {
+      if (n === "4" && process.env.R4_PIN === "retired") continue;
       const c = cells(n);
       if (!c || c[2] !== want) bad.push("row " + n + " status is " + (c ? c[2] : "missing") + ", want " + want);
     }

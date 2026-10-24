@@ -82,7 +82,7 @@ updated_at_utc: 2026-07-01T00:00:00Z
   git(root, ['commit', '-q', '-m', 'base']);
   const base = git(root, ['rev-parse', 'HEAD']);
   put(root, 'docs/ai/EVENTS.jsonl', ['validation', 'code_review'].map((role) => JSON.stringify({
-    v: 1, ts: '2026-07-01T00:00:00.000Z', actor: 'measure', event: 'check_verdict', ref: REF, payload: { role, head: base, status: 'fail' },
+    v: 1, ts: '2026-07-01T00:00:00.000Z', actor: 'measure', event: 'check_verdict', ref: REF, payload: { role, head: base, status: 'fail', security_relevant: false },
   }) + '\n').join(''));
   // the four-path non-production delta
   fs.appendFileSync(path.join(root, 'tests/skills/test-aai-fixture.sh'), 'echo fixed\n');

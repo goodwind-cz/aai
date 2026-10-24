@@ -1564,7 +1564,10 @@ function recordCheckEvent(root, ref, stamp) {
   const appender = path.join(path.dirname(fileURLToPath(import.meta.url)), 'append-event.mjs');
   const args = [appender, '--event', stamp.event, '--ref', ref, '--role', stamp.role, '--head', stamp.head];
   if (stamp.event === 'check_dispatched') args.push('--seen', stamp.seen);
-  else args.push('--status', stamp.status);
+  else {
+    args.push('--status', stamp.status);
+    if (typeof stamp.security_relevant === 'boolean') args.push('--security-relevant', String(stamp.security_relevant));
+  }
   try {
     execFileSync(process.execPath, args, { cwd: root, stdio: 'ignore' });
     return true;
