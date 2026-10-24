@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-24T10:07:53.002Z",
+  "generatedAt": "2026-10-24T17:26:39.655Z",
   "project": "aai",
   "counts": {
-    "delivered": 319,
+    "delivered": 320,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -258,7 +258,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0249-spec-node-first-third-slice.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-node-first-third-slice-20261024T104222Z.md"
+    },
+    {
+      "ref": "cheap-transitions-slice",
+      "title": "Cheap transitions: stop paying a full role context for routine re-checks",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0225-cheap-transitions-slice.md",
+      "closed_on": "2026-10-24",
+      "agent_minutes": 443,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0250-spec-cheap-transitions-slice.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T171650Z.md"
     },
     {
       "ref": "docs-audit-suite-speed",
@@ -4432,7 +4445,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0249-spec-node-first-third-slice.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-node-first-third-slice-20261024T104222Z.md"
+        },
+        {
+          "ref": "cheap-transitions-slice",
+          "title": "Cheap transitions: stop paying a full role context for routine re-checks",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0225-cheap-transitions-slice.md",
+          "closed_on": "2026-10-24",
+          "agent_minutes": 443,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0250-spec-cheap-transitions-slice.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T171650Z.md"
         },
         {
           "ref": "docs-audit-suite-speed",

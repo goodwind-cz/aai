@@ -1,9 +1,9 @@
 ---
 id: spec-cheap-transitions-slice
 type: spec
-number: null
-status: implementing
-frozen_sha256: ce2ccd86784cd7598b37be4dc6a5c8d6f0b973110fad9c7ab5e6f8d9a84d5093
+number: 250
+status: done
+frozen_sha256: a40b856598359c2ac227d75a315187dd90aafe799b64d1ebe2707828f33175b7
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Cheap transitions slice](../issues/CHANGE-DRAFT-cheap-transitions-slice.md).
+- Requirement: [Cheap transitions slice](../issues/CHANGE-0225-cheap-transitions-slice.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   Proposal section 4 (reduce agent context; extend the existing L0/L1 paths;
   protected state, security and public contracts keep independent checks),
@@ -59,8 +59,8 @@ SPEC-FROZEN: true
   tests/skills/lib/recheck-measure.mjs tests/skills/suite-map.yaml
   tests/skills/lib/prompt-diet-ledger.sh tests/skills/test-aai-prompt-diet.sh
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md CHANGELOG.md
-  docs/ai/decisions.jsonl docs/issues/CHANGE-DRAFT-cheap-transitions-slice.md
-  docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md
+  docs/ai/decisions.jsonl docs/issues/CHANGE-0225-cheap-transitions-slice.md
+  docs/specs/SPEC-0250-spec-cheap-transitions-slice.md
   (tests/skills/suite-weights.tsv only if the selector asks for a row; an
   existing suite is edited only when one of its pins names a changed literal,
   and each such edit is disclosed in the hand-off).

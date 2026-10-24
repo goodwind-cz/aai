@@ -5,7 +5,7 @@ Intended path: docs/ai/reviews/review-cheap-transitions-slice-20261024T171650Z.m
 ```yaml
 review:
   scope: "ba552b89..54e8d878 (delta since r6: 7047594e..54e8d878)"
-  spec: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md
+  spec: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -30,7 +30,7 @@ review:
   code_quality:
     verdict: pass
     findings:
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, line: 525,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, line: 525,
           issue: "NB-16: the Spec-AC-16 SHALL says an in-place rewrite of a stamp 'already in a committed blob (uncommitted over a committed line, committed before the base or committed inside the range) SHALL give ledger_rewritten', and the same row's parenthetical (and D4 line 307) now names 'a rewrite committed before the base' as general residual. The intended reading (the LINE was committed before the base and is rewritten in the range, TEST-2739 'committed rewrite of a line that predates the base') holds; the literal reading (the REWRITE is committed before the base) is false: the B-12 probe gives delta.",
           failure_scenario: "A reader or a later validator walks the SHALL literally, builds the B-12 shape (X appends true, Y flips it, both before the base), sees delta, and files a non-compliance against a row that also declares the shape residual; or a closer of fu-recheck-verdict-not-bound-to-check thinks the pre-base shape is already covered. Text only: 'a stamp line committed before the base or inside the range and rewritten afterwards (uncommitted or in a commit of base..HEAD)'." }
       - { rank: NON-BLOCKING, file: tests/skills/lib/recheck.test.mjs, line: 1473,
@@ -58,7 +58,7 @@ security_relevant: true
 ## Scope
 
 - Full range `ba552b89..54e8d878`; delta `7047594e..54e8d878` (one orchestrator commit answering r6 B-12 and NB-15).
-- Spec `docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md`, ceremony 3. Mode FULL (`AAI_RECHECK_MODE=full`).
+- Spec `docs/specs/SPEC-0250-spec-cheap-transitions-slice.md`, ceremony 3. Mode FULL (`AAI_RECHECK_MODE=full`).
 - Ride worktree read only. Probes ran in a clone at `scratchpad/cr25-work/repo`, detached at 54e8d878. The clone was left clean.
 - Marker stays true (sticky).
 - Dispatch note: the owner decisions and the four check items are a checklist. They do not pre-rate anything, and I reviewed the full range.

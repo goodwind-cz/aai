@@ -5,7 +5,7 @@ Intended path: docs/ai/reviews/review-cheap-transitions-slice-20261024T170008Z.m
 ```yaml
 review:
   scope: "ba552b89..7047594e (delta since r5: 9ef9b7e3..7047594e)"
-  spec: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md
+  spec: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -30,7 +30,7 @@ review:
   code_quality:
     verdict: fail
     findings:
-      - { rank: BLOCKING, file: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, line: 299,
+      - { rank: BLOCKING, file: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, line: 299,
           issue: "B-12 (overclaim, same class as B-10/B-11): the new guarantee wording says ledger_rewritten guarantees 'lines in the base blob or in commits still reachable from HEAD' and D4 says the ledger rules 'DO close the rewrite of a line that is in the base blob or in a commit still reachable from HEAD'. eventsAppendOnly (.aai/scripts/lib/recheck.mjs:139-163) compares only the live file, the base and HEAD blobs, and each commit of base..HEAD against its first parent. A stamp line committed in X and rewritten by an ORDINARY commit Y that precedes the current base is in a commit still reachable from HEAD, yet is not caught. That shape is also not in the residual list, which names only rewrites 'before it is fixed in history' and history rewrites (amend, rebase, squash, replace) plus forgery. Same text at spec line 197 (D1 row), 299 (D4), 525 (Spec-AC-16 parenthetical), .aai/SUBAGENT_PROTOCOL.md:62, CHANGELOG.md:46-47, decisions.jsonl remediation_decision 16:43:09Z.",
           failure_scenario: "AAI_RECHECK_MODE=delta, probe in cr24-work clone at 7047594e (fixture = mkRepo trackEvents): base0; commit X appends check_verdict{validation, head base0, security_relevant:true}; commit Y flips it to false in place (plain commit, no rewrite); round 2 stamps both roles at head Y (false) and commits; touch a test file. recheckMode gives mode delta, reasons [] while X is an ancestor of HEAD. Real-ride precondition: round 2 ran full (the default, or delta refused) and its checker did not carry the true forward (gitignored Validation report flipped live), the same extra step B-10/B-11 needed. Remedy, text only, no code: scope the guarantee to 'lines in the base blob, and lines appended by a commit of base..HEAD still reachable from HEAD', and add 'a rewrite committed before the base' (any commit, not only a history rewrite) to the general residual in the same five places; amend record + spec-amend list --strict." }
       - { rank: NON-BLOCKING, file: tests/skills/lib/prompt-diet-ledger.sh, line: 261,
@@ -55,7 +55,7 @@ security_relevant: true
 ## Scope
 
 - Range `ba552b89..7047594e`; delta under review `9ef9b7e3..7047594e` (commit 7047594e, remediation round 5, text plus one test extension).
-- Spec `docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md`, ceremony 3. Mode FULL (`AAI_RECHECK_MODE=full`).
+- Spec `docs/specs/SPEC-0250-spec-cheap-transitions-slice.md`, ceremony 3. Mode FULL (`AAI_RECHECK_MODE=full`).
 - Ride worktree read only. Probes in clone `scratchpad/cr24-work/repo`, detached at 7047594e; tree left clean (`git status --porcelain` empty), scratch worktrees removed by path.
 - Marker stays true (sticky; B-12 concerns a security guard).
 - Dispatch note: the owner decisions and the six check items are a policy statement and a checklist, not a pre-rating; the full range was reviewed.

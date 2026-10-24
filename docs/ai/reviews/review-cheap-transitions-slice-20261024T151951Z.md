@@ -5,7 +5,7 @@ Intended path: docs/ai/reviews/review-cheap-transitions-slice-20261024T151951Z.m
 ```yaml
 review:
   scope: "ba552b89..ffc7b7b9 (delta since r3: 26befd35..ffc7b7b9)"
-  spec: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md
+  spec: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -36,7 +36,7 @@ review:
       - { rank: NON-BLOCKING, file: CHANGELOG.md, line: 24,
           issue: "NB-11 (P3): the heading and first sentence say a re-check round 'now runs on a slim payload', and 'Downstream impact: re-check rounds are dispatched differently after /aai-update'. With the default off, rounds are dispatched as before.",
           failure_scenario: "A downstream operator reads the release notes and expects delta rounds after /aai-update. None happen unless they export AAI_RECHECK_MODE=delta." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, line: 495,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, line: 495,
           issue: "NB-12 (P3): the Spec-AC-03 row and the TEST-2706 Test Plan row (line 557) still name forced_full. The r3 amendment renamed that reason to recheck_disabled but did not edit these rows.",
           failure_scenario: "A validator walks AC-03 literally, looks for forced_full and finds the code never emits it. The frozen table and the code disagree." }
   cannot_verify:
@@ -56,7 +56,7 @@ security_relevant: true
 ## Scope
 
 - Review range: `ba552b89..ffc7b7b9`, with the r4 focus on the delta `26befd35..ffc7b7b9` (commit ffc7b7b9, remediation round 3).
-- Spec: `docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md`, ceremony 3.
+- Spec: `docs/specs/SPEC-0250-spec-cheap-transitions-slice.md`, ceremony 3.
 - Probes ran in the clone `cr22-work`. The ride worktree was only read.
 - The marker stays true. It is sticky from r1 to r3, and B-10 is a gap in a security guard.
 - Dispatch note: the owner decision and the six check items name the areas to check. They do not pre-rate severity or exclude scope, so this is not coaching. I reviewed the full range.

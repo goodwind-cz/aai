@@ -1,5 +1,5 @@
 // recheck.test.mjs - node:test cases for the delta re-check mode
-// (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2723).
+// (docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, TEST-2701..2723).
 // Every case builds a temporary git repository under the OS temp directory; the
 // shipping tree is only read. Each case name starts with its TEST id so
 // test-aai-recheck.sh can run one id at a time (node --test --test-name-pattern).

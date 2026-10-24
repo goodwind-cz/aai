@@ -97,7 +97,7 @@ pairs:
   - capability: node-first-third-slice
     status: done
   - capability: cheap-transitions-slice
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

@@ -5,7 +5,7 @@ Intended path: docs/ai/reviews/review-cheap-transitions-slice-20261024T160754Z.m
 ```yaml
 review:
   scope: "ba552b89..9ef9b7e3 (delta since r4: ffc7b7b9..9ef9b7e3)"
-  spec: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md
+  spec: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -30,7 +30,7 @@ review:
   code_quality:
     verdict: fail
     findings:
-      - { rank: BLOCKING, file: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, line: 296,
+      - { rank: BLOCKING, file: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, line: 296,
           issue: "B-11 (overclaim, same class as B-10): D4 says 'What the ledger rules DO close is the rewrite of a stamp that is already in a committed blob', and Spec-AC-16 (line 516) lists 'committed inside the range' as covered. A history rewrite that replaces or removes the commit holding the stamp (commit --amend, reset, rebase -i drop) is not seen: eventsAppendOnly (recheck.mjs:139-163) checks only the live file, the base and HEAD blobs, and each commit of the CURRENT base..HEAD against its first parent; the rewritten commit is no longer in that range, and merge_in_range does not fire on a linear rewrite. No fu names this shape: fu-recheck-uncommitted-stamp-rewrite is scoped to stamps never committed.",
           failure_scenario: "With AAI_RECHECK_MODE=delta: commit S holds the false stamps; commit C1 appends check_verdict{validation, head S, security_relevant:true}. Either `git commit -a --amend` after flipping true to false in place (P2), or `git reset --hard HEAD~1` (P3). Touch a test file. recheckMode gives mode delta, reasons [] (probe log cr23-work/probes.log; positive control P1 before the rewrite gives full with security_relevant:stamp:validation). The fixture's reports say false, so in a real ride the true round's report must also be edited or dropped, the same extra step the B-10 scenario needed (a gitignored Validation report survives a reset; a tracked review report dropped with C1 does not)." }
       - { rank: NON-BLOCKING, file: tests/skills/lib/prompt-diet-ledger.sh, line: 261,
@@ -55,7 +55,7 @@ security_relevant: true
 ## Scope
 
 - Review range: `ba552b89..9ef9b7e3`. The r5 focus is the delta `ffc7b7b9..9ef9b7e3` (commit 9ef9b7e3, remediation round 4).
-- Spec: `docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md`, ceremony 3.
+- Spec: `docs/specs/SPEC-0250-spec-cheap-transitions-slice.md`, ceremony 3.
 - The ride worktree was only read. Probes ran in the clone `scratchpad/cr23-work/repo`, detached at 9ef9b7e3. The probe file is `cr23-work/probe.test.mjs` and its log is `cr23-work/probes.log`.
 - The marker stays true. It is sticky, and B-11 is a gap in a security guard.
 - Dispatch note: the owner rules and the five check items name areas and a severity rule ("a residual named accurately and gated is not blocking"). That is a policy statement, not a pre-rating of findings, so it is not coaching. I reviewed the full range.

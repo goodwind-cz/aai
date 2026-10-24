@@ -1,5 +1,5 @@
 // recheck.mjs - the delta re-check eligibility decision
-// (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, D1 to D5).
+// (docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, D1 to D5).
 //
 // A Validation or Code Review round that follows a judged round may run on a slim
 // payload (contract + .aai/RECHECK_DELTA.prompt.md + a scope listing the delta)

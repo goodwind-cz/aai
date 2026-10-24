@@ -14,7 +14,7 @@ security_relevant: true
 ```yaml
 review:
   scope: "full ba552b89..9bb184f0; delta 40eabc3a..9bb184f0 (worktree /private/tmp/aai-cheap-transitions, branch change/cheap-transitions-slice)"
-  spec: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md
+  spec: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -59,7 +59,7 @@ review:
 
 ## Scope and method
 
-- The full range is `ba552b89..9bb184f0` and the delta is `40eabc3a..9bb184f0` (remediation commit 9bb184f0). Spec: `docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md` (L3, 18 AC).
+- The full range is `ba552b89..9bb184f0` and the delta is `40eabc3a..9bb184f0` (remediation commit 9bb184f0). Spec: `docs/specs/SPEC-0250-spec-cheap-transitions-slice.md` (L3, 18 AC).
 - `AAI_RECHECK_MODE=full` was exported throughout. I wrote nothing to the shared worktree or to `/Users/ales/Projects/aai`. Probes ran in a `git archive` copy at `.../scratchpad/cr20-work/tree` and a scratch clone at `.../scratchpad/cr20-work/clone`. The probe scripts are `.../scratchpad/cr20-work/probes/r2.mjs`, `r4.mjs` and `r9.mjs`.
 - Suites ran in the scratch clone at 9bb184f0 through the wrapper with `env -u AAI_ROLE`: test-aai-recheck.sh rc 0, test-aai-canon.sh rc 0, test-aai-ride-handoff.sh rc 0 (TEST-014 logs the RETIRED line), test-aai-prompt-diet.sh rc 0, test-aai-roadmap.sh rc 0 (TEST-1337 logs the RETIRED line), and `node --test tests/skills/lib/recheck.test.mjs` 34/34 pass.
 - Dispatch note: the dispatch listed areas to check as questions. It did not pre-rate severity or exclude scope, so I do not record a coaching attempt.

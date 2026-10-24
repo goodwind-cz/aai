@@ -16,7 +16,7 @@ This ride is L3, so `true` costs nothing here, and it keeps later rounds full.)
 ```yaml
 review:
   scope: "ba552b89..40eabc3a (worktree /private/tmp/aai-cheap-transitions, branch change/cheap-transitions-slice)"
-  spec: docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md
+  spec: docs/specs/SPEC-0250-spec-cheap-transitions-slice.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -67,7 +67,7 @@ review:
 
 ## Scope and method
 
-- Scope: `ba552b89..40eabc3a`, which covers intake d4738f91, spec 013c7b7a and d57ea6f5, code 2117f94e and docs 40eabc3a. Spec: `docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md` (L3, frozen, two measurement amendments recorded).
+- Scope: `ba552b89..40eabc3a`, which covers intake d4738f91, spec 013c7b7a and d57ea6f5, code 2117f94e and docs 40eabc3a. Spec: `docs/specs/SPEC-0250-spec-cheap-transitions-slice.md` (L3, frozen, two measurement amendments recorded).
 - I read the full diff once and walked every Spec-AC row. Probes ran only in scratch copies (git archive and a scratch clone), with `AAI_RECHECK_MODE=full`. I wrote nothing to the shared worktree.
 - Suites run in a scratch clone at 40eabc3a, through the wrapper with `env -u AAI_ROLE`. All exited 0: `test-aai-recheck.sh`, `test-aai-canon.sh`, `test-aai-prompt-diet.sh`, `test-aai-orchestration-dispatch.sh`, `test-aai-hygiene-pack.sh`, plus `node --test tests/skills/lib/recheck.test.mjs` (24/24).
 - Probe files: `/private/tmp/claude-501/-Users-ales-Projects-aai/84834df3-26b2-4169-98af-6a142178eee5/scratchpad/cr19-work/probes/p1.mjs` and `p4.mjs` in the same folder.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // recheck-measure.mjs - the before/after payload size of the delta re-check mode
-// (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, D11, TEST-2715).
+// (docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, D11, TEST-2715).
 //
 // Builds a throwaway git repository under the OS temp directory from the LIVE canon
 // inputs (never the shipping tree), commits a base, adds a four-path non-production

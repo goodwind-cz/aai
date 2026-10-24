@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-recheck
-# (docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723..2744;
+# (docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, TEST-2701..2721 and TEST-2723..2744;
 # TEST-2722 lives in test-aai-prompt-diet.sh)
 #
 # The delta re-check mode: .aai/scripts/lib/recheck.mjs decides eligibility,
