@@ -1467,12 +1467,15 @@ test('TEST-2741 append-event refuses check_dispatched and check_verdict when AAI
 });
 
 // ------------------------------------------------------------------ TEST-2742
-// KNOWN RESIDUAL, pinned on purpose (fu-recheck-uncommitted-stamp-rewrite, P2): ledger_rewritten
-// covers only lines already present in a committed blob. A security_relevant true stamp that is
-// still UNCOMMITTED when it is flipped in place leaves no blob to compare with, so delta is
-// granted under the opt-in. It cannot be closed without the verdict-to-STATE binding
-// (fu-recheck-verdict-not-bound-to-check); delta must not become default-on until both are done.
-// When that follow-up lands, the delta assertions below flip to full and this test is rewritten.
+// KNOWN RESIDUAL, pinned on purpose (fu-recheck-verdict-not-bound-to-check, which also covers the
+// former fu-recheck-uncommitted-stamp-rewrite): with delta opted in, the check_* stamps in
+// docs/ai/EVENTS.jsonl are not tamper-proof. ledger_rewritten and merge_in_range guarantee only
+// lines in the base blob or in commits still reachable from HEAD, and merges still visible in
+// base..HEAD. Any rewrite of a stamp before it is fixed in history that stays reachable from HEAD
+// (an uncommitted flip, commit --amend, a rebase that drops it, a squash resolved to ours,
+// git replace --graft, any other history rewrite) and any hand-appended forged stamp can yield
+// delta. Only the verdict-to-STATE binding closes it; delta must not become default-on before.
+// When that lands, the delta assertions below flip to full and this test is rewritten.
 test('TEST-2742 KNOWN RESIDUAL: an uncommitted true stamp flipped before its first commit gives delta under the opt-in, full by default', async () => {
   const L = await lib();
   const fx = mkRepo('t2742', { verdicts: false, trackEvents: true });
@@ -1491,6 +1494,27 @@ test('TEST-2742 KNOWN RESIDUAL: an uncommitted true stamp flipped before its fir
   const dflt = L.recheckMode({ root: fx.root, ref: REF, role: 'Validation', env: {} });
   assert.equal(dflt.mode, 'full', 'the default env stays full');
   assert.deepEqual(dflt.reasons, ['recheck_disabled']);
+
+  // The amend shape of the same residual: a true stamp is committed after the base, then flipped
+  // and folded into that commit with --amend, so the rewritten commit is the only one reachable.
+  const am = mkRepo('t2742-amend', { verdicts: false, trackEvents: true });
+  appendEvents(am.root, [
+    { event: 'check_verdict', ref: REF, payload: { role: 'validation', head: am.base, status: 'fail', security_relevant: true } },
+    { event: 'check_verdict', ref: REF, payload: { role: 'code_review', head: am.base, status: 'pass', security_relevant: false } },
+  ]);
+  git(am.root, ['add', '-A']);
+  git(am.root, ['commit', '-qm', 'true stamp']);
+  touchTest(am.root);
+  const sticky = L.recheckMode({ root: am.root, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(sticky.mode, 'full', 'positive control: the committed true stamp is sticky');
+  flipTrueStamp(am.root);
+  git(am.root, ['commit', '-qa', '--amend', '--no-edit']);
+  const amended = L.recheckMode({ root: am.root, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(amended.mode, 'delta', 'today the amended flip is NOT caught (residual): ' + reasonsOf(amended));
+  assert.ok(!amended.reasons.includes('ledger_rewritten'));
+  const amendedDefault = L.recheckMode({ root: am.root, ref: REF, role: 'Validation', env: {} });
+  assert.equal(amendedDefault.mode, 'full', 'the default env stays full');
+  assert.deepEqual(amendedDefault.reasons, ['recheck_disabled']);
 });
 
 // ------------------------------------------------------------------ TEST-2743

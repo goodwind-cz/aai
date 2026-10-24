@@ -1010,13 +1010,14 @@ test_012_growth_sum_matches_ledger() {
   # Then 57344 -> 57793: intake-closing-questions-as-one-menu-round1 (+449 B option cap + six-block per-type pointers, Codex PR #483).
   # Then 57793 -> 57901: slim-standing-role-context (+108 B SKILL_REPLAY step 3a history search, measured against 01de2119).
   # Then 57901 -> 58478: ride-state-handoff-to-worktree (+577 B SKILL_WORKTREE step 4 and setup comments, SKILL_SHIP default 2; cap 900 B).
-  # Then 58478 -> 62687: cheap-transitions-slice (RECHECK_DELTA.prompt.md +3525 B with the output contracts, the security_relevant
+  # Then 58478 -> 62911: cheap-transitions-slice (RECHECK_DELTA.prompt.md +3498 B with the output contracts, the security_relevant
   # marker line in VALIDATION and SKILL_CODE_REVIEW, the --recheck delta and ref_id clause in ORCHESTRATION, the canon pointer in
   # ORCHESTRATION_PARALLEL, the SUBAGENT_PROTOCOL wording; measured deficit 2518 B at delivery plus 1361 B of remediation round 1,
   # by TEST-010, plus 60 B of remediation round 2: the recheck.fallback clause at the SKILL_LOOP capture step, plus 61 B of
   # remediation round 3: the opt-in wording and the ledger_rewritten condition, plus 209 B of
-  # remediation round 4: the committed-lines scope of ledger_rewritten and the merge_in_range condition), credited 1:1.
-  local want_growth=62687
+  # remediation round 4: the committed-lines scope of ledger_rewritten and the merge_in_range condition, plus 224 B of
+  # remediation round 5: the general stamp-tamper residual in SUBAGENT_PROTOCOL), credited 1:1.
+  local want_growth=62911
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
