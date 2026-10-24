@@ -37,14 +37,14 @@ fine — it is the marker a cut leaves on top.
   role runs. The mode is OPT-IN: it applies only when `AAI_RECHECK_MODE`
   normalises to `delta`; unset, empty and every other value give full with the
   reason `recheck_disabled`. It ships off because, with delta opted in, the `check_*`
-  stamps in `EVENTS.jsonl` are not tamper-proof: any rewrite of a stamp before it is fixed in
-  history that stays reachable from HEAD (an uncommitted rewrite, `commit --amend`, a rebase that
-  drops it, a squash resolved to ours, `git replace --graft`, any history rewrite) and a hand-appended
+  stamps in `EVENTS.jsonl` are not tamper-proof: any stamp rewrite that `ledger_rewritten` does
+  not see (an uncommitted rewrite, one committed before the base, `commit --amend`, a rebase that
+  drops it, a squash resolved to ours, `git replace` in any form, any history rewrite) and a hand-appended
   forged stamp can yield delta, and only the verdict-to-STATE binding
   (`fu-recheck-verdict-not-bound-to-check`) closes that. `append-event.mjs` refuses the
   two stamp events under `AAI_ROLE`, and a delta is refused with
-  `ledger_rewritten` unless `EVENTS.jsonl` is append-only across the range (guaranteed only for lines
-  in the base blob or in commits still reachable from HEAD) and with `merge_in_range` when
+  `ledger_rewritten` unless `EVENTS.jsonl` is append-only across the range (it compares only the base and HEAD
+  blobs, the live file and the commits of `base..HEAD`) and with `merge_in_range` when
   `base..HEAD` holds a merge commit (only merges still visible there). The verdict base is the head the
   checker was handed, the stricter of the base and live spec level decides, a
   prior report that existed at the base is read from the base, and gate inputs
