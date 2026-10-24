@@ -722,6 +722,14 @@ suites:
       - tests/skills/lib/triage.test.mjs
       - tests/skills/triage.Tests.ps1
 
+  aai-expert-fetch:
+    globs:
+      - .aai/scripts/expert-fetch.sh
+      - .aai/scripts/expert-fetch.ps1
+      - .aai/scripts/expert-fetch.mjs
+      - tests/skills/lib/expert-fetch.test.mjs
+      - tests/skills/expert-fetch.Tests.ps1
+
   aai-sync-seed:
     companions:
       - aai-bootstrap

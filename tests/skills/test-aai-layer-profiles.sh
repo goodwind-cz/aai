@@ -920,6 +920,19 @@ test_2515_triage_module_classified() {
   log_pass "TEST-2515: triage.mjs is classified once, in core"
 }
 
+# TEST-2619 (spec-node-first-third-slice Spec-AC-11): the expert-fetch module is
+# classified exactly once, in the extended list beside its two launchers.
+test_2619_expert_fetch_module_classified() {
+  local line n=0 section="" where=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^([a-z_]+):[[:space:]]*$ ]]; then section="${BASH_REMATCH[1]}"; fi
+    if [[ "$line" == "  - .aai/scripts/expert-fetch.mjs" ]]; then n=$((n + 1)); where="$section"; fi
+  done < "$MANIFEST"
+  [[ "$n" == 1 ]] || log_fail "TEST-2619: PROFILES.yaml must list .aai/scripts/expert-fetch.mjs exactly once, found $n"
+  [[ "$where" == extended ]] || log_fail "TEST-2619: .aai/scripts/expert-fetch.mjs must sit in the extended list, found it in '$where'"
+  log_pass "TEST-2619: expert-fetch.mjs is classified once, in extended"
+}
+
 main() {
   echo "=== AAI Skill Test: $TEST_NAME ==="
   # Test-only probe entry point (Spec-AC-01, TEST-401): builds the fixture in
@@ -949,6 +962,7 @@ main() {
   test_572_new_aai_files_classified
   test_2416_live_spool_module_classified
   test_2515_triage_module_classified
+  test_2619_expert_fetch_module_classified
   test_696_new_canon_files_classified
   build_fixture_sources
   test_default_byte_identity

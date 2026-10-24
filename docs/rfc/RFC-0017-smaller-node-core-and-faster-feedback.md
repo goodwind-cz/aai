@@ -303,10 +303,32 @@ behavior. Completing that child must not close this umbrella RFC.
 | 0 | Baseline representative local/CI checks; separate the observed main pricing failure and state-suite skip from speed work | in progress | `selected-ci-scheduling-foundation`; main pricing repair landed separately in #484 |
 | 1 | Refresh scheduling weights, selected longest-first, conditional reuse of existing sharding, superseded-run cancellation | done | Scheduling foundations merged in #485; conditional selected sharding merged in #486; body-only rechecks merged in #489; superseded pull-request runs are cancelled by the workflow concurrency group |
 | 2 | Move docs-audit logic cases to `node:test`; retain CLI/corpus tests; split always-on content validation from engine regression | in progress | [Body-lint Node test pilot](../issues/CHANGE-0216-docs-audit-node-test-pilot.md) migrated five body-lint groups; [matched measurements](../analysis/docs-audit-node-test-pilot.md); content/engine CI separation remains outside this child; docs-audit suite-speed child cut the ordinary suite median 31.9% by sharing real-corpus work and moving the closeout cases to Node ([note](../analysis/docs-audit-suite-speed.md)) |
-| 3 | Migrate common sync/hook behavior to Node in small slices, with native platform parity and retired counterparts | in progress | [First Node-first slice](../issues/CHANGE-0222-node-first-sync-hook-slice.md) moved the live-status spool hook (live-spool pair 133 to 116 lines): one Node module and two launchers, tested with `node:test` plus Pester on the native Windows job; the [second slice](../issues/CHANGE-0223-node-first-second-slice.md) moved the L1 triage snapshot (triage pair 140 to 129 lines), a behavior with an exit-code gate and two child processes |
+| 3 | Migrate common sync/hook behavior to Node in small slices, with native platform parity and retired counterparts | done | [First Node-first slice](../issues/CHANGE-0222-node-first-sync-hook-slice.md) moved the live-status spool hook (live-spool pair 133 to 116 lines): one Node module and two launchers, tested with `node:test` plus Pester on the native Windows job; the [second slice](../issues/CHANGE-0223-node-first-second-slice.md) moved the L1 triage snapshot (triage pair 140 to 129 lines), a behavior with an exit-code gate and two child processes; the [third slice](../issues/CHANGE-0224-node-first-third-slice.md) moved the expert prompt fetcher (expert-fetch pair 444 to 230 lines), a behavior with a network fetch, a cache and two security filters, and closed phase 3 with the remaining-pairs inventory below |
 | 4 | Slim role context and generate provider adapters; extend existing lightweight and resume paths | not started | No child intake yet |
 | 5 | Introduce precise evidence reuse where inputs are declared; migrate remaining process adapters only with native evidence | not started | No child intake yet |
 | order 4 | Node 24 CI baseline and published floor | done | [Node 24 CI baseline](../issues/CHANGE-0221-ci-node-24-baseline.md) |
+
+### Remaining paired scripts after phase 3
+
+A pair is `.aai/scripts/<name>.sh` plus `<name>.ps1` with no `<name>.mjs`; the line counts were measured at the delivery commit of the third slice.
+
+| Pair | Lines sh/ps1 | Destination | Reason |
+|---|---|---|---|
+| `aai-canonicalize` | 276/281 | later candidate | one-off structure migration; its telemetry step depends on migrate-yaml-to-jsonl (python3 and PyYAML) |
+| `aai-live` | 125/90 | later candidate | already requires Node; what remains is browser-opener choice around generate-live-status.mjs, which a later slice can fold into that generator |
+| `aai-reap-tests` | 368/419 | phase 5 process adapter | reaps process groups and Windows process trees (process supervision migrates last) |
+| `aai-release` | 365/414 | later candidate | 779 lines with git and gh write effects and the most active history; its finish step already lives in release-finish.mjs |
+| `aai-run-tests` | 958/942 | phase 5 process adapter | supervises suite processes, timeouts and orphan cleanup |
+| `aai-sync` | 1039/1087 | platform adapter kept on purpose | installs AAI into a target before Node is guaranteed there (bootstrap before Node is installed) |
+| `aai-update` | 180/188 | platform adapter kept on purpose | a caller runs before Node is installed (SPEC-0248) |
+| `autonomous-loop` | 488/464 | phase 5 process adapter | supervises agent child processes |
+| `cloudflare-share` | 78/69 | later candidate | external deploy with a write effect; needs a staged-deploy test seam; the sh copy's grep -oP fails on macOS |
+| `install-pre-commit-hook` | 1313/1097 | platform adapter kept on purpose | hook installation, file permissions and symlinked configuration |
+| `migrate-state-to-local` | 162/175 | platform adapter kept on purpose | git-only legacy migration that aai-sync names for a target that may not have Node yet; retire with RFC-0001 legacy support instead of porting |
+| `migrate-yaml-to-jsonl` | 126/151 | later candidate | needs a general YAML parser that Node's stdlib lacks; one-off (SPEC-0248) |
+| `pre-commit-checks` | 323/281 | platform adapter kept on purpose | L3 protected surface whose checks 1 to 7 run without Node; a move needs its own L3 scope |
+| `pre-compact-save` | 77/87 | later candidate | no shipped install wires the hook (SPEC-0248) |
+| `validate-skills` | 47/55 | later candidate | twelve file-existence checks with cosmetic drift (SPEC-0248) |
 
 Suggested first implementation scope: scheduling improvements plus a separate
 docs-audit pilot. Do not combine scheduler, state storage, prompt governance,

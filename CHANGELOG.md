@@ -22,6 +22,27 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — refactor(expert-fetch): one Node module owns the expert prompt fetcher
+
+- The expert prompt fetcher is now one Node module,
+  `.aai/scripts/expert-fetch.mjs`; `expert-fetch.sh` and `expert-fetch.ps1` are
+  thin launchers (the pair went from 444 to 230 lines). Third and last slice of
+  RFC-0017 phase 3, which is now done; the RFC lists the 15 paired scripts that
+  stay and where each goes. Visible changes:
+  - D-1: an expert in a blocked category is refused (exit 1) on every platform,
+    and `gh` is never called. The Bash copy did not apply the check at all. The
+    list is read fail-closed: a `blocked_categories:` heading with no readable
+    item refuses every fetch. `--body` applies the same check.
+  - D-2: fetching works on macOS (the Bash copy failed after the network call
+    on BSD `sed -i`).
+  - D-4: `max_prompt_bytes` counts UTF-8 bytes on both platforms.
+  - D-7: an unknown key exits 2 on both platforms (the PowerShell copy exited
+    1).
+  - D-18: without Node, or without `expert-fetch.mjs`, each launcher prints
+    `ERROR: expert-fetch needs node (expert-fetch.mjs unavailable)` and exits 1.
+  - D-22: `--body` refuses an argument that is not a plain registry key, such
+    as `../x`.
+
 ## [unreleased] — refactor(triage): one Node module owns the L1 triage snapshot
 
 - The L1 triage snapshot is now one Node module, `.aai/scripts/triage.mjs`;

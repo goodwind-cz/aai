@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-24T00:46:13.431Z",
+  "generatedAt": "2026-10-24T10:07:53.002Z",
   "project": "aai",
   "counts": {
-    "delivered": 318,
+    "delivered": 319,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -244,6 +244,19 @@
       "agent_minutes": 185,
       "token_total": null,
       "spec": "docs/specs/SPEC-0248-spec-node-first-second-slice.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-node-first-second-slice-20261023T233306Z.md"
+    },
+    {
+      "ref": "node-first-third-slice",
+      "title": "Move a third paired behavior to Node and close RFC-0017 phase 3",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0224-node-first-third-slice.md",
+      "closed_on": "2026-10-24",
+      "agent_minutes": 277,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0249-spec-node-first-third-slice.md",
       "validation": null,
       "review": null
     },
@@ -4405,6 +4418,19 @@
           "agent_minutes": 185,
           "token_total": null,
           "spec": "docs/specs/SPEC-0248-spec-node-first-second-slice.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-node-first-second-slice-20261023T233306Z.md"
+        },
+        {
+          "ref": "node-first-third-slice",
+          "title": "Move a third paired behavior to Node and close RFC-0017 phase 3",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0224-node-first-third-slice.md",
+          "closed_on": "2026-10-24",
+          "agent_minutes": 277,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0249-spec-node-first-third-slice.md",
           "validation": null,
           "review": null
         },

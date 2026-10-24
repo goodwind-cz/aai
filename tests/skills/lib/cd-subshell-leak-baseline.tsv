@@ -23,7 +23,7 @@
 1	.aai/scripts/aai-update.sh
 8	.aai/scripts/claude-hook-gate.sh
 1	.aai/scripts/cloudflare-share.sh
-2	.aai/scripts/expert-fetch.sh
+1	.aai/scripts/expert-fetch.sh
 1	.aai/scripts/live-spool.sh
 1	.aai/scripts/migrate-state-to-local.sh
 1	.aai/scripts/migrate-yaml-to-jsonl.sh
@@ -57,6 +57,7 @@
 3	tests/skills/test-aai-docs-lock.sh
 6	tests/skills/test-aai-doctor.sh
 2	tests/skills/test-aai-downstream-autopilot.sh
+2	tests/skills/test-aai-expert-fetch.sh
 3	tests/skills/test-aai-factory-report.sh
 2	tests/skills/test-aai-feedback-status.sh
 2	tests/skills/test-aai-feedback-triage.sh
