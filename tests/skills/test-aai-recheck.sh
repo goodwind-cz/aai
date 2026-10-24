@@ -11,7 +11,7 @@
 # The cases are node:test cases in tests/skills/lib/recheck.test.mjs; each builds
 # its own temporary git repository, the real repository is only read.
 #
-# TEST-2801..2839 (docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md): the judged round is the
+# TEST-2801..2839 (docs/specs/SPEC-0251-spec-recheck-verdict-binding.md): the judged round is the
 # check_binding block of STATE written by state.mjs bind-check; every fixture builds it through that
 # real CLI.
 #

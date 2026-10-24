@@ -5,7 +5,7 @@ Intended tracked path: `docs/ai/reviews/review-recheck-verdict-binding-20261024T
 ```yaml
 review:
   scope: 59ee0ff2..b9bdc239 (delta 5b70bca8..b9bdc239 = b9bdc239 round-2 remediation)
-  spec: docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md (L3, amended D7, D9, D13, D14, D15)
+  spec: docs/specs/SPEC-0251-spec-recheck-verdict-binding.md (L3, amended D7, D9, D13, D14, D15)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -37,10 +37,10 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/lib/check-binding.mjs, line: 510,
           issue: "The rebuild keeps an inline header byte for byte. With `check_sticky: []`, which is valid YAML and parses on its own, the rebuild emits `check_sticky: []` followed by item lines. state.mjs refuses that write ('would splice child lines under an inline-valued top-level header'), so bind-check fails for every ref in that STATE file. bindCheck in orchestration-dispatch.mjs:1586-1595 swallows the failure. The D15 sentence 'the entry for the ref being written gets security true' does not hold here, because nothing is written. On 5b70bca8 the same bind succeeded, normalised the header and raised the written ref",
           failure_scenario: "Probe INL: one hand edit to `check_sticky: []`, then bind-check --on dispatch for hotfix-two gives rc 1 and then for ride-one rc 1, and the STATE is unchanged. Every later tick binds nothing, silently, and every round is full. It fails closed (sticky_record_ambiguous) and needs an edit outside state.mjs, so it costs liveness, not security. Recommended disposition: follow-up P3 (suggested: fu-sticky-inline-header-blocks-bind). Possible fix: write a bare `check_sticky:` header and keep the inline value as an unparseable child line, so the reader stays ambiguous and the bind goes through" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md, line: 298,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0251-spec-recheck-verdict-binding.md, line: 298,
           issue: "D7 recipe step 3 says '.aai/ORCHESTRATION.prompt.md can stay'. The flip f79fa2dc changed that file from 'opt-in, off unless AAI_RECHECK_MODE=delta' to 'default on; AAI_RECHECK_MODE=full opts out'. After the recipe runs, it would still say the default is on. Step 2's inverted TEST-2821 covers ORCHESTRATION.prompt.md, so it would also go red",
           failure_scenario: "If the owner declines the flip and someone follows the recipe as written, the orchestrator prompt states the wrong default. The gate in step 5 then fails without the recipe saying why. Recommended disposition: remediate in tree (add the file to step 3, including its prompt-diet byte delta), or fold it into fu-amend-spec-recheck-verdict-binding" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md, line: 678,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0251-spec-recheck-verdict-binding.md, line: 678,
           issue: "TEST-2821's mutation cell moved from WORKFLOW.md to append-event.mjs. The shared five-document assertion (includes AAI_RECHECK_MODE=full, no opt-in sentence) no longer has its own mutation record",
           failure_scenario: "None observed. I applied the old cell (sed s/AAI_RECHECK_MODE=full/AAI_RECHECK_MODE=off/g on WORKFLOW.md) to a copy at b9bdc239 and TEST-2821 failed 1 ('workflow lacks AAI_RECHECK_MODE=full'). The new cell also fails 1. The assertion is intact; only the record that proves it bites is gone. accepted residual: P3 assurance strength, one mutation cell per row is the gate's model, the old cell still bites on b9bdc239 (probe this round), and no false record is left" }
   cannot_verify:

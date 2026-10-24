@@ -1,5 +1,5 @@
 // check-binding.mjs - the check_binding block of docs/ai/STATE.yaml
-// (docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md, D1 to D4 and D13).
+// (docs/specs/SPEC-0251-spec-recheck-verdict-binding.md, D1 to D4 and D13).
 //
 // A judged Validation or Code Review round is recorded in STATE by `state.mjs bind-check`,
 // the one writer, and `recheckMode` (lib/recheck.mjs) compares that record when it decides

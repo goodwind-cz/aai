@@ -5,7 +5,7 @@ Intended tracked path: `docs/ai/reviews/review-recheck-verdict-binding-20261024T
 ```yaml
 review:
   scope: 59ee0ff2..5b70bca8 (delta f79fa2dc..5b70bca8 = 6e2db80e check_sticky record, 5b70bca8 wording/D15/Spec-AC-19/amendments)
-  spec: docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md (L3, amended D13, D14, D15)
+  spec: docs/specs/SPEC-0251-spec-recheck-verdict-binding.md (L3, amended D13, D14, D15)
   spec_compliance:
     verdict: pass
     ac_walk:

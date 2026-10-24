@@ -5,7 +5,7 @@ Intended tracked path: `docs/ai/reviews/review-recheck-verdict-binding-20261024T
 ```yaml
 review:
   scope: 59ee0ff2..f79fa2dc (intake 9981130b, spec 5d0673d6, D13 fold bbc91eb7, code 54452c56, docs d8dd2e37, SPEC-0250 amendment+close db851576, default flip f79fa2dc)
-  spec: docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md (L3)
+  spec: docs/specs/SPEC-0251-spec-recheck-verdict-binding.md (L3)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -63,7 +63,7 @@ security_relevant: true
 ## Scope and preflight
 
 - Scope: `59ee0ff2..f79fa2dc` (seven commits), branch `change/recheck-verdict-binding`, worktree `/private/tmp/aai-recheck-binding` (`worktree.user_decision: worktree`). Reviewed in a scratch clone checked out at `f79fa2dc`, plus a second clone at `db851576` for the revert path. The worktree was not written.
-- Spec: `docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md` (L3, frozen, amended D13 and D14).
+- Spec: `docs/specs/SPEC-0251-spec-recheck-verdict-binding.md` (L3, frozen, amended D13 and D14).
 - `AAI_RECHECK_MODE=full` was exported for every run of mine, so this round ran on the full payload. The spec probes set the variable explicitly where they test the default.
 - Coaching check: the dispatch named focus areas and asked for overclaims to be ranked BLOCKING, which is the owner's standing instruction for this ride. I reviewed the full scope regardless.
 

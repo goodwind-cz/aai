@@ -1,8 +1,8 @@
 ---
 id: recheck-verdict-binding
 type: change
-number: null
-status: draft
+number: 226
+status: done
 capability: lean-agent-context
 parent: smaller-node-core-and-faster-feedback
 links:

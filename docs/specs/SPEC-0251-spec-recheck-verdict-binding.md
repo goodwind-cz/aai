@@ -1,10 +1,10 @@
 ---
 id: spec-recheck-verdict-binding
 type: spec
-number: null
-status: implementing
+number: 251
+status: done
 mutation_gate: v1
-frozen_sha256: 4799997295455199f42571b13c2cf56b6fffbfe15c5d37bd01ec4364918f7a16
+frozen_sha256: df19995c593af59e84fcb376632137412fa6f781261c0dd88c3774b383cde1da
 ceremony_level: 3
 links:
   requirement: recheck-verdict-binding
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Recheck verdict binding](../issues/CHANGE-DRAFT-recheck-verdict-binding.md)
+- Requirement: [Recheck verdict binding](../issues/CHANGE-0226-recheck-verdict-binding.md)
   (intake commit `9981130b`).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 4 row (second slice).
@@ -60,8 +60,8 @@ SPEC-FROZEN: true
   tests/skills/suite-map.yaml tests/skills/lib/prompt-diet-ledger.sh
   tests/skills/test-aai-prompt-diet.sh
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md CHANGELOG.md
-  docs/ai/decisions.jsonl docs/issues/CHANGE-DRAFT-recheck-verdict-binding.md
-  docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md
+  docs/ai/decisions.jsonl docs/issues/CHANGE-0226-recheck-verdict-binding.md
+  docs/specs/SPEC-0251-spec-recheck-verdict-binding.md
   docs/specs/SPEC-0250-spec-cheap-transitions-slice.md
   (an existing suite outside this list is edited only when one of its pins
   names a literal this scope changes, for example the state.mjs subcommand

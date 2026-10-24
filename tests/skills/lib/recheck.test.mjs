@@ -1,6 +1,6 @@
 // recheck.test.mjs - node:test cases for the delta re-check mode
 // (docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, TEST-2701..2746;
-// docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md, TEST-2801..2839).
+// docs/specs/SPEC-0251-spec-recheck-verdict-binding.md, TEST-2801..2839).
 // Every case builds a temporary git repository under the OS temp directory; the
 // shipping tree is only read. Each case name starts with its TEST id so
 // test-aai-recheck.sh can run one id at a time (node --test --test-name-pattern).
@@ -1796,7 +1796,7 @@ test('TEST-2746 needs_full_recheck is an escalation to the full role, never a hu
 });
 
 // =====================================================================================
-// recheck-verdict-binding (docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md, TEST-2801..2832)
+// recheck-verdict-binding (docs/specs/SPEC-0251-spec-recheck-verdict-binding.md, TEST-2801..2832)
 // The judged round is bound in STATE by `state.mjs bind-check`; every fixture below builds it
 // through that real CLI. Eligibility compares the binding and never reads a check_ stamp.
 // =====================================================================================
