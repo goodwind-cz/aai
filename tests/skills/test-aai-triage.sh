@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-triage
-# (docs/specs/SPEC-DRAFT-spec-node-first-second-slice.md, TEST-2501..2520)
+# (docs/specs/SPEC-0248-spec-node-first-second-slice.md, TEST-2501..2520)
 #
 # The L1 triage pair is one Node module (.aai/scripts/triage.mjs) plus two thin
 # launchers (triage.sh, triage.ps1). Every function below runs alone under
@@ -333,7 +333,7 @@ test_2512_launcher_parity() {
   [[ "$rc_sh" == 0 && "$rc_ps" == 0 ]] || log_fail "TEST-2512: the non-ASCII fixture must exit 0 on both sides (sh=$rc_sh ps=$rc_ps)"
   cmp -s "$d/nonascii.sh" "$d/nonascii.ps" || log_fail "TEST-2512: non-ASCII stdout differs between triage.sh and triage.ps1"
   [[ "$(LC_ALL=C grep -c $'\xe2\x80\x94' "$d/nonascii.sh")" -ge 1 ]] || log_fail "TEST-2512: positive control failed, the em dash did not reach the output"
-  log_pass "TEST-2512: triage.sh and triage.ps1 give identical stdout and exit codes for seven fixtures"
+  log_pass "TEST-2512: triage.sh and triage.ps1 give identical stdout and exit codes for eight fixtures"
 }
 
 test_2513_pester_triage() {

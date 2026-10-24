@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-23T18:32:45.542Z",
+  "generatedAt": "2026-10-24T00:46:13.431Z",
   "project": "aai",
   "counts": {
-    "delivered": 317,
+    "delivered": 318,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -235,6 +235,19 @@
   ],
   "delivered": [
     {
+      "ref": "node-first-second-slice",
+      "title": "Move the second paired sync/hook behavior to one Node module",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0223-node-first-second-slice.md",
+      "closed_on": "2026-10-24",
+      "agent_minutes": 185,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0248-spec-node-first-second-slice.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "docs-audit-suite-speed",
       "title": "Make the always-on docs-audit suite measurably faster",
       "type": "change",
@@ -271,7 +284,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0247-spec-node-first-sync-hook-slice.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-node-first-sync-hook-slice-20261023T200106Z.md"
     },
     {
       "ref": "slim-standing-role-context",
@@ -4383,6 +4396,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "node-first-second-slice",
+          "title": "Move the second paired sync/hook behavior to one Node module",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0223-node-first-second-slice.md",
+          "closed_on": "2026-10-24",
+          "agent_minutes": 185,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0248-spec-node-first-second-slice.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "docs-audit-suite-speed",
           "title": "Make the always-on docs-audit suite measurably faster",
           "type": "change",
@@ -4419,7 +4445,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0247-spec-node-first-sync-hook-slice.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-node-first-sync-hook-slice-20261023T200106Z.md"
         },
         {
           "ref": "slim-standing-role-context",

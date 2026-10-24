@@ -1,10 +1,10 @@
 ---
 id: spec-node-first-second-slice
 type: spec
-number: null
-status: implementing
+number: 248
+status: done
 mutation_gate: v1
-frozen_sha256: e6e84826b4c339891e4764813d09fd05fa3c067bf71c9fc07c110508a5742456
+frozen_sha256: 24acbcab8bb232b970c82c4bccf617b33e122e9c425ed2799fb351b8b4f34180
 ceremony_level: 2
 links:
   requirement: node-first-second-slice
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Second Node-first slice of paired sync/hook scripts](../issues/CHANGE-DRAFT-node-first-second-slice.md).
+- Requirement: [Second Node-first slice of paired sync/hook scripts](../issues/CHANGE-0223-node-first-second-slice.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   Proposal section 1 and owner decisions 1.5 (phases 3 to 5 in order), 2 (Node
   22 floor downstream, Node 24 CI) and 4 (no new runner).
@@ -56,7 +56,7 @@ SPEC-FROZEN: true
   tests/skills/suite-weights.tsv (only if the selector asks for a row);
   tests/skills/lib/cd-subshell-leak-baseline.tsv (only if the checker asks for a re-record);
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md; CHANGELOG.md;
-  docs/issues/CHANGE-DRAFT-node-first-second-slice.md; this spec.
+  docs/issues/CHANGE-0223-node-first-second-slice.md; this spec.
 - Code review required: true.
 
 ## Pair selection (measured)
@@ -125,7 +125,7 @@ inspection" were read from the code.
 | D-11 | docs-audit exits non-zero without a verdict line | CLEAN, `--check` exit 0 | same | unchanged (shared behavior; suggested follow-up) |
 | D-12 | root is not a git repository | `Working tree: clean` | same under pwsh 7; 5.1 by inspection may raise on git's stderr under `Stop` | `Working tree: clean` (shared output kept); git's stderr is discarded by the module, so no host can raise |
 | D-13 | timestamp, tick tail, porcelain count, unknown arguments | `%Y-%m-%dT%H:%M:%SZ`; last line; one per porcelain line; ignored | same | unchanged, except where D-14 and D-15 say otherwise |
-| D-14 | where and in which case the check flag is accepted (refines D-13) | only as the first argument, exact case | `-Check` by parameter binding (any position, case-insensitive; pwsh 7 binds `--check` and `--CHECK` the same way) | the module accepts `--check` in any position, so `triage.sh x --check` now gates where it used to exit 0; the ps1 launcher keeps PowerShell's binding and a case-insensitive `$args -contains`, so `--CHECK` gates under ps1 and not under sh. A widening, kept. |
+| D-14 | where and in which case the check flag is accepted (refines D-13) | only as the first argument, exact case | `-Check` by parameter binding (any position, case-insensitive; pwsh 7 binds `--check` and `--CHECK` the same way under `-File`); an in-session `& triage.ps1 --check` left the flag in `$args`, ignored it and exited 0 | the module accepts `--check` in any position, so `triage.sh x --check` now gates where it used to exit 0, and an in-session `& triage.ps1 --check` now gates (exit 1 on a finding) where the old copy exited 0; the ps1 launcher keeps PowerShell's binding and a case-insensitive `$args -contains`, so `--CHECK` gates under ps1 and not under sh. A widening, kept. |
 | D-15 | repo root when `.aai` is reached through a symlink (refines D-13) | the logical script path | the logical script path | the real path of the module (`import.meta.url`), as live-spool does; a symlinked `.aai` reports the link target's repository. No shipped install mode uses symlinks. Kept. |
 
 The module reads no standard input. Its only external text inputs are the two
@@ -349,10 +349,10 @@ first): the visible output changes (D-1, D-8) are named in the CHANGELOG entry.
 |---|---|---|---|---|---|
 | Spec-AC-01 | WHEN buildReport from .aai/scripts/triage.mjs receives fixed inputs the system SHALL return the report lines in this order: header, blank, state line, tree line, tick line, blank, the audit lines, blank, verdict line, joined with LF and ending in one LF, with exit code 0. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2501.log | tdd | TEST-2501 |
 | Spec-AC-02 | The module SHALL resolve the recorded drift: the report holds only ASCII bytes for ASCII inputs and the header uses an ASCII hyphen (D-1); an empty project_status prints unknown (D-2); one leading BOM in STATE.yaml or LOOP_TICKS.jsonl is ignored (D-3); a lower-case needs-triage in the audit output gives CLEAN and exit 0 under --check and its lower-case lines are not shown (D-4); a CRLF tick line is printed without CR (D-5). | done | docs/ai/tdd/node-first-second-slice/green/TEST-2502.log, docs/ai/tdd/node-first-second-slice/green/TEST-2503.log, docs/ai/tdd/node-first-second-slice/green/TEST-2504.log, docs/ai/tdd/node-first-second-slice/green/TEST-2505.log, docs/ai/tdd/node-first-second-slice/green/TEST-2506.log | tdd | TEST-2502, TEST-2503, TEST-2504, TEST-2505, TEST-2506 |
-| Spec-AC-03 | WHEN the module CLI runs in a fixture repository it SHALL count real git porcelain lines, SHALL exit 1 only when the audit output holds NEEDS-TRIAGE and --check is given and 0 otherwise, SHALL print the skipped line when docs-audit.mjs is absent and the no-output line when the audit prints no matching line, and SHALL write nothing to stderr. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2507.log | tdd | TEST-2507 |
+| Spec-AC-03 | WHEN the module CLI runs in a fixture repository it SHALL count real git porcelain lines, SHALL exit 1 only when the audit output holds NEEDS-TRIAGE and --check is given and 0 otherwise, SHALL print the skipped line when docs-audit.mjs is absent and the no-output line when the audit prints no matching line, and SHALL write nothing to stderr. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2507.log, docs/ai/validation/node-first-second-slice/r2/suites.log | tdd | TEST-2507 |
 | Spec-AC-04 | The module source contains no readFileSync(0, process.stdin, writeFileSync, appendFileSync, mkdirSync or renameSync; WHEN the CLI runs in a fixture repository with STATE.yaml, ticks and a stub audit, git status --porcelain and the file list under the fixture SHALL be identical before and after. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2508.log | tdd | TEST-2508 |
-| Spec-AC-05 | triage.sh and triage.ps1 are each ASCII only, at most 14 lines, call triage.mjs from their own directory, contain none of the D2 logic tokens and the UNKNOWN literal exactly once; WHEN node is not on PATH, or triage.mjs is absent beside the launcher, each launcher SHALL print exactly the UNKNOWN line, write nothing to stderr and exit 0, with and without the check flag; WHEN node and the module are present the ps1 launcher SHALL return the module exit code. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2509.log, docs/ai/tdd/node-first-second-slice/green/TEST-2510.log, docs/ai/tdd/node-first-second-slice/green/TEST-2511.log | tdd | TEST-2509, TEST-2510, TEST-2511 |
-| Spec-AC-06 | WHEN the same seven fixtures (clean, state with ticks and changes, empty project_status, BOM STATE, lower-case audit, NEEDS-TRIAGE audit with the check flag, CRLF ticks) run through triage.sh and through triage.ps1 under pwsh, stdout after removing the timestamp and the exit code SHALL be identical; tests/skills/triage.Tests.ps1 SHALL pass at least 8 cases with 0 skipped and 0 failed under local pwsh 7. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2512.log, docs/ai/tdd/node-first-second-slice/green/TEST-2513.log | tdd | TEST-2512, TEST-2513 |
+| Spec-AC-05 | triage.sh and triage.ps1 are each ASCII only, at most 14 lines, call triage.mjs from their own directory, contain none of the D2 logic tokens and the UNKNOWN literal exactly once; WHEN node is not on PATH, or triage.mjs is absent beside the launcher, each launcher SHALL print exactly the UNKNOWN line, write nothing to stderr and exit 0, with and without the check flag; WHEN node and the module are present the ps1 launcher SHALL return the module exit code. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2509.log, docs/ai/tdd/node-first-second-slice/green/TEST-2510.log, docs/ai/tdd/node-first-second-slice/green/TEST-2511.log, docs/ai/validation/node-first-second-slice/r2/suites.log | tdd | TEST-2509, TEST-2510, TEST-2511 |
+| Spec-AC-06 | WHEN the same seven fixtures (clean, state with ticks and changes, empty project_status, BOM STATE, lower-case audit, NEEDS-TRIAGE audit with the check flag, CRLF ticks) run through triage.sh and through triage.ps1 under pwsh, stdout after removing the timestamp and the exit code SHALL be identical; tests/skills/triage.Tests.ps1 SHALL pass at least 8 cases with 0 skipped and 0 failed under local pwsh 7. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2512.log, docs/ai/tdd/node-first-second-slice/green/TEST-2513.log, docs/ai/validation/node-first-second-slice/r2/suites.log | tdd | TEST-2512, TEST-2513 |
 | Spec-AC-07 | WHEN aai-sync.sh installs the core profile into a scratch git target whose path contains a space, the target SHALL contain .aai/scripts/triage.mjs, and bash .aai/scripts/triage.sh run there SHALL exit 0 and print the header, a line starting with - Mode: from the real docs-audit, and a Triage verdict line, and SHALL not print the UNKNOWN or skipped line. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2514.log | tdd | TEST-2514 |
 | Spec-AC-08 | PROFILES.yaml lists .aai/scripts/triage.mjs exactly once, in core; select-suites.mjs selects aai-triage for each of the five suite paths with no FULL_RUN line; both ps1-quality.yml path lists contain .aai/scripts/triage.mjs and stay identical. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2515.log, docs/ai/tdd/node-first-second-slice/green/TEST-2516.log, docs/ai/tdd/node-first-second-slice/green/TEST-2517.log | tdd | TEST-2515, TEST-2516, TEST-2517 |
 | Spec-AC-09 | The RFC-0017 Rollout Status phase 3 row has status in progress, its description cell unchanged, the first-slice link and text unchanged, and a link whose target ends in node-first-second-slice.md followed by the word triage. | done | docs/ai/tdd/node-first-second-slice/green/TEST-2518.log | tdd | TEST-2518 |

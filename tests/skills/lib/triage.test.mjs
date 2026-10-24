@@ -1,5 +1,5 @@
 // triage.test.mjs - node:test cases for .aai/scripts/triage.mjs
-// (docs/specs/SPEC-DRAFT-spec-node-first-second-slice.md, TEST-2501..2506).
+// (docs/specs/SPEC-0248-spec-node-first-second-slice.md, TEST-2501..2506).
 // Direct imports, temp directories only, no repository clone.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';

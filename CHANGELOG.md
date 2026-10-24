@@ -22,6 +22,24 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — refactor(triage): one Node module owns the L1 triage snapshot
+
+- The L1 triage snapshot is now one Node module, `.aai/scripts/triage.mjs`;
+  `triage.sh` and `triage.ps1` are thin launchers (the pair went from 140 to
+  129 lines). Second slice of RFC-0017 phase 3. Visible changes:
+  - D-1: the report header and the state-absent separator use an ASCII hyphen
+    on both platforms (the Bash copy printed an em dash).
+  - D-4: the docs-audit verdict and mode markers are matched case-sensitively
+    on both platforms, as docs-audit prints them (the PowerShell copy matched
+    any case and could report NEEDS-ATTENTION and exit 1 under `-Check`).
+  - D-8: without Node, or without `triage.mjs`, each launcher prints only
+    `### Triage verdict: UNKNOWN (node or triage.mjs unavailable)` and exits 0,
+    also under `--check`; the old copies printed a CLEAN report over a skipped
+    docs-audit.
+  - D-14: `--check` is honoured in any argument position, so
+    `triage.sh x --check` and an in-session `& triage.ps1 --check` now gate
+    (exit 1 on a finding) where they used to exit 0.
+
 ## [unreleased] — refactor(live): one Node module owns the live-status spool
 
 - The live-status spool writer is now one Node module,

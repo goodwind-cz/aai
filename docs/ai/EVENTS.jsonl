@@ -3261,3 +3261,8 @@
 {"v":1,"ts":"2026-10-23T18:41:54Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"node-first-sync-hook-slice","payload":{"pr":495,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"999711ae1b4a54f5a98800b3791a0ffe843a10e7"}}
 {"v":1,"ts":"2026-10-23T20:20:48Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"node-first-sync-hook-slice","payload":{"pr":495,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"b0a77ac03b0cd77fe7d2ba9fc320fa61817618f6"}}
 {"v":1,"ts":"2026-10-23T22:07:12Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-second-slice","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-24T00:42:45Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"node-first-second-slice","payload":{"status":"pass","hash":"248aaecb04c7224da1289de45ea724dfd1406f798ad9a1d34302a19cb0092efa"}}
+{"v":1,"ts":"2026-10-24T00:46:06Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"node-first-second-slice","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-24T00:46:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"node-first-second-slice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-24T00:46:06Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-second-slice","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-24T00:46:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-second-slice","payload":{"validation":"pass","code_review":"pass"}}
