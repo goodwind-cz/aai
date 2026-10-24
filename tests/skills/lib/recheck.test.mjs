@@ -1469,11 +1469,11 @@ test('TEST-2741 append-event refuses check_dispatched and check_verdict when AAI
 // ------------------------------------------------------------------ TEST-2742
 // KNOWN RESIDUAL, pinned on purpose (fu-recheck-verdict-not-bound-to-check, which also covers the
 // former fu-recheck-uncommitted-stamp-rewrite): with delta opted in, the check_* stamps in
-// docs/ai/EVENTS.jsonl are not tamper-proof. ledger_rewritten and merge_in_range guarantee only
-// lines in the base blob or in commits still reachable from HEAD, and merges still visible in
-// base..HEAD. Any rewrite of a stamp before it is fixed in history that stays reachable from HEAD
-// (an uncommitted flip, commit --amend, a rebase that drops it, a squash resolved to ours,
-// git replace --graft, any other history rewrite) and any hand-appended forged stamp can yield
+// docs/ai/EVENTS.jsonl are not tamper-proof. ledger_rewritten compares only the base and HEAD
+// blobs, the live file and the commits of base..HEAD; merge_in_range sees only merges in
+// base..HEAD. Any stamp rewrite ledger_rewritten does not see (an uncommitted flip, a rewrite
+// committed before the base, commit --amend, a rebase that drops it, a squash resolved to ours,
+// git replace in any form, any other history rewrite) and any hand-appended forged stamp can yield
 // delta. Only the verdict-to-STATE binding closes it; delta must not become default-on before.
 // When that lands, the delta assertions below flip to full and this test is rewritten.
 test('TEST-2742 KNOWN RESIDUAL: an uncommitted true stamp flipped before its first commit gives delta under the opt-in, full by default', async () => {

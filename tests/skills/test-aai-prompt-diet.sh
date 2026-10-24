@@ -1013,7 +1013,7 @@ test_012_growth_sum_matches_ledger() {
   # Then 58478 -> 62478: cheap-transitions-slice (RECHECK_DELTA.prompt.md 0 -> 3498 B with the output contracts, the
   # security_relevant marker line in VALIDATION and SKILL_CODE_REVIEW, the --recheck delta and ref_id clause in ORCHESTRATION,
   # the canon pointer in ORCHESTRATION_PARALLEL, the recheck.fallback clause at the SKILL_LOOP capture step; measured deficit
-  # 3939 B by TEST-010, credited 4000 B to clear the reduction floor; SUBAGENT_PROTOCOL.md is outside TEST-010's glob and
+  # 4000 B by TEST-010 (2518 B at delivery plus 1361, 60 and 61 B of remediation rounds 1 to 3), credited 1:1; SUBAGENT_PROTOCOL.md is outside TEST-010's glob and
   # carries no credit, so the round 4 and 5 SUBAGENT_PROTOCOL credits are withdrawn, review r6 NB-15).
   local want_growth=62478
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
