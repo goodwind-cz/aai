@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-expert-fetch
-# (docs/specs/SPEC-DRAFT-spec-node-first-third-slice.md, TEST-2601..2633)
+# (docs/specs/SPEC-0249-spec-node-first-third-slice.md, TEST-2601..2633)
 #
 # The expert prompt fetcher is one Node module (.aai/scripts/expert-fetch.mjs)
 # plus two thin launchers (expert-fetch.sh, expert-fetch.ps1). Every function

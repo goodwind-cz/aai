@@ -1,5 +1,5 @@
 // expert-fetch.test.mjs - node:test cases for .aai/scripts/expert-fetch.mjs
-// (docs/specs/SPEC-DRAFT-spec-node-first-third-slice.md, TEST-2601..2610).
+// (docs/specs/SPEC-0249-spec-node-first-third-slice.md, TEST-2601..2610).
 // Direct imports, temporary directories only, runGh injected: no test runs a real gh.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';

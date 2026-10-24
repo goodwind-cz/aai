@@ -1,10 +1,10 @@
 ---
 id: spec-node-first-third-slice
 type: spec
-number: null
-status: implementing
+number: 249
+status: done
 mutation_gate: v1
-frozen_sha256: edc4f9c9c3c272f2901377d5913065fd48f4e00196432d23c69660fed19e2d31
+frozen_sha256: dd5d3a4dee3feebab5bb66d8f9fb417710ca819ab8406193d5b09ad4ef9ece0c
 ceremony_level: 2
 links:
   requirement: node-first-third-slice
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Third Node-first slice and phase 3 closeout](../issues/CHANGE-DRAFT-node-first-third-slice.md).
+- Requirement: [Third Node-first slice and phase 3 closeout](../issues/CHANGE-0224-node-first-third-slice.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   Proposal section 1 and owner decisions 1.5 (phases 3 to 5 in order), 2 (Node
   22 floor downstream, Node 24 CI), 3 (YAML stays where a human edits it) and 4
@@ -62,8 +62,8 @@ SPEC-FROZEN: true
   tests/skills/test-aai-triage.sh
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   docs/ai/decisions.jsonl CHANGELOG.md
-  docs/issues/CHANGE-DRAFT-node-first-third-slice.md
-  docs/specs/SPEC-DRAFT-spec-node-first-third-slice.md
+  docs/issues/CHANGE-0224-node-first-third-slice.md
+  docs/specs/SPEC-0249-spec-node-first-third-slice.md
   (suite-weights.tsv only if the selector asks for a row;
   tests/skills/lib/cd-subshell-leak-baseline.tsv is added only if the checker
   asks for a re-record).
@@ -386,7 +386,7 @@ Phase 3 row. The Rollout Status row whose first cell is `3` keeps its
 description cell and the whole first- and second-slice text byte for byte
 (TEST-2518 of SPEC-0248 pins the first-slice text exactly). Its status cell
 becomes `done`. Its delivered-by cell gains, after the second slice, the text
-`; the [third slice](../issues/CHANGE-DRAFT-node-first-third-slice.md) moved the expert prompt fetcher (expert-fetch pair 444 to <N> lines), a behavior with a network fetch, a cache and two security filters, and closed phase 3 with the remaining-pairs inventory below`,
+`; the [third slice](../issues/CHANGE-0224-node-first-third-slice.md) moved the expert prompt fetcher (expert-fetch pair 444 to <N> lines), a behavior with a network fetch, a cache and two security filters, and closed phase 3 with the remaining-pairs inventory below`,
 where `<N>` is the `wc -l` sum of `expert-fetch.sh`, `expert-fetch.ps1` and
 `expert-fetch.mjs` at delivery. The allocator rewrites the `CHANGE-DRAFT-` link
 at merge; every check matches only the suffix `node-first-third-slice.md`.

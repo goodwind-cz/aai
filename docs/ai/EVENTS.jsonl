@@ -3268,3 +3268,8 @@
 {"v":1,"ts":"2026-10-24T00:46:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-second-slice","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-24T01:00:15Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"node-first-second-slice","payload":{"pr":496,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"72631590e3740cbb36b87f515d37093fdcfc2d21"}}
 {"v":1,"ts":"2026-10-24T06:18:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-third-slice","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-24T10:05:00Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"node-first-third-slice","payload":{"status":"pass","hash":"9fc61980c7344ed741eee589db3fbea6e3a5c824ae4b00626649df1cc14f00d7"}}
+{"v":1,"ts":"2026-10-24T10:07:46Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"node-first-third-slice","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-24T10:07:46Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"node-first-third-slice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-24T10:07:46Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-third-slice","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-24T10:07:46Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-third-slice","payload":{"validation":"pass","code_review":"pass"}}
