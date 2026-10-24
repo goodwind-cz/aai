@@ -157,6 +157,7 @@ test_2628_blocked_list_fails_closed() { run_node_tests TEST-2628; log_pass "TEST
 test_2629_body_blocked_check() { run_node_tests TEST-2629; log_pass "TEST-2629: --body refuses a blocked expert and a malformed list"; }
 test_2631_cache_write_failure_cleans_up() { run_node_tests TEST-2631; log_pass "TEST-2631: a failed cache write removes its temporary file"; }
 test_2632_cache_write_failure_shapes() { run_node_tests TEST-2632; log_pass "TEST-2632: a file or directory in the cache path gives one clean Cannot-write line"; }
+test_2634_body_key_guard_planted() { run_node_tests TEST-2634; log_pass "TEST-2634: --body refuses a non-plain key although the file it names exists"; }
 test_2633_blocked_list_residual_shapes() { run_node_tests TEST-2633; log_pass "TEST-2633: duplicate headings, empty items and stray lines keep the blocked list fail closed"; }
 
 # ======================= TEST-2611..2612 (module CLI) ==========================
@@ -180,21 +181,34 @@ test_2611_cli_with_stub_gh() {
   log_pass "TEST-2611: the module CLI fetches through AAI_GH_BIN with exactly the pinned arguments"
 }
 
-test_2612_no_stdin_and_write_set() {
-  [[ -f "$EF_MJS" ]] || log_fail "TEST-2612: .aai/scripts/expert-fetch.mjs does not exist"
-  local bad rc=0
-  bad="$(node -e '
+# import_pin_bad <file>: prints one reason per violation of the stdin and import pins (whole-source scan, any line shape).
+import_pin_bad() {
+  node -e '
     const s = require("fs").readFileSync(process.argv[1], "utf8");
     const bad = ["readFileSync(0", "process.stdin", "/dev/stdin", "/dev/fd/0", "require(", "import("].filter((t) => s.includes(t));
     const want = ["node:child_process", "node:fs", "node:path", "node:url"];
-    const mods = [...s.matchAll(/^import .* from [\x27"]([^\x27"]+)[\x27"];/gm)].map((m) => m[1]).sort();
+    const mods = [...s.matchAll(/\bfrom\s*([\x27"])([^\x27"]*)\1/g), ...s.matchAll(/\bimport\s*([\x27"])([^\x27"]*)\1/g)].map((m) => m[2]).sort();
     if (mods.join() !== want.join()) bad.push("node imports " + mods.join(" ") + ", want " + want.join(" "));
-    const fsNames = [...s.matchAll(/^import \{([^}]*)\} from \x27node:fs\x27;/gm)].map((m) => m[1].split(",").map((n) => n.trim()).sort().join(" "));
+    const fsNames = [...s.matchAll(/\bimport\s*\{([^}]*)\}\s*from\s*\x27node:fs\x27/g)].map((m) => m[1].split(",").map((n) => n.trim()).filter(Boolean).sort().join(" "));
     const wantFs = "existsSync mkdirSync readFileSync realpathSync renameSync rmSync writeFileSync";
     if (fsNames.join("|") !== wantFs) bad.push("node:fs names " + fsNames.join("|") + ", want " + wantFs);
     process.stdout.write(bad.join(", "));
-  ' "$EF_MJS")"
+  ' "$1"
+}
+
+test_2612_no_stdin_and_write_set() {
+  [[ -f "$EF_MJS" ]] || log_fail "TEST-2612: .aai/scripts/expert-fetch.mjs does not exist"
+  local bad rc=0
+  bad="$(import_pin_bad "$EF_MJS")"
   [[ -z "$bad" ]] || log_fail "TEST-2612: the module source can read standard input or imports more than the pinned set: $bad"
+  # The pin must bite on every import line shape (review r3 NB-2): each mutated copy has to be flagged.
+  local shape ms
+  ms="$TEST_DIR/t2612.mut.mjs"
+  for shape in "import 'node:net';" "import net from 'node:net'" "import {
+  connect } from 'node:net';" "export { connect } from 'node:net';" "export * from 'node:net'"; do
+    { printf '%s\n' "$shape"; cat "$EF_MJS"; } > "$ms"
+    [[ -n "$(import_pin_bad "$ms")" ]] || log_fail "TEST-2612: the import pin missed this shape: $shape"
+  done
   ensure_stub; mk_root t2612
   local before="$TEST_DIR/t2612.before" after="$TEST_DIR/t2612.after"
   find "$FX" -type f | sort > "$before"
@@ -237,6 +251,13 @@ test_2630_launcher_blocked_list() {
     fi
     [[ ! -s "$STUB_LOG" ]] || log_fail "TEST-2630: $case_name: gh must never run, the stub log holds: $(cat "$STUB_LOG")"
   done
+  # D-22 through the launcher: a real file planted above the experts directory must never be printed.
+  cp "$real" "$reg"
+  printf 'PLANTED-SECRET\n' > "$FX/.aai/cache/x.md" 2>/dev/null || { mkdir -p "$FX/.aai/cache"; printf 'PLANTED-SECRET\n' > "$FX/.aai/cache/x.md"; }
+  rc=0; out="$(AAI_GH_BIN="$STUB" STUB_LOG="$STUB_LOG" bash "$FX/.aai/scripts/expert-fetch.sh" --body ../x 2>/dev/null)" || rc=$?
+  [[ "$rc" == 1 && -z "$out" ]] || log_fail "TEST-2630: --body ../x must exit 1 with empty stdout, got $rc: $out"
+  out="$(AAI_GH_BIN="$STUB" STUB_LOG="$STUB_LOG" bash "$FX/.aai/scripts/expert-fetch.sh" --body ../x 2>&1 >/dev/null)" || true
+  [[ "$out" == "ERROR: Expert '../x' not cached. Run expert-fetch.sh ../x first." ]] || log_fail "TEST-2630: wrong --body ../x refusal: $out"
   log_pass "TEST-2630: the launcher refuses a blocked expert for every list spelling and a malformed list, with gh never called"
 }
 
@@ -667,6 +688,7 @@ main() {
   test_2631_cache_write_failure_cleans_up
   test_2632_cache_write_failure_shapes
   test_2633_blocked_list_residual_shapes
+  test_2634_body_key_guard_planted
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

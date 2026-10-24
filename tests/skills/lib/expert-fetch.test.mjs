@@ -364,8 +364,21 @@ test('TEST-2629 body applies the blocked check before printing a cached prompt',
   const broken = cli(['--body', 'typescript'], { root, registry: withBlocked('blocked_categories:') });
   assert.deepEqual([broken.code, broken.out], [1, '']);
   assert.match(broken.err, /no readable item/);
-  const traversal = cli(['--body', '../x'], { root });
-  assert.deepEqual([traversal.code, traversal.out], [1, '']);
+});
+
+// TEST-2634: D-22 with a real file planted at .aai/cache/x.md, so only the key guard can refuse it (validation r2 B-1).
+test('TEST-2634 body refuses a non-plain key even when the file it names exists', () => {
+  const root = tmpRoot();
+  fs.mkdirSync(cachePaths(root, 'typescript').dir, { recursive: true });
+  // D-22: plant a real file one level above the experts directory; a missing file would pass without the key guard.
+  const planted = path.join(cachePaths(root, 'typescript').dir, '..', 'x.md');
+  fs.writeFileSync(planted, 'PLANTED-SECRET\n');
+  for (const bad of ['../x', 'Typescript', 'type.script']) {
+    const traversal = cli(['--body', bad], { root });
+    assert.deepEqual([traversal.code, traversal.out], [1, ''], bad);
+    assert.equal(traversal.err, "ERROR: Expert '" + bad + "' not cached. Run expert-fetch.sh " + bad + ' first.\n', bad);
+  }
+  assert.equal(fs.readFileSync(planted, 'utf8'), 'PLANTED-SECRET\n');
 });
 
 test('TEST-2631 a failed cache write leaves no temporary file behind', () => {
