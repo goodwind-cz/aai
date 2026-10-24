@@ -5,7 +5,7 @@
 // security filters; expert-fetch.sh and expert-fetch.ps1 are thin launchers.
 // Exit codes: 0 success, 1 rejected or error, 2 key not found. It never reads
 // standard input and writes only under <root>/.aai/cache/experts/.
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -63,16 +63,19 @@ export function parseRegistry(text) {
     experts.set(m[1], ex);
   });
   const blocked = [];
-  const at = lines.indexOf('blocked_categories:');
-  for (let i = at + 1; at >= 0 && i < lines.length; i++) {
-    const m = /^ {2}- (.*)$/.exec(lines[i]);
-    if (!m) break;
-    blocked.push(m[1].replace(/#.*$/, '').trim());
+  const at = lines.findIndex((l) => l.startsWith('blocked_categories:'));
+  const unq = (v) => v.replace(/#.*$/, '').trim().replace(/^(["'])(.*)\1$/, '$2');
+  const flow = at >= 0 ? /^\[(.*)\]\s*(#.*)?$/.exec(lines[at].slice('blocked_categories:'.length).trim()) : null;
+  if (flow) blocked.push(...flow[1].split(',').map(unq).filter(Boolean));
+  for (let i = at + 1; at >= 0 && !flow && i < lines.length; i++) {
+    const m = /^\s+-\s+(.*)$/.exec(lines[i]);
+    if (m) blocked.push(unq(m[1]));
+    else if (!/^\s*(#.*)?$/.test(lines[i])) break;
   }
   const max = /^\d+$/.exec(scalar('max_prompt_bytes') ?? '');
   return {
     repo: scalar('repo'), pinnedSha: scalar('pinned_sha'), basePath: scalar('base_path'),
-    maxBytes: max ? Number(max[0]) : DEFAULT_MAX_BYTES, blocked, keys, experts,
+    maxBytes: max ? Number(max[0]) : DEFAULT_MAX_BYTES, blocked, blockedBroken: at >= 0 && blocked.length === 0 && !(flow && flow[1].trim() === ''), keys, experts,
   };
 }
 
@@ -123,13 +126,18 @@ const cacheFiles = (root, key) => {
   const dir = path.join(root, '.aai', 'cache', 'experts');
   return { dir, file: path.join(dir, key + '.md'), sha: path.join(dir, '.sha_' + key) };
 };
+export function blockedRefusal(reg, key) {
+  if (reg.blockedBroken) return { code: 1, out: '', err: 'ERROR: blocked_categories in the registry has no readable item; refusing to serve experts\n' };
+  const category = (reg.experts.get(key)?.path ?? '').split('/')[0];
+  const blocked = reg.blocked.includes(category);
+  return blocked ? { code: 1, out: '', err: "ERROR: Category '" + category + "' is blocked in registry\n" } : null;
+}
 
 export function fetchExpert({ root, reg, key, force, runGh }) {
   const ex = reg.experts.get(key);
   if (!ex || !ex.path) return { code: NOT_FOUND, out: '', err: "ERROR: Expert '" + key + "' not found in registry\n" };
-  const category = ex.path.split('/')[0];
-  const blocked = reg.blocked.includes(category);
-  if (blocked) return { code: 1, out: '', err: "ERROR: Category '" + category + "' is blocked in registry\n" };
+  const refused = blockedRefusal(reg, key);
+  if (refused) return refused;
   const { dir: cacheDir, file: cacheFile, sha: shaFile } = cacheFiles(root, key);
   if (!force && existsSync(cacheFile) && existsSync(shaFile) && readText(shaFile).trim() === reg.pinnedSha) {
     return { code: 0, out: cacheFile + '\n', err: '' };
@@ -151,7 +159,7 @@ export function fetchExpert({ root, reg, key, force, runGh }) {
     renameSync(tmp, cacheFile);
     writeFileSync(shaFile, reg.pinnedSha, 'utf8');
   } catch (e) {
-    return { code: 1, out: '', err: 'ERROR: Cannot write the cache under ' + cacheDir + ': ' + e.code + '\n' };
+    rmSync(tmp, { force: true }); return { code: 1, out: '', err: 'ERROR: Cannot write the cache under ' + cacheDir + ': ' + e.code + '\n' };
   }
   return { code: 0, out: cacheFile + '\n', err: '' };
 }
@@ -179,7 +187,7 @@ export function main({ argv, root, env = process.env, stdout = process.stdout, s
     if (!/^[a-z][a-z0-9_-]*$/.test(key) || !existsSync(c.file)) {
       return emit({ code: 1, out: '', err: "ERROR: Expert '" + key + "' not cached. Run expert-fetch.sh " + key + ' first.\n' });
     }
-    return emit({ code: 0, out: stripFrontmatter(readText(c.file)), err: '' });
+    return emit(blockedRefusal(reg, key) ?? { code: 0, out: stripFrontmatter(readText(c.file)), err: '' });
   }
   if (!reg.pinnedSha || !reg.repo) return emit({ code: 1, out: '', err: 'ERROR: Invalid registry - missing pinned_sha or repo\n' });
   const force = rest.includes('--force');

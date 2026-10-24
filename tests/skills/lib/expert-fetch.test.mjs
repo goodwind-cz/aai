@@ -299,3 +299,83 @@ test('TEST-2610 the body mode reads a BOM cache file and reports an absent one',
   assert.deepEqual([absent.code, absent.out], [1, '']);
   assert.equal(absent.err, "ERROR: Expert 'javascript' not cached. Run expert-fetch.sh javascript first.\n");
 });
+
+// TEST-2627..2631: the blocked list fails closed (code review r1 NB-1, NB-2; validation r1 NB-3).
+const withBlocked = (block) => FIXTURE.replace(/blocked_categories:[\s\S]*?\n\n/, block + '\n\n');
+const VARIANTS = {
+  'trailing spaces on the heading': 'blocked_categories:   \n  - 09-meta-orchestration\n  - 08-business-product',
+  'a comment on the heading line': 'blocked_categories:  # policy\n  - 09-meta-orchestration\n  - 08-business-product',
+  'a comment line first in the list': 'blocked_categories:\n  # AAI policy\n  - 09-meta-orchestration\n  - 08-business-product',
+  'a blank line first in the list': 'blocked_categories:\n\n  - 09-meta-orchestration\n  - 08-business-product',
+  'four-space indent': 'blocked_categories:\n    - 09-meta-orchestration\n    - 08-business-product',
+  'double-quoted items': 'blocked_categories:\n  - "09-meta-orchestration"\n  - "08-business-product"',
+  'single-quoted items with comments': "blocked_categories:\n  - '09-meta-orchestration'  # a\n  - '08-business-product'",
+  'a flow list': "blocked_categories: [09-meta-orchestration, '08-business-product']",
+};
+
+test('TEST-2627 every blocked-list spelling blocks both categories and stays well-formed', () => {
+  for (const [name, block] of Object.entries(VARIANTS)) {
+    const reg = parseRegistry(withBlocked(block));
+    assert.deepEqual(reg.blocked, ['09-meta-orchestration', '08-business-product'], name);
+    assert.equal(reg.blockedBroken, false, name);
+    const run = gh(b64(PROMPT));
+    const r = fetchExpert({ root: tmpRoot(), reg, key: 'zblocked', force: false, runGh: run });
+    assert.equal(r.code, 1, name);
+    assert.equal(run.calls.length, 0, name);
+  }
+});
+
+test('TEST-2627 the real registry keeps its two categories and 110 keys', () => {
+  const reg = parseRegistry(REAL_REGISTRY);
+  assert.deepEqual(reg.blocked, ['09-meta-orchestration', '08-business-product']);
+  assert.equal(reg.blockedBroken, false);
+  assert.equal(reg.keys.length, 110);
+});
+
+test('TEST-2628 a heading with no readable item refuses every fetch and never calls gh', () => {
+  for (const block of ['blocked_categories:', 'blocked_categories:\n  # nothing here', 'blocked_categories:\n- 09-meta-orchestration',
+    'blocked_categories: nonsense']) {
+    const reg = parseRegistry(withBlocked(block));
+    assert.equal(reg.blockedBroken, true, block);
+    const run = gh(b64(PROMPT));
+    const r = fetchExpert({ root: tmpRoot(), reg, key: 'typescript', force: false, runGh: run });
+    assert.equal(r.code, 1, block);
+    assert.equal(r.err, 'ERROR: blocked_categories in the registry has no readable item; refusing to serve experts\n', block);
+    assert.equal(run.calls.length, 0, block);
+  }
+  const none = parseRegistry(withBlocked('blocked_categories: []'));
+  assert.deepEqual([none.blocked, none.blockedBroken], [[], false]);
+  const absent = parseRegistry(FIXTURE.replace(/blocked_categories:[\s\S]*?\n\n/, '\n'));
+  assert.deepEqual([absent.blocked, absent.blockedBroken], [[], false]);
+});
+
+test('TEST-2629 body applies the blocked check before printing a cached prompt', () => {
+  const root = tmpRoot();
+  for (const key of ['zblocked', 'typescript']) {
+    const p = cachePaths(root, key);
+    fs.mkdirSync(p.dir, { recursive: true });
+    fs.writeFileSync(p.file, CLEAN);
+  }
+  const blocked = cli(['--body', 'zblocked'], { root });
+  assert.deepEqual([blocked.code, blocked.out], [1, '']);
+  assert.equal(blocked.err, "ERROR: Category '09-meta-orchestration' is blocked in registry\n");
+  const ok = cli(['--body', 'typescript'], { root });
+  assert.deepEqual([ok.code, ok.out, ok.err], [0, '# Title\nbody\n---\nafter dash\nlast\n', '']);
+  const broken = cli(['--body', 'typescript'], { root, registry: withBlocked('blocked_categories:') });
+  assert.deepEqual([broken.code, broken.out], [1, '']);
+  assert.match(broken.err, /no readable item/);
+  const traversal = cli(['--body', '../x'], { root });
+  assert.deepEqual([traversal.code, traversal.out], [1, '']);
+});
+
+test('TEST-2631 a failed cache write leaves no temporary file behind', () => {
+  const root = tmpRoot();
+  const p = cachePaths(root, 'typescript');
+  fs.mkdirSync(p.file, { recursive: true });
+  const run = gh(b64(PROMPT));
+  const r = cli(['typescript'], { root, runGh: run });
+  assert.equal(r.code, 1);
+  assert.match(r.err, /^ERROR: Cannot write the cache under .*: [A-Z]+\n$/);
+  assert.equal(run.calls.length, 1);
+  assert.deepEqual(fs.readdirSync(p.dir).filter((n) => n.startsWith('.tmp_')), []);
+});

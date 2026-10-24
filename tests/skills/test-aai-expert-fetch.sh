@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-expert-fetch
-# (docs/specs/SPEC-DRAFT-spec-node-first-third-slice.md, TEST-2601..2626)
+# (docs/specs/SPEC-DRAFT-spec-node-first-third-slice.md, TEST-2601..2631)
 #
 # The expert prompt fetcher is one Node module (.aai/scripts/expert-fetch.mjs)
 # plus two thin launchers (expert-fetch.sh, expert-fetch.ps1). Every function
@@ -152,6 +152,10 @@ test_2607_fetch_and_cache() { run_node_tests TEST-2607; log_pass "TEST-2607: fet
 test_2608_fetch_failures() { run_node_tests TEST-2608; log_pass "TEST-2608: gh failures leave the cache untouched and exit 1"; }
 test_2609_exit_codes() { run_node_tests TEST-2609; log_pass "TEST-2609: unknown key 2, usage 1, missing registry 1, invalid registry 1"; }
 test_2610_body() { run_node_tests TEST-2610; log_pass "TEST-2610: --body prints the lines after the second dash line"; }
+test_2627_blocked_list_spellings() { run_node_tests TEST-2627; log_pass "TEST-2627: every blocked-list spelling blocks, and the real registry parse is unchanged"; }
+test_2628_blocked_list_fails_closed() { run_node_tests TEST-2628; log_pass "TEST-2628: a heading with no readable item refuses and never calls gh"; }
+test_2629_body_blocked_check() { run_node_tests TEST-2629; log_pass "TEST-2629: --body refuses a blocked expert and a malformed list"; }
+test_2631_cache_write_failure_cleans_up() { run_node_tests TEST-2631; log_pass "TEST-2631: a failed cache write removes its temporary file"; }
 
 # ======================= TEST-2611..2612 (module CLI) ==========================
 test_2611_cli_with_stub_gh() {
@@ -179,9 +183,16 @@ test_2612_no_stdin_and_write_set() {
   local bad rc=0
   bad="$(node -e '
     const s = require("fs").readFileSync(process.argv[1], "utf8");
-    process.stdout.write(["readFileSync(0", "process.stdin"].filter((t) => s.includes(t)).join(", "));
+    const bad = ["readFileSync(0", "process.stdin", "/dev/stdin", "require(", "import("].filter((t) => s.includes(t));
+    const want = ["node:child_process", "node:fs", "node:path", "node:url"];
+    const mods = [...s.matchAll(/^import .* from [\x27"](node:[a-z_]+)[\x27"];/gm)].map((m) => m[1]).sort();
+    if (mods.join() !== want.join()) bad.push("node imports " + mods.join(" ") + ", want " + want.join(" "));
+    const fsNames = [...s.matchAll(/^import \{([^}]*)\} from \x27node:fs\x27;/gm)].map((m) => m[1].split(",").map((n) => n.trim()).sort().join(" "));
+    const wantFs = "existsSync mkdirSync readFileSync realpathSync renameSync rmSync writeFileSync";
+    if (fsNames.join("|") !== wantFs) bad.push("node:fs names " + fsNames.join("|") + ", want " + wantFs);
+    process.stdout.write(bad.join(", "));
   ' "$EF_MJS")"
-  [[ -z "$bad" ]] || log_fail "TEST-2612: the module source reads standard input: $bad"
+  [[ -z "$bad" ]] || log_fail "TEST-2612: the module source can read standard input or imports more than the pinned set: $bad"
   ensure_stub; mk_root t2612
   local before="$TEST_DIR/t2612.before" after="$TEST_DIR/t2612.after"
   find "$FX" -type f | sort > "$before"
@@ -191,7 +202,40 @@ test_2612_no_stdin_and_write_set() {
   local added; added="$(comm -13 "$before" "$after" | sed "s|^$FX/||" | tr '\n' ' ')"
   [[ "$added" == ".aai/cache/experts/.sha_typescript .aai/cache/experts/typescript.md " ]] || log_fail "TEST-2612: a fetch must add exactly the two cache files, added: $added"
   [[ -z "$(comm -23 "$before" "$after")" ]] || log_fail "TEST-2612: a fetch must remove no file"
-  log_pass "TEST-2612: the module never reads standard input and a fetch writes only the two cache files"
+  log_pass "TEST-2612: the module imports only the pinned node:* set, never reads standard input, and a fetch writes only the two cache files"
+}
+
+# TEST-2630: the bash launcher fails closed on blocked-list spellings and a malformed list.
+test_2630_launcher_blocked_list() {
+  [[ -f "$EF_MJS" ]] || log_fail "TEST-2630: .aai/scripts/expert-fetch.mjs does not exist"
+  ensure_stub; mk_root t2630
+  local reg="$FX/.aai/system/EXPERT_REGISTRY.yaml" real="$TEST_DIR/t2630.real" case_name rc out heading
+  cp "$reg" "$real"
+  for case_name in comment-heading comment-line quoted empty; do
+    case "$case_name" in
+      comment-heading) heading=$'blocked_categories:   # policy\n  - 09-meta-orchestration\n  - 08-business-product' ;;
+      comment-line) heading=$'blocked_categories:\n  # AAI policy\n\n    - 09-meta-orchestration\n    - 08-business-product' ;;
+      quoted) heading=$'blocked_categories:\n  - "09-meta-orchestration"\n  - \'08-business-product\'' ;;
+      empty) heading=$'blocked_categories:\n  # nothing' ;;
+    esac
+    node -e '
+      const fs = require("fs");
+      const t = fs.readFileSync(process.argv[1], "utf8").replace(/blocked_categories:[\s\S]*?\n\n/, () => process.argv[3] + "\n\n");
+      fs.writeFileSync(process.argv[2], t);
+    ' "$real" "$reg" "$heading" || log_fail "TEST-2630: cannot write the $case_name registry"
+    : > "$STUB_LOG"; rc=0
+    if [[ "$case_name" == empty ]]; then
+      out="$(AAI_GH_BIN="$STUB" STUB_LOG="$STUB_LOG" STUB_PROMPT="$STUB_PROMPT" bash "$FX/.aai/scripts/expert-fetch.sh" typescript 2>&1)" || rc=$?
+      [[ "$rc" == 1 ]] || log_fail "TEST-2630: $case_name: a malformed list must exit 1, got $rc: $out"
+      [[ "$out" == "ERROR: blocked_categories in the registry has no readable item; refusing to serve experts" ]] || log_fail "TEST-2630: $case_name: wrong message: $out"
+    else
+      out="$(AAI_GH_BIN="$STUB" STUB_LOG="$STUB_LOG" STUB_PROMPT="$STUB_PROMPT" bash "$FX/.aai/scripts/expert-fetch.sh" zblocked 2>&1)" || rc=$?
+      [[ "$rc" == 1 ]] || log_fail "TEST-2630: $case_name: a blocked expert must exit 1, got $rc: $out"
+      [[ "$out" == "ERROR: Category '09-meta-orchestration' is blocked in registry" ]] || log_fail "TEST-2630: $case_name: wrong message: $out"
+    fi
+    [[ ! -s "$STUB_LOG" ]] || log_fail "TEST-2630: $case_name: gh must never run, the stub log holds: $(cat "$STUB_LOG")"
+  done
+  log_pass "TEST-2630: the launcher refuses a blocked expert for every list spelling and a malformed list, with gh never called"
 }
 
 # ======================= TEST-2613..2615 (launchers) ===========================
@@ -586,7 +630,7 @@ test_2626_496_amendments_signed() {
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-node-first-third-slice TEST-2601..2626)"
+  echo "Testing $TEST_NAME (SPEC spec-node-first-third-slice TEST-2601..2631)"
   check_deps
   setup_fixture
   test_2601_registry_parse
@@ -601,6 +645,7 @@ main() {
   test_2610_body
   test_2611_cli_with_stub_gh
   test_2612_no_stdin_and_write_set
+  test_2630_launcher_blocked_list
   test_2613_launchers_thin
   test_2614_sh_launcher_without_node
   test_2615_ps1_launcher_mapping_and_exit
@@ -614,6 +659,10 @@ main() {
   test_2624_inventory_matches_tree
   test_2625_amended_status_checks
   test_2626_496_amendments_signed
+  test_2627_blocked_list_spellings
+  test_2628_blocked_list_fails_closed
+  test_2629_body_blocked_check
+  test_2631_cache_write_failure_cleans_up
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
