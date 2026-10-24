@@ -373,12 +373,27 @@ test('TEST-2634 body refuses a non-plain key even when the file it names exists'
   // D-22: plant a real file one level above the experts directory; a missing file would pass without the key guard.
   const planted = path.join(cachePaths(root, 'typescript').dir, '..', 'x.md');
   fs.writeFileSync(planted, 'PLANTED-SECRET\n');
+  // Plant a file for each case and dot variant too, so only the key guard can refuse them (review r4 NB-2).
+  for (const variant of ['Typescript', 'type.script']) fs.writeFileSync(cachePaths(root, variant).file, 'PLANTED-SECRET\n');
   for (const bad of ['../x', 'Typescript', 'type.script']) {
     const traversal = cli(['--body', bad], { root });
     assert.deepEqual([traversal.code, traversal.out], [1, ''], bad);
     assert.equal(traversal.err, "ERROR: Expert '" + bad + "' not cached. Run expert-fetch.sh " + bad + ' first.\n', bad);
   }
   assert.equal(fs.readFileSync(planted, 'utf8'), 'PLANTED-SECRET\n');
+});
+
+// TEST-2635: D-22 case variant of a blocked key; with a cached file the loosened guard would serve a blocked body (review r4 NB-2).
+test('TEST-2635 body refuses a case variant of a blocked key even when its file is cached', () => {
+  const root = tmpRoot();
+  fs.mkdirSync(cachePaths(root, 'zblocked').dir, { recursive: true });
+  for (const key of ['zblocked', 'Zblocked']) fs.writeFileSync(cachePaths(root, key).file, 'PLANTED-SECRET\n');
+  const variant = cli(['--body', 'Zblocked'], { root });
+  assert.deepEqual([variant.code, variant.out], [1, '']);
+  assert.equal(variant.err, "ERROR: Expert 'Zblocked' not cached. Run expert-fetch.sh Zblocked first.\n");
+  const exact = cli(['--body', 'zblocked'], { root });
+  assert.deepEqual([exact.code, exact.out], [1, '']);
+  assert.equal(exact.err, "ERROR: Category '09-meta-orchestration' is blocked in registry\n");
 });
 
 test('TEST-2631 a failed cache write leaves no temporary file behind', () => {
