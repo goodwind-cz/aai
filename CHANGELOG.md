@@ -29,14 +29,18 @@ fine — it is the marker a cut leaves on top.
   the gitignored `docs/ai/STATE.yaml`: the head of the first dispatch, the verdict, the sha256 of each report and the `security_relevant`
   marker. `recheckMode` compares that block, so a stamp rewrite or a hand-appended stamp changes nothing it reads. Git reads run without
   inherited `GIT_*` variables and without replace objects, and `refs/replace/` or `info/grafts` gives `full`.
+- A second STATE block, `check_sticky`, keeps one record per ref (the `security_relevant` flag and every spec path the ref was recorded with). Only
+  `bind-check` writes it and only to raise the flag or add a path: replacing the `check_binding` block (a focus switch to another ref and back, a
+  `git worktree move`), a metrics flush and `reset-block` leave it, and `ride-handoff.mjs out` copies the record of its ref into the worktree STATE.
+  A bound block with no record, or a record that does not parse, gives `full`.
 - Two more cases give `full` (owner decision 2026-10-24): a `security_relevant: false` line inside a fenced code block no longer counts as
   the report marker, and the ceremony level is the stricter of the spec the binding recorded and the spec STATE names now.
 - `check-role-output.mjs` takes `--recheck-mode <delta|full>` and prints `RECHECK-ESCALATION` only for a delta round; the prompts say an
   escalated round merges nothing (`run none of its state_update_commands`).
 - The delta re-check is now ON by default: a Validation or Code Review round that follows a judged round and whose delta is
   non-production runs on the slim payload when every comparison holds, and `AAI_RECHECK_MODE=full` turns it off for a run (any value
-  other than unset, empty, blank or `delta` also gives `full`). Downstream impact: the first re-check round of every install after
-  `/aai-update` can run on the slim payload; a repository without a `check_binding` block gives `first_round` and stays full.
+  other than unset, empty, blank or `delta` also gives `full`). Downstream impact: a repository without a `check_binding` block gives `first_round` and stays full, so a ride already in flight when
+  `/aai-update` lands runs its first re-check round full; only a round that follows a round bound after the update can run on the slim payload.
 - Residual: the comparisons read `docs/ai/STATE.yaml` and the bound report files as they are on disk, so an edit to either made outside
   `state.mjs` before the tick that binds or reads it, and a verdict the orchestrator itself records for the dispatched role with a new report,
   are taken as written; no shape outside the D5 table is claimed.
@@ -55,9 +59,9 @@ fine — it is the marker a cut leaves on top.
   checker that cannot judge the delta returns `needs_full_recheck` (never a human
   stop: `check-role-output.mjs` flags it and the tick re-runs full) and the full
   role runs. The `prompt_hash` of a delta dispatch covers only the layers the
-  payload sends (the re-check prompt and the contract, not `LEARNED.md`). The mode is OPT-IN: it applies only when `AAI_RECHECK_MODE`
-  normalises to `delta`; unset, empty and every other value give full with the
-  reason `recheck_disabled`. It ships off because, with delta opted in, the `check_*`
+  payload sends (the re-check prompt and the contract, not `LEARNED.md`). As shipped by this entry the mode was OPT-IN (it applied only when `AAI_RECHECK_MODE`
+  normalised to `delta`); the entry above changes the default: unset, empty, blank and `delta` now enable it, and `full` and every other value give full with the
+  reason `recheck_disabled`. It first shipped off because, with delta opted in, the `check_*`
   stamps in `EVENTS.jsonl` are not tamper-proof: any stamp rewrite that `ledger_rewritten` does
   not see (an uncommitted rewrite, one committed before the base, `commit --amend`, a rebase that
   drops it, a squash resolved to ours, `git replace` in any form, any history rewrite) and a hand-appended

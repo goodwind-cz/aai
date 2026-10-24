@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: eccfa39715764911f26a7d869ff4d5d304c400e2beb918348b8bcc5a50fc57d7
+frozen_sha256: 60491e0da1f708ffb49eaddc4dd46ecbbe31d700ff42012cc8386744d1aee92c
 ceremony_level: 3
 links:
   requirement: recheck-verdict-binding
@@ -116,7 +116,7 @@ Fields (the line engine's `  key: value` form; lists in the block-list form
 | `ref_id` | both | the ref; a `bind-check` for another ref replaces the whole block |
 | `checkout` | both | `realpath` of `git rev-parse --show-toplevel` at write time |
 | `spec_path` | dispatch | the focus spec path STATE names (the work item `spec_path`, else `current_focus.spec_path`), recorded once while the block holds none and kept for the life of the block (D13) |
-| `security_sticky` | verdict | `true` once any bound marker of either role was `true`; never lowered while the block names this ref |
+| `security_sticky` | both | `true` once any bound marker of either role was `true`; not lowered by a write that keeps the block; a replacement block is seeded from the per-ref `check_sticky` record (D15) |
 | `<role>_pending_heads` | dispatch | the 40-hex `git rev-parse HEAD` of each dispatch of the role since its last bound verdict, in order |
 | `<role>_pending_reports` | dispatch | the report paths STATE named for the role at the FIRST pending dispatch (Validation: the `.md` entries of `last_validation.evidence_paths` when its `ref_id` names the ref; Code Review: `code_review.report_paths` when `scope_ref_id` is null or names the ref) |
 | `<role>_head` | verdict | the bound head (D2), 40 hex, or `AMBIGUOUS_HEAD` (forty zeros) |
@@ -185,6 +185,8 @@ prior reports read from the base blob or live, `ledger_rewritten`,
 | the sha256 of each `<role>_reports` file read now equals its `<role>_digests` entry | `binding_report_changed:<path>` (also when the file is unreadable) |
 | `spec_path` is recorded and equals the focus spec path STATE names now (D13) | `spec_path_unbound:binding` when no path is recorded, `spec_path_changed:binding` when it differs |
 | `security_sticky` is not `true` and neither role's `<role>_security` is `true` | `security_relevant:binding` |
+| the `check_sticky` block parses and holds an entry for the ref (D15) | `sticky_record_ambiguous` when it does not parse, `sticky_record_absent:binding` when it holds no entry for the ref |
+| that entry's `security` is not `true` (D15) | `security_relevant:sticky` |
 | the role's `<role>_security` is `false` | `security_marker_absent:binding:<role>` |
 | `git for-each-ref --count=1 refs/replace/` prints nothing and `<git common dir>/info/grafts` does not exist | `replace_refs_present` |
 
@@ -226,12 +228,14 @@ returns `delta` for shapes 1 to 8 and 10 (the stored RED); shapes 9
   (focus, work item, metrics entry, strategy, code_review, last_validation,
   tdd_cycle, worktree fields); `check_binding` is not in it, and this scope
   does not add it. The worktree's STATE has no block, so its first re-check
-  round gives `first_round`. A STATE copied into another checkout by hand
+  round gives `first_round`. The `check_sticky` entry of the ride is copied
+  into the worktree STATE (D15). A STATE copied into another checkout by hand
   keeps the block, and `checkout` then differs: `binding_other_checkout`.
 - `metrics-flush.mjs` partial reset of a flushed ref that `check_binding`
   names clears both roles' verdict and pending fields and keeps `ref_id`,
   `checkout` and `security_sticky` (`clearCheckBinding`); the next round
   gives `first_round`. The full reset removes the block (`removeCheckBinding`).
+  Neither function opens the `check_sticky` block (D15).
 - `reset-block` does not touch the block (the round after a remediation reads
   it; that is the normal path).
 - `merge-cleanup.mjs` archives runtime files and never restores one into
@@ -400,6 +404,49 @@ HEAD, is the dispatch record of the round being built and gives no `binding_pend
 (D5 shape 10 and the TEST-2805 case are unchanged). This is an additive refinement of the D4
 `binding_pending` row, disclosed by a second contract amendment record.
 
+At a crashed-check head (D5 shape 10 with the one pending head equal to the current HEAD) the tick's
+own decision gives `full` with `binding_pending`, while `canon.mjs build --recheck delta` builds a
+delta payload for that round: the base it lists is the last bound verdict head, so the payload lists
+everything changed since the last judged verdict, and the build binds no verdict. Validation r1 (N2)
+found no way to use this to skip a pending check; the sentence records what the two readers compare.
+
+### D15. The per-ref `check_sticky` record (code review r1 B-1 and validation r1 B1, 2026-10-24)
+
+Review and validation found that replacing the `check_binding` block starts a block with
+`security_sticky` false and re-reads `spec_path`: a focus switch to another ref and back using only
+`state.mjs` commands (probe A3), `git worktree move` (probe WM, `checkout` differs) and a block that
+does not parse each left a bound `security_relevant: true` and the recorded L3 spec path unremembered,
+and the next bound round with a test-only delta gave `delta`. The sticky flag and the recorded spec
+paths therefore live in a second optional top-level block of STATE, `check_sticky:`, one list item per
+ref, each a single-quoted JSON object with exactly the keys `ref_id` (string), `security` (boolean) and
+`spec_paths` (list of strings).
+
+- Writers. `state.mjs bind-check` (both `--on` values) and `ride-handoff.mjs out` call one function
+  (`putStickyRaise` in `check-binding.mjs`). It sets `security` to the OR of the recorded value and
+  the value given, and `spec_paths` to the union of the recorded paths and the given ones. The
+  given value of a bind is `security_sticky` of the block it carries, the flag and `spec_path` of a
+  replaced block that parsed and named the same ref, and the `spec_path` of the new block. A record that
+  does not parse is rebuilt from its parseable items and the entry for the ref being written gets
+  `security` true; a prior `check_binding` block that does not parse gives `security` true as well.
+  After the write `check_binding.security_sticky` equals the entry's `security`.
+- Not editing. The block replacement of D1, `clearCheckBinding`, `removeCheckBinding` and
+  `reset-block` contain no code that opens the block, so a partial flush, a full flush and a reset
+  leave the entries as they are. Entries are not removed (a ref reused after its flush keeps the
+  flag, which gives more `full`).
+- Handoff. `ride-handoff.mjs out` copies the entry of its ref into the worktree STATE. An origin
+  `check_sticky` block that does not parse, or an origin `check_binding` block that names the ref
+  or does not parse with no entry for the ref, is carried as an entry with `security` true. The
+  worktree still starts without a `check_binding` block (`first_round`, D6).
+- Reading. `recheckMode` adds the two D4 rows above and reads the ceremony level of every spec path
+  the entry holds, each live and at the base, together with the recorded and the named path (D13);
+  a path that cannot be read gives `ceremony_unknown`.
+- Residual. The record is in STATE, so the D9 residual applies to it (an edit made outside
+  `state.mjs` before the tick that binds or reads it). A worktree STATE created by hand instead of by
+  `ride-handoff.mjs out` holds no entry; its first bind writes one with `security` false, because
+  nothing is recorded to compare.
+
+This is a contract amendment of D1, D4, D6 and Spec-AC-05, disclosed by a record in the amendment ledger.
+
 ## Acceptance Criteria Mapping
 
 - Intake AC-001 maps to Spec-AC-01 (dispatch record), Spec-AC-02 (verdict
@@ -418,6 +465,7 @@ HEAD, is the dispatch record of the round being built and gives no `binding_pend
 - Owner decision 2026-10-24 (D13): Spec-AC-17 (fenced marker) and Spec-AC-18
   (spec path re-point) fold `fu-recheck-fenced-false-marker` and
   `fu-recheck-specpath-repoint-gives-delta`; both serve Intake AC-002.
+- Code review r1 B-1 and validation r1 B1 (D15): Spec-AC-19 (the per-ref record) serves Intake AC-002.
 - Spec-AC-09 (runtime safety of the switch-independent pieces: one store, one
   writer, subagent refusal) and Spec-AC-12 (governance) and Spec-AC-15
   (self-hosting) serve all of them.
@@ -453,6 +501,7 @@ runs `append-event.mjs`, and a subagent is refused.
 | Spec-AC-16 | The SPEC-0250 TEST-2742 node case SHALL assert mode full for each of its shapes, the SPEC-0250 TEST-2742 row and D4 SHALL name spec-recheck-verdict-binding and SHALL NOT say the residual is pinned, docs/ai/decisions.jsonl SHALL hold a spec_amendment record of ref cheap-transitions-slice after 2026-10-24T18:30:00Z whose tracked_by is not fu-amend-spec-cheap-transitions-slice, and spec-amend list --strict SHALL exit 0. | done | docs/ai/tdd/recheck-verdict-binding/green/TEST-2828.log | — | TEST-2828 |
 | Spec-AC-17 | WHEN a report is read for its security_relevant marker (markerOfText, used by bind-check at verdict and by recheckMode for prior reports) the system SHALL count a marker line only when it starts at column 0 outside every fenced code block (a fence of three or more backticks or tildes, opened with at most three leading spaces and closed by a line of the same character and at least that length); a false line inside a fence SHALL NOT make a report marked, a true line at column 0 outside a fence SHALL give true, a report with an unclosed fence and no true marker outside it SHALL give null, a report with a fence and one real false line outside it SHALL give false, and through bind-check and recheckMode a report whose only false marker sits inside a fence SHALL give full with security_marker_absent:binding:validation. | done | docs/ai/tdd/recheck-verdict-binding/green/TEST-2829.log, docs/ai/tdd/recheck-verdict-binding/green/TEST-2830.log | — | TEST-2829, TEST-2830 |
 | Spec-AC-18 | WHEN recheckMode decides a bound round the system SHALL take the ceremony level from the stricter of the spec the binding records (spec_path, recorded once by bind-check dispatch from STATE) and the spec STATE names now, each read live and at the base, SHALL return full with spec_path_changed:binding when STATE names another path and with spec_path_unbound:binding when the block records none, and WHEN the work item spec_path or the focus spec_path is re-pointed at a lower-level spec after the bind of a level 3 spec it SHALL give ceremony_l3. | done | docs/ai/tdd/recheck-verdict-binding/green/TEST-2831.log, docs/ai/tdd/recheck-verdict-binding/green/TEST-2832.log | — | TEST-2831, TEST-2832 |
+| Spec-AC-19 | WHEN the check_binding block is replaced (a focus switch to another ref and back through state.mjs commands, git worktree move, a block that does not parse), the system SHALL keep the check_sticky entry of the ref, so that after an earlier bound security_relevant true a later bound false round with a test-only delta gives full with security_relevant:sticky or security_relevant:binding under AAI_RECHECK_MODE=delta and under the default environment, in the alternation r1 to r2 to r1 repeated twice; WHEN a spec path is re-pointed at a lower-level spec after a focus switch the entry SHALL hold both paths and recheckMode SHALL give ceremony_l3; ride-handoff.mjs out SHALL copy the entry of its ref into the worktree STATE (flag raised when the origin record does not parse or a block of the ref has no entry) and the worktree rounds SHALL give full; a partial flush, a full flush and reset-block SHALL leave the check_sticky block byte-identical; a bound block with no entry SHALL give sticky_record_absent:binding and an entry that does not parse SHALL give sticky_record_ambiguous; each control without an earlier true gives delta. | done | docs/ai/tdd/recheck-verdict-binding/green/TEST-2833.log, docs/ai/tdd/recheck-verdict-binding/green/TEST-2834.log, docs/ai/tdd/recheck-verdict-binding/green/TEST-2835.log, docs/ai/tdd/recheck-verdict-binding/green/TEST-2836.log, docs/ai/tdd/recheck-verdict-binding/green/TEST-2837.log | — | TEST-2833, TEST-2834, TEST-2835, TEST-2836, TEST-2837 |
 
 ## Implementation plan
 
@@ -484,6 +533,10 @@ runs `append-event.mjs`, and a subagent is refused.
 8. The flip, as ONE separate commit (D7); TEST-2820 and TEST-2821 green, the
    SPEC-0250 TEST-2731 and TEST-2738 cases rewritten, and the flip part of the
    SPEC-0250 amendment. Its RED is stored before the commit.
+9. Remediation round 1 (code review r1 and validation r1 findings, 2026-10-24): D15 and Spec-AC-19, the TEST-2833 to
+   TEST-2837 cases, the wording corrections of the flip, the rename of the TEST-2831 title and the TEST-2738
+   function. It lands on top of the D7 commit because the corrected wording describes the default as on; the flip
+   is therefore no longer the tip, and reverting it alone needs the wording lines of this round reverted with it.
 
 Seams crossed (each with a test that produces on one side and reads the real
 result on the other):
@@ -493,6 +546,7 @@ result on the other):
 - Dispatch tick to `bind-check` to the next tick's decision: TEST-2816.
 - Dispatch under `AAI_ROLE=subagent` to the refused write: TEST-2802.
 - `ride-handoff.mjs` to the worktree STATE to `recheckMode`: TEST-2814.
+- `ride-handoff.mjs out` to the worktree STATE entry to `recheckMode` after two worktree rounds: TEST-2835.
 - `metrics-flush.mjs` to the block to `recheckMode`; `check-state.mjs` over
   the block: TEST-2815.
 - The returned `state_update_commands` to `check-role-output.mjs`
@@ -523,6 +577,10 @@ them as named. A cell whose form the code cannot keep is re-anchored with a
 - D13 (`check-binding.mjs`): `fence = { ch: open[1][0], len: open[1].length };`,
   `if (fence !== null) return null;`,
   `specPath: prior.specPath ?? stateSpecPath(lines, ref),`.
+- D15 (`check-binding.mjs`, `recheck.mjs`, `ride-handoff.mjs`): `security: (had ? had.security : false) || security === true`,
+  `else if (entry.security === true) reasons.push('security_relevant:sticky');`,
+  `for (const rp of recorded) if (!levelPaths.includes(rp)) levelPaths.push(rp);`,
+  `carrySticky(lines, originLines, ref);`.
 - `state.mjs`: `const BIND_ROLE_GUARD = true;`.
 - `orchestration-dispatch.mjs`: `bindCheck(root, statePath, stampRef, t, 'verdict');`.
 - `metrics-flush.mjs`: `clearCheckBinding(lines, flushedRefs);`.
@@ -539,7 +597,7 @@ them as named. A cell whose form the code cannot keep is re-anchored with a
 | TEST-2805 | Spec-AC-03 | unit | tests/skills/test-aai-recheck.sh | test_2805_eligibility_reads_binding: a fixture bound through bind-check with a test-only delta gives delta with base equal to the bound head; then one comparison at a time gives full with exactly its reason: no block (first_round), a block of another ref (first_round), a duplicate top-level check_binding key and a digest list shorter than the report list (binding_ambiguous), a different checkout value written by a second checkout of the repo (binding_other_checkout), a newer dispatch without a verdict (binding_pending:validation), a forty-zero head (base_not_ancestor), an edited and a deleted bound report (binding_report_changed), a true marker of the other role (security_relevant:binding), a null marker (security_marker_absent:binding:validation) | `sed:s/binding\.checkout !== checkoutOf\(root\)/false/` on .aai/scripts/lib/check-binding.mjs | green |
 | TEST-2806 | Spec-AC-03 | unit | tests/skills/test-aai-recheck.sh | test_2806_stamps_not_read: on the bound eligible fixture, appending check_verdict lines with security_relevant true, with a later head and for the other role, and check_dispatched lines, leaves recheckMode deep-equal (delta, same base); a fixture with forged check_verdict lines and no check_binding gives full with exactly first_round among the stamp reasons | `sed:s/return readBindingBlock\(lines\);/return null;/` on .aai/scripts/lib/check-binding.mjs | green |
 | TEST-2807 | Spec-AC-04 | unit | tests/skills/test-aai-recheck.sh | test_2807_uncommitted_and_amend (D5 shapes 1 and 2) on the two-round fixture: an uncommitted in-place flip of the true stamp, and the flip folded in with commit --amend, each give full with security_relevant:binding under AAI_RECHECK_MODE=delta and full under the default env; the stored RED shows delta for both on 59ee0ff2 | `sed:s/binding\.securitySticky === true/false/` on .aai/scripts/lib/check-binding.mjs | green |
-| TEST-2808 | Spec-AC-04 | unit | tests/skills/test-aai-recheck.sh | test_2808_rebase_and_squash (D5 shapes 3 and 4): a rebase that drops the commit holding the true stamp, and a squash merge of a side branch resolved to ours that drops it, each give full with security_relevant:binding under both envs | `sed:s/const sticky = prior\.securitySticky === true \? true : marker === true;/const sticky = marker === true;/` on .aai/scripts/lib/check-binding.mjs | green |
+| TEST-2808 | Spec-AC-04 | unit | tests/skills/test-aai-recheck.sh | test_2808_rebase_and_squash (D5 shapes 3 and 4): a rebase that drops the commit holding the true stamp, and a squash merge of a side branch resolved to ours that drops it, each give full with security_relevant:binding under both envs | `sed:s/next\.securitySticky = rec\.security;/next.securitySticky = false;/` on .aai/scripts/lib/check-binding.mjs | green |
 | TEST-2809 | Spec-AC-04 | unit | tests/skills/test-aai-recheck.sh | test_2809_rewrite_before_base (D5 shape 5, r6 B-12): a commit appending a true stamp and a later commit flipping it, both before the bound base of round 2, give full with security_relevant:binding under both envs | `sed:s/binding\.securitySticky === true/binding.securitySticky === 7/` on .aai/scripts/lib/check-binding.mjs | green |
 | TEST-2810 | Spec-AC-04 | unit | tests/skills/test-aai-recheck.sh | test_2810_git_replace (D5 shape 6) on a fixture with markers false: git replace of the base commit by a commit whose tree already holds a production change, git replace --graft, an info/grafts file, each give full with replace_refs_present; a replace ref under refs/other/ with GIT_REPLACE_REF_BASE=refs/other/ exported gives full with production_path naming the hidden file; the control without any replace gives production_path too and the same fixture without the production change gives delta | `sed:s/if \(replaceRefsPresent\(root\)\) reasons/if (false) reasons/` on .aai/scripts/lib/check-binding.mjs | green |
 | TEST-2811 | Spec-AC-04 | unit | tests/skills/test-aai-recheck.sh | test_2811_forged_append (D5 shapes 7 and 8): with a bound false round, a production commit and a hand-appended check_verdict at the new head with security_relevant false give full with production_path and base equal to the bound head; with no binding a hand-appended check_verdict gives first_round | `sed:s/if \(!bound\) reasons\.push\('first_round'\);/if (false) reasons.push('first_round');/` on .aai/scripts/lib/recheck.mjs | green |
@@ -552,7 +610,7 @@ them as named. A cell whose form the code cannot keep is re-anchored with a
 | TEST-2818 | Spec-AC-08 | inspection | tests/skills/test-aai-recheck.sh | test_2818_comments_state_comparison extracts the comment block above eventsAppendOnly in recheck.mjs: it contains compares only and neither fu-recheck-uncommitted-stamp-rewrite nor only lines already present in a committed blob are protected; recheck.mjs and check-binding.mjs contain none of the four banned phrases (case-insensitive) | `sed:s/compares only/compares/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2819 | Spec-AC-10 | inspection | tests/skills/test-aai-recheck.sh | test_2819_docs_state_comparison checks the Delta re-check section of SUBAGENT_PROTOCOL.md, the WORKFLOW.md line containing delta re-check and the CHANGELOG entry naming recheck-verdict-binding: each names check_binding and bind-check, the protocol section has exactly one line starting Residual:, and none contains tamper-proof, guarantee, closes every or cannot be forged (case-insensitive) | `sed:s/Residual:/Note:/` on .aai/SUBAGENT_PROTOCOL.md | green |
 | TEST-2820 | Spec-AC-11 | unit | tests/skills/test-aai-recheck.sh | test_2820_default_on: deltaEnabled is true for unset, empty, blank, delta, DELTA and padded delta, false for full, FULL, padded full, off, 0, false and a misspelling; on an eligible bound fixture with AAI_RECHECK_MODE unset recheckMode gives delta, the dispatch recheck field gives delta with the delta system_prompt and canon build --recheck delta exits 0; with full each gives recheck_disabled and canon exits 11 | `sed:s/const DEFAULT_ON = true;/const DEFAULT_ON = false;/` on .aai/scripts/lib/recheck.mjs | green |
-| TEST-2821 | Spec-AC-11 | inspection | tests/skills/test-aai-recheck.sh | test_2821_default_on_docs: SUBAGENT_PROTOCOL.md Delta re-check section, the WORKFLOW.md delta re-check line, ORCHESTRATION.prompt.md, ORCHESTRATION_PARALLEL.prompt.md and the CHANGELOG entry naming recheck-verdict-binding each contain AAI_RECHECK_MODE=full, and none of their recheck sentences contains opt-in, OPT-IN or off by default; SPEC-0250 Spec-AC-17 names spec-recheck-verdict-binding | `sed:s/AAI_RECHECK_MODE=full/AAI_RECHECK_MODE=off/g` on .aai/workflow/WORKFLOW.md | green |
+| TEST-2821 | Spec-AC-11 | inspection | tests/skills/test-aai-recheck.sh | test_2821_default_on_docs: SUBAGENT_PROTOCOL.md Delta re-check section, the WORKFLOW.md delta re-check line, ORCHESTRATION.prompt.md, ORCHESTRATION_PARALLEL.prompt.md and the CHANGELOG entry naming recheck-verdict-binding each contain AAI_RECHECK_MODE=full, and none of their recheck sentences contains opt-in, OPT-IN or off by default; SPEC-0250 Spec-AC-17 names spec-recheck-verdict-binding; the RECHECK-ESCALATION lines of the protocol section name AAI_RECHECK_MODE=full and never full-or-unset, the RFC-0017 lines naming this slice do not say the mode stays opt-in, the #498 CHANGELOG entry says that a later entry changes the default, and SPEC-0250 holds none of the five old-default phrases | `sed:s/AAI_RECHECK_MODE=full/AAI_RECHECK_MODE=off/g` on .aai/workflow/WORKFLOW.md | green |
 | TEST-2822 | Spec-AC-12 | inspection | tests/skills/test-aai-recheck.sh | test_2822_profiles_classified asserts .aai/scripts/lib/check-binding.mjs appears exactly once in PROFILES.yaml, inside the core list | `sed:s/lib\/check-binding\.mjs/lib\/check-binding-gone.mjs/g` on .aai/system/PROFILES.yaml | green |
 | TEST-2823 | Spec-AC-12 | integration | tests/skills/test-aai-recheck.sh | test_2823_suite_map_selects feeds .aai/scripts/lib/check-binding.mjs to select-suites.mjs --files-from - and requires FULL_RUN reason=shared-lib, and requires the suite-map aai-recheck row to list check-binding.mjs, state.mjs, metrics-flush.mjs and check-role-output.mjs; feeding state.mjs selects aai-recheck | `sed:s/lib\/check-binding\.mjs/lib\/check-binding-gone.mjs/g` on tests/skills/suite-map.yaml | green |
 | TEST-2824 | Spec-AC-12 | inspection | tests/skills/test-aai-prompt-diet.sh | test_2824_diet_entry_for_binding computes the .aai/*.prompt.md glob bytes minus 370992: when positive it requires exactly one JUSTIFIED_ADDITIONS entry naming recheck-verdict-binding whose leading byte count equals that growth; when zero or negative it requires no such entry; in both cases the TEST-010 headroom computed by compute_reduction_headroom is 0 | `sed:s/recheck-verdict-binding/recheck-binding-gone/g` on tests/skills/lib/prompt-diet-ledger.sh | green |
@@ -562,8 +620,13 @@ them as named. A cell whose form the code cannot keep is re-anchored with a
 | TEST-2828 | Spec-AC-16 | inspection | tests/skills/test-aai-recheck.sh | test_2828_spec0250_superseded runs the TEST-2742 node cases (green, asserting full) and checks the SPEC-0250 TEST-2742 row and D4 name spec-recheck-verdict-binding and do not contain pins the KNOWN general residual; reads decisions.jsonl for a spec_amendment of ref cheap-transitions-slice after 2026-10-24T18:30:00Z whose tracked_by differs from fu-amend-spec-cheap-transitions-slice; spec-amend list --strict exits 0 (rc read without a pipe) | `sed:s/spec-recheck-verdict-binding/spec-gone/g` on docs/specs/SPEC-0250-spec-cheap-transitions-slice.md | green |
 | TEST-2829 | Spec-AC-17 | unit | tests/skills/test-aai-recheck.sh | test_2829_fenced_marker runs node --test --test-name-pattern TEST-2829: markerOfText gives false for a column-0 false line outside a fence, null for a false line only inside a backtick fence, only inside a tilde fence and only inside a fence opened with three leading spaces, null for a false line indented four spaces, true for a true line at column 0 outside a fence, null for an unclosed fence with no true marker, false for a fence followed by one real false line, null for a fence followed by two real marker lines, and a shorter closing line does not close a longer fence; the stored RED is the same text on 59ee0ff2 giving false for the fenced-only report | `sed:s/fence = \{ ch: open\[1\]\[0\], len: open\[1\]\.length \};/fence = null;/` on .aai/scripts/lib/check-binding.mjs | green |
 | TEST-2830 | Spec-AC-17 | integration | tests/skills/test-aai-recheck.sh | test_2830_fenced_marker_seam: a two-round fixture bound through bind-check whose Validation report holds its only false marker inside a fence gives full with security_marker_absent:binding:validation and a prior-report security_marker_absent reason; the same fixture with one real false line outside the fence gives delta; a report with an unclosed fence gives null in the binding | `sed:s/if \(fence !== null\) return null;//` on .aai/scripts/lib/check-binding.mjs | green |
-| TEST-2831 | Spec-AC-18 | unit | tests/skills/test-aai-recheck.sh | test_2831_specpath_repoint: a ride bound on a level 3 spec whose STATE work item spec_path is re-pointed at a level 2 spec, and one whose current_focus spec_path is re-pointed, each give full with spec_path_changed:binding and ceremony_l3; a block with no recorded spec_path gives spec_path_unbound:binding; the unchanged level 2 control gives delta; the stored RED is the stamp-built twin on 59ee0ff2 giving delta after the re-point | `sed:s/new Set\(\[bound\.specPath, specPath\]\)/new Set([specPath])/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2831 | Spec-AC-18 | unit | tests/skills/test-aai-recheck.sh | test_2831_specpath_repoint: a ride bound on a level 3 spec whose STATE work item spec_path is re-pointed at a level 2 spec, and one whose current_focus spec_path is re-pointed, each give full with spec_path_changed:binding and ceremony_l3; a block with no recorded spec_path gives spec_path_unbound:binding; the unchanged level 2 control gives delta; the stored RED is the stamp-built twin on 59ee0ff2 giving delta after the re-point | `sed:s/new Set\(\[bound\.specPath, specPath\]\)([\s\S]*?)for \(const rp of recorded\) if \(!levelPaths\.includes\(rp\)\) levelPaths\.push\(rp\);/new Set([specPath])$1/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2832 | Spec-AC-18 | unit | tests/skills/test-aai-recheck.sh | test_2832_specpath_recorded: bind-check --on dispatch records spec_path from STATE once, a later dispatch after STATE was re-pointed keeps the first path, a verdict write keeps it, a dispatch for another ref replaces the block with that ref spec path, and the flush partial reset keeps it | `sed:s/specPath: prior\.specPath \?\? stateSpecPath\(lines, ref\),/specPath: null,/` on .aai/scripts/lib/check-binding.mjs | green |
+| TEST-2833 | Spec-AC-19 | integration | tests/skills/test-aai-recheck.sh | test_2833_focus_alternation_sticky (probe A3, slug refs): round 1 of ride-one bound true through bind-check, set-focus to hotfix-two and a dispatch bind for it replace the block (the record of ride-one still says security true), set-focus back, a dispatch, set-validation fail with a new report marked false and a verdict bind; a test-only change then gives full with security_relevant:binding or security_relevant:sticky under the delta env and the default env; the alternation repeated once more leaves only the record carrying the flag and gives full with security_relevant:sticky; the control that never bound true gives delta after the same alternation | `sed:s/security: \(had \? had\.security : false\)/security: (false)/` on .aai/scripts/lib/check-binding.mjs | green |
+| TEST-2834 | Spec-AC-19 | integration | tests/skills/test-aai-recheck.sh | test_2834_worktree_move_sticky (probe WM): in a linked worktree round 1 is bound true and round 2 false, git worktree move changes the checkout (binding_other_checkout), a dispatch bind and a full round marked false replace the block, and a test-only change then gives full with security_relevant:binding or security_relevant:sticky under both envs; the control move without an earlier true gives delta | `sed:s/(const had = )cur\.entries\.get\(ref\);([\s\S]*?const goneSecurity = )gone !== null/$1undefined;$2false/` on .aai/scripts/lib/check-binding.mjs | green |
+| TEST-2835 | Spec-AC-19 | integration | tests/skills/test-aai-recheck.sh | test_2835_handoff_sticky: ride-handoff.mjs out on a fixture whose STATE holds a true entry writes an equal entry into the worktree STATE and no check_binding, the worktree gives first_round, two worktree rounds marked false keep the entry true and a test-only change gives full; an origin check_sticky block that does not parse, and an origin check_binding block with no entry, are each carried as an entry with security true | `sed:s/carrySticky\(lines, originLines, ref\);//` on .aai/scripts/ride-handoff.mjs | green |
+| TEST-2836 | Spec-AC-19 | integration | tests/skills/test-aai-recheck.sh | test_2836_specpath_record: an L3 spec is bound, set-focus switches away and back with STATE spec_path naming an L2 spec, a full round binds the L2 path; the entry holds both paths and a test-only change gives full with ceremony_l3 under both envs; the control with two L2 specs gives delta | `sed:s/for \(const rp of recorded\) if \(!levelPaths\.includes\(rp\)\) levelPaths\.push\(rp\);//` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2837 | Spec-AC-19 | integration | tests/skills/test-aai-recheck.sh | test_2837_record_raise_only: a partial flush and reset-block leave the check_sticky block byte-identical, a full flush removes check_binding and leaves the entry, a later bind with a false marker keeps security true; a bound block with the entry removed gives full with sticky_record_absent:binding, an entry that does not parse gives sticky_record_ambiguous, and a bind over it rewrites the entry with security true; the control with the entry present gives delta | `sed:s/if \(entry === undefined\) reasons\.push\('sticky_record_absent:binding'\);/if (entry === 5) reasons.push('sticky_record_absent:binding');/` on .aai/scripts/lib/check-binding.mjs | green |
 
 ### RED observations and positive controls
 
@@ -584,6 +647,9 @@ them as named. A cell whose form the code cannot keep is re-anchored with a
   stored before the D7 commit.
 - TEST-2826 and TEST-2827: pass on the base (signed by `9981130b`; the spec is
   L3); their RED is the mutation record.
+- TEST-2833 to TEST-2837 (remediation round 1): RED on `f79fa2dc`, where the block replacement forgets the flag and the
+  recorded path and `ride-handoff.mjs out` copies nothing of it; the stored RED is the output of the five cases on that
+  commit (probe A3 and probe WM of the reports are their first two fixtures).
 - Positive controls inside fixtures: TEST-2805 and TEST-2810 assert `delta`
   for the unmodified eligible fixture before each refusal; TEST-2807 to
   TEST-2813 assert that the true stamp is present in EVENTS before the shape
@@ -635,7 +701,12 @@ are inputs, not attestations of the implementation.
   endings rewrite the ledger (Windows `core.autocrlf=true`, a carried
   cannot_verify of #498); that gives full, not delta.
 - A single-ref block: two scopes that alternate in one STATE replace each
-  other's binding, so their rounds run full.
+  other's binding, so the round after a switch runs full (`first_round`); the flag and the recorded spec
+  paths of each ref stay in the `check_sticky` record (D15), so a later bound round of that ref with an
+  earlier true still gives full.
+- Two P3 items filed by remediation round 1: `fu-bind-check-role-posture-mismatch` (an orchestrator with
+  `AAI_ROLE` set to a non-subagent value never binds, so every round is full) and
+  `fu-recheck-state-tracked-premise` (nothing checks that a downstream install gitignores STATE).
 - No ride in this slice runs a delta round (D12). The first ride after the
   flip is the observation; `AAI_RECHECK_MODE=full` turns it off per run.
 - Editing `.aai/workflow/WORKFLOW.md` makes this L3: operator checkpoint

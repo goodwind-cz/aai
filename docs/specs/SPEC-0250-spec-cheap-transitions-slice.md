@@ -3,7 +3,7 @@ id: spec-cheap-transitions-slice
 type: spec
 number: 250
 status: done
-frozen_sha256: 777f552eecd02e4d761a8dc3b3a810bbacf27ae8dc96e17ad45b8596929991c7
+frozen_sha256: f0714b62f85655a2d943f93c288f9613d1f0b6396214a77b0270074900c5ad95
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -186,7 +186,7 @@ first-match):
 | Condition for delta | Reason token when it fails |
 |---|---|
 | role is Validation or Code Review (`RECHECK_ROLES`; looked up as an own key, so `__proto__` and kin are unknown roles) | `role_not_rechecked` |
-| `AAI_RECHECK_MODE`, trimmed and lower-cased, is exactly `delta` (`FORCE_ENV`; delta is OPT-IN, owner decision 2026-10-24: unset, empty, `full` and every other value leave the mode off) | `recheck_disabled` |
+| `AAI_RECHECK_MODE`, trimmed and lower-cased, is unset, empty, blank or `delta` (`FORCE_ENV`; the default is delta, owner decision 2026-10-24 and spec-recheck-verdict-binding D7: `full` and every other value leave the mode off) | `recheck_disabled` |
 | a `check_verdict` event exists for this ref and role (D4) | `first_round` |
 | its `head` is an ancestor of HEAD | `base_not_ancestor` |
 | the delta is non-empty | `no_delta` |
@@ -212,7 +212,7 @@ rename and every deletion are listed) and
 de-duplicated. The library reads STATE (focus ref, spec path,
 `code_review.report_paths`, `last_validation.evidence_paths`) and
 `docs/ai/EVENTS.jsonl` read-only and never writes either. Any unexpected
-condition resolves to `full`; the mode is opt-in by proof, never by default.
+condition resolves to `full`; the mode is on by default once the verdict is bound to STATE (spec-recheck-verdict-binding D7), and `AAI_RECHECK_MODE=full` turns it off for a run.
 
 ### D2. Non-production paths
 
@@ -421,7 +421,7 @@ reason from a full round stays an ordinary BLOCKED.
 - `.aai/SUBAGENT_PROTOCOL.md`: the INPUT row names `canon.mjs build` as the
   payload builder (closes `fu-subagent-protocol-input-row-stale`), and a new
   "Delta re-check" subsection states D1, the `needs_full_recheck` escalation,
-  `AAI_RECHECK_MODE=delta` as the opt-in switch (off by default), and that the `append-run` of a round
+  `AAI_RECHECK_MODE` (delta was opt-in when this subsection first shipped; the default is now on and `full` is the opt-out), and that the `append-run` of a round
   whose delta payload was actually sent carries the note
   `recheck=delta base=<sha>` so its tokens can be compared later (a round that
   fell back to the full payload carries neither the note nor the delta
@@ -507,8 +507,8 @@ executable evidence (the Validation outcome contract is unchanged). Article 2:
 one library, one CANON key, two event types; no new workflow. Article 4: every
 unknown resolves to the full payload with a named reason, and canon refuses
 with an empty stdout. Article 5: the dispatch field and the CANON key are
-additive, the default build is byte-identical, and leaving `AAI_RECHECK_MODE`
-unset (the default) keeps today's behavior. Article 6: the library reads STATE and never writes
+additive and the default build is byte-identical; when this slice first shipped, leaving `AAI_RECHECK_MODE`
+unset kept today's behavior, and since spec-recheck-verdict-binding D7 unset enables delta, so `AAI_RECHECK_MODE=full` is what keeps today's behavior. Article 6: the library reads STATE and never writes
 it.
 
 ## Acceptance Criteria Status
@@ -611,7 +611,7 @@ result on the other):
 | TEST-2735 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2735_stamp_without_marker_and_sticky (now over the check_binding block): a report without a marker line binds a null marker and the next round gives security_marker_absent:binding:validation; an earlier round bound true followed by one bound false stays full; a marker bound true for the other role keeps the role full | `sed:s/bound\.security !== false/bound.security === 5/` on .aai/scripts/lib/check-binding.mjs | green |
 | TEST-2736 | Spec-AC-16 | integration | tests/skills/test-aai-recheck.sh | test_2736_tick_records_marker runs real --confirm ticks: the check_verdict the tick appends carries security_relevant false read from the report STATE names; append-event accepts --security-relevant true and refuses any other value without appending | `sed:s/if \(marker !== null\) stamp\.security_relevant = marker;/if (marker !== null) stamp.security_relevant = undefined;/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2737 | Spec-AC-14 | inspection | tests/skills/test-aai-recheck.sh | test_2737_capture_sites_fallback checks that SUBAGENT_PROTOCOL.md names recheck.fallback in the delta section and at both prompt_hash capture sites, and that the SKILL_LOOP.prompt.md append-run capture step names it | `sed:s/recheck\.fallback\.prompt_hash/the fallback hash/` on .aai/SKILL_LOOP.prompt.md | green |
-| TEST-2738 | Spec-AC-17 | integration | tests/skills/test-aai-recheck.sh | test_2738_default_is_full takes an otherwise eligible tree: with AAI_RECHECK_MODE unset, empty, blank or delta recheckMode gives delta, the dispatch recheck field gives delta with the delta system_prompt and canon build --recheck delta exits 0; with full recheckMode gives full with exactly the reason recheck_disabled | `sed:s/if \(!deltaEnabled\(env\)\) reasons\.push\('recheck_disabled'\);/if (false) reasons.push('recheck_disabled');/` on .aai/scripts/lib/recheck.mjs | green |
+| TEST-2738 | Spec-AC-17 | integration | tests/skills/test-aai-recheck.sh | test_2738_default_is_delta takes an otherwise eligible tree: with AAI_RECHECK_MODE unset, empty, blank or delta recheckMode gives delta, the dispatch recheck field gives delta with the delta system_prompt and canon build --recheck delta exits 0; with full recheckMode gives full with exactly the reason recheck_disabled | `sed:s/if \(!deltaEnabled\(env\)\) reasons\.push\('recheck_disabled'\);/if (false) reasons.push('recheck_disabled');/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2739 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2739_ledger_rewrite_refused uses a tracked-EVENTS fixture: flipping a committed true stamp to false in place (uncommitted), and the same flip committed after the base, each give full with ledger_rewritten; an append-only ledger is delta; a truncated ledger is first_round | `sed:s/!startsWithBytes\(live, headBlob\)\)/false)/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2740 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2740_committed_rewrite_refused commits a true stamp and then, in a later commit of the range, rewrites it to false and appends another line: the base and HEAD blobs look appended but the per-commit chain gives ledger_rewritten; a range of pure appends does not | `sed:s/!startsWithBytes\(cur, prev\)/false/` on .aai/scripts/lib/recheck.mjs | green |
 | TEST-2741 | Spec-AC-16 | unit | tests/skills/test-aai-recheck.sh | test_2741_stamps_refused_for_subagent runs append-event.mjs for check_verdict and check_dispatched with AAI_ROLE=subagent: non-zero exit naming the single-writer rule and nothing appended; the same commands without AAI_ROLE append; another event type is not refused by the guard | `sed:s/\?\? ''\) !== ''\) fail\(/?? '') === 'zz') fail(/` on .aai/scripts/append-event.mjs | green |
@@ -693,10 +693,10 @@ implementation.
   earlier phase children did.
 - TEST-2701 and TEST-2723 pin ledger facts; a legitimate later rewrite of those
   records would redden them and must amend or retire the rows.
-- Delta is off by default (opt-in, owner decision 2026-10-24) because a hand-appended
-  stamp can still forge a judged round; the opt-in stays until the verdict is bound to
-  STATE (`fu-recheck-verdict-not-bound-to-check`).
-- Rollback: leave `AAI_RECHECK_MODE` unset (the default), or revert the scope's files; the two
+- Delta shipped off by default (opt-in, owner decision 2026-10-24) because a hand-appended
+  stamp could forge a judged round; the verdict is now bound to STATE
+  (`fu-recheck-verdict-not-bound-to-check`, spec-recheck-verdict-binding) and the default is on.
+- Rollback: set `AAI_RECHECK_MODE=full` (unset now enables delta), or revert the scope's files; the two
   event types stay readable as unknown history.
 
 ## Registry disposition
