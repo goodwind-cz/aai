@@ -1341,3 +1341,14 @@ suites:
       - .aai/SKILL_PR.prompt.md
       - tests/skills/test-aai-pr-preflight.sh
       - tests/skills/aai-pr-preflight.Tests.ps1
+
+  aai-recheck:
+    globs:
+      - .aai/scripts/lib/recheck.mjs
+      - .aai/RECHECK_DELTA.prompt.md
+      - .aai/scripts/canon.mjs
+      - .aai/system/CANON.yaml
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/scripts/append-event.mjs
+      - tests/skills/lib/recheck.test.mjs
+      - tests/skills/lib/recheck-measure.mjs

@@ -37,9 +37,9 @@ Each subagent call MUST specify all of the following:
 | `ROLE` | Implementation \| Validation \| Planning \| Research |
 | `SCOPE` | Single file / module / requirement group — never overlapping with other subagents |
 | `MODEL` | REQUIRED (CHANGE-0010 D1) — an explicit model id (preferred, e.g. `claude-haiku-4-5`) or a tier (`mechanical \| standard \| premium`) when the platform maps tiers itself. `.aai/system/MODEL_ROUTING.yaml` resolves the id inside the DETECTED harness's own map (harness-universal-routing; `.aai/scripts/lib/harness.mjs` `detectHarness()`) when the file is in Mode B — never a foreign harness's id. Right-size per the MODEL SELECTION tiering in the orchestration prompts. For a Validation dispatch it MUST differ from the implementer's recorded model (see "Spawning a validator" below) |
-| `INPUT` | All context the subagent needs — do NOT rely on inherited ambient state |
+| `INPUT` | All context the subagent needs — do NOT rely on inherited ambient state; the payload prefix is built by `node .aai/scripts/canon.mjs build --role <R> --ref <r>`, never pasted from a file copy |
 | `EXPECTED_OUTPUT` | A result block (see `.aai/SUBAGENT_CONTRACT.md`) |
-| `SYSTEM_PROMPT` | The canonical role prompt from `ai/<ROLE>.prompt.md` |
+| `SYSTEM_PROMPT` | The canonical role prompt from `ai/<ROLE>.prompt.md`; for a delta re-check dispatch whose delta payload was sent, `.aai/RECHECK_DELTA.prompt.md` |
 | `ENV` | The subagent MUST run with `AAI_ROLE=subagent` exported in its environment/instructions (R-GUARD S1, SPEC-0113) — this row binds EVERY dispatch, serial (`.aai/ORCHESTRATION.prompt.md`) and parallel (`.aai/ORCHESTRATION_PARALLEL.prompt.md`) alike; being dispatched decides it, not which pipeline dispatched you (`.aai/SUBAGENT_CONTRACT.md` D1). This makes any `state.mjs` STATE mutation it attempts refuse with exit 3 — the single-writer rule enforced at the CLI chokepoint, not merely in prose. The orchestrator MUST NOT carry this marker for its OWN STATE writes: keep it unset (or set to a non-`subagent` value) in orchestrator context, or the merge writes are blocked. `log-tick` (LOOP_TICKS) and `append-event.mjs` (EVENTS.jsonl) stay allowed under the marker. HONESTY: this is a guardrail against the honest/accidental subagent write, NOT a security boundary — an agent that unsets the marker defeats it; the flush-time forensic check (metrics-flush.mjs S2) is the after-the-fact backstop. |
 
 ### Work-item brief handoff (default INPUT)
@@ -56,6 +56,10 @@ subagent output)" section, verbatim (single source: that section wins on any
 divergence); the subagent fills it instead of inventing its own report format.
 Briefs are gitignored runtime artifacts — cite them in dispatches, never
 commit them.
+
+## Delta re-check (spec-cheap-transitions-slice)
+
+Delta re-check is OPT-IN (owner decision 2026-10-24): `AAI_RECHECK_MODE` unset, empty or any value other than `delta` (trimmed, case-insensitive) gives `full` with the reason `recheck_disabled`. With delta opted in, the `check_*` stamps in `EVENTS.jsonl` are not tamper-proof: any stamp rewrite `ledger_rewritten` does not see (uncommitted, committed before the base, `commit --amend`, a rebase that drops it, a squash resolved to ours, `git replace` in any form, any history rewrite) and a hand-appended forged stamp can yield delta (`append-event.mjs` refuses the stamps under `AAI_ROLE`, a raw append is not stopped). Only the verdict-to-STATE binding closes this (`fu-recheck-verdict-not-bound-to-check`), so the default trusts nothing. With the opt-in set, a Validation or Code Review round that follows a judged round runs on a slim payload when the dispatch JSON carries `recheck.mode` delta: `canon.mjs build --role <R> --ref <ref_id> --recheck delta` (`<ref_id>` is the dispatch JSON's `ref_id`, never `HEAD`; canon keys the stamps on the ref) assembles the contract, `.aai/RECHECK_DELTA.prompt.md` and a scope listing base, head, changed paths and prior reports, instead of the full role prompt and LEARNED. Delta needs every one of: a `check_verdict` stamp for the ref and role (its head is the base), a base that is an ancestor of HEAD, a non-empty delta of non-production paths only, an append-only `docs/ai/EVENTS.jsonl` (the live file begins with its exact bytes at the base and at HEAD, and no commit of the range rewrote it; else `ledger_rewritten`; it compares only the base and HEAD blobs, the live file and the commits of `base..HEAD`), no merge commit in the range (`merge_in_range`, merges still visible in `base..HEAD` only), no `protected_paths_l3` path, ceremony level 0 to 2, and a `security_relevant: false` marker, exactly one line, in every prior report and in the latest `check_verdict` stamp of the role (the stamp records the marker the judged round's own report carried when its verdict was first seen; a missing stamped marker is absent, and once any stamped verdict of the ref says `true` every later round is `full`). Anything else is `full`, with every failing reason named in `recheck.reasons`; canon refuses an ineligible tree with exit 11 and the orchestrator builds the full payload, then takes `system_prompt` and `prompt_hash` from `recheck.fallback` (the full identity the dispatch carries for a delta dispatch) so that the recorded identity is the payload actually sent. The base is the head the checker was handed: when a newer dispatch lands while a check has no verdict yet, the earliest unjudged head stays the base, and an ambiguous base (forty zeros) never gives a delta. Level and prior reports are read so that the delta cannot edit its own eligibility (the stricter of base and live spec level; a report that existed at the base is read from the base commit and refuses when the delta touched it; the judged round's own report, written after the base, is trusted only through its stamped marker, never re-read to lower it). The checker is the same independent role in a fresh context, on the same tier, with the validator-differs rule unchanged. A delta checker that cannot judge returns BLOCKED with the literal reason `needs_full_recheck`, and the orchestrator re-dispatches the full role (`AAI_RECHECK_MODE=full` or unset, the default). The `append-run` of a round whose delta payload was actually sent carries the note `recheck=delta base=<sha>` so its tokens can be compared with a full round later; a round that fell back to the full payload carries neither the note nor the delta `prompt_hash`.
 
 ## Review dispatch anti-gaming rules (RFC single-dual-verdict-review)
 
@@ -223,6 +227,7 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
   role's append-run. The dispatch human block's `Prompt hash:` line is a
   truncated 12-char display — never copy it; the JSON field is the value.
   No dispatch hash (no_action/needs_llm, older dispatcher) = omit the flag.
+  A dispatch that canon refused (`recheck.fallback`) passes the fallback's `prompt_hash`, the payload actually sent.
 - Requested vs. actual model (validation-cost-calibration Spec-AC-04):
   `append-run --model <id>` always records `model_id` as the GRANTED model —
   the one the subagent actually ran on, never the one merely asked for.
@@ -318,7 +323,12 @@ After all subagents complete, the orchestrator MUST:
 2. Evaluate overall status:
    - `PASS` only if every subagent returned `PASS`
    - `FAIL` if any subagent returned `FAIL` — trigger Remediation for that scope only
-   - `BLOCKED` if any subagent returned `BLOCKED` — set `human_input.required: true` in STATE.yaml
+   - `BLOCKED` if any subagent returned `BLOCKED` — set `human_input.required: true` in STATE.yaml,
+     EXCEPT a delta re-check (dispatch `recheck.mode` delta) whose `blockers` holds only `needs_full_recheck`
+     (`check-role-output.mjs` prints `RECHECK-ESCALATION: needs_full_recheck`): that is an escalation, not a
+     blocker. Set no `human_input`, merge nothing from it, re-run the dispatch tick once with
+     `AAI_RECHECK_MODE=full` in that command's env, and dispatch the full role. The same reason from a
+     full round is an ordinary BLOCKED.
    - `BLOCKED` if any subagent timing is invalid:
      missing/unparseable timestamps, duration mismatch, or timestamp > 300 seconds in the future vs orchestrator system UTC.
 3. Write merged summary to `docs/ai/STATE.yaml`:
@@ -333,7 +343,8 @@ After all subagents complete, the orchestrator MUST:
      harness result exposed a total (decomposed or undecomposed) — the
      orchestrator MUST NOT skip it as optional (token-capture-canary);
      likewise `--prompt-hash <full hex>` whenever the dispatch JSON carried
-     `prompt_hash` (see "Harness-reported usage capture" above)
+     `prompt_hash` (see "Harness-reported usage capture" above; the
+     `recheck.fallback` hash when the delta build was refused)
    - `updated_at_utc`
    - `state_update_commands` (per `.aai/SUBAGENT_CONTRACT.md` D1, when present
      on a collected block): run each listed merge command, in the

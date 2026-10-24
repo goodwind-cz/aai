@@ -22,6 +22,44 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(recheck): an opt-in slim payload for a re-check round with a non-production delta
+
+- With `AAI_RECHECK_MODE=delta` set (the default is unchanged: full), a Validation or Code Review round that follows an already-judged round can run
+  on a slim payload (the contract, the new `.aai/RECHECK_DELTA.prompt.md` and a
+  scope listing the base, the head, the changed paths and the prior reports)
+  instead of the full role prompt and `LEARNED.md`, when the delta since that
+  round touches only tests, specs, intakes, RFCs, analysis, product docs,
+  reports and ledgers. The dispatch JSON carries a new `recheck` object;
+  `canon.mjs build --recheck delta` builds the slim payload and refuses an
+  ineligible tree with exit 11. Never at ceremony level 3, never for a
+  production, protected or security-relevant delta, never on a first round. A
+  checker that cannot judge the delta returns `needs_full_recheck` (never a human
+  stop: `check-role-output.mjs` flags it and the tick re-runs full) and the full
+  role runs. The `prompt_hash` of a delta dispatch covers only the layers the
+  payload sends (the re-check prompt and the contract, not `LEARNED.md`). The mode is OPT-IN: it applies only when `AAI_RECHECK_MODE`
+  normalises to `delta`; unset, empty and every other value give full with the
+  reason `recheck_disabled`. It ships off because, with delta opted in, the `check_*`
+  stamps in `EVENTS.jsonl` are not tamper-proof: any stamp rewrite that `ledger_rewritten` does
+  not see (an uncommitted rewrite, one committed before the base, `commit --amend`, a rebase that
+  drops it, a squash resolved to ours, `git replace` in any form, any history rewrite) and a hand-appended
+  forged stamp can yield delta, and only the verdict-to-STATE binding
+  (`fu-recheck-verdict-not-bound-to-check`) closes that. `append-event.mjs` refuses the
+  two stamp events under `AAI_ROLE`, and a delta is refused with
+  `ledger_rewritten` unless `EVENTS.jsonl` is append-only across the range (it compares only the base and HEAD
+  blobs, the live file and the commits of `base..HEAD`) and with `merge_in_range` when
+  `base..HEAD` holds a merge commit (only merges still visible there). The verdict base is the head the
+  checker was handed, the stricter of the base and live spec level decides, a
+  prior report that existed at the base is read from the base, and gate inputs
+  under `tests/` (suite map, weights, baselines, ratchets, the diet ledger)
+  count as production. A delta dispatch carries `recheck.fallback`, the full
+  identity to record when canon refuses. Per dispatch the payload is 11.4 KB
+  instead of 32.7 KB (Code Review) or 45.5 KB (Validation); the token effect is
+  not measured yet.
+- Downstream impact: none by default. Delta re-check is available opt-in (`AAI_RECHECK_MODE=delta`) and
+  the default is unchanged: every re-check round stays full. The full Code Review and Validation reports now carry one
+  `security_relevant: true` or `security_relevant: false` line, and the dispatch
+  tick appends two new EVENTS types, `check_dispatched` and `check_verdict`.
+
 ## [unreleased] — refactor(expert-fetch): one Node module owns the expert prompt fetcher
 
 - The expert prompt fetcher is now one Node module,

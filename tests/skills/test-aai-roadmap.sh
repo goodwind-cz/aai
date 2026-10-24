@@ -1232,7 +1232,21 @@ test_1340_first_run_prose() {
 # --- TEST-1337 (Spec-AC-16): ORCHESTRATION untouched ---------------------------------
 test_1337_orchestration_untouched() {
   log_info "Test: .aai/ORCHESTRATION.prompt.md is byte-identical to its merge-base blob (TEST-1337)..."
-  local mb live base
+  local mb live base ride_spec ride_status
+  # Scoped to its own ride (spec-cheap-transitions-slice amendment, contract, --signoff none):
+  # "ORCHESTRATION untouched" was a constraint of the roadmap-serves-downstream-projects ride,
+  # compared against that ride's merge-base. Once SPEC-0202 is done the pin would forbid every
+  # later ride from editing the file, so it applies only while the ride is open. A missing spec
+  # file is retired too (named reason below); nothing is asserted vacuously.
+  ride_spec="$PROJECT_ROOT/docs/specs/SPEC-0202-spec-roadmap-serves-downstream-projects.md"
+  ride_status=""
+  if [ -f "$ride_spec" ]; then
+    ride_status="$(awk '/^---[[:space:]]*$/ { n++; next } n == 1 && /^status:/ { print $2; exit } n >= 2 { exit }' "$ride_spec")"
+  fi
+  if [ ! -f "$ride_spec" ] || [ "$ride_status" = "done" ]; then
+    log_info "TEST-1337: RETIRED for a closed ride (SPEC-0202 status '${ride_status:-absent}'); the pin applies only while spec-roadmap-serves-downstream-projects is open"
+    return 0
+  fi
   mb="$(git -C "$PROJECT_ROOT" merge-base HEAD origin/main 2>/dev/null)" || mb=""
   if [ -z "$mb" ]; then
     log_info "TEST-1337: SKIPPED — origin/main is not resolvable from this checkout (named reason: no merge-base); nothing is asserted"

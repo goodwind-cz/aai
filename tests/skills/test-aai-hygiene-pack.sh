@@ -837,8 +837,8 @@ test_082_dispatch_refs_name_contract() {  # spec-subagent-protocol-slim TEST-003
   # ORCHESTRATION_PARALLEL: payload refs -> CONTRACT
   grep -qF '`.aai/SUBAGENT_CONTRACT.md`, Single-writer rule' "$orch_p" \
     || log_fail "ORCHESTRATION_PARALLEL single-writer pointer must name SUBAGENT_CONTRACT.md"
-  grep -qF 'a copy of .aai/SUBAGENT_CONTRACT.md' "$orch_p" \
-    || log_fail "ORCHESTRATION_PARALLEL subagent context must pass a copy of SUBAGENT_CONTRACT.md"
+  grep -qF 'canon.mjs build --role <R> --ref <r>' "$orch_p" \
+    || log_fail "ORCHESTRATION_PARALLEL subagent context must pass the canon.mjs build prefix (which carries SUBAGENT_CONTRACT.md)"
   grep -qF 'result block as defined in .aai/SUBAGENT_CONTRACT.md' "$orch_p" \
     || log_fail "ORCHESTRATION_PARALLEL result-block reference must name SUBAGENT_CONTRACT.md"
   # ORCHESTRATION_PARALLEL: orchestrator-only refs stay on PROTOCOL
@@ -1098,8 +1098,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 112 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 112 (pin moved for aai-expert-fetch) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 113 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 113 (pin moved for aai-recheck) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -2122,13 +2122,13 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   grep -qE '^  aai-mutation-gate:$' "$map" \
     || log_fail "TEST-487: tests/skills/suite-map.yaml has no 'aai-mutation-gate:' row"
 
-  # Count arm: the pin (test_090's own number) holds at 112 and matches the
+  # Count arm: the pin (test_090's own number) holds at 113 and matches the
   # LIVE row count — a row deleted without moving the pin reddens BOTH arms
   # together, which is the two-way check the Mutation column drives.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 112 ]] \
-    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 112"
+  [[ "$row_count" -eq 113 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 113"
 
   # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
   # function anywhere under tests/skills, this suite's new ones included).
@@ -2143,7 +2143,7 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   assert_payload_contains "$out" "SELECTED aai-mutation-gate" \
     "TEST-487: select-suites.mjs did not route .aai/scripts/mutation-gate.mjs to aai-mutation-gate: $out"
 
-  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (112), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
+  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (113), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
 }
 
 # --- TEST-504 (NB4-r3, remediation round 3, Spec-AC-03): the Node copy of the

@@ -51,6 +51,7 @@ core:
   - .aai/ORCHESTRATION_PARALLEL.prompt.md
   - .aai/PLANNING.prompt.md
   - .aai/PLAYBOOK.md
+  - .aai/RECHECK_DELTA.prompt.md
   - .aai/REMEDIATION.prompt.md
   - .aai/ROLE_COMMON.md
   - .aai/SKILL_BOOTSTRAP.prompt.md
@@ -191,6 +192,7 @@ core:
   # (core, --sweep-check read side) both import this — same precedent as
   # every other shared .aai/scripts/lib/*.mjs entry in this list.
   - .aai/scripts/lib/pr-sweep.mjs
+  - .aai/scripts/lib/recheck.mjs
   - .aai/scripts/lib/repo-tripwire.sh
   - .aai/scripts/lib/runtime-file.mjs
   - .aai/scripts/lib/session-lock.mjs

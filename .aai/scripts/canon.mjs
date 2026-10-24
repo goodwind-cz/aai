@@ -54,6 +54,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { recheckMode } from './lib/recheck.mjs';
 
 const ROOT = process.cwd();
 const DEFAULT_MANIFEST = '.aai/system/CANON.yaml';
@@ -71,7 +72,7 @@ const SECTION_CLOSE = '>>>AAI-CANON-SECTION';
 const RULE_LINE_RE = /^- (.+)$/;
 
 const USAGE =
-  'usage: node .aai/scripts/canon.mjs build --role <R> --ref <r> [--manifest <path>] [--print-hash]\n'
+  'usage: node .aai/scripts/canon.mjs build --role <R> --ref <r> [--manifest <path>] [--print-hash] [--recheck full|delta]\n'
   + '       node .aai/scripts/canon.mjs claims [--manifest <path>] [--report]\n'
   + '       node .aai/scripts/canon.mjs check (--section <name> | --all) [--manifest <path>]\n';
 
@@ -104,6 +105,7 @@ function parseManifestText(content) {
   const manifest = {
     roles: {},
     sections: [],
+    delta_sections: [],
     standing_hazards: null,
     byte_ceiling: null,
     uniqueness_exceptions: [],
@@ -128,7 +130,8 @@ function parseManifestText(content) {
       }
       continue;
     }
-    if (key === 'sections') {
+    if (key === 'sections' || key === 'delta_sections') {
+      const target = key === 'sections' ? manifest.sections : manifest.delta_sections;
       i += 1;
       while (i < lines.length && /^ {2}- /.test(lines[i])) {
         const sec = {};
@@ -140,7 +143,7 @@ function parseManifestText(content) {
           if (fm) sec[fm[1]] = stripQuotes(fm[2]);
           i += 1;
         }
-        manifest.sections.push(sec);
+        target.push(sec);
       }
       continue;
     }
@@ -281,9 +284,9 @@ function readSourceFile(relPath) {
 // resolveSections(manifest, role, ref) -> { ok: true, sections: [{id, path, lines}] }
 // or { ok: false, id, path } naming the first absent/empty declared section,
 // in declared order (Spec-AC-02: fail fast, never a truncated payload).
-function resolveSections(manifest, role, ref) {
+function resolveSections(manifest, role, ref, declared = manifest.sections, rc = null) {
   const resolved = [];
-  for (const sec of manifest.sections) {
+  for (const sec of declared) {
     if (sec.type === 'file') {
       const f = readSourceFile(sec.path);
       if (!f || f.content.length === 0) return { ok: false, id: sec.id, path: sec.path };
@@ -298,6 +301,21 @@ function resolveSections(manifest, role, ref) {
       const text = `Scope ref: ${ref}\n`
         + '(dispatch-specific scope and inputs occupy this position in the assembled payload)\n';
       resolved.push({ id: sec.id, path: '<scope>', lines: text.replace(/\n$/, '').split('\n') });
+    } else if (sec.type === 'recheck_scope') {
+      // spec-cheap-transitions-slice D7: names the role, the ref, the spec path, the base, the head,
+      // every changed path and every prior report, one per line. Lines are never
+      // markdown bullets, so the duplicate-rule scan ignores them.
+      const rows = [
+        'Delta re-check scope',
+        `role: ${role}`,
+        `ref: ${ref}`,
+        `spec: ${rc && rc.spec_path ? rc.spec_path : ''}`,
+        `base: ${rc ? rc.base : ''}`,
+        `head: ${rc ? rc.head : ''}`,
+        ...(rc ? rc.changed_paths : []).map((p) => `changed_path: ${p}`),
+        ...(rc ? rc.prior_reports : []).map((p) => `prior_report: ${p}`),
+      ];
+      resolved.push({ id: sec.id, path: '<recheck_scope>', lines: rows });
     } else {
       usageError(`manifest section "${sec.id}" has unknown type "${sec.type}"`);
     }
@@ -381,10 +399,15 @@ const HASH_CONTRACT_REL = '.aai/SUBAGENT_CONTRACT.md';
 const HASH_LEARNED_REL = 'docs/knowledge/LEARNED.md';
 const HASH_INPUT_ORDER = ['role', 'contract', 'learned'];
 
-function computeCanonPrintHash(rolePromptRelPath, root) {
+// `opts.delta` (cheap-transitions-slice remediation round 6): the delta payload sends the
+// contract, the re-check prompt and the scope, never LEARNED.md, so the delta identity
+// hashes only the layers actually sent (role, contract) - the same rule as
+// prompt-hash.mjs `{ sendsLearned: false }`, reimplemented here on purpose (S2 above).
+function computeCanonPrintHash(rolePromptRelPath, root, opts = {}) {
   const inputs = { role: rolePromptRelPath, contract: HASH_CONTRACT_REL, learned: HASH_LEARNED_REL };
   const hash = crypto.createHash('sha256');
   for (const key of HASH_INPUT_ORDER) {
+    if (opts.delta === true && key === 'learned') continue;
     const relPath = inputs[key];
     const abs = path.resolve(root, relPath);
     let body;
@@ -405,6 +428,11 @@ function parseBuildArgs(argv) {
     else if (a === '--ref') { opts.ref = argv[i + 1]; i += 1; }
     else if (a === '--manifest') { opts.manifest = argv[i + 1]; i += 1; }
     else if (a === '--print-hash') { opts.printHash = true; }
+    else if (a === '--recheck') {
+      opts.recheck = argv[i + 1];
+      i += 1;
+      if (opts.recheck !== 'full' && opts.recheck !== 'delta') usageError('--recheck must be full or delta');
+    }
     else usageError(`unrecognized argument: ${a}`);
   }
   if (!opts.role) usageError('--role is required');
@@ -442,7 +470,29 @@ function runBuild(argv) {
   const manifest = loadManifest(opts.manifest);
   assertMandatoryManifestFields(manifest, opts.manifest);
 
-  const resolution = resolveSections(manifest, opts.role, opts.ref || '');
+  // spec-cheap-transitions-slice D7: --recheck delta assembles the sections declared
+  // under delta_sections: instead of sections:, and only when recheckMode proves the
+  // tree eligible AND AAI_RECHECK_MODE=delta opts in (off by default: exit 11 with
+  // recheck_disabled). --print-hash --recheck delta hashes the delta stack WITHOUT
+  // computing eligibility, so it equals the dispatch prompt_hash of a delta dispatch.
+  const delta = opts.recheck === 'delta';
+  let rc = null;
+  if (delta) {
+    if (manifest.delta_sections.length === 0) {
+      process.stderr.write(`canon-manifest-incomplete: delta_sections missing in ${opts.manifest}\n`);
+      exit(10);
+    }
+    if (!opts.printHash) {
+      rc = recheckMode({ root: ROOT, ref: opts.ref, role: opts.role, env: process.env });
+      if (rc.mode !== 'delta') {
+        process.stderr.write(`canon-recheck-refused: ${rc.reasons.join(' ')}\n`);
+        exit(11);
+      }
+    }
+  }
+
+  const resolution = resolveSections(manifest, opts.role, opts.ref || '',
+    delta ? manifest.delta_sections : manifest.sections, rc);
   if (!resolution.ok) {
     process.stderr.write(`canon-section-absent: ${resolution.id} ${resolution.path}\n`);
     exit(3);
@@ -473,8 +523,9 @@ function runBuild(argv) {
   }
 
   if (opts.printHash) {
-    const rolePath = manifest.roles[opts.role];
-    const digest = computeCanonPrintHash(rolePath, ROOT);
+    const deltaSec = delta ? manifest.delta_sections.find((d) => d.id === 'recheck') : null;
+    const rolePath = deltaSec ? deltaSec.path : manifest.roles[opts.role];
+    const digest = computeCanonPrintHash(rolePath, ROOT, { delta: Boolean(delta) });
     process.stdout.write(`${digest}\n`);
     exit(0);
   }

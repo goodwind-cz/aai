@@ -192,6 +192,23 @@ sections:
   - id: scope
     type: scope
 
+# delta_sections (spec-cheap-transitions-slice D7) — the ordered sections of the
+# slim payload `canon.mjs build --recheck delta` assembles for a Validation or Code
+# Review re-check, ONLY when lib/recheck.mjs proves the tree eligible. The `recheck`
+# file is the role prompt's position in the telemetry hash. The `recheck_scope` type
+# is synthesized from the eligibility result (role, ref, base, head, changed paths,
+# prior reports), not file-backed. The hazard count, duplicate-rule scan and byte
+# ceiling below apply to this payload unchanged.
+delta_sections:
+  - id: contract
+    type: file
+    path: .aai/SUBAGENT_CONTRACT.md
+  - id: recheck
+    type: file
+    path: .aai/RECHECK_DELTA.prompt.md
+  - id: scope
+    type: recheck_scope
+
 standing_hazards: 5
 
 byte_ceiling: 150000

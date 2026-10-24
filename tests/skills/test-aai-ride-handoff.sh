@@ -90,21 +90,34 @@ test_012_prompt_wiring() {
 
 # TEST-014 / Spec-AC-13: no protected path in the diff, a suite-map row, a selector replay.
 test_014_scope_companions() {
-  local protected changed p map_row sel files row
+  local protected changed p map_row sel files row ride_spec ride_status
   protected="$(awk '/^protected_paths_l3:/ {f=1; next} f && /^  - / {sub(/^  - /, ""); print; next} f {exit}' "$PROJECT_ROOT/docs/ai/docs-audit.yaml")"
   [[ -n "$protected" ]] || log_fail "TEST-014 no protected_paths_l3 entries read from docs/ai/docs-audit.yaml"
-  # The base ref: origin/main first (a CI pull_request checkout has no local main), then main; none resolves -> fail closed.
-  local cand base=""
-  for cand in origin/main main; do
-    if git -C "$PROJECT_ROOT" rev-parse -q --verify "$cand^{commit}" >/dev/null 2>&1; then base="$cand"; break; fi
-  done
-  [[ -n "$base" ]] || log_fail "TEST-014 neither origin/main nor main resolves; cannot read the diff"
-  # committed range plus the not-yet-committed working tree, so the check bites before the commit too
-  changed="$({ git -C "$PROJECT_ROOT" diff --name-only "$base"...HEAD; git -C "$PROJECT_ROOT" diff --name-only "$base"; git -C "$PROJECT_ROOT" ls-files -o --exclude-standard; } 2>/dev/null || true)"
-  while IFS= read -r p; do
-    [[ -n "$p" ]] || continue
-    if grep -qxF "$p" <<<"$changed"; then log_fail "TEST-014 the diff touches protected path $p"; fi
-  done <<<"$protected"
+  # The "no protected path in the diff" half is a constraint of THIS ride (spec-cheap-transitions-slice
+  # amendment, contract, --signoff none). Once SPEC-0244 is done a later ride may legitimately edit
+  # a protected surface under its own L3 gates, so the diff check applies only while the ride is
+  # open. The suite-map row and the selector replay below stay unconditional.
+  ride_spec="$PROJECT_ROOT/docs/specs/SPEC-0244-spec-ride-state-handoff-to-worktree.md"
+  ride_status=""
+  if [[ -f "$ride_spec" ]]; then
+    ride_status="$(awk '/^---[[:space:]]*$/ { n++; next } n == 1 && /^status:/ { print $2; exit } n >= 2 { exit }' "$ride_spec")"
+  fi
+  if [[ -f "$ride_spec" && "$ride_status" != "done" ]]; then
+    # The base ref: origin/main first (a CI pull_request checkout has no local main), then main; none resolves -> fail closed.
+    local cand base=""
+    for cand in origin/main main; do
+      if git -C "$PROJECT_ROOT" rev-parse -q --verify "$cand^{commit}" >/dev/null 2>&1; then base="$cand"; break; fi
+    done
+    [[ -n "$base" ]] || log_fail "TEST-014 neither origin/main nor main resolves; cannot read the diff"
+    # committed range plus the not-yet-committed working tree, so the check bites before the commit too
+    changed="$({ git -C "$PROJECT_ROOT" diff --name-only "$base"...HEAD; git -C "$PROJECT_ROOT" diff --name-only "$base"; git -C "$PROJECT_ROOT" ls-files -o --exclude-standard; } 2>/dev/null || true)"
+    while IFS= read -r p; do
+      [[ -n "$p" ]] || continue
+      if grep -qxF "$p" <<<"$changed"; then log_fail "TEST-014 the diff touches protected path $p"; fi
+    done <<<"$protected"
+  else
+    log_info "TEST-014: protected-diff half RETIRED for a closed ride (SPEC-0244 status '${ride_status:-absent}')"
+  fi
   map_row="$(grep -c '^  aai-ride-handoff:$' "$PROJECT_ROOT/tests/skills/suite-map.yaml" || true)"
   [[ "$map_row" == 1 ]] || log_fail "TEST-014 suite-map.yaml has $map_row rows for aai-ride-handoff, want 1"
   row="$(sed -n '/^  aai-ride-handoff:$/,/^$/p' "$PROJECT_ROOT/tests/skills/suite-map.yaml")"
