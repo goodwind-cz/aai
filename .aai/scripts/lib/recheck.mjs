@@ -8,15 +8,16 @@
 // AAI_RECHECK_MODE=full turns it off for a run.
 //
 // This module only READS (git, STATE, EVENTS, the reports named in STATE, the
-// docs-audit config); it never writes any of them. The verdict stamps that make a
-// round "judged" are written by orchestration-dispatch.mjs through append-event.mjs.
+// docs-audit config); it never writes any of them. The judged round it compares is the
+// check_binding block (and the per-ref check_sticky record) of STATE, written by
+// state.mjs bind-check; the verdict stamps in EVENTS.jsonl are telemetry only.
 //
 // Node stdlib plus the repo's own read-only libraries. No new dependency.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  AMBIGUOUS_HEAD, boundBinding, gitBytes, gitHeadOf, gitOut, judgeBinding, markerOfReports, markerOfText, readBinding,
+  AMBIGUOUS_HEAD, boundBinding, gitBytes, gitHeadOf, gitOut, judgeBinding, markerOfReports, markerOfText, readBinding, readSticky,
   readCheckState, refMatches, roleReportsOf,
 } from './check-binding.mjs';
 import { loadConfig } from './docs-audit-core.mjs';
@@ -246,10 +247,11 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
   const statePathUsed = statePath || path.join(root, 'docs/ai/STATE.yaml');
   const binding = readBinding(statePathUsed);
   const bound = boundBinding(binding, ref, token);
+  const sticky = readSticky(statePathUsed);
   let base = null;
   if (!bound) reasons.push('first_round');
   else {
-    const judged = judgeBinding({ root, binding: bound, token, head, ownDispatch });
+    const judged = judgeBinding({ root, binding: bound, token, head, ownDispatch, sticky });
     reasons.push(...judged.reasons);
     base = judged.base;
   }
@@ -321,6 +323,9 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
     if (bound.specPath === null) reasons.push('spec_path_unbound:binding');
     else if (bound.specPath !== specPath) reasons.push('spec_path_changed:binding');
     levelPaths = [...new Set([bound.specPath, specPath])];
+    // The spec paths the per-ref check_sticky record holds are read for the level as well.
+    const recorded = sticky && sticky.entries.get(ref) ? sticky.entries.get(ref).specPaths : [];
+    for (const rp of recorded) if (!levelPaths.includes(rp)) levelPaths.push(rp);
   }
   const levels = [];
   for (const sp of levelPaths) {

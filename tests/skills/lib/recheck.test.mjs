@@ -1,13 +1,15 @@
 // recheck.test.mjs - node:test cases for the delta re-check mode
-// (docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, TEST-2701..2723).
+// (docs/specs/SPEC-0250-spec-cheap-transitions-slice.md, TEST-2701..2746;
+// docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md, TEST-2801..2837).
 // Every case builds a temporary git repository under the OS temp directory; the
 // shipping tree is only read. Each case name starts with its TEST id so
 // test-aai-recheck.sh can run one id at a time (node --test --test-name-pattern).
 //
-// SELF-HOSTING: delta is opt-in (owner decision 2026-10-24), so the cases SET
-// AAI_RECHECK_MODE=delta explicitly in every child process (cleanEnv) and pass an
-// explicit env to recheckMode (DELTA_ENV), so the suite gives the same answer when the
-// rider exports AAI_RECHECK_MODE=full. TEST-2738 scrubs the variable to test the default.
+// SELF-HOSTING: the delta mode is on by default (spec-recheck-verdict-binding D7) and
+// AAI_RECHECK_MODE=full turns it off. The cases SET AAI_RECHECK_MODE=delta explicitly in every
+// child process (cleanEnv) and pass an explicit env to recheckMode (DELTA_ENV), so the suite
+// gives the same answer when the rider exports AAI_RECHECK_MODE=full. TEST-2738, TEST-2820 and
+// the ENVS.default cases scrub the variable to test the default.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -221,12 +223,13 @@ function mustBind(root, on, role, ref = REF) {
 function writeKeep(root, text) {
   const p = stateOf(root);
   const cur = fs.existsSync(p) ? fs.readFileSync(p, 'utf8').split('\n') : [];
-  const i = cur.indexOf('check_binding:');
-  let blk = [];
-  if (i >= 0) {
+  const blk = [];
+  for (const key of ['check_binding:', 'check_sticky:']) {
+    const i = cur.indexOf(key);
+    if (i < 0) continue;
     let j = i + 1;
     while (j < cur.length && !/^[A-Za-z_]/.test(cur[j])) j += 1;
-    blk = cur.slice(i, j);
+    blk.push(...cur.slice(i, j));
   }
   const next = text.split('\n');
   if (blk.length) next.splice(Math.max(0, next.findIndex((l) => /^updated_at_utc:/.test(l))), 0, ...blk);
@@ -2311,7 +2314,7 @@ test('TEST-2830 a report whose only false marker is inside a fence gives full th
 });
 
 // ------------------------------------------------------------------ TEST-2831 (D13)
-test('TEST-2831 re-pointing STATE spec_path at a lower-level spec cannot lower the ceremony level', async () => {
+test('TEST-2831 re-pointing STATE spec_path at a lower-level spec inside the same block, in the work item or the focus, keeps the recorded ceremony level', async () => {
   const L = await lib();
   const LOW = 'docs/specs/SPEC-0002-low.md';
   const mk = (name, level) => {
@@ -2848,4 +2851,267 @@ test('TEST-2821 the docs state the default as on with AAI_RECHECK_MODE=full as t
   const name = fs.readdirSync(path.join(PROJECT_ROOT, 'docs/specs')).find((f) => /-spec-cheap-transitions-slice\.md$/.test(f));
   const row = readRel('docs/specs/' + name).split('\n').find((l) => l.startsWith('| Spec-AC-17 |'));
   assert.ok(row && row.includes('spec-recheck-verdict-binding'), 'SPEC-0250 Spec-AC-17 does not name spec-recheck-verdict-binding');
+  // the escalation sentence names the opt-out explicitly, and no place calls an unset variable the full default
+  const esc = docs.protocol.split('\n').filter((l) => l.includes('RECHECK-ESCALATION'));
+  assert.ok(esc.length > 0 && esc.every((l) => l.includes('AAI_RECHECK_MODE=full') && !/full[^.]*or unset/.test(l)), 'the escalation re-dispatch must name AAI_RECHECK_MODE=full set explicitly');
+  const rfc = readRel('docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md').split('\n').filter((l) => l.includes('recheck-verdict-binding'));
+  assert.ok(rfc.length > 0 && rfc.every((l) => !/stays opt-in|opt-in until/.test(l)), 'the RFC-0017 row still says the mode stays opt-in');
+  const log498 = readRel('CHANGELOG.md').split(/^## \[unreleased\] — /m).find((p) => p.startsWith('feat(recheck): an opt-in slim payload'));
+  assert.ok(log498 && /changes the default/.test(log498), 'the #498 CHANGELOG entry does not say that the later entry changes the default');
+  const spec250 = readRel('docs/specs/' + name);
+  const stale = spec250.split('\n').filter((l) => /delta is OPT-IN|opt-in by proof|Delta is off by default|leave `AAI_RECHECK_MODE` unset \(the default\)|unset \(the default\) keeps/.test(l));
+  assert.deepEqual(stale, [], 'SPEC-0250 still states the old default');
+});
+
+// =====================================================================================
+// recheck-verdict-binding remediation round 1 (TEST-2833..2837): the per-ref check_sticky record.
+// It is written only by bind-check, only ever raises the flag and adds spec paths, and is not
+// touched by a block replacement, a flush or reset-block. Each case ends in a round that
+// STATE would otherwise let run as delta, so each asserts full.
+// =====================================================================================
+const stickyRaw = (root) => {
+  const lines = stateText(root).split('\n');
+  const i = lines.indexOf('check_sticky:');
+  if (i < 0) return null;
+  let j = i + 1;
+  while (j < lines.length && !/^[A-Za-z_]/.test(lines[j])) j += 1;
+  return lines.slice(i, j).join('\n');
+};
+// The record of one ref as plain data, parsed here and not by the library under test.
+const stickyOf = (root, ref = REF) => {
+  const raw = stickyRaw(root);
+  if (raw === null) return null;
+  for (const l of raw.split('\n').slice(1)) {
+    const m = /^ {2}- '(.*)'$/.exec(l);
+    if (!m) continue;
+    const o = JSON.parse(m[1].replace(/''/g, "'"));
+    if (o.ref_id === ref) return o;
+  }
+  return null;
+};
+const decideFull = async (root, ref = REF, env = DELTA_ENV) => (await lib()).recheckMode({ root, ref, role: 'Validation', env });
+const setFocus = (root, ref, issue, spec = SPEC_REL) => {
+  const r = stateCli(root, ['set-focus', '--type', 'intake_change', '--ref', ref, '--path', issue, '--spec_path', spec]);
+  assert.equal(r.status, 0, 'set-focus ' + ref + ': ' + r.stderr + r.stdout);
+};
+const ISSUE_1 = 'docs/issues/CHANGE-0001-fixture.md';
+const ISSUE_2 = 'docs/issues/CHANGE-0002-other.md';
+
+test('TEST-2833 a focus switch away and back through state.mjs alone does not lower security_sticky: the next test-only round is full', async () => {
+  const R = 'ride-one';
+  const so = { ref: R };
+  const { root } = mkRepo('t2833', { verdicts: false, state: so });
+  judgeRound(root, 'validation', VAL_N('a1'), '# Round 1\n\nsecurity_relevant: true\n', so);
+  assert.equal(blockOf(root).security_sticky, 'true', 'control: round 1 bound true');
+  setFocus(root, 'hotfix-two', ISSUE_2);
+  mustBind(root, 'dispatch', 'validation', 'hotfix-two');
+  assert.equal(blockOf(root).ref_id, 'hotfix-two', 'the block was replaced');
+  assert.equal(blockOf(root).security_sticky, 'false', 'the replacing block starts without the flag');
+  assert.equal(stickyOf(root, R).security, true, 'the per-ref record kept it');
+  setFocus(root, R, ISSUE_1);
+  mustBind(root, 'dispatch', 'validation', R);
+  write(root, VAL_N('a2'), `# Round 2\n\n${MARK_FALSE}`);
+  const sv = stateCli(root, ['set-validation', '--ref', R, '--status', 'fail', '--evidence', VAL_N('a2')]);
+  assert.equal(sv.status, 0, sv.stderr + sv.stdout);
+  mustBind(root, 'verdict', 'validation', R);
+  assert.equal(blockOf(root).validation_security, 'false', 'round 2 itself says false');
+  touchTest(root);
+  const L = await lib();
+  for (const env of [DELTA_ENV, {}]) {
+    const m = L.recheckMode({ root, ref: R, role: 'Validation', env });
+    assert.equal(m.mode, 'full', reasonsOf(m));
+    assert.ok(m.reasons.includes('security_relevant:binding') || m.reasons.includes('security_relevant:sticky'), reasonsOf(m));
+  }
+  // alternation r1 to r2 to r1 once more: the record still holds
+  setFocus(root, 'hotfix-two', ISSUE_2);
+  mustBind(root, 'dispatch', 'validation', 'hotfix-two');
+  setFocus(root, R, ISSUE_1);
+  judgeRound(root, 'validation', VAL_N('a3'), `# Round 3\n\n${MARK_FALSE}`, so);
+  touchTest(root);
+  const m3 = L.recheckMode({ root, ref: R, role: 'Validation', env: DELTA_ENV });
+  assert.equal(m3.mode, 'full', reasonsOf(m3));
+  assert.ok(m3.reasons.includes('security_relevant:sticky'), 'after the second replacement only the record carries it: ' + reasonsOf(m3));
+  // control: a ride that never bound true stays delta after the same alternation
+  const ctl = mkRepo('t2833-ctl', { verdicts: false, state: so });
+  judgeRound(ctl.root, 'validation', VAL_N('c1'), `# Round 1\n\n${MARK_FALSE}`, so);
+  setFocus(ctl.root, 'hotfix-two', ISSUE_2);
+  mustBind(ctl.root, 'dispatch', 'validation', 'hotfix-two');
+  setFocus(ctl.root, R, ISSUE_1);
+  judgeRound(ctl.root, 'validation', VAL_N('c2'), `# Round 2\n\n${MARK_FALSE}`, so);
+  touchTest(ctl.root);
+  const c = L.recheckMode({ root: ctl.root, ref: R, role: 'Validation', env: DELTA_ENV });
+  assert.equal(c.mode, 'delta', 'control: ' + reasonsOf(c));
+});
+
+test('TEST-2834 git worktree move replaces the block but not the per-ref record: the next test-only round is full', async () => {
+  const fx = mkRepo('t2834', { verdicts: false });
+  const wt = path.join(tmpTop, 't2834-linked');
+  git(fx.root, ['worktree', 'add', '-q', '-b', 'wm-branch', wt, 'HEAD']);
+  const real = fs.realpathSync(wt);
+  writeKeep(real, stateYaml());
+  judgeRound(real, 'validation', VAL_N('w1'), '# Round 1\n\nsecurity_relevant: true\n');
+  judgeRound(real, 'validation', VAL_N('w2'), `# Round 2\n\n${MARK_FALSE}`);
+  assert.equal(blockOf(real).security_sticky, 'true', 'control: bound true before the move');
+  const moved = path.join(tmpTop, 't2834-moved');
+  git(fx.root, ['worktree', 'move', real, moved]);
+  const now = fs.realpathSync(moved);
+  const L = await lib();
+  const before = L.recheckMode({ root: now, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.ok(before.reasons.includes('binding_other_checkout'), reasonsOf(before));
+  judgeRound(now, 'validation', VAL_N('w3'), `# Round 3\n\n${MARK_FALSE}`);
+  assert.equal(blockOf(now).checkout, topLevel(now), 'the block was replaced for the new checkout');
+  assert.equal(blockOf(now).security_sticky, 'true', 'the replacing block is seeded from the record');
+  assert.equal(stickyOf(now).security, true);
+  touchTest(now);
+  for (const env of [DELTA_ENV, {}]) {
+    const m = L.recheckMode({ root: now, ref: REF, role: 'Validation', env });
+    assert.equal(m.mode, 'full', reasonsOf(m));
+    assert.ok(m.reasons.includes('security_relevant:binding') || m.reasons.includes('security_relevant:sticky'), reasonsOf(m));
+  }
+  // control: the same move on a ride that never bound true gives delta once re-bound
+  const c = mkRepo('t2834-ctl', { verdicts: false });
+  const cwt = path.join(tmpTop, 't2834-ctl-linked');
+  git(c.root, ['worktree', 'add', '-q', '-b', 'wm-ctl', cwt, 'HEAD']);
+  const creal = fs.realpathSync(cwt);
+  writeKeep(creal, stateYaml());
+  judgeRound(creal, 'validation', VAL_N('x1'), `# Round 1\n\n${MARK_FALSE}`);
+  const cmoved = path.join(tmpTop, 't2834-ctl-moved');
+  git(c.root, ['worktree', 'move', creal, cmoved]);
+  const cnow = fs.realpathSync(cmoved);
+  judgeRound(cnow, 'validation', VAL_N('x2'), `# Round 2\n\n${MARK_FALSE}`);
+  touchTest(cnow);
+  const cm = L.recheckMode({ root: cnow, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(cm.mode, 'delta', 'control: ' + reasonsOf(cm));
+});
+
+test('TEST-2835 ride-handoff out copies the record of its ref into the worktree STATE, and the worktree rounds stay full', async () => {
+  const fx = mkRepo('t2835', { verdicts: false });
+  judgeRound(fx.root, 'validation', VAL_N('h1'), '# Round 1\n\nsecurity_relevant: true\n');
+  judgeRound(fx.root, 'validation', VAL_N('h2'), `# Round 2\n\n${MARK_FALSE}`);
+  const want = stickyOf(fx.root);
+  assert.equal(want.security, true);
+  const wt = path.join(tmpTop, 't2835-wt');
+  git(fx.root, ['worktree', 'add', '-q', '-b', 'ride-branch', wt, 'HEAD']);
+  const real = fs.realpathSync(wt);
+  const rep = spawnSync(process.execPath, [path.join(SCRIPTS, 'check-state.mjs'), '--repair'], { cwd: real, encoding: 'utf8', env: cleanEnv() });
+  assert.equal(rep.status, 0, rep.stdout + rep.stderr);
+  const run = (state = stateOf(fx.root)) => spawnSync(process.execPath, [path.join(SCRIPTS, 'ride-handoff.mjs'), 'out', '--ref', REF, '--worktree', real,
+    '--state', state, '--base-ref', 'main'], { cwd: fx.root, encoding: 'utf8', env: cleanEnv() });
+  const h = run();
+  assert.equal(h.status, 0, h.stdout + h.stderr);
+  assert.deepEqual(stickyOf(real), want, 'the worktree holds the origin record');
+  assert.equal(blockOf(real), null, 'the block itself is not carried: the worktree starts at first_round');
+  const L = await lib();
+  const first = L.recheckMode({ root: real, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.ok(first.reasons.includes('first_round'), reasonsOf(first));
+  judgeRound(real, 'validation', VAL_N('h3'), `# Round 3\n\n${MARK_FALSE}`);
+  judgeRound(real, 'validation', VAL_N('h4'), `# Round 4\n\n${MARK_FALSE}`);
+  assert.equal(stickyOf(real).security, true, 'the worktree binds never lowered it');
+  touchTest(real);
+  const m = L.recheckMode({ root: real, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(m.mode, 'full', reasonsOf(m));
+  assert.ok(m.reasons.includes('security_relevant:binding') || m.reasons.includes('security_relevant:sticky'), reasonsOf(m));
+  // an origin record that does not parse, and a block of the ref with no record, are carried raised
+  for (const [label, edit] of [
+    ['unparseable record', (t) => t.replace(/^check_sticky:\n( {2}- .*\n)+/m, "check_sticky:\n  - 'not json'\n")],
+    ['block with no record', (t) => t.replace(/^check_sticky:\n( {2}- .*\n)+/m, '')],
+  ]) {
+    const o = mkRepo('t2835-' + label.replace(/\W/g, ''), { verdicts: false });
+    judgeRound(o.root, 'validation', VAL_N('u1'), `# Round 1\n\n${MARK_FALSE}`);
+    fs.writeFileSync(stateOf(o.root), edit(stateText(o.root)));
+    const w2 = path.join(tmpTop, 't2835-wt-' + label.replace(/\W/g, ''));
+    git(o.root, ['worktree', 'add', '-q', '-b', 'rb-' + label.replace(/\W/g, ''), w2, 'HEAD']);
+    const r2 = fs.realpathSync(w2);
+    const rp = spawnSync(process.execPath, [path.join(SCRIPTS, 'check-state.mjs'), '--repair'], { cwd: r2, encoding: 'utf8', env: cleanEnv() });
+    assert.equal(rp.status, 0, rp.stdout + rp.stderr);
+    const hh = spawnSync(process.execPath, [path.join(SCRIPTS, 'ride-handoff.mjs'), 'out', '--ref', REF, '--worktree', r2, '--state', stateOf(o.root), '--base-ref', 'main'],
+      { cwd: o.root, encoding: 'utf8', env: cleanEnv() });
+    assert.equal(hh.status, 0, label + ': ' + hh.stdout + hh.stderr);
+    assert.equal(stickyOf(r2).security, true, label + ': carried with the flag raised');
+  }
+});
+
+test('TEST-2836 a spec path re-pointed after a focus switch cannot lower the ceremony level: the record keeps the L3 path', async () => {
+  const LOW = 'docs/specs/SPEC-0002-low.md';
+  const fx = mkRepo('t2836', { verdicts: false, level: 3 });
+  write(fx.root, LOW, specText(2).replace('SPEC-0001', 'SPEC-0002'));
+  commitAll(fx.root, 'a lower-level spec');
+  judgeRound(fx.root, 'validation', VAL_N('p1'), `# Round 1\n\n${MARK_FALSE}`);
+  assert.equal(blockOf(fx.root).spec_path, SPEC_REL);
+  setFocus(fx.root, 'hotfix-two', ISSUE_2);
+  mustBind(fx.root, 'dispatch', 'validation', 'hotfix-two');
+  assert.equal(blockOf(fx.root).ref_id, 'hotfix-two');
+  const low = { spec: LOW };
+  judgeRound(fx.root, 'validation', VAL_N('p2'), `# Round 2\n\n${MARK_FALSE}`, low);
+  assert.equal(blockOf(fx.root).spec_path, LOW, 'the replacing block records the re-pointed path');
+  assert.deepEqual(stickyOf(fx.root).spec_paths.sort(), [LOW, SPEC_REL].sort(), 'the record holds both paths');
+  touchTest(fx.root);
+  const L = await lib();
+  for (const env of [DELTA_ENV, {}]) {
+    const m = L.recheckMode({ root: fx.root, ref: REF, role: 'Validation', env });
+    assert.equal(m.mode, 'full', reasonsOf(m));
+    assert.ok(m.reasons.includes('ceremony_l3'), reasonsOf(m));
+  }
+  // control: both paths level 2 stays delta through the same switch
+  const ctl = mkRepo('t2836-ctl', { verdicts: false, level: 2 });
+  write(ctl.root, LOW, specText(2).replace('SPEC-0001', 'SPEC-0002'));
+  commitAll(ctl.root, 'a lower-level spec');
+  judgeRound(ctl.root, 'validation', VAL_N('q1'), `# Round 1\n\n${MARK_FALSE}`);
+  setFocus(ctl.root, 'hotfix-two', ISSUE_2);
+  mustBind(ctl.root, 'dispatch', 'validation', 'hotfix-two');
+  judgeRound(ctl.root, 'validation', VAL_N('q2'), `# Round 2\n\n${MARK_FALSE}`, low);
+  touchTest(ctl.root);
+  const c = L.recheckMode({ root: ctl.root, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(c.mode, 'delta', 'control: ' + reasonsOf(c));
+});
+
+test('TEST-2837 the record is raise-only: a partial flush, a full flush and reset-block leave it, and an absent or unparseable record gives full', async () => {
+  const L = await lib();
+  const mk = (name) => {
+    const fx = mkRepo(name, { verdicts: false });
+    judgeRound(fx.root, 'validation', VAL_N('f1'), '# Round 1\n\nsecurity_relevant: true\n');
+    return fx;
+  };
+  const part = mk('t2837-partial');
+  const rec0 = stickyRaw(part.root);
+  assert.ok(rec0 && rec0.includes('"security":true'), 'control: the record holds the flag');
+  writeKeep(part.root, flushable({ second: true }));
+  const p = runFlush(part.root);
+  assert.equal(p.status, 0, p.stdout + p.stderr);
+  assert.equal(stickyRaw(part.root), rec0, 'a partial flush leaves the record byte-identical');
+  const full = mk('t2837-full');
+  writeKeep(full.root, flushable({ wi: 'done' }));
+  const f = runFlush(full.root);
+  assert.equal(f.status, 0, f.stdout + f.stderr);
+  assert.equal(blockOf(full.root), null, 'control: the full flush removed the block');
+  assert.ok(stickyRaw(full.root) && stickyRaw(full.root).includes('"security":true'), 'a full flush leaves the record');
+  const rb = mk('t2837-reset');
+  const before = stickyRaw(rb.root);
+  for (const blk of ['last_validation', 'code_review']) {
+    const r = stateCli(rb.root, ['reset-block', blk, '--force']);
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+  }
+  assert.equal(stickyRaw(rb.root), before, 'reset-block leaves the record');
+  // a later bind with false never lowers it
+  judgeRound(rb.root, 'validation', VAL_N('f2'), `# Round 2\n\n${MARK_FALSE}`);
+  assert.equal(stickyOf(rb.root).security, true);
+  // absent record beside a bound block, and an unparseable record, are not delta
+  const absent = mkRepo('t2837-absent', { verdicts: false });
+  judgeRound(absent.root, 'validation', VAL_N('g1'), `# Round 1\n\n${MARK_FALSE}`);
+  touchTest(absent.root);
+  assert.equal(L.recheckMode({ root: absent.root, ref: REF, role: 'Validation', env: DELTA_ENV }).mode, 'delta', 'control: a present record of a false ride is delta');
+  fs.writeFileSync(stateOf(absent.root), stateText(absent.root).replace(/^check_sticky:\n( {2}- .*\n)+/m, ''));
+  const ra = L.recheckMode({ root: absent.root, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(ra.mode, 'full');
+  assert.ok(ra.reasons.includes('sticky_record_absent:binding'), reasonsOf(ra));
+  const bad = mkRepo('t2837-bad', { verdicts: false });
+  judgeRound(bad.root, 'validation', VAL_N('g2'), `# Round 1\n\n${MARK_FALSE}`);
+  touchTest(bad.root);
+  fs.writeFileSync(stateOf(bad.root), stateText(bad.root).replace(/^check_sticky:\n( {2}- .*\n)+/m, "check_sticky:\n  - '{broken'\n"));
+  const rbad = L.recheckMode({ root: bad.root, ref: REF, role: 'Validation', env: DELTA_ENV });
+  assert.equal(rbad.mode, 'full');
+  assert.ok(rbad.reasons.includes('sticky_record_ambiguous'), reasonsOf(rbad));
+  // a bind over an unparseable record rewrites it with the flag raised
+  mustBind(bad.root, 'dispatch', 'validation');
+  assert.equal(stickyOf(bad.root).security, true);
 });

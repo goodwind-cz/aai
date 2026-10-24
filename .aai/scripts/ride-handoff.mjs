@@ -27,6 +27,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { duplicateKeys, inlineChildConflicts } from './lib/state-core.mjs';
+import { putStickyRaise, readBindingBlock, readStickyRecords } from './lib/check-binding.mjs';
 import {
   bumpUpdatedAt, editBlock, ensureBlock, fieldRe, fieldSpan, findBlock, loadState, metricsEntrySpan,
   readScalar, scalarLine, setEngineFailPrefix, setField, unquoteScalar, writeState, yq,
@@ -444,7 +445,19 @@ function checkFresh(wLines, ref, originEntry) {
   return null;
 }
 
-function buildWorktreeLines(wLines, ref, parts, info) {
+// The raise-only check_sticky record of the ride travels with it: the worktree STATE gets the
+// origin's entry for the ref (flag and spec paths, raised, never lowered). An origin record that
+// does not parse, or a check_binding block of the ref with no record, is carried as flag raised.
+function carrySticky(lines, originLines, ref) {
+  const rec = readStickyRecords(originLines);
+  const e = rec.entries.get(ref);
+  const bind = readBindingBlock(originLines);
+  const bindNamesRef = bind.present && (bind.problems.length > 0 || bind.refId === ref);
+  if (rec.problems.length > 0 || (e === undefined && bindNamesRef)) putStickyRaise(lines, ref, { security: true });
+  else if (e !== undefined) putStickyRaise(lines, ref, { security: e.security, specPaths: e.specPaths });
+}
+
+function buildWorktreeLines(wLines, ref, parts, info, originLines) {
   const lines = wLines.slice();
   if (parts.focus) replaceBlock(lines, 'current_focus', parts.focus);
   if (parts.item) putItem(lines, ref, parts.item);
@@ -462,6 +475,7 @@ function buildWorktreeLines(wLines, ref, parts, info) {
     if (parts.worktreeRationale) setField(bl, 2, 'rationale', parts.worktreeRationale);
     return bl;
   });
+  carrySticky(lines, originLines, ref);
   return lines;
 }
 
@@ -514,7 +528,7 @@ function cmdOut(f) {
     exit(0);
   }
 
-  const candidate = buildWorktreeLines(w.lines, ref, parts, info);
+  const candidate = buildWorktreeLines(w.lines, ref, parts, info, o.lines);
   const originNext = o.lines.slice();
   const wtBlockNamesThis = (bl) => {
     const branch = unq((bl.find((l) => fieldRe(2, 'branch').test(l)) ?? '').split(':').slice(1).join(':'));

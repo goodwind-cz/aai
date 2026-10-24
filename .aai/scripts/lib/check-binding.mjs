@@ -3,9 +3,15 @@
 //
 // A judged Validation or Code Review round is recorded in STATE by `state.mjs bind-check`,
 // the one writer, and `recheckMode` (lib/recheck.mjs) compares that record when it decides
-// a later round. STATE is gitignored, so no commit, amend, rebase, squash, merge or replace
-// object carries the block. This module owns reading the block, planning its writes, the
+// a later round. Where docs/ai/STATE.yaml is gitignored, no commit, amend, rebase, squash, merge
+// or replace object carries the block; nothing here checks that it is (fu-recheck-state-tracked-premise).
+// This module owns reading the block, planning its writes, the
 // D4 comparisons and the git environment those reads run in.
+//
+// A second block, check_sticky, keeps one record per ref: the security flag and every spec path
+// that ref has been recorded with. bind-check writes it by raising the flag and adding paths, and
+// ride-handoff.mjs copies the entry of its ref into the worktree STATE the same way. The block
+// replacement, the metrics flush and reset-block have no code that edits it.
 //
 // Wording rule (D9): a comment here names the comparison a check makes; it states no more.
 // Residual: the comparisons read docs/ai/STATE.yaml and the bound report files as they are
@@ -23,6 +29,7 @@ import { duplicateKeys, splitLines } from './state-core.mjs';
 import { ensureBlock, findBlock, listFieldLines, nowIso, readScalar, scalarLine, unquoteScalar, yq } from './state-engine.mjs';
 
 export const BINDING_BLOCK = 'check_binding';
+export const STICKY_BLOCK = 'check_sticky';
 export const ROLE_KEYS = ['validation', 'code_review'];
 export const HEX40 = /^[0-9a-f]{40}$/;
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -375,7 +382,7 @@ export function boundBinding(binding, ref, token) {
 // bound role head, null when the block does not parse. `ownDispatch` is set by canon.mjs, which
 // builds the payload of the round a tick has just dispatched: a pending list whose only entry is
 // the current head is that round's own record and gives no binding_pending.
-export function judgeBinding({ root, binding, token, head = null, ownDispatch = false }) {
+export function judgeBinding({ root, binding, token, head = null, ownDispatch = false, sticky = null }) {
   const reasons = [];
   if (binding.problems.length > 0) {
     reasons.push('binding_ambiguous');
@@ -391,6 +398,13 @@ export function judgeBinding({ root, binding, token, head = null, ownDispatch = 
   }
   if (binding.securitySticky === true || binding.roles.validation.security === true
     || binding.roles.code_review.security === true) reasons.push('security_relevant:binding');
+  // The per-ref record outlives every replacement of the block above; it is compared by name.
+  if (sticky === null || sticky.problems.length > 0) reasons.push('sticky_record_ambiguous');
+  else {
+    const entry = sticky.entries.get(binding.refId);
+    if (entry === undefined) reasons.push('sticky_record_absent:binding');
+    else if (entry.security === true) reasons.push('security_relevant:sticky');
+  }
   if (bound.security !== false) reasons.push(`security_marker_absent:binding:${token}`);
   if (replaceRefsPresent(root)) reasons.push('replace_refs_present');
   return { reasons, base: bound.head };
@@ -430,14 +444,81 @@ function serialize(m) {
 
 // Replace the block (or create it before updated_at_utc) with `blockLines`, keeping the blank
 // lines that followed the old block.
-function putBlock(lines, blockLines) {
-  const existing = findBlock(lines, BINDING_BLOCK);
-  if (!existing) ensureBlock(lines, BINDING_BLOCK, []);
-  const b = findBlock(lines, BINDING_BLOCK);
+function putBlock(lines, blockLines, key = BINDING_BLOCK) {
+  const existing = findBlock(lines, key);
+  if (!existing) ensureBlock(lines, key, []);
+  const b = findBlock(lines, key);
   let tail = b.end;
   while (tail > b.start + 1 && lines[tail - 1].trim() === '') tail -= 1;
   const blanks = lines.slice(tail, b.end);
   lines.splice(b.start, b.end - b.start, ...blockLines, ...(blanks.length ? blanks : ['']));
+}
+
+// --- the check_sticky block: one raise-only record per ref -------------------------------
+
+// readStickyRecords(lines) -> { present, problems, entries: Map(ref_id -> { security, specPaths }) }.
+// Every list item is one JSON object {"ref_id": string, "security": boolean, "spec_paths": [string]};
+// an item that is anything else, a repeated ref_id or an unknown key is listed in `problems`.
+export function readStickyRecords(lines) {
+  const out = { present: false, problems: [], entries: new Map() };
+  const b = findBlock(lines, STICKY_BLOCK);
+  if (!b) return out;
+  out.present = true;
+  if (lines[b.start].slice(lines[b.start].indexOf(':') + 1).trim() !== '') out.problems.push('sticky_header_inline');
+  for (let i = b.start + 1; i < b.end; i += 1) {
+    const l = lines[i];
+    if (l.trim() === '' || l.startsWith('#')) continue;
+    const m = /^ {2}- (.*)$/.exec(l);
+    if (!m) { out.problems.push(`sticky_unparsed_line:${i - b.start}`); continue; }
+    let o;
+    try { o = JSON.parse(unquoteScalar(m[1].trim())); } catch { out.problems.push(`sticky_item:${i - b.start}`); continue; }
+    const okKeys = o && typeof o === 'object' && !Array.isArray(o)
+      && Object.keys(o).sort().join(',') === 'ref_id,security,spec_paths';
+    if (!okKeys || typeof o.ref_id !== 'string' || o.ref_id === '' || typeof o.security !== 'boolean'
+      || !Array.isArray(o.spec_paths) || !o.spec_paths.every((x) => typeof x === 'string' && x !== '')) {
+      out.problems.push(`sticky_item:${i - b.start}`);
+      continue;
+    }
+    if (out.entries.has(o.ref_id)) { out.problems.push(`sticky_duplicate_ref:${i - b.start}`); continue; }
+    out.entries.set(o.ref_id, { security: o.security, specPaths: [...new Set(o.spec_paths)] });
+  }
+  return out;
+}
+
+export function readSticky(statePath) {
+  let raw;
+  try {
+    raw = fs.readFileSync(statePath, 'utf8');
+  } catch {
+    return null;
+  }
+  return readStickyRecords(splitLines(raw).lines);
+}
+
+function serializeSticky(entries) {
+  const out = [`${STICKY_BLOCK}:`];
+  for (const ref of [...entries.keys()].sort()) {
+    const e = entries.get(ref);
+    out.push(`  - ${yq(JSON.stringify({ ref_id: ref, security: e.security === true, spec_paths: [...new Set(e.specPaths)].sort() }))}`);
+  }
+  return out;
+}
+
+// putStickyRaise(lines, ref, { security, specPaths, unknownPrior }) -> the entry now recorded.
+// Raise-only: the flag is the OR of the recorded flag and the given one, the paths are the union.
+// A record that does not parse is rebuilt from its parseable items and, for this ref, written with
+// the flag raised; `unknownPrior` raises it as well (a prior block that did not parse).
+export function putStickyRaise(lines, ref, { security = false, specPaths = [], unknownPrior = false } = {}) {
+  const cur = readStickyRecords(lines);
+  const had = cur.entries.get(ref);
+  const entry = {
+    security: (had ? had.security : false) || security === true || unknownPrior === true || cur.problems.length > 0,
+    specPaths: [...new Set([...(had ? had.specPaths : []), ...specPaths.filter((x) => typeof x === 'string' && x !== '')])],
+  };
+  const entries = new Map(cur.entries);
+  entries.set(ref, entry);
+  putBlock(lines, serializeSticky(entries), STICKY_BLOCK);
+  return entry;
 }
 
 // --- bind-check: planning ---------------------------------------------------------------
@@ -471,6 +552,17 @@ export function planBindCheck({ lines, root, on, role, ref }) {
   const reports = roleReportsOf(state, role, ref);
   const next = carry(prior, lines, ref, root);
   const r = next.roles[role];
+  // What a replaced block of this ref said is folded into the per-ref record before the block goes.
+  const gone = !usable && parsed.present && parsed.problems.length === 0 && parsed.refId === ref ? parsed : null;
+  const goneSecurity = gone !== null && (gone.securitySticky === true || gone.roles.validation.security === true
+    || gone.roles.code_review.security === true);
+  const unknownPrior = parsed.present && parsed.problems.length > 0;
+  const goneSpecPaths = [gone && gone.specPath, next.specPath].filter(Boolean);
+  const writeSticky = (out, security) => {
+    const rec = putStickyRaise(out, ref, { security: security || goneSecurity, specPaths: goneSpecPaths, unknownPrior });
+    next.securitySticky = rec.security;
+    return rec;
+  };
 
   if (on === 'dispatch') {
     const samePending = r.pendingHeads.length > 0 && r.pendingHeads[r.pendingHeads.length - 1] === head && sameSet(reports, r.pendingReports);
@@ -478,6 +570,7 @@ export function planBindCheck({ lines, root, on, role, ref }) {
     if (r.pendingHeads.length === 0) r.pendingReports = reports;
     r.pendingHeads.push(head);
     const out = [...lines];
+    writeSticky(out, prior.securitySticky === true);
     putBlock(out, serialize(next));
     return { lines: out, note: `dispatch ${role} pending head ${head.slice(0, 12)}` };
   }
@@ -505,6 +598,7 @@ export function planBindCheck({ lines, root, on, role, ref }) {
   };
   if (next.roles[role].digests.includes(null)) return null;
   const out = [...lines];
+  writeSticky(out, sticky);
   putBlock(out, serialize(next));
   return { lines: out, note: `verdict ${role} ${status} bound head ${bound.slice(0, 12)}` };
 }

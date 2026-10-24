@@ -11,12 +11,13 @@
 # The cases are node:test cases in tests/skills/lib/recheck.test.mjs; each builds
 # its own temporary git repository, the real repository is only read.
 #
-# TEST-2801..2832 (docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md): the judged round is the
+# TEST-2801..2837 (docs/specs/SPEC-DRAFT-spec-recheck-verdict-binding.md): the judged round is the
 # check_binding block of STATE written by state.mjs bind-check; every fixture builds it through that
 # real CLI.
 #
 # SELF-HOSTING: the node cases set AAI_RECHECK_MODE=delta explicitly in every child process
-# (TEST-2738 unsets it), so the suite answers the same under AAI_RECHECK_MODE=full.
+# (TEST-2738 and the default env of TEST-2820 unset it), so the suite answers the same under
+# AAI_RECHECK_MODE=full.
 #
 # bash 3.2 compatible (no ${var^^}, no declare -A).
 #
@@ -236,9 +237,9 @@ test_2737_capture_sites_fallback() {
   log_pass "TEST-2737: every append-run capture site names the recheck.fallback clause"
 }
 
-test_2738_default_is_full() {
+test_2738_default_is_delta() {
   run_recheck_node_tests TEST-2738
-  log_pass "TEST-2738: the variable unset gives delta on an eligible tree, forced full gives recheck_disabled"
+  log_pass "TEST-2738: the default is delta: the variable unset gives delta on an eligible tree, AAI_RECHECK_MODE=full gives recheck_disabled"
 }
 
 test_2739_ledger_rewrite_refused() {
@@ -353,7 +354,7 @@ test_2830_fenced_marker_seam() {
 
 test_2831_specpath_repoint() {
   run_recheck_node_tests TEST-2831
-  log_pass "TEST-2831: re-pointing STATE spec_path cannot lower the ceremony level"
+  log_pass "TEST-2831: a spec_path re-point inside the same block, in the work item or the focus, keeps the recorded ceremony level (TEST-2836 covers a replaced block)"
 }
 
 test_2802_bind_refused_for_subagent() {
@@ -436,8 +437,33 @@ test_2821_default_on_docs() {
   log_pass "TEST-2821: the docs state the default as on with AAI_RECHECK_MODE=full as the opt-out"
 }
 
+test_2833_focus_alternation_sticky() {
+  run_recheck_node_tests TEST-2833
+  log_pass "TEST-2833: a focus switch away and back leaves the per-ref security record raised and the next test-only round full"
+}
+
+test_2834_worktree_move_sticky() {
+  run_recheck_node_tests TEST-2834
+  log_pass "TEST-2834: git worktree move replaces the block, not the per-ref record, and the next test-only round is full"
+}
+
+test_2835_handoff_sticky() {
+  run_recheck_node_tests TEST-2835
+  log_pass "TEST-2835: ride-handoff out copies the per-ref record into the worktree STATE"
+}
+
+test_2836_specpath_record() {
+  run_recheck_node_tests TEST-2836
+  log_pass "TEST-2836: a spec path re-pointed after a focus switch is added to the record, never replacing the L3 path"
+}
+
+test_2837_record_raise_only() {
+  run_recheck_node_tests TEST-2837
+  log_pass "TEST-2837: a flush and reset-block leave the record, and an absent or unparseable record gives full"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2746, SPEC spec-recheck-verdict-binding TEST-2801..2832)"
+  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2746, SPEC spec-recheck-verdict-binding TEST-2801..2837)"
   check_deps
   test_2701_baseline_table_matches_metrics
   test_2702_delta_applies
@@ -475,7 +501,7 @@ main() {
   test_2735_stamp_without_marker_and_sticky
   test_2736_tick_records_marker
   test_2737_capture_sites_fallback
-  test_2738_default_is_full
+  test_2738_default_is_delta
   test_2739_ledger_rewrite_refused
   test_2740_committed_rewrite_refused
   test_2741_stamps_refused_for_subagent
@@ -513,6 +539,11 @@ main() {
   test_2827_ride_stays_full
   test_2828_spec0250_superseded
   test_2832_specpath_recorded
+  test_2833_focus_alternation_sticky
+  test_2834_worktree_move_sticky
+  test_2835_handoff_sticky
+  test_2836_specpath_record
+  test_2837_record_raise_only
   test_2820_default_on
   test_2821_default_on_docs
   echo ""
