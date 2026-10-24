@@ -1394,16 +1394,19 @@ test('TEST-2730 gate inputs under tests/ are production; only test code is not',
 });
 
 // ------------------------------------------------------------------ TEST-2731
-test('TEST-2731 AAI_RECHECK_MODE is opt-in: only a value that normalises to delta enables the mode', async () => {
+// Owner decision 2026-10-24 ("Zapnout po ověření"): once the verdict is bound to STATE (spec-recheck-verdict-binding)
+// delta is the default. AAI_RECHECK_MODE trims and lower-cases: unset, empty, blank and delta enable the mode;
+// full and every other value (a misspelling included) keep the round full.
+test('TEST-2731 AAI_RECHECK_MODE: unset, empty, blank and delta enable the mode; full and any other value give recheck_disabled', async () => {
   const L = await lib();
-  for (const v of ['full', 'FULL', ' Full ', 'full\n', '\tfull', 'off', '0', 'false', 'no', 'deltas', 'ful', undefined, '', '   ']) {
+  for (const v of ['full', 'FULL', ' Full ', 'full\n', '\tfull', 'off', '0', 'false', 'no', 'deltas', 'ful']) {
     assert.equal(L.deltaEnabled({ AAI_RECHECK_MODE: v }), false, JSON.stringify(v));
   }
-  for (const v of ['delta', ' Delta ', 'DELTA', 'delta\n']) {
+  for (const v of ['delta', ' Delta ', 'DELTA', 'delta\n', undefined, '', '   ']) {
     assert.equal(L.deltaEnabled({ AAI_RECHECK_MODE: v }), true, JSON.stringify(v));
   }
-  assert.equal(L.deltaEnabled({}), false);
-  assert.equal(L.deltaEnabled(null), false);
+  assert.equal(L.deltaEnabled({}), true);
+  assert.equal(L.deltaEnabled(null), true);
   const { root } = mkRepo('t2731');
   touchTest(root);
   for (const v of [' FULL ', 'Full', 'nonsense']) {
@@ -1420,30 +1423,27 @@ test('TEST-2731 AAI_RECHECK_MODE is opt-in: only a value that normalises to delt
 });
 
 // ------------------------------------------------------------------ TEST-2738
-test('TEST-2738 the default is full: an otherwise eligible tree with the variable unset gives recheck_disabled', async () => {
+test('TEST-2738 the default is on: an eligible tree with the variable unset gives delta, forced full gives recheck_disabled', async () => {
   const L = await lib();
   const { root } = mkRepo('t2738');
   touchTest(root);
-  assert.equal(L.recheckMode({ root, ref: REF, role: 'Validation', env: DELTA_ENV }).mode, 'delta', 'positive control: the tree is eligible when opted in');
-  for (const env of [{}, { AAI_RECHECK_MODE: '' }, { AAI_RECHECK_MODE: '  ' }, { AAI_RECHECK_MODE: 'full' }]) {
+  for (const env of [{}, { AAI_RECHECK_MODE: '' }, { AAI_RECHECK_MODE: '  ' }, DELTA_ENV]) {
     const r = L.recheckMode({ root, ref: REF, role: 'Validation', env });
-    assert.equal(r.mode, 'full', JSON.stringify(env));
-    assert.deepEqual(r.reasons, ['recheck_disabled'], JSON.stringify(env));
+    assert.equal(r.mode, 'delta', JSON.stringify(env) + ': ' + reasonsOf(r));
   }
-  // the dispatch and canon read the process env: scrubbed, they answer full
+  const f = L.recheckMode({ root, ref: REF, role: 'Validation', env: { AAI_RECHECK_MODE: 'full' } });
+  assert.equal(f.mode, 'full');
+  assert.deepEqual(f.reasons, ['recheck_disabled']);
+  // the dispatch and canon read the process env: scrubbed, they answer delta
   const fx = eligibleCanon('t2738-dispatch');
-  const optedIn = runDispatch(fx.root, []);
-  assert.equal(rc(optedIn).mode, 'delta', 'dispatch positive control');
   const d = spawnSync(process.execPath, [path.join(SCRIPTS, 'orchestration-dispatch.mjs'), '--state', stateOf(fx.root), '--root', fx.root],
     { cwd: PROJECT_ROOT, encoding: 'utf8', env: unsetEnv() });
   const out = JSON.parse(d.stdout);
-  assert.equal(out.recheck.mode, 'full');
-  assert.ok(out.recheck.reasons.includes('recheck_disabled'));
-  assert.equal(out.system_prompt, '.aai/VALIDATION.prompt.md');
+  assert.equal(out.recheck.mode, 'delta', JSON.stringify(out.recheck));
+  assert.equal(out.system_prompt, '.aai/RECHECK_DELTA.prompt.md');
   const c = spawnSync(process.execPath, [path.join(SCRIPTS, 'canon.mjs'), 'build', '--role', 'Validation', '--ref', REF, '--recheck', 'delta'],
     { cwd: fx.root, encoding: 'utf8', env: unsetEnv() });
-  assert.equal(c.status, 11);
-  assert.match(c.stderr, /recheck_disabled/);
+  assert.equal(c.status, 0, c.stderr);
 });
 
 // ------------------------------------------------------------------ TEST-2739
@@ -2804,4 +2804,48 @@ test('TEST-2828 SPEC-0250 points at this spec for the stamp residual and the ame
   assert.ok(later.length >= 1, 'no later spec_amendment of cheap-transitions-slice with a new tracker');
   const strict = spawnSync(process.execPath, [path.join(SCRIPTS, 'spec-amend.mjs'), 'list', '--strict'], { cwd: PROJECT_ROOT, encoding: 'utf8', env: cleanEnv(), maxBuffer: 64 * 1024 * 1024 });
   assert.equal(strict.status, 0, 'spec-amend list --strict exits ' + strict.status);
+});
+
+// ------------------------------------------------------------------ TEST-2820 / 2821 (D7, the separable flip)
+test('TEST-2820 default on: deltaEnabled, recheckMode, the dispatch field and canon agree for every value', async () => {
+  const L = await lib();
+  for (const v of [undefined, '', '   ', 'delta', 'DELTA', ' delta ']) assert.equal(L.deltaEnabled({ AAI_RECHECK_MODE: v }), true, JSON.stringify(v));
+  for (const v of ['full', 'FULL', ' full ', 'off', '0', 'false', 'dleta']) assert.equal(L.deltaEnabled({ AAI_RECHECK_MODE: v }), false, JSON.stringify(v));
+  const fx = eligibleCanon('t2820');
+  const unset = runDispatchEnv(fx.root, unsetEnv());
+  assert.equal(rc(unset).mode, 'delta', JSON.stringify(unset.out.recheck));
+  assert.equal(unset.out.system_prompt, '.aai/RECHECK_DELTA.prompt.md');
+  const cd = spawnSync(process.execPath, [path.join(SCRIPTS, 'canon.mjs'), 'build', '--role', 'Validation', '--ref', REF, '--recheck', 'delta'], { cwd: fx.root, encoding: 'utf8', env: unsetEnv() });
+  assert.equal(cd.status, 0, cd.stderr);
+  const off = { ...unsetEnv(), AAI_RECHECK_MODE: 'full' };
+  const forced = runDispatchEnv(fx.root, off);
+  assert.equal(rc(forced).mode, 'full');
+  assert.ok(rc(forced).reasons.includes('recheck_disabled'));
+  const cf = spawnSync(process.execPath, [path.join(SCRIPTS, 'canon.mjs'), 'build', '--role', 'Validation', '--ref', REF, '--recheck', 'delta'], { cwd: fx.root, encoding: 'utf8', env: off });
+  assert.equal(cf.status, 11);
+  assert.match(cf.stderr, /recheck_disabled/);
+});
+
+function runDispatchEnv(root, env) {
+  const r = spawnSync(process.execPath, [path.join(SCRIPTS, 'orchestration-dispatch.mjs'), '--state', stateOf(root), '--root', root], { cwd: PROJECT_ROOT, encoding: 'utf8', env });
+  return { status: r.status, out: JSON.parse(r.stdout), stderr: r.stderr };
+}
+
+test('TEST-2821 the docs state the default as on with AAI_RECHECK_MODE=full as the opt-out', () => {
+  const recheckLines = (t) => t.split('\n').filter((l) => /recheck|delta/i.test(l));
+  const docs = {
+    protocol: protocolSection(),
+    workflow: workflowLines().join('\n'),
+    orchestration: readRel('.aai/ORCHESTRATION.prompt.md'),
+    parallel: readRel('.aai/ORCHESTRATION_PARALLEL.prompt.md'),
+    changelog: changelogEntry(),
+  };
+  for (const [name, text] of Object.entries(docs)) {
+    assert.ok(text.includes('AAI_RECHECK_MODE=full'), name + ' lacks AAI_RECHECK_MODE=full');
+    const bad = recheckLines(text).filter((l) => /opt-in|off by default/i.test(l));
+    assert.deepEqual(bad, [], name + ' still calls the mode opt-in or off by default');
+  }
+  const name = fs.readdirSync(path.join(PROJECT_ROOT, 'docs/specs')).find((f) => /-spec-cheap-transitions-slice\.md$/.test(f));
+  const row = readRel('docs/specs/' + name).split('\n').find((l) => l.startsWith('| Spec-AC-17 |'));
+  assert.ok(row && row.includes('spec-recheck-verdict-binding'), 'SPEC-0250 Spec-AC-17 does not name spec-recheck-verdict-binding');
 });

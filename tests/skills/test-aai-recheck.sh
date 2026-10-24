@@ -203,7 +203,7 @@ test_2730_tests_gate_inputs_production() {
 
 test_2731_mode_switch_fails_closed() {
   run_recheck_node_tests TEST-2731
-  log_pass "TEST-2731: AAI_RECHECK_MODE enables delta only when it normalises to delta"
+  log_pass "TEST-2731: AAI_RECHECK_MODE unset, empty, blank and delta enable the mode; full and any other value do not"
 }
 
 test_2732_inherited_role_names() {
@@ -238,7 +238,7 @@ test_2737_capture_sites_fallback() {
 
 test_2738_default_is_full() {
   run_recheck_node_tests TEST-2738
-  log_pass "TEST-2738: the variable unset gives full with recheck_disabled on an eligible tree"
+  log_pass "TEST-2738: the variable unset gives delta on an eligible tree, forced full gives recheck_disabled"
 }
 
 test_2739_ledger_rewrite_refused() {
@@ -426,6 +426,16 @@ test_2832_specpath_recorded() {
   log_pass "TEST-2832: the spec path is recorded once and survives a verdict write, a later dispatch and a partial flush"
 }
 
+test_2820_default_on() {
+  run_recheck_node_tests TEST-2820
+  log_pass "TEST-2820: the default is on for unset, empty, blank and delta; full and any other value give recheck_disabled"
+}
+
+test_2821_default_on_docs() {
+  run_recheck_node_tests TEST-2821
+  log_pass "TEST-2821: the docs state the default as on with AAI_RECHECK_MODE=full as the opt-out"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2746, SPEC spec-recheck-verdict-binding TEST-2801..2832)"
   check_deps
@@ -503,6 +513,8 @@ main() {
   test_2827_ride_stays_full
   test_2828_spec0250_superseded
   test_2832_specpath_recorded
+  test_2820_default_on
+  test_2821_default_on_docs
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

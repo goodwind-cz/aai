@@ -4,8 +4,8 @@
 // A Validation or Code Review round that follows a judged round may run on a slim
 // payload (contract + .aai/RECHECK_DELTA.prompt.md + a scope listing the delta)
 // ONLY when every condition below holds. Anything else resolves to `full` and
-// names every failing condition: the mode is opt-in twice, by AAI_RECHECK_MODE=delta and
-// by proof, never by default.
+// names every failing condition: the mode needs proof (the conditions below) and
+// AAI_RECHECK_MODE=full turns it off for a run.
 //
 // This module only READS (git, STATE, EVENTS, the reports named in STATE, the
 // docs-audit config); it never writes any of them. The verdict stamps that make a
@@ -68,15 +68,17 @@ export const LEDGER_AND_PAGE_PATHS = new Set([
   ...SHARED_GENERATED_PAGES,
 ]);
 
-// Owner decision 2026-10-24: delta is OPT-IN. AAI_RECHECK_MODE enables it only when it
-// trims and lower-cases to exactly `delta`; unset, empty and every other value (full,
-// off, a typo) leave the mode off and the round full. This holds until a later slice
-// binds the verdict to STATE (fu-recheck-verdict-not-bound-to-check): until then a
-// hand-appended stamp can still forge eligibility, so the default must not trust them.
+// Owner decision 2026-10-24 ("Zapnout po ověření"): delta is the default now that the judged round
+// is bound to STATE (check-binding.mjs). AAI_RECHECK_MODE is trimmed and lower-cased: unset, empty,
+// blank and `delta` enable the mode; `full` and every other value (a misspelling included) give the
+// reason `recheck_disabled` and keep the round full.
+const DEFAULT_ON = true;
 export function deltaEnabled(env) {
   const raw = env ? env[FORCE_ENV] : undefined;
-  if (raw === undefined || raw === null) return false;
-  return String(raw).trim().toLowerCase() === 'delta';
+  if (raw === undefined || raw === null) return DEFAULT_ON;
+  const v = String(raw).trim().toLowerCase();
+  if (v === '') return DEFAULT_ON;
+  return v === 'delta';
 }
 
 // N5: a role name is looked up as an own key only, so `__proto__`, `constructor` and the

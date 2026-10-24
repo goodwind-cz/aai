@@ -1017,9 +1017,9 @@ test_012_growth_sum_matches_ledger() {
   # carries no credit, so the round 4 and 5 SUBAGENT_PROTOCOL credits are withdrawn, review r6 NB-15).
   # Then 62478 -> 62785: cheap-transitions-slice-round6 (+307 B: the needs_full_recheck exception in ORCHESTRATION and the
   # matching RECHECK_DELTA sentence, measured deficit by TEST-010 against ba552b89, credited 1:1).
-  # Then 62785 -> 63092: recheck-verdict-binding (+307 B: check-role-output.mjs --recheck-mode and the merge-nothing clause in
-  # ORCHESTRATION (+77 B) and ORCHESTRATION_PARALLEL (+230 B), measured by TEST-010 against 59ee0ff2, credited 1:1).
-  local want_growth=63092
+  # Then 62785 -> 63094: recheck-verdict-binding (+309 B: check-role-output.mjs --recheck-mode and the merge-nothing clause in
+  # ORCHESTRATION (+77 B) and ORCHESTRATION_PARALLEL (+230 B) plus 1 B each from the default-on rewording, measured against 59ee0ff2, credited 1:1).
+  local want_growth=63094
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

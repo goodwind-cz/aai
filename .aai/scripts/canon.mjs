@@ -472,7 +472,7 @@ function runBuild(argv) {
 
   // spec-cheap-transitions-slice D7: --recheck delta assembles the sections declared
   // under delta_sections: instead of sections:, and only when recheckMode proves the
-  // tree eligible AND AAI_RECHECK_MODE=delta opts in (off by default: exit 11 with
+  // tree eligible and AAI_RECHECK_MODE is not set to full (full: exit 11 with
   // recheck_disabled). --print-hash --recheck delta hashes the delta stack WITHOUT
   // computing eligibility, so it equals the dispatch prompt_hash of a delta dispatch.
   const delta = opts.recheck === 'delta';

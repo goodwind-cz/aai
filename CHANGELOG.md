@@ -32,14 +32,18 @@ fine — it is the marker a cut leaves on top.
 - Two more cases give `full` (owner decision 2026-10-24): a `security_relevant: false` line inside a fenced code block no longer counts as
   the report marker, and the ceremony level is the stricter of the spec the binding recorded and the spec STATE names now.
 - `check-role-output.mjs` takes `--recheck-mode <delta|full>` and prints `RECHECK-ESCALATION` only for a delta round; the prompts say an
-  escalated round merges nothing (`run none of its state_update_commands`). The delta default itself is unchanged in this entry.
+  escalated round merges nothing (`run none of its state_update_commands`).
+- The delta re-check is now ON by default: a Validation or Code Review round that follows a judged round and whose delta is
+  non-production runs on the slim payload when every comparison holds, and `AAI_RECHECK_MODE=full` turns it off for a run (any value
+  other than unset, empty, blank or `delta` also gives `full`). Downstream impact: the first re-check round of every install after
+  `/aai-update` can run on the slim payload; a repository without a `check_binding` block gives `first_round` and stays full.
 - Residual: the comparisons read `docs/ai/STATE.yaml` and the bound report files as they are on disk, so an edit to either made outside
   `state.mjs` before the tick that binds or reads it, and a verdict the orchestrator itself records for the dispatched role with a new report,
   are taken as written; no shape outside the D5 table is claimed.
 
 ## [unreleased] — feat(recheck): an opt-in slim payload for a re-check round with a non-production delta
 
-- With `AAI_RECHECK_MODE=delta` set (the default is unchanged: full), a Validation or Code Review round that follows an already-judged round can run
+- With `AAI_RECHECK_MODE=delta` set (the default then was full; the entry above turned it on), a Validation or Code Review round that follows an already-judged round can run
   on a slim payload (the contract, the new `.aai/RECHECK_DELTA.prompt.md` and a
   scope listing the base, the head, the changed paths and the prior reports)
   instead of the full role prompt and `LEARNED.md`, when the delta since that
@@ -70,8 +74,8 @@ fine — it is the marker a cut leaves on top.
   identity to record when canon refuses. Per dispatch the payload is 11.4 KB
   instead of 32.7 KB (Code Review) or 45.5 KB (Validation); the token effect is
   not measured yet.
-- Downstream impact: none by default. Delta re-check is available opt-in (`AAI_RECHECK_MODE=delta`) and
-  the default is unchanged: every re-check round stays full. The full Code Review and Validation reports now carry one
+- Downstream impact as delivered here (the entry above turned the default on): delta re-check was available with
+  `AAI_RECHECK_MODE=delta` and every re-check round stayed full by default. The full Code Review and Validation reports now carry one
   `security_relevant: true` or `security_relevant: false` line, and the dispatch
   tick appends two new EVENTS types, `check_dispatched` and `check_verdict`.
 
