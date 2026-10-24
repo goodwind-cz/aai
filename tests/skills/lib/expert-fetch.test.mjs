@@ -396,6 +396,22 @@ test('TEST-2635 body refuses a case variant of a blocked key even when its file 
   assert.equal(exact.err, "ERROR: Category '09-meta-orchestration' is blocked in registry\n");
 });
 
+// TEST-2636: D-24 a non-regular file at the cache path is a miss, never a hit or a stack trace (Codex PR #497 review P2).
+test('TEST-2636 a directory at the cache path is a miss for fetch and for --body', () => {
+  const root = tmpRoot();
+  const p = cachePaths(root, 'typescript');
+  fs.mkdirSync(p.file, { recursive: true });
+  fs.writeFileSync(p.sha, parseRegistry(FIXTURE).pinnedSha);
+  const run = gh(b64(PROMPT));
+  const f = cli(['typescript'], { root, runGh: run });
+  assert.equal(run.calls.length, 1, 'a directory must not serve as a cache hit');
+  assert.notEqual(f.out, p.file + '\n');
+  assert.match(f.err, /^ERROR: Cannot write the cache under [^\n]*: [A-Z]+\n$/);
+  const b = cli(['--body', 'typescript'], { root });
+  assert.deepEqual([b.code, b.out], [1, '']);
+  assert.equal(b.err, "ERROR: Expert 'typescript' not cached. Run expert-fetch.sh typescript first.\n");
+});
+
 test('TEST-2631 a failed cache write leaves no temporary file behind', () => {
   const root = tmpRoot();
   const p = cachePaths(root, 'typescript');

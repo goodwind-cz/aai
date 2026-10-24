@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-expert-fetch
-# (docs/specs/SPEC-0249-spec-node-first-third-slice.md, TEST-2601..2633)
+# (docs/specs/SPEC-0249-spec-node-first-third-slice.md, TEST-2601..2636)
 #
 # The expert prompt fetcher is one Node module (.aai/scripts/expert-fetch.mjs)
 # plus two thin launchers (expert-fetch.sh, expert-fetch.ps1). Every function
@@ -192,7 +192,7 @@ import_pin_bad() {
     const mods = [...s.matchAll(/\bfrom\s*([\x27"])([^\x27"]*)\1/g), ...s.matchAll(/\bimport\s*([\x27"])([^\x27"]*)\1/g)].map((m) => m[2]).sort();
     if (mods.join() !== want.join()) bad.push("node imports " + mods.join(" ") + ", want " + want.join(" "));
     const fsNames = [...s.matchAll(/\bimport\s*\{([^}]*)\}\s*from\s*\x27node:fs\x27/g)].map((m) => m[1].split(",").map((n) => n.trim()).filter(Boolean).sort().join(" "));
-    const wantFs = "existsSync mkdirSync readFileSync realpathSync renameSync rmSync writeFileSync";
+    const wantFs = "mkdirSync readFileSync realpathSync renameSync rmSync statSync writeFileSync";
     if (fsNames.join("|") !== wantFs) bad.push("node:fs names " + fsNames.join("|") + ", want " + wantFs);
     process.stdout.write(bad.join(", "));
   ' "$1"
@@ -222,6 +222,19 @@ test_2612_no_stdin_and_write_set() {
   [[ "$added" == ".aai/cache/experts/.sha_typescript .aai/cache/experts/typescript.md " ]] || log_fail "TEST-2612: a fetch must add exactly the two cache files, added: $added"
   [[ -z "$(comm -23 "$before" "$after")" ]] || log_fail "TEST-2612: a fetch must remove no file"
   log_pass "TEST-2612: the module imports only the pinned node:* set, never reads standard input, and a fetch writes only the two cache files"
+}
+
+test_2636_cache_path_not_a_file() {
+  run_node_tests TEST-2636
+  [[ -f "$EF_MJS" ]] || log_fail "TEST-2636: .aai/scripts/expert-fetch.mjs does not exist"
+  ensure_stub; mk_root t2636
+  local dir="$FX/.aai/cache/experts" rc=0 out err
+  mkdir -p "$dir/typescript.md"; printf '%s' "$(pinned_sha)" > "$dir/.sha_typescript"
+  out="$(AAI_GH_BIN="$STUB" STUB_LOG="$STUB_LOG" bash "$FX/.aai/scripts/expert-fetch.sh" --body typescript 2>"$TEST_DIR/t2636.err")" || rc=$?
+  err="$(cat "$TEST_DIR/t2636.err")"
+  [[ "$rc" == 1 && -z "$out" ]] || log_fail "TEST-2636: --body on a directory must exit 1 with empty stdout, got $rc: $out"
+  [[ "$err" == "ERROR: Expert 'typescript' not cached. Run expert-fetch.sh typescript first." ]] || log_fail "TEST-2636: wrong --body refusal: $err"
+  log_pass "TEST-2636: a directory at the cache path is a miss for fetch and --body, never a hit or a stack trace"
 }
 
 # TEST-2630: the bash launcher fails closed on blocked-list spellings and a malformed list.
@@ -664,7 +677,7 @@ test_2626_496_amendments_signed() {
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-node-first-third-slice TEST-2601..2633)"
+  echo "Testing $TEST_NAME (SPEC spec-node-first-third-slice TEST-2601..2636)"
   check_deps
   setup_fixture
   test_2601_registry_parse
@@ -701,6 +714,7 @@ main() {
   test_2633_blocked_list_residual_shapes
   test_2634_body_key_guard_planted
   test_2635_body_case_variant_blocked
+  test_2636_cache_path_not_a_file
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

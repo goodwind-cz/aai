@@ -5,7 +5,7 @@
 // security filters; expert-fetch.sh and expert-fetch.ps1 are thin launchers.
 // Exit codes: 0 success, 1 rejected or error, 2 key not found. It never reads
 // standard input and writes only under <root>/.aai/cache/experts/.
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -16,7 +16,6 @@ const CR = String.fromCharCode(13);
 const STRIP_FLAGS = 'i';
 const NOT_FOUND = 2;
 const DETECT_EMPTY_CODE = 0;
-const GH_TIMEOUT_MS = 60000;
 const USAGE = [
   'Usage: expert-fetch.sh <expert-key> [--force]', '       expert-fetch.sh --detect <ext|tech>...',
   '       expert-fetch.sh --body <expert-key>', '       expert-fetch.sh --list', '       expert-fetch.sh --check <key> <phase>',
@@ -37,6 +36,7 @@ for (const [key, tokens] of [
   ['cloud', 'aws gcp cloud'],
 ]) for (const t of tokens.split(' ')) TABLE.set(t, key);
 
+const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 const indentOf = (line) => (line.trim() === '' ? 0 : line.length - line.trimStart().length);
 const blockEnd = (line) => indentOf(line) <= 2;
 const unquote = (v) => v.replace(/\s+#.*$/, '').trim().replace(/^"(.*)"$/, '$1');
@@ -141,7 +141,7 @@ export function fetchExpert({ root, reg, key, force, runGh }) {
   const refused = blockedRefusal(reg, key);
   if (refused) return refused;
   const { dir: cacheDir, file: cacheFile, sha: shaFile } = cacheFiles(root, key);
-  if (!force && existsSync(cacheFile) && existsSync(shaFile) && readText(shaFile).trim() === reg.pinnedSha) {
+  if (!force && isFile(cacheFile) && isFile(shaFile) && readText(shaFile).trim() === reg.pinnedSha) {
     return { code: 0, out: cacheFile + '\n', err: '' };
   }
   const full = reg.basePath + '/' + ex.path;
@@ -169,7 +169,7 @@ export function fetchExpert({ root, reg, key, force, runGh }) {
 const realDir = () => path.dirname(realpathSync(fileURLToPath(import.meta.url)));
 const spawnGh = (env) => (args) => {
   const bin = env.AAI_GH_BIN || 'gh';
-  return spawnSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS, killSignal: 'SIGKILL', maxBuffer: 1 << 24 });
+  return spawnSync(bin, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 60000, killSignal: 'SIGKILL', maxBuffer: 1 << 24 });
 };
 
 export function main({ argv, root, env = process.env, stdout = process.stdout, stderr = process.stderr, runGh } = {}) {
@@ -177,7 +177,7 @@ export function main({ argv, root, env = process.env, stdout = process.stdout, s
   if (argv.length === 0) return emit({ code: 1, out: '', err: USAGE });
   const base = root ?? path.resolve(realDir(), '..', '..');
   const registry = path.join(base, '.aai', 'system', 'EXPERT_REGISTRY.yaml');
-  if (!existsSync(registry)) return emit({ code: 1, out: '', err: 'ERROR: Registry not found at ' + registry + '\n' });
+  if (!isFile(registry)) return emit({ code: 1, out: '', err: 'ERROR: Registry not found at ' + registry + '\n' });
   const reg = parseRegistry(readText(registry));
   const [mode, ...rest] = argv;
   if (mode === '--list') return emit({ code: 0, out: reg.keys.map((k) => k + '\n').join(''), err: '' });
@@ -186,7 +186,7 @@ export function main({ argv, root, env = process.env, stdout = process.stdout, s
   if (mode === '--body') {
     const key = rest[0] ?? '';
     const c = cacheFiles(base, key);
-    if (!/^[a-z][a-z0-9_-]*$/.test(key) || !existsSync(c.file)) {
+    if (!/^[a-z][a-z0-9_-]*$/.test(key) || !isFile(c.file)) {
       return emit({ code: 1, out: '', err: "ERROR: Expert '" + key + "' not cached. Run expert-fetch.sh " + key + ' first.\n' });
     }
     return emit(blockedRefusal(reg, key) ?? { code: 0, out: stripFrontmatter(readText(c.file)), err: '' });
