@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-cheap-transitions-slice | specs | implementing | 13 implementing | docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md |
+| spec-cheap-transitions-slice | specs | implementing | 13 done | docs/specs/SPEC-DRAFT-spec-cheap-transitions-slice.md |
 
 ## Canonical layer (0)
 
@@ -672,7 +672,7 @@ _None._
 
 _None._
 
-## Broken references (488)
+## Broken references (497)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -692,6 +692,15 @@ _None._
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-variants/V2-PLANNING.md | NOT FOUND |
+| tests/skills/lib/recheck-measure.mjs | docs/ai/reports/VALIDATION-1.md | NOT FOUND |
+| tests/skills/lib/recheck-measure.mjs | docs/ai/reviews/rev-1.md | NOT FOUND |
+| tests/skills/lib/recheck-measure.mjs | docs/specs/SPEC-0001-fx.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reports/VALIDATION-1.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-1.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-2.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/specs/SPEC-0001-fx.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/specs/new-note.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/ai/briefs/ride-demo.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/issues/CHANGE-DRAFT-ride-demo.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/specs/SPEC-0900-foreign-alpha.md | NOT FOUND |

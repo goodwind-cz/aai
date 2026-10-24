@@ -22,6 +22,26 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(recheck): a re-check round with a non-production delta gets a slim payload
+
+- A Validation or Code Review round that follows an already-judged round now runs
+  on a slim payload (the contract, the new `.aai/RECHECK_DELTA.prompt.md` and a
+  scope listing the base, the head, the changed paths and the prior reports)
+  instead of the full role prompt and `LEARNED.md`, when the delta since that
+  round touches only tests, specs, intakes, RFCs, analysis, product docs,
+  reports and ledgers. The dispatch JSON carries a new `recheck` object;
+  `canon.mjs build --recheck delta` builds the slim payload and refuses an
+  ineligible tree with exit 11. Never at ceremony level 3, never for a
+  production, protected or security-relevant delta, never on a first round. A
+  checker that cannot judge the delta returns `needs_full_recheck` and the full
+  role runs. `AAI_RECHECK_MODE=full` turns the mode off. Per dispatch the
+  payload is 10.2 KB instead of 32.7 KB (Code Review) or 45.5 KB (Validation);
+  the token effect is not measured yet.
+- Downstream impact: re-check rounds are dispatched differently after
+  `/aai-update`. The full Code Review and Validation reports now carry one
+  `security_relevant: true` or `security_relevant: false` line, and the dispatch
+  tick appends two new EVENTS types, `check_dispatched` and `check_verdict`.
+
 ## [unreleased] — refactor(expert-fetch): one Node module owns the expert prompt fetcher
 
 - The expert prompt fetcher is now one Node module,
