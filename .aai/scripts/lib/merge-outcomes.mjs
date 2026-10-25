@@ -49,6 +49,8 @@ export const OUTCOME_TABLE = {
   pending_unreadable: kept('sync-base'),
   pending_diverged: kept('sync-base'),
   overlap: decide(['keep_local', 'take_incoming'], 'keep_local'),
+  overlap_staged: kept('sync-base'),
+  untracked_not_file: kept('sync-base'),
   untracked_collision: decide(['take_incoming', 'keep_local'], 'take_incoming'),
   sync_failed: retry('decide'),
   ledger_merge_failed: retry('decide'),
@@ -205,7 +207,7 @@ export function withoutLifecycle(text) {
 export function compareDraft(draftText, numberedText, draftStem, numberedStem) {
   const fmDraft = { id: frontmatterId(draftText) };
   const fmNumbered = { id: frontmatterId(numberedText) };
-  if (fmDraft.id !== fmNumbered.id) return false;
+  if (!fmDraft.id || fmDraft.id !== fmNumbered.id) return false;
   const a = withoutLifecycle(draftText.split(draftStem).join(numberedStem));
   return a === withoutLifecycle(numberedText) ? 'superseded' : 'divergent';
 }

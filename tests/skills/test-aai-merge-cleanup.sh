@@ -251,6 +251,7 @@ numbered_issue() {
   local pr
   if [[ -n "${ISSUE_NO_PR:-}" ]]; then pr='';
   elif [[ -n "${ISSUE_PR_EMPTY:-}" ]]; then pr='  pr: []\n';
+  elif [[ -n "${ISSUE_PR_TILDE:-}" ]]; then pr='  pr: ~\n';
   else pr="  pr:\n    - ${ISSUE_LINK_PR:-$PR}\n"; fi
   printf -- "---\nid: %s\ntype: issue\nnumber: 1\nstatus: %s\nlinks:\n${pr}  commits: []\n---\n\n# Issue foo\n\nDraft body.\n\nDelivered.\n" "$ISSUE_ID" "${ISSUE_STATUS:-done}"
 }
@@ -2498,7 +2499,7 @@ test_046_foreign_roadmap_hunk_refuses_overlap() {
   ROADMAP_WORLD=1 build_world rmap_staged
   ship_append_foo
   run git -C "$ORIGIN" add "$RM"
-  decide_arm TEST-046 overlap "$RM"
+  keep_arm TEST-046 overlap_staged "$RM"
 
   RIDE_ROADMAP=elsewhere ROADMAP_WORLD=1 build_world rmap_lacks
   ship_append_foo
@@ -2509,7 +2510,7 @@ test_046_foreign_roadmap_hunk_refuses_overlap() {
   ship_append_foo
   run_engine plan --pr "$PR"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-046 "control: plan exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
-  echo 'PASS: TEST-046 a foreign, mixed, staged or unmatched roadmap change gives the overlap decide outcome'
+  echo 'PASS: TEST-046 a foreign, mixed or unmatched roadmap change gives the overlap decide outcome, a staged one is kept'
 }
 
 LEDGER_RT='{"v":1,"ts":"2026-10-11T00:00:00Z","actor":"ride","event":"tail-run-1"}'
@@ -3214,7 +3215,7 @@ test_075_reconcile_origin_step() {
 }
 
 # ---------------------------------------------------------------------------
-# spec-merge-cleanup-resolves-framework-friction: TEST-2901..TEST-2924.
+# spec-merge-cleanup-resolves-framework-friction: TEST-2901..TEST-2929.
 # A protected object is kept, a decision is asked as a menu, a failed read is retried a bounded number of times.
 LIB="$ROOT/.aai/scripts/lib/merge-outcomes.mjs"
 SKILL_BLOCK="$ROOT/.aai/SKILL_MERGE.prompt.md"
@@ -3292,7 +3293,7 @@ const [root] = process.argv.slice(2);
 const lib = await import(pathToFileURL(`${root}/.aai/scripts/lib/merge-outcomes.mjs`).href);
 const src = fs.readFileSync(`${root}/.aai/scripts/merge-cleanup.mjs`, 'utf8');
 const found = new Set(['gh_read_failed', 'gh_read_invalid', 'az_read_failed', 'az_read_invalid', 'repo_mismatch', 'az_arg_unsafe', 'reconcile_refused']);
-for (const m of src.matchAll(/\b(?:refuse|stop|halt|retain|raise|keepStep|keepLocalBranch)\((?:ctx, (?:'[a-z-]+', )?)?'([a-z_]+)'/g)) found.add(m[1]);
+for (const m of src.matchAll(/\b(?:refuse|stop|halt|retain|raise|clash|keepStep|keepLocalBranch)\((?:ctx, (?:'[a-z-]+', )?)?'([a-z_]+)'/g)) found.add(m[1]);
 for (const m of src.matchAll(/(?:refusal|retain): \['([a-z_]+)'/g)) found.add(m[1]);
 for (const m of src.matchAll(/held: \{ reason: '([a-z_]+)'/g)) found.add(m[1]);
 for (const m of src.matchAll(/reason = '([a-z_]+)'/g)) found.add(m[1]);
@@ -4032,6 +4033,127 @@ test_2919_retry_chain_terminates() {
   echo 'PASS: TEST-2919 the retry chain ends in a decision or an external step'
 }
 
+# ---- remediation round 1 (CHANGE-0227 review and validation findings) ----------------------------------------------
+
+test_2925_preflight_retry_is_bounded() {
+  local before i
+  open_world pf_gh_down
+  run rm "$GHD/pr-$PR.json"
+  before="$(world_digest)"
+  for i in 1 2 3; do
+    pf
+    [[ "$ENG_RC" -eq 3 ]] || fail TEST-2925 "run $i exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+    want TEST-2925 "$ENG_OUT" 'REFUSE gh_read_failed'
+    [[ "$(oc "$ENG_OUT" 'o[0].class+" "+o[0].state')" == 'external pending' ]] || fail TEST-2925 "run $i is not external (a retry is the loop the router cannot leave): $(oc "$ENG_OUT" 'o[0]')"
+    want TEST-2925 "$ENG_OUT" 'Needs you: check the GitHub CLI login'
+  done
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-2925 'the preflight runs changed the fixture'
+  assert_no_merge_call TEST-2925
+  unwanted TEST-2925 "$(cat "$SKILL_BLOCK")" 'the engine bounds the retries'
+  echo 'PASS: TEST-2925 a failed platform read in preflight is an external step on the first run'
+}
+
+test_2926_unactionable_clash_choices_not_offered() {
+  local id
+  # a staged roadmap change: kept, no menu, nothing reported complete
+  ROADMAP_WORLD=1 build_world clash_staged
+  ship_append_foo
+  run git -C "$ORIGIN" add "$RM"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2926 "staged: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2926 "$ENG_OUT" '"reason":"overlap_staged"'
+  want TEST-2926 "$ENG_OUT" 'Kept: '
+  unwanted TEST-2926 "$ENG_OUT" 'Cleanup: complete.'
+  unwanted TEST-2926 "$ENG_OUT" '"class":"decide"'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-2926 'staged: main moved although the sync was kept'
+  # a directory where the merge adds a file: kept, the directory untouched
+  build_world clash_dir
+  run mkdir -p "$ORIGIN/$NUM_ISSUE"
+  printf 'x\n' > "$ORIGIN/$NUM_ISSUE/inner.txt"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2926 "directory: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2926 "$ENG_OUT" '"reason":"untracked_not_file"'
+  want TEST-2926 "$ENG_OUT" 'Kept: '
+  unwanted TEST-2926 "$ENG_OUT" 'Cleanup: complete.'
+  [[ -f "$ORIGIN/$NUM_ISSUE/inner.txt" ]] || fail TEST-2926 'directory: the local directory changed'
+  # keep_local on an offered clash prints a Kept line (never "complete")
+  build_world clash_keep
+  printf 'dirty and also changed by the PR\n' >> "$ORIGIN/README.md"
+  apply_run
+  id="$(oc_id "$ENG_OUT" overlap)"
+  apply_run --decide "$id=keep_local"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2926 "keep_local: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2926 "$ENG_OUT" 'Kept: '
+  unwanted TEST-2926 "$ENG_OUT" 'Cleanup: complete.'
+  echo 'PASS: TEST-2926 a staged or non-file clash is kept and reported, never a menu whose choice does nothing'
+}
+
+test_2927_locally_deleted_files_sync_cleanly() {
+  local id
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world del_proj
+  run rm "$ORIGIN/docs/ai/overview-data.json"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2927 "deleted projection: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-2927 "$ENG_ERR" 'ENOENT'
+  want TEST-2927 "$ENG_OUT" 'Cleanup: complete.'
+  [[ "$(cat "$ORIGIN/docs/ai/overview-data.json")" == '{"v":2}' ]] || fail TEST-2927 'the deleted projection was not recreated from the incoming blob'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-2927 'main did not reach the merge commit'
+  # take_incoming on a locally deleted overlap file
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world del_guide
+  run rm "$ORIGIN/docs/USER_GUIDE.md"
+  apply_run
+  id="$(oc_id "$ENG_OUT" overlap)"
+  apply_run --decide "$id=take_incoming"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2927 "deleted guide: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-2927 "$ENG_ERR" 'ENOENT'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-2927 'deleted guide: main did not reach the merge commit'
+  BASELINE_SEED='' RIDE_SEED=''
+  echo 'PASS: TEST-2927 a locally deleted projection or answered overlap file is recreated by the sync, no stack trace'
+}
+
+test_2928_recovery_waits_for_protection_check() {
+  local before
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world rec_protected
+  printf '{"v":"local"}\n' > "$ORIGIN/docs/ai/overview-data.json"
+  crash_run sync-after-rewrite
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail SETUP 'no pending journal after the crash seam'
+  run git -C "$ORIGIN" checkout -q -b elsewhere
+  before="$(cat "$ORIGIN/docs/ai/overview-data.json")"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2928 "exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2928 "$ENG_OUT" '"reason":"origin_not_on_base"'
+  [[ "$(cat "$ORIGIN/docs/ai/overview-data.json")" == "$before" ]] || fail TEST-2928 'the recovery wrote into a checkout that is not on the base branch'
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail TEST-2928 'the pending journal was consumed in a protected checkout'
+  BASELINE_SEED='' RIDE_SEED=''
+  echo 'PASS: TEST-2928 an interrupted sync is recovered only after the checkout passes the protection check'
+}
+
+test_2929_null_identity_never_matches() {
+  cat > "$SCRATCH/t2929.mjs" <<'JS'
+import { pathToFileURL } from 'node:url';
+const { compareDraft } = await import(pathToFileURL(`${process.argv[2]}/.aai/scripts/lib/merge-outcomes.mjs`).href);
+const noId = '---\ntype: issue\nstatus: draft\n---\n\n# A\n';
+if (compareDraft(noId, noId, 'x', 'y') !== false) throw new Error('two documents without a frontmatter id compared equal');
+if (compareDraft('---\nid: a\n---\n\n# A\n', '---\nid: a\n---\n\n# A\n', 'x', 'y') !== 'superseded') throw new Error('control: equal ids with equal text are not superseded');
+JS
+  node "$SCRATCH/t2929.mjs" "$ROOT" || fail TEST-2929 'compareDraft treats a missing id as a match'
+  # links.pr: ~ is the YAML null, so the merge commit proves the identity like an empty list
+  export ISSUE_PR_TILDE=1
+  RIDE_SEED=seed_ride_075 ROADMAP_WORLD=1 build_world ident_tilde
+  ship_append_foo
+  origin_state_075 "$RH_RUN_STARTED"
+  git -C "$BARE" show "$MC:$NUM_ISSUE" > "$W/issue.blob" || fail SETUP 'merged intake blob'
+  want SETUP "$(cat "$W/issue.blob")" 'pr: ~'
+  git -C "$BARE" show "$MC:$RM" > "$W/roadmap.incoming" || fail SETUP 'incoming roadmap blob'
+  apply_run --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2929 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  cmp "$W/roadmap.incoming" "$ORIGIN/$RM" || fail TEST-2929 'links.pr ~ : the ride roadmap entry was not taken from incoming'
+  [[ "$(json_get "$ENG_OUT" 'j.outcomes.filter(o=>o.state==="pending").length')" == 0 ]] || fail TEST-2929 'links.pr ~ : an outcome is pending'
+  unset ISSUE_PR_TILDE
+  RIDE_SEED=''
+  echo 'PASS: TEST-2929 a missing frontmatter id never matches, links.pr ~ counts as empty'
+}
+
 crash_run() { AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT="$1" apply_run "${@:2}"; }
 
 norm_lines() { sed 's/,"timestamp":"[^"]*"//' "$1" 2>/dev/null | LC_ALL=C sort | uniq -d | wc -l | tr -d ' ' || true; }
@@ -4227,7 +4349,7 @@ case "$SELECTED" in
      test_068_generic_refuses_with_manual; test_070_azure_preflight_ready_and_refusals; test_072_azure_apply_cleanup
      test_073_platform_mismatch_refuses_before_any_read; test_074_github_recorded_and_legacy_unchanged
      test_075_reconcile_origin_step
-     test_2901_outcome_table_complete; test_2902_outcome_lines_from_real_runs; test_2903_pr485_parent_child_roadmap; test_2904_unrepresented_roadmap_decides; test_2905_absent_links_pr_proven_by_merge_commit; test_2906_conflicting_or_old_identity_not_proven; test_2907_superseded_draft_archived; test_2908_divergent_draft_menu; test_2909_unproven_drafts_untouched; test_2910_generated_projection_taken; test_2911_decide_channel; test_2912_router_resumes_in_one_interaction; test_2914_worktree_protections_kept; test_2915_sync_protections_kept; test_2916_preflight_gates_hold; test_2917_archive_verification_and_no_new_primitive; test_2918_next_attempt; test_2919_retry_chain_terminates; test_2920_interrupted_recovery_converges; test_2921_plain_summary; test_2922_skill_and_engine_agree; test_2923_governance; test_2924_amended_prior_arms ;;
+     test_2901_outcome_table_complete; test_2902_outcome_lines_from_real_runs; test_2903_pr485_parent_child_roadmap; test_2904_unrepresented_roadmap_decides; test_2905_absent_links_pr_proven_by_merge_commit; test_2906_conflicting_or_old_identity_not_proven; test_2907_superseded_draft_archived; test_2908_divergent_draft_menu; test_2909_unproven_drafts_untouched; test_2910_generated_projection_taken; test_2911_decide_channel; test_2912_router_resumes_in_one_interaction; test_2914_worktree_protections_kept; test_2915_sync_protections_kept; test_2916_preflight_gates_hold; test_2917_archive_verification_and_no_new_primitive; test_2918_next_attempt; test_2919_retry_chain_terminates; test_2920_interrupted_recovery_converges; test_2921_plain_summary; test_2922_skill_and_engine_agree; test_2923_governance; test_2924_amended_prior_arms; test_2925_preflight_retry_is_bounded; test_2926_unactionable_clash_choices_not_offered; test_2927_locally_deleted_files_sync_cleanly; test_2928_recovery_waits_for_protection_check; test_2929_null_identity_never_matches ;;
   TEST-059|test_059_lane_gate_passes_without_pr_sweep) test_059_lane_gate_passes_without_pr_sweep ;;
   TEST-060|test_060_skill_pr_prompt_free_of_pr_sweep) test_060_skill_pr_prompt_free_of_pr_sweep ;;
   TEST-061|test_061_prompt_diet_passes) test_061_prompt_diet_passes ;;
@@ -4312,5 +4434,10 @@ case "$SELECTED" in
   TEST-2922|test_2922_skill_and_engine_agree) test_2922_skill_and_engine_agree ;;
   TEST-2923|test_2923_governance) test_2923_governance ;;
   TEST-2924|test_2924_amended_prior_arms) test_2924_amended_prior_arms ;;
+  TEST-2925|test_2925_preflight_retry_is_bounded) test_2925_preflight_retry_is_bounded ;;
+  TEST-2926|test_2926_unactionable_clash_choices_not_offered) test_2926_unactionable_clash_choices_not_offered ;;
+  TEST-2927|test_2927_locally_deleted_files_sync_cleanly) test_2927_locally_deleted_files_sync_cleanly ;;
+  TEST-2928|test_2928_recovery_waits_for_protection_check) test_2928_recovery_waits_for_protection_check ;;
+  TEST-2929|test_2929_null_identity_never_matches) test_2929_null_identity_never_matches ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

@@ -106,7 +106,7 @@ function fingerprint(key) {
 function raise(reason, subject, detail, { phase = 'step', evidence = [] } = {}) {
   const fp = fingerprint(`${reason}:${subject}`);
   const af = attemptsFile();
-  const att = af ? nextAttempt(readJsonl(af), fp) : { retry: true };
+  const att = af ? nextAttempt(readJsonl(af), fp) : { retry: false };  // no attempts record (preflight, plan): a retry reason goes straight to its fallback class
   const ev = evidence.length ? evidence : [fp];
   let o = classify(reason, { phase, subject, detail, evidence: ev, retry: att.retry });
   // an answer that names this id was given for the fallback menu the previous run showed
@@ -298,8 +298,6 @@ function readAndGate(opts, origin) {
 
 // ---- D6: draft classification --------------------------------------------
 
-
-
 // PR numbers a frontmatter links.pr value names, read strictly: a bare number, '#N',
 // or a URL of THIS repository whose path ends /pull/N. Digits elsewhere in an entry
 // (an owner or repo name, a query) name nothing.
@@ -330,7 +328,7 @@ function doneDocsBetween(cwd, from, to, pr, repo) {
     const fm = parseFrontmatter(blob.stdout);
     if (!fm?.id || fm.type === 'spec' || fm.status !== 'done') continue;
     const v = fm.links?.pr;
-    const raw = (Array.isArray(v) ? v : [v]).filter((x) => x !== undefined && x !== null && String(x).trim() !== '');
+    const raw = (Array.isArray(v) ? v : [v]).filter((x) => x !== undefined && x !== null && String(x).trim() !== '' && String(x).trim() !== '~');
     const was = git(cwd, ['cat-file', 'blob', `${from}:${rel}`]);
     const before = was.status === 0 ? parseFrontmatter(was.stdout)?.status : null;
     if (linkedPrs(fm, repo).includes(pr)) docs.push({ id: String(fm.id), rel, proof: 'links_pr' });
@@ -404,7 +402,6 @@ function archiveFile(ctx, { src, destBase, original, reason, step }) {
   } catch { stop('archive_failed', original); }
 }
 
-
 // ---- D8: base sync --------------------------------------------------------
 
 const readBlob = (cwd, spec) => {
@@ -429,18 +426,24 @@ function roadmapRepresented(ctx, head, target) {
   return t ? representedChanges({ ...t, refs: mergedRefs(ctx), unproven: unprovenRefs(ctx) }) : null;
 }
 
-// Reads and decisions only, no writes. Returns { refusal: [reason, detail] } (a kept reason), { held: {...} } (a
-// decide item: pending or answered keep_local) or a plan. An answered take_incoming joins the plan.
-function planSync(ctx) {
-  const { origin, base } = ctx;
+// The protection check: main checked out on the base, HEAD an ancestor of the fetched base (run before anything writes).
+function syncGate({ origin, base }) {
   const target = git(origin, ['rev-parse', '--verify', '-q', `refs/remotes/origin/${base}`]).stdout.trim();
   const cur = git(origin, ['symbolic-ref', '-q', '--short', 'HEAD']);
   const branch = cur.status === 0 ? cur.stdout.trim() : '';
   if (branch !== base) return { refusal: ['origin_not_on_base', branch || 'detached_head'] };
   const head = git(origin, ['rev-parse', '--verify', 'HEAD']).stdout.trim();
-  if (head === target) return { noop: true, head, target };
-  if (git(origin, ['merge-base', '--is-ancestor', head, target]).status !== 0) return { refusal: ['base_diverged', base] };
+  if (head !== target && git(origin, ['merge-base', '--is-ancestor', head, target]).status !== 0) return { refusal: ['base_diverged', base] };
+  return { head, target };
+}
 
+// Reads and decisions only, no writes. Returns { refusal: [reason, detail] } (a kept reason), { held: {...} } (a
+// decide item: pending or answered keep_local) or a plan. An answered take_incoming joins the plan.
+function planSync(ctx) {
+  const { origin } = ctx;
+  const gate = syncGate(ctx);
+  if (gate.refusal || gate.head === gate.target) return gate.refusal ? gate : { noop: true, ...gate };
+  const { head, target } = gate;
   const diff = git(origin, ['diff', '--name-status', '--no-renames', '-z', head, target]);
   const toks = diff.status === 0 ? diff.stdout.split('\0').filter(Boolean) : [];
   const incoming = new Map();
@@ -464,10 +467,7 @@ function planSync(ctx) {
     const isRoadmap = rel === ROADMAP_PATH;
     if (!isLedger && !isIndex && !incoming.has(rel)) continue;
     const evidence = [read(rel) ?? '', readBlob(origin, `${head}:${rel}`) ?? '', readBlob(origin, `${target}:${rel}`) ?? ''];
-    if (staged.has(rel)) {
-      const { o } = raise('overlap', rel, 'staged', { phase: 'plan', evidence });
-      return { held: { reason: 'overlap', detail: rel, o, option: null } };
-    }
+    if (staged.has(rel)) return { refusal: ['overlap_staged', rel] };
     if (isIndex) { plan.index = true; plan.replace.push(rel); continue; }
     if (GENERATED_PROJECTIONS.includes(rel)) { plan.replace.push(rel); continue; }
     if (isRoadmap) {
@@ -498,8 +498,9 @@ function planSync(ctx) {
     try { st = fs.lstatSync(abs); } catch { continue; }
     const inBlob = readBlob(origin, `${target}:${rel}`);
     if (st.isFile() && inBlob && fs.readFileSync(abs).equals(inBlob)) { plan.removeEqual.push({ rel, archive: false }); continue; }
-    const held = clash('untracked_collision', rel, 'differs from the incoming file', [st.isFile() ? fs.readFileSync(abs) : 'not a file', inBlob ?? '']);
-    if (held || !st.isFile()) return held ?? { held: { reason: 'untracked_collision', detail: rel, o: null, option: null } };
+    if (!st.isFile()) return { refusal: ['untracked_not_file', rel] };
+    const held = clash('untracked_collision', rel, 'differs from the incoming file', [fs.readFileSync(abs), inBlob ?? '']);
+    if (held) return held;
     plan.removeEqual.push({ rel, archive: true }); plan.taken = true;
   }
   return plan;
@@ -587,6 +588,7 @@ function regenIndex(ctx) {
 }
 
 function syncBase(ctx) {
+  const gate = syncGate(ctx); if (gate.refusal) halt(...gate.refusal, { phase: 'plan' });
   const resumed = pendingJournals(ctx).map((f) => resumeSync(ctx, f)).pop() ?? null;
   const plan = planSync(ctx);
   if (plan.refusal) halt(...plan.refusal, { phase: 'plan' });
@@ -604,6 +606,7 @@ function syncBase(ctx) {
     const stuck = [];
     for (const s of saved) {
       const abs = path.join(origin, s.rel);
+      if (s.bytes === null) { fs.rmSync(abs, { force: true }); continue; }
       let cur = null;
       try { cur = fs.readFileSync(abs); } catch { /* removed */ }
       const next = s.ledger ? putBack(s.bytes, s.headBlob, cur) : s.bytes;
@@ -614,17 +617,19 @@ function syncBase(ctx) {
   const pendingEntries = [];
   for (const rel of [...plan.ledgers, ...plan.replace]) {
     const abs = path.join(origin, rel);
-    const bytes = fs.readFileSync(abs);
-    const a = archiveFile(ctx, { src: abs, destBase: path.join(root, 'sync', rel), original: rel, reason: 'pre_sync_local_state', step: 'sync-base' });
+    let bytes = null; try { bytes = fs.readFileSync(abs); } catch { /* deleted locally: nothing to archive, the rewrite below recreates it */ }
+    if (bytes) {
+      const a = archiveFile(ctx, { src: abs, destBase: path.join(root, 'sync', rel), original: rel, reason: 'pre_sync_local_state', step: 'sync-base' });
+      pendingEntries.push({ rel, archive: a.rel, ledger: LEDGERS.includes(rel) });
+    }
     saved.push({ rel, bytes, headBlob: readBlob(origin, `${plan.head}:${rel}`), ledger: LEDGERS.includes(rel) });
-    pendingEntries.push({ rel, archive: a.rel, ledger: LEDGERS.includes(rel) });
   }
   if (plan.taken && plan.replace.length > 0) crashAt('take-incoming-after-archive');
   if (pendingEntries.length > 0) {
     fs.mkdirSync(path.dirname(pendingPath(ctx)), { recursive: true });
     fs.writeFileSync(pendingPath(ctx), `${JSON.stringify({ head: plan.head, entries: pendingEntries })}\n`);
   }
-  for (const s of saved) fs.writeFileSync(path.join(origin, s.rel), s.headBlob);
+  for (const s of saved) { fs.mkdirSync(path.dirname(path.join(origin, s.rel)), { recursive: true }); fs.writeFileSync(path.join(origin, s.rel), s.headBlob); }
   crashAt('sync-after-rewrite');
   // Untracked copies byte-equal to the incoming blob would block the fast-forward
   // and are recreated by it; keep the bytes to put back should it fail.
@@ -1224,10 +1229,8 @@ function mergedRefs(ctx) {
 // Ids of docs the merge changed to done whose identity no proof ties to this PR.
 const unprovenRefs = (ctx) => { mergedDocs(ctx); return new Set(ctx.docs.filter((d) => !d.proof).map((d) => d.id)); };
 
-
 function reportStep(ctx, steps) {
-  if (!steps.some((s) => s.status === 'done')) return { status: 'noop', detail: 'stdout' };
-  return { status: 'done', detail: 'stdout' };
+  return { status: steps.some((s) => s.status === 'done') ? 'done' : 'noop', detail: 'stdout' };
 }
 
 // ---- steps ----------------------------------------------------------------
