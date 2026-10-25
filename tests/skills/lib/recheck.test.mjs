@@ -2856,17 +2856,19 @@ test('TEST-2821 the docs state the default as on with AAI_RECHECK_MODE=full as t
   assert.ok(esc.length > 0 && esc.every((l) => l.includes('AAI_RECHECK_MODE=full') && !/full[^.]*or unset/.test(l)), 'the escalation re-dispatch must name AAI_RECHECK_MODE=full set explicitly');
   const rfc = readRel('docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md').split('\n').filter((l) => l.includes('recheck-verdict-binding'));
   assert.ok(rfc.length > 0 && rfc.every((l) => !/stays opt-in|opt-in until/.test(l)), 'the RFC-0017 row still says the mode stays opt-in');
-  const log498 = readRel('CHANGELOG.md').split(/^## \[unreleased\] — /m).find((p) => p.startsWith('feat(recheck): a slim payload'));
+  const log498 = readRel('CHANGELOG.md').split(/^## \[unreleased\] — /m).find((p) => /^feat\(recheck\): (an opt-in )?slim payload|^feat\(recheck\): a slim payload/.test(p));
   assert.ok(log498 && /changes the default/.test(log498), 'the #498 CHANGELOG entry does not say that the later entry changes the default');
   const spec250 = readRel('docs/specs/' + name);
   const stale = spec250.split('\n').filter((l) => /delta is OPT-IN|opt-in by proof|Delta is off by default|leave `AAI_RECHECK_MODE` unset \(the default\)|unset \(the default\) keeps/.test(l));
   assert.deepEqual(stale, [], 'SPEC-0250 still states the old default');
   // wording after the flip (remediation round 2): no present-tense off/opt-in claim in SPEC-0250's risk line,
-  // no CHANGELOG heading of a recheck entry that calls the mode opt-in, and a vendored comment that names what recheck reads
+  // the binding entry's CHANGELOG heading does not call the mode opt-in (the #498 heading keeps its merged text: aai-release
+  // TEST-024 forbids rewriting an unreleased heading present at the merge-base), and a vendored comment that names what recheck reads
   assert.deepEqual(spec250.split('\n').filter((l) => /the mode is off unless/i.test(l)), [], 'SPEC-0250 still says the mode is off unless exported');
   const headings = readRel('CHANGELOG.md').split('\n').filter((l) => /^## \[unreleased\] — /.test(l) && /recheck/i.test(l));
   assert.ok(headings.length >= 2, 'both recheck CHANGELOG headings present: ' + JSON.stringify(headings));
-  assert.deepEqual(headings.filter((l) => /opt-in|off by default/i.test(l)), [], 'a recheck CHANGELOG heading still calls the mode opt-in');
+  assert.deepEqual(headings.filter((l) => /bind each judged/.test(l) && /opt-in|off by default/i.test(l)), [], 'the binding CHANGELOG heading calls the mode opt-in');
+  assert.ok(headings.some((l) => /bind each judged/.test(l)), 'the binding CHANGELOG heading is present');
   const ae = readRel('.aai/scripts/append-event.mjs');
   assert.ok(!/reads them back|opt-in default|decide whether the next round may run/.test(ae), 'append-event.mjs still says recheck reads the stamps or an opt-in default');
   assert.ok(/does\s+not\s+read\s+them/.test(ae.replace(/\n\s*\/\/\s*/g, ' ')), 'append-event.mjs does not say the stamps are telemetry');

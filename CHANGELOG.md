@@ -50,7 +50,7 @@ fine — it is the marker a cut leaves on top.
   `state.mjs` before the tick that binds or reads it, and a verdict the orchestrator itself records for the dispatched role with a new report,
   are taken as written; no shape outside the D5 table is claimed.
 
-## [unreleased] — feat(recheck): a slim payload for a re-check round with a non-production delta
+## [unreleased] — feat(recheck): an opt-in slim payload for a re-check round with a non-production delta
 
 - With `AAI_RECHECK_MODE=delta` set (the default then was full; the entry above turned it on), a Validation or Code Review round that follows an already-judged round can run
   on a slim payload (the contract, the new `.aai/RECHECK_DELTA.prompt.md` and a
