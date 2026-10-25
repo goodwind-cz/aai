@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-merge-cleanup-resolves-framework-friction | specs | implementing | 10 planned | docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md |
+| spec-merge-cleanup-resolves-framework-friction | specs | implementing | 10 done | docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md |
 
 ## Canonical layer (0)
 
@@ -676,7 +676,7 @@ _None._
 
 _None._
 
-## Broken references (505)
+## Broken references (512)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1033,8 +1033,15 @@ _None._
 | tests/skills/test-aai-merge-cleanup.sh | docs/ai/validation/v.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0001-foo.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0002-other-item.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0003-dup.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0004-dup.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0010-qux.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-dup.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-lonely.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-other.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-qux.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/rfc/RFC-0003-parent-cap.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
 | tests/skills/test-aai-merge-policy.sh | docs/base.md | NOT FOUND |
