@@ -3332,3 +3332,4 @@
 {"v":1,"ts":"2026-10-25T20:54:36Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":660,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-25T20:55:06Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":660,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-25T20:58:26Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":660,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-25T20:58:58Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"implied-signing-without-links-pr","payload":{"role":"validation","head":"5e34e7b8ef9566957eb183dd22548aeaa9dedda2","seen":"run_at:2026-10-25T20:58:58Z"}}
