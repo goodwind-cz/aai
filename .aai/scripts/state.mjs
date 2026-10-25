@@ -136,6 +136,8 @@ import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 // spec-dispatch-state-sweep D5: the SAME usage_total_tokens=<N> marker parser
 // sweep 1 already shipped — never a private copy (S3 seam).
 import { extractUsageTotal } from './lib/usage-note.mjs';
+// spec-recheck-verdict-binding D1 to D3: the check_binding block and its one writer below.
+import { ROLE_KEYS, checkoutOf, gitHeadOf, planBindCheck } from './lib/check-binding.mjs';
 
 setEngineFailPrefix('state');
 
@@ -165,6 +167,7 @@ const BOOLS = ['true', 'false'];
 const TICK_TYPES = ['tick', 'recovery'];
 const MODES = ['single', 'parallel'];
 const RESETTABLE_BLOCKS = ['last_validation', 'code_review'];
+const BIND_ONS = ['dispatch', 'verdict'];
 // telemetry-fields-not-prose D1/D2: append-run's five new fields. `none` is
 // the recorded-absence value (distinct from the field being entirely absent),
 // valid for every role; Validation/Code Review refuse its OMISSION (D2/D3).
@@ -249,6 +252,7 @@ const CMD_FLAGS = {
     'tokens_in', 'tokens_out', 'cache_read', 'cost', 'lingering_procs', 'free_memory',
     'focus_before', 'validation_before'],
   'reset-block': ['force'],
+  'bind-check': ['on', 'role', 'ref'],
 };
 
 // dispatch-state-sweep D16 (Spec-AC-18): the positional arguments a
@@ -377,6 +381,11 @@ const CMD_FLAG_META = {
   },
   'reset-block': {
     force: { bool: true },
+  },
+  'bind-check': {
+    on: { required: true, enum: BIND_ONS },
+    role: { required: true, enum: ROLE_KEYS },
+    ref: { required: true },
   },
 };
 
@@ -1605,6 +1614,39 @@ function cmdLogTick(state, flags, ticksPath) {
   console.log(`state: log-tick appended to ${ticksPath}: ${JSON.stringify(entry)}`);
 }
 
+// --- bind-check (spec-recheck-verdict-binding D1 to D3) ------------------------------------
+//
+// The ONLY writer of the check_binding block. It takes no head, report, digest or marker from
+// its caller: every value it records is read from STATE, from the report files STATE names and
+// from git run in the repository that holds the STATE file. BIND_ROLE_GUARD refuses it for any
+// non-empty AAI_ROLE (whitespace included), for any --state path, before STATE is read.
+const BIND_ROLE_GUARD = true;
+
+function cmdBindCheck(statePath, flags) {
+  const on = enumFlag(flags, 'on', BIND_ONS, 'bind-check', { required: true });
+  const role = enumFlag(flags, 'role', ROLE_KEYS, 'bind-check', { required: true });
+  const ref = strFlag(flags, 'ref', 'bind-check', { required: true });
+  const roleEnv = process.env.AAI_ROLE;
+  if (BIND_ROLE_GUARD && typeof roleEnv === 'string' && roleEnv !== '') {
+    fail('bind-check: single-writer rule refusal (AAI_ROLE is set): bind-check is run by the orchestrator tick only '
+      + '(.aai/SUBAGENT_CONTRACT.md; Constitution Art. 6). Nothing was read or written.', 3);
+  }
+  const state = loadState(statePath);
+  const focus = readScalar(state.lines, 'current_focus', 'ref_id');
+  if (focus === null || unquoteScalar(focus) !== ref) {
+    fail(`bind-check: --ref "${ref}" is not current_focus.ref_id (${focus === null ? 'null' : focus}) — nothing written`);
+  }
+  const root = checkoutOf(path.dirname(statePath));
+  if (root === null || gitHeadOf(root) === null) fail('bind-check: git cannot name the checkout or HEAD of the repository that holds --state — nothing written', 1);
+  const plan = planBindCheck({ lines: state.lines, root, on, role, ref });
+  if (plan === null) {
+    console.log(`state: bind-check --on ${on} --role ${role}: nothing to write (${statePath} untouched)`);
+    return;
+  }
+  writeState(statePath, plan.lines, state.trailingNewline, state.raw);
+  console.log(`state: bind-check ${plan.note} -> ${statePath}`);
+}
+
 // --- main ----------------------------------------------------------------------
 
 function main() {
@@ -1612,7 +1654,7 @@ function main() {
   const statePath = path.resolve(process.cwd(), typeof flags.state === 'string' ? flags.state : 'docs/ai/STATE.yaml');
   const ticksPath = path.resolve(process.cwd(), typeof flags.ticks === 'string' ? flags.ticks : 'docs/ai/LOOP_TICKS.jsonl');
   const cmd = pos[0];
-  if (!cmd) fail('missing subcommand (set-focus | set-phase | set-validation | set-code-review | set-strategy | set-worktree | set-tdd-cycle | set-human-input | append-run | amend-run | clear-focus | log-tick | reset-block)');
+  if (!cmd) fail('missing subcommand (set-focus | set-phase | set-validation | set-code-review | set-strategy | set-worktree | set-tdd-cycle | set-human-input | append-run | amend-run | clear-focus | log-tick | reset-block | bind-check)');
   // dispatch-state-sweep D16 (Spec-AC-18): set BEFORE rejectUnknownFlags, so a
   // typo'd flag for a KNOWN subcommand also carries the usage line — only an
   // UNKNOWN subcommand (CMD_USAGE has no entry) leaves fail() at its pre-D16
@@ -1671,6 +1713,11 @@ function main() {
       + 'paths stay open: append-event.mjs (docs/ai/EVENTS.jsonl) and state.mjs log-tick (LOOP_TICKS). '
       + 'A scratch/mktemp --state fixture outside every AAI project root is unaffected. Nothing was written.',
     3);
+  }
+
+  if (cmd === 'bind-check') {
+    cmdBindCheck(statePath, flags);
+    return;
   }
 
   if (cmd === 'log-tick') {

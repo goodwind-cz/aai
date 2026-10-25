@@ -4,20 +4,22 @@
 // A Validation or Code Review round that follows a judged round may run on a slim
 // payload (contract + .aai/RECHECK_DELTA.prompt.md + a scope listing the delta)
 // ONLY when every condition below holds. Anything else resolves to `full` and
-// names every failing condition: the mode is opt-in twice, by AAI_RECHECK_MODE=delta and
-// by proof, never by default.
+// names every failing condition: the mode needs proof (the conditions below) and
+// AAI_RECHECK_MODE=full turns it off for a run.
 //
 // This module only READS (git, STATE, EVENTS, the reports named in STATE, the
-// docs-audit config); it never writes any of them. The verdict stamps that make a
-// round "judged" are written by orchestration-dispatch.mjs through append-event.mjs.
+// docs-audit config); it never writes any of them. The judged round it compares is the
+// check_binding block (and the per-ref check_sticky record) of STATE, written by
+// state.mjs bind-check; the verdict stamps in EVENTS.jsonl are telemetry only.
 //
 // Node stdlib plus the repo's own read-only libraries. No new dependency.
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
-import { splitLines } from './state-core.mjs';
-import { findBlock, readScalar, unquoteScalar } from './state-engine.mjs';
+import {
+  AMBIGUOUS_HEAD, boundBinding, gitBytes, gitHeadOf, gitOut, judgeBinding, markerOfReports, markerOfText, readBinding, readSticky,
+  readCheckState, refMatches, roleReportsOf,
+} from './check-binding.mjs';
 import { loadConfig } from './docs-audit-core.mjs';
 import { SHARED_GENERATED_PAGES } from './docs-model.mjs';
 
@@ -67,15 +69,17 @@ export const LEDGER_AND_PAGE_PATHS = new Set([
   ...SHARED_GENERATED_PAGES,
 ]);
 
-// Owner decision 2026-10-24: delta is OPT-IN. AAI_RECHECK_MODE enables it only when it
-// trims and lower-cases to exactly `delta`; unset, empty and every other value (full,
-// off, a typo) leave the mode off and the round full. This holds until a later slice
-// binds the verdict to STATE (fu-recheck-verdict-not-bound-to-check): until then a
-// hand-appended stamp can still forge eligibility, so the default must not trust them.
+// Owner decision 2026-10-24 ("Zapnout po ověření"): delta is the default now that the judged round
+// is bound to STATE (check-binding.mjs). AAI_RECHECK_MODE is trimmed and lower-cased: unset, empty,
+// blank and `delta` enable the mode; `full` and every other value (a misspelling included) give the
+// reason `recheck_disabled` and keep the round full.
+const DEFAULT_ON = true;
 export function deltaEnabled(env) {
   const raw = env ? env[FORCE_ENV] : undefined;
-  if (raw === undefined || raw === null) return false;
-  return String(raw).trim().toLowerCase() === 'delta';
+  if (raw === undefined || raw === null) return DEFAULT_ON;
+  const v = String(raw).trim().toLowerCase();
+  if (v === '') return DEFAULT_ON;
+  return v === 'delta';
 }
 
 // N5: a role name is looked up as an own key only, so `__proto__`, `constructor` and the
@@ -88,11 +92,10 @@ export function isNonProduction(p) {
   return LEDGER_AND_PAGE_PATHS.has(p) || NON_PRODUCTION_PATTERNS.some((re) => re.test(p));
 }
 
-function git(root, args) {
-  return execFileSync('git', args, {
-    cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024,
-  });
-}
+// Every git call runs in the environment of check-binding.gitEnv(): no inherited GIT_*
+// variable and no replace object.
+const git = gitOut;
+const gitBuf = gitBytes;
 
 function git_ok(root, args) {
   try {
@@ -104,12 +107,6 @@ function git_ok(root, args) {
 }
 
 const EVENTS_REL = 'docs/ai/EVENTS.jsonl';
-
-function gitBuf(root, args) {
-  return execFileSync('git', args, {
-    cwd: root, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024,
-  });
-}
 
 // The ledger blob of one rev as bytes; a rev that has no such file reads as empty (a
 // ledger that did not exist yet cannot have been rewritten). null when git cannot say.
@@ -126,16 +123,11 @@ function startsWithBytes(big, prefix) {
   return big.length >= prefix.length && big.subarray(0, prefix.length).equals(prefix);
 }
 
-// B9/F7: a check_verdict stamp decides eligibility, and EVENTS.jsonl is a non-production
-// ledger the delta may touch. An earlier stamp (a committed security_relevant true)
-// stays sticky only if the ledger is append-only across the whole range. True when the
-// live file begins with the exact bytes of its blobs at `base` and at HEAD (so an
-// uncommitted in-place rewrite refuses too) AND every commit in
-// base..HEAD that touched it begins with its first parent's blob. Anything unreadable
-// is not append-only (fail closed). Scope: only lines already present in a committed
-// blob are protected. A stamp that is still uncommitted when it is rewritten leaves no
-// blob to compare with: that is the named residual
-// fu-recheck-uncommitted-stamp-rewrite (closed only by the STATE binding).
+// ledger_rewritten: this comparison compares only the live ledger file, the ledger blobs at
+// the base and at HEAD, and the blobs of the commits of base..HEAD that touched the file. It is
+// true when the live file begins with the exact bytes of its blobs at `base` and at HEAD and
+// every such commit begins with its first parent's blob. An unreadable blob is not append-only.
+// The verdict that decides eligibility is not read from the ledger (check_binding, D4).
 export function eventsAppendOnly(root, base) {
   const baseBlob = eventsBlob(root, base);
   if (baseBlob === null) return false;
@@ -163,89 +155,10 @@ export function eventsAppendOnly(root, base) {
 }
 
 export function gitHead(root) {
-  try {
-    const h = git(root, ['rev-parse', 'HEAD']).trim();
-    return HEX40.test(h) ? h : null;
-  } catch {
-    return null;
-  }
+  return gitHeadOf(root);
 }
 
-function refMatches(vref, ref) {
-  if (vref == null || ref == null) return false;
-  return vref === ref || String(vref).split('/').includes(ref);
-}
-
-// --- STATE (read only) -------------------------------------------------------
-
-function listField(lines, blockKey, field) {
-  const b = findBlock(lines, blockKey);
-  if (!b) return [];
-  const header = new RegExp(`^ {2}${field}:\\s*(.*)$`);
-  for (let i = b.start + 1; i < b.end; i += 1) {
-    const m = header.exec(lines[i]);
-    if (!m) continue;
-    const inline = m[1].trim();
-    if (inline === '[]') return [];
-    if (inline.startsWith('[')) {
-      return inline.replace(/^\[|\]$/g, '').split(',').map((s) => unquoteScalar(s.trim())).filter(Boolean);
-    }
-    const out = [];
-    for (let j = i + 1; j < b.end; j += 1) {
-      const it = /^ {4}- (.*)$/.exec(lines[j]);
-      if (!it) break;
-      out.push(unquoteScalar(it[1].trim()));
-    }
-    return out;
-  }
-  return [];
-}
-
-function workItemSpecPath(lines, ref) {
-  const b = findBlock(lines, 'active_work_items');
-  if (!b) return null;
-  let cur = null;
-  for (let i = b.start + 1; i < b.end; i += 1) {
-    const l = lines[i];
-    if (/^ {2}- /.test(l)) cur = { ref: null, spec: null, done: false };
-    if (!cur) continue;
-    const m = /^(?: {2}- | {4})([\w-]+):\s*(.*)$/.exec(l);
-    if (!m) continue;
-    const v = m[2].trim() === 'null' ? '' : unquoteScalar(m[2].trim());
-    if (m[1] === 'ref_id') cur.ref = v;
-    if (m[1] === 'spec_path') cur.spec = v || null;
-    if (cur.ref === ref && cur.spec) return cur.spec;
-  }
-  return null;
-}
-
-// readCheckState(statePath) -> the fields the delta decision and the stamps read,
-// or null when STATE is missing or unreadable.
-export function readCheckState(statePath) {
-  let raw;
-  try {
-    raw = fs.readFileSync(statePath, 'utf8');
-  } catch {
-    return null;
-  }
-  const { lines } = splitLines(raw);
-  const focusRef = readScalar(lines, 'current_focus', 'ref_id');
-  return {
-    focusRef,
-    specPath: (focusRef && workItemSpecPath(lines, focusRef)) || readScalar(lines, 'current_focus', 'spec_path'),
-    validation: {
-      status: readScalar(lines, 'last_validation', 'status'),
-      ref: readScalar(lines, 'last_validation', 'ref_id'),
-      runAt: readScalar(lines, 'last_validation', 'run_at_utc'),
-      evidencePaths: listField(lines, 'last_validation', 'evidence_paths'),
-    },
-    review: {
-      status: readScalar(lines, 'code_review', 'status'),
-      scopeRef: readScalar(lines, 'code_review', 'scope_ref_id'),
-      reportPaths: listField(lines, 'code_review', 'report_paths'),
-    },
-  };
-}
+export { readCheckState };
 
 // --- EVENTS (read only) ------------------------------------------------------
 
@@ -287,40 +200,12 @@ function protectedMatch(entry, p) {
   return p === e || p.startsWith(e.endsWith('/') ? e : e + '/');
 }
 
-const MARK_TRUE_RE = /^security_relevant: true\s*$/m;
-const MARK_FALSE_RE = /^security_relevant: false\s*$/gm;
-const MARK_ANY_RE = /^security_relevant:/gm;
-
-// The security_relevant marker of one report text: true when a line says true, false when
-// exactly one marker line exists and it says false, null for anything else (absent,
-// duplicated, mixed). Eligibility treats null as absent.
-export function markerOfText(text) {
-  if (MARK_TRUE_RE.test(text)) return true;
-  if ((text.match(MARK_ANY_RE) || []).length === 1 && (text.match(MARK_FALSE_RE) || []).length === 1) return false;
-  return null;
-}
+export { markerOfText };
 
 // NB-6: the marker of one check role, read from the reports STATE names for it at the
-// moment its verdict is first seen, and recorded in the check_verdict stamp. true when any
-// report says true, false only when there is at least one report and every one says false,
-// null otherwise (the stamp then carries no marker and the role stays full).
+// moment its verdict is first seen, and recorded in the check_verdict stamp (telemetry).
 function markerOfRole(root, state, roleToken, ref) {
-  let paths = [];
-  if (roleToken === 'validation') {
-    if (refMatches(state.validation.ref, ref)) paths = state.validation.evidencePaths.filter((p) => /\.md$/i.test(p));
-  } else if (state.review.scopeRef == null || refMatches(state.review.scopeRef, ref)) {
-    paths = state.review.reportPaths;
-  }
-  if (paths.length === 0) return null;
-  let allFalse = true;
-  for (const p of paths) {
-    let text;
-    try { text = fs.readFileSync(path.resolve(root, p), 'utf8'); } catch { return null; }
-    const m = markerOfText(text);
-    if (m === true) return true;
-    if (m !== false) allFalse = false;
-  }
-  return allFalse ? false : null;
+  return markerOfReports(root, roleReportsOf(state, roleToken, ref));
 }
 
 // The level of a spec as one source states it: the live file, or the blob at `base`.
@@ -348,7 +233,7 @@ function ceremonyLevelAt(root, specPath, base = null) {
 //   { mode, reasons, base, head, changed_paths, prior_reports }
 // `mode` is 'delta' only when `reasons` is empty. Reasons are collected, not
 // first-match, in the order of the D1 table.
-export function recheckMode({ root, ref, role, env = process.env, statePath = null }) {
+export function recheckMode({ root, ref, role, env = process.env, statePath = null, ownDispatch = false }) {
   const reasons = [];
   const token = tokenOfRole(role);
   if (!RECHECK_ROLES.has(role)) reasons.push('role_not_rechecked');
@@ -358,25 +243,18 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
   const head = gitHead(root);
   if (head === null) gitFailed = true;
 
-  const events = readEvents(root);
-  const priorVerdict = token ? stampOf(events, 'check_verdict', ref, token) : null;
+  // The judged round comes from check_binding in STATE (D4): no check_ line of the ledger is read.
+  const statePathUsed = statePath || path.join(root, 'docs/ai/STATE.yaml');
+  const binding = readBinding(statePathUsed);
+  const bound = boundBinding(binding, ref, token);
+  const sticky = readSticky(statePathUsed);
   let base = null;
-  if (!priorVerdict) {
-    reasons.push('first_round');
-  } else if (HEX40.test(String(priorVerdict.payload.head))) {
-    base = priorVerdict.payload.head;
+  if (!bound) reasons.push('first_round');
+  else {
+    const judged = judgeBinding({ root, binding: bound, token, head, ownDispatch, sticky });
+    reasons.push(...judged.reasons);
+    base = judged.base;
   }
-
-  // NB-6: the marker the judged round's own report carried when its verdict was stamped.
-  // A report written after the base is read live below, where an edit could flip it, so the
-  // stamp is the authority: any stamped true of either role keeps the ride full for good,
-  // and the role's latest stamp must say false (a stamp with no marker counts as absent).
-  for (const t of ['validation', 'code_review']) {
-    if (events.some((e) => e && e.event === 'check_verdict' && e.ref === ref && e.payload && e.payload.role === t
-      && e.payload.security_relevant === true)) reasons.push(`security_relevant:stamp:${t}`);
-  }
-  if (priorVerdict && priorVerdict.payload.security_relevant !== false
-    && priorVerdict.payload.security_relevant !== true) reasons.push(`security_marker_absent:stamp:${token}`);
 
   let changed = [];
   let diffBase = null;
@@ -394,8 +272,6 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
         if (ancestor) diffBase = base;
         else reasons.push('base_not_ancestor');
       }
-    } else if (priorVerdict) {
-      reasons.push('base_not_ancestor');
     } else {
       diffBase = 'HEAD';
     }
@@ -437,11 +313,25 @@ export function recheckMode({ root, ref, role, env = process.env, statePath = nu
     for (const p of changed) if (protectedList.some((e) => protectedMatch(e, p))) reasons.push(`protected_path:${p}`);
   }
 
-  const state = readCheckState(statePath || path.join(root, 'docs/ai/STATE.yaml'));
+  const state = readCheckState(statePathUsed);
   const mine = state && refMatches(state.focusRef, ref) ? state : null;
   const specPath = mine ? mine.specPath : null;
-  const levels = [mine ? ceremonyLevelAt(root, specPath) : null];
-  if (base && !gitFailed) levels.push(ceremonyLevelAt(root, specPath, base));
+  // D13: the level is the stricter of the spec the binding recorded and the spec STATE names
+  // now, each read live and at the base commit.
+  let levelPaths = [specPath];
+  if (bound) {
+    if (bound.specPath === null) reasons.push('spec_path_unbound:binding');
+    else if (bound.specPath !== specPath) reasons.push('spec_path_changed:binding');
+    levelPaths = [...new Set([bound.specPath, specPath])];
+    // The spec paths the per-ref check_sticky record holds are read for the level as well.
+    const recorded = sticky && sticky.entries.get(ref) ? sticky.entries.get(ref).specPaths : [];
+    for (const rp of recorded) if (!levelPaths.includes(rp)) levelPaths.push(rp);
+  }
+  const levels = [];
+  for (const sp of levelPaths) {
+    levels.push(ceremonyLevelAt(root, sp));
+    if (base && !gitFailed) levels.push(ceremonyLevelAt(root, sp, base));
+  }
   const known = levels.filter((l) => l !== null);
   if (known.includes(PROTECTED_LEVEL)) reasons.push('ceremony_l3');
   if (known.length !== levels.length || !known.every((l) => [0, 1, 2, PROTECTED_LEVEL].includes(l))) reasons.push('ceremony_unknown');
@@ -515,7 +405,7 @@ function isNewer(roleToken, marker, cur) {
 // The head a verdict is stamped with when it cannot be placed (D4): forty zeros are a
 // valid HEAD_SHA_RE value that is never a commit, so the next round's ancestry test
 // fails and the round runs full. The stamp still lands, so the role is not stuck.
-export const AMBIGUOUS_HEAD = '0'.repeat(40);
+export { AMBIGUOUS_HEAD };
 
 // The unverdicted dispatches of one role: every check_dispatched of the ref and role
 // after the last check_verdict of that role, in append order.

@@ -146,7 +146,7 @@ When the platform supports concurrent subagent spawning:
      recorded model (VALIDATOR INDEPENDENCE)
    - Context: the prefix from `node .aai/scripts/canon.mjs build --role <R> --ref <r>`
      (<r> = the dispatch JSON's ref_id, never HEAD; stable, first; add `--recheck delta`
-     when recheck.mode is delta (opt-in: AAI_RECHECK_MODE=delta, else full), and if canon exits 11 build without it and take
+     when recheck.mode is delta (default on; AAI_RECHECK_MODE=full opts out), and if canon exits 11 build without it and take
      system_prompt and prompt_hash from recheck.fallback), then scope and inputs
      (variable, last — keeps the prefix cacheable)
    - Env: export `AAI_ROLE=subagent` in the subagent's environment/instructions
@@ -156,7 +156,9 @@ When the platform supports concurrent subagent spawning:
 2. Each subagent MUST return a result block as defined in .aai/SUBAGENT_CONTRACT.md.
 3. DO NOT report to the user until ALL subagent result blocks are collected.
 4. Apply the merge protocol from .aai/SUBAGENT_PROTOCOL.md — you are the sole
-   writer of docs/ai/STATE.yaml.
+   writer of docs/ai/STATE.yaml. Check each block with check-role-output.mjs
+   --recheck-mode <recheck.mode>; a delta round that escalates (needs_full_recheck)
+   merges nothing: run none of its state_update_commands, re-run the tick with AAI_RECHECK_MODE=full.
 5. Update docs/ai/STATE.yaml with merged results — apply each merged field
    through the transactional CLI (`node .aai/scripts/state.mjs set-* /
    append-run / reset-block`, per the State update summary above; subagents

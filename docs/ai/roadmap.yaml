@@ -98,6 +98,8 @@ pairs:
     status: done
   - capability: cheap-transitions-slice
     status: done
+  - capability: recheck-verdict-binding
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

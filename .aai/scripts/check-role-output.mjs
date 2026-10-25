@@ -223,6 +223,9 @@ function parseArgs(argv) {
   // Validation leaves both unset and the checker reads STATE's focus.
   let outcomeIntake = null;
   let outcomeSpec = null;
+  // The mode of the round whose result is checked (the dispatch JSON recheck.mode; full when
+  // recheck is null). Only a delta round can escalate with needs_full_recheck.
+  let recheckModeArg = null;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--file') {
       filePath = argv[++i];
@@ -242,13 +245,19 @@ function parseArgs(argv) {
     } else if (argv[i] === '--outcome-spec') {
       outcomeSpec = argv[++i];
       if (outcomeSpec === undefined || outcomeSpec.startsWith('--')) usageError('--outcome-spec requires a path value');
+    } else if (argv[i] === '--recheck-mode') {
+      recheckModeArg = argv[++i];
+      if (recheckModeArg !== 'delta' && recheckModeArg !== 'full') {
+        process.stderr.write(`check-role-output: --recheck-mode must be delta or full, got: ${recheckModeArg === undefined ? '(none)' : recheckModeArg}\n`);
+        exit(2);
+      }
     } else if (argv[i] === '--worktree-guard') {
       worktreeGuard = true;
     } else {
       usageError(`unrecognized argument: ${argv[i]}`);
     }
   }
-  return { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard, outcomeIntake, outcomeSpec };
+  return { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard, outcomeIntake, outcomeSpec, recheckModeArg };
 }
 
 // --- the two optional Planning gates (R04 / R09) -----------------------------
@@ -918,7 +927,7 @@ function validateResult(parsed, nowMs, scopeBinding = {}) {
 }
 
 function main() {
-  const { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard, outcomeIntake, outcomeSpec } = parseArgs(process.argv.slice(2));
+  const { filePath, nowArg, baseRef, worktreeBaseline, worktreeGuard, outcomeIntake, outcomeSpec, recheckModeArg } = parseArgs(process.argv.slice(2));
 
   let nowMs;
   if (nowArg) {
@@ -954,10 +963,14 @@ function main() {
     // spec-cheap-transitions-slice D7 (remediation round 6): a delta re-check that cannot
     // judge the delta returns BLOCKED with the single blocker needs_full_recheck. That is an
     // escalation, not a blocker: say so on stdout so the merge step re-dispatches the full
-    // role instead of mapping every BLOCKED to human_input.required (SUBAGENT_PROTOCOL).
+    // role instead of mapping every BLOCKED to human_input.required (SUBAGENT_PROTOCOL). The
+    // line is printed only for a round the caller marks `--recheck-mode delta`; a full round, or
+    // a call without the flag, treats the same BLOCKED as an ordinary BLOCKED.
     const blockers = parsed.blockers.map((b) => String(b).trim());
-    if (parsed.fields.status === 'BLOCKED' && blockers.length === 1 && blockers[0] === 'needs_full_recheck') {
-      console.log('RECHECK-ESCALATION: needs_full_recheck - not a human stop: re-run the dispatch tick once with AAI_RECHECK_MODE=full and dispatch the full role');
+    if (recheckModeArg === 'delta') {
+      if (parsed.fields.status === 'BLOCKED' && blockers.length === 1 && blockers[0] === 'needs_full_recheck') {
+        console.log('RECHECK-ESCALATION: needs_full_recheck - not a human stop: re-run the dispatch tick once with AAI_RECHECK_MODE=full, dispatch the full role and run none of its state_update_commands from this round');
+      }
     }
     exit(0);
   }

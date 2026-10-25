@@ -11,9 +11,13 @@
 # The cases are node:test cases in tests/skills/lib/recheck.test.mjs; each builds
 # its own temporary git repository, the real repository is only read.
 #
-# SELF-HOSTING: delta is opt-in, so the node cases set AAI_RECHECK_MODE=delta
-# explicitly in every child process (TEST-2738 unsets it), so the suite answers the
-# same under AAI_RECHECK_MODE=full.
+# TEST-2801..2839 (docs/specs/SPEC-0251-spec-recheck-verdict-binding.md): the judged round is the
+# check_binding block of STATE written by state.mjs bind-check; every fixture builds it through that
+# real CLI.
+#
+# SELF-HOSTING: the node cases set AAI_RECHECK_MODE=delta explicitly in every child process
+# (TEST-2738 and the default env of TEST-2820 unset it), so the suite answers the same under
+# AAI_RECHECK_MODE=full.
 #
 # bash 3.2 compatible (no ${var^^}, no declare -A).
 #
@@ -200,7 +204,7 @@ test_2730_tests_gate_inputs_production() {
 
 test_2731_mode_switch_fails_closed() {
   run_recheck_node_tests TEST-2731
-  log_pass "TEST-2731: AAI_RECHECK_MODE enables delta only when it normalises to delta"
+  log_pass "TEST-2731: AAI_RECHECK_MODE unset, empty, blank and delta enable the mode; full and any other value do not"
 }
 
 test_2732_inherited_role_names() {
@@ -233,9 +237,9 @@ test_2737_capture_sites_fallback() {
   log_pass "TEST-2737: every append-run capture site names the recheck.fallback clause"
 }
 
-test_2738_default_is_full() {
+test_2738_default_is_delta() {
   run_recheck_node_tests TEST-2738
-  log_pass "TEST-2738: the variable unset gives full with recheck_disabled on an eligible tree"
+  log_pass "TEST-2738: the default is delta: the variable unset gives delta on an eligible tree, AAI_RECHECK_MODE=full gives recheck_disabled"
 }
 
 test_2739_ledger_rewrite_refused() {
@@ -255,7 +259,7 @@ test_2741_stamps_refused_for_subagent() {
 
 test_2742_uncommitted_stamp_rewrite_residual() {
   run_recheck_node_tests TEST-2742
-  log_pass "TEST-2742: the uncommitted-stamp rewrite is pinned as a known residual (delta under opt-in, full by default)"
+  log_pass "TEST-2742: an uncommitted stamp rewrite gives full, because eligibility reads the STATE binding and the stamps are telemetry"
 }
 
 test_2743_merge_in_range_refused() {
@@ -278,8 +282,198 @@ test_2746_needs_full_recheck_escalates() {
   log_pass "TEST-2746: needs_full_recheck re-dispatches the full role and is no human stop"
 }
 
+test_2801_bind_on_dispatch() {
+  run_recheck_node_tests TEST-2801
+  log_pass "TEST-2801: bind-check --on dispatch records ref, checkout, the pending head and the report set"
+}
+
+test_2803_bind_on_verdict() {
+  run_recheck_node_tests TEST-2803
+  log_pass "TEST-2803: bind-check --on verdict writes head, status, reports, digests and the marker"
+}
+
+test_2804_bind_refusals() {
+  run_recheck_node_tests TEST-2804
+  log_pass "TEST-2804: bind-check --on verdict writes nothing without a dispatch, a verdict or a new report"
+}
+
+test_2805_eligibility_reads_binding() {
+  run_recheck_node_tests TEST-2805
+  log_pass "TEST-2805: each failing binding comparison gives full with exactly its reason"
+}
+
+test_2806_stamps_not_read() {
+  run_recheck_node_tests TEST-2806
+  log_pass "TEST-2806: forged check_ stamps change nothing and give first_round without a binding"
+}
+
+test_2807_uncommitted_and_amend() {
+  run_recheck_node_tests TEST-2807
+  log_pass "TEST-2807: D5 shapes 1 and 2 give full"
+}
+
+test_2808_rebase_and_squash() {
+  run_recheck_node_tests TEST-2808
+  log_pass "TEST-2808: D5 shapes 3 and 4 give full"
+}
+
+test_2809_rewrite_before_base() {
+  run_recheck_node_tests TEST-2809
+  log_pass "TEST-2809: D5 shape 5 gives full"
+}
+
+test_2810_git_replace() {
+  run_recheck_node_tests TEST-2810
+  log_pass "TEST-2810: D5 shape 6, git replace in every form, gives full"
+}
+
+test_2811_forged_append() {
+  run_recheck_node_tests TEST-2811
+  log_pass "TEST-2811: D5 shapes 7 and 8 give production_path or first_round"
+}
+
+test_2812_merge_ours_and_rerecord() {
+  run_recheck_node_tests TEST-2812
+  log_pass "TEST-2812: D5 shapes 9 and 10 give full"
+}
+
+test_2813_bound_report_flip() {
+  run_recheck_node_tests TEST-2813
+  log_pass "TEST-2813: D5 shape 11, a flipped bound report, gives full"
+}
+
+test_2829_fenced_marker() {
+  run_recheck_node_tests TEST-2829
+  log_pass "TEST-2829: markerOfText counts a marker line only at column 0 outside every fence"
+}
+
+test_2830_fenced_marker_seam() {
+  run_recheck_node_tests TEST-2830
+  log_pass "TEST-2830: a fenced-only false marker gives full through bind-check and recheckMode"
+}
+
+test_2831_specpath_repoint() {
+  run_recheck_node_tests TEST-2831
+  log_pass "TEST-2831: a spec_path re-point inside the same block, in the work item or the focus, keeps the recorded ceremony level (TEST-2836 covers a replaced block)"
+}
+
+test_2802_bind_refused_for_subagent() {
+  run_recheck_node_tests TEST-2802
+  log_pass "TEST-2802: bind-check is refused under any AAI_ROLE, a returned bind-check command is refused, a subagent tick leaves the block alone"
+}
+
+test_2814_handoff_and_copy() {
+  run_recheck_node_tests TEST-2814
+  log_pass "TEST-2814: the handoff does not carry the binding, a hand copy names another checkout, an archived copy is never read"
+}
+
+test_2815_flush_reset_and_check_state() {
+  run_recheck_node_tests TEST-2815
+  log_pass "TEST-2815: partial flush clears, full flush removes, reset-block and check-state leave the block alone"
+}
+
+test_2816_end_to_end_binding() {
+  run_recheck_node_tests TEST-2816
+  log_pass "TEST-2816: real ticks bind both roles and the next dispatch of each is delta from the bound head"
+}
+
+test_2817_escalation_knows_mode() {
+  run_recheck_node_tests TEST-2817
+  log_pass "TEST-2817: RECHECK-ESCALATION only for a delta round; the prompts say an escalated round merges nothing"
+}
+
+test_2818_comments_state_comparison() {
+  run_recheck_node_tests TEST-2818
+  log_pass "TEST-2818: the ledger comment states the comparison it makes and the code names no guarantee"
+}
+
+test_2819_docs_state_comparison() {
+  run_recheck_node_tests TEST-2819
+  log_pass "TEST-2819: protocol, workflow and changelog name check_binding and bind-check and carry one Residual: line"
+}
+
+test_2822_profiles_classified() {
+  run_recheck_node_tests TEST-2822
+  log_pass "TEST-2822: PROFILES lists check-binding.mjs exactly once, in core"
+}
+
+test_2823_suite_map_selects() {
+  run_recheck_node_tests TEST-2823
+  log_pass "TEST-2823: the suite map selects aai-recheck for the files the scope touches"
+}
+
+test_2825_rfc_phase4_row() {
+  run_recheck_node_tests TEST-2825
+  log_pass "TEST-2825: the RFC-0017 phase 4 row links this slice and stays in progress"
+}
+
+test_2826_498_amendments_signed() {
+  run_recheck_node_tests TEST-2826
+  log_pass "TEST-2826: the #498 amendments are signed and their trackers are done"
+}
+
+test_2827_ride_stays_full() {
+  run_recheck_node_tests TEST-2827
+  log_pass "TEST-2827: ceremony_l3 on this ride own spec for both roles"
+}
+
+test_2828_spec0250_superseded() {
+  run_recheck_node_tests TEST-2828
+  log_pass "TEST-2828: SPEC-0250 points at this spec for the stamp residual and the amendment is recorded"
+}
+
+test_2832_specpath_recorded() {
+  run_recheck_node_tests TEST-2832
+  log_pass "TEST-2832: the spec path is recorded once and survives a verdict write, a later dispatch and a partial flush"
+}
+
+test_2820_default_on() {
+  run_recheck_node_tests TEST-2820
+  log_pass "TEST-2820: the default is on for unset, empty, blank and delta; full and any other value give recheck_disabled"
+}
+
+test_2821_default_on_docs() {
+  run_recheck_node_tests TEST-2821
+  log_pass "TEST-2821: the docs state the default as on with AAI_RECHECK_MODE=full as the opt-out"
+}
+
+test_2833_focus_alternation_sticky() {
+  run_recheck_node_tests TEST-2833
+  log_pass "TEST-2833: a focus switch away and back leaves the per-ref security record raised and the next test-only round full"
+}
+
+test_2834_worktree_move_sticky() {
+  run_recheck_node_tests TEST-2834
+  log_pass "TEST-2834: git worktree move replaces the block, not the per-ref record, and the next test-only round is full"
+}
+
+test_2835_handoff_sticky() {
+  run_recheck_node_tests TEST-2835
+  log_pass "TEST-2835: ride-handoff out copies the per-ref record into the worktree STATE"
+}
+
+test_2836_specpath_record() {
+  run_recheck_node_tests TEST-2836
+  log_pass "TEST-2836: a spec path re-pointed after a focus switch is added to the record, never replacing the L3 path"
+}
+
+test_2837_record_kept_by_flush_and_reset() {
+  run_recheck_node_tests TEST-2837
+  log_pass "TEST-2837: a flush and reset-block leave the record, and an absent or unparseable record gives full"
+}
+
+test_2838_unparsable_item_kept() {
+  run_recheck_node_tests TEST-2838
+  log_pass "TEST-2838: a bind for another ref keeps an unparsable record item byte for byte and the ref stays full"
+}
+
+test_2839_duplicate_items_merged() {
+  run_recheck_node_tests TEST-2839
+  log_pass "TEST-2839: a bind for another ref merges duplicated record items to the highest flag and the ref stays full"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2746)"
+  echo "Testing $TEST_NAME (SPEC spec-cheap-transitions-slice TEST-2701..2746, SPEC spec-recheck-verdict-binding TEST-2801..2839)"
   check_deps
   test_2701_baseline_table_matches_metrics
   test_2702_delta_applies
@@ -317,7 +511,7 @@ main() {
   test_2735_stamp_without_marker_and_sticky
   test_2736_tick_records_marker
   test_2737_capture_sites_fallback
-  test_2738_default_is_full
+  test_2738_default_is_delta
   test_2739_ledger_rewrite_refused
   test_2740_committed_rewrite_refused
   test_2741_stamps_refused_for_subagent
@@ -326,6 +520,44 @@ main() {
   test_2744_whitespace_role_refused
   test_2745_delta_identity_covers_sent_layers
   test_2746_needs_full_recheck_escalates
+  test_2801_bind_on_dispatch
+  test_2803_bind_on_verdict
+  test_2804_bind_refusals
+  test_2805_eligibility_reads_binding
+  test_2806_stamps_not_read
+  test_2807_uncommitted_and_amend
+  test_2808_rebase_and_squash
+  test_2809_rewrite_before_base
+  test_2810_git_replace
+  test_2811_forged_append
+  test_2812_merge_ours_and_rerecord
+  test_2813_bound_report_flip
+  test_2829_fenced_marker
+  test_2830_fenced_marker_seam
+  test_2831_specpath_repoint
+  test_2802_bind_refused_for_subagent
+  test_2814_handoff_and_copy
+  test_2815_flush_reset_and_check_state
+  test_2816_end_to_end_binding
+  test_2817_escalation_knows_mode
+  test_2818_comments_state_comparison
+  test_2819_docs_state_comparison
+  test_2822_profiles_classified
+  test_2823_suite_map_selects
+  test_2825_rfc_phase4_row
+  test_2826_498_amendments_signed
+  test_2827_ride_stays_full
+  test_2828_spec0250_superseded
+  test_2832_specpath_recorded
+  test_2833_focus_alternation_sticky
+  test_2834_worktree_move_sticky
+  test_2835_handoff_sticky
+  test_2836_specpath_record
+  test_2837_record_kept_by_flush_and_reset
+  test_2838_unparsable_item_kept
+  test_2839_duplicate_items_merged
+  test_2820_default_on
+  test_2821_default_on_docs
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

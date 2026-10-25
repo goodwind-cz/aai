@@ -4,15 +4,15 @@ dispatch script (CHANGE-0009). You relay decisions; you do not re-derive them.
 
 RUN THE TICK
 1. Run: node .aai/scripts/orchestration-dispatch.mjs --human --confirm
-2. Exit 0 (dispatch): assemble the prefix with `node .aai/scripts/canon.mjs build --role Validation --ref <ref_id>` (swap --role for the dispatched role; ref_id = the dispatch JSON's ref_id field, never HEAD; add `--recheck delta` when recheck.mode is delta (opt-in, off unless AAI_RECHECK_MODE=delta); if canon exits 11, build without it and take system_prompt and prompt_hash from recheck.fallback; a round is recorded as delta only when the delta payload was sent),
+2. Exit 0 (dispatch): assemble the prefix with `node .aai/scripts/canon.mjs build --role Validation --ref <ref_id>` (swap --role for the dispatched role; ref_id = the dispatch JSON's ref_id field, never HEAD; add `--recheck delta` when recheck.mode is delta (default on; AAI_RECHECK_MODE=full opts out); if canon exits 11, build without it and take system_prompt and prompt_hash from recheck.fallback; a round is recorded as delta only when the delta payload was sent),
    relay the JSON dispatch — spawn the named role per the call contract in
    .aai/SUBAGENT_PROTOCOL.md (ENV row: export
    AAI_ROLE=subagent for the role, UNSET for the orchestrator's own writes),
    honoring suggested_tier and validator_independence. After the role
    completes, append its run via state.mjs append-run with harness-reported usage per SUBAGENT_PROTOCOL.md.
    Then run any returned state_update_commands. Then step 5.
-   EXCEPTION — a delta round returning BLOCKED with the only blocker needs_full_recheck (check-role-output prints
-   RECHECK-ESCALATION) is no human stop: set no human_input, re-run step 1 once with AAI_RECHECK_MODE=full, dispatch the full role.
+   EXCEPTION — check-role-output.mjs --recheck-mode <recheck.mode>: a delta round returning BLOCKED with the only blocker needs_full_recheck (it prints
+   RECHECK-ESCALATION) is no human stop: run none of its state_update_commands, set no human_input, re-run step 1 once with AAI_RECHECK_MODE=full, dispatch the full role.
 3. Exit 3 (no_action): report "No action required" + the JSON reasons; STOP. EXCEPTION — reasons advance_phase_to_implementation (rule 9x confirmed the phase by script; no agent needed): run state.mjs set-phase --ref <ref> --phase implementation, then step 1 ONCE.
 4. Exit 4 (needs_llm): handle ONLY the named reasons, nothing else:
    - state_file_missing / duplicate_top_level_key / missing_required_block /

@@ -57,7 +57,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (575)
+## Done (577)
 
 | ID | Type | Path |
 |---|---|---|
@@ -282,6 +282,7 @@ _None._
 | CHANGE-0223 | issues | docs/issues/CHANGE-0223-node-first-second-slice.md |
 | CHANGE-0224 | issues | docs/issues/CHANGE-0224-node-first-third-slice.md |
 | CHANGE-0225 | issues | docs/issues/CHANGE-0225-cheap-transitions-slice.md |
+| CHANGE-0226 | issues | docs/issues/CHANGE-0226-recheck-verdict-binding.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -634,6 +635,7 @@ _None._
 | SPEC-0248 | specs | docs/specs/SPEC-0248-spec-node-first-second-slice.md |
 | SPEC-0249 | specs | docs/specs/SPEC-0249-spec-node-first-third-slice.md |
 | SPEC-0250 | specs | docs/specs/SPEC-0250-spec-cheap-transitions-slice.md |
+| SPEC-0251 | specs | docs/specs/SPEC-0251-spec-recheck-verdict-binding.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -672,7 +674,7 @@ _None._
 
 _None._
 
-## Broken references (499)
+## Broken references (505)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -698,10 +700,16 @@ _None._
 | tests/skills/lib/recheck.test.mjs | docs/ai/reports/VALIDATION-1.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/ai/reports/VALIDATION-2.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/ai/reports/VALIDATION-never-written.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/c1.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/c2.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-1.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-2.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-o.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/ai/reviews/rev-q8.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/issues/CHANGE-0002-other.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/specs/SPEC-0001-fx.md | NOT FOUND |
+| tests/skills/lib/recheck.test.mjs | docs/specs/SPEC-0002-low.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/specs/new-note.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/ai/briefs/ride-demo.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/issues/CHANGE-DRAFT-ride-demo.md | NOT FOUND |
@@ -1210,4 +1218,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-24 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-25 — counts above use this date for overdue checks.

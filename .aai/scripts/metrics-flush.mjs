@@ -140,6 +140,8 @@ import { USAGE_NOTE_RE } from './lib/usage-note.mjs';
 import { readValidationBlock, parseWaiver, refMatchesScope, formatWaiver, formatArchive } from './validation-waiver.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
+// spec-recheck-verdict-binding D6: the check_binding block follows the flush of the ref it names.
+import { clearCheckBinding, removeCheckBinding } from './lib/check-binding.mjs';
 
 setEngineFailPrefix('metrics-flush');
 
@@ -916,6 +918,8 @@ function removeDoneWorkItems(lines, refs) {
 }
 
 function applyPartialReset(lines, flushedRefs, nowIso, carryWaiver, archiveRefs, focusRef = null, existingScopeRef = null) {
+  // D6: both roles' verdict and pending fields go; ref_id, checkout, spec_path and security_sticky stay.
+  clearCheckBinding(lines, flushedRefs);
   // A waiver that reached no ledger entry is PRESERVED verbatim in the reset
   // note instead of being overwritten (bot review PR #303 F-2: losing a waiver
   // must be loud, never rendered as "no waivers"). It stays scope-bound by its
@@ -1001,6 +1005,8 @@ function yqRef(flushedRefs, focusRef = null, existingScopeRef = null) {
 
 // Full reset — the STATE_FALLBACK.md flush-reset defaults, via engine edits.
 function applyFullReset(lines, carryWaiver = null) {
+  // D6: a full reset leaves no scope in flight, so the binding block goes with it.
+  removeCheckBinding(lines);
   editBlock(lines, 'last_validation', bl => {
     setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
     setField(bl, 2, 'run_at_utc', [scalarLine(2, 'run_at_utc', 'null')]);

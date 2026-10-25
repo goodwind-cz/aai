@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-24T17:26:39.655Z",
+  "generatedAt": "2026-10-24T23:47:09.912Z",
   "project": "aai",
   "counts": {
-    "delivered": 320,
+    "delivered": 321,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -271,7 +271,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0250-spec-cheap-transitions-slice.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T171650Z.md"
+      "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T181227Z.md"
+    },
+    {
+      "ref": "recheck-verdict-binding",
+      "title": "Bind re-check verdicts to STATE and turn delta re-checks on by default",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0226-recheck-verdict-binding.md",
+      "closed_on": "2026-10-24",
+      "agent_minutes": 337,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0251-spec-recheck-verdict-binding.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-recheck-verdict-binding-20261024T233022Z.md"
     },
     {
       "ref": "docs-audit-suite-speed",
@@ -4458,7 +4471,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0250-spec-cheap-transitions-slice.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T171650Z.md"
+          "review": "docs/ai/reviews/review-cheap-transitions-slice-20261024T181227Z.md"
+        },
+        {
+          "ref": "recheck-verdict-binding",
+          "title": "Bind re-check verdicts to STATE and turn delta re-checks on by default",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0226-recheck-verdict-binding.md",
+          "closed_on": "2026-10-24",
+          "agent_minutes": 337,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0251-spec-recheck-verdict-binding.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-recheck-verdict-binding-20261024T233022Z.md"
         },
         {
           "ref": "docs-audit-suite-speed",

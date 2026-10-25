@@ -3284,3 +3284,10 @@
 {"v":1,"ts":"2026-10-24T17:26:32Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-cheap-transitions-slice","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-24T18:02:32Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":651,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-24T18:25:02Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"cheap-transitions-slice","payload":{"pr":498,"lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"swept","head_sha":"b0cb38c1a7114ede69364122aca789b53525ed24"}}
+{"v":1,"ts":"2026-10-24T19:01:50Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-recheck-verdict-binding","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-24T23:44:28Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"recheck-verdict-binding","payload":{"status":"pass","hash":"e8ee768b95240ca58f26a10f2e0144003aa0635f327ba32a21845ddf2df2d026"}}
+{"v":1,"ts":"2026-10-24T23:47:02Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"recheck-verdict-binding","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-24T23:47:02Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"recheck-verdict-binding","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-24T23:47:02Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-recheck-verdict-binding","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-24T23:47:02Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-recheck-verdict-binding","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-25T00:36:30Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"recheck-verdict-binding","payload":{"pr":499,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"1d797f5549549bb61f35117191d68b732a3109fb"}}

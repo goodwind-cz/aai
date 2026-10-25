@@ -6,7 +6,8 @@
 // inputs (never the shipping tree), commits a base, adds a four-path non-production
 // delta shaped like node-first-third-slice round 4 (a suite, a node:test file, the
 // spec and one ledger line), seeds STATE, two prior reports that carry
-// `security_relevant: false`, an L2 spec and a check_verdict per role at the base,
+// `security_relevant: false`, an L2 spec and a check_binding per role at the base (written
+// by the real `state.mjs bind-check`),
 // then prints one JSON line per role:
 //   {"role":"Code Review","full_bytes":N,"delta_bytes":M,"ratio":0.xx}
 // Exit 0 when both builds succeed. The repository this script runs from is only read.
@@ -19,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(HERE, '..', '..', '..');
 const CANON = path.join(PROJECT_ROOT, '.aai', 'scripts', 'canon.mjs');
+const STATE_CLI = path.join(PROJECT_ROOT, '.aai', 'scripts', 'state.mjs');
 const REF = 'x';
 const INPUTS = [
   '.aai/SUBAGENT_CONTRACT.md', '.aai/RECHECK_DELTA.prompt.md', '.aai/system/CANON.yaml', 'docs/knowledge/LEARNED.md',
@@ -54,7 +56,7 @@ try {
   put(root, 'docs/ai/decisions.jsonl', '{"type":"x"}\n');
   put(root, 'tests/skills/test-aai-fixture.sh', '#!/usr/bin/env bash\necho base\n');
   put(root, 'tests/skills/lib/fixture.test.mjs', '// base\n');
-  put(root, 'docs/ai/STATE.yaml', `project_status: active
+  const stateText = (reports) => `project_status: active
 current_focus:
   type: intake_change
   ref_id: ${REF}
@@ -68,22 +70,34 @@ active_work_items:
 code_review:
   required: true
   status: fail
-  report_paths:
-    - docs/ai/reviews/rev-1.md
+  report_paths:${reports ? '\n    - docs/ai/reviews/rev-1.md' : ' []'}
 last_validation:
   status: fail
   run_at_utc: 2026-07-01T00:00:00Z
   ref_id: ${REF}
-  evidence_paths:
-    - docs/ai/reports/VALIDATION-1.md
+  evidence_paths:${reports ? '\n    - docs/ai/reports/VALIDATION-1.md' : ' []'}
 updated_at_utc: 2026-07-01T00:00:00Z
-`);
+`;
+  put(root, 'docs/ai/STATE.yaml', stateText(true));
   git(root, ['add', '-A']);
   git(root, ['commit', '-q', '-m', 'base']);
-  const base = git(root, ['rev-parse', 'HEAD']);
-  put(root, 'docs/ai/EVENTS.jsonl', ['validation', 'code_review'].map((role) => JSON.stringify({
-    v: 1, ts: '2026-07-01T00:00:00.000Z', actor: 'measure', event: 'check_verdict', ref: REF, payload: { role, head: base, status: 'fail', security_relevant: false },
-  }) + '\n').join(''));
+  // Bind one judged round per role at the base: a dispatch with no report in STATE, then the
+  // verdict naming the committed reports.
+  const bindEnv = { ...process.env };
+  delete bindEnv.AAI_ROLE;
+  const bind = (on, role) => {
+    const r = spawnSync(process.execPath, [STATE_CLI, 'bind-check', '--on', on, '--role', role, '--ref', REF, '--state', path.join(root, 'docs/ai/STATE.yaml')], { cwd: root, encoding: 'utf8', env: bindEnv });
+    if (r.status !== 0) throw new Error(`bind-check --on ${on} --role ${role}: ${r.stderr}`);
+  };
+  for (const role of ['validation', 'code_review']) {
+    const keep = () => { const t = fs.readFileSync(path.join(root, 'docs/ai/STATE.yaml'), 'utf8'); const i = t.indexOf('check_binding:'); return i < 0 ? '' : t.slice(i, t.indexOf('updated_at_utc:', i)); };
+    const blk = keep();
+    put(root, 'docs/ai/STATE.yaml', stateText(false).replace('updated_at_utc:', `${blk}updated_at_utc:`));
+    bind('dispatch', role);
+    const mid = keep();
+    put(root, 'docs/ai/STATE.yaml', stateText(true).replace('updated_at_utc:', `${mid}updated_at_utc:`));
+    bind('verdict', role);
+  }
   // the four-path non-production delta
   fs.appendFileSync(path.join(root, 'tests/skills/test-aai-fixture.sh'), 'echo fixed\n');
   fs.appendFileSync(path.join(root, 'tests/skills/lib/fixture.test.mjs'), '// fixed\n');
