@@ -3339,3 +3339,4 @@
 {"v":1,"ts":"2026-10-25T21:39:26Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"implied-signing-without-links-pr","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-25T21:39:26Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-implied-signing-without-links-pr","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-25T21:39:26Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-implied-signing-without-links-pr","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-25T21:56:07Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"implied-signing-without-links-pr","payload":{"pr":503,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"4c0ce66c081098158543268143dee1b7bbd97790"}}
