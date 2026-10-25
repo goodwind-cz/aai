@@ -139,13 +139,39 @@ function render(rows, fragments) {
   });
 }
 
+// assertRealPath(root, rel) — lstat each existing component of rel below root:
+// a symlink anywhere, a non-directory parent or a non-file leaf refuses, so a
+// write can never follow a link out of --root. A missing component ends the walk.
+function assertRealPath(root, rel) {
+  const parts = rel.split('/');
+  for (let i = 0; i < parts.length; i++) {
+    const sub = parts.slice(0, i + 1).join('/');
+    let st;
+    try {
+      st = fs.lstatSync(path.join(root, sub));
+    } catch (err) {
+      if (err && err.code === 'ENOENT') return;
+      throw err;
+    }
+    if (st.isSymbolicLink()) throw new ShimError(`refusing ${rel}: ${sub} is a symlink`);
+    const last = i === parts.length - 1;
+    if (!last && !st.isDirectory()) throw new ShimError(`refusing ${rel}: ${sub} is not a directory`);
+    if (last && !st.isFile()) throw new ShimError(`refusing ${rel}: not a regular file`);
+  }
+}
+
 // loadShims(root, rawRows) — null when the manifest has no `shims:` section.
+// Every shim path and the shipped list are checked by assertRealPath here,
+// before any write.
 export function loadShims(root, rawRows) {
   if (rawRows === null) return null;
   const rows = parseRows(rawRows);
   const raw = readOrNull(path.join(root, FRAGMENTS_REL));
   if (raw === null) throw new ShimError(`cannot read the fragment file ${FRAGMENTS_REL}`);
-  return { outputs: render(rows, parseFragments(raw)) };
+  const outputs = render(rows, parseFragments(raw));
+  for (const { rel } of outputs) assertRealPath(root, rel);
+  assertRealPath(root, SHIPPED_LIST_REL);
+  return { outputs };
 }
 
 // --- check / write ---------------------------------------------------------------

@@ -390,6 +390,32 @@ test_3004_write_restores_and_is_idempotent() {
   log_pass "TEST-3004 --write restores both shims and is idempotent"
 }
 
+# --- TEST-3015 -----------------------------------------------------------------
+test_3015_write_refuses_symlinked_shim_paths() {
+  log_info "TEST-3015: --write refuses a symlinked shim or shim parent before any write..."
+  local root="$TMP_ROOT/t3015" out="$TMP_ROOT/t3015-outside"
+  rm -rf "$out"; mkdir -p "$out"
+  printf 'victim\n' > "$out/victim"
+  mk_root "$root"
+  printf 'planted\n' >> "$root/AGENTS.md"
+  rm -f "$root/CLAUDE.md"
+  ln -s "$out/victim" "$root/CLAUDE.md"
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 2 ]] || log_fail "TEST-3015: a symlinked CLAUDE.md must exit 2, got $GEN_RC: $GEN_OUT"
+  [[ "$GEN_OUT" == *"refusing CLAUDE.md: CLAUDE.md is a symlink"* ]] || log_fail "TEST-3015: the refusal must name the symlink, got: $GEN_OUT"
+  [[ "$(cat "$out/victim")" == "victim" ]] || log_fail "TEST-3015: the file outside the root was overwritten through the symlink"
+  [[ "$(tail -n1 "$root/AGENTS.md")" == "planted" ]] || log_fail "TEST-3015: --write restored AGENTS.md before refusing (a write ran)"
+  mk_root "$root"
+  rm -rf "$root/.cursor"
+  mkdir -p "$out/cursor"
+  ln -s "$out/cursor" "$root/.cursor"
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 2 ]] || log_fail "TEST-3015: a symlinked .cursor parent must exit 2, got $GEN_RC: $GEN_OUT"
+  [[ "$GEN_OUT" == *"refusing .cursor/rules/aai.mdc: .cursor is a symlink"* ]] || log_fail "TEST-3015: the refusal must name the symlinked parent, got: $GEN_OUT"
+  [[ -z "$(ls -A "$out/cursor")" ]] || log_fail "TEST-3015: --write created files outside the root through the symlinked parent"
+  log_pass "TEST-3015 --write refuses symlinked shim paths before any write"
+}
+
 # --- TEST-3005 -----------------------------------------------------------------
 test_3005_shim_paths_select_the_gate() {
   log_info "TEST-3005: every shim path and the three new .aai files select the hygiene gate and this suite..."
@@ -695,6 +721,7 @@ ALL_TESTS=(
   test_3012_pr501_amendments_signed
   test_3013_autonomous_loop_names_classify
   test_3014_profiles_caps_followups
+  test_3015_write_refuses_symlinked_shim_paths
 )
 
 main() {
