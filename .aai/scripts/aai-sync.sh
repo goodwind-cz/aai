@@ -205,6 +205,34 @@ extract_copilot_project_overrides() {
   fi
 }
 
+# copilot_shim_is_shipped <text> <list-file> — 0 when <text> (the project-override
+# text extracted from a target's Copilot shim) is empty or its normalized hash is
+# a row of the source's COPILOT_SHIM_SHIPPED.list, i.e. it is an unmodified older
+# shim and not a real project override (SPEC spec-provider-adapter-registry-slice
+# D4). Normalized hash: delete every CR, drop the trailing LFs (command
+# substitution does that), sha256 via sha256sum else shasum -a 256. An output that
+# is not 64 hex counts as no hash tool: return 1, the existing merge keeps the text.
+# Compares only that hash with the list; it cannot tell a deliberate edit that
+# happens to reproduce a shipped version from an untouched one.
+copilot_shim_is_shipped() {
+  local text="$1" list="$2" norm hash="" row
+  norm="$(printf '%s' "$text" | tr -d '\r')"
+  [[ -n "${norm//[[:space:]]/}" ]] || return 0
+  [[ -f "$list" ]] || return 1
+  if command -v sha256sum >/dev/null 2>&1; then
+    hash="$(printf '%s' "$norm" | sha256sum 2>/dev/null | awk '{print $1}')" || hash=""
+  fi
+  if [[ ! "$hash" =~ ^[0-9a-f]{64}$ ]] && command -v shasum >/dev/null 2>&1; then
+    hash="$(printf '%s' "$norm" | shasum -a 256 2>/dev/null | awk '{print $1}')" || hash=""
+  fi
+  [[ "$hash" =~ ^[0-9a-f]{64}$ ]] || return 1
+  while IFS= read -r row || [[ -n "$row" ]]; do
+    row="${row%$'\r'}"
+    if [[ "$row" == "$hash" ]]; then return 0; fi
+  done < "$list"
+  return 1
+}
+
 # ── Legacy cleanup: remove old-layout paths that moved into .aai/ ──────────
 LEGACY_CLEANED=0
 
@@ -242,8 +270,9 @@ if [[ -d "$DST_ROOT/scripts" ]]; then
   fi
 fi
 
-# Root files that moved into .aai/
-for f in AGENTS.md PLAYBOOK.md; do
+# Root files that moved into .aai/ (AGENTS.md is NOT one of them any more: it is a
+# generated root shim, installed below with CLAUDE.md, CODEX.md and GEMINI.md)
+for f in PLAYBOOK.md; do
   if [[ -f "$DST_ROOT/$f" ]]; then
     rm -f "$DST_ROOT/$f"
     echo "  MIGRATE removed legacy root: $f"
@@ -545,9 +574,9 @@ if [[ -d "$DST_ROOT/docs/ai" ]]; then
 fi
 
 
-# Root canonical shims (AGENTS.md and PLAYBOOK.md are now inside .aai/)
+# Root canonical shims (PLAYBOOK.md is now inside .aai/; AGENTS.md is a root shim again)
 # README.md is synced as README_AAI.md to avoid overwriting the target project's own README.
-for f in CLAUDE.md CODEX.md GEMINI.md SKILLS.md; do
+for f in AGENTS.md CLAUDE.md CODEX.md GEMINI.md SKILLS.md; do
   if [[ -f "$SRC_ROOT/$f" && -f "$DST_ROOT/$f" ]] && file_content_different "$SRC_ROOT/$f" "$DST_ROOT/$f"; then
     OVERWRITE_CONFLICTS+=("$f|Target file contains local changes. Use AI agent to merge project-specific instructions into docs/ai/project-overrides/$f and keep synced shim concise.")
   fi
@@ -569,23 +598,28 @@ if [[ -f "$SRC_ROOT/.github/copilot-instructions.md" ]]; then
   override_dir="$DST_ROOT/docs/ai/project-overrides"
   override_file="$override_dir/copilot-instructions.project.md"
   if [[ -f "$dst_copilot" ]] && file_content_different "$SRC_ROOT/.github/copilot-instructions.md" "$dst_copilot"; then
-    mkdir -p "$override_dir"
     project_overrides="$(extract_copilot_project_overrides "$dst_copilot" 2>/dev/null || true)"
     if [[ -z "$project_overrides" && -f "$override_file" ]]; then
       project_overrides="$(cat "$override_file")"
     fi
-    printf "%s\n" "$project_overrides" > "$override_file"
-    {
-      cat "$SRC_ROOT/.github/copilot-instructions.md"
-      echo
-      echo "---"
-      echo "## Project Overrides (auto-merged)"
-      echo
-      echo "<!-- AAI-PROJECT-OVERRIDES:START -->"
-      printf "%s\n" "$project_overrides"
-      echo "<!-- AAI-PROJECT-OVERRIDES:END -->"
-    } > "$dst_copilot"
-    echo "  MERGE preserved project overrides in: $override_file"
+    if copilot_shim_is_shipped "$project_overrides" "$SRC_ROOT/.aai/system/COPILOT_SHIM_SHIPPED.list"; then
+      copy_replace "$SRC_ROOT/.github/copilot-instructions.md" "$dst_copilot"
+      echo "  SYNC .github/copilot-instructions.md (unmodified shipped shim replaced, no project overrides)"
+    else
+      mkdir -p "$override_dir"
+      printf "%s\n" "$project_overrides" > "$override_file"
+      {
+        cat "$SRC_ROOT/.github/copilot-instructions.md"
+        echo
+        echo "---"
+        echo "## Project Overrides (auto-merged)"
+        echo
+        echo "<!-- AAI-PROJECT-OVERRIDES:START -->"
+        printf "%s\n" "$project_overrides"
+        echo "<!-- AAI-PROJECT-OVERRIDES:END -->"
+      } > "$dst_copilot"
+      echo "  MERGE preserved project overrides in: $override_file"
+    fi
   else
     copy_replace "$SRC_ROOT/.github/copilot-instructions.md" "$dst_copilot"
   fi
