@@ -2387,17 +2387,17 @@ test_3022_real_history_replay_501_502() {
     fs.writeFileSync(process.argv[1], kept.join("\n"));
   ' "$led" || log_fail "TEST-3022: overlay filter failed"
   ( cd "$PROJECT_ROOT" && node "$SA" list --ledger "$led" --base-ref 72a8c2ea --json > "$led.out.json" ) || log_fail "TEST-3022: list failed"
-  json="$(<"$led.out.json")"
+  json="$led.out.json"
   for k in 98ec877de848 949419e17d08 f4fc1fe9a179 f6993ac19a97 d2d5f37e6ed6 083edab1cd4f 04a6a38c2bd8 86aff82b4b9d 21f05c8acd17 db41b41061fe; do
     node -e '
-      const res = JSON.parse(process.argv[1]);
+      const res = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
       const it = res.items.find(i => i.record_key === process.argv[2]);
       if (!it) process.exit(1);
       if (it.bucket !== "signed") process.exit(2);
     ' "$json" "$k" || log_fail "TEST-3022: record $k is not signed"
   done
   node -e '
-    const c = JSON.parse(process.argv[1]).counts;
+    const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).counts;
     const want = { signed: 400, measurement: 142, "unsigned-tracked": 2, "unsigned-untracked": 0, unclassified: 0 };
     for (const k of Object.keys(want)) if (c[k] !== want[k]) { console.error(k + " " + c[k] + " != " + want[k]); process.exit(1); }
   ' "$json" || log_fail "TEST-3022: bucket totals are not 400/142/2/0/0"
