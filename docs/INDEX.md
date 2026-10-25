@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-implied-signing-without-links-pr | specs | implementing | 5 planned | docs/specs/SPEC-DRAFT-spec-implied-signing-without-links-pr.md |
+| spec-implied-signing-without-links-pr | specs | implementing | 5 done | docs/specs/SPEC-DRAFT-spec-implied-signing-without-links-pr.md |
 
 ## Canonical layer (0)
 
@@ -681,7 +681,7 @@ _None._
 
 _None._
 
-## Broken references (513)
+## Broken references (514)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1110,6 +1110,7 @@ _None._
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-0320-spec-t1375-proven.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-0999-merged-ride.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-1000-unmerged-ride.md | NOT FOUND |
+| tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-3000-sq-ride.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-DRAFT-spec-pair.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-DRAFT-spec-seed.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-DRAFT-spec-t008.md | NOT FOUND |

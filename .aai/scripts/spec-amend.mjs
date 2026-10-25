@@ -375,9 +375,24 @@ function byTsAscending(a, b) {
   return at < bt ? -1 : at > bt ? 1 : 0;
 }
 
-// Base-ref ride cache: Map<`${cwd}:${baseRef}`, Map<rideKey, { id, status, isDone }>>
+// Base-ref ride cache: Map<`${cwd}:${baseRef}`, Map<rideKey, { id, status, prs, isDone, rel }>>.
+// An entry compares the ride doc's status and links.pr on the base ref, and, when
+// links.pr is empty, the subject of the newest first-parent base commit that
+// touched the doc (squashPr, filled on first use).
 const BASE_DOCS_CACHE = new Map();
 const RESOLVE_BASE_REF_CACHE = new Map();
+
+// The PR number the base branch's squash merge writes at the end of its subject.
+const SQUASH_PR_SUFFIX = / \(#([1-9][0-9]*)\)$/;
+
+// The PR number in the subject of the newest first-parent commit of baseRef that
+// touched rel; null when git fails or the subject does not end in the suffix.
+function squashPrFromBase(cwd, baseRef, rel) {
+  const r = spawnSync('git', ['log', '-1', '--first-parent', '--format=%s', baseRef, '--', rel], { cwd, encoding: 'utf8' });
+  if (r.status !== 0) return null;
+  const m = r.stdout.replace(/\n$/, '').match(SQUASH_PR_SUFFIX);
+  return m ? Number(m[1]) : null;
+}
 
 function resolveBaseRef(cwd, explicitBaseRef) {
   const cacheKey = `${cwd}:${explicitBaseRef ?? ''}`;
@@ -432,7 +447,7 @@ function getBaseDocIndex(cwd, baseRef) {
     if (fm && fm.id) {
       const prs = (Array.isArray(fm.links?.pr) ? fm.links.pr : [fm.links?.pr]).filter(Boolean);
       const isDone = fm.status === 'done' && prs.length > 0;
-      const info = { id: String(fm.id), status: fm.status, prs, isDone };
+      const info = { id: String(fm.id), status: fm.status, prs, isDone, rel: rels[n] };
       byKey.set(String(fm.id), info);
       byKey.set(`spec-${fm.id}`, info);
       if (String(fm.id).startsWith('spec-')) byKey.set(String(fm.id).slice(5), info);
@@ -449,7 +464,12 @@ function checkRideMerged(refId, cwd, explicitBaseRef) {
   const baseRef = resolveBaseRef(cwd, explicitBaseRef);
   if (!baseRef) return false;
   const index = getBaseDocIndex(cwd, baseRef);
-  return Boolean(index.get(refId)?.isDone);
+  const info = index.get(refId);
+  if (!info) return false;
+  if (info.status !== 'done') return false;
+  if (info.prs.length > 0) return true;
+  if (info.squashPr === undefined) info.squashPr = squashPrFromBase(cwd, baseRef, info.rel);
+  return info.squashPr !== null;
 }
 
 // foldAmendments(records, opts = {}) -> { items, followUps, notes, counts, byKey, byRecord }
@@ -583,7 +603,9 @@ function foldAmendments(records, opts = {}) {
     //
     // Implied signature fold (DEBT-0013 / SPEC-0226): an unsigned contract-class
     // amendment is signed at read time when its ride doc is status: done and
-    // merged into the base branch with a PR number in links.pr. Zero overlays
+    // merged into the base branch with a PR number in links.pr, or, when links.pr
+    // is empty, with the newest first-parent base commit touching the ride doc
+    // carrying a subject that ends in ` (#<n>)`. Zero overlays
     // written, zero dirty checkout after merge. Unmerged rides stay unsigned.
     let bucket;
     let impliedByMerge = false;
