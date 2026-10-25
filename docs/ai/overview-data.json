@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-25T05:20:06.421Z",
+  "generatedAt": "2026-10-25T10:29:00.263Z",
   "project": "aai",
   "counts": {
     "delivered": 321,
@@ -57,11 +57,11 @@
       "status": "draft",
       "path": "docs/issues/CHANGE-0227-merge-cleanup-resolves-framework-friction.md",
       "closed_on": null,
-      "agent_minutes": null,
+      "agent_minutes": 299,
       "token_total": null,
-      "spec": null,
+      "spec": "docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-merge-cleanup-resolves-framework-friction-r3-20261025T094658Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",

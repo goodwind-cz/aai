@@ -9,8 +9,9 @@ delivered_by:
   - merge-cleanup-submodule-worktree
   - merge-cleanup-delete-remote-branch
   - merge-cleanup-ride-leftovers
+  - merge-cleanup-resolves-framework-friction
 spec: docs/specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md
-updated: 2026-10-11
+updated: 2026-10-25
 ---
 
 # Merge a named pull request and clean up after it
@@ -71,9 +72,33 @@ The cleanup also handles the traces a ride leaves behind itself:
   cleanup engine itself, the new engine finishes the run in the same
   invocation.
 
-When anything is uncertain, it stops and names the reason rather than guessing.
-Running it again, or after an interruption, finishes the remaining steps and
-reports the completed ones as no-ops.
+Every refusal or stopped step is sorted into one of five outcomes, by one table
+in the engine, and printed as an `OUTCOME <json>` line the agent routes instead
+of improvising:
+
+- **Fixed by the cleanup.** A leftover draft whose content matches the numbered
+  document, a roadmap change the merged roadmap already contains, a generated
+  page, or a missing pull-request link. It archives first, then fixes.
+- **Kept.** Your uncommitted work in a worktree, a main checkout on another
+  branch or with its own commits, a staged roadmap change, a branch that moved.
+  Nothing there is touched; the step is reported as `Kept: ...` and the other
+  steps finish.
+- **Retried.** A failed fetch or a dropped connection during the cleanup. The
+  agent reruns the same block without asking, at most twice in a row; the
+  second retry only when the item, origin HEAD, the journal's done lines or the
+  manifest's row count differ from the retrying run. A failed platform read in
+  preflight is not retried; it goes straight to you.
+- **A question with a recommendation.** A leftover draft that differs from the
+  numbered document, or a roadmap clash the merged roadmap does not contain.
+  The agent asks one menu for all of them, then runs the block again with your
+  answers in `AAI_DECIDE` (exit 6 means an answer is still owed).
+- **Needs you.** A missing login or a closed pull request. The `Needs you:`
+  line says exactly what to do and which command to run again.
+
+The run ends with a plain report: `Merge:`, `Cleanup:`, the `Kept:` items, the
+open `Decision:` items and the `Needs you:` items. Running it again, or after
+an interruption, finishes the remaining steps and reports the completed ones as
+no-ops.
 
 ## How to use it
 
@@ -92,6 +117,10 @@ reports the completed ones as no-ops.
   does it. Pass `--origin` with the checkout whose ledger should carry the
   signatures (the ride worktree, so they ship in its pull request); without it
   every mode reads and writes the main checkout (the first git worktree).
+- Answer the cleanup's question: the agent shows the `Decision:` items as one
+  menu and reruns the block with `AAI_DECIDE="<id>=<option>,..."` (or
+  `--decide`). An option that was not offered prints `IGNORED` and changes
+  nothing.
 - Read-only look first:
   `node .aai/scripts/merge-cleanup.mjs plan --pr 447` lists every step and
   target without changing anything.
@@ -160,10 +189,10 @@ reports the completed ones as no-ops.
   answer; a `directed_merge` (your words about one pull request) does not
   authorize it. Trackers it leaves open are reported with the reason
   (`excluded`, `unmerged:<ref>`, `unclassified:<key>`, `no_contract_records`).
-- Exit codes: 0 complete, 2 usage error, 3 refused before any change
-  (`REFUSE <reason> <detail>`), 4 stopped mid-way (a re-run resumes), 10
-  preflight ready. On 3 or 4 the agent relays the line to you verbatim and
-  stops; it never finishes a step by hand.
+- Exit codes: 0 complete or kept, 2 usage error, 3 refused
+  (`REFUSE <reason> <detail>` with an `OUTCOME` line), 4 stopped mid-way (a
+  re-run resumes), 6 a decision is pending, 10 preflight ready. The agent routes
+  each `OUTCOME` line by its class and state; it never finishes a step by hand.
 - Refusal reasons include `no_direction`, `not_open`, `draft`,
   `head_changed`, `checks_failing`, `not_mergeable`, `sweep_missing`,
   `repo_mismatch`, `not_merged`, `merge_commit_not_on_base`,
