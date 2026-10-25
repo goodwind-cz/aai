@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "origin/main...HEAD (ff32ec2e..b0f8b4ab) in /private/tmp/aai-adapter-slice, branch change/provider-adapter-registry-slice"
-  spec: docs/specs/SPEC-DRAFT-spec-provider-adapter-registry-slice.md
+  spec: docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -48,7 +48,7 @@ review:
 security_relevant: false
 
 - Scope: `git diff origin/main...HEAD` in `/private/tmp/aai-adapter-slice` (ff32ec2e..b0f8b4ab, 11 commits, 22 files, +1867/-69).
-- Spec: `docs/specs/SPEC-DRAFT-spec-provider-adapter-registry-slice.md` (frozen, L2, tdd).
+- Spec: `docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md` (frozen, L2, tdd).
 - Reviewer: claude-opus-5-5 (the implementer was claude-sonnet-5-5). I read the tree only. Commands ran in a scratch clone at `.../scratchpad/pa-cr-r1/repo`.
 - Dispatch note (anti-gaming): the dispatch had a "Focus" list naming areas to check, and a "known pre-existing failures" note. It did not rate any severity or exclude any area. I reviewed the full diff anyway.
 

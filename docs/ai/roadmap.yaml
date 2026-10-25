@@ -103,7 +103,7 @@ pairs:
   - capability: merge-cleanup-resolves-framework-friction
     status: done
   - capability: provider-adapter-registry-slice
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

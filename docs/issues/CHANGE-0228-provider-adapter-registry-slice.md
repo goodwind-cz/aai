@@ -1,8 +1,8 @@
 ---
 id: provider-adapter-registry-slice
 type: change
-number: null
-status: draft
+number: 228
+status: done
 capability: provider-adapter-registry
 user_visible: true
 links:

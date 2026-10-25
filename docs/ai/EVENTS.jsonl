@@ -3317,3 +3317,9 @@
 {"v":1,"ts":"2026-10-25T14:43:13Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"provider-adapter-registry-slice","payload":{"role":"validation","head":"b0f8b4abaf38c26438be31d0259da57c3bbb7526","seen":"run_at:null"}}
 {"v":1,"ts":"2026-10-25T15:26:49Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"provider-adapter-registry-slice","payload":{"from":"draft","to":"draft"}}
 {"v":1,"ts":"2026-10-25T15:38:47Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"provider-adapter-registry-slice","payload":{"role":"validation","head":"15359acfc0a7c563d9e86425516297ef732923da","seen":"run_at:2026-10-25T15:38:47Z"}}
+{"v":1,"ts":"2026-10-25T16:17:06Z","actor":"ales_holubec.net","event":"check_verdict","ref":"provider-adapter-registry-slice","payload":{"role":"validation","head":"ba0f3be9001cd091d9dc5251f9a865c5a8305300","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-10-25T16:17:06Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"provider-adapter-registry-slice","payload":{"status":"pass","hash":"b756c347f0d7f31fab539e6cd7977f11b4b8f92d98dd2f63a03d66a155bc3f06"}}
+{"v":1,"ts":"2026-10-25T16:20:34Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"provider-adapter-registry-slice","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-25T16:20:34Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"provider-adapter-registry-slice","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-25T16:20:35Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-provider-adapter-registry-slice","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-25T16:20:35Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-provider-adapter-registry-slice","payload":{"validation":"pass","code_review":"pass"}}

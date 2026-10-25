@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "origin/main...HEAD (ff32ec2e..15359acf) in /private/tmp/aai-adapter-slice, branch change/provider-adapter-registry-slice; r2 focus = remediation commit 15359acf"
-  spec: docs/specs/SPEC-DRAFT-spec-provider-adapter-registry-slice.md
+  spec: docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -45,7 +45,7 @@ review:
 security_relevant: false
 
 - Scope: `git diff origin/main...HEAD` in `/private/tmp/aai-adapter-slice` (ff32ec2e..15359acf, 12 commits, 25 files, +2020/-69). The r2 delta is commit 15359acf. Its other changed files (r1 report, EVENTS, decisions, test-runs) are ledger and evidence only.
-- Spec: `docs/specs/SPEC-DRAFT-spec-provider-adapter-registry-slice.md` (frozen, L2, tdd).
+- Spec: `docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md` (frozen, L2, tdd).
 - Reviewer: claude-opus-5-5 (implementer: claude-sonnet-5-5). I only read the worktree. Every command ran in disposable clones at 15359acf under `.../scratchpad/pa-cr-r2/{repo,probe}`, with the worktree's `docs/ai/tdd/` evidence and EVENTS copied in.
 - Dispatch note (anti-gaming): the dispatch asked me to focus on whether the r1 findings were closed, and it described the remediation as the orchestrator sees it. It did not pre-rate severity or exclude any area. I re-walked every AC and the whole delta.
 

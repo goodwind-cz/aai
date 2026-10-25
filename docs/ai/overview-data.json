@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-25T10:36:26.727Z",
+  "generatedAt": "2026-10-25T16:20:42.932Z",
   "project": "aai",
   "counts": {
-    "delivered": 322,
+    "delivered": 323,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md",
       "validation": null,
       "review": "docs/ai/reviews/review-merge-cleanup-resolves-framework-friction-r3-20261025T094658Z.md"
+    },
+    {
+      "ref": "provider-adapter-registry-slice",
+      "title": "Generate one more provider adapter surface from a single registry",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0228-provider-adapter-registry-slice.md",
+      "closed_on": "2026-10-25",
+      "agent_minutes": 277,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-provider-adapter-registry-slice-r2-20261025T155447Z.md"
     },
     {
       "ref": "node-first-second-slice",
@@ -4459,6 +4472,19 @@
           "spec": "docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md",
           "validation": null,
           "review": "docs/ai/reviews/review-merge-cleanup-resolves-framework-friction-r3-20261025T094658Z.md"
+        },
+        {
+          "ref": "provider-adapter-registry-slice",
+          "title": "Generate one more provider adapter surface from a single registry",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0228-provider-adapter-registry-slice.md",
+          "closed_on": "2026-10-25",
+          "agent_minutes": 277,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-provider-adapter-registry-slice-r2-20261025T155447Z.md"
         },
         {
           "ref": "node-first-second-slice",

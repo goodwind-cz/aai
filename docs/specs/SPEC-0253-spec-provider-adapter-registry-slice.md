@@ -1,10 +1,10 @@
 ---
 id: spec-provider-adapter-registry-slice
 type: spec
-number: null
-status: implementing
+number: 253
+status: done
 mutation_gate: v1
-frozen_sha256: 8ef6702baa52519961c06f6418e0629d7161734f98751d478911efc27dab5d27
+frozen_sha256: ca6dd90b4ba97d7a1b99f6c33ac46a761b58c1d5ef3109e7592338ea0ee33ab1
 ceremony_level: 2
 links:
   requirement: provider-adapter-registry-slice
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [CHANGE-DRAFT-provider-adapter-registry-slice](../issues/CHANGE-DRAFT-provider-adapter-registry-slice.md), AC-001 to AC-007.
+- Requirement: [CHANGE-0228-provider-adapter-registry-slice](../issues/CHANGE-0228-provider-adapter-registry-slice.md), AC-001 to AC-007.
 - RFC: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md), §4 ("Extend the existing
   profile/manifest machinery to produce provider wrappers; avoid adding another overlapping registry"),
   Evidence row "Agent adapters", Rollout phase 4.
@@ -61,8 +61,8 @@ SPEC-FROZEN: true
   CLAUDE.md AGENTS.md CODEX.md GEMINI.md .github/copilot-instructions.md .cursor/rules/aai.mdc
   tests/skills/test-aai-harness-shims.sh tests/skills/test-aai-hygiene-pack.sh tests/skills/suite-map.yaml
   docs/ai/decisions.jsonl
-  docs/specs/SPEC-DRAFT-spec-provider-adapter-registry-slice.md
-  docs/issues/CHANGE-DRAFT-provider-adapter-registry-slice.md
+  docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md
+  docs/issues/CHANGE-0228-provider-adapter-registry-slice.md
   (after LOOP COMPLETE the ship step adds docs/product/provider-adapter-registry.md and CHANGELOG.md and
   re-sets the review scope; an existing suite outside the list is edited only when one of its pins names a
   literal this scope changes, and the hand-off names it).
