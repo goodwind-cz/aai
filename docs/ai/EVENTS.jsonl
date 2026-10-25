@@ -3304,3 +3304,4 @@
 {"v":1,"ts":"2026-10-25T10:36:19Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-merge-cleanup-resolves-framework-friction","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-25T10:36:19Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-merge-cleanup-resolves-framework-friction","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-25T11:35:28Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"merge-cleanup-resolves-framework-friction","payload":{"pr":501,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"a83103b60d78ce93776636db46efe289c79942f1"}}
+{"v":1,"ts":"2026-10-25T12:59:30Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-provider-adapter-registry-slice","payload":{"from":"draft","to":"implementing"}}
