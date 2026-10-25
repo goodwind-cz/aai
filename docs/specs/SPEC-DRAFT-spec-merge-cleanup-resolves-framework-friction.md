@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 21630b4ca14088e2965fdb39c69cc1be92c96014e1b1e545222eae99681059be
+frozen_sha256: ff3ab61bfe9f03a72aeac444427fb8d51ad6292028d4017626bb9cf2df2042f9
 ceremony_level: 2
 links:
   requirement: merge-cleanup-resolves-framework-friction
@@ -418,10 +418,10 @@ protection check. The TEST-046 staged arm asserts the kept outcome.
 
 Remediation round 2 (non-blocking fold) amends further: the D2 table now lists
 the two kept reasons `overlap_staged` and `untracked_not_file`; plan mode names
-a kept sync-base step with a `keep ... (reason)` line instead of `planned`;
+a kept sync-base step with a `keep ... (reason)` line under its `planned` step row;
 the SKILL_MERGE retry sentence states what the engine compares (a second
-consecutive retry only when origin HEAD, the journal or the manifest changed
-since the retrying run); a draft whose frontmatter `id:` is blank or whitespace
+consecutive retry only when the item, origin HEAD, the journal's done lines or
+the manifest's row count differ from the retrying run); a draft whose frontmatter `id:` is blank or whitespace
 is read as having no id; the preflight `Needs you:` text says to run the
 preflight again, not the cleanup. The SPEC-0222 D6 remaining-line wording for
 the base sync is changed by these two kept reasons (disclosed here, as in

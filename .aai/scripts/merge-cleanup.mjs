@@ -108,9 +108,9 @@ function raise(reason, subject, detail, { phase = 'step', evidence = [] } = {}) 
   const af = attemptsFile();
   const att = af ? nextAttempt(readJsonl(af), fp) : { retry: false };  // no attempts record (preflight, plan): a retry reason goes straight to its fallback class
   const ev = evidence.length ? evidence : [fp];
-  let o = classify(reason, { phase, subject, detail, evidence: ev, retry: att.retry });
+  let o = classify(reason, { phase, subject, detail, evidence: ev, retry: att.retry, pre: RUN.opts?.mode === 'preflight' });
   // an answer that names this id was given for the fallback menu the previous run showed
-  if (o.state === 'retry' && RUN.decisions.some((d) => d.id === o.id)) o = classify(reason, { phase, subject, detail, evidence: ev, retry: false });
+  if (o.state === 'retry' && RUN.decisions.some((d) => d.id === o.id)) o = classify(reason, { phase, subject, detail, evidence: ev, retry: false, pre: RUN.opts?.mode === 'preflight' });
   const ch = o.class === 'decide' ? choiceFor(o, RUN.decisions) : null;
   if (ch) {
     const file = choicesFile();

@@ -4047,7 +4047,7 @@ test_2925_preflight_retry_is_bounded() {
     [[ "$(oc "$ENG_OUT" 'o[0].class+" "+o[0].state')" == 'external pending' ]] || fail TEST-2925 "run $i is not external (a retry is the loop the router cannot leave): $(oc "$ENG_OUT" 'o[0]')"
     want TEST-2925 "$ENG_OUT" 'Needs you: check the GitHub CLI login'
     want TEST-2925 "$ENG_OUT" 'then run the preflight again'
-    unwanted TEST-2925 "$(printf '%s\n' "$ENG_OUT" | sed -n '/^Needs you:/p')" 'run the cleanup again'
+    unwanted TEST-2925 "$ENG_OUT" 'run the cleanup again'
   done
   [[ "$(world_digest)" == "$before" ]] || fail TEST-2925 'the preflight runs changed the fixture'
   assert_no_merge_call TEST-2925
