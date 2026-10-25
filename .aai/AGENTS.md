@@ -308,7 +308,9 @@ discipline is opt-in downstream).
    capability or a public / external side effect.
 2. **A question is a menu.** When the owner must decide, present options with
    a recommended default (AskUserQuestion or the equivalent), never an
-   open-ended "what next?".
+   open-ended "what next?". The framework diagnoses and recovers its own problems;
+   the owner decides only product intent or meaningful risk, never a framework
+   debugging task or a bare "continue".
 3. **Two review rounds max.** A third finding-bearing round means the ride was
    cut wrong: split it, do not re-verify it.
 4. **Rides come from the roadmap, in order.** `docs/ai/roadmap.yaml` orders the

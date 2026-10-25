@@ -1019,7 +1019,9 @@ test_012_growth_sum_matches_ledger() {
   # matching RECHECK_DELTA sentence, measured deficit by TEST-010 against ba552b89, credited 1:1).
   # Then 62785 -> 63094: recheck-verdict-binding (+309 B: check-role-output.mjs --recheck-mode and the merge-nothing clause in
   # ORCHESTRATION (+77 B) and ORCHESTRATION_PARALLEL (+230 B) plus 1 B each from the default-on rewording, measured against 59ee0ff2, credited 1:1).
-  local want_growth=63094
+  # Then 63094 -> 63776: merge-cleanup-resolves-framework-friction (+682 B: SKILL_MERGE step 1 and 2 route OUTCOME lines, step 3 relays the
+  # plain-language lines, both blocks pass AAI_DECIDE; measured against fb171891, credited 1:1; AGENTS.md rule 2 is outside the glob, no credit).
+  local want_growth=63776
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2729,13 +2731,16 @@ test_2824_diet_entry_for_binding() {
     log_fail "TEST-2824 JUSTIFIED_ADDITIONS array does not exist"
     return
   fi
-  local base_glob=370992 glob growth _e entry='' n=0 ref lead
+  local base_glob=370992 glob growth _e entry='' n=0 ref lead later=0
   glob=$(cat .aai/*.prompt.md | wc -c | tr -d ' ')
   growth=$(( glob - base_glob ))
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
     ref="${_e#* }"; ref="${ref%% *}"
-    if [[ "$ref" == "recheck-verdict-binding" ]]; then entry="$_e"; n=$((n + 1)); fi
+    if [[ "$ref" == "recheck-verdict-binding" ]]; then entry="$_e"; n=$((n + 1)); later=0; continue; fi
+    # credits of the entries appended after this one are later rides' growth (merge-cleanup-resolves-framework-friction)
+    if [[ "$n" -ge 1 ]]; then later=$(( later + ${_e%% *} )); fi
   done
+  growth=$(( growth - later ))
   lead="${entry%% *}"
   if [[ "$growth" -gt 0 ]]; then
     if [[ "$n" -ne 1 ]]; then
