@@ -3215,7 +3215,7 @@ test_075_reconcile_origin_step() {
 }
 
 # ---------------------------------------------------------------------------
-# spec-merge-cleanup-resolves-framework-friction: TEST-2901..TEST-2929.
+# spec-merge-cleanup-resolves-framework-friction: TEST-2901..TEST-2930.
 # A protected object is kept, a decision is asked as a menu, a failed read is retried a bounded number of times.
 LIB="$ROOT/.aai/scripts/lib/merge-outcomes.mjs"
 SKILL_BLOCK="$ROOT/.aai/SKILL_MERGE.prompt.md"
@@ -4119,6 +4119,39 @@ test_2927_locally_deleted_files_sync_cleanly() {
   echo 'PASS: TEST-2927 a locally deleted projection or answered overlap file is recreated by the sync, no stack trace'
 }
 
+test_2930_symlink_overlap_never_written_through() {
+  local id out_d out_f
+  out_d="$SCRATCH/outside-dangling.txt"; out_f="$SCRATCH/outside-file.txt"
+  rm -f "$out_d"; printf 'precious\n' > "$out_f"
+  # a tracked file replaced by a DANGLING symlink, take_incoming answered: kept, nothing created outside
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world sym_dangling
+  run rm "$ORIGIN/docs/USER_GUIDE.md"
+  ln -s "$out_d" "$ORIGIN/docs/USER_GUIDE.md"
+  apply_run
+  id="$(oc_id "$ENG_OUT" overlap)" || id=''
+  [[ -z "$id" ]] || apply_run --decide "$id=take_incoming"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2930 "dangling: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2930 "$ENG_OUT" '"reason":"overlap_not_file"'
+  want TEST-2930 "$ENG_OUT" 'Kept: '
+  unwanted TEST-2930 "$ENG_OUT" 'Cleanup: complete.'
+  [[ ! -e "$out_d" && ! -L "$out_d" ]] || fail TEST-2930 'dangling: the symlink target outside the checkout was created'
+  [[ -L "$ORIGIN/docs/USER_GUIDE.md" ]] || fail TEST-2930 'dangling: the local symlink was removed'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-2930 'dangling: main moved although the sync was kept'
+  # a generated projection replaced by a symlink to a file outside the checkout: that file stays as it was
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world sym_outside
+  run rm "$ORIGIN/docs/ai/overview-data.json"
+  ln -s "$out_f" "$ORIGIN/docs/ai/overview-data.json"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2930 "outside: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2930 "$ENG_OUT" '"reason":"overlap_not_file"'
+  want TEST-2930 "$ENG_OUT" 'Kept: '
+  [[ "$(cat "$out_f")" == precious ]] || fail TEST-2930 'outside: the file the symlink points at was overwritten'
+  [[ -L "$ORIGIN/docs/ai/overview-data.json" ]] || fail TEST-2930 'outside: the local symlink was removed'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-2930 'outside: main moved although the sync was kept'
+  BASELINE_SEED='' RIDE_SEED=''
+  echo 'PASS: TEST-2930 a symlink where the sync would write is kept and never written through'
+}
+
 test_2928_recovery_waits_for_protection_check() {
   local before
   BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world rec_protected
@@ -4359,7 +4392,7 @@ case "$SELECTED" in
      test_068_generic_refuses_with_manual; test_070_azure_preflight_ready_and_refusals; test_072_azure_apply_cleanup
      test_073_platform_mismatch_refuses_before_any_read; test_074_github_recorded_and_legacy_unchanged
      test_075_reconcile_origin_step
-     test_2901_outcome_table_complete; test_2902_outcome_lines_from_real_runs; test_2903_pr485_parent_child_roadmap; test_2904_unrepresented_roadmap_decides; test_2905_absent_links_pr_proven_by_merge_commit; test_2906_conflicting_or_old_identity_not_proven; test_2907_superseded_draft_archived; test_2908_divergent_draft_menu; test_2909_unproven_drafts_untouched; test_2910_generated_projection_taken; test_2911_decide_channel; test_2912_router_resumes_in_one_interaction; test_2914_worktree_protections_kept; test_2915_sync_protections_kept; test_2916_preflight_gates_hold; test_2917_archive_verification_and_no_new_primitive; test_2918_next_attempt; test_2919_retry_chain_terminates; test_2920_interrupted_recovery_converges; test_2921_plain_summary; test_2922_skill_and_engine_agree; test_2923_governance; test_2924_amended_prior_arms; test_2925_preflight_retry_is_bounded; test_2926_unactionable_clash_choices_not_offered; test_2927_locally_deleted_files_sync_cleanly; test_2928_recovery_waits_for_protection_check; test_2929_null_identity_never_matches ;;
+     test_2901_outcome_table_complete; test_2902_outcome_lines_from_real_runs; test_2903_pr485_parent_child_roadmap; test_2904_unrepresented_roadmap_decides; test_2905_absent_links_pr_proven_by_merge_commit; test_2906_conflicting_or_old_identity_not_proven; test_2907_superseded_draft_archived; test_2908_divergent_draft_menu; test_2909_unproven_drafts_untouched; test_2910_generated_projection_taken; test_2911_decide_channel; test_2912_router_resumes_in_one_interaction; test_2914_worktree_protections_kept; test_2915_sync_protections_kept; test_2916_preflight_gates_hold; test_2917_archive_verification_and_no_new_primitive; test_2918_next_attempt; test_2919_retry_chain_terminates; test_2920_interrupted_recovery_converges; test_2921_plain_summary; test_2922_skill_and_engine_agree; test_2923_governance; test_2924_amended_prior_arms; test_2925_preflight_retry_is_bounded; test_2926_unactionable_clash_choices_not_offered; test_2927_locally_deleted_files_sync_cleanly; test_2928_recovery_waits_for_protection_check; test_2929_null_identity_never_matches; test_2930_symlink_overlap_never_written_through ;;
   TEST-059|test_059_lane_gate_passes_without_pr_sweep) test_059_lane_gate_passes_without_pr_sweep ;;
   TEST-060|test_060_skill_pr_prompt_free_of_pr_sweep) test_060_skill_pr_prompt_free_of_pr_sweep ;;
   TEST-061|test_061_prompt_diet_passes) test_061_prompt_diet_passes ;;
@@ -4449,5 +4482,6 @@ case "$SELECTED" in
   TEST-2927|test_2927_locally_deleted_files_sync_cleanly) test_2927_locally_deleted_files_sync_cleanly ;;
   TEST-2928|test_2928_recovery_waits_for_protection_check) test_2928_recovery_waits_for_protection_check ;;
   TEST-2929|test_2929_null_identity_never_matches) test_2929_null_identity_never_matches ;;
+  TEST-2930|test_2930_symlink_overlap_never_written_through) test_2930_symlink_overlap_never_written_through ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

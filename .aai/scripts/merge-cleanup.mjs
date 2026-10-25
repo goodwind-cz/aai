@@ -437,6 +437,9 @@ function syncGate({ origin, base }) {
   return { head, target };
 }
 
+// Never write through a symlink (dangling too) or a directory; only ENOENT counts as deleted locally.
+const notFile = (abs) => { try { return !fs.lstatSync(abs).isFile(); } catch { return false; } };
+
 // Reads and decisions only, no writes. Returns { refusal: [reason, detail] } (a kept reason), { held: {...} } (a
 // decide item: pending or answered keep_local) or a plan. An answered take_incoming joins the plan.
 function planSync(ctx) {
@@ -452,8 +455,7 @@ function planSync(ctx) {
     const r = git(origin, args);
     return r.status === 0 ? r.stdout.split('\0').filter(Boolean) : [];
   };
-  const dirty = names(['diff', '--name-only', '-z', 'HEAD']);
-  const staged = new Set(names(['diff', '--cached', '--name-only', '-z']));
+  const dirty = names(['diff', '--name-only', '-z', 'HEAD']), staged = new Set(names(['diff', '--cached', '--name-only', '-z']));
   const plan = { head, target, ledgers: [], index: false, replace: [], removeEqual: [], taken: false };
   const read = (rel) => { try { return fs.readFileSync(path.join(origin, rel)); } catch { return null; } };
   // a decide item: answered take_incoming joins the plan, anything else holds the step
@@ -466,6 +468,7 @@ function planSync(ctx) {
     const isIndex = rel === INDEX_PATH;
     const isRoadmap = rel === ROADMAP_PATH;
     if (!isLedger && !isIndex && !incoming.has(rel)) continue;
+    if (notFile(path.join(origin, rel))) return { refusal: ['overlap_not_file', rel] };
     const evidence = [read(rel) ?? '', readBlob(origin, `${head}:${rel}`) ?? '', readBlob(origin, `${target}:${rel}`) ?? ''];
     if (staged.has(rel)) return { refusal: ['overlap_staged', rel] };
     if (isIndex) { plan.index = true; plan.replace.push(rel); continue; }
@@ -589,17 +592,16 @@ function regenIndex(ctx) {
 
 function syncBase(ctx) {
   const gate = syncGate(ctx); if (gate.refusal) halt(...gate.refusal, { phase: 'plan' });
-  const resumed = pendingJournals(ctx).map((f) => resumeSync(ctx, f)).pop() ?? null;
-  const plan = planSync(ctx);
+  const resumed = pendingJournals(ctx).map((f) => resumeSync(ctx, f)).pop() ?? null, plan = planSync(ctx);
   if (plan.refusal) halt(...plan.refusal, { phase: 'plan' });
   if (plan.held) {
     if (plan.held.option === 'keep_local') keptItem(plan.held.o, 'sync-base');
     throw new Keep(plan.held.reason, plan.held.detail);
   }
   if (plan.noop) return resumed ? { status: 'done', detail: resumed } : { status: 'noop', detail: 'already_at_target' };
-  const { origin, opts } = ctx;
-  const root = archiveRoot(origin, opts.pr);
-  const saved = [];
+  const { origin, opts } = ctx; const root = archiveRoot(origin, opts.pr); const saved = [], pendingEntries = [];
+  const odd = [...plan.ledgers, ...plan.replace, ...plan.removeEqual.map((r) => r.rel)].find((rel) => notFile(path.join(origin, rel)));
+  if (odd) halt('overlap_not_file', odd, { phase: 'plan' });
   // Puts the pre-sync local bytes back after a failed fast-forward, keeping anything another
   // session appended meanwhile. Returns the files it could not prove safe to touch.
   const restore = () => {
@@ -614,7 +616,6 @@ function syncBase(ctx) {
     }
     return stuck;
   };
-  const pendingEntries = [];
   for (const rel of [...plan.ledgers, ...plan.replace]) {
     const abs = path.join(origin, rel);
     let bytes = null; try { bytes = fs.readFileSync(abs); } catch { /* deleted locally: nothing to archive, the rewrite below recreates it */ }
@@ -649,8 +650,7 @@ function syncBase(ctx) {
     fs.rmSync(pendingPath(ctx), { force: true });
     stop('sync_failed', why);
   }
-  const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim();
-  const refNow = git(origin, ['rev-parse', `refs/heads/${ctx.base}`]).stdout.trim();
+  const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim(), refNow = git(origin, ['rev-parse', `refs/heads/${ctx.base}`]).stdout.trim();
   if (headNow !== plan.target || refNow !== plan.target) stop('sync_failed', `head_ref_mismatch HEAD=${headNow} ${ctx.base}=${refNow} want=${plan.target}`);
   crashAt('sync-after-ff');
   mergeLedgerTails(ctx, saved.filter((x) => x.ledger));
