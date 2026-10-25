@@ -167,6 +167,7 @@ core:
   - .aai/scripts/learned-append.mjs
   - .aai/scripts/ledger-merge.mjs
   - .aai/scripts/merge-cleanup.mjs
+  - .aai/scripts/lib/merge-outcomes.mjs
   - .aai/scripts/ride-handoff.mjs
   - .aai/scripts/platform.mjs
   - .aai/scripts/lib/append-lock.mjs
