@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: d2b0e8d1272ec09dc486ca20e5b80461c3fcd590e83c06e8367e35ded30b4690
+frozen_sha256: 8971e1f48140b34a26e972918837699a73337ff491310bc427980a5b2fbcdd36
 ceremony_level: 2
 links:
   requirement: merge-cleanup-resolves-framework-friction
