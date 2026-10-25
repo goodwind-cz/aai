@@ -4046,6 +4046,8 @@ test_2925_preflight_retry_is_bounded() {
     want TEST-2925 "$ENG_OUT" 'REFUSE gh_read_failed'
     [[ "$(oc "$ENG_OUT" 'o[0].class+" "+o[0].state')" == 'external pending' ]] || fail TEST-2925 "run $i is not external (a retry is the loop the router cannot leave): $(oc "$ENG_OUT" 'o[0]')"
     want TEST-2925 "$ENG_OUT" 'Needs you: check the GitHub CLI login'
+    want TEST-2925 "$ENG_OUT" 'then run the preflight again'
+    unwanted TEST-2925 "$(printf '%s\n' "$ENG_OUT" | sed -n '/^Needs you:/p')" 'run the cleanup again'
   done
   [[ "$(world_digest)" == "$before" ]] || fail TEST-2925 'the preflight runs changed the fixture'
   assert_no_merge_call TEST-2925
@@ -4059,6 +4061,10 @@ test_2926_unactionable_clash_choices_not_offered() {
   ROADMAP_WORLD=1 build_world clash_staged
   ship_append_foo
   run git -C "$ORIGIN" add "$RM"
+  run_engine plan --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2926 "staged plan: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2926 "$ENG_OUT" 'keep '
+  want TEST-2926 "$ENG_OUT" '(overlap_staged '
   apply_run
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-2926 "staged: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
   want TEST-2926 "$ENG_OUT" '"reason":"overlap_staged"'
@@ -4106,6 +4112,8 @@ test_2927_locally_deleted_files_sync_cleanly() {
   apply_run --decide "$id=take_incoming"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-2927 "deleted guide: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
   unwanted TEST-2927 "$ENG_ERR" 'ENOENT'
+  git -C "$BARE" show "$MC:docs/USER_GUIDE.md" > "$W/guide.incoming" || fail SETUP 'incoming guide blob'
+  cmp "$W/guide.incoming" "$ORIGIN/docs/USER_GUIDE.md" || fail TEST-2927 'deleted guide: the recreated bytes are not the incoming bytes'
   [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-2927 'deleted guide: main did not reach the merge commit'
   BASELINE_SEED='' RIDE_SEED=''
   echo 'PASS: TEST-2927 a locally deleted projection or answered overlap file is recreated by the sync, no stack trace'
@@ -4134,6 +4142,8 @@ import { pathToFileURL } from 'node:url';
 const { compareDraft } = await import(pathToFileURL(`${process.argv[2]}/.aai/scripts/lib/merge-outcomes.mjs`).href);
 const noId = '---\ntype: issue\nstatus: draft\n---\n\n# A\n';
 if (compareDraft(noId, noId, 'x', 'y') !== false) throw new Error('two documents without a frontmatter id compared equal');
+const blankId = '---\nid: \ntype: issue\n---\n\n# A\n';
+if (compareDraft(blankId, blankId, 'x', 'y') !== false) throw new Error('two documents with a whitespace-only frontmatter id compared equal');
 if (compareDraft('---\nid: a\n---\n\n# A\n', '---\nid: a\n---\n\n# A\n', 'x', 'y') !== 'superseded') throw new Error('control: equal ids with equal text are not superseded');
 JS
   node "$SCRATCH/t2929.mjs" "$ROOT" || fail TEST-2929 'compareDraft treats a missing id as a match'

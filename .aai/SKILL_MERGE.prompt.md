@@ -56,8 +56,8 @@ prints one `OUTCOME <json>` line.
    # AAI_MERGE_PS_END
    ```
 
-   Read every `OUTCOME` line and route it. State `retry` (only apply emits it, at most twice in a row
-   and never when nothing changed): run the same block again now, no question. Class `decide`: ask one menu for all pending items (each with its options and effects,
+   Read every `OUTCOME` line and route it. State `retry` (only apply emits it, at most twice in a row,
+   the second only when origin HEAD, the journal or the manifest changed since the retrying run): run the same block again now, no question. Class `decide`: ask one menu for all pending items (each with its options and effects,
    the recommended first), then run the block with `AAI_DECIDE` set to the chosen `id=option` pairs. Class
    `external`: relay its `action` verbatim and stop. State `resolved`: nothing to do. While a `retry` line is present the
    menu waits, so it is asked once; never finish a step by hand (no `git worktree remove --force`, branch

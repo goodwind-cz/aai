@@ -185,7 +185,7 @@ function frontmatterSplit(text) {
   return m ? { fm: m[1].split(/\r?\n/), rest: text.slice(m[0].length), head: m[0].length } : { fm: [], rest: text, head: 0 };
 }
 
-export const frontmatterId = (text) => frontmatterSplit(text).fm.map((l) => l.match(/^id:\s*(.+?)\s*$/)).find(Boolean)?.[1] ?? null;
+export const frontmatterId = (text) => frontmatterSplit(text).fm.map((l) => l.match(/^id:[ \t]*(\S.*?)\s*$/)).find(Boolean)?.[1] ?? null;
 
 // The text with the lifecycle keys (and the indented children of a key) removed from its frontmatter.
 export function withoutLifecycle(text) {
@@ -266,7 +266,7 @@ export function representedChanges({ local, head, incoming, refs, unproven = new
 
 export const keptLine = (o, step) => `Kept: ${STEP_OBJECT[step] ?? 'the item'} stays as it is (${o.reason}${o.subject ? ` ${o.subject}` : ''}${o.detail && o.detail !== o.subject ? `: ${o.detail}` : ''})`;
 export const decisionLine = (o) => `Decision: ${o.question} Options: ${o.options.map((x) => `${x.id}${x.id === o.recommended ? ' (recommended)' : ''} - ${x.effect}`).join('; ')}. id: ${o.id}`;
-export const needsLine = (o) => `Needs you: ${o.action}`;
+export const needsLine = (o, pre) => `Needs you: ${pre ? o.action.replace('run the cleanup again', 'run the preflight again') : o.action}`;
 
 // s: { pr, mc, kind, kept: [line], pending: [outcome], needs: [outcome], step }
 // kind: complete | refused | interrupted_retry | interrupted_decision. Returns { lines, summary }.
@@ -279,7 +279,7 @@ export function summaryLines(s) {
   else if (d > 0) cleanup = `${CLEANUP_WAITING}${d} item(s); everything else is done.`;
   else cleanup = k > 0 ? `Cleanup: complete; kept ${k} item(s), nothing needs you.` : 'Cleanup: complete.';
   const lines = [s.mc ? `Merge: PR #${s.pr} is merged as ${String(s.mc).slice(0, 12)}.` : 'Merge: not done.', ...(s.noCleanup ? [] : [cleanup]),
-    ...s.kept, ...s.pending.map(decisionLine), ...s.needs.map(needsLine)];
+    ...s.kept, ...s.pending.map(decisionLine), ...s.needs.map((o) => needsLine(o, s.noCleanup))];
   const kind = s.kind === 'complete' ? (d > 0 ? 'decision_pending' : k > 0 ? 'complete_kept' : 'complete') : s.kind;
   return { lines, summary: { kind, kept: k, decisions: d, needs_you: s.needs.length } };
 }

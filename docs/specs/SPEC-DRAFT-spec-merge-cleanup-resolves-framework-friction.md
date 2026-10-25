@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: f1f2d4c4b47756721012e48ade57a29d9e53d2a91d2aa615e66d977bf209186b
+frozen_sha256: 21630b4ca14088e2965fdb39c69cc1be92c96014e1b1e545222eae99681059be
 ceremony_level: 2
 links:
   requirement: merge-cleanup-resolves-framework-friction
@@ -152,12 +152,12 @@ its cause is gone), so it is not a decision.
 | review_unresolved | preflight | external | the open review threads must be answered and resolved; their count is quoted |
 | platform_mismatch | both | external | the re-record command the engine already prints |
 | platform_generic | both | external | the manual step the adapter names |
-| gh_read_failed, az_read_failed | both | retry, then external | check the platform CLI login and network |
+| gh_read_failed, az_read_failed | both | apply: retry, then external; preflight: external on the first run | check the platform CLI login and network |
 | gh_read_invalid, az_read_invalid, repo_mismatch, az_arg_unsafe | both | external | the adapter detail |
 | no_origin, bad_base_name, bad_head_name | apply | external | the detail |
 | not_merged | apply | external | merge the PR first (/aai-merge on the open PR) |
 | fetch_failed, merge_commit_not_on_base | apply | retry, then external | check that git fetch of the base works |
-| origin_not_on_base, base_diverged, ledger_rewritten, pending_unreadable, pending_diverged | sync-base | kept | main checkout left as it is |
+| origin_not_on_base, base_diverged, ledger_rewritten, pending_unreadable, pending_diverged, overlap_staged (a staged local change the merge touches), untracked_not_file (a directory or other non-file where the merge adds a file) | sync-base | kept | main checkout left as it is; plan mode prints a keep line with the reason |
 | overlap (not resolved by D4) | sync-base | decide | keep_local (recommended), take_incoming |
 | untracked_collision (bytes differ) | sync-base | decide | take_incoming (recommended), keep_local |
 | sync_failed, ledger_merge_failed, index_regen_failed | sync-base | retry, then decide | retry, skip_step (recommended) |
@@ -415,6 +415,17 @@ remaining-line wording for the base sync names those reasons; a locally
 deleted file the sync replaces is recreated by the fast-forward; an
 interrupted-sync recovery runs only after the main checkout passes the
 protection check. The TEST-046 staged arm asserts the kept outcome.
+
+Remediation round 2 (non-blocking fold) amends further: the D2 table now lists
+the two kept reasons `overlap_staged` and `untracked_not_file`; plan mode names
+a kept sync-base step with a `keep ... (reason)` line instead of `planned`;
+the SKILL_MERGE retry sentence states what the engine compares (a second
+consecutive retry only when origin HEAD, the journal or the manifest changed
+since the retrying run); a draft whose frontmatter `id:` is blank or whitespace
+is read as having no id; the preflight `Needs you:` text says to run the
+preflight again, not the cleanup. The SPEC-0222 D6 remaining-line wording for
+the base sync is changed by these two kept reasons (disclosed here, as in
+round 1). The round-1 contract changes are recorded by an own-spec amendment.
 
 ## Acceptance Criteria Mapping
 

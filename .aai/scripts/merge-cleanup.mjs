@@ -1279,15 +1279,15 @@ const PLANNERS = {
     ...ctx.drafts.divergent.map((d) => `ask about ${d.path} (differs from ${d.counterpart})`),
   ],
   'archive-runtime': (ctx) => {
-    const wt = findRideWorktree(ctx);
-    if (!wt) return [];
+    const wt = findRideWorktree(ctx); if (!wt) return [];
     const root = archiveRoot(ctx.origin, ctx.opts.pr);
     const statePath = path.join(wt.path, STATE_REL);
     return fs.existsSync(statePath) ? [`worktree:${STATE_REL} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree', STATE_REL)))}`] : [];
   },
   'sync-base': (ctx) => {
     const plan = planSync(ctx);
-    if (plan.refusal || plan.held || plan.noop) return [];
+    if (plan.refusal) return [`keep ${ctx.base} checkout (${plan.refusal[0]} ${plan.refusal[1]})`];
+    if (plan.held || plan.noop) return [];
     return [
       `${ctx.base} ${plan.head.slice(0, 12)}..${plan.target.slice(0, 12)}`,
       ...plan.replace.filter((rel) => rel !== INDEX_PATH).map((rel) => `take incoming ${rel} (archive the local bytes first)`),
