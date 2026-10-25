@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 8971e1f48140b34a26e972918837699a73337ff491310bc427980a5b2fbcdd36
+frozen_sha256: 85ad21acc8a95e4da921793809a75dd459eacfe0d37543238874ff5bc87a11d4
 ceremony_level: 2
 links:
   requirement: merge-cleanup-resolves-framework-friction
@@ -613,8 +613,8 @@ verification list above. Planning's measurements (371301 glob bytes, headroom
 
 ## Registry disposition
 
-Registry items closed by this scope: `fu-merge-pending-diverged-regression`
-(TEST-2920 adds the pending_diverged suite arm). Scanned and not closed:
+Registry items closed by this scope: CLOSED FULLY: `fu-merge-pending-diverged-regression`
+(TEST-2920 adds the pending_diverged suite arm). NOT CLOSED (scanned):
 `fu-platform-azure-links-pr-url` (an Azure URL in links.pr is a non-empty
 value, so D5's fallback does not apply to it), `fu-merge-skip-worktree-hidden-edit`
 (a separate worktree proof gap), `fu-merge-ledger-reset-window`.
