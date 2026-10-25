@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: origin/main...HEAD (72a8c2ea...5e34e7b8), worktree /private/tmp/aai-implied-sign, branch change/implied-signing-without-links-pr; focus on r1 closure (d9c5d193)
-  spec: docs/specs/SPEC-DRAFT-spec-implied-signing-without-links-pr.md
+  spec: docs/specs/SPEC-0254-spec-implied-signing-without-links-pr.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -38,7 +38,7 @@ security_relevant: true
 ## Scope and spec
 
 - Range `origin/main...HEAD`, 9 commits, 11 files. Remediation commit `d9c5d193`, telemetry `5e34e7b8`. Worktree has one unrelated modification (`docs/ai/EVENTS.jsonl`, uncommitted telemetry); the review reads the committed range only.
-- Spec: `docs/specs/SPEC-DRAFT-spec-implied-signing-without-links-pr.md`, frozen, amended (frozen_sha256 restamped in d9c5d193).
+- Spec: `docs/specs/SPEC-0254-spec-implied-signing-without-links-pr.md`, frozen, amended (frozen_sha256 restamped in d9c5d193).
 - Dispatch coaching check: the dispatch named probe ideas for the false-signature question and asked for focus on r1 closure. It did not pre-rate severity or predict findings. The full range was walked; the AC table walk covers every row.
 
 ## r1 closure

@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: origin/main...HEAD (72a8c2ea...785e2247), worktree /private/tmp/aai-implied-sign, branch change/implied-signing-without-links-pr
-  spec: docs/specs/SPEC-DRAFT-spec-implied-signing-without-links-pr.md
+  spec: docs/specs/SPEC-0254-spec-implied-signing-without-links-pr.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -41,7 +41,7 @@ security_relevant: true
 ## Scope and spec
 
 - Range `origin/main...HEAD` (7 commits, 9 files). The worktree was clean at review time (`git status --porcelain` empty).
-- Spec: `docs/specs/SPEC-DRAFT-spec-implied-signing-without-links-pr.md` (frozen, ceremony 2, strategy tdd).
+- Spec: `docs/specs/SPEC-0254-spec-implied-signing-without-links-pr.md` (frozen, ceremony 2, strategy tdd).
 - Dispatch coaching check: the dispatch set a focus question (can the check imply a false signature?) and listed probe ideas. It did not pre-rate severity, predict findings or exclude any area. The full scope was reviewed.
 
 ## AC table walk

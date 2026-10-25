@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-25T16:20:42.932Z",
+  "generatedAt": "2026-10-25T21:39:34.748Z",
   "project": "aai",
   "counts": {
-    "delivered": 323,
+    "delivered": 324,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 77863744
@@ -258,7 +258,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-provider-adapter-registry-slice-r2-20261025T155447Z.md"
+      "review": "docs/ai/reviews/review-provider-adapter-registry-slice-r3-20261025T173000Z.md"
+    },
+    {
+      "ref": "implied-signing-without-links-pr",
+      "title": "A directed merge signs the ride's amendments even when the ride closed before its PR existed",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0229-implied-signing-without-links-pr.md",
+      "closed_on": "2026-10-25",
+      "agent_minutes": 183,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0254-spec-implied-signing-without-links-pr.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-implied-signing-without-links-pr-r2-20261025T210133Z.md"
     },
     {
       "ref": "node-first-second-slice",
@@ -4484,7 +4497,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-provider-adapter-registry-slice-r2-20261025T155447Z.md"
+          "review": "docs/ai/reviews/review-provider-adapter-registry-slice-r3-20261025T173000Z.md"
+        },
+        {
+          "ref": "implied-signing-without-links-pr",
+          "title": "A directed merge signs the ride's amendments even when the ride closed before its PR existed",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0229-implied-signing-without-links-pr.md",
+          "closed_on": "2026-10-25",
+          "agent_minutes": 183,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0254-spec-implied-signing-without-links-pr.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-implied-signing-without-links-pr-r2-20261025T210133Z.md"
         },
         {
           "ref": "node-first-second-slice",

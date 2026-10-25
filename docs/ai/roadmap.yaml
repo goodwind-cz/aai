@@ -105,7 +105,7 @@ pairs:
   - capability: provider-adapter-registry-slice
     status: done
   - capability: implied-signing-without-links-pr
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

@@ -1,10 +1,10 @@
 ---
 id: spec-implied-signing-without-links-pr
 type: spec
-number: null
-status: implementing
+number: 254
+status: done
 mutation_gate: v1
-frozen_sha256: 1f7ef6ed6fffe2e5ed5410b275f2386fc7c9d99148ea26a9480b9ca8cb318cd2
+frozen_sha256: d4c9e3bbc6766fe6fd2656fc592001f56973c8f4ce99895e2f2a9c2eba5e7311
 ceremony_level: 2
 links:
   requirement: implied-signing-without-links-pr
@@ -18,7 +18,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-implied-signing-without-links-pr.md
+- Requirement: docs/issues/CHANGE-0229-implied-signing-without-links-pr.md
 - Predecessor: docs/specs/SPEC-0226-spec-amendment-signoff-implied-by-merge.md (the implied signature this scope extends)
 - Engine: .aai/scripts/spec-amend.mjs (`getBaseDocIndex`, `checkRideMerged`)
 - Consumer across the seam: .aai/scripts/follow-ups.mjs (`foldAmendments(...).followUps`)
@@ -45,7 +45,7 @@ SPEC-FROZEN: true
 - User decision: worktree
 - Base ref: main (origin/main 72a8c2ea at planning)
 - Worktree branch/path: change/implied-signing-without-links-pr at /private/tmp/aai-implied-sign
-- Inline review scope: .aai/scripts/spec-amend.mjs tests/skills/test-aai-spec-amend.sh .aai/system/AUTONOMOUS_LOOP.md docs/ai/decisions.jsonl docs/specs/SPEC-DRAFT-spec-implied-signing-without-links-pr.md
+- Inline review scope: .aai/scripts/spec-amend.mjs tests/skills/test-aai-spec-amend.sh .aai/system/AUTONOMOUS_LOOP.md docs/ai/decisions.jsonl docs/specs/SPEC-0254-spec-implied-signing-without-links-pr.md
 
 ## Measurements (planning, 2026-10-25, base origin/main 72a8c2ea)
 

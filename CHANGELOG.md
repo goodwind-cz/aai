@@ -22,6 +22,16 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix(spec-amend): a directed merge signs a ride closed before its PR existed (implied-signing-without-links-pr)
+
+- The merge-implied signature (SPEC-0226) required a PR number in the ride doc's `links.pr`, which the canonical `/aai-pr` flow never
+  fills because `close-work-item.mjs` runs before `gh pr create`. Every directed merge therefore left its contract amendments unsigned
+  (6 after PR #501, 4 after PR #502). Now, when the ride doc on the base ref is `done` and `links.pr` is empty, `spec-amend.mjs` reads
+  the subject of the newest first-parent base commit that touched the doc and treats the ride as merged only when that subject ends in
+  ` (#N)`. In a shallow clone (`git rev-parse --is-shallow-repository` not exactly `false`) it reads unmerged, so a partial history
+  never implies a signature.
+- The four PR #502 amendments are also signed explicitly from the owner's recorded merge direction.
+
 ## [unreleased] — feat(shims): the six root instruction shims are generated from one registry (provider-adapter-registry-slice)
 
 - `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `GEMINI.md`, `.github/copilot-instructions.md` and `.cursor/rules/aai.mdc` are rendered by

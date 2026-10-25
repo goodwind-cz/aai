@@ -3333,3 +3333,9 @@
 {"v":1,"ts":"2026-10-25T20:55:06Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":660,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-25T20:58:26Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":660,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-25T20:58:58Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"implied-signing-without-links-pr","payload":{"role":"validation","head":"5e34e7b8ef9566957eb183dd22548aeaa9dedda2","seen":"run_at:2026-10-25T20:58:58Z"}}
+{"v":1,"ts":"2026-10-25T21:38:11Z","actor":"ales_holubec.net","event":"check_verdict","ref":"implied-signing-without-links-pr","payload":{"role":"validation","head":"5ef80edf15db632cacfa2e8347d9038522645952","status":"pass","security_relevant":true}}
+{"v":1,"ts":"2026-10-25T21:38:11Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"implied-signing-without-links-pr","payload":{"status":"pass","hash":"624d5732a344afa276066d9b91aa0fa96ecdd1f2d83d268c4f5d71e37952c472"}}
+{"v":1,"ts":"2026-10-25T21:39:26Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"implied-signing-without-links-pr","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-25T21:39:26Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"implied-signing-without-links-pr","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-25T21:39:26Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-implied-signing-without-links-pr","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-25T21:39:26Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-implied-signing-without-links-pr","payload":{"validation":"pass","code_review":"pass"}}
