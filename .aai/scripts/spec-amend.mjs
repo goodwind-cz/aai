@@ -386,8 +386,12 @@ const RESOLVE_BASE_REF_CACHE = new Map();
 const SQUASH_PR_SUFFIX = / \(#([1-9][0-9]*)\)$/;
 
 // The PR number in the subject of the newest first-parent commit of baseRef that
-// touched rel; null when git fails or the subject does not end in the suffix.
+// touched rel; null when git fails, the repository is not reported complete
+// (`git rev-parse --is-shallow-repository` must print exactly `false`), or the
+// subject does not end in the suffix.
 function squashPrFromBase(cwd, baseRef, rel) {
+  const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], { cwd, encoding: 'utf8' });
+  if (shallow.status !== 0 || shallow.stdout.trim() !== 'false') return null;
   const r = spawnSync('git', ['log', '-1', '--first-parent', '--format=%s', baseRef, '--', rel], { cwd, encoding: 'utf8' });
   if (r.status !== 0) return null;
   const m = r.stdout.replace(/\n$/, '').match(SQUASH_PR_SUFFIX);

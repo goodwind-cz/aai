@@ -2259,7 +2259,8 @@ EOF
 # of the fixture ride's record, read from inside <repo>.
 _sq_read() {
   local repo="$1" ledger="$2" base="$3" json
-  json="$(cd "$repo" && node "$SA" list --ledger "$ledger" --base-ref "$base" --json)" || log_fail "_sq_read: spec-amend list failed in $repo"
+  ( cd "$repo" && node "$SA" list --ledger "$ledger" --base-ref "$base" --json > "$repo/.sq-read.json" ) || log_fail "_sq_read: spec-amend list failed in $repo"
+  json="$(<"$repo/.sq-read.json")"
   node -e '
     const res = JSON.parse(process.argv[1]);
     const it = res.items.find(i => i.ref_id === "spec-3000-sq-ride");
@@ -2385,7 +2386,8 @@ test_3022_real_history_replay_501_502() {
     const kept = lines.filter((l) => { if (!l.trim()) return true; try { return !drop.has(JSON.parse(l).classifies_record); } catch { return true; } });
     fs.writeFileSync(process.argv[1], kept.join("\n"));
   ' "$led" || log_fail "TEST-3022: overlay filter failed"
-  json="$(cd "$PROJECT_ROOT" && node "$SA" list --ledger "$led" --base-ref 72a8c2ea --json)" || log_fail "TEST-3022: list failed"
+  ( cd "$PROJECT_ROOT" && node "$SA" list --ledger "$led" --base-ref 72a8c2ea --json > "$led.out.json" ) || log_fail "TEST-3022: list failed"
+  json="$(<"$led.out.json")"
   for k in 98ec877de848 949419e17d08 f4fc1fe9a179 f6993ac19a97 d2d5f37e6ed6 083edab1cd4f 04a6a38c2bd8 86aff82b4b9d 21f05c8acd17 db41b41061fe; do
     node -e '
       const res = JSON.parse(process.argv[1]);
@@ -2407,13 +2409,45 @@ test_3023_follow_ups_reads_tracker_done() {
   local dir fu_out
   dir="$TEST_DIR/t3023"
   _sq_repo "$dir" done "feat: ride (#77)"
-  fu_out="$(cd "$SQ_REPO" && node "$FU" list --ledger "$SQ_LEDGER" --status all --json)" || log_fail "TEST-3023: follow-ups list failed"
+  ( cd "$SQ_REPO" && node "$FU" list --ledger "$SQ_LEDGER" --status all --json > "$dir/fu.json" ) || log_fail "TEST-3023: follow-ups list failed"
+  fu_out="$(<"$dir/fu.json")"
   node -e '
     const res = JSON.parse(process.argv[1]);
     const it = (res.items || res).find(i => (i.id || i.item_id) === "fu-amend-spec-3000");
     if (!it || it.status !== "done") process.exit(1);
   ' "$fu_out" || log_fail "TEST-3023: the fu-amend tracker must read done across the seam: $fu_out"
   log_pass "TEST-3023 the real follow-ups.mjs reads the tracker of an implied-signed amendment as done"
+}
+
+test_3026_shallow_clone_reads_unmerged() {
+  log_info "Test: a shallow clone reads the empty-links.pr rule as unmerged (TEST-3026)..."
+  local dir got
+  dir="$TEST_DIR/t3026"
+  # Repo A: the ride doc landed by direct push; a later tip commit that touches
+  # another file carries a (#5) subject. A depth-1 clone makes that tip the
+  # boundary commit, which git reports as touching every path.
+  _sq_repo "$dir/a" done "chore: direct"
+  : > "$SQ_REPO/other.txt"
+  git -C "$SQ_REPO" add other.txt || log_fail "fixture: add other failed"
+  git -C "$SQ_REPO" commit -q -m "chore: tip (#5)" || log_fail "fixture: commit tip failed"
+  local a_repo="$SQ_REPO"
+  git clone -q "file://$a_repo" "$dir/a-full" || log_fail "fixture: full clone of A failed"
+  git clone -q --depth 1 "file://$a_repo" "$dir/a-shallow" || log_fail "fixture: shallow clone of A failed"
+  mkdir -p "$dir/a-full/docs/ai" "$dir/a-shallow/docs/ai"
+  got="$(_sq_read "$dir/a-full" "$a_repo/docs/ai/decisions.jsonl" main)"
+  [[ "$got" == "unsigned-tracked false open" ]] || log_fail "TEST-3026: full clone of A must read unsigned, got '$got'"
+  got="$(_sq_read "$dir/a-shallow" "$a_repo/docs/ai/decisions.jsonl" main)"
+  [[ "$got" == "unsigned-tracked false open" ]] || log_fail "TEST-3026: depth-1 clone of A must read unsigned, got '$got'"
+  # Repo B (positive control): the doc commit itself carries the suffix.
+  _sq_repo "$dir/b" done "feat: ride (#77)"
+  local b_repo="$SQ_REPO"
+  git clone -q "file://$b_repo" "$dir/b-full" || log_fail "fixture: full clone of B failed"
+  git clone -q --depth 1 "file://$b_repo" "$dir/b-shallow" || log_fail "fixture: shallow clone of B failed"
+  got="$(_sq_read "$dir/b-full" "$b_repo/docs/ai/decisions.jsonl" main)"
+  [[ "$got" == "signed true done" ]] || log_fail "TEST-3026: full clone of B must sign (positive control), got '$got'"
+  got="$(_sq_read "$dir/b-shallow" "$b_repo/docs/ai/decisions.jsonl" main)"
+  [[ "$got" == "unsigned-tracked false open" ]] || log_fail "TEST-3026: depth-1 clone of B must read unsigned, got '$got'"
+  log_pass "TEST-3026 a shallow clone never reads a boundary-commit subject as a squash merge"
 }
 
 test_3024_pr_502_signatures_on_ledger() {
@@ -5539,6 +5573,7 @@ main() {
   test_3021_pr_number_read_from_base_not_checkout
   test_3022_real_history_replay_501_502
   test_3023_follow_ups_reads_tracker_done
+  test_3026_shallow_clone_reads_unmerged
   test_3024_pr_502_signatures_on_ledger
   test_3025_canon_states_squash_comparison
   test_550_amendment_record_anchors
