@@ -220,8 +220,8 @@ test_3002_copilot_lists_no_skills() {
   log_info "TEST-3002: the Copilot shim lists no skills and shares the fragment with CODEX.md and GEMINI.md..."
   local copilot="$PROJECT_ROOT/$COPILOT_REL" content frag f inline kept base
   content="$(cat "$copilot"; printf x)"; content="${content%x}"
-  inline="$(count_lines_starting "$(cat "$copilot")" '  - `/aai-')"
-  [[ "$inline" -eq 0 ]] || log_fail "TEST-3002: the Copilot shim still holds $inline inline skill line(s)"
+  inline="$(/usr/bin/grep -c -F '/aai-' "$copilot" || true)"
+  [[ "$inline" -eq 0 ]] || log_fail "TEST-3002: the Copilot shim still names a skill (/aai-) on $inline line(s)"
   frag="$(H frag-by-prefix "$PROJECT_ROOT/.aai/system/HARNESS_SHIMS.md" '- This shim intentionally lists no skills'; printf x)" \
     || log_fail "TEST-3002: HARNESS_SHIMS.md has no single fragment starting '- This shim intentionally lists no skills'"
   frag="${frag%x}"

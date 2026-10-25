@@ -16,6 +16,15 @@ docs/**/*.md text eol=lf
 .codex/skills/README.md text eol=lf
 .gemini/skills/**/SKILL.md text eol=lf
 .gemini/skills/README.md text eol=lf
+# RFC-0017 phase 4: sync-harness-skills.mjs --check compares the root shims and
+# their registry byte for byte, so a CRLF checkout must not rewrite them.
+CLAUDE.md text eol=lf
+AGENTS.md text eol=lf
+CODEX.md text eol=lf
+GEMINI.md text eol=lf
+.github/copilot-instructions.md text eol=lf
+.cursor/rules/aai.mdc text eol=lf
+.aai/system/HARNESS_SHIMS.md text eol=lf
 *.mjs text eol=lf
 
 # Binary assets. Declared, not inferred: tests/skills/lib/no-nul-guard.sh
