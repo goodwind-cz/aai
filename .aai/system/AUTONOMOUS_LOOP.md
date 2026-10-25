@@ -94,14 +94,14 @@ earns its keep — so the ride proceeds AND the sign-off it defers becomes a
 tracked obligation the owner can drain, rather than a sentence in a ledger
 nobody is obliged to read. `--signoff none` is the autonomous default; the
 owner is never asked mid-ride, and the sign-off owed is surfaced once, at the
-merge checkpoint, as `signs on merge:` lines. The owner's merge direction signs
-the ride's contract amendments: `/aai-merge <n>` (`merge-cleanup.mjs apply`,
-step `sign-amendments`) classifies each one `--signoff owner` citing the
-recorded `directed_merge`, and closes a `fu-amend-*` item once all its contract
-records are signed. There is no separate sign-off question before the merge; a
-lane or standing merge carries no direction and signs nothing. The merged-ride
-backlog is signed once with `merge-cleanup.mjs sign-merged --authority-ts <ts>`
-on a recorded owner decision.
+merge checkpoint, as `signs on merge:` lines. The merge signs them at read
+time: `spec-amend.mjs` reads an unsigned contract amendment as signed once its
+ride doc is `done` and merged into the base branch with a PR number in
+`links.pr` (SPEC-0226); `merge-cleanup.mjs` writes no signature. There is no
+separate sign-off question before the merge. The merged-ride
+backlog is signed from a recorded owner decision: append the `hitl_decision`,
+then run `spec-amend.mjs classify --record <key> --signoff owner` per record,
+then `follow-ups.mjs close` per tracker.
 
 Record it with the writer, never by hand:
 

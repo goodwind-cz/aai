@@ -68,6 +68,7 @@
 3	tests/skills/test-aai-friction.sh
 24	tests/skills/test-aai-git-ref-guard.sh
 4	tests/skills/test-aai-golden-flow.sh
+2	tests/skills/test-aai-harness-shims.sh
 2	tests/skills/test-aai-heartbeat.sh
 2	tests/skills/test-aai-hitl-channel.sh
 4	tests/skills/test-aai-hitl-propagation.sh

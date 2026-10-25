@@ -22,6 +22,22 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(shims): the six root instruction shims are generated from one registry (provider-adapter-registry-slice)
+
+- `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `GEMINI.md`, `.github/copilot-instructions.md` and `.cursor/rules/aai.mdc` are rendered by
+  `sync-harness-skills.mjs` from the new `shims:` section of `.aai/system/HARNESS_SKILLS.yaml` and the fragments in
+  `.aai/system/HARNESS_SHIMS.md` (RFC-0017 phase 4). `--check` compares each rendered shim byte for byte with the file and prints
+  `DIVERGE shim <path>` per difference; it runs in hygiene test_111 and the new `test-aai-harness-shims.sh` suite.
+- Five shims keep their bytes. The Copilot shim drops its hand-kept list of 20 skills and points at the skill trees like `CODEX.md`
+  and `GEMINI.md`.
+- `aai-sync` (bash and PowerShell) replaces a project's Copilot shim whose extra text is an older shipped version (hashes in
+  `.aai/system/COPILOT_SHIM_SHIPPED.list`) instead of keeping it as a project override, and installs the root `AGENTS.md` instead of
+  deleting a project's own copy; a differing copy is named in the conflict advisory.
+- `.gitattributes` pins the six shims and `HARNESS_SHIMS.md` to LF.
+- `--write` and `--check` exit 2 before any write when a shim path, one of its parent directories or the shipped list is a symbolic
+  link, a parent is not a directory or a shim is not a regular file.
+- The six contract amendments of PR #501 are signed from the owner's recorded merge direction.
+
 ## [unreleased] — feat(merge): the merge cleanup resolves its own friction (merge-cleanup-resolves-framework-friction)
 
 - `/aai-merge` no longer hands raw refusals back to you. The cleanup engine sorts every refusal or stopped step into one of five

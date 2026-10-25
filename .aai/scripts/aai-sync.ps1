@@ -118,6 +118,38 @@ function Get-CopilotProjectOverridesContent {
   return $Content.Trim()
 }
 
+# Test-CopilotShimShipped -Text <extracted override text> -ListPath <list> -
+# $true when the text is empty or its normalized hash is a row of the source's
+# COPILOT_SHIM_SHIPPED.list, i.e. it is an unmodified older Copilot shim and not
+# a real project override (SPEC spec-provider-adapter-registry-slice D4). Twin of
+# copilot_shim_is_shipped in aai-sync.sh. Normalized hash: delete every CR, drop
+# the trailing LFs, sha256 of the UTF-8 bytes, lowercase hex. A hash that cannot
+# be computed counts as not shipped, so the existing merge keeps the text. It
+# compares only that hash with the list; it cannot tell a deliberate edit that
+# reproduces a shipped version from an untouched one.
+function Test-CopilotShimShipped {
+  param(
+    [string]$Text,
+    [Parameter(Mandatory=$true)][string]$ListPath
+  )
+  $norm = ("$Text" -replace "`r", "").TrimEnd("`n")
+  if ([string]::IsNullOrWhiteSpace($norm)) { return $true }
+  if (!(Test-Path -LiteralPath $ListPath)) { return $false }
+  $hash = ""
+  try {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $hash = ([System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($norm))) -replace "-", "").ToLowerInvariant()
+    } finally { $sha.Dispose() }
+  } catch { return $false }
+  $shipped = New-Object 'System.Collections.Generic.HashSet[string]'
+  foreach ($row in @(Get-Content -LiteralPath $ListPath)) {
+    $t = "$row".Trim()
+    if ($t -and !$t.StartsWith('#')) { [void]$shipped.Add($t) }
+  }
+  return $shipped.Contains($hash)
+}
+
 # Resolve source = this repository's root (grandparent of the .aai/scripts/ folder)
 $SrcRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
@@ -208,8 +240,9 @@ if (Test-Path $oldScripts) {
   }
 }
 
-# Root files that moved into .aai/
-foreach ($f in @("AGENTS.md","PLAYBOOK.md")) {
+# Root files that moved into .aai/ (AGENTS.md is NOT one of them any more: it is a
+# generated root shim, installed below with CLAUDE.md, CODEX.md and GEMINI.md)
+foreach ($f in @("PLAYBOOK.md")) {
   $oldFile = Join-Path $TargetRoot $f
   if (Test-Path $oldFile) {
     Remove-Item $oldFile -Force
@@ -540,9 +573,9 @@ if (Test-Path (Join-Path $TargetRoot "docs/ai")) {
 }
 
 
-# Root canonical shims (AGENTS.md and PLAYBOOK.md are now inside .aai/)
+# Root canonical shims (PLAYBOOK.md is now inside .aai/; AGENTS.md is a root shim again)
 # README.md is synced as README_AAI.md to avoid overwriting the target project's own README.
-foreach ($f in @("CLAUDE.md","CODEX.md","GEMINI.md","SKILLS.md")) {
+foreach ($f in @("AGENTS.md","CLAUDE.md","CODEX.md","GEMINI.md","SKILLS.md")) {
   $srcFile = Join-Path $SrcRoot $f
   $dstFile = Join-Path $TargetRoot $f
   if ((Test-Path $srcFile) -and (Test-Path $dstFile) -and (Test-FileContentDifferent -Src $srcFile -Dst $dstFile)) {
@@ -573,7 +606,22 @@ $dstCopilot = Join-Path $TargetRoot ".github/copilot-instructions.md"
 if (Test-Path $copilot) {
   $overrideDir = Join-Path $TargetRoot "docs/ai/project-overrides"
   $overrideFile = Join-Path $overrideDir "copilot-instructions.project.md"
+  $shippedList = Join-Path $SrcRoot ".aai/system/COPILOT_SHIM_SHIPPED.list"
+  $dstCopilotShipped = $false
   if ((Test-Path $dstCopilot) -and (Test-FileContentDifferent -Src $copilot -Dst $dstCopilot)) {
+    # Same extraction as the merge below (with its override-file fallback), read as UTF-8 so the hash is stable.
+    $utf8Dst = [System.IO.File]::ReadAllText($dstCopilot)
+    $shippedText = ""
+    if (![string]::IsNullOrEmpty($utf8Dst)) { $shippedText = Get-CopilotProjectOverridesContent -Content $utf8Dst }
+    if ([string]::IsNullOrWhiteSpace($shippedText) -and (Test-Path $overrideFile)) {
+      $shippedText = [System.IO.File]::ReadAllText($overrideFile).Trim()
+    }
+    $dstCopilotShipped = Test-CopilotShimShipped -Text $shippedText -ListPath $shippedList
+  }
+  if ($dstCopilotShipped) {
+    Copy-Replace $copilot $dstCopilot
+    Write-Host "  SYNC .github/copilot-instructions.md (unmodified shipped shim replaced, no project overrides)"
+  } elseif ((Test-Path $dstCopilot) -and (Test-FileContentDifferent -Src $copilot -Dst $dstCopilot)) {
     New-Item -ItemType Directory -Force -Path $overrideDir | Out-Null
     $dstContent = Get-Content $dstCopilot -Raw -ErrorAction SilentlyContinue
     $projectOverrides = Get-CopilotProjectOverridesContent -Content $dstContent

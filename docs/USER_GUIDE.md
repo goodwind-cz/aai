@@ -2820,6 +2820,12 @@ read its gate warning) to see which section is missing.
 
 [Product doc](product/directed-merge-and-post-merge-cleanup.md) · [Spec](specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md)
 
+### One registry for the per-provider instruction files
+
+Every coding agent AAI supports reads its own small instruction file in the project root: `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `GEMINI.md`, `.github/copilot-instructions.md` and `.cursor/rules/aai.mdc`. Each one only points the agent at the canonical guide in `.aai/`. They used to be kept by hand, and they drifted: the Copilot file still listed 20 of the 42 skills, one of them already renamed.
+
+[Product doc](product/provider-adapter-registry.md) · [Spec](specs/SPEC-0253-spec-provider-adapter-registry-slice.md)
+
 ### `/aai-doctor` diagnoses the real Windows and agent-CLI environment it runs on
 
 `/aai-doctor` (`node .aai/scripts/aai-doctor.mjs`) is the AAI environment health check — a deterministic, zero-dependency script that reports one `PASS`/`WARN`/`FAIL`/`SKIP` line per category plus an overall verdict. The original 13 categories cover core files, role prompts, skills, knowledge files, `STATE.yaml` health, telemetry, git status, hooks, the RFC-0001 migration matrix, docs hygiene and vendored-layer drift.

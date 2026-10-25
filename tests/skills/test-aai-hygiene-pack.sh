@@ -1098,8 +1098,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 113 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 113 (pin moved for aai-recheck) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 114 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 114 (pin moved for aai-harness-shims) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -2122,13 +2122,13 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   grep -qE '^  aai-mutation-gate:$' "$map" \
     || log_fail "TEST-487: tests/skills/suite-map.yaml has no 'aai-mutation-gate:' row"
 
-  # Count arm: the pin (test_090's own number) holds at 113 and matches the
+  # Count arm: the pin (test_090's own number) holds at 114 and matches the
   # LIVE row count — a row deleted without moving the pin reddens BOTH arms
   # together, which is the two-way check the Mutation column drives.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 113 ]] \
-    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 113"
+  [[ "$row_count" -eq 114 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 114"
 
   # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
   # function anywhere under tests/skills, this suite's new ones included).
@@ -2143,7 +2143,7 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   assert_payload_contains "$out" "SELECTED aai-mutation-gate" \
     "TEST-487: select-suites.mjs did not route .aai/scripts/mutation-gate.mjs to aai-mutation-gate: $out"
 
-  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (113), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
+  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (114), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
 }
 
 # --- TEST-504 (NB4-r3, remediation round 3, Spec-AC-03): the Node copy of the
@@ -3825,6 +3825,34 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
   out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --check 2>&1)" && rc=0 || rc=$?
   [[ "$rc" -eq 0 ]] \
     || log_fail "test_111: --check must exit 0 on the normalized tree, got $rc:"$'\n'"$out"
+
+  # TEST-3006 (SPEC spec-provider-adapter-registry-slice, Spec-AC-04): the same
+  # arm gates the six root instruction shims. The committed tree carries the
+  # shim OK line; a scratch copy with one hand-edited GEMINI.md exits 1 and
+  # names that file.
+  case "$out" in
+    *'OK: 6 shim(s) match the registry'*) ;;
+    *) log_fail "test_111 (TEST-3006): --check on the committed tree must carry the shim OK line, got: $out" ;;
+  esac
+  local shim_fx="$TEST_DIR/t111-shim-drift" shim_out shim_rc shim_path shim_tree
+  rm -rf "$shim_fx"
+  mkdir -p "$shim_fx/.aai/system"
+  for shim_path in HARNESS_SKILLS.yaml HARNESS_SHIMS.md COPILOT_SHIM_SHIPPED.list; do
+    cp "$PROJECT_ROOT/.aai/system/$shim_path" "$shim_fx/.aai/system/$shim_path" \
+      || log_fail "test_111 (TEST-3006): cannot copy .aai/system/$shim_path into the scratch root"
+  done
+  for shim_tree in .claude/skills .agents/skills .codex/skills .gemini/skills; do
+    mkdir -p "$shim_fx/$shim_tree"
+    cp -R "$PROJECT_ROOT/$shim_tree/." "$shim_fx/$shim_tree/"
+  done
+  for shim_path in CLAUDE.md AGENTS.md CODEX.md GEMINI.md .github/copilot-instructions.md .cursor/rules/aai.mdc; do
+    mkdir -p "$shim_fx/$(dirname "$shim_path")"
+    cp "$PROJECT_ROOT/$shim_path" "$shim_fx/$shim_path"
+  done
+  printf 'hand edit\n' >> "$shim_fx/GEMINI.md"
+  shim_out="$(env -u AAI_ROLE node "$PROJECT_ROOT/$HSK_GENERATOR_REL" --root "$shim_fx" --check 2>&1)" && shim_rc=0 || shim_rc=$?
+  [[ "$shim_rc" -eq 1 && "$shim_out" == *'GEMINI.md'* ]] \
+    || log_fail "test_111 (TEST-3006): a hand-edited GEMINI.md must exit 1 naming GEMINI.md, got rc=$shim_rc: $shim_out"
 
   local mirrors_before="$TEST_DIR/t111-mirrors-before.diff"
   local mirrors_after="$TEST_DIR/t111-mirrors-after.diff"
