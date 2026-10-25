@@ -3325,3 +3325,4 @@
 {"v":1,"ts":"2026-10-25T16:20:35Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-provider-adapter-registry-slice","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-25T18:05:34Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"provider-adapter-registry-slice","payload":{"pr":502,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"598ff1713c530ff621423d1f8b3ffc962eafc146"}}
 {"v":1,"ts":"2026-10-25T19:53:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-implied-signing-without-links-pr","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-25T19:54:10Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"implied-signing-without-links-pr","payload":{"from":"draft","to":"draft"}}
