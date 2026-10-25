@@ -2222,6 +2222,270 @@ EOF
   log_pass "TEST-519 existing overlays continue to fold to signed backward-compatibly"
 }
 
+# --- TEST-3017..3025 (SPEC implied-signing-without-links-pr) -----------------
+# A merged ride whose links.pr is empty (the canonical /aai-pr flow closes the
+# doc before the PR exists) reads signed when the newest first-parent base
+# commit that touched the ride doc has a subject ending in " (#<n>)".
+
+# _sq_repo <dir> <doc status> <commit subject> — fixture repo with one ride doc
+# (links.pr empty) committed on main under <commit subject>, plus a ledger with
+# one tracked unsigned contract amendment for it. Sets SQ_REPO / SQ_LEDGER.
+_sq_repo() {
+  local dir="$1" status="$2" subject="$3"
+  SQ_REPO="$dir/repo"
+  SQ_LEDGER="$SQ_REPO/docs/ai/decisions.jsonl"
+  mkdir -p "$SQ_REPO/docs/specs" "$SQ_REPO/docs/ai"
+  git -C "$SQ_REPO" init -q -b main || log_fail "fixture: git init failed in $SQ_REPO"
+  git -C "$SQ_REPO" config user.email "test@example.com" || log_fail "fixture: git config email failed"
+  git -C "$SQ_REPO" config user.name "Test" || log_fail "fixture: git config name failed"
+  cat > "$SQ_REPO/docs/specs/SPEC-3000-sq-ride.md" <<EOF
+---
+id: spec-3000-sq-ride
+status: $status
+links:
+  pr: []
+---
+# Squash ride spec
+EOF
+  git -C "$SQ_REPO" add docs/specs || log_fail "fixture: git add failed"
+  git -C "$SQ_REPO" commit -q -m "$subject" || log_fail "fixture: git commit failed"
+  cat > "$SQ_LEDGER" <<'EOF'
+{"v":1,"ts":"2026-10-01T00:00:00Z","actor":"planning","type":"spec_amendment","ref_id":"spec-3000-sq-ride","spec":"docs/specs/SPEC-3000-sq-ride.md","spec_id":"spec-3000-sq-ride","owner_signoff":false,"what":"contract amendment","amendment_class":"contract","tracked_by":"fu-amend-spec-3000"}
+{"v":1,"ts":"2026-10-01T00:00:00Z","actor":"planning","type":"follow_up","id":"fu-amend-spec-3000","status":"open","title":"obligation"}
+EOF
+}
+
+# _sq_read <repo> <ledger> <base-ref> — echoes "bucket owner_signoff tracked_status"
+# of the fixture ride's record, read from inside <repo>.
+_sq_read() {
+  local repo="$1" ledger="$2" base="$3" json
+  ( cd "$repo" && node "$SA" list --ledger "$ledger" --base-ref "$base" --json > "$repo/.sq-read.json" ) || log_fail "_sq_read: spec-amend list failed in $repo"
+  json="$(<"$repo/.sq-read.json")"
+  node -e '
+    const res = JSON.parse(process.argv[1]);
+    const it = res.items.find(i => i.ref_id === "spec-3000-sq-ride");
+    if (!it) { console.log("missing"); process.exit(0); }
+    console.log(it.bucket + " " + it.owner_signoff + " " + it.tracked_status);
+  ' "$json"
+}
+
+test_3017_squash_subject_signs_empty_links_pr() {
+  log_info "Test: squash subject signs a done ride with empty links.pr (TEST-3017)..."
+  local dir got ec
+  dir="$TEST_DIR/t3017"
+  _sq_repo "$dir" done "feat: ride (#77)"
+  got="$(_sq_read "$SQ_REPO" "$SQ_LEDGER" main)"
+  [[ "$got" == "signed true done" ]] \
+    || log_fail "TEST-3017: expected 'signed true done', got '$got'"
+  ec=0
+  (cd "$SQ_REPO" && node "$SA" list --ledger "$SQ_LEDGER" --base-ref main --strict >/dev/null 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3017: list --strict must exit 0, got $ec"
+  log_pass "TEST-3017 a done ride whose base commit subject ends in (#77) reads signed with tracker done"
+}
+
+test_3018_not_done_doc_stays_unsigned() {
+  log_info "Test: a draft doc stays unsigned despite a suffixed subject (TEST-3018)..."
+  local dir got
+  dir="$TEST_DIR/t3018"
+  _sq_repo "$dir" draft "feat: not done (#5)"
+  got="$(_sq_read "$SQ_REPO" "$SQ_LEDGER" main)"
+  [[ "$got" == "unsigned-tracked false open" ]] \
+    || log_fail "TEST-3018: a draft doc must stay unsigned, got '$got'"
+  log_pass "TEST-3018 a ride doc that is not done never reads signed through the subject"
+}
+
+test_3019_subject_shape_is_strict() {
+  log_info "Test: only a strict trailing (#n) subject signs (TEST-3019)..."
+  local dir got i subject
+  i=0
+  for subject in "chore: no suffix" "fix: x (#12) trailing" "fix: x (#0)" "fix: x (#12a)" "Merge pull request #12 from o/b"; do
+    i=$((i + 1))
+    dir="$TEST_DIR/t3019-$i"
+    _sq_repo "$dir" done "$subject"
+    got="$(_sq_read "$SQ_REPO" "$SQ_LEDGER" main)"
+    [[ "$got" == "unsigned-tracked false open" ]] \
+      || log_fail "TEST-3019: subject '$subject' must read unsigned, got '$got'"
+  done
+  # Negative control: the same fixture with a valid suffix DOES sign.
+  dir="$TEST_DIR/t3019-control"
+  _sq_repo "$dir" done "fix: x (#12)"
+  got="$(_sq_read "$SQ_REPO" "$SQ_LEDGER" main)"
+  [[ "$got" == "signed true done" ]] \
+    || log_fail "TEST-3019: control subject 'fix: x (#12)' must read signed, got '$got'"
+  # A base ref that does not resolve reads unsigned.
+  dir="$TEST_DIR/t3019-noref"
+  _sq_repo "$dir" done "fix: x (#12)"
+  got="$(_sq_read "$SQ_REPO" "$SQ_LEDGER" no-such-ref)"
+  [[ "$got" == "unsigned-tracked false open" ]] \
+    || log_fail "TEST-3019: a missing base ref must read unsigned, got '$got'"
+  log_pass "TEST-3019 five malformed subjects and a missing base ref all read unsigned; the valid control signs"
+}
+
+test_3020_first_parent_only() {
+  log_info "Test: a suffix on a side branch behind a merge commit does not sign (TEST-3020)..."
+  local dir repo got
+  dir="$TEST_DIR/t3020"
+  repo="$dir/repo"
+  mkdir -p "$repo/docs/specs" "$repo/docs/ai"
+  git -C "$repo" init -q -b main || log_fail "fixture: git init failed"
+  git -C "$repo" config user.email "test@example.com" || log_fail "fixture: config email failed"
+  git -C "$repo" config user.name "Test" || log_fail "fixture: config name failed"
+  : > "$repo/.gitkeep"
+  git -C "$repo" add .gitkeep || log_fail "fixture: add failed"
+  git -C "$repo" commit -q -m "init" || log_fail "fixture: commit failed"
+  git -C "$repo" checkout -q -b side || log_fail "fixture: checkout side failed"
+  cat > "$repo/docs/specs/SPEC-3000-sq-ride.md" <<'EOF'
+---
+id: spec-3000-sq-ride
+status: done
+links:
+  pr: []
+---
+# Squash ride spec
+EOF
+  git -C "$repo" add docs/specs || log_fail "fixture: add spec failed"
+  git -C "$repo" commit -q -m "feat: side (#7)" || log_fail "fixture: commit side failed"
+  git -C "$repo" checkout -q main || log_fail "fixture: checkout main failed"
+  git -C "$repo" merge -q --no-ff -m "merge side" side || log_fail "fixture: merge failed"
+  cat > "$repo/docs/ai/decisions.jsonl" <<'EOF'
+{"v":1,"ts":"2026-10-01T00:00:00Z","actor":"planning","type":"spec_amendment","ref_id":"spec-3000-sq-ride","spec":"docs/specs/SPEC-3000-sq-ride.md","spec_id":"spec-3000-sq-ride","owner_signoff":false,"what":"contract amendment","amendment_class":"contract","tracked_by":"fu-amend-spec-3000"}
+{"v":1,"ts":"2026-10-01T00:00:00Z","actor":"planning","type":"follow_up","id":"fu-amend-spec-3000","status":"open","title":"obligation"}
+EOF
+  got="$(_sq_read "$repo" "$repo/docs/ai/decisions.jsonl" main)"
+  [[ "$got" == "unsigned-tracked false open" ]] \
+    || log_fail "TEST-3020: only the first-parent line may be read, got '$got'"
+  log_pass "TEST-3020 the subject is read from the first-parent line, not from a merged side branch"
+}
+
+test_3021_pr_number_read_from_base_not_checkout() {
+  log_info "Test: the PR number is read from the base ref, not the checkout (TEST-3021)..."
+  local dir got
+  dir="$TEST_DIR/t3021"
+  _sq_repo "$dir" done "chore: no suffix"
+  git -C "$SQ_REPO" checkout -q -b feat || log_fail "fixture: checkout feat failed"
+  printf '\nmore\n' >> "$SQ_REPO/docs/specs/SPEC-3000-sq-ride.md"
+  git -C "$SQ_REPO" add docs/specs || log_fail "fixture: add failed"
+  git -C "$SQ_REPO" commit -q -m "feat: y (#9)" || log_fail "fixture: commit failed"
+  got="$(_sq_read "$SQ_REPO" "$SQ_LEDGER" main)"
+  [[ "$got" == "unsigned-tracked false open" ]] \
+    || log_fail "TEST-3021: a suffix present only on the checked-out branch must not sign, got '$got'"
+  log_pass "TEST-3021 the subject comes from the base ref, never from the checked-out branch"
+}
+
+test_3022_real_history_replay_501_502() {
+  log_info "Test: real-history replay of PR 501 and 502 (TEST-3022)..."
+  local led json k
+  git -C "$PROJECT_ROOT" cat-file -e '72a8c2ea^{commit}' 2>/dev/null \
+    || log_fail "TEST-3022: commit 72a8c2ea is missing from this checkout (shallow clone?): fetch full history"
+  led="$TEST_DIR/t3022-ledger.jsonl"
+  git -C "$PROJECT_ROOT" show 72a8c2ea:docs/ai/decisions.jsonl > "$led" || log_fail "TEST-3022: cannot read the ledger blob at 72a8c2ea"
+  node -e '
+    const fs = require("fs");
+    const drop = new Set(["98ec877de848","949419e17d08","f4fc1fe9a179","f6993ac19a97","d2d5f37e6ed6","083edab1cd4f"]);
+    const lines = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    const kept = lines.filter((l) => { if (!l.trim()) return true; try { return !drop.has(JSON.parse(l).classifies_record); } catch { return true; } });
+    fs.writeFileSync(process.argv[1], kept.join("\n"));
+  ' "$led" || log_fail "TEST-3022: overlay filter failed"
+  ( cd "$PROJECT_ROOT" && node "$SA" list --ledger "$led" --base-ref 72a8c2ea --json > "$led.out.json" ) || log_fail "TEST-3022: list failed"
+  json="$led.out.json"
+  for k in 98ec877de848 949419e17d08 f4fc1fe9a179 f6993ac19a97 d2d5f37e6ed6 083edab1cd4f 04a6a38c2bd8 86aff82b4b9d 21f05c8acd17 db41b41061fe; do
+    node -e '
+      const res = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+      const it = res.items.find(i => i.record_key === process.argv[2]);
+      if (!it) process.exit(1);
+      if (it.bucket !== "signed") process.exit(2);
+    ' "$json" "$k" || log_fail "TEST-3022: record $k is not signed"
+  done
+  node -e '
+    const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).counts;
+    const want = { signed: 400, measurement: 142, "unsigned-tracked": 2, "unsigned-untracked": 0, unclassified: 0 };
+    for (const k of Object.keys(want)) if (c[k] !== want[k]) { console.error(k + " " + c[k] + " != " + want[k]); process.exit(1); }
+  ' "$json" || log_fail "TEST-3022: bucket totals are not 400/142/2/0/0"
+  log_pass "TEST-3022 the ten PR 501 and 502 records read signed on the real history; totals 400 signed, 142 measurement, 2 unsigned-tracked"
+}
+
+test_3023_follow_ups_reads_tracker_done() {
+  log_info "Test: follow-ups.mjs reads the implied-signed tracker done (TEST-3023)..."
+  local dir fu_out
+  dir="$TEST_DIR/t3023"
+  _sq_repo "$dir" done "feat: ride (#77)"
+  ( cd "$SQ_REPO" && node "$FU" list --ledger "$SQ_LEDGER" --status all --json > "$dir/fu.json" ) || log_fail "TEST-3023: follow-ups list failed"
+  fu_out="$(<"$dir/fu.json")"
+  node -e '
+    const res = JSON.parse(process.argv[1]);
+    const it = (res.items || res).find(i => (i.id || i.item_id) === "fu-amend-spec-3000");
+    if (!it || it.status !== "done") process.exit(1);
+  ' "$fu_out" || log_fail "TEST-3023: the fu-amend tracker must read done across the seam: $fu_out"
+  log_pass "TEST-3023 the real follow-ups.mjs reads the tracker of an implied-signed amendment as done"
+}
+
+test_3026_shallow_clone_reads_unmerged() {
+  log_info "Test: a shallow clone reads the empty-links.pr rule as unmerged (TEST-3026)..."
+  local dir got
+  dir="$TEST_DIR/t3026"
+  # Repo A: the ride doc landed by direct push; a later tip commit that touches
+  # another file carries a (#5) subject. A depth-1 clone makes that tip the
+  # boundary commit, which git reports as touching every path.
+  _sq_repo "$dir/a" done "chore: direct"
+  : > "$SQ_REPO/other.txt"
+  git -C "$SQ_REPO" add other.txt || log_fail "fixture: add other failed"
+  git -C "$SQ_REPO" commit -q -m "chore: tip (#5)" || log_fail "fixture: commit tip failed"
+  local a_repo="$SQ_REPO"
+  git clone -q "file://$a_repo" "$dir/a-full" || log_fail "fixture: full clone of A failed"
+  git clone -q --depth 1 "file://$a_repo" "$dir/a-shallow" || log_fail "fixture: shallow clone of A failed"
+  mkdir -p "$dir/a-full/docs/ai" "$dir/a-shallow/docs/ai"
+  got="$(_sq_read "$dir/a-full" "$a_repo/docs/ai/decisions.jsonl" main)"
+  [[ "$got" == "unsigned-tracked false open" ]] || log_fail "TEST-3026: full clone of A must read unsigned, got '$got'"
+  got="$(_sq_read "$dir/a-shallow" "$a_repo/docs/ai/decisions.jsonl" main)"
+  [[ "$got" == "unsigned-tracked false open" ]] || log_fail "TEST-3026: depth-1 clone of A must read unsigned, got '$got'"
+  # Repo B (positive control): the doc commit itself carries the suffix.
+  _sq_repo "$dir/b" done "feat: ride (#77)"
+  local b_repo="$SQ_REPO"
+  git clone -q "file://$b_repo" "$dir/b-full" || log_fail "fixture: full clone of B failed"
+  git clone -q --depth 1 "file://$b_repo" "$dir/b-shallow" || log_fail "fixture: shallow clone of B failed"
+  got="$(_sq_read "$dir/b-full" "$b_repo/docs/ai/decisions.jsonl" main)"
+  [[ "$got" == "signed true done" ]] || log_fail "TEST-3026: full clone of B must sign (positive control), got '$got'"
+  got="$(_sq_read "$dir/b-shallow" "$b_repo/docs/ai/decisions.jsonl" main)"
+  [[ "$got" == "unsigned-tracked false open" ]] || log_fail "TEST-3026: depth-1 clone of B must read unsigned, got '$got'"
+  log_pass "TEST-3026 a shallow clone never reads a boundary-commit subject as a squash merge"
+}
+
+test_3024_pr_502_signatures_on_ledger() {
+  log_info "Test: the PR 502 signatures are on the project ledger (TEST-3024)..."
+  local ec
+  node -e '
+    const fs = require("fs");
+    const rows = fs.readFileSync(process.argv[1], "utf8").split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l));
+    const hitl = rows.map((r, i) => ({ r, i })).filter((x) => x.r.type === "hitl_decision" && x.r.ref_id === "provider-adapter-registry-slice" && x.r.answer === "Mergni #502 (Recommended)");
+    if (hitl.length !== 1) { console.error("hitl count " + hitl.length); process.exit(1); }
+    for (const k of ["04a6a38c2bd8","86aff82b4b9d","21f05c8acd17","db41b41061fe"]) {
+      const c = rows.map((r, i) => ({ r, i })).filter((x) => x.r.type === "spec_amendment_classification" && x.r.classifies_record === k && x.r.owner_signoff === true);
+      if (c.length !== 1) { console.error("classification count for " + k + ": " + c.length); process.exit(2); }
+      if (c[0].i <= hitl[0].i) { console.error("classification for " + k + " precedes the hitl line"); process.exit(3); }
+    }
+    const done = rows.filter((r) => r.type === "follow_up_status" && r.id === "fu-amend-provider-adapter-registry-slice" && r.status === "done");
+    if (done.length < 1) { console.error("no follow_up_status done"); process.exit(4); }
+  ' "$LIVE_LEDGER" || log_fail "TEST-3024: the PR 502 signature records are missing or misordered on the project ledger"
+  ec=0
+  (cd "$PROJECT_ROOT" && node "$SA" list --strict >/dev/null 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3024: spec-amend list --strict must exit 0, got $ec"
+  log_pass "TEST-3024 one hitl_decision, four owner classifications after it, the tracker done, list --strict clean"
+}
+
+test_3025_canon_states_squash_comparison() {
+  log_info "Test: canon states the squash-subject comparison (TEST-3025)..."
+  node -e '
+    const text = require("fs").readFileSync(process.argv[1], "utf8");
+    const paras = text.split(/\n\s*\n/).map((p) => p.replace(/\s+/g, " "));
+    const p = paras.find((x) => x.includes("SPEC-0226") && x.includes("links.pr"));
+    if (!p) { console.error("no paragraph names links.pr"); process.exit(1); }
+    if (!p.includes("newest first-parent commit")) { console.error("missing: newest first-parent commit"); process.exit(2); }
+    if (!p.includes("(#<n>)")) { console.error("missing: (#<n>)"); process.exit(3); }
+    if (p.includes("with a PR number in `links.pr` (SPEC-0226)")) { console.error("old fragment still present"); process.exit(4); }
+  ' "$CANON" || log_fail "TEST-3025: AUTONOMOUS_LOOP.md section 6a does not state the squash-subject comparison"
+  log_pass "TEST-3025 AUTONOMOUS_LOOP.md names the newest first-parent commit and the (#<n>) suffix next to the links.pr rule"
+}
+
 # --- TEST-550 (Spec-AC-19, D2) ------------------------------------------------
 # `spec-amend.mjs restamp` appends a spec_amendment record carrying the
 # from/to frozen_sha256 anchors as 64-hex values, writes the spec ATOMICALLY
@@ -5302,6 +5566,16 @@ main() {
   test_517_merged_ride_folds_signed
   test_518_unmerged_ride_stays_unsigned
   test_519_existing_overlays_continue_to_fold_signed
+  test_3017_squash_subject_signs_empty_links_pr
+  test_3018_not_done_doc_stays_unsigned
+  test_3019_subject_shape_is_strict
+  test_3020_first_parent_only
+  test_3021_pr_number_read_from_base_not_checkout
+  test_3022_real_history_replay_501_502
+  test_3023_follow_ups_reads_tracker_done
+  test_3026_shallow_clone_reads_unmerged
+  test_3024_pr_502_signatures_on_ledger
+  test_3025_canon_states_squash_comparison
   test_550_amendment_record_anchors
   test_551_restamp_after_renumbering
   test_1354_measurement_add_owes_no_owner_obligation

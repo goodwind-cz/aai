@@ -58,7 +58,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (581)
+## Done (583)
 
 | ID | Type | Path |
 |---|---|---|
@@ -286,6 +286,7 @@ _None._
 | CHANGE-0226 | issues | docs/issues/CHANGE-0226-recheck-verdict-binding.md |
 | CHANGE-0227 | issues | docs/issues/CHANGE-0227-merge-cleanup-resolves-framework-friction.md |
 | CHANGE-0228 | issues | docs/issues/CHANGE-0228-provider-adapter-registry-slice.md |
+| CHANGE-0229 | issues | docs/issues/CHANGE-0229-implied-signing-without-links-pr.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -641,6 +642,7 @@ _None._
 | SPEC-0251 | specs | docs/specs/SPEC-0251-spec-recheck-verdict-binding.md |
 | SPEC-0252 | specs | docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md |
 | SPEC-0253 | specs | docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md |
+| SPEC-0254 | specs | docs/specs/SPEC-0254-spec-implied-signing-without-links-pr.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -679,7 +681,7 @@ _None._
 
 _None._
 
-## Broken references (513)
+## Broken references (514)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1108,6 +1110,7 @@ _None._
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-0320-spec-t1375-proven.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-0999-merged-ride.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-1000-unmerged-ride.md | NOT FOUND |
+| tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-3000-sq-ride.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-DRAFT-spec-pair.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-DRAFT-spec-seed.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-DRAFT-spec-t008.md | NOT FOUND |
