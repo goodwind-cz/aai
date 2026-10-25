@@ -31,7 +31,7 @@ _None._
 | ci-test-impact-selection | ci-test-impact-selection | 4 | docs/product/ci-test-impact-selection.md |
 | configurable-merge-policy-lanes | configurable-merge-policy-lanes | 1 | docs/product/configurable-merge-policy-lanes.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
-| directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 5 | docs/product/directed-merge-and-post-merge-cleanup.md |
+| directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 6 | docs/product/directed-merge-and-post-merge-cleanup.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
@@ -57,7 +57,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (577)
+## Done (579)
 
 | ID | Type | Path |
 |---|---|---|
@@ -283,6 +283,7 @@ _None._
 | CHANGE-0224 | issues | docs/issues/CHANGE-0224-node-first-third-slice.md |
 | CHANGE-0225 | issues | docs/issues/CHANGE-0225-cheap-transitions-slice.md |
 | CHANGE-0226 | issues | docs/issues/CHANGE-0226-recheck-verdict-binding.md |
+| CHANGE-0227 | issues | docs/issues/CHANGE-0227-merge-cleanup-resolves-framework-friction.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -636,17 +637,17 @@ _None._
 | SPEC-0249 | specs | docs/specs/SPEC-0249-spec-node-first-third-slice.md |
 | SPEC-0250 | specs | docs/specs/SPEC-0250-spec-cheap-transitions-slice.md |
 | SPEC-0251 | specs | docs/specs/SPEC-0251-spec-recheck-verdict-binding.md |
+| SPEC-0252 | specs | docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| CHANGE-0227 | issues | docs/issues/CHANGE-0227-merge-cleanup-resolves-framework-friction.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -675,7 +676,7 @@ _None._
 
 _None._
 
-## Broken references (505)
+## Broken references (512)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1032,8 +1033,15 @@ _None._
 | tests/skills/test-aai-merge-cleanup.sh | docs/ai/validation/v.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0001-foo.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0002-other-item.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0003-dup.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0004-dup.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-0010-qux.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-dup.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-lonely.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-other.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/issues/ISSUE-DRAFT-qux.md | NOT FOUND |
+| tests/skills/test-aai-merge-cleanup.sh | docs/rfc/RFC-0003-parent-cap.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
 | tests/skills/test-aai-merge-cleanup.sh | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
 | tests/skills/test-aai-merge-policy.sh | docs/base.md | NOT FOUND |

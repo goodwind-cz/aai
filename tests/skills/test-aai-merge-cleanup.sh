@@ -236,12 +236,25 @@ roadmap_base() { printf 'pairs:\n  - capability: other-item\n    status: done\nw
 roadmap_ride() {
   case "${RIDE_ROADMAP:-done}" in
     elsewhere) printf 'pairs:\n  - capability: other-item\n    status: active\nwave_2:\n  - foo\n  - later\n' ;;
+    pr485) printf 'pairs:\n  - capability: other-item\n    status: done\n  - capability: parent-cap\n    status: active\n  - capability: foo\n    status: done\nwave_2:\n  - later\n' ;;
+    pr485paused) printf 'pairs:\n  - capability: other-item\n    status: done\n  - capability: parent-cap\n    status: paused\n  - capability: foo\n    status: done\nwave_2:\n  - later\n' ;;
+    qux) printf 'pairs:\n  - capability: other-item\n    status: done\n  - capability: qux\n    status: done\nwave_2:\n  - foo\n  - later\n' ;;
     *) printf 'pairs:\n  - capability: other-item\n    status: done\n  - capability: foo\n    status: done\nwave_2:\n  - later\n' ;;
   esac
 }
 draft_issue_v1() { printf -- '---\nid: %s\ntype: issue\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Issue foo\n\nDraft body.\n' "$ISSUE_ID"; }
 draft_spec_v1() { printf -- '---\nid: %s\ntype: spec\nnumber: null\nstatus: implementing\nlinks:\n  requirement: %s\n  pr: []\n  commits: []\n---\n\n# Spec foo\n\nDraft spec body.\n' "$SPEC_ID" "$ISSUE_ID"; }
-numbered_issue() { printf -- '---\nid: %s\ntype: issue\nnumber: 1\nstatus: %s\nlinks:\n  pr:\n    - %s\n  commits: []\n---\n\n# Issue foo\n\nDraft body.\n\nDelivered.\n' "$ISSUE_ID" "${ISSUE_STATUS:-done}" "${ISSUE_LINK_PR:-$PR}"; }
+# numbered_issue: the ride's numbered intake. NUMBERED_ISSUE_FILE names bytes the real allocator made; ISSUE_NO_PR omits
+# links.pr and ISSUE_PR_EMPTY writes an empty list (the merged doc was not stamped with the PR).
+numbered_issue() {
+  if [[ -n "${NUMBERED_ISSUE_FILE:-}" ]]; then cat "$NUMBERED_ISSUE_FILE"; return; fi
+  local pr
+  if [[ -n "${ISSUE_NO_PR:-}" ]]; then pr='';
+  elif [[ -n "${ISSUE_PR_EMPTY:-}" ]]; then pr='  pr: []\n';
+  elif [[ -n "${ISSUE_PR_TILDE:-}" ]]; then pr='  pr: ~\n';
+  else pr="  pr:\n    - ${ISSUE_LINK_PR:-$PR}\n"; fi
+  printf -- "---\nid: %s\ntype: issue\nnumber: 1\nstatus: %s\nlinks:\n${pr}  commits: []\n---\n\n# Issue foo\n\nDraft body.\n\nDelivered.\n" "$ISSUE_ID" "${ISSUE_STATUS:-done}"
+}
 other_item_doc() { printf -- '---\nid: other-item\ntype: issue\nnumber: 2\nstatus: implementing\nlinks:\n  pr: []\n  commits: []\n---\n\n# Other item\n\nStill in flight.\n'; }
 numbered_spec() { printf -- '---\nid: %s\ntype: spec\nnumber: 1\nstatus: done\nlinks:\n  requirement: %s\n  pr:\n    - %s\n  commits: []\n---\n\n# Spec foo\n\nDraft spec body.\n\nDelivered.\n\n## Acceptance Criteria Status\n\n| Spec-AC | Description | Status | Evidence | Review-By | Notes |\n|---|---|---|---|---|---|\n| Spec-AC-01 | The fixture spec is delivered. | done | docs/ai/tdd/foo-green.log | tdd | fixture |\n' "$SPEC_ID" "$ISSUE_ID" "$PR"; }
 
@@ -454,29 +467,71 @@ refuse_arm() {
   assert_no_merge_call "$tid"
 }
 
+# keep_arm <test-id> <reason> <detail> [step]: the world was prepared by the caller. A protected object is kept
+# (spec-merge-cleanup-resolves-framework-friction D6): exit 0, the OUTCOME line is class auto and resolved, a Kept:
+# line and the retained step are reported, and with sync-base the main checkout's HEAD and status are unchanged.
+keep_arm() {
+  local tid="$1" reason="$2" detail="$3" step="${4:-sync-base}" head_b status_b
+  : > "$GHD/gh-argv.log"
+  head_b="$(git -C "$ORIGIN" rev-parse HEAD)"; status_b="$(git -C "$ORIGIN" status --porcelain=v1 -uall)"
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail "$tid" "arm $reason exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want "$tid" "$ENG_OUT" "\"reason\":\"$reason\""
+  want "$tid" "$ENG_OUT" "$detail"
+  want "$tid" "$ENG_OUT" 'Kept: '
+  want "$tid" "$ENG_OUT" "  $step: retained"
+  unwanted "$tid" "$ENG_OUT" 'REFUSE'
+  if [[ "$step" == sync-base ]]; then
+    [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$head_b" ]] || fail "$tid" "arm $reason moved the main checkout HEAD"
+    [[ "$(git -C "$ORIGIN" status --porcelain=v1 -uall)" == "$status_b" ]] || fail "$tid" "arm $reason changed the main checkout status"
+  fi
+  want "$tid" "$(cat "$GHD/gh-argv.log")" "pr view $PR --json"   # positive control: the gate ran
+  assert_no_merge_call "$tid"
+}
+
+# decide_arm <test-id> <reason> <detail>: apply reaches the end with one pending decide item (exit 6), the main checkout is unchanged.
+decide_arm() {
+  local tid="$1" reason="$2" detail="$3" head_b status_b
+  head_b="$(git -C "$ORIGIN" rev-parse HEAD)"; status_b="$(git -C "$ORIGIN" status --porcelain=v1 -uall)"
+  run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 6 ]] || fail "$tid" "arm $reason exited $ENG_RC, want 6 (out: $ENG_OUT $ENG_ERR)"
+  want "$tid" "$ENG_OUT" "\"reason\":\"$reason\""
+  want "$tid" "$ENG_OUT" '"class":"decide"'
+  want "$tid" "$ENG_OUT" "$detail"
+  want "$tid" "$ENG_OUT" 'Decision: '
+  want "$tid" "$ENG_OUT" 'Cleanup: waiting for your decision on 1 item(s)'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$head_b" ]] || fail "$tid" "arm $reason moved the main checkout HEAD"
+  [[ "$(git -C "$ORIGIN" status --porcelain=v1 -uall)" == "$status_b" ]] || fail "$tid" "arm $reason changed the main checkout status"
+  assert_no_merge_call "$tid"
+}
+
 test_009_base_sync_refusals() {
   local before
   build_world origin_not_on_base
   run git -C "$ORIGIN" checkout -q -b elsewhere
-  refuse_arm TEST-009 origin_not_on_base elsewhere
+  keep_arm TEST-009 origin_not_on_base elsewhere
 
   build_world base_diverged
   printf 'local commit\n' > "$ORIGIN/local-commit.txt"
   run git -C "$ORIGIN" add local-commit.txt
   run git -C "$ORIGIN" commit -qm 'local commit not on origin'
-  refuse_arm TEST-009 base_diverged main
+  keep_arm TEST-009 base_diverged main
+  [[ -f "$ORIGIN/local-commit.txt" ]] || fail TEST-009 'base_diverged arm lost the local commit file'
 
   build_world overlap
   printf 'dirty and also changed by the PR\n' >> "$ORIGIN/README.md"
-  refuse_arm TEST-009 overlap README.md
+  decide_arm TEST-009 overlap README.md
+  [[ "$(tail -n 1 "$ORIGIN/README.md")" == 'dirty and also changed by the PR' ]] || fail TEST-009 'overlap arm changed the local README'
 
   build_world untracked_collision
   printf 'my own different file\n' > "$ORIGIN/$NUM_ISSUE"
-  refuse_arm TEST-009 untracked_collision "$NUM_ISSUE"
+  decide_arm TEST-009 untracked_collision "$NUM_ISSUE"
+  [[ "$(cat "$ORIGIN/$NUM_ISSUE")" == 'my own different file' ]] || fail TEST-009 'collision arm changed the untracked file'
 
   build_world ledger_rewritten
   printf '{"v":1,"ts":"2026-10-09T00:00:00Z","actor":"fixture","event":"seed","ref":"REWRITTEN","payload":{}}\n' > "$ORIGIN/$EV"
-  refuse_arm TEST-009 ledger_rewritten "$EV"
+  keep_arm TEST-009 ledger_rewritten "$EV"
+  [[ "$(sed -n 's/.*"ref":"\([A-Z]*\)".*/\1/p' "$ORIGIN/$EV")" == REWRITTEN ]] || fail TEST-009 'ledger_rewritten arm changed the rewritten ledger'
 
   # control: an untracked file whose bytes EQUAL the incoming blob is no collision
   build_world collision_equal
@@ -542,7 +597,7 @@ test_010_worktree_and_branch_cleanup() {
   [[ "$(world_digest)" == "$pdig" ]] || fail TEST-010 'plan changed the fixture'
   [[ ! -e "$arch" ]] || fail TEST-010 'plan created the archive'
   rep="$ENG_OUT"
-  unwanted TEST-010 "$(json_get "$rep" 'j.steps.map(s=>s.id)')" "archive-drafts"
+  want TEST-010 "$(json_get "$rep" 'j.steps.map(s=>s.id)')" "archive-drafts"
   unwanted TEST-010 "$(json_get "$rep" 'j.steps.map(s=>s.id)')" "state"
   unwanted TEST-010 "$(json_get "$rep" 'j.steps.map(s=>s.id)')" "index-audit"
   unwanted TEST-010 "$(json_get "$rep" 'j.steps.map(s=>s.id)')" "delete-remote-branch"
@@ -609,27 +664,29 @@ test_011_worktree_refusals() {
   local pid dead
   build_world dirty
   printf 'uncommitted\n' > "$RIDE/stray.txt"
-  refuse_arm TEST-011 worktree_dirty "$RIDE"
-  [[ -d "$RIDE" ]] && git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-011 'dirty arm lost the worktree or branch'
+  keep_arm TEST-011 worktree_dirty "$RIDE" remove-worktree
+  [[ -d "$RIDE" && "$(cat "$RIDE/stray.txt")" == uncommitted ]] && git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-011 'dirty arm lost the worktree, its file or its branch'
+  want TEST-011 "$ENG_OUT" '  sync-base: done'
+  want TEST-011 "$ENG_OUT" 'kept_with_worktree'
 
   build_world tip
   printf 'after the merge\n' > "$RIDE/after.txt"
   run git -C "$RIDE" add after.txt
   run git -C "$RIDE" commit -qm 'work after the merge'
-  refuse_arm TEST-011 tip_mismatch "$BRANCH"
-  [[ -d "$RIDE" ]] || fail TEST-011 'tip arm lost the worktree'
+  keep_arm TEST-011 tip_mismatch "$BRANCH" remove-worktree
+  [[ -d "$RIDE" && "$(git -C "$RIDE" rev-parse HEAD)" != "$HEAD_OID" ]] || fail TEST-011 'tip arm lost the worktree or its commit'
 
   build_world locked
   sleep 600 & pid=$!
   HELPER_PIDS+=("$pid")
   ( cd "$RIDE" && node "$ROOT/.aai/scripts/lib/session-lock.mjs" acquire --pid "$pid" >/dev/null ) || fail SETUP 'lock acquire'
-  refuse_arm TEST-011 session_locked "$pid"
+  keep_arm TEST-011 session_locked "$pid" remove-worktree
+  [[ -d "$RIDE" && -f "$RIDE/.git" ]] || fail TEST-011 'locked arm lost the worktree'
   stop_helper "$pid"
-  [[ -d "$RIDE" ]] || fail TEST-011 'locked arm lost the worktree'
 
   build_world cwd
   ENG_CWD="$RIDE"
-  refuse_arm TEST-011 cwd_inside_target "$RIDE"
+  keep_arm TEST-011 cwd_inside_target "$RIDE" remove-worktree
   ENG_CWD=''
   [[ -d "$RIDE" ]] || fail TEST-011 'cwd arm lost the worktree'
 
@@ -638,7 +695,7 @@ test_011_worktree_refusals() {
   build_world missing
   [[ -n "$RIDE" && "$RIDE" = /* && -d "$RIDE" ]] || fail SETUP 'missing-arm ride path'
   run rm -rf "$RIDE"
-  refuse_arm TEST-011 worktree_missing "$RIDE"
+  keep_arm TEST-011 worktree_missing "$RIDE" remove-worktree
   want TEST-011 "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE"
   git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-011 'missing arm deleted the branch'
 
@@ -658,7 +715,7 @@ test_011_worktree_refusals() {
 
 STATE_REL='docs/ai/STATE.yaml'
 ACTION_STEPS='archive-runtime sync-base reconcile-origin remove-worktree delete-branch report'
-ALL_STEPS='resolve plan archive-runtime sync-base reconcile-origin remove-worktree delete-branch report'
+ALL_STEPS='resolve plan archive-drafts archive-runtime sync-base reconcile-origin remove-worktree delete-branch report'
 
 # seed_state [ref]: the real check-state.mjs creates the origin STATE; with a
 # ref the real state.mjs puts that ref in focus with an in-progress work item.
@@ -719,6 +776,7 @@ assert_nothing_lost() {
 norm_sha() {
   case "$1" in
     */INDEX*.md) sed -e '/^Generated: /d' "$1" | sha_stdin ;;
+    */choices.jsonl) sed -e 's/"timestamp":"[^"]*"//' "$1" | sha_stdin ;;
     */manifest.jsonl) sed -e 's/"timestamp":"[^"]*"//' -e '/"original":"origin:docs\/ai\/STATE.yaml"/s/"sha256":"[^"]*"//' "$1" | sha_stdin ;;
     */STATE.yaml) sed -e '/updated_at_utc:/d' "$1" | sha_stdin ;;
     *) sha_of "$1" ;;
@@ -758,7 +816,7 @@ test_013_second_apply_is_noop() {
     want TEST-013 "$(json_get "$second" 'j.noops')" "noop:$s:"
   done
   unwanted TEST-013 "$(json_get "$second" 'j.noops')" 'sign-amendments'
-  [[ "$(json_get "$second" 'j.noops.length')" == 6 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 6"
+  [[ "$(json_get "$second" 'j.noops.length')" == 7 ]] || fail TEST-013 "second run lists $(json_get "$second" 'j.noops.length') no-ops, want 7 (the six action steps and archive-drafts)"
   [[ "$(world_digest)" == "$before" ]] || fail TEST-013 'second apply changed files, refs, worktrees or the reflog'
   [[ "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_A")" == 1 && "$(count_line "$ORIGIN/$EV" "$LOCAL_LINE_B")" == 1 ]] || fail TEST-013 'second run duplicated a ledger line'
   [[ "$(LC_ALL=C sort "$ORIGIN/$EV" | uniq -d | wc -l | tr -d ' ')" == 0 ]] || fail TEST-013 'the ledger holds a duplicate line'
@@ -857,8 +915,10 @@ test_014_interrupted_run_converges() {
   [[ "$rc" -eq 137 ]] || fail TEST-014 "diverged arm: crash exited $rc, want 137"
   printf 'someone rewrote the ledger\n' > "$ORIGIN/$EV"
   run_engine apply --pr "$PR" --pid 4242 --json
-  [[ "$ENG_RC" -eq 3 ]] || fail TEST-014 "diverged arm: resume exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
-  want TEST-014 "$ENG_OUT" 'REFUSE ledger_rewritten'
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-014 "diverged arm: resume exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-014 "$ENG_OUT" 'pending_diverged'
+  [[ "$(step_status "$ENG_OUT" sync-base)" == retained ]] || fail TEST-014 'diverged arm: sync-base is not retained'
+  [[ "$(step_status "$ENG_OUT" delete-branch)" != retained ]] || fail TEST-014 'diverged arm: the other steps did not finish'
   [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail TEST-014 'diverged arm: the pending journal was deleted'
   [[ "$(cat "$ORIGIN/$EV")" == 'someone rewrote the ledger' ]] || fail TEST-014 'diverged arm: the live ledger was overwritten'
   assert_nothing_lost TEST-014
@@ -1035,13 +1095,15 @@ test_004_preflight_ready() {
   pf
   [[ "$ENG_RC" -eq 10 ]] || fail TEST-004 "second ready exited $ENG_RC"
   [[ "$(world_digest)" == "$before" ]] || fail TEST-004 'second preflight changed the fixture'
-  # the merge happens, then apply refuses (the ride is dirty): the direction is already durable
+  # the merge happens, then apply keeps the dirty ride (spec-merge-cleanup-resolves-framework-friction D6)
   write_pr_json MERGED "$MC"
   # the appended sweep line alone is a movable ledger tail (spec-merge-cleanup-ride-leftovers); a stray edit makes the ride dirty
   printf 'stray edit\n' >> "$RIDE/README.md"
   run_engine apply --pr "$PR" --pid 4242 --direction 'merge 433 please'
-  [[ "$ENG_RC" -eq 3 ]] || fail TEST-004 "apply on the dirty ride exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
-  [[ ! -f "$dec" ]] || fail TEST-004 'refused apply wrote to decisions.jsonl'
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-004 "apply on the dirty ride exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-004 "$ENG_OUT" 'Kept: the worktree'
+  [[ "$(tail -n 1 "$RIDE/README.md")" == 'stray edit' ]] || fail TEST-004 'the kept ride lost its stray edit'
+  [[ ! -f "$dec" ]] || fail TEST-004 'apply on the dirty ride wrote to decisions.jsonl'
   git -C "$RIDE" show HEAD:README.md > "$W/readme.ride" || fail SETUP 'ride README blob'
   run cp "$W/readme.ride" "$RIDE/README.md"
   write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
@@ -1075,8 +1137,11 @@ test_015_downstream_layout() {
   ENGINE="$ORIGIN/.aai/scripts/merge-cleanup.mjs"
   run_engine apply --pr "$PR" --pid 4242 --json
   ENGINE="$saved_engine"
-  [[ "$ENG_RC" -eq 3 ]] || fail TEST-015 "apply with a dirty worktree exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
-  want TEST-015 "$ENG_OUT" 'REFUSE worktree_dirty'
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-015 "apply with a dirty worktree exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-015 "$ENG_OUT" '"reason":"worktree_dirty"'
+  want TEST-015 "$(json_get "$ENG_OUT" 'j.remaining')" 'the worktree'
+  [[ "$(step_status "$ENG_OUT" sync-base)" == done ]] || fail TEST-015 'the base sync did not finish beside the kept worktree'
+  [[ "$(tail -n 1 "$RIDE/README.md")" == edit ]] || fail TEST-015 'the dirty worktree file changed'
   [[ -d "$RIDE" ]] || fail TEST-015 'dirty worktree was removed'
   git -C "$ORIGIN" show-ref --verify -q "refs/heads/$BRANCH" || fail TEST-015 'branch of a dirty worktree was deleted'
   # positive cleanup once the edit is undone (rewritten from the committed blob, never a restore command)
@@ -1086,7 +1151,7 @@ test_015_downstream_layout() {
   run_engine apply --pr "$PR" --pid 4242 --json
   ENGINE="$saved_engine"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-015 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
-  [[ "$(step_status "$ENG_OUT" archive-runtime)" == done ]] || fail TEST-015 'runtime was not archived'
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/worktree/docs/ai/STATE.yaml" ]] || fail TEST-015 'runtime was not archived'
   [[ "$(saved_reports | wc -l | tr -d ' ')" == 0 ]] || fail TEST-015 'report was saved to disk'
   [[ "$(step_status "$ENG_OUT" remove-worktree)" == done ]] || fail TEST-015 "worktree step reported $(step_status "$ENG_OUT" remove-worktree)"
   [[ "$(step_status "$ENG_OUT" delete-branch)" == done ]] || fail TEST-015 "branch step reported $(step_status "$ENG_OUT" delete-branch)"
@@ -1636,7 +1701,7 @@ test_016_powershell_parity() {
   [[ -f "$ROOT/tests/skills/aai-merge-cleanup.Tests.ps1" ]] || fail TEST-016 'tests/skills/aai-merge-cleanup.Tests.ps1 is missing'
   out="$(AAI_ROOT_DIR="$ROOT" pwsh -NoProfile -Command 'Set-Location -LiteralPath $env:AAI_ROOT_DIR; Invoke-Pester -Path tests/skills/aai-merge-cleanup.Tests.ps1 -EnableExit' 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || fail TEST-016 "Pester exited $rc: $(printf '%s\n' "$out" | /usr/bin/grep -E 'RuntimeException|Expected|REFUSE|STOPPED|\[-\]' | awk 'NR <= 6' | tr '\n' ' ')"
-  want TEST-016 "$out" 'Passed: 2'
+  want TEST-016 "$out" 'Passed: 3'
   echo 'PASS: TEST-016 PowerShell parity (local pwsh)'
 }
 
@@ -1735,13 +1800,13 @@ origin_sub_state() {
   git -C "$ORIGIN" submodule status --recursive || true
 }
 
-# plan_refuses <tid> <reason> <detail>: plan exits 3 with the same line apply gives, writing nothing.
-plan_refuses() {
+# plan_keeps <tid> <reason> <detail>: plan exits 0 and names the worktree it would keep, writing nothing.
+plan_keeps() {
   local tid="$1" reason="$2" detail="$3" before
   before="$(world_digest)"
   run_engine plan --pr "$PR" --pid 4242
-  [[ "$ENG_RC" -eq 3 ]] || fail "$tid" "plan exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
-  want "$tid" "$ENG_OUT" "REFUSE $reason $detail"
+  [[ "$ENG_RC" -eq 0 ]] || fail "$tid" "plan exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want "$tid" "$ENG_OUT" "keep $RIDE ($reason $detail"
   [[ "$(world_digest)" == "$before" ]] || fail "$tid" "plan arm $reason changed the fixture"
 }
 
@@ -1772,7 +1837,7 @@ test_028_submodule_worktree_removed_after_proof() {
   echo 'PASS: TEST-028 submodule worktree removed after the proof, main checkout untouched'
 }
 
-test_029_dirty_submodule_refused() {
+test_029_dirty_submodule_kept() {
   local arm path want_path sha_before dirty
   for arm in "tracked|sub|sub" "untracked|sub|sub" "nested|sub/nest|sub/nest" "ignore_all|sub|sub"; do
     path="${arm#*|}"; want_path="${path#*|}"; path="${path%%|*}"
@@ -1783,18 +1848,18 @@ test_029_dirty_submodule_refused() {
       nested) dirty="$RIDE/$path/nest.txt"; printf 'edited\n' >> "$dirty" ;;
     esac
     sha_before="$(sha_of "$dirty")"
-    plan_refuses TEST-029 submodule_dirty "$want_path (dirty:"
-    refuse_arm TEST-029 submodule_dirty "$want_path (dirty:"
+    plan_keeps TEST-029 submodule_dirty "$want_path (dirty:"
+    keep_arm TEST-029 submodule_dirty "$want_path (dirty:" remove-worktree
     [[ "$(sha_of "$dirty")" == "$sha_before" ]] || fail TEST-029 "arm ${arm%%|*}: the dirty file changed"
     has "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE" || fail TEST-029 "arm ${arm%%|*}: the ride left the worktree list"
     git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-029 "arm ${arm%%|*}: the ride branch is gone"
     # the nested arm names the nested path, not its parent
     if [[ "${arm%%|*}" == nested ]]; then unwanted TEST-029 "$ENG_OUT" 'sub (dirty'; fi
   done
-  echo 'PASS: TEST-029 a dirty submodule refuses before any write'
+  echo 'PASS: TEST-029 a dirty submodule keeps the worktree and finishes the other steps'
 }
 
-test_030_unpushed_submodule_refused() {
+test_030_unpushed_submodule_kept() {
   local arm reason path before adm
   for arm in "gitlink|submodule_unpushed|sub" "nested_gitlink|submodule_unpushed|sub (unpushed: 1 commit not on any remote-tracking ref); sub/nest" "branch_ahead|submodule_unpushed|sub" "tag_only|submodule_unpushed|sub" \
              "stash|submodule_stash|sub" "no_remote|submodule_no_remote|sub" "stray_module|submodule_unverifiable|stray" \
@@ -1836,8 +1901,8 @@ test_030_unpushed_submodule_refused() {
     esac
     before="$(git -C "$RIDE" status --porcelain --ignore-submodules=dirty)"
     [[ -z "$before" ]] || fail SETUP "arm ${arm%%|*}: superproject not clean: $before"
-    plan_refuses TEST-030 "$reason" "$path ("
-    refuse_arm TEST-030 "$reason" "$path ("
+    plan_keeps TEST-030 "$reason" "$path ("
+    keep_arm TEST-030 "$reason" "$path (" remove-worktree
     has "$(git -C "$ORIGIN" worktree list --porcelain)" "$RIDE" || fail TEST-030 "arm ${arm%%|*}: the ride left the worktree list"
     git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-030 "arm ${arm%%|*}: the ride branch is gone"
     if [[ "${arm%%|*}" == ignored_ls_fails ]]; then
@@ -1852,7 +1917,7 @@ test_030_unpushed_submodule_refused() {
       fi
     fi
   done
-  echo 'PASS: TEST-030 unpushed, stashed, remoteless and unverifiable submodules refuse'
+  echo 'PASS: TEST-030 unpushed, stashed, remoteless and unverifiable submodules keep the worktree'
 }
 
 # ---------------------------------------------------------------------------
@@ -2060,7 +2125,8 @@ test_035_submodule_tags_archived() {
   run git -C "$RIDE/sub" tag only-local-tag
   run git -C "$RIDE/sub" checkout -q --detach "$(git -C "$RIDE" rev-parse HEAD:sub)"
   run_engine apply --pr "$PR" --pid 4242
-  [[ "$ENG_RC" -eq 3 ]] || fail TEST-035 "unpushed-tag arm: apply exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-035 "unpushed-tag arm: apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-035 "$ENG_OUT" '"reason":"submodule_unpushed"'
   [[ -d "$RIDE" ]] || fail TEST-035 'unpushed-tag arm: the ride was removed'
   echo 'PASS: TEST-035 submodule tags archived before the forced removal, repeat appends nothing'
 }
@@ -2377,6 +2443,7 @@ ship_append_foo() {
   local d="$W/rmdocs"
   run mkdir -p "$d/issues"
   other_item_doc > "$d/issues/ISSUE-0002-other-item.md"
+  printf -- '---\nid: parent-cap\ntype: rfc\nnumber: 3\nstatus: implementing\nlinks:\n  pr: []\n  commits: []\n---\n\n# Parent\n' > "$d/issues/RFC-0003-parent-cap.md"
   printf -- '---\nid: foo\ntype: change\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Change foo\n' > "$d/issues/CHANGE-DRAFT-foo.md"
   node "$ROADMAP_ENGINE" ship-append --ref foo --intake "$d/issues/CHANGE-DRAFT-foo.md" --roadmap "$ORIGIN/$RM" --docs "$d" >"$W/ship-append.out" 2>&1 || fail SETUP "ship-append failed: $(cat "$W/ship-append.out")"
   want SETUP "$(cat "$ORIGIN/$RM")" '  - capability: foo'
@@ -2392,7 +2459,7 @@ test_045_ride_roadmap_entry_taken_from_incoming() {
   before="$(world_digest)"
   run_engine plan --pr "$PR"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-045 "plan exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
-  want TEST-045 "$ENG_OUT" "take incoming $RM (archive ride entry foo)"
+  want TEST-045 "$ENG_OUT" "take incoming $RM (archive the local bytes first)"
   [[ "$(world_digest)" == "$before" ]] || fail TEST-045 'plan changed the world'
   run_engine apply --pr "$PR" --pid 4242 --json
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-045 "apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
@@ -2421,29 +2488,29 @@ test_045_ride_roadmap_entry_taken_from_incoming() {
 test_046_foreign_roadmap_hunk_refuses_overlap() {
   ROADMAP_WORLD=1 build_world rmap_foreign
   roadmap_base | sed 's/status: done/status: active/' > "$ORIGIN/$RM"
-  refuse_arm TEST-046 overlap "$RM"
+  decide_arm TEST-046 overlap "$RM"
 
   ROADMAP_WORLD=1 build_world rmap_mixed
   ship_append_foo
   sed 's/status: done/status: active/' "$ORIGIN/$RM" > "$W/mixed.yaml"
   run cp "$W/mixed.yaml" "$ORIGIN/$RM"
-  refuse_arm TEST-046 overlap "$RM"
+  decide_arm TEST-046 overlap "$RM"
 
   ROADMAP_WORLD=1 build_world rmap_staged
   ship_append_foo
   run git -C "$ORIGIN" add "$RM"
-  refuse_arm TEST-046 overlap "$RM"
+  keep_arm TEST-046 overlap_staged "$RM"
 
   RIDE_ROADMAP=elsewhere ROADMAP_WORLD=1 build_world rmap_lacks
   ship_append_foo
-  refuse_arm TEST-046 overlap "$RM"
+  decide_arm TEST-046 overlap "$RM"
 
   # positive control: the ride-only world is not refused
   ROADMAP_WORLD=1 build_world rmap_control
   ship_append_foo
   run_engine plan --pr "$PR"
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-046 "control: plan exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
-  echo 'PASS: TEST-046 a foreign, mixed, staged or unmatched roadmap change refuses overlap'
+  echo 'PASS: TEST-046 a foreign, mixed or unmatched roadmap change gives the overlap decide outcome, a staged one is kept'
 }
 
 LEDGER_RT='{"v":1,"ts":"2026-10-11T00:00:00Z","actor":"ride","event":"tail-run-1"}'
@@ -2528,7 +2595,7 @@ test_048_non_append_ledger_change_refused() {
       plus-untracked) printf '%s\n' "$LEDGER_EV1" >> "$RIDE/docs/ai/EVENTS.jsonl"
                       printf 'stray\n' > "$RIDE/stray.txt" ;;
     esac
-    refuse_arm TEST-048 worktree_dirty "$RIDE"
+    keep_arm TEST-048 worktree_dirty "$RIDE" remove-worktree
     [[ -d "$RIDE" ]] || fail TEST-048 "arm $arm: the worktree is gone"
     git -C "$ORIGIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || fail TEST-048 "arm $arm: the branch is gone"
   done
@@ -3098,7 +3165,7 @@ test_075_reconcile_origin_step() {
   [[ "$ENG_RC" -eq 0 ]] || fail TEST-075 "ride-handoff TEST-011 apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
   rep="$ENG_OUT"
   steps="$(json_get "$rep" 'j.steps.map(s=>s.id).join(" ")')"
-  [[ "$steps" == 'resolve plan archive-runtime sync-base reconcile-origin remove-worktree delete-branch report' ]] || fail TEST-075 "ride-handoff TEST-011 step list is: $steps"
+  [[ "$steps" == 'resolve plan archive-drafts archive-runtime sync-base reconcile-origin remove-worktree delete-branch report' ]] || fail TEST-075 "ride-handoff TEST-011 step list is: $steps"
   [[ "$(step_status "$rep" reconcile-origin)" == done ]] || fail TEST-075 "ride-handoff TEST-011 reconcile-origin reported $(step_status "$rep" reconcile-origin), want done"
   journal="$(cat "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/journal.jsonl")"
   want TEST-075 "$journal" '"step":"reconcile-origin"'
@@ -3147,6 +3214,1160 @@ test_075_reconcile_origin_step() {
   echo 'PASS: TEST-075 reconcile-origin is done, journalled, a no-op on rerun, retained on an unledgered run, stopped on a failed child'
 }
 
+# ---------------------------------------------------------------------------
+# spec-merge-cleanup-resolves-framework-friction: TEST-2901..TEST-2930.
+# A protected object is kept, a decision is asked as a menu, a failed read is retried a bounded number of times.
+LIB="$ROOT/.aai/scripts/lib/merge-outcomes.mjs"
+SKILL_BLOCK="$ROOT/.aai/SKILL_MERGE.prompt.md"
+
+# oc <stdout> <js over o>: the OUTCOME lines of a run's stdout, parsed into the array o.
+oc() {
+  printf '%s\n' "$1" | node -e 'const o=require("fs").readFileSync(0,"utf8").split("\n").filter(l=>l.startsWith("OUTCOME ")).map(l=>JSON.parse(l.slice(8)));const v=eval(process.argv[1]);console.log(typeof v==="string"?v:JSON.stringify(v))' "$2"
+}
+oc_id() { oc "$1" "(o.find(x=>x.reason===\"$2\")||{}).id||\"\""; }
+
+# oc_check <stdout> <test id>: at least one OUTCOME line, every one with the D8 keys and invariants.
+oc_check() {
+  local n
+  n="$(printf '%s\n' "$1" | node -e '
+const o=require("fs").readFileSync(0,"utf8").split("\n").filter(l=>l.startsWith("OUTCOME ")).map(l=>JSON.parse(l.slice(8)));
+const keys=["v","id","class","state","reason","subject","detail","options","recommended","question","action"];
+for (const x of o) {
+  for (const k of keys) if (!(k in x)) throw new Error("missing key "+k);
+  if (!/^[a-z_]+@[0-9a-f]{12}$/.test(x.id)) throw new Error("bad id "+x.id);
+  if (x.class==="decide" && (x.options.length<2||x.options.length>3||!x.options.some(p=>p.id===x.recommended)||!x.question||x.options.some(p=>!p.effect))) throw new Error("decide "+x.reason);
+  if (x.class==="external" && (!x.action||x.options.length)) throw new Error("external "+x.reason);
+  if (x.class==="auto" && x.options.length) throw new Error("auto "+x.reason);
+}
+console.log(o.length)')" || fail "$2" 'an OUTCOME line breaks the D8 keys or invariants'
+  [[ "$n" -gt 0 ]] || fail "$2" 'no OUTCOME line was printed'
+}
+
+line_no() { printf '%s\n' "$1" | awk -v pat="$2" 'index($0, pat) == 1 { print NR; exit }'; }
+count_lines_with() { printf '%s\n' "$1" | awk -v pat="$2" 'index($0, pat) == 1 { n++ } END { print n + 0 }'; }
+
+# draft_rich: the untracked pre-allocation copy of the ride's intake (it names its own draft stem twice).
+draft_rich() { printf -- '---\nid: %s\ntype: issue\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Issue foo\n\nSee docs/issues/ISSUE-DRAFT-foo.md and ISSUE-DRAFT-foo here.\n\nBody line.\n' "$ISSUE_ID"; }
+
+# alloc_numbered: the numbered doc the REAL allocate-doc-number.mjs makes from draft_rich, in a scratch clone.
+# Sets NUMBERED_ISSUE_FILE; the world's numbered_issue then writes those bytes into the ride.
+alloc_numbered() {
+  local d="$SCRATCH/alloc"
+  [[ -n "$SCRATCH" && "$SCRATCH" = /* ]] || fail SETUP 'alloc root'
+  rm -rf "$d"
+  run mkdir -p "$d/w/docs/issues"
+  run git init -q --bare -b main "$d/bare.git"
+  run git init -q -b main "$d/w"
+  run git -C "$d/w" remote add origin "$d/bare.git"
+  printf 'seed\n' > "$d/w/README.md"
+  run git -C "$d/w" add -A
+  run git -C "$d/w" commit -qm seed
+  run git -C "$d/w" push -q origin main
+  run git -C "$d/w" fetch -q origin
+  draft_rich > "$d/w/docs/issues/ISSUE-DRAFT-foo.md"
+  ( cd "$d/w" && node "$ROOT/.aai/scripts/allocate-doc-number.mjs" --path docs/issues/ISSUE-DRAFT-foo.md --base-ref origin/main >"$d/alloc.out" 2>&1 ) || fail SETUP 'the allocator failed'
+  [[ -f "$d/w/docs/issues/ISSUE-0001-foo.md" ]] || fail SETUP "the allocator produced no numbered doc: $(cat "$d/alloc.out")"
+  NUMBERED_ISSUE_FILE="$d/w/docs/issues/ISSUE-0001-foo.md"
+  # positive control: the allocator changed the number line and the stem, so the two files differ as raw bytes
+  if cmp -s <(draft_rich) "$NUMBERED_ISSUE_FILE"; then fail SETUP 'the allocator left the draft bytes unchanged'; fi
+  want SETUP "$(cat "$NUMBERED_ISSUE_FILE")" 'ISSUE-0001-foo'
+}
+
+# put_draft [extra]: the untracked draft in the origin (draft_rich, plus one body line with extra).
+put_draft() {
+  draft_rich > "$ORIGIN/$DRAFT_ISSUE"
+  if [[ -n "${1:-}" ]]; then printf '%s\n' "$1" >> "$ORIGIN/$DRAFT_ISSUE"; fi
+}
+
+# apply_run [args]: apply for the fixture PR with the harness pinned.
+apply_run() { AAI_HARNESS=claude run_engine apply --pr "$PR" --pid 4242 "$@"; }
+
+attempts_lines() { lines_of "$ORIGIN/.git/aai-merge-cleanup/pr-$PR/attempts.jsonl" '"exit"'; }
+
+# ---- unit tests -------------------------------------------------------------------------------------------
+test_2901_outcome_table_complete() {
+  cat > "$SCRATCH/t2901.mjs" <<'JS'
+import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
+const [root] = process.argv.slice(2);
+const lib = await import(pathToFileURL(`${root}/.aai/scripts/lib/merge-outcomes.mjs`).href);
+const src = fs.readFileSync(`${root}/.aai/scripts/merge-cleanup.mjs`, 'utf8');
+const found = new Set(['gh_read_failed', 'gh_read_invalid', 'az_read_failed', 'az_read_invalid', 'repo_mismatch', 'az_arg_unsafe', 'reconcile_refused']);
+for (const m of src.matchAll(/\b(?:refuse|stop|halt|retain|raise|clash|keepStep|keepLocalBranch)\((?:ctx, (?:'[a-z-]+', )?)?'([a-z_]+)'/g)) found.add(m[1]);
+for (const m of src.matchAll(/(?:refusal|retain): \['([a-z_]+)'/g)) found.add(m[1]);
+for (const m of src.matchAll(/held: \{ reason: '([a-z_]+)'/g)) found.add(m[1]);
+for (const m of src.matchAll(/reason = '([a-z_]+)'/g)) found.add(m[1]);
+const kinds = src.match(/const SUB_KINDS = \[([^\]]*)\]/);
+if (!kinds) throw new Error('SUB_KINDS not found');
+for (const k of kinds[1].match(/[a-z_]+/g)) found.add(`submodule_${k}`);
+if (found.size < 40) throw new Error(`only ${found.size} reason literals scanned`);
+for (const must of ['worktree_dirty', 'overlap', 'fetch_failed', 'sync_failed', 'remote_moved', 'divergent_draft', 'head_changed']) if (!found.has(must)) throw new Error(`scan missed ${must}`);
+const missing = [...found].filter((r) => !(r in lib.OUTCOME_TABLE));
+if (missing.length) throw new Error(`no table entry for: ${missing.join(', ')}`);
+let n = 0;
+for (const reason of Object.keys(lib.OUTCOME_TABLE)) {
+  for (const phase of ['plan', 'step']) for (const retry of [true, false]) {
+    const o = lib.classify(reason, { phase, subject: 's', detail: 'd', evidence: ['e'], retry });
+    for (const k of ['v', 'id', 'class', 'state', 'reason', 'subject', 'detail', 'options', 'recommended', 'question', 'action']) if (!(k in o)) throw new Error(`${reason}: missing ${k}`);
+    if (o.class === 'decide' && !(o.options.length >= 2 && o.options.length <= 3 && o.options.some((x) => x.id === o.recommended) && o.question && o.options.every((x) => x.effect))) throw new Error(`${reason}: decide invariants`);
+    if (o.class === 'external' && !(o.action && o.options.length === 0)) throw new Error(`${reason}: external invariants`);
+    if (o.class === 'auto' && o.options.length !== 0) throw new Error(`${reason}: auto invariants`);
+    const line = lib.outcomeLine(o);
+    if (!line.startsWith('OUTCOME ') || JSON.stringify(lib.parseOutcomeLine(line)) !== JSON.stringify(o)) throw new Error(`${reason}: the line does not parse back`);
+    n++;
+  }
+}
+let threw = false;
+try { lib.classify('no_such_reason'); } catch { threw = true; }
+if (!threw) throw new Error('an unknown reason must not classify');
+if (lib.compareDraft('---\nid: a\n---\nx\n', '---\nid: b\n---\nx\n', 'T-DRAFT-x', 'T-0001-x') !== false) throw new Error('different ids must be another item');
+console.log(`ok ${found.size} reasons, ${n} classifications`);
+JS
+  local out
+  out="$(node "$SCRATCH/t2901.mjs" "$ROOT" 2>&1)" || fail TEST-2901 "$out"
+  want TEST-2901 "$out" 'ok '
+  echo 'PASS: TEST-2901 the outcome table holds an entry for every reason the engine emits'
+}
+
+test_2918_next_attempt() {
+  cat > "$SCRATCH/t2918.mjs" <<'JS'
+import { pathToFileURL } from 'node:url';
+const [root] = process.argv.slice(2);
+const { nextAttempt, MAX_AUTO_ATTEMPTS } = await import(pathToFileURL(`${root}/.aai/scripts/lib/merge-outcomes.mjs`).href);
+const eq = (a, b, m) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${m}: ${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
+const rec = (fp, retries = ['x@aaaaaaaaaaaa']) => ({ exit: 4, retries, fingerprint: fp });
+if (MAX_AUTO_ATTEMPTS !== 3) throw new Error('budget constant');
+eq(nextAttempt([], 'f1'), { retry: true }, 'no records');
+eq(nextAttempt([rec('f1')], 'f2'), { retry: true }, 'one record, new fingerprint');
+eq(nextAttempt([rec('f1'), rec('f2')], 'f3'), { retry: false, why: 'budget' }, 'two trailing retry records');
+eq(nextAttempt([rec('f1')], 'f1'), { retry: false, why: 'no_progress' }, 'same fingerprint');
+eq(nextAttempt([rec('f1'), rec('f2'), rec('f3', [])], 'f4'), { retry: true }, 'a record without a retry outcome ends the chain');
+eq(nextAttempt([rec('f1'), rec('f2'), { ...rec('f3'), reset: true }], 'f4'), { retry: true }, 'a reset record ends the chain');
+eq(nextAttempt([rec('f1', []), rec('f1', [])], 'f1'), { retry: true }, 'same fingerprint without a retry chain');
+console.log('ok');
+JS
+  local out
+  out="$(node "$SCRATCH/t2918.mjs" "$ROOT" 2>&1)" || fail TEST-2918 "$out"
+  want TEST-2918 "$out" 'ok'
+  echo 'PASS: TEST-2918 nextAttempt bounds the retry chain and reads progress from the fingerprint'
+}
+
+# ---- outcome lines from real runs, the plain summary --------------------------------------------------------
+test_2902_outcome_lines_from_real_runs() {
+  local before ref_at out_at
+  # not_merged: external, exit 3, nothing changed, the REFUSE text first
+  build_world oc_not_merged
+  write_pr_json OPEN null
+  before="$(world_digest)"
+  apply_run
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-2902 "not_merged exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2902 "$ENG_OUT" 'REFUSE not_merged'
+  oc_check "$ENG_OUT" TEST-2902
+  [[ "$(oc "$ENG_OUT" 'o[0].class')" == external ]] || fail TEST-2902 'not_merged is not class external'
+  [[ "$(line_no "$ENG_OUT" 'REFUSE')" -lt "$(line_no "$ENG_OUT" 'OUTCOME')" ]] || fail TEST-2902 'the OUTCOME line precedes the REFUSE line'
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-2902 'not_merged changed the fixture'
+  # fetch_failed: an unreachable origin URL is a read failure, class auto, state retry, exit 3
+  build_world oc_fetch
+  run git -C "$ORIGIN" remote set-url origin "$W/does-not-exist.git"
+  before="$(world_digest)"
+  apply_run
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-2902 "fetch_failed exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2902 "$ENG_OUT" 'REFUSE fetch_failed'
+  oc_check "$ENG_OUT" TEST-2902
+  [[ "$(oc "$ENG_OUT" 'o[0].class+" "+o[0].state')" == 'auto retry' ]] || fail TEST-2902 "fetch_failed outcome is $(oc "$ENG_OUT" 'o[0].class+" "+o[0].state')"
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-2902 'fetch_failed changed the fixture'
+  # a dirty worktree: auto, resolved, exit 0
+  build_world oc_dirty
+  printf 'uncommitted\n' > "$RIDE/stray.txt"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2902 "dirty worktree exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  oc_check "$ENG_OUT" TEST-2902
+  [[ "$(oc "$ENG_OUT" 'o.find(x=>x.reason==="worktree_dirty").class+" "+o.find(x=>x.reason==="worktree_dirty").state')" == 'auto resolved' ]] || fail TEST-2902 'worktree_dirty is not auto resolved'
+  # a divergent draft: decide, pending, exit 6
+  alloc_numbered
+  build_world oc_divergent
+  put_draft 'one more body line'
+  apply_run
+  [[ "$ENG_RC" -eq 6 ]] || fail TEST-2902 "divergent draft exited $ENG_RC, want 6 (out: $ENG_OUT $ENG_ERR)"
+  oc_check "$ENG_OUT" TEST-2902
+  [[ "$(oc "$ENG_OUT" 'o.find(x=>x.reason==="divergent_draft").class+" "+o.find(x=>x.reason==="divergent_draft").state')" == 'decide pending' ]] || fail TEST-2902 'divergent_draft is not decide pending'
+  NUMBERED_ISSUE_FILE=''
+  echo 'PASS: TEST-2902 outcome lines from real runs'
+}
+
+test_2921_plain_summary() {
+  local out kept decisions merge_line
+  # complete
+  build_world sum_complete
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2921 "complete exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  merge_line="Merge: PR #$PR is merged as ${MC:0:12}."
+  want TEST-2921 "$ENG_OUT" "$merge_line"
+  want TEST-2921 "$ENG_OUT" 'Cleanup: complete.'
+  [[ "$(count_lines_with "$ENG_OUT" 'Kept: ')" == 0 ]] || fail TEST-2921 'a complete run printed a Kept: line'
+  # complete with kept items: a dirty worktree is kept, and so is the local branch it holds
+  build_world sum_kept
+  printf 'uncommitted\n' > "$RIDE/stray.txt"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2921 "kept run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  kept="$(count_lines_with "$ENG_OUT" 'Kept: ')"
+  [[ "$kept" -ge 1 ]] || fail TEST-2921 'a kept worktree printed no Kept: line'
+  want TEST-2921 "$ENG_OUT" "Cleanup: complete; kept $kept item(s), nothing needs you."
+  apply_run --json
+  [[ "$(json_get "$ENG_OUT" 'j.summary.kept')" == "$kept" ]] || fail TEST-2921 "json summary.kept is $(json_get "$ENG_OUT" 'j.summary.kept'), the text run had $kept"
+  [[ "$(json_get "$ENG_OUT" 'j.summary.kind')" == complete_kept ]] || fail TEST-2921 'json summary.kind is not complete_kept'
+  # a pending decision: everything else is done
+  alloc_numbered
+  build_world sum_decision
+  put_draft 'one more body line'
+  apply_run
+  [[ "$ENG_RC" -eq 6 ]] || fail TEST-2921 "decision run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2921 "$ENG_OUT" 'Cleanup: waiting for your decision on 1 item(s); everything else is done.'
+  decisions="$(count_lines_with "$ENG_OUT" 'Decision: ')"
+  [[ "$decisions" == 1 ]] || fail TEST-2921 "decision run printed $decisions Decision: lines, want 1"
+  want TEST-2921 "$(printf '%s\n' "$ENG_OUT" | awk 'index($0, "Decision: ") == 1')" '(recommended)'
+  apply_run --json
+  [[ "$(json_get "$ENG_OUT" 'j.summary.decisions')" == 1 ]] || fail TEST-2921 'json summary.decisions is not 1'
+  NUMBERED_ISSUE_FILE=''
+  # interrupted with a retry, then interrupted with a decision (the fast-forward fails every time)
+  build_world sum_interrupted
+  make_shim "$W/shim" --ff-only 'echo "fatal: forced fast-forward failure" >&2; exit 128'
+  PATH="$W/shim:$PATH" apply_run
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-2921 "interrupted run exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2921 "$ENG_OUT" 'Cleanup: interrupted at sync-base; retrying.'
+  PATH="$W/shim:$PATH" apply_run
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-2921 "second interrupted run exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2921 "$ENG_OUT" 'Cleanup: interrupted at sync-base; waiting for your decision.'
+  [[ "$(count_lines_with "$ENG_OUT" 'Decision: ')" == 1 ]] || fail TEST-2921 'the fallback decision printed no Decision: line'
+  # refused: not merged
+  build_world sum_refused
+  write_pr_json OPEN null
+  apply_run
+  want TEST-2921 "$ENG_OUT" 'Merge: not done.'
+  want TEST-2921 "$ENG_OUT" 'Cleanup: not started; nothing was changed.'
+  [[ "$(count_lines_with "$ENG_OUT" 'Needs you: ')" == 1 ]] || fail TEST-2921 'the refusal printed no Needs you: line'
+  # a preflight refusal: the head moved
+  open_world sum_preflight
+  write_open_pr OPEN false "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" CLEAN "$ROLLUP_OK"
+  pf
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-2921 "preflight head_changed exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2921 "$ENG_OUT" 'Merge: not done.'
+  [[ "$(count_lines_with "$ENG_OUT" 'Decision: ')" == 1 ]] || fail TEST-2921 'the head_changed refusal printed no Decision: line'
+  echo 'PASS: TEST-2921 the plain summary lines for each terminal kind'
+}
+
+# ---- D3: drafts against their numbered counterpart ------------------------------------------------------------
+test_2907_superseded_draft_archived() {
+  local arch dsha
+  alloc_numbered
+  build_world draft_super
+  put_draft
+  dsha="$(sha_of "$ORIGIN/$DRAFT_ISSUE")"
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2907 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-2907 'the superseded draft is still in the main checkout'
+  [[ "$(sha_of "$arch/drafts/$DRAFT_ISSUE")" == "$dsha" ]] || fail TEST-2907 'the archived draft differs from the draft bytes'
+  want TEST-2907 "$(cat "$arch/manifest.jsonl")" "\"sha256\":\"$dsha\",\"reason\":\"superseded_draft\""
+  unwanted TEST-2907 "$ENG_OUT" 'leftover_draft'
+  unwanted TEST-2907 "$ENG_OUT" 'owner decision'
+  want TEST-2907 "$ENG_OUT" 'Cleanup: complete.'
+  [[ -f "$ORIGIN/$NUM_ISSUE" ]] || fail TEST-2907 'the numbered doc is missing from the main checkout'
+  NUMBERED_ISSUE_FILE=''
+  echo 'PASS: TEST-2907 a draft equal to its numbered counterpart is archived and removed with no question'
+}
+
+test_2908_divergent_draft_menu() {
+  local id before arch
+  alloc_numbered
+  build_world draft_div
+  put_draft 'one more body line'
+  before="$(sha_of "$ORIGIN/$DRAFT_ISSUE")"
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  apply_run
+  [[ "$ENG_RC" -eq 6 ]] || fail TEST-2908 "apply exited $ENG_RC, want 6 (out: $ENG_OUT $ENG_ERR)"
+  oc_check "$ENG_OUT" TEST-2908
+  [[ "$(oc "$ENG_OUT" 'o.filter(x=>x.reason==="divergent_draft").length')" == 1 ]] || fail TEST-2908 'want one divergent_draft outcome'
+  [[ "$(oc "$ENG_OUT" 'o.find(x=>x.reason==="divergent_draft").recommended')" == keep ]] || fail TEST-2908 'keep is not recommended'
+  want TEST-2908 "$(oc "$ENG_OUT" 'o.find(x=>x.reason==="divergent_draft").options.map(p=>p.id)')" 'archive_remove'
+  [[ "$(sha_of "$ORIGIN/$DRAFT_ISSUE")" == "$before" ]] || fail TEST-2908 'the pending draft changed'
+  id="$(oc_id "$ENG_OUT" divergent_draft)"
+  apply_run --decide "$id=keep"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2908 "keep exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(sha_of "$ORIGIN/$DRAFT_ISSUE")" == "$before" ]] || fail TEST-2908 'keep changed the draft'
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2908 "a re-run after keep exited $ENG_RC, want 0: nothing is asked again (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-2908 "$ENG_OUT" 'Decision: '
+  # the draft changes again: the item is offered under a new id
+  printf 'edited after the choice\n' >> "$ORIGIN/$DRAFT_ISSUE"
+  apply_run
+  [[ "$ENG_RC" -eq 6 ]] || fail TEST-2908 "a changed draft exited $ENG_RC, want 6 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(oc_id "$ENG_OUT" divergent_draft)" != "$id" ]] || fail TEST-2908 'a changed draft kept its old id'
+  # archive_remove archives, then removes
+  before="$(sha_of "$ORIGIN/$DRAFT_ISSUE")"
+  apply_run --decide "$(oc_id "$ENG_OUT" divergent_draft)=archive_remove"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2908 "archive_remove exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-2908 'archive_remove left the draft'
+  [[ "$(sha_of "$arch/drafts/$DRAFT_ISSUE")" == "$before" ]] || fail TEST-2908 'the archive does not hold the removed draft bytes'
+  NUMBERED_ISSUE_FILE=''
+  echo 'PASS: TEST-2908 a divergent draft is a menu, keep is remembered, a changed draft is asked again'
+}
+
+# seed_dup_counterparts: two numbered docs with one slug in the ride, so a draft of that slug has two counterparts.
+seed_dup_counterparts() {
+  printf -- '---\nid: dup\ntype: issue\nnumber: 3\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Dup\n' > "$RIDE/docs/issues/ISSUE-0003-dup.md"
+  printf -- '---\nid: dup\ntype: issue\nnumber: 4\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Dup\n' > "$RIDE/docs/issues/ISSUE-0004-dup.md"
+  run git -C "$RIDE" add docs/issues/ISSUE-0003-dup.md docs/issues/ISSUE-0004-dup.md
+}
+
+test_2909_unproven_drafts_untouched() {
+  local d1='docs/issues/ISSUE-DRAFT-foo.md' d2='docs/issues/ISSUE-DRAFT-lonely.md' d3='docs/issues/ISSUE-DRAFT-dup.md' s1 s2 s3
+  alloc_numbered
+  RIDE_SEED=seed_dup_counterparts build_world draft_untouched
+  # another item's draft with the slug of the numbered doc (the frontmatter ids differ)
+  draft_rich | sed 's/^id: foo$/id: someone-else/' > "$ORIGIN/$d1"
+  printf -- '---\nid: lonely\ntype: issue\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Lonely\n' > "$ORIGIN/$d2"
+  printf -- '---\nid: dup\ntype: issue\nnumber: null\nstatus: draft\nlinks:\n  pr: []\n  commits: []\n---\n\n# Dup\n' > "$ORIGIN/$d3"
+  s1="$(sha_of "$ORIGIN/$d1")"; s2="$(sha_of "$ORIGIN/$d2")"; s3="$(sha_of "$ORIGIN/$d3")"
+  apply_run --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2909 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(sha_of "$ORIGIN/$d1")" == "$s1" && "$(sha_of "$ORIGIN/$d2")" == "$s2" && "$(sha_of "$ORIGIN/$d3")" == "$s3" ]] || fail TEST-2909 'an untouched draft changed'
+  want TEST-2909 "$(json_get "$ENG_OUT" 'j.untouched')" "$d1"
+  want TEST-2909 "$(json_get "$ENG_OUT" 'j.untouched')" "$d2"
+  want TEST-2909 "$(json_get "$ENG_OUT" 'j.untouched')" "$d3"
+  [[ "$(json_get "$ENG_OUT" 'j.outcomes.filter(o=>o.state==="pending").length')" == 0 ]] || fail TEST-2909 'an untouched draft produced a pending outcome'
+  [[ "$(json_get "$ENG_OUT" 'j.remaining.length')" == 0 ]] || fail TEST-2909 "an untouched draft produced remaining lines: $(json_get "$ENG_OUT" 'j.remaining')"
+  [[ "$(json_get "$ENG_OUT" 'j.retained.length')" == 0 ]] || fail TEST-2909 'an untouched draft was retained'
+  NUMBERED_ISSUE_FILE=''
+  echo 'PASS: TEST-2909 a draft with another id, no counterpart or two counterparts is left alone without a question'
+}
+
+# seed_projection_files / touch_projection_files: tracked generated pages and a guide the merge changes.
+seed_projection_files() {
+  run mkdir -p "$ORIGIN/docs/ai"
+  printf '{"v":1}\n' > "$ORIGIN/docs/ai/overview-data.json"
+  printf '<html>v1</html>\n' > "$ORIGIN/docs/ai/factory-report.html"
+  printf '# Guide\n' > "$ORIGIN/docs/USER_GUIDE.md"
+  run git -C "$ORIGIN" add docs/ai/overview-data.json docs/ai/factory-report.html docs/USER_GUIDE.md
+}
+touch_projection_files() {
+  printf '{"v":2}\n' > "$RIDE/docs/ai/overview-data.json"
+  printf '<html>v2</html>\n' > "$RIDE/docs/ai/factory-report.html"
+  printf '# Guide\n\nDelivered by the ride.\n' > "$RIDE/docs/USER_GUIDE.md"
+  run git -C "$RIDE" add docs/ai/overview-data.json docs/ai/factory-report.html docs/USER_GUIDE.md
+}
+
+test_2910_generated_projection_taken() {
+  local arch
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world proj_ok
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  printf '{"v":"local"}\n' > "$ORIGIN/docs/ai/overview-data.json"
+  printf '<html>local</html>\n' > "$ORIGIN/docs/ai/factory-report.html"
+  run cp "$ORIGIN/docs/ai/overview-data.json" "$W/overview.local"
+  run cp "$ORIGIN/docs/ai/factory-report.html" "$W/report.local"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2910 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(cat "$ORIGIN/docs/ai/overview-data.json")" == '{"v":2}' ]] || fail TEST-2910 'the projection was not replaced by the incoming blob'
+  [[ "$(cat "$ORIGIN/docs/ai/factory-report.html")" == '<html>v2</html>' ]] || fail TEST-2910 'the report page was not replaced by the incoming blob'
+  cmp "$W/overview.local" "$arch/sync/docs/ai/overview-data.json" || fail TEST-2910 'the archived projection differs from the local bytes'
+  cmp "$W/report.local" "$arch/sync/docs/ai/factory-report.html" || fail TEST-2910 'the archived report page differs from the local bytes'
+  want TEST-2910 "$(cat "$arch/manifest.jsonl")" "\"sha256\":\"$(sha_of "$W/overview.local")\",\"reason\":\"pre_sync_local_state\""
+  [[ "$(oc "$ENG_OUT" 'o.filter(x=>x.reason==="overlap").length')" == 0 ]] || fail TEST-2910 'a projection produced an overlap outcome'
+  # a dirty guide that the merge also changed is still an overlap
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world proj_guide
+  printf 'my own guide edit\n' >> "$ORIGIN/docs/USER_GUIDE.md"
+  decide_arm TEST-2910 overlap docs/USER_GUIDE.md
+  BASELINE_SEED='' RIDE_SEED=''
+  echo 'PASS: TEST-2910 a generated projection is archived and replaced, a guide edit is a decision'
+}
+
+# ---- D4/D5: the roadmap and the identity of a merged doc ---------------------------------------------------------
+# seed_rfc_parent: the parent capability's RFC (implementing) in the ride, as PR 485 delivered a child under it.
+seed_rfc_parent() {
+  run mkdir -p "$RIDE/docs/rfc"
+  printf -- '---\nid: parent-cap\ntype: rfc\nnumber: 3\nstatus: implementing\nlinks:\n  pr: []\n  commits: []\n---\n\n# Parent\n' > "$RIDE/docs/rfc/RFC-0003-parent-cap.md"
+  run git -C "$RIDE" add docs/rfc/RFC-0003-parent-cap.md
+}
+
+# local_pr485: the local roadmap of the main checkout - the HEAD blob plus the parent block (active) and, from the
+# REAL roadmap-edit ship-append, the child block (active), with the child's deferred wave line removed.
+local_pr485() {
+  awk '{ print } /^    status: done$/ && !d { print "  - capability: parent-cap"; print "    status: active"; d = 1 }' "$ORIGIN/$RM" > "$W/roadmap.parent"
+  run cp "$W/roadmap.parent" "$ORIGIN/$RM"
+  ship_append_foo
+  want SETUP "$(cat "$ORIGIN/$RM")" '  - capability: parent-cap'
+}
+
+test_2903_pr485_parent_child_roadmap() {
+  local arch before_sha
+  RIDE_ROADMAP=pr485 ROADMAP_WORLD=1 ISSUE_PR_EMPTY=1 RIDE_SEED=seed_rfc_parent build_world rm485
+  local_pr485
+  run cp "$ORIGIN/$RM" "$W/roadmap.local"
+  before_sha="$(sha_of "$W/roadmap.local")"
+  git -C "$BARE" show "$MC:$RM" > "$W/roadmap.incoming" || fail SETUP 'incoming roadmap blob'
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2903 "apply exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  cmp "$W/roadmap.incoming" "$ORIGIN/$RM" || fail TEST-2903 'the roadmap is not the incoming blob'
+  cmp "$W/roadmap.local" "$arch/sync/$RM" || fail TEST-2903 'the archived roadmap differs from the local bytes'
+  want TEST-2903 "$(cat "$arch/manifest.jsonl")" "\"sha256\":\"$before_sha\",\"reason\":\"pre_sync_local_state\""
+  unwanted TEST-2903 "$ENG_OUT" 'REFUSE overlap'
+  [[ "$(oc "$ENG_OUT" 'o.filter(x=>x.state==="pending").length')" == 0 ]] || fail TEST-2903 'a pending outcome was printed'
+  want TEST-2903 "$ENG_OUT" 'Cleanup: complete.'
+  # crash arm: killed right after the roadmap was rewritten, a re-run gives the same bytes
+  RIDE_ROADMAP=pr485 ROADMAP_WORLD=1 ISSUE_PR_EMPTY=1 RIDE_SEED=seed_rfc_parent build_world rm485_crash
+  local_pr485
+  git -C "$BARE" show "$MC:$RM" > "$W/roadmap.incoming" || fail SETUP 'incoming roadmap blob'
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT=sync-after-rewrite apply_run
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-2903 "crash arm exited $ENG_RC, want 137 (out: $ENG_OUT $ENG_ERR)"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2903 "crash arm re-run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  cmp "$W/roadmap.incoming" "$ORIGIN/$RM" || fail TEST-2903 'crash arm: the roadmap is not the incoming blob'
+  RIDE_SEED=''
+  echo 'PASS: TEST-2903 the PR 485 parent and child roadmap blocks are archived and the incoming roadmap taken'
+}
+
+test_2904_unrepresented_roadmap_decides() {
+  local id
+  world_rm() { RIDE_ROADMAP=pr485paused ROADMAP_WORLD=1 ISSUE_PR_EMPTY=1 RIDE_SEED=seed_rfc_parent build_world "$1"; local_pr485; seed_state; }
+  world_rm rm_decide
+  run cp "$ORIGIN/$RM" "$W/roadmap.local"
+  local head_before; head_before="$(git -C "$ORIGIN" rev-parse HEAD)"
+  apply_run
+  [[ "$ENG_RC" -eq 6 ]] || fail TEST-2904 "apply exited $ENG_RC, want 6 (out: $ENG_OUT $ENG_ERR)"
+  oc_check "$ENG_OUT" TEST-2904
+  [[ "$(oc "$ENG_OUT" 'o.filter(x=>x.reason==="overlap"&&x.class==="decide"&&x.recommended==="keep_local").length')" == 1 ]] || fail TEST-2904 'want one overlap decide outcome with keep_local recommended'
+  want TEST-2904 "$(oc "$ENG_OUT" 'o.find(x=>x.reason==="overlap").detail')" 'parent-cap'
+  cmp "$W/roadmap.local" "$ORIGIN/$RM" || fail TEST-2904 'the pending roadmap changed'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$head_before" ]] || fail TEST-2904 'main HEAD moved'
+  [[ ! -e "$RIDE" ]] || fail TEST-2904 'the worktree without ledger tails was not removed'
+  [[ "$(step_status_text "$ENG_OUT" reconcile-origin)" == retained ]] || fail TEST-2904 'reconcile-origin is not retained'
+  want TEST-2904 "$ENG_OUT" 'sync_not_done'
+  id="$(oc_id "$ENG_OUT" overlap)"
+  apply_run --decide "$id=keep_local"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2904 "keep_local exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status_text "$ENG_OUT" sync-base)" == retained ]] || fail TEST-2904 'keep_local did not retain sync-base'
+  cmp "$W/roadmap.local" "$ORIGIN/$RM" || fail TEST-2904 'keep_local changed the roadmap'
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2904 "the second re-run asked again: exit $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-2904 "$ENG_OUT" 'Decision: '
+  # a fresh, identical world answered with take_incoming: archive the local roadmap, then sync
+  world_rm rm_take
+  git -C "$BARE" show "$MC:$RM" > "$W/roadmap.incoming" || fail SETUP 'incoming roadmap blob'
+  run cp "$ORIGIN/$RM" "$W/roadmap.local"
+  apply_run --decide "$id=take_incoming"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2904 "take_incoming exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  cmp "$W/roadmap.incoming" "$ORIGIN/$RM" || fail TEST-2904 'take_incoming did not take the incoming roadmap'
+  cmp "$W/roadmap.local" "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/$RM" || fail TEST-2904 'take_incoming did not archive the local roadmap'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-2904 'take_incoming did not sync main'
+  RIDE_SEED=''
+  echo 'PASS: TEST-2904 an unrepresented roadmap change is a decision with both answers working'
+}
+
+# step_status_text <stdout>: the status a text report prints for a step ("  <id>: <status>").
+step_status_text() { printf '%s\n' "$1" | awk -v id="  $2:" 'index($0, id) == 1 { sub(/^ *[a-z-]+: /, ""); sub(/ .*/, ""); print; exit }'; }
+
+test_2905_absent_links_pr_proven_by_merge_commit() {
+  local arm blob_sha
+  for arm in ISSUE_NO_PR ISSUE_PR_EMPTY; do
+    export "$arm=1"
+    RIDE_SEED=seed_ride_075 ROADMAP_WORLD=1 build_world "ident_$arm"
+    ship_append_foo
+    origin_state_075 "$RH_RUN_STARTED"
+    git -C "$BARE" show "$MC:$NUM_ISSUE" > "$W/issue.blob" || fail SETUP 'merged intake blob'
+    blob_sha="$(sha_of "$W/issue.blob")"
+    git -C "$BARE" show "$MC:$RM" > "$W/roadmap.incoming" || fail SETUP 'incoming roadmap blob'
+    if [[ "$arm" == ISSUE_NO_PR ]]; then unwanted SETUP "$(cat "$W/issue.blob")" 'pr:'; else want SETUP "$(cat "$W/issue.blob")" 'pr: []'; fi
+    apply_run --json
+    [[ "$ENG_RC" -eq 0 ]] || fail TEST-2905 "$arm: apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+    cmp "$W/roadmap.incoming" "$ORIGIN/$RM" || fail TEST-2905 "$arm: the ride roadmap entry was not taken from incoming"
+    [[ "$(json_get "$ENG_OUT" 'j.outcomes.filter(o=>o.state==="pending").length')" == 0 ]] || fail TEST-2905 "$arm: an outcome is pending"
+    [[ "$(step_status "$ENG_OUT" reconcile-origin)" == done ]] || fail TEST-2905 "$arm: reconcile-origin reported $(step_status "$ENG_OUT" reconcile-origin)"
+    unwanted TEST-2905 "$(cat "$ORIGIN/$STATE_REL")" 'ref_id: foo'
+    [[ "$(sha_of "$ORIGIN/$NUM_ISSUE")" == "$blob_sha" ]] || fail TEST-2905 "$arm: the merged intake file changed"
+    [[ "$(git -C "$ORIGIN" show "HEAD:$NUM_ISSUE" | sha_stdin)" == "$blob_sha" ]] || fail TEST-2905 "$arm: the merged intake blob changed"
+    unset "$arm"
+  done
+  RIDE_SEED=''
+  echo 'PASS: TEST-2905 an absent or empty links.pr is proven by the merge commit and feeds the roadmap and the reconcile'
+}
+
+# seed_qux_999 / seed_quux_base / seed_quux_ride: docs the merge turns to done whose identity no proof ties to the PR.
+seed_qux_999() {
+  printf -- '---\nid: qux\ntype: issue\nnumber: 10\nstatus: done\nlinks:\n  pr:\n    - 999\n  commits: []\n---\n\n# Qux\n' > "$RIDE/docs/issues/ISSUE-0010-qux.md"
+  run git -C "$RIDE" add docs/issues/ISSUE-0010-qux.md
+}
+seed_quux_base() {
+  printf -- '---\nid: qux\ntype: issue\nnumber: 10\nstatus: done\nlinks:\n  pr: []\n  commits: []\n---\n\n# Qux\n' > "$ORIGIN/docs/issues/ISSUE-0010-qux.md"
+  run git -C "$ORIGIN" add docs/issues/ISSUE-0010-qux.md
+}
+seed_quux_ride() {
+  printf 'edited by the ride\n' >> "$RIDE/docs/issues/ISSUE-0010-qux.md"
+  run git -C "$RIDE" add docs/issues/ISSUE-0010-qux.md
+}
+# local_qux: the main checkout's roadmap carries the qux pair block as active.
+local_qux() {
+  awk '{ print } /^    status: done$/ && !d { print "  - capability: qux"; print "    status: active"; d = 1 }' "$ORIGIN/$RM" > "$W/roadmap.qux"
+  run cp "$W/roadmap.qux" "$ORIGIN/$RM"
+}
+
+test_2906_conflicting_or_old_identity_not_proven() {
+  local pre qux_blob
+  # (a) links.pr names only another PR; (b) the doc was already done before the merge, links.pr empty
+  RIDE_ROADMAP=qux ROADMAP_WORLD=1 RIDE_SEED=seed_qux_999 build_world ident_999
+  local_qux
+  qux_blob="$(git -C "$BARE" show "$MC:docs/issues/ISSUE-0010-qux.md" | sha_stdin)"
+  decide_arm TEST-2906 overlap 'unproven qux'
+  [[ "$(git -C "$BARE" show "$MC:docs/issues/ISSUE-0010-qux.md" | sha_stdin)" == "$qux_blob" ]] || fail TEST-2906 'the merged doc blob changed'
+  RIDE_ROADMAP=qux ROADMAP_WORLD=1 BASELINE_SEED=seed_quux_base RIDE_SEED=seed_quux_ride build_world ident_old
+  local_qux
+  decide_arm TEST-2906 overlap 'unproven qux'
+  # (c) no roadmap change: the STATE trace of the unproven ref stays, the reconcile does not run for it
+  RIDE_ROADMAP=qux ROADMAP_WORLD=1 RIDE_SEED=seed_qux_999 build_world ident_state
+  printf 'project_status: active\ncurrent_focus:\n  type: intake_change\n  ref_id: qux\n  primary_path: docs/issues/ISSUE-DRAFT-qux.md\n  spec_path: null\nactive_work_items:\n  - ref_id: qux\n    status: in_progress\n    phase: planning\nupdated_at_utc: 2026-10-10T09:00:00Z\n' > "$ORIGIN/$STATE_REL"
+  pre="$(sha_of "$ORIGIN/$STATE_REL")"
+  run cp "$ORIGIN/$RM" "$W/roadmap.keep"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2906 "state arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(sha_of "$ORIGIN/$STATE_REL")" == "$pre" ]] || fail TEST-2906 'the reconcile cleared the trace of an unproven ref'
+  [[ "$(sha_of "$ORIGIN/docs/issues/ISSUE-0010-qux.md")" == "$(git -C "$BARE" show "$MC:docs/issues/ISSUE-0010-qux.md" | sha_stdin)" ]] || fail TEST-2906 'the merged doc bytes changed'
+  BASELINE_SEED='' RIDE_SEED=''
+  echo 'PASS: TEST-2906 another PR or an old done status does not prove the identity of a merged doc'
+}
+
+# ---- D8: the decision channel and the router that follows the skill -------------------------------------------
+test_2911_decide_channel() {
+  local id before choices stale
+  alloc_numbered
+  build_world dch
+  put_draft 'one more body line'
+  choices="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/choices.jsonl"
+  apply_run
+  [[ "$ENG_RC" -eq 6 ]] || fail TEST-2911 "first run exited $ENG_RC, want 6 (out: $ENG_OUT $ENG_ERR)"
+  id="$(oc_id "$ENG_OUT" divergent_draft)"
+  [[ "$id" =~ ^divergent_draft@[0-9a-f]{12}$ ]] || fail TEST-2911 "unexpected id: $id"
+  # a stale digest prints IGNORED, and the item is offered again under its real id
+  stale='divergent_draft@000000000000'
+  apply_run --decide "$stale=keep"
+  [[ "$ENG_RC" -eq 6 ]] || fail TEST-2911 "stale pair exited $ENG_RC, want 6 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2911 "$ENG_OUT" "IGNORED $stale=keep no_longer_applies"
+  [[ "$(oc_id "$ENG_OUT" divergent_draft)" == "$id" ]] || fail TEST-2911 'the item was not offered again under its id'
+  # an option the item does not offer
+  apply_run --decide "$id=take_incoming"
+  want TEST-2911 "$ENG_OUT" "IGNORED $id=take_incoming option_not_offered"
+  [[ "$ENG_RC" -eq 6 ]] || fail TEST-2911 "unoffered option exited $ENG_RC, want 6"
+  [[ ! -e "$choices" ]] || fail TEST-2911 'an ignored pair was recorded'
+  # a valid pair applies once and is recorded once, however often it is repeated
+  before="$(sha_of "$ORIGIN/$DRAFT_ISSUE")"
+  apply_run --decide "$id=archive_remove"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2911 "archive_remove exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-2911 'archive_remove left the draft'
+  apply_run --decide "$id=archive_remove"
+  want TEST-2911 "$ENG_OUT" "IGNORED $id=archive_remove no_longer_applies"
+  [[ "$(lines_of "$choices" "\"id\":\"$id\"")" == 1 ]] || fail TEST-2911 "choices.jsonl holds $(lines_of "$choices" "\"id\":\"$id\"") lines for the id, want 1"
+  # malformed pairs and plan/preflight take no --decide: usage, exit 2
+  for bad in 'nonsense' "$id" "$id=" "=keep" 'Divergent_Draft@000000000000=keep' "$id=keep;rm"; do
+    apply_run --decide "$bad"
+    [[ "$ENG_RC" -eq 2 ]] || fail TEST-2911 "--decide '$bad' exited $ENG_RC, want 2"
+  done
+  run_engine plan --pr "$PR" --decide "$id=keep"
+  [[ "$ENG_RC" -eq 2 ]] || fail TEST-2911 "plan --decide exited $ENG_RC, want 2"
+  run_engine preflight --pr "$PR" --expect-head "$HEAD_OID" --directed-by human --direction x --decide "$id=keep"
+  [[ "$ENG_RC" -eq 2 ]] || fail TEST-2911 "preflight --decide exited $ENG_RC, want 2"
+  NUMBERED_ISSUE_FILE=''
+  echo 'PASS: TEST-2911 the decide channel applies a current pair once and ignores a stale or unoffered one'
+}
+
+# route_block <world dir> <shim dir>: a test double of the agent that follows SKILL_MERGE step 2 over the REAL bash block.
+# retry runs the block again, a decide menu is answered with the recommended option through AAI_DECIDE, external stops.
+route_block() {
+  local shim="$1" runs=0 decide='' out rc pairs
+  local -a envs
+  block_of AAI_MERGE_BEGIN AAI_MERGE_END "$PROMPT" > "$W/merge.block.sh"
+  [[ -s "$W/merge.block.sh" ]] || fail TEST-2912 'AAI_MERGE bash block is empty or missing'
+  ROUTER_RUNS=0
+  while [[ "$runs" -lt 6 ]]; do
+    runs=$((runs + 1))
+    envs=("AAI_PR=$PR" 'AAI_HARNESS=claude' "GH_STUB_DIR=$GHD" "PATH=$shim:$GHD/bin:$PATH")
+    if [[ -n "$decide" ]]; then envs+=("AAI_DECIDE=$decide"); fi
+    rc=0
+    ( cd "$ORIGIN" && env "${envs[@]}" bash "$W/merge.block.sh" >"$W/block.out" 2>"$W/block.err" ) || rc=$?
+    out="$(cat "$W/block.out")"
+    ROUTER_RUNS="$runs"; ROUTER_OUT="$out"; ROUTER_RC="$rc"
+    if [[ "$rc" -eq 0 ]]; then return 0; fi
+    decide=''
+    if [[ "$(oc "$out" 'o.some(x=>x.state==="retry")')" == true ]]; then continue; fi
+    if [[ "$(oc "$out" 'o.some(x=>x.class==="external")')" == true ]]; then return 0; fi
+    pairs="$(oc "$out" 'o.filter(x=>x.class==="decide"&&x.state==="pending").map(x=>x.id+"="+x.recommended).join(",")')"
+    [[ -n "$pairs" ]] || fail TEST-2912 "exit $rc with nothing to route: $out $(cat "$W/block.err")"
+    decide="$pairs"
+  done
+}
+
+test_2912_router_resumes_in_one_interaction() {
+  alloc_numbered
+  DOWNSTREAM=1 build_world router
+  put_draft 'one more body line'
+  # one forced sync_failed (the first fast-forward fails), one divergent draft
+  make_shim "$W/shim" --ff-only 'if [ ! -e "'"$W"'/ff-once" ]; then : > "'"$W"'/ff-once"; echo "fatal: forced fast-forward failure" >&2; exit 128; fi'
+  route_block "$W/shim"
+  [[ "$ROUTER_RC" -eq 0 ]] || fail TEST-2912 "the router ended with exit $ROUTER_RC after $ROUTER_RUNS runs: $ROUTER_OUT"
+  [[ "$ROUTER_RUNS" -le 4 ]] || fail TEST-2912 "the router needed $ROUTER_RUNS block runs, want at most 4"
+  [[ "$ROUTER_RUNS" -ge 3 ]] || fail TEST-2912 "the router finished in $ROUTER_RUNS runs: the retry and the menu were not both exercised"
+  [[ -e "$W/ff-once" ]] || fail TEST-2912 'the forced failure never ran (positive control)'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-2912 'main did not reach the merge commit'
+  [[ -f "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-2912 'the recommended keep removed the draft'
+  [[ ! -e "$RIDE" ]] || fail TEST-2912 'the worktree was not removed'
+  [[ "$(lines_of "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/choices.jsonl" '"option":"keep"')" == 1 ]] || fail TEST-2912 'the recommended answer was not recorded once'
+  NUMBERED_ISSUE_FILE=''
+  echo 'PASS: TEST-2912 a router over the real block finishes one retry and one decision without other input'
+}
+
+# ---- D6: protected objects are kept, the other steps finish -------------------------------------------------------
+wt_sig() {
+  {
+    git -C "$RIDE" rev-parse HEAD
+    git -C "$RIDE" status --porcelain=v1 -uall
+    git -C "$ORIGIN" rev-parse "refs/heads/$BRANCH"
+    find "$RIDE" -path '*/.git' -prune -o -type f -print | LC_ALL=C sort | while IFS= read -r f; do printf '%s %s\n' "$f" "$(sha_of "$f")"; done
+  } | sha_stdin
+}
+
+test_2914_worktree_protections_kept() {
+  local arm sig pid rsn
+  for arm in dirty ahead locked submodule; do
+    pid=''
+    if [[ "$arm" == submodule ]]; then build_sub_world "prot_$arm"; else build_world "prot_$arm"; fi
+    case "$arm" in
+      dirty) printf 'uncommitted\n' > "$RIDE/stray.txt"
+             [[ -n "$(git -C "$RIDE" status --porcelain)" ]] || fail SETUP 'dirty arm: the worktree is clean (positive control)' ;;
+      ahead) printf 'after the merge\n' > "$RIDE/after.txt"
+             run git -C "$RIDE" add after.txt
+             run git -C "$RIDE" commit -qm 'work after the merge'
+             [[ "$(git -C "$RIDE" rev-parse HEAD)" != "$HEAD_OID" ]] || fail SETUP 'ahead arm: HEAD did not move' ;;
+      locked) sleep 600 & pid=$!
+              HELPER_PIDS+=("$pid")
+              ( cd "$RIDE" && node "$ROOT/.aai/scripts/lib/session-lock.mjs" acquire --pid "$pid" >/dev/null ) || fail SETUP 'lock acquire'
+              kill -0 "$pid" || fail SETUP 'locked arm: the lock holder is not alive (positive control)' ;;
+      submodule) printf 'edited\n' >> "$RIDE/sub/sub.txt"
+                 [[ -n "$(git -C "$RIDE/sub" status --porcelain)" ]] || fail SETUP 'submodule arm: sub is clean (positive control)' ;;
+    esac
+    sig="$(wt_sig)"
+    case "$arm" in
+      dirty) rsn=worktree_dirty ;;
+      ahead) rsn=tip_mismatch ;;
+      locked) rsn=session_locked ;;
+      submodule) rsn=submodule_dirty ;;
+    esac
+    keep_arm TEST-2914 "$rsn" "" remove-worktree
+    [[ "$(wt_sig)" == "$sig" ]] || fail TEST-2914 "arm $arm: the worktree files, status, HEAD or branch ref changed"
+    want TEST-2914 "$ENG_OUT" '  sync-base: done'
+    want TEST-2914 "$ENG_OUT" '  delete-branch: retained (kept_with_worktree'
+    if bare_has "$BRANCH"; then fail TEST-2914 "arm $arm: the origin branch was not deleted by lease"; fi
+    [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-2914 "arm $arm: main did not reach the merge commit"
+    if [[ -n "$pid" ]]; then stop_helper "$pid"; fi
+  done
+  echo 'PASS: TEST-2914 a dirty, ahead, locked or submodule-dirty worktree is kept while the other steps finish'
+}
+
+test_2915_sync_protections_kept() {
+  local arm tails ev_before head_before branch_before rsn
+  for arm in diverged elsewhere rewritten; do
+    for tails in none tails; do
+      LEDGER_WORLD=1 build_world "sync_${arm}_$tails"
+      seed_state
+      case "$arm" in
+        diverged) printf 'local commit\n' > "$ORIGIN/local-commit.txt"
+                  run git -C "$ORIGIN" add local-commit.txt
+                  run git -C "$ORIGIN" commit -qm 'local commit not on origin'
+                  [[ "$(git -C "$ORIGIN" rev-list --count 'refs/remotes/origin/main..HEAD')" -gt 0 ]] || fail SETUP 'diverged arm: no local commit (positive control)' ;;
+        elsewhere) run git -C "$ORIGIN" checkout -q -b elsewhere ;;
+        rewritten) printf '{"v":1,"ts":"2026-10-09T00:00:00Z","actor":"fixture","event":"seed","ref":"REWRITTEN","payload":{}}\n' > "$ORIGIN/$EV"
+                   if git -C "$ORIGIN" show "HEAD:$EV" | cmp -s - "$ORIGIN/$EV"; then fail SETUP 'rewritten arm: the ledger is unchanged (positive control)'; fi ;;
+      esac
+      if [[ "$tails" == tails ]]; then seed_ledger_tails; fi
+      ev_before="$(sha_of "$ORIGIN/$EV")"; head_before="$(git -C "$ORIGIN" rev-parse HEAD)"; branch_before="$(git -C "$ORIGIN" symbolic-ref -q --short HEAD)"
+      case "$arm" in
+        diverged) rsn=base_diverged ;;
+        elsewhere) rsn=origin_not_on_base ;;
+        rewritten) rsn=ledger_rewritten ;;
+      esac
+      keep_arm TEST-2915 "$rsn" "" sync-base
+      [[ "$(sha_of "$ORIGIN/$EV")" == "$ev_before" ]] || fail TEST-2915 "arm $arm/$tails: the main ledger bytes changed"
+      [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$head_before" ]] || fail TEST-2915 "arm $arm/$tails: main HEAD moved"
+      [[ "$(git -C "$ORIGIN" symbolic-ref -q --short HEAD)" == "$branch_before" ]] || fail TEST-2915 "arm $arm/$tails: the checked-out branch changed"
+      want TEST-2915 "$ENG_OUT" '  reconcile-origin: retained'
+      want TEST-2915 "$ENG_OUT" 'sync_not_done'
+      if [[ "$tails" == none ]]; then
+        [[ ! -e "$RIDE" ]] || fail TEST-2915 "arm $arm/none: the worktree without ledger tails was not removed"
+      else
+        [[ -d "$RIDE" ]] || fail TEST-2915 "arm $arm/tails: the worktree with ledger tails was removed"
+        want TEST-2915 "$ENG_OUT" 'ledger_tails_wait_for_sync'
+        want TEST-2915 "$ENG_OUT" '  remove-worktree: retained'
+        tail_in_worktree TEST-2915 docs/ai/EVENTS.jsonl "$W/tail-ev"
+        tail_in_worktree TEST-2915 "$TR" "$W/tail-rt"
+      fi
+    done
+  done
+  echo 'PASS: TEST-2915 a diverged, moved or rewritten main is kept, the worktree follows the ledger tails'
+}
+tail_in_worktree() {
+  local tid="$1" ledger="$2" tailf="$3" n
+  n="$(wc -c < "$tailf" | tr -d ' ')"
+  tail -c "$n" "$RIDE/$ledger" > "$W/got-tail" || fail "$tid" "cannot read the end of the worktree $ledger"
+  cmp "$tailf" "$W/got-tail" || fail "$tid" "the worktree $ledger lost its appended bytes"
+}
+
+test_2916_preflight_gates_hold() {
+  local before other='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  open_world gates
+  # the PR head moved: head_changed is a decide outcome, no merge command is printed
+  write_open_pr OPEN false "$other" CLEAN "$ROLLUP_OK"
+  before="$(world_digest)"
+  pf
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-2916 "head_changed exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2916 "$ENG_OUT" 'REFUSE head_changed'
+  oc_check "$ENG_OUT" TEST-2916
+  [[ "$(oc "$ENG_OUT" 'o[0].class+" "+o[0].recommended')" == 'decide direct_new_head' ]] || fail TEST-2916 'head_changed is not a decide outcome recommending direct_new_head'
+  want TEST-2916 "$(oc "$ENG_OUT" 'o[0].options.map(p=>p.id)')" 'stop'
+  unwanted TEST-2916 "$ENG_OUT" 'gh pr merge'
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-2916 'head_changed changed the fixture'
+  assert_no_merge_call TEST-2916
+  # a contradictory sweep record: external
+  write_open_pr OPEN false "$HEAD_OID" CLEAN "$ROLLUP_OK"
+  printf '%s\n' "${SWEEP_OK/\"threads_unresolved\":0/\"threads_unresolved\":3}" >> "$RIDE/docs/ai/EVENTS.jsonl"
+  before="$(world_digest)"
+  pf
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-2916 "sweep_missing exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  oc_check "$ENG_OUT" TEST-2916
+  [[ "$(oc "$ENG_OUT" 'o[0].reason+" "+o[0].class')" == 'sweep_missing external' ]] || fail TEST-2916 'sweep_missing is not external'
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-2916 'sweep_missing changed the fixture'
+  assert_no_merge_call TEST-2916
+  # unresolved review threads: external
+  open_world gates_threads
+  printf '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[{"isResolved":false,"isOutdated":false,"comments":{"nodes":[{"author":{"login":"copilot-pull-request-reviewer"},"body":"Must fix this bug","path":"test.js","line":42}]}}]}}}}}\n' > "$GHD/review-threads.json"
+  before="$(world_digest)"
+  pf
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-2916 "review_unresolved exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(oc "$ENG_OUT" 'o[0].reason+" "+o[0].class')" == 'review_unresolved external' ]] || fail TEST-2916 'review_unresolved is not external'
+  want TEST-2916 "$ENG_OUT" 'Needs you: '
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-2916 'review_unresolved changed the fixture'
+  assert_no_merge_call TEST-2916
+  echo 'PASS: TEST-2916 the preflight gates still refuse and call no merge'
+}
+
+test_2917_archive_verification_and_no_new_primitive() {
+  local dsha out
+  alloc_numbered
+  build_world corrupt
+  put_draft
+  dsha="$(sha_of "$ORIGIN/$DRAFT_ISSUE")"
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CORRUPT_ARCHIVE="$DRAFT_ISSUE" apply_run
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-2917 "a corrupt archive copy exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2917 "$ENG_OUT" "STOPPED archive_failed $DRAFT_ISSUE"
+  [[ "$(sha_of "$ORIGIN/$DRAFT_ISSUE")" == "$dsha" ]] || fail TEST-2917 'the draft changed although its archive copy did not read back equal'
+  oc_check "$ENG_OUT" TEST-2917
+  # without the seam the same world converges
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2917 "the re-run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ ! -e "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-2917 'the re-run left the draft'
+  # the engine and the library hold no new destructive git call
+  cat > "$SCRATCH/t2917.mjs" <<'JS'
+import fs from 'node:fs';
+const [root] = process.argv.slice(2);
+const files = ['.aai/scripts/merge-cleanup.mjs', '.aai/scripts/lib/merge-outcomes.mjs'];
+const src = files.map((f) => fs.readFileSync(`${root}/${f}`, 'utf8')).join('\n');
+const count = (re) => (src.match(re) ?? []).length;
+for (const [name, re] of [['worktree prune', /'worktree', 'prune'/g], ['branch -D', /'-D'/g], ['push --delete', /'--delete'/g], ['reset, stash, clean or checkout', /\[\s*'(?:reset|stash|clean|checkout)'/g], ['a leading prune', /\[\s*'prune'/g]]) {
+  if (count(re) !== 0) throw new Error(`a call with ${name} occurs ${count(re)} time(s)`);
+}
+if (count(/'--force'/g) !== 1) throw new Error(`worktree remove --force occurs ${count(/'--force'/g)} time(s), want 1`);
+console.log('ok');
+JS
+  out="$(node "$SCRATCH/t2917.mjs" "$ROOT" 2>&1)" || fail TEST-2917 "$out"
+  NUMBERED_ISSUE_FILE=''
+  echo 'PASS: TEST-2917 an archive copy that does not read back stops the step, and no new destructive git call exists'
+}
+
+# ---- D7: a bounded retry chain, and a crash at each new mutation point -------------------------------------------
+test_2919_retry_chain_terminates() {
+  local id before
+  build_world chain
+  printf 'local edit\n' >> "$ORIGIN/UNRELATED.txt"
+  make_shim "$W/shim" --ff-only 'echo "fatal: forced fast-forward failure" >&2; exit 128'
+  # run 1: the fast-forward fails, state retry
+  PATH="$W/shim:$PATH" apply_run
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-2919 "run 1 exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2919 "$ENG_OUT" 'STOPPED sync_failed'
+  want TEST-2919 "$ENG_OUT" 'forced fast-forward failure'   # positive control: the seam failed the fast-forward
+  [[ "$(oc "$ENG_OUT" 'o.find(x=>x.reason==="sync_failed").class+" "+o.find(x=>x.reason==="sync_failed").state')" == 'auto retry' ]] || fail TEST-2919 'run 1 is not auto retry'
+  # run 2: no progress, the fallback class decide (retry, skip_step recommended)
+  PATH="$W/shim:$PATH" apply_run
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-2919 "run 2 exited $ENG_RC, want 4 (out: $ENG_OUT $ENG_ERR)"
+  oc_check "$ENG_OUT" TEST-2919
+  [[ "$(oc "$ENG_OUT" 'o.find(x=>x.reason==="sync_failed").class')" == decide ]] || fail TEST-2919 'run 2 did not fall back to decide'
+  [[ "$(oc "$ENG_OUT" 'o.find(x=>x.reason==="sync_failed").recommended')" == skip_step ]] || fail TEST-2919 'skip_step is not recommended'
+  want TEST-2919 "$(oc "$ENG_OUT" 'o.find(x=>x.reason==="sync_failed").options.map(p=>p.id)')" 'retry'
+  want TEST-2919 "$ENG_OUT" 'Cleanup: interrupted at sync-base; waiting for your decision.'
+  id="$(oc_id "$ENG_OUT" sync_failed)"
+  # run 3: skip_step retains the step and finishes the rest
+  PATH="$W/shim:$PATH" apply_run --decide "$id=skip_step"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2919 "skip_step exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2919 "$ENG_OUT" '  sync-base: retained'
+  [[ ! -e "$RIDE" ]] || fail TEST-2919 'skip_step did not let the worktree steps finish'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-2919 'main moved although the step was skipped'
+  [[ "$(attempts_lines)" == 3 ]] || fail TEST-2919 "attempts.jsonl holds $(attempts_lines) lines, want one per run (3)"
+  # an unreachable origin: retry, then external with a Needs you: line
+  build_world chain_fetch
+  run git -C "$ORIGIN" remote set-url origin "$W/does-not-exist.git"
+  before="$(world_digest)"
+  apply_run
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-2919 "fetch run 1 exited $ENG_RC, want 3"
+  [[ "$(oc "$ENG_OUT" 'o[0].class+" "+o[0].state')" == 'auto retry' ]] || fail TEST-2919 'fetch run 1 is not auto retry'
+  apply_run
+  [[ "$ENG_RC" -eq 3 ]] || fail TEST-2919 "fetch run 2 exited $ENG_RC, want 3"
+  [[ "$(oc "$ENG_OUT" 'o[0].class')" == external ]] || fail TEST-2919 'fetch run 2 is not external'
+  want TEST-2919 "$ENG_OUT" 'Needs you: '
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-2919 'the fetch runs changed the fixture'
+  [[ "$(attempts_lines)" == 2 ]] || fail TEST-2919 "fetch attempts hold $(attempts_lines) lines, want 2"
+  echo 'PASS: TEST-2919 the retry chain ends in a decision or an external step'
+}
+
+# ---- remediation round 1 (CHANGE-0227 review and validation findings) ----------------------------------------------
+
+test_2925_preflight_retry_is_bounded() {
+  local before i
+  open_world pf_gh_down
+  run rm "$GHD/pr-$PR.json"
+  before="$(world_digest)"
+  for i in 1 2 3; do
+    pf
+    [[ "$ENG_RC" -eq 3 ]] || fail TEST-2925 "run $i exited $ENG_RC, want 3 (out: $ENG_OUT $ENG_ERR)"
+    want TEST-2925 "$ENG_OUT" 'REFUSE gh_read_failed'
+    [[ "$(oc "$ENG_OUT" 'o[0].class+" "+o[0].state')" == 'external pending' ]] || fail TEST-2925 "run $i is not external (a retry is the loop the router cannot leave): $(oc "$ENG_OUT" 'o[0]')"
+    want TEST-2925 "$ENG_OUT" 'Needs you: check the GitHub CLI login'
+    want TEST-2925 "$ENG_OUT" 'then run the preflight again'
+    unwanted TEST-2925 "$ENG_OUT" 'run the cleanup again'
+  done
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-2925 'the preflight runs changed the fixture'
+  assert_no_merge_call TEST-2925
+  unwanted TEST-2925 "$(cat "$SKILL_BLOCK")" 'the engine bounds the retries'
+  echo 'PASS: TEST-2925 a failed platform read in preflight is an external step on the first run'
+}
+
+test_2926_unactionable_clash_choices_not_offered() {
+  local id
+  # a staged roadmap change: kept, no menu, nothing reported complete
+  ROADMAP_WORLD=1 build_world clash_staged
+  ship_append_foo
+  run git -C "$ORIGIN" add "$RM"
+  run_engine plan --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2926 "staged plan: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2926 "$ENG_OUT" 'keep '
+  want TEST-2926 "$ENG_OUT" '(overlap_staged '
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2926 "staged: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2926 "$ENG_OUT" '"reason":"overlap_staged"'
+  want TEST-2926 "$ENG_OUT" 'Kept: '
+  unwanted TEST-2926 "$ENG_OUT" 'Cleanup: complete.'
+  unwanted TEST-2926 "$ENG_OUT" '"class":"decide"'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-2926 'staged: main moved although the sync was kept'
+  # a directory where the merge adds a file: kept, the directory untouched
+  build_world clash_dir
+  run mkdir -p "$ORIGIN/$NUM_ISSUE"
+  printf 'x\n' > "$ORIGIN/$NUM_ISSUE/inner.txt"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2926 "directory: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2926 "$ENG_OUT" '"reason":"untracked_not_file"'
+  want TEST-2926 "$ENG_OUT" 'Kept: '
+  unwanted TEST-2926 "$ENG_OUT" 'Cleanup: complete.'
+  [[ -f "$ORIGIN/$NUM_ISSUE/inner.txt" ]] || fail TEST-2926 'directory: the local directory changed'
+  # keep_local on an offered clash prints a Kept line (never "complete")
+  build_world clash_keep
+  printf 'dirty and also changed by the PR\n' >> "$ORIGIN/README.md"
+  apply_run
+  id="$(oc_id "$ENG_OUT" overlap)"
+  apply_run --decide "$id=keep_local"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2926 "keep_local: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2926 "$ENG_OUT" 'Kept: '
+  unwanted TEST-2926 "$ENG_OUT" 'Cleanup: complete.'
+  echo 'PASS: TEST-2926 a staged or non-file clash is kept and reported, never a menu whose choice does nothing'
+}
+
+test_2927_locally_deleted_files_sync_cleanly() {
+  local id
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world del_proj
+  run rm "$ORIGIN/docs/ai/overview-data.json"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2927 "deleted projection: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-2927 "$ENG_ERR" 'ENOENT'
+  want TEST-2927 "$ENG_OUT" 'Cleanup: complete.'
+  [[ "$(cat "$ORIGIN/docs/ai/overview-data.json")" == '{"v":2}' ]] || fail TEST-2927 'the deleted projection was not recreated from the incoming blob'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-2927 'main did not reach the merge commit'
+  # take_incoming on a locally deleted overlap file
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world del_guide
+  run rm "$ORIGIN/docs/USER_GUIDE.md"
+  apply_run
+  id="$(oc_id "$ENG_OUT" overlap)"
+  apply_run --decide "$id=take_incoming"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2927 "deleted guide: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-2927 "$ENG_ERR" 'ENOENT'
+  git -C "$BARE" show "$MC:docs/USER_GUIDE.md" > "$W/guide.incoming" || fail SETUP 'incoming guide blob'
+  cmp "$W/guide.incoming" "$ORIGIN/docs/USER_GUIDE.md" || fail TEST-2927 'deleted guide: the recreated bytes are not the incoming bytes'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" == "$MC" ]] || fail TEST-2927 'deleted guide: main did not reach the merge commit'
+  BASELINE_SEED='' RIDE_SEED=''
+  echo 'PASS: TEST-2927 a locally deleted projection or answered overlap file is recreated by the sync, no stack trace'
+}
+
+test_2930_symlink_overlap_never_written_through() {
+  local id out_d out_f
+  out_d="$SCRATCH/outside-dangling.txt"; out_f="$SCRATCH/outside-file.txt"
+  rm -f "$out_d"; printf 'precious\n' > "$out_f"
+  # a tracked file replaced by a DANGLING symlink, take_incoming answered: kept, nothing created outside
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world sym_dangling
+  run rm "$ORIGIN/docs/USER_GUIDE.md"
+  ln -s "$out_d" "$ORIGIN/docs/USER_GUIDE.md"
+  apply_run
+  id="$(oc_id "$ENG_OUT" overlap)" || id=''
+  [[ -z "$id" ]] || apply_run --decide "$id=take_incoming"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2930 "dangling: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2930 "$ENG_OUT" '"reason":"overlap_not_file"'
+  want TEST-2930 "$ENG_OUT" 'Kept: '
+  unwanted TEST-2930 "$ENG_OUT" 'Cleanup: complete.'
+  [[ ! -e "$out_d" && ! -L "$out_d" ]] || fail TEST-2930 'dangling: the symlink target outside the checkout was created'
+  [[ -L "$ORIGIN/docs/USER_GUIDE.md" ]] || fail TEST-2930 'dangling: the local symlink was removed'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-2930 'dangling: main moved although the sync was kept'
+  # a generated projection replaced by a symlink to a file outside the checkout: that file stays as it was
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world sym_outside
+  run rm "$ORIGIN/docs/ai/overview-data.json"
+  ln -s "$out_f" "$ORIGIN/docs/ai/overview-data.json"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2930 "outside: exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2930 "$ENG_OUT" '"reason":"overlap_not_file"'
+  want TEST-2930 "$ENG_OUT" 'Kept: '
+  [[ "$(cat "$out_f")" == precious ]] || fail TEST-2930 'outside: the file the symlink points at was overwritten'
+  [[ -L "$ORIGIN/docs/ai/overview-data.json" ]] || fail TEST-2930 'outside: the local symlink was removed'
+  [[ "$(git -C "$ORIGIN" rev-parse HEAD)" != "$MC" ]] || fail TEST-2930 'outside: main moved although the sync was kept'
+  BASELINE_SEED='' RIDE_SEED=''
+  echo 'PASS: TEST-2930 a symlink where the sync would write is kept and never written through'
+}
+
+test_2928_recovery_waits_for_protection_check() {
+  local before
+  BASELINE_SEED=seed_projection_files RIDE_SEED=touch_projection_files build_world rec_protected
+  printf '{"v":"local"}\n' > "$ORIGIN/docs/ai/overview-data.json"
+  crash_run sync-after-rewrite
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail SETUP 'no pending journal after the crash seam'
+  run git -C "$ORIGIN" checkout -q -b elsewhere
+  before="$(cat "$ORIGIN/docs/ai/overview-data.json")"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2928 "exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2928 "$ENG_OUT" '"reason":"origin_not_on_base"'
+  [[ "$(cat "$ORIGIN/docs/ai/overview-data.json")" == "$before" ]] || fail TEST-2928 'the recovery wrote into a checkout that is not on the base branch'
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail TEST-2928 'the pending journal was consumed in a protected checkout'
+  BASELINE_SEED='' RIDE_SEED=''
+  echo 'PASS: TEST-2928 an interrupted sync is recovered only after the checkout passes the protection check'
+}
+
+test_2929_null_identity_never_matches() {
+  cat > "$SCRATCH/t2929.mjs" <<'JS'
+import { pathToFileURL } from 'node:url';
+const { compareDraft } = await import(pathToFileURL(`${process.argv[2]}/.aai/scripts/lib/merge-outcomes.mjs`).href);
+const noId = '---\ntype: issue\nstatus: draft\n---\n\n# A\n';
+if (compareDraft(noId, noId, 'x', 'y') !== false) throw new Error('two documents without a frontmatter id compared equal');
+const blankId = '---\nid: \ntype: issue\n---\n\n# A\n';
+if (compareDraft(blankId, blankId, 'x', 'y') !== false) throw new Error('two documents with a whitespace-only frontmatter id compared equal');
+if (compareDraft('---\nid: a\n---\n\n# A\n', '---\nid: a\n---\n\n# A\n', 'x', 'y') !== 'superseded') throw new Error('control: equal ids with equal text are not superseded');
+JS
+  node "$SCRATCH/t2929.mjs" "$ROOT" || fail TEST-2929 'compareDraft treats a missing id as a match'
+  # links.pr: ~ is the YAML null, so the merge commit proves the identity like an empty list
+  export ISSUE_PR_TILDE=1
+  RIDE_SEED=seed_ride_075 ROADMAP_WORLD=1 build_world ident_tilde
+  ship_append_foo
+  origin_state_075 "$RH_RUN_STARTED"
+  git -C "$BARE" show "$MC:$NUM_ISSUE" > "$W/issue.blob" || fail SETUP 'merged intake blob'
+  want SETUP "$(cat "$W/issue.blob")" 'pr: ~'
+  git -C "$BARE" show "$MC:$RM" > "$W/roadmap.incoming" || fail SETUP 'incoming roadmap blob'
+  apply_run --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2929 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  cmp "$W/roadmap.incoming" "$ORIGIN/$RM" || fail TEST-2929 'links.pr ~ : the ride roadmap entry was not taken from incoming'
+  [[ "$(json_get "$ENG_OUT" 'j.outcomes.filter(o=>o.state==="pending").length')" == 0 ]] || fail TEST-2929 'links.pr ~ : an outcome is pending'
+  unset ISSUE_PR_TILDE
+  RIDE_SEED=''
+  echo 'PASS: TEST-2929 a missing frontmatter id never matches, links.pr ~ counts as empty'
+}
+
+crash_run() { AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_CRASH_AT="$1" apply_run "${@:2}"; }
+
+norm_lines() { sed 's/,"timestamp":"[^"]*"//' "$1" 2>/dev/null | LC_ALL=C sort | uniq -d | wc -l | tr -d ' ' || true; }
+
+test_2920_interrupted_recovery_converges() {
+  local twin_sig id rc
+  # draft-after-archive: killed after the draft was archived and before it was removed
+  alloc_numbered
+  build_world rec_twin_draft
+  put_draft
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2920 "draft twin exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  twin_sig="$(tree_sig)"
+  build_world rec_draft
+  put_draft
+  crash_run draft-after-archive
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-2920 "draft crash exited $ENG_RC, want 137"
+  [[ -e "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-2920 'draft crash: the draft was removed before the crash point (positive control)'
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/drafts/$DRAFT_ISSUE" ]] || fail TEST-2920 'draft crash: no archive copy at the crash point (positive control)'
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2920 "draft re-run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(norm_lines "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/manifest.jsonl")" == 0 ]] || fail TEST-2920 'draft: the manifest holds a duplicate line'
+  [[ "$(journal_dups)" == 0 ]] || fail TEST-2920 'draft: the journal holds a duplicate line'
+  [[ "$(tree_sig)" == "$twin_sig" ]] || fail TEST-2920 'draft: the recovered tree differs from the uninterrupted twin'
+  NUMBERED_ISSUE_FILE=''
+
+  # choice-after-record: killed after the choice was recorded and before it was applied
+  alloc_numbered
+  build_world rec_choice_probe
+  put_draft 'one more body line'
+  apply_run
+  id="$(oc_id "$ENG_OUT" divergent_draft)"
+  build_world rec_choice_twin
+  put_draft 'one more body line'
+  apply_run --decide "$id=archive_remove"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2920 "choice twin exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  twin_sig="$(tree_sig)"
+  build_world rec_choice
+  put_draft 'one more body line'
+  crash_run choice-after-record --decide "$id=archive_remove"
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-2920 "choice crash exited $ENG_RC, want 137"
+  [[ "$(lines_of "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/choices.jsonl" "\"id\":\"$id\"")" == 1 ]] || fail TEST-2920 'choice crash: the choice was not recorded at the crash point (positive control)'
+  [[ -e "$ORIGIN/$DRAFT_ISSUE" ]] || fail TEST-2920 'choice crash: the draft was removed before the choice was applied'
+  apply_run --decide "$id=archive_remove"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2920 "choice re-run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(lines_of "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/choices.jsonl" "\"id\":\"$id\"")" == 1 ]] || fail TEST-2920 'choice: the choices ledger holds a duplicate line'
+  [[ "$(norm_lines "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/manifest.jsonl")" == 0 ]] || fail TEST-2920 'choice: the manifest holds a duplicate line'
+  [[ "$(tree_sig)" == "$twin_sig" ]] || fail TEST-2920 'choice: the recovered tree differs from the uninterrupted twin'
+  NUMBERED_ISSUE_FILE=''
+
+  # take-incoming-after-archive: killed after the local README was archived and before the sync
+  build_world rec_take_probe
+  printf 'dirty and also changed by the PR\n' >> "$ORIGIN/README.md"
+  apply_run
+  id="$(oc_id "$ENG_OUT" overlap)"
+  build_world rec_take_twin
+  printf 'dirty and also changed by the PR\n' >> "$ORIGIN/README.md"
+  apply_run --decide "$id=take_incoming"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2920 "take twin exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  twin_sig="$(tree_sig)"
+  build_world rec_take
+  printf 'dirty and also changed by the PR\n' >> "$ORIGIN/README.md"
+  crash_run take-incoming-after-archive --decide "$id=take_incoming"
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-2920 "take crash exited $ENG_RC, want 137"
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/README.md" ]] || fail TEST-2920 'take crash: no archive copy at the crash point (positive control)'
+  apply_run --decide "$id=take_incoming"
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2920 "take re-run exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(norm_lines "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/manifest.jsonl")" == 0 ]] || fail TEST-2920 'take: the manifest holds a duplicate line'
+  [[ "$(journal_dups)" == 0 ]] || fail TEST-2920 'take: the journal holds a duplicate line'
+  [[ "$(tree_sig)" == "$twin_sig" ]] || fail TEST-2920 'take: the recovered tree differs from the uninterrupted twin'
+
+  # a sync pending journal that no longer matches: sync-base is kept, the journal and the archive stay, the rest finishes
+  build_rich_world rec_pending
+  crash_run sync-after-rewrite
+  [[ "$ENG_RC" -eq 137 ]] || fail TEST-2920 "pending crash exited $ENG_RC, want 137"
+  printf 'someone rewrote the ledger\n' > "$ORIGIN/$EV"
+  apply_run
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-2920 "pending_diverged exited $ENG_RC, want 0 (out: $ENG_OUT $ENG_ERR)"
+  want TEST-2920 "$ENG_OUT" '"reason":"pending_diverged"'
+  want TEST-2920 "$ENG_OUT" '  sync-base: retained'
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/pending.json" ]] || fail TEST-2920 'the pending journal was deleted'
+  [[ -f "$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR/sync/$EV" ]] || fail TEST-2920 'the archived ledger tail is gone'
+  [[ "$(cat "$ORIGIN/$EV")" == 'someone rewrote the ledger' ]] || fail TEST-2920 'the live ledger was overwritten'
+  [[ ! -e "$RIDE" ]] || fail TEST-2920 'the rest of the cleanup did not finish'
+  assert_nothing_lost TEST-2920
+  echo 'PASS: TEST-2920 a crash at each new mutation point converges to the uninterrupted tree'
+}
+
+# ---- D9/D11: the skill and the governance files -----------------------------------------------------------------
+test_2922_skill_and_engine_agree() {
+  local text step1 step2 block_lines
+  text="$(cat "$SKILL_BLOCK")"
+  step1="$(awk '/^1\. / { f = 1 } /^2\. / { f = 0 } f' "$SKILL_BLOCK")"
+  step2="$(awk '/^2\. / { f = 1 } /^3\. / { f = 0 } f' "$SKILL_BLOCK")"
+  [[ -n "$step1" && -n "$step2" ]] || fail TEST-2922 'SKILL_MERGE step 1 or 2 not found (positive control)'
+  for w in OUTCOME retry decide external AAI_DECIDE 'run the same block again'; do want TEST-2922 "$step2" "$w"; done
+  unwanted TEST-2922 "$step1" 'Exit 3: relay the `REFUSE` line and stop'
+  unwanted TEST-2922 "$step2" 'Exit 3 or 4: relay'
+  want TEST-2922 "$step1" 'Exit 3: route its `OUTCOME` lines'
+  # the pinned TEST-076 and TEST-034 sentences stay
+  want TEST-2922 "$step1" 'A `platform_mismatch` or `platform_generic` REFUSE is relayed with its command and the run stops.'
+  want TEST-2922 "$step1" 'Exit 4 (completion_pending) stops: re-run `/aai-merge <n>`.'
+  want TEST-2922 "$step1" 'Exit 5 (head_race_lost) stops'
+  want TEST-2922 "$text" 'never finish a step by hand'
+  want TEST-2922 "$text" 'cleanup blocked:'
+  # both blocks pass the decide flag
+  block_lines="$(block_of AAI_MERGE_BEGIN AAI_MERGE_END "$SKILL_BLOCK")"
+  want TEST-2922 "$block_lines" '--decide "$AAI_DECIDE"'
+  want TEST-2922 "$(block_of AAI_MERGE_PS_BEGIN AAI_MERGE_PS_END "$SKILL_BLOCK")" "\$AaiDec = @('--decide', \$env:AAI_DECIDE)"
+  # every option id the table offers that the engine does not execute is named in step 1 or 2
+  want TEST-2922 "$step1 $step2" 'direct_new_head'
+  want TEST-2922 "$step1 $step2" '`stop`'
+  # the engine executes every other option id
+  node --input-type=module -e '
+import fs from "node:fs";
+const root = process.argv[1];
+const lib = await import(`file://${root}/.aai/scripts/lib/merge-outcomes.mjs`);
+const src = fs.readFileSync(`${root}/.aai/scripts/merge-cleanup.mjs`, "utf8");
+const ids = new Set();
+for (const r of Object.keys(lib.OUTCOME_TABLE)) for (const ph of ["plan", "step"]) for (const retry of [true, false]) for (const o of lib.classify(r, { phase: ph, retry }).options) ids.add(o.id);
+for (const id of ids) {
+  if (["direct_new_head", "stop"].includes(id)) continue;
+  if (!src.includes(`"${id}"`) && !src.includes(`\x27${id}\x27`)) throw new Error(`option ${id} is neither executed by the engine nor named for the skill`);
+}
+console.log("ok");' "$ROOT" >/dev/null || fail TEST-2922 'an option id is neither executed by the engine nor named for the skill'
+  # none of the D10 words in the skill, the library or the engine
+  for w in 'guarantee' 'always safe' 'cannot lose' 'proves ownership'; do
+    for f in "$SKILL_BLOCK" "$LIB" "$ENGINE"; do
+      if /usr/bin/grep -qiF -- "$w" "$f"; then fail TEST-2922 "the word '$w' occurs in ${f##*/}"; fi
+    done
+  done
+  # AGENTS.md rule 2 carries the sentence and the contract stays within 40 lines
+  want TEST-2922 "$(cat "$ROOT/.aai/AGENTS.md")" 'The framework diagnoses and recovers its own problems'
+  local n
+  n="$(awk '/^### Operator contract/ { f = 1; next } /^### |^## / { if (f) exit } f { n++ } END { print n + 0 }' "$ROOT/.aai/AGENTS.md")"
+  [[ "$n" -le 40 && "$n" -ge 38 ]] || fail TEST-2922 "the Operator contract section is $n lines, want at most 40"
+  echo 'PASS: TEST-2922 the skill routes on OUTCOME lines and agrees with the engine'
+}
+
+test_2923_governance() {
+  local profiles map glob_now growth entry lead n credit want
+  profiles="$(cat "$ROOT/.aai/system/PROFILES.yaml")"
+  [[ "$(printf '%s\n' "$profiles" | awk 'index($0, "  - .aai/scripts/lib/merge-outcomes.mjs") == 1 { n++ } END { print n + 0 }')" == 1 ]] || fail TEST-2923 'PROFILES does not list lib/merge-outcomes.mjs exactly once'
+  [[ "$(section_of '^core:' '^[a-z_]+:' "$ROOT/.aai/system/PROFILES.yaml" | awk 'index($0, "  - .aai/scripts/lib/merge-outcomes.mjs") == 1 { n++ } END { print n + 0 }')" == 1 ]] || fail TEST-2923 'lib/merge-outcomes.mjs is not in the core profile'
+  map="$(section_of '^  aai-merge-cleanup:' '^  [a-z0-9-]+:' "$ROOT/tests/skills/suite-map.yaml")"
+  want TEST-2923 "$map" '.aai/scripts/lib/merge-outcomes.mjs'
+  entry="$(/usr/bin/grep -F 'JUSTIFIED_ADDITIONS+=( "' "$ROOT/tests/skills/lib/prompt-diet-ledger.sh" | awk 'index($0, "merge-cleanup-resolves-framework-friction") > 0' || true)"
+  n="$(printf '%s\n' "$entry" | awk 'NF { n++ } END { print n + 0 }')"
+  [[ "$n" == 1 ]] || fail TEST-2923 "the diet ledger holds $n merge-cleanup-resolves-framework-friction entries, want exactly 1"
+  lead="$(printf '%s' "$entry" | sed -n 's/^JUSTIFIED_ADDITIONS+=( "\([0-9][0-9]*\) merge-cleanup-resolves-framework-friction .*/\1/p')"
+  glob_now="$(cat "$ROOT"/.aai/*.prompt.md | wc -c | tr -d ' ')"
+  growth=$(( glob_now - 371301 ))
+  [[ "$lead" == "$growth" && "$lead" -ge 1 && "$lead" -le 900 ]] || fail TEST-2923 "the ledger credits '$lead' B, the glob grew $growth B over 371301 (want equal, 1..900)"
+  want="$(sed -n 's/.*local want_growth=\([0-9][0-9]*\).*/\1/p' "$ROOT/tests/skills/test-aai-prompt-diet.sh")"
+  [[ "$want" == "$(( 63094 + lead ))" ]] || fail TEST-2923 "the TEST-012 pin is $want, want $(( 63094 + lead ))"
+  want TEST-2923 "$(cat "$ROOT/tests/skills/test-aai-pr-preflight.sh")" "+$lead/* merge-cleanup-resolves-framework-friction"
+  bash "$ROOT/tests/skills/test-aai-prompt-diet.sh" test_010_audit_and_reduction >"$SCRATCH/diet.out" 2>&1 || fail TEST-2923 "TEST-010 does not pass: $(cat "$SCRATCH/diet.out")"
+  [[ "$(wc -l < "$ENGINE" | tr -d ' ')" -le 1490 ]] || fail TEST-2923 'merge-cleanup.mjs is over 1490 lines'
+  [[ "$(wc -l < "$LIB" | tr -d ' ')" -le 520 ]] || fail TEST-2923 'lib/merge-outcomes.mjs is over 520 lines'
+  echo 'PASS: TEST-2923 the library is in the profile and the suite map, the diet credit is the measured deficit'
+}
+
+test_2924_amended_prior_arms() {
+  local t out
+  for t in TEST-004 TEST-009 TEST-011 TEST-014 TEST-015 TEST-029 TEST-030 TEST-034 TEST-035 TEST-046 TEST-048; do
+    out="$(bash "$HERE/test-aai-merge-cleanup.sh" --test "$t" 2>&1)" || fail TEST-2924 "the amended arm $t failed: $out"
+  done
+  echo 'PASS: TEST-2924 the amended prior arms pass through their own selectors'
+}
+
+# ---------------------------------------------------------------------------
 case "$SELECTED" in
   '') test_005_apply_readback_gate;
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -3156,7 +4377,7 @@ case "$SELECTED" in
      test_022_trackers_close_idempotent_resumable; test_023_preflight_lists_signs_on_merge; test_019_downstream_signs
      test_025_sign_merged_backlog; test_024_canon_merge_direction_signs; test_026_backlog_signed_on_live_ledger
      test_001_wrappers_and_pointers; test_002_prompt_block_runs_cleanup; test_017_companion_wiring
-     test_028_submodule_worktree_removed_after_proof; test_029_dirty_submodule_refused; test_030_unpushed_submodule_refused
+     test_028_submodule_worktree_removed_after_proof; test_029_dirty_submodule_kept; test_030_unpushed_submodule_kept
      test_031_submodule_ignored_archived_or_named; test_032_late_dirt_stops_then_resumes; test_033_preflight_names_cleanup_blocker; test_034_canon_stop_and_relay
      test_035_submodule_tags_archived
      test_036_remote_branch_deleted_by_lease; test_037_moved_remote_retained; test_038_absent_noop_and_idempotent
@@ -3170,7 +4391,8 @@ case "$SELECTED" in
      test_056_historical_journal_tolerance; test_057_codebase_reduction_and_green_suite; test_058_merge_cleanup_line_ceiling; test_059_lane_gate_passes_without_pr_sweep; test_060_skill_pr_prompt_free_of_pr_sweep; test_061_prompt_diet_passes
      test_068_generic_refuses_with_manual; test_070_azure_preflight_ready_and_refusals; test_072_azure_apply_cleanup
      test_073_platform_mismatch_refuses_before_any_read; test_074_github_recorded_and_legacy_unchanged
-     test_075_reconcile_origin_step ;;
+     test_075_reconcile_origin_step
+     test_2901_outcome_table_complete; test_2902_outcome_lines_from_real_runs; test_2903_pr485_parent_child_roadmap; test_2904_unrepresented_roadmap_decides; test_2905_absent_links_pr_proven_by_merge_commit; test_2906_conflicting_or_old_identity_not_proven; test_2907_superseded_draft_archived; test_2908_divergent_draft_menu; test_2909_unproven_drafts_untouched; test_2910_generated_projection_taken; test_2911_decide_channel; test_2912_router_resumes_in_one_interaction; test_2914_worktree_protections_kept; test_2915_sync_protections_kept; test_2916_preflight_gates_hold; test_2917_archive_verification_and_no_new_primitive; test_2918_next_attempt; test_2919_retry_chain_terminates; test_2920_interrupted_recovery_converges; test_2921_plain_summary; test_2922_skill_and_engine_agree; test_2923_governance; test_2924_amended_prior_arms; test_2925_preflight_retry_is_bounded; test_2926_unactionable_clash_choices_not_offered; test_2927_locally_deleted_files_sync_cleanly; test_2928_recovery_waits_for_protection_check; test_2929_null_identity_never_matches; test_2930_symlink_overlap_never_written_through ;;
   TEST-059|test_059_lane_gate_passes_without_pr_sweep) test_059_lane_gate_passes_without_pr_sweep ;;
   TEST-060|test_060_skill_pr_prompt_free_of_pr_sweep) test_060_skill_pr_prompt_free_of_pr_sweep ;;
   TEST-061|test_061_prompt_diet_passes) test_061_prompt_diet_passes ;;
@@ -3199,8 +4421,8 @@ case "$SELECTED" in
   TEST-024|test_024_canon_merge_direction_signs) test_024_canon_merge_direction_signs ;;
   TEST-026|test_026_backlog_signed_on_live_ledger) test_026_backlog_signed_on_live_ledger ;;
   TEST-028|test_028_submodule_worktree_removed_after_proof) test_028_submodule_worktree_removed_after_proof ;;
-  TEST-029|test_029_dirty_submodule_refused) test_029_dirty_submodule_refused ;;
-  TEST-030|test_030_unpushed_submodule_refused) test_030_unpushed_submodule_refused ;;
+  TEST-029|test_029_dirty_submodule_kept) test_029_dirty_submodule_kept ;;
+  TEST-030|test_030_unpushed_submodule_kept) test_030_unpushed_submodule_kept ;;
   TEST-031|test_031_submodule_ignored_archived_or_named) test_031_submodule_ignored_archived_or_named ;;
   TEST-032|test_032_late_dirt_stops_then_resumes) test_032_late_dirt_stops_then_resumes ;;
   TEST-033|test_033_preflight_names_cleanup_blocker) test_033_preflight_names_cleanup_blocker ;;
@@ -3232,5 +4454,34 @@ case "$SELECTED" in
   TEST-073|test_073_platform_mismatch_refuses_before_any_read) test_073_platform_mismatch_refuses_before_any_read ;;
   TEST-074|test_074_github_recorded_and_legacy_unchanged) test_074_github_recorded_and_legacy_unchanged ;;
   TEST-075|test_075_reconcile_origin_step) test_075_reconcile_origin_step ;;
+  TEST-2901|test_2901_outcome_table_complete) test_2901_outcome_table_complete ;;
+  TEST-2902|test_2902_outcome_lines_from_real_runs) test_2902_outcome_lines_from_real_runs ;;
+  TEST-2903|test_2903_pr485_parent_child_roadmap) test_2903_pr485_parent_child_roadmap ;;
+  TEST-2904|test_2904_unrepresented_roadmap_decides) test_2904_unrepresented_roadmap_decides ;;
+  TEST-2905|test_2905_absent_links_pr_proven_by_merge_commit) test_2905_absent_links_pr_proven_by_merge_commit ;;
+  TEST-2906|test_2906_conflicting_or_old_identity_not_proven) test_2906_conflicting_or_old_identity_not_proven ;;
+  TEST-2907|test_2907_superseded_draft_archived) test_2907_superseded_draft_archived ;;
+  TEST-2908|test_2908_divergent_draft_menu) test_2908_divergent_draft_menu ;;
+  TEST-2909|test_2909_unproven_drafts_untouched) test_2909_unproven_drafts_untouched ;;
+  TEST-2910|test_2910_generated_projection_taken) test_2910_generated_projection_taken ;;
+  TEST-2911|test_2911_decide_channel) test_2911_decide_channel ;;
+  TEST-2912|test_2912_router_resumes_in_one_interaction) test_2912_router_resumes_in_one_interaction ;;
+  TEST-2914|test_2914_worktree_protections_kept) test_2914_worktree_protections_kept ;;
+  TEST-2915|test_2915_sync_protections_kept) test_2915_sync_protections_kept ;;
+  TEST-2916|test_2916_preflight_gates_hold) test_2916_preflight_gates_hold ;;
+  TEST-2917|test_2917_archive_verification_and_no_new_primitive) test_2917_archive_verification_and_no_new_primitive ;;
+  TEST-2918|test_2918_next_attempt) test_2918_next_attempt ;;
+  TEST-2919|test_2919_retry_chain_terminates) test_2919_retry_chain_terminates ;;
+  TEST-2920|test_2920_interrupted_recovery_converges) test_2920_interrupted_recovery_converges ;;
+  TEST-2921|test_2921_plain_summary) test_2921_plain_summary ;;
+  TEST-2922|test_2922_skill_and_engine_agree) test_2922_skill_and_engine_agree ;;
+  TEST-2923|test_2923_governance) test_2923_governance ;;
+  TEST-2924|test_2924_amended_prior_arms) test_2924_amended_prior_arms ;;
+  TEST-2925|test_2925_preflight_retry_is_bounded) test_2925_preflight_retry_is_bounded ;;
+  TEST-2926|test_2926_unactionable_clash_choices_not_offered) test_2926_unactionable_clash_choices_not_offered ;;
+  TEST-2927|test_2927_locally_deleted_files_sync_cleanly) test_2927_locally_deleted_files_sync_cleanly ;;
+  TEST-2928|test_2928_recovery_waits_for_protection_check) test_2928_recovery_waits_for_protection_check ;;
+  TEST-2929|test_2929_null_identity_never_matches) test_2929_null_identity_never_matches ;;
+  TEST-2930|test_2930_symlink_overlap_never_written_through) test_2930_symlink_overlap_never_written_through ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

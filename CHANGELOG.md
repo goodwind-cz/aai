@@ -22,6 +22,20 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(merge): the merge cleanup resolves its own friction (merge-cleanup-resolves-framework-friction)
+
+- `/aai-merge` no longer hands raw refusals back to you. The cleanup engine sorts every refusal or stopped step into one of five
+  outcomes with one table (`.aai/scripts/lib/merge-outcomes.mjs`) and prints an `OUTCOME <json>` line for each: fixed by the cleanup
+  (archived first), kept (your uncommitted work, a main checkout on another branch or with its own commits, a staged roadmap change or
+  a moved branch stay as they are, reported as `Kept:`, and the other steps finish), retried (apply only, at most twice in a row),
+  a question with a recommended option (one menu; answers go back through `AAI_DECIDE` or `--decide`), or needs you (a `Needs you:`
+  line with the exact action).
+- New exit 6: the run reached the end and a decision is still owed. Exit 3 now carries an `OUTCOME` line; several cases that used to
+  refuse with "nothing changed" now finish (the PR #485 roadmap clash and the PR #500 leftover draft replay to exit 0).
+- The run ends with a plain report: `Merge:`, `Cleanup:`, `Kept:`, `Decision:` and `Needs you:` lines. `.aai/AGENTS.md` rule 2 states
+  that the framework recovers its own friction before asking.
+- Contract amendments on SPEC-0218, SPEC-0221, SPEC-0223 and this spec are signed by the owner's merge direction.
+
 ## [unreleased] — feat(recheck): bind each judged re-check verdict to STATE (recheck-verdict-binding)
 
 - A delta re-check round no longer reads the `check_verdict` stamps of `docs/ai/EVENTS.jsonl` to learn which round was judged. The

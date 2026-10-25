@@ -12,7 +12,7 @@ Describe 'merge cleanup PowerShell parity' {
     $script:Pr = 433
     $script:Branch = 'ride/foo'
     $script:Saved = @{}
-    foreach ($name in 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'AAI_MERGE_CLEANUP_GH_NODE', 'AAI_MERGE_CLEANUP_TEST_SEAMS', 'AAI_DIRECTION', 'GH_STUB_DIR', 'AAI_PR', 'AAI_GIT_WRITE') {
+    foreach ($name in 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'AAI_MERGE_CLEANUP_GH_NODE', 'AAI_MERGE_CLEANUP_TEST_SEAMS', 'AAI_DIRECTION', 'AAI_DECIDE', 'GH_STUB_DIR', 'AAI_PR', 'AAI_GIT_WRITE') {
       $script:Saved[$name] = [Environment]::GetEnvironmentVariable($name)
     }
     $env:GIT_AUTHOR_NAME = 'AAI Fixture'; $env:GIT_COMMITTER_NAME = 'AAI Fixture'
@@ -137,7 +137,7 @@ process.exit(1);
     if (Test-Path -LiteralPath $Scratch) { Remove-Item -LiteralPath $Scratch -Recurse -Force }
   }
 
-  It 'TEST-016 refuses a dirty worktree and removes nothing' {
+  It 'TEST-016 keeps a dirty worktree and finishes the other steps' {
     [IO.File]::AppendAllText((Join-Path $Ride 'README.md'), "edit`n", $Utf8)
     Push-Location -LiteralPath $Ride
     $lines = New-Object System.Collections.ArrayList
@@ -145,11 +145,14 @@ process.exit(1);
     try {
       try { & $Block | ForEach-Object { [void]$lines.Add("$_") } } catch { $failure = $_.Exception.Message }
     } finally { Pop-Location }
-    $failure | Should -BeLike '*exited 3*'
-    ($lines -join "`n") | Should -BeLike '*REFUSE worktree_dirty*'
+    $failure | Should -BeNullOrEmpty
+    ($lines -join "`n") | Should -BeLike '*"reason":"worktree_dirty"*'
+    ($lines -join "`n") | Should -BeLike '*Kept: the worktree*'
     (Test-Path -LiteralPath $Ride) | Should -BeTrue
+    ([IO.File]::ReadAllText((Join-Path $Ride 'README.md'))) | Should -BeLike '*edit*'
     (& git -C $Origin show-ref --verify "refs/heads/$Branch") | Should -Not -BeNullOrEmpty
     (Test-Path -LiteralPath (Join-Path $Ride 'docs/ai/STATE.yaml')) | Should -BeTrue
+    (& git -C $Origin rev-parse HEAD).Trim() | Should -Be $Mc
   }
 
   It 'TEST-016 cleans up the merged ride from inside the worktree on a spaced path' {
@@ -184,5 +187,30 @@ process.exit(1);
     $log | Should -Not -Match 'pr merge'
     # SPEC-0226: zero writes to decisions.jsonl during merge-cleanup
     (Test-Path -LiteralPath (Join-Path $Origin 'docs/ai/decisions.jsonl')) | Should -BeFalse
+  }
+
+  It 'TEST-2913 passes AAI_DECIDE as --decide: a divergent draft is archived and removed only on that answer' {
+    $draft = Join-Path $Origin 'docs/issues/ISSUE-DRAFT-foo.md'
+    Write-Text $draft "---`nid: foo`ntype: issue`nnumber: null`nstatus: draft`nlinks:`n  pr: []`n  commits: []`n---`n`n# Issue foo`n`nMy own notes.`n"
+    Push-Location -LiteralPath $Origin
+    $lines = New-Object System.Collections.ArrayList
+    $failure = ''
+    try {
+      try { & $Block | ForEach-Object { [void]$lines.Add("$_") } } catch { $failure = $_.Exception.Message }
+    } finally { Pop-Location }
+    $failure | Should -BeLike '*exited 6*'
+    (Test-Path -LiteralPath $draft) | Should -BeTrue
+    $outcome = $lines | Where-Object { $_ -like 'OUTCOME *divergent_draft*' } | Select-Object -First 1
+    $outcome | Should -Not -BeNullOrEmpty
+    $id = ($outcome.Substring(8) | ConvertFrom-Json).id
+    $id | Should -Match '^divergent_draft@[0-9a-f]{12}$'
+    $env:AAI_DECIDE = "$id=archive_remove"
+    Push-Location -LiteralPath $Origin
+    $lines = New-Object System.Collections.ArrayList
+    try {
+      try { & $Block | ForEach-Object { [void]$lines.Add("$_") } } catch { throw "$($_.Exception.Message)`n$($lines -join "`n")" }
+    } finally { Pop-Location; Remove-Item -LiteralPath Env:AAI_DECIDE -ErrorAction SilentlyContinue }
+    (Test-Path -LiteralPath $draft) | Should -BeFalse
+    (Test-Path -LiteralPath (Join-Path $Origin "docs/ai/archive/merge-cleanup/pr-$Pr/drafts/docs/issues/ISSUE-DRAFT-foo.md")) | Should -BeTrue
   }
 }

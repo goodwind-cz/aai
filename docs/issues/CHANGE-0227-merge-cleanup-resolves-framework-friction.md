@@ -2,7 +2,7 @@
 id: merge-cleanup-resolves-framework-friction
 type: change
 number: 227
-status: draft
+status: done
 capability: directed-merge-and-post-merge-cleanup
 user_visible: true
 links:

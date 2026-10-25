@@ -8,11 +8,13 @@
 //   merge-cleanup.mjs apply --pr <n> --pid <harness pid> [--origin <abs>] [--json]
 //
 // EXIT CONTRACT
-//   0  complete (every eligible step done or a named no-op)
+//   0  every step done, a named no-op or kept (a protected object is left as it is)
 //   2  usage error
-//   3  refused before any mutation: `REFUSE <reason> <detail>` on stdout
-//   4  stopped mid-way (a re-run resumes)
+//   3  refused before any write to the working tree, refs or index: `REFUSE <reason> <detail>`
+//   4  a step stopped mid-way (a re-run resumes): `STOPPED <reason> <detail>`
+//   6  the run reached the end and at least one `decide` item waits (apply --decide <id>=<option>)
 //   10 preflight ready (open PR, every gate passed)
+// Every classified item also prints `OUTCOME <json>` (lib/merge-outcomes.mjs holds the table).
 //
 // The engine NEVER runs `gh pr merge` (D3). It performs ONE fixed gh read (D4)
 // and `git fetch`; every other effect is a local, archive-first file or git
@@ -22,22 +24,11 @@
 // ONLY when AAI_MERGE_CLEANUP_TEST_SEAMS=1 is also set; in production they are
 // inert, so a stray variable can neither replace gh nor stop a run.
 //
-// IMPLEMENTED HERE: the CLI/step skeleton, the D5 read-back gate, the D6/D7
-// superseded-draft archive (batch B1), the D8 base sync and the D10 runtime
-// archive, worktree removal and branch compare-and-swap delete (batch B2), the
-// D9 focus clear, index regeneration, audit verdict and saved report, and the
-// D11 resume contract (batch B3), and the D3/D4 open-PR preflight (batch B4a),
-// and the delete-remote-branch step (spec-merge-cleanup-delete-remote-branch):
-// the merged origin branch is deleted only by a lease against the merged head
-// (git push --force-with-lease=<ref>:<oid>), else retained with a named reason.
-// Every precondition that can refuse is derived BEFORE the first write, so a
-// refusal is exit 3 with nothing changed.
-//
-// spec-merge-cleanup-ride-leftovers: the ride's own traces no longer stop the run. A roadmap
-// change confined to the merged ride's entry is archived and the incoming roadmap taken (D1-D5);
-// whole lines appended after the last commit to the ride worktree's ledgers are moved byte-exact
-// to the main checkout and archived before the worktree is removed (D6-D10); and when sync-base
-// replaced the engine file this process was loaded from, the new file is run once (D11-D14).
+// Steps: superseded-draft archive, runtime archive, base sync, reconcile-origin, ride worktree removal, branch
+// delete (the origin branch only by a lease against the merged head), report. Each archives before it removes and
+// journals its completion, so a re-run resumes. A protected object (dirty worktree, diverged main, moved branch,
+// live lock) is kept as it is, its step is recorded retained and the other steps run; only a gate reason or a
+// failed read refuses (exit 3). The ride's own roadmap entry and appended ledger lines are carried to the main checkout.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -49,6 +40,10 @@ import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { status as lockStatus, release as lockRelease } from './lib/session-lock.mjs';
 import { parseFrontmatter } from './lib/docs-model.mjs';
 import { createAdapter, resolvePlatform, githubRepoSlug } from './lib/platform-adapter.mjs';
+import {
+  classify, outcomeLine, nextAttempt, choiceFor, parseDecide, compareDraft, representedChanges, summaryLines, keptLine,
+  GENERATED_PROJECTIONS,
+} from './lib/merge-outcomes.mjs';
 
 const HELP = `merge-cleanup.mjs <preflight|plan|apply> --pr <n> [options]
   preflight  read-only gates for an OPEN pull request; exit 10 when ready
@@ -56,17 +51,16 @@ const HELP = `merge-cleanup.mjs <preflight|plan|apply> --pr <n> [options]
   apply      cleanup after a MERGED pull request (needs --pid)
 options: --origin <abs> --json
          --direction "<owner's words>"
+         --decide <id>=<option>[,<id>=<option>...]   (apply only: answers the OUTCOME lines of a decide item)
          --origin defaults to the main checkout (the first git worktree), in every mode;
          pass it to read and write a ride worktree's ledger instead
-the ride's own leftovers (apply): a roadmap change confined to the merged ride's entry is archived and the
-         incoming roadmap taken; whole lines appended to the ride worktree's ledgers are moved to the main checkout
-         (archived first, journalled, reported as moved lines); an engine file replaced by the base sync is run
-         again once (reload-engine), and a re-run child that exits other than 0 or 4 prints STOPPED reexec_child_exit_<n|signal> (exit 4)
-exit: 0 complete, 2 usage, 3 refused, 4 stopped mid-way, 10 preflight ready
+the ride's own leftovers (apply): a roadmap change the incoming roadmap represents is archived and the incoming one
+         taken; whole lines appended to the ride worktree's ledgers are moved to the main checkout (archived first)
+exit: 0 complete or kept, 2 usage, 3 refused, 4 stopped mid-way, 6 decision pending, 10 preflight ready
 `;
 
 const STEP_IDS = [
-  'resolve', 'plan', 'archive-runtime', 'sync-base', 'reconcile-origin',
+  'resolve', 'plan', 'archive-drafts', 'archive-runtime', 'sync-base', 'reconcile-origin',
   'remove-worktree', 'delete-branch', 'report',
 ];
 const DRAFT_BASENAME_RE = /^[A-Z]+(?:-[A-Z]+)*-DRAFT-.+\.md$/;
@@ -83,16 +77,97 @@ function usage(msg) {
   exit(2);
 }
 
-function refuse(reason, detail = '') {
-  process.stdout.write(`REFUSE ${reason}${detail ? ` ${detail}` : ''}\n`);
-  exit(3);
+const EXIT_DECISION_PENDING = 6;
+const RUN = { opts: null, origin: null, pr: 0, mc: null, step: null, outcomes: [], kept: [], decisions: [], pairs: [], retries: new Set(), fp: null, reset: false };
+// Run state: classified items, kept lines, decisions given or recorded. Keep: a kept reason inside a step.
+class Keep extends Error {
+  constructor(reason, detail) { super(reason); this.reason = reason; this.detail = detail; }
+}
+const notDone = (ctx, id) => ctx.status[id] === 'retained';
+
+// <git common dir>/aai-merge-cleanup/pr-<n>/attempts.jsonl (apply only): an exit-3 run changes no working-tree file.
+const attemptsFile = () => {
+  const r = RUN.origin && RUN.opts?.mode === 'apply' ? git(RUN.origin, ['rev-parse', '--git-common-dir']) : null;
+  return r?.status === 0 ? path.join(path.resolve(RUN.origin, r.stdout.trim()), 'aai-merge-cleanup', `pr-${RUN.opts.pr}`, 'attempts.jsonl') : null;
+};
+const choicesFile = () => path.join(archiveRoot(RUN.origin, RUN.opts.pr), 'choices.jsonl');
+
+// The sha256 of what progress changes: origin HEAD, the journal done lines, the manifest size and the item.
+function fingerprint(key) {
+  if (!RUN.origin || RUN.opts?.mode !== 'apply') return '';
+  const root = archiveRoot(RUN.origin, RUN.opts.pr);
+  const done = readJsonl(path.join(root, 'journal.jsonl')).filter((r) => r.status === 'done').map(({ timestamp, ...r }) => JSON.stringify(r));
+  const head = git(RUN.origin, ['rev-parse', 'HEAD']).stdout.trim();
+  return sha256([head, ...done, String(readJsonl(path.join(root, 'manifest.jsonl')).length), key].join('\n'));
 }
 
-// A step that cannot finish after earlier steps already wrote: exit 4, a re-run resumes.
-function stop(reason, detail = '') {
-  process.stdout.write(`STOPPED ${reason}${detail ? ` ${detail}` : ''}\n`);
-  exit(4);
+// Classify one item through the table, apply a decision that names it, register the outcome.
+// Returns { o, option } - option is the decision applied now, else null.
+function raise(reason, subject, detail, { phase = 'step', evidence = [] } = {}) {
+  const fp = fingerprint(`${reason}:${subject}`);
+  const af = attemptsFile();
+  const att = af ? nextAttempt(readJsonl(af), fp) : { retry: false };  // no attempts record (preflight, plan): a retry reason goes straight to its fallback class
+  const ev = evidence.length ? evidence : [fp];
+  let o = classify(reason, { phase, subject, detail, evidence: ev, retry: att.retry, pre: RUN.opts?.mode === 'preflight' });
+  // an answer that names this id was given for the fallback menu the previous run showed
+  if (o.state === 'retry' && RUN.decisions.some((d) => d.id === o.id)) o = classify(reason, { phase, subject, detail, evidence: ev, retry: false, pre: RUN.opts?.mode === 'preflight' });
+  const ch = o.class === 'decide' ? choiceFor(o, RUN.decisions) : null;
+  if (ch) {
+    const file = choicesFile();
+    const known = readJsonl(file);
+    const rec = { id: ch.id, option: ch.option, reason, subject, timestamp: new Date().toISOString() };
+    if (!known.some((c) => c.id === rec.id && c.option === rec.option)) appendJsonl(file, rec);
+    crashAt('choice-after-record');
+    if (ch.pair) RUN.pairs.find((x) => x.pair === ch.pair).used = true;
+    o = { ...o, state: 'resolved' };
+    if (ch.option === 'retry') { RUN.reset = true; o = { ...o, state: 'retry' }; }
+  }
+  if (!RUN.outcomes.some((x) => x.id === o.id)) RUN.outcomes.push(o);
+  if (o.state === 'retry') RUN.retries.add(o.id);
+  RUN.fp = fp;
+  return { o, option: ch?.option ?? null };
 }
+
+const keptItem = (o, step) => { const line = keptLine(o, step); if (!RUN.kept.includes(line)) RUN.kept.push(line); };
+
+// The ends of a run print the plain lines; apply also appends one attempts record (D7).
+function endRun(code, kind, step = RUN.step) {
+  const pending = RUN.outcomes.filter((o) => o.class === 'decide' && o.state === 'pending');
+  const needs = RUN.outcomes.filter((o) => o.class === 'external');
+  const { lines, summary } = summaryLines({ pr: RUN.pr, mc: RUN.mc, kind, kept: RUN.kept, pending, needs, step, noCleanup: RUN.opts?.mode === 'preflight' });
+  const ignored = RUN.pairs.filter((x) => !x.used).map((x) => `IGNORED ${x.pair} ${RUN.outcomes.some((o) => o.id === x.id) ? 'option_not_offered' : 'no_longer_applies'}`);
+  const af = attemptsFile();
+  if (af) {
+    fs.mkdirSync(path.dirname(af), { recursive: true });
+    appendJsonl(af, { exit: code, retries: [...RUN.retries], fingerprint: RUN.fp ?? fingerprint(''), ...(RUN.reset ? { reset: true } : {}), timestamp: new Date().toISOString() });
+  }
+  return { lines, summary, ignored, pending };
+}
+
+// Printed by a run that ends without a report (REFUSE or STOPPED, or a plan).
+function finish(code, kind, step) {
+  const e = endRun(code, kind, step);
+  process.stdout.write(`${[...e.ignored, ...RUN.outcomes.map(outcomeLine), ...e.lines].join('\n')}\n`);
+  exit(code);
+}
+
+// A reason the engine cannot go on with. kept (or a skip_step decision): the step is retained and the run goes on.
+// Otherwise REFUSE (exit 3, nothing written yet) or STOPPED (exit 4, a re-run resumes).
+function halt(reason, detail, { refused = false, subject = detail, phase = refused ? 'plan' : RUN.step ? 'step' : 'plan', evidence = [] } = {}) {
+  const { o, option } = raise(reason, subject, detail, { phase, evidence });
+  if ((o.class === 'auto' && o.state === 'resolved') || option === 'skip_step') {
+    keptItem(o, RUN.step);
+    throw new Keep(reason, detail);
+  }
+  process.stdout.write(`${refused ? 'REFUSE' : 'STOPPED'} ${reason}${detail ? ` ${detail}` : ''}\n`);
+  finish(refused ? 3 : 4, refused ? 'refused' : o.state === 'retry' ? 'interrupted_retry' : 'interrupted_decision');
+}
+
+const refuse = (reason, detail = '', opt = {}) => halt(reason, detail, { ...opt, refused: true });
+// A step that cannot finish after earlier steps already wrote: exit 4, a re-run resumes.
+const stop = (reason, detail = '', opt = {}) => halt(reason, detail, opt);
+// A protected object: the named step is retained (the Keep reaches the step loop).
+const keepStep = (ctx, step, reason, detail = '') => { RUN.step = step; return halt(reason, detail, { phase: 'plan' }); };
 
 function parseArgs(argv) {
   const out = { json: false };
@@ -101,7 +176,7 @@ function parseArgs(argv) {
   out.mode = mode;
   const valueFlags = {
     '--pr': 'pr', '--origin': 'origin', '--pid': 'pid', '--expect-head': 'expectHead',
-    '--directed-by': 'directedBy', '--direction': 'direction',
+    '--directed-by': 'directedBy', '--direction': 'direction', '--decide': 'decide',
   };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
@@ -117,6 +192,7 @@ function parseArgs(argv) {
   out.pr = Number(out.pr);
   if (mode === 'apply' && !/^[1-9][0-9]*$/.test(out.pid ?? '')) usage('apply requires --pid <positive integer>');
   if (out.origin !== undefined && !path.isAbsolute(out.origin)) usage('--origin must be an absolute path');
+  if (out.decide !== undefined && (mode !== 'apply' || !parseDecide(out.decide))) usage('--decide takes <id>=<option>[,...] and only apply');
   return out;
 }
 
@@ -197,7 +273,8 @@ function resolveOrigin(opts) {
   }
   const top = git(origin, ['rev-parse', '--show-toplevel']);
   if (top.status !== 0) refuse('no_origin', `not a git checkout: ${origin}`);
-  return fs.realpathSync(top.stdout.trim());
+  RUN.origin = fs.realpathSync(top.stdout.trim());
+  return RUN.origin;
 }
 
 // D4/D5: the one fixed PR read, then the read-back gate.
@@ -209,6 +286,7 @@ function readAndGate(opts, origin) {
   if (pr.state !== 'MERGED' || !/^[0-9a-f]{40}$/i.test(mc)) {
     refuse('not_merged', `state=${pr.state ?? 'unknown'} mergeCommit=${mc || 'none'}`);
   }
+  RUN.mc = mc;
   const base = pr.baseRefName ?? '';
   if (!BASE_NAME_RE.test(base) || base.startsWith('-')) refuse('bad_base_name', JSON.stringify(base));
   const f = git(origin, ['fetch', '-q', 'origin', `+refs/heads/${base}:refs/remotes/origin/${base}`]);
@@ -219,8 +297,6 @@ function readAndGate(opts, origin) {
 }
 
 // ---- D6: draft classification --------------------------------------------
-
-
 
 // PR numbers a frontmatter links.pr value names, read strictly: a bare number, '#N',
 // or a URL of THIS repository whose path ends /pull/N. Digits elsewhere in an entry
@@ -238,16 +314,9 @@ function linkedPrs(fm, repo) {
   return out;
 }
 
-// The work item(s) THIS PR delivered: intake docs (any type but spec) in the merged
-// tree that the PR added or changed, left status done with links.pr naming this PR -
-// the stamp close-work-item writes. Touching a doc, filing a draft, or sharing the
-// branch-name tail does not make a ref merged (F1). Returns [{ id, rel }].
-function deliveredDoneDocs(origin, mc, pr, repo) {
-  return doneDocsBetween(origin, `${mc}^1`, mc, pr, repo);
-}
-
-// Intake docs (any type but spec) the range from..to added or changed, status done at `to`
-// with links.pr naming `pr`. Returns [{ id, rel }].
+// Intake docs (any type but spec) the range from..to added or changed, status done at `to`. Returns
+// [{ id, rel, proof }]: links_pr (links.pr names `pr`), merge_commit (links.pr absent or empty and the doc was not
+// done at `from`), or null (no proof ties it to `pr`).
 function doneDocsBetween(cwd, from, to, pr, repo) {
   const names = git(cwd, ['diff', '--name-only', '--no-renames', '--diff-filter=AM', '-z', from, to]);
   const docs = [];
@@ -257,16 +326,36 @@ function doneDocsBetween(cwd, from, to, pr, repo) {
     const blob = git(cwd, ['cat-file', 'blob', `${to}:${rel}`]);
     if (blob.status !== 0) continue;
     const fm = parseFrontmatter(blob.stdout);
-    if (fm?.id && fm.type !== 'spec' && fm.status === 'done' && linkedPrs(fm, repo).includes(pr)) docs.push({ id: String(fm.id), rel });
+    if (!fm?.id || fm.type === 'spec' || fm.status !== 'done') continue;
+    const v = fm.links?.pr;
+    const raw = (Array.isArray(v) ? v : [v]).filter((x) => x !== undefined && x !== null && String(x).trim() !== '' && String(x).trim() !== '~');
+    const was = git(cwd, ['cat-file', 'blob', `${from}:${rel}`]);
+    const before = was.status === 0 ? parseFrontmatter(was.stdout)?.status : null;
+    if (linkedPrs(fm, repo).includes(pr)) docs.push({ id: String(fm.id), rel, proof: 'links_pr' });
+    else if (raw.length === 0 && before !== 'done') docs.push({ id: String(fm.id), rel, proof: 'merge_commit' });
+    else docs.push({ id: String(fm.id), rel, proof: null });
   }
   return docs;
 }
 
-function classifyDrafts(origin) {
+// D3: each untracked draft against the numbered doc of the same type and slug in the incoming tree.
+// superseded: equal after the lifecycle keys are removed; divergent: not equal; untouched: no single counterpart or another item.
+function classifyDrafts(origin, base) {
   const ls = git(origin, ['ls-files', '--others', '--exclude-standard', '-z']);
-  const candidates = (ls.status === 0 ? ls.stdout.split('\0').filter(Boolean) : [])
-    .filter((rel) => rel.startsWith('docs/') && DRAFT_BASENAME_RE.test(path.posix.basename(rel)));
-  return { retained: candidates.map((rel) => ({ path: rel, reason: 'leftover_draft' })) };
+  const out = { superseded: [], divergent: [], untouched: [], retained: [] };
+  const ref = `refs/remotes/origin/${base}`;
+  for (const rel of (ls.status === 0 ? ls.stdout.split('\0').filter(Boolean) : []).filter((r) => r.startsWith('docs/') && DRAFT_BASENAME_RE.test(path.posix.basename(r)))) {
+    const m = path.posix.basename(rel).match(/^([A-Z]+(?:-[A-Z]+)*)-DRAFT-(.+)\.md$/);
+    const dir = path.posix.dirname(rel);
+    const names = git(origin, ['ls-tree', '--name-only', '-z', ref, `${dir}/`]);
+    const re = new RegExp(`^${m[1]}-\\d+-${m[2].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.md$`);
+    const hits = (names.status === 0 ? names.stdout.split('\0').filter(Boolean) : []).filter((n) => re.test(path.posix.basename(n)));
+    const blob = hits.length === 1 ? readBlob(origin, `${ref}:${hits[0]}`) : null;
+    const verdict = blob ? compareDraft(fs.readFileSync(path.join(origin, rel), 'utf8'), blob.toString('utf8'), `${m[1]}-DRAFT-${m[2]}`, path.posix.basename(hits[0], '.md')) : false;
+    if (verdict) out[verdict === 'superseded' ? 'superseded' : 'divergent'].push({ path: rel, counterpart: hits[0], oid: git(origin, ['rev-parse', `${ref}:${hits[0]}`]).stdout.trim() });
+    else out.untouched.push(rel);
+  }
+  return out;
 }
 
 // ---- D7: archive ----------------------------------------------------------
@@ -292,23 +381,26 @@ function appendJsonl(file, obj) {
 // original+sha256 is already recorded. Never overwrites, never removes `src`.
 // `fresh` tells a repeat (nothing new written) from a first archive.
 function archiveFile(ctx, { src, destBase, original, reason, step }) {
-  const bytes = fs.readFileSync(src);
-  const digest = sha256(bytes);
-  let dest = destBase;
-  for (let n = 1; fs.existsSync(dest) && !fs.readFileSync(dest).equals(bytes); n++) dest = `${destBase}.${n}`;
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  const created = !fs.existsSync(dest);
-  if (created) fs.copyFileSync(src, dest);
-  if (!fs.readFileSync(dest).equals(bytes)) throw new Error(`archive copy differs from source: ${original}`);
-  const rel = posix(path.relative(ctx.origin, dest));
-  const manifest = path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'manifest.jsonl');
-  const known = readJsonl(manifest).some((m) => m.original === original && m.sha256 === digest);
-  if (!known) {
-    appendJsonl(manifest, { original, archive: rel, sha256: digest, reason, step, timestamp: new Date().toISOString() });
-  }
-  return { rel, digest, fresh: created || !known };
+  try {
+    if (seam('AAI_MERGE_CLEANUP_FAIL_ARCHIVE') === original) throw new Error('archive failed (test seam)');
+    const bytes = fs.readFileSync(src);
+    const digest = sha256(bytes);
+    let dest = destBase;
+    for (let n = 1; fs.existsSync(dest) && !fs.readFileSync(dest).equals(bytes); n++) dest = `${destBase}.${n}`;
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    const created = !fs.existsSync(dest);
+    if (created) fs.copyFileSync(src, dest);
+    if (created && seam('AAI_MERGE_CLEANUP_CORRUPT_ARCHIVE') === original) fs.appendFileSync(dest, 'corrupted (test seam)\n');
+    if (!fs.readFileSync(dest).equals(bytes)) throw new Error(`archive copy differs from source: ${original}`);
+    const rel = posix(path.relative(ctx.origin, dest));
+    const manifest = path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'manifest.jsonl');
+    const known = readJsonl(manifest).some((m) => m.original === original && m.sha256 === digest);
+    if (!known) {
+      appendJsonl(manifest, { original, archive: rel, sha256: digest, reason, step, timestamp: new Date().toISOString() });
+    }
+    return { rel, digest, fresh: created || !known };
+  } catch { stop('archive_failed', original); }
 }
-
 
 // ---- D8: base sync --------------------------------------------------------
 
@@ -316,26 +408,6 @@ const readBlob = (cwd, spec) => {
   const r = git(cwd, ['cat-file', 'blob', spec], { buffer: true });
   return r.status === 0 ? r.stdout : null;
 };
-
-// D2: the roadmap text without the merged ride's own entries - every pair block whose first line is
-// `  - capability: <ref>` (it runs until the next line not indented by four spaces or more) and every
-// `  - <ref>` line (the wave_2 entry ship-append deletes). Everything else, line endings included, stays.
-function stripRideEntries(text, refs) {
-  const lines = text.split(/(?<=\n)/);
-  const out = [];
-  for (let i = 0; i < lines.length; i++) {
-    const body = lines[i].replace(/\r?\n$/, '');
-    const cap = body.match(/^ {2}- capability: (.+)$/);
-    if (cap && refs.has(cap[1])) {
-      while (i + 1 < lines.length && /^ {4}/.test(lines[i + 1])) i++;
-      continue;
-    }
-    const wave = body.match(/^ {2}- (.+)$/);
-    if (wave && refs.has(wave[1])) continue;
-    out.push(lines[i]);
-  }
-  return out.join('');
-}
 
 // The roadmap as three latin1 strings: the main checkout's file, the HEAD blob, the incoming blob.
 function roadmapTexts(ctx, head, target) {
@@ -347,37 +419,34 @@ function roadmapTexts(ctx, head, target) {
   return { local, head: headBlob.toString('latin1'), incoming: inBlob.toString('latin1') };
 }
 
-// The ride refs whose own entry differs between the HEAD blob and the local file.
-function rideChangedRefs(refs, t) {
-  return [...refs].sort().filter((ref) => {
-    const others = new Set([...refs].filter((r) => r !== ref));
-    return stripRideEntries(t.local, others) !== stripRideEntries(t.head, others);
-  });
-}
-
-// D3: true only when every local change is confined to the merged ride's entries and the incoming
-// roadmap carries a pair block for each of them (taking it loses no record of the ride).
-function roadmapRideOnly(ctx, head, target) {
-  const refs = mergedRefs(ctx);
-  if (refs.size === 0) return false;
+// D4: the local roadmap change against the HEAD blob, compared entry by entry with the incoming roadmap
+// (lib/merge-outcomes.mjs representedChanges). { represented, unrepresented } or null when a text is unreadable.
+function roadmapRepresented(ctx, head, target) {
   const t = roadmapTexts(ctx, head, target);
-  if (!t) return false;
-  if (stripRideEntries(t.local, refs) !== stripRideEntries(t.head, refs)) return false;
-  const incoming = t.incoming.split(/\r?\n/);
-  return rideChangedRefs(refs, t).every((ref) => incoming.includes(`  - capability: ${ref}`));
+  return t ? representedChanges({ ...t, refs: mergedRefs(ctx), unproven: unprovenRefs(ctx) }) : null;
 }
 
-// Pure derivation, no writes. Returns { refusal } or a plan.
-function planSync(ctx) {
-  const { origin, base } = ctx;
+// The protection check: main checked out on the base, HEAD an ancestor of the fetched base (run before anything writes).
+function syncGate({ origin, base }) {
   const target = git(origin, ['rev-parse', '--verify', '-q', `refs/remotes/origin/${base}`]).stdout.trim();
   const cur = git(origin, ['symbolic-ref', '-q', '--short', 'HEAD']);
   const branch = cur.status === 0 ? cur.stdout.trim() : '';
   if (branch !== base) return { refusal: ['origin_not_on_base', branch || 'detached_head'] };
   const head = git(origin, ['rev-parse', '--verify', 'HEAD']).stdout.trim();
-  if (head === target) return { noop: true, head, target };
-  if (git(origin, ['merge-base', '--is-ancestor', head, target]).status !== 0) return { refusal: ['base_diverged', base] };
+  if (head !== target && git(origin, ['merge-base', '--is-ancestor', head, target]).status !== 0) return { refusal: ['base_diverged', base] };
+  return { head, target };
+}
 
+// Never write through a symlink (dangling too) or a directory; only ENOENT counts as deleted locally.
+const notFile = (abs) => { try { return !fs.lstatSync(abs).isFile(); } catch { return false; } };
+
+// Reads and decisions only, no writes. Returns { refusal: [reason, detail] } (a kept reason), { held: {...} } (a
+// decide item: pending or answered keep_local) or a plan. An answered take_incoming joins the plan.
+function planSync(ctx) {
+  const { origin } = ctx;
+  const gate = syncGate(ctx);
+  if (gate.refusal || gate.head === gate.target) return gate.refusal ? gate : { noop: true, ...gate };
+  const { head, target } = gate;
   const diff = git(origin, ['diff', '--name-status', '--no-renames', '-z', head, target]);
   const toks = diff.status === 0 ? diff.stdout.split('\0').filter(Boolean) : [];
   const incoming = new Map();
@@ -386,26 +455,41 @@ function planSync(ctx) {
     const r = git(origin, args);
     return r.status === 0 ? r.stdout.split('\0').filter(Boolean) : [];
   };
-  const dirty = names(['diff', '--name-only', '-z', 'HEAD']);
-  const staged = new Set(names(['diff', '--cached', '--name-only', '-z']));
-  const plan = { head, target, ledgers: [], index: false, roadmap: false, removeEqual: [] };
+  const dirty = names(['diff', '--name-only', '-z', 'HEAD']), staged = new Set(names(['diff', '--cached', '--name-only', '-z']));
+  const plan = { head, target, ledgers: [], index: false, replace: [], removeEqual: [], taken: false };
+  const read = (rel) => { try { return fs.readFileSync(path.join(origin, rel)); } catch { return null; } };
+  // a decide item: answered take_incoming joins the plan, anything else holds the step
+  const clash = (reason, rel, detail, bytes) => {
+    const { o, option } = raise(reason, rel, detail, { phase: 'plan', evidence: bytes });
+    return option === 'take_incoming' ? null : { held: { reason, detail: rel, o, option } };
+  };
   for (const rel of dirty.sort()) {
     const isLedger = LEDGERS.includes(rel) && incoming.has(rel);
     const isIndex = rel === INDEX_PATH;
     const isRoadmap = rel === ROADMAP_PATH;
     if (!isLedger && !isIndex && !incoming.has(rel)) continue;
-    if (!isLedger && !isIndex && !isRoadmap) return { refusal: ['overlap', rel] };
-    if (staged.has(rel)) return { refusal: ['overlap', rel] };
-    if (isIndex) { plan.index = true; continue; }
+    if (notFile(path.join(origin, rel))) return { refusal: ['overlap_not_file', rel] };
+    const evidence = [read(rel) ?? '', readBlob(origin, `${head}:${rel}`) ?? '', readBlob(origin, `${target}:${rel}`) ?? ''];
+    if (staged.has(rel)) return { refusal: ['overlap_staged', rel] };
+    if (isIndex) { plan.index = true; plan.replace.push(rel); continue; }
+    if (GENERATED_PROJECTIONS.includes(rel)) { plan.replace.push(rel); continue; }
     if (isRoadmap) {
-      if (!roadmapRideOnly(ctx, head, target)) return { refusal: ['overlap', rel] };
-      plan.roadmap = true;
+      const rr = roadmapRepresented(ctx, head, target);
+      if (rr?.represented) { plan.replace.push(rel); continue; }
+      const held = clash('overlap', rel, (rr?.unrepresented ?? ['unreadable']).join(', '), evidence);
+      if (held) return held;
+      plan.replace.push(rel); plan.taken = true;
+      continue;
+    }
+    if (!isLedger) {
+      const held = clash('overlap', rel, 'changed locally and by the merge', evidence);
+      if (held) return held;
+      plan.replace.push(rel); plan.taken = true;
       continue;
     }
     const headBlob = readBlob(origin, `${head}:${rel}`);
     const inBlob = readBlob(origin, `${target}:${rel}`);
-    let local = null;
-    try { local = fs.readFileSync(path.join(origin, rel)); } catch { /* deleted locally */ }
+    const local = read(rel);
     const prefix = (whole, part) => whole && part && whole.length >= part.length && whole.subarray(0, part.length).equals(part);
     if (!headBlob || !prefix(local, headBlob) || !prefix(inBlob, headBlob)) return { refusal: ['ledger_rewritten', rel] };
     plan.ledgers.push(rel);
@@ -416,8 +500,11 @@ function planSync(ctx) {
     let st = null;
     try { st = fs.lstatSync(abs); } catch { continue; }
     const inBlob = readBlob(origin, `${target}:${rel}`);
-    if (!st.isFile() || !inBlob || !fs.readFileSync(abs).equals(inBlob)) return { refusal: ['untracked_collision', rel] };
-    plan.removeEqual.push(rel);
+    if (st.isFile() && inBlob && fs.readFileSync(abs).equals(inBlob)) { plan.removeEqual.push({ rel, archive: false }); continue; }
+    if (!st.isFile()) return { refusal: ['untracked_not_file', rel] };
+    const held = clash('untracked_collision', rel, 'differs from the incoming file', [fs.readFileSync(abs), inBlob ?? '']);
+    if (held) return held;
+    plan.removeEqual.push({ rel, archive: true }); plan.taken = true;
   }
   return plan;
 }
@@ -504,19 +591,24 @@ function regenIndex(ctx) {
 }
 
 function syncBase(ctx) {
-  const resumed = pendingJournals(ctx).map((f) => resumeSync(ctx, f)).pop() ?? null;
-  const plan = planSync(ctx);
-  if (plan.refusal) stop(...plan.refusal);
+  const gate = syncGate(ctx); if (gate.refusal) halt(...gate.refusal, { phase: 'plan' });
+  const resumed = pendingJournals(ctx).map((f) => resumeSync(ctx, f)).pop() ?? null, plan = planSync(ctx);
+  if (plan.refusal) halt(...plan.refusal, { phase: 'plan' });
+  if (plan.held) {
+    if (plan.held.option === 'keep_local') keptItem(plan.held.o, 'sync-base');
+    throw new Keep(plan.held.reason, plan.held.detail);
+  }
   if (plan.noop) return resumed ? { status: 'done', detail: resumed } : { status: 'noop', detail: 'already_at_target' };
-  const { origin, opts } = ctx;
-  const root = archiveRoot(origin, opts.pr);
-  const saved = [];
+  const { origin, opts } = ctx; const root = archiveRoot(origin, opts.pr); const saved = [], pendingEntries = [];
+  const odd = [...plan.ledgers, ...plan.replace, ...plan.removeEqual.map((r) => r.rel)].find((rel) => notFile(path.join(origin, rel)));
+  if (odd) halt('overlap_not_file', odd, { phase: 'plan' });
   // Puts the pre-sync local bytes back after a failed fast-forward, keeping anything another
   // session appended meanwhile. Returns the files it could not prove safe to touch.
   const restore = () => {
     const stuck = [];
     for (const s of saved) {
       const abs = path.join(origin, s.rel);
+      if (s.bytes === null) { fs.rmSync(abs, { force: true }); continue; }
       let cur = null;
       try { cur = fs.readFileSync(abs); } catch { /* removed */ }
       const next = s.ledger ? putBack(s.bytes, s.headBlob, cur) : s.bytes;
@@ -524,23 +616,30 @@ function syncBase(ctx) {
     }
     return stuck;
   };
-  const pendingEntries = [];
-  for (const rel of [...plan.ledgers, ...(plan.index ? [INDEX_PATH] : []), ...(plan.roadmap ? [ROADMAP_PATH] : [])]) {
+  for (const rel of [...plan.ledgers, ...plan.replace]) {
     const abs = path.join(origin, rel);
-    const bytes = fs.readFileSync(abs);
-    const a = archiveFile(ctx, { src: abs, destBase: path.join(root, 'sync', rel), original: rel, reason: 'pre_sync_local_state', step: 'sync-base' });
+    let bytes = null; try { bytes = fs.readFileSync(abs); } catch { /* deleted locally: nothing to archive, the rewrite below recreates it */ }
+    if (bytes) {
+      const a = archiveFile(ctx, { src: abs, destBase: path.join(root, 'sync', rel), original: rel, reason: 'pre_sync_local_state', step: 'sync-base' });
+      pendingEntries.push({ rel, archive: a.rel, ledger: LEDGERS.includes(rel) });
+    }
     saved.push({ rel, bytes, headBlob: readBlob(origin, `${plan.head}:${rel}`), ledger: LEDGERS.includes(rel) });
-    pendingEntries.push({ rel, archive: a.rel, ledger: LEDGERS.includes(rel) });
   }
+  if (plan.taken && plan.replace.length > 0) crashAt('take-incoming-after-archive');
   if (pendingEntries.length > 0) {
     fs.mkdirSync(path.dirname(pendingPath(ctx)), { recursive: true });
     fs.writeFileSync(pendingPath(ctx), `${JSON.stringify({ head: plan.head, entries: pendingEntries })}\n`);
   }
-  for (const s of saved) fs.writeFileSync(path.join(origin, s.rel), s.headBlob);
+  for (const s of saved) { fs.mkdirSync(path.dirname(path.join(origin, s.rel)), { recursive: true }); fs.writeFileSync(path.join(origin, s.rel), s.headBlob); }
   crashAt('sync-after-rewrite');
   // Untracked copies byte-equal to the incoming blob would block the fast-forward
   // and are recreated by it; keep the bytes to put back should it fail.
-  const removed = plan.removeEqual.map((rel) => ({ rel, bytes: fs.readFileSync(path.join(origin, rel)) }));
+  const removed = plan.removeEqual.map(({ rel, archive }) => {
+    const abs = path.join(origin, rel);
+    if (archive) archiveFile(ctx, { src: abs, destBase: path.join(root, 'sync', rel), original: rel, reason: 'pre_sync_local_state', step: 'sync-base' });
+    return { rel, bytes: fs.readFileSync(abs) };
+  });
+  if (plan.taken) crashAt('take-incoming-after-archive');
   for (const r of removed) fs.unlinkSync(path.join(origin, r.rel));
   const ff = git(origin, ['merge', '--ff-only', plan.target]);
   if (ff.status !== 0) {
@@ -551,8 +650,7 @@ function syncBase(ctx) {
     fs.rmSync(pendingPath(ctx), { force: true });
     stop('sync_failed', why);
   }
-  const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim();
-  const refNow = git(origin, ['rev-parse', `refs/heads/${ctx.base}`]).stdout.trim();
+  const headNow = git(origin, ['rev-parse', 'HEAD']).stdout.trim(), refNow = git(origin, ['rev-parse', `refs/heads/${ctx.base}`]).stdout.trim();
   if (headNow !== plan.target || refNow !== plan.target) stop('sync_failed', `head_ref_mismatch HEAD=${headNow} ${ctx.base}=${refNow} want=${plan.target}`);
   crashAt('sync-after-ff');
   mergeLedgerTails(ctx, saved.filter((x) => x.ledger));
@@ -741,14 +839,17 @@ function reconcileRefs(ctx, extra) {
 
 function reconcileOrigin(ctx) {
   if (!fs.existsSync(path.join(ctx.origin, STATE_REL))) return { status: 'noop', detail: 'no_state' };
+  if (notDone(ctx, 'sync-base')) return keepStep(ctx, 'reconcile-origin', 'sync_not_done', ctx.headRef);
   const results = reconcileRefs(ctx, []);
   // Only a printed REFUSE is the owner's decision; a child that failed without one (malformed STATE, killed,
   // missing template) is a failed step: stop resumable, like every other step that cannot finish.
   const broke = results.find((x) => x.kind === 'ERROR');
   if (broke) stop('reconcile_origin_failed', `${broke.ref}: ${broke.line}`);
   const bad = results.filter((x) => x.kind !== 'RECONCILED' && x.kind !== 'NOOP');
-  ctx.reconcileRetained = bad.map((x) => `${STATE_REL} ${x.ref}: reconcile refused (${x.line}): owner decision, not changed`);
-  if (bad.length > 0) return { status: 'retained', detail: bad.map((x) => x.line).join('; ') };
+  if (bad.length > 0) {
+    for (const x of bad) keptItem(raise('reconcile_refused', x.ref, x.line).o, 'reconcile-origin');
+    return { status: 'retained', detail: bad.map((x) => x.line).join('; ') };
+  }
   const done = results.filter((x) => x.kind === 'RECONCILED');
   return done.length > 0 ? { status: 'done', detail: `${done.length} reconciled` } : { status: 'noop', detail: 'no_trace' };
 }
@@ -967,8 +1068,15 @@ function movedFromManifest(ctx) {
 function removeWorktree(ctx) {
   const wt = findRideWorktree(ctx);
   if (!wt) return { status: 'noop', detail: 'no_worktree' };
+  const tails = ledgerTails(ctx, wt) ?? [];
+  if (notDone(ctx, 'sync-base') && tails.length > 0) return keepStep(ctx, 'remove-worktree', 'ledger_tails_wait_for_sync');
   const why = worktreeVerdict(ctx, wt, { allowTails: true });
-  if (why) stop(...why);
+  if (why) stop(...why, { phase: 'plan' });
+  for (const t of tails) {
+    let cur = null;
+    try { cur = fs.readFileSync(path.join(ctx.origin, t.rel)); } catch { /* absent */ }
+    if (cur && cur.length > 0 && cur[cur.length - 1] !== 10) stop('ledger_unaligned', t.rel, { phase: 'plan' });
+  }
   moveLedgerTails(ctx, wt);
   archiveSubmoduleIgnored(ctx, wt);
   archiveSubmoduleTags(ctx, wt);
@@ -1045,7 +1153,10 @@ function remoteProof(ctx) {
 // D3/D4/D5: delete the merged origin branch by compare-and-swap, never stopping the run.
 function deleteRemoteBranch(ctx) {
   const b = ctx.headRef;
-  const retain = (reason, fact = '') => ({ status: 'retained', detail: fact ? `${reason} ${fact}` : reason });
+  const retain = (reason, fact = '') => {
+    keptItem(raise(reason, `origin/${b}`, fact).o, 'delete-branch');
+    return { status: 'retained', detail: fact ? `${reason} ${fact}` : reason };
+  };
   const proof = remoteProof(ctx);
   if (proof.retain) return retain(...proof.retain);
   if (proof.absent) return { status: 'noop', detail: 'remote_absent' };
@@ -1065,74 +1176,94 @@ function deleteRemoteBranch(ctx) {
   return retain('remote_delete_rejected', why);
 }
 
+// The local branch stays (its worktree stays, or its tip is not the PR head); the origin branch is still deleted by lease.
+function keepLocalBranch(ctx, reason = 'kept_with_worktree', detail = ctx.headRef) {
+  if (!branchTip(ctx)) return finishBranch(ctx, false);
+  keptItem(raise(reason, ctx.headRef, detail, { phase: 'plan' }).o, 'delete-branch');
+  const r = finishBranch(ctx, false);
+  return { status: 'retained', detail: `${reason}${r.status === 'done' ? ' (origin branch deleted)' : ''}` };
+}
+
+function finishBranch(ctx, localDone) {
+  const remote = deleteRemoteBranch(ctx);
+  if (remote.status === 'retained') ctx.remoteRetained = remote;
+  if (localDone || remote.status === 'done') {
+    return { status: 'done', detail: remote.status === 'retained' ? `${ctx.headRef} ${remote.detail}` : ctx.headRef };
+  }
+  return remote.status === 'retained' ? remote : { status: 'noop', detail: 'no_branch' };
+}
+
 function deleteBranch(ctx) {
-  let localDone = false;
   const tip = branchTip(ctx);
   const cur = git(ctx.origin, ['symbolic-ref', '-q', '--short', 'HEAD']).stdout.trim();
+  if (notDone(ctx, 'remove-worktree')) return keepLocalBranch(ctx);
+  let localDone = false;
   if (tip && ctx.headRef !== ctx.base && ctx.headRef !== cur) {
     if (!/^[0-9a-f]{40}$/i.test(ctx.head)) stop('branch_moved', 'PR head sha unknown');
+    if (tip !== ctx.head) return keepLocalBranch(ctx, 'tip_mismatch', `${ctx.headRef} at ${tip}, PR head ${ctx.head}`);
     const r = git(ctx.origin, ['update-ref', '-d', `refs/heads/${ctx.headRef}`, ctx.head]);
     if (r.status !== 0) stop('branch_moved', `${ctx.headRef} no longer at ${ctx.head}`);
     localDone = true;
   }
-  const remote = deleteRemoteBranch(ctx);
-  if (remote.status === 'retained') {
-    ctx.remoteRetained = remote;
-  }
-  if (localDone || remote.status === 'done') {
-    const detail = remote.status === 'retained' ? `${ctx.headRef} ${remote.detail}` : ctx.headRef;
-    return { status: 'done', detail };
-  }
-  if (remote.status === 'retained') {
-    return remote;
-  }
-  return { status: 'noop', detail: 'no_branch' };
+  return finishBranch(ctx, localDone);
 }
 
-// Everything that can refuse, derived before the first write (exit 3).
+// The one refusal that precedes every step: a head branch name the engine cannot pass to git.
 function planChecks(ctx) {
   if (!ctx.headRef || !BASE_NAME_RE.test(ctx.headRef) || ctx.headRef.startsWith('-')) refuse('bad_head_name', JSON.stringify(ctx.headRef));
-  const sync = planSync(ctx);
-  if (sync.refusal) refuse(...sync.refusal);
-  const wt = findRideWorktree(ctx);
-  if (wt) {
-    const why = worktreeVerdict(ctx, wt, { allowTails: true });
-    if (why) refuse(...why);
-    for (const t of ledgerTails(ctx, wt) ?? []) {
-      let cur = null;
-      try { cur = fs.readFileSync(path.join(ctx.origin, t.rel)); } catch { /* absent */ }
-      if (cur && cur.length > 0 && cur[cur.length - 1] !== 10) refuse('ledger_unaligned', t.rel);
-    }
-  } else {
-    const tip = branchTip(ctx);
-    if (tip && tip !== ctx.head && ctx.headRef !== ctx.base) refuse('tip_mismatch', `${ctx.headRef} at ${tip}, PR head ${ctx.head}`);
-  }
 }
 
 // ---- D9: focus, index, audit, report --------------------------------------
 
 // Work items this PR delivered (see deliveredDoneDocs), and their ids.
 function mergedDocs(ctx) {
-  if (!ctx.docs) ctx.docs = deliveredDoneDocs(ctx.origin, ctx.mc, ctx.opts.pr, repoSlug(ctx.pr?.url));
-  return ctx.docs;
+  // intake docs (any type but spec) the merge added or changed to done, each with the proof that ties it to this PR
+  if (!ctx.docs) ctx.docs = doneDocsBetween(ctx.origin, `${ctx.mc}^1`, ctx.mc, ctx.opts.pr, repoSlug(ctx.pr?.url));
+  return ctx.docs.filter((d) => d.proof);
 }
 
 function mergedRefs(ctx) {
   if (!ctx.refs) ctx.refs = new Set(mergedDocs(ctx).map((d) => d.id));
   return ctx.refs;
 }
-
+// Ids of docs the merge changed to done whose identity no proof ties to this PR.
+const unprovenRefs = (ctx) => { mergedDocs(ctx); return new Set(ctx.docs.filter((d) => !d.proof).map((d) => d.id)); };
 
 function reportStep(ctx, steps) {
-  if (!steps.some((s) => s.status === 'done')) return { status: 'noop', detail: 'stdout' };
-  return { status: 'done', detail: 'stdout' };
+  return { status: steps.some((s) => s.status === 'done') ? 'done' : 'noop', detail: 'stdout' };
 }
 
 // ---- steps ----------------------------------------------------------------
 
+// D3: archive each draft whose merged counterpart matches (superseded) or whose owner chose archive_remove,
+// then unlink it; archiveFile stops the step before the unlink when the copy does not read back equal.
+function archiveDrafts(ctx) {
+  const root = archiveRoot(ctx.origin, ctx.opts.pr);
+  let n = 0;
+  const bytes = (d) => fs.readFileSync(path.join(ctx.origin, d.path));
+  const archiveRemove = (d, reason) => {
+    archiveFile(ctx, { src: path.join(ctx.origin, d.path), destBase: path.join(root, 'drafts', d.path), original: d.path, reason, step: 'archive-drafts' });
+    crashAt('draft-after-archive');
+    fs.unlinkSync(path.join(ctx.origin, d.path));
+    n++;
+  };
+  for (const d of ctx.drafts.superseded) {
+    raise('superseded_draft', d.path, d.counterpart, { evidence: [bytes(d), d.oid] });
+    archiveRemove(d, 'superseded_draft');
+  }
+  for (const d of ctx.drafts.divergent) {
+    const { o, option } = raise('divergent_draft', d.path, d.counterpart, { phase: 'plan', evidence: [bytes(d), d.oid] });
+    if (option === 'archive_remove') { archiveRemove(d, 'divergent_draft'); continue; }
+    ctx.drafts.retained.push({ path: d.path, reason: 'divergent_draft' });
+    if (option === 'keep') keptItem(o, 'archive-drafts');
+  }
+  return n > 0 ? { status: 'done', detail: `${n} archived` } : { status: 'noop', detail: 'no_draft' };
+}
+
 const HANDLERS = {
   resolve: () => ({ status: 'read' }),
   plan: () => ({ status: 'read' }),
+  'archive-drafts': archiveDrafts,
   'archive-runtime': archiveRuntime,
   'sync-base': syncBase,
   'reconcile-origin': reconcileOrigin,
@@ -1143,20 +1274,23 @@ const HANDLERS = {
 // plan mode: the concrete targets of each action step, derived without executing it.
 // Pure reads (git ls-files, rev-parse, worktree list, the focus file); nothing is written.
 const PLANNERS = {
+  'archive-drafts': (ctx) => [
+    ...ctx.drafts.superseded.map((d) => `archive ${d.path} -> ${posix(path.relative(ctx.origin, path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'drafts', d.path)))} (superseded by ${d.counterpart})`),
+    ...ctx.drafts.divergent.map((d) => `ask about ${d.path} (differs from ${d.counterpart})`),
+  ],
   'archive-runtime': (ctx) => {
-    const wt = findRideWorktree(ctx);
-    if (!wt) return [];
+    const wt = findRideWorktree(ctx); if (!wt) return [];
     const root = archiveRoot(ctx.origin, ctx.opts.pr);
     const statePath = path.join(wt.path, STATE_REL);
     return fs.existsSync(statePath) ? [`worktree:${STATE_REL} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree', STATE_REL)))}`] : [];
   },
   'sync-base': (ctx) => {
     const plan = planSync(ctx);
-    if (plan.refusal || plan.noop) return [];
-    const t = plan.roadmap ? roadmapTexts(ctx, plan.head, plan.target) : null;
+    if (plan.refusal) return [`keep ${ctx.base} checkout (${plan.refusal[0]} ${plan.refusal[1]})`];
+    if (plan.held || plan.noop) return [];
     return [
       `${ctx.base} ${plan.head.slice(0, 12)}..${plan.target.slice(0, 12)}`,
-      ...(plan.roadmap ? [`take incoming ${ROADMAP_PATH} (archive ride entry ${t ? rideChangedRefs(mergedRefs(ctx), t).join(', ') : ''})`] : []),
+      ...plan.replace.filter((rel) => rel !== INDEX_PATH).map((rel) => `take incoming ${rel} (archive the local bytes first)`),
     ];
   },
   'reconcile-origin': (ctx) => {
@@ -1166,6 +1300,8 @@ const PLANNERS = {
   'remove-worktree': (ctx) => {
     const wt = findRideWorktree(ctx);
     if (!wt) return [];
+    const why = worktreeVerdict(ctx, wt, { allowTails: true });
+    if (why) return [`keep ${wt.path} (${why[0]} ${why[1]})`];
     const root = archiveRoot(ctx.origin, ctx.opts.pr);
     const { files, named } = submoduleIgnored(wt.path);
     return [
@@ -1189,14 +1325,6 @@ const PLANNERS = {
   },
 };
 
-// D6: a retained remote branch is the owner's decision; done and noop leave nothing remaining.
-function remoteBranchNote(ctx, steps) {
-  const s = ctx.remoteRetained || steps.find((x) => x.id === 'delete-branch' && x.status === 'retained');
-  if (!s) return [];
-  const [reason, ...fact] = (s.detail ?? '').split(' ');
-  return [`origin/${ctx.headRef} retained (${reason}${fact.length ? `: ${fact.join(' ')}` : ''}): owner decision, not deleted`];
-}
-
 // Every file any run of this PR archived, read from the durable manifest so an interrupted
 // earlier run's archives and the runtime/ledger/STATE archives appear too.
 function archivedFromManifest(ctx) {
@@ -1204,7 +1332,7 @@ function archivedFromManifest(ctx) {
     .map((m) => ({ path: m.original, archive: m.archive, sha256: m.sha256, reason: m.reason }));
 }
 
-function buildReport(ctx, steps) {
+function buildReport(ctx, steps, e) {
   const headRev = git(ctx.origin, ['rev-parse', 'HEAD']);
   return {
     pr: ctx.opts.pr,
@@ -1217,19 +1345,22 @@ function buildReport(ctx, steps) {
     moved: movedFromManifest(ctx),
     removed_unarchived: readJsonl(path.join(archiveRoot(ctx.origin, ctx.opts.pr), REMOVED_REL)).map((r) => r.path),
     retained: ctx.drafts.retained,
+    untouched: ctx.drafts.untouched,
     noops: steps.filter((s) => s.status === 'noop').map((s) => `noop:${s.id}:${s.detail}`),
     audit: ctx.audit ?? null,
     ...(ctx.opts.direction ? { direction: ctx.opts.direction } : {}),
     ...(ctx.reportPath ? { report: ctx.reportPath } : {}),
     remaining: [
-      ...ctx.drafts.retained.map((r) => `${r.path}: unexpected leftover draft; owner decision`),
-      ...remoteBranchNote(ctx, steps),
-      ...(ctx.reconcileRetained ?? []),
+      ...RUN.kept.map((l) => l.replace(/^Kept: /, '')),
+      ...e.pending.map((o) => `${o.reason} ${o.subject}: waiting for your decision`),
     ],
+    outcomes: RUN.outcomes,
+    summary: e.summary,
+    ...(e.ignored.length ? { ignored: e.ignored } : {}),
   };
 }
 
-function emit(report, json) {
+function emit(report, json, e) {
   if (json) { process.stdout.write(`${JSON.stringify(report)}\n`); return; }
   const lines = [`merge-cleanup PR #${report.pr}: merge ${report.mergeCommit} base ${report.base} head ${report.head}`];
   for (const s of report.steps) {
@@ -1240,6 +1371,7 @@ function emit(report, json) {
   for (const m of report.moved ?? []) lines.push(`  moved ${m.lines} line(s) worktree:${m.ledger} -> ${m.ledger}`);
   for (const r of report.retained) lines.push(`  retained ${r.path} [${r.reason}]`);
   for (const r of report.remaining) lines.push(`  remaining: ${r}`);
+  lines.push(...e.ignored, ...RUN.outcomes.map(outcomeLine), ...e.lines);
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
@@ -1247,19 +1379,28 @@ function runApplyOrPlan(opts) {
   const stopAfter = seam('AAI_MERGE_CLEANUP_STOP_AFTER');
   if (stopAfter && !STEP_IDS.includes(stopAfter)) usage(`AAI_MERGE_CLEANUP_STOP_AFTER names an unknown step: ${stopAfter}`);
   const origin = resolveOrigin(opts);
+  RUN.pairs = opts.decide ? parseDecide(opts.decide).map((x) => ({ ...x, used: false })) : [];
+  RUN.decisions = [...readJsonl(choicesFile()).filter((c) => c.option === 'keep' || c.option === 'keep_local'), ...RUN.pairs];
   const gate = readAndGate(opts, origin);
-  const drafts = classifyDrafts(origin);
-  const ctx = { opts, origin, ...gate, drafts };
+  const ctx = { opts, origin, ...gate, drafts: classifyDrafts(origin, gate.base), status: {} };
   planChecks(ctx);
   const steps = [];
   const journal = path.join(archiveRoot(origin, opts.pr), 'journal.jsonl');
   for (const id of STEP_IDS) {
+    RUN.step = id;
     if (opts.mode === 'plan' && !['resolve', 'plan', 'report'].includes(id)) {
       const targets = PLANNERS[id] ? PLANNERS[id](ctx) : [];
       steps.push({ id, status: 'planned', ...(targets.length ? { targets } : {}) });
       continue;
     }
-    const res = id === 'report' ? (opts.mode === 'apply' ? reportStep(ctx, steps) : { status: 'read' }) : HANDLERS[id](ctx);
+    let res;
+    try {
+      res = id === 'report' ? (opts.mode === 'apply' ? reportStep(ctx, steps) : { status: 'read' }) : HANDLERS[id](ctx);
+    } catch (e) {
+      if (!(e instanceof Keep)) throw e;
+      res = { status: 'retained', detail: [e.reason, e.detail].filter(Boolean).join(' ') };
+    }
+    ctx.status[id] = res.status;
     steps.push({ id, status: res.status, ...(res.detail ? { detail: res.detail } : {}) });
     if (res.status === 'done') appendJsonl(journal, { step: id, status: 'done', detail: res.detail ?? '', timestamp: new Date().toISOString() });
     if (opts.mode === 'apply' && stopAfter === id) {
@@ -1267,8 +1408,11 @@ function runApplyOrPlan(opts) {
       exit(4);
     }
   }
-  emit(buildReport(ctx, steps), opts.json);
-  exit(0);
+  const waiting = RUN.outcomes.some((o) => o.class === 'decide' && o.state === 'pending');
+  const code = opts.mode === 'apply' && waiting ? EXIT_DECISION_PENDING : 0;
+  const e = endRun(code, opts.mode === 'plan' ? 'planned' : 'complete');
+  emit(buildReport(ctx, steps, e), opts.json, e);
+  exit(code);
 }
 
 // ---- D3/D4: open-PR preflight ---------------------------------------------
@@ -1297,14 +1441,14 @@ function runPreflight(opts) {
   if (pr.state !== 'OPEN') refuse('not_open', `state=${pr.state ?? 'unknown'}`);
   if (pr.isDraft) refuse('draft', `PR #${opts.pr} is a draft`);
   const head = pr.headRefOid ?? '';
-  if (head.toLowerCase() !== opts.expectHead.toLowerCase()) refuse('head_changed', `PR head ${head || 'unknown'}, expected ${opts.expectHead}`);
+  if (head.toLowerCase() !== opts.expectHead.toLowerCase()) refuse('head_changed', `PR head ${head || 'unknown'}, expected ${opts.expectHead}`, { subject: head, evidence: [head] });
   // NB-1: lane-gate judges the sweep record against THIS checkout's HEAD while the
   // printed merge command binds the PR head; the two must be one commit, or a push
   // made elsewhere would be merged on the strength of a sweep that never saw it.
   const local = git(cwd, ['rev-parse', 'HEAD']);
   const localHead = local.status === 0 ? local.stdout.trim() : '';
   if (localHead.toLowerCase() !== head.toLowerCase()) {
-    refuse('head_changed', `local HEAD ${localHead || 'unknown'} is not the PR head ${head}; sync this checkout to the PR head before merging`);
+    refuse('head_changed', `local HEAD ${localHead || 'unknown'} is not the PR head ${head}; sync this checkout to the PR head before merging`, { subject: head, evidence: [head, localHead] });
   }
   // The sweep is judged by the real lane-gate, in the checkout named by --origin
   // (the ride checkout the merge is being judged from), else the engine's own.
@@ -1337,6 +1481,8 @@ function runPreflight(opts) {
 function main(argv) {
   if (argv.includes('--help') || argv.includes('-h')) { process.stdout.write(HELP); exit(0); }
   const opts = parseArgs(argv);
+  RUN.opts = opts;
+  RUN.pr = opts.pr;
   if (opts.mode === 'preflight') runPreflight(opts);
   runApplyOrPlan(opts);
 }
