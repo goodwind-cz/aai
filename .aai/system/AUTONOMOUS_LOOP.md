@@ -100,8 +100,9 @@ step `sign-amendments`) classifies each one `--signoff owner` citing the
 recorded `directed_merge`, and closes a `fu-amend-*` item once all its contract
 records are signed. There is no separate sign-off question before the merge; a
 lane or standing merge carries no direction and signs nothing. The merged-ride
-backlog is signed once with `merge-cleanup.mjs sign-merged --authority-ts <ts>`
-on a recorded owner decision.
+backlog is signed from a recorded owner decision: append the `hitl_decision`,
+then run `spec-amend.mjs classify --record <key> --signoff owner` per record,
+then `follow-ups.mjs close` per tracker.
 
 Record it with the writer, never by hand:
 

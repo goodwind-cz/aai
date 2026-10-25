@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: edabc4303fe890102ea680fa6c44209d6e568dbdbed2dd5af85cdbd02fbb7716
+frozen_sha256: dfb10b92ac7011bfac3fc671de8842e509774846833e5b37e9af1514421760d0
 ceremony_level: 2
 links:
   requirement: provider-adapter-registry-slice
@@ -165,7 +165,7 @@ Line caps: `lib/harness-shims.mjs` at or under 260 lines; `sync-harness-skills.m
 `COPILOT_SHIM_SHIPPED.list` holds one lowercase 64-hex sha256 per line (`#` comments and blank lines
 ignored). Each is the hash of N(text), where N deletes every CR and then the trailing LF characters. It is
 seeded with N-hashes of every distinct historical blob of `.github/copilot-instructions.md` reachable from
-`ff32ec2e` (9 today) and gains the new rendered version through `--write` (10 after this scope).
+`ff32ec2e` (9 blobs but 8 distinct hashes today, because two historical blobs differ only in CR characters) and gains the new rendered version through `--write` (9 rows after this scope).
 
 In `aai-sync.sh` (function `copilot_shim_is_shipped`) and `aai-sync.ps1` (function
 `Test-CopilotShimShipped`): after the existing override extraction (including the existing fallback to the
@@ -309,7 +309,7 @@ disabled.
 | TEST-3004 | Spec-AC-03 | integration | tests/skills/test-aai-harness-shims.sh | test_3004_write_restores_and_is_idempotent: after a planted edit and a deleted shim, --write restores both byte-equal to the rendered text, a second --write leaves every shim mtime and byte unchanged, --check exits 0 | `sed:s/fs.writeFileSync(abs, expected);/void abs;/` on .aai/scripts/lib/harness-shims.mjs | pending |
 | TEST-3005 | Spec-AC-04 | integration | tests/skills/test-aai-harness-shims.sh | test_3005_shim_paths_select_the_gate: for each of the six shim paths and the three new .aai files, the real select-suites.mjs --files-from selects aai-hygiene-pack and aai-harness-shims | `sed:s/      - GEMINI.md/      - GEMINI.mdx/` on tests/skills/suite-map.yaml | pending |
 | TEST-3006 | Spec-AC-04 | integration | tests/skills/test-aai-hygiene-pack.sh | test_111 extended: on the committed tree --check output carries the shim OK line; on a scratch copy with one hand-edited GEMINI.md the arm's own check exits 1 naming GEMINI.md | `sed:s/shim(s) match the registry/shim(s) match registry/` on .aai/scripts/lib/harness-shims.mjs | pending |
-| TEST-3007 | Spec-AC-05 | contract | tests/skills/test-aai-harness-shims.sh | test_3007_shipped_list_complete: the list equals the set of D4 hashes of every distinct blob in git log of the Copilot shim plus the rendered one, no duplicates, at least 10 rows; a scratch root whose list lacks the rendered hash gives the unrecorded DIVERGE line and exit 1, and --write appends it | `sed:s/const SHIPPED_LIST_REL = '.aai\/system\/COPILOT_SHIM_SHIPPED.list';/const SHIPPED_LIST_REL = '.aai\/system\/COPILOT_SHIM_SHIPPED.lst';/` on .aai/scripts/lib/harness-shims.mjs | pending |
+| TEST-3007 | Spec-AC-05 | contract | tests/skills/test-aai-harness-shims.sh | test_3007_shipped_list_complete: the list equals the set of D4 hashes of every distinct blob in git log of the Copilot shim plus the rendered one, no duplicates, at least 9 rows; a scratch root whose list lacks the rendered hash gives the unrecorded DIVERGE line and exit 1, and --write appends it | `sed:s/const SHIPPED_LIST_REL = '.aai\/system\/COPILOT_SHIM_SHIPPED.list';/const SHIPPED_LIST_REL = '.aai\/system\/COPILOT_SHIM_SHIPPED.lst';/` on .aai/scripts/lib/harness-shims.mjs | pending |
 | TEST-3008 | Spec-AC-05 | integration | tests/skills/test-aai-harness-shims.sh | test_3008_sync_sh_recognises_shipped_copilot: real aai-sync.sh from a scratch source into four targets: (a) the ff32ec2e Copilot blob, (b) source shim plus an overrides block holding the 070a6163 blob and a stale override file, (c) a real override line, (d) case (a) with sha256sum and shasum stubbed to exit 1 first on PATH; (a) and (b) end byte-equal to the source with no overrides block and the override file unchanged, (c) and (d) keep the text in the block | `sed:s/^copilot_shim_is_shipped() {/copilot_shim_is_shipped() { return 1;/` on .aai/scripts/aai-sync.sh | pending |
 | TEST-3009 | Spec-AC-05 | integration | tests/skills/test-aai-harness-shims.sh | test_3009_sync_ps1_recognises_shipped_copilot: cases (a) to (c) of TEST-3008 through pwsh aai-sync.ps1; a runner without pwsh records the skip and fails the suite unless AAI_ALLOW_PWSH_SKIP=1 (the sync-seed convention) | `sed:s/return \$shipped.Contains(\$hash)/return $false/` on .aai/scripts/aai-sync.ps1 | pending |
 | TEST-3010 | Spec-AC-06 | integration | tests/skills/test-aai-harness-shims.sh | test_3010_sync_sh_installs_agents_md: real aai-sync.sh into a target that committed its own AGENTS.md and a legacy PLAYBOOK.md: AGENTS.md equals the source, the advisory names AGENTS.md, no MIGRATE removed legacy root AGENTS.md line, PLAYBOOK.md removed; a fresh target gets the six shims byte-equal and its own installed generator --check --root exits 0 | `sed:s/for f in AGENTS.md CLAUDE.md CODEX.md GEMINI.md SKILLS.md; do/for f in CLAUDE.md CODEX.md GEMINI.md SKILLS.md; do/` on .aai/scripts/aai-sync.sh | pending |
@@ -383,6 +383,7 @@ Registry items closed by this scope: CLOSED FULLY: `fu-amend-directed-merge-and-
 `fu-amend-merge-cleanup-ride-lefto-007e1e`, `fu-amend-merge-cleanup-resolves-f-1abe0b` (D6).
 NOT CLOSED (scanned): `fu-amend-update-installs-ref-guar-f8caa1` (tracks the unmerged
 routing-tables-have-an-owner-and-a-seam records), `fu-skill-tree-selects-deslop` (skill trees, not shims).
+
 Filed by this scope: `fu-skills-md-quickref-missing-rows`, `fu-shim-prompt-file-flag-unverified`.
 
 ## Owner decisions

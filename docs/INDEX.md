@@ -678,7 +678,7 @@ _None._
 
 _None._
 
-## Broken references (512)
+## Broken references (513)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1000,6 +1000,7 @@ _None._
 | tests/skills/test-aai-follow-ups.sh | docs/specs/SPEC-0042-spec-some-other-frozen-scope.md | NOT FOUND |
 | tests/skills/test-aai-follow-ups.sh | docs/specs/SPEC-9999-does-not-need-to-exist.md | NOT FOUND |
 | tests/skills/test-aai-git-ref-guard.sh | docs/rfc/RFC-DRAFT-t306.md | NOT FOUND |
+| tests/skills/test-aai-harness-shims.sh | docs/ai/reports/x.md | NOT FOUND |
 | tests/skills/test-aai-hitl-propagation.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
 | tests/skills/test-aai-hitl-propagation.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
 | tests/skills/test-aai-hooks-overlay.sh | docs/intake-1541.md | NOT FOUND |
