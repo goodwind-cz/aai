@@ -3850,7 +3850,7 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
     cp "$PROJECT_ROOT/$shim_path" "$shim_fx/$shim_path"
   done
   printf 'hand edit\n' >> "$shim_fx/GEMINI.md"
-  shim_out="$(cd "$PROJECT_ROOT" && env -u AAI_ROLE node "$HSK_GENERATOR_REL" --root "$shim_fx" --check 2>&1)" && shim_rc=0 || shim_rc=$?
+  shim_out="$(env -u AAI_ROLE node "$PROJECT_ROOT/$HSK_GENERATOR_REL" --root "$shim_fx" --check 2>&1)" && shim_rc=0 || shim_rc=$?
   [[ "$shim_rc" -eq 1 && "$shim_out" == *'GEMINI.md'* ]] \
     || log_fail "test_111 (TEST-3006): a hand-edited GEMINI.md must exit 1 naming GEMINI.md, got rc=$shim_rc: $shim_out"
 
