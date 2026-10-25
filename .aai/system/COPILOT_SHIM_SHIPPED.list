@@ -1,0 +1,16 @@
+# .aai/system/COPILOT_SHIM_SHIPPED.list — one lowercase sha256 per line: the normalized
+# hash N(text) of every version of .github/copilot-instructions.md this repository has shipped
+# (N deletes every CR, then the trailing LF characters). aai-sync (bash and PowerShell) reads it
+# to tell an unmodified older shim from a real project override. Seeded from the git history of
+# the shim; `node .aai/scripts/sync-harness-skills.mjs --write` appends the rendered version, and
+# --check reports a rendered hash that is not recorded here. Format and caveats:
+# .aai/scripts/lib/harness-shims.mjs.
+2fdea9112c207290769dfdc69988efe15664fec425c6937a9ec29e254bf34edf
+f18de54dfeb584724ac5973df07ac25d6d7a56a7e778bcec3c782eb226c6fb7c
+fd3878d6acf58b599094dbc8688fd791c91b525fd5f8a42a56074971f12905d3
+49516a6f2f2dffb3989b5b71512c788850c941764f4ac81b73ea9a3da3674986
+7e872bbd301d3f1399c606f04ed640818129e7b7f701eb7b30800bcda8a89db4
+b49d60425b3a29c0c8d12b27d5aef25de9e7511a58abf409fe604c3abd74c036
+14c7c38bd634a3bb31a766f35d43242cb72e44d8cf77a31fccca86a86094dd54
+16ba14d69f16666d593d74ab172c417ee325faf91f1d4e1b928c0c3e84581790
+c83ad8b4fc685c9015a442490df59e943708202920f0fde88fc44aeaea4e1a61

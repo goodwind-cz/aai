@@ -32,6 +32,9 @@
 //   0  --check found no divergence, or --write completed
 //   1  --check found at least one divergence (one `DIVERGE ...` line each,
 //      printed to stdout before exit)
+//   (the optional `shims:` section adds the six root instruction shims to both
+//   modes: one `DIVERGE shim <path>: ...` line per differing path, and an
+//   `OK: 6 shim(s) match the registry` line — see lib/harness-shims.mjs)
 //   2  manifest/tree structural error: an undeclared required tree, an
 //      invalid model/readme value, a stale or reason-less exclusion, or a
 //      usage error — always with a message on stderr naming the offender
@@ -42,6 +45,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { ShimError, loadShims, applyShims, okLine, NONE_LINE } from './lib/harness-shims.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = path.resolve(SELF_DIR, '..', '..');
@@ -70,17 +74,21 @@ function parseManifest(raw) {
   const lines = raw.split(/\r?\n/);
   const trees = [];
   const exclusions = [];
+  let shims = null; // null = no `shims:` section (fixtures); see lib/harness-shims.mjs
   let section = null;
   for (const line of lines) {
     if (/^\s*$/.test(line) || /^\s*#/.test(line)) continue;
     if (/^trees:\s*$/.test(line)) { section = 'trees'; continue; }
     if (/^exclusions:\s*$/.test(line)) { section = 'exclusions'; continue; }
+    if (/^shims:\s*$/.test(line)) { section = 'shims'; shims = []; continue; }
     const m = line.match(/^ {2}- (.*)$/);
     if (!m || section === null) {
       throw new ManifestError(`unparsed manifest content: ${line}`);
     }
     const rest = m[1];
-    if (section === 'trees') {
+    if (section === 'shims') {
+      shims.push(rest);
+    } else if (section === 'trees') {
       const parts = rest.split('|');
       if (parts.length !== 3) {
         throw new ManifestError(`malformed trees row (want tree|model|readme): ${line}`);
@@ -99,7 +107,7 @@ function parseManifest(raw) {
       });
     }
   }
-  return { trees, exclusions };
+  return { trees, exclusions, shims };
 }
 
 function validateManifest(manifest, sourceSkills) {
@@ -370,6 +378,15 @@ function main(argv) {
     throw err;
   }
 
+  // The shims registry is validated here too, before any write (exit 2 names the cause).
+  let shimPlan = null;
+  try {
+    shimPlan = loadShims(root, manifest.shims);
+  } catch (err) {
+    if (err instanceof ShimError) fail(2, err.message);
+    throw err;
+  }
+
   // Parse every authored source before computing or applying any target
   // mutation. A malformed late source must fail the whole write transaction
   // before an earlier skill can leave one or more mirrors partially updated.
@@ -512,20 +529,28 @@ function main(argv) {
     }
   }
 
+  // Root instruction shims (SPEC spec-provider-adapter-registry-slice D3), after the tree work.
+  const shimRes = shimPlan ? applyShims(root, shimPlan, { write: opts.write }) : { drift: [], written: 0 };
+  const trees = REQUIRED_MIRROR_TREES.join(', ');
+
   if (opts.check) {
-    if (divergences.length > 0) {
+    if (divergences.length > 0 || shimRes.drift.length > 0) {
       for (const d of divergences) process.stdout.write(`DIVERGE ${d}\n`);
+      for (const d of shimRes.drift) process.stdout.write(`${d}\n`);
       exit(1);
     }
-    process.stdout.write(`OK: ${REQUIRED_MIRROR_TREES.join(', ')} match the declared transform\n`);
+    process.stdout.write(`OK: ${trees} match the declared transform\n`);
+    process.stdout.write(`${shimPlan ? okLine(shimPlan.outputs.length) : NONE_LINE}\n`);
     exit(0);
   }
 
   // --write
+  const resolved = divergences.length + shimRes.written;
+  const shimTail = shimPlan ? ` and ${shimPlan.outputs.length} shim(s)` : '';
   process.stdout.write(
-    divergences.length > 0
-      ? `WROTE: ${divergences.length} divergence(s) resolved across ${REQUIRED_MIRROR_TREES.join(', ')}\n`
-      : `WROTE: no divergence found, ${REQUIRED_MIRROR_TREES.join(', ')} already match\n`
+    resolved > 0
+      ? `WROTE: ${divergences.length} tree divergence(s) and ${shimRes.written} shim write(s) resolved across ${trees}${shimTail}\n`
+      : `WROTE: no divergence found, ${trees}${shimTail} already match\n`
   );
   exit(0);
 }
