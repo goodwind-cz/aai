@@ -1865,11 +1865,12 @@ _795_start() {
   if [[ "$skind" == "real" ]]; then src="$PROJECT_ROOT"; else src="$SYNC_FIXTURE_CANON"; fi
   _sync_cached "$engine" "$src" "$TMP_ROOT/eq-795-$n-copy" git
   # The "identical source": the engine-visible subset (the fixture builder) in
-  # another place; for the real key plus the four root files the engine copies.
+  # another place; for the real key plus the five root files the engine copies
+  # (AGENTS.md joined them in provider-adapter-registry-slice D5).
   second="$TMP_ROOT/eq-795-$n-src"
   _fixture_source_copy "$second"
   if [[ "$skind" == "real" ]]; then
-    for f in CLAUDE.md CODEX.md GEMINI.md SKILLS.md; do
+    for f in AGENTS.md CLAUDE.md CODEX.md GEMINI.md SKILLS.md; do
       if [[ -f "$PROJECT_ROOT/$f" ]]; then cp "$PROJECT_ROOT/$f" "$second/$f"; fi
     done
   fi

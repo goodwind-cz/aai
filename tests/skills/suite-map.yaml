@@ -544,6 +544,27 @@ suites:
       - .aai/scripts/heartbeat.mjs
       - .aai/VALIDATION.prompt.md
 
+  aai-harness-shims:
+    globs:
+      - .aai/scripts/sync-harness-skills.mjs
+      - .aai/system/HARNESS_SKILLS.yaml
+      - .aai/system/HARNESS_SHIMS.md
+      - .aai/system/COPILOT_SHIM_SHIPPED.list
+      - .aai/system/PROFILES.yaml
+      - .aai/system/AUTONOMOUS_LOOP.md
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/spec-amend.mjs
+      - .aai/scripts/follow-ups.mjs
+      - .aai/scripts/select-suites.mjs
+      - tests/skills/suite-map.yaml
+      - CLAUDE.md
+      - AGENTS.md
+      - CODEX.md
+      - GEMINI.md
+      - .github/copilot-instructions.md
+      - .cursor/rules/aai.mdc
+
   aai-hitl-channel:
     globs:
       - .aai/scripts/hitl-channel.mjs
@@ -633,6 +654,14 @@ suites:
       - .aai/system/HARNESS_SKILLS.yaml
       - .cursor/rules/aai.mdc
       - AGENTS.md
+      # provider-adapter-registry-slice: the six root shims are generated from
+      # one registry; this suite's test_111 gates them with the same generator.
+      - CLAUDE.md
+      - CODEX.md
+      - GEMINI.md
+      - .github/copilot-instructions.md
+      - .aai/system/HARNESS_SHIMS.md
+      - .aai/system/COPILOT_SHIM_SHIPPED.list
 
   aai-implementation-mode:
     globs:

@@ -85,6 +85,8 @@ aai-friction-wiring	1
 aai-git-ref-guard	22
 # sample aai-golden-flow measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=89,87,88,87,71
 aai-golden-flow	87
+# sample aai-harness-shims fallback unsampled (SKIP or absent; no successful observation)
+aai-harness-shims	212
 # sample aai-heartbeat measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=4,4,4,5,4
 aai-heartbeat	4
 # sample aai-hitl-channel measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=6,7,6,6,5
