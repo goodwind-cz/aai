@@ -3299,3 +3299,7 @@
 {"v":1,"ts":"2026-10-25T10:13:38Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"merge-cleanup-resolves-framework-friction","payload":{"role":"validation","head":"e364ae1df9e0cdec36bacdf2ff4a2a980c916f24","seen":"run_at:2026-10-25T10:13:37Z"}}
 {"v":1,"ts":"2026-10-25T10:28:51Z","actor":"ales_holubec.net","event":"check_verdict","ref":"merge-cleanup-resolves-framework-friction","payload":{"role":"validation","head":"02c07d914f816b4d151fa5d3485a1e3417b4fc54","status":"pass","security_relevant":false}}
 {"v":1,"ts":"2026-10-25T10:28:52Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"merge-cleanup-resolves-framework-friction","payload":{"status":"pass","hash":"068f866848d0b7304a40007723ad4ce0df8d3fa8903ddf81f3d3a3f94a173565"}}
+{"v":1,"ts":"2026-10-25T10:36:19Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"merge-cleanup-resolves-framework-friction","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-25T10:36:19Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"merge-cleanup-resolves-framework-friction","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-25T10:36:19Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-merge-cleanup-resolves-framework-friction","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-25T10:36:19Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-merge-cleanup-resolves-framework-friction","payload":{"validation":"pass","code_review":"pass"}}

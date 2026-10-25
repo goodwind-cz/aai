@@ -1,5 +1,5 @@
 // merge-outcomes.mjs — the outcome table of merge-cleanup.mjs and the pure helpers around it
-// (docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md, D1-D8).
+// (docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md, D1-D8).
 // No I/O: the engine passes text and records in, this module returns objects and strings.
 // Every reason the engine can emit is looked up in OUTCOME_TABLE; the engine never branches on prose.
 // Node stdlib only (docs/TECHNOLOGY.md).

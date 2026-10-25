@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: fe504d3c..8c81c24b (worktree /private/tmp/aai-merge-friction; remediation 5020014b + review record 8c81c24b)
-  spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md
+  spec: docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -21,7 +21,7 @@ review:
       - { rank: NON-BLOCKING, file: .aai/SKILL_MERGE.prompt.md, line: 60,
           issue: "retry sentence omits that the fingerprint also keys on the item (reason:subject), and compares journal done lines and manifest row count, not the files",
           failure_scenario: "run 1 retries item A, run 2 hits a different retry item B with HEAD/journal/manifest unchanged: the engine emits a second retry (fingerprint differs by key) while the prompt says it would not" }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md, line: 421,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md, line: 421,
           issue: "amendment narrative says plan names the kept step with a keep line 'instead of planned'; the step line still reads 'sync-base: planned' with the keep text as a '->' target (merge-cleanup.mjs:1393,1368)",
           failure_scenario: "a reader or a future test written from the spec text asserts the step status is not 'planned' and fails against the shipped engine" }
       - { rank: NON-BLOCKING, file: .aai/scripts/lib/merge-outcomes.mjs, line: 269,
@@ -37,7 +37,7 @@ security_relevant: false
 
 # Code Review round 3 — merge-cleanup-resolves-framework-friction (CHANGE-0227)
 
-Scope: `git diff fe504d3c..8c81c24b` in /private/tmp/aai-merge-friction. Spec: SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md (frozen_sha256 restamped to 21630b4c...).
+Scope: `git diff fe504d3c..8c81c24b` in /private/tmp/aai-merge-friction. Spec: SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md (frozen_sha256 restamped to 21630b4c...).
 Checks ran in a scratch clone at 8c81c24b. Nothing was written to the worktree.
 
 Dispatch note: the dispatch named items to confirm (N1-N3, the prompt comparison, the planner one-liner). It did not pre-rate severity. I reviewed the whole delta anyway.

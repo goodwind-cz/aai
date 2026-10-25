@@ -2814,6 +2814,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Merge a named pull request and clean up after it
+
+`/aai-merge <PR>` finishes a ride in one step. It checks the pull request you named, merges it only because you asked for that exact pull request, and then cleans up after it. For an already merged pull request it does the cleanup alone.
+
+[Product doc](product/directed-merge-and-post-merge-cleanup.md) · [Spec](specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md)
+
 ### `/aai-doctor` diagnoses the real Windows and agent-CLI environment it runs on
 
 `/aai-doctor` (`node .aai/scripts/aai-doctor.mjs`) is the AAI environment health check — a deterministic, zero-dependency script that reports one `PASS`/`WARN`/`FAIL`/`SKIP` line per category plus an overall verdict. The original 13 categories cover core files, role prompts, skills, knowledge files, `STATE.yaml` health, telemetry, git status, hooks, the RFC-0001 migration matrix, docs hygiene and vendored-layer drift.
@@ -2843,12 +2849,6 @@ The release command prepares a release PR, waits for required checks, merges its
 Bootstrap records which git host the project lives on (GitHub, Azure DevOps, unknown or none) once, and `/aai-merge` follows that record: a directed merge and the post-merge cleanup now work on Azure DevOps as well as on GitHub, without ever calling `gh` there.
 
 [Product doc](product/platform-portable-pr.md) · [Spec](specs/SPEC-0103-spec-platform-portable-pr.md)
-
-### Merge a named pull request and clean up after it
-
-`/aai-merge <PR>` finishes a ride in one step. It checks the pull request you named, merges it only because you asked for that exact pull request, and then cleans up after it. For an already merged pull request it does the cleanup alone.
-
-[Product doc](product/directed-merge-and-post-merge-cleanup.md) · [Spec](specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md)
 
 ### Owner-defined merge lanes
 

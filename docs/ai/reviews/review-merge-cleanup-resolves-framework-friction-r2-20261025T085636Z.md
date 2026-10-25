@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: fb171891..fe504d3c (branch change/merge-cleanup-resolves-framework-friction, worktree /private/tmp/aai-merge-friction), focus 02c07d91
-  spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md
+  spec: docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -39,7 +39,7 @@ security_relevant: false
 
 - Scope: `git diff fb171891..fe504d3c` (10 commits, 17 files), with the remediation commit `02c07d91` read hunk by hunk. The handoff was by ref.
 - Dispatch note: the dispatch listed areas to check (the syncGate split, the new kept reasons, the deleted-file archive and rollback, the attempts ledger, compareDraft, `links.pr ~`, the prompt wording). It did not pre-rate severity or exclude any area. The full range was reviewed.
-- Spec: frozen `SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md` (frozen_sha256 restamped in 02c07d91). `spec-lint --path` passes, `spec-amend list --strict` exits 0, `check-test-registration` exits 0.
+- Spec: frozen `SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md` (frozen_sha256 restamped in 02c07d91). `spec-lint --path` passes, `spec-amend list --strict` exits 0, `check-test-registration` exits 0.
 - Nothing was written into the worktree. `git status --porcelain` is clean and `git ls-files -ci` is empty. The ledger diffs over the range are pure appends.
 
 ## r1 BLOCKING findings, re-probed against the new code

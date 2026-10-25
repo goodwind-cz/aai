@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: fb171891..30e17436 (branch change/merge-cleanup-resolves-framework-friction, worktree /private/tmp/aai-merge-friction)
-  spec: docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md
+  spec: docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -45,7 +45,7 @@ review:
 security_relevant: false
 
 - Scope: `git diff fb171891..30e17436`, 16 files, in worktree `/private/tmp/aai-merge-friction`. The scope was handed off by ref. The dispatch named focus areas but did not pre-rate findings or exclude any area, so the full scope was reviewed.
-- Spec: `docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md` (frozen). `spec-lint` passes, `spec-amend list --strict` exits 0 and `check-test-registration` exits 0.
+- Spec: `docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md` (frozen). `spec-lint` passes, `spec-amend list --strict` exits 0 and `check-test-registration` exits 0.
 
 ## Answers to the focus questions
 

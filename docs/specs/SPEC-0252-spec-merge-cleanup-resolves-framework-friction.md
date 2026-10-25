@@ -1,10 +1,10 @@
 ---
 id: spec-merge-cleanup-resolves-framework-friction
 type: spec
-number: null
-status: implementing
+number: 252
+status: done
 mutation_gate: v1
-frozen_sha256: ff3ab61bfe9f03a72aeac444427fb8d51ad6292028d4017626bb9cf2df2042f9
+frozen_sha256: d9da20dfdd21fca0bac23f8e1920d647c4abea7f3c11eb384bf7530ee05e352d
 ceremony_level: 2
 links:
   requirement: merge-cleanup-resolves-framework-friction
@@ -69,7 +69,7 @@ SPEC-FROZEN: true
   tests/skills/test-aai-merge-cleanup.sh tests/skills/aai-merge-cleanup.Tests.ps1
   tests/skills/suite-map.yaml tests/skills/lib/prompt-diet-ledger.sh
   tests/skills/test-aai-prompt-diet.sh tests/skills/test-aai-pr-preflight.sh
-  docs/specs/SPEC-DRAFT-spec-merge-cleanup-resolves-framework-friction.md
+  docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md
   docs/issues/CHANGE-0227-merge-cleanup-resolves-framework-friction.md
   (after LOOP COMPLETE the ship step adds docs/product/directed-merge-and-post-merge-cleanup.md
   and CHANGELOG.md and re-sets the review scope; an existing suite outside the list is
