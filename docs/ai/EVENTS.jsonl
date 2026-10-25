@@ -3290,3 +3290,4 @@
 {"v":1,"ts":"2026-10-24T23:47:02Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"recheck-verdict-binding","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-24T23:47:02Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-recheck-verdict-binding","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-24T23:47:02Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-recheck-verdict-binding","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-25T00:36:30Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"recheck-verdict-binding","payload":{"pr":499,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"1d797f5549549bb61f35117191d68b732a3109fb"}}
