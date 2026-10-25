@@ -416,6 +416,38 @@ test_3015_write_refuses_symlinked_shim_paths() {
   log_pass "TEST-3015 --write refuses symlinked shim paths before any write"
 }
 
+# --- TEST-3016 -----------------------------------------------------------------
+test_3016_write_refuses_other_unreal_paths() {
+  log_info "TEST-3016: --write refuses a symlinked shipped list, a non-directory parent and a non-file shim..."
+  local root="$TMP_ROOT/t3016" out="$TMP_ROOT/t3016-outside" list=".aai/system/COPILOT_SHIM_SHIPPED.list"
+  rm -rf "$out"; mkdir -p "$out"
+  mk_root "$root"
+  cp "$root/$list" "$out/list"
+  rm -f "$root/$list"
+  ln -s "$out/list" "$root/$list"
+  # a planted line in a Copilot fragment gives an unrecorded hash, so --write
+  # appends to the list unless it refuses first
+  awk '{ print } $0 == "<!-- fragment: copilot-project-skills -->" { print "planted" }' \
+    "$root/.aai/system/HARNESS_SHIMS.md" > "$root/shims.tmp"
+  mv "$root/shims.tmp" "$root/.aai/system/HARNESS_SHIMS.md"
+  local before; before="$(sha_file "$out/list")"
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 2 ]] || log_fail "TEST-3016: a symlinked shipped list must exit 2, got $GEN_RC: $GEN_OUT"
+  [[ "$GEN_OUT" == *"refusing $list: $list is a symlink"* ]] || log_fail "TEST-3016: the refusal must name the shipped list, got: $GEN_OUT"
+  [[ "$(sha_file "$out/list")" == "$before" ]] || log_fail "TEST-3016: the list outside the root was appended to through the symlink"
+  mk_root "$root"
+  rm -rf "$root/.github"; printf 'x\n' > "$root/.github"
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *"refusing .github/copilot-instructions.md: .github is not a directory"* ]] \
+    || log_fail "TEST-3016: a .github that is a file must exit 2 naming it, got $GEN_RC: $GEN_OUT"
+  mk_root "$root"
+  rm -f "$root/CLAUDE.md"; mkdir -p "$root/CLAUDE.md"
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *"refusing CLAUDE.md: not a regular file"* ]] \
+    || log_fail "TEST-3016: a CLAUDE.md directory must exit 2 naming it, got $GEN_RC: $GEN_OUT"
+  log_pass "TEST-3016 --write refuses a symlinked shipped list, a non-directory parent and a non-file shim"
+}
+
 # --- TEST-3005 -----------------------------------------------------------------
 test_3005_shim_paths_select_the_gate() {
   log_info "TEST-3005: every shim path and the three new .aai files select the hygiene gate and this suite..."
@@ -722,6 +754,7 @@ ALL_TESTS=(
   test_3013_autonomous_loop_names_classify
   test_3014_profiles_caps_followups
   test_3015_write_refuses_symlinked_shim_paths
+  test_3016_write_refuses_other_unreal_paths
 )
 
 main() {

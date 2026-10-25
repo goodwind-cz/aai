@@ -34,6 +34,8 @@ fine — it is the marker a cut leaves on top.
   `.aai/system/COPILOT_SHIM_SHIPPED.list`) instead of keeping it as a project override, and installs the root `AGENTS.md` instead of
   deleting a project's own copy; a differing copy is named in the conflict advisory.
 - `.gitattributes` pins the six shims and `HARNESS_SHIMS.md` to LF.
+- `--write` and `--check` exit 2 before any write when a shim path, one of its parent directories or the shipped list is a symbolic
+  link, a parent is not a directory or a shim is not a regular file.
 - The six contract amendments of PR #501 are signed from the owner's recorded merge direction.
 
 ## [unreleased] — feat(merge): the merge cleanup resolves its own friction (merge-cleanup-resolves-framework-friction)

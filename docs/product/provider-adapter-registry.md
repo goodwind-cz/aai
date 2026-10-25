@@ -43,11 +43,13 @@ were. A hand edit to a generated file fails a check before it can merge.
   writes all six files from the registry. `--check` writes nothing: it renders
   each file and compares the result byte for byte with the file on disk. It
   prints one `DIVERGE shim <path>` line per file that differs and exits 1, or
-  `OK: 6 shim(s) match the registry` and exits 0. A broken registry exits 2
-  and names the cause, and so does a shim path, a parent directory of one or
-  the shipped list that is a symlink: the generator refuses before any write,
-  so it never writes through a link out of the project. It compares bytes only; it does not check what an agent
-  does with the text.
+  `OK: 6 shim(s) match the registry` and exits 0. It compares bytes only; it
+  does not check what an agent does with the text.
+- **Refusals.** A broken registry exits 2 and names the cause. So does, in
+  both modes and before any write, a shim path, one of its parent directories
+  or the shipped list that is a symbolic link, a parent that is not a
+  directory, or a shim that is not a regular file. The check reads link type
+  only: a hard-linked shim is written like any other file.
 - **The gate.** The same `--check` already ran for the skill trees in the
   hygiene suite (test_111), so a changed shim now fails there too. The suite
   `tests/skills/test-aai-harness-shims.sh` covers the registry, the generator
