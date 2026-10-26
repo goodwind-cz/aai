@@ -369,11 +369,41 @@ function recutIfMoved(){
  const moved=current!==record.baseHead||record.recut?current:null;
  if(moved&&record.pr){
   const pr=json('pr','view',String(record.pr),'--repo',record.repo,'--json',fields);
-  if(pr.state==='MERGED')return;
+  if(pr.state==='MERGED'){if(record.recut)abandonRecut(pr);return;}
   if(pr.state!=='OPEN')refuse('identity',closedPr());
   queuedOrRefuse();
  }
  if(moved)recutRelease(moved);
+}
+// A merged release PR is never re-cut (D9): the pending re-cut is dropped and the journal returns to the binding the merged head was cut with.
+function abandonRecut(pr){
+ const cut=record.recut,at=new Date().toISOString();
+ if(record.head&&pr.headRefOid===record.head&&record.head!==cut.fromHead){
+  // The re-cut head was pushed and then merged: the re-cut is complete, only its journal write was missing.
+  record.recuts=[...(record.recuts||[]),{fromBase:cut.fromBase,toBase:record.baseHead,fromHead:cut.fromHead,toHead:record.head,at}];
+  record.recut=null;stage('pr');return;
+ }
+ if(pr.headRefOid!==cut.fromHead)refuse('head-moved',`Merged release PR head ${pr.headRefOid} is neither the journaled head ${cut.fromHead} nor the pending re-cut head ${record.head||'(none)'}`);
+ const rolled=rollup(blob(`${cut.fromBase}:CHANGELOG.md`));
+ const merged=command('git',['cat-file','blob',`${cut.fromHead}:CHANGELOG.md`],root,true);
+ if(merged.status!==0||merged.stdout!==rolled.content)refuse('identity','Merged release head does not carry the rollup of the journaled base; preserve the journal for recovery');
+ const ref=`refs/heads/${record.branch}`,local=command('git',['rev-parse','--verify',ref],root,true);
+ const localHead=local.status===0?local.stdout.trim():'';
+ const ours=!localHead||localHead===cut.fromHead||[record.head,record.baseHead,cut.fromBase].includes(localHead)||(command('git',['rev-parse',localHead+'^'],root,true).stdout.trim()===record.baseHead&&command('git',['log','-1','--format=%s',localHead],root,true).stdout.trim()===`chore(release): ${version}`);
+ if(!ours)refuse('head-moved',`Local ${ref} is ${localHead}, not a head of this release`);
+ if(record.worktree){
+  if(worktreeBlock(git('worktree','list','--porcelain'),record.worktree))command('git',['worktree','remove','--force',record.worktree]);
+  fs.rmSync(record.worktree,{recursive:true,force:true});record.worktree=null;
+ }
+ if(localHead&&localHead!==cut.fromHead)command('git',['update-ref','-d',ref,localHead]);
+ Object.assign(record,{baseHead:cut.fromBase,head:cut.fromHead,content:rolled.content,notes:rolled.notes,recut:null});
+ stage('pr');
+}
+// The PR was read OPEN before the preflight; it is read again right before the leased push, and a PR that is no longer OPEN is never pushed to or edited.
+function settlePrAfterPreflight(){
+ const pr=json('pr','view',String(record.pr),'--repo',record.repo,'--json',fields);
+ if(pr.state==='MERGED'){abandonRecut(pr);return;}
+ refuse('identity',pr.state==='CLOSED'?closedPr():`Release PR #${record.pr} changed state while the re-cut was prepared; re-run this same --version`);
 }
 function recutRelease(newBase){
  const ref=`refs/heads/${record.branch}`;
@@ -385,8 +415,14 @@ function recutRelease(newBase){
  const descends=command('git',['merge-base','--is-ancestor',record.baseHead,newBase],root,true).status===0;
  if(!descends)refuse('base-rewritten',`Remote ${record.base} no longer contains the audited base ${record.baseHead}`);
  const remote=live||null;
- if(remote!==record.recut.fromHead&&remote!==record.head)refuse('head-moved',`Remote release head ${remote||'(absent)'} is neither the journaled head ${record.recut.fromHead||'(never pushed)'} nor the pending re-cut head ${record.head||'(none)'}`);
+ const allowedHeads=[record.recut.fromHead,...(record.head?[record.head]:[])];
+ if(!allowedHeads.includes(remote))refuse('head-moved',`Remote release head ${remote||'(absent)'} is neither the journaled head ${record.recut.fromHead||'(never pushed)'} nor the pending re-cut head ${record.head||'(none)'}`);
  if(newBase===record.baseHead)return;
+ if(record.head&&remote===record.head&&record.head!==record.recut.fromHead){
+  // A pending re-cut that was pushed before its journal write: fold it in, so the next lease is on the pushed head.
+  record.recuts=[...(record.recuts||[]),{fromBase:record.recut.fromBase,toBase:record.baseHead,fromHead:record.recut.fromHead,toHead:record.head,at:new Date().toISOString()}];
+  record.recut={fromBase:record.baseHead,fromHead:record.head};
+ }
  const local=command('git',['rev-parse','--verify',ref],root,true);
  const localHead=local.status===0?local.stdout.trim():'';
  if(localHead&&![record.head,record.baseHead].includes(localHead))refuse('head-moved',`Local ${ref} is ${localHead}, not the journaled ${record.head||record.baseHead}`);
@@ -407,8 +443,10 @@ function preflightRun(commit,file){
  const wt=fs.mkdtempSync(path.join(os.tmpdir(),'aai-release-pf.'));
  try{
   command('git',['worktree','add','-q','--detach',wt,commit]);
-  const r=spawnSync(process.execPath,['--test',file],{cwd:wt,encoding:'utf8',timeout:preflightSeconds*1000,killSignal:'SIGKILL',maxBuffer:8*1024*1024});
+  // Own process group: the timeout kills only the runner, so the whole group is killed afterwards (POSIX). Windows has no group; taskkill /T reaches only children the dead runner still parents, a documented limit.
+  const r=spawnSync(process.execPath,['--test',file],{cwd:wt,encoding:'utf8',timeout:preflightSeconds*1000,killSignal:'SIGKILL',maxBuffer:8*1024*1024,detached:process.platform!=='win32'});
   const timedOut=Boolean(r.error&&r.error.code==='ETIMEDOUT');
+  if(r.pid){if(process.platform==='win32'){if(timedOut)spawnSync('taskkill',['/PID',String(r.pid),'/T','/F'],{windowsHide:true});}else{try{process.kill(-r.pid,'SIGKILL');}catch{}}}
   return {ok:!r.error&&r.status===0,timedOut,tail:`${r.stdout||''}${r.stderr||''}`.trim().split('\n').slice(-20).join('\n')};
  }finally{
   command('git',['worktree','remove','--force',wt],root,true);
@@ -432,9 +470,11 @@ function releasePreflight(){
 // The one place a release head is pushed (first cut and re-cut): preflight first, then the leased push.
 function pushRelease(){
  releasePreflight();
+ if(record.pr&&json('pr','view',String(record.pr),'--repo',record.repo,'--json',fields).state!=='OPEN')return false;
  const branch=record.branch;
  const lease=record.recut&&record.recut.fromHead?`--force-with-lease=refs/heads/${branch}:${record.recut.fromHead}`:`--force-with-lease=refs/heads/${branch}:`;
  command('git',['push','--no-follow-tags',lease,'origin',`${record.head}:refs/heads/${branch}`]);
+ return true;
 }
 // A merge queue only enqueues: an OPEN PR that is in the queue is pending, not refused. An armed auto-merge alone is not a queue; its checks are still evaluated.
 function queuedOrRefuse(){
@@ -591,17 +631,25 @@ async function main(){
  if(!record.pr)stage('prepared');
  sha(record.head,'journal release');
  if(record.recut){
-  if(remoteHead(`refs/heads/${branch}`)!==record.head)pushRelease();
-  record.recuts=record.recuts||[];
-  record.recuts.push({fromBase:record.recut.fromBase,toBase:record.baseHead,fromHead:record.recut.fromHead,toHead:record.head,at:new Date().toISOString()});
-  record.recut=null;stage('pushed');
+  if(remoteHead(`refs/heads/${branch}`)!==record.head&&!pushRelease())settlePrAfterPreflight();
+  else{
+   record.recuts=record.recuts||[];
+   record.recuts.push({fromBase:record.recut.fromBase,toBase:record.baseHead,fromHead:record.recut.fromHead,toHead:record.head,at:new Date().toISOString()});
+   record.recut=null;stage('pushed');
+  }
  }
  if(record.pr&&record.stage==='pushed'&&(record.recuts||[]).length){
   // The PR follows the branch: GitHub updates its head asynchronously, so wait for it before rewriting the body and reading checks.
-  boundedPoll(()=>json('pr','view',String(record.pr),'--repo',repo,'--json',fields),p=>p.headRefOid===record.head,'identity');
+  const followed=boundedPoll(()=>json('pr','view',String(record.pr),'--repo',repo,'--json',fields),p=>p.state!=='OPEN'||p.headRefOid===record.head,'identity');
+  if(followed.state!=='OPEN'){
+   // Merged or closed while the push propagated: never edit it; the bound head decides what continues.
+   if(followed.headRefOid!==record.head)refuse('identity',`Release PR #${record.pr} is ${followed.state} on ${followed.headRefOid}, not on the re-cut head ${record.head}; preserve the journal for recovery`);
+   record.stage='pr';atomicSave();
+  }else{
   const edited=path.join(path.dirname(journal),'body-'+crypto.randomBytes(6).toString('hex')+'.md');
   try{fs.writeFileSync(edited,`Automated release cut for ${version}.\n\nBound release: ${repo} ${branch} ${record.head}.\n\nno-notes: release rollup contains the previously recorded entries.\n`+record.recuts.map(e=>`\nRe-cut: ${e.fromHead} on ${e.fromBase} -> ${e.toHead} on ${e.toBase}.\n`).join(''));gh('pr','edit',String(record.pr),'--repo',repo,'--body-file',edited);}finally{fs.unlinkSync(edited);}
   record.stage='pr';atomicSave();
+  }
  }
  let prs=json('pr','list','--repo',repo,'--head',branch,'--state','all','--json',fields);if(!Array.isArray(prs)||prs.length>1)refuse('identity','Ambiguous release PRs');
  let pr=prs.length?identity(prs[0]):null;
