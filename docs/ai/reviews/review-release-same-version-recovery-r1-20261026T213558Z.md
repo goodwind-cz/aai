@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: origin/main...HEAD (20ee3591..e8e0ded6) in /private/tmp/aai-relrec, branch change/release-same-version-recovery
-  spec: docs/specs/SPEC-DRAFT-spec-release-same-version-recovery.md
+  spec: docs/specs/SPEC-0255-spec-release-same-version-recovery.md
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -41,7 +41,7 @@ security_relevant: false
 
 # Code review — release-same-version-recovery (round 1)
 
-Scope: `git diff origin/main...HEAD` in `/private/tmp/aai-relrec` (20ee3591..e8e0ded6), 13 files. Spec: `docs/specs/SPEC-DRAFT-spec-release-same-version-recovery.md` (frozen). Reviewer: claude-opus-5-5, read-only on the worktree; suites run in a scratch clone.
+Scope: `git diff origin/main...HEAD` in `/private/tmp/aai-relrec` (20ee3591..e8e0ded6), 13 files. Spec: `docs/specs/SPEC-0255-spec-release-same-version-recovery.md` (frozen). Reviewer: claude-opus-5-5, read-only on the worktree; suites run in a scratch clone.
 
 Coaching check: the dispatch listed questions to examine (lease, crash resume, preflight classification, parity) but did not pre-rate findings or exclude areas. No coaching recorded. Full scope reviewed.
 

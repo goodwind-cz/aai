@@ -107,7 +107,7 @@ pairs:
   - capability: implied-signing-without-links-pr
     status: done
   - capability: release-same-version-recovery
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

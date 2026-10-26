@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: origin/main...HEAD (20ee3591..a5abcf7b) in /private/tmp/aai-relrec, branch change/release-same-version-recovery; focus r1 closure and remediation f09333ad
-  spec: docs/specs/SPEC-DRAFT-spec-release-same-version-recovery.md (amended: D11, Spec-AC-03/07 extended, TEST-118..122)
+  spec: docs/specs/SPEC-0255-spec-release-same-version-recovery.md (amended: D11, Spec-AC-03/07 extended, TEST-118..122)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -38,7 +38,7 @@ security_relevant: false
 
 # Code review — release-same-version-recovery (round 2)
 
-Scope: `git diff origin/main...HEAD` in `/private/tmp/aai-relrec` (20ee3591..a5abcf7b), 14 files; the remediation is f09333ad. Spec: `docs/specs/SPEC-DRAFT-spec-release-same-version-recovery.md`, amended with D11, extended Spec-AC-03 and Spec-AC-07, and rows TEST-118 to TEST-122. Reviewer: claude-opus-5-5. The worktree was read-only; all runs were in scratch clones under `scratchpad/rr-cr-r2/`.
+Scope: `git diff origin/main...HEAD` in `/private/tmp/aai-relrec` (20ee3591..a5abcf7b), 14 files; the remediation is f09333ad. Spec: `docs/specs/SPEC-0255-spec-release-same-version-recovery.md`, amended with D11, extended Spec-AC-03 and Spec-AC-07, and rows TEST-118 to TEST-122. Reviewer: claude-opus-5-5. The worktree was read-only; all runs were in scratch clones under `scratchpad/rr-cr-r2/`.
 
 Coaching check: the dispatch listed what to re-probe (the r1 probes, abandonRecut correctness, any new wedge). It did not pre-rate findings or exclude areas. Nothing to record. The full scope was reviewed.
 

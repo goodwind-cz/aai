@@ -1,8 +1,8 @@
 ---
 id: release-same-version-recovery
 type: change
-number: null
-status: draft
+number: 230
+status: done
 capability: release-command-finish
 user_visible: true
 links:

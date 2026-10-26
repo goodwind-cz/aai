@@ -2815,6 +2815,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Complete and resume a release
+
+The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
+
+[Product doc](product/release-command-finish.md) · [Spec](specs/SPEC-0233-spec-release-command-finish.md)
+
 ### Merge a named pull request and clean up after it
 
 `/aai-merge <PR>` finishes a ride in one step. It checks the pull request you named, merges it only because you asked for that exact pull request, and then cleans up after it. For an already merged pull request it does the cleanup alone.
@@ -2844,12 +2850,6 @@ CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on 
 A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, and root executables. Documentation, tests, and evidence-only changes are exempt. An old unchanged entry, an empty scaffold, and a blank reason do not count.
 
 [Product doc](product/release-notes-gate.md) · [Spec](specs/SPEC-0229-spec-release-notes-gate.md)
-
-### Complete and resume a release
-
-The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
-
-[Product doc](product/release-command-finish.md) · [Spec](specs/SPEC-0233-spec-release-command-finish.md)
 
 ### Platform-portable PR ceremony
 

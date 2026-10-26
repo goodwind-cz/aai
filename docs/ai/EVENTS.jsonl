@@ -3348,3 +3348,9 @@
 {"v":1,"ts":"2026-10-26T22:54:43Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":662,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-26T22:54:49Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":662,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-26T23:03:39Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"release-same-version-recovery","payload":{"role":"validation","head":"a5abcf7b3b65f4d1b9c20a234c98f14576f1f5ed","seen":"run_at:2026-10-26T23:03:38Z"}}
+{"v":1,"ts":"2026-10-26T23:36:20Z","actor":"ales_holubec.net","event":"check_verdict","ref":"release-same-version-recovery","payload":{"role":"validation","head":"e8e0ded6e37ec867a3a90d2f8ab93a009ce98a48","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-10-26T23:36:20Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"release-same-version-recovery","payload":{"status":"pass","hash":"a033d9092357a0dc1831e9368b3182a7b84acdecd78d0c3c13e5206567439cfd"}}
+{"v":1,"ts":"2026-10-26T23:39:15Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"release-same-version-recovery","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-26T23:39:15Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"release-same-version-recovery","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-26T23:39:15Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-same-version-recovery","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-26T23:39:15Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-same-version-recovery","payload":{"validation":"pass","code_review":"pass"}}

@@ -22,6 +22,18 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(release): a failed release is repaired and finished under its own version (release-same-version-recovery)
+
+- When the remote base has moved and the journal-bound release PR is still open, `/aai-release --version <v> --confirm` no longer
+  refuses `base-moved`: it re-audits the new base, rebuilds the rollup on a commit whose only parent is the new base and force-updates
+  the same release branch with a lease on the journaled head. The same PR is kept and gains a `Re-cut:` line. Guards refuse by name:
+  `head-moved`, `identity` (PR closed), `tag-exists`, `base-rewritten`. A merged PR is never re-cut; a pending re-cut on a PR that
+  was merged meanwhile is dropped and the merged head is published.
+- A release preflight runs before every push of a release head: each tracked `tests/**/*.test.mjs` that reads `CHANGELOG` runs on the
+  release commit, and a file that fails there but passes on the base refuses `release-preflight`, naming the file. This is the check
+  that would have stopped release PR #504.
+- No refusal, prompt or product doc tells the operator to cut a new `--version` for a release that can still be finished.
+
 ## [unreleased] — fix(spec-amend): a directed merge signs a ride closed before its PR existed (implied-signing-without-links-pr)
 
 - The merge-implied signature (SPEC-0226) required a PR number in the ride doc's `links.pr`, which the canonical `/aai-pr` flow never

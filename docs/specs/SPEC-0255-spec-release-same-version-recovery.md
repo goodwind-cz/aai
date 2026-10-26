@@ -1,10 +1,10 @@
 ---
 id: spec-release-same-version-recovery
 type: spec
-number: null
-status: implementing
+number: 255
+status: done
 mutation_gate: v1
-frozen_sha256: 3d9c831c3fc770f483a4d05837cea89ba5751c6a82e0906360c23691f70f51f6
+frozen_sha256: f9c3e7fcbc88b5c7a6c6d3d209d097f5a0016e503ffa8e3bebbc11ae2e892af1
 ceremony_level: 2
 capability: release-command-finish
 user_visible: true
@@ -20,7 +20,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/CHANGE-DRAFT-release-same-version-recovery.md (AC-001 to AC-005)
+- Requirement: docs/issues/CHANGE-0230-release-same-version-recovery.md (AC-001 to AC-005)
 - Parent capability spec: docs/specs/SPEC-0233-spec-release-command-finish.md (engine, journal, resume model)
 - Sibling specs on the same engine: docs/specs/SPEC-0234-spec-release-checks-registration-grace.md, docs/specs/SPEC-0235-spec-release-changelog-eol.md, docs/specs/SPEC-0236-spec-release-one-shot-finish.md
 - Supersedes (text only, the frozen specs are not edited): the SPEC-0236 Spec-AC-10 detail texts that tell the operator to cut "under a new --version", and the SPEC-0233 product-doc limit "Same-version resume deliberately does not rebase or absorb unaudited history". See D10.
@@ -41,7 +41,7 @@ SPEC-FROZEN: true
 - Worktree rationale: PR-bound change to the release engine while a live release (PR #504) and its journal stay untouched in the shared repository; the ride is already isolated.
 - User decision: worktree (already set: branch change/release-same-version-recovery, path /private/tmp/aai-relrec, base origin/main 20ee3591)
 - Base ref: main at 20ee3591
-- Inline review scope: .aai/scripts/release-finish.mjs .aai/scripts/aai-release.sh .aai/scripts/aai-release.ps1 .aai/SKILL_RELEASE.prompt.md docs/product/release-command-finish.md docs/USER_GUIDE.md tests/skills/test-aai-release.sh CHANGELOG.md docs/specs/SPEC-DRAFT-spec-release-same-version-recovery.md docs/issues/CHANGE-DRAFT-release-same-version-recovery.md
+- Inline review scope: .aai/scripts/release-finish.mjs .aai/scripts/aai-release.sh .aai/scripts/aai-release.ps1 .aai/SKILL_RELEASE.prompt.md docs/product/release-command-finish.md docs/USER_GUIDE.md tests/skills/test-aai-release.sh CHANGELOG.md docs/specs/SPEC-0255-spec-release-same-version-recovery.md docs/issues/CHANGE-0230-release-same-version-recovery.md
 - Code review required: true
 
 ## Measurements (Planning, 2026-10-26, base 20ee3591)
