@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-release-same-version-recovery | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-release-same-version-recovery.md |
+| spec-release-same-version-recovery | specs | implementing | 8 done, 1 deferred | docs/specs/SPEC-DRAFT-spec-release-same-version-recovery.md |
 
 ## Canonical layer (0)
 
@@ -672,18 +672,19 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (2)
+## Deferred items (per-AC, across all specs) (3)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0245 | Spec-AC-06 | 2026-11-06 | TEST-2210; local paired runs done (31.9% reduction); hosted after rows and suite-weights re-measure pending push |
 | SPEC-0046 | Spec-AC-10 | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
+| spec-release-same-version-recovery | Spec-AC-09 | 2026-11-30 | Post-merge live acceptance; verified by the orchestrator before close, not by pre-merge Validation. |
 
 ## Blocked items (per-AC, across all specs) (0)
 
 _None._
 
-## Broken references (514)
+## Broken references (515)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1101,6 +1102,7 @@ _None._
 | tests/skills/test-aai-product-docs.sh | docs/product/widget-export.md | NOT FOUND |
 | tests/skills/test-aai-prompt-diet.sh | docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/change.md | NOT FOUND |
+| tests/skills/test-aai-release.sh | docs/ci-moved.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/direct.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/known.md | NOT FOUND |
 | tests/skills/test-aai-roadmap.sh | docs/issues/CHANGE-0001-none.md | NOT FOUND |

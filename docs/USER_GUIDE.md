@@ -740,10 +740,11 @@ snapshot before creating release refs or a PR, including executable-mode
 changes. Missing notes or missing required history/metadata refuse.
 
 Confirmation authorizes only the bound release PR/head, with all required
-checks passing and no auto/admin bypass. Observed base moves refuse and retain
-progress; repeating the printed explicit version resumes missing stages but
-can keep refusing a moved base. A fresh audited cut or deliberate operator
-repair is required in that case. The final base observation and GitHub merge
+checks passing and no auto/admin bypass. Repeating the printed explicit version
+resumes missing stages; if the base moved, that same version is re-cut on the
+new base (re-audit, rollup, release-preflight, leased push, same PR). A base
+move seen after the CI wait refuses `base-moved` and the next run re-cuts. A
+merged PR, a published tag or a rewritten base is never re-cut. The final base observation and GitHub merge
 are separate: a base push in between may enter the merge unseen. The command
 does not promise atomic base pinning or rollback of a merged PR/published tag.
 

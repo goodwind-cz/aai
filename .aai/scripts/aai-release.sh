@@ -21,6 +21,9 @@
 # Default version (no --version): CalVer `vYYYY.MM.DD`, from AAI_RELEASE_DATE
 # (expected YYYY-MM-DD) if set/non-empty, else the real UTC clock.
 #
+# Remote --confirm re-cuts a moved base under the same version (release-finish.mjs).
+# Every release-head push first runs the release-preflight (tracked CHANGELOG node tests).
+#
 # Exit codes: 0 success (plan or cut) | 1 bad argument | 10 not a git repo |
 #   11 no CHANGELOG.md | 12 malformed [unreleased] region | 13 no rollable
 #   [unreleased] entries (absent/empty) | 15 tag already exists (cut path) |
