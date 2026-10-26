@@ -2679,7 +2679,7 @@ const protocolSection = () => {
 const workflowLines = () => readRel('.aai/workflow/WORKFLOW.md').split('\n').filter((l) => /delta re-check/i.test(l));
 const changelogEntry = () => {
   const t = readRel('CHANGELOG.md');
-  const parts = t.split(/^## \[unreleased\] — /m).slice(1);
+  const parts = t.split(/^## \[(?:unreleased|v[^\]]+)\] — /m).slice(1);
   const mine = parts.filter((p) => p.includes('recheck-verdict-binding'));
   assert.equal(mine.length, 1, 'exactly one CHANGELOG entry names recheck-verdict-binding, got ' + mine.length);
   return mine[0];
@@ -2856,7 +2856,7 @@ test('TEST-2821 the docs state the default as on with AAI_RECHECK_MODE=full as t
   assert.ok(esc.length > 0 && esc.every((l) => l.includes('AAI_RECHECK_MODE=full') && !/full[^.]*or unset/.test(l)), 'the escalation re-dispatch must name AAI_RECHECK_MODE=full set explicitly');
   const rfc = readRel('docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md').split('\n').filter((l) => l.includes('recheck-verdict-binding'));
   assert.ok(rfc.length > 0 && rfc.every((l) => !/stays opt-in|opt-in until/.test(l)), 'the RFC-0017 row still says the mode stays opt-in');
-  const log498 = readRel('CHANGELOG.md').split(/^## \[unreleased\] — /m).find((p) => /^feat\(recheck\): (an opt-in )?slim payload|^feat\(recheck\): a slim payload/.test(p));
+  const log498 = readRel('CHANGELOG.md').split(/^## \[(?:unreleased|v[^\]]+)\] — /m).find((p) => /^feat\(recheck\): (an opt-in )?slim payload|^feat\(recheck\): a slim payload/.test(p));
   assert.ok(log498 && /changes the default/.test(log498), 'the #498 CHANGELOG entry does not say that the later entry changes the default');
   const spec250 = readRel('docs/specs/' + name);
   const stale = spec250.split('\n').filter((l) => /delta is OPT-IN|opt-in by proof|Delta is off by default|leave `AAI_RECHECK_MODE` unset \(the default\)|unset \(the default\) keeps/.test(l));
@@ -2865,7 +2865,7 @@ test('TEST-2821 the docs state the default as on with AAI_RECHECK_MODE=full as t
   // the binding entry's CHANGELOG heading does not call the mode opt-in (the #498 heading keeps its merged text: aai-release
   // TEST-024 forbids rewriting an unreleased heading present at the merge-base), and a vendored comment that names what recheck reads
   assert.deepEqual(spec250.split('\n').filter((l) => /the mode is off unless/i.test(l)), [], 'SPEC-0250 still says the mode is off unless exported');
-  const headings = readRel('CHANGELOG.md').split('\n').filter((l) => /^## \[unreleased\] — /.test(l) && /recheck/i.test(l));
+  const headings = readRel('CHANGELOG.md').split('\n').filter((l) => /^## \[(?:unreleased|v[^\]]+)\] — /.test(l) && /recheck/i.test(l));
   assert.ok(headings.length >= 2, 'both recheck CHANGELOG headings present: ' + JSON.stringify(headings));
   assert.deepEqual(headings.filter((l) => /bind each judged/.test(l) && /opt-in|off by default/i.test(l)), [], 'the binding CHANGELOG heading calls the mode opt-in');
   assert.ok(headings.some((l) => /bind each judged/.test(l)), 'the binding CHANGELOG heading is present');
