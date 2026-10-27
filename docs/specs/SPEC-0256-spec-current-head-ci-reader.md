@@ -4,7 +4,7 @@ type: spec
 number: 256
 status: done
 mutation_gate: v1
-frozen_sha256: 04d613141a3acdd723ae8e01d5c70395ece20e0e16c6f4bc688b91159219f6c2
+frozen_sha256: 5fb322417bc34726bb4477c1a84dc09f8894f24e79d7217f3264b70def35c76e
 ceremony_level: 2
 capability: release-command-finish
 links:

@@ -1,6 +1,8 @@
 // Current-head observations shared by watch-ci and release required-check reads.
 // Use complete API pages and creation/start identity, never response order or
 // conclusion preference. The PR head is read on both sides of the observation.
+// Same-name checks from different apps stay distinct; required names that map
+// to more than one app refuse closed instead of picking the wrong provider.
 import {spawnSync} from 'node:child_process';
 const sha=s=>/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(s||'');
 function fail(message) {
@@ -23,6 +25,16 @@ function newer(a,b) {
   }
   return false;
 }
+function providerKey(c,kind) {
+  if(kind==='status')return 'legacy-status';
+  const app=c?.app;
+  if(app&&typeof app==='object') {
+    if(Number.isSafeInteger(app.id)&&app.id>0)return `app:${app.id}`;
+    if(typeof app.slug==='string'&&app.slug)return `app:${app.slug}`;
+    if(typeof app.name==='string'&&app.name)return `app:${app.name}`;
+  }
+  return 'app:none';
+}
 export function readCurrentChecks({
   pr,repo,expectedHead,required=false,cwd=process.cwd(),run
 }
@@ -33,10 +45,7 @@ export function readCurrentChecks({
   }));
   function raw(args,allowed=[0]) {
     const r=invoke(args);
-    if(r.error||!allowed.includes(r.status))fail(`transport ${args.join(' ')}: ${r.error?.message||r.stderr||`exit $ {
-      r.status
-    }
-    `}`);
+    if(r.error||!allowed.includes(r.status))fail(`transport ${args.join(' ')}: ${r.error?.message||r.stderr||`exit ${r.status}`}`);
     return r;
   }
   function json(args) {
@@ -103,8 +112,9 @@ export function readCurrentChecks({
       orderKind='workflow';
     } else time=Date.parse(c.started_at||c.created_at||'');
     if(!Number.isFinite(time))fail(`missing check-run ordering identity: ${c.name}`);
+    const provider=providerKey(c,'check');
     observations.push({
-      name:c.name,bucket:(()=> {
+      name:c.name,provider,bucket:(()=> {
         try {
           return bucket(c.status,c.conclusion);
         }
@@ -124,7 +134,7 @@ export function readCurrentChecks({
     const time=Date.parse(c.created_at||'');
     if(!c.context||!Number.isSafeInteger(c.id)||c.id<1||!Number.isFinite(time)||!['success','failure','error','pending'].includes(c.state))fail('malformed legacy status identity');
     observations.push({
-      name:c.context,bucket: {
+      name:c.context,provider:providerKey(c,'status'),bucket: {
         success:'pass',failure:'fail',error:'fail',pending:'pending'
       }
       [c.state],link:c.target_url||'',id:c.id,order:[time,0,c.id],orderKind:'status',kind:'status'
@@ -132,20 +142,35 @@ export function readCurrentChecks({
   }
   const latest=new Map();
   for(const c of observations) {
-    const old=latest.get(c.name);
+    const key=`${c.name}\0${c.provider}`;
+    const old=latest.get(key);
     if(old&&old.kind!==c.kind)fail(`ambiguous check and status context: ${c.name}`);
     if(old&&c.id===old.id&&JSON.stringify(c)!==JSON.stringify(old))fail(`ambiguous duplicate check identity: ${c.name}`);
     if(old&&old.orderKind!==c.orderKind)fail(`ambiguous ordering identities: ${c.name}`);
-    if(!old||newer(c,old))latest.set(c.name,c);
+    if(!old||newer(c,old))latest.set(key,c);
   }
   const after=json(view);
   if(after?.headRefOid!==head||after?.url!==before.url||after?.number!==before.number)fail('PR head changed during observation');
-  const checks=[...latest.values()].filter(c=>!names||names.has(c.name)).map(({
-    name,bucket,link,id
+  const byName=new Map();
+  for(const c of latest.values()) {
+    const group=byName.get(c.name)||[];
+    group.push(c);
+    byName.set(c.name,group);
+  }
+  const selected=[];
+  const wanted=names?names:new Set(byName.keys());
+  for(const name of wanted) {
+    const group=byName.get(name)||[];
+    if(!group.length)fail(`required context missing from current head: ${name}`);
+    const providers=new Set(group.map(c=>c.provider));
+    if(providers.size>1)fail(`ambiguous check name across apps: ${name}`);
+    selected.push(group[0]);
+  }
+  const checks=selected.map(({
+    name,bucket,link,id,provider
   })=>({
-    name,bucket,link,id,head
+    name,bucket,link,id,head,provider
   }));
-  if(names)for(const name of names)if(!checks.some(c=>c.name===name))fail(`required context missing from current head: ${name}`);
   return {
     head,checks
   };

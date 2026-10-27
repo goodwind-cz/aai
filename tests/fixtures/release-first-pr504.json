@@ -17,7 +17,11 @@
       "conclusion": "success",
       "started_at": "2026-10-27T07:37:11Z",
       "completed_at": "2026-10-27T07:37:15Z",
-      "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40467794563/job/122068630843"
+      "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40467794563/job/122068630843",
+      "app": {
+        "id": 1,
+        "slug": "github-actions"
+      }
     },
     {
       "id": 122067316214,
@@ -27,7 +31,11 @@
       "conclusion": "failure",
       "started_at": "2026-10-27T07:33:08Z",
       "completed_at": "2026-10-27T07:33:10Z",
-      "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40467767696/job/122067316214"
+      "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40467767696/job/122067316214",
+      "app": {
+        "id": 1,
+        "slug": "github-actions"
+      }
     }
   ],
   "workflowRuns": {

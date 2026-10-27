@@ -40,7 +40,7 @@ function fixture(t) {
   return dir;
 }
 
-function checkRun(id, conclusion = 'success', sha = head) {
+function checkRun(id, conclusion = 'success', sha = head, app = {id: 1, slug: 'github-actions'}) {
   return {
     id,
     name: 'aggregate',
@@ -48,7 +48,8 @@ function checkRun(id, conclusion = 'success', sha = head) {
     status: conclusion === 'pending' ? 'in_progress' : 'completed',
     conclusion: conclusion === 'pending' ? null : conclusion,
     started_at: `2026-10-27T00:00:${String(id).padStart(2, '0')}Z`,
-    details_url: `https://github.com/test/repo/actions/runs/${id}/job/${id}`
+    details_url: `https://github.com/test/repo/actions/runs/${id}/job/${id}`,
+    app
   };
 }
 
@@ -206,6 +207,19 @@ test('TEST-002 one authoritative ordering is invariant across every response per
     assert.equal(released.status, 0, released.stderr);
     assert.equal(JSON.parse(released.stdout)[0].id, 200);
   }
+});
+
+test('TEST-002 refuses same-name checks from different apps instead of picking the newer foreign provider', t => {
+  const requiredApp = checkRun(1, 'failure', head, {id: 10, slug: 'required-app'});
+  const foreignNewer = checkRun(2, 'success', head, {id: 20, slug: 'foreign-app'});
+  foreignNewer.details_url = 'https://github.com/test/repo/actions/runs/2/job/2';
+  const f = transport(t, [requiredApp, foreignNewer], {
+    required: [{name: 'aggregate', bucket: 'pass'}]
+  });
+  assert.notEqual(watcher(f, true).status, 0);
+  assert.notEqual(releaseReader(f).status, 0);
+  const err = releaseReader(f).stderr + releaseReader(f).stdout;
+  assert.match(err, /ambiguous check name across apps/);
 });
 
 test('TEST-003 captured historical current-head reruns from PR 504', t => {
