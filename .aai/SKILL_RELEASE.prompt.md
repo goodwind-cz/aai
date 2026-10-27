@@ -37,10 +37,9 @@ tag SHA and release URL, cleanup and base sync result. Relay named skips and
 refusals verbatim. On failure stop, report completed irreversible steps and
 show the exact version-specific resume command; never change flags yourself.
 Resume uses durable repository-local metadata and reread remote facts, without
-duplicate PRs, merges, tags or releases. It does not silently absorb a moved
-base: the same version can keep refusing. Operator recovery requires a fresh
-audited cut or deliberate repair of the retained PR/journal, not automatic
-rebase or deletion of progress.
+duplicate PRs, merges, tags or releases. A moved base is re-cut: the same
+version is re-audited, re-rolled, release-preflighted and pushed under a lease,
+keeping its PR. Re-run the same release; never rebase by hand nor delete saved progress.
 
 ## Audit and remote snapshot
 Resolve the authoritative remote base SHA, not a possibly stale tracking ref
@@ -53,7 +52,7 @@ and valid same-line nonempty `no-notes: <reason>` history are exempt. Missing
 history or required PR metadata never guesses clean.
 
 Recheck the audited remote base before resumed preparation, waiting and merge.
-An observed move refuses and retains progress. `--match-head-commit` pins only
+A move seen at merge refuses `base-moved`; the next run re-cuts. `--match-head-commit` pins only
 the PR head: a base push between the last observation and GitHub's merge can
 enter the merge unseen. No atomic base condition, universal audit of eventual
 merge history or publication-prevention guarantee is promised for that race.

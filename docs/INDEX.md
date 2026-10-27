@@ -48,7 +48,7 @@ _None._
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | provider-adapter-registry | provider-adapter-registry | 1 | docs/product/provider-adapter-registry.md |
-| release-command-finish | release-command-finish | 3 | docs/product/release-command-finish.md |
+| release-command-finish | release-command-finish | 4 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | roadmap | roadmap | 1 | docs/product/roadmap.md |
@@ -58,7 +58,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (583)
+## Done (585)
 
 | ID | Type | Path |
 |---|---|---|
@@ -287,6 +287,7 @@ _None._
 | CHANGE-0227 | issues | docs/issues/CHANGE-0227-merge-cleanup-resolves-framework-friction.md |
 | CHANGE-0228 | issues | docs/issues/CHANGE-0228-provider-adapter-registry-slice.md |
 | CHANGE-0229 | issues | docs/issues/CHANGE-0229-implied-signing-without-links-pr.md |
+| CHANGE-0230 | issues | docs/issues/CHANGE-0230-release-same-version-recovery.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -643,6 +644,7 @@ _None._
 | SPEC-0252 | specs | docs/specs/SPEC-0252-spec-merge-cleanup-resolves-framework-friction.md |
 | SPEC-0253 | specs | docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md |
 | SPEC-0254 | specs | docs/specs/SPEC-0254-spec-implied-signing-without-links-pr.md |
+| SPEC-0255 | specs | docs/specs/SPEC-0255-spec-release-same-version-recovery.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -670,18 +672,19 @@ _None._
 
 _None._
 
-## Deferred items (per-AC, across all specs) (2)
+## Deferred items (per-AC, across all specs) (3)
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
 | SPEC-0245 | Spec-AC-06 | 2026-11-06 | TEST-2210; local paired runs done (31.9% reduction); hosted after rows and suite-weights re-measure pending push |
 | SPEC-0046 | Spec-AC-10 | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
+| SPEC-0255 | Spec-AC-09 | 2026-11-30 | Post-merge live acceptance; verified by the orchestrator before close, not by pre-merge Validation. |
 
 ## Blocked items (per-AC, across all specs) (0)
 
 _None._
 
-## Broken references (514)
+## Broken references (515)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1099,6 +1102,7 @@ _None._
 | tests/skills/test-aai-product-docs.sh | docs/product/widget-export.md | NOT FOUND |
 | tests/skills/test-aai-prompt-diet.sh | docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/change.md | NOT FOUND |
+| tests/skills/test-aai-release.sh | docs/ci-moved.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/direct.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/known.md | NOT FOUND |
 | tests/skills/test-aai-roadmap.sh | docs/issues/CHANGE-0001-none.md | NOT FOUND |
@@ -1234,4 +1238,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-26 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-27 — counts above use this date for overdue checks.

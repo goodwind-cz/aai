@@ -39,6 +39,9 @@ const interval=Number(process.env.AAI_RELEASE_POLL_SECONDS||15);
 const graceRaw=String(process.env.AAI_RELEASE_CHECKS_GRACE_SECONDS??60).trim();
 // Unset or blank means the default; only a plain decimal is a number (no hex, exponent or Infinity), anything else refuses `arguments`.
 const checksGrace=graceRaw===''?60:/^[+-]?(\d+\.?\d*|\.\d+)$/.test(graceRaw)?Number(graceRaw):NaN;
+const preflightRaw=String(process.env.AAI_RELEASE_PREFLIGHT_SECONDS??900).trim();
+// Same plain-decimal rule as the grace parse; blank means the default 900.
+const preflightSeconds=preflightRaw===''?900:/^[+-]?(\d+\.?\d*|\.\d+)$/.test(preflightRaw)?Number(preflightRaw):NaN;
 function refuse(cause,detail) {const e=new Error(detail);e.causeName=cause;throw e;}
 // Not a refusal: the release is progressing remotely (exit 8, the gh pending code); resume re-reads it.
 function pending(cause,detail) {const e=new Error(detail);e.causeName=cause;e.pending=true;throw e;}
@@ -55,13 +58,20 @@ function json(...args){const s=gh(...args);try{return JSON.parse(s);}catch{refus
 function sha(value,name){if(!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(value||''))refuse('empty-sha',`${name} did not return a full SHA`);return value;}
 function privateFile(write){const prior=process.umask(0o077);try{return write();}finally{process.umask(prior);}}
 function atomicSave(){privateFile(()=>atomicWrite(journal,JSON.stringify(record,null,2)+'\n'));}
+const fullSha=v=>/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v||'');
+const exactKeys=(o,keys)=>o!==null&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).sort().join()===[...keys].sort().join();
+// Additive journal keys (a journal without them loads unchanged); unknown keys inside either shape make the journal corrupt.
+const recutShape=o=>exactKeys(o,['fromBase','fromHead'])&&fullSha(o.fromBase)&&(o.fromHead===null||fullSha(o.fromHead));
+const recutsShape=o=>exactKeys(o,['fromBase','toBase','fromHead','toHead','at'])&&[o.fromBase,o.toBase,o.toHead].every(fullSha)&&(o.fromHead===null||fullSha(o.fromHead))&&typeof o.at==='string'&&!Number.isNaN(Date.parse(o.at));
 function journalShape(value){
  return value!==null&&typeof value==='object'&&!Array.isArray(value)&&
  ['version','repo','origin','base','baseRef','baseHead','branch','notes','content','stage'].every(k=>typeof value[k]==='string'&&value[k].length>0)&&
  /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(value.baseHead)&&
  [value.head,value.merge].every(v=>v===null||/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v||''))&&
  (value.pr===null||Number.isSafeInteger(value.pr)&&value.pr>0)&&
- ['initialized','worktree','payload','prepared','pushed','pr','merged','workflow','verified','remote-deleted','local-deleted','synced'].includes(value.stage);
+ (value.superseded===undefined||Array.isArray(value.superseded)&&value.superseded.every(fullSha))&&
+ (value.recut===undefined||value.recut===null||recutShape(value.recut))&&(value.recuts===undefined||Array.isArray(value.recuts)&&value.recuts.every(recutsShape))&&
+ ['initialized','recut','worktree','payload','prepared','pushed','pr','merged','workflow','verified','remote-deleted','local-deleted','synced'].includes(value.stage);
 }
 function claimShape(value){return value!==null&&typeof value==='object'&&Number.isSafeInteger(value.pid)&&value.pid>0&&typeof value.host==='string'&&/^[a-f0-9]{32}$/.test(value.token||'')&&value.version===version;}
 function deadOwner(owner){
@@ -349,7 +359,128 @@ function authoritativeBase(base,obtainObjects){
  return head;
 }
 function unchangedBase(){
- if(authoritativeBase(record.base,true)!==record.baseHead)refuse('base-moved','Remote release base differs from the audited payload; retain this journal/PR and prepare a newly audited release before merging');
+ if(authoritativeBase(record.base,true)!==record.baseHead)refuse('base-moved','Remote release base moved while CI ran; re-run this same --version --confirm to re-cut it on the new base');
+}
+const closedPr=()=>`Bound release PR #${record.pr} is closed without merge; reopen it and re-run this same --version`;
+const fixHint=()=>`; fix the failure on ${record.base} and re-run this same --version`;
+// A moved base is not a refusal: the same version is re-cut on it (audit, rollup, preflight, leased push), keeping the PR.
+function recutIfMoved(){
+ if(record.merge)return;
+ const current=authoritativeBase(record.base,true);
+ const moved=current!==record.baseHead||record.recut?current:null;
+ if(moved&&record.pr){
+  const pr=json('pr','view',String(record.pr),'--repo',record.repo,'--json',fields);
+  if(pr.state==='MERGED'){if(record.recut)abandonRecut(pr);return;}
+  if(pr.state!=='OPEN')refuse('identity',closedPr());
+  queuedOrRefuse();
+ }
+ if(moved)recutRelease(moved);
+}
+// A merged release PR is never re-cut (D9): the pending re-cut is dropped and the journal returns to the binding the merged head was cut with.
+function abandonRecut(pr){
+ const cut=record.recut,at=new Date().toISOString();
+ if(record.head&&pr.headRefOid===record.head&&record.head!==cut.fromHead){
+  // The re-cut head was pushed and then merged: the re-cut is complete, only its journal write was missing.
+  record.recuts=[...(record.recuts||[]),{fromBase:cut.fromBase,toBase:record.baseHead,fromHead:cut.fromHead,toHead:record.head,at}];
+  record.recut=null;stage('pr');return;
+ }
+ if(pr.headRefOid!==cut.fromHead)refuse('head-moved',`Merged release PR head ${pr.headRefOid} is neither the journaled head ${cut.fromHead} nor the pending re-cut head ${record.head||'(none)'}`);
+ restoreMergedBinding(cut,false);
+}
+// Returns the journal to the binding a merged head was cut with; the merged head must carry the rollup of that binding's base.
+function restoreMergedBinding(cut,dropLastRecut){
+ const rolled=rollup(blob(`${cut.fromBase}:CHANGELOG.md`));
+ const merged=command('git',['cat-file','blob',`${cut.fromHead}:CHANGELOG.md`],root,true);
+ if(merged.status!==0||merged.stdout!==rolled.content)refuse('identity','Merged release head does not carry the rollup of the journaled base; preserve the journal for recovery');
+ const ref=`refs/heads/${record.branch}`,local=command('git',['rev-parse','--verify',ref],root,true);
+ const localHead=local.status===0?local.stdout.trim():'';
+ const ours=!localHead||localHead===cut.fromHead||[record.head,record.baseHead,cut.fromBase].includes(localHead)||(command('git',['rev-parse',localHead+'^'],root,true).stdout.trim()===record.baseHead&&command('git',['log','-1','--format=%s',localHead],root,true).stdout.trim()===`chore(release): ${version}`);
+ if(!ours)refuse('head-moved',`Local ${ref} is ${localHead}, not a head of this release`);
+ if(record.worktree){
+  if(worktreeBlock(git('worktree','list','--porcelain'),record.worktree))command('git',['worktree','remove','--force',record.worktree]);
+  fs.rmSync(record.worktree,{recursive:true,force:true});record.worktree=null;
+ }
+ if(localHead&&localHead!==cut.fromHead)command('git',['update-ref','-d',ref,localHead]);
+ if(dropLastRecut){const gone=record.recuts[record.recuts.length-1];record.recuts=record.recuts.slice(0,-1);record.superseded=[...(record.superseded||[]),gone.toHead];}
+ Object.assign(record,{baseHead:cut.fromBase,head:cut.fromHead,content:rolled.content,notes:rolled.notes,recut:null});
+ stage('pr');
+}
+// The PR was read OPEN before the preflight; it is read again right before the leased push, and a PR that is no longer OPEN is never pushed to or edited.
+function settlePrAfterPreflight(){
+ const pr=json('pr','view',String(record.pr),'--repo',record.repo,'--json',fields);
+ if(pr.state==='MERGED'){abandonRecut(pr);return;}
+ refuse('identity',pr.state==='CLOSED'?closedPr():`Release PR #${record.pr} changed state while the re-cut was prepared; re-run this same --version`);
+}
+function recutRelease(newBase){
+ const ref=`refs/heads/${record.branch}`;
+ const live=remoteHead(ref);
+ // In memory until the journal write below: a refusing guard leaves the journal byte-identical.
+ if(!record.recut)record.recut={fromBase:record.baseHead,fromHead:live===''&&!record.pr?null:record.head};
+ const tagSeen=Boolean(remoteHead(`refs/tags/${version}`))||command('git',['rev-parse','--verify',`refs/tags/${version}`],root,true).status===0;
+ if(tagSeen)refuse('tag-exists',`Tag ${version} exists; a published version is never re-cut`);
+ const descends=command('git',['merge-base','--is-ancestor',record.baseHead,newBase],root,true).status===0;
+ if(!descends)refuse('base-rewritten',`Remote ${record.base} no longer contains the audited base ${record.baseHead}`);
+ const remote=live||null;
+ const allowedHeads=[record.recut.fromHead,...(record.head?[record.head]:[])];
+ if(!allowedHeads.includes(remote))refuse('head-moved',`Remote release head ${remote||'(absent)'} is neither the journaled head ${record.recut.fromHead||'(never pushed)'} nor the pending re-cut head ${record.head||'(none)'}`);
+ if(newBase===record.baseHead)return;
+ if(record.head&&remote===record.head&&record.head!==record.recut.fromHead){
+  // A pending re-cut that was pushed before its journal write: fold it in, so the next lease is on the pushed head.
+  record.recuts=[...(record.recuts||[]),{fromBase:record.recut.fromBase,toBase:record.baseHead,fromHead:record.recut.fromHead,toHead:record.head,at:new Date().toISOString()}];
+  record.recut={fromBase:record.baseHead,fromHead:record.head};
+ }
+ const local=command('git',['rev-parse','--verify',ref],root,true);
+ const localHead=local.status===0?local.stdout.trim():'';
+ if(localHead&&![record.head,record.baseHead].includes(localHead))refuse('head-moved',`Local ${ref} is ${localHead}, not the journaled ${record.head||record.baseHead}`);
+ const rolled=rollup(blob(`${newBase}:CHANGELOG.md`));
+ const missing=audit(rolled.notes,true,newBase);if(missing.length)refuse('missing-notes',missing.join('; '));
+ if(authoritativeBase(record.base,true)!==newBase)refuse('base-moved','Remote release base moved during notes audit; retry confirmation');
+ if(record.worktree){
+  if(worktreeBlock(git('worktree','list','--porcelain'),record.worktree))command('git',['worktree','remove','--force',record.worktree]);
+  record.worktree=null;
+ }
+ // Compare-and-swap from the journaled tip: a local branch that moved meanwhile makes git refuse.
+ if(localHead)command('git',['update-ref','-d',ref,localHead]);
+ Object.assign(record,{baseHead:newBase,content:rolled.content,notes:rolled.notes,head:null});
+ stage('recut');
+}
+// Release preflight: the tracked node tests that read CHANGELOG run against the rolled tree before any push of a release head.
+function preflightRun(commit,file){
+ const wt=fs.mkdtempSync(path.join(os.tmpdir(),'aai-release-pf.'));
+ try{
+  command('git',['worktree','add','-q','--detach',wt,commit]);
+  // Own process group: the timeout kills only the runner, so the whole group is killed afterwards (POSIX). Windows has no group; taskkill /T reaches only children the dead runner still parents, a documented limit.
+  const r=spawnSync(process.execPath,['--test',file],{cwd:wt,encoding:'utf8',timeout:preflightSeconds*1000,killSignal:'SIGKILL',maxBuffer:8*1024*1024,detached:process.platform!=='win32'});
+  const timedOut=Boolean(r.error&&r.error.code==='ETIMEDOUT');
+  if(r.pid){if(process.platform==='win32'){if(timedOut)spawnSync('taskkill',['/PID',String(r.pid),'/T','/F'],{windowsHide:true});}else{try{process.kill(-r.pid,'SIGKILL');}catch{}}}
+  return {ok:!r.error&&r.status===0,timedOut,tail:`${r.stdout||''}${r.stderr||''}`.trim().split('\n').slice(-20).join('\n')};
+ }finally{
+  command('git',['worktree','remove','--force',wt],root,true);
+  fs.rmSync(wt,{recursive:true,force:true});
+ }
+}
+function releasePreflight(){
+ const tracked=git('ls-tree','-r','-z','--name-only',record.head).split('\0').filter(Boolean).filter(p=>p.split('/').includes('tests')&&p.endsWith('.test.mjs'));
+ const files=tracked.filter(p=>{const text=blob(`${record.head}:${p}`);return text.includes('CHANGELOG');});
+ if(!files.length){console.log('- Release preflight: SKIPPED (no tracked tests/**/*.test.mjs reads CHANGELOG)');return;}
+ let passed=0;
+ for(const file of files){
+  const rolled=preflightRun(record.head,file);
+  if(rolled.ok){passed++;continue;}
+  const baseFails=!preflightRun(record.baseHead,file).ok;
+  if(!baseFails)refuse('release-preflight',`${file} fails only on the rolled payload${rolled.timedOut?` (timed out after ${preflightSeconds}s)`:''}; last 20 output lines:\n${rolled.tail}`);
+  console.log(`- Release preflight: ${file} FAILS ON BASE TOO (not caused by the rollup; CI decides)`);
+ }
+ console.log(`- Release preflight: ${passed} of ${files.length} file(s) passed on the rolled payload`);
+}
+// The one place a release head is pushed (first cut and re-cut): preflight first, then the leased push.
+function pushRelease(){
+ releasePreflight();
+ if(record.pr&&json('pr','view',String(record.pr),'--repo',record.repo,'--json',fields).state!=='OPEN')return false;
+ const branch=record.branch;
+ const lease=record.recut&&record.recut.fromHead?`--force-with-lease=refs/heads/${branch}:${record.recut.fromHead}`:`--force-with-lease=refs/heads/${branch}:`;
+ command('git',['push','--no-follow-tags',lease,'origin',`${record.head}:refs/heads/${branch}`]);
+ return true;
 }
 // A merge queue only enqueues: an OPEN PR that is in the queue is pending, not refused. An armed auto-merge alone is not a queue; its checks are still evaluated.
 function queuedOrRefuse(){
@@ -426,7 +557,7 @@ function awaitContexts(contexts) {
  for(;;){
   const settled=requiredChecks();
   const bad=settled.filter(c=>!['pass','pending'].includes(c.bucket));
-  if(bad.length)refuse('required-checks',`Required check not passing: ${bad.map(c=>`${c.name} (${c.bucket})`).join(', ')}`);
+  if(bad.length)refuse('required-checks',`Required check not passing: ${bad.map(c=>`${c.name} (${c.bucket})`).join(', ')}${fixHint()}`);
   const unsettled=contexts.filter(n=>!settled.some(c=>c.name===n&&c.bucket==='pass'));
   const waiting=settled.filter(c=>c.bucket==='pending').map(c=>c.name);
   if(!unsettled.length&&!waiting.length)return settled;
@@ -436,6 +567,7 @@ function awaitContexts(contexts) {
 }
 async function main(){
  if(!Number.isFinite(maxWait)||maxWait<0||!Number.isFinite(interval)||interval<0||!Number.isFinite(checksGrace)||checksGrace<0)refuse('arguments','Invalid wait interval');
+ if(!Number.isFinite(preflightSeconds)||preflightSeconds<=0)refuse('arguments','Invalid AAI_RELEASE_PREFLIGHT_SECONDS');
  root=git('rev-parse','--show-toplevel');
  if(auditOnly){const local=releaseBase();const head=onlineAudit?authoritativeBase(local.base,false):local.baseHead;const missing=audit(fs.readFileSync(auditFile,'utf8'),onlineAudit,head);for(const item of missing)console.log(item);return;}
  if(!confirmed)refuse('confirmation','Explicit --confirm is required for release mutations');
@@ -459,11 +591,11 @@ async function main(){
   if(remoteHead(`refs/tags/${version}`)||command('git',['rev-parse','--verify',`refs/tags/${version}`],root,true).status===0)refuse('tag-exists',`Tag ${version} exists without a matching journal`);
   const rolled=rollup(blob(`${baseHead}:CHANGELOG.md`));const missing=audit(rolled.notes,true,baseHead);if(missing.length)refuse('missing-notes',missing.join('; '));
   if(authoritativeBase(base,true)!==baseHead)refuse('base-moved','Remote release base moved during notes audit; retry confirmation');
-  const ambiguous=json('pr','list','--repo',repo,'--head',branch,'--state','all','--json',fields);if(Array.isArray(ambiguous)&&ambiguous.length===1&&ambiguous[0].state==='CLOSED')refuse('identity',`Release PR #${ambiguous[0].number} on ${branch} is closed without a matching journal; cut this release under a new --version`);if(!Array.isArray(ambiguous)||ambiguous.length)refuse('identity','Existing or ambiguous release PR has no matching journal');
+  const ambiguous=json('pr','list','--repo',repo,'--head',branch,'--state','all','--json',fields);if(Array.isArray(ambiguous)&&ambiguous.length===1&&ambiguous[0].state==='CLOSED')refuse('identity',`Release PR #${ambiguous[0].number} on ${branch} is closed without a matching journal; delete branch ${branch} and re-run this same --version`);if(!Array.isArray(ambiguous)||ambiguous.length)refuse('identity','Existing or ambiguous release PR has no matching journal');
   record={version,repo,origin,base,baseRef,baseHead,branch,notes:rolled.notes,content:rolled.content,head:null,pr:null,merge:null,stage:'initialized'};
   fs.mkdirSync(path.dirname(journal),{recursive:true});atomicSave();
  }
- if(!record.pr)unchangedBase();
+ recutIfMoved();
  if(!record.head){
   const existing=command('git',['rev-parse','--verify',`refs/heads/${branch}`],root,true);
   if(existing.status===0&&existing.stdout.trim()!==record.baseHead){
@@ -504,22 +636,47 @@ async function main(){
  }
  if(!record.pr)stage('prepared');
  sha(record.head,'journal release');
+ if(record.recut){
+  if(remoteHead(`refs/heads/${branch}`)!==record.head&&!pushRelease())settlePrAfterPreflight();
+  else{
+   record.recuts=record.recuts||[];
+   record.recuts.push({fromBase:record.recut.fromBase,toBase:record.baseHead,fromHead:record.recut.fromHead,toHead:record.head,at:new Date().toISOString()});
+   record.recut=null;stage('pushed');
+  }
+ }
+ if(record.pr&&record.stage==='pushed'&&(record.recuts||[]).length){
+  // The PR follows the branch: GitHub updates its head asynchronously, so wait for it before rewriting the body and reading checks.
+  const followed=boundedPoll(()=>json('pr','view',String(record.pr),'--repo',repo,'--json',fields),p=>p.state!=='OPEN'||p.headRefOid===record.head,'identity');
+  if(followed.state!=='OPEN'){
+   // Merged or closed while the push propagated: never edit it; the bound head decides what continues.
+   if(followed.headRefOid!==record.head){
+    // GitHub completed a merge of the previous head while the re-cut was pushed: return to that binding and publish the merged head.
+    const last=record.recuts[record.recuts.length-1];
+    if(followed.state==='MERGED'&&last.fromHead&&followed.headRefOid===last.fromHead)restoreMergedBinding({fromBase:last.fromBase,fromHead:last.fromHead},true);
+    else refuse('identity',`Release PR #${record.pr} is ${followed.state} on ${followed.headRefOid}, not on the re-cut head ${record.head}; preserve the journal for recovery`);
+   }else{record.stage='pr';atomicSave();}
+  }else{
+  const edited=path.join(path.dirname(journal),'body-'+crypto.randomBytes(6).toString('hex')+'.md');
+  try{fs.writeFileSync(edited,`Automated release cut for ${version}.\n\nBound release: ${repo} ${branch} ${record.head}.\n\nno-notes: release rollup contains the previously recorded entries.\n`+record.recuts.map(e=>`\nRe-cut: ${e.fromHead} on ${e.fromBase} -> ${e.toHead} on ${e.toBase}.\n`).join(''));gh('pr','edit',String(record.pr),'--repo',repo,'--body-file',edited);}finally{fs.unlinkSync(edited);}
+  record.stage='pr';atomicSave();
+  }
+ }
  let prs=json('pr','list','--repo',repo,'--head',branch,'--state','all','--json',fields);if(!Array.isArray(prs)||prs.length>1)refuse('identity','Ambiguous release PRs');
  let pr=prs.length?identity(prs[0]):null;
  if(record.pr&&!pr)refuse('identity','Journal PR no longer exists');
  if(!pr){
   const head=remoteHead(`refs/heads/${branch}`);if(head&&head!==record.head)refuse('head-moved','Remote release head moved');
-  if(!head)command('git',['push','--no-follow-tags',`--force-with-lease=refs/heads/${branch}:`,'origin',`${record.head}:refs/heads/${branch}`]);stage('pushed');
+  if(!head)pushRelease();stage('pushed');
   const body=path.join(path.dirname(journal),'body-'+crypto.randomBytes(6).toString('hex')+'.md');
   try{fs.writeFileSync(body,`Automated release cut for ${version}.\n\nBound release: ${repo} ${branch} ${record.head}.\n\nno-notes: release rollup contains the previously recorded entries.\n`);const url=gh('pr','create','--repo',repo,'--base',record.base,'--head',branch,'--title',`chore(release): ${version}`,'--body-file',body);if(!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/.test(url))refuse('empty-pr-url','PR creation did not return a valid URL');}finally{fs.unlinkSync(body);}
   prs=json('pr','list','--repo',repo,'--head',branch,'--state','all','--json',fields);if(prs.length!==1)refuse('identity','Could not bind unique created PR');pr=identity(prs[0]);record.pr=pr.number;stage('pr');
  }else{record.pr=pr.number;atomicSave();}
  if(pr.state!=='MERGED'){
-  if(pr.state!=='OPEN')refuse('identity',`Bound release PR #${record.pr} is closed without merge; reopen it to resume, or cut a fresh audited release under a new --version`);
+  if(pr.state!=='OPEN')refuse('identity',closedPr());
   queuedOrRefuse();
   unchangedBase();
   const contexts=requiredContexts();
-  const required=registeredChecks();if(!Array.isArray(required)||!required.length||required.some(c=>!['pass','pending'].includes(c.bucket))){const bad=Array.isArray(required)?required.filter(c=>!['pass','pending'].includes(c.bucket)).map(c=>`${c.name} (${c.bucket})`):[];refuse('required-checks','Required checks missing, skipped or failed'+(bad.length?': '+bad.join(', '):''));}
+  const required=registeredChecks();if(!Array.isArray(required)||!required.length||required.some(c=>!['pass','pending'].includes(c.bucket))){const bad=Array.isArray(required)?required.filter(c=>!['pass','pending'].includes(c.bucket)).map(c=>`${c.name} (${c.bucket})`):[];refuse('required-checks','Required checks missing, skipped or failed'+(bad.length?': '+bad.join(', '):'')+fixHint());}
   console.log(`release: waiting for required CI on PR #${record.pr}`);
   const watcher=spawnSync(process.execPath,[path.join(here,'watch-ci.mjs'),'--pr',String(record.pr),'--required','--interval-seconds',String(interval),'--max-wait-seconds',String(maxWait)],{cwd:root,encoding:'utf8',timeout:(maxWait+15)*1000,stdio:['ignore','inherit','pipe']});
   if(watcher.error||watcher.status!==0)refuse('ci',watcher.error?.message||trim(watcher.stderr||'CI watcher failed'));
@@ -546,7 +703,7 @@ async function main(){
  const tags=git('ls-remote','--tags','origin',`refs/tags/${version}`,`refs/tags/${version}^{}`).split('\n').filter(Boolean);const peeled=tags.find(l=>l.endsWith(`refs/tags/${version}^{}`));if(!peeled||peeled.split(/\s/)[0]!==record.merge)refuse('tag-mismatch','Peeled remote tag does not equal merged release SHA');
  const release=json('release','view',version,'--repo',repo,'--json','body,url');if(typeof release.body!=='string'||trim(release.body)!==trim(record.notes))refuse('notes-mismatch','Published release body differs from rolled notes');if(!/^https:\/\/github\.com\//.test(release.url||''))refuse('release-url','Published release URL is missing');record.releaseUrl=release.url;stage('verified');
  const dependents=json('pr','list','--repo',repo,'--base',branch,'--state','open','--json','number');if(!Array.isArray(dependents)||dependents.length)refuse('dependent-pr','Release branch has dependent PRs');
- const head=remoteHead(`refs/heads/${branch}`);if(head&&head!==record.head)refuse('cleanup-head-moved','Release branch moved before deletion');if(head)command('git',['push',`--force-with-lease=refs/heads/${branch}:${record.head}`,'origin',`:refs/heads/${branch}`]);stage('remote-deleted');
+ const head=remoteHead(`refs/heads/${branch}`);if(head&&head!==record.head&&!(record.superseded||[]).includes(head))refuse('cleanup-head-moved','Release branch moved before deletion');if(head)command('git',['push',`--force-with-lease=refs/heads/${branch}:${head}`,'origin',`:refs/heads/${branch}`]);stage('remote-deleted');
  const local=command('git',['rev-parse','--verify',`refs/heads/${branch}`],root,true);if(local.status===0){if(local.stdout.trim()!==record.head)refuse('cleanup-local-head','Local release branch moved');if(git('worktree','list','--porcelain').split('\n').map(l=>l.trimEnd()).includes(`branch refs/heads/${branch}`))refuse('cleanup-worktree','Release branch is checked out');command('git',['update-ref','-d',`refs/heads/${branch}`,record.head]);}stage('local-deleted');
  await syncBase();console.log(`## aai-release — complete\n- Version: ${version}\n- PR: ${pr.url}\n- Merge SHA: ${record.merge}\n- Tag SHA: ${record.merge}\n- Release: ${record.releaseUrl}\n- Branch: deleted`);
 }

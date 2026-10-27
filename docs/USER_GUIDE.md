@@ -740,10 +740,11 @@ snapshot before creating release refs or a PR, including executable-mode
 changes. Missing notes or missing required history/metadata refuse.
 
 Confirmation authorizes only the bound release PR/head, with all required
-checks passing and no auto/admin bypass. Observed base moves refuse and retain
-progress; repeating the printed explicit version resumes missing stages but
-can keep refusing a moved base. A fresh audited cut or deliberate operator
-repair is required in that case. The final base observation and GitHub merge
+checks passing and no auto/admin bypass. Repeating the printed explicit version
+resumes missing stages; if the base moved, that same version is re-cut on the
+new base (re-audit, rollup, release-preflight, leased push, same PR). A base
+move seen after the CI wait refuses `base-moved` and the next run re-cuts. A
+merged PR, a published tag or a rewritten base is never re-cut. The final base observation and GitHub merge
 are separate: a base push in between may enter the merge unseen. The command
 does not promise atomic base pinning or rollback of a merged PR/published tag.
 
@@ -2814,6 +2815,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Complete and resume a release
+
+The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
+
+[Product doc](product/release-command-finish.md) · [Spec](specs/SPEC-0233-spec-release-command-finish.md)
+
 ### Merge a named pull request and clean up after it
 
 `/aai-merge <PR>` finishes a ride in one step. It checks the pull request you named, merges it only because you asked for that exact pull request, and then cleans up after it. For an already merged pull request it does the cleanup alone.
@@ -2843,12 +2850,6 @@ CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on 
 A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, and root executables. Documentation, tests, and evidence-only changes are exempt. An old unchanged entry, an empty scaffold, and a blank reason do not count.
 
 [Product doc](product/release-notes-gate.md) · [Spec](specs/SPEC-0229-spec-release-notes-gate.md)
-
-### Complete and resume a release
-
-The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
-
-[Product doc](product/release-command-finish.md) · [Spec](specs/SPEC-0233-spec-release-command-finish.md)
 
 ### Platform-portable PR ceremony
 

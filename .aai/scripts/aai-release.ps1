@@ -16,6 +16,9 @@
 #   $env:AAI_RELEASE_DATE="2026-07-20"; ./.aai/scripts/aai-release.ps1 -DryRun
 #   $env:AAI_RELEASE_NO_REMOTE="1"; ./.aai/scripts/aai-release.ps1 -Confirm
 #
+# Remote -Confirm re-cuts a moved base under the same version (release-finish.mjs).
+# Every release-head push first runs the release-preflight (tracked CHANGELOG node tests).
+#
 # Exit codes: 0 success (plan or cut) | 1 bad argument | 10 not a git repo |
 #   11 no CHANGELOG.md | 12 malformed [unreleased] region | 13 no rollable
 #   [unreleased] entries (absent/empty) | 15 tag already exists (cut path) |

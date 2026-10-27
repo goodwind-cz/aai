@@ -1402,6 +1402,7 @@ function fixture(mode='',baseChangelog=null,opts={}) {
  fs.writeFileSync(path.join(repo,'CHANGELOG.md'),baseChangelog??'# Changelog\n\n## [unreleased] — feat: alpha (#101)\n\n- alpha\n\n## [unreleased] — fix: beta (#102)\n\n- beta\n\n## [v0] — old\n- old\n');
  fs.mkdirSync(path.join(repo,'.github/workflows'),{recursive:true}); const workflow=fs.readFileSync(path.join(root,'.github/workflows/release.yml'),'utf8');fs.writeFileSync(path.join(repo,'.github/workflows/release.yml'),workflow);
  const shell=workflow.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');fs.writeFileSync(path.join(d,'publish.sh'),shell);
+ for(const [rel,content] of Object.entries(opts.files||{})){fs.mkdirSync(path.dirname(path.join(repo,rel)),{recursive:true});fs.writeFileSync(path.join(repo,rel),content);}
  fs.writeFileSync(path.join(repo,'keep.txt'),'keep\n');git('add','.');git('commit','-qm','seed');git('tag','v0');git('push','-q','origin','main','--tags');
  if(opts.hook){
   // The hook body the installer ships, under a fixture-owned LOCAL core.hooksPath (never the machine's global one).
@@ -1409,7 +1410,7 @@ function fixture(mode='',baseChangelog=null,opts={}) {
   fs.writeFileSync(path.join(hooks,'reference-transaction'),run('bash',[path.join(root,'.aai/scripts/install-pre-commit-hook.sh'),'--print','ref-guard'],root)+'\n',{mode:0o755});
   git('config','--local','core.hooksPath',hooks);
  }
- const state=path.join(d,'transport.json');fs.writeFileSync(state,JSON.stringify({mode,calls:[],prs:[],releases:{}}));
+ const state=path.join(d,'transport.json');fs.writeFileSync(state,JSON.stringify({mode,calls:[],prs:[],releases:{},x:opts.x||[],follow:Boolean(opts.follow||(opts.x&&opts.x.length))}));
  const stub=String.raw`#!/usr/bin/env node
 const fs=require('fs'),cp=require('child_process'),path=require('path');
 const f=process.env.TRANSPORT, s=JSON.parse(fs.readFileSync(f)), a=process.argv.slice(2), repo=process.env.FIXTURE_REPO, origin=process.env.FIXTURE_ORIGIN;
@@ -1420,6 +1421,12 @@ const eq=x=>JSON.stringify(a)===JSON.stringify(x);
 const get=x=>a[a.indexOf(x)+1];
 const fields='number,url,title,baseRefName,headRefName,headRefOid,state,mergeCommit,headRepository,isCrossRepository';
 const releasePr=()=>s.prs.find(p=>p.headRefName==='chore/release-v1');
+// release-same-version-recovery: extra modes (s.x) and GitHub's PR head following the branch (asynchronously under head-lag).
+const X=m=>(s.x||[]).includes(m);
+const originHead=()=>{const r=cp.spawnSync('git',['rev-parse','refs/heads/chore/release-v1'],{cwd:origin,encoding:'utf8'});return r.status?'':r.stdout.trim()};
+// merged-old-head: GitHub completes a squash merge of the head it still reports while the branch is already force-pushed; merged-foreign-head: it reports MERGED on a head the journal never held.
+function mergeOldHead(p){const d=fs.mkdtempSync(path.join(path.dirname(f),'old-merge.')),c=path.join(d,'runner');const g=(cwd,...x)=>{const r=cp.spawnSync('git',x,{cwd,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};g(d,'clone','-q',origin,c);g(c,'checkout','-q','main');g(c,'config','user.name','CI');g(c,'config','user.email','ci@test.invalid');g(c,'merge','--squash',p.headRefOid);g(c,'commit','-qm','chore(release): v1');const oid=g(c,'rev-parse','HEAD');g(c,'push','-q','origin','main');p.state='MERGED';p.mergeCommit={oid};s.runner=c;save();}
+function follow(){if(!s.follow)return;const p=releasePr();if(!p||p.state!=='OPEN')return;const actual=originHead();if(actual&&actual!==p.headRefOid){if(X('merged-old-head')){mergeOldHead(p);return;}if(X('merged-foreign-head')){p.state='MERGED';p.headRefOid='e'.repeat(40);p.mergeCommit={oid:'d'.repeat(40)};save();return;}if(X('head-lag')){s.lagged=s.lagged||{};if(!s.lagged[actual]){s.lagged[actual]=1;save();return;}}p.headRefOid=actual;save();}}
 const git=(...x)=>{const r=cp.spawnSync('git',x,{cwd:repo,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};
 function save(){fs.writeFileSync(f,JSON.stringify(s))}
 // release-one-shot-finish: the stub describes the base branch policy through the endpoints AND enforces the same set at merge time, as GitHub does.
@@ -1459,6 +1466,7 @@ else if(a[0]==='pr'&&a[1]==='view') {
  const p=s.prs.find(p=>String(p.number)===a[2]);if(!p)die('unknown PR');
  const expected=p.headRefName==='chore/release-v1'?['pr','view','1','--repo','test/release','--json',fields]:['pr','view',String(p.number),'--json','body,files'];
  if(!eq(expected))die('bad view argv');
+ if(p.headRefName==='chore/release-v1')follow();
  if(s.mode==='head'&&p.headRefName==='chore/release-v1'){const r=cp.spawnSync('git',['update-ref','refs/heads/'+p.headRefName,git('rev-parse','HEAD')],{cwd:origin,encoding:'utf8'});if(r.status)die(r.stderr);s.movedHead=true;save();}
  out(p);
 }
@@ -1468,7 +1476,7 @@ else if(a[0]==='pr'&&a[1]==='list') {
  const release=eq(['pr','list','--repo','test/release','--head','chore/release-v1','--state','all','--json',fields]);
  if(!dependent&&!release)die('bad list argv');
  if(dependent){if(s.mode==='cleanup-head'){const p=releasePr();const r=cp.spawnSync('git',['update-ref','refs/heads/'+p.headRefName,p.mergeCommit.oid],{cwd:origin,encoding:'utf8'});if(r.status)die(r.stderr);}out(s.mode==='dependent'?[{number:99}]:[]);}
- else if(s.mode==='ambiguous')out([{number:7},{number:8}]);else out(s.prs.filter(p=>p.headRefName==='chore/release-v1'));
+ else if(s.mode==='ambiguous')out([{number:7},{number:8}]);else{follow();out(s.prs.filter(p=>p.headRefName==='chore/release-v1'));}
 }
 else if(a[0]==='pr'&&a[1]==='create') {
  if(s.mode==='hold-pr'&&!fs.existsSync(path.join(path.dirname(f),'pr-held'))){fs.writeFileSync(path.join(path.dirname(f),'pr-held'),'held');while(!fs.existsSync(path.join(path.dirname(f),'pr-go')))Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);}
@@ -1496,13 +1504,14 @@ else if(a[0]==='pr'&&a[1]==='create') {
  if(s.mode==='checks-error'){out([{name:'required',bucket:'pass',link:''}]);process.exit(3);}
  if(s.mode==='pending-empty'){out([]);process.exit(8);}
  if(s.mode==='pending-malformed'){out('not JSON');process.exit(8);}
- if(s.mode==='base-move'&&!s.baseMoved){
+ if((s.mode==='base-move'||X('base-move-docs'))&&!s.baseMoved){
   const d=path.join(path.dirname(f),'ci-writer');git('clone','-q',origin,d);
   const g=(...x)=>{const r=cp.spawnSync('git',x,{cwd:d,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};
   g('checkout','-q','main');g('config','user.name','Writer');g('config','user.email','writer@test.invalid');
-  fs.mkdirSync(path.join(d,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(d,'.aai/scripts/ci-unnoted.mjs'),'new behavior\n');g('add','.');g('commit','-qm','feat: during CI (#211)');g('push','-q','origin','main');s.baseMoved=true;save();
+  if(X('base-move-docs')){fs.mkdirSync(path.join(d,'docs'),{recursive:true});fs.writeFileSync(path.join(d,'docs/ci-moved.md'),'moved during CI\n');g('add','.');g('commit','-qm','docs: moved during CI (#211)');}else{fs.mkdirSync(path.join(d,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(d,'.aai/scripts/ci-unnoted.mjs'),'new behavior\n');g('add','.');g('commit','-qm','feat: during CI (#211)');}g('push','-q','origin','main');s.baseMoved=true;save();
  }
  let bucket=s.mode==='ci'?'fail':'pass';
+ if(X('ci-first-head')){s.firstHead=s.firstHead||originHead();save();if(originHead()===s.firstHead)bucket='fail';}
  if(s.mode==='pending'||s.mode==='pending-forever'){
   s.checkPolls=(s.checkPolls||0)+1;bucket=s.mode==='pending-forever'||s.checkPolls<=2?'pending':'pass';save();
  }
@@ -1528,6 +1537,12 @@ else if(a[0]==='pr'&&a[1]==='create') {
  const release=s.releases.v1;if(!release)process.exit(1);out(client?release:'release exists');
 }
 else if(a[0]==='release'&&a[1]==='create') {const notes=get('--notes-file');if(s.mode==='create-error'){process.stderr.write('workflow publication failure control\n');process.exit(7);}if(!eq(['release','create','v1','--title','v1','--notes-file',notes])||!notes||!path.isAbsolute(notes)||!fs.existsSync(notes))die('bad release create argv');if(fs.realpathSync(path.dirname(notes))!==fs.realpathSync(path.dirname(f))||fs.readFileSync(notes,'utf8').trim()!==(s.notes||'## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta'))die('bad notes file binding/content'); s.releases[a[2]]={body:fs.readFileSync(get('--notes-file'),'utf8'),url:'https://github.com/test/release/releases/tag/'+a[2]};if(s.mode==='notes')s.releases[a[2]].body='wrong';save();out(s.releases[a[2]].url)}
+else if(a[0]==='pr'&&a[1]==='edit') {
+ const body=get('--body-file');const journal=path.join(fs.realpathSync(path.resolve(repo,git('rev-parse','--git-common-dir'))),'aai/releases');
+ if(!eq(['pr','edit','1','--repo','test/release','--body-file',body])||!body||path.dirname(body)!==journal||!/^body-[a-f0-9]{12}\.md$/.test(path.basename(body)))die('bad edit argv');
+ const p=releasePr();if(s.follow&&p.headRefOid!==originHead())die('pr edit before the PR head followed the branch');
+ s.edits=s.edits||[];s.edits.push({body:fs.readFileSync(body,'utf8'),head:p.headRefOid});save();
+}
 else die(JSON.stringify(a));
 `;
  fs.writeFileSync(path.join(bin,'gh'),stub,{mode:0o755});
@@ -1543,6 +1558,14 @@ if [ -n "$FIXTURE_GIT_LOG" ]; then
 fi
 if [ "$FIXTURE_MODE" = "lease-race" ] && [ "$1" = "push" ] && [ "$4" = ":refs/heads/chore/release-v1" ]; then
   "${realGit}" -C "$FIXTURE_ORIGIN" update-ref refs/heads/chore/release-v1 refs/heads/main
+fi
+if [ -n "$FIXTURE_X" ] && [ "$1" = "push" ]; then
+  case ",$FIXTURE_X," in
+    *,recut-lease-race,*)
+      case "$3" in
+        --force-with-lease=refs/heads/chore/release-v1:?*) "${realGit}" -C "$FIXTURE_ORIGIN" update-ref refs/heads/chore/release-v1 refs/heads/main ;;
+      esac ;;
+  esac
 fi
 if [ "$FIXTURE_MODE" = "late-base" ] && [ "$*" = "ls-remote origin refs/heads/main" ]; then
   count=0
@@ -1561,7 +1584,7 @@ if [ "$*" = "remote get-url origin" ]; then printf '%s\\n' https://github.com/te
   run('git',['checkout','-q','main'],lateWriter);run('git',['config','user.name','Late Writer'],lateWriter);run('git',['config','user.email','late@test.invalid'],lateWriter);
   fs.mkdirSync(path.join(lateWriter,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(lateWriter,'.aai/scripts/last-window.mjs'),'new late behavior\n');run('git',['add','.'],lateWriter);run('git',['commit','-qm','feat: final observation window (#212)'],lateWriter);
  }
- const env={FIXTURE_LATE_WRITER:lateWriter,FIXTURE_BASE_READS:path.join(d,'base-reads'),TMPDIR:d,TEMP:d,TMP:d,PATH:bin+path.delimiter+process.env.PATH,FIXTURE_MODE:mode,FIXTURE_GIT_LOG:path.join(d,'git-argv.log'),FIXTURE_GIT_ENV_LOG:path.join(d,'git-env.log'),AAI_GIT_WRITE:'',TRANSPORT:state,FIXTURE_REPO:repo,FIXTURE_ORIGIN:origin,AAI_RELEASE_POLL_SECONDS:'0.01',AAI_RELEASE_WAIT_SECONDS:'2',AAI_RELEASE_CHECKS_GRACE_SECONDS:'0.2'};
+ const env={FIXTURE_LATE_WRITER:lateWriter,FIXTURE_BASE_READS:path.join(d,'base-reads'),TMPDIR:d,TEMP:d,TMP:d,PATH:bin+path.delimiter+process.env.PATH,FIXTURE_MODE:mode,FIXTURE_X:(opts.x||[]).join(','),FIXTURE_GIT_LOG:path.join(d,'git-argv.log'),FIXTURE_GIT_ENV_LOG:path.join(d,'git-env.log'),AAI_GIT_WRITE:'',TRANSPORT:state,FIXTURE_REPO:repo,FIXTURE_ORIGIN:origin,AAI_RELEASE_POLL_SECONDS:'0.01',AAI_RELEASE_WAIT_SECONDS:'2',AAI_RELEASE_CHECKS_GRACE_SECONDS:'0.2'};
  const invoke=(extra=[],engine='sh',caller=repo)=>spawnSync(engine==='ps'?'pwsh':'bash',engine==='ps'?['-NoProfile','-File',ps,'--version','v1','--confirm',...extra]:[sh,'--version','v1','--confirm',...extra],{cwd:caller,env:{...process.env,...env},encoding:'utf8'});
  return {d,repo,origin,state,env,git,invoke,transport:()=>JSON.parse(fs.readFileSync(state))};
 }
@@ -1897,12 +1920,12 @@ check('TEST-083',()=>{
  const f=fixture();const t=f.transport();
  t.prs.push({number:7,url:'https://github.com/test/release/pull/7',title:'chore(release): v1',baseRefName:'main',headRefName:'chore/release-v1',headRefOid:'a'.repeat(40),state:'CLOSED',mergeCommit:null,headRepository:{nameWithOwner:'test/release'},isCrossRepository:false});fs.writeFileSync(f.state,JSON.stringify(t));
  const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: identity/);
- assert.ok(r.stderr.includes('Release PR #7 on chore/release-v1 is closed without a matching journal; cut this release under a new --version'),r.stderr);
+ assert.ok(r.stderr.includes('Release PR #7 on chore/release-v1 is closed without a matching journal; delete branch chore/release-v1 and re-run this same --version'),r.stderr);
  let after=f.transport();assert.equal(after.calls.filter(a=>a[0]==='pr'&&a[1]==='create').length,0);assert.equal(merges(after),0);
  const g=fixture();stopAt(g,'pr');const open=g.transport();open.prs[0].state='CLOSED';fs.writeFileSync(g.state,JSON.stringify(open));
  const made=g.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='create').length;
  const b=g.invoke();assert.equal(b.status,20,b.stdout+b.stderr);assert.equal(refusals(b),1,b.stderr);assert.match(b.stderr,/REFUSED: identity/);
- assert.match(b.stderr,/Bound release PR #1 is closed without merge/);assert.match(b.stderr,/reopen/);assert.match(b.stderr,/new --version/);
+ assert.match(b.stderr,/Bound release PR #1 is closed without merge/);assert.ok(b.stderr.includes('reopen it and re-run this same --version'),b.stderr);
  after=g.transport();assert.equal(after.calls.filter(a=>a[0]==='pr'&&a[1]==='create').length,made);assert.equal(merges(after),0);
 });
 check('TEST-084',()=>{
@@ -2089,9 +2112,396 @@ check('TEST-015',()=>{
  console.log('PASS: TEST-012/013 real helper, exact core profile, copied import closure and actual shared audit consumption');
 });
 if(selected==='PS'){const f=fixture(),r=f.invoke([],'ps');assert.equal(r.status,0,r.stdout+r.stderr);assert.equal(f.transport().prs.length,1);assert.equal(f.git('ls-remote','origin','refs/heads/chore/release-v1'),'');console.log('PASS: TEST-033 one-command PowerShell finish parity');}
+// release-same-version-recovery (SPEC release-same-version-recovery): run only through RELEASE_RECUT_CASE, never in the `all` pass.
+const recutSelected=(process.env.RELEASE_RECUT_CASE||'').split(',');
+function recutCase(id,fn){if(!recutSelected.includes(id))return;try{fn();}catch(e){console.log('FAIL: '+id+' release-same-version-recovery: '+String(e.message).split('\n')[0]);throw e;}console.log('PASS: '+id+' release-same-version-recovery');}
+const hasPwsh=spawnSync('pwsh',['-NoProfile','-Command','1'],{encoding:'utf8'}).status===0;
+const RELEASE_REF='refs/heads/chore/release-v1';
+const sha40=/^[a-f0-9]{40}$/;
+const gitArgv=f=>fs.readFileSync(path.join(f.d,'git-argv.log'),'utf8').split('--END--\n').map(x=>x.split('\n').filter(Boolean)).filter(x=>x.length);
+const releaseRef=f=>spawnSync('git',['rev-parse','--verify','-q',RELEASE_REF],{cwd:f.origin,encoding:'utf8'}).stdout.trim();
+const journalBytes=f=>fs.readFileSync(journalOf(f).file);
+const releasePrs=f=>f.transport().prs.filter(p=>p.headRefName==='chore/release-v1');
+const callsOf=(f,a,b)=>f.transport().calls.filter(c=>c[0]===a&&c[1]===b).length;
+const moveBase=(f,n)=>remoteCommit(f,n,'docs/remote-'+n+'.md');
+function remoteFile(f,n,rel,content){
+ const clone=path.join(f.d,'writer-'+n);f.git('clone','-q',f.origin,clone);
+ run('git',['checkout','-q','main'],clone);run('git',['config','user.name','Writer'],clone);run('git',['config','user.email','writer@test.invalid'],clone);
+ fs.mkdirSync(path.dirname(path.join(clone,rel)),{recursive:true});fs.writeFileSync(path.join(clone,rel),content);
+ run('git',['add',rel],clone);run('git',['commit','-qm',`test: pin ${n}`],clone);run('git',['push','-q','origin','main'],clone);
+ return run('git',['rev-parse','HEAD'],clone);
+}
+// A red CI on the first head: the run that opened PR #1 refuses required-checks and leaves the journal at the first head.
+function firstCut(opts={}){
+ const f=fixture('',null,{x:['ci-first-head','head-lag'],...opts});
+ const a=f.invoke();assert.equal(a.status,20,a.stdout+a.stderr);assert.match(a.stderr,/REFUSED: required-checks/);assert.equal(refusals(a),1,a.stderr);
+ const j=journalOf(f).data;assert.match(j.head,sha40);assert.equal(j.pr,1);assert.equal(releaseRef(f),j.head);
+ return {f,first:j.head,base:j.baseHead};
+}
+function sameVersionRecut(engine){
+ const {f,first,base}=firstCut();assert.equal(callsOf(f,'pr','create'),1);
+ const moved=moveBase(f,301);assert.notEqual(moved,base);
+ const r=f.invoke([],engine);assert.equal(r.status,0,engine+r.stdout+r.stderr);
+ assert.ok(!/base-moved/.test(r.stdout+r.stderr),'no base-moved text');assert.ok(!/new --version/i.test(r.stdout+r.stderr),'no new --version text');
+ const t=f.transport(),j=journalOf(f).data;
+ const seen=JSON.stringify(t.calls.map(c=>c.slice(0,2).join(' ')));assert.equal(releasePrs(f).length,1,seen);assert.equal(callsOf(f,'pr','create'),1,seen);assert.equal(callsOf(f,'pr','merge'),1,seen);assert.equal(callsOf(f,'pr','edit'),1,seen);
+ assert.notEqual(j.head,first);assert.equal(run('git',['rev-parse',j.head+'^'],f.origin),moved,'the new release head has the moved base as its only parent');
+ assert.equal(run('git',['rev-list','--parents','-n','1',j.head],f.origin).split(' ').length,2);
+ const edit=t.edits[0];assert.ok(edit.body.includes(j.head),edit.body);assert.equal((edit.body.match(/^Re-cut: /gm)||[]).length,1,edit.body);assert.ok(edit.body.includes(`Re-cut: ${first} on ${base} -> ${j.head} on ${moved}.`),edit.body);
+ assert.ok(gitArgv(f).some(a=>a[0]==='push'&&a.includes(`--force-with-lease=${RELEASE_REF}:${first}`)),'lease on the first head');
+ assert.equal(run('git',['ls-remote','origin','refs/tags/v1^{}'],f.repo).split(/\s/)[0],releasePrs(f)[0].mergeCommit.oid,'peeled tag equals the merge commit');
+ assert.equal(j.version,'v1');assert.equal(j.recuts.length,1);
+ const e=j.recuts[0];assert.deepEqual({fromBase:e.fromBase,toBase:e.toBase,fromHead:e.fromHead,toHead:e.toHead},{fromBase:base,toBase:moved,fromHead:first,toHead:j.head});assert.ok(!Number.isNaN(Date.parse(e.at)));
+ return {f,first,base,moved,j};
+}
+recutCase('TEST-101',()=>{sameVersionRecut('sh');if(hasPwsh)sameVersionRecut('ps');});
+recutCase('TEST-102',()=>{
+ const {f,first}=firstCut();const before=journalOf(f).data;assert.ok(!('recut' in before)&&!('recuts' in before),'a pre-change journal carries neither key');
+ moveBase(f,301);const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+ const j=journalOf(f).data;assert.equal(j.recuts.length,1);assert.equal(j.recuts[0].fromHead,first);assert.equal(j.recuts[0].toHead,j.head);assert.equal(j.recuts[0].fromBase,before.baseHead);
+ assert.ok(!j.recut,'the pending re-cut is cleared');
+ assert.ok(gitArgv(f).some(a=>a[0]==='push'&&a.includes(`--force-with-lease=${RELEASE_REF}:${first}`)),'lease on the first head');
+});
+function armLease(){
+ const {f,first,base}=firstCut({x:['ci-first-head','head-lag','recut-lease-race']});const moved=moveBase(f,301);
+ const a=f.invoke();assert.equal(a.status,20,a.stdout+a.stderr);assert.equal(refusals(a),1,a.stderr);assert.match(a.stderr,/stale info/);
+ const j=journalOf(f).data;assert.deepEqual(j.recut,{fromBase:base,fromHead:first},'the pending re-cut stays journaled');assert.ok(!j.recuts||j.recuts.length===0);assert.equal(callsOf(f,'pr','merge'),0);
+ assert.equal(releaseRef(f),moved,'the branch is where the race left it, not where the engine put it');
+ const bytes=journalBytes(f);const b=f.invoke();assert.equal(b.status,20,b.stdout+b.stderr);assert.equal(refusals(b),1,b.stderr);assert.match(b.stderr,/REFUSED: head-moved/);
+ assert.ok(journalBytes(f).equals(bytes),'journal byte-identical across the refusing run');assert.equal(callsOf(f,'pr','merge'),0);assert.equal(releaseRef(f),moved);
+}
+function armClosed(){
+ const {f,first}=firstCut();moveBase(f,301);const t=f.transport();t.prs[0].state='CLOSED';fs.writeFileSync(f.state,JSON.stringify(t));
+ const bytes=journalBytes(f);const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: identity/);assert.ok(r.stderr.includes('reopen it and re-run this same --version'),r.stderr);
+ assert.ok(journalBytes(f).equals(bytes));assert.equal(releaseRef(f),first);assert.equal(callsOf(f,'pr','merge'),0);assert.equal(callsOf(f,'pr','create'),1);
+}
+function armTag(){
+ const {f,first}=firstCut();const moved=moveBase(f,301);run('git',['update-ref','refs/tags/v1',moved],f.origin);
+ const bytes=journalBytes(f);const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: tag-exists/);
+ assert.ok(journalBytes(f).equals(bytes));assert.equal(releaseRef(f),first);assert.equal(callsOf(f,'pr','merge'),0);
+}
+function armRewritten(){
+ const {f,first}=firstCut();moveBase(f,301);
+ const tree=run('git',['rev-parse','main^{tree}'],f.origin);
+ const root=run('git',['commit-tree',tree,'-m','rewritten root'],f.origin,{GIT_AUTHOR_NAME:'W',GIT_AUTHOR_EMAIL:'w@test.invalid',GIT_COMMITTER_NAME:'W',GIT_COMMITTER_EMAIL:'w@test.invalid'});
+ run('git',['update-ref','refs/heads/main',root],f.origin);
+ const bytes=journalBytes(f);const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: base-rewritten/);
+ assert.ok(journalBytes(f).equals(bytes));assert.equal(releaseRef(f),first);assert.equal(callsOf(f,'pr','merge'),0);
+}
+recutCase('TEST-116',armTag);
+recutCase('TEST-117',armRewritten);
+recutCase('TEST-103',()=>{armLease();armClosed();armTag();armRewritten();});
+recutCase('TEST-104',()=>{
+ const {f,first}=firstCut();const foreign=moveBase(f,301);run('git',['update-ref',RELEASE_REF,foreign],f.origin);
+ const bytes=journalBytes(f);const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: head-moved/);
+ assert.ok(r.stderr.includes(first)&&r.stderr.includes(foreign),'both SHAs are named: '+r.stderr);assert.ok(!/stale info/.test(r.stderr),'our guard speaks, not git');
+ assert.ok(journalBytes(f).equals(bytes));assert.equal(releaseRef(f),foreign);assert.equal(callsOf(f,'pr','merge'),0);
+});
+recutCase('TEST-105',()=>{
+ const {f,first,base}=firstCut({x:['ci-first-head']});
+ // GitHub merged PR #1 while the journal still says merge null: the merge itself moved the base.
+ const clone=path.join(f.d,'runner');f.git('clone','-q',f.origin,clone);const g=(...x)=>run('git',x,clone);
+ g('checkout','-q','main');g('config','user.name','CI');g('config','user.email','ci@test.invalid');g('merge','--squash','origin/chore/release-v1');g('commit','-qm','chore(release): v1');
+ const mergeOid=g('rev-parse','HEAD');g('push','-q','origin','main');
+ const t=f.transport();t.prs[0].state='MERGED';t.prs[0].mergeCommit={oid:mergeOid};t.runner=clone;fs.writeFileSync(f.state,JSON.stringify(t));
+ moveBase(f,301);
+ const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+ const j=journalOf(f).data;assert.ok(!j.recuts||j.recuts.length===0);assert.equal(j.head,first);assert.equal(j.merge,mergeOid);assert.equal(Object.keys(f.transport().releases).length,1);
+ assert.equal(run('git',['rev-parse',mergeOid+'^'],f.origin),base,'the merge parent is the old base');
+ const sets=gitArgv(f).filter(a=>a[0]==='push'&&a.some(x=>/^[a-f0-9]{40}:refs\/heads\/chore\/release-v1$/.test(x)));assert.equal(sets.length,1,'only the first cut ever set the release branch');
+ assert.equal(callsOf(f,'pr','merge'),0);assert.equal(callsOf(f,'pr','edit'),0);
+});
+const PINNED="import test from 'node:test';import fs from 'node:fs';import assert from 'node:assert/strict';\ntest('CHANGELOG lookup',()=>{const t=fs.readFileSync('CHANGELOG.md','utf8');assert.ok(/^## \\[unreleased\\] — feat: alpha/m.test(t));});\n";
+const DUAL="import test from 'node:test';import fs from 'node:fs';import assert from 'node:assert/strict';\ntest('CHANGELOG lookup',()=>{const t=fs.readFileSync('CHANGELOG.md','utf8');assert.ok(/^## \\[(?:unreleased|v[^\\]]+)\\] — feat: alpha/m.test(t));});\n";
+const ALWAYS_RED="import test from 'node:test';import assert from 'node:assert/strict';\ntest('CHANGELOG red everywhere',()=>{assert.fail('red on every commit');});\n";
+const SLOW="import test from 'node:test';import fs from 'node:fs';\ntest('CHANGELOG slow on the rolled payload',()=>{const t=fs.readFileSync('CHANGELOG.md','utf8');if(/^## \\[v1\\] — /m.test(t))Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20000);});\n";
+function armPinned(){
+ const f=fixture('',null,{files:{'tests/changelog.test.mjs':PINNED}});
+ const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: release-preflight/);
+ assert.ok(r.stderr.includes('tests/changelog.test.mjs'),r.stderr);assert.ok(r.stderr.includes('fails only on the rolled payload'),r.stderr);
+ assert.equal(callsOf(f,'pr','create'),0);assert.equal(releaseRef(f),'','nothing was pushed to the release branch');assert.ok(!gitArgv(f).some(a=>a[0]==='push'&&a.some(x=>x.endsWith(':'+RELEASE_REF))),'no push of the release head');
+}
+function armRecutPreflight(){
+ const {f,first}=firstCut();
+ remoteFile(f,302,'tests/changelog.test.mjs',PINNED);
+ const bytes=journalBytes(f);const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: release-preflight/);assert.ok(r.stderr.includes('tests/changelog.test.mjs'),r.stderr);
+ assert.equal(releaseRef(f),first,'the remote release branch still equals the first head');assert.equal(callsOf(f,'pr','create'),1);assert.equal(callsOf(f,'pr','edit'),0);assert.equal(callsOf(f,'pr','merge'),0);
+ assert.ok(!journalBytes(f).equals(bytes),'the journal keeps the unpushed re-cut');
+}
+recutCase('TEST-106',()=>{
+ armPinned();
+ const dual=fixture('',null,{files:{'tests/changelog.test.mjs':DUAL}}),d=dual.invoke();assert.equal(d.status,0,d.stdout+d.stderr);
+ const both=fixture('',null,{files:{'tests/changelog.test.mjs':ALWAYS_RED}}),b=both.invoke();assert.equal(b.status,0,b.stdout+b.stderr);assert.match(b.stdout,/FAILS ON BASE TOO/);assert.ok(b.stdout.includes('tests/changelog.test.mjs'),b.stdout);
+ const none=fixture(),n=none.invoke();assert.equal(n.status,0,n.stdout+n.stderr);assert.ok(n.stdout.includes('- Release preflight: SKIPPED'),n.stdout);
+ armRecutPreflight();
+});
+recutCase('TEST-107',()=>{armPinned();armRecutPreflight();});
+recutCase('TEST-108',()=>{
+ const f=fixture('',null,{files:{'tests/changelog.test.mjs':SLOW}});f.env.AAI_RELEASE_PREFLIGHT_SECONDS='1';
+ const t0=Date.now();const r=f.invoke();const took=Date.now()-t0;
+ assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: release-preflight/);assert.ok(r.stderr.includes('tests/changelog.test.mjs'),r.stderr);assert.ok(r.stderr.includes('timed out'),r.stderr);assert.ok(took<60000,'took '+took);
+ assert.equal(callsOf(f,'pr','create'),0);
+ const bad=fixture();bad.env.AAI_RELEASE_PREFLIGHT_SECONDS='abc';const a=bad.invoke();
+ assert.equal(a.status,20,a.stdout+a.stderr);assert.equal(refusals(a),1,a.stderr);assert.match(a.stderr,/REFUSED: arguments/);assert.equal(bad.transport().calls.filter(c=>c[0]==='pr').length,0);assert.equal(bad.transport().prs.length,0);
+});
+recutCase('TEST-111',()=>{
+ for(const step of ['recut','worktree','payload','pushed']){
+  const {f,first}=firstCut();moveBase(f,301);
+  const stop=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:step},encoding:'utf8'});assert.notEqual(stop.status,0,step);assert.match(stop.stderr,/interrupted/,step+stop.stderr);
+  const next=f.invoke();assert.equal(next.status,0,step+next.stdout+next.stderr);
+  const t=f.transport(),j=journalOf(f).data;assert.equal(releasePrs(f).length,1,step);assert.equal(callsOf(f,'pr','create'),1,step);assert.equal(callsOf(f,'pr','merge'),1,step);assert.equal(Object.keys(t.releases).length,1,step);assert.equal(j.recuts.length,1,step);assert.equal(j.recuts[0].fromHead,first,step);
+ }
+});
+recutCase('TEST-112',()=>{
+ const f=fixture('base-move');const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: base-moved/);
+ assert.ok(r.stderr.includes('re-run this same --version --confirm to re-cut it on the new base'),r.stderr);assert.equal(callsOf(f,'pr','merge'),0);
+ const g=fixture('',null,{x:['base-move-docs']});const a=g.invoke();assert.equal(a.status,20,a.stdout+a.stderr);assert.match(a.stderr,/REFUSED: base-moved/);assert.equal(callsOf(g,'pr','merge'),0);
+ const b=g.invoke();assert.equal(b.status,0,b.stdout+b.stderr);assert.equal(g.transport().prs.length,1);assert.equal(callsOf(g,'pr','merge'),1);assert.equal(Object.keys(g.transport().releases).length,1);assert.equal(journalOf(g).data.recuts.length,1);
+});
+recutCase('TEST-113',()=>{
+ for(const step of ['prepared','pushed']){
+  const f=fixture();stopAt(f,step);const before=journalOf(f).data;assert.equal(before.pr,null,step);
+  const moved=moveBase(f,301);const r=f.invoke();assert.equal(r.status,0,step+r.stdout+r.stderr);
+  const t=f.transport(),j=journalOf(f).data;assert.equal(releasePrs(f).length,1,step);assert.equal(callsOf(f,'pr','create'),1,step);assert.equal(releasePrs(f)[0].headRefOid,j.head,step);assert.equal(run('git',['rev-parse',j.head+'^'],f.origin),moved,step);
+  assert.equal(j.recuts.length,1,step);assert.notEqual(j.head,before.head,step);
+  const argv=gitArgv(f).filter(a=>a[0]==='push');
+  if(step==='pushed')assert.ok(argv.some(a=>a.includes(`--force-with-lease=${RELEASE_REF}:${before.head}`)),'lease on the pushed head');
+  else assert.equal(j.recuts[0].fromHead,null,'a never-pushed head has no lease basis');
+ }
+});
+recutCase('TEST-114',()=>{
+ const {f}=firstCut();moveBase(f,301);const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+ const t=f.transport(),j=journalOf(f).data;assert.equal(t.edits.length,1);assert.equal(t.edits[0].head,j.head,'the PR head followed the branch before the body was edited');assert.ok(t.edits[0].body.includes(j.head));assert.equal(t.lagged[j.head],1,'the lag was served once and waited out');
+});
+// Remediation round 1: a pending re-cut meets a state it did not plan for (merged PR, pushed-but-unjournaled head, hung test, absent branch).
+function mergeExternally(f){
+ const clone=path.join(f.d,'runner');f.git('clone','-q',f.origin,clone);const g=(...x)=>run('git',x,clone);
+ g('checkout','-q','main');g('config','user.name','CI');g('config','user.email','ci@test.invalid');g('merge','--squash','origin/chore/release-v1');g('commit','-qm','chore(release): v1');
+ const oid=g('rev-parse','HEAD');g('push','-q','origin','main');
+ const t=f.transport();t.prs[0].state='MERGED';t.prs[0].mergeCommit={oid};t.runner=clone;fs.writeFileSync(f.state,JSON.stringify(t));
+ return oid;
+}
+const releaseSets=f=>gitArgv(f).filter(a=>a[0]==='push'&&a.some(x=>/^[a-f0-9]{40}:refs\/heads\/chore\/release-v1$/.test(x)));
+function assertMergedHeadPublished(f,first,mergeOid,r,step){
+ assert.equal(r.status,0,step+r.stdout+r.stderr);
+ const j=journalOf(f).data;assert.equal(j.head,first,step+' the journal returns to the merged head');assert.ok(!j.recut,step+' the pending re-cut is dropped');assert.equal(j.merge,mergeOid,step);
+ assert.equal(Object.keys(f.transport().releases).length,1,step);assert.equal(releaseSets(f).length,1,step+' nothing new was pushed to the release branch');assert.equal(callsOf(f,'pr','edit'),0,step);assert.equal(callsOf(f,'pr','merge'),0,step);
+}
+recutCase('TEST-118',()=>{
+ for(const step of ['recut','worktree','payload']){
+  const {f,first}=firstCut();moveBase(f,301);
+  const stop=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:step},encoding:'utf8'});assert.notEqual(stop.status,0,step);assert.match(stop.stderr,/interrupted/,step+stop.stderr);
+  assert.ok(journalOf(f).data.recut,step+' a re-cut is pending');
+  const mergeOid=mergeExternally(f);const adds=()=>gitArgv(f).filter(a=>a[0]==='worktree'&&a.includes('add')).length,before=adds();
+  assertMergedHeadPublished(f,first,mergeOid,f.invoke(),step);
+  assert.equal(adds(),before,step+' the dropped re-cut prepared nothing new');
+ }
+});
+const MERGER=String.raw`import test from 'node:test';import fs from 'node:fs';import cp from 'node:child_process';import path from 'node:path';import os from 'node:os';
+test('CHANGELOG read while an operator merges the old PR',()=>{
+ const t=fs.readFileSync('CHANGELOG.md','utf8');if(!/^## \[v1\] — /m.test(t))return;
+ const d=fs.mkdtempSync(path.join(os.tmpdir(),'ext-merge.'));const g=(c,...x)=>{const r=cp.spawnSync('git',x,{cwd:c,encoding:'utf8'});if(r.status)throw new Error(r.stderr);return r.stdout.trim();};
+ const clone=path.join(d,'runner');g(d,'clone','-q',process.env.FIXTURE_ORIGIN,clone);g(clone,'checkout','-q','main');g(clone,'config','user.name','CI');g(clone,'config','user.email','ci@test.invalid');
+ g(clone,'merge','--squash','origin/chore/release-v1');g(clone,'commit','-qm','chore(release): v1');const oid=g(clone,'rev-parse','HEAD');g(clone,'push','-q','origin','main');
+ const s=JSON.parse(fs.readFileSync(process.env.TRANSPORT));s.prs[0].state='MERGED';s.prs[0].mergeCommit={oid};s.runner=clone;fs.writeFileSync(process.env.TRANSPORT,JSON.stringify(s));
+});
+`;
+recutCase('TEST-119',()=>{
+ {
+  const {f,first}=firstCut();
+  remoteFile(f,302,'tests/changelog.test.mjs',PINNED);
+  const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/REFUSED: release-preflight/);assert.ok(journalOf(f).data.recut,'the refused re-cut stays pending');
+  const mergeOid=mergeExternally(f);
+  assertMergedHeadPublished(f,first,mergeOid,f.invoke(),'preflight-refused');
+ }
+ {
+  const {f,first}=firstCut();
+  remoteFile(f,302,'tests/changelog.test.mjs',MERGER);
+  const r=f.invoke();
+  const t=f.transport();assert.equal(t.prs[0].state,'MERGED','the merger test ran during the preflight');
+  assert.equal(r.status,0,r.stdout+r.stderr);
+  const j=journalOf(f).data;assert.equal(j.head,first);assert.ok(!j.recut);assert.equal(releaseSets(f).length,1,'the push after the preflight never happened');assert.equal(callsOf(f,'pr','edit'),0);assert.equal(Object.keys(t.releases).length,1);
+ }
+});
+recutCase('TEST-120',()=>{
+ const {f,first}=firstCut();moveBase(f,301);
+ const stop=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:'pushed'},encoding:'utf8'});assert.notEqual(stop.status,0);assert.match(stop.stderr,/interrupted/);
+ const jf=journalOf(f).file,j1=JSON.parse(fs.readFileSync(jf,'utf8'));const h2=j1.head,e=j1.recuts[0];assert.equal(releaseRef(f),h2,'the re-cut is on the remote');
+ // The crash window: pushed, but the journal still says the re-cut is pending.
+ const pending={...j1,recut:{fromBase:e.fromBase,fromHead:e.fromHead},stage:'prepared'};delete pending.recuts;fs.writeFileSync(jf,JSON.stringify(pending,null,1)+'\n');
+ const moved2=moveBase(f,302);
+ const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+ const j=journalOf(f).data;assert.equal(j.recuts.length,2,r.stdout);assert.equal(j.recuts[0].fromHead,first);assert.equal(j.recuts[0].toHead,h2);assert.equal(j.recuts[1].fromHead,h2);assert.equal(j.recuts[1].toHead,j.head);assert.equal(j.recuts[1].toBase,moved2);assert.ok(!j.recut);
+ assert.ok(gitArgv(f).some(a=>a[0]==='push'&&a.includes(`--force-with-lease=${RELEASE_REF}:${h2}`)),'lease on the pushed head');
+ assert.equal(callsOf(f,'pr','merge'),1);assert.equal(Object.keys(f.transport().releases).length,1);assert.equal(releasePrs(f).length,1);
+});
+recutCase('TEST-123',()=>{
+ {
+  const {f,first}=firstCut({x:['ci-first-head','head-lag','merged-old-head']});moveBase(f,301);
+  const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+  const t=f.transport(),j=journalOf(f).data;assert.equal(t.prs[0].state,'MERGED');assert.equal(t.prs[0].headRefOid,first,'GitHub completed the merge of the old head');
+  assert.equal(j.head,first,'the journal returns to the merged head');assert.ok(!j.recut);assert.equal((j.recuts||[]).length,0,'the superseded re-cut entry is dropped');assert.equal(j.superseded.length,1);assert.equal(releaseRef(f),'','the superseded re-cut branch was cleaned up');assert.equal(j.merge,t.prs[0].mergeCommit.oid);
+  assert.equal(Object.keys(t.releases).length,1,'one release');assert.equal(callsOf(f,'pr','edit'),0,'no PR body edit');assert.equal(callsOf(f,'pr','merge'),0);
+  assert.equal(run('git',['ls-remote','origin','refs/tags/v1^{}'],f.repo).split(/\s/)[0],t.prs[0].mergeCommit.oid,'the tag is on the merge commit');
+ }
+ {
+  const {f,first}=firstCut({x:['ci-first-head','head-lag','merged-foreign-head']});moveBase(f,301);
+  const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: identity/);
+  const j=journalOf(f).data;assert.ok(r.stderr.includes('e'.repeat(40))&&r.stderr.includes(j.head),r.stderr);assert.equal(Object.keys(f.transport().releases).length,0);assert.equal(callsOf(f,'pr','edit'),0);
+  const again=f.invoke();assert.equal(again.status,20,again.stdout+again.stderr);assert.match(again.stderr,/REFUSED: identity/);
+ }
+});
+const HANG=String.raw`import test from 'node:test';import fs from 'node:fs';import path from 'node:path';
+test('CHANGELOG read by a test that hangs on the rolled payload',()=>{
+ const t=fs.readFileSync('CHANGELOG.md','utf8');if(!/^## \[v1\] — /m.test(t))return;
+ fs.writeFileSync(path.join(process.env.TMPDIR,'hang.pid'),String(process.pid));Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,60000);
+});
+`;
+function pidGone(pid){
+ for(let i=0;i<50;i++){
+  try{process.kill(pid,0);}catch(e){if(e.code==='ESRCH')return true;}
+  const ps=spawnSync('ps',['-o','stat=','-p',String(pid)],{encoding:'utf8'});if(ps.status!==0||/^[ZX]/.test((ps.stdout||'').trim()))return true;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,100);
+ }
+ return false;
+}
+recutCase('TEST-121',()=>{
+ const f=fixture('',null,{files:{'tests/changelog.test.mjs':HANG}});f.env.AAI_RELEASE_PREFLIGHT_SECONDS='1';
+ const r=f.invoke();
+ const pidFile=path.join(f.d,'hang.pid');assert.ok(fs.existsSync(pidFile),'the hanging test started: '+r.stdout+r.stderr);const pid=Number(fs.readFileSync(pidFile,'utf8'));
+ let gone;try{gone=pidGone(pid);}finally{try{process.kill(pid,'SIGKILL');}catch{}}
+ assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/REFUSED: release-preflight/);assert.ok(r.stderr.includes('timed out'),r.stderr);
+ assert.ok(gone,'the selected test process '+pid+' outlived the run');
+});
+recutCase('TEST-122',()=>{
+ const {f,first}=firstCut();moveBase(f,301);
+ const stop=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:'recut'},encoding:'utf8'});assert.notEqual(stop.status,0);assert.match(stop.stderr,/interrupted/);
+ run('git',['update-ref','-d',RELEASE_REF],f.origin);assert.equal(releaseRef(f),'');
+ const bytes=journalBytes(f);const before=gitArgv(f).filter(a=>a[0]==='push').length;
+ const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: head-moved/);assert.ok(r.stderr.includes('(absent)')&&r.stderr.includes(first),r.stderr);
+ assert.ok(journalBytes(f).equals(bytes),'journal byte-identical');assert.equal(gitArgv(f).filter(a=>a[0]==='push').length,before,'nothing was pushed');assert.equal(releaseRef(f),'');assert.equal(callsOf(f,'pr','merge'),0);
+});
 JS
 }
 
+
+test_731_recut_after_red_ci() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-101 test_700_one_command_finish
+}
+test_732_recut_lease_and_record() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-102 test_700_one_command_finish
+}
+test_733_recut_refusals() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-103,TEST-116,TEST-117 test_700_one_command_finish
+}
+test_734_recut_foreign_head() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-104 test_700_one_command_finish
+}
+test_735_merged_pr_never_recut() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-105 test_700_one_command_finish
+}
+test_736_release_preflight() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-106 test_700_one_command_finish
+}
+test_737_preflight_runs_before_every_push() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-107 test_700_one_command_finish
+}
+test_738_preflight_bounded() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-108 test_700_one_command_finish
+}
+test_741_recut_resume_every_stage() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-111 test_700_one_command_finish
+}
+test_742_in_run_move_names_same_version() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-112 test_700_one_command_finish
+}
+test_743_recut_before_pr() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-113 test_700_one_command_finish
+}
+test_744_pr_follows_branch() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-114 test_700_one_command_finish
+}
+test_746_merged_with_pending_recut() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-118 test_700_one_command_finish
+}
+test_747_merged_during_preflight() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-119 test_700_one_command_finish
+}
+test_748_pushed_pending_recut_moves() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-120 test_700_one_command_finish
+}
+test_749_preflight_timeout_kills_group() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-121 test_700_one_command_finish
+}
+test_750_recut_absent_remote_branch() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-122 test_700_one_command_finish
+}
+test_751_merged_old_head_after_recut_push() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-123 test_700_one_command_finish
+}
+test_739_same_version_texts() {
+  PROJECT_ROOT="$PROJECT_ROOT" node --input-type=module <<'JS' || log_fail "TEST-109: same-version texts"
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const root=process.env.PROJECT_ROOT;
+const read=f=>fs.readFileSync(path.join(root,f));
+try{
+ const six=['.aai/scripts/release-finish.mjs','.aai/scripts/aai-release.sh','.aai/scripts/aai-release.ps1','.aai/SKILL_RELEASE.prompt.md','docs/product/release-command-finish.md','docs/USER_GUIDE.md'];
+ for(const f of six)for(const phrase of [/new --version/i,/newly audited/i,/fresh audited/i])assert.ok(!phrase.test(read(f).toString('utf8')),f+' still carries '+phrase);
+ const product=read('docs/product/release-command-finish.md').toString('utf8');
+ for(const token of ['re-cut','--force-with-lease','release-preflight','base-moved','deliberate repair'])assert.ok(product.includes(token),'product doc lacks '+token);
+ const skill=read('.aai/SKILL_RELEASE.prompt.md');assert.ok(skill.toString('utf8').includes('re-cut'),'SKILL_RELEASE lacks re-cut');assert.ok(skill.length<=4921,'SKILL_RELEASE grew to '+skill.length);
+ assert.ok(read('.aai/scripts/release-finish.mjs').toString('utf8').includes('re-run this same --version'),'engine lacks re-run this same --version');
+}catch(e){console.log('FAIL: TEST-109 release-same-version-recovery: '+String(e.message).split('\n')[0]);throw e;}
+console.log('PASS: TEST-109 release-same-version-recovery');
+JS
+}
+test_740_closed_pr_texts() {
+  PROJECT_ROOT="$PROJECT_ROOT" node --input-type=module <<'JS' || log_fail "TEST-110: closed-PR texts"
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const engine=fs.readFileSync(path.join(process.env.PROJECT_ROOT,'.aai/scripts/release-finish.mjs'),'utf8');
+try{
+ assert.ok(engine.includes('Bound release PR #${record.pr} is closed without merge; reopen it and re-run this same --version'),'bound closed-PR detail');
+ assert.ok(engine.includes('Release PR #${ambiguous[0].number} on ${branch} is closed without a matching journal; delete branch ${branch} and re-run this same --version'),'no-journal closed-PR detail');
+ assert.ok(engine.includes('is closed without a matching journal'),'SPEC-0236 mutation anchor');
+}catch(e){console.log('FAIL: TEST-110 release-same-version-recovery: '+String(e.message).split('\n')[0]);throw e;}
+console.log('PASS: TEST-110 release-same-version-recovery');
+JS
+}
+test_745_live_same_version_acceptance() {
+  # Post-merge only: the orchestrator sets AAI_RELEASE_LIVE_ACCEPTANCE=<version> after the live release.
+  if [[ -z "${AAI_RELEASE_LIVE_ACCEPTANCE:-}" ]]; then
+    echo "SKIP: TEST-115 live same-version acceptance (AAI_RELEASE_LIVE_ACCEPTANCE unset)"
+    return 0
+  fi
+  PROJECT_ROOT="$PROJECT_ROOT" LIVE_VERSION="$AAI_RELEASE_LIVE_ACCEPTANCE" node --input-type=module <<'JS' || log_fail "TEST-115: live same-version acceptance"
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+const root=process.env.PROJECT_ROOT,v=process.env.LIVE_VERSION;
+const cmd=(exe,args)=>{const r=spawnSync(exe,args,{cwd:root,encoding:'utf8'});return r;};
+try{
+ const common=path.resolve(root,cmd('git',['rev-parse','--git-common-dir']).stdout.trim());
+ const journal=JSON.parse(fs.readFileSync(path.join(common,'aai/releases',crypto.createHash('sha256').update(v).digest('hex')+'.json'),'utf8'));
+ const pr=JSON.parse(cmd('gh',['pr','view',String(journal.pr),'--json','state,mergeCommit']).stdout);
+ assert.equal(pr.state,'MERGED');
+ const tags=cmd('git',['ls-remote','--tags','origin']).stdout;
+ assert.ok(tags.split('\n').some(l=>l.startsWith(pr.mergeCommit.oid)&&l.endsWith('refs/tags/'+v+'^{}')),'peeled tag equals the merge commit');
+ assert.ok(!tags.split('\n').some(l=>l.includes('refs/tags/'+v+'.')),'no suffixed tag');
+ assert.equal(cmd('gh',['release','view',v]).status,0);
+ assert.equal(journal.recuts.length,1);
+ const entry=journal.recuts[0];
+ assert.ok(entry.fromHead.startsWith('00c06fcf'),'fromHead');assert.ok(entry.fromBase.startsWith('734339e0'),'fromBase');
+ const prs=JSON.parse(cmd('gh',['pr','list','--head','chore/release-'+v,'--state','all','--json','number']).stdout);assert.equal(prs.length,1);
+}catch(e){console.log('FAIL: TEST-115 release-same-version-recovery: '+String(e.message).split('\n')[0]);throw e;}
+console.log('PASS: TEST-115 release-same-version-recovery');
+JS
+}
 
 # Native capture is tested independently from the Node finish delegation so the
 # same controls can run under Linux pwsh and both declared Windows runtimes.
@@ -2374,6 +2784,27 @@ main() {
   test_728_docs_merge_policy
   test_729_finish_cases_run_once
   test_730_ruleset_pages_read
+  test_731_recut_after_red_ci
+  test_732_recut_lease_and_record
+  test_733_recut_refusals
+  test_734_recut_foreign_head
+  test_735_merged_pr_never_recut
+  test_736_release_preflight
+  test_737_preflight_runs_before_every_push
+  test_738_preflight_bounded
+  test_741_recut_resume_every_stage
+  test_742_in_run_move_names_same_version
+  test_743_recut_before_pr
+  test_744_pr_follows_branch
+  test_746_merged_with_pending_recut
+  test_747_merged_during_preflight
+  test_748_pushed_pending_recut_moves
+  test_749_preflight_timeout_kills_group
+  test_750_recut_absent_remote_branch
+  test_751_merged_old_head_after_recut_push
+  test_739_same_version_texts
+  test_740_closed_pr_texts
+  test_745_live_same_version_acceptance
   test_034_exit_codes_documented
   test_035_fallback_incomplete_exits_18
   test_625_fallback_branch_failure_reports
