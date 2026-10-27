@@ -22,7 +22,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat(release): a failed release is repaired and finished under its own version (release-same-version-recovery)
+## [v2026.10.26] — feat(release): a failed release is repaired and finished under its own version (release-same-version-recovery)
 
 - When the remote base has moved and the journal-bound release PR is still open, `/aai-release --version <v> --confirm` no longer
   refuses `base-moved`: it re-audits the new base, rebuilds the rollup on a commit whose only parent is the new base and force-updates
@@ -34,7 +34,7 @@ fine — it is the marker a cut leaves on top.
   that would have stopped release PR #504.
 - No refusal, prompt or product doc tells the operator to cut a new `--version` for a release that can still be finished.
 
-## [unreleased] — fix(spec-amend): a directed merge signs a ride closed before its PR existed (implied-signing-without-links-pr)
+## [v2026.10.26] — fix(spec-amend): a directed merge signs a ride closed before its PR existed (implied-signing-without-links-pr)
 
 - The merge-implied signature (SPEC-0226) required a PR number in the ride doc's `links.pr`, which the canonical `/aai-pr` flow never
   fills because `close-work-item.mjs` runs before `gh pr create`. Every directed merge therefore left its contract amendments unsigned
@@ -44,7 +44,7 @@ fine — it is the marker a cut leaves on top.
   never implies a signature.
 - The four PR #502 amendments are also signed explicitly from the owner's recorded merge direction.
 
-## [unreleased] — feat(shims): the six root instruction shims are generated from one registry (provider-adapter-registry-slice)
+## [v2026.10.26] — feat(shims): the six root instruction shims are generated from one registry (provider-adapter-registry-slice)
 
 - `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `GEMINI.md`, `.github/copilot-instructions.md` and `.cursor/rules/aai.mdc` are rendered by
   `sync-harness-skills.mjs` from the new `shims:` section of `.aai/system/HARNESS_SKILLS.yaml` and the fragments in
@@ -60,7 +60,7 @@ fine — it is the marker a cut leaves on top.
   link, a parent is not a directory or a shim is not a regular file.
 - The six contract amendments of PR #501 are signed from the owner's recorded merge direction.
 
-## [unreleased] — feat(merge): the merge cleanup resolves its own friction (merge-cleanup-resolves-framework-friction)
+## [v2026.10.26] — feat(merge): the merge cleanup resolves its own friction (merge-cleanup-resolves-framework-friction)
 
 - `/aai-merge` no longer hands raw refusals back to you. The cleanup engine sorts every refusal or stopped step into one of five
   outcomes with one table (`.aai/scripts/lib/merge-outcomes.mjs`) and prints an `OUTCOME <json>` line for each: fixed by the cleanup
@@ -74,7 +74,7 @@ fine — it is the marker a cut leaves on top.
   that the framework recovers its own friction before asking.
 - Contract amendments on SPEC-0218, SPEC-0221, SPEC-0223 and this spec are signed by the owner's merge direction.
 
-## [unreleased] — feat(recheck): bind each judged re-check verdict to STATE (recheck-verdict-binding)
+## [v2026.10.26] — feat(recheck): bind each judged re-check verdict to STATE (recheck-verdict-binding)
 
 - A delta re-check round no longer reads the `check_verdict` stamps of `docs/ai/EVENTS.jsonl` to learn which round was judged. The
   `--confirm` tick now runs the new `state.mjs bind-check` (refused under any non-empty `AAI_ROLE`), which writes a `check_binding` block into
@@ -102,7 +102,7 @@ fine — it is the marker a cut leaves on top.
   `state.mjs` before the tick that binds or reads it, and a verdict the orchestrator itself records for the dispatched role with a new report,
   are taken as written; no shape outside the D5 table is claimed.
 
-## [unreleased] — feat(recheck): an opt-in slim payload for a re-check round with a non-production delta
+## [v2026.10.26] — feat(recheck): an opt-in slim payload for a re-check round with a non-production delta
 
 - With `AAI_RECHECK_MODE=delta` set (the default then was full; the entry above turned it on), a Validation or Code Review round that follows an already-judged round can run
   on a slim payload (the contract, the new `.aai/RECHECK_DELTA.prompt.md` and a
@@ -140,7 +140,7 @@ fine — it is the marker a cut leaves on top.
   `security_relevant: true` or `security_relevant: false` line, and the dispatch
   tick appends two new EVENTS types, `check_dispatched` and `check_verdict`.
 
-## [unreleased] — refactor(expert-fetch): one Node module owns the expert prompt fetcher
+## [v2026.10.26] — refactor(expert-fetch): one Node module owns the expert prompt fetcher
 
 - The expert prompt fetcher is now one Node module,
   `.aai/scripts/expert-fetch.mjs`; `expert-fetch.sh` and `expert-fetch.ps1` are
@@ -161,7 +161,7 @@ fine — it is the marker a cut leaves on top.
   - D-22: `--body` refuses an argument that is not a plain registry key, such
     as `../x`.
 
-## [unreleased] — refactor(triage): one Node module owns the L1 triage snapshot
+## [v2026.10.26] — refactor(triage): one Node module owns the L1 triage snapshot
 
 - The L1 triage snapshot is now one Node module, `.aai/scripts/triage.mjs`;
   `triage.sh` and `triage.ps1` are thin launchers (the pair went from 140 to
@@ -179,7 +179,7 @@ fine — it is the marker a cut leaves on top.
     `triage.sh x --check` and an in-session `& triage.ps1 --check` now gate
     (exit 1 on a finding) where they used to exit 0.
 
-## [unreleased] — refactor(live): one Node module owns the live-status spool
+## [v2026.10.26] — refactor(live): one Node module owns the live-status spool
 
 - The live-status spool writer is now one Node module,
   `.aai/scripts/live-spool.mjs`; `live-spool.sh` and `live-spool.ps1` are thin
@@ -191,7 +191,7 @@ fine — it is the marker a cut leaves on top.
   prints `(aai-live tap active)`). If Node is present but the module is
   missing or broken, the launchers fall back the same way and always exit 0.
 
-## [unreleased] — ci: Node 24 baseline and a published Node floor
+## [v2026.10.26] — ci: Node 24 baseline and a published Node floor
 
 - CI runs on Node 24 (Node 20, end-of-life, is gone from every workflow). The
   `self-hosting-smoke` job also runs a short Node 22 compatibility step, with
@@ -200,7 +200,7 @@ fine — it is the marker a cut leaves on top.
 - `/aai-doctor` reports a new advisory `CAT-20 Node Runtime` WARN when Node
   is below 22; it never fails and is silent on Node 22 or newer.
 
-## [unreleased] — perf: share real-corpus work across the always-on docs-audit suite
+## [v2026.10.26] — perf: share real-corpus work across the always-on docs-audit suite
 
 - The docs-audit suite runs each distinct full real-corpus audit once and the
   real index pair once, shards the history oracle across worker threads and
@@ -209,7 +209,7 @@ fine — it is the marker a cut leaves on top.
 - A stale committed `docs/INDEX.md` now fails the staleness check in suite
   order (a prior arm used to leave a regenerated index behind).
 
-## [unreleased] — feat: hand one ride's STATE to its worktree and reconcile after merge
+## [v2026.10.26] — feat: hand one ride's STATE to its worktree and reconcile after merge
 
 - New `.aai/scripts/ride-handoff.mjs out` moves only the ride's own focus,
   work item, agent runs and verdict blocks (plus untracked drafts) into a
@@ -221,7 +221,7 @@ fine — it is the marker a cut leaves on top.
 - `/aai-worktree` and `/aai-ship` name the handoff for a worktree decided
   after Planning.
 
-## [unreleased] — perf: load only standing lessons into every role prompt
+## [v2026.10.26] — perf: load only standing lessons into every role prompt
 
 - Lessons whose guard already ships, or that are resolved, move verbatim from
   `docs/knowledge/LEARNED.md` to `docs/knowledge/history/LEARNED-HISTORY.md`;
@@ -231,7 +231,7 @@ fine — it is the marker a cut leaves on top.
   unaffected: sync never seeds `history/`, and an unsplit LEARNED.md loads as
   before.
 
-## [unreleased] — ci: reuse proven source checks on body-only PR edits
+## [v2026.10.26] — ci: reuse proven source checks on body-only PR edits
 
 - Require same-head, base, checkout, workflow and complete successful attempt
   evidence before skipping unchanged skill, Windows and smoke jobs on a
@@ -241,7 +241,7 @@ fine — it is the marker a cut leaves on top.
 - Local regression evidence is prepared; hosted H1/H2 source and repeated
   body-edit runs remain required before delivery.
 
-## [unreleased] — ci: conditionally shard selected skill suites
+## [v2026.10.26] — ci: conditionally shard selected skill suites
 
 - Plan one or two four-worker selected runners from measured suite weights,
   expanding only when the conservative wall-time and runner-budget thresholds
@@ -254,7 +254,7 @@ fine — it is the marker a cut leaves on top.
   median wall time with two runners and 17.894% more total runner time; hosted
   selected and full/platform checks remain pending before merge-readiness.
 
-## [unreleased] — ci: schedule selected suites longest first
+## [v2026.10.26] — ci: schedule selected suites longest first
 
 - Refresh all 109 suite weights from five successful full CI observations,
   explicitly using a maximum-weight fallback for skipped `aai-state`.
@@ -263,16 +263,16 @@ fine — it is the marker a cut leaves on top.
 - Configure cancellation of superseded read-only checks for the same PR. Hosted
   cancellation and candidate full/platform regression remain pre-merge checks.
 
-## [unreleased] — fix(intake): ask the closing questions as one menu
+## [v2026.10.26] — fix(intake): ask the closing questions as one menu
 
 - Interactive intake now ends with ONE closing menu, before it reports completion, asking both how many minutes the intake took and how to implement it (GitHub #480). Agents use the harness's question tool (AskUserQuestion, request_user_input, Gemini equivalent) or a numbered text menu; an empty answer keeps the defaults. `/aai-ship` still skips it.
 
-## [unreleased] — fix(gates): main red after #482 — Cursor model id pricing and product-doc close check
+## [v2026.10.26] — fix(gates): main red after #482 — Cursor model id pricing and product-doc close check
 
 - `PRICING.yaml` gains a null-priced `cursor-grok-4.6` key (per its own on_unknown_model rule) now that a run of that Cursor model is in METRICS history; the pricing test allows an omitted family a key only once it is in history, and only null-priced.
 - `close-reconcile.mjs` no longer treats an updated `docs/product/` capability doc as an unclosed work item (close-work-item never closes product docs, so the check could not be satisfied).
 
-## [unreleased] — fix(sync): remove retired template skill wrappers downstream
+## [v2026.10.26] — fix(sync): remove retired template skill wrappers downstream
 
 - `aai-sync.sh` and `aai-sync.ps1` now remove a `.claude/skills/` or `.agents/skills/` entry that is a retired template wrapper (for example `aai-decapod`), which previously stayed in the skill menu and answered "SKILL_<NAME> not found".
 - Only an `aai-*` single-file shim whose prompt the source no longer ships is removed, compared byte-exactly in both engines; project skills, hand-edited wrappers and anything unusual are kept. Each removal prints `CLEAN removed retired skill wrapper: <path>`.
