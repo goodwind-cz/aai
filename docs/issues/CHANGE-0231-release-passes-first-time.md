@@ -65,5 +65,5 @@ A PR that adds an assertion pinned to `[unreleased]` (or anything else a rollup 
 
 ## Notes
 
-- Owner, 2026-10-27: asked what to fix so a release passes the first time; chose "Jen intake, později".
+- Owner, 2026-10-27: asked what to fix so a release passes the first time, then chose to record it as an intake only and ride it later.
 - Related follow-ups: `fu-release-preflight-scrubbed-env` (P2) and `fu-release-unjournaled-recut-merged-old` (P3).
