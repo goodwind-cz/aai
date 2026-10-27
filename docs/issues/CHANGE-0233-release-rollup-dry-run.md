@@ -6,8 +6,8 @@ status: implementing
 capability: release-command-finish
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr: [509]
+  commits: [fc200ab8, 076910e7]
 ---
 
 # Release CHANGELOG rollup dry-run
