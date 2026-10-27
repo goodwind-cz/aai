@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-26T23:39:22.941Z",
+  "generatedAt": "2026-10-27T10:30:06.027Z",
   "project": "aai",
   "counts": {
     "delivered": 325,
-    "in_progress": 17,
+    "in_progress": 18,
     "releases": 1,
     "tokens_total": 77863744
   },
@@ -43,6 +43,19 @@
       "type": "change",
       "status": "draft",
       "path": "docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "release-passes-first-time",
+      "title": "A release passes CI on its first attempt",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-0231-release-passes-first-time.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -245,7 +258,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0255-spec-release-same-version-recovery.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-release-same-version-recovery-r2-20261026T231500Z.md"
+      "review": "docs/ai/reviews/review-release-same-version-recovery-r3-20261027T003000Z.md"
     },
     {
       "ref": "merge-cleanup-resolves-framework-friction",
@@ -4497,7 +4510,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0255-spec-release-same-version-recovery.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-release-same-version-recovery-r2-20261026T231500Z.md"
+          "review": "docs/ai/reviews/review-release-same-version-recovery-r3-20261027T003000Z.md"
         },
         {
           "ref": "merge-cleanup-resolves-framework-friction",
