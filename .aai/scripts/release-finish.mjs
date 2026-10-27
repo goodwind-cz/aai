@@ -69,6 +69,7 @@ function journalShape(value){
  /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(value.baseHead)&&
  [value.head,value.merge].every(v=>v===null||/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v||''))&&
  (value.pr===null||Number.isSafeInteger(value.pr)&&value.pr>0)&&
+ (value.superseded===undefined||Array.isArray(value.superseded)&&value.superseded.every(fullSha))&&
  (value.recut===undefined||value.recut===null||recutShape(value.recut))&&(value.recuts===undefined||Array.isArray(value.recuts)&&value.recuts.every(recutsShape))&&
  ['initialized','recut','worktree','payload','prepared','pushed','pr','merged','workflow','verified','remote-deleted','local-deleted','synced'].includes(value.stage);
 }
@@ -384,6 +385,10 @@ function abandonRecut(pr){
   record.recut=null;stage('pr');return;
  }
  if(pr.headRefOid!==cut.fromHead)refuse('head-moved',`Merged release PR head ${pr.headRefOid} is neither the journaled head ${cut.fromHead} nor the pending re-cut head ${record.head||'(none)'}`);
+ restoreMergedBinding(cut,false);
+}
+// Returns the journal to the binding a merged head was cut with; the merged head must carry the rollup of that binding's base.
+function restoreMergedBinding(cut,dropLastRecut){
  const rolled=rollup(blob(`${cut.fromBase}:CHANGELOG.md`));
  const merged=command('git',['cat-file','blob',`${cut.fromHead}:CHANGELOG.md`],root,true);
  if(merged.status!==0||merged.stdout!==rolled.content)refuse('identity','Merged release head does not carry the rollup of the journaled base; preserve the journal for recovery');
@@ -396,6 +401,7 @@ function abandonRecut(pr){
   fs.rmSync(record.worktree,{recursive:true,force:true});record.worktree=null;
  }
  if(localHead&&localHead!==cut.fromHead)command('git',['update-ref','-d',ref,localHead]);
+ if(dropLastRecut){const gone=record.recuts[record.recuts.length-1];record.recuts=record.recuts.slice(0,-1);record.superseded=[...(record.superseded||[]),gone.toHead];}
  Object.assign(record,{baseHead:cut.fromBase,head:cut.fromHead,content:rolled.content,notes:rolled.notes,recut:null});
  stage('pr');
 }
@@ -643,8 +649,12 @@ async function main(){
   const followed=boundedPoll(()=>json('pr','view',String(record.pr),'--repo',repo,'--json',fields),p=>p.state!=='OPEN'||p.headRefOid===record.head,'identity');
   if(followed.state!=='OPEN'){
    // Merged or closed while the push propagated: never edit it; the bound head decides what continues.
-   if(followed.headRefOid!==record.head)refuse('identity',`Release PR #${record.pr} is ${followed.state} on ${followed.headRefOid}, not on the re-cut head ${record.head}; preserve the journal for recovery`);
-   record.stage='pr';atomicSave();
+   if(followed.headRefOid!==record.head){
+    // GitHub completed a merge of the previous head while the re-cut was pushed: return to that binding and publish the merged head.
+    const last=record.recuts[record.recuts.length-1];
+    if(followed.state==='MERGED'&&last.fromHead&&followed.headRefOid===last.fromHead)restoreMergedBinding({fromBase:last.fromBase,fromHead:last.fromHead},true);
+    else refuse('identity',`Release PR #${record.pr} is ${followed.state} on ${followed.headRefOid}, not on the re-cut head ${record.head}; preserve the journal for recovery`);
+   }else{record.stage='pr';atomicSave();}
   }else{
   const edited=path.join(path.dirname(journal),'body-'+crypto.randomBytes(6).toString('hex')+'.md');
   try{fs.writeFileSync(edited,`Automated release cut for ${version}.\n\nBound release: ${repo} ${branch} ${record.head}.\n\nno-notes: release rollup contains the previously recorded entries.\n`+record.recuts.map(e=>`\nRe-cut: ${e.fromHead} on ${e.fromBase} -> ${e.toHead} on ${e.toBase}.\n`).join(''));gh('pr','edit',String(record.pr),'--repo',repo,'--body-file',edited);}finally{fs.unlinkSync(edited);}
@@ -693,7 +703,7 @@ async function main(){
  const tags=git('ls-remote','--tags','origin',`refs/tags/${version}`,`refs/tags/${version}^{}`).split('\n').filter(Boolean);const peeled=tags.find(l=>l.endsWith(`refs/tags/${version}^{}`));if(!peeled||peeled.split(/\s/)[0]!==record.merge)refuse('tag-mismatch','Peeled remote tag does not equal merged release SHA');
  const release=json('release','view',version,'--repo',repo,'--json','body,url');if(typeof release.body!=='string'||trim(release.body)!==trim(record.notes))refuse('notes-mismatch','Published release body differs from rolled notes');if(!/^https:\/\/github\.com\//.test(release.url||''))refuse('release-url','Published release URL is missing');record.releaseUrl=release.url;stage('verified');
  const dependents=json('pr','list','--repo',repo,'--base',branch,'--state','open','--json','number');if(!Array.isArray(dependents)||dependents.length)refuse('dependent-pr','Release branch has dependent PRs');
- const head=remoteHead(`refs/heads/${branch}`);if(head&&head!==record.head)refuse('cleanup-head-moved','Release branch moved before deletion');if(head)command('git',['push',`--force-with-lease=refs/heads/${branch}:${record.head}`,'origin',`:refs/heads/${branch}`]);stage('remote-deleted');
+ const head=remoteHead(`refs/heads/${branch}`);if(head&&head!==record.head&&!(record.superseded||[]).includes(head))refuse('cleanup-head-moved','Release branch moved before deletion');if(head)command('git',['push',`--force-with-lease=refs/heads/${branch}:${head}`,'origin',`:refs/heads/${branch}`]);stage('remote-deleted');
  const local=command('git',['rev-parse','--verify',`refs/heads/${branch}`],root,true);if(local.status===0){if(local.stdout.trim()!==record.head)refuse('cleanup-local-head','Local release branch moved');if(git('worktree','list','--porcelain').split('\n').map(l=>l.trimEnd()).includes(`branch refs/heads/${branch}`))refuse('cleanup-worktree','Release branch is checked out');command('git',['update-ref','-d',`refs/heads/${branch}`,record.head]);}stage('local-deleted');
  await syncBase();console.log(`## aai-release — complete\n- Version: ${version}\n- PR: ${pr.url}\n- Merge SHA: ${record.merge}\n- Tag SHA: ${record.merge}\n- Release: ${record.releaseUrl}\n- Branch: deleted`);
 }

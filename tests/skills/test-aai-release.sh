@@ -1424,7 +1424,9 @@ const releasePr=()=>s.prs.find(p=>p.headRefName==='chore/release-v1');
 // release-same-version-recovery: extra modes (s.x) and GitHub's PR head following the branch (asynchronously under head-lag).
 const X=m=>(s.x||[]).includes(m);
 const originHead=()=>{const r=cp.spawnSync('git',['rev-parse','refs/heads/chore/release-v1'],{cwd:origin,encoding:'utf8'});return r.status?'':r.stdout.trim()};
-function follow(){if(!s.follow)return;const p=releasePr();if(!p||p.state!=='OPEN')return;const actual=originHead();if(actual&&actual!==p.headRefOid){if(X('head-lag')){s.lagged=s.lagged||{};if(!s.lagged[actual]){s.lagged[actual]=1;save();return;}}p.headRefOid=actual;save();}}
+// merged-old-head: GitHub completes a squash merge of the head it still reports while the branch is already force-pushed; merged-foreign-head: it reports MERGED on a head the journal never held.
+function mergeOldHead(p){const d=fs.mkdtempSync(path.join(path.dirname(f),'old-merge.')),c=path.join(d,'runner');const g=(cwd,...x)=>{const r=cp.spawnSync('git',x,{cwd,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};g(d,'clone','-q',origin,c);g(c,'checkout','-q','main');g(c,'config','user.name','CI');g(c,'config','user.email','ci@test.invalid');g(c,'merge','--squash',p.headRefOid);g(c,'commit','-qm','chore(release): v1');const oid=g(c,'rev-parse','HEAD');g(c,'push','-q','origin','main');p.state='MERGED';p.mergeCommit={oid};s.runner=c;save();}
+function follow(){if(!s.follow)return;const p=releasePr();if(!p||p.state!=='OPEN')return;const actual=originHead();if(actual&&actual!==p.headRefOid){if(X('merged-old-head')){mergeOldHead(p);return;}if(X('merged-foreign-head')){p.state='MERGED';p.headRefOid='e'.repeat(40);p.mergeCommit={oid:'d'.repeat(40)};save();return;}if(X('head-lag')){s.lagged=s.lagged||{};if(!s.lagged[actual]){s.lagged[actual]=1;save();return;}}p.headRefOid=actual;save();}}
 const git=(...x)=>{const r=cp.spawnSync('git',x,{cwd:repo,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};
 function save(){fs.writeFileSync(f,JSON.stringify(s))}
 // release-one-shot-finish: the stub describes the base branch policy through the endpoints AND enforces the same set at merge time, as GitHub does.
@@ -2333,6 +2335,22 @@ recutCase('TEST-120',()=>{
  assert.ok(gitArgv(f).some(a=>a[0]==='push'&&a.includes(`--force-with-lease=${RELEASE_REF}:${h2}`)),'lease on the pushed head');
  assert.equal(callsOf(f,'pr','merge'),1);assert.equal(Object.keys(f.transport().releases).length,1);assert.equal(releasePrs(f).length,1);
 });
+recutCase('TEST-123',()=>{
+ {
+  const {f,first}=firstCut({x:['ci-first-head','head-lag','merged-old-head']});moveBase(f,301);
+  const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
+  const t=f.transport(),j=journalOf(f).data;assert.equal(t.prs[0].state,'MERGED');assert.equal(t.prs[0].headRefOid,first,'GitHub completed the merge of the old head');
+  assert.equal(j.head,first,'the journal returns to the merged head');assert.ok(!j.recut);assert.equal((j.recuts||[]).length,0,'the superseded re-cut entry is dropped');assert.equal(j.superseded.length,1);assert.equal(releaseRef(f),'','the superseded re-cut branch was cleaned up');assert.equal(j.merge,t.prs[0].mergeCommit.oid);
+  assert.equal(Object.keys(t.releases).length,1,'one release');assert.equal(callsOf(f,'pr','edit'),0,'no PR body edit');assert.equal(callsOf(f,'pr','merge'),0);
+  assert.equal(run('git',['ls-remote','origin','refs/tags/v1^{}'],f.repo).split(/\s/)[0],t.prs[0].mergeCommit.oid,'the tag is on the merge commit');
+ }
+ {
+  const {f,first}=firstCut({x:['ci-first-head','head-lag','merged-foreign-head']});moveBase(f,301);
+  const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: identity/);
+  const j=journalOf(f).data;assert.ok(r.stderr.includes('e'.repeat(40))&&r.stderr.includes(j.head),r.stderr);assert.equal(Object.keys(f.transport().releases).length,0);assert.equal(callsOf(f,'pr','edit'),0);
+  const again=f.invoke();assert.equal(again.status,20,again.stdout+again.stderr);assert.match(again.stderr,/REFUSED: identity/);
+ }
+});
 const HANG=String.raw`import test from 'node:test';import fs from 'node:fs';import path from 'node:path';
 test('CHANGELOG read by a test that hangs on the rolled payload',()=>{
  const t=fs.readFileSync('CHANGELOG.md','utf8');if(!/^## \[v1\] — /m.test(t))return;
@@ -2417,6 +2435,9 @@ test_749_preflight_timeout_kills_group() {
 }
 test_750_recut_absent_remote_branch() {
   RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-122 test_700_one_command_finish
+}
+test_751_merged_old_head_after_recut_push() {
+  RELEASE_FINISH_CASE=none RELEASE_RECUT_CASE=TEST-123 test_700_one_command_finish
 }
 test_739_same_version_texts() {
   PROJECT_ROOT="$PROJECT_ROOT" node --input-type=module <<'JS' || log_fail "TEST-109: same-version texts"
@@ -2780,6 +2801,7 @@ main() {
   test_748_pushed_pending_recut_moves
   test_749_preflight_timeout_kills_group
   test_750_recut_absent_remote_branch
+  test_751_merged_old_head_after_recut_push
   test_739_same_version_texts
   test_740_closed_pr_texts
   test_745_live_same_version_acceptance
