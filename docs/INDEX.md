@@ -6,10 +6,11 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
+| CHANGE-0233 | issues | implementing | — | docs/issues/CHANGE-0233-release-rollup-dry-run.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
 
@@ -1242,10 +1243,6 @@ _None._
 ## Legacy (no frontmatter) (0)
 
 _None._
-
-## Skipped (schema violations) (1)
-
-- docs/issues/CHANGE-0233-release-rollup-dry-run.md: unknown frontmatter status "in_progress"
 
 ---
 Today (UTC): 2026-10-27 — counts above use this date for overdue checks.
