@@ -91,6 +91,7 @@ core:
   - .aai/scripts/aai-release.sh
   - .aai/scripts/release-notes-gate.mjs
   - .aai/scripts/release-finish.mjs
+  - .aai/scripts/release-dry-run.mjs
   - .aai/scripts/lib/release-rollup.mjs
   - .aai/scripts/lib/github-checks.mjs
   - .aai/scripts/aai-run-tests.ps1

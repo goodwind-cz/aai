@@ -2,7 +2,7 @@
 id: release-rollup-dry-run
 type: change
 number: 233
-status: draft
+status: in_progress
 capability: release-command-finish
 user_visible: true
 links:

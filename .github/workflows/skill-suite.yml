@@ -377,6 +377,33 @@ jobs:
   # be tracked. Unconditional (no `if:`) so it runs on every event, and the
   # `gate` job below depends on it, which makes it part of the already
   # required skill-suite context without a branch protection change.
+
+  release-dry-run:
+    name: release dry-run (complete tracked changelog readers)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Pester for actual PowerShell reader execution
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
+      - name: Rehearse production rollup with every discovered reader
+        run: node .aai/scripts/release-dry-run.mjs --jobs 4 --budget-seconds 1080 --report release-dry-run.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-dry-run
+          path: release-dry-run.json
+
   tracked-ignored:
     name: tracked-ignored guard (no gitignored path may be tracked)
     runs-on: ubuntu-latest
@@ -455,7 +482,7 @@ jobs:
   # succeeded.
   gate:
     name: skill test suite (tests/skills/, via test-framework.sh)
-    needs: [select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, self-hosting-smoke, tracked-ignored, release-notes]
+    needs: [select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, self-hosting-smoke, tracked-ignored, release-notes, release-dry-run]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -474,6 +501,9 @@ jobs:
           fi
           if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ needs.release-notes.result }}" != "skipped" ]; then
             echo "unexpected release notes result"; exit 1
+          fi
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ needs.release-dry-run.result }}" != "success" ]; then
+            echo "release dry-run did not succeed"; exit 1
           fi
           if [ "${{ needs.select.outputs.mode }}" != "body-reuse" ] && [ "${{ needs.native-worktree-seed.result }}" != "success" ]; then
             echo "native Windows worktree seed job did not succeed"; exit 1

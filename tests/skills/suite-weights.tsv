@@ -174,6 +174,8 @@ aai-release	158
 # sample aai-release-notes measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=9,11,9,10,9
 aai-release-notes	9
 # sample aai-repo-tripwire measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=52,50,69,74,74
+# sample aai-release-first fallback unsampled (SKIP or absent; no successful observation)
+aai-release-first	212
 aai-repo-tripwire	69
 # sample aai-ride-handoff fallback unsampled (SKIP or absent; no successful observation)
 aai-ride-handoff	212
