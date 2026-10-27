@@ -22,6 +22,10 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — fix: ignore superseded CI failures on the current head (current-head-ci-reader)
+
+- CI watch and release required-check observations bind the current PR head and choose the newest run per check name and app identity from all API pages. An older cancelled or failed run cannot override a newer pending or successful run; moved heads, same-name foreign apps and ambiguous data refuse.
+
 ## [v2026.10.26] — feat(release): a failed release is repaired and finished under its own version (release-same-version-recovery)
 
 - When the remote base has moved and the journal-bound release PR is still open, `/aai-release --version <v> --confirm` no longer

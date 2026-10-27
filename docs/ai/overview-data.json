@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-27T10:30:06.027Z",
+  "generatedAt": "2026-10-27T17:10:25.085Z",
   "project": "aai",
   "counts": {
-    "delivered": 325,
+    "delivered": 326,
     "in_progress": 18,
     "releases": 1,
     "tokens_total": 77863744
@@ -51,11 +51,11 @@
       "review": null
     },
     {
-      "ref": "release-passes-first-time",
-      "title": "A release passes CI on its first attempt",
+      "ref": "release-rollup-dry-run",
+      "title": "Release CHANGELOG rollup dry-run",
       "type": "change",
       "status": "draft",
-      "path": "docs/issues/CHANGE-0231-release-passes-first-time.md",
+      "path": "docs/issues/CHANGE-0233-release-rollup-dry-run.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
@@ -247,6 +247,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "current-head-ci-reader",
+      "title": "Current-head CI result selection",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0232-current-head-ci-reader.md",
+      "closed_on": "2026-10-27",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0256-spec-current-head-ci-reader.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "release-same-version-recovery",
       "title": "A failed release is repaired and finished under the same version",
@@ -4499,6 +4512,19 @@
       "kind": "month",
       "label": "2026-10",
       "items": [
+        {
+          "ref": "current-head-ci-reader",
+          "title": "Current-head CI result selection",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0232-current-head-ci-reader.md",
+          "closed_on": "2026-10-27",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0256-spec-current-head-ci-reader.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "release-same-version-recovery",
           "title": "A failed release is repaired and finished under the same version",

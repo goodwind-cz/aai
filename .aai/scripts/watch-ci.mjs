@@ -43,6 +43,7 @@
 // the same discipline already demanded of a subagent waiting on a long run.
 
 import { spawnSync } from 'node:child_process';
+import {readCurrentChecks} from './lib/github-checks.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
 function usage(msg) {
@@ -120,21 +121,8 @@ function originIsGithub() {
 // read as "zero checks, all passed" — the exact D8-forbidden shape this
 // probe exists to prevent.
 function pollOnce(pr, required) {
-  const args = ['pr', 'checks'];
-  if (pr !== undefined) args.push(pr);
-  if (required) args.push('--required');
-  args.push('--json', 'name,bucket,link');
-  const r = spawnSync('gh', args, { encoding: 'utf8' });
-  if (r.error) return { error: `gh pr checks failed to run (${r.error.code || 'unknown'})` };
-  let checks;
-  try { checks = JSON.parse(r.stdout); } catch {
-    return { error: `gh pr checks returned non-JSON output (exit ${r.status}): ${(r.stderr || r.stdout || '').trim().slice(0, 200)}` };
-  }
-  if (!Array.isArray(checks)) return { error: 'gh pr checks --json did not return an array' };
-  if (checks.length === 0 && r.status !== 0) {
-    return { error: `gh pr checks exited ${r.status} with no checks reported: ${(r.stderr || '').trim().slice(0, 200) || '(no stderr)'}` };
-  }
-  return { checks };
+  try { return readCurrentChecks({pr, required}); }
+  catch (e) { return {error:e.message}; }
 }
 
 function main(argv) {

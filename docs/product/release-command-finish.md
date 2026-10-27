@@ -8,8 +8,9 @@ delivered_by:
   - release-command-finish
   - release-one-shot-finish
   - release-same-version-recovery
+  - current-head-ci-reader
 spec: docs/specs/SPEC-0233-spec-release-command-finish.md
-updated: 2026-10-26
+updated: 2026-10-27
 ---
 
 # Complete and resume a release
@@ -60,6 +61,12 @@ The prepared commit changes only `CHANGELOG.md` and `docs/ai/AAI_VERSION.md`. Th
 - Version: must match `release.yml`'s tag pattern `v?[0-9]…`; anything else refuses `version` before any GitHub call.
 - Result: version, PR, merge/tag SHA, release URL, cleanup and sync status. Finish refusal exits 20 with one named cause, completed facts and an explicit resume command; local/parser exit codes are listed in the release skill.
 - Wait limits: `AAI_RELEASE_WAIT_SECONDS` defaults to 3600; `AAI_RELEASE_POLL_SECONDS` defaults to 15; `AAI_RELEASE_CHECKS_GRACE_SECONDS` defaults to 60 when unset or blank (how long the first required-checks read waits for GitHub to register checks; an explicit 0 means one read, and a value that is not a plain decimal number refuses `arguments`).
+
+## Current-head CI results
+
+Both the CI watcher and every release required-check read resolve the current PR head twice around complete API pagination, preserve legacy status contexts, and select the newest observation per check name by a consistent workflow-creation/ID/check-ID ordering for Actions jobs, including queued reruns; external checks and legacy statuses use their own consistent identity clocks. Older failure/cancellation waits behind newer pending work and yields to newer success. Newer failure remains failure. An inconsistent head, incomplete pagination, malformed identity or transport error refuses; release also binds its journal head. Required-only filtering, registration grace and merge-queue behavior still apply. This does not predict a newer run before GitHub registers it and does not retry infrastructure failures.
+
+Release CHANGELOG dry-run rehearsal on every PR is owned by the parked sibling `release-rollup-dry-run` and is not part of this surface yet.
 
 ## Limits and non-goals
 

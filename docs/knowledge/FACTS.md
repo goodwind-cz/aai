@@ -47,3 +47,8 @@ Rules:
 - `eolOnlyMismatchNote` in `.aai/scripts/lib/tree-hash.mjs` names changed
   paths whose source vs clone bytes differ only by CR using the token
   `EOL-only difference`. Evidence: TEST-003.
+
+## Current-head CI observations
+
+- `github-checks.mjs:readCurrentChecks` is the shared reader for `watch-ci` and release required-check observations. Newest-run selection uses workflow creation identity; response order and success preference are not used (`tests/skills/lib/current-head-ci.test.mjs`, TEST-001..003).
+- `release-rollup.mjs:rollup` is a pure extract of the production CHANGELOG transform used by `release-finish.mjs`. The dry-run consumer is owned by the parked sibling `release-rollup-dry-run`.

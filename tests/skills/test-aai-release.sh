@@ -1458,6 +1458,13 @@ else if(a[0]==='api'&&(a[a.length-1]==='repos/test/release/branches/main'||a[a.l
  else if(s.mode==='late-ruleset')out({name:'main',protected:false});
  else{const c=classicSet();out({name:'main',protected:true,protection:{enabled:true,required_status_checks:{enforcement_level:'everyone',contexts:c,checks:c.map(x=>({context:x,app_id:1}))}}});}
 }
+else if(a[0]==='api'&&a.includes('--paginate')&&a.includes('--slurp')&&/repos\/test\/release\/commits\/[a-f0-9]{40}\/(check-runs|statuses)\?/.test(a[a.length-1])){
+ const p=releasePr(),endpoint=a[a.length-1];if(!endpoint.includes('/'+p.headRefOid+'/'))die('wrong API head');
+ if(endpoint.includes('/statuses?')){s.lastReadKind='statuses';save();out([[]]);}else{s.lastReadKind='checks';save();if(s.mode==='context-never'&&Number(process.env.AAI_RELEASE_FIXTURE_DELAY_MS)>0)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,Number(process.env.AAI_RELEASE_FIXTURE_DELAY_MS));const rows=s.lastChecks||[{name:'required',bucket:'pass'}];out([{total_count:rows.length,check_runs:rows.map((c,i)=>({id:i+1,name:c.name,head_sha:p.headRefOid,status:c.bucket==='pending'?'in_progress':'completed',conclusion:{pass:'success',fail:'failure',cancel:'cancelled',skipping:'skipped'}[c.bucket],started_at:'2026-10-27T00:00:00Z',details_url:''}))}]);}
+}
+else if(a[0]==='pr'&&a[1]==='view'&&a[a.length-1]==='headRefOid,url,number'){
+ const p=releasePr();if(a[2]!=='1'||a.length!==5&&a.length!==7)die('bad check identity argv');const completingWatch=s.observer==='watch'&&!a.includes('--repo')&&s.lastReadKind==='statuses';s.observer=a.includes('--repo')?'engine':'watch';if(completingWatch)s.watchSettledAt=Date.now();s.lastReadKind='view';save();out({headRefOid:p.headRefOid,url:p.url,number:p.number});
+}
 else if(a[0]==='api'){
  const m=/^repos\/\{owner\}\/\{repo\}\/commits\/([0-9a-f]{40})\/pulls$/.exec(a[1]||'');if(!m||a.length!==2)die('bad api argv '+JSON.stringify(a));
  out((s.apiPulls||{})[m[1]]||[]);
@@ -1488,8 +1495,10 @@ else if(a[0]==='pr'&&a[1]==='create') {
  if(fs.readFileSync(body,'utf8')!==('Automated release cut for v1.\n\nBound release: test/release '+branch+' '+sha+'.\n\nno-notes: release rollup contains the previously recorded entries.\n'))die('bad bound PR body'); if(!/^[a-f0-9]{40}$/.test(sha))die('unpushed head');
  const p={number:1,url:'https://github.com/test/release/pull/1',title:get('--title'),baseRefName:'main',headRefName:branch,headRefOid:sha,state:'OPEN',mergeCommit:null,headRepository:{nameWithOwner:'test/release'},isCrossRepository:false};s.prs.push(p);save();out(p.url);
 } else if(a[0]==='pr'&&a[1]==='checks') {
- const required=eq(['pr','checks','1','--repo','test/release','--required','--json','name,bucket,link']);
- const watchedRequired=eq(['pr','checks','1','--required','--json','name,bucket,link']);
+ const boundRequired=eq(['pr','checks','1','--repo','test/release','--required','--json','name,bucket,link']);
+ const required=boundRequired&&s.observer!=='watch';
+ const watchedRequired=eq(['pr','checks','1','--required','--json','name,bucket,link'])||boundRequired&&s.observer==='watch';
+ s.observations=s.observations||[];s.observations.push({observer:required?'engine':'watch',args:a});save();
  const watched=watchedRequired||eq(['pr','checks','1','--json','name,bucket,link']);if(!required&&!watched)die('bad checks argv');
  if(s.mode==='optional-fail'&&!required&&!watchedRequired){out([{name:'required',bucket:'pass',link:''},{name:'optional-lint',bucket:'fail',link:''}]);process.exit(1);}
  if(required){s.engineReads=(s.engineReads||0)+1;save();}
@@ -1498,7 +1507,7 @@ else if(a[0]==='pr'&&a[1]==='create') {
  if(required&&s.mode==='late-gh'&&reads<=2){process.stderr.write(reads===1?"no checks reported on the 'chore/release-v1' branch\n":"no required checks reported on the 'chore/release-v1' branch\n");process.exit(1);}
  if(required&&s.mode==='never-gh'){process.stderr.write("no required checks reported on the 'chore/release-v1' branch\n");process.exit(1);}
  if(required&&s.mode==='odd-error'){process.stderr.write('HTTP 502: Bad Gateway\n');process.exit(1);}
- if(required&&s.mode==='skipped'){out([{name:'required',bucket:'skipping',link:''}]);process.exit(0);}
+ if(required&&s.mode==='skipped'){s.lastChecks=[{name:'required',bucket:'skipping',link:''}];save();out(s.lastChecks);process.exit(0);}
  if(required&&s.mode==='settle-empty'&&reads>=2){out([]);process.exit(0);}
  if(required&&s.mode==='settle-gh'&&reads>=2){process.stderr.write("no checks reported on the 'chore/release-v1' branch\n");process.exit(1);}
  if(s.mode==='checks-error'){out([{name:'required',bucket:'pass',link:''}]);process.exit(3);}
@@ -1518,7 +1527,7 @@ else if(a[0]==='pr'&&a[1]==='create') {
  const rows=s.mode==='missing-checks'?[]:[{name:'required',bucket,link:''}];
  const lb=required&&lateModes.includes(s.mode)?lateBucket(reads):null;
  if(lb){rows.push({name:'late-suite',bucket:lb,link:''});if(lb==='pass'&&s.latePassCall===undefined){s.latePassCall=s.calls.length-1;save();}}
- out(rows);
+ s.lastChecks=rows;save();out(rows);
  if(rows.some(r=>r.bucket==='fail'))process.exit(1);if(rows.some(r=>r.bucket==='pending'))process.exit(8);
 } else if(a[0]==='pr'&&a[1]==='merge') {
  const p=releasePr();const expected=['pr','merge','1','--repo','test/release','--squash','--match-head-commit',p.headRefOid];if(!eq(expected))die('unbound merge '+JSON.stringify(a));
@@ -1741,8 +1750,8 @@ check('TEST-009',()=>{const f=fixture();f.git('checkout','--detach','-q');fs.wri
  const hidden=fixture();hidden.git('update-index','--assume-unchanged','CHANGELOG.md');fs.appendFileSync(path.join(hidden.repo,'CHANGELOG.md'),'hidden owner bytes\n');const hiddenBytes=fs.readFileSync(path.join(hidden.repo,'CHANGELOG.md'));const hiddenCut=hidden.invoke();assert.equal(hiddenCut.status,20,hiddenCut.stderr);assert.match(hiddenCut.stderr,/base-hidden-edits/);assert.deepEqual(fs.readFileSync(path.join(hidden.repo,'CHANGELOG.md')),hiddenBytes);
  const divergent=fixture();fs.writeFileSync(path.join(divergent.repo,'local.txt'),'local only\n');divergent.git('add','local.txt');divergent.git('commit','-qm','unpublished base commit');const ownHead=divergent.git('rev-parse','HEAD'),localBytes=fs.readFileSync(path.join(divergent.repo,'local.txt'));const diverged=divergent.invoke();assert.notEqual(diverged.status,0);assert.match(diverged.stderr,/base-diverged/);assert.equal(divergent.git('rev-parse','HEAD'),ownHead);assert.deepEqual(fs.readFileSync(path.join(divergent.repo,'local.txt')),localBytes);
 });
-const engineReads=t=>t.calls.filter(a=>a[0]==='pr'&&a[1]==='checks'&&a.includes('--repo')).length;
-const watchReads=t=>t.calls.filter(a=>a[0]==='pr'&&a[1]==='checks'&&!a.includes('--repo')).length;
+const engineReads=t=>(t.observations||[]).filter(o=>o.observer==='engine').length;
+const watchReads=t=>(t.observations||[]).filter(o=>o.observer==='watch').length;
 const merges=t=>t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length;
 const refusals=r=>(r.stderr.match(/REFUSED:/g)||[]).length;
 function graceCase(id,mode,grace,poll){
@@ -1848,7 +1857,7 @@ check('TEST-072',()=>{
 // release-one-shot-finish (TEST-074..085): required contexts, merge-policy pending, ref-guard base sync, closed PR, docs, case wiring.
 const firstMerge=t=>t.calls.findIndex(a=>a[0]==='pr'&&a[1]==='merge');
 const gateLines=r=>r.stdout.split('\n').filter(l=>l.startsWith('- Required contexts:'));
-function lateRun(mode,wait){const f=fixture(mode);if(wait)f.env.AAI_RELEASE_WAIT_SECONDS=wait;return {f,r:f.invoke()};}
+function lateRun(mode,wait,delay){const f=fixture(mode);if(wait)f.env.AAI_RELEASE_WAIT_SECONDS=wait;if(delay)f.env.AAI_RELEASE_FIXTURE_DELAY_MS=String(delay);return {f,r:f.invoke()};}
 function mergedAfterLate(f,r,label){
  assert.equal(r.status,0,label+r.stdout+r.stderr);assert.equal(refusals(r),0,label+r.stderr);
  const t=f.transport();assert.equal(merges(t),1,label);assert.ok(watchReads(t)>=1,label+' watch-ci reads');
@@ -1867,9 +1876,17 @@ check('TEST-086',()=>{
  const old=lateRun('rules-no-slurp','1');assert.match(old.r.stdout,/Required contexts: UNREADABLE rulesets/,old.r.stdout+old.r.stderr);
 });
 check('TEST-076',()=>{
- const {f,r}=lateRun('context-never','1');assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);
- assert.match(r.stderr,/REFUSED: required-contexts/);assert.match(r.stderr,/late-suite/);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);
- const t=f.transport();assert.equal(merges(t),0);assert.ok(engineReads(t)>=5,'the engine must keep polling until the wait bound, engine reads '+engineReads(t));
+ // The contract is a deadline, not a minimum request count. A slow API read
+ // consumes the same one-second budget as sleep; five polls is not guaranteed.
+ for(const delay of [0,200]){
+  const {f,r}=lateRun('context-never','1',delay);const completed=Date.now();
+  assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);
+  assert.match(r.stderr,/REFUSED: required-contexts/);assert.match(r.stderr,/late-suite/);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);
+  const t=f.transport();assert.equal(merges(t),0);assert.ok(engineReads(t)>=2,'initial and strict post-watch observations both execute');
+  assert.ok(Number.isSafeInteger(t.watchSettledAt),'fixture observed the watcher completing its final head read');
+  const waited=completed-t.watchSettledAt;assert.ok(waited>=1000,'required-context deadline was shortened: '+waited+'ms');
+  console.log('TIMING_CONTROL delay_ms='+delay+' engine_reads='+engineReads(t)+' since_watch_ms='+waited);
+ }
 });
 check('TEST-077',()=>{
  const {f,r}=lateRun('context-failed','5');assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);
@@ -2094,7 +2111,7 @@ check('TEST-015',()=>{
  const f=fixture();historical(f,220,'.aai/scripts/unnoted.mjs');
  const scripts=path.join(f.repo,'.aai/scripts'),lib=path.join(scripts,'lib');fs.mkdirSync(lib,{recursive:true});
  for(const name of ['aai-release.sh','aai-release.ps1','release-finish.mjs','release-notes-gate.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts',name),path.join(scripts,name));
- fs.copyFileSync(path.join(root,'.aai/scripts/lib/runtime-file.mjs'),path.join(lib,'runtime-file.mjs'));
+ for(const name of ['runtime-file.mjs','github-checks.mjs','release-rollup.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts/lib',name),path.join(lib,name));
  const copied=path.join(scripts,'release-finish.mjs'),gate=path.join(scripts,'release-notes-gate.mjs'),notes=path.join(f.d,'audit-notes');fs.writeFileSync(notes,'unrelated notes');
  const audit=()=>spawnSync('node',[copied,'--root',f.repo,'--audit',notes,'--online'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});
  const normal=audit();assert.equal(normal.status,0,normal.stderr);assert.match(normal.stdout,/#220 feat: shipped 220/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='view'&&a[2]==='220').length,1,'real historical metadata read');
