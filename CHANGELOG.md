@@ -9,11 +9,7 @@ updating, run `/aai-doctor` to surface any migration actions specific to
 your project (for example, the STATE-to-local migration introduced in
 RFC-0001).
 
-Every entry heading follows `## [unreleased] — Release CHANGELOG dry-run on every PR
-
-PR skill-suite runs a read-only production rollup rehearsal across Node, shell and PowerShell CHANGELOG readers, and refuses report destinations inside Git metadata before any checkpoint write.
-
-## [unreleased] — <type>: <title>` (Keep-a-
+Every entry heading follows `## [unreleased] — <type>: <title>` (Keep-a-
 Changelog style: type is feat/fix/docs/chore/ci/..., title a short summary).
 `aai-release` itself enforces only the `## [unreleased] — ` prefix — any
 text after the dash is free-form and rolls up unexamined; the `<type>:
@@ -25,6 +21,10 @@ entries is refused too (exit 13). A bare, EMPTY `## [unreleased]` scaffold is
 fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
+
+## [unreleased] — feat(release): CHANGELOG dry-run on every PR (release-rollup-dry-run)
+
+- PR skill-suite runs a read-only production rollup rehearsal across Node, shell and PowerShell CHANGELOG readers, and refuses report destinations inside Git metadata before any checkpoint write.
 
 ## [unreleased] — fix: ignore superseded CI failures on the current head (current-head-ci-reader)
 

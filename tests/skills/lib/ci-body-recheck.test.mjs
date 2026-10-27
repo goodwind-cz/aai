@@ -208,7 +208,7 @@ function gate(data) {
 }
 const goodGate = () => ({ 'github.event_name': 'pull_request', 'needs.select.result': 'success',
   'needs.select.outputs.mode': 'body-reuse', 'needs.select.outputs.body_proof': 'BODY_REUSE run=100',
-  'needs.release-notes.result': 'success', 'needs.tracked-ignored.result': 'success',
+  'needs.release-notes.result': 'success', 'needs.release-dry-run.result': 'success', 'needs.tracked-ignored.result': 'success',
   'needs.skills-selected.result': 'skipped', 'needs.skills-selected-sharded.result': 'skipped',
   'needs.skills-full.result': 'skipped', 'needs.native-worktree-seed.result': 'skipped',
   'needs.self-hosting-smoke.result': 'skipped', 'needs.select.outputs.selected_runners': '' });
@@ -236,7 +236,7 @@ test('TEST-005 real workflow conditions and aggregate enforce body-reuse proof',
     assert.match(derive('FULL_RUN reason=unmapped path=x'), /mode=full/);
     assert.match(derive('CORE aai-core reason=core\nSELECTED aai-feature reason=feature\/x'), /mode=selected/);
   } finally { rmSync(deriveDir, { recursive: true, force: true }); }
-  assert.match(WF, /needs: \[select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, self-hosting-smoke, tracked-ignored, release-notes\]/);
+  assert.match(WF, /needs: \[select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, self-hosting-smoke, tracked-ignored, release-notes, release-dry-run\]/);
   for (const name of ['skills-selected', 'skills-selected-sharded', 'skills-full', 'native-worktree-seed', 'self-hosting-smoke']) {
     const next = name === 'skills-selected' ? 'skills-selected-sharded' : name === 'skills-selected-sharded' ? 'skills-full'
       : name === 'skills-full' ? 'tracked-ignored' : name === 'native-worktree-seed' ? 'gate' : null;
@@ -254,7 +254,7 @@ test('TEST-005 real workflow conditions and aggregate enforce body-reuse proof',
   const full = { ...selected, 'needs.select.outputs.mode': 'full', 'needs.skills-selected.result': 'skipped',
     'needs.skills-full.result': 'success' };
   assert.equal(gate(full).status, 0);
-  for (const key of ['needs.select.result', 'needs.release-notes.result', 'needs.tracked-ignored.result',
+  for (const key of ['needs.select.result', 'needs.release-notes.result', 'needs.release-dry-run.result', 'needs.tracked-ignored.result',
     'needs.select.outputs.body_proof', 'needs.skills-full.result', 'needs.native-worktree-seed.result',
     'needs.self-hosting-smoke.result']) {
     const bad = goodGate(); bad[key] = key.endsWith('body_proof') ? '' : 'failure';
