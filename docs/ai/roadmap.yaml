@@ -108,6 +108,12 @@ pairs:
     status: done
   - capability: release-same-version-recovery
     status: done
+  - capability: release-passes-first-time
+    status: done
+  - capability: current-head-ci-reader
+    status: done
+  - capability: release-rollup-dry-run
+    status: planned
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

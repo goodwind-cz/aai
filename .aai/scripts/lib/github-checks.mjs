@@ -1,0 +1,152 @@
+// Current-head observations shared by watch-ci and release required-check reads.
+// Use complete API pages and creation/start identity, never response order or
+// conclusion preference. The PR head is read on both sides of the observation.
+import {spawnSync} from 'node:child_process';
+const sha=s=>/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(s||'');
+function fail(message) {
+  throw Error(`github-checks: ${message}`);
+}
+function bucket(status,conclusion) {
+  if(status!=='completed') {
+    if(['queued','in_progress','waiting','requested','pending'].includes(status))return 'pending';
+    fail(`unknown check status ${status}`);
+  }
+  const map= {
+    success:'pass',neutral:'skipping',skipped:'skipping',failure:'fail',timed_out:'fail',action_required:'fail',startup_failure:'fail',cancelled:'cancel',stale:'fail'
+  };
+  if(!(conclusion in map))fail(`unknown check conclusion ${conclusion}`);
+  return map[conclusion];
+}
+function newer(a,b) {
+  for(let i=0;i<a.order.length;i++) {
+    if(a.order[i]!==b.order[i])return a.order[i] > b.order[i];
+  }
+  return false;
+}
+export function readCurrentChecks({
+  pr,repo,expectedHead,required=false,cwd=process.cwd(),run
+}
+= {
+}) {
+  const invoke=run||((args)=>spawnSync('gh',args, {
+    cwd,encoding:'utf8',timeout:60000,maxBuffer:32*1024*1024
+  }));
+  function raw(args,allowed=[0]) {
+    const r=invoke(args);
+    if(r.error||!allowed.includes(r.status))fail(`transport ${args.join(' ')}: ${r.error?.message||r.stderr||`exit $ {
+      r.status
+    }
+    `}`);
+    return r;
+  }
+  function json(args) {
+    const r=raw(args);
+    try {
+      return JSON.parse(r.stdout);
+    }
+    catch {
+      fail(`invalid JSON: ${args.join(' ')}`);
+    }
+  }
+  const view=['pr','view',...(pr===undefined?[]:[String(pr)]),...(repo?['--repo',repo]:[]),'--json','headRefOid,url,number'];
+  const before=json(view);
+  if(!sha(before?.headRefOid))fail('missing PR head identity');
+  const head=before.headRefOid;
+  if(expectedHead&&head!==expectedHead)fail('head-SHA mismatch with release journal');
+  const match=/^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)$/.exec(before.url||'');
+  if(!match || repo&&repo!==match[1] || !Number.isSafeInteger(before.number) || before.number<1 || String(before.number)!==match[2] || /^\d+$/.test(String(pr))&&Number(pr)!==before.number)fail('missing or inconsistent repository/PR identity');
+  repo=match[1];
+  let names=null;
+  if(required) {
+    const args=['pr','checks',String(before.number||pr),'--repo',repo,'--required','--json','name,bucket,link'];
+    const r=raw(args,[0,1,8]);
+    let list;
+    if(r.status===1&&!r.stdout.trim()&&/^no (required )?checks reported on the '[^']*' branch$/.test((r.stderr||'').trim()))list=[];
+    else try {
+      list=JSON.parse(r.stdout);
+    }
+    catch {
+      fail('invalid JSON from required-check reader');
+    }
+    if(!Array.isArray(list)||list.some(c=>!c||typeof c.name!=='string'||!c.name||!['pass','fail','cancel','pending','skipping'].includes(c.bucket)))fail('malformed required checks');
+    if(r.status===8&&!list.some(c=>c.bucket==='pending')||r.status===1&&list.length&&!list.some(c=>['fail','cancel'].includes(c.bucket)))fail('inconsistent required-check exit status');
+    names=new Set(list.map(c=>c.name));
+  }
+  const pages=json(['api','--paginate','--slurp',`repos/${repo}/commits/${head}/check-runs?filter=all&per_page=100`]);
+  if(!Array.isArray(pages)||!pages.length||pages.some(p=>!p||!Number.isSafeInteger(p.total_count)||!Array.isArray(p.check_runs)))fail('malformed check-run pages');
+  const runs=pages.flatMap(p=>p.check_runs),total=pages[0].total_count;
+  if(pages.some(p=>p.total_count!==total)||runs.length!==total)fail('incomplete or moving check-run pagination');
+  const observations=[];
+  const workflows=new Map();
+  const seenRunIds=new Set();
+  for(const c of runs) {
+    if(seenRunIds.has(c.id))fail('duplicate check-run identity across pages');
+    seenRunIds.add(c.id);
+    if(c.head_sha!==head)fail(`head-SHA mismatch: ${c.name||'(unnamed)'}`);
+    if(typeof c.name!=='string'||!c.name||!Number.isSafeInteger(c.id)||c.id<=0)fail('malformed check-run identity');
+    // Every Actions job uses the SAME immutable workflow creation identity.
+    // Job start time can be later in an older workflow, and queued jobs lack
+    // a start time. Mixing those clocks makes pairwise ordering nontransitive.
+    const runMatch=new RegExp(`^https://github\\.com/${repo}/actions/runs/(\\d+)(?:/|$)`).exec(c.details_url||c.html_url||'');
+    let time,runId=0,orderKind='check';
+    if(runMatch) {
+      runId=Number(runMatch[1]);
+      if(!Number.isSafeInteger(runId)||runId<1)fail(`malformed workflow identity: ${c.name}`);
+      if(!workflows.has(runId)) {
+        const workflow=json(['api',`repos/${repo}/actions/runs/${runId}`]);
+        if(workflow?.head_sha!==head || workflow.id!==undefined&&workflow.id!==runId)fail(`workflow identity/head-SHA mismatch: ${c.name}`);
+        const created=Date.parse(workflow.created_at||'');
+        if(!Number.isFinite(created))fail(`missing workflow creation identity: ${c.name}`);
+        workflows.set(runId,created);
+      }
+      time=workflows.get(runId);
+      orderKind='workflow';
+    } else time=Date.parse(c.started_at||c.created_at||'');
+    if(!Number.isFinite(time))fail(`missing check-run ordering identity: ${c.name}`);
+    observations.push({
+      name:c.name,bucket:(()=> {
+        try {
+          return bucket(c.status,c.conclusion);
+        }
+        catch(e) {
+          fail(`${c.name}: ${e.message}`);
+        }
+      })(),link:c.details_url||c.html_url||'',id:c.id,order:[time,runId,c.id],orderKind,kind:'check'
+    });
+  }
+  const statusPages=json(['api','--paginate','--slurp',`repos/${repo}/commits/${head}/statuses?per_page=100`]);
+  if(!Array.isArray(statusPages)||!statusPages.length||statusPages.some(p=>!Array.isArray(p)))fail('malformed status pages');
+  const seenStatusIds=new Set();
+  for(const c of statusPages.flat()) {
+    if(seenStatusIds.has(c.id))fail('duplicate legacy status identity across pages');
+    seenStatusIds.add(c.id);
+    if(c.sha!==undefined&&c.sha!==head)fail(`head-SHA mismatch: ${c.context}`);
+    const time=Date.parse(c.created_at||'');
+    if(!c.context||!Number.isSafeInteger(c.id)||c.id<1||!Number.isFinite(time)||!['success','failure','error','pending'].includes(c.state))fail('malformed legacy status identity');
+    observations.push({
+      name:c.context,bucket: {
+        success:'pass',failure:'fail',error:'fail',pending:'pending'
+      }
+      [c.state],link:c.target_url||'',id:c.id,order:[time,0,c.id],orderKind:'status',kind:'status'
+    });
+  }
+  const latest=new Map();
+  for(const c of observations) {
+    const old=latest.get(c.name);
+    if(old&&old.kind!==c.kind)fail(`ambiguous check and status context: ${c.name}`);
+    if(old&&c.id===old.id&&JSON.stringify(c)!==JSON.stringify(old))fail(`ambiguous duplicate check identity: ${c.name}`);
+    if(old&&old.orderKind!==c.orderKind)fail(`ambiguous ordering identities: ${c.name}`);
+    if(!old||newer(c,old))latest.set(c.name,c);
+  }
+  const after=json(view);
+  if(after?.headRefOid!==head||after?.url!==before.url||after?.number!==before.number)fail('PR head changed during observation');
+  const checks=[...latest.values()].filter(c=>!names||names.has(c.name)).map(({
+    name,bucket,link,id
+  })=>({
+    name,bucket,link,id,head
+  }));
+  if(names)for(const name of names)if(!checks.some(c=>c.name===name))fail(`required context missing from current head: ${name}`);
+  return {
+    head,checks
+  };
+}

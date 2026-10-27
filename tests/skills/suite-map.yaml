@@ -97,6 +97,15 @@ full_run_triggers:
     - .aai/scripts/lib/**
 
 suites:
+  aai-current-head-ci:
+    globs:
+      - .aai/scripts/lib/github-checks.mjs
+      - .aai/scripts/lib/release-rollup.mjs
+      - .aai/scripts/release-finish.mjs
+      - .aai/scripts/watch-ci.mjs
+      - tests/skills/lib/current-head-ci.test.mjs
+      - tests/fixtures/release-first-pr504.json
+      - docs/product/release-command-finish.md
   aai-advisory-skills:
     companions:
       - aai-prompt-diet

@@ -74,7 +74,7 @@ test_002_release_names_unlogged_pr() {
   cp "$RELEASE" "$d/.aai/scripts/aai-release.sh"
   cp "$PROJECT_ROOT/.aai/scripts/release-finish.mjs" "$PROJECT_ROOT/.aai/scripts/release-notes-gate.mjs" "$d/.aai/scripts/"
   mkdir -p "$d/.aai/scripts/lib"
-  cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$d/.aai/scripts/lib/"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$PROJECT_ROOT/.aai/scripts/lib/github-checks.mjs" "$PROJECT_ROOT/.aai/scripts/lib/release-rollup.mjs" "$d/.aai/scripts/lib/"
   # The second section is the DISCRIMINATOR for the two-token subject below.
   # It carries the TRUNCATED body text (`fix(z): a`) and NOT the number, so a
   # parser that cuts the body at the FIRST `(#` finds a match here and calls

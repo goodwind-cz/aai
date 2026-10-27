@@ -2,7 +2,7 @@
 id: release-passes-first-time
 type: change
 number: 231
-status: draft
+status: superseded
 capability: release-command-finish
 user_visible: true
 links:
@@ -11,6 +11,11 @@ links:
 ---
 
 # A release passes CI on its first attempt
+
+> Superseded 2026-10-27 by owner split decision
+> `docs/decisions/DECISION-release-passes-first-time-split.md`.
+> Children: `current-head-ci-reader` (first) and `release-rollup-dry-run`
+> (parked). Bytes and Validation4 evidence stay.
 
 ## Summary
 

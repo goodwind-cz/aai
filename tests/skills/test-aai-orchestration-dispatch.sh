@@ -4482,6 +4482,15 @@ if [[ "$1" == "pr" && "$2" == "checks" ]]; then
   printf '%s\n' "$GH_STUB_CHECKS_JSON"
   exit 0
 fi
+if [[ "$1" == "pr" && "$2" == "view" ]]; then
+  echo '{"headRefOid":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","url":"https://github.com/example-org/example-repo/pull/1","number":1}'
+  exit 0
+fi
+if [[ "$1" == "api" ]]; then
+  if [[ "$*" == *"/statuses?"* ]]; then echo '[[]]'; exit 0; fi
+  node -e 'const a=JSON.parse(process.env.GH_STUB_CHECKS_JSON);console.log(JSON.stringify([{total_count:a.length,check_runs:a.map((c,i)=>({id:i+1,name:c.name,head_sha:"a".repeat(40),status:c.bucket==="pending"?"in_progress":"completed",conclusion:{pass:"success",fail:"failure",cancel:"cancelled",skipping:"skipped"}[c.bucket]||c.bucket,started_at:"2026-10-27T00:00:00Z",details_url:c.link}))}]))'
+  exit 0
+fi
 echo "gh-stub: unexpected args: $*" >&2
 exit 1
 SH

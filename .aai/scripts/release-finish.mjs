@@ -2,6 +2,8 @@
 // Shared release-only state machine. Durable identity lives in Git metadata;
 // remote facts are re-read on every resume. No general PR merge authorization.
 import fs from 'node:fs';
+import {readCurrentChecks} from './lib/github-checks.mjs';
+import {rollup as rollRelease} from './lib/release-rollup.mjs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -116,25 +118,8 @@ function githubOrigin(origin){
 function stage(name){record.stage=name;atomicSave();console.log(`release: ${name}`);if(process.env.AAI_RELEASE_TEST_STOP_AFTER===name)refuse('interrupted',`Test interruption after ${name}`);}
 function remoteHead(ref){return git('ls-remote','origin',ref).split(/\s/)[0]||'';}
 function trim(s){return s.replace(/\r\n/g,'\n').trim();}
-function rollup(source) {
- const bom=source.startsWith('\uFEFF')?'\uFEFF':'';if(bom)source=source.slice(1);
- const newline=source.endsWith('\n');const lines=source.split('\n');if(newline)lines.pop();
- const first=lines.findIndex(l=>/^## \[/.test(l));if(first<0)refuse('empty-notes','No rollable entries');
- const cr=lines[first].endsWith('\r')?'\r':'';
- const heads=[];for(let i=first;i<lines.length;i++)if(/^## /.test(lines[i]))heads.push(i);heads.push(lines.length);
- const sections=[];for(let k=0;k<heads.length-1;k++){
-  const text=lines.slice(heads[k],heads[k+1]);const heading=text[0];
-  if(/^## \[unreleased\]/.test(heading)){
-   if(/^## \[unreleased\]\s*$/.test(heading)&&text.slice(1).every(l=>!l.trim()))continue;
-   if(!/^## \[unreleased\] — \S/.test(heading)||!text.slice(1).some(l=>l.trim()))refuse('malformed-notes','Malformed or empty unreleased entry');
-   sections.push({entry:true,text:[heading.replace('[unreleased]',`[${version}]`),...text.slice(1)]});
-  }else sections.push({entry:false,text});
- }
- if(!sections.some(s=>s.entry))refuse('empty-notes','No rollable entries');
- const notes=sections.filter(s=>s.entry).flatMap(s=>s.text).map(l=>l.replace(/\r$/,'')).join('\n').trim();
- const ordered=[...sections.filter(s=>s.entry),...sections.filter(s=>!s.entry)];
- return {content:bom+[...lines.slice(0,first),'## [unreleased]'+cr,''+cr,...ordered.flatMap(s=>s.text)].join('\n')+(newline?'\n':''),notes};
-}
+function rollup(source) { return rollRelease(source, version); }
+
 function historyBoundary(head,online){
  if(git('rev-parse','--is-shallow-repository')!=='false')refuse('notes-history','Complete release history is required; obtain full history before retrying');
  const local=online?null:command('git',['show-ref','--tags','--dereference'],root,true);
@@ -488,18 +473,15 @@ function queuedOrRefuse(){
  let q=null;if(!r.error&&r.status===0)try{q=JSON.parse(r.stdout);}catch{}
  if(q&&q.state==='OPEN'&&q.isInMergeQueue===true)pending('merge-queue',`Release PR #${record.pr} is queued in the merge queue and has not merged yet`);
 }
-function requiredChecks(allowEmpty=false){
- const args=['pr','checks',String(record.pr),'--repo',record.repo,'--required','--json','name,bucket,link'];
- const r=command('gh',args,root,true);
- if(r.error||![0,1,8].includes(r.status))refuse('github-checks',r.error?.message||`gh checks transport exited ${r.status}`);
- // gh 2.93 prints nothing on stdout and exits 1 with this stderr while no (required) check is registered yet.
- const notRegistered=r.status===1&&!r.stdout.trim()&&/^no (required )?checks reported on the '[^']*' branch$/.test((r.stderr||'').trim());
- let checks;if(notRegistered)checks=[];else{try{checks=JSON.parse(r.stdout);}catch{refuse('github-checks','gh checks returned invalid JSON');}}
- if(!Array.isArray(checks)||!checks.length){if(allowEmpty&&Array.isArray(checks))return checks;refuse('required-checks','No required checks reported');}
- if(r.status===8&&!checks.some(c=>c.bucket==='pending'))refuse('github-checks','Pending exit status without a pending check');
- if(r.status===1&&!checks.some(c=>['fail','cancel'].includes(c.bucket)))refuse('github-checks','Failure exit status without a failed check');
- return checks;
+// Export the same boundary used by every release required-check observation.
+export function readReleaseRequiredChecks({pr,repo,head,cwd=root,run}={}) {
+ return readCurrentChecks({pr,repo,expectedHead:head,required:true,cwd,run}).checks;
 }
+function requiredChecks(allowEmpty=false){
+ let checks;try{checks=readReleaseRequiredChecks({pr:record.pr,repo:record.repo,head:record.head});}catch(e){refuse('github-checks',e.message);}
+ if(!checks.length&&!allowEmpty)refuse('required-checks','No required checks reported');return checks;
+}
+
 // Required contexts of the base branch, read-access only: classic protection (branch endpoint) plus rulesets. Unreadable = named degrade (D2); malformed = refusal (D3).
 // paged: read every page of a list endpoint. `gh api --paginate --slurp` (gh 2.48+) answers one array of page arrays; an older gh rejects --slurp, which lands in the unreadable branch below (named line), never a silent first-page read.
 function contextSource(source,endpoint,extract,paged=false) {
