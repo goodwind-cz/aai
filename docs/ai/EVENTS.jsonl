@@ -3402,3 +3402,4 @@
 {"v":1,"ts":"2026-10-28T22:10:11Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-codex-usage-missing-from-run-budgets","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-28T22:10:26Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":669,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-10-28T22:40:05Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":669,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-10-28T23:18:59Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"codex-usage-missing-from-run-budgets","payload":{"pr":512,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"4bdda30643a7c2e7735c9f6dbc0574374f6a583c"}}
