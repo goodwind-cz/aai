@@ -120,6 +120,9 @@ core:
   - .aai/scripts/check-vendored-script-deps.mjs
   - .aai/scripts/ci-select.mjs
   - .aai/scripts/claude-hook-gate.sh
+  # core: SKILL_LOOP step 2f (core) calls codex-usage.mjs budget; the lib is its reader
+  - .aai/scripts/codex-usage.mjs
+  - .aai/scripts/lib/codex-rollout.mjs
   - .aai/scripts/close-reconcile.mjs
   - .aai/scripts/close-work-item.mjs
   - .aai/scripts/delta-merge.mjs

@@ -498,7 +498,8 @@ test_020_no_hardcoded_home() {
     fi
   done
   for f in "$CLAUDE_PARSER" "$CODEX_PARSER" "$GEMINI_PARSER"; do
-    grep -q "os.homedir()" "$f" || log_fail "$f must build its root via os.homedir()"
+    grep -q "os.homedir()" "$f" || { [[ "$f" == "$CODEX_PARSER" ]] && grep -q "codexHome(" "$f"; } \
+      || log_fail "$f must build its root via os.homedir() (the codex parser via the shared codexHome())"
     grep -q "path.join" "$f" || log_fail "$f must join its root via path.join"
   done
   local h; h="$(mk_home t020)"
@@ -611,6 +612,7 @@ test_028_spaced_script_path_runs() {
   cp "$GEN" "$spaced/generate-live-status.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$spaced/live-parsers/"
   cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$spaced/lib/runtime-file.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/codex-rollout.mjs" "$spaced/lib/codex-rollout.mjs"
   local h; h="$(mk_home t028)"
   mkdir -p "$h/out"
   local out="$h/gen-run.log"
@@ -717,6 +719,7 @@ test_031_watch_warmup_opens_existing_html() {
   cp "$GEN" "$scratch/.aai/scripts/generate-live-status.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$scratch/.aai/scripts/live-parsers/"
   cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$scratch/.aai/scripts/lib/runtime-file.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/codex-rollout.mjs" "$scratch/.aai/scripts/lib/codex-rollout.mjs"
   local fixture_home; fixture_home="$(mk_home t031home)"
   local openerlog="$TEST_DIR/t031-opener.log"
   local openerbin="$TEST_DIR/t031-opener.sh"
@@ -996,6 +999,7 @@ test_037_one_shot_output_flag_opens_correct_file() {
   cp "$GEN" "$scratch/.aai/scripts/generate-live-status.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$scratch/.aai/scripts/live-parsers/"
   cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$scratch/.aai/scripts/lib/runtime-file.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/codex-rollout.mjs" "$scratch/.aai/scripts/lib/codex-rollout.mjs"
   local fixture_home; fixture_home="$(mk_home t037home)"
   local openerlog="$TEST_DIR/t037-opener.log"
   local openerbin="$TEST_DIR/t037-opener.sh"

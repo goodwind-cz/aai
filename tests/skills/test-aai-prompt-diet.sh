@@ -1021,7 +1021,8 @@ test_012_growth_sum_matches_ledger() {
   # ORCHESTRATION (+77 B) and ORCHESTRATION_PARALLEL (+230 B) plus 1 B each from the default-on rewording, measured against 59ee0ff2, credited 1:1).
   # Then 63094 -> 63917: merge-cleanup-resolves-framework-friction (+823 B: SKILL_MERGE step 1 and 2 route OUTCOME lines, step 3 relays the
   # plain-language lines, both blocks pass AAI_DECIDE; measured against fb171891, credited 1:1; AGENTS.md rule 2 is outside the glob, no credit).
-  local want_growth=63917
+  # Then 63917 -> 64324: codex-usage-missing-from-run-budgets (+407 B: SKILL_LOOP step 2f Codex budget paragraph; measured against f8614f67, credited 1:1).
+  local want_growth=64324
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

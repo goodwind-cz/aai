@@ -2,7 +2,9 @@
 id: codex-usage-missing-from-run-budgets
 type: issue
 number: 106
-status: draft
+status: done
+capability: telemetry
+user_visible: true
 links:
   pr: []
   commits: []

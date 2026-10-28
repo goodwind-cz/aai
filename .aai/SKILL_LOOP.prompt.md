@@ -283,7 +283,7 @@ For each tick (1..max_ticks):
         docs/ai/LOOP_TICKS.jsonl (input_tokens + output_tokens for the token
         budget; est_cost_usd for the cost budget). These are best-effort and only
         present when the runtime exposes real usage — if absent, this check is a
-        no-op (never fabricate usage). Also add harness-reported undecomposed totals observed at subagent completions this run (SUBAGENT_PROTOCOL.md); absent data keeps this a no-op — never fabricated. If a configured limit is met or exceeded:
+        no-op (never fabricate usage). Also add harness-reported undecomposed totals observed at subagent completions this run (SUBAGENT_PROTOCOL.md); absent data keeps this a no-op — never fabricated. Codex harness with max_run_tokens > 0: run `node .aai/scripts/codex-usage.mjs budget --thread auto --since <run start> --max-run-tokens <limit>` before each dispatch, as the one token source (no tick-line add-on); exit 3 = exhausted (below), exit 4 = `token budget NOT enforced`: attended prints it each tick and continues (max_ticks and stagnation bound it); unattended stops via the `run-budget` trigger. If a configured limit is met or exceeded:
         → Set human_input.required = true — primary path:
             node .aai/scripts/state.mjs set-human-input --required true \
               --reason "Run budget exhausted: <cumulative> >= <limit>" \

@@ -660,6 +660,25 @@ test_013_subagent_protocol_model_marker_prose() {
   log_pass "SUBAGENT_PROTOCOL usage-capture prose: model_id==granted, both-markers-together, independence-cites-actual_model (TEST-013/spec TEST-010)"
 }
 
+test_014_decomposed_append_run_roundtrip() {
+  log_info "Test: Claude path preserved -- append-run --tokens-in/--tokens-out land in STATE as numbers (spec-codex-usage-missing-from-run-budgets TEST-3120)..."
+  local d="$TEST_DIR/t014"
+  mkdir -p "$d/docs/ai"
+  local s="$d/docs/ai/STATE.yaml"
+  write_state_fixture_005 "$s"
+  capture_now
+  local ar_log="$d/append-run.log"
+  (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" append-run \
+    --ref CHANGE-9001 --role Implementation --model claude-test --started "$NOW_UTC" \
+    --tokens-in 7 --tokens-out 3 > "$ar_log" 2>&1) \
+    || log_fail "TEST-3120 (TEST-014): append-run with decomposed usage must exit 0: $(cat "$ar_log")"
+  sed -n '/^    CHANGE-9001:$/,$p' "$s" | qgrep -qE '^ {10}tokens_in: 7$' \
+    || log_fail "TEST-3120 (TEST-014): tokens_in must be recorded as the passed number"
+  sed -n '/^    CHANGE-9001:$/,$p' "$s" | qgrep -qE '^ {10}tokens_out: 3$' \
+    || log_fail "TEST-3120 (TEST-014): tokens_out must be recorded as the passed number"
+  log_pass "decomposed append-run tokens reach STATE as numbers (spec-codex-usage-missing-from-run-budgets TEST-3120)"
+}
+
 main() {
   echo "=== $TEST_NAME ==="
   check_deps
@@ -678,6 +697,7 @@ main() {
   test_011_model_marker_extractors
   test_012_model_marker_seam_roundtrip
   test_013_subagent_protocol_model_marker_prose
+  test_014_decomposed_append_run_roundtrip
 
   echo "=== $TEST_NAME: ALL TESTS PASSED ==="
 }

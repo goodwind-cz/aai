@@ -232,6 +232,7 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
   in/out components, and NEVER relabel it as `tokens_out`/`tokens_in` —
   input and output prices differ, so a mislabeled total would poison
   `cost_usd`. The flush now classifies this as undecomposed-note and emits an INFO line, not the capture-missing WARNING — cost is blended from the total when the model is priced (`cost_basis total-blended`), and stays unattributable by design only when the model's PRICING cannot resolve (D3/D5, reclassified: token-capture-canary / telemetry-fields-not-prose).
+- Codex harness (rollout logs): after a role run, `node .aai/scripts/codex-usage.mjs attribute --parent <orchestrator thread> --from <role start> --to <role end> --json` (D8: one direct child spawned in the window binds that child's tree, labelled `thread`; zero or several children label the parent's interval `interval`, never `thread`; `codex-usage.mjs observe --thread <id>` only for a known thread) prints exact `append_run_flags` and `log_tick_flags`; pass them to `append-run` and `log-tick` verbatim. Provenance rides in the run note. Never add `--cache-read` or `--cost` (no cost figure is reported); exit 4 yields the `usage_capture=none` note and no token flags. The adapter reads only usage metadata, never message content.
 - Nothing exposed: omit all usage flags — the existing null/never-fabricate
   behavior is preserved byte-for-byte; no estimation path exists (D4).
 - Prompt hash (SPEC-0098 consumer wiring): when the dispatch JSON carried a

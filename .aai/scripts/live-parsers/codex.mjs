@@ -18,14 +18,11 @@
 // dedup) and a direct read of "what actually happened" per event.
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import { codexHome } from '../lib/codex-rollout.mjs';
 
 function roots(env) {
-  const e = env || process.env;
-  const home = (e && e.HOME) || os.homedir();
-  const base = e && e.CODEX_HOME ? path.resolve(e.CODEX_HOME) : path.join(home, '.codex');
-  return [path.join(base, 'sessions')];
+  return [path.join(codexHome(env), 'sessions')];
 }
 
 function walk(dir, out) {
