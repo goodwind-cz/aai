@@ -1,7 +1,7 @@
 ---
 id: codex-usage-missing-from-run-budgets
 type: issue
-number: null
+number: 106
 status: draft
 links:
   pr: []

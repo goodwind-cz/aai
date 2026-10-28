@@ -669,7 +669,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| codex-usage-missing-from-run-budgets (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-codex-usage-missing-from-run-budgets.md |
+| ISSUE-0106 | issues | docs/issues/ISSUE-0106-codex-usage-missing-from-run-budgets.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
