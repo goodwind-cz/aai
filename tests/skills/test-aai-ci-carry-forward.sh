@@ -664,19 +664,19 @@ const fs=require('fs'),cp=require('child_process'),assert=require('assert');
 const workflow=fs.readFileSync(process.argv[2],'utf8');
 const job=workflow.split('  gate:\n')[1].split('\n  self-hosting-smoke:')[0];
 const script=job.split('        run: |\n')[1].split('\n').map(l=>l.startsWith('          ')?l.slice(10):l).join('\n');
-const good={'select.outputs.selected_runners':'1','skills-selected-sharded.result':'skipped','select.result':'success','select.outputs.mode':'selected','skills-selected.result':'success','skills-full.result':'skipped','native-worktree-seed.result':'success','self-hosting-smoke.result':'success','tracked-ignored.result':'success','release-notes.result':'success','github.event_name':'pull_request'};
+const good={'select.outputs.selected_runners':'1','skills-selected-sharded.result':'skipped','select.result':'success','select.outputs.mode':'selected','skills-selected.result':'success','skills-full.result':'skipped','native-worktree-seed.result':'success','self-hosting-smoke.result':'success','tracked-ignored.result':'success','release-notes.result':'success','release-dry-run.result':'success','github.event_name':'pull_request'};
 const run=data=>cp.spawnSync('bash',['-c',script.replace(/\$\{\{ needs\.([^} ]+) \}\}/g,(_,k)=>data[k]??'').replace(/\$\{\{ github\.event_name \}\}/g,data['github.event_name']??'')],{encoding:'utf8'}).status;
 assert.equal(run(good),0); assert.equal(run({...good,'select.outputs.mode':'full','skills-full.result':'success','skills-selected.result':'skipped'}),0);
-for(const mode of ['selected','full']) for(const key of ['select.result','native-worktree-seed.result','self-hosting-smoke.result','tracked-ignored.result','release-notes.result',mode==='selected'?'skills-selected.result':'skills-full.result']) for(const fail of ['failure','cancelled','skipped','']) {
+for(const mode of ['selected','full']) for(const key of ['select.result','native-worktree-seed.result','self-hosting-smoke.result','tracked-ignored.result','release-notes.result','release-dry-run.result',mode==='selected'?'skills-selected.result':'skills-full.result']) for(const fail of ['failure','cancelled','skipped','']) {
  const data={...good,'select.outputs.mode':mode,'skills-full.result':'success',[key]:fail}; assert.notEqual(run(data),0,mode+' '+key+' '+fail);
 }
 
 const sharded={...good,'select.outputs.selected_runners':'2','skills-selected.result':'skipped','skills-selected-sharded.result':'success'};
 assert.equal(run(sharded),0);
-for(const key of ['select.result','native-worktree-seed.result','self-hosting-smoke.result','tracked-ignored.result','release-notes.result','skills-selected-sharded.result']) for(const fail of ['failure','cancelled','skipped','']) assert.notEqual(run({...sharded,[key]:fail}),0,'sharded '+key+' '+fail);
+for(const key of ['select.result','native-worktree-seed.result','self-hosting-smoke.result','tracked-ignored.result','release-notes.result','release-dry-run.result','skills-selected-sharded.result']) for(const fail of ['failure','cancelled','skipped','']) assert.notEqual(run({...sharded,[key]:fail}),0,'sharded '+key+' '+fail);
 for(const count of ['', '0', '3', 'all']) assert.notEqual(run({...good,'select.outputs.selected_runners':count}),0);
 for(const mode of ['', 'invalid']) assert.notEqual(run({...good,'select.outputs.mode':mode,'skills-full.result':'success'}),0);
-assert(job.includes('needs: [select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, self-hosting-smoke, tracked-ignored, release-notes]'));
+assert(job.includes('needs: [select, skills-selected, skills-selected-sharded, skills-full, native-worktree-seed, self-hosting-smoke, tracked-ignored, release-notes, release-dry-run]'));
 assert(workflow.includes('name: skill suite (selected, via test-framework.sh --skill)'));
 assert(workflow.includes('name: skill test suite (full framework, via test-framework.sh)'));
 assert(workflow.includes('native-worktree-seed:') && workflow.includes('runs-on: windows-latest'));

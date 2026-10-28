@@ -97,6 +97,14 @@ full_run_triggers:
     - .aai/scripts/lib/**
 
 suites:
+  aai-release-first:
+    globs:
+      - .aai/scripts/release-dry-run.mjs
+      - .aai/scripts/lib/release-rollup.mjs
+      - .aai/scripts/lib/github-checks.mjs
+      - tests/skills/lib/release-first.test.mjs
+      - tests/skills/test-aai-release-first.sh
+      - docs/product/release-command-finish.md
   aai-current-head-ci:
     globs:
       - .aai/scripts/lib/github-checks.mjs

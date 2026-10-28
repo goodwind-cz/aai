@@ -22,6 +22,10 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — feat(release): CHANGELOG dry-run on every PR (release-rollup-dry-run)
+
+- PR skill-suite runs a read-only production rollup rehearsal across Node, shell and PowerShell CHANGELOG readers, and refuses report destinations inside Git metadata before any checkpoint write.
+
 ## [unreleased] — fix: ignore superseded CI failures on the current head (current-head-ci-reader)
 
 - CI watch and release required-check observations bind the current PR head and choose the newest run per check name and app identity from all API pages. An older cancelled or failed run cannot override a newer pending or successful run; moved heads, same-name foreign apps and ambiguous data refuse.

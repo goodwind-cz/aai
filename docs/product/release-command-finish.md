@@ -66,7 +66,7 @@ The prepared commit changes only `CHANGELOG.md` and `docs/ai/AAI_VERSION.md`. Th
 
 Both the CI watcher and every release required-check read resolve the current PR head twice around complete API pagination, preserve legacy status contexts, and select the newest observation per check name by a consistent workflow-creation/ID/check-ID ordering for Actions jobs, including queued reruns; external checks and legacy statuses use their own consistent identity clocks. Older failure/cancellation waits behind newer pending work and yields to newer success. Newer failure remains failure. An inconsistent head, incomplete pagination, malformed identity or transport error refuses; release also binds its journal head. Required-only filtering, registration grace and merge-queue behavior still apply. This does not predict a newer run before GitHub registers it and does not retry infrastructure failures.
 
-Release CHANGELOG dry-run rehearsal on every PR is owned by the parked sibling `release-rollup-dry-run` and is not part of this surface yet.
+Every pull request also runs a read-only CHANGELOG rollup dry-run: it rolls `[unreleased]` the way finish would, then executes every discovered tracked CHANGELOG reader (Node, shell, PowerShell) against ordinary and rolled snapshots. Report destinations inside Git metadata (git-dir, common-dir, worktree `.git` file) are refused before any checkpoint write. A missing tool or baseline failure is nonzero, never a silent skip. The job is required by the skill-suite aggregate on pull requests; it does not publish, push, merge, or tag.
 
 ## Limits and non-goals
 
