@@ -158,6 +158,14 @@ suites:
       - .aai/AGENTS.md
       - .aai/SKILL_PR.prompt.md
 
+  aai-codex-usage:
+    globs:
+      - .aai/scripts/codex-usage.mjs
+      - .aai/scripts/lib/codex-rollout.mjs
+      - .aai/scripts/live-parsers/codex.mjs
+      - .aai/SKILL_LOOP.prompt.md
+      - tests/skills/test-aai-codex-usage.sh
+
   aai-canon:
     globs:
       - .aai/scripts/canon.mjs

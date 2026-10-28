@@ -4348,10 +4348,12 @@ test_2923_governance() {
   [[ "$n" == 1 ]] || fail TEST-2923 "the diet ledger holds $n merge-cleanup-resolves-framework-friction entries, want exactly 1"
   lead="$(printf '%s' "$entry" | sed -n 's/^JUSTIFIED_ADDITIONS+=( "\([0-9][0-9]*\) merge-cleanup-resolves-framework-friction .*/\1/p')"
   glob_now="$(cat "$ROOT"/.aai/*.prompt.md | wc -c | tr -d ' ')"
-  growth=$(( glob_now - 371301 ))
-  [[ "$lead" == "$growth" && "$lead" -ge 1 && "$lead" -le 900 ]] || fail TEST-2923 "the ledger credits '$lead' B, the glob grew $growth B over 371301 (want equal, 1..900)"
+  # Later rides credit their own growth 1:1, so this ride's own growth is the glob over its 371301 baseline minus the credits of the ledger entries after it.
+  later="$(awk 'f && /^JUSTIFIED_ADDITIONS\+=\( "/ { s=$0; sub(/^JUSTIFIED_ADDITIONS\+=\( "/, "", s); sub(/ .*/, "", s); n += s } index($0, "merge-cleanup-resolves-framework-friction") > 0 && /^JUSTIFIED_ADDITIONS/ { f=1 } END { print n + 0 }' "$ROOT/tests/skills/lib/prompt-diet-ledger.sh")"
+  growth=$(( glob_now - 371301 - later ))
+  [[ "$lead" == "$growth" && "$lead" -ge 1 && "$lead" -le 900 ]] || fail TEST-2923 "the ledger credits '$lead' B, the glob grew $growth B over 371301 plus $later B of later credits (want equal, 1..900)"
   want="$(sed -n 's/.*local want_growth=\([0-9][0-9]*\).*/\1/p' "$ROOT/tests/skills/test-aai-prompt-diet.sh")"
-  [[ "$want" == "$(( 63094 + lead ))" ]] || fail TEST-2923 "the TEST-012 pin is $want, want $(( 63094 + lead ))"
+  [[ "$want" == "$(( 63094 + lead + later ))" ]] || fail TEST-2923 "the TEST-012 pin is $want, want $(( 63094 + lead + later ))"
   want TEST-2923 "$(cat "$ROOT/tests/skills/test-aai-pr-preflight.sh")" "+$lead/* merge-cleanup-resolves-framework-friction"
   bash "$ROOT/tests/skills/test-aai-prompt-diet.sh" test_010_audit_and_reduction >"$SCRATCH/diet.out" 2>&1 || fail TEST-2923 "TEST-010 does not pass: $(cat "$SCRATCH/diet.out")"
   [[ "$(wc -l < "$ENGINE" | tr -d ' ')" -le 1490 ]] || fail TEST-2923 'merge-cleanup.mjs is over 1490 lines'

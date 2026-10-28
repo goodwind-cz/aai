@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-28T18:26:02.217Z",
+  "generatedAt": "2026-10-28T22:10:20.230Z",
   "project": "aai",
   "counts": {
-    "delivered": 327,
-    "in_progress": 18,
+    "delivered": 328,
+    "in_progress": 17,
     "releases": 1,
-    "tokens_total": 77863744
+    "tokens_total": 79482147
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -194,19 +194,6 @@
       "review": null
     },
     {
-      "ref": "codex-usage-missing-from-run-budgets",
-      "title": "Codex usage is available but missing from AAI run accounting and budgets",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0106-codex-usage-missing-from-run-budgets.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -257,6 +244,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "codex-usage-missing-from-run-budgets",
+      "title": "Codex usage is available but missing from AAI run accounting and budgets",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0106-codex-usage-missing-from-run-budgets.md",
+      "closed_on": "2026-10-28",
+      "agent_minutes": 197,
+      "token_total": 1618403,
+      "spec": "docs/specs/SPEC-0258-spec-codex-usage-missing-from-run-budgets.md",
       "validation": null,
       "review": null
     },
@@ -4535,6 +4535,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "codex-usage-missing-from-run-budgets",
+          "title": "Codex usage is available but missing from AAI run accounting and budgets",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0106-codex-usage-missing-from-run-budgets.md",
+          "closed_on": "2026-10-28",
+          "agent_minutes": 197,
+          "token_total": 1618403,
+          "spec": "docs/specs/SPEC-0258-spec-codex-usage-missing-from-run-budgets.md",
           "validation": null,
           "review": null
         },

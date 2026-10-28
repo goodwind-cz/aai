@@ -9,6 +9,7 @@ delivered_by:
   - CHANGE-0063
   - telemetry-fields-not-prose
   - done-work-item-stays-in-current-focus
+  - codex-usage-missing-from-run-budgets
 spec: docs/specs/SPEC-0089-spec-token-economics-end-to-end.md
 updated: 2026-09-13
 ---
@@ -50,6 +51,13 @@ one capability:
   per-ref verdict field or a corroborated `validation_verdict` ledger event,
   not only the single global `last_validation` block, so an earlier PASS is
   not stranded by a later, unrelated validation round.
+- **Codex usage and budgets (codex-usage-missing-from-run-budgets)** — Codex
+  role runs used to be recorded with unknown tokens, and a token budget did
+  nothing on Codex. The factory now reads Codex's own local session logs
+  (usage metadata only, never message content) and turns them into the same
+  run records and budget check other harnesses use, with a note saying where
+  the numbers came from. When no Codex usage can be read, the budget says
+  so (`token budget NOT enforced`) instead of pretending to enforce a limit.
 
 ## How to use it
 
@@ -102,6 +110,20 @@ one capability:
   `active_work_items` entry (reason
   `closed_focus_item_absent_no_flushable_metrics`). A close superseded by a
   reopen never reaches rule 4b.
+- Codex: `node .aai/scripts/codex-usage.mjs probe --json` says whether
+  Codex usage logs are readable (`$CODEX_HOME`, default `~/.codex`,
+  `sessions/` and `archived_sessions/`) and whether the current thread can
+  be identified (`CODEX_THREAD_ID`).
+- Codex: after a role run, `codex-usage.mjs attribute --parent <orchestrator
+  thread> --from <role start> --to <role end> --json` prints
+  `append_run_flags` and `log_tick_flags`; pass them to `state.mjs
+  append-run` / `log-tick` unchanged. `observe --thread <id> [--from]
+  [--to] [--descendants]` reads one known thread.
+- Codex: with `max_run_tokens > 0` the loop runs `codex-usage.mjs budget
+  --thread auto --since <run start> --max-run-tokens <N>` before each
+  dispatch. Exit 0 = under the limit, 3 = exhausted (the loop stops for a
+  human), 4 = no readable source: an attended loop prints
+  `token budget NOT enforced` and continues, an unattended ride stops.
 - `node .aai/scripts/state.mjs set-validation --ref <R> --status <pass|fail>`
   additionally stamps a per-ref `validation: {status, at}` field on that
   ref's metrics entry when one already exists — the provenance the default
@@ -128,6 +150,12 @@ one capability:
   `metrics.work_items[<ref>].validation` (STATE) and each ledger line's
   `verdict_basis` (`per-ref-field | global-block | event`) name which source
   admitted the ride past the flush gate.
+- Codex runs carry no new fields: `codex-usage.mjs` emits the existing
+  `--tokens-in/--tokens-out/--tokens-total/--harness codex` flags, and the
+  provenance (source, thread, time window, attribution `thread`, `interval`
+  or `run`, degraded reasons) rides in the run note. Codex's total is input
+  plus output; cached input and reasoning are subsets and are never added
+  again. No dollar cost is derived from Codex token counts.
 
 ## Interfaces and contracts
 
@@ -143,6 +171,12 @@ one capability:
   best-effort (a generator failure never changes the close exit code).
 - `orchestration-dispatch.mjs` — `prompt_hash` (full 64-char hex) on the
   dispatch-verdict stdout JSON; absent on `no_action` / `needs_llm` verdicts.
+- `.aai/scripts/codex-usage.mjs` (`observe | attribute | budget | probe`)
+  over `.aai/scripts/lib/codex-rollout.mjs` — prefers Codex's per-response
+  usage records (deduplicated by response id), falls back to differences of
+  cumulative snapshots; a missing value is reported null with a degraded
+  reason (`missing_field:<name>`, `malformed_line`, `partial_tail`), never 0.
+  Budget exit codes 0 / 2 (usage) / 3 (exhausted) / 4 (not enforced).
 - `.aai/scripts/lib/prompt-hash.mjs` — `computeEffectivePromptHash` /
   `componentHashes`; Node stdlib only, missing input = `ABSENT`, never
   throws.
@@ -172,15 +206,26 @@ one capability:
   (`fu-4b-item-absent-with-runs-wedge`); `--sweep` still treats a close
   superseded by a reopen as closed (`fu-sweep-ignores-reopen`).
 
+- Codex: the current thread is only known when Codex exports
+  `CODEX_THREAD_ID` (or `--thread` is passed); otherwise budget reports
+  `NOT enforced`. App Server `thread/tokenUsage/updated` events are not
+  integrated. Roles started as separate `codex exec` processes fall outside
+  the parent's budget tree. Parallel roles with overlapping windows can each
+  count a sibling's usage (`interval` attribution). Follow-ups:
+  `fu-codex-usage-noresp-copy-sum`, `fu-codex-usage-root-thread-label`,
+  `fu-codex-attr-parallel-overlap`, `fu-codex-usage-meta-index-once`.
+
 ## Links
 
 - Requests: docs/issues/CHANGE-0058-token-capture-canary.md,
   docs/issues/CHANGE-0070-prompt-hash-telemetry.md,
   docs/issues/CHANGE-0063-token-economics-end-to-end.md,
   docs/issues/CHANGE-0183-telemetry-fields-not-prose.md,
-  docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md
+  docs/issues/ISSUE-0098-done-work-item-stays-in-current-focus.md,
+  docs/issues/ISSUE-0106-codex-usage-missing-from-run-budgets.md
 - Specs: docs/specs/SPEC-0085-spec-token-capture-canary.md,
   docs/specs/SPEC-0096-spec-prompt-hash-telemetry.md,
   docs/specs/SPEC-0089-spec-token-economics-end-to-end.md,
   docs/specs/SPEC-0178-spec-telemetry-fields-not-prose.md,
-  docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md
+  docs/specs/SPEC-0224-spec-done-work-item-stays-in-current-focus.md,
+  docs/specs/SPEC-0258-spec-codex-usage-missing-from-run-budgets.md

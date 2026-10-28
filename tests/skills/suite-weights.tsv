@@ -33,6 +33,8 @@ aai-ci-carry-forward	8
 aai-close-reconcile	14
 # sample aai-close-work-item measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=132,130,131,130,101
 aai-close-work-item	130
+# sample aai-codex-usage fallback unsampled (SKIP or absent; no successful observation)
+aai-codex-usage	212
 # sample aai-constitution measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=3,3,6,6,5
 aai-constitution	5
 # sample aai-current-head-ci fallback unsampled (SKIP or absent; no successful observation)
