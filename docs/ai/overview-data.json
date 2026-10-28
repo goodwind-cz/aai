@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-28T17:56:04.739Z",
+  "generatedAt": "2026-10-28T18:26:02.217Z",
   "project": "aai",
   "counts": {
     "delivered": 327,
-    "in_progress": 17,
+    "in_progress": 18,
     "releases": 1,
     "tokens_total": 77863744
   },
@@ -186,6 +186,19 @@
       "type": "issue",
       "status": "draft",
       "path": "docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md",
+      "closed_on": null,
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "codex-usage-missing-from-run-budgets",
+      "title": "Codex usage is available but missing from AAI run accounting and budgets",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-0106-codex-usage-missing-from-run-budgets.md",
       "closed_on": null,
       "agent_minutes": null,
       "token_total": null,
