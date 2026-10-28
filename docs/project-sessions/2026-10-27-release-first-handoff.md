@@ -1,22 +1,23 @@
-# CHANGE-0231 — předání a split
+# CHANGE-0231 — handoff and split
 
-## Stav (2026-10-28)
+## Status (2026-10-28)
 
-Split dokončen. Obě děti jsou v `main`.
+Split complete. Both children are on `main`.
 
-| Položka | Stav |
+| Item | Status |
 |---|---|
 | Parent | superseded (`CHANGE-0231`, `SPEC-0257`) |
 | **A** | `CHANGE-0232` / `SPEC-0256` — **MERGED** #508 (`2cf5369a`) |
-| **B** | `CHANGE-0233` — **MERGED** #509 (`bd87b8f0`), closed |
+| **B** | `CHANGE-0233` — **MERGED** #509 (`bd87b8f0`), closed with review waived |
 | Decision | `docs/decisions/DECISION-release-passes-first-time-split.md` |
+| Review waiver (B closeout) | `docs/decisions/DECISION-release-rollup-dry-run-review-waiver.md` |
 
-## Výsledek
+## Result
 
-- Current-head CI reader: `github-checks` volí nejnovější run na aktuálním headu (app identity).
-- Release CHANGELOG dry-run na každém PR + V4-1 Git-metadata refusal.
-- Roadmap: `current-head-ci-reader` a `release-rollup-dry-run` = done.
+- Current-head CI reader: `github-checks` selects the newest run on the current head (app identity).
+- Release CHANGELOG dry-run on every PR, plus V4-1 Git-metadata report refusal.
+- Roadmap: `current-head-ci-reader` and `release-rollup-dry-run` are done.
 
-## Další krok
+## Next step
 
-Žádný otevřený follow-up z tohoto splitu. Leftover worktree `codex/current-head-ci-reader` může zůstat (merge cleanup Kept) nebo se uklidí ručně.
+No open follow-up from this split. The leftover `codex/current-head-ci-reader` worktree may remain (merge cleanup Kept) or be cleaned up manually.
