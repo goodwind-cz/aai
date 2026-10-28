@@ -357,7 +357,11 @@ export function observe(opts) {
   const ids = treeIds(threadIndex(listing), ident.id);
   const all = ids.map((id) => (id === ident.id ? rootObs : one(id)));
   const sum = sumObservations(all);
-  return sum.status === 'ok' ? sum : rootObs;
+  if (sum.status !== 'ok') return rootObs;
+  // Missing is not zero (D5): a descendant whose usage cannot be read leaves the tree total unknown.
+  const lost = ids.findIndex((id, i) => id !== ident.id && all[i].status !== 'ok');
+  if (lost >= 0) return unavailable('descendant_unavailable', { thread: ident.id, descendant: ids[lost], descendant_reason: all[lost].reason });
+  return sum;
 }
 
 // attribute({parent, from, to, env}): D8 closed rule. One direct child spawned in

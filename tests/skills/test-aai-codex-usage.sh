@@ -554,6 +554,17 @@ test_3113_budget_verdicts() {
   run_cli "$TMP_ROOT/does-not-exist" budget --thread R --since "$SINCE" --max-run-tokens 150 --json
   expect_eq unknown '"unknown"' "$(jv "$OUT" o.verdict)"
   expect_eq enf-unavail '"unavailable"' "$(jv "$OUT" o.enforcement)"
+  # PR #512 Codex P1: a descendant whose only usage line is malformed has no usage
+  # events; its tokens are unknown, so the run budget must not read active/within.
+  local x; x="$h/sessions/2026/10/01/rollout-x.jsonl"
+  mk_meta "$x" X R 2026-10-01T10:40:00Z /wt s-root
+  printf '%s\n' '{"timestamp":"2026-10-01T10:45:00Z","type":"token_usage_record","payload":{"thread_id":"X",' '{"timestamp":"2026-10-01T10:46:00Z","type":"session_meta_tail"}' >> "$x"
+  run_cli "$h" budget --thread R --since "$SINCE" --max-run-tokens 1000 --json
+  expect_eq rc-desc-unavail 4 "$RC"
+  expect_eq enf-desc-unavail '"unavailable"' "$(jv "$OUT" o.enforcement)"
+  expect_eq reason-desc-unavail '"descendant_unavailable"' "$(jv "$OUT" o.reason)"
+  run_cli "$h" budget --thread R --since "$SINCE" --max-run-tokens 1000
+  [[ "$OUT" == *"NOT enforced"* && "$OUT" != *within* ]] || log_fail "unavailable descendant must read NOT enforced, never within (out: $OUT)"
   log_pass "TEST-3113 budget exits 3 at the limit, 0 below, 2 on a bad limit, 4 when unreadable"
 }
 

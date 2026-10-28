@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // codex-usage.mjs — read-only Codex rollout usage CLI
-// (spec-codex-usage-missing-from-run-budgets). Subcommands: observe, attribute, budget.
+// (spec-codex-usage-missing-from-run-budgets). Subcommands: observe, attribute, budget, probe.
 //
 //   observe   --thread <id|auto> [--from <ISO>] [--to <ISO>] [--descendants] [--json]
 //   attribute --parent <id> --from <ISO> --to <ISO> [--json]
