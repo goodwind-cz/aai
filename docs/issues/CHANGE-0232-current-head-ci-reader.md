@@ -6,8 +6,8 @@ status: done
 capability: release-command-finish
 user_visible: true
 links:
-  pr: []
-  commits: []
+  pr: [508]
+  commits: [2cf5369a]
 ---
 
 # Current-head CI result selection

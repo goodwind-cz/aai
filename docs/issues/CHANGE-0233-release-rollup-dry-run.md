@@ -2,12 +2,15 @@
 id: release-rollup-dry-run
 type: change
 number: 233
-status: implementing
+status: done
 capability: release-command-finish
 user_visible: true
 links:
   pr: [509]
-  commits: [fc200ab8, 076910e7]
+  commits:
+    - fc200ab8
+    - 076910e7
+    - bd87b8f018606ca98fe2a5a8ad01fa478373414c
 ---
 
 # Release CHANGELOG rollup dry-run

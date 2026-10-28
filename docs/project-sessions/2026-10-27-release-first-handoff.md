@@ -1,22 +1,22 @@
 # CHANGE-0231 — předání a split
 
-## Stav (2026-10-27)
+## Stav (2026-10-28)
 
-Owner zvolil **A — split**. Child A je mergnutý; child B je v PR.
+Split dokončen. Obě děti jsou v `main`.
 
 | Položka | Stav |
 |---|---|
 | Parent | superseded (`CHANGE-0231`, `SPEC-0257`) |
 | **A** | `CHANGE-0232` / `SPEC-0256` — **MERGED** #508 (`2cf5369a`) |
-| **B** | `CHANGE-0233` — PR **#509** (+ V4-1) |
+| **B** | `CHANGE-0233` — **MERGED** #509 (`bd87b8f0`), closed |
 | Decision | `docs/decisions/DECISION-release-passes-first-time-split.md` |
 
-PR A: https://github.com/goodwind-cz/aai/pull/508 (merged)  
-PR B: https://github.com/goodwind-cz/aai/pull/509  
-Branch B: `codex/release-rollup-dry-run` @ `076910e7`  
-Worktree B: `/Users/ales/.codex/worktrees/release-rollup-dry-run/aai`
+## Výsledek
+
+- Current-head CI reader: `github-checks` volí nejnovější run na aktuálním headu (app identity).
+- Release CHANGELOG dry-run na každém PR + V4-1 Git-metadata refusal.
+- Roadmap: `current-head-ci-reader` a `release-rollup-dry-run` = done.
 
 ## Další krok
 
-- Hosted CI na #509 + Validation / Code Review pro CHANGE-0233.
-- Po PASS: `/aai-merge 509`.
+Žádný otevřený follow-up z tohoto splitu. Leftover worktree `codex/current-head-ci-reader` může zůstat (merge cleanup Kept) nebo se uklidí ručně.

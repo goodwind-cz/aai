@@ -6,11 +6,10 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
-| CHANGE-0233 | issues | implementing | — | docs/issues/CHANGE-0233-release-rollup-dry-run.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
 
@@ -49,7 +48,7 @@ _None._
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | provider-adapter-registry | provider-adapter-registry | 1 | docs/product/provider-adapter-registry.md |
-| release-command-finish | release-command-finish | 5 | docs/product/release-command-finish.md |
+| release-command-finish | release-command-finish | 6 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | roadmap | roadmap | 1 | docs/product/roadmap.md |
@@ -59,7 +58,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (587)
+## Done (588)
 
 | ID | Type | Path |
 |---|---|---|
@@ -290,6 +289,7 @@ _None._
 | CHANGE-0229 | issues | docs/issues/CHANGE-0229-implied-signing-without-links-pr.md |
 | CHANGE-0230 | issues | docs/issues/CHANGE-0230-release-same-version-recovery.md |
 | CHANGE-0232 | issues | docs/issues/CHANGE-0232-current-head-ci-reader.md |
+| CHANGE-0233 | issues | docs/issues/CHANGE-0233-release-rollup-dry-run.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -1245,4 +1245,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-27 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-28 — counts above use this date for overdue checks.

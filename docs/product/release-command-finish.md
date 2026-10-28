@@ -9,8 +9,9 @@ delivered_by:
   - release-one-shot-finish
   - release-same-version-recovery
   - current-head-ci-reader
+  - release-rollup-dry-run
 spec: docs/specs/SPEC-0233-spec-release-command-finish.md
-updated: 2026-10-27
+updated: 2026-10-28
 ---
 
 # Complete and resume a release
