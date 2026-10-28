@@ -113,7 +113,7 @@ pairs:
   - capability: current-head-ci-reader
     status: done
   - capability: release-rollup-dry-run
-    status: planned
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
