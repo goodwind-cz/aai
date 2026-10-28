@@ -96,7 +96,13 @@ function runBudget(opts) {
   const cumulative = obs.status === 'ok' ? obs.usage.total_tokens : null;
   const verdict = { enforcement: 'unavailable', cumulative_total_tokens: null, limit, verdict: 'unknown', degraded: [] };
   let code = EXIT_UNAVAILABLE;
-  if (cumulative === null) {
+  const lower = obs.status === 'ok' ? null : obs.lower_bound_total_tokens;
+  if (cumulative === null && typeof lower === 'number' && lower >= limit) {
+    // A lost descendant leaves the total unknown, but the readable threads alone already reach the limit.
+    Object.assign(verdict, { enforcement: 'degraded', verdict: 'exhausted', lower_bound_total_tokens: lower, degraded: [obs.reason] });
+    verdict.message = `RUN BUDGET: exhausted lower_bound=${lower} limit=${limit} enforcement=degraded (${obs.reason})`;
+    code = EXIT_EXHAUSTED;
+  } else if (cumulative === null) {
     verdict.reason = obs.status === 'ok' ? 'total_tokens_missing' : obs.reason;
     verdict.message = `RUN BUDGET: token budget NOT enforced (${verdict.reason})`;
   } else {

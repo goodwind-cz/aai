@@ -565,6 +565,12 @@ test_3113_budget_verdicts() {
   expect_eq reason-desc-unavail '"descendant_unavailable"' "$(jv "$OUT" o.reason)"
   run_cli "$h" budget --thread R --since "$SINCE" --max-run-tokens 1000
   [[ "$OUT" == *"NOT enforced"* && "$OUT" != *within* ]] || log_fail "unavailable descendant must read NOT enforced, never within (out: $OUT)"
+  # The readable threads (150) are a lower bound: at or above the limit the run is provably exhausted.
+  run_cli "$h" budget --thread R --since "$SINCE" --max-run-tokens 100 --json
+  expect_eq rc-lower-bound 3 "$RC"
+  expect_eq verdict-lower-bound '"exhausted"' "$(jv "$OUT" o.verdict)"
+  expect_eq enf-lower-bound '"degraded"' "$(jv "$OUT" o.enforcement)"
+  expect_eq degraded-lower-bound '["descendant_unavailable"]' "$(jv "$OUT" o.degraded)"
   log_pass "TEST-3113 budget exits 3 at the limit, 0 below, 2 on a bad limit, 4 when unreadable"
 }
 

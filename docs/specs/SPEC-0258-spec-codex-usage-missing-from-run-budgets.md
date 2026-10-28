@@ -4,7 +4,7 @@ type: spec
 number: 258
 status: done
 mutation_gate: v1
-frozen_sha256: 0fab795701a27dcbe1785d179b6e02f9567d0b7d566ff269ad7e6c7e1ac4255c
+frozen_sha256: af8a48a8fbe57915c735d5bcee995b60424d31a4799fbbdeaffe0fc9dd873145
 ceremony_level: 2
 links:
   requirement: codex-usage-missing-from-run-budgets
@@ -64,7 +64,7 @@ D9. Wiring without new STATE fields. `state.mjs` and `metrics-flush.mjs` are NOT
 - `log_tick_flags`: `--tokens-in <input> --tokens-out <output>` only. Never `--cache-read`, never `--cost`.
 The note survives the flush (metrics-flush copies `note` into METRICS), so source, identity, window and attribution persist without a schema change.
 
-D10. Budget decision (`budget` subcommand): `budget --thread <root> --since <run start ISO> --max-run-tokens <N>` observes the root thread plus all descendants over [since, now) and prints one JSON verdict with `enforcement` (`active`, `degraded` or `unavailable`), `cumulative_total_tokens`, `limit`, `verdict` (`within`, `exhausted` or `unknown`). Exit 0 within, 3 exhausted (cumulative at or above the limit), 4 unavailable, 2 usage error (including N not a positive integer). On unavailable the human line reads `RUN BUDGET: token budget NOT enforced (<reason>)` and never the word `within`. Degraded still decides on the observed numbers and names its reasons. The Codex observation is the single source for a Codex run's budget: tick-line usage is not added on top (it would double count the same responses).
+D10. Budget decision (`budget` subcommand): `budget --thread <root> --since <run start ISO> --max-run-tokens <N>` observes the root thread plus all descendants over [since, now) and prints one JSON verdict with `enforcement` (`active`, `degraded` or `unavailable`), `cumulative_total_tokens`, `limit`, `verdict` (`within`, `exhausted` or `unknown`). Exit 0 within, 3 exhausted (cumulative at or above the limit), 4 unavailable, 2 usage error (including N not a positive integer). On unavailable the human line reads `RUN BUDGET: token budget NOT enforced (<reason>)` and never the word `within`. Degraded still decides on the observed numbers and names its reasons. Post-freeze amendment (PR #512 review, disclosed, owner sign-off not obtained): with `--descendants`, a descendant thread in the tree that has no usage events makes the observation `unavailable` with reason `descendant_unavailable` (fields `descendant`, `descendant_reason`, `lower_bound_total_tokens` = the readable threads total), because missing is not zero (D5). `budget` then exits 4 NOT enforced, except when the lower bound alone is at or above N: exit 3 `exhausted`, enforcement `degraded`. D5 four reasons are the target thread own; `invalid_interval` and `total_tokens_missing` are likewise disclosed here. The root thread with no usage events is still tolerated as before. The Codex observation is the single source for a Codex run's budget: tick-line usage is not added on top (it would double count the same responses).
 
 D11. Fallback policy when enforcement is unavailable (SKILL_LOOP step 2f): attended loop, print the NOT enforced line every tick and continue, bounded only by `max_ticks` and the stagnation guard; unattended ride (`unattended` set), stop with the existing `run-budget` trigger (unattended-gate class cost, park), because an unattended ride may only start with an armed budget and an unreadable source means the budget is not armed. Claude and other harnesses keep today's step 2f tally unchanged.
 

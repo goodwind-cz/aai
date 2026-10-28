@@ -360,7 +360,8 @@ export function observe(opts) {
   if (sum.status !== 'ok') return rootObs;
   // Missing is not zero (D5): a descendant whose usage cannot be read leaves the tree total unknown.
   const lost = ids.findIndex((id, i) => id !== ident.id && all[i].status !== 'ok');
-  if (lost >= 0) return unavailable('descendant_unavailable', { thread: ident.id, descendant: ids[lost], descendant_reason: all[lost].reason });
+  // Usage is never negative, so the readable threads' total is a lower bound the budget may still act on.
+  if (lost >= 0) return unavailable('descendant_unavailable', { thread: ident.id, descendant: ids[lost], descendant_reason: all[lost].reason, lower_bound_total_tokens: sum.usage.total_tokens });
   return sum;
 }
 
