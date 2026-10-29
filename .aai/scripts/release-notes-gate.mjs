@@ -5,8 +5,13 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
+// Shipped documentation is an exact list (SPEC watch-ci-cancelled-runs-and-release-gate-docs D5):
+// the root files aai-sync installs into a target, the user guide, and the product pages.
+// Every other docs path, CHANGELOG.md and tests stay exempt.
 export function isShipped(path, mode = '') {
   return /^(?:\.aai|\.github|\.claude|\.codex|\.agents|\.gemini)\//.test(path) ||
+    /^(?:README|AGENTS|CLAUDE|CODEX|GEMINI|SKILLS)\.md$/.test(path) ||
+    path === 'docs/USER_GUIDE.md' || /^docs\/product\//.test(path) ||
     (!path.includes('/') && (mode === '100755' || /\.(?:sh|ps1|mjs|cjs|js|py|rb|bat|cmd)$/.test(path)));
 }
 

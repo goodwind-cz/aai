@@ -1032,6 +1032,11 @@ suites:
       - .aai/SKILL_PR.prompt.md
       - .github/workflows/skill-suite.yml
       - tests/skills/test-aai-release-notes.sh
+      - tests/skills/lib/release-notes-docs.test.mjs
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/release-finish.mjs
+      - docs/product/release-notes-gate.md
 
   aai-release:
     companions:

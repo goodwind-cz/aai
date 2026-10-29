@@ -698,7 +698,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (522)
+## Broken references (533)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -735,6 +735,15 @@ _None._
 | tests/skills/lib/recheck.test.mjs | docs/specs/SPEC-0001-fx.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/specs/SPEC-0002-low.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/specs/new-note.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/ai/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/analysis/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/decisions/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/issues/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/knowledge/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/product-notes.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/product/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/rfc/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/specs/x.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/ai/briefs/ride-demo.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/issues/CHANGE-DRAFT-ride-demo.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/specs/SPEC-0900-foreign-alpha.md | NOT FOUND |
@@ -807,6 +816,7 @@ _None._
 | tests/skills/test-aai-delta-stage3.sh | docs/specs/SPEC-bad-violation.md | NOT FOUND |
 | tests/skills/test-aai-delta-stage3.sh | docs/specs/SPEC-collision.md | NOT FOUND |
 | tests/skills/test-aai-delta-stage3.sh | docs/specs/SPEC-missing-doc.md | NOT FOUND |
+| tests/skills/test-aai-deslop.sh | docs/ai/reports/deslop-candidate-adjudication-20260815.md | NOT FOUND |
 | tests/skills/test-aai-deslop.sh | docs/issues/CHANGE-does-not-exist.md | NOT FOUND |
 | tests/skills/test-aai-deslop.sh | docs/issues/DOC-change.md | NOT FOUND |
 | tests/skills/test-aai-deslop.sh | docs/issues/DOC-issue.md | NOT FOUND |
@@ -1117,6 +1127,7 @@ _None._
 | tests/skills/test-aai-product-docs.sh | docs/product/token-economics-end-to-end.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/widget-export.md | NOT FOUND |
 | tests/skills/test-aai-prompt-diet.sh | docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md | NOT FOUND |
+| tests/skills/test-aai-release-notes.sh | docs/specs/x.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/change.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/ci-moved.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/direct.md | NOT FOUND |

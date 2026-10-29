@@ -6,14 +6,14 @@ status: current
 delivered_by:
   - release-notes-gate
 spec: docs/specs/SPEC-0229-spec-release-notes-gate.md
-updated: 2026-10-21
+updated: 2026-10-29
 ---
 
 # Release notes gate
 
 ## What it does
 
-A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, and root executables. Documentation, tests, and evidence-only changes are exempt. An old unchanged entry, an empty scaffold, and a blank reason do not count.
+A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, root executables, and eight user-facing documentation paths: `README.md`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `SKILLS.md`, `docs/USER_GUIDE.md`, and anything under `docs/product/`. The first six are the root files `aai-sync` installs into a target; the other two are the pages AAI users read on GitHub. Matching is exact, so `docs/README.md`, `sub/README.md` and `docs/product-notes.md` are not shipped. All other docs paths stay exempt, as do tests and evidence-only changes. The release audit (`aai-release --dry-run`) classifies merged pull requests with the same function. An old unchanged entry, an empty scaffold, and a blank reason do not count.
 
 ## How to use it
 

@@ -5,6 +5,30 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GATE="$ROOT/.aai/scripts/release-notes-gate.mjs"
+# Selector entrypoints (spec-watch-ci-cancelled-runs-and-release-gate-docs):
+# a first argument runs one node:test case and exits; no argument runs it all.
+run_docs_case() {
+  local id="$1"
+  if node --test --test-name-pattern="$id" "$ROOT/tests/skills/lib/release-notes-docs.test.mjs"; then
+    echo "PASS $id"
+  else
+    echo "FAIL $id" >&2
+    return 1
+  fi
+}
+test_2706() { run_docs_case TEST-2706; }
+test_2707() { run_docs_case TEST-2707; }
+test_2708() { run_docs_case TEST-2708; }
+test_2709() { run_docs_case TEST-2709; }
+test_2710() { run_docs_case TEST-2710; }
+if [ "$#" -gt 0 ]; then
+  if ! declare -F "$1" >/dev/null; then
+    echo "Unknown selector: $1" >&2
+    exit 2
+  fi
+  "$1"
+  exit $?
+fi
 SCRATCH_ROOT="${AAI_NOTES_SCRATCH_ROOT:-/tmp/aai-release-one-command-scratch/notes}"
 case "$SCRATCH_ROOT" in /*) ;; *) echo 'scratch must be absolute' >&2; exit 1;; esac
 mkdir -p "$SCRATCH_ROOT"
@@ -79,8 +103,9 @@ printf 'yet another change\n' > "$FIXTURE/.aai/tool.txt"
 git -C "$FIXTURE" add -- .aai/tool.txt
 both TEST-002 pass 'explicit reason'
 BASE="$(git -C "$FIXTURE" rev-parse HEAD)"
-printf 'docs change\n' > "$FIXTURE/README.md"
-git -C "$FIXTURE" add -- README.md
+mkdir -p "$FIXTURE/docs/specs"
+printf 'docs change\n' > "$FIXTURE/docs/specs/x.md"
+git -C "$FIXTURE" add -- docs/specs/x.md
 printf 'Summary\n' > "$BODY"
 both TEST-002 pass 'docs only'
 expect TEST-003 refuse 'missing body' --staged --body-file "$FIXTURE/absent-body"
@@ -110,7 +135,7 @@ import { pathToFileURL } from "node:url";
 const mod = await import(pathToFileURL(process.env.GATE_MODULE).href);
 const { isShipped, hasNoNotesReason } = mod;
 if (typeof isShipped !== "function" || typeof hasNoNotesReason !== "function") process.exit(1);
-if (!isShipped(".aai/x", "") || !isShipped("tool", "100755") || isShipped("README.md", "100644")) process.exit(2);
+if (!isShipped(".aai/x", "") || !isShipped("tool", "100755") || isShipped("docs/specs/x.md", "100644")) process.exit(2);
 if (!hasNoNotesReason("no-notes: because\n") || hasNoNotesReason("no-notes:   \n")) process.exit(3);
 ' && echo 'TEST-004 PASS exports' || { echo 'TEST-004 FAIL exports'; FAILURES=$((FAILURES + 1)); }
 # SPEC-0229's notes-only absence assertions ended with its original ride.
@@ -125,8 +150,9 @@ fi
 # note as a note the head added.
 FORK="$(git -C "$FIXTURE" rev-parse HEAD)"
 git -C "$FIXTURE" checkout -q -b diverge-head
-printf 'docs only\n' > "$FIXTURE/README.md"
-git -C "$FIXTURE" add -- README.md
+mkdir -p "$FIXTURE/docs/specs"
+printf 'docs only\n' > "$FIXTURE/docs/specs/x.md"
+git -C "$FIXTURE" add -- docs/specs/x.md
 git -C "$FIXTURE" commit -qm 'docs only head'
 git -C "$FIXTURE" checkout -q -b diverge-base "$FORK"
 printf 'base only shipped\n' >> "$FIXTURE/.aai/tool.txt"
@@ -250,5 +276,6 @@ for (const [label, notes, wanted] of cases) {
 console.log(`comment parser assertions=${cases.length * 2} failures=${failures}`);
 process.exitCode = failures ? 1 : 0;
 JS
+for fn in test_2706 test_2707 test_2708 test_2709 test_2710; do "$fn" || FAILURES=$((FAILURES + 1)); done
 printf 'release-notes assertions: failures=%s fixture=%s base=%s head=%s\n' "$FAILURES" "$FIXTURE" "$BASE" "$(git -C "$FIXTURE" rev-parse HEAD)"
 [ "$FAILURES" -eq 0 ]
