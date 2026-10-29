@@ -2,7 +2,7 @@
 
 The always-on `aai-docs-audit` suite ran 195 functions on every pull request, although most of its cost cannot be turned red by a document-only change. This note records the case inventory, the paired before/after measurement, the `--gate`-only cases moved to `node:test`, the clusters that stay in Bash, and the change in suite selection. Production audit code under `.aai/` is untouched (`git diff c3e706e71e16ef041269002b08634bdae8612d02 -- .aai/` is empty).
 
-Baseline commit `c3e706e71e16ef041269002b08634bdae8612d02` (main at planning time). Host: macOS arm64, 16 CPUs, Node 22.23.1, Bash 3.2.57, Git 2.54.0. Spec: `docs/specs/SPEC-DRAFT-spec-docs-audit-content-engine-split.md`; intake: `docs/issues/CHANGE-DRAFT-docs-audit-content-engine-split.md`.
+Baseline commit `c3e706e71e16ef041269002b08634bdae8612d02` (main at planning time). Host: macOS arm64, 16 CPUs, Node 22.23.1, Bash 3.2.57, Git 2.54.0. Spec: `docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md`; intake: `docs/issues/CHANGE-0235-docs-audit-content-engine-split.md`.
 
 ## Case inventory
 
