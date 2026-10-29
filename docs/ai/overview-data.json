@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T00:09:06.092Z",
+  "generatedAt": "2026-10-29T00:29:23.711Z",
   "project": "aai",
   "counts": {
     "delivered": 329,
@@ -241,11 +241,11 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0234-hermes-agent-skill-discovery.md",
       "closed_on": "2026-10-29",
-      "agent_minutes": null,
+      "agent_minutes": 27,
       "token_total": null,
       "spec": "docs/specs/SPEC-0259-spec-hermes-agent-skill-discovery.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-hermes-agent-skill-discovery-20261029T000554Z.md"
+      "review": "docs/ai/reviews/review-hermes-agent-skill-discovery-20261029T002840Z.md"
     },
     {
       "ref": "release-rollup-dry-run",
@@ -4545,11 +4545,11 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0234-hermes-agent-skill-discovery.md",
           "closed_on": "2026-10-29",
-          "agent_minutes": null,
+          "agent_minutes": 27,
           "token_total": null,
           "spec": "docs/specs/SPEC-0259-spec-hermes-agent-skill-discovery.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-hermes-agent-skill-discovery-20261029T000554Z.md"
+          "review": "docs/ai/reviews/review-hermes-agent-skill-discovery-20261029T002840Z.md"
         },
         {
           "ref": "release-rollup-dry-run",
