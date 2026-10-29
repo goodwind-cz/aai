@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 5ef51e52692b9839f9b106d7b5aed99dd8256217b4d0397b6931a9780309c5d1
+frozen_sha256: 4179f496f68316a724b9377c2a45b28e5aad8737db87d55006e829bc0fcd5c4a
 ceremony_level: 2
 links:
   requirement: docs-audit-content-engine-split
@@ -226,14 +226,14 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | The note docs/analysis/docs-audit-content-engine-split.md lists all 195 baseline main entries each with exactly one class, reports five alternating paired runs with before, engine and content medians and worst values, and its Content ratio line is at most 0.40 and equals content median over before median within 0.01. | planned | — | — | TEST-2301 |
-| Spec-AC-02 | WHEN select-suites.mjs runs on the real map with a changed-path list of only docs/issues, docs/specs, docs/rfc and docs/decisions documents plus docs/INDEX.md, the system SHALL print CORE aai-docs-content, no line naming aai-docs-audit and no FULL_RUN line. | planned | — | — | TEST-2302, TEST-2303 |
-| Spec-AC-03 | WHEN the content suite runs in a disposable clone whose only change is a committed document under docs/issues without frontmatter together with a regenerated index, the system SHALL exit 1 with a FAIL line naming the orphan finding; the content suite on the unmodified tree exits 0. | planned | — | — | TEST-2304 |
-| Spec-AC-04 | WHEN select-suites.mjs runs on each engine input (docs-audit.mjs, lib/docs-audit-core.mjs, docs/ai/docs-audit.yaml, generate-docs-index.mjs, SKILL_DOCS_AUDIT.prompt.md, both docs-audit suite files, docs-audit-live.sh, each docs-audit test.mjs file), the system SHALL print SELECTED aai-docs-audit or FULL_RUN; every literal real-tree path an engine case reads SHALL do the same, and no engine case outside the named exceptions reads the live docs corpus. | planned | — | — | TEST-2305, TEST-2306 |
-| Spec-AC-05 | The engine main registrations, DOCS_AUDIT_CONTENT_CASES and the five Node-moved names together equal the baseline main list with no name in two places; check-test-registration.mjs exits 0; both suites exit 0 through the wrapper; git diff against the baseline over .aai is empty. | planned | — | — | TEST-2307 |
-| Spec-AC-06 | WHEN the engine suite runs, the system SHALL run docs-audit-gate.test.mjs once and fail naming TEST-2308 when any case fails; the five moved functions are neither defined nor registered, both retained CLI owners are defined and registered once, and the note's Gate ratio is at most 0.50 and matches its two medians within 0.01. | planned | — | — | TEST-2308, TEST-2309 |
-| Spec-AC-07 | The RFC-0017 Rollout Status phase 2 row reads done and links this change's intake and note, the phase 4 row links CHANGE-0228, and the RFC frontmatter still reads status implementing with umbrella true. | planned | — | — | TEST-2310 |
-| Spec-AC-08 | The suite-map core list is exactly aai-check-state, aai-docs-content, aai-spec-lint, aai-hygiene-pack; suite-weights.tsv has exactly one aai-docs-content row; the product doc ci-test-impact-selection.md names the same core list; aai-delta-stage3 selects aai-docs-audit as a companion. | planned | — | — | TEST-2311, TEST-2312 |
+| Spec-AC-01 | The note docs/analysis/docs-audit-content-engine-split.md lists all 195 baseline main entries each with exactly one class, reports five alternating paired runs with before, engine and content medians and worst values, and its Content ratio line is at most 0.40 and equals content median over before median within 0.01. | planned | docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-docs-audit.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/measurement/results.json ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2301.txt | — | TEST-2301 |
+| Spec-AC-02 | WHEN select-suites.mjs runs on the real map with a changed-path list of only docs/issues, docs/specs, docs/rfc and docs/decisions documents plus docs/INDEX.md, the system SHALL print CORE aai-docs-content, no line naming aai-docs-audit and no FULL_RUN line. | planned | docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-suite-select.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-lightweight-lane.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/selector-rfc.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2302.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2303.txt | — | TEST-2302, TEST-2303 |
+| Spec-AC-03 | WHEN the content suite runs in a disposable clone whose only change is a committed document under docs/issues without frontmatter together with a regenerated index, the system SHALL exit 1 with a FAIL line naming the orphan finding; the content suite on the unmodified tree exits 0. | planned | docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-docs-audit.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2304.txt | — | TEST-2304 |
+| Spec-AC-04 | WHEN select-suites.mjs runs on each engine input (docs-audit.mjs, lib/docs-audit-core.mjs, docs/ai/docs-audit.yaml, generate-docs-index.mjs, SKILL_DOCS_AUDIT.prompt.md, both docs-audit suite files, docs-audit-live.sh, each docs-audit test.mjs file), the system SHALL print SELECTED aai-docs-audit or FULL_RUN; every literal real-tree path an engine case reads SHALL do the same, and no engine case outside the named exceptions reads the live docs corpus. | planned | docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-suite-select.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-docs-audit.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2305.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2306.txt | — | TEST-2305, TEST-2306 |
+| Spec-AC-05 | The engine main registrations, DOCS_AUDIT_CONTENT_CASES and the five Node-moved names together equal the baseline main list with no name in two places; check-test-registration.mjs exits 0; both suites exit 0 through the wrapper; git diff against the baseline over .aai is empty. | planned | docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-docs-audit.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-docs-content.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/registration.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2307.txt | — | TEST-2307 |
+| Spec-AC-06 | WHEN the engine suite runs, the system SHALL run docs-audit-gate.test.mjs once and fail naming TEST-2308 when any case fails; the five moved functions are neither defined nor registered, both retained CLI owners are defined and registered once, and the note's Gate ratio is at most 0.50 and matches its two medians within 0.01. | planned | docs/ai/tdd/docs-audit-content-engine-split/green_final/gate-node.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-docs-audit.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/measurement/results-gate.json ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2308.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2309.txt | — | TEST-2308, TEST-2309 |
+| Spec-AC-07 | The RFC-0017 Rollout Status phase 2 row reads done and links this change's intake and note, the phase 4 row links CHANGE-0228, and the RFC frontmatter still reads status implementing with umbrella true. | planned | docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-docs-content.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2310.txt | — | TEST-2310 |
+| Spec-AC-08 | The suite-map core list is exactly aai-check-state, aai-docs-content, aai-spec-lint, aai-hygiene-pack; suite-weights.tsv has exactly one aai-docs-content row; the product doc ci-test-impact-selection.md names the same core list; aai-delta-stage3 selects aai-docs-audit as a companion. | planned | docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-suite-select.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-delta-stage3.txt ; docs/ai/tdd/docs-audit-content-engine-split/green_final/test-aai-hygiene-pack.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2311.txt ; docs/ai/tdd/spec-docs-audit-content-engine-split/mutation-TEST-2312.txt | — | TEST-2311, TEST-2312 |
 
 ## Implementation plan
 
@@ -280,18 +280,18 @@ Seams crossed:
 
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
-| TEST-2301 | Spec-AC-01 | inspection | tests/skills/test-aai-docs-audit.sh | test_2301_split_note_inventory parses the note: Case inventory rows equal the baseline main list from git show of the baseline commit (or fails naming TEST-2301 when the commit is absent), each row has one class, five pair rows exist, recomputed medians and worst values match the lines, Content ratio at most 0.40 | `sed:/test_indexarm_index_is_not_stale/d` on docs/analysis/docs-audit-content-engine-split.md | pending |
-| TEST-2302 | Spec-AC-02 | integration | tests/skills/test-aai-suite-select.sh | test_2302_doc_only_selects_content_not_engine feeds four document paths plus docs/INDEX.md to the real selector and map; asserts CORE aai-docs-content, no aai-docs-audit line, no FULL_RUN | `sed:s/^  - aai-docs-content$/  - aai-docs-audit/` on tests/skills/suite-map.yaml | pending |
-| TEST-2303 | Spec-AC-02 | integration | tests/skills/test-aai-lightweight-lane.sh | test_017_docs_only_close_diff_never_full now asserts CORE aai-docs-content and no aai-docs-audit line for the close-commit diff, still never FULL_RUN | `sed:s/^  - aai-docs-content$/  - aai-docs-audit/` on tests/skills/suite-map.yaml | pending |
-| TEST-2304 | Spec-AC-03 | e2e | tests/skills/test-aai-docs-audit.sh | test_2304_content_suite_fails_on_planted_orphan clones PROJECT_ROOT into TEST_DIR, overlays the working tree's tests/skills and .aai, commits a frontmatter-less docs/issues document and the regenerated index, runs the clone's test-aai-docs-content.sh and asserts exit 1 and a FAIL line naming Orphans | `sed:s/const orphans = docs.filter(d => d.cls === 'orphan');/const orphans = [];/` on .aai/scripts/lib/docs-audit-core.mjs | pending |
-| TEST-2305 | Spec-AC-04 | integration | tests/skills/test-aai-suite-select.sh | test_2305_engine_inputs_select_engine feeds each engine input path separately to the real selector; each output has SELECTED aai-docs-audit or FULL_RUN | `sed:s/^      - \.aai\/scripts\/docs-audit\.mjs$/      - .aai\/scripts\/docs-audit.mjs.unused/` on tests/skills/suite-map.yaml | pending |
-| TEST-2306 | Spec-AC-04 | inspection | tests/skills/test-aai-docs-audit.sh | test_2306_engine_input_closure extracts literal PROJECT_ROOT paths read by engine-registered functions, runs each through the real selector (SELECTED aai-docs-audit or FULL_RUN), and fails when an engine function outside the named exceptions calls live_audit, live_index_pair or reads PROJECT_ROOT docs | `sed:s/^      - \.aai\/SKILL_DOCS_AUDIT\.prompt\.md$/      - .aai\/SKILL_DOCS_AUDIT.unused/` on tests/skills/suite-map.yaml | pending |
-| TEST-2307 | Spec-AC-05 | integration | tests/skills/test-aai-docs-audit.sh | test_2307_case_inventory_partition compares engine main registrations, DOCS_AUDIT_CONTENT_CASES and the five Node-moved names with the baseline main list (equal, disjoint), and runs check-test-registration.mjs over tests/skills | `sed:/^  test_orphan_split$/d` on tests/skills/test-aai-docs-audit.sh | pending |
+| TEST-2301 | Spec-AC-01 | inspection | tests/skills/test-aai-docs-audit.sh | test_2301_split_note_inventory parses the note: Case inventory rows equal the baseline main list from git show of the baseline commit (or fails naming TEST-2301 when the commit is absent), each row has one class, five pair rows exist, recomputed medians and worst values match the lines, Content ratio at most 0.40 | `sed:s/test_indexarm_index_is_not_stale/test_indexarm_index_is_not_staleX/` on docs/analysis/docs-audit-content-engine-split.md | pending |
+| TEST-2302 | Spec-AC-02 | integration | tests/skills/test-aai-suite-select.sh | test_2302_doc_only_selects_content_not_engine feeds four document paths plus docs/INDEX.md to the real selector and map; asserts CORE aai-docs-content, no aai-docs-audit line, no FULL_RUN | `sed:s/(?<=\n  - )aai-docs-content(?=\n)/aai-docs-audit/` on tests/skills/suite-map.yaml | pending |
+| TEST-2303 | Spec-AC-02 | integration | tests/skills/test-aai-lightweight-lane.sh | test_017_docs_only_close_diff_never_full now asserts CORE aai-docs-content and no aai-docs-audit line for the close-commit diff, still never FULL_RUN | `sed:s/(?<=\n  - )aai-docs-content(?=\n)/aai-docs-audit/` on tests/skills/suite-map.yaml | pending |
+| TEST-2304 | Spec-AC-03 | e2e | tests/skills/test-aai-docs-audit.sh | test_2304_content_suite_fails_on_planted_orphan clones PROJECT_ROOT into TEST_DIR, overlays the working tree's tests/skills and .aai, commits a frontmatter-less docs/issues document and the regenerated index, runs the clone's test-aai-docs-content.sh and asserts exit 1 and a FAIL line naming Orphans | `sed:s/const orphans = docs\.filter\(d => d\.cls === 'orphan'\);/const orphans = [];/` on .aai/scripts/lib/docs-audit-core.mjs | pending |
+| TEST-2305 | Spec-AC-04 | integration | tests/skills/test-aai-suite-select.sh | test_2305_engine_inputs_select_engine feeds each engine input path separately to the real selector; each output has SELECTED aai-docs-audit or FULL_RUN | `sed:s/(?<=\n      - )\.aai\/scripts\/docs-audit\.mjs(?=\n)/.aai\/scripts\/docs-audit.mjs.unused/` on tests/skills/suite-map.yaml | pending |
+| TEST-2306 | Spec-AC-04 | inspection | tests/skills/test-aai-docs-audit.sh | test_2306_engine_input_closure extracts literal PROJECT_ROOT paths read by engine-registered functions, runs each through the real selector (SELECTED aai-docs-audit or FULL_RUN), and fails when an engine function outside the named exceptions calls live_audit, live_index_pair or reads PROJECT_ROOT docs | `sed:s/(?<=\n)      - \.aai\/SKILL_DOCS_AUDIT\.prompt\.md\n//` on tests/skills/suite-map.yaml | pending |
+| TEST-2307 | Spec-AC-05 | integration | tests/skills/test-aai-docs-audit.sh | test_2307_case_inventory_partition compares engine main registrations, DOCS_AUDIT_CONTENT_CASES and the five Node-moved names with the baseline main list (equal, disjoint), and runs check-test-registration.mjs over tests/skills | `sed:s/(?<=\n)  test_orphan_split\n//` on tests/skills/test-aai-docs-audit.sh | pending |
 | TEST-2308 | Spec-AC-06 | unit | tests/skills/test-aai-docs-audit.sh | test_2308_gate_node runs node --test tests/skills/lib/docs-audit-gate.test.mjs from PROJECT_ROOT and fails naming TEST-2308 when any G1 to G5 case fails; also checks the five moved functions are gone and the two retained owners are defined and registered once | `sed:s/requires a "Ceremony justification: ..." body line/requires a justification line/` on .aai/scripts/lib/docs-audit-core.mjs | pending |
 | TEST-2309 | Spec-AC-06 | performance | tests/skills/test-aai-docs-audit.sh | test_2309_gate_batch_measurement recomputes both gate medians from the five pair rows, checks the Gate ratio line matches within 0.01 and is at most 0.50, and that G1 to G5 each name a removed function and a Node case | `sed:s/Gate after median: /Gate after: /` on docs/analysis/docs-audit-content-engine-split.md | pending |
-| TEST-2310 | Spec-AC-07 | inspection | tests/skills/test-aai-docs-content.sh | test_2310_rfc0017_rollout_rows reads the RFC: phase 2 row status done with links to this intake and the note, phase 4 row links CHANGE-0228, frontmatter status implementing and umbrella true | `sed:s/CHANGE-0228-provider-adapter-registry-slice\.md/CHANGE-0228-missing.md/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | pending |
+| TEST-2310 | Spec-AC-07 | inspection | tests/skills/test-aai-docs-audit.sh | test_2310_rfc0017_rollout_rows reads the RFC: phase 2 row status done with links to this intake and the note, phase 4 row links CHANGE-0228, frontmatter status implementing and umbrella true | `sed:s/CHANGE-0228-provider-adapter-registry-slice\.md/CHANGE-0228-missing.md/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | pending |
 | TEST-2311 | Spec-AC-08 | inspection | tests/skills/test-aai-suite-select.sh | test_2311_core_list_weights_product_doc reads the core list from the real map (exactly four names in order), counts one aai-docs-content weights row, and checks the product doc line names the same four core suites | `sed:s/aai-docs-content/aai-docs-audit/` on docs/product/ci-test-impact-selection.md | pending |
-| TEST-2312 | Spec-AC-08 | integration | tests/skills/test-aai-delta-stage3.sh | existing test_007_seam_survival: assert_companions requires aai-docs-audit selected or core for the delta-stage3 test file; RED observed when the core swap lands before the companion entry | `sed:/^      - aai-docs-audit$/d` on tests/skills/suite-map.yaml | pending |
+| TEST-2312 | Spec-AC-08 | integration | tests/skills/test-aai-delta-stage3.sh | existing test_007_seam_survival: assert_companions requires aai-docs-audit selected or core for the delta-stage3 test file; RED observed when the core swap lands before the companion entry | `sed:s/(?<=\n      - )aai-docs-audit(?=\n)/aai-docs-audit-gone/` on tests/skills/suite-map.yaml | pending |
 
 Test-file note: every row's selector is a function in the named suite that
 runs alone under single-function dispatch (`bash <suite> <function>`), because
@@ -418,3 +418,63 @@ Related open registry items, all left open:
   the content suite; the race class is unchanged and stays disclosed.
 
 Registry items closed by this scope: none
+
+## Amendment 1 (post-freeze, additive-with-disclosure, no owner sign-off obtained)
+
+Implementation outgrew the literal text of this frozen spec in six places. The
+original text above is kept; where it differs, this section governs. The owner
+may accept or reverse it at merge.
+
+- A1-a. The content list holds 24 names, not 23: `test_issue0001_posix_paths_noop`
+  reads the `setup_indexarm_snapshots` real-index snapshots, so by the D2 rule it
+  is a content case and it moved whole. TEST-2307 asserts 24. TEST-2310 joins the
+  list as a new row (it is not a baseline entry, so the partition ignores
+  `test_23xx` rows in both suites).
+- A1-b. `check_deps` and `setup_fixture` are registered in both suites (setup, not
+  cases). TEST-2307 allows exactly these two names to overlap; the inventory
+  classes them content with owner "both suites (setup)". After the Node batch the
+  five Node-moved names are disjoint from both registrations (TEST-2307 tightened).
+- A1-c. TEST-2304 asserts a `FAIL:` line plus `Orphans: [1-9]` in the output rather
+  than one FAIL line naming Orphans, because the strict audit prints its headline
+  on continuation lines after the FAIL line.
+- A1-d. TEST-2306 also excludes `test_2206_no_direct_live_corpus_launch` (it
+  inspects the suite text for the live-corpus launch rule, not the corpus) and
+  itself, beside the named exceptions of D2.
+- A1-e. Selection wiring beyond D3: `docs/INDEX.md` and `docs/ai/EVENTS.jsonl` map
+  to the `aai-docs-content` row (the generated index and event ledger are content
+  inputs); the `aai-hygiene-pack` row pin moved 118 to 119; every failure message
+  names its TEST id; and the `aai-docs-audit` row gained five engine-input globs
+  that TEST-2306 found engine cases reading: `.aai/ROLE_COMMON.md`,
+  `.aai/scripts/spec-lint.mjs`, `.claude/skills/aai-docs-audit/SKILL.md`,
+  `docs/USER_GUIDE.md`, `tests/skills/suite-map.yaml`. TEST-2201 accepts the five
+  Node-moved function names in the cost profile of the earlier speed note.
+- A1-f. Mutation cells. `mutation-run.mjs` has no `m` regex flag and no delete
+  form, so the Mutation cells of TEST-2301 to TEST-2312 are rewritten to the
+  substitution or lookbehind forms that were actually run and recorded. Before
+  this rewrite `mutation-gate.mjs` read TEST-2301, TEST-2307 and TEST-2312 as
+  uncomparable (`mutation_uncomparable actual=3 > baseline=0`) and the other
+  rows as declared-versus-recorded mismatches; the cell text is the only thing
+  that changed, not the claim each row makes. Records live under
+  `docs/ai/tdd/spec-docs-audit-content-engine-split/`.
+- A1-g. TEST-2310's selector is defined in the definition file with every other
+  function and is listed in `DOCS_AUDIT_CONTENT_CASES`, so the content suite runs it
+  and `mutation-run.mjs` (which only accepts a selector defined in the named suite
+  file) is pointed at `tests/skills/test-aai-docs-audit.sh` for it; the Test Plan
+  File path cell for TEST-2310 now names that definition file too (the mutation
+  gate requires the record's suite to equal the cell); the content suite is what
+  runs it in a full run.
+- A1-h. Measured result (see the note): Content ratio 0.28, Gate ratio 0.07. The
+  engine suite median (131.7 s) is not below the old suite median (144.8 s)
+  because TEST-2304 runs the content suite in a clone; an engine-input pull request
+  now pays both suites, a document-only one pays only the content suite.
+- A1-i. TEST-2304 runs a whole suite inside a clone, which the nested-suite lint
+  refuses unless the run is allowlisted. `tests/skills/lib/nested-suite-allowlist.tsv`
+  gains one row for it (4 rows, was 3) with its reason, and the pin in
+  `tests/skills/test-aai-hygiene-pack.sh` (test_133) moves from 3 to 4. This is a
+  change to a ratchet that "only shrinks"; the proof the row defends (the suite's
+  own list fails on a planted violation) cannot be shown by a selected single case
+  or a companion declaration, but the owner may prefer to narrow TEST-2304 instead.
+- A1-j. TEST-2306 found `.aai/scripts/check-test-registration.mjs` as one more
+  real-tree path an engine case reads (TEST-2307 now calls it by absolute path, since
+  the relative `cd` form tripped the cd-in-substitution ratchet); the `aai-docs-audit`
+  row of `tests/skills/suite-map.yaml` gained that glob.
