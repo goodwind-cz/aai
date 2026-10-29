@@ -22,7 +22,7 @@ touch one file. A weekend of iteration on one PR could burn 12+ CI-hours
 this way.
 
 Now a PR push runs only the suites its diff could plausibly affect, plus a
-cheap always-on core (`aai-check-state`, `aai-docs-audit`, `aai-spec-lint`).
+cheap always-on core (`aai-check-state`, `aai-docs-content`, `aai-spec-lint`, `aai-hygiene-pack`).
 A deterministic selector reads the diff, maps changed paths onto suites via
 a declared suite map, and prints which suites to run and why. The full
 framework still runs — on every push to `main`, every night, and on demand

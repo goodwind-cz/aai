@@ -2162,6 +2162,79 @@ test_1762_learned_history_selects_its_readers() {
   log_pass "TEST-1762: the history file selects aai-learned-routing, aai-hygiene-pack and aai-canon"
 }
 
+test_2302_doc_only_selects_content_not_engine() {  # Spec-AC-02 / TEST-2302
+  log_info "Test: document-only diff selects CORE aai-docs-content, never the engine (TEST-2302)..."
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  [[ -f "$map" ]] || log_fail "TEST-2302: real suite map missing: $map"
+  local out
+  out="$(printf '%s\n' \
+    "docs/issues/CHANGE-0001-x.md" "docs/specs/SPEC-0001-x.md" \
+    "docs/rfc/RFC-0001-x.md" "docs/decisions/DEC-0001-x.md" "docs/INDEX.md" \
+    | node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
+  assert_payload_has_line "$out" "CORE aai-docs-content reason=core" \
+    "TEST-2302: document-only diff must print CORE aai-docs-content: $out"
+  assert_payload_line_not_matches "$out" 'aai-docs-audit' \
+    "TEST-2302: no line may name the engine suite aai-docs-audit: $out"
+  assert_payload_line_not_matches "$out" '^FULL_RUN' \
+    "TEST-2302: document-only diff must not FULL_RUN: $out"
+  log_pass "document-only diff selects content, not engine (TEST-2302)"
+}
+
+test_2305_engine_inputs_select_engine() {  # Spec-AC-04 / TEST-2305
+  log_info "Test: every engine input selects aai-docs-audit or FULL_RUN; a non-engine path does not (TEST-2305)..."
+  local p out
+  for p in \
+    .aai/scripts/docs-audit.mjs .aai/scripts/lib/docs-audit-core.mjs \
+    docs/ai/docs-audit.yaml .aai/scripts/generate-docs-index.mjs \
+    .aai/SKILL_DOCS_AUDIT.prompt.md tests/skills/test-aai-docs-audit.sh \
+    tests/skills/test-aai-docs-content.sh tests/skills/lib/docs-audit-live.sh \
+    tests/skills/lib/docs-audit-body.test.mjs tests/skills/lib/docs-audit-closeout.test.mjs \
+    tests/skills/lib/docs-audit-gate.test.mjs; do
+    out="$(printf '%s\n' "$p" | node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
+    case $'\n'"$out" in
+      *$'\n'"SELECTED aai-docs-audit "*|*$'\n'FULL_RUN*) ;;
+      *) log_fail "TEST-2305: engine input $p must select aai-docs-audit or FULL_RUN, got: $out" ;;
+    esac
+  done
+  # Positive control: a non-engine document must NOT select the engine.
+  out="$(printf '%s\n' "docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md" \
+    | node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
+  assert_payload_line_not_matches "$out" 'aai-docs-audit' \
+    "TEST-2305: docs/rfc control must not reach the engine suite: $out"
+  log_pass "engine inputs select the engine; control does not (TEST-2305)"
+}
+
+test_2311_core_list_weights_product_doc() {  # Spec-AC-08 / TEST-2311
+  log_info "Test: core list, weights row and product doc agree (TEST-2311)..."
+  local map="$PROJECT_ROOT/tests/skills/suite-map.yaml"
+  local weights="$PROJECT_ROOT/tests/skills/suite-weights.tsv"
+  local doc="$PROJECT_ROOT/docs/product/ci-test-impact-selection.md"
+  local line in_core=0 got=""
+  while IFS= read -r line; do
+    if [[ "$line" == "core:" ]]; then in_core=1; continue; fi
+    if [[ "$in_core" -eq 1 ]]; then
+      case "$line" in
+        "  - "*) got="$got${line#  - } " ;;
+        "#"*|"  #"*|"") ;;
+        *) break ;;
+      esac
+    fi
+  done < "$map"
+  [[ "$got" == "aai-check-state aai-docs-content aai-spec-lint aai-hygiene-pack " ]] \
+    || log_fail "TEST-2311: core list must be exactly aai-check-state aai-docs-content aai-spec-lint aai-hygiene-pack, got: $got"
+  local n=0
+  while IFS= read -r line; do
+    [[ "$line" == "aai-docs-content"$'\t'* ]] && n=$((n + 1))
+  done < "$weights"
+  [[ "$n" -eq 1 ]] || log_fail "TEST-2311: expected exactly one aai-docs-content weights row, got $n"
+  local ok=0
+  while IFS= read -r line; do
+    if [[ "$line" == *"aai-check-state"* && "$line" == *"aai-docs-content"* && "$line" == *"aai-spec-lint"* && "$line" == *"aai-hygiene-pack"* ]]; then ok=1; fi
+  done < "$doc"
+  [[ "$ok" -eq 1 ]] || log_fail "TEST-2311: product doc must name the four core suites on one line"
+  log_pass "core list, weights row and product doc agree (TEST-2311)"
+}
+
 main() {
   echo "Testing $TEST_NAME (ci-test-impact-selection / spec-ci-test-impact-selection)"
   check_deps
@@ -2233,6 +2306,9 @@ main() {
   test_1760_weights_provenance
   test_1761_leg_walls_bound
   test_1762_learned_history_selects_its_readers
+  test_2302_doc_only_selects_content_not_engine
+  test_2305_engine_inputs_select_engine
+  test_2311_core_list_weights_product_doc
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -696,7 +696,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (517)
+## Broken references (522)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -805,6 +805,7 @@ _None._
 | tests/skills/test-aai-delta-stage3.sh | docs/specs/SPEC-bad-violation.md | NOT FOUND |
 | tests/skills/test-aai-delta-stage3.sh | docs/specs/SPEC-collision.md | NOT FOUND |
 | tests/skills/test-aai-delta-stage3.sh | docs/specs/SPEC-missing-doc.md | NOT FOUND |
+| tests/skills/test-aai-deslop.sh | docs/ai/reports/deslop-candidate-adjudication-20260815.md | NOT FOUND |
 | tests/skills/test-aai-deslop.sh | docs/issues/CHANGE-does-not-exist.md | NOT FOUND |
 | tests/skills/test-aai-deslop.sh | docs/issues/DOC-change.md | NOT FOUND |
 | tests/skills/test-aai-deslop.sh | docs/issues/DOC-issue.md | NOT FOUND |
@@ -1206,6 +1207,10 @@ _None._
 | tests/skills/test-aai-suite-select.sh | docs/c.md | NOT FOUND |
 | tests/skills/test-aai-suite-select.sh | docs/core-a.md | NOT FOUND |
 | tests/skills/test-aai-suite-select.sh | docs/core-b.md | NOT FOUND |
+| tests/skills/test-aai-suite-select.sh | docs/decisions/DEC-0001-x.md | NOT FOUND |
+| tests/skills/test-aai-suite-select.sh | docs/issues/CHANGE-0001-x.md | NOT FOUND |
+| tests/skills/test-aai-suite-select.sh | docs/rfc/RFC-0001-x.md | NOT FOUND |
+| tests/skills/test-aai-suite-select.sh | docs/specs/SPEC-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-sync-seed.sh | docs/x.md | NOT FOUND |
 | tests/skills/test-aai-tdd.sh | docs/specs/SPEC-CHANGE-001.md | NOT FOUND |
 | tests/skills/test-aai-token-capture.sh | docs/ai/reports/validation-fixture.md | NOT FOUND |

@@ -13,7 +13,7 @@ name: skill-suite
 # tests/skills/suite-map.yaml suites. Two outcomes:
 #   - mode=selected: one `skills-selected` runner or two selected matrix legs
 #     execute the independently checked conditional plan. Each runs ONLY the matched suites + the
-#     always-on core set (check-state, docs-audit, spec-lint, hygiene-pack), via
+#     always-on core set (check-state, docs-content, spec-lint, hygiene-pack), via
 #     ONE `test-framework.sh` invocation with a repeated `--skill <name>` flag
 #     per suite (never a hand-rolled runner — reuses the exit-42-is-SKIP
 #     contract and the bounded-width wave path test-framework.sh already
