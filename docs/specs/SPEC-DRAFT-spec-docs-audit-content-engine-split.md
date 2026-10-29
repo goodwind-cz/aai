@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 59d57e3b9cb84d108ffec5fe3f1d71c9dda7d0b20495918d9fbb73d09e7e2e1a
+frozen_sha256: ba1f7afe83402b5e7ce4bb64937df5f4345e77c03c6fe004acdb801f3323e08e
 ceremony_level: 2
 links:
   requirement: docs-audit-content-engine-split
@@ -421,7 +421,7 @@ Registry items closed by this scope: none
 
 ## Amendment 1 (post-freeze, additive-with-disclosure, no owner sign-off obtained)
 
-Implementation outgrew the literal text of this frozen spec in twelve places (A1-a to A1-l). The
+Implementation outgrew the literal text of this frozen spec in thirteen places (A1-a to A1-m). The
 original text above is kept; where it differs, this section governs. The owner
 may accept or reverse it at merge.
 
@@ -489,3 +489,8 @@ may accept or reverse it at merge.
   (the TEST-007 failure message cites plan row TEST-2312); no logic changed. The "Not
   touched" list above is read with this exception. The note's 172.4 s for an engine-input pull request
   (engine plus content suite) is a sum of medians; the median of the per-pair sums is 173.0 s.
+- A1-m. Disclosure: two earlier-ride pins were updated because this spec delivers RFC-0017
+  Rollout Status phase 2 as `done` (Spec-AC-07): `tests/skills/test-aai-expert-fetch.sh`
+  (TEST-2623) and `tests/skills/lib/recheck.test.mjs` (TEST-2716 and TEST-2825) pinned
+  that row as `in progress`; each now pins `done`, nothing else in them changed. Read the
+  "Not touched" list with this exception too. Validation r2 finding F-R2-B1.
