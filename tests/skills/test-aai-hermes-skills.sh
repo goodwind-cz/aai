@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Native integration; requires an already prepared Hermes Python environment.
+# Offline TEST-006 contracts run first; --docs-only runs only those checks.
+# Native integration requires an already prepared Hermes Python environment.
 # AAI_HERMES_SOURCE=/absolute/hermes-agent AAI_HERMES_PYTHON=/absolute/venv/bin/python
 # Run through .aai/scripts/aai-run-tests.sh from the AAI repository root.
 # Exit 42 means unavailable native evidence, never native PASS. No bootstrapping.
 set -euo pipefail
+node tests/skills/lib/hermes-skills-contract.mjs
+if [[ "${1:-}" == "--docs-only" ]]; then
+  echo "Offline TEST-006 contracts only; native Hermes integration not run"
+  exit 0
+fi
 if [[ -z "${AAI_HERMES_SOURCE:-}" || -z "${AAI_HERMES_PYTHON:-}" ]]; then
   echo 'NATIVE UNAVAILABLE: set AAI_HERMES_SOURCE and AAI_HERMES_PYTHON (prepared runtime)'
   exit 42

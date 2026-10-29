@@ -1414,6 +1414,8 @@ suites:
 
   aai-hermes-skills:
     globs:
+      - docs/USER_GUIDE.md
+      - tests/skills/lib/hermes-skills-contract.mjs
       - tests/skills/lib/hermes-skills-smoke.py
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/sync-harness-skills.mjs

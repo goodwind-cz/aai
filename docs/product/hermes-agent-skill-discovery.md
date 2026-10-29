@@ -46,4 +46,4 @@ Selection evidence does not assert downstream model execution.
 
 - Request: [Hermes discovery](../issues/CHANGE-0234-hermes-agent-skill-discovery.md)
 - Spec: [Discovery contract](../specs/SPEC-0259-spec-hermes-agent-skill-discovery.md)
-- Verification: [Native evidence](../ai/tdd/hermes-agent-skill-discovery-native.log)
+- Verification: [Review evidence](../ai/reviews/review-hermes-agent-skill-discovery-20261029T000554Z.md)
