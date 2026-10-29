@@ -3447,3 +3447,4 @@
 {"v":1,"ts":"2026-10-29T18:59:43Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"docs-audit-content-engine-split","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-29T18:59:43Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-audit-content-engine-split","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-29T18:59:43Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-docs-audit-content-engine-split","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-29T20:03:06Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-watch-ci-cancelled-runs-and-release-gate-docs","payload":{"from":"draft","to":"implementing"}}
