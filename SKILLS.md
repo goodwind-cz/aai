@@ -3,6 +3,9 @@
 This document describes all universal skills included in the AAI framework.
 Skills are session-scoped, multi-step prompts that compose workflow actions into reusable commands.
 
+Hermes Agent uses the shared `.agents/skills` catalog after project trust.
+See [Hermes setup and refresh](docs/USER_GUIDE.md#hermes-agent).
+
 ## Quick Reference
 
 The table lists the full set of universal skills; rows are unnumbered on purpose

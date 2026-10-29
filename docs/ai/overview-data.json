@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-28T22:10:20.230Z",
+  "generatedAt": "2026-10-29T00:29:23.711Z",
   "project": "aai",
   "counts": {
-    "delivered": 328,
+    "delivered": 329,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 79482147
@@ -235,6 +235,19 @@
   ],
   "delivered": [
     {
+      "ref": "hermes-agent-skill-discovery",
+      "title": "Show AAI skills in Hermes Agent",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0234-hermes-agent-skill-discovery.md",
+      "closed_on": "2026-10-29",
+      "agent_minutes": 27,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0259-spec-hermes-agent-skill-discovery.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-hermes-agent-skill-discovery-20261029T002840Z.md"
+    },
+    {
       "ref": "release-rollup-dry-run",
       "title": "Release CHANGELOG rollup dry-run",
       "type": "change",
@@ -258,7 +271,7 @@
       "token_total": 1618403,
       "spec": "docs/specs/SPEC-0258-spec-codex-usage-missing-from-run-budgets.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-codex-usage-missing-from-run-budgets-20261028T225050Z.md"
     },
     {
       "ref": "current-head-ci-reader",
@@ -4526,6 +4539,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "hermes-agent-skill-discovery",
+          "title": "Show AAI skills in Hermes Agent",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0234-hermes-agent-skill-discovery.md",
+          "closed_on": "2026-10-29",
+          "agent_minutes": 27,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0259-spec-hermes-agent-skill-discovery.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-hermes-agent-skill-discovery-20261029T002840Z.md"
+        },
+        {
           "ref": "release-rollup-dry-run",
           "title": "Release CHANGELOG rollup dry-run",
           "type": "change",
@@ -4549,7 +4575,7 @@
           "token_total": 1618403,
           "spec": "docs/specs/SPEC-0258-spec-codex-usage-missing-from-run-budgets.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-codex-usage-missing-from-run-budgets-20261028T225050Z.md"
         },
         {
           "ref": "current-head-ci-reader",

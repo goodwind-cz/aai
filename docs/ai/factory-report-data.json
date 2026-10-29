@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-28T22:10:20.596Z",
+  "generatedAt": "2026-10-29T00:09:06.498Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 190,
-    "delivered": 596,
+    "delivered": 598,
     "active_weeks": 18,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (596 closes vs 190 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 596,
-    "delivered_per_week_avg": 33.1,
+    "note": "\"delivered\" counts every work_item_closed event (598 closes vs 190 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 598,
+    "delivered_per_week_avg": 33.2,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -32,7 +32,7 @@
       "2026-W41": 36,
       "2026-W42": 24,
       "2026-W43": 36,
-      "2026-W44": 7
+      "2026-W44": 9
     },
     "delivered_groups": [
       {
@@ -542,7 +542,7 @@
         "key": "month:2026-10",
         "kind": "month",
         "label": "2026-10",
-        "count": 117,
+        "count": 119,
         "refs": [
           "downstream-rides-ask-no-governance-questions",
           "spec-downstream-rides-ask-no-governance-questions",
@@ -660,7 +660,9 @@
           "spec-current-head-ci-reader",
           "release-rollup-dry-run",
           "codex-usage-missing-from-run-budgets",
-          "spec-codex-usage-missing-from-run-budgets"
+          "spec-codex-usage-missing-from-run-budgets",
+          "hermes-agent-skill-discovery",
+          "spec-hermes-agent-skill-discovery"
         ]
       }
     ],
@@ -3049,12 +3051,20 @@
         {
           "ref": "spec-codex-usage-missing-from-run-budgets",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "hermes-agent-skill-discovery",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-hermes-agent-skill-discovery",
+          "lead_time_seconds": null
         }
       ],
       "median_seconds": 5389,
       "mean_seconds": 95534.5,
       "measured": 186,
-      "unmeasurable": 410
+      "unmeasurable": 412
     }
   },
   "speed": {
@@ -6141,7 +6151,7 @@
     },
     {
       "week": "2026-W44",
-      "delivered": 7,
+      "delivered": 9,
       "median_lead_time_seconds": 12066,
       "busy_seconds": 29651,
       "tokens": 1618403,
@@ -6150,7 +6160,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 253,
+    "open_count": 254,
     "oldest_age_days": 68,
     "items": [
       {
@@ -6245,7 +6255,7 @@
         "id": "fu-clearfocus-announces-unwritten-phase",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 44,
+        "age_days": 45,
         "what": "clear-focus REPLACES an existing phase:/status: line on the focused work item but never INSERTS a missing one, and prints 'work item phase=closed status=done' unconditionally even when the item carries no phase key at all (or there is no focused item).",
         "status": "open"
       },
@@ -6253,7 +6263,7 @@
         "id": "fu-dispatch-text-detector-self-ref-fp",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 44,
+        "age_days": 45,
         "what": "check-dispatch-text.mjs's PRE_RATING_PHRASE_RE is a bare substring match with no exclusion for quoting, negation, or work-ordering prose, so it fires on the very D11 rule it enforces and on legitimate orchestration text.",
         "status": "open"
       },
@@ -6261,7 +6271,7 @@
         "id": "fu-verdict-coverage-same-second-true",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 44,
+        "age_days": 45,
         "what": "metrics-flush.mjs's verdictAfterLastImplementer uses >= where Spec-AC-19 says 'later than', and no test pins the boundary; D7's second-precision coarsening widens the same-second window this decides wrongly.",
         "status": "open"
       },
@@ -6269,7 +6279,7 @@
         "id": "fu-ledger-shrink-arm-unpinned",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 44,
+        "age_days": 45,
         "what": "tests/skills/test-aai-learned-routing.sh's TEST-008 does not pin the SHRINK arm of D15 — a ledger whose worktree content is SHORTER than the committed blob.",
         "status": "open"
       },
@@ -6557,7 +6567,7 @@
         "id": "fu-issue-0040-closed-as-data-no-event",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 39,
+        "age_days": 40,
         "what": "ISSUE-0040 reads probable-false-done: it was closed as data by Spec-AC-10 with PR 382's real commit, but no ac_evidence event references it, so the drift report flags it",
         "status": "open"
       },
@@ -6565,7 +6575,7 @@
         "id": "fu-reconcile-mention-vs-disclosure",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 39,
+        "age_days": 40,
         "what": "close-reconcile's id-mention-unpaired arm fires on an id a delivered doc names to disclose that it is owned ELSEWHERE, not claimed; six such items on this ride's own merge",
         "status": "open"
       },
@@ -6573,7 +6583,7 @@
         "id": "fu-issue-0042-half-delivered",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 39,
+        "age_days": 40,
         "what": "ISSUE-0042 is half delivered: SPEC-0182 Spec-AC-21 shipped the template number: null half, but its Verification also requires allocate-doc-number.mjs to accept --type research and --type hotfix, which TYPE_MAP still lacks",
         "status": "open"
       },
@@ -7069,7 +7079,7 @@
         "id": "fu-set-strategy-ref-shape",
         "ref": "strategy-unscoped-from-current-focus",
         "severity": "P2",
-        "age_days": 29,
+        "age_days": 30,
         "what": "set-strategy --ref is not shape-validated; empty --ref with unset focus writes ref_id empty and Planning retarget then treats the intake stamp as stale",
         "status": "open"
       },
@@ -7093,7 +7103,7 @@
         "id": "fu-ride-select-absent-intake-mismatch",
         "ref": "downstream-rides-ask-no-governance-questions",
         "severity": "P3",
-        "age_days": 27,
+        "age_days": 28,
         "what": "pin the gate's --intake id-mismatch usage check under an ABSENT roadmap: add one arm to test_1206_usage_checks_before_absent (no roadmap + mismatched --intake must exit 2), shown RED by moving the check below the absent-roadmap branch",
         "status": "open"
       },
@@ -7261,7 +7271,7 @@
         "id": "fu-merge-policy-decision-ref-frac-ts",
         "ref": "configurable-merge-policy-lanes",
         "severity": "P3",
-        "age_days": 23,
+        "age_days": 24,
         "what": "DECISION_REF_RE accepts whole-second timestamps only; a hitl_decision stamped with fractional seconds cannot be bound by a lane",
         "status": "open"
       },
@@ -7333,7 +7343,7 @@
         "id": "fu-tracked-ignored-rev-cat-file-batch",
         "ref": "post-validation-pushes-reuse-test-results",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "tracked-ignored.mjs --rev spawns one git cat-file per .gitignore (2000 files: 13.8 s vs 0.08 s)",
         "status": "open"
       },
@@ -7773,7 +7783,7 @@
         "id": "fu-release-policy-pending-reason",
         "ref": "release-one-shot-finish",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "PENDING: merge-policy cannot tell a checks lag from a block needing a person (missing approval, CODEOWNERS, unresolved conversations) — gh prints the same text",
         "status": "open"
       },
@@ -7781,7 +7791,7 @@
         "id": "fu-release-ruleset-paging-test",
         "ref": "release-one-shot-finish",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "TEST-086 fixture has 36 rules, so at the engine's per_page=100 it is a single page and the multi-page flatten never runs (a first-page-only mutant like data=data[0] stays green); make the filler >=105 rules. Also document that the rulesets read needs gh >= 2.48 (--slurp) in the product doc / SKILL_RELEASE, and fix the spec's Mutation targets sentence to include TEST-086",
         "status": "open"
       },
@@ -7901,7 +7911,7 @@
         "id": "fu-triage-crashed-audit-reads-clean",
         "ref": "node-first-second-slice",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "triage reads a docs-audit that exited non-zero without a verdict line as CLEAN (D-11), so --check exits 0 over a crashed audit",
         "status": "open"
       },
@@ -7909,7 +7919,7 @@
         "id": "fu-triage-marker-outside-verdict-line",
         "ref": "node-first-second-slice",
         "severity": "P3",
-        "age_days": 4,
+        "age_days": 5,
         "what": "triage counts NEEDS-TRIAGE anywhere in the docs-audit output as an issue (D-10), also outside the verdict line; a non-git folder also reads Working tree: clean (D-12)",
         "status": "open"
       },
@@ -7997,7 +8007,7 @@
         "id": "fu-sticky-no-reverse-carry",
         "ref": "recheck-verdict-binding",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "nothing carries a check_sticky entry from a worktree STATE back to the origin STATE",
         "status": "open"
       },
@@ -8005,7 +8015,7 @@
         "id": "fu-recheck-tests-regen-shipping-overview",
         "ref": "recheck-verdict-binding",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "running node --test tests/skills/lib/recheck.test.mjs or test-aai-recheck.sh directly rewrites the tracked docs/ai/overview-data.json and overview.html of the tree it runs in (metrics-flush fixtures trigger its overview refresh from the shipping tree)",
         "status": "open"
       },
@@ -8013,7 +8023,7 @@
         "id": "fu-sticky-inline-header-blocks-bind",
         "ref": "recheck-verdict-binding",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "a hand-edited inline check_sticky: [] header makes every bind-check in that STATE file refuse (the dispatch tick swallows it), so that STATE runs full for every ref until fixed by hand",
         "status": "open"
       },
@@ -8101,7 +8111,7 @@
         "id": "fu-release-recut-ancestry-cause-name",
         "ref": "release-same-version-recovery",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "recutRelease reports any failing git merge-base --is-ancestor as base-rewritten, including a missing object",
         "status": "open"
       },
@@ -8109,7 +8119,7 @@
         "id": "fu-release-preflight-scrubbed-env",
         "ref": "release-same-version-recovery",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "the release preflight runs repository tests from a linked worktree of the real repo with the operator full environment, including gh credentials",
         "status": "open"
       },
@@ -8127,14 +8137,6 @@
         "severity": "P2",
         "age_days": 1,
         "what": "owner sign-off owed on the post-freeze amendment(s) to spec-release-passes-first-time: Make complete local corpus execution and measured cost the pre-PR gate; observe hosted timing after opening the authorized PR with a diagnostic 60-second added-delay target",
-        "status": "open"
-      },
-      {
-        "id": "fu-amend-codex-usage-missing-from-909fcc",
-        "ref": "codex-usage-missing-from-run-budgets",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-codex-usage-missing-from-run-budgets: Test Plan mutation cells TEST-3101,3102,3104,3105,3106,3107,3108,3110,3111,3115,3120 escaped for mutation-run's JS RegExp reading (backslash before literal parens and question marks; plain && instead of backslash-ampersand); Spec-AC-06 and TEST-3111 wording narrowed to what is asserted (usage_basis in STATE before flush; tokens, harness codex and note tokens in METRICS after)",
         "status": "open"
       },
       {
@@ -8175,6 +8177,22 @@
         "severity": "P3",
         "age_days": 0,
         "what": "every codex-usage budget call re-scans the session_meta header of every rollout file once per thread (lib/codex-rollout.mjs:221)",
+        "status": "open"
+      },
+      {
+        "id": "fu-codex-idle-descendant-false-park",
+        "ref": "codex-usage-missing-from-run-budgets",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "a meta-only Codex descendant (just spawned, aborted spawn, or idle child stamped before --since) makes observe --descendants unavailable, so an unattended ride parks falsely and a never-writing child leaves the run budget NOT enforced for the whole run",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-hermes-agent-skill-discovery",
+        "ref": "hermes-agent-skill-discovery",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-hermes-agent-skill-discovery: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
         "status": "open"
       }
     ]

@@ -114,6 +114,8 @@ pairs:
     status: done
   - capability: release-rollup-dry-run
     status: done
+  - capability: hermes-agent-skill-discovery
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
