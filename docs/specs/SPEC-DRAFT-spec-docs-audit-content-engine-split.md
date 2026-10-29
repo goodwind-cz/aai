@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4179f496f68316a724b9377c2a45b28e5aad8737db87d55006e829bc0fcd5c4a
+frozen_sha256: 59d57e3b9cb84d108ffec5fe3f1d71c9dda7d0b20495918d9fbb73d09e7e2e1a
 ceremony_level: 2
 links:
   requirement: docs-audit-content-engine-split
@@ -285,7 +285,7 @@ Seams crossed:
 | TEST-2303 | Spec-AC-02 | integration | tests/skills/test-aai-lightweight-lane.sh | test_017_docs_only_close_diff_never_full now asserts CORE aai-docs-content and no aai-docs-audit line for the close-commit diff, still never FULL_RUN | `sed:s/(?<=\n  - )aai-docs-content(?=\n)/aai-docs-audit/` on tests/skills/suite-map.yaml | pending |
 | TEST-2304 | Spec-AC-03 | e2e | tests/skills/test-aai-docs-audit.sh | test_2304_content_suite_fails_on_planted_orphan clones PROJECT_ROOT into TEST_DIR, overlays the working tree's tests/skills and .aai, commits a frontmatter-less docs/issues document and the regenerated index, runs the clone's test-aai-docs-content.sh and asserts exit 1 and a FAIL line naming Orphans | `sed:s/const orphans = docs\.filter\(d => d\.cls === 'orphan'\);/const orphans = [];/` on .aai/scripts/lib/docs-audit-core.mjs | pending |
 | TEST-2305 | Spec-AC-04 | integration | tests/skills/test-aai-suite-select.sh | test_2305_engine_inputs_select_engine feeds each engine input path separately to the real selector; each output has SELECTED aai-docs-audit or FULL_RUN | `sed:s/(?<=\n      - )\.aai\/scripts\/docs-audit\.mjs(?=\n)/.aai\/scripts\/docs-audit.mjs.unused/` on tests/skills/suite-map.yaml | pending |
-| TEST-2306 | Spec-AC-04 | inspection | tests/skills/test-aai-docs-audit.sh | test_2306_engine_input_closure extracts literal PROJECT_ROOT paths read by engine-registered functions, runs each through the real selector (SELECTED aai-docs-audit or FULL_RUN), and fails when an engine function outside the named exceptions calls live_audit, live_index_pair or reads PROJECT_ROOT docs | `sed:s/(?<=\n)      - \.aai\/SKILL_DOCS_AUDIT\.prompt\.md\n//` on tests/skills/suite-map.yaml | pending |
+| TEST-2306 | Spec-AC-04 | inspection | tests/skills/test-aai-docs-audit.sh | test_2306_engine_input_closure extracts literal PROJECT_ROOT paths (plain, quoted, or relative inside a cd PROJECT_ROOT subshell) read by engine-registered functions, runs each through the real selector (SELECTED aai-docs-audit or FULL_RUN), and fails when an engine function outside the named exceptions calls live_audit, live_index_pair or reads PROJECT_ROOT docs | `sed:s/(?<=\n)      - \.aai\/scripts\/select-suites\.mjs\n//` on tests/skills/suite-map.yaml | pending |
 | TEST-2307 | Spec-AC-05 | integration | tests/skills/test-aai-docs-audit.sh | test_2307_case_inventory_partition compares engine main registrations, DOCS_AUDIT_CONTENT_CASES and the five Node-moved names with the baseline main list (equal, disjoint), and runs check-test-registration.mjs over tests/skills | `sed:s/(?<=\n)  test_orphan_split\n//` on tests/skills/test-aai-docs-audit.sh | pending |
 | TEST-2308 | Spec-AC-06 | unit | tests/skills/test-aai-docs-audit.sh | test_2308_gate_node runs node --test tests/skills/lib/docs-audit-gate.test.mjs from PROJECT_ROOT and fails naming TEST-2308 when any G1 to G5 case fails; also checks the five moved functions are gone and the two retained owners are defined and registered once | `sed:s/requires a "Ceremony justification: ..." body line/requires a justification line/` on .aai/scripts/lib/docs-audit-core.mjs | pending |
 | TEST-2309 | Spec-AC-06 | performance | tests/skills/test-aai-docs-audit.sh | test_2309_gate_batch_measurement recomputes both gate medians from the five pair rows, checks the Gate ratio line matches within 0.01 and is at most 0.50, and that G1 to G5 each name a removed function and a Node case | `sed:s/Gate after median: /Gate after: /` on docs/analysis/docs-audit-content-engine-split.md | pending |
@@ -372,8 +372,8 @@ list above. Planning's measurements are inputs, not attestations.
 - docs/issues/CHANGE-DRAFT-docs-audit-content-engine-split.md
 - this spec; docs/INDEX.md (regenerated)
 
-Not touched: anything under `.aai/`, `tests/skills/test-aai-delta-stage3.sh`
-(its pin already holds once the companion exists).
+Not touched: anything under `.aai/`; `tests/skills/test-aai-delta-stage3.sh` is
+touched only in one failure message (A1-l; its pin already holds once the companion exists).
 
 ## Assumptions (autopilot, no owner question)
 
@@ -421,7 +421,7 @@ Registry items closed by this scope: none
 
 ## Amendment 1 (post-freeze, additive-with-disclosure, no owner sign-off obtained)
 
-Implementation outgrew the literal text of this frozen spec in six places. The
+Implementation outgrew the literal text of this frozen spec in twelve places (A1-a to A1-l). The
 original text above is kept; where it differs, this section governs. The owner
 may accept or reverse it at merge.
 
@@ -478,3 +478,14 @@ may accept or reverse it at merge.
   real-tree path an engine case reads (TEST-2307 now calls it by absolute path, since
   the relative `cd` form tripped the cd-in-substitution ratchet); the `aai-docs-audit`
   row of `tests/skills/suite-map.yaml` gained that glob.
+- A1-k. Review r1 finding F-B1: TEST-2306 recognised only `$PROJECT_ROOT/<path>` reads and
+  missed `(cd "$PROJECT_ROOT" && node .aai/scripts/<x>)` and quoted `"$PROJECT_ROOT"/<path>`
+  forms. It now extracts both, and fails when it scanned zero engine functions or zero
+  paths (non-vacuous floor). The widened scan was RED on the previous map for
+  `.aai/scripts/check-state.mjs` and `.aai/scripts/select-suites.mjs`; the `aai-docs-audit`
+  row gained both globs and no further hole was found. The TEST-2306 Mutation cell now
+  names removal of the `select-suites.mjs` glob (recorded RED).
+- A1-l. Disclosure: `tests/skills/test-aai-delta-stage3.sh` was edited, message text only
+  (the TEST-007 failure message cites plan row TEST-2312); no logic changed. The "Not
+  touched" list above is read with this exception. The note's 172.4 s for an engine-input pull request
+  (engine plus content suite) is a sum of medians; the median of the per-pair sums is 173.0 s.

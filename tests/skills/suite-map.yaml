@@ -385,6 +385,8 @@ suites:
       - .claude/skills/aai-docs-audit/SKILL.md
       - docs/USER_GUIDE.md
       - tests/skills/suite-map.yaml
+      - .aai/scripts/check-state.mjs
+      - .aai/scripts/select-suites.mjs
 
   aai-docs-canon:
     globs:

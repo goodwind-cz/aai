@@ -8937,7 +8937,9 @@ test_2306_engine_input_closure() {  # TEST-2306 / Spec-AC-04
   log_info "Test: every literal real-tree path an engine case reads selects aai-docs-audit or FULL_RUN (TEST-2306)..."
   local exceptions=" test_histmap_corpus_equivalence test_2202_live_audit_memo test_2203_live_audit_verify_mode test_2204_live_index_pair_restores test_2205_committed_index_staleness_survives test_2206_no_direct_live_corpus_launch test_2306_engine_input_closure "
   local fn body paths p out calls seen=" "
-  local root_re='[$][{]?PROJECT_ROOT[}]?'
+  local root_re='[$][{]?PROJECT_ROOT[}]?"?'
+  local rel_re='(\.aai|\.claude|tests|docs)/[A-Za-z0-9_./-]+'
+  local nfn=0 npath=0 cdlines
   for fn in $(docs_audit_main_names < "$SUITE_FILE"); do
     case "$exceptions" in *" $fn "*) continue ;; esac
     body="$(docs_audit_fn_body "$fn" | grep -v '^[[:space:]]*#' || true)"
@@ -8945,7 +8947,13 @@ test_2306_engine_input_closure() {  # TEST-2306 / Spec-AC-04
     calls="$(grep -E '(^|[^A-Za-z0-9_])(live_audit|live_index_pair)([^A-Za-z0-9_]|$)' <<<"$body" || true)"
     [[ -z "$calls" ]] \
       || log_fail "TEST-2306: engine case $fn reads the live corpus through $(head -1 <<<"$calls" | sed 's/^[[:space:]]*//') - classify it content or name it an exception"
+    nfn=$((nfn + 1))
     paths="$(grep -oE "${root_re}/[A-Za-z0-9_./-]+" <<<"$body" | sed -E "s#^${root_re}/##" || true)"
+    # Relative paths read from inside a (cd "$PROJECT_ROOT" && ...) subshell.
+    cdlines="$(grep -E 'cd "?[$][{]?PROJECT_ROOT[}]?"? *&&' <<<"$body" || true)"
+    if [[ -n "$cdlines" ]]; then
+      paths="$paths"$'\n'"$(sed -E 's/.*cd "?[$][{]?PROJECT_ROOT[}]?"? *&&//' <<<"$cdlines" | grep -oE "(^|[[:space:]])${rel_re}" | sed -E 's/^[[:space:]]+//' || true)"
+    fi
     if grep -qE '[$][{]?(AUDIT_SCRIPT|SUITE_FILE)' <<<"$body"; then
       paths="$paths"$'\n'".aai/scripts/docs-audit.mjs"$'\n'"tests/skills/test-aai-docs-audit.sh"
     fi
@@ -8953,6 +8961,7 @@ test_2306_engine_input_closure() {  # TEST-2306 / Spec-AC-04
       case "$p" in */|*.|"") continue ;; esac
       case "$seen" in *" $p "*) continue ;; esac
       seen="$seen$p "
+      npath=$((npath + 1))
       out="$(printf '%s\n' "$p" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
       case $'\n'"$out" in
         *$'\n'"SELECTED aai-docs-audit "*|*$'\n'FULL_RUN*) ;;
@@ -8960,6 +8969,9 @@ test_2306_engine_input_closure() {  # TEST-2306 / Spec-AC-04
       esac
     done
   done
+  # Non-vacuous floor: a broken extractor must not pass by scanning nothing.
+  (( nfn > 0 && npath > 0 )) \
+    || log_fail "TEST-2306: scanned $nfn engine function(s) and $npath path(s); the closure check is vacuous"
   log_pass "every literal real-tree path read by an engine case selects the engine suite; no engine case launches the live corpus (TEST-2306)"
 }
 

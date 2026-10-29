@@ -3426,3 +3426,8 @@
 {"v":1,"ts":"2026-10-29T00:08:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-hermes-agent-skill-discovery","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-29T00:08:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-hermes-agent-skill-discovery","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-29T13:47:17Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-audit-content-engine-split","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-29T15:27:38Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"docs-audit-content-engine-split","payload":{"role":"validation","head":"ff8a6311671a0a58d1378cad07413718fe53e645","seen":"run_at:null"}}
+{"v":1,"ts":"2026-10-29T16:09:38Z","actor":"ales_holubec.net","event":"check_verdict","ref":"docs-audit-content-engine-split","payload":{"role":"validation","head":"ff8a6311671a0a58d1378cad07413718fe53e645","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-10-29T16:09:38Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"docs-audit-content-engine-split","payload":{"role":"code_review","head":"ff8a6311671a0a58d1378cad07413718fe53e645","seen":"reports:0"}}
+{"v":1,"ts":"2026-10-29T16:09:38Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"docs-audit-content-engine-split","payload":{"status":"pass","hash":"fcb17d7672e038f9709df7438b9ba8d049d734076556727c689e76a06aac5c10"}}
+{"v":1,"ts":"2026-10-29T16:15:36Z","actor":"ales_holubec.net","event":"check_verdict","ref":"docs-audit-content-engine-split","payload":{"role":"code_review","head":"ff8a6311671a0a58d1378cad07413718fe53e645","status":"fail","security_relevant":false}}
