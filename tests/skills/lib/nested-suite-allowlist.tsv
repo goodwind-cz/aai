@@ -1,8 +1,9 @@
 # tests/skills/lib/nested-suite-allowlist.tsv — whole-suite nested runs that stay.
 # Columns (tab-separated): <outer suite file> <function> <nested suite file> <reason>.
 # The allowlist only shrinks: nested-suite-lint.mjs fails on a row that matches no
-# finding, and TEST-034 pins the row count at 3. Each row is a distinct proof that no
+# finding, and TEST-034 pins the row count at 4. Each row is a distinct proof that no
 # companion declaration can replace (suite-map.yaml companions, D6).
 test-aai-repo-tripwire.sh	test_006_fixed_suites_leave_the_real_tree_untouched	test-aai-doc-numbering.sh	TEST-006 runs the suite against the REAL checkout and compares git status and HEAD before and after; under framework isolation nothing else observes this suite writing to its checkout (about 68 s with the deslop row)
 test-aai-repo-tripwire.sh	test_006_fixed_suites_leave_the_real_tree_untouched	test-aai-deslop.sh	same proof as the doc-numbering row: the second suite that once rewrote tracked files, run against the real checkout
 test-aai-state.sh	test_071_rguard_predicate_which_file	test-aai-check-state.sh	TEST-037 (d) runs the core suite under AAI_ROLE=subagent with no environment scrub; sweeps and CI run without AAI_ROLE so no companion run carries that environment (about 1 s)
+test-aai-docs-audit.sh	test_2304_content_suite_fails_on_planted_orphan	test-aai-docs-content.sh	TEST-2304 (Spec-AC-03) runs the whole content suite in a disposable clone with a planted frontmatter-less document and asserts exit 1 plus an Orphans finding; the proof is that the suite's own main_content list fails, which a selected single case or a companion declaration cannot show (about 40 s, accepted in the spec)

@@ -12,7 +12,8 @@
 
 set -euo pipefail
 
-CONTENT_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONTENT_SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$CONTENT_SCRIPT_DIR" != "${BASH_SOURCE[0]}" ]] || CONTENT_SCRIPT_DIR=.
 # shellcheck source=test-aai-docs-audit.sh
 . "$CONTENT_SCRIPT_DIR/test-aai-docs-audit.sh"
 TEST_NAME="aai-docs-content"

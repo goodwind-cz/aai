@@ -381,6 +381,7 @@ suites:
       # Input closure (TEST-2306): real-tree files engine cases read.
       - .aai/ROLE_COMMON.md
       - .aai/scripts/spec-lint.mjs
+      - .aai/scripts/check-test-registration.mjs
       - .claude/skills/aai-docs-audit/SKILL.md
       - docs/USER_GUIDE.md
       - tests/skills/suite-map.yaml

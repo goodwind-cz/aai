@@ -8882,7 +8882,7 @@ test_2308_gate_node() {  # TEST-2308 / Spec-AC-06
   done
   n="$(grep -cE "^test\('G[1-5] " "$f" || true)"
   [[ "$n" == "5" ]] || log_fail "TEST-2308: the Node file must hold exactly five cases G1 to G5 (found $n)"
-  out="$(cd "$PROJECT_ROOT" && node --test tests/skills/lib/docs-audit-gate.test.mjs 2>&1)" || rc=$?
+  out="$(node --test "$PROJECT_ROOT/tests/skills/lib/docs-audit-gate.test.mjs" 2>&1)" || rc=$?
   [[ "$rc" == "0" ]] || log_fail "TEST-2308: gate Node assertions (G1 to G5) failed (exit $rc): $(payload_preview "$out")"
   log_pass "Gate Node cases G1 to G5 passed; five Bash twins gone; two CLI owners retained once (TEST-2308)"
 }
@@ -8909,7 +8909,7 @@ test_gateac_lean_volunteering_full_table"
   [[ "$(grep -c . <<<"$content" || true)" == "24" ]] \
     || log_fail "TEST-2307: DOCS_AUDIT_CONTENT_CASES must name exactly 24 functions (the spec minimum 23 plus test_issue0001_posix_paths_noop, which reads the setup_indexarm_snapshots real-index snapshots)"
   [[ "$(sort <<<"$engine" | uniq -d | grep -c . || true)" == "0" ]] \
-    || log_fail "TEST-2307: engine main registers a name twice: $(sort <<<"$engine" | uniq -d | head -3)"
+    || log_fail "TEST-2307: engine main registers a name twice: $(sort <<<"$engine" | uniq -d | qhead -3)"
   # Setup (check_deps, setup_fixture) runs in both suites by design; every other
   # name lives in exactly one place. The Node-moved names are registered in
   # neither suite (E and N, C and N, and E and C beyond setup all fail).
@@ -8918,17 +8918,17 @@ test_gateac_lean_volunteering_full_table"
   [[ -z "$(sort <<<"$content"$'\n'"$node5" | uniq -d | grep . || true)" ]] \
     || log_fail "TEST-2307: a Node-moved name is also a content case"
   [[ -z "$(sort <<<"$engine"$'\n'"$node5" | uniq -d | grep . || true)" ]] \
-    || log_fail "TEST-2307: a Node-moved name is still registered in the engine main: $(sort <<<"$engine"$'\n'"$node5" | uniq -d | head -3)"
+    || log_fail "TEST-2307: a Node-moved name is still registered in the engine main: $(sort <<<"$engine"$'\n'"$node5" | uniq -d | qhead -3)"
   ne="$(sort -u <<<"$engine"$'\n'"$content"$'\n'"$node5" | grep . || true)"
   nc="$(sort -u <<<"$baseline")"
   if [[ "$ne" != "$nc" ]]; then
-    log_fail "TEST-2307: union of engine, content and Node-moved names differs from the baseline main list: missing=$(comm -13 <(printf '%s\n' "$ne") <(printf '%s\n' "$nc") | head -5 | tr '\n' ' ') extra=$(comm -23 <(printf '%s\n' "$ne") <(printf '%s\n' "$nc") | head -5 | tr '\n' ' ')"
+    log_fail "TEST-2307: union of engine, content and Node-moved names differs from the baseline main list: missing=$(comm -13 <(printf '%s\n' "$ne") <(printf '%s\n' "$nc") | qhead -5 | tr '\n' ' ') extra=$(comm -23 <(printf '%s\n' "$ne") <(printf '%s\n' "$nc") | qhead -5 | tr '\n' ' ')"
   fi
   for n in $content; do
     [[ "$(type -t "$n" 2>/dev/null || true)" == "function" ]] || log_fail "TEST-2307: content case $n is not a defined function"
   done
   local rc=0 out
-  out="$(cd "$PROJECT_ROOT" && node .aai/scripts/check-test-registration.mjs tests/skills 2>&1)" || rc=$?
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
   [[ "$rc" == "0" ]] || log_fail "TEST-2307: check-test-registration.mjs tests/skills exited $rc: $(payload_preview "$out")"
   log_pass "195 baseline names = engine + 24 content + 5 Node-moved, no name in two places, registration check exits 0 (TEST-2307)"
 }
@@ -8986,7 +8986,7 @@ test_2304_content_suite_fails_on_planted_orphan() {  # TEST-2304 / Spec-AC-03
   grep -E '^FAIL:' "$log" >/dev/null 2>&1 \
     || log_fail "TEST-2304: the content suite printed no FAIL line: $(tail -c 400 "$log")"
   grep -E 'Orphans: [1-9]' "$log" >/dev/null 2>&1 \
-    || log_fail "TEST-2304: the failure output does not report Orphans >= 1: $(grep '^FAIL' "$log" | head -3 | cut -c1-300)"
+    || log_fail "TEST-2304: the failure output does not report Orphans >= 1: $(grep '^FAIL' "$log" | qhead -3 | cut -c1-300)"
   rm -rf "$c"
   log_pass "content suite exits 1 with a FAIL line naming Orphans on a planted frontmatter-less document (TEST-2304)"
 }
