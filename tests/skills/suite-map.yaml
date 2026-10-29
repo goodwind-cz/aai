@@ -117,6 +117,7 @@ suites:
       - .aai/scripts/watch-ci.mjs
       - tests/skills/lib/current-head-ci.test.mjs
       - tests/fixtures/release-first-pr504.json
+      - tests/fixtures/watch-ci-pr515.json
       - docs/product/release-command-finish.md
   aai-advisory-skills:
     companions:

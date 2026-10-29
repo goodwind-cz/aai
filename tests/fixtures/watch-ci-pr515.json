@@ -1,0 +1,657 @@
+{
+  "provenance": {
+    "url": "https://github.com/goodwind-cz/aai/pull/515",
+    "api": [
+      "https://api.github.com/repos/goodwind-cz/aai/commits/1edc4a54b4c44773bd50b88f3882cc156b211af5/check-runs?filter=all&per_page=100",
+      "https://api.github.com/repos/goodwind-cz/aai/actions/runs?head_sha=1edc4a54b4c44773bd50b88f3882cc156b211af5&per_page=100"
+    ],
+    "retrieved": "2026-10-29",
+    "cancelled_run": 40878601419,
+    "newer_run": 40878615745,
+    "source": "Actual GitHub API observations (check runs and workflow runs, trimmed to the fields the reader uses). Phase 1 is the reconstructed window before the newer run registered its aggregate and smoke jobs: the newer run is listed in_progress with none of its check runs. Phase 2 is the final recorded state."
+  },
+  "head": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+  "required": [
+    {
+      "name": "skill test suite (tests/skills/, via test-framework.sh)",
+      "bucket": "pass",
+      "link": "x"
+    },
+    {
+      "name": "self-hosting smoke (separate job — bootstraps + re-validates a full copy, ~2-3 min)",
+      "bucket": "pass",
+      "link": "x"
+    },
+    {
+      "name": "doc-numbering guards (report-only unless enforced)",
+      "bucket": "pass",
+      "link": "x"
+    }
+  ],
+  "phases": [
+    {
+      "checks": [
+        {
+          "id": 123463909861,
+          "name": "skill test suite (tests/skills/, via test-framework.sh)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "failure",
+          "started_at": "2026-10-29T13:04:37Z",
+          "completed_at": "2026-10-29T13:04:39Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463909861",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463859887,
+          "name": "worktree seed (native Windows PowerShell 5.1 and pwsh 7)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463859887",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463859436,
+          "name": "skill suite (selected sharded, via test-framework.sh --skill)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463859436",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463859167,
+          "name": "skill suite (selected, via test-framework.sh --skill)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463859167",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463858993,
+          "name": "skill test suite (full framework, via test-framework.sh)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463858993",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463858709,
+          "name": "self-hosting smoke (separate job — bootstraps + re-validates a full copy, ~2-3 min)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463858709",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778626,
+          "name": "release notes",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:34Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463778626",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778624,
+          "name": "tracked-ignored guard (no gitignored path may be tracked)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463778624",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778606,
+          "name": "select suites (PR impact analysis; full elsewhere)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463778606",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778394,
+          "name": "post-open review sweep record (report-only, Spec-AC-34)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:34Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601550/job/123463778394",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778050,
+          "name": "release dry-run (complete tracked changelog readers)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463778050",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463777958,
+          "name": "doc-numbering guards (report-only unless enforced)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:35Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601550/job/123463777958",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        }
+      ],
+      "workflows": {
+        "40878615745": {
+          "id": 40878615745,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 316140990,
+          "event": "pull_request",
+          "status": "in_progress",
+          "conclusion": null,
+          "created_at": "2026-10-29T13:04:24Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745",
+          "name": "skill-suite"
+        },
+        "40878601550": {
+          "id": 40878601550,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 313830338,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T13:04:19Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601550",
+          "name": "docs-numbering"
+        },
+        "40878601419": {
+          "id": 40878601419,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 316140990,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "created_at": "2026-10-29T13:04:18Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419",
+          "name": "skill-suite"
+        }
+      },
+      "runList": [
+        {
+          "id": 40878615745,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 316140990,
+          "event": "pull_request",
+          "status": "in_progress",
+          "conclusion": null,
+          "created_at": "2026-10-29T13:04:24Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745",
+          "name": "skill-suite"
+        },
+        {
+          "id": 40878601550,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 313830338,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T13:04:19Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601550",
+          "name": "docs-numbering"
+        },
+        {
+          "id": 40878601419,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 316140990,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "created_at": "2026-10-29T13:04:18Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419",
+          "name": "skill-suite"
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "id": 123468233919,
+          "name": "skill test suite (tests/skills/, via test-framework.sh)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:12:56Z",
+          "completed_at": "2026-10-29T13:12:59Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123468233919",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123464087544,
+          "name": "skill test suite (full framework, via test-framework.sh)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-29T13:04:55Z",
+          "completed_at": "2026-10-29T13:04:55Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123464087544",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123464087128,
+          "name": "skill suite (selected sharded, via test-framework.sh --skill)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-29T13:04:55Z",
+          "completed_at": "2026-10-29T13:04:55Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123464087128",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123464085071,
+          "name": "skill suite (selected, via test-framework.sh --skill)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:57Z",
+          "completed_at": "2026-10-29T13:09:47Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123464085071",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123464085037,
+          "name": "worktree seed (native Windows PowerShell 5.1 and pwsh 7)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:59Z",
+          "completed_at": "2026-10-29T13:06:35Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123464085037",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123464084877,
+          "name": "self-hosting smoke (separate job — bootstraps + re-validates a full copy, ~2-3 min)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:58Z",
+          "completed_at": "2026-10-29T13:06:58Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123464084877",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463956055,
+          "name": "release notes",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:43Z",
+          "completed_at": "2026-10-29T13:04:55Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123463956055",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463956004,
+          "name": "tracked-ignored guard (no gitignored path may be tracked)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:43Z",
+          "completed_at": "2026-10-29T13:04:49Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123463956004",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463955648,
+          "name": "release dry-run (complete tracked changelog readers)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:43Z",
+          "completed_at": "2026-10-29T13:12:53Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123463955648",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463955415,
+          "name": "select suites (PR impact analysis; full elsewhere)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:42Z",
+          "completed_at": "2026-10-29T13:04:55Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745/job/123463955415",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463909861,
+          "name": "skill test suite (tests/skills/, via test-framework.sh)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "failure",
+          "started_at": "2026-10-29T13:04:37Z",
+          "completed_at": "2026-10-29T13:04:39Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463909861",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463859887,
+          "name": "worktree seed (native Windows PowerShell 5.1 and pwsh 7)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463859887",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463859436,
+          "name": "skill suite (selected sharded, via test-framework.sh --skill)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463859436",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463859167,
+          "name": "skill suite (selected, via test-framework.sh --skill)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463859167",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463858993,
+          "name": "skill test suite (full framework, via test-framework.sh)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463858993",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463858709,
+          "name": "self-hosting smoke (separate job — bootstraps + re-validates a full copy, ~2-3 min)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:29Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463858709",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778626,
+          "name": "release notes",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:34Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463778626",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778624,
+          "name": "tracked-ignored guard (no gitignored path may be tracked)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463778624",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778606,
+          "name": "select suites (PR impact analysis; full elsewhere)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463778606",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778394,
+          "name": "post-open review sweep record (report-only, Spec-AC-34)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:34Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601550/job/123463778394",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463778050,
+          "name": "release dry-run (complete tracked changelog readers)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:28Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419/job/123463778050",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        },
+        {
+          "id": 123463777958,
+          "name": "doc-numbering guards (report-only unless enforced)",
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T13:04:22Z",
+          "completed_at": "2026-10-29T13:04:35Z",
+          "details_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601550/job/123463777958",
+          "app": {
+            "id": 15368,
+            "slug": "github-actions"
+          }
+        }
+      ],
+      "workflows": {
+        "40878615745": {
+          "id": 40878615745,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 316140990,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T13:04:24Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745",
+          "name": "skill-suite"
+        },
+        "40878601550": {
+          "id": 40878601550,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 313830338,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T13:04:19Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601550",
+          "name": "docs-numbering"
+        },
+        "40878601419": {
+          "id": 40878601419,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 316140990,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "created_at": "2026-10-29T13:04:18Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419",
+          "name": "skill-suite"
+        }
+      },
+      "runList": [
+        {
+          "id": 40878615745,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 316140990,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T13:04:24Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878615745",
+          "name": "skill-suite"
+        },
+        {
+          "id": 40878601550,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 313830338,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "created_at": "2026-10-29T13:04:19Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601550",
+          "name": "docs-numbering"
+        },
+        {
+          "id": 40878601419,
+          "head_sha": "1edc4a54b4c44773bd50b88f3882cc156b211af5",
+          "workflow_id": 316140990,
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "cancelled",
+          "created_at": "2026-10-29T13:04:18Z",
+          "html_url": "https://github.com/goodwind-cz/aai/actions/runs/40878601419",
+          "name": "skill-suite"
+        }
+      ]
+    }
+  ]
+}

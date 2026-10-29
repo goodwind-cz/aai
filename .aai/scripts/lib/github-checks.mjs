@@ -3,6 +3,9 @@
 // conclusion preference. The PR head is read on both sides of the observation.
 // Same-name checks from different apps stay distinct; required names that map
 // to more than one app refuse closed instead of picking the wrong provider.
+// A run whose run-level conclusion is cancelled is superseded by a newer run of
+// the same workflow and event on the head (concurrency cancel-in-progress): its
+// checks are pending while the sibling runs, dropped once it completed.
 import {spawnSync} from 'node:child_process';
 const sha=s=>/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(s||'');
 function fail(message) {
@@ -106,9 +109,11 @@ export function readCurrentChecks({
         if(workflow?.head_sha!==head || workflow.id!==undefined&&workflow.id!==runId)fail(`workflow identity/head-SHA mismatch: ${c.name}`);
         const created=Date.parse(workflow.created_at||'');
         if(!Number.isFinite(created))fail(`missing workflow creation identity: ${c.name}`);
-        workflows.set(runId,created);
+        workflows.set(runId, {
+          created,workflowId:workflow.workflow_id,event:workflow.event,status:workflow.status,conclusion:workflow.conclusion
+        });
       }
-      time=workflows.get(runId);
+      time=workflows.get(runId).created;
       orderKind='workflow';
     } else time=Date.parse(c.started_at||c.created_at||'');
     if(!Number.isFinite(time))fail(`missing check-run ordering identity: ${c.name}`);
@@ -123,6 +128,53 @@ export function readCurrentChecks({
         }
       })(),link:c.details_url||c.html_url||'',id:c.id,order:[time,runId,c.id],orderKind,kind:'check'
     });
+  }
+  const cancelledRuns=[...workflows].filter(([,w])=>w.conclusion==='cancelled');
+  if(cancelledRuns.length) {
+    for(const [,w] of cancelledRuns) {
+      if(!Number.isSafeInteger(w.workflowId)||w.workflowId<1||typeof w.event!=='string'||!w.event)fail('malformed cancelled workflow identity');
+    }
+    const runPages=json(['api','--paginate','--slurp',`repos/${repo}/actions/runs?head_sha=${head}&per_page=100`]);
+    if(!Array.isArray(runPages)||!runPages.length||runPages.some(p=>!p||!Number.isSafeInteger(p.total_count)||!Array.isArray(p.workflow_runs)))fail('malformed workflow-run pages');
+    const listed=runPages.flatMap(p=>p.workflow_runs),listedTotal=runPages[0].total_count;
+    if(runPages.some(p=>p.total_count!==listedTotal)||listed.length!==listedTotal)fail('incomplete or moving workflow-run pagination');
+    const listedIds=new Set();
+    for(const w of listed) {
+      if(!w||!Number.isSafeInteger(w.id)||w.id<1)fail('malformed workflow-run identity');
+      if(listedIds.has(w.id))fail('duplicate workflow-run identity across pages');
+      listedIds.add(w.id);
+      if(w.head_sha!==head)fail(`workflow-run head-SHA mismatch: ${w.id}`);
+      if(!Number.isFinite(Date.parse(w.created_at||''))||!Number.isSafeInteger(w.workflow_id)||w.workflow_id<1||typeof w.event!=='string'||!w.event||typeof w.status!=='string')fail(`malformed workflow-run identity: ${w.id}`);
+    }
+    const after=(a,b)=>{
+      const ta=Date.parse(a.created_at),tb=Date.parse(b.created_at);
+      return ta!==tb?ta>tb:a.id>b.id;
+    };
+    const drop=new Set();
+    for(const [runId,w] of cancelledRuns) {
+      const self= {
+        id:runId,created_at:new Date(w.created).toISOString()
+      };
+      let newest=null;
+      for(const sibling of listed) {
+        const same=sibling.workflow_id===w.workflowId&&w.event===sibling.event;
+        if(sibling.id===runId||!same||!after(sibling,self))continue;
+        if(!newest||after(sibling,newest))newest=sibling;
+      }
+      if(!newest)continue;
+      const sibling=newest;
+      const siblingTime=Date.parse(sibling.created_at);
+      for(let i=0;i<observations.length;i++) {
+        const o=observations[i];
+        if(o.kind!=='check'||o.order[1]!==runId)continue;
+        if(observations.some(x=>x.kind==='check'&&x.order[1]===sibling.id&&x.name===o.name&&x.provider===o.provider))continue;
+        if(sibling.status!=='completed')observations[i]= {
+          ...o,bucket:'pending',link:sibling.html_url||o.link,order:[siblingTime,sibling.id,0]
+        };
+        else drop.add(o);
+      }
+    }
+    if(drop.size)observations.splice(0,observations.length,...observations.filter(o=>!drop.has(o)));
   }
   const statusPages=json(['api','--paginate','--slurp',`repos/${repo}/commits/${head}/statuses?per_page=100`]);
   if(!Array.isArray(statusPages)||!statusPages.length||statusPages.some(p=>!Array.isArray(p)))fail('malformed status pages');

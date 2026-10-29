@@ -33,6 +33,10 @@
 //      Reported on stderr, never a silent zero.
 //   2  usage error (a bad --interval-seconds/--max-wait-seconds value)
 //
+// Checks of a concurrency-cancelled workflow run that a newer run of the same
+// workflow and event has superseded are resolved by the shared reader
+// (lib/github-checks.mjs): pending while that run is in flight, never FAILED.
+//
 // One line is printed per STATE TRANSITION (the set of name:bucket pairs
 // changes from the previous poll), so a watching orchestrator has something
 // to relay without re-deriving it from raw `gh` output.
