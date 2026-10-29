@@ -8671,6 +8671,7 @@ DOCS_AUDIT_CONTENT_CASES="
   test_spec0057_real_repo_known_collisions
   test_pdcm_product_family_repo_wide_clean
   test_acflip_real_repo_clean
+  test_2310_rfc0017_rollout_rows
 "
 
 # ---------------------------------------------------------------------------
@@ -8898,7 +8899,8 @@ test_2307_case_inventory_partition() {  # TEST-2307 / Spec-AC-05
   [[ "$(sort -u <<<"$baseline" | grep -c . || true)" == "195" ]] \
     || log_fail "TEST-2307: baseline main list has duplicate names"
   engine="$(docs_audit_main_names < "$SUITE_FILE" | grep -v '^test_23[0-9][0-9]_' || true)"
-  content="$(printf '%s\n' $DOCS_AUDIT_CONTENT_CASES)"
+  # test_23xx rows are new in this change (not baseline entries), like the engine's own.
+  content="$(printf '%s\n' $DOCS_AUDIT_CONTENT_CASES | grep -v '^test_23[0-9][0-9]_' || true)"
   node5="test_l1gate_missing_justification
 test_l1gate_garbage_level_fail_closed
 test_l1gate_pipe_drop_reconciled
