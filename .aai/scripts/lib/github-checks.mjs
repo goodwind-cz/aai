@@ -84,51 +84,55 @@ export function readCurrentChecks({
     if(r.status===8&&!list.some(c=>c.bucket==='pending')||r.status===1&&list.length&&!list.some(c=>['fail','cancel'].includes(c.bucket)))fail('inconsistent required-check exit status');
     names=new Set(list.map(c=>c.name));
   }
-  const pages=json(['api','--paginate','--slurp',`repos/${repo}/commits/${head}/check-runs?filter=all&per_page=100`]);
-  if(!Array.isArray(pages)||!pages.length||pages.some(p=>!p||!Number.isSafeInteger(p.total_count)||!Array.isArray(p.check_runs)))fail('malformed check-run pages');
-  const runs=pages.flatMap(p=>p.check_runs),total=pages[0].total_count;
-  if(pages.some(p=>p.total_count!==total)||runs.length!==total)fail('incomplete or moving check-run pagination');
-  const observations=[];
   const workflows=new Map();
-  const seenRunIds=new Set();
-  for(const c of runs) {
-    if(seenRunIds.has(c.id))fail('duplicate check-run identity across pages');
-    seenRunIds.add(c.id);
-    if(c.head_sha!==head)fail(`head-SHA mismatch: ${c.name||'(unnamed)'}`);
-    if(typeof c.name!=='string'||!c.name||!Number.isSafeInteger(c.id)||c.id<=0)fail('malformed check-run identity');
-    // Every Actions job uses the SAME immutable workflow creation identity.
-    // Job start time can be later in an older workflow, and queued jobs lack
-    // a start time. Mixing those clocks makes pairwise ordering nontransitive.
-    const runMatch=new RegExp(`^https://github\\.com/${repo}/actions/runs/(\\d+)(?:/|$)`).exec(c.details_url||c.html_url||'');
-    let time,runId=0,orderKind='check';
-    if(runMatch) {
-      runId=Number(runMatch[1]);
-      if(!Number.isSafeInteger(runId)||runId<1)fail(`malformed workflow identity: ${c.name}`);
-      if(!workflows.has(runId)) {
-        const workflow=json(['api',`repos/${repo}/actions/runs/${runId}`]);
-        if(workflow?.head_sha!==head || workflow.id!==undefined&&workflow.id!==runId)fail(`workflow identity/head-SHA mismatch: ${c.name}`);
-        const created=Date.parse(workflow.created_at||'');
-        if(!Number.isFinite(created))fail(`missing workflow creation identity: ${c.name}`);
-        workflows.set(runId, {
-          created,workflowId:workflow.workflow_id,event:workflow.event,status:workflow.status,conclusion:workflow.conclusion
-        });
-      }
-      time=workflows.get(runId).created;
-      orderKind='workflow';
-    } else time=Date.parse(c.started_at||c.created_at||'');
-    if(!Number.isFinite(time))fail(`missing check-run ordering identity: ${c.name}`);
-    const provider=providerKey(c,'check');
-    observations.push({
-      name:c.name,provider,bucket:(()=> {
-        try {
-          return bucket(c.status,c.conclusion);
+  let observations=[];
+  const readCheckRuns=()=>{
+    const pages=json(['api','--paginate','--slurp',`repos/${repo}/commits/${head}/check-runs?filter=all&per_page=100`]);
+    if(!Array.isArray(pages)||!pages.length||pages.some(p=>!p||!Number.isSafeInteger(p.total_count)||!Array.isArray(p.check_runs)))fail('malformed check-run pages');
+    const runs=pages.flatMap(p=>p.check_runs),total=pages[0].total_count;
+    if(pages.some(p=>p.total_count!==total)||runs.length!==total)fail('incomplete or moving check-run pagination');
+    observations=[];
+    const seenRunIds=new Set();
+    for(const c of runs) {
+      if(seenRunIds.has(c.id))fail('duplicate check-run identity across pages');
+      seenRunIds.add(c.id);
+      if(c.head_sha!==head)fail(`head-SHA mismatch: ${c.name||'(unnamed)'}`);
+      if(typeof c.name!=='string'||!c.name||!Number.isSafeInteger(c.id)||c.id<=0)fail('malformed check-run identity');
+      // Every Actions job uses the SAME immutable workflow creation identity.
+      // Job start time can be later in an older workflow, and queued jobs lack
+      // a start time. Mixing those clocks makes pairwise ordering nontransitive.
+      const runMatch=new RegExp(`^https://github\\.com/${repo}/actions/runs/(\\d+)(?:/|$)`).exec(c.details_url||c.html_url||'');
+      let time,runId=0,orderKind='check';
+      if(runMatch) {
+        runId=Number(runMatch[1]);
+        if(!Number.isSafeInteger(runId)||runId<1)fail(`malformed workflow identity: ${c.name}`);
+        if(!workflows.has(runId)) {
+          const workflow=json(['api',`repos/${repo}/actions/runs/${runId}`]);
+          if(workflow?.head_sha!==head || workflow.id!==undefined&&workflow.id!==runId)fail(`workflow identity/head-SHA mismatch: ${c.name}`);
+          const created=Date.parse(workflow.created_at||'');
+          if(!Number.isFinite(created))fail(`missing workflow creation identity: ${c.name}`);
+          workflows.set(runId, {
+            created,workflowId:workflow.workflow_id,event:workflow.event,status:workflow.status,conclusion:workflow.conclusion
+          });
         }
-        catch(e) {
-          fail(`${c.name}: ${e.message}`);
-        }
-      })(),link:c.details_url||c.html_url||'',id:c.id,order:[time,runId,c.id],orderKind,kind:'check'
-    });
-  }
+        time=workflows.get(runId).created;
+        orderKind='workflow';
+      } else time=Date.parse(c.started_at||c.created_at||'');
+      if(!Number.isFinite(time))fail(`missing check-run ordering identity: ${c.name}`);
+      const provider=providerKey(c,'check');
+      observations.push({
+        name:c.name,provider,bucket:(()=> {
+          try {
+            return bucket(c.status,c.conclusion);
+          }
+          catch(e) {
+            fail(`${c.name}: ${e.message}`);
+          }
+        })(),link:c.details_url||c.html_url||'',id:c.id,order:[time,runId,c.id],orderKind,kind:'check'
+      });
+    }
+  };
+  readCheckRuns();
   const cancelledRuns=[...workflows].filter(([,w])=>w.conclusion==='cancelled');
   if(cancelledRuns.length) {
     for(const [,w] of cancelledRuns) {
@@ -150,6 +154,12 @@ export function readCurrentChecks({
       const ta=Date.parse(a.created_at),tb=Date.parse(b.created_at);
       return ta!==tb?ta>tb:a.id>b.id;
     };
+    // Snapshot skew: a sibling that completed after the first check-run read
+    // may have registered (and failed) its checks since. Re-read the check
+    // runs AFTER the run list so a completed sibling's checks are always
+    // visible before supersession decides anything.
+    readCheckRuns();
+    for(const [id,w] of workflows)if(w.conclusion==='cancelled'&&!cancelledRuns.some(([r])=>r===id))fail('workflow state moved during observation');
     const drop=new Set();
     for(const [runId,w] of cancelledRuns) {
       const self= {

@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 6f022acf229106f2aa857da91d0f2368d62c7f4f89e0d7b5d517279035727b13
+frozen_sha256: 8c39d35a33eadd4b838490ed03da61094a4b600fa7366c176e980ba32fa7ee25
 ceremony_level: 2
 links:
   requirement: watch-ci-cancelled-runs-and-release-gate-docs
@@ -355,3 +355,11 @@ Registry items closed by this scope: none. Scanned `follow-ups.mjs list`:
 is a different subject and stays open; `fu-release-notes-heading-multiset`
 (audit accept multiplicity) is untouched by the classifier change and stays
 open.
+
+## Amendment (post-freeze, 2026-10-29 - remediation of review r1 NB-1 and NB-3)
+
+This is additive-with-disclosure; no delivered criterion changed and no owner sign-off was obtained.
+
+- NB-1: the check-run snapshot was read before the workflow-run list, so a newer sibling that registered, failed and completed in between caused the cancelled run's copy of a check to be dropped while the sibling's failing check was absent from the snapshot. In non-required watch-ci mode watch-ci then exited 0 on a failure. Remediation: github-checks.mjs re-reads the check runs after the run list whenever a cancelled run is present, and refuses closed if a new cancelled workflow appears between the reads. The lazy run-list fetch is unchanged. New test TEST-2711 (tests/skills/lib/current-head-ci.test.mjs, test_2711 in tests/skills/test-aai-current-head-ci.sh) reproduces the race with a check-run sequence stub.
+- NB-3: docs/USER_GUIDE.md still described documentation as exempt from the release-notes gate in two places; both now state the widened shipped list.
+- Files touched beyond the list above: docs/USER_GUIDE.md and the TEST-2711 test.

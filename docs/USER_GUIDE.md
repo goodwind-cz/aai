@@ -807,7 +807,7 @@ named skip. No-remote skips remote completion; repositories without
 `release.yml` receive a manual-tagging skip. The client never publishes tags
 or releases directly.
 
-**Release notes for pull requests:** `release-notes-gate.mjs` requires a shipped-surface change to add nonempty rollable unreleased notes, or to include `no-notes: <reason>` in the PR body. Docs and test-only changes are exempt. Old unchanged notes, empty scaffolds, and blank reasons do not pass. `/aai-pr` runs the gate on the staged patch and the final proposed body. CI checks the PR commit range and body as data. An operator may mark the `release notes` job required. AAI does not change branch protection.
+**Release notes for pull requests:** `release-notes-gate.mjs` requires a shipped-surface change to add nonempty rollable unreleased notes, or to include `no-notes: <reason>` in the PR body. The user guide (`docs/USER_GUIDE.md`) and the product pages (`docs/product/`) count as shipped; other docs, the changelog and test-only changes are exempt. Old unchanged notes, empty scaffolds, and blank reasons do not pass. `/aai-pr` runs the gate on the staged patch and the final proposed body. CI checks the PR commit range and body as data. An operator may mark the `release notes` job required. AAI does not change branch protection.
 
 ---
 
@@ -2906,7 +2906,7 @@ CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on 
 
 ### Release notes gate
 
-A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, and root executables. Documentation, tests, and evidence-only changes are exempt. An old unchanged entry, an empty scaffold, and a blank reason do not count.
+A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, and root executables. The user guide, the product pages, and the root files aai-sync installs also count as shipped; other documentation, tests, and evidence-only changes are exempt. An old unchanged entry, an empty scaffold, and a blank reason do not count.
 
 [Product doc](product/release-notes-gate.md) · [Spec](specs/SPEC-0229-spec-release-notes-gate.md)
 

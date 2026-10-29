@@ -3448,3 +3448,7 @@
 {"v":1,"ts":"2026-10-29T18:59:43Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-audit-content-engine-split","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-29T18:59:43Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-docs-audit-content-engine-split","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-29T20:03:06Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-watch-ci-cancelled-runs-and-release-gate-docs","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-29T20:32:09Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"watch-ci-cancelled-runs-and-release-gate-docs","payload":{"role":"validation","head":"e7290ba4057a9a9333abdb322f76a7a14611a64b","seen":"run_at:null"}}
+{"v":1,"ts":"2026-10-29T21:30:41Z","actor":"ales_holubec.net","event":"check_verdict","ref":"watch-ci-cancelled-runs-and-release-gate-docs","payload":{"role":"validation","head":"e7290ba4057a9a9333abdb322f76a7a14611a64b","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-10-29T21:30:41Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"watch-ci-cancelled-runs-and-release-gate-docs","payload":{"role":"code_review","head":"e7290ba4057a9a9333abdb322f76a7a14611a64b","seen":"reports:0"}}
+{"v":1,"ts":"2026-10-29T21:30:41Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"watch-ci-cancelled-runs-and-release-gate-docs","payload":{"status":"pass","hash":"4e1527ef3f8347c8e6b20fd12513a15277a02def2bf954f6923497443a093bf7"}}

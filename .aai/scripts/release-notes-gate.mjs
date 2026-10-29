@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 // Shipped documentation is an exact list (SPEC watch-ci-cancelled-runs-and-release-gate-docs D5):
 // the root files aai-sync installs into a target, the user guide, and the product pages.
 // Every other docs path, CHANGELOG.md and tests stay exempt.
+// The product-pages matcher stays a `new RegExp(...)` call so the frozen TEST-2707 mutation remains applicable.
 export function isShipped(path, mode = '') {
   return /^(?:\.aai|\.github|\.claude|\.codex|\.agents|\.gemini)\//.test(path) ||
     /^(?:README|AGENTS|CLAUDE|CODEX|GEMINI|SKILLS)\.md$/.test(path) ||

@@ -61,7 +61,7 @@ function transport(t, checks, opts = {}) {
   const data = {head, checks, ...opts};
   put(dir, 'transport.json', JSON.stringify(data));
   put(dir, 'bin/gh', `#!/usr/bin/env node
-const fs=require('fs'),p=${JSON.stringify(path.join(dir, 'transport.json'))},d=JSON.parse(fs.readFileSync(p)),a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(path.join(dir, 'calls.jsonl'))},JSON.stringify(a)+'\\n');const out=x=>console.log(JSON.stringify(x));if(a[0]==='--version'){console.log('fixture gh');process.exit(0);}if(a[0]==='pr'&&a[1]==='view'){d.views=(d.views||0)+1;fs.writeFileSync(p,JSON.stringify(d));out({headRefOid:d.move&&d.views>1?'b'.repeat(40):d.head,url:'https://github.com/test/repo/pull/1',number:d.number??1});}else if(a[0]==='pr'&&a[1]==='checks'){if(d.transportFail){console.error('fixture network error');process.exit(42);}out(d.required||[{name:'aggregate',bucket:'pass',link:'x'}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/check-runs'))){if(d.transportFail){console.error('fixture network error');process.exit(42);}out(d.malformed?{}:(d.pages||[{total_count:d.checks.length,check_runs:d.checks}]));}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs?head_sha='))){if(!d.runPages&&!d.runList){console.error('unexpected run list');process.exit(91);}out(d.runPages||[{total_count:d.runList.length,workflow_runs:d.runList}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs/'))){const id=Number(a.find(x=>x.includes('/actions/runs/')).split('/').pop());out(d.workflows?.[id]||d.workflow||{id,head_sha:d.head,created_at:new Date(Date.UTC(2026,9,27,0,0,id)).toISOString()});}else if(a[0]==='api'&&a.some(x=>x.includes('/statuses'))){out(d.statusPages||[[]]);}else{console.error('unexpected '+a.join(' '));process.exit(90);}`);
+const fs=require('fs'),p=${JSON.stringify(path.join(dir, 'transport.json'))},d=JSON.parse(fs.readFileSync(p)),a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(path.join(dir, 'calls.jsonl'))},JSON.stringify(a)+'\\n');const out=x=>console.log(JSON.stringify(x));if(a[0]==='--version'){console.log('fixture gh');process.exit(0);}if(a[0]==='pr'&&a[1]==='view'){d.views=(d.views||0)+1;fs.writeFileSync(p,JSON.stringify(d));out({headRefOid:d.move&&d.views>1?'b'.repeat(40):d.head,url:'https://github.com/test/repo/pull/1',number:d.number??1});}else if(a[0]==='pr'&&a[1]==='checks'){if(d.transportFail){console.error('fixture network error');process.exit(42);}out(d.required||[{name:'aggregate',bucket:'pass',link:'x'}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/check-runs'))){if(d.transportFail){console.error('fixture network error');process.exit(42);}if(d.checkSeq){d.crn=(d.crn||0)+1;fs.writeFileSync(p,JSON.stringify(d));const c=d.checkSeq[Math.min(d.crn,d.checkSeq.length)-1];out([{total_count:c.length,check_runs:c}]);}else out(d.malformed?{}:(d.pages||[{total_count:d.checks.length,check_runs:d.checks}]));}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs?head_sha='))){if(!d.runPages&&!d.runList){console.error('unexpected run list');process.exit(91);}out(d.runPages||[{total_count:d.runList.length,workflow_runs:d.runList}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs/'))){const id=Number(a.find(x=>x.includes('/actions/runs/')).split('/').pop());out(d.workflows?.[id]||d.workflow||{id,head_sha:d.head,created_at:new Date(Date.UTC(2026,9,27,0,0,id)).toISOString()});}else if(a[0]==='api'&&a.some(x=>x.includes('/statuses'))){out(d.statusPages||[[]]);}else{console.error('unexpected '+a.join(' '));process.exit(90);}`);
   fs.chmodSync(path.join(bin, 'gh'), 0o755);
   return {
     dir,
@@ -407,4 +407,24 @@ test('TEST-2705 the workflow-run list request lives in one file and is read lazi
   assert.equal(watcher(f, true).status, 0);
   assert.equal(releaseReader(f).status, 0);
   assert.ok(!/actions\/runs\?head_sha/.test(callLog(f)));
+});
+
+test('TEST-2711 a check the newer run registers between the check snapshot and the run list is never dropped', t => {
+  // Snapshot skew: the first check-run read predates the sibling's check; the run list already shows the sibling completed.
+  const cancelled = runObj(CANCEL_ID, {conclusion: 'cancelled'});
+  const sibling = runObj(SIBLING_ID);
+  const before = [jobCheck(1, CANCEL_ID, 'failure')];
+  const after = [jobCheck(1, CANCEL_ID, 'failure'), jobCheck(2, SIBLING_ID, 'failure')];
+  const f = runFixture(t, before, [cancelled, sibling], {
+    checkSeq: [before, after],
+    statusPages: [[{id: 1, context: 'lint', state: 'success', created_at: '2026-10-27T00:00:01Z', target_url: ''}]]
+  });
+  const w = watcher(f);
+  assert.equal(w.status, 5, w.stdout + w.stderr);
+  assert.match(w.stdout + w.stderr, /aggregate/);
+  rewrite(f, {crn: 0});
+  const rel = releaseBucket(f);
+  assert.equal(rel.length, 1);
+  assert.equal(rel[0].bucket, 'fail');
+  assert.equal(rel[0].id, 2);
 });
