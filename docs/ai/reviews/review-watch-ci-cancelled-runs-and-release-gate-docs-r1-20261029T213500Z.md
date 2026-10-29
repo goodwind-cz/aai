@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: git diff main...HEAD (head e7290ba4, branch fix/watch-ci-cancelled-runs-and-release-gate-docs; STATE code_review.scope path list)
-  spec: docs/specs/SPEC-DRAFT-spec-watch-ci-cancelled-runs-and-release-gate-docs.md (SPEC-FROZEN)
+  spec: docs/specs/SPEC-0261-spec-watch-ci-cancelled-runs-and-release-gate-docs.md (SPEC-FROZEN)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -49,7 +49,7 @@ security_relevant: false
 # Code review r1: watch-ci cancelled runs and release-gate docs
 
 - Scope: `git diff main...HEAD`, head `e7290ba4`, worktree `/Users/ales/Projects/aai-wt-watch-ci-release-gate`, base `main`. Four commits (1096ee0d, 3707c1ce, 2a3cdbf7, e7290ba4). Working tree: `docs/ai/EVENTS.jsonl` and `docs/ai/tests/test-runs.jsonl` modified (runtime telemetry from the Validation run, not part of the reviewed diff).
-- Spec: `docs/specs/SPEC-DRAFT-spec-watch-ci-cancelled-runs-and-release-gate-docs.md` (frozen).
+- Spec: `docs/specs/SPEC-0261-spec-watch-ci-cancelled-runs-and-release-gate-docs.md` (frozen).
 - Dispatch note: the dispatch named focus areas and relayed validation NB F1/F2. It did not rate severity or exclude areas. The full scope was reviewed.
 
 ## Evidence run by the reviewer

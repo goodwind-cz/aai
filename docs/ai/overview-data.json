@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-29T18:59:53.950Z",
+  "generatedAt": "2026-10-29T22:18:14.134Z",
   "project": "aai",
   "counts": {
-    "delivered": 330,
+    "delivered": 331,
     "in_progress": 17,
     "releases": 1,
-    "tokens_total": 81358217
+    "tokens_total": 82421829
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -258,7 +258,20 @@
       "token_total": 1876070,
       "spec": "docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-docs-audit-content-engine-split-r2-20261029T180433Z.md"
+      "review": "docs/ai/reviews/review-docs-audit-content-engine-split-r3-20261029T185418Z.md"
+    },
+    {
+      "ref": "watch-ci-cancelled-runs-and-release-gate-docs",
+      "title": "watch-ci fails on a superseded cancelled run, and the release-notes gate exempts user-facing documentation",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0107-watch-ci-cancelled-runs-and-release-gate-docs.md",
+      "closed_on": "2026-10-29",
+      "agent_minutes": 138,
+      "token_total": 1063612,
+      "spec": "docs/specs/SPEC-0261-spec-watch-ci-cancelled-runs-and-release-gate-docs.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-watch-ci-cancelled-runs-and-release-gate-docs-r1-20261029T213500Z.md"
     },
     {
       "ref": "release-rollup-dry-run",
@@ -4575,7 +4588,20 @@
           "token_total": 1876070,
           "spec": "docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-docs-audit-content-engine-split-r2-20261029T180433Z.md"
+          "review": "docs/ai/reviews/review-docs-audit-content-engine-split-r3-20261029T185418Z.md"
+        },
+        {
+          "ref": "watch-ci-cancelled-runs-and-release-gate-docs",
+          "title": "watch-ci fails on a superseded cancelled run, and the release-notes gate exempts user-facing documentation",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0107-watch-ci-cancelled-runs-and-release-gate-docs.md",
+          "closed_on": "2026-10-29",
+          "agent_minutes": 138,
+          "token_total": 1063612,
+          "spec": "docs/specs/SPEC-0261-spec-watch-ci-cancelled-runs-and-release-gate-docs.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-watch-ci-cancelled-runs-and-release-gate-docs-r1-20261029T213500Z.md"
         },
         {
           "ref": "release-rollup-dry-run",

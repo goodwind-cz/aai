@@ -1,10 +1,10 @@
 ---
 id: spec-watch-ci-cancelled-runs-and-release-gate-docs
 type: spec
-number: null
-status: implementing
+number: 261
+status: done
 mutation_gate: v1
-frozen_sha256: 8c39d35a33eadd4b838490ed03da61094a4b600fa7366c176e980ba32fa7ee25
+frozen_sha256: 8df485461c52035fc46c70c2f26db2b5bd521df292369c2c42a85001fb074231
 ceremony_level: 2
 links:
   requirement: watch-ci-cancelled-runs-and-release-gate-docs
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Intake: docs/issues/ISSUE-DRAFT-watch-ci-cancelled-runs-and-release-gate-docs.md
+- Intake: docs/issues/ISSUE-0107-watch-ci-cancelled-runs-and-release-gate-docs.md
 - Prior art: docs/specs/SPEC-0256-spec-current-head-ci-reader.md (shared current-head reader),
   docs/specs/SPEC-0229-spec-release-notes-gate.md (release-notes gate)
 - Product: docs/product/release-command-finish.md, docs/product/release-notes-gate.md
@@ -186,15 +186,15 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN the current head has a workflow run with run-level conclusion cancelled whose required check exists only in that run, and a newer run of the same workflow_id and event on the same head is not completed, watch-ci --required SHALL report the check pending and keep polling (exit 3 at the deadline with a degraded line naming pending, never exit 5) and readReleaseRequiredChecks SHALL return bucket pending; WHEN a later poll shows the newer run's check as success, watch-ci SHALL exit 0. The PR #515 replay fixture (cancelled run 40878601419, newer run 40878615745) behaves the same. | planned | — | — | TEST-2701, TEST-2702 |
-| Spec-AC-02 | WHEN a cancelled run has no newer run of the same workflow_id and event on the head (no sibling at all, or only a newer run of another event or another workflow), its checks SHALL keep their own bucket and watch-ci --required SHALL exit 5 naming the check; WHEN the older run's run-level conclusion is failure, a newer in-progress sibling without that check SHALL NOT mask it and watch-ci SHALL exit 5. | planned | — | — | TEST-2703 |
-| Spec-AC-03 | WHEN the workflow-run list is malformed, incompletely paginated, repeats a run id, or lists a run for another head, or the newest sibling has completed without a required check that only the superseded run carries, the shared reader SHALL refuse closed: watch-ci exits 3 with a degraded line and readReleaseRequiredChecks throws; neither ever reports pass. | planned | — | — | TEST-2704 |
-| Spec-AC-04 | The workflow-runs-by-head request appears in exactly one script file, .aai/scripts/lib/github-checks.mjs; watch-ci.mjs and release-finish.mjs each import readCurrentChecks and contain no actions/runs request; WHEN no observed run has run-level conclusion cancelled, the reader SHALL issue zero workflow-run list calls (fixture call log). | planned | — | — | TEST-2705 |
-| Spec-AC-05 | WHEN a diff changes only one of README.md, AGENTS.md, CLAUDE.md, CODEX.md, GEMINI.md, SKILLS.md, docs/USER_GUIDE.md or docs/product/x.md, with no newly added unreleased entry and no no-notes line, release-notes-gate.mjs SHALL exit 1 with a REFUSED line naming that path, in both --staged and --base/--head modes; the same diff with a new unreleased entry, or with a no-notes reason, SHALL exit 0. | planned | — | — | TEST-2706 |
-| Spec-AC-06 | WHEN a diff changes only internal docs (docs/specs, docs/issues, docs/rfc, docs/analysis, docs/ai, docs/knowledge, docs/decisions, docs/INDEX.md, docs/README.md) the gate SHALL print PASS release-notes exempt and exit 0; isShipped SHALL return false for docs/product-notes.md, sub/README.md and tests/README.md. | planned | — | — | TEST-2707 |
-| Spec-AC-07 | Every root file that aai-sync.sh and aai-sync.ps1 install into a target from the source root (the root shim loop list and README.md) SHALL be classified shipped by isShipped; the test reads both lists from the two sync scripts, so a name added to either list without the classifier fails. | planned | — | — | TEST-2708 |
-| Spec-AC-08 | WHEN release-finish.mjs --audit runs offline on a fixture repository with a release tag, then a numbered commit changing docs/USER_GUIDE.md that adds an unreleased entry present in the audit notes, then a numbered commit changing docs/product/x.md with no notes, the audit SHALL print the second pull request number and SHALL NOT print the first. | planned | — | — | TEST-2709 |
-| Spec-AC-09 | The CHANGELOG preamble (text before the first level-2 heading) and docs/product/release-notes-gate.md each name all eight shipped documentation paths of D5 and state that other docs paths stay exempt; the product page no longer says documentation is exempt; docs/product/release-command-finish.md states the superseded cancelled run rule; CHANGELOG.md carries a new unreleased entry for this scope. | planned | — | — | TEST-2710 |
+| Spec-AC-01 | WHEN the current head has a workflow run with run-level conclusion cancelled whose required check exists only in that run, and a newer run of the same workflow_id and event on the same head is not completed, watch-ci --required SHALL report the check pending and keep polling (exit 3 at the deadline with a degraded line naming pending, never exit 5) and readReleaseRequiredChecks SHALL return bucket pending; WHEN a later poll shows the newer run's check as success, watch-ci SHALL exit 0. The PR #515 replay fixture (cancelled run 40878601419, newer run 40878615745) behaves the same. | done | docs/ai/reports/VALIDATION-watch-ci-cancelled-runs-and-release-gate-docs-r2.md (TEST-2701/2702/2711 PASS) | — | TEST-2701, TEST-2702 |
+| Spec-AC-02 | WHEN a cancelled run has no newer run of the same workflow_id and event on the head (no sibling at all, or only a newer run of another event or another workflow), its checks SHALL keep their own bucket and watch-ci --required SHALL exit 5 naming the check; WHEN the older run's run-level conclusion is failure, a newer in-progress sibling without that check SHALL NOT mask it and watch-ci SHALL exit 5. | done | docs/ai/reports/VALIDATION-watch-ci-cancelled-runs-and-release-gate-docs-r2.md (TEST-2703 PASS) | — | TEST-2703 |
+| Spec-AC-03 | WHEN the workflow-run list is malformed, incompletely paginated, repeats a run id, or lists a run for another head, or the newest sibling has completed without a required check that only the superseded run carries, the shared reader SHALL refuse closed: watch-ci exits 3 with a degraded line and readReleaseRequiredChecks throws; neither ever reports pass. | done | docs/ai/reports/VALIDATION-watch-ci-cancelled-runs-and-release-gate-docs-r2.md (TEST-2704 PASS) | — | TEST-2704 |
+| Spec-AC-04 | The workflow-runs-by-head request appears in exactly one script file, .aai/scripts/lib/github-checks.mjs; watch-ci.mjs and release-finish.mjs each import readCurrentChecks and contain no actions/runs request; WHEN no observed run has run-level conclusion cancelled, the reader SHALL issue zero workflow-run list calls (fixture call log). | done | docs/ai/reports/VALIDATION-watch-ci-cancelled-runs-and-release-gate-docs-r2.md (TEST-2705 PASS) | — | TEST-2705 |
+| Spec-AC-05 | WHEN a diff changes only one of README.md, AGENTS.md, CLAUDE.md, CODEX.md, GEMINI.md, SKILLS.md, docs/USER_GUIDE.md or docs/product/x.md, with no newly added unreleased entry and no no-notes line, release-notes-gate.mjs SHALL exit 1 with a REFUSED line naming that path, in both --staged and --base/--head modes; the same diff with a new unreleased entry, or with a no-notes reason, SHALL exit 0. | done | docs/ai/reports/VALIDATION-watch-ci-cancelled-runs-and-release-gate-docs-r2.md (TEST-2706 PASS) | — | TEST-2706 |
+| Spec-AC-06 | WHEN a diff changes only internal docs (docs/specs, docs/issues, docs/rfc, docs/analysis, docs/ai, docs/knowledge, docs/decisions, docs/INDEX.md, docs/README.md) the gate SHALL print PASS release-notes exempt and exit 0; isShipped SHALL return false for docs/product-notes.md, sub/README.md and tests/README.md. | done | docs/ai/reports/VALIDATION-watch-ci-cancelled-runs-and-release-gate-docs-r2.md (TEST-2707 PASS) | — | TEST-2707 |
+| Spec-AC-07 | Every root file that aai-sync.sh and aai-sync.ps1 install into a target from the source root (the root shim loop list and README.md) SHALL be classified shipped by isShipped; the test reads both lists from the two sync scripts, so a name added to either list without the classifier fails. | done | docs/ai/reports/VALIDATION-watch-ci-cancelled-runs-and-release-gate-docs-r2.md (TEST-2708 PASS) | — | TEST-2708 |
+| Spec-AC-08 | WHEN release-finish.mjs --audit runs offline on a fixture repository with a release tag, then a numbered commit changing docs/USER_GUIDE.md that adds an unreleased entry present in the audit notes, then a numbered commit changing docs/product/x.md with no notes, the audit SHALL print the second pull request number and SHALL NOT print the first. | done | docs/ai/reports/VALIDATION-watch-ci-cancelled-runs-and-release-gate-docs-r2.md (TEST-2709 PASS) | — | TEST-2709 |
+| Spec-AC-09 | The CHANGELOG preamble (text before the first level-2 heading) and docs/product/release-notes-gate.md each name all eight shipped documentation paths of D5 and state that other docs paths stay exempt; the product page no longer says documentation is exempt; docs/product/release-command-finish.md states the superseded cancelled run rule; CHANGELOG.md carries a new unreleased entry for this scope. | done | docs/ai/reports/VALIDATION-watch-ci-cancelled-runs-and-release-gate-docs-r2.md (TEST-2710 PASS) | — | TEST-2710 |
 
 ## Implementation plan
 
@@ -317,8 +317,8 @@ mutation record per Test Plan row; green suite outputs.
 - docs/product/release-notes-gate.md
 - docs/product/release-command-finish.md
 - CHANGELOG.md
-- docs/issues/ISSUE-DRAFT-watch-ci-cancelled-runs-and-release-gate-docs.md
-- docs/specs/SPEC-DRAFT-spec-watch-ci-cancelled-runs-and-release-gate-docs.md
+- docs/issues/ISSUE-0107-watch-ci-cancelled-runs-and-release-gate-docs.md
+- docs/specs/SPEC-0261-spec-watch-ci-cancelled-runs-and-release-gate-docs.md
 - docs/INDEX.md (regenerated)
 - docs/ai/tdd/** (append-only evidence)
 

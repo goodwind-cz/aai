@@ -6,13 +6,12 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-watch-ci-cancelled-runs-and-release-gate-docs | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-watch-ci-cancelled-runs-and-release-gate-docs.md |
 
 ## Canonical layer (0)
 
@@ -60,7 +59,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (594)
+## Done (596)
 
 | ID | Type | Path |
 |---|---|---|
@@ -379,6 +378,7 @@ _None._
 | ISSUE-0104 | issues | docs/issues/ISSUE-0104-sync-prune-retired-skill-wrappers.md |
 | ISSUE-0105 | issues | docs/issues/ISSUE-0105-intake-closing-questions-as-one-menu.md |
 | ISSUE-0106 | issues | docs/issues/ISSUE-0106-codex-usage-missing-from-run-budgets.md |
+| ISSUE-0107 | issues | docs/issues/ISSUE-0107-watch-ci-cancelled-runs-and-release-gate-docs.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -656,10 +656,11 @@ _None._
 | SPEC-0258 | specs | docs/specs/SPEC-0258-spec-codex-usage-missing-from-run-budgets.md |
 | SPEC-0259 | specs | docs/specs/SPEC-0259-spec-hermes-agent-skill-discovery.md |
 | SPEC-0260 | specs | docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md |
+| SPEC-0261 | specs | docs/specs/SPEC-0261-spec-watch-ci-cancelled-runs-and-release-gate-docs.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -677,7 +678,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| watch-ci-cancelled-runs-and-release-gate-docs (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-watch-ci-cancelled-runs-and-release-gate-docs.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)

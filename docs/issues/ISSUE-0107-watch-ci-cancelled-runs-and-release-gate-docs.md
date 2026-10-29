@@ -1,8 +1,8 @@
 ---
 id: watch-ci-cancelled-runs-and-release-gate-docs
 type: issue
-number: null
-status: draft
+number: 107
+status: done
 user_visible: true
 links:
   pr: []
