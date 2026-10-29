@@ -22,6 +22,10 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
+## [unreleased] — docs(hermes): AAI skills in Hermes Agent (hermes-agent-skill-discovery)
+
+- Hermes Agent discovers the existing `.agents/skills` catalog of an extended AAI installation; no new installer or catalog. **Action required:** run `hermes skills trust /path/to/your-project` once per project and Hermes profile, then `/reload-skills` — without trust Hermes does not load the skills even after `/aai-update`. Verified on macOS with Hermes revision `bf0203a7`; setup in `docs/USER_GUIDE.md#hermes-agent`. Shipped in v2026.10.29 (#513) without a note; the release description was corrected.
+
 ## [v2026.10.29] — feat(usage): Codex usage reaches run accounting and the run-budget gate (codex-usage-missing-from-run-budgets)
 
 - Adds a read-only Codex rollout-log adapter (`.aai/scripts/codex-usage.mjs` with `observe`, `attribute`, `budget`, `probe`, backed by `.aai/scripts/lib/codex-rollout.mjs`). It turns Codex's authoritative per-response usage records into exact `state.mjs append-run` and `log-tick` argument lists with provenance in the run note, and gives SKILL_LOOP step 2f a deterministic run-budget verdict with an explicit `token budget NOT enforced` state when the source is unreadable. `live-parsers/codex.mjs` now shares the CODEX_HOME lookup. No change to `state.mjs`, `metrics-flush.mjs` or the Claude capture path.
@@ -33,10 +37,6 @@ fine — it is the marker a cut leaves on top.
 ## [v2026.10.29] — fix: ignore superseded CI failures on the current head (current-head-ci-reader)
 
 - CI watch and release required-check observations bind the current PR head and choose the newest run per check name and app identity from all API pages. An older cancelled or failed run cannot override a newer pending or successful run; moved heads, same-name foreign apps and ambiguous data refuse.
-
-## [v2026.10.29] — docs(hermes): AAI skills in Hermes Agent (hermes-agent-skill-discovery)
-
-- Hermes Agent discovers the existing `.agents/skills` catalog of an extended AAI installation; no new installer or catalog. **Action required:** run `hermes skills trust /path/to/your-project` once per project and Hermes profile, then `/reload-skills` — without trust Hermes does not load the skills even after `/aai-update`. Verified on macOS with Hermes revision `bf0203a7`; setup in `docs/USER_GUIDE.md#hermes-agent`. (Shipped in #513; note added after the cut.)
 
 ## [v2026.10.26] — feat(release): a failed release is repaired and finished under its own version (release-same-version-recovery)
 
