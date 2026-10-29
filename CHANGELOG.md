@@ -22,15 +22,15 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased]
 
-## [unreleased] — feat(usage): Codex usage reaches run accounting and the run-budget gate (codex-usage-missing-from-run-budgets)
+## [v2026.10.29] — feat(usage): Codex usage reaches run accounting and the run-budget gate (codex-usage-missing-from-run-budgets)
 
 - Adds a read-only Codex rollout-log adapter (`.aai/scripts/codex-usage.mjs` with `observe`, `attribute`, `budget`, `probe`, backed by `.aai/scripts/lib/codex-rollout.mjs`). It turns Codex's authoritative per-response usage records into exact `state.mjs append-run` and `log-tick` argument lists with provenance in the run note, and gives SKILL_LOOP step 2f a deterministic run-budget verdict with an explicit `token budget NOT enforced` state when the source is unreadable. `live-parsers/codex.mjs` now shares the CODEX_HOME lookup. No change to `state.mjs`, `metrics-flush.mjs` or the Claude capture path.
 
-## [unreleased] — feat(release): CHANGELOG dry-run on every PR (release-rollup-dry-run)
+## [v2026.10.29] — feat(release): CHANGELOG dry-run on every PR (release-rollup-dry-run)
 
 - PR skill-suite runs a read-only production rollup rehearsal across Node, shell and PowerShell CHANGELOG readers, and refuses report destinations inside Git metadata before any checkpoint write.
 
-## [unreleased] — fix: ignore superseded CI failures on the current head (current-head-ci-reader)
+## [v2026.10.29] — fix: ignore superseded CI failures on the current head (current-head-ci-reader)
 
 - CI watch and release required-check observations bind the current PR head and choose the newest run per check name and app identity from all API pages. An older cancelled or failed run cannot override a newer pending or successful run; moved heads, same-name foreign apps and ambiguous data refuse.
 
