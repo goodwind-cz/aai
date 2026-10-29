@@ -182,6 +182,12 @@ PowerShell uses the existing paired installer:
 powershell -NoProfile -File .aai/scripts/aai-sync.ps1 /path/to/your-project -Profile extended
 ```
 
+**Required once per project and Hermes profile: `hermes skills trust`.** AAI
+sync and `/aai-update` copy the skills into `.agents/skills`, but Hermes loads
+them only from projects listed in its `skills.trusted_project_dirs`. Until you
+trust the project, the AAI skills silently do not appear in the slash menu,
+even though the files are on disk. AAI sync never grants trust for you.
+
 Trust only projects whose skill instructions you accept. In the **same Hermes
 profile** you will use for work, run:
 
@@ -358,6 +364,9 @@ Two gates apply a discipline before you claim something; three advisories score,
 ```
 
 **Follow-up:**
+- Hermes Agent users: run `hermes skills trust /path/to/your-project` once per
+  project and Hermes profile, then `/reload-skills` (see [Hermes Agent](#hermes-agent));
+  without trust the updated skills do not appear in Hermes
 - `/aai-bootstrap` if you want refreshed project-local dynamic skills
 - `/aai-doctor` to verify the environment
 - `/aai-test-skills` to verify skill health

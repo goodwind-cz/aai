@@ -34,6 +34,10 @@ fine — it is the marker a cut leaves on top.
 
 - CI watch and release required-check observations bind the current PR head and choose the newest run per check name and app identity from all API pages. An older cancelled or failed run cannot override a newer pending or successful run; moved heads, same-name foreign apps and ambiguous data refuse.
 
+## [v2026.10.29] — docs(hermes): AAI skills in Hermes Agent (hermes-agent-skill-discovery)
+
+- Hermes Agent discovers the existing `.agents/skills` catalog of an extended AAI installation; no new installer or catalog. **Action required:** run `hermes skills trust /path/to/your-project` once per project and Hermes profile, then `/reload-skills` — without trust Hermes does not load the skills even after `/aai-update`. Verified on macOS with Hermes revision `bf0203a7`; setup in `docs/USER_GUIDE.md#hermes-agent`. (Shipped in #513; note added after the cut.)
+
 ## [v2026.10.26] — feat(release): a failed release is repaired and finished under its own version (release-same-version-recovery)
 
 - When the remote base has moved and the journal-bound release PR is still open, `/aai-release --version <v> --confirm` no longer
