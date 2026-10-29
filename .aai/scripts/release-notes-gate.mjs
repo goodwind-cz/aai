@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 export function isShipped(path, mode = '') {
   return /^(?:\.aai|\.github|\.claude|\.codex|\.agents|\.gemini)\//.test(path) ||
     /^(?:README|AGENTS|CLAUDE|CODEX|GEMINI|SKILLS)\.md$/.test(path) ||
-    path === 'docs/USER_GUIDE.md' || /^docs\/product\//.test(path) ||
+    path === 'docs/USER_GUIDE.md' || new RegExp('^docs/product/').test(path) ||
     (!path.includes('/') && (mode === '100755' || /\.(?:sh|ps1|mjs|cjs|js|py|rb|bat|cmd)$/.test(path)));
 }
 
