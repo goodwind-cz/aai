@@ -59,7 +59,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (592)
+## Done (594)
 
 | ID | Type | Path |
 |---|---|---|
@@ -292,6 +292,7 @@ _None._
 | CHANGE-0232 | issues | docs/issues/CHANGE-0232-current-head-ci-reader.md |
 | CHANGE-0233 | issues | docs/issues/CHANGE-0233-release-rollup-dry-run.md |
 | CHANGE-0234 | issues | docs/issues/CHANGE-0234-hermes-agent-skill-discovery.md |
+| CHANGE-0235 | issues | docs/issues/CHANGE-0235-docs-audit-content-engine-split.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -653,6 +654,7 @@ _None._
 | SPEC-0256 | specs | docs/specs/SPEC-0256-spec-current-head-ci-reader.md |
 | SPEC-0258 | specs | docs/specs/SPEC-0258-spec-codex-usage-missing-from-run-budgets.md |
 | SPEC-0259 | specs | docs/specs/SPEC-0259-spec-hermes-agent-skill-discovery.md |
+| SPEC-0260 | specs | docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -694,7 +696,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (518)
+## Broken references (523)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1205,6 +1207,11 @@ _None._
 | tests/skills/test-aai-suite-select.sh | docs/c.md | NOT FOUND |
 | tests/skills/test-aai-suite-select.sh | docs/core-a.md | NOT FOUND |
 | tests/skills/test-aai-suite-select.sh | docs/core-b.md | NOT FOUND |
+| tests/skills/test-aai-suite-select.sh | docs/decisions/DEC-0001-x.md | NOT FOUND |
+| tests/skills/test-aai-suite-select.sh | docs/issues/CHANGE-0001-x.md | NOT FOUND |
+| tests/skills/test-aai-suite-select.sh | docs/project-sessions/x.md | NOT FOUND |
+| tests/skills/test-aai-suite-select.sh | docs/rfc/RFC-0001-x.md | NOT FOUND |
+| tests/skills/test-aai-suite-select.sh | docs/specs/SPEC-0001-x.md | NOT FOUND |
 | tests/skills/test-aai-sync-seed.sh | docs/x.md | NOT FOUND |
 | tests/skills/test-aai-tdd.sh | docs/specs/SPEC-CHANGE-001.md | NOT FOUND |
 | tests/skills/test-aai-token-capture.sh | docs/ai/reports/validation-fixture.md | NOT FOUND |

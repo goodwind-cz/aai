@@ -916,7 +916,7 @@ test('TEST-2716 the RFC-0017 phase 4 row records the byte pairs', () => {
   const pairs = [...joined.matchAll(/([0-9]+) to ([0-9]+) bytes/g)].map((m) => [Number(m[1]), Number(m[2])]);
   assert.ok(pairs.length >= 2, 'want at least two N to M bytes pairs, got ' + pairs.length);
   for (const [n, m] of pairs) assert.ok(m <= 0.4 * n, `${n} to ${m} bytes is not at most 0.40`);
-  for (const [n, want] of [['0', 'in progress'], ['2', 'in progress'], ['1', 'done'], ['3', 'done'], ['5', 'not started']]) {
+  for (const [n, want] of [['0', 'in progress'], ['2', 'done'], ['1', 'done'], ['3', 'done'], ['5', 'not started']]) {
     assert.equal((cellStatus(byPhase[n]) || '').toLowerCase(), want, 'phase ' + n + ' row: ' + statusOf(n).slice(0, 80));
   }
 });
@@ -2743,7 +2743,7 @@ test('TEST-2825 the RFC-0017 phase 4 row links this slice and stays in progress'
   const joined = byPhase['4'].join(' | ');
   assert.equal([...joined.matchAll(/\]\([^)]*recheck-verdict-binding\.md\)/g)].length, 1, 'one link target ends recheck-verdict-binding.md');
   assert.match(joined, /\]\([^)]*cheap-transitions-slice\.md\)/);
-  for (const [n, want] of [['0', 'in progress'], ['2', 'in progress'], ['1', 'done'], ['3', 'done'], ['5', 'not started']]) {
+  for (const [n, want] of [['0', 'in progress'], ['2', 'done'], ['1', 'done'], ['3', 'done'], ['5', 'not started']]) {
     assert.equal((cellStatus(byPhase[n]) || '').toLowerCase(), want, 'phase ' + n);
   }
 });

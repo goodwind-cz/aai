@@ -4653,23 +4653,6 @@ test_l1gate_lean_gate_pass() {  # spec-l1-close-gate TEST-001 / Spec-AC-01
   log_pass "L1/L0 lean specs pass the gate; non-terminal lean rows fail naming the row"
 }
 
-test_l1gate_missing_justification() {  # spec-l1-close-gate TEST-002 / Spec-AC-01
-  log_info "Test: L1 lean spec WITHOUT the justification line fails the gate naming it — and ONLY it (TEST-002)..."
-  local d ec
-  d="$(setup_iso_repo l1gate-nojust)"
-  write_l1gate_spec "$d/docs/specs/SPEC-7111-nojust.md" SPEC-7111 draft 'ceremony_level: 1' no done lean
-  ec=0
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7111 > g.log 2>&1) || ec=$?
-  [[ "$ec" == 1 ]] || log_fail "L1 without justification must fail the gate (got $ec): $(cat "$d/g.log")"
-  grep -qF "Ceremony justification" "$d/g.log" \
-    || log_fail "gate reason must name the missing Ceremony justification line"
-  # RED pre-fix: the gate ALSO complained 'missing AC Status table' — the lean
-  # table must now satisfy the structural check, leaving justification the only gap.
-  assert_not_contains "$d/g.log" "missing AC Status table"
-  rm -rf "$d"
-  log_pass "Missing justification is the single named gate failure for an L1 lean spec"
-}
-
 test_l1gate_done_lean_clean() {  # spec-l1-close-gate TEST-003 / Spec-AC-01
   log_info "Test: done L1 lean spec is aligned/CLEAN under --check --strict; dropping justification flips to probable-partial (TEST-003)..."
   local d
@@ -4712,91 +4695,6 @@ test_l1gate_l2_regression() {  # spec-l1-close-gate TEST-004 / Spec-AC-02
     || log_fail "canonical L2 done spec must keep passing the gate: $(cat "$d/gcanon.log")"
   rm -rf "$d"
   log_pass "L2/absent keep canonical gate + drift behavior; canonical table still passes"
-}
-
-test_l1gate_garbage_level_fail_closed() {  # spec-l1-close-gate TEST-005 / Spec-AC-02
-  log_info "Test: garbage ceremony_level fails CLOSED — schema-invalid reason AND full canonical requirements (TEST-005)..."
-  local d ec
-  d="$(setup_iso_repo l1gate-garbage)"
-  write_l1gate_spec "$d/docs/specs/SPEC-7131-banana.md" SPEC-7131 draft 'ceremony_level: banana' yes done lean
-  ec=0
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7131 > g.log 2>&1) || ec=$?
-  [[ "$ec" == 1 ]] || log_fail "garbage ceremony_level must fail the gate (got $ec): $(cat "$d/g.log")"
-  grep -qF "schema-invalid ceremony_level" "$d/g.log" \
-    || log_fail "gate must report the schema-invalid ceremony_level"
-  grep -qF "missing AC Status table" "$d/g.log" \
-    || log_fail "garbage level must NOT unlock the lean shape (fail-closed to canonical requirements)"
-  rm -rf "$d"
-  log_pass "Garbage ceremony_level fails closed: reported invalid + canonical table still required"
-}
-
-test_l1gate_pipe_drop_reconciled() {  # spec-l1-close-gate TEST-007 / Spec-AC-04
-  log_info "Test: a lean row broken by a literal pipe is silently dropped by the parser — the gate must RECONCILE declared-vs-parsed ids and FAIL naming it, not PASS on the survivors, incl. an INDENTED broken row (TEST-007)..."
-  local d ec
-  d="$(setup_iso_repo l1gate-pipedrop)"
-  # Spec-AC-02's cell carries a literal '|', so the naive pipe-split yields a
-  # phantom cell, the row fails the column-count check, and parseLeanAcTable
-  # DROPS it. Pre-fix the gate validated only Spec-AC-01 (terminal) and PASSED.
-  {
-    echo '---'; echo 'id: SPEC-7141'; echo 'type: spec'; echo 'status: draft'
-    echo 'ceremony_level: 1'; echo 'links:'; echo '  pr: []'; echo '---'
-    echo '# Fixture spec SPEC-7141'; echo ''
-    echo 'Ceremony justification: S-sized single-surface fix (one script, one test).'; echo ''
-    echo '## Acceptance Criteria'; echo ''
-    echo '| Spec-AC    | Requirement                 | Status |'
-    echo '|------------|-----------------------------|--------|'
-    echo '| Spec-AC-01 | plain requirement no pipes  | done   |'
-    echo '| Spec-AC-02 | value is a | inside the cell | done   |'
-  } > "$d/docs/specs/SPEC-7141-pipedrop.md"
-  ec=0
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7141 > g.log 2>&1) || ec=$?
-  [[ "$ec" == 1 ]] || log_fail "pipe-dropped declared row must FAIL the gate, not pass on survivors (got $ec): $(cat "$d/g.log")"
-  grep -qF "Spec-AC-02" "$d/g.log" || log_fail "gate reason must NAME the unparseable declared row Spec-AC-02: $(cat "$d/g.log")"
-  grep -qiF "did not parse" "$d/g.log" || log_fail "gate reason must explain the row did not parse: $(cat "$d/g.log")"
-  # negative control: escaping the pipe as \| does NOT rescue the author (the
-  # parser does not unescape) — the gate must STILL fail, steering to rewording.
-  sed 's/a | inside/a \\| inside/' "$d/docs/specs/SPEC-7141-pipedrop.md" > "$d/docs/specs/SPEC-7142-esc.md"
-  sed -i.bak 's/SPEC-7141/SPEC-7142/' "$d/docs/specs/SPEC-7142-esc.md" && rm -f "$d/docs/specs/SPEC-7142-esc.md.bak"
-  ec=0
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7142 > g2.log 2>&1) || ec=$?
-  [[ "$ec" == 1 ]] || log_fail "escaped-pipe row must STILL fail (parser does not unescape) (got $ec): $(cat "$d/g2.log")"
-  grep -qF "Spec-AC-02" "$d/g2.log" || log_fail "escaped-pipe variant must also name Spec-AC-02"
-  # Review F1 regression: an INDENTED broken row. parseLeanAcTable accepts rows
-  # via l.trim().startsWith('|') (1-3 leading spaces are valid markdown), so the
-  # reconciler MUST use the same whitespace tolerance — a column-0-anchored
-  # recovery would miss this and let the gate falsely PASS.
-  {
-    echo '---'; echo 'id: SPEC-7143'; echo 'type: spec'; echo 'status: draft'
-    echo 'ceremony_level: 1'; echo 'links:'; echo '  pr: []'; echo '---'
-    echo '# Fixture spec SPEC-7143'; echo ''
-    echo 'Ceremony justification: S-sized single-surface fix (one script, one test).'; echo ''
-    echo '## Acceptance Criteria'; echo ''
-    echo '| Spec-AC    | Requirement                | Status |'
-    echo '|------------|----------------------------|--------|'
-    echo '| Spec-AC-01 | plain requirement no pipes | done   |'
-    echo '  | Spec-AC-02 | indented with a | pipe   | done   |'
-  } > "$d/docs/specs/SPEC-7143-indent.md"
-  ec=0
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7143 > g3.log 2>&1) || ec=$?
-  [[ "$ec" == 1 ]] || log_fail "INDENTED pipe-dropped row must FAIL the gate, not pass (got $ec): $(cat "$d/g3.log")"
-  grep -qF "Spec-AC-02" "$d/g3.log" || log_fail "indented variant must also name Spec-AC-02: $(cat "$d/g3.log")"
-  # review re-verify nit: a well-formed but SUFFIXED id cell parses cleanly and
-  # must NOT be misreported as a pipe-drop (declaredIds vs stored-id mismatch).
-  {
-    echo '---'; echo 'id: SPEC-7144'; echo 'type: spec'; echo 'status: draft'
-    echo 'ceremony_level: 1'; echo 'links:'; echo '  pr: []'; echo '---'
-    echo '# Fixture spec SPEC-7144'; echo ''
-    echo 'Ceremony justification: S-sized single-surface fix (one script, one test).'; echo ''
-    echo '## Acceptance Criteria'; echo ''
-    echo '| Spec-AC          | Requirement                | Status |'
-    echo '|------------------|----------------------------|--------|'
-    echo '| Spec-AC-01       | plain requirement no pipes | done   |'
-    echo '| Spec-AC-02 (opt) | suffixed id, clean row     | done   |'
-  } > "$d/docs/specs/SPEC-7144-suffix.md"
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7144 > g4.log 2>&1) || true
-  if grep -qF "did not parse" "$d/g4.log"; then log_fail "suffixed-but-parseable id cell must NOT trip the pipe-drop message: $(cat "$d/g4.log")"; fi
-  rm -rf "$d"
-  log_pass "Pipe-broken declared lean row is reconciled and fails the gate naming it (plain + escaped + indented)"
 }
 
 test_l1gate_done_drift_pipe_drop() {  # spec-l1-close-gate TEST-008 / Spec-AC-04
@@ -4843,147 +4741,6 @@ test_l1gate_done_drift_pipe_drop() {  # spec-l1-close-gate TEST-008 / Spec-AC-04
 
 # --- gate-ac-row-escaped-pipe-blind: canonical AC Status table twin of the ----
 # --- lean-table fix above (GitHub #330) ---------------------------------------
-
-test_gateac_canonical_pipe_drop_reconciled() {  # TEST-001 / Spec-AC-01
-  log_info "Test: a CANONICAL AC Status row broken by a literal pipe is silently dropped by parseAcTable — the gate must reconcile declared-vs-parsed and FAIL naming it (plain/escaped/indented), across absent/L2/L3 ceremony levels; a clean table still gate PASSes (exit 0) (TEST-001)..."
-  local d ec
-  d="$(setup_iso_repo gateac-pipedrop)"
-  # Legacy/absent ceremony_level. Spec-AC-02's Notes cell carries a literal
-  # '|', so the naive split yields a phantom cell, the row fails the
-  # column-count check, and parseAcTable DROPS it. Pre-fix the gate validated
-  # only Spec-AC-01 (terminal) and PASSED.
-  cat > "$d/docs/specs/SPEC-7201-pipedrop.md" <<'MD'
----
-id: SPEC-7201
-type: spec
-status: draft
-links:
-  pr: []
----
-# Fixture spec SPEC-7201
-
-## Acceptance Criteria Status
-
-| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
-|------------|-------------|--------------|----------|-----------|-------|
-| Spec-AC-01 | first       | done         | a1b2c3d  | TDD       | —     |
-| Spec-AC-02 | second      | implementing | —        | —         | value is a | inside the cell |
-MD
-  ec=0
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7201 > g.log 2>&1) || ec=$?
-  [[ "$ec" == 1 ]] || log_fail "pipe-dropped declared canonical row must FAIL the gate, not pass on survivors (got $ec): $(cat "$d/g.log")"
-  grep -qF "Spec-AC-02" "$d/g.log" || log_fail "gate reason must NAME the unparseable declared row Spec-AC-02: $(cat "$d/g.log")"
-  grep -qiF "did not parse" "$d/g.log" || log_fail "gate reason must explain the row did not parse: $(cat "$d/g.log")"
-  # negative control: escaping the pipe as \| does NOT rescue the author.
-  sed 's/a | inside/a \\| inside/' "$d/docs/specs/SPEC-7201-pipedrop.md" | sed 's/SPEC-7201/SPEC-7202/' > "$d/docs/specs/SPEC-7202-esc.md"
-  ec=0
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7202 > g2.log 2>&1) || ec=$?
-  [[ "$ec" == 1 ]] || log_fail "escaped-pipe canonical row must STILL fail (parser does not unescape) (got $ec): $(cat "$d/g2.log")"
-  grep -qF "Spec-AC-02" "$d/g2.log" || log_fail "escaped-pipe variant must also name Spec-AC-02"
-  # indented broken row (same whitespace tolerance as the lean fix, TEST-007 review F1).
-  cat > "$d/docs/specs/SPEC-7203-indent.md" <<'MD'
----
-id: SPEC-7203
-type: spec
-status: draft
-links:
-  pr: []
----
-# Fixture spec SPEC-7203
-
-## Acceptance Criteria Status
-
-| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
-|------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
-  | Spec-AC-02 | second    | done   | b2c3d4e  | TDD       | indented with a | pipe |
-MD
-  ec=0
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7203 > g3.log 2>&1) || ec=$?
-  [[ "$ec" == 1 ]] || log_fail "INDENTED pipe-dropped canonical row must FAIL the gate, not pass (got $ec): $(cat "$d/g3.log")"
-  grep -qF "Spec-AC-02" "$d/g3.log" || log_fail "indented variant must also name Spec-AC-02: $(cat "$d/g3.log")"
-  # explicit L2 and L3 ceremony levels take the SAME legacy branch — parity check.
-  for cl in 2 3; do
-    cat > "$d/docs/specs/SPEC-72${cl}0-cl${cl}.md" <<MD
----
-id: SPEC-72${cl}0
-type: spec
-status: draft
-ceremony_level: ${cl}
-links:
-  pr: []
----
-# Fixture spec SPEC-72${cl}0
-
-## Acceptance Criteria Status
-
-| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
-|------------|-------------|--------------|----------|-----------|-------|
-| Spec-AC-01 | first       | done         | a1b2c3d  | TDD       | —     |
-| Spec-AC-02 | second      | implementing | —        | —         | value is a | inside the cell |
-MD
-    ec=0
-    (cd "$d" && node .aai/scripts/docs-audit.mjs --gate "SPEC-72${cl}0" > "gcl${cl}.log" 2>&1) || ec=$?
-    [[ "$ec" == 1 ]] || log_fail "ceremony_level ${cl} pipe-dropped row must also FAIL the gate (got $ec): $(cat "$d/gcl${cl}.log")"
-    grep -qF "Spec-AC-02" "$d/gcl${cl}.log" || log_fail "ceremony_level ${cl} variant must also name Spec-AC-02"
-  done
-  # negative control: a fully parseable canonical table (pipe reworded out,
-  # all rows terminal) must gate PASS exactly as before this change.
-  cat > "$d/docs/specs/SPEC-7209-clean.md" <<'MD'
----
-id: SPEC-7209
-type: spec
-status: draft
-links:
-  pr: []
----
-# Fixture spec SPEC-7209
-
-## Acceptance Criteria Status
-
-| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
-|------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
-| Spec-AC-02 | second      | done   | b2c3d4e  | TDD       | value is safe, no pipes here |
-MD
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7209 > gclean.log 2>&1) \
-    || log_fail "a fully-parseable canonical table must still PASS the gate: $(cat "$d/gclean.log")"
-  rm -rf "$d"
-  log_pass "Pipe-broken declared canonical row is reconciled and fails the gate naming it (plain + escaped + indented + L2/L3); clean table unaffected"
-}
-
-test_gateac_lean_volunteering_full_table() {  # TEST-002 / Spec-AC-01
-  log_info "Test: a lean-eligible (ceremony_level 0/1) doc that VOLUNTEERS the full canonical table with a pipe-dropped row still FAILS the gate naming it — closes the SPEC-0036 review-F3 gap (TEST-002)..."
-  local d ec
-  d="$(setup_iso_repo gateac-leanvol)"
-  cat > "$d/docs/specs/SPEC-7211-leanvol.md" <<'MD'
----
-id: SPEC-7211
-type: spec
-status: draft
-ceremony_level: 1
-links:
-  pr: []
----
-# Fixture spec SPEC-7211
-
-Ceremony justification: S-sized single-surface fix (one script, one test).
-
-## Acceptance Criteria Status
-
-| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
-|------------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | first       | done   | a1b2c3d  | TDD       | —     |
-| Spec-AC-02 | second      | done   | b2c3d4e  | TDD       | value is a | inside the cell |
-MD
-  ec=0
-  (cd "$d" && node .aai/scripts/docs-audit.mjs --gate SPEC-7211 > g.log 2>&1) || ec=$?
-  [[ "$ec" == 1 ]] || log_fail "a lean-eligible doc volunteering the full canonical table with a dropped row must still FAIL (got $ec): $(cat "$d/g.log")"
-  grep -qF "Spec-AC-02" "$d/g.log" || log_fail "gate reason must NAME the unparseable declared row Spec-AC-02: $(cat "$d/g.log")"
-  grep -qiF "did not parse" "$d/g.log" || log_fail "gate reason must explain the row did not parse: $(cat "$d/g.log")"
-  rm -rf "$d"
-  log_pass "Lean-eligible doc volunteering the full canonical table still reconciles pipe-dropped rows (SPEC-0036 review-F3 gap closed)"
-}
 
 test_gateac_done_drift_canonical_pipe_drop() {  # TEST-003 / Spec-AC-02
   log_info "Test: a DONE canonical spec with a pipe-dropped NON-TERMINAL declared row must NOT report CLEAN — the done-drift check mirrors the gate on the canonical table too (TEST-003)..."
@@ -8737,9 +8494,13 @@ if (profile !== null) {
   if (names.size !== rows.length) findings.push('profile lists a function twice');
   if (rows.length !== EXPECTED_ROWS) findings.push(`profile has ${rows.length} rows, expected ${EXPECTED_ROWS}`);
   const mig = migration || '';
+  // docs-audit-content-engine-split D4 moved these five --gate-only cases to
+  // tests/skills/lib/docs-audit-gate.test.mjs; their owners are recorded in
+  // docs/analysis/docs-audit-content-engine-split.md (migration map G1 to G5, TEST-2309).
+  const movedBySplit = new Set(['test_l1gate_missing_justification', 'test_l1gate_garbage_level_fail_closed', 'test_l1gate_pipe_drop_reconciled', 'test_gateac_canonical_pipe_drop_reconciled', 'test_gateac_lean_volunteering_full_table']);
   for (const r of rows) {
     const defined = new RegExp('^' + r.name + '\\(\\) \\{', 'm').test(suite);
-    if (!defined && !mig.includes('`' + r.name + '`')) findings.push(`profile function ${r.name} is neither defined nor in the migration map`);
+    if (!defined && !movedBySplit.has(r.name) && !mig.includes('`' + r.name + '`')) findings.push(`profile function ${r.name} is neither defined nor in the migration map`);
   }
   const m = text.match(/^Profiled total \(pass 1\): (\d+(?:\.\d+)?) s$/m);
   if (!m) findings.push('no "Profiled total (pass 1): <seconds> s" line');
@@ -8880,6 +8641,368 @@ test_2211_migration_map_owners() {  # TEST-2211 / Spec-AC-07
   log_pass "Nine removed functions gone; every retained owner defined and registered once; new lib files map to aai-docs-audit (TEST-2211)"
 }
 
+# Content cases (SPEC docs-audit-content-engine-split D1/D2): the cases whose
+# assertion reads the live repository corpus. tests/skills/test-aai-docs-content.sh
+# sources this file and runs these names in order; main() below registers the
+# engine cases only. test_issue0001_posix_paths_noop joins the spec minimum of 23 because it reads
+# the real-index snapshots setup_indexarm_snapshots builds. check_deps and setup_fixture are setup, run by both suites.
+DOCS_AUDIT_CONTENT_CASES="
+  check_deps
+  setup_fixture
+  test_deterministic_index_no_clock_line
+  test_1351_live_corpus_near_miss_set_is_dispositioned
+  test_1348_near_miss_headline_carries_the_count
+  test_1349_verdict_names_the_unreadable_tables
+  test_spec0006_no_regression_real_repo
+  test_change0166_closeout_is_clean_and_terminal
+  test_534_two_stale_halves_are_closed
+  setup_indexarm_snapshots
+  test_indexarm_earlier_day_generation_is_green
+  test_issue0001_posix_paths_noop
+  test_indexarm_index_is_not_stale
+  test_indexarm_overdue_boundary_is_green
+  test_issue0001_no_regression_real_repo
+  test_spec0011_regression
+  test_537_shape_check_live_yield
+  test_change0007_regression
+  test_change0012_regression
+  test_docsaicanon_real_repo_clean
+  test_change0028_real_repo_clean
+  test_spec0057_real_repo_known_collisions
+  test_pdcm_product_family_repo_wide_clean
+  test_acflip_real_repo_clean
+  test_2310_rfc0017_rollout_rows
+"
+
+# ---------------------------------------------------------------------------
+# SPEC docs-audit-content-engine-split: case inventory, input closure, e2e.
+# ---------------------------------------------------------------------------
+
+# Names registered in a main() read from stdin: bare two-space-indented words.
+docs_audit_main_names() {
+  awk '
+    /^main\(\) \{/ { on = 1; next }
+    on && /^}/ { on = 0 }
+    on && /^  [a-z][a-z0-9_]*$/ && $1 != "fi" { print $1 }
+  '
+}
+
+# Body of one function (definition line to closing brace) from SUITE_FILE.
+docs_audit_fn_body() {  # $1 = function name
+  awk -v want="$1" '
+    $0 == want "() {" || index($0, want "() {") == 1 { on = 1 }
+    on { print }
+    on && /^}/ { on = 0 }
+  ' "$SUITE_FILE"
+}
+
+# Shared by TEST-2301 and TEST-2309: the split note parser (one Node script, mode argument).
+split_note_path() { printf '%s' "$PROJECT_ROOT/docs/analysis/docs-audit-content-engine-split.md"; }
+
+write_split_note_parser() {  # writes $TEST_DIR/split-note.mjs
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  cat > "$TEST_DIR/split-note.mjs" <<'EOF'
+import fs from 'node:fs';
+const [mode, notePath, ...rest] = process.argv.slice(2);
+const text = fs.readFileSync(notePath, 'utf8');
+const findings = [];
+const section = (name) => {
+  const m = text.match(new RegExp('^## ' + name + '[^\\n]*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))', 'm'));
+  return m ? m[1] : null;
+};
+const tableRows = (body) => body.split('\n').filter((l) => l.startsWith('|'))
+  .map((l) => l.replace(/^\||\|$/g, '').split('|').map((c) => c.trim()));
+const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+const lines = (f) => fs.readFileSync(f, 'utf8').split('\n').filter(Boolean);
+const stated = (body, label) => {
+  const m = body.match(new RegExp('^' + label + ': (\\d+(?:\\.\\d+)?)( s)?$', 'm'));
+  return m ? Number(m[1]) : null;
+};
+const pairs = (body, header, cols) => {
+  const all = tableRows(body);
+  if ((all[0] || []).join('|') !== header) findings.push(`pair header is "${(all[0] || []).join(' | ')}", expected "${header.split('|').join(' | ')}"`);
+  const rows = all.slice(2);
+  if (rows.length !== 5) findings.push(`expected exactly 5 pair rows, found ${rows.length}`);
+  const out = cols.map((c) => rows.map((r) => Number(r[c])));
+  if (out.flat().some((x) => !Number.isFinite(x) || x <= 0)) findings.push('a pair row carries a non-numeric or non-positive duration');
+  return out;
+};
+const check = (body, label, want, tol) => {
+  const v = stated(body, label);
+  if (v === null) findings.push(`no "${label}: <value>" line`);
+  else if (Math.abs(v - want) > tol) findings.push(`${label} ${v} differs from the recomputed ${want}`);
+  return v;
+};
+if (mode === 'inventory') {
+  const [baseF, contentF, nodeF] = rest;
+  const base = lines(baseF), content = new Set(lines(contentF)), node = new Set(lines(nodeF));
+  const inv = section('Case inventory');
+  if (inv === null) findings.push('no "## Case inventory" section');
+  else {
+    const all = tableRows(inv);
+    if ((all[0] || []).join('|') !== 'Function|Class|Owner') findings.push(`inventory header is "${(all[0] || []).join(' | ')}"`);
+    const rows = all.slice(2);
+    const names = rows.map((r) => r[0]);
+    if (rows.length !== base.length) findings.push(`inventory has ${rows.length} rows, baseline main has ${base.length}`);
+    if (new Set(names).size !== names.length) findings.push('inventory names a function twice');
+    const missing = base.filter((n) => !names.includes(n));
+    const extra = names.filter((n) => !base.includes(n));
+    if (missing.length) findings.push(`inventory misses ${missing.slice(0, 3).join(' ')}`);
+    if (extra.length) findings.push(`inventory has non-baseline rows ${extra.slice(0, 3).join(' ')}`);
+    for (const r of rows) {
+      const want = node.has(r[0]) ? 'node' : content.has(r[0]) ? 'content' : 'engine';
+      if (!['content', 'engine', 'node'].includes(r[1])) findings.push(`${r[0]} has class "${r[1]}"`);
+      else if (r[1] !== want) findings.push(`${r[0]} is classed ${r[1]} but its registration says ${want}`);
+      if (!r[2]) findings.push(`${r[0]} has no owner`);
+    }
+    console.log(`inventory_rows=${rows.length}`);
+  }
+  const m = section('Paired measurement');
+  if (m === null) findings.push('no "## Paired measurement" section');
+  else {
+    const [bef, eng, con] = pairs(m, 'Pair|Order|Before s|Engine s|Content s', [2, 3, 4]);
+    const bm = median(bef), em = median(eng), cm = median(con);
+    check(m, 'Before median', bm, 0.05); check(m, 'Before worst', Math.max(...bef), 0.05);
+    check(m, 'Engine median', em, 0.05); check(m, 'Engine worst', Math.max(...eng), 0.05);
+    check(m, 'Content median', cm, 0.05); check(m, 'Content worst', Math.max(...con), 0.05);
+    const ratio = Math.round((cm / bm) * 100) / 100;
+    const sr = check(m, 'Content ratio', ratio, 0.01);
+    if (sr !== null && sr > 0.40) findings.push(`Content ratio ${sr} is above 0.40`);
+    console.log(`before_median=${bm} engine_median=${em} content_median=${cm} ratio=${ratio}`);
+  }
+} else if (mode === 'gate') {
+  const [suiteF, nodeF] = rest;
+  const suite = fs.readFileSync(suiteF, 'utf8'), nodeSrc = fs.readFileSync(nodeF, 'utf8');
+  const g = section('Gate batch measurement');
+  if (g === null) findings.push('no "## Gate batch measurement" section');
+  else {
+    const tables = g.split(/\n\s*\n/).filter((b) => b.trimStart().startsWith('|'));
+    const pairTable = tables.find((b) => b.includes('Gate before s'));
+    const mapTable = tables.find((b) => b.includes('Removed Bash function'));
+    if (!pairTable) findings.push('no gate pair table');
+    else {
+      const [bef, aft] = pairs(pairTable, 'Pair|Order|Gate before s|Gate after s', [2, 3]);
+      const bm = median(bef), am = median(aft);
+      check(g, 'Gate before median', bm, 0.05); check(g, 'Gate after median', am, 0.05);
+      const ratio = Math.round((am / bm) * 100) / 100;
+      const sr = check(g, 'Gate ratio', ratio, 0.01);
+      if (sr !== null && sr > 0.50) findings.push(`Gate ratio ${sr} is above 0.50`);
+      console.log(`gate_before=${bm} gate_after=${am} ratio=${ratio}`);
+    }
+    if (!mapTable) findings.push('no migration map table');
+    else {
+      const rows = tableRows(mapTable).slice(2);
+      if (rows.length !== 5) findings.push(`migration map has ${rows.length} rows, expected 5`);
+      ['G1', 'G2', 'G3', 'G4', 'G5'].forEach((id, i) => {
+        const r = rows[i];
+        if (!r || r[0] !== id) { findings.push(`migration map row ${i + 1} is not ${id}`); return; }
+        const fn = r[1].replace(/`/g, '');
+        if (!/^test_[a-z0-9_]+$/.test(fn)) findings.push(`${id} names no removed Bash function`);
+        else if (suite.includes(`\n${fn}() {`) || new RegExp(`^  ${fn}$`, 'm').test(suite)) findings.push(`${id} names ${fn}, which is still defined or registered`);
+        if (!nodeSrc.includes(`test('${id} `)) findings.push(`${id} has no Node case in docs-audit-gate.test.mjs`);
+        if (!r[2]) findings.push(`${id} names no Node case`);
+      });
+    }
+  }
+}
+for (const f of findings) console.log(`FINDING: ${f}`);
+process.exit(findings.length ? 1 : 0);
+EOF
+}
+
+test_2301_split_note_inventory() {  # TEST-2301 / Spec-AC-01
+  log_info "Test: the split note inventories all 195 baseline main entries and its paired medians recompute (TEST-2301)..."
+  local base="c3e706e71e16ef041269002b08634bdae8612d02" note out rc=0
+  note="$(split_note_path)"
+  git -C "$PROJECT_ROOT" cat-file -e "${base}^{commit}" 2>/dev/null \
+    || log_fail "TEST-2301: baseline commit $base is absent from this checkout (full history required)"
+  [[ -f "$note" ]] || log_fail "TEST-2301: $note does not exist"
+  write_split_note_parser
+  git -C "$PROJECT_ROOT" show "$base:tests/skills/test-aai-docs-audit.sh" | docs_audit_main_names > "$TEST_DIR/t2301-base.txt"
+  printf '%s\n' $DOCS_AUDIT_CONTENT_CASES > "$TEST_DIR/t2301-content.txt"
+  printf '%s\n' test_l1gate_missing_justification test_l1gate_garbage_level_fail_closed test_l1gate_pipe_drop_reconciled test_gateac_canonical_pipe_drop_reconciled test_gateac_lean_volunteering_full_table > "$TEST_DIR/t2301-node.txt"
+  out="$(node "$TEST_DIR/split-note.mjs" inventory "$note" "$TEST_DIR/t2301-base.txt" "$TEST_DIR/t2301-content.txt" "$TEST_DIR/t2301-node.txt" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-2301: the split note is inconsistent: $(payload_preview "$out")"
+  log_pass "Split note inventory and paired measurement recompute: $(printf '%s' "$out" | tr '\n' ' ') (TEST-2301)"
+}
+
+test_2309_gate_batch_measurement() {  # TEST-2309 / Spec-AC-06
+  log_info "Test: the gate batch measurement recomputes and G1 to G5 name a removed function and a Node case (TEST-2309)..."
+  local note out rc=0
+  note="$(split_note_path)"
+  [[ -f "$note" ]] || log_fail "TEST-2309: $note does not exist"
+  write_split_note_parser
+  out="$(node "$TEST_DIR/split-note.mjs" gate "$note" "$SUITE_FILE" "$PROJECT_ROOT/tests/skills/lib/docs-audit-gate.test.mjs" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-2309: the gate batch measurement is inconsistent: $(payload_preview "$out")"
+  log_pass "Gate batch measurement recomputes: $(printf '%s' "$out" | tr '\n' ' ') (TEST-2309)"
+}
+
+test_2310_rfc0017_rollout_rows() {  # TEST-2310 / Spec-AC-07
+  log_info "Test: RFC-0017 Rollout Status phase 2 is done and linked, phase 4 links CHANGE-0228, frontmatter unchanged (TEST-2310)..."
+  local rfc="$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md" row2 row4 status2 fm
+  [[ -f "$rfc" ]] || log_fail "TEST-2310: $rfc does not exist"
+  row2="$(awk '/^\| 2 \|/ { print; exit }' "$rfc")"
+  row4="$(awk '/^\| 4 \|/ { print; exit }' "$rfc")"
+  [[ -n "$row2" ]] || log_fail "TEST-2310: no phase 2 row in the Rollout Status table"
+  [[ -n "$row4" ]] || log_fail "TEST-2310: no phase 4 row in the Rollout Status table"
+  status2="$(awk -F'|' '{ gsub(/^ +| +$/, "", $4); print $4 }' <<<"$row2")"
+  [[ "$status2" == "done" ]] || log_fail "TEST-2310: phase 2 status is '$status2', expected 'done'"
+  grep -qE '\(\.\./issues/CHANGE-(DRAFT|[0-9]{4})-docs-audit-content-engine-split\.md\)' <<<"$row2" \
+    || log_fail "TEST-2310: phase 2 row does not link this change's intake (docs-audit-content-engine-split)"
+  grep -qF '(../analysis/docs-audit-content-engine-split.md)' <<<"$row2" \
+    || log_fail "TEST-2310: phase 2 row does not link the split note"
+  grep -qF '(../issues/CHANGE-0228-provider-adapter-registry-slice.md)' <<<"$row4" \
+    || log_fail "TEST-2310: phase 4 row does not link CHANGE-0228"
+  [[ -f "$PROJECT_ROOT/docs/issues/CHANGE-0228-provider-adapter-registry-slice.md" ]] \
+    || log_fail "TEST-2310: the CHANGE-0228 link target does not exist"
+  [[ -f "$PROJECT_ROOT/docs/analysis/docs-audit-content-engine-split.md" ]] \
+    || log_fail "TEST-2310: the split note link target does not exist"
+  fm="$(awk 'NR == 1 && $0 == "---" { on = 1; next } on && $0 == "---" { exit } on { print }' "$rfc")"
+  grep -qxF 'status: implementing' <<<"$fm" || log_fail "TEST-2310: RFC-0017 frontmatter must keep status: implementing"
+  grep -qxF 'umbrella: true' <<<"$fm" || log_fail "TEST-2310: RFC-0017 frontmatter must keep umbrella: true"
+  log_pass "RFC-0017 phase 2 done with intake and note links, phase 4 links CHANGE-0228, frontmatter implementing and umbrella (TEST-2310)"
+}
+
+test_2308_gate_node() {  # TEST-2308 / Spec-AC-06
+  log_info "Test: --gate-only cases G1 to G5 run through node:test over gateDoc; the five Bash twins are gone (TEST-2308)..."
+  local f="$PROJECT_ROOT/tests/skills/lib/docs-audit-gate.test.mjs" fn names n out rc=0
+  [[ -f "$f" ]] || log_fail "TEST-2308: tests/skills/lib/docs-audit-gate.test.mjs does not exist"
+  names="$(docs_audit_main_names < "$SUITE_FILE")"
+  for fn in test_l1gate_missing_justification test_l1gate_garbage_level_fail_closed test_l1gate_pipe_drop_reconciled test_gateac_canonical_pipe_drop_reconciled test_gateac_lean_volunteering_full_table; do
+    n="$(grep -c "^${fn}() {" "$SUITE_FILE" || true)"
+    [[ "$n" == "0" ]] || log_fail "TEST-2308: moved function $fn is still defined in the engine suite"
+    n="$(grep -cx "$fn" <<<"$names" || true)"
+    [[ "$n" == "0" ]] || log_fail "TEST-2308: moved function $fn is still registered in main"
+  done
+  for fn in test_l1gate_lean_gate_pass test_gateac_issue330_crosscheck; do
+    n="$(grep -c "^${fn}() {" "$SUITE_FILE" || true)"
+    [[ "$n" == "1" ]] || log_fail "TEST-2308: retained CLI owner $fn must be defined once (found $n)"
+    n="$(grep -cx "$fn" <<<"$names" || true)"
+    [[ "$n" == "1" ]] || log_fail "TEST-2308: retained CLI owner $fn must be registered once (found $n)"
+  done
+  n="$(grep -cE "^test\('G[1-5] " "$f" || true)"
+  [[ "$n" == "5" ]] || log_fail "TEST-2308: the Node file must hold exactly five cases G1 to G5 (found $n)"
+  out="$(node --test "$PROJECT_ROOT/tests/skills/lib/docs-audit-gate.test.mjs" 2>&1)" || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-2308: gate Node assertions (G1 to G5) failed (exit $rc): $(payload_preview "$out")"
+  log_pass "Gate Node cases G1 to G5 passed; five Bash twins gone; two CLI owners retained once (TEST-2308)"
+}
+
+test_2307_case_inventory_partition() {  # TEST-2307 / Spec-AC-05
+  log_info "Test: engine main + content list + Node-moved names partition the baseline main list (TEST-2307)..."
+  local base="c3e706e71e16ef041269002b08634bdae8612d02"
+  local baseline engine content node5 setup_dups n nb ne nc
+  git -C "$PROJECT_ROOT" cat-file -e "${base}^{commit}" 2>/dev/null \
+    || log_fail "TEST-2307: baseline commit $base is absent from this checkout (full history required)"
+  baseline="$(git -C "$PROJECT_ROOT" show "$base:tests/skills/test-aai-docs-audit.sh" | docs_audit_main_names)"
+  nb="$(grep -c . <<<"$baseline" || true)"
+  [[ "$nb" == "195" ]] || log_fail "TEST-2307: baseline main list has $nb entries, expected 195"
+  [[ "$(sort -u <<<"$baseline" | grep -c . || true)" == "195" ]] \
+    || log_fail "TEST-2307: baseline main list has duplicate names"
+  engine="$(docs_audit_main_names < "$SUITE_FILE" | grep -v '^test_23[0-9][0-9]_' || true)"
+  # test_23xx rows are new in this change (not baseline entries), like the engine's own.
+  content="$(printf '%s\n' $DOCS_AUDIT_CONTENT_CASES | grep -v '^test_23[0-9][0-9]_' || true)"
+  node5="test_l1gate_missing_justification
+test_l1gate_garbage_level_fail_closed
+test_l1gate_pipe_drop_reconciled
+test_gateac_canonical_pipe_drop_reconciled
+test_gateac_lean_volunteering_full_table"
+  [[ "$(grep -c . <<<"$content" || true)" == "24" ]] \
+    || log_fail "TEST-2307: DOCS_AUDIT_CONTENT_CASES must name exactly 24 functions (the spec minimum 23 plus test_issue0001_posix_paths_noop, which reads the setup_indexarm_snapshots real-index snapshots)"
+  [[ "$(sort <<<"$engine" | uniq -d | grep -c . || true)" == "0" ]] \
+    || log_fail "TEST-2307: engine main registers a name twice: $(sort <<<"$engine" | uniq -d | qhead -3)"
+  # Setup (check_deps, setup_fixture) runs in both suites by design; every other
+  # name lives in exactly one place. The Node-moved names are registered in
+  # neither suite (E and N, C and N, and E and C beyond setup all fail).
+  setup_dups="$(sort <<<"$engine"$'\n'"$content" | uniq -d | grep -v -x -e check_deps -e setup_fixture || true)"
+  [[ -z "$setup_dups" ]] || log_fail "TEST-2307: name(s) in two places (engine and content): $(head -3 <<<"$setup_dups")"
+  [[ -z "$(sort <<<"$content"$'\n'"$node5" | uniq -d | grep . || true)" ]] \
+    || log_fail "TEST-2307: a Node-moved name is also a content case"
+  [[ -z "$(sort <<<"$engine"$'\n'"$node5" | uniq -d | grep . || true)" ]] \
+    || log_fail "TEST-2307: a Node-moved name is still registered in the engine main: $(sort <<<"$engine"$'\n'"$node5" | uniq -d | qhead -3)"
+  ne="$(sort -u <<<"$engine"$'\n'"$content"$'\n'"$node5" | grep . || true)"
+  nc="$(sort -u <<<"$baseline")"
+  if [[ "$ne" != "$nc" ]]; then
+    log_fail "TEST-2307: union of engine, content and Node-moved names differs from the baseline main list: missing=$(comm -13 <(printf '%s\n' "$ne") <(printf '%s\n' "$nc") | qhead -5 | tr '\n' ' ') extra=$(comm -23 <(printf '%s\n' "$ne") <(printf '%s\n' "$nc") | qhead -5 | tr '\n' ' ')"
+  fi
+  for n in $content; do
+    [[ "$(type -t "$n" 2>/dev/null || true)" == "function" ]] || log_fail "TEST-2307: content case $n is not a defined function"
+  done
+  local rc=0 out
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-2307: check-test-registration.mjs tests/skills exited $rc: $(payload_preview "$out")"
+  log_pass "195 baseline names = engine + 24 content + 5 Node-moved, no name in two places, registration check exits 0 (TEST-2307)"
+}
+
+test_2306_engine_input_closure() {  # TEST-2306 / Spec-AC-04
+  log_info "Test: every literal real-tree path an engine case reads selects aai-docs-audit or FULL_RUN (TEST-2306)..."
+  local exceptions=" test_histmap_corpus_equivalence test_2202_live_audit_memo test_2203_live_audit_verify_mode test_2204_live_index_pair_restores test_2205_committed_index_staleness_survives test_2206_no_direct_live_corpus_launch test_2306_engine_input_closure "
+  local fn body paths p out calls seen=" "
+  local root_re='[$][{]?PROJECT_ROOT[}]?"?'
+  local rel_re='(\.aai|\.claude|tests|docs)/[A-Za-z0-9_./-]+'
+  local nfn=0 npath=0 cdlines
+  for fn in $(docs_audit_main_names < "$SUITE_FILE"); do
+    case "$exceptions" in *" $fn "*) continue ;; esac
+    body="$(docs_audit_fn_body "$fn" | grep -v '^[[:space:]]*#' || true)"
+    [[ -n "$body" ]] || continue
+    calls="$(grep -E '(^|[^A-Za-z0-9_])(live_audit|live_index_pair)([^A-Za-z0-9_]|$)' <<<"$body" || true)"
+    [[ -z "$calls" ]] \
+      || log_fail "TEST-2306: engine case $fn reads the live corpus through $(head -1 <<<"$calls" | sed 's/^[[:space:]]*//') - classify it content or name it an exception"
+    nfn=$((nfn + 1))
+    paths="$(grep -oE "${root_re}/[A-Za-z0-9_./-]+" <<<"$body" | sed -E "s#^${root_re}/##" || true)"
+    # Relative paths read from inside a (cd "$PROJECT_ROOT" && ...) subshell.
+    cdlines="$(grep -E 'cd "?[$][{]?PROJECT_ROOT[}]?"? *&&' <<<"$body" || true)"
+    if [[ -n "$cdlines" ]]; then
+      paths="$paths"$'\n'"$(sed -E 's/.*cd "?[$][{]?PROJECT_ROOT[}]?"? *&&//' <<<"$cdlines" | grep -oE "(^|[[:space:]])${rel_re}" | sed -E 's/^[[:space:]]+//' || true)"
+    fi
+    if grep -qE '[$][{]?(AUDIT_SCRIPT|SUITE_FILE)' <<<"$body"; then
+      paths="$paths"$'\n'".aai/scripts/docs-audit.mjs"$'\n'"tests/skills/test-aai-docs-audit.sh"
+    fi
+    for p in $(sort -u <<<"$paths"); do
+      case "$p" in */|*.|"") continue ;; esac
+      case "$seen" in *" $p "*) continue ;; esac
+      seen="$seen$p "
+      npath=$((npath + 1))
+      out="$(printf '%s\n' "$p" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
+      case $'\n'"$out" in
+        *$'\n'"SELECTED aai-docs-audit "*|*$'\n'FULL_RUN*) ;;
+        *) log_fail "TEST-2306: $p (read by engine case $fn) selects neither aai-docs-audit nor FULL_RUN: $(payload_preview "$out")" ;;
+      esac
+    done
+  done
+  # Non-vacuous floor: a broken extractor must not pass by scanning nothing.
+  (( nfn > 0 && npath > 0 )) \
+    || log_fail "TEST-2306: scanned $nfn engine function(s) and $npath path(s); the closure check is vacuous"
+  log_pass "every literal real-tree path read by an engine case selects the engine suite; no engine case launches the live corpus (TEST-2306)"
+}
+
+test_2304_content_suite_fails_on_planted_orphan() {  # TEST-2304 / Spec-AC-03
+  log_info "Test: the content suite fails in a disposable clone carrying a planted orphan document (TEST-2304)..."
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local c="$TEST_DIR/t2304-clone" log="$TEST_DIR/t2304.log" rc=0
+  git clone -q --no-hardlinks "$PROJECT_ROOT" "$c" >/dev/null 2>&1 || log_fail "TEST-2304: could not clone $PROJECT_ROOT"
+  # The working tree's suites and production scripts are the subject, not the
+  # last commit's copies.
+  cp -R "$PROJECT_ROOT/tests/skills/." "$c/tests/skills/"
+  cp -R "$PROJECT_ROOT/.aai/scripts/." "$c/.aai/scripts/"
+  git -C "$c" config user.email "test@example.com"
+  git -C "$c" config user.name "AAI Test"
+  printf '# Planted orphan\n\nThis document has no frontmatter on purpose.\n' > "$c/docs/issues/CHANGE-DRAFT-planted-orphan-2304.md"
+  git -C "$c" add -A -- docs tests .aai >/dev/null 2>&1
+  (cd "$c" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) || log_fail "TEST-2304: index regeneration failed in the clone"
+  git -C "$c" add -A -- docs >/dev/null 2>&1
+  git -C "$c" commit -q -m "plant orphan" >/dev/null 2>&1 || log_fail "TEST-2304: could not commit the planted document"
+  (cd "$c" && env -u AAI_ROLE bash tests/skills/test-aai-docs-content.sh) > "$log" 2>&1 || rc=$?
+  [[ "$rc" == "1" ]] || log_fail "TEST-2304: content suite exited $rc on the planted orphan, expected 1: $(tail -c 600 "$log")"
+  # The FAIL payload is the multi-line audit report, so the Orphans headline
+  # sits on its continuation lines.
+  grep -E '^FAIL:' "$log" >/dev/null 2>&1 \
+    || log_fail "TEST-2304: the content suite printed no FAIL line: $(tail -c 400 "$log")"
+  grep -E 'Orphans: [1-9]' "$log" >/dev/null 2>&1 \
+    || log_fail "TEST-2304: the failure output does not report Orphans >= 1: $(grep '^FAIL' "$log" | qhead -3 | cut -c1-300)"
+  rm -rf "$c"
+  log_pass "content suite exits 1 with a FAIL line naming Orphans on a planted frontmatter-less document (TEST-2304)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -8891,10 +9014,6 @@ main() {
   test_change0007_lint_body_node
   test_2208_closeout_node
   setup_fixture
-  test_deterministic_index_no_clock_line
-  test_1351_live_corpus_near_miss_set_is_dispositioned
-  test_1348_near_miss_headline_carries_the_count
-  test_1349_verdict_names_the_unreadable_tables
   test_1350_bare_ac_status_words_are_checked
   test_report_only_without_config
   test_strict_path_intake_gate
@@ -8931,20 +9050,11 @@ main() {
   test_spec0006_no_double_listing_idempotent
   test_spec0006_close_policy_prose
   test_spec0006_open_decision_guard
-  test_spec0006_no_regression_real_repo
-  test_change0166_closeout_is_clean_and_terminal
-  test_534_two_stale_halves_are_closed
   test_issue0001_frontmatter_crlf_tolerance
   test_issue0001_actable_crlf_tolerance
-  setup_indexarm_snapshots
-  test_indexarm_earlier_day_generation_is_green
-  test_issue0001_posix_paths_noop
-  test_indexarm_index_is_not_stale
-  test_indexarm_overdue_boundary_is_green
   test_issue0001_crlf_corpus_buckets
   test_issue0001_gitattributes
   test_issue0001_legacy_ratio_guard
-  test_issue0001_no_regression_real_repo
   test_issue0001_posix_helper
   test_spec0010_committed_index_idempotent
   test_spec0010_index_git_state_invariant
@@ -8971,10 +9081,8 @@ main() {
   test_spec0011_hook_gates_staged_not_worktree
   test_spec0011_work_item_closed_requires_fields
   test_spec0011_review_artifact_boundary
-  test_spec0011_regression
   test_536_unparseable_ac_table_shape
   test_582_status_vocabulary_scoped_to_spec_ac_col
-  test_537_shape_check_live_yield
   test_538_duplicate_ac_id_multiplicity
   test_554_index_tracked_only
   test_576_tracked_but_vanished_is_skipped_not_crashed
@@ -8984,7 +9092,6 @@ main() {
   test_change0007_lint_promotion_pair
   test_change0007_lint_body_file_predicate
   test_change0007_hook_body_lint
-  test_change0007_regression
   test_change0007_hook_config_staged
   test_change0007_hook_space_filename
   test_index_continue_on_error
@@ -8993,16 +9100,10 @@ main() {
   test_change0012_gate_resolution_order
   test_change0012_gate_ambiguous_id
   test_change0012_allocation_durability
-  test_change0012_regression
   test_l1gate_lean_gate_pass
-  test_l1gate_missing_justification
   test_l1gate_done_lean_clean
   test_l1gate_l2_regression
-  test_l1gate_garbage_level_fail_closed
-  test_l1gate_pipe_drop_reconciled
   test_l1gate_done_drift_pipe_drop
-  test_gateac_canonical_pipe_drop_reconciled
-  test_gateac_lean_volunteering_full_table
   test_gateac_done_drift_canonical_pipe_drop
   test_gateac_issue330_crosscheck
   test_delta3_provenance_drift
@@ -9023,7 +9124,6 @@ main() {
   test_change0027_doc_surfaces_mention_false_open
   test_umbrella_marker_suppresses_visibly
   test_docsaicanon_classes
-  test_docsaicanon_real_repo_clean
   test_change0028_mixed_cell_git_hash_flags
   test_change0028_mixed_cell_pr_ref_flags
   test_change0028_mixed_cell_prose_not_flagged
@@ -9032,7 +9132,6 @@ main() {
   test_change0028_arm_b_fileid_ac_evidence_flags
   test_change0028_arm_b_inflight_discriminator_guard
   test_change0028_arm_c_work_item_closed_flags
-  test_change0028_real_repo_clean
   test_change0028_userguide_mentions_work_item_closed
   test_fometrics_flush_arm
   test_fometrics_supersession
@@ -9042,8 +9141,6 @@ main() {
   test_spec0057_check_exit_code_unchanged
   setup_dupid_clean_fixture
   test_spec0057_no_false_positive
-  test_spec0057_real_repo_known_collisions
-  test_pdcm_product_family_repo_wide_clean
   test_pdci_validation_gate_delegation
   test_pdci_gate_characterization_temporal_gap
   test_histmap_corpus_equivalence
@@ -9057,7 +9154,6 @@ main() {
   test_acflip_close_end_state_clean
   test_acflip_predicate_agrees_with_check
   test_acflip_remediation_is_reachable
-  test_acflip_real_repo_clean
   test_441_untracked_new_doc_passes_genuine_drift_still_fails
   test_broken_refs_source_missing
   test_broken_refs_both_clean_is_zero
@@ -9081,6 +9177,12 @@ main() {
   test_2201_speed_note_profile
   test_2210_speed_note_measurement
   test_2211_migration_map_owners
+  test_2306_engine_input_closure
+  test_2307_case_inventory_partition
+  test_2308_gate_node
+  test_2301_split_note_inventory
+  test_2309_gate_batch_measurement
+  test_2304_content_suite_fails_on_planted_orphan
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

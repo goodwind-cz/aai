@@ -1098,8 +1098,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 118 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 118 (pin moved for aai-hermes-skills) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 119 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 119 (pin moved for aai-docs-content) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -2127,8 +2127,8 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   # together, which is the two-way check the Mutation column drives.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 118 ]] \
-    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 118"
+  [[ "$row_count" -eq 119 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 119"
 
   # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
   # function anywhere under tests/skills, this suite's new ones included).
@@ -2143,7 +2143,7 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   assert_payload_contains "$out" "SELECTED aai-mutation-gate" \
     "TEST-487: select-suites.mjs did not route .aai/scripts/mutation-gate.mjs to aai-mutation-gate: $out"
 
-  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (118), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
+  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (119), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
 }
 
 # --- TEST-504 (NB4-r3, remediation round 3, Spec-AC-03): the Node copy of the
@@ -5893,7 +5893,7 @@ NSL_FIXTURE
 }
 
 test_133_nested_suite_lint_live_and_base() {  # TEST-034 / Spec-AC-11
-  log_info "test_133: nested-suite-lint over the live tree with the allowlist is clean with exactly 3 rows; over the base tree it reports all 34 inventory functions (TEST-034)..."
+  log_info "test_133: nested-suite-lint over the live tree with the allowlist is clean with exactly 4 rows; over the base tree it reports all 34 inventory functions (TEST-034)..."
   local script="$PROJECT_ROOT/$NSL_SCRIPT_REL" allow="$PROJECT_ROOT/$NSL_ALLOWLIST_REL" d out rc=0 rows
   [[ -f "$script" ]] || log_fail "test_133 (plan row TEST-034): missing $NSL_SCRIPT_REL"
   [[ -f "$allow" ]] || log_fail "test_133 (plan row TEST-034): missing $NSL_ALLOWLIST_REL"
@@ -5903,14 +5903,14 @@ test_133_nested_suite_lint_live_and_base() {  # TEST-034 / Spec-AC-11
   out="$(node "$script" --allowlist "$allow" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_133 (plan row TEST-034): the live tree must be clean under the allowlist, rc=$rc: $out"
   rows="$(awk -F'\t' '!/^[[:space:]]*#/ && NF >= 4 {n++} END {print n+0}' "$allow")"
-  [[ "$rows" -eq 3 ]] || log_fail "test_133 (plan row TEST-034): the allowlist must hold exactly 3 rows, found $rows"
-  [[ "$out" == *"ALLOWLISTED: 3"* ]] || log_fail "test_133 (plan row TEST-034): all 3 rows must match a live finding: $out"
+  [[ "$rows" -eq 4 ]] || log_fail "test_133 (plan row TEST-034): the allowlist must hold exactly 4 rows, found $rows"
+  [[ "$out" == *"ALLOWLISTED: 4"* ]] || log_fail "test_133 (plan row TEST-034): all 4 rows must match a live finding: $out"
   [[ "$out" != *"STALE"* ]] || log_fail "test_133 (plan row TEST-034): no allowlist row may be stale: $out"
   # positive control: the allowlist is what keeps the live tree clean
   local empty="$d/nsl-empty.tsv" rc2=0 out2
   printf '# no rows\n' > "$empty"
   out2="$(node "$script" --allowlist "$empty" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc2=$?
-  [[ "$rc2" -eq 1 && "$out2" == *"TOTAL: 3"* ]] || log_fail "test_133 (plan row TEST-034): without the allowlist the live tree has exactly 3 findings (rc=1), got rc=$rc2: $out2"
+  [[ "$rc2" -eq 1 && "$out2" == *"TOTAL: 4"* ]] || log_fail "test_133 (plan row TEST-034): without the allowlist the live tree has exactly 4 findings (rc=1), got rc=$rc2: $out2"
   # a row that matches nothing is stale and fails the run
   local stale="$d/nsl-stale.tsv" rc3=0 out3
   cp "$allow" "$stale"
@@ -5984,7 +5984,7 @@ NSL_PIN
   want_set="$(sort "$pin")"
   [[ "$(wc -l < "$pin" | tr -d ' ')" == "34" ]] || log_fail "test_133 (plan row TEST-034): the pinned inventory must hold 34 functions"
   [[ "$got_set" == "$want_set" ]] || log_fail "test_133 (plan row TEST-034): the base tree's findings differ from the 34-function inventory. want: $(printf '%s' "$want_set" | tr '\n' ';') -- got: $(printf '%s' "$got_set" | tr '\n' ';')"
-  log_pass "test_133: live tree clean under a 3-row allowlist (stale and empty-allowlist controls bite); base tree reports all 34 inventory functions (TEST-034)"
+  log_pass "test_133: live tree clean under a 4-row allowlist (stale and empty-allowlist controls bite); base tree reports all 34 inventory functions (TEST-034)"
 }
 
 test_134_nested_suite_disclosures() {  # TEST-036 / Spec-AC-13

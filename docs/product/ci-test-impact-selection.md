@@ -22,12 +22,14 @@ touch one file. A weekend of iteration on one PR could burn 12+ CI-hours
 this way.
 
 Now a PR push runs only the suites its diff could plausibly affect, plus a
-cheap always-on core (`aai-check-state`, `aai-docs-audit`, `aai-spec-lint`).
+cheap always-on core (`aai-check-state`, `aai-docs-content`, `aai-spec-lint`, `aai-hygiene-pack`).
 A deterministic selector reads the diff, maps changed paths onto suites via
 a declared suite map, and prints which suites to run and why. The full
 framework still runs — on every push to `main`, every night, and on demand
 via a `ci-full` label — so the safety net moves later in the pipeline
 instead of disappearing.
+
+The docs-audit checks are split in two. `aai-docs-content` is the always-on half: the cases that read the repository's own `docs/` corpus as their subject, so a document-only change can fail it. `aai-docs-audit` is the engine regression half and runs only when an audit input changes (the script, its library, its config, the generator, the skill prompt or the suite files themselves).
 
 The selector is deliberately cautious: it never tries to narrow coverage on
 a path it can't confidently classify. Any changed path that isn't mapped to

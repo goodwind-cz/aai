@@ -40,7 +40,11 @@
 
 core:
   - aai-check-state
-  - aai-docs-audit
+  # docs-audit-content-engine-split (SPEC-0260-spec-docs-audit-content-engine-split
+  # D3): the always-on docs suite is the CONTENT half (live-corpus cases), so a
+  # document-only PR no longer runs the engine half; engine inputs select
+  # aai-docs-audit below.
+  - aai-docs-content
   - aai-spec-lint
   # Added by assertions-must-not-die-on-their-own-payload after validation
   # measured the gap: this suite holds the pipe-into-grep-q ratchet, and a PR
@@ -278,6 +282,9 @@ suites:
     companions:
       - aai-delta-stage1
       - aai-delta-stage2
+      # TEST-007 relied on docs-audit being core; the core is now the content
+      # half (docs-audit-content-engine-split D3), so declare the engine.
+      - aai-docs-audit
     globs:
       - .aai/SKILL_PR.prompt.md
       - .aai/scripts/delta-merge.mjs
@@ -329,6 +336,23 @@ suites:
       - docs/skill-catalog-data.json
       - tests/fixtures/close-regenerate-order/**
 
+  # Document globs moved from aai-docs-audit (D3). docs/INDEX.md and
+  # docs/ai/EVENTS.jsonl move with them (disclosed; TEST-2303 close diff): Spec-AC-02 requires a diff of documents plus the
+  # regenerated index to select no engine suite.
+  aai-docs-content:
+    globs:
+      - tests/skills/test-aai-docs-content.sh
+      - docs/decisions/**
+      - docs/specs/**
+      - docs/issues/**
+      - docs/rfc/**
+      - docs/canonical/**
+      - docs/_archive/**
+      - docs/releases/**
+      - docs/INDEX.md
+      - docs/ai/EVENTS.jsonl
+      - docs/project-sessions/**
+
   aai-docs-audit:
     globs:
       - tests/skills/lib/docs-audit-body.test.mjs
@@ -348,19 +372,18 @@ suites:
       - .aai/scripts/install-pre-commit-hook.ps1
       - .aai/scripts/install-pre-commit-hook.sh
       - docs/ai/docs-audit.yaml
-      - docs/decisions/**
-      - docs/specs/**
-      - docs/issues/**
-      - docs/rfc/**
-      - docs/canonical/**
-      - docs/_archive/**
-      - docs/releases/**
-      - CHANGELOG.md
-      - README.md
-      - docs/INDEX.md
-      - docs/ai/EVENTS.jsonl
-      - docs/project-sessions/**
-      - docs/TECHNOLOGY.md
+      - tests/skills/test-aai-docs-content.sh
+      - tests/skills/lib/docs-audit-gate.test.mjs
+      - docs/analysis/docs-audit-content-engine-split.md
+      # Input closure (TEST-2306): real-tree files engine cases read.
+      - .aai/ROLE_COMMON.md
+      - .aai/scripts/spec-lint.mjs
+      - .aai/scripts/check-test-registration.mjs
+      - .claude/skills/aai-docs-audit/SKILL.md
+      - docs/USER_GUIDE.md
+      - tests/skills/suite-map.yaml
+      - .aai/scripts/check-state.mjs
+      - .aai/scripts/select-suites.mjs
 
   aai-docs-canon:
     globs:

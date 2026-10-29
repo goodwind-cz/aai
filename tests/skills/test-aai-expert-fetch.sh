@@ -587,7 +587,7 @@ test_2623_rfc_phase3_done() {
     const fm = lines.slice(0, 30).join("\n");
     if (!/^status: implementing$/m.test(fm)) bad.push("RFC status is not implementing");
     if (!/^umbrella: true$/m.test(fm)) bad.push("RFC is not umbrella: true");
-    for (const [n, want] of [["0", "in progress"], ["2", "in progress"], ["4", "not started"], ["5", "not started"]]) {
+    for (const [n, want] of [["0", "in progress"], ["2", "done"], ["4", "not started"], ["5", "not started"]]) {
       if (n === "4" && process.env.R4_PIN === "retired") continue;
       const c = cells(n);
       if (!c || c[2] !== want) bad.push("row " + n + " status is " + (c ? c[2] : "missing") + ", want " + want);
