@@ -378,6 +378,12 @@ suites:
       - README.md
       - docs/project-sessions/**
       - docs/TECHNOLOGY.md
+      # Input closure (TEST-2306): real-tree files engine cases read.
+      - .aai/ROLE_COMMON.md
+      - .aai/scripts/spec-lint.mjs
+      - .claude/skills/aai-docs-audit/SKILL.md
+      - docs/USER_GUIDE.md
+      - tests/skills/suite-map.yaml
 
   aai-docs-canon:
     globs:

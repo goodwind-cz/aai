@@ -8880,6 +8880,162 @@ test_2211_migration_map_owners() {  # TEST-2211 / Spec-AC-07
   log_pass "Nine removed functions gone; every retained owner defined and registered once; new lib files map to aai-docs-audit (TEST-2211)"
 }
 
+# Content cases (SPEC docs-audit-content-engine-split D1/D2): the cases whose
+# assertion reads the live repository corpus. tests/skills/test-aai-docs-content.sh
+# sources this file and runs these names in order; main() below registers the
+# engine cases only. test_issue0001_posix_paths_noop joins the spec minimum of 23 because it reads
+# the real-index snapshots setup_indexarm_snapshots builds. check_deps and setup_fixture are setup, run by both suites.
+DOCS_AUDIT_CONTENT_CASES="
+  check_deps
+  setup_fixture
+  test_deterministic_index_no_clock_line
+  test_1351_live_corpus_near_miss_set_is_dispositioned
+  test_1348_near_miss_headline_carries_the_count
+  test_1349_verdict_names_the_unreadable_tables
+  test_spec0006_no_regression_real_repo
+  test_change0166_closeout_is_clean_and_terminal
+  test_534_two_stale_halves_are_closed
+  setup_indexarm_snapshots
+  test_indexarm_earlier_day_generation_is_green
+  test_issue0001_posix_paths_noop
+  test_indexarm_index_is_not_stale
+  test_indexarm_overdue_boundary_is_green
+  test_issue0001_no_regression_real_repo
+  test_spec0011_regression
+  test_537_shape_check_live_yield
+  test_change0007_regression
+  test_change0012_regression
+  test_docsaicanon_real_repo_clean
+  test_change0028_real_repo_clean
+  test_spec0057_real_repo_known_collisions
+  test_pdcm_product_family_repo_wide_clean
+  test_acflip_real_repo_clean
+"
+
+# ---------------------------------------------------------------------------
+# SPEC docs-audit-content-engine-split: case inventory, input closure, e2e.
+# ---------------------------------------------------------------------------
+
+# Names registered in a main() read from stdin: bare two-space-indented words.
+docs_audit_main_names() {
+  awk '
+    /^main\(\) \{/ { on = 1; next }
+    on && /^}/ { on = 0 }
+    on && /^  [a-z][a-z0-9_]*$/ && $1 != "fi" { print $1 }
+  '
+}
+
+# Body of one function (definition line to closing brace) from SUITE_FILE.
+docs_audit_fn_body() {  # $1 = function name
+  awk -v want="$1" '
+    $0 == want "() {" || index($0, want "() {") == 1 { on = 1 }
+    on { print }
+    on && /^}/ { on = 0 }
+  ' "$SUITE_FILE"
+}
+
+test_2307_case_inventory_partition() {  # TEST-2307 / Spec-AC-05
+  log_info "Test: engine main + content list + Node-moved names partition the baseline main list (TEST-2307)..."
+  local base="c3e706e71e16ef041269002b08634bdae8612d02"
+  local baseline engine content node5 setup_dups n nb ne nc
+  git -C "$PROJECT_ROOT" cat-file -e "${base}^{commit}" 2>/dev/null \
+    || log_fail "TEST-2307: baseline commit $base is absent from this checkout (full history required)"
+  baseline="$(git -C "$PROJECT_ROOT" show "$base:tests/skills/test-aai-docs-audit.sh" | docs_audit_main_names)"
+  nb="$(grep -c . <<<"$baseline" || true)"
+  [[ "$nb" == "195" ]] || log_fail "TEST-2307: baseline main list has $nb entries, expected 195"
+  [[ "$(sort -u <<<"$baseline" | grep -c . || true)" == "195" ]] \
+    || log_fail "TEST-2307: baseline main list has duplicate names"
+  engine="$(docs_audit_main_names < "$SUITE_FILE" | grep -v '^test_23[0-9][0-9]_' || true)"
+  content="$(printf '%s\n' $DOCS_AUDIT_CONTENT_CASES)"
+  node5="test_l1gate_missing_justification
+test_l1gate_garbage_level_fail_closed
+test_l1gate_pipe_drop_reconciled
+test_gateac_canonical_pipe_drop_reconciled
+test_gateac_lean_volunteering_full_table"
+  [[ "$(grep -c . <<<"$content" || true)" == "24" ]] \
+    || log_fail "TEST-2307: DOCS_AUDIT_CONTENT_CASES must name exactly 24 functions (the spec minimum 23 plus test_issue0001_posix_paths_noop, which reads the setup_indexarm_snapshots real-index snapshots)"
+  [[ "$(sort <<<"$engine" | uniq -d | grep -c . || true)" == "0" ]] \
+    || log_fail "TEST-2307: engine main registers a name twice: $(sort <<<"$engine" | uniq -d | head -3)"
+  # Setup (check_deps, setup_fixture) runs in both suites by design; every other
+  # name lives in exactly one place. The Node-moved names may still be
+  # registered in the engine until the Node batch removes them (E and N overlap
+  # is tolerated here; C and N, and E and C beyond setup, are not).
+  setup_dups="$(sort <<<"$engine"$'\n'"$content" | uniq -d | grep -v -x -e check_deps -e setup_fixture || true)"
+  [[ -z "$setup_dups" ]] || log_fail "TEST-2307: name(s) in two places (engine and content): $(head -3 <<<"$setup_dups")"
+  [[ -z "$(sort <<<"$content"$'\n'"$node5" | uniq -d | grep . || true)" ]] \
+    || log_fail "TEST-2307: a Node-moved name is also a content case"
+  ne="$(sort -u <<<"$engine"$'\n'"$content"$'\n'"$node5" | grep . || true)"
+  nc="$(sort -u <<<"$baseline")"
+  if [[ "$ne" != "$nc" ]]; then
+    log_fail "TEST-2307: union of engine, content and Node-moved names differs from the baseline main list: missing=$(comm -13 <(printf '%s\n' "$ne") <(printf '%s\n' "$nc") | head -5 | tr '\n' ' ') extra=$(comm -23 <(printf '%s\n' "$ne") <(printf '%s\n' "$nc") | head -5 | tr '\n' ' ')"
+  fi
+  for n in $content; do
+    [[ "$(type -t "$n" 2>/dev/null || true)" == "function" ]] || log_fail "TEST-2307: content case $n is not a defined function"
+  done
+  local rc=0 out
+  out="$(cd "$PROJECT_ROOT" && node .aai/scripts/check-test-registration.mjs tests/skills 2>&1)" || rc=$?
+  [[ "$rc" == "0" ]] || log_fail "TEST-2307: check-test-registration.mjs tests/skills exited $rc: $(payload_preview "$out")"
+  log_pass "195 baseline names = engine + 24 content + 5 Node-moved, no name in two places, registration check exits 0 (TEST-2307)"
+}
+
+test_2306_engine_input_closure() {  # TEST-2306 / Spec-AC-04
+  log_info "Test: every literal real-tree path an engine case reads selects aai-docs-audit or FULL_RUN (TEST-2306)..."
+  local exceptions=" test_histmap_corpus_equivalence test_2202_live_audit_memo test_2203_live_audit_verify_mode test_2204_live_index_pair_restores test_2205_committed_index_staleness_survives test_2206_no_direct_live_corpus_launch test_2306_engine_input_closure "
+  local fn body paths p out calls seen=" "
+  local root_re='[$][{]?PROJECT_ROOT[}]?'
+  for fn in $(docs_audit_main_names < "$SUITE_FILE"); do
+    case "$exceptions" in *" $fn "*) continue ;; esac
+    body="$(docs_audit_fn_body "$fn" | grep -v '^[[:space:]]*#' || true)"
+    [[ -n "$body" ]] || continue
+    calls="$(grep -E '(^|[^A-Za-z0-9_])(live_audit|live_index_pair)([^A-Za-z0-9_]|$)' <<<"$body" || true)"
+    [[ -z "$calls" ]] \
+      || log_fail "TEST-2306: engine case $fn reads the live corpus through $(head -1 <<<"$calls" | sed 's/^[[:space:]]*//') - classify it content or name it an exception"
+    paths="$(grep -oE "${root_re}/[A-Za-z0-9_./-]+" <<<"$body" | sed -E "s#^${root_re}/##" || true)"
+    if grep -qE '[$][{]?(AUDIT_SCRIPT|SUITE_FILE)' <<<"$body"; then
+      paths="$paths"$'\n'".aai/scripts/docs-audit.mjs"$'\n'"tests/skills/test-aai-docs-audit.sh"
+    fi
+    for p in $(sort -u <<<"$paths"); do
+      case "$p" in */|*.|"") continue ;; esac
+      case "$seen" in *" $p "*) continue ;; esac
+      seen="$seen$p "
+      out="$(printf '%s\n' "$p" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
+      case $'\n'"$out" in
+        *$'\n'"SELECTED aai-docs-audit "*|*$'\n'FULL_RUN*) ;;
+        *) log_fail "TEST-2306: $p (read by engine case $fn) selects neither aai-docs-audit nor FULL_RUN: $(payload_preview "$out")" ;;
+      esac
+    done
+  done
+  log_pass "every literal real-tree path read by an engine case selects the engine suite; no engine case launches the live corpus (TEST-2306)"
+}
+
+test_2304_content_suite_fails_on_planted_orphan() {  # TEST-2304 / Spec-AC-03
+  log_info "Test: the content suite fails in a disposable clone carrying a planted orphan document (TEST-2304)..."
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  local c="$TEST_DIR/t2304-clone" log="$TEST_DIR/t2304.log" rc=0
+  git clone -q --no-hardlinks "$PROJECT_ROOT" "$c" >/dev/null 2>&1 || log_fail "TEST-2304: could not clone $PROJECT_ROOT"
+  # The working tree's suites and production scripts are the subject, not the
+  # last commit's copies.
+  cp -R "$PROJECT_ROOT/tests/skills/." "$c/tests/skills/"
+  cp -R "$PROJECT_ROOT/.aai/scripts/." "$c/.aai/scripts/"
+  git -C "$c" config user.email "test@example.com"
+  git -C "$c" config user.name "AAI Test"
+  printf '# Planted orphan\n\nThis document has no frontmatter on purpose.\n' > "$c/docs/issues/CHANGE-DRAFT-planted-orphan-2304.md"
+  git -C "$c" add -A -- docs tests .aai >/dev/null 2>&1
+  (cd "$c" && node .aai/scripts/generate-docs-index.mjs >/dev/null 2>&1) || log_fail "TEST-2304: index regeneration failed in the clone"
+  git -C "$c" add -A -- docs >/dev/null 2>&1
+  git -C "$c" commit -q -m "plant orphan" >/dev/null 2>&1 || log_fail "TEST-2304: could not commit the planted document"
+  (cd "$c" && env -u AAI_ROLE bash tests/skills/test-aai-docs-content.sh) > "$log" 2>&1 || rc=$?
+  [[ "$rc" == "1" ]] || log_fail "TEST-2304: content suite exited $rc on the planted orphan, expected 1: $(tail -c 600 "$log")"
+  # The FAIL payload is the multi-line audit report, so the Orphans headline
+  # sits on its continuation lines.
+  grep -E '^FAIL:' "$log" >/dev/null 2>&1 \
+    || log_fail "TEST-2304: the content suite printed no FAIL line: $(tail -c 400 "$log")"
+  grep -E 'Orphans: [1-9]' "$log" >/dev/null 2>&1 \
+    || log_fail "TEST-2304: the failure output does not report Orphans >= 1: $(grep '^FAIL' "$log" | head -3 | cut -c1-300)"
+  rm -rf "$c"
+  log_pass "content suite exits 1 with a FAIL line naming Orphans on a planted frontmatter-less document (TEST-2304)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -8891,10 +9047,6 @@ main() {
   test_change0007_lint_body_node
   test_2208_closeout_node
   setup_fixture
-  test_deterministic_index_no_clock_line
-  test_1351_live_corpus_near_miss_set_is_dispositioned
-  test_1348_near_miss_headline_carries_the_count
-  test_1349_verdict_names_the_unreadable_tables
   test_1350_bare_ac_status_words_are_checked
   test_report_only_without_config
   test_strict_path_intake_gate
@@ -8931,20 +9083,11 @@ main() {
   test_spec0006_no_double_listing_idempotent
   test_spec0006_close_policy_prose
   test_spec0006_open_decision_guard
-  test_spec0006_no_regression_real_repo
-  test_change0166_closeout_is_clean_and_terminal
-  test_534_two_stale_halves_are_closed
   test_issue0001_frontmatter_crlf_tolerance
   test_issue0001_actable_crlf_tolerance
-  setup_indexarm_snapshots
-  test_indexarm_earlier_day_generation_is_green
-  test_issue0001_posix_paths_noop
-  test_indexarm_index_is_not_stale
-  test_indexarm_overdue_boundary_is_green
   test_issue0001_crlf_corpus_buckets
   test_issue0001_gitattributes
   test_issue0001_legacy_ratio_guard
-  test_issue0001_no_regression_real_repo
   test_issue0001_posix_helper
   test_spec0010_committed_index_idempotent
   test_spec0010_index_git_state_invariant
@@ -8971,10 +9114,8 @@ main() {
   test_spec0011_hook_gates_staged_not_worktree
   test_spec0011_work_item_closed_requires_fields
   test_spec0011_review_artifact_boundary
-  test_spec0011_regression
   test_536_unparseable_ac_table_shape
   test_582_status_vocabulary_scoped_to_spec_ac_col
-  test_537_shape_check_live_yield
   test_538_duplicate_ac_id_multiplicity
   test_554_index_tracked_only
   test_576_tracked_but_vanished_is_skipped_not_crashed
@@ -8984,7 +9125,6 @@ main() {
   test_change0007_lint_promotion_pair
   test_change0007_lint_body_file_predicate
   test_change0007_hook_body_lint
-  test_change0007_regression
   test_change0007_hook_config_staged
   test_change0007_hook_space_filename
   test_index_continue_on_error
@@ -8993,7 +9133,6 @@ main() {
   test_change0012_gate_resolution_order
   test_change0012_gate_ambiguous_id
   test_change0012_allocation_durability
-  test_change0012_regression
   test_l1gate_lean_gate_pass
   test_l1gate_missing_justification
   test_l1gate_done_lean_clean
@@ -9023,7 +9162,6 @@ main() {
   test_change0027_doc_surfaces_mention_false_open
   test_umbrella_marker_suppresses_visibly
   test_docsaicanon_classes
-  test_docsaicanon_real_repo_clean
   test_change0028_mixed_cell_git_hash_flags
   test_change0028_mixed_cell_pr_ref_flags
   test_change0028_mixed_cell_prose_not_flagged
@@ -9032,7 +9170,6 @@ main() {
   test_change0028_arm_b_fileid_ac_evidence_flags
   test_change0028_arm_b_inflight_discriminator_guard
   test_change0028_arm_c_work_item_closed_flags
-  test_change0028_real_repo_clean
   test_change0028_userguide_mentions_work_item_closed
   test_fometrics_flush_arm
   test_fometrics_supersession
@@ -9042,8 +9179,6 @@ main() {
   test_spec0057_check_exit_code_unchanged
   setup_dupid_clean_fixture
   test_spec0057_no_false_positive
-  test_spec0057_real_repo_known_collisions
-  test_pdcm_product_family_repo_wide_clean
   test_pdci_validation_gate_delegation
   test_pdci_gate_characterization_temporal_gap
   test_histmap_corpus_equivalence
@@ -9057,7 +9192,6 @@ main() {
   test_acflip_close_end_state_clean
   test_acflip_predicate_agrees_with_check
   test_acflip_remediation_is_reachable
-  test_acflip_real_repo_clean
   test_441_untracked_new_doc_passes_genuine_drift_still_fails
   test_broken_refs_source_missing
   test_broken_refs_both_clean_is_zero
@@ -9081,6 +9215,9 @@ main() {
   test_2201_speed_note_profile
   test_2210_speed_note_measurement
   test_2211_migration_map_owners
+  test_2306_engine_input_closure
+  test_2307_case_inventory_partition
+  test_2304_content_suite_fails_on_planted_orphan
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
