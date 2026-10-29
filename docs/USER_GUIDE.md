@@ -807,7 +807,7 @@ named skip. No-remote skips remote completion; repositories without
 `release.yml` receive a manual-tagging skip. The client never publishes tags
 or releases directly.
 
-**Release notes for pull requests:** `release-notes-gate.mjs` requires a shipped-surface change to add nonempty rollable unreleased notes, or to include `no-notes: <reason>` in the PR body. Docs and test-only changes are exempt. Old unchanged notes, empty scaffolds, and blank reasons do not pass. `/aai-pr` runs the gate on the staged patch and the final proposed body. CI checks the PR commit range and body as data. An operator may mark the `release notes` job required. AAI does not change branch protection.
+**Release notes for pull requests:** `release-notes-gate.mjs` requires a shipped-surface change to add nonempty rollable unreleased notes, or to include `no-notes: <reason>` in the PR body. User-facing documentation counts as shipped: `README.md`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `SKILLS.md`, the user guide (`docs/USER_GUIDE.md`) and the product pages (`docs/product/`); other docs, the changelog and test-only changes are exempt. Old unchanged notes, empty scaffolds, and blank reasons do not pass. `/aai-pr` runs the gate on the staged patch and the final proposed body. CI checks the PR commit range and body as data. An operator may mark the `release notes` job required. AAI does not change branch protection.
 
 ---
 
@@ -2874,6 +2874,12 @@ Hermes Agent can discover and select the shared AAI skills in a trusted Git proj
 
 [Product doc](product/hermes-agent-skill-discovery.md) · [Spec](specs/SPEC-0259-spec-hermes-agent-skill-discovery.md)
 
+### Release notes gate
+
+A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, root executables, and eight user-facing documentation paths: `README.md`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `SKILLS.md`, `docs/USER_GUIDE.md`, and anything under `docs/product/`. The first six are the root files `aai-sync` installs into a target; the other two are the pages AAI users read on GitHub. Matching is exact, so `docs/README.md`, `sub/README.md` and `docs/product-notes.md` are not shipped. All other docs paths stay exempt, as do tests and evidence-only changes. The release audit (`aai-release --dry-run`) classifies merged pull requests with the same function. An old unchanged entry, an empty scaffold, and a blank reason do not count.
+
+[Product doc](product/release-notes-gate.md) · [Spec](specs/SPEC-0229-spec-release-notes-gate.md)
+
 ### Complete and resume a release
 
 The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
@@ -2903,12 +2909,6 @@ Every coding agent AAI supports reads its own small instruction file in the proj
 CI used to run the whole `tests/skills/` framework (~50 suites, ~25 minutes) on every single push to a pull request — including review-fix pushes that touch one file. A weekend of iteration on one PR could burn 12+ CI-hours this way.
 
 [Product doc](product/ci-test-impact-selection.md) · [Spec](specs/SPEC-0097-spec-ci-test-impact-selection.md)
-
-### Release notes gate
-
-A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, and root executables. Documentation, tests, and evidence-only changes are exempt. An old unchanged entry, an empty scaffold, and a blank reason do not count.
-
-[Product doc](product/release-notes-gate.md) · [Spec](specs/SPEC-0229-spec-release-notes-gate.md)
 
 ### Platform-portable PR ceremony
 

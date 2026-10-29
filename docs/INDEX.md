@@ -59,7 +59,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (594)
+## Done (596)
 
 | ID | Type | Path |
 |---|---|---|
@@ -378,6 +378,7 @@ _None._
 | ISSUE-0104 | issues | docs/issues/ISSUE-0104-sync-prune-retired-skill-wrappers.md |
 | ISSUE-0105 | issues | docs/issues/ISSUE-0105-intake-closing-questions-as-one-menu.md |
 | ISSUE-0106 | issues | docs/issues/ISSUE-0106-codex-usage-missing-from-run-budgets.md |
+| ISSUE-0107 | issues | docs/issues/ISSUE-0107-watch-ci-cancelled-runs-and-release-gate-docs.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -655,6 +656,7 @@ _None._
 | SPEC-0258 | specs | docs/specs/SPEC-0258-spec-codex-usage-missing-from-run-budgets.md |
 | SPEC-0259 | specs | docs/specs/SPEC-0259-spec-hermes-agent-skill-discovery.md |
 | SPEC-0260 | specs | docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md |
+| SPEC-0261 | specs | docs/specs/SPEC-0261-spec-watch-ci-cancelled-runs-and-release-gate-docs.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -696,7 +698,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (523)
+## Broken references (533)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -733,6 +735,15 @@ _None._
 | tests/skills/lib/recheck.test.mjs | docs/specs/SPEC-0001-fx.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/specs/SPEC-0002-low.md | NOT FOUND |
 | tests/skills/lib/recheck.test.mjs | docs/specs/new-note.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/ai/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/analysis/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/decisions/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/issues/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/knowledge/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/product-notes.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/product/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/rfc/x.md | NOT FOUND |
+| tests/skills/lib/release-notes-docs.test.mjs | docs/specs/x.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/ai/briefs/ride-demo.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/issues/CHANGE-DRAFT-ride-demo.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/specs/SPEC-0900-foreign-alpha.md | NOT FOUND |
@@ -1116,6 +1127,7 @@ _None._
 | tests/skills/test-aai-product-docs.sh | docs/product/token-economics-end-to-end.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/widget-export.md | NOT FOUND |
 | tests/skills/test-aai-prompt-diet.sh | docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md | NOT FOUND |
+| tests/skills/test-aai-release-notes.sh | docs/specs/x.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/change.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/ci-moved.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/direct.md | NOT FOUND |

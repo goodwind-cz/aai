@@ -20,7 +20,17 @@ rather than silently merging or dropping it, and a cut with zero rollable
 entries is refused too (exit 13). A bare, EMPTY `## [unreleased]` scaffold is
 fine — it is the marker a cut leaves on top.
 
+The release-notes gate treats user-facing documentation as shipped: a change
+to `README.md`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `SKILLS.md`,
+`docs/USER_GUIDE.md` or anything under `docs/product/` needs a new unreleased
+entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
+`CHANGELOG.md`, `tests/` and evidence under `docs/ai/`.
+
 ## [unreleased]
+
+## [unreleased] — fix: superseded cancelled CI runs and user-facing docs in the release-notes gate (watch-ci-cancelled-runs-and-release-gate-docs)
+
+- `watch-ci` and the release required-check read no longer report a failure from a workflow run that GitHub cancelled because a newer run of the same workflow and event started on the same head (for example after a PR body edit): the check stays pending until the newer run registers it, and refuses closed if the newer run completes without it. The fix is in the shared reader `.aai/scripts/lib/github-checks.mjs`. The release-notes gate now also counts the user guide, the product pages and the root files aai-sync installs as shipped (the exact list is in `docs/product/release-notes-gate.md`), so `aai-release` audits them and a pull request touching them needs notes or a `no-notes:` line; the CHANGELOG preamble and `docs/product/release-notes-gate.md` list them.
 
 ## [unreleased] — test(ci): split always-on document-content checks from docs-audit engine regression (docs-audit-content-engine-split)
 

@@ -61,7 +61,7 @@ function transport(t, checks, opts = {}) {
   const data = {head, checks, ...opts};
   put(dir, 'transport.json', JSON.stringify(data));
   put(dir, 'bin/gh', `#!/usr/bin/env node
-const fs=require('fs'),p=${JSON.stringify(path.join(dir, 'transport.json'))},d=JSON.parse(fs.readFileSync(p)),a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(path.join(dir, 'calls.jsonl'))},JSON.stringify(a)+'\\n');const out=x=>console.log(JSON.stringify(x));if(a[0]==='--version'){console.log('fixture gh');process.exit(0);}if(a[0]==='pr'&&a[1]==='view'){d.views=(d.views||0)+1;fs.writeFileSync(p,JSON.stringify(d));out({headRefOid:d.move&&d.views>1?'b'.repeat(40):d.head,url:'https://github.com/test/repo/pull/1',number:d.number??1});}else if(a[0]==='pr'&&a[1]==='checks'){if(d.transportFail){console.error('fixture network error');process.exit(42);}out(d.required||[{name:'aggregate',bucket:'pass',link:'x'}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/check-runs'))){if(d.transportFail){console.error('fixture network error');process.exit(42);}out(d.malformed?{}:(d.pages||[{total_count:d.checks.length,check_runs:d.checks}]));}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs/'))){const id=Number(a.find(x=>x.includes('/actions/runs/')).split('/').pop());out(d.workflows?.[id]||d.workflow||{id,head_sha:d.head,created_at:new Date(Date.UTC(2026,9,27,0,0,id)).toISOString()});}else if(a[0]==='api'&&a.some(x=>x.includes('/statuses'))){out(d.statusPages||[[]]);}else{console.error('unexpected '+a.join(' '));process.exit(90);}`);
+const fs=require('fs'),p=${JSON.stringify(path.join(dir, 'transport.json'))},d=JSON.parse(fs.readFileSync(p)),a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(path.join(dir, 'calls.jsonl'))},JSON.stringify(a)+'\\n');const out=x=>console.log(JSON.stringify(x));if(a[0]==='--version'){console.log('fixture gh');process.exit(0);}if(a[0]==='pr'&&a[1]==='view'){d.views=(d.views||0)+1;fs.writeFileSync(p,JSON.stringify(d));out({headRefOid:d.move&&d.views>1?'b'.repeat(40):d.head,url:'https://github.com/test/repo/pull/1',number:d.number??1});}else if(a[0]==='pr'&&a[1]==='checks'){if(d.transportFail){console.error('fixture network error');process.exit(42);}out(d.required||[{name:'aggregate',bucket:'pass',link:'x'}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/check-runs'))){if(d.transportFail){console.error('fixture network error');process.exit(42);}if(d.checkSeq){d.crn=(d.crn||0)+1;fs.writeFileSync(p,JSON.stringify(d));const c=d.checkSeq[Math.min(d.crn,d.checkSeq.length)-1];out([{total_count:c.length,check_runs:c}]);}else out(d.malformed?{}:(d.pages||[{total_count:d.checks.length,check_runs:d.checks}]));}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs?head_sha='))){if(!d.runPages&&!d.runList){console.error('unexpected run list');process.exit(91);}out(d.runPages||[{total_count:d.runList.length,workflow_runs:d.runList}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs/'))){const id=Number(a.find(x=>x.includes('/actions/runs/')).split('/').pop());out(d.workflows?.[id]||d.workflow||{id,head_sha:d.head,created_at:new Date(Date.UTC(2026,9,27,0,0,id)).toISOString()});}else if(a[0]==='api'&&a.some(x=>x.includes('/statuses'))){out(d.statusPages||[[]]);}else{console.error('unexpected '+a.join(' '));process.exit(90);}`);
   fs.chmodSync(path.join(bin, 'gh'), 0o755);
   return {
     dir,
@@ -245,4 +245,186 @@ test('TEST-004 profile suite ownership product and release notes for current-hea
   const product = fs.readFileSync(path.join(root, 'docs/product/release-command-finish.md'), 'utf8');
   assert.match(product, /newest/);
   assert.match(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8'), /current(?: |-)?head|newest run/i);
+});
+
+const CANCEL_ID = 10;
+const SIBLING_ID = 20;
+const WF = 5;
+
+function jobCheck(id, runId, conclusion, name = 'aggregate') {
+  return {
+    ...checkRun(id, conclusion),
+    name,
+    started_at: `2026-10-27T00:00:${String(id).padStart(2, '0')}Z`,
+    details_url: `https://github.com/test/repo/actions/runs/${runId}/job/${id}`
+  };
+}
+
+function runObj(id, over = {}) {
+  return {
+    id,
+    head_sha: head,
+    workflow_id: WF,
+    event: 'pull_request',
+    status: 'completed',
+    conclusion: 'success',
+    created_at: `2026-10-27T00:00:${String(id).padStart(2, '0')}Z`,
+    html_url: `https://github.com/test/repo/actions/runs/${id}`,
+    ...over
+  };
+}
+
+function runFixture(t, checks, runs, opts = {}) {
+  const workflows = {};
+  for (const r of runs) workflows[r.id] = r;
+  return transport(t, checks, {workflows, runList: runs, ...opts});
+}
+
+function rewrite(f, patch) {
+  const d = JSON.parse(fs.readFileSync(f.data, 'utf8'));
+  fs.writeFileSync(f.data, JSON.stringify({...d, ...patch}));
+}
+
+function callLog(f) {
+  const p = path.join(f.dir, 'calls.jsonl');
+  return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+}
+
+function releaseBucket(f) {
+  const r = releaseReader(f);
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+}
+
+test('TEST-2701 superseded cancelled run stays pending until the newer run registers the check', t => {
+  const cancelled = runObj(CANCEL_ID, {conclusion: 'cancelled'});
+  const sibling = runObj(SIBLING_ID, {status: 'in_progress', conclusion: null});
+  const f = runFixture(t, [jobCheck(1, CANCEL_ID, 'failure')], [cancelled, sibling]);
+  let w = watcher(f, true);
+  assert.equal(w.status, 3, w.stdout + w.stderr);
+  assert.match(w.stdout + w.stderr, /pending/);
+  const rel = releaseBucket(f);
+  assert.equal(rel.length, 1);
+  assert.equal(rel[0].bucket, 'pending');
+  assert.match(callLog(f), /actions\/runs\?head_sha=/);
+  rewrite(f, {
+    checks: [jobCheck(1, CANCEL_ID, 'failure'), jobCheck(2, SIBLING_ID, 'success')],
+    runList: [cancelled, runObj(SIBLING_ID)],
+    workflows: {[CANCEL_ID]: cancelled, [SIBLING_ID]: runObj(SIBLING_ID)}
+  });
+  w = watcher(f, true);
+  assert.equal(w.status, 0, w.stdout + w.stderr);
+  assert.equal(releaseBucket(f)[0].bucket, 'pass');
+});
+
+test('TEST-2702 replay of PR 515 never reports the cancelled run as failed', t => {
+  // Only the repository slug is retargeted to the stub repo; run, job and check identities stay as captured.
+  const fx = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/watch-ci-pr515.json'), 'utf8').split('goodwind-cz/aai/actions').join('test/repo/actions'));
+  assert.match(fx.provenance.url, /pull\/515/);
+  assert.equal(fx.phases.length, 2);
+  const names = fx.required.map(c => c.name);
+  const f = transport(t, fx.phases[0].checks, {
+    head: fx.head,
+    required: fx.required,
+    workflows: fx.phases[0].workflows,
+    runList: fx.phases[0].runList
+  });
+  let w = watcher(f, true);
+  assert.equal(w.status, 3, w.stdout + w.stderr);
+  assert.match(w.stdout + w.stderr, /pending/);
+  let rel = JSON.parse(run(process.execPath, [
+    '--input-type=module', '-e',
+    `import {readCurrentChecks} from ${JSON.stringify('file://' + path.join(root, '.aai/scripts/lib/github-checks.mjs'))};console.log(JSON.stringify(readCurrentChecks({pr:1,repo:'test/repo',required:true,cwd:${JSON.stringify(f.dir)}}).checks));`
+  ], f.dir, f.env).stdout);
+  assert.deepEqual(rel.map(c => c.name).sort(), [...names].sort());
+  for (const c of rel) assert.equal(c.bucket, /^doc-numbering/.test(c.name) ? 'pass' : 'pending', c.name);
+  rewrite(f, {
+    checks: fx.phases[1].checks,
+    workflows: fx.phases[1].workflows,
+    runList: fx.phases[1].runList
+  });
+  w = watcher(f, true);
+  assert.equal(w.status, 0, w.stdout + w.stderr);
+});
+
+test('TEST-2703 cancelled run keeps its own bucket without a same-workflow same-event newer sibling', t => {
+  const cancelled = runObj(CANCEL_ID, {conclusion: 'cancelled'});
+  const arms = [
+    ['no sibling', [jobCheck(1, CANCEL_ID, 'failure')], [cancelled]],
+    ['newer run of another event', [jobCheck(1, CANCEL_ID, 'failure')], [cancelled, runObj(SIBLING_ID, {event: 'push', status: 'in_progress', conclusion: null})]],
+    ['newer run of another workflow', [jobCheck(1, CANCEL_ID, 'failure')], [cancelled, runObj(SIBLING_ID, {workflow_id: 99, status: 'in_progress', conclusion: null})]],
+    ['older run failed, in-progress sibling', [jobCheck(1, CANCEL_ID, 'failure')], [runObj(CANCEL_ID, {conclusion: 'failure'}), runObj(SIBLING_ID, {status: 'in_progress', conclusion: null})]]
+  ];
+  for (const [label, checks, runs] of arms) {
+    const f = runFixture(t, checks, runs);
+    const w = watcher(f, true);
+    assert.equal(w.status, 5, `${label}: ${w.stdout}${w.stderr}`);
+    assert.match(w.stdout + w.stderr, /aggregate/, label);
+    assert.ok(['fail', 'cancel'].includes(releaseBucket(f)[0].bucket), label);
+  }
+});
+
+test('TEST-2704 malformed or contradictory workflow-run list refuses closed', t => {
+  const cancelled = runObj(CANCEL_ID, {conclusion: 'cancelled'});
+  const sibling = runObj(SIBLING_ID, {status: 'in_progress', conclusion: null});
+  const checks = [jobCheck(1, CANCEL_ID, 'failure')];
+  const arms = {
+    malformed: {runPages: {}},
+    'short pagination': {runPages: [{total_count: 3, workflow_runs: [cancelled, sibling]}]},
+    'repeated run id': {runPages: [{total_count: 3, workflow_runs: [cancelled, sibling]}, {total_count: 3, workflow_runs: [sibling]}]},
+    'run for another head': {runPages: [{total_count: 2, workflow_runs: [cancelled, {...sibling, head_sha: 'b'.repeat(40)}]}]},
+    'bad workflow_id': {runPages: [{total_count: 2, workflow_runs: [cancelled, {...sibling, workflow_id: 0}]}]},
+    'bad created_at': {runPages: [{total_count: 2, workflow_runs: [cancelled, {...sibling, created_at: 'nope'}]}]},
+    'completed sibling without the required check': {runList: [cancelled, runObj(SIBLING_ID)]}
+  };
+  for (const [label, opts] of Object.entries(arms)) {
+    const f = runFixture(t, checks, [cancelled, sibling], opts);
+    const w = watcher(f, true);
+    assert.equal(w.status, 3, `${label}: ${w.stdout}${w.stderr}`);
+    assert.match(w.stdout + w.stderr, /degraded/i, label);
+    const r = releaseReader(f);
+    assert.equal(r.status, 20, `${label}: ${r.stdout}${r.stderr}`);
+  }
+});
+
+test('TEST-2705 the workflow-run list request lives in one file and is read lazily', t => {
+  const hits = [];
+  const walk = dir => {
+    for (const e of fs.readdirSync(dir, {withFileTypes: true})) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (fs.readFileSync(p, 'utf8').includes('actions/runs?head_sha')) hits.push(path.relative(root, p).split(path.sep).join('/'));
+    }
+  };
+  walk(path.join(root, '.aai/scripts'));
+  assert.deepEqual(hits, ['.aai/scripts/lib/github-checks.mjs']);
+  for (const f of ['watch-ci.mjs', 'release-finish.mjs']) {
+    const text = fs.readFileSync(path.join(root, '.aai/scripts', f), 'utf8');
+    assert.match(text, /readCurrentChecks/, f);
+    assert.ok(!text.includes('actions/runs'), f);
+  }
+  const f = transport(t, [checkRun(2), checkRun(1, 'failure')]);
+  assert.equal(watcher(f, true).status, 0);
+  assert.equal(releaseReader(f).status, 0);
+  assert.ok(!/actions\/runs\?head_sha/.test(callLog(f)));
+});
+
+test('TEST-2711 a check the newer run registers between the check snapshot and the run list is never dropped', t => {
+  // Snapshot skew: the first check-run read predates the sibling's check; the run list already shows the sibling completed.
+  const cancelled = runObj(CANCEL_ID, {conclusion: 'cancelled'});
+  const sibling = runObj(SIBLING_ID);
+  const before = [jobCheck(1, CANCEL_ID, 'failure')];
+  const after = [jobCheck(1, CANCEL_ID, 'failure'), jobCheck(2, SIBLING_ID, 'failure')];
+  const f = runFixture(t, before, [cancelled, sibling], {
+    checkSeq: [before, after],
+    statusPages: [[{id: 1, context: 'lint', state: 'success', created_at: '2026-10-27T00:00:01Z', target_url: ''}]]
+  });
+  const w = watcher(f);
+  assert.equal(w.status, 5, w.stdout + w.stderr);
+  assert.match(w.stdout + w.stderr, /aggregate/);
+  rewrite(f, {crn: 0});
+  const rel = releaseBucket(f);
+  assert.equal(rel.length, 1);
+  assert.equal(rel[0].bucket, 'fail');
+  assert.equal(rel[0].id, 2);
 });
