@@ -19,4 +19,5 @@ if [[ "$AAI_HERMES_SOURCE" != /* || "$AAI_HERMES_PYTHON" != /* || ! -x "$AAI_HER
   exit 42
 fi
 export PYTHONDONTWRITEBYTECODE=1
+"$AAI_HERMES_PYTHON" tests/skills/lib/hermes-source-integrity.py
 exec "$AAI_HERMES_PYTHON" tests/skills/lib/hermes-skills-smoke.py "$PWD" "$AAI_HERMES_SOURCE"

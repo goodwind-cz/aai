@@ -9,7 +9,18 @@ import subprocess
 import sys
 import tempfile
 
-repo, hermes = (Path(p).resolve() for p in sys.argv[1:])
+repo, hermes = (Path(p).resolve() for p in sys.argv[1:3])
+# Attest Git-visible source state before importing any Hermes module. Normal Git
+# ignores remain effective: this does not attest ignored files or freeze the tree.
+status = subprocess.run(["git", "-C", str(hermes), "status", "--porcelain", "--untracked-files=all"],
+                        check=True, text=True, capture_output=True).stdout
+if status:
+    raise SystemExit("Hermes source is dirty (worktree, index, or nonignored untracked files):\n" + status)
+hermes_revision = subprocess.run(["git", "-C", str(hermes), "rev-parse", "HEAD"],
+                                 check=True, text=True, capture_output=True).stdout.strip()
+print(f"Hermes source preflight clean: revision={hermes_revision}; ignored files not attested", flush=True)
+if sys.argv[3:] == ["--source-check-only"]:
+    raise SystemExit(0)
 # One disposable tree, reused for every mutation. No real profile is read.
 with tempfile.TemporaryDirectory(prefix="aai-hermes-") as temporary:
     scratch = Path(temporary).resolve()
@@ -36,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix="aai-hermes-") as temporary:
         return result.stdout
 
     print(f"ref_id=hermes-agent-skill-discovery workspace={project} home={home}")
-    print(f"Hermes source={hermes} revision={run('git', '-C', str(hermes), 'rev-parse', 'HEAD').strip()}")
+    print(f"Hermes source={hermes} revision={hermes_revision}")
     print(f"runtime={sys.executable} Python={sys.version} platform={sys.platform}")
     for name in (".aai", ".claude/skills", ".agents/skills", ".codex/skills", ".gemini/skills", ".github", ".cursor", "hooks"):
         if (repo / name).exists():

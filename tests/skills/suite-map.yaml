@@ -1417,6 +1417,7 @@ suites:
       - docs/USER_GUIDE.md
       - tests/skills/lib/hermes-skills-contract.mjs
       - tests/skills/lib/hermes-skills-smoke.py
+      - tests/skills/lib/hermes-source-integrity.py
       - .aai/scripts/aai-sync.sh
       - .aai/scripts/sync-harness-skills.mjs
       - .aai/system/HARNESS_SKILLS.yaml
