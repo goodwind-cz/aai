@@ -159,8 +159,11 @@ test('TEST-2710 the CHANGELOG preamble and the product page name all eight paths
   assert.ok(!/Documentation, tests, and evidence-only changes are exempt/.test(page), 'old wholesale exemption remains');
   const finishPage = fs.readFileSync(path.join(root, 'docs/product/release-command-finish.md'), 'utf8');
   assert.match(finishPage, /superseded cancelled (workflow )?run/i);
-  assert.match(changelog, /^## \[unreleased\] — fix: .*watch-ci-cancelled-runs-and-release-gate-docs/m);
-  const entry = changelog.split(/^## /m).find(s => s.startsWith('[unreleased] — fix: ') && s.includes('watch-ci-cancelled-runs-and-release-gate-docs')) || '';
+  // The release dry-run rehearses this test on a rolled CHANGELOG, where
+  // `[unreleased]` has become the version label; accept either heading.
+  const heading = /^## \[(?:unreleased|v[^\]]+)\] — fix: .*watch-ci-cancelled-runs-and-release-gate-docs/m;
+  assert.match(changelog, heading);
+  const entry = changelog.split(/^## /m).find(s => /^\[(?:unreleased|v[^\]]+)\] — fix: /.test(s) && s.includes('watch-ci-cancelled-runs-and-release-gate-docs')) || '';
   assert.match(entry, /watch-ci/);
   assert.match(entry, /release[- ]notes gate/i);
 });

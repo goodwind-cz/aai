@@ -807,7 +807,7 @@ named skip. No-remote skips remote completion; repositories without
 `release.yml` receive a manual-tagging skip. The client never publishes tags
 or releases directly.
 
-**Release notes for pull requests:** `release-notes-gate.mjs` requires a shipped-surface change to add nonempty rollable unreleased notes, or to include `no-notes: <reason>` in the PR body. The user guide (`docs/USER_GUIDE.md`) and the product pages (`docs/product/`) count as shipped; other docs, the changelog and test-only changes are exempt. Old unchanged notes, empty scaffolds, and blank reasons do not pass. `/aai-pr` runs the gate on the staged patch and the final proposed body. CI checks the PR commit range and body as data. An operator may mark the `release notes` job required. AAI does not change branch protection.
+**Release notes for pull requests:** `release-notes-gate.mjs` requires a shipped-surface change to add nonempty rollable unreleased notes, or to include `no-notes: <reason>` in the PR body. User-facing documentation counts as shipped: `README.md`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `SKILLS.md`, the user guide (`docs/USER_GUIDE.md`) and the product pages (`docs/product/`); other docs, the changelog and test-only changes are exempt. Old unchanged notes, empty scaffolds, and blank reasons do not pass. `/aai-pr` runs the gate on the staged patch and the final proposed body. CI checks the PR commit range and body as data. An operator may mark the `release notes` job required. AAI does not change branch protection.
 
 ---
 
