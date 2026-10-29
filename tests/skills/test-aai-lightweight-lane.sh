@@ -321,9 +321,9 @@ docs/INDEX.md"
   out="$(printf '%s\n' "$diff" | node "$selector" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
   assert_payload_line_not_matches "$out" '^FULL_RUN' "docs-only close diff must NOT trigger FULL_RUN: $out"
   assert_payload_has_line "$out" "CORE aai-docs-content reason=core" \
-    "docs-only close diff must route to the CORE aai-docs-content suite"
+    "TEST-2303: docs-only close diff must route to the CORE aai-docs-content suite"
   assert_payload_line_not_matches "$out" 'aai-docs-audit' \
-    "docs-only close diff must not select the engine suite aai-docs-audit: $out"
+    "TEST-2303: docs-only close diff must not select the engine suite aai-docs-audit: $out"
   log_pass "docs-only close-commit diff stays CORE-only, never FULL_RUN (TEST-017)"
 }
 

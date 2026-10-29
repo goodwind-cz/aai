@@ -541,7 +541,7 @@ test_006_skill_pr() {
 test_007_seam_survival() {
   log_info "TEST-007: delta-stage1 + delta-stage2 + spec-lint + docs-audit are declared companions; strict repo audit CLEAN (int)..."
   assert_companions aai-delta-stage3 aai-delta-stage1 aai-delta-stage2 aai-spec-lint aai-docs-audit \
-    || log_fail "TEST-007 (plan row TEST-007): sibling suites must be selected with aai-delta-stage3"
+    || log_fail "TEST-007 (plan row TEST-2312): sibling suites must be selected with aai-delta-stage3"
   (cd "$PROJECT_ROOT" && node .aai/scripts/docs-audit.mjs --check --strict --no-event >/dev/null 2>&1) \
     || log_fail "TEST-007: repo-wide strict audit must stay CLEAN (empty canonical -> no false positive)"
   log_pass "TEST-007: sibling suites selected with this one; strict audit CLEAN over the real (empty-canonical) repo"
