@@ -8494,9 +8494,13 @@ if (profile !== null) {
   if (names.size !== rows.length) findings.push('profile lists a function twice');
   if (rows.length !== EXPECTED_ROWS) findings.push(`profile has ${rows.length} rows, expected ${EXPECTED_ROWS}`);
   const mig = migration || '';
+  // docs-audit-content-engine-split D4 moved these five --gate-only cases to
+  // tests/skills/lib/docs-audit-gate.test.mjs; their owners are recorded in
+  // docs/analysis/docs-audit-content-engine-split.md (migration map G1 to G5, TEST-2309).
+  const movedBySplit = new Set(['test_l1gate_missing_justification', 'test_l1gate_garbage_level_fail_closed', 'test_l1gate_pipe_drop_reconciled', 'test_gateac_canonical_pipe_drop_reconciled', 'test_gateac_lean_volunteering_full_table']);
   for (const r of rows) {
     const defined = new RegExp('^' + r.name + '\\(\\) \\{', 'm').test(suite);
-    if (!defined && !mig.includes('`' + r.name + '`')) findings.push(`profile function ${r.name} is neither defined nor in the migration map`);
+    if (!defined && !movedBySplit.has(r.name) && !mig.includes('`' + r.name + '`')) findings.push(`profile function ${r.name} is neither defined nor in the migration map`);
   }
   const m = text.match(/^Profiled total \(pass 1\): (\d+(?:\.\d+)?) s$/m);
   if (!m) findings.push('no "Profiled total (pass 1): <seconds> s" line');
@@ -8689,6 +8693,173 @@ docs_audit_fn_body() {  # $1 = function name
     on { print }
     on && /^}/ { on = 0 }
   ' "$SUITE_FILE"
+}
+
+# Shared by TEST-2301 and TEST-2309: the split note parser (one Node script, mode argument).
+split_note_path() { printf '%s' "$PROJECT_ROOT/docs/analysis/docs-audit-content-engine-split.md"; }
+
+write_split_note_parser() {  # writes $TEST_DIR/split-note.mjs
+  [[ -n "${TEST_DIR:-}" ]] || TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-test.XXXXXX")"
+  cat > "$TEST_DIR/split-note.mjs" <<'EOF'
+import fs from 'node:fs';
+const [mode, notePath, ...rest] = process.argv.slice(2);
+const text = fs.readFileSync(notePath, 'utf8');
+const findings = [];
+const section = (name) => {
+  const m = text.match(new RegExp('^## ' + name + '[^\\n]*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))', 'm'));
+  return m ? m[1] : null;
+};
+const tableRows = (body) => body.split('\n').filter((l) => l.startsWith('|'))
+  .map((l) => l.replace(/^\||\|$/g, '').split('|').map((c) => c.trim()));
+const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+const lines = (f) => fs.readFileSync(f, 'utf8').split('\n').filter(Boolean);
+const stated = (body, label) => {
+  const m = body.match(new RegExp('^' + label + ': (\\d+(?:\\.\\d+)?)( s)?$', 'm'));
+  return m ? Number(m[1]) : null;
+};
+const pairs = (body, header, cols) => {
+  const all = tableRows(body);
+  if ((all[0] || []).join('|') !== header) findings.push(`pair header is "${(all[0] || []).join(' | ')}", expected "${header.split('|').join(' | ')}"`);
+  const rows = all.slice(2);
+  if (rows.length !== 5) findings.push(`expected exactly 5 pair rows, found ${rows.length}`);
+  const out = cols.map((c) => rows.map((r) => Number(r[c])));
+  if (out.flat().some((x) => !Number.isFinite(x) || x <= 0)) findings.push('a pair row carries a non-numeric or non-positive duration');
+  return out;
+};
+const check = (body, label, want, tol) => {
+  const v = stated(body, label);
+  if (v === null) findings.push(`no "${label}: <value>" line`);
+  else if (Math.abs(v - want) > tol) findings.push(`${label} ${v} differs from the recomputed ${want}`);
+  return v;
+};
+if (mode === 'inventory') {
+  const [baseF, contentF, nodeF] = rest;
+  const base = lines(baseF), content = new Set(lines(contentF)), node = new Set(lines(nodeF));
+  const inv = section('Case inventory');
+  if (inv === null) findings.push('no "## Case inventory" section');
+  else {
+    const all = tableRows(inv);
+    if ((all[0] || []).join('|') !== 'Function|Class|Owner') findings.push(`inventory header is "${(all[0] || []).join(' | ')}"`);
+    const rows = all.slice(2);
+    const names = rows.map((r) => r[0]);
+    if (rows.length !== base.length) findings.push(`inventory has ${rows.length} rows, baseline main has ${base.length}`);
+    if (new Set(names).size !== names.length) findings.push('inventory names a function twice');
+    const missing = base.filter((n) => !names.includes(n));
+    const extra = names.filter((n) => !base.includes(n));
+    if (missing.length) findings.push(`inventory misses ${missing.slice(0, 3).join(' ')}`);
+    if (extra.length) findings.push(`inventory has non-baseline rows ${extra.slice(0, 3).join(' ')}`);
+    for (const r of rows) {
+      const want = node.has(r[0]) ? 'node' : content.has(r[0]) ? 'content' : 'engine';
+      if (!['content', 'engine', 'node'].includes(r[1])) findings.push(`${r[0]} has class "${r[1]}"`);
+      else if (r[1] !== want) findings.push(`${r[0]} is classed ${r[1]} but its registration says ${want}`);
+      if (!r[2]) findings.push(`${r[0]} has no owner`);
+    }
+    console.log(`inventory_rows=${rows.length}`);
+  }
+  const m = section('Paired measurement');
+  if (m === null) findings.push('no "## Paired measurement" section');
+  else {
+    const [bef, eng, con] = pairs(m, 'Pair|Order|Before s|Engine s|Content s', [2, 3, 4]);
+    const bm = median(bef), em = median(eng), cm = median(con);
+    check(m, 'Before median', bm, 0.05); check(m, 'Before worst', Math.max(...bef), 0.05);
+    check(m, 'Engine median', em, 0.05); check(m, 'Engine worst', Math.max(...eng), 0.05);
+    check(m, 'Content median', cm, 0.05); check(m, 'Content worst', Math.max(...con), 0.05);
+    const ratio = Math.round((cm / bm) * 100) / 100;
+    const sr = check(m, 'Content ratio', ratio, 0.01);
+    if (sr !== null && sr > 0.40) findings.push(`Content ratio ${sr} is above 0.40`);
+    console.log(`before_median=${bm} engine_median=${em} content_median=${cm} ratio=${ratio}`);
+  }
+} else if (mode === 'gate') {
+  const [suiteF, nodeF] = rest;
+  const suite = fs.readFileSync(suiteF, 'utf8'), nodeSrc = fs.readFileSync(nodeF, 'utf8');
+  const g = section('Gate batch measurement');
+  if (g === null) findings.push('no "## Gate batch measurement" section');
+  else {
+    const tables = g.split(/\n\s*\n/).filter((b) => b.trimStart().startsWith('|'));
+    const pairTable = tables.find((b) => b.includes('Gate before s'));
+    const mapTable = tables.find((b) => b.includes('Removed Bash function'));
+    if (!pairTable) findings.push('no gate pair table');
+    else {
+      const [bef, aft] = pairs(pairTable, 'Pair|Order|Gate before s|Gate after s', [2, 3]);
+      const bm = median(bef), am = median(aft);
+      check(g, 'Gate before median', bm, 0.05); check(g, 'Gate after median', am, 0.05);
+      const ratio = Math.round((am / bm) * 100) / 100;
+      const sr = check(g, 'Gate ratio', ratio, 0.01);
+      if (sr !== null && sr > 0.50) findings.push(`Gate ratio ${sr} is above 0.50`);
+      console.log(`gate_before=${bm} gate_after=${am} ratio=${ratio}`);
+    }
+    if (!mapTable) findings.push('no migration map table');
+    else {
+      const rows = tableRows(mapTable).slice(2);
+      if (rows.length !== 5) findings.push(`migration map has ${rows.length} rows, expected 5`);
+      ['G1', 'G2', 'G3', 'G4', 'G5'].forEach((id, i) => {
+        const r = rows[i];
+        if (!r || r[0] !== id) { findings.push(`migration map row ${i + 1} is not ${id}`); return; }
+        const fn = r[1].replace(/`/g, '');
+        if (!/^test_[a-z0-9_]+$/.test(fn)) findings.push(`${id} names no removed Bash function`);
+        else if (suite.includes(`\n${fn}() {`) || new RegExp(`^  ${fn}$`, 'm').test(suite)) findings.push(`${id} names ${fn}, which is still defined or registered`);
+        if (!nodeSrc.includes(`test('${id} `)) findings.push(`${id} has no Node case in docs-audit-gate.test.mjs`);
+        if (!r[2]) findings.push(`${id} names no Node case`);
+      });
+    }
+  }
+}
+for (const f of findings) console.log(`FINDING: ${f}`);
+process.exit(findings.length ? 1 : 0);
+EOF
+}
+
+test_2301_split_note_inventory() {  # TEST-2301 / Spec-AC-01
+  log_info "Test: the split note inventories all 195 baseline main entries and its paired medians recompute (TEST-2301)..."
+  local base="c3e706e71e16ef041269002b08634bdae8612d02" note out rc=0
+  note="$(split_note_path)"
+  git -C "$PROJECT_ROOT" cat-file -e "${base}^{commit}" 2>/dev/null \
+    || log_fail "TEST-2301: baseline commit $base is absent from this checkout (full history required)"
+  [[ -f "$note" ]] || log_fail "TEST-2301: $note does not exist"
+  write_split_note_parser
+  git -C "$PROJECT_ROOT" show "$base:tests/skills/test-aai-docs-audit.sh" | docs_audit_main_names > "$TEST_DIR/t2301-base.txt"
+  printf '%s\n' $DOCS_AUDIT_CONTENT_CASES > "$TEST_DIR/t2301-content.txt"
+  printf '%s\n' test_l1gate_missing_justification test_l1gate_garbage_level_fail_closed test_l1gate_pipe_drop_reconciled test_gateac_canonical_pipe_drop_reconciled test_gateac_lean_volunteering_full_table > "$TEST_DIR/t2301-node.txt"
+  out="$(node "$TEST_DIR/split-note.mjs" inventory "$note" "$TEST_DIR/t2301-base.txt" "$TEST_DIR/t2301-content.txt" "$TEST_DIR/t2301-node.txt" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-2301: the split note is inconsistent: $(payload_preview "$out")"
+  log_pass "Split note inventory and paired measurement recompute: $(printf '%s' "$out" | tr '\n' ' ') (TEST-2301)"
+}
+
+test_2309_gate_batch_measurement() {  # TEST-2309 / Spec-AC-06
+  log_info "Test: the gate batch measurement recomputes and G1 to G5 name a removed function and a Node case (TEST-2309)..."
+  local note out rc=0
+  note="$(split_note_path)"
+  [[ -f "$note" ]] || log_fail "TEST-2309: $note does not exist"
+  write_split_note_parser
+  out="$(node "$TEST_DIR/split-note.mjs" gate "$note" "$SUITE_FILE" "$PROJECT_ROOT/tests/skills/lib/docs-audit-gate.test.mjs" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-2309: the gate batch measurement is inconsistent: $(payload_preview "$out")"
+  log_pass "Gate batch measurement recomputes: $(printf '%s' "$out" | tr '\n' ' ') (TEST-2309)"
+}
+
+test_2310_rfc0017_rollout_rows() {  # TEST-2310 / Spec-AC-07
+  log_info "Test: RFC-0017 Rollout Status phase 2 is done and linked, phase 4 links CHANGE-0228, frontmatter unchanged (TEST-2310)..."
+  local rfc="$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md" row2 row4 status2 fm
+  [[ -f "$rfc" ]] || log_fail "TEST-2310: $rfc does not exist"
+  row2="$(awk '/^\| 2 \|/ { print; exit }' "$rfc")"
+  row4="$(awk '/^\| 4 \|/ { print; exit }' "$rfc")"
+  [[ -n "$row2" ]] || log_fail "TEST-2310: no phase 2 row in the Rollout Status table"
+  [[ -n "$row4" ]] || log_fail "TEST-2310: no phase 4 row in the Rollout Status table"
+  status2="$(awk -F'|' '{ gsub(/^ +| +$/, "", $4); print $4 }' <<<"$row2")"
+  [[ "$status2" == "done" ]] || log_fail "TEST-2310: phase 2 status is '$status2', expected 'done'"
+  grep -qE '\(\.\./issues/CHANGE-(DRAFT|[0-9]{4})-docs-audit-content-engine-split\.md\)' <<<"$row2" \
+    || log_fail "TEST-2310: phase 2 row does not link this change's intake (docs-audit-content-engine-split)"
+  grep -qF '(../analysis/docs-audit-content-engine-split.md)' <<<"$row2" \
+    || log_fail "TEST-2310: phase 2 row does not link the split note"
+  grep -qF '(../issues/CHANGE-0228-provider-adapter-registry-slice.md)' <<<"$row4" \
+    || log_fail "TEST-2310: phase 4 row does not link CHANGE-0228"
+  [[ -f "$PROJECT_ROOT/docs/issues/CHANGE-0228-provider-adapter-registry-slice.md" ]] \
+    || log_fail "TEST-2310: the CHANGE-0228 link target does not exist"
+  [[ -f "$PROJECT_ROOT/docs/analysis/docs-audit-content-engine-split.md" ]] \
+    || log_fail "TEST-2310: the split note link target does not exist"
+  fm="$(awk 'NR == 1 && $0 == "---" { on = 1; next } on && $0 == "---" { exit } on { print }' "$rfc")"
+  grep -qxF 'status: implementing' <<<"$fm" || log_fail "TEST-2310: RFC-0017 frontmatter must keep status: implementing"
+  grep -qxF 'umbrella: true' <<<"$fm" || log_fail "TEST-2310: RFC-0017 frontmatter must keep umbrella: true"
+  log_pass "RFC-0017 phase 2 done with intake and note links, phase 4 links CHANGE-0228, frontmatter implementing and umbrella (TEST-2310)"
 }
 
 test_2308_gate_node() {  # TEST-2308 / Spec-AC-06
@@ -8995,6 +9166,8 @@ main() {
   test_2306_engine_input_closure
   test_2307_case_inventory_partition
   test_2308_gate_node
+  test_2301_split_note_inventory
+  test_2309_gate_batch_measurement
   test_2304_content_suite_fails_on_planted_orphan
   echo ""
   log_pass "All $TEST_NAME tests passed"

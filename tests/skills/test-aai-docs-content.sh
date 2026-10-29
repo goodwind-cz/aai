@@ -27,6 +27,9 @@ main_content() {
   for fn in $DOCS_AUDIT_CONTENT_CASES; do
     "$fn"
   done
+  # Registered here, not in the list: the list is the partition TEST-2307 compares
+  # with the baseline main, and this case did not exist at the baseline.
+  test_2310_rfc0017_rollout_rows
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

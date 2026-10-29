@@ -29,6 +29,8 @@ framework still runs — on every push to `main`, every night, and on demand
 via a `ci-full` label — so the safety net moves later in the pipeline
 instead of disappearing.
 
+The docs-audit checks are split in two. `aai-docs-content` is the always-on half: the cases that read the repository's own `docs/` corpus as their subject, so a document-only change can fail it. `aai-docs-audit` is the engine regression half and runs only when an audit input changes (the script, its library, its config, the generator, the skill prompt or the suite files themselves).
+
 The selector is deliberately cautious: it never tries to narrow coverage on
 a path it can't confidently classify. Any changed path that isn't mapped to
 a suite, that touches shared library code (`.aai/scripts/lib/**`), or that
