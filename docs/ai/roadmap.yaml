@@ -116,6 +116,8 @@ pairs:
     status: done
   - capability: hermes-agent-skill-discovery
     status: done
+  - capability: docs-audit-content-engine-split
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

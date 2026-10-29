@@ -3425,3 +3425,4 @@
 {"v":1,"ts":"2026-10-29T00:08:56Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"hermes-agent-skill-discovery","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-29T00:08:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-hermes-agent-skill-discovery","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-29T00:08:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-hermes-agent-skill-discovery","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-29T13:47:17Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-docs-audit-content-engine-split","payload":{"from":"draft","to":"implementing"}}
