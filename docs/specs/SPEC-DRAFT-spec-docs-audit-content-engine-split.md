@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: ba1f7afe83402b5e7ce4bb64937df5f4345e77c03c6fe004acdb801f3323e08e
+frozen_sha256: e55be56329aa1918bfc225f39294d591ff3396f919b41be89cfa349458c94745
 ceremony_level: 2
 links:
   requirement: docs-audit-content-engine-split
@@ -421,7 +421,7 @@ Registry items closed by this scope: none
 
 ## Amendment 1 (post-freeze, additive-with-disclosure, no owner sign-off obtained)
 
-Implementation outgrew the literal text of this frozen spec in thirteen places (A1-a to A1-m). The
+Implementation outgrew the literal text of this frozen spec in fourteen places (A1-a to A1-n). The
 original text above is kept; where it differs, this section governs. The owner
 may accept or reverse it at merge.
 
@@ -494,3 +494,13 @@ may accept or reverse it at merge.
   (TEST-2623) and `tests/skills/lib/recheck.test.mjs` (TEST-2716 and TEST-2825) pinned
   that row as `in progress`; each now pins `done`, nothing else in them changed. Read the
   "Not touched" list with this exception too. Validation r2 finding F-R2-B1.
+
+- A1-n. Disclosure: `tests/skills/suite-map.yaml` was edited outside the original file list.
+  The `aai-docs-audit` engine row no longer lists `CHANGELOG.md`, `README.md`,
+  `docs/project-sessions/**` and `docs/TECHNOLOGY.md` (no engine case reads them from the real
+  tree; the one `docs/TECHNOLOGY.md` hit in the engine suite is a temporary fixture), so a
+  pull request touching only those paths no longer pays the engine suite. `docs/project-sessions/**`
+  moved to the `aai-docs-content` row (it matched no other suite, so removal alone would have
+  FULL_RUN); the other three still select their own suites. `tests/skills/test-aai-suite-select.sh`
+  gained TEST-2302b asserting no engine selection and no FULL_RUN for the four paths. Owner
+  standing decision: a hazard introduced by the feature gets one more round. Validation r2 finding NB-2.

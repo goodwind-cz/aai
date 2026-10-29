@@ -351,6 +351,7 @@ suites:
       - docs/releases/**
       - docs/INDEX.md
       - docs/ai/EVENTS.jsonl
+      - docs/project-sessions/**
 
   aai-docs-audit:
     globs:
@@ -374,10 +375,6 @@ suites:
       - tests/skills/test-aai-docs-content.sh
       - tests/skills/lib/docs-audit-gate.test.mjs
       - docs/analysis/docs-audit-content-engine-split.md
-      - CHANGELOG.md
-      - README.md
-      - docs/project-sessions/**
-      - docs/TECHNOLOGY.md
       # Input closure (TEST-2306): real-tree files engine cases read.
       - .aai/ROLE_COMMON.md
       - .aai/scripts/spec-lint.mjs

@@ -2180,6 +2180,19 @@ test_2302_doc_only_selects_content_not_engine() {  # Spec-AC-02 / TEST-2302
   log_pass "document-only diff selects content, not engine (TEST-2302)"
 }
 
+test_2302b_shared_docs_paths_skip_engine() {  # A1-n / TEST-2302b
+  log_info "Test: session journal / CHANGELOG / README / TECHNOLOGY never select the engine nor FULL_RUN (TEST-2302b)..."
+  local p out
+  for p in "docs/project-sessions/x.md" "CHANGELOG.md" "README.md" "docs/TECHNOLOGY.md"; do
+    out="$(printf '%s\n' "$p" | node "$SELECTOR" --repo-root "$PROJECT_ROOT" --files-from - 2>&1)"
+    assert_payload_line_not_matches "$out" 'SELECTED aai-docs-audit' \
+      "TEST-2302b: $p must not select the engine suite aai-docs-audit: $out"
+    assert_payload_line_not_matches "$out" '^FULL_RUN' \
+      "TEST-2302b: $p must not FULL_RUN: $out"
+  done
+  log_pass "shared docs paths skip the engine without FULL_RUN (TEST-2302b)"
+}
+
 test_2305_engine_inputs_select_engine() {  # Spec-AC-04 / TEST-2305
   log_info "Test: every engine input selects aai-docs-audit or FULL_RUN; a non-engine path does not (TEST-2305)..."
   local p out
@@ -2307,6 +2320,7 @@ main() {
   test_1761_leg_walls_bound
   test_1762_learned_history_selects_its_readers
   test_2302_doc_only_selects_content_not_engine
+  test_2302b_shared_docs_paths_skip_engine
   test_2305_engine_inputs_select_engine
   test_2311_core_list_weights_product_doc
   echo ""
