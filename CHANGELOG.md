@@ -24,7 +24,7 @@ fine — it is the marker a cut leaves on top.
 
 ## [unreleased] — test(ci): split always-on document-content checks from docs-audit engine regression (docs-audit-content-engine-split)
 
-- A document-only pull request now runs the new always-on `aai-docs-content` suite (the 24 docs-audit cases that read the repository's own `docs/` corpus, 40.7 s median) instead of the whole `aai-docs-audit` suite (144.8 s median, Content ratio 0.28); `aai-docs-audit` runs when an audit input changes. Five `--gate`-only cases moved to `node:test` over `gateDoc` (Gate ratio 0.07). Measurement note: `docs/analysis/docs-audit-content-engine-split.md`; intake: `docs/issues/CHANGE-DRAFT-docs-audit-content-engine-split.md`. No production code changed; RFC-0017 phase 2 is done.
+- A document-only pull request now runs the new always-on `aai-docs-content` suite (the 24 docs-audit cases that read the repository's own `docs/` corpus, 40.7 s median) instead of the whole `aai-docs-audit` suite (144.8 s median, Content ratio 0.28); `aai-docs-audit` runs when an audit input changes. Five `--gate`-only cases moved to `node:test` over `gateDoc` (Gate ratio 0.07). Measurement note: `docs/analysis/docs-audit-content-engine-split.md`; intake: `docs/issues/CHANGE-0235-docs-audit-content-engine-split.md`. No production code changed; RFC-0017 phase 2 is done.
 
 ## [unreleased] — docs(hermes): AAI skills in Hermes Agent (hermes-agent-skill-discovery)
 

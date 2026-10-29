@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-29T00:29:23.711Z",
+  "generatedAt": "2026-10-29T18:59:53.950Z",
   "project": "aai",
   "counts": {
-    "delivered": 329,
+    "delivered": 330,
     "in_progress": 17,
     "releases": 1,
-    "tokens_total": 79482147
+    "tokens_total": 81358217
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0259-spec-hermes-agent-skill-discovery.md",
       "validation": null,
       "review": "docs/ai/reviews/review-hermes-agent-skill-discovery-20261029T002840Z.md"
+    },
+    {
+      "ref": "docs-audit-content-engine-split",
+      "title": "Split always-on document-content checks from docs-audit engine regression in CI",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0235-docs-audit-content-engine-split.md",
+      "closed_on": "2026-10-29",
+      "agent_minutes": 317,
+      "token_total": 1876070,
+      "spec": "docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-docs-audit-content-engine-split-r2-20261029T180433Z.md"
     },
     {
       "ref": "release-rollup-dry-run",
@@ -4550,6 +4563,19 @@
           "spec": "docs/specs/SPEC-0259-spec-hermes-agent-skill-discovery.md",
           "validation": null,
           "review": "docs/ai/reviews/review-hermes-agent-skill-discovery-20261029T002840Z.md"
+        },
+        {
+          "ref": "docs-audit-content-engine-split",
+          "title": "Split always-on document-content checks from docs-audit engine regression in CI",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0235-docs-audit-content-engine-split.md",
+          "closed_on": "2026-10-29",
+          "agent_minutes": 317,
+          "token_total": 1876070,
+          "spec": "docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-docs-audit-content-engine-split-r2-20261029T180433Z.md"
         },
         {
           "ref": "release-rollup-dry-run",

@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: git diff main...HEAD (base main, head ff8a6311, branch chore/docs-audit-content-engine-split)
-  spec: docs/specs/SPEC-DRAFT-spec-docs-audit-content-engine-split.md (frozen + Amendment 1)
+  spec: docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md (frozen + Amendment 1)
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -38,7 +38,7 @@ review:
 security_relevant: false
 
 - Scope: `git diff main...HEAD` in the worktree /Users/ales/Projects/aai-wt-docs-audit-split (21 files). STATE `worktree.user_decision: worktree`, base `main`. The only working-tree change is a pre-existing `M docs/ai/EVENTS.jsonl` that is not part of the review; my runs left its bytes unchanged.
-- Spec: docs/specs/SPEC-DRAFT-spec-docs-audit-content-engine-split.md (frozen, plus Amendment 1 A1-a to A1-j).
+- Spec: docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md (frozen, plus Amendment 1 A1-a to A1-j).
 - Dispatch note (anti-gaming contract): the dispatch named focus areas and passed on the validator's findings F1 to F5. I recorded this, reviewed the full scope anyway, and reached my own findings independently. My finding F1 below overlaps with the validator's F1. The rest come from this review.
 
 ## AC table walk

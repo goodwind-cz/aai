@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: git diff main...HEAD (base main, head dc25add4, branch chore/docs-audit-content-engine-split)
-  spec: docs/specs/SPEC-DRAFT-spec-docs-audit-content-engine-split.md (frozen + Amendment 1, A1-a to A1-m)
+  spec: docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md (frozen + Amendment 1, A1-a to A1-m)
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -38,7 +38,7 @@ review:
 security_relevant: false
 
 - Scope: `git diff main...HEAD` in /Users/ales/Projects/aai-wt-docs-audit-split, head dc25add4 (24 files). STATE `worktree.user_decision: worktree`, base `main`. I reviewed the whole diff, not only the remediation delta 622a599d and dc25add4.
-- Spec: docs/specs/SPEC-DRAFT-spec-docs-audit-content-engine-split.md (frozen, Amendment 1 A1-a to A1-m). spec-lint: LINT PASS. mutation-gate: GATE PASS, 12 rows. `spec-amend list --strict`: rc 0, with five unsigned-tracked records under fu-amend-docs-audit-content-engine-split.
+- Spec: docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md (frozen, Amendment 1 A1-a to A1-m). spec-lint: LINT PASS. mutation-gate: GATE PASS, 12 rows. `spec-amend list --strict`: rc 0, with five unsigned-tracked records under fu-amend-docs-audit-content-engine-split.
 - Dispatch note (anti-gaming contract): the dispatch named r1's findings and the remediation commits, and it suggested defect classes to look for. It also said in advance that F-N1 is "intentionally not changed". I recorded this and reviewed the full scope with my own probes.
 - Working-tree note: `docs/ai/EVENTS.jsonl` was already modified when I started. During this review, `docs/ai/overview-data.json` and `docs/ai/overview.html` were regenerated at 18:01:56Z. Their content is an overview refresh that adds this ride's in-progress row, which is not what a test writes, and every wrapper run reported `AAI-ISOLATION: isolated`. They look like a hook or orchestrator refresh, not output of my runs. I did not touch, stage or restore them. The orchestrator should decide whether they belong in the ride.
 
