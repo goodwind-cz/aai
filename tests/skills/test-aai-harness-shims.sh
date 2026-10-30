@@ -125,6 +125,7 @@ mk_root() {
     mkdir -p "$dir/$t"
     cp -R "$PROJECT_ROOT/$t/." "$dir/$t/"
   done
+  cp "$PROJECT_ROOT/SKILLS.md" "$dir/SKILLS.md"  # the manifest's catalog: section needs the file
   for f in "${SHIMS[@]}"; do
     if [[ -f "$PROJECT_ROOT/$f" ]]; then
       mkdir -p "$dir/$(dirname "$f")"
@@ -732,6 +733,193 @@ test_3014_profiles_caps_followups() {
   log_pass "TEST-3014 PROFILES rows, line caps and the two follow-ups hold"
 }
 
+# --- TEST-3130..3134: SKILLS.md Quick Reference catalog (SPEC provider-adapter-surfaces-closing-slice D1-D3) ---
+CAT_BASE="34b44269"
+
+# mk_cat_root <dir> <with-catalog 1|0> — a three-wrapper scratch root whose mirrors are already generated.
+# aai-alpha has a prompt file, aai-beta has a prompt file, aai-gamma only a node command in its body.
+mk_cat_root() {
+  local dir="$1" withcat="$2" n
+  [[ -n "$dir" && "$dir" == /* ]] || log_fail "mk_cat_root: destination is empty or relative: [$dir]"
+  rm -rf "$dir"
+  mkdir -p "$dir/.aai/system" "$dir/.claude/skills"
+  {
+    printf 'trees:\n  - .agents/skills|carry|no\n  - .codex/skills|drop|yes\n  - .gemini/skills|drop|yes\n\nexclusions:\n'
+  } > "$dir/.aai/system/HARNESS_SKILLS.yaml"
+  for n in alpha beta gamma; do
+    mkdir -p "$dir/.claude/skills/aai-$n"
+    printf -- '---\nname: aai-%s\ndescription: Does the %s thing\n---\n\nBody of %s.\n' "$n" "$n" "$n" > "$dir/.claude/skills/aai-$n/SKILL.md"
+  done
+  printf '\nRun `node .aai/scripts/gen-gamma.mjs` first.\n' >> "$dir/.claude/skills/aai-gamma/SKILL.md"
+  printf 'x\n' > "$dir/.aai/SKILL_ALPHA.prompt.md"
+  printf 'x\n' > "$dir/.aai/SKILL_BETA.prompt.md"
+  gen "$dir" --write
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "mk_cat_root: mirror generation failed: $GEN_OUT"
+  # the catalog section is added after the mirrors exist, so this helper never depends on catalog support
+  if [[ "$withcat" == 1 ]]; then printf '\ncatalog:\n  - SKILLS.md|## Quick Reference\n' >> "$dir/.aai/system/HARNESS_SKILLS.yaml"; fi
+}
+
+# cat_md <dest> <row-names...> — a SKILLS.md with a Quick Reference table holding hand-written rows for the names.
+cat_md() {
+  local dest="$1" n; shift
+  {
+    printf '# Skills\n\n## Quick Reference\n\nintro\n\n| Skill | Description | Claude | Codex / Gemini |\n|-------|-------------|--------|----------------|\n'
+    for n in "$@"; do printf '| %s | hand text for %s | `/%s` | hand codex |\n' "$n" "$n" "$n"; done
+    printf '\n## Skills in Detail\n\n### aai-alpha\n'
+  } > "$dest"
+}
+
+test_3130_catalog_check_reports_each_divergence() {
+  log_info "TEST-3130: --check lists each missing and orphan Quick Reference row, prints OK, stays silent without the section..."
+  local root="$TMP_ROOT/t3130" n
+  mk_cat_root "$root" 1
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 1 ]] || log_fail "TEST-3130: a missing row must exit 1, got $GEN_RC: $GEN_OUT"
+  n="$(count_lines_starting "$GEN_OUT" 'DIVERGE catalog ')"
+  [[ "$n" -eq 1 && "$GEN_OUT" == *'DIVERGE catalog SKILLS.md: missing row aai-gamma'* ]] \
+    || log_fail "TEST-3130: want exactly one 'missing row aai-gamma' line, got $n: $GEN_OUT"
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta aai-gamma aai-zeta
+  gen "$root" --check
+  n="$(count_lines_starting "$GEN_OUT" 'DIVERGE catalog ')"
+  [[ "$GEN_RC" -eq 1 && "$n" -eq 1 && "$GEN_OUT" == *'DIVERGE catalog SKILLS.md: orphan row aai-zeta'* ]] \
+    || log_fail "TEST-3130: want exactly one 'orphan row aai-zeta' line and exit 1, got rc=$GEN_RC n=$n: $GEN_OUT"
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta aai-gamma
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" == *'OK: 3 skill(s) listed in the SKILLS.md Quick Reference'* ]] \
+    || log_fail "TEST-3130: a matching root must exit 0 with the OK line naming 3, got rc=$GEN_RC: $GEN_OUT"
+  # negative control: no catalog section means no catalog line, whatever SKILLS.md holds
+  mk_cat_root "$root" 0
+  cat_md "$root/SKILLS.md" aai-alpha
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" != *catalog* ]] || log_fail "TEST-3130: no catalog section must print no catalog line, got rc=$GEN_RC: $GEN_OUT"
+  # structural errors exit 2 naming the offender
+  mk_cat_root "$root" 1
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *SKILLS.md* ]] || log_fail "TEST-3130: a declared but absent SKILLS.md must exit 2 naming it, got rc=$GEN_RC: $GEN_OUT"
+  printf '# Skills\n\nno table here\n' > "$root/SKILLS.md"
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'## Quick Reference'* ]] || log_fail "TEST-3130: an absent heading must exit 2 naming it, got rc=$GEN_RC: $GEN_OUT"
+  log_pass "TEST-3130 catalog check reports missing and orphan rows, OK line, no-section silence, exit 2 on structure"
+}
+
+test_3131_catalog_write_renders_rows() {
+  log_info "TEST-3131: --write appends the D2 rows, drops orphans, keeps old rows byte-equal and is idempotent..."
+  local root="$TMP_ROOT/t3131" before after
+  mk_cat_root "$root" 1
+  cat_md "$root/SKILLS.md" aai-alpha aai-zeta
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3131: --write failed rc=$GEN_RC: $GEN_OUT"
+  {
+    printf '# Skills\n\n## Quick Reference\n\nintro\n\n| Skill | Description | Claude | Codex / Gemini |\n|-------|-------------|--------|----------------|\n'
+    printf '| aai-alpha | hand text for aai-alpha | `/aai-alpha` | hand codex |\n'
+    printf '| aai-beta | Does the beta thing | `/aai-beta` | `--prompt-file .aai/SKILL_BETA.prompt.md` |\n'
+    printf '| aai-gamma | Does the gamma thing | `/aai-gamma` | `node .aai/scripts/gen-gamma.mjs` |\n'
+    printf '\n## Skills in Detail\n\n### aai-alpha\n'
+  } > "$TMP_ROOT/t3131.expected"
+  cmp -s "$TMP_ROOT/t3131.expected" "$root/SKILLS.md" || log_fail "TEST-3131: SKILLS.md differs from the D2 expectation: $(diff "$TMP_ROOT/t3131.expected" "$root/SKILLS.md" | qhead -n 8)"
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3131: --check after --write must exit 0, got $GEN_RC: $GEN_OUT"
+  before="$(sha_file "$root/SKILLS.md")"
+  gen "$root" --write
+  after="$(sha_file "$root/SKILLS.md")"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3131: a second --write changed SKILLS.md"
+  # CRLF file keeps its line ending
+  cat_md "$root/SKILLS.md" aai-alpha
+  sed 's/$/\r/' "$root/SKILLS.md" > "$TMP_ROOT/t3131.crlf" && cp "$TMP_ROOT/t3131.crlf" "$root/SKILLS.md"
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3131: --write on a CRLF SKILLS.md failed: $GEN_OUT"
+  sed 's/$/\r/' "$TMP_ROOT/t3131.expected" > "$TMP_ROOT/t3131.expected.crlf"
+  cmp -s "$TMP_ROOT/t3131.expected.crlf" "$root/SKILLS.md" || log_fail "TEST-3131: a CRLF SKILLS.md must keep CRLF and gain the rows"
+  log_pass "TEST-3131 --write renders D2 rows, removes orphans, is idempotent and CRLF-preserving"
+}
+
+test_3132_catalog_write_refusals() {
+  log_info "TEST-3132: pipe description, no prompt and no command, symlinked SKILLS.md are refused with exit 2..."
+  local root="$TMP_ROOT/t3132" before after
+  mk_cat_root "$root" 1
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta
+  printf -- '---\nname: aai-gamma\ndescription: Does a|b\n---\n\nRun `node .aai/scripts/gen-gamma.mjs`.\n' > "$root/.claude/skills/aai-gamma/SKILL.md"
+  before="$(sha_file "$root/SKILLS.md")"
+  gen "$root" --write
+  after="$(sha_file "$root/SKILLS.md")"
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'aai-gamma'* && "$GEN_OUT" == *'contains a pipe'* ]] \
+    || log_fail "TEST-3132: a pipe in a description must exit 2 naming aai-gamma, got rc=$GEN_RC: $GEN_OUT"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3132: a refused --write must leave SKILLS.md byte-unchanged"
+  printf -- '---\nname: aai-gamma\ndescription: Does the gamma thing\n---\n\nNo command at all.\n' > "$root/.claude/skills/aai-gamma/SKILL.md"
+  gen "$root" --write
+  after="$(sha_file "$root/SKILLS.md")"
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'aai-gamma'* && "$GEN_OUT" == *'no node command'* ]] \
+    || log_fail "TEST-3132: no prompt and no command must exit 2 naming aai-gamma, got rc=$GEN_RC: $GEN_OUT"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3132: a refused --write must leave SKILLS.md byte-unchanged (no command)"
+  # symlinked SKILLS.md
+  mk_cat_root "$root" 1
+  cat_md "$TMP_ROOT/t3132.real.md" aai-alpha
+  ln -s "$TMP_ROOT/t3132.real.md" "$root/SKILLS.md"
+  before="$(sha_file "$TMP_ROOT/t3132.real.md")"
+  gen "$root" --write
+  after="$(sha_file "$TMP_ROOT/t3132.real.md")"
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *SKILLS.md* && "$before" == "$after" ]] \
+    || log_fail "TEST-3132: a symlinked SKILLS.md must be refused with exit 2 and the target untouched, got rc=$GEN_RC: $GEN_OUT"
+  log_pass "TEST-3132 catalog write refusals leave SKILLS.md untouched"
+}
+
+test_3133_live_catalog_lists_all_wrappers() {
+  log_info "TEST-3133: the live SKILLS.md lists all 42 wrappers once, keeps the $CAT_BASE rows, and matches --write..."
+  local root="$TMP_ROOT/t3133" w line rows n
+  env -u AAI_ROLE node "$GEN" --check > "$TMP_ROOT/t3133.out" 2>&1 && n=0 || n=$?
+  [[ "$n" -eq 0 ]] || log_fail "TEST-3133: live --check must exit 0, got $n: $(cat "$TMP_ROOT/t3133.out")"
+  grep -qF 'OK: 42 skill(s) listed in the SKILLS.md Quick Reference' "$TMP_ROOT/t3133.out" || log_fail "TEST-3133: the live OK line must name 42"
+  for w in "$PROJECT_ROOT"/.claude/skills/*/; do
+    w="$(basename "$w")"
+    n="$(grep -c "^| $w | " "$PROJECT_ROOT/SKILLS.md" || true)"
+    [[ "$n" -eq 1 ]] || log_fail "TEST-3133: $w must have exactly one Quick Reference row, found $n"
+  done
+  git -C "$PROJECT_ROOT" cat-file -e "$CAT_BASE^{commit}" 2>/dev/null || log_fail "TEST-3133: base commit $CAT_BASE is not in this clone (fetch-depth 0 needed)"
+  git -C "$PROJECT_ROOT" show "$CAT_BASE:SKILLS.md" > "$TMP_ROOT/t3133.base.md"
+  n=0
+  while IFS= read -r line; do
+    [[ "$line" == '| aai-'* ]] || continue
+    n=$((n + 1))
+    grep -qxF -- "$line" "$PROJECT_ROOT/SKILLS.md" || log_fail "TEST-3133: baseline row changed or lost: ${line:0:80}"
+  done < "$TMP_ROOT/t3133.base.md"
+  [[ "$n" -eq 37 ]] || log_fail "TEST-3133: the $CAT_BASE blob must hold 37 rows, found $n (suite bug)"
+  # the five generated rows equal what --write renders from a copy that lacks them
+  mk_root "$root"
+  cp "$PROJECT_ROOT/SKILLS.md" "$root/SKILLS.md"
+  cp "$PROJECT_ROOT"/.aai/SKILL_*.prompt.md "$root/.aai/"
+  rows="aai-factory-report aai-live aai-merge aai-release aai-roadmap"
+  for w in $rows; do sed -i.bak "/^| $w | /d" "$root/SKILLS.md"; done
+  rm -f "$root/SKILLS.md.bak"
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3133: scratch --write failed: $GEN_OUT"
+  cmp -s "$root/SKILLS.md" "$PROJECT_ROOT/SKILLS.md" || log_fail "TEST-3133: the live SKILLS.md differs from what --write renders: $(diff "$root/SKILLS.md" "$PROJECT_ROOT/SKILLS.md" | qhead -n 6)"
+  log_pass "TEST-3133 the live Quick Reference lists 42 wrappers and keeps the 37 baseline rows"
+}
+
+test_3134_catalog_wiring() {
+  log_info "TEST-3134: the selector, PROFILES core and line caps wire the catalog..."
+  local p out lines lib=".aai/scripts/lib/skills-catalog.mjs"
+  for p in SKILLS.md .claude/skills/aai-zz-new/SKILL.md "$lib"; do
+    out="$(printf '%s\n' "$p" | node "$SELECT" --files-from - --repo-root "$PROJECT_ROOT")"
+    [[ "$out" == 'FULL_RUN reason=shared-lib '* || "$out" == *'SELECTED aai-harness-shims '* ]] \
+      || log_fail "TEST-3134: $p must select aai-harness-shims, got: $out"
+  done
+  # the lib sits under lib/**, whose shared-lib rule may escalate to a full run; the two other paths must select it by name
+  for p in SKILLS.md .claude/skills/aai-zz-new/SKILL.md; do
+    out="$(printf '%s\n' "$p" | node "$SELECT" --files-from - --repo-root "$PROJECT_ROOT")"
+    [[ "$out" == *'SELECTED aai-harness-shims '* ]] || log_fail "TEST-3134: $p must select aai-harness-shims by name, got: $out"
+  done
+  grep -qxF "      - $lib" "$PROJECT_ROOT/tests/skills/suite-map.yaml" || log_fail "TEST-3134: suite-map.yaml aai-harness-shims must list $lib"
+  sed -n '/^core:/,/^extended:/p' "$PROJECT_ROOT/.aai/system/PROFILES.yaml" > "$TMP_ROOT/t3134.core"
+  grep -qxF "  - $lib" "$TMP_ROOT/t3134.core" || log_fail "TEST-3134: $lib is not in the core list of PROFILES.yaml"
+  lines="$(wc -l < "$PROJECT_ROOT/$lib" | tr -d ' ')"
+  [[ "$lines" -le 200 ]] || log_fail "TEST-3134: $lib has $lines lines, cap 200"
+  lines="$(wc -l < "$GEN" | tr -d ' ')"
+  [[ "$lines" -le 590 ]] || log_fail "TEST-3134: sync-harness-skills.mjs has $lines lines, cap 590"
+  log_pass "TEST-3134 selector rows, PROFILES core row and line caps hold"
+}
+
 # --- dispatch ------------------------------------------------------------------
 finish_pwsh_check() {
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 && "${AAI_ALLOW_PWSH_SKIP:-}" != "1" ]]; then
@@ -755,6 +943,11 @@ ALL_TESTS=(
   test_3014_profiles_caps_followups
   test_3015_write_refuses_symlinked_shim_paths
   test_3016_write_refuses_other_unreal_paths
+  test_3130_catalog_check_reports_each_divergence
+  test_3131_catalog_write_renders_rows
+  test_3132_catalog_write_refusals
+  test_3133_live_catalog_lists_all_wrappers
+  test_3134_catalog_wiring
 )
 
 main() {
