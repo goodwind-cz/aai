@@ -21,6 +21,7 @@ test_2707() { run_docs_case TEST-2707; }
 test_2708() { run_docs_case TEST-2708; }
 test_2709() { run_docs_case TEST-2709; }
 test_2710() { run_docs_case TEST-2710; }
+test_2935() { run_docs_case TEST-2935; }
 if [ "$#" -gt 0 ]; then
   if ! declare -F "$1" >/dev/null; then
     echo "Unknown selector: $1" >&2
@@ -276,6 +277,6 @@ for (const [label, notes, wanted] of cases) {
 console.log(`comment parser assertions=${cases.length * 2} failures=${failures}`);
 process.exitCode = failures ? 1 : 0;
 JS
-for fn in test_2706 test_2707 test_2708 test_2709 test_2710; do "$fn" || FAILURES=$((FAILURES + 1)); done
+for fn in test_2706 test_2707 test_2708 test_2709 test_2710 test_2935; do "$fn" || FAILURES=$((FAILURES + 1)); done
 printf 'release-notes assertions: failures=%s fixture=%s base=%s head=%s\n' "$FAILURES" "$FIXTURE" "$BASE" "$(git -C "$FIXTURE" rev-parse HEAD)"
 [ "$FAILURES" -eq 0 ]

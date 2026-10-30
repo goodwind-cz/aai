@@ -160,7 +160,7 @@ PROCESS
 
 3b. RELEASE NOTES — shipped surfaces require newly added, nonempty rollable
    unreleased notes in root `CHANGELOG.md`, or a final PR body line
-   `no-notes: <nonempty reason>`. Docs/test/evidence-only changes are exempt.
+   `no-notes: <nonempty reason>`. User-facing docs are shipped (list: docs/product/release-notes-gate.md); tests, evidence and other docs are exempt.
    Use the entry shape stated in CHANGELOG.md's own preamble; stage its notes.
    Write the final proposed PR body to `<pr-body-file>` in private temporary
    storage, then run before commit or push:
