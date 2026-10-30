@@ -3462,3 +3462,4 @@
 {"v":1,"ts":"2026-10-29T22:18:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"watch-ci-cancelled-runs-and-release-gate-docs","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-29T22:18:06Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-watch-ci-cancelled-runs-and-release-gate-docs","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-29T22:18:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-watch-ci-cancelled-runs-and-release-gate-docs","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-30T11:14:56Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-watch-ci-reread-refresh-and-p3-cleanup","payload":{"from":"draft","to":"implementing"}}

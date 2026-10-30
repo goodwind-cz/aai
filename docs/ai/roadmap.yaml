@@ -118,6 +118,8 @@ pairs:
     status: done
   - capability: docs-audit-content-engine-split
     status: done
+  - capability: watch-ci-reread-refresh-and-p3-cleanup
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
