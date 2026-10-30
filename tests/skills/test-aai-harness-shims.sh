@@ -920,6 +920,64 @@ test_3134_catalog_wiring() {
   log_pass "TEST-3134 selector rows, PROFILES core row and line caps hold"
 }
 
+# --- TEST-3135 / TEST-3136 (CRLF Copilot shim overrides, Spec-AC-05) -----------
+# crlf_copilot_cases <id> <engine>: fixture (e) is an auto-merged shim (BASE_REF blob plus a
+# marker block holding one real rule) saved with CRLF line ends; fixture (f) is the source shim
+# plus a marker block holding the 070a6163 shipped blob, also CRLF. Sets CRLF_E_DST.
+crlf_copilot_cases() {  # <id> <engine>
+  local id="$1" engine="$2" base="$TMP_ROOT/$1-$2" src="$PROJECT_ROOT/$COPILOT_REL" dst log
+  local blob_a="$base-blob-a.md" blob_b="$base-blob-b.md" rule='- CRLF PROJECT RULE: always run the linter first'
+  git -C "$PROJECT_ROOT" cat-file -e "$BASE_REF^{commit}" 2>/dev/null || log_fail "$id: base commit $BASE_REF is not in this clone (fetch-depth 0 needed)"
+  git -C "$PROJECT_ROOT" show "$BASE_REF:$COPILOT_REL" > "$blob_a"
+  git -C "$PROJECT_ROOT" show "070a6163:$COPILOT_REL" > "$blob_b"
+  # (e) CRLF auto-merged shim with a real override
+  dst="$base-e"; seed_target "$dst" "$blob_a"
+  {
+    cat "$blob_a"
+    printf '\n---\n## Project Overrides (auto-merged)\n\n<!-- AAI-PROJECT-OVERRIDES:START -->\n%s\n<!-- AAI-PROJECT-OVERRIDES:END -->\n' "$rule"
+  } | sed 's/$/\r/' > "$dst/$COPILOT_REL"
+  run_sync "$engine" "$dst"
+  log="$(cat "$dst.sync.log")"
+  [[ "$log" == *'MERGE preserved project overrides'* ]] || log_fail "$id (e): $engine must log the MERGE line, got: $log"
+  [[ "$log" != *'unmodified shipped shim replaced'* ]] || log_fail "$id (e): $engine must not log shipped-replaced for a real CRLF override"
+  tr -d '\r' < "$dst/$COPILOT_REL" | sed -n '/AAI-PROJECT-OVERRIDES:START/,/AAI-PROJECT-OVERRIDES:END/p' | qgrep -qxF -e "$rule" \
+    || log_fail "$id (e): the rule line is not between the markers of the target shim"
+  /usr/bin/grep -qF -e "$rule" "$dst/docs/ai/project-overrides/copilot-instructions.project.md" \
+    || log_fail "$id (e): the rule line is not in the override file"
+  CRLF_E_DST="$dst"
+  # (f) CRLF shim whose block holds a shipped blob is still replaced byte-equal
+  dst="$base-f"; seed_target "$dst" "$src"
+  {
+    cat "$src"
+    printf '\n---\n## Project Overrides (auto-merged)\n\n<!-- AAI-PROJECT-OVERRIDES:START -->\n'
+    cat "$blob_b"
+    printf '<!-- AAI-PROJECT-OVERRIDES:END -->\n'
+  } | sed 's/$/\r/' > "$dst/$COPILOT_REL"
+  run_sync "$engine" "$dst"
+  cmp -s "$src" "$dst/$COPILOT_REL" || log_fail "$id (f): a CRLF shim holding a shipped blob must end byte-equal to the source ($engine)"
+}
+
+test_3135_sync_sh_keeps_crlf_overrides() {
+  log_info "TEST-3135: aai-sync.sh keeps a real override in a CRLF Copilot shim..."
+  crlf_copilot_cases TEST-3135 sh
+  [[ "$(grep -c $'\r' "$CRLF_E_DST/docs/ai/project-overrides/copilot-instructions.project.md" || true)" -eq 0 ]] \
+    || log_fail "TEST-3135 (e): the override file must hold no CR"
+  log_pass "TEST-3135 aai-sync.sh keeps CRLF project overrides and still replaces a CRLF shipped blob"
+}
+
+test_3136_sync_ps1_matches_sh_on_crlf() {
+  log_info "TEST-3136: aai-sync.ps1 gives the same CRLF outcome as aai-sync.sh..."
+  need_pwsh TEST-3136 || return 0
+  local sh_e ps_e f="copilot-instructions.project.md"
+  crlf_copilot_cases TEST-3136 sh
+  sh_e="$CRLF_E_DST"
+  crlf_copilot_cases TEST-3136 ps1
+  ps_e="$CRLF_E_DST"
+  [[ "$(tr -d '\r' < "$sh_e/docs/ai/project-overrides/$f" | sed 's/[[:space:]]*$//')" == "$(tr -d '\r' < "$ps_e/docs/ai/project-overrides/$f" | sed 's/[[:space:]]*$//')" ]] \
+    || log_fail "TEST-3136: the sh and ps1 override files differ after removing CR and trailing whitespace"
+  log_pass "TEST-3136 aai-sync.sh and aai-sync.ps1 agree on CRLF Copilot overrides"
+}
+
 # --- dispatch ------------------------------------------------------------------
 finish_pwsh_check() {
   if [[ "$PWSH_ARM_SKIPPED" -eq 1 && "${AAI_ALLOW_PWSH_SKIP:-}" != "1" ]]; then
@@ -948,6 +1006,8 @@ ALL_TESTS=(
   test_3132_catalog_write_refusals
   test_3133_live_catalog_lists_all_wrappers
   test_3134_catalog_wiring
+  test_3135_sync_sh_keeps_crlf_overrides
+  test_3136_sync_ps1_matches_sh_on_crlf
 )
 
 main() {

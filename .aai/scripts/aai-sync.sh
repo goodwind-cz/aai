@@ -196,6 +196,7 @@ extract_copilot_project_overrides() {
   local end='<!-- AAI-PROJECT-OVERRIDES:END -->'
   if grep -qF "$start" "$file" 2>/dev/null && grep -qF "$end" "$file" 2>/dev/null; then
     awk -v start="$start" -v end="$end" '
+      { sub(/\r$/, "") }
       $0==start {in_block=1; next}
       $0==end {in_block=0; exit}
       in_block {print}
