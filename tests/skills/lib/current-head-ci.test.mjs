@@ -61,7 +61,7 @@ function transport(t, checks, opts = {}) {
   const data = {head, checks, ...opts};
   put(dir, 'transport.json', JSON.stringify(data));
   put(dir, 'bin/gh', `#!/usr/bin/env node
-const fs=require('fs'),p=${JSON.stringify(path.join(dir, 'transport.json'))},d=JSON.parse(fs.readFileSync(p)),a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(path.join(dir, 'calls.jsonl'))},JSON.stringify(a)+'\\n');const out=x=>console.log(JSON.stringify(x));if(a[0]==='--version'){console.log('fixture gh');process.exit(0);}if(a[0]==='pr'&&a[1]==='view'){d.views=(d.views||0)+1;fs.writeFileSync(p,JSON.stringify(d));out({headRefOid:d.move&&d.views>1?'b'.repeat(40):d.head,url:'https://github.com/test/repo/pull/1',number:d.number??1});}else if(a[0]==='pr'&&a[1]==='checks'){if(d.transportFail){console.error('fixture network error');process.exit(42);}out(d.required||[{name:'aggregate',bucket:'pass',link:'x'}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/check-runs'))){if(d.transportFail){console.error('fixture network error');process.exit(42);}if(d.checkSeq){d.crn=(d.crn||0)+1;fs.writeFileSync(p,JSON.stringify(d));const c=d.checkSeq[Math.min(d.crn,d.checkSeq.length)-1];out([{total_count:c.length,check_runs:c}]);}else out(d.malformed?{}:(d.pages||[{total_count:d.checks.length,check_runs:d.checks}]));}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs?head_sha='))){if(!d.runPages&&!d.runList){console.error('unexpected run list');process.exit(91);}out(d.runPages||[{total_count:d.runList.length,workflow_runs:d.runList}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs/'))){const id=Number(a.find(x=>x.includes('/actions/runs/')).split('/').pop());out(d.workflows?.[id]||d.workflow||{id,head_sha:d.head,created_at:new Date(Date.UTC(2026,9,27,0,0,id)).toISOString()});}else if(a[0]==='api'&&a.some(x=>x.includes('/statuses'))){out(d.statusPages||[[]]);}else{console.error('unexpected '+a.join(' '));process.exit(90);}`);
+const fs=require('fs'),p=${JSON.stringify(path.join(dir, 'transport.json'))},d=JSON.parse(fs.readFileSync(p)),a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(path.join(dir, 'calls.jsonl'))},JSON.stringify(a)+'\\n');const out=x=>console.log(JSON.stringify(x));if(a[0]==='--version'){console.log('fixture gh');process.exit(0);}if(a[0]==='pr'&&a[1]==='view'){d.views=(d.views||0)+1;fs.writeFileSync(p,JSON.stringify(d));out({headRefOid:d.move&&d.views>1?'b'.repeat(40):d.head,url:'https://github.com/test/repo/pull/1',number:d.number??1});}else if(a[0]==='pr'&&a[1]==='checks'){if(d.transportFail){console.error('fixture network error');process.exit(42);}out(d.required||[{name:'aggregate',bucket:'pass',link:'x'}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/check-runs'))){if(d.transportFail){console.error('fixture network error');process.exit(42);}if(d.checkSeq){d.crn=(d.crn||0)+1;fs.writeFileSync(p,JSON.stringify(d));const c=d.checkSeq[Math.min(d.crn,d.checkSeq.length)-1];out([{total_count:c.length,check_runs:c}]);}else out(d.malformed?{}:(d.pages||[{total_count:d.checks.length,check_runs:d.checks}]));}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs?head_sha='))){if(!d.runPages&&!d.runList){console.error('unexpected run list');process.exit(91);}out(d.runPages||[{total_count:d.runList.length,workflow_runs:d.runList}]);}else if(a[0]==='api'&&a.some(x=>x.includes('/actions/runs/'))){const id=Number(a.find(x=>x.includes('/actions/runs/')).split('/').pop());if(d.workflowSeq?.[id]){d.wfn=d.wfn||{};d.wfn[id]=(d.wfn[id]||0)+1;fs.writeFileSync(p,JSON.stringify(d));const q=d.workflowSeq[id];out(q[Math.min(d.wfn[id],q.length)-1]);}else out(d.workflows?.[id]||d.workflow||{id,head_sha:d.head,created_at:new Date(Date.UTC(2026,9,27,0,0,id)).toISOString()});}else if(a[0]==='api'&&a.some(x=>x.includes('/statuses'))){out(d.statusPages||[[]]);}else{console.error('unexpected '+a.join(' '));process.exit(90);}`);
   fs.chmodSync(path.join(bin, 'gh'), 0o755);
   return {
     dir,
@@ -427,4 +427,135 @@ test('TEST-2711 a check the newer run registers between the check snapshot and t
   assert.equal(rel.length, 1);
   assert.equal(rel[0].bucket, 'fail');
   assert.equal(rel[0].id, 2);
+});
+
+// Mid-observation cancellation (SPEC watch-ci-reread-refresh-and-p3-cleanup).
+// Run A (workflow 2) is cancelled on read 1 with a completed sibling B holding its own copy of the check, which
+// triggers the re-read. Run W (workflow 5) is in progress on read 1 and
+// cancelled by the time of the re-read.
+const RA = 10;
+const RB = 11;
+const RW = 30;
+const RY = 40;
+const WF2 = 2;
+
+function wfRun(id, over = {}) {
+  const {head_sha, ...rest} = runObj(id, over);
+  return {id, head_sha, ...rest};
+}
+
+function midFixture(t, {wRead2 = 'cancelled', wSeq, listExtra, checkSeq, opts = {}} = {}) {
+  const aCheck = jobCheck(1, RA, 'failure', 'aggregate');
+  const wPending = jobCheck(2, RW, 'pending', 'build');
+  const wCancelled = jobCheck(2, RW, 'cancelled', 'build');
+  const wfA = wfRun(RA, {workflow_id: WF2, conclusion: 'cancelled'});
+  const wfB = wfRun(RB, {workflow_id: WF2});
+  const bCheck = jobCheck(3, RB, 'success', 'aggregate');
+  const wInProgress = wfRun(RW, {status: 'in_progress', conclusion: null});
+  const wCancelledRun = wfRun(RW, {conclusion: 'cancelled'});
+  const seq = wSeq || [wInProgress, wCancelledRun];
+  const list = [wfA, wfB, wCancelledRun, ...(listExtra === undefined ? [wfRun(RY, {status: 'in_progress', conclusion: null})] : listExtra)];
+  return transport(t, [aCheck, bCheck, wPending], {
+    required: [{name: 'aggregate', bucket: 'pass', link: 'x'}, {name: 'build', bucket: 'pending', link: 'x'}],
+    workflows: {[RA]: wfA, [RB]: wfB},
+    workflowSeq: {[RA]: [wfA], [RW]: seq},
+    checkSeq: checkSeq || [[aCheck, bCheck, wPending], [aCheck, bCheck, wRead2 === 'cancelled' ? wCancelled : wPending]],
+    runList: list,
+    ...opts
+  });
+}
+
+function resetSeq(f) {
+  rewrite(f, {crn: 0, wfn: {}});
+}
+
+function workflowRunFetches(f) {
+  const counts = {};
+  for (const line of callLog(f).split('\n')) {
+    const m = /actions\/runs\/(\d+)"\]$/.exec(line);
+    if (m) counts[m[1]] = (counts[m[1]] || 0) + 1;
+  }
+  return counts;
+}
+
+function runListFetches(f) {
+  return callLog(f).split('\n').filter(l => l.includes('actions/runs?head_sha')).length;
+}
+
+test('TEST-2931 run cancelled between the two reads with an unfinished sibling stays pending, never failed', t => {
+  const f = midFixture(t);
+  const w = watcher(f, true);
+  assert.equal(w.status, 3, w.stdout + w.stderr);
+  assert.match(w.stdout + w.stderr, /pending/);
+  assert.doesNotMatch(w.stdout + w.stderr, /FAILED|moved during observation/);
+  resetSeq(f);
+  const rel = releaseBucket(f);
+  const build = rel.find(c => c.name === 'build');
+  assert.equal(build.bucket, 'pending');
+  assert.equal(rel.find(c => c.name === 'aggregate').bucket, 'pass');
+});
+
+test('TEST-2932 run cancelled between the two reads without a qualifying sibling refuses closed', t => {
+  const arms = {
+    'no sibling': {listExtra: [], match: /workflow state moved during observation/},
+    'newer run of another event': {
+      listExtra: [wfRun(RY, {event: 'push', status: 'in_progress', conclusion: null})],
+      match: /workflow state moved during observation/
+    },
+    'completed sibling without the required check': {
+      listExtra: [wfRun(RY)],
+      match: /required context missing/
+    }
+  };
+  for (const [label, arm] of Object.entries(arms)) {
+    const f = midFixture(t, {listExtra: arm.listExtra});
+    const w = watcher(f, true);
+    assert.equal(w.status, 3, `${label}: ${w.stdout}${w.stderr}`);
+    assert.match(w.stdout + w.stderr, /degraded/, label);
+    assert.match(w.stdout + w.stderr, arm.match, label);
+    assert.doesNotMatch(w.stdout + w.stderr, /FAILED/, label);
+    resetSeq(f);
+    const r = releaseReader(f);
+    assert.equal(r.status, 20, `${label}: ${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, arm.match, label);
+  }
+});
+
+test('TEST-2933 the re-read refreshes every run once; the no-cancellation path fetches each run once', t => {
+  const f = midFixture(t);
+  releaseBucket(f);
+  assert.deepEqual(workflowRunFetches(f), {[RA]: 2, [RB]: 2, [RW]: 2});
+  assert.equal(runListFetches(f), 1);
+  // watch-ci repeats whole polls; every poll that re-reads costs two per run and one run list.
+  const w = midFixture(t);
+  watcher(w, true);
+  const polls = runListFetches(w);
+  assert.ok(polls >= 1);
+  assert.deepEqual(workflowRunFetches(w), {[RA]: 2 * polls, [RB]: 2 * polls, [RW]: 2 * polls});
+  const calm = transport(t, [jobCheck(1, RA, 'success', 'aggregate'), jobCheck(2, RW, 'success', 'build')], {
+    required: [{name: 'aggregate', bucket: 'pass', link: 'x'}, {name: 'build', bucket: 'pass', link: 'x'}],
+    workflows: {[RA]: wfRun(RA, {workflow_id: WF2}), [RW]: wfRun(RW)}
+  });
+  releaseBucket(calm);
+  assert.deepEqual(workflowRunFetches(calm), {[RA]: 1, [RW]: 1});
+  assert.equal(runListFetches(calm), 0);
+});
+
+test('TEST-2934 a run whose identity changes between the two reads refuses closed', t => {
+  const inProgress = wfRun(RW, {status: 'in_progress', conclusion: null});
+  const arms = {
+    created_at: wfRun(RW, {conclusion: 'cancelled', created_at: '2026-10-27T00:09:00Z'}),
+    workflow_id: wfRun(RW, {conclusion: 'cancelled', workflow_id: 77}),
+    event: wfRun(RW, {conclusion: 'cancelled', event: 'push'})
+  };
+  for (const [label, moved] of Object.entries(arms)) {
+    const f = midFixture(t, {wSeq: [inProgress, moved]});
+    const w = watcher(f, true);
+    assert.equal(w.status, 3, `${label}: ${w.stdout}${w.stderr}`);
+    assert.match(w.stdout + w.stderr, /workflow identity moved during observation/, label);
+    resetSeq(f);
+    const r = releaseReader(f);
+    assert.equal(r.status, 20, `${label}: ${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, /workflow identity moved during observation/, label);
+  }
 });
