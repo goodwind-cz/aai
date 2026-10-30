@@ -2,7 +2,7 @@
 id: watch-ci-reread-refresh-and-p3-cleanup
 type: change
 number: null
-status: draft
+status: implementing
 user_visible: false
 links:
   pr: []
