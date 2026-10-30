@@ -2549,6 +2549,23 @@ DROPPED, with the measured reason:
   log_pass "a DROPPED-labelled claim is satisfied by status dropped, a CLOSED one only by done, and a mismatch either way is a MISS naming which way round it is (Spec-AC-17, TEST-579)"
 }
 
+test_2938_wcr_reread_followups_closed() {
+  log_info "Test: the four watch-ci-reread-refresh-and-p3-cleanup follow-ups fold to done through the real reader (TEST-2938)..."
+  local led id
+  led="$PROJECT_ROOT/docs/ai/decisions.jsonl"
+  [[ -f "$led" ]] || log_fail "TEST-2938: the live ledger $led is missing"
+  run_fu list --ledger "$led" --status all --json
+  [[ "$EC" == 0 ]] || log_fail "TEST-2938: follow-ups list failed (exit $EC): $ERR"
+  for id in fu-current-head-ci-reread-stale-cache fu-skill-pr-3b-shipped-docs-wording fu-amend-wcr-file-list-correction fu-docs-split-a1n-attribution; do
+    printf '%s' "$OUT" | node -e '
+      let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+        const j=JSON.parse(s);const it=(j.items||[]).find(x=>x.id===process.argv[1]);
+        process.exit(it&&it.status==="done"&&it.resolved_by==="watch-ci-reread-refresh-and-p3-cleanup"?0:1)})' "$id" \
+      || log_fail "TEST-2938: $id must fold to done with resolved_by watch-ci-reread-refresh-and-p3-cleanup"
+  done
+  log_pass "TEST-2938 all four follow-ups are done with resolved_by watch-ci-reread-refresh-and-p3-cleanup"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-followup-registry TEST-001..005, 008, 009; role-verification-guards TEST-010/Spec-AC-09 N1)"
   echo "  + followups-cli-hardening TEST-011..015,017"
@@ -2596,6 +2613,7 @@ main() {
   test_549_over_cap_id_is_unfilable
   test_578_claim_is_the_bullet_head_not_a_mention
   test_579_dropped_label_requires_dropped_status
+  test_2938_wcr_reread_followups_closed
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
