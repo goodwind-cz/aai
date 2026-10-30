@@ -3503,3 +3503,4 @@
 {"v":1,"ts":"2026-10-30T13:21:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"watch-ci-reread-refresh-and-p3-cleanup","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-30T13:21:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-watch-ci-reread-refresh-and-p3-cleanup","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-30T13:21:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-watch-ci-reread-refresh-and-p3-cleanup","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-30T17:39:25Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-provider-adapter-surfaces-closing-slice","payload":{"from":"draft","to":"implementing"}}
