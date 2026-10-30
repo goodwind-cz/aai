@@ -1,10 +1,10 @@
 ---
 id: spec-watch-ci-reread-refresh-and-p3-cleanup
 type: spec
-number: null
-status: implementing
+number: 262
+status: done
 mutation_gate: v1
-frozen_sha256: b740289dd2fbcf34961fdcedb5d17730443efea19f8f53239bf63c17b3185c33
+frozen_sha256: 738b7b277a7b8129547737969fa905f7b1fc5577e0802379476361e8ecba3ca5
 ceremony_level: 2
 links:
   requirement: watch-ci-reread-refresh-and-p3-cleanup
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Intake: docs/issues/CHANGE-DRAFT-watch-ci-reread-refresh-and-p3-cleanup.md
+- Intake: docs/issues/CHANGE-0236-watch-ci-reread-refresh-and-p3-cleanup.md
 - Prior art: docs/specs/SPEC-0261-spec-watch-ci-cancelled-runs-and-release-gate-docs.md
   (superseded cancelled runs, the snapshot-skew re-read, the release-notes
   shipped-docs list), docs/specs/SPEC-0256-spec-current-head-ci-reader.md
@@ -402,8 +402,8 @@ mutation record per Test Plan row, and green suite outputs.
 - tests/skills/test-aai-follow-ups.sh
 - docs/ai/decisions.jsonl (append-only: two correction records, four close records)
 - CHANGELOG.md
-- docs/issues/CHANGE-DRAFT-watch-ci-reread-refresh-and-p3-cleanup.md
-- docs/specs/SPEC-DRAFT-spec-watch-ci-reread-refresh-and-p3-cleanup.md
+- docs/issues/CHANGE-0236-watch-ci-reread-refresh-and-p3-cleanup.md
+- docs/specs/SPEC-0262-spec-watch-ci-reread-refresh-and-p3-cleanup.md
 - docs/INDEX.md (regenerated)
 - docs/ai/tdd/** (append-only evidence)
 

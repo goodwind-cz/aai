@@ -28,6 +28,10 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: watch-ci re-read refreshes workflow state; SKILL_PR names user-facing docs as shipped (watch-ci-reread-refresh-and-p3-cleanup)
+
+- The shared required-check reader `.aai/scripts/lib/github-checks.mjs` (used by `watch-ci` and the release finish) now refreshes each workflow run's state on its snapshot-skew re-read instead of reusing the first read. A run cancelled between the two reads is judged like any other cancellation: superseded by a newer run of the same workflow and event it stays pending, otherwise the reader refuses (degraded) rather than reporting a failure it cannot prove; a run whose creation time, workflow or event changes between reads refuses. No path to a false pass was added. `SKILL_PR` step 3b now says user-facing docs (the list in `docs/product/release-notes-gate.md`) are shipped and only internal docs, tests and evidence are exempt, matching the release-notes gate.
+
 ## [unreleased] — fix: superseded cancelled CI runs and user-facing docs in the release-notes gate (watch-ci-cancelled-runs-and-release-gate-docs)
 
 - `watch-ci` and the release required-check read no longer report a failure from a workflow run that GitHub cancelled because a newer run of the same workflow and event started on the same head (for example after a PR body edit): the check stays pending until the newer run registers it, and refuses closed if the newer run completes without it. The fix is in the shared reader `.aai/scripts/lib/github-checks.mjs`. The release-notes gate now also counts the user guide, the product pages and the root files aai-sync installs as shipped (the exact list is in `docs/product/release-notes-gate.md`), so `aai-release` audits them and a pull request touching them needs notes or a `no-notes:` line; the CHANGELOG preamble and `docs/product/release-notes-gate.md` list them.

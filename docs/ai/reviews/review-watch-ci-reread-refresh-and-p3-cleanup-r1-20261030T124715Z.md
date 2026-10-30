@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: git diff 7d38415a...HEAD (HEAD 659cc859, branch fix/watch-ci-reread-refresh-and-p3-cleanup)
-  spec: docs/specs/SPEC-DRAFT-spec-watch-ci-reread-refresh-and-p3-cleanup.md
+  spec: docs/specs/SPEC-0262-spec-watch-ci-reread-refresh-and-p3-cleanup.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -36,7 +36,7 @@ security_relevant: false
 ## Scope
 
 - Diff: `git diff 7d38415a...HEAD`, 17 files, HEAD 659cc859. STATE `worktree.user_decision: worktree`; working tree carries only telemetry changes (EVENTS.jsonl, test-runs.jsonl), outside the review scope.
-- Spec: docs/specs/SPEC-DRAFT-spec-watch-ci-reread-refresh-and-p3-cleanup.md (frozen, amendments A1, A2).
+- Spec: docs/specs/SPEC-0262-spec-watch-ci-reread-refresh-and-p3-cleanup.md (frozen, amendments A1, A2).
 - Dispatch note (anti-gaming): the dispatch named focus areas without pre-rating severity or excluding areas; the full scope was reviewed.
 
 ## Reader change (github-checks.mjs) — false-green analysis
