@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: d01d4cb80e379292224fd1b473358dfad47ea08b1ff21a58a1524930e0a6c56a
+frozen_sha256: f8fa009639df45b3bd87572e3648049d4984f25cc23cac9144743e479dc151b3
 ceremony_level: 2
 links:
   requirement: watch-ci-reread-refresh-and-p3-cleanup
@@ -404,6 +404,14 @@ mutation record per Test Plan row, and green suite outputs.
 
 No new `.aai/**` file, so no PROFILES.yaml entry. Prompt-corpus growth is
 folded per D7 (Spec-AC-06).
+
+## Amendments (post-freeze, additive-with-disclosure)
+
+- A1 (2026-10-30, Implementation): `tests/skills/test-aai-pr-preflight.sh`
+  (TEST-008) is touched although it is not in the file list above. It pins the
+  SKILL_PR.prompt.md byte growth and the `want_growth` sum, so the 72 B step-3b
+  growth (Spec-AC-05/06) moves both pins by +72. No AC changes; signed by the
+  owner's merge direction (`--signoff none`).
 
 ## Assumptions (autopilot, no owner question)
 
