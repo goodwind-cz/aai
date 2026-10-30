@@ -31,6 +31,7 @@ test_2931() { run_case TEST-2931; }
 test_2932() { run_case TEST-2932; }
 test_2933() { run_case TEST-2933; }
 test_2934() { run_case TEST-2934; }
+test_2939() { run_case TEST-2939; }
 if [ "$#" -gt 0 ]; then
   if ! declare -F "$1" >/dev/null; then
     echo "Unknown selector: $1" >&2
@@ -38,7 +39,7 @@ if [ "$#" -gt 0 ]; then
   fi
   "$1"
 else
-  ALL_TESTS=(test_001 test_002 test_003 test_004 test_2701 test_2702 test_2703 test_2704 test_2705 test_2711 test_2931 test_2932 test_2933 test_2934)
+  ALL_TESTS=(test_001 test_002 test_003 test_004 test_2701 test_2702 test_2703 test_2704 test_2705 test_2711 test_2931 test_2932 test_2933 test_2934 test_2939)
   for fn in "${ALL_TESTS[@]}"; do
     "$fn"
   done

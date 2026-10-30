@@ -5561,13 +5561,15 @@ test_2937_wcr_reread_corrections_on_live_ledger() {
     }
     fs.writeFileSync(without,all.filter(l=>!drop.has(l)).join("\n")+"\n");
   ' "$led" "$scratch/without.jsonl" || { rm -rf "$scratch"; log_fail "TEST-2937: the D8 correction records are missing or wrong on the live ledger"; }
-  out_with="$(node "$SA" list --ledger "$led" --json --status all)"
-  out_without="$(node "$SA" list --ledger "$scratch/without.jsonl" --json --status all)"
+  # the two list outputs are ~488 KB each: pass them by file, never as argv (Linux caps one arg at 128 KiB)
+  node "$SA" list --ledger "$led" --json --status all > "$scratch/with.json"
+  node "$SA" list --ledger "$scratch/without.jsonl" --json --status all > "$scratch/without.json"
   node -e '
-    const a=JSON.parse(process.argv[1]),b=JSON.parse(process.argv[2]);
+    const fs=require("fs");
+    const a=JSON.parse(fs.readFileSync(process.argv[1],"utf8")),b=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
     const pick=j=>JSON.stringify({items:j.items,counts:j.counts});
     process.exit(pick(a)===pick(b)?0:1);
-  ' "$out_with" "$out_without" || { rm -rf "$scratch"; log_fail "TEST-2937: the correction records changed the amendment fold"; }
+  ' "$scratch/with.json" "$scratch/without.json" || { rm -rf "$scratch"; log_fail "TEST-2937: the correction records changed the amendment fold"; }
   rm -rf "$scratch"
   run_sa list --ledger "$led" --strict
   [[ "$EC" == 0 ]] || log_fail "TEST-2937: list --strict on the live ledger must exit 0, got $EC (stderr: $ERR)"

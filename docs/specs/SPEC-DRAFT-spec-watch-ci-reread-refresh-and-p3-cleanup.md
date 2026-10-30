@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: d4f013ca3c8f9855a08ec7543e35df9456d8e8f66a47c257f06751cc5260921f
+frozen_sha256: dc72a4056349afd9256ee1daeeda89c28a5ed0919ae4029268b21a509105e450
 ceremony_level: 2
 links:
   requirement: watch-ci-reread-refresh-and-p3-cleanup
@@ -326,6 +326,7 @@ record that loses `head_sha` (existing head refusal).
 | TEST-2932 | Spec-AC-02 | integration | tests/skills/test-aai-current-head-ci.sh | test_2932 three arms of the same W cancellation: no workflow-5 sibling; only a newer workflow-5 run of another event; newest workflow-5 sibling completed without the check; each watch-ci --required exits 3 with degraded (arms 1 and 2 name workflow state moved during observation) and the release reader exits 20 | `sed:s/fail\('workflow state moved during observation'\)/void 0/` on .aai/scripts/lib/github-checks.mjs | green |
 | TEST-2933 | Spec-AC-03 | integration | tests/skills/test-aai-current-head-ci.sh | test_2933 counts actions/runs/ID requests in the call log of one watch-ci poll: re-read fixture gives two per distinct run and one run-list call; all-success fixture gives one per run and zero run-list calls | `sed:s/readCheckRuns\(true\)/readCheckRuns()/` on .aai/scripts/lib/github-checks.mjs | green |
 | TEST-2934 | Spec-AC-03 | integration | tests/skills/test-aai-current-head-ci.sh | test_2934 arms where the refreshed record changes created_at, workflow_id or event: watch-ci exits 3 naming workflow identity moved during observation and the release reader exits 20 | `sed:s/fail\('workflow identity moved during observation'\)/void 0/` on .aai/scripts/lib/github-checks.mjs | green |
+| TEST-2939 | Spec-AC-03 | integration | tests/skills/test-aai-current-head-ci.sh | test_2939 runs node:test case TEST-2939 (decision D3): run W of workflow 5 cancelled on read 1 and in progress on the re-read with a pending attempt-2 check; run Y, newer than W in workflow 5, completed without the check; watch-ci --required exits 3 naming pending with no refusal or failure line; the release reader returns bucket pending for the check (not dropped, not required context missing) | `sed:s/const nowCancelled=\[\.\.\.workflows\]\.filter\(\(\[,w\]\)=>w\.conclusion==='cancelled'\);/const nowCancelled=cancelledRuns;/` on .aai/scripts/lib/github-checks.mjs | green |
 | TEST-2711 | Spec-AC-04 | integration | tests/skills/test-aai-current-head-ci.sh | existing test_2711 kept unchanged: the sibling check registered between the snapshot and the run list is never dropped (watch-ci exit 5, release bucket fail id 2); the full suite run with no selector exits 0 | `sed:s/readCheckRuns\(true\);/void 0;/` on .aai/scripts/lib/github-checks.mjs | green |
 | TEST-2935 | Spec-AC-05 | inspection | tests/skills/test-aai-release-notes.sh | test_2935 runs node:test case TEST-2935 in tests/skills/lib/release-notes-docs.test.mjs: slices the step 3b block of .aai/SKILL_PR.prompt.md; asserts the old exemption sentence is absent, docs/product/release-notes-gate.md is named, shipped user-facing docs and exempt tests and evidence are stated | `sed:s/docs\/product\/release-notes-gate\.md/docs\/product\/gone.md/` on .aai/SKILL_PR.prompt.md | green |
 | TEST-2936 | Spec-AC-06 | inspection | tests/skills/test-aai-prompt-diet.sh | test_2936_skill_pr_3b_growth_ledgered asserts exactly one JUSTIFIED_ADDITIONS entry naming watch-ci-reread-refresh-and-p3-cleanup with a positive byte count equal to the SKILL_PR growth over the baseline blob; TEST-010 and TEST-012 stay green in the same suite run | `sed:s/"[0-9]+ watch-ci-reread-refresh-and-p3-cleanup/"0 watch-ci-reread-refresh-and-p3-cleanup/` on tests/skills/lib/prompt-diet-ledger.sh | green |
@@ -340,6 +341,7 @@ RED plan:
   - TEST-2933 re-read arm: one fetch per run instead of two.
   - TEST-2934: no refresh, so no refusal.
   - TEST-2935: the old sentence is present.
+  - TEST-2939 passes on the baseline (D3 is existing behaviour); its RED is the mutation record only.
   - TEST-2936 to TEST-2938: before their artifacts exist, each fails on the
     missing entry, record or close.
 - TEST-2932 arm 3 also fails on the baseline (exit 5, W's check keeps bucket
@@ -407,7 +409,7 @@ folded per D7 (Spec-AC-06).
 
 ## Amendments (post-freeze, additive-with-disclosure)
 
-- A1 (2026-10-30, Implementation): `tests/skills/test-aai-pr-preflight.sh`
+- A1 (2026-10-30, orchestrator): `tests/skills/test-aai-pr-preflight.sh`
   (TEST-008) is touched although it is not in the file list above. It pins the
   SKILL_PR.prompt.md byte growth and the `want_growth` sum, so the 72 B step-3b
   growth (Spec-AC-05/06) moves both pins by +72. No AC changes; signed by the
@@ -422,6 +424,14 @@ folded per D7 (Spec-AC-06).
   without the two correction records, so the clause now says that. No
   behaviour or test change; signed by the owner's merge direction
   (`--signoff none`).
+- A3 (2026-10-30, Remediation, Code Review r1 NB-1): adds Test Plan row
+  TEST-2939 (Spec-AC-03, `... test_2939`) measuring decision D3, which had no
+  test: a run cancelled on read 1 and re-run by the re-read is judged by its
+  own checks, never superseded. It is a regression test of existing correct
+  behaviour, so it has no baseline RED; its RED is the mutation record
+  (`nowCancelled` built from the first-read set). No AC or behaviour changes.
+  Also fixes the A1 actor label to `orchestrator` (the ledger record's actor).
+  Signed by the owner's merge direction (`--signoff none`).
 
 ## Assumptions (autopilot, no owner question)
 

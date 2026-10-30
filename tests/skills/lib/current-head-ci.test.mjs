@@ -495,6 +495,31 @@ test('TEST-2931 run cancelled between the two reads with an unfinished sibling s
   assert.equal(rel.find(c => c.name === 'aggregate').bucket, 'pass');
 });
 
+test('TEST-2939 a run cancelled on read 1 and re-run by the re-read is judged by its own checks, never superseded', t => {
+  const aCheck = jobCheck(1, RA, 'failure', 'aggregate');
+  const bCheck = jobCheck(3, RB, 'success', 'aggregate');
+  const wAttempt1 = jobCheck(2, RW, 'cancelled', 'build');
+  const wAttempt2 = jobCheck(6, RW, 'pending', 'build');
+  const wCancelledRun = wfRun(RW, {conclusion: 'cancelled'});
+  const wRerun = wfRun(RW, {status: 'in_progress', conclusion: null});
+  // Y is newer than W in the same workflow and event, completed, and carries no build check: if W were still
+  // judged cancelled, Y would supersede it and drop both of its checks (required context missing).
+  const f = midFixture(t, {
+    wSeq: [wCancelledRun, wRerun],
+    listExtra: [wfRun(RY)],
+    checkSeq: [[aCheck, bCheck, wAttempt1], [aCheck, bCheck, wAttempt1, wAttempt2]]
+  });
+  const w = watcher(f, true);
+  assert.equal(w.status, 3, w.stdout + w.stderr);
+  assert.match(w.stdout + w.stderr, /pending/);
+  assert.doesNotMatch(w.stdout + w.stderr, /FAILED|moved during observation/);
+  resetSeq(f);
+  const rel = releaseBucket(f);
+  const build = rel.find(c => c.name === 'build');
+  assert.equal(build.bucket, 'pending');
+  assert.equal(rel.find(c => c.name === 'aggregate').bucket, 'pass');
+});
+
 test('TEST-2932 run cancelled between the two reads without a qualifying sibling refuses closed', t => {
   const arms = {
     'no sibling': {listExtra: [], match: /workflow state moved during observation/},
