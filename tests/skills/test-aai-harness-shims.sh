@@ -899,6 +899,18 @@ test_3132_catalog_write_refusals() {
   after="$(sha_file "$TMP_ROOT/t3132.real.md")"
   [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *SKILLS.md* && "$before" == "$after" ]] \
     || log_fail "TEST-3132: a symlinked SKILLS.md must be refused with exit 2 and the target untouched, got rc=$GEN_RC: $GEN_OUT"
+  # symlinked parent directory of the catalog file
+  mk_cat_root "$root" 1
+  mkdir -p "$TMP_ROOT/t3132.realdir"
+  cat_md "$TMP_ROOT/t3132.realdir/SKILLS.md" aai-alpha
+  rm -f "$root/SKILLS.md"
+  ln -s "$TMP_ROOT/t3132.realdir" "$root/docsdir"
+  sed -i.bak 's@SKILLS.md|## Quick Reference@docsdir/SKILLS.md|## Quick Reference@' "$root/.aai/system/HARNESS_SKILLS.yaml"
+  before="$(sha_file "$TMP_ROOT/t3132.realdir/SKILLS.md")"
+  gen "$root" --write
+  after="$(sha_file "$TMP_ROOT/t3132.realdir/SKILLS.md")"
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'docsdir is a symlink'* && "$before" == "$after" ]] \
+    || log_fail "TEST-3132: a symlinked catalog parent must be refused with exit 2 and the target untouched, got rc=$GEN_RC: $GEN_OUT"
   log_pass "TEST-3132 catalog write refusals leave SKILLS.md untouched"
 }
 

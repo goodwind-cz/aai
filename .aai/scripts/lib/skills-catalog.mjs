@@ -12,6 +12,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertRealPath } from './harness-shims.mjs';
 
 export class CatalogError extends Error {}
 
@@ -39,6 +40,8 @@ function codexCell(root, name, body) {
 // plan: read the catalog file, compare, and (always) return what --write would do.
 export function planCatalog(root, cat, skills) {
   const abs = path.join(root, cat.file);
+  // a symlinked parent directory refuses like a shim path does (assertRealPath, harness-shims.mjs)
+  try { assertRealPath(root, cat.file); } catch (err) { throw new CatalogError(err.message); }
   let st;
   try { st = fs.lstatSync(abs); } catch { throw new CatalogError(`catalog file is absent: ${cat.file}`); }
   if (st.isSymbolicLink() || !st.isFile()) throw new CatalogError(`catalog file must be a regular file, not a symlink: ${cat.file}`);

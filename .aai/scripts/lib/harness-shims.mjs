@@ -142,7 +142,7 @@ function render(rows, fragments) {
 // assertRealPath(root, rel) — lstat each existing component of rel below root:
 // a symlink anywhere, a non-directory parent or a non-file leaf refuses, so a
 // write can never follow a link out of --root. A missing component ends the walk.
-function assertRealPath(root, rel) {
+export function assertRealPath(root, rel) {
   const parts = rel.split('/');
   for (let i = 0; i < parts.length; i++) {
     const sub = parts.slice(0, i + 1).join('/');

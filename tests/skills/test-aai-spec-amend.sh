@@ -2533,6 +2533,12 @@ test_3138_merge_time_arms() {
   ( cd "$dir/b-shallow" && node "$SA" list --ledger "$dir/b-noverlay.jsonl" --base-ref main > "$dir/b-shallow.txt" ) || log_fail "TEST-3138 (b): text list failed"
   notes="$(/usr/bin/grep -c 'NOTE merge-time binding skipped: shallow repository' "$dir/b-shallow.txt" || true)"
   [[ "$notes" == 1 ]] || log_fail "TEST-3138 (b): the shallow note must print exactly once, got $notes"
+  # (b2) a depth-1 clone of a ride with non-empty links.pr reads unsigned too (it read signed before D6)
+  _mb_repo "$dir/b2" spec-3000-sq-ride SPEC-3000-sq-ride.md "[77]" "feat: ride"
+  git clone -q --depth 1 "file://$MB_REPO" "$dir/b2-shallow" || log_fail "fixture: shallow clone (links.pr) failed"
+  head -n 4 "$MB_LEDGER" > "$dir/b2-noverlay.jsonl"
+  got="$(_mb_read "$dir/b2-shallow" "$dir/b2-noverlay.jsonl")"
+  [[ "$got" == "pre=unsigned-tracked post=unsigned-tracked/open" ]] || log_fail "TEST-3138 (b2): shallow clone with links.pr must sign nothing by merge, got '$got'"
   # (c) a glob character in the ride doc name never matches a sibling doc
   _mb_repo "$dir/c" spec-glob-ride "SPEC-[3]000-glob.md" "[]" "feat: ride (#77)"
   printf -- '---\nid: spec-glob-sibling\nstatus: done\nlinks:\n  pr: []\n---\n# Sibling\n' > "$MB_REPO/docs/specs/SPEC-3000-glob.md"
@@ -2588,7 +2594,8 @@ test_3139_live_ledger_one_record_changes() {
   git -C "$PROJECT_ROOT" cat-file -e 34b44269 2>/dev/null || { log_info "TEST-3139: 34b44269 is not reachable here; skipping the baseline comparison"; return 0; }
   git -C "$PROJECT_ROOT" archive 34b44269 .aai/scripts .aai/system | tar -x -C "$d/base" || log_fail "TEST-3139: baseline archive failed"
   ( cd "$PROJECT_ROOT" && node "$SA" list --json --status all > "$d/new.json" ) || log_fail "TEST-3139: spec-amend list --json failed on the live ledger"
-  ( cd "$PROJECT_ROOT" && node "$d/base/.aai/scripts/spec-amend.mjs" list --json --status all > "$d/old.json" ) || log_fail "TEST-3139: baseline engine list failed"
+  git -C "$PROJECT_ROOT" show 34b44269:docs/ai/decisions.jsonl > "$d/base-ledger.jsonl" || log_fail "TEST-3139: baseline ledger blob unreadable"
+  ( cd "$PROJECT_ROOT" && node "$d/base/.aai/scripts/spec-amend.mjs" list --json --status all --ledger "$d/base-ledger.jsonl" > "$d/old.json" ) || log_fail "TEST-3139: baseline engine list failed"
   verdict="$(node -e '
     const fs = require("fs");
     const rd = (f) => JSON.parse(fs.readFileSync(f, "utf8")).items;
@@ -2596,16 +2603,19 @@ test_3139_live_ledger_one_record_changes() {
     const o = new Map(oldItems.map((i) => [i.record_key, i]));
     const p = [];
     if (newItems.length < 500) p.push("positive control: only " + newItems.length + " records");
-    if (newItems.length !== oldItems.length) p.push("record count moved " + oldItems.length + " -> " + newItems.length);
+    if (newItems.length < oldItems.length) p.push("record count shrank " + oldItems.length + " -> " + newItems.length);
     for (const i of newItems) {
       const x = o.get(i.record_key);
       if (i.record_key === "a90cdce977d5") {
         if (i.bucket === "signed" && i.classified_by === null) p.push("a90cdce977d5 still reads signed by the fold");
         if (!x || x.bucket !== "signed") p.push("a90cdce977d5 was not signed on the baseline (control)");
-      } else if (!x || x.bucket !== i.bucket) {
-        p.push("record " + i.record_key + " moved " + (x ? x.bucket : "absent") + " -> " + i.bucket);
+      } else if (x && x.bucket !== i.bucket) {
+        p.push("record " + i.record_key + " moved " + x.bucket + " -> " + i.bucket);
       }
     }
+    // records appended after the 34b44269 base are outside the comparison set; none may vanish
+    const nk = new Set(newItems.map((i) => i.record_key));
+    for (const k of o.keys()) if (!nk.has(k)) p.push("base record " + k + " is absent from the live ledger");
     process.stdout.write(p.join("; "));
   ' "$d/old.json" "$d/new.json")" || log_fail "TEST-3139: the ledger reader crashed"
   [[ -z "$verdict" ]] || log_fail "TEST-3139: $verdict"

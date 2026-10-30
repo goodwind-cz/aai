@@ -3504,3 +3504,5 @@
 {"v":1,"ts":"2026-10-30T13:21:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-watch-ci-reread-refresh-and-p3-cleanup","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-10-30T13:21:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-watch-ci-reread-refresh-and-p3-cleanup","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-10-30T17:39:25Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-provider-adapter-surfaces-closing-slice","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-10-30T20:29:31Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"provider-adapter-surfaces-closing-slice","payload":{"role":"validation","head":"4cd66a9b4da2afe271ee7a77b42b9de0b214cc56","seen":"run_at:null"}}
+{"v":1,"ts":"2026-10-30T21:19:20Z","actor":"ales_holubec.net","event":"check_verdict","ref":"provider-adapter-surfaces-closing-slice","payload":{"role":"validation","head":"4cd66a9b4da2afe271ee7a77b42b9de0b214cc56","status":"fail","security_relevant":false}}
