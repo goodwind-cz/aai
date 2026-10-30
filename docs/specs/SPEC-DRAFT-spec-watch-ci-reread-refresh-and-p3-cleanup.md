@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: dc72a4056349afd9256ee1daeeda89c28a5ed0919ae4029268b21a509105e450
+frozen_sha256: b740289dd2fbcf34961fdcedb5d17730443efea19f8f53239bf63c17b3185c33
 ceremony_level: 2
 links:
   requirement: watch-ci-reread-refresh-and-p3-cleanup
@@ -241,7 +241,7 @@ None.
 |---|---|---|---|---|---|
 | Spec-AC-01 | WHEN the first check-run read shows run W in progress and the re-read (triggered by another run cancelled on read 1) shows W and its check cancelled, and the run list holds a newer run of W's workflow_id and event that is not completed, watch-ci --required SHALL report W's check pending (exit 3 at the deadline naming pending, output without a refusal or failure line, never exit 5) and readReleaseRequiredChecks SHALL exit 0 returning bucket pending for that check. | done | docs/ai/tdd/watch-ci-reread-refresh-and-p3-cleanup/red-test-2931.log; docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2931.txt | — | — |
 | Spec-AC-02 | WHEN the same mid-observation cancellation of W has no newer run of the same workflow_id and event in the run list (arm 1 no sibling, arm 2 only a newer run of another event), watch-ci --required SHALL exit 3 with a degraded line naming workflow state moved during observation and readReleaseRequiredChecks SHALL throw (exit 20 in the fixture); neither SHALL report pass and watch-ci SHALL NOT exit 5; WHEN W's newest sibling had completed before the run list without W's required check (arm 3), watch-ci --required SHALL exit 3 degraded and the release reader SHALL throw. | done | docs/ai/tdd/watch-ci-reread-refresh-and-p3-cleanup/red-test-2932.log; docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2932.txt | — | — |
-| Spec-AC-03 | WHEN read 1 sees a cancelled run, the fixture call log SHALL show exactly two actions/runs/ID requests per distinct workflow run and one run-list request; WHEN no run is cancelled, exactly one per distinct run and zero run-list requests; WHEN the refreshed record of a run differs from read 1 in created_at, workflow_id or event, watch-ci SHALL exit 3 degraded naming workflow identity moved during observation and the release reader SHALL throw. | done | docs/ai/tdd/watch-ci-reread-refresh-and-p3-cleanup/red-test-2933.log; docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2933.txt; docs/ai/tdd/watch-ci-reread-refresh-and-p3-cleanup/red-test-2934.log; docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2934.txt | — | — |
+| Spec-AC-03 | WHEN read 1 sees a cancelled run, the fixture call log SHALL show exactly two actions/runs/ID requests per distinct workflow run and one run-list request; WHEN no run is cancelled, exactly one per distinct run and zero run-list requests; WHEN the refreshed record of a run differs from read 1 in created_at, workflow_id or event, watch-ci SHALL exit 3 degraded naming workflow identity moved during observation and the release reader SHALL throw. | done | docs/ai/tdd/watch-ci-reread-refresh-and-p3-cleanup/red-test-2933.log; docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2933.txt; docs/ai/tdd/watch-ci-reread-refresh-and-p3-cleanup/red-test-2934.log; docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2934.txt; docs/ai/tdd/watch-ci-reread-refresh-and-p3-cleanup/red-test-2939.log; docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2939.txt | — | — |
 | Spec-AC-04 | bash tests/skills/test-aai-current-head-ci.sh with no selector SHALL exit 0 with every pre-existing case (TEST-001 to TEST-004, TEST-2701 to TEST-2705, TEST-2711) unchanged and passing; TEST-2711 SHALL still observe watch-ci exit 5 and release bucket fail with id 2. | done | docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2711.txt | — | — |
 | Spec-AC-05 | The step 3b block of .aai/SKILL_PR.prompt.md (from the line starting 3b. to the next numbered step) SHALL NOT contain the sentence Docs/test/evidence-only changes are exempt., SHALL name docs/product/release-notes-gate.md, SHALL state that user-facing docs are shipped and that tests, evidence and other docs are exempt; the file SHALL grow by at most 160 bytes and at most one line against the baseline commit. | done | docs/ai/tdd/watch-ci-reread-refresh-and-p3-cleanup/red-test-2935.log; docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2935.txt | — | — |
 | Spec-AC-06 | tests/skills/lib/prompt-diet-ledger.sh SHALL carry exactly one JUSTIFIED_ADDITIONS entry naming watch-ci-reread-refresh-and-p3-cleanup whose leading byte count equals the measured .aai/SKILL_PR.prompt.md growth against the baseline commit, the TEST-012 pin SHALL move by that amount, and bash tests/skills/test-aai-prompt-diet.sh SHALL exit 0. | done | docs/ai/tdd/watch-ci-reread-refresh-and-p3-cleanup/red-test-2936.log; docs/ai/tdd/spec-watch-ci-reread-refresh-and-p3-cleanup/mutation-TEST-2936.txt | — | — |
@@ -341,7 +341,10 @@ RED plan:
   - TEST-2933 re-read arm: one fetch per run instead of two.
   - TEST-2934: no refresh, so no refusal.
   - TEST-2935: the old sentence is present.
-  - TEST-2939 passes on the baseline (D3 is existing behaviour); its RED is the mutation record only.
+  - TEST-2939: fails on the baseline 7d38415a with `required context missing
+    from current head: build`, because D3 (judge a re-run by its own checks)
+    is built by this ride; see red-test-2939.log. The mutation record
+    (mutation-TEST-2939.txt) is the second proof.
   - TEST-2936 to TEST-2938: before their artifacts exist, each fails on the
     missing entry, record or close.
 - TEST-2932 arm 3 also fails on the baseline (exit 5, W's check keeps bucket
@@ -427,11 +430,19 @@ folded per D7 (Spec-AC-06).
 - A3 (2026-10-30, Remediation, Code Review r1 NB-1): adds Test Plan row
   TEST-2939 (Spec-AC-03, `... test_2939`) measuring decision D3, which had no
   test: a run cancelled on read 1 and re-run by the re-read is judged by its
-  own checks, never superseded. It is a regression test of existing correct
-  behaviour, so it has no baseline RED; its RED is the mutation record
-  (`nowCancelled` built from the first-read set). No AC or behaviour changes.
+  own checks, never superseded. It measures behaviour this ride builds (D3), and
+  its baseline RED is red-test-2939.log (see A4); its mutation record is
+  mutation-TEST-2939.txt (`nowCancelled` built from the first-read set). No AC or behaviour changes.
   Also fixes the A1 actor label to `orchestrator` (the ledger record's actor).
   Signed by the owner's merge direction (`--signoff none`).
+- A4 (2026-10-30, Remediation, Validation r3 F1, measurement): the RED-plan
+  line and A3 claimed TEST-2939 passes on the baseline and has no baseline
+  RED. That was false: on base 7d38415a github-checks.mjs it fails with
+  `required context missing from current head: build`, since D3 was built by
+  this ride. Both sentences now say so, and the Spec-AC-03 Evidence cell cites
+  red-test-2939.log (accepted by tdd-evidence-check as product_red) beside
+  mutation-TEST-2939.txt. No AC or behaviour change. Signed by the owner's
+  merge direction (`--signoff none`).
 
 ## Assumptions (autopilot, no owner question)
 
