@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: e94ca1a6b6fbd1cacc2688dcd4368b65857c6a26976d18156c519ca5efdd9864
+frozen_sha256: d0109c12628abac4893e46166897b536b8f0d0644a492bdf2c017bb82d49c5d1
 ceremony_level: 2
 links:
   requirement: provider-adapter-surfaces-closing-slice
