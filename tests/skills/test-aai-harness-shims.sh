@@ -705,6 +705,27 @@ test_3013_autonomous_loop_names_classify() {
   log_pass "TEST-3013 AUTONOMOUS_LOOP.md names the classify procedure"
 }
 
+# followup_problems <ledger> — the TEST-3014 follow-up predicate, shared with TEST-3141.
+# Prints the problems (empty = pass). fu-skills-md-quickref-missing-rows must be open (text
+# carries 37 of 42) or done with resolved_by provider-adapter-surfaces-closing-slice.
+followup_problems() {
+  local ledger="$1" out
+  out="$(node "$FOLLOW_UPS" list --json --status all --ledger "$ledger")" || return 1
+  printf '%s' "$out" > "$TMP_ROOT/fu-all.json"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); const items = j.items || j;
+    const text = (i) => JSON.stringify(i);
+    const p = [];
+    const a = items.find((i) => i.id === "fu-skills-md-quickref-missing-rows");
+    const aOpen = a && a.status === "open" && /37 of 42/.test(text(a));
+    const aClosed = a && a.status === "done" && a.resolved_by === "provider-adapter-surfaces-closing-slice";
+    if (!aOpen && !aClosed) p.push("fu-skills-md-quickref-missing-rows must be open and carry 37 of 42, or done with resolved_by provider-adapter-surfaces-closing-slice");
+    const b = items.find((i) => i.id === "fu-shim-prompt-file-flag-unverified");
+    if (!b || b.status !== "open" || !/prompt-file/.test(text(b))) p.push("fu-shim-prompt-file-flag-unverified must be open and name prompt-file");
+    process.stdout.write(p.join("; "));
+  ' "$TMP_ROOT/fu-all.json"
+}
+
 test_3014_profiles_caps_followups() {
   log_info "TEST-3014: PROFILES core rows, line caps, the two follow-ups..."
   local f profiles="$PROJECT_ROOT/.aai/system/PROFILES.yaml" core lines fu
@@ -717,20 +738,37 @@ test_3014_profiles_caps_followups() {
   [[ "$lines" -le 260 ]] || log_fail "TEST-3014: lib/harness-shims.mjs has $lines lines, cap 260"
   lines="$(wc -l < "$GEN" | tr -d ' ')"
   [[ "$lines" -le 590 ]] || log_fail "TEST-3014: sync-harness-skills.mjs has $lines lines, cap 590"
-  fu="$(node "$FOLLOW_UPS" list --json --status open --ledger "$LEDGER")" || log_fail "TEST-3014: follow-ups list failed"
-  printf '%s' "$fu" > "$TMP_ROOT/fu-open.json"
-  f="$(node -e '
-    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); const items = j.items || j;
-    const text = (i) => JSON.stringify(i);
-    const p = [];
-    const a = items.find((i) => i.id === "fu-skills-md-quickref-missing-rows");
-    if (!a || !/37 of 42/.test(text(a))) p.push("fu-skills-md-quickref-missing-rows must be open and carry 37 of 42");
-    const b = items.find((i) => i.id === "fu-shim-prompt-file-flag-unverified");
-    if (!b || !/prompt-file/.test(text(b))) p.push("fu-shim-prompt-file-flag-unverified must be open and name prompt-file");
-    process.stdout.write(p.join("; "));
-  ' "$TMP_ROOT/fu-open.json")" || log_fail "TEST-3014: follow-up reader crashed"
+  f="$(followup_problems "$LEDGER")" || log_fail "TEST-3014: follow-up reader crashed"
   [[ -z "$f" ]] || log_fail "TEST-3014: $f"
   log_pass "TEST-3014 PROFILES rows, line caps and the two follow-ups hold"
+}
+
+# --- TEST-3141 (SPEC provider-adapter-surfaces-closing-slice D8) ---------------
+test_3141_followup_predicate_arms() {
+  log_info "TEST-3141: the TEST-3014 follow-up predicate on three scratch ledgers..."
+  local d="$TMP_ROOT/t3141" base fin ok_open ok_done bad_done got
+  mkdir -p "$d"
+  base='{"v":1,"ts":"2026-10-25T13:16:41Z","actor":"orchestrator","type":"follow_up","id":"fu-skills-md-quickref-missing-rows","ref_id":"provider-adapter-registry-slice","severity":"P2","finding":"SKILLS.md Quick Reference lists 37 of 42 skills","decision":"out of scope","source":"x"}
+{"v":1,"ts":"2026-10-25T13:16:42Z","actor":"orchestrator","type":"follow_up","id":"fu-shim-prompt-file-flag-unverified","ref_id":"provider-adapter-registry-slice","severity":"P3","finding":"the --prompt-file flag is unverified","decision":"deferred","source":"x"}'
+  fin() { printf '{"v":1,"ts":"2026-10-30T10:00:00Z","actor":"orchestrator","type":"follow_up_status","id":"fu-skills-md-quickref-missing-rows","status":"done","resolved_by":"%s","source":"x"}' "$1"; }
+  printf '%s\n' "$base" > "$d/open.jsonl"
+  printf '%s\n%s\n' "$base" "$(fin provider-adapter-surfaces-closing-slice)" > "$d/done-ours.jsonl"
+  printf '%s\n%s\n' "$base" "$(fin other-slice)" > "$d/done-other.jsonl"
+  ok_open="$(followup_problems "$d/open.jsonl")" || log_fail "TEST-3141: predicate crashed on the open ledger"
+  ok_done="$(followup_problems "$d/done-ours.jsonl")" || log_fail "TEST-3141: predicate crashed on the resolved ledger"
+  bad_done="$(followup_problems "$d/done-other.jsonl")" || log_fail "TEST-3141: predicate crashed on the other-resolver ledger"
+  [[ -z "$ok_open" ]] || log_fail "TEST-3141: open ledger must pass, got: $ok_open"
+  [[ -z "$ok_done" ]] || log_fail "TEST-3141: ledger resolved by this ride must pass, got: $ok_done"
+  [[ -n "$bad_done" ]] || log_fail "TEST-3141: ledger resolved by another ride must fail"
+  # negative control: the second follow-up closed still fails
+  got="$(followup_problems "$d/open.jsonl")"; [[ -z "$got" ]] || log_fail "TEST-3141: control drifted"
+  got="$(node -e '
+    const fs = require("fs"); const ls = fs.readFileSync(process.argv[1], "utf8").split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l));
+    const r = ls.filter((l) => l.type === "spec_amendment" && l.spec_id === "spec-provider-adapter-registry-slice" && String(l.ts) >= "2026-10-30T00:00:00Z" && /TEST-3014/.test(String(l.what || "")));
+    process.stdout.write(String(r.length));
+  ' "$LEDGER")" || log_fail "TEST-3141: ledger reader crashed"
+  [[ "$got" == 1 ]] || log_fail "TEST-3141: want exactly one spec_amendment on spec-provider-adapter-registry-slice naming TEST-3014 dated 2026-10-30 or later (this ride; an earlier record from 2026-10-25 also names TEST-3014), found $got"
+  log_pass "TEST-3141 the follow-up predicate passes open and resolved-by-this-ride, fails another resolver; the D8 amendment is on the ledger"
 }
 
 # --- TEST-3130..3134: SKILLS.md Quick Reference catalog (SPEC provider-adapter-surfaces-closing-slice D1-D3) ---
@@ -999,6 +1037,7 @@ ALL_TESTS=(
   test_3012_pr501_amendments_signed
   test_3013_autonomous_loop_names_classify
   test_3014_profiles_caps_followups
+  test_3141_followup_predicate_arms
   test_3015_write_refuses_symlinked_shim_paths
   test_3016_write_refuses_other_unreal_paths
   test_3130_catalog_check_reports_each_divergence

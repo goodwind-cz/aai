@@ -2580,6 +2580,54 @@ test_3025_canon_states_squash_comparison() {
   log_pass "TEST-3025 AUTONOMOUS_LOOP.md names the newest first-parent commit and the (#<n>) suffix next to the links.pr rule"
 }
 
+# --- TEST-3139 / TEST-3140 (SPEC provider-adapter-surfaces-closing-slice D6/D7) ---
+test_3139_live_ledger_one_record_changes() {
+  log_info "Test: on the live ledger exactly a90cdce977d5 leaves the signed bucket, list --strict exits 0 (TEST-3139)..."
+  local d="$TEST_DIR/t3139" ec=0 verdict
+  mkdir -p "$d/base"
+  git -C "$PROJECT_ROOT" cat-file -e 34b44269 2>/dev/null || { log_info "TEST-3139: 34b44269 is not reachable here; skipping the baseline comparison"; return 0; }
+  git -C "$PROJECT_ROOT" archive 34b44269 .aai/scripts .aai/system | tar -x -C "$d/base" || log_fail "TEST-3139: baseline archive failed"
+  ( cd "$PROJECT_ROOT" && node "$SA" list --json --status all > "$d/new.json" ) || log_fail "TEST-3139: spec-amend list --json failed on the live ledger"
+  ( cd "$PROJECT_ROOT" && node "$d/base/.aai/scripts/spec-amend.mjs" list --json --status all > "$d/old.json" ) || log_fail "TEST-3139: baseline engine list failed"
+  verdict="$(node -e '
+    const fs = require("fs");
+    const rd = (f) => JSON.parse(fs.readFileSync(f, "utf8")).items;
+    const oldItems = rd(process.argv[1]), newItems = rd(process.argv[2]);
+    const o = new Map(oldItems.map((i) => [i.record_key, i]));
+    const p = [];
+    if (newItems.length < 500) p.push("positive control: only " + newItems.length + " records");
+    if (newItems.length !== oldItems.length) p.push("record count moved " + oldItems.length + " -> " + newItems.length);
+    for (const i of newItems) {
+      const x = o.get(i.record_key);
+      if (i.record_key === "a90cdce977d5") {
+        if (i.bucket === "signed" && i.classified_by === null) p.push("a90cdce977d5 still reads signed by the fold");
+        if (!x || x.bucket !== "signed") p.push("a90cdce977d5 was not signed on the baseline (control)");
+      } else if (!x || x.bucket !== i.bucket) {
+        p.push("record " + i.record_key + " moved " + (x ? x.bucket : "absent") + " -> " + i.bucket);
+      }
+    }
+    process.stdout.write(p.join("; "));
+  ' "$d/old.json" "$d/new.json")" || log_fail "TEST-3139: the ledger reader crashed"
+  [[ -z "$verdict" ]] || log_fail "TEST-3139: $verdict"
+  ( cd "$PROJECT_ROOT" && node "$SA" list --strict > "$d/strict.out" 2>&1 ) || ec=$?
+  [[ "$ec" -eq 0 ]] || log_fail "TEST-3139: spec-amend list --strict must exit 0, got $ec: $(tail -3 "$d/strict.out")"
+  log_pass "TEST-3139 only a90cdce977d5 changes bucket on the live ledger and list --strict is clean"
+}
+
+test_3140_canon_states_merge_time_binding() {
+  log_info "Test: AUTONOMOUS_LOOP.md states the merge-time binding (TEST-3140)..."
+  node -e '
+    const text = require("fs").readFileSync(process.argv[1], "utf8");
+    const paras = text.split(/\n\s*\n/).map((p) => p.replace(/\s+/g, " "));
+    const p = paras.find((x) => x.includes("SPEC-0226") && x.includes("links.pr"));
+    if (!p) { console.error("no paragraph names links.pr"); process.exit(1); }
+    if (!p.includes("not later than the ride")) { console.error("missing: not later than the ride"); process.exit(2); }
+    if (!p.includes("stays unsigned until the owner classifies")) { console.error("missing: stays unsigned until the owner classifies"); process.exit(3); }
+  ' "$CANON" || log_fail "TEST-3140: AUTONOMOUS_LOOP.md section 6a does not state the merge-time binding"
+  test_3025_canon_states_squash_comparison
+  log_pass "TEST-3140 the canon paragraph states the merge-time rule and TEST-3025 stays green"
+}
+
 # --- TEST-550 (Spec-AC-19, D2) ------------------------------------------------
 # `spec-amend.mjs restamp` appends a spec_amendment record carrying the
 # from/to frozen_sha256 anchors as 64-hex values, writes the spec ATOMICALLY
@@ -5714,6 +5762,8 @@ main() {
   test_3138_merge_time_arms
   test_3024_pr_502_signatures_on_ledger
   test_3025_canon_states_squash_comparison
+  test_3139_live_ledger_one_record_changes
+  test_3140_canon_states_merge_time_binding
   test_550_amendment_record_anchors
   test_551_restamp_after_renumbering
   test_1354_measurement_add_owes_no_owner_obligation
