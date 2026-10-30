@@ -2587,24 +2587,26 @@ test_3025_canon_states_squash_comparison() {
 }
 
 # --- TEST-3139 / TEST-3140 (SPEC provider-adapter-surfaces-closing-slice D6/D7) ---
-test_3139_live_ledger_one_record_changes() {
-  log_info "Test: on the live ledger exactly a90cdce977d5 leaves the signed bucket, list --strict exits 0 (TEST-3139)..."
-  local d="$TEST_DIR/t3139" ec=0 verdict
-  mkdir -p "$d/base"
-  git -C "$PROJECT_ROOT" cat-file -e 34b44269 2>/dev/null || { log_info "TEST-3139: 34b44269 is not reachable here; skipping the baseline comparison"; return 0; }
-  git -C "$PROJECT_ROOT" archive 34b44269 .aai/scripts .aai/system | tar -x -C "$d/base" || log_fail "TEST-3139: baseline archive failed"
-  ( cd "$PROJECT_ROOT" && node "$SA" list --json --status all > "$d/new.json" ) || log_fail "TEST-3139: spec-amend list --json failed on the live ledger"
-  git -C "$PROJECT_ROOT" show 34b44269:docs/ai/decisions.jsonl > "$d/base-ledger.jsonl" || log_fail "TEST-3139: baseline ledger blob unreadable"
-  ( cd "$PROJECT_ROOT" && node "$d/base/.aai/scripts/spec-amend.mjs" list --json --status all --ledger "$d/base-ledger.jsonl" > "$d/old.json" ) || log_fail "TEST-3139: baseline engine list failed"
-  verdict="$(node -e '
+# Compares the baseline engine (34b44269 scripts, run from a scratch copy) with the
+# working-tree engine over ONE ledger. Both engines read that same ledger, so a later
+# legitimate owner classify moves a record's bucket under both and never reads as a
+# regression. The 34b44269 ledger blob only supplies the set of record keys compared.
+# Prints the problems joined by "; " (empty when the comparison passes).
+t3139_compare() {
+  local d="$1" ledger="$2"
+  ( cd "$PROJECT_ROOT" && node "$SA" list --json --status all --ledger "$ledger" > "$d/new.json" ) || { printf 'working-tree engine list failed'; return 0; }
+  ( cd "$PROJECT_ROOT" && node "$d/base/.aai/scripts/spec-amend.mjs" list --json --status all --ledger "$ledger" > "$d/old.json" ) || { printf 'baseline engine list failed'; return 0; }
+  ( cd "$PROJECT_ROOT" && node "$d/base/.aai/scripts/spec-amend.mjs" list --json --status all --ledger "$d/base-ledger.jsonl" > "$d/basekeys.json" ) || { printf 'baseline engine list on the base blob failed'; return 0; }
+  node -e '
     const fs = require("fs");
     const rd = (f) => JSON.parse(fs.readFileSync(f, "utf8")).items;
+    const baseKeys = new Set(rd(process.argv[3]).map((i) => i.record_key));
     const oldItems = rd(process.argv[1]), newItems = rd(process.argv[2]);
     const o = new Map(oldItems.map((i) => [i.record_key, i]));
     const p = [];
-    if (newItems.length < 500) p.push("positive control: only " + newItems.length + " records");
-    if (newItems.length < oldItems.length) p.push("record count shrank " + oldItems.length + " -> " + newItems.length);
+    if (baseKeys.size < 500) p.push("positive control: only " + baseKeys.size + " base records");
     for (const i of newItems) {
+      if (!baseKeys.has(i.record_key)) continue; // appended after 34b44269: outside the comparison set
       const x = o.get(i.record_key);
       if (i.record_key === "a90cdce977d5") {
         if (i.bucket === "signed" && i.classified_by === null) p.push("a90cdce977d5 still reads signed by the fold");
@@ -2613,15 +2615,47 @@ test_3139_live_ledger_one_record_changes() {
         p.push("record " + i.record_key + " moved " + x.bucket + " -> " + i.bucket);
       }
     }
-    // records appended after the 34b44269 base are outside the comparison set; none may vanish
     const nk = new Set(newItems.map((i) => i.record_key));
-    for (const k of o.keys()) if (!nk.has(k)) p.push("base record " + k + " is absent from the live ledger");
+    for (const k of baseKeys) if (!nk.has(k)) p.push("base record " + k + " is absent from the ledger");
     process.stdout.write(p.join("; "));
-  ' "$d/old.json" "$d/new.json")" || log_fail "TEST-3139: the ledger reader crashed"
+  ' "$d/old.json" "$d/new.json" "$d/basekeys.json" || printf 'the ledger reader crashed'
+}
+
+test_3139_live_ledger_one_record_changes() {
+  log_info "Test: on the live ledger exactly a90cdce977d5 leaves the signed bucket, list --strict exits 0 (TEST-3139)..."
+  local d="$TEST_DIR/t3139" ec=0 verdict
+  mkdir -p "$d/base"
+  git -C "$PROJECT_ROOT" cat-file -e 34b44269 2>/dev/null || { log_info "TEST-3139: 34b44269 is not reachable here; skipping the baseline comparison"; return 0; }
+  git -C "$PROJECT_ROOT" archive 34b44269 .aai/scripts .aai/system | tar -x -C "$d/base" || log_fail "TEST-3139: baseline archive failed"
+  git -C "$PROJECT_ROOT" show 34b44269:docs/ai/decisions.jsonl > "$d/base-ledger.jsonl" || log_fail "TEST-3139: baseline ledger blob unreadable"
+  verdict="$(t3139_compare "$d" "$LIVE_LEDGER")"
   [[ -z "$verdict" ]] || log_fail "TEST-3139: $verdict"
   ( cd "$PROJECT_ROOT" && node "$SA" list --strict > "$d/strict.out" 2>&1 ) || ec=$?
   [[ "$ec" -eq 0 ]] || log_fail "TEST-3139: spec-amend list --strict must exit 0, got $ec: $(tail -3 "$d/strict.out")"
-  log_pass "TEST-3139 only a90cdce977d5 changes bucket on the live ledger and list --strict is clean"
+
+  # Regression arm (validation r2 P3): a later owner classify of a base record that is
+  # currently unsigned moves its bucket under BOTH engines and must not fail the comparison.
+  local tgt scratch="$d/scratch-ledger.jsonl"
+  cp "$LIVE_LEDGER" "$scratch"
+  tgt="$(node -e '
+    const fs = require("fs");
+    const base = new Set(JSON.parse(fs.readFileSync(process.argv[2], "utf8")).items.map((i) => i.record_key));
+    const t = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).items.find((i) => base.has(i.record_key) && i.bucket === "unsigned-tracked");
+    if (t) process.stdout.write([t.ts, t.ref_id, t.record_key].join(" "));
+  ' "$d/new.json" "$d/basekeys.json")" || log_fail "TEST-3139 P3 arm: target selection crashed"
+  [[ -n "$tgt" ]] || { log_info "TEST-3139 P3 arm: no unsigned base record left on the live ledger; arm skipped"; return 0; }
+  set -- $tgt
+  ec=0
+  ( cd "$PROJECT_ROOT" && node "$SA" classify --ledger "$scratch" --ts "$1" --ref "$2" --record "$3" --signoff owner --why "TEST-3139 P3 arm" --source "scratch ledger" > "$d/p3-classify.out" 2>&1 ) || ec=$?
+  [[ "$ec" -eq 0 ]] || log_fail "TEST-3139 P3 arm: scratch classify failed rc=$ec: $(tail -2 "$d/p3-classify.out")"
+  ( cd "$PROJECT_ROOT" && node "$SA" list --json --status all --ledger "$scratch" ) | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const t = j.items.find((i) => i.record_key === process.argv[1]);
+    if (!t || t.bucket !== "signed") { console.error("P3 control: " + process.argv[1] + " is " + (t && t.bucket)); process.exit(1); }
+  ' "$3" || log_fail "TEST-3139 P3 arm: the scratch owner classify did not move $3 to signed (control)"
+  verdict="$(t3139_compare "$d" "$scratch")"
+  [[ -z "$verdict" ]] || log_fail "TEST-3139 P3 arm: a later owner classify of base record $3 breaks the comparison: $verdict"
+  log_pass "TEST-3139 only a90cdce977d5 changes bucket on the live ledger, list --strict is clean, and a later owner classify of a base record does not break the comparison"
 }
 
 test_3140_canon_states_merge_time_binding() {
