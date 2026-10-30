@@ -6,6 +6,10 @@
 // A run whose run-level conclusion is cancelled is superseded by a newer run of
 // the same workflow and event on the head (concurrency cancel-in-progress): its
 // checks are pending while the sibling runs, dropped once it completed.
+// The re-read that follows a cancellation refetches every run: status and
+// conclusion may move, identity (created_at, workflow_id, event) may not. A run
+// that is cancelled only on the re-read is superseded the same way, and refuses
+// closed (workflow state moved during observation) when no sibling qualifies.
 import {spawnSync} from 'node:child_process';
 const sha=s=>/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(s||'');
 function fail(message) {
@@ -86,7 +90,8 @@ export function readCurrentChecks({
   }
   const workflows=new Map();
   let observations=[];
-  const readCheckRuns=()=>{
+  const readCheckRuns=(refresh=false)=>{
+    const fetched=new Set();
     const pages=json(['api','--paginate','--slurp',`repos/${repo}/commits/${head}/check-runs?filter=all&per_page=100`]);
     if(!Array.isArray(pages)||!pages.length||pages.some(p=>!p||!Number.isSafeInteger(p.total_count)||!Array.isArray(p.check_runs)))fail('malformed check-run pages');
     const runs=pages.flatMap(p=>p.check_runs),total=pages[0].total_count;
@@ -106,11 +111,14 @@ export function readCurrentChecks({
       if(runMatch) {
         runId=Number(runMatch[1]);
         if(!Number.isSafeInteger(runId)||runId<1)fail(`malformed workflow identity: ${c.name}`);
-        if(!workflows.has(runId)) {
+        if(!workflows.has(runId)||refresh&&!fetched.has(runId)) {
           const workflow=json(['api',`repos/${repo}/actions/runs/${runId}`]);
           if(workflow?.head_sha!==head || workflow.id!==undefined&&workflow.id!==runId)fail(`workflow identity/head-SHA mismatch: ${c.name}`);
           const created=Date.parse(workflow.created_at||'');
           if(!Number.isFinite(created))fail(`missing workflow creation identity: ${c.name}`);
+          const old=workflows.get(runId);
+          if(old&&(old.created!==created||old.workflowId!==workflow.workflow_id||old.event!==workflow.event))fail('workflow identity moved during observation');
+          fetched.add(runId);
           workflows.set(runId, {
             created,workflowId:workflow.workflow_id,event:workflow.event,status:workflow.status,conclusion:workflow.conclusion
           });
@@ -158,10 +166,14 @@ export function readCurrentChecks({
     // may have registered (and failed) its checks since. Re-read the check
     // runs AFTER the run list so a completed sibling's checks are always
     // visible before supersession decides anything.
-    readCheckRuns();
-    for(const [id,w] of workflows)if(w.conclusion==='cancelled'&&!cancelledRuns.some(([r])=>r===id))fail('workflow state moved during observation');
+    readCheckRuns(true);
+    const firstRead=new Set(cancelledRuns.map(([r])=>r));
+    const nowCancelled=[...workflows].filter(([,w])=>w.conclusion==='cancelled');
+    for(const [,w] of nowCancelled) {
+      if(!Number.isSafeInteger(w.workflowId)||w.workflowId<1||typeof w.event!=='string'||!w.event)fail('malformed cancelled workflow identity');
+    }
     const drop=new Set();
-    for(const [runId,w] of cancelledRuns) {
+    for(const [runId,w] of nowCancelled) {
       const self= {
         id:runId,created_at:new Date(w.created).toISOString()
       };
@@ -171,7 +183,10 @@ export function readCurrentChecks({
         if(sibling.id===runId||!same||!after(sibling,self))continue;
         if(!newest||after(sibling,newest))newest=sibling;
       }
-      if(!newest)continue;
+      if(!newest) {
+        if(!firstRead.has(runId))fail('workflow state moved during observation');
+        continue;
+      }
       const sibling=newest;
       const siblingTime=Date.parse(sibling.created_at);
       for(let i=0;i<observations.length;i++) {

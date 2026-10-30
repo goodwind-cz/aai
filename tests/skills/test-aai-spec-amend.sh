@@ -5534,6 +5534,48 @@ test_identical_pair_prose_and_refusal_stay_honest() {
   log_pass "TEST-012 the strict trailer admits the indistinguishable records have no command, the identical-pair refusal lists its key once with no template, distinct pairs unchanged"
 }
 
+test_2937_wcr_reread_corrections_on_live_ledger() {
+  log_info "Test: the two D8 correction records are on the live ledger and inert to the amendment fold (TEST-2937)..."
+  local led scratch out_with out_without strict_ec
+  led="$PROJECT_ROOT/docs/ai/decisions.jsonl"
+  [[ -f "$led" ]] || log_fail "TEST-2937: the live ledger $led is missing"
+  scratch="$(mktemp -d)"
+  node -e '
+    const fs=require("fs");
+    const [led,without]=process.argv.slice(1);
+    const all=fs.readFileSync(led,"utf8").split("\n").filter(Boolean);
+    const lines=all.filter(l=>l.startsWith("{")).map(l=>({l,r:JSON.parse(l)}));
+    const want=[
+      ["2026-10-29T21:38:47Z","watch-ci-cancelled-runs-and-release-gate-docs",["USER_GUIDE","github-checks.mjs","fu-amend-watch-ci-cancelled-runs-f5717d"]],
+      ["2026-10-29T18:07:55Z","docs-audit-content-engine-split",["suite-map.yaml","NB-2","code review r2","review-docs-audit-content-engine-split-r2-20261029T180433Z.md"]]
+    ];
+    const drop=new Set();
+    for(const [ts,ref,facts] of want){
+      const hit=lines.filter(x=>x.r.type==="process_finding"&&x.r.ref_id===ref&&typeof x.r.finding==="string"&&x.r.finding.startsWith(`correction to the ${ts} spec_amendment record`));
+      if(hit.length!==1){console.error(`want exactly 1 correction for ${ts}, got ${hit.length}`);process.exit(1);}
+      const r=hit[0].r;
+      if(r.relates_to!==`docs/ai/decisions.jsonl ts=${ts} type=spec_amendment ref_id=${ref}`){console.error(`relates_to wrong for ${ts}: ${r.relates_to}`);process.exit(1);}
+      for(const f of facts)if(!String(r.detail).includes(f)){console.error(`detail for ${ts} lacks ${f}`);process.exit(1);}
+      if(!r.source||r.severity!=="P3"){console.error(`source/severity missing for ${ts}`);process.exit(1);}
+      drop.add(hit[0].l);
+    }
+    fs.writeFileSync(without,all.filter(l=>!drop.has(l)).join("\n")+"\n");
+  ' "$led" "$scratch/without.jsonl" || { rm -rf "$scratch"; log_fail "TEST-2937: the D8 correction records are missing or wrong on the live ledger"; }
+  # the two list outputs are ~488 KB each: pass them by file, never as argv (Linux caps one arg at 128 KiB)
+  node "$SA" list --ledger "$led" --json --status all > "$scratch/with.json"
+  node "$SA" list --ledger "$scratch/without.jsonl" --json --status all > "$scratch/without.json"
+  node -e '
+    const fs=require("fs");
+    const a=JSON.parse(fs.readFileSync(process.argv[1],"utf8")),b=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+    const pick=j=>JSON.stringify({items:j.items,counts:j.counts});
+    process.exit(pick(a)===pick(b)?0:1);
+  ' "$scratch/with.json" "$scratch/without.json" || { rm -rf "$scratch"; log_fail "TEST-2937: the correction records changed the amendment fold"; }
+  rm -rf "$scratch"
+  run_sa list --ledger "$led" --strict
+  [[ "$EC" == 0 ]] || log_fail "TEST-2937: list --strict on the live ledger must exit 0, got $EC (stderr: $ERR)"
+  log_pass "TEST-2937 both correction records are on the live ledger with the D8 fields, inert to the fold, strict is clean"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-unsigned-spec-amendment-has-no-outflow TEST-001..010, plus TEST-013..016 from validation and code review)"
   check_deps
@@ -5617,6 +5659,7 @@ main() {
   test_add_duplicate_is_idempotent
   test_strict_remedy_for_identical_pair_is_a_named_note
   test_identical_pair_prose_and_refusal_stay_honest
+  test_2937_wcr_reread_corrections_on_live_ledger
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

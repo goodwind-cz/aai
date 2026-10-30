@@ -1022,7 +1022,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 63094 -> 63917: merge-cleanup-resolves-framework-friction (+823 B: SKILL_MERGE step 1 and 2 route OUTCOME lines, step 3 relays the
   # plain-language lines, both blocks pass AAI_DECIDE; measured against fb171891, credited 1:1; AGENTS.md rule 2 is outside the glob, no credit).
   # Then 63917 -> 64324: codex-usage-missing-from-run-budgets (+407 B: SKILL_LOOP step 2f Codex budget paragraph; measured against f8614f67, credited 1:1).
-  local want_growth=64324
+  # Then 64324 -> 64396: watch-ci-reread-refresh-and-p3-cleanup (+72 B: SKILL_PR step 3b names user-facing docs as shipped; measured against 7d38415a, credited 1:1).
+  local want_growth=64396
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2770,6 +2771,32 @@ test_2824_diet_entry_for_binding() {
   log_pass "TEST-2824: glob growth $growth B over $base_glob, $n recheck-verdict-binding ledger entry crediting '${lead:-none}' B, headroom $headroom"
 }
 
+test_2936_skill_pr_3b_growth_ledgered() {
+  if ! declare -p JUSTIFIED_ADDITIONS >/dev/null 2>&1; then
+    log_fail "TEST-2936 JUSTIFIED_ADDITIONS array does not exist"
+    return
+  fi
+  # SKILL_PR.prompt.md was 32833 B at baseline commit 7d38415a (stored, not read from git: shallow clones lack the commit).
+  local base_bytes=32833 now growth _e entry='' n=0 lead
+  now=$(wc -c < .aai/SKILL_PR.prompt.md | tr -d ' ')
+  growth=$(( now - base_bytes ))
+  for _e in "${JUSTIFIED_ADDITIONS[@]}"; do
+    case "$_e" in
+      *" watch-ci-reread-refresh-and-p3-cleanup "*) entry="$_e"; n=$((n + 1)) ;;
+    esac
+  done
+  lead="${entry%% *}"
+  if [[ "$n" -ne 1 ]]; then
+    log_fail "TEST-2936: $n ledger entries name watch-ci-reread-refresh-and-p3-cleanup (want exactly 1)"
+    return
+  fi
+  if [[ "$growth" -le 0 || "$lead" != "$growth" ]]; then
+    log_fail "TEST-2936: SKILL_PR grew $growth B over $base_bytes but the entry credits '$lead' B"
+    return
+  fi
+  log_pass "TEST-2936: SKILL_PR step 3b growth $growth B credited 1:1 by one watch-ci-reread-refresh-and-p3-cleanup entry"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2829,6 +2856,7 @@ main() {
   test_1734_local_evidence_growth_ledgered
   test_2722_diet_entry_for_slice
   test_2824_diet_entry_for_binding
+  test_2936_skill_pr_3b_growth_ledgered
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then

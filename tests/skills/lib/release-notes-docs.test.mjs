@@ -167,3 +167,16 @@ test('TEST-2710 the CHANGELOG preamble and the product page name all eight paths
   assert.match(entry, /watch-ci/);
   assert.match(entry, /release[- ]notes gate/i);
 });
+
+test('TEST-2935 SKILL_PR step 3b names user-facing docs as shipped and keeps tests and evidence exempt', () => {
+  const text = fs.readFileSync(path.join(root, '.aai/SKILL_PR.prompt.md'), 'utf8');
+  const start = text.search(/^3b\. /m);
+  assert.ok(start >= 0, 'step 3b is missing');
+  const rest = text.slice(start + 3);
+  const next = rest.search(/^\d+[a-z]?\. /m);
+  const block = next < 0 ? rest : rest.slice(0, next);
+  assert.ok(!block.includes('Docs/test/evidence-only changes are exempt.'), 'old wholesale exemption remains');
+  assert.ok(block.includes('docs/product/release-notes-gate.md'), 'the exact list is not pointed to');
+  assert.match(block, /user-facing docs[^.]*shipped/i);
+  assert.match(block, /tests,? evidence[^.]*exempt/i);
+});
