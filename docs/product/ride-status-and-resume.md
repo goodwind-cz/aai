@@ -57,7 +57,10 @@ no-argument `/aai-ship` continues: `merge pr=<n>` (the ride is closed, pushed
 and its pull request is open), `pr_step5 ref=<slug>` (the ride is closed but
 its branch is not pushed at its head or has no pull request), `loop` (the ride
 is still in progress) or `none` (no ride to resume, for example a fresh branch
-or the base branch). Both modes take `--json`, `--state <path>` and
+or the base branch). One exception: when the pull request list cannot be read
+and the closed ride's branch is already pushed, the line also says `none`,
+so a no-argument `/aai-ship` moves on instead of stopping; run `probe` and
+check `pr_open` before trusting it. Both modes take `--json`, `--state <path>` and
 `--root <dir>`; `probe` also takes `--branch <name>`.
 
 Where the agents use it:
