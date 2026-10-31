@@ -187,6 +187,7 @@ test_3178_off_modes() { node_cases TEST-3178; }
 test_3181_log_missing() { node_cases TEST-3181; }
 test_3182_lint_and_live_manifest() { node_cases TEST-3182; }
 test_3183_select_suites_import() { node_cases TEST-3183; }
+test_3191_simple_glob_literal() { node_cases TEST-3191; }
 
 # test_3165: a second selected run of an unchanged declared suite reports it
 # REUSED with the first run's provenance and does not execute it.
@@ -406,6 +407,102 @@ test_3190_select_suites_cli_still_runs() {
   log_pass "TEST-3190 (select-suites.mjs entry point prints its selection)"
 }
 
+# test_3184: the Pester twin passes at least 4 cases under pwsh 7, none failed,
+# none skipped. Skips the suite when pwsh or Pester 5 is absent (never fakes it).
+test_3184_pester_twin() {
+  local file="$PROJECT_ROOT/tests/skills/suite-reuse.Tests.ps1" out="" rc=0 tally f s t
+  command -v pwsh >/dev/null 2>&1 || log_skip "pwsh not found (TEST-3184)"
+  [[ -f "$file" ]] || log_fail "TEST-3184: $file does not exist"
+  out="$(env -u AAI_ROLE pwsh -NoProfile -Command "Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop; \$r = Invoke-Pester -Path '$file' -PassThru -Output None; Write-Output ('TALLY F=' + \$r.FailedCount + ' S=' + \$r.SkippedCount + ' T=' + \$r.TotalCount)" 2>&1)" || rc=$?
+  tally="$(printf '%s\n' "$out" | sed -n 's/^TALLY //p' | tail -n 1)"
+  if [[ "$rc" -ne 0 || -z "$tally" ]]; then
+    printf '%s\n' "$out" | sed -n '1,40p' >&2
+    log_fail "TEST-3184: pwsh Pester run failed (rc=$rc): $tally"
+  fi
+  f="${tally#F=}"; f="${f%% *}"
+  s="${tally#*S=}"; s="${s%% *}"
+  t="${tally#*T=}"
+  [[ "$f" == 0 && "$s" == 0 && "$t" -ge 4 ]] || log_fail "TEST-3184: Pester tally $tally (want F=0 S=0 T>=4)"
+  log_pass "TEST-3184 (Pester $tally)"
+}
+
+# test_3185: both path lists of ps1-quality.yml carry the helper entry.
+test_3185_workflow_path_lists() {
+  local wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" ev n
+  for ev in push pull_request; do
+    n="$(awk -v ev="$ev" '
+      /^on:/ {on=1; next}
+      on && /^[^ #]/ {on=0}
+      on && /^  [a-z_]+:/ {cur=$1; sub(":","",cur); next}
+      on && cur==ev && $0=="      - '"'"'.aai/scripts/suite-reuse.mjs'"'"'" {c++}
+      END {print c+0}' "$wf")"
+    [[ "$n" == 1 ]] || log_fail "TEST-3185: $ev list has $n .aai/scripts/suite-reuse.mjs entries (want 1)"
+  done
+  log_pass "TEST-3185 (push and pull_request lists carry .aai/scripts/suite-reuse.mjs)"
+}
+
+# test_3186: the Reuse exception paragraph and the VALIDATION step 5 c2 sentence.
+test_3186_canon_reconciliation() {
+  local verify="$PROJECT_ROOT/.aai/SKILL_VERIFY.prompt.md" val="$PROJECT_ROOT/.aai/VALIDATION.prompt.md"
+  local para c2 term
+  para="$(awk '/^## Iron Law/ {seen=1} seen && /^Reuse exception:/ {p=1} p && NF==0 {exit} p {print}' "$verify")"
+  [[ -n "$para" ]] || log_fail "TEST-3186: SKILL_VERIFY has no Reuse exception: paragraph after the Iron Law"
+  [[ "$(awk '/^## Gate function/ {exit} /^Reuse exception:/ {print "y"}' "$verify")" == y ]] \
+    || log_fail "TEST-3186: the Reuse exception: paragraph is not directly in the Iron Law section"
+  for term in REUSED 'original run' log 'full sweep before close' CI main nightly release; do
+    [[ "$para" == *"$term"* ]] || log_fail "TEST-3186: Reuse exception paragraph lacks '$term'"
+  done
+  c2="$(awk '/^   c2\) SUITE SCOPE PER ROUND/ {p=1} p && /^   c3\)|^   d\)/ {exit} p {print}' "$val")"
+  [[ -n "$c2" ]] || c2="$(sed -n '/c2) SUITE SCOPE PER ROUND/,/TWO ROUNDS MAX/p' "$val")"
+  [[ "$c2" == *REUSED* && "$c2" == *'intermediate round'* ]] || log_fail "TEST-3186: VALIDATION step 5 c2 lacks REUSED and intermediate round"
+  log_pass "TEST-3186 (Reuse exception paragraph and VALIDATION c2 sentence)"
+}
+
+# test_3187: exactly one ledger entry names precise-suite-evidence-reuse, with a
+# leading byte count in 1..600. TEST-010/TEST-012 are proved by the prompt-diet suite.
+test_3187_ledger_entry() {
+  local ledger="$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh" n bytes
+  n="$(grep -c '^JUSTIFIED_ADDITIONS+=( "[0-9][0-9]* precise-suite-evidence-reuse ' "$ledger" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3187: $n ledger entries name precise-suite-evidence-reuse (want exactly 1)"
+  bytes="$(sed -n 's/^JUSTIFIED_ADDITIONS+=( "\([0-9][0-9]*\) precise-suite-evidence-reuse .*/\1/p' "$ledger")"
+  [[ "$bytes" -ge 1 && "$bytes" -le 600 ]] || log_fail "TEST-3187: ledger credit $bytes B is outside 1..600"
+  log_pass "TEST-3187 (one ledger entry, $bytes B)"
+}
+
+# test_3189: the analysis note carries a Measurements section with at least 3
+# samples per mode in each round, reused counts, medians, bounded check times,
+# versions, and the plain statements (no comparison of the two medians).
+test_3189_analysis_note() {
+  local note="$PROJECT_ROOT/docs/analysis/precise-suite-evidence-reuse.md" out
+  [[ -f "$note" ]] || log_fail "TEST-3189: $note does not exist"
+  out="$(NOTE="$note" node -e '
+    const fs = require("fs");
+    const t = fs.readFileSync(process.env.NOTE, "utf8");
+    const fail = (m) => { console.log("FAIL " + m); process.exit(0); };
+    const lines = t.split("\n");
+    if (!lines.includes("## Measurements")) fail("no ## Measurements line");
+    const rows = lines.filter((l) => /^\| *[A-Za-z0-9-]+ *\| *[0-9]+ *\| *(off|on) *\|/.test(l)).map((l) => l.split("|").map((c) => c.trim()));
+    const rounds = [...new Set(rows.map((r) => r[1]))];
+    if (rounds.length < 2) fail("fewer than 2 rounds in the sample table");
+    for (const rd of rounds) for (const mode of ["off", "on"]) {
+      const n = rows.filter((r) => r[1] === rd && r[3] === mode).length;
+      if (n < 3) fail("round " + rd + " has " + n + " " + mode + " samples (want 3)");
+      if (!new RegExp("^Round " + rd + " medians:.*off.*on.*reused", "m").test(t)) fail("no medians line for round " + rd);
+    }
+    for (const r of rows) {
+      const check = Number(r[7]);
+      if (r[3] === "on" && !(check <= 5)) fail("check time " + r[7] + " above 5 s");
+    }
+    if (!/\b[0-9a-f]{40}\b/.test(t)) fail("no 40-character commit sha");
+    for (const w of ["Node", "Bash", "Git"]) if (!new RegExp(w + "[^\\n]*[0-9]+\\.[0-9]+").test(t)) fail("no " + w + " version");
+    if (!/^### Where reuse helps/m.test(t)) fail("no Where reuse helps section");
+    if (!/^### Why the docs-closure suites miss/m.test(t)) fail("no Why the docs-closure suites miss section");
+    console.log("OK " + rows.length + " samples in " + rounds.length + " rounds");
+  ')"
+  [[ "$out" == OK* ]] || log_fail "TEST-3189: ${out:-node produced no output}"
+  log_pass "TEST-3189 (analysis note: ${out#OK })"
+}
+
 main() {
   echo "Testing $TEST_NAME (spec-precise-suite-evidence-reuse)"
   check_deps
@@ -428,8 +525,14 @@ main() {
   test_3181_log_missing
   test_3182_lint_and_live_manifest
   test_3183_select_suites_import
+  test_3191_simple_glob_literal
   test_3188_profiles_selection_and_source_shape
   test_3190_select_suites_cli_still_runs
+  test_3184_pester_twin
+  test_3185_workflow_path_lists
+  test_3186_canon_reconciliation
+  test_3187_ledger_entry
+  test_3189_analysis_note
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -190,7 +190,9 @@ PROCESS
       validation or remediation round before the close ceremony — runs the
       SELECTED plus CORE suites named by
       `node .aai/scripts/select-suites.mjs --files-from <changed files>` and
-      does NOT require a full sweep. ONE full
+      does NOT require a full sweep. A suite the framework prints as REUSED
+      counts in an intermediate round and is cited as reused (SKILL_VERIFY
+      reuse exception). ONE full
       `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh`
       (Windows) / `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh` (POSIX)
       runs before the close ceremony and

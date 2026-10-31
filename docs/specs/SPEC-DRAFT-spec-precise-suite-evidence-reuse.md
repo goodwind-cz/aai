@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4ba4384e0475642db67be772d1de315923dda8e7841ece7a29dbb2bb2c36c0da
+frozen_sha256: e5bcd66c82de515fd584d715fe492ff2c020e5936e2e8d03280479c43628da58
 ceremony_level: 2
 links:
   requirement: precise-suite-evidence-reuse
@@ -244,7 +244,11 @@ canonical JSON value:
   token in a `tests/skills/` file resolved against `tests/skills/`), and
   every file reached by an ESM relative `import` or `import()` from a
   closure `.mjs` or `.js` file, transitively. A literal that names a
-  directory adds every `listTreeFiles` path under it. Literals inside files
+  directory adds every `listTreeFiles` path under it, except that a literal
+  of the form `dir/*.ext` (one simple single-star glob in the last segment,
+  with no brace, extglob or `**` syntax) is matched as that glob and adds only
+  the `listTreeFiles` paths it matches; any literal with brace or extglob
+  syntax keeps the directory fallback (amendment O1). Literals inside files
   under `.aai/` are not followed (M3);
   (e) each seed path (the framework's effective seed list) that exists, when
   its basename occurs in the text of any closure file.
@@ -410,6 +414,8 @@ branch tip (never the shared main checkout):
    scratch snapshot.
 3. Remediation-shaped edit: append one comment line to
    `.aai/scripts/ride-status.mjs`.
+   A second round (amendment M1) repeats steps 2 to 4 with a delta of one
+   production-script edit that changes no docs/ file.
 4. Six samples, alternating off and on: off is the round with
    `AAI_SUITE_REUSE=0`; before each on sample, restore the store from the
    snapshot so every on sample starts from the same state.
@@ -493,7 +499,7 @@ stay as they are; CI never reuses (D6).
 | Spec-AC-10 | tests/skills/suite-reuse.Tests.ps1 passes at least 4 cases with 0 failed and 0 skipped under local pwsh 7 (hit, edited input, untracked added, slash-separated store paths); both path lists of ps1-quality.yml list .aai/scripts/suite-reuse.mjs and test-aai-win-fallback.sh test_034 passes | planned | — | — | D10 |
 | Spec-AC-11 | SKILL_VERIFY carries a paragraph starting Reuse exception: after the Iron Law naming REUSED, the original run, reading its log, and the full sweep before close, CI, main, nightly and release as always executed; VALIDATION step 5 c2 names a REUSED suite as counting in an intermediate round; the prompt glob grows at most 600 B, credited by one ledger entry naming precise-suite-evidence-reuse, and test-aai-prompt-diet.sh TEST-010 and TEST-012 pass | planned | — | — | D9 |
 | Spec-AC-12 | PROFILES.yaml core lists .aai/scripts/suite-reuse.mjs; select-suites.mjs selects aai-suite-reuse for suite-reuse.mjs, suite-reuse.json, test-framework.sh and release-dry-run.mjs; the helper is at most 600 lines, imports only node: modules plus select-suites.mjs and lib/tree-hash.mjs, and passes no shell option to a child process; IDENTITY_COMPONENTS holds exactly the six D4 names in order | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3188.log | — | D1 D2 D4 |
-| Spec-AC-13 | docs/analysis/precise-suite-evidence-reuse.md has a Measurements heading and at least 3 samples per mode for the M5 round; every on sample reuses at least 1 suite; the on median wall time is lower than the off median; every check time is at most 5 s; the note names commit, host, Node, Bash and Git versions | planned | — | — | D11 |
+| Spec-AC-13 | docs/analysis/precise-suite-evidence-reuse.md has a Measurements heading and at least 3 samples per mode for each of two rounds (the M5 round, and a second round whose delta is one production-script edit that changes no docs/ file); every on sample reuses at least 1 suite where the note says it should; the note gives the reused-suite count and both medians per round, every check time is at most 5 s, it names commit, host, Node, Bash and Git versions, and it states where reuse helps and why the docs-closure suites miss (no requirement that the on median beats the off median) | planned | — | — | D11 |
 
 ## Implementation plan
 
@@ -558,7 +564,8 @@ stay as they are; CI never reuses (D6).
 | TEST-3186 | Spec-AC-11 | inspection | tests/skills/test-aai-suite-reuse.sh | test_3186: SKILL_VERIFY has a paragraph starting Reuse exception: after the Iron Law paragraph containing REUSED, original run, log, full sweep before close, CI, main, nightly and release; VALIDATION step 5 c2 contains REUSED and intermediate round | `sed:s/REUSED/RE-USED/` on .aai/SKILL_VERIFY.prompt.md | pending |
 | TEST-3187 | Spec-AC-11 | contract | tests/skills/test-aai-suite-reuse.sh | test_3187: prompt-diet-ledger.sh has exactly one JUSTIFIED_ADDITIONS entry naming precise-suite-evidence-reuse with a leading byte count from 1 to 600; the Verification run of test-aai-prompt-diet.sh proves TEST-010 and TEST-012 | `sed:s/ precise-suite-evidence-reuse / precise-suite-evidence-reusx /` on tests/skills/lib/prompt-diet-ledger.sh | pending |
 | TEST-3188 | Spec-AC-12 | contract | tests/skills/test-aai-suite-reuse.sh | test_3188: PROFILES.yaml core has the suite-reuse.mjs row; the real select-suites.mjs selects aai-suite-reuse for the helper, the manifest, test-framework.sh and release-dry-run.mjs; the helper is at most 600 lines, its imports are node: modules, ./select-suites.mjs and ./lib/tree-hash.mjs, it has no shell true, and its IDENTITY_COMPONENTS line equals the D4 literal | `sed:s/  - \.aai\/scripts\/suite-reuse\.mjs/  - .aai\/scripts\/suite-reusx.mjs/` on .aai/system/PROFILES.yaml | green |
-| TEST-3189 | Spec-AC-13 | inspection | tests/skills/test-aai-suite-reuse.sh | test_3189: the note has a line equal to ## Measurements, at least 3 table rows per mode, reused at least 1 in every on row, the on median below the off median computed from the rows, every check value at most 5, and names a 40-character commit sha, Node, Bash and Git versions | `sed:s/## Measurements/## Measurementz/` on docs/analysis/precise-suite-evidence-reuse.md | pending |
+| TEST-3189 | Spec-AC-13 | inspection | tests/skills/test-aai-suite-reuse.sh | test_3189: the note has a line equal to ## Measurements, at least 3 table rows per mode in each of two rounds, a reused count and both medians per round, every check value at most 5, a statement of where reuse helps and why docs-closure suites miss, and names a 40-character commit sha, Node, Bash and Git versions (no comparison of the on and off medians) | `sed:s/## Measurements/## Measurementz/` on docs/analysis/precise-suite-evidence-reuse.md | pending |
+| TEST-3191 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3191: a suite whose test file names `dir/*.txt` stays REUSE when a non-matching file in that directory changes or appears and gives reason=inputs for a matching file changed or added; a suite naming a brace literal `dir/{a,b}.txt` gives reason=inputs for a non-matching file in the directory | `sed:s/SIMPLE_GLOB_RE.test(p)/false/` on .aai/scripts/suite-reuse.mjs | pending |
 | TEST-3190 | Spec-AC-09 | integration | tests/skills/test-aai-suite-select.sh | the existing suite runs unchanged against the guarded select-suites.mjs (CLI output contract) | `sed:s/if (isMain) runMain(/if (false) runMain(/` on .aai/scripts/select-suites.mjs | green |
 
 RED plan, observed on the baseline `773557ee` before each fix and stored
@@ -710,7 +717,7 @@ WORKFLOW.md, existing suite-map rows.
 - R3 Role behavior (citing reused evidence correctly, reading the original
   log) is prompt text; TEST-3186 checks the text, not a role's conduct.
 - R4 Value may be small when most selected suites hash broad inputs; D11
-  measures it honestly and Spec-AC-13 fails if the on median is not lower.
+  measures it honestly in two rounds and Spec-AC-13 requires the note to say where reuse helps and why it misses, not that the on median is lower (amendment M1).
 - R5 Fixture frameworks that assert exact output gain one `Evidence reuse`
   line; the Verification list runs the three suites that copy the framework.
 - Rollback: `AAI_SUITE_REUSE=0` disables reuse at once; reverting the PR

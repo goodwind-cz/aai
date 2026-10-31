@@ -147,6 +147,38 @@ test('TEST-3167 closure-only module, directory literal and seed file change the 
   assert.equal((await chk(c, 'fy')).status, 'REUSE', 'seed file the closure does not name');
 });
 
+test('TEST-3191 a dir/*.ext literal is matched as that glob; a brace literal keeps the directory fallback', async () => {
+  const globRepo = () => mkRepo({
+    'tests/skills/test-fy.sh': '#!/usr/bin/env bash\nls tests/skills/fixtures/g/*.txt\n',
+    'tests/skills/fixtures/g/one.txt': 'one\n',
+    'tests/skills/fixtures/g/note.md': 'prose\n',
+  });
+  const a = globRepo();
+  await pass(a, 'fy');
+  write(a, 'tests/skills/fixtures/g/note.md', 'prose changed\n');
+  assert.equal((await chk(a, 'fy')).status, 'REUSE', 'a file outside the glob is not an input');
+  write(a, 'tests/skills/fixtures/g/other.md', 'new prose\n');
+  assert.equal((await chk(a, 'fy')).status, 'REUSE', 'an added file outside the glob is not an input');
+  write(a, 'tests/skills/fixtures/g/one.txt', 'one changed\n');
+  const edited = await chk(a, 'fy');
+  assert.equal(edited.reason, 'inputs');
+  assert.equal(edited.detail, 'changed tests/skills/fixtures/g/one.txt', 'a file matching the glob is an input');
+  const a2 = globRepo();
+  await pass(a2, 'fy');
+  write(a2, 'tests/skills/fixtures/g/two.txt', 'two\n');
+  assert.equal((await chk(a2, 'fy')).detail, 'added tests/skills/fixtures/g/two.txt', 'an added file matching the glob');
+  const b = mkRepo({
+    'tests/skills/test-fy.sh': '#!/usr/bin/env bash\nls tests/skills/fixtures/b/{a,b}.txt\n',
+    'tests/skills/fixtures/b/a.txt': 'a\n',
+    'tests/skills/fixtures/b/note.md': 'prose\n',
+  });
+  await pass(b, 'fy');
+  write(b, 'tests/skills/fixtures/b/note.md', 'prose changed\n');
+  const braced = await chk(b, 'fy');
+  assert.equal(braced.reason, 'inputs', 'brace syntax falls back to the whole directory');
+  assert.equal(braced.detail, 'changed tests/skills/fixtures/b/note.md');
+});
+
 test('TEST-3168 environment: AAI_ variable, excluded variable and referenced excluded variable', async () => {
   const root = mkRepo();
   await pass(root, 'fx');
