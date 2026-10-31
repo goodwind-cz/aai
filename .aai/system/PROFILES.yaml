@@ -137,6 +137,10 @@ core:
   - .aai/scripts/heartbeat.mjs
   - .aai/scripts/aai-live-serve.mjs
   - .aai/scripts/ride-select.mjs
+  # core: the read-only ride status view and already-done probe
+  # (spec-ride-status-and-resume); SKILL_SHIP/SKILL_PR/SKILL_LOOP (all core) name
+  # it directly, so it travels with them. Node-only, no launcher pair.
+  - .aai/scripts/ride-status.mjs
   # core: the sibling harvester for the same docs/ai/roadmap.yaml subsystem
   # ride-select.mjs occupies (D1, spec-roadmap-takes-direction) — opt-in by
   # name only (D11: no prompt or dispatch branch invokes it), classified with

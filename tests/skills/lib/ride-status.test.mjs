@@ -246,3 +246,77 @@ test('TEST-3148 current action equals the real dispatcher on five fixtures', () 
     assert.deepEqual(s.reasons, d.reasons, `${name}: reasons`);
   }
 });
+
+// --- TEST-3149 .. TEST-3151 ---------------------------------------------------------
+
+const json = (w) => {
+  const r = status(w, '--json');
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+};
+
+test('TEST-3149 blocker kinds and the owner / loop split of the next decision', () => {
+  const human = json(world({ human: { required: true, question: 'Which way should the ride go?' } }));
+  assert.equal(human.blocker.kind, 'human_input');
+  assert.equal(human.blocker.detail, 'Which way should the ride go?');
+  assert.equal(human.next_decision.actor, 'owner');
+  assert.equal(human.next_decision.command, '/aai-hitl');
+
+  const failing = json(world({ phase: 'validation', status: 'in_progress', validation: { status: 'fail', ref: REF, paths: [] } }));
+  assert.equal(failing.blocker.kind, 'failing_gate');
+  assert.equal(failing.blocker.detail, 'validation');
+  assert.equal(failing.next_decision.actor, 'loop');
+
+  const llm = json(world({
+    phase: 'validation', status: 'in_progress', runs: ['Planning', 'TDD Implementation'],
+    validation: { status: 'pass', ref: REF, paths: [] }, review: { required: true, status: 'pass', paths: [] },
+  }));
+  assert.equal(llm.blocker.kind, 'needs_llm');
+  assert.ok(llm.blocker.detail.includes('review_staleness_unknown'), llm.blocker.detail);
+});
+
+test('TEST-3150 next decision: pull request after flush, loop before it, worktree gate by recommendation', () => {
+  const passing = {
+    phase: 'validation', status: 'in_progress',
+    validation: { status: 'pass', ref: REF, paths: [] }, review: { required: true, status: 'pass', paths: [] },
+  };
+  const flushed = json(world({ ...passing, metrics: `${JSON.stringify({ ref_id: REF, date_utc: '2026-10-30', title: 'demo' })}\n` }));
+  assert.equal(flushed.current_action.rule, '14');
+  assert.equal(flushed.next_decision.actor, 'loop');
+  assert.equal(flushed.next_decision.command, '/aai-pr');
+
+  const unflushed = json(world(passing));
+  assert.equal(unflushed.current_action.role, 'Metrics Flush');
+  assert.equal(unflushed.next_decision.actor, 'loop');
+  assert.equal(unflushed.next_decision.command, '/aai-loop');
+
+  const required = json(world({ wtRec: 'required', wtDec: 'undecided' }));
+  assert.equal(required.current_action.rule, '8');
+  assert.equal(required.next_decision.actor, 'owner');
+  assert.equal(required.next_decision.command, '/aai-worktree gate');
+
+  const recommended = json(world({ wtRec: 'recommended', wtDec: 'undecided' }));
+  assert.equal(recommended.current_action.rule, '8');
+  assert.equal(recommended.ceremony_level, 2);
+  assert.equal(recommended.next_decision.actor, 'loop');
+  assert.equal(recommended.next_decision.command, '/aai-loop');
+});
+
+test('TEST-3151 strategy reuse is bound to the focus ref; the worktree part prints ref_binding none', () => {
+  const bound = world({ phase: 'planning', status: 'done', strategy: 'tdd', stratRef: REF });
+  const b = json(bound);
+  assert.equal(b.decisions.strategy.reused, true);
+  assert.equal(b.current_action.role, 'TDD Implementation');
+  assert.notEqual(b.current_action.rule, '7');
+  assert.equal(b.decisions.worktree.ref_binding, 'none');
+  assert.match(status(bound).stdout, /ref_binding=none$/m);
+
+  const other = world({ phase: 'planning', status: 'done', strategy: 'tdd', stratRef: 'OTHER-1' });
+  const o = json(other);
+  assert.equal(o.decisions.strategy.reused, false);
+  assert.equal(o.decisions.strategy.ref_id, 'OTHER-1');
+  assert.equal(o.current_action.role, 'Planning');
+  assert.equal(o.current_action.rule, '7');
+  assert.equal(o.decisions.worktree.ref_binding, 'none');
+  assert.match(status(other).stdout, /ref_binding=none$/m);
+});

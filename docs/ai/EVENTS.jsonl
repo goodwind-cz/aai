@@ -3526,3 +3526,6 @@
 {"v":1,"ts":"2026-10-31T04:48:17Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-ride-status-and-resume/Spec-AC-02","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-31T04:48:17Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-ride-status-and-resume/Spec-AC-03","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-31T04:48:17Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-ride-status-and-resume/Spec-AC-04","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-31T04:50:39Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-ride-status-and-resume/Spec-AC-05","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-31T04:50:39Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-ride-status-and-resume/Spec-AC-06","payload":{"from":"planned","to":"done"}}
+{"v":1,"ts":"2026-10-31T04:50:39Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-ride-status-and-resume/Spec-AC-11","payload":{"from":"planned","to":"done"}}

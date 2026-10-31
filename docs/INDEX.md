@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-ride-status-and-resume | specs | implementing | 4 done, 7 planned | docs/specs/SPEC-DRAFT-ride-status-and-resume.md |
+| spec-ride-status-and-resume | specs | implementing | 7 done, 4 planned | docs/specs/SPEC-DRAFT-ride-status-and-resume.md |
 
 ## Canonical layer (0)
 
