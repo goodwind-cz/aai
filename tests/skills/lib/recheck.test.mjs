@@ -2728,7 +2728,7 @@ test('TEST-2823 the suite map selects aai-recheck for the files the scope touche
 });
 
 // ------------------------------------------------------------------ TEST-2825
-test('TEST-2825 the RFC-0017 phase 4 row links this slice and stays in progress', () => {
+test('TEST-2825 the RFC-0017 phase 4 row links this slice and its status reads in progress or done', () => {
   const text = readRel('docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md');
   const fm = /^---\n([\s\S]*?)\n---/.exec(text);
   assert.ok(fm);

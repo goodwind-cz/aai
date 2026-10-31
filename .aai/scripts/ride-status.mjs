@@ -9,7 +9,8 @@
 // evidence, blocker, next decision, decisions. The current action is copied
 // from orchestration-dispatch.mjs buildSnapshot() + decide(); no rule logic is
 // re-implemented here. Probe reports whether four external effects of the ride
-// (pushed, pr_open, closed, flushed) already happened; it performs none.
+// (pushed, pr_open, closed, flushed) already happened; it performs none, and ends with one
+// derived `resume: merge pr=<n> | pr_step5 ref=<slug> | loop | none` line for SKILL_SHIP.
 //
 // This file writes nothing in either mode. Child processes are `git` and the
 // platform adapter only, always with argument arrays. Exit: 0 report printed,
@@ -251,6 +252,45 @@ function probePrOpen(root, branch) {
   return { state: 'done', detail: `listed ${r.value.join(',')}`, prs: r.value };
 }
 
+// D9: the one resume verdict SKILL_SHIP INPUT keys on. Derived read-only from the probe's own
+// effects plus the close ledger; the base is origin's default branch, else STATE worktree.base_ref, else main.
+function baseBranch(root, lines) {
+  try { return gitOut(root, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).replace(/^origin\//, ''); } catch { /* origin/HEAD unset */ }
+  return readScalar(lines, 'worktree', 'base_ref') || 'main';
+}
+
+// A cleared focus leaves only the close ledger: feat/<slug> (or <slug>) names the ref, closed unless a later reopen supersedes.
+function closedRefForBranch(root, branch) {
+  const ref = branch.includes('/') ? branch.slice(branch.indexOf('/') + 1) : branch;
+  let closeAt = -1;
+  let reopenAt = -1;
+  let text = '';
+  try { text = fs.readFileSync(path.join(root, 'docs/ai/EVENTS.jsonl'), 'utf8'); } catch { return null; }
+  text.split(/\r?\n/).forEach((l, i) => {
+    try {
+      const e = JSON.parse(l);
+      if (e.ref !== ref) return;
+      if (e.event === 'work_item_closed') closeAt = i;
+      else if (e.event === 'doc_lifecycle' && e.payload && e.payload.from === 'done') reopenAt = i;
+    } catch { /* unparseable ledger line */ }
+  });
+  return closeAt !== -1 && reopenAt < closeAt ? ref : null;
+}
+
+function resumeVerdict(g, branch, effects) {
+  if (g.problems.length > 0 || !branch) return 'none';
+  let ref = null;
+  if (g.focusRef) {
+    if (effects.closed.state !== 'done') return 'loop';
+    ref = g.focusRef;
+  } else {
+    ref = closedRefForBranch(g.root, branch);
+  }
+  if (!ref || branch === baseBranch(g.root, g.lines)) return 'none';
+  if (effects.pr_open.state === 'done') return `merge pr=${effects.pr_open.prs[0]}`;
+  return `pr_step5 ref=${ref}`;
+}
+
 function probe(o) {
   const g = gather(o);
   let branch = o.branch;
@@ -268,12 +308,14 @@ function probe(o) {
     closed = { state: snap.close_event_present && !snap.close_event_superseded_by_reopen ? 'done' : 'not_done', detail: null };
     flushed = { state: snap.flushed ? 'done' : 'not_done', detail: null };
   }
-  return { ref_id: g.focusRef, branch, effects: { pushed: probePushed(g.root, branch), pr_open: probePrOpen(g.root, branch), closed, flushed } };
+  const effects = { pushed: probePushed(g.root, branch), pr_open: probePrOpen(g.root, branch), closed, flushed };
+  return { ref_id: g.focusRef, branch, effects, resume: resumeVerdict(g, branch, effects) };
 }
 
 function renderProbe(p) {
   const out = [`probe: ${orNone(p.ref_id)} branch=${orNone(p.branch)}`];
   for (const [name, e] of Object.entries(p.effects)) out.push(`${name}: ${e.state}${e.detail ? ` ${e.detail}` : ''}`);
+  out.push(`resume: ${p.resume}`);
   return out.join('\n');
 }
 

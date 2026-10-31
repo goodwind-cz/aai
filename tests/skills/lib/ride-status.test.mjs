@@ -333,15 +333,15 @@ test('TEST-3151 strategy reuse is bound to the focus ref; the worktree part prin
 const BRANCH = 'feat/x';
 
 // A fixture clone of a real bare origin, on BRANCH. Returns the world plus the origin path.
-function clonedWorld(o = {}, { push = true } = {}) {
+function clonedWorld(o = {}, { push = true, branch = BRANCH } = {}) {
   const w = world(o);
   const origin = fs.mkdtempSync(path.join(os.tmpdir(), 'ride-status-origin-'));
   roots.push(origin);
   git(origin, 'init', '-q', '--bare', '-b', 'main');
   git(origin, 'symbolic-ref', 'HEAD', 'refs/heads/main');
   git(w.root, 'remote', 'add', 'origin', origin);
-  git(w.root, 'checkout', '-q', '-b', BRANCH);
-  if (push) git(w.root, 'push', '-q', '-u', 'origin', BRANCH);
+  git(w.root, 'checkout', '-q', '-b', branch);
+  if (push) git(w.root, 'push', '-q', '-u', 'origin', branch);
   return { ...w, origin };
 }
 
@@ -465,7 +465,16 @@ test('TEST-3155 closed and flushed come from the real ledgers; no focus gives no
 
 const shipInput = () => {
   const t = fs.readFileSync(path.join(REPO, '.aai', 'SKILL_SHIP.prompt.md'), 'utf8');
-  return t.slice(t.indexOf('\nINPUT'), t.indexOf('ride-select.mjs show'));
+  return t.slice(t.indexOf('\nINPUT'), t.indexOf('`no roadmap`'));
+};
+
+// The resume rule is one clause per probe `resume:` verdict; each clause runs to the next marker.
+const MARKERS = ['`resume: merge pr=<n>`', '`resume: pr_step5 ref=<slug>`', '`resume: loop`', '`resume: none`'];
+const clauses = () => {
+  const flat = shipInput().replace(/\s+/g, ' ');
+  const at = MARKERS.map((m) => flat.indexOf(m));
+  assert.ok(at.every((i) => i >= 0) && at.every((v, i) => i === 0 || v > at[i - 1]), `SKILL_SHIP INPUT must name the four resume markers in order: ${at}`);
+  return MARKERS.map((m, i) => flat.slice(at[i], i + 1 < at.length ? at[i + 1] : flat.length));
 };
 
 test('TEST-3159 an invalid STATE reports ref_id null with blocker state_invalid, and SHIP INPUT stops on it before ride-select', () => {
@@ -481,45 +490,84 @@ test('TEST-3159 an invalid STATE reports ref_id null with blocker state_invalid,
   assert.ok(/STOP/.test(input.slice(input.indexOf('state_invalid'))), 'SKILL_SHIP INPUT must STOP on state_invalid');
 });
 
-test('TEST-3160 a ride whose probe reports closed done is not resumed: SHIP INPUT stops and points to /aai-merge', () => {
-  const closeLine = `${JSON.stringify({ ts: '2026-10-30T00:00:00Z', event: 'work_item_closed', ref: REF, payload: {} })}\n`;
-  const fx = world({ ...focusOpts(), events: closeLine });
-  const effects = JSON.parse(probe(fx, '--json', '--branch', BRANCH).stdout).effects;
-  assert.equal(effects.closed.state, 'done');
+const closeLineOf = (ref) => `${JSON.stringify({ ts: '2026-10-30T00:00:00Z', event: 'work_item_closed', ref, payload: {} })}\n`;
+const reopenLineOf = (ref) => `${JSON.stringify({ ts: '2026-10-30T01:00:00Z', event: 'doc_lifecycle', ref, payload: { from: 'done', to: 'implementing' } })}\n`;
+const resumeOf = (w, branch, env) => {
+  const args = ['probe', '--state', w.statePath, '--root', w.root];
+  const text = run('node', [SCRIPT, ...args], w.root, env ?? defaultGhEnv());
+  assert.equal(text.status, 0, text.stderr);
+  const jsn = run('node', [SCRIPT, ...args, '--json'], w.root, env ?? defaultGhEnv());
+  const line = text.stdout.split('\n').find((l) => l.startsWith('resume: '));
+  assert.ok(line, `probe must print a resume: line:\n${text.stdout}`);
+  assert.equal(JSON.parse(jsn.stdout).resume, line.slice('resume: '.length), 'json resume key equals the text line');
+  assert.equal(text.stdout.trimEnd().split('\n').pop(), line, 'resume: is the last probe line');
+  return line;
+};
 
-  const input = shipInput();
-  assert.ok(input.includes('closed: done'), 'SKILL_SHIP INPUT must name the probe closed: done fact');
-  assert.ok(input.includes('/aai-merge'), 'SKILL_SHIP INPUT must point to /aai-merge cleanup');
-  assert.ok(input.indexOf('closed: done') < input.indexOf('RUN step 2') + 200, 'closed check sits with the resume rule');
+test('TEST-3160 only an unclosed focus resumes the loop; a closed ride never reaches RUN step 2, and SHIP INPUT binds RUN step 2 to the loop verdict alone', () => {
+  const inFlight = clonedWorld(focusOpts(), { branch: 'feat/demo' });
+  assert.equal(resumeOf(inFlight), 'resume: loop');
+  const closed = clonedWorld({ ...focusOpts(), events: closeLineOf(REF) }, { push: false, branch: 'feat/demo' });
+  assert.notEqual(resumeOf(closed), 'resume: loop');
+  const reopened = clonedWorld({ ...focusOpts(), events: closeLineOf(REF) + reopenLineOf(REF) }, { branch: 'feat/demo' });
+  assert.equal(resumeOf(reopened), 'resume: loop', 'a close superseded by a reopen is an in-flight ride');
+
+  const flat = shipInput().replace(/\s+/g, ' ');
+  assert.equal(flat.split('RUN step 2').length - 1, 1, 'RUN step 2 is named exactly once in INPUT');
+  const [, , loop] = clauses();
+  assert.ok(loop.includes('RUN step 2'), `the resume: loop clause must name RUN step 2: ${loop}`);
 });
 
-test('TEST-3161 a closed ride before push or PR create resumes SKILL_PR at step 5; with an open PR it stops and names its number', () => {
-  const closeLine = `${JSON.stringify({ ts: '2026-10-30T00:00:00Z', event: 'work_item_closed', ref: REF, payload: {} })}\n`;
-  const tail = (stub, w) => run('node', [SCRIPT, 'probe', '--state', w.statePath, '--root', w.root], w.root, stub.env);
+test('TEST-3161 the probe derives one resume verdict: merge, pr_step5, loop or none', () => {
+  // A fresh feature branch with no ride and no commits (the validator repro): ride-select path.
+  const fresh = clonedWorld({ noFocus: true }, { push: false, branch: 'feat/new-idea' });
+  assert.equal(resumeOf(fresh), 'resume: none');
+  // A feature branch whose only close event belongs to another ref.
+  const other = clonedWorld({ noFocus: true, events: closeLineOf(REF) }, { push: false, branch: 'feat/other' });
+  assert.equal(resumeOf(other), 'resume: none');
+  // The base branch never resumes, even when a close event carries its name.
+  const onMain = world({ noFocus: true, events: closeLineOf('main') });
+  assert.equal(resumeOf(onMain), 'resume: none');
+  // A close superseded by a reopen no longer proves a closed ride.
+  const reopened = clonedWorld({ noFocus: true, events: closeLineOf(REF) + reopenLineOf(REF) }, { push: false, branch: 'feat/demo' });
+  assert.equal(resumeOf(reopened), 'resume: none');
+  // An invalid STATE resumes nothing (SHIP stops on blocker state_invalid first).
+  assert.equal(resumeOf(world({ ...focusOpts(), dupKey: true })), 'resume: none');
 
-  // Focus cleared by the close ceremony, nothing pushed yet: ref_id null on a feature branch.
-  const cleared = clonedWorld({ noFocus: true, events: closeLine }, { push: false });
-  const stub = ghStub();
-  stub.answer('[]');
-  const r = tail(stub, cleared);
-  assert.equal(r.status, 0, r.stderr);
-  assert.ok(r.stdout.includes(`probe: none branch=${BRANCH}`), r.stdout);
-  assert.match(r.stdout, /^pushed: not_done/m);
-  assert.match(r.stdout, /^pr_open: not_done/m);
-  assert.equal(JSON.parse(status(cleared, '--json').stdout).ref_id, null);
+  // Focus cleared by the close ceremony, nothing pushed: the ref comes from the close event for this branch.
+  const cleared = clonedWorld({ noFocus: true, events: closeLineOf('spec-demo') + closeLineOf(REF) }, { push: false, branch: 'feat/demo' });
+  assert.equal(resumeOf(cleared), `resume: pr_step5 ref=${REF}`);
+  // Pushed behind a local commit is still not pushed at head.
+  const behind = clonedWorld({ noFocus: true, events: closeLineOf(REF) }, { branch: 'feat/demo' });
+  write(path.join(behind.root, 'extra.txt'), 'x\n');
+  git(behind.root, 'add', '-A');
+  git(behind.root, 'commit', '-q', '-m', 'ahead');
+  assert.equal(resumeOf(behind), `resume: pr_step5 ref=${REF}`);
+  // Focus still set and closed, no push: the focus ref.
+  const focused = clonedWorld({ ...focusOpts(), events: closeLineOf(REF) }, { push: false, branch: 'feat/x' });
+  assert.equal(resumeOf(focused), `resume: pr_step5 ref=${REF}`);
 
-  // Focus still set, closed, pushed, PR listed: probe carries the number the prompt must name.
-  const open = clonedWorld({ ...focusOpts(), events: closeLine });
-  write(path.join(open.root, 'docs/ai/pr-config.yaml'), 'platform: github\n');
-  stub.answer('[{"number":520}]');
-  const o = tail(stub, open);
-  assert.match(o.stdout, /^closed: done/m);
-  assert.match(o.stdout, /^pr_open: done listed 520/m);
+  // Pushed and an open PR: merge, naming the listed number, with focus cleared or still set.
+  for (const o of [{ noFocus: true, events: closeLineOf(REF) }, { ...focusOpts(), events: closeLineOf(REF) }]) {
+    const w = clonedWorld(o, { branch: 'feat/demo' });
+    write(path.join(w.root, 'docs/ai/pr-config.yaml'), 'platform: github\n');
+    const stub = ghStub();
+    stub.answer('[{"number":520}]');
+    assert.equal(resumeOf(w, null, stub.env), 'resume: merge pr=520');
+    stub.answer('[]');
+    assert.equal(resumeOf(w, null, stub.env), `resume: pr_step5 ref=${REF}`, 'no open PR: finish the PR');
+  }
+});
 
-  const input = shipInput();
-  const flat = input.replace(/\s+/g, ' ');
-  assert.ok(flat.includes('`closed: done`') && flat.includes('`pr_open: done`') && flat.includes('/aai-merge <n>'), 'SHIP INPUT: closed + pr_open done points to /aai-merge <n>');
-  assert.ok(/resume SKILL_PR at step 5/.test(flat), 'SHIP INPUT: closed without PR resumes SKILL_PR at step 5');
-  assert.ok(/null `ref_id` on a non-base branch/.test(flat) && flat.includes('`pushed: not_done` or `pr_open: not_done`'), 'SHIP INPUT: null ref_id on a feature branch with pending push/PR');
-  assert.ok(/no intake, no ride-select/.test(flat.slice(flat.indexOf('non-base branch'))), 'that branch runs no intake and no ride-select');
+test('TEST-3162 SHIP INPUT binds each resume verdict to its own action, and the old non-base heuristic is gone', () => {
+  const [merge, step5, loop, none] = clauses();
+  assert.ok(merge.includes('STOP') && merge.includes('`/aai-merge <n>`'), `merge clause: ${merge}`);
+  assert.ok(!/SKILL_PR|RUN step 2|ride-select/.test(merge), `merge clause must not resume anything: ${merge}`);
+  assert.ok(step5.includes('SKILL_PR') && step5.includes('PRECONDITIONS step 0') && step5.includes('set-focus') && step5.includes('step 5'), `pr_step5 clause keeps the step 0 gate and names step 5: ${step5}`);
+  assert.ok(!/RUN step 2|ride-select/.test(step5), `pr_step5 clause must not start the loop: ${step5}`);
+  assert.ok(loop.includes('RUN step 2') && !/SKILL_PR|ride-select\.mjs/.test(loop), `loop clause: ${loop}`);
+  assert.ok(none.includes('ride-select.mjs show'), `none clause: ${none}`);
+  const flat = shipInput().replace(/\s+/g, ' ');
+  assert.ok(flat.includes('`node .aai/scripts/ride-status.mjs probe`'), 'INPUT runs the probe for the resume: line');
+  assert.ok(!flat.includes('non-base') && !flat.includes('pushed: not_done'), 'the prose heuristic is replaced by the resume: line');
 });
