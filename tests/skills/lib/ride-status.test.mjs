@@ -123,8 +123,15 @@ function world(o = {}) {
   return { root, statePath };
 }
 
-const status = (w, ...extra) => run('node', [SCRIPT, ...extra, '--state', w.statePath, '--root', w.root], w.root);
-const probe = (w, ...extra) => run('node', [SCRIPT, 'probe', ...extra, '--state', w.statePath, '--root', w.root], w.root);
+// Hermetic platform CLI: fixtures without a pr-config fall back to platform github, so every
+// status/probe call gets a gh stub first on PATH (empty PR list) instead of the real gh.
+let defaultGh = null;
+const defaultGhEnv = () => {
+  if (!defaultGh) { defaultGh = ghStub(); defaultGh.answer('[]'); }
+  return defaultGh.env;
+};
+const status = (w, ...extra) => run('node', [SCRIPT, ...extra, '--state', w.statePath, '--root', w.root], w.root, defaultGhEnv());
+const probe = (w, ...extra) => run('node', [SCRIPT, 'probe', ...extra, '--state', w.statePath, '--root', w.root], w.root, defaultGhEnv());
 const dispatcher = (w) => run('node', [DISPATCH, '--state', w.statePath, '--root', w.root], w.root);
 
 const focusOpts = () => ({

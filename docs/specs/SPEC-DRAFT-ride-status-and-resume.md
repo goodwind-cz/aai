@@ -3,7 +3,7 @@ id: spec-ride-status-and-resume
 type: spec
 number: null
 status: implementing
-frozen_sha256: a2475166cac04673132ce015b0a754e66ace7415840004d497ad87cb77521551
+frozen_sha256: ccf171cdcfb9f98087ad3d4f11f911d0f93e9240290eda48784f689680fa7c92
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -303,6 +303,9 @@ the visibility (`ref_binding=none` in every status) and the close-out files
 keeps today's behavior, and metrics-flush's full reset nulls it. This is a
 scope narrowing against the intake; the owner may promote it into this ride
 at L3 instead.
+The owner accepted this narrowing at validation round 1 (HITL, decisions.jsonl
+type hitl, docs/ai/reports/HITL-ride-status-and-resume-d9.md); the gap stays
+open as the P2 follow-up.
 
 ## Acceptance Criteria Mapping
 

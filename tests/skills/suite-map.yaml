@@ -473,6 +473,7 @@ suites:
   aai-ride-status:
     globs:
       - .aai/scripts/ride-status.mjs
+      - .aai/scripts/orchestration-dispatch.mjs
       - .aai/SKILL_SHIP.prompt.md
       - .aai/SKILL_PR.prompt.md
       - .aai/SKILL_LOOP.prompt.md
