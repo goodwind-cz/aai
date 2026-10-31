@@ -2868,6 +2868,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### One registry for the per-provider instruction files
+
+Every coding agent AAI supports reads its own small instruction file in the project root: `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `GEMINI.md`, `.github/copilot-instructions.md` and `.cursor/rules/aai.mdc`. Each one only points the agent at the canonical guide in `.aai/`. They used to be kept by hand, and they drifted: the Copilot file still listed 20 of the 42 skills, one of them already renamed.
+
+[Product doc](product/provider-adapter-registry.md) · [Spec](specs/SPEC-0253-spec-provider-adapter-registry-slice.md)
+
 ### AAI skills in Hermes Agent
 
 Hermes Agent can discover and select the shared AAI skills in a trusted Git project. The existing wrappers load the current project's canonical prompts; no additional skill catalog or installer is required.
@@ -2891,12 +2897,6 @@ The release command prepares a release PR, waits for required checks, merges its
 `/aai-merge <PR>` finishes a ride in one step. It checks the pull request you named, merges it only because you asked for that exact pull request, and then cleans up after it. For an already merged pull request it does the cleanup alone.
 
 [Product doc](product/directed-merge-and-post-merge-cleanup.md) · [Spec](specs/SPEC-0218-spec-directed-merge-and-post-merge-cleanup.md)
-
-### One registry for the per-provider instruction files
-
-Every coding agent AAI supports reads its own small instruction file in the project root: `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `GEMINI.md`, `.github/copilot-instructions.md` and `.cursor/rules/aai.mdc`. Each one only points the agent at the canonical guide in `.aai/`. They used to be kept by hand, and they drifted: the Copilot file still listed 20 of the 42 skills, one of them already renamed.
-
-[Product doc](product/provider-adapter-registry.md) · [Spec](specs/SPEC-0253-spec-provider-adapter-registry-slice.md)
 
 ### `/aai-doctor` diagnoses the real Windows and agent-CLI environment it runs on
 

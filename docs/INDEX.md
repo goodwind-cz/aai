@@ -48,7 +48,7 @@ _None._
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
-| provider-adapter-registry | provider-adapter-registry | 1 | docs/product/provider-adapter-registry.md |
+| provider-adapter-registry | provider-adapter-registry | 2 | docs/product/provider-adapter-registry.md |
 | release-command-finish | release-command-finish | 6 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
@@ -59,7 +59,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (598)
+## Done (600)
 
 | ID | Type | Path |
 |---|---|---|
@@ -294,6 +294,7 @@ _None._
 | CHANGE-0234 | issues | docs/issues/CHANGE-0234-hermes-agent-skill-discovery.md |
 | CHANGE-0235 | issues | docs/issues/CHANGE-0235-docs-audit-content-engine-split.md |
 | CHANGE-0236 | issues | docs/issues/CHANGE-0236-watch-ci-reread-refresh-and-p3-cleanup.md |
+| CHANGE-0237 | issues | docs/issues/CHANGE-0237-provider-adapter-surfaces-closing-slice.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -659,6 +660,7 @@ _None._
 | SPEC-0260 | specs | docs/specs/SPEC-0260-spec-docs-audit-content-engine-split.md |
 | SPEC-0261 | specs | docs/specs/SPEC-0261-spec-watch-ci-cancelled-runs-and-release-gate-docs.md |
 | SPEC-0262 | specs | docs/specs/SPEC-0262-spec-watch-ci-reread-refresh-and-p3-cleanup.md |
+| SPEC-0263 | specs | docs/specs/SPEC-0263-spec-provider-adapter-surfaces-closing-slice.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -1274,4 +1276,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-10-30 — counts above use this date for overdue checks.
+Today (UTC): 2026-10-31 — counts above use this date for overdue checks.

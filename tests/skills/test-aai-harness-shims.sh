@@ -125,6 +125,7 @@ mk_root() {
     mkdir -p "$dir/$t"
     cp -R "$PROJECT_ROOT/$t/." "$dir/$t/"
   done
+  cp "$PROJECT_ROOT/SKILLS.md" "$dir/SKILLS.md"  # the manifest's catalog: section needs the file
   for f in "${SHIMS[@]}"; do
     if [[ -f "$PROJECT_ROOT/$f" ]]; then
       mkdir -p "$dir/$(dirname "$f")"
@@ -704,6 +705,27 @@ test_3013_autonomous_loop_names_classify() {
   log_pass "TEST-3013 AUTONOMOUS_LOOP.md names the classify procedure"
 }
 
+# followup_problems <ledger> — the TEST-3014 follow-up predicate, shared with TEST-3141.
+# Prints the problems (empty = pass). fu-skills-md-quickref-missing-rows must be open (text
+# carries 37 of 42) or done with resolved_by provider-adapter-surfaces-closing-slice.
+followup_problems() {
+  local ledger="$1" out
+  out="$(node "$FOLLOW_UPS" list --json --status all --ledger "$ledger")" || return 1
+  printf '%s' "$out" > "$TMP_ROOT/fu-all.json"
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); const items = j.items || j;
+    const text = (i) => JSON.stringify(i);
+    const p = [];
+    const a = items.find((i) => i.id === "fu-skills-md-quickref-missing-rows");
+    const aOpen = a && a.status === "open" && /37 of 42/.test(text(a));
+    const aClosed = a && a.status === "done" && a.resolved_by === "provider-adapter-surfaces-closing-slice";
+    if (!aOpen && !aClosed) p.push("fu-skills-md-quickref-missing-rows must be open and carry 37 of 42, or done with resolved_by provider-adapter-surfaces-closing-slice");
+    const b = items.find((i) => i.id === "fu-shim-prompt-file-flag-unverified");
+    if (!b || b.status !== "open" || !/prompt-file/.test(text(b))) p.push("fu-shim-prompt-file-flag-unverified must be open and name prompt-file");
+    process.stdout.write(p.join("; "));
+  ' "$TMP_ROOT/fu-all.json"
+}
+
 test_3014_profiles_caps_followups() {
   log_info "TEST-3014: PROFILES core rows, line caps, the two follow-ups..."
   local f profiles="$PROJECT_ROOT/.aai/system/PROFILES.yaml" core lines fu
@@ -716,20 +738,326 @@ test_3014_profiles_caps_followups() {
   [[ "$lines" -le 260 ]] || log_fail "TEST-3014: lib/harness-shims.mjs has $lines lines, cap 260"
   lines="$(wc -l < "$GEN" | tr -d ' ')"
   [[ "$lines" -le 590 ]] || log_fail "TEST-3014: sync-harness-skills.mjs has $lines lines, cap 590"
-  fu="$(node "$FOLLOW_UPS" list --json --status open --ledger "$LEDGER")" || log_fail "TEST-3014: follow-ups list failed"
-  printf '%s' "$fu" > "$TMP_ROOT/fu-open.json"
-  f="$(node -e '
-    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); const items = j.items || j;
-    const text = (i) => JSON.stringify(i);
-    const p = [];
-    const a = items.find((i) => i.id === "fu-skills-md-quickref-missing-rows");
-    if (!a || !/37 of 42/.test(text(a))) p.push("fu-skills-md-quickref-missing-rows must be open and carry 37 of 42");
-    const b = items.find((i) => i.id === "fu-shim-prompt-file-flag-unverified");
-    if (!b || !/prompt-file/.test(text(b))) p.push("fu-shim-prompt-file-flag-unverified must be open and name prompt-file");
-    process.stdout.write(p.join("; "));
-  ' "$TMP_ROOT/fu-open.json")" || log_fail "TEST-3014: follow-up reader crashed"
+  f="$(followup_problems "$LEDGER")" || log_fail "TEST-3014: follow-up reader crashed"
   [[ -z "$f" ]] || log_fail "TEST-3014: $f"
   log_pass "TEST-3014 PROFILES rows, line caps and the two follow-ups hold"
+}
+
+# --- TEST-3141 (SPEC provider-adapter-surfaces-closing-slice D8) ---------------
+test_3141_followup_predicate_arms() {
+  log_info "TEST-3141: the TEST-3014 follow-up predicate on three scratch ledgers..."
+  local d="$TMP_ROOT/t3141" base fin ok_open ok_done bad_done got
+  mkdir -p "$d"
+  base='{"v":1,"ts":"2026-10-25T13:16:41Z","actor":"orchestrator","type":"follow_up","id":"fu-skills-md-quickref-missing-rows","ref_id":"provider-adapter-registry-slice","severity":"P2","finding":"SKILLS.md Quick Reference lists 37 of 42 skills","decision":"out of scope","source":"x"}
+{"v":1,"ts":"2026-10-25T13:16:42Z","actor":"orchestrator","type":"follow_up","id":"fu-shim-prompt-file-flag-unverified","ref_id":"provider-adapter-registry-slice","severity":"P3","finding":"the --prompt-file flag is unverified","decision":"deferred","source":"x"}'
+  fin() { printf '{"v":1,"ts":"2026-10-30T10:00:00Z","actor":"orchestrator","type":"follow_up_status","id":"fu-skills-md-quickref-missing-rows","status":"done","resolved_by":"%s","source":"x"}' "$1"; }
+  printf '%s\n' "$base" > "$d/open.jsonl"
+  printf '%s\n%s\n' "$base" "$(fin provider-adapter-surfaces-closing-slice)" > "$d/done-ours.jsonl"
+  printf '%s\n%s\n' "$base" "$(fin other-slice)" > "$d/done-other.jsonl"
+  ok_open="$(followup_problems "$d/open.jsonl")" || log_fail "TEST-3141: predicate crashed on the open ledger"
+  ok_done="$(followup_problems "$d/done-ours.jsonl")" || log_fail "TEST-3141: predicate crashed on the resolved ledger"
+  bad_done="$(followup_problems "$d/done-other.jsonl")" || log_fail "TEST-3141: predicate crashed on the other-resolver ledger"
+  [[ -z "$ok_open" ]] || log_fail "TEST-3141: open ledger must pass, got: $ok_open"
+  [[ -z "$ok_done" ]] || log_fail "TEST-3141: ledger resolved by this ride must pass, got: $ok_done"
+  [[ -n "$bad_done" ]] || log_fail "TEST-3141: ledger resolved by another ride must fail"
+  # negative control: the second follow-up closed still fails
+  got="$(followup_problems "$d/open.jsonl")"; [[ -z "$got" ]] || log_fail "TEST-3141: control drifted"
+  got="$(node -e '
+    const fs = require("fs"); const ls = fs.readFileSync(process.argv[1], "utf8").split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l));
+    const r = ls.filter((l) => l.type === "spec_amendment" && l.spec_id === "spec-provider-adapter-registry-slice" && String(l.ts) >= "2026-10-30T00:00:00Z" && /TEST-3014/.test(String(l.what || "")));
+    process.stdout.write(String(r.length));
+  ' "$LEDGER")" || log_fail "TEST-3141: ledger reader crashed"
+  [[ "$got" == 1 ]] || log_fail "TEST-3141: want exactly one spec_amendment on spec-provider-adapter-registry-slice naming TEST-3014 dated 2026-10-30 or later (this ride; an earlier record from 2026-10-25 also names TEST-3014), found $got"
+  log_pass "TEST-3141 the follow-up predicate passes open and resolved-by-this-ride, fails another resolver; the D8 amendment is on the ledger"
+}
+
+# --- TEST-3130..3134: SKILLS.md Quick Reference catalog (SPEC provider-adapter-surfaces-closing-slice D1-D3) ---
+CAT_BASE="34b44269"
+
+# mk_cat_root <dir> <with-catalog 1|0> — a three-wrapper scratch root whose mirrors are already generated.
+# aai-alpha has a prompt file, aai-beta has a prompt file, aai-gamma only a node command in its body.
+mk_cat_root() {
+  local dir="$1" withcat="$2" n
+  [[ -n "$dir" && "$dir" == /* ]] || log_fail "mk_cat_root: destination is empty or relative: [$dir]"
+  rm -rf "$dir"
+  mkdir -p "$dir/.aai/system" "$dir/.claude/skills"
+  {
+    printf 'trees:\n  - .agents/skills|carry|no\n  - .codex/skills|drop|yes\n  - .gemini/skills|drop|yes\n\nexclusions:\n'
+  } > "$dir/.aai/system/HARNESS_SKILLS.yaml"
+  for n in alpha beta gamma; do
+    mkdir -p "$dir/.claude/skills/aai-$n"
+    printf -- '---\nname: aai-%s\ndescription: Does the %s thing\n---\n\nBody of %s.\n' "$n" "$n" "$n" > "$dir/.claude/skills/aai-$n/SKILL.md"
+  done
+  printf '\nRun `node .aai/scripts/gen-gamma.mjs` first.\n' >> "$dir/.claude/skills/aai-gamma/SKILL.md"
+  printf 'x\n' > "$dir/.aai/SKILL_ALPHA.prompt.md"
+  printf 'x\n' > "$dir/.aai/SKILL_BETA.prompt.md"
+  gen "$dir" --write
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "mk_cat_root: mirror generation failed: $GEN_OUT"
+  # the catalog section is added after the mirrors exist, so this helper never depends on catalog support
+  if [[ "$withcat" == 1 ]]; then printf '\ncatalog:\n  - SKILLS.md|## Quick Reference\n' >> "$dir/.aai/system/HARNESS_SKILLS.yaml"; fi
+}
+
+# cat_md <dest> <row-names...> — a SKILLS.md with a Quick Reference table holding hand-written rows for the names.
+cat_md() {
+  local dest="$1" n; shift
+  {
+    printf '# Skills\n\n## Quick Reference\n\nintro\n\n| Skill | Description | Claude | Codex / Gemini |\n|-------|-------------|--------|----------------|\n'
+    for n in "$@"; do printf '| %s | hand text for %s | `/%s` | hand codex |\n' "$n" "$n" "$n"; done
+    printf '\n## Skills in Detail\n\n### aai-alpha\n'
+  } > "$dest"
+}
+
+test_3130_catalog_check_reports_each_divergence() {
+  log_info "TEST-3130: --check lists each missing and orphan Quick Reference row, prints OK, stays silent without the section..."
+  local root="$TMP_ROOT/t3130" n
+  mk_cat_root "$root" 1
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 1 ]] || log_fail "TEST-3130: a missing row must exit 1, got $GEN_RC: $GEN_OUT"
+  n="$(count_lines_starting "$GEN_OUT" 'DIVERGE catalog ')"
+  [[ "$n" -eq 1 && "$GEN_OUT" == *'DIVERGE catalog SKILLS.md: missing row aai-gamma'* ]] \
+    || log_fail "TEST-3130: want exactly one 'missing row aai-gamma' line, got $n: $GEN_OUT"
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta aai-gamma aai-zeta
+  gen "$root" --check
+  n="$(count_lines_starting "$GEN_OUT" 'DIVERGE catalog ')"
+  [[ "$GEN_RC" -eq 1 && "$n" -eq 1 && "$GEN_OUT" == *'DIVERGE catalog SKILLS.md: orphan row aai-zeta'* ]] \
+    || log_fail "TEST-3130: want exactly one 'orphan row aai-zeta' line and exit 1, got rc=$GEN_RC n=$n: $GEN_OUT"
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta aai-gamma
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" == *'OK: 3 skill(s) listed in the SKILLS.md Quick Reference'* ]] \
+    || log_fail "TEST-3130: a matching root must exit 0 with the OK line naming 3, got rc=$GEN_RC: $GEN_OUT"
+  # negative control: no catalog section means no catalog line, whatever SKILLS.md holds
+  mk_cat_root "$root" 0
+  cat_md "$root/SKILLS.md" aai-alpha
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" != *catalog* ]] || log_fail "TEST-3130: no catalog section must print no catalog line, got rc=$GEN_RC: $GEN_OUT"
+  # structural errors exit 2 naming the offender
+  mk_cat_root "$root" 1
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *SKILLS.md* ]] || log_fail "TEST-3130: a declared but absent SKILLS.md must exit 2 naming it, got rc=$GEN_RC: $GEN_OUT"
+  printf '# Skills\n\nno table here\n' > "$root/SKILLS.md"
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'## Quick Reference'* ]] || log_fail "TEST-3130: an absent heading must exit 2 naming it, got rc=$GEN_RC: $GEN_OUT"
+  log_pass "TEST-3130 catalog check reports missing and orphan rows, OK line, no-section silence, exit 2 on structure"
+}
+
+test_3131_catalog_write_renders_rows() {
+  log_info "TEST-3131: --write appends the D2 rows, drops orphans, keeps old rows byte-equal and is idempotent..."
+  local root="$TMP_ROOT/t3131" before after
+  mk_cat_root "$root" 1
+  cat_md "$root/SKILLS.md" aai-alpha aai-zeta
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3131: --write failed rc=$GEN_RC: $GEN_OUT"
+  {
+    printf '# Skills\n\n## Quick Reference\n\nintro\n\n| Skill | Description | Claude | Codex / Gemini |\n|-------|-------------|--------|----------------|\n'
+    printf '| aai-alpha | hand text for aai-alpha | `/aai-alpha` | hand codex |\n'
+    printf '| aai-beta | Does the beta thing | `/aai-beta` | `--prompt-file .aai/SKILL_BETA.prompt.md` |\n'
+    printf '| aai-gamma | Does the gamma thing | `/aai-gamma` | `node .aai/scripts/gen-gamma.mjs` |\n'
+    printf '\n## Skills in Detail\n\n### aai-alpha\n'
+  } > "$TMP_ROOT/t3131.expected"
+  cmp -s "$TMP_ROOT/t3131.expected" "$root/SKILLS.md" || log_fail "TEST-3131: SKILLS.md differs from the D2 expectation: $(diff "$TMP_ROOT/t3131.expected" "$root/SKILLS.md" | qhead -n 8)"
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3131: --check after --write must exit 0, got $GEN_RC: $GEN_OUT"
+  before="$(sha_file "$root/SKILLS.md")"
+  gen "$root" --write
+  after="$(sha_file "$root/SKILLS.md")"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3131: a second --write changed SKILLS.md"
+  # CRLF file keeps its line ending
+  cat_md "$root/SKILLS.md" aai-alpha
+  sed 's/$/\r/' "$root/SKILLS.md" > "$TMP_ROOT/t3131.crlf" && cp "$TMP_ROOT/t3131.crlf" "$root/SKILLS.md"
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3131: --write on a CRLF SKILLS.md failed: $GEN_OUT"
+  sed 's/$/\r/' "$TMP_ROOT/t3131.expected" > "$TMP_ROOT/t3131.expected.crlf"
+  cmp -s "$TMP_ROOT/t3131.expected.crlf" "$root/SKILLS.md" || log_fail "TEST-3131: a CRLF SKILLS.md must keep CRLF and gain the rows"
+  log_pass "TEST-3131 --write renders D2 rows, removes orphans, is idempotent and CRLF-preserving"
+}
+
+test_3132_catalog_write_refusals() {
+  log_info "TEST-3132: pipe description, symlinked SKILLS.md are refused with exit 2..."
+  local root="$TMP_ROOT/t3132" before after
+  mk_cat_root "$root" 1
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta
+  printf -- '---\nname: aai-gamma\ndescription: Does a|b\n---\n\nRun `node .aai/scripts/gen-gamma.mjs`.\n' > "$root/.claude/skills/aai-gamma/SKILL.md"
+  before="$(sha_file "$root/SKILLS.md")"
+  gen "$root" --write
+  after="$(sha_file "$root/SKILLS.md")"
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'aai-gamma'* && "$GEN_OUT" == *'contains a pipe'* ]] \
+    || log_fail "TEST-3132: a pipe in a description must exit 2 naming aai-gamma, got rc=$GEN_RC: $GEN_OUT"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3132: a refused --write must leave SKILLS.md byte-unchanged"
+  # symlinked SKILLS.md
+  mk_cat_root "$root" 1
+  cat_md "$TMP_ROOT/t3132.real.md" aai-alpha
+  ln -s "$TMP_ROOT/t3132.real.md" "$root/SKILLS.md"
+  before="$(sha_file "$TMP_ROOT/t3132.real.md")"
+  gen "$root" --write
+  after="$(sha_file "$TMP_ROOT/t3132.real.md")"
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *SKILLS.md* && "$before" == "$after" ]] \
+    || log_fail "TEST-3132: a symlinked SKILLS.md must be refused with exit 2 and the target untouched, got rc=$GEN_RC: $GEN_OUT"
+  # symlinked parent directory of the catalog file
+  mk_cat_root "$root" 1
+  mkdir -p "$TMP_ROOT/t3132.realdir"
+  cat_md "$TMP_ROOT/t3132.realdir/SKILLS.md" aai-alpha
+  rm -f "$root/SKILLS.md"
+  ln -s "$TMP_ROOT/t3132.realdir" "$root/docsdir"
+  sed -i.bak 's@SKILLS.md|## Quick Reference@docsdir/SKILLS.md|## Quick Reference@' "$root/.aai/system/HARNESS_SKILLS.yaml"
+  before="$(sha_file "$TMP_ROOT/t3132.realdir/SKILLS.md")"
+  gen "$root" --write
+  after="$(sha_file "$TMP_ROOT/t3132.realdir/SKILLS.md")"
+  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'docsdir is a symlink'* && "$before" == "$after" ]] \
+    || log_fail "TEST-3132: a symlinked catalog parent must be refused with exit 2 and the target untouched, got rc=$GEN_RC: $GEN_OUT"
+  log_pass "TEST-3132 catalog write refusals leave SKILLS.md untouched"
+}
+
+test_3133_live_catalog_lists_all_wrappers() {
+  log_info "TEST-3133: the live SKILLS.md lists all 42 wrappers once, keeps the $CAT_BASE rows, and matches --write..."
+  local root="$TMP_ROOT/t3133" w line rows n
+  env -u AAI_ROLE node "$GEN" --check > "$TMP_ROOT/t3133.out" 2>&1 && n=0 || n=$?
+  [[ "$n" -eq 0 ]] || log_fail "TEST-3133: live --check must exit 0, got $n: $(cat "$TMP_ROOT/t3133.out")"
+  grep -qF 'OK: 42 skill(s) listed in the SKILLS.md Quick Reference' "$TMP_ROOT/t3133.out" || log_fail "TEST-3133: the live OK line must name 42"
+  for w in "$PROJECT_ROOT"/.claude/skills/*/; do
+    w="$(basename "$w")"
+    n="$(grep -c "^| $w | " "$PROJECT_ROOT/SKILLS.md" || true)"
+    [[ "$n" -eq 1 ]] || log_fail "TEST-3133: $w must have exactly one Quick Reference row, found $n"
+  done
+  git -C "$PROJECT_ROOT" cat-file -e "$CAT_BASE^{commit}" 2>/dev/null || log_fail "TEST-3133: base commit $CAT_BASE is not in this clone (fetch-depth 0 needed)"
+  git -C "$PROJECT_ROOT" show "$CAT_BASE:SKILLS.md" > "$TMP_ROOT/t3133.base.md"
+  n=0
+  while IFS= read -r line; do
+    [[ "$line" == '| aai-'* ]] || continue
+    n=$((n + 1))
+    grep -qxF -- "$line" "$PROJECT_ROOT/SKILLS.md" || log_fail "TEST-3133: baseline row changed or lost: ${line:0:80}"
+  done < "$TMP_ROOT/t3133.base.md"
+  [[ "$n" -eq 37 ]] || log_fail "TEST-3133: the $CAT_BASE blob must hold 37 rows, found $n (suite bug)"
+  # the five generated rows equal what --write renders from a copy that lacks them
+  mk_root "$root"
+  cp "$PROJECT_ROOT/SKILLS.md" "$root/SKILLS.md"
+  cp "$PROJECT_ROOT"/.aai/SKILL_*.prompt.md "$root/.aai/"
+  rows="aai-factory-report aai-live aai-merge aai-release aai-roadmap"
+  for w in $rows; do sed -i.bak "/^| $w | /d" "$root/SKILLS.md"; done
+  rm -f "$root/SKILLS.md.bak"
+  gen "$root" --write
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3133: scratch --write failed: $GEN_OUT"
+  cmp -s "$root/SKILLS.md" "$PROJECT_ROOT/SKILLS.md" || log_fail "TEST-3133: the live SKILLS.md differs from what --write renders: $(diff "$root/SKILLS.md" "$PROJECT_ROOT/SKILLS.md" | qhead -n 6)"
+  log_pass "TEST-3133 the live Quick Reference lists 42 wrappers and keeps the 37 baseline rows"
+}
+
+test_3134_catalog_wiring() {
+  log_info "TEST-3134: the selector, PROFILES core and line caps wire the catalog..."
+  local p out lines lib=".aai/scripts/lib/skills-catalog.mjs"
+  for p in SKILLS.md .claude/skills/aai-zz-new/SKILL.md "$lib"; do
+    out="$(printf '%s\n' "$p" | node "$SELECT" --files-from - --repo-root "$PROJECT_ROOT")"
+    [[ "$out" == 'FULL_RUN reason=shared-lib '* || "$out" == *'SELECTED aai-harness-shims '* ]] \
+      || log_fail "TEST-3134: $p must select aai-harness-shims, got: $out"
+  done
+  # the lib sits under lib/**, whose shared-lib rule may escalate to a full run; the two other paths must select it by name
+  for p in SKILLS.md .claude/skills/aai-zz-new/SKILL.md; do
+    out="$(printf '%s\n' "$p" | node "$SELECT" --files-from - --repo-root "$PROJECT_ROOT")"
+    [[ "$out" == *'SELECTED aai-harness-shims '* ]] || log_fail "TEST-3134: $p must select aai-harness-shims by name, got: $out"
+  done
+  grep -qxF "      - $lib" "$PROJECT_ROOT/tests/skills/suite-map.yaml" || log_fail "TEST-3134: suite-map.yaml aai-harness-shims must list $lib"
+  sed -n '/^core:/,/^extended:/p' "$PROJECT_ROOT/.aai/system/PROFILES.yaml" > "$TMP_ROOT/t3134.core"
+  grep -qxF "  - $lib" "$TMP_ROOT/t3134.core" || log_fail "TEST-3134: $lib is not in the core list of PROFILES.yaml"
+  lines="$(wc -l < "$PROJECT_ROOT/$lib" | tr -d ' ')"
+  [[ "$lines" -le 200 ]] || log_fail "TEST-3134: $lib has $lines lines, cap 200"
+  lines="$(wc -l < "$GEN" | tr -d ' ')"
+  [[ "$lines" -le 590 ]] || log_fail "TEST-3134: sync-harness-skills.mjs has $lines lines, cap 590"
+  log_pass "TEST-3134 selector rows, PROFILES core row and line caps hold"
+}
+
+# Spec-AC-10: the catalog covers universal skills only (a project-generated wrapper is left out, never an error).
+test_3142_catalog_excludes_project_wrappers() {
+  log_info "TEST-3142: a bootstrap-shaped wrapper with no universal source is excluded, not refused..."
+  local root="$TMP_ROOT/t3142" before after
+  mk_cat_root "$root" 1
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta aai-gamma
+  mkdir -p "$root/.claude/skills/aai-test-unit"
+  printf -- '---\nname: aai-test-unit\ndescription: Run unit tests (Jest)\n---\n\n# Unit tests\n\nRun `bash .aai/scripts/aai-run-tests.sh npm test`.\n' > "$root/.claude/skills/aai-test-unit/SKILL.md"
+  before="$(sha_file "$root/SKILLS.md")"
+  gen "$root" --write
+  after="$(sha_file "$root/SKILLS.md")"
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3142: --write with a project wrapper must exit 0, got rc=$GEN_RC: $GEN_OUT"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3142: no row may be added or removed for a project wrapper"
+  /usr/bin/grep -q 'aai-test-unit' "$root/SKILLS.md" && log_fail "TEST-3142: SKILLS.md must not gain a project wrapper row"
+  [[ -f "$root/.codex/skills/aai-test-unit/SKILL.md" ]] || log_fail "TEST-3142: the mirrors must still be regenerated for the project wrapper"
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" == *'OK: 3 skill(s) listed'* ]] || log_fail "TEST-3142: --check must be OK for 3 universal skills, got rc=$GEN_RC: $GEN_OUT"
+  log_pass "TEST-3142 project wrappers are excluded from the catalog; mirrors still regenerate"
+}
+
+# Spec-AC-11: a catalog or shim path may not leave the root under either separator.
+test_3143_catalog_path_traversal_refused() {
+  log_info "TEST-3143: a catalog path with a parent segment under / or backslash exits 2..."
+  local root="$TMP_ROOT/t3143" bad before after
+  for bad in '../outside.md' '..\outside.md' 'docs\..\..\outside.md'; do
+    mk_cat_root "$root" 0
+    printf 'outside\n' > "$TMP_ROOT/outside.md"
+    printf '\ncatalog:\n  - %s|## Quick Reference\n' "$bad" >> "$root/.aai/system/HARNESS_SKILLS.yaml"
+    before="$(sha_file "$TMP_ROOT/outside.md")"
+    gen "$root" --write
+    after="$(sha_file "$TMP_ROOT/outside.md")"
+    [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'escapes the root'* && "$before" == "$after" ]] || log_fail "TEST-3143: $bad must exit 2 naming the escape with the outside file untouched, got rc=$GEN_RC: $GEN_OUT"
+    gen "$root" --check
+    [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'escapes the root'* ]] || log_fail "TEST-3143: $bad must exit 2 on --check, got rc=$GEN_RC: $GEN_OUT"
+  done
+  log_pass "TEST-3143 parent segments under both separators are refused"
+}
+
+# --- TEST-3135 / TEST-3136 (CRLF Copilot shim overrides, Spec-AC-05) -----------
+# crlf_copilot_cases <id> <engine>: fixture (e) is an auto-merged shim (BASE_REF blob plus a
+# marker block holding one real rule) saved with CRLF line ends; fixture (f) is the source shim
+# plus a marker block holding the 070a6163 shipped blob, also CRLF. Sets CRLF_E_DST.
+crlf_copilot_cases() {  # <id> <engine>
+  local id="$1" engine="$2" base="$TMP_ROOT/$1-$2" src="$PROJECT_ROOT/$COPILOT_REL" dst log
+  local blob_a="$base-blob-a.md" blob_b="$base-blob-b.md" rule='- CRLF PROJECT RULE: always run the linter first'
+  git -C "$PROJECT_ROOT" cat-file -e "$BASE_REF^{commit}" 2>/dev/null || log_fail "$id: base commit $BASE_REF is not in this clone (fetch-depth 0 needed)"
+  git -C "$PROJECT_ROOT" show "$BASE_REF:$COPILOT_REL" > "$blob_a"
+  git -C "$PROJECT_ROOT" show "070a6163:$COPILOT_REL" > "$blob_b"
+  # (e) CRLF auto-merged shim with a real override
+  dst="$base-e"; seed_target "$dst" "$blob_a"
+  {
+    cat "$blob_a"
+    printf '\n---\n## Project Overrides (auto-merged)\n\n<!-- AAI-PROJECT-OVERRIDES:START -->\n%s\n<!-- AAI-PROJECT-OVERRIDES:END -->\n' "$rule"
+  } | sed 's/$/\r/' > "$dst/$COPILOT_REL"
+  run_sync "$engine" "$dst"
+  log="$(cat "$dst.sync.log")"
+  [[ "$log" == *'MERGE preserved project overrides'* ]] || log_fail "$id (e): $engine must log the MERGE line, got: $log"
+  [[ "$log" != *'unmodified shipped shim replaced'* ]] || log_fail "$id (e): $engine must not log shipped-replaced for a real CRLF override"
+  tr -d '\r' < "$dst/$COPILOT_REL" | sed -n '/AAI-PROJECT-OVERRIDES:START/,/AAI-PROJECT-OVERRIDES:END/p' | qgrep -qxF -e "$rule" \
+    || log_fail "$id (e): the rule line is not between the markers of the target shim"
+  /usr/bin/grep -qF -e "$rule" "$dst/docs/ai/project-overrides/copilot-instructions.project.md" \
+    || log_fail "$id (e): the rule line is not in the override file"
+  CRLF_E_DST="$dst"
+  # (f) CRLF shim whose block holds a shipped blob is still replaced byte-equal
+  dst="$base-f"; seed_target "$dst" "$src"
+  {
+    cat "$src"
+    printf '\n---\n## Project Overrides (auto-merged)\n\n<!-- AAI-PROJECT-OVERRIDES:START -->\n'
+    cat "$blob_b"
+    printf '<!-- AAI-PROJECT-OVERRIDES:END -->\n'
+  } | sed 's/$/\r/' > "$dst/$COPILOT_REL"
+  run_sync "$engine" "$dst"
+  cmp -s "$src" "$dst/$COPILOT_REL" || log_fail "$id (f): a CRLF shim holding a shipped blob must end byte-equal to the source ($engine)"
+}
+
+test_3135_sync_sh_keeps_crlf_overrides() {
+  log_info "TEST-3135: aai-sync.sh keeps a real override in a CRLF Copilot shim..."
+  crlf_copilot_cases TEST-3135 sh
+  [[ "$(grep -c $'\r' "$CRLF_E_DST/docs/ai/project-overrides/copilot-instructions.project.md" || true)" -eq 0 ]] \
+    || log_fail "TEST-3135 (e): the override file must hold no CR"
+  log_pass "TEST-3135 aai-sync.sh keeps CRLF project overrides and still replaces a CRLF shipped blob"
+}
+
+test_3136_sync_ps1_matches_sh_on_crlf() {
+  log_info "TEST-3136: aai-sync.ps1 gives the same CRLF outcome as aai-sync.sh..."
+  need_pwsh TEST-3136 || return 0
+  local sh_e ps_e f="copilot-instructions.project.md"
+  crlf_copilot_cases TEST-3136 sh
+  sh_e="$CRLF_E_DST"
+  crlf_copilot_cases TEST-3136 ps1
+  ps_e="$CRLF_E_DST"
+  [[ "$(tr -d '\r' < "$sh_e/docs/ai/project-overrides/$f" | sed 's/[[:space:]]*$//')" == "$(tr -d '\r' < "$ps_e/docs/ai/project-overrides/$f" | sed 's/[[:space:]]*$//')" ]] \
+    || log_fail "TEST-3136: the sh and ps1 override files differ after removing CR and trailing whitespace"
+  log_pass "TEST-3136 aai-sync.sh and aai-sync.ps1 agree on CRLF Copilot overrides"
 }
 
 # --- dispatch ------------------------------------------------------------------
@@ -753,8 +1081,18 @@ ALL_TESTS=(
   test_3012_pr501_amendments_signed
   test_3013_autonomous_loop_names_classify
   test_3014_profiles_caps_followups
+  test_3141_followup_predicate_arms
   test_3015_write_refuses_symlinked_shim_paths
   test_3016_write_refuses_other_unreal_paths
+  test_3130_catalog_check_reports_each_divergence
+  test_3131_catalog_write_renders_rows
+  test_3132_catalog_write_refusals
+  test_3133_live_catalog_lists_all_wrappers
+  test_3134_catalog_wiring
+  test_3142_catalog_excludes_project_wrappers
+  test_3143_catalog_path_traversal_refused
+  test_3135_sync_sh_keeps_crlf_overrides
+  test_3136_sync_ps1_matches_sh_on_crlf
 )
 
 main() {

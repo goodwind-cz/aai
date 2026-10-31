@@ -606,7 +606,10 @@ suites:
       - .aai/scripts/spec-amend.mjs
       - .aai/scripts/follow-ups.mjs
       - .aai/scripts/select-suites.mjs
+      - .aai/scripts/lib/skills-catalog.mjs
       - tests/skills/suite-map.yaml
+      - SKILLS.md
+      - .claude/skills/**/SKILL.md
       - CLAUDE.md
       - AGENTS.md
       - CODEX.md

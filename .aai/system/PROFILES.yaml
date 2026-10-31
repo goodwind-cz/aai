@@ -181,6 +181,7 @@ core:
   - .aai/scripts/lib/check-binding.mjs
   - .aai/scripts/lib/cli-pipe-guard.mjs
   - .aai/scripts/lib/platform-adapter.mjs
+  - .aai/scripts/lib/skills-catalog.mjs
   - .aai/scripts/lib/docs-audit-core.mjs
   - .aai/scripts/lib/docs-model.mjs
   - .aai/scripts/lib/evidence-paths.mjs

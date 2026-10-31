@@ -28,6 +28,12 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: SKILLS.md lists every skill, CRLF Copilot overrides survive aai-sync, amendment signatures bind to merge time (provider-adapter-surfaces-closing-slice)
+
+- `SKILLS.md` Quick Reference now lists all 42 skills; it was missing aai-factory-report, aai-live, aai-merge, aai-release and aai-roadmap. `node .aai/scripts/sync-harness-skills.mjs --check` (already run by the hygiene suite) fails on a skill with no row or a row with no skill, and `--write` fills missing rows from each skill's own description without touching existing rows.
+- `aai-sync.sh` no longer loses a project's Copilot override block when `.github/copilot-instructions.md` has CRLF line endings; it reads the block as `aai-sync.ps1` always did.
+- `spec-amend list` (and the `signs on merge:` line, `follow-ups`) no longer shows a contract amendment as signed by a merge that happened before the amendment was written. **Behaviour change:** in a shallow clone (`fetch-depth: 1`) no amendment reads signed by merge, including rides with a non-empty `links.pr` that read signed before; use full history (`fetch-depth: 0`) where the signed state matters. One existing record (`a90cdce977d5`, written after its ride merged) now reads unsigned until the owner classifies it.
+
 ## [unreleased] — fix: watch-ci re-read refreshes workflow state; SKILL_PR names user-facing docs as shipped (watch-ci-reread-refresh-and-p3-cleanup)
 
 - The shared required-check reader `.aai/scripts/lib/github-checks.mjs` (used by `watch-ci` and the release finish) now refreshes each workflow run's state on its snapshot-skew re-read instead of reusing the first read. A run cancelled between the two reads is judged like any other cancellation: superseded by a newer run of the same workflow and event it stays pending, otherwise the reader refuses (degraded) rather than reporting a failure it cannot prove; a run whose creation time, workflow or event changes between reads refuses. No path to a false pass was added. `SKILL_PR` step 3b now says user-facing docs (the list in `docs/product/release-notes-gate.md`) are shipped and only internal docs, tests and evidence are exempt, matching the release-notes gate.

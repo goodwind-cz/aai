@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-30T13:21:12.040Z",
+  "generatedAt": "2026-10-30T23:59:43.697Z",
   "project": "aai",
   "counts": {
-    "delivered": 332,
+    "delivered": 333,
     "in_progress": 17,
     "releases": 1,
-    "tokens_total": 82421829
+    "tokens_total": 83812943
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -245,7 +245,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0262-spec-watch-ci-reread-refresh-and-p3-cleanup.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-watch-ci-reread-refresh-and-p3-cleanup-r1-20261030T124715Z.md"
+      "review": "docs/ai/reviews/review-watch-ci-reread-refresh-and-p3-cleanup-r2-20261030T131744Z.md"
+    },
+    {
+      "ref": "provider-adapter-surfaces-closing-slice",
+      "title": "Provider adapter surfaces: generated SKILLS.md quick reference, CRLF-safe Copilot shim overrides, honest amendment sign-off listing",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0237-provider-adapter-surfaces-closing-slice.md",
+      "closed_on": "2026-10-30",
+      "agent_minutes": 385,
+      "token_total": 1391114,
+      "spec": "docs/specs/SPEC-0263-spec-provider-adapter-surfaces-closing-slice.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "hermes-agent-skill-discovery",
@@ -4588,7 +4601,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0262-spec-watch-ci-reread-refresh-and-p3-cleanup.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-watch-ci-reread-refresh-and-p3-cleanup-r1-20261030T124715Z.md"
+          "review": "docs/ai/reviews/review-watch-ci-reread-refresh-and-p3-cleanup-r2-20261030T131744Z.md"
+        },
+        {
+          "ref": "provider-adapter-surfaces-closing-slice",
+          "title": "Provider adapter surfaces: generated SKILLS.md quick reference, CRLF-safe Copilot shim overrides, honest amendment sign-off listing",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0237-provider-adapter-surfaces-closing-slice.md",
+          "closed_on": "2026-10-30",
+          "agent_minutes": 385,
+          "token_total": 1391114,
+          "spec": "docs/specs/SPEC-0263-spec-provider-adapter-surfaces-closing-slice.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "hermes-agent-skill-discovery",

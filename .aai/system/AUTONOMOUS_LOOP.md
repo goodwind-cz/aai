@@ -99,7 +99,9 @@ time: `spec-amend.mjs` reads an unsigned contract amendment as signed once its
 ride doc is `done` and merged into the base branch with a PR number in
 `links.pr`, or, when `links.pr` is empty, with the newest first-parent commit
 of the base branch that touched the ride doc carrying a subject ending in
-` (#<n>)` (SPEC-0226, implied-signing-without-links-pr); `merge-cleanup.mjs` writes no signature. There is no
+` (#<n>)` (SPEC-0226, implied-signing-without-links-pr); `merge-cleanup.mjs` writes no signature. The merge signs only
+amendments recorded not later than the ride's merge; an amendment appended after the merge
+stays unsigned until the owner classifies it. There is no
 separate sign-off question before the merge. The merged-ride
 backlog is signed from a recorded owner decision: append the `hitl_decision`,
 then run `spec-amend.mjs classify --record <key> --signoff owner` per record,

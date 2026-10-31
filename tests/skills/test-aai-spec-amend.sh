@@ -2398,10 +2398,11 @@ test_3022_real_history_replay_501_502() {
   done
   node -e '
     const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).counts;
-    const want = { signed: 400, measurement: 142, "unsigned-tracked": 2, "unsigned-untracked": 0, unclassified: 0 };
+    // 399/3: a90cdce977d5 (ts 2026-10-11, after its ride merge) stopped folding signed under merge-time binding (SPEC provider-adapter-surfaces-closing-slice D6)
+    const want = { signed: 399, measurement: 142, "unsigned-tracked": 3, "unsigned-untracked": 0, unclassified: 0 };
     for (const k of Object.keys(want)) if (c[k] !== want[k]) { console.error(k + " " + c[k] + " != " + want[k]); process.exit(1); }
-  ' "$json" || log_fail "TEST-3022: bucket totals are not 400/142/2/0/0"
-  log_pass "TEST-3022 the ten PR 501 and 502 records read signed on the real history; totals 400 signed, 142 measurement, 2 unsigned-tracked"
+  ' "$json" || log_fail "TEST-3022: bucket totals are not 399/142/3/0/0"
+  log_pass "TEST-3022 the ten PR 501 and 502 records read signed on the real history; totals 399 signed, 142 measurement, 3 unsigned-tracked"
 }
 
 test_3023_follow_ups_reads_tracker_done() {
@@ -2450,6 +2451,105 @@ test_3026_shallow_clone_reads_unmerged() {
   log_pass "TEST-3026 a shallow clone never reads a boundary-commit subject as a squash merge"
 }
 
+# --- TEST-3137 / TEST-3138 (SPEC provider-adapter-surfaces-closing-slice D6) ----
+# The merge signs only a record whose ts is not later than the ride's merge time.
+SQ_MERGE_DATE="2026-10-15T12:00:00Z"
+
+# _mb_repo <dir> <ride id> <doc basename> <links.pr value> <subject> — a done ride doc committed
+# on main at SQ_MERGE_DATE, plus a two-record ledger (pre-merge ts 2026-10-10 with an
+# owner-signing classifies_record overlay, post-merge ts 2026-10-20 with its own tracker).
+# Sets MB_REPO / MB_LEDGER.
+_mb_repo() {
+  local dir="$1" ride="$2" base="$3" prs="$4" subject="$5" pre_key
+  MB_REPO="$dir/repo"
+  MB_LEDGER="$MB_REPO/docs/ai/decisions.jsonl"
+  mkdir -p "$MB_REPO/docs/specs" "$MB_REPO/docs/ai"
+  git -C "$MB_REPO" init -q -b main || log_fail "fixture: git init failed in $MB_REPO"
+  git -C "$MB_REPO" config user.email "test@example.com" || log_fail "fixture: git config email failed"
+  git -C "$MB_REPO" config user.name "Test" || log_fail "fixture: git config name failed"
+  printf -- '---\nid: %s\nstatus: done\nlinks:\n  pr: %s\n---\n# Merge-bound ride\n' "$ride" "$prs" > "$MB_REPO/docs/specs/$base"
+  git -C "$MB_REPO" add docs/specs || log_fail "fixture: git add failed"
+  GIT_AUTHOR_DATE="$SQ_MERGE_DATE" GIT_COMMITTER_DATE="$SQ_MERGE_DATE" git -C "$MB_REPO" commit -q -m "$subject" || log_fail "fixture: git commit failed"
+  printf '%s\n' '{"v":1,"ts":"2026-10-10T00:00:00Z","actor":"planning","type":"spec_amendment","ref_id":"'"$ride"'","spec":"docs/specs/'"$base"'","spec_id":"'"$ride"'","owner_signoff":false,"what":"pre-merge amendment","amendment_class":"contract","tracked_by":"fu-amend-pre"}' > "$MB_LEDGER"
+  pre_key="$(node -e 'const c=require("crypto");const l=require("fs").readFileSync(process.argv[1],"utf8").split("\n")[0];console.log(c.createHash("sha256").update(JSON.stringify(JSON.parse(l))).digest("hex").slice(0,12))' "$MB_LEDGER")" \
+    || log_fail "fixture: record key failed"
+  {
+    printf '%s\n' '{"v":1,"ts":"2026-10-10T00:00:00Z","actor":"planning","type":"follow_up","id":"fu-amend-pre","status":"open","title":"obligation"}'
+    printf '%s\n' '{"v":1,"ts":"2026-10-20T00:00:00Z","actor":"planning","type":"spec_amendment","ref_id":"'"$ride"'","spec":"docs/specs/'"$base"'","spec_id":"'"$ride"'","owner_signoff":false,"what":"post-merge amendment","amendment_class":"contract","tracked_by":"fu-amend-post"}'
+    printf '%s\n' '{"v":1,"ts":"2026-10-20T00:00:00Z","actor":"planning","type":"follow_up","id":"fu-amend-post","status":"open","title":"obligation"}'
+    printf '%s\n' '{"v":1,"ts":"2026-10-21T00:00:00Z","actor":"owner","type":"spec_amendment_classification","classifies_record":"'"$pre_key"'","owner_signoff":true,"why":"fixture"}'
+  } >> "$MB_LEDGER"
+}
+
+# _mb_read <repo> <ledger> — echoes "pre=<bucket> post=<bucket>/<tracked_status>" (--json).
+_mb_read() {
+  local repo="$1" ledger="$2"
+  ( cd "$repo" && node "$SA" list --ledger "$ledger" --base-ref main --json > "$repo/.mb-read.json" ) || log_fail "_mb_read: spec-amend list failed in $repo"
+  node -e '
+    const res = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const f = (w) => { const i = res.items.find((x) => x.what === w); return i ? i.bucket + "/" + i.tracked_status : "missing"; };
+    console.log("pre=" + f("pre-merge amendment").split("/")[0] + " post=" + f("post-merge amendment"));
+  ' "$repo/.mb-read.json"
+}
+
+test_3137_merge_binds_signature_to_merge_time() {
+  log_info "Test: only a record not later than the ride's merge reads signed (TEST-3137)..."
+  local dir got ec text fu_json
+  dir="$TEST_DIR/t3137"
+  _mb_repo "$dir" spec-3000-sq-ride SPEC-3000-sq-ride.md "[]" "feat: ride (#77)"
+  got="$(_mb_read "$MB_REPO" "$MB_LEDGER")"
+  [[ "$got" == "pre=signed post=unsigned-tracked/open" ]] || log_fail "TEST-3137: --json buckets wrong, got '$got'"
+  ( cd "$MB_REPO" && node "$SA" list --ledger "$MB_LEDGER" --base-ref main > "$dir/list.txt" ) || log_fail "TEST-3137: text list failed"
+  text="$(<"$dir/list.txt")"
+  [[ "$(printf '%s\n' "$text" | qgrep -c '^signed  2026-10-10')" == 1 && "$(printf '%s\n' "$text" | qgrep -c '^unsigned-tracked  2026-10-20.*tracked_by=fu-amend-post  tracked_status=open')" == 1 ]] \
+    || log_fail "TEST-3137: text list buckets differ from --json: $text"
+  ( cd "$MB_REPO" && node "$FU" list --ledger "$MB_LEDGER" --status all --json > "$dir/fu.json" ) || log_fail "TEST-3137: follow-ups list failed"
+  fu_json="$(<"$dir/fu.json")"
+  node -e '
+    const res = JSON.parse(process.argv[1]);
+    const it = (res.items || res).find((i) => (i.id || i.item_id) === "fu-amend-post");
+    if (!it || it.status !== "open") process.exit(1);
+  ' "$fu_json" || log_fail "TEST-3137: follow-ups.mjs must read the post-merge tracker open: $fu_json"
+  ec=0
+  ( cd "$MB_REPO" && node "$SA" list --ledger "$MB_LEDGER" --base-ref main --strict > /dev/null 2>&1 ) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3137: list --strict must exit 0 (post-merge record is tracked), got $ec"
+  log_pass "TEST-3137 a record later than the merge reads unsigned-tracked in list, --json and follow-ups.mjs; an earlier one stays signed"
+}
+
+test_3138_merge_time_arms() {
+  log_info "Test: links.pr arm, shallow clone and glob ride doc name (TEST-3138)..."
+  local dir got notes
+  dir="$TEST_DIR/t3138"
+  # (a) links.pr instead of the subject reads the same two buckets
+  _mb_repo "$dir/a" spec-3000-sq-ride SPEC-3000-sq-ride.md "[77]" "feat: ride"
+  got="$(_mb_read "$MB_REPO" "$MB_LEDGER")"
+  [[ "$got" == "pre=signed post=unsigned-tracked/open" ]] || log_fail "TEST-3138 (a): links.pr arm bucket wrong, got '$got'"
+  # (b) a depth-1 clone signs nothing and prints the shallow note exactly once
+  _mb_repo "$dir/b" spec-3000-sq-ride SPEC-3000-sq-ride.md "[]" "feat: ride (#77)"
+  git clone -q --depth 1 "file://$MB_REPO" "$dir/b-shallow" || log_fail "fixture: shallow clone failed"
+  head -n 4 "$MB_LEDGER" > "$dir/b-noverlay.jsonl"  # drop the owner overlay: only the fold may sign
+  got="$(_mb_read "$dir/b-shallow" "$dir/b-noverlay.jsonl")"
+  [[ "$got" == "pre=unsigned-tracked post=unsigned-tracked/open" ]] || log_fail "TEST-3138 (b): shallow clone must sign nothing by merge, got '$got'"
+  ( cd "$dir/b-shallow" && node "$SA" list --ledger "$dir/b-noverlay.jsonl" --base-ref main > "$dir/b-shallow.txt" ) || log_fail "TEST-3138 (b): text list failed"
+  notes="$(/usr/bin/grep -c 'NOTE merge-time binding skipped: shallow repository' "$dir/b-shallow.txt" || true)"
+  [[ "$notes" == 1 ]] || log_fail "TEST-3138 (b): the shallow note must print exactly once, got $notes"
+  # (b2) a depth-1 clone of a ride with non-empty links.pr reads unsigned too (it read signed before D6)
+  _mb_repo "$dir/b2" spec-3000-sq-ride SPEC-3000-sq-ride.md "[77]" "feat: ride"
+  git clone -q --depth 1 "file://$MB_REPO" "$dir/b2-shallow" || log_fail "fixture: shallow clone (links.pr) failed"
+  head -n 4 "$MB_LEDGER" > "$dir/b2-noverlay.jsonl"
+  got="$(_mb_read "$dir/b2-shallow" "$dir/b2-noverlay.jsonl")"
+  [[ "$got" == "pre=unsigned-tracked post=unsigned-tracked/open" ]] || log_fail "TEST-3138 (b2): shallow clone with links.pr must sign nothing by merge, got '$got'"
+  # (c) a glob character in the ride doc name never matches a sibling doc
+  _mb_repo "$dir/c" spec-glob-ride "SPEC-[3]000-glob.md" "[]" "feat: ride (#77)"
+  printf -- '---\nid: spec-glob-sibling\nstatus: done\nlinks:\n  pr: []\n---\n# Sibling\n' > "$MB_REPO/docs/specs/SPEC-3000-glob.md"
+  git -C "$MB_REPO" add docs/specs || log_fail "fixture: add sibling failed"
+  GIT_AUTHOR_DATE="2026-10-25T12:00:00Z" GIT_COMMITTER_DATE="2026-10-25T12:00:00Z" git -C "$MB_REPO" commit -q -m "chore: sibling" || log_fail "fixture: sibling commit failed"
+  head -n 4 "$MB_LEDGER" > "$dir/c-noverlay.jsonl"  # no overlay: only the fold may sign the pre-merge record
+  got="$(_mb_read "$MB_REPO" "$dir/c-noverlay.jsonl")"
+  [[ "$got" == "pre=signed post=unsigned-tracked/open" ]] || log_fail "TEST-3138 (c): the glob ride doc must read its own commit, got '$got'"
+  log_pass "TEST-3138 links.pr, shallow and glob-name arms hold"
+}
+
 test_3024_pr_502_signatures_on_ledger() {
   log_info "Test: the PR 502 signatures are on the project ledger (TEST-3024)..."
   local ec
@@ -2484,6 +2584,92 @@ test_3025_canon_states_squash_comparison() {
     if (p.includes("with a PR number in `links.pr` (SPEC-0226)")) { console.error("old fragment still present"); process.exit(4); }
   ' "$CANON" || log_fail "TEST-3025: AUTONOMOUS_LOOP.md section 6a does not state the squash-subject comparison"
   log_pass "TEST-3025 AUTONOMOUS_LOOP.md names the newest first-parent commit and the (#<n>) suffix next to the links.pr rule"
+}
+
+# --- TEST-3139 / TEST-3140 (SPEC provider-adapter-surfaces-closing-slice D6/D7) ---
+# Compares the baseline engine (34b44269 scripts, run from a scratch copy) with the
+# working-tree engine over ONE ledger. Both engines read that same ledger, so a later
+# legitimate owner classify moves a record's bucket under both and never reads as a
+# regression. The 34b44269 ledger blob only supplies the set of record keys compared.
+# Prints the problems joined by "; " (empty when the comparison passes).
+t3139_compare() {
+  local d="$1" ledger="$2"
+  ( cd "$PROJECT_ROOT" && node "$SA" list --json --status all --ledger "$ledger" > "$d/new.json" ) || { printf 'working-tree engine list failed'; return 0; }
+  ( cd "$PROJECT_ROOT" && node "$d/base/.aai/scripts/spec-amend.mjs" list --json --status all --ledger "$ledger" > "$d/old.json" ) || { printf 'baseline engine list failed'; return 0; }
+  ( cd "$PROJECT_ROOT" && node "$d/base/.aai/scripts/spec-amend.mjs" list --json --status all --ledger "$d/base-ledger.jsonl" > "$d/basekeys.json" ) || { printf 'baseline engine list on the base blob failed'; return 0; }
+  node -e '
+    const fs = require("fs");
+    const rd = (f) => JSON.parse(fs.readFileSync(f, "utf8")).items;
+    const baseKeys = new Set(rd(process.argv[3]).map((i) => i.record_key));
+    const oldItems = rd(process.argv[1]), newItems = rd(process.argv[2]);
+    const o = new Map(oldItems.map((i) => [i.record_key, i]));
+    const p = [];
+    if (baseKeys.size < 500) p.push("positive control: only " + baseKeys.size + " base records");
+    for (const i of newItems) {
+      if (!baseKeys.has(i.record_key)) continue; // appended after 34b44269: outside the comparison set
+      const x = o.get(i.record_key);
+      if (i.record_key === "a90cdce977d5") {
+        if (i.bucket === "signed" && i.classified_by === null) p.push("a90cdce977d5 still reads signed by the fold");
+        if (!x || x.bucket !== "signed") p.push("a90cdce977d5 was not signed on the baseline (control)");
+      } else if (x && x.bucket !== i.bucket) {
+        p.push("record " + i.record_key + " moved " + x.bucket + " -> " + i.bucket);
+      }
+    }
+    const nk = new Set(newItems.map((i) => i.record_key));
+    for (const k of baseKeys) if (!nk.has(k)) p.push("base record " + k + " is absent from the ledger");
+    process.stdout.write(p.join("; "));
+  ' "$d/old.json" "$d/new.json" "$d/basekeys.json" || printf 'the ledger reader crashed'
+}
+
+test_3139_live_ledger_one_record_changes() {
+  log_info "Test: on the live ledger exactly a90cdce977d5 leaves the signed bucket, list --strict exits 0 (TEST-3139)..."
+  local d="$TEST_DIR/t3139" ec=0 verdict
+  mkdir -p "$d/base"
+  git -C "$PROJECT_ROOT" cat-file -e 34b44269 2>/dev/null || { log_info "TEST-3139: 34b44269 is not reachable here; skipping the baseline comparison"; return 0; }
+  git -C "$PROJECT_ROOT" archive 34b44269 .aai/scripts .aai/system | tar -x -C "$d/base" || log_fail "TEST-3139: baseline archive failed"
+  git -C "$PROJECT_ROOT" show 34b44269:docs/ai/decisions.jsonl > "$d/base-ledger.jsonl" || log_fail "TEST-3139: baseline ledger blob unreadable"
+  verdict="$(t3139_compare "$d" "$LIVE_LEDGER")"
+  [[ -z "$verdict" ]] || log_fail "TEST-3139: $verdict"
+  ( cd "$PROJECT_ROOT" && node "$SA" list --strict > "$d/strict.out" 2>&1 ) || ec=$?
+  [[ "$ec" -eq 0 ]] || log_fail "TEST-3139: spec-amend list --strict must exit 0, got $ec: $(tail -3 "$d/strict.out")"
+
+  # Regression arm (validation r2 P3): a later owner classify of a base record that is
+  # currently unsigned moves its bucket under BOTH engines and must not fail the comparison.
+  local tgt scratch="$d/scratch-ledger.jsonl"
+  cp "$LIVE_LEDGER" "$scratch"
+  tgt="$(node -e '
+    const fs = require("fs");
+    const base = new Set(JSON.parse(fs.readFileSync(process.argv[2], "utf8")).items.map((i) => i.record_key));
+    const t = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).items.find((i) => base.has(i.record_key) && i.bucket === "unsigned-tracked");
+    if (t) process.stdout.write([t.ts, t.ref_id, t.record_key].join(" "));
+  ' "$d/new.json" "$d/basekeys.json")" || log_fail "TEST-3139 P3 arm: target selection crashed"
+  [[ -n "$tgt" ]] || { log_info "TEST-3139 P3 arm: no unsigned base record left on the live ledger; arm skipped"; return 0; }
+  set -- $tgt
+  ec=0
+  ( cd "$PROJECT_ROOT" && node "$SA" classify --ledger "$scratch" --ts "$1" --ref "$2" --record "$3" --signoff owner --why "TEST-3139 P3 arm" --source "scratch ledger" > "$d/p3-classify.out" 2>&1 ) || ec=$?
+  [[ "$ec" -eq 0 ]] || log_fail "TEST-3139 P3 arm: scratch classify failed rc=$ec: $(tail -2 "$d/p3-classify.out")"
+  ( cd "$PROJECT_ROOT" && node "$SA" list --json --status all --ledger "$scratch" ) | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const t = j.items.find((i) => i.record_key === process.argv[1]);
+    if (!t || t.bucket !== "signed") { console.error("P3 control: " + process.argv[1] + " is " + (t && t.bucket)); process.exit(1); }
+  ' "$3" || log_fail "TEST-3139 P3 arm: the scratch owner classify did not move $3 to signed (control)"
+  verdict="$(t3139_compare "$d" "$scratch")"
+  [[ -z "$verdict" ]] || log_fail "TEST-3139 P3 arm: a later owner classify of base record $3 breaks the comparison: $verdict"
+  log_pass "TEST-3139 only a90cdce977d5 changes bucket on the live ledger, list --strict is clean, and a later owner classify of a base record does not break the comparison"
+}
+
+test_3140_canon_states_merge_time_binding() {
+  log_info "Test: AUTONOMOUS_LOOP.md states the merge-time binding (TEST-3140)..."
+  node -e '
+    const text = require("fs").readFileSync(process.argv[1], "utf8");
+    const paras = text.split(/\n\s*\n/).map((p) => p.replace(/\s+/g, " "));
+    const p = paras.find((x) => x.includes("SPEC-0226") && x.includes("links.pr"));
+    if (!p) { console.error("no paragraph names links.pr"); process.exit(1); }
+    if (!p.includes("not later than the ride")) { console.error("missing: not later than the ride"); process.exit(2); }
+    if (!p.includes("stays unsigned until the owner classifies")) { console.error("missing: stays unsigned until the owner classifies"); process.exit(3); }
+  ' "$CANON" || log_fail "TEST-3140: AUTONOMOUS_LOOP.md section 6a does not state the merge-time binding"
+  test_3025_canon_states_squash_comparison
+  log_pass "TEST-3140 the canon paragraph states the merge-time rule and TEST-3025 stays green"
 }
 
 # --- TEST-550 (Spec-AC-19, D2) ------------------------------------------------
@@ -5616,8 +5802,12 @@ main() {
   test_3022_real_history_replay_501_502
   test_3023_follow_ups_reads_tracker_done
   test_3026_shallow_clone_reads_unmerged
+  test_3137_merge_binds_signature_to_merge_time
+  test_3138_merge_time_arms
   test_3024_pr_502_signatures_on_ledger
   test_3025_canon_states_squash_comparison
+  test_3139_live_ledger_one_record_changes
+  test_3140_canon_states_merge_time_binding
   test_550_amendment_record_anchors
   test_551_restamp_after_renumbering
   test_1354_measurement_add_owes_no_owner_obligation

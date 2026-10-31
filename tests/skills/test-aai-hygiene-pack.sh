@@ -3841,6 +3841,7 @@ test_111_generator_check_clean_and_idempotent() {  # TEST-002, TEST-003 / Spec-A
     cp "$PROJECT_ROOT/.aai/system/$shim_path" "$shim_fx/.aai/system/$shim_path" \
       || log_fail "test_111 (TEST-3006): cannot copy .aai/system/$shim_path into the scratch root"
   done
+  cp "$PROJECT_ROOT/SKILLS.md" "$shim_fx/SKILLS.md"  # the manifest's catalog: section reads it
   for shim_tree in .claude/skills .agents/skills .codex/skills .gemini/skills; do
     mkdir -p "$shim_fx/$shim_tree"
     cp -R "$PROJECT_ROOT/$shim_tree/." "$shim_fx/$shim_tree/"

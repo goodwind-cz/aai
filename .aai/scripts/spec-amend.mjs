@@ -392,7 +392,7 @@ const SQUASH_PR_SUFFIX = / \(#([1-9][0-9]*)\)$/;
 function squashPrFromBase(cwd, baseRef, rel) {
   const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], { cwd, encoding: 'utf8' });
   if (shallow.status !== 0 || shallow.stdout.trim() !== 'false') return null;
-  const r = spawnSync('git', ['log', '-1', '--first-parent', '--format=%s', baseRef, '--', rel], { cwd, encoding: 'utf8' });
+  const r = spawnSync('git', ['--literal-pathspecs', 'log', '-1', '--first-parent', '--format=%s', baseRef, '--', rel], { cwd, encoding: 'utf8' });
   if (r.status !== 0) return null;
   const m = r.stdout.replace(/\n$/, '').match(SQUASH_PR_SUFFIX);
   return m ? Number(m[1]) : null;
@@ -463,17 +463,52 @@ function getBaseDocIndex(cwd, baseRef) {
   return byKey;
 }
 
-function checkRideMerged(refId, cwd, explicitBaseRef) {
-  if (!refId) return false;
+function isShallowRepo(cwd) {
+  const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], { cwd, encoding: 'utf8' });
+  return shallow.status !== 0 || shallow.stdout.trim() !== 'false';
+}
+
+// The ride's merge time (D6): the committer time, as YYYY-MM-DDTHH:MM:SSZ, of the
+// oldest first-parent commit of baseRef touching rel at which the doc reads
+// `status: done`. null when git fails or no such commit exists.
+function rideMergeTimeFromBase(cwd, baseRef, rel) {
+  const log = spawnSync('git', ['--literal-pathspecs', 'log', '--first-parent', '--format=%H %ct', baseRef, '--', rel], { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  if (log.status !== 0) return null;
+  const rows = log.stdout.split('\n').filter(Boolean).reverse();
+  for (const row of rows) {
+    const [sha, ct] = row.split(' ');
+    const show = spawnSync('git', ['show', `${sha}:${rel}`], { cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    if (show.status !== 0) continue;
+    const fm = parseFrontmatter(show.stdout);
+    if (fm && fm.status === 'done') {
+      const n = Number(ct);
+      return Number.isFinite(n) ? new Date(n * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z') : null;
+    }
+  }
+  return null;
+}
+
+// -> { merged, mergeTime, shallow }. merged is the unbound SPEC-0226 / SPEC-0254
+// reading; mergeTime is null when it cannot be computed (a shallow repository
+// never computes it, D6).
+function rideMergeState(refId, cwd, explicitBaseRef) {
+  const none = { merged: false, mergeTime: null, shallow: false };
+  if (!refId) return none;
   const baseRef = resolveBaseRef(cwd, explicitBaseRef);
-  if (!baseRef) return false;
-  const index = getBaseDocIndex(cwd, baseRef);
-  const info = index.get(refId);
-  if (!info) return false;
-  if (info.status !== 'done') return false;
-  if (info.prs.length > 0) return true;
-  if (info.squashPr === undefined) info.squashPr = squashPrFromBase(cwd, baseRef, info.rel);
-  return info.squashPr !== null;
+  if (!baseRef) return none;
+  const info = getBaseDocIndex(cwd, baseRef).get(refId);
+  if (!info || info.status !== 'done') return none;
+  if (isShallowRepo(cwd)) return { merged: false, mergeTime: null, shallow: true };
+  if (info.prs.length === 0) {
+    if (info.squashPr === undefined) info.squashPr = squashPrFromBase(cwd, baseRef, info.rel);
+    if (info.squashPr === null) return none;
+  }
+  if (info.mergeTime === undefined) info.mergeTime = rideMergeTimeFromBase(cwd, baseRef, info.rel);
+  return { merged: true, mergeTime: info.mergeTime, shallow: false };
+}
+
+function checkRideMerged(refId, cwd, explicitBaseRef) {
+  return rideMergeState(refId, cwd, explicitBaseRef).merged;
 }
 
 // foldAmendments(records, opts = {}) -> { items, followUps, notes, counts, byKey, byRecord }
@@ -487,6 +522,7 @@ function foldAmendments(records, opts = {}) {
   const fuItems = new Map();
   const fuStatuses = new Map();
   let danglingOverlays = 0;
+  let shallowNoted = false;
 
   for (const rec of records) {
     if (!rec || typeof rec !== 'object') continue;
@@ -621,7 +657,13 @@ function foldAmendments(records, opts = {}) {
       if (signoff === false && amendmentClass === 'contract') {
         const cwd = opts.cwd || process.cwd();
         const baseRef = opts.base_ref || opts.baseRef;
-        if (checkRideMerged(str(rec.ref_id), cwd, baseRef)) {
+        const ride = rideMergeState(str(rec.ref_id), cwd, baseRef);
+        if (ride.shallow && !shallowNoted) {
+          shallowNoted = true;
+          notes.push('NOTE merge-time binding skipped: shallow repository');
+        }
+        const mergeTime = ride.mergeTime;
+        if (ride.merged && mergeTime !== null && str(rec.ts) !== null && str(rec.ts) <= mergeTime) {
           signoff = true;
           impliedByMerge = true;
         }

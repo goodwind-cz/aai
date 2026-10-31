@@ -45,6 +45,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { CatalogError, loadCatalog, planCatalog, writeCatalog } from './lib/skills-catalog.mjs';
 import { ShimError, loadShims, applyShims, okLine, NONE_LINE } from './lib/harness-shims.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -74,19 +75,23 @@ function parseManifest(raw) {
   const lines = raw.split(/\r?\n/);
   const trees = [];
   const exclusions = [];
+  let catalog = null; // null = no `catalog:` section; see lib/skills-catalog.mjs
   let shims = null; // null = no `shims:` section (fixtures); see lib/harness-shims.mjs
   let section = null;
   for (const line of lines) {
     if (/^\s*$/.test(line) || /^\s*#/.test(line)) continue;
     if (/^trees:\s*$/.test(line)) { section = 'trees'; continue; }
     if (/^exclusions:\s*$/.test(line)) { section = 'exclusions'; continue; }
+    if (/^catalog:\s*$/.test(line)) { section = 'catalog'; catalog = []; continue; }
     if (/^shims:\s*$/.test(line)) { section = 'shims'; shims = []; continue; }
     const m = line.match(/^ {2}- (.*)$/);
     if (!m || section === null) {
       throw new ManifestError(`unparsed manifest content: ${line}`);
     }
     const rest = m[1];
-    if (section === 'shims') {
+    if (section === 'catalog') {
+      catalog.push(rest);
+    } else if (section === 'shims') {
       shims.push(rest);
     } else if (section === 'trees') {
       const parts = rest.split('|');
@@ -107,7 +112,7 @@ function parseManifest(raw) {
       });
     }
   }
-  return { trees, exclusions, shims };
+  return { trees, exclusions, shims, catalog };
 }
 
 function validateManifest(manifest, sourceSkills) {
@@ -403,6 +408,20 @@ function main(argv) {
     });
   }
 
+  // SKILLS.md catalog (opt-in): planned and rendered before any write so a refusal leaves every tree untouched.
+  let catPlan = null;
+  let catText = null;
+  try {
+    const cat = loadCatalog(manifest.catalog);
+    if (cat) {
+      catPlan = planCatalog(root, cat, new Map(sourceSkills.map((s) => [s, sourceModels.get(s)])));
+      if (opts.write && catPlan.changed > 0) catText = catPlan.render();
+    }
+  } catch (err) {
+    if (err instanceof CatalogError) fail(2, err.message);
+    throw err;
+  }
+
   for (const ex of manifest.exclusions) {
     process.stdout.write(`EXCLUDED ${ex.tree}/${ex.skill}: ${ex.reason}\n`);
   }
@@ -534,17 +553,21 @@ function main(argv) {
   const trees = REQUIRED_MIRROR_TREES.join(', ');
 
   if (opts.check) {
-    if (divergences.length > 0 || shimRes.drift.length > 0) {
+    const catDrift = catPlan ? catPlan.drift : [];
+    if (divergences.length > 0 || shimRes.drift.length > 0 || catDrift.length > 0) {
       for (const d of divergences) process.stdout.write(`DIVERGE ${d}\n`);
       for (const d of shimRes.drift) process.stdout.write(`${d}\n`);
+      for (const d of catDrift) process.stdout.write(`${d}\n`);
       exit(1);
     }
     process.stdout.write(`OK: ${trees} match the declared transform\n`);
     process.stdout.write(`${shimPlan ? okLine(shimPlan.outputs.length) : NONE_LINE}\n`);
+    if (catPlan) process.stdout.write(`${catPlan.ok}\n`);
     exit(0);
   }
 
   // --write
+  if (catPlan) writeCatalog(catPlan, catText);
   const resolved = divergences.length + shimRes.written;
   const shimTail = shimPlan ? ` and ${shimPlan.outputs.length} shim(s)` : '';
   process.stdout.write(
