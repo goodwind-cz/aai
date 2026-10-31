@@ -113,10 +113,7 @@ function globMatches(ctx, globs) {
 }
 
 // ---- static closure (D4 inputs rule d) ----
-const TOKEN_RE = /(?<![\w.-])(?:\.aai|tests|docs)\/[A-Za-z0-9_./@+*-]*/g;
-// dir/*.ext: one simple single-star glob in the last segment, no brace/extglob/** (amendment O1)
-const SIMPLE_GLOB_RE = /^(?:[^*]*\/)?[^*/]*\*[^*/]+$|^(?:[^*]*\/)?[^*/]+\*[^*/]*$/;
-const simpleGlobLiteral = (p, after) => SIMPLE_GLOB_RE.test(p) && !/^[{(]/.test(after);
+const TOKEN_RE = /(?<![\w.-])(?:\.aai|tests|docs)\/[A-Za-z0-9_./@+-]*/g;
 const LIB_RE = /(?<![\w.-])lib\/([A-Za-z0-9_.-]+)/g;
 const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/g;
 export function computeClosure(ctx, suite) {
@@ -139,17 +136,7 @@ export function computeClosure(ctx, suite) {
       for (const m of text.matchAll(TOKEN_RE)) {
         if (/[%#]\*?\/$/.test(text.slice(Math.max(0, m.index - 4), m.index))) continue; // ${X%/tests/skills} strips a suffix, it reads nothing
         const p = m[0].replace(/[.,:;)]+$/, '');
-        if (p.includes('*')) {
-          if (simpleGlobLiteral(p, text.slice(m.index + m[0].length, m.index + m[0].length + 1))) {
-            const hit = [...globMatches(ctx, [p])];
-            dirs.push(`${p} <- ${rel} (glob, ${hit.length} files)`);
-            for (const f of hit) add(f);
-          } else {
-            const dir = p.slice(0, p.indexOf('*')).replace(/[^/]*$/, '');
-            dirs.push(`${dir} <- ${rel} (${underDir(ctx, dir).length} files)`);
-            for (const f of underDir(ctx, dir)) add(f);
-          }
-        } else if (p.endsWith('/') || (!ctx.fileSet.has(p) && underDir(ctx, p).length)) {
+        if (p.endsWith('/') || (!ctx.fileSet.has(p) && underDir(ctx, p).length)) {
           dirs.push(`${p} <- ${rel} (${underDir(ctx, p).length} files)`);
           for (const f of underDir(ctx, p)) add(f);
         } else add(p);

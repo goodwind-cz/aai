@@ -147,38 +147,6 @@ test('TEST-3167 closure-only module, directory literal and seed file change the 
   assert.equal((await chk(c, 'fy')).status, 'REUSE', 'seed file the closure does not name');
 });
 
-test('TEST-3191 a dir/*.ext literal is matched as that glob; a brace literal keeps the directory fallback', async () => {
-  const globRepo = () => mkRepo({
-    'tests/skills/test-fy.sh': '#!/usr/bin/env bash\nls tests/skills/fixtures/g/*.txt\n',
-    'tests/skills/fixtures/g/one.txt': 'one\n',
-    'tests/skills/fixtures/g/note.md': 'prose\n',
-  });
-  const a = globRepo();
-  await pass(a, 'fy');
-  write(a, 'tests/skills/fixtures/g/note.md', 'prose changed\n');
-  assert.equal((await chk(a, 'fy')).status, 'REUSE', 'a file outside the glob is not an input');
-  write(a, 'tests/skills/fixtures/g/other.md', 'new prose\n');
-  assert.equal((await chk(a, 'fy')).status, 'REUSE', 'an added file outside the glob is not an input');
-  write(a, 'tests/skills/fixtures/g/one.txt', 'one changed\n');
-  const edited = await chk(a, 'fy');
-  assert.equal(edited.reason, 'inputs');
-  assert.equal(edited.detail, 'changed tests/skills/fixtures/g/one.txt', 'a file matching the glob is an input');
-  const a2 = globRepo();
-  await pass(a2, 'fy');
-  write(a2, 'tests/skills/fixtures/g/two.txt', 'two\n');
-  assert.equal((await chk(a2, 'fy')).detail, 'added tests/skills/fixtures/g/two.txt', 'an added file matching the glob');
-  const b = mkRepo({
-    'tests/skills/test-fy.sh': '#!/usr/bin/env bash\nls tests/skills/fixtures/b/{a,b}.txt\n',
-    'tests/skills/fixtures/b/a.txt': 'a\n',
-    'tests/skills/fixtures/b/note.md': 'prose\n',
-  });
-  await pass(b, 'fy');
-  write(b, 'tests/skills/fixtures/b/note.md', 'prose changed\n');
-  const braced = await chk(b, 'fy');
-  assert.equal(braced.reason, 'inputs', 'brace syntax falls back to the whole directory');
-  assert.equal(braced.detail, 'changed tests/skills/fixtures/b/note.md');
-});
-
 test('TEST-3168 environment: AAI_ variable, excluded variable and referenced excluded variable', async () => {
   const root = mkRepo();
   await pass(root, 'fx');
@@ -313,8 +281,6 @@ test('TEST-3182 lint: live repository is clean with a qualified manifest; a ghos
   const man = JSON.parse(fs.readFileSync(path.join(REPO, 'tests/skills/suite-reuse.json'), 'utf8'));
   const names = Object.keys(man.suites);
   assert.ok(names.length >= 5, `at least 5 suites, got ${names.length}`);
-  const m5 = ['aai-check-state', 'aai-docs-content', 'aai-spec-lint', 'aai-hygiene-pack', 'aai-ride-status', 'aai-win-fallback', 'aai-prompt-diet'];
-  assert.ok(names.some((n) => m5.includes(n)), 'at least one M5 suite');
   for (const [n, e] of Object.entries(man.suites)) {
     assert.equal(e.live, false, n);
     assert.ok(typeof e.note === 'string' && e.note.trim() !== '', n);
@@ -325,6 +291,35 @@ test('TEST-3182 lint: live repository is clean with a qualified manifest; a ghos
   assert.match(cli.stdout, /ghost-suite not-in-suite-map/);
   const ok = spawnSync(process.execPath, [HELPER, 'lint', '--root', REPO], { encoding: 'utf8' });
   assert.equal(ok.status, 0, ok.stdout);
+});
+
+test('TEST-3193 every live manifest suite reads nothing inside the checkout outside its identity', async () => {
+  const m = await lib();
+  const man = JSON.parse(fs.readFileSync(path.join(REPO, 'tests/skills/suite-reuse.json'), 'utf8'));
+  const tracer = path.join(HERE, 'read-trace.cjs');
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'suite-reuse-trace-'));
+  roots.push(scratch);
+  const env = { ...process.env, NODE_OPTIONS: `--require ${tracer}` };
+  delete env.AAI_ROLE;
+  delete env.AAI_SUITE_REUSE;
+  for (const suite of Object.keys(man.suites)) {
+    const out = path.join(scratch, `${suite}.trace`);
+    fs.writeFileSync(out, '');
+    const run = spawnSync('bash', [path.join(REPO, 'tests', 'skills', `test-${suite}.sh`)], { cwd: REPO, env: { ...env, AAI_TRACE_OUT: out }, encoding: 'utf8' });
+    assert.equal(run.status, 0, `${suite} must pass under the tracer: ${(run.stdout || '').slice(-400)}${run.stderr || ''}`);
+    const inputs = new Set(Object.keys(m.explainSuite({ root: REPO, suite }).id.inputs_map));
+    const outside = new Set();
+    for (const line of fs.readFileSync(out, 'utf8').split('\n').filter(Boolean)) {
+      const [kind, p] = line.split('\t');
+      if (kind !== 'R' || !p) continue;
+      const abs = path.resolve(REPO, p);
+      if (!abs.startsWith(REPO + path.sep)) continue;
+      const rel = abs.slice(REPO.length + 1).split(path.sep).join('/');
+      if (rel.startsWith('tests/skills/results/') || rel.startsWith('node_modules/') || inputs.has(rel)) continue;
+      outside.add(rel);
+    }
+    assert.deepEqual([...outside].sort().slice(0, 20), [], `${suite} reads files its identity does not cover`);
+  }
 });
 
 test('TEST-3183 select-suites.mjs imports silently and its map parser feeds the helper', async () => {

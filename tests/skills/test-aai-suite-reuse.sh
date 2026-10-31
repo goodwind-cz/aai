@@ -187,7 +187,44 @@ test_3178_off_modes() { node_cases TEST-3178; }
 test_3181_log_missing() { node_cases TEST-3181; }
 test_3182_lint_and_live_manifest() { node_cases TEST-3182; }
 test_3183_select_suites_import() { node_cases TEST-3183; }
-test_3191_simple_glob_literal() { node_cases TEST-3191; }
+
+# test_3192: the validator's r1 repro shape on a fixture. A suite reads a data file
+# it names by a path literal; after that file is renamed the suite must execute
+# again (and fail on the missing read), never be reported REUSED.
+test_3192_renamed_read_file_not_reused() {
+  local base r id
+  base="$(new_base)"
+  r="$base/repo"
+  build_fx "$base" aai-fx
+  mkdir -p "$r/docs/data"
+  printf 'payload\n' > "$r/docs/data/probe.txt"
+  {
+    echo '#!/usr/bin/env bash'
+    printf "echo run >> '%s/m/aai-fx'\n" "$base"
+    echo 'grep -q payload "$(dirname "$0")/../../docs/data/probe.txt" || { echo "probe read failed"; exit 1; }'
+    echo 'exit 0'
+  } > "$r/tests/skills/test-aai-fx.sh"
+  # docs/data/probe.txt is the only path literal the suite names.
+  (cd "$r" && git add -A && git commit -q -m 'suite reads docs/data/probe.txt')
+  fw_go "$base" -- --skill aai-fx
+  [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3192: run 1 exited $RC"; }
+  fw_go "$base" -- --skill aai-fx
+  expect "TEST-3192 unchanged" "$OUT" "REUSED (run "
+  [[ "$(marker_count "$base" aai-fx)" -eq 1 ]] || log_fail "TEST-3192: the unchanged second run executed the suite"
+  (cd "$r" && git mv docs/data/probe.txt docs/data/probe-renamed.txt)
+  id="$(helper_check "$base" aai-fx)"
+  expect "TEST-3192 helper" "$id" "RUN aai-fx reason=inputs"
+  fw_go "$base" -- --skill aai-fx
+  expect_not "TEST-3192 renamed" "$OUT" "REUSED"
+  [[ "$(marker_count "$base" aai-fx)" -eq 2 ]] || log_fail "TEST-3192: the suite was not executed after its read file was renamed"
+  [[ "$RC" -ne 0 ]] || log_fail "TEST-3192: the suite must fail on the missing read, got exit 0"
+  log_pass "TEST-3192 (rename of a read file: RUN reason=inputs, executed, not REUSED)"
+}
+
+# test_3193: manifest honesty guard. Each live manifest suite runs once with the Node
+# read tracer preloaded; no read inside the checkout may fall outside the suite's
+# identity (the validator's r1 finding B1 was a suite that did).
+test_3193_manifest_suites_read_only_their_identity() { node_cases TEST-3193; }
 
 # test_3165: a second selected run of an unchanged declared suite reports it
 # REUSED with the first run's provenance and does not execute it.
@@ -361,7 +398,13 @@ test_3180_reused_accounting() {
   deg="$(printf '%s' "$ledger" | sed -n 's/.*"suites_degraded":\([0-9]*\),.*/\1/p')"
   [[ $((iso + deg)) -eq "$total" ]] || log_fail "TEST-3180: isolation invariant broken ($iso + $deg != $total)"
   expect_not "TEST-3180 summary" "$OUT" "ACCOUNTING BROKEN"
-  log_pass "TEST-3180 (REUSED metrics line, Reused summary, ledger reused=1 total=1, isolation invariant)"
+  # A run in which every suite is reused still writes the Reused line to summary.txt.
+  fw_go "$base" -- --skill aai-fx --skill aai-fy
+  [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3180: all-reused run exited $RC"; }
+  expect "TEST-3180 all-reused console" "$OUT" "Reused:  2"
+  dir="$(newest_run_dir "$base")"
+  grep -q '^Reused:  2' "$dir/summary.txt" || log_fail "TEST-3180: all-reused run summary.txt has no Reused line: $(cat "$dir/summary.txt")"
+  log_pass "TEST-3180 (REUSED metrics line, Reused summary incl. summary.txt of an all-reused run, ledger reused=1 total=1, isolation invariant)"
 }
 
 # test_3188: PROFILES core row, selection through the real select-suites.mjs,
@@ -525,9 +568,10 @@ main() {
   test_3181_log_missing
   test_3182_lint_and_live_manifest
   test_3183_select_suites_import
-  test_3191_simple_glob_literal
   test_3188_profiles_selection_and_source_shape
   test_3190_select_suites_cli_still_runs
+  test_3192_renamed_read_file_not_reused
+  test_3193_manifest_suites_read_only_their_identity
   test_3184_pester_twin
   test_3185_workflow_path_lists
   test_3186_canon_reconciliation

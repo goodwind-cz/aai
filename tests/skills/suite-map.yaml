@@ -1413,6 +1413,7 @@ suites:
       - tests/skills/suite-reuse.Tests.ps1
       - tests/skills/test-framework.sh
       - tests/skills/lib/suite-reuse.test.mjs
+      - tests/skills/lib/read-trace.cjs
       - tests/skills/lib/prompt-diet-ledger.sh
       - docs/analysis/precise-suite-evidence-reuse.md
 

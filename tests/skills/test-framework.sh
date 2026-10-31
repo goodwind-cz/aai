@@ -2079,9 +2079,12 @@ Total:   $TOTAL_TESTS
 Passed:  $PASSED_TESTS ($(( TOTAL_TESTS > 0 ? PASSED_TESTS * 100 / (TOTAL_TESTS > 0 ? TOTAL_TESTS : 1) : 0 ))%)
 Failed:  $FAILED_TESTS ($(( TOTAL_TESTS > 0 ? FAILED_TESTS * 100 / (TOTAL_TESTS > 0 ? TOTAL_TESTS : 1) : 0 ))%)
 Skipped: $SKIPPED_TESTS ($(( TOTAL_TESTS > 0 ? SKIPPED_TESTS * 100 / (TOTAL_TESTS > 0 ? TOTAL_TESTS : 1) : 0 ))%)
-
-Failed Tests:
 EOF
+  # Same condition as the console line, so an all-reused run is visible here too.
+  if [[ $REUSED_TESTS -gt 0 ]]; then
+    echo "Reused:  $REUSED_TESTS" >> "$RUN_DIR/summary.txt"
+  fi
+  printf '\nFailed Tests:\n' >> "$RUN_DIR/summary.txt"
 
   # List failed tests
   if [[ $FAILED_TESTS -gt 0 ]]; then

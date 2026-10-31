@@ -1,10 +1,10 @@
 {
   "version": 1,
   "suites": {
-    "aai-check-state": {
+    "aai-feedback-status": {
       "inputs": [],
       "live": false,
-      "note": "Fixture-driven checks of check-state.mjs and dispatch over temp files; reads only the prompts, templates and scripts its closure names (the sandbox copy destinations .aai/scripts/ and .aai/templates are taken as read, so the whole of both trees is an input). No network, no process table, no clock. explain reports 0 marker hits."
+      "note": "Counts fixture friction spools and pending drafts under a mktemp directory through AAI_FRICTION_DIR, with a mock gh (AAI_GH_BIN) that only records its arguments; reads the status script and lib/friction-spool.mjs (both named in the closure or the shared lib globs) and lib/assert-payload.sh. A Node read trace of the whole suite (docs/ai/validation/precise-suite-evidence-reuse/r2-manifest-read-trace.log) shows no read inside the checkout outside the identity; the clock and the network are not read (gh is mocked)."
     },
     "aai-pricing": {
       "inputs": [],
@@ -17,7 +17,9 @@
       "note": "Pure string-in string-out checks of .aai/scripts/lib/aai-redact.mjs; the two marker hits are URL fixtures that must be redacted, never fetched. No file outside the module is read."
     },
     "aai-orchestration-mode": {
-      "inputs": ["CHANGELOG.md"],
+      "inputs": [
+        "CHANGELOG.md"
+      ],
       "live": false,
       "note": "Runs orchestration-mode.mjs over fixtures and asserts wiring text in the prompts, USER_GUIDE.md, the STATE header (a seed file, named in the closure) and CHANGELOG.md (read through a root-relative variable, so listed here as an extra input). No network; explain reports 0 marker hits."
     },
