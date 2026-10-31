@@ -72,9 +72,13 @@ were. A hand edit to a generated file fails a check before it can merge.
   `OK: <n> skill(s) listed in the SKILLS.md Quick Reference`. `--write` adds
   each missing row from the skill's own description and removes orphan rows;
   rows already there stay byte for byte, and a second run changes nothing. It
-  refuses (exit 2) a description containing a pipe, a skill with neither a
-  prompt file nor a node command, and a `SKILLS.md` or parent directory that
-  is a symbolic link. The table now lists all 42 skills; the five it was
+  refuses (exit 2) a description containing a pipe, a `SKILLS.md` or parent
+  directory that is a symbolic link, and a catalog path that leaves the
+  project (absolute, or a `..` segment with either `/` or `\`). The table
+  covers universal skills only: a wrapper with no `.aai/SKILL_*.prompt.md` and
+  no `node .aai/scripts/*.mjs` command, such as the `aai-test-unit` or
+  `aai-build` wrappers `/aai-bootstrap` generates, is left out of both modes
+  without a message, and its mirrors are still written. The table now lists all 42 skills; the five it was
   missing (aai-factory-report, aai-live, aai-merge, aai-release,
   aai-roadmap) were added by `--write`.
 - **AGENTS.md on update.** `aai-sync` installs the root `AGENTS.md` like
@@ -88,5 +92,6 @@ were. A hand edit to a generated file fails a check before it can merge.
   checked and filled in row by row, not rewritten, so its hand-written
   descriptions stay.
 - No shipped path runs the catalog check in a downstream project. A project
-  that adds its own `aai-*` skill wrapper and runs `--check` by hand sees a
-  missing-row line for it until `--write` adds the row.
+  skill wrapper that does point at an `.aai/SKILL_*.prompt.md` or a node
+  command counts as universal, so `--check` reports a missing row for it until
+  `--write` adds one.
