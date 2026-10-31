@@ -52,14 +52,23 @@ node .aai/scripts/ride-status.mjs probe
 
 prints `pushed`, `pr_open`, `closed` and `flushed`, each `done`, `not_done`,
 `unknown` or `skipped`, with the evidence it used (for example the open pull
-request's number). Both modes take `--json`, `--state <path>` and
+request's number). Its last line, `resume:`, says how a
+no-argument `/aai-ship` continues: `merge pr=<n>` (the ride is closed, pushed
+and its pull request is open), `pr_step5 ref=<slug>` (the ride is closed but
+its branch is not pushed at its head or has no pull request), `loop` (the ride
+is still in progress) or `none` (no ride to resume, for example a fresh branch
+or the base branch). Both modes take `--json`, `--state <path>` and
 `--root <dir>`; `probe` also takes `--branch <name>`.
 
 Where the agents use it:
 
-- `/aai-ship` with no argument resumes a ride that is in focus. It stops on a
-  damaged state file (pointing to `/aai-check-state`) and on a ride that is
-  already closed (pointing to `/aai-merge <n>`).
+- `/aai-ship` with no argument follows the `resume:` line. It continues a ride
+  in progress; for a closed ride whose branch or pull request is not out yet
+  it re-runs the pull request step from its first gate (validation, review and
+  branch checks all run again); for a closed ride with its pull request open
+  it stops and points to `/aai-merge <n>`. A damaged state file stops it with a
+  pointer to `/aai-check-state`. With no ride to resume it picks the next
+  roadmap item as before.
 - The pull request step runs the check first: a branch already pushed at its
   head is not pushed again, and an open pull request is reported and watched
   instead of creating a second one.

@@ -31,8 +31,8 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 ## [unreleased] — feat: ride status view and resume without repeated effects (ride-status-and-resume)
 
 - New `node .aai/scripts/ride-status.mjs` prints where the current ride stands in six lines (ride, current action, evidence, blocker, next decision, recorded decisions), or one JSON object with `--json`. The current action comes from the dispatcher itself. It writes nothing.
-- `ride-status.mjs probe` reports whether the branch is pushed at its head, a pull request is open, the item is closed and metrics are flushed; it performs none of them.
-- `/aai-ship` with no argument now resumes the ride in focus instead of picking the next roadmap item; it stops on a damaged state file and on an already-closed ride. The pull request step skips a push or a create the probe reports done. The loop prints the status after its summary.
+- `ride-status.mjs probe` reports whether the branch is pushed at its head, a pull request is open, the item is closed and metrics are flushed; it performs none of them. Its last line `resume: merge pr=<n> | pr_step5 ref=<slug> | loop | none` tells a resumed ride what to do next.
+- `/aai-ship` with no argument now follows that line instead of always picking the next roadmap item: it continues a ride in progress, re-runs the pull request step (all gates included) for a closed ride whose branch or pull request is not out yet, stops at `/aai-merge <n>` when the pull request is open and pushed, and stops on a damaged state file. The pull request step skips a push or a create the probe reports done. The loop prints the status after its summary.
 
 ## [unreleased] — fix: SKILLS.md lists every skill, CRLF Copilot overrides survive aai-sync, amendment signatures bind to merge time (provider-adapter-surfaces-closing-slice)
 
