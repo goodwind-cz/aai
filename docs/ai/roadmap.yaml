@@ -124,6 +124,8 @@ pairs:
     status: done
   - capability: ride-status-and-resume
     status: done
+  - capability: precise-suite-evidence-reuse
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
