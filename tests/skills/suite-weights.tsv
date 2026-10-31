@@ -213,6 +213,8 @@ aai-spec-tools	7
 aai-state	212
 # sample aai-suite-isolation measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=44,36,51,52,52
 aai-suite-isolation	51
+# sample aai-suite-reuse fallback unsampled (SKIP or absent; no successful observation)
+aai-suite-reuse	212
 # sample aai-suite-select measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=12,15,14,24,14
 aai-suite-select	14
 # sample aai-sweep-parallel measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=89,90,91,113,92

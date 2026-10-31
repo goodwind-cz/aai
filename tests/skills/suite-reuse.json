@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "suites": {
+    "aai-check-state": {
+      "inputs": [],
+      "live": false,
+      "note": "Fixture-driven checks of check-state.mjs and dispatch over temp files; reads only the prompts, templates and scripts its closure names (the sandbox copy destinations .aai/scripts/ and .aai/templates are taken as read, so the whole of both trees is an input). No network, no process table, no clock. explain reports 0 marker hits."
+    },
+    "aai-pricing": {
+      "inputs": [],
+      "live": false,
+      "note": "Reads .aai/system/PRICING.yaml and docs/ai/METRICS.jsonl by the literal paths in its closure and runs node over them; no network (the one marker hit is an assertion string about a URL in the notes), no process table."
+    },
+    "aai-redact": {
+      "inputs": [],
+      "live": false,
+      "note": "Pure string-in string-out checks of .aai/scripts/lib/aai-redact.mjs; the two marker hits are URL fixtures that must be redacted, never fetched. No file outside the module is read."
+    },
+    "aai-orchestration-mode": {
+      "inputs": ["CHANGELOG.md"],
+      "live": false,
+      "note": "Runs orchestration-mode.mjs over fixtures and asserts wiring text in the prompts, USER_GUIDE.md, the STATE header (a seed file, named in the closure) and CHANGELOG.md (read through a root-relative variable, so listed here as an extra input). No network; explain reports 0 marker hits."
+    },
+    "aai-runtime-file": {
+      "inputs": [],
+      "live": false,
+      "note": "Exercises the claim, reclaim and release functions of .aai/scripts/lib/runtime-file.mjs on temp files with child node processes it starts and ends itself; reads no repository file outside its closure, no network, 0 marker hits."
+    }
+  }
+}
