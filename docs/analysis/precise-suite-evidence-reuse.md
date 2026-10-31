@@ -14,10 +14,12 @@ representative round: on that round it reused nothing.
 
 ## Measurements
 
-Measured on commit 97790628adef95b13736e79e0bb3c8d7a61e2f53 (the branch tip
-that carries the helper, the manifest and the framework wiring), in a
-disposable detached worktree of that commit, never in the shared main
-checkout. Each round: one seed run with reuse on on the clean tree, a copy of
+R1 and R2 were measured on commit 97790628adef95b13736e79e0bb3c8d7a61e2f53
+(the branch tip that carried the helper, the manifest and the framework
+wiring); R3 was re-measured after validation round 1 on commit
+316d1187c28154f0651d964e0fad232a63df6d51, the commit that corrects the manifest
+(see the R3 line). Each round ran in a disposable detached worktree of its
+commit, never in the shared main checkout. Each round: one seed run with reuse on on the clean tree, a copy of
 `tests/skills/results/reuse/` as a snapshot, the round delta applied, then six
 samples alternating off (`AAI_SUITE_REUSE=0`) and on, restoring the store from
 the snapshot before every on sample. Command per sample:
@@ -37,9 +39,16 @@ the framework line `Evidence reuse: on (<M> of <N> suites reused, check <s>s)`.
   aai-prompt-diet (6).
 - R3: a supplementary round, added after R1 and R2 reused nothing, to show
   where reuse does help: the five suites declared in the manifest
-  (aai-check-state, aai-pricing, aai-redact, aai-orchestration-mode,
+  (aai-feedback-status, aai-pricing, aai-redact, aai-orchestration-mode,
   aai-runtime-file) re-checked after a comment line was appended to the
-  unrelated production script `.aai/scripts/pr-preflight.mjs`.
+  unrelated production script `.aai/scripts/pr-preflight.mjs`. R3 was first
+  measured with aai-check-state in the manifest in place of aai-feedback-status
+  (4 of 5 reused); validation round 1 showed that aai-check-state reads files
+  outside its identity, so it was removed and R3 was measured again on the
+  corrected manifest. The table and medians below are the second measurement.
+  R1 and R2 stay as first measured: aai-check-state was run in both modes of
+  those rounds, so removing it from the manifest changes neither their wall
+  time nor their reused count (0).
 
 | Round | Sample | Mode | Wall s | Executed | Reused | Check s |
 |---|---|---|---|---|---|---|
@@ -55,18 +64,18 @@ the framework line `Evidence reuse: on (<M> of <N> suites reused, check <s>s)`.
 | R2 | 2 | on | 99 | 6 | 0 | 0 |
 | R2 | 3 | off | 106 | 6 | 0 | - |
 | R2 | 3 | on | 100 | 6 | 0 | 0 |
-| R3 | 1 | off | 5 | 5 | 0 | - |
-| R3 | 1 | on | 3 | 1 | 4 | 0 |
+| R3 | 1 | off | 4 | 5 | 0 | - |
+| R3 | 1 | on | 1 | 0 | 5 | 0 |
 | R3 | 2 | off | 5 | 5 | 0 | - |
-| R3 | 2 | on | 3 | 1 | 4 | 0 |
-| R3 | 3 | off | 4 | 5 | 0 | - |
-| R3 | 3 | on | 3 | 1 | 4 | 0 |
+| R3 | 2 | on | 1 | 0 | 5 | 0 |
+| R3 | 3 | off | 5 | 5 | 0 | - |
+| R3 | 3 | on | 2 | 0 | 5 | 0 |
 
 Round R1 medians: off 93 s, on 92 s, reused 0 of 7 suites (worst off 93 s, worst on 94 s).
 
 Round R2 medians: off 91 s, on 99 s, reused 0 of 6 suites (worst off 106 s, worst on 100 s).
 
-Round R3 medians: off 5 s, on 3 s, reused 4 of 5 suites (worst off 5 s, worst on 3 s).
+Round R3 medians: off 5 s, on 1 s, reused 5 of 5 suites (worst off 5 s, worst on 2 s).
 
 Every check time is 0 s (limit 5 s). On R1 and R2 the on and off medians differ
 by run-to-run noise only (92 against 93, 99 against 91): nothing was reused, so
@@ -80,8 +89,9 @@ runs under); Git 2.54.0 (Apple Git-157).
 
 Reuse helps for a suite whose complete identity is narrow: its suite file, the
 shared-library tree, the harness and a handful of named data files. R3 shows
-it: four of the five manifest suites (aai-check-state missed, see below) were
-reported REUSED and skipped, wall time 5 s to 3 s. The absolute saving is
+it: all five manifest suites were reported REUSED and skipped, wall time 5 s
+to 1 s (an all-reused run executes nothing; its summary carries `Reused: 5` and
+`Total: 0`). The absolute saving is
 small because the manifest suites are the cheap, pure ones (weights of a few
 seconds). It would grow with more suites qualified into the manifest, but only
 suites whose closure stays narrow can qualify honestly.
@@ -111,19 +121,29 @@ None of these suites is in the manifest, so they report
 as designed. Listing them would give a false hit risk (R1 of the spec) that the
 measured closure shows cannot be bounded by a reviewed `note`.
 
-Two further misses in R1 and R2 are not docs-related. aai-check-state is in
-the manifest, but its test file writes into a fixture sandbox under
-`$sandbox/.aai/scripts/`, a literal that the closure rule reads as a directory
-and expands to the 176 files of `.aai/scripts/` (plus lib and templates), so any
-production-script edit changes its identity (R1 reason: changed
-`.aai/scripts/ride-status.mjs`; R2 and R3: the edited script). The orchestrator
-decision for this ride kept that rule (no relaxation for write positions)
-because a false hit is the main hazard. aai-orchestration-mode is the suite
-whose own input was edited in R2, a legitimate miss.
+One further miss in R1 and R2 is not docs-related. aai-orchestration-mode is
+the suite whose own input was edited in R2, a legitimate miss.
+
+aai-check-state was in the manifest when R1 to R3 were first measured, and it
+missed in all three rounds, which the first draft of this note put down to the
+closure rule reading a sandbox write destination (`$sandbox/.aai/scripts/`) as
+a directory of 176 files. That explanation was incomplete and the suite did not
+belong in the manifest. Validation round 1 traced its reads and showed that it
+also runs `orchestration-dispatch.mjs` against the real checkout, which reads
+`docs/TECHNOLOGY.md`, `.aai/workflow/WORKFLOW.md`, `.aai/system/LOCKS.md`,
+`.aai/system/MODEL_ROUTING.yaml`, `docs/ai/roadmap.yaml` and `docs/issues/*`
+(359 files), none of them in its identity. Renaming `docs/TECHNOLOGY.md` left
+the suite reported REUSED although a re-run failed. The suite was removed from
+the manifest; the miss in R1 to R3 was thus a symptom of a closure that was
+too narrow in one direction and too wide in another, not a tuning problem.
 
 ## Manifest suites
 
-aai-check-state, aai-pricing, aai-redact, aai-orchestration-mode,
-aai-runtime-file (five suites, `tests/skills/suite-reuse.json`). Of the M5
-round, aai-check-state is the only one listed; the other six M5 suites are
-not declared, for the reasons above.
+aai-feedback-status, aai-pricing, aai-redact, aai-orchestration-mode,
+aai-runtime-file (five suites, `tests/skills/suite-reuse.json`). None of the
+seven suites of the M5 round qualifies: they either read docs/ broadly or are
+dominated by the docs closure described above, so no honest `note` can bound
+their reads. Each manifest suite is qualified by a Node read trace of the whole
+suite plus a literal review of its bash, and TEST-3193 repeats the trace on
+every run of the reuse suite, so a manifest entry that reads outside its
+identity fails the test instead of waiting for a validator to find it.
