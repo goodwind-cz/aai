@@ -1023,7 +1023,8 @@ test_012_growth_sum_matches_ledger() {
   # plain-language lines, both blocks pass AAI_DECIDE; measured against fb171891, credited 1:1; AGENTS.md rule 2 is outside the glob, no credit).
   # Then 63917 -> 64324: codex-usage-missing-from-run-budgets (+407 B: SKILL_LOOP step 2f Codex budget paragraph; measured against f8614f67, credited 1:1).
   # Then 64324 -> 64396: watch-ci-reread-refresh-and-p3-cleanup (+72 B: SKILL_PR step 3b names user-facing docs as shipped; measured against 7d38415a, credited 1:1).
-  local want_growth=64396
+  # Then 64396 -> 64867: ride-status-and-resume (+471 B: SKILL_SHIP INPUT and step 5, SKILL_PR step 5, SKILL_LOOP summary name ride-status.mjs; measured against 51840bde, credited 1:1).
+  local want_growth=64867
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1063,6 +1064,8 @@ test_012_growth_sum_matches_ledger() {
       rh_then=$(( rh_then + $(git -C "$PROJECT_ROOT" show "$rh_base_sha:.aai/$rh_f.prompt.md" | wc -c | tr -d ' ') ))
       rh_now=$(( rh_now + $(wc -c < "$PROJECT_ROOT/.aai/$rh_f.prompt.md" | tr -d ' ') ))
     done
+    # ride-status-and-resume adds 177 B to SKILL_SHIP under its own ledger entry; excluded so this entry stays its own.
+    rh_now=$(( rh_now - 177 ))
     if [[ -z "$rh_entry" ]]; then
       log_info "TEST-012 (ride-state-handoff TEST-013): no ride-state-handoff-to-worktree ledger entry (prompts grew $(( rh_now - rh_then )) B)"
       ok=0
@@ -2777,7 +2780,8 @@ test_2936_skill_pr_3b_growth_ledgered() {
     return
   fi
   # SKILL_PR.prompt.md was 32833 B at baseline commit 7d38415a (stored, not read from git: shallow clones lack the commit).
-  local base_bytes=32833 now growth _e entry='' n=0 lead
+  # Later slice ride-status-and-resume adds 223 B to SKILL_PR (credited by its own entry); it is excluded here so the 72 B stays this entry's own.
+  local base_bytes=$(( 32833 + 223 )) now growth _e entry='' n=0 lead
   now=$(wc -c < .aai/SKILL_PR.prompt.md | tr -d ' ')
   growth=$(( now - base_bytes ))
   for _e in "${JUSTIFIED_ADDITIONS[@]}"; do

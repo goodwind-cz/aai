@@ -7,7 +7,9 @@ Composes existing canon; do NOT re-derive role logic here.
 
 INPUT
 - A free-text need from the user (any language), OR a path to an existing
-  open intake doc. With neither, first run `node .aai/scripts/ride-select.mjs show`:
+  open intake doc. With neither, first run `node .aai/scripts/ride-status.mjs --json`:
+  a non-null `ref_id` is a ride in flight: resume it at RUN step 2 (no new
+  intake, no ride-select). Only a null `ref_id` runs `node .aai/scripts/ride-select.mjs show`:
   `no roadmap` means ask for the need (print no gate text), else run
   `node .aai/scripts/ride-select.mjs next --json`:
   a `next` with a `path` is ridden as if that path had been passed; a
@@ -95,8 +97,8 @@ RUN
    staging, close ceremony, push, gh pr create) WITHOUT asking permission to
    open it: a pull request is reversible — closable, force-pushable, or left
    unmerged indefinitely — so it is not the irreversible step consent
-   belongs at. If unattended chaining already opened a PR for the current
-   `ref_id`, report that URL and skip a second create. Report the PR URL.
+   belongs at. Run `node .aai/scripts/ride-status.mjs probe` first:
+   `pr_open: done` means report that PR and skip a second create. Report the PR URL.
 6. MERGE CHECKPOINT (the one human gate, at the merge) — present exactly:
    - scope: ref_id + one-line outcome
    - diff stat (files/insertions/deletions) and the branch name

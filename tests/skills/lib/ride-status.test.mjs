@@ -320,3 +320,138 @@ test('TEST-3151 strategy reuse is bound to the focus ref; the worktree part prin
   assert.equal(o.decisions.worktree.ref_binding, 'none');
   assert.match(status(other).stdout, /ref_binding=none$/m);
 });
+
+// --- TEST-3152 .. TEST-3155 ---------------------------------------------------------
+
+const BRANCH = 'feat/x';
+
+// A fixture clone of a real bare origin, on BRANCH. Returns the world plus the origin path.
+function clonedWorld(o = {}, { push = true } = {}) {
+  const w = world(o);
+  const origin = fs.mkdtempSync(path.join(os.tmpdir(), 'ride-status-origin-'));
+  roots.push(origin);
+  git(origin, 'init', '-q', '--bare', '-b', 'main');
+  git(origin, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+  git(w.root, 'remote', 'add', 'origin', origin);
+  git(w.root, 'checkout', '-q', '-b', BRANCH);
+  if (push) git(w.root, 'push', '-q', '-u', 'origin', BRANCH);
+  return { ...w, origin };
+}
+
+const pushedOf = (w) => JSON.parse(probe(w, '--json', '--branch', BRANCH).stdout).effects.pushed;
+
+test('TEST-3152 pushed: done at head, not_done naming both shas when ahead, not_done when absent, unknown without origin', () => {
+  const w = clonedWorld(focusOpts());
+  const head = git(w.root, 'rev-parse', BRANCH).trim();
+  const done = pushedOf(w);
+  assert.equal(done.state, 'done');
+  assert.ok(done.detail.includes(head), done.detail);
+
+  write(path.join(w.root, 'extra.txt'), 'one more\n');
+  git(w.root, 'add', '-A');
+  git(w.root, 'commit', '-q', '-m', 'ahead');
+  const newHead = git(w.root, 'rev-parse', BRANCH).trim();
+  const ahead = pushedOf(w);
+  assert.equal(ahead.state, 'not_done');
+  assert.ok(ahead.detail.includes(head) && ahead.detail.includes(newHead), ahead.detail);
+
+  const never = clonedWorld(focusOpts(), { push: false });
+  const absent = pushedOf(never);
+  assert.equal(absent.state, 'not_done');
+  assert.ok(absent.detail.includes('absent'), absent.detail);
+
+  git(w.root, 'remote', 'remove', 'origin');
+  const gone = pushedOf(w);
+  assert.equal(gone.state, 'unknown');
+  assert.ok(gone.detail.includes('no origin'), gone.detail);
+});
+
+// gh stub first on PATH: logs argv (one line per call), answers from files, writes nothing else.
+function ghStub() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ride-status-gh-'));
+  roots.push(dir);
+  const bin = path.join(dir, 'bin');
+  fs.mkdirSync(bin);
+  const script = '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$GH_STUB_DIR/argv.log"\n'
+    + 'if [ -f "$GH_STUB_DIR/rc" ]; then exit "$(cat "$GH_STUB_DIR/rc")"; fi\n'
+    + 'cat "$GH_STUB_DIR/answer.json"\n';
+  fs.writeFileSync(path.join(bin, 'gh'), script, { mode: 0o755 });
+  return {
+    dir,
+    answer(text) { fs.rmSync(path.join(dir, 'rc'), { force: true }); fs.writeFileSync(path.join(dir, 'answer.json'), text); },
+    fail(rc) { fs.writeFileSync(path.join(dir, 'rc'), String(rc)); },
+    calls() { try { return fs.readFileSync(path.join(dir, 'argv.log'), 'utf8').split('\n').filter(Boolean); } catch { return []; } },
+    env: { PATH: `${bin}${path.delimiter}${process.env.PATH}`, GH_STUB_DIR: dir },
+  };
+}
+
+const prProbe = (w, stub) => {
+  const r = run('node', [SCRIPT, 'probe', '--json', '--branch', BRANCH, '--state', w.statePath, '--root', w.root], w.root, stub.env);
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout).effects.pr_open;
+};
+
+test('TEST-3153 pr_open: done with the listed number, not_done on an empty list, unknown on stub failure, skipped on platform none', () => {
+  const w = clonedWorld(focusOpts());
+  write(path.join(w.root, 'docs/ai/pr-config.yaml'), 'platform: github\n');
+  const stub = ghStub();
+
+  stub.answer('[{"number":41}]');
+  const one = prProbe(w, stub);
+  assert.equal(one.state, 'done');
+  assert.deepEqual(one.prs, [41]);
+  assert.ok(stub.calls().every((c) => c.includes(`--head ${BRANCH}`)), `head-branch list expected: ${stub.calls()}`);
+  assert.ok(one.detail.includes('41'), one.detail);
+
+  stub.answer('[]');
+  assert.equal(prProbe(w, stub).state, 'not_done');
+
+  stub.fail(1);
+  assert.equal(prProbe(w, stub).state, 'unknown');
+
+  const none = clonedWorld(focusOpts());
+  write(path.join(none.root, 'docs/ai/pr-config.yaml'), 'platform: none\n');
+  const quiet = ghStub();
+  quiet.answer('[{"number":41}]');
+  assert.equal(prProbe(none, quiet).state, 'skipped');
+  assert.equal(quiet.calls().length, 0, 'platform none must not call the stub');
+});
+
+test('TEST-3154 the probe only reads: stub argv holds pr list --head calls and the bare origin refs do not change', () => {
+  const w = clonedWorld(focusOpts());
+  write(path.join(w.root, 'docs/ai/pr-config.yaml'), 'platform: github\n');
+  const stub = ghStub();
+  const refsBefore = git(w.origin, 'for-each-ref');
+  const lsBefore = git(w.root, 'ls-remote', 'origin');
+  for (const answer of ['[{"number":41}]', '[]']) { stub.answer(answer); prProbe(w, stub); }
+  stub.fail(1); prProbe(w, stub);
+  const calls = stub.calls();
+  assert.equal(calls.length, 3);
+  for (const c of calls) {
+    assert.ok(c.startsWith('pr list '), c);
+    assert.ok(c.includes(`--head ${BRANCH}`), c);
+    assert.ok(!/\b(create|edit|merge|close|comment)\b/.test(c), c);
+  }
+  assert.equal(git(w.origin, 'for-each-ref'), refsBefore);
+  assert.equal(git(w.root, 'ls-remote', 'origin'), lsBefore);
+});
+
+test('TEST-3155 closed and flushed come from the real ledgers; no focus gives not_applicable', () => {
+  const ev = (o) => `${JSON.stringify({ ts: '2026-10-30T00:00:00Z', ...o })}\n`;
+  const closeLine = ev({ event: 'work_item_closed', ref: REF, payload: {} });
+  const reopenLine = ev({ event: 'doc_lifecycle', ref: REF, payload: { from: 'done', to: 'implementing' } });
+  const effects = (w) => JSON.parse(probe(w, '--json', '--branch', BRANCH).stdout).effects;
+
+  assert.equal(effects(world({ ...focusOpts(), events: closeLine })).closed.state, 'done');
+  assert.equal(effects(world({ ...focusOpts(), events: closeLine + reopenLine })).closed.state, 'not_done');
+  assert.equal(effects(world({ ...focusOpts(), events: reopenLine + closeLine })).closed.state, 'done');
+  assert.equal(effects(world(focusOpts())).closed.state, 'not_done');
+
+  const flushRecord = `${JSON.stringify({ ref_id: REF, date_utc: '2026-10-30', title: 'demo' })}\n`;
+  assert.equal(effects(world({ ...focusOpts(), metrics: flushRecord })).flushed.state, 'done');
+  assert.equal(effects(world(focusOpts())).flushed.state, 'not_done');
+
+  const none = effects(world({ noFocus: true }));
+  assert.equal(none.closed.state, 'not_applicable');
+  assert.equal(none.flushed.state, 'not_applicable');
+});

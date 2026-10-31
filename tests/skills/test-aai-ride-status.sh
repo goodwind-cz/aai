@@ -56,6 +56,48 @@ test_3148_agrees_with_dispatcher() { node_cases TEST-3148; }
 test_3149_blocker_kinds() { node_cases TEST-3149; }
 test_3150_next_decision() { node_cases TEST-3150; }
 test_3151_strategy_reuse() { node_cases TEST-3151; }
+test_3152_probe_pushed() { node_cases TEST-3152; }
+test_3153_probe_pr_open() { node_cases TEST-3153; }
+test_3154_probe_reads_only() { node_cases TEST-3154; }
+test_3155_probe_ledgers() { node_cases TEST-3155; }
+
+# test_3156: the three prompts name the script's real CLI form, in the stated order.
+test_3156_prompt_wiring() {
+  local ship="$PROJECT_ROOT/.aai/SKILL_SHIP.prompt.md"
+  local pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
+  local loop="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
+  local input status_at select_at step5 probe_at push_at pr_probe_line summary_at ride_at
+  input="$(sed -n '/^INPUT$/,/^AUTOPILOT DEFAULTS/p' "$ship")"
+  [[ "$input" == *'node .aai/scripts/ride-status.mjs --json'* ]] || log_fail "TEST-3156: SKILL_SHIP INPUT lacks ride-status.mjs --json"
+  [[ "$input" == *'RUN step 2'* ]] || log_fail "TEST-3156: SKILL_SHIP INPUT does not name RUN step 2"
+  status_at="${input%%ride-status.mjs --json*}"; select_at="${input%%ride-select.mjs show*}"
+  [[ ${#status_at} -lt ${#select_at} ]] || log_fail "TEST-3156: SKILL_SHIP INPUT runs ride-select.mjs show before ride-status.mjs --json"
+  step5="$(sed -n '/^5\. OPEN THE PULL REQUEST/,/^6\. MERGE CHECKPOINT/p' "$ship")"
+  [[ "$step5" == *'ride-status.mjs probe'* ]] || log_fail "TEST-3156: SKILL_SHIP step 5 lacks ride-status.mjs probe"
+  [[ "$step5" != *'If unattended chaining already opened'* ]] || log_fail "TEST-3156: SKILL_SHIP step 5 keeps the old unattended-chaining prose"
+  step5="$(sed -n '/^5\. PLATFORM GATE + PUSH + PR:/,/^5b\./p' "$pr")"
+  [[ -n "$step5" ]] || step5="$(sed -n '/^5\. PLATFORM GATE + PUSH + PR:/,$p' "$pr")"
+  probe_at="${step5%%ride-status.mjs probe*}"; push_at="${step5%%git push -u origin*}"
+  [[ "$step5" == *'ride-status.mjs probe'* && ${#probe_at} -lt ${#push_at} ]] || log_fail "TEST-3156: SKILL_PR step 5 probe does not precede the git push -u origin line"
+  pr_probe_line="${step5#*ride-status.mjs probe}"; pr_probe_line="${pr_probe_line:0:300}"
+  [[ "$pr_probe_line" == *'pushed: done'* && "$pr_probe_line" == *'pr_open: done'* ]] || log_fail "TEST-3156: SKILL_PR probe line does not name pushed and pr_open done"
+  summary_at="$(sed -n '/^LOOP SUMMARY$/,$p' "$loop")"
+  ride_at="${summary_at#*---}"; ride_at="${ride_at#*---}"; ride_at="${ride_at:0:200}"
+  [[ "$ride_at" == *'node .aai/scripts/ride-status.mjs'* ]] || log_fail "TEST-3156: SKILL_LOOP does not name ride-status.mjs after the LOOP SUMMARY block"
+  log_pass "TEST-3156 (SHIP INPUT and step 5, PR step 5, LOOP summary name ride-status.mjs)"
+}
+
+# test_3157: exactly one diet-ledger entry credits this change, within the 900 B cap.
+test_3157_diet_ledger_entry() {
+  local ledger="$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh"
+  local n bytes line
+  n="$(grep -c 'JUSTIFIED_ADDITIONS+=( "[0-9][0-9]* ride-status-and-resume ' "$ledger" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3157: want exactly one ride-status-and-resume ledger entry, found $n"
+  line="$(grep 'JUSTIFIED_ADDITIONS+=( "[0-9][0-9]* ride-status-and-resume ' "$ledger")"
+  bytes="${line#*\"}"; bytes="${bytes%% *}"
+  [[ "$bytes" =~ ^[0-9]+$ && "$bytes" -ge 1 && "$bytes" -le 900 ]] || log_fail "TEST-3157: ledger byte count '$bytes' is outside 1..900"
+  log_pass "TEST-3157 (one ledger entry, $bytes B)"
+}
 
 # test_3158: PROFILES core row, suite selection through the real select-suites.mjs,
 # no launcher pair, no write call, no shell option, line cap.
@@ -94,6 +136,12 @@ main() {
   test_3149_blocker_kinds
   test_3150_next_decision
   test_3151_strategy_reuse
+  test_3152_probe_pushed
+  test_3153_probe_pr_open
+  test_3154_probe_reads_only
+  test_3155_probe_ledgers
+  test_3156_prompt_wiring
+  test_3157_diet_ledger_entry
   test_3158_profiles_selection_and_source_shape
   echo ""
   log_pass "All $TEST_NAME tests passed"

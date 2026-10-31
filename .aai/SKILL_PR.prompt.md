@@ -294,6 +294,9 @@ PROCESS
    - SHARED-PAGE PUSH CHECK (Spec-AC-30): `node .aai/scripts/pr-platform.mjs
      --check-shared-page-conflicts` (github only, else SKIP, never blocks).
      Non-zero: STOP, coordinate with the named open PR(s) before pushing.
+   - Run `node .aai/scripts/ride-status.mjs probe` first: `pushed: done` skips the push,
+     `pr_open: done` skips the create (pass the listed number to `watch-ci.mjs --pr`);
+     `unknown` or `skipped` proceeds as today.
    - `github`/`azure`/`unknown` with a remote: `git push -u origin <branch>`.
      `none`: skip the push entirely and go straight to GENERIC MODE below.
    - Branch on the value the step-5 probe printed — NEVER guess:

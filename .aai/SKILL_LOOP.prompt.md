@@ -455,6 +455,7 @@ Final state:
   last_validation:      <status>
   human_input.required: <true|false>
 ---
+Then print the output of `node .aai/scripts/ride-status.mjs` verbatim.
 
 CACHING DISCIPLINE (cost)
 Prompt-cache reads cost ~1/10 of normal input, but the cache TTL is short (~5 min).
