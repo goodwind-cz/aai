@@ -571,3 +571,40 @@ test('TEST-3162 SHIP INPUT binds each resume verdict to its own action, and the 
   assert.ok(flat.includes('`node .aai/scripts/ride-status.mjs probe`'), 'INPUT runs the probe for the resume: line');
   assert.ok(!flat.includes('non-base') && !flat.includes('pushed: not_done'), 'the prose heuristic is replaced by the resume: line');
 });
+
+test('TEST-3163 resume verdict hazards: a detached unclosed ride loops, merge needs a pushed head, an unknown PR list never claims a merge', () => {
+  // B1: focus set and not closed on a detached HEAD is a ride in flight.
+  const detached = clonedWorld(focusOpts(), { branch: 'feat/demo' });
+  git(detached.root, 'checkout', '-q', '--detach');
+  assert.equal(resumeOf(detached), 'resume: loop');
+  // A detached HEAD with a closed focus or a cleared focus still resumes nothing.
+  const detachedClosed = clonedWorld({ ...focusOpts(), events: closeLineOf(REF) }, { branch: 'feat/demo' });
+  git(detachedClosed.root, 'checkout', '-q', '--detach');
+  assert.equal(resumeOf(detachedClosed), 'resume: none');
+
+  // B2: an open PR whose head is behind the local branch is finished by step 5 (push, skip the create).
+  const ahead = clonedWorld({ noFocus: true, events: closeLineOf(REF) }, { branch: 'feat/demo' });
+  write(path.join(ahead.root, 'docs/ai/pr-config.yaml'), 'platform: github\n');
+  write(path.join(ahead.root, 'extra.txt'), 'x\n');
+  git(ahead.root, 'add', '-A');
+  git(ahead.root, 'commit', '-q', '-m', 'ahead');
+  const stub = ghStub();
+  stub.answer('[{"number":520}]');
+  assert.equal(resumeOf(ahead, null, stub.env), `resume: pr_step5 ref=${REF}`);
+  git(ahead.root, 'push', '-q', 'origin', 'feat/demo');
+  assert.equal(resumeOf(ahead, null, stub.env), 'resume: merge pr=520');
+
+  // NB-4: pr_open unknown (gh failed). Pushed at head: no claim either way (none). Not pushed: step 5.
+  stub.fail(1);
+  assert.equal(resumeOf(ahead, null, stub.env), 'resume: none');
+  write(path.join(ahead.root, 'more.txt'), 'y\n');
+  git(ahead.root, 'add', '-A');
+  git(ahead.root, 'commit', '-q', '-m', 'ahead again');
+  assert.equal(resumeOf(ahead, null, stub.env), `resume: pr_step5 ref=${REF}`);
+});
+
+test('TEST-3164 the pr_step5 clause says where set-focus gets its flags and keeps the release-notes check', () => {
+  const [, step5] = clauses();
+  assert.ok(/--type/.test(step5) && /--path/.test(step5), `set-focus source of --type and --path: ${step5}`);
+  assert.ok(/through step 5/i.test(step5), `clause must cover steps up to step 5, step 3b included: ${step5}`);
+});

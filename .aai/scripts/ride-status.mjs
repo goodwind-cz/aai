@@ -278,16 +278,18 @@ function closedRefForBranch(root, branch) {
 }
 
 function resumeVerdict(g, branch, effects) {
-  if (g.problems.length > 0 || !branch) return 'none';
+  if (g.problems.length > 0) return 'none';
   let ref = null;
   if (g.focusRef) {
     if (effects.closed.state !== 'done') return 'loop';
     ref = g.focusRef;
-  } else {
+  } else if (branch) {
     ref = closedRefForBranch(g.root, branch);
   }
-  if (!ref || branch === baseBranch(g.root, g.lines)) return 'none';
-  if (effects.pr_open.state === 'done') return `merge pr=${effects.pr_open.prs[0]}`;
+  if (!branch || !ref || branch === baseBranch(g.root, g.lines)) return 'none';
+  const { pushed, pr_open: pr } = effects;
+  if (pr.state === 'unknown') return pushed.state === 'not_done' ? `pr_step5 ref=${ref}` : 'none';
+  if (pr.state === 'done' && pushed.state === 'done') return `merge pr=${pr.prs[0]}`;
   return `pr_step5 ref=${ref}`;
 }
 

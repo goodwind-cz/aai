@@ -2,9 +2,9 @@
 #
 # Test: ride-status.mjs (spec-ride-status-and-resume).
 #
-# TEST-3144..TEST-3155, TEST-3159..TEST-3162 run as node:test cases in tests/skills/lib/ride-status.test.mjs
+# TEST-3144..TEST-3155, TEST-3159..TEST-3164 run as node:test cases in tests/skills/lib/ride-status.test.mjs
 # (each selected by its TEST id prefix, so mutation-run.mjs can target one row);
-# TEST-3156..TEST-3158 are shell-native rows; TEST-3159..TEST-3160 are node cases.
+# TEST-3156..TEST-3158 are shell-native rows; TEST-3159..TEST-3164 are node cases.
 #
 # Exit codes:
 #   0  - All tests passed
@@ -61,9 +61,11 @@ test_3153_probe_pr_open() { node_cases TEST-3153; }
 test_3154_probe_reads_only() { node_cases TEST-3154; }
 test_3155_probe_ledgers() { node_cases TEST-3155; }
 test_3159_state_invalid_stops() { node_cases TEST-3159; }
-test_3160_closed_ride_not_resumed() { node_cases TEST-3160; }
+test_3160_unclosed_focus_only_resumes_loop() { node_cases TEST-3160; }
 test_3161_resume_verdicts() { node_cases TEST-3161; }
 test_3162_ship_resume_clauses() { node_cases TEST-3162; }
+test_3163_resume_hazards() { node_cases TEST-3163; }
+test_3164_step5_clause_flags() { node_cases TEST-3164; }
 
 # test_3156: the three prompts name the script's real CLI form, in the stated order.
 test_3156_prompt_wiring() {
@@ -148,9 +150,11 @@ main() {
   test_3157_diet_ledger_entry
   test_3158_profiles_selection_and_source_shape
   test_3159_state_invalid_stops
-  test_3160_closed_ride_not_resumed
+  test_3160_unclosed_focus_only_resumes_loop
   test_3161_resume_verdicts
   test_3162_ship_resume_clauses
+  test_3163_resume_hazards
+  test_3164_step5_clause_flags
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

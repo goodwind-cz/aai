@@ -11,8 +11,8 @@ INPUT
   `blocker.kind` `state_invalid`: STOP, print it, point to /aai-check-state.
   Else run `node .aai/scripts/ride-status.mjs probe` and act on its `resume:` line:
   `resume: merge pr=<n>`: STOP, point to `/aai-merge <n>`;
-  `resume: pr_step5 ref=<slug>`: SKILL_PR from PRECONDITIONS step 0 (its
-  `set-focus` for <slug> first; the guard refuses a cleared focus), then step 5;
+  `resume: pr_step5 ref=<slug>`: SKILL_PR PRECONDITIONS step 0 through step 5, after
+  `set-focus` (guard refuses a cleared focus; --type intake_<type>, --path from <slug>'s closed doc);
   `resume: loop`: resume at RUN step 2 (no new intake, no ride-select);
   `resume: none`: run `node .aai/scripts/ride-select.mjs show`:
   `no roadmap` means ask for the need (print no gate text), else run
