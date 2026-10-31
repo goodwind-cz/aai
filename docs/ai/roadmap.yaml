@@ -121,7 +121,7 @@ pairs:
   - capability: watch-ci-reread-refresh-and-p3-cleanup
     status: done
   - capability: provider-adapter-surfaces-closing-slice
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

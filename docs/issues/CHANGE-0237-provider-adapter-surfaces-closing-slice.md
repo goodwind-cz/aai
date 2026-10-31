@@ -1,9 +1,10 @@
 ---
 id: provider-adapter-surfaces-closing-slice
 type: change
-number: null
-status: draft
+number: 237
+status: done
 user_visible: true
+capability: provider-adapter-registry
 links:
   pr: []
   commits: []

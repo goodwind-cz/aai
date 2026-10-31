@@ -56,7 +56,11 @@ merge it: preflight lists them as `signs on merge:` lines before the merge
 command, and the cleanup signs them once the merge is on the base. A tracker of
 owed sign-offs closes when every contract amendment it tracks is signed. There
 is no separate sign-off question before the merge. A merge made without your
-direction (a lane or standing merge) signs nothing.
+direction (a lane or standing merge) signs nothing. A merge signs only the
+amendments recorded before it: one written to the same spec after its ride
+merged stays unsigned, with its tracker open, until you classify it. In a
+shallow clone the merge signs nothing, because the merge time cannot be read;
+CI checks out the full history.
 
 The cleanup also handles the traces a ride leaves behind itself:
 

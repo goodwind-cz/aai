@@ -5,8 +5,9 @@ capability: provider-adapter-registry
 status: current
 delivered_by:
   - provider-adapter-registry-slice
+  - provider-adapter-surfaces-closing-slice
 spec: docs/specs/SPEC-0253-spec-provider-adapter-registry-slice.md
-updated: 2026-10-25
+updated: 2026-10-31
 ---
 
 # One registry for the per-provider instruction files
@@ -60,7 +61,22 @@ were. A hand edit to a generated file fails a check before it can merge.
   project's Copilot file whose extra text matches one of the shipped hashes, it
   replaces the file and says so, instead of carrying the old skill list forward
   as a "project override". Text the project really added is kept in the
-  overrides block as before.
+  overrides block as before. Both installers now read the block the same way
+  when the file has CRLF line endings: the bash `aai-sync` used to read it as
+  empty and replace the file, losing the project's text.
+- **The SKILLS.md quick reference.** The `catalog:` section of the same
+  registry points the generator at the Quick Reference table in `SKILLS.md`.
+  `--check` prints one `DIVERGE catalog SKILLS.md: missing row <skill>` line
+  per skill wrapper in `.claude/skills/` that has no row, and one `orphan row`
+  line per row with no skill behind it, and exits 1; a matching table prints
+  `OK: <n> skill(s) listed in the SKILLS.md Quick Reference`. `--write` adds
+  each missing row from the skill's own description and removes orphan rows;
+  rows already there stay byte for byte, and a second run changes nothing. It
+  refuses (exit 2) a description containing a pipe, a skill with neither a
+  prompt file nor a node command, and a `SKILLS.md` or parent directory that
+  is a symbolic link. The table now lists all 42 skills; the five it was
+  missing (aai-factory-report, aai-live, aai-merge, aai-release,
+  aai-roadmap) were added by `--write`.
 - **AGENTS.md on update.** `aai-sync` installs the root `AGENTS.md` like
   `CLAUDE.md`. It used to delete a project's own copy without saying so. A
   project copy that differs is now named in the conflict advisory before it is
@@ -68,9 +84,9 @@ were. A hand edit to a generated file fails a check before it can merge.
 
 ## Limits and non-goals
 
-- Only these six files are generated. Other surfaces that still repeat the
-  skill set, such as the `SKILLS.md` quick reference, are listed as follow-ups
-  with their measurements.
-- On a project checked out with CRLF line endings, the bash `aai-sync` can read
-  a Copilot override block as empty and replace it
-  (`fu-sync-sh-crlf-override-block`); the PowerShell twin keeps it.
+- The six instruction files are generated; the `SKILLS.md` quick reference is
+  checked and filled in row by row, not rewritten, so its hand-written
+  descriptions stay.
+- No shipped path runs the catalog check in a downstream project. A project
+  that adds its own `aai-*` skill wrapper and runs `--check` by hand sees a
+  missing-row line for it until `--write` adds the row.
