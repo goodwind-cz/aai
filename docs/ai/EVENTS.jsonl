@@ -3535,3 +3535,10 @@
 {"v":1,"ts":"2026-10-31T05:02:00Z","actor":"ales_holubec.net","event":"ac_status","ref":"spec-ride-status-and-resume/Spec-AC-10","payload":{"from":"planned","to":"done"}}
 {"v":1,"ts":"2026-10-31T10:52:43Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"ride-status-and-resume","payload":{"role":"code_review","head":"3fad35523b74b5427d9fa9d3b2ce4a43d0fe8c1a","seen":"reports:0"}}
 {"v":1,"ts":"2026-10-31T10:52:43Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"ride-status-and-resume","payload":{"status":"pass","hash":"954709dbc346b476ae9deefae55223d8310bfb8048b4caf28eab45fec71e0c9a"}}
+{"v":1,"ts":"2026-10-31T11:22:01Z","actor":"ales_holubec.net","event":"check_verdict","ref":"ride-status-and-resume","payload":{"role":"code_review","head":"3fad35523b74b5427d9fa9d3b2ce4a43d0fe8c1a","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-10-31T11:22:01Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"ride-status-and-resume","payload":{"role":"validation","head":"b7741985e0509d8273ee0d595b2db283c4f16fab","seen":"run_at:2026-10-31T11:22:01Z"}}
+{"v":1,"ts":"2026-10-31T11:22:02Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"ride-status-and-resume","payload":{"status":"pass","hash":"0092eb740971b77fe494822ad8421763f6ead8b4d61e67a5b9db4050dd841080"}}
+{"v":1,"ts":"2026-10-31T11:24:49Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"ride-status-and-resume","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-10-31T11:24:49Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"ride-status-and-resume","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-10-31T11:24:49Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-ride-status-and-resume","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-10-31T11:24:49Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-ride-status-and-resume","payload":{"validation":"pass","code_review":"pass"}}

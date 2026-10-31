@@ -28,6 +28,12 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — feat: ride status view and resume without repeated effects (ride-status-and-resume)
+
+- New `node .aai/scripts/ride-status.mjs` prints where the current ride stands in six lines (ride, current action, evidence, blocker, next decision, recorded decisions), or one JSON object with `--json`. The current action comes from the dispatcher itself. It writes nothing.
+- `ride-status.mjs probe` reports whether the branch is pushed at its head, a pull request is open, the item is closed and metrics are flushed; it performs none of them.
+- `/aai-ship` with no argument now resumes the ride in focus instead of picking the next roadmap item; it stops on a damaged state file and on an already-closed ride. The pull request step skips a push or a create the probe reports done. The loop prints the status after its summary.
+
 ## [unreleased] — fix: SKILLS.md lists every skill, CRLF Copilot overrides survive aai-sync, amendment signatures bind to merge time (provider-adapter-surfaces-closing-slice)
 
 - `SKILLS.md` Quick Reference now lists all 42 skills; it was missing aai-factory-report, aai-live, aai-merge, aai-release and aai-roadmap. `node .aai/scripts/sync-harness-skills.mjs --check` (already run by the hygiene suite) fails on a skill with no row or a row with no skill, and `--write` fills missing rows from each skill's own description without touching existing rows.

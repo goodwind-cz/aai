@@ -1,9 +1,9 @@
 ---
 id: spec-ride-status-and-resume
 type: spec
-number: null
-status: implementing
-frozen_sha256: 2042335bd3c627d1528041521644b181701401002151e3d040810f3183e1dde1
+number: 264
+status: done
+frozen_sha256: 9a2318d13871f8f4b6429acf41d1139db780a9103a529c4f1d128470c76e9024
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Intake: docs/issues/CHANGE-DRAFT-ride-status-and-resume.md
+- Intake: docs/issues/CHANGE-0238-ride-status-and-resume.md
 - Umbrella: docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   (section 5, phase 4; this slice closes phase 4)
 - Prior art: SPEC-0192 (strategy binding, `implementation_strategy.ref_id`,
@@ -499,8 +499,8 @@ under docs/ai/tdd/spec-ride-status-and-resume/, and green suite outputs.
 - .aai/SKILL_LOOP.prompt.md
 - tests/skills/lib/prompt-diet-ledger.sh
 - tests/skills/test-aai-prompt-diet.sh (TEST-012 pin)
-- docs/issues/CHANGE-DRAFT-ride-status-and-resume.md
-- docs/specs/SPEC-DRAFT-ride-status-and-resume.md
+- docs/issues/CHANGE-0238-ride-status-and-resume.md
+- docs/specs/SPEC-0264-spec-ride-status-and-resume.md
 - docs/product/ride-status-and-resume.md (close-out)
 - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md (close-out)
 - CHANGELOG.md (close-out)

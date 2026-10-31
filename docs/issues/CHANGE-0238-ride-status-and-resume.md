@@ -1,8 +1,8 @@
 ---
 id: ride-status-and-resume
 type: change
-number: null
-status: draft
+number: 238
+status: done
 user_visible: true
 capability: ride-status-and-resume
 links:

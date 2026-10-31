@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "git diff main...HEAD (base main, head 3fad3552), 19 files"
-  spec: docs/specs/SPEC-DRAFT-ride-status-and-resume.md
+  spec: docs/specs/SPEC-0264-spec-ride-status-and-resume.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -35,14 +35,14 @@ review:
     - { claim: "An agent following SKILL_SHIP actually resumes at RUN step 2 instead of re-intaking", closes_with: "an observed no-argument /aai-ship run with a focus in STATE (spec Seams crossed names this residual)" }
     - { claim: "pr_open against real gh / az CLIs (only a /bin/sh gh stub is exercised; azure --source-branch mapping untested here; Windows stub absent, validation NB-9)", closes_with: "one probe run on a real GitHub PR branch and one on an Azure repo" }
     - { claim: "pushed against a network remote (ssh/https auth prompts, offline) degrades to unknown within the 20 s timeout", closes_with: "probe run offline and against an ssh remote without agent" }
-    - { claim: "Mutation records for the 15 Test Plan rows are valid at the current head", closes_with: "node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-DRAFT-ride-status-and-resume.md exit 0 (not rerun by this review; evidence is gitignored, local-only)" }
+    - { claim: "Mutation records for the 15 Test Plan rows are valid at the current head", closes_with: "node .aai/scripts/mutation-gate.mjs --spec docs/specs/SPEC-0264-spec-ride-status-and-resume.md exit 0 (not rerun by this review; evidence is gitignored, local-only)" }
   overall: pass
 ```
 
 # Code review: ride-status-and-resume
 
 - Scope: `git diff main...HEAD` in worktree `/Users/ales/Projects/aai-worktrees/ride-status-and-resume`, branch `feat/ride-status-and-resume`, head `3fad3552`, all 19 files (matches STATE `code_review.scope`; validation NB-6 satisfied).
-- Spec: `docs/specs/SPEC-DRAFT-ride-status-and-resume.md` (frozen, ceremony 2).
+- Spec: `docs/specs/SPEC-0264-spec-ride-status-and-resume.md` (frozen, ceremony 2).
 - Working tree: only `docs/ai/EVENTS.jsonl` and `docs/ai/tests/test-runs.jsonl` modified (append-only telemetry from runs), outside the reviewed range.
 
 security_relevant: false
