@@ -4,7 +4,7 @@ type: spec
 number: 263
 status: done
 mutation_gate: v1
-frozen_sha256: 45f0b5ad7c9a747a8afa83a10bec29873579b6c3a40640e22459e38bfcc82afa
+frozen_sha256: d0494ead6951daebad1d8c8d39cf8c013002c43947c35ddeb860ed00caeaad25
 ceremony_level: 2
 links:
   requirement: provider-adapter-surfaces-closing-slice
