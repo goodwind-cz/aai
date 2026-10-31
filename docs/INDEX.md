@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-ride-status-and-resume | specs | implementing | 11 planned | docs/specs/SPEC-DRAFT-ride-status-and-resume.md |
+| spec-ride-status-and-resume | specs | implementing | 4 done, 7 planned | docs/specs/SPEC-DRAFT-ride-status-and-resume.md |
 
 ## Canonical layer (0)
 
@@ -704,7 +704,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (533)
+## Broken references (537)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -754,6 +754,10 @@ _None._
 | tests/skills/lib/ride-handoff.test.mjs | docs/issues/CHANGE-DRAFT-ride-demo.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/specs/SPEC-0900-foreign-alpha.md | NOT FOUND |
 | tests/skills/lib/ride-handoff.test.mjs | docs/specs/SPEC-DRAFT-spec-ride-demo.md | NOT FOUND |
+| tests/skills/lib/ride-status.test.mjs | docs/ai/reports/REVIEW-demo.md | NOT FOUND |
+| tests/skills/lib/ride-status.test.mjs | docs/ai/validation/VALIDATION-demo.md | NOT FOUND |
+| tests/skills/lib/ride-status.test.mjs | docs/issues/CHANGE-9001-demo.md | NOT FOUND |
+| tests/skills/lib/ride-status.test.mjs | docs/specs/SPEC-9001-demo.md | NOT FOUND |
 | tests/skills/test-aai-branch-guard.sh | docs/issues/CHANGE-0001-t454.md | NOT FOUND |
 | tests/skills/test-aai-canon.sh | docs/generated-687.md | NOT FOUND |
 | tests/skills/test-aai-canon.sh | docs/generated-sub/687.md | NOT FOUND |
