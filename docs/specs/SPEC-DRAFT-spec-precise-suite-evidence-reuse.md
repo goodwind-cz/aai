@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 8d01fd7a69235dd83ace4e8b2a85b3439f99510924ed1fce4dd20d2e119e649c
+frozen_sha256: 18dda03dc2a7ab8936419f9bda48df9e8b4ddcb415e5d89c6641e2869345f654
 ceremony_level: 2
 links:
   requirement: precise-suite-evidence-reuse
@@ -244,8 +244,21 @@ canonical JSON value:
   token in a `tests/skills/` file resolved against `tests/skills/`), and
   every file reached by an ESM relative `import` or `import()` from a
   closure `.mjs` or `.js` file, transitively. A literal that names a
-  directory adds every `listTreeFiles` path under it. Literals inside files
-  under `.aai/` are not followed (M3);
+  directory adds every `listTreeFiles` path under it. A top-level name
+  without a trailing slash (`"$ROOT/docs"`, `$ROOT/.aai`, `"tests"`; a bare
+  `.aai`, `tests` or `docs` counts as a token only when `/`, a quote, `=`
+  or `(` precedes it, so prose does not) names that directory exactly as
+  `docs/` does. A partly built path (a literal segment followed by `${...}`,
+  `$x`, `*`, `?`, `[` or `{`, such as `.aai/scripts/aai-${x}.mjs`) widens to
+  its deepest fully literal directory. A reference relative to the closure
+  file's own directory outside `lib/` (`$SCRIPT_DIR/<path>` or
+  `$(dirname ...)/<path>`) is resolved against that directory when the file
+  derives it from its own location (`BASH_SOURCE` or `$0`) and then handled
+  as a path literal (file, directory, or deepest literal directory), else the suite is not
+  reusable (`check` prints `RUN <suite> reason=inputs-unresolvable`, `record`
+  refuses with `inputs-unresolvable`); a bare `$SCRIPT_DIR/../..` only
+  navigates to a base and names nothing. Literals inside files under `.aai/`
+  are not followed (M3);
   (e) each seed path (the framework's effective seed list) that exists, when
   its basename occurs in the text of any closure file.
   A path in the union that does not exist is recorded with the value
@@ -282,8 +295,11 @@ at run time, is what the manifest `note` asserts against (residual risk R1).
 ### D5 Store and record
 
 - Store: `tests/skills/results/reuse/<suite>.json` (already gitignored by
-  `tests/skills/results/`), one file per suite, written by temp file plus
-  rename. Fields: `schema` 1, `suite`, `identity` (sha256), `components`
+  `tests/skills/results/`), one file per suite, read with `loadOrDegrade`
+  and written with `atomicWrite` from `lib/runtime-file.mjs` (unique temp
+  plus rename; stale `<suite>.json.tmp.*` files are reaped on record). A
+  present but unreadable or unparseable store file gives
+  `RUN <suite> reason=store-corrupt`, never an empty record. Fields: `schema` 1, `suite`, `identity` (sha256), `components`
   (the per-component sha256 plus the `inputs` path map, so a miss can name
   what changed), `run_id`, `finished_at` (UTC ISO), `duration_seconds`,
   `exit_code` 0, `log` (repo-relative path of
@@ -306,7 +322,7 @@ at run time, is what the manifest `note` asserts against (residual risk R1).
   `$RUN_DIR/<suite>.reuse-identity.json` (`inputs-changed-during-run`).
 - `forget` deletes the suite's store entry. The framework calls it for
   every suite whose result is FAIL or SKIP in any local run, including an
-  opted-out one.
+  opted-out one and one whose `check` call failed.
 - Only passing results are ever stored, and a record from another machine
   can never match because `runtime` and `env` differ (no cross-machine
   reuse is attempted).
@@ -369,9 +385,9 @@ Otherwise it prints `Evidence reuse: on (<M> of <N> suites reused, check
 
 - `.aai/SKILL_VERIFY.prompt.md`, directly after the Iron Law paragraph, one
   paragraph starting `Reuse exception:` stating: a suite that
-  `tests/skills/test-framework.sh` prints as REUSED matched the complete
-  input identity of an earlier passing run
-  (docs/product/precise-suite-evidence-reuse.md); it counts as fresh for that
+  `tests/skills/test-framework.sh` prints as REUSED had the same
+  declared inputs, env, args, runtime, policy and history as an earlier
+  passing run (docs/product/precise-suite-evidence-reuse.md); it counts as fresh for that
   suite; cite it as reused with the original run id and log, and read that
   log; the full sweep before close, CI, main, nightly and release always
   execute.
@@ -490,11 +506,11 @@ stay as they are; CI never reuses (D6).
 | Spec-AC-05 | WHEN a recorded suite then fails or skips (exit 42) in a local run THEN its store entry is deleted and the next run executes it with reason=no-record; record refuses to store with reason not-pass, not-attested, not-isolated or inputs-changed-during-run for the matching metrics or identity condition | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3175.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3176.log | — | D5 |
 | Spec-AC-06 | WHEN the framework runs without --skill, or with CI set, GITHUB_ACTIONS true, AAI_SUITE_REUSE=0 or isolation off THEN it prints Evidence reuse off with full-sweep, ci, opt-out or isolation-off and executes every suite despite a valid record; a full sweep records passes, a ci or opt-out run writes no store entry; every suite runs with AAI_SUITE_REUSE=0 in its own environment; release-dry-run.mjs passes AAI_SUITE_REUSE 0 to the framework it starts | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3177.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3178.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3179.log | — | D6 |
 | Spec-AC-07 | WHEN a suite is reused THEN metrics.jsonl holds status REUSED with reused_from_run and reused_log, the summary prints Reused with the count, Passed counts executed suites only, the test-runs.jsonl line carries reused while total stays the executed count and the isolation invariant holds; WHEN the cited log is missing or its sha256 differs THEN check prints RUN reason=log-missing | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3180.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3181.log | — | D7 D5 |
-| Spec-AC-08 | lint exits 0 on the live repository; the live manifest lists at least 5 suites, each with live false, a non-empty note, a suite-map row and a suite file, and a Node read trace of each listed suite shows no read inside the checkout outside the suite's identity; on a fixture manifest naming a suite without a suite-map row lint exits 1 and names the suite and not-in-suite-map | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3182.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3193.log | — | D3 |
+| Spec-AC-08 | lint exits 0 on the live repository; the live manifest lists at least 5 suites, each with live false, a non-empty note, a suite-map row and a suite file, and a Node fs read trace (the read-trace.cjs preload; bash, git, fs.promises, copyFileSync and children without NODE_OPTIONS are not traced) of each listed suite shows no traced read inside the checkout outside the suite's identity; on a fixture manifest naming a suite without a suite-map row lint exits 1 and names the suite and not-in-suite-map | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3182.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3193.log | — | D3 |
 | Spec-AC-09 | importing select-suites.mjs from another module prints nothing, does not set an exit code and exposes parseSuiteMap and matchesGlob; the helper's declared globs for a suite equal parseSuiteMap's globs for that suite; tests/skills/test-aai-suite-select.sh passes unchanged | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3183.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3190.log | — | D2 |
 | Spec-AC-10 | tests/skills/suite-reuse.Tests.ps1 passes at least 4 cases with 0 failed and 0 skipped under local pwsh 7 (hit, edited input, untracked added, slash-separated store paths); both path lists of ps1-quality.yml list .aai/scripts/suite-reuse.mjs and test-aai-win-fallback.sh test_034 passes | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3184.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3185.log | — | D10 |
 | Spec-AC-11 | SKILL_VERIFY carries a paragraph starting Reuse exception: after the Iron Law naming REUSED, the original run, reading its log, and the full sweep before close, CI, main, nightly and release as always executed; VALIDATION step 5 c2 names a REUSED suite as counting in an intermediate round; the prompt glob grows at most 600 B, credited by one ledger entry naming precise-suite-evidence-reuse, and test-aai-prompt-diet.sh TEST-010 and TEST-012 pass | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3186.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3187.log | — | D9 |
-| Spec-AC-12 | PROFILES.yaml core lists .aai/scripts/suite-reuse.mjs; select-suites.mjs selects aai-suite-reuse for suite-reuse.mjs, suite-reuse.json, test-framework.sh and release-dry-run.mjs; the helper is at most 600 lines, imports only node: modules plus select-suites.mjs and lib/tree-hash.mjs, and passes no shell option to a child process; IDENTITY_COMPONENTS holds exactly the six D4 names in order | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3188.log | — | D1 D2 D4 |
+| Spec-AC-12 | PROFILES.yaml core lists .aai/scripts/suite-reuse.mjs; select-suites.mjs selects aai-suite-reuse for suite-reuse.mjs, suite-reuse.json, test-framework.sh and release-dry-run.mjs; the helper is at most 600 lines, imports only node: modules plus select-suites.mjs, lib/tree-hash.mjs and lib/runtime-file.mjs, and passes no shell option to a child process; IDENTITY_COMPONENTS holds exactly the six D4 names in order | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3188.log | — | D1 D2 D4 |
 | Spec-AC-13 | docs/analysis/precise-suite-evidence-reuse.md has a Measurements heading and at least 3 samples per mode for each of two rounds (the M5 round, and a second round whose delta is one production-script edit that changes no docs/ file); every on sample reuses at least 1 suite where the note says it should; the note gives the reused-suite count and both medians per round, every check time is at most 5 s, it names commit, host, Node, Bash and Git versions, and it states where reuse helps and why the docs-closure suites miss (no requirement that the on median beats the off median) | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3189.log | — | D11 |
 
 ## Implementation plan
@@ -538,7 +554,7 @@ stay as they are; CI never reuses (D6).
 |---|---|---|---|---|---|---|
 | TEST-3165 | Spec-AC-01 | integration | tests/skills/test-aai-suite-reuse.sh | test_3165: fixture repo with the real framework, helper, select-suites and lib copied in, a manifest declaring fx and a suite fx that appends one line to a marker file outside the repo; run 1 with --skill fx passes; run 2 prints fx REUSED naming run 1 id, time and log, the marker has 1 line, exit 0 | `sed:s/REUSED \(run/PASS \(run/` on tests/skills/test-framework.sh | green |
 | TEST-3166 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3166: recordSuite then checkSuites on a fixture git repo; editing a tracked declared input gives RUN reason=inputs changed path; adding an untracked file matching a declared glob gives reason=inputs added path | `sed:s/'--others', '--exclude-standard'/'--cached'/` on .aai/scripts/lib/tree-hash.mjs | green |
-| TEST-3167 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3167: a module imported by the suite's test lib but matched by no glob changes, a file appears under a directory the suite names as a literal, and docs/ai/STATE.yaml changes; each gives reason=inputs for a suite whose closure covers it, and the STATE change gives REUSE for a suite whose closure does not name STATE.yaml | `sed:s/'inputs', //` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3167 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3167: a module imported by the suite's test lib but matched by no glob changes, a file appears under a directory the suite names as a literal, and docs/ai/STATE.yaml changes; each gives reason=inputs for a suite whose closure covers it, and the STATE change gives REUSE for a suite whose closure does not name STATE.yaml; further node cases: a top-level directory literal without a slash (docs, .aai, tests), a partly built path (prefix then variable or star) and a SCRIPT_DIR or dirname relative reference each give RUN when a file appears in the directory they widen to, an unresolvable base gives reason=inputs-unresolvable and no record | `sed:s/\[\/"'=\(\]/[Q]/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3168 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3168: changing AAI_FIXTURE_X gives reason=env; changing AAI_TEST_REF_ID gives REUSE; changing AAI_TEST_REF_ID for a suite whose closure references it gives reason=env | `sed:s/'env', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3169 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3169: computeIdentity with the argument vector extended by one argument gives reason=args against the record | `sed:s/'args', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3170 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3170: an injected runtime with another Node version gives reason=runtime, and one with another platform gives reason=runtime | `sed:s/'runtime', //` on .aai/scripts/suite-reuse.mjs | green |
@@ -546,8 +562,8 @@ stay as they are; CI never reuses (D6).
 | TEST-3172 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3172: a commit that moves HEAD gives reason=history for a suite whose test file runs git rev-parse and REUSE for a suite without a history marker | `sed:s/, 'history'//` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3173 | Spec-AC-04 | integration | tests/skills/test-aai-suite-reuse.sh | test_3173: framework fixture with a recorded pass; removing fx from the manifest gives RUN reason=not-declared and the marker grows; setting live true gives reason=live; adding an unknown key gives reason=manifest-invalid; each run executes fx | `sed:s/'not-declared'/'no-record'/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3174 | Spec-AC-04 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3174: manifests with version 2, live as a string and an empty note each give manifest-invalid for every suite | `sed:s/'manifest-invalid'/'not-declared'/` on .aai/scripts/suite-reuse.mjs | green |
-| TEST-3175 | Spec-AC-05 | integration | tests/skills/test-aai-suite-reuse.sh | test_3175: framework fixture; fx passes and is recorded; fx is switched to exit 1, the run fails and the store entry is gone; fx is switched back and the next run executes it with reason=no-record; a suite exiting 42 is not recorded | `sed:s/ forget / forgot /` on tests/skills/test-framework.sh | green |
-| TEST-3176 | Spec-AC-05 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3176: recordSuite with metrics lines for status FAIL, tripwire_attested false and isolation degraded gives NOT-RECORDED not-pass, not-attested and not-isolated; editing an input between check and record gives inputs-changed-during-run; no store file is written in any case | `sed:s/'not-attested'/'not-isolated'/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3175 | Spec-AC-05 | integration | tests/skills/test-aai-suite-reuse.sh | test_3175: framework fixture; fx passes and is recorded; fx is switched to exit 1, the run fails and the store entry is gone; fx is switched back and the next run executes it with reason=no-record; a suite exiting 42 is not recorded; with the helper check call failing (OFF helper-failed) a failing recorded suite still loses its store entry | `sed:s/\[\[ -f "\$REUSE_HELPER" \]\] && command/[[ "$REUSE_HELPER_OK" == "true" ]] && command/` on tests/skills/test-framework.sh | green |
+| TEST-3176 | Spec-AC-05 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3176: recordSuite with metrics lines for status FAIL, tripwire_attested false and isolation degraded gives NOT-RECORDED not-pass, not-attested and not-isolated; editing an input between check and record gives inputs-changed-during-run; no store file is written in any case; further node cases: six concurrent record processes leave one valid store file and no temp residue and reap a stale orphan temp, and a corrupt store file gives RUN reason=store-corrupt | `sed:s/reapAsides\(path/void(path/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3177 | Spec-AC-06 | integration | tests/skills/test-aai-suite-reuse.sh | test_3177: framework fixture with a valid record; a run without --skill prints Evidence reuse off (full-sweep), executes fx and refreshes the record; a run with AAI_SUITE_REUSE=0 prints off (opt-out), executes fx and leaves the store file byte-identical | `sed:s/REUSE_MODE=full/REUSE_MODE=selected/` on tests/skills/test-framework.sh | green |
 | TEST-3178 | Spec-AC-06 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3178: checkSuites with GITHUB_ACTIONS=true prints OFF ci; with CI=true prints OFF ci; with CI=false and no GITHUB_ACTIONS does not; recordSuite under GITHUB_ACTIONS=true writes nothing; --isolation off prints OFF isolation-off | `sed:s/'GITHUB_ACTIONS'/'GITHUB_ACTIONZ'/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3179 | Spec-AC-06 | integration | tests/skills/test-aai-suite-reuse.sh | test_3179: a fixture suite prints its AAI_SUITE_REUSE value into its log and the framework run with reuse on shows 0; release-dry-run.mjs sets AAI_SUITE_REUSE to '0' in the environment it passes to the test-framework.sh invocation | `sed:s/AAI_SUITE_REUSE: '0'/AAI_SUITE_REUSE: '1'/` on .aai/scripts/release-dry-run.mjs | green |
@@ -559,9 +575,9 @@ stay as they are; CI never reuses (D6).
 | TEST-3185 | Spec-AC-10 | contract | tests/skills/test-aai-suite-reuse.sh | test_3185: the push list and the pull_request list of ps1-quality.yml each contain the exact entry .aai/scripts/suite-reuse.mjs (test-aai-win-fallback.sh test_034 runs in Verification for list parity) | `sed:s/      - '.aai\/scripts\/suite-reuse.mjs'/      - '.aai\/scripts\/suite-reusx.mjs'/` on .github/workflows/ps1-quality.yml | green |
 | TEST-3186 | Spec-AC-11 | inspection | tests/skills/test-aai-suite-reuse.sh | test_3186: SKILL_VERIFY has a paragraph starting Reuse exception: after the Iron Law paragraph containing REUSED, original run, log, full sweep before close, CI, main, nightly and release; VALIDATION step 5 c2 contains REUSED and intermediate round | `sed:s/REUSED/RE-USED/` on .aai/SKILL_VERIFY.prompt.md | green |
 | TEST-3187 | Spec-AC-11 | contract | tests/skills/test-aai-suite-reuse.sh | test_3187: prompt-diet-ledger.sh has exactly one JUSTIFIED_ADDITIONS entry naming precise-suite-evidence-reuse with a leading byte count from 1 to 600; the Verification run of test-aai-prompt-diet.sh proves TEST-010 and TEST-012 | `sed:s/ precise-suite-evidence-reuse / precise-suite-evidence-reusx /` on tests/skills/lib/prompt-diet-ledger.sh | green |
-| TEST-3188 | Spec-AC-12 | contract | tests/skills/test-aai-suite-reuse.sh | test_3188: PROFILES.yaml core has the suite-reuse.mjs row; the real select-suites.mjs selects aai-suite-reuse for the helper, the manifest, test-framework.sh and release-dry-run.mjs; the helper is at most 600 lines, its imports are node: modules, ./select-suites.mjs and ./lib/tree-hash.mjs, it has no shell true, and its IDENTITY_COMPONENTS line equals the D4 literal | `sed:s/  - \.aai\/scripts\/suite-reuse\.mjs/  - .aai\/scripts\/suite-reusx.mjs/` on .aai/system/PROFILES.yaml | green |
+| TEST-3188 | Spec-AC-12 | contract | tests/skills/test-aai-suite-reuse.sh | test_3188: PROFILES.yaml core has the suite-reuse.mjs row; the real select-suites.mjs selects aai-suite-reuse for the helper, the manifest, test-framework.sh and release-dry-run.mjs; the helper is at most 600 lines, its imports are node: modules, ./select-suites.mjs, ./lib/tree-hash.mjs and ./lib/runtime-file.mjs, it has no shell true, and its IDENTITY_COMPONENTS line equals the D4 literal | `sed:s/  - \.aai\/scripts\/suite-reuse\.mjs/  - .aai\/scripts\/suite-reusx.mjs/` on .aai/system/PROFILES.yaml | green |
 | TEST-3192 | Spec-AC-02 | integration | tests/skills/test-aai-suite-reuse.sh | test_3192: fixture repo with the real framework; suite fx reads docs/data/probe.txt by a path literal; run 2 is REUSED; after git mv of the probe file the helper prints RUN reason=inputs, the framework executes fx (marker 2), prints no REUSED and exits non-zero because the read fails | `sed:s/'inputs', //` on .aai/scripts/suite-reuse.mjs | green |
-| TEST-3193 | Spec-AC-08 | contract | tests/skills/test-aai-suite-reuse.sh | node case TEST-3193: each suite of the live manifest runs once with tests/skills/lib/read-trace.cjs preloaded (NODE_OPTIONS); every traced read inside the checkout is a file in the suite's explain identity, so a suite that reads an undeclared file (the r1 finding B1) fails the case | `sed:s/inputsMap\[rel\] = fileHash\(ctx, rel\)/void rel/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3193 | Spec-AC-08 | contract | tests/skills/test-aai-suite-reuse.sh | node case TEST-3193: each suite of the live manifest runs once with tests/skills/lib/read-trace.cjs preloaded (NODE_OPTIONS); every traced Node fs read inside the checkout is a file in the suite's explain identity (the untraced channels are bash, git, fs.promises, copyFileSync, cpSync and children without NODE_OPTIONS), so a suite that reads an undeclared file through a traced call (the r1 finding B1) fails the case | `sed:s/inputsMap\[rel\] = fileHash\(ctx, rel\)/void rel/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3189 | Spec-AC-13 | inspection | tests/skills/test-aai-suite-reuse.sh | test_3189: the note has a line equal to ## Measurements, at least 3 table rows per mode in each of two rounds, a reused count and both medians per round, every check value at most 5, a statement of where reuse helps and why docs-closure suites miss, and names a 40-character commit sha, Node, Bash and Git versions (no comparison of the on and off medians) | `sed:s/## Measurements/## Measurementz/` on docs/analysis/precise-suite-evidence-reuse.md | green |
 | TEST-3190 | Spec-AC-09 | integration | tests/skills/test-aai-suite-reuse.sh | test_3190 runs the guarded select-suites.mjs as the entry point and the existing test-aai-suite-select.sh runs unchanged (Verification) against the guarded select-suites.mjs (CLI output contract) | `sed:s/if \(isMain\) runMain\(/if (false) runMain(/` on .aai/scripts/select-suites.mjs | green |
 

@@ -1071,10 +1071,11 @@ reuse_report() {
 # deletes the suite's stale record. Never changes a verdict or the exit code.
 reuse_settle() {
   local skill="$1" iso="$2" seed="$3" res=""
-  [[ "$REUSE_HELPER_OK" == "true" ]] || return 0
+  [[ -f "$REUSE_HELPER" ]] && command -v node >/dev/null 2>&1 || return 0
   res="$(cat "$RUN_DIR/${skill}.result" 2>/dev/null)" || res=""
   case "$res" in
     PASS)
+      [[ "$REUSE_HELPER_OK" == "true" ]] || return 0
       node "$REUSE_HELPER" record --root "$PROJECT_ROOT" --run-dir "$RUN_DIR" --suite "$skill" \
         --isolation "$iso" --seeding "$seed" --seed-paths "$ISOLATION_SEED_PATHS" >> "$RUN_DIR/reuse.log" 2>&1 || true
       ;;

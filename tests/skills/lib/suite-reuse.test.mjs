@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -147,6 +147,92 @@ test('TEST-3167 closure-only module, directory literal and seed file change the 
   assert.equal((await chk(c, 'fy')).status, 'REUSE', 'seed file the closure does not name');
 });
 
+// A one-suite repository whose suite `fk` has the given body and extra files.
+function mkSuiteRepo(body, files = {}) {
+  const map = `${MAP}${suiteRow('fk', ['tests/skills/test-fk.sh'])}`;
+  const manifest = { version: 1, suites: { ...MANIFEST.suites, fk: MANIFEST.suites.fx } };
+  return mkRepo({
+    'tests/skills/suite-map.yaml': map,
+    'tests/skills/suite-reuse.json': JSON.stringify(manifest),
+    'tests/skills/test-fk.sh': `#!/usr/bin/env bash\n${body}\n`,
+    ...files,
+  });
+}
+
+test('TEST-3167 a top-level directory literal without a trailing slash widens the identity to that directory', async () => {
+  const forms = {
+    'quoted variable': 'D="$ROOT/docs"\ncat "$D/probe.txt"',
+    'dot-aai variable': 'D="$ROOT/.aai"\ncat "$D/probe.txt"',
+    'plain tests variable': 'D=$ROOT/tests\ncat "$D/probe.txt"',
+    'quoted literal': 'cd "tests"',
+  };
+  for (const [form, body] of Object.entries(forms)) {
+    const dir = body.includes('.aai') ? '.aai' : body.includes('tests') ? 'tests' : 'docs';
+    const files = { [`${dir}/probe.txt`]: 'one\n' };
+    const a = mkSuiteRepo(body, files);
+    await pass(a, 'fk');
+    assert.equal((await chk(a, 'fk')).status, 'REUSE', form);
+    write(a, `${dir}/probe.txt`, 'two\n');
+    const edited = await chk(a, 'fk');
+    assert.equal(edited.status, 'RUN', `${form}: edit under ${dir}`);
+    assert.equal(edited.reason, 'inputs');
+    const b = mkSuiteRepo(body, files);
+    await pass(b, 'fk');
+    write(b, `${dir}/new.txt`, 'added\n');
+    assert.equal((await chk(b, 'fk')).status, 'RUN', `${form}: add under ${dir}`);
+  }
+  const prose = mkSuiteRepo('echo see docs and tests for details', { 'docs/probe.txt': 'one\n' });
+  await pass(prose, 'fk');
+  write(prose, 'docs/probe.txt', 'two\n');
+  assert.equal((await chk(prose, 'fk')).status, 'REUSE', 'plain prose naming docs is not a directory literal');
+});
+
+test('TEST-3167 a partly built path widens to its deepest fully literal directory', async () => {
+  const forms = {
+    'prefix then variable': ['for n in a b; do bash ".aai/scripts/aai-${n}.mjs"; done', '.aai/scripts/aai-zed.mjs'],
+    'prefix then bare variable': ['cat tests/skills/fix-$X.json', 'tests/skills/fix-other.json'],
+    'prefix then star': ['cat tests/skills/fixtures/part-*.txt', 'tests/skills/fixtures/part-z.txt'],
+    'variable as a whole segment': ['cat tests/skills/fixtures/${n}/x.txt', 'tests/skills/fixtures/q/x.txt'],
+  };
+  for (const [form, [body, touched]] of Object.entries(forms)) {
+    const a = mkSuiteRepo(body, { 'tests/skills/fixtures/keep.txt': 'k\n', '.aai/scripts/keep.mjs': 'x\n' });
+    await pass(a, 'fk');
+    assert.equal((await chk(a, 'fk')).status, 'REUSE', form);
+    write(a, touched, 'new\n');
+    const r = await chk(a, 'fk');
+    assert.equal(r.status, 'RUN', `${form}: ${touched} added`);
+    assert.equal(r.reason, 'inputs');
+  }
+});
+
+test('TEST-3167 a file-relative reference outside lib/ is resolved against its directory, else the suite is not reusable', async () => {
+  const known = '#!/usr/bin/env bash\nSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\nPROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"\ncat "$SCRIPT_DIR/fixtures/rel/x.txt"\ncat "$(dirname "${BASH_SOURCE[0]}")/fixtures/rel2/y.txt"';
+  const a = mkSuiteRepo(known.split('\n').slice(1).join('\n'), { 'tests/skills/fixtures/rel/x.txt': 'x\n', 'tests/skills/fixtures/rel2/y.txt': 'y\n' });
+  await pass(a, 'fk');
+  assert.equal((await chk(a, 'fk')).status, 'REUSE');
+  write(a, 'tests/skills/fixtures/rel/x.txt', 'changed\n');
+  assert.equal((await chk(a, 'fk')).status, 'RUN', 'edit of a SCRIPT_DIR-relative read');
+  const b = mkSuiteRepo(known.split('\n').slice(1).join('\n'), { 'tests/skills/fixtures/rel/x.txt': 'x\n', 'tests/skills/fixtures/rel2/y.txt': 'y\n' });
+  await pass(b, 'fk');
+  write(b, 'tests/skills/fixtures/rel2/y.txt', 'changed\n');
+  assert.equal((await chk(b, 'fk')).status, 'RUN', 'edit of a dirname-relative read');
+  const part = mkSuiteRepo('SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\ncat "$SCRIPT_DIR/fixtures/pre-$X.txt"', { 'tests/skills/fixtures/keep.txt': 'k\n' });
+  await pass(part, 'fk');
+  write(part, 'tests/skills/fixtures/pre-new.txt', 'n\n');
+  assert.equal((await chk(part, 'fk')).status, 'RUN', 'partly built SCRIPT_DIR-relative path widens to its directory');
+  const unknown = mkSuiteRepo('SCRIPT_DIR=/somewhere/else\ncat "$SCRIPT_DIR/fixtures/x.txt"');
+  const m = await lib();
+  const c = m.checkSuites({ root: unknown, suites: ['fk'], runDir: runDirOf(unknown), ...BASE });
+  fs.writeFileSync(path.join(runDirOf(unknown), 'fk.log'), 'PASS\n');
+  const rec = m.recordSuite({ root: unknown, suite: 'fk', runDir: runDirOf(unknown), metrics: PASS('fk'), ...BASE });
+  assert.equal(rec.recorded, false);
+  assert.equal(rec.reason, 'inputs-unresolvable');
+  const r = await chk(unknown, 'fk');
+  assert.equal(r.status, 'RUN');
+  assert.equal(r.reason, 'inputs-unresolvable');
+  assert.equal(c.results[0].reason, 'inputs-unresolvable');
+});
+
 test('TEST-3168 environment: AAI_ variable, excluded variable and referenced excluded variable', async () => {
   const root = mkRepo();
   await pass(root, 'fx');
@@ -233,6 +319,48 @@ test('TEST-3176 record refuses on each matching condition and writes no store fi
   assert.equal(fs.existsSync(store(root)), false);
 });
 
+test('TEST-3176 concurrent records of one suite leave a whole store file and no temp residue; a stale orphan temp is reaped', async () => {
+  const m = await lib();
+  const root = mkRepo();
+  const runDir = runDirOf(root);
+  const env = { ...process.env };
+  delete env.AAI_ROLE; delete env.AAI_SUITE_REUSE; delete env.CI; delete env.GITHUB_ACTIONS;
+  const pre = spawnSync(process.execPath, [HELPER, 'check', '--root', root, '--run-dir', runDir, '--mode', 'selected', '--isolation', 'on', '--suite', 'fx'], { env, encoding: 'utf8' });
+  assert.equal(pre.status, 0, pre.stderr);
+  fs.writeFileSync(path.join(runDir, 'fx.log'), 'PASS fx\n');
+  fs.writeFileSync(path.join(runDir, 'metrics.jsonl'), `${JSON.stringify(PASS('fx'))}\n`);
+  const storeDir = path.join(root, 'tests', 'skills', 'results', 'reuse');
+  fs.mkdirSync(storeDir, { recursive: true });
+  const orphan = path.join(storeDir, 'fx.json.tmp.99999.0');
+  fs.writeFileSync(orphan, '{"half":');
+  const old = new Date(Date.now() - 3 * 3600 * 1000);
+  fs.utimesSync(orphan, old, old);
+  const args = [HELPER, 'record', '--root', root, '--run-dir', runDir, '--suite', 'fx', '--isolation', 'isolated', '--seeding', 'seeded'];
+  const kids = Array.from({ length: 6 }, () => new Promise((resolve) => {
+    const c = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = ''; let err = '';
+    c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { err += d; });
+    c.on('close', (code) => resolve({ code, out, err }));
+  }));
+  for (const k of await Promise.all(kids)) {
+    assert.equal(k.code, 0, `record exits 0: ${k.err}`);
+    assert.match(k.out, /^RECORDED fx/, k.out);
+  }
+  const rec = JSON.parse(fs.readFileSync(path.join(storeDir, 'fx.json'), 'utf8'));
+  assert.equal(rec.suite, 'fx');
+  assert.deepEqual(fs.readdirSync(storeDir).filter((n) => n !== 'fx.json'), [], 'no temp residue, stale orphan reaped');
+});
+
+test('TEST-3176 a corrupt store file is a visible miss, never read as an empty record', async () => {
+  const root = mkRepo();
+  await pass(root, 'fx');
+  const store = path.join(root, 'tests', 'skills', 'results', 'reuse', 'fx.json');
+  fs.writeFileSync(store, '{"half":');
+  const r = await chk(root, 'fx');
+  assert.equal(r.status, 'RUN');
+  assert.equal(r.reason, 'store-corrupt');
+});
+
 test('TEST-3178 off modes: ci, opt-out, full-sweep, isolation-off; record writes nothing in ci', async () => {
   const m = await lib();
   const root = mkRepo();
@@ -293,7 +421,7 @@ test('TEST-3182 lint: live repository is clean with a qualified manifest; a ghos
   assert.equal(ok.status, 0, ok.stdout);
 });
 
-test('TEST-3193 every live manifest suite reads nothing inside the checkout outside its identity', async () => {
+test('TEST-3193 no Node fs read traced by read-trace.cjs in a live manifest suite falls outside its identity', async () => {
   const m = await lib();
   const man = JSON.parse(fs.readFileSync(path.join(REPO, 'tests/skills/suite-reuse.json'), 'utf8'));
   const tracer = path.join(HERE, 'read-trace.cjs');

@@ -302,7 +302,25 @@ test_3175_fail_forgets_skip_not_recorded() {
   fw_go "$base" -- --skill aai-fs
   [[ "$RC" -eq 0 ]] || log_fail "TEST-3175: skipping suite exited $RC"
   [[ ! -e "$r/tests/skills/results/reuse/aai-fs.json" ]] || log_fail "TEST-3175: an exit-42 suite was recorded"
-  log_pass "TEST-3175 (fail forgets, fixed suite runs as no-record, exit 42 not recorded)"
+  # A check call that fails (OFF helper-failed) still forgets the record of a suite
+  # that then fails: the helper is swapped for a shim whose check exits 1.
+  fw_go "$base" -- --skill aai-fx
+  [[ -f "$r/tests/skills/results/reuse/aai-fx.json" ]] || log_fail "TEST-3175: passing run before the shim left no store entry"
+  mv "$r/.aai/scripts/suite-reuse.mjs" "$r/.aai/scripts/suite-reuse-real.mjs"
+  cat > "$r/.aai/scripts/suite-reuse.mjs" <<'SHIM'
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+if (process.argv[2] === 'check') process.exit(1);
+const real = fileURLToPath(new URL('./suite-reuse-real.mjs', import.meta.url));
+const r = spawnSync(process.execPath, [real, ...process.argv.slice(2)], { stdio: 'inherit' });
+process.exit(r.status === null ? 1 : r.status);
+SHIM
+  fx_suite "$base" aai-fx 1
+  fw_go "$base" -- --skill aai-fx
+  expect "TEST-3175 helper-failed" "$OUT" "Evidence reuse: off (helper-failed)"
+  [[ "$RC" -eq 1 ]] || log_fail "TEST-3175: failing run under a failing check exited $RC, expected 1"
+  [[ ! -e "$r/tests/skills/results/reuse/aai-fx.json" ]] || log_fail "TEST-3175: a failing suite kept its record when the check call failed"
+  log_pass "TEST-3175 (fail forgets, fixed suite runs as no-record, exit 42 not recorded, forget survives a failed check)"
 }
 
 # test_3177: full sweep, CI, GITHUB_ACTIONS, opt-out and isolation off each execute
@@ -426,7 +444,7 @@ test_3188_profiles_selection_and_source_shape() {
   [[ "$lines" -le 600 ]] || log_fail "TEST-3188: suite-reuse.mjs has $lines lines (cap 600)"
   while IFS= read -r imp; do
     case "$imp" in
-      node:*|./select-suites.mjs|./lib/tree-hash.mjs) ;;
+      node:*|./select-suites.mjs|./lib/tree-hash.mjs|./lib/runtime-file.mjs) ;;
       *) log_fail "TEST-3188: suite-reuse.mjs imports '$imp'" ;;
     esac
   done < <(sed -n "s/^import .* from '\\([^']*\\)';\$/\\1/p" "$src")

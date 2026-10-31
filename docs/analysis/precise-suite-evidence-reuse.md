@@ -87,7 +87,7 @@ runs under); Git 2.54.0 (Apple Git-157).
 
 ### Where reuse helps
 
-Reuse helps for a suite whose complete identity is narrow: its suite file, the
+Reuse helps for a suite whose declared identity is narrow: its suite file, the
 shared-library tree, the harness and a handful of named data files. R3 shows
 it: all five manifest suites were reported REUSED and skipped, wall time 5 s
 to 1 s (an all-reused run executes nothing; its summary carries `Reused: 5` and
@@ -143,7 +143,16 @@ aai-feedback-status, aai-pricing, aai-redact, aai-orchestration-mode,
 aai-runtime-file (five suites, `tests/skills/suite-reuse.json`). None of the
 seven suites of the M5 round qualifies: they either read docs/ broadly or are
 dominated by the docs closure described above, so no honest `note` can bound
-their reads. Each manifest suite is qualified by a Node read trace of the whole
-suite plus a literal review of its bash, and TEST-3193 repeats the trace on
-every run of the reuse suite, so a manifest entry that reads outside its
-identity fails the test instead of waiting for a validator to find it.
+their reads. Each manifest suite is qualified by a Node fs read trace of the
+whole suite plus a literal review of its bash, and TEST-3193 repeats the trace
+on every run of the reuse suite, so a manifest entry whose traced Node fs read
+falls outside its identity fails the test instead of waiting for a validator
+to find it.
+
+The trace is narrower than "reads nothing outside the identity". These read
+paths are not traced and are covered only by the literal bash review and the
+manifest note: bash `cat`, `grep`, `cp` and `source`; `git` commands; Node
+`fs.promises` reads; `fs.copyFileSync` and `fs.cpSync`; and any child process
+whose environment drops `NODE_OPTIONS` (release-dry-run.mjs does). A manifest
+suite that reads a docs file through bash `cat` passes TEST-3193. The residual
+risk R1 therefore stands for those channels.

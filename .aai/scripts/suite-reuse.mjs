@@ -3,7 +3,7 @@
 // suite-reuse.mjs - precise local reuse of a passing suite result
 // (CHANGE precise-suite-evidence-reuse / SPEC spec-precise-suite-evidence-reuse).
 //
-// A suite listed in tests/skills/suite-reuse.json whose complete input
+// A suite listed in tests/skills/suite-reuse.json whose declared input
 // identity is unchanged since an earlier passing, isolated, attested run is
 // reported REUSED by tests/skills/test-framework.sh instead of executed.
 // Every rule errs toward a miss: over-inclusion costs a re-run, never a false
@@ -25,6 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSuiteMap, matchesGlob } from './select-suites.mjs';
 import { listTreeFiles } from './lib/tree-hash.mjs';
+import { atomicWrite, loadOrDegrade, reapAsides } from './lib/runtime-file.mjs';
 
 const IDENTITY_COMPONENTS = ['inputs', 'env', 'args', 'runtime', 'policy', 'history'];
 const REUSE_POLICY_VERSION = 1;
@@ -36,6 +37,7 @@ const HARNESS = [
   'tests/skills/test-framework.sh', '.aai/scripts/aai-run-tests.sh', '.aai/scripts/suite-reuse.mjs',
   '.aai/scripts/select-suites.mjs', MAP_REL, MANIFEST_REL, '.gitignore',
 ];
+const TEMP_WINDOW_MS = 3600 * 1000;
 const ENV_PREFIXES = ['AAI_', 'GIT_', 'NODE_', 'npm_config_'];
 const ENV_FIXED = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR', 'SHELL'];
 const ENV_EXCLUDED = ['AAI_SUITE_REUSE', 'AAI_TEST_REF_ID', 'AAI_REAP_STEP_START_EPOCH'];
@@ -113,9 +115,15 @@ function globMatches(ctx, globs) {
 }
 
 // ---- static closure (D4 inputs rule d) ----
-const TOKEN_RE = /(?<![\w.-])(?:\.aai|tests|docs)\/[A-Za-z0-9_./@+-]*/g;
+// A token is a top-level name (.aai, tests, docs) followed by path characters,
+// or the bare name itself when a quote, "=", "(" or "/" precedes it ("$ROOT/docs").
+const TOKEN_RE = /(?<![\w.-])(?:\.aai|tests|docs)(?:\/[A-Za-z0-9_./@+-]*|(?<=[/"'=(](?:\.aai|tests|docs))(?![\w-]|\.\w))/g;
 const LIB_RE = /(?<![\w.-])lib\/([A-Za-z0-9_.-]+)/g;
 const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/g;
+const SCRIPT_DIR_RE = /\$\{?SCRIPT_DIR\}?\/([A-Za-z0-9_./@+-]*)/g;
+const DIRNAME_RE = /\$\(\s*dirname\s+([^)]*)\)\/([A-Za-z0-9_./@+-]*)/g;
+const OWN_DIR_RE = /BASH_SOURCE|\$\{?0\}?(?![\w])/;
+const DYNAMIC_NEXT_RE = /[$*?[{]/;
 export function computeClosure(ctx, suite) {
   const start = `tests/skills/test-${suite}.sh`;
   const closure = new Set([start]);
@@ -123,6 +131,7 @@ export function computeClosure(ctx, suite) {
   const named = new Set();
   const texts = new Map();
   const dirs = [];
+  const unresolved = [];
   while (queue.length) {
     const rel = queue.shift();
     const text = readText(path.join(ctx.root, rel));
@@ -132,22 +141,44 @@ export function computeClosure(ctx, suite) {
       named.add(p);
       if (!closure.has(p)) { closure.add(p); queue.push(p); }
     };
+    // dynamic: the literal ends where a variable or glob begins, so its last
+    // segment is only a prefix and the deepest fully literal directory is named.
+    const addPath = (raw, dynamic) => {
+      let p = raw.replace(/[.,:;)]+$/, '');
+      const trimmed = p !== raw;
+      if (dynamic && !trimmed) p = p.slice(0, p.lastIndexOf('/') + 1);
+      if (!p) return;
+      if (p.endsWith('/') || (!ctx.fileSet.has(p) && underDir(ctx, p).length)) {
+        dirs.push(`${p} <- ${rel} (${underDir(ctx, p).length} files)`);
+        for (const f of underDir(ctx, p)) add(f);
+      } else add(p);
+    };
     if (rel.startsWith('tests/')) {
       for (const m of text.matchAll(TOKEN_RE)) {
         if (/[%#]\*?\/$/.test(text.slice(Math.max(0, m.index - 4), m.index))) continue; // ${X%/tests/skills} strips a suffix, it reads nothing
-        const p = m[0].replace(/[.,:;)]+$/, '');
-        if (p.endsWith('/') || (!ctx.fileSet.has(p) && underDir(ctx, p).length)) {
-          dirs.push(`${p} <- ${rel} (${underDir(ctx, p).length} files)`);
-          for (const f of underDir(ctx, p)) add(f);
-        } else add(p);
+        addPath(m[0], DYNAMIC_NEXT_RE.test(text.charAt(m.index + m[0].length)));
       }
       if (rel.startsWith('tests/skills/')) for (const m of text.matchAll(LIB_RE)) add(`tests/skills/lib/${m[1]}`);
+      // A reference relative to the file's own directory outside lib/ (which LIB_RE
+      // covers) is resolved against that directory when the file derives it from its
+      // own location, then handled like a path literal (file, directory, or deepest
+      // literal directory of a partly built path); else the suite is not reusable.
+      // A bare ../.. only navigates to a base and names nothing.
+      const ownDir = path.posix.dirname(rel);
+      const relative = (restRaw, tailAt, known, shown) => {
+        if (restRaw.startsWith('lib/') || /^[./]*$/.test(restRaw)) return;
+        const joined = path.posix.normalize(path.posix.join(ownDir, restRaw));
+        if (!known || joined === '.' || joined.startsWith('..')) { unresolved.push(`${shown} <- ${rel}`); return; }
+        addPath(joined, DYNAMIC_NEXT_RE.test(text.charAt(tailAt)));
+      };
+      for (const m of text.matchAll(SCRIPT_DIR_RE)) relative(m[1], m.index + m[0].length, OWN_DIR_RE.test(text), `$SCRIPT_DIR/${m[1]}`);
+      for (const m of text.matchAll(DIRNAME_RE)) relative(m[2], m.index + m[0].length, OWN_DIR_RE.test(m[1]), `$(dirname ${m[1].trim()})/${m[2]}`);
     }
     if (/\.(mjs|js)$/.test(rel)) {
       for (const m of text.matchAll(IMPORT_RE)) add(posix(path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1]))));
     }
   }
-  return { closure, named, texts, dirs };
+  return { closure, named, texts, dirs, unresolved };
 }
 
 const mapGlobs = (map, suite) => (map.suites[suite] ? map.suites[suite].globs : []);
@@ -159,7 +190,7 @@ export function declaredGlobs({ root, suite }) {
 // ---- identity (D4) ----
 export function computeIdentity(ctx, suite, args) {
   const entry = ctx.manifest.suites[suite];
-  const { closure, named, texts, dirs } = computeClosure(ctx, suite);
+  const { closure, named, texts, dirs, unresolved } = computeClosure(ctx, suite);
   const declared = new Set([`tests/skills/test-${suite}.sh`, ...HARNESS, ...named]);
   for (const f of globMatches(ctx, [...mapGlobs(ctx.map, suite), ...(entry ? entry.inputs : []), ...ctx.map.sharedLibGlobs])) declared.add(f);
   for (const f of ctx.files) if (/^tests\/skills\/lib\/[^/]*\.sh$/.test(f)) declared.add(f);
@@ -194,7 +225,7 @@ export function computeIdentity(ctx, suite, args) {
   };
   const components = {};
   for (const c of IDENTITY_COMPONENTS) components[c] = hashOf(values[c]);
-  return { suite, identity: hashOf(components), components, inputs_map: inputsMap, args, closure: [...closure].sort(), dirs, historyMarker: history !== '' };
+  return { suite, identity: hashOf(components), components, inputs_map: inputsMap, args, closure: [...closure].sort(), dirs, unresolved, historyMarker: history !== '' };
 }
 
 // First differing component (in IDENTITY_COMPONENTS order); null when equal.
@@ -218,8 +249,7 @@ export function diffIdentity(recorded, current) {
 // ---- store ----
 const storeFile = (root, suite) => path.join(root, STORE_REL, `${suite}.json`);
 function readStore(root, suite) {
-  const raw = readText(storeFile(root, suite));
-  try { return raw === null ? null : JSON.parse(raw); } catch { return null; }
+  return loadOrDegrade(storeFile(root, suite), { isShape: (v) => v !== null && typeof v === 'object' && !Array.isArray(v) });
 }
 export function forgetSuite({ root, suite }) {
   try { fs.unlinkSync(storeFile(root, suite)); return true; } catch { return false; }
@@ -257,7 +287,10 @@ function decide(ctx, suite, id) {
   if (ctx.manifest.state === 'invalid') return { status: 'RUN', reason: 'manifest-invalid' };
   if (!entry) return { status: 'RUN', reason: 'not-declared' };
   if (entry.live !== false) return { status: 'RUN', reason: 'live' };
-  const rec = readStore(ctx.root, suite);
+  if (id.unresolved.length) return { status: 'RUN', reason: 'inputs-unresolvable', detail: id.unresolved[0] };
+  const loaded = readStore(ctx.root, suite);
+  if (loaded.status === 'corrupt') return { status: 'RUN', reason: 'store-corrupt' };
+  const rec = loaded.data;
   if (!rec || !rec.components) return { status: 'RUN', reason: 'no-record' };
   const d = diffIdentity(rec, id);
   if (d) return { status: 'RUN', ...d };
@@ -294,6 +327,7 @@ export function recordSuite({ root, suite, runDir, metrics, isolation = 'isolate
   let before;
   try { before = JSON.parse(pre); } catch { return no('no-identity'); }
   const after = computeIdentity(ctx, suite, before.args);
+  if (after.unresolved.length) return no('inputs-unresolvable');
   if (after.identity !== before.identity) return no('inputs-changed-during-run');
   const logAbs = path.join(runDir, `${suite}.log`);
   let logHash;
@@ -304,9 +338,8 @@ export function recordSuite({ root, suite, runDir, metrics, isolation = 'isolate
     exit_code: 0, log: posix(path.relative(root, logAbs)), log_sha256: logHash,
   };
   const dest = storeFile(root, suite);
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.writeFileSync(`${dest}.tmp`, JSON.stringify(rec, null, 2));
-  fs.renameSync(`${dest}.tmp`, dest);
+  atomicWrite(dest, JSON.stringify(rec, null, 2));
+  reapAsides(path.dirname(dest), `${suite}.json.tmp.`, Date.now(), TEMP_WINDOW_MS);
   return { recorded: true, identity: after.identity };
 }
 
@@ -369,6 +402,7 @@ function cli(argv) {
     const lines = [`suite ${o.suites[0]}: ${Object.keys(r.id.inputs_map).length} input file(s), closure ${r.id.closure.length}, history ${r.history ? 'yes' : 'no'}`];
     Object.keys(r.id.inputs_map).forEach((p) => lines.push(`  input ${p}`));
     [...new Set(r.id.dirs)].forEach((d) => lines.push(`  dir-literal ${d}`));
+    r.id.unresolved.forEach((u) => lines.push(`  unresolved ${u}`));
     r.markers.forEach((m) => lines.push(`  marker ${m}`));
     out(lines.join('\n'));
   } else {

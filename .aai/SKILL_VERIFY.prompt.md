@@ -17,8 +17,8 @@ STATE. "Fresh" means produced after the last edit to any file in scope.
 Evidence from before the latest change is void, no matter how recent it felt.
 
 Reuse exception: a suite that `tests/skills/test-framework.sh` prints as REUSED
-matched the complete input identity of an earlier passing run
-(docs/product/precise-suite-evidence-reuse.md) and counts as fresh for that
+had the same declared inputs, env, args, runtime, policy and history as
+an earlier passing run (docs/product/precise-suite-evidence-reuse.md) and counts as fresh for that
 suite. Cite it as reused with the original run id and log, and read that log.
 The full sweep before close, CI, main, nightly and release always execute.
 
