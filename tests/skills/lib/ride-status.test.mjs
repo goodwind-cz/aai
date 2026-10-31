@@ -462,3 +462,33 @@ test('TEST-3155 closed and flushed come from the real ledgers; no focus gives no
   assert.equal(none.closed.state, 'not_applicable');
   assert.equal(none.flushed.state, 'not_applicable');
 });
+
+const shipInput = () => {
+  const t = fs.readFileSync(path.join(REPO, '.aai', 'SKILL_SHIP.prompt.md'), 'utf8');
+  return t.slice(t.indexOf('\nINPUT'), t.indexOf('ride-select.mjs show'));
+};
+
+test('TEST-3159 an invalid STATE reports ref_id null with blocker state_invalid, and SHIP INPUT stops on it before ride-select', () => {
+  const bad = json(world({ ...focusOpts(), dupKey: true }));
+  assert.equal(bad.ref_id, null);
+  assert.equal(bad.blocker.kind, 'state_invalid');
+  const none = json(world({ noFocus: true }));
+  assert.equal(none.ref_id, null);
+  assert.notEqual(none.blocker.kind, 'state_invalid');
+
+  const input = shipInput();
+  assert.ok(input.includes('state_invalid'), 'SKILL_SHIP INPUT must name blocker kind state_invalid');
+  assert.ok(/STOP/.test(input.slice(input.indexOf('state_invalid'))), 'SKILL_SHIP INPUT must STOP on state_invalid');
+});
+
+test('TEST-3160 a ride whose probe reports closed done is not resumed: SHIP INPUT stops and points to /aai-merge', () => {
+  const closeLine = `${JSON.stringify({ ts: '2026-10-30T00:00:00Z', event: 'work_item_closed', ref: REF, payload: {} })}\n`;
+  const fx = world({ ...focusOpts(), events: closeLine });
+  const effects = JSON.parse(probe(fx, '--json', '--branch', BRANCH).stdout).effects;
+  assert.equal(effects.closed.state, 'done');
+
+  const input = shipInput();
+  assert.ok(input.includes('closed: done'), 'SKILL_SHIP INPUT must name the probe closed: done fact');
+  assert.ok(input.includes('/aai-merge'), 'SKILL_SHIP INPUT must point to /aai-merge cleanup');
+  assert.ok(input.indexOf('closed: done') < input.indexOf('RUN step 2') + 200, 'closed check sits with the resume rule');
+});
