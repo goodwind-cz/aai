@@ -3,7 +3,7 @@ id: spec-ride-status-and-resume
 type: spec
 number: 264
 status: done
-frozen_sha256: 9a2318d13871f8f4b6429acf41d1139db780a9103a529c4f1d128470c76e9024
+frozen_sha256: 2daaa6c93392a7ebf807c4fe8285a012a5f83476d857a2dc4f1426e0d545ee85
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -138,7 +138,7 @@ All measured at `51840bde`; inputs, not attestations.
 - `cat .aai/*.prompt.md | /usr/bin/wc -c` = 372603; TEST-012 pin
   (`want_growth` in tests/skills/test-aai-prompt-diet.sh) = 64396.
 - Highest TEST-3xxx in docs/specs, tests and .aai: TEST-3143. This spec uses
-  TEST-3144 to TEST-3160.
+  TEST-3144 to TEST-3161.
 
 ## Decisions
 
@@ -345,7 +345,7 @@ None.
 | Spec-AC-07 | WHEN the probe runs in a fixture clone of a bare origin THEN pushed is done when the branch is pushed at its local head, not_done naming both shas when a local commit is ahead, not_done when the remote branch is absent, and unknown when there is no origin remote | done | docs/ai/tdd/ride-status-and-resume/green/green-TEST-3152.log | — | D7 |
 | Spec-AC-08 | WHEN pr-config.yaml records platform github and a gh stub answers the head-branch list THEN pr_open is done with the listed number for one open PR, not_done for an empty list, unknown when the stub exits 1, and skipped when the recorded platform is none; the stub log holds only pr list calls with --head and the branch, and the bare origin refs are unchanged | done | docs/ai/tdd/ride-status-and-resume/green/green-TEST-3153.log, docs/ai/tdd/ride-status-and-resume/green/green-TEST-3154.log | — | D7 |
 | Spec-AC-09 | WHEN EVENTS holds a work_item_closed event for the focus ref THEN closed is done, and not_done when a later doc_lifecycle from done supersedes it or no event exists; flushed is done exactly when METRICS holds the focus flush record; both are not_applicable with no focus | done | docs/ai/tdd/ride-status-and-resume/green/green-TEST-3155.log | — | D7 |
-| Spec-AC-10 | SKILL_SHIP INPUT runs ride-status.mjs --json before ride-select.mjs show and resumes a non-null ref_id at RUN step 2; SKILL_SHIP step 5 and SKILL_PR step 5 run ride-status.mjs probe before the push and create and skip each on done; SKILL_LOOP prints ride-status.mjs after the LOOP SUMMARY; SKILL_SHIP INPUT stops on blocker kind state_invalid and on a probe that prints closed: done, pointing to /aai-merge; the glob grows at most 900 B, credited by one ledger entry naming ride-status-and-resume, and test-aai-prompt-diet.sh TEST-010 and TEST-012 pass | done | docs/ai/tdd/ride-status-and-resume/green/green-TEST-3156.log, docs/ai/tdd/ride-status-and-resume/green/green-TEST-3157.log | — | D8 |
+| Spec-AC-10 | SKILL_SHIP INPUT runs ride-status.mjs --json before ride-select.mjs show and resumes a non-null ref_id at RUN step 2; SKILL_SHIP step 5 and SKILL_PR step 5 run ride-status.mjs probe before the push and create and skip each on done; SKILL_LOOP prints ride-status.mjs after the LOOP SUMMARY; SKILL_SHIP INPUT stops on blocker kind state_invalid and on a probe that prints closed: done with pr_open: done, pointing to /aai-merge with the listed number, else resumes SKILL_PR at step 5; a null ref_id on a non-base branch whose probe prints pushed: not_done or pr_open: not_done resumes SKILL_PR at step 5 with no intake and no ride-select; the glob grows at most 900 B, credited by one ledger entry naming ride-status-and-resume, and test-aai-prompt-diet.sh TEST-010 and TEST-012 pass | done | docs/ai/tdd/ride-status-and-resume/green/green-TEST-3156.log, docs/ai/tdd/ride-status-and-resume/green/green-TEST-3157.log | — | D8 |
 | Spec-AC-11 | PROFILES.yaml core lists .aai/scripts/ride-status.mjs; select-suites.mjs selects aai-ride-status for ride-status.mjs and for each of the three edited prompts; no ride-status.sh or ride-status.ps1 exists; the source holds no file-write call named in D1 and no shell option; ride-status.mjs is at most 400 lines | done | docs/ai/tdd/ride-status-and-resume/green/green-TEST-3158.log | — | D1 |
 
 ## Implementation plan
@@ -420,6 +420,7 @@ None.
 | TEST-3158 | Spec-AC-11 | contract | tests/skills/test-aai-ride-status.sh | test_3158: PROFILES.yaml core holds the ride-status.mjs row; the real select-suites.mjs selects aai-ride-status for ride-status.mjs and each of the three prompts; no ride-status.sh or ride-status.ps1 under .aai/scripts; the source holds none of the D1 write calls and no shell true; line count at most 400 | `sed:s/  - \.aai\/scripts\/ride-status\.mjs/  - .aai\/scripts\/ride-statusx.mjs/` on .aai/system/PROFILES.yaml | green |
 | TEST-3159 | Spec-AC-10 | integration | tests/skills/test-aai-ride-status.sh | node case TEST-3159: a fixture STATE with a duplicate top-level key gives ref_id null and blocker state_invalid while a no-focus fixture gives ref_id null and a different blocker kind; SKILL_SHIP INPUT names state_invalid and STOP before ride-select.mjs show | `sed:s/state_invalid/state_ok/` on .aai/SKILL_SHIP.prompt.md | green |
 | TEST-3160 | Spec-AC-10 | integration | tests/skills/test-aai-ride-status.sh | node case TEST-3160: a fixture with a work_item_closed event gives probe closed done; SKILL_SHIP INPUT names closed: done and /aai-merge before ride-select.mjs show | `sed:s/closed: done/closed: dune/` on .aai/SKILL_SHIP.prompt.md | green |
+| TEST-3161 | Spec-AC-10 | integration | tests/skills/test-aai-ride-status.sh | node case TEST-3161: a fixture on feat/x with focus cleared, a work_item_closed event and no push gives probe none branch=feat/x with pushed and pr_open not_done; a focused closed fixture with a gh stub listing 520 gives pr_open done listed 520; SKILL_SHIP INPUT names pr_open: done with /aai-merge <n>, resume SKILL_PR at step 5, and the null ref_id non-base branch rule | `sed:s/non-base branch/non-bas branch/` on .aai/SKILL_SHIP.prompt.md | green |
 
 RED plan, observed on the baseline `51840bde` before each fix and stored
 under `docs/ai/tdd/ride-status-and-resume/red/`:

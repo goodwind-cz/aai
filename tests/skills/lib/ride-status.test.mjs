@@ -492,3 +492,34 @@ test('TEST-3160 a ride whose probe reports closed done is not resumed: SHIP INPU
   assert.ok(input.includes('/aai-merge'), 'SKILL_SHIP INPUT must point to /aai-merge cleanup');
   assert.ok(input.indexOf('closed: done') < input.indexOf('RUN step 2') + 200, 'closed check sits with the resume rule');
 });
+
+test('TEST-3161 a closed ride before push or PR create resumes SKILL_PR at step 5; with an open PR it stops and names its number', () => {
+  const closeLine = `${JSON.stringify({ ts: '2026-10-30T00:00:00Z', event: 'work_item_closed', ref: REF, payload: {} })}\n`;
+  const tail = (stub, w) => run('node', [SCRIPT, 'probe', '--state', w.statePath, '--root', w.root], w.root, stub.env);
+
+  // Focus cleared by the close ceremony, nothing pushed yet: ref_id null on a feature branch.
+  const cleared = clonedWorld({ noFocus: true, events: closeLine }, { push: false });
+  const stub = ghStub();
+  stub.answer('[]');
+  const r = tail(stub, cleared);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(r.stdout.includes(`probe: none branch=${BRANCH}`), r.stdout);
+  assert.match(r.stdout, /^pushed: not_done/m);
+  assert.match(r.stdout, /^pr_open: not_done/m);
+  assert.equal(JSON.parse(status(cleared, '--json').stdout).ref_id, null);
+
+  // Focus still set, closed, pushed, PR listed: probe carries the number the prompt must name.
+  const open = clonedWorld({ ...focusOpts(), events: closeLine });
+  write(path.join(open.root, 'docs/ai/pr-config.yaml'), 'platform: github\n');
+  stub.answer('[{"number":520}]');
+  const o = tail(stub, open);
+  assert.match(o.stdout, /^closed: done/m);
+  assert.match(o.stdout, /^pr_open: done listed 520/m);
+
+  const input = shipInput();
+  const flat = input.replace(/\s+/g, ' ');
+  assert.ok(flat.includes('`closed: done`') && flat.includes('`pr_open: done`') && flat.includes('/aai-merge <n>'), 'SHIP INPUT: closed + pr_open done points to /aai-merge <n>');
+  assert.ok(/resume SKILL_PR at step 5/.test(flat), 'SHIP INPUT: closed without PR resumes SKILL_PR at step 5');
+  assert.ok(/null `ref_id` on a non-base branch/.test(flat) && flat.includes('`pushed: not_done` or `pr_open: not_done`'), 'SHIP INPUT: null ref_id on a feature branch with pending push/PR');
+  assert.ok(/no intake, no ride-select/.test(flat.slice(flat.indexOf('non-base branch'))), 'that branch runs no intake and no ride-select');
+});

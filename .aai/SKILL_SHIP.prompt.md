@@ -9,9 +9,12 @@ INPUT
 - A free-text need from the user (any language), OR a path to an existing
   open intake doc. With neither, first run `node .aai/scripts/ride-status.mjs --json`:
   `blocker.kind` `state_invalid`: STOP, print it, point to /aai-check-state.
-  A non-null `ref_id` is a ride in flight: resume it at RUN step 2 (no new
-  intake, no ride-select) unless `ride-status.mjs probe` prints `closed: done`:
-  STOP, report it, point to `/aai-merge <n>`. Only a null `ref_id` runs `node .aai/scripts/ride-select.mjs show`:
+  A non-null `ref_id` is a ride in flight: resume at RUN step 2 (no new
+  intake, no ride-select); if `ride-status.mjs probe` prints `closed: done`,
+  `pr_open: done` means STOP, point to `/aai-merge <n>` (listed number), else
+  resume SKILL_PR at step 5. A null `ref_id` on a non-base branch whose probe
+  prints `pushed: not_done` or `pr_open: not_done` resumes SKILL_PR at step 5
+  there (no intake, no ride-select). Otherwise a null `ref_id` runs `node .aai/scripts/ride-select.mjs show`:
   `no roadmap` means ask for the need (print no gate text), else run
   `node .aai/scripts/ride-select.mjs next --json`:
   a `next` with a `path` is ridden as if that path had been passed; a

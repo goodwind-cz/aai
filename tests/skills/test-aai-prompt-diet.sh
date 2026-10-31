@@ -1023,8 +1023,8 @@ test_012_growth_sum_matches_ledger() {
   # plain-language lines, both blocks pass AAI_DECIDE; measured against fb171891, credited 1:1; AGENTS.md rule 2 is outside the glob, no credit).
   # Then 63917 -> 64324: codex-usage-missing-from-run-budgets (+407 B: SKILL_LOOP step 2f Codex budget paragraph; measured against f8614f67, credited 1:1).
   # Then 64324 -> 64396: watch-ci-reread-refresh-and-p3-cleanup (+72 B: SKILL_PR step 3b names user-facing docs as shipped; measured against 7d38415a, credited 1:1).
-  # Then 64396 -> 65052: ride-status-and-resume (+656 B: SKILL_SHIP INPUT and step 5, SKILL_PR step 5, SKILL_LOOP summary name ride-status.mjs, SHIP INPUT stops on state_invalid and on a closed ride; measured against 51840bde, credited 1:1).
-  local want_growth=65052
+  # Then 64396 -> 65276: ride-status-and-resume (+880 B: SKILL_SHIP INPUT and step 5, SKILL_PR step 5, SKILL_LOOP summary name ride-status.mjs, SHIP INPUT stops on state_invalid, stops on a closed ride with an open PR, and resumes SKILL_PR at step 5 for a closed ride or a null ref_id on a feature branch with push or PR pending; measured against 51840bde, credited 1:1).
+  local want_growth=65276
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1064,8 +1064,8 @@ test_012_growth_sum_matches_ledger() {
       rh_then=$(( rh_then + $(git -C "$PROJECT_ROOT" show "$rh_base_sha:.aai/$rh_f.prompt.md" | wc -c | tr -d ' ') ))
       rh_now=$(( rh_now + $(wc -c < "$PROJECT_ROOT/.aai/$rh_f.prompt.md" | tr -d ' ') ))
     done
-    # ride-status-and-resume adds 353 B to SKILL_SHIP under its own ledger entry; excluded so this entry stays its own.
-    rh_now=$(( rh_now - 353 ))
+    # ride-status-and-resume adds 577 B to SKILL_SHIP under its own ledger entry; excluded so this entry stays its own.
+    rh_now=$(( rh_now - 577 ))
     if [[ -z "$rh_entry" ]]; then
       log_info "TEST-012 (ride-state-handoff TEST-013): no ride-state-handoff-to-worktree ledger entry (prompts grew $(( rh_now - rh_then )) B)"
       ok=0
