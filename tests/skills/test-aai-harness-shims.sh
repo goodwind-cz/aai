@@ -873,7 +873,7 @@ test_3131_catalog_write_renders_rows() {
 }
 
 test_3132_catalog_write_refusals() {
-  log_info "TEST-3132: pipe description, no prompt and no command, symlinked SKILLS.md are refused with exit 2..."
+  log_info "TEST-3132: pipe description, symlinked SKILLS.md are refused with exit 2..."
   local root="$TMP_ROOT/t3132" before after
   mk_cat_root "$root" 1
   cat_md "$root/SKILLS.md" aai-alpha aai-beta
@@ -884,12 +884,6 @@ test_3132_catalog_write_refusals() {
   [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'aai-gamma'* && "$GEN_OUT" == *'contains a pipe'* ]] \
     || log_fail "TEST-3132: a pipe in a description must exit 2 naming aai-gamma, got rc=$GEN_RC: $GEN_OUT"
   [[ "$before" == "$after" ]] || log_fail "TEST-3132: a refused --write must leave SKILLS.md byte-unchanged"
-  printf -- '---\nname: aai-gamma\ndescription: Does the gamma thing\n---\n\nNo command at all.\n' > "$root/.claude/skills/aai-gamma/SKILL.md"
-  gen "$root" --write
-  after="$(sha_file "$root/SKILLS.md")"
-  [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'aai-gamma'* && "$GEN_OUT" == *'no node command'* ]] \
-    || log_fail "TEST-3132: no prompt and no command must exit 2 naming aai-gamma, got rc=$GEN_RC: $GEN_OUT"
-  [[ "$before" == "$after" ]] || log_fail "TEST-3132: a refused --write must leave SKILLS.md byte-unchanged (no command)"
   # symlinked SKILLS.md
   mk_cat_root "$root" 1
   cat_md "$TMP_ROOT/t3132.real.md" aai-alpha
@@ -968,6 +962,44 @@ test_3134_catalog_wiring() {
   lines="$(wc -l < "$GEN" | tr -d ' ')"
   [[ "$lines" -le 590 ]] || log_fail "TEST-3134: sync-harness-skills.mjs has $lines lines, cap 590"
   log_pass "TEST-3134 selector rows, PROFILES core row and line caps hold"
+}
+
+# Spec-AC-10: the catalog covers universal skills only (a project-generated wrapper is left out, never an error).
+test_3142_catalog_excludes_project_wrappers() {
+  log_info "TEST-3142: a bootstrap-shaped wrapper with no universal source is excluded, not refused..."
+  local root="$TMP_ROOT/t3142" before after
+  mk_cat_root "$root" 1
+  cat_md "$root/SKILLS.md" aai-alpha aai-beta aai-gamma
+  mkdir -p "$root/.claude/skills/aai-test-unit"
+  printf -- '---\nname: aai-test-unit\ndescription: Run unit tests (Jest)\n---\n\n# Unit tests\n\nRun `bash .aai/scripts/aai-run-tests.sh npm test`.\n' > "$root/.claude/skills/aai-test-unit/SKILL.md"
+  before="$(sha_file "$root/SKILLS.md")"
+  gen "$root" --write
+  after="$(sha_file "$root/SKILLS.md")"
+  [[ "$GEN_RC" -eq 0 ]] || log_fail "TEST-3142: --write with a project wrapper must exit 0, got rc=$GEN_RC: $GEN_OUT"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3142: no row may be added or removed for a project wrapper"
+  /usr/bin/grep -q 'aai-test-unit' "$root/SKILLS.md" && log_fail "TEST-3142: SKILLS.md must not gain a project wrapper row"
+  [[ -f "$root/.codex/skills/aai-test-unit/SKILL.md" ]] || log_fail "TEST-3142: the mirrors must still be regenerated for the project wrapper"
+  gen "$root" --check
+  [[ "$GEN_RC" -eq 0 && "$GEN_OUT" == *'OK: 3 skill(s) listed'* ]] || log_fail "TEST-3142: --check must be OK for 3 universal skills, got rc=$GEN_RC: $GEN_OUT"
+  log_pass "TEST-3142 project wrappers are excluded from the catalog; mirrors still regenerate"
+}
+
+# Spec-AC-11: a catalog or shim path may not leave the root under either separator.
+test_3143_catalog_path_traversal_refused() {
+  log_info "TEST-3143: a catalog path with a parent segment under / or backslash exits 2..."
+  local root="$TMP_ROOT/t3143" bad before after
+  for bad in '../outside.md' '..\outside.md' 'docs\..\..\outside.md'; do
+    mk_cat_root "$root" 0
+    printf 'outside\n' > "$TMP_ROOT/outside.md"
+    printf '\ncatalog:\n  - %s|## Quick Reference\n' "$bad" >> "$root/.aai/system/HARNESS_SKILLS.yaml"
+    before="$(sha_file "$TMP_ROOT/outside.md")"
+    gen "$root" --write
+    after="$(sha_file "$TMP_ROOT/outside.md")"
+    [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'escapes the root'* && "$before" == "$after" ]] || log_fail "TEST-3143: $bad must exit 2 naming the escape with the outside file untouched, got rc=$GEN_RC: $GEN_OUT"
+    gen "$root" --check
+    [[ "$GEN_RC" -eq 2 && "$GEN_OUT" == *'escapes the root'* ]] || log_fail "TEST-3143: $bad must exit 2 on --check, got rc=$GEN_RC: $GEN_OUT"
+  done
+  log_pass "TEST-3143 parent segments under both separators are refused"
 }
 
 # --- TEST-3135 / TEST-3136 (CRLF Copilot shim overrides, Spec-AC-05) -----------
@@ -1057,6 +1089,8 @@ ALL_TESTS=(
   test_3132_catalog_write_refusals
   test_3133_live_catalog_lists_all_wrappers
   test_3134_catalog_wiring
+  test_3142_catalog_excludes_project_wrappers
+  test_3143_catalog_path_traversal_refused
   test_3135_sync_sh_keeps_crlf_overrides
   test_3136_sync_ps1_matches_sh_on_crlf
 )

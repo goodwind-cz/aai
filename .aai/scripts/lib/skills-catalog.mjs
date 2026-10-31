@@ -12,7 +12,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { assertRealPath } from './harness-shims.mjs';
+import { assertRealPath, escapesRoot } from './harness-shims.mjs';
 
 export class CatalogError extends Error {}
 
@@ -22,19 +22,20 @@ export function loadCatalog(rows) {
   if (rows === null) return null;
   const parts = rows.length === 1 ? rows[0].split('|') : [];
   const [file, heading] = parts.map((p) => p.trim());
-  if (parts.length !== 2 || !file || !heading
-      || path.isAbsolute(file) || file.split('/').includes('..')) {
+  if (parts.length !== 2 || !file || !heading) {
     throw new CatalogError('catalog section wants exactly one row <file>|<heading>');
   }
+  if (escapesRoot(process.cwd(), file)) throw new CatalogError(`catalog path escapes the root: ${file}`);
   return { file, heading };
 }
 
+// null = the wrapper has no universal source (a project-generated wrapper such as aai-test-unit):
+// the catalog covers universal skills only, so such a wrapper is left out, not an error.
 function codexCell(root, name, body) {
   const key = name.replace(/^aai-/, '').toUpperCase().replace(/-/g, '_');
   if (fs.existsSync(path.join(root, `.aai/SKILL_${key}.prompt.md`))) return `\`--prompt-file .aai/SKILL_${key}.prompt.md\``;
   const cmd = /`(node \.aai\/scripts\/[A-Za-z0-9._-]+\.mjs)`/.exec(body);
-  if (cmd) return `\`${cmd[1]}\``;
-  throw new CatalogError(`catalog row for ${name} cannot be generated: no prompt file and no node command in the wrapper`);
+  return cmd ? `\`${cmd[1]}\`` : null;
 }
 
 // plan: read the catalog file, compare, and (always) return what --write would do.
@@ -61,12 +62,13 @@ export function planCatalog(root, cat, skills) {
     const cell = lines[i].split('|')[1].trim();
     if (NAME_RE.test(cell)) listed.set(cell, i);
   }
-  const missing = [...skills.keys()].filter((n) => !listed.has(n)).sort();
+  const covered = new Set([...skills.keys()].filter((n) => codexCell(root, n, skills.get(n).body) !== null));
+  const missing = [...covered].filter((n) => !listed.has(n)).sort();
   const orphans = [...listed.keys()].filter((n) => !skills.has(n)).sort();
   const drift = [...missing.map((n) => [n, `missing row ${n}`]), ...orphans.map((n) => [n, `orphan row ${n}`])]
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
     .map((d) => `DIVERGE catalog ${cat.file}: ${d[1]}`);
-  const ok = `OK: ${skills.size} skill(s) listed in the ${cat.file} Quick Reference`;
+  const ok = `OK: ${covered.size} skill(s) listed in the ${cat.file} Quick Reference`;
   const render = () => {
     const add = missing.map((n) => {
       const s = skills.get(n);

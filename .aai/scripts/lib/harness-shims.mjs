@@ -142,7 +142,16 @@ function render(rows, fragments) {
 // assertRealPath(root, rel) — lstat each existing component of rel below root:
 // a symlink anywhere, a non-directory parent or a non-file leaf refuses, so a
 // write can never follow a link out of --root. A missing component ends the walk.
+// escapesRoot(root, rel) — true when rel is absolute, holds a '..' segment under either
+// separator (a Windows manifest may say ..\\x), or resolves outside root.
+export function escapesRoot(root, rel) {
+  if (path.isAbsolute(rel) || path.win32.isAbsolute(rel) || rel.split(/[\\/]/).includes('..')) return true;
+  const back = path.relative(path.resolve(root), path.resolve(root, rel));
+  return back === '..' || back.startsWith('..' + path.sep) || path.isAbsolute(back);
+}
+
 export function assertRealPath(root, rel) {
+  if (escapesRoot(root, rel)) throw new ShimError(`refusing ${rel}: path escapes the root`);
   const parts = rel.split('/');
   for (let i = 0; i < parts.length; i++) {
     const sub = parts.slice(0, i + 1).join('/');
