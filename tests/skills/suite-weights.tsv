@@ -185,6 +185,8 @@ aai-repo-tripwire	69
 aai-ride-handoff	212
 # sample aai-ride-select measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=42,31,41,27,42
 aai-ride-select	41
+# sample aai-ride-status fallback unsampled (SKIP or absent; no successful observation)
+aai-ride-status	212
 # sample aai-roadmap measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=23,23,33,35,33
 aai-roadmap	33
 # sample aai-role-output measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=5,7,6,10,6

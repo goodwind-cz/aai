@@ -468,6 +468,19 @@ suites:
       - .aai/scripts/follow-ups.mjs
       - docs/ai/roadmap.yaml
 
+  # aai-ride-status (spec-ride-status-and-resume): the status/probe script, the
+  # three prompts that name it, and the ledger/PROFILES rows its shell rows read.
+  aai-ride-status:
+    globs:
+      - .aai/scripts/ride-status.mjs
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/SKILL_SHIP.prompt.md
+      - .aai/SKILL_PR.prompt.md
+      - .aai/SKILL_LOOP.prompt.md
+      - .aai/system/PROFILES.yaml
+      - tests/skills/lib/ride-status.test.mjs
+      - tests/skills/lib/prompt-diet-ledger.sh
+
   # aai-roadmap also asserts the prose and docs that wire the skill in (SHIP, PR,
   # AGENTS, PROFILES, USER_GUIDE, README, the product doc).
   aai-roadmap:

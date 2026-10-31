@@ -122,6 +122,8 @@ pairs:
     status: done
   - capability: provider-adapter-surfaces-closing-slice
     status: done
+  - capability: ride-status-and-resume
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

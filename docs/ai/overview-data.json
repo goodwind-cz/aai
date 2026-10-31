@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-30T23:59:43.697Z",
+  "generatedAt": "2026-10-31T11:24:57.031Z",
   "project": "aai",
   "counts": {
-    "delivered": 333,
+    "delivered": 334,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -235,6 +235,19 @@
   ],
   "delivered": [
     {
+      "ref": "ride-status-and-resume",
+      "title": "Ride status view and authorization-preserving resume",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0238-ride-status-and-resume.md",
+      "closed_on": "2026-10-31",
+      "agent_minutes": 119,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0264-spec-ride-status-and-resume.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-ride-status-and-resume-20261031T105621Z.md"
+    },
+    {
       "ref": "watch-ci-reread-refresh-and-p3-cleanup",
       "title": "watch-ci re-read refresh, SKILL_PR release-notes wording, and two ledger corrections",
       "type": "change",
@@ -258,7 +271,7 @@
       "token_total": 1391114,
       "spec": "docs/specs/SPEC-0263-spec-provider-adapter-surfaces-closing-slice.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-provider-adapter-surfaces-closing-slice-20261030T235136Z.md"
     },
     {
       "ref": "hermes-agent-skill-discovery",
@@ -4591,6 +4604,19 @@
       "label": "2026-10",
       "items": [
         {
+          "ref": "ride-status-and-resume",
+          "title": "Ride status view and authorization-preserving resume",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0238-ride-status-and-resume.md",
+          "closed_on": "2026-10-31",
+          "agent_minutes": 119,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0264-spec-ride-status-and-resume.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-ride-status-and-resume-20261031T105621Z.md"
+        },
+        {
           "ref": "watch-ci-reread-refresh-and-p3-cleanup",
           "title": "watch-ci re-read refresh, SKILL_PR release-notes wording, and two ledger corrections",
           "type": "change",
@@ -4614,7 +4640,7 @@
           "token_total": 1391114,
           "spec": "docs/specs/SPEC-0263-spec-provider-adapter-surfaces-closing-slice.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-provider-adapter-surfaces-closing-slice-20261030T235136Z.md"
         },
         {
           "ref": "hermes-agent-skill-discovery",

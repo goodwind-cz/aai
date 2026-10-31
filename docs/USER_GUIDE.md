@@ -2874,6 +2874,12 @@ Every coding agent AAI supports reads its own small instruction file in the proj
 
 [Product doc](product/provider-adapter-registry.md) · [Spec](specs/SPEC-0253-spec-provider-adapter-registry-slice.md)
 
+### Where a ride stands, and picking it up again
+
+One command now answers where the current piece of work (a "ride") stands: what is happening, what evidence exists, what blocks it and who acts next. Before, that answer was spread over the state file, the event log, the loop's tick lines and the agent's own prose. The same command has a second mode that checks whether the ride's outside effects (the push, the pull request, the close, the metrics record) already happened, so an interrupted ride does not repeat them. A plain `/aai-ship` with no argument now continues the ride in progress instead of starting a different one.
+
+[Product doc](product/ride-status-and-resume.md) · [Spec](specs/SPEC-0264-spec-ride-status-and-resume.md)
+
 ### AAI skills in Hermes Agent
 
 Hermes Agent can discover and select the shared AAI skills in a trusted Git project. The existing wrappers load the current project's canonical prompts; no additional skill catalog or installer is required.
