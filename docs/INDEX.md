@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-precise-suite-evidence-reuse | specs | implementing | 10 done, 3 planned | docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md |
+| spec-precise-suite-evidence-reuse | specs | implementing | 13 done | docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md |
 
 ## Canonical layer (0)
 
