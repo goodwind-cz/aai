@@ -216,7 +216,7 @@ async function execute(file,arm,base,tmp,index,seconds) {
   const cwd=path.join(tmp,`reader-${index}`);
   clone(base,cwd);
   const env= {
-    ...cleanEnvironment(),AAI_TEST_PARALLEL:'1'
+    ...cleanEnvironment(),AAI_TEST_PARALLEL:'1',AAI_SUITE_REUSE: '0'
   };
   const [exe,args]=invocation(file,cwd,env);
   const start=performance.now();

@@ -239,7 +239,10 @@ export function checkSuites({ root, suites, mode = 'selected', isolation = 'on',
   const results = [];
   for (const suite of suites) {
     const argv = args && !Array.isArray(args) ? args[suite] : args || ['bash', `tests/skills/test-${suite}.sh`];
-    const id = off === 'ci' || off === 'opt-out' ? null : computeIdentity(ctx, suite, argv);
+    // An identity is only ever compared or recorded for a declared, non-live suite.
+    const entry = ctx.manifest.suites[suite];
+    const declared = ctx.manifest.state === 'ok' && entry && entry.live === false;
+    const id = off === 'ci' || off === 'opt-out' || !declared ? null : computeIdentity(ctx, suite, argv);
     if (id && runDir) {
       fs.mkdirSync(runDir, { recursive: true });
       fs.writeFileSync(path.join(runDir, `${suite}.reuse-identity.json`), JSON.stringify(id));

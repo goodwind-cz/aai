@@ -803,6 +803,14 @@ TOTAL_TESTS=0
 PASSED_TESTS=0
 FAILED_TESTS=0
 SKIPPED_TESTS=0
+# Evidence reuse (spec-precise-suite-evidence-reuse). A reused suite is reported
+# but NOT executed, so it is counted here and nowhere else: TOTAL_TESTS, the
+# pass/fail/skip counts and both accounting axes below cover executed suites
+# only, which keeps their sum invariants true.
+REUSED_TESTS=0
+REUSE_HELPER="$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs"
+REUSE_HELPER_OK=false
+REUSE_OUT=""
 TRIPWIRE_FAILED=0
 TRIPWIRE_UNATTESTED=0
 TRIPWIRE_ALLOWED=0
@@ -1004,6 +1012,78 @@ skill_of() {
   printf '%s\n' "${n#test-}"
 }
 
+# reuse_check_run <test file>... — ask the helper which suites may be reported
+# reused. Publishes REUSE_OUT (its stdout) and REUSE_HELPER_OK. A missing node or
+# helper, or a helper that fails, means reuse is off and every suite executes.
+REUSE_MODE=full
+reuse_check_run() {
+  local f iso=on t0 t1 args=()
+  REUSE_OUT=""
+  REUSE_HELPER_OK=false
+  if ! command -v node >/dev/null 2>&1 || [[ ! -f "$REUSE_HELPER" ]]; then
+    REUSE_OUT="OFF helper-missing"
+    return 0
+  fi
+  if [[ ${#SPECIFIC_SKILLS[@]} -gt 0 ]]; then REUSE_MODE=selected; fi
+  if [[ "$ISOLATION_ENABLED" != "true" ]]; then iso=off; fi
+  for f in "$@"; do args+=(--suite "$(skill_of "$f")"); done
+  t0=$(date +%s)
+  if REUSE_OUT="$(node "$REUSE_HELPER" check --root "$PROJECT_ROOT" --run-dir "$RUN_DIR" \
+      --mode "$REUSE_MODE" --isolation "$iso" --seed-paths "$ISOLATION_SEED_PATHS" "${args[@]}" 2>/dev/null)"; then
+    REUSE_HELPER_OK=true
+  else
+    REUSE_OUT="OFF helper-failed"
+    return 0
+  fi
+  t1=$(date +%s)
+  REUSE_CHECK_SECONDS=$((t1 - t0))
+}
+REUSE_CHECK_SECONDS=0
+
+# reuse_line <skill> — the helper's REUSE line for a suite, empty when it runs.
+reuse_line() {
+  local l
+  while IFS= read -r l; do
+    case "$l" in "REUSE $1 "*) printf '%s\n' "$l"; return 0 ;; esac
+  done <<< "$REUSE_OUT"
+  return 0
+}
+
+# reuse_report <skill> <index> <total> <REUSE line> — a reused suite is reported
+# as REUSED with provenance; it gets no checkout, no tripwire window and no
+# PASS result file.
+reuse_report() {
+  local skill="$1" idx="$2" total="$3" line="$4" run at log ident=""
+  run="${line#* run=}"; run="${run%% at=*}"
+  at="${line#* at=}"; at="${at%% log=*}"
+  log="${line#* log=}"
+  if [[ -f "$RUN_DIR/${skill}.reuse-identity.json" ]]; then
+    ident="$(sed -n 's/.*"identity":"\([0-9a-f]*\)".*/\1/p' "$RUN_DIR/${skill}.reuse-identity.json" | qhead -n 1)"
+  fi
+  printf "[%2d/%2d] %-20s ${BLUE}REUSED (run %s, %s, log %s)${NC}\n" "$idx" "$total" "$skill" "$run" "$at" "$log"
+  echo "{\"skill\":\"$skill\",\"status\":\"REUSED\",\"reused_from_run\":\"$run\",\"reused_log\":\"$log\",\"identity\":\"$ident\"}" >> "$RUN_DIR/metrics.jsonl"
+  REUSED_TESTS=$((REUSED_TESTS + 1))
+}
+
+# reuse_settle <skill> <iso status> <seed status> — after an EXECUTED suite is
+# reported: a PASS is offered to the helper's record (which refuses unless the
+# run was attested, isolated and its inputs did not move), a FAIL or SKIP
+# deletes the suite's stale record. Never changes a verdict or the exit code.
+reuse_settle() {
+  local skill="$1" iso="$2" seed="$3" res=""
+  [[ "$REUSE_HELPER_OK" == "true" ]] || return 0
+  res="$(cat "$RUN_DIR/${skill}.result" 2>/dev/null)" || res=""
+  case "$res" in
+    PASS)
+      node "$REUSE_HELPER" record --root "$PROJECT_ROOT" --run-dir "$RUN_DIR" --suite "$skill" \
+        --isolation "$iso" --seeding "$seed" --seed-paths "$ISOLATION_SEED_PATHS" >> "$RUN_DIR/reuse.log" 2>&1 || true
+      ;;
+    FAIL|SKIP)
+      node "$REUSE_HELPER" forget --root "$PROJECT_ROOT" --suite "$skill" >> "$RUN_DIR/reuse.log" 2>&1 || true
+      ;;
+  esac
+}
+
 # suite_progress_line <skill> — the `[ n/ m] name ` prefix, printed WITHOUT a
 # newline so a verdict completes the line. Serially it is printed before the
 # suite runs (so a 227-second suite is visibly in flight); in a concurrent wave
@@ -1164,9 +1244,9 @@ suite_prepare() {
 suite_execute() {
   local iso_base="$1" iso_root="$2" iso_target="$3" log_file="$4" use_tee="${5:-true}" rc=0
   if [[ "$VERBOSE" == "true" && "$use_tee" == "true" ]]; then
-    ( [[ -z "$iso_base" ]] || cd "$iso_root"; bash "$iso_target" ) 2>&1 | tee "$log_file" || rc=$?
+    ( [[ -z "$iso_base" ]] || cd "$iso_root"; AAI_SUITE_REUSE=0 bash "$iso_target" ) 2>&1 | tee "$log_file" || rc=$?
   else
-    ( [[ -z "$iso_base" ]] || cd "$iso_root"; bash "$iso_target" ) &> "$log_file" || rc=$?
+    ( [[ -z "$iso_base" ]] || cd "$iso_root"; AAI_SUITE_REUSE=0 bash "$iso_target" ) &> "$log_file" || rc=$?
   fi
   return "$rc"
 }
@@ -1515,7 +1595,11 @@ suite_report() {
   fi
 
   # Record metrics
-  echo "{\"skill\":\"$skill_name\",\"status\":\"$(cat "$RUN_DIR/${skill_name}.result")\",\"duration_seconds\":$duration,\"exit_code\":$exit_code,\"tripwire\":\"$tw_state\",\"tripwire_attested\":$tw_attested,\"tripwire_allowed\":$tw_allowed,\"tripwire_hasher_degraded\":$tw_hasher_degraded}" >> "$RUN_DIR/metrics.jsonl"
+  echo "{\"skill\":\"$skill_name\",\"status\":\"$(cat "$RUN_DIR/${skill_name}.result")\",\"duration_seconds\":$duration,\"exit_code\":$exit_code,\"tripwire\":\"$tw_state\",\"tripwire_attested\":$tw_attested,\"tripwire_allowed\":$tw_allowed,\"tripwire_hasher_degraded\":$tw_hasher_degraded,\"isolation\":\"$iso_status\",\"seeding\":\"$seed_status\"}" >> "$RUN_DIR/metrics.jsonl"
+
+  # Evidence reuse: store a passing result, drop a stale one (after the metrics
+  # line, which the helper reads as the suite's verdict).
+  reuse_settle "$skill_name" "$iso_status" "$seed_status"
 
   # Spec-AC-09: pulse AFTER this suite is fully counted, so the slot's
   # finished count and TOTAL_TESTS never disagree. Never called anywhere
@@ -1887,14 +1971,19 @@ generate_summary() {
   log "Test Summary"
   log "========================================="
   log "Total:   $TOTAL_TESTS"
-  log_success "Passed:  $PASSED_TESTS ($(( TOTAL_TESTS > 0 ? PASSED_TESTS * 100 / TOTAL_TESTS : 0 ))%)"
+  log_success "Passed:  $PASSED_TESTS ($(( TOTAL_TESTS > 0 ? PASSED_TESTS * 100 / (TOTAL_TESTS > 0 ? TOTAL_TESTS : 1) : 0 ))%)"
 
   if [[ $FAILED_TESTS -gt 0 ]]; then
-    log_fail "Failed:  $FAILED_TESTS ($(( TOTAL_TESTS > 0 ? FAILED_TESTS * 100 / TOTAL_TESTS : 0 ))%)"
+    log_fail "Failed:  $FAILED_TESTS ($(( TOTAL_TESTS > 0 ? FAILED_TESTS * 100 / (TOTAL_TESTS > 0 ? TOTAL_TESTS : 1) : 0 ))%)"
   fi
 
   if [[ $SKIPPED_TESTS -gt 0 ]]; then
-    log_skip "Skipped: $SKIPPED_TESTS ($(( TOTAL_TESTS > 0 ? SKIPPED_TESTS * 100 / TOTAL_TESTS : 0 ))%)"
+    log_skip "Skipped: $SKIPPED_TESTS ($(( TOTAL_TESTS > 0 ? SKIPPED_TESTS * 100 / (TOTAL_TESTS > 0 ? TOTAL_TESTS : 1) : 0 ))%)"
+  fi
+
+  # Reused suites were not executed, so they sit outside Total and Passed.
+  if [[ $REUSED_TESTS -gt 0 ]]; then
+    log "Reused:  $REUSED_TESTS (not executed; matched the input identity of an earlier passing run)"
   fi
 
   # Tripwire accounting. "Attested" is deliberately narrower than "passed": it
@@ -1987,9 +2076,9 @@ Environment: $(uname -s) $(uname -r)
 Results:
 --------
 Total:   $TOTAL_TESTS
-Passed:  $PASSED_TESTS ($(( TOTAL_TESTS > 0 ? PASSED_TESTS * 100 / TOTAL_TESTS : 0 ))%)
-Failed:  $FAILED_TESTS ($(( TOTAL_TESTS > 0 ? FAILED_TESTS * 100 / TOTAL_TESTS : 0 ))%)
-Skipped: $SKIPPED_TESTS ($(( TOTAL_TESTS > 0 ? SKIPPED_TESTS * 100 / TOTAL_TESTS : 0 ))%)
+Passed:  $PASSED_TESTS ($(( TOTAL_TESTS > 0 ? PASSED_TESTS * 100 / (TOTAL_TESTS > 0 ? TOTAL_TESTS : 1) : 0 ))%)
+Failed:  $FAILED_TESTS ($(( TOTAL_TESTS > 0 ? FAILED_TESTS * 100 / (TOTAL_TESTS > 0 ? TOTAL_TESTS : 1) : 0 ))%)
+Skipped: $SKIPPED_TESTS ($(( TOTAL_TESTS > 0 ? SKIPPED_TESTS * 100 / (TOTAL_TESTS > 0 ? TOTAL_TESTS : 1) : 0 ))%)
 
 Failed Tests:
 EOF
@@ -2034,7 +2123,7 @@ EOF
   # prevent, and a missing run record is recoverable where a broken line is not.
   if [[ -d "$PROJECT_ROOT/docs/ai/tests" ]] || mkdir -p "$PROJECT_ROOT/docs/ai/tests" 2>/dev/null; then
     if ! aai_locked_append "$PROJECT_ROOT/docs/ai/tests/test-runs.jsonl" \
-      "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"skill_test\",\"run_id\":\"$RUN_ID\",\"total\":$TOTAL_TESTS,\"passed\":$PASSED_TESTS,\"failed\":$FAILED_TESTS,\"skipped\":$SKIPPED_TESTS,\"suites_isolated\":$ISOLATION_ISOLATED,\"suites_degraded\":$ISOLATION_DEGRADED,\"suites_seeded\":$SEEDING_SEEDED,\"suites_partly_seeded\":$SEEDING_PARTIAL,\"suites_seed_skipped\":$SEEDING_SKIPPED,\"parallel_width\":$PARALLEL_WIDTH,\"waves_reattributed\":$WAVES_REATTRIBUTED}"; then
+      "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"skill_test\",\"run_id\":\"$RUN_ID\",\"total\":$TOTAL_TESTS,\"passed\":$PASSED_TESTS,\"failed\":$FAILED_TESTS,\"skipped\":$SKIPPED_TESTS,\"reused\":$REUSED_TESTS,\"suites_isolated\":$ISOLATION_ISOLATED,\"suites_degraded\":$ISOLATION_DEGRADED,\"suites_seeded\":$SEEDING_SEEDED,\"suites_partly_seeded\":$SEEDING_PARTIAL,\"suites_seed_skipped\":$SEEDING_SKIPPED,\"parallel_width\":$PARALLEL_WIDTH,\"waves_reattributed\":$WAVES_REATTRIBUTED}"; then
       log_warn "Run ledger: the append to docs/ai/tests/test-runs.jsonl could not take its lock within ${AAI_APPEND_LOCK_TIMEOUT}s, so THIS RUN IS NOT RECORDED there. Nothing was written unlocked — a missing record is recoverable, an interleaved line is not."
     fi
   fi
@@ -2077,7 +2166,21 @@ main() {
   fi
 
   log "Found ${#test_files[@]} test(s)"
-  TOTAL_DISCOVERED=${#test_files[@]}
+
+  # Evidence reuse: decide which discovered suites are reported REUSED instead
+  # of executed (D1, D7). The decision is the helper's; the framework only
+  # removes those suites from its execution list.
+  reuse_check_run "${test_files[@]}"
+  local run_files=() reused_files=() rf rl
+  for rf in "${test_files[@]}"; do
+    rl="$(reuse_line "$(skill_of "$rf")")"
+    if [[ -n "$rl" ]]; then reused_files+=("$rf"); else run_files+=("$rf"); fi
+  done
+  case "$REUSE_OUT" in
+    OFF*) log "Evidence reuse: off (${REUSE_OUT#OFF })" ;;
+    *)    log "Evidence reuse: on (${#reused_files[@]} of ${#test_files[@]} suites reused, check ${REUSE_CHECK_SECONDS}s)" ;;
+  esac
+  TOTAL_DISCOVERED=${#run_files[@]}
 
   # Run tests
   log ""
@@ -2089,12 +2192,21 @@ main() {
   # machinery would only add a fork and a file round-trip to buy the identical
   # answer. That also keeps `--skill <name>`, and every fixture that ships one
   # suite, on byte-for-byte the pre-existing path.
-  if [[ "$PARALLEL_WIDTH" -le 1 || ${#test_files[@]} -eq 1 ]]; then
-    for test_file in "${test_files[@]}"; do
+  if [[ ${#reused_files[@]} -gt 0 ]]; then
+    local ri=0
+    for rf in "${reused_files[@]}"; do
+      ri=$((ri + 1))
+      reuse_report "$(skill_of "$rf")" "$ri" "${#reused_files[@]}" "$(reuse_line "$(skill_of "$rf")")"
+    done
+  fi
+  if [[ ${#run_files[@]} -eq 0 ]]; then
+    log "Every selected suite was reused; nothing was executed (this is not a full sweep)."
+  elif [[ "$PARALLEL_WIDTH" -le 1 || ${#run_files[@]} -eq 1 ]]; then
+    for test_file in "${run_files[@]}"; do
       run_test "$test_file"
     done
   else
-    run_queue "${test_files[@]}"
+    run_queue "${run_files[@]}"
   fi
 
   # Generate summary
