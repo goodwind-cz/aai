@@ -85,6 +85,13 @@ Environment: host Apple M4 Max, 16 logical CPUs, macOS 27.0.1 (Darwin 27.0.0 arm
 Node v22.23.1; Bash GNU bash 3.2.57(1)-release (the system bash the framework
 runs under); Git 2.54.0 (Apple Git-157).
 
+R3 re-measured on 2026-11-01 at commit cb2cafdd (after the after-literal rule
+and the `lib/` allowlist), same delta and procedure, five separate wrapped
+framework runs per sample (one per suite, so each sample also carries five
+wrapper start-ups): off 16 s in all three samples, on 10 s in all three,
+reused 3 of 5 (aai-feedback-status, aai-pricing, aai-redact);
+aai-orchestration-mode and aai-runtime-file ran in both modes.
+
 ### Where reuse helps
 
 Reuse helps for a suite whose declared identity is narrow: its suite file, the
