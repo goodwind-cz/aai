@@ -79,6 +79,9 @@ suite.
   at run time. Every shape the reader cannot resolve makes the suite run; a
   few rare shapes that no declared suite uses are known gaps, tracked as
   follow-ups.
+- A bash startup hook is not part of the identity. When `BASH_ENV` or `ENV`
+  is set and non-empty, every suite runs (reason `bash-startup-hook`); the
+  hook file is never hashed.
 - Not cached, ever: live effects (permissions, remote refs, release
   publication, locks), CI, main and nightly runs, and the full sweep before
   close.

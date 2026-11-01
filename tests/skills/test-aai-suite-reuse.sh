@@ -183,6 +183,8 @@ test_3171_policy_component() { node_cases TEST-3171; }
 test_3172_history_component() { node_cases TEST-3172; }
 test_3174_manifest_invalid() { node_cases TEST-3174; }
 test_3176_record_refusals() { node_cases TEST-3176; }
+test_3195_bash_startup_hook() { node_cases TEST-3195; }
+test_3196_record_no_identity() { node_cases TEST-3196; }
 test_3178_off_modes() { node_cases TEST-3178; }
 test_3181_log_missing() { node_cases TEST-3181; }
 test_3182_lint_and_live_manifest() { node_cases TEST-3182; }
@@ -584,6 +586,8 @@ main() {
   test_3174_manifest_invalid
   test_3175_fail_forgets_skip_not_recorded
   test_3176_record_refusals
+  test_3195_bash_startup_hook
+  test_3196_record_no_identity
   test_3177_off_modes_execute
   test_3178_off_modes
   test_3179_fresh_mandatory_callers

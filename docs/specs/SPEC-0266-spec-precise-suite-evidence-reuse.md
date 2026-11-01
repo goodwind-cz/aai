@@ -4,7 +4,7 @@ type: spec
 number: 266
 status: done
 mutation_gate: v1
-frozen_sha256: ef8ab0acff117b277fbd2f8e06c5bf28966d7abd03f15795a2593b288b22454c
+frozen_sha256: fb853ee3b69c7f79ce87fa9fbcdd500384550a0d24d89fe62b41652310484cac
 ceremony_level: 2
 links:
   requirement: precise-suite-evidence-reuse
@@ -376,14 +376,21 @@ at run time, is what the manifest `note` asserts against (residual risk R1).
   is absent or its sha256 differs), or the first differing component name
   from IDENTITY_COMPONENTS; for `inputs` the detail is
   `changed <path>`, `added <path>` or `removed <path>` for the first
-  differing path in sort order.
+  differing path in sort order. A bash startup hook is outside the identity
+  and is never hashed: when `BASH_ENV` or `ENV` is set and non-empty in the
+  environment of the check, every suite prints
+  `RUN <suite> reason=bash-startup-hook` (fail closed). The framework's own
+  environment does not set either variable in a normal run.
 - `record` writes the store entry only when all hold, else prints
   `NOT-RECORDED <suite> reason=<reason>`: the suite's `metrics.jsonl` line
   has `status` PASS, `exit_code` 0, `tripwire_attested` true and
   `tripwire_hasher_degraded` false (`not-pass`, `not-attested`); the
   framework passed `isolation=isolated` and `seeding=seeded` for it
   (`not-isolated`); a recomputed identity equals the pre-run one in
-  `$RUN_DIR/<suite>.reuse-identity.json` (`inputs-changed-during-run`).
+  `$RUN_DIR/<suite>.reuse-identity.json` (`inputs-changed-during-run`). A
+  missing, unparseable or malformed identity file gives
+  `NOT-RECORDED <suite> reason=no-identity` with exit 0, decided before any
+  context is loaded; record never throws on it.
 - `forget` deletes the suite's store entry. The framework calls it for
   every suite whose result is FAIL or SKIP in any local run, including an
   opted-out one and one whose `check` call failed.
@@ -643,6 +650,8 @@ stay as they are; CI never reuses (D6).
 | TEST-3192 | Spec-AC-02 | integration | tests/skills/test-aai-suite-reuse.sh | test_3192: fixture repo with the real framework; suite fx reads docs/data/probe.txt by a path literal; run 2 is REUSED; after git mv of the probe file the helper prints RUN reason=inputs, the framework executes fx (marker 2), prints no REUSED and exits non-zero because the read fails | `sed:s/'inputs', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3193 | Spec-AC-08 | contract | tests/skills/test-aai-suite-reuse.sh | node case TEST-3193: each suite of the live manifest runs once with tests/skills/lib/read-trace.cjs preloaded (NODE_OPTIONS); every traced Node fs read inside the checkout is a file in the suite's explain identity (the untraced channels are bash, git, fs.promises, copyFileSync, cpSync and children without NODE_OPTIONS), so a suite that reads an undeclared file through a traced call (the r1 finding B1) fails the case | `sed:s/inputsMap\[rel\] = fileHash\(ctx, rel\)/void rel/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3194 | Spec-AC-08 | contract | tests/skills/test-aai-suite-reuse.sh | node cases TEST-3194: `lint --minimal-tree` on the live manifest exits 0 with MINIMAL-TREE-PASS for every manifest suite (fresh framework run in a scratch copy of only its identity files); with a fixture manifest that adds aai-check-state (reads docs/TECHNOLOGY.md and more outside its identity) it exits 1 with MINIMAL-TREE-FAIL aai-check-state | `sed:s/ok = r.status === 0 /ok = r.status !== 0 /` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3195 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3195: a record made with BASH_ENV set to an empty hook file, then the file edited and check run with BASH_ENV set, gives RUN reason=bash-startup-hook; a non-empty ENV gives the same; an empty BASH_ENV value gives REUSE | `sed:s/'bash-startup-hook'/'no-record'/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3196 | Spec-AC-05 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3196: recordSuite with no identity file, an unparseable one or the JSON null gives recorded false reason=no-identity and does not throw | `sed:s/if \(!before \|\| typeof before/if (false \&\& typeof before/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3189 | Spec-AC-13 | inspection | tests/skills/test-aai-suite-reuse.sh | test_3189: the note has a line equal to ## Measurements, at least 3 table rows per mode in each of two rounds, a reused count and both medians per round, every check value at most 5, a statement of where reuse helps and why docs-closure suites miss, and names a 40-character commit sha, Node, Bash and Git versions (no comparison of the on and off medians) | `sed:s/## Measurements/## Measurementz/` on docs/analysis/precise-suite-evidence-reuse.md | green |
 | TEST-3190 | Spec-AC-09 | integration | tests/skills/test-aai-suite-reuse.sh | test_3190 runs the guarded select-suites.mjs as the entry point and the existing test-aai-suite-select.sh runs unchanged (Verification) against the guarded select-suites.mjs (CLI output contract) | `sed:s/if \(isMain\) runMain\(/if (false) runMain(/` on .aai/scripts/select-suites.mjs | green |
 

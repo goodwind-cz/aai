@@ -41,6 +41,7 @@ const HARNESS = [
 const TEMP_WINDOW_MS = 3600 * 1000;
 const ENV_PREFIXES = ['AAI_', 'GIT_', 'NODE_', 'npm_config_'];
 const ENV_FIXED = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR', 'SHELL'];
+const STARTUP_HOOK_VARS = ['BASH_ENV', 'ENV'];
 const ENV_EXCLUDED = ['AAI_SUITE_REUSE', 'AAI_TEST_REF_ID', 'AAI_REAP_STEP_START_EPOCH'];
 const HISTORY_RE = /git log|rev-parse|merge-base|git diff|git show|git describe/;
 const MARKER_RE = /gh api|gh pr|curl |ls-remote|git push|git fetch|https?:\/\//;
@@ -349,6 +350,8 @@ export function checkSuites({ root, suites, mode = 'selected', isolation = 'on',
 }
 function decide(ctx, suite, id) {
   const entry = ctx.manifest.suites[suite];
+  // A bash startup hook (BASH_ENV, ENV) runs code outside the identity: fail closed, never hash it.
+  if (STARTUP_HOOK_VARS.some((v) => ctx.env[v])) return { status: 'RUN', reason: 'bash-startup-hook' };
   if (ctx.manifest.state === 'invalid') return { status: 'RUN', reason: 'manifest-invalid' };
   if (!entry) return { status: 'RUN', reason: 'not-declared' };
   if (entry.live !== false) return { status: 'RUN', reason: 'live' };
@@ -386,11 +389,13 @@ export function recordSuite({ root, suite, runDir, metrics, isolation = 'isolate
   if (m.tripwire_attested !== true || m.tripwire_hasher_degraded !== false) return no('not-attested');
   if (isolation !== 'isolated' || seeding !== 'seeded') return no('not-isolated');
   const pre = readText(path.join(runDir, `${suite}.reuse-identity.json`));
+  if (pre === null) return no('no-identity');
+  let before;
+  try { before = JSON.parse(pre); } catch { return no('no-identity'); }
+  if (!before || typeof before !== 'object' || !Array.isArray(before.args)) return no('no-identity');
   const ctx = loadContext(root, { env: e, runtime, seedPaths, policyVersion, timeoutSeconds });
   const entry = ctx.manifest.suites[suite];
   if (ctx.manifest.state !== 'ok' || !entry || entry.live !== false) return no('not-declared');
-  let before;
-  try { before = JSON.parse(pre); } catch { return no('no-identity'); }
   const after = computeIdentity(ctx, suite, before.args);
   if (after.unresolved.length) return no('inputs-unresolvable');
   if (after.identity !== before.identity) return no('inputs-changed-during-run');
