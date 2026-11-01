@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 49e24c1e4b683cdbb8d4747a742f79955599241172d374c814f692e881c6dd17
+frozen_sha256: a2ccfdd77719f400d999b9e7f7c6a1c90871ba3397c67416014b074d75cfceeb
 ceremony_level: 2
 links:
   requirement: precise-suite-evidence-reuse
@@ -216,6 +216,18 @@ framework copied without the helper keeps working).
   suite-map row and a `tests/skills/test-<suite>.sh` file; otherwise exit 1
   with one line per offending suite naming `not-in-suite-map` or
   `no-suite-file`.
+- Admission gate (residual R1): `lint --minimal-tree [--suite S] [--manifest F]`
+  runs `lint`, then for every manifest suite builds a scratch git repository
+  holding only that suite's identity files (the `explain` inputs, which carry the
+  D4 (c) harness) plus the fixed array `MINIMAL_TREE_FRAMEWORK` (empty today:
+  the framework starts from the harness alone), runs
+  `bash tests/skills/test-framework.sh --skill <suite>` there fresh
+  (`AAI_SUITE_REUSE=0`, no `CI`) and requires `Total: 1`, `Passed: 1 (100%)`
+  and no failed or skipped line. It prints `MINIMAL-TREE-PASS <suite> <seconds>`
+  or `MINIMAL-TREE-FAIL <suite> <seconds> <reason>` per suite and exits 1 on any
+  fail. A suite that fails in its minimal tree must not be in the manifest. This,
+  not the D4 (d) tokenizer, is the admission gate; a manifest edit runs it through
+  TEST-3194 because the aai-suite-reuse suite is selected for the manifest.
 
 ### D4 The identity (closed component list)
 
@@ -248,25 +260,44 @@ canonical JSON value:
   without a trailing slash (`"$ROOT/docs"`, `$ROOT/.aai`, `"tests"`; a bare
   `.aai`, `tests` or `docs` counts as a token only when `/`, a quote, `=`
   or `(` precedes it, so prose does not) names that directory exactly as
-  `docs/` does. Fail closed: a reference that contains an expansion (`$x`, `${x}`,
-  `$(...)`, a template `${}`, `*`, `?`, `[` or `{`) or is built from the file's
-  own directory is accepted only when it starts at a known base (a literal
-  `.aai`, `tests` or `docs`, a repo-root variable such as `$ROOT`, or
-  `$SCRIPT_DIR` or `$(dirname ...)` in a file that derives its location from
-  `BASH_SOURCE` or `$0`) followed by a fully literal directory prefix of at
-  least one segment, and it then widens to that deepest fully literal
-  directory (or names the file, when the literal is a file), for example
-  `.aai/scripts/aai-${x}.mjs` or `$SCRIPT_DIR/fixtures/pre-$X.txt`. Everything
-  else is unresolvable and the suite is not reusable (`check` prints
-  `RUN <suite> reason=inputs-unresolvable`, `record` refuses with
-  `inputs-unresolvable`): an expansion straight after a base or after only
-  dots (`"$SCRIPT_DIR/$s.sh"`, `"${ROOT}/${name}"`, `"$(dirname "$0")/$f"`), a
-  variable derived from the own directory under any other name (`HERE=`,
-  `DIR=$(dirname "$0")`), a `cd` into the own directory, a literal closed by a
-  quote before more text (`"$ROOT/docs/pro"$S`), and concatenated segments. A
-  bare `$SCRIPT_DIR/../..` names nothing only where it computes a repo-root
-  variable (`ROOT`, `PROJECT_ROOT`, `REPO_ROOT` and the like), otherwise it is
-  unresolvable. Literals inside files under `.aai/`
+  `docs/` does. A literal followed directly by an expansion or glob character
+  (`$`, `*`, `?`, `[`, `{`) widens to the deepest fully literal directory before
+  it (`.aai/scripts/aai-${x}.mjs` widens to `.aai/scripts/`). The tokenizer
+  recognizes only these reference forms: a `.aai`, `tests` or `docs` token as
+  above (so `"$ROOT/docs/x"` is the token `docs/x`), a `lib/<name>` token in a
+  `tests/skills/` file, `$SCRIPT_DIR/<literal>` and `$(dirname ...)/<literal>`
+  (resolved against the file's own directory, in a file that derives its
+  location from `BASH_SOURCE` or `$0`), and ESM relative `import`/`import()`.
+  Exactly these forms are unresolvable, and then the suite is not reusable
+  (`check` prints `RUN <suite> reason=inputs-unresolvable`, `record` refuses with
+  `inputs-unresolvable`): a repo-root variable (`$ROOT`, `$PROJECT_ROOT`,
+  `$REPO_ROOT` and the other names the helper lists) followed directly by an
+  expansion (`"$ROOT/$f"`); `$SCRIPT_DIR/` or `$(dirname ...)/` followed directly
+  by an expansion or by only dots and slashes (`"$SCRIPT_DIR/$s.sh"`,
+  `"$(dirname "$0")/$f"`, a bare `$SCRIPT_DIR/../..` anywhere except on a line
+  that assigns a repo-root variable), or used in a file that does not derive its
+  location from `BASH_SOURCE` or `$0`; a variable assigned from `dirname` or
+  `pwd` over `BASH_SOURCE` or `$0` at the start of a line under a name other than
+  `SCRIPT_DIR` or a repo-root name, when it is used later (`HERE=$(dirname "$0")`);
+  `cd "$(dirname "$0")"`-style entry into the own directory outside an assignment;
+  a path literal closed by a quote before more text (`"$ROOT/docs/pro"$S`);
+  concatenated segments (`"docs"/x`); and a literal with an empty directory
+  prefix. Every other variable-built, derived or indirect form is NOT detected
+  and is covered by residual R1, not by this rule: the tokenizer is advisory,
+  admission safety comes from the minimal-tree admission test (Spec-AC-08,
+  `suite-reuse.mjs lint --minimal-tree`, TEST-3194). Among them: an expansion
+  straight after a base written in another spelling (`"$SCRIPT_DIR"/$s.sh`,
+  `"${SCRIPT_DIR:-.}/$s.sh"`, `"${0%/*}/$s.sh"`, `"$ROOT"/$f`,
+  `"${ROOT:-.}/$f"`), a literal closed by a quote before a glob, brace or
+  concatenation in JS or shell (`"docs/pro"*`, `"docs/pro"{a,b}`,
+  `readFileSync("docs/pro" + s)`), own-directory variables assigned other than at
+  the start of a line or from `${BASH_SOURCE%/*}`, `cd --`, `pushd` or `cd
+  "$SCRIPT_DIR"` into the own directory, `find "$ROOT" -name ...`, a repo root
+  from `git rev-parse --show-toplevel`, `$PWD` or `process.cwd()`, own-directory
+  JS forms (`import.meta.url`, `__dirname`, `createRequire`, `new URL`, a template
+  `import()`), and a plain relative name with no base. A literal with a base
+  spelled `"$ROOT/README.md"` names no token and is not followed either (list
+  such a file in the manifest `inputs`). Literals inside files under `.aai/`
   are not followed (M3);
   (e) each seed path (the framework's effective seed list) that exists, when
   its basename occurs in the text of any closure file.
@@ -515,7 +546,7 @@ stay as they are; CI never reuses (D6).
 | Spec-AC-05 | WHEN a recorded suite then fails or skips (exit 42) in a local run THEN its store entry is deleted and the next run executes it with reason=no-record; record refuses to store with reason not-pass, not-attested, not-isolated or inputs-changed-during-run for the matching metrics or identity condition | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3175.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3176.log | — | D5 |
 | Spec-AC-06 | WHEN the framework runs without --skill, or with CI set, GITHUB_ACTIONS true, AAI_SUITE_REUSE=0 or isolation off THEN it prints Evidence reuse off with full-sweep, ci, opt-out or isolation-off and executes every suite despite a valid record; a full sweep records passes, a ci or opt-out run writes no store entry; every suite runs with AAI_SUITE_REUSE=0 in its own environment; release-dry-run.mjs passes AAI_SUITE_REUSE 0 to the framework it starts | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3177.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3178.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3179.log | — | D6 |
 | Spec-AC-07 | WHEN a suite is reused THEN metrics.jsonl holds status REUSED with reused_from_run and reused_log, the summary prints Reused with the count, Passed counts executed suites only, the test-runs.jsonl line carries reused while total stays the executed count and the isolation invariant holds; WHEN the cited log is missing or its sha256 differs THEN check prints RUN reason=log-missing | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3180.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3181.log | — | D7 D5 |
-| Spec-AC-08 | lint exits 0 on the live repository; the live manifest lists at least 5 suites, each with live false, a non-empty note, a suite-map row and a suite file, and a Node fs read trace (the read-trace.cjs preload; bash, git, fs.promises, copyFileSync and children without NODE_OPTIONS are not traced) of each listed suite shows no traced read inside the checkout outside the suite's identity; on a fixture manifest naming a suite without a suite-map row lint exits 1 and names the suite and not-in-suite-map | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3182.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3193.log | — | D3 |
+| Spec-AC-08 | lint exits 0 on the live repository; the live manifest lists at least 5 suites, each with live false, a non-empty note, a suite-map row and a suite file, and a Node fs read trace (the read-trace.cjs preload; bash, git, fs.promises, copyFileSync and children without NODE_OPTIONS are not traced) of each listed suite shows no traced read inside the checkout outside the suite's identity; on a fixture manifest naming a suite without a suite-map row lint exits 1 and names the suite and not-in-suite-map; the admission gate `lint --minimal-tree` exits 0 on the live repository with one MINIMAL-TREE-PASS line per manifest suite (each passes fresh through the framework in a scratch copy holding only its identity files), and exits 1 with MINIMAL-TREE-FAIL for a fixture manifest that adds aai-check-state | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3182.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3193.log | — | D3 |
 | Spec-AC-09 | importing select-suites.mjs from another module prints nothing, does not set an exit code and exposes parseSuiteMap and matchesGlob; the helper's declared globs for a suite equal parseSuiteMap's globs for that suite; tests/skills/test-aai-suite-select.sh passes unchanged | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3183.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3190.log | — | D2 |
 | Spec-AC-10 | tests/skills/suite-reuse.Tests.ps1 passes at least 4 cases with 0 failed and 0 skipped under local pwsh 7 (hit, edited input, untracked added, slash-separated store paths); both path lists of ps1-quality.yml list .aai/scripts/suite-reuse.mjs and test-aai-win-fallback.sh test_034 passes | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3184.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3185.log | — | D10 |
 | Spec-AC-11 | SKILL_VERIFY carries a paragraph starting Reuse exception: after the Iron Law naming REUSED, the original run, reading its log, and the full sweep before close, CI, main, nightly and release as always executed; VALIDATION step 5 c2 names a REUSED suite as counting in an intermediate round; the prompt glob grows at most 600 B, credited by one ledger entry naming precise-suite-evidence-reuse, and test-aai-prompt-diet.sh TEST-010 and TEST-012 pass | done | docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3186.log, docs/ai/tdd/precise-suite-evidence-reuse/green/green-TEST-3187.log | — | D9 |
@@ -587,6 +618,7 @@ stay as they are; CI never reuses (D6).
 | TEST-3188 | Spec-AC-12 | contract | tests/skills/test-aai-suite-reuse.sh | test_3188: PROFILES.yaml core has the suite-reuse.mjs row; the real select-suites.mjs selects aai-suite-reuse for the helper, the manifest, test-framework.sh and release-dry-run.mjs; the helper is at most 600 lines, its imports are node: modules, ./select-suites.mjs, ./lib/tree-hash.mjs and ./lib/runtime-file.mjs, it has no shell true, and its IDENTITY_COMPONENTS line equals the D4 literal | `sed:s/  - \.aai\/scripts\/suite-reuse\.mjs/  - .aai\/scripts\/suite-reusx.mjs/` on .aai/system/PROFILES.yaml | green |
 | TEST-3192 | Spec-AC-02 | integration | tests/skills/test-aai-suite-reuse.sh | test_3192: fixture repo with the real framework; suite fx reads docs/data/probe.txt by a path literal; run 2 is REUSED; after git mv of the probe file the helper prints RUN reason=inputs, the framework executes fx (marker 2), prints no REUSED and exits non-zero because the read fails | `sed:s/'inputs', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3193 | Spec-AC-08 | contract | tests/skills/test-aai-suite-reuse.sh | node case TEST-3193: each suite of the live manifest runs once with tests/skills/lib/read-trace.cjs preloaded (NODE_OPTIONS); every traced Node fs read inside the checkout is a file in the suite's explain identity (the untraced channels are bash, git, fs.promises, copyFileSync, cpSync and children without NODE_OPTIONS), so a suite that reads an undeclared file through a traced call (the r1 finding B1) fails the case | `sed:s/inputsMap\[rel\] = fileHash\(ctx, rel\)/void rel/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3194 | Spec-AC-08 | contract | tests/skills/test-aai-suite-reuse.sh | node cases TEST-3194: `lint --minimal-tree` on the live manifest exits 0 with MINIMAL-TREE-PASS for every manifest suite (fresh framework run in a scratch copy of only its identity files); with a fixture manifest that adds aai-check-state (reads docs/TECHNOLOGY.md and more outside its identity) it exits 1 with MINIMAL-TREE-FAIL aai-check-state | `sed:s/ok = r.status === 0 /ok = r.status !== 0 /` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3189 | Spec-AC-13 | inspection | tests/skills/test-aai-suite-reuse.sh | test_3189: the note has a line equal to ## Measurements, at least 3 table rows per mode in each of two rounds, a reused count and both medians per round, every check value at most 5, a statement of where reuse helps and why docs-closure suites miss, and names a 40-character commit sha, Node, Bash and Git versions (no comparison of the on and off medians) | `sed:s/## Measurements/## Measurementz/` on docs/analysis/precise-suite-evidence-reuse.md | green |
 | TEST-3190 | Spec-AC-09 | integration | tests/skills/test-aai-suite-reuse.sh | test_3190 runs the guarded select-suites.mjs as the entry point and the existing test-aai-suite-select.sh runs unchanged (Verification) against the guarded select-suites.mjs (CLI output contract) | `sed:s/if \(isMain\) runMain\(/if (false) runMain(/` on .aai/scripts/select-suites.mjs | green |
 
@@ -602,6 +634,9 @@ under `docs/ai/tdd/precise-suite-evidence-reuse/red/`:
   the helper entry.
 - TEST-3186 and TEST-3187: the prompt paragraph and the ledger entry are
   absent. TEST-3188: no PROFILES or suite-map row. TEST-3189: no note.
+- TEST-3194: the helper at c09a71cd has no `--minimal-tree` mode, so `lint` prints
+  no MINIMAL-TREE line and exits 0 for the aai-check-state fixture manifest
+  (`red-r5-minimal-tree-admission.log`).
 - TEST-3190: green on the baseline by design (a regression pin for the
   guarded CLI); its RED is the mutation record (the guard never calls main),
   which mutation-gate accepts.
@@ -727,7 +762,12 @@ WORKFLOW.md, existing suite-map rows.
 ## Risks and rollback
 
 - R1 False hit through a read the static rules cannot see (a path built at
-  run time, a corpus walk from a production default). Mitigations: the
+  run time, a corpus walk from a production default, and every variable-built
+  or indirect form D4 (d) does not list as detected; the tokenizer is advisory).
+  Admission safety comes from the minimal-tree admission test (Spec-AC-08,
+  TEST-3194): a suite that does not pass fresh in a repository copy holding only
+  its identity files and a fixed framework list may not be in the manifest.
+  Mitigations: the
   manifest is opt-in per suite with a reviewed `note`; directory literals
   hash whole directories; the shared lib tree is in every identity; every
   final-verdict context executes fresh (D6). Residual: a wrong `note` can

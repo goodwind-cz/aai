@@ -15,11 +15,12 @@
 //   node .aai/scripts/suite-reuse.mjs record --root R --run-dir D --suite S
 //        --isolation isolated --seeding seeded [--seed-paths "a b"]
 //   node .aai/scripts/suite-reuse.mjs forget --root R --suite S
-//   node .aai/scripts/suite-reuse.mjs lint    [--root R]
+//   node .aai/scripts/suite-reuse.mjs lint    [--root R] [--minimal-tree [--manifest FILE] [--suite S ...]]
 //   node .aai/scripts/suite-reuse.mjs explain --suite S [--root R]
 
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,8 +59,8 @@ function firstLine(cmd, args) {
 }
 
 // ---- manifest (D3) ----
-export function loadManifest(root) {
-  const raw = readText(path.join(root, MANIFEST_REL));
+export function loadManifest(root, rel = MANIFEST_REL) {
+  const raw = readText(path.join(root, rel));
   if (raw === null) return { state: 'absent', suites: {} };
   let m;
   try { m = JSON.parse(raw); } catch { return { state: 'invalid', suites: {} }; }
@@ -82,7 +83,7 @@ export function loadContext(root, opts = {}) {
   const seeds = (opts.seedPaths || env.AAI_TEST_ISOLATION_SEED || DEFAULT_SEEDS).split(/\s+/).filter(Boolean);
   const files = listTreeFiles(root);
   return {
-    root, map, env, seeds, files, fileSet: new Set(files), manifest: loadManifest(root),
+    root, map, env, seeds, files, fileSet: new Set(files), manifest: loadManifest(root, opts.manifestRel),
     runtime: opts.runtime || {
       node: process.version, platform: process.platform, arch: process.arch,
       git: firstLine('git', ['--version']), bash: firstLine('bash', ['--version']),
@@ -384,6 +385,45 @@ export function lintManifest({ root }) {
   return { ok: problems.length === 0, problems };
 }
 
+// ---- minimal-tree admission gate (D4 residual R1) ----
+// The tokenizer is advisory; admission safety comes from this test. A suite stays in
+// the manifest only if it passes fresh, through the framework, in a repository copy
+// holding ONLY its identity files (explain's inputs, which already carry the harness
+// of D4 (c)) plus MINIMAL_TREE_FRAMEWORK (the fixed extra files the framework needs to start).
+// Measured: the framework starts from the D4 (c) harness alone, so nothing is added; a future need is added here.
+export const MINIMAL_TREE_FRAMEWORK = [];
+export function minimalTreeAdmit({ root, suites, manifestPath, timeoutMs = 600000, keep = false }) {
+  const rel = manifestPath ? posix(path.relative(root, path.resolve(manifestPath))) : MANIFEST_REL;
+  const ctx = loadContext(root, { manifestRel: rel });
+  if (ctx.manifest.state !== 'ok') return [{ suite: '-', ok: false, detail: `manifest-${ctx.manifest.state}` }];
+  const results = [];
+  for (const suite of suites && suites.length ? suites : Object.keys(ctx.manifest.suites)) {
+    const t0 = Date.now();
+    const id = computeIdentity(ctx, suite, ['bash', `tests/skills/test-${suite}.sh`]);
+    const want = new Set([...Object.keys(id.inputs_map).filter((p) => id.inputs_map[p] !== 'absent'), ...MINIMAL_TREE_FRAMEWORK]);
+    const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), `suite-reuse-min-${suite}-`));
+    let ok = false; let detail = '';
+    try {
+      for (const f of want) {
+        if (!fs.existsSync(path.join(root, f))) continue;
+        fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+        fs.copyFileSync(path.join(root, f), path.join(dir, f));
+      }
+      const git = (...a) => spawnSync('git', ['-c', 'user.email=min@example.invalid', '-c', 'user.name=min', '-c', 'commit.gpgsign=false', ...a], { cwd: dir, encoding: 'utf8' });
+      git('init', '-q', '-b', 'main'); git('add', '-A'); git('commit', '-q', '-m', 'minimal tree');
+      const env = { ...process.env, AAI_SUITE_REUSE: '0', AAI_TEST_PARALLEL: '1' };
+      for (const k of ['AAI_ROLE', 'CI', 'GITHUB_ACTIONS', 'AAI_TEST_REF_ID']) delete env[k];
+      const r = spawnSync('bash', ['tests/skills/test-framework.sh', '--skill', suite], { cwd: dir, env, encoding: 'utf8', timeout: timeoutMs });
+      const out = `${r.stdout || ''}${r.stderr || ''}`;
+      const plain = out.replace(/\x1b\[[0-9;]*m/g, '');
+      ok = r.status === 0 && /Total:\s+1\b/.test(plain) && /Passed:\s+1 \(100%\)/.test(plain) && !/Failed:|Skipped:/.test(plain);
+      detail = ok ? `${want.size} files` : `rc=${r.status} ${out.split('\n').filter((l) => /FAIL|No such file|not found|error/i.test(l)).slice(0, 4).join(' | ').slice(0, 400)}`;
+    } finally { if (!keep) fs.rmSync(dir, { recursive: true, force: true }); }
+    results.push({ suite, ok, detail, seconds: Math.round((Date.now() - t0) / 100) / 10 });
+  }
+  return results;
+}
+
 // ---- explain: what a suite's identity reads, plus advisory live markers ----
 export function explainSuite({ root, suite, env }) {
   const ctx = loadContext(root, { env });
@@ -401,6 +441,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--suite') o.suites.push(argv[++i]);
+    else if (a === '--minimal-tree') o.minimalTree = true;
     else if (a.startsWith('--')) o[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = argv[++i];
   }
   return o;
@@ -424,6 +465,11 @@ function cli(argv) {
     const r = lintManifest({ root });
     r.problems.forEach((p) => out(`${p.suite} ${p.reason}`));
     process.exitCode = r.ok ? 0 : 1;
+    if (o.minimalTree && r.ok) {
+      const res = minimalTreeAdmit({ root, suites: o.suites, manifestPath: o.manifest });
+      res.forEach((x) => out(`${x.ok ? 'MINIMAL-TREE-PASS' : 'MINIMAL-TREE-FAIL'} ${x.suite} ${x.seconds}s ${x.detail}`));
+      if (res.some((x) => !x.ok)) process.exitCode = 1;
+    }
   } else if (cmd === 'explain') {
     const r = explainSuite({ root, suite: o.suites[0] });
     const lines = [`suite ${o.suites[0]}: ${Object.keys(r.id.inputs_map).length} input file(s), closure ${r.id.closure.length}, history ${r.history ? 'yes' : 'no'}`];

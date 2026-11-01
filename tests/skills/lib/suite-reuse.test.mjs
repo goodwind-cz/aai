@@ -496,6 +496,36 @@ test('TEST-3193 no Node fs read traced by read-trace.cjs in a live manifest suit
   }
 });
 
+// TEST-3194: the admission gate (residual R1). The tokenizer is advisory; a suite may
+// stay in the manifest only if it passes fresh through the framework in a copy of the
+// repository holding just its identity files.
+function admit(manifestPath, suites) {
+  const args = [HELPER, 'lint', '--root', REPO, '--minimal-tree', ...suites.flatMap((s) => ['--suite', s])];
+  if (manifestPath) args.push('--manifest', manifestPath);
+  const env = { ...process.env };
+  delete env.AAI_ROLE; delete env.CI; delete env.GITHUB_ACTIONS;
+  return spawnSync(process.execPath, args, { cwd: REPO, env, encoding: 'utf8', timeout: 900000 });
+}
+
+test('TEST-3194 every suite of the live manifest passes fresh in its minimal tree', () => {
+  const man = JSON.parse(fs.readFileSync(path.join(REPO, 'tests/skills/suite-reuse.json'), 'utf8'));
+  const r = admit(null, []);
+  assert.equal(r.status, 0, `minimal-tree admission: ${r.stdout}${r.stderr}`);
+  for (const suite of Object.keys(man.suites)) assert.match(r.stdout, new RegExp(`MINIMAL-TREE-PASS ${suite} `), `${suite} admitted`);
+});
+
+test('TEST-3194 a manifest naming aai-check-state is refused: it reads outside its identity', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'suite-reuse-admit-'));
+  roots.push(dir);
+  const man = JSON.parse(fs.readFileSync(path.join(REPO, 'tests/skills/suite-reuse.json'), 'utf8'));
+  man.suites['aai-check-state'] = { inputs: [], live: false, note: 'fixture: reads docs/TECHNOLOGY.md outside its identity' };
+  const file = path.join(dir, 'manifest.json');
+  fs.writeFileSync(file, JSON.stringify(man));
+  const r = admit(file, ['aai-check-state']);
+  assert.equal(r.status, 1, `must refuse: ${r.stdout}${r.stderr}`);
+  assert.match(r.stdout, /MINIMAL-TREE-FAIL aai-check-state /);
+});
+
 test('TEST-3183 select-suites.mjs imports silently and its map parser feeds the helper', async () => {
   const child = spawnSync(process.execPath, ['--input-type=module', '-e',
     `import * as s from ${JSON.stringify(pathToFileURL(SELECTOR).href)};`

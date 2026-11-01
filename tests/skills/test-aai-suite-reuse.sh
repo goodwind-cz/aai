@@ -226,6 +226,11 @@ test_3192_renamed_read_file_not_reused() {
 # identity (the validator's r1 finding B1 was a suite that did).
 test_3193_manifest_suites_read_only_their_identity() { node_cases TEST-3193; }
 
+# test_3194: the admission gate (residual R1). Every manifest suite passes fresh,
+# through the framework, in a copy holding only its identity files; a manifest naming
+# aai-check-state (reads outside its identity) is refused.
+test_3194_minimal_tree_admission() { node_cases TEST-3194; }
+
 # test_3165: a second selected run of an unchanged declared suite reports it
 # REUSED with the first run's provenance and does not execute it.
 test_3165_reused_not_executed() {
@@ -590,6 +595,7 @@ main() {
   test_3190_select_suites_cli_still_runs
   test_3192_renamed_read_file_not_reused
   test_3193_manifest_suites_read_only_their_identity
+  test_3194_minimal_tree_admission
   test_3184_pester_twin
   test_3185_workflow_path_lists
   test_3186_canon_reconciliation
