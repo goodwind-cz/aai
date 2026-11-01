@@ -30,7 +30,7 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased] — refactor: validate-skills and aai-live run on Node; pre-compact-save retired (node-first-small-pairs)
 
-- `validate-skills` and `aai-live` now have one implementation each, in `.aai/scripts/validate-skills.mjs` and `.aai/scripts/aai-live.mjs`; the `.sh` and `.ps1` files are thin launchers with the same arguments and exit codes. The three pairs went from 481 to 156 lines.
+- `validate-skills` and `aai-live` now have one implementation each, in `.aai/scripts/validate-skills.mjs` and `.aai/scripts/aai-live.mjs`; the `.sh` and `.ps1` files are thin launchers with the same arguments and exit codes. The three pairs went from 481 to 158 lines.
 - `validate-skills` follows the bash copy everywhere: a directory where a required file should be counts as missing, warnings print `WARN:` on stdout, and a missing target prints `ERROR: Target not found`.
 - `aai-live`: `AAI_LIVE_OPENER` now works on Windows too, the default Windows opener is `explorer.exe`, and under `--watch` a stopped launcher (SIGINT or SIGTERM) also stops the generator.
 - `pre-compact-save.sh` and `.ps1` are removed: no shipped install wired the PreCompact hook and nothing read its output. Existing installs keep their copy, since `aai-sync` preserves target-only scripts. `aai-doctor` CAT-09 now warns only when `.claude/settings.json` or `.claude/settings.local.json` names `pre-compact-save` and no copy of the script exists.

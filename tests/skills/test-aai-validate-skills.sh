@@ -35,7 +35,6 @@ WORKFLOW="$PROJECT_ROOT/.github/workflows/ps1-quality.yml"
 RFC17="$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md"
 SMOKE_PS1="$PROJECT_ROOT/tests/self-hosting/test-self-hosting-smoke.ps1"
 V7_LINE="ERROR: validate-skills needs node (validate-skills.mjs unavailable)"
-L11_LINE="aai-live: refused - node not found in PATH or aai-live.mjs missing"
 # The retired script's name is built from two parts so this file never names it (TEST-3213 scans tracked files).
 RETIRED="pre-compact""-save"
 REQUIRED_FILES=".aai/SKILL_CHECK_STATE.prompt.md .aai/SKILL_INTAKE.prompt.md .aai/SKILL_LOOP.prompt.md .aai/SKILL_HITL.prompt.md .aai/SKILL_BOOTSTRAP.prompt.md .aai/SKILL_VALIDATE_REPORT.prompt.md .aai/SKILL_CANONICALIZE.prompt.md .aai/SKILL_TDD.prompt.md .aai/SKILL_WORKTREE.prompt.md .aai/SKILL_CODE_REVIEW.prompt.md .aai/SKILL_SHARE.prompt.md .aai/scripts/aai-bootstrap.sh"

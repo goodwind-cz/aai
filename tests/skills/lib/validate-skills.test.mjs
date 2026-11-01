@@ -93,6 +93,15 @@ test('TEST-3202 the CRLF tick log with a space after the colon also gives it (V-
   assert.ok(validate(root).out.includes('WARN: LOOP_TICKS.jsonl has no skill-mode entries yet.'));
 });
 
+test('TEST-3202 an unreadable tick log gives the no-skill-mode WARN, not a crash', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, () => {
+  const root = fixture({ marker: true, ticks: '{"mode":"skill"}\n' });
+  fs.chmodSync(path.join(root, TICKS), 0o000);
+  const r = validate(root);
+  fs.chmodSync(path.join(root, TICKS), 0o644);
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.out.slice(2), ['WARN: LOOP_TICKS.jsonl has no skill-mode entries yet.', 'Skill validation completed.']);
+});
+
 test('TEST-3202 a CRLF log with the literal substring is detected', () => {
   const root = fixture({ marker: true, ticks: '{"a":1}\r\n{"mode":"skill"}\r\n' });
   assert.ok(validate(root).out.includes('OK: LOOP_TICKS.jsonl contains skill-mode evidence.'));

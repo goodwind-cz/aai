@@ -14,6 +14,8 @@ export const REQUIRED = [
 ];
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
+// An unreadable tick log counts as no skill-mode evidence, as the bash grep did.
+const readText = (p) => { try { return readFileSync(p, 'utf8'); } catch { return ''; } };
 const TICK = '"mode":"skill"';
 const WARN = 'WARN: ';
 const MISSING = 'ERROR: Missing required file: ';
@@ -31,7 +33,7 @@ export function validate(target) {
     : WARN + 'Missing ' + marker + ' (bootstrap may not have run yet).');
   const ticks = path.join(root, 'docs/ai/LOOP_TICKS.jsonl');
   if (!isFile(ticks)) out.push(WARN + 'Missing docs/ai/LOOP_TICKS.jsonl (no runtime evidence yet).');
-  else if (readFileSync(ticks, 'utf8').includes(TICK)) out.push('OK: LOOP_TICKS.jsonl contains skill-mode evidence.');
+  else if (readText(ticks).includes(TICK)) out.push('OK: LOOP_TICKS.jsonl contains skill-mode evidence.');
   else out.push(WARN + 'LOOP_TICKS.jsonl has no skill-mode entries yet.');
   out.push('Skill validation completed.');
   return { code: 0, out, err: [] };
