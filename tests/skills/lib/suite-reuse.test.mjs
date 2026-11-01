@@ -193,6 +193,9 @@ test('TEST-3167 a partly built path widens to its deepest fully literal director
     'prefix then bare variable': ['cat tests/skills/fix-$X.json', 'tests/skills/fix-other.json'],
     'prefix then star': ['cat tests/skills/fixtures/part-*.txt', 'tests/skills/fixtures/part-z.txt'],
     'variable as a whole segment': ['cat tests/skills/fixtures/${n}/x.txt', 'tests/skills/fixtures/q/x.txt'],
+    'literal ending in a dot then variable': ['ext=md; cat "$ROOT/docs/specs/SPEC-0001.${ext}"', 'docs/specs/SPEC-0001.md'],
+    'literal ending in a dot then star': ['cat tests/skills/fixtures/part.*', 'tests/skills/fixtures/part.txt'],
+    'brace pair after a dot': ['bash .aai/scripts/install-hook.{sh,ps1}', '.aai/scripts/install-hook.sh'],
   };
   for (const [form, [body, touched]] of Object.entries(forms)) {
     const a = mkSuiteRepo(body, { 'tests/skills/fixtures/keep.txt': 'k\n', '.aai/scripts/keep.mjs': 'x\n' });

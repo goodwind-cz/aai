@@ -1413,6 +1413,13 @@ suites:
       - tests/skills/suite-reuse.Tests.ps1
       - tests/skills/test-framework.sh
       - tests/skills/lib/suite-reuse.test.mjs
+      # the manifest suites' own files: editing one re-runs the admission gate
+      - tests/skills/test-aai-feedback-status.sh
+      - tests/skills/test-aai-pricing.sh
+      - tests/skills/test-aai-redact.sh
+      - tests/skills/test-aai-orchestration-mode.sh
+      - tests/skills/test-aai-runtime-file.sh
+      - tests/skills/lib/assert-payload.sh
       - tests/skills/lib/read-trace.cjs
       - tests/skills/lib/prompt-diet-ledger.sh
       - docs/analysis/precise-suite-evidence-reuse.md

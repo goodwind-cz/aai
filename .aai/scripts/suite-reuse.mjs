@@ -154,9 +154,7 @@ export function computeClosure(ctx, suite) {
     // dynamic: the literal ends where a variable or glob begins, so its last
     // segment is only a prefix and the deepest fully literal directory is named.
     const addPath = (raw, dynamic) => {
-      let p = raw.replace(/[.,:;)]+$/, '');
-      const trimmed = p !== raw;
-      if (dynamic && !trimmed) p = p.slice(0, p.lastIndexOf('/') + 1);
+      let p = dynamic ? raw.slice(0, raw.lastIndexOf('/') + 1) : raw.replace(/[.,:;)]+$/, '');
       if (!p) { unresolved.push(`${raw}<expansion> <- ${rel}`); return; }
       if (p.endsWith('/') || (!ctx.fileSet.has(p) && underDir(ctx, p).length)) {
         dirs.push(`${p} <- ${rel} (${underDir(ctx, p).length} files)`);
