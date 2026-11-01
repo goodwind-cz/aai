@@ -1547,6 +1547,15 @@ test_3208_watch_signal_forwarding() {
   done
   [[ "$(cat "$OPL")" == "EXISTS $real/docs/ai/live-status.html" ]] || { kill -9 "$pid" 2>/dev/null || true; log_fail "TEST-3208: the opener never saw the page under the real root, got: $(cat "$OPL") log: $(cat "$TEST_DIR/t3208.log")"; }
   pgrep -f "$real/.aai/scripts/generate-live-status.mjs" > /dev/null || { kill -9 "$pid" 2>/dev/null || true; log_fail "TEST-3208: positive control failed, no watch child of this scratch root is running"; }
+  # The watch child installs its signal handlers after its first run, so wait until a watch tick has rewritten the page.
+  local page="$real/docs/ai/live-status.html" m0 m1
+  m0="$(node -e 'process.stdout.write(String(require("fs").statSync(process.argv[1]).mtimeMs))' "$page")"
+  for i in $(seq 1 60); do
+    m1="$(node -e 'process.stdout.write(String(require("fs").statSync(process.argv[1]).mtimeMs))' "$page")"
+    [[ "$m1" != "$m0" ]] && break
+    sleep 0.2
+  done
+  [[ "$m1" != "$m0" ]] || { kill -9 "$pid" 2>/dev/null || true; log_fail "TEST-3208: no watch tick rewrote the page within 12 s"; }
   kill -TERM "$pid"
   alive=1
   for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do

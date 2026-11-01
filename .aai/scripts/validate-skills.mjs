@@ -44,5 +44,5 @@ export function main(argv) {
   return r.code;
 }
 
-const real = (p) => { try { return realpathSync(p); } catch { return path.resolve(p); } };
-if (process.argv[1] && real(process.argv[1]) === real(fileURLToPath(import.meta.url))) process.exitCode = main(process.argv.slice(2));
+const realOrResolve = (p) => { try { return realpathSync(p); } catch { return path.resolve(p); } };
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) process.exitCode = main(process.argv.slice(2));

@@ -13,7 +13,7 @@ const CANDIDATES = ['open', 'xdg-open'];
 const WIN_OPENER = 'explorer.exe';
 const OPENER_TIMEOUT_MS = 10000;
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
-const real = (p) => { try { return realpathSync(p); } catch { return path.resolve(p); } };
+const realOrResolve = (p) => { try { return realpathSync(p); } catch { return path.resolve(p); } };
 const refuse = (msg) => { process.stderr.write('aai-live: refused - ' + msg + '\n'); return 1; };
 
 export function resolveOutputPath(args, root) {
@@ -44,7 +44,7 @@ function openTarget(opener, target) {
 
 export async function main(argv) {
   const args = argv;
-  const here = path.dirname(real(fileURLToPath(import.meta.url)));
+  const here = path.dirname(realOrResolve(fileURLToPath(import.meta.url)));
   const root = path.resolve(here, '..', '..');
   const gen = path.join(here, 'generate-live-status.mjs');
   if (!isFile(gen)) return refuse('generator not found: ' + gen);
@@ -64,4 +64,4 @@ export async function main(argv) {
   return new Promise((resolve) => child.on('exit', (code) => resolve(code ?? 1)));
 }
 
-if (process.argv[1] && real(process.argv[1]) === real(fileURLToPath(import.meta.url))) process.exitCode = await main(process.argv.slice(2));
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) process.exitCode = await main(process.argv.slice(2));
