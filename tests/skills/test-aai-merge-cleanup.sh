@@ -1552,7 +1552,12 @@ const mergedContract = rows.filter(r => r.amendment_class === "contract" && r.re
 // a90cdce977d5 was recorded after its ride merged, so the
 // merge-time binding (provider-adapter-surfaces-closing-slice D6) leaves it unsigned-tracked.
 const postMergeRecord = "a90cdce977d5";
-const unsignedMerged = rows.filter(r => r.amendment_class === "contract" && r.ref_id !== unmergedRef && r.record_key !== postMergeRecord && r.bucket !== "signed" && rideMerged(r.ref_id));
+// 91c688d47ba3 (ref doctor-determinize, SPEC-0100 TEST-009 change) was filed
+// under an already-merged ride, so no merge can ever sign it; the same change
+// is re-filed under the small-pairs ride (which its merge signs). The ledger is
+// append-only, so the original cannot be withdrawn, only exempted here.
+const supersededRecord = "91c688d47ba3";
+const unsignedMerged = rows.filter(r => r.amendment_class === "contract" && r.ref_id !== unmergedRef && r.record_key !== postMergeRecord && r.record_key !== supersededRecord && r.bucket !== "signed" && rideMerged(r.ref_id));
 if (unsignedMerged.length > 0) {
   console.log(`FAIL ${unsignedMerged.length} merged contract amendments not signed: ${unsignedMerged.map(u => u.record_key).slice(0, 5).join(", ")}`);
   process.exit(1);

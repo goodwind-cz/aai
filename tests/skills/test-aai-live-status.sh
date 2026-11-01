@@ -37,6 +37,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GEN="$PROJECT_ROOT/.aai/scripts/generate-live-status.mjs"
 SPOOL="$PROJECT_ROOT/.aai/scripts/live-spool.sh"
 LIVE="$PROJECT_ROOT/.aai/scripts/aai-live.sh"
+LIVE_PS1="$PROJECT_ROOT/.aai/scripts/aai-live.ps1"
+LIVE_MJS="$PROJECT_ROOT/.aai/scripts/aai-live.mjs"
+LIVE_NODE_TEST="$PROJECT_ROOT/tests/skills/lib/aai-live.test.mjs"
+LIVE_PESTER="$PROJECT_ROOT/tests/skills/aai-live.Tests.ps1"
 REGISTRY="$PROJECT_ROOT/.aai/scripts/live-parsers/registry.mjs"
 CLAUDE_PARSER="$PROJECT_ROOT/.aai/scripts/live-parsers/claude-code.mjs"
 CODEX_PARSER="$PROJECT_ROOT/.aai/scripts/live-parsers/codex.mjs"
@@ -716,6 +720,7 @@ test_031_watch_warmup_opens_existing_html() {
   scratch="$(cd "$scratch" && pwd -P)"
   mkdir -p "$scratch/.aai/scripts/live-parsers" "$scratch/.aai/scripts/lib"
   cp "$LIVE" "$scratch/.aai/scripts/aai-live.sh"
+  cp "$LIVE_MJS" "$scratch/.aai/scripts/aai-live.mjs"
   cp "$GEN" "$scratch/.aai/scripts/generate-live-status.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$scratch/.aai/scripts/live-parsers/"
   cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$scratch/.aai/scripts/lib/runtime-file.mjs"
@@ -996,6 +1001,7 @@ test_037_one_shot_output_flag_opens_correct_file() {
   scratch="$(cd "$scratch" && pwd -P)"
   mkdir -p "$scratch/.aai/scripts/live-parsers" "$scratch/.aai/scripts/lib"
   cp "$LIVE" "$scratch/.aai/scripts/aai-live.sh"
+  cp "$LIVE_MJS" "$scratch/.aai/scripts/aai-live.mjs"
   cp "$GEN" "$scratch/.aai/scripts/generate-live-status.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$scratch/.aai/scripts/live-parsers/"
   cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$scratch/.aai/scripts/lib/runtime-file.mjs"
@@ -1432,6 +1438,197 @@ test_2420_line_budget_recorded() {
   log_pass "TEST-2420: the RFC row records the live line total ($n < 133)"
 }
 
+# ======================= TEST-3206..3210 (spec-node-first-small-pairs) =========
+# aai-live is one Node module (.aai/scripts/aai-live.mjs) plus two thin launchers.
+L11_LINE="aai-live: refused - node not found in PATH or aai-live.mjs missing"
+
+test_3206_live_resolvers() {
+  local out rc=0
+  [[ -f "$LIVE_MJS" ]] || log_fail "TEST-3206: .aai/scripts/aai-live.mjs does not exist"
+  [[ -f "$LIVE_NODE_TEST" ]] || log_fail "TEST-3206: tests/skills/lib/aai-live.test.mjs does not exist"
+  out="$(node --test --test-name-pattern TEST-3206 "$LIVE_NODE_TEST" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3206: node --test exited $rc"; }
+  [[ "$out" =~ pass\ [1-9] ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3206: node --test reported zero passing tests for the pattern"; }
+  log_pass "TEST-3206: output path, warm-up arguments and opener resolution follow L-1, L-2, L-5 and L-6"
+}
+
+# mk_live_root <name> [gen-stub-file]: sets LR to a physical scratch root holding the module and either the real generator
+# with its parsers and libs or the given stub generator; also copies the launcher.
+LR=""
+mk_live_root() {
+  LR="$TEST_DIR/$1"
+  rm -rf "$LR"; mkdir -p "$LR/.aai/scripts/live-parsers" "$LR/.aai/scripts/lib"
+  LR="$(node -e 'process.stdout.write(require("fs").realpathSync(process.argv[1]))' "$LR")"
+  [[ ! -f "$LIVE_MJS" ]] || cp "$LIVE_MJS" "$LR/.aai/scripts/aai-live.mjs"
+  cp "$LIVE" "$LR/.aai/scripts/aai-live.sh"
+  if [[ -n "${2:-}" ]]; then
+    cp "$2" "$LR/.aai/scripts/generate-live-status.mjs"
+  else
+    cp "$GEN" "$LR/.aai/scripts/generate-live-status.mjs"
+    cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$LR/.aai/scripts/live-parsers/"
+    cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$PROJECT_ROOT/.aai/scripts/lib/codex-rollout.mjs" "$LR/.aai/scripts/lib/"
+  fi
+}
+
+# mk_opener <name>: sets OPN to a stub that logs EXISTS or MISSING plus its first argument to OPL.
+OPN=""; OPL=""
+mk_opener() {
+  OPN="$TEST_DIR/$1.sh"; OPL="$TEST_DIR/$1.log"; : > "$OPL"
+  printf '%s\n' '#!/usr/bin/env bash' "if [[ -f \"\$1\" ]]; then echo \"EXISTS \$1\" >> \"$OPL\"; else echo \"MISSING \$1\" >> \"$OPL\"; fi" > "$OPN"
+  chmod +x "$OPN"
+}
+
+test_3207_live_oneshot_paths() {
+  [[ -f "$LIVE_MJS" ]] || log_fail "TEST-3207: .aai/scripts/aai-live.mjs does not exist"
+  local fh gen rc out node_bin
+  node_bin="$(command -v node)"
+  fh="$(mk_home t3207home)"
+  mk_live_root t3207root; mk_opener t3207op
+  local env_home=(HOME="$fh" USERPROFILE="$fh" CLAUDE_CONFIG_DIR="$fh/.claude" CODEX_HOME="$fh/.codex" GEMINI_HOME="$fh/.gemini")
+  local gargs=(--home "$fh" --cache "$LR/cache.json" --spool-dir "$LR/spool")
+  # (a) a custom --output: the opener sees the existing absolute page.
+  rc=0; env "${env_home[@]}" AAI_LIVE_OPENER="$OPN" node "$LR/.aai/scripts/aai-live.mjs" --output custom/page.html "${gargs[@]}" > "$TEST_DIR/t3207a.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-3207: one-shot --output exited $rc: $(cat "$TEST_DIR/t3207a.log")"
+  [[ "$(cat "$OPL")" == "EXISTS $LR/custom/page.html" ]] || log_fail "TEST-3207: the opener must see the existing custom page, got: $(cat "$OPL")"
+  # (b) --data-only opens nothing, and a data file is written (positive control for (c)).
+  : > "$OPL"; rm -rf "$LR/docs"
+  rc=0; env "${env_home[@]}" AAI_LIVE_OPENER="$OPN" node "$LR/.aai/scripts/aai-live.mjs" --data-only --output custom/b.html "${gargs[@]}" > "$TEST_DIR/t3207b.log" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-3207: --data-only exited $rc: $(cat "$TEST_DIR/t3207b.log")"
+  [[ ! -s "$OPL" ]] || log_fail "TEST-3207: --data-only must not call the opener, got: $(cat "$OPL")"
+  out="$(find "$LR/custom" -name '*.json' 2>/dev/null | wc -l | tr -d '[:space:]')"
+  [[ "$out" -ge 1 ]] || log_fail "TEST-3207: positive control failed, a --data-only run must write its data file"
+  # (c) no opener on an empty PATH: refuse before generating, even under --data-only.
+  rm -rf "$LR/custom"
+  rc=0; env -i PATH="" "${env_home[@]}" "$node_bin" "$LR/.aai/scripts/aai-live.mjs" --data-only --output custom/c.html "${gargs[@]}" > "$TEST_DIR/t3207c.out" 2> "$TEST_DIR/t3207c.err" || rc=$?
+  [[ "$rc" == 1 ]] || log_fail "TEST-3207: no opener must exit 1, got $rc"
+  [[ "$(cat "$TEST_DIR/t3207c.err")" == "aai-live: refused - no browser opener found on PATH (expected 'open' on macOS or 'xdg-open' on Linux; set AAI_LIVE_OPENER to override)" ]] \
+    || log_fail "TEST-3207: the L-3 line differs: $(cat "$TEST_DIR/t3207c.err")"
+  [[ ! -e "$LR/custom" ]] || log_fail "TEST-3207: the refusal must come before the generator runs, found $(ls "$LR/custom")"
+  # (d) a generator that exits 3: the code is returned and nothing is opened.
+  gen="$TEST_DIR/t3207-gen3.mjs"; printf '%s\n' 'process.exit(3);' > "$gen"
+  mk_live_root t3207gen "$gen"; : > "$OPL"
+  rc=0; env "${env_home[@]}" AAI_LIVE_OPENER="$OPN" node "$LR/.aai/scripts/aai-live.mjs" --output custom/d.html > "$TEST_DIR/t3207d.log" 2>&1 || rc=$?
+  [[ "$rc" == 3 ]] || log_fail "TEST-3207: a generator exit 3 must be returned, got $rc"
+  [[ ! -s "$OPL" ]] || log_fail "TEST-3207: nothing may be opened after a generator failure, got: $(cat "$OPL")"
+  # (e) a missing generator.
+  mk_live_root t3207nogen; rm -f "$LR/.aai/scripts/generate-live-status.mjs"
+  rc=0; env "${env_home[@]}" AAI_LIVE_OPENER="$OPN" node "$LR/.aai/scripts/aai-live.mjs" --data-only > "$TEST_DIR/t3207e.out" 2> "$TEST_DIR/t3207e.err" || rc=$?
+  [[ "$rc" == 1 && "$(cat "$TEST_DIR/t3207e.err")" == "aai-live: refused - generator not found: $LR/.aai/scripts/generate-live-status.mjs" ]] \
+    || log_fail "TEST-3207: the L-10 line differs (rc=$rc): $(cat "$TEST_DIR/t3207e.err")"
+  # (f) a --watch warm-up that writes to stderr leaks nothing to the launcher's stderr.
+  gen="$TEST_DIR/t3207-genwarm.mjs"
+  printf '%s\n' "if (process.argv.includes('--watch')) { process.stdout.write('WATCH-CHILD\n'); process.exit(0); }" \
+    "process.stderr.write('WARMUP-NOISE\n'); process.stdout.write('WARMUP-OUT\n'); process.exit(0);" > "$gen"
+  mk_live_root t3207warm "$gen"; : > "$OPL"
+  rc=0; env "${env_home[@]}" AAI_LIVE_OPENER="$OPN" node "$LR/.aai/scripts/aai-live.mjs" --watch > "$TEST_DIR/t3207f.out" 2> "$TEST_DIR/t3207f.err" || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-3207: the watch run exited $rc: $(cat "$TEST_DIR/t3207f.err")"
+  [[ ! -s "$TEST_DIR/t3207f.err" ]] || log_fail "TEST-3207: the warm-up leaked to stderr: $(cat "$TEST_DIR/t3207f.err")"
+  [[ "$(cat "$TEST_DIR/t3207f.out")" == "WATCH-CHILD" ]] || log_fail "TEST-3207: only the watch child may print, got: $(cat "$TEST_DIR/t3207f.out")"
+  [[ -s "$OPL" ]] || log_fail "TEST-3207: the warm-up path must still call the opener"
+  log_pass "TEST-3207: one-shot opens the existing page, --data-only opens nothing, a missing opener or generator refuses first, failures pass through, the warm-up is silent"
+}
+
+test_3208_watch_signal_forwarding() {
+  [[ -f "$LIVE_MJS" ]] || log_fail "TEST-3208: .aai/scripts/aai-live.mjs does not exist"
+  command -v pgrep >/dev/null 2>&1 || { echo "SKIP-CASE: TEST-3208 needs pgrep"; return 0; }
+  local real link fh i pid rc=0 alive
+  real="$TEST_DIR/t3208real"; link="$TEST_DIR/t3208link"
+  rm -rf "$real" "$link"; mkdir -p "$real"
+  mk_live_root t3208real/repo; real="$LR"
+  ln -s "$real" "$link"
+  fh="$(mk_home t3208home)"
+  mk_opener t3208op
+  HOME="$fh" USERPROFILE="$fh" CLAUDE_CONFIG_DIR="$fh/.claude" CODEX_HOME="$fh/.codex" GEMINI_HOME="$fh/.gemini" AAI_LIVE_OPENER="$OPN" \
+    bash "$link/.aai/scripts/aai-live.sh" --watch --interval 1 > "$TEST_DIR/t3208.log" 2>&1 &
+  pid=$!
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50; do
+    [[ -s "$OPL" ]] && break
+    sleep 0.2
+  done
+  [[ "$(cat "$OPL")" == "EXISTS $real/docs/ai/live-status.html" ]] || { kill -9 "$pid" 2>/dev/null || true; log_fail "TEST-3208: the opener never saw the page under the real root, got: $(cat "$OPL") log: $(cat "$TEST_DIR/t3208.log")"; }
+  pgrep -f "$real/.aai/scripts/generate-live-status.mjs" > /dev/null || { kill -9 "$pid" 2>/dev/null || true; log_fail "TEST-3208: positive control failed, no watch child of this scratch root is running"; }
+  # The watch child installs its signal handlers after its first run, so wait until a watch tick has rewritten the page.
+  local page="$real/docs/ai/live-status.html" m0 m1
+  m0="$(node -e 'process.stdout.write(String(require("fs").statSync(process.argv[1]).mtimeMs))' "$page")"
+  for i in $(seq 1 60); do
+    m1="$(node -e 'process.stdout.write(String(require("fs").statSync(process.argv[1]).mtimeMs))' "$page")"
+    [[ "$m1" != "$m0" ]] && break
+    sleep 0.2
+  done
+  [[ "$m1" != "$m0" ]] || { kill -9 "$pid" 2>/dev/null || true; log_fail "TEST-3208: no watch tick rewrote the page within 12 s"; }
+  kill -TERM "$pid"
+  alive=1
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do
+    kill -0 "$pid" 2>/dev/null || { alive=0; break; }
+    sleep 0.2
+  done
+  if [[ "$alive" == 1 ]]; then kill -9 "$pid" 2>/dev/null || true; log_fail "TEST-3208: the launcher is still alive 5 s after SIGTERM"; fi
+  wait "$pid" || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-3208: the launcher must exit 0 after SIGTERM, got $rc"
+  sleep 0.3
+  if pgrep -f "$real/.aai/scripts/generate-live-status.mjs" > /dev/null; then
+    pkill -f "$real/.aai/scripts/generate-live-status.mjs" || true
+    log_fail "TEST-3208: a generate-live-status.mjs process of the scratch root outlived the launcher"
+  fi
+  [[ -f "$real/docs/ai/live-status.html" ]] || log_fail "TEST-3208: the page must be written under the real root"
+  log_pass "TEST-3208: SIGTERM to the launcher reaches the watch child, the launcher exits 0 and leaves no child behind"
+}
+
+test_3209_live_launchers_thin() {
+  local bad f bin rc out
+  [[ -f "$LIVE_MJS" ]] || log_fail "TEST-3209: .aai/scripts/aai-live.mjs does not exist"
+  for f in "$LIVE:10" "$LIVE_PS1:15"; do
+    bad="$(node -e '
+      const fs = require("fs");
+      const [file, max] = process.argv[1].split(":");
+      const buf = fs.readFileSync(file);
+      const s = buf.toString("latin1");
+      const bad = [];
+      if (buf.some((b) => b > 0x7e)) bad.push("byte above 0x7E");
+      const lines = s.split("\n").length - (s.endsWith("\n") ? 1 : 0);
+      if (lines > Number(max)) bad.push(lines + " lines, cap " + max);
+      if (!s.includes("aai-live.mjs")) bad.push("no reference to aai-live.mjs");
+      for (const t of ["xdg-open", "Start-Process", "--output", "WARMUP"]) if (s.includes(t)) bad.push("holds " + t);
+      if (s.split(process.argv[2]).length !== 2) bad.push("the L-11 line is not present exactly once");
+      process.stdout.write(bad.join("; "));
+    ' "${f%:*}:${f#*:}" "$L11_LINE")"
+    [[ -z "$bad" ]] || log_fail "TEST-3209: $(basename "${f%:*}"): $bad"
+  done
+  bin="$TEST_DIR/t3209-bin"; rm -rf "$bin"; mkdir -p "$bin"
+  ln -s "$(command -v bash)" "$bin/bash"; ln -s "$(command -v dirname)" "$bin/dirname"
+  rc=0; PATH="$bin" "$bin/bash" -c 'command -v node >/dev/null 2>&1' || rc=$?
+  [[ "$rc" != 0 ]] || log_fail "TEST-3209: positive control failed, node still resolves under the test PATH"
+  rc=0; out="$(PATH="$bin" "$bin/bash" "$LIVE" --data-only 2> "$TEST_DIR/t3209.err")" || rc=$?
+  [[ "$rc" == 1 && -z "$out" && "$(cat "$TEST_DIR/t3209.err")" == "$L11_LINE" ]] || log_fail "TEST-3209: without node: rc=$rc out=$out err=$(cat "$TEST_DIR/t3209.err")"
+  mkdir -p "$TEST_DIR/t3209-nomod"; cp "$LIVE" "$TEST_DIR/t3209-nomod/aai-live.sh"
+  rc=0; out="$(bash "$TEST_DIR/t3209-nomod/aai-live.sh" --data-only 2> "$TEST_DIR/t3209.err")" || rc=$?
+  [[ "$rc" == 1 && -z "$out" && "$(cat "$TEST_DIR/t3209.err")" == "$L11_LINE" ]] || log_fail "TEST-3209: without the module: rc=$rc out=$out err=$(cat "$TEST_DIR/t3209.err")"
+  log_pass "TEST-3209: both aai-live launchers are thin and print the L-11 line without node or module"
+}
+
+test_3210_pester_aai_live() {
+  [[ -f "$LIVE_PESTER" ]] || log_fail "TEST-3210: tests/skills/aai-live.Tests.ps1 does not exist"
+  need_tool TEST-3210 pwsh || return 0
+  local has out rc=0
+  has="$(pwsh -NoProfile -Command 'if (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 }) { "yes" } else { "no" }' 2>/dev/null || echo no)"
+  if [[ "$has" != yes ]]; then
+    echo "SKIP-CASE: TEST-3210 needs Pester 5 (the ps1-quality gate job is the authoritative runner)"
+    return 0
+  fi
+  out="$(PESTER_FILE="$LIVE_PESTER" pwsh -NoProfile -Command '
+    $cfg = New-PesterConfiguration
+    $cfg.Run.Path = $env:PESTER_FILE
+    $cfg.Run.PassThru = $true
+    $cfg.Output.Verbosity = "Normal"
+    $r = Invoke-Pester -Configuration $cfg
+    Write-Host "PESTER-RESULT: Total=$($r.TotalCount) Passed=$($r.PassedCount) Failed=$($r.FailedCount) Skipped=$($r.SkippedCount)"
+    if ($r.FailedCount -gt 0 -or $r.SkippedCount -gt 0 -or $r.TotalCount -lt 4) { exit 1 }
+    exit 0
+  ' 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3210: aai-live.Tests.ps1 failed, skipped a case or ran fewer than 4 cases (rc=$rc)"; }
+  log_pass "TEST-3210: aai-live.Tests.ps1 passes with no skip ($(printf '%s\n' "$out" | sed -n 's/^PESTER-RESULT: //p'))"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-live-status-dashboard TEST-001..020, 024..039)"
   check_deps
@@ -1491,6 +1688,11 @@ main() {
   test_2418_ps1_quality_filter_has_module
   test_2419_rfc_phase3_row
   test_2420_line_budget_recorded
+  test_3206_live_resolvers
+  test_3207_live_oneshot_paths
+  test_3208_watch_signal_forwarding
+  test_3209_live_launchers_thin
+  test_3210_pester_aai_live
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -126,6 +126,8 @@ pairs:
     status: done
   - capability: precise-suite-evidence-reuse
     status: active
+  - capability: node-first-small-pairs
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
