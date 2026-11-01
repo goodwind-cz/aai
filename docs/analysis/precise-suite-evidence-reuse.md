@@ -91,7 +91,7 @@ Reuse helps for a suite whose declared identity is narrow: its suite file, the
 shared-library tree, the harness and a handful of named data files. R3 shows
 it: all five manifest suites were reported REUSED and skipped, wall time 5 s
 to 1 s (an all-reused run executes nothing; its summary carries `Reused: 5` and
-`Total: 0`). The absolute saving is
+`Total: 0`). That measurement is tied to its commit: at the head of 2026-11-01 only 3 of the 5 manifest suites can reuse, because aai-orchestration-mode and aai-runtime-file are inputs-unresolvable (a `${VAR:-path}` literal) and always run. The absolute saving is
 small because the manifest suites are the cheap, pure ones (weights of a few
 seconds). It would grow with more suites qualified into the manifest, but only
 suites whose closure stays narrow can qualify honestly.

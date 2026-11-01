@@ -197,7 +197,10 @@ export function computeClosure(ctx, suite) {
         for (const m of text.matchAll(LIB_RE)) {
           const end = m.index + m[0].length;
           if (tokens.some((t) => t.index < m.index && m.index < t.index + t[0].length)) continue; // inside a full TOKEN_RE token (.aai/scripts/lib/x), handled above
-          if (path.posix.dirname(rel) === 'tests/skills' && LIB_NAME_RE.test(m[1]) && afterLiteral(text, end) === 'ok') { add(`tests/skills/lib/${m[1]}`); continue; }
+          // A slash right before lib/ is trusted only after the file's own directory ($SCRIPT_DIR or dirname); any other base ($ROOT, src/) is some other lib/.
+          const before = text.slice(Math.max(0, m.index - 200), m.index);
+          const baseOk = !before.endsWith('/') || /\$\{?SCRIPT_DIR\}?\/$/.test(before) || /\$\(\s*dirname\b[^\n]*\)\/$/.test(before);
+          if (baseOk && path.posix.dirname(rel) === 'tests/skills' && LIB_NAME_RE.test(m[1]) && afterLiteral(text, end) === 'ok') { addPath(`tests/skills/lib/${m[1]}`, false); continue; }
           unresolved.push(`${m[0]} is not one plain lib/<name> <- ${rel}`);
         }
       }

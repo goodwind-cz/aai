@@ -340,6 +340,43 @@ test('TEST-3167 lib/ allowlist: only a plain name with a strict terminator in a 
   assert.equal((await chk(tok, 'fk')).status, 'RUN', 'token interior lib/ stays resolvable and tracked');
 });
 
+test('TEST-3167 a trusted lib/<name> naming a directory adds every file under it, and lib/ after a repo-root base or any other slash prefix is not reusable', async () => {
+  const SD = 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n';
+  const dirForms = {
+    'cp -r lib/fixtures': ['cp -r lib/fixtures "$t" 2>/dev/null', ''],
+    'ls "$SCRIPT_DIR/lib/fixtures"': [`${SD}ls "$SCRIPT_DIR/lib/fixtures"`, ''],
+    'dirname form': ['ls "$(dirname "${BASH_SOURCE[0]}")/lib/fixtures"', ''],
+  };
+  for (const [form, [body]] of Object.entries(dirForms)) {
+    const root = mkSuiteRepo(body, { 'tests/skills/lib/fixtures/a.json': 'a\n' });
+    await pass(root, 'fk');
+    write(root, 'tests/skills/lib/fixtures/a.json', 'changed\n');
+    assert.equal((await chk(root, 'fk')).status, 'RUN', `${form}: edit of a file in the directory`);
+    const fresh = mkSuiteRepo(body, { 'tests/skills/lib/fixtures/a.json': 'a\n' });
+    await pass(fresh, 'fk');
+    write(fresh, 'tests/skills/lib/fixtures/b.json', 'new\n');
+    assert.equal((await chk(fresh, 'fk')).status, 'RUN', `${form}: a new file in the directory`);
+  }
+  const later = mkSuiteRepo('[ -d lib/cases ] && ls lib/cases', {});
+  await pass(later, 'fk');
+  write(later, 'tests/skills/lib/cases/a.txt', 'x\n');
+  assert.equal((await chk(later, 'fk')).status, 'RUN', 'a directory created later');
+  const SDU = 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n';
+  for (const [form, body] of Object.entries({
+    '$ROOT/lib/x': 'cat "$ROOT/lib/x"',
+    '$ROOT/src/lib/x': 'cat "$ROOT/src/lib/x"',
+    '$PROJECT_ROOT/lib/x': 'cat "$PROJECT_ROOT/lib/x"',
+    'src/lib/x': 'cat src/lib/x',
+    '${SCRIPT_DIR}/lib/x stays trusted': `${SDU}cat "\${SCRIPT_DIR}/lib/x"`,
+  })) {
+    const root = mkSuiteRepo(body, { 'tests/skills/lib/x': 'x\n' });
+    const r = await chk(root, 'fk');
+    if (form.includes('stays trusted')) { await pass(root, 'fk'); write(root, 'tests/skills/lib/x', 'y\n'); assert.equal((await chk(root, 'fk')).status, 'RUN', form); continue; }
+    assert.equal(r.status, 'RUN', form);
+    assert.equal(r.reason, 'inputs-unresolvable', form);
+  }
+});
+
 test('TEST-3167 one after-literal rule at every site: only a strict terminator (or a closing quote then one) accepts a literal, every other follower is not reusable', async () => {
   const SD = 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n';
   const files = { 'tests/skills/lib/fix1.json': '1\n', 'tests/skills/fixtures/fix1.json': '1\n', 'tests/skills/lib/fix_a.json': '1\n', 'docs/pro.md': 'p\n', 'docs/pro': 'p\n' };
