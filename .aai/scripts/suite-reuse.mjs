@@ -121,7 +121,6 @@ function globMatches(ctx, globs) {
 const TOKEN_RE = /(?<![\w.-])(?:\.aai|tests|docs)(?:\/[A-Za-z0-9_./@+-]*|(?<=[/"'=(](?:\.aai|tests|docs))(?![\w-]|\.\w))/g;
 const LIB_RE = /(?<![\w.-])lib\/([A-Za-z0-9_.-]+)/g;
 const LIB_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
-const LIB_END_RE = /^(?:[\s"')|;&<>]|$)/;
 const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/g;
 const SCRIPT_DIR_RE = /\$\{?SCRIPT_DIR\}?\/([A-Za-z0-9_./@+-]*)/g;
 const DIRNAME_RE = /\$\(\s*dirname\s+([^)]*)\)\/([A-Za-z0-9_./@+-]*)/g;
@@ -135,7 +134,18 @@ const ROOT_THEN_EXPANSION_RE = new RegExp(`\\$\\{?${ROOT_VAR}\\}?/(?:\\.{1,2}/)*
 const ASSIGN_RE = /^[ \t]*(?:(?:export|readonly|local|declare)\s+)*([A-Za-z_]\w*)=(.*)$/gm;
 const CD_OWN_RE = /\bcd\s+"?\$\(\s*dirname\s+[^)]*(?:BASH_SOURCE|\$\{?0\}?)[^)]*\)/g;
 const CONCAT_RE = /(?<![\w.-])(?:\.aai|tests|docs)["']\//g;
-const QUOTE_CLOSED_RE = /^["'](?:[$`\w/"'])/;
+// The one after-literal rule (D4 (d)), shared by every site that accepts a path
+// literal. 'ok': the next character is a strict terminator, or a closing quote
+// that is itself followed by one. 'dyn': a directly following expansion or glob
+// character (a token then widens to its deepest literal directory). 'bad': any
+// other follower (a quote then more text, `.`, `-`, `_`, a letter, ...).
+const TERMINATOR_RE = /^(?:[\s);|&<>]|$)/;
+function afterLiteral(text, end) {
+  const c = text.charAt(end);
+  if (TERMINATOR_RE.test(c)) return 'ok';
+  if (c === '"' || c === "'") return TERMINATOR_RE.test(text.charAt(end + 1)) ? 'ok' : 'bad';
+  return DYNAMIC_NEXT_RE.test(c) ? 'dyn' : 'bad';
+}
 export function computeClosure(ctx, suite) {
   const start = `tests/skills/test-${suite}.sh`;
   const closure = new Set([start]);
@@ -174,19 +184,20 @@ export function computeClosure(ctx, suite) {
       for (const m of text.matchAll(TOKEN_RE)) {
         if (/[%#]\*?\/$/.test(text.slice(Math.max(0, m.index - 4), m.index))) continue; // ${X%/tests/skills} strips a suffix, it reads nothing
         const end = m.index + m[0].length;
-        if (QUOTE_CLOSED_RE.test(text.slice(end, end + 2))) { unresolved.push(`${m[0]} closed by a quote before more text <- ${rel}`); continue; }
-        addPath(m[0], DYNAMIC_NEXT_RE.test(text.charAt(end)));
+        const after = afterLiteral(text, end);
+        if (after === 'bad') { unresolved.push(`${m[0]} is followed by more than a terminator <- ${rel}`); continue; }
+        addPath(m[0], after === 'dyn');
       }
       for (const m of text.matchAll(CONCAT_RE)) unresolved.push(`${m[0]} concatenated <- ${rel}`);
       for (const m of text.matchAll(ROOT_THEN_EXPANSION_RE)) unresolved.push(`${m[0]}<expansion> <- ${rel}`);
-      // Allowlist: a lib/ reference is trusted only as one plain name, with a strict terminator,
-      // in a file directly in tests/skills; every other lib/ shape is unresolvable, never resolved.
-      if (rel.startsWith('tests/skills/')) {
+      // Allowlist: a lib/ reference is trusted only as one plain name, with the after-literal rule,
+      // in a file directly in tests/skills; every other lib/ shape, in any directory, is unresolvable.
+      {
         const tokens = [...text.matchAll(TOKEN_RE)];
         for (const m of text.matchAll(LIB_RE)) {
           const end = m.index + m[0].length;
           if (tokens.some((t) => t.index < m.index && m.index < t.index + t[0].length)) continue; // inside a full TOKEN_RE token (.aai/scripts/lib/x), handled above
-          if (path.posix.dirname(rel) === 'tests/skills' && LIB_NAME_RE.test(m[1]) && LIB_END_RE.test(text.charAt(end))) { add(`tests/skills/lib/${m[1]}`); continue; }
+          if (path.posix.dirname(rel) === 'tests/skills' && LIB_NAME_RE.test(m[1]) && afterLiteral(text, end) === 'ok') { add(`tests/skills/lib/${m[1]}`); continue; }
           unresolved.push(`${m[0]} is not one plain lib/<name> <- ${rel}`);
         }
       }
@@ -199,17 +210,19 @@ export function computeClosure(ctx, suite) {
       const lineStart = (at) => text.lastIndexOf('\n', at - 1) + 1;
       const lineOf = (at) => { const e = text.indexOf('\n', at); return text.slice(lineStart(at), e < 0 ? text.length : e); };
       const relative = (restRaw, at, tailAt, known, shown) => {
-        const dyn = DYNAMIC_NEXT_RE.test(text.charAt(tailAt));
+        const after = afterLiteral(text, tailAt);
+        const dyn = after === 'dyn';
         if (restRaw.startsWith('lib/')) {
           // LIB_RE took the one trusted shape; every other lib/ reference is refused, not resolved.
-          if (!(ownDir === 'tests/skills' && !dyn && LIB_NAME_RE.test(restRaw.slice(4)) && LIB_END_RE.test(text.charAt(tailAt)))) unresolved.push(`${shown} <- ${rel}`);
+          if (!(ownDir === 'tests/skills' && after === 'ok' && LIB_NAME_RE.test(restRaw.slice(4)))) unresolved.push(`${shown} <- ${rel}`);
           return;
         }
         if (/^[./]*$/.test(restRaw)) {
           const a = /^[ \t]*(?:(?:export|readonly|local|declare)\s+)*([A-Za-z_]\w*)=/.exec(lineOf(at));
-          if (!dyn && a && ROOT_VAR_NAME_RE.test(a[1])) return;
+          if (after === 'ok' && a && ROOT_VAR_NAME_RE.test(a[1])) return;
           unresolved.push(`${shown} <- ${rel}`); return;
         }
+        if (after === 'bad') { unresolved.push(`${shown} <- ${rel}`); return; }
         const joined = path.posix.normalize(path.posix.join(ownDir, restRaw));
         if (!known || joined === '.' || joined.startsWith('..')) { unresolved.push(`${shown} <- ${rel}`); return; }
         addPath(joined, dyn);

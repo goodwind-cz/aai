@@ -212,7 +212,7 @@ test('TEST-3167 a path literal is normalized: dot segments collapse, a directory
   const files = { 'docs/specs/a.md': 'a\n', 'docs/keep.txt': 'k\n' };
   const widen = {
     'dotdot then variable': ['f=a.md; cat "$ROOT/tests/../docs/specs/${f}"', 'docs/specs/new.md'],
-    'dot segment directory then star': ['for f in "$ROOT/docs/./specs/"*.md; do cat "$f"; done', 'docs/specs/new.md'],
+    'dot segment directory then unquoted star': ['for f in $ROOT/docs/./specs/*.md; do cat "$f"; done', 'docs/specs/new.md'],
     'directory without a slash': ['ls docs/specs', 'docs/specs/new.md'],
     'dotdot directory without a slash': ['ls tests/skills/../../docs', 'docs/new.md'],
     'trailing dotdot widens to the parent': ['ls docs/specs/..', 'docs/new2.md'],
@@ -230,6 +230,7 @@ test('TEST-3167 a path literal is normalized: dot segments collapse, a directory
   }
   for (const [form, body] of Object.entries({
     'escapes the repository': 'cat docs/../../outside/x.txt',
+    'quoted directory closed by a quote then a star': 'for f in "$ROOT/docs/./specs/"*.md; do cat "$f"; done',
     'climbs above the root': 'cat tests/../../outside',
     'collapses to the root': 'cat docs/../',
     'trailing dotdot collapses to the root': 'ls docs/..',
@@ -337,6 +338,53 @@ test('TEST-3167 lib/ allowlist: only a plain name with a strict terminator in a 
   await pass(tok, 'fk');
   write(tok, '.aai/scripts/lib/m.mjs', 'two\n');
   assert.equal((await chk(tok, 'fk')).status, 'RUN', 'token interior lib/ stays resolvable and tracked');
+});
+
+test('TEST-3167 one after-literal rule at every site: only a strict terminator (or a closing quote then one) accepts a literal, every other follower is not reusable', async () => {
+  const SD = 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n';
+  const files = { 'tests/skills/lib/fix1.json': '1\n', 'tests/skills/fixtures/fix1.json': '1\n', 'tests/skills/lib/fix_a.json': '1\n', 'docs/pro.md': 'p\n', 'docs/pro': 'p\n' };
+  const forms = {
+    'SCRIPT_DIR lib literal closed by a quote then an expansion': `${SD}cat "$SCRIPT_DIR/lib/fix"$n.json`,
+    'SCRIPT_DIR fixtures literal closed by a quote then an expansion': `${SD}cat "$SCRIPT_DIR/fixtures/fix"$n.json`,
+    'SCRIPT_DIR fixtures literal closed by a quote then an underscore': `${SD}cat "$SCRIPT_DIR/fixtures/fix"_a.json`,
+    'bare quoted lib literal then an expansion': 'cat "lib/fix"$n.json',
+    'bare quoted lib literal then an underscore': 'cat "lib/fix"_a.json',
+    'bare single-quoted lib literal then an underscore': "cat 'lib/fix'_a.json",
+    'bare quoted lib literal then a dash': 'cat "lib/fix"-a.json',
+    'dirname lib literal closed by a quote then an underscore': 'cat "$(dirname "${BASH_SOURCE[0]}")/lib/fix"_a.json',
+    'token closed by a quote then a dot': 'cat "$ROOT/docs/pro".md',
+    'token closed by a quote then a dash': 'cat "$ROOT/docs/pro"-x',
+    'prose apostrophe after a lib name': "echo lib/fix1.json's",
+  };
+  for (const [form, body] of Object.entries(forms)) {
+    const r = await chk(mkSuiteRepo(body, files), 'fk');
+    assert.equal(r.status, 'RUN', form);
+    assert.equal(r.reason, 'inputs-unresolvable', form);
+  }
+  // B2: a bare lib/ name in any other directory is not reusable (shell or module, sourced or imported).
+  const other = {
+    'bare lib read in a sourced shell helper outside tests/skills': ['source tests/other/h.sh', { 'tests/other/h.sh': 'cat lib/x\n', 'tests/other/lib/x': 'x\n' }],
+    'bare lib read in a module outside tests/skills': ['node tests/other/a.mjs', { 'tests/other/a.mjs': "import fs from 'node:fs';\nfs.readFileSync('lib/x');\n", 'tests/other/lib/x': 'x\n' }],
+  };
+  for (const [form, [body, extra]] of Object.entries(other)) {
+    const r = await chk(mkSuiteRepo(body, extra), 'fk');
+    assert.equal(r.status, 'RUN', form);
+    assert.equal(r.reason, 'inputs-unresolvable', form);
+  }
+  // Positive rows: a literal followed by a strict terminator, or a closing quote then one, stays tracked.
+  const ok = {
+    'quoted token then end': ['cat "$ROOT/docs/pro"', 'docs/pro'],
+    'quoted token then a space': ['cat "$ROOT/docs/pro" | wc', 'docs/pro'],
+    'quoted token then a semicolon': ['cat "$ROOT/docs/pro";', 'docs/pro'],
+    'quoted lib literal then a close paren': ['x=$(cat "lib/fix1.json")', 'tests/skills/lib/fix1.json'],
+    'unquoted token then an expansion widens': ['cat docs/pro$S', 'docs/pro'],
+  };
+  for (const [form, [body, target]] of Object.entries(ok)) {
+    const root = mkSuiteRepo(body, files);
+    await pass(root, 'fk');
+    write(root, target, 'changed\n');
+    assert.equal((await chk(root, 'fk')).status, 'RUN', `${form} stays tracked`);
+  }
 });
 
 test('TEST-3167 fail closed: an expansion is accepted only after a known base and a literal directory, anything else is unresolvable', async () => {

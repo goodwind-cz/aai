@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 979dac4d21b3bf6b589d7f746bc41e169531d21287e4e579f47d57fe6eaf2199
+frozen_sha256: 05504912ff156924916fbc69c9f975b99004792f755228a739882682a6e7e1e9
 ceremony_level: 2
 links:
   requirement: precise-suite-evidence-reuse
@@ -254,28 +254,37 @@ canonical JSON value:
   (d) the static closure: starting from the suite file, every file named by
   a path literal in a closure file under `tests/` (a token starting
   `.aai`, `tests` or `docs` made of path characters, or a `lib/<name>`
-  token in a `tests/skills/` file resolved against `tests/skills/`, trusted
-  only by this allowlist: the file's own directory is exactly `tests/skills`,
-  the name is one segment matching `[A-Za-z0-9_][A-Za-z0-9_.-]*`, and the
-  character after it is end of text, whitespace, `"`, `'`, `)`, `;`, `|`, `&`,
-  `>` or `<`. Any other `lib/` reference, whether a bare token, a
-  `$SCRIPT_DIR/lib/...` or a `$(dirname ...)/lib/...` form, in any directory
-  (a file below or outside `tests/skills/`, a nested name, a `.` or `..`
-  segment, a name followed by `$`, `*`, `?`, `[`, `{`, `@`, `+`, `/`, `:` or
-  any other character, or a look-back match not cleanly a full `tests/` token)
-  is unresolvable and is never resolved), and
+  token resolved against `tests/skills/`, or a `$SCRIPT_DIR/<literal>` or
+  `$(dirname ...)/<literal>` form). One uniform after-literal rule, a single
+  shared check used by every one of these forms, decides whether a literal is
+  accepted: the character right after the literal is a strict terminator (end
+  of text, whitespace, `)`, `;`, `|`, `&`, `>` or `<`), or it is a closing
+  quote that is itself followed by a strict terminator. Any other following
+  character (a quote followed by more text, an expansion `$` after a closing
+  quote, `.`, `-`, `_`, a letter, `,`, `]`, `}`, `:`, `@`, `+`, `/`) makes the
+  literal unresolvable and it is never resolved. The one exception is the
+  documented widening: an unquoted literal directly followed by an expansion
+  or glob character (`$`, `*`, `?`, `[`, `{`) widens to the deepest fully
+  literal directory before it (`.aai/scripts/aai-${x}.mjs` widens to
+  `.aai/scripts/`); a quoted directory closed by its quote and followed by a
+  glob (`"$ROOT/docs/specs/"*.md`) is not that case and is unresolvable. A
+  `lib/<name>` is further trusted only by this allowlist: the file's own
+  directory is exactly `tests/skills`, the name is one segment matching
+  `[A-Za-z0-9_][A-Za-z0-9_.-]*`, and the after-literal rule accepts it. Any
+  other `lib/` reference, whether a bare token, a `$SCRIPT_DIR/lib/...` or a
+  `$(dirname ...)/lib/...` form, in any directory (a file below or outside
+  `tests/skills/`, a nested name, a `.` or `..` segment, or a look-back match
+  not cleanly a full `tests/` token) is unresolvable and is never resolved. The
+  closure also holds
   every file reached by an ESM relative `import` or `import()` from a
   closure `.mjs` or `.js` file, transitively. A literal that names a
   directory adds every `listTreeFiles` path under it. A top-level name
   without a trailing slash (`"$ROOT/docs"`, `$ROOT/.aai`, `"tests"`; a bare
   `.aai`, `tests` or `docs` counts as a token only when `/`, a quote, `=`
   or `(` precedes it, so prose does not) names that directory exactly as
-  `docs/` does. A literal followed directly by an expansion or glob character
-  (`$`, `*`, `?`, `[`, `{`) widens to the deepest fully literal directory before
-  it (`.aai/scripts/aai-${x}.mjs` widens to `.aai/scripts/`). The tokenizer
+  `docs/` does. The tokenizer
   recognizes only these reference forms: a `.aai`, `tests` or `docs` token as
-  above (so `"$ROOT/docs/x"` is the token `docs/x`), a `lib/<name>` token in a
-  `tests/skills/` file, `$SCRIPT_DIR/<literal>` and `$(dirname ...)/<literal>`
+  above (so `"$ROOT/docs/x"` is the token `docs/x`), a `lib/<name>` token, `$SCRIPT_DIR/<literal>` and `$(dirname ...)/<literal>`
   (resolved against the file's own directory, in a file that derives its
   location from `BASH_SOURCE` or `$0`), and ESM relative `import`/`import()`.
   Exactly these forms are unresolvable, and then the suite is not reusable
@@ -290,7 +299,7 @@ canonical JSON value:
   `pwd` over `BASH_SOURCE` or `$0` at the start of a line under a name other than
   `SCRIPT_DIR` or a repo-root name, when it is used later (`HERE=$(dirname "$0")`);
   `cd "$(dirname "$0")"`-style entry into the own directory outside an assignment;
-  a path literal closed by a quote before more text (`"$ROOT/docs/pro"$S`);
+  a path literal that fails the after-literal rule, such as one closed by a quote before more text (`"$ROOT/docs/pro"$S`, `"$ROOT/docs/pro".md`, `"lib/fix"_a.json`);
   concatenated segments (`"docs"/x`); and a literal with an empty directory
   prefix. Every other variable-built, derived or indirect form is NOT detected
   and is covered by residual R1, not by this rule: the tokenizer is advisory,
@@ -604,7 +613,7 @@ stay as they are; CI never reuses (D6).
 |---|---|---|---|---|---|---|
 | TEST-3165 | Spec-AC-01 | integration | tests/skills/test-aai-suite-reuse.sh | test_3165: fixture repo with the real framework, helper, select-suites and lib copied in, a manifest declaring fx and a suite fx that appends one line to a marker file outside the repo; run 1 with --skill fx passes; run 2 prints fx REUSED naming run 1 id, time and log, the marker has 1 line, exit 0 | `sed:s/REUSED \(run/PASS \(run/` on tests/skills/test-framework.sh | green |
 | TEST-3166 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3166: recordSuite then checkSuites on a fixture git repo; editing a tracked declared input gives RUN reason=inputs changed path; adding an untracked file matching a declared glob gives reason=inputs added path | `sed:s/'--others', '--exclude-standard'/'--cached'/` on .aai/scripts/lib/tree-hash.mjs | green |
-| TEST-3167 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3167: a module imported by the suite's test lib but matched by no glob changes, a file appears under a directory the suite names as a literal, and docs/ai/STATE.yaml changes; each gives reason=inputs for a suite whose closure covers it, and the STATE change gives REUSE for a suite whose closure does not name STATE.yaml; further node cases: a top-level directory literal without a slash (docs, .aai, tests), a partly built path (prefix then variable or star) and a SCRIPT_DIR or dirname relative reference each give RUN when a file appears in the directory they widen to, an unresolvable base gives reason=inputs-unresolvable and no record; a fail-closed case gives RUN reason=inputs-unresolvable and a refused record for an expansion straight after SCRIPT_DIR, a braced SCRIPT_DIR, dirname or a repo-root variable, a custom own-directory variable, a literal closed by a quote before an expansion, concatenated segments and a bare dots path outside a root assignment, while a SCRIPT_DIR file, a dirname literal directory plus variable and a root assignment keep resolving | `sed:s/const LIB_END_RE = .*/const LIB_END_RE = \/^\/;/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3167 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3167: a module imported by the suite's test lib but matched by no glob changes, a file appears under a directory the suite names as a literal, and docs/ai/STATE.yaml changes; each gives reason=inputs for a suite whose closure covers it, and the STATE change gives REUSE for a suite whose closure does not name STATE.yaml; further node cases: a top-level directory literal without a slash (docs, .aai, tests), a partly built path (prefix then variable or star) and a SCRIPT_DIR or dirname relative reference each give RUN when a file appears in the directory they widen to, an unresolvable base gives reason=inputs-unresolvable and no record; a fail-closed case gives RUN reason=inputs-unresolvable and a refused record for an expansion straight after SCRIPT_DIR, a braced SCRIPT_DIR, dirname or a repo-root variable, a custom own-directory variable, a literal closed by a quote before an expansion, concatenated segments and a bare dots path outside a root assignment, while a SCRIPT_DIR file, a dirname literal directory plus variable and a root assignment keep resolving ; one after-literal case: a literal closed by a quote then an expansion, a dot, a dash, an underscore or an apostrophe, in the token, bare lib, SCRIPT_DIR and dirname forms, gives RUN reason=inputs-unresolvable, as does a bare lib/ name in a sourced shell helper or a module outside tests/skills, while a strict terminator, or a closing quote then one, keeps the read tracked | `sed:s/TERMINATOR_RE.test\(text.charAt\(end \+ 1\)\) \? 'ok' : 'bad'/'ok'/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3168 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3168: changing AAI_FIXTURE_X gives reason=env; changing AAI_TEST_REF_ID gives REUSE; changing AAI_TEST_REF_ID for a suite whose closure references it gives reason=env | `sed:s/'env', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3169 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3169: computeIdentity with the argument vector extended by one argument gives reason=args against the record | `sed:s/'args', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3170 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3170: an injected runtime with another Node version gives reason=runtime, and one with another platform gives reason=runtime | `sed:s/'runtime', //` on .aai/scripts/suite-reuse.mjs | green |
