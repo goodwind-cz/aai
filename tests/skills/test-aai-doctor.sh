@@ -2769,8 +2769,8 @@ test_3214_cat09_retired_hook() {
   add_core_and_role_files "$fixture"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
   if ! echo "$out" | grep "^CAT-09" | qgrep -q "PASS"; then
-    log_info "TEST-3214a: got: $(echo "$out" | grep '^CAT-09')"
-    log_fail "TEST-3214a CAT-09 without any settings file must PASS"
+    log_info "TEST-3214 a: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-3214 a: CAT-09 without any settings file must PASS"
     return
   fi
   fixture="$(new_bare_fixture t3214b)"
@@ -2779,8 +2779,8 @@ test_3214_cat09_retired_hook() {
   printf '%s\n' "$hook" > "$fixture/.claude/settings.local.json"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
   if ! { echo "$out" | grep "^CAT-09" | qgrep -q "WARN" && echo "$out" | grep "^CAT-09" | qgrep -q "settings.local.json"; }; then
-    log_info "TEST-3214b: got: $(echo "$out" | grep '^CAT-09')"
-    log_fail "TEST-3214b CAT-09 must WARN naming settings.local.json when the hook names the retired script"
+    log_info "TEST-3214 b: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-3214 b: CAT-09 must WARN naming settings.local.json when the hook names the retired script"
     return
   fi
   fixture="$(new_bare_fixture t3214c)"
@@ -2789,8 +2789,8 @@ test_3214_cat09_retired_hook() {
   printf '%s\n' "$hook" > "$fixture/.claude/settings.json"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
   if ! { echo "$out" | grep "^CAT-09" | qgrep -q "WARN" && echo "$out" | grep "^CAT-09" | qgrep -q "settings.json"; }; then
-    log_info "TEST-3214c: got: $(echo "$out" | grep '^CAT-09')"
-    log_fail "TEST-3214c CAT-09 must WARN naming settings.json"
+    log_info "TEST-3214 c: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-3214 c: CAT-09 must WARN naming settings.json"
     return
   fi
   mkdir -p "$fixture/.aai/scripts"
@@ -2799,8 +2799,8 @@ test_3214_cat09_retired_hook() {
   if echo "$out" | grep "^CAT-09" | qgrep -q "PASS"; then
     log_pass "TEST-3214 CAT-09 PASS without settings, WARN naming the settings file for a dangling hook, PASS when a copy exists"
   else
-    log_info "TEST-3214d: got: $(echo "$out" | grep '^CAT-09')"
-    log_fail "TEST-3214d CAT-09 must PASS when a local copy serves the hand-wired hook"
+    log_info "TEST-3214 d: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-3214 d: CAT-09 must PASS when a local copy serves the hand-wired hook"
   fi
 }
 
