@@ -233,6 +233,52 @@ test('TEST-3167 a file-relative reference outside lib/ is resolved against its d
   assert.equal(c.results[0].reason, 'inputs-unresolvable');
 });
 
+test('TEST-3167 fail closed: an expansion is accepted only after a known base and a literal directory, anything else is unresolvable', async () => {
+  const SD = 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n';
+  const forms = {
+    'SCRIPT_DIR then variable name': `${SD}bash "$SCRIPT_DIR/$s.sh"`,
+    'braced SCRIPT_DIR then braced name': `${SD}cat "\${SCRIPT_DIR}/\${name}"`,
+    'dirname then variable': 'cat "$(dirname "$0")/$f"',
+    'SCRIPT_DIR then dots then variable': `${SD}cat "$SCRIPT_DIR/../$f"`,
+    'custom own-directory variable': 'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\ncat "$HERE/foo.txt"',
+    'custom own-directory variable from dirname $0': 'DIR=$(dirname "$0")\ncat "$DIR/foo.txt"',
+    'cd to the own directory then a bare word': 'cd "$(dirname "$0")"\nsource sub/x.sh',
+    'literal closed by a quote before an expansion': 'cat "$ROOT/docs/pro"$S',
+    'literal closed by a quote before a quoted expansion': 'cat "$ROOT/docs/pro""$S"',
+    'repo root variable then variable name': 'cat "$ROOT/$x"',
+    'bare directory then expansion': 'cat "$ROOT/docs$x"',
+    'concatenated segments': 'cat docs"/"probe.txt',
+    'bare dots that compute no root variable': `${SD}cd "$SCRIPT_DIR/.."`,
+  };
+  for (const [form, body] of Object.entries(forms)) {
+    const root = mkSuiteRepo(body, { 'docs/probe.txt': 'one\n', 'tests/skills/helper.sh': 'h\n' });
+    const r = await chk(root, 'fk');
+    assert.equal(r.status, 'RUN', form);
+    assert.equal(r.reason, 'inputs-unresolvable', form);
+    const m = await lib();
+    m.checkSuites({ root, suites: ['fk'], runDir: runDirOf(root), ...BASE });
+    fs.writeFileSync(path.join(runDirOf(root), 'fk.log'), 'PASS\n');
+    const rec = m.recordSuite({ root, suite: 'fk', runDir: runDirOf(root), metrics: PASS('fk'), ...BASE });
+    assert.equal(rec.recorded, false, `${form}: record refuses`);
+    assert.equal(rec.reason, 'inputs-unresolvable', form);
+  }
+  // Controls: a known base with a literal directory or file keeps resolving.
+  const controls = {
+    'SCRIPT_DIR file': [`${SD}cat "$SCRIPT_DIR/helper.sh"`, 'tests/skills/helper.sh'],
+    'dirname literal directory then variable': ['cat "$(dirname "$0")/sub/$f"', 'tests/skills/sub/x.sh'],
+    'bare dots computing a root variable': [`${SD}ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"\ncat "$SCRIPT_DIR/helper.sh"`, 'tests/skills/helper.sh'],
+  };
+  for (const [form, [body, touched]] of Object.entries(controls)) {
+    const a = mkSuiteRepo(body, { 'tests/skills/helper.sh': 'h\n', 'tests/skills/sub/x.sh': 'x\n' });
+    await pass(a, 'fk');
+    assert.equal((await chk(a, 'fk')).status, 'REUSE', form);
+    write(a, touched, 'changed\n');
+    const r = await chk(a, 'fk');
+    assert.equal(r.status, 'RUN', `${form}: ${touched} edited`);
+    assert.equal(r.reason, 'inputs', form);
+  }
+});
+
 test('TEST-3168 environment: AAI_ variable, excluded variable and referenced excluded variable', async () => {
   const root = mkRepo();
   await pass(root, 'fx');

@@ -124,6 +124,15 @@ const SCRIPT_DIR_RE = /\$\{?SCRIPT_DIR\}?\/([A-Za-z0-9_./@+-]*)/g;
 const DIRNAME_RE = /\$\(\s*dirname\s+([^)]*)\)\/([A-Za-z0-9_./@+-]*)/g;
 const OWN_DIR_RE = /BASH_SOURCE|\$\{?0\}?(?![\w])/;
 const DYNAMIC_NEXT_RE = /[$*?[{]/;
+// Fail closed (D4): a reference holding an expansion is accepted only as a known
+// base plus a fully literal directory prefix; anything else is unresolved.
+const ROOT_VAR = '(?:PROJECT_ROOT|REPO_ROOT|ROOT_DIR|ROOT|REPO_DIR|REPO|PROJECT_DIR|AAI_ROOT)';
+const ROOT_VAR_NAME_RE = new RegExp(`^${ROOT_VAR}$`);
+const ROOT_THEN_EXPANSION_RE = new RegExp(`\\$\\{?${ROOT_VAR}\\}?/(?:\\.{1,2}/)*(?=[$\`])`, 'g');
+const ASSIGN_RE = /^[ \t]*(?:(?:export|readonly|local|declare)\s+)*([A-Za-z_]\w*)=(.*)$/gm;
+const CD_OWN_RE = /\bcd\s+"?\$\(\s*dirname\s+[^)]*(?:BASH_SOURCE|\$\{?0\}?)[^)]*\)/g;
+const CONCAT_RE = /(?<![\w.-])(?:\.aai|tests|docs)["']\//g;
+const QUOTE_CLOSED_RE = /^["'](?:[$`\w/"'])/;
 export function computeClosure(ctx, suite) {
   const start = `tests/skills/test-${suite}.sh`;
   const closure = new Set([start]);
@@ -147,7 +156,7 @@ export function computeClosure(ctx, suite) {
       let p = raw.replace(/[.,:;)]+$/, '');
       const trimmed = p !== raw;
       if (dynamic && !trimmed) p = p.slice(0, p.lastIndexOf('/') + 1);
-      if (!p) return;
+      if (!p) { unresolved.push(`${raw}<expansion> <- ${rel}`); return; }
       if (p.endsWith('/') || (!ctx.fileSet.has(p) && underDir(ctx, p).length)) {
         dirs.push(`${p} <- ${rel} (${underDir(ctx, p).length} files)`);
         for (const f of underDir(ctx, p)) add(f);
@@ -156,23 +165,41 @@ export function computeClosure(ctx, suite) {
     if (rel.startsWith('tests/')) {
       for (const m of text.matchAll(TOKEN_RE)) {
         if (/[%#]\*?\/$/.test(text.slice(Math.max(0, m.index - 4), m.index))) continue; // ${X%/tests/skills} strips a suffix, it reads nothing
-        addPath(m[0], DYNAMIC_NEXT_RE.test(text.charAt(m.index + m[0].length)));
+        const end = m.index + m[0].length;
+        if (QUOTE_CLOSED_RE.test(text.slice(end, end + 2))) { unresolved.push(`${m[0]} closed by a quote before more text <- ${rel}`); continue; }
+        addPath(m[0], DYNAMIC_NEXT_RE.test(text.charAt(end)));
       }
+      for (const m of text.matchAll(CONCAT_RE)) unresolved.push(`${m[0]} concatenated <- ${rel}`);
+      for (const m of text.matchAll(ROOT_THEN_EXPANSION_RE)) unresolved.push(`${m[0]}<expansion> <- ${rel}`);
       if (rel.startsWith('tests/skills/')) for (const m of text.matchAll(LIB_RE)) add(`tests/skills/lib/${m[1]}`);
       // A reference relative to the file's own directory outside lib/ (which LIB_RE
       // covers) is resolved against that directory when the file derives it from its
       // own location, then handled like a path literal (file, directory, or deepest
       // literal directory of a partly built path); else the suite is not reusable.
-      // A bare ../.. only navigates to a base and names nothing.
+      // A bare ../.. names nothing only when it computes a known repo-root variable.
       const ownDir = path.posix.dirname(rel);
-      const relative = (restRaw, tailAt, known, shown) => {
-        if (restRaw.startsWith('lib/') || /^[./]*$/.test(restRaw)) return;
+      const lineStart = (at) => text.lastIndexOf('\n', at - 1) + 1;
+      const lineOf = (at) => { const e = text.indexOf('\n', at); return text.slice(lineStart(at), e < 0 ? text.length : e); };
+      const relative = (restRaw, at, tailAt, known, shown) => {
+        const dyn = DYNAMIC_NEXT_RE.test(text.charAt(tailAt));
+        if (restRaw.startsWith('lib/') && !dyn) return;
+        if (/^[./]*$/.test(restRaw)) {
+          const a = /^[ \t]*(?:(?:export|readonly|local|declare)\s+)*([A-Za-z_]\w*)=/.exec(lineOf(at));
+          if (!dyn && a && ROOT_VAR_NAME_RE.test(a[1])) return;
+          unresolved.push(`${shown} <- ${rel}`); return;
+        }
         const joined = path.posix.normalize(path.posix.join(ownDir, restRaw));
         if (!known || joined === '.' || joined.startsWith('..')) { unresolved.push(`${shown} <- ${rel}`); return; }
-        addPath(joined, DYNAMIC_NEXT_RE.test(text.charAt(tailAt)));
+        addPath(joined, dyn);
       };
-      for (const m of text.matchAll(SCRIPT_DIR_RE)) relative(m[1], m.index + m[0].length, OWN_DIR_RE.test(text), `$SCRIPT_DIR/${m[1]}`);
-      for (const m of text.matchAll(DIRNAME_RE)) relative(m[2], m.index + m[0].length, OWN_DIR_RE.test(m[1]), `$(dirname ${m[1].trim()})/${m[2]}`);
+      for (const m of text.matchAll(SCRIPT_DIR_RE)) relative(m[1], m.index, m.index + m[0].length, OWN_DIR_RE.test(text), `$SCRIPT_DIR/${m[1]}`);
+      for (const m of text.matchAll(DIRNAME_RE)) relative(m[2], m.index, m.index + m[0].length, OWN_DIR_RE.test(m[1]), `$(dirname ${m[1].trim()})/${m[2]}`);
+      // Any other variable derived from the file's own location is not a base the helper knows.
+      for (const a of text.matchAll(ASSIGN_RE)) {
+        if (a[1] === 'SCRIPT_DIR' || ROOT_VAR_NAME_RE.test(a[1]) || !OWN_DIR_RE.test(a[2]) || !/dirname|pwd/.test(a[2])) continue;
+        if (new RegExp(`\\$\\{?${a[1]}\\b`).test(text.slice(a.index + a[0].length))) unresolved.push(`$${a[1]} (own-directory variable) <- ${rel}`);
+      }
+      for (const m of text.matchAll(CD_OWN_RE)) if (!text.slice(lineStart(m.index), m.index).includes('=')) unresolved.push(`cd to own directory <- ${rel}`);
     }
     if (/\.(mjs|js)$/.test(rel)) {
       for (const m of text.matchAll(IMPORT_RE)) add(posix(path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1]))));

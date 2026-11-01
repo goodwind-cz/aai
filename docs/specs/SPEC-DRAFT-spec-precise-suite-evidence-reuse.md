@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 18dda03dc2a7ab8936419f9bda48df9e8b4ddcb415e5d89c6641e2869345f654
+frozen_sha256: 49e24c1e4b683cdbb8d4747a742f79955599241172d374c814f692e881c6dd17
 ceremony_level: 2
 links:
   requirement: precise-suite-evidence-reuse
@@ -248,16 +248,25 @@ canonical JSON value:
   without a trailing slash (`"$ROOT/docs"`, `$ROOT/.aai`, `"tests"`; a bare
   `.aai`, `tests` or `docs` counts as a token only when `/`, a quote, `=`
   or `(` precedes it, so prose does not) names that directory exactly as
-  `docs/` does. A partly built path (a literal segment followed by `${...}`,
-  `$x`, `*`, `?`, `[` or `{`, such as `.aai/scripts/aai-${x}.mjs`) widens to
-  its deepest fully literal directory. A reference relative to the closure
-  file's own directory outside `lib/` (`$SCRIPT_DIR/<path>` or
-  `$(dirname ...)/<path>`) is resolved against that directory when the file
-  derives it from its own location (`BASH_SOURCE` or `$0`) and then handled
-  as a path literal (file, directory, or deepest literal directory), else the suite is not
-  reusable (`check` prints `RUN <suite> reason=inputs-unresolvable`, `record`
-  refuses with `inputs-unresolvable`); a bare `$SCRIPT_DIR/../..` only
-  navigates to a base and names nothing. Literals inside files under `.aai/`
+  `docs/` does. Fail closed: a reference that contains an expansion (`$x`, `${x}`,
+  `$(...)`, a template `${}`, `*`, `?`, `[` or `{`) or is built from the file's
+  own directory is accepted only when it starts at a known base (a literal
+  `.aai`, `tests` or `docs`, a repo-root variable such as `$ROOT`, or
+  `$SCRIPT_DIR` or `$(dirname ...)` in a file that derives its location from
+  `BASH_SOURCE` or `$0`) followed by a fully literal directory prefix of at
+  least one segment, and it then widens to that deepest fully literal
+  directory (or names the file, when the literal is a file), for example
+  `.aai/scripts/aai-${x}.mjs` or `$SCRIPT_DIR/fixtures/pre-$X.txt`. Everything
+  else is unresolvable and the suite is not reusable (`check` prints
+  `RUN <suite> reason=inputs-unresolvable`, `record` refuses with
+  `inputs-unresolvable`): an expansion straight after a base or after only
+  dots (`"$SCRIPT_DIR/$s.sh"`, `"${ROOT}/${name}"`, `"$(dirname "$0")/$f"`), a
+  variable derived from the own directory under any other name (`HERE=`,
+  `DIR=$(dirname "$0")`), a `cd` into the own directory, a literal closed by a
+  quote before more text (`"$ROOT/docs/pro"$S`), and concatenated segments. A
+  bare `$SCRIPT_DIR/../..` names nothing only where it computes a repo-root
+  variable (`ROOT`, `PROJECT_ROOT`, `REPO_ROOT` and the like), otherwise it is
+  unresolvable. Literals inside files under `.aai/`
   are not followed (M3);
   (e) each seed path (the framework's effective seed list) that exists, when
   its basename occurs in the text of any closure file.
@@ -554,7 +563,7 @@ stay as they are; CI never reuses (D6).
 |---|---|---|---|---|---|---|
 | TEST-3165 | Spec-AC-01 | integration | tests/skills/test-aai-suite-reuse.sh | test_3165: fixture repo with the real framework, helper, select-suites and lib copied in, a manifest declaring fx and a suite fx that appends one line to a marker file outside the repo; run 1 with --skill fx passes; run 2 prints fx REUSED naming run 1 id, time and log, the marker has 1 line, exit 0 | `sed:s/REUSED \(run/PASS \(run/` on tests/skills/test-framework.sh | green |
 | TEST-3166 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3166: recordSuite then checkSuites on a fixture git repo; editing a tracked declared input gives RUN reason=inputs changed path; adding an untracked file matching a declared glob gives reason=inputs added path | `sed:s/'--others', '--exclude-standard'/'--cached'/` on .aai/scripts/lib/tree-hash.mjs | green |
-| TEST-3167 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3167: a module imported by the suite's test lib but matched by no glob changes, a file appears under a directory the suite names as a literal, and docs/ai/STATE.yaml changes; each gives reason=inputs for a suite whose closure covers it, and the STATE change gives REUSE for a suite whose closure does not name STATE.yaml; further node cases: a top-level directory literal without a slash (docs, .aai, tests), a partly built path (prefix then variable or star) and a SCRIPT_DIR or dirname relative reference each give RUN when a file appears in the directory they widen to, an unresolvable base gives reason=inputs-unresolvable and no record | `sed:s/\[\/"'=\(\]/[Q]/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3167 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3167: a module imported by the suite's test lib but matched by no glob changes, a file appears under a directory the suite names as a literal, and docs/ai/STATE.yaml changes; each gives reason=inputs for a suite whose closure covers it, and the STATE change gives REUSE for a suite whose closure does not name STATE.yaml; further node cases: a top-level directory literal without a slash (docs, .aai, tests), a partly built path (prefix then variable or star) and a SCRIPT_DIR or dirname relative reference each give RUN when a file appears in the directory they widen to, an unresolvable base gives reason=inputs-unresolvable and no record; a fail-closed case gives RUN reason=inputs-unresolvable and a refused record for an expansion straight after SCRIPT_DIR, a braced SCRIPT_DIR, dirname or a repo-root variable, a custom own-directory variable, a literal closed by a quote before an expansion, concatenated segments and a bare dots path outside a root assignment, while a SCRIPT_DIR file, a dirname literal directory plus variable and a root assignment keep resolving | `sed:s/\[\/"'=\(\]/[Q]/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3168 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3168: changing AAI_FIXTURE_X gives reason=env; changing AAI_TEST_REF_ID gives REUSE; changing AAI_TEST_REF_ID for a suite whose closure references it gives reason=env | `sed:s/'env', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3169 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3169: computeIdentity with the argument vector extended by one argument gives reason=args against the record | `sed:s/'args', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3170 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3170: an injected runtime with another Node version gives reason=runtime, and one with another platform gives reason=runtime | `sed:s/'runtime', //` on .aai/scripts/suite-reuse.mjs | green |
