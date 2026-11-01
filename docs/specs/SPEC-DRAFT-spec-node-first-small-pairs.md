@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: b9d42d106088e4e24fa9d9e2008f73ea51483ae36a39209a84e10d5c076fdd5a
+frozen_sha256: 0d1506269ed5f9c6e7223fd4dec44b20f72f8f884d554567509719df6cd1f05c
 ceremony_level: 2
 links:
   requirement: node-first-small-pairs
@@ -264,11 +264,19 @@ generate-live-status.mjs is not edited.
     naming the hook without a copy: WARN; with a copy: PASS), and the all-PASS
     fixture drops its two pre-compact-save lines. This changes the SPEC-0100
     contract: one unsigned (`--signoff none`, the autopilot default; the owner's merge direction signs it) `node .aai/scripts/spec-amend.mjs add --spec
-    docs/specs/SPEC-0100-spec-doctor-determinize.md --ref doctor-determinize
+    docs/specs/SPEC-0100-spec-doctor-determinize.md --ref node-first-small-pairs
     --class contract --signoff none --authority "intake node-first-small-pairs
     (owner menu answer 2026-11-01 '1 2'): aai-doctor's check follows the
-    pre-compact-save decision" --what "TEST-009 CAT-09 checks hook wiring
-    against the retired pre-compact-save" --why "<one line>"` record.
+    pre-compact-save decision" --what "TEST-009 CAT-09 re-filed under this
+    ride: checks hook wiring against the retired pre-compact-save" --why
+    "<one line>"` record. It is filed under THIS ride's ref, not
+    `doctor-determinize`: a merge signs only records filed under the ref it
+    merges (merge-time binding, SPEC-0263), and `doctor-determinize` merged
+    long ago. The earlier record 91c688d47ba3 (ref `doctor-determinize`, same
+    change, filed before this correction) cannot be withdrawn from the
+    append-only ledger and can never be signed; it is exempted in
+    aai-merge-cleanup TEST-026 like a90cdce977d5, superseded by the re-filed
+    record.
   - `tests/self-hosting/test-self-hosting-smoke.ps1` checks `$LASTEXITCODE`
     after its validate-skills call and throws when it is non-zero: the old ps1
     copy threw on failure, an `exit 1` from the launcher does not, so without
@@ -371,7 +379,7 @@ already exists.
 | TEST-3212 | Spec-AC-05 | integration | tests/skills/test-aai-validate-skills.sh | test_3212_ps1_smoke_checks_exit extracts the Assert-AaiInstalled validate-skills call block from tests/self-hosting/test-self-hosting-smoke.ps1, runs it under pwsh against a fixture missing SKILL_TDD with a launcher copy, and requires a thrown error (non-zero pwsh exit); positive control: the same block against the full fixture exits 0 | `sed:s/if \(\$LASTEXITCODE -ne 0\)/if ($false)/` on tests/self-hosting/test-self-hosting-smoke.ps1 | green |
 | TEST-3213 | Spec-AC-06 | inspection | tests/skills/test-aai-validate-skills.sh | test_3213_pre_compact_retired requires both pre-compact-save files absent, no pre-compact-save line in PROFILES.yaml, and git ls-files outside docs/, CHANGELOG.md naming pre-compact-save only in .aai/scripts/aai-doctor.mjs and tests/skills/test-aai-doctor.sh; positive control: a fixture list with an extra naming file is reported | `sed:s/^# \.aai\/system\/PROFILES\.yaml /# pre-compact-save .aai\/system\/PROFILES.yaml /` on .aai/system/PROFILES.yaml | green |
 | TEST-3214 | Spec-AC-07 | integration | tests/skills/test-aai-doctor.sh | test_3214_cat09_retired_hook runs node aai-doctor.mjs --root on four fixtures: no settings gives CAT-09 PASS; .claude/settings.local.json with a PreCompact command naming bash .aai/scripts/pre-compact-save.sh and no copy gives WARN naming settings.local.json; the same in .claude/settings.json gives WARN naming settings.json; with a copy of pre-compact-save.sh present gives PASS | `sed:s/const RETIRED_HOOK = 'pre-compact-save';/const RETIRED_HOOK = 'pre-compact-gone';/` on .aai/scripts/aai-doctor.mjs | green |
-| TEST-3215 | Spec-AC-07 | integration | tests/skills/test-aai-doctor.sh | test_3215_test009_amended runs bash tests/skills/test-aai-doctor.sh test_009_cat09_precompact (exit 0) and node .aai/scripts/spec-amend.mjs list --json and requires a contract record of ref doctor-determinize whose what begins TEST-009, regardless of owner_signoff | `sed:s/"what":"TEST-009 CAT-09 checks hook wiring/"what":"TEST-gone CAT-09 checks hook wiring/` on docs/ai/decisions.jsonl | green |
+| TEST-3215 | Spec-AC-07 | integration | tests/skills/test-aai-doctor.sh | test_3215_test009_amended runs bash tests/skills/test-aai-doctor.sh test_009_cat09_precompact (exit 0) and node .aai/scripts/spec-amend.mjs list --json and requires a contract record of ref node-first-small-pairs whose what begins TEST-009, regardless of owner_signoff | `sed:s/"what":"TEST-009 CAT-09 re-filed under this ride/"what":"TEST-gone CAT-09 re-filed under this ride/` on docs/ai/decisions.jsonl | green |
 | TEST-3216 | Spec-AC-08 | e2e | tests/skills/test-aai-validate-skills.sh | test_3216_downstream_extended_sync seeds TEST_DIR/target with space with an old .aai/scripts/pre-compact-save.sh, runs .aai/scripts/aai-sync.sh --profile extended into it, requires validate-skills.mjs and aai-live.mjs there and the PRESERVE line plus the old pre-compact-save.sh kept; runs the target's bash .aai/scripts/validate-skills.sh on the target (exit 0, Skill validation completed.) and the target's aai-live.sh --output x.html with the opener stub and an empty --home (exit 0, stub logs EXISTS for the target's x.html); then a --profile core target holds neither module | `sed:s/\/validate-skills\.mjs"/\/validate-skills-gone.mjs"/` on .aai/scripts/validate-skills.sh | green |
 | TEST-3217 | Spec-AC-09 | inspection | tests/skills/test-aai-validate-skills.sh | test_3217_profiles_classified requires .aai/scripts/validate-skills.mjs and .aai/scripts/aai-live.mjs exactly once each in PROFILES.yaml, inside the extended list (the whole-tree classification check stays with test-aai-layer-profiles.sh in Verification) | `sed:s/aai-live\.mjs/aai-live-gone.mjs/` on .aai/system/PROFILES.yaml | green |
 | TEST-3218 | Spec-AC-09 | integration | tests/skills/test-aai-validate-skills.sh | test_3218_suite_map_selects feeds each new path to node .aai/scripts/select-suites.mjs --files-from - : the three validate-skills paths and the two test files select aai-validate-skills, aai-live.mjs and its two test files select aai-live-status, and no output holds a FULL_RUN line | `sed:s/\.aai\/scripts\/aai-live\.mjs/.aai\/scripts\/aai-live-gone.mjs/` on tests/skills/suite-map.yaml | green |
@@ -473,6 +481,9 @@ Planning's measurements above are inputs, not attestations.
 - The SPEC-0100 amendment is recorded unsigned (`--signoff none`, the autopilot
   default) citing the owner's intake answer as authority; the canon assigns the
   sign-off to the owner, whose merge direction signs it (SKILL_SHIP default 5).
+  The record is filed under this ride's ref (the merge signs only records of
+  its own ref); the earlier `doctor-determinize` record 91c688d47ba3 stays
+  unsigned and is exempted in TEST-026.
 - Changing shipped scripts is consumer-visible: merge stays with the owner.
 - Rollback is one revert of the scope's files plus the amendment record's
   disclosure.

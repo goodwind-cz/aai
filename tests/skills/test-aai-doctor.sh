@@ -2816,8 +2816,8 @@ test_3215_test009_amended() {
   node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json > "$sa" || { log_fail "TEST-3215 spec-amend list failed"; return; }
   out="$(node -e '
     const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    const hit = j.items.filter((i) => i.ref_id === "doctor-determinize" && i.amendment_class === "contract" && String(i.what).startsWith("TEST-009"));
-    process.stdout.write(hit.length >= 1 ? "" : "no contract record of ref doctor-determinize whose what begins TEST-009");
+    const hit = j.items.filter((i) => i.ref_id === "node-first-small-pairs" && i.amendment_class === "contract" && String(i.what).startsWith("TEST-009"));
+    process.stdout.write(hit.length >= 1 ? "" : "no contract record of ref node-first-small-pairs whose what begins TEST-009");
   ' "$sa")"
   if [[ -n "$out" ]]; then
     log_fail "TEST-3215 $out"
