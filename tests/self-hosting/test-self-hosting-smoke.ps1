@@ -40,6 +40,7 @@ function Assert-AaiInstalled {
   }
 
   & (Join-Path $root ".aai\scripts\validate-skills.ps1") -TargetRoot $TargetRoot | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "validate-skills failed (exit $LASTEXITCODE)" }
 }
 
 try {

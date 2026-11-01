@@ -720,6 +720,7 @@ test_031_watch_warmup_opens_existing_html() {
   scratch="$(cd "$scratch" && pwd -P)"
   mkdir -p "$scratch/.aai/scripts/live-parsers" "$scratch/.aai/scripts/lib"
   cp "$LIVE" "$scratch/.aai/scripts/aai-live.sh"
+  cp "$LIVE_MJS" "$scratch/.aai/scripts/aai-live.mjs"
   cp "$GEN" "$scratch/.aai/scripts/generate-live-status.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$scratch/.aai/scripts/live-parsers/"
   cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$scratch/.aai/scripts/lib/runtime-file.mjs"
@@ -1000,6 +1001,7 @@ test_037_one_shot_output_flag_opens_correct_file() {
   scratch="$(cd "$scratch" && pwd -P)"
   mkdir -p "$scratch/.aai/scripts/live-parsers" "$scratch/.aai/scripts/lib"
   cp "$LIVE" "$scratch/.aai/scripts/aai-live.sh"
+  cp "$LIVE_MJS" "$scratch/.aai/scripts/aai-live.mjs"
   cp "$GEN" "$scratch/.aai/scripts/generate-live-status.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/live-parsers/"*.mjs "$scratch/.aai/scripts/live-parsers/"
   cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$scratch/.aai/scripts/lib/runtime-file.mjs"
@@ -1456,7 +1458,7 @@ LR=""
 mk_live_root() {
   LR="$TEST_DIR/$1"
   rm -rf "$LR"; mkdir -p "$LR/.aai/scripts/live-parsers" "$LR/.aai/scripts/lib"
-  LR="$(cd "$LR" && pwd -P)"
+  LR="$(node -e 'process.stdout.write(require("fs").realpathSync(process.argv[1]))' "$LR")"
   [[ ! -f "$LIVE_MJS" ]] || cp "$LIVE_MJS" "$LR/.aai/scripts/aai-live.mjs"
   cp "$LIVE" "$LR/.aai/scripts/aai-live.sh"
   if [[ -n "${2:-}" ]]; then
@@ -1480,7 +1482,7 @@ test_3207_live_oneshot_paths() {
   [[ -f "$LIVE_MJS" ]] || log_fail "TEST-3207: .aai/scripts/aai-live.mjs does not exist"
   local fh gen rc out node_bin
   node_bin="$(command -v node)"
-  fh="$(mk_home t3207home)"; fh="$(cd "$fh" && pwd -P)"
+  fh="$(mk_home t3207home)"
   mk_live_root t3207root; mk_opener t3207op
   local env_home=(HOME="$fh" USERPROFILE="$fh" CLAUDE_CONFIG_DIR="$fh/.claude" CODEX_HOME="$fh/.codex" GEMINI_HOME="$fh/.gemini")
   local gargs=(--home "$fh" --cache "$LR/cache.json" --spool-dir "$LR/spool")
@@ -1534,7 +1536,7 @@ test_3208_watch_signal_forwarding() {
   rm -rf "$real" "$link"; mkdir -p "$real"
   mk_live_root t3208real/repo; real="$LR"
   ln -s "$real" "$link"
-  fh="$(mk_home t3208home)"; fh="$(cd "$fh" && pwd -P)"
+  fh="$(mk_home t3208home)"
   mk_opener t3208op
   HOME="$fh" USERPROFILE="$fh" CLAUDE_CONFIG_DIR="$fh/.claude" CODEX_HOME="$fh/.codex" GEMINI_HOME="$fh/.gemini" AAI_LIVE_OPENER="$OPN" \
     bash "$link/.aai/scripts/aai-live.sh" --watch --interval 1 > "$TEST_DIR/t3208.log" 2>&1 &

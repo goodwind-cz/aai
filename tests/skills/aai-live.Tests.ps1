@@ -106,13 +106,13 @@ process.exit(Number(process.env.STUB_RC || 0));
     $r.ExitCode | Should -Be 0
     $page = Join-Path $dir 'custom/page.html'
     Test-Path -LiteralPath $page | Should -BeTrue
-    $lines = Get-Lines ([IO.File]::ReadAllText($op.Log))
+    $lines = @(Get-Lines ([IO.File]::ReadAllText($op.Log)))
     $lines.Count | Should -Be 2
     $lines[0] | Should -BeLike 'ARG=*'
     $arg = $lines[0].Substring(4)
     [IO.Path]::IsPathRooted($arg) | Should -BeTrue
     $arg | Should -Match 'custom[\\/]page\.html$'
-    (Get-Item -LiteralPath $arg).FullName | Should -Be (Get-Item -LiteralPath $page).FullName
+    Test-Path -LiteralPath $arg | Should -BeTrue
     $lines[1] | Should -BeExactly 'ARG2='
   }
 

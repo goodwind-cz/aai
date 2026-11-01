@@ -91,7 +91,7 @@ Describe 'validate-skills launcher' {
     $target = New-Target
     $r = Invoke-Launcher -LauncherDir (New-LauncherDir) -ArgText ('-TargetRoot "' + $target + '"')
     $r.ExitCode | Should -Be 0
-    $lines = Get-Lines $r.Stdout
+    $lines = @(Get-Lines $r.Stdout)
     $lines.Count | Should -Be 4
     $lines[0] | Should -Match '^Validating skills in: '
     $lines[1] | Should -BeExactly 'OK: dynamic skills bootstrap marker exists (.claude/skills/AAI_DYNAMIC_SKILLS.md)'
@@ -104,7 +104,7 @@ Describe 'validate-skills launcher' {
     $target = New-Target -Skip '.aai/SKILL_TDD.prompt.md'
     $r = Invoke-Launcher -LauncherDir (New-LauncherDir) -ArgText ('-TargetRoot "' + $target + '"')
     $r.ExitCode | Should -Be 1
-    $errLines = Get-Lines $r.Stderr
+    $errLines = @(Get-Lines $r.Stderr)
     $errLines.Count | Should -Be 1
     $errLines[0] | Should -Match '^ERROR: Missing required file: .*SKILL_TDD\.prompt\.md$'
   }

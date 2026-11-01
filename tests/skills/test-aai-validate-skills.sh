@@ -5,7 +5,7 @@
 #
 # validate-skills is one Node module (.aai/scripts/validate-skills.mjs) plus two
 # thin launchers; aai-live moves the same way (its own rows live in
-# test-aai-live-status.sh); pre-compact-save is retired. This suite also carries
+# test-aai-live-status.sh); the pre-compact hook script is retired. This suite also carries
 # the rows that pin the wiring (PROFILES, suite map, ps1-quality path lists), the
 # RFC-0017 remaining-pairs inventory and the line budget. Every function runs
 # alone under single-function dispatch:
