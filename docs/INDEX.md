@@ -60,7 +60,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (602)
+## Done (604)
 
 | ID | Type | Path |
 |---|---|---|
@@ -297,6 +297,7 @@ _None._
 | CHANGE-0236 | issues | docs/issues/CHANGE-0236-watch-ci-reread-refresh-and-p3-cleanup.md |
 | CHANGE-0237 | issues | docs/issues/CHANGE-0237-provider-adapter-surfaces-closing-slice.md |
 | CHANGE-0238 | issues | docs/issues/CHANGE-0238-ride-status-and-resume.md |
+| CHANGE-0239 | issues | docs/issues/CHANGE-0239-node-first-small-pairs.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -664,6 +665,7 @@ _None._
 | SPEC-0262 | specs | docs/specs/SPEC-0262-spec-watch-ci-reread-refresh-and-p3-cleanup.md |
 | SPEC-0263 | specs | docs/specs/SPEC-0263-spec-provider-adapter-surfaces-closing-slice.md |
 | SPEC-0264 | specs | docs/specs/SPEC-0264-spec-ride-status-and-resume.md |
+| SPEC-0265 | specs | docs/specs/SPEC-0265-spec-node-first-small-pairs.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -705,7 +707,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (537)
+## Broken references (536)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -717,7 +719,6 @@ _None._
 | .aai/scripts/generate-userguide-rollup.mjs | docs/specs/SPEC-1.md | NOT FOUND |
 | .aai/scripts/lib/repo-tripwire.sh | docs/other.md | NOT FOUND |
 | .aai/scripts/migrate-state-to-local.ps1 | docs/ai/.session-context.md | NOT FOUND |
-| .aai/scripts/pre-compact-save.ps1 | docs/ai/.session-context.md | NOT FOUND |
 | .aai/scripts/spec-lint.mjs | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-0001-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |

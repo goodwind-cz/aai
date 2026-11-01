@@ -1,47 +1,9 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-TARGET="$(cd "${1:-$(pwd)}" && pwd)"
-echo "Validating skills in: $TARGET"
-
-require_file() {
-  local p="$1"
-  if [[ ! -f "$p" ]]; then
-    echo "ERROR: Missing required file: $p" >&2
-    exit 1
-  fi
-}
-
-for p in \
-  "$TARGET/.aai/SKILL_CHECK_STATE.prompt.md" \
-  "$TARGET/.aai/SKILL_INTAKE.prompt.md" \
-  "$TARGET/.aai/SKILL_LOOP.prompt.md" \
-  "$TARGET/.aai/SKILL_HITL.prompt.md" \
-  "$TARGET/.aai/SKILL_BOOTSTRAP.prompt.md" \
-  "$TARGET/.aai/SKILL_VALIDATE_REPORT.prompt.md" \
-  "$TARGET/.aai/SKILL_CANONICALIZE.prompt.md" \
-  "$TARGET/.aai/SKILL_TDD.prompt.md" \
-  "$TARGET/.aai/SKILL_WORKTREE.prompt.md" \
-  "$TARGET/.aai/SKILL_CODE_REVIEW.prompt.md" \
-  "$TARGET/.aai/SKILL_SHARE.prompt.md" \
-  "$TARGET/.aai/scripts/aai-bootstrap.sh"; do
-  require_file "$p"
-done
-
-if [[ -f "$TARGET/.claude/skills/AAI_DYNAMIC_SKILLS.md" ]]; then
-  echo "OK: dynamic skills bootstrap marker exists (.claude/skills/AAI_DYNAMIC_SKILLS.md)"
-else
-  echo "WARN: Missing .claude/skills/AAI_DYNAMIC_SKILLS.md (bootstrap may not have run yet)."
+# Skill validation launcher; the logic lives in validate-skills.mjs (RFC-0017 small-pairs slice).
+# Usage: bash .aai/scripts/validate-skills.sh [target-dir]
+MODULE="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/validate-skills.mjs"
+if command -v node >/dev/null 2>&1 && [[ -f "$MODULE" ]]; then
+  exec node "$MODULE" "$@"
 fi
-
-if [[ -f "$TARGET/docs/ai/LOOP_TICKS.jsonl" ]]; then
-  if grep -q '"mode":"skill"' "$TARGET/docs/ai/LOOP_TICKS.jsonl"; then
-    echo "OK: LOOP_TICKS.jsonl contains skill-mode evidence."
-  else
-    echo "WARN: LOOP_TICKS.jsonl has no skill-mode entries yet."
-  fi
-else
-  echo "WARN: Missing docs/ai/LOOP_TICKS.jsonl (no runtime evidence yet)."
-fi
-
-echo "Skill validation completed."
+echo "ERROR: validate-skills needs node (validate-skills.mjs unavailable)" >&2
+exit 1

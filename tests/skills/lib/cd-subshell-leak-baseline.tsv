@@ -17,7 +17,7 @@
 #
 3	.aai/scripts/aai-bootstrap.sh
 1	.aai/scripts/aai-canonicalize.sh
-2	.aai/scripts/aai-live.sh
+1	.aai/scripts/aai-live.sh
 10	.aai/scripts/aai-run-tests.sh
 2	.aai/scripts/aai-sync.sh
 1	.aai/scripts/aai-update.sh
@@ -136,6 +136,7 @@
 18	tests/skills/test-aai-update.sh
 2	tests/skills/test-aai-userguide-drift.sh
 3	tests/skills/test-aai-userguide-rollup.sh
+3	tests/skills/test-aai-validate-skills.sh
 2	tests/skills/test-aai-validator-isolation.sh
 2	tests/skills/test-aai-verify-gate.sh
 3	tests/skills/test-aai-win-fallback.sh
