@@ -2868,6 +2868,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Reuse of local suite results
+
+A local test run can skip a suite whose result is already known: when a suite passed earlier and nothing it depends on has changed since, the framework reports it as REUSED, names the run it came from and points at that run's log, instead of executing it again. "Nothing changed" is checked against a complete input identity of the suite: the bytes of every file it reads, the relevant environment, its arguments, the Node version and platform, the runner policy and its own history. Anything the checker cannot account for makes the suite run. A reused result is never reported as a new execution, and the full sweep before close, CI, main, nightly and release always execute every suite.
+
+[Product doc](product/precise-suite-evidence-reuse.md) · [Spec](specs/SPEC-0266-spec-precise-suite-evidence-reuse.md)
+
 ### One registry for the per-provider instruction files
 
 Every coding agent AAI supports reads its own small instruction file in the project root: `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `GEMINI.md`, `.github/copilot-instructions.md` and `.cursor/rules/aai.mdc`. Each one only points the agent at the canonical guide in `.aai/`. They used to be kept by hand, and they drifted: the Copilot file still listed 20 of the 42 skills, one of them already renamed.

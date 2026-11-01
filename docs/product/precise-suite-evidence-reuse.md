@@ -5,7 +5,7 @@ capability: precise-suite-evidence-reuse
 status: current
 delivered_by:
   - precise-suite-evidence-reuse
-spec: docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md
+spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
 updated: 2026-11-01
 ---
 
@@ -88,7 +88,7 @@ suite.
 
 ## Links
 
-- Request: docs/issues/CHANGE-DRAFT-precise-suite-evidence-reuse.md
-- Spec: docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md
+- Request: docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md
+- Spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
 - Measurement: docs/analysis/precise-suite-evidence-reuse.md
 - Validation evidence: docs/ai/reports/VALIDATION-precise-suite-evidence-reuse-r12.md

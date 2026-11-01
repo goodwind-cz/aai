@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-01T18:23:16.208Z",
+  "generatedAt": "2026-11-01T21:53:18.438Z",
   "project": "aai",
   "counts": {
-    "delivered": 335,
+    "delivered": 336,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0265-spec-node-first-small-pairs.md",
       "validation": null,
       "review": "docs/ai/reviews/review-node-first-small-pairs-20261101T181743Z.md"
+    },
+    {
+      "ref": "precise-suite-evidence-reuse",
+      "title": "Precise reuse of local suite results with a complete input identity",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md",
+      "closed_on": "2026-11-01",
+      "agent_minutes": 301,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-precise-suite-evidence-reuse-20261101T214817Z.md"
     },
     {
       "ref": "ride-status-and-resume",
@@ -4628,6 +4641,19 @@
           "spec": "docs/specs/SPEC-0265-spec-node-first-small-pairs.md",
           "validation": null,
           "review": "docs/ai/reviews/review-node-first-small-pairs-20261101T181743Z.md"
+        },
+        {
+          "ref": "precise-suite-evidence-reuse",
+          "title": "Precise reuse of local suite results with a complete input identity",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md",
+          "closed_on": "2026-11-01",
+          "agent_minutes": 301,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-precise-suite-evidence-reuse-20261101T214817Z.md"
         }
       ]
     },

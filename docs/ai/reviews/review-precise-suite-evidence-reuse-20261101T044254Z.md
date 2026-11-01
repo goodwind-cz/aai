@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: main...HEAD (feat/precise-suite-evidence-reuse, head 846955f0, base main 89a63814; 26 files, +3075/-29)
-  spec: docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md (amended; latest contract amendment 2026-11-01T02:47:05Z after owner HITL 2026-11-01T02:43:43Z option 1; all amendments owner_signoff false, tracked by fu-amend-precise-suite-evidence-reuse)
+  spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md (amended; latest contract amendment 2026-11-01T02:47:05Z after owner HITL 2026-11-01T02:43:43Z option 1; all amendments owner_signoff false, tracked by fu-amend-precise-suite-evidence-reuse)
   spec_compliance:
     verdict: fail
     ac_walk:
@@ -26,13 +26,13 @@ review:
       - { rank: BLOCKING, file: .aai/scripts/suite-reuse.mjs, line: 157,
           issue: "addPath trims trailing [.,:;)] from the literal and then skips the deepest-literal-directory slice whenever a trim happened (line 159 'dynamic && !trimmed'), so a partly built path whose literal part ends in a dot (the normal shape of name.${ext}) is recorded as one absent path. D4 (d) lists this form as detected and widened.",
           failure_scenario: "A manifest suite reads cat \"$ROOT/docs/specs/SPEC-0001.${ext}\" (ext=md). explain shows input docs/specs/SPEC-0001 (absent), not docs/specs/. Record a pass, append a line to docs/specs/SPEC-0001.md, check prints REUSE. Reviewer reproduced this with the shipped helper in a scratch repo (checkSuites/recordSuite: check1 RUN no-record, record recorded, check2 REUSE after the edit). The admission gate refuses such a suite only when the read is mandatory at admission time; it does not run when a manifest suite's own file is edited later (N2), which is the realistic path: edit test-aai-pricing.sh to add the read, the suite runs fresh and records, and the next intermediate round reuses it over a changed input." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md, line: 219,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md, line: 219,
           issue: "D3 and R1 present the minimal-tree gate as the admission safety but do not say what it does not prove (validation r5 NB-1): it shows a suite passes with only its identity files, not that it re-runs on every change outside them",
           failure_scenario: "A future manifest suite does an exists-check or tolerant read (if [[ -f docs/x ]]), or reads an absolute or $HOME path, or depends on an inherited env var outside the env component. It passes the gate (validator probe zz-optional, zz-abs, zz-home admitted) and a reviewer trusting the D3 wording admits it; a change to that file then gives REUSE." }
       - { rank: NON-BLOCKING, file: tests/skills/suite-map.yaml, line: 0,
           issue: "The aai-suite-reuse row (which runs the gate via TEST-3194) is selected for manifest and helper edits but not for edits to a manifest suite's own file (validation r5 NB-2)",
           failure_scenario: "An edit to tests/skills/test-aai-pricing.sh that adds an undeclared read selects aai-pricing plus CORE only; the gate does not run until the next full sweep or nightly, and intermediate rounds can reuse the suite over the undeclared input (this is also the trigger path for B1)." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md, line: 549,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md, line: 549,
           issue: "Spec-AC-08 is marked done, but its Evidence cell cites only green-TEST-3182/3193 logs; nothing is cited for the minimal-tree clause added by the 2026-11-01 amendment (validation r5 NB-3)",
           failure_scenario: "docs-audit verify or a later reader of the AC table finds no artifact for the TEST-3194 clause and cannot tell it was proven; the evidence exists only in docs/ai/validation/precise-suite-evidence-reuse/r5-validator-minimal-tree-*.log." }
   cannot_verify:

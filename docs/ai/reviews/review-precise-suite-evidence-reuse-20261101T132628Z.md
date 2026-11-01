@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: main...HEAD (feat/precise-suite-evidence-reuse, head 17f42f7d, base main 89a63814); delta since round 4 c639df81..17f42f7d (9fb6d60b, 17f42f7d)
-  spec: docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md (amended; contract amendments 2026-11-01T12:15:07Z and 13:07:52Z, restamp record 13:08:58Z; all owner_signoff false, tracked by fu-amend-precise-suite-evidence-reuse)
+  spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md (amended; contract amendments 2026-11-01T12:15:07Z and 13:07:52Z, restamp record 13:08:58Z; all owner_signoff false, tracked by fu-amend-precise-suite-evidence-reuse)
   spec_compliance:
     verdict: fail
     ac_walk:

@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: main...HEAD (feat/precise-suite-evidence-reuse, head 891af2ee); delta since round 6 6fd8a8c1..891af2ee (e4c3416a r6 report, cb2cafdd follow-up reopen, 891af2ee analysis note)
-  spec: docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md (frozen, amended; amendments unsigned, tracked by fu-amend-precise-suite-evidence-reuse)
+  spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md (frozen, amended; amendments unsigned, tracked by fu-amend-precise-suite-evidence-reuse)
   spec_compliance:
     verdict: pass
     ac_walk:

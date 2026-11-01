@@ -1,10 +1,10 @@
 ---
 id: spec-precise-suite-evidence-reuse
 type: spec
-number: null
-status: implementing
+number: 266
+status: done
 mutation_gate: v1
-frozen_sha256: 7169ef1fff66c8c3c64113573f1558b1fbdabcb92db2add5b1b8812eb7289b36
+frozen_sha256: ef8ab0acff117b277fbd2f8e06c5bf28966d7abd03f15795a2593b288b22454c
 ceremony_level: 2
 links:
   requirement: precise-suite-evidence-reuse
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Intake: docs/issues/CHANGE-DRAFT-precise-suite-evidence-reuse.md
+- Intake: docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md
 - Umbrella: docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   (section 3, "Cache only deterministic checks with a complete input
   identity"; Rollout Status phase 5, first slice; the umbrella stays open)
@@ -768,8 +768,8 @@ certify itself).
 - tests/skills/lib/prompt-diet-ledger.sh
 - tests/skills/test-aai-prompt-diet.sh (TEST-012 pin)
 - docs/analysis/precise-suite-evidence-reuse.md (new)
-- docs/issues/CHANGE-DRAFT-precise-suite-evidence-reuse.md
-- docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md
+- docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md
+- docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
 - docs/product/precise-suite-evidence-reuse.md (close-out)
 - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md (close-out)
 - CHANGELOG.md (close-out)

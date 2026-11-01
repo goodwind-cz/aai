@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: main...HEAD (feat/precise-suite-evidence-reuse, head c5896c33, base 773557ee; 26 files, +2656/-29)
-  spec: docs/specs/SPEC-DRAFT-spec-precise-suite-evidence-reuse.md (+ 6 spec_amendment lines in docs/ai/decisions.jsonl, all owner_signoff false, tracked by fu-amend-precise-suite-evidence-reuse)
+  spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md (+ 6 spec_amendment lines in docs/ai/decisions.jsonl, all owner_signoff false, tracked by fu-amend-precise-suite-evidence-reuse)
   spec_compliance:
     verdict: fail
     ac_walk:
