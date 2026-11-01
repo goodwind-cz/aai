@@ -35,8 +35,11 @@ ever invokes it, and it is never coupled to ride ceremony.
   cleanly (exit 0, no leftover child process). No server, no port.
 - Convenience launcher: `bash .aai/scripts/aai-live.sh [--watch]` (Windows:
   `aai-live.ps1`) generates and opens the page via the platform opener
-  (`open` / `xdg-open` / `Start-Process`); it refuses with a named error
-  instead of hanging when no opener is found.
+  (`open` / `xdg-open`, `explorer.exe` on Windows); it refuses with a named
+  error instead of hanging when no opener is found. The logic lives in one
+  Node module, `.aai/scripts/aai-live.mjs`, and both launchers are thin
+  callers of it, so `AAI_LIVE_OPENER` (one executable path) now works on
+  Windows too.
 - `--data-only` writes just `live-status-data.json`. `--home <dir>` overrides
   the resolved home directory (fixtures/tests only).
 
@@ -96,7 +99,8 @@ ever invokes it, and it is never coupled to ride ceremony.
   liveness `heuristic`) — never a broken one.
 - Cross-platform: every root and spool path is built through `os.homedir()`
   or an env override joined with `path.join` — no hardcoded POSIX string.
-  `aai-live.sh` ships a PowerShell twin (`aai-live.ps1`). The spool logic
+  `aai-live.sh` ships a PowerShell twin (`aai-live.ps1`), both launchers of
+  `aai-live.mjs` (RFC-0017 small-pairs slice). The spool logic
   lives in one Node module, `.aai/scripts/live-spool.mjs` (RFC-0017 phase 3);
   `live-spool.sh` and `live-spool.ps1` are 17-line launchers that call it.
   Moving to one module settled three differences between the old copies:

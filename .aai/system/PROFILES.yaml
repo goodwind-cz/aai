@@ -228,8 +228,6 @@ core:
   - .aai/scripts/pr-preflight.mjs
   - .aai/scripts/pre-commit-checks.ps1
   - .aai/scripts/pre-commit-checks.sh
-  - .aai/scripts/pre-compact-save.ps1
-  - .aai/scripts/pre-compact-save.sh
   - .aai/scripts/reconcile-telemetry.mjs
   - .aai/scripts/secrets-preflight.mjs
   - .aai/scripts/select-suites.mjs
@@ -321,6 +319,7 @@ extended:
   - .aai/scripts/aai-feedback-upsert.mjs
   - .aai/scripts/aai-friction.mjs
   - .aai/scripts/aai-issues.mjs
+  - .aai/scripts/aai-live.mjs
   - .aai/scripts/aai-live.ps1
   - .aai/scripts/aai-live.sh
   - .aai/scripts/cloudflare-share.ps1
@@ -359,6 +358,7 @@ extended:
   - .aai/scripts/routine-emit.mjs
   - .aai/scripts/share-convert.mjs
   - .aai/scripts/test-canon.mjs
+  - .aai/scripts/validate-skills.mjs
   - .aai/scripts/validate-skills.ps1
   - .aai/scripts/validate-skills.sh
   - .aai/system/EXPERT_REGISTRY.yaml

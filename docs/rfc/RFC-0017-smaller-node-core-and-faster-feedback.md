@@ -315,7 +315,6 @@ A pair is `.aai/scripts/<name>.sh` plus `<name>.ps1` with no `<name>.mjs`; the l
 | Pair | Lines sh/ps1 | Destination | Reason |
 |---|---|---|---|
 | `aai-canonicalize` | 276/281 | later candidate | one-off structure migration; its telemetry step depends on migrate-yaml-to-jsonl (python3 and PyYAML) |
-| `aai-live` | 125/90 | later candidate | already requires Node; what remains is browser-opener choice around generate-live-status.mjs, which a later slice can fold into that generator |
 | `aai-reap-tests` | 368/419 | phase 5 process adapter | reaps process groups and Windows process trees (process supervision migrates last) |
 | `aai-release` | 365/414 | later candidate | 779 lines with git and gh write effects and the most active history; its finish step already lives in release-finish.mjs |
 | `aai-run-tests` | 958/942 | phase 5 process adapter | supervises suite processes, timeouts and orphan cleanup |
@@ -327,8 +326,8 @@ A pair is `.aai/scripts/<name>.sh` plus `<name>.ps1` with no `<name>.mjs`; the l
 | `migrate-state-to-local` | 162/175 | platform adapter kept on purpose | git-only legacy migration that aai-sync names for a target that may not have Node yet; retire with RFC-0001 legacy support instead of porting |
 | `migrate-yaml-to-jsonl` | 126/151 | later candidate | needs a general YAML parser that Node's stdlib lacks; one-off (SPEC-0248) |
 | `pre-commit-checks` | 323/281 | platform adapter kept on purpose | L3 protected surface whose checks 1 to 7 run without Node; a move needs its own L3 scope |
-| `pre-compact-save` | 77/87 | later candidate | no shipped install wires the hook (SPEC-0248) |
-| `validate-skills` | 47/55 | later candidate | twelve file-existence checks with cosmetic drift (SPEC-0248) |
+
+The [small-pairs slice](../issues/CHANGE-DRAFT-node-first-small-pairs.md) moved validate-skills and aai-live to Node modules and retired pre-compact-save (three pairs 481 to 156 lines).
 
 Suggested first implementation scope: scheduling improvements plus a separate
 docs-audit pilot. Do not combine scheduler, state storage, prompt governance,
