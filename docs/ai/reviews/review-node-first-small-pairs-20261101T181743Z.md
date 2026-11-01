@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "git diff main...4ae8d883 over code_review.scope (STATE.yaml, 30 explicit paths)"
-  spec: docs/specs/SPEC-DRAFT-spec-node-first-small-pairs.md
+  spec: docs/specs/SPEC-0265-spec-node-first-small-pairs.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -41,7 +41,7 @@ review:
 security_relevant: false
 
 - Scope: `git diff main...HEAD` (head 4ae8d883, branch feat/node-first-small-pairs) over the 30 paths in STATE `code_review.scope`. Out-of-scope diff paths (docs/INDEX.md, docs/ai/EVENTS.jsonl, docs/ai/roadmap.yaml) not reviewed. The working tree has two modified telemetry files (EVENTS.jsonl, test-runs.jsonl), both outside the scope.
-- Spec: docs/specs/SPEC-DRAFT-spec-node-first-small-pairs.md (frozen, amended; four amendment records of this ref, all unsigned-tracked).
+- Spec: docs/specs/SPEC-0265-spec-node-first-small-pairs.md (frozen, amended; four amendment records of this ref, all unsigned-tracked).
 - Dispatch note (anti-gaming): the dispatch prompt named focus areas and relayed validation r2's non-blocking notes. It did not rate severity or exclude any area. I reviewed the full scope anyway.
 
 ## Verdict 1: spec_compliance = pass

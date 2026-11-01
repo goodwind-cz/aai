@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-validate-skills
-# (docs/specs/SPEC-DRAFT-spec-node-first-small-pairs.md, TEST-3201..3205, 3211..3213, 3216..3221)
+# (docs/specs/SPEC-0265-spec-node-first-small-pairs.md, TEST-3201..3205, 3211..3213, 3216..3221)
 #
 # validate-skills is one Node module (.aai/scripts/validate-skills.mjs) plus two
 # thin launchers; aai-live moves the same way (its own rows live in

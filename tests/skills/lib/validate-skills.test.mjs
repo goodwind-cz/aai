@@ -1,5 +1,5 @@
 // validate-skills.test.mjs - node:test cases for .aai/scripts/validate-skills.mjs
-// (docs/specs/SPEC-DRAFT-spec-node-first-small-pairs.md, TEST-3201 and TEST-3202).
+// (docs/specs/SPEC-0265-spec-node-first-small-pairs.md, TEST-3201 and TEST-3202).
 // Direct imports of validate(), temporary directories only.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';

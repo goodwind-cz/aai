@@ -1,5 +1,5 @@
 // aai-live.test.mjs - node:test cases for .aai/scripts/aai-live.mjs
-// (docs/specs/SPEC-DRAFT-spec-node-first-small-pairs.md, TEST-3206).
+// (docs/specs/SPEC-0265-spec-node-first-small-pairs.md, TEST-3206).
 // Direct imports of the pure resolvers, temporary directories only.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';

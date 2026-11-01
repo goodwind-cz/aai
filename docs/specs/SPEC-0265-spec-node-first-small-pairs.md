@@ -1,10 +1,10 @@
 ---
 id: spec-node-first-small-pairs
 type: spec
-number: null
-status: implementing
+number: 265
+status: done
 mutation_gate: v1
-frozen_sha256: 0d1506269ed5f9c6e7223fd4dec44b20f72f8f884d554567509719df6cd1f05c
+frozen_sha256: 37dee94d456e2510d41ec76a76fb7f7062e976d94519c9c4ba39f0f910763d80
 ceremony_level: 2
 links:
   requirement: node-first-small-pairs
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Move three small paired scripts to Node](../issues/CHANGE-DRAFT-node-first-small-pairs.md).
+- Requirement: [Move three small paired scripts to Node](../issues/CHANGE-0239-node-first-small-pairs.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   section "Remaining paired scripts after phase 3" (later candidates).
 - Pattern precedents: [SPEC-0247](SPEC-0247-spec-node-first-sync-hook-slice.md),
@@ -69,8 +69,8 @@ SPEC-FROZEN: true
   tests/skills/lib/cd-subshell-leak-baseline.tsv
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   docs/product/live-status-dashboard.md docs/ai/decisions.jsonl CHANGELOG.md
-  docs/issues/CHANGE-DRAFT-node-first-small-pairs.md
-  docs/specs/SPEC-DRAFT-spec-node-first-small-pairs.md
+  docs/issues/CHANGE-0239-node-first-small-pairs.md
+  docs/specs/SPEC-0265-spec-node-first-small-pairs.md
   (suite-weights.tsv only if the selector asks for a row; the cd-subshell
   baseline only if the checker asks for a re-record).
 - Code review required: true.
@@ -293,7 +293,7 @@ generate-live-status.mjs is not edited.
   the rows `aai-live`, `pre-compact-save` and `validate-skills`; every other
   row stays byte for byte.
 - Directly after the table, one paragraph:
-  `The [small-pairs slice](../issues/CHANGE-DRAFT-node-first-small-pairs.md) moved validate-skills and aai-live to Node modules and retired pre-compact-save (three pairs 481 to <N> lines).`
+  `The [small-pairs slice](../issues/CHANGE-0239-node-first-small-pairs.md) moved validate-skills and aai-live to Node modules and retired pre-compact-save (three pairs 481 to <N> lines).`
   where `<N>` is the `wc -l` sum of the four launchers and two modules at
   delivery. The allocator rewrites the link at merge; checks match only the
   suffix `node-first-small-pairs.md`.
@@ -385,7 +385,7 @@ already exists.
 | TEST-3218 | Spec-AC-09 | integration | tests/skills/test-aai-validate-skills.sh | test_3218_suite_map_selects feeds each new path to node .aai/scripts/select-suites.mjs --files-from - : the three validate-skills paths and the two test files select aai-validate-skills, aai-live.mjs and its two test files select aai-live-status, and no output holds a FULL_RUN line | `sed:s/\.aai\/scripts\/aai-live\.mjs/.aai\/scripts\/aai-live-gone.mjs/` on tests/skills/suite-map.yaml | green |
 | TEST-3219 | Spec-AC-09 | inspection | tests/skills/test-aai-validate-skills.sh | test_3219_ps1_quality_paths extracts the push and pull_request path lists of .github/workflows/ps1-quality.yml and requires both to name .aai/scripts/validate-skills.mjs and .aai/scripts/aai-live.mjs and to be identical | `sed:s/validate-skills\.mjs/validate-skills-gone.mjs/` on .github/workflows/ps1-quality.yml | green |
 | TEST-3220 | Spec-AC-10 | inspection | tests/skills/test-aai-validate-skills.sh | test_3220_line_budget parses three pairs 481 to N lines from the RFC-0017 slice paragraph and requires N to equal the live wc -l sum of the four launchers and two modules and to be at most 230 | `sed:s/three pairs 481 to (\d+) lines/three pairs 481 to 1$1 lines/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | green |
-| TEST-3221 | Spec-AC-11 | inspection | tests/skills/test-aai-validate-skills.sh | test_3221_rfc_inventory runs bash tests/skills/test-aai-expert-fetch.sh test_2624_inventory_matches_tree and test_2623_rfc_phase3_done (each exit 0), then requires no inventory row for aai-live, pre-compact-save or validate-skills and a paragraph after the table whose link ends node-first-small-pairs.md | `sed:s/\(\.\.\/issues\/CHANGE-DRAFT-node-first-small-pairs\.md\)/(..\/issues\/CHANGE-DRAFT-node-first-gone.md)/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | green |
+| TEST-3221 | Spec-AC-11 | inspection | tests/skills/test-aai-validate-skills.sh | test_3221_rfc_inventory runs bash tests/skills/test-aai-expert-fetch.sh test_2624_inventory_matches_tree and test_2623_rfc_phase3_done (each exit 0), then requires no inventory row for aai-live, pre-compact-save or validate-skills and a paragraph after the table whose link ends node-first-small-pairs.md | `sed:s/\(\.\.\/issues\/CHANGE-0239-node-first-small-pairs\.md\)/(..\/issues\/CHANGE-DRAFT-node-first-gone.md)/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | green |
 
 Test counts by type: unit 3, integration 11, inspection 6, e2e 1 (21).
 
