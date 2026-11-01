@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 27d6e774bfe1180a3564a371af8a5c6baba7aa5898a92d9aa8f59f64624afb7b
+frozen_sha256: f03745b487cea50aea788298bf903e4c2a1e34ac5c5d03fd891be5502ffc4984
 ceremony_level: 2
 links:
   requirement: node-first-small-pairs
@@ -263,9 +263,9 @@ generate-live-status.mjs is not edited.
   - doctor TEST-009 changes to the D3 semantics (no settings: PASS; settings
     naming the hook without a copy: WARN; with a copy: PASS), and the all-PASS
     fixture drops its two pre-compact-save lines. This changes the SPEC-0100
-    contract: one `node .aai/scripts/spec-amend.mjs add --spec
+    contract: one unsigned (`--signoff none`, the autopilot default; the owner's merge direction signs it) `node .aai/scripts/spec-amend.mjs add --spec
     docs/specs/SPEC-0100-spec-doctor-determinize.md --ref doctor-determinize
-    --class contract --signoff owner --authority "intake node-first-small-pairs
+    --class contract --signoff none --authority "intake node-first-small-pairs
     (owner menu answer 2026-11-01 '1 2'): aai-doctor's check follows the
     pre-compact-save decision" --what "TEST-009 CAT-09 checks hook wiring
     against the retired pre-compact-save" --why "<one line>"` record.
@@ -329,7 +329,7 @@ already exists.
 | Spec-AC-04 | The aai-live launchers are thin: each at most its D3 line cap, ASCII only, naming aai-live.mjs, holding none of open, xdg-open, Start-Process, --output parsing or the warm-up; without node or without the module each prints exactly the L-11 line and exits 1; under pwsh a .cmd opener in a path with a space receives the output path as one argument. | planned | - | - | TEST-3209, TEST-3210 |
 | Spec-AC-05 | The pre-existing tests of the three pairs pass on the changed tree: live-status TEST-027, TEST-031 and TEST-037, the sh self-hosting smoke, and the ps1 smoke's validate-skills call now fails the smoke on a non-zero exit. | planned | - | - | TEST-3211, TEST-3212 |
 | Spec-AC-06 | pre-compact-save.sh and pre-compact-save.ps1 are absent; PROFILES.yaml has no pre-compact-save entry; outside docs, CHANGELOG and docs/ai no tracked file names pre-compact-save except aai-doctor.mjs and test-aai-doctor.sh. | planned | - | - | TEST-3213 |
-| Spec-AC-07 | WHEN aai-doctor runs on a fixture root the system SHALL report CAT-09 PASS with no settings file, WARN naming the file when .claude/settings.json or .claude/settings.local.json names pre-compact-save and no copy exists, and PASS when a copy exists; SPEC-0100 TEST-009 is adjusted to this and its amendment record is signed. | planned | - | - | TEST-3214, TEST-3215 |
+| Spec-AC-07 | WHEN aai-doctor runs on a fixture root the system SHALL report CAT-09 PASS with no settings file, WARN naming the file when .claude/settings.json or .claude/settings.local.json names pre-compact-save and no copy exists, and PASS when a copy exists; SPEC-0100 TEST-009 is adjusted to this and its amendment record is recorded (unsigned, signed by the owner's merge). | planned | - | - | TEST-3214, TEST-3215 |
 | Spec-AC-08 | WHEN aai-sync --profile extended installs into a target with a space in its path the system SHALL let the target's own validate-skills.sh and aai-live.sh run from that target (exit 0, opener stub sees the written page), preserve a pre-existing target copy of pre-compact-save.sh, and a core-profile target SHALL hold neither module. | planned | - | - | TEST-3216 |
 | Spec-AC-09 | Both modules are classified once in the extended PROFILES list, select-suites maps every new or moved path to its suite without a full run, and the two ps1-quality path lists name both modules and stay identical. | planned | - | - | TEST-3217, TEST-3218, TEST-3219 |
 | Spec-AC-10 | The wc -l sum of the four launchers and two modules is at most 230 (481 before) and equals the number recorded in the RFC-0017 slice paragraph. | planned | - | - | TEST-3220 |
@@ -371,7 +371,7 @@ already exists.
 | TEST-3212 | Spec-AC-05 | integration | tests/skills/test-aai-validate-skills.sh | test_3212_ps1_smoke_checks_exit extracts the Assert-AaiInstalled validate-skills call block from tests/self-hosting/test-self-hosting-smoke.ps1, runs it under pwsh against a fixture missing SKILL_TDD with a launcher copy, and requires a thrown error (non-zero pwsh exit); positive control: the same block against the full fixture exits 0 | `sed:s/if \(\$LASTEXITCODE -ne 0\)/if ($false)/` on tests/self-hosting/test-self-hosting-smoke.ps1 | pending |
 | TEST-3213 | Spec-AC-06 | inspection | tests/skills/test-aai-validate-skills.sh | test_3213_pre_compact_retired requires both pre-compact-save files absent, no pre-compact-save line in PROFILES.yaml, and git ls-files outside docs/, CHANGELOG.md naming pre-compact-save only in .aai/scripts/aai-doctor.mjs and tests/skills/test-aai-doctor.sh; positive control: a fixture list with an extra naming file is reported | `sed:s/^# \.aai\/system\/PROFILES\.yaml /# pre-compact-save .aai\/system\/PROFILES.yaml /` on .aai/system/PROFILES.yaml | pending |
 | TEST-3214 | Spec-AC-07 | integration | tests/skills/test-aai-doctor.sh | test_3214_cat09_retired_hook runs node aai-doctor.mjs --root on four fixtures: no settings gives CAT-09 PASS; .claude/settings.local.json with a PreCompact command naming bash .aai/scripts/pre-compact-save.sh and no copy gives WARN naming settings.local.json; the same in .claude/settings.json gives WARN naming settings.json; with a copy of pre-compact-save.sh present gives PASS | `sed:s/const RETIRED_HOOK = 'pre-compact-save';/const RETIRED_HOOK = 'pre-compact-gone';/` on .aai/scripts/aai-doctor.mjs | pending |
-| TEST-3215 | Spec-AC-07 | integration | tests/skills/test-aai-doctor.sh | test_3215_test009_amended runs bash tests/skills/test-aai-doctor.sh test_009_cat09_precompact (exit 0) and node .aai/scripts/spec-amend.mjs list --json and requires a signed contract record of ref doctor-determinize whose what begins TEST-009 | `sed:s/"owner_signoff":true,"amendment_class":"contract","what":"TEST-009/"owner_signoff":false,"amendment_class":"contract","what":"TEST-009/` on docs/ai/decisions.jsonl | pending |
+| TEST-3215 | Spec-AC-07 | integration | tests/skills/test-aai-doctor.sh | test_3215_test009_amended runs bash tests/skills/test-aai-doctor.sh test_009_cat09_precompact (exit 0) and node .aai/scripts/spec-amend.mjs list --json and requires a contract record of ref doctor-determinize whose what begins TEST-009, regardless of owner_signoff | `sed:s/"what":"TEST-009/"what":"TEST-gone/` on docs/ai/decisions.jsonl | pending |
 | TEST-3216 | Spec-AC-08 | e2e | tests/skills/test-aai-validate-skills.sh | test_3216_downstream_extended_sync seeds TEST_DIR/target with space with an old .aai/scripts/pre-compact-save.sh, runs .aai/scripts/aai-sync.sh --profile extended into it, requires validate-skills.mjs and aai-live.mjs there and the PRESERVE line plus the old pre-compact-save.sh kept; runs the target's bash .aai/scripts/validate-skills.sh on the target (exit 0, Skill validation completed.) and the target's aai-live.sh --output x.html with the opener stub and an empty --home (exit 0, stub logs EXISTS for the target's x.html); then a --profile core target holds neither module | `sed:s/\/validate-skills\.mjs"/\/validate-skills-gone.mjs"/` on .aai/scripts/validate-skills.sh | pending |
 | TEST-3217 | Spec-AC-09 | inspection | tests/skills/test-aai-validate-skills.sh | test_3217_profiles_classified requires .aai/scripts/validate-skills.mjs and .aai/scripts/aai-live.mjs exactly once each in PROFILES.yaml, inside the extended list (the whole-tree classification check stays with test-aai-layer-profiles.sh in Verification) | `sed:s/aai-live\.mjs/aai-live-gone.mjs/` on .aai/system/PROFILES.yaml | pending |
 | TEST-3218 | Spec-AC-09 | integration | tests/skills/test-aai-validate-skills.sh | test_3218_suite_map_selects feeds each new path to node .aai/scripts/select-suites.mjs --files-from - : the three validate-skills paths and the two test files select aai-validate-skills, aai-live.mjs and its two test files select aai-live-status, and no output holds a FULL_RUN line | `sed:s/\.aai\/scripts\/aai-live\.mjs/.aai\/scripts\/aai-live-gone.mjs/` on tests/skills/suite-map.yaml | pending |
@@ -470,9 +470,9 @@ Planning's measurements above are inputs, not attestations.
   which no longer exists; its stored mutation record stays valid evidence for
   that closed spec, but a future replay of that one row would not apply. This
   is disclosed, not amended (the row itself still passes).
-- The SPEC-0100 amendment is signed with the owner's intake answer as
-  authority; the canon assigns the sign-off to the owner, who can revoke it at
-  the merge checkpoint.
+- The SPEC-0100 amendment is recorded unsigned (`--signoff none`, the autopilot
+  default) citing the owner's intake answer as authority; the canon assigns the
+  sign-off to the owner, whose merge direction signs it (SKILL_SHIP default 5).
 - Changing shipped scripts is consumer-visible: merge stays with the owner.
 - Rollback is one revert of the scope's files plus the amendment record's
   disclosure.
