@@ -154,7 +154,9 @@ export function computeClosure(ctx, suite) {
     // dynamic: the literal ends where a variable or glob begins, so its last
     // segment is only a prefix and the deepest fully literal directory is named.
     const addPath = (raw, dynamic) => {
-      let p = dynamic ? raw.slice(0, raw.lastIndexOf('/') + 1) : raw.replace(/[.,:;)]+$/, '');
+      let p = dynamic ? raw.slice(0, raw.lastIndexOf('/') + 1) : raw.replace(/[,:;)]+$/, '');
+      // Trailing dots are sentence punctuation unless they are a whole last segment (.. or .), which normalize resolves.
+      if (!dynamic && !/(^|\/)\.{1,2}$/.test(p)) p = p.replace(/\.+$/, '');
       if (!p) { unresolved.push(`${raw}<expansion> <- ${rel}`); return; }
       // Dot segments collapse like the filesystem does; a path that leaves the repository names nothing the helper can hash.
       const trail = p.endsWith('/');
@@ -381,6 +383,7 @@ export function lintManifest({ root }) {
   const mapText = readText(path.join(root, MAP_REL));
   const rows = mapText === null ? {} : parseSuiteMap(mapText).suites;
   const problems = [];
+  if (Object.keys(man.suites).length && !rows['aai-suite-reuse']) problems.push({ suite: '-', reason: 'gate-row-missing' });
   for (const suite of Object.keys(man.suites)) {
     if (!rows[suite]) problems.push({ suite, reason: 'not-in-suite-map' });
     if (!fs.existsSync(path.join(root, `tests/skills/test-${suite}.sh`))) problems.push({ suite, reason: 'no-suite-file' });

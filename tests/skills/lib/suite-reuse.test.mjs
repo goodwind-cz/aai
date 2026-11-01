@@ -215,6 +215,9 @@ test('TEST-3167 a path literal is normalized: dot segments collapse, a directory
     'dot segment directory then star': ['for f in "$ROOT/docs/./specs/"*.md; do cat "$f"; done', 'docs/specs/new.md'],
     'directory without a slash': ['ls docs/specs', 'docs/specs/new.md'],
     'dotdot directory without a slash': ['ls tests/skills/../../docs', 'docs/new.md'],
+    'trailing dotdot widens to the parent': ['ls docs/specs/..', 'docs/new2.md'],
+    'trailing dotdot under tests widens to tests': ['ls tests/skills/..', 'tests/other/new.txt'],
+    'sentence-ending dot still names the file': ['cat docs/specs/a.md.', 'docs/specs/a.md'],
   };
   for (const [form, [body, touched]] of Object.entries(widen)) {
     const a = mkSuiteRepo(body, files);
@@ -229,6 +232,8 @@ test('TEST-3167 a path literal is normalized: dot segments collapse, a directory
     'escapes the repository': 'cat docs/../../outside/x.txt',
     'climbs above the root': 'cat tests/../../outside',
     'collapses to the root': 'cat docs/../',
+    'trailing dotdot collapses to the root': 'ls docs/..',
+    'trailing dotdot under tests collapses to the root': 'ls tests/..',
   })) {
     const root = mkSuiteRepo(body, files);
     const r = await chk(root, 'fk');
@@ -506,6 +511,16 @@ test('TEST-3182 lint: a manifest suite whose file the aai-suite-reuse row globs 
   assert.equal(cli.status, 1, cli.stdout);
   assert.match(cli.stdout, /fx not-gate-selected/);
   assert.doesNotMatch(cli.stdout, /f[yzh] not-gate-selected/);
+});
+
+test('TEST-3182 lint: a manifest listing suites while the suite map has no aai-suite-reuse row is gate-row-missing', async () => {
+  const root = mkRepo({});
+  const cli = spawnSync(process.execPath, [HELPER, 'lint', '--root', root], { encoding: 'utf8' });
+  assert.equal(cli.status, 1, cli.stdout);
+  assert.match(cli.stdout, /gate-row-missing/);
+  const withRow = mkRepo({ 'tests/skills/suite-map.yaml': `${MAP}${suiteRow('aai-suite-reuse', ['tests/skills/test-fx.sh'])}` });
+  const ok = spawnSync(process.execPath, [HELPER, 'lint', '--root', withRow], { encoding: 'utf8' });
+  assert.doesNotMatch(ok.stdout, /gate-row-missing/);
 });
 
 test('TEST-3193 no Node fs read traced by read-trace.cjs in a live manifest suite falls outside its identity', async () => {
