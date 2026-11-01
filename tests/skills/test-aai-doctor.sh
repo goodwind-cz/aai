@@ -186,9 +186,7 @@ EOF
   printf '{"b":1}\n' > "$d/docs/ai/decisions.jsonl"
   : > "$d/docs/ai/LOOP_TICKS.jsonl"
 
-  # CAT-09: both pre-compact hook scripts.
-  : > "$d/.aai/scripts/pre-compact-save.sh"
-  : > "$d/.aai/scripts/pre-compact-save.ps1"
+  # CAT-09: no settings file names the retired pre-compact hook, so it passes without any file.
 
   # CAT-10: STATE.yaml + LOOP_TICKS.jsonl gitignored and untracked;
   # EVENTS.jsonl present and tracked.
@@ -455,26 +453,33 @@ test_008_cat08_git_status() {
   fi
 }
 
-# --- TEST-009 — CAT-09 pre-compact hook presence -----------------------------
+# --- TEST-009 — CAT-09 retired pre-compact hook wiring (amended by spec-node-first-small-pairs) -
 test_009_cat09_precompact() {
   local fixture out
   fixture="$(new_bare_fixture t009)"
   add_core_and_role_files "$fixture"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
-  if ! echo "$out" | grep "^CAT-09" | qgrep -q "WARN"; then
+  if ! echo "$out" | grep "^CAT-09" | qgrep -q "PASS"; then
     log_info "TEST-009a: got: $(echo "$out" | grep '^CAT-09')"
-    log_fail "TEST-009a CAT-09 missing hook WARN"
+    log_fail "TEST-009a CAT-09 no settings PASS"
+    return
+  fi
+  mkdir -p "$fixture/.claude"
+  printf '%s\n' '{"hooks":{"PreCompact":[{"command":"bash .aai/scripts/pre-compact-save.sh"}]}}' > "$fixture/.claude/settings.json"
+  out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
+  if ! echo "$out" | grep "^CAT-09" | qgrep -q "WARN"; then
+    log_info "TEST-009b: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-009b CAT-09 dangling hook WARN"
     return
   fi
   mkdir -p "$fixture/.aai/scripts"
   : > "$fixture/.aai/scripts/pre-compact-save.sh"
-  : > "$fixture/.aai/scripts/pre-compact-save.ps1"
   out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
   if echo "$out" | grep "^CAT-09" | qgrep -q "PASS"; then
-    log_pass "TEST-009 CAT-09 missing->WARN, both present->PASS"
+    log_pass "TEST-009 CAT-09 no settings->PASS, hook without copy->WARN, with copy->PASS"
   else
-    log_info "TEST-009b: got: $(echo "$out" | grep '^CAT-09')"
-    log_fail "TEST-009b CAT-09 present PASS"
+    log_info "TEST-009c: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-009c CAT-09 present PASS"
   fi
 }
 

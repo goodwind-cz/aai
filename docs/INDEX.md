@@ -707,7 +707,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (537)
+## Broken references (536)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -719,7 +719,6 @@ _None._
 | .aai/scripts/generate-userguide-rollup.mjs | docs/specs/SPEC-1.md | NOT FOUND |
 | .aai/scripts/lib/repo-tripwire.sh | docs/other.md | NOT FOUND |
 | .aai/scripts/migrate-state-to-local.ps1 | docs/ai/.session-context.md | NOT FOUND |
-| .aai/scripts/pre-compact-save.ps1 | docs/ai/.session-context.md | NOT FOUND |
 | .aai/scripts/spec-lint.mjs | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-0001-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |

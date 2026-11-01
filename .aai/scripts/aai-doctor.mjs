@@ -307,12 +307,15 @@ function catGitStatus(root) {
 
 // --- CAT-09 Pre-Compact Hook --------------------------------------------------
 
+const RETIRED_HOOK = 'pre-compact-save';
+const HOOK_SETTINGS = ['.claude/settings.json', '.claude/settings.local.json'];
+
 function catPreCompactHook(root) {
-  const sh = exists(root, '.aai/scripts/pre-compact-save.sh');
-  const ps1 = exists(root, '.aai/scripts/pre-compact-save.ps1');
-  if (sh && ps1) return cat('CAT-09', 'Pre-Compact Hook', 'PASS', 'both platform scripts present');
-  const missing = [!sh && 'pre-compact-save.sh', !ps1 && 'pre-compact-save.ps1'].filter(Boolean);
-  return cat('CAT-09', 'Pre-Compact Hook', 'WARN', `missing: ${missing.join(', ')} (hook registration in settings is user-managed)`);
+  const copy = exists(root, `.aai/scripts/${RETIRED_HOOK}.sh`) || exists(root, `.aai/scripts/${RETIRED_HOOK}.ps1`);
+  const named = HOOK_SETTINGS.filter((rel) => (readText(root, rel) ?? '').includes(RETIRED_HOOK));
+  if (named.length === 0) return cat('CAT-09', 'Pre-Compact Hook', 'PASS', `no hook names the retired ${RETIRED_HOOK}`);
+  if (copy) return cat('CAT-09', 'Pre-Compact Hook', 'PASS', `${named.join(', ')} names ${RETIRED_HOOK}; a local copy serves a hand-wired hook`);
+  return cat('CAT-09', 'Pre-Compact Hook', 'WARN', `${named.join(', ')} names ${RETIRED_HOOK}, a script AAI retired (RFC-0017); remove the entry`);
 }
 
 // --- CAT-10 RFC-0001 STATE Migration Consistency ------------------------------
