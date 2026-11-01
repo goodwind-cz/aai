@@ -208,6 +208,35 @@ test('TEST-3167 a partly built path widens to its deepest fully literal director
   }
 });
 
+test('TEST-3167 a path literal is normalized: dot segments collapse, a directory without a slash widens, an escape is unresolvable', async () => {
+  const files = { 'docs/specs/a.md': 'a\n', 'docs/keep.txt': 'k\n' };
+  const widen = {
+    'dotdot then variable': ['f=a.md; cat "$ROOT/tests/../docs/specs/${f}"', 'docs/specs/new.md'],
+    'dot segment directory then star': ['for f in "$ROOT/docs/./specs/"*.md; do cat "$f"; done', 'docs/specs/new.md'],
+    'directory without a slash': ['ls docs/specs', 'docs/specs/new.md'],
+    'dotdot directory without a slash': ['ls tests/skills/../../docs', 'docs/new.md'],
+  };
+  for (const [form, [body, touched]] of Object.entries(widen)) {
+    const a = mkSuiteRepo(body, files);
+    await pass(a, 'fk');
+    assert.equal((await chk(a, 'fk')).status, 'REUSE', form);
+    write(a, touched, 'n\n');
+    const r = await chk(a, 'fk');
+    assert.equal(r.status, 'RUN', `${form}: ${touched} added`);
+    assert.equal(r.reason, 'inputs', form);
+  }
+  for (const [form, body] of Object.entries({
+    'escapes the repository': 'cat docs/../../outside/x.txt',
+    'climbs above the root': 'cat tests/../../outside',
+    'collapses to the root': 'cat docs/../',
+  })) {
+    const root = mkSuiteRepo(body, files);
+    const r = await chk(root, 'fk');
+    assert.equal(r.status, 'RUN', form);
+    assert.equal(r.reason, 'inputs-unresolvable', form);
+  }
+});
+
 test('TEST-3167 a file-relative reference outside lib/ is resolved against its directory, else the suite is not reusable', async () => {
   const known = '#!/usr/bin/env bash\nSCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\nPROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"\ncat "$SCRIPT_DIR/fixtures/rel/x.txt"\ncat "$(dirname "${BASH_SOURCE[0]}")/fixtures/rel2/y.txt"';
   const a = mkSuiteRepo(known.split('\n').slice(1).join('\n'), { 'tests/skills/fixtures/rel/x.txt': 'x\n', 'tests/skills/fixtures/rel2/y.txt': 'y\n' });
@@ -468,6 +497,15 @@ test('TEST-3182 lint: live repository is clean with a qualified manifest; a ghos
   assert.match(cli.stdout, /ghost-suite not-in-suite-map/);
   const ok = spawnSync(process.execPath, [HELPER, 'lint', '--root', REPO], { encoding: 'utf8' });
   assert.equal(ok.status, 0, ok.stdout);
+});
+
+test('TEST-3182 lint: a manifest suite whose file the aai-suite-reuse row globs do not match is named', async () => {
+  const map = `${MAP}${suiteRow('aai-suite-reuse', ['tests/skills/test-fy.sh', 'tests/skills/test-fz.sh', 'tests/skills/test-fh.sh'])}`;
+  const root = mkRepo({ 'tests/skills/suite-map.yaml': map });
+  const cli = spawnSync(process.execPath, [HELPER, 'lint', '--root', root], { encoding: 'utf8' });
+  assert.equal(cli.status, 1, cli.stdout);
+  assert.match(cli.stdout, /fx not-gate-selected/);
+  assert.doesNotMatch(cli.stdout, /f[yzh] not-gate-selected/);
 });
 
 test('TEST-3193 no Node fs read traced by read-trace.cjs in a live manifest suite falls outside its identity', async () => {

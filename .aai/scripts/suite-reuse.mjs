@@ -156,6 +156,11 @@ export function computeClosure(ctx, suite) {
     const addPath = (raw, dynamic) => {
       let p = dynamic ? raw.slice(0, raw.lastIndexOf('/') + 1) : raw.replace(/[.,:;)]+$/, '');
       if (!p) { unresolved.push(`${raw}<expansion> <- ${rel}`); return; }
+      // Dot segments collapse like the filesystem does; a path that leaves the repository names nothing the helper can hash.
+      const trail = p.endsWith('/');
+      p = path.posix.normalize(p);
+      if (p === '.' || p === './' || p === '..' || p.startsWith('../')) { unresolved.push(`${raw} leaves the repository <- ${rel}`); return; }
+      if (trail && !p.endsWith('/')) p += '/';
       if (p.endsWith('/') || (!ctx.fileSet.has(p) && underDir(ctx, p).length)) {
         dirs.push(`${p} <- ${rel} (${underDir(ctx, p).length} files)`);
         for (const f of underDir(ctx, p)) add(f);
@@ -379,6 +384,7 @@ export function lintManifest({ root }) {
   for (const suite of Object.keys(man.suites)) {
     if (!rows[suite]) problems.push({ suite, reason: 'not-in-suite-map' });
     if (!fs.existsSync(path.join(root, `tests/skills/test-${suite}.sh`))) problems.push({ suite, reason: 'no-suite-file' });
+    else if (rows['aai-suite-reuse'] && !rows['aai-suite-reuse'].globs.some((g) => matchesGlob(`tests/skills/test-${suite}.sh`, g))) problems.push({ suite, reason: 'not-gate-selected' });
   }
   return { ok: problems.length === 0, problems };
 }
