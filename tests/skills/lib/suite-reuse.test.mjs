@@ -750,23 +750,43 @@ test('TEST-3183 select-suites.mjs imports silently and its map parser feeds the 
   assert.deepEqual(m.declaredGlobs({ root: REPO, suite: 'aai-ride-status' }), want);
 });
 
-test('TEST-3195 BASH_ENV or ENV startup hook set at check time gives RUN reason=bash-startup-hook, even after a record made with it set', async () => {
+const HAZARDS = { BASH_ENV: '/nonexistent/hook.sh', ENV: '/nonexistent/hook.sh', 'BASH_FUNC_x%%': '() { echo hi; }', SHELLOPTS: 'xtrace', BASHOPTS: 'extglob' };
+
+test('TEST-3195 a bash startup hook at check time gives RUN reason=bash-startup-hook; at record time nothing is stored and a stale record is forgotten', async () => {
+  const m = await lib();
+  for (const [name, val] of Object.entries(HAZARDS)) {
+    const root = mkRepo();
+    await pass(root, 'fx');
+    const r = await chk(root, 'fx', { env: { ...ENV, [name]: val } });
+    assert.equal(r.status, 'RUN', name);
+    assert.equal(r.reason, 'bash-startup-hook', name);
+    assert.equal((await chk(root, 'fx', { env: { ...ENV, [name]: '' } })).status, 'REUSE', `${name}: an empty value is no hook`);
+    // record time: a pass made under the hook is never stored, and drops the clean record
+    const runDir = runDirOf(root, 'run3');
+    const opts = { ...BASE, env: { ...ENV, [name]: val } };
+    m.checkSuites({ root, suites: ['fx'], runDir, ...BASE });
+    fs.writeFileSync(path.join(runDir, 'fx.log'), 'PASS fx\n');
+    const rec = m.recordSuite({ root, suite: 'fx', runDir, metrics: PASS('fx'), ...opts });
+    assert.equal(rec.recorded, false, name);
+    assert.equal(rec.reason, 'bash-startup-hook', name);
+    const after = await chk(root, 'fx');
+    assert.equal(after.status, 'RUN', `${name}: stale record must not survive`);
+    assert.equal(after.reason, 'no-record', name);
+  }
+  // a fresh record made with the hook set, then checked with it unset, is not reused
   const root = mkRepo();
-  const hook = path.join(root, 'hook.sh');
-  fs.writeFileSync(hook, '# empty\n');
-  const withHook = { ...ENV, BASH_ENV: hook };
-  await pass(root, 'fx', { opts: { env: withHook } });
-  fs.writeFileSync(hook, 'echo changed\n');
-  const r = await chk(root, 'fx', { env: withHook });
+  const runDir = runDirOf(root);
+  m.checkSuites({ root, suites: ['fx'], runDir, ...BASE });
+  fs.writeFileSync(path.join(runDir, 'fx.log'), 'PASS fx\n');
+  m.recordSuite({ root, suite: 'fx', runDir, metrics: PASS('fx'), ...BASE, env: { ...ENV, BASH_ENV: '/nonexistent/hook.sh' } });
+  const r = await chk(root, 'fx');
   assert.equal(r.status, 'RUN');
-  assert.equal(r.reason, 'bash-startup-hook');
-  assert.equal((await chk(root, 'fx', { env: { ...ENV, ENV: hook } })).reason, 'bash-startup-hook');
-  assert.equal((await chk(root, 'fx', { env: { ...ENV, BASH_ENV: '' } })).status, 'REUSE', 'an empty value is no hook');
+  assert.equal(r.reason, 'no-record');
 });
 
 test('TEST-3196 record with a missing or unreadable identity file is a clean no-record, never a throw', async () => {
   const m = await lib();
-  for (const body of [null, 'not json', 'null']) {
+  for (const body of [null, 'not json', 'null', '{}', '{"args":"x"}']) {
     const root = mkRepo();
     const runDir = runDirOf(root);
     fs.mkdirSync(runDir, { recursive: true });

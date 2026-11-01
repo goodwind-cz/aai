@@ -41,7 +41,14 @@ const HARNESS = [
 const TEMP_WINDOW_MS = 3600 * 1000;
 const ENV_PREFIXES = ['AAI_', 'GIT_', 'NODE_', 'npm_config_'];
 const ENV_FIXED = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR', 'SHELL'];
-const STARTUP_HOOK_VARS = ['BASH_ENV', 'ENV'];
+const STARTUP_HOOK_VARS = ['BASH_ENV', 'ENV', 'SHELLOPTS', 'BASHOPTS'];
+// Any non-empty bash startup hook (a file, exported functions, or inherited shell options)
+// changes what a suite executes outside the identity: the reason, or null.
+export function shellStartupHazard(env) {
+  const e = env || {};
+  const hit = STARTUP_HOOK_VARS.find((v) => e[v]) || Object.keys(e).find((k) => k.startsWith('BASH_FUNC_') && e[k]);
+  return hit ? 'bash-startup-hook' : null;
+}
 const ENV_EXCLUDED = ['AAI_SUITE_REUSE', 'AAI_TEST_REF_ID', 'AAI_REAP_STEP_START_EPOCH'];
 const HISTORY_RE = /git log|rev-parse|merge-base|git diff|git show|git describe/;
 const MARKER_RE = /gh api|gh pr|curl |ls-remote|git push|git fetch|https?:\/\//;
@@ -351,7 +358,7 @@ export function checkSuites({ root, suites, mode = 'selected', isolation = 'on',
 function decide(ctx, suite, id) {
   const entry = ctx.manifest.suites[suite];
   // A bash startup hook (BASH_ENV, ENV) runs code outside the identity: fail closed, never hash it.
-  if (STARTUP_HOOK_VARS.some((v) => ctx.env[v])) return { status: 'RUN', reason: 'bash-startup-hook' };
+  if (shellStartupHazard(ctx.env)) return { status: 'RUN', reason: 'bash-startup-hook' };
   if (ctx.manifest.state === 'invalid') return { status: 'RUN', reason: 'manifest-invalid' };
   if (!entry) return { status: 'RUN', reason: 'not-declared' };
   if (entry.live !== false) return { status: 'RUN', reason: 'live' };
@@ -380,6 +387,8 @@ export function recordSuite({ root, suite, runDir, metrics, isolation = 'isolate
   const off = offReason(e, 'selected', 'on');
   if (off === 'ci' || off === 'opt-out') return { recorded: false, off };
   const no = (reason) => ({ recorded: false, reason });
+  // A pass produced under a startup hook is never stored, and a stale record cannot survive it.
+  if (shellStartupHazard(e)) { forgetSuite({ root, suite }); return no('bash-startup-hook'); }
   let m = metrics;
   if (!m) {
     const lines = (readText(path.join(runDir, 'metrics.jsonl')) || '').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return {}; } });

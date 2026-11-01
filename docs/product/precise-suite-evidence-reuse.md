@@ -79,9 +79,12 @@ suite.
   at run time. Every shape the reader cannot resolve makes the suite run; a
   few rare shapes that no declared suite uses are known gaps, tracked as
   follow-ups.
-- A bash startup hook is not part of the identity. When `BASH_ENV` or `ENV`
-  is set and non-empty, every suite runs (reason `bash-startup-hook`); the
-  hook file is never hashed.
+- A bash startup hook is not part of the identity. When `BASH_ENV`, `ENV`,
+  `SHELLOPTS`, `BASHOPTS` or an exported bash function (`BASH_FUNC_*`) is set
+  and non-empty, every suite runs (reason `bash-startup-hook`) and a pass is
+  never stored, which also drops any older record of that suite; the hook is
+  never hashed. In Windows Git Bash degraded mode the wrapper sets `BASH_ENV`
+  itself, so reuse is off there.
 - Not cached, ever: live effects (permissions, remote refs, release
   publication, locks), CI, main and nightly runs, and the full sweep before
   close.
