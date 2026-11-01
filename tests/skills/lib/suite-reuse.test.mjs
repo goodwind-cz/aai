@@ -287,16 +287,56 @@ test('TEST-3167 a lib/ reference is trusted only as one plain name under tests/s
     assert.equal(r.status, 'RUN', form);
     assert.equal(r.reason, 'inputs-unresolvable', form);
   }
-  // A single plain lib/<name> outside tests/skills is resolved against the file's own directory, not dropped.
+  // Outside tests/skills no lib/ reference is trusted, however plain: it is refused, not resolved.
   const out = mkSuiteRepo('cat tests/other/h.sh', { 'tests/other/h.sh': `${SD}cat "$SCRIPT_DIR/lib/x"\n`, 'tests/other/lib/x': 'x\n' });
-  await pass(out, 'fk');
-  assert.equal((await chk(out, 'fk')).status, 'REUSE', 'unchanged');
-  write(out, 'tests/other/lib/x', 'changed\n');
-  assert.equal((await chk(out, 'fk')).status, 'RUN', 'edit of an out-of-tree lib/<name> read');
+  const ro = await chk(out, 'fk');
+  assert.equal(ro.status, 'RUN', 'out-of-tree lib/<name>');
+  assert.equal(ro.reason, 'inputs-unresolvable', 'out-of-tree lib/<name>');
   const plain = mkSuiteRepo(`${SD}cat "$SCRIPT_DIR/lib/x"`, files);
   await pass(plain, 'fk');
   write(plain, 'tests/skills/lib/x', 'changed\n');
   assert.equal((await chk(plain, 'fk')).status, 'RUN', 'edit of a plain tests/skills/lib/<name> read');
+});
+
+test('TEST-3167 lib/ allowlist: only a plain name with a strict terminator in a file directly in tests/skills is trusted, every other lib/ shape is not reusable', async () => {
+  const SD = 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n';
+  const files = {
+    'tests/skills/fixtures/h.sh': `${SD}cat "$SCRIPT_DIR/lib/x"\n`,
+    'tests/skills/fixtures/lib/x': 'x\n',
+    'tests/skills/lib/helper.sh': `${SD}cat "$SCRIPT_DIR/lib/x"\n`,
+    'tests/skills/lib/lib/x': 'x\n',
+    'tests/skills/fixtures/d.sh': 'cat "$(dirname "${BASH_SOURCE[0]}")/lib/x"\n',
+    'tests/skills/lib/foo-a.txt': 'x\n',
+  };
+  const forms = {
+    'own-directory lib read in a nested fixture': 'source tests/skills/fixtures/h.sh',
+    'own-directory lib read in tests/skills/lib/helper.sh': 'source tests/skills/lib/helper.sh',
+    'dirname lib read in a nested fixture': 'source tests/skills/fixtures/d.sh',
+    'base in another spelling then an expansion': 'cat "$SCRIPT_DIR"/lib/foo-$x.txt',
+    'base in another spelling then a glob': 'cat "$SCRIPT_DIR"/lib/foo*.txt',
+    'braced base in another spelling then an at sign': 'cat "${SCRIPT_DIR}"/lib/foo@b',
+    'bare name then a plus': 'cat lib/foo+b',
+    'bare name then a colon': 'cat lib/foo:b',
+    'look-back token preceded by a word character': 'cat xtests/skills/lib/sub/y',
+  };
+  for (const [form, body] of Object.entries(forms)) {
+    const root = mkSuiteRepo(body, files);
+    const r = await chk(root, 'fk');
+    assert.equal(r.status, 'RUN', form);
+    assert.equal(r.reason, 'inputs-unresolvable', form);
+  }
+  // The positive row: a plain name in a tests/skills file, each strict terminator, stays tracked.
+  for (const tail of ['', '\n', ' ', '"', "'", ')', ';', '|', '&', '>', '<']) {
+    const plain = mkSuiteRepo(`cat lib/x${tail}`, { 'tests/skills/lib/x': 'x\n' });
+    await pass(plain, 'fk');
+    write(plain, 'tests/skills/lib/x', 'changed\n');
+    assert.equal((await chk(plain, 'fk')).status, 'RUN', `terminator ${JSON.stringify(tail)} stays tracked`);
+  }
+  // A lib/ that is the interior of a full path token (.aai/scripts/lib/m.mjs) is that token's business, not a lib/ reference.
+  const tok = mkSuiteRepo('node "$ROOT/.aai/scripts/lib/m.mjs"', { '.aai/scripts/lib/m.mjs': 'one\n' });
+  await pass(tok, 'fk');
+  write(tok, '.aai/scripts/lib/m.mjs', 'two\n');
+  assert.equal((await chk(tok, 'fk')).status, 'RUN', 'token interior lib/ stays resolvable and tracked');
 });
 
 test('TEST-3167 fail closed: an expansion is accepted only after a known base and a literal directory, anything else is unresolvable', async () => {

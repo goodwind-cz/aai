@@ -120,6 +120,8 @@ function globMatches(ctx, globs) {
 // or the bare name itself when a quote, "=", "(" or "/" precedes it ("$ROOT/docs").
 const TOKEN_RE = /(?<![\w.-])(?:\.aai|tests|docs)(?:\/[A-Za-z0-9_./@+-]*|(?<=[/"'=(](?:\.aai|tests|docs))(?![\w-]|\.\w))/g;
 const LIB_RE = /(?<![\w.-])lib\/([A-Za-z0-9_.-]+)/g;
+const LIB_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+const LIB_END_RE = /^(?:[\s"')|;&<>]|$)/;
 const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/g;
 const SCRIPT_DIR_RE = /\$\{?SCRIPT_DIR\}?\/([A-Za-z0-9_./@+-]*)/g;
 const DIRNAME_RE = /\$\(\s*dirname\s+([^)]*)\)\/([A-Za-z0-9_./@+-]*)/g;
@@ -177,13 +179,14 @@ export function computeClosure(ctx, suite) {
       }
       for (const m of text.matchAll(CONCAT_RE)) unresolved.push(`${m[0]} concatenated <- ${rel}`);
       for (const m of text.matchAll(ROOT_THEN_EXPANSION_RE)) unresolved.push(`${m[0]}<expansion> <- ${rel}`);
-      // Only one plain name (no dot segment, no nesting) is taken; any other lib/ shape is unresolvable, never skipped.
+      // Allowlist: a lib/ reference is trusted only as one plain name, with a strict terminator,
+      // in a file directly in tests/skills; every other lib/ shape is unresolvable, never resolved.
       if (rel.startsWith('tests/skills/')) {
+        const tokens = [...text.matchAll(TOKEN_RE)];
         for (const m of text.matchAll(LIB_RE)) {
-          const nested = text.charAt(m.index + m[0].length) === '/';
-          const dots = m[1] === '.' || m[1] === '..';
-          if (!nested && !dots) { add(`tests/skills/lib/${m[1]}`); continue; }
-          if (/tests\/skills\/$/.test(text.slice(Math.max(0, m.index - 13), m.index))) continue; // a full tests/ token, handled above
+          const end = m.index + m[0].length;
+          if (tokens.some((t) => t.index < m.index && m.index < t.index + t[0].length)) continue; // inside a full TOKEN_RE token (.aai/scripts/lib/x), handled above
+          if (path.posix.dirname(rel) === 'tests/skills' && LIB_NAME_RE.test(m[1]) && LIB_END_RE.test(text.charAt(end))) { add(`tests/skills/lib/${m[1]}`); continue; }
           unresolved.push(`${m[0]} is not one plain lib/<name> <- ${rel}`);
         }
       }
@@ -197,10 +200,10 @@ export function computeClosure(ctx, suite) {
       const lineOf = (at) => { const e = text.indexOf('\n', at); return text.slice(lineStart(at), e < 0 ? text.length : e); };
       const relative = (restRaw, at, tailAt, known, shown) => {
         const dyn = DYNAMIC_NEXT_RE.test(text.charAt(tailAt));
-        if (restRaw.startsWith('lib/') && !dyn) {
-          // LIB_RE covers exactly one plain name in a tests/skills/ file; every other lib/ shape is resolved or refused here.
-          if (rel.startsWith('tests/skills/') && /^lib\/(?!\.{1,2}$)[A-Za-z0-9_.-]+$/.test(restRaw)) return;
-          if (restRaw.split('/').some((seg) => seg === '.' || seg === '..')) { unresolved.push(`${shown} <- ${rel}`); return; }
+        if (restRaw.startsWith('lib/')) {
+          // LIB_RE took the one trusted shape; every other lib/ reference is refused, not resolved.
+          if (!(ownDir === 'tests/skills' && !dyn && LIB_NAME_RE.test(restRaw.slice(4)) && LIB_END_RE.test(text.charAt(tailAt)))) unresolved.push(`${shown} <- ${rel}`);
+          return;
         }
         if (/^[./]*$/.test(restRaw)) {
           const a = /^[ \t]*(?:(?:export|readonly|local|declare)\s+)*([A-Za-z_]\w*)=/.exec(lineOf(at));

@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 762c7381dcd776086de57a8eec75eef61cf26c3648e3b16c16d451e216d3c285
+frozen_sha256: 979dac4d21b3bf6b589d7f746bc41e169531d21287e4e579f47d57fe6eaf2199
 ceremony_level: 2
 links:
   requirement: precise-suite-evidence-reuse
@@ -254,10 +254,16 @@ canonical JSON value:
   (d) the static closure: starting from the suite file, every file named by
   a path literal in a closure file under `tests/` (a token starting
   `.aai`, `tests` or `docs` made of path characters, or a `lib/<name>`
-  token in a `tests/skills/` file resolved against `tests/skills/`, taken only
-  as one plain name: a `lib/` reference that is nested or holds a `.` or `..`
-  segment is unresolvable, and outside `tests/skills/` a plain `lib/<name>` is
-  resolved against the file's own directory like any other relative read), and
+  token in a `tests/skills/` file resolved against `tests/skills/`, trusted
+  only by this allowlist: the file's own directory is exactly `tests/skills`,
+  the name is one segment matching `[A-Za-z0-9_][A-Za-z0-9_.-]*`, and the
+  character after it is end of text, whitespace, `"`, `'`, `)`, `;`, `|`, `&`,
+  `>` or `<`. Any other `lib/` reference, whether a bare token, a
+  `$SCRIPT_DIR/lib/...` or a `$(dirname ...)/lib/...` form, in any directory
+  (a file below or outside `tests/skills/`, a nested name, a `.` or `..`
+  segment, a name followed by `$`, `*`, `?`, `[`, `{`, `@`, `+`, `/`, `:` or
+  any other character, or a look-back match not cleanly a full `tests/` token)
+  is unresolvable and is never resolved), and
   every file reached by an ESM relative `import` or `import()` from a
   closure `.mjs` or `.js` file, transitively. A literal that names a
   directory adds every `listTreeFiles` path under it. A top-level name
@@ -598,7 +604,7 @@ stay as they are; CI never reuses (D6).
 |---|---|---|---|---|---|---|
 | TEST-3165 | Spec-AC-01 | integration | tests/skills/test-aai-suite-reuse.sh | test_3165: fixture repo with the real framework, helper, select-suites and lib copied in, a manifest declaring fx and a suite fx that appends one line to a marker file outside the repo; run 1 with --skill fx passes; run 2 prints fx REUSED naming run 1 id, time and log, the marker has 1 line, exit 0 | `sed:s/REUSED \(run/PASS \(run/` on tests/skills/test-framework.sh | green |
 | TEST-3166 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3166: recordSuite then checkSuites on a fixture git repo; editing a tracked declared input gives RUN reason=inputs changed path; adding an untracked file matching a declared glob gives reason=inputs added path | `sed:s/'--others', '--exclude-standard'/'--cached'/` on .aai/scripts/lib/tree-hash.mjs | green |
-| TEST-3167 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3167: a module imported by the suite's test lib but matched by no glob changes, a file appears under a directory the suite names as a literal, and docs/ai/STATE.yaml changes; each gives reason=inputs for a suite whose closure covers it, and the STATE change gives REUSE for a suite whose closure does not name STATE.yaml; further node cases: a top-level directory literal without a slash (docs, .aai, tests), a partly built path (prefix then variable or star) and a SCRIPT_DIR or dirname relative reference each give RUN when a file appears in the directory they widen to, an unresolvable base gives reason=inputs-unresolvable and no record; a fail-closed case gives RUN reason=inputs-unresolvable and a refused record for an expansion straight after SCRIPT_DIR, a braced SCRIPT_DIR, dirname or a repo-root variable, a custom own-directory variable, a literal closed by a quote before an expansion, concatenated segments and a bare dots path outside a root assignment, while a SCRIPT_DIR file, a dirname literal directory plus variable and a root assignment keep resolving | `sed:s/\[\/"'=\(\]/[Q]/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3167 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3167: a module imported by the suite's test lib but matched by no glob changes, a file appears under a directory the suite names as a literal, and docs/ai/STATE.yaml changes; each gives reason=inputs for a suite whose closure covers it, and the STATE change gives REUSE for a suite whose closure does not name STATE.yaml; further node cases: a top-level directory literal without a slash (docs, .aai, tests), a partly built path (prefix then variable or star) and a SCRIPT_DIR or dirname relative reference each give RUN when a file appears in the directory they widen to, an unresolvable base gives reason=inputs-unresolvable and no record; a fail-closed case gives RUN reason=inputs-unresolvable and a refused record for an expansion straight after SCRIPT_DIR, a braced SCRIPT_DIR, dirname or a repo-root variable, a custom own-directory variable, a literal closed by a quote before an expansion, concatenated segments and a bare dots path outside a root assignment, while a SCRIPT_DIR file, a dirname literal directory plus variable and a root assignment keep resolving | `sed:s/const LIB_END_RE = .*/const LIB_END_RE = \/^\/;/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3168 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3168: changing AAI_FIXTURE_X gives reason=env; changing AAI_TEST_REF_ID gives REUSE; changing AAI_TEST_REF_ID for a suite whose closure references it gives reason=env | `sed:s/'env', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3169 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3169: computeIdentity with the argument vector extended by one argument gives reason=args against the record | `sed:s/'args', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3170 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3170: an injected runtime with another Node version gives reason=runtime, and one with another platform gives reason=runtime | `sed:s/'runtime', //` on .aai/scripts/suite-reuse.mjs | green |
