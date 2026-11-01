@@ -1406,6 +1406,34 @@ suites:
       - tests/skills/test-aai-worktree-seed.sh
       - tests/skills/aai-worktree-seed.Tests.ps1
 
+  # aai-suite-reuse (spec-precise-suite-evidence-reuse): the reuse helper, its
+  # manifest, the framework dispatch and the release caller that opt out, plus
+  # the files the later rows of the suite read (Pester twin, path filter,
+  # prompts, ledger, analysis note).
+  aai-suite-reuse:
+    globs:
+      - .aai/scripts/suite-reuse.mjs
+      - .aai/scripts/select-suites.mjs
+      - .aai/scripts/release-dry-run.mjs
+      - .aai/system/PROFILES.yaml
+      - .aai/SKILL_VERIFY.prompt.md
+      - .aai/VALIDATION.prompt.md
+      - .github/workflows/ps1-quality.yml
+      - tests/skills/suite-reuse.json
+      - tests/skills/suite-reuse.Tests.ps1
+      - tests/skills/test-framework.sh
+      - tests/skills/lib/suite-reuse.test.mjs
+      # the manifest suites' own files: editing one re-runs the admission gate
+      - tests/skills/test-aai-feedback-status.sh
+      - tests/skills/test-aai-pricing.sh
+      - tests/skills/test-aai-redact.sh
+      - tests/skills/test-aai-orchestration-mode.sh
+      - tests/skills/test-aai-runtime-file.sh
+      - tests/skills/lib/assert-payload.sh
+      - tests/skills/lib/read-trace.cjs
+      - tests/skills/lib/prompt-diet-ledger.sh
+      - docs/analysis/precise-suite-evidence-reuse.md
+
   aai-suite-select:
     globs:
       - tests/skills/lib/selected-scheduling-benchmark-check.mjs

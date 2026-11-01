@@ -95,7 +95,7 @@
 // existing mode is byte-for-byte unchanged.
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain, ExitSignal } from './lib/cli-pipe-guard.mjs';
@@ -769,7 +769,14 @@ function main() {
   printSelection(ctx, result.selected);
 }
 
-runMain(() => main(), {
+// Importable without side effects (suite-reuse.mjs reuses the map parser and the
+// glob matcher): main runs only when this file is the entry point.
+function realOrResolve(p) {
+  try { return realpathSync(p); } catch { return resolve(p); }
+}
+const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
+
+if (isMain) runMain(() => main(), {
   onError(err) {
     try {
       if (process.argv.includes('--delta-base')) deltaRefuse('internal-error');
@@ -780,3 +787,5 @@ runMain(() => main(), {
     }
   },
 });
+
+export { parseSuiteMap, matchesGlob };

@@ -124,6 +124,8 @@ pairs:
     status: done
   - capability: ride-status-and-resume
     status: done
+  - capability: precise-suite-evidence-reuse
+    status: done
   - capability: node-first-small-pairs
     status: done
 wave_2:

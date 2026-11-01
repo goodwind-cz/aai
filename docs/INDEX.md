@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (38)
+## Product (39)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -46,6 +46,7 @@ _None._
 | original-request-outcome-backcheck | original-request-outcome-backcheck | 1 | docs/product/original-request-outcome-backcheck.md |
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
+| precise-suite-evidence-reuse | precise-suite-evidence-reuse | 1 | docs/product/precise-suite-evidence-reuse.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | provider-adapter-registry | provider-adapter-registry | 2 | docs/product/provider-adapter-registry.md |
@@ -60,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (604)
+## Done (606)
 
 | ID | Type | Path |
 |---|---|---|
@@ -298,6 +299,7 @@ _None._
 | CHANGE-0237 | issues | docs/issues/CHANGE-0237-provider-adapter-surfaces-closing-slice.md |
 | CHANGE-0238 | issues | docs/issues/CHANGE-0238-ride-status-and-resume.md |
 | CHANGE-0239 | issues | docs/issues/CHANGE-0239-node-first-small-pairs.md |
+| CHANGE-0240 | issues | docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -666,6 +668,7 @@ _None._
 | SPEC-0263 | specs | docs/specs/SPEC-0263-spec-provider-adapter-surfaces-closing-slice.md |
 | SPEC-0264 | specs | docs/specs/SPEC-0264-spec-ride-status-and-resume.md |
 | SPEC-0265 | specs | docs/specs/SPEC-0265-spec-node-first-small-pairs.md |
+| SPEC-0266 | specs | docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -707,7 +710,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (536)
+## Broken references (542)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -760,6 +763,12 @@ _None._
 | tests/skills/lib/ride-status.test.mjs | docs/ai/validation/VALIDATION-demo.md | NOT FOUND |
 | tests/skills/lib/ride-status.test.mjs | docs/issues/CHANGE-9001-demo.md | NOT FOUND |
 | tests/skills/lib/ride-status.test.mjs | docs/specs/SPEC-9001-demo.md | NOT FOUND |
+| tests/skills/lib/suite-reuse.test.mjs | docs/new.md | NOT FOUND |
+| tests/skills/lib/suite-reuse.test.mjs | docs/new2.md | NOT FOUND |
+| tests/skills/lib/suite-reuse.test.mjs | docs/pro.md | NOT FOUND |
+| tests/skills/lib/suite-reuse.test.mjs | docs/specs/SPEC-0001.md | NOT FOUND |
+| tests/skills/lib/suite-reuse.test.mjs | docs/specs/a.md | NOT FOUND |
+| tests/skills/lib/suite-reuse.test.mjs | docs/specs/new.md | NOT FOUND |
 | tests/skills/test-aai-branch-guard.sh | docs/issues/CHANGE-0001-t454.md | NOT FOUND |
 | tests/skills/test-aai-canon.sh | docs/generated-687.md | NOT FOUND |
 | tests/skills/test-aai-canon.sh | docs/generated-sub/687.md | NOT FOUND |
