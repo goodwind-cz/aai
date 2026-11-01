@@ -2757,6 +2757,70 @@ test_2307_node_floor_silent_at_floor() {  # ci-node-24-baseline TEST-2307 / Spec
   [[ $FAILED -eq 0 ]] && log_pass "TEST-2307 CAT-20 silent at v22.0.0, v24.0.0, vX and the real runtime; v20.11.1 control prints it"
 }
 
+# --- TEST-3214 — CAT-09 retired pre-compact hook (spec-node-first-small-pairs, Spec-AC-07) -
+test_3214_cat09_retired_hook() {
+  local fixture out hook='{"hooks":{"PreCompact":[{"hooks":[{"type":"command","command":"bash .aai/scripts/pre-compact-save.sh"}]}]}}'
+  fixture="$(new_bare_fixture t3214a)"
+  add_core_and_role_files "$fixture"
+  out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
+  if ! echo "$out" | grep "^CAT-09" | qgrep -q "PASS"; then
+    log_info "TEST-3214a: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-3214a CAT-09 without any settings file must PASS"
+    return
+  fi
+  fixture="$(new_bare_fixture t3214b)"
+  add_core_and_role_files "$fixture"
+  mkdir -p "$fixture/.claude"
+  printf '%s\n' "$hook" > "$fixture/.claude/settings.local.json"
+  out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
+  if ! { echo "$out" | grep "^CAT-09" | qgrep -q "WARN" && echo "$out" | grep "^CAT-09" | qgrep -q "settings.local.json"; }; then
+    log_info "TEST-3214b: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-3214b CAT-09 must WARN naming settings.local.json when the hook names the retired script"
+    return
+  fi
+  fixture="$(new_bare_fixture t3214c)"
+  add_core_and_role_files "$fixture"
+  mkdir -p "$fixture/.claude"
+  printf '%s\n' "$hook" > "$fixture/.claude/settings.json"
+  out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
+  if ! { echo "$out" | grep "^CAT-09" | qgrep -q "WARN" && echo "$out" | grep "^CAT-09" | qgrep -q "settings.json"; }; then
+    log_info "TEST-3214c: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-3214c CAT-09 must WARN naming settings.json"
+    return
+  fi
+  mkdir -p "$fixture/.aai/scripts"
+  : > "$fixture/.aai/scripts/pre-compact-save.sh"
+  out="$(node "$DOCTOR" --root "$fixture" 2>&1)"
+  if echo "$out" | grep "^CAT-09" | qgrep -q "PASS"; then
+    log_pass "TEST-3214 CAT-09 PASS without settings, WARN naming the settings file for a dangling hook, PASS when a copy exists"
+  else
+    log_info "TEST-3214d: got: $(echo "$out" | grep '^CAT-09')"
+    log_fail "TEST-3214d CAT-09 must PASS when a local copy serves the hand-wired hook"
+  fi
+}
+
+# --- TEST-3215 — SPEC-0100 TEST-009 amended, amendment record present --------
+test_3215_test009_amended() {
+  local out rc=0 sa="$TMP_ROOT/t3215.sa.json"
+  out="$(bash "$PROJECT_ROOT/tests/skills/test-aai-doctor.sh" test_009_cat09_precompact 2>&1)" || rc=$?
+  if [[ "$rc" != 0 ]]; then
+    printf '%s\n' "$out" >&2
+    log_fail "TEST-3215 test_009_cat09_precompact exited $rc"
+    return
+  fi
+  node "$PROJECT_ROOT/.aai/scripts/spec-amend.mjs" list --json > "$sa" || { log_fail "TEST-3215 spec-amend list failed"; return; }
+  out="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const hit = j.items.filter((i) => i.ref_id === "doctor-determinize" && i.amendment_class === "contract" && String(i.what).startsWith("TEST-009"));
+    process.stdout.write(hit.length >= 1 ? "" : "no contract record of ref doctor-determinize whose what begins TEST-009");
+  ' "$sa")"
+  if [[ -n "$out" ]]; then
+    log_fail "TEST-3215 $out"
+    return
+  fi
+  log_pass "TEST-3215 test_009 follows the new CAT-09 and the SPEC-0100 amendment record exists"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2831,6 +2895,8 @@ main() {
   test_2305_node_floor_warn_below
   test_2306_node_floor_warn_not_fail
   test_2307_node_floor_silent_at_floor
+  test_3214_cat09_retired_hook
+  test_3215_test009_amended
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
