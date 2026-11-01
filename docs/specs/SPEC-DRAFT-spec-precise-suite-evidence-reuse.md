@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4734ed4e8be4957f507f6248b00f1519f4fa435e62c32b0d3488da00859bf86d
+frozen_sha256: 762c7381dcd776086de57a8eec75eef61cf26c3648e3b16c16d451e216d3c285
 ceremony_level: 2
 links:
   requirement: precise-suite-evidence-reuse
@@ -214,8 +214,8 @@ framework copied without the helper keeps working).
   suite).
 - `lint` exits 0 only when the manifest is valid and every listed suite has a
   suite-map row and a `tests/skills/test-<suite>.sh` file; otherwise exit 1
-  with one line per offending suite naming `not-in-suite-map` or
-  `no-suite-file`.
+  with one line per offending suite naming `not-in-suite-map`,
+  `no-suite-file`, `not-gate-selected` or `gate-row-missing`.
 - Admission gate (residual R1): `lint --minimal-tree [--suite S] [--manifest F]`
   runs `lint`, then for every manifest suite builds a scratch git repository
   holding only that suite's identity files (the `explain` inputs, which carry the
@@ -254,7 +254,10 @@ canonical JSON value:
   (d) the static closure: starting from the suite file, every file named by
   a path literal in a closure file under `tests/` (a token starting
   `.aai`, `tests` or `docs` made of path characters, or a `lib/<name>`
-  token in a `tests/skills/` file resolved against `tests/skills/`), and
+  token in a `tests/skills/` file resolved against `tests/skills/`, taken only
+  as one plain name: a `lib/` reference that is nested or holds a `.` or `..`
+  segment is unresolvable, and outside `tests/skills/` a plain `lib/<name>` is
+  resolved against the file's own directory like any other relative read), and
   every file reached by an ESM relative `import` or `import()` from a
   closure `.mjs` or `.js` file, transitively. A literal that names a
   directory adds every `listTreeFiles` path under it. A top-level name

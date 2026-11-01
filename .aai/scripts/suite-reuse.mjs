@@ -177,7 +177,16 @@ export function computeClosure(ctx, suite) {
       }
       for (const m of text.matchAll(CONCAT_RE)) unresolved.push(`${m[0]} concatenated <- ${rel}`);
       for (const m of text.matchAll(ROOT_THEN_EXPANSION_RE)) unresolved.push(`${m[0]}<expansion> <- ${rel}`);
-      if (rel.startsWith('tests/skills/')) for (const m of text.matchAll(LIB_RE)) add(`tests/skills/lib/${m[1]}`);
+      // Only one plain name (no dot segment, no nesting) is taken; any other lib/ shape is unresolvable, never skipped.
+      if (rel.startsWith('tests/skills/')) {
+        for (const m of text.matchAll(LIB_RE)) {
+          const nested = text.charAt(m.index + m[0].length) === '/';
+          const dots = m[1] === '.' || m[1] === '..';
+          if (!nested && !dots) { add(`tests/skills/lib/${m[1]}`); continue; }
+          if (/tests\/skills\/$/.test(text.slice(Math.max(0, m.index - 13), m.index))) continue; // a full tests/ token, handled above
+          unresolved.push(`${m[0]} is not one plain lib/<name> <- ${rel}`);
+        }
+      }
       // A reference relative to the file's own directory outside lib/ (which LIB_RE
       // covers) is resolved against that directory when the file derives it from its
       // own location, then handled like a path literal (file, directory, or deepest
@@ -188,7 +197,11 @@ export function computeClosure(ctx, suite) {
       const lineOf = (at) => { const e = text.indexOf('\n', at); return text.slice(lineStart(at), e < 0 ? text.length : e); };
       const relative = (restRaw, at, tailAt, known, shown) => {
         const dyn = DYNAMIC_NEXT_RE.test(text.charAt(tailAt));
-        if (restRaw.startsWith('lib/') && !dyn) return;
+        if (restRaw.startsWith('lib/') && !dyn) {
+          // LIB_RE covers exactly one plain name in a tests/skills/ file; every other lib/ shape is resolved or refused here.
+          if (rel.startsWith('tests/skills/') && /^lib\/(?!\.{1,2}$)[A-Za-z0-9_.-]+$/.test(restRaw)) return;
+          if (restRaw.split('/').some((seg) => seg === '.' || seg === '..')) { unresolved.push(`${shown} <- ${rel}`); return; }
+        }
         if (/^[./]*$/.test(restRaw)) {
           const a = /^[ \t]*(?:(?:export|readonly|local|declare)\s+)*([A-Za-z_]\w*)=/.exec(lineOf(at));
           if (!dyn && a && ROOT_VAR_NAME_RE.test(a[1])) return;
