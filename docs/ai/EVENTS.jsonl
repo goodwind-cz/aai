@@ -3586,3 +3586,4 @@
 {"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"suite-select-sigpipe-fix","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-suite-select-sigpipe-fix","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-suite-select-sigpipe-fix","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-02T20:26:05Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-local-ledger-append","payload":{"from":"draft","to":"implementing"}}
