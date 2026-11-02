@@ -3,19 +3,22 @@
 // suite-reuse.mjs - precise local reuse of a passing suite result
 // (CHANGE precise-suite-evidence-reuse / SPEC spec-precise-suite-evidence-reuse).
 //
-// A suite listed in tests/skills/suite-reuse.json whose declared input
-// identity is unchanged since an earlier passing, isolated, attested run is
-// reported REUSED by tests/skills/test-framework.sh instead of executed.
+// A suite listed in tests/skills/suite-reuse.json whose identity is unchanged
+// since an earlier passing, isolated, attested run is reported REUSED by
+// tests/skills/test-framework.sh instead of executed. The identity is keyed on
+// the files the suite actually read, found by an access-time trace of its
+// disposable checkout (lib/checkout-trace.mjs), not on its source text.
 // Every rule errs toward a miss: over-inclusion costs a re-run, never a false
 // pass. Node stdlib only; no second glob matcher, map parser or tree lister.
 //
 // Usage:
 //   node .aai/scripts/suite-reuse.mjs check  --root R --run-dir D --mode selected|full
 //        --isolation on|off --suite S [--suite S ...] [--seed-paths "a b"]
+//   node .aai/scripts/suite-reuse.mjs arm|collect --dir CHECKOUT --run-dir D --suite S [--seed-paths "a b"]
 //   node .aai/scripts/suite-reuse.mjs record --root R --run-dir D --suite S
 //        --isolation isolated --seeding seeded [--seed-paths "a b"]
 //   node .aai/scripts/suite-reuse.mjs forget --root R --suite S
-//   node .aai/scripts/suite-reuse.mjs lint    [--root R] [--minimal-tree [--manifest FILE] [--suite S ...]]
+//   node .aai/scripts/suite-reuse.mjs lint    [--root R] [--admit [--suite S ...] [--changed-since REF]]
 //   node .aai/scripts/suite-reuse.mjs explain --suite S [--root R]
 
 import { createHash } from 'node:crypto';
@@ -27,16 +30,19 @@ import { fileURLToPath } from 'node:url';
 import { parseSuiteMap, matchesGlob } from './select-suites.mjs';
 import { listTreeFiles } from './lib/tree-hash.mjs';
 import { atomicWrite, loadOrDegrade, reapAsides } from './lib/runtime-file.mjs';
+import { armTrace, collectTrace } from './lib/checkout-trace.mjs';
+import { referencedNames, contentHash } from './lib/checkout-trace.mjs';
 
-const IDENTITY_COMPONENTS = ['inputs', 'env', 'args', 'runtime', 'policy', 'history'];
-const REUSE_POLICY_VERSION = 1;
+const IDENTITY_COMPONENTS = ['inputs', 'paths', 'env', 'args', 'runtime', 'policy', 'history'];
+const REUSE_POLICY_VERSION = 2;
 const DEFAULT_SEEDS = 'docs/ai/STATE.yaml docs/ai/LOOP_TICKS.jsonl docs/ai/hitl-channel.json';
 const MANIFEST_REL = 'tests/skills/suite-reuse.json';
 const MAP_REL = 'tests/skills/suite-map.yaml';
 const STORE_REL = 'tests/skills/results/reuse';
 const HARNESS = [
   'tests/skills/test-framework.sh', '.aai/scripts/aai-run-tests.sh', '.aai/scripts/suite-reuse.mjs',
-  '.aai/scripts/select-suites.mjs', MAP_REL, MANIFEST_REL, '.gitignore',
+  '.aai/scripts/lib/checkout-trace.mjs', '.aai/scripts/select-suites.mjs', MAP_REL, MANIFEST_REL,
+  '.gitignore',
 ];
 const TEMP_WINDOW_MS = 3600 * 1000;
 const ENV_PREFIXES = ['AAI_', 'GIT_', 'NODE_', 'npm_config_'];
@@ -50,8 +56,8 @@ export function shellStartupHazard(env) {
   return hit ? 'bash-startup-hook' : null;
 }
 const ENV_EXCLUDED = ['AAI_SUITE_REUSE', 'AAI_TEST_REF_ID', 'AAI_REAP_STEP_START_EPOCH'];
-const HISTORY_RE = /git log|rev-parse|merge-base|git diff|git show|git describe/;
-const MARKER_RE = /gh api|gh pr|curl |ls-remote|git push|git fetch|https?:\/\//;
+// Maintained by the shell itself and different for every caller: never an input a suite can be keyed on.
+const ENV_NOISE = ['PWD', 'OLDPWD', 'SHLVL', '_'];
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const posix = (p) => p.split(path.sep).join('/');
@@ -90,8 +96,9 @@ export function loadContext(root, opts = {}) {
   const env = opts.env || process.env;
   const seeds = (opts.seedPaths || env.AAI_TEST_ISOLATION_SEED || DEFAULT_SEEDS).split(/\s+/).filter(Boolean);
   const files = listTreeFiles(root);
+  const pathList = [...new Set([...files, ...seeds.filter((s) => fs.existsSync(path.join(root, s)))])].sort();
   return {
-    root, map, env, seeds, files, fileSet: new Set(files), manifest: loadManifest(root, opts.manifestRel),
+    root, map, env, seeds, files, pathList, fileSet: new Set(files), manifest: loadManifest(root, opts.manifestRel),
     runtime: opts.runtime || {
       node: process.version, platform: process.platform, arch: process.arch,
       git: firstLine('git', ['--version']), bash: firstLine('bash', ['--version']),
@@ -105,14 +112,10 @@ function resolveTimeout(raw) { return /^[0-9]+$/.test(raw || '') && Number(raw) 
 function fileHash(ctx, rel) {
   if (!ctx.hashes.has(rel)) {
     let h = 'absent';
-    try { h = sha256(fs.readFileSync(path.join(ctx.root, rel))); } catch { /* absent or unreadable: a later creation is a change */ }
+    try { const abs = path.join(ctx.root, rel); h = contentHash(fs.readFileSync(abs), fs.statSync(abs).mode); } catch { /* absent or unreadable: a later creation is a change */ }
     ctx.hashes.set(rel, h);
   }
   return ctx.hashes.get(rel);
-}
-function underDir(ctx, dir) {
-  const prefix = dir.endsWith('/') ? dir : `${dir}/`;
-  return ctx.files.filter((f) => f.startsWith(prefix));
 }
 function globMatches(ctx, globs) {
   const out = new Set();
@@ -123,188 +126,65 @@ function globMatches(ctx, globs) {
   return out;
 }
 
-// ---- static closure (D4 inputs rule d) ----
-// A token is a top-level name (.aai, tests, docs) followed by path characters,
-// or the bare name itself when a quote, "=", "(" or "/" precedes it ("$ROOT/docs").
-const TOKEN_RE = /(?<![\w.-])(?:\.aai|tests|docs)(?:\/[A-Za-z0-9_./@+-]*|(?<=[/"'=(](?:\.aai|tests|docs))(?![\w-]|\.\w))/g;
-const LIB_RE = /(?<![\w.-])lib\/([A-Za-z0-9_.-]+)/g;
-const LIB_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
-const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]/g;
-const SCRIPT_DIR_RE = /\$\{?SCRIPT_DIR\}?\/([A-Za-z0-9_./@+-]*)/g;
-const DIRNAME_RE = /\$\(\s*dirname\s+([^)]*)\)\/([A-Za-z0-9_./@+-]*)/g;
-const OWN_DIR_RE = /BASH_SOURCE|\$\{?0\}?(?![\w])/;
-const DYNAMIC_NEXT_RE = /[$*?[{]/;
-// Fail closed (D4): a reference holding an expansion is accepted only as a known
-// base plus a fully literal directory prefix; anything else is unresolved.
-const ROOT_VAR = '(?:PROJECT_ROOT|REPO_ROOT|ROOT_DIR|ROOT|REPO_DIR|REPO|PROJECT_DIR|AAI_ROOT)';
-const ROOT_VAR_NAME_RE = new RegExp(`^${ROOT_VAR}$`);
-const ROOT_THEN_EXPANSION_RE = new RegExp(`\\$\\{?${ROOT_VAR}\\}?/(?:\\.{1,2}/)*(?=[$\`])`, 'g');
-const ASSIGN_RE = /^[ \t]*(?:(?:export|readonly|local|declare)\s+)*([A-Za-z_]\w*)=(.*)$/gm;
-const CD_OWN_RE = /\bcd\s+"?\$\(\s*dirname\s+[^)]*(?:BASH_SOURCE|\$\{?0\}?)[^)]*\)/g;
-const CONCAT_RE = /(?<![\w.-])(?:\.aai|tests|docs)["']\//g;
-// The one after-literal rule (D4 (d)), shared by every site that accepts a path
-// literal. 'ok': the next character is a strict terminator, or a closing quote
-// that is itself followed by one. 'dyn': a directly following expansion or glob
-// character (a token then widens to its deepest literal directory). 'bad': any
-// other follower (a quote then more text, `.`, `-`, `_`, a letter, ...).
-const TERMINATOR_RE = /^(?:[\s);|&<>]|$)/;
-function afterLiteral(text, end) {
-  const c = text.charAt(end);
-  if (TERMINATOR_RE.test(c)) return 'ok';
-  if (c === '"' || c === "'") return TERMINATOR_RE.test(text.charAt(end + 1)) ? 'ok' : 'bad';
-  return DYNAMIC_NEXT_RE.test(c) ? 'dyn' : 'bad';
+// ---- identity (D3) ----
+// A trace is {inputs: {path: arm sha256 or null}, paths, env_names, git_read, index_read}. The check side
+// builds it from the store record (hashes then come from the working tree); the record side from the
+// trace file of the run (hashes are the bytes the checkout held when the suite started).
+const NO_TRACE = { inputs: {}, paths: [], env_names: [], git_read: false, index_read: false };
+function historyOf(root) {
+  const git = (...a) => { try { return execFileSync('git', ['-C', root, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return 'unavailable'; } };
+  return `${git('rev-parse', 'HEAD')}\n${git('for-each-ref', '--format=%(objectname) %(refname)')}`;
 }
-export function computeClosure(ctx, suite) {
-  const start = `tests/skills/test-${suite}.sh`;
-  const closure = new Set([start]);
-  const queue = [start];
-  const named = new Set();
-  const texts = new Map();
-  const dirs = [];
-  const unresolved = [];
-  while (queue.length) {
-    const rel = queue.shift();
-    const text = readText(path.join(ctx.root, rel));
-    if (text === null) continue;
-    texts.set(rel, text);
-    const add = (p) => {
-      named.add(p);
-      if (!closure.has(p)) { closure.add(p); queue.push(p); }
-    };
-    // dynamic: the literal ends where a variable or glob begins, so its last
-    // segment is only a prefix and the deepest fully literal directory is named.
-    const addPath = (raw, dynamic) => {
-      let p = dynamic ? raw.slice(0, raw.lastIndexOf('/') + 1) : raw.replace(/[,:;)]+$/, '');
-      // Trailing dots are sentence punctuation unless they are a whole last segment (.. or .), which normalize resolves.
-      if (!dynamic && !/(^|\/)\.{1,2}$/.test(p)) p = p.replace(/\.+$/, '');
-      if (!p) { unresolved.push(`${raw}<expansion> <- ${rel}`); return; }
-      // Dot segments collapse like the filesystem does; a path that leaves the repository names nothing the helper can hash.
-      const trail = p.endsWith('/');
-      p = path.posix.normalize(p);
-      if (p === '.' || p === './' || p === '..' || p.startsWith('../')) { unresolved.push(`${raw} leaves the repository <- ${rel}`); return; }
-      if (trail && !p.endsWith('/')) p += '/';
-      if (p.endsWith('/') || (!ctx.fileSet.has(p) && underDir(ctx, p).length)) {
-        dirs.push(`${p} <- ${rel} (${underDir(ctx, p).length} files)`);
-        for (const f of underDir(ctx, p)) add(f);
-      } else add(p);
-    };
-    if (rel.startsWith('tests/')) {
-      for (const m of text.matchAll(TOKEN_RE)) {
-        if (/[%#]\*?\/$/.test(text.slice(Math.max(0, m.index - 4), m.index))) continue; // ${X%/tests/skills} strips a suffix, it reads nothing
-        const end = m.index + m[0].length;
-        const after = afterLiteral(text, end);
-        if (after === 'bad') { unresolved.push(`${m[0]} is followed by more than a terminator <- ${rel}`); continue; }
-        addPath(m[0], after === 'dyn');
-      }
-      for (const m of text.matchAll(CONCAT_RE)) unresolved.push(`${m[0]} concatenated <- ${rel}`);
-      for (const m of text.matchAll(ROOT_THEN_EXPANSION_RE)) unresolved.push(`${m[0]}<expansion> <- ${rel}`);
-      // Allowlist: a lib/ reference is trusted only as one plain name, with the after-literal rule,
-      // in a file directly in tests/skills; every other lib/ shape, in any directory, is unresolvable.
-      {
-        const tokens = [...text.matchAll(TOKEN_RE)];
-        for (const m of text.matchAll(LIB_RE)) {
-          const end = m.index + m[0].length;
-          if (tokens.some((t) => t.index < m.index && m.index < t.index + t[0].length)) continue; // inside a full TOKEN_RE token (.aai/scripts/lib/x), handled above
-          // A slash right before lib/ is trusted only after the file's own directory ($SCRIPT_DIR or dirname); any other base ($ROOT, src/) is some other lib/.
-          const before = text.slice(Math.max(0, m.index - 200), m.index);
-          const baseOk = !before.endsWith('/') || /\$\{?SCRIPT_DIR\}?\/$/.test(before) || /\$\(\s*dirname\b[^\n]*\)\/$/.test(before);
-          if (baseOk && path.posix.dirname(rel) === 'tests/skills' && LIB_NAME_RE.test(m[1]) && afterLiteral(text, end) === 'ok') { addPath(`tests/skills/lib/${m[1]}`, false); continue; }
-          unresolved.push(`${m[0]} is not one plain lib/<name> <- ${rel}`);
-        }
-      }
-      // A reference relative to the file's own directory outside lib/ (which LIB_RE
-      // covers) is resolved against that directory when the file derives it from its
-      // own location, then handled like a path literal (file, directory, or deepest
-      // literal directory of a partly built path); else the suite is not reusable.
-      // A bare ../.. names nothing only when it computes a known repo-root variable.
-      const ownDir = path.posix.dirname(rel);
-      const lineStart = (at) => text.lastIndexOf('\n', at - 1) + 1;
-      const lineOf = (at) => { const e = text.indexOf('\n', at); return text.slice(lineStart(at), e < 0 ? text.length : e); };
-      const relative = (restRaw, at, tailAt, known, shown) => {
-        const after = afterLiteral(text, tailAt);
-        const dyn = after === 'dyn';
-        if (restRaw.startsWith('lib/')) {
-          // LIB_RE took the one trusted shape; every other lib/ reference is refused, not resolved.
-          if (!(ownDir === 'tests/skills' && after === 'ok' && LIB_NAME_RE.test(restRaw.slice(4)))) unresolved.push(`${shown} <- ${rel}`);
-          return;
-        }
-        if (/^[./]*$/.test(restRaw)) {
-          const a = /^[ \t]*(?:(?:export|readonly|local|declare)\s+)*([A-Za-z_]\w*)=/.exec(lineOf(at));
-          if (after === 'ok' && a && ROOT_VAR_NAME_RE.test(a[1])) return;
-          unresolved.push(`${shown} <- ${rel}`); return;
-        }
-        if (after === 'bad') { unresolved.push(`${shown} <- ${rel}`); return; }
-        const joined = path.posix.normalize(path.posix.join(ownDir, restRaw));
-        if (!known || joined === '.' || joined.startsWith('..')) { unresolved.push(`${shown} <- ${rel}`); return; }
-        addPath(joined, dyn);
-      };
-      for (const m of text.matchAll(SCRIPT_DIR_RE)) relative(m[1], m.index, m.index + m[0].length, OWN_DIR_RE.test(text), `$SCRIPT_DIR/${m[1]}`);
-      for (const m of text.matchAll(DIRNAME_RE)) relative(m[2], m.index, m.index + m[0].length, OWN_DIR_RE.test(m[1]), `$(dirname ${m[1].trim()})/${m[2]}`);
-      // Any other variable derived from the file's own location is not a base the helper knows.
-      for (const a of text.matchAll(ASSIGN_RE)) {
-        if (a[1] === 'SCRIPT_DIR' || ROOT_VAR_NAME_RE.test(a[1]) || !OWN_DIR_RE.test(a[2]) || !/dirname|pwd/.test(a[2])) continue;
-        if (new RegExp(`\\$\\{?${a[1]}\\b`).test(text.slice(a.index + a[0].length))) unresolved.push(`$${a[1]} (own-directory variable) <- ${rel}`);
-      }
-      for (const m of text.matchAll(CD_OWN_RE)) if (!text.slice(lineStart(m.index), m.index).includes('=')) unresolved.push(`cd to own directory <- ${rel}`);
-    }
-    if (/\.(mjs|js)$/.test(rel)) {
-      for (const m of text.matchAll(IMPORT_RE)) add(posix(path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1]))));
-    }
-  }
-  return { closure, named, texts, dirs, unresolved };
-}
-
-const mapGlobs = (map, suite) => (map.suites[suite] ? map.suites[suite].globs : []);
-export function declaredGlobs({ root, suite }) {
-  const text = readText(path.join(root, MAP_REL));
-  return text === null ? [] : mapGlobs(parseSuiteMap(text), suite);
-}
-
-// ---- identity (D4) ----
-export function computeIdentity(ctx, suite, args) {
-  const entry = ctx.manifest.suites[suite];
-  const { closure, named, texts, dirs, unresolved } = computeClosure(ctx, suite);
-  const declared = new Set([`tests/skills/test-${suite}.sh`, ...HARNESS, ...named]);
-  for (const f of globMatches(ctx, [...mapGlobs(ctx.map, suite), ...(entry ? entry.inputs : []), ...ctx.map.sharedLibGlobs])) declared.add(f);
-  for (const f of ctx.files) if (/^tests\/skills\/lib\/[^/]*\.sh$/.test(f)) declared.add(f);
-  const allText = [...texts.entries()].filter(([rel]) => rel.startsWith('tests/')).map(([, t]) => t);
-  for (const seed of ctx.seeds) {
-    const base = path.posix.basename(seed);
-    if (fs.existsSync(path.join(ctx.root, seed)) && [...texts.values()].some((t) => t.includes(base))) declared.add(seed);
-  }
-  const inputsMap = {};
-  for (const rel of [...declared].sort()) inputsMap[rel] = fileHash(ctx, rel);
-
-  const referenced = new Set();
-  for (const t of texts.values()) {
-    for (const m of t.matchAll(/\$\{?([A-Za-z_][A-Za-z0-9_]*)|process\.env\.([A-Za-z_]\w*)|\$env:([A-Za-z_]\w*)/g)) referenced.add(m[1] || m[2] || m[3]);
-  }
+function prefixEnv(ctx) {
   const envMap = {};
   for (const name of Object.keys(ctx.env)) {
-    const wanted = ENV_PREFIXES.some((p) => name.startsWith(p)) || ENV_FIXED.includes(name);
-    if (wanted && (!ENV_EXCLUDED.includes(name) || referenced.has(name))) envMap[name] = ctx.env[name];
+    if ((ENV_PREFIXES.some((p) => name.startsWith(p)) || ENV_FIXED.includes(name)) && !ENV_EXCLUDED.includes(name)) envMap[name] = ctx.env[name];
   }
-  for (const name of referenced) if (!(name in envMap)) envMap[name] = ctx.env[name] === undefined ? null : ctx.env[name];
+  return envMap;
+}
+function harnessMap(ctx, suite) {
+  const entry = ctx.manifest.suites[suite];
+  const wanted = new Set([`tests/skills/test-${suite}.sh`, ...HARNESS]);
+  if (entry) for (const f of globMatches(ctx, entry.inputs)) wanted.add(f);
+  const map = {};
+  for (const rel of [...wanted].sort()) map[rel] = fileHash(ctx, rel);
+  return map;
+}
+// Everything a run can move under the suite: env, runtime, policy, history, harness bytes.
+function stableOf(ctx, suite) {
+  return hashOf({ env: prefixEnv(ctx), runtime: ctx.runtime, policy: policyOf(ctx), hist: historyOf(ctx.root), harness: harnessMap(ctx, suite) });
+}
+const policyOf = (ctx) => ({ policy_version: ctx.policyVersion, trace: 'atime', timeout_seconds: ctx.timeoutSeconds, isolation: 'isolated', seed_paths: ctx.seeds });
 
-  let history = '';
-  if (allText.some((t) => HISTORY_RE.test(t))) {
-    const rev = (r) => { try { return execFileSync('git', ['-C', ctx.root, 'rev-parse', '--verify', '-q', r], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; } };
-    history = { head: rev('HEAD'), main: rev('refs/heads/main'), origin_main: rev('refs/remotes/origin/main') };
+export function computeIdentity(ctx, suite, args, trace = NO_TRACE, recorded = false) {
+  const inputsMap = harnessMap(ctx, suite);
+  const armed = (p) => (recorded && typeof trace.inputs[p] === 'string' ? trace.inputs[p] : null);
+  for (const p of Object.keys(trace.inputs)) if (!p.startsWith('.git/')) inputsMap[p] = armed(p) || fileHash(ctx, p);
+  const pathList = recorded ? [...trace.paths].sort() : ctx.pathList;
+  if (trace.index_read) {
+    for (const p of pathList) if (!(p in inputsMap)) inputsMap[p] = (recorded && trace.tree_hashes && trace.tree_hashes[p]) || fileHash(ctx, p);
   }
-  const values = {
-    inputs: inputsMap, env: envMap, args, runtime: ctx.runtime,
-    policy: { policy_version: ctx.policyVersion, timeout_seconds: ctx.timeoutSeconds, isolation: 'isolated', seed_paths: ctx.seeds },
-    history,
-  };
+  const envMap = prefixEnv(ctx);
+  for (const name of trace.env_names.filter((n) => !ENV_NOISE.includes(n))) envMap[name] = ctx.env[name] === undefined ? null : ctx.env[name];
+  const history = trace.git_read ? historyOf(ctx.root) : '';
+  const values = { inputs: inputsMap, paths: pathList, env: envMap, args, runtime: ctx.runtime, policy: policyOf(ctx), history };
   const components = {};
   for (const c of IDENTITY_COMPONENTS) components[c] = hashOf(values[c]);
-  return { suite, identity: hashOf(components), components, inputs_map: inputsMap, args, closure: [...closure].sort(), dirs, unresolved, historyMarker: history !== '' };
+  return { suite, identity: hashOf(components), components, inputs_map: inputsMap, paths: pathList, args };
 }
 
 // First differing component (in IDENTITY_COMPONENTS order); null when equal.
 export function diffIdentity(recorded, current) {
   for (const c of IDENTITY_COMPONENTS) {
     if (recorded.components[c] === current.components[c]) continue;
+    if (c === 'paths') {
+      const a = new Set(recorded.paths || []);
+      const b = new Set(current.paths);
+      const added = current.paths.find((p) => !a.has(p));
+      if (added !== undefined) return { reason: 'paths', detail: `added ${added}` };
+      const gone = (recorded.paths || []).find((p) => !b.has(p));
+      return gone === undefined ? { reason: 'paths' } : { reason: 'paths', detail: `removed ${gone}` };
+    }
     if (c !== 'inputs') return { reason: c };
     const a = recorded.inputs_map || {};
     const b = current.inputs_map;
@@ -336,37 +216,45 @@ function offReason(env, mode, isolation) {
 }
 
 // ---- check (D5) ----
+function traceOfRecord(rec) {
+  const t = rec && rec.schema === 2 && rec.trace;
+  if (!t || !Array.isArray(t.input_paths) || !Array.isArray(t.env_names)) return undefined;
+  return { inputs: Object.fromEntries(t.input_paths.map((p) => [p, null])), paths: [], env_names: t.env_names, git_read: t.git_read === true, index_read: t.index_read === true };
+}
 export function checkSuites({ root, suites, mode = 'selected', isolation = 'on', runDir, args, env, runtime, seedPaths, policyVersion, timeoutSeconds }) {
   const ctx = loadContext(root, { env, runtime, seedPaths, policyVersion, timeoutSeconds });
   const off = offReason(ctx.env, mode, isolation);
   const results = [];
+  const trace = [];
   for (const suite of suites) {
     const argv = args && !Array.isArray(args) ? args[suite] : args || ['bash', `tests/skills/test-${suite}.sh`];
     // An identity is only ever compared or recorded for a declared, non-live suite.
     const entry = ctx.manifest.suites[suite];
     const declared = ctx.manifest.state === 'ok' && entry && entry.live === false;
-    const id = off === 'ci' || off === 'opt-out' || !declared ? null : computeIdentity(ctx, suite, argv);
+    const loaded = declared ? readStore(root, suite) : { status: 'missing', data: null };
+    const rec = loaded.status === 'corrupt' ? null : loaded.data;
+    const id = off === 'ci' || off === 'opt-out' || !declared ? null : computeIdentity(ctx, suite, argv, traceOfRecord(rec));
     if (id && runDir) {
       fs.mkdirSync(runDir, { recursive: true });
-      fs.writeFileSync(path.join(runDir, `${suite}.reuse-identity.json`), JSON.stringify(id));
+      fs.writeFileSync(path.join(runDir, `${suite}.reuse-identity.json`), JSON.stringify({ identity: id.identity, args: argv, stable: stableOf(ctx, suite) }));
     }
+    if (declared && (!off || off === 'full-sweep')) trace.push(suite);
     if (off) { results.push({ suite, off }); continue; }
-    results.push({ suite, ...decide(ctx, suite, id) });
+    results.push({ suite, ...decide(ctx, suite, id, loaded) });
   }
-  return { off, results };
+  return { off, results, trace };
 }
-function decide(ctx, suite, id) {
+function decide(ctx, suite, id, loaded) {
   const entry = ctx.manifest.suites[suite];
   // A bash startup hook (BASH_ENV, ENV) runs code outside the identity: fail closed, never hash it.
   if (shellStartupHazard(ctx.env)) return { status: 'RUN', reason: 'bash-startup-hook' };
   if (ctx.manifest.state === 'invalid') return { status: 'RUN', reason: 'manifest-invalid' };
   if (!entry) return { status: 'RUN', reason: 'not-declared' };
   if (entry.live !== false) return { status: 'RUN', reason: 'live' };
-  if (id.unresolved.length) return { status: 'RUN', reason: 'inputs-unresolvable', detail: id.unresolved[0] };
-  const loaded = readStore(ctx.root, suite);
   if (loaded.status === 'corrupt') return { status: 'RUN', reason: 'store-corrupt' };
   const rec = loaded.data;
   if (!rec || !rec.components) return { status: 'RUN', reason: 'no-record' };
+  if (!traceOfRecord(rec)) return { status: 'RUN', reason: 'policy', detail: 'record predates the access trace' };
   const d = diffIdentity(rec, id);
   if (d) return { status: 'RUN', ...d };
   const logAbs = path.join(ctx.root, rec.log || '');
@@ -381,7 +269,8 @@ export function formatCheck(r) {
   return `RUN ${r.suite} reason=${r.reason}${r.detail ? ` ${r.detail}` : ''}`;
 }
 
-// ---- record (D5) ----
+// ---- record (D4) ----
+function readJson(abs) { try { return JSON.parse(fs.readFileSync(abs, 'utf8')); } catch { return null; } }
 export function recordSuite({ root, suite, runDir, metrics, isolation = 'isolated', seeding = 'seeded', env, runtime, seedPaths, policyVersion, timeoutSeconds, now = new Date() }) {
   const e = env || process.env;
   const off = offReason(e, 'selected', 'on');
@@ -397,22 +286,27 @@ export function recordSuite({ root, suite, runDir, metrics, isolation = 'isolate
   if (m.status !== 'PASS' || m.exit_code !== 0) return no('not-pass');
   if (m.tripwire_attested !== true || m.tripwire_hasher_degraded !== false) return no('not-attested');
   if (isolation !== 'isolated' || seeding !== 'seeded') return no('not-isolated');
-  const pre = readText(path.join(runDir, `${suite}.reuse-identity.json`));
-  if (pre === null) return no('no-identity');
-  let before;
-  try { before = JSON.parse(pre); } catch { return no('no-identity'); }
+  const before = readJson(path.join(runDir, `${suite}.reuse-identity.json`));
   if (!before || typeof before !== 'object' || !Array.isArray(before.args)) return no('no-identity');
+  // Decided before any context is loaded: a missing or foreign trace is a clean refusal, never a throw.
+  const trace = readJson(path.join(runDir, `${suite}.reuse-trace.json`));
+  const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
+  if (!isObj(trace) || trace.suite !== suite || trace.run_id !== path.basename(runDir) || !isObj(trace.inputs) || !Array.isArray(trace.paths) || !Array.isArray(trace.env_names)) return no('no-trace');
+  if (!trace.canary) return no('trace-unavailable');
   const ctx = loadContext(root, { env: e, runtime, seedPaths, policyVersion, timeoutSeconds });
   const entry = ctx.manifest.suites[suite];
   if (ctx.manifest.state !== 'ok' || !entry || entry.live !== false) return no('not-declared');
-  const after = computeIdentity(ctx, suite, before.args);
-  if (after.unresolved.length) return no('inputs-unresolvable');
-  if (after.identity !== before.identity) return no('inputs-changed-during-run');
+  if (stableOf(ctx, suite) !== before.stable) return no('inputs-changed-during-run');
+  const texts = Object.keys(trace.inputs).filter((p) => !p.startsWith('.git/')).map((p) => readText(path.join(root, p))).filter((t) => t !== null);
+  const names = [...new Set([...trace.env_names, ...referencedNames(texts)])].sort();
+  const traced = { ...trace, env_names: names, git_read: trace.git_read === true, index_read: trace.index_read === true };
+  const after = computeIdentity(ctx, suite, before.args, traced, true);
   const logAbs = path.join(runDir, `${suite}.log`);
   let logHash;
   try { logHash = sha256(fs.readFileSync(logAbs)); } catch { return no('log-missing'); }
   const rec = {
-    schema: 1, suite, identity: after.identity, components: after.components, inputs_map: after.inputs_map,
+    schema: 2, suite, identity: after.identity, components: after.components, inputs_map: after.inputs_map, paths: after.paths,
+    trace: { input_paths: Object.keys(trace.inputs).filter((p) => !p.startsWith('.git/')).sort(), index_read: traced.index_read, git_read: traced.git_read, env_names: names },
     run_id: path.basename(runDir), finished_at: now.toISOString(), duration_seconds: m.duration_seconds || 0,
     exit_code: 0, log: posix(path.relative(root, logAbs)), log_sha256: logHash,
   };
@@ -438,54 +332,138 @@ export function lintManifest({ root }) {
   return { ok: problems.length === 0, problems };
 }
 
-// ---- minimal-tree admission gate (D4 residual R1) ----
-// The tokenizer is advisory; admission safety comes from this test. A suite stays in
-// the manifest only if it passes fresh, through the framework, in a repository copy
-// holding ONLY its identity files (explain's inputs, which already carry the harness
-// of D4 (c)) plus MINIMAL_TREE_FRAMEWORK (the fixed extra files the framework needs to start).
-// Measured: the framework starts from the D4 (c) harness alone, so nothing is added; a future need is added here.
-export const MINIMAL_TREE_FRAMEWORK = [];
-export function minimalTreeAdmit({ root, suites, manifestPath, timeoutMs = 600000, keep = false }) {
-  const rel = manifestPath ? posix(path.relative(root, path.resolve(manifestPath))) : MANIFEST_REL;
-  const ctx = loadContext(root, { manifestRel: rel });
-  if (ctx.manifest.state !== 'ok') return [{ suite: '-', ok: false, detail: `manifest-${ctx.manifest.state}` }];
-  const results = [];
-  for (const suite of suites && suites.length ? suites : Object.keys(ctx.manifest.suites)) {
-    const t0 = Date.now();
-    const id = computeIdentity(ctx, suite, ['bash', `tests/skills/test-${suite}.sh`]);
-    const want = new Set([...Object.keys(id.inputs_map).filter((p) => id.inputs_map[p] !== 'absent'), ...MINIMAL_TREE_FRAMEWORK]);
-    const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), `suite-reuse-min-${suite}-`));
-    let ok = false; let detail = '';
-    try {
-      for (const f of want) {
-        if (!fs.existsSync(path.join(root, f))) continue;
-        fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
-        fs.copyFileSync(path.join(root, f), path.join(dir, f));
-      }
-      const git = (...a) => spawnSync('git', ['-c', 'user.email=min@example.invalid', '-c', 'user.name=min', '-c', 'commit.gpgsign=false', ...a], { cwd: dir, encoding: 'utf8' });
-      git('init', '-q', '-b', 'main'); git('add', '-A'); git('commit', '-q', '-m', 'minimal tree');
-      const env = { ...process.env, AAI_SUITE_REUSE: '0', AAI_TEST_PARALLEL: '1' };
-      for (const k of ['AAI_ROLE', 'CI', 'GITHUB_ACTIONS', 'AAI_TEST_REF_ID']) delete env[k];
-      const r = spawnSync('bash', ['tests/skills/test-framework.sh', '--skill', suite], { cwd: dir, env, encoding: 'utf8', timeout: timeoutMs });
-      const out = `${r.stdout || ''}${r.stderr || ''}`;
-      const plain = out.replace(/\x1b\[[0-9;]*m/g, '');
-      ok = r.status === 0 && /Total:\s+1\b/.test(plain) && /Passed:\s+1 \(100%\)/.test(plain) && !/Failed:|Skipped:/.test(plain);
-      detail = ok ? `${want.size} files` : `rc=${r.status} ${out.split('\n').filter((l) => /FAIL|No such file|not found|error/i.test(l)).slice(0, 4).join(' | ').slice(0, 400)}`;
-    } finally { if (!keep) fs.rmSync(dir, { recursive: true, force: true }); }
-    results.push({ suite, ok, detail, seconds: Math.round((Date.now() - t0) / 100) / 10 });
+// ---- admission gate (D5): lint --admit ----
+// A suite may stay in the manifest only if, from a scratch copy of the working tree, it passes through the
+// framework with a trace, every Node content read it made is in the trace, one read and one unread edit move
+// `check` the right way, and it still passes when every file it did not read is overwritten.
+const CONTENT_FNS = new Set(['readFileSync', 'readFile', 'createReadStream', 'promises.readFile']);
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+const admitEnv = (extra = {}) => {
+  const e = { ...process.env, ...extra };
+  for (const k of ['AAI_ROLE', 'CI', 'GITHUB_ACTIONS', 'AAI_TEST_REF_ID', 'AAI_SUITE_REUSE']) delete e[k];
+  return e;
+};
+const run = (cmd, args, opts) => spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 1 << 28, ...opts });
+function scratchRepo(root, tmp, name) {
+  const dest = path.join(tmp, name);
+  if (run('git', ['clone', '--local', '--no-hardlinks', '--quiet', root, dest]).status !== 0) return null;
+  for (const [k, v] of [['user.email', 'admit@example.invalid'], ['user.name', 'admit'], ['commit.gpgsign', 'false']]) run('git', ['-C', dest, 'config', k, v]);
+  const seeds = DEFAULT_SEEDS.split(' ').filter((s) => fs.existsSync(path.join(root, s)));
+  const working = new Set([...listTreeFiles(root), ...seeds]);
+  for (const f of run('git', ['-C', dest, 'ls-files', '-z']).stdout.split('\0').filter(Boolean)) if (!working.has(f)) fs.rmSync(path.join(dest, f), { force: true });
+  for (const f of working) { fs.mkdirSync(path.dirname(path.join(dest, f)), { recursive: true }); fs.cpSync(path.join(root, f), path.join(dest, f), { dereference: false }); }
+  return dest;
+}
+// Node content reads, from the preload log, of a file that existed in the checkout at arm and is not a trace input.
+export function nodeReadsMissing(lines, arm, trace) {
+  const dirs = [arm.dir, arm.dir.replace(/^\/private/, ''), `/private${arm.dir}`];
+  const missing = new Set();
+  for (const line of lines) {
+    const [kind, p, fn] = line.split('\t');
+    if (kind !== 'R' || !CONTENT_FNS.has(fn)) continue;
+    const d = dirs.find((x) => p.startsWith(`${x}/`));
+    const rel = d ? p.slice(d.length + 1) : null;
+    if (rel && rel in arm.inodes && !(rel in trace.inputs)) missing.add(rel);
   }
-  return results;
+  return [...missing].sort();
+}
+const poisonFile = (abs, rel) => fs.writeFileSync(abs, `AAI-REUSE-POISON ${rel}\n`);
+function probe(dir, suite, env, { rel, label, expect }) {
+  const abs = path.join(dir, rel);
+  const had = fs.existsSync(abs) ? fs.readFileSync(abs) : null;
+  if (had === null) fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.appendFileSync(abs, 'x');
+  let out;
+  try { out = run(process.execPath, [fileURLToPath(import.meta.url), 'check', '--root', dir, '--run-dir', path.join(dir, 'tests/skills/results/admit-probe'), '--mode', 'selected', '--isolation', 'on', '--suite', suite], { env, cwd: dir }).stdout; }
+  finally { if (had === null) fs.rmSync(abs, { force: true }); else fs.writeFileSync(abs, had); }
+  const got = out.split('\n')[0] || '(nothing)';
+  const ok = new RegExp(`^${expect} ${suite}\\b${expect === 'RUN' ? ' reason=inputs' : ''}`).test(got);
+  return { ok, line: `${label} ${rel} ${got.split(' ')[0]}`, why: `${label} probe on ${rel} gave: ${got}` };
+}
+function admitSuite(root, suite, tmp) {
+  const t0 = Date.now();
+  const fail = (reason) => ({ suite, ok: false, seconds: (Date.now() - t0) / 1000, reason });
+  const dir = scratchRepo(root, tmp, `${suite}-a`);
+  if (!dir) return fail('scratch-repo');
+  const tracer = path.join(root, 'tests/skills/lib/read-trace.cjs');
+  if (!fs.existsSync(tracer)) return fail('no-read-trace');
+  const log = path.join(tmp, `${suite}.nodetrace`);
+  fs.writeFileSync(log, '');
+  const env = admitEnv({ AAI_TEST_PARALLEL: '1', AAI_TRACE_OUT: log, NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --require ${tracer}`.trim() });
+  // The framework appends a line to the tracked run ledger after the suite; put it back so the probes start from the state the suite read.
+  const ledger = path.join(dir, 'docs/ai/tests/test-runs.jsonl');
+  const ledgerWas = fs.existsSync(ledger) ? fs.readFileSync(ledger) : null;
+  const r1 = run('bash', ['tests/skills/test-framework.sh', '--skill', suite], { cwd: dir, env, timeout: 1800000 });
+  if (ledgerWas !== null) fs.writeFileSync(ledger, ledgerWas);
+  const plain = `${r1.stdout}${r1.stderr}`.replace(ANSI_RE, '');
+  if (r1.status !== 0 || !/Passed:\s+1 \(100%\)/.test(plain) || /Failed:|Skipped:/.test(plain)) return fail(`fresh-run-failed rc=${r1.status} ${plain.split('\n').filter((l) => /FAIL/.test(l)).slice(0, 3).join(' | ').slice(0, 300)}`);
+  const runs = path.join(dir, 'tests/skills/results');
+  const latest = fs.readdirSync(runs).filter((n) => n.startsWith('test-')).sort().pop();
+  const trace = readJson(path.join(runs, latest || '', `${suite}.reuse-trace.json`));
+  const arm = readJson(path.join(runs, latest || '', `${suite}.reuse-arm.json`));
+  if (!trace || !arm || !readJson(storeFile(dir, suite))) return fail('no-record (trace or store missing)');
+  const lines = fs.readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  const missed = nodeReadsMissing(lines, arm, trace);
+  if (missed.length) return fail(`trace-misses-node-read ${missed[0]}`);
+  const inputs = Object.keys(trace.inputs).filter((p) => !p.startsWith('.git/')).sort();
+  const ctx = loadContext(dir, { env });
+  const harness = harnessMap(ctx, suite);
+  const readProbe = inputs.find((p) => !(p in harness));
+  const unread = trace.index_read ? null : trace.paths.find((p) => !(p in trace.inputs) && !(p in harness));
+  const probes = [
+    readProbe && probe(dir, suite, env, { rel: readProbe, label: 'read', expect: 'RUN' }),
+    probe(dir, suite, env, { rel: unread || 'tests/skills/results/admit-probe.txt', label: 'unread', expect: 'REUSE' }),
+  ].filter(Boolean);
+  const bad = probes.find((x) => !x.ok);
+  if (bad) return fail(bad.why);
+  const toPoison = trace.index_read ? [] : trace.paths.filter((p) => !(p in trace.inputs) && !p.startsWith('.git/'));
+  if (toPoison.length) {
+    const pdir = scratchRepo(root, tmp, `${suite}-p`);
+    if (!pdir) return fail('scratch-repo');
+    for (const rel of toPoison) {
+      const abs = path.join(pdir, rel);
+      if (fs.existsSync(abs)) poisonFile(abs, rel);
+    }
+    const r = run('bash', [`tests/skills/test-${suite}.sh`], { cwd: pdir, env: admitEnv({ AAI_SUITE_REUSE: '0' }), timeout: 1800000 });
+    const passed = r.status === 0;
+    if (!passed) return fail(`poisoned run failed rc=${r.status}`);
+  }
+  return { suite, ok: true, seconds: (Date.now() - t0) / 1000, reads: inputs.length, poisoned: toPoison.length, probes: probes.map((x) => x.line) };
+}
+// base: {root, ref, manifest} or null when the ref does not resolve (then every suite is admitted).
+function entryChanged(base, suite) {
+  if (!base) return true;
+  const was = base.manifest && base.manifest.suites ? base.manifest.suites[suite] : undefined;
+  if (canon(was) !== canon(loadManifest(base.root).suites[suite])) return true;
+  const file = `tests/skills/test-${suite}.sh`;
+  return run('git', ['-C', base.root, 'cat-file', '-e', `${base.ref}:${file}`]).status !== 0
+    || run('git', ['-C', base.root, 'diff', '--quiet', base.ref, '--', file]).status !== 0;
+}
+function changedBase(root, ref) {
+  if (!ref || run('git', ['-C', root, 'rev-parse', '--verify', '-q', `${ref}^{commit}`]).status !== 0) return null;
+  const shown = run('git', ['-C', root, 'show', `${ref}:${MANIFEST_REL}`]);
+  let manifest = null;
+  try { manifest = JSON.parse(shown.stdout); } catch { /* no manifest at the ref: every entry is new */ }
+  return { root, ref, manifest };
+}
+export function admitSuites({ root, suites, changedSince }) {
+  const names = suites.length ? suites : Object.keys(loadManifest(root).suites);
+  const base = changedSince ? changedBase(root, changedSince) : null;
+  const picked = changedSince ? names.filter((s) => entryChanged(base, s)) : names;
+  const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'suite-reuse-admit-'));
+  try { return picked.map((s) => admitSuite(root, s, tmp)); } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 
-// ---- explain: what a suite's identity reads, plus advisory live markers ----
-export function explainSuite({ root, suite, env }) {
-  const ctx = loadContext(root, { env });
-  const id = computeIdentity(ctx, suite, ['bash', `tests/skills/test-${suite}.sh`]);
-  const markers = [];
-  for (const rel of id.closure.filter((f) => f.startsWith('tests/'))) {
-    (readText(path.join(root, rel)) || '').split('\n').forEach((line, i) => { if (MARKER_RE.test(line)) markers.push(`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`); });
-  }
-  return { id, markers, history: id.historyMarker };
+
+// ---- explain: what the suite's last record read ----
+export function explainSuite({ root, suite }) {
+  const loaded = readStore(root, suite);
+  const rec = loaded.status === 'corrupt' ? null : loaded.data;
+  const t = traceOfRecord(rec);
+  if (!t) return { suite, record: false };
+  const top = {};
+  for (const p of rec.trace.input_paths) { const k = p.split('/').slice(0, p.startsWith('docs/') || p.startsWith('.aai/') || p.startsWith('tests/') ? 2 : 1).join('/'); top[k] = (top[k] || 0) + 1; }
+  return { suite, record: true, run: rec.run_id, count: rec.trace.input_paths.length, top, git_read: t.git_read, index_read: t.index_read, env_names: t.env_names };
 }
 
 // ---- CLI ----
@@ -494,7 +472,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--suite') o.suites.push(argv[++i]);
-    else if (a === '--minimal-tree') o.minimalTree = true;
+    else if (a === '--admit') o.admit = true;
     else if (a.startsWith('--')) o[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = argv[++i];
   }
   return o;
@@ -507,6 +485,20 @@ function cli(argv) {
   if (cmd === 'check') {
     const r = checkSuites({ root, suites: o.suites, mode: o.mode, isolation: o.isolation, runDir: o.runDir, seedPaths: o.seedPaths });
     if (r.off) out(`OFF ${r.off}`); else r.results.forEach((x) => out(formatCheck(x)));
+    r.trace.forEach((s) => out(`TRACE ${s}`));
+  } else if (cmd === 'arm' || cmd === 'collect') {
+    const dir = path.resolve(o.dir || '');
+    const runDir = path.resolve(o.runDir || '');
+    if (!o.dir || !o.runDir || !o.suites[0] || overlaps(dir, root)) { process.stderr.write(`${cmd}: needs --dir (a disposable checkout that neither contains nor sits inside --root), --run-dir and --suite\n`); process.exitCode = 2; return; }
+    try {
+      if (cmd === 'arm') {
+        const arm = armTrace({ dir, runDir, suite: o.suites[0], seedPaths: (o.seedPaths || DEFAULT_SEEDS).split(/\s+/).filter(Boolean) });
+        out(`ARMED ${o.suites[0]} canary=${arm.canary}`);
+      } else {
+        const t = collectTrace({ dir, runDir, suite: o.suites[0] });
+        out(t ? `COLLECTED ${o.suites[0]} inputs=${Object.keys(t.inputs).length}` : `NO-ARM ${o.suites[0]}`);
+      }
+    } catch (err) { process.stderr.write(`${cmd} failed: ${err.message}\n`); process.exitCode = 1; }
   } else if (cmd === 'record') {
     for (const suite of o.suites) {
       const r = recordSuite({ root, suite, runDir: o.runDir, isolation: o.isolation, seeding: o.seeding, seedPaths: o.seedPaths });
@@ -515,28 +507,40 @@ function cli(argv) {
   } else if (cmd === 'forget') {
     o.suites.forEach((suite) => { forgetSuite({ root, suite }); out(`FORGOT ${suite}`); });
   } else if (cmd === 'lint') {
+    if (rest.includes('--minimal-tree')) { process.stderr.write('lint: --minimal-tree was replaced by --admit\n'); process.exitCode = 2; return; }
     const r = lintManifest({ root });
     r.problems.forEach((p) => out(`${p.suite} ${p.reason}`));
     process.exitCode = r.ok ? 0 : 1;
-    if (o.minimalTree && r.ok) {
-      const res = minimalTreeAdmit({ root, suites: o.suites, manifestPath: o.manifest });
-      res.forEach((x) => out(`${x.ok ? 'MINIMAL-TREE-PASS' : 'MINIMAL-TREE-FAIL'} ${x.suite} ${x.seconds}s ${x.detail}`));
+    if (o.admit && r.ok) {
+      if ((process.env.CI && process.env.CI !== 'false') || process.env.GITHUB_ACTIONS === 'true') { out('ADMIT-OFF ci'); return; }
+      const res = admitSuites({ root, suites: o.suites, changedSince: o.changedSince });
+      if (!res.length) out('ADMIT-NONE');
+      for (const x of res) {
+        (x.probes || []).forEach((l) => out(`ADMIT-PROBE ${x.suite} ${l}`));
+        out(x.ok ? `ADMIT-PASS ${x.suite} ${x.seconds}s reads=${x.reads} poisoned=${x.poisoned}` : `ADMIT-FAIL ${x.suite} ${x.seconds}s ${x.reason}`);
+      }
       if (res.some((x) => !x.ok)) process.exitCode = 1;
     }
   } else if (cmd === 'explain') {
     const r = explainSuite({ root, suite: o.suites[0] });
-    const lines = [`suite ${o.suites[0]}: ${Object.keys(r.id.inputs_map).length} input file(s), closure ${r.id.closure.length}, history ${r.history ? 'yes' : 'no'}`];
-    Object.keys(r.id.inputs_map).forEach((p) => lines.push(`  input ${p}`));
-    [...new Set(r.id.dirs)].forEach((d) => lines.push(`  dir-literal ${d}`));
-    r.id.unresolved.forEach((u) => lines.push(`  unresolved ${u}`));
-    r.markers.forEach((m) => lines.push(`  marker ${m}`));
-    out(lines.join('\n'));
+    if (!r.record) out(`suite ${r.suite}: no record`);
+    else {
+      out(`suite ${r.suite}: ${r.count} input file(s), git directory ${r.git_read ? 'read' : 'not read'}, git index ${r.index_read ? 'read' : 'not read'}, run ${r.run}`);
+      Object.keys(r.top).sort().forEach((k) => out(`  ${k} ${r.top[k]}`));
+      out(`  env ${r.env_names.join(',') || '-'}`);
+    }
   } else {
-    process.stderr.write('usage: suite-reuse.mjs check|record|forget|lint|explain ...\n');
+    process.stderr.write('usage: suite-reuse.mjs check|arm|collect|record|forget|lint|explain ...\n');
     process.exitCode = 2;
   }
 }
-function realOrResolve(p) { try { return fs.realpathSync(p); } catch { return path.resolve(p); } }
+// true when either real path equals or contains the other; the trailing separator keeps /a/b and /a/bc apart
+function overlaps(a, b) {
+  const [x, y] = [realOrResolve(a), realOrResolve(b)].map((p) => (p.endsWith(path.sep) ? p : p + path.sep));
+  return x.startsWith(y) || y.startsWith(x);
+}
+// .native returns the on-disk letter case on case-insensitive volumes, so /r/repo and /r/REPO compare equal
+function realOrResolve(p) { try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } }
 const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) cli(process.argv.slice(2));
 export { IDENTITY_COMPONENTS, REUSE_POLICY_VERSION };

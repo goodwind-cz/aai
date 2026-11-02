@@ -1,32 +1,62 @@
 {
   "version": 1,
   "suites": {
+    "aai-docs-content": {
+      "inputs": [],
+      "live": false,
+      "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file; it is reused only when no tracked or untracked file changed (admission: reads=1536, nothing to poison). Runs docs-audit and copies docs/ over fixtures; no network, no clock."
+    },
+    "aai-spec-lint": {
+      "inputs": [],
+      "live": false,
+      "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file; it is reused only when no tracked or untracked file changed (admission: reads=1482, nothing to poison). Lints specs in fixtures and in the live docs; no network, no clock."
+    },
+    "aai-hygiene-pack": {
+      "inputs": [],
+      "live": false,
+      "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file; it is reused only when no tracked or untracked file changed (admission: reads=1950, nothing to poison). Runs the hygiene lints and ratchets over the whole tree (the longest of the six); no network, no clock."
+    },
+    "aai-prompt-diet": {
+      "inputs": [],
+      "live": false,
+      "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file; it is reused only when no tracked or untracked file changed (admission: reads=1932, nothing to poison). Counts bytes of every .aai prompt against the ledger; no network, no clock."
+    },
+    "aai-ride-status": {
+      "inputs": [],
+      "live": false,
+      "note": "Reads about 27 files by the access trace (admission: reads=27, poisoned=1923): .aai ride-status scripts and prompts, four test files and docs/ai/docs-audit.yaml; it does not read the git index, EVENTS.jsonl, STATE.yaml or test-runs.jsonl, so ledger churn and unrelated edits leave it reused. No network, no clock."
+    },
+    "aai-win-fallback": {
+      "inputs": [],
+      "live": false,
+      "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file; it is reused only when no tracked or untracked file changed (admission: reads=1928, nothing to poison). Exercises the Windows fallback paths with stubs; no network, no clock."
+    },
     "aai-feedback-status": {
       "inputs": [],
       "live": false,
-      "note": "Counts fixture friction spools and pending drafts under a mktemp directory through AAI_FRICTION_DIR, with a mock gh (AAI_GH_BIN) that only records its arguments; reads the status script and lib/friction-spool.mjs (both named in the closure or the shared lib globs) and lib/assert-payload.sh. A Node read trace of the whole suite (docs/ai/validation/precise-suite-evidence-reuse/r2-manifest-read-trace.log) shows no read inside the checkout outside the identity; the clock and the network are not read (gh is mocked)."
+      "note": "Counts fixture friction spools and pending drafts under a mktemp directory through AAI_FRICTION_DIR, with a mock gh (AAI_GH_BIN) that only records its arguments. Admission: reads=4, poisoned=1946. The clock and the network are not read (gh is mocked)."
     },
     "aai-pricing": {
       "inputs": [],
       "live": false,
-      "note": "Reads .aai/system/PRICING.yaml and docs/ai/METRICS.jsonl by the literal paths in its closure and runs node over them; no network (the one marker hit is an assertion string about a URL in the notes), no process table."
+      "note": "Reads .aai/system/PRICING.yaml and docs/ai/METRICS.jsonl and runs node over them. Admission: reads=4, poisoned=1946. No network, no process table."
     },
     "aai-redact": {
       "inputs": [],
       "live": false,
-      "note": "Pure string-in string-out checks of .aai/scripts/lib/aai-redact.mjs; the two marker hits are URL fixtures that must be redacted, never fetched. No file outside the module is read."
+      "note": "Pure string-in string-out checks of .aai/scripts/lib/aai-redact.mjs; URL fixtures that must be redacted are never fetched. Admission: reads=2, poisoned=1948."
     },
     "aai-orchestration-mode": {
       "inputs": [
         "CHANGELOG.md"
       ],
       "live": false,
-      "note": "Runs orchestration-mode.mjs over fixtures and asserts wiring text in the prompts, USER_GUIDE.md, the STATE header (a seed file, named in the closure) and CHANGELOG.md (read through a root-relative variable, so listed here as an extra input). No network; explain reports 0 marker hits."
+      "note": "Runs orchestration-mode.mjs over fixtures and asserts wiring text in the prompts, USER_GUIDE.md, the STATE header and CHANGELOG.md. Admission: reads=9, poisoned=1941. CHANGELOG.md stays listed as an extra input. No network."
     },
     "aai-runtime-file": {
       "inputs": [],
       "live": false,
-      "note": "Exercises the claim, reclaim and release functions of .aai/scripts/lib/runtime-file.mjs on temp files with child node processes it starts and ends itself; reads no repository file outside its closure, no network, 0 marker hits."
+      "note": "Exercises the claim, reclaim and release functions of .aai/scripts/lib/runtime-file.mjs on temp files with child node processes it starts and ends itself. Admission: reads=2, poisoned=1948. No network."
     }
   }
 }

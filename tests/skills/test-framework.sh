@@ -1049,6 +1049,36 @@ reuse_line() {
   return 0
 }
 
+# reuse_traced <skill> — true when the helper's check listed a TRACE line for the suite.
+reuse_traced() {
+  local l
+  while IFS= read -r l; do
+    [[ "$l" == "TRACE $1" ]] && return 0
+  done <<< "$REUSE_OUT"
+  return 1
+}
+
+# reuse_trace_arm <skill> <iso base> <iso root> — for a declared suite in its own
+# disposable checkout: list and hash the checkout and reset every access time
+# (the helper's arm). Never touches the shipping repository, never changes a
+# verdict: a failing arm only leaves no trace, so nothing is recorded.
+reuse_trace_arm() {
+  local skill="$1" base="$2" root="$3"
+  [[ "$REUSE_HELPER_OK" == "true" && -n "$base" && "$root" != "$PROJECT_ROOT" ]] || return 0
+  reuse_traced "$skill" || return 0
+  node "$REUSE_HELPER" arm --dir "$root" --run-dir "$RUN_DIR" --suite "$skill" \
+    --seed-paths "$ISOLATION_SEED_PATHS" >> "$RUN_DIR/reuse.log" 2>&1 || true
+}
+
+# reuse_trace_collect <skill> <iso base> <iso root> — right after the suite, before
+# the checkout is destroyed: write which files the suite read, replaced or deleted.
+reuse_trace_collect() {
+  local skill="$1" base="$2" root="$3"
+  [[ "$REUSE_HELPER_OK" == "true" && -n "$base" && "$root" != "$PROJECT_ROOT" ]] || return 0
+  reuse_traced "$skill" || return 0
+  node "$REUSE_HELPER" collect --dir "$root" --run-dir "$RUN_DIR" --suite "$skill" >> "$RUN_DIR/reuse.log" 2>&1 || true
+}
+
 # reuse_report <skill> <index> <total> <REUSE line> — a reused suite is reported
 # as REUSED with provenance; it gets no checkout, no tripwire window and no
 # PASS result file.
@@ -1637,9 +1667,11 @@ run_test() {
   suite_prepare "$skill_name" "$test_file"
 
   local start_time end_time exit_code=0
+  reuse_trace_arm "$skill_name" "$SP_ISO_BASE" "$SP_ISO_ROOT"
   start_time=$(date +%s)
   suite_execute "$SP_ISO_BASE" "$SP_ISO_ROOT" "$SP_ISO_TARGET" "$log_file" true || exit_code=$?
   end_time=$(date +%s)
+  reuse_trace_collect "$skill_name" "$SP_ISO_BASE" "$SP_ISO_ROOT"
 
   # Removed BEFORE the after-snapshot, so the removal itself is inside the
   # tripwire's window rather than after it.
@@ -1697,9 +1729,11 @@ suite_child() {
   fi
 
   local start_time end_time rc=0
+  reuse_trace_arm "$skill_name" "$SP_ISO_BASE" "$SP_ISO_ROOT"
   start_time=$(date +%s)
   suite_execute "$SP_ISO_BASE" "$SP_ISO_ROOT" "$SP_ISO_TARGET" "$log_file" false || rc=$?
   end_time=$(date +%s)
+  reuse_trace_collect "$skill_name" "$SP_ISO_BASE" "$SP_ISO_ROOT"
 
   # Destroyed before this child exits, so every checkout is gone before the
   # parent takes the wave's after-snapshot — the same ordering the serial path
@@ -2181,7 +2215,7 @@ main() {
     if [[ -n "$rl" ]]; then reused_files+=("$rf"); else run_files+=("$rf"); fi
   done
   case "$REUSE_OUT" in
-    OFF*) log "Evidence reuse: off (${REUSE_OUT#OFF })" ;;
+    OFF*) reuse_first="${REUSE_OUT%%$'\n'*}"; log "Evidence reuse: off (${reuse_first#OFF })" ;;
     *)    log "Evidence reuse: on (${#reused_files[@]} of ${#test_files[@]} suites reused, check ${REUSE_CHECK_SECONDS}s)" ;;
   esac
   TOTAL_DISCOVERED=${#run_files[@]}

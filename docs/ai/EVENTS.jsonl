@@ -3573,3 +3573,11 @@
 {"v":1,"ts":"2026-11-02T04:49:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"node-first-reap-tests","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-02T04:49:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-reap-tests","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-02T04:49:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-node-first-reap-tests","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-02T04:01:04Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-for-docs-reading-suites","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-02T09:47:44Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":692,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-02T09:49:48Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":692,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-02T09:49:53Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":692,"orphans":0,"drifted":1,"stale":0,"false_open":1,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-02T10:09:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"reuse-for-docs-reading-suites","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-02T10:09:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"reuse-for-docs-reading-suites","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-02T10:09:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-for-docs-reading-suites","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-02T10:09:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reuse-for-docs-reading-suites","payload":{"validation":"pass","code_review":"pass"}}

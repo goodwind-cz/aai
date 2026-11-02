@@ -1431,6 +1431,12 @@ suites:
       - tests/skills/suite-reuse.json
       - tests/skills/suite-reuse.Tests.ps1
       - tests/skills/test-framework.sh
+      - tests/skills/test-aai-docs-content.sh
+      - tests/skills/test-aai-spec-lint.sh
+      - tests/skills/test-aai-hygiene-pack.sh
+      - tests/skills/test-aai-prompt-diet.sh
+      - tests/skills/test-aai-ride-status.sh
+      - tests/skills/test-aai-win-fallback.sh
       - tests/skills/lib/suite-reuse.test.mjs
       # the manifest suites' own files: editing one re-runs the admission gate
       - tests/skills/test-aai-feedback-status.sh

@@ -5,8 +5,9 @@ capability: precise-suite-evidence-reuse
 status: current
 delivered_by:
   - precise-suite-evidence-reuse
+  - reuse-for-docs-reading-suites
 spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
-updated: 2026-11-01
+updated: 2026-11-02
 ---
 
 # Reuse of local suite results
@@ -14,15 +15,23 @@ updated: 2026-11-01
 ## What it does
 
 A local test run can skip a suite whose result is already known: when a suite
-passed earlier and nothing it depends on has changed since, the framework
-reports it as REUSED, names the run it came from and points at that run's
-log, instead of executing it again. "Nothing changed" is checked against a
-complete input identity of the suite: the bytes of every file it reads, the
-relevant environment, its arguments, the Node version and platform, the runner
-policy and its own history. Anything the checker cannot account for makes the
-suite run. A reused result is never reported as a new execution, and the
-full sweep before close, CI, main, nightly and release always execute every
-suite.
+passed earlier and nothing it read has changed since, the framework reports it
+as REUSED, names the run it came from and points at that run's log, instead of
+executing it again. A reused result is never reported as a new execution, and
+the full sweep before close, CI, main, nightly and release always execute
+every suite.
+
+What "nothing it read has changed" compares is the trace identity of the
+suite. During the passing run the suite works in a disposable checkout and the
+operating system's file access times show which files it touched. The identity
+holds: the bytes and executable bit of every file inside the checkout (outside
+its `.git` directory) that the suite read, replaced or deleted; under `.git`
+only HEAD and the refs, and only when the run read the git directory; every
+file when the run read the git index; the list of file paths in the checkout;
+the harness files; the relevant environment; the arguments; the runtime (Node version,
+platform, CPU architecture, git and bash versions); and the runner policy. Caveat: anything outside the checkout, or
+read without its access time moving (for example a stat-only check such as
+`[ -s f ]`), is not compared.
 
 ## How to use it
 
@@ -30,11 +39,16 @@ suite.
   (selected suites, `--skill`). Turn it off for a run with
   `AAI_SUITE_REUSE=0`.
 - Only suites declared in `tests/skills/suite-reuse.json` can be reused.
-  A suite qualifies only when its whole closure is known; check one with
-  `node .aai/scripts/suite-reuse.mjs explain <suite>`.
+  A suite qualifies only when `lint --admit` passes for it; `explain <suite>`
+  shows what its last record read.
 - `node .aai/scripts/suite-reuse.mjs lint` checks the manifest; `lint
-  --minimal-tree` additionally runs each declared suite in a tree that holds
-  only its declared inputs (the admission gate).
+  --admit` is the admission gate: it runs a suite, plants a read probe and an
+  unread probe, and refuses a suite whose trace misses a read (a restored
+  access time, a node read the trace did not see). It also runs a poisoned
+  pass: files on the path list that the suite did not read are overwritten,
+  and the suite must still exit 0. `--changed-since REF` admits only entries
+  that differ from REF. `lint --minimal-tree` is retired and now refuses with
+  exit 2.
 - Roles that may cite a reused suite: Implementation and TDD GREEN
   re-checks, Remediation re-checks, and intermediate Validation and Code
   Review rounds. They cite it as reused with the original run id and log and
@@ -43,10 +57,11 @@ suite.
 ## Data model
 
 - `tests/skills/suite-reuse.json` (tracked): `version` and, per suite,
-  `inputs` (extra files it reads), `live` (true means never reusable) and a
-  `note` saying why the closure is complete.
+  `inputs` (extra files it still needs declared), `live` (true means never
+  reusable) and a `note` saying why the suite is declared. A suite is declared
+  only when `lint --admit` passes for it.
 - `tests/skills/results/reuse/` (gitignored, local only): one record per
-  suite with the identity hash, its six component hashes, the run id, the
+  suite with the identity hash, its component hashes, the recorded read trace, the run id, the
   finished time, the log path and the log's sha256. A failed or skipped suite
   removes its record.
 - Run outputs: `metrics.jsonl` gains `status: REUSED` with `reused_from_run`
@@ -55,10 +70,12 @@ suite.
 
 ## Interfaces and contracts
 
-- `node .aai/scripts/suite-reuse.mjs check|record|forget|lint|explain`: the
-  helper the framework calls. `check` prints `REUSE` or `RUN reason=<why>`
-  per suite (for example `inputs-unresolvable`, `no-record`, `log-missing`,
-  or the first identity component that changed).
+- `node .aai/scripts/suite-reuse.mjs check|arm|collect|record|forget|lint|explain`:
+  the helper the framework calls (`arm` and `collect` bracket a suite run to
+  capture its read trace; `lint --admit [--suite S] [--changed-since REF]` is
+  the admission gate). `check` prints `REUSE` or `RUN reason=<why>` per suite
+  (for example `no-record`, `log-missing`, `policy`, or the first identity
+  component that changed).
 - `lint` reasons include `not-gate-selected` and `gate-row-missing`.
 - Framework output: `Evidence reuse: on (<M> of <N> suites reused, check
   <s>s)`, a `REUSED (run …, …, log …)` line per reused suite and a
@@ -70,15 +87,21 @@ suite.
 
 ## Limits and non-goals
 
-- The saving is small today. Three suites reuse (aai-feedback-status,
-  aai-pricing, aai-redact); on a re-check of the declared suites the wall
-  time went from 16 s to 10 s. The expensive suites read `docs/` and the
-  ledgers, which change with every role action, so they never qualify; see
-  docs/analysis/precise-suite-evidence-reuse.md.
-- The read set is found by reading the suite's source text, not by tracing it
-  at run time. Every shape the reader cannot resolve makes the suite run; a
-  few rare shapes that no declared suite uses are known gaps, tracked as
-  follow-ups.
+- The measured round saved nothing yet. Eleven suites are declared (the
+  five earlier ones and six that read `docs/` and `.aai/`); on an eight-suite
+  re-check, one suite (aai-ride-status) was reused and the wall time did not
+  move (medians 107 s off, 110 s on with no edit; 109 s and 121 s after a
+  one-line edit), because the reused suite runs beside the longest one. The
+  five large suites read every tracked file or the git index, so any edit makes
+  them run; see docs/analysis/precise-suite-evidence-reuse.md. Two follow-ups
+  would change that: `fu-reuse-split-corpus-cases` (split the whole-corpus
+  cases of the five large suites into separate suites so the fixture cases can
+  be reused) and `fu-reuse-local-ledger-append` (the framework's own append to
+  the tracked `docs/ai/tests/test-runs.jsonl` makes even an unchanged rerun
+  miss for suites that read the git index).
+- Reuse is off where file access times are not recorded (a volume mounted
+  without access-time updates, or a failed probe): nothing is recorded
+  (`trace-unavailable`) and every suite runs.
 - A bash startup hook is not part of the identity. When `BASH_ENV`, `ENV`,
   `SHELLOPTS`, `BASHOPTS` or an exported bash function (`BASH_FUNC_*`) is set
   and non-empty, every suite runs (reason `bash-startup-hook`) and a pass is
@@ -97,4 +120,5 @@ suite.
 - Request: docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md
 - Spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
 - Measurement: docs/analysis/precise-suite-evidence-reuse.md
+- Trace identity: docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md; spec docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md
 - Validation evidence: docs/ai/reports/VALIDATION-precise-suite-evidence-reuse-r12.md
