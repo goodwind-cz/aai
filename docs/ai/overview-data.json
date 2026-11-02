@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-11-02T09:31:22.016Z",
+  "generatedAt": "2026-11-02T10:09:10.074Z",
   "project": "aai",
   "counts": {
-    "delivered": 337,
-    "in_progress": 18,
+    "delivered": 338,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
   },
@@ -49,19 +49,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "reuse-for-docs-reading-suites",
-      "title": "Make suite-result reuse work for the expensive suites that read docs/",
-      "type": "change",
-      "status": "draft",
-      "path": "docs/issues/CHANGE-DRAFT-reuse-for-docs-reading-suites.md",
-      "closed_on": null,
-      "agent_minutes": 365,
-      "token_total": null,
-      "spec": "docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-reuse-for-docs-reading-suites-20261102T082812Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -259,6 +246,19 @@
       "spec": "docs/specs/SPEC-0267-spec-node-first-reap-tests.md",
       "validation": null,
       "review": "docs/ai/reviews/review-node-first-reap-tests-20261102T035331Z.md"
+    },
+    {
+      "ref": "reuse-for-docs-reading-suites",
+      "title": "Make suite-result reuse work for the expensive suites that read docs/",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md",
+      "closed_on": "2026-11-02",
+      "agent_minutes": 365,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-reuse-for-docs-reading-suites-closeout-r2-20261102T100415Z.md"
     },
     {
       "ref": "node-first-small-pairs",
@@ -4667,6 +4667,19 @@
           "spec": "docs/specs/SPEC-0267-spec-node-first-reap-tests.md",
           "validation": null,
           "review": "docs/ai/reviews/review-node-first-reap-tests-20261102T035331Z.md"
+        },
+        {
+          "ref": "reuse-for-docs-reading-suites",
+          "title": "Make suite-result reuse work for the expensive suites that read docs/",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md",
+          "closed_on": "2026-11-02",
+          "agent_minutes": 365,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-reuse-for-docs-reading-suites-closeout-r2-20261102T100415Z.md"
         },
         {
           "ref": "node-first-small-pairs",

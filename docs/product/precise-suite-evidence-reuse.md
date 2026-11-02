@@ -120,5 +120,5 @@ read without its access time moving (for example a stat-only check such as
 - Request: docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md
 - Spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
 - Measurement: docs/analysis/precise-suite-evidence-reuse.md
-- Trace identity: docs/issues/CHANGE-DRAFT-reuse-for-docs-reading-suites.md; spec docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md
+- Trace identity: docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md; spec docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md
 - Validation evidence: docs/ai/reports/VALIDATION-precise-suite-evidence-reuse-r12.md

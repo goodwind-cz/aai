@@ -4,7 +4,7 @@
 - Base: main (origin/main de74d468). Head: ec2123f8
 - Delta reviewed: `git diff 5c4a1db2..ec2123f8` (fix commit ec2123f8), checked against `.aai/scripts/suite-reuse.mjs` and `.aai/scripts/lib/checkout-trace.mjs`
 - Prior review: docs/ai/reviews/review-reuse-for-docs-reading-suites-closeout-20261102T094025Z.md (FAIL, B1-B5, NB-1/2)
-- Spec: docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md, "Close-out steps" 1-4
+- Spec: docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md, "Close-out steps" 1-4
 
 ## Verdict 1: spec_compliance = fail
 
@@ -65,6 +65,6 @@ Drift report: 1 item, `reuse-for-docs-reading-suites | probable-false-open | wor
 node .aai/scripts/state.mjs set-code-review --required true --status fail \
   --report docs/ai/reviews/review-reuse-for-docs-reading-suites-closeout-r2-20261102T100415Z.md \
   --base-ref main --head-ref ec2123f8 \
-  --scope ".aai/SKILL_VERIFY.prompt.md .aai/scripts/lib/checkout-trace.mjs .aai/scripts/suite-reuse.mjs .aai/system/PROFILES.yaml CHANGELOG.md docs/INDEX.md docs/ai/EVENTS.jsonl docs/ai/METRICS.jsonl docs/ai/decisions.jsonl docs/ai/overview-data.json docs/ai/overview.html docs/ai/reviews/review-reuse-for-docs-reading-suites-20261102T082812Z.md docs/ai/reviews/review-reuse-for-docs-reading-suites-closeout-20261102T094025Z.md docs/ai/roadmap.yaml docs/analysis/precise-suite-evidence-reuse.md docs/issues/CHANGE-DRAFT-reuse-for-docs-reading-suites.md docs/product/precise-suite-evidence-reuse.md docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md tests/skills/lib/read-trace.cjs tests/skills/lib/suite-reuse.test.mjs tests/skills/suite-map.yaml tests/skills/suite-reuse.Tests.ps1 tests/skills/suite-reuse.json tests/skills/test-aai-suite-reuse.sh tests/skills/test-framework.sh" \
+  --scope ".aai/SKILL_VERIFY.prompt.md .aai/scripts/lib/checkout-trace.mjs .aai/scripts/suite-reuse.mjs .aai/system/PROFILES.yaml CHANGELOG.md docs/INDEX.md docs/ai/EVENTS.jsonl docs/ai/METRICS.jsonl docs/ai/decisions.jsonl docs/ai/overview-data.json docs/ai/overview.html docs/ai/reviews/review-reuse-for-docs-reading-suites-20261102T082812Z.md docs/ai/reviews/review-reuse-for-docs-reading-suites-closeout-20261102T094025Z.md docs/ai/roadmap.yaml docs/analysis/precise-suite-evidence-reuse.md docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md docs/product/precise-suite-evidence-reuse.md docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md tests/skills/lib/read-trace.cjs tests/skills/lib/suite-reuse.test.mjs tests/skills/suite-map.yaml tests/skills/suite-reuse.Tests.ps1 tests/skills/suite-reuse.json tests/skills/test-aai-suite-reuse.sh tests/skills/test-framework.sh" \
   --notes "close-out r2: B1-B3, B5, NB-1/2 fixed; lint --minimal-tree exit 2 clean (no callers, RED genuine, TEST-3273 PASS). B6: --minimal-tree retirement written into CHANGE-0240's CHANGELOG entry instead of this ride's entry (step 2); move it, restore 0240 bullet 2. NB-3 blank line before 'How to use it'. docs-audit: only this ride's probable-false-open."
 ```

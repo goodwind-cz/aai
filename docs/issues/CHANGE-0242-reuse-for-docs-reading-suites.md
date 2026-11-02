@@ -1,8 +1,8 @@
 ---
 id: reuse-for-docs-reading-suites
 type: change
-number: null
-status: draft
+number: 242
+status: done
 capability: precise-suite-evidence-reuse
 parent: smaller-node-core-and-faster-feedback
 user_visible: true

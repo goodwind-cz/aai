@@ -1,9 +1,9 @@
 ---
 id: spec-reuse-for-docs-reading-suites
 type: spec
-number: null
-status: implementing
-frozen_sha256: a1955d65e02ff9cdc41df54bf08c4c0d60cea8b85637c1860e66d39c477301c5
+number: 268
+status: done
+frozen_sha256: 53e617d6ab3122cf69687397f5e9db8a0f30107fcc3d10ea35b1fac47a4e91d6
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Intake: docs/issues/CHANGE-DRAFT-reuse-for-docs-reading-suites.md
+- Intake: docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md
 - Prior slice: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
   (decisions D1 to D13, residual R1, the minimal-tree admission gate)
 - Umbrella: docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
@@ -644,8 +644,8 @@ its suites run with `AAI_SUITE_REUSE=0`.
 - tests/skills/suite-reuse.Tests.ps1
 - .aai/SKILL_VERIFY.prompt.md
 - docs/analysis/precise-suite-evidence-reuse.md
-- docs/issues/CHANGE-DRAFT-reuse-for-docs-reading-suites.md
-- docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md
+- docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md
+- docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md
 - docs/product/precise-suite-evidence-reuse.md (close-out)
 - CHANGELOG.md (close-out)
 - docs/INDEX.md (regenerated)

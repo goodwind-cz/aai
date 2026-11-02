@@ -131,7 +131,7 @@ pairs:
   - capability: node-first-reap-tests
     status: done
   - capability: reuse-for-docs-reading-suites
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

@@ -3,7 +3,7 @@
 - Ride ref: reuse-for-docs-reading-suites
 - Base: main (origin/main de74d468) — Head: 5c4a1db2
 - Scope reviewed: close-out commit 5c4a1db2 (product doc, CHANGELOG entry, RFC-0017 phase 5 row, follow-ups in decisions.jsonl, INDEX) checked against `.aai/scripts/suite-reuse.mjs` and `.aai/scripts/lib/checkout-trace.mjs`; merge e5c880b7 ledger integrity.
-- Spec: docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md, section "Close-out steps" (1-4) and the D3 sentence.
+- Spec: docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md, section "Close-out steps" (1-4) and the D3 sentence.
 - Prior review: docs/ai/reviews/review-reuse-for-docs-reading-suites-20261102T082812Z.md (NB-5 asked for the `.git` wording at close-out).
 
 ## Verdict 1: spec_compliance = fail
@@ -57,6 +57,6 @@ Identity paragraph, claim by claim:
 node .aai/scripts/state.mjs set-code-review --required true --status fail \
   --report docs/ai/reviews/review-reuse-for-docs-reading-suites-closeout-20261102T094025Z.md \
   --base-ref main --head-ref 5c4a1db2 \
-  --scope ".aai/SKILL_VERIFY.prompt.md .aai/scripts/lib/checkout-trace.mjs .aai/scripts/suite-reuse.mjs .aai/system/PROFILES.yaml CHANGELOG.md docs/INDEX.md docs/ai/EVENTS.jsonl docs/ai/METRICS.jsonl docs/ai/decisions.jsonl docs/ai/overview-data.json docs/ai/overview.html docs/ai/reviews/review-reuse-for-docs-reading-suites-20261102T082812Z.md docs/ai/roadmap.yaml docs/analysis/precise-suite-evidence-reuse.md docs/issues/CHANGE-DRAFT-reuse-for-docs-reading-suites.md docs/product/precise-suite-evidence-reuse.md docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md tests/skills/lib/read-trace.cjs tests/skills/lib/suite-reuse.test.mjs tests/skills/suite-map.yaml tests/skills/suite-reuse.Tests.ps1 tests/skills/suite-reuse.json tests/skills/test-aai-suite-reuse.sh tests/skills/test-framework.sh" \
+  --scope ".aai/SKILL_VERIFY.prompt.md .aai/scripts/lib/checkout-trace.mjs .aai/scripts/suite-reuse.mjs .aai/system/PROFILES.yaml CHANGELOG.md docs/INDEX.md docs/ai/EVENTS.jsonl docs/ai/METRICS.jsonl docs/ai/decisions.jsonl docs/ai/overview-data.json docs/ai/overview.html docs/ai/reviews/review-reuse-for-docs-reading-suites-20261102T082812Z.md docs/ai/roadmap.yaml docs/analysis/precise-suite-evidence-reuse.md docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md docs/product/precise-suite-evidence-reuse.md docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md tests/skills/lib/read-trace.cjs tests/skills/lib/suite-reuse.test.mjs tests/skills/suite-map.yaml tests/skills/suite-reuse.Tests.ps1 tests/skills/suite-reuse.json tests/skills/test-aai-suite-reuse.sh tests/skills/test-framework.sh" \
   --notes "close-out review: spec_compliance fail, code_quality fail. B1 blanket 'anything unaccounted runs' sentence contradicts caveat + runtime list omits arch/git/bash; B2 stale 'whole closure' and 'inputs-unresolvable' claims; B3 missing 'off where atime not recorded' Limit; B4 CHANGELOG omits --minimal-tree retirement (flag now silently rc 0); B5 RFC row 'three suites qualify today'. Doc-only fixes; ledgers additions-only after merge."
 ```

@@ -2,8 +2,8 @@
 
 ```yaml
 ref: reuse-for-docs-reading-suites
-spec: docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md
-intake: docs/issues/CHANGE-DRAFT-reuse-for-docs-reading-suites.md
+spec: docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md
+intake: docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md
 scope: origin/main...HEAD (head 09127f31, branch feat/reuse-for-docs-reading-suites)
 base_ref: main
 reviewer: claude-opus-5-5 (dispatched, read-only; STATE command returned, not run)
