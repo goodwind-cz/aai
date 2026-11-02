@@ -3,7 +3,7 @@ id: spec-reuse-for-docs-reading-suites
 type: spec
 number: null
 status: implementing
-frozen_sha256: cfbdd678bc47a2a98119c0a98a3386531ca588de2270d8cf98533555fee3e8b5
+frozen_sha256: 554fb4a7179191f69e03d1804d1b5febb6d243f3f2a39e0656b92db616ff7438
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -511,7 +511,7 @@ delta) plus aai-prompt-diet, aai-ride-status and aai-win-fallback (8 suites):
 | TEST-3261 | Spec-AC-01 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3261: armTrace then collectTrace on a scratch git checkout; a file replaced by rename counts as an input, a directory listing alone does not make its files inputs, git rev-parse sets git_read and not index_read, git status sets both | `sed:s/st.ino !== armed.ino/false/` on .aai/scripts/lib/checkout-trace.mjs | green |
 | TEST-3262 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3262: recordSuite with a synthetic trace naming docs/x.md; editing docs/x.md gives RUN reason=inputs changed docs/x.md; editing docs/y.md (in the path list, not traced) gives REUSE | `sed:s/'inputs', //` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3263 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3263: adding an untracked file no trace names gives RUN reason=paths added that path; deleting an untraced tracked file gives reason=paths removed | `sed:s/'paths', //` on .aai/scripts/suite-reuse.mjs | green |
-| TEST-3264 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3264: a commit that moves HEAD gives RUN reason=history for a record whose trace has git_read true and REUSE for one whose trace has git_read false | `sed:s/trace.git_read ?/true ?/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3264 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3264: a commit that moves HEAD gives RUN reason=history for a record whose trace has git_read true and REUSE for one whose trace has git_read false | `sed:s/trace.git_read \?/true ?/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3265 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3265: with index_read true in the trace, editing a tracked file the trace does not name gives RUN reason=inputs changed that file; with index_read false the same edit gives REUSE | `sed:s/if \(trace.index_read\)/if (false)/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3266 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3266: a trace whose input module names process.env.FIXTURE_Q; changing FIXTURE_Q gives RUN reason=env; changing an unreferenced FIXTURE_Z gives REUSE | `sed:s/referencedNames\(texts\)/referencedNames([])/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3267 | Spec-AC-02 | contract | tests/skills/test-aai-suite-reuse.sh | test_3267: suite-reuse.mjs has the D3 IDENTITY_COMPONENTS line, at most 600 lines, imports only node: modules and the four D8 local modules, and contains none of computeClosure, TOKEN_RE, HISTORY_RE, MARKER_RE, MINIMAL_TREE_FRAMEWORK; checkout-trace.mjs has at most 200 lines and imports only node: modules and ./tree-hash.mjs | `sed:s/import { armTrace, collectTrace } from '.\/lib\/checkout-trace.mjs';/import { armTrace, collectTrace } from '.\/lib\/checkout-trace2.mjs';/` on .aai/scripts/suite-reuse.mjs | green |
