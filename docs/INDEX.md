@@ -47,7 +47,7 @@ _None._
 | original-request-outcome-backcheck | original-request-outcome-backcheck | 1 | docs/product/original-request-outcome-backcheck.md |
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
-| precise-suite-evidence-reuse | precise-suite-evidence-reuse | 1 | docs/product/precise-suite-evidence-reuse.md |
+| precise-suite-evidence-reuse | precise-suite-evidence-reuse | 2 | docs/product/precise-suite-evidence-reuse.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | provider-adapter-registry | provider-adapter-registry | 2 | docs/product/provider-adapter-registry.md |

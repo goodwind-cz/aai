@@ -28,6 +28,12 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — feat: suite reuse keys on what a suite actually read (access-time trace of its checkout); 11 suites admitted (reuse-for-docs-reading-suites)
+
+- Reuse of a suite's earlier pass now compares what the suite really read, found from file access times in its disposable checkout (bytes and executable bit of files read, replaced or deleted; HEAD and refs when it read `.git`; every file when it read the git index), instead of reading the suite's source text. Files outside the checkout or read without an access-time change, such as stat-only checks, are not compared.
+- `suite-reuse.mjs lint --admit` is the new admission gate (it probes a read and an unread file and rejects a suite whose trace misses a read); only suites that pass it are declared in `tests/skills/suite-reuse.json`, which now lists 11.
+- Honest measurement: no saving yet. On eight suites only aai-ride-status was reused and wall time did not move (107 s off, 110 s on; 109 s and 121 s after a one-line edit); the five large suites read every tracked file, so any edit reruns them. Follow-ups `fu-reuse-split-corpus-cases` and `fu-reuse-local-ledger-append` would change that.
+
 ## [unreleased] — refactor: aai-reap-tests runs on Node; .sh and .ps1 are thin launchers (node-first-reap-tests)
 
 - `aai-reap-tests` now has one implementation, in one Node module; `aai-reap-tests.sh` and `.ps1` are thin launchers. The pair went from 787 to 274 lines.
