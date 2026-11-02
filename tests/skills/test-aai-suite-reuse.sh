@@ -162,7 +162,7 @@ helper_check() { # <base> <suite> [mode]  -> prints the helper's check line
   local base="$1" suite="$2" mode="${3:-selected}"
   mkdir -p "$base/chk"
   (
-    cd "$base/repo" && env -u AAI_ROLE -u CI -u GITHUB_ACTIONS -u AAI_SUITE_REUSE \
+    cd "$base/repo" && env -u AAI_ROLE -u CI -u GITHUB_ACTIONS -u AAI_SUITE_REUSE AAI_TEST_PARALLEL=1 \
       node .aai/scripts/suite-reuse.mjs check --root "$base/repo" --run-dir "$base/chk" --mode "$mode" --isolation on --suite "$suite"
   )
 }
@@ -526,6 +526,75 @@ EOS
   log_pass "TEST-3260 (trace names the read, replaced and deleted files; not the untouched or created ones)"
 }
 
+# test_3268, test_3269: node:test cases in tests/skills/lib/suite-reuse.test.mjs.
+test_3268_record_refusals_trace() { node_cases TEST-3268; }
+test_3269_canary() { node_cases TEST-3269; }
+
+# test_3272: framework ledger writes are not inputs of a suite that does not read them,
+# and a ledger read through a path built at run time is (the false hit this scope removes).
+test_3272_ledgers_not_inputs() {
+  local base r chk n1 n2
+  base="$(new_base)"
+  r="$base/repo"
+  build_fx "$base" aai-fx aai-fy
+  printf 'tests/skills/results/\ndocs/ai/STATE.yaml\n' > "$r/.gitignore"
+  printf '{"e":1}\n' > "$r/docs/ai/EVENTS.jsonl"
+  printf '{"seed":1}\n' > "$r/docs/ai/tests/test-runs.jsonl"
+  printf 'state: 1\n' > "$r/docs/ai/STATE.yaml"
+  printf '#!/usr/bin/env bash\necho run >> '"'%s/m/aai-fy'"'\nf=docs/ai/EVENTS\ncat "$f.jsonl" > /dev/null\nexit 0\n' "$base" > "$r/tests/skills/test-aai-fy.sh"
+  (cd "$r" && git add -A && git commit -q -m ledgers) || log_fail "TEST-3272: fixture could not be committed"
+  fw_go "$base" -- --skill aai-fx --skill aai-fy
+  [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3272: run 1 exited $RC"; }
+  n1="$(wc -l < "$r/docs/ai/tests/test-runs.jsonl" | tr -d ' ')"
+  fw_go "$base" -- --skill aai-fx --skill aai-fy
+  [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3272: run 2 exited $RC"; }
+  expect "TEST-3272 run 2" "$OUT" "Reused:  2"
+  n2="$(wc -l < "$r/docs/ai/tests/test-runs.jsonl" | tr -d ' ')"
+  [[ "$n2" -gt "$n1" ]] || log_fail "TEST-3272: the framework did not append to test-runs.jsonl ($n1 / $n2)"
+  printf '{"e":2}\n' >> "$r/docs/ai/EVENTS.jsonl"
+  printf 'state: 2\n' > "$r/docs/ai/STATE.yaml"
+  chk="$(helper_check "$base" aai-fx)"
+  expect "TEST-3272 fx" "$chk" "REUSE aai-fx "
+  chk="$(helper_check "$base" aai-fy)"
+  expect "TEST-3272 fy" "$chk" "RUN aai-fy reason=inputs changed docs/ai/EVENTS.jsonl"
+  log_pass "TEST-3272 (framework ledger append, EVENTS append and STATE edit leave aai-fx REUSED; aai-fy reads EVENTS through a built path and runs)"
+}
+
+# test_3277: arm and collect run around a declared suite only, serially and in a wave,
+# never when reuse is opted out, and a failing arm does not change the verdict.
+test_3277_framework_wiring() {
+  local base r dir mode
+  for mode in 1 2; do
+    base="$(new_base)"
+    r="$base/repo"
+    build_fx "$base" aai-fx
+    fx_suite "$base" aai-fz 0
+    printf '  aai-fz:\n    globs:\n      - tests/skills/test-aai-fz.sh\n' >> "$r/tests/skills/suite-map.yaml"
+    (cd "$r" && git add -A && git commit -q -m undeclared) || log_fail "TEST-3277: fixture could not be committed"
+    fw_go "$base" AAI_TEST_PARALLEL="$mode" -- --skill aai-fx --skill aai-fz
+    [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3277: run (parallel $mode) exited $RC"; }
+    dir="$(newest_run_dir "$base")"
+    [[ -f "$dir/aai-fx.reuse-arm.json" && -f "$dir/aai-fx.reuse-trace.json" ]] \
+      || { ls "$dir" >&2; log_fail "TEST-3277: declared suite left no arm or trace file (parallel $mode)"; }
+    [[ ! -e "$dir/aai-fz.reuse-arm.json" && ! -e "$dir/aai-fz.reuse-trace.json" ]] \
+      || log_fail "TEST-3277: an undeclared suite was traced (parallel $mode)"
+    fw_go "$base" AAI_SUITE_REUSE=0 AAI_TEST_PARALLEL="$mode" -- --skill aai-fx --skill aai-fz
+    dir="$(newest_run_dir "$base")"
+    [[ ! -e "$dir/aai-fx.reuse-arm.json" && ! -e "$dir/aai-fx.reuse-trace.json" ]] \
+      || log_fail "TEST-3277: an opted-out run was traced (parallel $mode)"
+  done
+  base="$(new_base)"
+  r="$base/repo"
+  build_fx "$base" aai-fx
+  sed 's/^export function armTrace(.*/&\n  throw new Error("arm sabotaged");/' "$r/.aai/scripts/lib/checkout-trace.mjs" > "$r/ct.tmp" && mv "$r/ct.tmp" "$r/.aai/scripts/lib/checkout-trace.mjs"
+  (cd "$r" && git add -A && git commit -q -m sabotage) || log_fail "TEST-3277: fixture could not be committed"
+  fw_go "$base" -- --skill aai-fx
+  [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3277: a failing arm changed the verdict (exit $RC)"; }
+  expect "TEST-3277 failing arm" "$OUT" "Passed:  1 (100%)"
+  [[ ! -e "$(newest_run_dir "$base")/aai-fx.reuse-arm.json" ]] || log_fail "TEST-3277: sabotaged arm still wrote a file"
+  log_pass "TEST-3277 (declared suite traced serially and in a wave; undeclared and opted-out not; failing arm keeps the verdict)"
+}
+
 # test_3190: the guarded select-suites.mjs still runs as the entry point and prints
 # its selection (CLI contract); the full contract is the unchanged aai-suite-select
 # suite, run in Verification. This row exists so the guard's mutation record can
@@ -647,6 +716,10 @@ main() {
   test_3265_index_read_whole_tree
   test_3266_env_from_files_read
   test_3267_source_shape
+  test_3268_record_refusals_trace
+  test_3269_canary
+  test_3272_ledgers_not_inputs
+  test_3277_framework_wiring
   test_3168_env_component
   test_3169_args_component
   test_3170_runtime_component
