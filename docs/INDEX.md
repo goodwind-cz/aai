@@ -1294,5 +1294,11 @@ _None._
 
 _None._
 
+## Skipped (schema violations) (3)
+
+- docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md: invalid Review-By "none" for Spec-AC-01 (ISO date, skill label, or label:date)
+- docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md: invalid Review-By "none" for Spec-AC-02 (ISO date, skill label, or label:date)
+- docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md: invalid Review-By "none" for Spec-AC-03 (ISO date, skill label, or label:date)
+
 ---
 Today (UTC): 2026-11-02 — counts above use this date for overdue checks.

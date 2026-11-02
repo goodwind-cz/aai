@@ -1932,23 +1932,64 @@ test_1759_run_tests_weight() {  # Spec-AC-09 / TEST-015
   log_pass "TEST-015: aai-run-tests weighs at most 92"
 }
 
+# Readers of the weights header. Each takes the header as $1 and feeds it by here-string
+# to a reader that consumes ALL of its input (a flag, never an early exit): an
+# early-closing reader under pipefail makes the writer fail with EPIPE on a runner
+# that ignores SIGPIPE ("printf: write error: Broken pipe", PR #525 run 41440642523).
+_weights_header_run() {
+  awk '/^# Actions run [0-9][0-9]*/ && !seen {print $4; seen = 1}' <<<"$1"
+}
+_weights_header_jobs() {
+  awk '/^# legs / && !seen {print; seen = 1}' <<<"$1" | /usr/bin/grep -oE '[0-9]{9,}' | sort -u | wc -l | tr -d ' '
+}
+_weights_header_sha() {
+  tr '\n' ' ' <<<"$1" | /usr/bin/grep -oE 'Actions run [0-9]+[^)]*head SHA[ #]*[0-9a-f]{40}' | awk 'NR==1 {print substr($0, length($0) - 39)}'
+}
+
 test_1760_weights_provenance() {  # Spec-AC-10 / TEST-016
   log_info "Test: the weights header names a re-seed run other than 37930287459, four job ids and a head SHA; the balance bound holds (TEST-016)..."
   local f="$PROJECT_ROOT/tests/skills/suite-weights.tsv" header run jobs sha
   [[ -f "$f" ]] || log_fail "TEST-016: missing $f"
   header="$(sed -n '/^#/p' "$f")"
-  run="$(printf '%s\n' "$header" | awk '/^# Actions run [0-9][0-9]*/ {print $4; exit}')"
+  run="$(_weights_header_run "$header")"
   [[ -n "$run" ]] || log_fail "TEST-016: the header must carry a line starting '# Actions run <id>'"
   [[ "$run" != "37930287459" ]] || log_fail "TEST-016: the header still names the previous seed run 37930287459"
-  jobs="$(printf '%s\n' "$header" | awk '/^# legs / {print; exit}' | /usr/bin/grep -oE '[0-9]{9,}' | sort -u | wc -l | tr -d ' ')"
+  jobs="$(_weights_header_jobs "$header")"
   [[ "$jobs" == "4" ]] || log_fail "TEST-016: the header must name four distinct leg job ids on its '# legs' line, found $jobs"
   # The SHA is read from the run line itself (the first 'head SHA' after '# Actions run'),
   # so the previous seed's SHA, which the header still records, cannot satisfy it.
-  sha="$(printf '%s\n' "$header" | tr '\n' ' ' | /usr/bin/grep -oE 'Actions run [0-9]+[^)]*head SHA[ #]*[0-9a-f]{40}' | awk 'NR==1 {print substr($0, length($0) - 39)}')"
+  sha="$(_weights_header_sha "$header")"
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || log_fail "TEST-016: the run line must name a 40-hex head SHA"
   [[ "$sha" != "8e08f059448ca3853d87255f1d167aea74a4deda" ]] || log_fail "TEST-016: the run line names the previous seed's head SHA"
   test_1423_real_repo_balance_bound "$PROJECT_ROOT"
   log_pass "TEST-016: weights re-seeded from run $run, four job ids and a head SHA named, balance bound holds"
+}
+
+test_3280_header_readers_survive_ignored_sigpipe() {  # Spec-AC-01 / TEST-3280
+  log_info "Test: the weights-header readers answer correctly under pipefail with SIGPIPE ignored and a header far larger than a pipe buffer (TEST-3280)..."
+  local out
+  out="$(
+    set -euo pipefail
+    trap '' PIPE
+    big="$( { echo '# Actions run 123456789 (head SHA aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)'
+              echo '# legs 111111111 222222222 333333333 444444444'
+              seq 1 200000 | sed 's/^/# filler /'; } )"
+    r="$(_weights_header_run "$big")"
+    j="$(_weights_header_jobs "$big")"
+    h="$(_weights_header_sha "$big")"
+    printf '%s|%s|%s\n' "$r" "$j" "$h"
+  )" || log_fail "TEST-3280: a header reader failed under ignored SIGPIPE"
+  [[ "$out" == "123456789|4|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ]] \
+    || log_fail "TEST-3280: readers returned '$out'"
+  log_pass "TEST-3280: header readers survive ignored SIGPIPE on an oversized header"
+}
+
+test_3281_no_early_closing_reader_in_suite() {  # Spec-AC-02 / TEST-3281
+  log_info "Test: no pipeline in this suite feeds an early-exiting reader (TEST-3281)..."
+  local hits
+  hits="$(/usr/bin/grep -nE '\|[[:space:]]*(awk[^|]*;[[:space:]]*exit|head([[:space:]]|$)|grep[[:space:]]+-[a-zA-Z]*q|sed[[:space:]]+-n[^|]*;q)' "${BASH_SOURCE[0]}" || true)"
+  [[ -z "$hits" ]] || log_fail "TEST-3281: early-closing reader fed by a pipe: $hits"
+  log_pass "TEST-3281: no early-closing reader in this suite"
 }
 
 test_1761_leg_walls_bound() {  # Spec-AC-11 / TEST-017
@@ -2317,6 +2358,8 @@ main() {
   test_1758_sync_seed_weight
   test_1759_run_tests_weight
   test_1760_weights_provenance
+  test_3280_header_readers_survive_ignored_sigpipe
+  test_3281_no_early_closing_reader_in_suite
   test_1761_leg_walls_bound
   test_1762_learned_history_selects_its_readers
   test_2302_doc_only_selects_content_not_engine
