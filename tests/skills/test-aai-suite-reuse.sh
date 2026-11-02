@@ -739,10 +739,10 @@ test_3278_canon_wording() {
       was=$((was + n))
     done < <(git -C "$PROJECT_ROOT" ls-tree --name-only "$base" .aai/ | grep '^\.aai/[^/]*\.prompt\.md$')
     [[ "$now" -le "$was" ]] || log_fail "TEST-3278: cat .aai/*.prompt.md is $now B, baseline $base is $was B"
-    log_pass "TEST-3278 (files read; prompt glob $now B <= baseline $was B)"
   else
-    log_pass "TEST-3278 (files read; baseline commit $base not available here, size comparison skipped)"
+    log_info "TEST-3278: baseline commit $base is not available here, size comparison skipped"
   fi
+  log_pass "TEST-3278 (Reuse exception says files read; prompt glob $now B, baseline $was B)"
 }
 
 # test_3190: the guarded select-suites.mjs still runs as the entry point and prints
@@ -854,6 +854,41 @@ test_3189_analysis_note() {
   log_pass "TEST-3189 (analysis note: ${out#OK })"
 }
 
+# test_3279: the analysis note carries the trace-identity measurement of D11: rounds R0 and R1 with at least
+# three samples per mode, medians, a per-suite outcome for each of the eight suites, read counts, arm plus
+# collect milliseconds, a 40-character sha and the tool versions.
+test_3279_trace_measurements() {
+  local note="$PROJECT_ROOT/docs/analysis/precise-suite-evidence-reuse.md" out
+  [[ -f "$note" ]] || log_fail "TEST-3279: $note does not exist"
+  out="$(NOTE="$note" node -e '
+    const t = require("fs").readFileSync(process.env.NOTE, "utf8");
+    const fail = (m) => { console.log("FAIL " + m); process.exit(0); };
+    const lines = t.split("\n");
+    const at = lines.indexOf("## Measurements (trace identity)");
+    if (at < 0) fail("no ## Measurements (trace identity) line");
+    let end = lines.findIndex((l, i) => i > at && /^## /.test(l));
+    if (end < 0) end = lines.length;
+    const sec = lines.slice(at, end);
+    const text = sec.join("\n");
+    const rows = sec.filter((l) => /^\| *R[01] *\| *[0-9]+ *\| *(off|on) *\|/.test(l)).map((l) => l.split("|").map((c) => c.trim()));
+    for (const rd of ["R0", "R1"]) for (const mode of ["off", "on"]) {
+      const n = rows.filter((r) => r[1] === rd && r[3] === mode).length;
+      if (n < 3) fail("round " + rd + " has " + n + " " + mode + " samples (want 3)");
+      if (!new RegExp("^Round " + rd + " medians:.*off.*on.*reused", "m").test(text)) fail("no medians line for round " + rd);
+    }
+    for (const s of ["aai-check-state", "aai-docs-content", "aai-spec-lint", "aai-hygiene-pack", "aai-pr-preflight", "aai-prompt-diet", "aai-ride-status", "aai-win-fallback"]) {
+      if (!sec.some((l) => l.startsWith("| " + s + " |") && /REUSED|RUN reason=/.test(l))) fail("no REUSED or RUN outcome row for " + s);
+      if (!sec.some((l) => l.startsWith("| " + s + " |") && /[0-9]+ files|not traced/.test(l))) fail("no read count for " + s);
+    }
+    if (!/arm plus collect[^\n]*[0-9]+ ms/i.test(text)) fail("no arm plus collect milliseconds");
+    if (!/\b[0-9a-f]{40}\b/.test(text)) fail("no 40-character commit sha");
+    for (const w of ["Node", "Bash", "Git"]) if (!new RegExp(w + "[^\\n]*[0-9]+\\.[0-9]+").test(text)) fail("no " + w + " version");
+    console.log("OK " + rows.length + " samples");
+  ')"
+  [[ "$out" == OK* ]] || log_fail "TEST-3279: ${out:-node produced no output}"
+  log_pass "TEST-3279 (trace-identity measurements: ${out#OK })"
+}
+
 main() {
   echo "Testing $TEST_NAME (spec-precise-suite-evidence-reuse, spec-reuse-for-docs-reading-suites)"
   check_deps
@@ -903,6 +938,7 @@ main() {
   test_3186_canon_reconciliation
   test_3187_ledger_entry
   test_3189_analysis_note
+  test_3279_trace_measurements
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
