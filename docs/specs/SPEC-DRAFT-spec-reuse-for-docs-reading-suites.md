@@ -3,7 +3,7 @@ id: spec-reuse-for-docs-reading-suites
 type: spec
 number: null
 status: implementing
-frozen_sha256: 3c00581d1b0144628ac7cd6ad26c2acb0c78acebba786ea942575b2fc1b22383
+frozen_sha256: 4aee804e4d89145069815dfd80adaaabe19b9c9d273ed0a8cd478f56e7cf6ab6
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -235,8 +235,8 @@ where they do not, nothing is recorded.
 (first occurrence in `suite-reuse.mjs`); hash and miss diff run over exactly
 these, in this order.
 
-- `inputs`: path to sha256 for every traced input outside `.git/` (the hash
-  the checkout had at arm on record; the working tree's bytes on check, a
+- `inputs`: path to sha256 plus the executable bit (`mode & 0o111`) for every
+  traced input outside `.git/` (the hash the checkout had at arm on record; the working tree's bytes on check, a
   missing file being `absent`); when `index_read`, also every file of the path
   list; plus the harness, hashed from the working tree on both sides:
   `tests/skills/test-framework.sh`, `.aai/scripts/aai-run-tests.sh`,
@@ -259,14 +259,16 @@ these, in this order.
   (`history = trace.git_read ? hist : ''`).
 
 What the identity compares, in one sentence for the product doc and the
-canon: the bytes of every file of the suite's disposable checkout that the
+canon: the bytes and executable bit of every file of the suite's disposable checkout that the
 operating system recorded as read, replaced or deleted during the passing run
 (every file, when that includes the git index), the list of file paths in the
 checkout, HEAD and every ref when the run read the checkout's git directory,
 the harness files, and the env, args, runtime and policy components.
 Caveat: anything the suite depends on that is not a file inside its disposable
 checkout, or that it reads without the operating system advancing the file's
-access time, is not compared.
+access time, is not compared. Measured examples of the latter: a file the
+suite only stat-s (`[ -s f ]`), an environment variable read through the
+bracket form `process.env['X']`, and a file copied by an APFS clone (`cp -c`).
 
 ### D4 Record: fail closed
 
@@ -463,7 +465,7 @@ delta) plus aai-prompt-diet, aai-ride-status and aai-win-fallback (8 suites):
 | Spec-AC-06 | lint exits 0 on the live repository and the live manifest lists the six named suites and the five earlier ones, each live false with a non-empty note and a row selecting it in the aai-suite-reuse suite-map globs; lint --admit --changed-since main exits 0 on the branch tip locally with one ADMIT-PASS line for each of the eleven suites | done | docs/ai/tdd/reuse-for-docs-reading-suites/green/suite-reuse-final.log (TEST-3275, TEST-3276); docs/ai/tdd/reuse-for-docs-reading-suites/admit-live-3.txt (eleven ADMIT-PASS); docs/ai/tdd/reuse-for-docs-reading-suites/red/test_3275_live_manifest-baseline.log; docs/ai/tdd/spec-reuse-for-docs-reading-suites/mutation-runC.txt | — | D5 D6 |
 | Spec-AC-07 | WHEN the framework runs a declared suite with reuse on THEN reuse-arm and reuse-trace files exist for it in serial mode and with AAI_TEST_PARALLEL=2; WHEN the suite is not declared, or the run is opted out THEN no arm or trace file exists for it; a failing arm does not change the suite verdict | done | docs/ai/tdd/reuse-for-docs-reading-suites/green/suite-reuse-final.log (TEST-3277); docs/ai/tdd/reuse-for-docs-reading-suites/red/test_3277_framework_wiring-baseline.log; docs/ai/tdd/spec-reuse-for-docs-reading-suites/mutation-runB.txt | — | D2 |
 | Spec-AC-08 | SKILL_VERIFY's Reuse exception says files read where it said declared inputs, and cat .aai/*.prompt.md is not larger than on the baseline 5e9f1350; test-aai-prompt-diet.sh TEST-010 and TEST-012 pass | done | docs/ai/tdd/reuse-for-docs-reading-suites/green/suite-reuse-final.log (TEST-3278); test-aai-prompt-diet.sh exit 0; docs/ai/tdd/reuse-for-docs-reading-suites/red/test_3278-baseline.log; docs/ai/tdd/spec-reuse-for-docs-reading-suites/mutation-runD.txt | — | D9 |
-| Spec-AC-09 | docs/analysis/precise-suite-evidence-reuse.md has a heading Measurements (trace identity) with at least 3 samples per mode in each of rounds R0 and R1 over the 8 suites of D11, medians and worst per mode and round, per suite REUSED or its first RUN reason in each on sample, per-suite read counts, arm plus collect milliseconds, a 40-character commit sha and host, OS, Node, Bash and Git versions | done | docs/ai/tdd/reuse-for-docs-reading-suites/green/suite-reuse-final.log (TEST-3279); docs/analysis/precise-suite-evidence-reuse.md section Measurements (trace identity), commit 770210a1c5c2081339bcc9482b0a518c9db1f8f8; docs/ai/tdd/reuse-for-docs-reading-suites/red/test_3279-baseline.log; docs/ai/tdd/spec-reuse-for-docs-reading-suites/mutation-runD.txt | — | D11 |
+| Spec-AC-09 | docs/analysis/precise-suite-evidence-reuse.md has a heading Measurements (trace identity) with at least 3 samples per mode in each of rounds R0 and R1 over the 8 suites of D11, medians and worst per mode and round, per suite REUSED or its first RUN reason in each on sample, per-suite read counts, arm plus collect milliseconds, a 40-character commit sha and host, OS, Node, Bash and Git versions | done | docs/ai/tdd/reuse-for-docs-reading-suites/green/suite-reuse-final.log (TEST-3279); docs/analysis/precise-suite-evidence-reuse.md section Measurements (trace identity); docs/ai/tdd/reuse-for-docs-reading-suites/red/test_3279-baseline.log; docs/ai/tdd/spec-reuse-for-docs-reading-suites/mutation-runD.txt | — | D11 |
 
 ## Implementation plan
 

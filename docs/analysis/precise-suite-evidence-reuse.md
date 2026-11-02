@@ -246,3 +246,14 @@ framework's per-suite overhead beyond that is the two helper process starts.
 Environment: host Apple M4 Max, 16 logical CPUs, macOS 27.0.1 (Darwin 27.0.0
 arm64); Node v22.23.1; Bash GNU bash 3.2.57(1)-release; Git 2.54.0 (Apple
 Git-157).
+
+Identity and its limits (validation round 1). An input's identity is its
+sha256 plus its executable bit (`mode & 0o111`), because a validator showed
+that `chmod -x` on a script a suite runs left the suite REUSED while a fresh
+run failed; the change only adds misses (SPEC amendment recorded under
+`fu-amend-reuse-for-docs-reading-suites`). Three read classes stay outside the
+identity and fall under the D3 caveat, each reproduced by the validator: a file
+the suite only stat-s (`[ -s f ]`) is not seen, an environment variable read as
+`process.env['X']` is not named, and a file read through an APFS clone
+(`cp -c`) does not advance the original's access time. The admission gate's
+poisoned run catches the clone case today; the other two are accepted risk.
