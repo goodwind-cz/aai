@@ -581,4 +581,18 @@ test('TEST-3269 armTrace with an access-time probe that reports no advance gives
   assert.equal(armed.canary, true);
   const refuse = spawnSync(process.execPath, [HELPER, 'arm', '--root', REPO, '--dir', REPO, '--run-dir', b.runDir, '--suite', 'fx'], { encoding: 'utf8' });
   assert.equal(refuse.status, 2, 'arm refuses to touch the root checkout');
+  // containment either way is refused, a sibling is not; a refused call leaves a real-tree sentinel's times alone
+  const sentinel = path.join(REPO, 'package.json');
+  const sentinelPath = fs.existsSync(sentinel) ? sentinel : path.join(REPO, 'CLAUDE.md');
+  const before = fs.lstatSync(sentinelPath);
+  const armAt = (cmd, dir) => spawnSync(process.execPath, [HELPER, cmd, '--root', REPO, '--dir', dir, '--run-dir', b.runDir, '--suite', 'fx'], { encoding: 'utf8', cwd: REPO });
+  for (const cmd of ['arm', 'collect']) {
+    assert.equal(armAt(cmd, path.dirname(REPO)).status, 2, `${cmd} refuses a parent of the root`);
+    assert.equal(armAt(cmd, path.join(REPO, 'tests')).status, 2, `${cmd} refuses a child of the root`);
+  }
+  const after = fs.lstatSync(sentinelPath);
+  assert.equal(after.atimeMs, before.atimeMs, 'refused calls left the sentinel access time');
+  assert.equal(after.mtimeMs, before.mtimeMs, 'refused calls left the sentinel mtime');
+  const sib = scratchCheckout({ 'a.txt': 'a\n' });
+  assert.equal(armAt('arm', sib.dir).status, 0, 'a sibling temp dir is still armed');
 });

@@ -489,7 +489,7 @@ function cli(argv) {
   } else if (cmd === 'arm' || cmd === 'collect') {
     const dir = path.resolve(o.dir || '');
     const runDir = path.resolve(o.runDir || '');
-    if (!o.dir || !o.runDir || !o.suites[0] || path.resolve(dir) === path.resolve(root)) { process.stderr.write(`${cmd}: needs --dir (a disposable checkout, not --root), --run-dir and --suite\n`); process.exitCode = 2; return; }
+    if (!o.dir || !o.runDir || !o.suites[0] || overlaps(dir, root)) { process.stderr.write(`${cmd}: needs --dir (a disposable checkout that neither contains nor sits inside --root), --run-dir and --suite\n`); process.exitCode = 2; return; }
     try {
       if (cmd === 'arm') {
         const arm = armTrace({ dir, runDir, suite: o.suites[0], seedPaths: (o.seedPaths || DEFAULT_SEEDS).split(/\s+/).filter(Boolean) });
@@ -532,6 +532,11 @@ function cli(argv) {
     process.stderr.write('usage: suite-reuse.mjs check|arm|collect|record|forget|lint|explain ...\n');
     process.exitCode = 2;
   }
+}
+// true when either real path equals or contains the other; the trailing separator keeps /a/b and /a/bc apart
+function overlaps(a, b) {
+  const [x, y] = [realOrResolve(a), realOrResolve(b)].map((p) => (p.endsWith(path.sep) ? p : p + path.sep));
+  return x.startsWith(y) || y.startsWith(x);
 }
 function realOrResolve(p) { try { return fs.realpathSync(p); } catch { return path.resolve(p); } }
 const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
