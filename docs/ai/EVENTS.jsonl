@@ -3566,3 +3566,4 @@
 {"v":1,"ts":"2026-11-01T21:53:09Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"precise-suite-evidence-reuse","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-01T21:53:09Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-precise-suite-evidence-reuse","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-01T21:53:09Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-precise-suite-evidence-reuse","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-01T23:59:47Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-node-first-reap-tests","payload":{"from":"draft","to":"implementing"}}
