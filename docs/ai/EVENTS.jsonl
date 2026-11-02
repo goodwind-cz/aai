@@ -3581,3 +3581,8 @@
 {"v":1,"ts":"2026-11-02T10:09:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"reuse-for-docs-reading-suites","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-02T10:09:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-for-docs-reading-suites","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-02T10:09:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reuse-for-docs-reading-suites","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-02T13:24:31Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-suite-select-sigpipe-fix","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"suite-select-sigpipe-fix","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"suite-select-sigpipe-fix","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-suite-select-sigpipe-fix","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-suite-select-sigpipe-fix","payload":{"validation":"pass","code_review":"pass"}}
