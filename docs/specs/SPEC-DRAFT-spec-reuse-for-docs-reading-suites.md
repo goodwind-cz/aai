@@ -3,7 +3,7 @@ id: spec-reuse-for-docs-reading-suites
 type: spec
 number: null
 status: implementing
-frozen_sha256: 554fb4a7179191f69e03d1804d1b5febb6d243f3f2a39e0656b92db616ff7438
+frozen_sha256: a1955d65e02ff9cdc41df54bf08c4c0d60cea8b85637c1860e66d39c477301c5
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -207,7 +207,9 @@ where they do not, nothing is recorded.
   (`export const ATIME_FLOOR = 946684800;`, 2000-01-01T00:00:00Z) keeping its
   mtime, children before their directory; then write a canary file next to the
   checkout, reset it, read it, and set `canary` true only when its access time
-  advanced. Writes `$RUN_DIR/<suite>.reuse-arm.json`.
+  advanced. Writes `$RUN_DIR/<suite>.reuse-arm.json`. Both helper subcommands
+  exit 2 without touching anything when `--dir` and `--root` resolve (real
+  paths) to the same directory or either contains the other.
 - `collect` walks the checkout. A file present at arm is an input when its
   access time is above the floor (`const wasRead = st.atimeMs / 1000 >
   ATIME_FLOOR;`), its inode changed (`st.ino !== armed.ino`) or it is gone.
@@ -297,7 +299,9 @@ manifest suite:
    seed paths copied, so it holds the working tree with full history;
 2. runs `bash tests/skills/test-framework.sh --skill S` there with reuse on,
    no `CI`, and `NODE_OPTIONS=--require <abs>/tests/skills/lib/read-trace.cjs`
-   with `AAI_TRACE_OUT` set; requires a pass and a store record;
+   with `AAI_TRACE_OUT` set; requires a pass and a store record; the tracked
+   `docs/ai/tests/test-runs.jsonl` of that scratch repository is written back
+   to its pre-run bytes before the probes;
 3. cross-check: every Node content read (`readFileSync`, `readFile`,
    `createReadStream`, `fs.promises.readFile`) of a file that existed in the
    framework's checkout at arm must be an input of the trace
@@ -313,9 +317,11 @@ manifest suite:
    each probe is reverted;
 5. poisoned run: every path-list file that is not an input is overwritten by
    `poisonFile(abs, rel);` with the single line `AAI-REUSE-POISON <path>`, and
-   the framework runs the suite fresh (`AAI_SUITE_REUSE=0`); it must pass
-   (`const passed = r.status === 0` together with `Passed: 1 (100%)` and no
-   failed or skipped line). With nothing to poison the step is reported as
+   `bash tests/skills/test-<suite>.sh` runs directly in a second scratch
+   repository (`AAI_SUITE_REUSE=0`, not through the framework); it must exit 0
+   (`const passed = r.status === 0`), so a suite-level skip, which exits 42,
+   fails it. The fresh run of step 2 alone is held to `Passed: 1 (100%)` and
+   no failed or skipped line. With nothing to poison the step is reported as
    `poisoned=0` and not run.
 
 Output per suite: `ADMIT-PASS <suite> <seconds>s reads=<n> poisoned=<n>` or
@@ -375,8 +381,11 @@ modules, `./select-suites.mjs`, `./lib/tree-hash.mjs`,
 
 `.aai/SKILL_VERIFY.prompt.md` Reuse exception: "had the same declared inputs,
 env, args, runtime, policy and history" becomes "had the same files read, env,
-args, runtime, policy and history". The prompt glob shrinks by 5 B, so no
-diet-ledger entry and no TEST-012 move are owed; test-aai-prompt-diet.sh runs
+args, runtime, policy and history". The "files read" wording is 5 B shorter
+and the closing "read that log" became "read the whole log", 5 B longer, so the
+prompt glob is unchanged in size; TEST-2824 compares the glob growth over its
+base to a ledger credit byte for byte, so no diet-ledger entry and no TEST-012
+move are owed; test-aai-prompt-diet.sh runs
 in Verification. VALIDATION.prompt.md is unchanged.
 
 ### D10 Windows

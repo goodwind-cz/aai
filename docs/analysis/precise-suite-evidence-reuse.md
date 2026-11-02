@@ -256,4 +256,6 @@ identity and fall under the D3 caveat, each reproduced by the validator: a file
 the suite only stat-s (`[ -s f ]`) is not seen, an environment variable read as
 `process.env['X']` is not named, and a file read through an APFS clone
 (`cp -c`) does not advance the original's access time. The admission gate's
-poisoned run catches the clone case today; the other two are accepted risk.
+poisoned run overwrites every checkout file the trace did not see read and requires
+the suite to exit 0, at admission time only; it does not look at the clone case
+as such, and the other two are accepted risk.
