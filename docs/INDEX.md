@@ -6,12 +6,13 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-reuse-for-docs-reading-suites | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md |
 
 ## Canonical layer (0)
 
@@ -1294,4 +1295,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-01 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-02 — counts above use this date for overdue checks.
