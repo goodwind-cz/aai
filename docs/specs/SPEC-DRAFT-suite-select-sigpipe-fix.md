@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: d12a90a3c63135283eceb930984991a084eccc21fa3d605ecaf59da561664438
+frozen_sha256: 948a56f53d995e80061ee0d0bf7546812b452c71a98d6befc001e689c25e0b05
 ceremony_level: 1
 links:
   requirement: suite-select-sigpipe-fix
@@ -49,10 +49,11 @@ Out of scope (listed, not fixed), follow-up `fu-pipefail-early-readers-other-sui
 - tests/skills/test-aai-merge-cleanup.sh:3254, 3676 (`printf | awk ... exit`)
 - tests/skills/test-aai-ci-carry-forward.sh:534, 587, 588, 592 (`job_run_text ... | awk '... { exit } ...'`, no semicolon before exit; follow-up `fu-pipefail-early-readers-carry-fwd`)
 - tests/skills/test-aai-sync-seed.sh:903, 905 and tests/skills/lib/assert-payload.sh, test-aai-pipe-safe.sh: `qgrep -q` pipe-safe helper sites, listed for completeness, not defects.
+- Not seen by TEST-3281 (known limits, not fixed): `grep -m1` / `grep -m 1` early-closing readers, and pipelines continued onto the next line with a backslash.
 
 Decisions:
 - D1: here-strings over `|| true`, because `|| true` would also mask a real reader failure.
-- D2: TEST-3281 matches `;` followed by `exit` inside an awk program, so `END {exit ...}` (reads all input) is not flagged.
+- D2: TEST-3281 does not flag `END {exit ...}` (an exit in the END block runs after all input is read); this holds for the semicolon and no-semicolon shapes alike, and D3 sets the full pattern.
 - D3 (validation r1 B3): TEST-3281 anchors on a single `|` (not `||`), accepts a path prefix and flag clusters on grep (`-E -q`, `--quiet`), `sed ...q`, `head`, and `exit` in a non-END awk action with or without a semicolon; a here-doc of positive and negative probe lines proves the pattern before the scan.
 
 ## Acceptance Criteria Mapping

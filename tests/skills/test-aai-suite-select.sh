@@ -1974,9 +1974,11 @@ test_3280_header_readers_survive_ignored_sigpipe() {  # Spec-AC-01 / TEST-3280
     big="$( { echo '# Actions run 123456789 (head SHA aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)'
               echo '# legs 111111111 222222222 333333333 444444444'
               seq 1 200000 | sed 's/^/# filler /'; } )"
-    r="$(_weights_header_run "$big")"
-    j="$(_weights_header_jobs "$big")"
-    h="$(_weights_header_sha "$big")"
+    # Explicit status checks: this subshell sits inside $( ) left of ||, where bash 4+
+    # ignores set -e, so a failing reader would otherwise go unnoticed on Linux.
+    r="$(_weights_header_run "$big")" || exit 1
+    j="$(_weights_header_jobs "$big")" || exit 1
+    h="$(_weights_header_sha "$big")" || exit 1
     printf '%s|%s|%s\n' "$r" "$j" "$h"
   )" || log_fail "TEST-3280: a header reader failed under ignored SIGPIPE"
   [[ "$out" == "123456789|4|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ]] \
@@ -2026,6 +2028,10 @@ N sed '/a/q' file
 PROBES
   # PROBE-END
   [[ -z "$bad" ]] || log_fail "TEST-3281: pattern self-test failed:$bad"
+  local nb ne
+  nb="$(/usr/bin/grep -c '^  # PROBE-BEGIN$' "${BASH_SOURCE[0]}" || true)"
+  ne="$(/usr/bin/grep -c '^  # PROBE-END$' "${BASH_SOURCE[0]}" || true)"
+  [[ "$nb" == 1 && "$ne" == 1 ]] || log_fail "TEST-3281: expected exactly one PROBE-BEGIN/PROBE-END pair, found $nb/$ne"
   hits="$(awk '/# PROBE-BEGIN/{skip=1} !skip{print NR": "$0} /# PROBE-END/{skip=0}' "${BASH_SOURCE[0]}" | /usr/bin/grep -E "^[0-9]+: .*$re" || true)"
   [[ -z "$hits" ]] || log_fail "TEST-3281: early-closing reader fed by a pipe: $hits"
   log_pass "TEST-3281: no early-closing reader in this suite"
