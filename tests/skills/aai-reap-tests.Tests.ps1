@@ -112,8 +112,13 @@ Describe 'aai-reap-tests launcher' {
     }
     [Environment]::SetEnvironmentVariable('AAI_REAP_MIN_AGE_SECS', '1')
     Push-Location -LiteralPath $ws
-    try { $out = (& $script:Engine -NoProfile -File $script:Launcher 2>&1) -join "`n"; $code = $LASTEXITCODE }
+    # On a WSL host the module may print a stderr warning before the native summary; under Windows PowerShell 5.1
+    # redirected native stderr becomes an ErrorRecord that throws when ErrorActionPreference is Stop (Pester's default).
+    $eap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $out = (& $script:Engine -NoProfile -File $script:Launcher 2>&1 | ForEach-Object { [string]$_ }) -join "`n"; $code = $LASTEXITCODE }
     finally {
+      $ErrorActionPreference = $eap
       Pop-Location
       foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) }
     }
