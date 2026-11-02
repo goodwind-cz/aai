@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "origin/main...cef5b5bf (worktree fix/suite-select-sigpipe-fix)"
-  spec: docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md
+  spec: docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -23,7 +23,7 @@ review:
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-suite-select.sh, line: 1992,
           issue: "The pattern does not flag 'grep -m1' / '-m 1' (another early-closing reader); it also cannot see pipelines continued onto the next line with a backslash",
           failure_scenario: "A future edit adds 'printf ... | grep -m1 x' or 'printf ... \\\\n | awk ...exit' to the suite. TEST-3281 passes, and the EPIPE flake comes back on CI." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md, line: 55,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md, line: 55,
           issue: "D2 (needs ';' before exit) contradicts D3 (exit with or without ';')",
           failure_scenario: "A reader of the spec trusts D2 and expects the no-semicolon carry-forward shape to go unflagged. The spec text then disagrees with the test it governs." }
   cannot_verify:
@@ -38,8 +38,8 @@ security_relevant: false
 
 # Code review: suite-select-sigpipe-fix (ceremony 1)
 
-- Scope: `git diff origin/main...HEAD` at cef5b5bf, in the worktree `/Users/ales/Projects/aai-worktrees/suite-select-sigpipe-fix`. Files: docs/INDEX.md, docs/ai/decisions.jsonl, docs/issues/ISSUE-DRAFT-suite-select-sigpipe-fix.md, docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md, tests/skills/test-aai-suite-select.sh
-- Spec: docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md, frozen, with the disclosed contract amendment (owner sign-off owed through `fu-amend-spec-suite-select-sigpipe-fix`)
+- Scope: `git diff origin/main...HEAD` at cef5b5bf, in the worktree `/Users/ales/Projects/aai-worktrees/suite-select-sigpipe-fix`. Files: docs/INDEX.md, docs/ai/decisions.jsonl, docs/issues/ISSUE-0108-suite-select-sigpipe-fix.md, docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md, tests/skills/test-aai-suite-select.sh
+- Spec: docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md, frozen, with the disclosed contract amendment (owner sign-off owed through `fu-amend-spec-suite-select-sigpipe-fix`)
 - Inputs: the intake, validation r2 (PASS) and its four non-blocking notes
 - Dispatch coaching: the dispatch named three validation notes to read. These are prior artifacts, not severity ratings. I reviewed the whole scope anyway.
 

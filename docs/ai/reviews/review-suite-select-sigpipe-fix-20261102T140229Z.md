@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "origin/main...e6273074 (worktree fix/suite-select-sigpipe-fix); re-pass after remediation cef5b5bf..e6273074"
-  spec: docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md
+  spec: docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -17,7 +17,7 @@ review:
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-suite-select.sh, line: 2035,
           issue: "The marker count is anchored to '^  # PROBE-BEGIN$', but the skip awk still matches '/# PROBE-BEGIN/' anywhere on a line. A marker that is not in the exact form is not counted, and it still turns skipping on.",
           failure_scenario: "Append '# PROBE-BEGIN' at column 0 (or 'x=1  # PROBE-BEGIN later') and then 'x=$(printf a | awk \"/a/ {exit}\")'. TEST-3281 PASSES (rc 0) and the reader stays hidden. Anchoring the skip awk to /^  # PROBE-BEGIN$/ and /^  # PROBE-END$/ makes the same mutation FAIL, and the clean suite still PASSES (nb1.log)." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md, line: 56,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md, line: 56,
           issue: "The reworded D2 says END {exit ...} is not flagged 'for the semicolon and no-semicolon shapes alike'. The semicolon branch of the pattern does flag an END block that has a statement before exit.",
           failure_scenario: "A reader trusts D2 and writes 'x | awk \"{n++} END {print n; exit}\"'. TEST-3281 flags it (d2.log). The failure is loud, but the spec text does not describe what the guard compares." }
   cannot_verify:
@@ -32,8 +32,8 @@ security_relevant: false
 
 # Code review re-pass: suite-select-sigpipe-fix (ceremony 1)
 
-- Scope: `git diff origin/main...HEAD` at e6273074 (merge-base 9717801a). Files: docs/INDEX.md, docs/ai/EVENTS.jsonl, docs/ai/decisions.jsonl, docs/ai/reviews/review-suite-select-sigpipe-fix-20261102T134538Z.md, docs/issues/ISSUE-DRAFT-suite-select-sigpipe-fix.md, docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md, tests/skills/test-aai-suite-select.sh
-- Spec: docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md, frozen. The two disclosed contract amendments (13:30:57Z and 13:48:32Z) are unsigned and tracked by `fu-amend-spec-suite-select-sigpipe-fix` (open). `spec-amend list --strict` returns rc 0.
+- Scope: `git diff origin/main...HEAD` at e6273074 (merge-base 9717801a). Files: docs/INDEX.md, docs/ai/EVENTS.jsonl, docs/ai/decisions.jsonl, docs/ai/reviews/review-suite-select-sigpipe-fix-20261102T134538Z.md, docs/issues/ISSUE-0108-suite-select-sigpipe-fix.md, docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md, tests/skills/test-aai-suite-select.sh
+- Spec: docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md, frozen. The two disclosed contract amendments (13:30:57Z and 13:48:32Z) are unsigned and tracked by `fu-amend-spec-suite-select-sigpipe-fix` (open). `spec-amend list --strict` returns rc 0.
 - Inputs: the prior review (cef5b5bf, fail), validation r3 (PASS, docs/ai/reports/VALIDATION-suite-select-sigpipe-fix-r3.md)
 - Dispatch coaching: the dispatch summarized what the remediation claims to have done for B1, NB-1, NB-2 and NB-3. It did not rate severity or exclude any area. I treated those claims as things to refute and reviewed the full scope.
 

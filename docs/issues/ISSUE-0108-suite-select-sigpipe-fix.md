@@ -1,8 +1,8 @@
 ---
 id: suite-select-sigpipe-fix
 type: issue
-number: null
-status: draft
+number: 108
+status: done
 links:
   pr: []
   commits: []

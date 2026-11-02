@@ -1,10 +1,11 @@
 ---
 id: spec-suite-select-sigpipe-fix
 type: spec
-number: null
-status: implementing
+number: 269
+status: done
 mutation_gate: v1
-frozen_sha256: dba92abea17b8a92247aabcdfbe281e836004b700ea6ca654de586cb603b782d
+mutation_uncomparable: 3
+frozen_sha256: 0056322fae7427498ef5e0fbf9a10d9dcb4da6e9e2853055807ade72bfeef6b5
 ceremony_level: 1
 links:
   requirement: suite-select-sigpipe-fix
@@ -18,7 +19,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-suite-select-sigpipe-fix.md
+- Requirement: docs/issues/ISSUE-0108-suite-select-sigpipe-fix.md
 - Technology contract: docs/TECHNOLOGY.md
 - Follow-up closed at delivery: `fu-suite-select-sigpipe-test016` (the delivery commit or the close ceremony appends its `follow_up_status` done line, resolved by this ref).
 - Follow-up filed by this ride: `fu-pipefail-early-readers-other-suites`.
@@ -35,7 +36,7 @@ Ceremony justification: test-only change inside one internal suite (tests/skills
 - User decision: worktree
 - Base ref: main (9717801a)
 - Worktree branch/path: fix/suite-select-sigpipe-fix at /Users/ales/Projects/aai-worktrees/suite-select-sigpipe-fix
-- Inline review scope: tests/skills/test-aai-suite-select.sh, docs/issues/ISSUE-DRAFT-suite-select-sigpipe-fix.md, docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md, docs/ai/decisions.jsonl
+- Inline review scope: tests/skills/test-aai-suite-select.sh, docs/issues/ISSUE-0108-suite-select-sigpipe-fix.md, docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md, docs/ai/decisions.jsonl
 - Code review required: true.
 
 ## Scope

@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-02T10:09:10.074Z",
+  "generatedAt": "2026-11-02T14:07:06.304Z",
   "project": "aai",
   "counts": {
-    "delivered": 338,
+    "delivered": 339,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -259,6 +259,19 @@
       "spec": "docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md",
       "validation": null,
       "review": "docs/ai/reviews/review-reuse-for-docs-reading-suites-closeout-r2-20261102T100415Z.md"
+    },
+    {
+      "ref": "suite-select-sigpipe-fix",
+      "title": "test-aai-suite-select.sh TEST-016 fails intermittently on CI with printf EPIPE under pipefail",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0108-suite-select-sigpipe-fix.md",
+      "closed_on": "2026-11-02",
+      "agent_minutes": 40,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-suite-select-sigpipe-fix-20261102T140229Z.md"
     },
     {
       "ref": "node-first-small-pairs",
@@ -4680,6 +4693,19 @@
           "spec": "docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md",
           "validation": null,
           "review": "docs/ai/reviews/review-reuse-for-docs-reading-suites-closeout-r2-20261102T100415Z.md"
+        },
+        {
+          "ref": "suite-select-sigpipe-fix",
+          "title": "test-aai-suite-select.sh TEST-016 fails intermittently on CI with printf EPIPE under pipefail",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0108-suite-select-sigpipe-fix.md",
+          "closed_on": "2026-11-02",
+          "agent_minutes": 40,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-suite-select-sigpipe-fix-20261102T140229Z.md"
         },
         {
           "ref": "node-first-small-pairs",
