@@ -444,6 +444,19 @@ function admitSuite(root, suite, tmp) {
   ].filter(Boolean);
   const bad = probes.find((x) => !x.ok);
   if (bad) return fail(bad.why);
+  const tailLines = [];
+  if (trace.index_read) {
+    // D3: an index-reading suite is compared tolerating ledger appends, so it must also pass with one present.
+    const tdir = scratchRepo(root, tmp, `${suite}-t`);
+    if (!tdir) return fail('scratch-repo');
+    const tledger = path.join(tdir, 'docs/ai/tests/test-runs.jsonl');
+    fs.mkdirSync(path.dirname(tledger), { recursive: true });
+    fs.appendFileSync(tledger, 'AAI-REUSE-POISON appended\n');
+    const ra = run('bash', [`tests/skills/test-${suite}.sh`], { cwd: tdir, env: admitEnv({ AAI_SUITE_REUSE: '0' }), timeout: 1800000 });
+    const tailOk = ra.status === 0;
+    if (!tailOk) return fail(`appended-ledger run failed rc=${ra.status}`);
+    tailLines.push('appended docs/ai/tests/test-runs.jsonl PASS');
+  }
   const toPoison = trace.index_read ? [] : trace.paths.filter((p) => !(p in trace.inputs) && !p.startsWith('.git/'));
   if (toPoison.length) {
     const pdir = scratchRepo(root, tmp, `${suite}-p`);
@@ -456,7 +469,7 @@ function admitSuite(root, suite, tmp) {
     const passed = r.status === 0;
     if (!passed) return fail(`poisoned run failed rc=${r.status}`);
   }
-  return { suite, ok: true, seconds: (Date.now() - t0) / 1000, reads: inputs.length, poisoned: toPoison.length, probes: probes.map((x) => x.line) };
+  return { suite, ok: true, seconds: (Date.now() - t0) / 1000, reads: inputs.length, poisoned: toPoison.length, probes: [...probes.map((x) => x.line), ...tailLines] };
 }
 // base: {root, ref, manifest} or null when the ref does not resolve (then every suite is admitted).
 function entryChanged(base, suite) {

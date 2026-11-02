@@ -673,3 +673,16 @@ test('TEST-3302 the tolerance needs an index-reading record that carries append_
   assert.equal(rb.status, 'RUN');
   assert.equal(rb.detail, `changed ${LEDGER}`);
 });
+
+test('TEST-3303 an index-reading record carries append_prefix for the ledger; a non-index record has none', async () => {
+  const storeOf = (root) => JSON.parse(fs.readFileSync(path.join(root, 'tests', 'skills', 'results', 'reuse', 'fx.json'), 'utf8'));
+  const a = ledgerRepo();
+  await pass(a, 'fx', { trace: { index_read: true, git_read: true } });
+  const ra = storeOf(a);
+  assert.deepEqual(Object.keys(ra.append_prefix), [LEDGER]);
+  assert.equal(ra.append_prefix[LEDGER].bytes, fs.statSync(path.join(a, LEDGER)).size);
+  assert.equal(ra.append_prefix[LEDGER].sha256, ra.inputs_map[LEDGER]);
+  const b = ledgerRepo();
+  await pass(b, 'fx', { trace: { index_read: false, inputs: { [LEDGER]: true } } });
+  assert.equal('append_prefix' in storeOf(b), false);
+});

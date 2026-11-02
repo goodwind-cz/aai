@@ -928,6 +928,40 @@ test_3300_ledger_append_reused() {
 test_3301_ledger_tolerance_rules() { node_cases TEST-3301; }
 test_3302_tolerance_scope() { node_cases TEST-3302; }
 
+# test_3304: an index-reading suite that fails when the last ledger line is the appended probe line is refused.
+test_3304_tail_read_refused() {
+  local base r
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" tailread
+  printf 'a\n' > "$r/a.txt"
+  printf '#!/usr/bin/env bash\ngit status --porcelain > /dev/null 2>&1\ncat a.txt > /dev/null\nif [[ -f docs/ai/tests/test-runs.jsonl ]] && tail -n 1 docs/ai/tests/test-runs.jsonl | grep -q AAI-REUSE-POISON; then exit 1; fi\nexit 0\n' > "$r/tests/skills/test-tailread.sh"
+  commit_fx "$base" tailread
+  admit_run "$base" --
+  [[ "$RC" -eq 1 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3304: expected exit 1, got $RC"; }
+  expect "TEST-3304" "$OUT" "ADMIT-FAIL tailread "
+  expect "TEST-3304" "$OUT" "appended-ledger run failed"
+  log_pass "TEST-3304 (a suite that reads the appended ledger line fails admission)"
+}
+
+# test_3305: an index-reading suite that ignores the ledger gets the appended probe line; a suite without index_read gets none.
+test_3305_tail_ignored_admitted() {
+  local base r
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" tailok plain
+  printf 'a\n' > "$r/a.txt"
+  printf '#!/usr/bin/env bash\ngit status --porcelain > /dev/null 2>&1\ncat a.txt > /dev/null\nexit 0\n' > "$r/tests/skills/test-tailok.sh"
+  printf '#!/usr/bin/env bash\ncat a.txt > /dev/null\nexit 0\n' > "$r/tests/skills/test-plain.sh"
+  commit_fx "$base" tailok
+  admit_run "$base" --
+  [[ "$RC" -eq 0 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3305: expected exit 0, got $RC"; }
+  expect "TEST-3305" "$OUT" "ADMIT-PROBE tailok appended docs/ai/tests/test-runs.jsonl PASS"
+  expect "TEST-3305" "$OUT" "ADMIT-PASS tailok "
+  expect "TEST-3305" "$OUT" "ADMIT-PASS plain "
+  expect_not "TEST-3305" "$OUT" "ADMIT-PROBE plain appended"
+  log_pass "TEST-3305 (index-reading suite gets the appended probe PASS; the non-index suite gets none)"
+}
+test_3303_append_prefix_recorded() { node_cases TEST-3303; }
+
 main() {
   echo "Testing $TEST_NAME (spec-precise-suite-evidence-reuse, spec-reuse-for-docs-reading-suites)"
   check_deps
@@ -981,6 +1015,9 @@ main() {
   test_3300_ledger_append_reused
   test_3301_ledger_tolerance_rules
   test_3302_tolerance_scope
+  test_3303_append_prefix_recorded
+  test_3304_tail_read_refused
+  test_3305_tail_ignored_admitted
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

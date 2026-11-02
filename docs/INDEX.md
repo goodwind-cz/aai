@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-reuse-local-ledger-append | specs | implementing | 7 planned | docs/specs/SPEC-DRAFT-spec-reuse-local-ledger-append.md |
+| spec-reuse-local-ledger-append | specs | implementing | 5 done, 2 planned | docs/specs/SPEC-DRAFT-spec-reuse-local-ledger-append.md |
 
 ## Canonical layer (0)
 
