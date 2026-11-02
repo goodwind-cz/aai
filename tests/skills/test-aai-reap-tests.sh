@@ -280,7 +280,7 @@ test_3242_amendment_records() {
     const mine = j.items.filter((i) => i.ref_id === "node-first-reap-tests" && i.amendment_class === "contract");
     const bad = [];
     for (const [id, what] of want) {
-      const hit = mine.find((i) => String(i.spec).includes(id + "-") && String(i.what).startsWith(what));
+      const hit = mine.find((i) => String(i.spec).startsWith("docs/specs/" + id + "-") && String(i.what).startsWith(what));
       if (!hit) bad.push(id + ": no contract record beginning " + what);
     }
     process.stdout.write(bad.join("; "));
