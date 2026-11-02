@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-reuse-for-docs-reading-suites | specs | implementing | 9 planned | docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md |
+| spec-reuse-for-docs-reading-suites | specs | implementing | 9 done | docs/specs/SPEC-DRAFT-spec-reuse-for-docs-reading-suites.md |
 
 ## Canonical layer (0)
 
@@ -712,7 +712,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (542)
+## Broken references (539)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -765,12 +765,9 @@ _None._
 | tests/skills/lib/ride-status.test.mjs | docs/ai/validation/VALIDATION-demo.md | NOT FOUND |
 | tests/skills/lib/ride-status.test.mjs | docs/issues/CHANGE-9001-demo.md | NOT FOUND |
 | tests/skills/lib/ride-status.test.mjs | docs/specs/SPEC-9001-demo.md | NOT FOUND |
-| tests/skills/lib/suite-reuse.test.mjs | docs/new.md | NOT FOUND |
-| tests/skills/lib/suite-reuse.test.mjs | docs/new2.md | NOT FOUND |
-| tests/skills/lib/suite-reuse.test.mjs | docs/pro.md | NOT FOUND |
-| tests/skills/lib/suite-reuse.test.mjs | docs/specs/SPEC-0001.md | NOT FOUND |
-| tests/skills/lib/suite-reuse.test.mjs | docs/specs/a.md | NOT FOUND |
-| tests/skills/lib/suite-reuse.test.mjs | docs/specs/new.md | NOT FOUND |
+| tests/skills/lib/suite-reuse.test.mjs | docs/new-untracked.md | NOT FOUND |
+| tests/skills/lib/suite-reuse.test.mjs | docs/x.md | NOT FOUND |
+| tests/skills/lib/suite-reuse.test.mjs | docs/y.md | NOT FOUND |
 | tests/skills/test-aai-branch-guard.sh | docs/issues/CHANGE-0001-t454.md | NOT FOUND |
 | tests/skills/test-aai-canon.sh | docs/generated-687.md | NOT FOUND |
 | tests/skills/test-aai-canon.sh | docs/generated-sub/687.md | NOT FOUND |

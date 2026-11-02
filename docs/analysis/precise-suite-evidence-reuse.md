@@ -163,3 +163,86 @@ manifest note: bash `cat`, `grep`, `cp` and `source`; `git` commands; Node
 whose environment drops `NODE_OPTIONS` (release-dry-run.mjs does). A manifest
 suite that reads a docs file through bash `cat` passes TEST-3193. The residual
 risk R1 therefore stands for those channels.
+
+## Measurements (trace identity)
+
+The SPEC-0266 section above stays as history. This section measures the access
+trace identity of the change that replaced the source-text reader, following
+the protocol of its D11. Measured commit: 770210a1c5c2081339bcc9482b0a518c9db1f8f8
+(the implementation tip), in a disposable detached worktree of that commit,
+never in the shared main checkout.
+
+Method. Suites (8): aai-check-state, aai-docs-content, aai-spec-lint,
+aai-hygiene-pack, aai-pr-preflight, aai-prompt-diet, aai-ride-status,
+aai-win-fallback. One seed run with reuse on; a copy of
+`tests/skills/results/reuse/` as the snapshot; then two rounds, each with six
+samples alternating off (`AAI_SUITE_REUSE=0`) and on, restoring the store from
+the snapshot before every on sample. R0 is the zero delta (no edit). R1 appends
+one comment line to `.aai/scripts/pr-preflight.mjs`. Command per sample:
+`bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh` with one `--skill` per
+suite, `AAI_TEST_TIMEOUT=3000`, `AAI_ROLE` unset. Wall seconds are whole seconds
+from `date +%s`; "Executed" is the framework's Total line, "Reused" its Reused
+line, "Check s" the number on `Evidence reuse: on (<M> of <N> suites reused, check <s>s)`.
+All twelve samples exited 0.
+
+| Round | Sample | Mode | Wall s | Executed | Reused | Check s |
+|---|---|---|---|---|---|---|
+| R0 | 1 | off | 105 | 8 | 0 | - |
+| R0 | 1 | on | 108 | 7 | 1 | 1 |
+| R0 | 2 | off | 107 | 8 | 0 | - |
+| R0 | 2 | on | 110 | 7 | 1 | 0 |
+| R0 | 3 | off | 109 | 8 | 0 | - |
+| R0 | 3 | on | 124 | 7 | 1 | 1 |
+| R1 | 1 | off | 109 | 8 | 0 | - |
+| R1 | 1 | on | 121 | 7 | 1 | 0 |
+| R1 | 2 | off | 104 | 8 | 0 | - |
+| R1 | 2 | on | 118 | 7 | 1 | 0 |
+| R1 | 3 | off | 128 | 8 | 0 | - |
+| R1 | 3 | on | 123 | 7 | 1 | 0 |
+
+Round R0 medians: off 107 s, on 110 s, reused 1 of 8 suites (worst off 109 s, worst on 124 s).
+
+Round R1 medians: off 109 s, on 121 s, reused 1 of 8 suites (worst off 128 s, worst on 123 s).
+
+On did not beat off in either round: the one suite that reuses is the cheapest
+of the large ones (aai-ride-status, about 15 s) and it runs concurrently with
+the longest suite (aai-hygiene-pack, about 95 s), which sets the wall time, so
+reusing it saves nothing on the wall clock. The differences between the
+medians (110 against 107, 121 against 109) are run-to-run noise of this
+host plus a check of at most 1 s. The lesson is the one the spec predicted.
+
+Per suite, the outcome of every on sample (identical in all three samples of
+a round; the RUN reason is what `suite-reuse.mjs check` printed against the
+restored store, with the framework's own environment, and the framework
+executed exactly the suites it names) and the files the recorded trace read:
+
+| Suite | Files read (record) | R0 on | R1 on |
+|---|---|---|---|
+| aai-check-state | not traced (not in the manifest) | RUN reason=not-declared | RUN reason=not-declared |
+| aai-docs-content | 1536 files, git index read | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl | RUN reason=inputs changed .aai/scripts/pr-preflight.mjs |
+| aai-spec-lint | 1481 files, git index read | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl | RUN reason=inputs changed .aai/scripts/pr-preflight.mjs |
+| aai-hygiene-pack | 1950 files, git index read | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl | RUN reason=inputs changed .aai/scripts/pr-preflight.mjs |
+| aai-pr-preflight | not traced (not in the manifest) | RUN reason=not-declared | RUN reason=not-declared |
+| aai-prompt-diet | 1935 files, git index read | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl | RUN reason=inputs changed .aai/scripts/pr-preflight.mjs |
+| aai-ride-status | 27 files, git index not read | REUSED | REUSED |
+| aai-win-fallback | 1935 files, git index read | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl | RUN reason=inputs changed .aai/scripts/pr-preflight.mjs |
+
+What the table shows. aai-ride-status, which the source-text reader could never
+reuse (3,188 inputs, 2,194 unresolvable forms), is reused after a zero delta
+and after an edit of an unrelated production script, with 27 files read. The
+five large suites read the whole checkout, so they are admitted but are reused
+only when no tracked file changed; even the zero delta misses, because the
+framework appends a line to the tracked `docs/ai/tests/test-runs.jsonl` after
+every run and those suites read that file (follow-up
+`fu-reuse-local-ledger-append`). The corpus-wide cases of those suites would
+have to be split from their fixture cases to change this
+(`fu-reuse-split-corpus-cases`). No edit of the ledger writer was made.
+
+Trace cost: arm plus collect took 178 ms (median of five, range 167 to 219 ms;
+arm about 155 ms, collect about 20 ms) on the 1,950-file checkout of the
+measured commit, per traced suite, run in-process on a fresh local clone. The
+framework's per-suite overhead beyond that is the two helper process starts.
+
+Environment: host Apple M4 Max, 16 logical CPUs, macOS 27.0.1 (Darwin 27.0.0
+arm64); Node v22.23.1; Bash GNU bash 3.2.57(1)-release; Git 2.54.0 (Apple
+Git-157).
