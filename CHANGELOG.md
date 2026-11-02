@@ -31,7 +31,7 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 ## [unreleased] — feat: suite reuse keys on what a suite actually read (access-time trace of its checkout); 11 suites admitted (reuse-for-docs-reading-suites)
 
 - Reuse of a suite's earlier pass now compares what the suite really read, found from file access times in its disposable checkout (bytes and executable bit of files read, replaced or deleted; HEAD and refs when it read `.git`; every file when it read the git index), instead of reading the suite's source text. Files outside the checkout or read without an access-time change, such as stat-only checks, are not compared.
-- `suite-reuse.mjs lint --admit` is the new admission gate (it probes a read and an unread file and rejects a suite whose trace misses a read); only suites that pass it are declared in `tests/skills/suite-reuse.json`, which now lists 11.
+- `suite-reuse.mjs lint --admit` is the new admission gate (it probes a read and an unread file and rejects a suite whose trace misses a read); only suites that pass it are declared in `tests/skills/suite-reuse.json`, which now lists 11. It replaces `lint --minimal-tree`, which is retired and now exits 2 with a pointer to `--admit`.
 - Honest measurement: no saving yet. On eight suites only aai-ride-status was reused and wall time did not move (107 s off, 110 s on; 109 s and 121 s after a one-line edit); the five large suites read every tracked file, so any edit reruns them. Follow-ups `fu-reuse-split-corpus-cases` and `fu-reuse-local-ledger-append` would change that.
 
 ## [unreleased] — refactor: aai-reap-tests runs on Node; .sh and .ps1 are thin launchers (node-first-reap-tests)
@@ -44,7 +44,7 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 ## [unreleased] — feat: local test runs reuse a suite's earlier pass when its complete input identity is unchanged (precise-suite-evidence-reuse)
 
 - `tests/skills/test-framework.sh` now reports a declared suite as REUSED, naming the earlier run and its log, instead of executing it, when the suite's input identity is unchanged: the bytes of the files it reads, relevant environment, arguments, runtime (Node, platform, CPU architecture, git and bash versions), runner policy and history. `AAI_SUITE_REUSE=0` turns it off.
-- Only suites listed in `tests/skills/suite-reuse.json` qualify (three reuse today: aai-feedback-status, aai-pricing, aai-redact). `node .aai/scripts/suite-reuse.mjs lint --admit` is the admission gate and replaces `lint --minimal-tree`, which is retired and now exits 2 (it is no longer an admission gate); `explain <suite>` shows what a suite's identity covers.
+- Only suites listed in `tests/skills/suite-reuse.json` qualify (three reuse today: aai-feedback-status, aai-pricing, aai-redact). `node .aai/scripts/suite-reuse.mjs lint --minimal-tree` is the admission gate; `explain <suite>` shows what a suite's identity covers.
 - A reused suite is never counted as executed: the summary prints `Reused:` separately and the run ledger keeps `total` as the executed count. The full sweep before close, CI, main, nightly, release, TDD RED and mutation runs always execute. SKILL_VERIFY and VALIDATION state when a role may cite reused evidence.
 
 ## [unreleased] — refactor: validate-skills and aai-live run on Node; pre-compact-save retired (node-first-small-pairs)

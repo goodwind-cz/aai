@@ -32,6 +32,7 @@ the harness files; the relevant environment; the arguments; the runtime (Node ve
 platform, CPU architecture, git and bash versions); and the runner policy. Caveat: anything outside the checkout, or
 read without its access time moving (for example a stat-only check such as
 `[ -s f ]`), is not compared.
+
 ## How to use it
 
 - It is on by default for local runs of `tests/skills/test-framework.sh`
