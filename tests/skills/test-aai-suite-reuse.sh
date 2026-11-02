@@ -984,7 +984,10 @@ test_3306_live_notes() {
 # test_3307: the live admission of TEST-3276 admitted each changed index-reading suite with the appended probe.
 test_3307_live_appended_probes() {
   local s n=0
-  if [[ -z "$LIVE_ADMIT_OUT" ]]; then test_3276_live_admission; fi
+  if [[ -z "$LIVE_ADMIT_OUT" ]]; then
+    # Run alone (mutation-run dispatch): do the admission here and judge its lines, not its exit code.
+    LIVE_ADMIT_OUT="$(env -u AAI_ROLE -u AAI_SUITE_REUSE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" --admit --changed-since main 2>&1 || true)"
+  fi
   if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-OFF ci"* ]]; then log_pass "TEST-3307 (ADMIT-OFF ci)"; return 0; fi
   for s in $FIVE_INDEX_SUITES; do
     if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-PASS $s "* ]]; then
