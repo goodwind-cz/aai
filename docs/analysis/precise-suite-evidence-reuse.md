@@ -277,6 +277,8 @@ Before: 9c487740cf606419046a3f5488508520507ff9e3 (main at planning time). After:
 0d7992dcbbcde189a9c28b62f13600148bc13ec9 (the implementation tip). Host: Apple M4 Max,
 macOS 27.0.1, Node v22.23.1, Bash 3.2.57 (GNU bash), Git 2.54.0.
 
+The "after" run was taken at 0d7992dc; only tests and docs changed between that commit and the branch tip, and validation round 1 reproduced the result at e7797c86 (113 s seed, 1 s rerun, 11 of 11 suites reused).
+
 | Commit | Seed exit | Seed wall s | Rerun exit | Rerun wall s | Rerun reuse line |
 |---|---|---|---|---|---|
 | before | 0 | 112 | 0 | 109 | Evidence reuse: on (6 of 11 suites reused, check 0s) |

@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4eb427d0f0781e073b03ed1bd9b409eb08e410b8107fff39d93b6a731ce98d44
+frozen_sha256: 4a5096721d2b01abdcc613a0ee91836c5d4471ef64cdaac48fda0e483c2e14f0
 ceremony_level: 2
 links:
   requirement: reuse-local-ledger-append
@@ -192,9 +192,11 @@ and policy components.
 
 Caveat: anything the suite depends on that this comparison does not cover
 is not seen, including lines appended to the run ledger after the recorded
-run when an index-reading suite genuinely reads them; the admission gate
-(D3) checks that case for each manifest suite when it is admitted, not on
-every run.
+run when an index-reading suite genuinely reads them. The admission gate
+(D3) runs each manifest suite once when it is admitted, with one non-JSON
+line appended to the ledger, and the suite must still pass. That catches a
+suite that parses the ledger strictly; it does not catch a lenient reader
+that skips lines it cannot parse, and it is not repeated on every run.
 
 ### D3 Admission: an appended-ledger run for index-reading suites
 
@@ -317,9 +319,9 @@ probe line and one failure reason on an internal test-harness interface.
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
 | TEST-3300 | Spec-AC-01 | integration | tests/skills/test-aai-suite-reuse.sh | test_3300: fixture repository with the real framework and helper, docs/ai/tests/test-runs.jsonl tracked and not ignored; declared suite ix runs git status in its checkout and cats a.txt; run 1 PASS and recorded; run 2 reports ix REUSED; run 3 reports ix REUSED; the ledger has one more line after each run (baseline: run 2 prints RUN with reason inputs changed docs/ai/tests/test-runs.jsonl) | `sed:s/const APPEND_ONLY_LEDGERS = \['docs\/ai\/tests\/test-runs.jsonl'\];/const APPEND_ONLY_LEDGERS = [];/` on .aai/scripts/suite-reuse.mjs | green |
-| TEST-3301 | Spec-AC-02 | unit | tests/skills/lib/suite-reuse.test.mjs | node case TEST-3301: recordSuite with a synthetic index_read trace on a scratch repo with tracked ledger and EVENTS; from a copy of that state each of: equal-length edit of an existing ledger line, truncation, chmod +x of the ledger, an EVENTS append, a ledger append plus an edit of docs/x.md gives RUN naming the expected path; a ledger append alone gives REUSE | `sed:s/=== prefix.sha256;/!== null;/` on .aai/scripts/suite-reuse.mjs | green |
-| TEST-3302 | Spec-AC-03 | unit | tests/skills/lib/suite-reuse.test.mjs | node case TEST-3302: a record whose trace has index_read false, names the ledger as an input and carries a hand-written append_prefix gives RUN reason=inputs changed docs/ai/tests/test-runs.jsonl after a ledger append; an index_read record with append_prefix removed gives the same RUN after a ledger append | `sed:s/const tolerate = trace.index_read && /const tolerate = /` on .aai/scripts/suite-reuse.mjs | green |
-| TEST-3303 | Spec-AC-04 | unit | tests/skills/lib/suite-reuse.test.mjs | node case TEST-3303: recordSuite with an index_read trace writes append_prefix for the ledger with bytes equal to its size and sha256 equal to inputs_map of that path; with index_read false the record has no append_prefix key | `sed:s/append_prefix: traced.index_read \? /append_prefix: false ? /` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3301 | Spec-AC-02 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3301: recordSuite with a synthetic index_read trace on a scratch repo with tracked ledger and EVENTS; from a copy of that state each of: equal-length edit of an existing ledger line, truncation, chmod +x of the ledger, an EVENTS append, a ledger append plus an edit of docs/x.md gives RUN naming the expected path; a ledger append alone gives REUSE | `sed:s/=== prefix.sha256;/!== null;/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3302 | Spec-AC-03 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3302: a record whose trace has index_read false, names the ledger as an input and carries a hand-written append_prefix gives RUN reason=inputs changed docs/ai/tests/test-runs.jsonl after a ledger append; an index_read record with append_prefix removed gives the same RUN after a ledger append | `sed:s/const tolerate = trace.index_read && /const tolerate = /` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3303 | Spec-AC-04 | unit | tests/skills/test-aai-suite-reuse.sh | node case TEST-3303: recordSuite with an index_read trace writes append_prefix for the ledger with bytes equal to its size and sha256 equal to inputs_map of that path; with index_read false the record has no append_prefix key | `sed:s/append_prefix: traced.index_read \? /append_prefix: false ? /` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3304 | Spec-AC-05 | integration | tests/skills/test-aai-suite-reuse.sh | test_3304: fixture manifest with suite tailread that runs git status and exits 1 when the last line of docs/ai/tests/test-runs.jsonl contains AAI-REUSE-POISON; lint --admit prints ADMIT-FAIL tailread with appended-ledger run failed and exits 1 | `sed:s/const tailOk = ra.status === 0;/const tailOk = true;/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3305 | Spec-AC-05 | integration | tests/skills/test-aai-suite-reuse.sh | test_3305: fixture manifest with index-reading suite tailok (git status only) and non-index suite plain; lint --admit prints ADMIT-PROBE tailok appended docs/ai/tests/test-runs.jsonl PASS, ADMIT-PASS tailok and ADMIT-PASS plain, no appended probe line for plain, and exits 0 | `sed:s/const tailOk = ra.status === 0;/const tailOk = false;/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3306 | Spec-AC-06 | contract | tests/skills/test-aai-suite-reuse.sh | test_3306: lint on the live repository exits 0; the live manifest notes of the five index-reading suites each contain docs/ai/tests/test-runs.jsonl | `sed:s/test-runs.jsonl/test-runz.jsonl/` on tests/skills/suite-reuse.json | green |
