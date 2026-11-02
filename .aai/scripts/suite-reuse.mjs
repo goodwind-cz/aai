@@ -18,11 +18,12 @@
 //   node .aai/scripts/suite-reuse.mjs record --root R --run-dir D --suite S
 //        --isolation isolated --seeding seeded [--seed-paths "a b"]
 //   node .aai/scripts/suite-reuse.mjs forget --root R --suite S
-//   node .aai/scripts/suite-reuse.mjs lint    [--root R]
+//   node .aai/scripts/suite-reuse.mjs lint    [--root R] [--admit [--suite S ...] [--changed-since REF]]
 //   node .aai/scripts/suite-reuse.mjs explain --suite S [--root R]
 
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,6 +56,8 @@ export function shellStartupHazard(env) {
   return hit ? 'bash-startup-hook' : null;
 }
 const ENV_EXCLUDED = ['AAI_SUITE_REUSE', 'AAI_TEST_REF_ID', 'AAI_REAP_STEP_START_EPOCH'];
+// Maintained by the shell itself and different for every caller: never an input a suite can be keyed on.
+const ENV_NOISE = ['PWD', 'OLDPWD', 'SHLVL', '_'];
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const posix = (p) => p.split(path.sep).join('/');
@@ -162,7 +165,7 @@ export function computeIdentity(ctx, suite, args, trace = NO_TRACE, recorded = f
     for (const p of pathList) if (!(p in inputsMap)) inputsMap[p] = (recorded && trace.tree_hashes && trace.tree_hashes[p]) || fileHash(ctx, p);
   }
   const envMap = prefixEnv(ctx);
-  for (const name of trace.env_names) envMap[name] = ctx.env[name] === undefined ? null : ctx.env[name];
+  for (const name of trace.env_names.filter((n) => !ENV_NOISE.includes(n))) envMap[name] = ctx.env[name] === undefined ? null : ctx.env[name];
   const history = trace.git_read ? historyOf(ctx.root) : '';
   const values = { inputs: inputsMap, paths: pathList, env: envMap, args, runtime: ctx.runtime, policy: policyOf(ctx), history };
   const components = {};
@@ -329,6 +332,129 @@ export function lintManifest({ root }) {
   return { ok: problems.length === 0, problems };
 }
 
+// ---- admission gate (D5): lint --admit ----
+// A suite may stay in the manifest only if, from a scratch copy of the working tree, it passes through the
+// framework with a trace, every Node content read it made is in the trace, one read and one unread edit move
+// `check` the right way, and it still passes when every file it did not read is overwritten.
+const CONTENT_FNS = new Set(['readFileSync', 'readFile', 'createReadStream', 'promises.readFile']);
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+const admitEnv = (extra = {}) => {
+  const e = { ...process.env, ...extra };
+  for (const k of ['AAI_ROLE', 'CI', 'GITHUB_ACTIONS', 'AAI_TEST_REF_ID', 'AAI_SUITE_REUSE']) delete e[k];
+  return e;
+};
+const run = (cmd, args, opts) => spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 1 << 28, ...opts });
+function scratchRepo(root, tmp, name) {
+  const dest = path.join(tmp, name);
+  if (run('git', ['clone', '--local', '--no-hardlinks', '--quiet', root, dest]).status !== 0) return null;
+  for (const [k, v] of [['user.email', 'admit@example.invalid'], ['user.name', 'admit'], ['commit.gpgsign', 'false']]) run('git', ['-C', dest, 'config', k, v]);
+  const seeds = DEFAULT_SEEDS.split(' ').filter((s) => fs.existsSync(path.join(root, s)));
+  const working = new Set([...listTreeFiles(root), ...seeds]);
+  for (const f of run('git', ['-C', dest, 'ls-files', '-z']).stdout.split('\0').filter(Boolean)) if (!working.has(f)) fs.rmSync(path.join(dest, f), { force: true });
+  for (const f of working) { fs.mkdirSync(path.dirname(path.join(dest, f)), { recursive: true }); fs.cpSync(path.join(root, f), path.join(dest, f), { dereference: false }); }
+  return dest;
+}
+// Node content reads, from the preload log, of a file that existed in the checkout at arm and is not a trace input.
+export function nodeReadsMissing(lines, arm, trace) {
+  const dirs = [arm.dir, arm.dir.replace(/^\/private/, ''), `/private${arm.dir}`];
+  const missing = new Set();
+  for (const line of lines) {
+    const [kind, p, fn] = line.split('\t');
+    if (kind !== 'R' || !CONTENT_FNS.has(fn)) continue;
+    const d = dirs.find((x) => p.startsWith(`${x}/`));
+    const rel = d ? p.slice(d.length + 1) : null;
+    if (rel && rel in arm.inodes && !(rel in trace.inputs)) missing.add(rel);
+  }
+  return [...missing].sort();
+}
+const poisonFile = (abs, rel) => fs.writeFileSync(abs, `AAI-REUSE-POISON ${rel}\n`);
+function probe(dir, suite, env, { rel, label, expect }) {
+  const abs = path.join(dir, rel);
+  const had = fs.existsSync(abs) ? fs.readFileSync(abs) : null;
+  if (had === null) fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.appendFileSync(abs, 'x');
+  let out;
+  try { out = run(process.execPath, [fileURLToPath(import.meta.url), 'check', '--root', dir, '--run-dir', path.join(dir, 'tests/skills/results/admit-probe'), '--mode', 'selected', '--isolation', 'on', '--suite', suite], { env, cwd: dir }).stdout; }
+  finally { if (had === null) fs.rmSync(abs, { force: true }); else fs.writeFileSync(abs, had); }
+  const got = out.split('\n')[0] || '(nothing)';
+  const ok = new RegExp(`^${expect} ${suite}\\b${expect === 'RUN' ? ' reason=inputs' : ''}`).test(got);
+  return { ok, line: `${label} ${rel} ${got.split(' ')[0]}`, why: `${label} probe on ${rel} gave: ${got}` };
+}
+function admitSuite(root, suite, tmp) {
+  const t0 = Date.now();
+  const fail = (reason) => ({ suite, ok: false, seconds: (Date.now() - t0) / 1000, reason });
+  const dir = scratchRepo(root, tmp, `${suite}-a`);
+  if (!dir) return fail('scratch-repo');
+  const tracer = path.join(root, 'tests/skills/lib/read-trace.cjs');
+  if (!fs.existsSync(tracer)) return fail('no-read-trace');
+  const log = path.join(tmp, `${suite}.nodetrace`);
+  fs.writeFileSync(log, '');
+  const env = admitEnv({ AAI_TEST_PARALLEL: '1', AAI_TRACE_OUT: log, NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --require ${tracer}`.trim() });
+  // The framework appends a line to the tracked run ledger after the suite; put it back so the probes start from the state the suite read.
+  const ledger = path.join(dir, 'docs/ai/tests/test-runs.jsonl');
+  const ledgerWas = fs.existsSync(ledger) ? fs.readFileSync(ledger) : null;
+  const r1 = run('bash', ['tests/skills/test-framework.sh', '--skill', suite], { cwd: dir, env, timeout: 1800000 });
+  if (ledgerWas !== null) fs.writeFileSync(ledger, ledgerWas);
+  const plain = `${r1.stdout}${r1.stderr}`.replace(ANSI_RE, '');
+  if (r1.status !== 0 || !/Passed:\s+1 \(100%\)/.test(plain) || /Failed:|Skipped:/.test(plain)) return fail(`fresh-run-failed rc=${r1.status} ${plain.split('\n').filter((l) => /FAIL/.test(l)).slice(0, 3).join(' | ').slice(0, 300)}`);
+  const runs = path.join(dir, 'tests/skills/results');
+  const latest = fs.readdirSync(runs).filter((n) => n.startsWith('test-')).sort().pop();
+  const trace = readJson(path.join(runs, latest || '', `${suite}.reuse-trace.json`));
+  const arm = readJson(path.join(runs, latest || '', `${suite}.reuse-arm.json`));
+  if (!trace || !arm || !readJson(storeFile(dir, suite))) return fail('no-record (trace or store missing)');
+  const lines = fs.readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  const missed = nodeReadsMissing(lines, arm, trace);
+  if (missed.length) return fail(`trace-misses-node-read ${missed[0]}`);
+  const inputs = Object.keys(trace.inputs).filter((p) => !p.startsWith('.git/')).sort();
+  const ctx = loadContext(dir, { env });
+  const harness = harnessMap(ctx, suite);
+  const readProbe = inputs.find((p) => !(p in harness));
+  const unread = trace.index_read ? null : trace.paths.find((p) => !(p in trace.inputs) && !(p in harness));
+  const probes = [
+    readProbe && probe(dir, suite, env, { rel: readProbe, label: 'read', expect: 'RUN' }),
+    probe(dir, suite, env, { rel: unread || 'tests/skills/results/admit-probe.txt', label: 'unread', expect: 'REUSE' }),
+  ].filter(Boolean);
+  const bad = probes.find((x) => !x.ok);
+  if (bad) return fail(bad.why);
+  const toPoison = trace.index_read ? [] : trace.paths.filter((p) => !(p in trace.inputs) && !p.startsWith('.git/'));
+  if (toPoison.length) {
+    const pdir = scratchRepo(root, tmp, `${suite}-p`);
+    if (!pdir) return fail('scratch-repo');
+    for (const rel of toPoison) {
+      const abs = path.join(pdir, rel);
+      if (fs.existsSync(abs)) poisonFile(abs, rel);
+    }
+    const r = run('bash', [`tests/skills/test-${suite}.sh`], { cwd: pdir, env: admitEnv({ AAI_SUITE_REUSE: '0' }), timeout: 1800000 });
+    const passed = r.status === 0;
+    if (!passed) return fail(`poisoned run failed rc=${r.status}`);
+  }
+  return { suite, ok: true, seconds: (Date.now() - t0) / 1000, reads: inputs.length, poisoned: toPoison.length, probes: probes.map((x) => x.line) };
+}
+// base: {root, ref, manifest} or null when the ref does not resolve (then every suite is admitted).
+function entryChanged(base, suite) {
+  if (!base) return true;
+  const was = base.manifest && base.manifest.suites ? base.manifest.suites[suite] : undefined;
+  if (canon(was) !== canon(loadManifest(base.root).suites[suite])) return true;
+  const file = `tests/skills/test-${suite}.sh`;
+  return run('git', ['-C', base.root, 'cat-file', '-e', `${base.ref}:${file}`]).status !== 0
+    || run('git', ['-C', base.root, 'diff', '--quiet', base.ref, '--', file]).status !== 0;
+}
+function changedBase(root, ref) {
+  if (!ref || run('git', ['-C', root, 'rev-parse', '--verify', '-q', `${ref}^{commit}`]).status !== 0) return null;
+  const shown = run('git', ['-C', root, 'show', `${ref}:${MANIFEST_REL}`]);
+  let manifest = null;
+  try { manifest = JSON.parse(shown.stdout); } catch { /* no manifest at the ref: every entry is new */ }
+  return { root, ref, manifest };
+}
+export function admitSuites({ root, suites, changedSince }) {
+  const names = suites.length ? suites : Object.keys(loadManifest(root).suites);
+  const base = changedSince ? changedBase(root, changedSince) : null;
+  const picked = changedSince ? names.filter((s) => entryChanged(base, s)) : names;
+  const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'suite-reuse-admit-'));
+  try { return picked.map((s) => admitSuite(root, s, tmp)); } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
+
 // ---- explain: what the suite's last record read ----
 export function explainSuite({ root, suite }) {
   const loaded = readStore(root, suite);
@@ -346,6 +472,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--suite') o.suites.push(argv[++i]);
+    else if (a === '--admit') o.admit = true;
     else if (a.startsWith('--')) o[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = argv[++i];
   }
   return o;
@@ -383,6 +510,16 @@ function cli(argv) {
     const r = lintManifest({ root });
     r.problems.forEach((p) => out(`${p.suite} ${p.reason}`));
     process.exitCode = r.ok ? 0 : 1;
+    if (o.admit && r.ok) {
+      if ((process.env.CI && process.env.CI !== 'false') || process.env.GITHUB_ACTIONS === 'true') { out('ADMIT-OFF ci'); return; }
+      const res = admitSuites({ root, suites: o.suites, changedSince: o.changedSince });
+      if (!res.length) out('ADMIT-NONE');
+      for (const x of res) {
+        (x.probes || []).forEach((l) => out(`ADMIT-PROBE ${x.suite} ${l}`));
+        out(x.ok ? `ADMIT-PASS ${x.suite} ${x.seconds}s reads=${x.reads} poisoned=${x.poisoned}` : `ADMIT-FAIL ${x.suite} ${x.seconds}s ${x.reason}`);
+      }
+      if (res.some((x) => !x.ok)) process.exitCode = 1;
+    }
   } else if (cmd === 'explain') {
     const r = explainSuite({ root, suite: o.suites[0] });
     if (!r.record) out(`suite ${r.suite}: no record`);

@@ -99,6 +99,7 @@ build_fx() {
   cp "$FRAMEWORK_FILE" "$r/tests/skills/test-framework.sh"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/* "$r/.aai/scripts/lib/"
   cp "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$r/.aai/scripts/"
+  mkdir -p "$r/tests/skills/lib" && cp "$PROJECT_ROOT/tests/skills/lib/read-trace.cjs" "$r/tests/skills/lib/"
   printf 'tests/skills/results/\ndocs/ai/tests/test-runs.jsonl\n' > "$r/.gitignore"
   for suite in "$@"; do fx_suite "$base" "$suite" 0; done
   fx_manifest_rows "$base" "$@"
@@ -122,6 +123,11 @@ fx_manifest_rows() {
     entries="$entries\"$suite\":{\"inputs\":[],\"live\":false,\"note\":\"fixture suite reads only its closure\"}"
     first=0
   done
+  rows="${rows}  aai-suite-reuse:
+    globs:
+"
+  for suite in "$@"; do rows="${rows}      - tests/skills/test-$suite.sh
+"; done
   printf 'core:\n  - %s\nfull_run_triggers:\n  shared_lib_globs:\n    - .aai/scripts/lib/**\nsuites:\n%s' "$core" "$rows" > "$r/tests/skills/suite-map.yaml"
   printf '{"version":1,"suites":{%s}}\n' "$entries" > "$r/tests/skills/suite-reuse.json"
 }
@@ -530,6 +536,131 @@ EOS
 test_3268_record_refusals_trace() { node_cases TEST-3268; }
 test_3269_canary() { node_cases TEST-3269; }
 
+# admit_run <base> [VAR=val ...] -- <lint --admit args>: run the fixture's own helper; sets OUT and RC.
+admit_run() {
+  local base="$1" envs=()
+  shift
+  while [[ "$1" != "--" ]]; do envs+=("$1"); shift; done
+  shift
+  RC=0
+  OUT="$(env -u AAI_ROLE -u CI -u GITHUB_ACTIONS -u AAI_SUITE_REUSE ${envs[@]+"${envs[@]}"} \
+    node "$base/repo/.aai/scripts/suite-reuse.mjs" lint --root "$base/repo" --admit "$@" 2>&1)" || RC=$?
+}
+commit_fx() { (cd "$1/repo" && git add -A && git commit -q -m "$2") || log_fail "fixture could not be committed ($2)"; }
+
+# test_3270: a suite that reads a file and restores its access time hides the read from the
+# trace; the poisoned run (every unread file overwritten) fails, so admission refuses it.
+test_3270_poisoned_run() {
+  local base r
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" hide
+  printf 'the-secret\n' > "$r/secret.txt"
+  printf '#!/usr/bin/env bash\nline="$(head -n 1 secret.txt)"\ntouch -a -t 199901010000 secret.txt\n[[ "$line" == "the-secret" ]] || exit 1\nexit 0\n' > "$r/tests/skills/test-hide.sh"
+  commit_fx "$base" hide
+  admit_run "$base" --
+  [[ "$RC" -eq 1 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3270: expected exit 1, got $RC"; }
+  expect "TEST-3270" "$OUT" "ADMIT-FAIL hide "
+  expect "TEST-3270" "$OUT" "poisoned run failed"
+  log_pass "TEST-3270 (a hidden read fails the poisoned run, admission exits 1)"
+}
+
+# test_3271: the same for a Node read hidden with utimesSync and a suite that never fails on content:
+# only the preload cross-check can see it.
+test_3271_node_read_cross_check() {
+  local base r
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" nodehide
+  printf 'n\n' > "$r/n.txt"
+  cat > "$r/tests/skills/test-nodehide.sh" <<'EOS'
+#!/usr/bin/env bash
+node -e "const fs = require('fs'); const st = fs.statSync('n.txt'); fs.readFileSync('n.txt'); fs.utimesSync('n.txt', 946684800, st.mtime)"
+exit 0
+EOS
+  commit_fx "$base" nodehide
+  admit_run "$base" --
+  [[ "$RC" -eq 1 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3271: expected exit 1, got $RC"; }
+  expect "TEST-3271" "$OUT" "ADMIT-FAIL nodehide "
+  expect "TEST-3271" "$OUT" "trace-misses-node-read n.txt"
+  log_pass "TEST-3271 (a Node read with a restored access time is caught by the preload cross-check)"
+}
+
+# test_3273: an honest suite is admitted; the output shows the read probe as RUN, the unread one as REUSE.
+test_3273_admission_pass() {
+  local base r
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" ok
+  printf 'one\n' > "$r/d1.txt"; printf 'two\n' > "$r/d2.txt"; printf 'three\n' > "$r/d3.txt"
+  printf '#!/usr/bin/env bash\ncat d1.txt > /dev/null\nexit 0\n' > "$r/tests/skills/test-ok.sh"
+  commit_fx "$base" ok
+  admit_run "$base" --
+  [[ "$RC" -eq 0 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3273: expected exit 0, got $RC"; }
+  expect "TEST-3273" "$OUT" "ADMIT-PROBE ok read d1.txt RUN"
+  expect "TEST-3273" "$OUT" "ADMIT-PROBE ok unread "
+  [[ "$OUT" =~ ADMIT-PROBE\ ok\ unread\ [^[:space:]]+\ REUSE ]] || log_fail "TEST-3273: the unread probe did not give REUSE"
+  [[ "$OUT" =~ ADMIT-PASS\ ok\ [0-9.]+s\ reads=[0-9]+\ poisoned=[2-9][0-9]* ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3273: no ADMIT-PASS line with reads and poisoned counts"; }
+  log_pass "TEST-3273 (ADMIT-PASS with reads and poisoned counts; read probe RUN, unread probe REUSE)"
+}
+
+# test_3274: --changed-since admits only changed entries; CI turns admission off.
+test_3274_changed_since_and_ci() {
+  local base r
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" aa bb
+  admit_run "$base" -- --changed-since HEAD
+  [[ "$RC" -eq 0 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3274: ADMIT-NONE run exited $RC"; }
+  expect "TEST-3274 none" "$OUT" "ADMIT-NONE"
+  expect_not "TEST-3274 none" "$OUT" "ADMIT-PASS"
+  sed -i.bak 's/"aa":{"inputs":\[\],"live":false,"note":"fixture suite reads only its closure"}/"aa":{"inputs":[],"live":false,"note":"changed note"}/' "$r/tests/skills/suite-reuse.json"
+  rm -f "$r/tests/skills/suite-reuse.json.bak"
+  admit_run "$base" -- --changed-since HEAD
+  [[ "$RC" -eq 0 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3274: changed-entry run exited $RC"; }
+  expect "TEST-3274 changed" "$OUT" "ADMIT-PASS aa "
+  expect_not "TEST-3274 changed" "$OUT" " bb "
+  admit_run "$base" CI=true -- --changed-since HEAD
+  [[ "$RC" -eq 0 ]] || log_fail "TEST-3274: CI run exited $RC"
+  expect "TEST-3274 ci" "$OUT" "ADMIT-OFF ci"
+  expect_not "TEST-3274 ci" "$OUT" "ADMIT-PASS"
+  log_pass "TEST-3274 (ADMIT-NONE, only the changed entry admitted, ADMIT-OFF ci)"
+}
+
+# test_3275: the live manifest lists the eleven suites, each live false with a note, each selected by the gate row.
+test_3275_live_manifest() {
+  local out rc=0 src suite f
+  out="$(env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3275: lint exited $rc"; }
+  src="$(MAN="$PROJECT_ROOT/tests/skills/suite-reuse.json" node -e '
+    const m = JSON.parse(require("fs").readFileSync(process.env.MAN, "utf8")).suites;
+    const want = ["aai-docs-content","aai-spec-lint","aai-hygiene-pack","aai-prompt-diet","aai-ride-status","aai-win-fallback","aai-feedback-status","aai-pricing","aai-redact","aai-orchestration-mode","aai-runtime-file"];
+    const bad = want.filter((s) => !m[s] || m[s].live !== false || typeof m[s].note !== "string" || !m[s].note.trim());
+    console.log(bad.length ? "FAIL " + bad.join(",") : "OK");
+  ')"
+  [[ "$src" == OK ]] || log_fail "TEST-3275: manifest entries missing or unqualified: $src"
+  for suite in aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-ride-status aai-win-fallback; do
+    f="tests/skills/test-$suite.sh"
+    out="$(printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")" \
+      || log_fail "TEST-3275: select-suites.mjs failed for $f"
+    [[ $'\n'"$out" =~ $'\n'SELECTED\ aai-suite-reuse($|[[:space:]]) ]] || log_fail "TEST-3275: $f does not select aai-suite-reuse"
+  done
+  log_pass "TEST-3275 (lint clean, eleven qualified entries, six named suite files select the gate)"
+}
+
+# test_3276: the live admission over every suite that differs from main (all eleven on this branch).
+test_3276_live_admission() {
+  local out rc=0 n
+  if [[ -n "${CI:-}" && "${CI:-}" != false || "${GITHUB_ACTIONS:-}" == true ]]; then
+    out="$(env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" --admit --changed-since main 2>&1)" || rc=$?
+    [[ "$rc" -eq 0 && "$out" == *"ADMIT-OFF ci"* ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3276: expected ADMIT-OFF ci under CI"; }
+    log_pass "TEST-3276 (ADMIT-OFF ci)"
+    return 0
+  fi
+  out="$(env -u AAI_ROLE -u AAI_SUITE_REUSE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" --admit --changed-since main 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { printf '%s\n' "$out" | grep -E '^ADMIT-' >&2; log_fail "TEST-3276: live admission exited $rc"; }
+  n="$(printf '%s\n' "$out" | grep -c '^ADMIT-PASS ' || true)"
+  expect_not "TEST-3276" "$out" "ADMIT-FAIL"
+  [[ "$n" -ge 1 || "$out" == *"ADMIT-NONE"* ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3276: no ADMIT-PASS or ADMIT-NONE line, so nothing was admitted"; }
+  log_pass "TEST-3276 ($n ADMIT-PASS lines on the live manifest)"
+}
+
 # test_3272: framework ledger writes are not inputs of a suite that does not read them,
 # and a ledger read through a path built at run time is (the false hit this scope removes).
 test_3272_ledgers_not_inputs() {
@@ -718,6 +849,12 @@ main() {
   test_3267_source_shape
   test_3268_record_refusals_trace
   test_3269_canary
+  test_3270_poisoned_run
+  test_3271_node_read_cross_check
+  test_3273_admission_pass
+  test_3274_changed_since_and_ci
+  test_3275_live_manifest
+  test_3276_live_admission
   test_3272_ledgers_not_inputs
   test_3277_framework_wiring
   test_3168_env_component

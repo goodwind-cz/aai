@@ -73,7 +73,7 @@ export function armTrace({ dir, runDir, suite, seedPaths = [], atimeProbe }) {
   }
   try { const st = fs.lstatSync(dir); fs.lutimesSync(dir, ATIME_FLOOR, st.mtime); } catch { /* root left as is */ }
   const canary = atimeAdvances(dir, atimeProbe);
-  const arm = { suite, run_id: path.basename(runDir), canary, paths: [...paths].sort(), hashes, inodes };
+  const arm = { suite, run_id: path.basename(runDir), dir: fs.realpathSync(dir), canary, paths: [...paths].sort(), hashes, inodes };
   fs.mkdirSync(runDir, { recursive: true });
   fs.writeFileSync(armFile(runDir, suite), JSON.stringify(arm));
   return arm;
