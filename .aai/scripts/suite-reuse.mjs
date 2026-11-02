@@ -538,7 +538,8 @@ function overlaps(a, b) {
   const [x, y] = [realOrResolve(a), realOrResolve(b)].map((p) => (p.endsWith(path.sep) ? p : p + path.sep));
   return x.startsWith(y) || y.startsWith(x);
 }
-function realOrResolve(p) { try { return fs.realpathSync(p); } catch { return path.resolve(p); } }
+// .native returns the on-disk letter case on case-insensitive volumes, so /r/repo and /r/REPO compare equal
+function realOrResolve(p) { try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } }
 const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) cli(process.argv.slice(2));
 export { IDENTITY_COMPONENTS, REUSE_POLICY_VERSION };

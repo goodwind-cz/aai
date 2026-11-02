@@ -595,4 +595,24 @@ test('TEST-3269 armTrace with an access-time probe that reports no advance gives
   assert.equal(after.mtimeMs, before.mtimeMs, 'refused calls left the sentinel mtime');
   const sib = scratchCheckout({ 'a.txt': 'a\n' });
   assert.equal(armAt('arm', sib.dir).status, 0, 'a sibling temp dir is still armed');
+  // a case variant of the root names the same directory on a case-insensitive volume; the guard must still refuse it
+  const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'reuse-case-')));
+  roots.push(tmp);
+  const cRoot = path.join(tmp, 'repo');
+  fs.mkdirSync(cRoot);
+  git(cRoot, 'init', '-q');
+  const cSentinel = path.join(cRoot, 'sentinel.txt');
+  fs.writeFileSync(cSentinel, 's\n');
+  if (!fs.existsSync(path.join(tmp, 'REPO'))) {
+    console.log('TEST-3269 case-variant assertion skipped: the temp volume is case-sensitive');
+  } else {
+    const cBefore = fs.lstatSync(cSentinel);
+    for (const cmd of ['arm', 'collect']) {
+      const r = spawnSync(process.execPath, [HELPER, cmd, '--root', cRoot, '--dir', path.join(tmp, 'REPO'), '--run-dir', b.runDir, '--suite', 'fx'], { encoding: 'utf8', cwd: tmp });
+      assert.equal(r.status, 2, `${cmd} refuses a case variant of the root`);
+    }
+    const cAfter = fs.lstatSync(cSentinel);
+    assert.equal(cAfter.atimeMs, cBefore.atimeMs, 'case-variant refusal left the sentinel access time');
+    assert.equal(cAfter.mtimeMs, cBefore.mtimeMs, 'case-variant refusal left the sentinel mtime');
+  }
 });
