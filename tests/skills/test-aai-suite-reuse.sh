@@ -726,6 +726,25 @@ test_3277_framework_wiring() {
   log_pass "TEST-3277 (declared suite traced serially and in a wave; undeclared and opted-out not; failing arm keeps the verdict)"
 }
 
+# test_3278: the Reuse exception paragraph says files read, and the prompt glob did not grow past the baseline commit.
+test_3278_canon_wording() {
+  local verify="$PROJECT_ROOT/.aai/SKILL_VERIFY.prompt.md" para now=0 was=0 f base=5e9f1350 n
+  para="$(awk '/^## Iron Law/ {seen=1} seen && /^Reuse exception:/ {p=1} p && NF==0 {exit} p {print}' "$verify")"
+  [[ "$para" == *"files read"* ]] || log_fail "TEST-3278: the Reuse exception paragraph lacks 'files read'"
+  [[ "$para" != *"declared inputs"* ]] || log_fail "TEST-3278: the Reuse exception paragraph still says 'declared inputs'"
+  if git -C "$PROJECT_ROOT" cat-file -e "$base^{commit}" 2>/dev/null; then
+    now="$(cat "$PROJECT_ROOT"/.aai/*.prompt.md | wc -c | tr -d ' ')"
+    while IFS= read -r f; do
+      n="$(git -C "$PROJECT_ROOT" show "$base:$f" | wc -c | tr -d ' ')"
+      was=$((was + n))
+    done < <(git -C "$PROJECT_ROOT" ls-tree --name-only "$base" .aai/ | grep '^\.aai/[^/]*\.prompt\.md$')
+    [[ "$now" -le "$was" ]] || log_fail "TEST-3278: cat .aai/*.prompt.md is $now B, baseline $base is $was B"
+    log_pass "TEST-3278 (files read; prompt glob $now B <= baseline $was B)"
+  else
+    log_pass "TEST-3278 (files read; baseline commit $base not available here, size comparison skipped)"
+  fi
+}
+
 # test_3190: the guarded select-suites.mjs still runs as the entry point and prints
 # its selection (CLI contract); the full contract is the unchanged aai-suite-select
 # suite, run in Verification. This row exists so the guard's mutation record can
@@ -847,6 +866,7 @@ main() {
   test_3265_index_read_whole_tree
   test_3266_env_from_files_read
   test_3267_source_shape
+  test_3278_canon_wording
   test_3268_record_refusals_trace
   test_3269_canary
   test_3270_poisoned_run
