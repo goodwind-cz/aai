@@ -101,7 +101,10 @@ async function treePaths(root) {
 // tree file now) or to a string (the hash to claim); the suite file is always an input.
 async function writeTrace(root, suite, runDir, over = {}) {
   const inputs = { [`tests/skills/test-${suite}.sh`]: true, ...(over.inputs || {}) };
-  for (const [p, v] of Object.entries(inputs)) inputs[p] = v === true ? sha(fs.readFileSync(path.join(root, p))) : v;
+  for (const [p, v] of Object.entries(inputs)) {
+    const abs = path.join(root, p);
+    inputs[p] = v === true ? sha(fs.readFileSync(abs)) + ((fs.statSync(abs).mode & 0o111) ? ':x' : ':-') : v;
+  }
   const trace = {
     suite, run_id: path.basename(runDir), canary: true, git_read: false, index_read: false, paths: await treePaths(root), env_names: [],
     ...over, inputs,
@@ -480,6 +483,20 @@ test('TEST-3262 a traced input edit gives RUN reason=inputs naming it; an edit o
   await pass(b, 'fx', { trace: { inputs: { 'docs/x.md': true } } });
   write(b, 'docs/y.md', 'y edited\n');
   assert.equal((await chk(b, 'fx')).status, 'REUSE');
+  // the executable bit is part of an input's identity: chmod -x on a traced input is a change, on an untraced file it is not
+  if (process.platform !== 'win32') {
+    const c = mk();
+    write(c, 'docs/x.md', 'x\n');
+    fs.chmodSync(path.join(c, 'docs/x.md'), 0o755);
+    await pass(c, 'fx', { trace: { inputs: { 'docs/x.md': true } } });
+    assert.equal((await chk(c, 'fx')).status, 'REUSE');
+    fs.chmodSync(path.join(c, 'docs/x.md'), 0o644);
+    const m = await chk(c, 'fx');
+    assert.equal(m.reason, 'inputs');
+    assert.equal(m.detail, 'changed docs/x.md');
+    fs.chmodSync(path.join(c, 'docs/y.md'), 0o755);
+    assert.equal((await chk(c, 'fx')).reason, 'inputs', 'still the x.md change');
+  }
 });
 
 test('TEST-3263 an untracked file no trace names gives reason=paths added it; a removed untraced tracked file gives reason=paths removed', async () => {

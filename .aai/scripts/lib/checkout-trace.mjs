@@ -18,6 +18,8 @@ const MAX_TEXT_BYTES = 4 * 1024 * 1024;
 
 const posix = (p) => p.split(path.sep).join('/');
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
+// A file's identity is its bytes plus its executable bit: chmod -x changes what a suite that runs it sees.
+export const contentHash = (data, mode) => sha256(data) + ((mode & 0o111) ? ':x' : ':-');
 const armFile = (runDir, suite) => path.join(runDir, `${suite}.reuse-arm.json`);
 const traceFile = (runDir, suite) => path.join(runDir, `${suite}.reuse-trace.json`);
 
@@ -66,7 +68,7 @@ export function armTrace({ dir, runDir, suite, seedPaths = [], atimeProbe }) {
     entries.push([abs, st]);
     if (st.isDirectory()) return;
     inodes[rel] = st.ino;
-    if (st.isFile() && !rel.startsWith('.git/')) hashes[rel] = sha256(fs.readFileSync(abs));
+    if (st.isFile() && !rel.startsWith('.git/')) hashes[rel] = contentHash(fs.readFileSync(abs), st.mode);
   });
   for (const [abs, st] of entries) {
     try { fs.lutimesSync(abs, ATIME_FLOOR, st.mtime); } catch { /* an entry that cannot be reset stays an unverified input */ }

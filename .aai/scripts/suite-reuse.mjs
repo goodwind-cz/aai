@@ -31,7 +31,7 @@ import { parseSuiteMap, matchesGlob } from './select-suites.mjs';
 import { listTreeFiles } from './lib/tree-hash.mjs';
 import { atomicWrite, loadOrDegrade, reapAsides } from './lib/runtime-file.mjs';
 import { armTrace, collectTrace } from './lib/checkout-trace.mjs';
-import { referencedNames } from './lib/checkout-trace.mjs';
+import { referencedNames, contentHash } from './lib/checkout-trace.mjs';
 
 const IDENTITY_COMPONENTS = ['inputs', 'paths', 'env', 'args', 'runtime', 'policy', 'history'];
 const REUSE_POLICY_VERSION = 2;
@@ -112,7 +112,7 @@ function resolveTimeout(raw) { return /^[0-9]+$/.test(raw || '') && Number(raw) 
 function fileHash(ctx, rel) {
   if (!ctx.hashes.has(rel)) {
     let h = 'absent';
-    try { h = sha256(fs.readFileSync(path.join(ctx.root, rel))); } catch { /* absent or unreadable: a later creation is a change */ }
+    try { const abs = path.join(ctx.root, rel); h = contentHash(fs.readFileSync(abs), fs.statSync(abs).mode); } catch { /* absent or unreadable: a later creation is a change */ }
     ctx.hashes.set(rel, h);
   }
   return ctx.hashes.get(rel);

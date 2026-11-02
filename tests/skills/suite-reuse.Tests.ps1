@@ -55,6 +55,13 @@ Describe 'suite-reuse helper' {
       $null = Invoke-Check $Repo $Run
       Write-Text (Join-Path $dir 'fx.log') "PASS fx`n"
       $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $Repo 'tests/skills/data/a.txt')).Hash.ToLower()
+      # an input's identity is its sha256 plus its executable bit (checkout-trace.mjs contentHash); NTFS has none
+      $exec = '-'
+      if ($PSVersionTable.PSEdition -eq 'Core' -and -not $IsWindows) {
+        $m = [int][System.IO.File]::GetUnixFileMode((Join-Path $Repo 'tests/skills/data/a.txt'))
+        if ($m -band 0x49) { $exec = 'x' }
+      }
+      $hash = $hash + ':' + $exec
       $listed = @(& git -C $Repo ls-files --others --exclude-standard | ForEach-Object { "$_" })
       $trace = [ordered]@{
         suite = 'fx'; run_id = $Run; canary = $true; git_read = $false; index_read = $false
