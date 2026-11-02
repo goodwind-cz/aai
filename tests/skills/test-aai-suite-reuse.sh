@@ -893,6 +893,41 @@ test_3279_trace_measurements() {
   log_pass "TEST-3279 (trace-identity measurements: ${out#OK })"
 }
 
+# test_3300: a suite that reads the git index is REUSED on an unchanged rerun although the framework
+# appended its run line to the tracked ledger docs/ai/tests/test-runs.jsonl after each run.
+test_3300_ledger_append_reused() {
+  local base r n1 n2 n3
+  base="$(new_base)"
+  r="$base/repo"
+  build_fx "$base" aai-fx aai-ix
+  printf 'tests/skills/results/\n' > "$r/.gitignore"
+  printf '{"seed":1}\n' > "$r/docs/ai/tests/test-runs.jsonl"
+  printf 'a\n' > "$r/a.txt"
+  printf '#!/usr/bin/env bash\necho run >> '"'%s/m/aai-ix'"'\ngit status --porcelain > /dev/null 2>&1\ncat a.txt > /dev/null\nexit 0\n' "$base" > "$r/tests/skills/test-aai-ix.sh"
+  (cd "$r" && git add -A && git commit -q -m ledger) || log_fail "TEST-3300: fixture could not be committed"
+  fw_go "$base" -- --skill aai-ix
+  [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3300: run 1 exited $RC"; }
+  n1="$(wc -l < "$r/docs/ai/tests/test-runs.jsonl" | tr -d ' ')"
+  fw_go "$base" -- --skill aai-ix
+  [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3300: run 2 exited $RC"; }
+  n2="$(wc -l < "$r/docs/ai/tests/test-runs.jsonl" | tr -d ' ')"
+  [[ "$n2" -gt "$n1" ]] || log_fail "TEST-3300: run 1 did not append to the ledger ($n1 / $n2)"
+  if [[ "$OUT" != *"REUSED (run "* ]]; then
+    printf '%s\n' "$(helper_check "$base" aai-ix)" >&2
+    show_out
+    log_fail "TEST-3300: run 2 did not report aai-ix REUSED"
+  fi
+  fw_go "$base" -- --skill aai-ix
+  [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3300: run 3 exited $RC"; }
+  n3="$(wc -l < "$r/docs/ai/tests/test-runs.jsonl" | tr -d ' ')"
+  [[ "$n3" -gt "$n2" ]] || log_fail "TEST-3300: run 2 did not append to the ledger ($n2 / $n3)"
+  expect "TEST-3300 run 3" "$OUT" "REUSED (run "
+  [[ "$(marker_count "$base" aai-ix)" -eq 1 ]] || log_fail "TEST-3300: the suite executed more than once ($(marker_count "$base" aai-ix))"
+  log_pass "TEST-3300 (index-reading suite REUSED across two framework ledger appends)"
+}
+test_3301_ledger_tolerance_rules() { node_cases TEST-3301; }
+test_3302_tolerance_scope() { node_cases TEST-3302; }
+
 main() {
   echo "Testing $TEST_NAME (spec-precise-suite-evidence-reuse, spec-reuse-for-docs-reading-suites)"
   check_deps
@@ -943,6 +978,9 @@ main() {
   test_3187_ledger_entry
   test_3189_analysis_note
   test_3279_trace_measurements
+  test_3300_ledger_append_reused
+  test_3301_ledger_tolerance_rules
+  test_3302_tolerance_scope
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
