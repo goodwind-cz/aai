@@ -1,10 +1,13 @@
-# suite-reuse helper parity (spec-precise-suite-evidence-reuse, Spec-AC-10 / TEST-3184).
+# suite-reuse helper parity (spec-precise-suite-evidence-reuse, Spec-AC-10 / TEST-3184;
+# trace identity: spec-reuse-for-docs-reading-suites D10).
 # The reuse logic is one Node module on every platform; these cases run its CLI
 # against a throwaway fixture repository under $TestDrive so the Windows hosts
 # (Windows PowerShell 5.1 and pwsh 7, native and WSL) prove the same behavior as
-# POSIX: a recorded pass is REUSE, an edited declared input and an added
-# untracked file are RUN with reason=inputs, and the store keeps its input
-# paths with '/' separators. No case may skip.
+# POSIX: a pass recorded with a trace file is REUSE, an edited traced input is
+# RUN with reason=inputs, an added untracked file is RUN with reason=paths, and
+# the store keeps its input paths with '/' separators. The trace file is
+# written synthetically (the access-time canary decides on a real host). No case
+# may skip.
 Describe 'suite-reuse helper' {
   BeforeAll {
     $script:Root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -51,6 +54,13 @@ Describe 'suite-reuse helper' {
       $dir = Join-Path $Repo "tests/skills/results/$Run"
       $null = Invoke-Check $Repo $Run
       Write-Text (Join-Path $dir 'fx.log') "PASS fx`n"
+      $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $Repo 'tests/skills/data/a.txt')).Hash.ToLower()
+      $listed = @(& git -C $Repo ls-files --others --exclude-standard | ForEach-Object { "$_" })
+      $trace = [ordered]@{
+        suite = 'fx'; run_id = $Run; canary = $true; git_read = $false; index_read = $false
+        inputs = [ordered]@{ 'tests/skills/data/a.txt' = $hash }; paths = $listed; env_names = @()
+      }
+      Write-Text (Join-Path $dir 'fx.reuse-trace.json') (ConvertTo-Json -InputObject $trace -Depth 5)
       Write-Text (Join-Path $dir 'metrics.jsonl') ('{"skill":"fx","status":"PASS","exit_code":0,"duration_seconds":1,"tripwire_attested":true,"tripwire_hasher_degraded":false}' + "`n")
       Invoke-Helper @('record', '--root', $Repo, '--run-dir', $dir, '--suite', 'fx', '--isolation', 'isolated', '--seeding', 'seeded')
     }
@@ -68,18 +78,18 @@ Describe 'suite-reuse helper' {
     $r.Text | Should -Match '^REUSE fx run=run1 at=\S+ log=tests/skills/results/run1/fx\.log'
   }
 
-  It 'runs again with reason=inputs when a declared input is edited' {
+  It 'runs again with reason=inputs when a traced input is edited' {
     $repo = New-Fixture
     $null = Add-Record $repo 'run1'
     Write-Text (Join-Path $repo 'tests/skills/data/a.txt') "a edited`n"
     (Invoke-Check $repo 'run2').Text | Should -Match 'RUN fx reason=inputs changed tests/skills/data/a\.txt'
   }
 
-  It 'runs again with reason=inputs when an untracked file matches a declared glob' {
+  It 'runs again with reason=paths when an untracked file appears' {
     $repo = New-Fixture
     $null = Add-Record $repo 'run1'
     Write-Text (Join-Path $repo 'tests/skills/data/b.txt') "b`n"
-    (Invoke-Check $repo 'run2').Text | Should -Match 'RUN fx reason=inputs added tests/skills/data/b\.txt'
+    (Invoke-Check $repo 'run2').Text | Should -Match 'RUN fx reason=paths added tests/skills/data/b\.txt'
   }
 
   It 'stores input paths with slash separators' {

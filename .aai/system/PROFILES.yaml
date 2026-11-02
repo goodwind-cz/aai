@@ -237,6 +237,7 @@ core:
   - .aai/scripts/spec-scope-edit.mjs
   - .aai/scripts/state.mjs
   - .aai/scripts/suite-reuse.mjs
+  - .aai/scripts/lib/checkout-trace.mjs
   - .aai/scripts/sync-harness-skills.mjs
   - .aai/scripts/tdd-evidence-check.mjs
   - .aai/scripts/tracked-ignored.mjs
