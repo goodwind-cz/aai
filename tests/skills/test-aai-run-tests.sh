@@ -36,6 +36,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 RUN_TESTS_SCRIPT="${AAI_RUN_TESTS_SCRIPT:-$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh}"
 REAP_SCRIPT="${AAI_REAP_SCRIPT:-$PROJECT_ROOT/.aai/scripts/aai-reap-tests.sh}"
+REAP_MJS="$PROJECT_ROOT/.aai/scripts/aai-reap-tests.mjs"   # the reaper logic (the sh file is a thin launcher)
 
 # This suite drives the REAL wrapper with deliberately-failing / timing-out
 # commands from the repo-root cwd (where docs/ai/friction exists), so the
@@ -817,20 +818,20 @@ test_018() {
 
 # --- TEST-019 — portability: epoch mode is ps etime + date +%s ONLY (Spec-AC-04) --
 test_019() {
-  log_info "TEST-019: portability — epoch mode uses ONLY ps etime + date +%s; no ps -o lstart, no date -d/-j string parsing..."
-  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
-  # Static guard on CODE only (comments legitimately name the forbidden
-  # constructs to document why they're avoided — strip comments first, same
-  # technique TEST-013 uses for the [[ ]] guard).
+  log_info "TEST-019: portability — epoch mode uses ONLY ps etime + the snapshot second; no ps -o lstart, no date -d/-j string parsing (aai-reap-tests.mjs)..."
+  [[ -f "$REAP_MJS" ]] || log_fail "reaper module not found: $REAP_MJS"
+  # Static guard on CODE only (comments legitimately name the forbidden constructs to document why they're avoided).
   local code
-  code="$(sed 's/#.*$//' "$REAP_SCRIPT")"
+  code="$(sed 's#//.*$##' "$REAP_MJS")"
   assert_payload_not_contains "$code" 'lstart' "reaper must not parse ps -o lstart (BSD/GNU epoch-parsing minefield, LEARNED 2026-07-19)"
   assert_payload_line_not_matches "$code" 'date -d|date -j' "reaper must not use date -d/-j string parsing (BSD/GNU minefield, LEARNED 2026-07-19)"
-  grep -qF 'AAI_REAP_STEP_START_EPOCH' "$REAP_SCRIPT" \
+  grep -qF 'AAI_REAP_STEP_START_EPOCH' "$REAP_MJS" \
     || log_fail "reaper must support AAI_REAP_STEP_START_EPOCH (epoch mode not implemented)"
-  grep -qE 'date \+%s' "$REAP_SCRIPT" \
-    || log_fail "reaper must capture the snapshot instant via date +%s"
-  log_pass "reaper source uses only ps etime + date +%s (no lstart, no date -d/-j string parsing)"
+  grep -qE "PS_MATCH_ARGS = \\[.*etime=" "$REAP_MJS" \
+    || log_fail "reaper must list processes with ps etime= (PS_MATCH_ARGS)"
+  grep -qF 'Date.now()' "$REAP_MJS" \
+    || log_fail "reaper must capture the snapshot instant via Date.now()"
+  log_pass "reaper source uses only ps etime + the snapshot second (no lstart, no date -d/-j string parsing)"
 }
 
 # --- TEST-020 — producer wiring documented in SKILL_LOOP + VALIDATION (Spec-AC-06) --
@@ -920,14 +921,12 @@ test_021() {
 # of the reaper and drives it with the exact garbage shapes the race produces.
 test_022() {
   log_info "TEST-022: etime_to_secs fail-safe — non-etime / out-of-range / impossible age -> sentinel -1 (spare); valid etimes parse exactly..."
-  [[ -f "$REAP_SCRIPT" ]] || log_fail "reaper script not found: $REAP_SCRIPT"
-  local fn; fn="$TMP_ROOT/etime_fn.$$.sh"
-  sed -n '/^etime_to_secs() {/,/^}/p' "$REAP_SCRIPT" > "$fn"
-  grep -q 'etime_to_secs' "$fn" || log_fail "TEST-022: could not extract etime_to_secs from the reaper"
+  [[ -f "$REAP_MJS" ]] || log_fail "reaper module not found: $REAP_MJS"
   local ets ets2
-  ets() { sh -c ". '$fn'; etime_to_secs \"\$1\"" _ "$1"; }
+  # The pure function is imported from aai-reap-tests.mjs (the sh file is a thin launcher); the path travels in the environment because the module's main guard compares argv[1] with itself.
+  ets() { REAP_MJS="$REAP_MJS" node --input-type=module -e 'import { pathToFileURL } from "node:url"; const m = await import(pathToFileURL(process.env.REAP_MJS).href); process.stdout.write(String(m.etimeToSecs(process.argv[1])))' "$1"; }
   # 2-arg form: pass SNAP_NOW so the pre-epoch plausibility clamp is exercised.
-  ets2() { sh -c ". '$fn'; etime_to_secs \"\$1\" \"\$2\"" _ "$1" "$2"; }
+  ets2() { REAP_MJS="$REAP_MJS" node --input-type=module -e 'import { pathToFileURL } from "node:url"; const m = await import(pathToFileURL(process.env.REAP_MJS).href); process.stdout.write(String(m.etimeToSecs(process.argv[1], Number(process.argv[2]))))' "$1" "$2"; }
   # Valid etimes must still parse exactly (no regression to the reap-old direction).
   [ "$(ets '00:00')" = "0" ]        || log_fail "TEST-022: 00:00 must be 0 (got $(ets '00:00'))"
   [ "$(ets '00:03')" = "3" ]        || log_fail "TEST-022: 00:03 must be 3"
@@ -962,8 +961,7 @@ test_022() {
   # `[ age -lt 0 ] && continue` fires BEFORE the legacy `age >= MIN_AGE` check —
   # otherwise MIN_AGE=0 (the documented default) would reap it via `0 >= 0`.
   [ "$(ets2 '441077234-00:18:40' "$NOW")" -lt 0 ] 2>/dev/null || log_fail "TEST-022: the impossible-age sentinel must be < 0 so it is skipped even under MIN_AGE=0 (Codex P1)"
-  rm -f "$fn"
-  log_pass "etime_to_secs fails safe on non-etime + out-of-range + impossible-age input (sentinel -1 < 0, spared under any MIN_AGE); valid etimes parse exactly, real large ages survive the clamp (TEST-022)"
+  log_pass "etimeToSecs fails safe on non-etime + out-of-range + impossible-age input (sentinel -1 < 0, spared under any MIN_AGE); valid etimes parse exactly, real large ages survive the clamp (TEST-022)"
 }
 
 # --- TEST-023 — `reaped raw:` diagnostic: verbatim ps snapshot lines ----------

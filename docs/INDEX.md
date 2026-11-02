@@ -62,7 +62,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (606)
+## Done (608)
 
 | ID | Type | Path |
 |---|---|---|
@@ -301,6 +301,7 @@ _None._
 | CHANGE-0238 | issues | docs/issues/CHANGE-0238-ride-status-and-resume.md |
 | CHANGE-0239 | issues | docs/issues/CHANGE-0239-node-first-small-pairs.md |
 | CHANGE-0240 | issues | docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md |
+| CHANGE-0241 | issues | docs/issues/CHANGE-0241-node-first-reap-tests.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -670,6 +671,7 @@ _None._
 | SPEC-0264 | specs | docs/specs/SPEC-0264-spec-ride-status-and-resume.md |
 | SPEC-0265 | specs | docs/specs/SPEC-0265-spec-node-first-small-pairs.md |
 | SPEC-0266 | specs | docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md |
+| SPEC-0267 | specs | docs/specs/SPEC-0267-spec-node-first-reap-tests.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

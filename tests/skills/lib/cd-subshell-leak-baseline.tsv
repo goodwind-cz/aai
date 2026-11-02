@@ -18,6 +18,7 @@
 3	.aai/scripts/aai-bootstrap.sh
 1	.aai/scripts/aai-canonicalize.sh
 1	.aai/scripts/aai-live.sh
+1	.aai/scripts/aai-reap-tests.sh
 10	.aai/scripts/aai-run-tests.sh
 2	.aai/scripts/aai-sync.sh
 1	.aai/scripts/aai-update.sh
@@ -104,6 +105,7 @@
 2	tests/skills/test-aai-prompt-hash.sh
 2	tests/skills/test-aai-prune-stale-briefs.sh
 2	tests/skills/test-aai-r-guard.sh
+3	tests/skills/test-aai-reap-tests.sh
 2	tests/skills/test-aai-recheck.sh
 3	tests/skills/test-aai-reconcile-telemetry.sh
 2	tests/skills/test-aai-redact.sh

@@ -268,10 +268,10 @@ Seam analysis (cross-feature integration):
 | TEST-003 | Spec-AC-01 | unit        | tests/skills/aai-win-dispatch.Tests.ps1 | all probes negative -> error branch chosen (never a partial launch)         | green |
 | TEST-004 | Spec-AC-02 | unit        | tests/skills/aai-win-dispatch.Tests.ps1 | error branch: exit 78, exactly one stderr line ^AAI-ENV-ERROR: with names   | green |
 | TEST-005 | Spec-AC-03 | unit        | tests/skills/aai-win-dispatch.Tests.ps1 | Git-Bash run: wrapper path+args+AAI_TEST_TIMEOUT passthrough; timeout->124 + tree-kill call; normal->child code | green |
-| TEST-006 | Spec-AC-04 | unit        | tests/skills/aai-win-dispatch.Tests.ps1 | reap: mocked snapshot — other-workspace spared, young spared, old match killed as tree; prints reaped: N | green |
+| TEST-006 | Spec-AC-04 | unit        | tests/skills/lib/aai-reap-tests.test.mjs | reap: mocked snapshot — other-workspace spared, young spared, old match killed as tree; prints reaped: N Re-homed by node-first-reap-tests: the reaper is now aai-reap-tests.mjs and these mocked-snapshot cases are TEST-3234 and TEST-3235 of tests/skills/lib/aai-reap-tests.test.mjs. | green |
 | TEST-007 | Spec-AC-05 | unit        | tests/skills/test-aai-win-fallback.sh   | AAI_UNAME=MSYS_NT-10.0 -> degraded branch marker on stderr; unset -> current chain untouched | green |
 | TEST-008 | Spec-AC-06 | integration | tests/skills/test-aai-run-tests.sh      | full existing SPEC-0009 suite passes unchanged (regression backbone)        | green |
-| TEST-009 | Spec-AC-07 | unit        | tests/skills/test-aai-win-fallback.sh   | grep asserts: 5-row matrix present in both wrapper headers + TECHNOLOGY.md  | green |
+| TEST-009 | Spec-AC-07 | unit        | tests/skills/test-aai-win-fallback.sh   | grep asserts: 5-row matrix present in both wrapper headers + TECHNOLOGY.md Re-homed by node-first-reap-tests: the reaper header holding the matrix is now aai-reap-tests.mjs. | green |
 | TEST-010 | Spec-AC-08 | integration | tests/skills/test-aai-tdd-evidence.sh   | BOM+CRLF `RED_CLASS: product_red` log -> exit 0 ACCEPTED (currently exit 2) | green |
 | TEST-011 | Spec-AC-08 | unit        | tests/skills/test-aai-tdd-evidence.sh   | fail-closed unchanged: 0/2 headers, bad value -> 2; infra_fail -> 1; mid-file BOM inert | green |
 | TEST-012 | Spec-AC-09 | contract    | tests/skills/test-ps1-quality.sh        | gate parses/analyzes new .ps1 and runs aai-win-dispatch.Tests.ps1 (local pwsh; authoritative in CI) | green |

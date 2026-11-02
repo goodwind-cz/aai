@@ -1153,10 +1153,18 @@ suites:
       - tests/fixtures/routines/**
       - SKILLS.md
 
+  aai-reap-tests:
+    globs:
+      - .aai/scripts/aai-reap-tests.*
+      - tests/skills/test-aai-reap-tests.sh
+      - tests/skills/lib/aai-reap-tests.test.mjs
+      - tests/skills/aai-reap-tests.Tests.ps1
+
   aai-run-tests:
     globs:
       - .aai/scripts/aai-run-tests.sh
       - .aai/scripts/aai-reap-tests.sh
+      - .aai/scripts/aai-reap-tests.mjs
       - .aai/scripts/aai-run-tests.ps1
       - .aai/scripts/aai-reap-tests.ps1
       - .aai/SKILL_BOOTSTRAP.prompt.md
@@ -1346,6 +1354,7 @@ suites:
     globs:
       - .aai/scripts/aai-run-tests.sh
       - .aai/scripts/aai-reap-tests.sh
+      - .aai/scripts/aai-reap-tests.mjs
       - .aai/scripts/aai-run-tests.ps1
       - .aai/scripts/aai-reap-tests.ps1
       - docs/TECHNOLOGY.md
