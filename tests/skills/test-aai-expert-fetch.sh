@@ -632,7 +632,7 @@ inventory_check() {
     const extra = [...listed].filter((n) => !tree.has(n));
     if (missing.length) bad.push("missing from the table: " + missing.join(", "));
     if (extra.length) bad.push("not a pair in the tree: " + extra.join(", "));
-    for (const n of ["aai-run-tests", "aai-reap-tests", "autonomous-loop"]) if (dest[n] !== "phase 5 process adapter") bad.push(n + " must be phase 5 process adapter");
+    for (const n of ["aai-run-tests", "autonomous-loop"]) if (dest[n] !== "phase 5 process adapter") bad.push(n + " must be phase 5 process adapter");
     if (dest["pre-commit-checks"] !== "platform adapter kept on purpose") bad.push("pre-commit-checks must be platform adapter kept on purpose");
     process.stdout.write(bad.join("\n"));
   ' "$1" "$2"

@@ -69,7 +69,7 @@ None.
 
 | Test ID  | Spec-AC    | Type | File path (expected)                    | Description                                                  | Status |
 |----------|------------|------|-----------------------------------------|--------------------------------------------------------------|--------|
-| TEST-022 | Spec-AC-01 | unit | tests/skills/test-aai-run-tests.sh      | etime_to_secs: garbage/empty/argv-word -> 0; valid etimes exact | green |
+| TEST-022 | Spec-AC-01 | unit | tests/skills/test-aai-run-tests.sh      | etime_to_secs: garbage/empty/argv-word -> 0; valid etimes exact Re-homed by node-first-reap-tests: test_022 imports etimeToSecs from aai-reap-tests.mjs and asserts the same values. | green |
 
 RED-proof: TEST-022 observed FAILING against the guard-less reaper (stash the fix,
 run TEST-022 -> a non-etime field yields a non-zero/empty age, not 0) before GREEN.
