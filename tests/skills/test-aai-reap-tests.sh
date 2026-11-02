@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-reap-tests
-# (docs/specs/SPEC-DRAFT-spec-node-first-reap-tests.md, TEST-3230..3250)
+# (docs/specs/SPEC-0267-spec-node-first-reap-tests.md, TEST-3230..3250)
 #
 # The test-process reaper is one Node module (.aai/scripts/aai-reap-tests.mjs)
 # plus two thin launchers (.aai/scripts/aai-reap-tests.sh and .ps1). SAFETY: every

@@ -1,9 +1,9 @@
 ---
 id: spec-node-first-reap-tests
 type: spec
-number: null
-status: implementing
-frozen_sha256: ef5017b6d951815a09dd3bdd54a708af5d2c8801cb0a15ade783340559760c16
+number: 267
+status: done
+frozen_sha256: 8c19b6763fe7840d0f09cb9b886118f6742f82022a0e4c8b372b7610703fa051
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Move the test-process reaper to Node](../issues/CHANGE-DRAFT-node-first-reap-tests.md).
+- Requirement: [Move the test-process reaper to Node](../issues/CHANGE-0241-node-first-reap-tests.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5 (process adapters) and the section "Remaining paired scripts after
   phase 3".
@@ -75,8 +75,8 @@ SPEC-FROZEN: true
   docs/TECHNOLOGY.md docs/USER_GUIDE.md
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   docs/ai/decisions.jsonl CHANGELOG.md
-  docs/issues/CHANGE-DRAFT-node-first-reap-tests.md
-  docs/specs/SPEC-DRAFT-spec-node-first-reap-tests.md
+  docs/issues/CHANGE-0241-node-first-reap-tests.md
+  docs/specs/SPEC-0267-spec-node-first-reap-tests.md
   (suite-weights.tsv only if the selector asks for a row).
 - Code review required: true.
 
@@ -324,10 +324,10 @@ pid (the sh copy's separator character, a vertical bar), empty tails when N is
 
 - The inventory table drops the `aai-reap-tests` row; every other row stays
   byte for byte. After the small-pairs paragraph, one paragraph:
-  `The [reaper slice](../issues/CHANGE-DRAFT-node-first-reap-tests.md) moved aai-reap-tests to a Node module (pair 787 to <N> lines).`
+  `The [reaper slice](../issues/CHANGE-0241-node-first-reap-tests.md) moved aai-reap-tests to a Node module (pair 787 to <N> lines).`
   where `<N>` is the `wc -l` sum of the module and both launchers at delivery.
 - The phase 5 row's last sentence becomes: `The second slice moved the
-  [test-process reaper](../issues/CHANGE-DRAFT-node-first-reap-tests.md) to one
+  [test-process reaper](../issues/CHANGE-0241-node-first-reap-tests.md) to one
   Node module with thin launchers; aai-run-tests and autonomous-loop are later
   slices.` Status stays `in progress`; frontmatter untouched. The allocator
   rewrites both links at merge; checks match only the suffix

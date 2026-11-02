@@ -1,5 +1,5 @@
 // aai-reap-tests.test.mjs - node:test cases for .aai/scripts/aai-reap-tests.mjs
-// (docs/specs/SPEC-DRAFT-spec-node-first-reap-tests.md, TEST-3230 to TEST-3235 and TEST-3238).
+// (docs/specs/SPEC-0267-spec-node-first-reap-tests.md, TEST-3230 to TEST-3235 and TEST-3238).
 // Pure functions and run() with injected dependencies, plus one real-process case
 // (TEST-3238) that uses only self-terminating Node sleepers in a fresh temp workspace
 // and kills them strictly by recorded pid. No pkill, no kill by name.

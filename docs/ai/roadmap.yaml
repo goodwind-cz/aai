@@ -129,7 +129,7 @@ pairs:
   - capability: node-first-small-pairs
     status: done
   - capability: node-first-reap-tests
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

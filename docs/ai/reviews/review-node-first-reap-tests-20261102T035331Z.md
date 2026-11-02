@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "origin/main...HEAD (feat/node-first-reap-tests, head 9b3a3258)"
-  spec: docs/specs/SPEC-DRAFT-spec-node-first-reap-tests.md
+  spec: docs/specs/SPEC-0267-spec-node-first-reap-tests.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -47,8 +47,8 @@ security_relevant: true
 
 - Diff: `git diff origin/main...HEAD` in `/Users/ales/Projects/aai-worktrees/node-first-reap-tests`
   (branch `feat/node-first-reap-tests`, head `9b3a3258`, 8 commits, 30 files).
-- Spec: `docs/specs/SPEC-DRAFT-spec-node-first-reap-tests.md` (SPEC-FROZEN, ceremony 2).
-- Intake: `docs/issues/CHANGE-DRAFT-node-first-reap-tests.md`.
+- Spec: `docs/specs/SPEC-0267-spec-node-first-reap-tests.md` (SPEC-FROZEN, ceremony 2).
+- Intake: `docs/issues/CHANGE-0241-node-first-reap-tests.md`.
 - STATE: `worktree.user_decision: worktree`, base `main`, so the `<base>...HEAD` form is the scope.
   `git status` shows only `docs/ai/EVENTS.jsonl` and `docs/ai/tests/test-runs.jsonl` modified (runtime
   ledgers, not part of the reviewed diff).
