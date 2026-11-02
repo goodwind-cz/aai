@@ -43,8 +43,8 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased] — feat: local test runs reuse a suite's earlier pass when its complete input identity is unchanged (precise-suite-evidence-reuse)
 
-- `tests/skills/test-framework.sh` now reports a declared suite as REUSED, naming the earlier run and its log, instead of executing it, when the suite's input identity is unchanged: the bytes of the files it reads, relevant environment, arguments, Node version and platform, runner policy and history. Anything the checker cannot resolve makes the suite run. `AAI_SUITE_REUSE=0` turns it off.
-- Only suites listed in `tests/skills/suite-reuse.json` qualify (three reuse today: aai-feedback-status, aai-pricing, aai-redact). `node .aai/scripts/suite-reuse.mjs lint --minimal-tree` is the admission gate; `explain <suite>` shows what a suite's identity covers.
+- `tests/skills/test-framework.sh` now reports a declared suite as REUSED, naming the earlier run and its log, instead of executing it, when the suite's input identity is unchanged: the bytes of the files it reads, relevant environment, arguments, runtime (Node, platform, CPU architecture, git and bash versions), runner policy and history. `AAI_SUITE_REUSE=0` turns it off.
+- Only suites listed in `tests/skills/suite-reuse.json` qualify (three reuse today: aai-feedback-status, aai-pricing, aai-redact). `node .aai/scripts/suite-reuse.mjs lint --admit` is the admission gate and replaces `lint --minimal-tree`, which is retired and now exits 2 (it is no longer an admission gate); `explain <suite>` shows what a suite's identity covers.
 - A reused suite is never counted as executed: the summary prints `Reused:` separately and the run ledger keeps `total` as the executed count. The full sweep before close, CI, main, nightly, release, TDD RED and mutation runs always execute. SKILL_VERIFY and VALIDATION state when a role may cite reused evidence.
 
 ## [unreleased] — refactor: validate-skills and aai-live run on Node; pre-compact-save retired (node-first-small-pairs)

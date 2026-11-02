@@ -598,7 +598,11 @@ test_3273_admission_pass() {
   expect "TEST-3273" "$OUT" "ADMIT-PROBE ok unread "
   [[ "$OUT" =~ ADMIT-PROBE\ ok\ unread\ [^[:space:]]+\ REUSE ]] || log_fail "TEST-3273: the unread probe did not give REUSE"
   [[ "$OUT" =~ ADMIT-PASS\ ok\ [0-9.]+s\ reads=[0-9]+\ poisoned=[2-9][0-9]* ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3273: no ADMIT-PASS line with reads and poisoned counts"; }
-  log_pass "TEST-3273 (ADMIT-PASS with reads and poisoned counts; read probe RUN, unread probe REUSE)"
+  local mrc=0 mout
+  mout="$(env -u AAI_ROLE node "$r/.aai/scripts/suite-reuse.mjs" lint --root "$r" --minimal-tree 2>&1)" || mrc=$?
+  [[ "$mrc" -eq 2 ]] || log_fail "TEST-3273: lint --minimal-tree must refuse with exit 2, got $mrc"
+  expect "TEST-3273" "$mout" "--minimal-tree was replaced by --admit"
+  log_pass "TEST-3273 (ADMIT-PASS with reads and poisoned counts; read probe RUN, unread probe REUSE; the retired --minimal-tree flag exits 2)"
 }
 
 # test_3274: --changed-since admits only changed entries; CI turns admission off.

@@ -28,24 +28,26 @@ holds: the bytes and executable bit of every file inside the checkout (outside
 its `.git` directory) that the suite read, replaced or deleted; under `.git`
 only HEAD and the refs, and only when the run read the git directory; every
 file when the run read the git index; the list of file paths in the checkout;
-the harness files; the relevant environment; the arguments; the Node version
-and platform; and the runner policy. Caveat: anything outside the checkout, or
+the harness files; the relevant environment; the arguments; the runtime (Node version,
+platform, CPU architecture, git and bash versions); and the runner policy. Caveat: anything outside the checkout, or
 read without its access time moving (for example a stat-only check such as
-`[ -s f ]`), is not compared. Anything the checker cannot account for makes
-the suite run.
-
+`[ -s f ]`), is not compared.
 ## How to use it
 
 - It is on by default for local runs of `tests/skills/test-framework.sh`
   (selected suites, `--skill`). Turn it off for a run with
   `AAI_SUITE_REUSE=0`.
 - Only suites declared in `tests/skills/suite-reuse.json` can be reused.
-  A suite qualifies only when its whole closure is known; check one with
-  `node .aai/scripts/suite-reuse.mjs explain <suite>`.
+  A suite qualifies only when `lint --admit` passes for it; `explain <suite>`
+  shows what its last record read.
 - `node .aai/scripts/suite-reuse.mjs lint` checks the manifest; `lint
   --admit` is the admission gate: it runs a suite, plants a read probe and an
   unread probe, and refuses a suite whose trace misses a read (a restored
-  access time, a node read the trace did not see).
+  access time, a node read the trace did not see). It also runs a poisoned
+  pass: files on the path list that the suite did not read are overwritten,
+  and the suite must still exit 0. `--changed-since REF` admits only entries
+  that differ from REF. `lint --minimal-tree` is retired and now refuses with
+  exit 2.
 - Roles that may cite a reused suite: Implementation and TDD GREEN
   re-checks, Remediation re-checks, and intermediate Validation and Code
   Review rounds. They cite it as reused with the original run id and log and
@@ -67,10 +69,12 @@ the suite run.
 
 ## Interfaces and contracts
 
-- `node .aai/scripts/suite-reuse.mjs check|record|forget|lint|explain`: the
-  helper the framework calls. `check` prints `REUSE` or `RUN reason=<why>`
-  per suite (for example `inputs-unresolvable`, `no-record`, `log-missing`,
-  or the first identity component that changed).
+- `node .aai/scripts/suite-reuse.mjs check|arm|collect|record|forget|lint|explain`:
+  the helper the framework calls (`arm` and `collect` bracket a suite run to
+  capture its read trace; `lint --admit [--suite S] [--changed-since REF]` is
+  the admission gate). `check` prints `REUSE` or `RUN reason=<why>` per suite
+  (for example `no-record`, `log-missing`, `policy`, or the first identity
+  component that changed).
 - `lint` reasons include `not-gate-selected` and `gate-row-missing`.
 - Framework output: `Evidence reuse: on (<M> of <N> suites reused, check
   <s>s)`, a `REUSED (run …, …, log …)` line per reused suite and a
@@ -94,6 +98,9 @@ the suite run.
   be reused) and `fu-reuse-local-ledger-append` (the framework's own append to
   the tracked `docs/ai/tests/test-runs.jsonl` makes even an unchanged rerun
   miss for suites that read the git index).
+- Reuse is off where file access times are not recorded (a volume mounted
+  without access-time updates, or a failed probe): nothing is recorded
+  (`trace-unavailable`) and every suite runs.
 - A bash startup hook is not part of the identity. When `BASH_ENV`, `ENV`,
   `SHELLOPTS`, `BASHOPTS` or an exported bash function (`BASH_FUNC_*`) is set
   and non-empty, every suite runs (reason `bash-startup-hook`) and a pass is

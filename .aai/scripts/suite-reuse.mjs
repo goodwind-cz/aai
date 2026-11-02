@@ -507,6 +507,7 @@ function cli(argv) {
   } else if (cmd === 'forget') {
     o.suites.forEach((suite) => { forgetSuite({ root, suite }); out(`FORGOT ${suite}`); });
   } else if (cmd === 'lint') {
+    if (rest.includes('--minimal-tree')) { process.stderr.write('lint: --minimal-tree was replaced by --admit\n'); process.exitCode = 2; return; }
     const r = lintManifest({ root });
     r.problems.forEach((p) => out(`${p.suite} ${p.reason}`));
     process.exitCode = r.ok ? 0 : 1;
