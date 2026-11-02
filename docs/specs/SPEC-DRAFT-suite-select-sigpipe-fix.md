@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 81df38ed64d53c758acbf750671b3fdd1ad0781545d1724bc83daab224700b65
+frozen_sha256: d12a90a3c63135283eceb930984991a084eccc21fa3d605ecaf59da561664438
 ceremony_level: 1
 links:
   requirement: suite-select-sigpipe-fix
@@ -47,11 +47,13 @@ Out of scope (listed, not fixed), follow-up `fu-pipefail-early-readers-other-sui
 - tests/skills/test-aai-ride-select.sh:610-612 (`printf | awk ... exit`)
 - tests/skills/test-aai-validator-isolation.sh:119-123 (`printf | awk ... exit`)
 - tests/skills/test-aai-merge-cleanup.sh:3254, 3676 (`printf | awk ... exit`)
+- tests/skills/test-aai-ci-carry-forward.sh:534, 587, 588, 592 (`job_run_text ... | awk '... { exit } ...'`, no semicolon before exit; follow-up `fu-pipefail-early-readers-carry-fwd`)
 - tests/skills/test-aai-sync-seed.sh:903, 905 and tests/skills/lib/assert-payload.sh, test-aai-pipe-safe.sh: `qgrep -q` pipe-safe helper sites, listed for completeness, not defects.
 
 Decisions:
 - D1: here-strings over `|| true`, because `|| true` would also mask a real reader failure.
 - D2: TEST-3281 matches `;` followed by `exit` inside an awk program, so `END {exit ...}` (reads all input) is not flagged.
+- D3 (validation r1 B3): TEST-3281 anchors on a single `|` (not `||`), accepts a path prefix and flag clusters on grep (`-E -q`, `--quiet`), `sed ...q`, `head`, and `exit` in a non-END awk action with or without a semicolon; a here-doc of positive and negative probe lines proves the pattern before the scan.
 
 ## Acceptance Criteria Mapping
 
@@ -69,9 +71,9 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the weights header is larger than a pipe buffer and SIGPIPE is ignored under pipefail, THEN the header readers SHALL return the right run id, job count and head SHA. | done | docs/ai/tdd/suite-select-sigpipe-fix-red.log; docs/ai/tdd/suite-select-sigpipe-fix-green.log | none | TEST-3280 |
-| Spec-AC-02 | The suite SHALL contain no pipeline feeding an early-exiting awk, head, grep -q or sed q. | done | docs/ai/tdd/suite-select-sigpipe-fix-red.log; docs/ai/tdd/suite-select-sigpipe-fix-green.log | none | TEST-3281 |
-| Spec-AC-03 | TEST-016 SHALL assert the same things as before (run id differs from the previous seed, four job ids, a 40-hex head SHA that differs from the previous seed, balance bound). | done | docs/ai/tdd/suite-select-sigpipe-fix-green.log | none | TEST-016 |
+| Spec-AC-01 | WHEN the weights header is larger than a pipe buffer and SIGPIPE is ignored under pipefail, THEN the header readers SHALL return the right run id, job count and head SHA. | done | docs/ai/tdd/suite-select-sigpipe-fix-red.log; docs/ai/tdd/suite-select-sigpipe-fix-green.log | — | TEST-3280 |
+| Spec-AC-02 | The suite SHALL contain no pipeline feeding an early-exiting awk, head, grep -q or sed q. | done | docs/ai/tdd/suite-select-sigpipe-fix-red.log; docs/ai/tdd/suite-select-sigpipe-fix-green.log | — | TEST-3281 |
+| Spec-AC-03 | TEST-016 SHALL assert the same things as before (run id differs from the previous seed, four job ids, a 40-hex head SHA that differs from the previous seed, balance bound). | done | docs/ai/tdd/suite-select-sigpipe-fix-green.log | — | TEST-016 |
 
 ## Implementation plan
 Write TEST-3280 and TEST-3281, observe RED against the early-exit helper bodies, then the fix, then green; run the full suite and `bash -n`.

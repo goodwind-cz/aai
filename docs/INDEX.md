@@ -6,12 +6,13 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-suite-select-sigpipe-fix | specs | implementing | 3 done | docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md |
 
 ## Canonical layer (0)
 
@@ -1293,12 +1294,6 @@ _None._
 ## Legacy (no frontmatter) (0)
 
 _None._
-
-## Skipped (schema violations) (3)
-
-- docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md: invalid Review-By "none" for Spec-AC-01 (ISO date, skill label, or label:date)
-- docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md: invalid Review-By "none" for Spec-AC-02 (ISO date, skill label, or label:date)
-- docs/specs/SPEC-DRAFT-suite-select-sigpipe-fix.md: invalid Review-By "none" for Spec-AC-03 (ISO date, skill label, or label:date)
 
 ---
 Today (UTC): 2026-11-02 — counts above use this date for overdue checks.

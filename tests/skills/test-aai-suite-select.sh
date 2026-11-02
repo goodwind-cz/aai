@@ -1986,8 +1986,47 @@ test_3280_header_readers_survive_ignored_sigpipe() {  # Spec-AC-01 / TEST-3280
 
 test_3281_no_early_closing_reader_in_suite() {  # Spec-AC-02 / TEST-3281
   log_info "Test: no pipeline in this suite feeds an early-exiting reader (TEST-3281)..."
-  local hits
-  hits="$(/usr/bin/grep -nE '\|[[:space:]]*(awk[^|]*;[[:space:]]*exit|head([[:space:]]|$)|grep[[:space:]]+-[a-zA-Z]*q|sed[[:space:]]+-n[^|]*;q)' "${BASH_SOURCE[0]}" || true)"
+  local hits re kind line bad=""
+  # One pipe (not ||), optional path prefix and flag clusters on grep, exit in a
+  # non-END awk action with or without a semicolon, sed q, head.
+  re='(^|[^|])\|[[:space:]]*(awk[^|]*;[[:space:]]*exit|awk[^|]*([^D[:space:]]|[^N]D)[[:space:]]*\{[^}]*exit|head([[:space:]]|$)|([^[:space:]|]*/)?[efu]?grep([[:space:]]+-[^[:space:]]+)*[[:space:]]+(-[a-zA-Z]*q|--quiet)|sed[^|]*[;/0-9}'"'"'[:space:]]q([;}'"'"'"[:space:]]|$))'
+  # Probe lines (% = pipe): P must be flagged, N must not. Proves the pattern before the scan.
+  # PROBE-BEGIN
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    kind="${line%% *}"; line="${line#* }"; line="${line//%/|}"  # % stands for a pipe so the pipe-grep-q ratchet does not count the probes
+    if [[ "$line" =~ $re ]]; then
+      [[ "$kind" == P ]] || bad="$bad [false positive: $line]"
+    else
+      [[ "$kind" == N ]] || bad="$bad [missed: $line]"
+    fi
+  done <<'PROBES'
+P x % head -1
+P x % head
+P x % grep -q a
+P x % /usr/bin/grep -q a
+P x % grep -E -q a
+P x % grep -Eq a
+P x % grep --quiet a
+P x % sed -n '/a/p;q'
+P x % sed '/a/q'
+P x % sed 5q
+P x % awk '{print; exit}'
+P x % awk '/a/ {exit}'
+P x % awk '/a/{exit}'
+N x % qgrep -q a
+N x % awk 'END {exit 1}'
+N x % awk '{s += $1} END {exit !(s > 1)}'
+N x % awk 'NR==1 {print}'
+N x % grep -c .
+N x % grep -oE a
+N x %% grep -q a file
+N sed -n '1p;q' file
+N sed '/a/q' file
+PROBES
+  # PROBE-END
+  [[ -z "$bad" ]] || log_fail "TEST-3281: pattern self-test failed:$bad"
+  hits="$(awk '/# PROBE-BEGIN/{skip=1} !skip{print NR": "$0} /# PROBE-END/{skip=0}' "${BASH_SOURCE[0]}" | /usr/bin/grep -E "^[0-9]+: .*$re" || true)"
   [[ -z "$hits" ]] || log_fail "TEST-3281: early-closing reader fed by a pipe: $hits"
   log_pass "TEST-3281: no early-closing reader in this suite"
 }
