@@ -28,6 +28,13 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — refactor: aai-reap-tests runs on Node; .sh and .ps1 are thin launchers (node-first-reap-tests)
+
+- `aai-reap-tests` now has one implementation, in one Node module; `aai-reap-tests.sh` and `.ps1` are thin launchers. The pair went from 787 to 274 lines.
+- The launchers refuse with exit 1 when Node is absent.
+- The WSL leg now requires Node inside the distro.
+- Git Bash path matching is unchanged and stays fail-safe: a `/c/...` or `C:/...` workspace that does not match a node.exe command line reaps nothing, as before.
+
 ## [unreleased] — feat: local test runs reuse a suite's earlier pass when its complete input identity is unchanged (precise-suite-evidence-reuse)
 
 - `tests/skills/test-framework.sh` now reports a declared suite as REUSED, naming the earlier run and its log, instead of executing it, when the suite's input identity is unchanged: the bytes of the files it reads, relevant environment, arguments, Node version and platform, runner policy and history. Anything the checker cannot resolve makes the suite run. `AAI_SUITE_REUSE=0` turns it off.

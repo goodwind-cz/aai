@@ -37,6 +37,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 RUN_TESTS_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-run-tests.sh"
 REAP_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-reap-tests.sh"
+REAP_MJS="$PROJECT_ROOT/.aai/scripts/aai-reap-tests.mjs"   # the reaper logic and its header matrix live in the module
 RUN_TESTS_PS1="$PROJECT_ROOT/.aai/scripts/aai-run-tests.ps1"
 REAP_PS1="$PROJECT_ROOT/.aai/scripts/aai-reap-tests.ps1"
 TECHNOLOGY_DOC="$PROJECT_ROOT/docs/TECHNOLOGY.md"
@@ -106,9 +107,10 @@ test_009() {
 
   [[ -f "$RUN_TESTS_PS1" ]] || log_fail "missing $RUN_TESTS_PS1 (new Windows dispatcher)"
   [[ -f "$REAP_PS1" ]] || log_fail "missing $REAP_PS1 (new Windows reap dispatcher)"
+  [[ -f "$REAP_MJS" ]] || log_fail "missing $REAP_MJS (the reaper module that holds the matrix)"
 
   local doc
-  for doc in "$RUN_TESTS_SCRIPT" "$REAP_SCRIPT" "$TECHNOLOGY_DOC"; do
+  for doc in "$RUN_TESTS_SCRIPT" "$REAP_MJS" "$TECHNOLOGY_DOC"; do
     grep -qiE 'macOS' "$doc" || log_fail "$doc missing the macOS platform-matrix row"
     grep -qiE 'Linux' "$doc" || log_fail "$doc missing the Linux platform-matrix row"
     grep -qiE 'WSL' "$doc" || log_fail "$doc missing the Windows+WSL platform-matrix row"
@@ -116,7 +118,7 @@ test_009() {
     grep -qiE 'neither|AAI-ENV-ERROR' "$doc" || log_fail "$doc missing the Windows-neither-available platform-matrix row"
   done
 
-  log_pass "5-row platform matrix present in both wrapper headers and docs/TECHNOLOGY.md (TEST-009)"
+  log_pass "5-row platform matrix present in the wrapper header, the reaper module header and docs/TECHNOLOGY.md (TEST-009)"
 }
 
 # --- TEST-013 (Spec-AC-10): Manual verification protocol documented ----------
