@@ -135,16 +135,18 @@
   OrdinalIgnoreCase-duplicate key collapsed to one survivor) once per
   dispatch, before any spawn — including the WSL usability probe itself.
 
-  Reaper age guard (`.aai/scripts/aai-reap-tests.sh` / `aai-reap-tests.ps1`,
+  Reaper age guard (`.aai/scripts/aai-reap-tests.mjs` behind the thin
+  launchers `aai-reap-tests.sh` and `aai-reap-tests.ps1`,
   "reaper-deterministic-age-guard"): the post-step survivor sweep's spare-vs-
   reap decision is STEP-START-EPOCH relative when the step owner (SKILL_LOOP /
   VALIDATION) passes `AAI_REAP_STEP_START_EPOCH` — deterministic and invariant
   to reaper overhead/host load, since both the `ps etime` sample and the
   snapshot instant grow together. Unset/invalid/future falls back to the
   legacy fixed `AAI_REAP_MIN_AGE_SECS` threshold byte-for-byte (fail-safe,
-  never a global kill). The `.ps1` twin's `-StepStart` is CONTRACT parity only
-  — `Get-ReapCandidates` already uses a real per-process `CreationDate`, so it
-  never had the `ps etime` whole-second-rounding flake to begin with.
+  never a global kill). The Windows path compares each process's real creation
+  time in UTC milliseconds, so it never had the `ps etime` whole-second-
+  rounding flake to begin with. Without Node the launchers refuse with exit 1
+  and reap nothing.
 
   Windows-host semantics, CI-verified vs. manual (CHANGE-0136): the WSL1
   delegation path — branch routing (`AAI-BRANCH: WSL`), the timeout-124

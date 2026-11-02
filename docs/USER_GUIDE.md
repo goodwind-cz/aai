@@ -2548,7 +2548,9 @@ bounded**, **reaped on the step boundary**, and **accounted for**.
    command line matches the current workspace path (`$PWD`, overridable via
    `AAI_REAP_WORKSPACE`) **and** that are older than the step-start age threshold
    (`AAI_REAP_MIN_AGE_SECS`), so a sibling subagent's in-flight run is never
-   killed. It is **never** a bare `pkill -f vitest`.
+   killed. It is **never** a bare `pkill -f vitest`. The reaper runs on Node
+   (`aai-reap-tests.mjs` behind the two launchers); without Node the launchers
+   refuse with exit 1 and reap nothing.
 
 4. **Tick-log accounting.** The loop records `lingering_procs` (post-reap
    workspace vitest/esbuild count) and `free_memory` in each tick log line, so a
