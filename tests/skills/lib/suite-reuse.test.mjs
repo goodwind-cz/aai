@@ -547,7 +547,7 @@ test('TEST-3266 a variable named only in a file the run read moves the env compo
   assert.equal((await chk(root, 'fx', { env: { ...env, FIXTURE_Z: '2' } })).status, 'REUSE', 'FIXTURE_Z is named nowhere');
   assert.equal((await chk(root, 'fx', { env: { ...env, FIXTURE_Q: '2' } })).reason, 'env');
   const t = await traceLib();
-  assert.deepEqual(t.referencedNames(['$env:PS_A ${env:PS_B} $SH_C ${SH_D} process.env.JS_E']), ['JS_E', 'PS_A', 'PS_B', 'SH_C', 'SH_D'], 'PowerShell env references are read by the variable name');
+  assert.deepEqual(t.referencedNames(['$env:PS_A ${env:PS_B} $SH_C ${SH_D} process.env.JS_E $Env:PS_F $ENV:PS_G ${Env:PS_H}']), ['JS_E', 'PS_A', 'PS_B', 'PS_F', 'PS_G', 'PS_H', 'SH_C', 'SH_D'], 'PowerShell env references are read by the variable name');
 });
 
 test('TEST-3268 record refuses without a usable trace and when the run moved the identity, never throws, writes nothing', async () => {

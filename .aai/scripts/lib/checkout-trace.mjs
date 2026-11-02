@@ -13,7 +13,7 @@ import path from 'node:path';
 import { listTreeFiles } from './tree-hash.mjs';
 
 export const ATIME_FLOOR = 946684800;
-const ENV_NAME_RE = /\$\{?env:([A-Za-z_]\w*)|\$\{?([A-Za-z_][A-Za-z0-9_]*)|process\.env\.([A-Za-z_]\w*)/g;
+const ENV_NAME_RE = /\$\{?[Ee][Nn][Vv]:([A-Za-z_]\w*)|\$\{?([A-Za-z_][A-Za-z0-9_]*)|process\.env\.([A-Za-z_]\w*)/g;
 const MAX_TEXT_BYTES = 4 * 1024 * 1024;
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
