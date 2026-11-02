@@ -648,17 +648,20 @@ test_3275_live_manifest() {
   log_pass "TEST-3275 (lint clean, eleven qualified entries, six named suite files select the gate)"
 }
 
+LIVE_ADMIT_OUT=""
 # test_3276: the live admission over every suite that differs from main (all eleven on this branch).
 test_3276_live_admission() {
   local out rc=0 n
   if [[ -n "${CI:-}" && "${CI:-}" != false || "${GITHUB_ACTIONS:-}" == true ]]; then
     out="$(env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" --admit --changed-since main 2>&1)" || rc=$?
     [[ "$rc" -eq 0 && "$out" == *"ADMIT-OFF ci"* ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3276: expected ADMIT-OFF ci under CI"; }
+    LIVE_ADMIT_OUT="$out"
     log_pass "TEST-3276 (ADMIT-OFF ci)"
     return 0
   fi
   out="$(env -u AAI_ROLE -u AAI_SUITE_REUSE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" --admit --changed-since main 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || { printf '%s\n' "$out" | grep -E '^ADMIT-' >&2; log_fail "TEST-3276: live admission exited $rc"; }
+  LIVE_ADMIT_OUT="$out"
   n="$(printf '%s\n' "$out" | grep -c '^ADMIT-PASS ' || true)"
   expect_not "TEST-3276" "$out" "ADMIT-FAIL"
   [[ "$n" -ge 1 || "$out" == *"ADMIT-NONE"* ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3276: no ADMIT-PASS or ADMIT-NONE line, so nothing was admitted"; }
@@ -934,7 +937,7 @@ test_3304_tail_read_refused() {
   base="$(new_base)"; r="$base/repo"
   build_fx "$base" tailread
   printf 'a\n' > "$r/a.txt"
-  printf '#!/usr/bin/env bash\ngit status --porcelain > /dev/null 2>&1\ncat a.txt > /dev/null\nif [[ -f docs/ai/tests/test-runs.jsonl ]] && tail -n 1 docs/ai/tests/test-runs.jsonl | grep -q AAI-REUSE-POISON; then exit 1; fi\nexit 0\n' > "$r/tests/skills/test-tailread.sh"
+  printf '#!/usr/bin/env bash\ngit status --porcelain > /dev/null 2>&1\ncat a.txt > /dev/null\nlast="$(tail -n 1 docs/ai/tests/test-runs.jsonl 2>/dev/null || true)"\n[[ "$last" != *AAI-REUSE-POISON* ]] || exit 1\nexit 0\n' > "$r/tests/skills/test-tailread.sh"
   commit_fx "$base" tailread
   admit_run "$base" --
   [[ "$RC" -eq 1 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3304: expected exit 1, got $RC"; }
@@ -962,6 +965,67 @@ test_3305_tail_ignored_admitted() {
 }
 test_3303_append_prefix_recorded() { node_cases TEST-3303; }
 
+FIVE_INDEX_SUITES="aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-win-fallback"
+
+# test_3306: lint is clean on the live repository and the five index-reading suites say what their identity tolerates.
+test_3306_live_notes() {
+  local lrc=0 lout out
+  lout="$(env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" 2>&1)" || lrc=$?
+  [[ "$lrc" -eq 0 ]] || { printf '%s\n' "$lout" >&2; log_fail "TEST-3306: lint exited $lrc"; }
+  out="$(ROOT="$PROJECT_ROOT" SUITES="$FIVE_INDEX_SUITES" node -e '
+    const m = JSON.parse(require("fs").readFileSync(process.env.ROOT + "/tests/skills/suite-reuse.json", "utf8"));
+    const bad = process.env.SUITES.split(" ").filter((s) => !(m.suites[s] && m.suites[s].note.includes("docs/ai/tests/test-runs.jsonl")));
+    console.log(bad.length ? "MISSING " + bad.join(",") : "OK");
+  ')"
+  [[ "$out" == OK ]] || log_fail "TEST-3306: manifest notes do not name docs/ai/tests/test-runs.jsonl: $out"
+  log_pass "TEST-3306 (lint clean; the five index-reading notes name the run ledger)"
+}
+
+# test_3307: the live admission of TEST-3276 admitted each changed index-reading suite with the appended probe.
+test_3307_live_appended_probes() {
+  local s n=0
+  if [[ -z "$LIVE_ADMIT_OUT" ]]; then test_3276_live_admission; fi
+  if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-OFF ci"* ]]; then log_pass "TEST-3307 (ADMIT-OFF ci)"; return 0; fi
+  for s in $FIVE_INDEX_SUITES; do
+    if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-PASS $s "* ]]; then
+      n=$((n + 1))
+      expect "TEST-3307 $s" "$LIVE_ADMIT_OUT" "ADMIT-PROBE $s appended docs/ai/tests/test-runs.jsonl PASS"
+    fi
+  done
+  [[ "$n" -ge 1 ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" | grep -E '^ADMIT-' >&2; log_fail "TEST-3307: none of the five index-reading suites was admitted"; }
+  log_pass "TEST-3307 ($n live index-reading suites admitted with the appended probe)"
+}
+
+# test_3308: the analysis note holds the before and after measurement of the ledger append.
+test_3308_ledger_append_measurements() {
+  local note="$PROJECT_ROOT/docs/analysis/precise-suite-evidence-reuse.md" out
+  out="$(NOTE="$note" SUITES="$FIVE_INDEX_SUITES" node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.env.NOTE, "utf8").split("\n");
+    const fail = (m) => { console.log("FAIL " + m); process.exit(0); };
+    const at = lines.indexOf("## Measurements (ledger append)");
+    if (at < 0) fail("no ## Measurements (ledger append) line");
+    let end = lines.findIndex((l, i) => i > at && /^## /.test(l));
+    if (end < 0) end = lines.length;
+    const sec = lines.slice(at, end);
+    const text = sec.join("\n");
+    if ((text.match(/\b[0-9a-f]{40}\b/g) || []).length < 2) fail("fewer than two 40-character shas");
+    const row = (when, s) => sec.find((l) => l.startsWith("| " + when + " | " + s + " |"));
+    for (const s of process.env.SUITES.split(" ")) {
+      const b = row("before", s), a = row("after", s);
+      if (!b || !a) fail("no before or after row for " + s);
+      if (!b.includes("RUN reason=inputs changed docs/ai/tests/test-runs.jsonl")) fail("before row of " + s + " lacks the ledger RUN reason");
+      if (!/REUSED/.test(a)) fail("after row of " + s + " is not REUSED");
+    }
+    const all = sec.filter((l) => /^\| (before|after) \|/.test(l)).length;
+    if (all < 22) fail("only " + all + " before or after rows (want 22)");
+    for (const w of ["Node", "Bash", "Git"]) if (!new RegExp(w + "[^\\n]*[0-9]+\\.[0-9]+").test(text)) fail("no " + w + " version");
+    console.log("OK " + all + " rows");
+  ')"
+  [[ "$out" == OK* ]] || log_fail "TEST-3308: ${out:-node produced no output}"
+  log_pass "TEST-3308 (ledger append measurements: ${out#OK })"
+}
+
 main() {
   echo "Testing $TEST_NAME (spec-precise-suite-evidence-reuse, spec-reuse-for-docs-reading-suites)"
   check_deps
@@ -983,6 +1047,7 @@ main() {
   test_3274_changed_since_and_ci
   test_3275_live_manifest
   test_3276_live_admission
+  test_3307_live_appended_probes
   test_3272_ledgers_not_inputs
   test_3277_framework_wiring
   test_3168_env_component
@@ -1018,6 +1083,8 @@ main() {
   test_3303_append_prefix_recorded
   test_3304_tail_read_refused
   test_3305_tail_ignored_admitted
+  test_3306_live_notes
+  test_3308_ledger_append_measurements
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
