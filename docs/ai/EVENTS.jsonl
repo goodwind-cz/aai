@@ -3587,3 +3587,5 @@
 {"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-suite-select-sigpipe-fix","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-suite-select-sigpipe-fix","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-02T20:26:05Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-local-ledger-append","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-02T23:23:04Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"reuse-local-ledger-append","payload":{"role":"code_review","head":"3ec7f99054f5f16e5cccfdb37cc6b69b1fc2040b","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-02T23:23:04Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"reuse-local-ledger-append","payload":{"status":"pass","hash":"60c3a275e893536e7f85eef2d0c775f3c008669c3933a2fc78b3b65afbc0d4ce"}}

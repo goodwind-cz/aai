@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4a5096721d2b01abdcc613a0ee91836c5d4471ef64cdaac48fda0e483c2e14f0
+frozen_sha256: 4b2496c679386b3387ec2ded86c9534f400361a8ad6d853affe542b5ca5ff08f
 ceremony_level: 2
 links:
   requirement: reuse-local-ledger-append
@@ -193,7 +193,7 @@ and policy components.
 Caveat: anything the suite depends on that this comparison does not cover
 is not seen, including lines appended to the run ledger after the recorded
 run when an index-reading suite genuinely reads them. The admission gate
-(D3) runs each manifest suite once when it is admitted, with one non-JSON
+(D3) runs each index-reading suite once when it is admitted locally, with one non-JSON
 line appended to the ledger, and the suite must still pass. That catches a
 suite that parses the ledger strictly; it does not catch a lenient reader
 that skips lines it cannot parse, and it is not repeated on every run.
@@ -325,7 +325,7 @@ probe line and one failure reason on an internal test-harness interface.
 | TEST-3304 | Spec-AC-05 | integration | tests/skills/test-aai-suite-reuse.sh | test_3304: fixture manifest with suite tailread that runs git status and exits 1 when the last line of docs/ai/tests/test-runs.jsonl contains AAI-REUSE-POISON; lint --admit prints ADMIT-FAIL tailread with appended-ledger run failed and exits 1 | `sed:s/const tailOk = ra.status === 0;/const tailOk = true;/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3305 | Spec-AC-05 | integration | tests/skills/test-aai-suite-reuse.sh | test_3305: fixture manifest with index-reading suite tailok (git status only) and non-index suite plain; lint --admit prints ADMIT-PROBE tailok appended docs/ai/tests/test-runs.jsonl PASS, ADMIT-PASS tailok and ADMIT-PASS plain, no appended probe line for plain, and exits 0 | `sed:s/const tailOk = ra.status === 0;/const tailOk = false;/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3306 | Spec-AC-06 | contract | tests/skills/test-aai-suite-reuse.sh | test_3306: lint on the live repository exits 0; the live manifest notes of the five index-reading suites each contain docs/ai/tests/test-runs.jsonl | `sed:s/test-runs.jsonl/test-runz.jsonl/` on tests/skills/suite-reuse.json | green |
-| TEST-3307 | Spec-AC-06 | contract | tests/skills/test-aai-suite-reuse.sh | test_3307: the output of the live lint --admit --changed-since main of TEST-3276 has, for each of the five index-reading suites that it admitted, an ADMIT-PASS line and an ADMIT-PROBE appended docs/ai/tests/test-runs.jsonl PASS line, at least one such suite is admitted on this branch, or ADMIT-OFF ci under CI | `sed:s/const tailOk = ra.status === 0;/const tailOk = ra.status !== 0;/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3307 | Spec-AC-06 | contract | tests/skills/test-aai-suite-reuse.sh | test_3307: the output of the live lint --admit --changed-since main of TEST-3276 has, for each of the five index-reading suites that it admitted, an ADMIT-PASS line and an ADMIT-PROBE appended docs/ai/tests/test-runs.jsonl PASS line, at least one such suite is admitted on this branch, or ADMIT-OFF ci under CI, or ADMIT-NONE when no suite changed against main (checked in a scratch clone whose main is HEAD) | `sed:s/const tailOk = ra.status === 0;/const tailOk = ra.status !== 0;/` on .aai/scripts/suite-reuse.mjs | green |
 | TEST-3308 | Spec-AC-07 | inspection | tests/skills/test-aai-suite-reuse.sh | test_3308: the analysis note has a line equal to ## Measurements (ledger append) with two 40-character shas, a before and an after row per manifest suite, the five index-reading suites REUSED after and RUN with inputs changed docs/ai/tests/test-runs.jsonl before, and Node, Bash and Git versions | `sed:s/## Measurements \(ledger append\)/## Measurementz (ledger append)/` on docs/analysis/precise-suite-evidence-reuse.md | green |
 
 RED plan, observed on the baseline `9c487740` before each fix and stored

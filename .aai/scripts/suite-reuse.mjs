@@ -454,6 +454,7 @@ function admitSuite(root, suite, tmp) {
     fs.appendFileSync(tledger, 'AAI-REUSE-POISON appended\n');
     const ra = run('bash', [`tests/skills/test-${suite}.sh`], { cwd: tdir, env: admitEnv({ AAI_SUITE_REUSE: '0' }), timeout: 1800000 });
     const tailOk = ra.status === 0;
+    fs.rmSync(tdir, { recursive: true, force: true });
     if (!tailOk) return fail(`appended-ledger run failed rc=${ra.status}`);
     tailLines.push('appended docs/ai/tests/test-runs.jsonl PASS');
   }

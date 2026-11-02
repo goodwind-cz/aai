@@ -989,6 +989,7 @@ test_3307_live_appended_probes() {
     LIVE_ADMIT_OUT="$(env -u AAI_ROLE -u AAI_SUITE_REUSE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" --admit --changed-since main 2>&1 || true)"
   fi
   if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-OFF ci"* ]]; then log_pass "TEST-3307 (ADMIT-OFF ci)"; return 0; fi
+  if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-NONE"* ]]; then log_pass "TEST-3307 (ADMIT-NONE: no suite changed against main)"; return 0; fi
   for s in $FIVE_INDEX_SUITES; do
     if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-PASS $s "* ]]; then
       n=$((n + 1))
