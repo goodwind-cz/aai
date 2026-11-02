@@ -111,7 +111,7 @@ export function parsePosixSnapshot(text, now) {
 // One process per `id TAB parent TAB creation-ms TAB command line` line (the command line may hold tabs).
 export function parseWinSnapshot(text, nowMs) {
   const rows = [];
-  for (const raw of text.replace(/^﻿/, '').split(/\r?\n/)) {
+  for (const raw of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
     const f = raw.split('\t');
     if (f.length < 4 || !DIGITS.test(f[0])) continue;
     const creationMs = DIGITS.test(f[2]) ? Number(f[2]) : null;
