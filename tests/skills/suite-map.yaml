@@ -655,6 +655,13 @@ suites:
       - .aai/scripts/aai-bootstrap.sh
       - .aai/SKILL_PR.prompt.md
 
+  # reuse-split-corpus-cases (D3): the whole-checkout half of aai-hygiene-pack.
+  # A definition-file edit selects both halves.
+  aai-hygiene-corpus:
+    globs:
+      - tests/skills/test-aai-hygiene-corpus.sh
+      - tests/skills/test-aai-hygiene-pack.sh
+
   aai-hygiene-pack:
     globs:
       - docs/knowledge/history/**
@@ -1370,6 +1377,12 @@ suites:
       # doc (canary, WSL1-vs-WSL2 caveat), so a doc-only edit must select
       # this suite too.
       - docs/product/windows-test-wrapper.md
+
+  # reuse-split-corpus-cases (D3): the whole-checkout half of aai-win-fallback.
+  aai-win-fallback-corpus:
+    globs:
+      - tests/skills/test-aai-win-fallback-corpus.sh
+      - tests/skills/test-aai-win-fallback.sh
 
   aai-worktree:
     globs:

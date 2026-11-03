@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-reuse-split-corpus-cases | specs | implementing | 8 planned | docs/specs/SPEC-DRAFT-spec-reuse-split-corpus-cases.md |
+| spec-reuse-split-corpus-cases | specs | implementing | 5 planned, 3 done | docs/specs/SPEC-DRAFT-spec-reuse-split-corpus-cases.md |
 
 ## Canonical layer (0)
 

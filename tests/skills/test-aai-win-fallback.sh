@@ -1477,6 +1477,11 @@ test_042() {
 
 ALL_TESTS="007 009 013 014 015 016 017 018 019 020 021 022 023 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040 041 042"
 
+# The cases whose subject is the whole checkout (they run the real test wrapper,
+# which reads the git index). They run in tests/skills/test-aai-win-fallback-corpus.sh;
+# main() without arguments skips them (spec reuse-split-corpus-cases D2).
+WIN_FALLBACK_CORPUS_TESTS="007 029 030 031 042"
+
 # TEST-027 (Spec-AC-04): ALL_TESTS still registers the Windows-safe pin.
 test_027() {
   log_info "TEST-027: ALL_TESTS still includes 024..."
@@ -1488,8 +1493,15 @@ main() {
   echo "Testing $TEST_NAME (Windows fallback: MSYS branch, platform matrix, MV protocol doc-presence)"
   check_deps
   local selected="$*"
-  [[ -n "$selected" ]] || selected="$ALL_TESTS"
   local t
+  if [[ -z "$selected" ]]; then
+    for t in $ALL_TESTS; do
+      case " $WIN_FALLBACK_CORPUS_TESTS " in
+        *" $t "*) ;;
+        *) selected="$selected $t" ;;
+      esac
+    done
+  fi
   for t in $selected; do
     t="${t#TEST-}"
     t="${t#test_}"

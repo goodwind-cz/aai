@@ -1034,6 +1034,170 @@ test_3308_ledger_append_measurements() {
   log_pass "TEST-3308 (ledger append measurements: ${out#OK })"
 }
 
+# ---- reuse-split-corpus-cases (TEST-3331 to TEST-3334): the corpus split of aai-hygiene-pack and aai-win-fallback ----
+
+SPLIT_BASELINE="6db05ffa562ba582a8f4e597417a95042ed60801"
+HYGIENE_PACK_FILE="$PROJECT_ROOT/tests/skills/test-aai-hygiene-pack.sh"
+WIN_FALLBACK_FILE="$PROJECT_ROOT/tests/skills/test-aai-win-fallback.sh"
+HYGIENE_CORPUS_EXPECTED="test_030_auto_trigger_deprecation
+test_043_review_taxonomy_alignment
+test_060_work_item_brief
+test_092_no_phantom_node_apis
+test_093_test_registration
+test_102_pgq_ratchet_gate_and_bite
+test_103_pgq_baseline_is_measured_not_typed
+test_104_pgq_shrink_never_lowers_the_bar
+test_562_no_nul_in_tracked_text
+test_122_pgq_corpus_drained_to_zero
+test_124_degenerate_pass_guards_uncovered_and_ratcheted
+test_126_learned_guard_lints_live_and_markers
+test_832_sync_leaves_history_out_of_downstream
+test_106_base_ref_pin_gate_and_bite
+test_108_cd_subshell_leak_gate_and_bite
+test_111_generator_check_clean_and_idempotent
+test_113_bite_proofs_in_detached_worktree
+test_116_metrics_correction_not_counted
+test_117_source_skills_are_lf_pinned
+test_127_withdrawn_phrases_drained
+test_094_mutation_selector_fails_closed_corpus_wide
+test_129_mutation_gate_suite_registration
+test_130_node_bash_selector_scanner_whitespace_parity
+test_131_vendored_script_deps_gate_and_bite
+test_133_nested_suite_lint_live_and_base
+test_134_nested_suite_disclosures
+test_137_hot_spot_disclosures
+test_138_ci_node_pins
+test_815_suite_map_and_registration"
+
+# split_main_names <file>: the test_ names main() of a hygiene-style suite file calls, one per line.
+split_main_names() {
+  # The real main() is the last one: fixtures inside heredocs define their own.
+  awk '/^main\(\) \{$/{f=1; s=""; next} f && /^\}/{f=0; next} f && /^  test_[A-Za-z0-9_]+$/{s = s $1 "\n"} END{printf "%s", s}' "$1"
+}
+
+# split_baseline_file <TEST-id> <path> <dest>: a file of the baseline commit, or a failure naming the row.
+split_baseline_file() {
+  git -C "$PROJECT_ROOT" show "$SPLIT_BASELINE:$2" > "$3" 2>/dev/null \
+    || log_fail "$1: baseline commit $SPLIT_BASELINE (or $2 in it) is not available in this clone"
+}
+
+# test_3331: the hygiene pack splits into two disjoint halves that together are the baseline list.
+test_3331_hygiene_partition() {
+  local base work corpus main_now rc=0 dups lost
+  base="$(new_base)"; work="$base/m"
+  split_baseline_file TEST-3331 tests/skills/test-aai-hygiene-pack.sh "$work/baseline.sh"
+  split_main_names "$work/baseline.sh" > "$work/baseline.names"
+  [[ "$(wc -l < "$work/baseline.names" | tr -d ' ')" -eq 95 ]] \
+    || log_fail "TEST-3331: the baseline main list should hold 95 names, found $(wc -l < "$work/baseline.names" | tr -d ' ')"
+  corpus="$(awk '/^HYGIENE_CORPUS_CASES="/{f=1; next} f && /^"/{exit} f{sub(/^  /, ""); print}' "$HYGIENE_PACK_FILE")"
+  [[ -n "$corpus" ]] || log_fail "TEST-3331: tests/skills/test-aai-hygiene-pack.sh declares no HYGIENE_CORPUS_CASES list"
+  [[ "$corpus" == "$HYGIENE_CORPUS_EXPECTED" ]] \
+    || log_fail "TEST-3331: HYGIENE_CORPUS_CASES is not the 29 names of D2 in order; got: $corpus"
+  main_now="$(split_main_names "$HYGIENE_PACK_FILE")"
+  printf '%s\n' "$corpus" > "$work/corpus.names"
+  printf '%s\n' "$main_now" > "$work/main.names"
+  [[ "$(wc -l < "$work/main.names" | tr -d ' ')" -eq 66 ]] \
+    || log_fail "TEST-3331: main of the hygiene pack should register 66 cases, found $(wc -l < "$work/main.names" | tr -d ' ')"
+  dups="$(sort "$work/main.names" "$work/corpus.names" | uniq -d)"
+  [[ -z "$dups" ]] || log_fail "TEST-3331: names in both halves: $dups"
+  lost="$(awk 'NR == FNR{c[$1]=1; next} !($1 in c)' "$work/corpus.names" "$work/baseline.names")"
+  [[ "$lost" == "$main_now" ]] \
+    || log_fail "TEST-3331: main (66) plus the corpus list is not the baseline list of 95 in baseline order"
+  env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" > "$work/reg.out" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || { sed -n '1,20p' "$work/reg.out" >&2; log_fail "TEST-3331: check-test-registration.mjs exited $rc"; }
+  log_pass "TEST-3331 (hygiene pack: 29 corpus + 66 main = the 95 baseline cases, disjoint, all registered)"
+}
+
+# win_fallback_ran <file> <entry> [args]: the case ids a suite entry runs when every case body is a recording stub.
+win_fallback_ran() {
+  local file="$1" entry="$2" out
+  shift 2
+  out="$(env -u AAI_ROLE WF_FILE="$file" WF_ENTRY="$entry" bash -c '
+    . "$WF_FILE"
+    check_deps() { :; }
+    for t in $ALL_TESTS; do eval "test_$t() { echo RAN_$t; }"; done
+    "$WF_ENTRY" "$@"
+  ' _ "$@" 2>&1 || true)"
+  printf '%s\n' "$out" | sed -n 's/^RAN_//p' | tr '\n' ' '
+}
+
+# test_3332: the win-fallback numbers split five and twenty-seven.
+test_3332_win_fallback_partition() {
+  local base work now want_all t rest="" ran
+  base="$(new_base)"; work="$base/m"
+  split_baseline_file TEST-3332 tests/skills/test-aai-win-fallback.sh "$work/baseline.sh"
+  want_all="$(sed -n 's/^ALL_TESTS="\(.*\)"$/\1/p' "$work/baseline.sh")"
+  [[ "$(printf '%s\n' "$want_all" | wc -w | tr -d ' ')" -eq 32 ]] || log_fail "TEST-3332: the baseline ALL_TESTS should list 32 numbers: $want_all"
+  now="$(sed -n 's/^ALL_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE")"
+  [[ "$now" == "$want_all" ]] || log_fail "TEST-3332: ALL_TESTS is not the baseline 32-number list: $now"
+  now="$(sed -n 's/^WIN_FALLBACK_CORPUS_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE")"
+  [[ "$now" == "007 029 030 031 042" ]] || log_fail "TEST-3332: WIN_FALLBACK_CORPUS_TESTS is '$now', want '007 029 030 031 042'"
+  for t in $want_all; do
+    case " $now " in *" $t "*) ;; *) rest="$rest$t " ;; esac
+  done
+  ran="$(win_fallback_ran "$WIN_FALLBACK_FILE" main)"
+  [[ "$ran" == "$rest" ]] || log_fail "TEST-3332: main without arguments ran '$ran', want ALL_TESTS minus the five: '$rest'"
+  ran="$(win_fallback_ran "$WIN_FALLBACK_FILE" main 042 009)"
+  [[ "$ran" == "042 009 " ]] || log_fail "TEST-3332: main with arguments must run exactly the named cases, ran '$ran'"
+  [[ -f "$PROJECT_ROOT/tests/skills/test-aai-win-fallback-corpus.sh" ]] || log_fail "TEST-3332: tests/skills/test-aai-win-fallback-corpus.sh does not exist"
+  ran="$(win_fallback_ran "$PROJECT_ROOT/tests/skills/test-aai-win-fallback-corpus.sh" main_corpus)"
+  [[ "$ran" == "007 029 030 031 042 " ]] || log_fail "TEST-3332: the corpus suite ran '$ran', want '007 029 030 031 042 '"
+  log_pass "TEST-3332 (win-fallback: ALL_TESTS intact, 27 in the fixture half, the five in the corpus half)"
+}
+
+# test_3333: a NUL byte in a tracked text file reddens the corpus half only.
+test_3333_corpus_suite_bites() {
+  local base clone out rc=0 corpus="tests/skills/test-aai-hygiene-corpus.sh"
+  [[ -f "$PROJECT_ROOT/$corpus" ]] || log_fail "TEST-3333: $corpus does not exist"
+  # The clone sits on a physical path: node scripts of the suite compare it with import.meta.url.
+  base="$(env -u AAI_ROLE node -p 'require("fs").realpathSync(process.argv[1])' "$(new_base)")"; clone="$base/clone"
+  git clone -q --local --no-hardlinks "$PROJECT_ROOT" "$clone" || log_fail "TEST-3333: the clone failed"
+  env -u AAI_ROLE ROOT="$PROJECT_ROOT" DEST="$clone" node -e '
+    const fs = require("fs"), path = require("path"), cp = require("child_process");
+    const out = cp.execFileSync("git", ["-C", process.env.ROOT, "ls-files", "-z", "-co", "--exclude-standard", "--", "tests/skills", ".aai"], { maxBuffer: 1 << 28 });
+    for (const f of out.toString().split("\0").filter(Boolean)) {
+      const src = path.join(process.env.ROOT, f);
+      if (!fs.existsSync(src)) continue;
+      fs.mkdirSync(path.dirname(path.join(process.env.DEST, f)), { recursive: true });
+      fs.copyFileSync(src, path.join(process.env.DEST, f));
+    }
+  ' || log_fail "TEST-3333: could not overlay the working tree on the clone"
+  printf 'before\000after\n' > "$clone/nul-probe.txt"
+  git -C "$clone" config user.email split@example.invalid
+  git -C "$clone" config user.name split
+  git -C "$clone" add -A
+  git -C "$clone" commit -q -m "probe: overlay and a NUL byte in a tracked text file" || log_fail "TEST-3333: the clone commit failed"
+  ( cd "$clone" && env -u AAI_ROLE -u AAI_SUITE_REUSE bash "$corpus" > "$base/m/corpus.out" 2>&1 ) || rc=$?
+  out="$(cat "$base/m/corpus.out")"
+  [[ "$rc" -eq 1 ]] || { printf '%s\n' "$out" | sed -n '/^FAIL/p' >&2; log_fail "TEST-3333: the corpus suite should exit 1 on a NUL byte, exited $rc"; }
+  expect "TEST-3333" "$out" "FAIL: TEST-562"
+  rc=0
+  ( cd "$clone" && env -u AAI_ROLE -u AAI_SUITE_REUSE bash tests/skills/test-aai-hygiene-pack.sh > "$base/m/pack.out" 2>&1 ) || rc=$?
+  out="$(cat "$base/m/pack.out")"
+  [[ "$rc" -eq 0 ]] || { printf '%s\n' "$out" | sed -n '/^FAIL/p' >&2; log_fail "TEST-3333: the fixture half should exit 0 on the same clone, exited $rc"; }
+  log_pass "TEST-3333 (a planted NUL byte: corpus half exit 1 with the TEST-562 FAIL, fixture half exit 0)"
+}
+
+# test_3334: a moved case still runs alone through its definition file and through the corpus suite.
+test_3334_dispatch_both_ways() {
+  local base rc c names
+  base="$(new_base)"
+  for c in "test_117_source_skills_are_lf_pinned tests/skills/test-aai-hygiene-pack.sh" \
+           "test_117_source_skills_are_lf_pinned tests/skills/test-aai-hygiene-corpus.sh" \
+           "test_120_userguide_catalog_covers_every_skill tests/skills/test-aai-hygiene-pack.sh" \
+           "029 tests/skills/test-aai-win-fallback.sh" \
+           "029 tests/skills/test-aai-win-fallback-corpus.sh"; do
+    rc=0
+    env -u AAI_ROLE -u AAI_SUITE_REUSE bash "$PROJECT_ROOT/${c#* }" "${c%% *}" > "$base/m/dispatch.out" 2>&1 || rc=$?
+    [[ "$rc" -eq 0 ]] || { sed -n '1,30p' "$base/m/dispatch.out" >&2; log_fail "TEST-3334: ${c#* } ${c%% *} exited $rc"; }
+  done
+  names="$(split_main_names "$HYGIENE_PACK_FILE")"
+  for c in $HYGIENE_CORPUS_EXPECTED; do
+    [[ $'\n'"$names"$'\n' != *$'\n'"$c"$'\n'* ]] || log_fail "TEST-3334: main of the hygiene pack names the corpus case $c"
+  done
+  log_pass "TEST-3334 (moved cases dispatch alone through both files; the hygiene main names none of them)"
+}
+
 main() {
   echo "Testing $TEST_NAME (spec-precise-suite-evidence-reuse, spec-reuse-for-docs-reading-suites)"
   check_deps
@@ -1093,6 +1257,10 @@ main() {
   test_3305_tail_ignored_admitted
   test_3306_live_notes
   test_3308_ledger_append_measurements
+  test_3331_hygiene_partition
+  test_3332_win_fallback_partition
+  test_3333_corpus_suite_bites
+  test_3334_dispatch_both_ways
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
