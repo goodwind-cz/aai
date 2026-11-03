@@ -618,3 +618,71 @@ test('TEST-3269 armTrace with an access-time probe that reports no advance gives
     assert.equal(cAfter.mtimeMs, cBefore.mtimeMs, 'case-variant refusal left the sentinel mtime');
   }
 });
+
+// ---- spec-reuse-local-ledger-append (TEST-3301, TEST-3302) ----
+const LEDGER = 'docs/ai/tests/test-runs.jsonl';
+const ledgerRepo = () => mkRepo({ [LEDGER]: '{"a":1}\n{"b":2}\n', 'docs/ai/EVENTS.jsonl': '{"e":1}\n', 'docs/x.md': 'x\n' });
+const copyRepo = (src) => {
+  const dst = fs.mkdtempSync(path.join(os.tmpdir(), 'suite-reuse-copy-'));
+  roots.push(dst);
+  fs.cpSync(src, dst, { recursive: true });
+  return dst;
+};
+
+test('TEST-3301 an index-reading record tolerates a ledger append alone and misses on every other change', async () => {
+  const base = ledgerRepo();
+  await pass(base, 'fx', { trace: { index_read: true, git_read: true } });
+  const cases = [
+    ['append alone', (r) => fs.appendFileSync(path.join(r, LEDGER), '{"c":3}\n'), 'REUSE', null],
+    ['append twice', (r) => { fs.appendFileSync(path.join(r, LEDGER), '{"c":3}\n'); fs.appendFileSync(path.join(r, LEDGER), '{"d":4}\n'); }, 'REUSE', null],
+    ['equal-length edit', (r) => write(r, LEDGER, '{"a":9}\n{"b":2}\n'), 'RUN', `changed ${LEDGER}`],
+    ['truncation', (r) => write(r, LEDGER, '{"a":1}\n'), 'RUN', `changed ${LEDGER}`],
+    ['executable bit', (r) => fs.chmodSync(path.join(r, LEDGER), 0o755), 'RUN', `changed ${LEDGER}`],
+    ['EVENTS append', (r) => fs.appendFileSync(path.join(r, 'docs/ai/EVENTS.jsonl'), '{"e":2}\n'), 'RUN', 'changed docs/ai/EVENTS.jsonl'],
+    ['append plus other edit', (r) => { fs.appendFileSync(path.join(r, LEDGER), '{"c":3}\n'); write(r, 'docs/x.md', 'x edited\n'); }, 'RUN', 'changed docs/x.md'],
+  ];
+  for (const [name, mutate, status, detail] of cases) {
+    const r = copyRepo(base);
+    mutate(r);
+    const got = await chk(r, 'fx');
+    assert.equal(got.status, status, `${name}: ${JSON.stringify(got)}`);
+    if (detail) { assert.equal(got.reason, 'inputs', name); assert.equal(got.detail, detail, name); }
+  }
+});
+
+test('TEST-3302 the tolerance needs an index-reading record that carries append_prefix', async () => {
+  const appendThenCheck = async (root) => { fs.appendFileSync(path.join(root, LEDGER), '{"c":3}\n'); return chk(root, 'fx'); };
+  const storeOf = (root) => path.join(root, 'tests', 'skills', 'results', 'reuse', 'fx.json');
+  // no index read: the ledger is a named input and the hand-written prefix is ignored
+  const a = ledgerRepo();
+  await pass(a, 'fx', { trace: { index_read: false, inputs: { [LEDGER]: true } } });
+  const rec = JSON.parse(fs.readFileSync(storeOf(a), 'utf8'));
+  rec.append_prefix = { [LEDGER]: { bytes: fs.statSync(path.join(a, LEDGER)).size, sha256: rec.inputs_map[LEDGER] } };
+  fs.writeFileSync(storeOf(a), JSON.stringify(rec));
+  const ra = await appendThenCheck(a);
+  assert.equal(ra.status, 'RUN');
+  assert.equal(ra.reason, 'inputs');
+  assert.equal(ra.detail, `changed ${LEDGER}`);
+  // index read but the record has no append_prefix
+  const b = ledgerRepo();
+  await pass(b, 'fx', { trace: { index_read: true, git_read: true } });
+  const recB = JSON.parse(fs.readFileSync(storeOf(b), 'utf8'));
+  delete recB.append_prefix;
+  fs.writeFileSync(storeOf(b), JSON.stringify(recB));
+  const rb = await appendThenCheck(b);
+  assert.equal(rb.status, 'RUN');
+  assert.equal(rb.detail, `changed ${LEDGER}`);
+});
+
+test('TEST-3303 an index-reading record carries append_prefix for the ledger; a non-index record has none', async () => {
+  const storeOf = (root) => JSON.parse(fs.readFileSync(path.join(root, 'tests', 'skills', 'results', 'reuse', 'fx.json'), 'utf8'));
+  const a = ledgerRepo();
+  await pass(a, 'fx', { trace: { index_read: true, git_read: true } });
+  const ra = storeOf(a);
+  assert.deepEqual(Object.keys(ra.append_prefix), [LEDGER]);
+  assert.equal(ra.append_prefix[LEDGER].bytes, fs.statSync(path.join(a, LEDGER)).size);
+  assert.equal(ra.append_prefix[LEDGER].sha256, ra.inputs_map[LEDGER]);
+  const b = ledgerRepo();
+  await pass(b, 'fx', { trace: { index_read: false, inputs: { [LEDGER]: true } } });
+  assert.equal('append_prefix' in storeOf(b), false);
+});

@@ -260,3 +260,59 @@ poisoned run overwrites only the checkout files on the path list that the trace 
 not see read (and poisons nothing when the trace saw the git index read), and requires
 the suite to exit 0, at admission time only; it does not look at the clone case
 as such, and the other two are accepted risk.
+
+## Measurements (ledger append)
+
+SPEC `spec-reuse-local-ledger-append` D6. The sections above stay as history. This
+section measures what the run-ledger append tolerance changes: for each of two
+commits, a disposable detached worktree of that commit (never the shared main
+checkout), one framework run of the eleven manifest suites with reuse on (the
+seed), the per-suite outcome of `suite-reuse.mjs check` against the seed's store
+with the framework's environment, then one zero-delta rerun with reuse on and no
+edit in between. Command for both runs:
+`bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh` with one
+`--skill` per manifest suite, `AAI_TEST_TIMEOUT=3000`, `AAI_ROLE` unset.
+
+Before: 9c487740cf606419046a3f5488508520507ff9e3 (main at planning time). After:
+0d7992dcbbcde189a9c28b62f13600148bc13ec9 (the implementation tip). Host: Apple M4 Max,
+macOS 27.0.1, Node v22.23.1, Bash 3.2.57 (GNU bash), Git 2.54.0.
+
+The "after" run was taken at 0d7992dc; only tests and docs changed between that commit and the branch tip, and validation round 1 reproduced the result at e7797c86 (113 s seed, 1 s rerun, 11 of 11 suites reused).
+
+| Commit | Seed exit | Seed wall s | Rerun exit | Rerun wall s | Rerun reuse line |
+|---|---|---|---|---|---|
+| before | 0 | 112 | 0 | 109 | Evidence reuse: on (6 of 11 suites reused, check 0s) |
+| after | 0 | 112 | 0 | 1 | Evidence reuse: on (11 of 11 suites reused, check 0s) |
+
+Per suite, REUSED or the first RUN reason that `check` printed after the seed:
+
+| When | Suite | Outcome |
+|---|---|---|
+| before | aai-ride-status | REUSED |
+| before | aai-feedback-status | REUSED |
+| before | aai-pricing | REUSED |
+| before | aai-redact | REUSED |
+| before | aai-orchestration-mode | REUSED |
+| before | aai-runtime-file | REUSED |
+| before | aai-docs-content | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl |
+| before | aai-spec-lint | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl |
+| before | aai-hygiene-pack | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl |
+| before | aai-prompt-diet | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl |
+| before | aai-win-fallback | RUN reason=inputs changed docs/ai/tests/test-runs.jsonl |
+| after | aai-ride-status | REUSED |
+| after | aai-feedback-status | REUSED |
+| after | aai-pricing | REUSED |
+| after | aai-redact | REUSED |
+| after | aai-orchestration-mode | REUSED |
+| after | aai-runtime-file | REUSED |
+| after | aai-docs-content | REUSED |
+| after | aai-spec-lint | REUSED |
+| after | aai-hygiene-pack | REUSED |
+| after | aai-prompt-diet | REUSED |
+| after | aai-win-fallback | REUSED |
+
+Before, the five index-reading suites (aai-docs-content, aai-spec-lint,
+aai-hygiene-pack, aai-prompt-diet, aai-win-fallback) each miss on the one input
+the framework itself changed, `docs/ai/tests/test-runs.jsonl`, so the rerun
+executes them and takes as long as the seed. After, all eleven are reused and the
+rerun takes about a second. Any other tracked change still misses (TEST-3301).

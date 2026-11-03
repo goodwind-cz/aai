@@ -3586,3 +3586,13 @@
 {"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"suite-select-sigpipe-fix","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-suite-select-sigpipe-fix","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-02T14:06:58Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-suite-select-sigpipe-fix","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-02T20:26:05Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-local-ledger-append","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-02T23:23:04Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"reuse-local-ledger-append","payload":{"role":"code_review","head":"3ec7f99054f5f16e5cccfdb37cc6b69b1fc2040b","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-02T23:23:04Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"reuse-local-ledger-append","payload":{"status":"pass","hash":"60c3a275e893536e7f85eef2d0c775f3c008669c3933a2fc78b3b65afbc0d4ce"}}
+{"v":1,"ts":"2026-11-03T00:07:58Z","actor":"ales_holubec.net","event":"check_verdict","ref":"reuse-local-ledger-append","payload":{"role":"code_review","head":"3ec7f99054f5f16e5cccfdb37cc6b69b1fc2040b","status":"fail","security_relevant":false}}
+{"v":1,"ts":"2026-11-03T00:07:58Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"reuse-local-ledger-append","payload":{"status":"pass","hash":"38b99a5424ca0bd6b30186979d84891f41fbc2fb1ff50c6de4a670edbb1454fe"}}
+{"v":1,"ts":"2026-11-03T00:12:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"reuse-local-ledger-append","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-03T00:12:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"reuse-local-ledger-append","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-03T00:12:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-local-ledger-append","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-03T00:12:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reuse-local-ledger-append","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-03T01:26:55Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"reuse-local-ledger-append","payload":{"pr":527,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"949f01959ff47b3bd860021bc585c77ec741f50c"}}

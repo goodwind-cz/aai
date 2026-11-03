@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-02T14:07:06.304Z",
+  "generatedAt": "2026-11-03T00:12:09.782Z",
   "project": "aai",
   "counts": {
-    "delivered": 339,
+    "delivered": 340,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -234,6 +234,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "reuse-local-ledger-append",
+      "title": "An unchanged rerun reuses the suites that read the git index",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0243-reuse-local-ledger-append.md",
+      "closed_on": "2026-11-03",
+      "agent_minutes": 394,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261103T0008Z-reuse-local-ledger-append.md"
+    },
     {
       "ref": "node-first-reap-tests",
       "title": "Move the test-process reaper (aai-reap-tests) to Node",
@@ -4668,6 +4681,19 @@
       "kind": "month",
       "label": "2026-11",
       "items": [
+        {
+          "ref": "reuse-local-ledger-append",
+          "title": "An unchanged rerun reuses the suites that read the git index",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0243-reuse-local-ledger-append.md",
+          "closed_on": "2026-11-03",
+          "agent_minutes": 394,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261103T0008Z-reuse-local-ledger-append.md"
+        },
         {
           "ref": "node-first-reap-tests",
           "title": "Move the test-process reaper (aai-reap-tests) to Node",

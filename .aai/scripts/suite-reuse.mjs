@@ -108,6 +108,10 @@ export function loadContext(root, opts = {}) {
     hashes: new Map(),
   };
 }
+// Run-ledger files an index-reading suite is compared on the bytes its checkout held, lines appended
+// after them tolerated (D1): git's index refresh reads every tracked file, so the framework's own
+// append would otherwise make every such suite miss.
+const APPEND_ONLY_LEDGERS = ['docs/ai/tests/test-runs.jsonl'];
 function resolveTimeout(raw) { return /^[0-9]+$/.test(raw || '') && Number(raw) > 0 ? Number(raw) : 3000; }
 function fileHash(ctx, rel) {
   if (!ctx.hashes.has(rel)) {
@@ -124,6 +128,23 @@ function globMatches(ctx, globs) {
     for (const f of ctx.files) if (matchesGlob(f, g)) out.add(f);
   }
   return out;
+}
+
+function appendPrefix(ctx, inputsMap) {
+  const out = {};
+  for (const p of APPEND_ONLY_LEDGERS) {
+    const h = inputsMap[p];
+    if (typeof h !== 'string' || h === 'absent') continue;
+    try { out[p] = { bytes: fs.statSync(path.join(ctx.root, p)).size, sha256: h }; } catch { /* gone again: no tolerance for it */ }
+  }
+  return out;
+}
+function appendedOnly(ctx, p, prefix) {
+  try {
+    const abs = path.join(ctx.root, p);
+    const buf = fs.readFileSync(abs);
+    return buf.length >= prefix.bytes && contentHash(buf.subarray(0, prefix.bytes), fs.statSync(abs).mode) === prefix.sha256;
+  } catch { return false; }
 }
 
 // ---- identity (D3) ----
@@ -163,6 +184,12 @@ export function computeIdentity(ctx, suite, args, trace = NO_TRACE, recorded = f
   const pathList = recorded ? [...trace.paths].sort() : ctx.pathList;
   if (trace.index_read) {
     for (const p of pathList) if (!(p in inputsMap)) inputsMap[p] = (recorded && trace.tree_hashes && trace.tree_hashes[p]) || fileHash(ctx, p);
+  }
+  if (!recorded) {
+    for (const p of APPEND_ONLY_LEDGERS) {
+      const tolerate = trace.index_read && trace.append_prefix && trace.append_prefix[p];
+      if (tolerate && p in inputsMap && appendedOnly(ctx, p, tolerate)) inputsMap[p] = tolerate.sha256;
+    }
   }
   const envMap = prefixEnv(ctx);
   for (const name of trace.env_names.filter((n) => !ENV_NOISE.includes(n))) envMap[name] = ctx.env[name] === undefined ? null : ctx.env[name];
@@ -219,7 +246,7 @@ function offReason(env, mode, isolation) {
 function traceOfRecord(rec) {
   const t = rec && rec.schema === 2 && rec.trace;
   if (!t || !Array.isArray(t.input_paths) || !Array.isArray(t.env_names)) return undefined;
-  return { inputs: Object.fromEntries(t.input_paths.map((p) => [p, null])), paths: [], env_names: t.env_names, git_read: t.git_read === true, index_read: t.index_read === true };
+  return { inputs: Object.fromEntries(t.input_paths.map((p) => [p, null])), paths: [], env_names: t.env_names, git_read: t.git_read === true, index_read: t.index_read === true, append_prefix: rec.append_prefix && typeof rec.append_prefix === 'object' ? rec.append_prefix : {} };
 }
 export function checkSuites({ root, suites, mode = 'selected', isolation = 'on', runDir, args, env, runtime, seedPaths, policyVersion, timeoutSeconds }) {
   const ctx = loadContext(root, { env, runtime, seedPaths, policyVersion, timeoutSeconds });
@@ -307,6 +334,7 @@ export function recordSuite({ root, suite, runDir, metrics, isolation = 'isolate
   const rec = {
     schema: 2, suite, identity: after.identity, components: after.components, inputs_map: after.inputs_map, paths: after.paths,
     trace: { input_paths: Object.keys(trace.inputs).filter((p) => !p.startsWith('.git/')).sort(), index_read: traced.index_read, git_read: traced.git_read, env_names: names },
+    append_prefix: traced.index_read ? appendPrefix(ctx, after.inputs_map) : undefined,
     run_id: path.basename(runDir), finished_at: now.toISOString(), duration_seconds: m.duration_seconds || 0,
     exit_code: 0, log: posix(path.relative(root, logAbs)), log_sha256: logHash,
   };
@@ -416,6 +444,20 @@ function admitSuite(root, suite, tmp) {
   ].filter(Boolean);
   const bad = probes.find((x) => !x.ok);
   if (bad) return fail(bad.why);
+  const tailLines = [];
+  if (trace.index_read) {
+    // D3: an index-reading suite is compared tolerating ledger appends, so it must also pass with one present.
+    const tdir = scratchRepo(root, tmp, `${suite}-t`);
+    if (!tdir) return fail('scratch-repo');
+    const tledger = path.join(tdir, 'docs/ai/tests/test-runs.jsonl');
+    fs.mkdirSync(path.dirname(tledger), { recursive: true });
+    fs.appendFileSync(tledger, 'AAI-REUSE-POISON appended\n');
+    const ra = run('bash', [`tests/skills/test-${suite}.sh`], { cwd: tdir, env: admitEnv({ AAI_SUITE_REUSE: '0' }), timeout: 1800000 });
+    const tailOk = ra.status === 0;
+    fs.rmSync(tdir, { recursive: true, force: true });
+    if (!tailOk) return fail(`appended-ledger run failed rc=${ra.status}`);
+    tailLines.push('appended docs/ai/tests/test-runs.jsonl PASS');
+  }
   const toPoison = trace.index_read ? [] : trace.paths.filter((p) => !(p in trace.inputs) && !p.startsWith('.git/'));
   if (toPoison.length) {
     const pdir = scratchRepo(root, tmp, `${suite}-p`);
@@ -428,7 +470,7 @@ function admitSuite(root, suite, tmp) {
     const passed = r.status === 0;
     if (!passed) return fail(`poisoned run failed rc=${r.status}`);
   }
-  return { suite, ok: true, seconds: (Date.now() - t0) / 1000, reads: inputs.length, poisoned: toPoison.length, probes: probes.map((x) => x.line) };
+  return { suite, ok: true, seconds: (Date.now() - t0) / 1000, reads: inputs.length, poisoned: toPoison.length, probes: [...probes.map((x) => x.line), ...tailLines] };
 }
 // base: {root, ref, manifest} or null when the ref does not resolve (then every suite is admitted).
 function entryChanged(base, suite) {
