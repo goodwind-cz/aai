@@ -1,8 +1,8 @@
 ---
 id: reuse-local-ledger-append
 type: change
-number: null
-status: draft
+number: 243
+status: done
 capability: precise-suite-evidence-reuse
 parent: smaller-node-core-and-faster-feedback
 user_visible: true

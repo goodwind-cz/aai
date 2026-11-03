@@ -1,10 +1,10 @@
 ---
 id: spec-reuse-local-ledger-append
 type: spec
-number: null
-status: implementing
+number: 270
+status: done
 mutation_gate: v1
-frozen_sha256: 4b2496c679386b3387ec2ded86c9534f400361a8ad6d853affe542b5ca5ff08f
+frozen_sha256: f96193ff4dce5e9c6c44f9ba381f1f7c4c75a07d280b085ee9faeeb8e54b00e2
 ceremony_level: 2
 links:
   requirement: reuse-local-ledger-append
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Intake: docs/issues/CHANGE-DRAFT-reuse-local-ledger-append.md
+- Intake: docs/issues/CHANGE-0243-reuse-local-ledger-append.md
 - Prior slices: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md,
   docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md (D3 identity,
   D5 admission gate, D7 which rejected a by-name ledger exclusion; this spec
@@ -420,8 +420,8 @@ suites run with `AAI_SUITE_REUSE=0`.
 - tests/skills/test-aai-suite-reuse.sh
 - tests/skills/suite-reuse.json
 - docs/analysis/precise-suite-evidence-reuse.md
-- docs/issues/CHANGE-DRAFT-reuse-local-ledger-append.md
-- docs/specs/SPEC-DRAFT-spec-reuse-local-ledger-append.md
+- docs/issues/CHANGE-0243-reuse-local-ledger-append.md
+- docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md
 - docs/product/precise-suite-evidence-reuse.md (close-out)
 - CHANGELOG.md (close-out)
 - docs/INDEX.md (regenerated)

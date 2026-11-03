@@ -133,7 +133,7 @@ pairs:
   - capability: reuse-for-docs-reading-suites
     status: done
   - capability: reuse-local-ledger-append
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

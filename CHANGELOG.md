@@ -28,6 +28,11 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — feat: suite reuse survives the framework's own run-ledger append for index-reading suites (reuse-local-ledger-append)
+
+- A local rerun with nothing edited is now reused for the suites that read the git index. The framework's own append to the tracked `docs/ai/tests/test-runs.jsonl` no longer makes them miss: for those suites the ledger is compared by the bytes it held when the passing run started, so appended lines are tolerated and any other change to it still misses. Suites that did not read the index compare the ledger exactly.
+- `suite-reuse.mjs lint --admit` runs each index-reading suite once more at local admission with one non-JSON line appended to the ledger, and the suite must still pass (`ADMIT-PROBE ... appended ... PASS`). It catches a suite that parses the ledger strictly, not a lenient reader that skips unparsable lines, and it is not repeated on every run.
+
 ## [unreleased] — feat: suite reuse keys on what a suite actually read (access-time trace of its checkout); 11 suites admitted (reuse-for-docs-reading-suites)
 
 - Reuse of a suite's earlier pass now compares what the suite really read, found from file access times in its disposable checkout (bytes and executable bit of files read, replaced or deleted; HEAD and refs when it read `.git`; every file when it read the git index), instead of reading the suite's source text. Files outside the checkout or read without an access-time change, such as stat-only checks, are not compared.

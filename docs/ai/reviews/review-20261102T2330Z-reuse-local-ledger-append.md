@@ -3,14 +3,14 @@
 security_relevant: false
 
 - Scope: `git diff origin/main...HEAD` (base origin/main = 9c487740, head 3ec7f99054f5f16e5cccfdb37cc6b69b1fc2040b), branch feat/reuse-local-ledger-append, worktree /Users/ales/Projects/aai-worktrees/reuse-local-ledger-append
-- Spec: docs/specs/SPEC-DRAFT-spec-reuse-local-ledger-append.md (frozen, ceremony 2, mutation_gate v1), with its one disclosed amendment (decisions.jsonl 2026-11-02T22:51:44Z, class measurement: TEST-3301..3303 file cells, D2 caveat wording)
+- Spec: docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md (frozen, ceremony 2, mutation_gate v1), with its one disclosed amendment (decisions.jsonl 2026-11-02T22:51:44Z, class measurement: TEST-3301..3303 file cells, D2 caveat wording)
 - Reviewer: claude-opus-5-5, separate context (implementer and remediator: sonnet). The same context ran validation r2 just before this pass.
 - Dispatch note: the dispatch named focus areas (prefix logic, fail-closed paths, extra scratch clone, tests, manifest notes, consumer docs). It did not pre-rate any finding. I reviewed the full scope anyway.
 
 ```yaml
 review:
   scope: origin/main...3ec7f99054f5f16e5cccfdb37cc6b69b1fc2040b
-  spec: docs/specs/SPEC-DRAFT-spec-reuse-local-ledger-append.md
+  spec: docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -30,7 +30,7 @@ review:
       - { rank: NON-BLOCKING, file: .aai/scripts/suite-reuse.mjs, line: 450,
           issue: "The appended-ledger run makes a second full --no-hardlinks clone per index-reading suite. It is never removed until admitSuites' finally (:495), so all clones of one admission stay on disk together",
           failure_scenario: "A full admission (no --changed-since, or a manifest-wide change) of the 11 suites now holds 11 '-a' clones plus 5 '-t' clones, each about 70 MB working tree plus 41 MB pack, about 1.7 GB in TMPDIR at peak. A small TMPDIR fills and the later clones fail with 'scratch-repo'. That is fail-closed, but the error message is misleading. Removing the '-t' clone right after its run, or reusing the '-a' clone after restoring its ledger, bounds this." }
-      - { rank: NON-BLOCKING, file: docs/specs/SPEC-DRAFT-spec-reuse-local-ledger-append.md, line: 196,
+      - { rank: NON-BLOCKING, file: docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md, line: 196,
           issue: "Caveat says the admission gate 'runs each manifest suite once'; D3 (:203-212) and the code (:448) run the appended-ledger probe only for index-reading suites, and only locally (ADMIT-OFF ci)",
           failure_scenario: "The close-out product doc sentence is copied from D2. It would tell a reader that every manifest suite, including the six non-index ones, is probed against an appended ledger line. They are not, and none of them is tolerated either. The wording overstates the guard, not the identity." }
   cannot_verify:
@@ -118,5 +118,5 @@ Proposed disposition: **fold into the close-out product doc sentence** (close-ou
 state_update_commands (not run by the reviewer):
 
 ```
-node .aai/scripts/state.mjs set-code-review --required true --status fail --report docs/ai/reviews/review-20261102T2330Z-reuse-local-ledger-append.md --base-ref main --head-ref 3ec7f99054f5f16e5cccfdb37cc6b69b1fc2040b --scope ".aai/scripts/suite-reuse.mjs docs/INDEX.md docs/ai/EVENTS.jsonl docs/ai/decisions.jsonl docs/ai/roadmap.yaml docs/analysis/precise-suite-evidence-reuse.md docs/issues/CHANGE-DRAFT-reuse-local-ledger-append.md docs/specs/SPEC-DRAFT-spec-reuse-local-ledger-append.md tests/skills/lib/suite-reuse.test.mjs tests/skills/suite-reuse.json tests/skills/test-aai-suite-reuse.sh" --notes "spec_compliance pass (7/7); code_quality fail: B1 TEST-3307 fails locally whenever ADMIT-NONE (post-merge main), remediate in tree; N1 second scratch clone held to end, remediate with B1 else accepted residual; N2 caveat scope 'each manifest suite', fold into close-out product doc"
+node .aai/scripts/state.mjs set-code-review --required true --status fail --report docs/ai/reviews/review-20261102T2330Z-reuse-local-ledger-append.md --base-ref main --head-ref 3ec7f99054f5f16e5cccfdb37cc6b69b1fc2040b --scope ".aai/scripts/suite-reuse.mjs docs/INDEX.md docs/ai/EVENTS.jsonl docs/ai/decisions.jsonl docs/ai/roadmap.yaml docs/analysis/precise-suite-evidence-reuse.md docs/issues/CHANGE-0243-reuse-local-ledger-append.md docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md tests/skills/lib/suite-reuse.test.mjs tests/skills/suite-reuse.json tests/skills/test-aai-suite-reuse.sh" --notes "spec_compliance pass (7/7); code_quality fail: B1 TEST-3307 fails locally whenever ADMIT-NONE (post-merge main), remediate in tree; N1 second scratch clone held to end, remediate with B1 else accepted residual; N2 caveat scope 'each manifest suite', fold into close-out product doc"
 ```

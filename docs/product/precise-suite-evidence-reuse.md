@@ -6,8 +6,9 @@ status: current
 delivered_by:
   - precise-suite-evidence-reuse
   - reuse-for-docs-reading-suites
+  - reuse-local-ledger-append
 spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
-updated: 2026-11-02
+updated: 2026-11-03
 ---
 
 # Reuse of local suite results
@@ -27,11 +28,19 @@ operating system's file access times show which files it touched. The identity
 holds: the bytes and executable bit of every file inside the checkout (outside
 its `.git` directory) that the suite read, replaced or deleted; under `.git`
 only HEAD and the refs, and only when the run read the git directory; every
-file when the run read the git index; the list of file paths in the checkout;
-the harness files; the relevant environment; the arguments; the runtime (Node version,
+file when the run read the git index, and then for the run ledger
+`docs/ai/tests/test-runs.jsonl` only the bytes it held when the run started
+(lines appended after the recorded run do not count; any other change to it
+does); the list of file
+paths in the checkout; the harness files; the relevant environment; the arguments; the runtime (Node version,
 platform, CPU architecture, git and bash versions); and the runner policy. Caveat: anything outside the checkout, or
 read without its access time moving (for example a stat-only check such as
-`[ -s f ]`), is not compared.
+`[ -s f ]`), is not compared. The same holds for the ledger exception: when an
+index-reading suite is admitted locally, the admission gate runs it once with
+one non-JSON line appended to the ledger and it must still pass. That probe
+catches a suite that parses the ledger strictly, not a lenient reader that
+skips lines it cannot parse, and it is not repeated on every run. A suite that
+did not read the git index is compared on the ledger exactly.
 
 ## How to use it
 
@@ -93,12 +102,10 @@ read without its access time moving (for example a stat-only check such as
   move (medians 107 s off, 110 s on with no edit; 109 s and 121 s after a
   one-line edit), because the reused suite runs beside the longest one. The
   five large suites read every tracked file or the git index, so any edit makes
-  them run; see docs/analysis/precise-suite-evidence-reuse.md. Two follow-ups
+  them run; see docs/analysis/precise-suite-evidence-reuse.md. One follow-up
   would change that: `fu-reuse-split-corpus-cases` (split the whole-corpus
   cases of the five large suites into separate suites so the fixture cases can
-  be reused) and `fu-reuse-local-ledger-append` (the framework's own append to
-  the tracked `docs/ai/tests/test-runs.jsonl` makes even an unchanged rerun
-  miss for suites that read the git index).
+  be reused).
 - Reuse is off where file access times are not recorded (a volume mounted
   without access-time updates, or a failed probe): nothing is recorded
   (`trace-unavailable`) and every suite runs.
