@@ -914,7 +914,7 @@ test_3300_ledger_append_reused() {
   fw_go "$base" -- --skill aai-ix
   [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3300: run 2 exited $RC"; }
   n2="$(wc -l < "$r/docs/ai/tests/test-runs.jsonl" | tr -d ' ')"
-  [[ "$n2" -gt "$n1" ]] || log_fail "TEST-3300: run 1 did not append to the ledger ($n1 / $n2)"
+  [[ "$n2" -gt "$n1" ]] || log_fail "TEST-3300: run 2 did not append to the ledger ($n1 / $n2)"
   if [[ "$OUT" != *"REUSED (run "* ]]; then
     printf '%s\n' "$(helper_check "$base" aai-ix)" >&2
     show_out
@@ -923,7 +923,7 @@ test_3300_ledger_append_reused() {
   fw_go "$base" -- --skill aai-ix
   [[ "$RC" -eq 0 ]] || { show_out; log_fail "TEST-3300: run 3 exited $RC"; }
   n3="$(wc -l < "$r/docs/ai/tests/test-runs.jsonl" | tr -d ' ')"
-  [[ "$n3" -gt "$n2" ]] || log_fail "TEST-3300: run 2 did not append to the ledger ($n2 / $n3)"
+  [[ "$n3" -gt "$n2" ]] || log_fail "TEST-3300: run 3 did not append to the ledger ($n2 / $n3)"
   expect "TEST-3300 run 3" "$OUT" "REUSED (run "
   [[ "$(marker_count "$base" aai-ix)" -eq 1 ]] || log_fail "TEST-3300: the suite executed more than once ($(marker_count "$base" aai-ix))"
   log_pass "TEST-3300 (index-reading suite REUSED across two framework ledger appends)"
@@ -991,6 +991,10 @@ test_3307_live_appended_probes() {
   if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-OFF ci"* ]]; then log_pass "TEST-3307 (ADMIT-OFF ci)"; return 0; fi
   if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-NONE"* ]]; then log_pass "TEST-3307 (ADMIT-NONE: no suite changed against main)"; return 0; fi
   for s in $FIVE_INDEX_SUITES; do
+    if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-FAIL $s "* ]]; then
+      printf '%s\n' "$LIVE_ADMIT_OUT" | grep -E '^ADMIT-' >&2
+      log_fail "TEST-3307: admission of $s failed"
+    fi
     if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-PASS $s "* ]]; then
       n=$((n + 1))
       expect "TEST-3307 $s" "$LIVE_ADMIT_OUT" "ADMIT-PROBE $s appended docs/ai/tests/test-runs.jsonl PASS"
