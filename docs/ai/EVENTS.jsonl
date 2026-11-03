@@ -3595,3 +3595,4 @@
 {"v":1,"ts":"2026-11-03T00:12:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"reuse-local-ledger-append","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-03T00:12:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-local-ledger-append","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-03T00:12:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reuse-local-ledger-append","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-03T01:26:55Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"reuse-local-ledger-append","payload":{"pr":527,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"949f01959ff47b3bd860021bc585c77ec741f50c"}}
