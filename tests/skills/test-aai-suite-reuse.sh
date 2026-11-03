@@ -627,25 +627,25 @@ test_3274_changed_since_and_ci() {
   log_pass "TEST-3274 (ADMIT-NONE, only the changed entry admitted, ADMIT-OFF ci)"
 }
 
-# test_3275: the live manifest lists the eleven suites, each live false with a note, each selected by the gate row.
+# test_3275: the live manifest lists the thirteen suites, each live false with a note, each selected by the gate row.
 test_3275_live_manifest() {
   local out rc=0 src suite f
   out="$(env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3275: lint exited $rc"; }
   src="$(MAN="$PROJECT_ROOT/tests/skills/suite-reuse.json" node -e '
     const m = JSON.parse(require("fs").readFileSync(process.env.MAN, "utf8")).suites;
-    const want = ["aai-docs-content","aai-spec-lint","aai-hygiene-pack","aai-prompt-diet","aai-ride-status","aai-win-fallback","aai-feedback-status","aai-pricing","aai-redact","aai-orchestration-mode","aai-runtime-file"];
+    const want = ["aai-docs-content","aai-spec-lint","aai-hygiene-pack","aai-prompt-diet","aai-ride-status","aai-win-fallback","aai-feedback-status","aai-pricing","aai-redact","aai-orchestration-mode","aai-runtime-file","aai-hygiene-corpus","aai-win-fallback-corpus"];
     const bad = want.filter((s) => !m[s] || m[s].live !== false || typeof m[s].note !== "string" || !m[s].note.trim());
     console.log(bad.length ? "FAIL " + bad.join(",") : "OK");
   ')"
   [[ "$src" == OK ]] || log_fail "TEST-3275: manifest entries missing or unqualified: $src"
-  for suite in aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-ride-status aai-win-fallback; do
+  for suite in aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-ride-status aai-win-fallback aai-hygiene-corpus aai-win-fallback-corpus; do
     f="tests/skills/test-$suite.sh"
     out="$(printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")" \
       || log_fail "TEST-3275: select-suites.mjs failed for $f"
     [[ $'\n'"$out" =~ $'\n'SELECTED\ aai-suite-reuse($|[[:space:]]) ]] || log_fail "TEST-3275: $f does not select aai-suite-reuse"
   done
-  log_pass "TEST-3275 (lint clean, eleven qualified entries, six named suite files select the gate)"
+  log_pass "TEST-3275 (lint clean, thirteen qualified entries, eight named suite files select the gate)"
 }
 
 LIVE_ADMIT_OUT=""
@@ -965,7 +965,10 @@ test_3305_tail_ignored_admitted() {
 }
 test_3303_append_prefix_recorded() { node_cases TEST-3303; }
 
-FIVE_INDEX_SUITES="aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-win-fallback"
+# The index-reading suites: the corpus halves replaced the whole hygiene-pack and win-fallback.
+FIVE_INDEX_SUITES="aai-docs-content aai-spec-lint aai-prompt-diet aai-hygiene-corpus aai-win-fallback-corpus"
+# The five suites the ledger-append measurement (TEST-3308) recorded before the corpus split.
+LEDGER_APPEND_SUITES="aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-win-fallback"
 
 # test_3306: lint is clean on the live repository and the five index-reading suites say what their identity tolerates.
 test_3306_live_notes() {
@@ -1007,7 +1010,7 @@ test_3307_live_appended_probes() {
 # test_3308: the analysis note holds the before and after measurement of the ledger append.
 test_3308_ledger_append_measurements() {
   local note="$PROJECT_ROOT/docs/analysis/precise-suite-evidence-reuse.md" out
-  out="$(NOTE="$note" SUITES="$FIVE_INDEX_SUITES" node -e '
+  out="$(NOTE="$note" SUITES="$LEDGER_APPEND_SUITES" node -e '
     const fs = require("fs");
     const lines = fs.readFileSync(process.env.NOTE, "utf8").split("\n");
     const fail = (m) => { console.log("FAIL " + m); process.exit(0); };
@@ -1198,6 +1201,58 @@ test_3334_dispatch_both_ways() {
   log_pass "TEST-3334 (moved cases dispatch alone through both files; the hygiene main names none of them)"
 }
 
+# ---- reuse-split-corpus-cases (TEST-3336, TEST-3337): the manifest and the admission of the two halves ----
+
+# test_3336: the manifest holds thirteen entries; the corpus halves read the index, the fixture halves do not.
+test_3336_split_manifest() {
+  local lrc=0 lout out
+  lout="$(env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" 2>&1)" || lrc=$?
+  [[ "$lrc" -eq 0 ]] || { printf '%s\n' "$lout" >&2; log_fail "TEST-3336: lint exited $lrc"; }
+  out="$(ROOT="$PROJECT_ROOT" SUITES="$FIVE_INDEX_SUITES" node -e '
+    const m = JSON.parse(require("fs").readFileSync(process.env.ROOT + "/tests/skills/suite-reuse.json", "utf8")).suites;
+    const names = Object.keys(m);
+    const fail = (x) => { console.log("FAIL " + x); process.exit(0); };
+    if (names.length !== 13) fail("expected 13 manifest entries, found " + names.length);
+    for (const s of ["aai-hygiene-corpus", "aai-win-fallback-corpus"]) if (!m[s]) fail("no entry for " + s);
+    for (const s of process.env.SUITES.split(" ")) {
+      if (!m[s] || !m[s].note.includes("docs/ai/tests/test-runs.jsonl")) fail("the note of " + s + " does not name docs/ai/tests/test-runs.jsonl");
+      if (!m[s].note.includes("git index")) fail("the note of " + s + " does not say the git index is read");
+    }
+    for (const s of ["aai-hygiene-pack", "aai-win-fallback"]) {
+      const n = m[s] && m[s].note;
+      if (!n) fail("no entry for " + s);
+      if (/reads the git index/i.test(n) || n.includes("every tracked file")) fail("the note of " + s + " still claims a git index read");
+      if (!/poisoned=[1-9][0-9]*/.test(n)) fail("the note of " + s + " carries no poisoned count above zero");
+    }
+    console.log("OK");
+  ')"
+  [[ "$out" == OK ]] || log_fail "TEST-3336: $out"
+  log_pass "TEST-3336 (lint clean; thirteen entries; five index-reading notes name the run ledger; the two fixture-half notes claim no index read)"
+}
+
+# test_3337: the live admission admits both corpus halves with the appended probe and both fixture halves with poisoned above zero.
+test_3337_split_admission() {
+  local s line p
+  if [[ -z "$LIVE_ADMIT_OUT" ]]; then
+    LIVE_ADMIT_OUT="$(env -u AAI_ROLE -u AAI_SUITE_REUSE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" --admit --changed-since main 2>&1 || true)"
+  fi
+  if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-OFF ci"* ]]; then log_pass "TEST-3337 (ADMIT-OFF ci)"; return 0; fi
+  for s in aai-hygiene-pack aai-win-fallback aai-hygiene-corpus aai-win-fallback-corpus; do
+    [[ "$LIVE_ADMIT_OUT" != *"ADMIT-FAIL $s "* ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n '/^ADMIT-/p' >&2; log_fail "TEST-3337: admission of $s failed"; }
+    line="$(printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n "/^ADMIT-PASS $s /p")"
+    [[ -n "$line" ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n '/^ADMIT-/p' >&2; log_fail "TEST-3337: no ADMIT-PASS line for $s"; }
+  done
+  for s in aai-hygiene-pack aai-win-fallback; do
+    line="$(printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n "/^ADMIT-PASS $s /p")"
+    p="${line##*poisoned=}"
+    [[ "$p" =~ ^[0-9]+$ && "$p" -gt 0 ]] || log_fail "TEST-3337: $s was admitted with poisoned=$p, want above zero (the half is not narrow)"
+  done
+  for s in aai-hygiene-corpus aai-win-fallback-corpus; do
+    expect "TEST-3337 $s" "$LIVE_ADMIT_OUT" "ADMIT-PROBE $s appended docs/ai/tests/test-runs.jsonl PASS"
+  done
+  log_pass "TEST-3337 (fixture halves admitted with poisoned above zero; corpus halves admitted with the appended probe)"
+}
+
 main() {
   echo "Testing $TEST_NAME (spec-precise-suite-evidence-reuse, spec-reuse-for-docs-reading-suites)"
   check_deps
@@ -1261,6 +1316,8 @@ main() {
   test_3332_win_fallback_partition
   test_3333_corpus_suite_bites
   test_3334_dispatch_both_ways
+  test_3336_split_manifest
+  test_3337_split_admission
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

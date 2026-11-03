@@ -101,6 +101,8 @@ aai-hitl-channel	6
 aai-hitl-propagation	1
 # sample aai-hooks-overlay measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=27,30,30,49,30
 aai-hooks-overlay	30
+# sample aai-hygiene-corpus fallback unsampled (new suite of reuse-split-corpus-cases; no successful observation)
+aai-hygiene-corpus	212
 # sample aai-hygiene-pack measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=98,74,98,64,97
 aai-hygiene-pack	97
 # sample aai-implementation-mode measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,0,0,0
@@ -253,6 +255,8 @@ aai-validator-isolation	1
 aai-verify-gate	4
 # sample aai-win-fallback measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=48,43,50,45,45
 aai-win-fallback	45
+# sample aai-win-fallback-corpus fallback unsampled (new suite of reuse-split-corpus-cases; no successful observation)
+aai-win-fallback-corpus	212
 # sample aai-worktree measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=0,0,1,0,0
 aai-worktree	1
 # sample aai-worktree-seed measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=20,20,27,29,27

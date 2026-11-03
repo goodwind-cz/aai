@@ -1822,8 +1822,9 @@ aai-sync-seed aai-hooks-overlay
 aai-sync-seed aai-layer-drift
 aai-sync-seed aai-layer-profiles
 aai-tdd-evidence aai-tdd
+aai-win-fallback aai-win-fallback-corpus
 PIN
-  # The pin is the spec's D3 table (38 edges over 25 rows; a body with more
+  # The pin is the spec's D3 table (39 edges over 26 rows, the win-fallback edge added by reuse-split-corpus-cases; a body with more
   # edges than the spec says is a measurement the spec must record, never
   # silent drift). The edges and the core list are read from the real map.
   node - "$PROJECT_ROOT" "$SELECTOR" "$got" <<'JS' || rc=$?
@@ -1869,11 +1870,11 @@ JS
   want_edges="$(sort "$pin")"
   got_edges="$(sed '/^ROWS /,$d' "$got")"
   [[ "$got_edges" == "$want_edges" ]] || log_fail "TEST-032 (plan row TEST-032): the real map's companion edges differ from the pinned list. want: $(printf '%s' "$want_edges" | tr '\n' ';') -- got: $(printf '%s' "$got_edges" | tr '\n' ';')"
-  [[ "$(wc -l < "$pin" | tr -d ' ')" == "38" ]] || log_fail "TEST-032 (plan row TEST-032): the pinned list must hold 38 edges"
-  grep -qxF "ROWS 25" "$got" || log_fail "TEST-032 (plan row TEST-032): the edges must sit on 25 rows: $(grep '^ROWS' "$got")"
+  [[ "$(wc -l < "$pin" | tr -d ' ')" == "39" ]] || log_fail "TEST-032 (plan row TEST-032): the pinned list must hold 39 edges"
+  grep -qxF "ROWS 26" "$got" || log_fail "TEST-032 (plan row TEST-032): the edges must sit on 26 rows: $(grep '^ROWS' "$got")"
   grep -qxF "COREEDGES " "$got" || log_fail "TEST-032 (plan row TEST-032): an edge names a core suite: $(grep '^COREEDGES' "$got")"
   grep -qxF "CLOSUREMISS " "$got" || log_fail "TEST-032 (plan row TEST-032): a row's own test file does not select its whole closure: $(grep '^CLOSUREMISS' "$got")"
-  log_pass "TEST-032: the real map declares exactly the 38 pinned edges on 25 rows, none to a core suite, each row selects its closure (TEST-032)"
+  log_pass "TEST-032: the real map declares exactly the 39 pinned edges on 26 rows, none to a core suite, each row selects its closure (TEST-032)"
 }
 
 test_1756_weights_reseeded_from_a_named_run() {  # Spec-AC-12 / TEST-035
@@ -2319,8 +2320,8 @@ test_2311_core_list_weights_product_doc() {  # Spec-AC-08 / TEST-2311
       esac
     fi
   done < "$map"
-  [[ "$got" == "aai-check-state aai-docs-content aai-spec-lint aai-hygiene-pack " ]] \
-    || log_fail "TEST-2311: core list must be exactly aai-check-state aai-docs-content aai-spec-lint aai-hygiene-pack, got: $got"
+  [[ "$got" == "aai-check-state aai-docs-content aai-spec-lint aai-hygiene-pack aai-hygiene-corpus " ]] \
+    || log_fail "TEST-2311: core list must be exactly aai-check-state aai-docs-content aai-spec-lint aai-hygiene-pack aai-hygiene-corpus, got: $got"
   local n=0
   while IFS= read -r line; do
     [[ "$line" == "aai-docs-content"$'\t'* ]] && n=$((n + 1))
@@ -2328,10 +2329,84 @@ test_2311_core_list_weights_product_doc() {  # Spec-AC-08 / TEST-2311
   [[ "$n" -eq 1 ]] || log_fail "TEST-2311: expected exactly one aai-docs-content weights row, got $n"
   local ok=0
   while IFS= read -r line; do
-    if [[ "$line" == *"aai-check-state"* && "$line" == *"aai-docs-content"* && "$line" == *"aai-spec-lint"* && "$line" == *"aai-hygiene-pack"* ]]; then ok=1; fi
+    if [[ "$line" == *"aai-check-state"* && "$line" == *"aai-docs-content"* && "$line" == *"aai-spec-lint"* && "$line" == *"aai-hygiene-pack"* && "$line" == *"aai-hygiene-corpus"* ]]; then ok=1; fi
   done < "$doc"
-  [[ "$ok" -eq 1 ]] || log_fail "TEST-2311: product doc must name the four core suites on one line"
+  [[ "$ok" -eq 1 ]] || log_fail "TEST-2311: product doc must name the five core suites on one line"
   log_pass "core list, weights row and product doc agree (TEST-2311)"
+}
+
+# ---- reuse-split-corpus-cases (TEST-3335, TEST-3338): the corpus halves in the selection map and the weights ----
+
+# split_core_list: the names of the core: list of the real map, in order, one per line.
+split_core_list() {
+  local line in_core=0
+  while IFS= read -r line; do
+    if [[ "$line" == "core:" ]]; then in_core=1; continue; fi
+    if [[ "$in_core" -eq 1 ]]; then
+      case "$line" in
+        "  - "*) printf '%s\n' "${line#  - }" ;;
+        "#"*|"  #"*|"") ;;
+        *) break ;;
+      esac
+    fi
+  done < "$PROJECT_ROOT/tests/skills/suite-map.yaml"
+}
+
+# split_row_globs <suite>: the glob lines of one suite row of the real map.
+split_row_globs() {
+  awk -v s="  $1:" '$0 == s {f=1; g=0; next} f && /^  [^ #]/ {exit} f && /^    globs:/ {g=1; next} f && /^    [a-z]/ {g=0} f && g && /^      - / {sub(/^      - /, ""); print}' "$PROJECT_ROOT/tests/skills/suite-map.yaml"
+}
+
+# test_3335: the core list holds the corpus half and the win-fallback pair is selected together.
+test_3335_split_selection() {
+  local got want out p glob n=0
+  got="$(split_core_list | tr '\n' ' ')"
+  want="aai-check-state aai-docs-content aai-spec-lint aai-hygiene-pack aai-hygiene-corpus "
+  [[ "$got" == "$want" ]] || log_fail "TEST-3335: core list must be exactly '$want', got: '$got'"
+  for p in docs/specs/SPEC-0001-x.md .aai/scripts/pr-preflight.mjs; do
+    out="$(printf '%s\n' "$p" | node "$SELECTOR" --files-from - --repo-root "$PROJECT_ROOT")" \
+      || log_fail "TEST-3335: the selector failed for $p"
+    [[ $'\n'"$out"$'\n' == *$'\n'"CORE aai-hygiene-corpus "* ]] || log_fail "TEST-3335: $p does not print CORE aai-hygiene-corpus: $out"
+  done
+  while IFS= read -r glob; do
+    [[ -n "$glob" ]] || continue
+    p="${glob//\*\*/zz-probe.txt}"
+    p="${p//\*/zz}"
+    out="$(printf '%s\n' "$p" | node "$SELECTOR" --files-from - --repo-root "$PROJECT_ROOT")" \
+      || log_fail "TEST-3335: the selector failed for $p"
+    [[ "$out" != *FULL_RUN* ]] || log_fail "TEST-3335: $p (glob $glob) escalates to FULL_RUN: $out"
+    [[ $'\n'"$out"$'\n' == *$'\n'"SELECTED aai-win-fallback "* ]] || log_fail "TEST-3335: $p does not select aai-win-fallback: $out"
+    [[ $'\n'"$out"$'\n' == *$'\n'"SELECTED aai-win-fallback-corpus "* ]] || log_fail "TEST-3335: $p does not select aai-win-fallback-corpus: $out"
+    n=$((n + 1))
+  done < <(split_row_globs aai-win-fallback)
+  [[ "$n" -ge 10 ]] || log_fail "TEST-3335: only $n glob paths of the aai-win-fallback row were read"
+  log_pass "TEST-3335 (core list of five; $n win-fallback glob paths select both halves, no FULL_RUN)"
+}
+
+# test_3338: weights rows, map rows and gate globs for the two new suites.
+test_3338_split_weights_rows() {
+  local weights="$PROJECT_ROOT/tests/skills/suite-weights.tsv" map="$PROJECT_ROOT/tests/skills/suite-map.yaml" s rows samples maprows
+  for s in aai-hygiene-corpus aai-win-fallback-corpus; do
+    rows="$(awk -v s="$s" -F'\t' '$1 == s' "$weights" | wc -l | tr -d ' ')"
+    [[ "$rows" -eq 1 ]] || log_fail "TEST-3338: expected exactly one weights row for $s, got $rows"
+    [[ "$(awk -v s="$s" -F'\t' '$1 == s {print $2}' "$weights")" == 212 ]] || log_fail "TEST-3338: the weight of $s must be the documented maximum 212"
+    samples="$(awk -v s="# sample $s fallback unsampled " 'index($0, s) == 1' "$weights" | wc -l | tr -d ' ')"
+    [[ "$samples" -eq 1 ]] || log_fail "TEST-3338: expected exactly one unsampled sample line for $s, got $samples"
+    maprows="$(awk -v s="  $s:" '$0 == s' "$map" | wc -l | tr -d ' ')"
+    [[ "$maprows" -eq 1 ]] || log_fail "TEST-3338: expected exactly one suite-map row for $s, got $maprows"
+    [[ -f "$PROJECT_ROOT/tests/skills/test-$s.sh" ]] || log_fail "TEST-3338: missing tests/skills/test-$s.sh"
+    [[ $'\n'"$(split_row_globs aai-suite-reuse)"$'\n' == *$'\n'"tests/skills/test-$s.sh"$'\n'* ]] \
+      || log_fail "TEST-3338: tests/skills/test-$s.sh is not among the aai-suite-reuse globs"
+  done
+  node --input-type=module - "$PROJECT_ROOT" <<'JS' || log_fail "TEST-3338: auditWeights refused the weights over every test-aai-*.sh name"
+import fs from 'node:fs'; import assert from 'node:assert/strict';
+const root = process.argv[2];
+const { auditWeights } = await import(root + '/tests/skills/lib/selected-scheduling-benchmark-check.mjs');
+const names = fs.readdirSync(root + '/tests/skills', { withFileTypes: true }).filter((e) => e.isFile() && /^test-aai-.*\.sh$/.test(e.name)).map((e) => e.name.slice(5, -3));
+assert(names.includes('aai-hygiene-corpus') && names.includes('aai-win-fallback-corpus'));
+assert.equal(auditWeights(fs.readFileSync(root + '/tests/skills/suite-weights.tsv', 'utf8'), names).suites, names.length);
+JS
+  log_pass "TEST-3338 (one weights row, one unsampled line, one map row and a gate glob per new suite; audit covers every suite file)"
 }
 
 main() {
@@ -2411,6 +2486,8 @@ main() {
   test_2302b_shared_docs_paths_skip_engine
   test_2305_engine_inputs_select_engine
   test_2311_core_list_weights_product_doc
+  test_3335_split_selection
+  test_3338_split_weights_rows
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

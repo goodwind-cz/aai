@@ -11,10 +11,15 @@
       "live": false,
       "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file, with lines appended to docs/ai/tests/test-runs.jsonl after the recorded run tolerated (admission: reads=1482, nothing to poison). Lints specs in fixtures and in the live docs; no network, no clock."
     },
+    "aai-hygiene-corpus": {
+      "inputs": [],
+      "live": false,
+      "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file, with lines appended to docs/ai/tests/test-runs.jsonl after the recorded run tolerated (admission: reads=1972, nothing to poison). The whole-checkout half of the hygiene pack (29 cases: the index, all of docs/specs, all suite files and the run ledgers); no network, no clock."
+    },
     "aai-hygiene-pack": {
       "inputs": [],
       "live": false,
-      "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file, with lines appended to docs/ai/tests/test-runs.jsonl after the recorded run tolerated (admission: reads=1950, nothing to poison). Runs the hygiene lints and ratchets over the whole tree (the longest of the six); no network, no clock."
+      "note": "Reads about 160 files by the access trace (admission: reads=160, poisoned=1812): the fixture half of the hygiene pack (66 cases), without the git index, the run ledgers or any whole tree, so ledger churn and unrelated edits leave it reused. The whole-checkout cases run in aai-hygiene-corpus. No network, no clock."
     },
     "aai-prompt-diet": {
       "inputs": [],
@@ -29,7 +34,12 @@
     "aai-win-fallback": {
       "inputs": [],
       "live": false,
-      "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file, with lines appended to docs/ai/tests/test-runs.jsonl after the recorded run tolerated (admission: reads=1928, nothing to poison). Exercises the Windows fallback paths with stubs; no network, no clock."
+      "note": "Reads about 57 files by the access trace (admission: reads=57, poisoned=1915): the fixture half of the Windows fallback suite (27 cases) with stubs, without the git index, so unrelated edits leave it reused. The cases that run the real test wrapper run in aai-win-fallback-corpus. No network, no clock."
+    },
+    "aai-win-fallback-corpus": {
+      "inputs": [],
+      "live": false,
+      "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file, with lines appended to docs/ai/tests/test-runs.jsonl after the recorded run tolerated (admission: reads=1951, nothing to poison). The whole-checkout half of the Windows fallback suite (5 cases that run the real test wrapper); no network, no clock."
     },
     "aai-feedback-status": {
       "inputs": [],
