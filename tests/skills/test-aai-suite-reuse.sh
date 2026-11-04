@@ -1084,14 +1084,24 @@ split_baseline_file() {
     || log_fail "$1: baseline commit $SPLIT_BASELINE (or $2 in it) is not available in this clone"
 }
 
-# test_3331: the hygiene pack splits into two disjoint halves that together are the baseline list.
+# split_defined_names <file>: the test_* functions a file defines at column 0, outside heredoc bodies (fixtures define their own).
+split_defined_names() {
+  awk '
+    hd != "" { if ($0 == hd) hd = ""; next }
+    $0 !~ /<<</ && match($0, /<<-?[ ]*["\047]?[A-Za-z_][A-Za-z_0-9]*/) {
+      d = substr($0, RSTART, RLENGTH); sub(/^<<-?[ ]*["\047]?/, "", d); hd = d
+    }
+    /^test_[A-Za-z0-9_]+\(\)/ { n = $0; sub(/\(\).*$/, "", n); print n }
+  ' "$1"
+}
+
+# test_3331: the hygiene pack splits into two disjoint halves; together they hold the baseline cases and every case the file defines.
 test_3331_hygiene_partition() {
-  local base work corpus main_now rc=0 dups lost
+  local base work corpus main_now rc=0 dups lost defined unplaced twice
   base="$(new_base)"; work="$base/m"
   split_baseline_file TEST-3331 tests/skills/test-aai-hygiene-pack.sh "$work/baseline.sh"
   split_main_names "$work/baseline.sh" > "$work/baseline.names"
-  [[ "$(wc -l < "$work/baseline.names" | tr -d ' ')" -eq 95 ]] \
-    || log_fail "TEST-3331: the baseline main list should hold 95 names, found $(wc -l < "$work/baseline.names" | tr -d ' ')"
+  [[ -s "$work/baseline.names" ]] || log_fail "TEST-3331: the baseline main list is empty"
   corpus="$(awk '/^HYGIENE_CORPUS_CASES="/{f=1; next} f && /^"/{exit} f{sub(/^  /, ""); print}' "$HYGIENE_PACK_FILE")"
   [[ -n "$corpus" ]] || log_fail "TEST-3331: tests/skills/test-aai-hygiene-pack.sh declares no HYGIENE_CORPUS_CASES list"
   [[ "$corpus" == "$HYGIENE_CORPUS_EXPECTED" ]] \
@@ -1099,16 +1109,22 @@ test_3331_hygiene_partition() {
   main_now="$(split_main_names "$HYGIENE_PACK_FILE")"
   printf '%s\n' "$corpus" > "$work/corpus.names"
   printf '%s\n' "$main_now" > "$work/main.names"
-  [[ "$(wc -l < "$work/main.names" | tr -d ' ')" -eq 66 ]] \
-    || log_fail "TEST-3331: main of the hygiene pack should register 66 cases, found $(wc -l < "$work/main.names" | tr -d ' ')"
   dups="$(sort "$work/main.names" "$work/corpus.names" | uniq -d)"
-  [[ -z "$dups" ]] || log_fail "TEST-3331: names in both halves: $dups"
-  lost="$(awk 'NR == FNR{c[$1]=1; next} !($1 in c)' "$work/corpus.names" "$work/baseline.names")"
-  [[ "$lost" == "$main_now" ]] \
-    || log_fail "TEST-3331: main (66) plus the corpus list is not the baseline list of 95 in baseline order"
+  [[ -z "$dups" ]] || log_fail "TEST-3331: names in both halves or registered twice: $dups"
+  # Baseline cases stay covered: every baseline name is in main or in the corpus list (cases added later are not pinned).
+  lost="$(awk 'NR == FNR{c[$1]=1; next} !($1 in c)' <(cat "$work/main.names" "$work/corpus.names") "$work/baseline.names")"
+  [[ -z "$lost" ]] || log_fail "TEST-3331: baseline cases in neither half: $lost"
+  # Every case the definition file defines runs in exactly one half.
+  defined="$(split_defined_names "$HYGIENE_PACK_FILE" | sort)"
+  [[ -n "$defined" ]] || log_fail "TEST-3331: no test_* function found in the definition file"
+  unplaced="$(awk 'NR == FNR{c[$1]++; next} c[$1] != 1 {print $1 " (" c[$1]+0 "x)"}' <(cat "$work/main.names" "$work/corpus.names") <(printf '%s\n' "$defined"))"
+  [[ -z "$unplaced" ]] || log_fail "TEST-3331: defined cases not in exactly one half: $unplaced"
+  printf '%s\n' "$defined" > "$work/defined.names"
+  twice="$(cat "$work/main.names" "$work/corpus.names" | sort -u | comm -23 - "$work/defined.names")"
+  [[ -z "$twice" ]] || log_fail "TEST-3331: a half names a case the definition file does not define: $twice"
   env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" > "$work/reg.out" 2>&1 || rc=$?
   [[ "$rc" -eq 0 ]] || { sed -n '1,20p' "$work/reg.out" >&2; log_fail "TEST-3331: check-test-registration.mjs exited $rc"; }
-  log_pass "TEST-3331 (hygiene pack: 29 corpus + 66 main = the 95 baseline cases, disjoint, all registered)"
+  log_pass "TEST-3331 (hygiene pack: 29 corpus + $(wc -l < "$work/main.names" | tr -d ' ') main; baseline covered, every defined case in exactly one half, all registered)"
 }
 
 # win_fallback_ran <file> <entry> [args]: the case ids a suite entry runs when every case body is a recording stub.
@@ -1124,18 +1140,32 @@ win_fallback_ran() {
   printf '%s\n' "$out" | sed -n 's/^RAN_//p' | tr '\n' ' '
 }
 
-# test_3332: the win-fallback numbers split five and twenty-seven.
+# test_3332: the win-fallback numbers split five and the rest; every defined case runs in exactly one half.
 test_3332_win_fallback_partition() {
-  local base work now want_all t rest="" ran
+  local base work now all_now want_all t rest="" ran dups unplaced defined
   base="$(new_base)"; work="$base/m"
   split_baseline_file TEST-3332 tests/skills/test-aai-win-fallback.sh "$work/baseline.sh"
   want_all="$(sed -n 's/^ALL_TESTS="\(.*\)"$/\1/p' "$work/baseline.sh")"
-  [[ "$(printf '%s\n' "$want_all" | wc -w | tr -d ' ')" -eq 32 ]] || log_fail "TEST-3332: the baseline ALL_TESTS should list 32 numbers: $want_all"
-  now="$(sed -n 's/^ALL_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE")"
-  [[ "$now" == "$want_all" ]] || log_fail "TEST-3332: ALL_TESTS is not the baseline 32-number list: $now"
+  [[ -n "$want_all" ]] || log_fail "TEST-3332: the baseline ALL_TESTS is empty"
+  all_now="$(sed -n 's/^ALL_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE")"
+  dups="$(printf '%s\n' $all_now | sort | uniq -d)"
+  [[ -z "$dups" ]] || log_fail "TEST-3332: ALL_TESTS lists a number twice: $dups"
+  for t in $want_all; do
+    case " $all_now " in *" $t "*) ;; *) log_fail "TEST-3332: baseline number $t is missing from ALL_TESTS" ;; esac
+  done
   now="$(sed -n 's/^WIN_FALLBACK_CORPUS_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE")"
   [[ "$now" == "007 029 030 031 042" ]] || log_fail "TEST-3332: WIN_FALLBACK_CORPUS_TESTS is '$now', want '007 029 030 031 042'"
-  for t in $want_all; do
+  for t in $now; do
+    case " $all_now " in *" $t "*) ;; *) log_fail "TEST-3332: corpus number $t is not in ALL_TESTS" ;; esac
+  done
+  # Every case the file defines is numbered in ALL_TESTS, so it runs in the fixture half or the corpus half, never in neither.
+  defined="$(split_defined_names "$WIN_FALLBACK_FILE" | sed -n 's/^test_\([0-9][0-9]*\)$/\1/p' | sort)"
+  [[ -n "$defined" ]] || log_fail "TEST-3332: no test_NNN function found in the definition file"
+  unplaced="$(awk 'NR == FNR{a[$1]=1; next} !($1 in a)' <(printf '%s\n' $all_now) <(printf '%s\n' "$defined") | tr '\n' ' ')"
+  [[ -z "$unplaced" ]] || log_fail "TEST-3332: defined cases not in ALL_TESTS: $unplaced"
+  unplaced="$(awk 'NR == FNR{d[$1]=1; next} !($1 in d)' <(printf '%s\n' "$defined") <(printf '%s\n' $all_now) | tr '\n' ' ')"
+  [[ -z "$unplaced" ]] || log_fail "TEST-3332: ALL_TESTS names numbers the file does not define: $unplaced"
+  for t in $all_now; do
     case " $now " in *" $t "*) ;; *) rest="$rest$t " ;; esac
   done
   ran="$(win_fallback_ran "$WIN_FALLBACK_FILE" main)"
@@ -1145,7 +1175,7 @@ test_3332_win_fallback_partition() {
   [[ -f "$PROJECT_ROOT/tests/skills/test-aai-win-fallback-corpus.sh" ]] || log_fail "TEST-3332: tests/skills/test-aai-win-fallback-corpus.sh does not exist"
   ran="$(win_fallback_ran "$PROJECT_ROOT/tests/skills/test-aai-win-fallback-corpus.sh" main_corpus)"
   [[ "$ran" == "007 029 030 031 042 " ]] || log_fail "TEST-3332: the corpus suite ran '$ran', want '007 029 030 031 042 '"
-  log_pass "TEST-3332 (win-fallback: ALL_TESTS intact, 27 in the fixture half, the five in the corpus half)"
+  log_pass "TEST-3332 (win-fallback: baseline numbers kept, every defined case in ALL_TESTS, fixture half runs the rest, the five in the corpus half)"
 }
 
 # test_3333: a NUL byte in a tracked text file reddens the corpus half only.
@@ -1230,27 +1260,33 @@ test_3336_split_manifest() {
   log_pass "TEST-3336 (lint clean; thirteen entries; five index-reading notes name the run ledger; the two fixture-half notes claim no index read)"
 }
 
-# test_3337: the live admission admits both corpus halves with the appended probe and both fixture halves with poisoned above zero.
+# test_3337: the live admission admits each changed corpus half with the appended probe and each changed fixture half with poisoned above zero.
 test_3337_split_admission() {
-  local s line p
+  local s line p n=0
   if [[ -z "$LIVE_ADMIT_OUT" ]]; then
+    # Run alone (mutation-run dispatch): do the admission here and judge its lines, not its exit code.
     LIVE_ADMIT_OUT="$(env -u AAI_ROLE -u AAI_SUITE_REUSE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" --admit --changed-since main 2>&1 || true)"
   fi
   if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-OFF ci"* ]]; then log_pass "TEST-3337 (ADMIT-OFF ci)"; return 0; fi
+  if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-NONE"* ]]; then log_pass "TEST-3337 (ADMIT-NONE: no suite changed against main)"; return 0; fi
   for s in aai-hygiene-pack aai-win-fallback aai-hygiene-corpus aai-win-fallback-corpus; do
-    [[ "$LIVE_ADMIT_OUT" != *"ADMIT-FAIL $s "* ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n '/^ADMIT-/p' >&2; log_fail "TEST-3337: admission of $s failed"; }
+    if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-FAIL $s "* ]]; then
+      printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n '/^ADMIT-/p' >&2
+      log_fail "TEST-3337: admission of $s failed"
+    fi
     line="$(printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n "/^ADMIT-PASS $s /p")"
-    [[ -n "$line" ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n '/^ADMIT-/p' >&2; log_fail "TEST-3337: no ADMIT-PASS line for $s"; }
+    [[ -n "$line" ]] || continue
+    n=$((n + 1))
+    case "$s" in
+      *-corpus)
+        expect "TEST-3337 $s" "$LIVE_ADMIT_OUT" "ADMIT-PROBE $s appended docs/ai/tests/test-runs.jsonl PASS" ;;
+      *)
+        p="${line##*poisoned=}"
+        [[ "$p" =~ ^[0-9]+$ && "$p" -gt 0 ]] || log_fail "TEST-3337: $s was admitted with poisoned=$p, want above zero (the half is not narrow)" ;;
+    esac
   done
-  for s in aai-hygiene-pack aai-win-fallback; do
-    line="$(printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n "/^ADMIT-PASS $s /p")"
-    p="${line##*poisoned=}"
-    [[ "$p" =~ ^[0-9]+$ && "$p" -gt 0 ]] || log_fail "TEST-3337: $s was admitted with poisoned=$p, want above zero (the half is not narrow)"
-  done
-  for s in aai-hygiene-corpus aai-win-fallback-corpus; do
-    expect "TEST-3337 $s" "$LIVE_ADMIT_OUT" "ADMIT-PROBE $s appended docs/ai/tests/test-runs.jsonl PASS"
-  done
-  log_pass "TEST-3337 (fixture halves admitted with poisoned above zero; corpus halves admitted with the appended probe)"
+  [[ "$n" -ge 1 ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n '/^ADMIT-/p' >&2; log_fail "TEST-3337: none of the four split suites was admitted"; }
+  log_pass "TEST-3337 ($n admitted split suites: fixture halves with poisoned above zero, corpus halves with the appended probe)"
 }
 
 # ---- reuse-split-corpus-cases (TEST-3330, TEST-3339): the case inventory and the before/after measurement in the analysis note ----

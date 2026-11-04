@@ -22,7 +22,7 @@ TEST_NAME="aai-hygiene-corpus"
 main_corpus() {
   local fn
   if [[ $# -gt 0 ]]; then
-    declare -F "$1" >/dev/null || { printf 'FAIL: unknown or invalid test function: %s\n' "$1" >&2; exit 2; }
+    [[ "$1" == test_* ]] && declare -F "$1" >/dev/null || { printf 'FAIL: unknown or invalid test function: %s\n' "$1" >&2; exit 2; }
     check_deps
     "$1"
     return
