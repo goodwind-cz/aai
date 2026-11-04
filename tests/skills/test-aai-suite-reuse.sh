@@ -1253,6 +1253,112 @@ test_3337_split_admission() {
   log_pass "TEST-3337 (fixture halves admitted with poisoned above zero; corpus halves admitted with the appended probe)"
 }
 
+# ---- reuse-split-corpus-cases (TEST-3330, TEST-3339): the case inventory and the before/after measurement in the analysis note ----
+
+SPLIT_NOTE="$PROJECT_ROOT/docs/analysis/precise-suite-evidence-reuse.md"
+SPLIT_NOTE_HEADING="## Measurements (corpus split)"
+
+# split_note_section: the lines of the corpus-split section of the analysis note.
+split_note_section() {
+  awk -v h="$SPLIT_NOTE_HEADING" '$0 == h {f=1; next} f && /^## /{exit} f{print}' "$SPLIT_NOTE"
+}
+
+# split_baseline_cases <suite> <workdir>: the full-run case names of one suite at the baseline commit, one per line.
+split_baseline_cases() {
+  local suite="$1" work="$2" f
+  case "$suite" in
+    aai-docs-content)
+      split_baseline_file TEST-3330 tests/skills/test-aai-docs-audit.sh "$work/b-docs-audit.sh"
+      awk '/^DOCS_AUDIT_CONTENT_CASES="/{f=1; next} f && /^"/{exit} f{gsub(/^ +| +$/, ""); if ($0 != "") print}' "$work/b-docs-audit.sh" ;;
+    aai-win-fallback)
+      split_baseline_file TEST-3330 tests/skills/test-aai-win-fallback.sh "$work/b-$suite.sh"
+      sed -n 's/^ALL_TESTS="\(.*\)"$/\1/p' "$work/b-$suite.sh" | tr ' ' '\n' | sed -n 's/^\(.*[0-9].*\)$/test_\1/p' ;;
+    *)
+      split_baseline_file TEST-3330 "tests/skills/test-$suite.sh" "$work/b-$suite.sh"
+      split_main_names "$work/b-$suite.sh" ;;
+  esac
+}
+
+# test_3330: the note holds one inventory row per full-run case of the five suites, with a class and a half.
+test_3330_split_inventory() {
+  [[ -f "$SPLIT_NOTE" ]] || log_fail "TEST-3330: missing docs/analysis/precise-suite-evidence-reuse.md"
+  local base work suite want got corpus n=0 bad
+  base="$(new_base)"; work="$base/m"
+  [[ -n "$(split_note_section)" ]] || log_fail "TEST-3330: the note has no $SPLIT_NOTE_HEADING section"
+  split_note_section | awk -F'|' '/^\| aai-/ && NF == 9 {for (i = 2; i <= 8; i++) gsub(/^ +| +$/, "", $i); print $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 "\t" $7 "\t" $8}' > "$work/rows.tsv"
+  for suite in aai-hygiene-pack aai-win-fallback aai-spec-lint aai-prompt-diet aai-docs-content; do
+    want="$(split_baseline_cases "$suite" "$work")"
+    [[ -n "$want" ]] || log_fail "TEST-3330: no baseline case list for $suite"
+    got="$(awk -F'\t' -v s="$suite" '$1 == s {print $2}' "$work/rows.tsv")"
+    [[ "$got" == "$want" ]] || log_fail "TEST-3330: the inventory rows of $suite are not the baseline full-run list in order (want $(printf '%s\n' "$want" | wc -l | tr -d ' ') rows, got $(printf '%s\n' "$got" | sed '/^$/d' | wc -l | tr -d ' '))"
+    n=$((n + $(printf '%s\n' "$want" | wc -l)))
+  done
+  bad="$(awk -F'\t' '$3 !~ /^(index|wide|ledger|fixture)$/ || $7 !~ /^(fixture|corpus|unsplit)$/ || $5 !~ /^(yes|no)$/ {print $1 " " $2}' "$work/rows.tsv")"
+  [[ -z "$bad" ]] || log_fail "TEST-3330: rows without one class out of index, wide, ledger, fixture and one half out of fixture, corpus, unsplit: $bad"
+  corpus="$( { awk '/^HYGIENE_CORPUS_CASES="/{f=1; next} f && /^"/{exit} f{sub(/^  /, ""); print}' "$HYGIENE_PACK_FILE"
+               sed -n 's/^WIN_FALLBACK_CORPUS_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE" | tr ' ' '\n' | sed -n 's/^\(.*[0-9].*\)$/test_\1/p'; } | sort)"
+  got="$(awk -F'\t' '$7 == "corpus" {print $2}' "$work/rows.tsv" | sort)"
+  [[ "$got" == "$corpus" ]] || log_fail "TEST-3330: the corpus-half rows are not exactly HYGIENE_CORPUS_CASES plus WIN_FALLBACK_CORPUS_TESTS"
+  bad="$(awk -F'\t' '$7 == "fixture" && $3 != "fixture" {print $1 " " $2 " " $3}' "$work/rows.tsv")"
+  [[ -z "$bad" ]] || log_fail "TEST-3330: fixture-half rows of class index, wide or ledger: $bad"
+  [[ "$(awk -F'\t' '$7 == "fixture"' "$work/rows.tsv" | wc -l | tr -d ' ')" -eq 93 ]] \
+    || log_fail "TEST-3330: expected 93 fixture-half rows (66 hygiene + 27 win-fallback), got $(awk -F'\t' '$7 == "fixture"' "$work/rows.tsv" | wc -l | tr -d ' ')"
+  log_pass "TEST-3330 ($n inventory rows over five suites; the 34 corpus-half rows are the two declared lists; no fixture-half row reads a whole tree)"
+}
+
+# test_3339: the before and after reruns of edits E1 and E2, recomputed from the sample rows.
+test_3339_split_measurement() {
+  [[ -f "$SPLIT_NOTE" ]] || log_fail "TEST-3339: missing docs/analysis/precise-suite-evidence-reuse.md"
+  local out
+  out="$(NOTE="$SPLIT_NOTE" HEADING="$SPLIT_NOTE_HEADING" node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.env.NOTE, "utf8").split("\n");
+    const fail = (m) => { console.log("FAIL " + m); process.exit(0); };
+    const at = lines.indexOf(process.env.HEADING);
+    if (at < 0) fail("no " + process.env.HEADING + " line");
+    let end = lines.findIndex((l, i) => i > at && /^## /.test(l));
+    if (end < 0) end = lines.length;
+    const sec = lines.slice(at, end);
+    const text = sec.join("\n");
+    const ORIGINAL = ["aai-docs-content", "aai-spec-lint", "aai-hygiene-pack", "aai-prompt-diet", "aai-win-fallback"];
+    const rows = [];
+    for (const l of sec) {
+      const c = l.split("|").map((x) => x.trim());
+      if (c.length === 9 && /^E[12]$/.test(c[1]) && /^(before|after)$/.test(c[2])) rows.push({ edit: c[1], when: c[2], n: c[3], wall: Number(c[4]), rc: c[5], reuse: c[6], out: Object.fromEntries(c[7].split(/\s+/).map((p) => { const i = p.indexOf("="); return [p.slice(0, i), p.slice(i + 1)]; })) });
+    }
+    for (const e of ["E1", "E2"]) for (const w of ["before", "after"]) {
+      const r = rows.filter((x) => x.edit === e && x.when === w);
+      if (r.length !== 3) fail(e + " " + w + ": want 3 sample rows, found " + r.length);
+      if (new Set(r.map((x) => x.n)).size !== 3) fail(e + " " + w + ": sample numbers repeat");
+    }
+    for (const r of rows) {
+      if (!(r.wall > 0)) fail(r.edit + " " + r.when + " " + r.n + ": wall seconds missing");
+      if (r.rc !== "0") fail(r.edit + " " + r.when + " " + r.n + ": the run exited " + r.rc);
+      if (r.when === "before") for (const s of ORIGINAL) {
+        if (!r.out[s]) fail(r.edit + " before " + r.n + ": no outcome for " + s);
+        if (r.out[s] === "REUSED") fail(r.edit + " before " + r.n + ": " + s + " was REUSED");
+      } else for (const s of [...ORIGINAL, "aai-hygiene-corpus", "aai-win-fallback-corpus"]) {
+        if (!r.out[s]) fail(r.edit + " after " + r.n + ": no outcome for " + s);
+        if ((s === "aai-hygiene-pack" || s === "aai-win-fallback") && r.out[s] !== "REUSED") fail(r.edit + " after " + r.n + ": " + s + " was not REUSED (" + r.out[s] + ")");
+      }
+    }
+    const median = (a) => { const b = [...a].sort((x, y) => x - y); return (b[Math.floor((b.length - 1) / 2)] + b[Math.ceil((b.length - 1) / 2)]) / 2; };
+    const med = {};
+    for (const e of ["E1", "E2"]) for (const w of ["before", "after"]) {
+      med[e + w] = median(rows.filter((x) => x.edit === e && x.when === w).map((x) => x.wall));
+      const m = text.match(new RegExp("^" + e + " " + w + " median: ([0-9.]+)$", "m"));
+      if (!m) fail("no line \"" + e + " " + w + " median: <s>\"");
+      if (Math.abs(Number(m[1]) - med[e + w]) > 0.051) fail(e + " " + w + " median line says " + m[1] + ", the sample rows give " + med[e + w]);
+    }
+    for (const e of ["E1", "E2"]) if (!(med[e + "after"] <= 0.85 * med[e + "before"])) fail(e + ": after median " + med[e + "after"] + " is above 0.85 x before median " + med[e + "before"] + " (" + (0.85 * med[e + "before"]).toFixed(1) + ")");
+    if ((text.match(/\b[0-9a-f]{40}\b/g) || []).length < 2) fail("fewer than two 40-character shas");
+    for (const w of ["Node", "Bash", "Git"]) if (!new RegExp(w + "[^\\n]*[0-9]+\\.[0-9]+").test(text)) fail("no " + w + " version");
+    console.log("OK E1 " + med.E1before + "->" + med.E1after + " E2 " + med.E2before + "->" + med.E2after);
+  ')"
+  [[ "$out" == OK* ]] || log_fail "TEST-3339: ${out:-node produced no output}"
+  log_pass "TEST-3339 (${out#OK })"
+}
+
 main() {
   echo "Testing $TEST_NAME (spec-precise-suite-evidence-reuse, spec-reuse-for-docs-reading-suites)"
   check_deps
@@ -1318,6 +1424,8 @@ main() {
   test_3334_dispatch_both_ways
   test_3336_split_manifest
   test_3337_split_admission
+  test_3330_split_inventory
+  test_3339_split_measurement
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

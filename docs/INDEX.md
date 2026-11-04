@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-reuse-split-corpus-cases | specs | implementing | 2 planned, 6 done | docs/specs/SPEC-DRAFT-spec-reuse-split-corpus-cases.md |
+| spec-reuse-split-corpus-cases | specs | implementing | 8 done | docs/specs/SPEC-DRAFT-spec-reuse-split-corpus-cases.md |
 
 ## Canonical layer (0)
 
@@ -1300,4 +1300,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-03 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-04 — counts above use this date for overdue checks.

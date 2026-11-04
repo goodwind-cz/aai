@@ -316,3 +316,313 @@ aai-hygiene-pack, aai-prompt-diet, aai-win-fallback) each miss on the one input
 the framework itself changed, `docs/ai/tests/test-runs.jsonl`, so the rerun
 executes them and takes as long as the seed. After, all eleven are reused and the
 rerun takes about a second. Any other tracked change still misses (TEST-3301).
+
+## Measurements (corpus split)
+
+SPEC `spec-reuse-split-corpus-cases` D6. The sections above stay as history. This section
+holds the case inventory of the five suites that were considered for a split and the
+before and after reruns of two representative edits.
+
+Host: Apple M4 Max, macOS 27.0.1, Node v22.23.1, GNU bash 3.2.57 (Bash 3.2.57), Git 2.54.0.
+Baseline (before): 6db05ffa562ba582a8f4e597417a95042ed60801 (main at planning time). Implementation tip (after):
+c8bc6c36286b999362dbb303196996eeee167978; only tests and documents changed between that commit and the branch head.
+
+### Case inventory
+
+Method (M1): for each suite a fresh `git clone --local --no-hardlinks` of the implementation
+tip, detached; for every case of the suite's full-run list at the baseline commit, in list
+order, `git reset --hard` and `git clean -fd`, the access trace armed with
+`.aai/scripts/lib/checkout-trace.mjs`, the case alone through the suite's single-case dispatch,
+the trace collected. The cases of aai-docs-content share state, so they were traced in one bash
+process that sources the definition file. Class: index (the trace read the git index), wide (no
+index read, at least 100 checkout files read), ledger (reads docs/ai/decisions.jsonl,
+docs/ai/METRICS.jsonl or docs/ai/EVENTS.jsonl), fixture (everything else). Half: fixture and
+corpus for the two split suites (corpus = the cases of HYGIENE_CORPUS_CASES and
+WIN_FALLBACK_CORPUS_TESTS), unsplit for the three suites that were not split. Seconds are the
+wall time of one case alone, including its own bash start.
+
+| Suite | Case | Class | Files read | Index | Seconds | Half |
+|---|---|---|---|---|---|---|
+| aai-hygiene-pack | test_010_skill_pr | fixture | 8 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_011_external_review_response | fixture | 4 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_012_report_staging | fixture | 5 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_013_metrics_flush_partial | fixture | 14 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_014_warnings_policy | fixture | 5 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_015_fixture_diversity | fixture | 5 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_016_wrapup_promise_and_guards | fixture | 12 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_017_invoke_lines | fixture | 27 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_018_skill_meta_loader | fixture | 7 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_022_pr_review_companions | fixture | 4 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_030_auto_trigger_deprecation | wide | 1638 | no | 0.3 | corpus |
+| aai-hygiene-pack | test_031_guard_config_conformance | fixture | 6 | no | 0.6 | fixture |
+| aai-hygiene-pack | test_040_dual_verdict_prompt | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_041_anti_gaming_protocol | fixture | 4 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_042_dual_verdict_surfaces | fixture | 9 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_043_review_taxonomy_alignment | wide | 474 | no | 0.6 | corpus |
+| aai-hygiene-pack | test_050_pr_merge_conflict | fixture | 4 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_051_no_number_prediction | fixture | 5 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_052_loop_drift_preflight | fixture | 4 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_060_work_item_brief | index | 9 | yes | 0.1 | corpus |
+| aai-hygiene-pack | test_070_companion_obligations | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_080_subagent_contract_exists | fixture | 4 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_081_no_rule_duplication | fixture | 5 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_082_dispatch_refs_name_contract | fixture | 9 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_083_subagent_contract_hazards | fixture | 4 | no | 4.9 | fixture |
+| aai-hygiene-pack | test_090_suite_map_pin | fixture | 4 | no | 0.5 | fixture |
+| aai-hygiene-pack | test_091_session_journal_index_complete | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_092_no_phantom_node_apis | wide | 139 | no | 0.1 | corpus |
+| aai-hygiene-pack | test_093_test_registration | wide | 130 | no | 0.3 | corpus |
+| aai-hygiene-pack | test_100_assert_payload_contract | fixture | 3 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_101_helper_survives_the_pipe_buffer | fixture | 3 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_102_pgq_ratchet_gate_and_bite | wide | 131 | no | 1.2 | corpus |
+| aai-hygiene-pack | test_103_pgq_baseline_is_measured_not_typed | wide | 131 | no | 0.7 | corpus |
+| aai-hygiene-pack | test_104_pgq_shrink_never_lowers_the_bar | wide | 131 | no | 0.7 | corpus |
+| aai-hygiene-pack | test_562_no_nul_in_tracked_text | index | 1971 | yes | 0.4 | corpus |
+| aai-hygiene-pack | test_563_pgq_scan_reports_read_errors | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_122_pgq_corpus_drained_to_zero | wide | 131 | no | 0.6 | corpus |
+| aai-hygiene-pack | test_123_pgq_bite_at_zero_and_handtyped_baseline_rejected | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_124_degenerate_pass_guards_uncovered_and_ratcheted | index | 1957 | yes | 30.4 | corpus |
+| aai-hygiene-pack | test_125_learned_guard_lints_bite | fixture | 4 | no | 0.4 | fixture |
+| aai-hygiene-pack | test_126_learned_guard_lints_live_and_markers | wide | 211 | no | 0.4 | corpus |
+| aai-hygiene-pack | test_668_session_bullets_carry_a_marker | fixture | 11 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_830_learned_split_conserves_every_line | fixture | 6 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_831_learned_standing_lint_live_and_bites | fixture | 5 | no | 0.2 | fixture |
+| aai-hygiene-pack | test_832_sync_leaves_history_out_of_downstream | wide | 492 | no | 5.2 | corpus |
+| aai-hygiene-pack | test_105_converted_sites_keep_their_needles | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_121_new_assert_payload_helpers | fixture | 3 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_106_base_ref_pin_gate_and_bite | wide | 150 | no | 0.4 | corpus |
+| aai-hygiene-pack | test_107_base_ref_baseline_is_measured_not_typed | fixture | 5 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_108_cd_subshell_leak_gate_and_bite | wide | 164 | no | 0.7 | corpus |
+| aai-hygiene-pack | test_109_cd_subshell_leak_baseline_is_measured_not_typed | fixture | 5 | no | 0.2 | fixture |
+| aai-hygiene-pack | test_110_skill_set_parity | fixture | 4 | no | 0.4 | fixture |
+| aai-hygiene-pack | test_111_generator_check_clean_and_idempotent | index | 1957 | yes | 1.1 | corpus |
+| aai-hygiene-pack | test_112_generator_refuses_bad_manifest | fixture | 7 | no | 0.7 | fixture |
+| aai-hygiene-pack | test_113_bite_proofs_in_detached_worktree | index | 1957 | yes | 4.4 | corpus |
+| aai-hygiene-pack | test_114_cursor_rule_contract | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_115_root_shim_and_manifest_header | fixture | 5 | no | 0.0 | fixture |
+| aai-hygiene-pack | test_120_userguide_catalog_covers_every_skill | fixture | 4 | no | 0.2 | fixture |
+| aai-hygiene-pack | test_116_metrics_correction_not_counted | ledger | 4 | no | 0.1 | corpus |
+| aai-hygiene-pack | test_117_source_skills_are_lf_pinned | index | 4 | yes | 0.1 | corpus |
+| aai-hygiene-pack | test_118_bite_proofs_preserve_seeded_state | fixture | 5 | no | 4.9 | fixture |
+| aai-hygiene-pack | test_119_generator_idempotence_preserves_seeded_state | fixture | 5 | no | 1.5 | fixture |
+| aai-hygiene-pack | test_127_withdrawn_phrases_drained | wide | 765 | no | 0.6 | corpus |
+| aai-hygiene-pack | test_128_shipping_scripts_pipe_safe_at_zero | fixture | 27 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_094_mutation_selector_fails_closed_corpus_wide | index | 1957 | yes | 10.7 | corpus |
+| aai-hygiene-pack | test_135_selector_probe_counts | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_136_nonul_batch_equivalence | fixture | 4 | no | 1.0 | fixture |
+| aai-hygiene-pack | test_129_mutation_gate_suite_registration | wide | 134 | no | 0.4 | corpus |
+| aai-hygiene-pack | test_130_node_bash_selector_scanner_whitespace_parity | wide | 132 | no | 1.0 | corpus |
+| aai-hygiene-pack | test_131_vendored_script_deps_gate_and_bite | wide | 198 | no | 0.5 | corpus |
+| aai-hygiene-pack | test_132_nested_suite_lint_shapes | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_133_nested_suite_lint_live_and_base | wide | 129 | no | 1.4 | corpus |
+| aai-hygiene-pack | test_134_nested_suite_disclosures | ledger | 9 | no | 1.6 | corpus |
+| aai-hygiene-pack | test_137_hot_spot_disclosures | ledger | 9 | no | 1.6 | corpus |
+| aai-hygiene-pack | test_138_ci_node_pins | wide | 186 | no | 0.1 | corpus |
+| aai-hygiene-pack | test_139_node22_compat_step | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_140_technology_node_floor | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_141_node_floor_single_value | fixture | 12 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_142_rfc0017_node_row | fixture | 4 | no | 0.1 | fixture |
+| aai-hygiene-pack | test_618_ref_guard_grep_conformance | fixture | 5 | no | 0.3 | fixture |
+| aai-hygiene-pack | test_800_installed_hook_reaches_guard | fixture | 47 | no | 0.7 | fixture |
+| aai-hygiene-pack | test_801_guard_block_propagates_block | fixture | 47 | no | 0.4 | fixture |
+| aai-hygiene-pack | test_802_upgrade_inserts_once | fixture | 47 | no | 1.4 | fixture |
+| aai-hygiene-pack | test_803_foreign_refusal_names_print_guard_checks | fixture | 47 | no | 0.5 | fixture |
+| aai-hygiene-pack | test_804_pre_push_slot_contract | fixture | 47 | no | 1.7 | fixture |
+| aai-hygiene-pack | test_805_feature_push_reports_open_doc | fixture | 47 | no | 1.4 | fixture |
+| aai-hygiene-pack | test_806_enforce_refuses_default_branch_only | fixture | 47 | no | 1.0 | fixture |
+| aai-hygiene-pack | test_807_default_branch_resolution_and_notes | fixture | 47 | no | 1.3 | fixture |
+| aai-hygiene-pack | test_813_ps1_twin_parity | fixture | 48 | no | 1.9 | fixture |
+| aai-hygiene-pack | test_814_disclosure_and_docs | fixture | 49 | no | 0.3 | fixture |
+| aai-hygiene-pack | test_815_suite_map_and_registration | wide | 131 | no | 0.4 | corpus |
+| aai-hygiene-pack | test_816_default_unchanged_and_pushed_config_wins | fixture | 47 | no | 1.0 | fixture |
+| aai-hygiene-pack | test_817_marker_order_and_ownership_are_exact | fixture | 47 | no | 0.7 | fixture |
+| aai-hygiene-pack | test_818_ps1_upgrade_is_byte_exact_and_order_checked | fixture | 48 | no | 4.6 | fixture |
+| aai-hygiene-pack | test_819_nonregular_slot_is_refused_before_any_write | fixture | 47 | no | 0.3 | fixture |
+| aai-win-fallback | test_007 | index | 1957 | yes | 6.8 | corpus |
+| aai-win-fallback | test_009 | fixture | 6 | no | 0.0 | fixture |
+| aai-win-fallback | test_013 | fixture | 4 | no | 0.0 | fixture |
+| aai-win-fallback | test_014 | fixture | 4 | no | 0.0 | fixture |
+| aai-win-fallback | test_015 | fixture | 8 | no | 0.1 | fixture |
+| aai-win-fallback | test_016 | fixture | 4 | no | 0.0 | fixture |
+| aai-win-fallback | test_017 | fixture | 7 | no | 0.1 | fixture |
+| aai-win-fallback | test_018 | fixture | 6 | no | 0.0 | fixture |
+| aai-win-fallback | test_019 | fixture | 4 | no | 0.1 | fixture |
+| aai-win-fallback | test_020 | fixture | 7 | no | 0.1 | fixture |
+| aai-win-fallback | test_021 | fixture | 4 | no | 0.1 | fixture |
+| aai-win-fallback | test_022 | fixture | 5 | no | 0.0 | fixture |
+| aai-win-fallback | test_023 | fixture | 7 | no | 0.0 | fixture |
+| aai-win-fallback | test_024 | fixture | 14 | no | 0.1 | fixture |
+| aai-win-fallback | test_025 | fixture | 5 | no | 0.0 | fixture |
+| aai-win-fallback | test_026 | fixture | 7 | no | 0.0 | fixture |
+| aai-win-fallback | test_027 | fixture | 3 | no | 0.0 | fixture |
+| aai-win-fallback | test_028 | fixture | 4 | no | 0.0 | fixture |
+| aai-win-fallback | test_029 | index | 1957 | yes | 2.7 | corpus |
+| aai-win-fallback | test_030 | index | 1957 | yes | 2.5 | corpus |
+| aai-win-fallback | test_031 | index | 1957 | yes | 2.4 | corpus |
+| aai-win-fallback | test_032 | fixture | 4 | no | 0.1 | fixture |
+| aai-win-fallback | test_033 | fixture | 4 | no | 0.1 | fixture |
+| aai-win-fallback | test_034 | fixture | 39 | no | 1.0 | fixture |
+| aai-win-fallback | test_035 | fixture | 39 | no | 9.7 | fixture |
+| aai-win-fallback | test_036 | fixture | 4 | no | 0.2 | fixture |
+| aai-win-fallback | test_037 | fixture | 4 | no | 0.0 | fixture |
+| aai-win-fallback | test_038 | fixture | 4 | no | 0.8 | fixture |
+| aai-win-fallback | test_039 | fixture | 4 | no | 0.4 | fixture |
+| aai-win-fallback | test_040 | fixture | 4 | no | 0.9 | fixture |
+| aai-win-fallback | test_041 | fixture | 4 | no | 10.7 | fixture |
+| aai-win-fallback | test_042 | index | 1957 | yes | 4.7 | corpus |
+| aai-spec-lint | test_001_duplicate_id | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_002_gap_and_malformed | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_003_done_without_evidence | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_004_test_plan_mapping | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_005_frozen_consistency | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_006_ceremony_and_status | fixture | 10 | no | 0.2 | unsplit |
+| aai-spec-lint | test_007_unparseable_row | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_008_cli_contract | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_009_real_corpus | wide | 285 | no | 0.3 | unsplit |
+| aai-spec-lint | test_010_advisory_wiring | fixture | 6 | no | 0.1 | unsplit |
+| aai-spec-lint | test_011_seam_survival | index | 1208 | yes | 16.9 | unsplit |
+| aai-spec-lint | test_delta_003_shape | fixture | 10 | no | 0.3 | unsplit |
+| aai-spec-lint | test_delta_004_legacy_control | wide | 285 | no | 0.4 | unsplit |
+| aai-spec-lint | test_dupac_001_dropped_duplicate | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_dupac_002_both_parse_no_double_report | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_dupac_003_vanished_no_double_report | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_dupac_004_no_false_positives | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_dupac_005_real_corpus | wide | 285 | no | 0.3 | unsplit |
+| aai-spec-lint | test_specidshape_001_bareslug_flagged | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_specidshape_002_negative_controls | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_specidshape_003_type_guard | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_specidshape_004_real_corpus_loop | wide | 280 | no | 9.4 | unsplit |
+| aai-spec-lint | test_specidshape_005_fixture_alignment_regression | fixture | 4 | no | 0.0 | unsplit |
+| aai-spec-lint | test_stratev_001_direct_demanding_red | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_stratev_002_tdd_hybrid_unchanged | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_stratev_003_untested_and_unknown | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_stratev_004_negative_controls | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_stratev_005_strategy_flag | fixture | 10 | no | 0.2 | unsplit |
+| aai-spec-lint | test_stratev_006_template_and_prompt | fixture | 6 | no | 0.0 | unsplit |
+| aai-spec-lint | test_stratev_007_real_corpus | wide | 285 | no | 0.3 | unsplit |
+| aai-spec-lint | test_stratev_template_no_selfflag | fixture | 11 | no | 0.1 | unsplit |
+| aai-spec-lint | test_halffrozen_001_marker_without_status | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_halffrozen_002_status_without_marker | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_halffrozen_003_negative_controls | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_halffrozen_004_real_corpus | wide | 285 | no | 0.3 | unsplit |
+| aai-spec-lint | test_actest_001_untested_ac | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_actest_002_negative_controls | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_actest_003_lean_table | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_actest_004_terminal_scope | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_actest_005_real_corpus | wide | 285 | no | 0.3 | unsplit |
+| aai-spec-lint | test_clarify_001_live_markers | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_clarify_003_specimen_exemption | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_clarify_004_cap | fixture | 10 | no | 0.1 | unsplit |
+| aai-spec-lint | test_clarify_006_vague_terms | fixture | 11 | no | 0.1 | unsplit |
+| aai-spec-lint | test_clarify_009_terminal_and_corpus | wide | 285 | no | 0.4 | unsplit |
+| aai-spec-lint | test_clarify_010_prompt_and_guide | fixture | 6 | no | 0.1 | unsplit |
+| aai-spec-lint | test_clarify_011_no_new_ceremony | wide | 303 | no | 0.1 | unsplit |
+| aai-spec-lint | test_clarify_012_red_class_stamped | fixture | 4 | no | 0.0 | unsplit |
+| aai-spec-lint | test_478_mutation_cell_lint | fixture | 10 | no | 0.2 | unsplit |
+| aai-spec-lint | test_479_column_by_name | wide | 285 | no | 0.4 | unsplit |
+| aai-spec-lint | test_494_header_prefix_match_and_unmapped_finding | wide | 285 | no | 0.4 | unsplit |
+| aai-spec-lint | test_541_shared_specimen_masker | fixture | 10 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_001_include_reference | fixture | 11 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_002_common_blocks | fixture | 12 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_003_intake_line_budget | fixture | 11 | no | 0.0 | unsplit |
+| aai-prompt-diet | test_004_intake_dry_run | index | 1957 | yes | 0.3 | unsplit |
+| aai-prompt-diet | test_005_profile_defictioned | fixture | 4 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_006_fallback_single_source | fixture | 73 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_007_pointer_form | fixture | 13 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_008_loop_caching_and_payload | fixture | 4 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_009_digest_contract | index | 1957 | yes | 0.2 | unsplit |
+| aai-prompt-diet | test_010_audit_and_reduction | index | 781 | yes | 1.9 | unsplit |
+| aai-prompt-diet | test_011_tick_wrappers | fixture | 6 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_012_growth_sum_matches_ledger | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_013_ledger_entry_shape | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_014_breach_suggestion_deficit | fixture | 3 | no | 0.0 | unsplit |
+| aai-prompt-diet | test_015_headroom_cap_still_bites | fixture | 3 | no | 0.0 | unsplit |
+| aai-prompt-diet | test_016_skill_loop_prompt_hash_pointer | fixture | 5 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_017_dashboard_test_skills_pins | fixture | 5 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_018_journal_report_contract_pins | fixture | 5 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_019_core_prompt_diet_dedup | fixture | 73 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_020_g4_disk_artifact_poll_contract | wide | 302 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_021_ledger_has_no_unescaped_backtick | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_022_ac_flip_guard_canon_wiring | fixture | 74 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_023_ac_flip_growth_credited | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_429_select_suites_named_in_both_prompts | fixture | 5 | no | 0.0 | unsplit |
+| aai-prompt-diet | test_622_diet_true_up | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_697_corpus_growth_ledgered | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_746_roadmap_takes_direction_growth_ledgered | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_1215_downstream_rides_growth_ledgered | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_1336_roadmap_growth_ledgered | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_766_diet_credit_verdict_floor | fixture | 3 | no | 0.0 | unsplit |
+| aai-prompt-diet | test_767_diet_credit_verdict_arithmetic | fixture | 3 | no | 0.0 | unsplit |
+| aai-prompt-diet | test_769_agents_md_ceiling | fixture | 3 | no | 0.0 | unsplit |
+| aai-prompt-diet | test_770_corpus_scan_no_equality_pins | wide | 129 | no | 0.8 | unsplit |
+| aai-prompt-diet | test_771_diet_credit_verdict_pr388_states | fixture | 3 | no | 0.0 | unsplit |
+| aai-prompt-diet | test_028_windows_prompt_credit | fixture | 3 | no | 0.0 | unsplit |
+| aai-prompt-diet | test_1372_amendment_class_partition_credited | fixture | 5 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_1531_merge_policy_lanes_growth_ledgered | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_1641_roadmap_advisory_growth_ledgered | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_1734_local_evidence_growth_ledgered | fixture | 7 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_2722_diet_entry_for_slice | fixture | 3 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_2824_diet_entry_for_binding | fixture | 72 | no | 0.1 | unsplit |
+| aai-prompt-diet | test_2936_skill_pr_3b_growth_ledgered | fixture | 3 | no | 0.0 | unsplit |
+| aai-docs-content | check_deps | fixture | 0 | no | 0.0 | unsplit |
+| aai-docs-content | setup_fixture | fixture | 41 | no | 0.2 | unsplit |
+| aai-docs-content | test_deterministic_index_no_clock_line | index | 1558 | yes | 4.2 | unsplit |
+| aai-docs-content | test_1351_live_corpus_near_miss_set_is_dispositioned | index | 1201 | yes | 1.9 | unsplit |
+| aai-docs-content | test_1348_near_miss_headline_carries_the_count | index | 1235 | yes | 2.1 | unsplit |
+| aai-docs-content | test_1349_verdict_names_the_unreadable_tables | fixture | 41 | no | 0.6 | unsplit |
+| aai-docs-content | test_spec0006_no_regression_real_repo | fixture | 1 | no | 0.0 | unsplit |
+| aai-docs-content | test_change0166_closeout_is_clean_and_terminal | index | 1201 | yes | 0.2 | unsplit |
+| aai-docs-content | test_534_two_stale_halves_are_closed | index | 12 | yes | 0.2 | unsplit |
+| aai-docs-content | setup_indexarm_snapshots | index | 1559 | yes | 2.1 | unsplit |
+| aai-docs-content | test_indexarm_earlier_day_generation_is_green | index | 1 | yes | 1.2 | unsplit |
+| aai-docs-content | test_issue0001_posix_paths_noop | fixture | 1 | no | 0.1 | unsplit |
+| aai-docs-content | test_indexarm_index_is_not_stale | index | 0 | yes | 4.8 | unsplit |
+| aai-docs-content | test_indexarm_overdue_boundary_is_green | fixture | 40 | no | 0.7 | unsplit |
+| aai-docs-content | test_issue0001_no_regression_real_repo | fixture | 1 | no | 0.0 | unsplit |
+| aai-docs-content | test_spec0011_regression | fixture | 1 | no | 0.0 | unsplit |
+| aai-docs-content | test_537_shape_check_live_yield | fixture | 1 | no | 0.1 | unsplit |
+| aai-docs-content | test_change0007_regression | wide | 706 | no | 0.3 | unsplit |
+| aai-docs-content | test_change0012_regression | fixture | 42 | no | 0.2 | unsplit |
+| aai-docs-content | test_docsaicanon_real_repo_clean | wide | 706 | no | 0.4 | unsplit |
+| aai-docs-content | test_change0028_real_repo_clean | fixture | 1 | no | 0.0 | unsplit |
+| aai-docs-content | test_spec0057_real_repo_known_collisions | index | 1201 | yes | 1.9 | unsplit |
+| aai-docs-content | test_pdcm_product_family_repo_wide_clean | index | 1201 | yes | 0.4 | unsplit |
+| aai-docs-content | test_acflip_real_repo_clean | wide | 706 | no | 0.1 | unsplit |
+| aai-docs-content | test_2310_rfc0017_rollout_rows | fixture | 1 | no | 0.0 | unsplit |
+
+Cases per suite and half: aai-docs-content unsplit 25, aai-hygiene-pack corpus 29, aai-hygiene-pack fixture 66, aai-prompt-diet unsplit 42, aai-spec-lint unsplit 52, aai-win-fallback corpus 5, aai-win-fallback fixture 27.
+
+### Before and after
+
+Two edits, each in a disposable detached worktree of the commit, created and removed with `git worktree add` and `git worktree remove`: E1 appends one comment line to `.aai/scripts/pr-preflight.mjs`
+(a production script no fixture half reads); E2 appends one line to
+`docs/product/precise-suite-evidence-reuse.md` (a product document no fixture half reads). For each edit and
+each side: one seed run with reuse on, a copy of `tests/skills/results/reuse/` and of
+`docs/ai/tests/test-runs.jsonl`, the edit, then three rerun samples with reuse on, the store
+and the ledger restored from the copies before every sample. Suites: the five original suites before; the same
+five plus aai-hygiene-corpus and aai-win-fallback-corpus after. Command:
+`bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh` with one `--skill` per suite,
+`AAI_TEST_TIMEOUT=3000`, `AAI_ROLE`, `CI` and `AAI_SUITE_REUSE` unset. Outcome per suite: REUSED, or RUN with the
+first reason that `suite-reuse.mjs check` printed before the sample.
+
+| Edit | When | Sample | Wall s | Exit | Evidence reuse line | Suite outcomes |
+|---|---|---|---|---|---|---|
+| E1 | before | 1 | 105.7 | 0 | Evidence reuse: on (0 of 5 suites reused, check 0s) | aai-docs-content=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-spec-lint=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-hygiene-pack=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-prompt-diet=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-win-fallback=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs |
+| E1 | before | 2 | 106.4 | 0 | Evidence reuse: on (0 of 5 suites reused, check 0s) | aai-docs-content=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-spec-lint=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-hygiene-pack=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-prompt-diet=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-win-fallback=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs |
+| E1 | before | 3 | 106.9 | 0 | Evidence reuse: on (0 of 5 suites reused, check 0s) | aai-docs-content=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-spec-lint=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-hygiene-pack=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-prompt-diet=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-win-fallback=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs |
+| E2 | before | 1 | 106.0 | 0 | Evidence reuse: on (0 of 5 suites reused, check 1s) | aai-docs-content=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-spec-lint=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-hygiene-pack=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-prompt-diet=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-win-fallback=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md |
+| E2 | before | 2 | 105.5 | 0 | Evidence reuse: on (0 of 5 suites reused, check 0s) | aai-docs-content=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-spec-lint=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-hygiene-pack=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-prompt-diet=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-win-fallback=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md |
+| E2 | before | 3 | 106.3 | 0 | Evidence reuse: on (0 of 5 suites reused, check 0s) | aai-docs-content=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-spec-lint=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-hygiene-pack=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-prompt-diet=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-win-fallback=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md |
+| E1 | after | 1 | 72.1 | 0 | Evidence reuse: on (2 of 7 suites reused, check 0s) | aai-docs-content=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-spec-lint=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-hygiene-pack=REUSED aai-prompt-diet=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-win-fallback=REUSED aai-hygiene-corpus=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-win-fallback-corpus=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs |
+| E1 | after | 2 | 71.5 | 0 | Evidence reuse: on (2 of 7 suites reused, check 1s) | aai-docs-content=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-spec-lint=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-hygiene-pack=REUSED aai-prompt-diet=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-win-fallback=REUSED aai-hygiene-corpus=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-win-fallback-corpus=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs |
+| E1 | after | 3 | 71.5 | 0 | Evidence reuse: on (2 of 7 suites reused, check 1s) | aai-docs-content=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-spec-lint=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-hygiene-pack=REUSED aai-prompt-diet=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-win-fallback=REUSED aai-hygiene-corpus=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs aai-win-fallback-corpus=RUN:reason=inputs_changed_.aai/scripts/pr-preflight.mjs |
+| E2 | after | 1 | 71.1 | 0 | Evidence reuse: on (2 of 7 suites reused, check 0s) | aai-docs-content=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-spec-lint=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-hygiene-pack=REUSED aai-prompt-diet=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-win-fallback=REUSED aai-hygiene-corpus=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-win-fallback-corpus=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md |
+| E2 | after | 2 | 71.4 | 0 | Evidence reuse: on (2 of 7 suites reused, check 0s) | aai-docs-content=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-spec-lint=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-hygiene-pack=REUSED aai-prompt-diet=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-win-fallback=REUSED aai-hygiene-corpus=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-win-fallback-corpus=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md |
+| E2 | after | 3 | 71.0 | 0 | Evidence reuse: on (2 of 7 suites reused, check 1s) | aai-docs-content=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-spec-lint=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-hygiene-pack=REUSED aai-prompt-diet=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-win-fallback=REUSED aai-hygiene-corpus=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md aai-win-fallback-corpus=RUN:reason=inputs_changed_docs/product/precise-suite-evidence-reuse.md |
+
+E1 before median: 106.4
+E1 after median: 71.5
+E2 before median: 106.0
+E2 after median: 71.1
+
+Ratios after over before: E1 0.67, E2 0.67.
