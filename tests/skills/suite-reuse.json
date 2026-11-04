@@ -14,6 +14,7 @@
     "aai-hygiene-corpus": {
       "inputs": [],
       "live": false,
+      "sources": ["tests/skills/test-aai-hygiene-pack.sh"],
       "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file, with lines appended to docs/ai/tests/test-runs.jsonl after the recorded run tolerated (admission: reads=1972, nothing to poison). The whole-checkout half of the hygiene pack (29 cases: the index, all of docs/specs, all suite files and the run ledgers); no network, no clock."
     },
     "aai-hygiene-pack": {
@@ -39,6 +40,7 @@
     "aai-win-fallback-corpus": {
       "inputs": [],
       "live": false,
+      "sources": ["tests/skills/test-aai-win-fallback.sh"],
       "note": "Reads the git index through its own git status or git ls-files calls, so its identity is every tracked file, with lines appended to docs/ai/tests/test-runs.jsonl after the recorded run tolerated (admission: reads about 1950 (varies by host and run), nothing to poison). The whole-checkout half of the Windows fallback suite (5 cases that run the real test wrapper); no network, no clock."
     },
     "aai-feedback-status": {

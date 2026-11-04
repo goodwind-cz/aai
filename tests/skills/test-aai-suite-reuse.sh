@@ -627,6 +627,49 @@ test_3274_changed_since_and_ci() {
   log_pass "TEST-3274 (ADMIT-NONE, only the changed entry admitted, ADMIT-OFF ci)"
 }
 
+# test_3340: a change to a definition file a suite sources (manifest sources) re-admits that suite; the suite file itself is untouched.
+test_3340_sources_readmit() {
+  local base r
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" aa bb
+  printf 'echo one\n' > "$r/tests/skills/defs-aa.sh"
+  sed -i.bak 's/"aa":{"inputs":\[\],"live":false,/"aa":{"inputs":[],"live":false,"sources":["tests\/skills\/defs-aa.sh"],/' "$r/tests/skills/suite-reuse.json"
+  rm -f "$r/tests/skills/suite-reuse.json.bak"
+  commit_fx "$base" sources
+  admit_run "$base" -- --changed-since HEAD
+  expect "TEST-3340 unchanged" "$OUT" "ADMIT-NONE"
+  printf 'echo two\n' > "$r/tests/skills/defs-aa.sh"
+  admit_run "$base" -- --changed-since HEAD
+  [[ "$RC" -eq 0 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3340: definition-file edit run exited $RC"; }
+  expect "TEST-3340 defs edit" "$OUT" "ADMIT-PASS aa "
+  expect_not "TEST-3340 defs edit" "$OUT" " bb "
+  rm -f "$r/tests/skills/defs-aa.sh"
+  admit_run "$base" -- --changed-since HEAD
+  [[ "$RC" -ne 0 ]] || log_fail "TEST-3340: a removed definition file must not read as unchanged (exit 0)"
+  expect "TEST-3340 defs removed" "$OUT" "no-source-file tests/skills/defs-aa.sh"
+  log_pass "TEST-3340 (an edit of a sourced definition file re-admits the sourcing suite and only it; a removed one fails lint)"
+}
+
+# test_3341: lint refuses a sources path that does not exist or escapes the root, and a sources value that is not a list of strings.
+test_3341_sources_lint() {
+  local base r out rc=0 man
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" aa
+  man="$r/tests/skills/suite-reuse.json"
+  out="$(env -u AAI_ROLE node "$r/.aai/scripts/suite-reuse.mjs" lint --root "$r" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3341: clean fixture lint exited $rc"; }
+  sed -i.bak 's/"aa":{"inputs":\[\],"live":false,/"aa":{"inputs":[],"live":false,"sources":["tests\/skills\/no-such-defs.sh"],/' "$man"
+  rc=0; out="$(env -u AAI_ROLE node "$r/.aai/scripts/suite-reuse.mjs" lint --root "$r" 2>&1)" || rc=$?
+  [[ "$rc" -eq 1 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3341: missing sources path must fail lint with exit 1, got $rc"; }
+  expect "TEST-3341 missing" "$out" "no-source-file tests/skills/no-such-defs.sh"
+  sed -i.bak 's/"sources":\["tests\/skills\/no-such-defs.sh"\]/"sources":"tests\/skills\/test-aa.sh"/' "$man"
+  rc=0; out="$(env -u AAI_ROLE node "$r/.aai/scripts/suite-reuse.mjs" lint --root "$r" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-3341: a non-list sources value must fail lint"
+  expect "TEST-3341 shape" "$out" "manifest-invalid"
+  rm -f "$man.bak"
+  log_pass "TEST-3341 (lint fails on a missing sources path and on a sources value that is not a list; the suite then cannot read as unchanged)"
+}
+
 # test_3275: the live manifest lists the thirteen suites, each live false with a note, each selected by the gate row.
 test_3275_live_manifest() {
   local out rc=0 src suite f
@@ -1462,6 +1505,8 @@ main() {
   test_3337_split_admission
   test_3330_split_inventory
   test_3339_split_measurement
+  test_3340_sources_readmit
+  test_3341_sources_lint
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

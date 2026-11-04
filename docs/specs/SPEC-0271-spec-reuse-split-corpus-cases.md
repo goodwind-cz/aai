@@ -3,7 +3,7 @@ id: spec-reuse-split-corpus-cases
 type: spec
 number: 271
 status: done
-frozen_sha256: 10d8d8d1905cfb44fb7b9d1886c554e8a07314af0b050357f15444a6489652ec
+frozen_sha256: 6a07fddb33aafdf4e6f3aa59487370b7e087d05c4eb11b27ff2e6bac607daf33
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -332,6 +332,9 @@ docs/analysis/precise-suite-evidence-reuse.md:
 - Intake AC-002 maps to Spec-AC-02, Spec-AC-03 and Spec-AC-04.
 - Intake AC-003 maps to Spec-AC-05, Spec-AC-06 and Spec-AC-07.
 - Intake AC-004 maps to Spec-AC-08.
+- Amendment 2 (additive, after Validation): Spec-AC-09 closes the follow-up fu-admit-corpus-def-file-changed (see Decisions D5 note below).
+
+Amendment 2 (additive with disclosure; scope grew after freeze, which the canon assigns to the owner, who set the standing rule that a hazard introduced by a ride is fixed in that ride): PR 528 Codex review found that `entryChanged()` in `.aai/scripts/suite-reuse.mjs` counted only the manifest entry and `tests/skills/test-<suite>.sh`, so an edit to a case in `test-aai-hygiene-pack.sh` or `test-aai-win-fallback.sh` re-admitted the fixture suite but not the corpus suite that sources it. Mechanism: an explicit manifest field `sources` (list of repo-relative paths) on the two corpus entries. The entry is part of the compared text, so adding or editing the list is itself a change; each listed file counts as part of the suite's own text; `lint` fails on a path that is missing, absolute or contains `..`, and the loader marks a non-list or non-string value as an invalid manifest. Nothing is parsed from `source` lines, so there is no shape that silently reads as unchanged. Rows: Spec-AC-09, TEST-3340, TEST-3341.
 
 ## Constitution deviations
 
@@ -349,6 +352,7 @@ None.
 | Spec-AC-06 | suite-reuse.mjs lint on the live repository exits 0; the manifest has thirteen entries including aai-hygiene-corpus and aai-win-fallback-corpus; the notes of the five index-reading suites name docs/ai/tests/test-runs.jsonl and the notes of aai-hygiene-pack and aai-win-fallback do not claim a git index read | done | docs/ai/tdd/reuse-split-corpus-cases/green/green-TEST-3336.log (TEST-3336); docs/ai/tdd/reuse-split-corpus-cases/red/red-TEST-3336.log; docs/ai/tdd/spec-reuse-split-corpus-cases/mutation-TEST-3336.txt | - | D4 |
 | Spec-AC-07 | lint --admit --changed-since main on the branch prints ADMIT-PASS for aai-hygiene-pack and aai-win-fallback each with poisoned greater than 0, ADMIT-PASS plus an appended docs/ai/tests/test-runs.jsonl ADMIT-PROBE PASS line for aai-hygiene-corpus and aai-win-fallback-corpus, and exits 0 (ADMIT-OFF ci under CI); suite-weights.tsv has exactly one row for each new suite and the weights audit covers every suite file | done | docs/ai/tdd/reuse-split-corpus-cases/green/green-TEST-3337.log (TEST-3337); docs/ai/tdd/reuse-split-corpus-cases/red/red-TEST-3337.log; docs/ai/tdd/spec-reuse-split-corpus-cases/mutation-TEST-3337.txt; docs/ai/tdd/reuse-split-corpus-cases/green/green-TEST-3338.log (TEST-3338); docs/ai/tdd/reuse-split-corpus-cases/red/red-TEST-3338.log; docs/ai/tdd/spec-reuse-split-corpus-cases/mutation-TEST-3338.txt | - | D4 D5 |
 | Spec-AC-08 | The note section of Spec-AC-01 reports the D6 before and after reruns for E1 and E2: before, none of the five original suites is REUSED in any sample; after, aai-hygiene-pack and aai-win-fallback are REUSED in every sample of both edits; each after median is at most 0.85 times the before median of the same edit and every median line equals the median of its three sample rows | done | docs/ai/tdd/reuse-split-corpus-cases/green/green-TEST-3339.log (TEST-3339); docs/ai/tdd/reuse-split-corpus-cases/red/red-TEST-3339.log; docs/ai/tdd/spec-reuse-split-corpus-cases/mutation-TEST-3339.txt; docs/ai/tdd/reuse-split-corpus-cases/admit-output.txt | - | D6 |
+| Spec-AC-09 | WHEN the sourced definition file of a corpus suite (its manifest sources entry) changes and the suite file and its entry do not THEN lint --admit --changed-since admits that suite and no other; a sources path that does not exist, escapes the root or is not a list of strings makes lint exit non-zero, so a suite never reads as unchanged for want of a parsable sources entry | done | docs/ai/tdd/reuse-split-corpus-cases/green/green-TEST-3340.log (TEST-3340, TEST-3341); docs/ai/tdd/reuse-split-corpus-cases/red/red-TEST-3340.log; docs/ai/tdd/spec-reuse-split-corpus-cases/mutation-TEST-3340.txt; docs/ai/tdd/spec-reuse-split-corpus-cases/mutation-TEST-3341.txt | - | D4 D5 |
 
 ## Implementation plan
 
@@ -390,6 +394,8 @@ None.
 | TEST-3337 | Spec-AC-07 | contract | tests/skills/test-aai-suite-reuse.sh | test_3337_split_admission judges the live admission output of TEST-3276 (or runs it when dispatched alone): ADMIT-PASS with poisoned greater than 0 for each fixture half that was admitted, ADMIT-PASS and the appended probe PASS for each corpus suite that was admitted (at least one of the four), ADMIT-NONE passes (no suite changed against main), ADMIT-FAIL of any of the four fails, ADMIT-OFF ci under CI | `patch:docs/ai/tdd/spec-reuse-split-corpus-cases/mutation-TEST-3337.patch` inserts the line `  test_562_no_nul_in_tracked_text` after the `test_120_userguide_catalog_covers_every_skill` line of main in tests/skills/test-aai-hygiene-pack.sh | green |
 | TEST-3338 | Spec-AC-07 | inspection | tests/skills/test-aai-suite-select.sh | test_3338_split_weights_rows counts exactly one weights row and one sample line (the unsampled 212 row or a measured row) per new suite, one suite-map row per new suite file, both new files in the aai-suite-reuse globs, and runs auditWeights over every test-aai-*.sh name | `sed:s/(?<=\n)aai-win-fallback-corpus\t212\n//` on tests/skills/suite-weights.tsv | green |
 | TEST-3339 | Spec-AC-08 | performance | tests/skills/test-aai-suite-reuse.sh | test_3339_split_measurement parses the before and after sample rows for E1 and E2, recomputes the four medians, checks the REUSED and RUN outcomes per suite of Spec-AC-08, the 0.85 bound, the two 40-character shas and the version lines | `sed:s/## Measurements \(corpus split\)/## Measurementz (corpus split)/` on docs/analysis/precise-suite-evidence-reuse.md | green |
+| TEST-3340 | Spec-AC-09 | integration | tests/skills/test-aai-suite-reuse.sh | test_3340_sources_readmit builds a fixture repository whose manifest entry lists a sources file, edits only that file and expects ADMIT-PASS for that suite alone (ADMIT-NONE before the edit); removing the file fails lint | `sed:s/cur\.sources/cur.sourcez/` on .aai/scripts/suite-reuse.mjs | green |
+| TEST-3341 | Spec-AC-09 | contract | tests/skills/test-aai-suite-reuse.sh | test_3341_sources_lint expects lint exit 1 naming no-source-file for a sources path that does not exist and a non-zero manifest-invalid for a sources value that is not a list | `sed:s/!fs\.existsSync\(path\.join\(root, src\)\)/false/` on .aai/scripts/suite-reuse.mjs | green |
 
 Test-file note: every row's selector is a function in the named suite that
 runs alone under single-function dispatch, because `mutation-run.mjs` runs
@@ -486,6 +492,8 @@ with `AAI_SUITE_REUSE=0`.
 - .github/workflows/skill-suite.yml (comment only)
 - tests/skills/test-aai-suite-reuse.sh
 - tests/skills/test-aai-suite-select.sh
+- .aai/scripts/suite-reuse.mjs (amendment 2, PR 528 Codex P2: sources field)
+- docs/product/precise-suite-evidence-reuse.md (one sentence)
 - docs/analysis/precise-suite-evidence-reuse.md
 - docs/issues/CHANGE-0244-reuse-split-corpus-cases.md
 - docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md

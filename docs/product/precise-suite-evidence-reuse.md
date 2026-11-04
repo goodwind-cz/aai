@@ -57,7 +57,7 @@ did not read the git index is compared on the ledger exactly.
   access time, a node read the trace did not see). It also runs a poisoned
   pass: files on the path list that the suite did not read are overwritten,
   and the suite must still exit 0. `--changed-since REF` admits only entries
-  that differ from REF. `lint --minimal-tree` is retired and now refuses with
+  that differ from REF, and a suite whose manifest entry lists `sources` (the definition files its suite file sources, as the two corpus suites do) counts as differing when one of those files differs; `lint` fails on a `sources` path that does not exist. `lint --minimal-tree` is retired and now refuses with
   exit 2.
 - Roles that may cite a reused suite: Implementation and TDD GREEN
   re-checks, Remediation re-checks, and intermediate Validation and Code
