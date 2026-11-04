@@ -5,7 +5,7 @@ security_relevant: false
 ```yaml
 review:
   scope: origin/main...HEAD (6db05ffa...18037b97), worktree /Users/ales/Projects/aai-worktrees/reuse-split-corpus-cases
-  spec: docs/specs/SPEC-DRAFT-spec-reuse-split-corpus-cases.md
+  spec: docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -45,7 +45,7 @@ review:
 ## Scope
 
 - Diff `origin/main...HEAD`, 18 files (merge base = main 6db05ffa, head 18037b97). Worktree clean.
-- Spec `docs/specs/SPEC-DRAFT-spec-reuse-split-corpus-cases.md` with the three disclosed amendments (one contract: map rows, pin bumps, allowlist row; two measurement: TEST-3334 and TEST-3337 mutation cells as patches). Intake `docs/issues/CHANGE-DRAFT-reuse-split-corpus-cases.md`.
+- Spec `docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md` with the three disclosed amendments (one contract: map rows, pin bumps, allowlist row; two measurement: TEST-3334 and TEST-3337 mutation cells as patches). Intake `docs/issues/CHANGE-0244-reuse-split-corpus-cases.md`.
 - Dispatch note: the dispatch named focus areas and said which validator notes close-out plans to fix. It did not pre-rate severity or exclude scope. I reviewed the full diff.
 
 ## What I checked

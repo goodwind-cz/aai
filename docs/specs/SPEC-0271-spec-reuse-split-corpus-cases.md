@@ -1,9 +1,9 @@
 ---
 id: spec-reuse-split-corpus-cases
 type: spec
-number: null
-status: implementing
-frozen_sha256: f87a5726d31e37a2e5e3230275ad389d3bc84b7251e697d151dac214cff5a84b
+number: 271
+status: done
+frozen_sha256: 10d8d8d1905cfb44fb7b9d1886c554e8a07314af0b050357f15444a6489652ec
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Intake: docs/issues/CHANGE-DRAFT-reuse-split-corpus-cases.md
+- Intake: docs/issues/CHANGE-0244-reuse-split-corpus-cases.md
 - Prior slices: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md,
   docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md (access-trace
   identity, admission gate), docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md
@@ -487,8 +487,8 @@ with `AAI_SUITE_REUSE=0`.
 - tests/skills/test-aai-suite-reuse.sh
 - tests/skills/test-aai-suite-select.sh
 - docs/analysis/precise-suite-evidence-reuse.md
-- docs/issues/CHANGE-DRAFT-reuse-split-corpus-cases.md
-- docs/specs/SPEC-DRAFT-spec-reuse-split-corpus-cases.md
+- docs/issues/CHANGE-0244-reuse-split-corpus-cases.md
+- docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md
 - docs/product/precise-suite-evidence-reuse.md (close-out)
 - docs/product/ci-test-impact-selection.md (close-out, TEST-2311 line)
 - CHANGELOG.md (close-out)

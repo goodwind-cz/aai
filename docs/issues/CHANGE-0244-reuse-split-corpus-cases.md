@@ -1,8 +1,8 @@
 ---
 id: reuse-split-corpus-cases
 type: change
-number: null
-status: draft
+number: 244
+status: done
 capability: precise-suite-evidence-reuse
 parent: smaller-node-core-and-faster-feedback
 user_visible: true

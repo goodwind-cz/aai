@@ -135,7 +135,7 @@ pairs:
   - capability: reuse-local-ledger-append
     status: done
   - capability: reuse-split-corpus-cases
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

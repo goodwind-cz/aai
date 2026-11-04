@@ -7,8 +7,9 @@ delivered_by:
   - precise-suite-evidence-reuse
   - reuse-for-docs-reading-suites
   - reuse-local-ledger-append
+  - reuse-split-corpus-cases
 spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
-updated: 2026-11-03
+updated: 2026-11-04
 ---
 
 # Reuse of local suite results
@@ -96,16 +97,30 @@ did not read the git index is compared on the ledger exactly.
 
 ## Limits and non-goals
 
-- The measured round saved nothing yet. Eleven suites are declared (the
-  five earlier ones and six that read `docs/` and `.aai/`); on an eight-suite
-  re-check, one suite (aai-ride-status) was reused and the wall time did not
-  move (medians 107 s off, 110 s on with no edit; 109 s and 121 s after a
-  one-line edit), because the reused suite runs beside the longest one. The
-  five large suites read every tracked file or the git index, so any edit makes
-  them run; see docs/analysis/precise-suite-evidence-reuse.md. One follow-up
-  would change that: `fu-reuse-split-corpus-cases` (split the whole-corpus
-  cases of the five large suites into separate suites so the fixture cases can
-  be reused).
+- The split. Two of the five large suites are now two suites each: the
+  cases that need only a handful of files stay in `aai-hygiene-pack` (66
+  cases) and `aai-win-fallback` (27 cases), and the cases that read the git
+  index or whole trees (the specs, the suite files, the run ledgers) moved to
+  `aai-hygiene-corpus` (29 cases) and `aai-win-fallback-corpus` (5 cases).
+  The sum is the same as before: every case runs in exactly one half, and the
+  suite tests pin that. After an ordinary edit the two fixture halves are
+  reused (they read about 160 and 57 files, not the index); the two corpus
+  halves, `aai-docs-content`, `aai-spec-lint` and `aai-prompt-diet` still
+  run, because each reads the git index or the whole tree. The corpus half of
+  the hygiene pack is also in the always-on CI core, so the core is five
+  suites (`aai-check-state`, `aai-docs-content`, `aai-spec-lint`,
+  `aai-hygiene-pack`, `aai-hygiene-corpus`).
+- Measured saving: on the five-suite re-check, two paired edits (one
+  script, one document) went from a median of about 106 s with reuse off to
+  about 71 s with it on (two of seven suites reused, three runs each).
+  Tables: docs/analysis/precise-suite-evidence-reuse.md, section
+  "Measurements (corpus split)". The three other large suites
+  (`aai-docs-content`, `aai-spec-lint`, `aai-prompt-diet`) read the git index
+  and still rerun after any edit; splitting them is not planned.
+- Known gap, filed as `fu-admit-tests-red-on-other-suites`: TEST-3307 and
+  TEST-3337 fail on a branch where local admission admits only other
+  manifest suites (for example a branch that changes only the pricing suite).
+  They pass on main and on this branch.
 - Reuse is off where file access times are not recorded (a volume mounted
   without access-time updates, or a failed probe): nothing is recorded
   (`trace-unavailable`) and every suite runs.
@@ -127,5 +142,6 @@ did not read the git index is compared on the ledger exactly.
 - Request: docs/issues/CHANGE-0240-precise-suite-evidence-reuse.md
 - Spec: docs/specs/SPEC-0266-spec-precise-suite-evidence-reuse.md
 - Measurement: docs/analysis/precise-suite-evidence-reuse.md
+- Corpus split: docs/issues/CHANGE-0244-reuse-split-corpus-cases.md; spec docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md
 - Trace identity: docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md; spec docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md
 - Validation evidence: docs/ai/reports/VALIDATION-precise-suite-evidence-reuse-r12.md
