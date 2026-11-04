@@ -46,7 +46,7 @@ _None._
 | original-request-outcome-backcheck | original-request-outcome-backcheck | 1 | docs/product/original-request-outcome-backcheck.md |
 | orphan-sweep | orphan-sweep | 1 | docs/product/orphan-sweep.md |
 | platform-portable-pr | platform-portable-pr | 2 | docs/product/platform-portable-pr.md |
-| precise-suite-evidence-reuse | precise-suite-evidence-reuse | 3 | docs/product/precise-suite-evidence-reuse.md |
+| precise-suite-evidence-reuse | precise-suite-evidence-reuse | 4 | docs/product/precise-suite-evidence-reuse.md |
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | provider-adapter-registry | provider-adapter-registry | 2 | docs/product/provider-adapter-registry.md |
@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (614)
+## Done (616)
 
 | ID | Type | Path |
 |---|---|---|
@@ -303,6 +303,7 @@ _None._
 | CHANGE-0241 | issues | docs/issues/CHANGE-0241-node-first-reap-tests.md |
 | CHANGE-0242 | issues | docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md |
 | CHANGE-0243 | issues | docs/issues/CHANGE-0243-reuse-local-ledger-append.md |
+| CHANGE-0244 | issues | docs/issues/CHANGE-0244-reuse-split-corpus-cases.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -677,6 +678,7 @@ _None._
 | SPEC-0268 | specs | docs/specs/SPEC-0268-spec-reuse-for-docs-reading-suites.md |
 | SPEC-0269 | specs | docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md |
 | SPEC-0270 | specs | docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md |
+| SPEC-0271 | specs | docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -1298,4 +1300,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-03 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-04 — counts above use this date for overdue checks.

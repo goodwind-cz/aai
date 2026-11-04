@@ -54,6 +54,11 @@ core:
   # costs 6 s, which is the whole argument for making it always-on rather than
   # widening its globs to tests/** and hoping the glob keeps up.
   - aai-hygiene-pack
+  # reuse-split-corpus-cases (SPEC reuse-split-corpus-cases D3): the pipe-into-
+  # grep-q ratchet (test_102 to test_104, test_122) moved to the corpus half, so
+  # the corpus half is core as well; the fixture half stays core because it was
+  # core before. No coverage leaves the always-on set.
+  - aai-hygiene-corpus
 
 # D4 (post-validation-pushes-reuse-test-results): two more top-level lists, both
 # optional (an absent list is empty, so an old map selects byte-identically).
@@ -654,6 +659,13 @@ suites:
       - .aai/scripts/claude-hook-gate.sh
       - .aai/scripts/aai-bootstrap.sh
       - .aai/SKILL_PR.prompt.md
+
+  # reuse-split-corpus-cases (D3): the whole-checkout half of aai-hygiene-pack.
+  # A definition-file edit selects both halves.
+  aai-hygiene-corpus:
+    globs:
+      - tests/skills/test-aai-hygiene-corpus.sh
+      - tests/skills/test-aai-hygiene-pack.sh
 
   aai-hygiene-pack:
     globs:
@@ -1351,6 +1363,10 @@ suites:
       - .gemini/skills/aai-verify/**
 
   aai-win-fallback:
+    # reuse-split-corpus-cases (D3): the whole-checkout cases run in the corpus
+    # half, so every diff that selects this suite selects that one too.
+    companions:
+      - aai-win-fallback-corpus
     globs:
       - .aai/scripts/aai-run-tests.sh
       - .aai/scripts/aai-reap-tests.sh
@@ -1370,6 +1386,12 @@ suites:
       # doc (canary, WSL1-vs-WSL2 caveat), so a doc-only edit must select
       # this suite too.
       - docs/product/windows-test-wrapper.md
+
+  # reuse-split-corpus-cases (D3): the whole-checkout half of aai-win-fallback.
+  aai-win-fallback-corpus:
+    globs:
+      - tests/skills/test-aai-win-fallback-corpus.sh
+      - tests/skills/test-aai-win-fallback.sh
 
   aai-worktree:
     globs:
@@ -1437,6 +1459,8 @@ suites:
       - tests/skills/test-aai-prompt-diet.sh
       - tests/skills/test-aai-ride-status.sh
       - tests/skills/test-aai-win-fallback.sh
+      - tests/skills/test-aai-hygiene-corpus.sh
+      - tests/skills/test-aai-win-fallback-corpus.sh
       - tests/skills/lib/suite-reuse.test.mjs
       # the manifest suites' own files: editing one re-runs the admission gate
       - tests/skills/test-aai-feedback-status.sh

@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-03T00:12:09.782Z",
+  "generatedAt": "2026-11-04T02:34:11.144Z",
   "project": "aai",
   "counts": {
-    "delivered": 340,
+    "delivered": 341,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -234,6 +234,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "reuse-split-corpus-cases",
+      "title": "Fixture cases of the whole-corpus suites are reused after an ordinary edit",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0244-reuse-split-corpus-cases.md",
+      "closed_on": "2026-11-04",
+      "agent_minutes": 278,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-reuse-split-corpus-cases-20261104T014105Z.md"
+    },
     {
       "ref": "reuse-local-ledger-append",
       "title": "An unchanged rerun reuses the suites that read the git index",
@@ -4681,6 +4694,19 @@
       "kind": "month",
       "label": "2026-11",
       "items": [
+        {
+          "ref": "reuse-split-corpus-cases",
+          "title": "Fixture cases of the whole-corpus suites are reused after an ordinary edit",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0244-reuse-split-corpus-cases.md",
+          "closed_on": "2026-11-04",
+          "agent_minutes": 278,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-reuse-split-corpus-cases-20261104T014105Z.md"
+        },
         {
           "ref": "reuse-local-ledger-append",
           "title": "An unchanged rerun reuses the suites that read the git index",

@@ -82,7 +82,8 @@ export function loadManifest(root, rel = MANIFEST_REL) {
   if (!isObj(m) || m.version !== 1 || !isObj(m.suites)) return { state: 'invalid', suites: {} };
   if (Object.keys(m).some((k) => k !== 'version' && k !== 'suites')) return { state: 'invalid', suites: {} };
   for (const e of Object.values(m.suites)) {
-    if (!isObj(e) || Object.keys(e).some((k) => !['inputs', 'live', 'note'].includes(k))) return { state: 'invalid', suites: {} };
+    if (!isObj(e) || Object.keys(e).some((k) => !['inputs', 'live', 'note', 'sources'].includes(k))) return { state: 'invalid', suites: {} };
+    if ('sources' in e && (!Array.isArray(e.sources) || e.sources.some((g) => typeof g !== 'string' || g === ''))) return { state: 'invalid', suites: {} };
     if (typeof e.live !== 'boolean' || typeof e.note !== 'string' || e.note.trim() === '') return { state: 'invalid', suites: {} };
     if (!Array.isArray(e.inputs) || e.inputs.some((g) => typeof g !== 'string')) return { state: 'invalid', suites: {} };
   }
@@ -357,6 +358,9 @@ export function lintManifest({ root }) {
     if (!fs.existsSync(path.join(root, `tests/skills/test-${suite}.sh`))) problems.push({ suite, reason: 'no-suite-file' });
     else if (rows['aai-suite-reuse'] && !rows['aai-suite-reuse'].globs.some((g) => matchesGlob(`tests/skills/test-${suite}.sh`, g))) problems.push({ suite, reason: 'not-gate-selected' });
   }
+  for (const [suite, e] of Object.entries(man.suites)) {
+    for (const src of e.sources || []) if (path.isAbsolute(src) || src.split('/').includes('..') || !fs.existsSync(path.join(root, src))) problems.push({ suite, reason: `no-source-file ${src}` });
+  }
   return { ok: problems.length === 0, problems };
 }
 
@@ -477,9 +481,11 @@ function entryChanged(base, suite) {
   if (!base) return true;
   const was = base.manifest && base.manifest.suites ? base.manifest.suites[suite] : undefined;
   if (canon(was) !== canon(loadManifest(base.root).suites[suite])) return true;
-  const file = `tests/skills/test-${suite}.sh`;
-  return run('git', ['-C', base.root, 'cat-file', '-e', `${base.ref}:${file}`]).status !== 0
-    || run('git', ['-C', base.root, 'diff', '--quiet', base.ref, '--', file]).status !== 0;
+  // The suite file and every definition file it sources (manifest `sources`) count as the suite's own text.
+  const cur = loadManifest(base.root).suites[suite];
+  return [`tests/skills/test-${suite}.sh`, ...((cur && cur.sources) || [])].some((file) =>
+    run('git', ['-C', base.root, 'cat-file', '-e', `${base.ref}:${file}`]).status !== 0
+    || run('git', ['-C', base.root, 'diff', '--quiet', base.ref, '--', file]).status !== 0);
 }
 function changedBase(root, ref) {
   if (!ref || run('git', ['-C', root, 'rev-parse', '--verify', '-q', `${ref}^{commit}`]).status !== 0) return null;

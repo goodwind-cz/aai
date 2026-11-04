@@ -627,25 +627,68 @@ test_3274_changed_since_and_ci() {
   log_pass "TEST-3274 (ADMIT-NONE, only the changed entry admitted, ADMIT-OFF ci)"
 }
 
-# test_3275: the live manifest lists the eleven suites, each live false with a note, each selected by the gate row.
+# test_3340: a change to a definition file a suite sources (manifest sources) re-admits that suite; the suite file itself is untouched.
+test_3340_sources_readmit() {
+  local base r
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" aa bb
+  printf 'echo one\n' > "$r/tests/skills/defs-aa.sh"
+  sed -i.bak 's/"aa":{"inputs":\[\],"live":false,/"aa":{"inputs":[],"live":false,"sources":["tests\/skills\/defs-aa.sh"],/' "$r/tests/skills/suite-reuse.json"
+  rm -f "$r/tests/skills/suite-reuse.json.bak"
+  commit_fx "$base" sources
+  admit_run "$base" -- --changed-since HEAD
+  expect "TEST-3340 unchanged" "$OUT" "ADMIT-NONE"
+  printf 'echo two\n' > "$r/tests/skills/defs-aa.sh"
+  admit_run "$base" -- --changed-since HEAD
+  [[ "$RC" -eq 0 ]] || { printf '%s\n' "$OUT" >&2; log_fail "TEST-3340: definition-file edit run exited $RC"; }
+  expect "TEST-3340 defs edit" "$OUT" "ADMIT-PASS aa "
+  expect_not "TEST-3340 defs edit" "$OUT" " bb "
+  rm -f "$r/tests/skills/defs-aa.sh"
+  admit_run "$base" -- --changed-since HEAD
+  [[ "$RC" -ne 0 ]] || log_fail "TEST-3340: a removed definition file must not read as unchanged (exit 0)"
+  expect "TEST-3340 defs removed" "$OUT" "no-source-file tests/skills/defs-aa.sh"
+  log_pass "TEST-3340 (an edit of a sourced definition file re-admits the sourcing suite and only it; a removed one fails lint)"
+}
+
+# test_3341: lint refuses a sources path that does not exist or escapes the root, and a sources value that is not a list of strings.
+test_3341_sources_lint() {
+  local base r out rc=0 man
+  base="$(new_base)"; r="$base/repo"
+  build_fx "$base" aa
+  man="$r/tests/skills/suite-reuse.json"
+  out="$(env -u AAI_ROLE node "$r/.aai/scripts/suite-reuse.mjs" lint --root "$r" 2>&1)" || rc=$?
+  [[ "$rc" -eq 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3341: clean fixture lint exited $rc"; }
+  sed -i.bak 's/"aa":{"inputs":\[\],"live":false,/"aa":{"inputs":[],"live":false,"sources":["tests\/skills\/no-such-defs.sh"],/' "$man"
+  rc=0; out="$(env -u AAI_ROLE node "$r/.aai/scripts/suite-reuse.mjs" lint --root "$r" 2>&1)" || rc=$?
+  [[ "$rc" -eq 1 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3341: missing sources path must fail lint with exit 1, got $rc"; }
+  expect "TEST-3341 missing" "$out" "no-source-file tests/skills/no-such-defs.sh"
+  sed -i.bak 's/"sources":\["tests\/skills\/no-such-defs.sh"\]/"sources":"tests\/skills\/test-aa.sh"/' "$man"
+  rc=0; out="$(env -u AAI_ROLE node "$r/.aai/scripts/suite-reuse.mjs" lint --root "$r" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || log_fail "TEST-3341: a non-list sources value must fail lint"
+  expect "TEST-3341 shape" "$out" "manifest-invalid"
+  rm -f "$man.bak"
+  log_pass "TEST-3341 (lint fails on a missing sources path and on a sources value that is not a list; the suite then cannot read as unchanged)"
+}
+
+# test_3275: the live manifest lists the thirteen suites, each live false with a note, each selected by the gate row.
 test_3275_live_manifest() {
   local out rc=0 src suite f
   out="$(env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3275: lint exited $rc"; }
   src="$(MAN="$PROJECT_ROOT/tests/skills/suite-reuse.json" node -e '
     const m = JSON.parse(require("fs").readFileSync(process.env.MAN, "utf8")).suites;
-    const want = ["aai-docs-content","aai-spec-lint","aai-hygiene-pack","aai-prompt-diet","aai-ride-status","aai-win-fallback","aai-feedback-status","aai-pricing","aai-redact","aai-orchestration-mode","aai-runtime-file"];
+    const want = ["aai-docs-content","aai-spec-lint","aai-hygiene-pack","aai-prompt-diet","aai-ride-status","aai-win-fallback","aai-feedback-status","aai-pricing","aai-redact","aai-orchestration-mode","aai-runtime-file","aai-hygiene-corpus","aai-win-fallback-corpus"];
     const bad = want.filter((s) => !m[s] || m[s].live !== false || typeof m[s].note !== "string" || !m[s].note.trim());
     console.log(bad.length ? "FAIL " + bad.join(",") : "OK");
   ')"
   [[ "$src" == OK ]] || log_fail "TEST-3275: manifest entries missing or unqualified: $src"
-  for suite in aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-ride-status aai-win-fallback; do
+  for suite in aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-ride-status aai-win-fallback aai-hygiene-corpus aai-win-fallback-corpus; do
     f="tests/skills/test-$suite.sh"
     out="$(printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")" \
       || log_fail "TEST-3275: select-suites.mjs failed for $f"
     [[ $'\n'"$out" =~ $'\n'SELECTED\ aai-suite-reuse($|[[:space:]]) ]] || log_fail "TEST-3275: $f does not select aai-suite-reuse"
   done
-  log_pass "TEST-3275 (lint clean, eleven qualified entries, six named suite files select the gate)"
+  log_pass "TEST-3275 (lint clean, thirteen qualified entries, eight named suite files select the gate)"
 }
 
 LIVE_ADMIT_OUT=""
@@ -965,7 +1008,10 @@ test_3305_tail_ignored_admitted() {
 }
 test_3303_append_prefix_recorded() { node_cases TEST-3303; }
 
-FIVE_INDEX_SUITES="aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-win-fallback"
+# The index-reading suites: the corpus halves replaced the whole hygiene-pack and win-fallback.
+FIVE_INDEX_SUITES="aai-docs-content aai-spec-lint aai-prompt-diet aai-hygiene-corpus aai-win-fallback-corpus"
+# The five suites the ledger-append measurement (TEST-3308) recorded before the corpus split.
+LEDGER_APPEND_SUITES="aai-docs-content aai-spec-lint aai-hygiene-pack aai-prompt-diet aai-win-fallback"
 
 # test_3306: lint is clean on the live repository and the five index-reading suites say what their identity tolerates.
 test_3306_live_notes() {
@@ -1007,7 +1053,7 @@ test_3307_live_appended_probes() {
 # test_3308: the analysis note holds the before and after measurement of the ledger append.
 test_3308_ledger_append_measurements() {
   local note="$PROJECT_ROOT/docs/analysis/precise-suite-evidence-reuse.md" out
-  out="$(NOTE="$note" SUITES="$FIVE_INDEX_SUITES" node -e '
+  out="$(NOTE="$note" SUITES="$LEDGER_APPEND_SUITES" node -e '
     const fs = require("fs");
     const lines = fs.readFileSync(process.env.NOTE, "utf8").split("\n");
     const fail = (m) => { console.log("FAIL " + m); process.exit(0); };
@@ -1032,6 +1078,364 @@ test_3308_ledger_append_measurements() {
   ')"
   [[ "$out" == OK* ]] || log_fail "TEST-3308: ${out:-node produced no output}"
   log_pass "TEST-3308 (ledger append measurements: ${out#OK })"
+}
+
+# ---- reuse-split-corpus-cases (TEST-3331 to TEST-3334): the corpus split of aai-hygiene-pack and aai-win-fallback ----
+
+SPLIT_BASELINE="6db05ffa562ba582a8f4e597417a95042ed60801"
+HYGIENE_PACK_FILE="$PROJECT_ROOT/tests/skills/test-aai-hygiene-pack.sh"
+WIN_FALLBACK_FILE="$PROJECT_ROOT/tests/skills/test-aai-win-fallback.sh"
+HYGIENE_CORPUS_EXPECTED="test_030_auto_trigger_deprecation
+test_043_review_taxonomy_alignment
+test_060_work_item_brief
+test_092_no_phantom_node_apis
+test_093_test_registration
+test_102_pgq_ratchet_gate_and_bite
+test_103_pgq_baseline_is_measured_not_typed
+test_104_pgq_shrink_never_lowers_the_bar
+test_562_no_nul_in_tracked_text
+test_122_pgq_corpus_drained_to_zero
+test_124_degenerate_pass_guards_uncovered_and_ratcheted
+test_126_learned_guard_lints_live_and_markers
+test_832_sync_leaves_history_out_of_downstream
+test_106_base_ref_pin_gate_and_bite
+test_108_cd_subshell_leak_gate_and_bite
+test_111_generator_check_clean_and_idempotent
+test_113_bite_proofs_in_detached_worktree
+test_116_metrics_correction_not_counted
+test_117_source_skills_are_lf_pinned
+test_127_withdrawn_phrases_drained
+test_094_mutation_selector_fails_closed_corpus_wide
+test_129_mutation_gate_suite_registration
+test_130_node_bash_selector_scanner_whitespace_parity
+test_131_vendored_script_deps_gate_and_bite
+test_133_nested_suite_lint_live_and_base
+test_134_nested_suite_disclosures
+test_137_hot_spot_disclosures
+test_138_ci_node_pins
+test_815_suite_map_and_registration"
+
+# split_main_names <file>: the test_ names main() of a hygiene-style suite file calls, one per line.
+split_main_names() {
+  # The real main() is the last one: fixtures inside heredocs define their own.
+  awk '/^main\(\) \{$/{f=1; s=""; next} f && /^\}/{f=0; next} f && /^  test_[A-Za-z0-9_]+$/{s = s $1 "\n"} END{printf "%s", s}' "$1"
+}
+
+# split_baseline_file <TEST-id> <path> <dest>: a file of the baseline commit, or a failure naming the row.
+split_baseline_file() {
+  git -C "$PROJECT_ROOT" show "$SPLIT_BASELINE:$2" > "$3" 2>/dev/null \
+    || log_fail "$1: baseline commit $SPLIT_BASELINE (or $2 in it) is not available in this clone"
+}
+
+# split_defined_names <file>: the test_* functions a file defines at column 0, outside heredoc bodies (fixtures define their own).
+split_defined_names() {
+  awk '
+    hd != "" { if ($0 == hd) hd = ""; next }
+    $0 !~ /<<</ && match($0, /<<-?[ ]*["\047]?[A-Za-z_][A-Za-z_0-9]*/) {
+      d = substr($0, RSTART, RLENGTH); sub(/^<<-?[ ]*["\047]?/, "", d); hd = d
+    }
+    /^test_[A-Za-z0-9_]+\(\)/ { n = $0; sub(/\(\).*$/, "", n); print n }
+  ' "$1"
+}
+
+# test_3331: the hygiene pack splits into two disjoint halves; together they hold the baseline cases and every case the file defines.
+test_3331_hygiene_partition() {
+  local base work corpus main_now rc=0 dups lost defined unplaced twice
+  base="$(new_base)"; work="$base/m"
+  split_baseline_file TEST-3331 tests/skills/test-aai-hygiene-pack.sh "$work/baseline.sh"
+  split_main_names "$work/baseline.sh" > "$work/baseline.names"
+  [[ -s "$work/baseline.names" ]] || log_fail "TEST-3331: the baseline main list is empty"
+  corpus="$(awk '/^HYGIENE_CORPUS_CASES="/{f=1; next} f && /^"/{exit} f{sub(/^  /, ""); print}' "$HYGIENE_PACK_FILE")"
+  [[ -n "$corpus" ]] || log_fail "TEST-3331: tests/skills/test-aai-hygiene-pack.sh declares no HYGIENE_CORPUS_CASES list"
+  [[ "$corpus" == "$HYGIENE_CORPUS_EXPECTED" ]] \
+    || log_fail "TEST-3331: HYGIENE_CORPUS_CASES is not the 29 names of D2 in order; got: $corpus"
+  main_now="$(split_main_names "$HYGIENE_PACK_FILE")"
+  printf '%s\n' "$corpus" > "$work/corpus.names"
+  printf '%s\n' "$main_now" > "$work/main.names"
+  dups="$(sort "$work/main.names" "$work/corpus.names" | uniq -d)"
+  [[ -z "$dups" ]] || log_fail "TEST-3331: names in both halves or registered twice: $dups"
+  # Baseline cases stay covered: every baseline name is in main or in the corpus list (cases added later are not pinned).
+  lost="$(awk 'NR == FNR{c[$1]=1; next} !($1 in c)' <(cat "$work/main.names" "$work/corpus.names") "$work/baseline.names")"
+  [[ -z "$lost" ]] || log_fail "TEST-3331: baseline cases in neither half: $lost"
+  # Every case the definition file defines runs in exactly one half.
+  defined="$(split_defined_names "$HYGIENE_PACK_FILE" | sort)"
+  [[ -n "$defined" ]] || log_fail "TEST-3331: no test_* function found in the definition file"
+  unplaced="$(awk 'NR == FNR{c[$1]++; next} c[$1] != 1 {print $1 " (" c[$1]+0 "x)"}' <(cat "$work/main.names" "$work/corpus.names") <(printf '%s\n' "$defined"))"
+  [[ -z "$unplaced" ]] || log_fail "TEST-3331: defined cases not in exactly one half: $unplaced"
+  printf '%s\n' "$defined" > "$work/defined.names"
+  twice="$(cat "$work/main.names" "$work/corpus.names" | sort -u | comm -23 - "$work/defined.names")"
+  [[ -z "$twice" ]] || log_fail "TEST-3331: a half names a case the definition file does not define: $twice"
+  env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" > "$work/reg.out" 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || { sed -n '1,20p' "$work/reg.out" >&2; log_fail "TEST-3331: check-test-registration.mjs exited $rc"; }
+  log_pass "TEST-3331 (hygiene pack: 29 corpus + $(wc -l < "$work/main.names" | tr -d ' ') main; baseline covered, every defined case in exactly one half, all registered)"
+}
+
+# win_fallback_ran <file> <entry> [args]: the case ids a suite entry runs when every case body is a recording stub.
+win_fallback_ran() {
+  local file="$1" entry="$2" out
+  shift 2
+  out="$(env -u AAI_ROLE WF_FILE="$file" WF_ENTRY="$entry" bash -c '
+    . "$WF_FILE"
+    check_deps() { :; }
+    for t in $ALL_TESTS; do eval "test_$t() { echo RAN_$t; }"; done
+    "$WF_ENTRY" "$@"
+  ' _ "$@" 2>&1 || true)"
+  printf '%s\n' "$out" | sed -n 's/^RAN_//p' | tr '\n' ' '
+}
+
+# test_3332: the win-fallback numbers split five and the rest; every defined case runs in exactly one half.
+test_3332_win_fallback_partition() {
+  local base work now all_now want_all t rest="" ran dups unplaced defined
+  base="$(new_base)"; work="$base/m"
+  split_baseline_file TEST-3332 tests/skills/test-aai-win-fallback.sh "$work/baseline.sh"
+  want_all="$(sed -n 's/^ALL_TESTS="\(.*\)"$/\1/p' "$work/baseline.sh")"
+  [[ -n "$want_all" ]] || log_fail "TEST-3332: the baseline ALL_TESTS is empty"
+  all_now="$(sed -n 's/^ALL_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE")"
+  dups="$(printf '%s\n' $all_now | sort | uniq -d)"
+  [[ -z "$dups" ]] || log_fail "TEST-3332: ALL_TESTS lists a number twice: $dups"
+  for t in $want_all; do
+    case " $all_now " in *" $t "*) ;; *) log_fail "TEST-3332: baseline number $t is missing from ALL_TESTS" ;; esac
+  done
+  now="$(sed -n 's/^WIN_FALLBACK_CORPUS_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE")"
+  [[ "$now" == "007 029 030 031 042" ]] || log_fail "TEST-3332: WIN_FALLBACK_CORPUS_TESTS is '$now', want '007 029 030 031 042'"
+  for t in $now; do
+    case " $all_now " in *" $t "*) ;; *) log_fail "TEST-3332: corpus number $t is not in ALL_TESTS" ;; esac
+  done
+  # Every case the file defines is numbered in ALL_TESTS, so it runs in the fixture half or the corpus half, never in neither.
+  defined="$(split_defined_names "$WIN_FALLBACK_FILE" | sed -n 's/^test_\([0-9][0-9]*\)$/\1/p' | sort)"
+  [[ -n "$defined" ]] || log_fail "TEST-3332: no test_NNN function found in the definition file"
+  unplaced="$(awk 'NR == FNR{a[$1]=1; next} !($1 in a)' <(printf '%s\n' $all_now) <(printf '%s\n' "$defined") | tr '\n' ' ')"
+  [[ -z "$unplaced" ]] || log_fail "TEST-3332: defined cases not in ALL_TESTS: $unplaced"
+  unplaced="$(awk 'NR == FNR{d[$1]=1; next} !($1 in d)' <(printf '%s\n' "$defined") <(printf '%s\n' $all_now) | tr '\n' ' ')"
+  [[ -z "$unplaced" ]] || log_fail "TEST-3332: ALL_TESTS names numbers the file does not define: $unplaced"
+  for t in $all_now; do
+    case " $now " in *" $t "*) ;; *) rest="$rest$t " ;; esac
+  done
+  ran="$(win_fallback_ran "$WIN_FALLBACK_FILE" main)"
+  [[ "$ran" == "$rest" ]] || log_fail "TEST-3332: main without arguments ran '$ran', want ALL_TESTS minus the five: '$rest'"
+  ran="$(win_fallback_ran "$WIN_FALLBACK_FILE" main 042 009)"
+  [[ "$ran" == "042 009 " ]] || log_fail "TEST-3332: main with arguments must run exactly the named cases, ran '$ran'"
+  [[ -f "$PROJECT_ROOT/tests/skills/test-aai-win-fallback-corpus.sh" ]] || log_fail "TEST-3332: tests/skills/test-aai-win-fallback-corpus.sh does not exist"
+  ran="$(win_fallback_ran "$PROJECT_ROOT/tests/skills/test-aai-win-fallback-corpus.sh" main_corpus)"
+  [[ "$ran" == "007 029 030 031 042 " ]] || log_fail "TEST-3332: the corpus suite ran '$ran', want '007 029 030 031 042 '"
+  log_pass "TEST-3332 (win-fallback: baseline numbers kept, every defined case in ALL_TESTS, fixture half runs the rest, the five in the corpus half)"
+}
+
+# test_3333: a NUL byte in a tracked text file reddens the corpus half only.
+test_3333_corpus_suite_bites() {
+  local base clone out rc=0 corpus="tests/skills/test-aai-hygiene-corpus.sh"
+  [[ -f "$PROJECT_ROOT/$corpus" ]] || log_fail "TEST-3333: $corpus does not exist"
+  # The clone sits on a physical path: node scripts of the suite compare it with import.meta.url.
+  base="$(env -u AAI_ROLE node -p 'require("fs").realpathSync(process.argv[1])' "$(new_base)")"; clone="$base/clone"
+  git clone -q --local --no-hardlinks "$PROJECT_ROOT" "$clone" || log_fail "TEST-3333: the clone failed"
+  env -u AAI_ROLE ROOT="$PROJECT_ROOT" DEST="$clone" node -e '
+    const fs = require("fs"), path = require("path"), cp = require("child_process");
+    const out = cp.execFileSync("git", ["-C", process.env.ROOT, "ls-files", "-z", "-co", "--exclude-standard", "--", "tests/skills", ".aai"], { maxBuffer: 1 << 28 });
+    for (const f of out.toString().split("\0").filter(Boolean)) {
+      const src = path.join(process.env.ROOT, f);
+      if (!fs.existsSync(src)) continue;
+      fs.mkdirSync(path.dirname(path.join(process.env.DEST, f)), { recursive: true });
+      fs.copyFileSync(src, path.join(process.env.DEST, f));
+    }
+  ' || log_fail "TEST-3333: could not overlay the working tree on the clone"
+  printf 'before\000after\n' > "$clone/nul-probe.txt"
+  git -C "$clone" config user.email split@example.invalid
+  git -C "$clone" config user.name split
+  git -C "$clone" add -A
+  git -C "$clone" commit -q -m "probe: overlay and a NUL byte in a tracked text file" || log_fail "TEST-3333: the clone commit failed"
+  ( cd "$clone" && env -u AAI_ROLE -u AAI_SUITE_REUSE bash "$corpus" > "$base/m/corpus.out" 2>&1 ) || rc=$?
+  out="$(cat "$base/m/corpus.out")"
+  [[ "$rc" -eq 1 ]] || { printf '%s\n' "$out" | sed -n '/^FAIL/p' >&2; log_fail "TEST-3333: the corpus suite should exit 1 on a NUL byte, exited $rc"; }
+  expect "TEST-3333" "$out" "FAIL: TEST-562"
+  rc=0
+  ( cd "$clone" && env -u AAI_ROLE -u AAI_SUITE_REUSE bash tests/skills/test-aai-hygiene-pack.sh > "$base/m/pack.out" 2>&1 ) || rc=$?
+  out="$(cat "$base/m/pack.out")"
+  [[ "$rc" -eq 0 ]] || { printf '%s\n' "$out" | sed -n '/^FAIL/p' >&2; log_fail "TEST-3333: the fixture half should exit 0 on the same clone, exited $rc"; }
+  log_pass "TEST-3333 (a planted NUL byte: corpus half exit 1 with the TEST-562 FAIL, fixture half exit 0)"
+}
+
+# test_3334: a moved case still runs alone through its definition file and through the corpus suite.
+test_3334_dispatch_both_ways() {
+  local base rc c names
+  base="$(new_base)"
+  for c in "test_117_source_skills_are_lf_pinned tests/skills/test-aai-hygiene-pack.sh" \
+           "test_117_source_skills_are_lf_pinned tests/skills/test-aai-hygiene-corpus.sh" \
+           "test_120_userguide_catalog_covers_every_skill tests/skills/test-aai-hygiene-pack.sh" \
+           "029 tests/skills/test-aai-win-fallback.sh" \
+           "029 tests/skills/test-aai-win-fallback-corpus.sh"; do
+    rc=0
+    env -u AAI_ROLE -u AAI_SUITE_REUSE bash "$PROJECT_ROOT/${c#* }" "${c%% *}" > "$base/m/dispatch.out" 2>&1 || rc=$?
+    [[ "$rc" -eq 0 ]] || { sed -n '1,30p' "$base/m/dispatch.out" >&2; log_fail "TEST-3334: ${c#* } ${c%% *} exited $rc"; }
+  done
+  names="$(split_main_names "$HYGIENE_PACK_FILE")"
+  for c in $HYGIENE_CORPUS_EXPECTED; do
+    [[ $'\n'"$names"$'\n' != *$'\n'"$c"$'\n'* ]] || log_fail "TEST-3334: main of the hygiene pack names the corpus case $c"
+  done
+  log_pass "TEST-3334 (moved cases dispatch alone through both files; the hygiene main names none of them)"
+}
+
+# ---- reuse-split-corpus-cases (TEST-3336, TEST-3337): the manifest and the admission of the two halves ----
+
+# test_3336: the manifest holds thirteen entries; the corpus halves read the index, the fixture halves do not.
+test_3336_split_manifest() {
+  local lrc=0 lout out
+  lout="$(env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" 2>&1)" || lrc=$?
+  [[ "$lrc" -eq 0 ]] || { printf '%s\n' "$lout" >&2; log_fail "TEST-3336: lint exited $lrc"; }
+  out="$(ROOT="$PROJECT_ROOT" SUITES="$FIVE_INDEX_SUITES" node -e '
+    const m = JSON.parse(require("fs").readFileSync(process.env.ROOT + "/tests/skills/suite-reuse.json", "utf8")).suites;
+    const names = Object.keys(m);
+    const fail = (x) => { console.log("FAIL " + x); process.exit(0); };
+    if (names.length !== 13) fail("expected 13 manifest entries, found " + names.length);
+    for (const s of ["aai-hygiene-corpus", "aai-win-fallback-corpus"]) if (!m[s]) fail("no entry for " + s);
+    for (const s of process.env.SUITES.split(" ")) {
+      if (!m[s] || !m[s].note.includes("docs/ai/tests/test-runs.jsonl")) fail("the note of " + s + " does not name docs/ai/tests/test-runs.jsonl");
+      if (!m[s].note.includes("git index")) fail("the note of " + s + " does not say the git index is read");
+    }
+    for (const s of ["aai-hygiene-pack", "aai-win-fallback"]) {
+      const n = m[s] && m[s].note;
+      if (!n) fail("no entry for " + s);
+      if (/reads the git index/i.test(n) || n.includes("every tracked file")) fail("the note of " + s + " still claims a git index read");
+      if (!/poisoned=[1-9][0-9]*/.test(n)) fail("the note of " + s + " carries no poisoned count above zero");
+    }
+    console.log("OK");
+  ')"
+  [[ "$out" == OK ]] || log_fail "TEST-3336: $out"
+  log_pass "TEST-3336 (lint clean; thirteen entries; five index-reading notes name the run ledger; the two fixture-half notes claim no index read)"
+}
+
+# test_3337: the live admission admits each changed corpus half with the appended probe and each changed fixture half with poisoned above zero.
+test_3337_split_admission() {
+  local s line p n=0
+  if [[ -z "$LIVE_ADMIT_OUT" ]]; then
+    # Run alone (mutation-run dispatch): do the admission here and judge its lines, not its exit code.
+    LIVE_ADMIT_OUT="$(env -u AAI_ROLE -u AAI_SUITE_REUSE node "$PROJECT_ROOT/.aai/scripts/suite-reuse.mjs" lint --root "$PROJECT_ROOT" --admit --changed-since main 2>&1 || true)"
+  fi
+  if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-OFF ci"* ]]; then log_pass "TEST-3337 (ADMIT-OFF ci)"; return 0; fi
+  if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-NONE"* ]]; then log_pass "TEST-3337 (ADMIT-NONE: no suite changed against main)"; return 0; fi
+  for s in aai-hygiene-pack aai-win-fallback aai-hygiene-corpus aai-win-fallback-corpus; do
+    if [[ "$LIVE_ADMIT_OUT" == *"ADMIT-FAIL $s "* ]]; then
+      printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n '/^ADMIT-/p' >&2
+      log_fail "TEST-3337: admission of $s failed"
+    fi
+    line="$(printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n "/^ADMIT-PASS $s /p")"
+    [[ -n "$line" ]] || continue
+    n=$((n + 1))
+    case "$s" in
+      *-corpus)
+        expect "TEST-3337 $s" "$LIVE_ADMIT_OUT" "ADMIT-PROBE $s appended docs/ai/tests/test-runs.jsonl PASS" ;;
+      *)
+        p="${line##*poisoned=}"
+        [[ "$p" =~ ^[0-9]+$ && "$p" -gt 0 ]] || log_fail "TEST-3337: $s was admitted with poisoned=$p, want above zero (the half is not narrow)" ;;
+    esac
+  done
+  [[ "$n" -ge 1 ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n '/^ADMIT-/p' >&2; log_fail "TEST-3337: none of the four split suites was admitted"; }
+  log_pass "TEST-3337 ($n admitted split suites: fixture halves with poisoned above zero, corpus halves with the appended probe)"
+}
+
+# ---- reuse-split-corpus-cases (TEST-3330, TEST-3339): the case inventory and the before/after measurement in the analysis note ----
+
+SPLIT_NOTE="$PROJECT_ROOT/docs/analysis/precise-suite-evidence-reuse.md"
+SPLIT_NOTE_HEADING="## Measurements (corpus split)"
+
+# split_note_section: the lines of the corpus-split section of the analysis note.
+split_note_section() {
+  awk -v h="$SPLIT_NOTE_HEADING" '$0 == h {f=1; next} f && /^## /{exit} f{print}' "$SPLIT_NOTE"
+}
+
+# split_baseline_cases <suite> <workdir>: the full-run case names of one suite at the baseline commit, one per line.
+split_baseline_cases() {
+  local suite="$1" work="$2" f
+  case "$suite" in
+    aai-docs-content)
+      split_baseline_file TEST-3330 tests/skills/test-aai-docs-audit.sh "$work/b-docs-audit.sh"
+      awk '/^DOCS_AUDIT_CONTENT_CASES="/{f=1; next} f && /^"/{exit} f{gsub(/^ +| +$/, ""); if ($0 != "") print}' "$work/b-docs-audit.sh" ;;
+    aai-win-fallback)
+      split_baseline_file TEST-3330 tests/skills/test-aai-win-fallback.sh "$work/b-$suite.sh"
+      sed -n 's/^ALL_TESTS="\(.*\)"$/\1/p' "$work/b-$suite.sh" | tr ' ' '\n' | sed -n 's/^\(.*[0-9].*\)$/test_\1/p' ;;
+    *)
+      split_baseline_file TEST-3330 "tests/skills/test-$suite.sh" "$work/b-$suite.sh"
+      split_main_names "$work/b-$suite.sh" ;;
+  esac
+}
+
+# test_3330: the note holds one inventory row per full-run case of the five suites, with a class and a half.
+test_3330_split_inventory() {
+  [[ -f "$SPLIT_NOTE" ]] || log_fail "TEST-3330: missing docs/analysis/precise-suite-evidence-reuse.md"
+  local base work suite want got corpus n=0 bad
+  base="$(new_base)"; work="$base/m"
+  [[ -n "$(split_note_section)" ]] || log_fail "TEST-3330: the note has no $SPLIT_NOTE_HEADING section"
+  split_note_section | awk -F'|' '/^\| aai-/ && NF == 9 {for (i = 2; i <= 8; i++) gsub(/^ +| +$/, "", $i); print $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 "\t" $7 "\t" $8}' > "$work/rows.tsv"
+  for suite in aai-hygiene-pack aai-win-fallback aai-spec-lint aai-prompt-diet aai-docs-content; do
+    want="$(split_baseline_cases "$suite" "$work")"
+    [[ -n "$want" ]] || log_fail "TEST-3330: no baseline case list for $suite"
+    got="$(awk -F'\t' -v s="$suite" '$1 == s {print $2}' "$work/rows.tsv")"
+    [[ "$got" == "$want" ]] || log_fail "TEST-3330: the inventory rows of $suite are not the baseline full-run list in order (want $(printf '%s\n' "$want" | wc -l | tr -d ' ') rows, got $(printf '%s\n' "$got" | sed '/^$/d' | wc -l | tr -d ' '))"
+    n=$((n + $(printf '%s\n' "$want" | wc -l)))
+  done
+  bad="$(awk -F'\t' '$3 !~ /^(index|wide|ledger|fixture)$/ || $7 !~ /^(fixture|corpus|unsplit)$/ || $5 !~ /^(yes|no)$/ {print $1 " " $2}' "$work/rows.tsv")"
+  [[ -z "$bad" ]] || log_fail "TEST-3330: rows without one class out of index, wide, ledger, fixture and one half out of fixture, corpus, unsplit: $bad"
+  corpus="$( { awk '/^HYGIENE_CORPUS_CASES="/{f=1; next} f && /^"/{exit} f{sub(/^  /, ""); print}' "$HYGIENE_PACK_FILE"
+               sed -n 's/^WIN_FALLBACK_CORPUS_TESTS="\(.*\)"$/\1/p' "$WIN_FALLBACK_FILE" | tr ' ' '\n' | sed -n 's/^\(.*[0-9].*\)$/test_\1/p'; } | sort)"
+  got="$(awk -F'\t' '$7 == "corpus" {print $2}' "$work/rows.tsv" | sort)"
+  [[ "$got" == "$corpus" ]] || log_fail "TEST-3330: the corpus-half rows are not exactly HYGIENE_CORPUS_CASES plus WIN_FALLBACK_CORPUS_TESTS"
+  bad="$(awk -F'\t' '$7 == "fixture" && $3 != "fixture" {print $1 " " $2 " " $3}' "$work/rows.tsv")"
+  [[ -z "$bad" ]] || log_fail "TEST-3330: fixture-half rows of class index, wide or ledger: $bad"
+  [[ "$(awk -F'\t' '$7 == "fixture"' "$work/rows.tsv" | wc -l | tr -d ' ')" -eq 93 ]] \
+    || log_fail "TEST-3330: expected 93 fixture-half rows (66 hygiene + 27 win-fallback), got $(awk -F'\t' '$7 == "fixture"' "$work/rows.tsv" | wc -l | tr -d ' ')"
+  log_pass "TEST-3330 ($n inventory rows over five suites; the 34 corpus-half rows are the two declared lists; no fixture-half row reads a whole tree)"
+}
+
+# test_3339: the before and after reruns of edits E1 and E2, recomputed from the sample rows.
+test_3339_split_measurement() {
+  [[ -f "$SPLIT_NOTE" ]] || log_fail "TEST-3339: missing docs/analysis/precise-suite-evidence-reuse.md"
+  local out
+  out="$(NOTE="$SPLIT_NOTE" HEADING="$SPLIT_NOTE_HEADING" node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.env.NOTE, "utf8").split("\n");
+    const fail = (m) => { console.log("FAIL " + m); process.exit(0); };
+    const at = lines.indexOf(process.env.HEADING);
+    if (at < 0) fail("no " + process.env.HEADING + " line");
+    let end = lines.findIndex((l, i) => i > at && /^## /.test(l));
+    if (end < 0) end = lines.length;
+    const sec = lines.slice(at, end);
+    const text = sec.join("\n");
+    const ORIGINAL = ["aai-docs-content", "aai-spec-lint", "aai-hygiene-pack", "aai-prompt-diet", "aai-win-fallback"];
+    const rows = [];
+    for (const l of sec) {
+      const c = l.split("|").map((x) => x.trim());
+      if (c.length === 9 && /^E[12]$/.test(c[1]) && /^(before|after)$/.test(c[2])) rows.push({ edit: c[1], when: c[2], n: c[3], wall: Number(c[4]), rc: c[5], reuse: c[6], out: Object.fromEntries(c[7].split(/\s+/).map((p) => { const i = p.indexOf("="); return [p.slice(0, i), p.slice(i + 1)]; })) });
+    }
+    for (const e of ["E1", "E2"]) for (const w of ["before", "after"]) {
+      const r = rows.filter((x) => x.edit === e && x.when === w);
+      if (r.length !== 3) fail(e + " " + w + ": want 3 sample rows, found " + r.length);
+      if (new Set(r.map((x) => x.n)).size !== 3) fail(e + " " + w + ": sample numbers repeat");
+    }
+    for (const r of rows) {
+      if (!(r.wall > 0)) fail(r.edit + " " + r.when + " " + r.n + ": wall seconds missing");
+      if (r.rc !== "0") fail(r.edit + " " + r.when + " " + r.n + ": the run exited " + r.rc);
+      if (r.when === "before") for (const s of ORIGINAL) {
+        if (!r.out[s]) fail(r.edit + " before " + r.n + ": no outcome for " + s);
+        if (r.out[s] === "REUSED") fail(r.edit + " before " + r.n + ": " + s + " was REUSED");
+      } else for (const s of [...ORIGINAL, "aai-hygiene-corpus", "aai-win-fallback-corpus"]) {
+        if (!r.out[s]) fail(r.edit + " after " + r.n + ": no outcome for " + s);
+        if ((s === "aai-hygiene-pack" || s === "aai-win-fallback") && r.out[s] !== "REUSED") fail(r.edit + " after " + r.n + ": " + s + " was not REUSED (" + r.out[s] + ")");
+      }
+    }
+    const median = (a) => { const b = [...a].sort((x, y) => x - y); return (b[Math.floor((b.length - 1) / 2)] + b[Math.ceil((b.length - 1) / 2)]) / 2; };
+    const med = {};
+    for (const e of ["E1", "E2"]) for (const w of ["before", "after"]) {
+      med[e + w] = median(rows.filter((x) => x.edit === e && x.when === w).map((x) => x.wall));
+      const m = text.match(new RegExp("^" + e + " " + w + " median: ([0-9.]+)$", "m"));
+      if (!m) fail("no line \"" + e + " " + w + " median: <s>\"");
+      if (Math.abs(Number(m[1]) - med[e + w]) > 0.051) fail(e + " " + w + " median line says " + m[1] + ", the sample rows give " + med[e + w]);
+    }
+    for (const e of ["E1", "E2"]) if (!(med[e + "after"] <= 0.85 * med[e + "before"])) fail(e + ": after median " + med[e + "after"] + " is above 0.85 x before median " + med[e + "before"] + " (" + (0.85 * med[e + "before"]).toFixed(1) + ")");
+    if ((text.match(/\b[0-9a-f]{40}\b/g) || []).length < 2) fail("fewer than two 40-character shas");
+    for (const w of ["Node", "Bash", "Git"]) if (!new RegExp(w + "[^\\n]*[0-9]+\\.[0-9]+").test(text)) fail("no " + w + " version");
+    console.log("OK E1 " + med.E1before + "->" + med.E1after + " E2 " + med.E2before + "->" + med.E2after);
+  ')"
+  [[ "$out" == OK* ]] || log_fail "TEST-3339: ${out:-node produced no output}"
+  log_pass "TEST-3339 (${out#OK })"
 }
 
 main() {
@@ -1093,6 +1497,16 @@ main() {
   test_3305_tail_ignored_admitted
   test_3306_live_notes
   test_3308_ledger_append_measurements
+  test_3331_hygiene_partition
+  test_3332_win_fallback_partition
+  test_3333_corpus_suite_bites
+  test_3334_dispatch_both_ways
+  test_3336_split_manifest
+  test_3337_split_admission
+  test_3330_split_inventory
+  test_3339_split_measurement
+  test_3340_sources_readmit
+  test_3341_sources_lint
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

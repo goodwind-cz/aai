@@ -63,6 +63,9 @@ check_deps() {
   log_info "Checking dependencies..."
   command -v grep >/dev/null 2>&1 || log_skip "grep not found"
   [[ -d "$PROJECT_ROOT/.aai" ]] || log_skip "not an AAI checkout"
+  # Every entry (main, single-case dispatch, the corpus suite) starts from the
+  # same scratch directory; a case must not inherit it from an earlier case.
+  TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
   log_pass "Dependencies checked"
 }
 
@@ -1098,8 +1101,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 123 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 123 (pin moved for aai-reap-tests after aai-suite-reuse) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 125 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 125 (pin moved for the two corpus-split suites after aai-reap-tests) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -2127,8 +2130,8 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   # together, which is the two-way check the Mutation column drives.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 123 ]] \
-    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 123"
+  [[ "$row_count" -eq 125 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 125"
 
   # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
   # function anywhere under tests/skills, this suite's new ones included).
@@ -2143,7 +2146,7 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   assert_payload_contains "$out" "SELECTED aai-mutation-gate" \
     "TEST-487: select-suites.mjs did not route .aai/scripts/mutation-gate.mjs to aai-mutation-gate: $out"
 
-  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (123), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
+  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (125), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
 }
 
 # --- TEST-504 (NB4-r3, remediation round 3, Spec-AC-03): the Node copy of the
@@ -5894,7 +5897,7 @@ NSL_FIXTURE
 }
 
 test_133_nested_suite_lint_live_and_base() {  # TEST-034 / Spec-AC-11
-  log_info "test_133: nested-suite-lint over the live tree with the allowlist is clean with exactly 4 rows; over the base tree it reports all 34 inventory functions (TEST-034)..."
+  log_info "test_133: nested-suite-lint over the live tree with the allowlist is clean with exactly 5 rows; over the base tree it reports all 34 inventory functions (TEST-034)..."
   local script="$PROJECT_ROOT/$NSL_SCRIPT_REL" allow="$PROJECT_ROOT/$NSL_ALLOWLIST_REL" d out rc=0 rows
   [[ -f "$script" ]] || log_fail "test_133 (plan row TEST-034): missing $NSL_SCRIPT_REL"
   [[ -f "$allow" ]] || log_fail "test_133 (plan row TEST-034): missing $NSL_ALLOWLIST_REL"
@@ -5904,14 +5907,14 @@ test_133_nested_suite_lint_live_and_base() {  # TEST-034 / Spec-AC-11
   out="$(node "$script" --allowlist "$allow" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc=$?
   [[ "$rc" -eq 0 ]] || log_fail "test_133 (plan row TEST-034): the live tree must be clean under the allowlist, rc=$rc: $out"
   rows="$(awk -F'\t' '!/^[[:space:]]*#/ && NF >= 4 {n++} END {print n+0}' "$allow")"
-  [[ "$rows" -eq 4 ]] || log_fail "test_133 (plan row TEST-034): the allowlist must hold exactly 4 rows, found $rows"
-  [[ "$out" == *"ALLOWLISTED: 4"* ]] || log_fail "test_133 (plan row TEST-034): all 4 rows must match a live finding: $out"
+  [[ "$rows" -eq 5 ]] || log_fail "test_133 (plan row TEST-034): the allowlist must hold exactly 5 rows, found $rows"
+  [[ "$out" == *"ALLOWLISTED: 5"* ]] || log_fail "test_133 (plan row TEST-034): all 5 rows must match a live finding: $out"
   [[ "$out" != *"STALE"* ]] || log_fail "test_133 (plan row TEST-034): no allowlist row may be stale: $out"
   # positive control: the allowlist is what keeps the live tree clean
   local empty="$d/nsl-empty.tsv" rc2=0 out2
   printf '# no rows\n' > "$empty"
   out2="$(node "$script" --allowlist "$empty" "$PROJECT_ROOT/tests/skills" 2>&1)" || rc2=$?
-  [[ "$rc2" -eq 1 && "$out2" == *"TOTAL: 4"* ]] || log_fail "test_133 (plan row TEST-034): without the allowlist the live tree has exactly 4 findings (rc=1), got rc=$rc2: $out2"
+  [[ "$rc2" -eq 1 && "$out2" == *"TOTAL: 5"* ]] || log_fail "test_133 (plan row TEST-034): without the allowlist the live tree has exactly 5 findings (rc=1), got rc=$rc2: $out2"
   # a row that matches nothing is stale and fails the run
   local stale="$d/nsl-stale.tsv" rc3=0 out3
   cp "$allow" "$stale"
@@ -6237,6 +6240,44 @@ test_142_rfc0017_node_row() {  # ci-node-24-baseline TEST-2308 / Spec-AC-07
   log_pass "test_142: RFC-0017 has the done Node 24 CI baseline row linking ci-node-24-baseline.md (TEST-2308)"
 }
 
+
+# The cases whose subject is the whole checkout or a whole tree (the git index,
+# all of docs/specs, all suite files, the run ledgers). They run in
+# tests/skills/test-aai-hygiene-corpus.sh, which sources this file; main()
+# below registers the other cases only (spec reuse-split-corpus-cases D2).
+# One name per line at a two-space indent, in the original main() order.
+HYGIENE_CORPUS_CASES="
+  test_030_auto_trigger_deprecation
+  test_043_review_taxonomy_alignment
+  test_060_work_item_brief
+  test_092_no_phantom_node_apis
+  test_093_test_registration
+  test_102_pgq_ratchet_gate_and_bite
+  test_103_pgq_baseline_is_measured_not_typed
+  test_104_pgq_shrink_never_lowers_the_bar
+  test_562_no_nul_in_tracked_text
+  test_122_pgq_corpus_drained_to_zero
+  test_124_degenerate_pass_guards_uncovered_and_ratcheted
+  test_126_learned_guard_lints_live_and_markers
+  test_832_sync_leaves_history_out_of_downstream
+  test_106_base_ref_pin_gate_and_bite
+  test_108_cd_subshell_leak_gate_and_bite
+  test_111_generator_check_clean_and_idempotent
+  test_113_bite_proofs_in_detached_worktree
+  test_116_metrics_correction_not_counted
+  test_117_source_skills_are_lf_pinned
+  test_127_withdrawn_phrases_drained
+  test_094_mutation_selector_fails_closed_corpus_wide
+  test_129_mutation_gate_suite_registration
+  test_130_node_bash_selector_scanner_whitespace_parity
+  test_131_vendored_script_deps_gate_and_bite
+  test_133_nested_suite_lint_live_and_base
+  test_134_nested_suite_disclosures
+  test_137_hot_spot_disclosures
+  test_138_ci_node_pins
+  test_815_suite_map_and_registration
+"
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0007 / SPEC-0013 grep wiring)"
   check_deps
@@ -6250,16 +6291,13 @@ main() {
   test_017_invoke_lines
   test_018_skill_meta_loader
   test_022_pr_review_companions
-  test_030_auto_trigger_deprecation
   test_031_guard_config_conformance
   test_040_dual_verdict_prompt
   test_041_anti_gaming_protocol
   test_042_dual_verdict_surfaces
-  test_043_review_taxonomy_alignment
   test_050_pr_merge_conflict
   test_051_no_number_prediction
   test_052_loop_drift_preflight
-  test_060_work_item_brief
   test_070_companion_obligations
   test_080_subagent_contract_exists
   test_081_no_rule_duplication
@@ -6267,54 +6305,29 @@ main() {
   test_083_subagent_contract_hazards
   test_090_suite_map_pin
   test_091_session_journal_index_complete
-  test_092_no_phantom_node_apis
-  test_093_test_registration
   test_100_assert_payload_contract
   test_101_helper_survives_the_pipe_buffer
-  test_102_pgq_ratchet_gate_and_bite
-  test_103_pgq_baseline_is_measured_not_typed
-  test_104_pgq_shrink_never_lowers_the_bar
-  test_562_no_nul_in_tracked_text
   test_563_pgq_scan_reports_read_errors
-  test_122_pgq_corpus_drained_to_zero
   test_123_pgq_bite_at_zero_and_handtyped_baseline_rejected
-  test_124_degenerate_pass_guards_uncovered_and_ratcheted
   test_125_learned_guard_lints_bite
-  test_126_learned_guard_lints_live_and_markers
   test_668_session_bullets_carry_a_marker
   test_830_learned_split_conserves_every_line
   test_831_learned_standing_lint_live_and_bites
-  test_832_sync_leaves_history_out_of_downstream
   test_105_converted_sites_keep_their_needles
   test_121_new_assert_payload_helpers
-  test_106_base_ref_pin_gate_and_bite
   test_107_base_ref_baseline_is_measured_not_typed
-  test_108_cd_subshell_leak_gate_and_bite
   test_109_cd_subshell_leak_baseline_is_measured_not_typed
   test_110_skill_set_parity
-  test_111_generator_check_clean_and_idempotent
   test_112_generator_refuses_bad_manifest
-  test_113_bite_proofs_in_detached_worktree
   test_114_cursor_rule_contract
   test_115_root_shim_and_manifest_header
   test_120_userguide_catalog_covers_every_skill
-  test_116_metrics_correction_not_counted
-  test_117_source_skills_are_lf_pinned
   test_118_bite_proofs_preserve_seeded_state
   test_119_generator_idempotence_preserves_seeded_state
-  test_127_withdrawn_phrases_drained
   test_128_shipping_scripts_pipe_safe_at_zero
-  test_094_mutation_selector_fails_closed_corpus_wide
   test_135_selector_probe_counts
   test_136_nonul_batch_equivalence
-  test_129_mutation_gate_suite_registration
-  test_130_node_bash_selector_scanner_whitespace_parity
-  test_131_vendored_script_deps_gate_and_bite
   test_132_nested_suite_lint_shapes
-  test_133_nested_suite_lint_live_and_base
-  test_134_nested_suite_disclosures
-  test_137_hot_spot_disclosures
-  test_138_ci_node_pins
   test_139_node22_compat_step
   test_140_technology_node_floor
   test_141_node_floor_single_value
@@ -6330,7 +6343,6 @@ main() {
   test_807_default_branch_resolution_and_notes
   test_813_ps1_twin_parity
   test_814_disclosure_and_docs
-  test_815_suite_map_and_registration
   test_816_default_unchanged_and_pushed_config_wins
   test_817_marker_order_and_ownership_are_exact
   test_818_ps1_upgrade_is_byte_exact_and_order_checked

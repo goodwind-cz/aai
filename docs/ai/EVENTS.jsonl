@@ -3596,3 +3596,13 @@
 {"v":1,"ts":"2026-11-03T00:12:01Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-local-ledger-append","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-03T00:12:01Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reuse-local-ledger-append","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-03T01:26:55Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"reuse-local-ledger-append","payload":{"pr":527,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"949f01959ff47b3bd860021bc585c77ec741f50c"}}
+{"v":1,"ts":"2026-11-03T22:33:04Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-split-corpus-cases","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-04T02:31:22Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"reuse-split-corpus-cases","payload":{"role":"code_review","head":"91e4e42ae5c45ee20bd13d3b274a12b8bbb29e08","seen":"reports:1"}}
+{"v":1,"ts":"2026-11-04T02:31:22Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"reuse-split-corpus-cases","payload":{"status":"pass","hash":"5fdebf59586f7660bcfdf81f205727d91caa29f244c0b3478e8fddfba3c154f4"}}
+{"v":1,"ts":"2026-11-04T02:34:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"reuse-split-corpus-cases","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-04T02:34:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"reuse-split-corpus-cases","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-04T02:34:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-reuse-split-corpus-cases","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-04T02:34:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-reuse-split-corpus-cases","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-04T03:30:15Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"reuse-split-corpus-cases","payload":{"pr":528,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"d07969b39a0ea0bd5a20bd1beb909fca2591a42b"}}
+{"v":1,"ts":"2026-11-04T04:00:53Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":698,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-04T04:33:41Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"reuse-split-corpus-cases","payload":{"pr":528,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"28673f569c6da7e29b3d4388f4204b00881171c1"}}

@@ -28,6 +28,13 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — test: the hygiene pack and the Windows fallback suite are split so their fixture halves are reused after an ordinary edit (reuse-split-corpus-cases)
+
+- `aai-hygiene-pack` keeps its 66 fixture cases and `aai-win-fallback` its 27; the cases that read the git index or whole trees moved to two new suites, `aai-hygiene-corpus` (29 cases) and `aai-win-fallback-corpus` (5 cases). Every case runs in exactly one half, and the suite tests pin the partition. `aai-hygiene-corpus` joins the always-on CI core (five suites).
+- Both fixture halves read a small fixed set of files, so a local rerun after an ordinary edit reuses them. Measured on the five-suite re-check: a median of about 106 s with reuse off against about 71 s with it on, for both a script edit and a document edit.
+- Admission follows definition files: a manifest entry may list `sources`, and `lint --admit --changed-since` re-admits a suite when one of them changed, so an edit to a case in `test-aai-hygiene-pack.sh` or `test-aai-win-fallback.sh` also re-admits the corpus suite that sources it. `lint` fails on a missing `sources` path (follow-up `fu-admit-corpus-def-file-changed`).
+- Known gap: TEST-3307 and TEST-3337 fail on a branch where local admission admits only other manifest suites; filed as `fu-admit-tests-red-on-other-suites`.
+
 ## [unreleased] — feat: suite reuse survives the framework's own run-ledger append for index-reading suites (reuse-local-ledger-append)
 
 - A local rerun with nothing edited is now reused for the suites that read the git index. The framework's own append to the tracked `docs/ai/tests/test-runs.jsonl` no longer makes them miss: for those suites the ledger is compared by the bytes it held when the passing run started, so appended lines are tolerated and any other change to it still misses. Suites that did not read the index compare the ledger exactly.
