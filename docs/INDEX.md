@@ -6,12 +6,13 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-admit-tests-other-suites | specs | implementing | 4 implementing | docs/specs/SPEC-DRAFT-admit-tests-other-suites.md |
 
 ## Canonical layer (0)
 
@@ -682,7 +683,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (16)
 
 | ID | Type | Path |
 |---|---|---|
@@ -700,6 +701,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
+| admit-tests-other-suites (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-admit-tests-other-suites.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
@@ -1300,4 +1302,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-04 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-05 — counts above use this date for overdue checks.
