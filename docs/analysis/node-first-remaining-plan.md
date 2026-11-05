@@ -33,9 +33,9 @@ twin (`aai-run-tests.ps1`).
 | autonomous-loop | 409/384 | retire | superseded by `/aai-loop`; 1 commit in 60 days, 0 METRICS/EVENTS mentions; only source-shape pins |
 | aai-release | 290/351 | port, 2 slices | highest-churn twin (6 commits in 60 days) |
 | pre-commit-checks | 239/221 | retire the `.ps1`, keep the `.sh` | the `.ps1` has no runtime caller; git hooks always run under Git's shell |
-| aai-canonicalize | 223/228 | retire | one-off; 0 commits since 2026-07-27 |
+| aai-canonicalize | 223/228 | retire together with the `/aai-canonicalize` skill | one-off; 0 commits since 2026-07-27; `SKILL_CANONICALIZE.prompt.md` and `SKILLS.md` still invoke and advertise it, so the skill, its wrappers and catalog rows retire in the same ride |
 | aai-update | 122/138 | port, 1 slice | after the Node-prerequisite decision (section 4) |
-| migrate-state-to-local | 122/143 | retire, print a `git rm --cached` hint | legacy RFC-0001 migration |
+| migrate-state-to-local | 122/143 | port, 1 slice (not retire) | live callers: `aai-doctor.mjs` and both `aai-sync` twins direct legacy projects to it, and it does more than a `git rm --cached` (untracks several state and evidence paths, adds ignore entries, creates `EVENTS.jsonl`) |
 | migrate-yaml-to-jsonl | 78/99 | retire | unchanged since 2026-03-03; needs python3 + PyYAML |
 | cloudflare-share | 51/47 | port, 1 slice | cheapest real port; fixes the macOS `grep -oP` failure |
 | aai-win-selftest.ps1 | 270 | keep native | inherently a PowerShell engine probe |
@@ -58,7 +58,7 @@ under 5.1 and 7, and a scratch `aai-sync` install proving the launchers.
 
 | # | Roadmap ref | Scope | Owner sign-off |
 |---|---|---|---|
-| 1 | retire-legacy-migrations | retire migrate-yaml-to-jsonl, migrate-state-to-local, aai-canonicalize (one release as a deprecation launcher) | yes |
+| 1 | retire-legacy-migrations | (a) retire migrate-yaml-to-jsonl and aai-canonicalize with the `/aai-canonicalize` skill (prompt, wrappers, `SKILLS.md`, profiles), one release as a deprecation launcher saying the skill is retired; (b) port migrate-state-to-local to one Node module with thin launchers, same effects, callers unchanged | yes |
 | 2 | retire-shell-loop-runner | retire autonomous-loop (one release as a deprecation launcher pointing at `/aai-loop`) | yes |
 | 3 | cloudflare-share-on-node | one share module with an injectable deploy seam | no |
 | 4 | git-hook-bodies-single-source | the three hook bodies both installers embed move to shared templates; fixes 4 `cmd \| grep -q` sites under pipefail in the `.ps1`-written pre-commit body | yes |
