@@ -3625,3 +3625,4 @@
 {"v":1,"ts":"2026-11-05T17:13:11Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"retire-legacy-migrations","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-05T17:13:11Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-retire-legacy-migrations","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-05T17:13:11Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-retire-legacy-migrations","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-05T19:16:58Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"retire-legacy-migrations","payload":{"pr":533,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"a907be5d28315a4f310d4e7ce0cc67ec98595257"}}
