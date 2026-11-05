@@ -136,6 +136,30 @@ pairs:
     status: done
   - capability: reuse-split-corpus-cases
     status: done
+  - capability: retire-legacy-migrations
+    status: planned
+  - capability: retire-shell-loop-runner
+    status: planned
+  - capability: cloudflare-share-on-node
+    status: planned
+  - capability: git-hook-bodies-single-source
+    status: planned
+  - capability: pre-commit-checks-ps1-retire
+    status: planned
+  - capability: release-on-node
+    status: planned
+  - capability: hook-gate-on-node
+    status: planned
+  - capability: install-path-parity-harness
+    status: planned
+  - capability: bootstrap-on-node
+    status: planned
+  - capability: update-on-node
+    status: planned
+  - capability: pre-commit-installer-on-node
+    status: planned
+  - capability: sync-on-node
+    status: planned
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
