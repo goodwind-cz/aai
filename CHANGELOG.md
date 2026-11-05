@@ -28,6 +28,12 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — refactor: the legacy canonicalize and YAML migrations are retired, and migrate-state-to-local moves to Node (retire-legacy-migrations)
+
+- `/aai-canonicalize`, the `aai-canonicalize` script and the `migrate-yaml-to-jsonl` script are retired in this release. Each now prints a deprecation notice and changes nothing; the notice launchers, the prompt and the skill wrappers are deleted in the next release. Replacement: none.
+- `migrate-state-to-local` now runs on Node (Node is required, as for the other AAI scripts); the `.sh` and `.ps1` launchers only start it. It is safe for hostile file names (spaces, quotes, newlines, leading dashes) and for monorepo subdirectory targets, and it leaves the git index unchanged when git skips a planned path.
+- Downstream, `aai-sync` prunes the retired `aai-canonicalize` skill wrappers from `.claude` and `.agents`.
+
 ## [unreleased] — test: the hygiene pack and the Windows fallback suite are split so their fixture halves are reused after an ordinary edit (reuse-split-corpus-cases)
 
 - `aai-hygiene-pack` keeps its 66 fixture cases and `aai-win-fallback` its 27; the cases that read the git index or whole trees moved to two new suites, `aai-hygiene-corpus` (29 cases) and `aai-win-fallback-corpus` (5 cases). Every case runs in exactly one half, and the suite tests pin the partition. `aai-hygiene-corpus` joins the always-on CI core (five suites).

@@ -1,5 +1,5 @@
 // migrate-state-to-local.test.mjs - node:test cases for .aai/scripts/migrate-state-to-local.mjs
-// (docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md, TEST-3380 to TEST-3384, TEST-3401).
+// (docs/specs/SPEC-0273-spec-retire-legacy-migrations.md, TEST-3380 to TEST-3384, TEST-3401).
 // Pure functions plus the module CLI against real git in mkdtemp fixtures. Nothing here
 // touches the repository checkout: every fixture is a fresh temp directory.
 import { test, after } from 'node:test';

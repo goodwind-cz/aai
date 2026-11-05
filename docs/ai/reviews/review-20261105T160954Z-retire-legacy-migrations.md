@@ -3,7 +3,7 @@
 security_relevant: true
 
 - Scope: `git diff origin/main...HEAD` (origin/main = merge base f324b66f, head dc0a1fbb, 38 files)
-- Spec: docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md, including the post-freeze amendments:
+- Spec: docs/specs/SPEC-0273-spec-retire-legacy-migrations.md, including the post-freeze amendments:
   - 15:35:25Z contract, unsigned and tracked by `fu-amend-spec-retire-legacy-migrations`;
   - 15:37:24Z measurement;
   - five earlier measurement records.
@@ -14,7 +14,7 @@ security_relevant: true
 ```yaml
 review:
   scope: origin/main...HEAD (f324b66f..dc0a1fbb)
-  spec: docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md
+  spec: docs/specs/SPEC-0273-spec-retire-legacy-migrations.md
   spec_compliance:
     verdict: pass
     ac_walk:

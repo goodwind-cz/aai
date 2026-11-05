@@ -3618,3 +3618,10 @@
 {"v":1,"ts":"2026-11-05T16:09:26Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"retire-legacy-migrations","payload":{"role":"code_review","head":"dc0a1fbb27f9b551b5de6e74d104cc38a600fbda","seen":"reports:0"}}
 {"v":1,"ts":"2026-11-05T16:09:26Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"retire-legacy-migrations","payload":{"status":"pass","hash":"05990b4e8b06142389007ea82f331bb8ae75a04b1655c97096357a69facba3b9"}}
 {"v":1,"ts":"2026-11-05T16:14:51Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":702,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-05T17:06:20Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"retire-legacy-migrations","payload":{"role":"validation","head":"fcf4b026e8ffb004365e581f5b3c9d9059f2c4d3","seen":"run_at:2026-11-05T17:06:18Z"}}
+{"v":1,"ts":"2026-11-05T17:06:20Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"retire-legacy-migrations","payload":{"status":"pass","hash":"0592ceb2e20123cb5306fa617f9b3e0bfefa1fe1049232c42d932b0a91e82561"}}
+{"v":1,"ts":"2026-11-05T17:06:30Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"retire-legacy-migrations","payload":{"role":"code_review","head":"fcf4b026e8ffb004365e581f5b3c9d9059f2c4d3","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-05T17:13:11Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"retire-legacy-migrations","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-05T17:13:11Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"retire-legacy-migrations","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-05T17:13:11Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-retire-legacy-migrations","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-05T17:13:11Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-retire-legacy-migrations","payload":{"validation":"pass","code_review":"pass"}}

@@ -1,10 +1,10 @@
 ---
 id: spec-retire-legacy-migrations
 type: spec
-number: null
-status: implementing
+number: 273
+status: done
 mutation_gate: v1
-frozen_sha256: 43144af2afcc08faf27f3c100b2bf7d0521228c68a289a956833d182773e0f3b
+frozen_sha256: de9aadce58fba6ff699e31582ff773b4ef67433fed66b16521c4923407632cdc
 ceremony_level: 2
 links:
   requirement: retire-legacy-migrations
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Retire the legacy migration scripts and port migrate-state-to-local to Node](../issues/CHANGE-DRAFT-retire-legacy-migrations.md).
+- Requirement: [Retire the legacy migration scripts and port migrate-state-to-local to Node](../issues/CHANGE-0245-retire-legacy-migrations.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 1 with its owner decisions of 2026-11-05 (section 4, items 1 and 2).
@@ -73,8 +73,8 @@ SPEC-FROZEN: true
   tests/skills/legacy-migrations.Tests.ps1 tests/skills/lib/prompt-diet-ledger.sh
   tests/skills/test-aai-prompt-diet.sh tests/skills/lib/cd-subshell-leak-baseline.tsv
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md CHANGELOG.md
-  docs/issues/CHANGE-DRAFT-retire-legacy-migrations.md
-  docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md
+  docs/issues/CHANGE-0245-retire-legacy-migrations.md
+  docs/specs/SPEC-0273-spec-retire-legacy-migrations.md
   tests/skills/test-aai-hygiene-pack.sh tests/skills/test-aai-harness-shims.sh
   (suite-weights.tsv only if the selector asks for a row).
 - Code review required: true.
@@ -404,13 +404,13 @@ No retirement launcher names `python`, `node`, `git`, `mv`, `cp`, `rm` or
 ### D6. RFC-0017
 
 - The phase 5 row gains one sentence before the remaining-scripts-plan
-  sentence: `The fifth slice [retired the legacy migrations](../issues/CHANGE-DRAFT-retire-legacy-migrations.md): aai-canonicalize with its skill and migrate-yaml-to-jsonl became deprecation launchers for one release, and migrate-state-to-local moved to one Node module with thin launchers.`
+  sentence: `The fifth slice [retired the legacy migrations](../issues/CHANGE-0245-retire-legacy-migrations.md): aai-canonicalize with its skill and migrate-yaml-to-jsonl became deprecation launchers for one release, and migrate-state-to-local moved to one Node module with thin launchers.`
   Status stays `in progress`; frontmatter untouched. The allocator rewrites
   the link at merge; checks match only the suffix `retire-legacy-migrations.md`.
 - Inventory (D-INV): the `migrate-state-to-local` row is removed; the
   `aai-canonicalize` and `migrate-yaml-to-jsonl` rows keep their Pair, Lines
   and Destination cells, and their Reason cell becomes
-  `retired by the [legacy-migrations slice](../issues/CHANGE-DRAFT-retire-legacy-migrations.md); a deprecation launcher for one release, deleted in the next`.
+  `retired by the [legacy-migrations slice](../issues/CHANGE-0245-retire-legacy-migrations.md); a deprecation launcher for one release, deleted in the next`.
   Every other row stays byte for byte.
 - After LOOP COMPLETE (ship convention, in the review scope, not a TEST row):
   CHANGELOG `## [unreleased] — refactor(scripts): legacy migrations retired, migrate-state-to-local moves to Node`
@@ -636,5 +636,18 @@ above.
 - The open item `fu-sync-core-profile-dangling-wrappers` (a core-profile sync
   copies wrappers whose extended prompt it does not ship) also applies to the
   aai-canonicalize wrapper; not closed here.
+- Accepted at the r4 code review (all P3, none changes an acceptance row):
+  - The index restore after a git-skipped path is a non-atomic write that
+    ignores `index.lock`; a failed write crashes loudly or truncates the index
+    without claiming it unchanged. The concurrent-writer race equals the r3
+    reset. NB-r4-2.
+  - Sparse-index users untrack evidence that is not on disk. NB-2.
+  - `-h` after a second positional argument exits 2 (cosmetic). NB-4.
+  - A dry run on a `git~1` or non-UTF-8 evidence name exits 0; the real run
+    refuses with rc 1 and changes nothing.
+  - With `core.splitIndex`, `splitIndex.maxPercentChange=0` and
+    `splitIndex.sharedIndexExpire=now` all set, the index restore can point at an
+    expired shared index and still print that the index is unchanged. Tracked as
+    `fu-migrate-state-split-index-expire`.
 
 Registry items closed by this scope: none.

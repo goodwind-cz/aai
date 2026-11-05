@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-legacy-migrations
-# (docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md, TEST-3380..3402)
+# (docs/specs/SPEC-0273-spec-retire-legacy-migrations.md, TEST-3380..3402)
 #
 # The legacy-migration retirement: migrate-state-to-local is one Node module
 # (.aai/scripts/migrate-state-to-local.mjs) behind thin launchers, and
@@ -575,7 +575,7 @@ test_3398_diet() {
 }
 
 RFC17="${AAI_LM_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
-D6_SENTENCE='The fifth slice [retired the legacy migrations](../issues/CHANGE-DRAFT-retire-legacy-migrations.md): aai-canonicalize with its skill and migrate-yaml-to-jsonl became deprecation launchers for one release, and migrate-state-to-local moved to one Node module with thin launchers.'
+D6_SENTENCE='The fifth slice [retired the legacy migrations](../issues/CHANGE-0245-retire-legacy-migrations.md): aai-canonicalize with its skill and migrate-yaml-to-jsonl became deprecation launchers for one release, and migrate-state-to-local moved to one Node module with thin launchers.'
 
 test_3399_rfc() {
   local row n out rc=0 name

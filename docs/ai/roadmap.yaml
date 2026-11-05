@@ -137,7 +137,7 @@ pairs:
   - capability: reuse-split-corpus-cases
     status: done
   - capability: retire-legacy-migrations
-    status: planned
+    status: done
   - capability: retire-shell-loop-runner
     status: planned
   - capability: cloudflare-share-on-node

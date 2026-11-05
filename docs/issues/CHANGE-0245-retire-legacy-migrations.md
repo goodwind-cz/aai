@@ -1,8 +1,8 @@
 ---
 id: retire-legacy-migrations
 type: change
-number: null
-status: draft
+number: 245
+status: done
 capability: retire-legacy-migrations
 parent: smaller-node-core-and-faster-feedback
 links:
