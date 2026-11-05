@@ -8,7 +8,7 @@ section 4.
 
 ## 1. How it was measured
 
-- Code lines: non-blank, non-comment lines (`grep -cvE '^\s*(#|$)'`), so
+- Code lines: non-blank, non-comment lines (`grep -cvE '^[[:space:]]*(#|$)'`), so
   headers and comment blocks do not count as logic.
 - Callers: tracked files naming `<script>.sh|.ps1`, docs history excluded,
   counted with `/usr/bin/grep` under bash (not `grep -rl` totals).
