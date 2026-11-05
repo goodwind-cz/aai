@@ -332,6 +332,38 @@ test('TEST-3402 a non-UTF-8 name stops the run with the index unchanged', (t) =>
   assertRefused(d);
 });
 
+// PR #533 review findings: a git command that fails must stop the run before any write, and a
+// failed index restore must say so instead of crashing or claiming the index is unchanged.
+test('TEST-3402 a corrupt index stops the run before any write', () => {
+  const d = legacy('corrupt');
+  fs.writeFileSync(path.resolve(d, git(d, 'rev-parse', '--git-path', 'index').trim()), 'not an index\n');
+  const gi = fs.readFileSync(path.join(d, '.gitignore'));
+  const r = cli([d]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(r.stderr.startsWith('ERROR: git status failed'), r.stderr);
+  assert.ok(fs.readFileSync(path.join(d, '.gitignore')).equals(gi));
+  assert.equal(fs.existsSync(path.join(d, 'docs/ai/EVENTS.jsonl')), false);
+  assert.equal(r.stdout.includes('Files untracked'), false, r.stdout);
+});
+test('TEST-3402 a failed index restore is reported and the index is not called unchanged', () => {
+  const d = legacy('restore');
+  put(d, 'docs/ai/tdd/git~1/a.log');
+  git(d, '-c', 'core.protectNTFS=false', 'add', '-f', '--', 'docs/ai/tdd/git~1/a.log');
+  git(d, 'commit', '-q', '-m', 'refused name');
+  const lines = [];
+  const real = (args, input) => {
+    const r = spawnSync('git', args, { encoding: 'utf8', input });
+    return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
+  };
+  const failing = { ...fs, writeFileSync: (f, ...rest) => { if (String(f).endsWith(`${path.sep}index`)) throw Object.assign(new Error('boom'), { code: 'EIO' }); return fs.writeFileSync(f, ...rest); } };
+  const code = M.run({ target: d }, { git: real, fs: failing, out: () => {}, err: (l) => lines.push(l) });
+  assert.equal(code, 1);
+  const msg = lines.join('\n');
+  assert.ok(msg.includes('could not restore the git index'), msg);
+  assert.ok(msg.includes('EIO'), msg);
+  assert.equal(msg.includes('the index is unchanged'), false, msg);
+});
+
 // ---------------------------------------------------------------- TEST-3401
 test('TEST-3401 a target below the git top level migrates like the old scripts did', () => {
   const d = scratch('subdir');

@@ -79,12 +79,14 @@ export function run(opts, deps) {
     return 1;
   }
   const g = (args, input) => git(['-C', target, ...args], input);
+  const failed = (r, what) => { if (r.status === 0) return false; err(`ERROR: git ${what} failed (exit ${r.status}): ${String(r.stderr).trim()}`); return true; };
   if (git(['--version']).status !== 0) { err('ERROR: git not found in PATH.'); return 1; }
   if (g(['rev-parse', '--git-dir']).status !== 0) {
     err(`ERROR: ${target} is not inside a git repository.`);
     return 1;
   }
-  if (g(['status', '--porcelain']).stdout.trim() !== '') {
+  const st = g(['status', '--porcelain']); if (failed(st, 'status')) return 1;
+  if (st.stdout.trim() !== '') {
     err(DIRTY_LINE);
     err('       Commit or stash them first, then re-run this script.');
     return 1;
@@ -94,9 +96,8 @@ export function run(opts, deps) {
   if (dry) out('Mode:   dry-run (no changes will be written)');
   out('');
 
-  const listed = g(['ls-files', '-z', '--', ...UNTRACK_FILES, ...EVIDENCE_DIRS]).stdout.split('\0').filter(Boolean);
-  const tracked = new Set(listed);
-  const toRemove = [];
+  const ls = g(['ls-files', '-z', '--', ...UNTRACK_FILES, ...EVIDENCE_DIRS]); if (failed(ls, 'ls-files')) return 1;
+  const listed = ls.stdout.split('\0').filter(Boolean); const tracked = new Set(listed); const toRemove = [];
   const untrack = (f, why) => {
     toRemove.push(f);
     out(`UNTRACK ${f} (${why})`);
@@ -118,13 +119,12 @@ export function run(opts, deps) {
       return 1;
     }
     const left = g(['ls-files', '-z', '--', ...UNTRACK_FILES, ...EVIDENCE_DIRS]).stdout.split('\0').filter((f) => toRemove.includes(f));
-    if (left.length > 0) { dfs.writeFileSync(ix, saved); err(`ERROR: git could not untrack ${left.length} path(s) it refuses to remove (for example a git~1 or non-UTF-8 name); the index is unchanged.`); return 1; }
+    if (left.length > 0) { try { dfs.writeFileSync(ix, saved); err(`ERROR: git could not untrack ${left.length} path(s) it refuses to remove (for example a git~1 or non-UTF-8 name); the index is unchanged.`); } catch (e) { err(`ERROR: git could not untrack ${left.length} path(s) and could not restore the git index (${e.code || e.message}); run: git -C "${target}" reset`); } return 1; }
   }
 
   const giPath = path.join(target, '.gitignore');
   const text = dfs.existsSync(giPath) ? dfs.readFileSync(giPath, 'utf8') : '';
-  const missing = missingPatterns(text, IGNORE_PATTERNS);
-  let headerShown = false;
+  const missing = missingPatterns(text, IGNORE_PATTERNS); let headerShown = false;
   for (const p of IGNORE_PATTERNS) {
     if (!missing.includes(p)) { out(`SKIP    .gitignore already contains ${p}`); continue; }
     if (!headerShown) { out(`GITIGNORE add header + entries to ${giPath}`); headerShown = true; }
@@ -132,8 +132,7 @@ export function run(opts, deps) {
   }
   if (!dry && missing.length > 0) dfs.appendFileSync(giPath, gitignoreAppend(text, missing));
 
-  const eventsPath = path.join(target, EVENTS_FILE);
-  const createEvents = !dfs.existsSync(eventsPath);
+  const eventsPath = path.join(target, EVENTS_FILE); const createEvents = !dfs.existsSync(eventsPath);
   if (createEvents) {
     out('CREATE  docs/ai/EVENTS.jsonl (empty, append-only audit log)');
     if (!dry) dfs.writeFileSync(eventsPath, '');
