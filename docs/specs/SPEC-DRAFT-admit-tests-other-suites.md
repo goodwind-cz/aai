@@ -4,6 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
+mutation_uncomparable: 6
 frozen_sha256: 8f6be663332cb6620bc42c7f7b92bdcbc6adeeed311fc10862a876a2e688f112
 ceremony_level: 1
 links:
