@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-legacy-migrations
-# (docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md, TEST-3380..3400)
+# (docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md, TEST-3380..3401)
 #
 # The legacy-migration retirement: migrate-state-to-local is one Node module
 # (.aai/scripts/migrate-state-to-local.mjs) behind thin launchers, and
@@ -232,10 +232,10 @@ test_3388_pester() {
     $cfg.Output.Verbosity = "Normal"
     $r = Invoke-Pester -Configuration $cfg
     Write-Host "PESTER-RESULT: Total=$($r.TotalCount) Passed=$($r.PassedCount) Failed=$($r.FailedCount) Skipped=$($r.SkippedCount)"
-    if ($r.FailedCount -gt 0 -or $r.SkippedCount -gt 0 -or $r.TotalCount -lt 6) { exit 1 }
+    if ($r.FailedCount -gt 0 -or $r.SkippedCount -gt 0 -or $r.TotalCount -lt 7) { exit 1 }
     exit 0
   ' 2>&1)" || rc=$?
-  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3388: legacy-migrations.Tests.ps1 failed, skipped a case or ran fewer than 6 cases (rc=$rc)"; }
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3388: legacy-migrations.Tests.ps1 failed, skipped a case or ran fewer than 7 cases (rc=$rc)"; }
   log_pass "TEST-3388: legacy-migrations.Tests.ps1 passes with no skip under pwsh ($(printf '%s\n' "$out" | sed -n 's/^PESTER-RESULT: //p'))"
 }
 
@@ -620,8 +620,13 @@ test_3400_line_budget() {
   log_pass "TEST-3400: code lines before 893, after $sum (module $n of 160, $total lines of 200)"
 }
 
+test_3401_subdir_target() {
+  run_node_tests TEST-3401
+  log_pass "TEST-3401: a target below the git top level migrates and leaves the rest of the repository tracked"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-retire-legacy-migrations TEST-3380..3400)"
+  echo "Testing $TEST_NAME (SPEC spec-retire-legacy-migrations TEST-3380..3401)"
   check_deps
   setup_fixture
   test_3380_pure
@@ -645,6 +650,7 @@ main() {
   test_3398_diet
   test_3399_rfc
   test_3400_line_budget
+  test_3401_subdir_target
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

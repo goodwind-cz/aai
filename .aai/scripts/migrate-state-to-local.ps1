@@ -1,6 +1,6 @@
 # Launcher: the migration logic lives in migrate-state-to-local.mjs (RFC-0017 phase 5).
 # Usage: powershell -NoProfile -File .aai/scripts/migrate-state-to-local.ps1 [-TargetRoot <path>] [-DryRun]
-param([string]$TargetRoot = (Get-Location).Path, [switch]$DryRun)
+[CmdletBinding()] param([string]$TargetRoot = (Get-Location).ProviderPath, [switch]$DryRun)
 $Module = Join-Path $PSScriptRoot 'migrate-state-to-local.mjs'
 if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath $Module)) {
   $nodeArgs = @($Module, $TargetRoot)

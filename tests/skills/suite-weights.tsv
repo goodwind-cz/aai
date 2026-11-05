@@ -115,6 +115,8 @@ aai-issues	2
 aai-layer-drift	3
 # sample aai-layer-profiles measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=82,62,80,56,80
 aai-layer-profiles	80
+# sample aai-legacy-migrations fallback unsampled (new suite of retire-legacy-migrations; no successful observation)
+aai-legacy-migrations	212
 # sample aai-learned-append measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=1,1,2,3,1
 aai-learned-append	1
 # sample aai-learned-routing measured count=5 runs=39495369884,39115816366,39113529141,39113283748,39074575880 seconds=4,4,6,6,5

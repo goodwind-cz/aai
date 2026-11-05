@@ -15,7 +15,7 @@ const HEADER = '# AAI per-dev runtime state (RFC-0001: never committed)';
 const DIRTY_LINE = 'ERROR: working tree has uncommitted changes.';
 const CRLF = String.fromCharCode(13, 10);
 const GIT_ENV = { ...process.env, GIT_LITERAL_PATHSPECS: '1' };
-const RM_ARGS = ['rm', '--cached', '--quiet', '--pathspec-from-file=-', '--pathspec-file-nul'];
+const RM_ARGS = ['update-index', '--force-remove', '-z', '--stdin'];
 const USAGE = 'Usage: node .aai/scripts/migrate-state-to-local.mjs [path-to-target-project] [--dry-run]';
 
 export const IGNORE_PATTERNS = [
@@ -177,7 +177,5 @@ export function main(argv = process.argv.slice(2)) {
   });
 }
 
-const isMain = (() => {
-  try { return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
-})();
-if (isMain) process.exitCode = main();
+const realOrResolve = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+if (process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url))) process.exitCode = main();

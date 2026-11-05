@@ -88,6 +88,17 @@ Describe 'legacy migration launchers' {
     Invoke-Git $d @('ls-files', '-s') | Should -Be $index
   }
 
+  It 'migrate-state-to-local.ps1 with a mistyped switch (-DyRun) is refused and changes nothing' {
+    $d = New-Legacy 'fx-typo'
+    $before = Get-Snapshot $d
+    $index = Invoke-Git $d @('ls-files', '-s')
+    $r = Invoke-Launcher $script:Launcher $TestDrive ('-TargetRoot "' + $d + '" -DyRun')
+    $r.ExitCode | Should -Not -Be 0
+    $r.Stdout | Should -Be ''
+    Get-Snapshot $d | Should -Be $before
+    Invoke-Git $d @('ls-files', '-s') | Should -Be $index
+  }
+
   It 'migrate-state-to-local.ps1 from Push-Location with no -TargetRoot migrates the location' {
     $d = New-Legacy 'fx-cwd'
     Push-Location -LiteralPath $d

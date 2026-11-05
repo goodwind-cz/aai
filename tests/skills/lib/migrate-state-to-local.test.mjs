@@ -1,5 +1,5 @@
 // migrate-state-to-local.test.mjs - node:test cases for .aai/scripts/migrate-state-to-local.mjs
-// (docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md, TEST-3380 to TEST-3384).
+// (docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md, TEST-3380 to TEST-3384, TEST-3401).
 // Pure functions plus the module CLI against real git in mkdtemp fixtures. Nothing here
 // touches the repository checkout: every fixture is a fresh temp directory.
 import { test, after } from 'node:test';
@@ -279,4 +279,27 @@ test('TEST-3384 a failing git rm stops before any other write', () => {
   assert.equal(fs.existsSync(path.join(d, 'docs/ai/EVENTS.jsonl')), false);
   fs.rmSync(path.join(d, '.git', 'index.lock'));
   assert.equal(git(d, 'ls-files', '-s'), index);
+});
+
+// ---------------------------------------------------------------- TEST-3401
+test('TEST-3401 a target below the git top level migrates like the old scripts did', () => {
+  const d = scratch('subdir');
+  git(d, 'init', '-q');
+  git(d, 'config', 'user.email', 'fixture@example.invalid');
+  git(d, 'config', 'user.name', 'fixture');
+  git(d, 'config', 'commit.gpgsign', 'false');
+  const sub = path.join(d, 'apps', 'web');
+  put(sub, '.gitignore', `node_modules${CRLF}`);
+  for (const f of ['docs/ai/STATE.yaml', 'docs/ai/LOOP_TICKS.jsonl', 'docs/ai/tdd/.gitkeep',
+    'docs/ai/tdd/x/red.log', 'docs/ai/loop/a.txt']) put(sub, f);
+  put(d, 'docs/ai/tdd/outside.log');
+  git(d, 'add', '-A');
+  git(d, 'commit', '-q', '-m', 'monorepo');
+  const r = cli([sub], { cwd: d });
+  assert.equal(r.status, 0, r.stderr);
+  const tracked = git(d, 'ls-files').split('\n').filter(Boolean);
+  assert.deepEqual(tracked, ['apps/web/.gitignore', 'apps/web/docs/ai/tdd/.gitkeep', 'docs/ai/tdd/outside.log']);
+  for (const f of ['docs/ai/STATE.yaml', 'docs/ai/tdd/x/red.log', 'docs/ai/loop/a.txt']) assert.equal(fs.existsSync(path.join(sub, f)), true, f);
+  assert.equal(fs.statSync(path.join(sub, 'docs/ai/EVENTS.jsonl')).size, 0);
+  assert.ok(r.stdout.split('\n').includes('  Files untracked:        4'), r.stdout);
 });
