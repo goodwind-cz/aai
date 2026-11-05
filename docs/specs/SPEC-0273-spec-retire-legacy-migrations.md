@@ -4,7 +4,7 @@ type: spec
 number: 273
 status: done
 mutation_gate: v1
-frozen_sha256: de9aadce58fba6ff699e31582ff773b4ef67433fed66b16521c4923407632cdc
+frozen_sha256: 06967f70b47eafd6017230ed73109d53598eaa9eab52d11c9c6dc3002e15a591
 ceremony_level: 2
 links:
   requirement: retire-legacy-migrations
@@ -253,8 +253,9 @@ with `path.resolve`), `--dry-run`, `-h` or `--help`. Checks in this order,
 each refusal on stderr: M-12 (exit 2), M-13, M-11, `ERROR: <target>/docs/ai
 not found. Is this an AAI project?` (exit 1), M-14, `ERROR: <target> is not
 inside a git repository.` (exit 1, from `git -C <target> rev-parse
---git-dir`), and the dirty tree (`git -C <target> status --porcelain` not
-empty): the two lines `DIRTY_LINE` and
+--git-dir`), a failing `git -C <target> status --porcelain` (`ERROR: git
+status failed (exit <n>): <stderr>`, exit 1), and the dirty tree (the same
+command's output not empty): the two lines `DIRTY_LINE` and
 `       Commit or stash them first, then re-run this script.`, exit 1.
 
 Effects, in order, every git call as `git -C <target> ...` with `GIT_ENV`:
@@ -264,10 +265,18 @@ Effects, in order, every git call as `git -C <target> ...` with `GIT_ENV`:
    tracked file under `EVIDENCE_DIRS` whose name does not end `/.gitkeep`, in
    ls-files order: `UNTRACK <f> (runtime evidence; file remains on disk)`. In
    a dry run each UNTRACK line is followed by `  [dry-run] git rm --cached <f>`.
+   A non-zero ls-files status prints `ERROR: git ls-files failed (exit <n>):
+   <stderr>` and exits 1; nothing is written.
 2. Unless dry run and only when the set is not empty: one `git` call with
    `RM_ARGS`, the NUL-joined paths on its standard input. On a non-zero
    status: `ERROR: git rm --cached failed (exit <n>): <first non-empty stderr
    line>`, exit 1, and steps 3 and 4 do not run.
+   When a listed path is still tracked afterwards, the index file is written
+   back byte for byte and `ERROR: git could not untrack <n> path(s) it refuses
+   to remove (for example a git~1 or non-UTF-8 name); the index is unchanged.`
+   is printed, exit 1. When that write fails: `ERROR: git could not untrack
+   <n> path(s) and could not restore the git index (<code>); run: git -C
+   "<target>" reset`, exit 1. Steps 3 and 4 do not run.
 3. `.gitignore` at `<target>/.gitignore`: for each pattern, CR-tolerant exact
    line match; the first missing one prints `GITIGNORE add header + entries to
    <target>/.gitignore`, each missing one `GITIGNORE add: <p>`, each present
@@ -509,7 +518,7 @@ TDD in six runs of about three Spec-ACs; each run stores RED under
 | TEST-3398 | Spec-AC-15 | inspection | tests/skills/test-aai-legacy-migrations.sh | test_3398_diet requires exactly one ledger line naming retire-legacy-migrations whose amount is negative and equals the current byte size of .aai/SKILL_CANONICALIZE.prompt.md minus 1950, runs test-aai-prompt-diet.sh (exit 0) and requires its output to hold headroom 0/2048 and the TEST-012 pin equal to 65792 plus that amount | `sed:s/"-([0-9]+) retire-legacy-migrations/"-1$1 retire-legacy-migrations/` on tests/skills/lib/prompt-diet-ledger.sh | green |
 | TEST-3399 | Spec-AC-16 | inspection | tests/skills/test-aai-legacy-migrations.sh | test_3399_rfc runs bash tests/skills/test-aai-expert-fetch.sh test_2624_inventory_matches_tree (exit 0), requires no inventory row for migrate-state-to-local, the D6 reason with a link ending retire-legacy-migrations.md in the aai-canonicalize and migrate-yaml-to-jsonl rows, and the phase 5 row with status in progress and the D6 sentence exactly once | `sed:s/retire-legacy-migrations\.md\)/retire-legacy-gone.md)/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | green |
 | TEST-3401 | Spec-AC-04 | integration | tests/skills/test-aai-legacy-migrations.sh | test_3401_subdir_target runs the TEST-3401 node case: a git repository whose target is apps/web, holding docs/ai with STATE, LOOP_TICKS, tdd/.gitkeep, tdd/x/red.log and loop/a.txt plus an unrelated tracked docs/ai/tdd/outside.log at the repository top: the module exits 0, ls-files then shows only apps/web/.gitignore, apps/web/docs/ai/tdd/.gitkeep and the outside file, the files stay on disk, EVENTS.jsonl is created empty and Files untracked is 4 | `sed:s/'-z', '--stdin'/'--stdin'/` on .aai/scripts/migrate-state-to-local.mjs | green |
-| TEST-3402 | Spec-AC-04 | integration | tests/skills/test-aai-legacy-migrations.sh | test_3402_refused_name runs the TEST-3402 node cases: a tracked docs/ai/tdd/git~1/a.log (added with core.protectNTFS off) and a tracked non-UTF-8 name (SKIP-CASE line when the filesystem refuses it); the module exits 1, stderr begins ERROR: git could not untrack 1 path, stdout holds no Files untracked line, .gitignore bytes unchanged, no EVENTS.jsonl, ls-files -s unchanged, and the index file byte for byte as before; a further case sets skip-worktree on docs/ai/STATE.yaml and assume-unchanged on a planned evidence file beside git~1 and ls-files -v and git status stay as before | `sed:s/if \(left.length > 0\) \{/if (false) {/` on .aai/scripts/migrate-state-to-local.mjs | green |
+| TEST-3402 | Spec-AC-04 | integration | tests/skills/test-aai-legacy-migrations.sh | test_3402_refused_name runs the TEST-3402 node cases: a tracked docs/ai/tdd/git~1/a.log (added with core.protectNTFS off) and a tracked non-UTF-8 name (SKIP-CASE line when the filesystem refuses it); the module exits 1, stderr begins ERROR: git could not untrack 1 path, stdout holds no Files untracked line, .gitignore bytes unchanged, no EVENTS.jsonl, ls-files -s unchanged, and the index file byte for byte as before; a further case sets skip-worktree on docs/ai/STATE.yaml and assume-unchanged on a planned evidence file beside git~1 and ls-files -v and git status stay as before; a corrupt index makes git status fail: exit 1, stderr begins ERROR: git status failed, .gitignore unchanged, no EVENTS.jsonl, no Files untracked line; a restore write that throws (injected fs, EIO) exits 1 with could not restore the git index and EIO and without the index is unchanged | `sed:s/if \(left.length > 0\) \{/if (false) {/` on .aai/scripts/migrate-state-to-local.mjs | green |
 | TEST-3400 | Spec-AC-17 | inspection | tests/skills/test-aai-legacy-migrations.sh | test_3400_line_budget counts code lines with grep -cvE on the comment and blank pattern of each language (hash for sh and ps1, double slash for mjs) under bash with /usr/bin/grep when present: each retirement launcher at most 2, each migrate-state launcher at most 10, the module at most 160 and at most 200 lines in wc -l, the seven-file sum at most 188, and prints before 893 and the after sum | `sed:s/# RETIRED \(RFC-0017 phase 5, retire-legacy-migrations\)/echo a; echo b # RETIRED (RFC-0017 phase 5, retire-legacy-migrations)/` on .aai/scripts/aai-canonicalize.ps1 | green |
 
 Test counts by type: unit 1, integration 11, inspection 7, e2e 4 (23).
@@ -564,6 +573,7 @@ win-fallback derivation reading the workflow (TEST-3397).
   the baseline blob) and an optional scratch scripts directory
   (AAI_LM_BUDGET_DIR, the baseline blobs plus the new module), both unset in
   every normal run (red-TEST-3399.log, red-TEST-3400.log).
+  Added at PR #533 review (additive, contract amendment): the two cases were RED on fcf4b026 (rc 0 with writes on a corrupt index; an uncaught EIO).
 - TEST-3385: RED (the scripts are 162 and 175 lines and hold the logic).
   TEST-3386: RED (no refusal line; the old sh needs no node). TEST-3387: RED
   (the old sh copy adds 6 ignore entries, not 16).
@@ -638,8 +648,9 @@ above.
   aai-canonicalize wrapper; not closed here.
 - Accepted at the r4 code review (all P3, none changes an acceptance row):
   - The index restore after a git-skipped path is a non-atomic write that
-    ignores `index.lock`; a failed write crashes loudly or truncates the index
-    without claiming it unchanged. The concurrent-writer race equals the r3
+    ignores `index.lock`; a failed write is reported with exit 1 and a git reset
+    hint (the hint fails on a truncated index and resets skip-worktree and
+    assume-unchanged bits). The concurrent-writer race equals the r3
     reset. NB-r4-2.
   - Sparse-index users untrack evidence that is not on disk. NB-2.
   - `-h` after a second positional argument exits 2 (cosmetic). NB-4.
