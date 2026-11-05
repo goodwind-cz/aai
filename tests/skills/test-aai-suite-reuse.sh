@@ -652,7 +652,7 @@ test_3340_sources_readmit() {
 
 # test_3341: lint refuses a sources path that does not exist or escapes the root, and a sources value that is not a list of strings.
 test_3341_sources_lint() {
-  local base r out rc=0 man
+  local base r out rc=0 man esc
   base="$(new_base)"; r="$base/repo"
   build_fx "$base" aa
   man="$r/tests/skills/suite-reuse.json"
@@ -666,8 +666,17 @@ test_3341_sources_lint() {
   rc=0; out="$(env -u AAI_ROLE node "$r/.aai/scripts/suite-reuse.mjs" lint --root "$r" 2>&1)" || rc=$?
   [[ "$rc" -ne 0 ]] || log_fail "TEST-3341: a non-list sources value must fail lint"
   expect "TEST-3341 shape" "$out" "manifest-invalid"
+  # A file that really exists outside the repo root, so only the escape rule can reject the path.
+  printf 'outside\n' > "$base/x"
+  for esc in '../x' 'tests/../../x'; do
+    sed -i.bak 's#"sources":[^]]*\]#"sources":["'"$esc"'"]#; s#"sources":"tests/skills/test-aa.sh"#"sources":["'"$esc"'"]#' "$man"
+    [[ "$(cat "$man")" == *"\"sources\":[\"$esc\"]"* ]] || log_fail "TEST-3341: the manifest edit for $esc did not apply"
+    rc=0; out="$(env -u AAI_ROLE node "$r/.aai/scripts/suite-reuse.mjs" lint --root "$r" 2>&1)" || rc=$?
+    [[ "$rc" -eq 1 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3341: sources path $esc escapes the root and must fail lint with exit 1, got $rc"; }
+    expect "TEST-3341 escape $esc" "$out" "no-source-file $esc"
+  done
   rm -f "$man.bak"
-  log_pass "TEST-3341 (lint fails on a missing sources path and on a sources value that is not a list; the suite then cannot read as unchanged)"
+  log_pass "TEST-3341 (lint fails on a missing sources path, on a path escaping the root with .. or normalizing outside it, and on a sources value that is not a list; the suite then cannot read as unchanged)"
 }
 
 # test_3275: the live manifest lists the thirteen suites, each live false with a note, each selected by the gate row.
@@ -1027,7 +1036,7 @@ test_3306_live_notes() {
   log_pass "TEST-3306 (lint clean; the five index-reading notes name the run ledger)"
 }
 
-# test_3307: the live admission of TEST-3276 admitted each changed index-reading suite with the appended probe.
+# test_3307: the live admission of TEST-3276 admitted each changed index-reading suite with the appended probe; only the five suites are judged, any other admitted suite is not its business.
 test_3307_live_appended_probes() {
   local s n=0
   if [[ -z "$LIVE_ADMIT_OUT" ]]; then
@@ -1046,7 +1055,12 @@ test_3307_live_appended_probes() {
       expect "TEST-3307 $s" "$LIVE_ADMIT_OUT" "ADMIT-PROBE $s appended docs/ai/tests/test-runs.jsonl PASS"
     fi
   done
-  [[ "$n" -ge 1 ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" | grep -E '^ADMIT-' >&2; log_fail "TEST-3307: none of the five index-reading suites was admitted"; }
+  # A branch that changed only other manifest suites admits none of these five: nothing here to judge.
+  if [[ "$n" -eq 0 ]]; then
+    # Not admitted is only true of an admission that ran: a crash or lint refusal prints no verdict line and must not pass here.
+    [[ $'\n'"$LIVE_ADMIT_OUT" =~ $'\n'ADMIT-(PASS|FAIL)\  ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" >&2; log_fail "TEST-3307: the admission printed no verdict line"; }
+  fi
+  if [[ "$n" -eq 0 ]]; then log_pass "TEST-3307 (none of the five index-reading suites is admitted on this branch; not admitted on this branch, nothing to judge)"; return 0; fi
   log_pass "TEST-3307 ($n live index-reading suites admitted with the appended probe)"
 }
 
@@ -1303,7 +1317,7 @@ test_3336_split_manifest() {
   log_pass "TEST-3336 (lint clean; thirteen entries; five index-reading notes name the run ledger; the two fixture-half notes claim no index read)"
 }
 
-# test_3337: the live admission admits each changed corpus half with the appended probe and each changed fixture half with poisoned above zero.
+# test_3337: the live admission admits each changed corpus half with the appended probe and each changed fixture half with poisoned above zero; only the four split suites are judged.
 test_3337_split_admission() {
   local s line p n=0
   if [[ -z "$LIVE_ADMIT_OUT" ]]; then
@@ -1328,8 +1342,86 @@ test_3337_split_admission() {
         [[ "$p" =~ ^[0-9]+$ && "$p" -gt 0 ]] || log_fail "TEST-3337: $s was admitted with poisoned=$p, want above zero (the half is not narrow)" ;;
     esac
   done
-  [[ "$n" -ge 1 ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" | sed -n '/^ADMIT-/p' >&2; log_fail "TEST-3337: none of the four split suites was admitted"; }
+  # A branch that changed only other manifest suites admits none of these four: nothing here to judge.
+  if [[ "$n" -eq 0 ]]; then
+    # Not admitted is only true of an admission that ran: a crash or lint refusal prints no verdict line and must not pass here.
+    [[ $'\n'"$LIVE_ADMIT_OUT" =~ $'\n'ADMIT-(PASS|FAIL)\  ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" >&2; log_fail "TEST-3337: the admission printed no verdict line"; }
+  fi
+  if [[ "$n" -eq 0 ]]; then log_pass "TEST-3337 (none of the four split suites is admitted on this branch; not admitted on this branch, nothing to judge)"; return 0; fi
   log_pass "TEST-3337 ($n admitted split suites: fixture halves with poisoned above zero, corpus halves with the appended probe)"
+}
+
+# ---- admit-tests-other-suites (TEST-3370 .. TEST-3372): the two live-admission tests judge only their own suites ----
+
+# judge_admission <test function> <admission text>: run one live-admission test against a given admission output in a subshell. Sets JRC and JOUT.
+judge_admission() {
+  JRC=0
+  JOUT="$( ( LIVE_ADMIT_OUT="$2"; "$1" ) 2>&1 )" || JRC=$?
+}
+
+OTHER_ONLY_ADMISSION="ADMIT-PROBE aai-pricing read .aai/system/PRICING.yaml RUN
+ADMIT-PASS aai-pricing 4.2s reads=4 poisoned=1970"
+
+# test_3370: a branch that changed only another manifest suite passes TEST-3307 with a not-admitted line.
+test_3370_probe_test_other_suites_only() {
+  judge_admission test_3307_live_appended_probes "$OTHER_ONLY_ADMISSION"
+  [[ "$JRC" -eq 0 ]] || { printf '%s\n' "$JOUT" >&2; log_fail "TEST-3370: TEST-3307 must pass when only another suite is admitted, exited $JRC"; }
+  expect "TEST-3370" "$JOUT" "PASS: TEST-3307"
+  expect "TEST-3370" "$JOUT" "not admitted on this branch"
+  log_pass "TEST-3370 (TEST-3307 passes with a not-admitted line when only aai-pricing is admitted)"
+}
+
+# test_3371: the same input passes TEST-3337.
+test_3371_split_test_other_suites_only() {
+  judge_admission test_3337_split_admission "$OTHER_ONLY_ADMISSION"
+  [[ "$JRC" -eq 0 ]] || { printf '%s\n' "$JOUT" >&2; log_fail "TEST-3371: TEST-3337 must pass when only another suite is admitted, exited $JRC"; }
+  expect "TEST-3371" "$JOUT" "PASS: TEST-3337"
+  expect "TEST-3371" "$JOUT" "not admitted on this branch"
+  log_pass "TEST-3371 (TEST-3337 passes with a not-admitted line when only aai-pricing is admitted)"
+}
+
+# test_3372: an own suite that was admitted is still judged by both tests, next to an admitted other suite.
+test_3372_own_suite_still_judged() {
+  local t fn own bad_noprobe good noprobe_msg
+  for t in 3307 3337; do
+    if [[ "$t" == 3307 ]]; then
+      fn=test_3307_live_appended_probes; own=aai-docs-content
+      bad_noprobe="ADMIT-PASS $own 1.0s reads=1 poisoned=0"
+      noprobe_msg="expected output to contain: ADMIT-PROBE $own"
+      good="ADMIT-PROBE $own appended docs/ai/tests/test-runs.jsonl PASS
+ADMIT-PASS $own 1.0s reads=1 poisoned=0"
+    else
+      fn=test_3337_split_admission; own=aai-hygiene-pack
+      bad_noprobe="ADMIT-PASS $own 1.0s reads=1 poisoned=0"
+      noprobe_msg="want above zero"
+      good="ADMIT-PASS $own 1.0s reads=1 poisoned=7"
+    fi
+    judge_admission "$fn" "$OTHER_ONLY_ADMISSION
+ADMIT-FAIL $own 1.0s appended-ledger run failed"
+    [[ "$JRC" -ne 0 ]] || log_fail "TEST-3372: TEST-$t must fail when its own suite $own is ADMIT-FAIL"
+    expect "TEST-3372 $t" "$JOUT" "admission of $own failed"
+    judge_admission "$fn" "$OTHER_ONLY_ADMISSION
+$bad_noprobe"
+    [[ "$JRC" -ne 0 ]] || log_fail "TEST-3372: TEST-$t must fail when its admitted suite $own lacks its probe or poisoned count"
+    expect "TEST-3372 $t" "$JOUT" "$noprobe_msg"
+    # An admission that printed no verdict line (a crash, a lint refusal) is not "not admitted": it fails.
+    judge_admission "$fn" "node: crashed before admission"
+    [[ "$JRC" -ne 0 ]] || log_fail "TEST-3372: TEST-$t must fail when the admission printed no verdict line"
+    expect "TEST-3372 $t" "$JOUT" "printed no verdict line"
+    # ADMIT-OFF is still a pass.
+    judge_admission "$fn" "ADMIT-OFF ci"
+    [[ "$JRC" -eq 0 ]] || { printf '%s\n' "$JOUT" >&2; log_fail "TEST-3372: TEST-$t must pass under ADMIT-OFF, exited $JRC"; }
+    judge_admission "$fn" "$OTHER_ONLY_ADMISSION
+$good"
+    [[ "$JRC" -eq 0 ]] || { printf '%s\n' "$JOUT" >&2; log_fail "TEST-3372: TEST-$t must pass for a well-admitted own suite next to another suite, exited $JRC"; }
+    expect_not "TEST-3372 $t" "$JOUT" "not admitted on this branch"
+  done
+  # A corpus half admitted without its appended probe fails TEST-3337.
+  judge_admission test_3337_split_admission "$OTHER_ONLY_ADMISSION
+ADMIT-PASS aai-hygiene-corpus 1.0s reads=1 poisoned=0"
+  [[ "$JRC" -ne 0 ]] || log_fail "TEST-3372: TEST-3337 must fail when a corpus half is admitted without its probe"
+  expect "TEST-3372 3337 corpus" "$JOUT" "ADMIT-PROBE aai-hygiene-corpus"
+  log_pass "TEST-3372 (an own suite's ADMIT-FAIL, missing probe and zero poisoned still fail both tests; a good admission passes beside another suite; a no-verdict output fails, ADMIT-OFF passes)"
 }
 
 # ---- reuse-split-corpus-cases (TEST-3330, TEST-3339): the case inventory and the before/after measurement in the analysis note ----
@@ -1507,6 +1599,9 @@ main() {
   test_3339_split_measurement
   test_3340_sources_readmit
   test_3341_sources_lint
+  test_3370_probe_test_other_suites_only
+  test_3371_split_test_other_suites_only
+  test_3372_own_suite_still_judged
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

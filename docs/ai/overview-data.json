@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-04T02:34:11.144Z",
+  "generatedAt": "2026-11-05T01:57:16.347Z",
   "project": "aai",
   "counts": {
-    "delivered": 341,
+    "delivered": 342,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -235,6 +235,19 @@
   ],
   "delivered": [
     {
+      "ref": "admit-tests-other-suites",
+      "title": "TEST-3307 and TEST-3337 go red when only other manifest suites changed, and TEST-3341 lacks the escaping-path case",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0109-admit-tests-other-suites.md",
+      "closed_on": "2026-11-05",
+      "agent_minutes": 78,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0272-spec-admit-tests-other-suites.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-admit-tests-other-suites-r3-20261105T005532Z.md"
+    },
+    {
       "ref": "reuse-split-corpus-cases",
       "title": "Fixture cases of the whole-corpus suites are reused after an ordinary edit",
       "type": "change",
@@ -245,7 +258,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-reuse-split-corpus-cases-20261104T014105Z.md"
+      "review": "docs/ai/reviews/review-reuse-split-corpus-cases-r3-20261104T041424Z.md"
     },
     {
       "ref": "reuse-local-ledger-append",
@@ -4695,6 +4708,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "admit-tests-other-suites",
+          "title": "TEST-3307 and TEST-3337 go red when only other manifest suites changed, and TEST-3341 lacks the escaping-path case",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0109-admit-tests-other-suites.md",
+          "closed_on": "2026-11-05",
+          "agent_minutes": 78,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0272-spec-admit-tests-other-suites.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-admit-tests-other-suites-r3-20261105T005532Z.md"
+        },
+        {
           "ref": "reuse-split-corpus-cases",
           "title": "Fixture cases of the whole-corpus suites are reused after an ordinary edit",
           "type": "change",
@@ -4705,7 +4731,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-reuse-split-corpus-cases-20261104T014105Z.md"
+          "review": "docs/ai/reviews/review-reuse-split-corpus-cases-r3-20261104T041424Z.md"
         },
         {
           "ref": "reuse-local-ledger-append",

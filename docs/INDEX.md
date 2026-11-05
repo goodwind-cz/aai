@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (616)
+## Done (618)
 
 | ID | Type | Path |
 |---|---|---|
@@ -391,6 +391,7 @@ _None._
 | ISSUE-0106 | issues | docs/issues/ISSUE-0106-codex-usage-missing-from-run-budgets.md |
 | ISSUE-0107 | issues | docs/issues/ISSUE-0107-watch-ci-cancelled-runs-and-release-gate-docs.md |
 | ISSUE-0108 | issues | docs/issues/ISSUE-0108-suite-select-sigpipe-fix.md |
+| ISSUE-0109 | issues | docs/issues/ISSUE-0109-admit-tests-other-suites.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -679,6 +680,7 @@ _None._
 | SPEC-0269 | specs | docs/specs/SPEC-0269-spec-suite-select-sigpipe-fix.md |
 | SPEC-0270 | specs | docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md |
 | SPEC-0271 | specs | docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md |
+| SPEC-0272 | specs | docs/specs/SPEC-0272-spec-admit-tests-other-suites.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -1300,4 +1302,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-04 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-05 — counts above use this date for overdue checks.
