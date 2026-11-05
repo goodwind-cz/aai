@@ -220,6 +220,7 @@ core:
   - .aai/scripts/mutation-gate.mjs
   - .aai/scripts/mutation-run.mjs
   - .aai/scripts/orphan-sweep.mjs
+  - .aai/scripts/migrate-state-to-local.mjs
   - .aai/scripts/migrate-state-to-local.ps1
   - .aai/scripts/migrate-state-to-local.sh
   - .aai/scripts/orchestration-dispatch.mjs

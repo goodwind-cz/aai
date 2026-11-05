@@ -1025,7 +1025,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 64324 -> 64396: watch-ci-reread-refresh-and-p3-cleanup (+72 B: SKILL_PR step 3b names user-facing docs as shipped; measured against 7d38415a, credited 1:1).
   # Then 64396 -> 65249: ride-status-and-resume (+853 B: SKILL_SHIP INPUT acts on the probe resume: line and step 5, SKILL_PR step 5, SKILL_LOOP summary name ride-status.mjs, SHIP INPUT stops on state_invalid; measured against 51840bde, credited 1:1).
   # Then 65249 -> 65792: precise-suite-evidence-reuse (+543 B: SKILL_VERIFY Reuse exception paragraph, VALIDATION step 5 c2 sentence; measured against 773557ee, credited 1:1).
-  local want_growth=65792
+  # Then 65792 -> 64288: retire-legacy-migrations (-1504 B: SKILL_CANONICALIZE.prompt.md 1950 -> 446 B retirement notice; measured against 1519b8d0, RECLAIMED 1:1).
+  local want_growth=64288
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

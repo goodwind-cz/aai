@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (618)
+## Done (620)
 
 | ID | Type | Path |
 |---|---|---|
@@ -304,6 +304,7 @@ _None._
 | CHANGE-0242 | issues | docs/issues/CHANGE-0242-reuse-for-docs-reading-suites.md |
 | CHANGE-0243 | issues | docs/issues/CHANGE-0243-reuse-local-ledger-append.md |
 | CHANGE-0244 | issues | docs/issues/CHANGE-0244-reuse-split-corpus-cases.md |
+| CHANGE-0245 | issues | docs/issues/CHANGE-0245-retire-legacy-migrations.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -681,6 +682,7 @@ _None._
 | SPEC-0270 | specs | docs/specs/SPEC-0270-spec-reuse-local-ledger-append.md |
 | SPEC-0271 | specs | docs/specs/SPEC-0271-spec-reuse-split-corpus-cases.md |
 | SPEC-0272 | specs | docs/specs/SPEC-0272-spec-admit-tests-other-suites.md |
+| SPEC-0273 | specs | docs/specs/SPEC-0273-spec-retire-legacy-migrations.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -722,7 +724,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (539)
+## Broken references (541)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -733,12 +735,13 @@ _None._
 | .aai/scripts/generate-overview.mjs | docs/issues/team/foo.md | NOT FOUND |
 | .aai/scripts/generate-userguide-rollup.mjs | docs/specs/SPEC-1.md | NOT FOUND |
 | .aai/scripts/lib/repo-tripwire.sh | docs/other.md | NOT FOUND |
-| .aai/scripts/migrate-state-to-local.ps1 | docs/ai/.session-context.md | NOT FOUND |
+| .aai/scripts/migrate-state-to-local.mjs | docs/ai/.session-context.md | NOT FOUND |
 | .aai/scripts/spec-lint.mjs | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-0001-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
+| tests/skills/lib/migrate-state-to-local.test.mjs | docs/ai/.session-context.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-variants/V2-PLANNING.md | NOT FOUND |
 | tests/skills/lib/recheck-measure.mjs | docs/ai/reports/VALIDATION-1.md | NOT FOUND |
@@ -1087,6 +1090,7 @@ _None._
 | tests/skills/test-aai-intake.sh | docs/rfc/DEBT-DRAFT-demo-slug.md | NOT FOUND |
 | tests/skills/test-aai-intake.sh | docs/specs/RES-DRAFT-demo.md | NOT FOUND |
 | tests/skills/test-aai-intake.sh | docs/specs/RESEARCH-DRAFT-demo-slug.md | NOT FOUND |
+| tests/skills/test-aai-legacy-migrations.sh | docs/ai/.session-context.md | NOT FOUND |
 | tests/skills/test-aai-lightweight-lane.sh | docs/a.md | NOT FOUND |
 | tests/skills/test-aai-lightweight-lane.sh | docs/b.md | NOT FOUND |
 | tests/skills/test-aai-lightweight-lane.sh | docs/c.md | NOT FOUND |

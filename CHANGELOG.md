@@ -28,6 +28,14 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — refactor(scripts): legacy migrations retired, migrate-state-to-local moves to Node
+
+- `/aai-canonicalize`, the `aai-canonicalize` script and the `migrate-yaml-to-jsonl` script are retired in this release. Each now prints a deprecation notice and changes nothing; the notice launchers, the prompt and the skill wrappers are deleted in the next release. Replacement: none.
+- `migrate-state-to-local` now runs on Node (Node is required, as for the other AAI scripts); the `.sh` and `.ps1` launchers only start it. It is safe for hostile file names (spaces, quotes, newlines, leading dashes) and for monorepo subdirectory targets, and it leaves the git index unchanged when git skips a planned path.
+- Downstream, `aai-sync` prunes the retired `aai-canonicalize` skill wrappers from `.claude` and `.agents`.
+- Behaviour changes of `migrate-state-to-local` (spec drift table, RFC-0017 phase 5): POSIX users gain 10 ignore entries, so the script now adds the same 16 as the PowerShell copy instead of 6 (M-1: validation, locks, hitl-channel, briefs, reports, friction, archive, two sidecars and `docs/INDEX.audit.md`); a failing `git rm` now stops with exit 1 and writes neither `.gitignore` nor `EVENTS.jsonl` instead of aborting mid-way or counting the file as untracked (M-3); hostile file names no longer reach a shell (M-2); the final line reads `Nothing to do - already migrated.` with an ASCII hyphen (M-6); the dry-run lines use `  [dry-run] git rm --cached <file>` and close with `Dry-run only. Re-run without the dry-run flag to apply.` (M-7, M-8); appended entries use CRLF when the existing `.gitignore` holds a CRLF, else LF (M-9). Node is a hard prerequisite (D-NODE): without it the launchers print a refusal with an install hint and exit 1.
+- Code lines (non-blank, non-comment, `grep -cvE '^[[:space:]]*(#|$)'`, `//` for the module): 893 before over the six scripts, 183 after over the seven files (four retirement launchers at 2 each, the two migrate-state launchers at 6 and 10, the module at 159).
+
 ## [unreleased] — test: the hygiene pack and the Windows fallback suite are split so their fixture halves are reused after an ordinary edit (reuse-split-corpus-cases)
 
 - `aai-hygiene-pack` keeps its 66 fixture cases and `aai-win-fallback` its 27; the cases that read the git index or whole trees moved to two new suites, `aai-hygiene-corpus` (29 cases) and `aai-win-fallback-corpus` (5 cases). Every case runs in exactly one half, and the suite tests pin the partition. `aai-hygiene-corpus` joins the always-on CI core (five suites).

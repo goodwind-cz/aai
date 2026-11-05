@@ -91,7 +91,7 @@ Follow .aai/SKILL_HITL.prompt.md         # Human-in-the-loop resolver — surfac
 Follow .aai/SKILL_CHECK_STATE.prompt.md  # STATE.yaml health check — validates all invariants
 Follow .aai/SKILL_BOOTSTRAP.prompt.md    # Generate project-specific optimized skills
 Follow .aai/SKILL_VALIDATE_REPORT.prompt.md # Validation report with screenshot evidence for chat review
-Follow .aai/SKILL_CANONICALIZE.prompt.md # Canonicalize repository structure (migration, cleanup)
+Follow .aai/SKILL_CANONICALIZE.prompt.md # RETIRED: deprecation notice only, deleted in the next release
 Follow .aai/SKILL_TDD.prompt.md          # Enforced RED-GREEN-REFACTOR test-driven development (Superpowers pattern)
 Follow .aai/SKILL_WORKTREE.prompt.md     # Git worktree management for parallel development (Superpowers pattern)
 Follow .aai/SKILL_CODE_REVIEW.prompt.md  # Single dual-verdict review: spec_compliance + code_quality in one pass, mandatory cannot_verify list
@@ -145,7 +145,6 @@ Skill selection guide:
 - Use SKILL_CHECK_STATE before any role dispatch to catch state drift or corruption.
 - Use SKILL_BOOTSTRAP on first use or after architecture changes to generate project-specific skills.
 - Use SKILL_VALIDATE_REPORT when validation must include screenshot evidence and a chat-readable report.
-- Use SKILL_CANONICALIZE when migrating legacy AAI structure or cleaning up scattered artifacts.
 - **NEW:** Use SKILL_TDD for test-driven development with mandatory RED-GREEN-REFACTOR cycles.
 - **NEW:** Use SKILL_WORKTREE for parallel development using git worktrees (isolates features/tasks).
 - **NEW:** Use SKILL_WORKTREE recommendation gate before implementation when Planning marks worktree as recommended or required.
@@ -213,7 +212,6 @@ application, not the AAI layer).
   - `codex --prompt-file .aai/SKILL_CHECK_STATE.prompt.md`
   - `codex --prompt-file .aai/SKILL_INTAKE.prompt.md`
   - `codex --prompt-file .aai/SKILL_LOOP.prompt.md`
-  - `codex --prompt-file .aai/SKILL_CANONICALIZE.prompt.md`
   - `codex --prompt-file .aai/SKILL_TDD.prompt.md`
   - `codex --prompt-file .aai/SKILL_CODE_REVIEW.prompt.md`
 - Bootstrap also writes dynamic indexes:

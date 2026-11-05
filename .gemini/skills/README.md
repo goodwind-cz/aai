@@ -6,7 +6,7 @@ Generated from `.claude/skills/` by `.aai/scripts/sync-harness-skills.mjs` — d
 ## Universal skills
 - `/aai-auto-trigger` — DEPRECATED — the .claude/triggers.json mechanism this skill configured has no runtime consumer, so triggers wired there never fire (SPEC-0013 D8). Kept for muscle memory; invoking it explains the deprecation and the real alternative (wrapper-description trigger phrases).
 - `/aai-bootstrap` — Use when setting up a new AAI project or when project-specific test/build/validation commands are missing or outdated. Detects project architecture and generates optimized shortcuts.
-- `/aai-canonicalize` — Use when legacy files exist in unsupported directories, telemetry is still in YAML, or validation evidence is fragmented. Canonicalizes AAI repository structure.
+- `/aai-canonicalize` — RETIRED - the aai-canonicalize skill and both migration scripts are retired (RFC-0017 phase 5), are deleted in the next release and have no replacement; invoking it explains the retirement and runs nothing.
 - `/aai-check-state` — Use when STATE.yaml may be invalid, after unexpected loop failures, or before starting a new loop. Add prefix REPAIR: to auto-fix detected invariant violations.
 - `/aai-code-review` — Use when reviewing committed or staged code changes. One dual-verdict pass returning spec_compliance (AC-table walk) and code_quality (BLOCKING/NON-BLOCKING findings) plus a mandatory cannot_verify list. Supports git diffs and GitHub PR review.
 - `/aai-dashboard` — Use when you want to visualize AAI workflow metrics — token usage, TDD cycles, worktree efficiency — as an interactive HTML dashboard. Publishable via /aai-share.

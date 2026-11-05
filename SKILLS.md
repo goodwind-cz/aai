@@ -21,7 +21,7 @@ set of wrapper directories in `.claude/skills/`.
 | aai-bootstrap | Detect project architecture and generate dynamic skills | `/aai-bootstrap` | `--prompt-file .aai/SKILL_BOOTSTRAP.prompt.md` |
 | aai-update | Re-sync vendored AAI layer from canonical git `main` | `/aai-update` | `--prompt-file .aai/SKILL_UPDATE.prompt.md` |
 | aai-validate-report | Generate validation report with screenshots | `/aai-validate-report` | `--prompt-file .aai/SKILL_VALIDATE_REPORT.prompt.md` |
-| aai-canonicalize | Migrate legacy paths and consolidate AAI layout | `/aai-canonicalize` | `--prompt-file .aai/SKILL_CANONICALIZE.prompt.md` |
+| aai-canonicalize | Retired: deprecation notice only, deleted in the next release; no replacement | `/aai-canonicalize` | `--prompt-file .aai/SKILL_CANONICALIZE.prompt.md` |
 | aai-share | Publish Markdown reports to Cloudflare Pages | `/aai-share` | `--prompt-file .aai/SKILL_SHARE.prompt.md` |
 | aai-tdd | Enforced RED-GREEN-REFACTOR test-driven development | `/aai-tdd` | `--prompt-file .aai/SKILL_TDD.prompt.md` |
 | aai-worktree | Manage git worktrees for parallel development | `/aai-worktree` | `--prompt-file .aai/SKILL_WORKTREE.prompt.md` |
@@ -149,17 +149,9 @@ Generates a validation report with screenshots and executable evidence. Produces
 codex --prompt-file .aai/SKILL_VALIDATE_REPORT.prompt.md
 ```
 
-### aai-canonicalize
+### aai-canonicalize (retired)
 
-Migrates legacy AAI content (old directory layouts, moved files) into the canonical `.aai/` structure. Uses the canonicalization script to move files and verify the result.
-
-```bash
-# Claude
-/aai-canonicalize
-
-# Codex
-codex --prompt-file .aai/SKILL_CANONICALIZE.prompt.md
-```
+The skill is retired (RFC-0017 phase 5): invoking it explains the retirement and runs nothing. The next release deletes the skill and its two migration scripts; there is no replacement.
 
 ### aai-share
 

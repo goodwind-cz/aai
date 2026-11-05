@@ -298,7 +298,7 @@ AAI uses two different classes of documentation:
 | `/aai-profile` | Optimize | Performance analysis |
 | `/aai-worktree` | Isolate the work | Create and manage a git worktree for a scope |
 | `/aai-bootstrap` | New project | Detect the stack and generate project-specific skills |
-| `/aai-canonicalize` | Legacy layout | Move a pre-AAI repository onto the canonical structure |
+| `/aai-canonicalize` | Retired | Deprecation notice only; deleted in the next release |
 | `/aai-flush` | Loop exited early | Move finished work-item data from STATE into METRICS |
 | `/aai-routine` | Standing routine | Instantiate a vendored routine (e.g. the morning scryer) for one harness |
 | `/aai-feedback-triage` | AAI got in the way | Offline: cluster the local friction spool into a report |
@@ -1929,22 +1929,8 @@ Skipped: 0 (0%)
 # Cleans up state
 ```
 
-#### `/aai-canonicalize`
-**What:** Normalizes legacy AAI structure.
-
-**When to use:**
-- Migrating from old AAI versions
-- Cleaning up scattered artifacts
-- Structure validation
-
-**Example:**
-```bash
-/aai-canonicalize
-
-# Migrates old files to new structure
-# Consolidates evidence
-# Generates architecture summary
-```
+#### `/aai-canonicalize` (retired)
+**What:** Retired (RFC-0017 phase 5). Invoking it explains the retirement and runs nothing; the next release deletes the skill and its two migration scripts, and there is no replacement.
 
 #### `/aai-docs-hub`
 **What:** Generates interactive skill catalog.
@@ -2370,7 +2356,7 @@ You want a reminder when maintenance is piling up, but never a refusal:
 
 **Monthly use:**
 - `/aai-profile` - Optimization
-- `/aai-canonicalize` - Cleanup
+- `/aai-canonicalize` - Retired (deleted in the next release)
 
 **Setup (one-time):**
 - `/aai-bootstrap` - Project init
