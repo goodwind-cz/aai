@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T00:58:45.133Z",
+  "generatedAt": "2026-11-05T01:57:16.347Z",
   "project": "aai",
   "counts": {
     "delivered": 342,
@@ -245,7 +245,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0272-spec-admit-tests-other-suites.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-admit-tests-other-suites-r2-20261105T005017Z.md"
+      "review": "docs/ai/reviews/review-admit-tests-other-suites-r3-20261105T005532Z.md"
     },
     {
       "ref": "reuse-split-corpus-cases",
@@ -4718,7 +4718,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0272-spec-admit-tests-other-suites.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-admit-tests-other-suites-r2-20261105T005017Z.md"
+          "review": "docs/ai/reviews/review-admit-tests-other-suites-r3-20261105T005532Z.md"
         },
         {
           "ref": "reuse-split-corpus-cases",

@@ -1393,7 +1393,7 @@ ADMIT-PASS $own 1.0s reads=1 poisoned=0"
     else
       fn=test_3337_split_admission; own=aai-hygiene-pack
       bad_noprobe="ADMIT-PASS $own 1.0s reads=1 poisoned=0"
-      noprobe_msg="poisoned=0"
+      noprobe_msg="want above zero"
       good="ADMIT-PASS $own 1.0s reads=1 poisoned=7"
     fi
     judge_admission "$fn" "$OTHER_ONLY_ADMISSION
