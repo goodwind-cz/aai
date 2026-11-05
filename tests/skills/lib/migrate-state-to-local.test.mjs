@@ -13,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 const M = await import('../../../.aai/scripts/migrate-state-to-local.mjs').catch(() => ({}));
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const MODULE = path.resolve(HERE, '../../../.aai/scripts/migrate-state-to-local.mjs');
+// AAI_MIG_MODULE points the CLI cases at a scratch copy (RED proof by revert); unset, the repository module runs.
+const MODULE = process.env.AAI_MIG_MODULE || path.resolve(HERE, '../../../.aai/scripts/migrate-state-to-local.mjs');
 const CRLF = '\r\n';
 const HEADER = '# AAI per-dev runtime state (RFC-0001: never committed)';
 const PATTERNS = [
@@ -239,4 +240,43 @@ test('TEST-3382 a dry run prints the dry-run lines and changes nothing', () => {
   assert.ok(fs.readFileSync(path.join(d, '.gitignore')).equals(gi));
   assert.equal(fs.existsSync(path.join(d, 'docs/ai/EVENTS.jsonl')), false);
   assert.deepEqual(listing(d), before);
+});
+
+// ---------------------------------------------------------------- TEST-3383
+test('TEST-3383 hostile tracked names are untracked literally and run no command', () => {
+  const d = scratch('hostile');
+  git(d, 'init', '-q');
+  git(d, 'config', 'user.email', 'fixture@example.invalid');
+  git(d, 'config', 'user.name', 'fixture');
+  git(d, 'config', 'commit.gpgsign', 'false');
+  const names = ['docs/ai/tdd/x/$(touch PWNED).log', 'docs/ai/tdd/x/say "hi".log', 'docs/ai/tdd/x/back`tick`.log',
+    'docs/ai/tdd/x/caf\u00e9.log', 'docs/ai/tdd/*'];
+  for (const f of ['docs/ai/STATE.yaml', 'docs/ai/tdd/.gitkeep', ...names]) put(d, f);
+  git(d, 'add', '-A');
+  git(d, 'commit', '-q', '-m', 'hostile');
+  const r = cli([d], { cwd: d });
+  assert.equal(r.status, 0, r.stderr);
+  const tracked = git(d, '-c', 'core.quotepath=off', 'ls-files').split('\n').filter(Boolean);
+  assert.deepEqual(tracked.filter((f) => f !== '.gitignore'), ['docs/ai/tdd/.gitkeep']);
+  for (const f of names) assert.equal(fs.existsSync(path.join(d, f)), true, f);
+  const found = [];
+  const walk = (x) => { for (const e of fs.readdirSync(x, { withFileTypes: true })) { if (e.name === '.git') continue; if (e.name === 'PWNED') found.push(e.name); if (e.isDirectory()) walk(path.join(x, e.name)); } };
+  walk(d);
+  assert.deepEqual(found, []);
+  assert.ok(r.stdout.split('\n').includes(`  Files untracked:        ${names.length + 1}`), r.stdout);
+});
+
+// ---------------------------------------------------------------- TEST-3384
+test('TEST-3384 a failing git rm stops before any other write', () => {
+  const d = legacy('rmfail');
+  const index = git(d, 'ls-files', '-s');
+  const gi = fs.readFileSync(path.join(d, '.gitignore'));
+  fs.writeFileSync(path.join(d, '.git', 'index.lock'), '');
+  const r = cli([d]);
+  assert.equal(r.status, 1);
+  assert.ok(r.stderr.startsWith('ERROR: git rm --cached failed (exit '), r.stderr);
+  assert.ok(fs.readFileSync(path.join(d, '.gitignore')).equals(gi));
+  assert.equal(fs.existsSync(path.join(d, 'docs/ai/EVENTS.jsonl')), false);
+  fs.rmSync(path.join(d, '.git', 'index.lock'));
+  assert.equal(git(d, 'ls-files', '-s'), index);
 });
