@@ -1165,6 +1165,20 @@ suites:
       - tests/fixtures/routines/**
       - SKILLS.md
 
+  aai-legacy-migrations:
+    globs:
+      - .aai/scripts/migrate-state-to-local.*
+      - .aai/scripts/aai-canonicalize.*
+      - .aai/scripts/migrate-yaml-to-jsonl.*
+      - .aai/SKILL_CANONICALIZE.prompt.md
+      - .claude/skills/aai-canonicalize/**
+      - .agents/skills/aai-canonicalize/**
+      - .codex/skills/aai-canonicalize/**
+      - .gemini/skills/aai-canonicalize/**
+      - tests/skills/test-aai-legacy-migrations.sh
+      - tests/skills/lib/migrate-state-to-local.test.mjs
+      - tests/skills/legacy-migrations.Tests.ps1
+
   aai-reap-tests:
     globs:
       - .aai/scripts/aai-reap-tests.*

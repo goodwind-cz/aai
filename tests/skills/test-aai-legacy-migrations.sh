@@ -330,6 +330,167 @@ test_3396_doctor_seam() {
   log_pass "TEST-3396: the doctor names the launcher, the launcher clears the finding, and the caller lines equal f324b66f"
 }
 
+CANON_PROMPT="$PROJECT_ROOT/.aai/SKILL_CANONICALIZE.prompt.md"
+WRAPPER_BODY='Read the file `.aai/SKILL_CANONICALIZE.prompt.md` from the current project root and follow its instructions exactly - it is a retirement notice: explain it to the user and run no script. Invoke this as `/aai-canonicalize`.'
+WRAPPER_TREES=".claude/skills .agents/skills .codex/skills .gemini/skills"
+
+# wrapper_problems <SKILL.md>: prints problems of the retired aai-canonicalize wrapper (empty when clean).
+wrapper_problems() {
+  node -e '
+    const fs = require("fs");
+    const [file, body] = process.argv.slice(1);
+    const s = fs.readFileSync(file, "utf8");
+    const bad = [];
+    const m = s.match(/^---\n([\s\S]*?)\n---\n/);
+    if (!m) bad.push("no frontmatter");
+    else {
+      if (!/^name: aai-canonicalize$/m.test(m[1])) bad.push("name is not aai-canonicalize");
+      const d = m[1].match(/^description: (.*)$/m);
+      if (!d || !d[1].startsWith("RETIRED - ")) bad.push("description does not begin RETIRED - ");
+      else for (const w of ["RFC-0017 phase 5", "next release", "no replacement", "runs nothing"]) if (!d[1].includes(w)) bad.push("description lacks " + w);
+    }
+    const lines = s.replace(/^---\n[\s\S]*?\n---\n/, "").split("\n").filter((l) => l.trim() !== "");
+    if (lines.length !== 2) bad.push("body has " + lines.length + " non-empty lines");
+    if (lines[0] !== body) bad.push("body line 1 differs from D4");
+    if (!(lines[1] || "").startsWith("If `.aai/SKILL_CANONICALIZE.prompt.md` does not exist, say:")) bad.push("not-found line missing");
+    process.stdout.write(bad.join("; "));
+  ' "$1" "$WRAPPER_BODY"
+}
+
+test_3391_skill_notice() {
+  local out size t first
+  [[ -f "$CANON_PROMPT" ]] || log_fail "TEST-3391: the prompt is missing"
+  size="$(wc -c < "$CANON_PROMPT" | tr -d ' ')"
+  [[ "$size" -le 900 ]] || log_fail "TEST-3391: the prompt is $size bytes, over 900"
+  first="$(sed -n 1p "$CANON_PROMPT")"
+  [[ "$first" == "# Canonicalize Skill - RETIRED" ]] || log_fail "TEST-3391: the prompt first line is: $first"
+  grep -q '^Status: RETIRED (retire-legacy-migrations, RFC-0017 phase 5, 2026-11-05)' "$CANON_PROMPT" || log_fail "TEST-3391: no D4 Status line"
+  grep -q '^Replacement: none' "$CANON_PROMPT" || log_fail "TEST-3391: no 'Replacement: none' line"
+  grep -qi 'next release deletes' "$CANON_PROMPT" || log_fail "TEST-3391: the prompt does not say the next release deletes the notice"
+  if grep -qE '\.sh|\.ps1|-DryRun|--dry-run' "$CANON_PROMPT"; then log_fail "TEST-3391: the prompt names a script file or dry-run flag"; fi
+  for t in $WRAPPER_TREES; do
+    [[ -f "$PROJECT_ROOT/$t/aai-canonicalize/SKILL.md" ]] || log_fail "TEST-3391: $t/aai-canonicalize/SKILL.md missing"
+    cmp -s "$PROJECT_ROOT/.claude/skills/aai-canonicalize/SKILL.md" "$PROJECT_ROOT/$t/aai-canonicalize/SKILL.md" || log_fail "TEST-3391: $t wrapper differs from the .claude copy"
+  done
+  out="$(wrapper_problems "$PROJECT_ROOT/.claude/skills/aai-canonicalize/SKILL.md")"
+  [[ -z "$out" ]] || log_fail "TEST-3391: wrapper: $out"
+  env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/sync-harness-skills.mjs" --check >/dev/null 2>&1 || log_fail "TEST-3391: sync-harness-skills --check failed"
+  for t in .codex .gemini; do
+    grep -qE '^- `/aai-canonicalize` .*RETIRED' "$PROJECT_ROOT/$t/skills/README.md" || log_fail "TEST-3391: $t/skills/README.md row lacks RETIRED"
+  done
+  node -e '
+    const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const c = (d.skills || []).find((x) => x.name === "aai-canonicalize");
+    if (!c || !JSON.stringify(c).includes("RETIRED")) { console.error("catalog card lacks RETIRED"); process.exit(1); }
+  ' "$PROJECT_ROOT/docs/skill-catalog-data.json" || log_fail "TEST-3391: the catalog card for aai-canonicalize lacks RETIRED"
+  local hub="$TEST_DIR/hub"
+  rm -rf "$hub"; mkdir -p "$hub/docs" "$hub/.aai"
+  cp -R "$PROJECT_ROOT/.claude" "$hub/.claude"; cp "$PROJECT_ROOT"/.aai/SKILL_*.prompt.md "$hub/.aai/"
+  ( cd "$hub" && node "$PROJECT_ROOT/.aai/scripts/generate-docs-hub.mjs" >/dev/null ) || log_fail "TEST-3391: generate-docs-hub failed in the scratch tree"
+  cmp -s "$hub/docs/SKILL_CATALOG.html" "$PROJECT_ROOT/docs/SKILL_CATALOG.html" || log_fail "TEST-3391: docs/SKILL_CATALOG.html is stale against generate-docs-hub"
+  [[ "$(grep -v '"generatedAt"' "$hub/docs/skill-catalog-data.json")" == "$(grep -v '"generatedAt"' "$PROJECT_ROOT/docs/skill-catalog-data.json")" ]] || log_fail "TEST-3391: docs/skill-catalog-data.json is stale against generate-docs-hub"
+  log_pass "TEST-3391: the skill is a retirement notice in the prompt, four wrappers, two indexes and the catalog"
+}
+
+# stale_names <newline list of tracked files> <root>: tracked files outside the allowed set that name a retired script file.
+stale_names() {
+  node -e '
+    const fs = require("fs");
+    const [list, root] = process.argv.slice(1);
+    const re = /aai-canonicalize\.(sh|ps1)|migrate-yaml-to-jsonl\.(sh|ps1)/;
+    const allowed = new Set([".aai/scripts/aai-canonicalize.sh", ".aai/scripts/aai-canonicalize.ps1", ".aai/scripts/migrate-yaml-to-jsonl.sh", ".aai/scripts/migrate-yaml-to-jsonl.ps1", ".aai/system/PROFILES.yaml"]);
+    const keepDocs = new Set(["docs/USER_GUIDE.md", "docs/SKILL_CATALOG.html", "docs/skill-catalog-data.json"]);
+    const out = [];
+    for (const f of list.split("\n").filter(Boolean)) {
+      if ((f.startsWith("docs/") && !keepDocs.has(f)) || f.startsWith("tests/") || f === "CHANGELOG.md" || allowed.has(f)) continue;
+      let t; try { t = fs.readFileSync(root + "/" + f, "utf8"); } catch { continue; }
+      if (re.test(t)) out.push(f);
+    }
+    process.stdout.write(out.join(" "));
+  ' "$1" "$2"
+}
+
+test_3392_no_stale_instruction() {
+  local files out f
+  files="$(git -C "$PROJECT_ROOT" ls-files)"
+  out="$(stale_names "$files" "$PROJECT_ROOT")"
+  [[ -z "$out" ]] || log_fail "TEST-3392: tracked files still name a retired script: $out"
+  printf 'see aai-canonicalize.sh\n' > "$TEST_DIR/fixture-extra.md"
+  out="$(stale_names "$files"$'\n'"fixture-extra.md" "$TEST_DIR" 2>/dev/null || true)"
+  [[ "$out" == *fixture-extra.md* ]] || log_fail "TEST-3392: positive control: a fixture file naming a retired script was not reported"
+  for f in SKILLS.md .aai/AGENTS.md docs/USER_GUIDE.md; do
+    out="$(grep -nE 'aai-canonicalize|SKILL_CANONICALIZE' "$PROJECT_ROOT/$f" | grep -vi 'retired' || true)"
+    [[ -z "$out" ]] || log_fail "TEST-3392: $f has lines naming the skill without 'retired': $out"
+  done
+  if grep -qE 'codex --prompt-file .aai/SKILL_CANONICALIZE|Use SKILL_CANONICALIZE' "$PROJECT_ROOT/.aai/AGENTS.md"; then
+    log_fail "TEST-3392: AGENTS.md still holds a codex prompt-file line or a Use SKILL_CANONICALIZE line"
+  fi
+  log_pass "TEST-3392: no tracked instruction names a retired script and every doc line about the skill says retired"
+}
+
+# copy_tracked <dest>: the repository's tracked files (working-tree content) copied to <dest>.
+copy_tracked() {
+  mkdir -p "$1"
+  git -C "$PROJECT_ROOT" ls-files -z | tar -C "$PROJECT_ROOT" --null -T - -cf - | tar -C "$1" -xf -
+}
+
+# prune_source <dest>: a scratch source copy without the retired prompt and wrappers.
+prune_source() {
+  local t
+  copy_tracked "$1"
+  rm -f "$1/.aai/SKILL_CANONICALIZE.prompt.md"
+  for t in $WRAPPER_TREES; do rm -rf "$1/$t/aai-canonicalize"; done
+}
+
+# require_clause <TEST id>: the repository wrapper carries the D4 retirement clause.
+require_clause() {
+  local out
+  out="$(wrapper_problems "$PROJECT_ROOT/.claude/skills/aai-canonicalize/SKILL.md")"
+  [[ -z "$out" ]] || log_fail "$1: the wrapper lacks the D4 retirement clause: $out"
+}
+
+# prune_case <TEST id> <engine sh|ps1>
+prune_case() {
+  local id="$1" engine="$2" src="$TEST_DIR/prune-src-$2" dst keep out tree n
+  require_clause "$id"
+  prune_source "$src"
+  dst="$TEST_DIR/prune-dst-$engine"; keep="$TEST_DIR/prune-keep-$engine"
+  for tree in .claude/skills .agents/skills; do
+    mkdir -p "$dst/$tree/aai-canonicalize"
+    cp "$PROJECT_ROOT/.claude/skills/aai-canonicalize/SKILL.md" "$dst/$tree/aai-canonicalize/SKILL.md"
+  done
+  if [[ "$engine" == ps1 ]]; then
+    out="$(pwsh -NoProfile -File "$src/.aai/scripts/aai-sync.ps1" -TargetRoot "$dst" 2>&1)" || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "$id: aai-sync.ps1 from the stripped source failed"; }
+  else
+    out="$(bash "$src/.aai/scripts/aai-sync.sh" "$dst" 2>&1)" || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "$id: aai-sync.sh from the stripped source failed"; }
+  fi
+  for tree in .claude/skills .agents/skills; do
+    [[ ! -e "$dst/$tree/aai-canonicalize" ]] || log_fail "$id: $tree/aai-canonicalize survived the prune"
+    n="$(printf '%s\n' "$out" | grep -cxE "[[:space:]]*CLEAN removed retired skill wrapper: $tree/aai-canonicalize" || true)"
+    [[ "$n" == 1 ]] || log_fail "$id: $n CLEAN lines for $tree/aai-canonicalize, expected 1"
+  done
+  mkdir -p "$keep"
+  if [[ "$engine" == ps1 ]]; then
+    pwsh -NoProfile -File "$PROJECT_ROOT/.aai/scripts/aai-sync.ps1" -TargetRoot "$keep" >/dev/null 2>&1 || log_fail "$id: aai-sync.ps1 from the unchanged source failed"
+  else
+    bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$keep" >/dev/null 2>&1 || log_fail "$id: aai-sync.sh from the unchanged source failed"
+  fi
+  for tree in .claude/skills .agents/skills; do
+    [[ -f "$keep/$tree/aai-canonicalize/SKILL.md" ]] || log_fail "$id: the unchanged source dropped $tree/aai-canonicalize"
+  done
+}
+
+test_3393_prune_sh() {
+  prune_case TEST-3393 sh
+  log_pass "TEST-3393: aai-sync.sh removes both retired wrapper copies once and keeps them from the unchanged source"
+}
+
+test_3394_prune_ps1() {
+  need_tool TEST-3394 pwsh || return 0
+  prune_case TEST-3394 ps1
+  log_pass "TEST-3394: aai-sync.ps1 removes both retired wrapper copies once and keeps them from the unchanged source"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-retire-legacy-migrations TEST-3380..3400)"
   check_deps
@@ -345,6 +506,10 @@ main() {
   test_3388_pester
   test_3389_retired_run
   test_3390_retired_thin
+  test_3391_skill_notice
+  test_3392_no_stale_instruction
+  test_3393_prune_sh
+  test_3394_prune_ps1
   test_3396_doctor_seam
   echo ""
   log_pass "All $TEST_NAME tests passed"

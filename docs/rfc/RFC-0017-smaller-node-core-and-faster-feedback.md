@@ -322,7 +322,6 @@ A pair is `.aai/scripts/<name>.sh` plus `<name>.ps1` with no `<name>.mjs`; the l
 | `autonomous-loop` | 488/464 | phase 5 process adapter | supervises agent child processes |
 | `cloudflare-share` | 78/69 | later candidate | external deploy with a write effect; needs a staged-deploy test seam; the sh copy's grep -oP fails on macOS |
 | `install-pre-commit-hook` | 1313/1097 | platform adapter kept on purpose | hook installation, file permissions and symlinked configuration |
-| `migrate-state-to-local` | 162/175 | platform adapter kept on purpose | git-only legacy migration that aai-sync names for a target that may not have Node yet; retire with RFC-0001 legacy support instead of porting |
 | `migrate-yaml-to-jsonl` | 126/151 | later candidate | needs a general YAML parser that Node's stdlib lacks; one-off (SPEC-0248) |
 | `pre-commit-checks` | 323/281 | platform adapter kept on purpose | L3 protected surface whose checks 1 to 7 run without Node; a move needs its own L3 scope |
 

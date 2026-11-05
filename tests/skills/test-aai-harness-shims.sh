@@ -928,6 +928,11 @@ test_3133_live_catalog_lists_all_wrappers() {
   while IFS= read -r line; do
     [[ "$line" == '| aai-'* ]] || continue
     n=$((n + 1))
+    # retire-legacy-migrations: the aai-canonicalize row is deliberately reworded to a retirement row.
+    if [[ "$line" == '| aai-canonicalize | '* ]]; then
+      grep -qF -- '| aai-canonicalize | Retired: ' "$PROJECT_ROOT/SKILLS.md" || log_fail "TEST-3133: the aai-canonicalize row must be the retirement row"
+      continue
+    fi
     grep -qxF -- "$line" "$PROJECT_ROOT/SKILLS.md" || log_fail "TEST-3133: baseline row changed or lost: ${line:0:80}"
   done < "$TMP_ROOT/t3133.base.md"
   [[ "$n" -eq 37 ]] || log_fail "TEST-3133: the $CAT_BASE blob must hold 37 rows, found $n (suite bug)"

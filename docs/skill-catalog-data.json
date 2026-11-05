@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T00:58:45.198Z",
+  "generatedAt": "2026-11-05T12:56:17.804Z",
   "skillsCount": 42,
   "degradedCount": 27,
   "skills": [
@@ -26,7 +26,7 @@
     {
       "dir": "aai-canonicalize",
       "name": "aai-canonicalize",
-      "description": "Use when legacy files exist in unsupported directories, telemetry is still in YAML, or validation evidence is fragmented. Canonicalizes AAI repository structure.",
+      "description": "RETIRED - the aai-canonicalize skill and both migration scripts are retired (RFC-0017 phase 5), are deleted in the next release and have no replacement; invoking it explains the retirement and runs nothing.",
       "model": null,
       "promptFile": ".aai/SKILL_CANONICALIZE.prompt.md",
       "goal": null,

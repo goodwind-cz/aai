@@ -16,7 +16,6 @@
 # fails whether or not this file mentions it.
 #
 3	.aai/scripts/aai-bootstrap.sh
-1	.aai/scripts/aai-canonicalize.sh
 1	.aai/scripts/aai-live.sh
 1	.aai/scripts/aai-reap-tests.sh
 10	.aai/scripts/aai-run-tests.sh
@@ -27,7 +26,6 @@
 1	.aai/scripts/expert-fetch.sh
 1	.aai/scripts/live-spool.sh
 1	.aai/scripts/migrate-state-to-local.sh
-1	.aai/scripts/migrate-yaml-to-jsonl.sh
 1	.aai/scripts/pre-commit-checks.sh
 1	.aai/scripts/triage.sh
 1	.aai/scripts/validate-skills.sh
@@ -84,6 +82,7 @@
 3	tests/skills/test-aai-learned-append.sh
 6	tests/skills/test-aai-learned-routing.sh
 2	tests/skills/test-aai-ledger-merge.sh
+3	tests/skills/test-aai-legacy-migrations.sh
 9	tests/skills/test-aai-lightweight-lane.sh
 3	tests/skills/test-aai-live-serve.sh
 5	tests/skills/test-aai-live-status.sh
