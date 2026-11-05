@@ -1567,12 +1567,16 @@ if (mergedContract.length < 300) {
   process.exit(1);
 }
 const unmerged = rows.filter(r => r.ref_id === unmergedRef && r.amendment_class === "contract");
-if (unmerged.length === 0 || !unmerged.every(r => r.bucket === "unsigned-tracked")) {
-  console.log(`FAIL unmerged ref ${unmergedRef} must remain unsigned-tracked`);
+// No merge signs an unmerged ride; only an explicit owner classification of
+// the record itself may (the owner signed both on 2026-11-05).
+const ledgerLines = (process.argv[3] ? fs.readFileSync(process.argv[3], "utf8") : "").split("\n").filter(l => l.startsWith("{")).map(l => JSON.parse(l));
+const ownerSigned = k => ledgerLines.some(l => l.type === "spec_amendment_classification" && l.classifies_record === k && l.owner_signoff === true);
+if (unmerged.length === 0 || !unmerged.every(r => r.bucket === "unsigned-tracked" || (r.bucket === "signed" && ownerSigned(r.record_key)))) {
+  console.log(`FAIL unmerged ref ${unmergedRef} must remain unsigned-tracked unless the owner classifies it`);
   process.exit(1);
 }
 console.log(`OK ${mergedContract.length} merged contract records fold to signed, unmerged preserved`);
-' "$d/live-rows.json" "$d/live-fu.json")" || rc=$?
+' "$d/live-rows.json" "$d/live-fu.json" "$live")" || rc=$?
   [[ "$rc" -eq 0 ]] || fail TEST-026 "$verdict"
   ( cd "$ROOT" && env -u AAI_ROLE node "$SPEC_AMEND" list --strict --ledger "$live" >/dev/null 2>&1 ) || rc=$?
   [[ "$rc" -eq 0 ]] || fail TEST-026 "spec-amend list --strict over the live ledger exited $rc"
