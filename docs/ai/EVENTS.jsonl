@@ -3614,3 +3614,4 @@
 {"v":1,"ts":"2026-11-05T00:58:37Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-admit-tests-other-suites","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-05T00:58:37Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-admit-tests-other-suites","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-05T02:08:14Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"admit-tests-other-suites","payload":{"pr":529,"lane":"heavy","reviewer_bots":"expected","threads_seen":4,"threads_unresolved":0,"outcome":"swept","head_sha":"5912f0280c4db5e95d6a26af9ff816d74254b4c8"}}
+{"v":1,"ts":"2026-11-05T12:41:07Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-retire-legacy-migrations","payload":{"from":"draft","to":"implementing"}}
