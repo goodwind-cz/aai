@@ -3615,3 +3615,6 @@
 {"v":1,"ts":"2026-11-05T00:58:37Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-admit-tests-other-suites","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-05T02:08:14Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"admit-tests-other-suites","payload":{"pr":529,"lane":"heavy","reviewer_bots":"expected","threads_seen":4,"threads_unresolved":0,"outcome":"swept","head_sha":"5912f0280c4db5e95d6a26af9ff816d74254b4c8"}}
 {"v":1,"ts":"2026-11-05T12:41:07Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-retire-legacy-migrations","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-05T16:09:26Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"retire-legacy-migrations","payload":{"role":"code_review","head":"dc0a1fbb27f9b551b5de6e74d104cc38a600fbda","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-05T16:09:26Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"retire-legacy-migrations","payload":{"status":"pass","hash":"05990b4e8b06142389007ea82f331bb8ae75a04b1655c97096357a69facba3b9"}}
+{"v":1,"ts":"2026-11-05T16:14:51Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":702,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
