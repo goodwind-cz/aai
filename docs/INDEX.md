@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-retire-legacy-migrations | specs | implementing | 12 done, 5 planned | docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md |
+| spec-retire-legacy-migrations | specs | implementing | 15 done, 2 planned | docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md |
 
 ## Canonical layer (0)
 
@@ -724,7 +724,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (540)
+## Broken references (541)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1090,6 +1090,7 @@ _None._
 | tests/skills/test-aai-intake.sh | docs/rfc/DEBT-DRAFT-demo-slug.md | NOT FOUND |
 | tests/skills/test-aai-intake.sh | docs/specs/RES-DRAFT-demo.md | NOT FOUND |
 | tests/skills/test-aai-intake.sh | docs/specs/RESEARCH-DRAFT-demo-slug.md | NOT FOUND |
+| tests/skills/test-aai-legacy-migrations.sh | docs/ai/.session-context.md | NOT FOUND |
 | tests/skills/test-aai-lightweight-lane.sh | docs/a.md | NOT FOUND |
 | tests/skills/test-aai-lightweight-lane.sh | docs/b.md | NOT FOUND |
 | tests/skills/test-aai-lightweight-lane.sh | docs/c.md | NOT FOUND |

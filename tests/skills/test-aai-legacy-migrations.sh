@@ -491,6 +491,84 @@ test_3394_prune_ps1() {
   log_pass "TEST-3394: aai-sync.ps1 removes both retired wrapper copies once and keeps them from the unchanged source"
 }
 
+test_3395_downstream_install() {
+  local core="$TEST_DIR/core target" ext="$TEST_DIR/ext target" src="${AAI_LM_SYNC_SRC:-$PROJECT_ROOT}" f out rc sh tracked p so="$TEST_DIR/i.out" se="$TEST_DIR/i.err"
+  mkdir -p "$core" "$ext"
+  make_legacy "$core"
+  bash "$src/.aai/scripts/aai-sync.sh" "$core" --profile core >/dev/null 2>&1 || log_fail "TEST-3395: aai-sync.sh --profile core failed"
+  for f in migrate-state-to-local.sh migrate-state-to-local.ps1 migrate-state-to-local.mjs; do
+    [[ -f "$core/.aai/scripts/$f" ]] || log_fail "TEST-3395: the core install lacks .aai/scripts/$f"
+  done
+  git -C "$core" add -A
+  git -C "$core" commit -q -m "sync" || log_fail "TEST-3395: committing the synced target failed"
+  rc=0; ( cd "$core" && bash .aai/scripts/migrate-state-to-local.sh ) >"$so" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || { cat "$so" >&2; log_fail "TEST-3395: the target's own launcher exited $rc"; }
+  tracked="$(git -C "$core" ls-files)"
+  for f in docs/ai/STATE.yaml docs/ai/LOOP_TICKS.jsonl docs/ai/tdd/x/red.log docs/ai/loop/a.txt; do
+    if grep -qxF "$f" <<< "$tracked"; then log_fail "TEST-3395: $f is still tracked after the target's own launcher"; fi
+    [[ -f "$core/$f" ]] || log_fail "TEST-3395: $f is gone from disk"
+  done
+  grep -qxF 'docs/ai/tdd/.gitkeep' <<< "$tracked" || log_fail "TEST-3395: docs/ai/tdd/.gitkeep is no longer tracked"
+  for p in 'docs/ai/STATE.yaml' 'docs/ai/LOOP_TICKS.jsonl' 'docs/ai/tdd/**' 'docs/ai/validation/**' '!docs/ai/tdd/' '!docs/ai/tdd/.gitkeep' 'docs/ai/loop/' 'docs/ai/locks/' 'docs/ai/hitl-channel.json' 'docs/ai/briefs/**' 'docs/ai/reports/**' 'docs/ai/friction/**' 'docs/ai/archive/**' 'docs/ai/.session-context.md' 'docs/ai/.pre-compact-state-backup.yaml' 'docs/INDEX.audit.md'; do
+    grep -qxF -- "$p" "$core/.gitignore" || log_fail "TEST-3395: the target .gitignore lacks $p"
+  done
+  [[ -f "$core/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-3395: docs/ai/EVENTS.jsonl is missing"
+  git -C "$core" add .gitignore docs/ai/EVENTS.jsonl
+  git -C "$core" commit -q -m migrate || log_fail "TEST-3395: committing the migration failed"
+  [[ -z "$(git -C "$core" status --porcelain)" ]] || log_fail "TEST-3395: the target is not clean after the next-step commit"
+  bash "$src/.aai/scripts/aai-sync.sh" "$ext" --profile extended >/dev/null 2>&1 || log_fail "TEST-3395: aai-sync.sh --profile extended failed"
+  for f in aai-canonicalize migrate-yaml-to-jsonl; do
+    p="$CANON_LINE"; [[ "$f" == migrate-yaml-to-jsonl ]] && p="$YAML_LINE"
+    for sh in bash; do
+      rc=0; ( cd "$ext" && "$sh" ".aai/scripts/$f.sh" ) >"$so" 2>"$se" || rc=$?
+      [[ "$rc" == 1 && ! -s "$so" && "$(cat "$se")" == "$p" ]] || log_fail "TEST-3395: the extended target's $f.sh gave rc=$rc stderr=$(cat "$se")"
+    done
+    if need_tool TEST-3395 pwsh; then
+      rc=0; ( cd "$ext" && pwsh -NoProfile -File ".aai/scripts/$f.ps1" ) >"$so" 2>"$se" || rc=$?
+      [[ "$rc" == 1 && ! -s "$so" && "$(cat "$se")" == "$p" ]] || log_fail "TEST-3395: the extended target's $f.ps1 gave rc=$rc stderr=$(cat "$se")"
+    fi
+  done
+  log_pass "TEST-3395: a core install carries and runs the migrate-state launchers, an extended install carries the four retirement launchers"
+}
+
+test_3397_wiring() {
+  local wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" n out id base="$PROJECT_ROOT/tests/skills/lib/cd-subshell-leak-baseline.tsv"
+  n="$(awk '/^core:/{f=1;next} /^[a-z]/{f=0} f && $0=="  - .aai/scripts/migrate-state-to-local.mjs"{c++} END{print c+0}' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3397: PROFILES core lists the module $n times, expected 1"
+  env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-layer-profiles.sh" test_manifest_conformance >/dev/null 2>&1 || log_fail "TEST-3397: test-aai-layer-profiles.sh test_manifest_conformance failed"
+  for id in .aai/scripts/migrate-state-to-local.mjs .aai/SKILL_CANONICALIZE.prompt.md; do
+    out="$(printf '%s\n' "$id" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")"
+    [[ "$out" == *'SELECTED aai-legacy-migrations '* ]] || log_fail "TEST-3397: $id does not select aai-legacy-migrations: $out"
+  done
+  n="$(awk '/^  push:/{s="push"} /^  pull_request:/{s="pr"} /^  workflow_dispatch/{s=""} s!="" && $0=="      - '"'"'.aai/scripts/migrate-state-to-local.mjs'"'"'"{c[s]++} END{print c["push"]+0, c["pr"]+0}' "$wf")"
+  [[ "$n" == "1 1" ]] || log_fail "TEST-3397: the ps1-quality path lists hold the module '$n' times (push pr), expected 1 1"
+  for id in test_034 test_035 test_036; do
+    env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-win-fallback.sh" "$id" >/dev/null 2>&1 || log_fail "TEST-3397: test-aai-win-fallback.sh $id failed"
+  done
+  node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" >/dev/null 2>&1 || log_fail "TEST-3397: check-cd-subshell-leak.mjs failed"
+  if awk -F'\t' '$2 ~ /(aai-canonicalize|migrate-yaml-to-jsonl)\.sh$/ {f=1} END{exit f?0:1}' "$base"; then
+    log_fail "TEST-3397: the cd-subshell baseline still has a row for a retired launcher"
+  fi
+  log_pass "TEST-3397: PROFILES, the suite map, both ps1-quality path lists and the cd-subshell baseline are wired"
+}
+
+test_3398_diet() {
+  local ledger="${AAI_LM_LEDGER:-$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh}" n amount size want out rc=0
+  n="$(grep -c 'retire-legacy-migrations' "$ledger" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3398: $n ledger lines name retire-legacy-migrations, expected exactly 1"
+  amount="$(sed -n 's/^JUSTIFIED_ADDITIONS+=( "-\([0-9][0-9]*\) retire-legacy-migrations .*/\1/p' "$ledger")"
+  size="$(wc -c < "$CANON_PROMPT" | tr -d ' ')"
+  want=$((1950 - size))
+  [[ "$amount" == "$want" ]] || log_fail "TEST-3398: the ledger amount is -$amount, expected -$want (1950 minus $size)"
+  out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" test_010_audit_and_reduction 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "TEST-3398: test-aai-prompt-diet.sh test_010 exited $rc"; }
+  out="$out"$'\n'"$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" test_012_growth_sum_matches_ledger 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "TEST-3398: test-aai-prompt-diet.sh test_012 exited $rc"; }
+  [[ "$out" == *'headroom 0/2048'* ]] || log_fail "TEST-3398: TEST-010 headroom is not 0/2048"
+  [[ "$out" == *"JUSTIFIED_GROWTH_BYTES == $((65792 - want)) =="* ]] || log_fail "TEST-3398: the TEST-012 pin is not $((65792 - want))"
+  log_pass "TEST-3398: one negative ledger entry equal to the prompt shrink ($want B), headroom 0/2048, TEST-012 pin $((65792 - want))"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-retire-legacy-migrations TEST-3380..3400)"
   check_deps
@@ -510,7 +588,10 @@ main() {
   test_3392_no_stale_instruction
   test_3393_prune_sh
   test_3394_prune_ps1
+  test_3395_downstream_install
   test_3396_doctor_seam
+  test_3397_wiring
+  test_3398_diet
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
