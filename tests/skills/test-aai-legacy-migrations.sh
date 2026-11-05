@@ -569,6 +569,57 @@ test_3398_diet() {
   log_pass "TEST-3398: one negative ledger entry equal to the prompt shrink ($want B), headroom 0/2048, TEST-012 pin $((65792 - want))"
 }
 
+RFC17="${AAI_LM_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
+D6_SENTENCE='The fifth slice [retired the legacy migrations](../issues/CHANGE-DRAFT-retire-legacy-migrations.md): aai-canonicalize with its skill and migrate-yaml-to-jsonl became deprecation launchers for one release, and migrate-state-to-local moved to one Node module with thin launchers.'
+
+test_3399_rfc() {
+  local row n out rc=0 name
+  out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-expert-fetch.sh" test_2624_inventory_matches_tree 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 10 >&2; log_fail "TEST-3399: test_2624_inventory_matches_tree exited $rc"; }
+  n="$(grep -c '^| `migrate-state-to-local` |' "$RFC17" || true)"
+  [[ "$n" == 0 ]] || log_fail "TEST-3399: the inventory still has a migrate-state-to-local row"
+  for name in aai-canonicalize migrate-yaml-to-jsonl; do
+    row="$(grep "^| \`$name\` |" "$RFC17" || true)"
+    [[ -n "$row" ]] || log_fail "TEST-3399: the inventory has no $name row"
+    [[ "$row" == *'retire-legacy-migrations.md)'* && "$row" == *'a deprecation launcher for one release, deleted in the next'* ]] || log_fail "TEST-3399: the $name row lacks the D6 reason and link"
+    [[ "$row" == *'| later candidate |'* ]] || log_fail "TEST-3399: the $name row lost its later candidate destination"
+  done
+  row="$(grep '^| 5 | ' "$RFC17" || true)"
+  [[ "$row" == *'| in progress |'* ]] || log_fail "TEST-3399: the phase 5 row is not in progress"
+  [[ "$row" == *"$D6_SENTENCE"* ]] || log_fail "TEST-3399: the phase 5 row lacks the D6 sentence"
+  n="$(grep -cF -- "$D6_SENTENCE" "$RFC17" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3399: the D6 sentence appears $n times, expected once"
+  log_pass "TEST-3399: the RFC-0017 inventory equals the tree, the two retired rows carry the D6 reason and the phase 5 row the D6 sentence once"
+}
+
+# code_lines <file> <comment prefix: # or //>: non-blank, non-comment lines (the plan's method).
+code_lines() {
+  local g=grep
+  [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
+  "$g" -cvE "^[[:space:]]*($2|\$)" "$1" || true
+}
+
+test_3400_line_budget() {
+  local d="${AAI_LM_BUDGET_DIR:-$PROJECT_ROOT/.aai/scripts}" f n sum=0 total
+  for f in aai-canonicalize.sh aai-canonicalize.ps1 migrate-yaml-to-jsonl.sh migrate-yaml-to-jsonl.ps1; do
+    n="$(code_lines "$d/$f" '#')"
+    [[ "$n" -le 2 ]] || log_fail "TEST-3400: $f has $n code lines, expected at most 2"
+    sum=$((sum + n))
+  done
+  for f in migrate-state-to-local.sh migrate-state-to-local.ps1; do
+    n="$(code_lines "$d/$f" '#')"
+    [[ "$n" -le 10 ]] || log_fail "TEST-3400: $f has $n code lines, expected at most 10"
+    sum=$((sum + n))
+  done
+  n="$(code_lines "$d/migrate-state-to-local.mjs" '//')"
+  [[ "$n" -le 160 ]] || log_fail "TEST-3400: migrate-state-to-local.mjs has $n code lines, expected at most 160"
+  sum=$((sum + n))
+  total="$(wc -l < "$d/migrate-state-to-local.mjs" | tr -d ' ')"
+  [[ "$total" -le 200 ]] || log_fail "TEST-3400: migrate-state-to-local.mjs has $total lines, expected at most 200"
+  [[ "$sum" -le 188 ]] || log_fail "TEST-3400: the seven files hold $sum code lines, expected at most 188"
+  log_pass "TEST-3400: code lines before 893, after $sum (module $n of 160, $total lines of 200)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-retire-legacy-migrations TEST-3380..3400)"
   check_deps
@@ -592,6 +643,8 @@ main() {
   test_3396_doctor_seam
   test_3397_wiring
   test_3398_diet
+  test_3399_rfc
+  test_3400_line_budget
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
