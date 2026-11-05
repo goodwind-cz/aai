@@ -5,7 +5,7 @@ security_relevant: false
 ```yaml
 review:
   scope: origin/main...HEAD (f8297dbc...32d39fc2) on fix/admit-tests-other-suites
-  spec: docs/specs/SPEC-DRAFT-admit-tests-other-suites.md
+  spec: docs/specs/SPEC-0272-spec-admit-tests-other-suites.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -20,7 +20,7 @@ review:
   code_quality:
     verdict: fail
     findings:
-      - { rank: BLOCKING, file: docs/specs/SPEC-DRAFT-admit-tests-other-suites.md, line: 6,
+      - { rank: BLOCKING, file: docs/specs/SPEC-0272-spec-admit-tests-other-suites.md, line: 6,
           issue: "mutation_gate: v1 with six Mutation 'none' Test Plan rows and no mutation_uncomparable baseline; mutation-gate.mjs --spec exits 5 (ratchet exceeded, uncomparable=6, baseline 0)",
           failure_scenario: "close-work-item.mjs runs the real mutation-gate as a close gate and docs/ai/docs-audit.yaml:77 dials it enforce, so the close ceremony refuses this spec; present since planning (rc 5 at dc1fab50 too), not caught in r1" }
       - { rank: NON-BLOCKING, file: tests/skills/test-aai-suite-reuse.sh, line: 1396,
@@ -54,7 +54,7 @@ Dispatch note: the brief summarized the remediation content but did not pre-rate
 - The r1 review is committed as tracked evidence, which is the repo convention (435 tracked reviews). No ignored artifact was force-added (`git ls-files -ci` is empty).
 
 ## Findings and dispositions
-1. **BLOCKING** `docs/specs/SPEC-DRAFT-admit-tests-other-suites.md:6`: the mutation baseline is missing.
+1. **BLOCKING** `docs/specs/SPEC-0272-spec-admit-tests-other-suites.md:6`: the mutation baseline is missing.
    - Disposition: (a) remediate in this ride. Add `mutation_uncomparable: 6` to the frontmatter, disclose it with `spec-amend.mjs add --class measurement`, then re-run `mutation-gate --spec` and `spec-amend list --strict`.
    - Precedent: SPEC-0269 has the same shape and carries `mutation_uncomparable: 3`.
    - The hazard was introduced by this ride, so standing decision (a) applies: one more round, no question.

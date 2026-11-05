@@ -1,8 +1,8 @@
 ---
 id: admit-tests-other-suites
 type: issue
-number: null
-status: draft
+number: 109
+status: done
 links:
   pr: []
   commits: []

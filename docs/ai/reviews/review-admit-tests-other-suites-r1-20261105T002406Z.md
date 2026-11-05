@@ -5,7 +5,7 @@ security_relevant: false
 ```yaml
 review:
   scope: origin/main...HEAD (f8297dbc...dc1fab50) on fix/admit-tests-other-suites
-  spec: docs/specs/SPEC-DRAFT-admit-tests-other-suites.md
+  spec: docs/specs/SPEC-0272-spec-admit-tests-other-suites.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -38,7 +38,7 @@ review:
 ```
 
 ## Scope and spec
-Diff `origin/main...HEAD`: `tests/skills/test-aai-suite-reuse.sh` (+84/-9), the intake and spec drafts, `docs/INDEX.md` (regenerated rows for the two drafts plus the date line) and two `docs/ai/EVENTS.jsonl` lines (docs_audit, doc_lifecycle draft->implementing). No product file is touched (matches the spec's out-of-scope line). Spec read: `docs/specs/SPEC-DRAFT-admit-tests-other-suites.md` (frozen).
+Diff `origin/main...HEAD`: `tests/skills/test-aai-suite-reuse.sh` (+84/-9), the intake and spec drafts, `docs/INDEX.md` (regenerated rows for the two drafts plus the date line) and two `docs/ai/EVENTS.jsonl` lines (docs_audit, doc_lifecycle draft->implementing). No product file is touched (matches the spec's out-of-scope line). Spec read: `docs/specs/SPEC-0272-spec-admit-tests-other-suites.md` (frozen).
 
 ## AC walk
 - Spec-AC-01 compliant: TEST-3307 judges only `FIVE_INDEX_SUITES` and passes with the not-admitted line at :1059; TEST-3370 drives it with an aai-pricing-only admission.

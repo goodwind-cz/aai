@@ -3608,3 +3608,8 @@
 {"v":1,"ts":"2026-11-04T04:33:41Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"reuse-split-corpus-cases","payload":{"pr":528,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"28673f569c6da7e29b3d4388f4204b00881171c1"}}
 {"v":1,"ts":"2026-11-05T00:10:24Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":699,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-05T00:11:10Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-admit-tests-other-suites","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-05T00:55:25Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"admit-tests-other-suites","payload":{"status":"pass","hash":"6f0603053fcd69a6b19f9efe14da8afa417f9f9a00dae9e447b28cdec7bb1eb5"}}
+{"v":1,"ts":"2026-11-05T00:58:37Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"admit-tests-other-suites","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-05T00:58:37Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"admit-tests-other-suites","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-05T00:58:37Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-admit-tests-other-suites","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-05T00:58:37Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-admit-tests-other-suites","payload":{"validation":"pass","code_review":"pass"}}

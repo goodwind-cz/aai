@@ -1,11 +1,11 @@
 ---
 id: spec-admit-tests-other-suites
 type: spec
-number: null
-status: implementing
+number: 272
+status: done
 mutation_gate: v1
 mutation_uncomparable: 6
-frozen_sha256: 8f6be663332cb6620bc42c7f7b92bdcbc6adeeed311fc10862a876a2e688f112
+frozen_sha256: 2433f205e8adebc371d893b852870fe2a7a440719251190499844fba80dd4959
 ceremony_level: 1
 links:
   requirement: admit-tests-other-suites
@@ -19,7 +19,7 @@ links:
 SPEC-FROZEN: true
 
 ## Links
-- Requirement: docs/issues/ISSUE-DRAFT-admit-tests-other-suites.md
+- Requirement: docs/issues/ISSUE-0109-admit-tests-other-suites.md
 - Technology contract: docs/TECHNOLOGY.md
 - Follow-ups closed at delivery: `fu-admit-tests-red-on-other-suites` and `fu-sources-lint-escape-untested` (the delivery commit or the close ceremony appends their `follow_up_status` done lines, resolved by this ref).
 
@@ -35,7 +35,7 @@ Ceremony justification: test-only change inside one internal suite (tests/skills
 - User decision: worktree
 - Base ref: main (f8297dbc)
 - Worktree branch/path: fix/admit-tests-other-suites at /Users/ales/Projects/aai-worktrees/admit-tests-other-suites
-- Inline review scope: tests/skills/test-aai-suite-reuse.sh, docs/issues/ISSUE-DRAFT-admit-tests-other-suites.md, docs/specs/SPEC-DRAFT-admit-tests-other-suites.md, docs/ai/decisions.jsonl
+- Inline review scope: tests/skills/test-aai-suite-reuse.sh, docs/issues/ISSUE-0109-admit-tests-other-suites.md, docs/specs/SPEC-0272-spec-admit-tests-other-suites.md, docs/ai/decisions.jsonl
 - Code review required: true.
 
 ## Scope
@@ -65,10 +65,10 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---------|-------------|--------|----------|-----------|-------|
-| Spec-AC-01 | WHEN the admission output holds only suites other than the five index-reading ones, THEN TEST-3307 SHALL pass with a not-admitted line. | implementing | docs/ai/tdd/admit-tests-other-suites/red-item1.log; docs/ai/tdd/admit-tests-other-suites/green.log | — | TEST-3370 |
-| Spec-AC-02 | WHEN the admission output holds only suites other than the four split ones, THEN TEST-3337 SHALL pass with a not-admitted line. | implementing | docs/ai/tdd/admit-tests-other-suites/red-item1.log; docs/ai/tdd/admit-tests-other-suites/green.log | — | TEST-3371 |
-| Spec-AC-03 | WHEN an own suite is in the admission output as ADMIT-FAIL, or as ADMIT-PASS without its probe or with poisoned zero, THEN TEST-3307 and TEST-3337 SHALL still fail. | implementing | docs/ai/tdd/admit-tests-other-suites/red-f1.log; docs/ai/tdd/admit-tests-other-suites/green.log | — | TEST-3372 |
-| Spec-AC-04 | WHEN a sources path escapes the repo root (`../x`, `tests/../../x`), THEN lint SHALL fail with exit 1 and name `no-source-file`. | implementing | docs/ai/tdd/admit-tests-other-suites/red-item2.log; docs/ai/tdd/admit-tests-other-suites/green.log | — | TEST-3341 |
+| Spec-AC-01 | WHEN the admission output holds only suites other than the five index-reading ones, THEN TEST-3307 SHALL pass with a not-admitted line. | done | docs/ai/tdd/admit-tests-other-suites/red-item1.log; docs/ai/tdd/admit-tests-other-suites/green.log; docs/ai/reports/VALIDATION-admit-tests-other-suites-r3.md | — | TEST-3370 |
+| Spec-AC-02 | WHEN the admission output holds only suites other than the four split ones, THEN TEST-3337 SHALL pass with a not-admitted line. | done | docs/ai/tdd/admit-tests-other-suites/red-item1.log; docs/ai/tdd/admit-tests-other-suites/green.log; docs/ai/reports/VALIDATION-admit-tests-other-suites-r3.md | — | TEST-3371 |
+| Spec-AC-03 | WHEN an own suite is in the admission output as ADMIT-FAIL, or as ADMIT-PASS without its probe or with poisoned zero, THEN TEST-3307 and TEST-3337 SHALL still fail. | done | docs/ai/tdd/admit-tests-other-suites/red-f1.log; docs/ai/tdd/admit-tests-other-suites/green.log; docs/ai/reports/VALIDATION-admit-tests-other-suites-r3.md | — | TEST-3372 |
+| Spec-AC-04 | WHEN a sources path escapes the repo root (`../x`, `tests/../../x`), THEN lint SHALL fail with exit 1 and name `no-source-file`. | done | docs/ai/tdd/admit-tests-other-suites/red-item2.log; docs/ai/tdd/admit-tests-other-suites/green.log; docs/ai/reports/VALIDATION-admit-tests-other-suites-r3.md | — | TEST-3341 |
 
 ## Implementation plan
 Write TEST-3370..3372 and the TEST-3341 extension, observe RED (item 1 on a branch that changes only another manifest suite; item 2 against a scratch `suite-reuse.mjs` without the `..` check), apply the two test-body edits, observe GREEN, run the full suite and `bash -n`.
