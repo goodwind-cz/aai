@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-retire-legacy-migrations | specs | implementing | 17 planned | docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md |
+| spec-retire-legacy-migrations | specs | implementing | 3 done, 14 planned | docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md |
 
 ## Canonical layer (0)
 
@@ -724,7 +724,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (539)
+## Broken references (541)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -735,12 +735,14 @@ _None._
 | .aai/scripts/generate-overview.mjs | docs/issues/team/foo.md | NOT FOUND |
 | .aai/scripts/generate-userguide-rollup.mjs | docs/specs/SPEC-1.md | NOT FOUND |
 | .aai/scripts/lib/repo-tripwire.sh | docs/other.md | NOT FOUND |
+| .aai/scripts/migrate-state-to-local.mjs | docs/ai/.session-context.md | NOT FOUND |
 | .aai/scripts/migrate-state-to-local.ps1 | docs/ai/.session-context.md | NOT FOUND |
 | .aai/scripts/spec-lint.mjs | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-0001-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
+| tests/skills/lib/migrate-state-to-local.test.mjs | docs/ai/.session-context.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-variants/V2-PLANNING.md | NOT FOUND |
 | tests/skills/lib/recheck-measure.mjs | docs/ai/reports/VALIDATION-1.md | NOT FOUND |
