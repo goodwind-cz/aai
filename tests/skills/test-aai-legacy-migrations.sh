@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-legacy-migrations
-# (docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md, TEST-3380..3401)
+# (docs/specs/SPEC-DRAFT-spec-retire-legacy-migrations.md, TEST-3380..3402)
 #
 # The legacy-migration retirement: migrate-state-to-local is one Node module
 # (.aai/scripts/migrate-state-to-local.mjs) behind thin launchers, and
@@ -209,6 +209,11 @@ test_3387_sh_launcher_e2e() {
 test_3383_hostile_names() {
   run_node_tests TEST-3383
   log_pass "TEST-3383: hostile tracked names are untracked literally, run no command and keep .gitkeep tracked"
+}
+
+test_3402_refused_name() {
+  run_node_tests TEST-3402
+  log_pass "TEST-3402: a name git refuses to remove (git~1, non-UTF-8) exits 1 with the index unchanged and no untracked claim"
 }
 
 test_3384_rm_failure() {
@@ -626,7 +631,7 @@ test_3401_subdir_target() {
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC spec-retire-legacy-migrations TEST-3380..3401)"
+  echo "Testing $TEST_NAME (SPEC spec-retire-legacy-migrations TEST-3380..3402)"
   check_deps
   setup_fixture
   test_3380_pure
@@ -651,6 +656,7 @@ main() {
   test_3399_rfc
   test_3400_line_budget
   test_3401_subdir_target
+  test_3402_refused_name
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -250,7 +250,7 @@ test('TEST-3383 hostile tracked names are untracked literally and run no command
   git(d, 'config', 'user.name', 'fixture');
   git(d, 'config', 'commit.gpgsign', 'false');
   const names = ['docs/ai/tdd/x/$(touch PWNED).log', 'docs/ai/tdd/x/say "hi".log', 'docs/ai/tdd/x/back`tick`.log',
-    'docs/ai/tdd/x/caf\u00e9.log', 'docs/ai/tdd/*'];
+    'docs/ai/tdd/x/caf\u00e9.log', 'docs/ai/tdd/*', 'docs/ai/tdd/x/line\nbreak.log'];
   for (const f of ['docs/ai/STATE.yaml', 'docs/ai/tdd/.gitkeep', ...names]) put(d, f);
   git(d, 'add', '-A');
   git(d, 'commit', '-q', '-m', 'hostile');
@@ -279,6 +279,39 @@ test('TEST-3384 a failing git rm stops before any other write', () => {
   assert.equal(fs.existsSync(path.join(d, 'docs/ai/EVENTS.jsonl')), false);
   fs.rmSync(path.join(d, '.git', 'index.lock'));
   assert.equal(git(d, 'ls-files', '-s'), index);
+});
+
+// ---------------------------------------------------------------- TEST-3402
+// git update-index --force-remove exits 0 but skips names git refuses (an NTFS short name such
+// as git~1) and names that are not UTF-8; the module must notice, refuse and leave the index alone.
+function assertRefused(d) {
+  const index = git(d, 'ls-files', '-s');
+  const gi = fs.readFileSync(path.join(d, '.gitignore'));
+  const r = cli([d]);
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(r.stderr.startsWith('ERROR: git could not untrack 1 path'), r.stderr);
+  assert.equal(r.stdout.includes('Files untracked'), false, r.stdout);
+  assert.ok(fs.readFileSync(path.join(d, '.gitignore')).equals(gi));
+  assert.equal(fs.existsSync(path.join(d, 'docs/ai/EVENTS.jsonl')), false);
+  assert.equal(git(d, 'ls-files', '-s'), index);
+}
+test('TEST-3402 a name git refuses to remove stops the run with the index unchanged', () => {
+  const d = legacy('ntfs');
+  put(d, 'docs/ai/tdd/git~1/a.log');
+  git(d, '-c', 'core.protectNTFS=false', 'add', '-f', '--', 'docs/ai/tdd/git~1/a.log');
+  git(d, 'commit', '-q', '-m', 'refused name');
+  assertRefused(d);
+});
+test('TEST-3402 a non-UTF-8 name stops the run with the index unchanged', (t) => {
+  const d = legacy('latin1');
+  const file = Buffer.concat([Buffer.from(`${d}/docs/ai/tdd/bad`), Buffer.from([0xff]), Buffer.from('n.log')]);
+  try { fs.writeFileSync(file, 'x\n'); } catch (e) {
+    console.log(`SKIP-CASE TEST-3402 non-UTF-8 name: this filesystem refuses it (${e.code})`);
+    return t.skip('filesystem refuses non-UTF-8 names');
+  }
+  git(d, 'add', '-A');
+  git(d, 'commit', '-q', '-m', 'latin1');
+  assertRefused(d);
 });
 
 // ---------------------------------------------------------------- TEST-3401
