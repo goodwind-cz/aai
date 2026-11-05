@@ -682,7 +682,10 @@ test_3012_pr501_amendments_signed() {
       if (!it || it.status !== "done") problems.push("tracker " + t + " reads " + (it ? it.status : "absent"));
     }
     const routing = amend.items.filter((i) => i.ref_id === "routing-tables-have-an-owner-and-a-seam");
-    if (routing.length !== 2 || routing.some((i) => i.bucket !== "unsigned-tracked")) problems.push("the two routing-tables records must stay unsigned-tracked (found " + routing.length + ")");
+    // Untouched by the #501 sign-off: still unsigned, or signed later by an
+    // explicit owner classification of that record (2026-11-05 review).
+    const ownerSigned = (k) => lines.some((l) => l.type === "spec_amendment_classification" && l.classifies_record === k && l.owner_signoff === true && !/PR #501/.test(String(l.source || "")));
+    if (routing.length !== 2 || routing.some((i) => !(i.bucket === "unsigned-tracked" || (i.bucket === "signed" && ownerSigned(i.record_key))))) problems.push("the two routing-tables records must stay unsigned-tracked unless an owner classification outside #501 signs them (found " + routing.length + ")");
     process.stdout.write(problems.join("; "));
   ' "$TMP_ROOT/amend-list.json" "$TMP_ROOT/fu-list.json" "$LEDGER" "$(IFS=,; echo "${keys[*]}")" "$(IFS=,; echo "${trackers[*]}")")" \
     || log_fail "TEST-3012: the ledger reader crashed"
