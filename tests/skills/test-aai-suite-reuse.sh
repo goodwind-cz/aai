@@ -1056,6 +1056,10 @@ test_3307_live_appended_probes() {
     fi
   done
   # A branch that changed only other manifest suites admits none of these five: nothing here to judge.
+  if [[ "$n" -eq 0 ]]; then
+    # Not admitted is only true of an admission that ran: a crash or lint refusal prints no verdict line and must not pass here.
+    [[ $'\n'"$LIVE_ADMIT_OUT" =~ $'\n'ADMIT-(PASS|FAIL)\  ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" >&2; log_fail "TEST-3307: the admission printed no verdict line"; }
+  fi
   if [[ "$n" -eq 0 ]]; then log_pass "TEST-3307 (none of the five index-reading suites is admitted on this branch; not admitted on this branch, nothing to judge)"; return 0; fi
   log_pass "TEST-3307 ($n live index-reading suites admitted with the appended probe)"
 }
@@ -1339,6 +1343,10 @@ test_3337_split_admission() {
     esac
   done
   # A branch that changed only other manifest suites admits none of these four: nothing here to judge.
+  if [[ "$n" -eq 0 ]]; then
+    # Not admitted is only true of an admission that ran: a crash or lint refusal prints no verdict line and must not pass here.
+    [[ $'\n'"$LIVE_ADMIT_OUT" =~ $'\n'ADMIT-(PASS|FAIL)\  ]] || { printf '%s\n' "$LIVE_ADMIT_OUT" >&2; log_fail "TEST-3337: the admission printed no verdict line"; }
+  fi
   if [[ "$n" -eq 0 ]]; then log_pass "TEST-3337 (none of the four split suites is admitted on this branch; not admitted on this branch, nothing to judge)"; return 0; fi
   log_pass "TEST-3337 ($n admitted split suites: fixture halves with poisoned above zero, corpus halves with the appended probe)"
 }
@@ -1374,16 +1382,18 @@ test_3371_split_test_other_suites_only() {
 
 # test_3372: an own suite that was admitted is still judged by both tests, next to an admitted other suite.
 test_3372_own_suite_still_judged() {
-  local t fn own bad_noprobe good
+  local t fn own bad_noprobe good noprobe_msg
   for t in 3307 3337; do
     if [[ "$t" == 3307 ]]; then
       fn=test_3307_live_appended_probes; own=aai-docs-content
       bad_noprobe="ADMIT-PASS $own 1.0s reads=1 poisoned=0"
+      noprobe_msg="expected output to contain: ADMIT-PROBE $own"
       good="ADMIT-PROBE $own appended docs/ai/tests/test-runs.jsonl PASS
 ADMIT-PASS $own 1.0s reads=1 poisoned=0"
     else
       fn=test_3337_split_admission; own=aai-hygiene-pack
       bad_noprobe="ADMIT-PASS $own 1.0s reads=1 poisoned=0"
+      noprobe_msg="poisoned=0"
       good="ADMIT-PASS $own 1.0s reads=1 poisoned=7"
     fi
     judge_admission "$fn" "$OTHER_ONLY_ADMISSION
@@ -1393,12 +1403,25 @@ ADMIT-FAIL $own 1.0s appended-ledger run failed"
     judge_admission "$fn" "$OTHER_ONLY_ADMISSION
 $bad_noprobe"
     [[ "$JRC" -ne 0 ]] || log_fail "TEST-3372: TEST-$t must fail when its admitted suite $own lacks its probe or poisoned count"
+    expect "TEST-3372 $t" "$JOUT" "$noprobe_msg"
+    # An admission that printed no verdict line (a crash, a lint refusal) is not "not admitted": it fails.
+    judge_admission "$fn" "node: crashed before admission"
+    [[ "$JRC" -ne 0 ]] || log_fail "TEST-3372: TEST-$t must fail when the admission printed no verdict line"
+    expect "TEST-3372 $t" "$JOUT" "printed no verdict line"
+    # ADMIT-OFF is still a pass.
+    judge_admission "$fn" "ADMIT-OFF ci"
+    [[ "$JRC" -eq 0 ]] || { printf '%s\n' "$JOUT" >&2; log_fail "TEST-3372: TEST-$t must pass under ADMIT-OFF, exited $JRC"; }
     judge_admission "$fn" "$OTHER_ONLY_ADMISSION
 $good"
     [[ "$JRC" -eq 0 ]] || { printf '%s\n' "$JOUT" >&2; log_fail "TEST-3372: TEST-$t must pass for a well-admitted own suite next to another suite, exited $JRC"; }
     expect_not "TEST-3372 $t" "$JOUT" "not admitted on this branch"
   done
-  log_pass "TEST-3372 (an own suite's ADMIT-FAIL, missing probe and zero poisoned still fail both tests; a good admission passes beside another suite)"
+  # A corpus half admitted without its appended probe fails TEST-3337.
+  judge_admission test_3337_split_admission "$OTHER_ONLY_ADMISSION
+ADMIT-PASS aai-hygiene-corpus 1.0s reads=1 poisoned=0"
+  [[ "$JRC" -ne 0 ]] || log_fail "TEST-3372: TEST-3337 must fail when a corpus half is admitted without its probe"
+  expect "TEST-3372 3337 corpus" "$JOUT" "ADMIT-PROBE aai-hygiene-corpus"
+  log_pass "TEST-3372 (an own suite's ADMIT-FAIL, missing probe and zero poisoned still fail both tests; a good admission passes beside another suite; a no-verdict output fails, ADMIT-OFF passes)"
 }
 
 # ---- reuse-split-corpus-cases (TEST-3330, TEST-3339): the case inventory and the before/after measurement in the analysis note ----

@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 90aa07f21c0591c7c97a5a1638b60fdff9f936fcec81a1b26fb13d921d803631
+frozen_sha256: 8f6be663332cb6620bc42c7f7b92bdcbc6adeeed311fc10862a876a2e688f112
 ceremony_level: 1
 links:
   requirement: admit-tests-other-suites
@@ -53,7 +53,7 @@ Out of scope: the admission itself, the manifest, every other suite.
 |-------------|---------|--------------|-------------------------|
 | Expected: TEST-3307 judges only the five index-reading suites | Spec-AC-01 | `env -u AAI_ROLE bash tests/skills/test-aai-suite-reuse.sh test_3370_probe_test_other_suites_only` | exit 0; a synthetic admission holding only `aai-pricing` passes TEST-3307 with a not-admitted line |
 | Expected: TEST-3337 judges only the four split suites | Spec-AC-02 | `env -u AAI_ROLE bash tests/skills/test-aai-suite-reuse.sh test_3371_split_test_other_suites_only` | exit 0; the same input passes TEST-3337 with a not-admitted line |
-| Expected: an admitted own suite is still judged | Spec-AC-03 | `env -u AAI_ROLE bash tests/skills/test-aai-suite-reuse.sh test_3372_own_suite_still_judged` | exit 0; an ADMIT-FAIL of an own suite, and an admitted own suite without its probe, still fail both tests |
+| Expected: an admitted own suite is still judged | Spec-AC-03 | `env -u AAI_ROLE bash tests/skills/test-aai-suite-reuse.sh test_3372_own_suite_still_judged` | exit 0; an ADMIT-FAIL of an own suite, an admitted own suite or corpus half without its probe, and an admission output with no ADMIT-PASS or ADMIT-FAIL line (a crash, a lint refusal) still fail both tests; ADMIT-OFF still passes |
 | Expected: lint covers the escaping sources path | Spec-AC-04 | `env -u AAI_ROLE bash tests/skills/test-aai-suite-reuse.sh test_3341_sources_lint` | exit 0; `../x` and `tests/../../x` fail lint with exit 1 |
 
 ## Constitution deviations
@@ -66,7 +66,7 @@ None.
 |---------|-------------|--------|----------|-----------|-------|
 | Spec-AC-01 | WHEN the admission output holds only suites other than the five index-reading ones, THEN TEST-3307 SHALL pass with a not-admitted line. | implementing | docs/ai/tdd/admit-tests-other-suites/red-item1.log; docs/ai/tdd/admit-tests-other-suites/green.log | — | TEST-3370 |
 | Spec-AC-02 | WHEN the admission output holds only suites other than the four split ones, THEN TEST-3337 SHALL pass with a not-admitted line. | implementing | docs/ai/tdd/admit-tests-other-suites/red-item1.log; docs/ai/tdd/admit-tests-other-suites/green.log | — | TEST-3371 |
-| Spec-AC-03 | WHEN an own suite is in the admission output as ADMIT-FAIL, or as ADMIT-PASS without its probe or with poisoned zero, THEN TEST-3307 and TEST-3337 SHALL still fail. | implementing | docs/ai/tdd/admit-tests-other-suites/green.log | — | TEST-3372 |
+| Spec-AC-03 | WHEN an own suite is in the admission output as ADMIT-FAIL, or as ADMIT-PASS without its probe or with poisoned zero, THEN TEST-3307 and TEST-3337 SHALL still fail. | implementing | docs/ai/tdd/admit-tests-other-suites/red-f1.log; docs/ai/tdd/admit-tests-other-suites/green.log | — | TEST-3372 |
 | Spec-AC-04 | WHEN a sources path escapes the repo root (`../x`, `tests/../../x`), THEN lint SHALL fail with exit 1 and name `no-source-file`. | implementing | docs/ai/tdd/admit-tests-other-suites/red-item2.log; docs/ai/tdd/admit-tests-other-suites/green.log | — | TEST-3341 |
 
 ## Implementation plan
