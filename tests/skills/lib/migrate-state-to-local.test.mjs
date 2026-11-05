@@ -286,6 +286,9 @@ test('TEST-3384 a failing git rm stops before any other write', () => {
 // as git~1) and names that are not UTF-8; the module must notice, refuse and leave the index alone.
 function assertRefused(d) {
   const index = git(d, 'ls-files', '-s');
+  const tags = git(d, 'ls-files', '-v');
+  const indexFile = path.resolve(d, git(d, 'rev-parse', '--git-path', 'index').trim());
+  const bytes = fs.readFileSync(indexFile);
   const gi = fs.readFileSync(path.join(d, '.gitignore'));
   const r = cli([d]);
   assert.equal(r.status, 1, r.stdout);
@@ -294,6 +297,8 @@ function assertRefused(d) {
   assert.ok(fs.readFileSync(path.join(d, '.gitignore')).equals(gi));
   assert.equal(fs.existsSync(path.join(d, 'docs/ai/EVENTS.jsonl')), false);
   assert.equal(git(d, 'ls-files', '-s'), index);
+  assert.equal(git(d, 'ls-files', '-v'), tags);
+  assert.ok(fs.readFileSync(indexFile).equals(bytes), 'the index file changed');
 }
 test('TEST-3402 a name git refuses to remove stops the run with the index unchanged', () => {
   const d = legacy('ntfs');
@@ -301,6 +306,19 @@ test('TEST-3402 a name git refuses to remove stops the run with the index unchan
   git(d, '-c', 'core.protectNTFS=false', 'add', '-f', '--', 'docs/ai/tdd/git~1/a.log');
   git(d, 'commit', '-q', '-m', 'refused name');
   assertRefused(d);
+});
+test('TEST-3402 skip-worktree and assume-unchanged bits survive the refusal', () => {
+  const d = legacy('flags');
+  put(d, 'docs/ai/tdd/git~1/a.log');
+  git(d, '-c', 'core.protectNTFS=false', 'add', '-f', '--', 'docs/ai/tdd/git~1/a.log');
+  git(d, 'commit', '-q', '-m', 'refused name');
+  git(d, 'update-index', '--skip-worktree', 'docs/ai/STATE.yaml');
+  git(d, 'update-index', '--assume-unchanged', 'docs/ai/tdd/x/red.log');
+  fs.writeFileSync(path.join(d, 'docs/ai/STATE.yaml'), 'local edit\n');
+  fs.writeFileSync(path.join(d, 'docs/ai/tdd/x/red.log'), 'local edit\n');
+  assert.equal(git(d, 'status', '--porcelain'), '');
+  assertRefused(d);
+  assert.equal(git(d, 'status', '--porcelain'), '');
 });
 test('TEST-3402 a non-UTF-8 name stops the run with the index unchanged', (t) => {
   const d = legacy('latin1');

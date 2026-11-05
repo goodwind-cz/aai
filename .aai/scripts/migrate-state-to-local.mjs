@@ -111,14 +111,14 @@ export function run(opts, deps) {
     if (inEvidence && !f.endsWith('/.gitkeep')) untrack(f, 'runtime evidence; file remains on disk');
   }
   if (!dry && toRemove.length > 0) {
-    const rm = g(RM_ARGS, toRemove.join('\0'));
+    const ix = path.resolve(target, g(['rev-parse', '--git-path', 'index']).stdout.trim()); const saved = dfs.readFileSync(ix); const rm = g(RM_ARGS, toRemove.join('\0'));
     if (rm.status !== 0) {
       const first = String(rm.stderr || '').split('\n').find((l) => l.trim() !== '') || '';
       err(`ERROR: git rm --cached failed (exit ${rm.status}): ${first}`);
       return 1;
     }
     const left = g(['ls-files', '-z', '--', ...UNTRACK_FILES, ...EVIDENCE_DIRS]).stdout.split('\0').filter((f) => toRemove.includes(f));
-    if (left.length > 0) { g(['reset', '-q']); err(`ERROR: git could not untrack ${left.length} path(s) it refuses to remove (for example a git~1 or non-UTF-8 name); the index is unchanged.`); return 1; }
+    if (left.length > 0) { dfs.writeFileSync(ix, saved); err(`ERROR: git could not untrack ${left.length} path(s) it refuses to remove (for example a git~1 or non-UTF-8 name); the index is unchanged.`); return 1; }
   }
 
   const giPath = path.join(target, '.gitignore');
