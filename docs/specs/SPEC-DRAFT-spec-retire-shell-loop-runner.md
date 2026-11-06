@@ -3,7 +3,7 @@ id: spec-retire-shell-loop-runner
 type: spec
 number: null
 status: implementing
-frozen_sha256: 624c2c431145ede21dd53ce9397397daf66c438990e8998ae16ba53099661aa0
+frozen_sha256: 8b0293622214bc719280e141644b9c63cf18ee1f89c20a29b95c5889eb74072c
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -142,6 +142,15 @@ TEST-3409 runs `test_single_state_creator` of `test-aai-check-state.sh` by
 sourcing it and TEST-3411 runs `test_manifest_conformance` of
 `test-aai-layer-profiles.sh`; both whole suites stay in the Verification list
 and `aai-check-state` is core.
+TEST-3410 likewise sources only `test_010_audit_and_reduction` and
+`test_012_growth_sum_matches_ledger` of `test-aai-prompt-diet.sh` (the whole
+suite stays in Verification). The TEST-012 pin move 64288 to 64221 also moves
+two companion pins that the original scope did not name:
+`tests/skills/test-aai-pr-preflight.sh` (TEST-008 expected sum gains the -67
+entry) and `tests/skills/test-aai-legacy-migrations.sh` (TEST-3398 derives its
+pin from the ledger entries after its own). TEST-3410 derives its pin the same
+way, and `tests/skills/suite-map.yaml` maps the prompt-diet ledger and suite to
+the four suites that pin its sum.
 
 Downstream and shipped invocation sweep: no shipped hook (`hooks/*`,
 `.aai/templates/hooks/*`), launcher, routine (`.aai/routines/SCRYER.routine.md`),

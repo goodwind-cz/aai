@@ -570,8 +570,10 @@ test_3398_diet() {
   out="$out"$'\n'"$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" test_012_growth_sum_matches_ledger 2>&1)" || rc=$?
   [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "TEST-3398: test-aai-prompt-diet.sh test_012 exited $rc"; }
   [[ "$out" == *'headroom 0/2048'* ]] || log_fail "TEST-3398: TEST-010 headroom is not 0/2048"
-  [[ "$out" == *"JUSTIFIED_GROWTH_BYTES == $((65792 - want)) =="* ]] || log_fail "TEST-3398: the TEST-012 pin is not $((65792 - want))"
-  log_pass "TEST-3398: one negative ledger entry equal to the prompt shrink ($want B), headroom 0/2048, TEST-012 pin $((65792 - want))"
+  later="$(awk -v pat='retire-legacy-migrations' 'index($0,pat){f=1;next} f && /^JUSTIFIED_ADDITIONS\+=\( "-?[0-9]+ /{s=$0; sub(/^JUSTIFIED_ADDITIONS\+=\( "/,"",s); sub(/ .*/,"",s); t+=s} END{print t+0}' "$ledger")"
+  pin=$((65792 - want + later))
+  [[ "$out" == *"JUSTIFIED_GROWTH_BYTES == $pin =="* ]] || log_fail "TEST-3398: the TEST-012 pin is not $pin"
+  log_pass "TEST-3398: one negative ledger entry equal to the prompt shrink ($want B), headroom 0/2048, TEST-012 pin $pin (65792 - $want plus $later from later entries)"
 }
 
 RFC17="${AAI_LM_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
