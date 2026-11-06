@@ -558,7 +558,7 @@ test_3397_wiring() {
 }
 
 test_3398_diet() {
-  local ledger="${AAI_LM_LEDGER:-$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh}" n amount size want out rc=0
+  local ledger="${AAI_LM_LEDGER:-$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh}" n amount size want out later pin rc=0
   n="$(grep -c 'retire-legacy-migrations' "$ledger" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3398: $n ledger lines name retire-legacy-migrations, expected exactly 1"
   amount="$(sed -n 's/^JUSTIFIED_ADDITIONS+=( "-\([0-9][0-9]*\) retire-legacy-migrations .*/\1/p' "$ledger")"

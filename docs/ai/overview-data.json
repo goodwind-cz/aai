@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T13:07:51.197Z",
+  "generatedAt": "2026-11-06T13:23:02.895Z",
   "project": "aai",
   "counts": {
     "delivered": 344,
@@ -245,7 +245,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0274-spec-retire-shell-loop-runner.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-20261106T120846Z-retire-shell-loop-runner.md"
     },
     {
       "ref": "retire-legacy-migrations",
@@ -4744,7 +4744,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0274-spec-retire-shell-loop-runner.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-20261106T120846Z-retire-shell-loop-runner.md"
         },
         {
           "ref": "retire-legacy-migrations",

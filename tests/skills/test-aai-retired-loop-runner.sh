@@ -269,7 +269,7 @@ test_3409_state_creator_pin() {
 }
 
 test_3410_diet() {
-  local ledger="${AAI_RLR_LEDGER:-$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh}" n amount size want out rc=0
+  local ledger="${AAI_RLR_LEDGER:-$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh}" n amount size want out later pin rc=0
   n="$(grep -c 'retire-shell-loop-runner' "$ledger" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3410: $n ledger lines name retire-shell-loop-runner, expected exactly 1"
   amount="$(sed -n 's/^JUSTIFIED_ADDITIONS+=( "\(-[0-9][0-9]*\) retire-shell-loop-runner RECLAIMED .*/\1/p' "$ledger")"
