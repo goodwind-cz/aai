@@ -3,7 +3,7 @@ id: spec-retire-shell-loop-runner
 type: spec
 number: null
 status: implementing
-frozen_sha256: 93cdaad11a733290e4e510f44ea2514875fcc3c2cb84cd393cd884535220ecbd
+frozen_sha256: 624c2c431145ede21dd53ce9397397daf66c438990e8998ae16ba53099661aa0
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -129,6 +129,19 @@ Test pins:
 Not wired: no suite-map row, no ps1-quality path entry (its
 `.aai/scripts/**.ps1` glob already covers the `.ps1`), no cd-subshell-leak
 baseline row, no PSScriptAnalyzer exception names the runner.
+
+Added at implementation (additive, contract amendment): the sentence above is
+true of the two launchers and false of the new suite. Its `file_listing` helper
+holds three `cd` inside a substitution, so
+`tests/skills/lib/cd-subshell-leak-baseline.tsv` gains the row
+`3 tests/skills/test-aai-retired-loop-runner.sh` (UNSAFE 0, recorded with
+`check-cd-subshell-leak.mjs --record`), and `tests/skills/test-aai-hygiene-pack.sh`
+moves its suite-map row-count pins from 126 to 127. The nested-suite lint
+(allowlist pinned at 5 rows) refuses a suite that runs another whole suite, so
+TEST-3409 runs `test_single_state_creator` of `test-aai-check-state.sh` by
+sourcing it and TEST-3411 runs `test_manifest_conformance` of
+`test-aai-layer-profiles.sh`; both whole suites stay in the Verification list
+and `aai-check-state` is core.
 
 Downstream and shipped invocation sweep: no shipped hook (`hooks/*`,
 `.aai/templates/hooks/*`), launcher, routine (`.aai/routines/SCRYER.routine.md`),

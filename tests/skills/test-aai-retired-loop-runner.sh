@@ -257,8 +257,8 @@ test_3409_state_creator_pin() {
   for tok in autonomous-loop.sh autonomous-loop.ps1 STATE_TEMPLATE STATE.yaml check-state; do
     [[ "$body" == *"$tok"* ]] || log_fail "TEST-3409: test_single_state_creator does not name $tok"
   done
-  out="$(env -u AAI_ROLE bash "$suite" 2>&1)" || rc=$?
-  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "TEST-3409: test-aai-check-state.sh exited $rc"; }
+  out="$(env -u AAI_ROLE bash -c 'source "$1"; test_single_state_creator' _ "$suite" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "TEST-3409: test_single_state_creator exited $rc on the tree"; }
   mkdir -p "$scratch/.aai/scripts"
   cp "$SH_LAUNCHER" "$scratch/.aai/scripts/autonomous-loop.sh"
   { cat "$PS1_LAUNCHER"; echo '# docs/ai/STATE.yaml'; } > "$scratch/.aai/scripts/autonomous-loop.ps1"
@@ -294,7 +294,7 @@ test_3411_wiring() {
     n="$(awk '/^core:/{f=1;next} /^[a-z]/{f=0} f && $0=="  - '"$f"'"{c++} END{print c+0}' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")"
     [[ "$n" == 1 ]] || log_fail "TEST-3411: PROFILES core lists $f $n times, expected 1"
   done
-  env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-layer-profiles.sh" >/dev/null 2>&1 || log_fail "TEST-3411: test-aai-layer-profiles.sh failed"
+  env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-layer-profiles.sh" test_manifest_conformance >/dev/null 2>&1 || log_fail "TEST-3411: test-aai-layer-profiles.sh test_manifest_conformance failed"
   n="$(awk '/^  push:/{s="push"} /^  pull_request:/{s="pr"} /^  workflow_dispatch/{s=""} s!="" && $0=="      - '"'"'.aai/scripts/**.ps1'"'"'"{a[s]++} s!="" && $0=="      - '"'"'tests/skills/*.Tests.ps1'"'"'"{b[s]++} END{print a["push"]+0, a["pr"]+0, b["push"]+0, b["pr"]+0}' "$wf")"
   [[ "$n" == "1 1 1 1" ]] || log_fail "TEST-3411: the ps1-quality path lists hold the ps1 globs '$n' times (script push, script pr, tests push, tests pr), expected 1 1 1 1"
   log_pass "TEST-3411: both launchers select the suite, sit once under core, layer-profiles passes and both ps1-quality path lists keep their globs"
