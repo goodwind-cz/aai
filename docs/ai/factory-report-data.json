@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-11-06T22:46:48.250Z",
+  "generatedAt": "2026-11-06T22:50:34.617Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 205,
+    "rides": 206,
     "delivered": 630,
     "active_weeks": 19,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (630 closes vs 205 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "note": "\"delivered\" counts every work_item_closed event (630 closes vs 206 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
     "delivered_total": 630,
     "delivered_per_week_avg": 33.2,
     "delivered_by_week": {
@@ -3223,30 +3223,30 @@
         },
         {
           "ref": "singleton-reservation-portability",
-          "lead_time_seconds": null
+          "lead_time_seconds": 19634
         },
         {
           "ref": "spec-singleton-reservation-portability",
           "lead_time_seconds": null
         }
       ],
-      "median_seconds": 6198,
-      "mean_seconds": 89748.5,
-      "measured": 201,
-      "unmeasurable": 429
+      "median_seconds": 6306,
+      "mean_seconds": 89401.4,
+      "measured": 202,
+      "unmeasurable": 428
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 3605,
-      "mean": 9385.4,
-      "measured": 203
+      "median": 3629,
+      "mean": 9378.2,
+      "measured": 204
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 437686,
-        "tokens": 24380372
+        "duration_seconds": 439392,
+        "tokens": 37036440
       },
       {
         "role": "Implementation",
@@ -3255,23 +3255,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 201259,
-        "tokens": 13288236
+        "duration_seconds": 201366,
+        "tokens": 13564238
       },
       {
         "role": "Remediation",
-        "duration_seconds": 374290,
-        "tokens": 14077663
+        "duration_seconds": 375099,
+        "tokens": 35320615
       },
       {
         "role": "Validation",
-        "duration_seconds": 635728,
-        "tokens": 19293851
+        "duration_seconds": 640769,
+        "tokens": 58621541
       },
       {
         "role": "Planning",
-        "duration_seconds": 140833,
-        "tokens": 12401647
+        "duration_seconds": 141074,
+        "tokens": 14154925
       },
       {
         "role": "Other",
@@ -4304,6 +4304,11 @@
         "ref": "retire-legacy-migrations",
         "busy_seconds": 18495,
         "remediation_runs": 3
+      },
+      {
+        "ref": "singleton-reservation-portability",
+        "busy_seconds": 7904,
+        "remediation_runs": 1
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -4313,15 +4318,15 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 546404,
-      "mean": 852917,
-      "measured": 101
+      "median": 553061,
+      "mean": 1582358.9,
+      "measured": 102
     },
-    "tokens_total": 86144616,
+    "tokens_total": 161400606,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 24380372
+        "tokens": 37036440
       },
       {
         "role": "Implementation",
@@ -4329,19 +4334,19 @@
       },
       {
         "role": "Code Review",
-        "tokens": 13288236
+        "tokens": 13564238
       },
       {
         "role": "Remediation",
-        "tokens": 14077663
+        "tokens": 35320615
       },
       {
         "role": "Validation",
-        "tokens": 19293851
+        "tokens": 58621541
       },
       {
         "role": "Planning",
-        "tokens": 12401647
+        "tokens": 14154925
       },
       {
         "role": "Other",
@@ -4349,8 +4354,8 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 521,
-      "total_runs": 1388,
+      "runs_with_marker": 527,
+      "total_runs": 1394,
       "pct": 38,
       "by_week": [
         {
@@ -4463,9 +4468,9 @@
         },
         {
           "week": "2026-W45",
-          "runs_with_marker": 0,
-          "total_runs": 69,
-          "pct": 0
+          "runs_with_marker": 6,
+          "total_runs": 75,
+          "pct": 8
         }
       ]
     },
@@ -4473,13 +4478,13 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 223,
-          "runs_marked": 100,
+          "runs_total": 224,
+          "runs_marked": 101,
           "runs_sentinel": 4,
           "runs_unmarked": 119,
-          "tokens_total": 24380372,
-          "median_tokens_per_run": 224435,
-          "share_pct": 28
+          "tokens_total": 37036440,
+          "median_tokens_per_run": 224825,
+          "share_pct": 23
         },
         {
           "role": "Implementation",
@@ -4489,47 +4494,47 @@
           "runs_unmarked": 50,
           "tokens_total": 2702847,
           "median_tokens_per_run": 240268,
-          "share_pct": 3
+          "share_pct": 2
         },
         {
           "role": "Code Review",
-          "runs_total": 280,
-          "runs_marked": 118,
+          "runs_total": 281,
+          "runs_marked": 119,
           "runs_sentinel": 18,
           "runs_unmarked": 144,
-          "tokens_total": 13288236,
-          "median_tokens_per_run": 106105,
-          "share_pct": 15
+          "tokens_total": 13564238,
+          "median_tokens_per_run": 106203,
+          "share_pct": 8
         },
         {
           "role": "Remediation",
-          "runs_total": 242,
-          "runs_marked": 78,
+          "runs_total": 243,
+          "runs_marked": 79,
           "runs_sentinel": 22,
           "runs_unmarked": 142,
-          "tokens_total": 14077663,
-          "median_tokens_per_run": 164321,
-          "share_pct": 16
-        },
-        {
-          "role": "Validation",
-          "runs_total": 372,
-          "runs_marked": 135,
-          "runs_sentinel": 33,
-          "runs_unmarked": 204,
-          "tokens_total": 19293851,
-          "median_tokens_per_run": 139342,
+          "tokens_total": 35320615,
+          "median_tokens_per_run": 164496,
           "share_pct": 22
         },
         {
+          "role": "Validation",
+          "runs_total": 374,
+          "runs_marked": 137,
+          "runs_sentinel": 33,
+          "runs_unmarked": 204,
+          "tokens_total": 58621541,
+          "median_tokens_per_run": 141679,
+          "share_pct": 36
+        },
+        {
           "role": "Planning",
-          "runs_total": 170,
-          "runs_marked": 80,
+          "runs_total": 171,
+          "runs_marked": 81,
           "runs_sentinel": 7,
           "runs_unmarked": 83,
-          "tokens_total": 12401647,
-          "median_tokens_per_run": 153269,
-          "share_pct": 14
+          "tokens_total": 14154925,
+          "median_tokens_per_run": 153916,
+          "share_pct": 9
         },
         {
           "role": "Other",
@@ -5268,8 +5273,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 1,
+              "median_tokens": 12656068
             },
             {
               "role": "Implementation",
@@ -5278,23 +5283,23 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 1,
+              "median_tokens": 276002
             },
             {
               "role": "Remediation",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 1,
+              "median_tokens": 21242952
             },
             {
               "role": "Validation",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 2,
+              "median_tokens": 19663845
             },
             {
               "role": "Planning",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 1,
+              "median_tokens": 1753278
             },
             {
               "role": "Other",
@@ -5309,13 +5314,13 @@
   "quality": {
     "first_pass_clean": {
       "clean": 94,
-      "flagged": 179,
-      "rate_pct": 53
+      "flagged": 180,
+      "rate_pct": 52
     },
     "na_reliability": 26,
     "remediation_distribution": {
       "0": 95,
-      "1": 30,
+      "1": 31,
       "2": 22,
       "3": 11,
       "4": 9,
@@ -5329,22 +5334,32 @@
     "avg_validation_fails": 0.5,
     "avg_review_fails": 0.2,
     "verdict_mix": {
-      "PASS": 192,
+      "PASS": 193,
       "null": 13
     },
     "review_events": 27,
     "review_verdict_note": "per-review pass/fail lives only in prose run notes and is not mechanically derived; only ride verdict + code_review_completed count are shown"
   },
   "validation_waivers": {
-    "total": 0,
-    "operator": 0,
+    "total": 1,
+    "operator": 1,
     "agent": 0,
     "rejected_records": 0,
-    "rides": [],
+    "rides": [
+      {
+        "ref": "singleton-reservation-portability",
+        "date_utc": "2026-11-06",
+        "by": "operator",
+        "operator_waived": true,
+        "self_waived": false,
+        "at": "2026-11-06T22:39:11Z",
+        "reason": "Owner selected option 1 in Codex chat: one-time exception for unchanged sync-seed TEST-829/830 timeouts and corresponding incomplete full-sweep outcome; preserve original FAIL reports; continue independent review and PR. Decision docs/decisions/DECISION-singleton-reservation-portability.md."
+      }
+    ],
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 67,
+    "field_derived": 68,
     "marker_derived": 2,
     "mixed": 0,
     "no_basis": 136,
@@ -6373,6 +6388,11 @@
         "ref": "retire-legacy-migrations",
         "verdict_source": "field",
         "cost_basis": "none"
+      },
+      {
+        "ref": "singleton-reservation-portability",
+        "verdict_source": "field",
+        "cost_basis": "mixed"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -6525,9 +6545,9 @@
     {
       "week": "2026-W45",
       "delivered": 18,
-      "median_lead_time_seconds": 15541,
-      "busy_seconds": 121548,
-      "tokens": null,
+      "median_lead_time_seconds": 15542,
+      "busy_seconds": 129452,
+      "tokens": 75255990,
       "first_pass_rate": 0
     }
   ],
@@ -9911,6 +9931,40 @@
         "remediation_runs": 3,
         "remediation_tokens": 212813,
         "remediation_share_pct": 11
+      },
+      {
+        "ref": "singleton-reservation-portability",
+        "date_utc": "2026-11-06",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 19320,
+        "agent_seconds": 7904,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 6,
+        "tokens_total": 75255990,
+        "remediation_runs": 1,
+        "remediation_tokens": 21242952,
+        "remediation_share_pct": 28
       },
       {
         "ref": "recheck-verdict-binding",

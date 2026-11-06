@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-06T22:46:46.245Z",
+  "generatedAt": "2026-11-06T22:50:39.698Z",
   "project": "aai",
   "counts": {
     "delivered": 345,
     "in_progress": 17,
     "releases": 1,
-    "tokens_total": 83812943
+    "tokens_total": 159068933
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -254,8 +254,8 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0247-singleton-reservation-portability.md",
       "closed_on": "2026-11-06",
-      "agent_minutes": null,
-      "token_total": null,
+      "agent_minutes": 132,
+      "token_total": 75255990,
       "spec": "docs/specs/SPEC-0275-spec-singleton-reservation-portability.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20261106T224004Z-singleton-reservation-portability.md"
@@ -4766,8 +4766,8 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0247-singleton-reservation-portability.md",
           "closed_on": "2026-11-06",
-          "agent_minutes": null,
-          "token_total": null,
+          "agent_minutes": 132,
+          "token_total": 75255990,
           "spec": "docs/specs/SPEC-0275-spec-singleton-reservation-portability.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20261106T224004Z-singleton-reservation-portability.md"
