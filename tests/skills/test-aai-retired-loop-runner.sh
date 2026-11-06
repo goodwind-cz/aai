@@ -319,6 +319,64 @@ test_3412_downstream_install() {
   log_pass "TEST-3412: a core install into a path with a space carries both launchers and the target's own launchers refuse with the D1 line"
 }
 
+RFC17="${AAI_RLR_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
+D6_SENTENCE='The sixth slice [retired the shell loop runner](../issues/CHANGE-DRAFT-retire-shell-loop-runner.md): autonomous-loop became a deprecation launcher for one release that names `/aai-loop`.'
+
+test_3413_rfc() {
+  local row n out rc=0
+  out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-expert-fetch.sh" test_2624_inventory_matches_tree 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 10 >&2; log_fail "TEST-3413: test_2624_inventory_matches_tree exited $rc"; }
+  row="$(grep '^| `autonomous-loop` |' "$RFC17" || true)"
+  [[ -n "$row" ]] || log_fail "TEST-3413: the inventory has no autonomous-loop row"
+  [[ "$row" == *'| 488/464 |'* && "$row" == *'| phase 5 process adapter |'* ]] || log_fail "TEST-3413: the autonomous-loop row lost its lines or destination cells"
+  [[ "$row" == *'retire-shell-loop-runner.md)'* && "$row" == *'a deprecation launcher for one release naming /aai-loop, deleted in the next'* ]] || log_fail "TEST-3413: the autonomous-loop row lacks the D6 reason and link"
+  row="$(grep '^| 5 | ' "$RFC17" || true)"
+  [[ "$row" == *'| in progress |'* ]] || log_fail "TEST-3413: the phase 5 row is not in progress"
+  [[ "$row" == *"$D6_SENTENCE"* ]] || log_fail "TEST-3413: the phase 5 row lacks the D6 sentence"
+  n="$(grep -cF -- "$D6_SENTENCE" "$RFC17" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3413: the D6 sentence appears $n times, expected once"
+  log_pass "TEST-3413: the RFC-0017 inventory equals the tree, the autonomous-loop row carries the D6 reason and the phase 5 row the D6 sentence once"
+}
+
+# code_lines <file>: non-blank, non-hash-comment lines (the plan's method).
+code_lines() {
+  local g=grep
+  [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
+  "$g" -cvE '^[[:space:]]*(#|$)' "$1" || true
+}
+
+test_3414_line_budget() {
+  local d="${AAI_RLR_BUDGET_DIR:-$PROJECT_ROOT/.aai/scripts}" f n total sum=0
+  for f in autonomous-loop.sh autonomous-loop.ps1; do
+    n="$(code_lines "$d/$f")"
+    [[ "$n" -le 2 ]] || log_fail "TEST-3414: $f has $n code lines, expected at most 2"
+    total="$(wc -l < "$d/$f" | tr -d ' ')"
+    [[ "$total" -le 20 ]] || log_fail "TEST-3414: $f has $total lines, expected at most 20"
+    sum=$((sum + n))
+  done
+  [[ "$sum" -le 4 ]] || log_fail "TEST-3414: the two launchers hold $sum code lines, expected at most 4"
+  log_pass "TEST-3414: code lines before 793, after $sum"
+}
+
+test_3415_follow_up() {
+  local out
+  out="$(node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json)"
+  printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const m = j.items.filter((i) => i.id === "fu-delete-retired-shell-loop-runner");
+    const bad = [];
+    if (m.length !== 1) bad.push("open items with the id: " + m.length);
+    else {
+      const i = m[0];
+      if (i.ref_id !== "retire-shell-loop-runner") bad.push("ref_id " + i.ref_id);
+      if (i.severity !== "P3") bad.push("severity " + i.severity);
+      for (const w of ["autonomous-loop.sh", "autonomous-loop.ps1", "PROFILES.yaml"]) if (!String(i.finding).includes(w)) bad.push("finding lacks " + w);
+    }
+    if (bad.length) { process.stderr.write(bad.join("; ")); process.exit(1); }
+  ' || log_fail "TEST-3415: the follow-up item is wrong or missing"
+  log_pass "TEST-3415: one open P3 item fu-delete-retired-shell-loop-runner names both launchers and PROFILES.yaml"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-retire-shell-loop-runner TEST-3403..3415)"
   check_deps
@@ -333,6 +391,9 @@ main() {
   test_3410_diet
   test_3411_wiring
   test_3412_downstream_install
+  test_3413_rfc
+  test_3414_line_budget
+  test_3415_follow_up
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
