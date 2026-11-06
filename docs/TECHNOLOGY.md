@@ -44,7 +44,7 @@
   - JavaScript (Node ESM, `.mjs`) — all CLI tooling in `.aai/scripts/*.mjs`
     (`state.mjs`, `docs-audit.mjs`, `check-state.mjs`, `generate-docs-index.mjs`,
     and others); no TypeScript anywhere in the repository
-  - POSIX shell / bash — installers, loop runners, hooks, and test suites
+  - POSIX shell / bash — installers, hooks, and test suites
     (`.aai/scripts/*.sh`, `tests/**/*.sh`); test suites carry a hard bash-3.2
     compatibility rule (the macOS default bash — see
     `tests/skills/test-aai-state.sh` header)

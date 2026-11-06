@@ -7,7 +7,7 @@ AAI. For installation and orientation, start at the repository
 
 ## Key documents
 
-- [USER_GUIDE.md](USER_GUIDE.md) — the manual: full skills catalog, workflows, loop runner reference, self-hosting contract, troubleshooting and FAQ.
+- [USER_GUIDE.md](USER_GUIDE.md) — the manual: full skills catalog, workflows, self-hosting contract, troubleshooting and FAQ.
 - [INDEX.md](INDEX.md) — auto-generated catalog of all tracked docs (status, progress, refs). Do not hand-edit; regenerate with `node .aai/scripts/generate-docs-index.mjs`.
 - [TECHNOLOGY.md](TECHNOLOGY.md) — the authoritative technology contract for this repository.
 - [TODO.md](TODO.md) — future enhancements roadmap.

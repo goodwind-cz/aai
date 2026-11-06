@@ -139,7 +139,7 @@ See [.aai/system/DYNAMIC_SKILLS.md](.aai/system/DYNAMIC_SKILLS.md) for details.
 
 Skill selection guide:
 
-- Use SKILL_LOOP instead of autonomous-loop.sh when running inside a capable agent session.
+- Use SKILL_LOOP to run the autonomous loop; the shell loop runner is retired.
 - Use SKILL_INTAKE instead of picking a specific INTAKE_*.prompt.md manually.
 - Use SKILL_HITL after SKILL_LOOP pauses with "LOOP PAUSED — Human decision required".
 - Use SKILL_CHECK_STATE before any role dispatch to catch state drift or corruption.
@@ -217,7 +217,6 @@ application, not the AAI layer).
 - Bootstrap also writes dynamic indexes:
   - `.codex/skills.local/README.md`
   - `.gemini/skills.local/README.md`
-- Loop runners are skill-first by default and enforce this sequence unless explicitly switched to legacy mode.
 
 ## External Expert Subagents
 

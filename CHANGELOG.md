@@ -28,6 +28,15 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — refactor(scripts): the shell loop runner is retired in favour of /aai-loop
+
+- `.aai/scripts/autonomous-loop.sh` and `.aai/scripts/autonomous-loop.ps1` are retired in this release. Each now prints one retirement line naming `/aai-loop`, ignores every argument, changes nothing and exits 1; both launchers are deleted in the next release (follow-up `fu-delete-retired-shell-loop-runner`). Replacement: `/aai-loop` in an agent session; for an unattended ride with a declared run budget, `/aai-ship` with `unattended=true` and an existing intake.
+- Breaking for downstream: a cron job, CI step or wrapper that calls either runner now fails with exit 1. No shipped AAI hook, launcher, routine or skill called them.
+- `--propose-only` / `-ProposeOnly` (the dedicated branch plus a temporary pre-push hook that blocked pushes) has no replacement and is not ported: `/aai-loop` never merges, and `/aai-ship` with `unattended=true` refuses to start without a declared run budget.
+- `--max-run-seconds` / `-MaxRunSeconds` (the runner's wall-clock cap) is not ported either: the run budget is tokens/USD only, so an unattended ride has no time limit.
+- `AGENTS.md`, `SKILL_LOOP`, `BOOTSTRAP_DIFF`, `.aai/system/AUTONOMOUS_LOOP.md` section 8, the user guide, `README.md` and `docs/TECHNOLOGY.md` no longer tell anyone to run the runner. `loop-digest.mjs` stays: `/aai-loop` and `/aai-profile --last-run` use it.
+- Code lines (non-blank, non-comment, `grep -cvE '^[[:space:]]*(#|$)'`): 793 before over the two scripts (409 sh, 384 ps1), 4 after (2 each). The shipped prompt corpus shrinks by 67 bytes.
+
 ## [unreleased] — refactor(scripts): legacy migrations retired, migrate-state-to-local moves to Node
 
 - `/aai-canonicalize`, the `aai-canonicalize` script and the `migrate-yaml-to-jsonl` script are retired in this release. Each now prints a deprecation notice and changes nothing; the notice launchers, the prompt and the skill wrappers are deleted in the next release. Replacement: none.

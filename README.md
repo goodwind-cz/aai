@@ -215,7 +215,7 @@ loop via `.aai/scripts/state.mjs`, never hand-edited, per-developer local and
 gitignored (RFC-0001). The JSONL logs are append-only (one JSON object per
 line, never rewritten):
 
-- `docs/ai/LOOP_TICKS.jsonl` — external timing per loop tick, written by the loop runner scripts. Per-developer local (gitignored).
+- `docs/ai/LOOP_TICKS.jsonl` — external timing per loop tick, written by `state.mjs log-tick` during `/aai-loop`. Per-developer local (gitignored).
 - `docs/ai/EVENTS.jsonl` — audit log of AC status transitions and doc lifecycle changes, appended via `.aai/scripts/append-event.mjs`. Shared, committed.
 - `docs/ai/METRICS.jsonl` — completed work-item economics, flushed by `.aai/METRICS_FLUSH.prompt.md`. Shared, committed.
 - `docs/ai/decisions.jsonl` — human-in-the-loop decisions, written by `.aai/SKILL_HITL.prompt.md`. Shared, committed.
@@ -236,7 +236,7 @@ Minimal input examples (Czech input is fine; the saved doc stays English):
 
 ## Where everything else lives
 
-- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — the manual: the full skills catalog, step-by-step workflows, loop runner reference, self-hosting contract, troubleshooting and FAQ.
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — the manual: the full skills catalog, step-by-step workflows, self-hosting contract, troubleshooting and FAQ.
 - [.aai/AGENTS.md](.aai/AGENTS.md) — agent-side entry point and the authoritative list of canonical prompts and sources.
 - [.aai/workflow/WORKFLOW.md](.aai/workflow/WORKFLOW.md) — the only authoritative workflow definition (phases, gates, stop conditions).
 - [.aai/PLAYBOOK.md](.aai/PLAYBOOK.md) — the human operating playbook.

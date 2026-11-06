@@ -52,8 +52,8 @@
      HITL if that also makes no progress — rather than spinning the remaining
      tick budget.
    - or **run budget exhausted**: cumulative cost/time for the run reaches a
-     configured limit (wall-clock on the runners; tokens/USD in-session from
-     best-effort usage telemetry) → escalate to HITL before starting another,
+     configured limit (tokens/USD in-session from best-effort usage
+     telemetry; no wall-clock cap is enforced) → escalate to HITL before starting another,
      costlier tick. A loop's per-iteration cost compounds; bound it so unattended
      spend cannot grow unchecked.
 
@@ -220,21 +220,22 @@ instead; it is the convention's only statement.
 ## 8) Unattended-safe execution (run while you sleep)
 An overnight/scheduled run must never (a) ship unreviewed changes, (b) spin
 forever on a stuck scope, or (c) leave you to reconstruct what happened from raw
-telemetry. The runners (`.aai/scripts/autonomous-loop.{sh,ps1}`) provide three
-guarantees for this:
-- **Propose, don't ship** (`--propose-only` / `-ProposeOnly`): all work is
-  isolated on a dedicated `aai/loop-<timestamp>` branch, a temporary `pre-push`
-  hook HARD-blocks any push for the duration of the run (so neither the runner
-  nor the agent can ship), and a review summary is printed at the end. You merge
-  when you wake up. Recommended for any scheduled/headless run.
+telemetry. `/aai-loop` (`.aai/SKILL_LOOP.prompt.md`) and `/aai-ship`
+(`.aai/SKILL_SHIP.prompt.md`) provide these guarantees; the retired shell loop
+runner no longer does.
+- **Never merges**: a finished scope ends with an open pull request; merging
+  stays the operator's action unless a lane in `docs/ai/merge-policy.yaml`
+  allows it.
+- **Declared budget for unattended rides**: `/aai-ship` with `unattended=true`
+  and an existing `--intake` refuses to start without a run budget and caps
+  ticks, stagnation and pull requests (`.aai/scripts/unattended-gate.mjs
+  preflight`).
 - **Self-recovery before HITL**: stagnation triggers one fresh-context recovery
   tick before escalating (see §4.7) — a stuck loop usually just needs a clean
   context, not a human at 3am.
-- **Wake-up digest** (`.aai/scripts/loop-digest.mjs`): at the end of a run the
-  runner writes one human-readable summary (ticks, scopes, recovery outcome,
-  stop reason, branch left for review, cost if recorded) to
-  `docs/ai/reports/loop-digest-<stamp>.md`. The chat/log becomes a status
-  dashboard you skim, not a session you babysit.
+- **Wake-up digest** (`.aai/scripts/loop-digest.mjs`): `node
+  .aai/scripts/loop-digest.mjs --write` (or `/aai-profile --last-run`) writes
+  the summary of the last run to `docs/ai/reports/loop-digest-<stamp>.md`.
 
 ## 9) Short flow example
 - `.aai/INTAKE_CHANGE.prompt.md` creates CHANGE-123 intake.

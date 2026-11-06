@@ -1026,7 +1026,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 64396 -> 65249: ride-status-and-resume (+853 B: SKILL_SHIP INPUT acts on the probe resume: line and step 5, SKILL_PR step 5, SKILL_LOOP summary name ride-status.mjs, SHIP INPUT stops on state_invalid; measured against 51840bde, credited 1:1).
   # Then 65249 -> 65792: precise-suite-evidence-reuse (+543 B: SKILL_VERIFY Reuse exception paragraph, VALIDATION step 5 c2 sentence; measured against 773557ee, credited 1:1).
   # Then 65792 -> 64288: retire-legacy-migrations (-1504 B: SKILL_CANONICALIZE.prompt.md 1950 -> 446 B retirement notice; measured against 1519b8d0, RECLAIMED 1:1).
-  local want_growth=64288
+  # Then 64288 -> 64221: retire-shell-loop-runner (-67 B: SKILL_LOOP.prompt.md line 4 -28 B and BOOTSTRAP_DIFF.prompt.md line 7 -39 B stop naming the retired shell runner; measured against 8293605d, RECLAIMED 1:1).
+  local want_growth=64221
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

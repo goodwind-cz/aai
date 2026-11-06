@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-05T17:13:20.458Z",
+  "generatedAt": "2026-11-06T13:23:02.895Z",
   "project": "aai",
   "counts": {
-    "delivered": 343,
+    "delivered": 344,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -235,6 +235,19 @@
   ],
   "delivered": [
     {
+      "ref": "retire-shell-loop-runner",
+      "title": "Retire the shell autonomous loop runner in favour of /aai-loop",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0246-retire-shell-loop-runner.md",
+      "closed_on": "2026-11-06",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0274-spec-retire-shell-loop-runner.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261106T120846Z-retire-shell-loop-runner.md"
+    },
+    {
       "ref": "retire-legacy-migrations",
       "title": "Retire the legacy migration scripts and port migrate-state-to-local to Node",
       "type": "change",
@@ -245,7 +258,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0273-spec-retire-legacy-migrations.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-20261105T160954Z-retire-legacy-migrations.md"
+      "review": "docs/ai/reviews/review-20261105T195052Z-retire-legacy-migrations.md"
     },
     {
       "ref": "admit-tests-other-suites",
@@ -4721,6 +4734,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "retire-shell-loop-runner",
+          "title": "Retire the shell autonomous loop runner in favour of /aai-loop",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0246-retire-shell-loop-runner.md",
+          "closed_on": "2026-11-06",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0274-spec-retire-shell-loop-runner.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261106T120846Z-retire-shell-loop-runner.md"
+        },
+        {
           "ref": "retire-legacy-migrations",
           "title": "Retire the legacy migration scripts and port migrate-state-to-local to Node",
           "type": "change",
@@ -4731,7 +4757,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0273-spec-retire-legacy-migrations.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-20261105T160954Z-retire-legacy-migrations.md"
+          "review": "docs/ai/reviews/review-20261105T195052Z-retire-legacy-migrations.md"
         },
         {
           "ref": "admit-tests-other-suites",
