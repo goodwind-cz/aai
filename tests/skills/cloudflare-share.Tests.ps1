@@ -71,8 +71,8 @@ Describe 'cloudflare-share launcher' {
     function Get-Records {
       param([string]$Dir)
       $h = Join-Path $Dir 'docs/ai/published/history.jsonl'
-      if (-not (Test-Path -LiteralPath $h)) { return @() }
-      return @(Get-Content -LiteralPath $h | Where-Object { $_ })
+      if (-not (Test-Path -LiteralPath $h)) { return ,@() }
+      return ,@(Get-Content -LiteralPath $h | Where-Object { $_ })
     }
   }
 

@@ -351,7 +351,7 @@ test_3429_rfc() {
   [[ "$row" == *"$D_RFC_SENTENCE"* ]] || log_fail "TEST-3429: the phase 5 row lacks the D-RFC sentence"
   n="$(grep -cF -- "$D_RFC_SENTENCE" "$RFC17" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3429: the D-RFC sentence appears $n times, expected once"
-  grep -F 'cloudflare-share' "${CFS_TECH:-$PROJECT_ROOT/docs/TECHNOLOGY.md}" | grep -qF 'cloudflare-share.mjs' || log_fail "TEST-3429: docs/TECHNOLOGY.md does not name cloudflare-share.mjs"
+  grep -qF 'cloudflare-share.mjs' "${CFS_TECH:-$PROJECT_ROOT/docs/TECHNOLOGY.md}" || log_fail "TEST-3429: docs/TECHNOLOGY.md does not name cloudflare-share.mjs"
   log_pass "TEST-3429: the RFC-0017 inventory equals the tree, the phase 5 row holds the D-RFC sentence once and TECHNOLOGY names the module"
 }
 

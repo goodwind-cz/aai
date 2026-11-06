@@ -1247,6 +1247,27 @@ suites:
       - .codex/skills/aai-share/**
       - .gemini/skills/aai-share/**
 
+  aai-cloudflare-share:
+    globs:
+      - .aai/scripts/cloudflare-share.*
+      - .aai/scripts/share-convert.mjs
+      - .aai/SKILL_SHARE.prompt.md
+      - .claude/skills/aai-share/**
+      - .agents/skills/aai-share/**
+      - .codex/skills/aai-share/**
+      - .gemini/skills/aai-share/**
+      - .aai/system/PROFILES.yaml
+      - .github/workflows/ps1-quality.yml
+      - docs/TECHNOLOGY.md
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - tests/skills/test-aai-cloudflare-share.sh
+      - tests/skills/lib/cloudflare-share.test.mjs
+      - tests/skills/cloudflare-share.Tests.ps1
+      - tests/skills/lib/nested-suite-lint.mjs
+      - tests/skills/lib/nested-suite-allowlist.tsv
+      - tests/skills/suite-map.yaml
+      - tests/skills/suite-weights.tsv
+
   aai-spec-amend:
     globs:
       - .aai/scripts/spec-amend.mjs
