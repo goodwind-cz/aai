@@ -268,6 +268,57 @@ test_3409_state_creator_pin() {
   log_pass "TEST-3409: the single-creator pin names both launchers and the three D-PIN words, passes on the tree and fails on a launcher naming STATE.yaml"
 }
 
+test_3410_diet() {
+  local ledger="${AAI_RLR_LEDGER:-$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh}" n amount size want out rc=0
+  n="$(grep -c 'retire-shell-loop-runner' "$ledger" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3410: $n ledger lines name retire-shell-loop-runner, expected exactly 1"
+  amount="$(sed -n 's/^JUSTIFIED_ADDITIONS+=( "\(-[0-9][0-9]*\) retire-shell-loop-runner RECLAIMED .*/\1/p' "$ledger")"
+  [[ -n "$amount" ]] || log_fail "TEST-3410: the retire-shell-loop-runner ledger entry is not a negative RECLAIMED entry"
+  size=$(( $(wc -c < "$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md") + $(wc -c < "$PROJECT_ROOT/.aai/BOOTSTRAP_DIFF.prompt.md") ))
+  want=$((size - 33432))
+  [[ "$amount" == "$want" ]] || log_fail "TEST-3410: the ledger amount is $amount, expected $want ($size minus 33432)"
+  out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" test_010_audit_and_reduction 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "TEST-3410: test-aai-prompt-diet.sh test_010 exited $rc"; }
+  out="$out"$'\n'"$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" test_012_growth_sum_matches_ledger 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "TEST-3410: test-aai-prompt-diet.sh test_012 exited $rc"; }
+  [[ "$out" == *'headroom 0/2048'* ]] || log_fail "TEST-3410: TEST-010 headroom is not 0/2048"
+  [[ "$out" == *"JUSTIFIED_GROWTH_BYTES == $((64288 + want)) =="* ]] || log_fail "TEST-3410: the TEST-012 pin is not $((64288 + want))"
+  log_pass "TEST-3410: one negative ledger entry equal to the prompt shrink ($want B), headroom 0/2048, TEST-012 pin $((64288 + want))"
+}
+
+test_3411_wiring() {
+  local wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" n out f
+  for f in .aai/scripts/autonomous-loop.sh .aai/scripts/autonomous-loop.ps1; do
+    out="$(printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")"
+    [[ "$out" == *'aai-retired-loop-runner'* ]] || log_fail "TEST-3411: $f does not select aai-retired-loop-runner: $out"
+    n="$(awk '/^core:/{f=1;next} /^[a-z]/{f=0} f && $0=="  - '"$f"'"{c++} END{print c+0}' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")"
+    [[ "$n" == 1 ]] || log_fail "TEST-3411: PROFILES core lists $f $n times, expected 1"
+  done
+  env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-layer-profiles.sh" >/dev/null 2>&1 || log_fail "TEST-3411: test-aai-layer-profiles.sh failed"
+  n="$(awk '/^  push:/{s="push"} /^  pull_request:/{s="pr"} /^  workflow_dispatch/{s=""} s!="" && $0=="      - '"'"'.aai/scripts/**.ps1'"'"'"{a[s]++} s!="" && $0=="      - '"'"'tests/skills/*.Tests.ps1'"'"'"{b[s]++} END{print a["push"]+0, a["pr"]+0, b["push"]+0, b["pr"]+0}' "$wf")"
+  [[ "$n" == "1 1 1 1" ]] || log_fail "TEST-3411: the ps1-quality path lists hold the ps1 globs '$n' times (script push, script pr, tests push, tests pr), expected 1 1 1 1"
+  log_pass "TEST-3411: both launchers select the suite, sit once under core, layer-profiles passes and both ps1-quality path lists keep their globs"
+}
+
+test_3412_downstream_install() {
+  local tgt="$TEST_DIR/core target" src="${AAI_RLR_SYNC_SRC:-$PROJECT_ROOT}" f rc so="$TEST_DIR/i.out" se="$TEST_DIR/i.err" pre
+  mkdir -p "$tgt"
+  make_fixture "$tgt"
+  bash "$src/.aai/scripts/aai-sync.sh" "$tgt" --profile core >/dev/null 2>&1 || log_fail "TEST-3412: aai-sync.sh --profile core failed"
+  for f in autonomous-loop.sh autonomous-loop.ps1; do
+    [[ -f "$tgt/.aai/scripts/$f" ]] || log_fail "TEST-3412: the core install lacks .aai/scripts/$f"
+  done
+  pre=0; [[ -e "$tgt/docs/ai/STATE.yaml" ]] && pre=1
+  rc=0; ( cd "$tgt" && bash .aai/scripts/autonomous-loop.sh --mode skill --agent-command codex --auto-init-state ) >"$so" 2>"$se" || rc=$?
+  [[ "$rc" == 1 && ! -s "$so" && "$(cat "$se")" == "$D1_LINE" ]] || log_fail "TEST-3412: the target's autonomous-loop.sh gave rc=$rc stderr=$(cat "$se")"
+  if need_tool TEST-3412 pwsh; then
+    rc=0; ( cd "$tgt" && pwsh -NoProfile -File .aai/scripts/autonomous-loop.ps1 -Mode skill -AutoInitState ) >"$so" 2>"$se" || rc=$?
+    [[ "$rc" == 1 && ! -s "$so" && "$(cat "$se")" == "$D1_LINE" ]] || log_fail "TEST-3412: the target's autonomous-loop.ps1 gave rc=$rc stderr=$(cat "$se")"
+  fi
+  if [[ "$pre" == 0 && -e "$tgt/docs/ai/STATE.yaml" ]]; then log_fail "TEST-3412: a launcher run created docs/ai/STATE.yaml in the target"; fi
+  log_pass "TEST-3412: a core install into a path with a space carries both launchers and the target's own launchers refuse with the D1 line"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-retire-shell-loop-runner TEST-3403..3415)"
   check_deps
@@ -279,6 +330,9 @@ main() {
   test_3407_no_stale_instruction
   test_3408_unattended_section
   test_3409_state_creator_pin
+  test_3410_diet
+  test_3411_wiring
+  test_3412_downstream_install
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
