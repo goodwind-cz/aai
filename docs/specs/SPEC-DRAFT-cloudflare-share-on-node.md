@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: b32b6063304563c045a0a43a366617eff0cdb010c2787c192794d2b00f59bb88
+frozen_sha256: 60fb1f257dcfebbe64a551bb5c80520e622cb04af66b5360a1e955cc99543cd7
 ceremony_level: 2
 links:
   requirement: cloudflare-share-on-node
@@ -187,11 +187,11 @@ Each row is decided here and pinned by exactly one `node:test` case in
 | DR-14 | record key order and escaping | fixed order timestamp, document, url, size_kb; no escaping (a quote or backslash in the path breaks the line) | hashtable order (measured: timestamp, document, size_kb, url); escaped | `JSON.stringify` of keys in the order timestamp, document, url, size_kb |
 | DR-15 | record line ending and encoding | LF | Add-Content: CRLF on Windows, ANSI default on 5.1 | UTF-8, one line ending in LF, appended |
 | DR-16 | timestamp | `date -u` ISO seconds and Z | .NET custom format whose `:` is the culture time separator | ISO 8601 UTC to the second with Z, culture-free |
-| DR-17 | colour | plain | green and cyan Write-Host | plain text, no ANSI escapes, including the echoed output of a failed deploy, whose ANSI escape sequences are removed before the DR-21 redaction |
+| DR-17 | colour | plain | green and cyan Write-Host | plain text, no ANSI escapes, including the echoed output of a failed deploy, whose ANSI escape sequences are removed, with the DR-21 redaction applied both before and after the removal |
 | DR-18 | unexpected deploy error (spawn fails) | set -e exit, publish dir left | thrown, publish dir left | `ERROR: wrangler could not be run: <message>` on stderr, exit 1, publish dir removed |
 | DR-19 | extra arguments | ignored | binding error, exit 1 | usage line on stderr, exit 1, nothing created |
 | DR-20 | Node missing | `node` not found under set -e, exit 127 | CommandNotFoundException, exit 1 | launchers print the D-LAUNCH refusal line on stderr, exit 1, create nothing |
-| DR-21 | credentials in output | wrangler output echoed unfiltered | same | the environment is passed to wrangler unchanged and never printed; on failure every occurrence of the value of `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_API_KEY` (when set and at least 8 characters) in the echoed output becomes `[REDACTED]` |
+| DR-21 | credentials in output | wrangler output echoed unfiltered | same | the environment is passed to wrangler unchanged and never printed; on failure every occurrence of the value of `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_API_KEY` (when set and at least 8 characters) in the echoed output becomes `[REDACTED]`, applied both before and after ANSI escape removal so neither a value an escape splits nor one an escape would swallow a character of survives |
 
 Kept identical in both twins and in the port: the publish dir
 `.cloudflare-publish` and the history file `docs/ai/published/history.jsonl`

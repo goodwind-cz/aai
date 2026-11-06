@@ -440,6 +440,21 @@ test('TEST-3421 DR-21 credentials are passed on, never printed, and redacted fro
     assert.equal(r.stdout.includes(v), false, 'a credential value reached stdout');
   }
   assert.equal(fs.readFileSync(path.join(f.bin, 'envdump.txt'), 'utf8'), `${TOK}\n${KEY}\n`);
+  // an escape swallowing the first character of a credential must not defeat the redaction
+  const UP = 'Upper-token-CCCC3333';
+  const esc = fx({ stubLines: [
+    'printf \'\\033[%s\\n\' "$CLOUDFLARE_API_TOKEN"',
+    'printf \'\\033%s\\n\' "$CLOUDFLARE_API_TOKEN" >&2',
+    'printf \'\\033[%s\\n\' "$CLOUDFLARE_API_KEY" >&2',
+    'printf \'\\033%s\\n\' "$CLOUDFLARE_API_KEY"',
+    'exit 1',
+  ] });
+  const e = cli(esc, ['doc.md'], { CLOUDFLARE_API_TOKEN: UP, CLOUDFLARE_API_KEY: KEY });
+  assert.equal(e.status, 1);
+  for (const v of [UP, KEY]) for (const part of [v, v.slice(1)]) {
+    assert.equal(e.stderr.includes(part), false, 'a credential (or its tail) reached stderr behind an escape');
+    assert.equal(e.stdout.includes(part), false, 'a credential (or its tail) reached stdout behind an escape');
+  }
   const ok = fx({ stubLines: [
     'echo "token=$CLOUDFLARE_API_TOKEN"',
     'echo "key=$CLOUDFLARE_API_KEY" >&2',

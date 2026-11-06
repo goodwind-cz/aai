@@ -117,7 +117,7 @@ export function run(opts, deps) {
     const url = dep.status === 0 ? (extractUrl(stdout) ?? extractUrl(stderr)) : null;
     if (!url) {
       err('ERROR: Deployment failed or URL not found');
-      err(redact(`${stdout}${stderr}`.replace(ANSI_RE, '').replace(/\n+$/, ''), env));
+      err(redact(redact(`${stdout}${stderr}`, env).replace(ANSI_RE, '').replace(/\n+$/, ''), env));
       return 1;
     }
     const sizeKb = Math.round((sizeOf(fsApi, publish) / 1024) * 100) / 100;
