@@ -26,6 +26,14 @@ to `README.md`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `SKILLS.md`,
 entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 `CHANGELOG.md`, `tests/` and evidence under `docs/ai/`.
 
+## [unreleased] — fix: portable bounded document-number reservations
+
+Singleton number reservations now work without atomic-push server support.
+Coupled families retain one atomic create-only push. Allocator network calls
+have a finite 30000 ms default deadline and operation-specific recovery
+messages; `AAI_DOCNUM_NETWORK_TIMEOUT_MS` accepts 1..300000 ms. Timeout keeps
+the document provisional because the remote write outcome can be unknown.
+
 ## [unreleased]
 
 ## [unreleased] — refactor(scripts): the shell loop runner is retired in favour of /aai-loop

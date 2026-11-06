@@ -61,14 +61,30 @@
     `docs/ai/LOOP_TICKS.jsonl`, `docs/ai/decisions.jsonl`
   - `refs/aai/docnums/<TYPE>-<NNNN>` — doc-number RESERVATION refs in
     `origin` (CHANGE-0035 / SPEC-0047). One create-only ref per reserved
-    display number (`git push --atomic --force-with-lease=<ref>: origin
-    HEAD:<ref>`) — ref EXISTENCE is the semaphore, content is irrelevant.
+    display number, pointing to a unique reservation commit per attempt.
+    A singleton uses `git push --force-with-lease=<ref>: origin
+    <unique-commit>:<ref>` without `--atomic`, so atomic capability is not
+    required. Multiple coupled refs use one `--atomic` push with an empty
+    expected-value lease for every ref; unsupported servers refuse the set
+    without splitting it. Ref EXISTENCE is the semaphore; unique objects
+    ensure same-HEAD contenders still evaluate the create-only lease.
     Frontmatter `number_reserved: false` marks a doc allocated provisionally
     (reservation push failed for a non-collision reason); completed via
     `node .aai/scripts/allocate-doc-number.mjs --reserve --path <doc>`. The
     OPTIONAL `coupled_families` key in `docs/ai/docs-audit.yaml` (parsed only
     by `.aai/scripts/lib/guard-config.mjs`) lets doc-type families share one
     counter (AAI core ships this key ABSENT).
+    Network push, ls-remote, base fetch and candidate fetch each default to
+    30000 ms. `AAI_DOCNUM_NETWORK_TIMEOUT_MS` accepts an integer 1..300000 ms;
+    invalid or empty values warn and retain 30000 ms. Local Git commands are
+    outside this deadline. Diagnostics name operation, remote and category:
+    timeout (inspect refs: remote outcome unknown), unsupported-atomic (use
+    an atomic-capable server for coupled refs), permission (check write
+    access/authentication), connectivity (check address/network), or unknown
+    (inspect server/transport). Only confirmed stale-info lease collisions
+    retry the next number. The bound is per call, not per batch, and does not
+    guarantee termination of credential-helper descendants. Timeout can leave
+    a committed remote write; provisional status remains until reconciled.
   - Release completion journal: JSON under the shared Git directory at
     `aai/releases/<SHA256-of-version>.json`; repository/version/base/head/PR
     identity and completed transitions support resumable completion. Retained

@@ -973,6 +973,192 @@ test_109_excluded_guard_unit_probe() {
   log_pass "TEST-109 isExcludedTree guard probe (nested + separator + negatives)"
 }
 
+
+# RFC-0016 B transport seam. Every probe uses real objects and bare refs;
+# only the named transport call is recorded/stalled/refused by the shim.
+transport_probe() {
+  local scenario="$1" d real_git
+  d="$(mk_repo "transport-$scenario")"
+  real_git="$(command -v git)"
+  TRANSPORT_SCENARIO="$scenario" TRANSPORT_REAL_GIT="$real_git" \
+    TRANSPORT_ROOT="$PROJECT_ROOT" node --input-type=module - "$d" <<'JS'
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { execFileSync, spawnSync, spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+const d = process.argv[2], scenario = process.env.TRANSPORT_SCENARIO;
+const real = process.env.TRANSPORT_REAL_GIT;
+const bare = path.join(path.dirname(d), `origin-transport-${scenario}.git`);
+const git = (...args) => execFileSync(real, args, {cwd:d, encoding:'utf8', stdio:['ignore','pipe','pipe']}).trim();
+const refs = () => git('ls-remote', 'origin', 'refs/aai/docnums/*').split('\n').filter(Boolean);
+const ref = (prefix,n) => `refs/aai/docnums/${prefix}-${String(n).padStart(4,'0')}`;
+const shaAt = name => git('ls-remote','origin',name).split(/\s/)[0];
+const members = [{prefix:'RFC',width:4}];
+const pair = [{prefix:'FAMA',width:4},{prefix:'FAMB',width:4}];
+const head = git('rev-parse','HEAD');
+git('push','origin','HEAD:refs/heads/main');
+fs.mkdirSync(path.join(d,'bin'));
+const log = path.join(d,'argv.jsonl');
+fs.writeFileSync(path.join(d,'bin/git'), `#!${process.execPath}\n` + String.raw`
+const fs = require('node:fs'), cp = require('node:child_process');
+const args = process.argv.slice(2), env = process.env;
+if (['push','fetch','ls-remote'].includes(args[0])) fs.appendFileSync(env.TRANSPORT_LOG, JSON.stringify(args)+'\n');
+const match = args[0] === env.TRANSPORT_MATCH && (!env.TRANSPORT_FETCH_KIND || (env.TRANSPORT_FETCH_KIND === 'base' ? args.length === 3 : args.length === 2));
+if (match && env.TRANSPORT_MODE === 'stall') {
+  fs.writeFileSync(env.TRANSPORT_TIMING,JSON.stringify({pid:process.pid,started:Date.now()}));
+  process.stderr.write(env.TRANSPORT_STALE === 'yes' ? '! [rejected] candidate (stale info)\n' : 'transport stalled\n');
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,3500);
+  process.exit(1);
+}
+if (match && env.TRANSPORT_MODE === 'fail') { process.stderr.write(env.TRANSPORT_ERROR); process.exit(1); }
+const r = cp.spawnSync(env.TRANSPORT_REAL_GIT,args,{stdio:'inherit'});
+process.exit(r.status ?? 1);
+`);
+fs.chmodSync(path.join(d,'bin/git'),0o755);
+const originalPath = process.env.PATH;
+Object.assign(process.env, {PATH:path.join(d,'bin')+path.delimiter+originalPath,
+  TRANSPORT_LOG:log, TRANSPORT_TIMING:path.join(d,'timing.json'), AAI_DOCNUM_NETWORK_TIMEOUT_MS:'1000'});
+const calls = () => fs.existsSync(log) ? fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
+const clear = () => { fs.writeFileSync(log,''); for (const k of ['TRANSPORT_MODE','TRANSPORT_MATCH','TRANSPORT_ERROR','TRANSPORT_FETCH_KIND','TRANSPORT_STALE']) delete process.env[k]; fs.rmSync(process.env.TRANSPORT_TIMING,{force:true}); };
+const {reserveAtomic, reservationRef} = await import(pathToFileURL(path.join(d,'.aai/scripts/allocate-doc-number.mjs')));
+const reserve = (ms=members,n=1,cap=3) => reserveAtomic(d,'origin',ms,n,cap);
+const cli = (args,extra={}) => spawnSync(process.execPath,['.aai/scripts/allocate-doc-number.mjs',...args],
+  {cwd:d,encoding:'utf8',env:{...process.env,...extra},timeout:15000});
+const output = r => (r.stdout??'')+(r.stderr??'');
+// Measure the stalled subprocess itself: allocation also performs local scans
+// and regeneration, which are intentionally outside the network deadline.
+const cliStall = args => new Promise(resolve => {
+  let stdout='', stderr='', elapsed;
+  const child=spawn(process.execPath,['.aai/scripts/allocate-doc-number.mjs',...args],{cwd:d,env:process.env});
+  child.stdout.on('data',v=>{stdout+=v;}); child.stderr.on('data',v=>{stderr+=v;});
+  const timer=setInterval(()=>{
+    if(elapsed!==undefined || !fs.existsSync(process.env.TRANSPORT_TIMING)) return;
+    const t=JSON.parse(fs.readFileSync(process.env.TRANSPORT_TIMING,'utf8'));
+    try {process.kill(t.pid,0);} catch {elapsed=Date.now()-t.started;}
+  },10);
+  child.on('close',status=>{clearInterval(timer);resolve({status,stdout,stderr,elapsed});});
+});
+const draft = slug => { const rel=`docs/rfc/RFC-DRAFT-${slug}.md`; fs.writeFileSync(path.join(d,rel),`---\nid: ${slug}\ntype: rfc\nnumber: null\nstatus: draft\n---\n# ${slug}\n`); return rel; };
+const provisional = (slug,n) => { const rel=`docs/rfc/RFC-${String(n).padStart(4,'0')}-${slug}.md`; fs.writeFileSync(path.join(d,rel),`---\nid: ${slug}\ntype: rfc\nnumber: ${n}\nnumber_reserved: false\nstatus: draft\n---\n# ${slug}\n`); return rel; };
+const check = (v,message) => assert.ok(v,`TEST-${scenario}: ${message}`);
+console.log(`TEST-${scenario} before=${JSON.stringify(refs())} node=${process.version} platform=${process.platform}`);
+if (scenario === '201') {
+  git('--git-dir='+bare,'config','receive.advertiseAtomic','false');
+  let r=reserve(); check(r.ok,'singleton must reserve on real non-atomic server');
+  const first=shaAt(ref('RFC',1)); check(first && first!==head,'reservation must use unique object, not HEAD');
+  r=reserve(members,1); check(r.ok && r.number===2,'existing singleton must retry next number');
+  check(shaAt(ref('RFC',2))!==first,'each attempt needs a new object');
+  const pushes=calls().filter(a=>a[0]==='push'); check(pushes.length===3,'one success and collision then success');
+  for (const a of pushes) {check(!a.includes('--atomic'),'singleton argv omits --atomic'); check(a.some(v=>/^--force-with-lease=refs\/aai\/docnums\/RFC-\d+:$/.test(v)),'empty expected-value lease');}
+} else if (scenario === '202') {
+  let r=reserve(pair,1); check(r.ok,'coupled supported success'); check(refs().length===2,'both coupled refs exist');
+  git('push','origin',`HEAD:${ref('FAMA',2)}`); clear();
+  r=reserve(pair,2); check(r.ok && r.number===3,'pair retries collision together');
+  check(!shaAt(ref('FAMB',2)),'unclaimed peer absent at collided number');
+  check(shaAt(ref('FAMA',3)) && shaAt(ref('FAMB',3)),'retried pair exists');
+  const pushes=calls().filter(a=>a[0]==='push'); check(pushes.length===2,'two coupled attempts');
+  check(pushes.every(a=>a.includes('--atomic')),'coupled argv always requires --atomic');
+} else if (scenario === '203') {
+  git('--git-dir='+bare,'config','receive.advertiseAtomic','false');
+  const r=reserve(pair); check(!r.ok && !r.collision,'unsupported coupled push refuses as non-collision');
+  check(refs().length===0,'unsupported coupled writes zero refs');
+  check(calls().filter(a=>a[0]==='push').length===1,'no split fallback or retries');
+  check(/unsupported.atomic/i.test(r.error) && /server|support/i.test(r.error),'unsupported category with server remedy');
+} else if (scenario === '204') {
+  const failures=[];
+  for (const [operation,kind] of [['push',''],['ls-remote',''],['fetch','base'],['fetch','candidate']]) {
+    clear(); Object.assign(process.env,{TRANSPORT_MODE:'stall',TRANSPORT_MATCH:operation,TRANSPORT_FETCH_KIND:kind,AAI_DOCNUM_NETWORK_TIMEOUT_MS:'500'});
+    const begin=Date.now(); let text, elapsed;
+    if(operation==='push') {const r=reserve(); text=r.error??''; elapsed=Date.now()-begin; check(!r.ok && !r.collision,'timeout is non-collision');}
+    else {const rel=draft('stall-'+(kind||operation)); const r=await cliStall(['--path',rel,'--base-ref',kind==='base'?'origin/main':'main']); check(r.status===0,'scan/fetch failure keeps fallback contract'); text=output(r); elapsed=r.elapsed;}
+    const total=Date.now()-begin, attempted=calls().filter(a=>a[0]===operation && (!kind || (kind==='base'?a.length===3:a.length===2))).length;
+    console.log(`TEST-204 operation=${operation} kind=${kind} deadline_ms=500 elapsed_ms=${elapsed} total_cli_ms=${total} attempts=${attempted} diagnostic=${text}`);
+    if(elapsed===undefined || elapsed>2500 || !text.includes(operation) || !/timeout/i.test(text) || !text.includes('500')) failures.push(`${operation}/${kind}: bounded operation-specific timeout missing (${elapsed} ms)`);
+    check(attempted===1,'stalled operation attempted once');
+  }
+  clear(); process.env.AAI_DOCNUM_NETWORK_TIMEOUT_MS='1000'; const quick=Date.now(); check(reserve(members,50).ok,'quick negative control succeeds'); check(Date.now()-quick<2500,'quick operation is bounded');
+  for(const value of ['0','-1','NaN','Infinity','300001','1.5','']) {
+    const rel=provisional('bad-'+(value||'empty'),60); const r=cli(['--reserve','--path',rel],{AAI_DOCNUM_NETWORK_TIMEOUT_MS:value});
+    check(/invalid.*AAI_DOCNUM_NETWORK_TIMEOUT_MS.*30000/i.test(output(r)),'invalid override visibly retains finite default: '+value);
+  }
+  check(failures.length===0,failures.join('; '));
+} else if (scenario === '205') {
+  const errors=[['permission','remote: permission denied\n! [remote rejected] x (unpacker error)','access'],
+    ['connectivity','fatal: Could not resolve host: example.invalid','connect'],
+    ['unsupported-atomic','fatal: the receiving end does not support --atomic push','server'],
+    ['unknown','remote: hook declined\n! [remote rejected] x (unpacker error)','inspect']];
+  for(const [category,message,remedy] of errors) {
+    clear(); Object.assign(process.env,{TRANSPORT_MODE:'fail',TRANSPORT_MATCH:'push',TRANSPORT_ERROR:message});
+    const r=reserve(); console.log(`TEST-205 category=${category} result=${JSON.stringify(r)} attempts=${calls().filter(a=>a[0]==='push').length}`);
+    check(!r.ok && !r.collision,'non-collision rejection must not retry');
+    check(calls().filter(a=>a[0]==='push').length===1,'non-collision attempts exactly once');
+    check(r.error.includes(category) && r.error.toLowerCase().includes(remedy),'category and concrete remedy: '+category);
+  }
+  clear(); Object.assign(process.env,{TRANSPORT_MODE:'stall',TRANSPORT_MATCH:'push',TRANSPORT_STALE:'yes',AAI_DOCNUM_NETWORK_TIMEOUT_MS:'500'});
+  const r=reserve(); check(!r.ok && !r.collision && /timeout/i.test(r.error),'timeout outranks partial stale info');
+  check(/unknown|uncertain/i.test(r.error) && /inspect/i.test(r.error),'timeout warns remote outcome uncertain and inspection');
+  check(calls().filter(a=>a[0]==='push').length===1,'timeout attempts exactly once');
+  clear(); process.env.AAI_DOCNUM_NETWORK_TIMEOUT_MS='1000'; git('push','origin',`HEAD:${ref('RFC',1)}`); clear();
+  const collided=reserve(); check(collided.ok && collided.number===2,'real lease rejection alone retries');
+  check(calls().filter(a=>a[0]==='push').length===2,'real stale info has two attempts');
+} else if (scenario === '206') {
+  git('--git-dir='+bare,'config','receive.advertiseAtomic','false');
+  const rel=draft('portable'); let r=cli(['--path',rel,'--base-ref','main']); check(r.status===0,'full allocation succeeds');
+  const numbered=path.join(d,'docs/rfc/RFC-0001-portable.md'); check(fs.existsSync(numbered),'allocation renames draft');
+  check(!fs.readFileSync(numbered,'utf8').includes('number_reserved:'),'confirmed allocation has no marker');
+  const completion=provisional('completion',2); r=cli(['--reserve','--path',completion]); check(r.status===0,'completion succeeds');
+  check(!fs.readFileSync(path.join(d,completion),'utf8').includes('number_reserved:'),'completion clears marker');
+  const collision=provisional('collision',2), before=fs.readFileSync(path.join(d,collision),'utf8');
+  r=cli(['--reserve','--path',collision]); check(r.status===4 && /renumber/.test(output(r)),'existing reservation exits 4 and names renumbering');
+  check(fs.readFileSync(path.join(d,collision),'utf8')===before,'collision leaves file byte-identical');
+  const failure=provisional('failure',3); clear(); Object.assign(process.env,{TRANSPORT_MODE:'fail',TRANSPORT_MATCH:'push',TRANSPORT_ERROR:'permission denied'});
+  r=cli(['--reserve','--path',failure]); check(r.status===0 && /WARNING.*permission/s.test(output(r)),'non-collision completion warns, exits 0');
+  check(fs.readFileSync(path.join(d,failure),'utf8').includes('number_reserved: false'),'failed completion retains marker');
+  clear(); git('push','origin',`HEAD:${ref('RFC',4)}`); const same=provisional('same-head',4);
+  r=cli(['--reserve','--path',same]); check(r.status===4,'same-HEAD singleton cannot be falsely confirmed');
+  git('push','origin',`HEAD:${ref('FAMA',5)}`); clear();
+  const coupled=reserve(pair,5); check(!coupled.ok && !coupled.collision,'unsupported coupled remains refused');
+  check(!shaAt(ref('FAMB',5)),'coupled unsupported has no partial peer');
+  fs.writeFileSync(path.join(d,'docs/ai/docs-audit.yaml'),'coupled_families:\n  - RFC+SPEC-RFC\n');
+  const coupledDoc=provisional('coupled-unsupported',6); clear();
+  r=cli(['--reserve','--path',coupledDoc]);
+  check(r.status===0 && /unsupported-atomic/.test(output(r)),'public coupled completion degrades visibly');
+  check(fs.readFileSync(path.join(d,coupledDoc),'utf8').includes('number_reserved: false'),'coupled refusal keeps provisional marker');
+  check(!shaAt(ref('RFC',6)) && !shaAt(ref('SPEC-RFC',6)),'public coupled refusal leaves both refs absent');
+  check(calls().filter(a=>a[0]==='push').length===1,'public coupled refusal has no split fallback');
+} else if (scenario === '207') {
+  check(reservationRef('RFC-0001')==='refs/aai/docnums/RFC-0001','public ref namespace remains compatible');
+} else if (scenario === '208') {
+  const root=process.env.TRANSPORT_ROOT;
+  for(const name of ['docs/TECHNOLOGY.md','docs/USER_GUIDE.md']) {
+    const text=fs.readFileSync(path.join(root,name),'utf8');
+    for(const term of ['unique reservation commit','singleton','--atomic','30000 ms','AAI_DOCNUM_NETWORK_TIMEOUT_MS','300000','remote outcome']) check(text.includes(term),name+' documents '+term);
+    check(!text.includes('origin HEAD:<ref>') && !text.includes('    HEAD:<ref>'),'stale HEAD protocol removed from '+name);
+  }
+  const rfc=fs.readFileSync(path.join(root,'docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md'),'utf8');
+  check(/^status: draft$/m.test(rfc),'umbrella RFC stays draft');
+  check(/\| B \|[^\n]*\| (?:in progress|done) \|[^\n]*singleton-reservation-portability/.test(rfc),'RFC B in progress/done cites change');
+  for(const phase of ['A','C','D','E']) check(new RegExp('\\| '+phase+' \\|[^\\n]*\\| not started \\|').test(rfc),'other RFC phase '+phase+' unchanged');
+}
+console.log(`TEST-${scenario} after=${JSON.stringify(refs())} pushes=${JSON.stringify(calls().filter(a=>a[0]==='push'))}`);
+console.log(`PASS: TEST-${scenario} transport assertions`);
+JS
+}
+
+test_201_singleton_non_atomic() { transport_probe 201 || log_fail "TEST-001 (TEST-201) singleton transport probe"; }
+test_202_coupled_success_collision() { transport_probe 202 || log_fail "TEST-002 (TEST-202) coupled success/collision probe"; }
+test_203_coupled_unsupported() { transport_probe 203 || log_fail "TEST-003 (TEST-203) unsupported coupled probe"; }
+test_204_network_deadlines() { transport_probe 204 || log_fail "TEST-004 (TEST-204) network deadlines probe"; }
+test_205_failure_categories() { transport_probe 205 || log_fail "TEST-005 (TEST-205) diagnostic/retry probe"; }
+test_206_cli_transport_contract() { transport_probe 206 || log_fail "TEST-006 (TEST-206) CLI transport probe"; }
+test_207_regression_transport_wiring() {
+  transport_probe 207 || log_fail "TEST-007 (TEST-207) namespace probe"
+  assert_companions aai-doc-number-reservation aai-doc-numbering || log_fail "TEST-007 (TEST-207) allocator companions must be selected together"
+  test_108_targeted_suites_wiring
+}
+test_208_transport_documentation() { transport_probe 208 || log_fail "TEST-008 (TEST-208) contract documentation probe"; }
+
 main() {
   echo ""
   echo "AAI Doc-Number Reservation Test Suite (CHANGE-0035 / SPEC-0047)"
@@ -988,6 +1174,14 @@ main() {
     return 0
   fi
 
+  test_201_singleton_non_atomic
+  test_202_coupled_success_collision
+  test_203_coupled_unsupported
+  test_204_network_deadlines
+  test_205_failure_categories
+  test_206_cli_transport_contract
+  test_207_regression_transport_wiring
+  test_208_transport_documentation
   test_001_reservation_before_rename
   test_002_retry_on_rejection
   test_003_origin_side_branch_scanned

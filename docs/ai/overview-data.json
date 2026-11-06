@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-06T13:23:02.895Z",
+  "generatedAt": "2026-11-06T22:46:46.245Z",
   "project": "aai",
   "counts": {
-    "delivered": 344,
+    "delivered": 345,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0274-spec-retire-shell-loop-runner.md",
       "validation": null,
       "review": "docs/ai/reviews/review-20261106T120846Z-retire-shell-loop-runner.md"
+    },
+    {
+      "ref": "singleton-reservation-portability",
+      "title": "Portable bounded document-number reservations",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0247-singleton-reservation-portability.md",
+      "closed_on": "2026-11-06",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0275-spec-singleton-reservation-portability.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-20261106T224004Z-singleton-reservation-portability.md"
     },
     {
       "ref": "retire-legacy-migrations",
@@ -4745,6 +4758,19 @@
           "spec": "docs/specs/SPEC-0274-spec-retire-shell-loop-runner.md",
           "validation": null,
           "review": "docs/ai/reviews/review-20261106T120846Z-retire-shell-loop-runner.md"
+        },
+        {
+          "ref": "singleton-reservation-portability",
+          "title": "Portable bounded document-number reservations",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0247-singleton-reservation-portability.md",
+          "closed_on": "2026-11-06",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0275-spec-singleton-reservation-portability.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-20261106T224004Z-singleton-reservation-portability.md"
         },
         {
           "ref": "retire-legacy-migrations",
