@@ -6,12 +6,13 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-retire-shell-loop-runner | specs | implementing | 12 planned | docs/specs/SPEC-DRAFT-spec-retire-shell-loop-runner.md |
 
 ## Canonical layer (0)
 
@@ -686,13 +687,14 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (16)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
+| retire-shell-loop-runner (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-retire-shell-loop-runner.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |
@@ -1306,4 +1308,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-05 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-06 — counts above use this date for overdue checks.
