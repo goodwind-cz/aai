@@ -4,7 +4,8 @@ type: change
 number: 247
 status: done
 links:
-  pr: []
+  pr:
+    - 535
   commits: []
 ---
 

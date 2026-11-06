@@ -9,7 +9,8 @@ ceremony_level: 3
 links:
   requirement: singleton-reservation-portability
   rfc: downstream-pr-ceremony-reliability
-  pr: []
+  pr:
+    - 535
   commits: []
 ---
 
