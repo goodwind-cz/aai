@@ -1039,8 +1039,8 @@ const cliStall = args => new Promise(resolve => {
   },10);
   child.on('close',status=>{clearInterval(timer);resolve({status,stdout,stderr,elapsed});});
 });
-const draft = slug => { const rel=`docs/rfc/RFC-DRAFT-${slug}.md`; fs.writeFileSync(path.join(d,rel),`---\nid: ${slug}\ntype: rfc\nnumber: null\nstatus: draft\n---\n# ${slug}\n`); return rel; };
-const provisional = (slug,n) => { const rel=`docs/rfc/RFC-${String(n).padStart(4,'0')}-${slug}.md`; fs.writeFileSync(path.join(d,rel),`---\nid: ${slug}\ntype: rfc\nnumber: ${n}\nnumber_reserved: false\nstatus: draft\n---\n# ${slug}\n`); return rel; };
+const draft = slug => { const rel=path.posix.join('docs','rfc',`RFC-DRAFT-${slug}.md`); fs.writeFileSync(path.join(d,rel),`---\nid: ${slug}\ntype: rfc\nnumber: null\nstatus: draft\n---\n# ${slug}\n`); return rel; };
+const provisional = (slug,n) => { const rel=path.posix.join('docs','rfc',`RFC-${String(n).padStart(4,'0')}-${slug}.md`); fs.writeFileSync(path.join(d,rel),`---\nid: ${slug}\ntype: rfc\nnumber: ${n}\nnumber_reserved: false\nstatus: draft\n---\n# ${slug}\n`); return rel; };
 const check = (v,message) => assert.ok(v,`TEST-${scenario}: ${message}`);
 console.log(`TEST-${scenario} before=${JSON.stringify(refs())} node=${process.version} platform=${process.platform}`);
 if (scenario === '201') {
@@ -1084,7 +1084,10 @@ if (scenario === '201') {
   }
   check(failures.length===0,failures.join('; '));
 } else if (scenario === '205') {
-  const errors=[['permission','remote: permission denied\n! [remote rejected] x (unpacker error)','access'],
+  const errors=[['unknown','fatal: requested URL returned HTTP 303','inspect'],
+    ['permission','fatal: requested URL returned HTTP 401','access'],
+    ['permission','fatal: requested URL returned HTTP 403','access'],
+    ['permission','remote: permission denied\n! [remote rejected] x (unpacker error)','access'],
     ['connectivity','fatal: Could not resolve host: example.invalid','connect'],
     ['unsupported-atomic','fatal: the receiving end does not support --atomic push','server'],
     ['unknown','remote: hook declined\n! [remote rejected] x (unpacker error)','inspect']];
@@ -1105,7 +1108,7 @@ if (scenario === '201') {
 } else if (scenario === '206') {
   git('--git-dir='+bare,'config','receive.advertiseAtomic','false');
   const rel=draft('portable'); let r=cli(['--path',rel,'--base-ref','main']); check(r.status===0,'full allocation succeeds');
-  const numbered=path.join(d,'docs/rfc/RFC-0001-portable.md'); check(fs.existsSync(numbered),'allocation renames draft');
+  const numbered=path.join(d,'docs','rfc','RFC-0001-portable.md'); check(fs.existsSync(numbered),'allocation renames draft');
   check(!fs.readFileSync(numbered,'utf8').includes('number_reserved:'),'confirmed allocation has no marker');
   const completion=provisional('completion',2); r=cli(['--reserve','--path',completion]); check(r.status===0,'completion succeeds');
   check(!fs.readFileSync(path.join(d,completion),'utf8').includes('number_reserved:'),'completion clears marker');
@@ -1120,7 +1123,7 @@ if (scenario === '201') {
   git('push','origin',`HEAD:${ref('FAMA',5)}`); clear();
   const coupled=reserve(pair,5); check(!coupled.ok && !coupled.collision,'unsupported coupled remains refused');
   check(!shaAt(ref('FAMB',5)),'coupled unsupported has no partial peer');
-  fs.writeFileSync(path.join(d,'docs/ai/docs-audit.yaml'),'coupled_families:\n  - RFC+SPEC-RFC\n');
+  fs.writeFileSync(path.join(d,'docs','ai','docs-audit.yaml'),'coupled_families:\n  - RFC+SPEC-RFC\n');
   const coupledDoc=provisional('coupled-unsupported',6); clear();
   r=cli(['--reserve','--path',coupledDoc]);
   check(r.status===0 && /unsupported-atomic/.test(output(r)),'public coupled completion degrades visibly');
@@ -1129,6 +1132,12 @@ if (scenario === '201') {
   check(calls().filter(a=>a[0]==='push').length===1,'public coupled refusal has no split fallback');
 } else if (scenario === '207') {
   check(reservationRef('RFC-0001')==='refs/aai/docnums/RFC-0001','public ref namespace remains compatible');
+  const root=process.env.TRANSPORT_ROOT;
+  const {extractDocPathReferences}=await import(pathToFileURL(path.join(root,'.aai/scripts/lib/docs-model.mjs')));
+  const source=fs.readFileSync(path.join(root,'tests/skills/test-aai-doc-number-reservation.sh'),'utf8');
+  const references=extractDocPathReferences(source);
+  check(references.includes(path.posix.join('docs','rfc','RFC-0016-downstream-pr-ceremony-reliability.md')),'source-ref scanner positive control sees real RFC');
+  check(!references.includes(path.posix.join('docs','rfc','RFC-0001-portable.md')),'disposable portable path must not become a broken index link');
 } else if (scenario === '208') {
   const root=process.env.TRANSPORT_ROOT;
   for(const name of ['docs/TECHNOLOGY.md','docs/USER_GUIDE.md']) {
@@ -1159,6 +1168,30 @@ test_207_regression_transport_wiring() {
 }
 test_208_transport_documentation() { transport_probe 208 || log_fail "TEST-008 (TEST-208) contract documentation probe"; }
 
+
+# PR535 close correction preserves audit history and the narrow owner waiver.
+test_209_close_telemetry_waiver_correction() {
+  node --input-type=module - "$PROJECT_ROOT" <<'JS' || log_fail "TEST-009 (TEST-209) waiver telemetry correction"
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const root=process.argv[2];
+const rows=fs.readFileSync(path.join(root,'docs','ai','EVENTS.jsonl'),'utf8').split('\n').filter(l=>l.trim() && !l.startsWith('#')).map(JSON.parse);
+const decision=path.posix.join('docs','decisions','DECISION-singleton-reservation-portability.md');
+assert.ok(fs.readFileSync(path.join(root,decision),'utf8').includes('TEST-829/830'),'TEST-209 owner decision preserves narrow exception');
+for(const ref of ['singleton-reservation-portability','spec-singleton-reservation-portability']) {
+  const closes=rows.filter(r=>r.event==='work_item_closed' && r.ref===ref);
+  const latest=closes.at(-1);
+  console.log(`TEST-209 ref=${ref} latest=${JSON.stringify(latest)}`);
+  assert.equal(latest?.payload?.validation,'not_run','TEST-209 latest close must not invent a validation PASS');
+  assert.equal(latest?.payload?.code_review,'pass','TEST-209 correction retains the actual close-time review');
+  for(const term of ['correction','FAIL','waiver',decision]) assert.ok(latest.payload.notes.includes(term),'TEST-209 correction notes include '+term);
+  assert.ok(closes.some(r=>r.payload.validation==='pass'),'TEST-209 preserves prior ledger entries for audit');
+}
+console.log('PASS: TEST-209 delivery correction preserves FAIL plus narrow owner waiver');
+JS
+}
+
 main() {
   echo ""
   echo "AAI Doc-Number Reservation Test Suite (CHANGE-0035 / SPEC-0047)"
@@ -1174,6 +1207,7 @@ main() {
     return 0
   fi
 
+  test_209_close_telemetry_waiver_correction
   test_201_singleton_non_atomic
   test_202_coupled_success_collision
   test_203_coupled_unsupported

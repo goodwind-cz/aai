@@ -34,6 +34,9 @@ have a finite 30000 ms default deadline and operation-specific recovery
 messages; `AAI_DOCNUM_NETWORK_TIMEOUT_MS` accepts 1..300000 ms. Timeout keeps
 the document provisional because the remote write outcome can be unknown.
 
+HTTP 303 redirects remain unknown transport errors; HTTP 401 and 403 are
+reported as permission errors.
+
 ## [unreleased]
 
 ## [unreleased] — refactor(scripts): the shell loop runner is retired in favour of /aai-loop

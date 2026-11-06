@@ -1,0 +1,196 @@
+{
+  "scope": "singleton-reservation-portability",
+  "pr": 535,
+  "purpose": "Raw post-open harness observations after the canonical metrics flush. Existing METRICS.jsonl is immutable; no second flush or cost arithmetic.",
+  "observations": [
+    {
+      "role": "Remediation",
+      "actual_model": "gpt-6.1-sol",
+      "model_provenance": "Codex turn_context metadata",
+      "started_utc": "2026-11-06T23:04:36Z",
+      "ended_utc": "2026-11-06T23:31:01Z",
+      "harness_observation": {
+        "status": "ok",
+        "thread": "01a1b1e3-7e9a-7f62-aee0-f7ca82367145",
+        "thread_source": "flag",
+        "interval": {
+          "from": "2026-11-06T23:04:36Z",
+          "to": "2026-11-06T23:31:01Z"
+        },
+        "basis": "response_records",
+        "usage": {
+          "input_tokens": 18600060,
+          "output_tokens": 47581,
+          "total_tokens": 18647641,
+          "cached_input_tokens_subset": 18205184,
+          "reasoning_output_tokens_subset": 36788
+        },
+        "degraded": [],
+        "partial_tail": false,
+        "append_run_flags": [
+          "--harness",
+          "codex",
+          "--tokens-in",
+          "18600060",
+          "--tokens-out",
+          "47581",
+          "--tokens-total",
+          "18647641",
+          "--note",
+          "usage_total_tokens=18647641 usage_source=codex_rollout codex_thread=01a1b1e3-7e9a-7f62-aee0-f7ca82367145 usage_interval=2026-11-06T23:04:36Z/2026-11-06T23:31:01Z usage_attribution=run usage_basis_detail=response_records requested_model=gpt-6.1-sol actual_model=gpt-6.1-sol post_open_remediation=true"
+        ],
+        "log_tick_flags": [
+          "--tokens-in",
+          "18600060",
+          "--tokens-out",
+          "47581"
+        ]
+      }
+    },
+    {
+      "role": "Validation",
+      "result": "unaccepted-command",
+      "started_utc": "2026-11-06T23:32:42Z",
+      "ended_utc": "2026-11-06T23:34:26Z",
+      "reason": "Suite command retained AAI_ROLE; source binding was initially absent; no STATE verdict accepted",
+      "actual_model": "gpt-6.1-terra",
+      "harness_observation": {
+        "status": "ok",
+        "thread": "01a1b334-f0a3-7002-860e-5ad54e395b2a",
+        "thread_source": "flag",
+        "interval": {
+          "from": "2026-11-06T23:32:11Z",
+          "to": "2026-11-06T23:34:26Z"
+        },
+        "basis": "response_records",
+        "usage": {
+          "input_tokens": 1088769,
+          "output_tokens": 3712,
+          "total_tokens": 1092481,
+          "cached_input_tokens_subset": 1034240,
+          "reasoning_output_tokens_subset": 271
+        },
+        "degraded": [],
+        "partial_tail": false,
+        "threads": [
+          "01a1b334-f0a3-7002-860e-5ad54e395b2a",
+          "01a1b334-f0c0-7570-8cfb-3a870e4c6397"
+        ],
+        "attribution": "thread",
+        "append_run_flags": [
+          "--harness",
+          "codex",
+          "--tokens-in",
+          "1088769",
+          "--tokens-out",
+          "3712",
+          "--tokens-total",
+          "1092481",
+          "--note",
+          "usage_total_tokens=1092481 usage_source=codex_rollout codex_thread=01a1b334-f0a3-7002-860e-5ad54e395b2a usage_interval=2026-11-06T23:32:11Z/2026-11-06T23:34:26Z usage_attribution=thread usage_basis_detail=response_records"
+        ],
+        "log_tick_flags": [
+          "--tokens-in",
+          "1088769",
+          "--tokens-out",
+          "3712"
+        ]
+      }
+    },
+    {
+      "role": "Validation",
+      "result": "pass_with_owner_exception",
+      "started_utc": "2026-11-06T23:35:51Z",
+      "ended_utc": "2026-11-06T23:37:23Z",
+      "actual_model": "gpt-6.1-terra",
+      "model_provenance": "Codex turn_context metadata",
+      "harness_observation": {
+        "status": "ok",
+        "thread": "01a1b334-f0a3-7002-860e-5ad54e395b2a",
+        "thread_source": "flag",
+        "interval": {
+          "from": "2026-11-06T23:35:51Z",
+          "to": "2026-11-06T23:37:23Z"
+        },
+        "basis": "response_records",
+        "usage": {
+          "input_tokens": 1249889,
+          "output_tokens": 1726,
+          "total_tokens": 1251615,
+          "cached_input_tokens_subset": 1245824,
+          "reasoning_output_tokens_subset": 120
+        },
+        "degraded": [],
+        "partial_tail": false,
+        "append_run_flags": [
+          "--harness",
+          "codex",
+          "--tokens-in",
+          "1249889",
+          "--tokens-out",
+          "1726",
+          "--tokens-total",
+          "1251615",
+          "--note",
+          "usage_total_tokens=1251615 usage_source=codex_rollout codex_thread=01a1b334-f0a3-7002-860e-5ad54e395b2a usage_interval=2026-11-06T23:35:51Z/2026-11-06T23:37:23Z usage_attribution=run usage_basis_detail=response_records requested_model=gpt-6.1-terra actual_model=gpt-6.1-terra post_open_forced=true"
+        ],
+        "log_tick_flags": [
+          "--tokens-in",
+          "1249889",
+          "--tokens-out",
+          "1726"
+        ]
+      }
+    },
+    {
+      "role": "Code Review",
+      "result": "pass_with_P2_disposition",
+      "follow_up": "fu-factory-report-waiver-history",
+      "started_utc": "2026-11-06T23:40:05Z",
+      "ended_utc": "2026-11-06T23:40:33Z",
+      "actual_model": "gpt-6.1-terra",
+      "model_provenance": "Codex turn_context metadata",
+      "harness_observation": {
+        "status": "ok",
+        "thread": "01a1b33b-b1b1-7a73-b435-ee65a1ddbd51",
+        "thread_source": "flag",
+        "interval": {
+          "from": "2026-11-06T23:39:13Z",
+          "to": "2026-11-06T23:40:33Z"
+        },
+        "basis": "response_records",
+        "usage": {
+          "input_tokens": 334412,
+          "output_tokens": 1243,
+          "total_tokens": 335655,
+          "cached_input_tokens_subset": 268416,
+          "reasoning_output_tokens_subset": 84
+        },
+        "degraded": [],
+        "partial_tail": false,
+        "threads": [
+          "01a1b33b-b1b1-7a73-b435-ee65a1ddbd51"
+        ],
+        "attribution": "thread",
+        "append_run_flags": [
+          "--harness",
+          "codex",
+          "--tokens-in",
+          "334412",
+          "--tokens-out",
+          "1243",
+          "--tokens-total",
+          "335655",
+          "--note",
+          "usage_total_tokens=335655 usage_source=codex_rollout codex_thread=01a1b33b-b1b1-7a73-b435-ee65a1ddbd51 usage_interval=2026-11-06T23:39:13Z/2026-11-06T23:40:33Z usage_attribution=thread usage_basis_detail=response_records requested_model=gpt-6.1-terra actual_model=gpt-6.1-terra post_open_review=true"
+        ],
+        "log_tick_flags": [
+          "--tokens-in",
+          "334412",
+          "--tokens-out",
+          "1243"
+        ]
+      }
+    }
+  ]
+}

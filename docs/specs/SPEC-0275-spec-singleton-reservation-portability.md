@@ -4,7 +4,7 @@ type: spec
 number: 275
 status: done
 mutation_gate: v1
-frozen_sha256: 5adc771d76d1c05da6e2c626b375fae3a204a975e0ed9f6a7a1aea391a9f8d55
+frozen_sha256: 50420289de27fa9f65fa4241bbaac1846cd8b6869feb83c6a60404ff507adcad
 ceremony_level: 3
 links:
   requirement: singleton-reservation-portability
@@ -33,12 +33,20 @@ SPEC-FROZEN: true
 - User decision: worktree
 - Base ref: main
 - Worktree branch/path: codex/singleton-reservation-portability at /private/tmp/aai-singleton-reservation-portability; already authorized and established through ride-handoff.
-- Review scope: .aai/scripts/allocate-doc-number.mjs, tests/skills/test-aai-doc-number-reservation.sh, tests/skills/test-aai-doc-numbering.sh (only if existing assertions require correction), docs/TECHNOLOGY.md, docs/USER_GUIDE.md, docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md, docs/issues/CHANGE-0247-singleton-reservation-portability.md, docs/specs/SPEC-0275-spec-singleton-reservation-portability.md, CHANGELOG.md. Runtime evidence is separate. Code review is required.
+- Review scope: .aai/scripts/allocate-doc-number.mjs, tests/skills/test-aai-doc-number-reservation.sh, tests/skills/test-aai-doc-numbering.sh (only if existing assertions require correction), docs/TECHNOLOGY.md, docs/USER_GUIDE.md, docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md, docs/issues/CHANGE-0247-singleton-reservation-portability.md, docs/specs/SPEC-0275-spec-singleton-reservation-portability.md, CHANGELOG.md. PR535 external-remediation companions also include .aai/system/PRICING.yaml, append-only close-event corrections in docs/ai/EVENTS.jsonl, and regenerated docs/INDEX.md. Runtime evidence is separate. Code review is required.
 - No further isolation decision is needed. Owner model override permits Codex roles, with independent implementation and validation; Validation and Review run sequentially.
 
 ## Scope and exclusions
 
 Change only phase B reservation transport, its existing executable coverage, and the corresponding user contract. Preserve the exported reserveAtomic API and existing allocator/guard exit and provisional-marker contracts. Do not introduce capability caching, provider preflight, PR resumption, scope/waiver schemas, global-gate changes, phase timing, new suites, prompt edits, or new .aai files. No merge or release is authorized.
+
+### PR535 external review and CI remediation
+
+This closed delivery also corrects its own close telemetry by appending canonical events with validation not_run and close-time code_review pass, citing the unchanged narrow owner decision. Existing EVENTS bytes, immutable Validation FAIL reports and actual FAIL metrics are preserved. The operator exception still covers only unchanged sync-seed TEST-829/830 and its corresponding incomplete full sweep; it does not waive these new fixes or independent review. The global close writer and waiver policy remain outside this slice.
+
+The existing pricing contract requires resolution of observed historical runtime IDs. Add only the actually recorded gpt-6.1-terra model to .aai/system/PRICING.yaml with dedicated official model-page provenance, verified Standard short-context rates and explicit tier notes. Do not alias it to another model or rewrite historical METRICS prices. This configuration companion repairs PR CI rather than introducing a new product capability.
+
+External regression coverage extends TEST-205 with HTTP303 unknown and HTTP401/403 permission controls, TEST-207 with real source-reference extraction plus a valid-reference positive control, and adds TEST-209 for this delivery's latest close events and preserved audit history. Disposable fixture paths are assembled from segments; regenerate the index without changing its scanner.
 
 Registry items closed by this scope: none
 
@@ -91,7 +99,7 @@ Hermetic fixtures do not establish live Azure behavior, native Windows transport
 
 ## Test Plan
 
-Each row is executed by R (and N where stated). New suite test numbers 201–208 are suggested function labels; TEST IDs below are frozen contract identifiers. Mutation targets are .aai/scripts/allocate-doc-number.mjs except TEST-008 which targets docs/TECHNOLOGY.md. Measurement refinement 2026-11-06: executable replacements below target the implemented transport seams; TEST-005 and TEST-006 each require both arms. The shared deadline mutation is observed independently by all four network-call arms, whose subprocess lifetimes are measured separately from local allocation work. Recorded with spec-amend as measurement-only; no contract change.
+Each row is executed by R (and N where stated). New suite test numbers 201–208 are suggested function labels; TEST IDs below are frozen contract identifiers. Mutation targets are .aai/scripts/allocate-doc-number.mjs except TEST-008 which targets docs/TECHNOLOGY.md and TEST-009 which targets docs/ai/EVENTS.jsonl. Measurement refinement 2026-11-06: executable replacements below target the implemented transport seams; TEST-005 and TEST-006 each require both arms. The shared deadline mutation is observed independently by all four network-call arms, whose subprocess lifetimes are measured separately from local allocation work. Recorded with spec-amend as measurement-only; no contract change.
 
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
@@ -103,6 +111,7 @@ Each row is executed by R (and N where stated). New suite test numbers 201–208
 | TEST-006 | Spec-AC-05 | integration | tests/skills/test-aai-doc-number-reservation.sh | TEST-206: full singleton allocate and --reserve success on non-atomic remote; completion failure leaves marker/exit 0; collision exits 4; existing same-HEAD singleton/coupled controls. | `sed:s/const sha = createReservationCommit\(root\);/const sha = git(root, ['rev-parse', 'HEAD']);/` reuses HEAD; separately `sed:s/const leases = refNames.map\([^\n]+/const leases = [];/` removes leases. Both must fail. | green |
 | TEST-007 | Spec-AC-06 | integration | tests/skills/test-aai-doc-number-reservation.sh | TEST-207: existing reservation and doc-numbering suites pass, selected together through suite-map; no nested suite invocation. | `sed:s/return `refs\/aai\/docnums\/\$\{displayIdStr\}`;/return `refs\/aai\/broken-docnums\/${displayIdStr}`;/` changes the public namespace. | green |
 | TEST-008 | Spec-AC-07 | integration | tests/skills/test-aai-doc-number-reservation.sh | TEST-208: exact singleton/coupled/default-timeout documentation assertions and RFC B link/status with other-phase preservation. | `sed:s/30000 ms/0 ms/g` falsifies the documented finite default. | green |
+| TEST-009 | Spec-AC-06 | integration | tests/skills/test-aai-doc-number-reservation.sh | TEST-209: both latest close events preserve the actual non-pass validation plus narrow owner waiver and prior audit rows. | `sed:s/"validation":"not_run"/"validation":"pass"/g` contradicts the latest close outcomes in the isolated copy. | green |
 
 ## Verification
 

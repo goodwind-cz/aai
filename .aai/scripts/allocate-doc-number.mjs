@@ -536,7 +536,7 @@ function networkFailure(e, output) {
   // Partial stale-info output cannot turn a timeout into a collision retry.
   if (e.code === 'ETIMEDOUT') return 'timeout';
   if (/does not support.*--atomic|atomic.*not supported/i.test(output)) return 'unsupported-atomic';
-  if (/permission denied|authentication failed|access denied|not authorized|authorization failed|\b[34]03\b/i.test(output)) return 'permission';
+  if (/permission denied|authentication failed|access denied|not authorized|authorization failed|\b(?:401|403)\b/i.test(output)) return 'permission';
   if (/could not resolve|failed to connect|connection (?:refused|reset|timed out)|network is unreachable|no route to host|does not appear to be a git repository/i.test(output)) return 'connectivity';
   if (/!\s+\[rejected\][^\r\n]*\(stale info\)/i.test(output)) return 'collision';
   return 'unknown';

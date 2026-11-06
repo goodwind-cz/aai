@@ -10,7 +10,7 @@ pricing_meta:
   currency: USD
   token_unit: per_1m_tokens
   default_effective_region: global
-  last_updated_utc: "2026-09-30T00:20:12Z"
+  last_updated_utc: "2026-11-06T23:08:50Z"
   # CHANGE-0197 catalog families with no public list price (verified 2026-09-29):
   # composer-2.5 — https://cursor.com/docs — no per-token USD/1M API list for Composer 2.5.
   # cursor-grok-4.6 — https://docs.x.ai/docs/models — Grok 4.7 Fast is Cursor/Grok Build only; no API list for runtime id cursor-grok-4.6.
@@ -68,6 +68,10 @@ cost_blend:
   reason: "no run in docs/ai/METRICS.jsonl carries both tokens_in and tokens_out (0 of 628, measured); docs/ai/LOOP_TICKS.jsonl does not exist in this worktree and its in/out-split claim is NOT VERIFIABLE HERE, not asserted as fact — 0.5 is the interval midpoint, not a measurement"
 
 sources:
+  openai-gpt-6-1-terra:
+    provider: openai
+    url: "https://developers.openai.com/api/docs/models/gpt-6.1-terra"
+    last_verified_utc: "2026-11-06T23:08:50Z"
   openai-pricing:
     provider: openai
     url: "https://developers.openai.com/api/docs/pricing"
@@ -301,6 +305,12 @@ models:
     source_ref: openai-pricing
     last_verified_utc: "2026-09-30T00:20:12Z"
     notes: "GPT-6 sol (non-6.1) flagship standard short-context list; cached input $0.20/1M and cache writes $2.50/1M on source page; long-context tier on same page."
+  gpt-6.1-terra:
+    input_usd_per_m: 1.00
+    output_usd_per_m: 5.00
+    source_ref: openai-gpt-6-1-terra
+    last_verified_utc: "2026-11-06T23:08:50Z"
+    notes: "Standard list up to 272K input tokens; cached input $0.05/1M. Above 272K input, the full request uses 2x input/cache rates and 1.5x output. Fast mode is 2x Standard. Historical recorded costs are not rewritten."
   gpt-6.1-sol:
     input_usd_per_m: 2.00
     output_usd_per_m: 10.00

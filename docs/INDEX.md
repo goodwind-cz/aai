@@ -729,7 +729,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (542)
+## Broken references (541)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -880,7 +880,6 @@ _None._
 | tests/skills/test-aai-doc-number-reservation.sh | docs/product/uses-draft.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/product/x.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/project-sessions/2026-07-27-widen.md | NOT FOUND |
-| tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-0001-portable.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-dryrun-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-excl-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-four-topic.md | NOT FOUND |
