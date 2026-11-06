@@ -1,9 +1,9 @@
 ---
 id: spec-retire-shell-loop-runner
 type: spec
-number: null
-status: implementing
-frozen_sha256: 8b0293622214bc719280e141644b9c63cf18ee1f89c20a29b95c5889eb74072c
+number: 274
+status: done
+frozen_sha256: 34e845b95c1aaad76871c9182202b4656d1eef4e226e2b11915de0e17d1fe032
 mutation_gate: v1
 ceremony_level: 2
 links:
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Retire the shell autonomous loop runner in favour of /aai-loop](../issues/CHANGE-DRAFT-retire-shell-loop-runner.md).
+- Requirement: [Retire the shell autonomous loop runner in favour of /aai-loop](../issues/CHANGE-0246-retire-shell-loop-runner.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 2 with its owner decision of 2026-11-05 (section 4, item 2).
@@ -62,8 +62,8 @@ SPEC-FROZEN: true
   tests/skills/test-aai-prompt-diet.sh
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   docs/ai/decisions.jsonl CHANGELOG.md
-  docs/issues/CHANGE-DRAFT-retire-shell-loop-runner.md
-  docs/specs/SPEC-DRAFT-spec-retire-shell-loop-runner.md docs/INDEX.md
+  docs/issues/CHANGE-0246-retire-shell-loop-runner.md
+  docs/specs/SPEC-0274-spec-retire-shell-loop-runner.md docs/INDEX.md
   (suite-weights.tsv only if the selector asks for a row).
 - Code review required: true.
 
@@ -297,12 +297,12 @@ The section holds no `--propose-only`, `-ProposeOnly` or `autonomous-loop`.
 
 - The phase 5 row gains one sentence after the fifth-slice sentence and before
   the remaining-scripts-plan sentence:
-  `The sixth slice [retired the shell loop runner](../issues/CHANGE-DRAFT-retire-shell-loop-runner.md): autonomous-loop became a deprecation launcher for one release that names \`/aai-loop\`.`
+  `The sixth slice [retired the shell loop runner](../issues/CHANGE-0246-retire-shell-loop-runner.md): autonomous-loop became a deprecation launcher for one release that names \`/aai-loop\`.`
   Status stays `in progress`; frontmatter untouched. The allocator rewrites
   the link at merge; checks match only the suffix `retire-shell-loop-runner.md`.
 - Inventory (D-INV): the `autonomous-loop` row keeps `488/464` and
   `phase 5 process adapter`; its Reason cell becomes
-  `retired by the [shell-loop-runner slice](../issues/CHANGE-DRAFT-retire-shell-loop-runner.md); a deprecation launcher for one release naming /aai-loop, deleted in the next`.
+  `retired by the [shell-loop-runner slice](../issues/CHANGE-0246-retire-shell-loop-runner.md); a deprecation launcher for one release naming /aai-loop, deleted in the next`.
   Every other row stays byte for byte.
 - After LOOP COMPLETE (ship convention, in the review scope, not a TEST row):
   CHANGELOG `## [unreleased] — refactor(scripts): the shell loop runner is retired in favour of /aai-loop`
@@ -332,18 +332,18 @@ aai-sync, PROFILES and the ps1-quality workflow are not edited.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN autonomous-loop.sh runs under bash, sh and dash from inside a committed fixture whose docs/ai holds no STATE.yaml, once with --mode skill --agent-command codex --max-iterations 1 --auto-init-state and once with no argument, with PATH holding no node, python3, codex or claude, the system SHALL print exactly the D1 line on stderr, nothing on stdout, exit 1, create no docs/ai/STATE.yaml and no docs/ai/LOOP_TICKS.jsonl, and leave git status empty and the fixture file listing unchanged. | planned | — | — | — |
-| Spec-AC-02 | WHEN autonomous-loop.ps1 runs under pwsh with -Mode skill -AgentCommand codex -MaxIterations 1 -AutoInitState, with no argument and with -DryRun under the same PATH limits, the system SHALL print exactly the D1 line on stderr, nothing on stdout, exit 1 and leave the fixture unchanged; and tests/skills/retired-loop-runner.Tests.ps1 SHALL pass under Pester 5 with no failed or skipped case and at least 3 cases. | planned | — | — | — |
-| Spec-AC-03 | Each launcher is at most 20 lines, ASCII only, git mode 100644, holds one line beginning # RETIRED (RFC-0017 phase 5, retire-shell-loop-runner) and the D1 line text, the sh first line is #!/bin/sh, the ps1 has no param block, and neither holds any D1 forbidden word. | planned | — | — | — |
-| Spec-AC-04 | Over tracked files outside docs/ and tests/ except CHANGELOG.md, plus docs/USER_GUIDE.md and docs/TECHNOLOGY.md, every line naming autonomous-loop is in one of the two launchers or .aai/system/PROFILES.yaml or contains the word retired; AGENTS.md holds the D2 line and no legacy mode line; SKILL_LOOP line 4 and the BOOTSTRAP_DIFF list hold the D2 text; README.md and TECHNOLOGY.md hold no loop runner phrase; USER_GUIDE.md holds the D4 heading and no --agent-command, -AgentCommand or --mode skill example. | planned | — | — | — |
-| Spec-AC-05 | AUTONOMOUS_LOOP.md section 8 holds the D3 sentence naming /aai-loop and /aai-ship, the four D3 bullets, no --propose-only, -ProposeOnly or autonomous-loop, and every .aai/ path it names exists in the tree; SKILL_LOOP still names loop-digest.mjs --json, and loop-digest.mjs exists and stays listed once under core in PROFILES.yaml. | planned | — | — | — |
-| Spec-AC-06 | test_single_state_creator in tests/skills/test-aai-check-state.sh names both launchers and fails when either names STATE_TEMPLATE, STATE.yaml or check-state; test-aai-check-state.sh exits 0 on the delivered tree. | planned | — | — | — |
-| Spec-AC-07 | The prompt-diet ledger holds exactly one retire-shell-loop-runner entry, negative, equal to the delivered byte size of SKILL_LOOP plus BOOTSTRAP_DIFF minus 33432; test-aai-prompt-diet.sh exits 0 with TEST-010 headroom 0 of 2048 and the TEST-012 pin equal to 64288 plus that entry. | planned | — | — | — |
-| Spec-AC-08 | Wiring per D5: select-suites on .aai/scripts/autonomous-loop.sh and on .aai/scripts/autonomous-loop.ps1 each selects aai-retired-loop-runner; PROFILES.yaml lists each launcher once under core and test-aai-layer-profiles.sh exits 0; both ps1-quality path lists still hold the .aai/scripts/**.ps1 and tests/skills/*.Tests.ps1 globs. | planned | — | — | — |
-| Spec-AC-09 | WHEN aai-sync.sh --profile core installs into a scratch git target whose path holds a space the system SHALL carry both launchers, and the target's own autonomous-loop.sh under bash and autonomous-loop.ps1 under pwsh, run from inside the target with skill-mode arguments, SHALL each print the D1 line, exit 1 and create no docs/ai/STATE.yaml. | planned | — | — | — |
-| Spec-AC-10 | The RFC-0017 inventory equals the pair set of the tree (TEST-2624 exits 0), the autonomous-loop row keeps 488/464 and phase 5 process adapter and carries the D6 reason with a link ending retire-shell-loop-runner.md, and the phase 5 row keeps status in progress and holds the D6 sentence exactly once. | planned | — | — | — |
-| Spec-AC-11 | Measured with the plan's method on the delivered tree, each launcher has at most 2 code lines and at most 20 lines in total, so the two files hold at most 4 code lines against 793 before. | planned | — | — | — |
-| Spec-AC-12 | follow-ups.mjs list --json holds one open item fu-delete-retired-shell-loop-runner with ref retire-shell-loop-runner, severity P3 and a finding naming autonomous-loop.sh, autonomous-loop.ps1 and PROFILES.yaml. | planned | — | — | — |
+| Spec-AC-01 | WHEN autonomous-loop.sh runs under bash, sh and dash from inside a committed fixture whose docs/ai holds no STATE.yaml, once with --mode skill --agent-command codex --max-iterations 1 --auto-init-state and once with no argument, with PATH holding no node, python3, codex or claude, the system SHALL print exactly the D1 line on stderr, nothing on stdout, exit 1, create no docs/ai/STATE.yaml and no docs/ai/LOOP_TICKS.jsonl, and leave git status empty and the fixture file listing unchanged. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-02 | WHEN autonomous-loop.ps1 runs under pwsh with -Mode skill -AgentCommand codex -MaxIterations 1 -AutoInitState, with no argument and with -DryRun under the same PATH limits, the system SHALL print exactly the D1 line on stderr, nothing on stdout, exit 1 and leave the fixture unchanged; and tests/skills/retired-loop-runner.Tests.ps1 SHALL pass under Pester 5 with no failed or skipped case and at least 3 cases. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-03 | Each launcher is at most 20 lines, ASCII only, git mode 100644, holds one line beginning # RETIRED (RFC-0017 phase 5, retire-shell-loop-runner) and the D1 line text, the sh first line is #!/bin/sh, the ps1 has no param block, and neither holds any D1 forbidden word. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-04 | Over tracked files outside docs/ and tests/ except CHANGELOG.md, plus docs/USER_GUIDE.md and docs/TECHNOLOGY.md, every line naming autonomous-loop is in one of the two launchers or .aai/system/PROFILES.yaml or contains the word retired; AGENTS.md holds the D2 line and no legacy mode line; SKILL_LOOP line 4 and the BOOTSTRAP_DIFF list hold the D2 text; README.md and TECHNOLOGY.md hold no loop runner phrase; USER_GUIDE.md holds the D4 heading and no --agent-command, -AgentCommand or --mode skill example. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-05 | AUTONOMOUS_LOOP.md section 8 holds the D3 sentence naming /aai-loop and /aai-ship, the four D3 bullets, no --propose-only, -ProposeOnly or autonomous-loop, and every .aai/ path it names exists in the tree; SKILL_LOOP still names loop-digest.mjs --json, and loop-digest.mjs exists and stays listed once under core in PROFILES.yaml. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-06 | test_single_state_creator in tests/skills/test-aai-check-state.sh names both launchers and fails when either names STATE_TEMPLATE, STATE.yaml or check-state; test-aai-check-state.sh exits 0 on the delivered tree. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-07 | The prompt-diet ledger holds exactly one retire-shell-loop-runner entry, negative, equal to the delivered byte size of SKILL_LOOP plus BOOTSTRAP_DIFF minus 33432; test-aai-prompt-diet.sh exits 0 with TEST-010 headroom 0 of 2048 and the TEST-012 pin equal to 64288 plus that entry. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-08 | Wiring per D5: select-suites on .aai/scripts/autonomous-loop.sh and on .aai/scripts/autonomous-loop.ps1 each selects aai-retired-loop-runner; PROFILES.yaml lists each launcher once under core and test-aai-layer-profiles.sh exits 0; both ps1-quality path lists still hold the .aai/scripts/**.ps1 and tests/skills/*.Tests.ps1 globs. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-09 | WHEN aai-sync.sh --profile core installs into a scratch git target whose path holds a space the system SHALL carry both launchers, and the target's own autonomous-loop.sh under bash and autonomous-loop.ps1 under pwsh, run from inside the target with skill-mode arguments, SHALL each print the D1 line, exit 1 and create no docs/ai/STATE.yaml. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-10 | The RFC-0017 inventory equals the pair set of the tree (TEST-2624 exits 0), the autonomous-loop row keeps 488/464 and phase 5 process adapter and carries the D6 reason with a link ending retire-shell-loop-runner.md, and the phase 5 row keeps status in progress and holds the D6 sentence exactly once. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-11 | Measured with the plan's method on the delivered tree, each launcher has at most 2 code lines and at most 20 lines in total, so the two files hold at most 4 code lines against 793 before. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
+| Spec-AC-12 | follow-ups.mjs list --json holds one open item fu-delete-retired-shell-loop-runner with ref retire-shell-loop-runner, severity P3 and a finding naming autonomous-loop.sh, autonomous-loop.ps1 and PROFILES.yaml. | done | docs/ai/reports/VALIDATION-retire-shell-loop-runner-r4.md; docs/ai/tdd/retire-shell-loop-runner/green/suite-retired-loop-runner.log | — | — |
 
 ## Implementation plan
 

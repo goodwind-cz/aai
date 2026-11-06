@@ -1,8 +1,8 @@
 ---
 id: retire-shell-loop-runner
 type: change
-number: null
-status: draft
+number: 246
+status: done
 capability: retire-shell-loop-runner
 parent: smaller-node-core-and-faster-feedback
 links:

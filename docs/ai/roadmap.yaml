@@ -139,7 +139,7 @@ pairs:
   - capability: retire-legacy-migrations
     status: done
   - capability: retire-shell-loop-runner
-    status: planned
+    status: done
   - capability: cloudflare-share-on-node
     status: planned
   - capability: git-hook-bodies-single-source

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-retired-loop-runner
-# (docs/specs/SPEC-DRAFT-spec-retire-shell-loop-runner.md, TEST-3403..3415)
+# (docs/specs/SPEC-0274-spec-retire-shell-loop-runner.md, TEST-3403..3415)
 #
 # The shell loop runner retirement: autonomous-loop.sh / .ps1 are deprecation launchers
 # that name /aai-loop, change nothing and exit 1. Every case here works in fresh mktemp
@@ -322,7 +322,7 @@ test_3412_downstream_install() {
 }
 
 RFC17="${AAI_RLR_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
-D6_SENTENCE='The sixth slice [retired the shell loop runner](../issues/CHANGE-DRAFT-retire-shell-loop-runner.md): autonomous-loop became a deprecation launcher for one release that names `/aai-loop`.'
+D6_SENTENCE='The sixth slice [retired the shell loop runner](../issues/CHANGE-0246-retire-shell-loop-runner.md): autonomous-loop became a deprecation launcher for one release that names `/aai-loop`.'
 
 test_3413_rfc() {
   local row n out rc=0
