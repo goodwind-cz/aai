@@ -237,6 +237,10 @@ test('TEST-3418 DR-19 extra arguments print the usage line on stderr, exit 1 and
   assert.equal(r.stdout, '');
   assert.equal(r.stderr, `${USAGE}\n`);
   assert.deepEqual(fs.readdirSync(f.cwd), ['doc.md']);
+  assert.deepEqual(M.parseArgs?.(['-h', 'x']), { error: USAGE });
+  assert.deepEqual(M.parseArgs?.(['x', '-h']), { error: USAGE });
+  assert.deepEqual(M.parseArgs?.(['--help', 'x']), { error: USAGE });
+  assert.deepEqual(M.parseArgs?.(['-h']), { help: true });
 });
 
 // ---- TEST-3419 ----------------------------------------------------------------------------------
@@ -272,6 +276,7 @@ test('TEST-3419 DR-07 wrangler resolution over PATH and PATHEXT, and the win32 c
   assert.equal(M.deployCommand?.('/opt/b/wrangler', 'b', 'linux')?.shell, false);
   assert.equal(M.deployCommand?.('C:\\a"b\\wrangler.cmd', 'b', 'win32'), null);
   assert.equal(M.deployCommand?.('C:\\%x%\\wrangler.cmd', 'b', 'win32'), null);
+  assert.equal(M.deployCommand?.('C:\\a!b!c\\wrangler.cmd', 'b', 'win32'), null);
   const f = fx();
   const m = mk(f, { platform: 'win32', env: { Path: 'C:\\a"b', PATHEXT: '.CMD' }, fs: { ...fs, statSync: (p, ...a) => (p === 'C:\\a"b\\wrangler.cmd' ? { isFile: () => true, mode: 0 } : fs.statSync(p, ...a)) } });
   assert.equal(run({ doc: 'doc.md' }, m.deps), 1);
@@ -408,6 +413,13 @@ test('TEST-3420 DR-17 the output carries no ANSI escape', () => {
   assert.ok(m.log.out.length > 5, 'no output captured');
   assert.equal(m.log.out.join('\n').includes('\u001b'), false);
   assert.equal(m.log.err.join('\n').includes('\u001b'), false);
+  // the failed-deploy echo path: wrangler output carrying CSI and OSC-8 sequences
+  const coloured = '\u001b[31mred boom\u001b[0m \u001b]8;;https://x.invalid\u0007link\u001b]8;;\u0007\n';
+  const bad = mk(fx(), { deploy: () => ({ status: 1, stdout: coloured, stderr: '\u001b[1mbold detail\u001b[22m\n' }) });
+  assert.equal(run({ doc: 'doc.md' }, bad.deps), 1);
+  const all = [...bad.log.out, ...bad.log.err].join('\n');
+  assert.equal(all.includes('\u001b'), false, 'an ESC byte reached the output');
+  assert.ok(all.includes('red boom') && all.includes('bold detail') && all.includes('link'), 'the echoed text was lost');
 });
 
 // ---- TEST-3421 ----------------------------------------------------------------------------------
@@ -428,6 +440,18 @@ test('TEST-3421 DR-21 credentials are passed on, never printed, and redacted fro
     assert.equal(r.stdout.includes(v), false, 'a credential value reached stdout');
   }
   assert.equal(fs.readFileSync(path.join(f.bin, 'envdump.txt'), 'utf8'), `${TOK}\n${KEY}\n`);
+  const ok = fx({ stubLines: [
+    'echo "token=$CLOUDFLARE_API_TOKEN"',
+    'echo "key=$CLOUDFLARE_API_KEY" >&2',
+    `echo " ${URL1}"`,
+  ] });
+  const s = cli(ok, ['doc.md'], { CLOUDFLARE_API_TOKEN: TOK, CLOUDFLARE_API_KEY: KEY });
+  assert.equal(s.status, 0, s.stderr);
+  for (const v of [TOK, KEY]) {
+    assert.equal(s.stderr.includes(v), false, 'a credential value reached stderr on success');
+    assert.equal(s.stdout.includes(v), false, 'a credential value reached stdout on success');
+  }
+  assert.ok(s.stdout.includes(`URL: ${URL1}`));
   const envOf = (name, value) => Object.fromEntries([[name, value]]);
   assert.equal(M.redact?.('a 1234567 b', envOf('CLOUDFLARE_API_TOKEN', '1234567')), 'a 1234567 b');
   assert.equal(M.redact?.('a 12345678 b', envOf('CLOUDFLARE_API_KEY', '12345678')), 'a [REDACTED] b');

@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 17d319dfff25d1caa3772b3a558c40207666916309bc947f4aba7b7001c27fc8
+frozen_sha256: b32b6063304563c045a0a43a366617eff0cdb010c2787c192794d2b00f59bb88
 ceremony_level: 2
 links:
   requirement: cloudflare-share-on-node
@@ -187,7 +187,7 @@ Each row is decided here and pinned by exactly one `node:test` case in
 | DR-14 | record key order and escaping | fixed order timestamp, document, url, size_kb; no escaping (a quote or backslash in the path breaks the line) | hashtable order (measured: timestamp, document, size_kb, url); escaped | `JSON.stringify` of keys in the order timestamp, document, url, size_kb |
 | DR-15 | record line ending and encoding | LF | Add-Content: CRLF on Windows, ANSI default on 5.1 | UTF-8, one line ending in LF, appended |
 | DR-16 | timestamp | `date -u` ISO seconds and Z | .NET custom format whose `:` is the culture time separator | ISO 8601 UTC to the second with Z, culture-free |
-| DR-17 | colour | plain | green and cyan Write-Host | plain text, no ANSI escapes |
+| DR-17 | colour | plain | green and cyan Write-Host | plain text, no ANSI escapes, including the echoed output of a failed deploy, whose ANSI escape sequences are removed before the DR-21 redaction |
 | DR-18 | unexpected deploy error (spawn fails) | set -e exit, publish dir left | thrown, publish dir left | `ERROR: wrangler could not be run: <message>` on stderr, exit 1, publish dir removed |
 | DR-19 | extra arguments | ignored | binding error, exit 1 | usage line on stderr, exit 1, nothing created |
 | DR-20 | Node missing | `node` not found under set -e, exit 127 | CommandNotFoundException, exit 1 | launchers print the D-LAUNCH refusal line on stderr, exit 1, create nothing |
@@ -221,7 +221,7 @@ literal constants `const PUBLISH_DIR = '.cloudflare-publish';`,
   `['pages', 'deploy', PUBLISH_DIR, '--project-name=' + PROJECT_NAME, '--branch=' + branch]`;
   `shell: true` only for a `.cmd` or `.bat` path on win32, with the quoted
   path and the same arguments joined into one command string; a resolved
-  path holding `"` or `%` returns `null`, which `run` reports as
+  path holding `"`, `%` or `!` returns `null`, which `run` reports as
   `ERROR: wrangler path cannot be run safely: <path>` on stderr with exit 1.
 - `run(opts, deps)`: the whole flow, returning the exit code. `deps` holds
   `cwd`, `env`, `platform`, `fs`, `convert(doc, dir)`, `deploy(cmd, env)`,
@@ -480,9 +480,9 @@ above.
   the hosted job (H1); Planning had no Windows engine.
 - No test talks to Cloudflare: the real Wrangler output format is assumed to
   keep a `https://...pages.dev` URL in its output (as both twins assumed).
-- A `.cmd` resolved from a PATH entry holding `"` or `%` is not quoted
-  safely by cmd.exe; such PATH entries are not supported (the module refuses
-  a resolved path holding either character).
+- A `.cmd` resolved from a PATH entry holding `"`, `%` or `!` is not quoted
+  safely by cmd.exe (`!` expands under delayed expansion); such PATH entries
+  are not supported (the module refuses a resolved path holding any of them).
 - The changed failure behaviours (D-DRIFT rows marked in D-RFC) are visible
   to a downstream wrapper that parsed stdout for error text; the CHANGELOG
   names them.

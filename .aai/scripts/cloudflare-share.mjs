@@ -14,10 +14,10 @@ const URL_RE = /https:\/\/[^\s]+\.pages\.dev/;
 const USAGE = 'Usage: cloudflare-share <document.md>';
 const SECRET_VARS = ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_KEY'];
 
-export { USAGE };
+const ANSI_RE = /\u001b(?:\[[0-?]*[ -\/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[@-Z\\-_])/g;
 
 export function parseArgs(argv) {
-  if (argv[0] === '-h' || argv[0] === '--help') return { help: true };
+  if (argv.length === 1 && (argv[0] === '-h' || argv[0] === '--help')) return { help: true };
   if (argv.length !== 1 || argv[0] === '') return { error: USAGE };
   return { doc: argv[0] };
 }
@@ -63,7 +63,7 @@ export function findWrangler(env, platform, fsApi) {
 export function deployCommand(wranglerPath, branch, platform) {
   const args = ['pages', 'deploy', PUBLISH_DIR, `--project-name=${PROJECT_NAME}`, `--branch=${branch}`];
   if (platform === 'win32' && /\.(cmd|bat)$/i.test(wranglerPath)) {
-    if (/["%]/.test(wranglerPath)) return null;
+    if (/["%!]/.test(wranglerPath)) return null;
     return { command: [`"${wranglerPath}"`, ...args].join(' '), args: [], shell: true };
   }
   return { command: wranglerPath, args, shell: false };
@@ -117,7 +117,7 @@ export function run(opts, deps) {
     const url = dep.status === 0 ? (extractUrl(stdout) ?? extractUrl(stderr)) : null;
     if (!url) {
       err('ERROR: Deployment failed or URL not found');
-      err(redact(`${stdout}${stderr}`.replace(/\n+$/, ''), env));
+      err(redact(`${stdout}${stderr}`.replace(ANSI_RE, '').replace(/\n+$/, ''), env));
       return 1;
     }
     const sizeKb = Math.round((sizeOf(fsApi, publish) / 1024) * 100) / 100;
