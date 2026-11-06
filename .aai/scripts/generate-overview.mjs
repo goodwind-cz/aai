@@ -205,7 +205,7 @@ function findActiveWorkItem(raw, refId) {
 function readTicks(limit) {
   const rows = readJsonl('docs/ai/LOOP_TICKS.jsonl')
     .filter((r) => r && typeof r === 'object' && (r.type === undefined || r.type === 'tick' || r.type === 'recovery'))
-    // Legacy producers (autonomous-loop.sh/.ps1, STATE_FALLBACK schema) emit
+    // Legacy producers (the retired shell loop runner, STATE_FALLBACK schema) emit
     // tick rows WITHOUT role/scope — normalize to placeholders rather than
     // dropping supported records (PR #167 Codex P2).
     .map((r) => ({

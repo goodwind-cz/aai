@@ -195,6 +195,79 @@ test_3406_launchers_thin() {
   log_pass "TEST-3406: both launchers are thin, ASCII, mode 100644, carry the RETIRED comment and the D1 line and name no tool"
 }
 
+# stale_lines <newline list of tracked files> <root>: lines that name autonomous-loop outside the allowed set.
+stale_lines() {
+  node -e '
+    const fs = require("fs");
+    const [list, root] = process.argv.slice(1);
+    const allowed = new Set([".aai/scripts/autonomous-loop.sh", ".aai/scripts/autonomous-loop.ps1", ".aai/system/PROFILES.yaml"]);
+    const keepDocs = new Set(["docs/USER_GUIDE.md", "docs/TECHNOLOGY.md"]);
+    const out = [];
+    for (const f of list.split("\n").filter(Boolean)) {
+      if ((f.startsWith("docs/") && !keepDocs.has(f)) || f.startsWith("tests/") || f === "CHANGELOG.md" || allowed.has(f)) continue;
+      let t; try { t = fs.readFileSync(root + "/" + f, "utf8"); } catch { continue; }
+      t.split("\n").forEach((l, i) => { if (/autonomous-loop/.test(l) && !/retired/.test(l)) out.push(f + ":" + (i + 1)); });
+    }
+    process.stdout.write(out.join(" "));
+  ' "$1" "$2"
+}
+
+test_3407_no_stale_instruction() {
+  local files out agents="$PROJECT_ROOT/.aai/AGENTS.md" guide="$PROJECT_ROOT/docs/USER_GUIDE.md"
+  files="$(git -C "$PROJECT_ROOT" ls-files)"
+  out="$(stale_lines "$files" "$PROJECT_ROOT")"
+  [[ -z "$out" ]] || log_fail "TEST-3407: tracked files still tell anyone to run the runner: $out"
+  printf 'run autonomous-loop.sh now\n' > "$TEST_DIR/fixture-extra.md"
+  out="$(stale_lines "$files"$'\n'"fixture-extra.md" "$TEST_DIR" 2>/dev/null || true)"
+  [[ "$out" == *fixture-extra.md* ]] || log_fail "TEST-3407: positive control: a fixture file naming the runner was not reported"
+  grep -qxF -- '- Use SKILL_LOOP to run the autonomous loop; the shell loop runner is retired.' "$agents" || log_fail "TEST-3407: AGENTS.md lacks the D2 SKILL_LOOP line"
+  if grep -qE 'Loop runners are skill-first|legacy mode' "$agents"; then log_fail "TEST-3407: AGENTS.md still holds the legacy mode line"; fi
+  [[ "$(sed -n 4p "$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md")" == 'This replaces the retired external shell loop runner for agents' ]] || log_fail "TEST-3407: SKILL_LOOP line 4 is not the D2 text"
+  [[ "$(sed -n 7p "$PROJECT_ROOT/.aai/BOOTSTRAP_DIFF.prompt.md")" == '.github/copilot-instructions.md)' ]] || log_fail "TEST-3407: BOOTSTRAP_DIFF line 7 is not the D2 text"
+  if grep -qiE 'loop runner' "$PROJECT_ROOT/README.md" "$PROJECT_ROOT/docs/TECHNOLOGY.md"; then log_fail "TEST-3407: README.md or docs/TECHNOLOGY.md still holds a loop runner phrase"; fi
+  grep -qxF -- '### Shell loop runners (retired)' "$guide" || log_fail "TEST-3407: USER_GUIDE.md lacks the D4 heading"
+  if grep -qE -- '--agent-command|-AgentCommand|--mode skill' "$guide"; then log_fail "TEST-3407: USER_GUIDE.md still holds a runner invocation example"; fi
+  log_pass "TEST-3407: no live instruction tells anyone to run the runner and every doc carries the D2 and D4 text"
+}
+
+test_3408_unattended_section() {
+  local sec tok loop="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md" n
+  sec="$(awk '/^## 8\)/{f=1;print;next} /^## /{f=0} f' "$PROJECT_ROOT/.aai/system/AUTONOMOUS_LOOP.md")"
+  [[ -n "$sec" ]] || log_fail "TEST-3408: AUTONOMOUS_LOOP.md has no section 8"
+  for tok in '/aai-loop' '/aai-ship' '**Never merges**' '**Declared budget for unattended rides**' '**Self-recovery before HITL**' '**Wake-up digest**'; do
+    [[ "$sec" == *"$tok"* ]] || log_fail "TEST-3408: section 8 lacks $tok"
+  done
+  for tok in '--propose-only' '-ProposeOnly' 'autonomous-loop'; do
+    [[ "$sec" != *"$tok"* ]] || log_fail "TEST-3408: section 8 still holds $tok"
+  done
+  for tok in $(printf '%s\n' "$sec" | grep -oE '\.aai/[A-Za-z0-9_./-]+' | sed 's/[.,;:)]*$//' | sort -u); do
+    [[ -e "$PROJECT_ROOT/$tok" ]] || log_fail "TEST-3408: section 8 names $tok, which does not exist"
+  done
+  grep -qF 'loop-digest.mjs --json' "$loop" || log_fail "TEST-3408: SKILL_LOOP no longer names loop-digest.mjs --json"
+  [[ -f "$PROJECT_ROOT/.aai/scripts/loop-digest.mjs" ]] || log_fail "TEST-3408: loop-digest.mjs is gone"
+  n="$(awk '/^core:/{f=1;next} /^[a-z]/{f=0} f && $0=="  - .aai/scripts/loop-digest.mjs"{c++} END{print c+0}' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3408: PROFILES core lists loop-digest.mjs $n times, expected 1"
+  log_pass "TEST-3408: section 8 names /aai-loop and /aai-ship with the four bullets, no propose-only text, and loop-digest.mjs stays"
+}
+
+test_3409_state_creator_pin() {
+  local suite="$PROJECT_ROOT/tests/skills/test-aai-check-state.sh" body out rc=0 scratch="$TEST_DIR/pin-root"
+  body="$(awk '/^test_single_state_creator\(\)/{f=1} f{print} f && /^}/{exit}' "$suite")"
+  [[ -n "$body" ]] || log_fail "TEST-3409: test_single_state_creator is missing"
+  for tok in autonomous-loop.sh autonomous-loop.ps1 STATE_TEMPLATE STATE.yaml check-state; do
+    [[ "$body" == *"$tok"* ]] || log_fail "TEST-3409: test_single_state_creator does not name $tok"
+  done
+  out="$(env -u AAI_ROLE bash "$suite" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "TEST-3409: test-aai-check-state.sh exited $rc"; }
+  mkdir -p "$scratch/.aai/scripts"
+  cp "$SH_LAUNCHER" "$scratch/.aai/scripts/autonomous-loop.sh"
+  { cat "$PS1_LAUNCHER"; echo '# docs/ai/STATE.yaml'; } > "$scratch/.aai/scripts/autonomous-loop.ps1"
+  rc=0
+  out="$(env -u AAI_ROLE bash -c 'source "$1"; PROJECT_ROOT="$2"; test_single_state_creator' _ "$suite" "$scratch" 2>&1)" || rc=$?
+  [[ "$rc" != 0 && "$out" == *FAIL* ]] || log_fail "TEST-3409: positive control: a launcher naming STATE.yaml did not make test_single_state_creator fail"
+  log_pass "TEST-3409: the single-creator pin names both launchers and the three D-PIN words, passes on the tree and fails on a launcher naming STATE.yaml"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-retire-shell-loop-runner TEST-3403..3415)"
   check_deps
@@ -203,6 +276,9 @@ main() {
   test_3404_ps1_retired_run
   test_3405_pester
   test_3406_launchers_thin
+  test_3407_no_stale_instruction
+  test_3408_unattended_section
+  test_3409_state_creator_pin
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

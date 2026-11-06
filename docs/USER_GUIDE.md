@@ -2221,59 +2221,11 @@ Two supporting surfaces:
 # the loop never merges; merging is your action after your own review.
 ```
 
-### Shell loop runners (autonomous-loop.sh / .ps1)
+### Shell loop runners (retired)
 
-`/aai-loop` is the preferred way to run the loop inside a capable agent
-session. When you instead want to drive an agent CLI externally (repeated
-one-shot invocations from a shell), use the helper scripts
-`.aai/scripts/autonomous-loop.sh` / `.aai/scripts/autonomous-loop.ps1`. They
-run repeated autonomous ticks until a stop condition:
+The shell loop runners `.aai/scripts/autonomous-loop.sh` and `.aai/scripts/autonomous-loop.ps1` are retired (RFC-0017 phase 5): for one release each prints one retirement line naming `/aai-loop`, changes nothing and exits 1, and the next release deletes them. Run `/aai-loop` in an agent session instead; for an unattended ride with a declared run budget use `/aai-ship` with `unattended=true` and an existing intake. The `--propose-only` push block has no replacement: `/aai-loop` never merges.
 
-- `project_status=paused`
-- `human_input.required=true`
-- `last_validation.status=pass`
-
-Default behavior is **skill-first**: each tick runs
-`.aai/SKILL_CHECK_STATE.prompt.md`, then `.aai/SKILL_INTAKE.prompt.md`, then
-`.aai/SKILL_LOOP.prompt.md`. Legacy orchestration-only behavior is available
-via `legacy` mode with a custom one-tick command.
-
-Bash:
-
-```bash
-./.aai/scripts/autonomous-loop.sh \
-  --mode skill \
-  --agent-command "codex" \
-  --max-iterations 20 \
-  --sleep-seconds 1 \
-  --auto-init-state
-```
-
-PowerShell (`-AgentCommand` accepts `codex`, `claude`, or `gemini`):
-
-```powershell
-.\.aai\scripts\autonomous-loop.ps1 `
-  -Mode skill `
-  -AgentCommand 'codex' `
-  -MaxIterations 20 `
-  -SleepSeconds 1 `
-  -AutoInitState
-
-# Legacy mode (custom one-tick command)
-.\.aai\scripts\autonomous-loop.ps1 `
-  -Mode legacy `
-  -TickCommand 'codex --prompt-file .aai/ORCHESTRATION.prompt.md' `
-  -MaxIterations 20 `
-  -SleepSeconds 1 `
-  -AutoInitState
-```
-
-Notes:
-
-- PyYAML is auto-installed if missing (PowerShell); use `-NoAutoInstallPyYaml` to disable.
-- In `skill` mode the script checks `.claude/skills/AAI_DYNAMIC_SKILLS.md` as a bootstrap marker; use `-SkipBootstrapCheck` / `--skip-bootstrap-check` only when you intentionally skip dynamic-skills bootstrap.
-- Use `-DryRun` (PowerShell) or `--dry-run` (Bash) to verify loop behavior without executing the agent command.
-- Validate skill readiness and evidence with `.aai/scripts/validate-skills.sh` / `.aai/scripts/validate-skills.ps1`.
+Validate skill readiness and evidence with `.aai/scripts/validate-skills.sh` / `.aai/scripts/validate-skills.ps1`.
 
 ---
 
