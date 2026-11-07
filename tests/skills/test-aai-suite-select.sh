@@ -2394,7 +2394,7 @@ test_3338_split_weights_rows() {
     samples="$(awk -v u="# sample $s fallback unsampled " -v m="# sample $s measured " 'index($0, u) == 1 || index($0, m) == 1' "$weights" | wc -l | tr -d ' ')"
     [[ "$samples" -eq 1 ]] || log_fail "TEST-3338: expected exactly one sample line (unsampled or measured) for $s, got $samples"
     if awk -v s="# sample $s fallback unsampled " 'index($0, s) == 1 {f=1} END{exit !f}' "$weights"; then
-      [[ "$w" == 212 ]] || log_fail "TEST-3338: the unsampled weight of $s must be the documented maximum 212, got $w"
+      [[ "$w" == 196 ]] || log_fail "TEST-3338: the unsampled weight of $s must be the documented maximum 196, got $w"
     fi
     maprows="$(awk -v s="  $s:" '$0 == s' "$map" | wc -l | tr -d ' ')"
     [[ "$maprows" -eq 1 ]] || log_fail "TEST-3338: expected exactly one suite-map row for $s, got $maprows"
@@ -2410,7 +2410,7 @@ const names = fs.readdirSync(root + '/tests/skills', { withFileTypes: true }).fi
 assert(names.includes('aai-hygiene-corpus') && names.includes('aai-win-fallback-corpus'));
 assert.equal(auditWeights(fs.readFileSync(root + '/tests/skills/suite-weights.tsv', 'utf8'), names).suites, names.length);
 JS
-  log_pass "TEST-3338 (one weights row, one sample line (unsampled 212 or measured), one map row and a gate glob per new suite; audit covers every suite file)"
+  log_pass "TEST-3338 (one weights row, one sample line (unsampled 196 or measured), one map row and a gate glob per new suite; audit covers every suite file)"
 }
 
 main() {
