@@ -14,7 +14,7 @@
 // CHANGE-0035 / SPEC-0047 — atomic doc-number RESERVATION in origin. Before
 // the local rename, the allocator creates a create-only ref
 // `refs/aai/docnums/<TYPE>-<NNNN>` in `origin` (D2:
-// `git push --atomic --force-with-lease=<ref>: origin HEAD:<ref>`) so two
+// `git push --force-with-lease=<ref>: origin <unique-commit>:<ref>`) so two
 // clones racing on the same number cannot both win: the loser's push is
 // rejected and it retries the next free number (cap 50). Candidate scan is a
 // union of local + base ref + ALL fetched `origin/*` trees + existing
@@ -446,9 +446,9 @@ function createReservationCommit(root) {
   }
 }
 
-// D2: one create-only atomic push of `refNames` (>1 for a coupled family).
+// D2: one create-only push; atomic only for multiple coupled-family refs.
 // `--force-with-lease=<ref>:` (empty expected value) requires each ref be
-// ABSENT; `--atomic` makes the set all-or-nothing. Returns { ok: true } on
+// ABSENT; coupled `--atomic` makes the set all-or-nothing. Returns { ok: true } on
 // success, { ok:false, collision:true } on a create-only rejection (retry-
 // worthy), or { ok:false, collision:false, error } for any other failure
 // (D4 provisional-fallback territory).
@@ -459,23 +459,10 @@ function pushReservation(root, remote, refNames) {
   }
   const leases = refNames.map((r) => `--force-with-lease=${r}:`);
   const refspecs = refNames.map((r) => `${sha}:${r}`);
-  try {
-    execFileSync('git', ['push', '--atomic', ...leases, remote, ...refspecs],
-      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    return { ok: true };
-  } catch (e) {
-    const out = `${e.stdout ?? ''}${e.stderr ?? ''}`.trim();
-    // F2 remediation: the ONLY retry-worthy signal is the create-only lease
-    // rejection itself ("stale info" — git's message when a
-    // `--force-with-lease=<ref>:<expect-absent>` finds the ref already
-    // present). Everything else (unpacker error, permission denied, hook
-    // rejection, offline) is a non-collision failure and must fall through
-    // to the D4 provisional-marker path — never a 50-attempt retry storm.
-    // (Matching bare "rejected" was over-broad: `! [remote rejected] ...
-    // (unpacker error)` on a permission failure also contains "rejected".)
-    const collision = /stale info/i.test(out);
-    return { ok: false, collision, error: out || e.message };
-  }
+  const atomic = refNames.length > 1 ? ['--atomic'] : [];
+  const result = networkGit(root, ['push', ...atomic, ...leases, remote, ...refspecs]);
+  if (result.ok) return { ok: true };
+  return { ok: false, collision: result.category === 'collision', error: result.error };
 }
 
 // D2/D8: attempt to reserve `startNumber` for every member (a singleton for
@@ -535,7 +522,59 @@ export function removeProvisionalMarker(content) {
 
 // --- git plumbing ------------------------------------------------------------
 
+// A per-call deadline: local object/index commands never inherit it. Invalid
+// configuration keeps the finite default and reports the effective setting.
+function networkTimeoutMs() {
+  const value = process.env.AAI_DOCNUM_NETWORK_TIMEOUT_MS;
+  if (value === undefined) return 30000;
+  if (/^[1-9]\d*$/.test(value) && Number(value) <= 300000) return Number(value);
+  console.error('WARNING: invalid AAI_DOCNUM_NETWORK_TIMEOUT_MS; use an integer 1..300000; using 30000 ms.');
+  return 30000;
+}
+
+function networkFailure(e, output) {
+  // Partial stale-info output cannot turn a timeout into a collision retry.
+  if (e.code === 'ETIMEDOUT') return 'timeout';
+  if (/does not support.*--atomic|atomic.*not supported/i.test(output)) return 'unsupported-atomic';
+  if (/permission denied|authentication failed|access denied|not authorized|authorization failed|\b(?:401|403)\b/i.test(output)) return 'permission';
+  if (/could not resolve|failed to connect|connection (?:refused|reset|timed out)|network is unreachable|no route to host|does not appear to be a git repository/i.test(output)) return 'connectivity';
+  if (/!\s+\[rejected\][^\r\n]*\(stale info\)/i.test(output)) return 'collision';
+  return 'unknown';
+}
+
+function networkGit(root, args) {
+  const timeout = networkTimeoutMs();
+  try {
+    const stdout = execFileSync('git', args,
+      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout, killSignal: 'SIGKILL' });
+    return { ok: true, stdout: stdout.trim() };
+  } catch (e) {
+    const output = `${e.stdout ?? ''}\n${e.stderr ?? ''}`;
+    const category = networkFailure(e, output);
+    const remedies = {
+      timeout: `timeout after ${timeout} ms; remote outcome unknown; inspect reservation refs before retrying`,
+      'unsupported-atomic': 'unsupported-atomic; use a server with atomic push support for coupled reservations',
+      permission: 'permission; check remote write access and authentication',
+      connectivity: 'connectivity; check the remote address and network connection before retrying',
+      collision: 'collision; create-only lease rejected (stale info); try the next number',
+      unknown: 'unknown; inspect the remote server and Git transport configuration before retrying',
+    };
+    // Report the operation and remote name, never credential-bearing Git
+    // stderr, environment values or a configured remote URL.
+    const remote = args[0] === 'push' ? args.find((a, i) => i > 0 && !a.startsWith('-')) : args[1];
+    const remoteLabel = /^[A-Za-z0-9_.-]+$/.test(remote ?? '') ? remote : '<remote>';
+    return { ok: false, category, error: `git ${args[0]} ${remoteLabel}: ${remedies[category]}` };
+  }
+}
+
 function git(root, args, { allowFail = true } = {}) {
+  if (args[0] === 'fetch' || args[0] === 'ls-remote') {
+    const result = networkGit(root, args);
+    if (result.ok) return result.stdout;
+    console.error(`WARNING: ${result.error}`);
+    if (allowFail) return null;
+    throw new Error(result.error);
+  }
   try {
     return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch (e) {

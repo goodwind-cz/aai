@@ -190,7 +190,7 @@ until its replacement is explicitly decided and shipped.
 | Phase | Description | Status | Delivered by |
 |---|---|---|---|
 | A | Provider capability preflight and duplicate-safe PR resumption | not started | — |
-| B | Singleton reservation portability and bounded network diagnostics | not started | — |
+| B | Singleton reservation portability and bounded network diagnostics | done | CHANGE-0247-singleton-reservation-portability |
 | C | Typed scope and authorized waiver writes | not started | — |
 | D | Explicit decision on inherited/global gate policy, then implementation | not started | — |
 | E | PR phase instrumentation and evidence-backed before/after measurement | not started | — |
