@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T10:06:04.769Z",
+  "generatedAt": "2026-11-07T10:23:02.463Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -7942,7 +7942,7 @@
         "id": "fu-docs-index-violations-self-ref",
         "ref": "docs-index-broken-refs-scope",
         "severity": "P3",
-        "age_days": 22,
+        "age_days": 23,
         "what": "A clean tree lists docs/INDEX.violations.md as a broken ref because the generator names that optional companion",
         "status": "open"
       },
@@ -7950,7 +7950,7 @@
         "id": "fu-source-ref-walk-vanished-skip",
         "ref": "docs-index-broken-refs-scope",
         "severity": "P2",
-        "age_days": 22,
+        "age_days": 23,
         "what": "Source-ref walk readFileSync throws ENOENT when a tracked tests or .aai/scripts file is deleted but not staged",
         "status": "open"
       },

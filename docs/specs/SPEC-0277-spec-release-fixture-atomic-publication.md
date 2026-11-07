@@ -9,7 +9,8 @@ ceremony_level: 2
 links:
   requirement: release-fixture-atomic-publication
   rfc: null
-  pr: []
+  pr:
+    - 538
   commits: []
 ---
 
