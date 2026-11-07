@@ -361,6 +361,9 @@ suites:
 
   aai-docs-audit:
     globs:
+      - tests/skills/lib/vendor-hook-installer.sh
+      - .aai/templates/git-hooks/**
+      - .gitattributes
       - tests/skills/lib/docs-audit-body.test.mjs
       - tests/skills/lib/docs-audit-closeout.test.mjs
       - tests/skills/lib/docs-audit-live.sh
@@ -418,6 +421,8 @@ suites:
       - aai-layer-profiles
       - aai-suite-select
     globs:
+      - tests/skills/lib/vendor-hook-installer.sh
+      - .aai/templates/git-hooks/**
       - .aai/scripts/aai-doctor.mjs
       - .aai/scripts/live-spool.*
       - .aai/SKILL_DOCTOR.prompt.md
@@ -580,6 +585,8 @@ suites:
     companions:
       - aai-prompt-diet
     globs:
+      - tests/skills/lib/vendor-hook-installer.sh
+      - .aai/templates/git-hooks/**
       - .aai/scripts/install-pre-commit-hook.sh
       - .aai/scripts/install-pre-commit-hook.ps1
       - .aai/scripts/aai-doctor.mjs
@@ -669,6 +676,8 @@ suites:
 
   aai-hygiene-pack:
     globs:
+      - tests/skills/lib/vendor-hook-installer.sh
+      - .aai/templates/git-hooks/**
       - docs/knowledge/history/**
       # shipped-guards-have-no-downstream-trigger: TEST-800..807/813..816 run the
       # real installer (guard block, pre-push hook, upgrade-by-insertion).
@@ -1268,6 +1277,25 @@ suites:
       - tests/skills/suite-map.yaml
       - tests/skills/suite-weights.tsv
 
+  aai-git-hook-templates:
+    globs:
+      - .aai/scripts/install-pre-commit-hook.*
+      - .aai/templates/git-hooks/**
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-doctor.mjs
+      - .aai/system/PROFILES.yaml
+      - .gitattributes
+      - .github/workflows/ps1-quality.yml
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - tests/skills/test-aai-git-hook-templates.sh
+      - tests/skills/install-pre-commit-hook.Tests.ps1
+      - tests/skills/lib/vendor-hook-installer.sh
+      - tests/skills/lib/pipe-grep-q-ratchet.sh
+      - tests/skills/lib/nested-suite-lint.mjs
+      - tests/skills/lib/nested-suite-allowlist.tsv
+      - tests/skills/suite-map.yaml
+      - tests/skills/suite-weights.tsv
+
   aai-spec-amend:
     globs:
       - .aai/scripts/spec-amend.mjs
@@ -1541,6 +1569,8 @@ suites:
   # invariant TEST-1713 pins (every inert dir is still ignored).
   aai-tracked-ignored:
     globs:
+      - tests/skills/lib/vendor-hook-installer.sh
+      - .aai/templates/git-hooks/**
       - .aai/scripts/tracked-ignored.mjs
       - .aai/scripts/check-committed-scope.mjs
       - .aai/scripts/pre-commit-checks.sh

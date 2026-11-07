@@ -71,6 +71,7 @@ TEST_NAME="aai-git-ref-guard"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+. "$SCRIPT_DIR/lib/vendor-hook-installer.sh"
 # Companion suites are declared in suite-map.yaml, not run nested
 # (nested-suite-reruns-duplicate-sweep-time).
 # shellcheck source=lib/companion-assert.sh
@@ -525,7 +526,13 @@ test_307_clone_seam() {
 # exactly that block — an intentional, in-scope change, not drift. The
 # INDEX-AUTOGEN body itself is byte-identical (bare `--print` still emits it
 # unchanged). New hash measured with the same fixture technique.
-PRECOMMIT_SHA256_BASELINE="6b7de0517defb5990574722aa3a8650156b3ea7b0f917eed5aa6f107988ef78a"
+#
+# Re-pinned by spec-git-hook-bodies-single-source (D-TPL/D-PIPE): the body is
+# now the composition of two templates and moved by the listed content edits
+# (ASCII header dash, one "Installed by" line, the NOTE (CHANGE-0009 D8)
+# comment) -- an intentional, in-scope change, not drift. New hash measured
+# with this file's own fixture (a fresh install, sha_cmd over the hook).
+PRECOMMIT_SHA256_BASELINE="1655c68e61cc30100aca520c108c8cf63507d334082bbb80e79a77936456151e"
 
 test_308_installer_contract() {
   local ok=1
@@ -744,41 +751,35 @@ test_315_effective_hooks_path() {
 }
 
 # --- TEST-309 (Spec-AC-05) — .ps1 twin, static -------------------------------
-# F-R3 (code review 20260828T144437Z): the prior version of this arm ran its
-# four greps over the WHOLE .ps1 file. Every one of those four patterns also
-# occurs outside the hook body (SYNOPSIS at :6, Write-Host at :266, the
-# $reftxMarker/$reftxPath assignments), so the arm could not tell a .ps1 that
-# writes a working guard from one whose $reftxBody here-string was deleted
-# entirely — mutation-proved by the reviewer. Fixed by extracting exactly the
-# $reftxBody @'...'@ here-string (the text that is literally Set-Content'd
-# into .git/hooks/reference-transaction) and asserting on THAT, not the file.
+# F-R3 (code review 20260828T144437Z): the arm must assert on the hook BODY,
+# not the whole installer file (every pattern also occurs in comments outside
+# the body). The body is now a template, .aai/templates/git-hooks/
+# reference-transaction.sh, shared by both installers (spec-git-hook-bodies-
+# single-source, D-MSG), so the body pins read the template and the
+# effective-path pins keep reading the .ps1. One refusal message serves every
+# shell, so it names BOTH the POSIX and the PowerShell commands.
 test_309_ps1_twin_static() {
+  local tpl="$PROJECT_ROOT/.aai/templates/git-hooks/reference-transaction.sh"
   if [[ ! -f "$INSTALLER_PS1" ]]; then
     log_fail "TEST-309: $INSTALLER_PS1 not found"
     return
   fi
   local ok=1
   local reftx_body
-  reftx_body="$(awk '
-    /^\$reftxBody = @'"'"'$/ { capture=1; next }
-    capture && /^'"'"'@$/    { capture=0; next }
-    capture                  { print }
-  ' "$INSTALLER_PS1")"
+  reftx_body="$(cat "$tpl" 2>/dev/null || true)"
   if [[ -z "$reftx_body" ]]; then
-    log_fail "TEST-309: could not extract the \$reftxBody @'...'@ here-string from .ps1 (delimiters moved, or the body is empty/missing)"
+    log_fail "TEST-309: could not read the reference-transaction template $tpl"
     ok=0
   fi
   # The marker is a comment by design, so it is asserted against the whole body.
-  grep -qF "AAI:REF-GUARD" <<<"$reftx_body" || { log_fail "TEST-309: .ps1 reftxBody here-string missing the AAI:REF-GUARD marker"; ok=0; }
+  grep -qF "AAI:REF-GUARD" <<<"$reftx_body" || { log_fail "TEST-309: the reference-transaction template is missing the AAI:REF-GUARD marker"; ok=0; }
 
   # Everything below must be pinned to the CODE, not to prose that merely
-  # mentions it. This body carries its own explanatory comment and a refusal
-  # message, and both spell out "refs/heads/main" and "AAI_GIT_WRITE" in full;
-  # a bare substring grep therefore passes even when the twin ships a guard
-  # that watches the wrong ref or tests the variable backwards. Both of those
-  # mutations were demonstrated to survive the substring form. Windows has no
-  # live arm anywhere in this suite, so this static check is the ONLY thing
-  # standing between an inverted .ps1 guard and a shipped release.
+  # mentions it: the body carries a comment and a refusal message that spell
+  # out "refs/heads/main" and "AAI_GIT_WRITE" in full, so a bare substring grep
+  # passes even when the guard watches the wrong ref or tests the variable
+  # backwards. Windows has no live arm in this suite, so this static check
+  # stands between an inverted guard and a shipped release.
   local reftx_code
   reftx_code="$(printf '%s\n' "$reftx_body" \
     | awk '/<<'"'"'AAI_REF_GUARD_MSG'"'"'/ { inmsg=1 } inmsg { if ($0 ~ /^AAI_REF_GUARD_MSG$/) inmsg=0; next } { print }' \
@@ -787,21 +788,16 @@ test_309_ps1_twin_static() {
 
   # The guarded ref is compared, not merely named.
   grep -qF 'if [ "$aai_ref" = "refs/heads/main" ]; then' <<<"$reftx_code" \
-    || { log_fail "TEST-309: .ps1 twin does not COMPARE the updated ref against refs/heads/main (a mention in a comment is not a predicate)"; ok=0; }
+    || { log_fail "TEST-309: the template does not COMPARE the updated ref against refs/heads/main (a mention in a comment is not a predicate)"; ok=0; }
   # ...and the escape hatch opens on equality with 1, not on anything else.
   grep -qF 'if [ "$AAI_GIT_WRITE" = "1" ]; then' <<<"$reftx_code" \
-    || { log_fail "TEST-309: .ps1 twin does not gate on AAI_GIT_WRITE = 1 (an inverted or absent comparison would ship a guard that is backwards)"; ok=0; }
+    || { log_fail "TEST-309: the template does not gate on AAI_GIT_WRITE = 1 (an inverted or absent comparison would ship a guard that is backwards)"; ok=0; }
 
-  # Assertion 4 targets the ASSIGNMENT that decides where the hook is written.
-  # "hooks/reference-transaction" also appears in the .ps1 SYNOPSIS comment, so
-  # anchoring on the bare string lets a retargeted $reftxPath pass unnoticed.
-  # PR #302 Codex P2 moved the target off $repoRoot (a linked worktree's .git is
-  # a FILE there) to $gitCommonDir; PR #304 Codex P1 moved it again, because
-  # $gitCommonDir does not know about core.hooksPath and the installer was
-  # exiting 0 on a hook git would never run. The write target is now whatever
-  # git itself resolves, so this pins BOTH halves: the assignment reads from the
-  # resolver, and the resolver asks git — pinning only the first would let a
-  # resolver that quietly went back to --git-common-dir through.
+  # The ASSIGNMENT that decides where the hook is written. PR #302 Codex P2
+  # moved the target off $repoRoot to $gitCommonDir; PR #304 Codex P1 moved it
+  # again, because $gitCommonDir does not know about core.hooksPath. The write
+  # target is whatever git itself resolves, so this pins BOTH halves: the
+  # assignment reads from the resolver, and the resolver asks git.
   grep -qE "^\\\$reftxPath[[:space:]]*=[[:space:]]*Resolve-HookPath 'reference-transaction'" "$INSTALLER_PS1" \
     || { log_fail "TEST-309: .ps1 does not ASSIGN \$reftxPath from Resolve-HookPath 'reference-transaction' (the SYNOPSIS mentioning the hook is not the write target)"; ok=0; }
   grep -qF 'git rev-parse --git-path "hooks/$Name"' "$INSTALLER_PS1" \
@@ -809,31 +805,28 @@ test_309_ps1_twin_static() {
   grep -qF 'Join-Path $gitCommonDir "hooks/reference-transaction"' "$INSTALLER_PS1" \
     && { log_fail "TEST-309: .ps1 still writes the guard to \$gitCommonDir/hooks — that path ignores core.hooksPath (PR #304 Codex P1)"; ok=0; }
 
-  # Assertion 5 (PR #302 Copilot P2): on Windows the .ps1 IS the entrypoint,
-  # so the hook's OWN refusal message — printed by the hook itself, not by
-  # this installer script — must give PowerShell-appropriate uninstall
-  # guidance, not the bash command from the .sh twin.
-  grep -qF 'Uninstall this guard: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall' <<<"$reftx_body" \
-    || { log_fail "TEST-309: .ps1 twin's refusal message does not give a pwsh uninstall command"; ok=0; }
-  grep -qF 'bash .aai/scripts/install-pre-commit-hook.sh --uninstall' <<<"$reftx_body" \
-    && { log_fail "TEST-309: .ps1 twin's refusal message still tells a Windows operator to run bash — wrong entrypoint for this platform"; ok=0; }
+  # The hook's OWN refusal message is read wherever the update happens (any
+  # shell on the machine), so it names both uninstall commands (an operator on
+  # Windows has Git Bash, which git itself runs the hooks with) and both
+  # forms of the AAI_GIT_WRITE escape. PowerShell has no `VAR=value command`
+  # prefix; the child-process form was verified on pwsh 7.6.3.
+  grep -qF 'Uninstall this guard: bash .aai/scripts/install-pre-commit-hook.sh --uninstall' <<<"$reftx_body" \
+    || { log_fail "TEST-309: the refusal message does not give the POSIX uninstall command"; ok=0; }
+  grep -qF '(PowerShell: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall)' <<<"$reftx_body" \
+    || { log_fail "TEST-309: the refusal message does not give the pwsh uninstall command"; ok=0; }
+  grep -qF "PowerShell:   pwsh -NoProfile -Command '\$env:AAI_GIT_WRITE=1; git commit ...'" <<<"$reftx_body" \
+    || { log_fail "TEST-309: the refusal message gives no PowerShell-valid form of the AAI_GIT_WRITE escape (the POSIX VAR=value prefix does not exist in PowerShell)"; ok=0; }
+  grep -qF 'POSIX shell:  AAI_GIT_WRITE=1 git commit ...' <<<"$reftx_body" \
+    || { log_fail "TEST-309: the refusal message gives no POSIX form of the AAI_GIT_WRITE escape"; ok=0; }
 
-  # Assertion 6 (PR #304 Copilot): the ESCAPE is the one command the operator
-  # needs most at the moment this message appears, and PowerShell has no
-  # `VAR=value command` prefix — so the POSIX form alone leaves a Windows
-  # operator guessing. Verified by execution on pwsh 7.6.3: the child-process
-  # form commits where the bare command is refused, and does not leak.
-  grep -qF "pwsh -NoProfile -Command '\$env:AAI_GIT_WRITE=1; git commit ...'" <<<"$reftx_body" \
-    || { log_fail "TEST-309: .ps1 twin's refusal message gives no PowerShell-valid form of the AAI_GIT_WRITE escape (the POSIX VAR=value prefix does not exist in PowerShell)"; ok=0; }
-
-  [[ $ok -eq 1 ]] && log_pass "TEST-309 .ps1 twin's \$reftxBody here-string carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check, the script writes to the EFFECTIVE hooks path git resolves (never \$gitCommonDir/hooks), and its refusal message gives pwsh (not bash) uninstall guidance AND a PowerShell-valid form of the AAI_GIT_WRITE escape"
+  [[ $ok -eq 1 ]] && log_pass "TEST-309 the shared reference-transaction template carries the AAI:REF-GUARD marker, the refs/heads/main predicate, the AAI_GIT_WRITE check and a refusal naming both uninstall commands and both escape forms; the .ps1 writes to the EFFECTIVE hooks path git resolves (never \$gitCommonDir/hooks)"
 }
 
 # --- TEST-310 (Spec-AC-06) — aai-doctor category -----------------------------
 test_310_doctor_category() {
   local d; d="$(new_repo t310)"
   mkdir -p "$d/.aai/scripts"
-  cp "$INSTALLER" "$d/.aai/scripts/install-pre-commit-hook.sh"
+  vendor_hook_installer "$d" sh
   local ok=1
 
   local out
@@ -1161,10 +1154,10 @@ test_608_ps1_hooks_static() {
     || { log_fail "TEST-608: .ps1 pre-commit write block is not guarded by \$wantIndex"; ok=0; }
   grep -qE 'if \(\$wantRefGuard\)' "$INSTALLER_PS1" \
     || { log_fail "TEST-608: .ps1 reference-transaction write block is not guarded by \$wantRefGuard"; ok=0; }
-  grep -qF 'Set-Content -Path $hookPath' "$INSTALLER_PS1" \
-    || { log_fail "TEST-608: .ps1 no longer writes the pre-commit hook via Set-Content -Path \$hookPath"; ok=0; }
-  grep -qF 'Set-Content -Path $reftxPath' "$INSTALLER_PS1" \
-    || { log_fail "TEST-608: .ps1 no longer writes the reference-transaction hook via Set-Content -Path \$reftxPath"; ok=0; }
+  grep -qF 'Write-BytesViaTemp -Path $hookPath -Bytes $preCommitBytes' "$INSTALLER_PS1" \
+    || { log_fail "TEST-608: .ps1 no longer writes the pre-commit hook via Write-BytesViaTemp -Path \$hookPath"; ok=0; }
+  grep -qF 'Write-BytesViaTemp -Path $reftxPath -Bytes $reftxBytes' "$INSTALLER_PS1" \
+    || { log_fail "TEST-608: .ps1 no longer writes the reference-transaction hook via Write-BytesViaTemp -Path \$reftxPath"; ok=0; }
 
   # An unrecognised -Hooks token must exit 2 naming the closed set.
   # shipped-guards-have-no-downstream-trigger D7 widened the closed set with close-gate.

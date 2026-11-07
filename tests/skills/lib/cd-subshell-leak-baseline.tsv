@@ -24,6 +24,7 @@
 8	.aai/scripts/claude-hook-gate.sh
 1	.aai/scripts/cloudflare-share.sh
 1	.aai/scripts/expert-fetch.sh
+1	.aai/scripts/install-pre-commit-hook.sh
 1	.aai/scripts/live-spool.sh
 1	.aai/scripts/migrate-state-to-local.sh
 1	.aai/scripts/pre-commit-checks.sh
@@ -32,6 +33,7 @@
 2	tests/skills/lib/degenerate-pass-ratchet.sh
 2	tests/skills/lib/no-nul-guard.sh
 2	tests/skills/lib/pipe-grep-q-ratchet.sh
+1	tests/skills/lib/vendor-hook-installer.sh
 3	tests/skills/test-aai-advisory-skills.sh
 2	tests/skills/test-aai-antigravity-project-skills.sh
 2	tests/skills/test-aai-bootstrap.sh
@@ -67,6 +69,7 @@
 2	tests/skills/test-aai-friction-capture-points.sh
 3	tests/skills/test-aai-friction-wiring.sh
 3	tests/skills/test-aai-friction.sh
+3	tests/skills/test-aai-git-hook-templates.sh
 24	tests/skills/test-aai-git-ref-guard.sh
 4	tests/skills/test-aai-golden-flow.sh
 2	tests/skills/test-aai-harness-shims.sh

@@ -21,6 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+. "$SCRIPT_DIR/lib/vendor-hook-installer.sh"
 
 # Set by test_113 while a disposable detached worktree is live, so the EXIT
 # trap below removes it with a targeted `git worktree remove` (HAZ-WORKTREE)
@@ -414,7 +415,7 @@ test_031_guard_config_conformance() {  # CHANGE-0009 TEST-018 / Spec-AC-09
   log_info "Test: shared guard-config reader agrees with the pre-commit shell greps on fixture configs (CHANGE-0009 TEST-018)..."
   local lib="$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs"
   local sh_hook="$PROJECT_ROOT/.aai/scripts/pre-commit-checks.sh"
-  local ps_hook="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
+  local ps_hook="$PROJECT_ROOT/.aai/templates/git-hooks/pre-commit-index.sh"
   [[ -f "$lib" ]] || log_fail "missing shared reader $lib (RED until CHANGE-0009 lands)"
   command -v node >/dev/null 2>&1 || log_skip "node not found"
 
@@ -423,7 +424,7 @@ test_031_guard_config_conformance() {  # CHANGE-0009 TEST-018 / Spec-AC-09
   grep -qF "lib/guard-config.mjs" "$sh_hook" \
     || log_fail "pre-commit-checks.sh must name lib/guard-config.mjs as the canonical reader"
   grep -qF "lib/guard-config.mjs" "$ps_hook" \
-    || log_fail "install-pre-commit-hook.ps1 must name lib/guard-config.mjs as the canonical reader"
+    || log_fail "the pre-commit index template must name lib/guard-config.mjs as the canonical reader"
 
   # Extract the ACTUAL grep -Eq patterns from the hooks (drift in either side
   # now fails this test instead of diverging silently).
@@ -431,7 +432,7 @@ test_031_guard_config_conformance() {  # CHANGE-0009 TEST-018 / Spec-AC-09
   dn_pat="$(awk -F"'" '/grep -Eq/ && /doc_number_guard:/ { print $(NF-1); exit }' "$sh_hook")"
   cg_pat="$(awk -F"'" '/grep -Eq/ && /close_gate:/ { print $(NF-1); exit }' "$ps_hook")"
   [[ -n "$dn_pat" ]] || log_fail "could not extract the doc_number_guard grep pattern from pre-commit-checks.sh"
-  [[ -n "$cg_pat" ]] || log_fail "could not extract the close_gate grep pattern from install-pre-commit-hook.ps1"
+  [[ -n "$cg_pat" ]] || log_fail "could not extract the close_gate grep pattern from the pre-commit index template"
 
   TEST_DIR="${TEST_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/aai-hygiene.XXXXXX")}"
   local d="$TEST_DIR/t31"
@@ -1101,8 +1102,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 128 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 128 (pin moved for the cloudflare-share suite after the retired-loop-runner suite) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 129 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 129 (pin moved for the git-hook-templates suite after the cloudflare-share suite) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -2130,8 +2131,8 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   # together, which is the two-way check the Mutation column drives.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 128 ]] \
-    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 128 (pin moved for the cloudflare-share suite)"
+  [[ "$row_count" -eq 129 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 129 (pin moved for the git-hook-templates suite)"
 
   # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
   # function anywhere under tests/skills, this suite's new ones included).
@@ -2146,7 +2147,7 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   assert_payload_contains "$out" "SELECTED aai-mutation-gate" \
     "TEST-487: select-suites.mjs did not route .aai/scripts/mutation-gate.mjs to aai-mutation-gate: $out"
 
-  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (128), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
+  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (129), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
 }
 
 # --- TEST-504 (NB4-r3, remediation round 3, Spec-AC-03): the Node copy of the
@@ -4960,7 +4961,7 @@ sg_repo() {
   local d="$TEST_DIR/sg-$name" bare="$TEST_DIR/sg-$name-origin.git"
   rm -rf "$d" "$bare"
   mkdir -p "$d/.aai/scripts/lib" "$d/.aai/templates" "$d/docs/ai" "$d/docs/issues" "$d/docs/specs" "$d/src"
-  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/"
+  vendor_hook_installer "$d" sh
   cp "$PROJECT_ROOT/.aai/scripts/pre-commit-checks.sh" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/allocate-doc-number.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
@@ -5430,36 +5431,35 @@ test_807_default_branch_resolution_and_notes() {  # TEST-807 / Spec-AC-04
 }
 
 test_813_ps1_twin_parity() {  # TEST-813 / Spec-AC-10
-  log_info "Test: the .ps1 twin ships close-gate, \$prePushBody and the guard block byte-identically (TEST-813)..."
+  log_info "Test: both installers write the close-gate, reference-transaction and guard block bytes from one set of templates (TEST-813)..."
   [[ -f "$SG_INSTALLER_PS1" ]] || log_fail "TEST-813: missing $SG_INSTALLER_PS1"
   sg_tmp
-  local d="$TEST_DIR/t813"
+  local d="$TEST_DIR/t813" tpl="$PROJECT_ROOT/.aai/templates/git-hooks" t
   rm -rf "$d"; mkdir -p "$d"
   grep -qF "'close-gate'" "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 -Hooks closed set does not declare close-gate"
   grep -qF 'closed set: index, ref-guard, close-gate, all' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 closed-set message does not read index, ref-guard, close-gate, all"
-  grep -qF '$prePushBody = @' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 carries no \$prePushBody here-string"
-  grep -qF '# AAI:CLOSE-GATE' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 pre-push body carries no # AAI:CLOSE-GATE marker"
-  grep -qF '# AAI:GUARD-CHECKS BEGIN' "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 \$hookBody carries no guard block"
+  # The bodies are templates (spec-git-hook-bodies-single-source): neither installer embeds one, and
+  # both name the same template files.
+  for t in pre-push.sh pre-commit-index.sh pre-commit-guard-checks.sh reference-transaction.sh; do
+    [[ -f "$tpl/$t" ]] || log_fail "TEST-813: missing template $t"
+    grep -qF "$t" "$SG_INSTALLER_PS1" || log_fail "TEST-813: the .ps1 does not name the template $t"
+  done
+  grep -qF '$prePushBody = @' "$SG_INSTALLER_PS1" && log_fail "TEST-813: the .ps1 still carries a \$prePushBody here-string"
+  grep -qF '# AAI:CLOSE-GATE' "$tpl/pre-push.sh" || log_fail "TEST-813: the pre-push template carries no # AAI:CLOSE-GATE marker"
+  grep -qF '# AAI:GUARD-CHECKS BEGIN' "$tpl/pre-commit-guard-checks.sh" || log_fail "TEST-813: the guard template carries no guard block"
 
-  # guard block: .sh heredoc vs the block inside the .ps1 $hookBody
-  awk '/^cat <<.GUARDBLOCK.$/{p=1; next} /^GUARDBLOCK$/{if(p){exit}} p' "$SG_INSTALLER" > "$d/block.sh"
-  awk '/^# AAI:GUARD-CHECKS BEGIN$/{p=1} p{print} /^# AAI:GUARD-CHECKS END$/{if(p){exit}}' "$SG_INSTALLER_PS1" > "$d/block.ps1"
-  [[ -s "$d/block.sh" && -s "$d/block.ps1" ]] || log_fail "TEST-813: could not extract the guard block from both twins"
-  diff "$d/block.sh" "$d/block.ps1" > "$d/block.diff" || log_fail "TEST-813: the guard block differs between twins:
-$(cat "$d/block.diff")"
-
-  # pre-push body: .sh heredoc vs the .ps1 here-string, modulo the Installed-by line
-  awk '/^cat <<.PREPUSHHOOK.$/{p=1; next} /^PREPUSHHOOK$/{if(p){exit}} p' "$SG_INSTALLER" | grep -v '^# Installed by ' > "$d/prepush.sh"
-  awk '/^\$prePushBody = @.$/{p=1; next} /^.@$/{if(p){exit}} p' "$SG_INSTALLER_PS1" | grep -v '^# Installed by ' > "$d/prepush.ps1"
-  [[ -s "$d/prepush.sh" && -s "$d/prepush.ps1" ]] || log_fail "TEST-813: could not extract the pre-push body from both twins"
-  diff "$d/prepush.sh" "$d/prepush.ps1" > "$d/prepush.diff" || log_fail "TEST-813: the pre-push body differs between twins:
-$(cat "$d/prepush.diff")"
+  # guard block: the sh --print guard-checks and the block inside the composed pre-commit are the template bytes
+  bash "$SG_INSTALLER" --print guard-checks > "$d/block.sh"
+  [[ -s "$d/block.sh" ]] || log_fail "TEST-813: could not print the guard block"
+  cmp -s "$d/block.sh" "$tpl/pre-commit-guard-checks.sh" || log_fail "TEST-813: --print guard-checks differs from the guard template"
+  bash "$SG_INSTALLER" --print pre-push > "$d/prepush.sh"
+  cmp -s "$d/prepush.sh" "$tpl/pre-push.sh" || log_fail "TEST-813: --print pre-push differs from the pre-push template"
 
   # behavioural arm (pwsh only): the .ps1 upgrade inserts the block and keeps every other byte
   if command -v pwsh >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
     local r hp
     r="$(sg_repo t813pwsh)"
-    cp "$SG_INSTALLER_PS1" "$r/.aai/scripts/install-pre-commit-hook.ps1"
+    vendor_hook_installer "$r" ps1
     hp="$(sg_hook "$r" pre-commit)"
     mkdir -p "$(dirname "$hp")"
     bash "$SG_INSTALLER" --print index > "$hp"
@@ -5474,9 +5474,9 @@ $(cat "$d/prepush.diff")"
     cp "$hp" "$r/after"
     sg_install_ps1 "$r" -Hooks index >/dev/null 2>&1 || log_fail "TEST-813 pwsh: second run exited non-zero"
     cmp -s "$r/after" "$hp" || log_fail "TEST-813 pwsh: second run changed the hook"
-    log_pass "TEST-813 twins byte-identical (guard block, pre-push body modulo Installed-by); pwsh upgrade inserts once, other bytes untouched"
+    log_pass "TEST-813 both installers read the same templates (guard block, pre-push body); pwsh upgrade inserts once, other bytes untouched"
   else
-    log_pass "TEST-813 twins byte-identical (guard block, pre-push body modulo Installed-by); SKIP: pwsh behavioural arm (pwsh not installed)"
+    log_pass "TEST-813 both installers read the same templates (guard block, pre-push body); SKIP: pwsh behavioural arm (pwsh not installed)"
   fi
 }
 
@@ -5763,7 +5763,7 @@ test_818_ps1_upgrade_is_byte_exact_and_order_checked() {  # TEST-818 / Spec-AC-1
   fi
   local d hp out rc body
   d="$(sg_repo t818)"
-  cp "$SG_INSTALLER_PS1" "$d/.aai/scripts/install-pre-commit-hook.ps1"
+  vendor_hook_installer "$d" ps1
   hp="$(sg_hook "$d" pre-commit)"
   mkdir -p "$(dirname "$hp")"
   body="$d/body"

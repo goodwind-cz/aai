@@ -3,7 +3,8 @@
 //
 // Before this module, docs-audit.yaml was parsed by three independent
 // implementations (state.mjs readIndependencePolicy, the pre-commit-checks.sh
-// grep, the shell grep embedded in install-pre-commit-hook.ps1) plus an
+// grep, the shell grep in the pre-commit hook template
+// .aai/templates/git-hooks/pre-commit-index.sh) plus an
 // undocumented file-presence coupling in docs-audit.mjs — drift-prone. The
 // SHELL greps stay as deliberate thin greps (hooks must not grow importable-
 // module plumbing) but a conformance test (tests/skills/test-aai-hygiene-pack.sh

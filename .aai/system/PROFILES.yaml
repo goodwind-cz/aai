@@ -282,6 +282,10 @@ core:
   - .aai/templates/TECHNOLOGY_TEMPLATE.md
   - .aai/templates/WORKFLOW_TEMPLATE.md
   - .aai/templates/docs-audit.template.yaml
+  - .aai/templates/git-hooks/pre-commit-guard-checks.sh
+  - .aai/templates/git-hooks/pre-commit-index.sh
+  - .aai/templates/git-hooks/pre-push.sh
+  - .aai/templates/git-hooks/reference-transaction.sh
   - .aai/templates/update-config.template.yaml
   - .aai/templates/hooks/settings-hooks.json
   - .aai/workflow/WORKFLOW.md

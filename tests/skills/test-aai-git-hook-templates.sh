@@ -329,6 +329,292 @@ test_3439_crlf_and_rerun() {
   log_pass "TEST-3439: CRLF templates still yield CR-free identical hooks, and a plain re-run over the other installer's hooks changes nothing"
 }
 
+# --- TEST-3435 ------------------------------------------------------------------------------
+
+test_3435_pester() {
+  local pester="$SCRIPT_DIR/install-pre-commit-hook.Tests.ps1"
+  [[ -f "$pester" ]] || log_fail "TEST-3435: tests/skills/install-pre-commit-hook.Tests.ps1 does not exist"
+  need_tool TEST-3435 pwsh || return 0
+  local has out rc=0
+  has="$(pwsh -NoProfile -Command 'if (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 }) { "yes" } else { "no" }' 2>/dev/null || echo no)"
+  if [[ "$has" != yes ]]; then
+    echo "SKIP-CASE: TEST-3435 needs Pester 5 (the ps1-quality gate job is the authoritative runner)"
+    return 0
+  fi
+  out="$(env -u AAI_ROLE PESTER_FILE="$pester" pwsh -NoProfile -Command '
+    $cfg = New-PesterConfiguration
+    $cfg.Run.Path = $env:PESTER_FILE
+    $cfg.Run.PassThru = $true
+    $cfg.Output.Verbosity = "Normal"
+    $r = Invoke-Pester -Configuration $cfg
+    Write-Host "PESTER-RESULT: Total=$($r.TotalCount) Passed=$($r.PassedCount) Failed=$($r.FailedCount) Skipped=$($r.SkippedCount)"
+    if ($r.FailedCount -gt 0 -or $r.SkippedCount -gt 0 -or $r.TotalCount -lt 6) { exit 1 }
+    exit 0
+  ' 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3435: install-pre-commit-hook.Tests.ps1 failed, skipped a case or ran fewer than 6 cases (rc=$rc)"; }
+  log_pass "TEST-3435: install-pre-commit-hook.Tests.ps1 passes with no skip under pwsh ($(printf '%s\n' "$out" | sed -n 's/^PESTER-RESULT: //p'))"
+}
+
+# --- TEST-3438 ------------------------------------------------------------------------------
+
+# template_for_token <token>: the template file name of one hook token.
+template_for_token() {
+  case "$1" in
+    index) printf 'pre-commit-index.sh' ;;
+    guard-checks) printf 'pre-commit-guard-checks.sh' ;;
+    ref-guard) printf 'reference-transaction.sh' ;;
+    pre-push) printf 'pre-push.sh' ;;
+  esac
+}
+
+# missing_round <label> <engine sh|ps1> <token>: one installer with one template removed.
+missing_round() {
+  local label="$1" engine="$2" tok="$3" root name want seed rc=0 slot
+  root="$TEST_DIR/missing/$label $engine $tok"
+  name="$(template_for_token "$tok")"
+  want="$root/.aai/templates/git-hooks/$name"
+  make_repo "$root"
+  vendor_hook_installer "$root" "$engine"
+  rm -f "$want"
+  mkdir -p "$(hooks_path "$root")"
+  seed="$TEST_DIR/missing/seed.pre-push"
+  printf '#!/bin/sh\n# AAI:CLOSE-GATE old body\nexit 0\n' > "$seed"
+  cp "$seed" "$(hooks_path "$root")/pre-push"
+  if [[ "$engine" == sh ]]; then
+    ( cd "$root" && bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/m.out" 2>"$TEST_DIR/m.err" || rc=$?
+  else
+    ( cd "$root" && pwsh -NoProfile -NonInteractive -File .aai/scripts/install-pre-commit-hook.ps1 ) >"$TEST_DIR/m.out" 2>"$TEST_DIR/m.err" || rc=$?
+  fi
+  [[ "$rc" == 1 ]] || log_fail "TEST-3438: $engine installer without $name exited $rc, expected 1"
+  /usr/bin/grep -qxF "ERROR: AAI hook template missing: $want" "$TEST_DIR/m.err" || { cat "$TEST_DIR/m.err" >&2; log_fail "TEST-3438: $engine installer did not name $want on stderr"; }
+  cmp -s "$seed" "$(hooks_path "$root")/pre-push" || log_fail "TEST-3438: $engine installer changed the pre-seeded pre-push without $name"
+  for slot in pre-commit reference-transaction; do
+    [[ ! -e "$(hooks_path "$root")/$slot" ]] || log_fail "TEST-3438: $engine installer wrote $slot without $name"
+  done
+  if [[ "$engine" == sh ]]; then
+    rc=0; ( cd "$root" && bash .aai/scripts/install-pre-commit-hook.sh --print "$tok" ) >"$TEST_DIR/p.out" 2>"$TEST_DIR/p.err" || rc=$?
+    [[ "$rc" == 1 && ! -s "$TEST_DIR/p.out" ]] || log_fail "TEST-3438: --print $tok without $name exited $rc"
+    /usr/bin/grep -qxF "ERROR: AAI hook template missing: $want" "$TEST_DIR/p.err" || log_fail "TEST-3438: --print $tok did not name $want"
+    rc=0; ( cd "$root" && bash .aai/scripts/install-pre-commit-hook.sh --uninstall ) >/dev/null 2>&1 || rc=$?
+  else
+    rc=0; ( cd "$root" && pwsh -NoProfile -NonInteractive -File .aai/scripts/install-pre-commit-hook.ps1 -Uninstall ) >/dev/null 2>&1 || rc=$?
+  fi
+  [[ "$rc" == 0 ]] || log_fail "TEST-3438: $engine --uninstall without $name exited $rc"
+}
+
+test_3438_missing_template() {
+  local tok
+  [[ -f "$TPL_INDEX" ]] || log_fail "TEST-3438: the templates do not exist"
+  for tok in index guard-checks ref-guard pre-push; do
+    missing_round r sh "$tok"
+    if need_tool TEST-3438 pwsh; then missing_round r ps1 "$tok"; fi
+  done
+  log_pass "TEST-3438: a missing template refuses by name, writes and changes no hook, --print exits 1 the same way, --uninstall still exits 0"
+}
+
+# --- TEST-3440 ------------------------------------------------------------------------------
+
+doctor_cat17() {
+  node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const c = j.categories.find((x) => x.id === "CAT-17");
+    process.stdout.write(c ? c.status + " " + c.reason : "absent");
+  ' < <(node "$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs" --json --root "$1" 2>/dev/null || true)
+}
+
+test_3440_refguard_message_and_doctor() {
+  local line a="$TEST_DIR/doctor/sh repo" b="$TEST_DIR/doctor/ps1 repo" out sel
+  for line in \
+    '  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set.' \
+    '            POSIX shell:  AAI_GIT_WRITE=1 git commit ...' \
+    "            PowerShell:   pwsh -NoProfile -Command '\$env:AAI_GIT_WRITE=1; git commit ...'" \
+    '  Uninstall this guard: bash .aai/scripts/install-pre-commit-hook.sh --uninstall' \
+    '            (PowerShell: pwsh .aai/scripts/install-pre-commit-hook.ps1 -Uninstall)' \
+    'AAI:REF-GUARD refused this refs/heads/main update.'; do
+    /usr/bin/grep -qxF -- "$line" "$TPL_REFTX" 2>/dev/null || log_fail "TEST-3440: the reference-transaction template lacks the line: $line"
+  done
+  make_repo "$a"; git -C "$a" checkout -q -b main 2>/dev/null || true
+  ( cd "$a" && bash "$SH_INSTALLER" --arm-ref-guard ) >/dev/null 2>&1 || log_fail "TEST-3440: the sh installer could not arm the guard"
+  out="$(doctor_cat17 "$a")"
+  [[ "$out" == "PASS armed"* ]] || log_fail "TEST-3440: CAT-17 after the sh installer: $out"
+  if need_tool TEST-3440 pwsh; then
+    make_repo "$b"; git -C "$b" checkout -q -b main 2>/dev/null || true
+    run_ps1 "$b" -ArmRefGuard >/dev/null 2>&1 || log_fail "TEST-3440: the ps1 installer could not arm the guard"
+    out="$(doctor_cat17 "$b")"
+    [[ "$out" == "PASS armed"* ]] || log_fail "TEST-3440: CAT-17 after the ps1 installer: $out"
+  fi
+  for sel in test_309_ps1_twin_static test_314_print_flag test_316_ps1_ascii_outside_here_strings test_611_print_ref_guard_body \
+    test_612_foreign_reftx_names_a_real_command test_613_install_discloses_ref_guard test_614_help_documents_the_new_surface; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-git-ref-guard.sh" "$sel" >"$TEST_DIR/rg.out" 2>&1 || { cat "$TEST_DIR/rg.out" >&2; log_fail "TEST-3440: test-aai-git-ref-guard.sh $sel failed"; }
+  done
+  log_pass "TEST-3440: the template carries the D-MSG lines, CAT-17 reports armed for both installers, and the seven ref-guard selectors pass"
+}
+
+# --- TEST-3441 ------------------------------------------------------------------------------
+
+test_3441_downstream_install() {
+  local tgt="$TEST_DIR/core target/proj" name want="$TEST_DIR/core.want" slot prof="$PROJECT_ROOT/.aai/system/PROFILES.yaml" n
+  make_repo "$tgt"
+  bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$tgt" --profile core >/dev/null 2>&1 || log_fail "TEST-3441: aai-sync.sh --profile core failed"
+  for name in pre-commit-guard-checks.sh pre-commit-index.sh pre-push.sh reference-transaction.sh; do
+    [[ -f "$tgt/.aai/templates/git-hooks/$name" ]] || log_fail "TEST-3441: the core install lacks .aai/templates/git-hooks/$name"
+    cmp -s "$tgt/.aai/templates/git-hooks/$name" "$TPL_DIR/$name" || log_fail "TEST-3441: the installed $name differs from the source"
+    n="$(awk -v want="  - .aai/templates/git-hooks/$name" '/^core:/{c=1; next} /^[a-z]/{c=0} c && $0==want{k++} END{print k+0}' "$prof")"
+    [[ "$n" == 1 ]] || log_fail "TEST-3441: PROFILES lists $name $n times under core, expected once"
+  done
+  ( cd "$tgt" && bash .aai/scripts/install-pre-commit-hook.sh ) >/dev/null 2>&1 || log_fail "TEST-3441: the target's own sh installer failed"
+  compose_expected "$want"
+  cmp -s "$(hooks_path "$tgt")/pre-commit" "$want" || log_fail "TEST-3441: the target's pre-commit differs from the D-COMPOSE bytes"
+  cmp -s "$(hooks_path "$tgt")/reference-transaction" "$TPL_REFTX" || log_fail "TEST-3441: the target's reference-transaction differs from its template"
+  cmp -s "$(hooks_path "$tgt")/pre-push" "$TPL_PUSH" || log_fail "TEST-3441: the target's pre-push differs from its template"
+  if need_tool TEST-3441 pwsh; then
+    ( cd "$tgt" && bash .aai/scripts/install-pre-commit-hook.sh --uninstall ) >/dev/null 2>&1 || log_fail "TEST-3441: the target's uninstall failed"
+    for slot in pre-commit reference-transaction pre-push; do
+      [[ ! -e "$(hooks_path "$tgt")/$slot" ]] || log_fail "TEST-3441: uninstall left $slot"
+    done
+    ( cd "$tgt" && pwsh -NoProfile -NonInteractive -File .aai/scripts/install-pre-commit-hook.ps1 ) >/dev/null 2>&1 || log_fail "TEST-3441: the target's own ps1 installer failed"
+    cmp -s "$(hooks_path "$tgt")/pre-commit" "$want" || log_fail "TEST-3441: the target's ps1-written pre-commit differs from the D-COMPOSE bytes"
+    cmp -s "$(hooks_path "$tgt")/reference-transaction" "$TPL_REFTX" || log_fail "TEST-3441: the target's ps1-written reference-transaction differs"
+    cmp -s "$(hooks_path "$tgt")/pre-push" "$TPL_PUSH" || log_fail "TEST-3441: the target's ps1-written pre-push differs"
+  fi
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-layer-profiles.sh" test_manifest_conformance >"$TEST_DIR/lp.out" 2>&1 || { cat "$TEST_DIR/lp.out" >&2; log_fail "TEST-3441: test-aai-layer-profiles.sh test_manifest_conformance failed"; }
+  log_pass "TEST-3441: aai-sync --profile core into a spaced path vendors the four templates and the target's own installers write the D-COMPOSE bytes"
+}
+
+# --- TEST-3442 ------------------------------------------------------------------------------
+
+# fn_body <file> <function>: the text of one shell function (from its header line to the next
+# column-0 closing brace).
+fn_body() {
+  awk -v fn="$2" '$0 ~ "^"fn"\\(\\)"{p=1} p{print} p && /^}/{exit}' "$1"
+}
+
+# bare_cp_sites <dir>: file:line of every cp of a path ending in install-pre-commit-hook.sh or .ps1
+# in a tests/skills/*.sh other than the shared helper and this suite.
+bare_cp_sites() {
+  local f
+  for f in "$1"/test-aai-*.sh; do
+    [[ "${f##*/}" == test-aai-git-hook-templates.sh ]] && continue
+    awk -v f="${f##*/}" '/^[[:space:]]*cp[[:space:]]/ && /install-pre-commit-hook\.(sh|ps1)"?[[:space:]]*$/ { print f ":" NR }' "$f"
+  done
+}
+
+test_3442_fixtures_use_helper() {
+  local spec file fn out sel
+  for spec in \
+    "test-aai-docs-audit.sh setup_spec0010_hook_repo" \
+    "test-aai-docs-audit.sh setup_spec0011_hook_repo" \
+    "test-aai-doctor.sh test_1344_cat17_seam1_installed_hook_passes" \
+    "test-aai-doctor.sh t812_repo" \
+    "test-aai-git-ref-guard.sh test_310_doctor_category" \
+    "test-aai-hygiene-pack.sh sg_repo" \
+    "test-aai-hygiene-pack.sh test_813_ps1_twin_parity" \
+    "test-aai-hygiene-pack.sh test_818_ps1_upgrade_is_byte_exact_and_order_checked" \
+    "test-aai-tracked-ignored.sh test_1709_real_hook_refuses_commit"; do
+    file="${spec%% *}"; fn="${spec#* }"
+    out="$(fn_body "$SCRIPT_DIR/$file" "$fn")"
+    [[ -n "$out" ]] || log_fail "TEST-3442: $file has no function $fn"
+    /usr/bin/grep -qF 'vendor_hook_installer' <<<"$out" || log_fail "TEST-3442: $file $fn does not vendor its installer through vendor_hook_installer"
+  done
+  out="$(bare_cp_sites "$SCRIPT_DIR")"
+  [[ -z "$out" ]] || log_fail "TEST-3442: a suite copies an installer file by hand: $out"
+  # Positive control: a scratch copy of one suite with a bare cp is reported.
+  mkdir -p "$TEST_DIR/cpctl"
+  { cat "$SCRIPT_DIR/test-aai-doctor.sh"; printf '  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/install-pre-commit-hook.sh"\n'; } > "$TEST_DIR/cpctl/test-aai-doctor.sh"
+  out="$(bare_cp_sites "$TEST_DIR/cpctl")"
+  [[ "$out" == test-aai-doctor.sh:* ]] || log_fail "TEST-3442: positive control: a bare cp of an installer was not reported ($out)"
+  for sel in "test-aai-hygiene-pack.sh test_031_guard_config_conformance" "test-aai-hygiene-pack.sh test_813_ps1_twin_parity" \
+    "test-aai-hygiene-pack.sh test_818_ps1_upgrade_is_byte_exact_and_order_checked" "test-aai-doctor.sh test_1344_cat17_seam1_installed_hook_passes" \
+    "test-aai-git-ref-guard.sh test_310_doctor_category" "test-aai-tracked-ignored.sh test_1709_real_hook_refuses_commit"; do
+    file="${sel%% *}"; fn="${sel#* }"
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/$file" "$fn" >"$TEST_DIR/f.out" 2>&1 || { cat "$TEST_DIR/f.out" >&2; log_fail "TEST-3442: $file $fn failed"; }
+  done
+  log_pass "TEST-3442: the nine fixtures vendor their installer through the helper, no suite copies an installer by hand, and the six pins pass"
+}
+
+# --- TEST-3443 ------------------------------------------------------------------------------
+
+# selected_for <path>: the select-suites output for one changed path.
+selected_for() {
+  printf '%s\n' "$1" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT"
+}
+
+test_3443_wiring() {
+  local f out n s wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" tsv="$SCRIPT_DIR/suite-weights.tsv" nsl="$SCRIPT_DIR/lib/nested-suite-lint.mjs"
+  local helper_suites="aai-docs-audit aai-doctor aai-git-ref-guard aai-hygiene-pack aai-tracked-ignored"
+  for f in .aai/templates/git-hooks/pre-commit-index.sh .aai/templates/git-hooks/pre-commit-guard-checks.sh .aai/templates/git-hooks/reference-transaction.sh \
+    .aai/templates/git-hooks/pre-push.sh .aai/scripts/install-pre-commit-hook.sh .aai/scripts/install-pre-commit-hook.ps1 \
+    tests/skills/lib/vendor-hook-installer.sh tests/skills/install-pre-commit-hook.Tests.ps1; do
+    out="$(selected_for "$f")"
+    [[ "$out" == *'SELECTED aai-git-hook-templates '* ]] || log_fail "TEST-3443: $f does not select aai-git-hook-templates: $out"
+  done
+  # The helper and the templates it copies reach every suite whose fixtures read them.
+  for f in tests/skills/lib/vendor-hook-installer.sh .aai/templates/git-hooks/pre-push.sh; do
+    out="$(selected_for "$f")"
+    for s in $helper_suites; do
+      [[ "$out" == *"SELECTED $s "* || "$out" == *"CORE $s "* ]] || log_fail "TEST-3443: $f does not select $s: $out"
+    done
+  done
+  n="$(awk -F'\t' '$1=="aai-git-hook-templates"{c++} END{print c+0}' "$tsv")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3443: suite-weights holds $n aai-git-hook-templates rows, expected 1"
+  for f in test_090_suite_map_pin test_129_mutation_gate_suite_registration; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" "$f" >/dev/null 2>&1 || log_fail "TEST-3443: test-aai-hygiene-pack.sh $f failed"
+  done
+  node "$nsl" --allowlist "$SCRIPT_DIR/lib/nested-suite-allowlist.tsv" "$SCRIPT_DIR" >/dev/null 2>&1 || log_fail "TEST-3443: nested-suite-lint failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" >/dev/null 2>&1 || log_fail "TEST-3443: check-cd-subshell-leak.mjs failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" >/dev/null 2>&1 || log_fail "TEST-3443: check-test-registration.mjs failed"
+  # The early-closing-reader ratchet: no row for this suite, the helper or either installer.
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/lib/pipe-grep-q-ratchet.sh"
+  out="$(pgq_scan "$SCRIPT_DIR")$(pgq_scan "$SCRIPT_DIR/lib")$(pgq_scan_shipping "$PROJECT_ROOT")"
+  case "$out" in
+    *test-aai-git-hook-templates.sh*|*vendor-hook-installer.sh*|*install-pre-commit-hook.sh*) log_fail "TEST-3443: the early-closing-reader ratchet reports a file of this scope: $out" ;;
+  esac
+  n="$(awk '/^  push:/{s="push"} /^  pull_request:/{s="pr"} /^  workflow_dispatch/{s=""} s!="" && $0=="      - '"'"'.aai/templates/git-hooks/**'"'"'"{c[s]++} END{print c["push"]+0, c["pr"]+0}' "$wf")"
+  [[ "$n" == "1 1" ]] || log_fail "TEST-3443: the ps1-quality path lists hold the templates glob '$n' times (push pr), expected 1 1"
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-win-fallback.sh" test_034 >/dev/null 2>&1 || log_fail "TEST-3443: test-aai-win-fallback.sh test_034 failed"
+  /usr/bin/grep -qxF '.aai/templates/git-hooks/*.sh text eol=lf' "$PROJECT_ROOT/.gitattributes" || log_fail "TEST-3443: .gitattributes lacks the D-EOL line"
+  log_pass "TEST-3443: select-suites, weights, hygiene pins, lints, ps1-quality path lists and .gitattributes are wired"
+}
+
+# --- TEST-3444 ------------------------------------------------------------------------------
+
+# code_lines <file>: non-blank, non-comment lines (the plan's method; /usr/bin/grep when present).
+code_lines() {
+  local g=grep
+  [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
+  "$g" -cvE '^[[:space:]]*(#|$)' "$1" || true
+}
+
+RFC17="${GHT_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
+D_RFC_SENTENCE='The eighth slice [moved the git hook bodies to shared templates](../issues/CHANGE-DRAFT-git-hook-bodies-single-source.md): both installers write the same bytes from one copy, which ends the early-closing pipes of the PowerShell-written pre-commit hook.'
+
+test_3444_line_budget_and_rfc() {
+  local d="${GHT_BUDGET_DIR:-$PROJECT_ROOT}" sh_t sh_c ps_t ps_c tpl_t=0 f row n out rc=0
+  sh_t="$(wc -l < "$d/.aai/scripts/install-pre-commit-hook.sh" | tr -d ' ')"
+  sh_c="$(code_lines "$d/.aai/scripts/install-pre-commit-hook.sh")"
+  ps_t="$(wc -l < "$d/.aai/scripts/install-pre-commit-hook.ps1" | tr -d ' ')"
+  ps_c="$(code_lines "$d/.aai/scripts/install-pre-commit-hook.ps1")"
+  for f in "$d"/.aai/templates/git-hooks/*.sh; do
+    [[ -f "$f" ]] || log_fail "TEST-3444: the templates do not exist"
+    tpl_t=$((tpl_t + $(wc -l < "$f" | tr -d ' ')))
+  done
+  [[ "$sh_t" -le 1050 && "$sh_c" -le 560 ]] || log_fail "TEST-3444: install-pre-commit-hook.sh has $sh_t lines and $sh_c code lines, caps 1050 and 560"
+  [[ "$ps_t" -le 840 && "$ps_c" -le 570 ]] || log_fail "TEST-3444: install-pre-commit-hook.ps1 has $ps_t lines and $ps_c code lines, caps 840 and 570"
+  [[ "$tpl_t" -le 330 ]] || log_fail "TEST-3444: the four templates hold $tpl_t lines, cap 330"
+  log_info "line counts (lines/code) before: sh 1313/749, ps1 1097/749, embedded bodies sh 312/217 ps1 308/216"
+  log_info "line counts (lines/code) after:  sh $sh_t/$sh_c, ps1 $ps_t/$ps_c, templates together $tpl_t"
+  out="$(env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-expert-fetch.sh" test_2624_inventory_matches_tree 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 10 >&2; log_fail "TEST-3444: test_2624_inventory_matches_tree exited $rc"; }
+  row="$(/usr/bin/grep '^| 5 | ' "$RFC17" || true)"
+  [[ "$row" == *'| in progress |'* ]] || log_fail "TEST-3444: the phase 5 row is not in progress"
+  [[ "$row" == *"$D_RFC_SENTENCE"* ]] || log_fail "TEST-3444: the phase 5 row lacks the D-RFC sentence"
+  n="$(/usr/bin/grep -cF -- "$D_RFC_SENTENCE" "$RFC17" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3444: the D-RFC sentence appears $n times, expected once"
+  [[ "$row" == *'git-hook-bodies-single-source.md)'* ]] || log_fail "TEST-3444: the phase 5 row has no link ending git-hook-bodies-single-source.md"
+  log_pass "TEST-3444: sh $sh_t/$sh_c, ps1 $ps_t/$ps_c, templates $tpl_t lines within the caps; the RFC-0017 inventory equals the tree and the phase 5 row holds the sentence once"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3432..3444)"
   check_deps
@@ -337,8 +623,15 @@ main() {
   test_3433_sh_writes_templates
   test_3434_twin_bytes
   test_3436_pipefail_large_stage
+  test_3435_pester
   test_3437_no_early_reader
+  test_3438_missing_template
   test_3439_crlf_and_rerun
+  test_3440_refguard_message_and_doctor
+  test_3441_downstream_install
+  test_3442_fixtures_use_helper
+  test_3443_wiring
+  test_3444_line_budget_and_rfc
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

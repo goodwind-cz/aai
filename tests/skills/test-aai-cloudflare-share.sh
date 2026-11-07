@@ -324,7 +324,7 @@ test_3428_wiring() {
     env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-hygiene-pack.sh" "$f" >/dev/null 2>&1 || log_fail "TEST-3428: test-aai-hygiene-pack.sh $f failed"
   done
   n="$(grep -c '^  aai-[a-z0-9-]*:$' "$PROJECT_ROOT/tests/skills/suite-map.yaml" || true)"
-  [[ "$n" == 128 ]] || log_fail "TEST-3428: suite-map.yaml holds $n suite rows, expected 128"
+  [[ "$n" == 129 ]] || log_fail "TEST-3428: suite-map.yaml holds $n suite rows, expected 129"
   node "$nsl" --allowlist "$PROJECT_ROOT/tests/skills/lib/nested-suite-allowlist.tsv" "$PROJECT_ROOT/tests/skills" >/dev/null 2>&1 || log_fail "TEST-3428: nested-suite-lint failed"
   node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" >/dev/null 2>&1 || log_fail "TEST-3428: check-cd-subshell-leak.mjs failed"
   node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" >/dev/null 2>&1 || log_fail "TEST-3428: check-test-registration.mjs failed"

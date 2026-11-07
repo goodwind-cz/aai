@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-git-hook-bodies-single-source | specs | implementing | 13 planned | docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md |
+| spec-git-hook-bodies-single-source | specs | implementing | 13 done | docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md |
 
 ## Canonical layer (0)
 
@@ -731,7 +731,7 @@ _None._
 |---|---|---|---|
 | SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
 
-## Broken references (541)
+## Broken references (543)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1071,6 +1071,8 @@ _None._
 | tests/skills/test-aai-follow-ups.sh | docs/issues/CHANGE-9999-does-not-need-to-exist.md | NOT FOUND |
 | tests/skills/test-aai-follow-ups.sh | docs/specs/SPEC-0042-spec-some-other-frozen-scope.md | NOT FOUND |
 | tests/skills/test-aai-follow-ups.sh | docs/specs/SPEC-9999-does-not-need-to-exist.md | NOT FOUND |
+| tests/skills/test-aai-git-hook-templates.sh | docs/a.md | NOT FOUND |
+| tests/skills/test-aai-git-hook-templates.sh | docs/specs/SPEC-9999-big.md | NOT FOUND |
 | tests/skills/test-aai-git-ref-guard.sh | docs/rfc/RFC-DRAFT-t306.md | NOT FOUND |
 | tests/skills/test-aai-harness-shims.sh | docs/ai/reports/x.md | NOT FOUND |
 | tests/skills/test-aai-hitl-propagation.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
