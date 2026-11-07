@@ -3664,3 +3664,4 @@
 {"v":1,"ts":"2026-11-07T04:30:58Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"cloudflare-share-on-node","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-07T04:30:58Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-cloudflare-share-on-node","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-07T04:30:58Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-cloudflare-share-on-node","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-07T04:45:54Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"cloudflare-share-on-node","payload":{"pr":537,"lane":"heavy","reviewer_bots":"expected","threads_seen":2,"threads_unresolved":0,"outcome":"swept","head_sha":"b182f6248a4621dc80250457d41f517193014ba5"}}
