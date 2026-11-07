@@ -2,11 +2,9 @@
 
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
-## Overdue reviews (1)
+## Overdue reviews (0)
 
-| Doc | AC | Status | Was Due | Notes |
-|---|---|---|---|---|
-| SPEC-0245 | Spec-AC-06 | deferred | 2026-11-06 | TEST-2210; local paired runs done (31.9% reduction); hosted after rows and suite-weights re-measure pending push |
+_None._
 
 ## Active (implementing) (2)
 
@@ -721,8 +719,8 @@ _None._
 
 | Source Doc | AC | Review-By | Notes |
 |---|---|---|---|
-| SPEC-0245 | Spec-AC-06 | 2026-11-06 | TEST-2210; local paired runs done (31.9% reduction); hosted after rows and suite-weights re-measure pending push |
 | SPEC-0046 | Spec-AC-10 | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
+| SPEC-0245 | Spec-AC-06 | 2026-11-21 | TEST-2210; local paired runs done (31.9% reduction); hosted after rows and suite-weights re-measure pending push |
 | SPEC-0255 | Spec-AC-09 | 2026-11-30 | Post-merge live acceptance; verified by the orchestrator before close, not by pre-merge Validation. |
 
 ## Blocked items (per-AC, across all specs) (1)
