@@ -447,6 +447,8 @@ test('TEST-3421 DR-21 credentials are passed on, never printed, and redacted fro
     'printf \'\\033%s\\n\' "$CLOUDFLARE_API_TOKEN" >&2',
     'printf \'\\033[%s\\n\' "$CLOUDFLARE_API_KEY" >&2',
     'printf \'\\033%s\\n\' "$CLOUDFLARE_API_KEY"',
+    // a value split by a COMPLETE escape is joined only by the ANSI strip: the post-strip redaction must catch it
+    'printf \'Upper-to\\033[0mken-CCCC3333\\n\'',
     'exit 1',
   ] });
   const e = cli(esc, ['doc.md'], { CLOUDFLARE_API_TOKEN: UP, CLOUDFLARE_API_KEY: KEY });
