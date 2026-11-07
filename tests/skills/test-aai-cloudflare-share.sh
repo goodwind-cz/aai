@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-cloudflare-share
-# (docs/specs/SPEC-DRAFT-cloudflare-share-on-node.md, TEST-3416..3431)
+# (docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md, TEST-3416..3431)
 #
 # cloudflare-share is one Node module (.aai/scripts/cloudflare-share.mjs) behind thin sh/ps1 launchers.
 # Every case works in fresh mktemp fixtures with a stub wrangler first on PATH; no case runs a real
@@ -338,7 +338,7 @@ test_3428_wiring() {
 }
 
 RFC17="${CFS_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
-D_RFC_SENTENCE='The seventh slice [moved cloudflare-share to Node](../issues/CHANGE-DRAFT-cloudflare-share-on-node.md): one module with an injectable deploy seam behind thin launchers, which ends the macOS grep -oP failure and the twins'"'"' drift.'
+D_RFC_SENTENCE='The seventh slice [moved cloudflare-share to Node](../issues/CHANGE-0248-cloudflare-share-on-node.md): one module with an injectable deploy seam behind thin launchers, which ends the macOS grep -oP failure and the twins'"'"' drift.'
 
 test_3429_rfc() {
   local row n out rc=0

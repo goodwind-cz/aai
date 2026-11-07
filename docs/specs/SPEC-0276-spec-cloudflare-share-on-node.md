@@ -1,10 +1,10 @@
 ---
 id: spec-cloudflare-share-on-node
 type: spec
-number: null
-status: implementing
+number: 276
+status: done
 mutation_gate: v1
-frozen_sha256: 2c22d2eefa5ad75acbe52b3665a4716f5026305943aa653a54874e3bd6ab5cb0
+frozen_sha256: 3a8d07a9479c4785c15df5ef612702edaffc00276d797d13dbdeb32c64756e67
 ceremony_level: 2
 links:
   requirement: cloudflare-share-on-node
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Port the Cloudflare share script pair to one Node module](../issues/CHANGE-DRAFT-cloudflare-share-on-node.md).
+- Requirement: [Port the Cloudflare share script pair to one Node module](../issues/CHANGE-0248-cloudflare-share-on-node.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 3 (no owner sign-off required by the plan).
@@ -63,8 +63,8 @@ SPEC-FROZEN: true
   tests/skills/suite-weights.tsv tests/skills/lib/cd-subshell-leak-baseline.tsv
   tests/skills/test-aai-hygiene-pack.sh
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md CHANGELOG.md
-  docs/issues/CHANGE-DRAFT-cloudflare-share-on-node.md
-  docs/specs/SPEC-DRAFT-cloudflare-share-on-node.md docs/INDEX.md
+  docs/issues/CHANGE-0248-cloudflare-share-on-node.md
+  docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md docs/INDEX.md
   (cd-subshell-leak-baseline.tsv only if the ratchet asks for a row).
 - Code review required: true.
 
@@ -328,7 +328,7 @@ echoes foreign output.
   module exists). Every other row stays byte for byte.
 - Phase 5 row: one sentence after the sixth-slice sentence and before the
   remaining-scripts-plan sentence:
-  `The seventh slice [moved cloudflare-share to Node](../issues/CHANGE-DRAFT-cloudflare-share-on-node.md): one module with an injectable deploy seam behind thin launchers, which ends the macOS grep -oP failure and the twins' drift.`
+  `The seventh slice [moved cloudflare-share to Node](../issues/CHANGE-0248-cloudflare-share-on-node.md): one module with an injectable deploy seam behind thin launchers, which ends the macOS grep -oP failure and the twins' drift.`
   Status stays `in progress`; frontmatter untouched. The allocator rewrites
   the link at merge; checks match only the suffix `cloudflare-share-on-node.md`.
 - After LOOP COMPLETE (ship convention, in the review scope, not a TEST row):

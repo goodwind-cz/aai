@@ -141,7 +141,7 @@ pairs:
   - capability: retire-shell-loop-runner
     status: done
   - capability: cloudflare-share-on-node
-    status: planned
+    status: done
   - capability: git-hook-bodies-single-source
     status: planned
   - capability: pre-commit-checks-ps1-retire

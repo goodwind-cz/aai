@@ -1,8 +1,8 @@
 ---
 id: cloudflare-share-on-node
 type: change
-number: null
-status: draft
+number: 248
+status: done
 capability: cloudflare-share-on-node
 parent: smaller-node-core-and-faster-feedback
 links:

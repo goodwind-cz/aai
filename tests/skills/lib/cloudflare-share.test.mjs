@@ -1,5 +1,5 @@
 // cloudflare-share.test.mjs - node:test cases for .aai/scripts/cloudflare-share.mjs
-// (docs/specs/SPEC-DRAFT-cloudflare-share-on-node.md, TEST-3416 to TEST-3421 and DR-20 of TEST-3423).
+// (docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md, TEST-3416 to TEST-3421 and DR-20 of TEST-3423).
 // Every case works in a fresh temp directory with a recording fake or a stub wrangler on PATH; no case
 // runs a real wrangler or reaches the network, and no case prints an environment value.
 import { test, after } from 'node:test';

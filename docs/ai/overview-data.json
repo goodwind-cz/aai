@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-06T13:23:02.895Z",
+  "generatedAt": "2026-11-07T04:31:06.303Z",
   "project": "aai",
   "counts": {
-    "delivered": 344,
+    "delivered": 345,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -234,6 +234,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "cloudflare-share-on-node",
+      "title": "Port the Cloudflare share script pair to one Node module",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0248-cloudflare-share-on-node.md",
+      "closed_on": "2026-11-07",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-cloudflare-share-on-node-r1-20261106T204750Z.md"
+    },
     {
       "ref": "retire-shell-loop-runner",
       "title": "Retire the shell autonomous loop runner in favour of /aai-loop",
@@ -4733,6 +4746,19 @@
       "kind": "month",
       "label": "2026-11",
       "items": [
+        {
+          "ref": "cloudflare-share-on-node",
+          "title": "Port the Cloudflare share script pair to one Node module",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0248-cloudflare-share-on-node.md",
+          "closed_on": "2026-11-07",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-cloudflare-share-on-node-r1-20261106T204750Z.md"
+        },
         {
           "ref": "retire-shell-loop-runner",
           "title": "Retire the shell autonomous loop runner in favour of /aai-loop",

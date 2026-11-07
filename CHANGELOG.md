@@ -28,6 +28,16 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — refactor(scripts): the Cloudflare share script pair moves to one Node module
+
+- `.aai/scripts/cloudflare-share.sh` and `.aai/scripts/cloudflare-share.ps1` are now thin launchers over `.aai/scripts/cloudflare-share.mjs` (the publishing behind `/aai-share`); the happy path is unchanged: same stdout lines, same history record location, same cleanup of `.cloudflare-publish`. The module ships under the `extended` profile like the launchers did.
+- Error and usage lines now go to stderr (they went to stdout). Failure behaviours follow the spec's drift table: DR-01 a missing document prints the usage line and exits 1 without prompting (`-h`/`--help` print it on stdout, exit 0); DR-05 a failed conversion exits 1 and removes the publish directory; DR-06 a missing `wrangler` is checked before conversion and prints three stderr lines with exit 1; DR-08 outside a git repository the branch is the current directory name; DR-10 a non-zero `wrangler` exit is now a failure even when its output holds a pages.dev URL (nothing is recorded); DR-19 extra arguments are refused with the usage line.
+- `size_kb` in the history record is now the byte sum of the published files divided by 1024 (DR-13), and the record is valid JSON with the fixed key order `timestamp`, `document`, `url`, `size_kb` even when the path holds a double quote or backslash (DR-14).
+- Credentials are redacted in the echo of a failed deploy: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_API_KEY` values are replaced with `[REDACTED]` on stderr.
+- Fixed: on macOS the old `grep -oP` URL extraction failed (BSD grep has no `-P`) and the publish reported no URL; the module has no grep dependency.
+- The launchers refuse with one stderr line and exit 1 when Node is not on PATH. The PowerShell launcher still rejects `-h`/`--help` and extra arguments as PowerShell binding errors rather than the module's usage line (follow-up `fu-cfshare-ps1-help-args`).
+- Code lines (non-blank, non-comment): 98 before over the two launchers, 15 after (6 sh, 9 ps1); the module holds 148. Redaction hardening for escape sequences split mid-credential is tracked as `fu-cfshare-redact-escape-robust`.
+
 ## [unreleased] — refactor(scripts): the shell loop runner is retired in favour of /aai-loop
 
 - `.aai/scripts/autonomous-loop.sh` and `.aai/scripts/autonomous-loop.ps1` are retired in this release. Each now prints one retirement line naming `/aai-loop`, ignores every argument, changes nothing and exits 1; both launchers are deleted in the next release (follow-up `fu-delete-retired-shell-loop-runner`). Replacement: `/aai-loop` in an agent session; for an unattended ride with a declared run budget, `/aai-ship` with `unattended=true` and an existing intake.

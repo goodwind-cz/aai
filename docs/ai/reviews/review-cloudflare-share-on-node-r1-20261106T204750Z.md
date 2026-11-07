@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "git diff main...HEAD (base main bd519bb3, head 1158fbe2, branch refactor/cloudflare-share-on-node)"
-  spec: docs/specs/SPEC-DRAFT-cloudflare-share-on-node.md
+  spec: docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -56,7 +56,7 @@ review:
 security_relevant: true
 
 - Scope: `git diff main...HEAD` in worktree `/Users/ales/Projects/aai-worktrees/cloudflare-share-on-node` (base `bd519bb3`, head `1158fbe2`); worktree.user_decision = worktree.
-- Spec: `docs/specs/SPEC-DRAFT-cloudflare-share-on-node.md` (15 Spec-ACs, DR-01..21).
+- Spec: `docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md` (15 Spec-ACs, DR-01..21).
 - Coaching note (anti-gaming contract): the dispatch named focus areas (Windows `.cmd` spawn, secret handling, error paths, minimality) and listed the validation NBs. Recorded here; the full diff (all 19 files) was reviewed regardless.
 
 ## Evidence run by the reviewer
