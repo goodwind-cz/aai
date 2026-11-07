@@ -326,6 +326,7 @@ extended:
   - .aai/scripts/aai-live.mjs
   - .aai/scripts/aai-live.ps1
   - .aai/scripts/aai-live.sh
+  - .aai/scripts/cloudflare-share.mjs
   - .aai/scripts/cloudflare-share.ps1
   - .aai/scripts/cloudflare-share.sh
   - .aai/scripts/deslop-unrequested.mjs

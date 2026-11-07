@@ -274,3 +274,6 @@ aai-worktree-seed	27
 
 # sample aai-hermes-skills fallback unsampled (native runtime unavailable in CI; local timing is not a CI sample)
 aai-hermes-skills	196
+
+# sample aai-cloudflare-share fallback unsampled (new suite of cloudflare-share-on-node; no successful observation)
+aai-cloudflare-share	196

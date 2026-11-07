@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (622)
+## Done (624)
 
 | ID | Type | Path |
 |---|---|---|
@@ -306,6 +306,7 @@ _None._
 | CHANGE-0244 | issues | docs/issues/CHANGE-0244-reuse-split-corpus-cases.md |
 | CHANGE-0245 | issues | docs/issues/CHANGE-0245-retire-legacy-migrations.md |
 | CHANGE-0246 | issues | docs/issues/CHANGE-0246-retire-shell-loop-runner.md |
+| CHANGE-0248 | issues | docs/issues/CHANGE-0248-cloudflare-share-on-node.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -685,6 +686,7 @@ _None._
 | SPEC-0272 | specs | docs/specs/SPEC-0272-spec-admit-tests-other-suites.md |
 | SPEC-0273 | specs | docs/specs/SPEC-0273-spec-retire-legacy-migrations.md |
 | SPEC-0274 | specs | docs/specs/SPEC-0274-spec-retire-shell-loop-runner.md |
+| SPEC-0276 | specs | docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

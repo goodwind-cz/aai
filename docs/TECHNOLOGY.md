@@ -34,8 +34,8 @@
   `node:` stdlib imports and modern ESM
 - Deployment target(s): none — this repository is a vendored documentation and
   workflow layer, not a deployed service. Optional report publishing to
-  Cloudflare Pages via the Wrangler CLI (`.aai/scripts/cloudflare-share.sh`/
-  `.ps1`, `/aai-share`).
+  Cloudflare Pages via the Wrangler CLI (`.aai/scripts/cloudflare-share.mjs` with its
+  `.sh`/`.ps1` launchers, `/aai-share`).
 - Containers / orchestration: none detected
 
 ## Backend
