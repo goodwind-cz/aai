@@ -2,9 +2,11 @@
 
 Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
-## Overdue reviews (0)
+## Overdue reviews (1)
 
-_None._
+| Doc | AC | Status | Was Due | Notes |
+|---|---|---|---|---|
+| SPEC-0245 | Spec-AC-06 | deferred | 2026-11-06 | TEST-2210; local paired runs done (31.9% reduction); hosted after rows and suite-weights re-measure pending push |
 
 ## Active (implementing) (2)
 
@@ -1311,4 +1313,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-06 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-07 — counts above use this date for overdue checks.
