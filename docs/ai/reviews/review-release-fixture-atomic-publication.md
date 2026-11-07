@@ -60,3 +60,50 @@ The cannot_verify list above names the incomplete aggregate, pending hosted CI a
 ## Next step
 
 Return review PASS to the orchestrator, retain the typed exception and original Validation FAIL, then prepare the authorized PR and obtain green current-head Linux CI before merge readiness. Stage this review with the scope commit per the normal PR ceremony. No merge or release is authorized by this report.
+
+
+## Administrative addendum — 2026-11-07
+
+```yaml
+administrative_review:
+  scope: "b27cad401e8e5490985dac8c8cf534f43179f195...ee631dbbb2f33fed6b7d0a05e5bcc4c7854d4955 plus regenerated local companions and appended follow-up at 10:06:02Z"
+  spec_compliance:
+    verdict: pass
+    ac_walk:
+      - ac: Spec-AC-01
+        call: compliant
+        citation: "SPEC-0277:44-55; fixture SHA256 7bc9dec3 unchanged; original TEST-001/TEST-021 evidence and scoped owner exception retained"
+  code_quality:
+    verdict: pass
+    findings:
+      - rank: NON-BLOCKING
+        file: docs/INDEX.md
+        line: 64
+        issue: "Pre-regeneration index counted duplicate SPEC-0245 rows and inflated done count"
+        failure_scenario: "Generating with unresolved index stages listed SPEC-0245 three times, showing 628 done documents rather than 626"
+        disposition: "remediated-in-tree: post-rebase regeneration has one SPEC-0245 row and Done (626)"
+      - rank: NON-BLOCKING
+        file: docs/ai/overview-data.json
+        line: 257
+        issue: "The generated repair entry reports agent_minutes=0 despite measured role runs retained in STATE"
+        failure_scenario: "Closed ride lacks flushed METRICS data because the scoped validation exception does not satisfy normal flush; overview displays 0 min agent time"
+        disposition: "filed follow-up fu-overview-unflushed-time in docs/ai/decisions.jsonl at 2026-11-07T10:06:02Z; open P2"
+  cannot_verify:
+    - claim: "Current-head Linux CI and complete aggregate"
+      closes_with: "Current-head hosted Linux PASS after PR opening; separately authorized aggregate for the explicitly accepted gap"
+    - claim: "The cause of frozen-spec hash drift was wholly allocator-shaped"
+      closes_with: "Reconstruction of the original anchored bytes; currently disclosed as unverified with unsigned contract amendment and filed owner-signoff follow-up"
+  overall: pass
+```
+
+The addendum covers all 16 final branch paths, including generated JSON/HTML, the original report, numbered ISSUE-0110/SPEC-0277, decisions, all changed ledgers, INDEX and the fixture. Reviewed the actual branch diff against updated main plus the subsequent dirty regenerated artifacts; no source-runtime change was introduced by numbering, closure or rebase. The original report prefix before this addendum had SHA256 9af1beda0f62c5c2bbc2d00f37fe26952a5e430f1b727e74049b24bd5513ff96 and remains byte-for-byte intact.
+
+Fixture SHA256 remains 7bc9dec3f4f5ecd330b81933c6b11bc86bc586afe4f026722a0322e7637c1750. Immutable Validation report remains dfed1cacd87bf9295d1a7b56dd78ded1f1ec20d12ff42ca1e5eaaa811a1d163d. The original behavioral AC walk and test results therefore still apply. No tests or full sweeps were rerun for this administrative addendum. Read-only structural verification independently checked hashes, JSON contents, main ledger byte prefixes and the final generated rows.
+
+Numbering changes paths and frontmatter; closure explicitly retains the failed aggregate, successful 58/58 rehearsal, scoped owner exception and required current-head Linux CI. The restamp is accurately disclosed as unverified, unsigned and tracked by filed P2 fu-amend-release-fixture-atomic-p-8f6434, rather than mislabeled as a proven mechanical rewrite. No owner sign-off is inferred. The appended close-event corrections replace default PASS claims with explicit exception semantics without rewriting history; all three changed ledgers preserve main's exact byte prefixes. The original historical deadline decision now explains supersession by independently completed main evidence. SPEC-0245 itself is byte-identical to main, whose Spec-AC-06 is done; this branch does not revert that delivery. Original report statements about the deadline companion describe the original pre-rebase review scope and are superseded here.
+
+Generated companion inspection found the transient duplicate index and the zero-time claim listed above. After regeneration, INDEX lists one SPEC-0245 row and Done (626), exactly the two new numbered documents above main's 624. The overview adds one delivered issue with proper numbered links; its false 0-minute display remains an open P2, explicitly promoted to filed follow-up fu-overview-unflushed-time, not accepted as accurate. The generated factory report consistently counts two distinct new closed refs and folds their latest close corrections; common follow-up contents are unchanged except elapsed-day ages, the signed main Cloudflare amendment leaves the open list, and new follow-ups appear. The separate filed P2 fu-factory-report-waiver-history already covers the pre-existing inaccurate waiver caption/default-close semantics. No production reporting source was changed in this fixture repair.
+
+Warning dispositions: duplicated INDEX rows remediated in tree; zero-time display promoted to filed fu-overview-unflushed-time. Related already-filed follow-ups are fu-amend-release-fixture-atomic-p-8f6434 (unsigned restamp) and fu-factory-report-waiver-history (reporting exception semantics). The orchestrator must retain these dispositions in code_review.notes and disclose the open reporting limitation at PR/checkpoint. Both administrative verdicts pass; this is conditional on those explicit recorded dispositions and the unchanged post-open Linux CI requirement. No merge or release is authorized.
+
+The final split-decision shared-page coordination paragraph was also inspected: it records the six generated-page overlaps with PR #535, owner-directed repair-first ordering, and later rebase/regeneration/reverification of #535 after the owner merges the repair. It does not copy another branch's pages or authorize either merge. The all-open-PR probe result is caller-observed coordination evidence, not independently re-queried by this read-only local addendum.

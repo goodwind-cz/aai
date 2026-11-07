@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (628)
+## Done (626)
 
 | ID | Type | Path |
 |---|---|---|
@@ -658,8 +658,6 @@ _None._
 | SPEC-0242 | specs | docs/specs/SPEC-0242-spec-ci-body-only-rechecks.md |
 | SPEC-0243 | specs | docs/specs/SPEC-0243-spec-slim-standing-role-context.md |
 | SPEC-0244 | specs | docs/specs/SPEC-0244-spec-ride-state-handoff-to-worktree.md |
-| SPEC-0245 | specs | docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md |
-| SPEC-0245 | specs | docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md |
 | SPEC-0245 | specs | docs/specs/SPEC-0245-spec-docs-audit-suite-speed.md |
 | SPEC-0246 | specs | docs/specs/SPEC-0246-spec-ci-node-24-baseline.md |
 | SPEC-0247 | specs | docs/specs/SPEC-0247-spec-node-first-sync-hook-slice.md |

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T10:04:51.351Z",
+  "generatedAt": "2026-11-07T10:06:04.769Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
@@ -6543,7 +6543,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 292,
+    "open_count": 293,
     "oldest_age_days": 78,
     "items": [
       {
@@ -8310,7 +8310,7 @@
         "id": "fu-expert-fetch-import-pin-comment",
         "ref": "node-first-third-slice",
         "severity": "P3",
-        "age_days": 13,
+        "age_days": 14,
         "what": "TEST-2612 import pin misses a dynamic import split by a comment, import /* c */ ('x')",
         "status": "open"
       },
@@ -8880,6 +8880,14 @@
         "severity": "P2",
         "age_days": 0,
         "what": "Factory report caption claims a waived ride ran NO validation, including rides with an immutable executed FAIL and an explicit aggregate exception; close writer also defaults close telemetry to pass.",
+        "status": "open"
+      },
+      {
+        "id": "fu-overview-unflushed-time",
+        "ref": "spec-overview-unflushed-time",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "Generated overview reports agent_minutes=0 for a closed ride with measured role runs when metrics-flush refuses scoped validation exception; actual observations remain in local STATE.",
         "status": "open"
       }
     ]
