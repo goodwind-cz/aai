@@ -100,19 +100,12 @@ pgq_scan() {
 # it (same rationale as the tests/skills gate leaving structurally-small
 # producers uncounted). One `<count>\t<relative-path>` line per matching
 # file, sorted by path; a clean file is omitted.
-# Deferred, by name and with a tracker: `.aai/scripts/pre-commit-checks.sh`
-# is a protected_paths_l3 surface; this ride is ceremony 2 and may not edit
-# it (test-aai-hitl-propagation TEST-014). Its 7 sites are tracked by
-# fu-pre-commit-checks-pipe-grep-q only; no ratchet arm counts them (the
-# superset arm scans tests/skills, not shipping scripts).
-PGQ_SHIPPING_DEFERRED_L3='.aai/scripts/pre-commit-checks.sh'
 # Comment lines are dropped before counting in every arm: a `| head` quoted
 # in prose is not a pipe (validation round 9 follow-through).
 pgq_scan_shipping() {
   local _pgqs_root="$1" _pgqs_f _pgqs_n
   for _pgqs_f in "$_pgqs_root"/.aai/scripts/*.sh "$_pgqs_root"/.aai/scripts/lib/*.sh; do
     [ -f "$_pgqs_f" ] || continue
-    [ "${_pgqs_f#"$_pgqs_root"/}" != "$PGQ_SHIPPING_DEFERRED_L3" ] || continue
     "$PGQ_GREP" -q 'pipefail' "$_pgqs_f" 2>/dev/null || continue
     _pgqs_n="$("$PGQ_GREP" -vE '^[[:space:]]*#' "$_pgqs_f" 2>/dev/null | "$PGQ_GREP" -Eo "$PGQ_PATTERN" 2>/dev/null | "$PGQ_GREP" -c '' 2>/dev/null)" || _pgqs_n=0
     [ -n "$_pgqs_n" ] || _pgqs_n=0

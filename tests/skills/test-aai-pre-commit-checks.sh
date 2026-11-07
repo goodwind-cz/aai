@@ -174,6 +174,82 @@ test_3453_large_debug_list() {
   log_pass "TEST-3453: 20000 debug lines print the warning with 3 match lines, reach the summary and the hook lets the commit through"
 }
 
+# base_script: writes the baseline pre-commit-checks.sh (git show) to a file and prints its path;
+# prints nothing when the baseline commit is not in this clone (named SKIP-CASE locally, FAIL on CI).
+base_script() {
+  local out="$TEST_DIR/base-pre-commit-checks.sh"
+  if [[ ! -s "$out" ]]; then
+    git -C "$PROJECT_ROOT" show "$BASE_SHA:.aai/scripts/pre-commit-checks.sh" > "$out" 2>/dev/null || rm -f "$out"
+  fi
+  [[ -s "$out" ]] && printf '%s\n' "$out"
+  return 0
+}
+
+# parity_fixture <name> <kind>: a small fixture for one Spec-AC-07 shape; prints its path.
+parity_fixture() {
+  local fx="$TEST_DIR/par-$1"
+  make_fx "$fx"
+  case "$2" in
+    impl)       write_state "$fx" impl small ;;
+    impl_pass)  printf 'current_focus:\n  phase: implementation\nlast_validation:\n  status: pass\n' > "$fx/docs/ai/STATE.yaml" ;;
+    debug5)     awk 'BEGIN { for (i = 1; i <= 5; i++) printf "console.log(%d);\n", i }' > "$fx/app.js"; git -C "$fx" add app.js ;;
+    valid)      write_state "$fx" valid small ;;
+    valid_rep)  write_state "$fx" valid small; mkdir -p "$fx/docs/ai/reports"; : > "$fx/docs/ai/reports/LATEST.md" ;;
+    rev_pass)   write_state "$fx" review_pass small ;;
+    rev_not_run) write_state "$fx" review_not_run small ;;
+  esac
+  printf '%s\n' "$fx"
+}
+
+test_3454_small_input_parity() {
+  local base fx kind rc_new rc_old numstat
+  base="$(base_script)"
+  if [[ -z "$base" ]]; then
+    [[ -z "${CI:-}" ]] || log_fail "TEST-3454: baseline commit $BASE_SHA is not in this clone on CI"
+    echo "SKIP-CASE: TEST-3454 needs commit $BASE_SHA in this clone"
+    return 0
+  fi
+  for kind in impl impl_pass debug5 valid valid_rep rev_pass rev_not_run; do
+    fx="$(parity_fixture "$kind" "$kind")"
+    ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh ) >"$TEST_DIR/new.out" 2>"$TEST_DIR/new.err" && rc_new=0 || rc_new=$?
+    ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash "$base" ) >"$TEST_DIR/old.out" 2>"$TEST_DIR/old.err" && rc_old=0 || rc_old=$?
+    [[ "$rc_new" == "$rc_old" ]] || log_fail "TEST-3454: $kind exit code $rc_new differs from the baseline $rc_old"
+    cmp -s "$TEST_DIR/new.out" "$TEST_DIR/old.out" || { diff "$TEST_DIR/old.out" "$TEST_DIR/new.out" >&2 || true; log_fail "TEST-3454: $kind stdout differs from the baseline"; }
+    cmp -s "$TEST_DIR/new.err" "$TEST_DIR/old.err" || log_fail "TEST-3454: $kind stderr differs from the baseline"
+  done
+  numstat="$(git -C "$PROJECT_ROOT" diff --numstat "$BASE_SHA" -- .aai/scripts/pre-commit-checks.sh | awk '{print $1" "$2}')"
+  [[ "$numstat" == "7 7" ]] || log_fail "TEST-3454: git diff --numstat $BASE_SHA on the script reads '$numstat', expected '7 7'"
+  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 7 lines"
+}
+
+# shipping_sites <file or - for stdin>: PGQ_PATTERN matches on non-comment lines.
+shipping_sites() {
+  { "$GREP" -vE '^[[:space:]]*#' || true; } | { "$GREP" -cE "$PGQ_PATTERN" || true; }
+}
+
+test_3455_ratchet_counts_the_file() {
+  local lib="$SCRIPT_DIR/lib/pipe-grep-q-ratchet.sh" n total base
+  [[ -f "$lib" ]] || log_fail "TEST-3455: $lib is missing"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$lib"
+  n="$(shipping_sites < "$SH_CHECKS")"
+  [[ "$n" == 0 ]] || log_fail "TEST-3455: PGQ_PATTERN matches $n non-comment line(s) of pre-commit-checks.sh, expected 0"
+  base="$(base_script)"
+  if [[ -n "$base" ]]; then
+    n="$(shipping_sites < "$base")"
+    [[ "$n" == 7 ]] || log_fail "TEST-3455: positive control: the baseline script reads $n sites, expected 7"
+  elif [[ -n "${CI:-}" ]]; then
+    log_fail "TEST-3455: baseline commit $BASE_SHA is not in this clone on CI"
+  else
+    echo "SKIP-CASE: TEST-3455 positive control needs commit $BASE_SHA in this clone"
+  fi
+  if "$GREP" -q 'PGQ_SHIPPING_DEFERRED_L3' "$lib"; then log_fail "TEST-3455: the ratchet lib still holds PGQ_SHIPPING_DEFERRED_L3"; fi
+  total="$(pgq_total "$(pgq_scan_shipping "$PROJECT_ROOT")")"
+  [[ "$total" == 0 ]] || log_fail "TEST-3455: pgq_scan_shipping totals $total, expected 0"
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" test_128_shipping_scripts_pipe_safe_at_zero >"$TEST_DIR/h128.out" 2>&1 || { cat "$TEST_DIR/h128.out" >&2; log_fail "TEST-3455: hygiene-pack test_128 failed"; }
+  log_pass "TEST-3455: the ratchet counts pre-commit-checks.sh (0 sites now, 7 in the baseline) and hygiene-pack test_128 gates it at zero"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461)"
   check_deps
@@ -181,6 +257,8 @@ main() {
   test_3451_large_state_check1_check5
   test_3452_large_code_review_block
   test_3453_large_debug_list
+  test_3454_small_input_parity
+  test_3455_ratchet_counts_the_file
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

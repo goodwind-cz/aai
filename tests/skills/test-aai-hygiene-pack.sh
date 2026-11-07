@@ -1798,9 +1798,10 @@ test_563_pgq_scan_reports_read_errors() {  # TEST-563 / Spec-AC-28
 # aai-update.sh, autonomous-loop.sh, cloudflare-share.sh, expert-fetch.sh,
 # install-pre-commit-hook.sh, migrate-state-to-local.sh, triage.sh;
 # aai-sync.sh was already fixed round 9); the ninth, pre-commit-checks.sh,
-# is a protected_paths_l3 surface a ceremony-2 ride may not edit, so it is
-# deferred by name (PGQ_SHIPPING_DEFERRED_L3) under
-# fu-pre-commit-checks-pipe-grep-q and its 7 sites are still live. A script that never
+# is a protected_paths_l3 surface a ceremony-2 ride could not edit, so it was
+# deferred until the pre-commit-checks-ps1-retire scope (ceremony 3) rewrote its
+# 7 sites to here-strings; it is gated at zero like the other shipping scripts
+# and no script is deferred any more. A script that never
 # sets pipefail is excluded by construction (pgq_scan_shipping) — the class
 # is inert there, so gating it would buy friction with no defect behind it.
 test_128_shipping_scripts_pipe_safe_at_zero() {  # TEST-470 / round 10
