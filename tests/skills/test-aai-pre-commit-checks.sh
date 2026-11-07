@@ -335,6 +335,110 @@ test_3450_launcher_thin() {
   log_pass "TEST-3450: the launcher is at most 5 lines, ASCII, mode 100644, carries one RETIRED comment and the D-LAUNCH line, ends in exit 1 and names no tool"
 }
 
+# ps1_refs <root> <newline list of tracked files>: lines (path:line) naming pre-commit-checks.ps1 or a
+# sh-and-ps1 spelling of the name (braces, slash or "or") outside the allowlist: the launcher, PROFILES.yaml,
+# the WORKFLOW.md protected-surface line and a protected_paths_l3 entry of the two docs-audit files.
+ps1_refs() {
+  node -e '
+    const fs = require("fs");
+    const [root, list] = process.argv.slice(1);
+    const name = /pre-commit-checks\.(ps1|\{sh,ps1\}|sh`?(\/| or )`?\.ps1)/;
+    const pathOk = new Set([".aai/scripts/pre-commit-checks.ps1", ".aai/system/PROFILES.yaml"]);
+    const shapes = {
+      ".aai/workflow/WORKFLOW.md": /^- guards: \.aai\/scripts\/pre-commit-checks\.sh, \.aai\/scripts\/pre-commit-checks\.ps1$/,
+      "docs/ai/docs-audit.yaml": /^  - \.aai\/scripts\/pre-commit-checks\.ps1$/,
+      ".aai/templates/docs-audit.template.yaml": /^  - \.aai\/scripts\/pre-commit-checks\.ps1$/,
+    };
+    const keepDocs = new Set(["docs/TECHNOLOGY.md", "docs/ai/docs-audit.yaml"]);
+    const out = [];
+    for (const f of list.split("\n").filter(Boolean)) {
+      if ((f.startsWith("docs/") && !keepDocs.has(f)) || f.startsWith("tests/") || f === "CHANGELOG.md" || pathOk.has(f)) continue;
+      let t; try { t = fs.readFileSync(root + "/" + f, "utf8"); } catch { continue; }
+      t.split("\n").forEach((l, i) => { if (name.test(l) && !(shapes[f] && shapes[f].test(l))) out.push(f + ":" + (i + 1)); });
+    }
+    process.stdout.write(out.join(" "));
+  ' "$1" "$2"
+}
+
+test_3456_no_live_ps1_reference() {
+  local files out agents="$PROJECT_ROOT/.aai/AGENTS.md" ctl="$TEST_DIR/ctl-root"
+  files="$(git -C "$PROJECT_ROOT" ls-files)"
+  out="$(ps1_refs "$PROJECT_ROOT" "$files")"
+  [[ -z "$out" ]] || log_fail "TEST-3456: live files still name the PowerShell pre-commit checks: $out"
+  mkdir -p "$ctl/docs"
+  printf '  - Pre-commit quality gates run via `.aai/scripts/pre-commit-checks.sh`/`.ps1`\n' > "$ctl/docs/TECHNOLOGY.md"
+  out="$(ps1_refs "$ctl" "docs/TECHNOLOGY.md")"
+  [[ "$out" == *docs/TECHNOLOGY.md* ]] || log_fail "TEST-3456: positive control: the old TECHNOLOGY.md line was not reported (got: $out)"
+  "$GREP" -qxF 'Before committing, run quality gate checks (`.aai/scripts/pre-commit-checks.sh`):' "$agents" || log_fail "TEST-3456: AGENTS.md lacks the D-REF line"
+  log_pass "TEST-3456: no live file names the PowerShell pre-commit checks outside the launcher, PROFILES and the protected-path lines, and AGENTS.md holds the D-REF line"
+}
+
+test_3457_suites_stop_running_the_ps1() {
+  local f hits="" sel
+  for f in $(git -C "$PROJECT_ROOT" ls-files tests/skills); do
+    case "$f" in
+      tests/skills/test-aai-pre-commit-checks.sh|tests/skills/pre-commit-checks-retired.Tests.ps1) continue ;;
+    esac
+    if "$GREP" -qF 'pre-commit-checks.ps1' "$PROJECT_ROOT/$f" 2>/dev/null; then hits="$hits $f"; fi
+  done
+  [[ -z "$hits" ]] || log_fail "TEST-3457: tests/skills files still name pre-commit-checks.ps1:$hits"
+  if "$GREP" -q '^test_809_check8_ps1_twin()' "$SCRIPT_DIR/test-aai-doc-numbering.sh"; then log_fail "TEST-3457: test_809_check8_ps1_twin still exists"; fi
+  if "$GREP" -q '^test_1708_precommit_ps1_parity()' "$SCRIPT_DIR/test-aai-tracked-ignored.sh"; then log_fail "TEST-3457: test_1708_precommit_ps1_parity still exists"; fi
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" >"$TEST_DIR/reg.out" 2>&1 || { cat "$TEST_DIR/reg.out" >&2; log_fail "TEST-3457: check-test-registration.mjs failed"; }
+  for sel in "test-aai-doc-numbering.sh test_808_check8_enforce_is_merge_point_aware" \
+    "test-aai-tracked-ignored.sh test_1706_precommit_sh_refuses_added_ignored_path" "test-aai-tracked-ignored.sh test_1707_precommit_sh_cells" \
+    "test-aai-suite-select.sh test_1737_real_map_gitignore_full_and_guard_scripts_select"; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/${sel% *}" "${sel#* }" >"$TEST_DIR/sel.out" 2>&1 || { tail -15 "$TEST_DIR/sel.out" >&2; log_fail "TEST-3457: ${sel% *} ${sel#* } failed"; }
+  done
+  log_pass "TEST-3457: no suite runs the PowerShell checks any more, the two twin cells are gone and the registration check is clean"
+}
+
+selected_for() {
+  printf '%s\n' "$1" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT"
+}
+
+# row_globs <suite name>: the glob lines of one suite-map row.
+row_globs() {
+  awk -v want="  $1:" '$0 == want {f=1; next} f && /^  [a-z0-9][a-z0-9-]*:$/ {exit} f' "$SCRIPT_DIR/suite-map.yaml"
+}
+
+test_3458_wiring() {
+  local f out n row_n wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" tsv="$SCRIPT_DIR/suite-weights.tsv" nsl="$SCRIPT_DIR/lib/nested-suite-lint.mjs" g sel
+  for f in tests/skills/test-aai-pre-commit-checks.sh tests/skills/pre-commit-checks-retired.Tests.ps1 tests/skills/lib/pipe-grep-q-ratchet.sh; do
+    out="$(selected_for "$f")"
+    [[ "$out" == *'SELECTED aai-pre-commit-checks '* ]] || log_fail "TEST-3458: $f does not select aai-pre-commit-checks: $out"
+  done
+  for f in .aai/scripts/pre-commit-checks.sh .aai/scripts/pre-commit-checks.ps1; do
+    out="$(selected_for "$f")"
+    [[ "$out" == *'FULL_RUN reason=protected-l3'* ]] || log_fail "TEST-3458: $f is not FULL_RUN protected-l3: $out"
+  done
+  for g in aai-doc-numbering aai-tracked-ignored; do
+    if "$GREP" -qF 'pre-commit-checks.ps1' <<< "$(row_globs "$g")"; then log_fail "TEST-3458: the $g row still globs pre-commit-checks.ps1"; fi
+  done
+  "$GREP" -qxF '      - tests/skills/pre-commit-checks-retired.Tests.ps1' <<< "$(row_globs aai-pre-commit-checks)" || log_fail "TEST-3458: the aai-pre-commit-checks row lacks the Pester glob"
+  n="$(awk -F'\t' '$1=="aai-pre-commit-checks"{c++; w=$2} END{print c+0 ":" w}' "$tsv")"
+  [[ "$n" == "1:196" ]] || log_fail "TEST-3458: suite-weights holds aai-pre-commit-checks as '$n' (rows:weight), expected 1:196"
+  "$GREP" -qxF '# sample aai-pre-commit-checks fallback unsampled (new suite of pre-commit-checks-ps1-retire; no successful observation)' "$tsv" || log_fail "TEST-3458: suite-weights lacks the fallback-unsampled line"
+  row_n="$("$GREP" -cE '^  aai-[a-z0-9-]*:$' "$SCRIPT_DIR/suite-map.yaml" || true)"
+  [[ "$row_n" == 130 ]] || log_fail "TEST-3458: suite-map.yaml holds $row_n suite rows, expected 130"
+  [[ "$("$GREP" -c -- '-eq 130 ]]' "$SCRIPT_DIR/test-aai-hygiene-pack.sh" || true)" == 2 ]] || log_fail "TEST-3458: the two hygiene-pack row-count pins do not both read 130"
+  for sel in test_090_suite_map_pin test_129_mutation_gate_suite_registration test_133_nested_suite_lint_live_and_base; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" "$sel" >"$TEST_DIR/w.out" 2>&1 || { tail -8 "$TEST_DIR/w.out" >&2; log_fail "TEST-3458: test-aai-hygiene-pack.sh $sel failed"; }
+  done
+  node "$nsl" --allowlist "$SCRIPT_DIR/lib/nested-suite-allowlist.tsv" "$SCRIPT_DIR" >/dev/null 2>&1 || log_fail "TEST-3458: nested-suite-lint failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" >/dev/null 2>&1 || log_fail "TEST-3458: check-cd-subshell-leak.mjs failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" >/dev/null 2>&1 || log_fail "TEST-3458: check-test-registration.mjs failed"
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-win-fallback.sh" test_034 >/dev/null 2>&1 || log_fail "TEST-3458: test-aai-win-fallback.sh test_034 failed"
+  for sel in test_010_audit_and_reduction test_012_growth_sum_matches_ledger test_746_roadmap_takes_direction_growth_ledgered test_769_agents_md_ceiling; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-prompt-diet.sh" "$sel" >"$TEST_DIR/pd.out" 2>&1 || { tail -8 "$TEST_DIR/pd.out" >&2; log_fail "TEST-3458: test-aai-prompt-diet.sh $sel failed"; }
+  done
+  for g in "'.aai/scripts/**.ps1'" "'tests/skills/*.Tests.ps1'"; do
+    n="$(awk -v want="      - $g" '/^  push:/{s="push"} /^  pull_request:/{s="pr"} /^  workflow_dispatch/{s=""} s!="" && $0==want{c[s]++} END{print c["push"]+0, c["pr"]+0}' "$wf")"
+    [[ "$n" == "1 1" ]] || log_fail "TEST-3458: the ps1-quality path lists hold $g '$n' times (push pr), expected 1 1"
+  done
+  log_pass "TEST-3458: select-suites, weights, hygiene pins at 130, lints, win-fallback, prompt-diet and the ps1-quality path lists are wired"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461)"
   check_deps
@@ -342,6 +446,9 @@ main() {
   test_3448_ps1_retired_run
   test_3449_pester
   test_3450_launcher_thin
+  test_3456_no_live_ps1_reference
+  test_3457_suites_stop_running_the_ps1
+  test_3458_wiring
   test_3451_large_state_check1_check5
   test_3452_large_code_review_block
   test_3453_large_debug_list

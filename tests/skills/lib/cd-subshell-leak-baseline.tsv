@@ -102,6 +102,7 @@
 2	tests/skills/test-aai-planning-probes.sh
 6	tests/skills/test-aai-pr-platform.sh
 2	tests/skills/test-aai-pr-waiver.sh
+3	tests/skills/test-aai-pre-commit-checks.sh
 2	tests/skills/test-aai-pricing.sh
 2	tests/skills/test-aai-product-docs.sh
 5	tests/skills/test-aai-prompt-diet.sh

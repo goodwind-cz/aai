@@ -1811,59 +1811,6 @@ test_808_check8_enforce_is_merge_point_aware() {
   log_pass "TEST-808 CHECK 8 enforce is merge-point-aware: feature branch reports with one downgrade line (exit 0), default branch blocks (exit 1), report-only exits 0 on both"
 }
 
-test_809_check8_ps1_twin() {
-  log_info "TEST-809: the .ps1 CHECK 8 block reads refs/remotes/origin/HEAD and compares with the current branch (static; behavioural under pwsh)..."
-  local ps1="$PROJECT_ROOT/.aai/scripts/pre-commit-checks.ps1"
-  [[ -f "$ps1" ]] || log_fail "TEST-809: missing $ps1"
-  # static: the CHECK 8 block (from its header to the SUMMARY header) reads
-  # origin/HEAD, reads the current branch, and states the downgrade line.
-  awk '/^# --- CHECK 8/{p=1} /^# --- SUMMARY/{p=0} p' "$ps1" > "$TEST_DIR/t809-check8.txt"
-  [[ -s "$TEST_DIR/t809-check8.txt" ]] || log_fail "TEST-809: could not isolate the .ps1 CHECK 8 block"
-  # the actual READ, not a mention in a comment: the mutation cell for this
-  # row renames the ref inside this exact command.
-  grep -qF "symbolic-ref -q --short refs/remotes/origin/HEAD" "$TEST_DIR/t809-check8.txt" || log_fail "TEST-809: expected 'symbolic-ref -q --short refs/remotes/origin/HEAD' in $TEST_DIR/t809-check8.txt"
-  grep -qF "symbolic-ref -q --short HEAD" "$TEST_DIR/t809-check8.txt" || log_fail "TEST-809: expected 'symbolic-ref -q --short HEAD' in $TEST_DIR/t809-check8.txt"
-  grep -qF "enforce applies on" "$TEST_DIR/t809-check8.txt" || log_fail "TEST-809: expected 'enforce applies on' in $TEST_DIR/t809-check8.txt"
-  grep -qF "this is report-only" "$TEST_DIR/t809-check8.txt" || log_fail "TEST-809: expected 'this is report-only' in $TEST_DIR/t809-check8.txt"
-  if ! command -v pwsh >/dev/null 2>&1; then
-    log_pass "TEST-809 .ps1 CHECK 8 reads origin/HEAD and compares with the current branch (static); SKIP: behavioural arm (pwsh not installed)"
-    return 0
-  fi
-  local d rc
-  d="$(sg808_fixture t809)"
-  cp "$ps1" "$d/.aai/scripts/pre-commit-checks.ps1"
-  printf 'doc_number_guard: enforce\n' > "$d/docs/ai/docs-audit.yaml"
-  # refs/remotes/origin/HEAD IS set here (validation NB4): the R1 read must
-  # RESOLVE it, so the "assumed main" fallback NOTE must not appear — the
-  # row's mutation renames the ref the .ps1 reads, which under pwsh makes
-  # the fallback fire and this arm redden behaviourally, not only statically.
-  git -C "$d" update-ref refs/remotes/origin/main HEAD
-  git -C "$d" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-  (cd "$d" && git checkout -q -b feature/y)
-  set +e
-  (cd "$d" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 > pc-feature.log 2>&1)
-  rc=$?
-  set -e
-  [[ "$rc" -eq 0 ]] || log_fail "TEST-809 pwsh: enforce on a feature branch must exit 0, got $rc: $(tail -12 "$d/pc-feature.log")"
-  grep -qF "RFC-DRAFT-committed-on-branch" "$d/pc-feature.log" || log_fail "TEST-809: expected 'RFC-DRAFT-committed-on-branch' in $d/pc-feature.log"
-  grep -qF "enforce applies on main only" "$d/pc-feature.log" || log_fail "TEST-809: expected 'enforce applies on main only' in $d/pc-feature.log"
-  grep -qF "on feature/y this is report-only" "$d/pc-feature.log" || log_fail "TEST-809: expected 'on feature/y this is report-only' in $d/pc-feature.log"
-  if grep -qF "default branch assumed main" "$d/pc-feature.log"; then log_fail "TEST-809 pwsh: refs/remotes/origin/HEAD is set, so the .ps1 must RESOLVE it — the 'default branch assumed main' fallback fired instead: $(grep -F 'default branch' "$d/pc-feature.log")"; fi
-  (cd "$d" && git checkout -q main)
-  set +e
-  (cd "$d" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 > pc-main.log 2>&1)
-  rc=$?
-  set -e
-  [[ "$rc" -eq 1 ]] || log_fail "TEST-809 pwsh: enforce on the default branch must exit 1, got $rc: $(tail -12 "$d/pc-main.log")"
-  grep -qF "commit blocked" "$d/pc-main.log" || log_fail "TEST-809: expected 'commit blocked' in $d/pc-main.log"
-  printf 'doc_number_guard: report-only\n' > "$d/docs/ai/docs-audit.yaml"
-  (cd "$d" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 > pc-ro.log 2>&1) \
-    || log_fail "TEST-809 pwsh: report-only must exit 0: $(tail -12 "$d/pc-ro.log")"
-  if grep -qF "enforce applies on main only" "$d/pc-ro.log"; then log_fail "TEST-809: did not expect 'enforce applies on main only' in $d/pc-ro.log"; fi
-  rm -rf "$d"
-  log_pass "TEST-809 .ps1 CHECK 8 reads origin/HEAD and compares with the current branch (static), and under pwsh reports on a feature branch, blocks on main, passes report-only"
-}
-
 main() {
   echo ""
   echo "AAI Doc-Numbering Test Suite (SPEC-0015 / RFC-0007)"
@@ -1908,7 +1855,6 @@ main() {
     test_552_skill_pr_runs_the_restamp
     test_589_allocator_pages_agree_with_shared_set
     test_808_check8_enforce_is_merge_point_aware
-    test_809_check8_ps1_twin
   )
 
   # Selector mode (shipped-guards-have-no-downstream-trigger): `bash <suite>

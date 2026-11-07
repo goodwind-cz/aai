@@ -259,7 +259,7 @@ Source: Inspired by pro-workflow communication style (https://github.com/rohitg0
 
 ## Quality Gates (pre-commit)
 
-Before committing, run quality gate checks (`.aai/scripts/pre-commit-checks.sh` or `.ps1`):
+Before committing, run quality gate checks (`.aai/scripts/pre-commit-checks.sh`):
 - Secrets detection in staged files (BLOCKS commit)
 - Debug statement scan (warning)
 - TODO/FIXME markers (warning)

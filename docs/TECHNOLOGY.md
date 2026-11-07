@@ -211,7 +211,7 @@
     Windows 5.1/7 runtime and hosted Linux repetition evidence remain pending;
     local/container or static checks alone do not establish those guarantees.
   - `.aai/scripts/release-notes-gate.mjs` checks the staged patch plus the final PR-body file locally, and the PR commit range plus body in CI. Shipped surfaces require newly added nonempty rollable notes or `no-notes: <reason>`. Docs and test-only changes are exempt. Body content is data. Operators may mark the `release notes` job required; this repository does not change branch protection.
-  - Pre-commit quality gates run via `.aai/scripts/pre-commit-checks.sh`/`.ps1`
+  - Pre-commit quality gates run via `.aai/scripts/pre-commit-checks.sh`
     and the installed hook; docs close gate and body lint are controlled by the
     `close_gate` / `body_lint` keys in `docs/ai/docs-audit.yaml`
     (report-only by default, SPEC-0011/SPEC-0013)

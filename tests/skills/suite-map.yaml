@@ -310,7 +310,6 @@ suites:
       - .aai/scripts/append-event.mjs
       - .aai/scripts/generate-docs-index.mjs
       - .aai/scripts/pre-commit-checks.sh
-      - .aai/scripts/pre-commit-checks.ps1
       - .aai/templates/RFC_TEMPLATE.md
       - .aai/templates/SPEC_TEMPLATE.md
       # role-verification-guards remediation, NB-7: TEST-029 pins
@@ -1296,6 +1295,16 @@ suites:
       - tests/skills/suite-map.yaml
       - tests/skills/suite-weights.tsv
 
+  aai-pre-commit-checks:
+    globs:
+      - .aai/scripts/pre-commit-checks.*
+      - tests/skills/test-aai-pre-commit-checks.sh
+      - tests/skills/pre-commit-checks-retired.Tests.ps1
+      - tests/skills/lib/pipe-grep-q-ratchet.sh
+      - tests/skills/lib/vendor-hook-installer.sh
+      - .aai/templates/git-hooks/**
+      - .aai/system/PROFILES.yaml
+
   aai-spec-amend:
     globs:
       - .aai/scripts/spec-amend.mjs
@@ -1574,7 +1583,6 @@ suites:
       - .aai/scripts/tracked-ignored.mjs
       - .aai/scripts/check-committed-scope.mjs
       - .aai/scripts/pre-commit-checks.sh
-      - .aai/scripts/pre-commit-checks.ps1
       - .aai/VALIDATION.prompt.md
       - .aai/SKILL_TDD.prompt.md
       - .aai/SKILL_PR.prompt.md

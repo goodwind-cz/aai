@@ -1195,7 +1195,7 @@ test_1737_real_map_gitignore_full_and_guard_scripts_select() {  # validation rou
     *) log_fail "TEST-1737: a .gitignore-only PR must stay FULL_RUN reason=unmapped, got: $OUT" ;;
   esac
   local p
-  for p in .aai/scripts/check-committed-scope.mjs .aai/scripts/pre-commit-checks.sh .aai/scripts/pre-commit-checks.ps1 \
+  for p in .aai/scripts/check-committed-scope.mjs .aai/scripts/pre-commit-checks.sh \
            .aai/VALIDATION.prompt.md .aai/SKILL_TDD.prompt.md .aai/SKILL_PR.prompt.md; do
     real_select "$p"
     case "$OUT" in
