@@ -35,6 +35,7 @@ TEST_NAME="aai-doctor"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pipe-safe.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+. "$SCRIPT_DIR/lib/vendor-hook-installer.sh"
 DOCTOR="$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs"
 # shellcheck source=lib/assert-payload.sh
 . "$SCRIPT_DIR/lib/assert-payload.sh"
@@ -2049,7 +2050,7 @@ test_1344_cat17_seam1_installed_hook_passes() {
   git -C "$d" config user.email "test@example.invalid"
   git -C "$d" config user.name "AAI Test"
   git -C "$d" commit -q --allow-empty -m init
-  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/install-pre-commit-hook.sh"
+  vendor_hook_installer "$d" sh
   # HAZ: the installer resolves its target from `git rev-parse --show-toplevel`,
   # so it MUST run with the fixture as cwd and never against $PROJECT_ROOT.
   ( cd "$d" && bash .aai/scripts/install-pre-commit-hook.sh --arm-ref-guard >/dev/null 2>&1 ) || true
@@ -2424,7 +2425,7 @@ t812_repo() {
   cp "$PROJECT_ROOT/.aai/scripts/close-reconcile.mjs" "$d/.aai/scripts/close-reconcile.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/pr-platform.mjs" "$d/.aai/scripts/pr-platform.mjs"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
-  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/install-pre-commit-hook.sh"
+  vendor_hook_installer "$d" sh
   printf '%s' "$d"
 }
 t812_install() {

@@ -188,30 +188,53 @@ while [[ -n "$_hooks_csv" ]]; do
   esac
 done
 
+# The four hook bodies are plain files in .aai/templates/git-hooks/, resolved
+# from THIS script's own location (never from the target repository) and shared
+# with the .ps1 twin, so the two installers write the same bytes from one copy.
+# Every CR is removed on read, so a template that arrives with CRLF line endings
+# still yields an LF-only hook (git runs hooks under sh).
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATE_DIR="${SCRIPT_DIR%/*}/templates/git-hooks"
+
+template_path() {
+  case "$1" in
+    index) printf '%s' "$TEMPLATE_DIR/pre-commit-index.sh" ;;
+    guard-checks) printf '%s' "$TEMPLATE_DIR/pre-commit-guard-checks.sh" ;;
+    ref-guard) printf '%s' "$TEMPLATE_DIR/reference-transaction.sh" ;;
+    pre-push) printf '%s' "$TEMPLATE_DIR/pre-push.sh" ;;
+  esac
+}
+
+emit_template() {
+  tr -d '\r' < "$(template_path "$1")"
+}
+
+# require_templates <token>... -- refuse, naming each missing file, before any write.
+require_templates() {
+  local tok path ok=0
+  for tok in "$@"; do
+    path="$(template_path "$tok")"
+    if [[ ! -f "$path" ]]; then
+      echo "ERROR: AAI hook template missing: $path" >&2
+      ok=1
+    elif [[ "$tok" == index && "$(emit_template index | awk 'END{print NR}')" -lt 2 ]]; then
+      echo "ERROR: AAI hook template malformed (needs a first line and a second line): $path" >&2
+      ok=1
+    fi
+  done
+  return "$ok"
+}
+
 # --print [index|ref-guard|guard-checks|pre-push]: emit a hook body (or the
 # guard block) to stdout so a foreign-hook owner can hand-merge it, without
 # touching any repo state. Bare --print (or --print index) keeps emitting the
-# AAI:INDEX-AUTOGEN body (TEST-314 muscle memory, D5); --print ref-guard
-# emits the AAI:REF-GUARD body; --print guard-checks the AAI:GUARD-CHECKS
-# block a fresh pre-commit install embeds at its top; --print pre-push the
-# AAI:CLOSE-GATE body. Every one is extracted from this script's own heredoc
-# (never a second copy) so none can drift from what --hooks would actually
-# install (PR #302 Copilot; D5).
+# AAI:INDEX-AUTOGEN body (TEST-314 muscle memory, D5). Every one is the bytes
+# of its template (never a second copy), so none can drift from what --hooks
+# would actually install.
 if [[ "$PRINT" == 1 ]]; then
-  case "$PRINT_HOOK" in
-    ref-guard)
-      awk '/^if ! cat > "\$REFTX_PATH" <<.REFTXHOOK.$/{p=1; next} /^REFTXHOOK$/{if(p){exit}} p' "$0"
-      ;;
-    guard-checks)
-      awk '/^cat <<.GUARDBLOCK.$/{p=1; next} /^GUARDBLOCK$/{if(p){exit}} p' "$0"
-      ;;
-    pre-push)
-      awk '/^cat <<.PREPUSHHOOK.$/{p=1; next} /^PREPUSHHOOK$/{if(p){exit}} p' "$0"
-      ;;
-    *)
-      awk '/^cat <<.HOOK.$/{p=1; next} /^HOOK$/{if(p){exit}} p' "$0"
-      ;;
-  esac
+  PRINT_TOKEN="${PRINT_HOOK:-index}"
+  require_templates "$PRINT_TOKEN" || exit 1
+  emit_template "$PRINT_TOKEN"
   exit 0
 fi
 
@@ -368,8 +391,8 @@ ensure_hooks_dir() {
 # write_refguard_hook — install the AAI:REF-GUARD reference-transaction hook
 # body (skip, reporting so, when it is already AAI-managed and --force is not
 # given). Shared by the normal --hooks ref-guard write path below AND
-# arm_ref_guard (Spec-AC-05), so the heredoc's bytes live in exactly ONE
-# place — D9: no byte of the installed hook body may drift between callers.
+# arm_ref_guard (Spec-AC-05), so the hook's bytes live in exactly ONE
+# place (its template) — D9: no byte of the installed hook body may drift between callers.
 # CALLERS MUST ensure_hooks_dir first: this function does not create
 # $HOOKS_DIR itself, and every branch below is guarded so the final "Installed"
 # line cannot print unless the write it describes actually happened (TEST-647:
@@ -382,52 +405,14 @@ write_refguard_hook() {
     echo "AAI reference-transaction hook already installed at $REFTX_PATH. No action taken."
     return 0
   fi
-if ! cat > "$REFTX_PATH" <<'REFTXHOOK'
-#!/bin/sh
-# AAI:REF-GUARD -- refuses a refs/heads/main ref update unless AAI_GIT_WRITE=1.
-# Installed by .aai/scripts/install-pre-commit-hook.sh (or the .ps1 twin).
-# This is a git reference-transaction hook: it fires for EVERY ref update in
-# this repository, from any process, at any nesting depth, through any
-# subshell. See
-# docs/specs/SPEC-0156-spec-agent-shell-can-write-the-shipping-repo.md.
-
-aai_state="$1"
-
-if [ "$aai_state" != "prepared" ]; then
-  exit 0
-fi
-
-aai_guarded=0
-while read -r aai_old aai_new aai_ref; do
-  if [ "$aai_ref" = "refs/heads/main" ]; then
-    aai_guarded=1
-  fi
-done
-
-if [ "$aai_guarded" != "1" ]; then
-  exit 0
-fi
-
-if [ "$AAI_GIT_WRITE" = "1" ]; then
-  exit 0
-fi
-
-cat >&2 <<'AAI_REF_GUARD_MSG'
-AAI:REF-GUARD refused this refs/heads/main update.
-  Guard:  git reference-transaction hook, marker AAI:REF-GUARD.
-  Reason: a write to refs/heads/main must be a deliberate, narrow exception,
-          never an ambient default (agent-shell-can-write-the-shipping-repo).
-  Fix:    re-run this ONE command with AAI_GIT_WRITE=1 set, e.g.
-            AAI_GIT_WRITE=1 git commit ...
-  Uninstall this guard: bash .aai/scripts/install-pre-commit-hook.sh --uninstall
-AAI_REF_GUARD_MSG
-exit 1
-REFTXHOOK
-then
+  local tmp="$REFTX_PATH.aai-tmp.$$"
+  if ! emit_template ref-guard > "$tmp"; then
+    rm -f "$tmp"
     echo "ERROR: could not write $REFTX_PATH (TEST-647: the effective hooks directory may be missing)." >&2
     return 1
   fi
-  if ! chmod +x "$REFTX_PATH"; then
+  if ! chmod +x "$tmp" || ! mv -f "$tmp" "$REFTX_PATH"; then
+    rm -f "$tmp"
     echo "ERROR: could not make $REFTX_PATH executable." >&2
     return 1
   fi
@@ -597,6 +582,7 @@ decline_ref_guard() {
 # arm_ref_guard — Spec-AC-05: (re-)install the ref-guard hook (same
 # foreign-hook refusal as the normal write path) and record ref_guard: armed.
 arm_ref_guard() {
+  require_templates ref-guard || return 1
   if [[ -f "$REFTX_PATH" && "$FORCE" != 1 ]] && ! has_marker_line "$REFTX_PATH" "$REFTX_MARKER"; then
     foreign_reftx_refusal
     return 1
@@ -608,312 +594,23 @@ arm_ref_guard() {
   echo "Recorded ref_guard: armed in $CONFIG_PATH"
 }
 
-# guard_block_body — the AAI:GUARD-CHECKS block a fresh pre-commit install
-# embeds right after its shebang, and the block an UPGRADE inserts into a
-# pre-existing AAI hook (upgrade_precommit_hook below). It runs
-# .aai/scripts/pre-commit-checks.sh from the repo root BEFORE the index
-# body's early `exit 0` (which fires on every commit that touches nothing
-# under docs/), propagates a non-zero rc as a refused commit, and degrades
-# to a named NOTE when the script is absent. Everything between the two
-# marker lines is engine-owned and is the ONLY range an upgrade ever
-# rewrites; `--print guard-checks` extracts these same bytes from this
-# heredoc (never a second copy), so the printed block cannot drift from the
-# installed one (SPEC-0201-spec-shipped-guards-have-no-downstream-trigger D6).
-guard_block_body() {
-cat <<'GUARDBLOCK'
-# AAI:GUARD-CHECKS BEGIN
-# managed by install-pre-commit-hook; edit outside these markers
-# Runs .aai/scripts/pre-commit-checks.sh (secrets detection blocks; the
-# doc-numbering guard reports or blocks per docs/ai/docs-audit.yaml) on
-# every commit, before the AAI:INDEX-AUTOGEN body below.
-_gc_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-_gc_script="$_gc_root/.aai/scripts/pre-commit-checks.sh"
-if [ -f "$_gc_script" ]; then
-  echo "AAI:GUARD-CHECKS: running .aai/scripts/pre-commit-checks.sh"
-  _gc_rc=0
-  bash "$_gc_script" || _gc_rc=$?
-  if [ "$_gc_rc" -ne 0 ]; then
-    echo "AAI:GUARD-CHECKS: pre-commit-checks.sh blocked this commit (rc=$_gc_rc)" >&2
-    exit "$_gc_rc"
-  fi
-else
-  echo "AAI:GUARD-CHECKS NOTE: .aai/scripts/pre-commit-checks.sh absent; guard checks skipped" >&2
-fi
-# AAI:GUARD-CHECKS END
-GUARDBLOCK
-}
+# guard_block_body -- the AAI:GUARD-CHECKS block a fresh pre-commit install embeds right after
+# its shebang, and the block an UPGRADE inserts into a pre-existing AAI hook
+# (upgrade_precommit_hook below). It runs .aai/scripts/pre-commit-checks.sh from the repo root BEFORE
+# the index body's early `exit 0`, propagates a non-zero rc as a refused commit, and degrades to a
+# named NOTE when the script is absent. Everything between the two marker lines is engine-owned and
+# is the ONLY range an upgrade ever rewrites; the bytes come from the template, so `--print
+# guard-checks` and the installed block cannot drift apart.
+guard_block_body() { emit_template guard-checks; }
 
-# index_hook_body — the AAI:INDEX-AUTOGEN pre-commit body as shipped before
-# the guard block existed (bare `--print` / `--print index` emit exactly these
-# bytes, TEST-314 muscle memory). A FRESH install composes the hook as
-# <this body's shebang line> + guard_block_body + <the rest of this body>;
-# an UPGRADE of a hook that already carries this body inserts only the block.
-index_hook_body() {
-cat <<'HOOK'
-#!/usr/bin/env bash
-# AAI:INDEX-AUTOGEN — auto-regenerate docs/INDEX.md on docs/ changes.
-# Installed by .aai/scripts/install-pre-commit-hook.sh
-set -euo pipefail
+# index_hook_body -- the AAI:INDEX-AUTOGEN pre-commit body (bare --print emits exactly these bytes,
+# TEST-314 muscle memory). A FRESH install composes the hook as <this body's shebang line> +
+# guard_block_body + <the rest of this body>; an UPGRADE of a hook that already carries this
+# body inserts only the block.
+index_hook_body() { emit_template index; }
 
-if ! command -v node >/dev/null 2>&1; then
-  exit 0
-fi
-
-# Capture, then here-string into grep -q — never a live pipe into an
-# early-closing reader under pipefail (round 10, PR #381).
-_staged_names="$(git diff --cached --name-only)"
-if ! grep -qE '^docs/' <<<"$_staged_names"; then
-  exit 0
-fi
-
-GEN=".aai/scripts/generate-docs-index.mjs"
-if [[ ! -f "$GEN" ]]; then
-  exit 0
-fi
-
-if ! node "$GEN"; then
-  echo "AAI:INDEX-AUTOGEN: generator failed; commit aborted." >&2
-  exit 1
-fi
-
-git add docs/INDEX.md
-# Companion violations report is created when docs are malformed, removed when clean.
-if [[ -f docs/INDEX.violations.md ]]; then
-  git add docs/INDEX.violations.md
-else
-  git rm --cached --quiet --ignore-unmatch docs/INDEX.violations.md
-fi
-# SPEC-0010 / ISSUE-0003: docs/INDEX.audit.md carries git-history-dependent
-# Orphans + Drift sections; it is git-ignored and must NEVER be staged (staging it
-# would reintroduce the committed-index non-idempotence). Belt-and-suspenders un-stage.
-git rm --cached --quiet --ignore-unmatch docs/INDEX.audit.md
-
-# AAI:INDEX-AUTOGEN close-gate (SPEC-0011 G5): for each staged spec whose diff ADDS
-# a 'status: done' frontmatter line, run the offline close gate. Block the commit
-# only when docs/ai/docs-audit.yaml sets close_gate: enforce; otherwise warn and
-# continue (report-only default — absent config or close_gate: report-only never blocks).
-if [[ -f .aai/scripts/docs-audit.mjs ]]; then
-  # SPEC-0013 W1 (SPEC-0011-F2 class): the gate MODE must come from the config
-  # that is actually being committed — the STAGED blob when docs-audit.yaml is
-  # staged, else HEAD — never the worktree copy, whose UNSTAGED edit could
-  # silently downgrade enforce -> warn. The worktree copy is the last resort
-  # only when the config exists in neither the index nor HEAD (fresh repo).
-  GATE_CFG="$(git show :docs/ai/docs-audit.yaml 2>/dev/null \
-    || git show HEAD:docs/ai/docs-audit.yaml 2>/dev/null \
-    || cat docs/ai/docs-audit.yaml 2>/dev/null \
-    || true)"
-  CLOSE_GATE_MODE="report-only"
-  # Here-string, never printf piped into "grep -q" (round 10, PR #381).
-  if grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
-    CLOSE_GATE_MODE="enforce"
-  fi
-  CLOSE_GATE_FAILED=0
-  STAGED_SPECS="$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/specs/.*\.md$' || true)"
-  # SPEC-0013 W2: newline-safe iteration — an unquoted `for` word-splits paths
-  # with spaces into nonexistent fragments whose failed `git show` silently
-  # SKIPS the gate (the worst failure shape for a gate).
-  while IFS= read -r f; do
-    [[ -n "$f" ]] || continue
-    # only when the STAGED diff ADDS a 'status: done' line (not an already-done spec)
-    # Capture, then here-string into grep -q (round 10, PR #381).
-    _staged_hunk="$(git diff --cached -U0 -- "$f")"
-    if grep -Eq '^\+status:[[:space:]]*done([[:space:]]|$)' <<<"$_staged_hunk"; then
-      # Gate the STAGED content, not the worktree: materialize the staged blob so a
-      # staged-but-unreconciled done cannot pass merely because the worktree carries
-      # unstaged Evidence (SPEC-0011 G5). Read the id from the staged blob too.
-      STAGED_TMP="$(mktemp)"
-      if ! git show ":$f" > "$STAGED_TMP" 2>/dev/null; then
-        rm -f "$STAGED_TMP"
-        continue
-      fi
-      # Capture, then here-string into head (round 10, PR #381).
-      _staged_id_lines="$(sed -n 's/^id:[[:space:]]*//p' "$STAGED_TMP")"
-      gid="$(head -1 <<<"$_staged_id_lines")"
-      if [[ -z "$gid" ]]; then
-        gid="$(basename "$f" .md | grep -oE '^[A-Z]+(-[A-Z]+)*-[0-9]+' || true)"
-      fi
-      if [[ -z "$gid" ]]; then
-        rm -f "$STAGED_TMP"
-        continue
-      fi
-      if GATE_OUT="$(node .aai/scripts/docs-audit.mjs --gate-file "$STAGED_TMP" 2>&1)"; then
-        :
-      elif [[ "$CLOSE_GATE_MODE" == "enforce" ]]; then
-        echo "AAI:INDEX-AUTOGEN close-gate: $gid fails the close gate (close_gate: enforce) — commit aborted." >&2
-        echo "$GATE_OUT" >&2
-        CLOSE_GATE_FAILED=1
-      else
-        echo "AAI:INDEX-AUTOGEN close-gate WARNING: $gid fails the close gate (report-only; commit allowed)." >&2
-        echo "$GATE_OUT" >&2
-      fi
-      rm -f "$STAGED_TMP"
-    fi
-  done <<< "$STAGED_SPECS"
-  if [[ "$CLOSE_GATE_FAILED" == 1 ]]; then
-    exit 1
-  fi
-fi
-
-# AAI:INDEX-AUTOGEN body-lint (SPEC-0013 H1): for each STAGED governed docs/**/*.md
-# file, materialize the STAGED blob (git show ":$f" — LEARNED 2026-07-03: gate what
-# is being committed, never the worktree copy) and body-lint it via
-# docs-audit.mjs --lint-body-file. Block the commit only when docs/ai/docs-audit.yaml
-# sets body_lint: enforce; otherwise warn and continue (report-only default,
-# mirroring close_gate). Non-governed dirs (ai, knowledge, archive, _archive,
-# project-sessions, templates, plans) and generated INDEX files are skipped.
-if [[ -f .aai/scripts/docs-audit.mjs ]]; then
-  # SPEC-0013 W1: same staged/HEAD-first config read as the close-gate block —
-  # an unstaged worktree edit must not downgrade enforce -> warn.
-  GATE_CFG="$(git show :docs/ai/docs-audit.yaml 2>/dev/null \
-    || git show HEAD:docs/ai/docs-audit.yaml 2>/dev/null \
-    || cat docs/ai/docs-audit.yaml 2>/dev/null \
-    || true)"
-  BODY_LINT_MODE="report-only"
-  # Here-string, never printf piped into "grep -q" (round 10, PR #381).
-  if grep -Eq '^body_lint:[[:space:]]*enforce([[:space:]]|$)' <<<"$GATE_CFG"; then
-    BODY_LINT_MODE="enforce"
-  fi
-  BODY_LINT_FAILED=0
-  STAGED_GOVERNED_DOCS="$(git diff --cached --name-only --diff-filter=ACM \
-    | grep -E '^docs/.*\.md$' \
-    | grep -Ev '^docs/(ai|knowledge|archive|_archive|project-sessions|templates|plans)/' \
-    | grep -Ev '^docs/INDEX' || true)"
-  # SPEC-0013 W2: newline-safe iteration (see the close-gate loop above).
-  while IFS= read -r f; do
-    [[ -n "$f" ]] || continue
-    STAGED_TMP="$(mktemp)"
-    if ! git show ":$f" > "$STAGED_TMP" 2>/dev/null; then
-      rm -f "$STAGED_TMP"
-      continue
-    fi
-    if LINT_OUT="$(node .aai/scripts/docs-audit.mjs --lint-body-file "$STAGED_TMP" 2>&1)"; then
-      :
-    elif [[ "$BODY_LINT_MODE" == "enforce" ]]; then
-      echo "AAI:INDEX-AUTOGEN body-lint: $f fails body lint (body_lint: enforce) — commit aborted." >&2
-      echo "$LINT_OUT" >&2
-      BODY_LINT_FAILED=1
-    else
-      echo "AAI:INDEX-AUTOGEN body-lint WARNING: $f fails body lint (report-only; commit allowed)." >&2
-      echo "$LINT_OUT" >&2
-    fi
-    rm -f "$STAGED_TMP"
-  done <<< "$STAGED_GOVERNED_DOCS"
-  if [[ "$BODY_LINT_FAILED" == 1 ]]; then
-    exit 1
-  fi
-fi
-echo "AAI:INDEX-AUTOGEN: regenerated and staged docs/INDEX.md"
-HOOK
-}
-
-# pre_push_body — the AAI:CLOSE-GATE pre-push hook: one close-reconcile.mjs
-# --check per pushed ref (D1). Git feeds `<local ref> <local sha> <remote ref>
-# <remote sha>` per line on stdin and the remote name as $1.
-pre_push_body() {
-cat <<'PREPUSHHOOK'
-#!/usr/bin/env bash
-# AAI:CLOSE-GATE -- runs close-reconcile.mjs --check over every pushed range.
-# Installed by .aai/scripts/install-pre-commit-hook.sh (or the .ps1 twin).
-# Per pushed ref (stdin: <local ref> <local sha> <remote ref> <remote sha>):
-#   - a deletion (all-zero local sha) is skipped;
-#   - the default branch (refs/remotes/origin/HEAD, else main) is checked as
-#     <remote sha>..<local sha>; a first push (all-zero remote sha) as
-#     <local sha>^..<local sha> -- the rule .github/workflows/close-gate.yml
-#     applies;
-#   - any other ref as merge-base(refs/remotes/<remote>/<default>, local)..local.
-# Verdict: `close_gate` read from the PUSHED commit's docs/ai/docs-audit.yaml
-# (never the worktree copy). report-only (default): print, exit 0. enforce:
-# refuse ONLY a push to the default branch; every other ref stays report-
-# only, because WIP pushes legitimately precede the close ceremony.
-# See docs/specs/SPEC-0201-spec-shipped-guards-have-no-downstream-trigger.md.
-
-_cg_remote="${1:-origin}"
-_cg_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-_cg_script="$_cg_root/.aai/scripts/close-reconcile.mjs"
-
-if ! command -v node >/dev/null 2>&1; then
-  echo "AAI:CLOSE-GATE NOTE: node not found; close gate skipped" >&2
-  exit 0
-fi
-if [ ! -f "$_cg_script" ]; then
-  echo "AAI:CLOSE-GATE NOTE: $_cg_script absent; close gate skipped" >&2
-  exit 0
-fi
-
-# R1 -- default branch: refs/remotes/origin/HEAD with the origin/ prefix
-# stripped; else main, and say so.
-_cg_default="$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-_cg_default="${_cg_default#origin/}"
-if [ -z "$_cg_default" ]; then
-  _cg_default="main"
-  echo "AAI:CLOSE-GATE NOTE: default branch assumed main (refs/remotes/origin/HEAD unset)" >&2
-fi
-echo "AAI:CLOSE-GATE: default branch $_cg_default (remote $_cg_remote)"
-
-_cg_refused=0
-while read -r _cg_lref _cg_local _cg_rref _cg_remote_sha; do
-  [ -n "$_cg_lref" ] || continue
-  case "$_cg_local" in
-    *[!0]*) ;;
-    *) echo "AAI:CLOSE-GATE: $_cg_rref is a deletion; nothing to check"; continue ;;
-  esac
-  # The dial, read from what is being PUSHED (the same "gate what ships,
-  # never the worktree copy" discipline the pre-commit body applies).
-  _cg_mode="report-only"
-  _cg_cfg="$(git show "$_cg_local:docs/ai/docs-audit.yaml" 2>/dev/null || true)"
-  if grep -Eq '^close_gate:[[:space:]]*enforce([[:space:]]|$)' <<<"$_cg_cfg"; then
-    _cg_mode="enforce"
-  fi
-  _cg_is_default=0
-  if [ "$_cg_rref" = "refs/heads/$_cg_default" ]; then
-    _cg_is_default=1
-  fi
-  if [ "$_cg_is_default" = 1 ]; then
-    case "$_cg_remote_sha" in
-      *[!0]*) _cg_range="$_cg_remote_sha..$_cg_local" ;;
-      *) _cg_range="$_cg_local^..$_cg_local" ;;
-    esac
-  else
-    # Codex P2 on PR #417: git hands the pre-push hook whatever the user typed
-    # as the remote, which may be a PATH or a URL rather than a configured
-    # name (see the githooks pre-push contract). `refs/remotes/<url>/<default>`
-    # is then an impossible ref, the NOTE fires and close-reconcile is skipped
-    # -- so `git push <url> HEAD:feat` slipped past the gate this hook exists to
-    # provide. Use the named remote when it IS one; otherwise fall back to the
-    # origin tracking ref, which is what R1 already resolved the default from.
-    if git config --get "remote.$_cg_remote.url" >/dev/null 2>&1; then
-      _cg_track="refs/remotes/$_cg_remote/$_cg_default"
-    else
-      _cg_track="refs/remotes/origin/$_cg_default"
-    fi
-    _cg_base="$(git merge-base "$_cg_track" "$_cg_local" 2>/dev/null || true)"
-    if [ -z "$_cg_base" ]; then
-      echo "AAI:CLOSE-GATE NOTE: $_cg_rref skipped -- $_cg_track unresolvable" >&2
-      continue
-    fi
-    _cg_range="$_cg_base..$_cg_local"
-  fi
-  echo "AAI:CLOSE-GATE: $_cg_rref range=$_cg_range close_gate=$_cg_mode"
-  _cg_rc=0
-  _cg_out="$(node "$_cg_script" --check --range "$_cg_range" --root "$_cg_root" 2>&1)" || _cg_rc=$?
-  printf '%s\n' "$_cg_out"
-  if [ "$_cg_rc" -eq 0 ]; then
-    continue
-  fi
-  if [ "$_cg_rc" -eq 2 ]; then
-    echo "AAI:CLOSE-GATE NOTE: close-reconcile.mjs could not resolve range $_cg_range (rc=2)" >&2
-  fi
-  if [ "$_cg_mode" = "enforce" ] && [ "$_cg_is_default" = 1 ]; then
-    echo "AAI:CLOSE-GATE refused: push of $_cg_rref (close_gate: enforce, default branch $_cg_default) -- the close ceremony did not run for range $_cg_range (rc=$_cg_rc)." >&2
-    echo "  Fix: run the close ceremony (/aai-pr, or the close-work-item.mjs command printed above), or set close_gate: report-only in docs/ai/docs-audit.yaml on the pushed commit." >&2
-    _cg_refused=1
-  else
-    echo "AAI:CLOSE-GATE: reported for $_cg_rref (close_gate=$_cg_mode; push allowed)"
-  fi
-done
-exit "$_cg_refused"
-PREPUSHHOOK
-}
+# pre_push_body -- the AAI:CLOSE-GATE pre-push hook body, read from its template.
+pre_push_body() { emit_template pre-push; }
 
 # write_prepush_hook — install the AAI:CLOSE-GATE pre-push body (skip,
 # reporting so, when it is already AAI-managed and --force is not given).
@@ -1223,6 +920,16 @@ if [[ "$WANT_CLOSEGATE" == 1 && -f "$PREPUSH_PATH" && "$FORCE" != 1 ]] && ! has_
 fi
 if [[ "$FOREIGN" == 1 ]]; then
   exit 1
+fi
+
+NEED_TEMPLATES=()
+[[ "$WANT_INDEX" == 1 ]] && NEED_TEMPLATES+=(index guard-checks)
+if [[ "$WANT_REFGUARD" == 1 ]] && { [[ "$FORCE" == 1 ]] || [[ "$(read_ref_guard_policy "$CONFIG_PATH")" != "declined" ]]; }; then
+  NEED_TEMPLATES+=(ref-guard)
+fi
+[[ "$WANT_CLOSEGATE" == 1 ]] && NEED_TEMPLATES+=(pre-push)
+if [[ ${#NEED_TEMPLATES[@]} -gt 0 ]]; then
+  require_templates "${NEED_TEMPLATES[@]}" || exit 1
 fi
 
 ensure_hooks_dir || exit 1

@@ -277,3 +277,6 @@ aai-hermes-skills	196
 
 # sample aai-cloudflare-share fallback unsampled (new suite of cloudflare-share-on-node; no successful observation)
 aai-cloudflare-share	196
+
+# sample aai-git-hook-templates fallback unsampled (new suite of git-hook-bodies-single-source; no successful observation)
+aai-git-hook-templates	196

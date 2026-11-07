@@ -2,6 +2,9 @@
 *.sh text eol=lf
 *.bash text eol=lf
 *.ps1 text eol=lf
+# The git hook body templates are copied byte for byte into every written hook
+# (both installers), so they stay LF without depending on the extension rule.
+.aai/templates/git-hooks/*.sh text eol=lf
 
 # Keep Windows command scripts in CRLF.
 *.bat text eol=crlf

@@ -29,6 +29,7 @@ SCRIPT_DIR="${_src%/*}"
 [[ "$SCRIPT_DIR" == /* ]] || SCRIPT_DIR="$PWD/$SCRIPT_DIR"
 SCRIPT_DIR="${SCRIPT_DIR%/.}"
 PROJECT_ROOT="${SCRIPT_DIR%/tests/skills}"
+. "$SCRIPT_DIR/lib/vendor-hook-installer.sh"
 SCRIPT="${TRACKED_IGNORED_SCRIPT:-$PROJECT_ROOT/.aai/scripts/tracked-ignored.mjs}"
 WORKFLOW_FILE="${TRACKED_IGNORED_WORKFLOW:-$PROJECT_ROOT/.github/workflows/skill-suite.yml}"
 
@@ -494,7 +495,7 @@ test_1709_real_hook_refuses_commit() {  # Spec-AC-03, SEAM S2
   new_scratch
   local repo before after
   repo="$(pc_fixture t1709 plain)"
-  cp "$SCRIPTS_DIR/install-pre-commit-hook.sh" "$repo/.aai/scripts/"
+  vendor_hook_installer "$repo" sh
   in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/install-pre-commit-hook.sh --hooks index
   [[ "$CODE" == "0" ]] || log_fail "TEST-1709: hook install failed ($CODE): $OUT"
   [[ -f "$repo/.git/hooks/pre-commit" ]] || log_fail "TEST-1709: pre-commit hook not installed"
