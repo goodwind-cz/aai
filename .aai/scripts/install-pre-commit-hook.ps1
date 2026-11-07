@@ -196,6 +196,13 @@ function Test-HookTemplates {
     if (-not (Test-Path -LiteralPath $tp -PathType Leaf)) {
       [Console]::Error.WriteLine("ERROR: AAI hook template missing: $tp")
       $ok = $false
+    } elseif ($n -eq 'pre-commit-index.sh') {
+      $tb = Get-TemplateBytes $n
+      $nl = [Array]::IndexOf($tb, [byte]10)
+      if ($nl -lt 0 -or $nl -ge $tb.Length - 1) {
+        [Console]::Error.WriteLine("ERROR: AAI hook template malformed (needs a first line and a second line): $tp")
+        $ok = $false
+      }
     }
   }
   return $ok

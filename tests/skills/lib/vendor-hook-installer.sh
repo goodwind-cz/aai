@@ -6,7 +6,7 @@
 # no test execution. bash-3.2 safe.
 vendor_hook_installer() {
   local root="$1" which="${2:-both}" src
-  src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+  src="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
   mkdir -p "$root/.aai/scripts" "$root/.aai/templates"
   case "$which" in
     sh|both) cp "$src/.aai/scripts/install-pre-commit-hook.sh" "$root/.aai/scripts/" ;;

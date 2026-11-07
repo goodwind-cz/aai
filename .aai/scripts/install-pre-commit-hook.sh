@@ -193,7 +193,7 @@ done
 # with the .ps1 twin, so the two installers write the same bytes from one copy.
 # Every CR is removed on read, so a template that arrives with CRLF line endings
 # still yields an LF-only hook (git runs hooks under sh).
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="${SCRIPT_DIR%/*}/templates/git-hooks"
 
 template_path() {
@@ -216,6 +216,9 @@ require_templates() {
     path="$(template_path "$tok")"
     if [[ ! -f "$path" ]]; then
       echo "ERROR: AAI hook template missing: $path" >&2
+      ok=1
+    elif [[ "$tok" == index && "$(emit_template index | awk 'END{print NR}')" -lt 2 ]]; then
+      echo "ERROR: AAI hook template malformed (needs a first line and a second line): $path" >&2
       ok=1
     fi
   done

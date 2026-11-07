@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-git-hook-templates
-# (docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md, TEST-3432..3444)
+# (docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md, TEST-3432..3447)
 #
 # The four git hook bodies live once, in .aai/templates/git-hooks/; both installers read them and
 # write the same bytes. Every case works in fresh mktemp git repositories with a local identity;
@@ -19,8 +19,8 @@ set -euo pipefail
 
 TEST_NAME="aai-git-hook-templates"
 TEST_DIR=""
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)"
 SH_INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh"
 PS1_INSTALLER="$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1"
 TPL_DIR="$PROJECT_ROOT/.aai/templates/git-hooks"
@@ -53,7 +53,7 @@ check_deps() {
 }
 
 setup_fixture() {
-  TEST_DIR="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/aai-git-hook-templates.XXXXXX")" && pwd -P)"
+  TEST_DIR="$(CDPATH= cd -- "$(mktemp -d "${TMPDIR:-/tmp}/aai-git-hook-templates.XXXXXX")" && pwd -P)"
 }
 
 # need_tool <TEST id> <tool>: 0 when present; fail on CI when absent; named SKIP-CASE otherwise.
@@ -489,13 +489,14 @@ fn_body() {
   awk -v fn="$2" '$0 ~ "^"fn"\\(\\)"{p=1} p{print} p && /^}/{exit}' "$1"
 }
 
-# bare_cp_sites <dir>: file:line of every cp of a path ending in install-pre-commit-hook.sh or .ps1
-# in a tests/skills/*.sh other than the shared helper and this suite.
+# bare_cp_sites <dir>: file:line of every cp line that names install-pre-commit-hook.sh or .ps1
+# (as the copied path or as the destination, file or directory) in a tests/skills/*.sh other than
+# the shared helper and this suite.
 bare_cp_sites() {
   local f
   for f in "$1"/test-aai-*.sh; do
     [[ "${f##*/}" == test-aai-git-hook-templates.sh ]] && continue
-    awk -v f="${f##*/}" '/^[[:space:]]*cp[[:space:]]/ && /install-pre-commit-hook\.(sh|ps1)"?[[:space:]]*$/ { print f ":" NR }' "$f"
+    awk -v f="${f##*/}" '/^[[:space:]]*cp[[:space:]]/ && /install-pre-commit-hook\.(sh|ps1)/ { print f ":" NR }' "$f"
   done
 }
 
@@ -523,6 +524,11 @@ test_3442_fixtures_use_helper() {
   { cat "$SCRIPT_DIR/test-aai-doctor.sh"; printf '  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.sh" "$d/.aai/scripts/install-pre-commit-hook.sh"\n'; } > "$TEST_DIR/cpctl/test-aai-doctor.sh"
   out="$(bare_cp_sites "$TEST_DIR/cpctl")"
   [[ "$out" == test-aai-doctor.sh:* ]] || log_fail "TEST-3442: positive control: a bare cp of an installer was not reported ($out)"
+  # Positive control for the directory-destination shape (the helper's own: the installer is the
+  # copied path and the destination is a directory).
+  { cat "$SCRIPT_DIR/test-aai-doctor.sh"; printf '  cp "$PROJECT_ROOT/.aai/scripts/install-pre-commit-hook.ps1" "$d/.aai/scripts/"\n'; } > "$TEST_DIR/cpctl/test-aai-doctor.sh"
+  out="$(bare_cp_sites "$TEST_DIR/cpctl")"
+  [[ "$out" == test-aai-doctor.sh:* ]] || log_fail "TEST-3442: positive control: a cp of an installer into a directory was not reported ($out)"
   for sel in "test-aai-hygiene-pack.sh test_031_guard_config_conformance" "test-aai-hygiene-pack.sh test_813_ps1_twin_parity" \
     "test-aai-hygiene-pack.sh test_818_ps1_upgrade_is_byte_exact_and_order_checked" "test-aai-doctor.sh test_1344_cat17_seam1_installed_hook_passes" \
     "test-aai-git-ref-guard.sh test_310_doctor_category" "test-aai-tracked-ignored.sh test_1709_real_hook_refuses_commit"; do
@@ -615,8 +621,96 @@ test_3444_line_budget_and_rfc() {
   log_pass "TEST-3444: sh $sh_t/$sh_c, ps1 $ps_t/$ps_c, templates $tpl_t lines within the caps; the RFC-0017 inventory equals the tree and the phase 5 row holds the sentence once"
 }
 
+# --- TEST-3445 (review r1 B1) ----------------------------------------------------------------
+
+test_3445_cdpath_relative_install() {
+  local cp root rc want
+  want="$TEST_DIR/cdpath.want"
+  compose_expected "$want"
+  for cp in "." ".:$HOME" ":$HOME"; do
+    root="$TEST_DIR/cdpath dir $(printf '%s' "$cp" | tr -c 'A-Za-z0-9' '_')"
+    make_repo "$root"
+    vendor_hook_installer "$root" sh
+    rc=0
+    ( cd "$root" && CDPATH="$cp" bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/c.out" 2>"$TEST_DIR/c.err" || rc=$?
+    [[ "$rc" == 0 ]] || { cat "$TEST_DIR/c.err" >&2; log_fail "TEST-3445: the sh installer exited $rc by its relative path under CDPATH='$cp'"; }
+    cmp -s "$(hooks_path "$root")/pre-commit" "$want" || log_fail "TEST-3445: pre-commit missing or differs under CDPATH='$cp'"
+    cmp -s "$(hooks_path "$root")/reference-transaction" "$TPL_REFTX" || log_fail "TEST-3445: reference-transaction missing or differs under CDPATH='$cp'"
+    cmp -s "$(hooks_path "$root")/pre-push" "$TPL_PUSH" || log_fail "TEST-3445: pre-push missing or differs under CDPATH='$cp'"
+  done
+  log_pass "TEST-3445: the sh installer run by its relative path from a spaced repo installs all three hooks under an exported CDPATH"
+}
+
+# --- TEST-3446 (review r1 NB1) ----------------------------------------------------------------
+
+# malformed_round <engine sh|ps1> <label> <template content printf format>
+malformed_round() {
+  local engine="$1" label="$2" content="$3" root rc=0 idx seed slot
+  root="$TEST_DIR/malformed/$engine $label"
+  make_repo "$root"
+  vendor_hook_installer "$root" "$engine"
+  idx="$root/.aai/templates/git-hooks/pre-commit-index.sh"
+  printf "$content" > "$idx"
+  mkdir -p "$(hooks_path "$root")"
+  seed="$TEST_DIR/malformed/seed.pre-push"
+  printf '#!/bin/sh\n# AAI:CLOSE-GATE old body\nexit 0\n' > "$seed"
+  cp "$seed" "$(hooks_path "$root")/pre-push"
+  if [[ "$engine" == sh ]]; then
+    ( cd "$root" && bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/mf.out" 2>"$TEST_DIR/mf.err" || rc=$?
+  else
+    ( cd "$root" && pwsh -NoProfile -NonInteractive -File .aai/scripts/install-pre-commit-hook.ps1 ) >"$TEST_DIR/mf.out" 2>"$TEST_DIR/mf.err" || rc=$?
+  fi
+  [[ "$rc" == 1 ]] || { cat "$TEST_DIR/mf.err" >&2; log_fail "TEST-3446: $engine installer with a $label index template exited $rc, expected 1"; }
+  [[ "$(wc -l < "$TEST_DIR/mf.err" | tr -d ' ')" == 1 ]] || { cat "$TEST_DIR/mf.err" >&2; log_fail "TEST-3446: $engine $label refusal is not one line"; }
+  /usr/bin/grep -qxF "ERROR: AAI hook template malformed (needs a first line and a second line): $idx" "$TEST_DIR/mf.err" || { cat "$TEST_DIR/mf.err" >&2; log_fail "TEST-3446: $engine installer did not name the malformed $idx"; }
+  cmp -s "$seed" "$(hooks_path "$root")/pre-push" || log_fail "TEST-3446: $engine $label changed the pre-seeded pre-push"
+  for slot in pre-commit reference-transaction; do
+    [[ ! -e "$(hooks_path "$root")/$slot" ]] || log_fail "TEST-3446: $engine $label wrote $slot"
+  done
+}
+
+test_3446_malformed_index_template() {
+  local engine
+  [[ -f "$TPL_INDEX" ]] || log_fail "TEST-3446: the templates do not exist"
+  malformed_round sh no-lf '#!/bin/sh'
+  malformed_round sh one-line '#!/bin/sh\n'
+  if need_tool TEST-3446 pwsh; then
+    engine=ps1
+    malformed_round "$engine" no-lf '#!/bin/sh'
+    malformed_round "$engine" one-line '#!/bin/sh\n'
+  fi
+  log_pass "TEST-3446: an index template without a second line is refused by both installers in one line, with no hook written"
+}
+
+# --- TEST-3447 (review r1 NB3) ----------------------------------------------------------------
+
+arm_missing_round() {
+  local engine="$1" root rc=0 want
+  root="$TEST_DIR/armmissing/$engine dir"
+  make_repo "$root"
+  vendor_hook_installer "$root" "$engine"
+  want="$root/.aai/templates/git-hooks/reference-transaction.sh"
+  rm -f "$want"
+  if [[ "$engine" == sh ]]; then
+    ( cd "$root" && bash .aai/scripts/install-pre-commit-hook.sh --arm-ref-guard ) >"$TEST_DIR/am.out" 2>"$TEST_DIR/am.err" || rc=$?
+  else
+    ( cd "$root" && pwsh -NoProfile -NonInteractive -File .aai/scripts/install-pre-commit-hook.ps1 -ArmRefGuard ) >"$TEST_DIR/am.out" 2>"$TEST_DIR/am.err" || rc=$?
+  fi
+  [[ "$rc" == 1 ]] || log_fail "TEST-3447: $engine arm without reference-transaction.sh exited $rc, expected 1"
+  /usr/bin/grep -qxF "ERROR: AAI hook template missing: $want" "$TEST_DIR/am.err" || { cat "$TEST_DIR/am.err" >&2; log_fail "TEST-3447: $engine arm did not name $want"; }
+  [[ ! -e "$(hooks_path "$root")/reference-transaction" ]] || log_fail "TEST-3447: $engine arm wrote a reference-transaction hook"
+  [[ ! -e "$root/docs/ai/docs-audit.yaml" ]] || log_fail "TEST-3447: $engine arm wrote the guard config"
+}
+
+test_3447_arm_missing_template() {
+  [[ -f "$TPL_INDEX" ]] || log_fail "TEST-3447: the templates do not exist"
+  arm_missing_round sh
+  if need_tool TEST-3447 pwsh; then arm_missing_round ps1; fi
+  log_pass "TEST-3447: arming the ref guard without its template exits 1 with the D-MISSING line and writes no hook and no config"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3432..3444)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3432..3447)"
   check_deps
   setup_fixture
   test_3432_templates_single_copy
@@ -632,6 +726,9 @@ main() {
   test_3442_fixtures_use_helper
   test_3443_wiring
   test_3444_line_budget_and_rfc
+  test_3445_cdpath_relative_install
+  test_3446_malformed_index_template
+  test_3447_arm_missing_template
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
