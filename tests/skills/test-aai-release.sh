@@ -1393,6 +1393,31 @@ const sh=path.join(root,'.aai/scripts/aai-release.sh');
 const ps=path.join(root,'.aai/scripts/aai-release.ps1');
 let sequence=0;
 function run(cmd,args,cwd,env={}) { const r=spawnSync(cmd,args,{cwd,env:{...process.env,...env},encoding:'utf8'}); if(r.status!==0) throw Error(`${cmd} ${args.join(' ')}: ${r.status} ${r.stderr}`); return r.stdout.trim(); }
+function publishTransport(file,snapshot,phase) {
+ const bytes=JSON.stringify(snapshot);
+ // A sibling on the same filesystem keeps the old complete snapshot visible
+ // until rename publishes the next complete snapshot in one step.
+ const sibling=path.join(path.dirname(file),'.'+path.basename(file)+'.'+process.pid+'.'+Math.random().toString(16).slice(2));
+ const fd=fs.openSync(sibling,'wx');
+ let closed=false;
+ try {
+  if(process.env.FIXTURE_PUBLISH_HOLD===phase){
+   fs.writeFileSync(path.join(path.dirname(file),'publish-held'),'held');
+   const deadline=Date.now()+10000;
+   while(!fs.existsSync(path.join(path.dirname(file),'publish-go'))){
+    if(Date.now()>deadline)throw Error(phase+' transport publication hold timed out');
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);
+   }
+  }
+  fs.writeFileSync(fd,bytes);
+  fs.closeSync(fd);closed=true;
+  fs.renameSync(sibling,file);
+ }catch(error){
+  if(!closed)try{fs.closeSync(fd);}catch{}
+  try{fs.unlinkSync(sibling);}catch{}
+  throw error;
+ }
+}
 function fixture(mode='',baseChangelog=null,opts={}) {
  const d=fs.mkdtempSync(path.join(tmp,'finish-')); const repo=path.join(d,'repo'), origin=path.join(d,'origin.git'), bin=path.join(d,'bin'); fs.mkdirSync(bin);
  run('git',['init','--bare','-q',origin],d); run('git',['init','-q','-b','main',repo],d);
@@ -1410,11 +1435,12 @@ function fixture(mode='',baseChangelog=null,opts={}) {
   fs.writeFileSync(path.join(hooks,'reference-transaction'),run('bash',[path.join(root,'.aai/scripts/install-pre-commit-hook.sh'),'--print','ref-guard'],root)+'\n',{mode:0o755});
   git('config','--local','core.hooksPath',hooks);
  }
- const state=path.join(d,'transport.json');fs.writeFileSync(state,JSON.stringify({mode,calls:[],prs:[],releases:{},x:opts.x||[],follow:Boolean(opts.follow||(opts.x&&opts.x.length))}));
+ const state=path.join(d,'transport.json');publishTransport(state,{mode,calls:[],prs:[],releases:{},x:opts.x||[],follow:Boolean(opts.follow||(opts.x&&opts.x.length))},'seed');
  const stub=String.raw`#!/usr/bin/env node
 const fs=require('fs'),cp=require('child_process'),path=require('path');
+const publishTransport=${publishTransport.toString()};
 const f=process.env.TRANSPORT, s=JSON.parse(fs.readFileSync(f)), a=process.argv.slice(2), repo=process.env.FIXTURE_REPO, origin=process.env.FIXTURE_ORIGIN;
-s.calls.push(a);fs.writeFileSync(f,JSON.stringify(s));
+s.calls.push(a);publishTransport(f,s,'entry');
 const out=x=>process.stdout.write(typeof x==='string'?x+'\n':JSON.stringify(x)+'\n');
 const die=m=>{process.stderr.write('deny-default gh stub: '+m+'\n');process.exit(91)};
 const eq=x=>JSON.stringify(a)===JSON.stringify(x);
@@ -1428,7 +1454,7 @@ const originHead=()=>{const r=cp.spawnSync('git',['rev-parse','refs/heads/chore/
 function mergeOldHead(p){const d=fs.mkdtempSync(path.join(path.dirname(f),'old-merge.')),c=path.join(d,'runner');const g=(cwd,...x)=>{const r=cp.spawnSync('git',x,{cwd,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};g(d,'clone','-q',origin,c);g(c,'checkout','-q','main');g(c,'config','user.name','CI');g(c,'config','user.email','ci@test.invalid');g(c,'merge','--squash',p.headRefOid);g(c,'commit','-qm','chore(release): v1');const oid=g(c,'rev-parse','HEAD');g(c,'push','-q','origin','main');p.state='MERGED';p.mergeCommit={oid};s.runner=c;save();}
 function follow(){if(!s.follow)return;const p=releasePr();if(!p||p.state!=='OPEN')return;const actual=originHead();if(actual&&actual!==p.headRefOid){if(X('merged-old-head')){mergeOldHead(p);return;}if(X('merged-foreign-head')){p.state='MERGED';p.headRefOid='e'.repeat(40);p.mergeCommit={oid:'d'.repeat(40)};save();return;}if(X('head-lag')){s.lagged=s.lagged||{};if(!s.lagged[actual]){s.lagged[actual]=1;save();return;}}p.headRefOid=actual;save();}}
 const git=(...x)=>{const r=cp.spawnSync('git',x,{cwd:repo,encoding:'utf8'});if(r.status)die(r.stderr);return r.stdout.trim()};
-function save(){fs.writeFileSync(f,JSON.stringify(s))}
+function save(){publishTransport(f,s,'save')}
 // release-one-shot-finish: the stub describes the base branch policy through the endpoints AND enforces the same set at merge time, as GitHub does.
 const lateModes=['late-context','late-ruleset','late-ruleset-paged','late-union','context-never','context-failed','rules-unreadable'];
 const lateBucket=n=>s.mode==='context-never'||n<=2?null:s.mode==='context-failed'?'fail':n===3?'pending':'pass';
@@ -1598,14 +1624,14 @@ if [ "$*" = "remote get-url origin" ]; then printf '%s\\n' https://github.com/te
  return {d,repo,origin,state,env,git,invoke,transport:()=>JSON.parse(fs.readFileSync(state))};
 }
 function historical(f,number,file,body='') {
- fs.mkdirSync(path.dirname(path.join(f.repo,file)),{recursive:true});if(file==='CHANGELOG.md')fs.appendFileSync(path.join(f.repo,file),'\nnotes-only amendment\n');else fs.writeFileSync(path.join(f.repo,file),'change '+number+'\n');f.git('add',file);f.git('commit','-qm',`feat: shipped ${number} (#${number})`);f.git('push','-q','origin','main');const t=f.transport();t.prs.push({number,body,files:[{path:file}],headRefName:'historical-'+number});fs.writeFileSync(f.state,JSON.stringify(t));
+ fs.mkdirSync(path.dirname(path.join(f.repo,file)),{recursive:true});if(file==='CHANGELOG.md')fs.appendFileSync(path.join(f.repo,file),'\nnotes-only amendment\n');else fs.writeFileSync(path.join(f.repo,file),'change '+number+'\n');f.git('add',file);f.git('commit','-qm',`feat: shipped ${number} (#${number})`);f.git('push','-q','origin','main');const t=f.transport();t.prs.push({number,body,files:[{path:file}],headRefName:'historical-'+number});publishTransport(f.state,t,'scenario');
 }
 function remoteCommit(f,number,file,body='') {
  const clone=path.join(f.d,'writer-'+number);f.git('clone','-q',f.origin,clone);
  run('git',['checkout','-q','main'],clone);run('git',['config','user.name','Writer'],clone);run('git',['config','user.email','writer@test.invalid'],clone);
  fs.mkdirSync(path.dirname(path.join(clone,file)),{recursive:true});fs.writeFileSync(path.join(clone,file),'remote '+number+'\n');
  run('git',['add',file],clone);run('git',['commit','-qm',`feat: remote ${number} (#${number})`],clone);run('git',['push','-q','origin','main'],clone);
- const t=f.transport();t.prs.push({number,body,files:[{path:file}],headRefName:'historical-'+number});fs.writeFileSync(f.state,JSON.stringify(t));
+ const t=f.transport();t.prs.push({number,body,files:[{path:file}],headRefName:'historical-'+number});publishTransport(f.state,t,'scenario');
  return run('git',['rev-parse','HEAD'],clone);
 }
 const selected=process.env.RELEASE_FINISH_CASE||'all';
@@ -1622,7 +1648,7 @@ check('TEST-016',()=>{
   if(change!=='added'){f.git('add','run-service');f.git('commit','-qm','seed executable');f.git('tag','-f','v0');}
   if(change==='deleted')f.git('rm','run-service');else if(change==='mode')fs.chmodSync(path.join(f.repo,'run-service'),0o644);
   f.git('add','-A');f.git('commit','-qm',`feat: executable ${change} (#208)`);f.git('push','-q','origin','main');
-  const t=f.transport();t.prs.push({number:208,body:'',files:[{path:'run-service'}],headRefName:'historical-208'});fs.writeFileSync(f.state,JSON.stringify(t));
+  const t=f.transport();t.prs.push({number:208,body:'',files:[{path:'run-service'}],headRefName:'historical-208'});publishTransport(f.state,t,'scenario');
   const refs=f.git('show-ref'),r=f.invoke();assert.equal(r.status,20,change+r.stdout+r.stderr);assert.match(r.stderr,/missing-notes/);assert.equal(f.git('show-ref'),refs);assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
  }
  const stale=fixture(),before=stale.git('rev-parse','origin/main'),actual=remoteCommit(stale,209,'.aai/scripts/unnoted.mjs');assert.notEqual(actual,before);
@@ -1681,14 +1707,14 @@ check('TEST-050',()=>{
  const refs=bare.git('show-ref'),r=bare.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.match(r.stderr,/missing-notes/);assert.ok(r.stderr.includes(sha.slice(0,12)),'refusal names the commit sha: '+r.stderr);assert.equal(bare.git('show-ref'),refs);assert.equal(bare.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);
  const exempt=fixture();direct(exempt,'.aai/scripts/direct.mjs','feat: direct push','no-notes: internal refactor with no user-visible change');const ok=exempt.invoke();assert.equal(ok.status,0,ok.stdout+ok.stderr);
  const docs=fixture();direct(docs,'docs/direct.md','docs: direct docs push');const fine=docs.invoke();assert.equal(fine.status,0,fine.stdout+fine.stderr);
- const noted=fixture();direct(noted,'.aai/scripts/direct.mjs','feat: gamma direct','', '## [unreleased] — feat: gamma direct\n\n- gamma behavior is documented here\n');const nt=noted.transport();nt.notes='## [v1] — feat: gamma direct\n\n- gamma behavior is documented here\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta';fs.writeFileSync(noted.state,JSON.stringify(nt));const accepted=noted.invoke();assert.equal(accepted.status,0,accepted.stdout+accepted.stderr);
+ const noted=fixture();direct(noted,'.aai/scripts/direct.mjs','feat: gamma direct','', '## [unreleased] — feat: gamma direct\n\n- gamma behavior is documented here\n');const nt=noted.transport();nt.notes='## [v1] — feat: gamma direct\n\n- gamma behavior is documented here\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta';publishTransport(noted.state,nt,'scenario');const accepted=noted.invoke();assert.equal(accepted.status,0,accepted.stdout+accepted.stderr);
  // B-1: commits behind a numbered 'Merge pull request #N' merge are covered by that PR's notes (PR #101 is cited by the rolled notes).
  const merged=fixture();branchPr(merged,'','Merge pull request #101 from o/feat');const mr=merged.invoke();assert.equal(mr.status,0,'numbered merge with branch commits: '+mr.stdout+mr.stderr);
  // B-1: a rebase-merged PR (no merge commit, no number in the subjects) resolves through the commit-to-PR lookup and is audited as that PR.
- const rebased=fixture(),rshas=branchPr(rebased,'','',{noff:false});run('git',['fetch','-q','origin'],rebased.repo);const rt=rebased.transport();rt.apiPulls={};for(const x of run('git',['rev-list','origin/main','^v0'],rebased.repo).split('\n').filter(Boolean))rt.apiPulls[x]=[{number:101,title:'feat: alpha',merged_at:'2026-10-17T00:00:00Z'}];fs.writeFileSync(rebased.state,JSON.stringify(rt));
+ const rebased=fixture(),rshas=branchPr(rebased,'','',{noff:false});run('git',['fetch','-q','origin'],rebased.repo);const rt=rebased.transport();rt.apiPulls={};for(const x of run('git',['rev-list','origin/main','^v0'],rebased.repo).split('\n').filter(Boolean))rt.apiPulls[x]=[{number:101,title:'feat: alpha',merged_at:'2026-10-17T00:00:00Z'}];publishTransport(rebased.state,rt,'scenario');
  const rr=rebased.invoke();assert.equal(rr.status,0,'rebase-merged PR: '+rr.stdout+rr.stderr);
  // R12-2: the lookup only attributes to a MERGED PR; an unmerged association must not excuse the commit.
- const unmerged=fixture();branchPr(unmerged,'','',{noff:false});run('git',['fetch','-q','origin'],unmerged.repo);const ut=unmerged.transport();ut.apiPulls={};for(const x of run('git',['rev-list','origin/main','^v0'],unmerged.repo).split('\n').filter(Boolean))ut.apiPulls[x]=[{number:101,title:'feat: alpha',merged_at:null}];fs.writeFileSync(unmerged.state,JSON.stringify(ut));
+ const unmerged=fixture();branchPr(unmerged,'','',{noff:false});run('git',['fetch','-q','origin'],unmerged.repo);const ut=unmerged.transport();ut.apiPulls={};for(const x of run('git',['rev-list','origin/main','^v0'],unmerged.repo).split('\n').filter(Boolean))ut.apiPulls[x]=[{number:101,title:'feat: alpha',merged_at:null}];publishTransport(unmerged.state,ut,'scenario');
  const ur=unmerged.invoke();assert.equal(ur.status,20,'unmerged PR must not attribute: '+ur.stdout+ur.stderr);assert.match(ur.stderr,/missing-notes/);
  // S9 (gitflow): a numbered squash commit inside a numbered merge's M^1..M^2 is audited as its own PR.
  for(const [cite,expect] of [['',20],['\n\n## [v1] — feat: s (#31)\n\n- s',0]]){
@@ -1697,12 +1723,12 @@ check('TEST-050',()=>{
   x('checkout','-q','-b','develop');fs.mkdirSync(path.join(clone,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(clone,'.aai/scripts/s.mjs'),'s\n');x('add','-A');x('commit','-qm','feat: s (#31)');
   x('checkout','-q','main');x('merge','--no-ff','-q','-m','Merge pull request #30 from o/develop','develop');
   const cl=path.join(clone,'CHANGELOG.md');fs.writeFileSync(cl,fs.readFileSync(cl,'utf8').replace('# Changelog\n','# Changelog\n\n## [unreleased] — feat: release (#30)\n\n- release'+cite.replace('[v1]','[unreleased]')+'\n'));x('add','-A');x('commit','-qm','docs: notes');x('push','-q','origin','main');
-  const gt=g.transport();for(const n of [30,31])gt.prs.push({number:n,body:'',files:[{path:'.aai/scripts/s.mjs'}]});gt.notes='## [v1] — feat: release (#30)\n\n- release'+cite+'\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta';fs.writeFileSync(g.state,JSON.stringify(gt));
+  const gt=g.transport();for(const n of [30,31])gt.prs.push({number:n,body:'',files:[{path:'.aai/scripts/s.mjs'}]});gt.notes='## [v1] — feat: release (#30)\n\n- release'+cite+'\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta';publishTransport(g.state,gt,'scenario');
   const gr=g.invoke();assert.equal(gr.status,expect,'gitflow inner numbered commit (cite='+Boolean(cite)+'): '+gr.stdout+gr.stderr);
   if(expect)assert.match(gr.stderr,/#31/);
  }
  // The lookup does not excuse a direct commit: no associated PR still refuses.
- const lone=fixture(),lsha=direct(lone,'.aai/scripts/direct.mjs','feat: direct push without a PR number');const lt=lone.transport();lt.apiPulls={[lsha]:[]};fs.writeFileSync(lone.state,JSON.stringify(lt));const lr=lone.invoke();assert.equal(lr.status,20,lr.stdout+lr.stderr);assert.match(lr.stderr,/missing-notes/);assert.ok(lr.stderr.includes(lsha.slice(0,12)));
+ const lone=fixture(),lsha=direct(lone,'.aai/scripts/direct.mjs','feat: direct push without a PR number');const lt=lone.transport();lt.apiPulls={[lsha]:[]};publishTransport(lone.state,lt,'scenario');const lr=lone.invoke();assert.equal(lr.status,20,lr.stdout+lr.stderr);assert.match(lr.stderr,/missing-notes/);assert.ok(lr.stderr.includes(lsha.slice(0,12)));
  // An unnumbered merge commit adds nothing itself; its merged commits are audited individually (here exempt by a no-notes body).
  const plain=fixture();branchPr(plain,'','Merge branch feat',{bodies:['no-notes: internal','no-notes: internal']});const pr1=plain.invoke();assert.equal(pr1.status,0,'unnumbered merge skip: '+pr1.stdout+pr1.stderr);
  const plainBad=fixture();branchPr(plainBad,'','Merge branch feat');const pr2=plainBad.invoke();assert.equal(pr2.status,20,pr2.stdout+pr2.stderr);assert.match(pr2.stderr,/missing-notes/);
@@ -1733,12 +1759,12 @@ check('TEST-053',()=>{
  const f=fixture('queue'),r=f.invoke();assert.equal(r.status,8,r.stdout+r.stderr);assert.match(r.stderr,/PENDING: merge-queue/);assert.doesNotMatch(r.stderr,/REFUSED/);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);
  assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
  const again=f.invoke();assert.equal(again.status,8,again.stdout+again.stderr);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1,'resume while queued does not merge again');
- const t=f.transport();t.queueSettles=true;fs.writeFileSync(f.state,JSON.stringify(t));
+ const t=f.transport();t.queueSettles=true;publishTransport(f.state,t,'scenario');
  const done=f.invoke();assert.equal(done.status,0,done.stdout+done.stderr);assert.match(done.stdout,/complete/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);
 });
 check('TEST-054',()=>{
  // N-2: an armed auto-merge is not a merge queue; a failing required check is named and refused, not reported as queued.
- const f=fixture('ci');const t=f.transport();t.armed=true;fs.writeFileSync(f.state,JSON.stringify(t));
+ const f=fixture('ci');const t=f.transport();t.armed=true;publishTransport(f.state,t,'scenario');
  const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.doesNotMatch(r.stderr,/PENDING/);assert.match(r.stderr,/REFUSED: (ci|required-checks)/);assert.match(r.stderr,/required/);
  assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);
 });
@@ -1935,11 +1961,11 @@ check('TEST-082',()=>{
 });
 check('TEST-083',()=>{
  const f=fixture();const t=f.transport();
- t.prs.push({number:7,url:'https://github.com/test/release/pull/7',title:'chore(release): v1',baseRefName:'main',headRefName:'chore/release-v1',headRefOid:'a'.repeat(40),state:'CLOSED',mergeCommit:null,headRepository:{nameWithOwner:'test/release'},isCrossRepository:false});fs.writeFileSync(f.state,JSON.stringify(t));
+ t.prs.push({number:7,url:'https://github.com/test/release/pull/7',title:'chore(release): v1',baseRefName:'main',headRefName:'chore/release-v1',headRefOid:'a'.repeat(40),state:'CLOSED',mergeCommit:null,headRepository:{nameWithOwner:'test/release'},isCrossRepository:false});publishTransport(f.state,t,'scenario');
  const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: identity/);
  assert.ok(r.stderr.includes('Release PR #7 on chore/release-v1 is closed without a matching journal; delete branch chore/release-v1 and re-run this same --version'),r.stderr);
  let after=f.transport();assert.equal(after.calls.filter(a=>a[0]==='pr'&&a[1]==='create').length,0);assert.equal(merges(after),0);
- const g=fixture();stopAt(g,'pr');const open=g.transport();open.prs[0].state='CLOSED';fs.writeFileSync(g.state,JSON.stringify(open));
+ const g=fixture();stopAt(g,'pr');const open=g.transport();open.prs[0].state='CLOSED';publishTransport(g.state,open,'scenario');
  const made=g.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='create').length;
  const b=g.invoke();assert.equal(b.status,20,b.stdout+b.stderr);assert.equal(refusals(b),1,b.stderr);assert.match(b.stderr,/REFUSED: identity/);
  assert.match(b.stderr,/Bound release PR #1 is closed without merge/);assert.ok(b.stderr.includes('reopen it and re-run this same --version'),b.stderr);
@@ -1964,7 +1990,7 @@ check('TEST-085',()=>{
 });
 check('TEST-010',()=>{for(const mode of ['ci','missing-checks','checks-error','pending-empty','pending-malformed','pending-forever','head','workflow','notes','tag','cleanup-head','lease-race','dependent','gh']){const f=fixture(mode),r=f.invoke();assert.notEqual(r.status,0,mode);assert.equal((r.stderr.match(/REFUSED:/g)||[]).length,1,r.stderr);assert.match(r.stderr,/Resume: .*--version v1 --confirm/);const t=f.transport();if(['ci','missing-checks','checks-error','pending-empty','pending-malformed','pending-forever','head','gh'].includes(mode))assert.equal(t.calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,0);if(mode==='head'){assert.ok(t.prs[0],r.stdout+r.stderr);assert.equal(t.prs[0].state,'OPEN');assert.ok(t.movedHead);assert.match(r.stderr,/head-moved/);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1').split(/\s/)[0],t.prs[0].headRefOid);}if(['workflow','notes','tag','cleanup-head','lease-race','dependent'].includes(mode))assert.ok(f.git('ls-remote','origin','refs/heads/chore/release-v1'));if(mode==='dependent'){assert.match(r.stderr,/dependent-pr/);assert.ok(f.git('branch','--list','chore/release-v1'));}if(mode==='tag')assert.match(r.stderr,/tag-mismatch/);if(mode==='cleanup-head')assert.match(r.stderr,/cleanup-head-moved/);if(mode==='lease-race'){assert.match(r.stderr,/stale info/);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1').split(/\s/)[0],t.prs[0].headRefOid);assert.ok(f.git('branch','--list','chore/release-v1'));}}});
 check('TEST-011',()=>{for(const step of ['worktree','payload','prepared','pushed','pr','merged','workflow','verified','remote-deleted','local-deleted','synced']){const f=fixture();const first=spawnSync('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env,AAI_RELEASE_TEST_STOP_AFTER:step},encoding:'utf8'});assert.notEqual(first.status,0,step);const next=f.invoke();assert.equal(next.status,0,step+next.stdout+next.stderr);assert.equal(f.transport().prs.length,1,step);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1,step);assert.equal(Object.keys(f.transport().releases).length,1,step);}});
-check('TEST-012',()=>{const f=fixture();let r=spawnSync('bash',[sh,'--version','v1','--dry-run','--confirm'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.equal(f.git('branch','--list','chore/release-v1'),'');const gitDir=f.git('rev-parse','--git-common-dir');assert.ok(!fs.existsSync(path.resolve(f.repo,gitDir,'aai/releases')));r=f.invoke();assert.equal(r.status,0,r.stderr);let t=f.transport();t.prs[0].headRefOid='f'.repeat(40);fs.writeFileSync(f.state,JSON.stringify(t));r=f.invoke();assert.notEqual(r.status,0);assert.match(r.stderr,/REFUSED: identity/);
+check('TEST-012',()=>{const f=fixture();let r=spawnSync('bash',[sh,'--version','v1','--dry-run','--confirm'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.equal(f.git('branch','--list','chore/release-v1'),'');const gitDir=f.git('rev-parse','--git-common-dir');assert.ok(!fs.existsSync(path.resolve(f.repo,gitDir,'aai/releases')));r=f.invoke();assert.equal(r.status,0,r.stderr);let t=f.transport();t.prs[0].headRefOid='f'.repeat(40);publishTransport(f.state,t,'scenario');r=f.invoke();assert.notEqual(r.status,0);assert.match(r.stderr,/REFUSED: identity/);
  const foreign=fixture('foreign-repo');assert.notEqual(foreign.invoke().status,0);assert.equal(foreign.git('branch','--list','chore/release-v1'),'');
  const ambiguous=fixture('ambiguous');assert.notEqual(ambiguous.invoke().status,0);assert.equal(ambiguous.git('branch','--list','chore/release-v1'),'');
  const manual=fixture();manual.git('rm','.github/workflows/release.yml');manual.git('commit','-qm','manual tagging','-m','no-notes: fixture drops the publication workflow');manual.git('push','-q','origin','main');const m=manual.invoke();assert.equal(m.status,0,m.stderr);assert.match(m.stdout,/SKIPPED.*manual tagging/);assert.equal(Object.keys(manual.transport().releases).length,0);
@@ -1978,6 +2004,34 @@ if(selected==='all'||selected==='TEST-020'){
  assert.equal(f.transport().prs.length,1);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);console.log('PASS: TEST-020 simultaneous confirm exclusive ownership release-command-finish');
 }
 if(selected==='all'||selected==='TEST-021'){
+ // The real generated gh transport publisher is held after opening its output.
+ // A separate process parses that path before the writer is released.
+ for(const phase of ['entry','save']){
+  const boundary=fixture();
+  const before=boundary.transport();
+  if(phase==='save'){
+   before.prs.push({number:1,headRefName:'chore/release-v1',headRefOid:'a'.repeat(40),url:'https://github.com/test/release/pull/1'});
+   publishTransport(boundary.state,before,'setup');
+  }
+  const args=phase==='entry'?['--version']:['pr','view','1','--repo','test/release','--json','headRefOid,url,number'];
+  const child=spawn(path.join(boundary.d,'bin/gh'),args,{cwd:boundary.repo,env:{...process.env,...boundary.env,FIXTURE_PUBLISH_HOLD:phase},stdio:['ignore','pipe','pipe']});
+  let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
+  const closed=new Promise(resolve=>child.on('close',(code,signal)=>resolve({code,signal})));
+  try{
+   const deadline=Date.now()+10000;
+   while(!fs.existsSync(path.join(boundary.d,'publish-held'))){if(Date.now()>deadline)throw Error(phase+' fixture publisher did not reach held boundary: '+output);await new Promise(resolve=>setTimeout(resolve,10));}
+   for(let read=0;read<3;read++){
+    let seen;
+    assert.doesNotThrow(()=>{seen=JSON.parse(fs.readFileSync(boundary.state,'utf8'));},'FAIL TEST-001 '+phase+' held-boundary transport JSON');
+    const expected=phase==='entry'?before:{...before,calls:[...before.calls,args]};
+    assert.deepEqual(seen,expected,'FAIL TEST-001 '+phase+' held-boundary read '+read+' must equal the complete previous snapshot');
+   }
+  }finally{fs.writeFileSync(path.join(boundary.d,'publish-go'),'go');}
+  const ended=await closed;assert.equal(ended.code,0,phase+' fixture writer: '+output);
+  const next=phase==='entry'?{...before,calls:[...before.calls,args]}:{...before,calls:[...before.calls,args],observer:'engine',lastReadKind:'view'};
+  assert.deepEqual(boundary.transport(),next,'FAIL TEST-001 '+phase+' published snapshot must equal the complete next snapshot');
+  console.log('PASS: TEST-021 '+phase+' held transport publication boundary');
+ }
  const f=fixture('hold-pr');const first=spawn('bash',[sh,'--version','v1','--confirm'],{cwd:f.repo,env:{...process.env,...f.env},stdio:['ignore','pipe','pipe']});const closed=new Promise(resolve=>first.on('close',(code,signal)=>resolve({code,signal})));first.stdout.resume();first.stderr.resume();
  const deadline=Date.now()+10000;while(!fs.existsSync(path.join(f.d,'pr-held'))){if(Date.now()>deadline)throw Error('kill control failed to reach prepared/pushed PR-create stage');await new Promise(resolve=>setTimeout(resolve,10));}
  first.kill('SIGKILL');const killed=await closed;assert.equal(killed.signal,'SIGKILL');fs.writeFileSync(path.join(f.d,'pr-go'),'go');
@@ -2027,7 +2081,7 @@ function slugNoted(f,number,slug,file='.aai/scripts/slug-x.mjs'){
  fs.mkdirSync(path.dirname(path.join(f.repo,file)),{recursive:true});fs.writeFileSync(path.join(f.repo,file),'change '+number+'\n');
  const log=path.join(f.repo,'CHANGELOG.md');fs.writeFileSync(log,fs.readFileSync(log,'utf8').replace('## [unreleased] — feat: alpha',`## [unreleased] — feat: slug ${number} (${slug})\n\n- slug note ${number}\n\n## [unreleased] — feat: alpha`));
  f.git('add','.');f.git('commit','-qm',`feat: shipped ${number} (CHANGE-${number}) (#${number})`);f.git('push','-q','origin','main');
-const t=f.transport();t.prs.push({number,body:'',files:[{path:file},{path:'CHANGELOG.md'}],headRefName:'slug-'+number});t.notes=`## [v1] — feat: slug ${number} (${slug})\n\n- slug note ${number}\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta`;fs.writeFileSync(f.state,JSON.stringify(t));
+const t=f.transport();t.prs.push({number,body:'',files:[{path:file},{path:'CHANGELOG.md'}],headRefName:'slug-'+number});t.notes=`## [v1] — feat: slug ${number} (${slug})\n\n- slug note ${number}\n\n## [v1] — feat: alpha (#101)\n\n- alpha\n\n## [v1] — fix: beta (#102)\n\n- beta`;publishTransport(f.state,t,'scenario');
 }
 check('TEST-030',()=>{
  const f=fixture();slugNoted(f,310,'slug-cited-ride');
@@ -2040,7 +2094,7 @@ function probeCommit(f,number,mutateLog){
  const file='.aai/scripts/probe-'+number+'.mjs';fs.mkdirSync(path.join(f.repo,'.aai/scripts'),{recursive:true});fs.writeFileSync(path.join(f.repo,file),'probe '+number+'\n');
  const log=path.join(f.repo,'CHANGELOG.md');if(mutateLog)fs.writeFileSync(log,mutateLog(fs.readFileSync(log,'utf8')));
  f.git('add','.');f.git('commit','-qm',`feat: probe ${number} (CHANGE-${number}) (#${number})`);f.git('push','-q','origin','main');
- const t=f.transport();t.prs.push({number,body:'',files:[{path:file},{path:'CHANGELOG.md'}],headRefName:'probe-'+number});fs.writeFileSync(f.state,JSON.stringify(t));
+ const t=f.transport();t.prs.push({number,body:'',files:[{path:file},{path:'CHANGELOG.md'}],headRefName:'probe-'+number});publishTransport(f.state,t,'scenario');
 }
 function plainLog(f,mutateLog,msg){const log=path.join(f.repo,'CHANGELOG.md');fs.writeFileSync(log,mutateLog(fs.readFileSync(log,'utf8')));f.git('add','.');f.git('commit','-qm',msg);f.git('push','-q','origin','main');}
 function refusesMissing(f,n,label){const r=f.invoke();assert.equal(r.status,20,label+': '+r.stdout+r.stderr);assert.match(r.stderr,new RegExp('missing-notes.*#'+n));assert.equal(f.transport().calls.filter(a=>['create','merge'].includes(a[1])).length,0);}
@@ -2093,7 +2147,7 @@ check('TEST-022',()=>{for(const [mode,cause] of [['workflow-spawn-error',/workfl
  const f=fixture(mode),failed=f.invoke();assert.equal(failed.status,20,failed.stdout+failed.stderr);assert.match(failed.stderr,cause);assert.equal(f.transport().prs.filter(p=>p.headRefName==='chore/release-v1').length,1);assert.equal(Object.keys(f.transport().releases).length,0);assert.notEqual(f.git('ls-remote','origin','refs/heads/chore/release-v1'),'','no cleanup after failed publication');
  // A failed native/workflow attempt is not a completed publication. Permit the
  // same fixture run to retry it, then assert one bound PR/merge/release only.
- const t=f.transport();t.mode='';t.published=false;fs.writeFileSync(f.state,JSON.stringify(t));const resumed=f.invoke();assert.equal(resumed.status,0,resumed.stdout+resumed.stderr);assert.equal(f.transport().prs.length,1);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);assert.equal(Object.keys(f.transport().releases).length,1);
+ const t=f.transport();t.mode='';t.published=false;publishTransport(f.state,t,'scenario');const resumed=f.invoke();assert.equal(resumed.status,0,resumed.stdout+resumed.stderr);assert.equal(f.transport().prs.length,1);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='merge').length,1);assert.equal(Object.keys(f.transport().releases).length,1);
 }});
 check('TEST-014',()=>{const ci=fs.readFileSync(path.join(root,'.github/workflows/ps1-quality.yml'),'utf8');assert.match(ci,/test_033_ps1_fallback_parity/);assert.match(ci,/completed=20 skips=0/);assert.match(ci,/command -v pwsh/);});
 check('TEST-015',()=>{const product=fs.readFileSync(path.join(root,'docs/product/release-command-finish.md'),'utf8');assert.match(product,/race/i);assert.match(product,/base-moved/);assert.match(product,/fresh audited cut|deliberate repair/i);assert.match(product,/fetch/i);for(const [file,need] of [['.aai/SKILL_RELEASE.prompt.md',['--match-head-commit','release-notes-gate.mjs','resume']],['.aai/system/PROFILES.yaml',['release-notes-gate.mjs','release-finish.mjs']],['tests/skills/suite-map.yaml',['release-notes-gate.mjs','release-finish.mjs','test-aai-release-notes.sh']],['docs/USER_GUIDE.md',['release notes','no-notes:']]]){const text=fs.readFileSync(path.join(root,file),'utf8');for(const token of need)assert.ok(text.toLowerCase().includes(token.toLowerCase()),file+' missing '+token);}});
@@ -2188,7 +2242,7 @@ function armLease(){
  assert.ok(journalBytes(f).equals(bytes),'journal byte-identical across the refusing run');assert.equal(callsOf(f,'pr','merge'),0);assert.equal(releaseRef(f),moved);
 }
 function armClosed(){
- const {f,first}=firstCut();moveBase(f,301);const t=f.transport();t.prs[0].state='CLOSED';fs.writeFileSync(f.state,JSON.stringify(t));
+ const {f,first}=firstCut();moveBase(f,301);const t=f.transport();t.prs[0].state='CLOSED';publishTransport(f.state,t,'scenario');
  const bytes=journalBytes(f);const r=f.invoke();assert.equal(r.status,20,r.stdout+r.stderr);assert.equal(refusals(r),1,r.stderr);assert.match(r.stderr,/REFUSED: identity/);assert.ok(r.stderr.includes('reopen it and re-run this same --version'),r.stderr);
  assert.ok(journalBytes(f).equals(bytes));assert.equal(releaseRef(f),first);assert.equal(callsOf(f,'pr','merge'),0);assert.equal(callsOf(f,'pr','create'),1);
 }
@@ -2220,7 +2274,7 @@ recutCase('TEST-105',()=>{
  const clone=path.join(f.d,'runner');f.git('clone','-q',f.origin,clone);const g=(...x)=>run('git',x,clone);
  g('checkout','-q','main');g('config','user.name','CI');g('config','user.email','ci@test.invalid');g('merge','--squash','origin/chore/release-v1');g('commit','-qm','chore(release): v1');
  const mergeOid=g('rev-parse','HEAD');g('push','-q','origin','main');
- const t=f.transport();t.prs[0].state='MERGED';t.prs[0].mergeCommit={oid:mergeOid};t.runner=clone;fs.writeFileSync(f.state,JSON.stringify(t));
+ const t=f.transport();t.prs[0].state='MERGED';t.prs[0].mergeCommit={oid:mergeOid};t.runner=clone;publishTransport(f.state,t,'scenario');
  moveBase(f,301);
  const r=f.invoke();assert.equal(r.status,0,r.stdout+r.stderr);
  const j=journalOf(f).data;assert.ok(!j.recuts||j.recuts.length===0);assert.equal(j.head,first);assert.equal(j.merge,mergeOid);assert.equal(Object.keys(f.transport().releases).length,1);
@@ -2295,7 +2349,7 @@ function mergeExternally(f){
  const clone=path.join(f.d,'runner');f.git('clone','-q',f.origin,clone);const g=(...x)=>run('git',x,clone);
  g('checkout','-q','main');g('config','user.name','CI');g('config','user.email','ci@test.invalid');g('merge','--squash','origin/chore/release-v1');g('commit','-qm','chore(release): v1');
  const oid=g('rev-parse','HEAD');g('push','-q','origin','main');
- const t=f.transport();t.prs[0].state='MERGED';t.prs[0].mergeCommit={oid};t.runner=clone;fs.writeFileSync(f.state,JSON.stringify(t));
+ const t=f.transport();t.prs[0].state='MERGED';t.prs[0].mergeCommit={oid};t.runner=clone;publishTransport(f.state,t,'scenario');
  return oid;
 }
 const releaseSets=f=>gitArgv(f).filter(a=>a[0]==='push'&&a.some(x=>/^[a-f0-9]{40}:refs\/heads\/chore\/release-v1$/.test(x)));
@@ -2315,12 +2369,13 @@ recutCase('TEST-118',()=>{
  }
 });
 const MERGER=String.raw`import test from 'node:test';import fs from 'node:fs';import cp from 'node:child_process';import path from 'node:path';import os from 'node:os';
+const publishTransport=${publishTransport.toString()};
 test('CHANGELOG read while an operator merges the old PR',()=>{
  const t=fs.readFileSync('CHANGELOG.md','utf8');if(!/^## \[v1\] — /m.test(t))return;
  const d=fs.mkdtempSync(path.join(os.tmpdir(),'ext-merge.'));const g=(c,...x)=>{const r=cp.spawnSync('git',x,{cwd:c,encoding:'utf8'});if(r.status)throw new Error(r.stderr);return r.stdout.trim();};
  const clone=path.join(d,'runner');g(d,'clone','-q',process.env.FIXTURE_ORIGIN,clone);g(clone,'checkout','-q','main');g(clone,'config','user.name','CI');g(clone,'config','user.email','ci@test.invalid');
  g(clone,'merge','--squash','origin/chore/release-v1');g(clone,'commit','-qm','chore(release): v1');const oid=g(clone,'rev-parse','HEAD');g(clone,'push','-q','origin','main');
- const s=JSON.parse(fs.readFileSync(process.env.TRANSPORT));s.prs[0].state='MERGED';s.prs[0].mergeCommit={oid};s.runner=clone;fs.writeFileSync(process.env.TRANSPORT,JSON.stringify(s));
+ const s=JSON.parse(fs.readFileSync(process.env.TRANSPORT));s.prs[0].state='MERGED';s.prs[0].mergeCommit={oid};s.runner=clone;publishTransport(process.env.TRANSPORT,s,'scenario');
 });
 `;
 recutCase('TEST-119',()=>{

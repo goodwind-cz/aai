@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-07T04:31:06.303Z",
+  "generatedAt": "2026-11-07T10:23:00.700Z",
   "project": "aai",
   "counts": {
-    "delivered": 345,
+    "delivered": 346,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -245,7 +245,20 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-cloudflare-share-on-node-r1-20261106T204750Z.md"
+      "review": "docs/ai/reviews/review-cloudflare-share-on-node-r2-20261107T042628Z.md"
+    },
+    {
+      "ref": "release-fixture-atomic-publication",
+      "title": "Release fixture transport publication race",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0110-release-fixture-atomic-publication.md",
+      "closed_on": "2026-11-07",
+      "agent_minutes": 0,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0277-spec-release-fixture-atomic-publication.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-release-fixture-atomic-publication.md"
     },
     {
       "ref": "retire-shell-loop-runner",
@@ -4757,7 +4770,20 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0276-spec-cloudflare-share-on-node.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-cloudflare-share-on-node-r1-20261106T204750Z.md"
+          "review": "docs/ai/reviews/review-cloudflare-share-on-node-r2-20261107T042628Z.md"
+        },
+        {
+          "ref": "release-fixture-atomic-publication",
+          "title": "Release fixture transport publication race",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0110-release-fixture-atomic-publication.md",
+          "closed_on": "2026-11-07",
+          "agent_minutes": 0,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0277-spec-release-fixture-atomic-publication.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-release-fixture-atomic-publication.md"
         },
         {
           "ref": "retire-shell-loop-runner",
