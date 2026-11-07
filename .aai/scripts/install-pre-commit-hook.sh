@@ -405,11 +405,14 @@ write_refguard_hook() {
     echo "AAI reference-transaction hook already installed at $REFTX_PATH. No action taken."
     return 0
   fi
-  if ! emit_template ref-guard > "$REFTX_PATH"; then
+  local tmp="$REFTX_PATH.aai-tmp.$$"
+  if ! emit_template ref-guard > "$tmp"; then
+    rm -f "$tmp"
     echo "ERROR: could not write $REFTX_PATH (TEST-647: the effective hooks directory may be missing)." >&2
     return 1
   fi
-  if ! chmod +x "$REFTX_PATH"; then
+  if ! chmod +x "$tmp" || ! mv -f "$tmp" "$REFTX_PATH"; then
+    rm -f "$tmp"
     echo "ERROR: could not make $REFTX_PATH executable." >&2
     return 1
   fi
