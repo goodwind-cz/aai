@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: fa593b74cb06348495a5bae02b28e4aa80d4698c11a423fbbd4fe60361a793de
+frozen_sha256: 9e50bb02f425e616c2d419acf410b9a28150bb15ed14c2b841126727cc8452aa
 ceremony_level: 3
 links:
   requirement: pre-commit-checks-ps1-retire
@@ -62,6 +62,7 @@ SPEC-FROZEN: true
   tests/skills/test-aai-pre-commit-checks.sh tests/skills/pre-commit-checks-retired.Tests.ps1
   tests/skills/lib/pipe-grep-q-ratchet.sh tests/skills/test-aai-hygiene-pack.sh
   tests/skills/test-aai-doc-numbering.sh tests/skills/test-aai-tracked-ignored.sh
+  tests/skills/test-aai-cloudflare-share.sh
   tests/skills/test-aai-suite-select.sh tests/skills/suite-map.yaml
   tests/skills/suite-weights.tsv tests/skills/lib/cd-subshell-leak-baseline.tsv
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md CHANGELOG.md
@@ -497,9 +498,11 @@ above.
   fresh doc_lifecycle event as in earlier slices.
 
 Registry items closed by this scope: `fu-pre-commit-checks-pipe-grep-q`
-(closed at ride close, D-FU). The other open items naming these files'
-neighbours (`fu-ps1-*` installer items, `fu-realpath-allocate-doc-number-l3`)
-concern the installers and the allocator, which this scope does not change.
+
+The pipe-grep item is closed at ride close (D-FU). The other open registry
+items near these files (the PowerShell installer items and the allocator
+realpath item) concern the installers and the allocator, which this scope
+does not change.
 
 ## Amendments
 
