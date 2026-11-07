@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-pre-commit-checks
-# (docs/specs/SPEC-DRAFT-spec-pre-commit-checks-ps1-retire.md, TEST-3448..3461)
+# (docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md, TEST-3448..3461)
 #
 # Two things: the PowerShell pre-commit checks are a deprecation launcher (one retired line
 # naming pre-commit-checks.sh, exit 1), and the bash checks no longer pipe into an
@@ -462,8 +462,8 @@ test_3459_downstream_install() {
 }
 
 RFC17="${PCC_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
-D_RFC_REASON='L3 protected surface; the .ps1 was retired by the [pre-commit-checks slice](../issues/CHANGE-DRAFT-pre-commit-checks-ps1-retire.md), a deprecation launcher for one release naming pre-commit-checks.sh, deleted in the next; the .sh checks 1 to 7 run without Node'
-D_RFC_SENTENCE='The ninth slice [retired the PowerShell pre-commit checks](../issues/CHANGE-DRAFT-pre-commit-checks-ps1-retire.md): the uncalled .ps1 became a deprecation launcher for one release that names pre-commit-checks.sh, and the bash checks no longer pipe into an early-closing reader.'
+D_RFC_REASON='L3 protected surface; the .ps1 was retired by the [pre-commit-checks slice](../issues/CHANGE-0250-pre-commit-checks-ps1-retire.md), a deprecation launcher for one release naming pre-commit-checks.sh, deleted in the next; the .sh checks 1 to 7 run without Node'
+D_RFC_SENTENCE='The ninth slice [retired the PowerShell pre-commit checks](../issues/CHANGE-0250-pre-commit-checks-ps1-retire.md): the uncalled .ps1 became a deprecation launcher for one release that names pre-commit-checks.sh, and the bash checks no longer pipe into an early-closing reader.'
 
 test_3460_rfc() {
   local row phase n

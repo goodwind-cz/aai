@@ -1,10 +1,10 @@
 ---
 id: spec-pre-commit-checks-ps1-retire
 type: spec
-number: null
-status: implementing
+number: 279
+status: done
 mutation_gate: v1
-frozen_sha256: 9e50bb02f425e616c2d419acf410b9a28150bb15ed14c2b841126727cc8452aa
+frozen_sha256: c494de8b0b3fc4ea0e6298d5caaa3916237d8a663fdb671994671487ced48f55
 ceremony_level: 3
 links:
   requirement: pre-commit-checks-ps1-retire
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Retire the uncalled PowerShell pre-commit checks and make the bash checks pipe-safe](../issues/CHANGE-DRAFT-pre-commit-checks-ps1-retire.md).
+- Requirement: [Retire the uncalled PowerShell pre-commit checks and make the bash checks pipe-safe](../issues/CHANGE-0250-pre-commit-checks-ps1-retire.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 5 (owner sign-off: yes, on the plan, 2026-11-05).
@@ -67,8 +67,8 @@ SPEC-FROZEN: true
   tests/skills/suite-weights.tsv tests/skills/lib/cd-subshell-leak-baseline.tsv
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md CHANGELOG.md
   docs/ai/decisions.jsonl
-  docs/issues/CHANGE-DRAFT-pre-commit-checks-ps1-retire.md
-  docs/specs/SPEC-DRAFT-spec-pre-commit-checks-ps1-retire.md docs/INDEX.md
+  docs/issues/CHANGE-0250-pre-commit-checks-ps1-retire.md
+  docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md docs/INDEX.md
   (cd-subshell-leak-baseline.tsv only if the ratchet asks for a row;
   guard-config.mjs and docs-audit.yaml are comment-only edits;
   decisions.jsonl only for the two follow-up records).
@@ -300,10 +300,10 @@ other shipping scripts.
 - The `pre-commit-checks` inventory row keeps `323/281` and
   `platform adapter kept on purpose` (TEST-2624 pins the destination; the
   pair stays a pair while the launcher exists). Its reason cell becomes:
-  `L3 protected surface; the .ps1 was retired by the [pre-commit-checks slice](../issues/CHANGE-DRAFT-pre-commit-checks-ps1-retire.md), a deprecation launcher for one release naming pre-commit-checks.sh, deleted in the next; the .sh checks 1 to 7 run without Node`.
+  `L3 protected surface; the .ps1 was retired by the [pre-commit-checks slice](../issues/CHANGE-0250-pre-commit-checks-ps1-retire.md), a deprecation launcher for one release naming pre-commit-checks.sh, deleted in the next; the .sh checks 1 to 7 run without Node`.
 - Phase 5 row: one sentence after the eighth-slice sentence and before the
   remaining-scripts-plan sentence:
-  `The ninth slice [retired the PowerShell pre-commit checks](../issues/CHANGE-DRAFT-pre-commit-checks-ps1-retire.md): the uncalled .ps1 became a deprecation launcher for one release that names pre-commit-checks.sh, and the bash checks no longer pipe into an early-closing reader.`
+  `The ninth slice [retired the PowerShell pre-commit checks](../issues/CHANGE-0250-pre-commit-checks-ps1-retire.md): the uncalled .ps1 became a deprecation launcher for one release that names pre-commit-checks.sh, and the bash checks no longer pipe into an early-closing reader.`
   Status stays `in progress`; frontmatter untouched. The allocator rewrites
   the links at merge; checks match only the suffix
   `pre-commit-checks-ps1-retire.md`.

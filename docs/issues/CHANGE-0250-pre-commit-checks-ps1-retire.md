@@ -1,8 +1,8 @@
 ---
 id: pre-commit-checks-ps1-retire
 type: change
-number: null
-status: draft
+number: 250
+status: done
 capability: pre-commit-checks-ps1-retire
 parent: smaller-node-core-and-faster-feedback
 links:
