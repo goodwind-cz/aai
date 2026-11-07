@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-pre-commit-checks-ps1-retire | specs | implementing | 14 planned | docs/specs/SPEC-DRAFT-spec-pre-commit-checks-ps1-retire.md |
+| spec-pre-commit-checks-ps1-retire | specs | implementing | 14 done | docs/specs/SPEC-DRAFT-spec-pre-commit-checks-ps1-retire.md |
 
 ## Canonical layer (0)
 

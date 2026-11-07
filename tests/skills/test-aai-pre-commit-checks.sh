@@ -439,6 +439,78 @@ test_3458_wiring() {
   log_pass "TEST-3458: select-suites, weights, hygiene pins at 130, lints, win-fallback, prompt-diet and the ps1-quality path lists are wired"
 }
 
+test_3459_downstream_install() {
+  local tgt="$TEST_DIR/core target/proj" n out rc=0 lib="$SCRIPT_DIR/lib/pipe-grep-q-ratchet.sh"
+  mkdir -p "$tgt"
+  git -C "$tgt" init -q
+  bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$tgt" --profile core >"$TEST_DIR/sync.out" 2>&1 || { tail -10 "$TEST_DIR/sync.out" >&2; log_fail "TEST-3459: aai-sync.sh --profile core failed"; }
+  cmp -s "$tgt/.aai/scripts/pre-commit-checks.ps1" "$PS1_LAUNCHER" || log_fail "TEST-3459: the installed launcher differs from the source"
+  cmp -s "$tgt/.aai/scripts/pre-commit-checks.sh" "$SH_CHECKS" || log_fail "TEST-3459: the installed pre-commit-checks.sh differs from the source"
+  if need_tool TEST-3459 pwsh; then
+    ( cd "$tgt" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 ) >"$TEST_DIR/d.out" 2>"$TEST_DIR/d.err" || rc=$?
+    [[ "$rc" == 1 ]] || log_fail "TEST-3459: the installed launcher exited $rc, expected 1"
+    [[ ! -s "$TEST_DIR/d.out" ]] || log_fail "TEST-3459: the installed launcher wrote to stdout"
+    [[ "$(cat "$TEST_DIR/d.err")" == "$D_LAUNCH" ]] || log_fail "TEST-3459: the installed launcher stderr was: $(cat "$TEST_DIR/d.err")"
+  fi
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$lib"
+  n="$(shipping_sites < "$tgt/.aai/scripts/pre-commit-checks.sh")"
+  [[ "$n" == 0 ]] || log_fail "TEST-3459: PGQ_PATTERN matches $n non-comment line(s) of the installed pre-commit-checks.sh"
+  out="$(awk '/^core:/{c=1; next} /^[a-z]/{c=0} c && $0=="  - .aai/scripts/pre-commit-checks.ps1"{k++} END{print k+0}' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")"
+  [[ "$out" == 1 ]] || log_fail "TEST-3459: PROFILES core lists the launcher $out times, expected 1"
+  log_pass "TEST-3459: aai-sync --profile core into a spaced path installs the launcher and the pipe-safe checks byte-identical, and the installed launcher refuses by name"
+}
+
+RFC17="${PCC_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
+D_RFC_REASON='L3 protected surface; the .ps1 was retired by the [pre-commit-checks slice](../issues/CHANGE-DRAFT-pre-commit-checks-ps1-retire.md), a deprecation launcher for one release naming pre-commit-checks.sh, deleted in the next; the .sh checks 1 to 7 run without Node'
+D_RFC_SENTENCE='The ninth slice [retired the PowerShell pre-commit checks](../issues/CHANGE-DRAFT-pre-commit-checks-ps1-retire.md): the uncalled .ps1 became a deprecation launcher for one release that names pre-commit-checks.sh, and the bash checks no longer pipe into an early-closing reader.'
+
+test_3460_rfc() {
+  local row phase n
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-expert-fetch.sh" test_2624_inventory_matches_tree >"$TEST_DIR/e.out" 2>&1 || { tail -8 "$TEST_DIR/e.out" >&2; log_fail "TEST-3460: test_2624_inventory_matches_tree failed"; }
+  row="$("$GREP" -F '| `pre-commit-checks` |' "$RFC17" || true)"
+  [[ -n "$row" && "$(wc -l <<< "$row" | tr -d ' ')" == 1 ]] || log_fail "TEST-3460: expected exactly one pre-commit-checks inventory row"
+  [[ "$row" == *'| 323/281 |'* ]] || log_fail "TEST-3460: the inventory row lost 323/281"
+  [[ "$row" == *'| platform adapter kept on purpose |'* ]] || log_fail "TEST-3460: the inventory row lost its destination"
+  [[ "$row" == *"$D_RFC_REASON"* ]] || log_fail "TEST-3460: the inventory row lacks the D-RFC reason"
+  [[ "$row" == *'pre-commit-checks-ps1-retire.md)'* ]] || log_fail "TEST-3460: the inventory row link does not end pre-commit-checks-ps1-retire.md"
+  phase="$("$GREP" -E '^\| 5 \|' "$RFC17" || true)"
+  [[ -n "$phase" ]] || log_fail "TEST-3460: the phase 5 row is missing"
+  n="$(awk -v needle="$D_RFC_SENTENCE" '{ s=$0; while ((i = index(s, needle)) > 0) { c++; s = substr(s, i + length(needle)) } } END { print c+0 }' <<< "$phase")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3460: the phase 5 row holds the D-RFC sentence $n times, expected 1"
+  [[ "$phase" == *'| in progress |'* ]] || log_fail "TEST-3460: the phase 5 row is no longer in progress"
+  log_pass "TEST-3460: the RFC inventory keeps 323/281 and its destination with the D-RFC reason, and phase 5 holds the ninth-slice sentence once"
+}
+
+# code_lines <file> [text]: non-blank, non-comment lines (the plan's method); prints a count.
+code_lines() { "$GREP" -cvE '^[[:space:]]*(#|$)' "$1" || true; }
+
+test_3461_line_budget_and_follow_up() {
+  local ps_t ps_c sh_t sh_c out
+  ps_t="$(wc -l < "$PS1_LAUNCHER" | tr -d ' ')"; ps_c="$(code_lines "$PS1_LAUNCHER")"
+  sh_t="$(wc -l < "$SH_CHECKS" | tr -d ' ')"; sh_c="$(code_lines "$SH_CHECKS")"
+  echo "LINES before: pre-commit-checks.sh 323/239, pre-commit-checks.ps1 281/221 (total/code)"
+  echo "LINES after:  pre-commit-checks.sh $sh_t/$sh_c, pre-commit-checks.ps1 $ps_t/$ps_c (total/code)"
+  [[ "$ps_t" -le 5 && "$ps_c" -le 2 ]] || log_fail "TEST-3461: the launcher is $ps_t lines and $ps_c code lines, budget 5 and 2"
+  [[ "$sh_t" == 323 && "$sh_c" == 239 ]] || log_fail "TEST-3461: pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 323 and 239"
+  node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json > "$TEST_DIR/fu.json" || log_fail "TEST-3461: follow-ups list failed"
+  out="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const hit = j.items.filter((i) => i.id === "fu-delete-retired-pre-commit-checks-ps1");
+    const bad = [];
+    if (hit.length !== 1) bad.push("open items with the id: " + hit.length);
+    else {
+      const i = hit[0];
+      if (i.ref_id !== "pre-commit-checks-ps1-retire") bad.push("ref_id " + i.ref_id);
+      if (i.severity !== "P3") bad.push("severity " + i.severity);
+      for (const t of ["pre-commit-checks.ps1", "PROFILES.yaml", "WORKFLOW.md", "docs-audit.yaml"]) if (!String(i.finding).includes(t)) bad.push("finding lacks " + t);
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$TEST_DIR/fu.json")"
+  [[ -z "$out" ]] || log_fail "TEST-3461: the delete follow-up: $out"
+  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh keeps 323/239, and the delete follow-up is filed (P3)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461)"
   check_deps
@@ -446,14 +518,17 @@ main() {
   test_3448_ps1_retired_run
   test_3449_pester
   test_3450_launcher_thin
-  test_3456_no_live_ps1_reference
-  test_3457_suites_stop_running_the_ps1
-  test_3458_wiring
   test_3451_large_state_check1_check5
   test_3452_large_code_review_block
   test_3453_large_debug_list
   test_3454_small_input_parity
   test_3455_ratchet_counts_the_file
+  test_3456_no_live_ps1_reference
+  test_3457_suites_stop_running_the_ps1
+  test_3458_wiring
+  test_3459_downstream_install
+  test_3460_rfc
+  test_3461_line_budget_and_follow_up
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
