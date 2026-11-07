@@ -3702,3 +3702,4 @@
 {"v":1,"ts":"2026-11-07T18:29:51Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"git-hook-bodies-single-source","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-07T18:29:51Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-git-hook-bodies-single-source","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-07T18:29:51Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-git-hook-bodies-single-source","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-07T18:54:32Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"git-hook-bodies-single-source","payload":{"pr":539,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"037f568fda9eb5642a6eba8948a087cfeb6ad8e4"}}
