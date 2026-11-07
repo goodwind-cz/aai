@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "git diff main...HEAD (refactor/git-hook-bodies-single-source@595d3af1, base main 244ef0bf), the code_review.scope path list (27 paths); remediation delta 5f2991fb..595d3af1 read in full"
-  spec: docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md
+  spec: docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -47,7 +47,7 @@ review:
 security_relevant: true
 
 - Scope: `git diff main...HEAD` on `refactor/git-hook-bodies-single-source@595d3af1` (base `main` `244ef0bf`), over the 27-path `code_review.scope` list in STATE. I read the remediation delta `5f2991fb..595d3af1` in full and re-walked the whole scope. Two uncommitted files (`docs/ai/EVENTS.jsonl`, `docs/ai/tests/test-runs.jsonl`) are telemetry outside the scope and were not touched.
-- Spec: `docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md`, frozen, Amendments 1 and 2.
+- Spec: `docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md`, frozen, Amendments 1 and 2.
 - Reviewer: one fresh dual-verdict pass, verdict formed from the code. Own runs on 595d3af1:
   - `bash tests/skills/test-aai-git-hook-templates.sh` (env -u AAI_ROLE -u AAI_GIT_WRITE): rc 0, 16 of 16 PASS, no SKIP-CASE, Pester 7/7/0/0 (55 s).
   - `spec-lint --path <spec>`: LINT PASS. `mutation-gate --spec <spec>`: GATE PASS, 16 rows. `spec-amend list --strict`: rc 0.

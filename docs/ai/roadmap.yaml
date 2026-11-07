@@ -143,7 +143,7 @@ pairs:
   - capability: cloudflare-share-on-node
     status: done
   - capability: git-hook-bodies-single-source
-    status: planned
+    status: done
   - capability: pre-commit-checks-ps1-retire
     status: planned
   - capability: release-on-node

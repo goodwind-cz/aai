@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "git diff main...HEAD (refactor/git-hook-bodies-single-source@5f2991fb, base main 244ef0bf), the code_review.scope path list"
-  spec: docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md
+  spec: docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -48,7 +48,7 @@ review:
 security_relevant: true
 
 - Scope: `git diff main...HEAD` on `refactor/git-hook-bodies-single-source@5f2991fb` (base `main` `244ef0bf`), over the `code_review.scope` path list in STATE (27 paths). The worktree has two uncommitted modified files, `docs/ai/EVENTS.jsonl` and `docs/ai/tests/test-runs.jsonl`. Both are validation telemetry, outside the review content, and were left untouched.
-- Spec: `docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md`, frozen, with Amendment 1.
+- Spec: `docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md`, frozen, with Amendment 1.
 - Reviewer: one fresh dual-verdict pass. I read the code directly and ran my own scratch probes in the session scratchpad. I did not run a full sweep. The suite evidence I cite is the validation r1 log `docs/ai/validation/git-hook-bodies-single-source/r1-suite-git-hook-templates.log`: 13 of 13 PASS, 0 SKIP-CASE, Pester 7 of 7.
 - Why `security_relevant: true`: the BLOCKING finding stops the AAI:GUARD-CHECKS secrets guard and the ref guard from being installed at all.
 - Coaching attempt recorded (anti-gaming contract): the dispatch prompt named focus areas and pointed at the validator's NB1 with "judge severity". I reviewed the full scope regardless. NB1 is ranked independently below, and the BLOCKING finding lies outside the named focus list.

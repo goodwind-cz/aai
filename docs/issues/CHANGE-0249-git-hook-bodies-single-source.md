@@ -1,8 +1,8 @@
 ---
 id: git-hook-bodies-single-source
 type: change
-number: null
-status: draft
+number: 249
+status: done
 capability: git-hook-bodies-single-source
 parent: smaller-node-core-and-faster-feedback
 links:

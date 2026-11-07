@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-git-hook-templates
-# (docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md, TEST-3432..3447)
+# (docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md, TEST-3432..3447)
 #
 # The four git hook bodies live once, in .aai/templates/git-hooks/; both installers read them and
 # write the same bytes. Every case works in fresh mktemp git repositories with a local identity;
@@ -593,7 +593,7 @@ code_lines() {
 }
 
 RFC17="${GHT_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
-D_RFC_SENTENCE='The eighth slice [moved the git hook bodies to shared templates](../issues/CHANGE-DRAFT-git-hook-bodies-single-source.md): both installers write the same bytes from one copy, which ends the early-closing pipes of the PowerShell-written pre-commit hook.'
+D_RFC_SENTENCE='The eighth slice [moved the git hook bodies to shared templates](../issues/CHANGE-0249-git-hook-bodies-single-source.md): both installers write the same bytes from one copy, which ends the early-closing pipes of the PowerShell-written pre-commit hook.'
 
 test_3444_line_budget_and_rfc() {
   local d="${GHT_BUDGET_DIR:-$PROJECT_ROOT}" sh_t sh_c ps_t ps_c tpl_t=0 f row n out rc=0

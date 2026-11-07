@@ -3698,3 +3698,7 @@
 {"v":1,"ts":"2026-11-07T17:35:02Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":710,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-07T18:21:50Z","actor":"ales_holubec.net","event":"check_verdict","ref":"git-hook-bodies-single-source","payload":{"role":"code_review","head":"5f2991fb129d84b76711b51cb8a0bb28511f8d04","status":"fail","security_relevant":true}}
 {"v":1,"ts":"2026-11-07T18:21:51Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"git-hook-bodies-single-source","payload":{"status":"pass","hash":"16b8c3aaff30d7c9ff1bd4830c9cd66e5fd5cff4c96687c2538061a6114949c1"}}
+{"v":1,"ts":"2026-11-07T18:29:51Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"git-hook-bodies-single-source","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-07T18:29:51Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"git-hook-bodies-single-source","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-07T18:29:51Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-git-hook-bodies-single-source","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-07T18:29:51Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-git-hook-bodies-single-source","payload":{"validation":"pass","code_review":"pass"}}

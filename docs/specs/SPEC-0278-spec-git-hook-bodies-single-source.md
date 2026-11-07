@@ -1,10 +1,10 @@
 ---
 id: spec-git-hook-bodies-single-source
 type: spec
-number: null
-status: implementing
+number: 278
+status: done
 mutation_gate: v1
-frozen_sha256: 832b597ca29fd20e30942f277816e6fd58f5214bfceec0f915dc827a12021f82
+frozen_sha256: 4f14a620cc3ca8bd2526da781bbfc64ebbe9442d80577a8aea626c148e636b6f
 ceremony_level: 2
 links:
   requirement: git-hook-bodies-single-source
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Move the git hook bodies both installers embed to shared templates](../issues/CHANGE-DRAFT-git-hook-bodies-single-source.md).
+- Requirement: [Move the git hook bodies both installers embed to shared templates](../issues/CHANGE-0249-git-hook-bodies-single-source.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 4 (owner sign-off: yes, on the plan, 2026-11-05).
@@ -67,8 +67,8 @@ SPEC-FROZEN: true
   tests/skills/test-aai-doctor.sh tests/skills/test-aai-docs-audit.sh
   tests/skills/test-aai-tracked-ignored.sh
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md CHANGELOG.md
-  docs/issues/CHANGE-DRAFT-git-hook-bodies-single-source.md
-  docs/specs/SPEC-DRAFT-spec-git-hook-bodies-single-source.md docs/INDEX.md
+  docs/issues/CHANGE-0249-git-hook-bodies-single-source.md
+  docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md docs/INDEX.md
   (cd-subshell-leak-baseline.tsv only if the ratchet asks for a row;
   guard-config.mjs is a comment-only edit).
 - Code review required: true.
@@ -347,7 +347,7 @@ other than the helper copies an installer file (`cp` of a path ending
 
 - Phase 5 row: one sentence after the seventh-slice sentence and before the
   remaining-scripts-plan sentence:
-  `The eighth slice [moved the git hook bodies to shared templates](../issues/CHANGE-DRAFT-git-hook-bodies-single-source.md): both installers write the same bytes from one copy, which ends the early-closing pipes of the PowerShell-written pre-commit hook.`
+  `The eighth slice [moved the git hook bodies to shared templates](../issues/CHANGE-0249-git-hook-bodies-single-source.md): both installers write the same bytes from one copy, which ends the early-closing pipes of the PowerShell-written pre-commit hook.`
   Status stays `in progress`; frontmatter untouched; the inventory row of
   `install-pre-commit-hook` stays byte for byte. The allocator rewrites the
   link at merge; checks match only the suffix `git-hook-bodies-single-source.md`.
@@ -391,12 +391,12 @@ dependency or runtime; the templates are plain files both installers copy.
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
 | Spec-AC-01 | The four D-TPL templates exist under .aai/templates/git-hooks/ with git mode 100644, ASCII only, no CR byte, one final LF, the D-TPL first line and their marker; neither installer contains a heredoc or here-string delimiter of a hook body (REFTXHOOK, GUARDBLOCK, PREPUSHHOOK, the HOOK heredoc, hookBody, reftxBody, prePushBody assignments) or any of the body sentinel lines aai_guarded=0, _cg_refused=0, _gc_rc=0 and the GEN= generator line. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3432_templates_single_copy.log | — | — |
-| Spec-AC-02 | WHEN install-pre-commit-hook.sh runs in a fresh scratch repository, the system SHALL write pre-commit, reference-transaction and pre-push equal byte for byte to the D-COMPOSE result of the templates, each executable, also when it is run by a relative path with an exported CDPATH from a repository whose path contains a space; --print index, guard-checks, ref-guard and pre-push and bare --print SHALL emit exactly the template bytes and write nothing. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3433_sh_writes_templates.log | — | — |
+| Spec-AC-02 | WHEN install-pre-commit-hook.sh runs in a fresh scratch repository, the system SHALL write pre-commit, reference-transaction and pre-push equal byte for byte to the D-COMPOSE result of the templates, each executable, also when it is run by a relative path with an exported CDPATH from a repository whose path contains a space; --print index, guard-checks, ref-guard and pre-push and bare --print SHALL emit exactly the template bytes and write nothing. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3433_sh_writes_templates.log, docs/ai/validation/git-hook-bodies-single-source/r2-suite-git-hook-templates.log (TEST-3445..3447), docs/ai/validation/git-hook-bodies-single-source/r2-red-on-review-head.log | — | — |
 | Spec-AC-03 | WHEN install-pre-commit-hook.ps1 runs under pwsh in a fresh scratch repository and install-pre-commit-hook.sh in a twin one, the three hooks SHALL be byte-identical between the two (cmp), each SHALL end in LF and hold no CR byte, and the ps1-written ones SHALL be executable. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3434_twin_bytes.log | — | — |
 | Spec-AC-04 | tests/skills/install-pre-commit-hook.Tests.ps1 passes under Pester 5 with at least 6 cases and none failed or skipped, covering: the fresh install equals the D-COMPOSE bytes; the hooks equal those the sh installer writes into a twin TestDrive repository under bash; a missing template; a CRLF template; the guard-block insert into a pre-guard AAI hook; a plain re-run that changes no byte. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3435_pester.log | — | — |
 | Spec-AC-05 | WHEN a pre-commit hook written by either installer runs under bash in a repository holding docs/a.md and 4000 further staged paths (over 200 KB of staged names) with a stub generator, the system SHALL write and stage docs/INDEX.md; and WHEN the staged set adds a status done line to a spec whose staged diff exceeds 200 KB, the stub docs-audit.mjs SHALL receive exactly one --gate-file call. RED on the baseline for the ps1-written hook. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3436_pipefail_large_stage.log | — | — |
 | Spec-AC-06 | The PGQ_PATTERN of tests/skills/lib/pipe-grep-q-ratchet.sh matches 0 lines in each of the four templates; positive control: it matches 5 lines in the hookBody here-string of install-pre-commit-hook.ps1 at 244ef0bf, read with git show. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3437_no_early_reader.log | — | — |
-| Spec-AC-07 | WHEN any one of the four templates is absent from a vendored copy, each installer SHALL exit 1 with the D-MISSING line naming that path on stderr and leave every hook slot byte-identical (absent slots stay absent) for a selection that needs it; --print of that token SHALL exit 1 the same way; --uninstall SHALL still exit 0; the arm-ref-guard selection SHALL refuse the same way when reference-transaction.sh is absent and write neither the hook nor the guard config; an index template with no second line SHALL be refused with the D-MISSING malformed line and no write. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3438_missing_template.log | — | — |
+| Spec-AC-07 | WHEN any one of the four templates is absent from a vendored copy, each installer SHALL exit 1 with the D-MISSING line naming that path on stderr and leave every hook slot byte-identical (absent slots stay absent) for a selection that needs it; --print of that token SHALL exit 1 the same way; --uninstall SHALL still exit 0; the arm-ref-guard selection SHALL refuse the same way when reference-transaction.sh is absent and write neither the hook nor the guard config; an index template with no second line SHALL be refused with the D-MISSING malformed line and no write. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3438_missing_template.log, docs/ai/validation/git-hook-bodies-single-source/r2-suite-git-hook-templates.log (TEST-3445..3447), docs/ai/validation/git-hook-bodies-single-source/r2-red-on-review-head.log | — | — |
 | Spec-AC-08 | WHEN a template holds CRLF line endings, the hooks both installers write SHALL hold no CR byte and stay byte-identical between the installers; and a plain re-run of either installer over hooks either installer wrote SHALL leave all three byte-identical and print the already-installed lines. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3439_crlf_and_rerun.log | — | — |
 | Spec-AC-09 | The reference-transaction template carries the D-MSG lines (both escape forms, both uninstall commands) and the AAI:REF-GUARD refused line; WHEN aai-doctor.mjs --json runs in a scratch repository armed by either installer, CAT-17 SHALL report the guard armed; test-aai-git-ref-guard.sh selectors test_309_ps1_twin_static, test_314_print_flag, test_316_ps1_ascii_outside_here_strings, test_611_print_ref_guard_body, test_612_foreign_reftx_names_a_real_command, test_613_install_discloses_ref_guard and test_614_help_documents_the_new_surface exit 0. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3440_refguard_message_and_doctor.log | — | — |
 | Spec-AC-10 | WHEN aai-sync.sh --profile core installs into a scratch git target whose path holds a space, the target SHALL hold the four templates byte-identical to the source, and the target's own sh installer (and its ps1 under pwsh when present) SHALL write three hooks byte-identical to the D-COMPOSE result; PROFILES lists each template once under core and test-aai-layer-profiles.sh test_manifest_conformance exits 0. | done | docs/ai/tdd/git-hook-bodies-single-source/green/test_3441_downstream_install.log | — | — |
