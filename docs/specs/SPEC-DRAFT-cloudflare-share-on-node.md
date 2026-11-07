@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 60fb1f257dcfebbe64a551bb5c80520e622cb04af66b5360a1e955cc99543cd7
+frozen_sha256: 2c22d2eefa5ad75acbe52b3665a4716f5026305943aa653a54874e3bd6ab5cb0
 ceremony_level: 2
 links:
   requirement: cloudflare-share-on-node
@@ -144,7 +144,7 @@ Before: 147 total lines, 98 code lines over the two files; twin duplication
   `test_133`, allowlist pinned at 5 rows) refuses a suite that runs another
   whole suite; every cross-suite call in the new suite is selector form.
 - `tests/skills/suite-weights.tsv`: new suites carry
-  `<name><TAB>212` with a `# sample <name> fallback unsampled (...)` line.
+  `<name><TAB><documented maximum>` (196 since PR #536; TEST-3338 pins the value) with a `# sample <name> fallback unsampled (...)` line.
 - `.github/workflows/ps1-quality.yml`: both path lists name the Node modules
   that a Pester-tested launcher runs (`aai-reap-tests.mjs`,
   `migrate-state-to-local.mjs`); the new module joins both lists.
@@ -303,7 +303,7 @@ echoes foreign output.
   `tests/skills/cloudflare-share.Tests.ps1`, and every `tests/skills/lib/*`
   file the suite or the Pester file sources or reads (shared test libs).
 - `tests/skills/suite-weights.tsv`: `# sample aai-cloudflare-share fallback unsampled (new suite of cloudflare-share-on-node; no successful observation)`
-  and `aai-cloudflare-share<TAB>212`.
+  and `aai-cloudflare-share<TAB>196` (the documented maximum, moved from 212 by PR #536).
 - `tests/skills/test-aai-hygiene-pack.sh`: the row-count pins in
   `test_090_suite_map_pin` and `test_129_mutation_gate_suite_registration`
   move from 127 to 128, with the message naming the cloudflare-share suite.

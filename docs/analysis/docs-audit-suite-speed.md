@@ -275,5 +275,12 @@ Docs-audit seconds from the `aai-docs-audit PASS (Ns)` log line of existing succ
 | before | 39829624747 | 4f667f12 | 176 |
 | before | 39814813112 | b06ef61a | 140 |
 | before | 39813922700 | c373f296 | 166 |
+| after | 39934110873 | c6d86ed8 | 59 |
+| after | 39962075521 | 3b092c64 | 67 |
+| after | 40029991358 | 8df911c5 | 79 |
+| after | 40054359369 | 4d4566bc | 103 |
+| after | 40088699870 | ba552b89 | 110 |
 
-Hosted after status: pending until the branch is pushed and at least 3 hosted runs on a head whose docs-audit suite blob equals the final one succeed; the `aai-docs-audit` row of `tests/skills/suite-weights.tsv` stays unchanged until then.
+Hosted after: five successful main-push `skill-suite` runs from the delivery merge `c6d86ed8` (#493) onward, all before the content and engine split (#516, `8c2669c4`) changed the suite file, so the docs-audit suite blob and its two lib files equal the delivered ones. Median 79 s against a before median of 170.5 s (ten rows); hosted durations vary widely on unchanged code, so the comparison is reported, never gated. The run ids are the `skill-suite` workflow runs on main; each seconds figure is the `aai-docs-audit PASS (Ns)` log line.
+
+Weights: the `aai-docs-audit` row of `tests/skills/suite-weights.tsv` was re-measured on 2026-11-07 from five later main-push full runs (42232580971, 42129127915, 42027298193, 41954346556, 41851872305; 86, 72, 91, 90, 110 s; median 90) with run id, head SHA and URL provenance. That suite is now the engine half after the split, so the row moved from 212 to 90. It was the maximum measured weight, so the unsampled fallback rows moved from 212 to the next maximum, 196 (`aai-sync-seed`).

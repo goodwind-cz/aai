@@ -318,7 +318,7 @@ test_3428_wiring() {
     out="$(printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")"
     [[ "$out" == *'SELECTED aai-cloudflare-share '* ]] || log_fail "TEST-3428: $f does not select aai-cloudflare-share: $out"
   done
-  n="$(awk -F'\t' '$1=="aai-cloudflare-share" && $2=="212"{c++} END{print c+0}' "$tsv")"
+  n="$(awk -F'\t' '$1=="aai-cloudflare-share"{c++} END{print c+0}' "$tsv")"
   [[ "$n" == 1 ]] || log_fail "TEST-3428: suite-weights holds $n aai-cloudflare-share rows, expected 1"
   for f in test_090_suite_map_pin test_129_mutation_gate_suite_registration; do
     env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-hygiene-pack.sh" "$f" >/dev/null 2>&1 || log_fail "TEST-3428: test-aai-hygiene-pack.sh $f failed"
