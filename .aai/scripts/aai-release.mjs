@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // aai-release.mjs: the whole /aai-release command in one module (RFC-0017 phase 5). aai-release.sh and aai-release.ps1 are
 // permanent thin launchers of it. It parses the flags, checks the repository and CHANGELOG.md, resolves the version, hands a
-// remote --confirm to release-finish.mjs, prints the plan (release-cut.mjs plan) or runs the local cut (release-cut.mjs check
+// remote --confirm to release-finish.mjs (run in process), prints the plan (release-cut.mjs plan) or runs the local cut (release-cut.mjs check
 // and roll, a release branch in a temporary worktree). Node stdlib only; importing it has no side effect.
 //
 //   aai-release.mjs [--launcher sh|ps1] [--launcher-path P] [--version V] [--dry-run] [--confirm|--yes] [--no-remote] [-h|--help]
@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { main as cutMain } from './release-cut.mjs';
 import { resolvePlatform, createAdapter } from './lib/platform-adapter.mjs';
 
@@ -143,6 +143,7 @@ async function localCut(o, version, root, target, deps) {
       return EXIT.BRANCH;
     }
   }
+  deps.arm?.();
   let wt = '';
   const stop = async () => {
     await deps.tick();
@@ -214,10 +215,10 @@ function realDeps() {
     return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.error ? String(r.error.message) : (r.stderr ?? '') };
   };
   const interrupted = { name: '' };
-  for (const sig of Object.keys(SIGNALS)) process.on(sig, () => { interrupted.name = sig; });
   return {
     git: (args, cwd) => spawn('git', args, cwd),
-    finish: (args) => spawnSync(process.execPath, args, { stdio: 'inherit' }).status ?? 1,
+    // In process: killing the launcher stops the release, as the old exec did.
+    finish: async (args) => (await import(pathToFileURL(args[0]).href)).runCli(args.slice(1)),
     cut: (args) => cutMain(args),
     adapter: (root) => {
       const resolved = resolvePlatform({ repoRoot: root });
@@ -231,6 +232,7 @@ function realDeps() {
     out: (l) => process.stdout.write(`${l}\n`),
     err: (l) => process.stderr.write(`${l}\n`),
     tick: () => new Promise((r) => setImmediate(r)),
+    arm: () => { for (const sig of Object.keys(SIGNALS)) process.on(sig, () => { interrupted.name = sig; }); },
     interrupted: () => interrupted.name,
   };
 }

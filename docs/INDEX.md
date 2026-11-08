@@ -51,7 +51,7 @@ _None._
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | provider-adapter-registry | provider-adapter-registry | 2 | docs/product/provider-adapter-registry.md |
-| release-command-finish | release-command-finish | 7 | docs/product/release-command-finish.md |
+| release-command-finish | release-command-finish | 8 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | ride-status-and-resume | ride-status-and-resume | 1 | docs/product/ride-status-and-resume.md |

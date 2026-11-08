@@ -724,25 +724,37 @@ test_018_generic_non_aai_repo() {
 # --- TEST-019 (Spec-AC-04): ps1 parity — same flags as the bash script -----
 
 test_019_ps1_flag_parity() {
-  log_info "TEST-019: aai-release.ps1 exists and exposes the same flags as aai-release.sh..."
+  log_info "TEST-019: aai-release.ps1 exists, exposes the same flags as aai-release.sh and honours the two environment twins..."
   [[ -f "$RELEASE_PS1" ]] || log_fail "TEST-019: aai-release.ps1 not found"
   grep -q '\$DryRun'  "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a DryRun switch"
   grep -q '\$Version' "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a Version parameter"
   grep -q '\$Confirm' "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a Confirm switch"
   grep -q '\$NoRemote' "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a NoRemote switch"
-  grep -q 'AAI_RELEASE_DATE'       "$RELEASE_PS1" || log_fail "TEST-019: ps1 does not read AAI_RELEASE_DATE"
-  grep -q 'AAI_RELEASE_NO_REMOTE'  "$RELEASE_PS1" || log_fail "TEST-019: ps1 does not read AAI_RELEASE_NO_REMOTE"
 
-  if command -v pwsh >/dev/null 2>&1; then
-    pwsh -NoProfile -Command '
-      $errs = $null
-      [System.Management.Automation.Language.Parser]::ParseFile("'"$RELEASE_PS1"'", [ref]$null, [ref]$errs) | Out-Null
-      if ($errs -and $errs.Count) { $errs | ForEach-Object { Write-Output $_.Message }; exit 1 }
-    ' || log_fail "TEST-019: aai-release.ps1 has parse errors"
-  else
-    log_info "TEST-019 note: pwsh absent — structural flag parity only (parse skipped)"
+  if ! command -v pwsh >/dev/null 2>&1; then
+    [[ -z "${CI:-}" ]] || log_fail "TEST-019: pwsh is required on CI but is not on PATH"
+    echo "SKIP-CASE: TEST-019 needs pwsh for the behavioural arm, which is not installed here"
+    log_pass "TEST-019 ps1 parity (flags present; behavioural arm skipped)"
+    return 0
   fi
-  log_pass "TEST-019 ps1 parity (flags present)"
+  pwsh -NoProfile -Command '
+    $errs = $null
+    [System.Management.Automation.Language.Parser]::ParseFile("'"$RELEASE_PS1"'", [ref]$null, [ref]$errs) | Out-Null
+    if ($errs -and $errs.Count) { $errs | ForEach-Object { Write-Output $_.Message }; exit 1 }
+  ' || log_fail "TEST-019: aai-release.ps1 has parse errors"
+  # The environment twins are read by the module the launcher starts: AAI_RELEASE_DATE pins the CalVer, AAI_RELEASE_NO_REMOTE skips the remote.
+  local repo="$TMP_ROOT/t019-repo" out
+  build_repo "$repo" scaffold_plus_entries
+  ( cd "$repo" && AAI_RELEASE_DATE=2026-07-20 AAI_RELEASE_NO_REMOTE=1 pwsh -NoProfile -NonInteractive -File "$RELEASE_PS1" -DryRun ) >"$TMP_ROOT/t019.out" 2>&1 \
+    || { out="$(cat "$TMP_ROOT/t019.out")"; log_fail "TEST-019: the ps1 dry run exited non-zero: $out"; }
+  out="$(cat "$TMP_ROOT/t019.out")"
+  grep -qxF -- '- Resolved version: v2026.07.20' <<<"$out" || log_fail "TEST-019: AAI_RELEASE_DATE did not pin the ps1 version: $out"
+  grep -qF -- '-NoRemote / AAI_RELEASE_NO_REMOTE=1: push + gh pr create would be SKIPPED' <<<"$out" || log_fail "TEST-019: AAI_RELEASE_NO_REMOTE did not skip the remote in the ps1 plan: $out"
+  ( cd "$repo" && AAI_RELEASE_DATE=2026-07-20 AAI_RELEASE_NO_REMOTE=1 pwsh -NoProfile -NonInteractive -File "$RELEASE_PS1" -Confirm ) >"$TMP_ROOT/t019.out" 2>&1 \
+    || { out="$(cat "$TMP_ROOT/t019.out")"; log_fail "TEST-019: the ps1 local cut exited non-zero: $out"; }
+  out="$(cat "$TMP_ROOT/t019.out")"
+  grep -qF -- '- Remote:  SKIPPED (-NoRemote/AAI_RELEASE_NO_REMOTE=1)' <<<"$out" || log_fail "TEST-019: the ps1 cut report lacks the SKIPPED Remote line: $out"
+  log_pass "TEST-019 ps1 parity (flags present, AAI_RELEASE_DATE and AAI_RELEASE_NO_REMOTE honoured through the launcher)"
 }
 
 # --- TEST-020 (Spec-AC-05, SEAM-2): layer-profiles classification ----------
@@ -2164,8 +2176,8 @@ check('TEST-015',()=>{
  }
  const f=fixture();historical(f,220,'.aai/scripts/unnoted.mjs');
  const scripts=path.join(f.repo,'.aai/scripts'),lib=path.join(scripts,'lib');fs.mkdirSync(lib,{recursive:true});
- for(const name of ['aai-release.sh','aai-release.ps1','release-finish.mjs','release-notes-gate.mjs','release-cut.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts',name),path.join(scripts,name));
- for(const name of ['runtime-file.mjs','github-checks.mjs','release-rollup.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts/lib',name),path.join(lib,name));
+ for(const name of ['aai-release.sh','aai-release.ps1','aai-release.mjs','release-finish.mjs','release-notes-gate.mjs','release-cut.mjs','pr-platform.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts',name),path.join(scripts,name));
+ for(const name of ['runtime-file.mjs','github-checks.mjs','release-rollup.mjs','platform-adapter.mjs','cli-pipe-guard.mjs','docs-model.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts/lib',name),path.join(lib,name));
  const copied=path.join(scripts,'release-finish.mjs'),gate=path.join(scripts,'release-notes-gate.mjs'),notes=path.join(f.d,'audit-notes');fs.writeFileSync(notes,'unrelated notes');
  const audit=()=>spawnSync('node',[copied,'--root',f.repo,'--audit',notes,'--online'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});
  const normal=audit();assert.equal(normal.status,0,normal.stderr);assert.match(normal.stdout,/#220 feat: shipped 220/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='view'&&a[2]==='220').length,1,'real historical metadata read');

@@ -11,6 +11,7 @@ delivered_by:
   - current-head-ci-reader
   - release-rollup-dry-run
   - release-on-node
+  - release-publish-on-node
 spec: docs/specs/SPEC-0233-spec-release-command-finish.md
 updated: 2026-11-08
 ---
@@ -48,7 +49,12 @@ Changed refusal behaviour, identical on both scripts:
 - A plan writes no `.aai-release-changelog.*` file into the repository. When the plan's stdout is closed early (for example piped into `head -1`) it prints nothing on stderr and exits 0, or 141 (SIGPIPE) when the reader is already gone before the first write.
 - Node missing on the plan or the local cut: one line on stderr, exit 20, nothing on stdout.
 
-Slice (a) only: moving the tag, publish and PR steps to the platform adapter and deleting the twin scripts is tracked as `fu-release-slice-b-delete-twins`. The Windows PowerShell 5.1 behaviour of the new `.ps1` is proven by the hosted Windows job, not locally.
+The whole command now runs in `.aai/scripts/aai-release.mjs`; `aai-release.sh` and `aai-release.ps1` are permanent thin launchers of it, and the host calls of `release-finish.mjs` run on the `release` group of the GitHub adapter (`lib/platform-adapter.mjs`).
+
+- `-h` / `--help` print the usage on both launchers; an unknown argument prints `Unknown argument: <a>` and `Run with --help for usage.` and exits 1; `--version` needs a value and `--version=<v>` is accepted; an invalid version refuses with exit 1 before any git write.
+- A release branch with unmerged commits exits 14 (12 stays the malformed-CHANGELOG code); a failing git step of the local cut exits 20 with `REFUSED: git-command`; an interrupt during the local cut removes the worktree and exits 130 or 143.
+- A remote `--confirm` on a platform other than GitHub, or with a platform record that disagrees with the origin, refuses `release-platform` or `platform-mismatch` with exit 20 before any host call; cut locally with `--no-remote`. The plan names these cases in its blocked publish path.
+- Moving the tag and publish steps to Azure DevOps is tracked as `fu-release-azure-remote-finish`; the Windows PowerShell 5.1 behaviour of the launcher is proven by the hosted Windows job. The Windows PowerShell 5.1 behaviour of the new `.ps1` is proven by the hosted Windows job, not locally.
 
 ## Data model
 

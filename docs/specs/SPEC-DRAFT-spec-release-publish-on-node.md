@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 83ffebe9db3e873a7ee1cc776026ffb531afe065071a61d015acfc5390cdd104
+frozen_sha256: ef2b8b0854130db6ce26f4983f6c9f42a11729abb108e11a6c8cdb09b077c2da
 ceremony_level: 2
 links:
   requirement: release-publish-on-node
@@ -110,7 +110,7 @@ spans lines 972 to 1156 (185 lines).
 |---|---|---|
 | arguments, `--dry-run` wins over `--confirm`, environment twins | each script | `aai-release.mjs` |
 | repository check (10), CHANGELOG check (11), version | each script | `aai-release.mjs` |
-| remote `--confirm` hand-off to `release-finish.mjs` | each script | `aai-release.mjs` (spawns the same command) |
+| remote `--confirm` hand-off to `release-finish.mjs` | each script | `aai-release.mjs` (runs the same entry in process) |
 | gh probe for the plan, target branch | each script | `aai-release.mjs` through the platform adapter |
 | plan, `check`, `roll` | `release-cut.mjs` | `release-cut.mjs`, called in process by `aai-release.mjs` |
 | release branch reuse, temporary worktree, `AAI_VERSION.md`, commit, cut report | each script | `aai-release.mjs` |
@@ -305,8 +305,7 @@ and the statement `if (o.dryRun) o.confirm = false;`, and exports:
 - `cutReport(...)` and `usage(launcher)`: the D-OUT lines.
 - `run(argv, deps)`: the whole command, returning the exit code. `deps`
   holds `git(args, cwd)` returning `{ status, stdout, stderr }`,
-  `finish(args)` (spawns `process.execPath` on `FINISH_SCRIPT` next to the
-  module with inherited stdio and returns its exit code),
+  `finish(args)` (imports `FINISH_SCRIPT` next to the module and runs its exported `runCli` in process, so killing the launcher stops the release as the old `exec` did; it returns the exit code),
   `adapter(root)` (returns `{ resolved, adapter }` from the platform
   adapter), `cut` (the `release-cut.mjs` `run`), `readFile`, `writeFile`,
   `mkdtemp`, `rm`, `exists`, `env`, `now`, `cwd`, `out(line)`, `err(line)`.

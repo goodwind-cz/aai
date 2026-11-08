@@ -401,8 +401,6 @@ rfc_problems() {
     const fs = require("fs");
     const text = fs.readFileSync(process.argv[1], "utf8");
     const bad = [];
-    const row = text.split("\n").find((l) => l.startsWith("| `aai-release` |")) || "";
-    if (!row.includes("release-cut.mjs")) bad.push("the aai-release inventory row does not name release-cut.mjs");
     const five = text.split("\n").find((l) => /^\| 5 \| /.test(l)) || "";
     if (!five.includes("| in progress |")) bad.push("the phase 5 row is not in progress");
     const sentence = /The tenth slice \[moved the release rollup to Node\]\(\.\.\/issues\/[A-Za-z0-9-]*release-on-node\.md\): the plan, the local cut and the remote finish roll CHANGELOG\.md through one transform, and the unlogged-PR check renders once; a later slice moves the tag, publish and PR steps to the platform adapter and deletes the twins\./g;
@@ -443,13 +441,13 @@ test_3476_rfc_and_preamble() {
   log_pass "TEST-3476: the RFC-0017 inventory and phase 5 row and the CHANGELOG preamble state the release slice"
 }
 
-# budget_problems <dir>: problems with the two scripts' code-line budgets in a scripts directory (empty when within budget).
+# budget_problems <dir>: problems with the two launchers' code-line budgets in a scripts directory (empty when within budget).
 budget_problems() {
   local n out=""
   n="$(code_lines "$1/aai-release.sh" '#')"
-  [[ "$n" -le 160 ]] || out="$out; aai-release.sh has $n code lines, expected at most 160"
+  [[ "$n" -le 12 ]] || out="$out; aai-release.sh has $n code lines, expected at most 12"
   n="$(code_lines "$1/aai-release.ps1" '#')"
-  [[ "$n" -le 220 ]] || out="$out; aai-release.ps1 has $n code lines, expected at most 220"
+  [[ "$n" -le 40 ]] || out="$out; aai-release.ps1 has $n code lines, expected at most 40"
   printf '%s' "$out"
 }
 
@@ -466,22 +464,6 @@ exit_problems() {
     for (const c of codes) if (!new RegExp("exit " + c + " = ").test(doc)) bad.push("exit " + c + " is not documented as exit " + c + " =");
     process.stdout.write(bad.join("; "));
   ' "$1" "$2"
-}
-
-test_3477_line_budget() {
-  local d="${RCUT_BUDGET_DIR:-$PROJECT_ROOT/.aai/scripts}" out sh ps1 mod before=641 after removed ctl="$TEST_DIR/t77-ctl" i
-  out="$(budget_problems "$d")"
-  [[ -z "$out" ]] || log_fail "TEST-3477: ${out#; }"
-  mkdir -p "$ctl"; cp "$d/aai-release.sh" "$d/aai-release.ps1" "$ctl/"
-  for i in 1 2 3 4 5 6 7 8 9 10; do echo "echo extra line $i $(seq 1 25 | tr '\n' ' ')" >> "$ctl/aai-release.sh"; done
-  for i in $(seq 1 70); do echo "echo extra $i" >> "$ctl/aai-release.sh"; done
-  out="$(budget_problems "$ctl")"
-  [[ "$out" == *"aai-release.sh has "* ]] || log_fail "TEST-3477: positive control: an oversized script was not reported"
-  out="$(exit_problems "$MJS" "$PROJECT_ROOT/.aai/SKILL_RELEASE.prompt.md")"
-  [[ -z "$out" ]] || log_fail "TEST-3477: $out"
-  sh="$(code_lines "$d/aai-release.sh" '#')"; ps1="$(code_lines "$d/aai-release.ps1" '#')"; mod="$(code_lines "$MJS" '//')"
-  after=$((sh + ps1)); removed=$((before - after))
-  log_pass "TEST-3477: code lines before $before, after $after (sh $sh, ps1 $ps1), removed $removed, module $mod (JS: non-blank lines not starting with //; the # pattern would count its // comment lines too)"
 }
 
 test_3478_early_close() {
@@ -652,6 +634,160 @@ test_3529_ps1_launcher() {
   log_pass "TEST-3529: aai-release.ps1 is $n code lines with the six params and the guard, and release-cut.Tests.ps1 passes ($(printf '%s\n' "$out" | sed -n 's/^PESTER-RESULT: //p'))"
 }
 
+test_3524_plan_platform() {
+  run_ar_tests TEST-3524
+  log_pass "TEST-3524: DB-15 and DB-16 and the two GitHub reasons shape the plan's publish-path block"
+}
+
+test_3525_release_host_argv() {
+  run_ar_tests TEST-3525
+  log_pass "TEST-3525: every release method of the github adapter spawns gh with its D-HOST argv and options; other platforms have no release group"
+}
+
+test_3526_finish_on_adapter() {
+  local f="$PROJECT_ROOT/.aai/scripts/release-finish.mjs" g=grep
+  [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
+  [[ "$("$g" -cE "command\\('gh'|spawnSync\\('gh'|function gh\\(|function json\\(" "$f" || true)" == 0 ]] || log_fail "TEST-3526: release-finish.mjs still spawns gh itself or holds a gh helper"
+  "$g" -qF 'run=host?.checksRunner()' "$f" || log_fail "TEST-3526: release-finish.mjs does not hand the release checksRunner to readCurrentChecks"
+  run_ar_tests TEST-3526
+  log_pass "TEST-3526: release-finish.mjs makes its gh calls through the adapter and refuses non-GitHub platforms and mismatches by name before any host call"
+}
+
+test_3531_downstream_install() {
+  local tgt="$TEST_DIR/inst3531 target" bin="$TEST_DIR/t31-bin" f
+  GH_BIN="$bin"; SO="$TEST_DIR/t31.out"; SE="$TEST_DIR/t31.err"
+  make_gh_stub "$bin"
+  init_repo "$tgt"
+  printf '# target\n' > "$tgt/README.md"
+  git -C "$tgt" add -A; git -C "$tgt" commit -q -m init
+  bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$tgt" --profile core >/dev/null 2>&1 || log_fail "TEST-3531: aai-sync.sh --profile core failed"
+  for f in aai-release.mjs release-cut.mjs aai-release.sh aai-release.ps1 lib/platform-adapter.mjs pr-platform.mjs release-finish.mjs; do
+    [[ -f "$tgt/.aai/scripts/$f" ]] || log_fail "TEST-3531: the core install lacks .aai/scripts/$f"
+  done
+  printf '%s\n' '# Changelog' '' '## [unreleased] — feat: target thing' '' 'Body.' '' > "$tgt/CHANGELOG.md"
+  git -C "$tgt" add -A; git -C "$tgt" commit -q -m 'chore: target changelog'
+  RC=0; ( cd "$tgt" && PATH="$bin:$PATH" bash .aai/scripts/aai-release.sh --dry-run --no-remote --version v9 ) >"$SO" 2>"$SE" || RC=$?
+  [[ "$RC" == 0 ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3531: the target's own sh launcher exited $RC"; }
+  grep -qxF '  5:## [v9] — feat: target thing' "$SO" || { cat "$SO" >&2; log_fail "TEST-3531: the target's sh plan lacks the rolled heading line"; }
+  if need_tool TEST-3531 pwsh; then
+    RC=0; ( cd "$tgt" && PATH="$bin:$PATH" pwsh -NoProfile -NonInteractive -File .aai/scripts/aai-release.ps1 -DryRun -NoRemote -Version v9 ) >"$SO" 2>"$SE" || RC=$?
+    [[ "$RC" == 0 ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3531: the target's own ps1 launcher exited $RC"; }
+    grep -qxF '  5:## [v9] — feat: target thing' "$SO" || { cat "$SO" >&2; log_fail "TEST-3531: the target's ps1 plan lacks the rolled heading line"; }
+  fi
+  log_pass "TEST-3531: a core install into a path with a space holds the seven files, and the target's own launchers print the plan"
+}
+
+# ar_copier_problems: test files that copy aai-release.sh into a scratch tree must also copy the module and the adapter.
+ar_copier_problems() {
+  local f g=grep out=""
+  [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
+  for f in $("$g" -rlE "(cp|copyFileSync)[^|;&]*aai-release\\.sh|'aai-release\\.sh'," "$PROJECT_ROOT/tests" 2>/dev/null || true); do
+    [[ "$f" == "$SCRIPT_DIR/test-aai-release-cut.sh" ]] && continue
+    "$g" -qF 'aai-release.mjs' "$f" && "$g" -qF 'platform-adapter.mjs' "$f" || out="$out ${f#"$PROJECT_ROOT"/}"
+  done
+  printf '%s' "$out"
+}
+
+test_3532_callers() {
+  local out rc=0
+  out="$(env -u AAI_ROLE bash "$SCRIPT_DIR/test-aai-learned-routing.sh" test_002_release_names_unlogged_pr 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 10 >&2; log_fail "TEST-3532: test-aai-learned-routing.sh test_002_release_names_unlogged_pr exited $rc"; }
+  rc=0
+  out="$(env -u AAI_ROLE bash "$SCRIPT_DIR/test-aai-release.sh" test_019_ps1_flag_parity 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 10 >&2; log_fail "TEST-3532: test-aai-release.sh test_019_ps1_flag_parity exited $rc"; }
+  [[ ! -e "$SCRIPT_DIR/aai-release.Tests.ps1" ]] || log_fail "TEST-3532: tests/skills/aai-release.Tests.ps1 still exists"
+  ! grep -qE "^Describe '[^']*aai-release\\.ps1" "$SCRIPT_DIR/aai-win-dispatch.Tests.ps1" || log_fail "TEST-3532: aai-win-dispatch.Tests.ps1 still has an aai-release.ps1 Describe"
+  out="$(ar_copier_problems)"
+  [[ -z "$out" ]] || log_fail "TEST-3532: these files copy aai-release.sh without aai-release.mjs and lib/platform-adapter.mjs:$out"
+  rc=0
+  out="$(node "$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 10 >&2; log_fail "TEST-3532: check-vendored-script-deps.mjs exited $rc"; }
+  log_pass "TEST-3532: the existing callers keep working, the deleted Pester files are gone and every copier also copies the module and the adapter"
+}
+
+test_3533_wiring() {
+  local f out n pin wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" nsl="$PROJECT_ROOT/tests/skills/lib/nested-suite-lint.mjs" hyg="$SCRIPT_DIR/test-aai-hygiene-pack.sh" tool
+  out="$(printf '%s\n' .aai/scripts/aai-release.mjs | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")"
+  [[ "$out" == *'SELECTED aai-release-cut '* && "$out" == *'SELECTED aai-release '* ]] || log_fail "TEST-3533: aai-release.mjs does not select aai-release-cut and aai-release: $out"
+  out="$(printf '%s\n' .aai/scripts/lib/platform-adapter.mjs | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")"
+  [[ "$out" == *'SELECTED aai-release-cut '* || "$out" == FULL_RUN* ]] || log_fail "TEST-3533: lib/platform-adapter.mjs selects neither aai-release-cut nor the full run (a shared-lib path): $out"
+  pin="$(grep -E '"\$row_count" -eq [0-9]+ \]\]' "$hyg" | sed -n 1p | sed 's/.*-eq \([0-9][0-9]*\) \]\].*/\1/')"
+  n="$(grep -c '^  aai-[a-z0-9-]*:$' "$PROJECT_ROOT/tests/skills/suite-map.yaml" || true)"
+  [[ "$pin" == "$n" ]] || log_fail "TEST-3533: the hygiene pin reads $pin but suite-map.yaml holds $n suite rows (a row was added or dropped)"
+  env -u AAI_ROLE bash "$hyg" test_090_suite_map_pin >/dev/null 2>&1 || log_fail "TEST-3533: test-aai-hygiene-pack.sh test_090_suite_map_pin failed"
+  node "$nsl" --allowlist "$PROJECT_ROOT/tests/skills/lib/nested-suite-allowlist.tsv" "$PROJECT_ROOT/tests/skills" >/dev/null 2>&1 || log_fail "TEST-3533: nested-suite-lint failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" >/dev/null 2>&1 || log_fail "TEST-3533: check-cd-subshell-leak.mjs failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$PROJECT_ROOT/tests/skills" >/dev/null 2>&1 || log_fail "TEST-3533: check-test-registration.mjs failed"
+  n="$(awk '/^core:/{f=1;next} /^[a-z]/{f=0} f && $0=="  - .aai/scripts/aai-release.mjs"{c++} END{print c+0}' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3533: PROFILES core lists aai-release.mjs $n times, expected 1"
+  env -u AAI_ROLE bash "$SCRIPT_DIR/test-aai-layer-profiles.sh" test_manifest_conformance >/dev/null 2>&1 || log_fail "TEST-3533: test-aai-layer-profiles.sh test_manifest_conformance failed"
+  for tool in '.aai/scripts/aai-release.mjs' '.aai/scripts/lib/platform-adapter.mjs'; do
+    n="$(awk -v want="      - '$tool'" '/^  push:/{s="push"} /^  pull_request:/{s="pr"} /^  workflow_dispatch/{s=""} s!="" && $0==want{c[s]++} END{print c["push"]+0, c["pr"]+0}' "$wf")"
+    [[ "$n" == "1 1" ]] || log_fail "TEST-3533: the ps1-quality path lists hold $tool '$n' times (push pr), expected 1 1"
+  done
+  env -u AAI_ROLE bash "$SCRIPT_DIR/test-aai-win-fallback.sh" test_034 >/dev/null 2>&1 || log_fail "TEST-3533: test-aai-win-fallback.sh test_034 failed"
+  log_pass "TEST-3533: select-suites, the unchanged suite-map row count, the lints, PROFILES and both ps1-quality path lists are wired"
+}
+
+# ar_rfc_problems <rfc> <after>: problems with the RFC-0017 pair table, the pair sentence and the phase 5 sentence (empty when clean).
+ar_rfc_problems() {
+  node -e '
+    const fs = require("fs");
+    const text = fs.readFileSync(process.argv[1], "utf8");
+    const after = process.argv[2];
+    const bad = [];
+    if (text.split("\n").some((l) => l.startsWith("| `aai-release` |"))) bad.push("the pair table still has an aai-release row");
+    const pair = /The \[release slices\]\(\.\.\/issues\/[A-Za-z0-9-]*release-publish-on-node\.md\) moved aai-release to Node modules with thin launchers \(pair 319 to (\d+) code lines\)\./g;
+    const found = [...text.matchAll(pair)];
+    if (found.length !== 1) bad.push("the pair sentence appears " + found.length + " times, expected once");
+    else if (found[0][1] !== after) bad.push("the pair sentence says " + found[0][1] + " code lines, measured " + after);
+    const five = text.split("\n").find((l) => /^\| 5 \| /.test(l)) || "";
+    if (!five.includes("| in progress |")) bad.push("the phase 5 row is not in progress");
+    const phase = /The eleventh slice \[ran the whole release command in Node\]\(\.\.\/issues\/[A-Za-z0-9-]*release-publish-on-node\.md\): aai-release\.sh and aai-release\.ps1 are thin launchers of aai-release\.mjs, and the release host calls run on the platform adapter\./g;
+    if ((text.match(phase) || []).length !== 1) bad.push("the phase 5 sentence appears " + (text.match(phase) || []).length + " times, expected once");
+    if (!(five.match(phase) || []).length) bad.push("the phase 5 row lacks the phase 5 sentence");
+    process.stdout.write(bad.join("; "));
+  ' "$1" "$2"
+}
+
+test_3534_rfc_and_skill() {
+  local out rc=0 prompt="$PROJECT_ROOT/.aai/SKILL_RELEASE.prompt.md" after bytes
+  out="$(env -u AAI_ROLE bash "$SCRIPT_DIR/test-aai-expert-fetch.sh" test_2624_inventory_matches_tree 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 10 >&2; log_fail "TEST-3534: test_2624_inventory_matches_tree exited $rc"; }
+  after=$(( $(code_lines "$SH_SCRIPT" '#') + $(code_lines "$PS1_SCRIPT" '#') ))
+  out="$(ar_rfc_problems "$RFC17" "$after")"
+  [[ -z "$out" ]] || log_fail "TEST-3534: $out"
+  sed 's/moved aai-release to Node modules with thin launchers/moved aai-release to Node modules/' "$RFC17" > "$TEST_DIR/rfc-copy34.md"
+  out="$(ar_rfc_problems "$TEST_DIR/rfc-copy34.md" "$after")"
+  [[ "$out" == *"pair sentence"* ]] || log_fail "TEST-3534: positive control: an RFC without the pair sentence was not reported ($out)"
+  grep -qxF -- '- exit 14 = release branch exists with unmerged commits.' "$prompt" || log_fail "TEST-3534: SKILL_RELEASE lacks the exit 14 line"
+  ! grep -q -- '^- exit 16 = ' "$prompt" || log_fail "TEST-3534: SKILL_RELEASE still has an exit 16 line"
+  bytes="$(wc -c < "$prompt" | tr -d ' ')"
+  [[ "$bytes" -le 4921 ]] || log_fail "TEST-3534: SKILL_RELEASE is $bytes bytes, expected at most 4921"
+  rc=0
+  out="$(env -u AAI_ROLE bash "$SCRIPT_DIR/test-aai-release.sh" test_034_exit_codes_documented 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 10 >&2; log_fail "TEST-3534: test_034_exit_codes_documented exited $rc"; }
+  log_pass "TEST-3534: the RFC-0017 pair table and sentences and the SKILL_RELEASE exit-code line state the release slice ($bytes bytes)"
+}
+
+test_3535_line_budget() {
+  local d="${RCUT_BUDGET_DIR:-$PROJECT_ROOT/.aai/scripts}" out sh ps1 mod before=319 after removed ctl="$TEST_DIR/t35-ctl" i
+  out="$(budget_problems "$d")"
+  [[ -z "$out" ]] || log_fail "TEST-3535: ${out#; }"
+  mkdir -p "$ctl"; cp "$d/aai-release.sh" "$d/aai-release.ps1" "$ctl/"
+  for i in $(seq 1 6); do echo "echo extra $i" >> "$ctl/aai-release.sh"; done
+  for i in $(seq 1 20); do echo "Write-Host extra $i" >> "$ctl/aai-release.ps1"; done
+  out="$(budget_problems "$ctl")"
+  [[ "$out" == *"aai-release.sh has "* && "$out" == *"aai-release.ps1 has "* ]] || log_fail "TEST-3535: positive control: an oversized launcher was not reported ($out)"
+  out="$(exit_problems "$AR_MJS" "$PROJECT_ROOT/.aai/SKILL_RELEASE.prompt.md")"
+  [[ -z "$out" ]] || log_fail "TEST-3535: aai-release.mjs: $out"
+  out="$(exit_problems "$MJS" "$PROJECT_ROOT/.aai/SKILL_RELEASE.prompt.md")"
+  [[ -z "$out" ]] || log_fail "TEST-3535: release-cut.mjs: $out"
+  sh="$(code_lines "$d/aai-release.sh" '#')"; ps1="$(code_lines "$d/aai-release.ps1" '#')"; mod="$(code_lines "$AR_MJS" '//')"
+  after=$((sh + ps1)); removed=$((before - after))
+  log_pass "TEST-3535: code lines before $before, after $after (sh $sh, ps1 $ps1), removed $removed, aai-release.mjs $mod (JS: non-blank lines not starting with //)"
+}
+
 test_3527_drift_coverage() {
   local spec="" out f
   for f in "$PROJECT_ROOT"/docs/specs/*.md; do
@@ -684,7 +820,6 @@ main() {
   test_3474_callers
   test_3475_wiring
   test_3476_rfc_and_preamble
-  test_3477_line_budget
   test_3478_early_close
   test_3520_seam
   test_3521_argument_drift
@@ -694,6 +829,14 @@ main() {
   test_3529_ps1_launcher
   test_3523_launcher_parity
   test_3530_no_publish
+  test_3524_plan_platform
+  test_3525_release_host_argv
+  test_3526_finish_on_adapter
+  test_3531_downstream_install
+  test_3532_callers
+  test_3533_wiring
+  test_3534_rfc_and_skill
+  test_3535_line_budget
   test_3536_early_close
   echo ""
   log_pass "All $TEST_NAME tests passed"
