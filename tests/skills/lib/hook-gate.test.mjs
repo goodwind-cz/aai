@@ -330,6 +330,8 @@ describe('TEST-3501 differential parity with the baseline script', () => {
       const opts = { env: row.env || {}, raw: Boolean(rawText), payloadCwd: row.project === 'lane' ? (row.otherCwd ? other : project.dir) : undefined };
       const run = (script) => gate(script, project, row.gate, rawText ?? cmd, opts);
       const a = run(base);
+      // N13: bash 5 warns on stderr about a NUL dropped from a command substitution; the module drops it silently
+      a.stderr = a.stderr.replace(/^[^\n]*: warning: command substitution: ignored null byte in input\n/gm, '');
       const b = run(LAUNCHER);
       compared += 1;
       if (a.rc === 2) denies += 1; else if (a.rc === 0) allows += 1;
@@ -403,8 +405,16 @@ describe('TEST-3504 inherited pipefail', () => {
     assert.match(commit.stderr, /^AAI pre-commit gate blocked this commit/);
     fs.rmSync(path.join(project.dir, '.checks-fail'));
     // the baseline observation: the early-closing reader under pipefail let merge and state-dump through
-    assert.equal(gate(baseline(), project, 'merge', `gh pr merge 42 --squash\n${filler}`, { env: PIPEFAIL }).rc, 0, 'baseline observation: merge allowed');
-    assert.equal(gate(baseline(), project, 'state-dump', `python3 -c 'yaml.dump(open("docs/ai/STATE.yaml"))'\n${filler}`, { env: PIPEFAIL }).rc, 0, 'baseline observation: state-dump allowed');
+    // Whether the baseline let them through depends on the platform's SIGPIPE/pipefail behaviour (bash 3.2 on macOS
+    // did; bash 5.2 on Linux decides either way), so only macOS pins the allow; elsewhere only the new decision is asserted.
+    const bm = gate(baseline(), project, 'merge', `gh pr merge 42 --squash\n${filler}`, { env: PIPEFAIL }).rc;
+    const bd = gate(baseline(), project, 'state-dump', `python3 -c 'yaml.dump(open("docs/ai/STATE.yaml"))'\n${filler}`, { env: PIPEFAIL }).rc;
+    if (process.platform === 'darwin') {
+      assert.equal(bm, 0, 'baseline observation: merge allowed');
+      assert.equal(bd, 0, 'baseline observation: state-dump allowed');
+    } else {
+      assert.ok([0, 2].includes(bm) && [0, 2].includes(bd), 'the baseline decides 0 or 2 on this platform');
+    }
   });
 });
 
