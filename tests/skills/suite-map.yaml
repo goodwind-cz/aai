@@ -1094,6 +1094,7 @@ suites:
       - .aai/scripts/aai-release.sh
       - .aai/scripts/aai-release.ps1
       - .aai/scripts/release-finish.mjs
+      - .aai/scripts/release-cut.mjs
       - .aai/SKILL_RELEASE.prompt.md
       # simple-and-friendly-to-use (Spec-AC-07 / D5): the version stamp was
       # unmapped, so every release PR escalated to the full sweep; this suite
@@ -1109,6 +1110,26 @@ suites:
       - .claude/skills/aai-release/**
       - .codex/skills/aai-release/**
       - .gemini/skills/aai-release/**
+
+  aai-release-cut:
+    globs:
+      - .aai/scripts/release-cut.mjs
+      - .aai/scripts/aai-release.sh
+      - .aai/scripts/aai-release.ps1
+      - .aai/scripts/lib/release-rollup.mjs
+      - .aai/scripts/release-finish.mjs
+      - .aai/scripts/release-notes-gate.mjs
+      - .aai/SKILL_RELEASE.prompt.md
+      - .aai/system/PROFILES.yaml
+      - .github/workflows/ps1-quality.yml
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - tests/skills/test-aai-release-cut.sh
+      - tests/skills/lib/release-cut.test.mjs
+      - tests/skills/release-cut.Tests.ps1
+      - tests/skills/lib/nested-suite-lint.mjs
+      - tests/skills/lib/nested-suite-allowlist.tsv
+      - tests/skills/suite-map.yaml
+      - tests/skills/suite-weights.tsv
 
   aai-repo-tripwire:
     globs:

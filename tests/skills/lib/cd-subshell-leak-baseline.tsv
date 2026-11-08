@@ -113,6 +113,7 @@
 2	tests/skills/test-aai-recheck.sh
 3	tests/skills/test-aai-reconcile-telemetry.sh
 2	tests/skills/test-aai-redact.sh
+3	tests/skills/test-aai-release-cut.sh
 2	tests/skills/test-aai-release-notes.sh
 3	tests/skills/test-aai-release.sh
 4	tests/skills/test-aai-repo-tripwire.sh

@@ -419,9 +419,7 @@ test_3458_wiring() {
   n="$(awk -F'\t' '$1=="aai-pre-commit-checks"{c++; w=$2} END{print c+0 ":" w}' "$tsv")"
   [[ "$n" == "1:196" ]] || log_fail "TEST-3458: suite-weights holds aai-pre-commit-checks as '$n' (rows:weight), expected 1:196"
   "$GREP" -qxF '# sample aai-pre-commit-checks fallback unsampled (new suite of pre-commit-checks-ps1-retire; no successful observation)' "$tsv" || log_fail "TEST-3458: suite-weights lacks the fallback-unsampled line"
-  row_n="$("$GREP" -cE '^  aai-[a-z0-9-]*:$' "$SCRIPT_DIR/suite-map.yaml" || true)"
-  [[ "$row_n" == 130 ]] || log_fail "TEST-3458: suite-map.yaml holds $row_n suite rows, expected 130"
-  [[ "$("$GREP" -c -- '-eq 130 ]]' "$SCRIPT_DIR/test-aai-hygiene-pack.sh" || true)" == 2 ]] || log_fail "TEST-3458: the two hygiene-pack row-count pins do not both read 130"
+  [[ "$("$GREP" -cE '"\$row_count" -eq [0-9]+ \]\]' "$SCRIPT_DIR/test-aai-hygiene-pack.sh" || true)" == 1 ]] || log_fail "TEST-3458: the hygiene pack does not hold exactly one literal row-count -eq line"
   for sel in test_090_suite_map_pin test_129_mutation_gate_suite_registration test_133_nested_suite_lint_live_and_base; do
     env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" "$sel" >"$TEST_DIR/w.out" 2>&1 || { tail -8 "$TEST_DIR/w.out" >&2; log_fail "TEST-3458: test-aai-hygiene-pack.sh $sel failed"; }
   done
@@ -436,7 +434,7 @@ test_3458_wiring() {
     n="$(awk -v want="      - $g" '/^  push:/{s="push"} /^  pull_request:/{s="pr"} /^  workflow_dispatch/{s=""} s!="" && $0==want{c[s]++} END{print c["push"]+0, c["pr"]+0}' "$wf")"
     [[ "$n" == "1 1" ]] || log_fail "TEST-3458: the ps1-quality path lists hold $g '$n' times (push pr), expected 1 1"
   done
-  log_pass "TEST-3458: select-suites, weights, hygiene pins at 130, lints, win-fallback, prompt-diet and the ps1-quality path lists are wired"
+  log_pass "TEST-3458: select-suites, weights, the single hygiene pin, lints, win-fallback, prompt-diet and the ps1-quality path lists are wired"
 }
 
 test_3459_downstream_install() {
