@@ -51,6 +51,23 @@ Describe 'aai-release.ps1 via release-cut.mjs' {
       $p.WaitForExit()
       return [pscustomobject]@{ Code = $p.ExitCode; Out = $so.Result; Err = $se.Result }
     }
+    function Invoke-Engine {
+      param([string]$WorkDir, [string]$Arguments)
+      $psi = New-Object System.Diagnostics.ProcessStartInfo
+      $psi.FileName = $script:Engine
+      $psi.Arguments = $Arguments
+      $psi.WorkingDirectory = $WorkDir
+      $psi.UseShellExecute = $false
+      $psi.RedirectStandardOutput = $true
+      $psi.RedirectStandardError = $true
+      $psi.StandardOutputEncoding = $script:Utf8
+      $psi.StandardErrorEncoding = $script:Utf8
+      $p = [System.Diagnostics.Process]::Start($psi)
+      $so = $p.StandardOutput.ReadToEndAsync()
+      $se = $p.StandardError.ReadToEndAsync()
+      $p.WaitForExit()
+      return [pscustomobject]@{ Code = $p.ExitCode; Out = $so.Result; Err = $se.Result }
+    }
     function Get-BlobText {
       param([string]$Dir, [string]$Spec)
       $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -142,5 +159,26 @@ Describe 'aai-release.ps1 via release-cut.mjs' {
     $r = Invoke-Script $d '-Confirm -NoRemote -Version v9'
     $r.Code | Should -Be 15 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $r.Err.Trim() | Should -Be 'REFUSED: tag v9 already exists.'
+  }
+
+  It 'DB-10 relays the cut report on the success stream of the caller' {
+    $d = New-Project 'db10' $script:Good
+    $cmd = "`$o = @(& '" + $script:Script + "' -Confirm -NoRemote -Version v9); [Console]::Out.Write('CAPTURED=' + `$o.Count + '|' + `$o[0])"
+    $r = Invoke-Engine $d ('-NoProfile -NonInteractive -Command "' + ($cmd -replace '"', '\"') + '"')
+    $r.Code | Should -Be 0 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
+    $m = [regex]::Match($r.Out, '^CAPTURED=(\d+)\|(.*)$', 'Singleline')
+    $m.Success | Should -BeTrue -Because $r.Out
+    [int]$m.Groups[1].Value | Should -Be 5
+    $m.Groups[2].Value.Trim() | Should -Be ('## aai-release ' + $script:Dash + ' cut complete')
+  }
+
+  It 'DB-19 dot-sourcing the launcher defines nothing and runs nothing' {
+    $d = Join-Path $TestDrive 'dot'
+    New-Item -ItemType Directory -Force -Path $d | Out-Null
+    $cmd = ". '" + $script:Script + "'; if (Get-Command Invoke-NativeChecked, Invoke-Quiet, Select-CapturedValue -ErrorAction SilentlyContinue) { 'DEFINED' } else { 'CLEAN' }"
+    $r = Invoke-Engine $d ('-NoProfile -NonInteractive -Command "' + ($cmd -replace '"', '\"') + '"')
+    $r.Code | Should -Be 0 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
+    $r.Out.Trim() | Should -Be 'CLEAN'
+    $r.Err | Should -Be ''
   }
 }

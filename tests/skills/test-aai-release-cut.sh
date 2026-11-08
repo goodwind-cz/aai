@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Test: aai-release-cut
-# (docs/specs/SPEC-0281-spec-release-on-node.md, TEST-3462..3478)
+# (docs/specs/SPEC-0281-spec-release-on-node.md, TEST-3462..3478;
+#  docs/specs/SPEC-DRAFT-spec-release-publish-on-node.md, TEST-3520..3536)
 #
 # release-cut is one Node module (.aai/scripts/release-cut.mjs) behind aai-release.sh and aai-release.ps1.
 # Every case works in fresh mktemp fixtures with a stub gh first on PATH and local bare origins; no case runs
@@ -28,6 +29,9 @@ SH_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-release.sh"
 PS1_SCRIPT="$PROJECT_ROOT/.aai/scripts/aai-release.ps1"
 PESTER_FILE="$PROJECT_ROOT/tests/skills/release-cut.Tests.ps1"
 SPEC_ID="spec-release-on-node"
+AR_MJS="$PROJECT_ROOT/.aai/scripts/aai-release.mjs"
+AR_TEST="${RCUT_AR_TEST:-$PROJECT_ROOT/tests/skills/lib/aai-release.test.mjs}"
+AR_SPEC_ID="spec-release-publish-on-node"
 MISSING_NODE='REFUSED: missing-node — Node.js 22 or later is required for /aai-release (https://nodejs.org/); nothing was changed.'
 
 cleanup() {
@@ -563,6 +567,60 @@ test_3478_early_close() {
   log_pass "TEST-3478: a plan piped into head -1 ends quietly with exit 141"
 }
 
+# run_ar_tests <TEST id>: the aai-release node:test cases named with the id must pass; zero passing tests is a failure.
+run_ar_tests() {
+  local id="$1" out rc=0
+  [[ -f "$AR_TEST" ]] || log_fail "$id: tests/skills/lib/aai-release.test.mjs does not exist"
+  out="$(env -u AAI_ROLE node --test --test-name-pattern "$id" "$AR_TEST" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "$id: node --test exited $rc"; }
+  [[ "$out" =~ pass\ [1-9] ]] || { printf '%s\n' "$out" >&2; log_fail "$id: node --test reported zero passing tests for the pattern"; }
+}
+
+test_3520_seam() {
+  run_ar_tests TEST-3520
+  log_pass "TEST-3520: importing aai-release.mjs has no side effect, run hands a remote confirm to finish and a bare run to the plan"
+}
+
+test_3521_argument_drift() {
+  run_ar_tests TEST-3521
+  log_pass "TEST-3521: DB-01 to DB-05 behave as decided"
+}
+
+# db_problems <spec> <node test file> <pester file>: DB ids of the D-DRIFT table vs test names (empty when they agree).
+db_problems() {
+  cat > "$TEST_DIR/db-drift.cjs" <<'JS'
+const fs = require('fs');
+const [spec, nodeTests, pester] = process.argv.slice(2);
+const table = fs.readFileSync(spec, 'utf8').split('\n').map((l) => l.match(/^\| (DB-\d\d) \|/)).filter(Boolean).map((m) => m[1]);
+const names = [
+  ...fs.readFileSync(nodeTests, 'utf8').matchAll(/^test\('(?:TEST-\d+ )?(DB-\d\d)\b/gm),
+  ...fs.readFileSync(pester, 'utf8').matchAll(/^\s*It '(DB-\d\d)\b/gm),
+].map((m) => m[1]);
+const bad = [];
+for (const id of table) { const n = names.filter((x) => x === id).length; if (n !== 1) bad.push(`${id} begins ${n} test names`); }
+for (const id of new Set(names)) if (!table.includes(id)) bad.push(`${id} is not in the D-DRIFT table`);
+if (table.length !== 19) bad.push(`the table holds ${table.length} ids, expected 19`);
+process.stdout.write(bad.join('; '));
+JS
+  node "$TEST_DIR/db-drift.cjs" "$1" "$2" "$3"
+}
+
+test_3527_drift_coverage() {
+  local spec="" out f
+  for f in "$PROJECT_ROOT"/docs/specs/*.md; do
+    if grep -qx "id: $AR_SPEC_ID" "$f"; then spec="$f"; break; fi
+  done
+  [[ -n "$spec" ]] || log_fail "TEST-3527: no spec with id $AR_SPEC_ID under docs/specs"
+  [[ -f "$AR_TEST" ]] || log_fail "TEST-3527: tests/skills/lib/aai-release.test.mjs does not exist"
+  [[ -f "$PESTER_FILE" ]] || log_fail "TEST-3527: tests/skills/release-cut.Tests.ps1 does not exist"
+  out="$(db_problems "$spec" "$AR_TEST" "$PESTER_FILE")"
+  [[ -z "$out" ]] || log_fail "TEST-3527: $out"
+  sed "s/'TEST-3522 DB-06 /'TEST-3522 DB-60 /" "$AR_TEST" > "$TEST_DIR/renamed-ar.test.mjs"
+  out="$(db_problems "$spec" "$TEST_DIR/renamed-ar.test.mjs" "$PESTER_FILE")"
+  [[ "$out" == *"DB-06 begins 0"* && "$out" == *"DB-60 is not in"* ]] || log_fail "TEST-3527: positive control: the renamed DB-06 was not reported ($out)"
+  log_pass "TEST-3527: every D-DRIFT id begins exactly one test name and no name begins with a missing id"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3462..3478)"
   check_deps
@@ -584,6 +642,9 @@ main() {
   test_3476_rfc_and_preamble
   test_3477_line_budget
   test_3478_early_close
+  test_3520_seam
+  test_3521_argument_drift
+  test_3527_drift_coverage
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
