@@ -3719,3 +3719,4 @@
 {"v":1,"ts":"2026-11-08T13:02:00Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-on-node","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-08T13:02:00Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-release-on-node","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-08T13:39:35Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":714,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-08T14:03:40Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"release-on-node","payload":{"pr":541,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"eee57cc000da6c6173340fa7cdf8abaef6aa92e1"}}
