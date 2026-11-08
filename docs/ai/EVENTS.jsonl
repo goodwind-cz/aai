@@ -3711,3 +3711,4 @@
 {"v":1,"ts":"2026-11-07T21:34:23Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pre-commit-checks-ps1-retire","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-07T21:34:23Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-pre-commit-checks-ps1-retire","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-07T22:00:35Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"pre-commit-checks-ps1-retire","payload":{"pr":540,"lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"swept","head_sha":"eeaef14ff08e8f8a6c69b5bf2195cc0ddc94c1a0"}}
+{"v":1,"ts":"2026-11-08T09:02:10Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-on-node","payload":{"from":"draft","to":"implementing"}}
