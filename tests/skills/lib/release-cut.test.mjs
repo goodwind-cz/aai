@@ -1,5 +1,5 @@
 // release-cut.test.mjs - node:test cases for .aai/scripts/release-cut.mjs
-// (docs/specs/SPEC-DRAFT-spec-release-on-node.md, TEST-3462 to TEST-3466 and TEST-3478; one case per drift DR-01..DR-22).
+// (docs/specs/SPEC-0281-spec-release-on-node.md, TEST-3462 to TEST-3466 and TEST-3478; one case per drift DR-01..DR-22).
 // Every case works in a fresh temp directory: recording fakes for the unit cases, scratch git repositories and
 // the real release-finish.mjs --audit for the integration cases. No case runs a real gh, pushes, tags or publishes,
 // and none reads or writes the repository's own CHANGELOG.md.

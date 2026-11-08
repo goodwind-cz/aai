@@ -147,7 +147,7 @@ pairs:
   - capability: pre-commit-checks-ps1-retire
     status: done
   - capability: release-on-node
-    status: planned
+    status: done
   - capability: hook-gate-on-node
     status: planned
   - capability: install-path-parity-harness

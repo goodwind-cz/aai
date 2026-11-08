@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "main...refactor/release-on-node (a01e8db3); STATE code_review.scope path list (21 paths)"
-  spec: docs/specs/SPEC-DRAFT-spec-release-on-node.md
+  spec: docs/specs/SPEC-0281-spec-release-on-node.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -51,7 +51,7 @@ security_relevant: false
   `docs/ai/decisions.jsonl` and `docs/ai/tests/test-runs.jsonl` (append-only telemetry ledgers, no
   reviewable code). They are missing from the recorded scope; I read their branch hunks: append-only lines,
   nothing to review. Added to the scope in the state command for completeness.
-- Spec: `docs/specs/SPEC-DRAFT-spec-release-on-node.md` (frozen, spec-lint PASS).
+- Spec: `docs/specs/SPEC-0281-spec-release-on-node.md` (frozen, spec-lint PASS).
 - Dispatch prompt: no coaching (no expected findings, severity or exclusions named).
 
 ## What I ran

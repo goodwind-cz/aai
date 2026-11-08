@@ -10,8 +10,9 @@ delivered_by:
   - release-same-version-recovery
   - current-head-ci-reader
   - release-rollup-dry-run
+  - release-on-node
 spec: docs/specs/SPEC-0233-spec-release-command-finish.md
-updated: 2026-10-28
+updated: 2026-11-08
 ---
 
 # Complete and resume a release

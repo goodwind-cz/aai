@@ -1,10 +1,10 @@
 ---
 id: spec-release-on-node
 type: spec
-number: null
-status: implementing
+number: 281
+status: done
 mutation_gate: v1
-frozen_sha256: febd3ce5c328b6f8cb8d7ef248c1991824dbde9ce81c517c34dfd12c1bf36748
+frozen_sha256: 9b6136309eea3a203be8f247623c5a48e8dca11fafa0312b7a666352d0f743e3
 ceremony_level: 2
 links:
   requirement: release-on-node
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Move the release CHANGELOG rollup and unlogged-PR check of aai-release to one Node module](../issues/CHANGE-DRAFT-release-on-node.md).
+- Requirement: [Move the release CHANGELOG rollup and unlogged-PR check of aai-release to one Node module](../issues/CHANGE-0251-release-on-node.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 6, slice (a) of two (the owner merges).
@@ -69,8 +69,8 @@ SPEC-FROZEN: true
   tests/skills/test-aai-pre-commit-checks.sh tests/skills/test-aai-release.sh
   tests/skills/test-aai-learned-routing.sh
   tests/skills/lib/cd-subshell-leak-baseline.tsv
-  docs/issues/CHANGE-DRAFT-release-on-node.md
-  docs/specs/SPEC-DRAFT-spec-release-on-node.md docs/INDEX.md
+  docs/issues/CHANGE-0251-release-on-node.md
+  docs/specs/SPEC-0281-spec-release-on-node.md docs/INDEX.md
   (cd-subshell-leak-baseline.tsv only if the ratchet asks for a row).
 - Code review required: true.
 
@@ -416,11 +416,11 @@ stay as they are at `ed97f6a8` (TEST-3469's mutation targets that block).
 ### D-RFC. RFC-0017 and CHANGELOG
 
 - RFC-0017 inventory row `aai-release`: the Notes cell gains
-  `; its rollup and unlogged-PR check run in release-cut.mjs since the [release slice](../issues/CHANGE-DRAFT-release-on-node.md)`
+  `; its rollup and unlogged-PR check run in release-cut.mjs since the [release slice](../issues/CHANGE-0251-release-on-node.md)`
   at its end. Every other row stays byte for byte.
 - Phase 5 row: one sentence after the ninth-slice sentence and before the
   remaining-scripts-plan sentence:
-  `The tenth slice [moved the release rollup to Node](../issues/CHANGE-DRAFT-release-on-node.md): the plan, the local cut and the remote finish roll CHANGELOG.md through one transform, and the unlogged-PR check renders once; a later slice moves the tag, publish and PR steps to the platform adapter and deletes the twins.`
+  `The tenth slice [moved the release rollup to Node](../issues/CHANGE-0251-release-on-node.md): the plan, the local cut and the remote finish roll CHANGELOG.md through one transform, and the unlogged-PR check renders once; a later slice moves the tag, publish and PR steps to the platform adapter and deletes the twins.`
   Status stays `in progress`; frontmatter untouched. The allocator rewrites
   both links at merge; checks match only the suffix `release-on-node.md`.
 - CHANGELOG preamble (closes `fu-changelog-exit12-second-arm`): the sentence
