@@ -43,6 +43,13 @@ const WS = ASCII_SPACE_ONLY ? WS_ASCII : `${WS_ASCII}\\u00a0\\u1680\\u2000-\\u20
 const HS = `[${WS.replace('\\n', '')}]`;
 const SP = `[${WS}]`;
 const NSP = `[^${WS}]`;
+// ASCII-only twins (B4). Linux bash 5 split a merge target with tr, on ASCII
+// white space in every locale. Every pattern that can ALLOW (the PR target of
+// gate 2b, the lane path) uses these on every platform, so a non-ASCII
+// separator never turns an old deny into an allow; the wide class above only
+// widens what is DETECTED as a merge command.
+const SPA = `[${WS_ASCII}]`;
+const NSPA = `[^${WS_ASCII}]`;
 const rx = (src, flags = '') => new RegExp(src, flags);
 
 // grep -E per line (the m flag): the commit and merge command shapes.
@@ -59,11 +66,11 @@ const IN_PROGRESS_RE = rx(`^${HS}+status:${HS}*in_progress`, 'm');
 // ends and a newline is ordinary white space.
 const NL = '\n';
 const LANE_MARKER_RE = /^AAI_[A-Z0-9_]+_MERGE$/;
-const LANE_ASSIGNS_RE = rx(`^${SP}*([A-Za-z_][A-Za-z0-9_]*=${NSP}*${SP}+)*$`);
-const LANE_SOLE_MERGE_RE = rx(`^${SP}*([A-Za-z_][A-Za-z0-9_]*=${NSP}*${SP}+)*gh${SP}+pr${SP}+merge(${SP}|$)`);
-const LANE_PREFIX_RE = rx(`(^|[;&|(${NL}])([^;&|(${NL}]*)gh${SP}+pr${SP}+merge(${SP}|$)`);
+const LANE_ASSIGNS_RE = rx(`^${SPA}*([A-Za-z_][A-Za-z0-9_]*=${NSPA}*${SPA}+)*$`);
+const LANE_SOLE_MERGE_RE = rx(`^${SPA}*([A-Za-z_][A-Za-z0-9_]*=${NSPA}*${SPA}+)*gh${SPA}+pr${SPA}+merge(${SPA}|$)`);
+const LANE_PREFIX_RE = rx(`(^|[;&|(${NL}])([^;&|(${NL}]*)gh${SPA}+pr${SPA}+merge(${SPA}|$)`);
 const LANE_ALLOWED_RE = /^MERGE-POLICY allowed pr=([0-9]+) lane=([^\s=]+) marker=(AAI_[A-Z0-9_]+_MERGE) decision_ref=([^\s=]+) merge_reaches=(nothing|preview|production)$/;
-const LANE_MATCH_HEAD_RE = rx(`--match-head-commit${SP}+([0-9a-fA-F]+)`);
+const LANE_MATCH_HEAD_RE = rx(`--match-head-commit${SPA}+([0-9a-fA-F]+)`);
 
 const ARTICLE7_LINES = [
   'Merge denied: constitution article 7 (operator-only merge) — the agent never merges;',
@@ -121,7 +128,7 @@ export function checkMergeShape(segment) {
   const refuse = (verdict) => ({ ok: false, verdict });
   if (segment.includes("'") || segment.includes('"')) return refuse('lane path refused: a quote character is not permitted on the merge-policy lane');
   if (segment.includes('\\')) return refuse('lane path refused: a backslash is not permitted on the merge-policy lane');
-  const rest = segment.replace(rx(`^${SP}*gh${SP}+pr${SP}+merge`), '');
+  const rest = segment.replace(rx(`^${SPA}*gh${SPA}+pr${SPA}+merge`), '');
   const tokens = rest.split(/[ \t\n]+/).filter(Boolean);
   let havePr = false; let haveMode = false; let haveDelete = false; let haveMatch = false;
   for (let i = 0; i < tokens.length; i += 1) {
@@ -179,12 +186,12 @@ function sweepExtra(env, withBase) {
 function mergeTargetPr(seg, cmd, root, deps) {
   const flagValue = '(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)';
   let search = seg
-    .replace(rx(`(^|${SP})${flagValue}${SP}+"[^"]*"`, 'g'), '')
-    .replace(rx(`(^|${SP})${flagValue}${SP}+'[^']*'`, 'g'), '')
-    .replace(rx(`(^|${SP})${flagValue}${SP}+${NSP}+`, 'g'), '');
+    .replace(rx(`(^|${SPA})${flagValue}${SPA}+"[^"]*"`, 'g'), '')
+    .replace(rx(`(^|${SPA})${flagValue}${SPA}+'[^']*'`, 'g'), '')
+    .replace(rx(`(^|${SPA})${flagValue}${SPA}+${NSPA}+`, 'g'), '');
   search = search.replace(/"([0-9]+)"/g, ' $1 ').replace(/'([0-9]+)'/g, ' $1 ');
-  const target = search.replace(rx(`^${SP}*gh${SP}+pr${SP}+merge`), '').replace(rx(`(^|${SP})-[A-Za-z0-9-]+`, 'g'), '')
-    .split(rx(`${SP}+`)).find(Boolean) || '';
+  const target = search.replace(rx(`^${SPA}*gh${SPA}+pr${SPA}+merge`), '').replace(rx(`(^|${SPA})-[A-Za-z0-9-]+`, 'g'), '')
+    .split(rx(`${SPA}+`)).find(Boolean) || '';
   const view = (args) => {
     const r = deps.run('gh', args, { cwd: root });
     const out = r.status === 0 ? stripNl(r.stdout) : '';

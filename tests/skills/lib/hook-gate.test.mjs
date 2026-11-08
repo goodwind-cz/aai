@@ -448,6 +448,22 @@ describe('TEST-3505 kept decisions', () => {
       assert.equal(l.rc, 2, `LC_ALL=${loc}`);
     }
     assert.equal(decideIn(project, 'merge', 'ls -la').code, 0);
+    // the operator-marker path: a PR target is split on ASCII white space only, so a target carrying a
+    // non-ASCII separator stays whole, cannot be resolved and is denied (PR 42 has a sweep record)
+    const op = { AAI_OPERATOR_MERGE: '1' };
+    const seps = [0x85, 0xa0, 0x1680, ...Array.from({ length: 11 }, (_, i) => 0x2000 + i), 0x2028, 0x2029, 0x202f, 0x205f, 0x3000].map((c) => String.fromCharCode(c));
+    assert.equal(decideIn(project, 'merge', 'gh pr merge 42', { env: op }).code, 0);
+    for (const c of seps) {
+      for (const cmd of [`gh pr merge 42${c}`, `gh pr merge 42${c} --squash`, `gh pr merge ${c}42`, `gh pr merge 42${c}x`, `gh pr merge --squash${c}42`,
+        `gh pr merge --match-head-commit${c}abc123 42`, `gh pr merge -R${c}o/r 42`, `gh pr merge --subject${c}x 42`]) {
+        const d = decideIn(project, 'merge', cmd, { env: op });
+        assert.equal(d.code, 2, JSON.stringify(cmd));
+        assert.match(d.stderr, /^Merge denied: could not resolve a PR for target "/, JSON.stringify(cmd));
+      }
+    }
+    for (const loc of ['C', 'C.UTF-8']) {
+      for (const c of ['\u00a0', '\u2003', '\u2028']) assert.equal(gate(LAUNCHER, project, 'merge', `gh pr merge 42${c}`, { env: { ...op, LC_ALL: loc } }).rc, 2, `LC_ALL=${loc} U+${c.codePointAt(0).toString(16)}`);
+    }
   });
 
   test('DG-10 U+FEFF is not white space: the gate decides as the baseline script did, on every path', () => {

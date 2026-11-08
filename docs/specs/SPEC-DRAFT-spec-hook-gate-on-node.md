@@ -3,7 +3,7 @@ id: spec-hook-gate-on-node
 type: spec
 number: null
 status: implementing
-frozen_sha256: 7c5671b03cb9b1598ca82619928540570f15843b0936d6feb05ab9da36d48a07
+frozen_sha256: 03f25378d460b5483a79d61c6db29e1a7f905f210a6d4df4083119e2bcf7f3c8
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -225,7 +225,7 @@ with the DG id. "Kept" means the module decides exactly as the script at
 | DG-03 | text that only names a merge command (`git commit -m "explain git merge handling"`, `echo gh pr merge 5`) | denied (exit 2) | kept: denied. A quote-aware parse would also let `bash -c 'gh pr merge 5'` through; a false deny costs a rephrase, a false allow costs article 7 |
 | DG-04 | operator marker as a command prefix (`AAI_OPERATOR_MERGE=1 gh pr merge 42 --squash`) | denied | kept: only the hook environment's marker counts (TEST-1520). `fu-merge-gh-line-powershell` stays open; accepting a prefix is a policy decision for the owner |
 | DG-05 | payload whose command is JSON-escaped (`"gh pr merge 5"`) | denied (node decodes the JSON) | kept: the pre-filter forwards every payload containing a backslash-u escape, so the module decodes and denies |
-| DG-06 | non-ASCII whitespace between command words (`gh<U+00A0>pr merge 5`) | locale-dependent: denied under a UTF-8 locale, allowed under `LC_ALL=C` | denied under every locale: the module's whitespace class is explicit, ASCII white space plus U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F and U+3000 (what a UTF-8 `[[:space:]]` matched), never JavaScript `\s`. Under `LC_ALL=C` bash does not split on these, so a command that never runs as a merge is denied (a false positive); with `AAI_OPERATOR_MERGE=1` a PR target such as `5<U+00A0>` is also split at the character, so gate 2b then checks the sweep record of PR 5 where the old gate under `LC_ALL=C` denied it as unresolvable (a new allow, bounded: the number is still sweep-checked and `gh` itself rejects the argument). Under a UTF-8 locale the decision equals the old one |
+| DG-06 | non-ASCII whitespace between command words (`gh<U+00A0>pr merge 5`), and in a PR target (`5<U+00A0>`) | depends on platform and locale. The command-shape patterns (grep, sed, `[[ =~ ]]`) follow the locale: under `LC_ALL=C` no non-ASCII character is white space, so the command is allowed; under a UTF-8 locale macOS bash 3.2 counts U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F and U+3000, and Linux bash 5.2 with glibc counts the same minus U+00A0, U+2007 and U+202F (those three are allowed). The merge target is split by `tr`: on ASCII white space only on Linux in every locale, at the same characters as the patterns on macOS under a UTF-8 locale. | two classes. Detection, which can only add a deny: the module's whitespace class is explicit, ASCII white space plus U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F and U+3000, never JavaScript `\s`, the same on every platform and locale; a command that never runs as a merge under the old locale is denied (a false positive). Allowing, where a wider class could turn a deny into an allow: the PR target of gate 2b (the flag-value strip and the split) and the merge-policy lane path use ASCII white space only, on every platform and locale, as Linux `tr` did. So with `AAI_OPERATOR_MERGE=1` a target such as `5<U+00A0>` stays whole, `gh` cannot resolve it, and the gate denies it (the old gate under macOS UTF-8 split it at the character and checked the sweep record of PR 5). Every difference from the old gate that remains, on both platforms and in every locale, is a new deny |
 | DG-07 | Node absent; module file absent or empty | every gate allows, except a merge-shaped payload with a lane marker set in the environment (the no-node lane guard: article 7 deny plus `merge-policy: evaluator unavailable: node not found (the command could not be read)`) | kept for Node absent (the launcher keeps the guard, same bytes); a missing or empty module allows, except the same lane guard (the launcher tests the module with `-s`, so an empty file counts as missing) |
 | DG-08 | `stop-nudge` | prints the nudge when an indented `status: in_progress` line exists and LOOP_TICKS.jsonl is absent or not newer than STATE.yaml; never exit 2 | kept, byte for byte |
 | DG-09 | multi-line command text | `grep` matches line by line (`^` at each line start) | kept: every regex the module ports from a `grep` call runs with the `m` flag, and `MERGE_SEG` is the first match on any line, as `grep -o` and `head -1` gave |
@@ -249,7 +249,8 @@ which the mutations below target:
 - `const ASCII_SPACE_ONLY = false;` (DG-06): every ported `[[:space:]]`
   becomes the explicit class of DG-06 (ASCII white space plus the non-ASCII
   members a UTF-8 `[[:space:]]` matches, never JavaScript `\s`), or
-  `[ \t\n\v\f\r]` when this flag is true
+  `[ \t\n\v\f\r]` when this flag is true; the PR target of gate 2b and the
+  lane path always use `[ \t\n\v\f\r]`, whatever the flag says
 - `const AZURE_COMPLETED = 'completed';`
 - `const PLATFORM_SCRIPT = 'platform.mjs';`
 - `const SWEEP_DENY_RC = 5;`
@@ -457,7 +458,9 @@ everywhere.
 ## Constitution deviations
 
 None. Article 7 (operator-only merge): the gate denies one more merge form
-(DG-01) and allows nothing it denied before; DG-04 keeps the marker rule.
+(DG-01) and DG-06 denies more command shapes; the gate allows nothing it
+denied before, on macOS and on Linux, in every locale (the PR target and the
+lane path use ASCII white space only); DG-04 keeps the marker rule.
 Article 6 (single-writer STATE): the state-dump gate is unchanged in what it
 denies and decides on the whole text (DG-02). Article 4 (degrade and
 report): the gate stays fail-open on its own errors, as its header states,
@@ -511,7 +514,7 @@ before the run's hand-off.
 | TEST-3502 | Spec-AC-06 | inspection | tests/skills/test-aai-hook-gate.sh | test_3502_drift_coverage reads the DG ids of the D-DRIFT table of this spec (found by its id spec-hook-gate-on-node under docs/specs) and the test names of tests/skills/lib/hook-gate.test.mjs; each behaviour id begins exactly one test name and no test name begins with an id the table lacks; positive control: a scratch copy with DG-06 renamed is reported | `sed:s/'DG-06 /'DG-60 /` on tests/skills/lib/hook-gate.test.mjs | green |
 | TEST-3503 | Spec-AC-03 | integration | tests/skills/test-aai-hook-gate.sh | test_3503_azure_forms runs run_node_tests TEST-3503 and the launcher on the platform.mjs merge and az repos pr update forms: no marker gives 2 and the article 7 text; marker and no pr_sweep record gives 2 and the gate 2b text naming 7; a valid record gives 0; no number gives 2 and the unidentified text, 0 with lane-gate.mjs renamed away; a lane marker alone gives 2 with a merge-policy line; the c88cf708 script gives 0 on the no-marker rows (RED) | `sed:s/const AZURE_COMPLETED = 'completed';/const AZURE_COMPLETED = 'complete';/` on .aai/scripts/hook-gate.mjs | green |
 | TEST-3504 | Spec-AC-04 | integration | tests/skills/test-aai-hook-gate.sh | test_3504_inherited_pipefail exports SHELLOPTS with pipefail and runs the launcher on the three 8001-line commands (merge 2, state-dump 2, commit with a failing checks script 2) and the c88cf708 script on the merge and state-dump ones (0, recorded as the baseline observation) | `patch:docs/ai/tdd/spec-hook-gate-on-node/mutation-TEST-3504.patch` on .aai/scripts/hook-gate.mjs | green |
-| TEST-3505 | Spec-AC-05 | unit | tests/skills/test-aai-hook-gate.sh | test_3505_kept_decisions runs run_node_tests TEST-3505: DG-03 (two text-only commands deny), DG-05 (escaped JSON denies), DG-06 (U+00A0 between words denies), DG-07 (decide is not reached: the launcher with no node on PATH and with the module renamed allows ls and a merge, and denies a merge with a lane marker in the env with the no-node text), DG-08 (nudge line byte for byte, never 2), DG-09 (a merge on the third line is found and MERGE_SEG is that line's segment), DG-10 (U+FEFF between words denies), DG-11 (no-break-space indent nudges under LC_ALL=C), DG-12 (ticks in the same second as STATE do not silence the nudge) | `sed:s/const ASCII_SPACE_ONLY = false;/const ASCII_SPACE_ONLY = true;/` on .aai/scripts/hook-gate.mjs | green |
+| TEST-3505 | Spec-AC-05 | unit | tests/skills/test-aai-hook-gate.sh | test_3505_kept_decisions runs run_node_tests TEST-3505: DG-03 (two text-only commands deny), DG-05 (escaped JSON denies), DG-06 (U+00A0 between words denies, and a PR target carrying any non-ASCII separator is denied as unresolvable on the operator-marker path), DG-07 (decide is not reached: the launcher with no node on PATH and with the module renamed allows ls and a merge, and denies a merge with a lane marker in the env with the no-node text), DG-08 (nudge line byte for byte, never 2), DG-09 (a merge on the third line is found and MERGE_SEG is that line's segment), DG-10 (U+FEFF between words is not a separator: a merge command stays undetected and allowed, as the baseline allowed it, and inside a PR target on the operator-marker path it is denied), DG-11 (no-break-space indent nudges under LC_ALL=C), DG-12 (ticks in the same second as STATE do not silence the nudge) | `sed:s/const ASCII_SPACE_ONLY = false;/const ASCII_SPACE_ONLY = true;/` on .aai/scripts/hook-gate.mjs | green |
 | TEST-3506 | Spec-AC-07 | integration | tests/skills/test-aai-hook-gate.sh | test_3506_prefilter puts the counting node wrapper first on PATH; ls, git status and git log payloads on commit, merge and state-dump leave the log empty with exit 0; git merge feature-x on merge adds exactly one line; then runs run_node_tests TEST-3506, which checks for every corpus row the pre-filter would skip that decide returns code 0 | `sed:s/\*merge\*/*mergx*/` on .aai/scripts/claude-hook-gate.sh | green |
 | TEST-3507 | Spec-AC-08 | integration | tests/skills/test-aai-hook-gate.sh | test_3507_latency runs node tests/skills/lib/hook-gate-latency.mjs with the c88cf708 script and the launcher, n=40, prints the D-MEASURE table and fails when a ratio bound of Spec-AC-08 is exceeded on two measurements in a row (a failing ratio is measured once more); with AAI_HOOK_GATE_REFERENCE_HOST=1 also checks the absolute p95 bounds | `patch:docs/ai/tdd/spec-hook-gate-on-node/mutation-TEST-3507.patch` on .aai/scripts/claude-hook-gate.sh | green |
 | TEST-3508 | Spec-AC-09 | inspection | tests/skills/test-aai-hook-gate.sh | test_3508_launcher_shape counts code lines with grep -cvE on the hash comment and blank pattern under bash with /usr/bin/grep when present (at most 70), requires set -u, no set -e and no pipefail, no single pipe after removing the OR operator, none of the seven tools as a command word, zero lines from check-cd-subshell-leak for the file, the module name, and runs the launcher with a fake module that exits 2, 1 and 3 (2, 0, 0), and with exit 1, exit 3, a syntax error and an unreadable module under a lane marker (merge-shaped payload 2 with the lane guard text, other payload 0, no marker 0) | `sed:s/\[ "\$rc" -eq 2 \] \&\& exit 2/[ "$rc" -ne 0 ] \&\& exit 2/` on .aai/scripts/claude-hook-gate.sh | green |
@@ -587,10 +590,11 @@ above.
   spec name; a command shape outside it can still differ. The `m`-flag and
   whitespace rules (DG-06, DG-09) close the two systematic differences
   found between `grep` and JavaScript regexes.
-- DG-06 makes the gate deny a command it allowed under `LC_ALL=C`, and with
-  `AAI_OPERATOR_MERGE=1` lets a PR target carrying a non-ASCII separator reach
-  the sweep check of the number before it (a bounded new allow under
-  `LC_ALL=C` only; the number is still checked and `gh` rejects the argument).
+- DG-06 makes the gate deny a command it allowed where the old locale class
+  was narrower (`LC_ALL=C`; U+00A0, U+2007 and U+202F on Linux). The PR target
+  and the lane path split on ASCII white space only, so a target carrying a
+  non-ASCII separator is never split and never reaches the sweep check of the
+  number before it: no new allow on either platform.
   DG-10 keeps the old decisions, U+FEFF included. DG-11 and DG-12 can only add a reminder.
 - The gate guards Claude Code sessions only where the overlay is installed;
   Codex and Gemini sessions are not gated (unchanged; the `.aai` scripts
