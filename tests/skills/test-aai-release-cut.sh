@@ -329,10 +329,10 @@ test_3471_ps1_script() {
   done
   local g=grep guard fn
   [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
-  guard="$("$g" -nF "if (\$MyInvocation.InvocationName -ne '.')" "$PS1_SCRIPT" | head -n 1 | cut -d: -f1)"
+  guard="$("$g" -nF "if (\$MyInvocation.InvocationName -ne '.')" "$PS1_SCRIPT" | cut -d: -f1 | sed -n 1p)"
   [[ -n "$guard" ]] || log_fail "TEST-3471: the dot-source guard line is missing"
   for fn in Invoke-NativeChecked Select-CapturedValue; do
-    t="$("$g" -nE "^function $fn " "$PS1_SCRIPT" | head -n 1 | cut -d: -f1)"
+    t="$("$g" -nE "^function $fn " "$PS1_SCRIPT" | cut -d: -f1 | sed -n 1p)"
     [[ -n "$t" && "$t" -lt "$guard" ]] || log_fail "TEST-3471: $fn is not defined above the dot-source guard"
   done
   make_fixture_a "$fx"
@@ -443,7 +443,7 @@ test_3475_wiring() {
   grep -qxF '# sample aai-release-cut fallback unsampled (new suite of release-on-node; no successful observation)' "$tsv" || log_fail "TEST-3475: suite-weights lacks the aai-release-cut fallback line"
   n="$(grep -cE '"\$row_count" -eq [0-9]+ \]\]' "$hyg" || true)"
   [[ "$n" == 1 ]] || log_fail "TEST-3475: the hygiene pack holds $n literal row-count -eq lines, expected exactly 1"
-  pin="$(grep -E '"\$row_count" -eq [0-9]+ \]\]' "$hyg" | head -n 1 | sed 's/.*-eq \([0-9][0-9]*\) \]\].*/\1/')"
+  pin="$(grep -E '"\$row_count" -eq [0-9]+ \]\]' "$hyg" | sed -n 1p | sed 's/.*-eq \([0-9][0-9]*\) \]\].*/\1/')"
   n="$(grep -c '^  aai-[a-z0-9-]*:$' "$PROJECT_ROOT/tests/skills/suite-map.yaml" || true)"
   [[ "$pin" == "$n" ]] || log_fail "TEST-3475: the hygiene pin reads $pin but suite-map.yaml holds $n suite rows"
   for f in "$SCRIPT_DIR/test-aai-cloudflare-share.sh" "$SCRIPT_DIR/test-aai-pre-commit-checks.sh"; do
