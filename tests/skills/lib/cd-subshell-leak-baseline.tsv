@@ -21,7 +21,6 @@
 10	.aai/scripts/aai-run-tests.sh
 2	.aai/scripts/aai-sync.sh
 1	.aai/scripts/aai-update.sh
-8	.aai/scripts/claude-hook-gate.sh
 1	.aai/scripts/cloudflare-share.sh
 1	.aai/scripts/expert-fetch.sh
 1	.aai/scripts/install-pre-commit-hook.sh

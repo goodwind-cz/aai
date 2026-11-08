@@ -286,3 +286,5 @@ aai-pre-commit-checks	196
 
 # sample aai-release-cut fallback unsampled (new suite of release-on-node; no successful observation)
 aai-release-cut	196
+# sample aai-hook-gate fallback unsampled (new suite of hook-gate-on-node; no successful observation)
+aai-hook-gate	196

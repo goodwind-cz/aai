@@ -657,12 +657,33 @@ suites:
       - .aai/SKILL_HITL.prompt.md
       - .aai/scripts/orchestration-dispatch.mjs
 
+  aai-hook-gate:
+    globs:
+      - .aai/scripts/hook-gate.mjs
+      - .aai/scripts/claude-hook-gate.sh
+      - .aai/templates/hooks/**
+      - .aai/scripts/merge-policy.mjs
+      - .aai/scripts/lane-gate.mjs
+      - .aai/workflow/WORKFLOW.md
+      - docs/ai/docs-audit.yaml
+      - .aai/templates/docs-audit.template.yaml
+      - .aai/system/PROFILES.yaml
+      - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
+      - tests/skills/test-aai-hook-gate.sh
+      - tests/skills/lib/hook-gate.test.mjs
+      - tests/skills/lib/hook-gate-latency.mjs
+      - tests/skills/lib/nested-suite-lint.mjs
+      - tests/skills/lib/nested-suite-allowlist.tsv
+      - tests/skills/suite-map.yaml
+      - tests/skills/suite-weights.tsv
+
   aai-hooks-overlay:
     companions:
       - aai-prompt-diet
     globs:
       - .aai/templates/hooks/**
       - .aai/scripts/claude-hook-gate.sh
+      - .aai/scripts/hook-gate.mjs
       - .aai/scripts/aai-bootstrap.sh
       - .aai/SKILL_PR.prompt.md
 
@@ -907,6 +928,7 @@ suites:
       - .aai/scripts/merge-policy.mjs
       - .aai/scripts/lane-gate.mjs
       - .aai/scripts/claude-hook-gate.sh
+      - .aai/scripts/hook-gate.mjs
       - docs/ai/merge-policy.yaml
 
   aai-metrics:

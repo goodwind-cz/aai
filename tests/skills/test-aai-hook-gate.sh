@@ -28,6 +28,7 @@ MJS="$PROJECT_ROOT/.aai/scripts/hook-gate.mjs"
 LAUNCHER="${AAI_HOOK_GATE_LAUNCHER:-$PROJECT_ROOT/.aai/scripts/claude-hook-gate.sh}"
 NODE_TEST="${AAI_HOOK_GATE_NODE_TEST:-$PROJECT_ROOT/tests/skills/lib/hook-gate.test.mjs}"
 SPEC_ID="spec-hook-gate-on-node"
+CD_LEAK="$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs"
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then echo "INFO: keeping fixture at $TEST_DIR"; return 0; fi
@@ -177,7 +178,7 @@ test_3506_prefilter() {
   lines="$(wc -l < "$log" | tr -d ' ')"
   [[ "$lines" == 1 ]] || log_fail "TEST-3506: a delegated payload started node $lines time(s) (want exactly 1)"
   run_node_tests TEST-3506
-  log_pass "TEST-3506: no node start for a payload that cannot concern its gate, exactly one when delegated; the skipped rows are rows the module allows"
+  log_pass "TEST-3506: no node start for a payload that cannot concern its gate, exactly one when delegated; the rows the pre-filter passes over are rows the module allows"
 }
 
 test_3507_latency() {
@@ -208,15 +209,15 @@ test_3508_launcher_shape() {
   [[ -z "$bad" ]] || log_fail "TEST-3508: the launcher calls a text tool: $bad"
   grep -qF 'hook-gate.mjs' "$LAUNCHER" || log_fail "TEST-3508: the launcher does not name hook-gate.mjs"
   grep -qxF '[ "$rc" -eq 2 ] && exit 2' "$LAUNCHER" || log_fail "TEST-3508: the launcher lacks the literal rc line"
-  mkdir -p "$d/cd/.aai/scripts"
-  cp "$LAUNCHER" "$d/cd/.aai/scripts/claude-hook-gate.sh"
-  git -C "$d/cd" init -q
-  git -C "$d/cd" add -A
-  git -C "$d/cd" -c user.email=fixture@example.invalid -c user.name=fixture commit -q -m fixture
-  out="$(node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" --root "$d/cd" --baseline /dev/null 2>&1 || true)"
+  mkdir -p "$d/leakroot/.aai/scripts"
+  cp "$LAUNCHER" "$d/leakroot/.aai/scripts/claude-hook-gate.sh"
+  git -C "$d/leakroot" init -q
+  git -C "$d/leakroot" add -A
+  git -C "$d/leakroot" -c user.email=fixture@example.invalid -c user.name=fixture commit -q -m fixture
+  out="$(node "$CD_LEAK" --root "$d/leakroot" --baseline /dev/null 2>&1 || true)"
   [[ "$out" == *"cd-subshell leaks: 0 occurrence(s) in 0 of 1"* ]] || log_fail "TEST-3508: check-cd-subshell-leak reports the launcher: $out"
-  echo 'x="$(cd /tmp && pwd)"' >> "$d/cd/.aai/scripts/claude-hook-gate.sh"
-  out="$(node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" --root "$d/cd" --baseline /dev/null 2>&1 || true)"
+  printf 'x="$(%s /tmp && pwd)"\n' cd >> "$d/leakroot/.aai/scripts/claude-hook-gate.sh"
+  out="$(node "$CD_LEAK" --root "$d/leakroot" --baseline /dev/null 2>&1 || true)"
   [[ "$out" == *"cd-subshell leaks: 1 occurrence(s)"* ]] || log_fail "TEST-3508: positive control: a cd in a substitution was not reported: $out"
   for want in "2 2" "1 0" "3 0"; do
     fake="$d/fake-${want%% *}"
@@ -298,6 +299,99 @@ test_3511_protected_lists() {
   log_pass "TEST-3511: both gate files are L3-protected in docs-audit.yaml, its template and WORKFLOW.md; TEST-014 reads every entry"
 }
 
+# yaml_row_globs <suite-map> <suite>: the glob lines of one suite-map row.
+row_globs() {
+  awk -v want="  $2:" '$0 == want {f=1; next} f && /^  [a-z0-9][a-z0-9-]*:$/ {exit} f {print}' "$1"
+}
+
+# selected_in <root> <file>: the select-suites answer for one changed file under a repo root.
+selected_in() {
+  printf '%s\n' "$2" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$1"
+}
+
+test_3512_wiring() {
+  local f out n sel="$TEST_DIR/t3512-root" tsv="$SCRIPT_DIR/suite-weights.tsv" nsl="$SCRIPT_DIR/lib/nested-suite-lint.mjs" profiles="$PROJECT_ROOT/.aai/system/PROFILES.yaml" c
+  # The two gate files are L3-protected, so the real tree answers FULL_RUN for them; the suite map is read in a scratch root
+  # whose docs-audit.yaml lists neither (everything else is the live map and the live profiles).
+  mkdir -p "$sel/tests/skills" "$sel/docs/ai" "$sel/.aai/system"
+  cp "$SCRIPT_DIR/suite-map.yaml" "$sel/tests/skills/"
+  cp "$profiles" "$sel/.aai/system/"
+  awk '!/claude-hook-gate\.sh|hook-gate\.mjs/' "$PROJECT_ROOT/docs/ai/docs-audit.yaml" > "$sel/docs/ai/docs-audit.yaml"
+  for f in .aai/scripts/hook-gate.mjs .aai/scripts/claude-hook-gate.sh; do
+    out="$(selected_in "$sel" "$f")"
+    [[ "$out" == *'SELECTED aai-hook-gate '* ]] || log_fail "TEST-3512: $f does not select aai-hook-gate: $out"
+  done
+  out="$(selected_in "$sel" .aai/scripts/hook-gate.mjs)"
+  for c in aai-hooks-overlay aai-merge-policy; do
+    [[ "$out" == *"SELECTED $c "* ]] || log_fail "TEST-3512: the module does not select $c: $out"
+  done
+  for f in tests/skills/test-aai-hook-gate.sh tests/skills/lib/hook-gate.test.mjs tests/skills/lib/hook-gate-latency.mjs; do
+    out="$(selected_in "$PROJECT_ROOT" "$f")"
+    [[ "$out" == *'SELECTED aai-hook-gate '* ]] || log_fail "TEST-3512: $f does not select aai-hook-gate: $out"
+  done
+  n="$(awk -F'\t' '$1=="aai-hook-gate" && $2==196{c++} END{print c+0}' "$tsv")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3512: suite-weights holds $n aai-hook-gate rows at 196, expected 1"
+  grep -qxF '# sample aai-hook-gate fallback unsampled (new suite of hook-gate-on-node; no successful observation)' "$tsv" || log_fail "TEST-3512: suite-weights lacks the aai-hook-gate fallback line"
+  for f in test_090_suite_map_pin test_129_mutation_gate_suite_registration; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" "$f" >"$TEST_DIR/t3512.out" 2>&1 || { tail -n 8 "$TEST_DIR/t3512.out" >&2; log_fail "TEST-3512: test-aai-hygiene-pack.sh $f failed"; }
+  done
+  node "$nsl" --allowlist "$SCRIPT_DIR/lib/nested-suite-allowlist.tsv" "$SCRIPT_DIR" >/dev/null 2>&1 || log_fail "TEST-3512: nested-suite-lint failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" >/dev/null 2>&1 || log_fail "TEST-3512: check-cd-subshell-leak.mjs failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" >/dev/null 2>&1 || log_fail "TEST-3512: check-test-registration.mjs failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs" >/dev/null 2>&1 || log_fail "TEST-3512: check-vendored-script-deps.mjs failed"
+  n="$(grep -cxF '  - .aai/scripts/hook-gate.mjs' "$profiles" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3512: PROFILES lists the module $n times, expected once"
+  out="$(awk '/^[a-z]+:/ {s=$1} s=="core:" && /hook-gate\.mjs/ {print "core"}' "$profiles")"
+  [[ "$out" == core ]] || log_fail "TEST-3512: PROFILES does not list the module under core"
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-layer-profiles.sh" test_manifest_conformance >/dev/null 2>&1 || log_fail "TEST-3512: test-aai-layer-profiles.sh test_manifest_conformance failed"
+  log_pass "TEST-3512: the suite map, weights, profiles and ratchets know the new suite and the module"
+}
+
+test_3513_downstream_install() {
+  local tgt="$TEST_DIR/inst target" bin="$TEST_DIR/t13-bin" log="$TEST_DIR/t13.log" rc=0 err
+  mkdir -p "$tgt"
+  git -C "$tgt" init -q -b main
+  git -C "$tgt" config user.email fixture@example.invalid
+  git -C "$tgt" config user.name fixture
+  git -C "$tgt" config commit.gpgsign false
+  printf '# target\n' > "$tgt/README.md"
+  git -C "$tgt" add -A
+  git -C "$tgt" commit -q -m init
+  bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$tgt" --profile core >/dev/null 2>&1 || log_fail "TEST-3513: aai-sync.sh --profile core failed"
+  [[ -f "$tgt/.aai/scripts/claude-hook-gate.sh" && -f "$tgt/.aai/scripts/hook-gate.mjs" ]] || log_fail "TEST-3513: the core install lacks the launcher or the module"
+  make_node_counter "$bin" "$log"
+  : > "$log"
+  write_payload "$TEST_DIR/t13-merge.json" 'gh pr merge 5'
+  err="$TEST_DIR/t13.err"
+  PATH="$bin:$PATH" CLAUDE_PROJECT_DIR="$tgt" bash "$tgt/.aai/scripts/claude-hook-gate.sh" merge < "$TEST_DIR/t13-merge.json" > /dev/null 2> "$err" || rc=$?
+  [[ "$rc" == 2 ]] || log_fail "TEST-3513: the target's launcher exited $rc on gh pr merge 5 (want 2)"
+  grep -qF 'Merge denied: constitution article 7 (operator-only merge)' "$err" || log_fail "TEST-3513: the deny lacks the article 7 text: $(cat "$err")"
+  write_payload "$TEST_DIR/t13-ls.json" 'ls'
+  : > "$log"
+  rc=0
+  PATH="$bin:$PATH" CLAUDE_PROJECT_DIR="$tgt" bash "$tgt/.aai/scripts/claude-hook-gate.sh" merge < "$TEST_DIR/t13-ls.json" > /dev/null 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-3513: the target's launcher exited $rc on ls (want 0)"
+  [[ ! -s "$log" ]] || log_fail "TEST-3513: ls started node in the target"
+  log_pass "TEST-3513: a core install (target path with a space) holds the launcher and the module; the target's own launcher denies gh pr merge 5 and allows ls without starting node"
+}
+
+test_3514_lines_and_rfc() {
+  local before=341 after mod removed rfc="$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md" row n
+  local sentence="The eleventh slice [moved the Claude hook gate's decisions to Node](../issues/CHANGE-DRAFT-hook-gate-on-node.md): one module decides the four gates behind a bash pre-filter that starts no Node process for a command that cannot concern a gate, the Azure merge command is gated like gh pr merge, and the gate is an L3 protected surface."
+  after="$(code_lines "$LAUNCHER" '#')"
+  mod="$(code_lines "$MJS" '//')"
+  removed=$((before - after))
+  echo "INFO: code lines before $before, launcher after $after, removed $removed, module $mod (JS: non-blank lines not starting with //)"
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-expert-fetch.sh" test_2624_inventory_matches_tree >/dev/null 2>&1 || log_fail "TEST-3514: test-aai-expert-fetch.sh test_2624_inventory_matches_tree failed"
+  row="$(grep -F "$sentence" "$rfc" || true)"
+  [[ -n "$row" ]] || log_fail "TEST-3514: the RFC-0017 phase 5 row lacks the D-RFC sentence"
+  n="$(grep -cF "$sentence" "$rfc" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3514: the D-RFC sentence appears $n times, expected once"
+  [[ "$row" == '| 5 |'* && "$row" == *'in progress'* ]] || log_fail "TEST-3514: the phase 5 row no longer reads in progress"
+  [[ "$after" -lt "$before" && "$mod" -gt 0 ]] || log_fail "TEST-3514: unexpected line counts (launcher $after, module $mod)"
+  log_pass "TEST-3514: code lines before $before, after $after (launcher), removed $removed, module $mod; the RFC-0017 phase 5 row holds the sentence once and stays in progress"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3514)"
   check_deps
@@ -314,6 +408,9 @@ main() {
   test_3509_callers
   test_3510_guard_paths
   test_3511_protected_lists
+  test_3512_wiring
+  test_3513_downstream_install
+  test_3514_lines_and_rfc
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

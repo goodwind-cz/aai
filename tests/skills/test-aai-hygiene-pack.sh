@@ -1102,8 +1102,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 131 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 131 (pin moved for the release-cut suite) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 132 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 132 (pin moved for the hook-gate suite) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
