@@ -231,6 +231,73 @@ test_3508_launcher_shape() {
   log_pass "TEST-3508: launcher code lines $n (at most 70), set -u without -e or pipefail, no pipe or text tool, exit 2 maps to 2 and every other exit to 0"
 }
 
+# fn_body <file> <function name>: the text of one bash function (from its header line to the closing brace).
+fn_body() {
+  awk -v n="$2" '$0 ~ "^"n"\\(\\) \\{" {f=1} f {print} f && /^}/ {exit}' "$1"
+}
+
+# run_selector <TEST id> <suite file> <selector>: runs one test function of another suite; fails with its tail.
+run_selector() {
+  local out rc=0
+  out="$(env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/$2" "$3" 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 12 >&2; log_fail "$1: $2 $3 exited $rc"; }
+}
+
+test_3509_callers() {
+  local ho="$SCRIPT_DIR/test-aai-hooks-overlay.sh" mp="$SCRIPT_DIR/test-aai-merge-policy.sh" f body
+  for f in test_003_script_conformance test_009_stop_nudge test_016_merge_gate_sweep_check; do
+    body="$(fn_body "$ho" "$f")"
+    [[ "$body" == *'hook-gate.mjs'* || "$body" == *'$GATE_MODULE'* ]] || log_fail "TEST-3509: hooks-overlay $f does not read hook-gate.mjs"
+  done
+  body="$(fn_body "$mp" test_1571_skill_pr_merge_command_passes_hook_shape)"
+  [[ "$body" == *checkMergeShape* ]] || log_fail "TEST-3509: merge-policy TEST-1571 does not use checkMergeShape of the module"
+  [[ "$body" != *"awk '/^lane_check_merge_shape"* ]] || log_fail "TEST-3509: merge-policy TEST-1571 still awk-extracts lane_check_merge_shape from the script"
+  for f in test_003_script_conformance test_009_stop_nudge test_016_merge_gate_sweep_check test_1502_no_marker_bytes_equal_base; do
+    run_selector TEST-3509 test-aai-hooks-overlay.sh "$f"
+  done
+  run_selector TEST-3509 test-aai-merge-policy.sh test_1571_skill_pr_merge_command_passes_hook_shape
+  log_pass "TEST-3509: the hooks-overlay and merge-policy callers read the module and keep passing (TEST-1502 unchanged)"
+}
+
+test_3510_guard_paths() {
+  local out rc=0
+  out="$(env -u AAI_ROLE node --input-type=module -e '
+    const m = await import(process.argv[1]);
+    if (!m.GUARD_PATHS.includes(".aai/scripts/hook-gate.mjs")) { console.log("GUARD_PATHS lacks hook-gate.mjs"); process.exit(1); }
+    const r = m.classifyFiles([".aai/scripts/hook-gate.mjs"], { architecture: [], kinds: [], lanes: [] });
+    console.log(r.denyReason);
+  ' "file://$PROJECT_ROOT/.aai/scripts/merge-policy.mjs" 2>&1)" || rc=$?
+  [[ "$rc" == 0 && "$out" == policy_touched ]] || log_fail "TEST-3510: GUARD_PATHS / classifyFiles: $out (rc=$rc)"
+  grep -qF "closure.add('.aai/scripts/hook-gate.mjs');" "$SCRIPT_DIR/test-aai-merge-policy.sh" || log_fail "TEST-3510: TEST-1507 does not add hook-gate.mjs to the closure"
+  run_selector TEST-3510 test-aai-merge-policy.sh test_1507_guard_paths_superset_of_import_closure
+  log_pass "TEST-3510: GUARD_PATHS names hook-gate.mjs, TEST-1507 closes over it and a file list holding only the module is policy_touched"
+}
+
+# yaml_l3_block <file>: the protected_paths_l3 entries of a docs-audit YAML, one per line.
+yaml_l3_block() {
+  awk '/^protected_paths_l3:/ {f=1; next} f && /^  - / {sub(/^  - /, ""); print; next} f && !/^[[:space:]]*#/ {exit}' "$1"
+}
+
+test_3511_protected_lists() {
+  local f out wf="$PROJECT_ROOT/.aai/workflow/WORKFLOW.md" hitl="$SCRIPT_DIR/test-aai-hitl-propagation.sh" bullet want
+  want=$'.aai/scripts/pre-commit-checks.ps1\n.aai/scripts/claude-hook-gate.sh\n.aai/scripts/hook-gate.mjs'
+  for f in "$PROJECT_ROOT/docs/ai/docs-audit.yaml" "$PROJECT_ROOT/.aai/templates/docs-audit.template.yaml"; do
+    out="$(yaml_l3_block "$f" | awk '/pre-commit-checks.ps1/ {n=3} n>0 {print; n--}')"
+    [[ "$out" == "$want" ]] || log_fail "TEST-3511: ${f##*/}: the entries after pre-commit-checks.ps1 are not the two gate files: $out"
+  done
+  bullet="$(awk '/^- guards:/ {f=1; print; next} f && /^- / {exit} f {print}' "$wf" | tr '\n' ' ')"
+  [[ "$bullet" =~ pre-commit-checks\.ps1.*claude-hook-gate\.sh.*hook-gate\.mjs ]] || log_fail "TEST-3511: the WORKFLOW.md guards bullet does not name both gate files after the pre-commit checks: $bullet"
+  run_selector TEST-3511 test-aai-sync-seed.sh test_audit_template_single_source
+  run_selector TEST-3511 test-aai-hitl-propagation.sh test_014_no_protected_path_touched
+  out="$(fn_body "$hitl" test_014_no_protected_path_touched)"
+  [[ "$out" != *'qhead -8'* ]] || log_fail "TEST-3511: hitl-propagation TEST-014 still reads only the first 8 protected entries"
+  for f in .aai/scripts/claude-hook-gate.sh .aai/scripts/hook-gate.mjs; do
+    out="$(printf '%s\n' "$f" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT")"
+    [[ "$out" == *"FULL_RUN reason=protected-l3"* ]] || log_fail "TEST-3511: select-suites does not answer FULL_RUN reason=protected-l3 for $f: $out"
+  done
+  log_pass "TEST-3511: both gate files are L3-protected in docs-audit.yaml, its template and WORKFLOW.md; TEST-014 reads every entry"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3514)"
   check_deps
@@ -244,6 +311,9 @@ main() {
   test_3506_prefilter
   test_3507_latency
   test_3508_launcher_shape
+  test_3509_callers
+  test_3510_guard_paths
+  test_3511_protected_lists
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

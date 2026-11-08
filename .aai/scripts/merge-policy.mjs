@@ -55,6 +55,7 @@ export const GUARD_PATHS = [
   'docs/ai/merge-policy.yaml',
   '.aai/scripts/merge-policy.mjs',
   '.aai/scripts/claude-hook-gate.sh',
+  '.aai/scripts/hook-gate.mjs',
   '.aai/scripts/lane-gate.mjs',
   '.aai/scripts/lib/cli-pipe-guard.mjs',
   '.aai/scripts/lib/pr-sweep.mjs',

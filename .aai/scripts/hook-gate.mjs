@@ -2,8 +2,8 @@
 //
 // hook-gate.mjs — the decisions of the Claude Code hook gate (RFC-0010 /
 // spec-hook-enforced-gates), behind the bash launcher
-// .aai/scripts/claude-hook-gate.sh. Four gates read one PreToolUse/Stop
-// payload (JSON on stdin) and either allow (exit 0) or deny (exit 2, the
+// .aai/scripts/claude-hook-gate.sh (four gates). Each reads one PreToolUse/Stop
+// payload (JSON on stdin) and either allows (exit 0) or deny (exit 2, the
 // reason on stderr):
 //   commit      run .aai/scripts/pre-commit-checks.sh before `git commit`
 //   merge       constitution article 7 (operator-only merge); the merge-policy
