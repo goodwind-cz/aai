@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-07T21:34:31.421Z",
+  "generatedAt": "2026-11-08T13:02:08.390Z",
   "project": "aai",
   "counts": {
-    "delivered": 348,
+    "delivered": 349,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -235,6 +235,19 @@
   ],
   "delivered": [
     {
+      "ref": "release-on-node",
+      "title": "Move the release CHANGELOG rollup and unlogged-PR check of aai-release to one Node module",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0251-release-on-node.md",
+      "closed_on": "2026-11-08",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0281-spec-release-on-node.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-release-on-node-20261108T125742Z.md"
+    },
+    {
       "ref": "cloudflare-share-on-node",
       "title": "Port the Cloudflare share script pair to one Node module",
       "type": "change",
@@ -271,7 +284,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-pre-commit-checks-ps1-retire-r1-20261107T213007Z.md"
     },
     {
       "ref": "release-fixture-atomic-publication",
@@ -4786,6 +4799,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "release-on-node",
+          "title": "Move the release CHANGELOG rollup and unlogged-PR check of aai-release to one Node module",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0251-release-on-node.md",
+          "closed_on": "2026-11-08",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0281-spec-release-on-node.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-release-on-node-20261108T125742Z.md"
+        },
+        {
           "ref": "cloudflare-share-on-node",
           "title": "Port the Cloudflare share script pair to one Node module",
           "type": "change",
@@ -4822,7 +4848,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-pre-commit-checks-ps1-retire-r1-20261107T213007Z.md"
         },
         {
           "ref": "release-fixture-atomic-publication",

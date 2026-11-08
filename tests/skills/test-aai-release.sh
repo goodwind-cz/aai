@@ -2164,7 +2164,7 @@ check('TEST-015',()=>{
  }
  const f=fixture();historical(f,220,'.aai/scripts/unnoted.mjs');
  const scripts=path.join(f.repo,'.aai/scripts'),lib=path.join(scripts,'lib');fs.mkdirSync(lib,{recursive:true});
- for(const name of ['aai-release.sh','aai-release.ps1','release-finish.mjs','release-notes-gate.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts',name),path.join(scripts,name));
+ for(const name of ['aai-release.sh','aai-release.ps1','release-finish.mjs','release-notes-gate.mjs','release-cut.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts',name),path.join(scripts,name));
  for(const name of ['runtime-file.mjs','github-checks.mjs','release-rollup.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts/lib',name),path.join(lib,name));
  const copied=path.join(scripts,'release-finish.mjs'),gate=path.join(scripts,'release-notes-gate.mjs'),notes=path.join(f.d,'audit-notes');fs.writeFileSync(notes,'unrelated notes');
  const audit=()=>spawnSync('node',[copied,'--root',f.repo,'--audit',notes,'--online'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});

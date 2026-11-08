@@ -10,8 +10,9 @@ delivered_by:
   - release-same-version-recovery
   - current-head-ci-reader
   - release-rollup-dry-run
+  - release-on-node
 spec: docs/specs/SPEC-0233-spec-release-command-finish.md
-updated: 2026-10-28
+updated: 2026-11-08
 ---
 
 # Complete and resume a release
@@ -34,6 +35,20 @@ PowerShell uses `powershell -NoProfile -File .aai/scripts/aai-release.ps1 -Versi
 Remote preview reads the authoritative base SHA but never fetches missing objects. If its object is unavailable, follow the printed fetch-before-preview remedy, then preview again. Confirm may fetch missing objects without changing tracking refs or FETCH_HEAD, and audits that exact remote snapshot before preparing release mutations. The audit derives its previous-release boundary from authoritative remote tags and their peeled commits, even when local tag refs are absent. Incomplete or unavailable history refuses; a true first release audits the complete shipped history. Genuine unnoted shipped history refuses; CHANGELOG-only history, proven previous release PRs and valid same-line nonempty `no-notes: <reason>` markers are exempt under the existing notes classifier. A shipped PR counts as noted when its `#N` or title is in the rolled notes, or when an `## [unreleased] — <title>` heading it added is present (rewritten to the version) among the rolled headings, so slug-cited headings need no `#N`. Only tags matching `v?[0-9]` are release boundaries; tags that do not peel to a commit are ignored.
 
 `--no-remote` / `-NoRemote`, or `AAI_RELEASE_NO_REMOTE=1`, makes a local cut with a named remote-finish skip. Repositories without `release.yml` receive a manual-tagging skip after merge. The client does not publish tags or releases directly.
+
+## Local paths: plan, dry-run and local cut
+
+The plan preview, `--dry-run` and the local cut (`--confirm --no-remote`) of both `aai-release.sh` and `aai-release.ps1` now call one Node module, `.aai/scripts/release-cut.mjs` (`plan`, `check` and `roll` commands). It rolls `CHANGELOG.md` through the same `lib/release-rollup.mjs` the remote finish uses, runs the unlogged-PR audit (`release-finish.mjs --audit`, unchanged) and renders the plan. The scripts keep their names, flags, environment variables, the remote `--confirm` hand-off and every other step; the two former copies of the rollup (an awk program and a PowerShell function) are gone.
+
+Changed refusal behaviour, identical on both scripts:
+
+- Exit 12: a malformed `[unreleased]` region, an entry heading with an empty title, an entry with a blank body, a file that is one entry heading line, or a `CHANGELOG.md` that is not valid UTF-8 (`REFUSED: CHANGELOG.md is not valid UTF-8 — never guessing its encoding.`). Exit 13: no rollable entries. Exit 15: tag exists; the tag check now comes before the audit. Exit 20: missing release notes, or an audit failure (the audit's own code is relayed and no plan line is printed). The remote `--confirm` finish refuses the same headings and empty entries with exit 20 and does not check the encoding.
+- Refusals are one `REFUSED:` line on stderr, with no bare `MALFORMED` or `ABSENT` token; a refusal on the base branch's `CHANGELOG.md` during the local cut exits 12 or 13 with the specific line instead of `rc=N`.
+- Line endings and encoding: a CRLF file is rolled with every byte outside the rolled headings kept, a byte order mark is kept, and a file without a final newline stays without one. Entries interleaved with an older section move, in order, under the fresh `## [unreleased]` scaffold.
+- A plan writes no `.aai-release-changelog.*` file into the repository. When the plan's stdout is closed early (for example piped into `head -1`) it prints nothing on stderr and exits 0, or 141 (SIGPIPE) when the reader is already gone before the first write.
+- Node missing on the plan or the local cut: one line on stderr, exit 20, nothing on stdout.
+
+Slice (a) only: moving the tag, publish and PR steps to the platform adapter and deleting the twin scripts is tracked as `fu-release-slice-b-delete-twins`. The Windows PowerShell 5.1 behaviour of the new `.ps1` is proven by the hosted Windows job, not locally.
 
 ## Data model
 

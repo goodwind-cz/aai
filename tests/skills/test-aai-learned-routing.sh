@@ -72,7 +72,7 @@ test_002_release_names_unlogged_pr() {
   local d="$TEST_DIR/rel"; mkrepo "$d"
   mkdir -p "$d/.aai/scripts"
   cp "$RELEASE" "$d/.aai/scripts/aai-release.sh"
-  cp "$PROJECT_ROOT/.aai/scripts/release-finish.mjs" "$PROJECT_ROOT/.aai/scripts/release-notes-gate.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/release-finish.mjs" "$PROJECT_ROOT/.aai/scripts/release-notes-gate.mjs" "$PROJECT_ROOT/.aai/scripts/release-cut.mjs" "$d/.aai/scripts/"
   mkdir -p "$d/.aai/scripts/lib"
   cp "$PROJECT_ROOT/.aai/scripts/lib/runtime-file.mjs" "$PROJECT_ROOT/.aai/scripts/lib/github-checks.mjs" "$PROJECT_ROOT/.aai/scripts/lib/release-rollup.mjs" "$d/.aai/scripts/lib/"
   # The second section is the DISCRIMINATOR for the two-token subject below.
