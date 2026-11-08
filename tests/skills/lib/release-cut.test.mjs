@@ -519,10 +519,20 @@ test('TEST-3466 DR-22 the ps1 plan reaches the success stream and the child stdo
 });
 
 // ---- TEST-3478: N3, an early-closed stdout ends quietly --------------------------------------------
-test('TEST-3478 N3 a plan piped into head -1 prints no stack trace and exits 141 (SIGPIPE)', () => {
+test('TEST-3478 N3 a plan piped into head -1 prints no stack trace and exits 0 or 141', () => {
+  // Whether stdout sees EPIPE depends on whether head exits before node finishes writing, so both are correct.
   const dir = fixtureA({ allNoted: true });
   const env = { ...process.env, RC_NODE: process.execPath, RC_MJS: MODULE, RC_DIR: dir };
   const r = spawnSync('bash', ['-c', '"$RC_NODE" "$RC_MJS" plan --root "$RC_DIR" --version v9 --target-branch main --launcher sh | head -1 >/dev/null; exit "${PIPESTATUS[0]}"'], { encoding: 'utf8', env });
   assert.equal(r.stderr, '', `no stderr when the reader closes early: ${r.stderr}`);
-  assert.equal(r.status, 141, 'the plan exits 141 when its stdout is closed early');
+  assert.ok(r.status === 0 || r.status === 141, `exit 0 or 141, got ${r.status}`);
+});
+
+test('TEST-3478 N3 a plan written to a pipe whose reader has already exited ends quietly with exit 141', () => {
+  // Deterministic: the writer sleeps until the reader (true) is long gone, so its first write meets a closed pipe.
+  const dir = fixtureA({ allNoted: true });
+  const env = { ...process.env, RC_NODE: process.execPath, RC_MJS: MODULE, RC_DIR: dir };
+  const r = spawnSync('bash', ['-c', '(sleep 1; exec "$RC_NODE" "$RC_MJS" plan --root "$RC_DIR" --version v9 --target-branch main --launcher sh) | true; exit "${PIPESTATUS[0]}"'], { encoding: 'utf8', env });
+  assert.equal(r.stderr, '', `no stderr when the reader is gone: ${r.stderr}`);
+  assert.equal(r.status, 141, 'the plan exits 141 when its stdout reader is already closed');
 });
