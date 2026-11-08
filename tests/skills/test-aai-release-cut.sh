@@ -251,39 +251,50 @@ make_with_origin() {
   git -C "$1" remote set-head origin main
 }
 
-test_3469_no_publish() {
+# no_publish_matrix <TEST id>: the no-publish safety matrix through both launchers ($tid and TEST-3530).
+no_publish_matrix() {
+  local tid="$1"
   local kind fx origin pre words
-  GH_BIN="$TEST_DIR/t69-bin"; SO="$TEST_DIR/t69.out"; SE="$TEST_DIR/t69.err"
+  GH_BIN="$TEST_DIR/tnp-bin"; SO="$TEST_DIR/tnp.out"; SE="$TEST_DIR/tnp.err"
   make_gh_stub "$GH_BIN"
   for kind in sh ps1; do
-    [[ "$kind" == sh ]] || need_tool TEST-3469 pwsh || continue
-    mkdir -p "$TEST_DIR/t69/$kind"
-    fx="$TEST_DIR/t69/$kind/repo"; origin="$TEST_DIR/t69/$kind/origin.git"
+    [[ "$kind" == sh ]] || need_tool "$tid" pwsh || continue
+    mkdir -p "$TEST_DIR/tnp/$kind"
+    fx="$TEST_DIR/tnp/$kind/repo"; origin="$TEST_DIR/tnp/$kind/origin.git"
     make_with_origin "$fx" "$origin" all
     : > "$GH_BIN/gh.log"
     pre="$(snap "$fx" "$origin")"
     for words in "" "dry" "dry confirm"; do
       # shellcheck disable=SC2086
       run_release "$kind" "$fx" $words
-      [[ "$RC" == 0 ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3469: $kind ($words) exited $RC"; }
-      [[ "$(snap "$fx" "$origin")" == "$pre" ]] || log_fail "TEST-3469: $kind ($words) changed the repository or the origin"
-      [[ -z "$(grep -vxF 'auth status' "$GH_BIN/gh.log" || true)" ]] || log_fail "TEST-3469: $kind ($words) called gh beyond auth status: $(cat "$GH_BIN/gh.log")"
+      [[ "$RC" == 0 ]] || { cat "$SO" "$SE" >&2; log_fail "$tid: $kind ($words) exited $RC"; }
+      [[ "$(snap "$fx" "$origin")" == "$pre" ]] || log_fail "$tid: $kind ($words) changed the repository or the origin"
+      [[ -z "$(grep -vxF 'auth status' "$GH_BIN/gh.log" || true)" ]] || log_fail "$tid: $kind ($words) called gh beyond auth status: $(cat "$GH_BIN/gh.log")"
     done
     run_release "$kind" "$fx" confirm
-    [[ "$RC" != 0 ]] || log_fail "TEST-3469: $kind remote --confirm against a stub gh exited 0"
-    grep -q '^REFUSED: ' "$SE" || { cat "$SE" >&2; log_fail "TEST-3469: $kind remote --confirm printed no REFUSED line"; }
-    grep -q '^Resume: ' "$SE" || { cat "$SE" >&2; log_fail "TEST-3469: $kind remote --confirm printed no Resume line"; }
-    [[ "$(snap "$fx" "$origin")" == "$pre" ]] || log_fail "TEST-3469: $kind remote --confirm changed a ref or the working tree"
-    fx="$TEST_DIR/t69/$kind/cut"; origin="$TEST_DIR/t69/$kind/cut-origin.git"
+    [[ "$RC" != 0 ]] || log_fail "$tid: $kind remote --confirm against a stub gh exited 0"
+    grep -q '^REFUSED: ' "$SE" || { cat "$SE" >&2; log_fail "$tid: $kind remote --confirm printed no REFUSED line"; }
+    grep -q '^Resume: ' "$SE" || { cat "$SE" >&2; log_fail "$tid: $kind remote --confirm printed no Resume line"; }
+    [[ "$(snap "$fx" "$origin")" == "$pre" ]] || log_fail "$tid: $kind remote --confirm changed a ref or the working tree"
+    fx="$TEST_DIR/tnp/$kind/cut"; origin="$TEST_DIR/tnp/$kind/cut-origin.git"
     make_with_origin "$fx" "$origin" all
     : > "$GH_BIN/gh.log"
     pre="$(git -C "$origin" show-ref)"
     run_release "$kind" "$fx" confirm noremote
-    [[ "$RC" == 0 ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3469: $kind --confirm --no-remote exited $RC"; }
-    [[ "$(git -C "$origin" show-ref)" == "$pre" ]] || log_fail "TEST-3469: $kind --confirm --no-remote changed the origin refs"
-    [[ ! -s "$GH_BIN/gh.log" ]] || log_fail "TEST-3469: $kind --confirm --no-remote called gh: $(cat "$GH_BIN/gh.log")"
+    [[ "$RC" == 0 ]] || { cat "$SO" "$SE" >&2; log_fail "$tid: $kind --confirm --no-remote exited $RC"; }
+    [[ "$(git -C "$origin" show-ref)" == "$pre" ]] || log_fail "$tid: $kind --confirm --no-remote changed the origin refs"
+    [[ ! -s "$GH_BIN/gh.log" ]] || log_fail "$tid: $kind --confirm --no-remote called gh: $(cat "$GH_BIN/gh.log")"
   done
+}
+
+test_3469_no_publish() {
+  no_publish_matrix TEST-3469
   log_pass "TEST-3469: bare, dry-run and dry-run plus confirm write nothing; the local cut touches no remote; a remote confirm ends in the finish refusal"
+}
+
+test_3530_no_publish() {
+  no_publish_matrix TEST-3530
+  log_pass "TEST-3530: both launchers leave the origin untouched in every mode and end a remote confirm in a release-finish refusal"
 }
 
 # lines_of <file> <pattern>: number of code (non-comment) lines matching a fixed string.
@@ -291,67 +302,6 @@ count_code_matches() {
   local g=grep
   [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
   "$g" -vE '^[[:space:]]*(#|$)' "$1" | "$g" -cF -- "$2" || true
-}
-
-test_3471_ps1_script() {
-  need_tool TEST-3471 pwsh || return 0
-  local n bin="$TEST_DIR/t71-bin" fx="$TEST_DIR/t71/repo" t want got
-  GH_BIN="$bin"; SO="$TEST_DIR/t71.out"; SE="$TEST_DIR/t71.err"
-  make_gh_stub "$bin"
-  n="$(code_lines "$PS1_SCRIPT" '#')"
-  [[ "$n" -le 220 ]] || log_fail "TEST-3471: aai-release.ps1 has $n code lines, expected at most 220"
-  for t in 'Invoke-ChangelogRollup' 'aai-release (plan)' 'Resolved version' 'CHANGELOG rollup (would write)'; do
-    [[ "$(count_code_matches "$PS1_SCRIPT" "$t")" == 0 ]] || log_fail "TEST-3471: aai-release.ps1 still holds '$t'"
-  done
-  local g=grep guard fn
-  [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
-  guard="$("$g" -nF "if (\$MyInvocation.InvocationName -ne '.')" "$PS1_SCRIPT" | cut -d: -f1 | sed -n 1p)"
-  [[ -n "$guard" ]] || log_fail "TEST-3471: the dot-source guard line is missing"
-  for fn in Invoke-NativeChecked Select-CapturedValue; do
-    t="$("$g" -nE "^function $fn " "$PS1_SCRIPT" | cut -d: -f1 | sed -n 1p)"
-    [[ -n "$t" && "$t" -lt "$guard" ]] || log_fail "TEST-3471: $fn is not defined above the dot-source guard"
-  done
-  make_fixture_a "$fx"
-  run_release ps1 "$fx" noremote
-  [[ "$RC" == 0 ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3471: the ps1 plan exited $RC"; }
-  want="$(node "$MJS" plan --root "$fx" --version v9 --target-branch main --launcher ps1 --no-remote)"
-  [[ "$want" == *'- -NoRemote / AAI_RELEASE_NO_REMOTE=1: push + gh pr create would be SKIPPED' ]] || log_fail "TEST-3471: the expected ps1 plan does not carry the ps1 flag spelling"
-  got="$(cat "$SO")"
-  [[ "$got" == "$want" && "$got" == "## aai-release (plan) — no files changed"* ]] || { printf '%s\n' "$got" >&2; log_fail "TEST-3471: the ps1 plan differs from the D-OUT ps1 plan of the module"; }
-  log_pass "TEST-3471: aai-release.ps1 is $n code lines, holds no rollup and prints the D-OUT ps1 plan"
-}
-
-test_3472_pester() {
-  [[ -f "$PESTER_FILE" ]] || log_fail "TEST-3472: tests/skills/release-cut.Tests.ps1 does not exist"
-  need_tool TEST-3472 pwsh || return 0
-  local has out rc=0
-  has="$(pwsh -NoProfile -Command 'if (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 }) { "yes" } else { "no" }' 2>/dev/null || echo no)"
-  if [[ "$has" != yes ]]; then
-    echo "SKIP-CASE: TEST-3472 needs Pester 5 (the ps1-quality gate job is the authoritative runner)"
-    return 0
-  fi
-  out="$(env -u AAI_ROLE PROJECT_ROOT="$PROJECT_ROOT" pwsh -NoProfile -Command '
-    $root = $env:PROJECT_ROOT
-    $bad = 0
-    foreach ($job in @(
-      @{ File = "release-cut.Tests.ps1"; Filter = $null; Strict = $true },
-      @{ File = "aai-win-dispatch.Tests.ps1"; Filter = "aai-release.ps1*"; Strict = $false },
-      @{ File = "aai-release.Tests.ps1"; Filter = $null; Strict = $false })) {
-      $cfg = New-PesterConfiguration
-      $cfg.Run.Path = Join-Path $root ("tests/skills/" + $job.File)
-      $cfg.Run.PassThru = $true
-      $cfg.Output.Verbosity = "None"
-      if ($job.Filter) { $cfg.Filter.FullName = $job.Filter }
-      $r = Invoke-Pester -Configuration $cfg
-      Write-Host "PESTER-RESULT: $($job.File) Total=$($r.TotalCount) Passed=$($r.PassedCount) Failed=$($r.FailedCount) Skipped=$($r.SkippedCount)"
-      if ($r.FailedCount -gt 0) { $bad = 1 }
-      if ($job.Strict -and ($r.SkippedCount -gt 0 -or $r.TotalCount -lt 5)) { $bad = 1 }
-      if (-not $job.Strict -and $r.TotalCount -lt 1) { $bad = 1 }
-    }
-    exit $bad
-  ' 2>&1)" || rc=$?
-  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 60 >&2; log_fail "TEST-3472: a Pester file failed, skipped a case or ran fewer cases than required (rc=$rc)"; }
-  log_pass "TEST-3472: release-cut.Tests.ps1 and the existing aai-release Pester cases pass under pwsh ($(printf '%s\n' "$out" | sed -n 's/^PESTER-RESULT: //p' | tr '\n' ';'))"
 }
 
 test_3473_downstream_install() {
@@ -613,6 +563,95 @@ test_3536_early_close() {
   log_pass "TEST-3536: the sh launcher plan and usage end quietly when the reader closes early"
 }
 
+# parity_run <sh|ps1> <fixture> <env assignment or empty> <args...>: one launcher run; stdout in $SO, stderr in $SE, status in $RC.
+parity_run() {
+  local kind="$1" fx="$2" envs="$3"; shift 3
+  RC=0
+  if [[ "$kind" == sh ]]; then
+    # shellcheck disable=SC2086
+    ( cd "$fx" && env $envs PATH="$GH_BIN:$PATH" bash "$SH_SCRIPT" "$@" ) >"$SO" 2>"$SE" || RC=$?
+  else
+    # shellcheck disable=SC2086
+    ( cd "$fx" && env $envs PATH="$GH_BIN:$PATH" pwsh -NoProfile -NonInteractive -File "$PS1_SCRIPT" "$@" ) >"$SO" 2>"$SE" || RC=$?
+  fi
+}
+
+# ps1_spelling_to_sh <file> <fixture>: the ps1 flag spellings and the fixture path mapped to the sh ones.
+ps1_spelling_to_sh() {
+  sed -e 's/-NoRemote/--no-remote/g; s/-Confirm/--confirm/g; s/-DryRun/--dry-run/g; s/-Version/--version/g; s/-Yes/--yes/g; s/aai-release\.ps1/aai-release.sh/g' -e "s|$2|<FX>|g" "$1"
+}
+
+test_3523_launcher_parity() {
+  run_ar_tests TEST-3523
+  need_tool TEST-3523 pwsh || return 0
+  local label envs sh_args ps_args n=0 shfx psfx sh_out sh_err sh_rc
+  GH_BIN="$TEST_DIR/t23-bin"; SO="$TEST_DIR/t23.out"; SE="$TEST_DIR/t23.err"
+  make_gh_stub "$GH_BIN"
+  while IFS=';' read -r label envs sh_args ps_args; do
+    [[ -n "$label" ]] || continue
+    n=$((n + 1))
+    shfx="$TEST_DIR/t23/$label/sh/repo"; psfx="$TEST_DIR/t23/$label/ps1/repo"
+    mkdir -p "$TEST_DIR/t23/$label/sh" "$TEST_DIR/t23/$label/ps1"
+    make_with_origin "$shfx" "$TEST_DIR/t23/$label/sh/origin.git" all
+    make_with_origin "$psfx" "$TEST_DIR/t23/$label/ps1/origin.git" all
+    # shellcheck disable=SC2086
+    parity_run sh "$shfx" "$envs" $sh_args
+    sh_rc=$RC; sh_out="$(sed "s|$shfx|<FX>|g" "$SO")"; sh_err="$(sed "s|$shfx|<FX>|g" "$SE")"
+    # shellcheck disable=SC2086
+    parity_run ps1 "$psfx" "$envs" $ps_args
+    [[ "$RC" == "$sh_rc" ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3523: '$label' exits $sh_rc under sh and $RC under ps1"; }
+    [[ "$(ps1_spelling_to_sh "$SO" "$psfx")" == "$sh_out" ]] || { diff <(printf '%s\n' "$sh_out") <(ps1_spelling_to_sh "$SO" "$psfx") >&2 || true; log_fail "TEST-3523: '$label' prints different stdout under sh and ps1"; }
+    [[ "$(ps1_spelling_to_sh "$SE" "$psfx")" == "$sh_err" ]] || { diff <(printf '%s\n' "$sh_err") <(ps1_spelling_to_sh "$SE" "$psfx") >&2 || true; log_fail "TEST-3523: '$label' prints different stderr under sh and ps1"; }
+  done <<'MATRIX'
+bare;;;
+dry;;--dry-run;-DryRun
+version;;--version v9;-Version v9
+versioneq;;--version=v9;--version=v9
+yes;;--yes --version v9;-Yes -Version v9
+dryconfirm;;--dry-run --confirm --version v9;-DryRun -Confirm -Version v9
+help;;-h;-h
+bogus;;--bogus;--bogus
+date;AAI_RELEASE_DATE=2026-07-20;--dry-run;-DryRun
+envnoremote;AAI_RELEASE_NO_REMOTE=1;--dry-run;-DryRun
+confirmnoremote;;--confirm --no-remote --version v9;-Confirm -NoRemote -Version v9
+MATRIX
+  [[ "$n" == 11 ]] || log_fail "TEST-3523: the matrix ran $n invocations, expected 11"
+  log_pass "TEST-3523: DB-12 and DB-13 pin the node side; the sh and ps1 launchers agree on stdout, stderr and exit code for $n invocations"
+}
+
+test_3529_ps1_launcher() {
+  local n t g=grep
+  [[ -x /usr/bin/grep ]] && g=/usr/bin/grep
+  n="$(code_lines "$PS1_SCRIPT" '#')"
+  [[ "$n" -le 40 ]] || log_fail "TEST-3529: aai-release.ps1 has $n code lines, expected at most 40"
+  for t in Version DryRun Confirm Yes NoRemote ExtraArgs; do
+    "$g" -qF "]\$$t" "$PS1_SCRIPT" || log_fail "TEST-3529: aai-release.ps1 lacks the param $t"
+  done
+  [[ "$(count_code_matches "$PS1_SCRIPT" "if (\$MyInvocation.InvocationName -ne '.')")" == 1 ]] || log_fail "TEST-3529: the dot-source guard is missing"
+  for t in Invoke-NativeChecked Invoke-Quiet Select-CapturedValue ErrorActionPreference; do
+    [[ "$(count_code_matches "$PS1_SCRIPT" "$t")" == 0 ]] || log_fail "TEST-3529: aai-release.ps1 still holds '$t'"
+  done
+  ! "$g" -vE '^[[:space:]]*(#|$)' "$PS1_SCRIPT" | "$g" -E '& node.*2>' >/dev/null || log_fail "TEST-3529: the node call redirects stderr"
+  need_tool TEST-3529 pwsh || return 0
+  local has out rc=0
+  has="$(pwsh -NoProfile -Command 'if (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 }) { "yes" } else { "no" }' 2>/dev/null || echo no)"
+  if [[ "$has" != yes ]]; then
+    echo "SKIP-CASE: TEST-3529 needs Pester 5 (the ps1-quality gate job is the authoritative runner)"
+    return 0
+  fi
+  out="$(env -u AAI_ROLE PROJECT_ROOT="$PROJECT_ROOT" pwsh -NoProfile -Command '
+    $cfg = New-PesterConfiguration
+    $cfg.Run.Path = Join-Path $env:PROJECT_ROOT "tests/skills/release-cut.Tests.ps1"
+    $cfg.Run.PassThru = $true
+    $cfg.Output.Verbosity = "None"
+    $r = Invoke-Pester -Configuration $cfg
+    Write-Host "PESTER-RESULT: Total=$($r.TotalCount) Passed=$($r.PassedCount) Failed=$($r.FailedCount) Skipped=$($r.SkippedCount)"
+    if ($r.FailedCount -gt 0 -or $r.SkippedCount -gt 0 -or $r.TotalCount -lt 10) { exit 1 }
+  ' 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 60 >&2; log_fail "TEST-3529: release-cut.Tests.ps1 failed, skipped a case or ran fewer than 10 cases (rc=$rc)"; }
+  log_pass "TEST-3529: aai-release.ps1 is $n code lines with the six params and the guard, and release-cut.Tests.ps1 passes ($(printf '%s\n' "$out" | sed -n 's/^PESTER-RESULT: //p'))"
+}
+
 test_3527_drift_coverage() {
   local spec="" out f
   for f in "$PROJECT_ROOT"/docs/specs/*.md; do
@@ -641,8 +680,6 @@ main() {
   test_3467_drift_coverage
   test_3468_one_transform
   test_3469_no_publish
-  test_3471_ps1_script
-  test_3472_pester
   test_3473_downstream_install
   test_3474_callers
   test_3475_wiring
@@ -654,6 +691,9 @@ main() {
   test_3527_drift_coverage
   test_3522_local_cut_drift
   test_3528_sh_launcher
+  test_3529_ps1_launcher
+  test_3523_launcher_parity
+  test_3530_no_publish
   test_3536_early_close
   echo ""
   log_pass "All $TEST_NAME tests passed"

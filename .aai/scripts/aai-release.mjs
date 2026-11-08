@@ -32,9 +32,9 @@ export function usage(launcher) {
   const f = FLAG_NAMES[launcher] ?? FLAG_NAMES.sh;
   return [
     f.head,
-    `  ${f.yes}`.padEnd(27) + 'same as the confirm flag (the cut)',
-    '  default version'.padEnd(27) + 'CalVer vYYYY.MM.DD (UTC); AAI_RELEASE_DATE=YYYY-MM-DD pins the date',
-    '  AAI_RELEASE_NO_REMOTE=1'.padEnd(27) + `same as ${f.nr}`,
+    `  ${f.yes} is the same as the confirm flag (the cut)`,
+    '  default version: CalVer vYYYY.MM.DD (UTC); AAI_RELEASE_DATE=YYYY-MM-DD pins the date',
+    `  AAI_RELEASE_NO_REMOTE=1 is the same as ${f.nr}`,
     'Exit codes: see .aai/SKILL_RELEASE.prompt.md',
   ];
 }

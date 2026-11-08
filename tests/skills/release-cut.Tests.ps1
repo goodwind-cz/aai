@@ -1,10 +1,11 @@
-# aai-release.ps1 cases for the release-cut module (spec-release-on-node, TEST-3472).
+# aai-release.ps1 launcher cases for aai-release.mjs and release-cut.mjs (spec-release-on-node TEST-3472;
+# spec-release-publish-on-node TEST-3529, DB-10 and DB-19).
 # Each case launches aai-release.ps1 with the engine running the test ((Get-Process -Id $PID).Path), so the
 # Windows PowerShell 5.1 step tests 5.1 and the pwsh 7 steps test pwsh 7. Fixtures are git repositories in
 # TestDrive written as bytes with [System.IO.File]::WriteAllBytes (the bytes do not depend on the engine), with
 # a local identity; every run is local (-NoRemote or -DryRun), no case calls gh, pushes, tags or publishes, and
 # nothing touches the checkout's own CHANGELOG.md. No case may skip.
-Describe 'aai-release.ps1 via release-cut.mjs' {
+Describe 'aai-release.ps1 via aai-release.mjs' {
   BeforeAll {
     $script:Root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     $script:Script = Join-Path $Root '.aai/scripts/aai-release.ps1'
@@ -180,5 +181,32 @@ Describe 'aai-release.ps1 via release-cut.mjs' {
     $r.Code | Should -Be 0 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $r.Out.Trim() | Should -Be 'CLEAN'
     $r.Err | Should -Be ''
+  }
+
+  It 'prints the usage in the ps1 spelling with -h and exits 0' {
+    $d = New-Project 'help' $script:Good
+    $r = Invoke-Script $d '-h'
+    $r.Code | Should -Be 0 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
+    ($r.Out -split "\r?\n")[0] | Should -Be 'usage: aai-release.ps1 [-Version <v>] [-DryRun] [-Confirm] [-NoRemote]'
+    $r.Err | Should -Be ''
+  }
+
+  It 'accepts --version=v9 as an extra argument and refuses an unknown argument on two stderr lines' {
+    $d = New-Project 'extra' $script:Good
+    $ok = Invoke-Script $d '-DryRun -NoRemote --version=v9'
+    $ok.Code | Should -Be 0 -Because ("stdout=[" + $ok.Out + "] stderr=[" + $ok.Err + "]")
+    ($ok.Out -split "\r?\n") | Should -Contain '- Resolved version: v9'
+    $bad = Invoke-Script $d '-DryRun --bogus'
+    $bad.Code | Should -Be 1
+    @($bad.Err -split "\r?\n" | Where-Object { $_ -ne '' }) | Should -Be @('Unknown argument: --bogus', 'Run with --help for usage.')
+    $bad.Out | Should -Be ''
+  }
+
+  It 'keeps exit 12 for a malformed CHANGELOG when a caller under ErrorActionPreference Stop captures stderr' {
+    $d = New-Project 'captured' "# Changelog`n`n## [unreleased] foo`n`nx`n"
+    $cmd = "`$ErrorActionPreference = 'Stop'; & '" + $script:Script + "' -DryRun -NoRemote -Version v9; exit `$LASTEXITCODE"
+    $r = Invoke-Engine $d ('-NoProfile -NonInteractive -Command "' + ($cmd -replace '"', '\"') + '"')
+    $r.Code | Should -Be 12 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
+    $r.Err | Should -BeLike 'REFUSED: malformed [[]unreleased] heading*'
   }
 }
