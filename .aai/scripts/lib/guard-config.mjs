@@ -32,7 +32,7 @@ export const GUARD_CONFIG_BASENAME = 'docs-audit.yaml';
 // same grammar and fail-open default, consulted by close-work-item.mjs to
 // choose warn-vs-refuse for its pre-write close-time usage-capture gate. Like
 // product_doc_gate it is a close-only dial (NOT a pre-commit-hook concern), so
-// the shell greps in pre-commit-checks.{sh,ps1} deliberately do not cover it.
+// the shell greps in pre-commit-checks.sh deliberately do not cover it.
 // `evidence_path_gate` (CHANGE-0131 / spec-evidence-path-gate) mirrors both:
 // same grammar and fail-open default, consulted by close-work-item.mjs to
 // choose warn-vs-refuse when a closing doc's AC Status Evidence cells cite a
@@ -146,7 +146,7 @@ export function readCoupledFamilies(dir) {
 // D3) — a SEPARATE closed vocabulary from GUARD_DIALS, deliberately NOT added
 // to that array: the grammar differs (armed/declined, not enforce/report-
 // only) and, more importantly, the FAIL DIRECTION differs. GUARD_DIALS is
-// grep-mirrored by pre-commit-checks.{sh,ps1}; ref_guard's mirror lives in
+// grep-mirrored by pre-commit-checks.sh; ref_guard's mirror lives in
 // install-pre-commit-hook.sh (D5's own thin shell grep — no node import
 // there, per check-vendored-script-deps.mjs), conformance-tested by
 // tests/skills/test-aai-hygiene-pack.sh test_618.

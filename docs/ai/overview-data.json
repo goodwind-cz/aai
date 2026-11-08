@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-07T18:30:00.154Z",
+  "generatedAt": "2026-11-07T21:34:31.421Z",
   "project": "aai",
   "counts": {
-    "delivered": 347,
+    "delivered": 348,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -259,6 +259,19 @@
       "spec": "docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md",
       "validation": null,
       "review": "docs/ai/reviews/review-git-hook-bodies-single-source-r2-20261107T182546Z.md"
+    },
+    {
+      "ref": "pre-commit-checks-ps1-retire",
+      "title": "Retire the uncalled PowerShell pre-commit checks and make the bash checks pipe-safe",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0250-pre-commit-checks-ps1-retire.md",
+      "closed_on": "2026-11-07",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "release-fixture-atomic-publication",
@@ -4797,6 +4810,19 @@
           "spec": "docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md",
           "validation": null,
           "review": "docs/ai/reviews/review-git-hook-bodies-single-source-r2-20261107T182546Z.md"
+        },
+        {
+          "ref": "pre-commit-checks-ps1-retire",
+          "title": "Retire the uncalled PowerShell pre-commit checks and make the bash checks pipe-safe",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0250-pre-commit-checks-ps1-retire.md",
+          "closed_on": "2026-11-07",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "release-fixture-atomic-publication",

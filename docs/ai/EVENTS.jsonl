@@ -3703,3 +3703,11 @@
 {"v":1,"ts":"2026-11-07T18:29:51Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-git-hook-bodies-single-source","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-07T18:29:51Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-git-hook-bodies-single-source","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-07T18:54:32Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"git-hook-bodies-single-source","payload":{"pr":539,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"037f568fda9eb5642a6eba8948a087cfeb6ad8e4"}}
+{"v":1,"ts":"2026-11-07T19:43:45Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pre-commit-checks-ps1-retire","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-07T21:26:32Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"pre-commit-checks-ps1-retire","payload":{"role":"code_review","head":"230a7f7ca70f9f9166fda5c51d2a8bdac245a23a","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-07T21:26:32Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"pre-commit-checks-ps1-retire","payload":{"status":"pass","hash":"50bc06b55e271fa9eb9502a5f38f74cfbb09f2c31955ea0787fc1ec045b7dec0"}}
+{"v":1,"ts":"2026-11-07T21:34:23Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"pre-commit-checks-ps1-retire","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-07T21:34:23Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"pre-commit-checks-ps1-retire","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-07T21:34:23Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pre-commit-checks-ps1-retire","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-07T21:34:23Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-pre-commit-checks-ps1-retire","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-07T22:00:35Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"pre-commit-checks-ps1-retire","payload":{"pr":540,"lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"swept","head_sha":"eeaef14ff08e8f8a6c69b5bf2195cc0ddc94c1a0"}}

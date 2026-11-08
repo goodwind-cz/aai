@@ -8,7 +8,7 @@
 # only), the unconditional `tracked-ignored` job in skill-suite.yml wired into
 # the required gate, and that the delivered tree tracks no ignored path.
 #
-# Batch B adds the --staged mode, CHECK 9 of pre-commit-checks.sh/.ps1 and the
+# Batch B adds the --staged mode, CHECK 9 of pre-commit-checks.sh and the
 # `(tracked-ignored)` label of check-committed-scope.mjs.
 #
 # Fixtures are real git repos (git init -b main, own user.email/name) built
@@ -330,7 +330,7 @@ test_1705_live_tree_tracks_no_ignored_path() {  # Spec-AC-02
   log_pass "TEST-1705: zero tracked ignored paths on the live tree (TEST-1705)"
 }
 
-# ---- Batch B: --staged, CHECK 9 (sh + ps1), check-committed-scope -----------
+# ---- Batch B: --staged, CHECK 9, check-committed-scope -----------
 
 SCRIPTS_DIR="${TRACKED_IGNORED_SCRIPTS_DIR:-$PROJECT_ROOT/.aai/scripts}"
 
@@ -341,7 +341,7 @@ pc_fixture() {
   local repo
   repo="$(fx_repo "$1")"
   mkdir -p "$repo/.aai/scripts" "$repo/docs/ai" "$repo/out"
-  cp "$SCRIPTS_DIR/pre-commit-checks.sh" "$SCRIPTS_DIR/pre-commit-checks.ps1" \
+  cp "$SCRIPTS_DIR/pre-commit-checks.sh" \
      "$SCRIPTS_DIR/tracked-ignored.mjs" "$repo/.aai/scripts/"
   printf 'out/**\n*.log\n' > "$repo/.gitignore"
   printf 'x\n' > "$repo/keep.txt"
@@ -357,22 +357,15 @@ pc_fixture() {
   printf '%s' "$repo"
 }
 
-# pc_run <repo> <sh|ps1> [strict] — run the pre-commit checks; sets OUT, CODE.
+# pc_run <repo> <sh> [strict] — run the pre-commit checks; sets OUT, CODE.
 pc_run() {
   local repo="$1" flavor="$2" strict="${3:-}"
   [[ -n "$repo" && "$repo" == /* && -d "$repo" ]] || log_fail "pc_run: bad fixture dir '$repo'"
-  if [[ "$flavor" == "sh" ]]; then
-    if [[ "$strict" == "strict" ]]; then
-      in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh --strict
-    else
-      in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh
-    fi
+  [[ "$flavor" == "sh" ]] || log_fail "pc_run: unknown flavor '$flavor'"
+  if [[ "$strict" == "strict" ]]; then
+    in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh --strict
   else
-    if [[ "$strict" == "strict" ]]; then
-      in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 -Strict
-    else
-      in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1
-    fi
+    in_dir "$repo" env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh
   fi
 }
 
@@ -478,16 +471,6 @@ test_1707_precommit_sh_cells() {  # Spec-AC-03
   log_info "Test: pre-commit-checks.sh cells — rename, modified, strict, deletion, pre-existing, global excludes (TEST-1707)..."
   assert_cells sh "TEST-1707"
   log_pass "TEST-1707: rename blocks; modified warns (blocks under strict); deletion and global-only pass; count warning (TEST-1707)"
-}
-
-test_1708_precommit_ps1_parity() {  # Spec-AC-03
-  log_info "Test: pre-commit-checks.ps1 gives the same exit codes on the TEST-1706/1707 cells (TEST-1708)..."
-  if ! command -v pwsh >/dev/null 2>&1; then
-    log_info "SKIP-NAMED: TEST-1708 needs pwsh (not installed here; ubuntu CI has it)"
-    return 0
-  fi
-  assert_cells ps1 "TEST-1708"
-  log_pass "TEST-1708: pre-commit-checks.ps1 matches the .sh cell table (TEST-1708)"
 }
 
 test_1709_real_hook_refuses_commit() {  # Spec-AC-03, SEAM S2
@@ -650,13 +633,9 @@ test_1735_staged_names_rules_in_one_batch() {  # review F3: no per-hit process
 }
 
 test_1736_precommit_broken_script_is_not_a_pass() {  # review F4
-  log_info "Test: tracked-ignored.mjs exiting 1 without an IGNORED_ADDED line is 'could not run', not PASS, in sh and ps1 (TEST-1736)..."
+  log_info "Test: tracked-ignored.mjs exiting 1 without an IGNORED_ADDED line is 'could not run', not PASS (TEST-1736)..."
   local flavor repo
-  for flavor in sh ps1; do
-    if [[ "$flavor" == "ps1" ]] && ! command -v pwsh >/dev/null 2>&1; then
-      log_info "SKIP-NAMED: TEST-1736(ps1) needs pwsh (not installed here; ubuntu CI has it)"
-      continue
-    fi
+  for flavor in sh; do
     new_scratch
     repo="$(pc_fixture "t1736-$flavor" plain)"
     printf 'process.exit(1);\n' > "$repo/.aai/scripts/tracked-ignored.mjs"
@@ -752,7 +731,6 @@ main() {
   test_1705_live_tree_tracks_no_ignored_path
   test_1706_precommit_sh_refuses_added_ignored_path
   test_1707_precommit_sh_cells
-  test_1708_precommit_ps1_parity
   test_1709_real_hook_refuses_commit
   test_1710_check_committed_scope_label
   test_1739_rev_uses_the_revisions_own_gitignore

@@ -1,0 +1,538 @@
+#!/usr/bin/env bash
+#
+# Test: aai-pre-commit-checks
+# (docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md, TEST-3448..3461)
+#
+# Two things: the PowerShell pre-commit checks are a deprecation launcher (one retired line
+# naming pre-commit-checks.sh, exit 1), and the bash checks no longer pipe into an
+# early-closing reader (a large STATE.yaml or a large debug list used to flip a decision).
+# Every case works in fresh mktemp git fixtures; nothing touches the checkout's own hooks or STATE.
+#
+# bash 3.2 compatible (no ${var^^}, no declare -A, no mapfile).
+#
+# Usage:
+#   bash tests/skills/test-aai-pre-commit-checks.sh                      # run all
+#   bash tests/skills/test-aai-pre-commit-checks.sh test_3451_large_state_check1_check5
+#
+# Exit codes: 0 pass | 1 fail | 42 skipped (missing deps)
+
+set -euo pipefail
+
+TEST_NAME="aai-pre-commit-checks"
+SPEC_ID="spec-pre-commit-checks-ps1-retire"
+TEST_DIR=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SH_CHECKS="$PROJECT_ROOT/.aai/scripts/pre-commit-checks.sh"
+PS1_LAUNCHER="$PROJECT_ROOT/.aai/scripts/pre-commit-checks.ps1"
+PESTER_FILE="$PROJECT_ROOT/tests/skills/pre-commit-checks-retired.Tests.ps1"
+BASE_SHA="3e6b52d5"
+GREP=/usr/bin/grep
+[[ -x "$GREP" ]] || GREP=grep
+
+# shellcheck source=lib/vendor-hook-installer.sh
+. "$SCRIPT_DIR/lib/vendor-hook-installer.sh"
+
+cleanup() {
+  if [[ -n "${KEEP_TEST_DIR:-}" ]]; then echo "INFO: keeping fixture at $TEST_DIR"; return 0; fi
+  if [[ -n "${TEST_DIR:-}" && -d "$TEST_DIR" ]]; then rm -rf "$TEST_DIR"; fi
+}
+trap cleanup EXIT
+
+log_pass() { echo "PASS: $*"; }
+log_fail() { echo "FAIL: $*" >&2; exit 1; }
+log_skip() { echo "SKIP: $*"; exit 42; }
+log_info() { echo "INFO: $*"; }
+
+check_deps() {
+  log_info "Checking dependencies..."
+  command -v node >/dev/null 2>&1 || log_skip "node not found"
+  command -v git >/dev/null 2>&1 || log_skip "git not found"
+  log_pass "Dependencies checked"
+}
+
+setup_fixture() {
+  TEST_DIR="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/aai-pre-commit-checks-suite.XXXXXX")" && pwd -P)"
+}
+
+# need_tool <TEST id> <tool>: 0 when present; fail on CI when absent; named SKIP-CASE otherwise.
+need_tool() {
+  command -v "$2" >/dev/null 2>&1 && return 0
+  [[ -z "${CI:-}" ]] || log_fail "$1: $2 is required on CI but is not on PATH"
+  echo "SKIP-CASE: $1 needs $2, which is not installed here"
+  return 1
+}
+
+# make_fx <dir> [script]: a committed git repository with a local identity that carries the given
+# pre-commit-checks.sh (default: the delivered one) at .aai/scripts/pre-commit-checks.sh.
+make_fx() {
+  local d="$1" script="${2:-$SH_CHECKS}"
+  mkdir -p "$d/.aai/scripts" "$d/docs/ai"
+  cp "$script" "$d/.aai/scripts/pre-commit-checks.sh"
+  printf 'fixture\n' > "$d/README.txt"
+  git -C "$d" init -q
+  git -C "$d" config user.email fixture@example.invalid
+  git -C "$d" config user.name fixture
+  git -C "$d" config commit.gpgsign false
+  git -C "$d" config core.autocrlf false
+  git -C "$d" add -A
+  git -C "$d" commit -q -m fixture
+}
+
+# run_checks <fixture> [args...]: runs the fixture's pre-commit-checks.sh; sets OUT, ERR, RC.
+run_checks() {
+  local fx="$1"; shift
+  RC=0
+  ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh "$@" ) >"$TEST_DIR/run.out" 2>"$TEST_DIR/run.err" || RC=$?
+  OUT="$TEST_DIR/run.out"; ERR="$TEST_DIR/run.err"
+}
+
+# count_in <file> <fixed text>: occurrences (lines) of the text in the file.
+count_in() { "$GREP" -cF -- "$2" "$1" || true; }
+
+# filler <n> <indent>: n deterministic filler lines (about 64 bytes each).
+filler() {
+  awk -v n="$1" -v ind="$2" 'BEGIN { for (i = 1; i <= n; i++) printf "%sfiller_%05d: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n", ind, i }'
+}
+
+# write_state <fixture> <kind> <small|large>: kind = impl | valid | review_pass | review_not_run.
+write_state() {
+  local fx="$1" kind="$2" size="$3" n=6000 f="$1/docs/ai/STATE.yaml"
+  [[ "$size" == small ]] && n=0
+  case "$kind" in
+    impl)  printf 'current_focus:\n  phase: implementation\nnotes:\n' > "$f"; filler "$n" "" >> "$f" ;;
+    valid) printf 'current_focus:\n  phase: validation\nnotes:\n' > "$f"; filler "$n" "" >> "$f" ;;
+    review_pass)    printf 'code_review:\n  required: true\n  status: pass\n' > "$f"; filler "$n" "  " >> "$f" ;;
+    review_not_run) printf 'code_review:\n  required: true\n  status: not_run\n' > "$f"; filler "$n" "  " >> "$f" ;;
+  esac
+}
+
+TDD_WARN="TDD cycle may be incomplete"
+NO_IMPL="No active implementation phase"
+NO_REPORT="No validation report found"
+REVIEW_OK="Code review gate satisfied"
+REVIEW_WARN="Code review required but not pass/waived"
+
+# state_case <TEST id> <kind> <want present text> <want absent text> [args...]: the small twin and the
+# large STATE each decide the same way.
+state_case() {
+  local id="$1" kind="$2" want="$3" unwant="$4" size fx
+  shift 4
+  for size in small large; do
+    fx="$TEST_DIR/$id-$kind-$size"
+    make_fx "$fx"
+    write_state "$fx" "$kind" "$size"
+    if [[ "$size" == large ]]; then
+      [[ "$(wc -c < "$fx/docs/ai/STATE.yaml")" -ge 300000 ]] || log_fail "$id: the large $kind STATE.yaml is under 300000 bytes"
+    fi
+    run_checks "$fx" "$@"
+    [[ "$(count_in "$OUT" "$want")" == 1 ]] || { cat "$OUT" >&2; log_fail "$id: the $size $kind STATE.yaml did not print '$want' exactly once"; }
+    if [[ -n "$unwant" ]]; then
+      [[ "$(count_in "$OUT" "$unwant")" == 0 ]] || { cat "$OUT" >&2; log_fail "$id: the $size $kind STATE.yaml printed '$unwant'"; }
+    fi
+  done
+}
+
+test_3451_large_state_check1_check5() {
+  state_case TEST-3451 impl "$TDD_WARN" "$NO_IMPL"
+  state_case TEST-3451 valid "$NO_REPORT" ""
+  log_pass "TEST-3451: CHECK 1 and CHECK 5 decide a 380 KB STATE.yaml exactly as its two-line twin (TDD warning, missing validation report)"
+}
+
+test_3452_large_code_review_block() {
+  local fx
+  state_case TEST-3452 review_pass "$REVIEW_OK" "$REVIEW_WARN"
+  state_case TEST-3452 review_not_run "$REVIEW_WARN" "$REVIEW_OK"
+  fx="$TEST_DIR/t3452-strict"
+  make_fx "$fx"
+  write_state "$fx" review_not_run large
+  run_checks "$fx" --strict
+  [[ "$RC" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3452: --strict on the large not_run code_review block exited $RC, expected 1"; }
+  log_pass "TEST-3452: CHECK 6 decides a 380 KB code_review block as its small twin and --strict blocks on not_run"
+}
+
+test_3453_large_debug_list() {
+  local fx="$TEST_DIR/t3453" lines head_before
+  make_fx "$fx"
+  awk 'BEGIN { for (i = 1; i <= 20000; i++) printf "console.log(\"debug line %d\");\n", i }' > "$fx/app.js"
+  git -C "$fx" add app.js
+  run_checks "$fx"
+  [[ "$RC" == 0 ]] || { tail -5 "$OUT" >&2; log_fail "TEST-3453: the script exited $RC on 20000 debug lines, expected 0"; }
+  [[ "$(count_in "$OUT" "Debug statements in app.js:")" == 1 ]] || { cat "$OUT" >&2; log_fail "TEST-3453: the debug warning for app.js is missing"; }
+  lines="$(awk '/Debug statements in app.js:/{f=1; next} f && /^    /{c++; next} f{exit} END{print c+0}' "$OUT")"
+  [[ "$lines" == 3 ]] || { cat "$OUT" >&2; log_fail "TEST-3453: expected exactly 3 indented match lines, saw $lines"; }
+  "$GREP" -q 'PASS WITH WARNINGS' "$OUT" || { cat "$OUT" >&2; log_fail "TEST-3453: the summary line is missing (checks 4 to 9 never ran)"; }
+  # Through a real installed hook: the commit must be created.
+  vendor_hook_installer "$fx" sh
+  ( cd "$fx" && bash .aai/scripts/install-pre-commit-hook.sh ) >"$TEST_DIR/inst.out" 2>&1 || { cat "$TEST_DIR/inst.out" >&2; log_fail "TEST-3453: the hook installer failed"; }
+  git -C "$fx" checkout -q -b work   # the installed ref guard refuses refs/heads/main writes
+  head_before="$(git -C "$fx" rev-parse HEAD)"
+  RC=0
+  ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git commit -q -m x ) >"$TEST_DIR/commit.out" 2>&1 || RC=$?
+  [[ "$RC" == 0 ]] || { cat "$TEST_DIR/commit.out" >&2; log_fail "TEST-3453: git commit through the installed hook exited $RC"; }
+  [[ "$(git -C "$fx" rev-parse HEAD)" != "$head_before" ]] || log_fail "TEST-3453: HEAD did not move"
+  log_pass "TEST-3453: 20000 debug lines print the warning with 3 match lines, reach the summary and the hook lets the commit through"
+}
+
+# base_script: writes the baseline pre-commit-checks.sh (git show) to a file and prints its path;
+# prints nothing when the baseline commit is not in this clone (named SKIP-CASE locally, FAIL on CI).
+base_script() {
+  local out="$TEST_DIR/base-pre-commit-checks.sh"
+  if [[ ! -s "$out" ]]; then
+    git -C "$PROJECT_ROOT" show "$BASE_SHA:.aai/scripts/pre-commit-checks.sh" > "$out" 2>/dev/null || rm -f "$out"
+  fi
+  [[ -s "$out" ]] && printf '%s\n' "$out"
+  return 0
+}
+
+# parity_fixture <name> <kind>: a small fixture for one Spec-AC-07 shape; prints its path.
+parity_fixture() {
+  local fx="$TEST_DIR/par-$1"
+  make_fx "$fx"
+  case "$2" in
+    impl)       write_state "$fx" impl small ;;
+    impl_pass)  printf 'current_focus:\n  phase: implementation\nlast_validation:\n  status: pass\n' > "$fx/docs/ai/STATE.yaml" ;;
+    debug5)     awk 'BEGIN { for (i = 1; i <= 5; i++) printf "console.log(%d);\n", i }' > "$fx/app.js"; git -C "$fx" add app.js ;;
+    valid)      write_state "$fx" valid small ;;
+    valid_rep)  write_state "$fx" valid small; mkdir -p "$fx/docs/ai/reports"; : > "$fx/docs/ai/reports/LATEST.md" ;;
+    rev_pass)   write_state "$fx" review_pass small ;;
+    rev_not_run) write_state "$fx" review_not_run small ;;
+  esac
+  printf '%s\n' "$fx"
+}
+
+test_3454_small_input_parity() {
+  local base fx kind rc_new rc_old numstat
+  base="$(base_script)"
+  if [[ -z "$base" ]]; then
+    [[ -z "${CI:-}" ]] || log_fail "TEST-3454: baseline commit $BASE_SHA is not in this clone on CI"
+    echo "SKIP-CASE: TEST-3454 needs commit $BASE_SHA in this clone"
+    return 0
+  fi
+  for kind in impl impl_pass debug5 valid valid_rep rev_pass rev_not_run; do
+    fx="$(parity_fixture "$kind" "$kind")"
+    ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash .aai/scripts/pre-commit-checks.sh ) >"$TEST_DIR/new.out" 2>"$TEST_DIR/new.err" && rc_new=0 || rc_new=$?
+    ( cd "$fx" && env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null bash "$base" ) >"$TEST_DIR/old.out" 2>"$TEST_DIR/old.err" && rc_old=0 || rc_old=$?
+    [[ "$rc_new" == "$rc_old" ]] || log_fail "TEST-3454: $kind exit code $rc_new differs from the baseline $rc_old"
+    cmp -s "$TEST_DIR/new.out" "$TEST_DIR/old.out" || { diff "$TEST_DIR/old.out" "$TEST_DIR/new.out" >&2 || true; log_fail "TEST-3454: $kind stdout differs from the baseline"; }
+    cmp -s "$TEST_DIR/new.err" "$TEST_DIR/old.err" || log_fail "TEST-3454: $kind stderr differs from the baseline"
+  done
+  numstat="$(git -C "$PROJECT_ROOT" diff --numstat "$BASE_SHA" -- .aai/scripts/pre-commit-checks.sh | awk '{print $1" "$2}')"
+  [[ "$numstat" == "7 7" ]] || log_fail "TEST-3454: git diff --numstat $BASE_SHA on the script reads '$numstat', expected '7 7'"
+  log_pass "TEST-3454: seven small fixtures give the baseline's stdout, stderr and exit code, and the script differs from it in exactly 7 lines"
+}
+
+# shipping_sites <file or - for stdin>: PGQ_PATTERN matches on non-comment lines.
+shipping_sites() {
+  { "$GREP" -vE '^[[:space:]]*#' || true; } | { "$GREP" -cE "$PGQ_PATTERN" || true; }
+}
+
+test_3455_ratchet_counts_the_file() {
+  local lib="$SCRIPT_DIR/lib/pipe-grep-q-ratchet.sh" n total base
+  [[ -f "$lib" ]] || log_fail "TEST-3455: $lib is missing"
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$lib"
+  n="$(shipping_sites < "$SH_CHECKS")"
+  [[ "$n" == 0 ]] || log_fail "TEST-3455: PGQ_PATTERN matches $n non-comment line(s) of pre-commit-checks.sh, expected 0"
+  base="$(base_script)"
+  if [[ -n "$base" ]]; then
+    n="$(shipping_sites < "$base")"
+    [[ "$n" == 7 ]] || log_fail "TEST-3455: positive control: the baseline script reads $n sites, expected 7"
+  elif [[ -n "${CI:-}" ]]; then
+    log_fail "TEST-3455: baseline commit $BASE_SHA is not in this clone on CI"
+  else
+    echo "SKIP-CASE: TEST-3455 positive control needs commit $BASE_SHA in this clone"
+  fi
+  if "$GREP" -q 'PGQ_SHIPPING_DEFERRED_L3' "$lib"; then log_fail "TEST-3455: the ratchet lib still holds PGQ_SHIPPING_DEFERRED_L3"; fi
+  total="$(pgq_total "$(pgq_scan_shipping "$PROJECT_ROOT")")"
+  [[ "$total" == 0 ]] || log_fail "TEST-3455: pgq_scan_shipping totals $total, expected 0"
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" test_128_shipping_scripts_pipe_safe_at_zero >"$TEST_DIR/h128.out" 2>&1 || { cat "$TEST_DIR/h128.out" >&2; log_fail "TEST-3455: hygiene-pack test_128 failed"; }
+  log_pass "TEST-3455: the ratchet counts pre-commit-checks.sh (0 sites now, 7 in the baseline) and hygiene-pack test_128 gates it at zero"
+}
+
+D_LAUNCH='pre-commit-checks.ps1: retired - the PowerShell pre-commit checks are retired (RFC-0017 phase 5) and will be deleted in the next release; replacement: bash .aai/scripts/pre-commit-checks.sh (the installed hooks already run it); nothing was checked'
+
+test_3448_ps1_retired_run() {
+  need_tool TEST-3448 pwsh || return 0
+  local fx="$TEST_DIR/ps1 fx" so="$TEST_DIR/p.out" se="$TEST_DIR/p.err" before_status before_index rc variant
+  make_fx "$fx"
+  printf "%s = '%s'\n" api_key abcdefgh1234 > "$fx/config.txt"   # assembled so this file does not trip CHECK 2 itself
+  git -C "$fx" add config.txt
+  before_status="$(git -C "$fx" status --porcelain)"
+  before_index="$(git -C "$fx" diff --cached --name-only)"
+  for variant in none strict strict_extra; do
+    rc=0
+    case "$variant" in
+      none) ( cd "$fx" && pwsh -NoProfile -File "$PS1_LAUNCHER" ) >"$so" 2>"$se" || rc=$? ;;
+      strict) ( cd "$fx" && pwsh -NoProfile -File "$PS1_LAUNCHER" -Strict ) >"$so" 2>"$se" || rc=$? ;;
+      strict_extra) ( cd "$fx" && pwsh -NoProfile -File "$PS1_LAUNCHER" -Strict extra ) >"$so" 2>"$se" || rc=$? ;;
+    esac
+    [[ "$rc" == 1 ]] || log_fail "TEST-3448: the launcher ($variant) exited $rc, expected 1"
+    [[ ! -s "$so" ]] || log_fail "TEST-3448: the launcher ($variant) wrote to stdout: $(cat "$so")"
+    [[ "$(cat "$se")" == "$D_LAUNCH" ]] || log_fail "TEST-3448: the launcher ($variant) stderr was: $(cat "$se")"
+    [[ "$(git -C "$fx" status --porcelain)" == "$before_status" ]] || log_fail "TEST-3448: the launcher ($variant) changed git status"
+    [[ "$(git -C "$fx" diff --cached --name-only)" == "$before_index" ]] || log_fail "TEST-3448: the launcher ($variant) changed the staged index"
+  done
+  log_pass "TEST-3448: the launcher prints the D-LAUNCH line, exits 1 and leaves status and index untouched for no argument, -Strict and -Strict extra"
+}
+
+test_3449_pester() {
+  [[ -f "$PESTER_FILE" ]] || log_fail "TEST-3449: tests/skills/pre-commit-checks-retired.Tests.ps1 does not exist"
+  need_tool TEST-3449 pwsh || return 0
+  local has out rc=0
+  has="$(pwsh -NoProfile -Command 'if (Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 }) { "yes" } else { "no" }' 2>/dev/null || echo no)"
+  if [[ "$has" != yes ]]; then
+    echo "SKIP-CASE: TEST-3449 needs Pester 5 (the ps1-quality gate job is the authoritative runner)"
+    return 0
+  fi
+  out="$(env -u AAI_ROLE PESTER_FILE="$PESTER_FILE" pwsh -NoProfile -Command '
+    $cfg = New-PesterConfiguration
+    $cfg.Run.Path = $env:PESTER_FILE
+    $cfg.Run.PassThru = $true
+    $cfg.Output.Verbosity = "Normal"
+    $r = Invoke-Pester -Configuration $cfg
+    Write-Host "PESTER-RESULT: Total=$($r.TotalCount) Passed=$($r.PassedCount) Failed=$($r.FailedCount) Skipped=$($r.SkippedCount)"
+    if ($r.FailedCount -gt 0 -or $r.SkippedCount -gt 0 -or $r.TotalCount -lt 3) { exit 1 }
+    exit 0
+  ' 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3449: pre-commit-checks-retired.Tests.ps1 failed, skipped a case or ran fewer than 3 cases (rc=$rc)"; }
+  log_pass "TEST-3449: pre-commit-checks-retired.Tests.ps1 passes with no skip under pwsh ($(printf '%s\n' "$out" | sed -n 's/^PESTER-RESULT: //p'))"
+}
+
+# launcher_problems <file> <D-LAUNCH line>: prints the problems of the launcher (empty when clean).
+launcher_problems() {
+  node -e '
+    const fs = require("fs");
+    const [file, want] = process.argv.slice(1);
+    const buf = fs.readFileSync(file);
+    const s = buf.toString("latin1");
+    const bad = [];
+    if (buf.some((b) => b > 0x7e || (b < 0x20 && b !== 10 && b !== 13 && b !== 9))) bad.push("non-ASCII byte");
+    const lines = s.split("\n").length - (s.endsWith("\n") ? 1 : 0);
+    if (lines > 5) bad.push("more than 5 lines (" + lines + ")");
+    const marks = s.split(/\r?\n/).filter((l) => l.startsWith("# RETIRED (RFC-0017 phase 5, pre-commit-checks-ps1-retire)"));
+    if (marks.length !== 1) bad.push("RETIRED comment lines: " + marks.length);
+    if (!s.includes(want)) bad.push("D-LAUNCH line text missing");
+    const last = s.split(/\r?\n/).filter((l) => l.trim() !== "").pop();
+    if (last !== "exit 1") bad.push("last line is not exit 1");
+    if (/param\s*\(/i.test(s)) bad.push("holds a param block");
+    const w = s.match(/\b(node|pwsh|git|param|Write-Host|Write-Error|Invoke-\w+|Start-Process|STATE|cp|rm|mv|mkdir)\b/);
+    if (w) bad.push("names " + w[0]);
+    process.stdout.write(bad.join("; "));
+  ' "$1" "$2"
+}
+
+test_3450_launcher_thin() {
+  local out mode ctl="$TEST_DIR/ctl-retired.ps1"
+  [[ -f "$PS1_LAUNCHER" ]] || log_fail "TEST-3450: pre-commit-checks.ps1 does not exist"
+  out="$(launcher_problems "$PS1_LAUNCHER" "$D_LAUNCH")"
+  [[ -z "$out" ]] || log_fail "TEST-3450: pre-commit-checks.ps1: $out"
+  mode="$(git -C "$PROJECT_ROOT" ls-files -s -- .aai/scripts/pre-commit-checks.ps1 | cut -d' ' -f1)"
+  [[ "$mode" == 100644 ]] || log_fail "TEST-3450: pre-commit-checks.ps1 git mode is '$mode', not 100644"
+  sed 's/^exit 1$/Write-Host done; exit 1/' "$PS1_LAUNCHER" > "$ctl"
+  out="$(launcher_problems "$ctl" "$D_LAUNCH")"
+  [[ "$out" == *"Write-Host"* ]] || log_fail "TEST-3450: positive control: a launcher holding Write-Host was not reported (got: $out)"
+  log_pass "TEST-3450: the launcher is at most 5 lines, ASCII, mode 100644, carries one RETIRED comment and the D-LAUNCH line, ends in exit 1 and names no tool"
+}
+
+# ps1_refs <root> <newline list of tracked files>: lines (path:line) naming pre-commit-checks.ps1 or a
+# sh-and-ps1 spelling of the name (braces, slash or "or") outside the allowlist: the launcher, PROFILES.yaml,
+# the WORKFLOW.md protected-surface line and a protected_paths_l3 entry of the two docs-audit files.
+ps1_refs() {
+  node -e '
+    const fs = require("fs");
+    const [root, list] = process.argv.slice(1);
+    const name = /pre-commit-checks\.(ps1|\{sh,ps1\}|sh`?(\/| or )`?\.ps1)/;
+    const pathOk = new Set([".aai/scripts/pre-commit-checks.ps1", ".aai/system/PROFILES.yaml"]);
+    const shapes = {
+      ".aai/workflow/WORKFLOW.md": /^- guards: \.aai\/scripts\/pre-commit-checks\.sh, \.aai\/scripts\/pre-commit-checks\.ps1$/,
+      "docs/ai/docs-audit.yaml": /^  - \.aai\/scripts\/pre-commit-checks\.ps1$/,
+      ".aai/templates/docs-audit.template.yaml": /^  - \.aai\/scripts\/pre-commit-checks\.ps1$/,
+    };
+    const keepDocs = new Set(["docs/TECHNOLOGY.md", "docs/ai/docs-audit.yaml"]);
+    const out = [];
+    for (const f of list.split("\n").filter(Boolean)) {
+      if ((f.startsWith("docs/") && !keepDocs.has(f)) || f.startsWith("tests/") || f === "CHANGELOG.md" || pathOk.has(f)) continue;
+      let t; try { t = fs.readFileSync(root + "/" + f, "utf8"); } catch { continue; }
+      t.split("\n").forEach((l, i) => { if (name.test(l) && !(shapes[f] && shapes[f].test(l))) out.push(f + ":" + (i + 1)); });
+    }
+    process.stdout.write(out.join(" "));
+  ' "$1" "$2"
+}
+
+test_3456_no_live_ps1_reference() {
+  local files out agents="$PROJECT_ROOT/.aai/AGENTS.md" ctl="$TEST_DIR/ctl-root"
+  files="$(git -C "$PROJECT_ROOT" ls-files)"
+  out="$(ps1_refs "$PROJECT_ROOT" "$files")"
+  [[ -z "$out" ]] || log_fail "TEST-3456: live files still name the PowerShell pre-commit checks: $out"
+  mkdir -p "$ctl/docs"
+  printf '  - Pre-commit quality gates run via `.aai/scripts/pre-commit-checks.sh`/`.ps1`\n' > "$ctl/docs/TECHNOLOGY.md"
+  out="$(ps1_refs "$ctl" "docs/TECHNOLOGY.md")"
+  [[ "$out" == *docs/TECHNOLOGY.md* ]] || log_fail "TEST-3456: positive control: the old TECHNOLOGY.md line was not reported (got: $out)"
+  "$GREP" -qxF 'Before committing, run quality gate checks (`.aai/scripts/pre-commit-checks.sh`):' "$agents" || log_fail "TEST-3456: AGENTS.md lacks the D-REF line"
+  log_pass "TEST-3456: no live file names the PowerShell pre-commit checks outside the launcher, PROFILES and the protected-path lines, and AGENTS.md holds the D-REF line"
+}
+
+test_3457_suites_stop_running_the_ps1() {
+  local f hits="" sel
+  for f in $(git -C "$PROJECT_ROOT" ls-files tests/skills); do
+    case "$f" in
+      tests/skills/test-aai-pre-commit-checks.sh|tests/skills/pre-commit-checks-retired.Tests.ps1) continue ;;
+    esac
+    if "$GREP" -qF 'pre-commit-checks.ps1' "$PROJECT_ROOT/$f" 2>/dev/null; then hits="$hits $f"; fi
+  done
+  [[ -z "$hits" ]] || log_fail "TEST-3457: tests/skills files still name pre-commit-checks.ps1:$hits"
+  if "$GREP" -q '^test_809_check8_ps1_twin()' "$SCRIPT_DIR/test-aai-doc-numbering.sh"; then log_fail "TEST-3457: test_809_check8_ps1_twin still exists"; fi
+  if "$GREP" -q '^test_1708_precommit_ps1_parity()' "$SCRIPT_DIR/test-aai-tracked-ignored.sh"; then log_fail "TEST-3457: test_1708_precommit_ps1_parity still exists"; fi
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" >"$TEST_DIR/reg.out" 2>&1 || { cat "$TEST_DIR/reg.out" >&2; log_fail "TEST-3457: check-test-registration.mjs failed"; }
+  for sel in "test-aai-doc-numbering.sh test_808_check8_enforce_is_merge_point_aware" \
+    "test-aai-tracked-ignored.sh test_1706_precommit_sh_refuses_added_ignored_path" "test-aai-tracked-ignored.sh test_1707_precommit_sh_cells" \
+    "test-aai-suite-select.sh test_1737_real_map_gitignore_full_and_guard_scripts_select"; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/${sel% *}" "${sel#* }" >"$TEST_DIR/sel.out" 2>&1 || { tail -15 "$TEST_DIR/sel.out" >&2; log_fail "TEST-3457: ${sel% *} ${sel#* } failed"; }
+  done
+  log_pass "TEST-3457: no suite runs the PowerShell checks any more, the two twin cells are gone and the registration check is clean"
+}
+
+selected_for() {
+  printf '%s\n' "$1" | node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT"
+}
+
+# row_globs <suite name>: the glob lines of one suite-map row.
+row_globs() {
+  awk -v want="  $1:" '$0 == want {f=1; next} f && /^  [a-z0-9][a-z0-9-]*:$/ {exit} f' "$SCRIPT_DIR/suite-map.yaml"
+}
+
+test_3458_wiring() {
+  local f out n row_n wf="$PROJECT_ROOT/.github/workflows/ps1-quality.yml" tsv="$SCRIPT_DIR/suite-weights.tsv" nsl="$SCRIPT_DIR/lib/nested-suite-lint.mjs" g sel
+  for f in tests/skills/test-aai-pre-commit-checks.sh tests/skills/pre-commit-checks-retired.Tests.ps1 tests/skills/lib/pipe-grep-q-ratchet.sh; do
+    out="$(selected_for "$f")"
+    [[ "$out" == *'SELECTED aai-pre-commit-checks '* ]] || log_fail "TEST-3458: $f does not select aai-pre-commit-checks: $out"
+  done
+  for f in .aai/scripts/pre-commit-checks.sh .aai/scripts/pre-commit-checks.ps1; do
+    out="$(selected_for "$f")"
+    [[ "$out" == *'FULL_RUN reason=protected-l3'* ]] || log_fail "TEST-3458: $f is not FULL_RUN protected-l3: $out"
+  done
+  for g in aai-doc-numbering aai-tracked-ignored; do
+    if "$GREP" -qF 'pre-commit-checks.ps1' <<< "$(row_globs "$g")"; then log_fail "TEST-3458: the $g row still globs pre-commit-checks.ps1"; fi
+  done
+  "$GREP" -qxF '      - tests/skills/pre-commit-checks-retired.Tests.ps1' <<< "$(row_globs aai-pre-commit-checks)" || log_fail "TEST-3458: the aai-pre-commit-checks row lacks the Pester glob"
+  n="$(awk -F'\t' '$1=="aai-pre-commit-checks"{c++; w=$2} END{print c+0 ":" w}' "$tsv")"
+  [[ "$n" == "1:196" ]] || log_fail "TEST-3458: suite-weights holds aai-pre-commit-checks as '$n' (rows:weight), expected 1:196"
+  "$GREP" -qxF '# sample aai-pre-commit-checks fallback unsampled (new suite of pre-commit-checks-ps1-retire; no successful observation)' "$tsv" || log_fail "TEST-3458: suite-weights lacks the fallback-unsampled line"
+  row_n="$("$GREP" -cE '^  aai-[a-z0-9-]*:$' "$SCRIPT_DIR/suite-map.yaml" || true)"
+  [[ "$row_n" == 130 ]] || log_fail "TEST-3458: suite-map.yaml holds $row_n suite rows, expected 130"
+  [[ "$("$GREP" -c -- '-eq 130 ]]' "$SCRIPT_DIR/test-aai-hygiene-pack.sh" || true)" == 2 ]] || log_fail "TEST-3458: the two hygiene-pack row-count pins do not both read 130"
+  for sel in test_090_suite_map_pin test_129_mutation_gate_suite_registration test_133_nested_suite_lint_live_and_base; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-hygiene-pack.sh" "$sel" >"$TEST_DIR/w.out" 2>&1 || { tail -8 "$TEST_DIR/w.out" >&2; log_fail "TEST-3458: test-aai-hygiene-pack.sh $sel failed"; }
+  done
+  node "$nsl" --allowlist "$SCRIPT_DIR/lib/nested-suite-allowlist.tsv" "$SCRIPT_DIR" >/dev/null 2>&1 || log_fail "TEST-3458: nested-suite-lint failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-cd-subshell-leak.mjs" >/dev/null 2>&1 || log_fail "TEST-3458: check-cd-subshell-leak.mjs failed"
+  node "$PROJECT_ROOT/.aai/scripts/check-test-registration.mjs" "$SCRIPT_DIR" >/dev/null 2>&1 || log_fail "TEST-3458: check-test-registration.mjs failed"
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-win-fallback.sh" test_034 >/dev/null 2>&1 || log_fail "TEST-3458: test-aai-win-fallback.sh test_034 failed"
+  for sel in test_010_audit_and_reduction test_012_growth_sum_matches_ledger test_746_roadmap_takes_direction_growth_ledgered test_769_agents_md_ceiling; do
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-prompt-diet.sh" "$sel" >"$TEST_DIR/pd.out" 2>&1 || { tail -8 "$TEST_DIR/pd.out" >&2; log_fail "TEST-3458: test-aai-prompt-diet.sh $sel failed"; }
+  done
+  for g in "'.aai/scripts/**.ps1'" "'tests/skills/*.Tests.ps1'"; do
+    n="$(awk -v want="      - $g" '/^  push:/{s="push"} /^  pull_request:/{s="pr"} /^  workflow_dispatch/{s=""} s!="" && $0==want{c[s]++} END{print c["push"]+0, c["pr"]+0}' "$wf")"
+    [[ "$n" == "1 1" ]] || log_fail "TEST-3458: the ps1-quality path lists hold $g '$n' times (push pr), expected 1 1"
+  done
+  log_pass "TEST-3458: select-suites, weights, hygiene pins at 130, lints, win-fallback, prompt-diet and the ps1-quality path lists are wired"
+}
+
+test_3459_downstream_install() {
+  local tgt="$TEST_DIR/core target/proj" n out rc=0 lib="$SCRIPT_DIR/lib/pipe-grep-q-ratchet.sh"
+  mkdir -p "$tgt"
+  git -C "$tgt" init -q
+  bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$tgt" --profile core >"$TEST_DIR/sync.out" 2>&1 || { tail -10 "$TEST_DIR/sync.out" >&2; log_fail "TEST-3459: aai-sync.sh --profile core failed"; }
+  cmp -s "$tgt/.aai/scripts/pre-commit-checks.ps1" "$PS1_LAUNCHER" || log_fail "TEST-3459: the installed launcher differs from the source"
+  cmp -s "$tgt/.aai/scripts/pre-commit-checks.sh" "$SH_CHECKS" || log_fail "TEST-3459: the installed pre-commit-checks.sh differs from the source"
+  if need_tool TEST-3459 pwsh; then
+    ( cd "$tgt" && pwsh -NoProfile -File .aai/scripts/pre-commit-checks.ps1 ) >"$TEST_DIR/d.out" 2>"$TEST_DIR/d.err" || rc=$?
+    [[ "$rc" == 1 ]] || log_fail "TEST-3459: the installed launcher exited $rc, expected 1"
+    [[ ! -s "$TEST_DIR/d.out" ]] || log_fail "TEST-3459: the installed launcher wrote to stdout"
+    [[ "$(cat "$TEST_DIR/d.err")" == "$D_LAUNCH" ]] || log_fail "TEST-3459: the installed launcher stderr was: $(cat "$TEST_DIR/d.err")"
+  fi
+  # shellcheck source=lib/pipe-grep-q-ratchet.sh
+  . "$lib"
+  n="$(shipping_sites < "$tgt/.aai/scripts/pre-commit-checks.sh")"
+  [[ "$n" == 0 ]] || log_fail "TEST-3459: PGQ_PATTERN matches $n non-comment line(s) of the installed pre-commit-checks.sh"
+  out="$(awk '/^core:/{c=1; next} /^[a-z]/{c=0} c && $0=="  - .aai/scripts/pre-commit-checks.ps1"{k++} END{print k+0}' "$PROJECT_ROOT/.aai/system/PROFILES.yaml")"
+  [[ "$out" == 1 ]] || log_fail "TEST-3459: PROFILES core lists the launcher $out times, expected 1"
+  log_pass "TEST-3459: aai-sync --profile core into a spaced path installs the launcher and the pipe-safe checks byte-identical, and the installed launcher refuses by name"
+}
+
+RFC17="${PCC_RFC:-$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md}"
+D_RFC_REASON='L3 protected surface; the .ps1 was retired by the [pre-commit-checks slice](../issues/CHANGE-0250-pre-commit-checks-ps1-retire.md), a deprecation launcher for one release naming pre-commit-checks.sh, deleted in the next; the .sh checks 1 to 7 run without Node'
+D_RFC_SENTENCE='The ninth slice [retired the PowerShell pre-commit checks](../issues/CHANGE-0250-pre-commit-checks-ps1-retire.md): the uncalled .ps1 became a deprecation launcher for one release that names pre-commit-checks.sh, and the bash checks no longer pipe into an early-closing reader.'
+
+test_3460_rfc() {
+  local row phase n
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-expert-fetch.sh" test_2624_inventory_matches_tree >"$TEST_DIR/e.out" 2>&1 || { tail -8 "$TEST_DIR/e.out" >&2; log_fail "TEST-3460: test_2624_inventory_matches_tree failed"; }
+  row="$("$GREP" -F '| `pre-commit-checks` |' "$RFC17" || true)"
+  [[ -n "$row" && "$(wc -l <<< "$row" | tr -d ' ')" == 1 ]] || log_fail "TEST-3460: expected exactly one pre-commit-checks inventory row"
+  [[ "$row" == *'| 323/281 |'* ]] || log_fail "TEST-3460: the inventory row lost 323/281"
+  [[ "$row" == *'| platform adapter kept on purpose |'* ]] || log_fail "TEST-3460: the inventory row lost its destination"
+  [[ "$row" == *"$D_RFC_REASON"* ]] || log_fail "TEST-3460: the inventory row lacks the D-RFC reason"
+  [[ "$row" == *'pre-commit-checks-ps1-retire.md)'* ]] || log_fail "TEST-3460: the inventory row link does not end pre-commit-checks-ps1-retire.md"
+  phase="$("$GREP" -E '^\| 5 \|' "$RFC17" || true)"
+  [[ -n "$phase" ]] || log_fail "TEST-3460: the phase 5 row is missing"
+  n="$(awk -v needle="$D_RFC_SENTENCE" '{ s=$0; while ((i = index(s, needle)) > 0) { c++; s = substr(s, i + length(needle)) } } END { print c+0 }' <<< "$phase")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3460: the phase 5 row holds the D-RFC sentence $n times, expected 1"
+  [[ "$phase" == *'| in progress |'* ]] || log_fail "TEST-3460: the phase 5 row is no longer in progress"
+  log_pass "TEST-3460: the RFC inventory keeps 323/281 and its destination with the D-RFC reason, and phase 5 holds the ninth-slice sentence once"
+}
+
+# code_lines <file> [text]: non-blank, non-comment lines (the plan's method); prints a count.
+code_lines() { "$GREP" -cvE '^[[:space:]]*(#|$)' "$1" || true; }
+
+test_3461_line_budget_and_follow_up() {
+  local ps_t ps_c sh_t sh_c out
+  ps_t="$(wc -l < "$PS1_LAUNCHER" | tr -d ' ')"; ps_c="$(code_lines "$PS1_LAUNCHER")"
+  sh_t="$(wc -l < "$SH_CHECKS" | tr -d ' ')"; sh_c="$(code_lines "$SH_CHECKS")"
+  echo "LINES before: pre-commit-checks.sh 323/239, pre-commit-checks.ps1 281/221 (total/code)"
+  echo "LINES after:  pre-commit-checks.sh $sh_t/$sh_c, pre-commit-checks.ps1 $ps_t/$ps_c (total/code)"
+  [[ "$ps_t" -le 5 && "$ps_c" -le 2 ]] || log_fail "TEST-3461: the launcher is $ps_t lines and $ps_c code lines, budget 5 and 2"
+  [[ "$sh_t" == 323 && "$sh_c" == 239 ]] || log_fail "TEST-3461: pre-commit-checks.sh is $sh_t lines and $sh_c code lines, expected 323 and 239"
+  node "$PROJECT_ROOT/.aai/scripts/follow-ups.mjs" list --status open --json > "$TEST_DIR/fu.json" || log_fail "TEST-3461: follow-ups list failed"
+  out="$(node -e '
+    const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const hit = j.items.filter((i) => i.id === "fu-delete-retired-pre-commit-checks-ps1");
+    const bad = [];
+    if (hit.length !== 1) bad.push("open items with the id: " + hit.length);
+    else {
+      const i = hit[0];
+      if (i.ref_id !== "pre-commit-checks-ps1-retire") bad.push("ref_id " + i.ref_id);
+      if (i.severity !== "P3") bad.push("severity " + i.severity);
+      for (const t of ["pre-commit-checks.ps1", "PROFILES.yaml", "WORKFLOW.md", "docs-audit.yaml"]) if (!String(i.finding).includes(t)) bad.push("finding lacks " + t);
+    }
+    process.stdout.write(bad.join("; "));
+  ' "$TEST_DIR/fu.json")"
+  [[ -z "$out" ]] || log_fail "TEST-3461: the delete follow-up: $out"
+  log_pass "TEST-3461: the launcher is $ps_t/$ps_c lines, pre-commit-checks.sh keeps 323/239, and the delete follow-up is filed (P3)"
+}
+
+main() {
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3448..3461)"
+  check_deps
+  setup_fixture
+  test_3448_ps1_retired_run
+  test_3449_pester
+  test_3450_launcher_thin
+  test_3451_large_state_check1_check5
+  test_3452_large_code_review_block
+  test_3453_large_debug_list
+  test_3454_small_input_parity
+  test_3455_ratchet_counts_the_file
+  test_3456_no_live_ps1_reference
+  test_3457_suites_stop_running_the_ps1
+  test_3458_wiring
+  test_3459_downstream_install
+  test_3460_rfc
+  test_3461_line_budget_and_follow_up
+  echo ""
+  log_pass "All $TEST_NAME tests passed"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  if [[ $# -ge 1 ]]; then check_deps; setup_fixture; "$1"; else main; fi
+fi

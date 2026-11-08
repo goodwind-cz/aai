@@ -145,7 +145,7 @@ pairs:
   - capability: git-hook-bodies-single-source
     status: done
   - capability: pre-commit-checks-ps1-retire
-    status: planned
+    status: done
   - capability: release-on-node
     status: planned
   - capability: hook-gate-on-node

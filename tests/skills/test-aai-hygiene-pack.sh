@@ -1102,8 +1102,8 @@ test_090_suite_map_pin() {  # spec-ci-test-impact-selection TEST-014 / Spec-AC-0
   # touch this number deliberately.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 129 ]] \
-    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 129 (pin moved for the git-hook-templates suite after the cloudflare-share suite) — a suite was added or removed without updating this pin"
+  [[ "$row_count" -eq 130 ]] \
+    || log_fail "tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 130 (pin moved for the pre-commit-checks suite after the git-hook-templates suite) — a suite was added or removed without updating this pin"
 
   log_pass "Every test-aai-*.sh suite has a suite-map.yaml row (spec-ci-test-impact-selection AC-003), and the row-count pin holds at $row_count"
 }
@@ -1798,9 +1798,10 @@ test_563_pgq_scan_reports_read_errors() {  # TEST-563 / Spec-AC-28
 # aai-update.sh, autonomous-loop.sh, cloudflare-share.sh, expert-fetch.sh,
 # install-pre-commit-hook.sh, migrate-state-to-local.sh, triage.sh;
 # aai-sync.sh was already fixed round 9); the ninth, pre-commit-checks.sh,
-# is a protected_paths_l3 surface a ceremony-2 ride may not edit, so it is
-# deferred by name (PGQ_SHIPPING_DEFERRED_L3) under
-# fu-pre-commit-checks-pipe-grep-q and its 7 sites are still live. A script that never
+# is a protected_paths_l3 surface a ceremony-2 ride could not edit, so it was
+# deferred until the pre-commit-checks-ps1-retire scope (ceremony 3) rewrote its
+# 7 sites to here-strings; it is gated at zero like the other shipping scripts
+# and no script is deferred any more. A script that never
 # sets pipefail is excluded by construction (pgq_scan_shipping) — the class
 # is inert there, so gating it would buy friction with no defect behind it.
 test_128_shipping_scripts_pipe_safe_at_zero() {  # TEST-470 / round 10
@@ -2131,8 +2132,8 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   # together, which is the two-way check the Mutation column drives.
   local row_count
   row_count="$(grep -cE '^  [a-z0-9][a-z0-9-]*:$' "$map")"
-  [[ "$row_count" -eq 129 ]] \
-    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 129 (pin moved for the git-hook-templates suite)"
+  [[ "$row_count" -eq 130 ]] \
+    || log_fail "TEST-487: tests/skills/suite-map.yaml has $row_count top-level suite row(s), want 130 (pin moved for the pre-commit-checks suite)"
 
   # check-test-registration.mjs exits 0 over the live tree (no orphan test_*
   # function anywhere under tests/skills, this suite's new ones included).
@@ -2147,7 +2148,7 @@ test_129_mutation_gate_suite_registration() {  # spec-mutation-gate-for-tests TE
   assert_payload_contains "$out" "SELECTED aai-mutation-gate" \
     "TEST-487: select-suites.mjs did not route .aai/scripts/mutation-gate.mjs to aai-mutation-gate: $out"
 
-  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (129), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
+  log_pass "test_129: tests/skills/suite-map.yaml carries an aai-mutation-gate row at the pinned row count (130), check-test-registration.mjs is clean, and select-suites.mjs routes the new gate script to it (TEST-487)"
 }
 
 # --- TEST-504 (NB4-r3, remediation round 3, Spec-AC-03): the Node copy of the
