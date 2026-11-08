@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: e13ae0d9b7fa8536ade4d9ac1d8b779b6309e180f0e2eeb0a1e2b071d59bec65
+frozen_sha256: b13b55e5c35088118e201b90fb2c601ca039899e36554ecbd5e944db2ef1deb4
 ceremony_level: 2
 links:
   requirement: release-on-node
@@ -425,7 +425,9 @@ stay as they are at `ed97f6a8` (TEST-3469's mutation targets that block).
   both links at merge; checks match only the suffix `release-on-node.md`.
 - CHANGELOG preamble (closes `fu-changelog-exit12-second-arm`): the sentence
   that says the parser enforces only the prefix becomes a statement of what
-  every release path refuses with exit 12: a bare `## [unreleased]` scaffold
+  the plan, `--dry-run` and the local cut refuse with exit 12 (the remote
+  finish refuses the same headings and empty entries with exit 20 and does
+  not check the encoding): a bare `## [unreleased]` scaffold
   with body text, a `## [unreleased]` heading with other trailing text than
   the `— ` form, an entry whose title or body is empty, and a file that is
   not valid UTF-8. The literal `## [unreleased] — <type>: <title>` stays
@@ -491,6 +493,7 @@ command instead of a third copy.
 | Spec-AC-13 | Wiring per D-WIRE: select-suites selects aai-release-cut for the module, both scripts and the three test files, and aai-release for the module; suite-weights holds the row; hygiene-pack test_090 pins 131 and is the only literal row-count pin left in test_129, TEST-3428 and TEST-3458, and all four selectors pass; nested-suite lint, check-cd-subshell-leak and check-test-registration exit 0; PROFILES lists the module once under core and layer-profiles test_manifest_conformance passes; both ps1-quality path lists name the module and win-fallback test_034 passes. | done | docs/ai/tdd/release-on-node/green/final-test_3475_wiring.log; docs/ai/tdd/spec-release-on-node/mutation-TEST-3475.txt | — | — |
 | Spec-AC-14 | test-aai-expert-fetch.sh test_2624_inventory_matches_tree exits 0, the aai-release inventory row names release-cut.mjs, the phase 5 row keeps status in progress and holds the D-RFC sentence once with a link ending release-on-node.md; the CHANGELOG preamble names the four exit-12 arms of D-RFC and test-aai-release.sh test_570_changelog_shape_is_documented exits 0. | done | docs/ai/tdd/release-on-node/green/run5-test_3476_rfc_and_preamble.log; docs/ai/tdd/spec-release-on-node/mutation-TEST-3476.txt | — | — |
 | Spec-AC-15 | Measured with the plan's method on the delivered tree, the suite prints before 641, the after sum of both scripts, the removed code lines and the module's code lines, and fails when either script exceeds its D-LAUNCH budget; every value of the module's EXIT constant and the exit 1 usage code is documented as exit N = in .aai/SKILL_RELEASE.prompt.md. | done | docs/ai/tdd/release-on-node/green/run5-test_3477_line_budget.log; docs/ai/tdd/spec-release-on-node/mutation-TEST-3477.txt | — | — |
+| Spec-AC-16 | A plan piped into head -1 prints nothing on stderr and exits 141 (SIGPIPE), not a Node EPIPE stack trace. | done | docs/ai/tdd/spec-release-on-node/mutation-TEST-3478.txt | — | — |
 
 ## Implementation plan
 
@@ -529,9 +532,10 @@ before the run's hand-off.
 | TEST-3474 | Spec-AC-12 | integration | tests/skills/test-aai-release-cut.sh | test_3474_callers runs test-aai-learned-routing.sh test_002_release_names_unlogged_pr and test-aai-release.sh test_031_unprotected_path_byte_identical selectors (exit 0); scans tests/ for files that copy aai-release.sh into a scratch tree and requires each to name release-cut.mjs; runs check-vendored-script-deps.mjs (exit 0). The full test-aai-release.sh, test-aai-learned-routing.sh and test-aai-release-notes.sh runs are Verification steps | `patch:docs/ai/tdd/spec-release-on-node/mutation-TEST-3474.patch` on tests/skills/test-aai-learned-routing.sh | green |
 | TEST-3475 | Spec-AC-13 | inspection | tests/skills/test-aai-release-cut.sh | test_3475_wiring pipes each of the module, both scripts and the three test files to node .aai/scripts/select-suites.mjs --files-from - and requires aai-release-cut, and the module also aai-release; requires one suite-weights row at 196 with its fallback line; requires exactly one -eq row-count literal in the hygiene pack and none in TEST-3428 and TEST-3458; runs hygiene-pack test_090 and test_129, cloudflare-share test_3428_wiring and pre-commit-checks test_3458_wiring selectors (exit 0); runs nested-suite-lint with its allowlist, check-cd-subshell-leak and check-test-registration (exit 0); requires the module once under core in PROFILES and runs layer-profiles test_manifest_conformance; requires the module in both ps1-quality path lists and runs win-fallback test_034 | `sed:s/      - \.aai\/scripts\/release-cut\.mjs/      - .aai\/scripts\/release-cut-gone.mjs/` on tests/skills/suite-map.yaml | green |
 | TEST-3476 | Spec-AC-14 | inspection | tests/skills/test-aai-release-cut.sh | test_3476_rfc_and_preamble runs test-aai-expert-fetch.sh test_2624_inventory_matches_tree (exit 0), requires release-cut.mjs in the aai-release inventory row, the phase 5 row with status in progress and the D-RFC sentence exactly once with a link ending release-on-node.md, reads the CHANGELOG preamble (lines before the first unreleased heading) for the four exit-12 arms, and runs test-aai-release.sh test_570_changelog_shape_is_documented (exit 0) | `sed:s/The tenth slice \[moved the release rollup to Node\]/The tenth slice [moved the release rollup]/` on docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md | green |
-| TEST-3477 | Spec-AC-15 | inspection | tests/skills/test-aai-release-cut.sh | test_3477_line_budget counts code lines with grep -cvE on the hash comment and blank pattern under bash with /usr/bin/grep when present: aai-release.sh at most 160, aai-release.ps1 at most 220; prints before 641, the after sum, the removed lines and the module's code lines; reads the EXIT constant of the module and requires each value and 1 as exit N = in SKILL_RELEASE | `patch:docs/ai/tdd/spec-release-on-node/mutation-TEST-3477.patch` on .aai/scripts/aai-release.sh | green |
+| TEST-3477 | Spec-AC-15 | inspection | tests/skills/test-aai-release-cut.sh | test_3477_line_budget counts code lines with grep -cvE on the hash comment and blank pattern under bash with /usr/bin/grep when present: aai-release.sh at most 160, aai-release.ps1 at most 220; prints before 641, the after sum, the removed lines and the module's code lines (the module is JavaScript, so its lines are counted with the double-slash comment pattern instead of the hash pattern); reads the EXIT constant of the module and requires each value and 1 as exit N = in SKILL_RELEASE | `patch:docs/ai/tdd/spec-release-on-node/mutation-TEST-3477.patch` on .aai/scripts/aai-release.sh | green |
+| TEST-3478 | Spec-AC-16 | integration | tests/skills/test-aai-release-cut.sh | test_3478_early_close runs run_node_tests TEST-3478: the module plan on the Spec-AC-02 fixture piped into head -1 under bash, asserting empty stderr and exit 141 from PIPESTATUS | `sed:s/e.code === 'EPIPE'/e.code === 'EXXXX'/` on .aai/scripts/release-cut.mjs | green |
 
-Test counts by type: unit 3, integration 8, inspection 4, e2e 1 (16 rows;
+Test counts by type: unit 3, integration 9, inspection 4, e2e 1 (17 rows;
 the 22 DR cases are node:test cases inside TEST-3464 to TEST-3466).
 
 Seams crossed (Principle 2): the module and the real `lib/release-rollup.mjs`
@@ -552,7 +556,7 @@ win-fallback test_034 (TEST-3475); SKILL_RELEASE's exit-code list
 ## Verification
 
 - `env -u AAI_ROLE -u AAI_GIT_WRITE bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-aai-release-cut.sh`
-  exits 0 (16 rows), plus the touched and selected suites, each run the same
+  exits 0 (17 rows), plus the touched and selected suites, each run the same
   way: test-aai-release.sh, test-aai-release-notes.sh,
   test-aai-learned-routing.sh, test-aai-hygiene-pack.sh,
   test-aai-cloudflare-share.sh, test-aai-pre-commit-checks.sh,
@@ -613,4 +617,6 @@ above.
   scripts are deleted. The roadmap item `release-on-node` stays the
   capability; `ship-append` added nothing (already on the roadmap).
 
-Registry items closed by this scope: fu-suite-map-row-count-pin-sprawl (D-WIRE), fu-release-ps1-origin-check-ps51-test (DR-20: the PowerShell origin probe is deleted and the module's probe is pinned), fu-changelog-exit12-second-arm (D-RFC preamble). Not closed, with reasons: fu-release-unlogged-pr-three-classes (the audit classifier in release-finish.mjs is not changed; the module relays its lines), fu-changelog-shape-third-statement (the advice line moves into the module verbatim; widening TEST-570's statement count is a wording decision outside this port), fu-platform-adapter-release (slice b), fu-pcc-ride-scoped-pins (pins on pre-commit-checks.sh, which this slice does not touch).
+Registry items closed by this scope: fu-suite-map-row-count-pin-sprawl (D-WIRE), fu-release-ps1-origin-check-ps51-test (DR-20: the PowerShell origin probe is deleted and the module's probe is pinned), fu-changelog-exit12-second-arm (D-RFC preamble).
+
+Items this scope leaves open, with reasons: fu-release-unlogged-pr-three-classes (the audit classifier in release-finish.mjs is not changed; the module relays its lines), fu-changelog-shape-third-statement (the advice line moves into the module verbatim; widening TEST-570's statement count is a wording decision outside this port), fu-platform-adapter-release (slice b), fu-pcc-ride-scoped-pins (pins on pre-commit-checks.sh, which this slice does not touch).

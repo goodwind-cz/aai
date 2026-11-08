@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-release-cut
-# (docs/specs/SPEC-DRAFT-spec-release-on-node.md, TEST-3462..3477)
+# (docs/specs/SPEC-DRAFT-spec-release-on-node.md, TEST-3462..3478)
 #
 # release-cut is one Node module (.aai/scripts/release-cut.mjs) behind aai-release.sh and aai-release.ps1.
 # Every case works in fresh mktemp fixtures with a stub gh first on PATH and local bare origins; no case runs
@@ -555,11 +555,16 @@ test_3477_line_budget() {
   [[ -z "$out" ]] || log_fail "TEST-3477: $out"
   sh="$(code_lines "$d/aai-release.sh" '#')"; ps1="$(code_lines "$d/aai-release.ps1" '#')"; mod="$(code_lines "$MJS" '//')"
   after=$((sh + ps1)); removed=$((before - after))
-  log_pass "TEST-3477: code lines before $before, after $after (sh $sh, ps1 $ps1), removed $removed, module $mod"
+  log_pass "TEST-3477: code lines before $before, after $after (sh $sh, ps1 $ps1), removed $removed, module $mod (JS: non-blank lines not starting with //; the # pattern would count its // comment lines too)"
+}
+
+test_3478_early_close() {
+  run_node_tests TEST-3478
+  log_pass "TEST-3478: a plan piped into head -1 ends quietly with exit 141"
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3462..3477)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3462..3478)"
   check_deps
   setup_fixture
   test_3462_seam
@@ -578,6 +583,7 @@ main() {
   test_3475_wiring
   test_3476_rfc_and_preamble
   test_3477_line_budget
+  test_3478_early_close
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

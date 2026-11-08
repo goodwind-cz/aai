@@ -196,6 +196,8 @@ export function run(argv, deps) {
 const capture = (r) => ({ status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.error ? String(r.error.message) : (r.stderr ?? '') });
 
 export function main(argv = process.argv.slice(2)) {
+  // A reader that closes early (`| head -1`) ends the plan quietly with the SIGPIPE status, not a stack trace.
+  process.stdout.on('error', (e) => { if (e.code === 'EPIPE') process.exit(141); throw e; });
   const spawn = (cmd, args, cwd) => capture(spawnSync(cmd, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20 }));
   return run(argv, {
     readFile: (p) => fs.readFileSync(p),

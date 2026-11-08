@@ -12,11 +12,13 @@ RFC-0001).
 Every entry heading follows `## [unreleased] — <type>: <title>` (Keep-a-
 Changelog style: type is feat/fix/docs/chore/ci/..., title a short summary).
 Every release path (the plan, `--dry-run`, the local cut and the remote
-finish) rolls through one transform and refuses the same input with exit 12:
-a bare `## [unreleased]` scaffold with body text, a `## [unreleased]` heading
-with other trailing text than the `— ` form, an entry whose title or body is empty,
-and a file that is not valid UTF-8. A cut with zero rollable entries is
-refused too (exit 13). The `<type>: <title>` shape beyond the prefix is a house
+finish) rolls through one transform. The plan, `--dry-run` and the local cut
+refuse with exit 12: a bare `## [unreleased]` scaffold with body text, a
+`## [unreleased]` heading with other trailing text than the `— ` form, an
+entry whose title or body is empty, and a file that is not valid UTF-8. The
+remote finish refuses the same headings and empty entries with exit 20 and
+does not check the encoding. A cut with zero rollable entries is refused too
+(exit 13). The `<type>: <title>` shape beyond the prefix is a house
 convention this preamble states, not a rule the parser checks. A bare, EMPTY
 `## [unreleased]` scaffold is fine — it is the marker a cut leaves on top.
 
@@ -31,11 +33,11 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 ## [unreleased] — refactor(release): the CHANGELOG rollup and unlogged-PR check of aai-release run in one Node module
 
 - `.aai/scripts/aai-release.sh` and `.aai/scripts/aai-release.ps1` keep their names, flags, environment variables and exit codes, but the CHANGELOG rollup, the tag check, the unlogged-PR audit call and the plan now run in one new module, `.aai/scripts/release-cut.mjs`, which rolls through the same transform the remote finish (`release-finish.mjs`) already uses. A plan, a local cut (`--confirm --no-remote`) and the remote finish now roll the same bytes; before, a plan could preview a release that `--confirm` refused or cut differently. Both scripts print `REFUSED: missing-node — Node.js 22 or later is required for /aai-release (https://nodejs.org/); nothing was changed.` on stderr and exit 20 when Node is missing from the plan or the local cut.
-- Input the scripts used to accept as is is now refused at the plan, with the same exit codes as the remote finish: an entry heading with an empty title or an entry with a blank body exits 12, a file that is one entry heading line exits 12, and a file that is not valid UTF-8 exits 12 with `REFUSED: CHANGELOG.md is not valid UTF-8 — never guessing its encoding.` (DR-01, DR-02, DR-06, DR-07). Entries interleaved with an older section now move, in order, under the fresh `## [unreleased]` scaffold, ahead of every other section (DR-03). A CRLF file is rolled with every byte outside the rolled headings kept (the `.sh` refused it, the `.ps1` rewrote every line ending to LF) and a byte order mark is kept (the `.ps1` dropped it) (DR-04, DR-05). A file without a final newline stays without one on the plan and the cut (DR-08).
+- Input the scripts used to accept as is is now refused at the plan, with exit 12 (the remote finish refuses the same headings and empty entries with exit 20): an entry heading with an empty title or an entry with a blank body exits 12, a file that is one entry heading line exits 12, and a file that is not valid UTF-8 exits 12 with `REFUSED: CHANGELOG.md is not valid UTF-8 — never guessing its encoding.` (DR-01, DR-02, DR-06, DR-07). Entries interleaved with an older section now move, in order, under the fresh `## [unreleased]` scaffold, ahead of every other section (DR-03). A CRLF file is rolled with every byte outside the rolled headings kept (the `.sh` refused it, the `.ps1` rewrote every line ending to LF) and a byte order mark is kept (the `.ps1` dropped it) (DR-04, DR-05). A file without a final newline stays without one on the plan and the cut (DR-08).
 - Refusals are one `REFUSED:` line on stderr, with no bare `MALFORMED` or `ABSENT` token before it, and the em dash is used on both scripts (the `.ps1` printed an ASCII dash); the missing-notes refusal is one line joined with `; ` followed by the `Resume:` line (DR-09, DR-10, DR-17). A refusal on the base branch's CHANGELOG.md during the cut now exits 12 or 13 with the specific line instead of `rc=N` (DR-11).
 - Plan output: the unlogged-PR block has one wording on both scripts (a count line, the PRs, an advice line), the preconditions come in the order tag, gh, NAMED, and `confirm will refuse until the NAMED missing release notes are resolved` is printed whenever PRs are named, also when another precondition blocks (DR-12, DR-13, DR-14). An audit failure now prints no plan line and returns the audit's exit code (DR-15). In the local cut the tag refusal (15) comes before the audit, so an audit failure no longer hides it (DR-16). Rolled headings are listed only at a line start, without a carriage return (DR-18). A plan no longer writes `.aai-release-changelog.*` into the repository (DR-19). The `.ps1` plan now reaches the success stream, so a caller that assigns the script's output captures it (DR-22).
 - The CHANGELOG.md preamble now states the four conditions that every release path refuses with exit 12: a bare `[unreleased]` scaffold with body text, other trailing text than the `— ` form, an entry whose title or body is empty, and a file that is not valid UTF-8.
-- Code lines (non-blank, non-comment, `grep -cvE '^[[:space:]]*(#|$)'`): 641 before over the two scripts (290 sh, 351 ps1), 313 after (119 sh, 194 ps1), 328 removed; the module holds 177. Slice (b), which moves the tag, publish and PR steps to the platform adapter and deletes the twins, is tracked as `fu-release-slice-b-delete-twins`.
+- Code lines (non-blank, non-comment, `grep -cvE '^[[:space:]]*(#|$)'`): 641 before over the two scripts (290 sh, 351 ps1), 313 after (119 sh, 194 ps1), 328 removed; the module, a JavaScript file, holds 177 (non-blank lines not starting with `//`; 191 by the `#` pattern, which counts its `//` comment lines). Slice (b), which moves the tag, publish and PR steps to the platform adapter and deletes the twins, is tracked as `fu-release-slice-b-delete-twins`.
 
 ## [unreleased] — refactor(guards): retire the uncalled PowerShell pre-commit checks; the bash checks stop misfiring on large input
 

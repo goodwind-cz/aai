@@ -1,5 +1,5 @@
 // release-cut.test.mjs - node:test cases for .aai/scripts/release-cut.mjs
-// (docs/specs/SPEC-DRAFT-spec-release-on-node.md, TEST-3462 to TEST-3466; one case per drift DR-01..DR-22).
+// (docs/specs/SPEC-DRAFT-spec-release-on-node.md, TEST-3462 to TEST-3466 and TEST-3478; one case per drift DR-01..DR-22).
 // Every case works in a fresh temp directory: recording fakes for the unit cases, scratch git repositories and
 // the real release-finish.mjs --audit for the integration cases. No case runs a real gh, pushes, tags or publishes,
 // and none reads or writes the repository's own CHANGELOG.md.
@@ -516,4 +516,13 @@ test('TEST-3466 DR-22 the ps1 plan reaches the success stream and the child stdo
   assert.equal(c.status, 0, c.stderr);
   const m = /^CAPTURED=(\d+)\|(.*)$/s.exec(c.stdout);
   assert.ok(m && Number(m[1]) > 10 && m[2] === HEADER, `a caller that assigns the output captures the plan: ${c.stdout}`);
+});
+
+// ---- TEST-3478: N3, an early-closed stdout ends quietly --------------------------------------------
+test('TEST-3478 N3 a plan piped into head -1 prints no stack trace and exits 141 (SIGPIPE)', () => {
+  const dir = fixtureA({ allNoted: true });
+  const env = { ...process.env, RC_NODE: process.execPath, RC_MJS: MODULE, RC_DIR: dir };
+  const r = spawnSync('bash', ['-c', '"$RC_NODE" "$RC_MJS" plan --root "$RC_DIR" --version v9 --target-branch main --launcher sh | head -1 >/dev/null; exit "${PIPESTATUS[0]}"'], { encoding: 'utf8', env });
+  assert.equal(r.stderr, '', `no stderr when the reader closes early: ${r.stderr}`);
+  assert.equal(r.status, 141, 'the plan exits 141 when its stdout is closed early');
 });
