@@ -84,7 +84,7 @@ Describe 'aai-release.ps1 via release-cut.mjs' {
   It 'prints the plan of a UTF-8 em dash CHANGELOG written as bytes with -DryRun and exits 0' {
     $d = New-Project 'plan' $script:Good
     $r = Invoke-Script $d '-DryRun -NoRemote -Version v9'
-    $r.Code | Should -Be 0
+    $r.Code | Should -Be 0 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $lines = $r.Out -split "\r?\n"
     $lines[0] | Should -Be ('## aai-release (plan) ' + $script:Dash + ' no files changed')
     $lines | Should -Contain ('  5:## [v9] ' + $script:Dash + ' a')
@@ -95,7 +95,7 @@ Describe 'aai-release.ps1 via release-cut.mjs' {
   It 'refuses a malformed [unreleased] heading with exit 12 and the REFUSED line only' {
     $d = New-Project 'bad' "# Changelog`n`n## [unreleased] foo`n`nx`n"
     $r = Invoke-Script $d '-DryRun -NoRemote -Version v9'
-    $r.Code | Should -Be 12
+    $r.Code | Should -Be 12 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $r.Err.Trim() | Should -Be ("REFUSED: malformed [unreleased] heading in CHANGELOG.md (a '## [unreleased]' line has unexpected trailing text or a stray heading-only body) $script:Dash never silently dropping entries.")
     $r.Out | Should -Be ''
   }
@@ -103,7 +103,7 @@ Describe 'aai-release.ps1 via release-cut.mjs' {
   It 'cuts the local release branch whose CHANGELOG equals the expected bytes with -Confirm -NoRemote' {
     $d = New-Project 'cut' $script:Good
     $r = Invoke-Script $d '-Confirm -NoRemote -Version v9'
-    $r.Code | Should -Be 0
+    $r.Code | Should -Be 0 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $want = "# Changelog`n`n## [unreleased]`n`n## [v9] $script:Dash a`n`nBody`n"
     (Get-BlobText $d 'chore/release-v9:CHANGELOG.md') | Should -BeExactly $want
   }
@@ -119,7 +119,7 @@ Describe 'aai-release.ps1 via release-cut.mjs' {
     [void](Invoke-Git $d @('add', '-A'))
     [void](Invoke-Git $d @('commit', '-q', '-m', 'fix: another (#14)'))
     $r = Invoke-Script $d '-Confirm -NoRemote -Version v9'
-    $r.Code | Should -Be 20
+    $r.Code | Should -Be 20 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $err = @($r.Err -split "\r?\n" | Where-Object { $_ -ne '' })
     $err.Count | Should -Be 2
     $err[0] | Should -Be ('REFUSED: missing-notes ' + $script:Dash + ' #14 fix: another; #13 fix: other')
@@ -131,7 +131,7 @@ Describe 'aai-release.ps1 via release-cut.mjs' {
     $d = New-Project 'nonode' $script:Good
     $bin = New-GitOnlyBin 'gitonly'
     $r = Invoke-Script $d '-DryRun -Version v9' $bin
-    $r.Code | Should -Be 20
+    $r.Code | Should -Be 20 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $r.Err.Trim() | Should -Be ('REFUSED: missing-node ' + $script:Dash + ' Node.js 22 or later is required for /aai-release (https://nodejs.org/); nothing was changed.')
     $r.Out | Should -Be ''
   }
@@ -140,7 +140,7 @@ Describe 'aai-release.ps1 via release-cut.mjs' {
     $d = New-Project 'tagged' $script:Good
     [void](Invoke-Git $d @('tag', 'v9'))
     $r = Invoke-Script $d '-Confirm -NoRemote -Version v9'
-    $r.Code | Should -Be 15
+    $r.Code | Should -Be 15 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
     $r.Err.Trim() | Should -Be 'REFUSED: tag v9 already exists.'
   }
 }

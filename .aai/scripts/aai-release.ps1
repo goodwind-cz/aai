@@ -63,6 +63,15 @@ function Invoke-NativeChecked {
 
 
 
+# Probe a native command whose stderr is expected noise (non-zero is an answer, not a fault). Windows PowerShell 5.1
+# turns any native stderr line into a terminating error under $ErrorActionPreference='Stop', even with 2>$null or *> $null,
+# so the probe runs under 'Continue' and the caller reads $LASTEXITCODE.
+function Invoke-Quiet {
+  param([Parameter(Mandatory)][string]$Exe, [string[]]$Arguments)
+  $ErrorActionPreference = 'Continue'
+  & $Exe @Arguments 2>&1 | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
+}
+
 function Select-CapturedValue {
   [CmdletBinding()]
   param(
@@ -100,7 +109,7 @@ if ($DryRun) { $Confirm = $false }
 
 $wtDir = $null
 try {
-  $Root = (git rev-parse --show-toplevel 2>$null)
+  $Root = (Invoke-Quiet git @('rev-parse', '--show-toplevel'))
   if (-not $Root -or $LASTEXITCODE -ne 0) {
     [Console]::Error.WriteLine("REFUSED: not a git repository (cwd=$(Get-Location)).")
     exit 10
@@ -136,18 +145,19 @@ try {
   }
   $cut = Join-Path $PSScriptRoot 'release-cut.mjs'
 
-  $branch = (git -C $Root symbolic-ref refs/remotes/origin/HEAD 2>$null)
+  $branch = (Invoke-Quiet git @('-C', $Root, 'symbolic-ref', 'refs/remotes/origin/HEAD'))
+  if ($LASTEXITCODE -ne 0) { $branch = $null }
   if ($branch) { $branch = $branch -replace '^refs/remotes/origin/', '' }
   if (-not $branch) {
-    git -C $Root rev-parse -q --verify refs/remotes/origin/main *> $null
+    $null = Invoke-Quiet git @('-C', $Root, 'rev-parse', '-q', '--verify', 'refs/remotes/origin/main')
     if ($LASTEXITCODE -eq 0) {
       $branch = 'main'
     } else {
-      git -C $Root rev-parse -q --verify refs/heads/main *> $null
+      $null = Invoke-Quiet git @('-C', $Root, 'rev-parse', '-q', '--verify', 'refs/heads/main')
       if ($LASTEXITCODE -eq 0) {
         $branch = 'main'
       } else {
-        $branch = (git -C $Root rev-parse --abbrev-ref HEAD 2>$null)
+        $branch = (Invoke-Quiet git @('-C', $Root, 'rev-parse', '--abbrev-ref', 'HEAD'))
         if (-not $branch -or $branch -eq "HEAD") { $branch = "main" }
       }
     }
@@ -161,7 +171,7 @@ try {
     } elseif (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
       $planArgs += '--gh-block', 'gh CLI not found on PATH'
     } else {
-      gh auth status *> $null
+      $null = Invoke-Quiet gh @('auth', 'status')
       if ($LASTEXITCODE -ne 0) { $planArgs += '--gh-block', 'gh CLI not authenticated (gh auth status failed)' }
     }
     & node @planArgs
@@ -175,11 +185,11 @@ try {
   $releaseBranch = "chore/release-$Version"
 
   $baseRef = ""
-  git -C $Root rev-parse -q --verify "refs/remotes/origin/$branch" *> $null
+  $null = Invoke-Quiet git @('-C', $Root, 'rev-parse', '-q', '--verify', "refs/remotes/origin/$branch")
   if ($LASTEXITCODE -eq 0) {
     $baseRef = "origin/$branch"
   } else {
-    git -C $Root rev-parse -q --verify "refs/heads/$branch" *> $null
+    $null = Invoke-Quiet git @('-C', $Root, 'rev-parse', '-q', '--verify', "refs/heads/$branch")
     if ($LASTEXITCODE -eq 0) {
       $baseRef = $branch
     } else {
@@ -187,14 +197,14 @@ try {
     }
   }
 
-  git -C $Root rev-parse -q --verify "refs/heads/$releaseBranch" *> $null
+  $null = Invoke-Quiet git @('-C', $Root, 'rev-parse', '-q', '--verify', "refs/heads/$releaseBranch")
   if ($LASTEXITCODE -eq 0) {
-    $existingSubject = (git -C $Root log -1 --format=%s "refs/heads/$releaseBranch" 2>$null)
+    $existingSubject = (Invoke-Quiet git @('-C', $Root, 'log', '-1', '--format=%s', "refs/heads/$releaseBranch"))
     $isAncestor = $false
-    git -C $Root merge-base --is-ancestor $releaseBranch $baseRef *> $null
+    $null = Invoke-Quiet git @('-C', $Root, 'merge-base', '--is-ancestor', $releaseBranch, $baseRef)
     if ($LASTEXITCODE -eq 0) { $isAncestor = $true }
     if (($existingSubject -like "chore(release): $Version*") -or $isAncestor) {
-      git -C $Root branch -D $releaseBranch *> $null
+      $null = Invoke-Quiet git @('-C', $Root, 'branch', '-D', $releaseBranch)
     } else {
       [Console]::Error.WriteLine("REFUSED: branch $releaseBranch already exists with unmerged commits ($existingSubject).")
       exit 12
@@ -222,7 +232,7 @@ try {
     Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $wtDir, 'commit', '-q', '-m', "chore(release): $Version") | Out-Null
     $releaseSha = Select-CapturedValue -Captured (Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $wtDir, 'rev-parse', 'HEAD')) -Pattern '^(?:[0-9a-f]{40}|[0-9a-f]{64})$' -Name 'release-sha'
   } finally {
-    git -C $Root worktree remove --force $wtDir *> $null
+    $null = Invoke-Quiet git @('-C', $Root, 'worktree', 'remove', '--force', $wtDir)
     if (Test-Path $wtDir) { Remove-Item -Recurse -Force $wtDir -ErrorAction SilentlyContinue }
     $wtDir = $null
   }
@@ -237,7 +247,7 @@ try {
   exit 0
 } finally {
   if ($wtDir -and (Test-Path $wtDir)) {
-    git -C $Root worktree remove --force $wtDir *> $null
+    $null = Invoke-Quiet git @('-C', $Root, 'worktree', 'remove', '--force', $wtDir)
     Remove-Item -Recurse -Force $wtDir -ErrorAction SilentlyContinue
   }
 }
