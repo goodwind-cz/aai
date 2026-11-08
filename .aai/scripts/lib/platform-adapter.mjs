@@ -154,10 +154,34 @@ function repoMatchesWith(idOf, originUrl, pr) {
   return okv(true);
 }
 
+// D-HOST: the release operations of the remote release finish. Each method spawns gh with the options release-finish.mjs
+// used before the move and returns the raw spawn result (status, stdout, stderr, error) plus the argv it ran.
+export const RELEASE_GH_OPTIONS = { encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024 };
+const CHECKS_MAX_BUFFER = 32 * 1024 * 1024;
+
+function githubRelease({ cwd, runner }) {
+  const gh = (args) => ({ ...(runner || spawnSync)('gh', args, { cwd, ...RELEASE_GH_OPTIONS, env: process.env }), args });
+  const repo = (r) => ['--repo', r];
+  return {
+    authStatus: () => gh(['auth', 'status']),
+    repoView: () => gh(['repo', 'view', '--json', 'nameWithOwner']),
+    prList: ({ repo: r, head, base, state, json }) => gh(['pr', 'list', ...repo(r), ...(head ? ['--head', head] : ['--base', base]), '--state', state, '--json', json]),
+    prView: ({ n, repo: r, json }) => gh(['pr', 'view', String(n), ...(r ? repo(r) : []), '--json', json]),
+    prCreate: ({ repo: r, base, head, title, bodyFile }) => gh(['pr', 'create', ...repo(r), '--base', base, '--head', head, '--title', title, '--body-file', bodyFile]),
+    prEdit: ({ repo: r, n, bodyFile }) => gh(['pr', 'edit', String(n), ...repo(r), '--body-file', bodyFile]),
+    prMerge: ({ repo: r, n, head }) => gh(['pr', 'merge', String(n), ...repo(r), '--squash', '--match-head-commit', head]),
+    api: ({ endpoint, paged }) => gh(paged ? ['api', '--paginate', '--slurp', `${endpoint}?per_page=100`] : ['api', endpoint]),
+    runList: ({ repo: r, workflow, commit, json }) => gh(['run', 'list', ...repo(r), '--workflow', workflow, '--commit', commit, '--json', json]),
+    releaseView: ({ repo: r, tag, json }) => gh(['release', 'view', tag, ...repo(r), '--json', json]),
+    checksRunner: () => (args) => (runner || spawnSync)('gh', args, { cwd, encoding: 'utf8', timeout: RELEASE_GH_OPTIONS.timeout, maxBuffer: CHECKS_MAX_BUFFER }),
+  };
+}
+
 function githubAdapter({ cwd, runner }) {
   const run = (args, extra) => (runner || spawnSync)('gh', args, { cwd, encoding: 'utf8', ...extra });
   return {
     platform: 'github',
+    release: githubRelease({ cwd, runner }),
     refusalReason: refusalFor('gh'),
     prView(n) {
       const r = readJson(run(['pr', 'view', String(n), '--json', PR_FIELDS], { maxBuffer: BIG_BUFFER }), 'gh pr view', `gh pr view ${n}`);

@@ -467,6 +467,7 @@ suites:
       - .aai/AGENTS.md
       - .aai/SKILL_PR.prompt.md
       - .aai/scripts/aai-release.sh
+      - .aai/scripts/aai-release.mjs
       - .aai/scripts/release-finish.mjs
 
   aai-ride-select:
@@ -1095,6 +1096,8 @@ suites:
       - .aai/scripts/aai-release.ps1
       - .aai/scripts/release-finish.mjs
       - .aai/scripts/release-cut.mjs
+      - .aai/scripts/aai-release.mjs
+      - .aai/scripts/lib/platform-adapter.mjs
       - .aai/SKILL_RELEASE.prompt.md
       # simple-and-friendly-to-use (Spec-AC-07 / D5): the version stamp was
       # unmapped, so every release PR escalated to the full sweep; this suite
@@ -1103,9 +1106,6 @@ suites:
       # simple-and-friendly-to-use (Spec-AC-06 / D4): the release dry run
       # reads the golden-flow record ledger for its NAMED precondition line.
       - docs/ai/tests/golden-flow.jsonl
-      # release-protected-branch-fallback: the ps1 classifier's unit tests
-      # live here, so editing them must re-run this suite (TEST-033/SEAM-3).
-      - tests/skills/aai-release.Tests.ps1
       - CHANGELOG.md
       - .claude/skills/aai-release/**
       - .codex/skills/aai-release/**
@@ -1114,6 +1114,9 @@ suites:
   aai-release-cut:
     globs:
       - .aai/scripts/release-cut.mjs
+      - .aai/scripts/aai-release.mjs
+      - .aai/scripts/lib/platform-adapter.mjs
+      - .aai/scripts/pr-platform.mjs
       - .aai/scripts/aai-release.sh
       - .aai/scripts/aai-release.ps1
       - .aai/scripts/lib/release-rollup.mjs
@@ -1125,6 +1128,7 @@ suites:
       - docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
       - tests/skills/test-aai-release-cut.sh
       - tests/skills/lib/release-cut.test.mjs
+      - tests/skills/lib/aai-release.test.mjs
       - tests/skills/release-cut.Tests.ps1
       - tests/skills/lib/nested-suite-lint.mjs
       - tests/skills/lib/nested-suite-allowlist.tsv

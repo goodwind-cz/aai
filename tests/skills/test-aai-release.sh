@@ -724,25 +724,37 @@ test_018_generic_non_aai_repo() {
 # --- TEST-019 (Spec-AC-04): ps1 parity — same flags as the bash script -----
 
 test_019_ps1_flag_parity() {
-  log_info "TEST-019: aai-release.ps1 exists and exposes the same flags as aai-release.sh..."
+  log_info "TEST-019: aai-release.ps1 exists, exposes the same flags as aai-release.sh and honours the two environment twins..."
   [[ -f "$RELEASE_PS1" ]] || log_fail "TEST-019: aai-release.ps1 not found"
   grep -q '\$DryRun'  "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a DryRun switch"
   grep -q '\$Version' "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a Version parameter"
   grep -q '\$Confirm' "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a Confirm switch"
   grep -q '\$NoRemote' "$RELEASE_PS1" || log_fail "TEST-019: ps1 lacks a NoRemote switch"
-  grep -q 'AAI_RELEASE_DATE'       "$RELEASE_PS1" || log_fail "TEST-019: ps1 does not read AAI_RELEASE_DATE"
-  grep -q 'AAI_RELEASE_NO_REMOTE'  "$RELEASE_PS1" || log_fail "TEST-019: ps1 does not read AAI_RELEASE_NO_REMOTE"
 
-  if command -v pwsh >/dev/null 2>&1; then
-    pwsh -NoProfile -Command '
-      $errs = $null
-      [System.Management.Automation.Language.Parser]::ParseFile("'"$RELEASE_PS1"'", [ref]$null, [ref]$errs) | Out-Null
-      if ($errs -and $errs.Count) { $errs | ForEach-Object { Write-Output $_.Message }; exit 1 }
-    ' || log_fail "TEST-019: aai-release.ps1 has parse errors"
-  else
-    log_info "TEST-019 note: pwsh absent — structural flag parity only (parse skipped)"
+  if ! command -v pwsh >/dev/null 2>&1; then
+    [[ -z "${CI:-}" ]] || log_fail "TEST-019: pwsh is required on CI but is not on PATH"
+    echo "SKIP-CASE: TEST-019 needs pwsh for the behavioural arm, which is not installed here"
+    log_pass "TEST-019 ps1 parity (flags present; the behavioural arm needs pwsh and did not run)"
+    return 0
   fi
-  log_pass "TEST-019 ps1 parity (flags present)"
+  pwsh -NoProfile -Command '
+    $errs = $null
+    [System.Management.Automation.Language.Parser]::ParseFile("'"$RELEASE_PS1"'", [ref]$null, [ref]$errs) | Out-Null
+    if ($errs -and $errs.Count) { $errs | ForEach-Object { Write-Output $_.Message }; exit 1 }
+  ' || log_fail "TEST-019: aai-release.ps1 has parse errors"
+  # The environment twins are read by the module the launcher starts: AAI_RELEASE_DATE pins the CalVer, AAI_RELEASE_NO_REMOTE skips the remote.
+  local repo="$TMP_ROOT/t019-repo" out
+  build_repo "$repo" scaffold_plus_entries
+  ( cd "$repo" && AAI_RELEASE_DATE=2026-07-20 AAI_RELEASE_NO_REMOTE=1 pwsh -NoProfile -NonInteractive -File "$RELEASE_PS1" -DryRun ) >"$TMP_ROOT/t019.out" 2>&1 \
+    || { out="$(cat "$TMP_ROOT/t019.out")"; log_fail "TEST-019: the ps1 dry run exited non-zero: $out"; }
+  out="$(cat "$TMP_ROOT/t019.out")"
+  grep -qxF -- '- Resolved version: v2026.07.20' <<<"$out" || log_fail "TEST-019: AAI_RELEASE_DATE did not pin the ps1 version: $out"
+  grep -qF -- '-NoRemote / AAI_RELEASE_NO_REMOTE=1: push + gh pr create would be SKIPPED' <<<"$out" || log_fail "TEST-019: AAI_RELEASE_NO_REMOTE did not skip the remote in the ps1 plan: $out"
+  ( cd "$repo" && AAI_RELEASE_DATE=2026-07-20 AAI_RELEASE_NO_REMOTE=1 pwsh -NoProfile -NonInteractive -File "$RELEASE_PS1" -Confirm ) >"$TMP_ROOT/t019.out" 2>&1 \
+    || { out="$(cat "$TMP_ROOT/t019.out")"; log_fail "TEST-019: the ps1 local cut exited non-zero: $out"; }
+  out="$(cat "$TMP_ROOT/t019.out")"
+  grep -qF -- '- Remote:  SKIPPED (-NoRemote/AAI_RELEASE_NO_REMOTE=1)' <<<"$out" || log_fail "TEST-019: the ps1 cut report lacks the SKIPPED Remote line: $out"
+  log_pass "TEST-019 ps1 parity (flags present, AAI_RELEASE_DATE and AAI_RELEASE_NO_REMOTE honoured through the launcher)"
 }
 
 # --- TEST-020 (Spec-AC-05, SEAM-2): layer-profiles classification ----------
@@ -2164,8 +2176,8 @@ check('TEST-015',()=>{
  }
  const f=fixture();historical(f,220,'.aai/scripts/unnoted.mjs');
  const scripts=path.join(f.repo,'.aai/scripts'),lib=path.join(scripts,'lib');fs.mkdirSync(lib,{recursive:true});
- for(const name of ['aai-release.sh','aai-release.ps1','release-finish.mjs','release-notes-gate.mjs','release-cut.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts',name),path.join(scripts,name));
- for(const name of ['runtime-file.mjs','github-checks.mjs','release-rollup.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts/lib',name),path.join(lib,name));
+ for(const name of ['aai-release.sh','aai-release.ps1','aai-release.mjs','release-finish.mjs','release-notes-gate.mjs','release-cut.mjs','pr-platform.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts',name),path.join(scripts,name));
+ for(const name of ['runtime-file.mjs','github-checks.mjs','release-rollup.mjs','platform-adapter.mjs','cli-pipe-guard.mjs','docs-model.mjs'])fs.copyFileSync(path.join(root,'.aai/scripts/lib',name),path.join(lib,name));
  const copied=path.join(scripts,'release-finish.mjs'),gate=path.join(scripts,'release-notes-gate.mjs'),notes=path.join(f.d,'audit-notes');fs.writeFileSync(notes,'unrelated notes');
  const audit=()=>spawnSync('node',[copied,'--root',f.repo,'--audit',notes,'--online'],{cwd:f.repo,env:{...process.env,...f.env},encoding:'utf8'});
  const normal=audit();assert.equal(normal.status,0,normal.stderr);assert.match(normal.stdout,/#220 feat: shipped 220/);assert.equal(f.transport().calls.filter(a=>a[0]==='pr'&&a[1]==='view'&&a[2]==='220').length,1,'real historical metadata read');
@@ -2698,43 +2710,6 @@ test_716_rolled_file_passes_released_region_guard() {
   log_pass "TEST-072 rolled file passes the released-region guard (PASS v0 for both base shapes)"
 }
 
-test_701_native_capture_controls() {
-  if ! command -v pwsh >/dev/null 2>&1; then
-    log_info "TEST-013: NOT VERIFIED native capture (pwsh absent)"
-    return 0
-  fi
-  local probe="$TMP_ROOT/native-capture.ps1"
-  cat > "$probe" <<'NATIVE_PROBE'
-$ErrorActionPreference = 'Stop'
-. $env:AAI_RELEASE_PS1_PROBE
-$sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-$captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::WriteLine('$sha')")
-$value = Select-CapturedValue -Captured $captured -Pattern '^(?:[0-9a-f]{40}|[0-9a-f]{64})$' -Name 'native-sha'
-if ($value -ne $sha) { throw 'normal native SHA was not captured' }
-$url = 'https://github.com/test/release/pull/1'
-$captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::Error.WriteLine('benign progress'); [Console]::WriteLine('$url')")
-$value = Select-CapturedValue -Captured $captured -Pattern '^https://github\.com/.+/pull/[0-9]+$' -Name 'native-url'
-if ($value -ne $url) { throw 'normal native URL was not captured separately from progress' }
-$captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', 'exit 0')
-foreach ($name in @('native-sha', 'native-url')) {
-  $refused = $false
-  try {
-    $pattern = '^(?:[0-9a-f]{40}|[0-9a-f]{64})$'
-    if ($name -eq 'native-url') { $pattern = '^https://github\.com/.+/pull/[0-9]+$' }
-    Select-CapturedValue -Captured $captured -Pattern $pattern -Name $name | Out-Null
-  }
-  catch { if ($_.Exception.Message -notlike "*REFUSED: empty-native-output*$name*") { throw }; $refused = $true }
-  if (-not $refused) { throw "empty $name accepted before reuse" }
-}
-$failed = $false
-try { Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::Error.WriteLine('native failure control'); exit 7") | Out-Null }
-catch { if ($_.Exception.Message -notlike '*exit 7*native failure control*') { throw }; $failed = $true }
-if (-not $failed) { throw 'failed native command accepted' }
-Write-Output 'PASS: TEST-013 native SHA/URL normal, empty refused, failed native refused'
-NATIVE_PROBE
-  AAI_RELEASE_PS1_PROBE="$RELEASE_PS1" pwsh -NoProfile -File "$probe"
-}
-
 # release-command-finish remediation (CR-3, NB-4): canonical worktree identity
 # with Windows-style inputs on any OS, and the tag-pattern refusal before any
 # mutation. RELEASE_FINISH_MJS lets a RED run target a pre-fix copy.
@@ -2826,7 +2801,6 @@ main() {
   test_031_unprotected_path_byte_identical
   test_032_non_protected_failure_degrades_raw
   test_033_ps1_fallback_parity
-  test_701_native_capture_controls
   test_702_finish_path_identity_and_version_pattern
   test_703_ps1_preview_without_origin
   test_704_grace_late_empty

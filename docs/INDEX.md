@@ -50,7 +50,7 @@ _None._
 | product-docs-capability-model | product-docs-capability-model | 1 | docs/product/product-docs-capability-model.md |
 | product-docs-enforced | product-docs-enforced | 1 | docs/product/product-docs-enforced.md |
 | provider-adapter-registry | provider-adapter-registry | 2 | docs/product/provider-adapter-registry.md |
-| release-command-finish | release-command-finish | 7 | docs/product/release-command-finish.md |
+| release-command-finish | release-command-finish | 8 | docs/product/release-command-finish.md |
 | release-notes-gate | release-notes-gate | 1 | docs/product/release-notes-gate.md |
 | ride-completion | ride-completion | 1 | docs/product/ride-completion.md |
 | ride-status-and-resume | ride-status-and-resume | 1 | docs/product/ride-status-and-resume.md |
@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (632)
+## Done (634)
 
 | ID | Type | Path |
 |---|---|---|
@@ -310,6 +310,7 @@ _None._
 | CHANGE-0249 | issues | docs/issues/CHANGE-0249-git-hook-bodies-single-source.md |
 | CHANGE-0250 | issues | docs/issues/CHANGE-0250-pre-commit-checks-ps1-retire.md |
 | CHANGE-0251 | issues | docs/issues/CHANGE-0251-release-on-node.md |
+| CHANGE-0252 | issues | docs/issues/CHANGE-0252-release-publish-on-node.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -695,6 +696,7 @@ _None._
 | SPEC-0278 | specs | docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md |
 | SPEC-0279 | specs | docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md |
 | SPEC-0281 | specs | docs/specs/SPEC-0281-spec-release-on-node.md |
+| SPEC-0282 | specs | docs/specs/SPEC-0282-spec-release-publish-on-node.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
