@@ -31,11 +31,26 @@
 set -u  # deliberately NOT -e / pipefail: unexpected failures must fall through to exit 0
 
 GATE="${1:-}"
+ROOT="${CLAUDE_PROJECT_DIR:-.}"
 case "${BASH_SOURCE[0]}" in
   */*) HERE="${BASH_SOURCE[0]%/*}" ;;
   *) HERE="." ;;
 esac
 PAYLOAD="$(cat 2>/dev/null || true)"
+
+# Pre-filter, no process started: a payload that cannot concern its gate exits 0
+# here. The triggers are substrings of the raw payload; a backslash-u escape
+# (the JSON-escaped command, DG-05) always continues, `completed` is matched in
+# any letter case (az takes `--status Completed`), and stop-nudge needs a STATE.
+case "$GATE:$PAYLOAD" in
+  *\\u*) ;;
+  commit:*commit*) ;;
+  merge:*merge*) ;;
+  merge:*[Cc][Oo][Mm][Pp][Ll][Ee][Tt][Ee][Dd]*) ;;
+  state-dump:*dump*) ;;
+  stop-nudge:*) [ -f "$ROOT/docs/ai/STATE.yaml" ] || exit 0 ;;
+  *) exit 0 ;;
+esac
 
 # The no-node lane guard: a lane marker (AAI_*_MERGE=1, never AAI_OPERATOR_MERGE)
 # in the environment plus a merge-shaped payload is denied when the decision

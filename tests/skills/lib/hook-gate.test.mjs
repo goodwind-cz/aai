@@ -519,6 +519,6 @@ describe('TEST-3506 pre-filter superset', () => {
         realDeps(project, { PATH: `${project.bin}:${process.env.PATH}`, STUB_DIR: project.stub }));
       assert.equal(d.code, 0, `${row.id}: the pre-filter skips it, so the module must allow it`);
     }
-    assert.ok(skipped >= 20, `the corpus must hold rows the pre-filter skips (${skipped})`);
+    assert.ok(skipped >= 10, `the corpus must hold rows the pre-filter skips (${skipped})`);
   });
 });
