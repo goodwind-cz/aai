@@ -271,11 +271,18 @@ function buildCorpus() {
     ['unindented', 'status: in_progress\n', null], ['no space after colon', 'items:\n  status:in_progress\n', null], ['blank then status', 'a:\n\n  status: in_progress\n', null],
   ];
   for (const [name, state, ticks] of states) add(`stop-nudge: ${name}`, 'stop-nudge', '', { state, ticks, payload: '{}' });
+  // NUL inside the command: bash drops it in a command substitution, so the module drops it too (parity, no drift)
+  add('nul in git merge', 'merge', 'git\u0000 merge x');
+  add('nul in gh pr merge', 'merge', 'gh pr merge\u0000 5');
+  add('nul before a chained merge', 'merge', 'ls\u0000; gh pr merge 5');
+  add('nul in git commit', 'commit', 'git\u0000 commit -m x', { checks: 'fail' });
+  add('nul in a state dump', 'state-dump', 'python3 -c "yaml.dump(d)"\u0000 > docs/ai/STATE.yaml');
   // rows tagged with the drift whose decision changes them: skipped by name, never compared
   add('azure platform merge', 'merge', 'node .aai/scripts/platform.mjs merge --pr 7 --expect-head abc --operator-merge', { tag: 'DG-01' });
   add('azure az completed', 'merge', 'az repos pr update --id 7 --status completed', { tag: 'DG-01' });
   add('inherited pipefail merge', 'merge', `gh pr merge 42 --squash\n${'x\n'.repeat(8000)}`, { tag: 'DG-02', env: { SHELLOPTS: 'braceexpand:hashall:interactive-comments:pipefail' } });
   add('nbsp between words', 'merge', 'gh\u00a0pr merge 5', { tag: 'DG-06' });
+  add('bom between words', 'merge', 'gh\ufeffpr merge 5', { tag: 'DG-10' });
   return rows;
 }
 const CORPUS = buildCorpus();
@@ -439,6 +446,44 @@ describe('TEST-3505 kept decisions', () => {
       assert.equal(l.rc, 2, `LC_ALL=${loc}`);
     }
     assert.equal(decideIn(project, 'merge', 'ls -la').code, 0);
+  });
+
+  test('DG-10 U+FEFF between command words is denied under every locale', () => {
+    const project = makeProject('dg10');
+    for (const cmd of ['gh\ufeffpr merge 5', 'git\ufeffmerge x']) {
+      const d = decideIn(project, 'merge', cmd);
+      assert.equal(d.code, 2);
+      assert.equal(d.stderr, ARTICLE7);
+      assert.equal(gate(LAUNCHER, project, 'merge', cmd, { env: { LC_ALL: 'C' } }).rc, 2);
+      assert.equal(gate(baseline(), project, 'merge', cmd, {}).rc, 0, 'the baseline script allowed it');
+    }
+  });
+
+  test('DG-11 a no-break-space indent before status in_progress nudges under every locale', () => {
+    const project = makeProject('dg11');
+    const state = path.join(project.dir, 'docs/ai/STATE.yaml');
+    put(state, 'active_work_items:\n\u00a0\u00a0status: in_progress\n');
+    const old = new Date(Date.now() - 100000);
+    fs.utimesSync(state, old, old);
+    for (const loc of ['C', 'C.UTF-8']) {
+      const l = gate(LAUNCHER, project, 'stop-nudge', {}, { env: { LC_ALL: loc } });
+      assert.equal(l.rc, 0, `LC_ALL=${loc}`);
+      assert.equal(l.stdout, NUDGE, `LC_ALL=${loc}`);
+    }
+  });
+
+  test('DG-12 loop ticks written in the same second as STATE.yaml do not count as newer', () => {
+    const project = makeProject('dg12');
+    const state = path.join(project.dir, 'docs/ai/STATE.yaml');
+    const ticks = path.join(project.dir, 'docs/ai/LOOP_TICKS.jsonl');
+    put(state, 'active_work_items:\n  status: in_progress\n');
+    put(ticks, '{}\n');
+    const t0 = 1700000000;
+    fs.utimesSync(state, t0 + 0.1, t0 + 0.1);
+    fs.utimesSync(ticks, t0 + 0.9, t0 + 0.9);
+    assert.equal(decideIn(project, 'stop-nudge', {}).stdout, NUDGE, 'under one second newer: the nudge stays');
+    fs.utimesSync(ticks, t0 + 1.2, t0 + 1.2);
+    assert.equal(decideIn(project, 'stop-nudge', {}).stdout, undefined, 'a later second: silent');
   });
 
   test('DG-07 Node absent or the module absent allows, except a merge payload with a lane marker', () => {

@@ -21,7 +21,7 @@
 # must not brick the session; every mirrored gate still runs at its original
 # call site). ONE exception: with a merge-policy lane marker set in the
 # environment, a merge-shaped payload that cannot be decided (no node, no
-# module) is denied -- the lane path may only ever add an allow.
+# module, a module that exits with neither 0 nor 2) is denied -- the lane path may only ever add an allow.
 #
 # HONESTY NOTE: a guardrail against habit, not a security boundary.
 #
@@ -83,4 +83,5 @@ fi
 node "$HERE/hook-gate.mjs" "$GATE" <<<"$PAYLOAD"
 rc=$?
 [ "$rc" -eq 2 ] && exit 2
+[ "$rc" -eq 0 ] || lane_guard  # a module that crashed: the lane guard, else fail open
 exit 0

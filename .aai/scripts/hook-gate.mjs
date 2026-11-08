@@ -82,7 +82,8 @@ const ALLOW = () => ({ code: 0, stderr: '' });
 export function parsePayload(text) {
   try {
     const j = JSON.parse(text);
-    const command = String((j.tool_input && j.tool_input.command) || '');
+    // bash drops a NUL in the command substitution that read the command, so the module does too.
+    const command = String((j.tool_input && j.tool_input.command) || '').replaceAll('\0', '');
     return { command: stripNl(command), cwd: String(j.cwd || '') };
   } catch {
     return { command: '', cwd: '' };
@@ -345,7 +346,7 @@ function stopNudge(input, deps) {
   try { text = deps.readFile(state); } catch { return ALLOW(); }
   if (!IN_PROGRESS_RE.test(text)) return ALLOW();
   const ticks = `${input.root}/docs/ai/LOOP_TICKS.jsonl`;
-  if (deps.exists(ticks) && deps.mtimeMs(ticks) > deps.mtimeMs(state)) return ALLOW();
+  if (deps.exists(ticks) && Math.floor(deps.mtimeMs(ticks) / 1000) > Math.floor(deps.mtimeMs(state) / 1000)) return ALLOW();
   return { code: 0, stderr: '', stdout: `${NUDGE}\n` };
 }
 

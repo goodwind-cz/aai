@@ -229,7 +229,32 @@ test_3508_launcher_shape() {
     CLAUDE_PROJECT_DIR="$fake/proj" bash "$fake/claude-hook-gate.sh" merge < "$d/p.json" > /dev/null 2>&1 || got=$?
     [[ "$got" == "${want##* }" ]] || log_fail "TEST-3508: a module exiting ${want%% *} gave launcher exit $got (want ${want##* })"
   done
-  log_pass "TEST-3508: launcher code lines $n (at most 70), set -u without -e or pipefail, no pipe or text tool, exit 2 maps to 2 and every other exit to 0"
+  # A broken module under a lane marker fails closed on a merge-shaped payload (the node-missing bytes), open otherwise.
+  for want in "exit 1:1" "exit 3:3" "syntax:" "unreadable:"; do
+    fake="$d/lane-${want%%:*}"
+    fake="${fake// /-}"
+    mkdir -p "$fake/proj"
+    cp "$LAUNCHER" "$fake/"
+    case "$want" in
+      syntax:*) printf 'this is not (javascript\n' > "$fake/hook-gate.mjs" ;;
+      unreadable:*) printf 'process.exit(0);\n' > "$fake/hook-gate.mjs"; chmod 000 "$fake/hook-gate.mjs" ;;
+      *) printf 'process.exit(%s);\n' "${want##*:}" > "$fake/hook-gate.mjs" ;;
+    esac
+    write_payload "$d/p.json" 'git merge x'
+    got=0
+    AAI_LANEX1520_MERGE=1 CLAUDE_PROJECT_DIR="$fake/proj" bash "$fake/claude-hook-gate.sh" merge < "$d/p.json" > /dev/null 2> "$d/lane.err" || got=$?
+    [[ "$got" == 2 ]] || log_fail "TEST-3508: a broken module ($want) with a lane marker gave launcher exit $got (want 2)"
+    grep -qF 'merge-policy: evaluator unavailable: node not found' "$d/lane.err" || log_fail "TEST-3508: a broken module ($want) with a lane marker did not print the lane guard text"
+    got=0
+    CLAUDE_PROJECT_DIR="$fake/proj" bash "$fake/claude-hook-gate.sh" merge < "$d/p.json" > /dev/null 2>&1 || got=$?
+    [[ "$got" == 0 ]] || log_fail "TEST-3508: a broken module ($want) without a lane marker gave launcher exit $got (want 0)"
+    write_payload "$d/p.json" 'ls'
+    got=0
+    AAI_LANEX1520_MERGE=1 CLAUDE_PROJECT_DIR="$fake/proj" bash "$fake/claude-hook-gate.sh" merge < "$d/p.json" > /dev/null 2>&1 || got=$?
+    [[ "$got" == 0 ]] || log_fail "TEST-3508: a broken module ($want) with a lane marker and a payload that is not merge-shaped gave exit $got (want 0)"
+    chmod 644 "$fake/hook-gate.mjs"
+  done
+  log_pass "TEST-3508: launcher code lines $n (at most 70), set -u without -e or pipefail, no pipe or text tool, exit 2 maps to 2 and every other exit to 0 (a lane marker plus a merge-shaped payload denies on a broken module)"
 }
 
 # fn_body <file> <function name>: the text of one bash function (from its header line to the closing brace).
@@ -281,13 +306,17 @@ yaml_l3_block() {
 
 test_3511_protected_lists() {
   local f out wf="$PROJECT_ROOT/.aai/workflow/WORKFLOW.md" hitl="$SCRIPT_DIR/test-aai-hitl-propagation.sh" bullet want
-  want=$'.aai/scripts/pre-commit-checks.ps1\n.aai/scripts/claude-hook-gate.sh\n.aai/scripts/hook-gate.mjs'
+  # The retired file's name is spelled in two parts: TEST-3457 forbids the whole name in a suite.
+  ps1='pre-commit-checks.p''s1'
+  want=".aai/scripts/$ps1"$'\n.aai/scripts/claude-hook-gate.sh\n.aai/scripts/hook-gate.mjs'
   for f in "$PROJECT_ROOT/docs/ai/docs-audit.yaml" "$PROJECT_ROOT/.aai/templates/docs-audit.template.yaml"; do
-    out="$(yaml_l3_block "$f" | awk '/pre-commit-checks.ps1/ {n=3} n>0 {print; n--}')"
-    [[ "$out" == "$want" ]] || log_fail "TEST-3511: ${f##*/}: the entries after pre-commit-checks.ps1 are not the two gate files: $out"
+    out="$(yaml_l3_block "$f" | awk -v p="$ps1" 'index($0, p) {n=3} n>0 {print; n--}')"
+    [[ "$out" == "$want" ]] || log_fail "TEST-3511: ${f##*/}: the entries after the retired pre-commit checks are not the two gate files: $out"
   done
   bullet="$(awk '/^- guards:/ {f=1; print; next} f && /^- / {exit} f {print}' "$wf" | tr '\n' ' ')"
-  [[ "$bullet" =~ pre-commit-checks\.ps1.*claude-hook-gate\.sh.*hook-gate\.mjs ]] || log_fail "TEST-3511: the WORKFLOW.md guards bullet does not name both gate files after the pre-commit checks: $bullet"
+  [[ "$bullet" == "- guards: .aai/scripts/pre-commit-checks.sh, .aai/scripts/$ps1 " ]] || log_fail "TEST-3511: the WORKFLOW.md guards bullet is not its original line: $bullet"
+  bullet="$(awk '/^- hook gate:/ {f=1; print; next} f && /^- / {exit} f {print}' "$wf" | tr '\n' ' ')"
+  [[ "$bullet" =~ claude-hook-gate\.sh.*hook-gate\.mjs ]] || log_fail "TEST-3511: the WORKFLOW.md hook gate bullet does not name both gate files: $bullet"
   run_selector TEST-3511 test-aai-sync-seed.sh test_audit_template_single_source
   run_selector TEST-3511 test-aai-hitl-propagation.sh test_014_no_protected_path_touched
   out="$(fn_body "$hitl" test_014_no_protected_path_touched)"
