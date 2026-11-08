@@ -734,7 +734,7 @@ test_019_ps1_flag_parity() {
   if ! command -v pwsh >/dev/null 2>&1; then
     [[ -z "${CI:-}" ]] || log_fail "TEST-019: pwsh is required on CI but is not on PATH"
     echo "SKIP-CASE: TEST-019 needs pwsh for the behavioural arm, which is not installed here"
-    log_pass "TEST-019 ps1 parity (flags present; behavioural arm skipped)"
+    log_pass "TEST-019 ps1 parity (flags present; the behavioural arm needs pwsh and did not run)"
     return 0
   fi
   pwsh -NoProfile -Command '

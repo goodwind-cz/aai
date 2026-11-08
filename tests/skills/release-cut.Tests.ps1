@@ -183,6 +183,17 @@ Describe 'aai-release.ps1 via aai-release.mjs' {
     $r.Err | Should -Be ''
   }
 
+  It 'DB-21 -Version with no value gets the PowerShell binder error, exit 1, and nothing runs' {
+    $d = New-Project 'db21' $script:Good
+    $head = Invoke-Git $d @('rev-parse', 'HEAD')
+    $r = Invoke-Script $d '-NoRemote -Version'
+    $r.Code | Should -Be 1 -Because ("stdout=[" + $r.Out + "] stderr=[" + $r.Err + "]")
+    $r.Out | Should -Be ''
+    $r.Err | Should -Match 'Version'
+    (Invoke-Git $d @('rev-parse', 'HEAD')) | Should -Be $head
+    (Invoke-Git $d @('branch', '--list', 'chore/release-*')) | Should -Be ''
+  }
+
   It 'prints the usage in the ps1 spelling with -h and exits 0' {
     $d = New-Project 'help' $script:Good
     $r = Invoke-Script $d '-h'

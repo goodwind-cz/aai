@@ -54,7 +54,7 @@ The whole command now runs in `.aai/scripts/aai-release.mjs`; `aai-release.sh` a
 - `-h` / `--help` print the usage on both launchers; an unknown argument prints `Unknown argument: <a>` and `Run with --help for usage.` and exits 1; `--version` needs a value and `--version=<v>` is accepted; an invalid version refuses with exit 1 before any git write.
 - A release branch with unmerged commits exits 14 (12 stays the malformed-CHANGELOG code); a failing git step of the local cut exits 20 with `REFUSED: git-command`; an interrupt during the local cut removes the worktree and exits 130 or 143.
 - A remote `--confirm` on a platform other than GitHub, or with a platform record that disagrees with the origin, refuses `release-platform` or `platform-mismatch` with exit 20 before any host call; cut locally with `--no-remote`. The plan names these cases in its blocked publish path.
-- Moving the tag and publish steps to Azure DevOps is tracked as `fu-release-azure-remote-finish`; the Windows PowerShell 5.1 behaviour of the launcher is proven by the hosted Windows job. The Windows PowerShell 5.1 behaviour of the new `.ps1` is proven by the hosted Windows job, not locally.
+- Moving the tag and publish steps to Azure DevOps is tracked as `fu-release-azure-remote-finish`; the Windows PowerShell 5.1 behaviour of the launcher is proven by the hosted Windows job.
 
 ## Data model
 

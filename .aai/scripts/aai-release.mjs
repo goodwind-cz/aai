@@ -171,10 +171,14 @@ async function localCut(o, version, root, target, deps) {
     return 0;
   } catch (e) {
     if (!(e instanceof Refusal)) throw e;
+    // A process-group signal kills the git child too; the interrupt, not the git failure, is what happened (DB-14).
+    const code = await stop();
+    if (code) return code;
     deps.err(e.message);
     return EXIT.REFUSED;
   } finally {
     removeWorktree(deps, root, wt);
+    deps.disarm?.();
   }
 }
 
@@ -215,6 +219,7 @@ function realDeps() {
     return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.error ? String(r.error.message) : (r.stderr ?? '') };
   };
   const interrupted = { name: '' };
+  const handlers = Object.keys(SIGNALS).map((sig) => [sig, () => { interrupted.name = sig; }]);
   return {
     git: (args, cwd) => spawn('git', args, cwd),
     // In process: killing the launcher stops the release, as the old exec did.
@@ -232,7 +237,8 @@ function realDeps() {
     out: (l) => process.stdout.write(`${l}\n`),
     err: (l) => process.stderr.write(`${l}\n`),
     tick: () => new Promise((r) => setImmediate(r)),
-    arm: () => { for (const sig of Object.keys(SIGNALS)) process.on(sig, () => { interrupted.name = sig; }); },
+    arm: () => { for (const [sig, fn] of handlers) process.on(sig, fn); },
+    disarm: () => { for (const [sig, fn] of handlers) process.off(sig, fn); },
     interrupted: () => interrupted.name,
   };
 }

@@ -533,3 +533,70 @@ test('TEST-3536 a plan or a usage written to a pipe whose reader has already exi
     assert.equal(r.status, 141, args);
   }
 });
+
+// ---- TEST-3537: a signal to the whole process group, and the handlers' lifetime ------------------------
+// A terminal Ctrl-C reaches the git child as well as node: the git step dies, and the interrupt still wins over the git-command refusal.
+for (const [sig, exit] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+  test(`TEST-3537 ${sig} sent to the whole process group during a git step of the local cut prints the interrupted line and exits ${exit}`, async () => {
+    const dir = fixture();
+    const bin = path.join(scratch('grp'), 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    const marker = path.join(bin, 'marker');
+    const real = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+    fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" commit "*) : > "${marker}"; sleep 5;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
+    const child = spawn(process.execPath, [MODULE, '--launcher', 'sh', '--confirm', '--no-remote', '--version', 'v9'], {
+      cwd: dir, detached: true, env: HOST_FREE({ PATH: `${bin}${path.delimiter}${process.env.PATH}` }),
+    });
+    let stdout = ''; let stderr = '';
+    child.stdout.on('data', (d) => { stdout += d; });
+    child.stderr.on('data', (d) => { stderr += d; });
+    const closed = new Promise((resolve) => child.on('close', (code, signal) => resolve({ code, signal })));
+    const t0 = Date.now();
+    while (!fs.existsSync(marker)) {
+      if (Date.now() - t0 > 20000) { process.kill(-child.pid, 'SIGKILL'); assert.fail('the cut never reached the commit step'); }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    process.kill(-child.pid, sig);
+    const { code, signal } = await closed;
+    assert.equal(signal, null, 'the module handles the signal itself');
+    assert.equal(code, exit, `${stdout}${stderr}`);
+    assert.equal(stderr, `REFUSED: interrupted (${sig}) — the temporary worktree was removed.\n`);
+    assert.equal(stdout, '');
+    assert.equal(git(dir, 'worktree', 'list').trim().split('\n').length, 1, 'git worktree list shows only the main tree');
+  });
+}
+
+test('TEST-3537 the signal handlers are removed after the cut on success, on a git refusal and on an interrupt', async () => {
+  const cases = [
+    ['success', () => ({ status: 0, stdout: 'abc1234\n', stderr: '' }), '', 0],
+    ['refusal', (a) => (a[0] === 'commit' ? { status: 1, stdout: '', stderr: 'boom\n' } : { status: 0, stdout: 'abc1234\n', stderr: '' }), '', 20],
+    ['interrupt', () => ({ status: 0, stdout: 'abc1234\n', stderr: '' }), 'SIGINT', 130],
+  ];
+  for (const [label, ok, sig, exit] of cases) {
+    const { deps, log } = mk({
+      gitFn: (a, cwd, defaults) => (a[0] === 'rev-parse' && a[1] === '-q' ? { status: 1, stdout: '', stderr: '' } : a[0] === 'check-ref-format' || a.join(' ') === 'rev-parse --show-toplevel' || a[0] === 'symbolic-ref' ? defaults(a) : ok(a)),
+    });
+    const events = [];
+    deps.arm = () => events.push('arm');
+    deps.disarm = () => events.push('disarm');
+    deps.interrupted = () => sig;
+    const origGit = deps.git;
+    deps.git = (a, cwd) => { if (a[0] === 'worktree' && a[1] === 'remove') events.push('remove'); return origGit(a, cwd); };
+    const code = await run(['--launcher', 'sh', '--confirm', '--no-remote', '--version', 'v9'], deps);
+    assert.equal(code, exit, `${label}: ${log.err.join('|')}`);
+    assert.deepEqual(events.filter((e) => e !== 'remove'), ['arm', 'disarm'], `${label}: armed once, disarmed once`);
+    assert.ok(events.lastIndexOf('disarm') > events.lastIndexOf('remove'), `${label}: disarmed after the worktree was removed`);
+  }
+});
+
+// ---- TEST-3538: DB-20, a repository with no origin and no record ---------------------------------------
+test('TEST-3538 DB-20 an unrecorded repository with no origin resolves to platform none: the plan blocks and a remote confirm refuses release-platform', () => {
+  const { bin, log } = stubBin();
+  const dir = fixture();
+  const r = cli(['--launcher', 'sh', '--dry-run', '--version', 'v9'], { cwd: dir, bin });
+  assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.ok(lines(r.stdout).includes(`${BLOCK}the remote release finish runs on GitHub only (platform none); cut locally with --no-remote`), r.stdout);
+  const err = finishRefusal('', '');
+  assert.equal(err[0], 'REFUSED: release-platform — the remote release finish runs on GitHub only (platform none); cut locally with --no-remote and open the release PR on your host');
+  assert.equal(log('gh') + log('az'), '', 'no host call');
+});

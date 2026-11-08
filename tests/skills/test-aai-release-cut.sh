@@ -2,7 +2,7 @@
 #
 # Test: aai-release-cut
 # (docs/specs/SPEC-0281-spec-release-on-node.md, TEST-3462..3478;
-#  docs/specs/SPEC-DRAFT-spec-release-publish-on-node.md, TEST-3520..3536)
+#  docs/specs/SPEC-DRAFT-spec-release-publish-on-node.md, TEST-3520..3538)
 #
 # release-cut is one Node module (.aai/scripts/release-cut.mjs) behind aai-release.sh and aai-release.ps1.
 # Every case works in fresh mktemp fixtures with a stub gh first on PATH and local bare origins; no case runs
@@ -490,6 +490,16 @@ test_3521_argument_drift() {
   log_pass "TEST-3521: DB-01 to DB-05 behave as decided"
 }
 
+test_3537_group_signal() {
+  run_ar_tests TEST-3537
+  log_pass "TEST-3537: a signal to the whole process group during a git step reports the interrupt, and the handlers are removed after the cut"
+}
+
+test_3538_no_origin() {
+  run_ar_tests TEST-3538
+  log_pass "TEST-3538: DB-20, a repository with no origin and no record blocks the plan and refuses release-platform"
+}
+
 # db_problems <spec> <node test file> <pester file>: DB ids of the D-DRIFT table vs test names (empty when they agree).
 db_problems() {
   cat > "$TEST_DIR/db-drift.cjs" <<'JS'
@@ -503,7 +513,7 @@ const names = [
 const bad = [];
 for (const id of table) { const n = names.filter((x) => x === id).length; if (n !== 1) bad.push(`${id} begins ${n} test names`); }
 for (const id of new Set(names)) if (!table.includes(id)) bad.push(`${id} is not in the D-DRIFT table`);
-if (table.length !== 19) bad.push(`the table holds ${table.length} ids, expected 19`);
+if (table.length !== 21) bad.push(`the table holds ${table.length} ids, expected 21`);
 process.stdout.write(bad.join('; '));
 JS
   node "$TEST_DIR/db-drift.cjs" "$1" "$2" "$3"
@@ -566,7 +576,8 @@ ps1_spelling_to_sh() {
 test_3523_launcher_parity() {
   run_ar_tests TEST-3523
   need_tool TEST-3523 pwsh || return 0
-  local label envs sh_args ps_args n=0 shfx psfx sh_out sh_err sh_rc
+  local label envs sh_args ps_args n=0 shfx psfx sh_out sh_err sh_rc ps_spelling
+  local sh_flags_re='--(no-remote|confirm|dry-run)|aai-release\.sh'
   GH_BIN="$TEST_DIR/t23-bin"; SO="$TEST_DIR/t23.out"; SE="$TEST_DIR/t23.err"
   make_gh_stub "$GH_BIN"
   while IFS=';' read -r label envs sh_args ps_args; do
@@ -582,7 +593,9 @@ test_3523_launcher_parity() {
     # shellcheck disable=SC2086
     parity_run ps1 "$psfx" "$envs" $ps_args
     [[ "$RC" == "$sh_rc" ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3523: '$label' exits $sh_rc under sh and $RC under ps1"; }
-    ! cat "$SO" "$SE" | grep -v '^Resume: node' | grep -qE -- '--(no-remote|confirm|dry-run)|aai-release\.sh' || { cat "$SO" "$SE" >&2; log_fail "TEST-3523: '$label' prints the sh flag spelling under ps1"; }
+    # A captured variable and a bash regex, not a pipe into grep -q: an early-closing reader flips the upstream status under pipefail.
+    ps_spelling="$(grep -hv '^Resume: node' "$SO" "$SE" || true)"
+    [[ ! "$ps_spelling" =~ $sh_flags_re ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3523: '$label' prints the sh flag spelling under ps1"; }
     [[ "$(ps1_spelling_to_sh "$SO" "$psfx")" == "$sh_out" ]] || { diff <(printf '%s\n' "$sh_out") <(ps1_spelling_to_sh "$SO" "$psfx") >&2 || true; log_fail "TEST-3523: '$label' prints different stdout under sh and ps1"; }
     [[ "$(ps1_spelling_to_sh "$SE" "$psfx")" == "$sh_err" ]] || { diff <(printf '%s\n' "$sh_err") <(ps1_spelling_to_sh "$SE" "$psfx") >&2 || true; log_fail "TEST-3523: '$label' prints different stderr under sh and ps1"; }
   done <<'MATRIX'
@@ -839,6 +852,8 @@ main() {
   test_3534_rfc_and_skill
   test_3535_line_budget
   test_3536_early_close
+  test_3537_group_signal
+  test_3538_no_origin
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
