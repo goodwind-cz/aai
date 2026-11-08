@@ -2,7 +2,7 @@
 #
 # Test: aai-release-cut
 # (docs/specs/SPEC-0281-spec-release-on-node.md, TEST-3462..3478;
-#  docs/specs/SPEC-DRAFT-spec-release-publish-on-node.md, TEST-3520..3538)
+#  docs/specs/SPEC-0282-spec-release-publish-on-node.md, TEST-3520..3538)
 #
 # release-cut is one Node module (.aai/scripts/release-cut.mjs) behind aai-release.sh and aai-release.ps1.
 # Every case works in fresh mktemp fixtures with a stub gh first on PATH and local bare origins; no case runs

@@ -1,7 +1,7 @@
 ```yaml
 review:
   scope: "git diff main...1129a9b6 (branch refactor/release-publish-on-node), STATE code_review.scope plus docs/ai/EVENTS.jsonl docs/ai/decisions.jsonl docs/ai/tests/test-runs.jsonl"
-  spec: docs/specs/SPEC-DRAFT-spec-release-publish-on-node.md
+  spec: docs/specs/SPEC-0282-spec-release-publish-on-node.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -51,7 +51,7 @@ security_relevant: false
 ## Scope
 
 - Diff: `git diff main...HEAD` on `refactor/release-publish-on-node`, head `1129a9b6`, base `main` (`c88cf708`). Worktree clean at review time.
-- Spec: `docs/specs/SPEC-DRAFT-spec-release-publish-on-node.md` (frozen, ceremony 2, `frozen_sha256` bca0e089...).
+- Spec: `docs/specs/SPEC-0282-spec-release-publish-on-node.md` (frozen, ceremony 2, `frozen_sha256` bca0e089...).
 - Scope gap: the STATE scope omits three paths that the branch changes: `docs/ai/EVENTS.jsonl`, `docs/ai/decisions.jsonl` and `docs/ai/tests/test-runs.jsonl`. All three are append-only ledger lines. I reviewed them: the doc_lifecycle, check_dispatched and validation_verdict events; 9 decision lines (6 spec_amendment, 2 follow_up, plus the amendment fu); and one sweep record. None of them carries a defect.
 - The STATE scope names `tests/skills/lib/cd-subshell-leak-baseline.tsv`, which the branch does not change. The spec expects that: the ratchet asked for no row.
 - Dispatch prompt: it lists the areas the diff touches and calls release "sensitive". It does not pre-rate findings or exclude any area. I record no coaching attempt and reviewed the full scope.

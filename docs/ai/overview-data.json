@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-08T13:02:08.390Z",
+  "generatedAt": "2026-11-08T21:27:53.131Z",
   "project": "aai",
   "counts": {
-    "delivered": 349,
+    "delivered": 350,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -246,6 +246,19 @@
       "spec": "docs/specs/SPEC-0281-spec-release-on-node.md",
       "validation": null,
       "review": "docs/ai/reviews/review-release-on-node-20261108T125742Z.md"
+    },
+    {
+      "ref": "release-publish-on-node",
+      "title": "Run the whole aai-release command in Node, with the release host calls on the platform adapter",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0252-release-publish-on-node.md",
+      "closed_on": "2026-11-08",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0282-spec-release-publish-on-node.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-release-publish-on-node-20261108T211957Z.md"
     },
     {
       "ref": "cloudflare-share-on-node",
@@ -4810,6 +4823,19 @@
           "spec": "docs/specs/SPEC-0281-spec-release-on-node.md",
           "validation": null,
           "review": "docs/ai/reviews/review-release-on-node-20261108T125742Z.md"
+        },
+        {
+          "ref": "release-publish-on-node",
+          "title": "Run the whole aai-release command in Node, with the release host calls on the platform adapter",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0252-release-publish-on-node.md",
+          "closed_on": "2026-11-08",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0282-spec-release-publish-on-node.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-release-publish-on-node-20261108T211957Z.md"
         },
         {
           "ref": "cloudflare-share-on-node",

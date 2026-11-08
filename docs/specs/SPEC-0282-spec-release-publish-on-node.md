@@ -1,10 +1,10 @@
 ---
 id: spec-release-publish-on-node
 type: spec
-number: null
-status: implementing
+number: 282
+status: done
 mutation_gate: v1
-frozen_sha256: bca0e089bd8ef1082f573d9ba9463968ae6eea2e2f9c295388f9eeaccbceadf5
+frozen_sha256: 282222308a3b1fa6b8b7efcc2a565b749ce8e238db135abf9eb8097bc5b4e6bf
 ceremony_level: 2
 links:
   requirement: release-publish-on-node
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Run the whole aai-release command in Node, with the release host calls on the platform adapter](../issues/CHANGE-DRAFT-release-publish-on-node.md).
+- Requirement: [Run the whole aai-release command in Node, with the release host calls on the platform adapter](../issues/CHANGE-0252-release-publish-on-node.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 6, slice (b) of two (the owner merges).
@@ -72,8 +72,8 @@ SPEC-FROZEN: true
   tests/skills/aai-win-dispatch.Tests.ps1 tests/skills/lib/pester-native-capture.ps1
   tests/skills/test-aai-release.sh tests/skills/test-aai-learned-routing.sh
   tests/skills/suite-map.yaml tests/skills/lib/cd-subshell-leak-baseline.tsv
-  docs/issues/CHANGE-DRAFT-release-publish-on-node.md
-  docs/specs/SPEC-DRAFT-spec-release-publish-on-node.md docs/INDEX.md
+  docs/issues/CHANGE-0252-release-publish-on-node.md
+  docs/specs/SPEC-0282-spec-release-publish-on-node.md docs/INDEX.md
   (cd-subshell-leak-baseline.tsv only if the ratchet asks for a row;
   tests/skills/aai-release.Tests.ps1 is deleted).
 - Code review required: true.
@@ -491,11 +491,11 @@ CHANGELOG or worktree handling.
 
 - RFC-0017 pair table: the `aai-release` row is removed (it is no longer a
   pair). After the reaper sentence below the table, one sentence:
-  `The [release slices](../issues/CHANGE-DRAFT-release-publish-on-node.md) moved aai-release to Node modules with thin launchers (pair 319 to <after> code lines).`
+  `The [release slices](../issues/CHANGE-0252-release-publish-on-node.md) moved aai-release to Node modules with thin launchers (pair 319 to <after> code lines).`
   with the measured after value.
 - Phase 5 row: one sentence after the tenth-slice sentence and before the
   remaining-scripts-plan sentence:
-  `The eleventh slice [ran the whole release command in Node](../issues/CHANGE-DRAFT-release-publish-on-node.md): aai-release.sh and aai-release.ps1 are thin launchers of aai-release.mjs, and the release host calls run on the platform adapter.`
+  `The eleventh slice [ran the whole release command in Node](../issues/CHANGE-0252-release-publish-on-node.md): aai-release.sh and aai-release.ps1 are thin launchers of aai-release.mjs, and the release host calls run on the platform adapter.`
   Status stays `in progress`; frontmatter untouched. The allocator rewrites
   both links at merge; checks match only the suffix
   `release-publish-on-node.md`.

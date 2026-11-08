@@ -161,7 +161,7 @@ pairs:
   - capability: sync-on-node
     status: planned
   - capability: release-publish-on-node
-    status: active
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

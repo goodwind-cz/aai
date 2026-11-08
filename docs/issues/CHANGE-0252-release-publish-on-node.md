@@ -1,8 +1,8 @@
 ---
 id: release-publish-on-node
 type: change
-number: null
-status: draft
+number: 252
+status: done
 capability: release-command-finish
 parent: smaller-node-core-and-faster-feedback
 links:

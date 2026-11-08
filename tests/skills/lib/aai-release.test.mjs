@@ -1,5 +1,5 @@
 // aai-release.test.mjs - node:test cases for .aai/scripts/aai-release.mjs and the release group of the GitHub adapter
-// (docs/specs/SPEC-DRAFT-spec-release-publish-on-node.md, TEST-3520 to TEST-3526 and TEST-3536; one case per drift DB-01..DB-18,
+// (docs/specs/SPEC-0282-spec-release-publish-on-node.md, TEST-3520 to TEST-3526 and TEST-3536; one case per drift DB-01..DB-18,
 // DB-10 and DB-19 live in tests/skills/release-cut.Tests.ps1).
 // Every case works in a fresh temp directory: recording fakes for the unit cases, scratch git repositories and the real
 // release-cut.mjs / release-finish.mjs for the integration cases, a stub gh (and az) first on PATH that logs its argv.
