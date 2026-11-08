@@ -98,8 +98,6 @@ $ErrorActionPreference = "Stop"
 
 if ($DryRun) { $Confirm = $false }
 
-$OutFile = $null
-$NotesFile = $null
 $wtDir = $null
 try {
   $Root = (git rev-parse --show-toplevel 2>$null)
@@ -112,9 +110,6 @@ try {
     [Console]::Error.WriteLine("REFUSED: no CHANGELOG.md at repo root: $Changelog")
     exit 11
   }
-
-  $dirtyOut = (git -C $Root status --porcelain 2>$null)
-  $Dirty = [bool]($dirtyOut -and $dirtyOut.Trim().Length -gt 0)
 
   if (-not $Version) {
     $releaseDate = $env:AAI_RELEASE_DATE
@@ -135,136 +130,11 @@ try {
     exit $LASTEXITCODE
   }
 
-  function Invoke-ChangelogRollup {
-    [CmdletBinding()]
-    param(
-      [Parameter(Mandatory)][string]$Path,
-      [Parameter(Mandatory)][string]$VersionString
-    )
-    $lines = Get-Content -LiteralPath $Path
-    $n = $lines.Count
-    $firstHeading = -1
-    for ($i = 0; $i -lt $n; $i++) {
-      if ($lines[$i] -match '^## \[') { $firstHeading = $i; break }
-    }
-    if ($firstHeading -eq -1) {
-      return @{ Success = $false; ExitCode = 13; Error = "REFUSED: no rollable [unreleased] entries in CHANGELOG.md (absent or empty) - nothing to release." }
-    }
-
-    $headIdx = New-Object System.Collections.Generic.List[int]
-    for ($i = $firstHeading; $i -lt $n; $i++) {
-      if ($lines[$i] -match '^## ') { $headIdx.Add($i) }
-    }
-    $headIdx.Add($n)
-
-    $m = $headIdx.Count - 1
-    $type = New-Object string[] $m
-    $malformed = $false
-    $entryCount = 0
-    for ($k = 0; $k -lt $m; $k++) {
-      $hi = $headIdx[$k]
-      $hline = $lines[$hi]
-      $bodyStart = $hi + 1
-      $bodyEnd = $headIdx[$k + 1] - 1
-      if ($hline -match ('^## \[unreleased\] ' + [char]0x2014 + ' ')) {
-        $type[$k] = "ENTRY"; $entryCount++
-      } elseif ($hline -match '^## \[unreleased\]') {
-        if ($hline -match '^## \[unreleased\][ \t]*$') {
-          $allBlank = $true
-          for ($b = $bodyStart; $b -le $bodyEnd; $b++) {
-            if ($lines[$b] -notmatch '^[ \t]*$') { $allBlank = $false; break }
-          }
-          if ($allBlank) { $type[$k] = "SCAFFOLD" } else { $type[$k] = "MALFORMED"; $malformed = $true }
-        } else {
-          $type[$k] = "MALFORMED"; $malformed = $true
-        }
-      } else {
-        $type[$k] = "OTHER"
-      }
-    }
-
-    if ($malformed) {
-      return @{ Success = $false; ExitCode = 12; Error = "REFUSED: malformed [unreleased] heading in CHANGELOG.md (a '## [unreleased]' line has unexpected trailing text or a stray heading-only body) - never silently dropping entries." }
-    }
-    if ($entryCount -eq 0) {
-      return @{ Success = $false; ExitCode = 13; Error = "REFUSED: no rollable [unreleased] entries in CHANGELOG.md (absent or empty) - nothing to release." }
-    }
-
-    $firstEntryHi = -1
-    for ($k = 0; $k -lt $m; $k++) { if ($type[$k] -eq "ENTRY") { $firstEntryHi = $headIdx[$k]; break } }
-
-    $newLines = New-Object System.Collections.Generic.List[string]
-    for ($i = 0; $i -lt $firstHeading; $i++) { $newLines.Add($lines[$i]) }
-
-    $notesLines = New-Object System.Collections.Generic.List[string]
-    for ($k = 0; $k -lt $m; $k++) {
-      $hi = $headIdx[$k]
-      $bodyEnd = $headIdx[$k + 1] - 1
-      if ($hi -eq $firstEntryHi) {
-        $newLines.Add("## [unreleased]")
-        $newLines.Add("")
-      }
-      if ($type[$k] -eq "ENTRY") {
-        $line = $lines[$hi]
-        $pos = $line.IndexOf("[unreleased]")
-        $newline = $line.Substring(0, $pos) + "[" + $VersionString + "]" + $line.Substring($pos + "[unreleased]".Length)
-        $newLines.Add($newline)
-        $notesLines.Add($newline)
-      } elseif ($type[$k] -eq "SCAFFOLD") {
-        continue
-      } else {
-        $newLines.Add($lines[$hi])
-      }
-      for ($b = $hi + 1; $b -le $bodyEnd; $b++) {
-        $newLines.Add($lines[$b])
-        if ($type[$k] -eq "ENTRY") { $notesLines.Add($lines[$b]) }
-      }
-    }
-
-    $s = 0; $e = $notesLines.Count - 1
-    while ($s -le $e -and $notesLines[$s] -match '^[ \t]*$') { $s++ }
-    while ($e -ge $s -and $notesLines[$e] -match '^[ \t]*$') { $e-- }
-    $trimmedNotes = @()
-    for ($i = $s; $i -le $e; $i++) { $trimmedNotes += $notesLines[$i] }
-
-    $origBytes = [System.IO.File]::ReadAllText($Path)
-    $hadTrailingNewline = $origBytes.EndsWith("`n")
-    $newContent = ($newLines -join "`n")
-    if ($hadTrailingNewline) { $newContent += "`n" }
-
-    return @{
-      Success = $true
-      ExitCode = 0
-      NewContent = $newContent
-      Notes = ($trimmedNotes -join "`n")
-    }
+  if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    [Console]::Error.WriteLine("REFUSED: missing-node " + [char]0x2014 + " Node.js 22 or later is required for /aai-release (https://nodejs.org/); nothing was changed.")
+    exit 20
   }
-
-  $initialRollup = Invoke-ChangelogRollup -Path $Changelog -VersionString $Version
-  if (-not $initialRollup.Success) {
-    [Console]::Error.WriteLine($initialRollup.Error)
-    exit $initialRollup.ExitCode
-  }
-
-  $OutFile = Join-Path $Root (".aai-release-changelog." + [System.IO.Path]::GetRandomFileName())
-  $NotesFile = Join-Path ([System.IO.Path]::GetTempPath()) ("aai-release-notes." + [System.IO.Path]::GetRandomFileName())
-  [System.IO.File]::WriteAllText($OutFile, $initialRollup.NewContent)
-  [System.IO.File]::WriteAllText($NotesFile, $initialRollup.Notes)
-
-  $tagExists = $false
-  git -C $Root rev-parse -q --verify "refs/tags/$Version" *> $null
-  if ($LASTEXITCODE -eq 0) { $tagExists = $true }
-
-  $ghBlock = $false
-  $ghReason = ""
-  if (-not $NoRemote) {
-    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-      $ghBlock = $true; $ghReason = "gh CLI not found on PATH"
-    } else {
-      gh auth status *> $null
-      if ($LASTEXITCODE -ne 0) { $ghBlock = $true; $ghReason = "gh CLI not authenticated (gh auth status failed)" }
-    }
-  }
+  $cut = Join-Path $PSScriptRoot 'release-cut.mjs'
 
   $branch = (git -C $Root symbolic-ref refs/remotes/origin/HEAD 2>$null)
   if ($branch) { $branch = $branch -replace '^refs/remotes/origin/', '' }
@@ -283,60 +153,24 @@ try {
     }
   }
 
-  $auditArgs = @((Join-Path $PSScriptRoot 'release-finish.mjs'), '--root', $Root, '--audit', $NotesFile)
-  if (-not $ghBlock -and -not $NoRemote) {
-    # config --get exits 1 silently without origin; remote get-url writes
-    # stderr, which PS 5.1 turns into a terminating error under Stop.
-    git -C $Root config --get remote.origin.url *> $null
-    if ($LASTEXITCODE -eq 0) { $auditArgs += '--online' }
-  }
-  $unlogged = @(& node @auditArgs)
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
   if (-not $Confirm) {
-    Write-Host "## aai-release (plan) - no files changed"
-    Write-Host "- Resolved version: $Version"
-    Write-Host "- Tag to create:    $Version (annotated)"
-    Write-Host "- Commit message:   chore(release): $Version"
-    Write-Host ""
-    Write-Host "## CHANGELOG rollup (would write)"
-    Select-String -Path $OutFile -Pattern ("^## \[" + [regex]::Escape($Version) + "\] " + [char]0x2014 + " ") | ForEach-Object { Write-Host "  $($_.LineNumber):$($_.Line)" }
-    Write-Host "  ## [unreleased]   <- fresh scaffold inserted above the rolled section"
-    Write-Host ""
-    Write-Host "## Release notes preview (title=$Version)"
-    Get-Content $NotesFile | ForEach-Object { Write-Host "  $_" }
-    Write-Host ""
-    Write-Host "## Preconditions"
-    $blocked = $false
-    if ($unlogged.Count -gt 0) { Write-Host "- NAMED (not blocking): missing notes"; $unlogged | ForEach-Object { Write-Host "    - $_" } }
-    if ($tagExists) { Write-Host "- would block: tag $Version already exists"; $blocked = $true }
-    if ($ghBlock) { Write-Host "- would block (publish path): $ghReason"; $blocked = $true }
-    if (-not $blocked -and $unlogged.Count -eq 0) { Write-Host "- none - ready to cut with -Confirm" }
-    elseif ($unlogged.Count -gt 0) { Write-Host "- confirm will refuse until missing release notes are resolved" }
-    Write-Host ""
-    Write-Host "## Remote"
+    # PLAN-ONLY (bare invocation or -DryRun): release-cut.mjs prints the plan, which reaches the success stream; nothing is written.
+    $planArgs = @($cut, 'plan', '--root', $Root, '--version', $Version, '--target-branch', $branch, '--launcher', 'ps1')
     if ($NoRemote) {
-      Write-Host "- -NoRemote / AAI_RELEASE_NO_REMOTE=1: push + gh pr create would be SKIPPED"
+      $planArgs += '--no-remote'
+    } elseif (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+      $planArgs += '--gh-block', 'gh CLI not found on PATH'
     } else {
-      Write-Host "- push (branch chore/release-$Version) and 'gh pr create' (base $branch) WOULD run against this repo's remote; CI will tag and publish upon merge"
+      gh auth status *> $null
+      if ($LASTEXITCODE -ne 0) { $planArgs += '--gh-block', 'gh CLI not authenticated (gh auth status failed)' }
     }
-    exit 0
+    & node @planArgs
+    exit $LASTEXITCODE
   }
 
-  if ($tagExists) {
-    [Console]::Error.WriteLine("REFUSED: tag $Version already exists.")
-    exit 15
-  }
-  if ($ghBlock) {
-    [Console]::Error.WriteLine("REFUSED: $ghReason (publish path) - dry-run works offline; pass -NoRemote/AAI_RELEASE_NO_REMOTE=1 to skip publish, or fix gh auth.")
-    exit 16
-  }
-
-  if ($unlogged.Count -gt 0) {
-    [Console]::Error.WriteLine("REFUSED: missing-notes - $($unlogged -join '; ')")
-    [Console]::Error.WriteLine("Resume: pwsh -NoProfile -File `"$PSCommandPath`" -Version $Version -Confirm -NoRemote")
-    exit 20
-  }
+  # CONFIRM (the local cut, -NoRemote): rollup, tag and notes checks first; fail-closed
+  & node $cut check --root $Root --version $Version --launcher ps1 --launcher-path $PSCommandPath
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   $releaseBranch = "chore/release-$Version"
 
@@ -370,13 +204,9 @@ try {
   $wtDir = Join-Path ([System.IO.Path]::GetTempPath()) ("aai-release-wt-" + [System.IO.Path]::GetRandomFileName())
   Invoke-NativeChecked -Exe 'git' -Arguments @('-C', $Root, 'worktree', 'add', '-q', '-b', $releaseBranch, $wtDir, $baseRef) | Out-Null
   try {
-    $wtChangelog = Join-Path $wtDir 'CHANGELOG.md'
-    $wtRollup = Invoke-ChangelogRollup -Path $wtChangelog -VersionString $Version
-    if (-not $wtRollup.Success) {
-      [Console]::Error.WriteLine($wtRollup.Error)
-      exit $wtRollup.ExitCode
-    }
-    [System.IO.File]::WriteAllText($wtChangelog, $wtRollup.NewContent)
+    # A refusal on the base branch's CHANGELOG.md exits with its code; the finally block removes the worktree.
+    & node $cut roll --file (Join-Path $wtDir 'CHANGELOG.md') --version $Version
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $wtAiDir = Join-Path $wtDir 'docs/ai'
     New-Item -ItemType Directory -Force -Path $wtAiDir | Out-Null
     $versionDoc = @(
@@ -406,8 +236,6 @@ try {
   Write-Host "- Remote:  SKIPPED (-NoRemote/AAI_RELEASE_NO_REMOTE=1) - release branch $releaseBranch created locally"
   exit 0
 } finally {
-  if ($OutFile -and (Test-Path $OutFile)) { Remove-Item -Force $OutFile -ErrorAction SilentlyContinue }
-  if ($NotesFile -and (Test-Path $NotesFile)) { Remove-Item -Force $NotesFile -ErrorAction SilentlyContinue }
   if ($wtDir -and (Test-Path $wtDir)) {
     git -C $Root worktree remove --force $wtDir *> $null
     Remove-Item -Recurse -Force $wtDir -ErrorAction SilentlyContinue

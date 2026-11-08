@@ -484,7 +484,7 @@ test('TEST-3466 DR-21 each script without node prints the missing-node line on s
   const before = snapshot(dir);
   const bash = haveBin('bash');
   const tmp = scratch('scripttmp');
-  const env = { PATH: bin, HOME: os.homedir(), TMPDIR: tmp };
+  const env = { PATH: bin, HOME: os.homedir(), TMPDIR: tmp, XDG_CACHE_HOME: path.join(tmp, 'xdg-cache') };
   for (const extra of [[], ['--dry-run'], ['--confirm', '--no-remote']]) {
     const r = spawnSync(bash, [SH, '--version', 'v9', ...extra], { cwd: dir, encoding: 'utf8', env });
     assert.equal(r.stderr, `${MISSING_NODE}\n`, `sh ${extra.join(' ')}`);
@@ -501,17 +501,18 @@ test('TEST-3466 DR-21 each script without node prints the missing-node line on s
     }
   }
   assert.equal(snapshot(dir), before, 'no file written in the repository');
-  assert.deepEqual(fs.readdirSync(tmp), [], 'no temp file left');
+  assert.deepEqual(fs.readdirSync(tmp).filter((n) => !n.startsWith('xdg-cache')), [], 'no temp file left');
 });
 
 test('TEST-3466 DR-22 the ps1 plan reaches the success stream and the child stdout', () => {
   const pwsh = haveBin('pwsh');
   if (!pwsh) { console.log('SKIP-CASE: TEST-3466 DR-22 needs pwsh'); return; }
   const dir = fixtureA({ allNoted: true });
-  const r = spawnSync(pwsh, ['-NoProfile', '-NonInteractive', '-File', PS1, '-DryRun', '-Version', 'v9'], { cwd: dir, encoding: 'utf8' });
+  const env = { ...process.env, XDG_CACHE_HOME: path.join(scratch('xdg'), 'cache') };
+  const r = spawnSync(pwsh, ['-NoProfile', '-NonInteractive', '-File', PS1, '-DryRun', '-Version', 'v9'], { cwd: dir, encoding: 'utf8', env });
   assert.equal(r.status, 0, r.stderr);
   assert.ok(r.stdout.startsWith(`${HEADER}\n`) || r.stdout.startsWith(`${HEADER}\r\n`), r.stdout);
-  const c = spawnSync(pwsh, ['-NoProfile', '-NonInteractive', '-Command', `$o = @(& '${PS1}' -DryRun -Version v9); [Console]::Out.Write('CAPTURED=' + $o.Count + '|' + $o[0])`], { cwd: dir, encoding: 'utf8' });
+  const c = spawnSync(pwsh, ['-NoProfile', '-NonInteractive', '-Command', `$o = @(& '${PS1}' -DryRun -Version v9); [Console]::Out.Write('CAPTURED=' + $o.Count + '|' + $o[0])`], { cwd: dir, encoding: 'utf8', env });
   assert.equal(c.status, 0, c.stderr);
   const m = /^CAPTURED=(\d+)\|(.*)$/s.exec(c.stdout);
   assert.ok(m && Number(m[1]) > 10 && m[2] === HEADER, `a caller that assigns the output captures the plan: ${c.stdout}`);

@@ -1,0 +1,146 @@
+# aai-release.ps1 cases for the release-cut module (spec-release-on-node, TEST-3472).
+# Each case launches aai-release.ps1 with the engine running the test ((Get-Process -Id $PID).Path), so the
+# Windows PowerShell 5.1 step tests 5.1 and the pwsh 7 steps test pwsh 7. Fixtures are git repositories in
+# TestDrive written as bytes with [System.IO.File]::WriteAllBytes (the bytes do not depend on the engine), with
+# a local identity; every run is local (-NoRemote or -DryRun), no case calls gh, pushes, tags or publishes, and
+# nothing touches the checkout's own CHANGELOG.md. No case may skip.
+Describe 'aai-release.ps1 via release-cut.mjs' {
+  BeforeAll {
+    $script:Root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+    $script:Script = Join-Path $Root '.aai/scripts/aai-release.ps1'
+    $script:Engine = (Get-Process -Id $PID).Path
+    $script:IsWin = [IO.Path]::DirectorySeparatorChar -eq '\'
+    $script:Dash = [string][char]0x2014
+    $script:Utf8 = New-Object System.Text.UTF8Encoding($false)
+
+    function Invoke-Git {
+      param([string]$Dir, [string[]]$GitArgs)
+      $ErrorActionPreference = 'Continue'
+      $o = & git -C $Dir @GitArgs 2>&1
+      return ($o | ForEach-Object { "$_" }) -join "`n"
+    }
+    function New-Project {
+      param([string]$Name, [string]$Changelog)
+      $d = Join-Path $TestDrive $Name
+      New-Item -ItemType Directory -Force -Path $d | Out-Null
+      [IO.File]::WriteAllBytes((Join-Path $d 'CHANGELOG.md'), $script:Utf8.GetBytes($Changelog))
+      [void](Invoke-Git $d @('init', '-q', '-b', 'main'))
+      [void](Invoke-Git $d @('config', 'user.email', 'fixture@example.invalid'))
+      [void](Invoke-Git $d @('config', 'user.name', 'fixture'))
+      [void](Invoke-Git $d @('config', 'core.autocrlf', 'false'))
+      [void](Invoke-Git $d @('config', 'commit.gpgsign', 'false'))
+      [void](Invoke-Git $d @('add', '-A'))
+      [void](Invoke-Git $d @('commit', '-q', '-m', 'chore: base'))
+      return $d
+    }
+    function Invoke-Script {
+      param([string]$WorkDir, [string]$ScriptArgs, [string]$Path)
+      $psi = New-Object System.Diagnostics.ProcessStartInfo
+      $psi.FileName = $script:Engine
+      $psi.Arguments = ('-NoProfile -NonInteractive -File "' + $script:Script + '" ' + $ScriptArgs).Trim()
+      $psi.WorkingDirectory = $WorkDir
+      $psi.UseShellExecute = $false
+      $psi.RedirectStandardOutput = $true
+      $psi.RedirectStandardError = $true
+      $psi.StandardOutputEncoding = $script:Utf8
+      $psi.StandardErrorEncoding = $script:Utf8
+      if ($Path) { $psi.EnvironmentVariables['PATH'] = $Path }
+      $p = [System.Diagnostics.Process]::Start($psi)
+      $so = $p.StandardOutput.ReadToEndAsync()
+      $se = $p.StandardError.ReadToEndAsync()
+      $p.WaitForExit()
+      return [pscustomobject]@{ Code = $p.ExitCode; Out = $so.Result; Err = $se.Result }
+    }
+    function Get-BlobText {
+      param([string]$Dir, [string]$Spec)
+      $psi = New-Object System.Diagnostics.ProcessStartInfo
+      $psi.FileName = 'git'
+      $psi.Arguments = '-C "' + $Dir + '" show ' + $Spec
+      $psi.UseShellExecute = $false
+      $psi.RedirectStandardOutput = $true
+      $p = [System.Diagnostics.Process]::Start($psi)
+      $ms = New-Object System.IO.MemoryStream
+      $p.StandardOutput.BaseStream.CopyTo($ms)
+      $p.WaitForExit()
+      return $script:Utf8.GetString($ms.ToArray())
+    }
+    function New-GitOnlyBin {
+      param([string]$Name)
+      $b = Join-Path $TestDrive $Name
+      New-Item -ItemType Directory -Force -Path $b | Out-Null
+      $git = (Get-Command git).Source
+      if ($script:IsWin) {
+        [IO.File]::WriteAllText((Join-Path $b 'git.cmd'), "@echo off`r`n`"$git`" %*`r`n")
+      } else {
+        $p = Join-Path $b 'git'
+        [IO.File]::WriteAllText($p, "#!/bin/sh`nexec `"$git`" `"`$@`"`n")
+        & chmod +x $p
+      }
+      return $b
+    }
+    $script:Good = "# Changelog`n`n## [unreleased]`n`n## [unreleased] $script:Dash a`n`nBody`n"
+  }
+
+  It 'prints the plan of a UTF-8 em dash CHANGELOG written as bytes with -DryRun and exits 0' {
+    $d = New-Project 'plan' $script:Good
+    $r = Invoke-Script $d '-DryRun -NoRemote -Version v9'
+    $r.Code | Should -Be 0
+    $lines = $r.Out -split "\r?\n"
+    $lines[0] | Should -Be ('## aai-release (plan) ' + $script:Dash + ' no files changed')
+    $lines | Should -Contain ('  5:## [v9] ' + $script:Dash + ' a')
+    $lines | Should -Contain ('- none ' + $script:Dash + ' ready to cut with -Confirm')
+    (Invoke-Git $d @('status', '--porcelain')) | Should -Be ''
+  }
+
+  It 'refuses a malformed [unreleased] heading with exit 12 and the REFUSED line only' {
+    $d = New-Project 'bad' "# Changelog`n`n## [unreleased] foo`n`nx`n"
+    $r = Invoke-Script $d '-DryRun -NoRemote -Version v9'
+    $r.Code | Should -Be 12
+    $r.Err.Trim() | Should -Be ("REFUSED: malformed [unreleased] heading in CHANGELOG.md (a '## [unreleased]' line has unexpected trailing text or a stray heading-only body) $script:Dash never silently dropping entries.")
+    $r.Out | Should -Be ''
+  }
+
+  It 'cuts the local release branch whose CHANGELOG equals the expected bytes with -Confirm -NoRemote' {
+    $d = New-Project 'cut' $script:Good
+    $r = Invoke-Script $d '-Confirm -NoRemote -Version v9'
+    $r.Code | Should -Be 0
+    $want = "# Changelog`n`n## [unreleased]`n`n## [v9] $script:Dash a`n`nBody`n"
+    (Get-BlobText $d 'chore/release-v9:CHANGELOG.md') | Should -BeExactly $want
+  }
+
+  It 'refuses missing release notes on one line followed by the Resume line' {
+    $d = New-Project 'notes' $script:Good
+    [void](Invoke-Git $d @('tag', 'v0'))
+    New-Item -ItemType Directory -Force -Path (Join-Path $d '.aai') | Out-Null
+    [IO.File]::WriteAllText((Join-Path $d '.aai/f13.txt'), "13`n")
+    [void](Invoke-Git $d @('add', '-A'))
+    [void](Invoke-Git $d @('commit', '-q', '-m', 'fix: other (#13)'))
+    [IO.File]::WriteAllText((Join-Path $d '.aai/f14.txt'), "14`n")
+    [void](Invoke-Git $d @('add', '-A'))
+    [void](Invoke-Git $d @('commit', '-q', '-m', 'fix: another (#14)'))
+    $r = Invoke-Script $d '-Confirm -NoRemote -Version v9'
+    $r.Code | Should -Be 20
+    $err = @($r.Err -split "\r?\n" | Where-Object { $_ -ne '' })
+    $err.Count | Should -Be 2
+    $err[0] | Should -Be ('REFUSED: missing-notes ' + $script:Dash + ' #14 fix: another; #13 fix: other')
+    $err[1] | Should -BeLike 'Resume: pwsh -NoProfile -File "*aai-release.ps1" -Version v9 -Confirm -NoRemote'
+    (Invoke-Git $d @('branch', '--list', 'chore/release-v9')) | Should -Be ''
+  }
+
+  It 'names a missing node with exit 20 when PATH holds no node' {
+    $d = New-Project 'nonode' $script:Good
+    $bin = New-GitOnlyBin 'gitonly'
+    $r = Invoke-Script $d '-DryRun -Version v9' $bin
+    $r.Code | Should -Be 20
+    $r.Err.Trim() | Should -Be ('REFUSED: missing-node ' + $script:Dash + ' Node.js 22 or later is required for /aai-release (https://nodejs.org/); nothing was changed.')
+    $r.Out | Should -Be ''
+  }
+
+  It 'refuses an existing tag with exit 15 before the audit' {
+    $d = New-Project 'tagged' $script:Good
+    [void](Invoke-Git $d @('tag', 'v9'))
+    $r = Invoke-Script $d '-Confirm -NoRemote -Version v9'
+    $r.Code | Should -Be 15
+    $r.Err.Trim() | Should -Be 'REFUSED: tag v9 already exists.'
+  }
+}
