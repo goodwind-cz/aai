@@ -3721,3 +3721,5 @@
 {"v":1,"ts":"2026-11-08T13:39:35Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":714,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-08T14:03:40Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"release-on-node","payload":{"pr":541,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"eee57cc000da6c6173340fa7cdf8abaef6aa92e1"}}
 {"v":1,"ts":"2026-11-08T15:26:19Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-release-publish-on-node","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-08T21:10:48Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"release-publish-on-node","payload":{"role":"code_review","head":"98c05515c41e5de24cab463615bf4556818368dd","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-08T21:10:48Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"release-publish-on-node","payload":{"status":"pass","hash":"9704273eacc856eb40c7d391e515db1dc6275f9c9e1d6682b95af70749b6a57c"}}

@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: eaccfefb602b7c2ceb732ff1949ee92e4b070cc2286d078566501942a4d499a7
+frozen_sha256: bca0e089bd8ef1082f573d9ba9463968ae6eea2e2f9c295388f9eeaccbceadf5
 ceremony_level: 2
 links:
   requirement: release-publish-on-node
@@ -256,7 +256,7 @@ marked, an `It` in `tests/skills/release-cut.Tests.ps1`). `<NR>` is
 | DB-11 | `AAI_VERSION.md` bytes | LF, final newline | the platform newline at the end (CRLF on Windows) | the `.sh` bytes on every engine |
 | DB-12 | node missing on the remote `--confirm` | own two-line refusal with a bash Resume line | ASCII ` - ` and a pwsh Resume line | the one D-LAUNCH missing-node line for every mode, exit 20, no Resume line |
 | DB-13 | `cwd=` in the not-a-repository refusal | logical `pwd` | provider path | `process.cwd()` on both |
-| DB-14 | SIGINT or SIGTERM during the local cut | the EXIT trap removes the worktree | `finally` removes the worktree | the module removes the temporary worktree, prints `REFUSED: interrupted (<SIG>) — the temporary worktree was removed.` and exits 130 or 143, also when the signal reaches the whole process group and kills the git child (the interrupt wins over the git-command refusal); the handlers are removed once the cut has ended (POSIX only; Windows is a residual risk) |
+| DB-14 | SIGINT or SIGTERM during the local cut | the EXIT trap removes the worktree | `finally` removes the worktree | the module removes the temporary worktree, prints `REFUSED: interrupted (<SIG>) — the temporary worktree was removed.` and exits 130 or 143, also when the signal reaches the whole process group and kills the git child (the interrupt wins over the git-command refusal); the handlers are removed once the cut has ended; a signal sent only to the node process during the two final read-only `rev-parse` steps, after the cut is complete, is not acted on and the cut exits 0; through the PowerShell launcher a process-group signal ends pwsh by its own rules (pwsh 7 exits 0 on SIGINT), as at baseline (POSIX only; Windows is a residual risk) |
 | DB-15 | plan on a repository whose platform is not GitHub (azure, or a recorded `unknown` or `none`) | probes `gh` | probes `gh` | no `gh` call; `- would block (publish path): the remote release finish runs on GitHub only (platform <p>); cut locally with <NR>` |
 | DB-16 | plan when the platform record disagrees with the remote | record ignored | record ignored | `- would block (publish path): platform record does not match the remote (recorded=<r>, detected=<d>); re-record: node .aai/scripts/platform.mjs record --force` |
 | DB-17 | remote `--confirm` on a non-GitHub platform | `gh` runs against the host and fails later | same | `release-finish.mjs` refuses `REFUSED: release-platform — the remote release finish runs on GitHub only (platform <p>); cut locally with --no-remote and open the release PR on your host` with exit 20 before any host call, journal, ref or push |
