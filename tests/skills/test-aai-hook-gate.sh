@@ -230,13 +230,14 @@ test_3508_launcher_shape() {
     [[ "$got" == "${want##* }" ]] || log_fail "TEST-3508: a module exiting ${want%% *} gave launcher exit $got (want ${want##* })"
   done
   # A broken module under a lane marker fails closed on a merge-shaped payload (the node-missing bytes), open otherwise.
-  for want in "exit 1:1" "exit 3:3" "syntax:" "unreadable:"; do
+  for want in "exit 1:1" "exit 3:3" "syntax:" "unreadable:" "empty:"; do
     fake="$d/lane-${want%%:*}"
     fake="${fake// /-}"
     mkdir -p "$fake/proj"
     cp "$LAUNCHER" "$fake/"
     case "$want" in
       syntax:*) printf 'this is not (javascript\n' > "$fake/hook-gate.mjs" ;;
+      empty:*) : > "$fake/hook-gate.mjs" ;;
       unreadable:*) printf 'process.exit(0);\n' > "$fake/hook-gate.mjs"; chmod 000 "$fake/hook-gate.mjs" ;;
       *) printf 'process.exit(%s);\n' "${want##*:}" > "$fake/hook-gate.mjs" ;;
     esac

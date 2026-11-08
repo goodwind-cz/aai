@@ -3,7 +3,7 @@ id: spec-hook-gate-on-node
 type: spec
 number: null
 status: implementing
-frozen_sha256: e3576d6b5b4c4500f8426895bebf54a0122b4ea863a0f5c5da7b34c553eaf47c
+frozen_sha256: 7c5671b03cb9b1598ca82619928540570f15843b0936d6feb05ab9da36d48a07
 mutation_gate: v1
 ceremony_level: 3
 links:
@@ -225,12 +225,12 @@ with the DG id. "Kept" means the module decides exactly as the script at
 | DG-03 | text that only names a merge command (`git commit -m "explain git merge handling"`, `echo gh pr merge 5`) | denied (exit 2) | kept: denied. A quote-aware parse would also let `bash -c 'gh pr merge 5'` through; a false deny costs a rephrase, a false allow costs article 7 |
 | DG-04 | operator marker as a command prefix (`AAI_OPERATOR_MERGE=1 gh pr merge 42 --squash`) | denied | kept: only the hook environment's marker counts (TEST-1520). `fu-merge-gh-line-powershell` stays open; accepting a prefix is a policy decision for the owner |
 | DG-05 | payload whose command is JSON-escaped (`"gh pr merge 5"`) | denied (node decodes the JSON) | kept: the pre-filter forwards every payload containing a backslash-u escape, so the module decodes and denies |
-| DG-06 | non-ASCII whitespace between command words (`gh<U+00A0>pr merge 5`) | locale-dependent: denied under a UTF-8 locale, allowed under `LC_ALL=C` | denied under every locale: the module's whitespace class is JavaScript `\s` (bash does not split on U+00A0, so the deny is a harmless false positive) |
-| DG-07 | Node absent; module file absent | every gate allows, except a merge-shaped payload with a lane marker set in the environment (the no-node lane guard: article 7 deny plus `merge-policy: evaluator unavailable: node not found (the command could not be read)`) | kept for Node absent (the launcher keeps the guard, same bytes); a missing module allows, except the same lane guard |
+| DG-06 | non-ASCII whitespace between command words (`gh<U+00A0>pr merge 5`) | locale-dependent: denied under a UTF-8 locale, allowed under `LC_ALL=C` | denied under every locale: the module's whitespace class is explicit, ASCII white space plus U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F and U+3000 (what a UTF-8 `[[:space:]]` matched), never JavaScript `\s`. Under `LC_ALL=C` bash does not split on these, so a command that never runs as a merge is denied (a false positive); with `AAI_OPERATOR_MERGE=1` a PR target such as `5<U+00A0>` is also split at the character, so gate 2b then checks the sweep record of PR 5 where the old gate under `LC_ALL=C` denied it as unresolvable (a new allow, bounded: the number is still sweep-checked and `gh` itself rejects the argument). Under a UTF-8 locale the decision equals the old one |
+| DG-07 | Node absent; module file absent or empty | every gate allows, except a merge-shaped payload with a lane marker set in the environment (the no-node lane guard: article 7 deny plus `merge-policy: evaluator unavailable: node not found (the command could not be read)`) | kept for Node absent (the launcher keeps the guard, same bytes); a missing or empty module allows, except the same lane guard (the launcher tests the module with `-s`, so an empty file counts as missing) |
 | DG-08 | `stop-nudge` | prints the nudge when an indented `status: in_progress` line exists and LOOP_TICKS.jsonl is absent or not newer than STATE.yaml; never exit 2 | kept, byte for byte |
 | DG-09 | multi-line command text | `grep` matches line by line (`^` at each line start) | kept: every regex the module ports from a `grep` call runs with the `m` flag, and `MERGE_SEG` is the first match on any line, as `grep -o` and `head -1` gave |
-| DG-10 | U+FEFF between command words (`gh<U+FEFF>pr merge 5`) | allowed (bash does not split on it) | denied under every locale: JavaScript `\s` counts U+FEFF as white space; bash never runs such a command as a merge, so only a false deny is possible |
-| DG-11 | a no-break-space indent before `status: in_progress` in STATE.yaml | nudge under a UTF-8 locale, none under `LC_ALL=C` | nudge under every locale (JavaScript `\s`); a reminder only, never a block |
+| DG-10 | U+FEFF between command words (`gh<U+FEFF>pr merge 5`) | allowed (bash does not split on it) | kept: allowed under every locale, and the operator-marker path keeps its deny. The module's whitespace class leaves U+FEFF out (JavaScript `\s` would count it), so U+FEFF is never a separator, as in bash: `gh<U+FEFF>pr merge 5` is no merge command; with `AAI_OPERATOR_MERGE=1` the target `5<U+FEFF>` stays whole, `gh` cannot resolve it and the gate 2b text names it, byte for byte as the old gate did. Pinned by DG-10 and by untagged corpus rows |
+| DG-11 | a no-break-space indent before `status: in_progress` in STATE.yaml | nudge under a UTF-8 locale, none under `LC_ALL=C` | nudge under every locale (the explicit whitespace class of DG-06); a reminder only, never a block |
 | DG-12 | LOOP_TICKS.jsonl written in the same second as STATE.yaml, a fraction later | decided by the shell `-nt` test of the host bash (whole seconds on bash 3.2, nanoseconds on bash 4 and later) | compared at whole-second granularity, as bash 3.2 does: ticks in the same second as STATE.yaml do not count as newer, so the nudge stays; on a host with bash 4 or later the old script was silent there |
 
 Count drifts with no behaviour (no test row): the follow-up's "30 gh sites"
@@ -247,7 +247,9 @@ which the mutations below target:
 
 - `const GATES = ['commit', 'merge', 'state-dump', 'stop-nudge'];`
 - `const ASCII_SPACE_ONLY = false;` (DG-06): every ported `[[:space:]]`
-  becomes JavaScript `\s`, or `[ \t\n\v\f\r]` when this flag is true
+  becomes the explicit class of DG-06 (ASCII white space plus the non-ASCII
+  members a UTF-8 `[[:space:]]` matches, never JavaScript `\s`), or
+  `[ \t\n\v\f\r]` when this flag is true
 - `const AZURE_COMPLETED = 'completed';`
 - `const PLATFORM_SCRIPT = 'platform.mjs';`
 - `const SWEEP_DENY_RC = 5;`
@@ -585,9 +587,11 @@ above.
   spec name; a command shape outside it can still differ. The `m`-flag and
   whitespace rules (DG-06, DG-09) close the two systematic differences
   found between `grep` and JavaScript regexes.
-- DG-06 and DG-10 make the gate deny a command it allowed under `LC_ALL=C`
-  or at all; bash never runs such a command as a merge, so only a false deny
-  is possible. DG-11 and DG-12 can only add a reminder.
+- DG-06 makes the gate deny a command it allowed under `LC_ALL=C`, and with
+  `AAI_OPERATOR_MERGE=1` lets a PR target carrying a non-ASCII separator reach
+  the sweep check of the number before it (a bounded new allow under
+  `LC_ALL=C` only; the number is still checked and `gh` rejects the argument).
+  DG-10 keeps the old decisions, U+FEFF included. DG-11 and DG-12 can only add a reminder.
 - The gate guards Claude Code sessions only where the overlay is installed;
   Codex and Gemini sessions are not gated (unchanged; the `.aai` scripts
   remain the cross-platform floor).

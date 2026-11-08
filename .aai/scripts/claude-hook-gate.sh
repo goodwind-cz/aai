@@ -76,7 +76,7 @@ lane_guard() {
   return 0
 }
 
-if ! command -v node >/dev/null 2>&1 || [ ! -f "$HERE/hook-gate.mjs" ]; then
+if ! command -v node >/dev/null 2>&1 || [ ! -s "$HERE/hook-gate.mjs" ]; then
   lane_guard
   exit 0
 fi

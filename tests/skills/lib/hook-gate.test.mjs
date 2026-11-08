@@ -282,7 +282,9 @@ function buildCorpus() {
   add('azure az completed', 'merge', 'az repos pr update --id 7 --status completed', { tag: 'DG-01' });
   add('inherited pipefail merge', 'merge', `gh pr merge 42 --squash\n${'x\n'.repeat(8000)}`, { tag: 'DG-02', env: { SHELLOPTS: 'braceexpand:hashall:interactive-comments:pipefail' } });
   add('nbsp between words', 'merge', 'gh\u00a0pr merge 5', { tag: 'DG-06' });
-  add('bom between words', 'merge', 'gh\ufeffpr merge 5', { tag: 'DG-10' });
+  // U+FEFF is not white space to bash (DG-10): parity rows, untagged, on the plain and the operator-marker path
+  for (const c of ['gh\ufeffpr merge 5', 'gh pr merge 42\ufeff', 'gh pr merge 42\ufeff --squash', 'gh pr merge \ufeff42', 'gh pr merge 42\ufeffx',
+    'gh pr merge 42 --squash --match-head-commit\ufeffabc123']) for (const op of [false, true]) add(`bom: ${op ? 'operator' : 'plain'}: ${c}`, 'merge', c, { env: op ? { AAI_OPERATOR_MERGE: '1' } : {} });
   return rows;
 }
 const CORPUS = buildCorpus();
@@ -448,14 +450,27 @@ describe('TEST-3505 kept decisions', () => {
     assert.equal(decideIn(project, 'merge', 'ls -la').code, 0);
   });
 
-  test('DG-10 U+FEFF between command words is denied under every locale', () => {
+  test('DG-10 U+FEFF is not white space: the gate decides as the baseline script did, on every path', () => {
     const project = makeProject('dg10');
+    const op = { AAI_OPERATOR_MERGE: '1' };
+    // between words it is not a separator: no merge command, allowed, as the baseline allowed it
     for (const cmd of ['gh\ufeffpr merge 5', 'git\ufeffmerge x']) {
-      const d = decideIn(project, 'merge', cmd);
-      assert.equal(d.code, 2);
-      assert.equal(d.stderr, ARTICLE7);
-      assert.equal(gate(LAUNCHER, project, 'merge', cmd, { env: { LC_ALL: 'C' } }).rc, 2);
+      assert.equal(decideIn(project, 'merge', cmd).code, 0);
+      for (const loc of ['C', 'C.UTF-8']) assert.equal(gate(LAUNCHER, project, 'merge', cmd, { env: { LC_ALL: loc } }).rc, 0, `LC_ALL=${loc}`);
       assert.equal(gate(baseline(), project, 'merge', cmd, {}).rc, 0, 'the baseline script allowed it');
+    }
+    // inside the gate 2b target (operator marker): the target keeps the character, gh cannot resolve it, the merge is denied
+    for (const cmd of ['gh pr merge 42\ufeff', 'gh pr merge 42\ufeff --squash', 'gh pr merge \ufeff42', 'gh pr merge 42\ufeffx',
+      'gh pr merge 42 --squash --match-head-commit\ufeffabc123']) {
+      const d = decideIn(project, 'merge', cmd, { env: op });
+      assert.equal(d.code, 2, JSON.stringify(cmd));
+      assert.match(d.stderr, /^Merge denied: could not resolve a PR for target "/);
+      for (const loc of ['C', 'C.UTF-8']) {
+        const l = gate(LAUNCHER, project, 'merge', cmd, { env: { ...op, LC_ALL: loc } });
+        const o = gate(baseline(), project, 'merge', cmd, { env: { ...op, LC_ALL: loc } });
+        assert.equal(l.rc, o.rc, `${JSON.stringify(cmd)} LC_ALL=${loc}`);
+        assert.equal(l.stderr, o.stderr, `${JSON.stringify(cmd)} LC_ALL=${loc}: the deny text names the same target`);
+      }
     }
   });
 
