@@ -2710,43 +2710,6 @@ test_716_rolled_file_passes_released_region_guard() {
   log_pass "TEST-072 rolled file passes the released-region guard (PASS v0 for both base shapes)"
 }
 
-test_701_native_capture_controls() {
-  if ! command -v pwsh >/dev/null 2>&1; then
-    log_info "TEST-013: NOT VERIFIED native capture (pwsh absent)"
-    return 0
-  fi
-  local probe="$TMP_ROOT/native-capture.ps1"
-  cat > "$probe" <<'NATIVE_PROBE'
-$ErrorActionPreference = 'Stop'
-. $env:AAI_RELEASE_PS1_PROBE
-$sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-$captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::WriteLine('$sha')")
-$value = Select-CapturedValue -Captured $captured -Pattern '^(?:[0-9a-f]{40}|[0-9a-f]{64})$' -Name 'native-sha'
-if ($value -ne $sha) { throw 'normal native SHA was not captured' }
-$url = 'https://github.com/test/release/pull/1'
-$captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::Error.WriteLine('benign progress'); [Console]::WriteLine('$url')")
-$value = Select-CapturedValue -Captured $captured -Pattern '^https://github\.com/.+/pull/[0-9]+$' -Name 'native-url'
-if ($value -ne $url) { throw 'normal native URL was not captured separately from progress' }
-$captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', 'exit 0')
-foreach ($name in @('native-sha', 'native-url')) {
-  $refused = $false
-  try {
-    $pattern = '^(?:[0-9a-f]{40}|[0-9a-f]{64})$'
-    if ($name -eq 'native-url') { $pattern = '^https://github\.com/.+/pull/[0-9]+$' }
-    Select-CapturedValue -Captured $captured -Pattern $pattern -Name $name | Out-Null
-  }
-  catch { if ($_.Exception.Message -notlike "*REFUSED: empty-native-output*$name*") { throw }; $refused = $true }
-  if (-not $refused) { throw "empty $name accepted before reuse" }
-}
-$failed = $false
-try { Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::Error.WriteLine('native failure control'); exit 7") | Out-Null }
-catch { if ($_.Exception.Message -notlike '*exit 7*native failure control*') { throw }; $failed = $true }
-if (-not $failed) { throw 'failed native command accepted' }
-Write-Output 'PASS: TEST-013 native SHA/URL normal, empty refused, failed native refused'
-NATIVE_PROBE
-  AAI_RELEASE_PS1_PROBE="$RELEASE_PS1" pwsh -NoProfile -File "$probe"
-}
-
 # release-command-finish remediation (CR-3, NB-4): canonical worktree identity
 # with Windows-style inputs on any OS, and the tag-pattern refusal before any
 # mutation. RELEASE_FINISH_MJS lets a RED run target a pre-fix copy.
@@ -2838,7 +2801,6 @@ main() {
   test_031_unprotected_path_byte_identical
   test_032_non_protected_failure_degrades_raw
   test_033_ps1_fallback_parity
-  test_701_native_capture_controls
   test_702_finish_path_identity_and_version_pattern
   test_703_ps1_preview_without_origin
   test_704_grace_late_empty

@@ -255,12 +255,12 @@ make_with_origin() {
 no_publish_matrix() {
   local tid="$1"
   local kind fx origin pre words
-  GH_BIN="$TEST_DIR/tnp-bin"; SO="$TEST_DIR/tnp.out"; SE="$TEST_DIR/tnp.err"
+  GH_BIN="$TEST_DIR/tnp-$tid-bin"; SO="$TEST_DIR/tnp-$tid.out"; SE="$TEST_DIR/tnp-$tid.err"
   make_gh_stub "$GH_BIN"
   for kind in sh ps1; do
     [[ "$kind" == sh ]] || need_tool "$tid" pwsh || continue
-    mkdir -p "$TEST_DIR/tnp/$kind"
-    fx="$TEST_DIR/tnp/$kind/repo"; origin="$TEST_DIR/tnp/$kind/origin.git"
+    mkdir -p "$TEST_DIR/tnp-$tid/$kind"
+    fx="$TEST_DIR/tnp-$tid/$kind/repo"; origin="$TEST_DIR/tnp-$tid/$kind/origin.git"
     make_with_origin "$fx" "$origin" all
     : > "$GH_BIN/gh.log"
     pre="$(snap "$fx" "$origin")"
@@ -276,7 +276,7 @@ no_publish_matrix() {
     grep -q '^REFUSED: ' "$SE" || { cat "$SE" >&2; log_fail "$tid: $kind remote --confirm printed no REFUSED line"; }
     grep -q '^Resume: ' "$SE" || { cat "$SE" >&2; log_fail "$tid: $kind remote --confirm printed no Resume line"; }
     [[ "$(snap "$fx" "$origin")" == "$pre" ]] || log_fail "$tid: $kind remote --confirm changed a ref or the working tree"
-    fx="$TEST_DIR/tnp/$kind/cut"; origin="$TEST_DIR/tnp/$kind/cut-origin.git"
+    fx="$TEST_DIR/tnp-$tid/$kind/cut"; origin="$TEST_DIR/tnp-$tid/$kind/cut-origin.git"
     make_with_origin "$fx" "$origin" all
     : > "$GH_BIN/gh.log"
     pre="$(git -C "$origin" show-ref)"
@@ -560,7 +560,7 @@ parity_run() {
 
 # ps1_spelling_to_sh <file> <fixture>: the ps1 flag spellings and the fixture path mapped to the sh ones.
 ps1_spelling_to_sh() {
-  sed -e 's/-NoRemote/--no-remote/g; s/-Confirm/--confirm/g; s/-DryRun/--dry-run/g; s/-Version/--version/g; s/-Yes/--yes/g; s/aai-release\.ps1/aai-release.sh/g' -e "s|$2|<FX>|g" "$1"
+  sed -E -e 's/-NoRemote/--no-remote/g; s/-Confirm/--confirm/g; s/-DryRun/--dry-run/g; s/-Version/--version/g; s/-Yes/--yes/g; s/aai-release\.ps1/aai-release.sh/g' -e "s|$2|<FX>|g" -e 's/[0-9a-f]{40}/<SHA>/g; s/(Commit: +)[0-9a-f]{7,}/\1<SHORT>/' "$1"
 }
 
 test_3523_launcher_parity() {
@@ -578,10 +578,11 @@ test_3523_launcher_parity() {
     make_with_origin "$psfx" "$TEST_DIR/t23/$label/ps1/origin.git" all
     # shellcheck disable=SC2086
     parity_run sh "$shfx" "$envs" $sh_args
-    sh_rc=$RC; sh_out="$(sed "s|$shfx|<FX>|g" "$SO")"; sh_err="$(sed "s|$shfx|<FX>|g" "$SE")"
+    sh_rc=$RC; sh_out="$(sed -E -e "s|$shfx|<FX>|g" -e 's/[0-9a-f]{40}/<SHA>/g; s/(Commit: +)[0-9a-f]{7,}/\1<SHORT>/' "$SO")"; sh_err="$(sed "s|$shfx|<FX>|g" "$SE")"
     # shellcheck disable=SC2086
     parity_run ps1 "$psfx" "$envs" $ps_args
     [[ "$RC" == "$sh_rc" ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3523: '$label' exits $sh_rc under sh and $RC under ps1"; }
+    ! cat "$SO" "$SE" | grep -v '^Resume: node' | grep -qE -- '--(no-remote|confirm|dry-run)|aai-release\.sh' || { cat "$SO" "$SE" >&2; log_fail "TEST-3523: '$label' prints the sh flag spelling under ps1"; }
     [[ "$(ps1_spelling_to_sh "$SO" "$psfx")" == "$sh_out" ]] || { diff <(printf '%s\n' "$sh_out") <(ps1_spelling_to_sh "$SO" "$psfx") >&2 || true; log_fail "TEST-3523: '$label' prints different stdout under sh and ps1"; }
     [[ "$(ps1_spelling_to_sh "$SE" "$psfx")" == "$sh_err" ]] || { diff <(printf '%s\n' "$sh_err") <(ps1_spelling_to_sh "$SE" "$psfx") >&2 || true; log_fail "TEST-3523: '$label' prints different stderr under sh and ps1"; }
   done <<'MATRIX'
