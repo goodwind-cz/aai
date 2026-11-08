@@ -53,8 +53,13 @@ export function parseArgs(argv) {
   return o;
 }
 
+// Strict UTF-8 on every engine (DR-06); the BOM is kept so the rollup can keep it (DR-05).
 export function decode(bytes) {
-  return new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
+  try {
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    throw Object.assign(new Error(LINES.encoding), { causeName: 'encoding' });
+  }
 }
 
 export function rollOrRefuse(text, version) {
@@ -108,7 +113,17 @@ export function planLines({ version, launcher, targetBranch, noRemote, ghBlock, 
 
 const lines = (s) => String(s ?? '').split('\n').map((l) => l.replace(/\r$/, '')).filter((l) => l.trim() !== '');
 
-const readRolled = (file, version, deps) => rollOrRefuse(decode(deps.readFile(file)), version);
+// readRolled: the root CHANGELOG decoded and rolled, or { code, line } for a refusal.
+function readRolled(file, version, deps) {
+  let text;
+  try {
+    text = decode(deps.readFile(file));
+  } catch (e) {
+    if (e.causeName === 'encoding') return { code: EXIT.MALFORMED, line: LINES.encoding };
+    throw e;
+  }
+  return rollOrRefuse(text, version);
+}
 
 // audit: writes the notes to a temp file outside the root, runs the audit once, removes the file on every path.
 function audit(notes, root, online, deps) {
@@ -145,12 +160,37 @@ function plan(o, deps) {
   return 0;
 }
 
+function check(o, deps) {
+  const rolled = readRolled(path.join(o.root, 'CHANGELOG.md'), o.version, deps);
+  if (rolled.code) { deps.err(rolled.line); return rolled.code; }
+  if (tagExists(o.root, o.version, deps)) { deps.err(`REFUSED: tag ${o.version} already exists.`); return EXIT.TAG; }
+  const r = audit(rolled.notes, o.root, false, deps);
+  if (r.status !== 0) return relay(r, deps);
+  const unlogged = lines(r.stdout);
+  if (!unlogged.length) return 0;
+  deps.err(`REFUSED: missing-notes — ${unlogged.join('; ')}`);
+  deps.err(resumeLine(o.launcher, o.launcherPath, o.version));
+  return EXIT.REFUSED;
+}
+
+// roll: decode and roll one file, then rename a temp file over it; a refusal leaves the file unchanged.
+function roll(o, deps) {
+  const rolled = readRolled(o.file, o.version, deps);
+  if (rolled.code) { deps.err(rolled.line); return rolled.code; }
+  const tmp = path.join(path.dirname(o.file), `.${path.basename(o.file)}.${crypto.randomBytes(6).toString('hex')}.tmp`);
+  try {
+    deps.writeFile(tmp, rolled.content);
+    deps.rename(tmp, o.file);
+  } finally {
+    deps.rm(tmp);
+  }
+  return 0;
+}
+
 export function run(argv, deps) {
   const o = parseArgs(argv);
   if (o.error) { deps.err(o.error); return 1; }
-  if (o.cmd === 'plan') return plan(o, deps);
-  deps.err(USAGE);
-  return 1;
+  return { plan, check, roll }[o.cmd](o, deps);
 }
 
 const capture = (r) => ({ status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.error ? String(r.error.message) : (r.stderr ?? '') });
