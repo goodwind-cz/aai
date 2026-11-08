@@ -731,11 +731,9 @@ _None._
 | SPEC-0046 | Spec-AC-10 | 2026-11-17 | Protocol section + RR-1 recorded in this spec; MV-1..MV-3 EXECUTION is a real-Windows requirement, off-host — tracked on ISSUE-0009, not claimed here |
 | SPEC-0255 | Spec-AC-09 | 2026-11-30 | Post-merge live acceptance; verified by the orchestrator before close, not by pre-merge Validation. |
 
-## Blocked items (per-AC, across all specs) (1)
+## Blocked items (per-AC, across all specs) (0)
 
-| Source Doc | AC | Review-By | Notes |
-|---|---|---|---|
-| SPEC-0257 | Spec-AC-05 | 2026-11-10 | Final-tree complete corpus remains an explicit independent Validation obligation after targeted fixture repairs. Post-open target and timing procedure in Planning measurements |
+_None._
 
 ## Broken references (543)
 
