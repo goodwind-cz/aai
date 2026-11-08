@@ -27,6 +27,8 @@ import { fileURLToPath } from 'node:url';
 
 const GATES = ['commit', 'merge', 'state-dump', 'stop-nudge'];
 const ASCII_SPACE_ONLY = false;
+const AZURE_COMPLETED = 'completed';
+const PLATFORM_SCRIPT = 'platform.mjs';
 const SWEEP_DENY_RC = 5;
 const TAIL_COMMIT = 25;
 const TAIL_SWEEP = 5;
@@ -42,6 +44,8 @@ const GIT_PREFIX = `(^|[;&|${WS}])git(${HS}+-[^${WS}]+(${HS}+[^-;&|${WS}][^${WS}
 const COMMIT_RE = rx(`${GIT_PREFIX}commit(${HS}|$)`, 'm');
 const GIT_GH_MERGE_RE = rx(`${GIT_PREFIX}merge(${HS}|$)|(^|[;&|${WS}])gh${HS}+pr${HS}+merge(${HS}|$)`, 'm');
 const MERGE_SEG_RE = rx(`gh${HS}+pr${HS}+merge(${HS}[^;&|\\n]*)?`, 'm');
+const PLATFORM_MERGE_RE = rx(`(^|[;&|'"/${WS}])${PLATFORM_SCRIPT.replace(/\./g, '\\.')}${HS}+merge(${HS}|$)`, 'm');
+const AZURE_UPDATE_RE = rx(`(^|[;&|${WS}])az${HS}+repos${HS}+pr${HS}+update(${HS}|$)[^;&|\\n]*--status(${HS}+|=)["']?${AZURE_COMPLETED}["']?(${HS}|$)`, 'im');
 const STATE_DUMP_RE = /yaml\.dump|safe_dump|dump_all/;
 const IN_PROGRESS_RE = rx(`^${HS}+status:${HS}*in_progress`, 'm');
 
@@ -85,8 +89,19 @@ export function parsePayload(text) {
   }
 }
 
+function azureNumber(command) {
+  for (const [re, flag] of [[PLATFORM_MERGE_RE, 'pr'], [AZURE_UPDATE_RE, 'id']]) {
+    const m = re.exec(command);
+    if (!m) continue;
+    const segment = command.slice(m.index + m[1].length).split(/[;&|\n]/)[0];
+    const n = segment.match(rx(`--${flag}(?:${HS}+|=)["']?([0-9]+)["']?(?:${HS}|$)`));
+    if (n) return n[1];
+  }
+  return '';
+}
+
 export function isMergeCommand(command) {
-  return GIT_GH_MERGE_RE.test(command);
+  return GIT_GH_MERGE_RE.test(command) || PLATFORM_MERGE_RE.test(command) || AZURE_UPDATE_RE.test(command);
 }
 
 export function mergeSegment(command) {
@@ -291,6 +306,12 @@ function mergeGate(input, deps) {
     const t = mergeTargetPr(seg, cmd, root, deps);
     if (t.deny) return { code: 2, stderr: t.deny };
     const text = t.pr ? sweepDeny(t.pr, root, env, deps) : '';
+    if (text) return { code: 2, stderr: text };
+  }
+  if (PLATFORM_MERGE_RE.test(cmd) || AZURE_UPDATE_RE.test(cmd)) {
+    const pr = azureNumber(cmd);
+    if (!pr && deps.which('node') && deps.exists(`${root}/.aai/scripts/lane-gate.mjs`)) return { code: 2, stderr: unidentifiedPr(cmd) };
+    const text = pr ? sweepDeny(pr, root, env, deps) : '';
     if (text) return { code: 2, stderr: text };
   }
   return ALLOW();

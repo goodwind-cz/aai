@@ -118,6 +118,21 @@ test_3502_drift_coverage() {
   log_pass "TEST-3502: every D-DRIFT id begins exactly one node:test case and no case names a missing id"
 }
 
+test_3503_azure_forms() {
+  run_node_tests TEST-3503
+  log_pass "TEST-3503: the Azure merge forms are denied like gh pr merge and judged by gate 2b (DG-01)"
+}
+
+test_3504_inherited_pipefail() {
+  run_node_tests TEST-3504
+  log_pass "TEST-3504: an exported pipefail does not flip the merge, state-dump or commit decision (DG-02)"
+}
+
+test_3505_kept_decisions() {
+  run_node_tests TEST-3505
+  log_pass "TEST-3505: DG-03 to DG-09 behave as decided"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3514)"
   check_deps
@@ -125,6 +140,9 @@ main() {
   test_3500_seam
   test_3501_parity
   test_3502_drift_coverage
+  test_3503_azure_forms
+  test_3504_inherited_pipefail
+  test_3505_kept_decisions
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
