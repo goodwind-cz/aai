@@ -109,6 +109,79 @@ function targetBranch(root, deps) {
   return !name || name === 'HEAD' ? 'main' : name;
 }
 
+const VERSION_DOC = (version) => [
+  '# AAI Version', '', `- Version: ${version}`, '', 'Notes:',
+  '- Written by the release engines (aai-release.sh / aai-release.ps1) at each cut;',
+  '  consumed by `.aai/scripts/aai-sync.*` to stamp `Template version:` into the',
+  "  target project's `.aai/system/AAI_PIN.md`. Do not edit by hand.", '',
+].join('\n');
+
+// gitStep: a failing git step of the cut ends the cut with the git-command refusal (DB-07).
+class Refusal extends Error {}
+function gitStep(deps, args, cwd) {
+  const r = deps.git(args, cwd);
+  if (r.status !== 0) {
+    const detail = String(r.stderr ?? '').split('\n').find((l) => l.trim()) ?? `exit ${r.status}`;
+    throw new Refusal(`REFUSED: git-command — git ${args.join(' ')}: ${detail.trim()}`);
+  }
+  return first(r);
+}
+
+// localCut: reuse rule for an existing release branch (14 when it holds unmerged work), then the worktree and the commit.
+async function localCut(o, version, root, target, deps) {
+  const check = deps.cut(['check', '--root', root, '--version', version, '--launcher', o.launcher, '--launcher-path', o.launcherPath]);
+  if (check !== 0) return check;
+  const branch = `chore/release-${version}`;
+  const has = (ref) => deps.git(['rev-parse', '-q', '--verify', ref], root).status === 0;
+  const base = has(`refs/remotes/origin/${target}`) ? `origin/${target}` : has(`refs/heads/${target}`) ? target : 'HEAD';
+  if (has(`refs/heads/${branch}`)) {
+    const subject = first(deps.git(['log', '-1', '--format=%s', `refs/heads/${branch}`], root));
+    if (subject.startsWith(`chore(release): ${version}`) || deps.git(['merge-base', '--is-ancestor', branch, base], root).status === 0) {
+      deps.git(['branch', '-D', branch], root);
+    } else {
+      deps.err(`REFUSED: branch ${branch} already exists with unmerged commits (${subject}).`);
+      return EXIT.BRANCH;
+    }
+  }
+  let wt = '';
+  const stop = async () => {
+    await deps.tick();
+    const sig = deps.interrupted();
+    if (!sig) return 0;
+    deps.err(`REFUSED: interrupted (${sig}) — the temporary worktree was removed.`);
+    return SIGNALS[sig];
+  };
+  try {
+    wt = deps.mkdtemp();
+    gitStep(deps, ['worktree', 'add', '-q', '-b', branch, wt, base], root);
+    let code = await stop();
+    if (code) return code;
+    code = deps.cut(['roll', '--file', path.join(wt, 'CHANGELOG.md'), '--version', version]);
+    if (code !== 0) return code;
+    deps.writeFile(path.join(wt, 'docs/ai/AAI_VERSION.md'), VERSION_DOC(version));
+    gitStep(deps, ['add', '--', 'CHANGELOG.md', 'docs/ai/AAI_VERSION.md'], wt);
+    gitStep(deps, ['commit', '-q', '-m', `chore(release): ${version}`], wt);
+    code = await stop();
+    if (code) return code;
+    const sha = gitStep(deps, ['rev-parse', 'HEAD'], wt);
+    const short = gitStep(deps, ['rev-parse', '--short', sha], root);
+    wt = removeWorktree(deps, root, wt);
+    cutReport({ version, branch, sha, short, launcher: o.launcher }).forEach(deps.out);
+    return 0;
+  } catch (e) {
+    if (!(e instanceof Refusal)) throw e;
+    deps.err(e.message);
+    return EXIT.REFUSED;
+  } finally {
+    removeWorktree(deps, root, wt);
+  }
+}
+
+function removeWorktree(deps, root, wt) {
+  if (wt && deps.git(['worktree', 'remove', '--force', wt], root).status !== 0) deps.rm(wt);
+  return '';
+}
+
 export async function run(argv, deps) {
   const o = parseArgs(argv, deps.env);
   if (o.error) { o.error.forEach(deps.err); return o.code; }
@@ -132,7 +205,7 @@ export async function run(argv, deps) {
     }
     return deps.cut(args);
   }
-  return EXIT.REFUSED;
+  return localCut(o, version, root, target, deps);
 }
 
 function realDeps() {

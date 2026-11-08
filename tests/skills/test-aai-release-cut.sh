@@ -293,34 +293,6 @@ count_code_matches() {
   "$g" -vE '^[[:space:]]*(#|$)' "$1" | "$g" -cF -- "$2" || true
 }
 
-test_3470_sh_script() {
-  local n bin="$TEST_DIR/t70-bin" fx="$TEST_DIR/t70/repo" nonode="$TEST_DIR/t70-nonode" t p want got
-  GH_BIN="$bin"; SO="$TEST_DIR/t70.out"; SE="$TEST_DIR/t70.err"
-  make_gh_stub "$bin"
-  n="$(code_lines "$SH_SCRIPT" '#')"
-  [[ "$n" -le 160 ]] || log_fail "TEST-3470: aai-release.sh has $n code lines, expected at most 160"
-  for t in 'awk' 'perform_rollup' '## aai-release (plan)' 'CHANGELOG rollup (would write)'; do
-    [[ "$(count_code_matches "$SH_SCRIPT" "$t")" == 0 ]] || log_fail "TEST-3470: aai-release.sh still holds '$t'"
-  done
-  [[ "$(count_code_matches "$SH_SCRIPT" 'release-cut.mjs')" == 3 ]] || log_fail "TEST-3470: aai-release.sh must call release-cut.mjs exactly three times"
-  for t in plan check roll; do
-    [[ "$(count_code_matches "$SH_SCRIPT" "release-cut.mjs\" $t ")" == 1 ]] || log_fail "TEST-3470: aai-release.sh must call release-cut.mjs $t once"
-  done
-  make_fixture_a "$fx"
-  run_release sh "$fx"
-  [[ "$RC" == 0 ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3470: the sh plan exited $RC"; }
-  want="$(node "$MJS" plan --root "$fx" --version v9 --target-branch main --launcher sh)"
-  got="$(cat "$SO")"
-  [[ "$got" == "$want" && "$got" == "## aai-release (plan) — no files changed"* ]] || { printf '%s\n' "$got" >&2; log_fail "TEST-3470: the sh plan differs from the D-OUT plan of the module"; }
-  [[ ! -s "$SE" ]] || log_fail "TEST-3470: the sh plan wrote stderr: $(cat "$SE")"
-  mkdir -p "$nonode"
-  for t in git dirname; do p="$(command -v "$t")"; ln -sf "$p" "$nonode/$t"; done
-  cp "$bin/gh" "$nonode/gh"
-  RC=0; ( cd "$fx" && PATH="$nonode" "$(command -v bash)" "$SH_SCRIPT" --version v9 ) >"$SO" 2>"$SE" || RC=$?
-  [[ "$RC" == 20 && ! -s "$SO" && "$(cat "$SE")" == "$MISSING_NODE" ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3470: without node the sh script gave rc=$RC, not the missing-node line with exit 20"; }
-  log_pass "TEST-3470: aai-release.sh is $n code lines, holds no rollup, calls the module three times, prints the plan and names a missing node"
-}
-
 test_3471_ps1_script() {
   need_tool TEST-3471 pwsh || return 0
   local n bin="$TEST_DIR/t71-bin" fx="$TEST_DIR/t71/repo" t want got
@@ -605,6 +577,42 @@ JS
   node "$TEST_DIR/db-drift.cjs" "$1" "$2" "$3"
 }
 
+test_3522_local_cut_drift() {
+  run_ar_tests TEST-3522
+  log_pass "TEST-3522: DB-06 to DB-09, DB-11 and DB-14 behave as decided in committed temp repositories"
+}
+
+test_3528_sh_launcher() {
+  local n mode t bin="$TEST_DIR/t28-bin" fx="$TEST_DIR/t28/repo" nonode="$TEST_DIR/t28-nonode" want got
+  GH_BIN="$bin"; SO="$TEST_DIR/t28.out"; SE="$TEST_DIR/t28.err"
+  make_gh_stub "$bin"
+  n="$(code_lines "$SH_SCRIPT" '#')"
+  [[ "$n" -le 12 ]] || log_fail "TEST-3528: aai-release.sh has $n code lines, expected at most 12"
+  mode="$(git -C "$PROJECT_ROOT" ls-files -s -- .aai/scripts/aai-release.sh | cut -d' ' -f1)"
+  [[ "$mode" == 100755 ]] || log_fail "TEST-3528: aai-release.sh has index mode '$mode', expected 100755"
+  for t in git gh CHANGELOG worktree AAI_RELEASE_DATE; do
+    [[ "$(count_code_matches "$SH_SCRIPT" "$t")" == 0 ]] || log_fail "TEST-3528: aai-release.sh still holds '$t'"
+  done
+  [[ "$(count_code_matches "$SH_SCRIPT" 'exec node')" == 1 ]] || log_fail "TEST-3528: aai-release.sh must hold exactly one exec node line"
+  [[ "$(count_code_matches "$SH_SCRIPT" 'aai-release.mjs')" -ge 1 && "$(count_code_matches "$SH_SCRIPT" '--launcher sh')" == 1 ]] || log_fail "TEST-3528: the exec line must name aai-release.mjs and --launcher sh"
+  make_fixture_a "$fx"
+  RC=0; ( cd "$fx" && PATH="$bin:$PATH" "$SH_SCRIPT" --dry-run --no-remote --version v9 ) >"$SO" 2>"$SE" || RC=$?
+  [[ "$RC" == 0 ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3528: the direct sh plan exited $RC"; }
+  want="$(node "$MJS" plan --root "$fx" --version v9 --target-branch main --launcher sh --no-remote)"
+  got="$(cat "$SO")"
+  [[ "$got" == "$want" && "$got" == "## aai-release (plan) — no files changed"* ]] || { printf '%s\n' "$got" >&2; log_fail "TEST-3528: the sh plan differs from the D-OUT plan of release-cut.mjs"; }
+  [[ ! -s "$SE" ]] || log_fail "TEST-3528: the sh plan wrote stderr: $(cat "$SE")"
+  mkdir -p "$nonode"
+  RC=0; ( cd "$fx" && PATH="$nonode" "$(command -v bash)" "$SH_SCRIPT" --version v9 ) >"$SO" 2>"$SE" || RC=$?
+  [[ "$RC" == 20 && ! -s "$SO" && "$(cat "$SE")" == "$MISSING_NODE" ]] || { cat "$SO" "$SE" >&2; log_fail "TEST-3528: without node the sh launcher gave rc=$RC, not the missing-node line with exit 20"; }
+  log_pass "TEST-3528: aai-release.sh is $n code lines, mode $mode, holds no release logic, prints the plan and names a missing node"
+}
+
+test_3536_early_close() {
+  run_ar_tests TEST-3536
+  log_pass "TEST-3536: the sh launcher plan and usage end quietly when the reader closes early"
+}
+
 test_3527_drift_coverage() {
   local spec="" out f
   for f in "$PROJECT_ROOT"/docs/specs/*.md; do
@@ -633,7 +641,6 @@ main() {
   test_3467_drift_coverage
   test_3468_one_transform
   test_3469_no_publish
-  test_3470_sh_script
   test_3471_ps1_script
   test_3472_pester
   test_3473_downstream_install
@@ -645,6 +652,9 @@ main() {
   test_3520_seam
   test_3521_argument_drift
   test_3527_drift_coverage
+  test_3522_local_cut_drift
+  test_3528_sh_launcher
+  test_3536_early_close
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

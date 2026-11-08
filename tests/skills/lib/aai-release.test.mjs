@@ -523,10 +523,13 @@ test('TEST-3536 the sh launcher plan and the usage piped into head -1 print no s
   }
 });
 
-test('TEST-3536 a plan written to a pipe whose reader has already exited ends quietly with exit 141', () => {
+test('TEST-3536 a plan or a usage written to a pipe whose reader has already exited ends quietly with exit 141', () => {
   const dir = fixture();
   const env = HOST_FREE({ RC_SH: SH, RC_DIR: dir });
-  const r = spawnSync('bash', ['-c', '(cd "$RC_DIR" && sleep 1 && exec bash "$RC_SH" --dry-run --no-remote --version v9) | true; exit "${PIPESTATUS[0]}"'], { encoding: 'utf8', env });
-  assert.equal(r.stderr, '', `no stderr when the reader is gone: ${r.stderr}`);
-  assert.equal(r.status, 141);
+  for (const args of ['--dry-run --no-remote --version v9', '--help']) {
+    // Deterministic: the writer sleeps until the reader (true) is long gone, so its first write meets a closed pipe.
+    const r = spawnSync('bash', ['-c', `(cd "$RC_DIR" && sleep 1 && exec bash "$RC_SH" ${args}) | true; exit "\${PIPESTATUS[0]}"`], { encoding: 'utf8', env });
+    assert.equal(r.stderr, '', `no stderr when the reader is gone: ${r.stderr}`);
+    assert.equal(r.status, 141, args);
+  }
 });
