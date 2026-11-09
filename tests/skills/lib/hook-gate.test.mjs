@@ -476,6 +476,57 @@ describe('TEST-3505 kept decisions', () => {
     }
   });
 
+  test('DG-13 the operator-marker path fails closed on an ambiguous target', () => {
+    const project = makeProject('dg13');
+    const op = { AAI_OPERATOR_MERGE: '1' };
+    // a PATH holding node, git and sh but no gh
+    const nogh = scratch('nogh');
+    fs.symlinkSync(process.execPath, path.join(nogh, 'node'));
+    const noGhPath = `${nogh}:/usr/bin:/bin`;
+    const ids = (which, cmd, loc) => (which === 'mod'
+      ? decideIn(project, 'merge', cmd, { env: { ...op, PATH: noGhPath } })
+      : { code: gate(LAUNCHER, project, 'merge', cmd, { env: { ...op, LC_ALL: loc }, path: noGhPath }).rc });
+    // gh absent: a target that is not plain ASCII digits is denied; plain digits keep the sweep check by number
+    for (const c of [' ', ' ', '　', '﻿']) {
+      for (const cmd of [`gh pr merge 42${c}`, `gh pr merge ${c}42`, `gh pr merge 42${c}x`, ...(c === '\ufeff' ? [] : [`gh${c}pr${c}merge 42`, `gh pr merge${c}42`])]) {
+        const d = ids('mod', cmd);
+        assert.equal(d.code, 2, `gh absent ${JSON.stringify(cmd)}`);
+        assert.match(d.stderr, /^Merge denied: gh is not available, and the merge target "/, JSON.stringify(cmd));
+        for (const loc of ['C', 'C.UTF-8']) assert.equal(ids('launcher', cmd, loc).code, 2, `launcher ${loc} ${JSON.stringify(cmd)}`);
+      }
+    }
+    assert.equal(ids('mod', 'gh pr merge 42').code, 0, 'gh absent, valid sweep record');
+    assert.equal(ids('mod', 'gh pr merge 7 --squash').code, 0, 'gh absent, no record is allowed');
+    const failing = ids('mod', 'gh pr merge 43');
+    assert.equal(failing.code, 2);
+    assert.match(failing.stderr, /^Merge denied: no valid post-open review sweep record for PR 43 /);
+    // two merge-shaped segments: every candidate is checked, any deny denies (gh present and absent, both separator classes)
+    for (const c of [' ', ' ', '　']) {
+      for (const cmd of ['gh pr merge 42; gh pr merge 43', `gh pr merge 42; gh${c}pr${c}merge 43`, `gh${c}pr${c}merge 42; gh pr merge 43`,
+        `gh pr merge 42 && echo x | gh pr merge 43`, `gh pr merge 42\ngh pr merge 43`, `gh pr merge 43; gh pr merge 42`]) {
+        assert.equal(decideIn(project, 'merge', cmd, { env: op }).code, 2, `gh present ${JSON.stringify(cmd)}`);
+        assert.equal(ids('mod', cmd).code, 2, `gh absent ${JSON.stringify(cmd)}`);
+        for (const loc of ['C', 'C.UTF-8']) {
+          assert.equal(gate(LAUNCHER, project, 'merge', cmd, { env: { ...op, LC_ALL: loc } }).rc, 2, `launcher ${loc} ${JSON.stringify(cmd)}`);
+          assert.equal(ids('launcher', cmd, loc).code, 2, `launcher gh absent ${loc} ${JSON.stringify(cmd)}`);
+        }
+      }
+    }
+    assert.equal(decideIn(project, 'merge', 'gh pr merge 42; gh pr merge 42', { env: op }).code, 0, 'two valid candidates still allow');
+    // the Azure number is plain ASCII digits after an ASCII separator, else the unidentified-PR deny
+    for (const c of [' ', ' ', '　']) {
+      for (const cmd of [`node .aai/scripts/platform.mjs merge --pr${c}7 --expect-head abc`, `node .aai/scripts/platform.mjs merge --pr=${c}7`,
+        `az repos pr update --id${c}7 --status completed`, `node .aai/scripts/platform.mjs merge --pr 7${c}`, `az repos pr update --id 42${c} --status completed`]) {
+        const d = decideIn(project, 'merge', cmd, { env: op });
+        assert.equal(d.code, 2, JSON.stringify(cmd));
+        assert.match(d.stderr, /^Merge denied: could not determine which PR this merge command targets\./);
+        for (const loc of ['C', 'C.UTF-8']) assert.equal(gate(LAUNCHER, project, 'merge', cmd, { env: { ...op, LC_ALL: loc } }).rc, 2, `${loc} ${JSON.stringify(cmd)}`);
+      }
+    }
+    assert.equal(decideIn(project, 'merge', 'node .aai/scripts/platform.mjs merge --pr 42 --expect-head abc', { env: op }).code, 0);
+    assert.equal(decideIn(project, 'merge', 'az repos pr update --id=42 --status completed', { env: op }).code, 0);
+  });
+
   test('DG-10 U+FEFF is not white space: the gate decides as the baseline script did, on every path', () => {
     const project = makeProject('dg10');
     const op = { AAI_OPERATOR_MERGE: '1' };

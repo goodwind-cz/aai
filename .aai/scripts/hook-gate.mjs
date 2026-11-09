@@ -57,6 +57,7 @@ const GIT_PREFIX = `(^|[;&|${WS}])git(${HS}+-[^${WS}]+(${HS}+[^-;&|${WS}][^${WS}
 const COMMIT_RE = rx(`${GIT_PREFIX}commit(${HS}|$)`, 'm');
 const GIT_GH_MERGE_RE = rx(`${GIT_PREFIX}merge(${HS}|$)|(^|[;&|${WS}])gh${HS}+pr${HS}+merge(${HS}|$)`, 'm');
 const MERGE_SEG_RE = rx(`gh${HS}+pr${HS}+merge(${HS}[^;&|\\n]*)?`, 'm');
+const MERGE_SEG_ALL_RE = rx(MERGE_SEG_RE.source, 'gm');
 const PLATFORM_MERGE_RE = rx(`(^|[;&|'"/${WS}])${PLATFORM_SCRIPT.replace(/\./g, '\\.')}${HS}+merge(${HS}|$)`, 'm');
 const AZURE_UPDATE_RE = rx(`(^|[;&|${WS}])az${HS}+repos${HS}+pr${HS}+update(${HS}|$)[^;&|\\n]*--status(${HS}+|=)["']?${AZURE_COMPLETED}["']?(${HS}|$)`, 'im');
 const STATE_DUMP_RE = /yaml\.dump|safe_dump|dump_all/;
@@ -103,15 +104,20 @@ export function parsePayload(text) {
   }
 }
 
-function azureNumber(command) {
+// The PR number of EVERY Azure merge segment (fail closed: a segment with no plain
+// number gives ''). The number is ASCII digits after an ASCII separator or `=` only;
+// a wide separator (`--pr<U+2003>7`) is no number, so the gate refuses to guess.
+function azureNumbers(command) {
+  const nums = [];
   for (const [re, flag] of [[PLATFORM_MERGE_RE, 'pr'], [AZURE_UPDATE_RE, 'id']]) {
-    const m = re.exec(command);
-    if (!m) continue;
-    const segment = command.slice(m.index + m[1].length).split(/[;&|\n]/)[0];
-    const n = segment.match(rx(`--${flag}(?:${HS}+|=)["']?([0-9]+)["']?(?:${HS}|$)`));
-    if (n) return n[1];
+    const g = rx(re.source, 'gm' + (re.flags.includes('i') ? 'i' : ''));
+    for (const m of command.matchAll(g)) {
+      const segment = command.slice(m.index + m[1].length).split(/[;&|\n]/)[0];
+      const n = segment.match(rx(`--${flag}(?:${SPA}+|=)["']?([0-9]+)["']?(?:${SPA}|$)`));
+      nums.push(n ? n[1] : '');
+    }
   }
-  return '';
+  return nums;
 }
 
 export function isMergeCommand(command) {
@@ -121,6 +127,11 @@ export function isMergeCommand(command) {
 export function mergeSegment(command) {
   const m = MERGE_SEG_RE.exec(command);
   return m ? m[0] : '';
+}
+
+// Every merge-shaped segment, in order, for the operator-marker path (no first-match).
+export function mergeSegments(command) {
+  return [...command.matchAll(MERGE_SEG_ALL_RE)].map((m) => m[0]);
 }
 
 // The allow-list over a `gh pr merge` segment's own tokens (lane path only).
@@ -211,6 +222,14 @@ function mergeTargetPr(seg, cmd, root, deps) {
         'a sweep record for.',
       ]) };
     }
+  }
+  if (!pr && target && !deps.which('gh')) {
+    // Fail closed: with no gh a target that is not plain ASCII digits cannot be resolved to a PR.
+    return { deny: lines([
+      `Merge denied: gh is not available, and the merge target "${target}" is not a plain PR number,`,
+      `so no sweep record can be checked for it. Command: ${cmd}`,
+      "Run 'gh pr merge <N> ...' naming the PR by its number.",
+    ]) };
   }
   if (!pr && !target && deps.which('gh')) {
     pr = view(['pr', 'view', '--json', 'number', '-q', '.number']);
@@ -316,14 +335,14 @@ function mergeGate(input, deps) {
     }
     if (!allowed) return { code: 2, stderr: article7(verdict) };
   }
-  if (seg) {
-    const t = mergeTargetPr(seg, cmd, root, deps);
+  // Every candidate is checked and any deny denies: a decoy segment never shields the real one.
+  for (const candidate of mergeSegments(cmd)) {
+    const t = mergeTargetPr(candidate, cmd, root, deps);
     if (t.deny) return { code: 2, stderr: t.deny };
     const text = t.pr ? sweepDeny(t.pr, root, env, deps) : '';
     if (text) return { code: 2, stderr: text };
   }
-  if (PLATFORM_MERGE_RE.test(cmd) || AZURE_UPDATE_RE.test(cmd)) {
-    const pr = azureNumber(cmd);
+  for (const pr of azureNumbers(cmd)) {
     if (!pr && deps.which('node') && deps.exists(`${root}/.aai/scripts/lane-gate.mjs`)) return { code: 2, stderr: unidentifiedPr(cmd) };
     const text = pr ? sweepDeny(pr, root, env, deps) : '';
     if (text) return { code: 2, stderr: text };
