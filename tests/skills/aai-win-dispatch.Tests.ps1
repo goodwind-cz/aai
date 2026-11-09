@@ -27,6 +27,8 @@
 $script:SkipOnWindows = Test-IsWindowsHostFor -Edition $PSVersionTable.PSEdition -IsWindowsFlag $IsWindows
 
 BeforeAll {
+    # Caller environment captured once so the final context can prove it survived (release-corpus-hermetic TEST-002).
+    $script:CallerAaiTestTimeout = $env:AAI_TEST_TIMEOUT
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     $script:RunDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-run-tests.ps1'
     $script:SelfTestScript = Join-Path $RepoRoot '.aai/scripts/aai-win-selftest.ps1'
@@ -97,7 +99,13 @@ Describe 'aai-run-tests.ps1' {
             $script:capturedArgs = $null
             Mock Invoke-WslProcess { $script:capturedArgs = $Arguments; return 0 }
             Mock Start-GitBashProcess { $null }
-            $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            $hermeticOrig = $env:AAI_TEST_TIMEOUT
+            Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue  # AAI-HERMETIC-CLEAR
+            try {
+                $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            } finally {
+                if ($null -eq $hermeticOrig) { Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue } else { $env:AAI_TEST_TIMEOUT = $hermeticOrig }  # AAI-HERMETIC-RESTORE
+            }
             $rc | Should -Be 0
             $script:capturedArgs | Should -Be @('-e', 'env', 'AAI_TEST_TIMEOUT=3000', '/mnt/c/repo/.aai/scripts/aai-run-tests.sh', 'sh', '-c', 'exit 0')
             Should -Invoke Invoke-WslProcess -Times 1 -Exactly
@@ -920,10 +928,13 @@ Write-Output "GRANDCHILD_SAW=$childSaw"
             $origErr = [Console]::Error
             $sw = [System.IO.StringWriter]::new()
             [Console]::SetError($sw)
+            $hermeticOrig = $env:AAI_TEST_TIMEOUT
+            Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue  # AAI-HERMETIC-CLEAR
             try {
                 $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
             } finally {
                 [Console]::SetError($origErr)
+                if ($null -eq $hermeticOrig) { Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue } else { $env:AAI_TEST_TIMEOUT = $hermeticOrig }  # AAI-HERMETIC-RESTORE
             }
             $rc | Should -Be 0
             $sw.ToString() | Should -Match '^AAI-BRANCH: WSL \| AAI-TIMEOUT: 3000s \(source=default\)'
@@ -1236,6 +1247,19 @@ Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
                 $cat14.status | Should -Be 'SKIP'
                 $cat14.detail.spawned | Should -Be $false
             }
+        }
+    }
+}
+
+Describe 'release-corpus-hermetic TEST-002 (Spec-AC-01): caller AAI_TEST_TIMEOUT survives the file' {
+    # Pester v5 runs Describe blocks in file order, so this is the last one.
+    It 'leaves $env:AAI_TEST_TIMEOUT exactly as the caller had it (present value or absent)' {
+        $now = $env:AAI_TEST_TIMEOUT
+        if ($null -eq $script:CallerAaiTestTimeout) {
+            $now | Should -BeNullOrEmpty
+            (Test-Path Env:AAI_TEST_TIMEOUT) | Should -Be $false
+        } else {
+            $now | Should -Be $script:CallerAaiTestTimeout
         }
     }
 }
