@@ -152,7 +152,7 @@ function gate(script, project, name, payload, opts = {}) {
   const env = {
     PATH: opts.path || `${project.bin}:${process.env.PATH}`, HOME: os.tmpdir(), CLAUDE_PROJECT_DIR: project.dir, STUB_DIR: project.stub, ...opts.env,
   };
-  const r = spawnSync('bash', [script, name], { cwd: opts.cwd || project.dir, env, stdio: [fd, 'pipe', 'pipe'], encoding: 'utf8', timeout: 120000 });
+  const r = spawnSync('bash', [script, name], { cwd: opts.cwd || project.dir, env, stdio: [fd, 'pipe', 'pipe'], encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 26 });
   fs.closeSync(fd);
   return { rc: r.status, stdout: r.stdout, stderr: r.stderr };
 }
@@ -397,6 +397,12 @@ describe('TEST-3504 inherited pipefail', () => {
     const merge = gate(LAUNCHER, project, 'merge', `gh pr merge 42 --squash\n${filler}`, { env: PIPEFAIL });
     assert.equal(merge.rc, 2, 'merge followed by 8000 lines must deny');
     assert.equal(merge.stderr, ARTICLE7);
+    // an inherited errexit (with or without pipefail) is no different: the old script aborted on the first non-zero status, an allow
+    for (const opts of ['braceexpand:errexit:hashall:interactive-comments', 'braceexpand:errexit:hashall:interactive-comments:pipefail']) {
+      const m = gate(LAUNCHER, project, 'merge', `gh pr merge 42 --squash\n${filler}`, { env: { SHELLOPTS: opts } });
+      assert.equal(m.rc, 2, `merge under SHELLOPTS=${opts} must deny`);
+      assert.equal(m.stderr, ARTICLE7);
+    }
     const dump = gate(LAUNCHER, project, 'state-dump', `python3 -c 'yaml.dump(open("docs/ai/STATE.yaml"))'\n${filler}`, { env: PIPEFAIL });
     assert.equal(dump.rc, 2, 'state-dump followed by 8000 lines must deny');
     fs.writeFileSync(path.join(project.dir, '.checks-fail'), '');
@@ -627,6 +633,63 @@ describe('TEST-3505 kept decisions', () => {
     const d = decideIn(project, 'merge', 'echo one\necho two\ngit merge feature-x');
     assert.equal(d.code, 2);
     assert.equal(d.stderr, ARTICLE7);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DG-14: every scan on the decision path is linear in the command size. A hook that runs out of time is a
+// non-blocking error, which Claude Code treats as an allow, so a super-linear scan is a bypass of the gate.
+describe('TEST-3515 linear-time scans', () => {
+  const MIB = 1 << 20;
+  const rep = (unit, tail) => unit.repeat(Math.ceil(MIB / unit.length)) + tail;
+  const timed = (project, name, command, opts = {}) => {
+    const t0 = process.hrtime.bigint();
+    const r = gate(LAUNCHER, project, name, command, opts);
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    return { ...r, ms };
+  };
+  const BUDGET_MS = 2000;
+  test('DG-14 a megabyte of a repeated command shape is decided correctly in under two seconds', () => {
+    const project = makeProject('linear');
+    const cases = [
+      ['git option run before gh pr merge', 'merge', rep('git -a ', '; gh pr merge 5'), 2, ARTICLE7],
+      ['git option run before git merge', 'merge', rep('git -a ', 'merge x'), 2, ARTICLE7],
+      ['git option run, no merge at all', 'merge', rep('git -a ', '; echo merge'), 0, ''],
+      ['gh words run before gh pr merge', 'merge', rep('gh pr ', 'merge 5'), 2, ARTICLE7],
+      ['az run before an az completion', 'merge', rep('az repos pr update ', '--id 5 --status completed'), 2, ARTICLE7],
+      ['az run with no completion', 'merge', rep('az repos pr update ', 'x merge-free'), 0, ''],
+      ['platform merge run', 'merge', rep('platform.mjs merge  ', '--pr 5'), 2, ARTICLE7],
+    ];
+    for (const [label, gateName, command, rc, err] of cases) {
+      const r = timed(project, gateName, command);
+      assert.equal(r.rc, rc, `${label}: exit code (took ${r.ms | 0} ms)`);
+      if (rc === 2) assert.equal(r.stderr, err, `${label}: article 7 text`);
+      assert.ok(r.ms < BUDGET_MS, `${label}: took ${r.ms | 0} ms (budget ${BUDGET_MS} ms)`);
+    }
+    fs.writeFileSync(path.join(project.dir, '.checks-fail'), '');
+    const c = timed(project, 'commit', rep('git -a ', '; git commit -m x'));
+    fs.rmSync(path.join(project.dir, '.checks-fail'));
+    assert.equal(c.rc, 2, `commit after a git option run (took ${c.ms | 0} ms)`);
+    assert.match(c.stderr, /^AAI pre-commit gate blocked this commit/);
+    assert.ok(c.ms < BUDGET_MS, `commit: took ${c.ms | 0} ms (budget ${BUDGET_MS} ms)`);
+    // the operator-marker and lane paths over the same size: a decision, never a crash that fails open
+    const op = { env: { AAI_OPERATOR_MERGE: '1' } };
+    for (const [label, command, one] of [['platform merge segments', rep('platform.mjs merge  ', '--pr 5'), 'platform.mjs merge --pr 5'],
+      ['az completions', rep('az repos pr update --status completed\n', '--id 5'), 'az repos pr update --status completed\n--id 5'],
+      ['gh merge segments', rep('gh pr merge 5; ', 'echo'), 'gh pr merge 5']]) {
+      const r = timed(project, 'merge', command, op);
+      const short = gate(LAUNCHER, project, 'merge', one, op).rc;
+      assert.equal(r.rc, short, `${label} with the operator marker: the decision of its last segment alone (took ${r.ms | 0} ms)`);
+      assert.ok(r.ms < BUDGET_MS, `${label} with the operator marker: took ${r.ms | 0} ms (budget ${BUDGET_MS} ms)`);
+    }
+    // more distinct merge targets than the gate checks in one command: denied, never a process per target
+    const many = Array.from({ length: 40 }, (_, i) => `platform.mjs merge --pr ${100 + i}`).join('; ');
+    const m = gate(LAUNCHER, project, 'merge', many, op);
+    assert.equal(m.rc, 2, 'forty distinct merge targets in one command are denied');
+    assert.match(m.stderr, /names more than 16 distinct merge targets/);
+    const lane = timed(project, 'merge', rep('A=1 ', 'gh pr merge 5'), { env: { AAI_LANEX1520_MERGE: '1' } });
+    assert.equal(lane.rc, 2, `lane prefix run (took ${lane.ms | 0} ms)`);
+    assert.ok(lane.ms < BUDGET_MS, `lane prefix run: took ${lane.ms | 0} ms (budget ${BUDGET_MS} ms)`);
   });
 });
 

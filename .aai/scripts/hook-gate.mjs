@@ -32,6 +32,7 @@ const PLATFORM_SCRIPT = 'platform.mjs';
 const SWEEP_DENY_RC = 5;
 const TAIL_COMMIT = 25;
 const TAIL_SWEEP = 5;
+const MAX_LOOKUPS = 16;
 
 // Whitespace classes. WS goes inside a bracket expression, HS is one
 // whitespace character that never crosses a line (grep matches line by line).
@@ -52,14 +53,20 @@ const SPA = `[${WS_ASCII}]`;
 const NSPA = `[^${WS_ASCII}]`;
 const rx = (src, flags = '') => new RegExp(src, flags);
 
-// grep -E per line (the m flag): the commit and merge command shapes.
-const GIT_PREFIX = `(^|[;&|${WS}])git(${HS}+-[^${WS}]+(${HS}+[^-;&|${WS}][^${WS}]*)?)*${HS}+`;
-const COMMIT_RE = rx(`${GIT_PREFIX}commit(${HS}|$)`, 'm');
-const GIT_GH_MERGE_RE = rx(`${GIT_PREFIX}merge(${HS}|$)|(^|[;&|${WS}])gh${HS}+pr${HS}+merge(${HS}|$)`, 'm');
+// grep -E per line (the m flag): the commit and merge command shapes. The git shape
+// `(^|[;&|WS])git(HS+-NSP+(HS+X NSP*)?)*HS+<word>(HS|$)` is scanned by gitSubcommand below, not by one
+// regular expression: nested quantifiers over a repeated `git -a ` run took quadratic time (51 s for a
+// megabyte), and a hook that times out is a non-blocking error, that is an allow (DG-14). Every other
+// pattern here has no nested quantifier and anchors on a literal word, so it runs in linear time.
+const GH_MERGE_RE = rx(`(^|[;&|${WS}])gh${HS}+pr${HS}+merge(${HS}|$)`, 'm');
 const MERGE_SEG_RE = rx(`gh${HS}+pr${HS}+merge(${HS}[^;&|\\n]*)?`, 'm');
 const MERGE_SEG_ALL_RE = rx(MERGE_SEG_RE.source, 'gm');
 const PLATFORM_MERGE_RE = rx(`(^|[;&|'"/${WS}])${PLATFORM_SCRIPT.replace(/\./g, '\\.')}${HS}+merge(${HS}|$)`, 'm');
-const AZURE_UPDATE_RE = rx(`(^|[;&|${WS}])az${HS}+repos${HS}+pr${HS}+update(${HS}|$)[^;&|\\n]*--status(${HS}+|=)["']?${AZURE_COMPLETED}["']?(${HS}|$)`, 'im');
+// `az repos pr update ... --status completed`, scanned per segment by azureUpdateStarts (DG-14): the head and the
+// status are two simple expressions, never one with a `[^;&|\n]*` between them.
+const AZ_HEAD_RE = rx(`(^|${SP})az${HS}+repos${HS}+pr${HS}+update${HS}`, 'i');
+const AZ_STATUS_RE = rx(`--status(${HS}+|=)["']?${AZURE_COMPLETED}["']?(${HS}|$)`, 'im');
+const SEG_DELIM_RE = /[;&|\n]/g;
 const STATE_DUMP_RE = /yaml\.dump|safe_dump|dump_all/;
 const IN_PROGRESS_RE = rx(`^${HS}+status:${HS}*in_progress`, 'm');
 
@@ -104,24 +111,94 @@ export function parsePayload(text) {
   }
 }
 
+const WS_CHAR_RE = rx(`^${SP}$`);
+const HS_CHAR_RE = rx(`^${HS}$`);
+const isWs = (c) => WS_CHAR_RE.test(c);
+const isHs = (c) => HS_CHAR_RE.test(c);
+const isDelim = (c) => ';&|'.includes(c) || isWs(c);
+
+// True when the command holds `git [-opt [arg]]... <word>` as grep -E matched it: `git` at a line start or after
+// `;`, `&`, `|` or white space; each option a token starting with `-`, followed by at most one token that does not
+// start with `-`, `;`, `&` or `|`; then the word as a whole token. Same language as the regular expression it
+// replaces, scanned once: a (position, state) pair already walked from an earlier `git` is never walked again.
+function gitSubcommand(s, word) {
+  let seen = null;
+  const n = s.length;
+  for (let p = s.indexOf('git'); p !== -1; p = s.indexOf('git', p + 1)) {
+    if ((p > 0 && !isDelim(s[p - 1])) || p + 3 >= n || !isHs(s[p + 3])) continue;
+    seen ??= [new Uint8Array(n + 1), new Uint8Array(n + 1)];
+    let i = p + 3;
+    let state = 0;
+    for (;;) {
+      let j = i;
+      while (j < n && isHs(s[j])) j += 1;
+      let k = j;
+      while (k < n && !isWs(s[k])) k += 1;
+      if (k === j || seen[state][j]) break;
+      seen[state][j] = 1;
+      const tok = s.slice(j, k);
+      if (tok === word) return true;
+      if (tok[0] === '-') {
+        if (tok.length < 2) break;
+        state = 1;
+      } else if (state === 1 && !';&|'.includes(tok[0])) {
+        state = 0;
+      } else {
+        break;
+      }
+      if (k >= n || !isHs(s[k])) break;
+      i = k;
+    }
+  }
+  return false;
+}
+
+// The start of `az` of every Azure completion, one per segment (a segment ends at `;`, `&`, `|` or a newline):
+// the first `az repos pr update` of a segment decides, as the later ones have a shorter tail.
+function azureUpdateStarts(command) {
+  const out = [];
+  if (!/az/i.test(command)) return out;
+  const n = command.length;
+  let from = 0;
+  for (;;) {
+    SEG_DELIM_RE.lastIndex = from;
+    const m = SEG_DELIM_RE.exec(command);
+    const end = m ? m.index + 1 : n;
+    const seg = command.slice(from, end);
+    const h = AZ_HEAD_RE.exec(seg);
+    if (h && AZ_STATUS_RE.test(seg.slice(h.index + h[0].length))) out.push(from + h.index + h[1].length);
+    if (!m) break;
+    from = end;
+  }
+  return out;
+}
+
 // The PR number of EVERY Azure merge segment (fail closed: a segment with no plain
 // number gives ''). The number is ASCII digits after an ASCII separator or `=` only;
 // a wide separator (`--pr<U+2003>7`) is no number, so the gate refuses to guess.
 function azureNumbers(command) {
   const nums = [];
-  for (const [re, flag] of [[PLATFORM_MERGE_RE, 'pr'], [AZURE_UPDATE_RE, 'id']]) {
-    const g = rx(re.source, 'gm' + (re.flags.includes('i') ? 'i' : ''));
-    for (const m of command.matchAll(g)) {
-      const segment = command.slice(m.index + m[1].length).split(/[;&|\n]/)[0];
-      const n = segment.match(rx(`--${flag}(?:${SPA}+|=)["']?([0-9]+)["']?(?:${SPA}|$)`));
-      nums.push(n ? n[1] : '');
+  const n = command.length;
+  // One scan per segment, not per match: the numbers of a segment are listed once and each match takes the first at or after it.
+  const numberAt = (flag, pos, st) => {
+    if (pos > st.end) {
+      SEG_DELIM_RE.lastIndex = pos;
+      const m = SEG_DELIM_RE.exec(command);
+      st.end = m ? m.index : n;
+      st.list = [...command.slice(pos, st.end).matchAll(rx(`--${flag}(?:${SPA}+|=)["']?([0-9]+)["']?(?:${SPA}|$)`, 'g'))].map((x) => [x.index + pos, x[1]]);
     }
-  }
+    const hit = st.list.find(([i]) => i >= pos);
+    return hit ? hit[1] : '';
+  };
+  const stPr = { end: -1, list: [] };
+  for (const m of command.matchAll(rx(PLATFORM_MERGE_RE.source, 'gm'))) nums.push(numberAt('pr', m.index + m[1].length, stPr));
+  const stId = { end: -1, list: [] };
+  for (const pos of azureUpdateStarts(command)) nums.push(numberAt('id', pos, stId));
   return nums;
 }
 
 export function isMergeCommand(command) {
-  return GIT_GH_MERGE_RE.test(command) || PLATFORM_MERGE_RE.test(command) || AZURE_UPDATE_RE.test(command);
+  return gitSubcommand(command, 'merge') || GH_MERGE_RE.test(command) || PLATFORM_MERGE_RE.test(command) || azureUpdateStarts(command).length > 0;
 }
 
 export function mergeSegment(command) {
@@ -238,6 +315,13 @@ function mergeTargetPr(seg, cmd, root, deps) {
   return { pr };
 }
 
+function tooManyTargets() {
+  return lines([
+    `Merge denied: this command names more than ${MAX_LOOKUPS} distinct merge targets, more than the gate checks in one command.`,
+    'Run the merges one command at a time.',
+  ]);
+}
+
 function unidentifiedPr(cmd) {
   return lines([
     'Merge denied: could not determine which PR this merge command targets.',
@@ -335,16 +419,28 @@ function mergeGate(input, deps) {
     }
     if (!allowed) return { code: 2, stderr: article7(verdict) };
   }
-  // Every candidate is checked and any deny denies: a decoy segment never shields the real one.
+  // Every candidate is checked and any deny denies: a decoy segment never shields the real one. Each distinct
+  // target is looked up once, and a command naming more than MAX_LOOKUPS distinct ones is denied (DG-14): a
+  // megabyte of segments must not spawn a process each until the hook times out, which Claude Code reads as an allow.
+  const memo = new Map();
+  let spent = 0;
+  const once = (key, fn) => {
+    if (memo.has(key)) return memo.get(key);
+    if (spent >= MAX_LOOKUPS) return { deny: tooManyTargets() };
+    spent += 1;
+    const v = fn();
+    memo.set(key, v);
+    return v;
+  };
   for (const candidate of mergeSegments(cmd)) {
-    const t = mergeTargetPr(candidate, cmd, root, deps);
+    const t = once(`c:${candidate}`, () => mergeTargetPr(candidate, cmd, root, deps));
     if (t.deny) return { code: 2, stderr: t.deny };
-    const text = t.pr ? sweepDeny(t.pr, root, env, deps) : '';
+    const text = t.pr ? once(`p:${t.pr}`, () => ({ deny: sweepDeny(t.pr, root, env, deps) })).deny : '';
     if (text) return { code: 2, stderr: text };
   }
-  for (const pr of azureNumbers(cmd)) {
+  for (const pr of new Set(azureNumbers(cmd))) {
     if (!pr && deps.which('node') && deps.exists(`${root}/.aai/scripts/lane-gate.mjs`)) return { code: 2, stderr: unidentifiedPr(cmd) };
-    const text = pr ? sweepDeny(pr, root, env, deps) : '';
+    const text = pr ? once(`p:${pr}`, () => ({ deny: sweepDeny(pr, root, env, deps) })).deny : '';
     if (text) return { code: 2, stderr: text };
   }
   return ALLOW();
@@ -352,7 +448,7 @@ function mergeGate(input, deps) {
 
 function commitGate(input, deps) {
   const { command: cmd } = parsePayload(input.payload);
-  if (!cmd || !COMMIT_RE.test(cmd)) return ALLOW();
+  if (!cmd || !gitSubcommand(cmd, 'commit')) return ALLOW();
   const checks = `${input.root}/.aai/scripts/pre-commit-checks.sh`;
   if (!deps.exists(checks)) return ALLOW();
   const r = deps.run('bash', [checks], { cwd: input.root, merge: true });

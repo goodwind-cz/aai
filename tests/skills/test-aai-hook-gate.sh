@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hook-gate
-# (docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md, TEST-3500..3514)
+# (docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md, TEST-3500..3515)
 #
 # The Claude hook gate decides in one Node module (.aai/scripts/hook-gate.mjs) behind the bash launcher
 # .aai/scripts/claude-hook-gate.sh. Every case works in fresh mktemp fixtures with a stub gh first on PATH;
@@ -422,8 +422,13 @@ test_3514_lines_and_rfc() {
   log_pass "TEST-3514: code lines before $before, after $after (launcher), removed $removed, module $mod; the RFC-0017 phase 5 row holds the sentence once and stays in progress"
 }
 
+test_3515_linear_scan() {
+  run_node_tests TEST-3515
+  log_pass "TEST-3515: a megabyte of a repeated command shape is decided correctly in under two seconds through the launcher, and more than 16 distinct merge targets in one command are denied (DG-14)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3514)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3515)"
   check_deps
   setup_fixture
   test_3500_seam
@@ -441,6 +446,7 @@ main() {
   test_3512_wiring
   test_3513_downstream_install
   test_3514_lines_and_rfc
+  test_3515_linear_scan
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
