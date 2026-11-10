@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 4b3de0fff9808d4f829bfe24984a5ca0d4120acecab5850e15494a7418afe6e8
+frozen_sha256: 1ecc2f3204f4294592e6ad5abb531c9a49e3b00333238d4b4ada5628077cf2ad
 ceremony_level: 2
 links:
   requirement: install-path-parity-harness
@@ -337,8 +337,11 @@ exactly nine TAB-separated fields:
    every differing line on both sides must match.
 9. `reason`: non-empty free text, no TAB.
 
-A divergence is covered when one row matches its pair, scenario, path,
-kind and host and, for `lines`, every differing line. A `bytes` row never
+A divergence is covered when a row matches its pair, scenario, path, kind
+and host and, for `lines`, every differing line matches the `match` regular
+expression of at least one such row (a file that differs in two unrelated
+ways takes one row per way; a row whose regular expression matched any
+differing line of a covered divergence counts as having covered it). A `bytes` row never
 covers a text file (anti-masking: a text divergence needs `lines` or
 `order`). Staleness is judged only on a whole-tier run (no `--scenario`
 filter; a filtered run prints `stale check: off (scenario filter)`): a row
@@ -529,7 +532,7 @@ no production file changes.
 | Spec-AC-01 | node tests/skills/lib/install-parity.mjs list --matrix smoke, default and full each print exactly the scenario ids of the D-MATRIX table rows of that tier and of the tiers below it (smoke 7, default 15, full 20), read from this spec by its id; an unknown tier exits 2. | planned | — | — | — |
 | Spec-AC-02 | WHEN compareTrees runs on two synthetic directories, the system SHALL report one divergence of each kind exit, missing, order, lines, bytes and mode (mode only where MODE_MEANINGFUL holds) with its pair, path and detail, count an empty directory and a symlink target as tree content, and report a CRLF-only difference as lines. | planned | — | — | — |
 | Spec-AC-03 | NORMALIZATIONS holds exactly N1, N2, N3, N4, E1 and E2, each with a non-empty reason; N1 and N2 rewrite only the second-precision line and leave a fraction-digit stamp and every other byte unchanged; N3 renames a report only when its name stamp equals its own Generated-at line in UTC; E1 keeps non-sample .git/hooks files for hooks scenarios only. | planned | — | — | — |
-| Spec-AC-04 | The allowlist parser exits 2 naming the row for each D-ALLOW refusal; WHEN a run meets a divergence the system SHALL pass it only when a row matches pair, scenario, path, kind, host and every lines entry, never cover a text file with a bytes row, and exit 1 naming each uncovered divergence and, on a whole-tier run, each stale row. | planned | — | — | — |
+| Spec-AC-04 | The allowlist parser exits 2 naming the row for each D-ALLOW refusal; WHEN a run meets a divergence the system SHALL pass it only when rows match pair, scenario, path, kind and host and, for lines, each differing line matches the regex of one of them, never cover a text file with a bytes row, and exit 1 naming each uncovered divergence and, on a whole-tier run, each stale row. | planned | — | — | — |
 | Spec-AC-05 | WHEN the reference twin's exit misses a step's expectation or a probe path is absent from a twin's tree, the run SHALL exit 1 and name the scenario as broken, also when both twins fail alike. | planned | — | — | — |
 | Spec-AC-06 | The bash suite runs the default matrix with twins sh and ps1 against the committed allowlist on Linux and macOS and the driver exits 0 with verdict PASS, every default scenario compared with each probe present, and the idempotence pairs compared for SY-02, HK-02 and HK-09. | planned | — | — | — |
 | Spec-AC-07 | WHEN a module twin that delegates to the sh twin is added with --twin-module, the run SHALL compare it with sh and ps1 and pass with an allowlist whose sh:ps1 rows also list ps1 and that twin; a module twin that appends one byte to AAI_PIN.md SHALL fail naming the pairs sh and ps1 against it on that path. | planned | — | — | — |

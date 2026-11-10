@@ -741,7 +741,7 @@ _None._
 
 _None._
 
-## Broken references (545)
+## Broken references (551)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -760,6 +760,12 @@ _None._
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/base.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/changed.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185419Z-hosta.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185420Z-hostb.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-185419.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-190000.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-215419.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/other.md | NOT FOUND |
 | tests/skills/lib/migrate-state-to-local.test.mjs | docs/ai/.session-context.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-variants/V2-PLANNING.md | NOT FOUND |
