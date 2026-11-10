@@ -205,7 +205,21 @@ describe('TEST-3562 normalizations', () => {
     assert.deepEqual([...agree.keys()].filter((k) => k.includes('sync-conflicts')).sort(),
       ['docs/ai/reports/sync-conflicts-<stamp-1>.md', 'docs/ai/reports/sync-conflicts-<stamp-2>.md']);
     const skew = snapOf({ 'docs/ai/reports/sync-conflicts-20261110-215419.md': '- Generated at (UTC): 2026-11-10T18:54:19Z\n' });
-    assert.ok(skew.has('docs/ai/reports/sync-conflicts-20261110-215419.md'), 'a disagreeing name stays visible');
+    assert.ok(!skew.has('docs/ai/reports/sync-conflicts-20261110-215419.md'), 'a disagreeing name is paired by ordinal too, so its content is compared');
+    assert.equal(skew.get('docs/ai/reports/sync-conflicts-<stamp-1>.md').nameSkew, true);
+    assert.ok(!agree.get('docs/ai/reports/sync-conflicts-<stamp-1>.md').nameSkew);
+  });
+  test('a report name that disagrees with its Generated-at line on one side only stays a visible divergence, apart from the content', () => {
+    const g = '- Generated at (UTC): 2026-11-10T18:54:19Z\n';
+    const a = snapOf({ 'docs/ai/reports/sync-conflicts-20261110-185419.md': g });
+    const b = snapOf({ 'docs/ai/reports/sync-conflicts-20261110-215419.md': g });
+    const ds = M.compareSnapshots(a, b, 'a:b');
+    assert.deepEqual(ds.map((d) => d.kind), ['missing']);
+    assert.equal(ds[0].path, 'docs/ai/reports/sync-conflicts-<stamp-1>.md#name');
+    const c = snapOf({ 'docs/ai/reports/sync-conflicts-20261110-215419.md': '- Generated at (UTC): 2026-11-10T18:54:19Z\nextra\n' });
+    const ds2 = M.compareSnapshots(a, c, 'a:b');
+    assert.deepEqual(ds2.map((d) => `${d.kind} ${d.path}`).sort(), ['lines docs/ai/reports/sync-conflicts-<stamp-1>.md', 'missing docs/ai/reports/sync-conflicts-<stamp-1>.md#name']);
+    assert.deepEqual(M.compareSnapshots(b, b, 'a:b'), []);
   });
   test('N4 renames doctor reports by ordinal and E2 keeps presence but drops content', () => {
     const s = snapOf({
@@ -228,7 +242,7 @@ describe('TEST-3562 normalizations', () => {
 
 describe('TEST-3563 allowlist', () => {
   const row = (o = {}) => {
-    const f = { id: 'r1', pairs: 'a:b', scenario: '*', path: 'f.txt', kind: 'lines', host: 'any', tracker: 'accepted', match: '-', reason: 'by design', ...o };
+    const f = { id: 'r1', pairs: 'a:b', scenario: '*', path: 'f.txt', kind: 'lines', host: 'any', tracker: 'accepted', match: '.*', reason: 'by design', ...o };
     return [f.id, f.pairs, f.scenario, f.path, f.kind, f.host, f.tracker, f.match, f.reason].join('\t');
   };
   const parse = (text) => M.parseAllowlist(text, { twins: ['a', 'b', 'c'] });
@@ -250,6 +264,8 @@ describe('TEST-3563 allowlist', () => {
     refused(`${row()}\n${row()}`, 'r1', 'id');
     refused(row({ tracker: 'nope' }), 'r1', 'tracker');
     refused(row({ match: '(' }), 'r1', 'match');
+    refused(row({ match: '-' }), 'r1', 'match');
+    refused(row({ match: '=^v\\S+$' }), 'r1', 'match');
     refused(row({ id: 'Bad Id' }), 'Bad Id', 'id');
   });
   test('comments, blank lines and CRLF are tolerated', () => {
@@ -296,6 +312,22 @@ describe('TEST-3563 allowlist', () => {
     assert.equal(apply([div()], [row({ kind: 'bytes' })]).uncovered.length, 1);
     assert.equal(apply([div({ kind: 'bytes' })], [row({ kind: 'bytes' })]).uncovered.length, 0);
   });
+  test('a paired row (match starting with =) covers only when the captured value is equal on both sides', () => {
+    has('applyAllowlist');
+    const paired = [row({ match: '=^- V:  ?(v\\S+)$' })];
+    assert.equal(apply([div({ onlyA: ['- V:  v1.2'], onlyB: ['- V: v1.2'] })], paired).uncovered.length, 0);
+    assert.equal(apply([div({ onlyA: ['- V:  v1.2'], onlyB: ['- V: v1.3'] })], paired).uncovered.length, 1, 'a wrong version on one twin is not excused');
+    assert.equal(apply([div({ onlyA: ['- V:  v1.2'], onlyB: [] })], paired).uncovered.length, 1, 'a line on one side only is not excused');
+    assert.equal(apply([div({ onlyA: ['- V:  v1.2'], onlyB: ['- V: v1.2', '- other'] })], paired).uncovered.length, 1);
+  });
+  test('the committed pin row excuses the spacing and nothing else about the version', () => {
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] });
+    const pin = rows.filter((r) => r.id === 'pin-template-version-spacing');
+    const d = (a, b) => ({ pair: 'sh:ps1', path: '.aai/system/AAI_PIN.md', kind: 'lines', detail: 'd', onlyA: [a], onlyB: [b] });
+    const run = (x) => M.applyAllowlist([x], pin, { scenario: 'SY-01', host: HOST_POSIX }).uncovered.length;
+    assert.equal(run(d('- Template version:  v2026.11.1', '- Template version: v2026.11.1')), 0);
+    assert.equal(run(d('- Template version:  v2026.11.1', '- Template version: v2026.01.01')), 1);
+  });
   const stale = (rows, ran, o = {}) => {
     const parsed = parse(rows.join('\n'));
     const used = new Set(o.used || []);
@@ -315,6 +347,24 @@ describe('TEST-3563 allowlist', () => {
     assert.deepEqual(stale([row({ host: 'win32' })], ['S-1']), []);
     assert.deepEqual(stale([row({ host: 'utc' })], ['S-1']), []);
     assert.deepEqual(stale([row({ host: 'non-utc' })], ['S-1']), ['r1']);
+  });
+  test('a dead pair inside a multi-pair row is reported as stale, per row and pair', () => {
+    has('staleRows');
+    const parsed = parse(row({ pairs: 'a:b,c:c' }));
+    const go = (usedPairs, pairsRun) => M.staleRows(parsed, { ran: ['S-1'], pairsRun, host: HOST_POSIX, used: new Set(['r1']), usedPairs: new Set(usedPairs), wholeTier: true }).map((r) => `${r.id} ${r.pair}`);
+    assert.deepEqual(go(['r1|a:b'], ['a:b', 'c:c']), ['r1 c:c']);
+    assert.deepEqual(go(['r1|a:b', 'r1|c:c'], ['a:b', 'c:c']), []);
+    assert.deepEqual(go(['r1|a:b'], ['a:b']), [], 'a pair that did not run is not judged');
+    assert.deepEqual(go([], ['a:b', 'c:c']), ['r1 a:b', 'r1 c:c']);
+  });
+  test('end to end: the dead pair of a two-pair row fails the run naming the pair', () => {
+    has('runMatrix');
+    const rows = parse(row({ path: 'p.txt', pairs: 'a:b,b:c,a:c' }));
+    const mk = (n, c) => fakeTwin(n, { files: { 'p.txt': c } });
+    const rep = runFake([mk('a', 'one\n'), mk('b', 'two\n'), mk('c', 'one\n')], [scen()], rows);
+    assert.equal(rep.uncovered.length, 0);
+    assert.deepEqual(rep.stale.map((s) => `${s.id} ${s.pairs}`), ['r1 a:c']);
+    assert.equal(rep.verdict, 'FAIL');
   });
   test('the driver exits 1 naming an uncovered divergence and a stale row (end to end on fakes)', () => {
     has('runMatrix');
@@ -560,10 +610,69 @@ describe('TEST-3570 trackers', () => {
   });
   test('trackerProblems reports an unknown tracker', () => {
     has('trackerProblems');
-    const parsed = M.parseAllowlist(['r1', 'a:b', '*', 'f.txt', 'lines', 'any', 'fu-parity-nonesuch', '-', 'x'].join('\t'), { twins: ['a', 'b'] });
+    const parsed = M.parseAllowlist(['r1', 'a:b', '*', 'f.txt', 'lines', 'any', 'fu-parity-nonesuch', '.*', 'x'].join('\t'), { twins: ['a', 'b'] });
     const probs = M.trackerProblems(parsed, [{ id: 'fu-other', source: 'f.txt' }]);
     assert.equal(probs.length, 1);
     assert.match(probs[0], /r1/);
+  });
+});
+
+describe('TEST-3566b registry defaults and process bounds', () => {
+  test('--twins defaults to every registered twin, in registry order, and an explicit list still narrows', () => {
+    has('defaultTwinNames');
+    assert.deepEqual(M.defaultTwinNames(), Object.keys(M.TWINS));
+    const r = cli(['run', '--matrix', 'smoke', '--bash', '/nonexistent/bash-xyz', '--ps', '/nonexistent/pwsh-xyz', '--scenario', 'SY-01']);
+    assert.equal(r.status, 3);
+    assert.match(r.stderr, /pwsh-xyz/, 'ps1 is a default twin, so its engine is required');
+    const one = cli(['run', '--matrix', 'smoke', '--twins', 'sh', '--bash', '/nonexistent/bash-xyz', '--ps', '/nonexistent/pwsh-xyz', '--scenario', 'SY-01']);
+    assert.doesNotMatch(one.stderr, /pwsh-xyz/);
+  });
+  test('a twin step that outlives the bound is killed with every process of its group', { skip: !posix && 'POSIX process groups' }, () => {
+    has('runStep');
+    const d = scratch('hang');
+    const pidFile = path.join(d, 'child.pid');
+    put(d, 'hang.sh', `#!/bin/sh\nsleep 300 &\necho $! > '${pidFile}'\nwait\n`, 0o755);
+    const r = M.runStep('/bin/sh', [path.join(d, 'hang.sh')], { cwd: d, env: process.env, timeoutMs: 1500 });
+    assert.equal(r.code, 124);
+    const pid = Number(fs.readFileSync(pidFile, 'utf8').trim());
+    assert.ok(pid > 1);
+    let alive = true;
+    for (let i = 0; i < 20 && alive; i += 1) {
+      try { process.kill(pid, 0); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100); } catch { alive = false; }
+    }
+    assert.equal(alive, false, 'the background child of the hung twin is gone');
+  });
+  test('runStep returns the exit code, the output and 127 for a missing tool', () => {
+    has('runStep');
+    const ok = M.runStep(process.execPath, ['-e', 'console.log("hi");console.error("er");process.exit(3)'], { cwd: ROOT, env: process.env });
+    assert.equal(ok.code, 3);
+    assert.match(ok.stdout, /hi/);
+    assert.match(ok.stderr, /er/);
+    assert.equal(M.runStep('/nonexistent/tool-xyz', [], { cwd: ROOT, env: process.env }).code, 127);
+  });
+  test('the default scratch base prefers /tmp on darwin and otherwise the OS temp dir; AAI_PARITY_SCRATCH wins', () => {
+    has('defaultScratchBase');
+    const ok = () => true;
+    assert.equal(M.defaultScratchBase({ platform: 'darwin', env: {}, tmpdir: '/var/folders/x/T', usable: ok }), '/tmp');
+    assert.equal(M.defaultScratchBase({ platform: 'darwin', env: {}, tmpdir: '/var/folders/x/T', usable: () => false }), '/var/folders/x/T');
+    assert.equal(M.defaultScratchBase({ platform: 'linux', env: {}, tmpdir: '/tmp', usable: ok }), '/tmp');
+    assert.equal(M.defaultScratchBase({ platform: 'win32', env: {}, tmpdir: 'C:\\Temp', usable: ok }), 'C:\\Temp');
+    assert.equal(M.defaultScratchBase({ platform: 'darwin', env: { AAI_PARITY_SCRATCH: '/x/y' }, tmpdir: '/var/T', usable: ok }), '/x/y');
+  });
+  test('a Windows-style path divergence is reported with both lines, naming pair, scenario, kind and path', () => {
+    const d = scratch('win');
+    const mod = (name, line) => {
+      put(d, `${name}-run.cjs`, `const fs = require('fs'); fs.mkdirSync('.aai/system', { recursive: true });\nfs.writeFileSync('.aai/system/AAI_PIN.md', ${JSON.stringify(`${line}\n`)}); fs.writeFileSync('.gitignore', 'x\\n');\n`);
+      put(d, `${name}.mjs`, `export default { argv(step, ctx) { return { file: process.execPath, args: [${JSON.stringify(path.join(d, `${name}-run.cjs`))}], cwd: ctx.target }; } };\n`);
+    };
+    mod('left', '- Source path: /c/Users/x/src');
+    mod('right', '- Source path: C:\\Users\\x\\src');
+    put(d, 'none.tsv', '# none\n');
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', '', '--twin-module', `left=${path.join(d, 'left.mjs')}`, '--twin-module', `right=${path.join(d, 'right.mjs')}`, '--allowlist', path.join(d, 'none.tsv')]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stdout, /UNCOVERED SY-01 left:right lines \.aai\/system\/AAI_PIN\.md/);
+    assert.ok(r.stdout.includes('only in left: ["- Source path: /c/Users/x/src"]'), r.stdout);
+    assert.ok(r.stdout.includes('only in right: ["- Source path: C:\\\\Users\\\\x\\\\src"]'), r.stdout);
   });
 });
 
@@ -580,7 +689,7 @@ describe('driver import and CLI', () => {
   });
   test('an allowlist that does not parse exits 2 naming the row', () => {
     const d = scratch('bad');
-    put(d, 'a.tsv', 'bad-row\tsh:ps1\t*\tf\tlines\tany\taccepted\t-\t\n');
+    put(d, 'a.tsv', 'bad-row\tsh:ps1\t*\tf\tlines\tany\taccepted\t.*\t\n');
     const r = cli(['run', '--matrix', 'smoke', '--allowlist', path.join(d, 'a.tsv'), '--scenario', 'SY-01']);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /bad-row/);

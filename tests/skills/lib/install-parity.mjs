@@ -12,6 +12,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, '../../..');
+export const defaultTwinNames = () => Object.keys(TWINS);
+export function defaultScratchBase({ platform = process.platform, env = process.env, tmpdir = os.tmpdir(), usable = (d) => { try { fs.accessSync(d, fs.constants.W_OK); return fs.statSync(d).isDirectory(); } catch { return false; } } } = {}) {
+  if (env.AAI_PARITY_SCRATCH) return env.AAI_PARITY_SCRATCH;
+  // The PowerShell twin is about ten times slower with its source tree under a macOS $TMPDIR (/var/folders/...).
+  if (platform === 'darwin' && usable('/tmp')) return '/tmp';
+  return tmpdir;
+}
 export const DEFAULT_ALLOWLIST = path.join(HERE, 'install-parity-allowlist.tsv');
 
 export const PINNED_TZ = 'Etc/GMT-3';
@@ -206,7 +213,11 @@ export function normalizeSnapshot(snap) {
     if (mc && e.kind === 'file') {
       const g = e.data.toString('utf8').split('\n').map((l) => GEN_LINE.exec(l)).find(Boolean);
       const stamp = g ? `${g[1]}${g[2]}${g[3]}-${g[4]}${g[5]}${g[6]}` : null;
-      if (!NAME_MUST_MATCH_STAMP || stamp === mc[1]) { conflicts.push([p, entry]); continue; }
+      // A name that disagrees with the report's own Generated-at second is paired by ordinal as well, so the report
+      // content is compared; the disagreement itself survives as a flag that compareSnapshots reports (a time-zone
+      // divergence stays visible, apart from the content).
+      conflicts.push([p, NAME_MUST_MATCH_STAMP && stamp !== mc[1] ? { ...entry, nameSkew: true } : entry]);
+      continue;
     }
     if (/^docs\/ai\/reports\/doctor-\d{8}T\d{6}Z-[^/]+\.md$/.test(p) && e.kind === 'file') { doctors.push([p, { ...e, data: Buffer.alloc(0) }]); continue; }
     out.set(p, entry);
@@ -234,6 +245,9 @@ export function compareSnapshots(a, b, pair, labels = null) {
       continue;
     }
     if (x.kind !== 'file') continue;
+    if (Boolean(x.nameSkew) !== Boolean(y.nameSkew)) {
+      out.push({ pair, path: `${p}#name`, kind: 'missing', detail: `the report name stamp disagrees with its Generated-at line in ${x.nameSkew ? A : B} only` });
+    }
     if (!x.data.equals(y.data)) {
       if (isText(x.data) && isText(y.data)) {
         const la = x.data.toString('utf8').split('\n'); const lb = y.data.toString('utf8').split('\n');
@@ -294,8 +308,12 @@ export function parseAllowlist(text, { twins = null } = {}) {
     if (!KINDS.includes(r.kind)) throw new AllowlistError(r.id, 'kind', `${r.kind} is not one of ${KINDS.join(', ')}`);
     if (!HOSTS.includes(r.host)) throw new AllowlistError(r.id, 'host', `${r.host} is not one of ${HOSTS.join(', ')}`);
     if (r.tracker !== 'accepted' && !/^fu-\S+$/.test(r.tracker)) throw new AllowlistError(r.id, 'tracker', `${r.tracker} is neither accepted nor a fu- id`);
+    if (r.kind === 'lines' && r.match === '-') throw new AllowlistError(r.id, 'match', 'a lines row needs a regular expression (- would cover every line of its path)');
     if (r.match !== '-') {
-      try { r.re = new RegExp(r.match); } catch (e) { throw new AllowlistError(r.id, 'match', `does not compile: ${e.message}`); }
+      // A leading = marks a paired row: capture group 1 of every line it covers must be the same multiset on both sides.
+      r.paired = r.match.startsWith('=');
+      try { r.re = new RegExp(r.paired ? r.match.slice(1) : r.match); } catch (e) { throw new AllowlistError(r.id, 'match', `does not compile: ${e.message}`); }
+      if (r.paired && new RegExp(`${r.re.source}|`).exec('').length < 2) throw new AllowlistError(r.id, 'match', 'a paired row (leading =) needs a capture group');
     }
     if (!r.reason.trim()) throw new AllowlistError(r.id, 'reason', 'empty');
     r.globRe = new RegExp(`^${r.path.split('**').map((seg) => seg.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')}$`);
@@ -307,33 +325,48 @@ export function parseAllowlist(text, { twins = null } = {}) {
 const scenarioMatches = (row, id) => row.scenario === '*' || row.scenario.split(',').includes(id);
 
 export function applyAllowlist(divergences, rows, { scenario, host }) {
-  const covered = []; const uncovered = []; const used = new Set();
+  const covered = []; const uncovered = []; const used = new Set(); const usedPairs = new Set();
   for (const d of divergences) {
     const matching = rows.filter((r) => r.pairList.includes(d.pair) && scenarioMatches(r, scenario) && r.globRe.test(d.path)
       && r.kind === d.kind && hostMatches(r.host, host));
     let by = [];
     if (d.kind !== 'lines') by = matching.slice(0, 1);
     else {
-      // Every differing line needs a row whose regex matches it; a row that matched any line has covered it.
-      const lines = [...(d.onlyA || []), ...(d.onlyB || [])];
-      const hit = new Set();
-      const ok = lines.every((l) => { const r = matching.find((m) => !m.re || m.re.test(l)); if (r) hit.add(r.id); return Boolean(r); });
-      if (ok) by = matching.filter((m) => hit.has(m.id) || (!lines.length && matching[0] === m));
+      // Every differing line needs a row whose regex matches it; a row that matched any line has covered it. A paired
+      // row also needs the captured values of its lines to be the same on both sides.
+      const sides = [d.onlyA || [], d.onlyB || []];
+      const hit = new Set(); const caps = new Map();
+      let ok = true;
+      sides.forEach((ls, side) => {
+        for (const l of ls) {
+          const r = matching.find((m) => m.re.test(l));
+          if (!r) { ok = false; continue; }
+          hit.add(r.id);
+          if (r.paired) { const c = caps.get(r.id) || [[], []]; c[side].push(String(r.re.exec(l)[1])); caps.set(r.id, c); }
+        }
+      });
+      for (const [, [a, b]] of caps) if (a.slice().sort().join('\0') !== b.slice().sort().join('\0')) ok = false;
+      if (ok) by = matching.filter((m) => hit.has(m.id));
     }
-    if (by.length) { for (const r of by) used.add(r.id); covered.push({ ...d, covered_by: by.map((r) => r.id).join(',') }); } else uncovered.push({ ...d, covered_by: null });
+    if (by.length) { for (const r of by) { used.add(r.id); usedPairs.add(`${r.id}|${d.pair}`); } covered.push({ ...d, covered_by: by.map((r) => r.id).join(',') }); } else uncovered.push({ ...d, covered_by: null });
   }
-  return { covered, uncovered, used };
+  return { covered, uncovered, used, usedPairs };
 }
 
-// A row is stale when this whole-tier run executed a scenario it names, on a host it names, for a pair it names,
-// and it covered nothing.
-function staleRows(rows, { ran, pairsRun, host, used, wholeTier }) {
+// A row-pair is stale when this whole-tier run executed a scenario the row names, on a host it names, for that pair,
+// and the row covered nothing of that pair. usedPairs holds `<row id>|<pair>`; without it a used row counts for all
+// its pairs. pairsByScenario (scenario id to the pairs it ran) narrows "the pair ran" to the scenarios the row names.
+function staleRows(rows, { ran, pairsRun, host, used, usedPairs = null, pairsByScenario = null, wholeTier }) {
   const stale = [];
   if (wholeTier) {
     for (const r of rows) {
-      if (used.has(r.id)) continue;
-      const scenarioRan = r.scenario === '*' ? ran.length > 0 : r.scenario.split(',').some((s) => ran.includes(s));
-      if (scenarioRan && hostMatches(r.host, host) && r.pairList.some((p) => pairsRun.includes(p))) stale.push(r);
+      const named = r.scenario === '*' ? ran : r.scenario.split(',').filter((s) => ran.includes(s));
+      if (!named.length || !hostMatches(r.host, host)) continue;
+      for (const pair of r.pairList) {
+        const pairRan = pairsByScenario ? named.some((s) => (pairsByScenario[s] || []).includes(pair)) : pairsRun.includes(pair);
+        const isUsed = usedPairs ? usedPairs.has(`${r.id}|${pair}`) : used.has(r.id);
+        if (pairRan && !isUsed) stale.push({ ...r, pair });
+      }
     }
   }
   return stale;
@@ -364,13 +397,40 @@ export function trackerProblems(rows, known) {
 // Process helpers.
 export function expectMet(expect, code) { return expect === 'nonzero' ? code !== 0 : code === 0; }
 
-function run(file, args, { cwd, env }) {
-  const r = spawnSync(file, args, { cwd, env, encoding: 'utf8', timeout: STEP_TIMEOUT_MS, killSignal: 'SIGKILL', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024 });
+// One bounded child. The child runs under a small supervisor (own process group on POSIX); on expiry the supervisor kills
+// the whole group (taskkill /T on Windows) and exits 124, so a hung twin leaves no process behind.
+const SUPERVISOR = `
+const { spawn, spawnSync } = require('node:child_process');
+const [file, ...args] = JSON.parse(process.argv[1]);
+const ms = Number(process.argv[2]);
+const win = process.platform === 'win32';
+const c = spawn(file, args, { stdio: ['ignore', 'inherit', 'inherit'], detached: !win });
+let done = false;
+const timer = setTimeout(() => {
+  if (done) return;
+  done = true;
+  if (win) spawnSync('taskkill', ['/PID', String(c.pid), '/T', '/F'], { stdio: 'ignore' });
+  else { try { process.kill(-c.pid, 'SIGKILL'); } catch { try { c.kill('SIGKILL'); } catch {} } }
+  process.stderr.write('install-parity: step exceeded ' + ms + ' ms and was killed with its process group\\n');
+  process.exit(124);
+}, ms);
+c.on('error', (e) => { if (done) return; done = true; clearTimeout(timer); process.stderr.write(String(e.message) + '\\n'); process.exit(e.code === 'ENOENT' ? 127 : 1); });
+c.on('close', (code, signal) => {
+  if (done) return;
+  done = true; clearTimeout(timer);
+  if (!win && !signal) { try { process.kill(-c.pid, 'SIGKILL'); } catch {} }
+  process.exit(code === null ? 124 : code);
+});
+`;
+
+export function runStep(file, args, { cwd, env, timeoutMs = STEP_TIMEOUT_MS }) {
+  const r = spawnSync(process.execPath, ['-e', SUPERVISOR, JSON.stringify([file, ...args]), String(timeoutMs)], { cwd, env, encoding: 'utf8', timeout: timeoutMs + 15000, killSignal: 'SIGKILL', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024 });
   let code = r.status;
   if (r.error) code = r.error.code === 'ETIMEDOUT' ? 124 : (r.error.code === 'ENOENT' ? 127 : 1);
   if (code === null || code === undefined) code = r.signal ? 124 : 1;
   return { code, stdout: r.stdout || '', stderr: (r.stderr || '') + (r.error ? `\n${r.error.message}` : '') };
 }
+const run = runStep;
 const sleepMs = (ms) => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
 const waitNextSecond = () => sleepMs(1000 - (Date.now() % 1000) + 25);
 
@@ -562,18 +622,20 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
   if (!c.src && !c.setup) c.src = buildSource(c);
   const host = c.host || hostInfo();
   const report = { verdict: 'PASS', host: host.platform, tz: PINNED_TZ, matrix, twins: twins.map((t) => t.name), pairs: [], total_seconds: 0, scenarios: [], uncovered: [], stale: [] };
-  const used = new Set(); const pairSet = []; const ran = [];
+  const used = new Set(); const usedPairs = new Set(); const pairsByScenario = {}; const pairSet = []; const ran = [];
   for (const s of scenarios) {
     const r = runScenario(s, twins, c);
     ran.push(s.id);
-    const { covered, uncovered, used: u } = applyAllowlist(r.divergences, rows, { scenario: s.id, host });
+    const { covered, uncovered, used: u, usedPairs: up } = applyAllowlist(r.divergences, rows, { scenario: s.id, host });
     for (const id of u) used.add(id);
+    for (const k of up) usedPairs.add(k);
+    pairsByScenario[s.id] = r.pairs;
     for (const p of r.pairs) if (!pairSet.includes(p)) pairSet.push(p);
     report.scenarios.push({ id: r.id, seconds: r.seconds, steps: r.steps, broken: r.broken, divergences: [...covered, ...uncovered].map((d) => ({ pair: d.pair, path: d.path, kind: d.kind, detail: d.detail, covered_by: d.covered_by })) });
     for (const d of uncovered) report.uncovered.push({ scenario: s.id, pair: d.pair, path: d.path, kind: d.kind, detail: d.detail });
   }
   report.pairs = [...pairSet.filter((p) => p.split(':')[0] !== p.split(':')[1]), ...pairSet.filter((p) => p.split(':')[0] === p.split(':')[1])];
-  report.stale = staleRows(rows, { ran, pairsRun: report.pairs, host, used, wholeTier: !filtered }).map((r) => ({ id: r.id, scenario: r.scenario, pairs: r.pairs, path: r.path, kind: r.kind }));
+  report.stale = staleRows(rows, { ran, pairsRun: report.pairs, host, used, usedPairs, pairsByScenario, wholeTier: !filtered }).map((r) => ({ id: r.id, scenario: r.scenario, pairs: r.pair, path: r.path, kind: r.kind }));
   report.stale_check = filtered ? 'off (scenario filter)' : 'on';
   report.notes = c.notes || [];
   report.total_seconds = Math.round((Date.now() - t0) / 100) / 10;
@@ -584,7 +646,7 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
 // ---------------------------------------------------------------------------------------------------------------
 // CLI.
 const USAGE = `usage: install-parity.mjs list --matrix <smoke|default|full> [--json]
-       install-parity.mjs run --matrix <tier> [--scenario <id>]... [--twins sh,ps1] [--twin-module <name>=<path>]...
+       install-parity.mjs run --matrix <tier> [--scenario <id>]... [--twins <names>; default: every registered twin] [--twin-module <name>=<path>]...
                           [--allowlist <tsv>] [--bash <path>] [--ps <path>] [--json <file>] [--keep]`;
 class UsageError extends Error {}
 
@@ -610,7 +672,7 @@ async function dispatch(cmd, rest, err) {
     process.stdout.write(o.listJson ? `${JSON.stringify(ids)}\n` : `${ids.join('\n')}\n`);
     return 0;
   }
-  const twinNames = o.twins.split(',').filter(Boolean);
+  const twinNames = o.twins === null ? defaultTwinNames() : o.twins.split(',').filter(Boolean);
   for (const n of twinNames) if (!TWINS[n]) throw new UsageError(`unknown twin ${n} (registered: ${Object.keys(TWINS).join(', ')})`);
   let scenarios = SCENARIOS.filter((s) => listMatrix(o.matrix).includes(s.id));
   if (o.scenario.length) {
@@ -634,7 +696,7 @@ async function dispatch(cmd, rest, err) {
   if (!toolOk(o.bash, ['--version'])) missing.push(`bash (${o.bash})`);
   if (twinNames.includes('ps1') && !toolOk(o.ps, ['-NoProfile', '-NonInteractive', '-Command', 'exit 0'])) missing.push(`pwsh (${o.ps})`);
   if (missing.length) { err(`install-parity: missing tool: ${missing.join(', ')}`); return 3; }
-  const root = fs.realpathSync(fs.mkdtempSync(path.join(process.env.AAI_PARITY_SCRATCH || os.tmpdir(), 'aai-parity-run-')));
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(defaultScratchBase(), 'aai-parity-run-')));
   let rep;
   try {
     rep = runMatrix({ scenarios, twins, rows, matrix: o.matrix, filtered: o.scenario.length > 0, ctx: { root, src: null, bash: o.bash, ps: o.ps, host: hostInfo() } });
@@ -659,7 +721,7 @@ async function dispatch(cmd, rest, err) {
 // --json takes a file for `run` and is a flag for `list`.
 function parseArgsFor(cmd, rest) {
   const a = rest.slice();
-  const o = { scenario: [], twinModule: [], twins: 'sh,ps1', bash: 'bash', ps: 'pwsh', allowlist: DEFAULT_ALLOWLIST, json: null, keep: false, listJson: false, matrix: null };
+  const o = { scenario: [], twinModule: [], twins: null, bash: 'bash', ps: 'pwsh', allowlist: DEFAULT_ALLOWLIST, json: null, keep: false, listJson: false, matrix: null };
   const val = (i, flag) => { if (i + 1 >= a.length) throw new UsageError(`${flag} needs a value`); return a[i + 1]; };
   for (let i = 0; i < a.length; i += 1) {
     const f = a[i];
