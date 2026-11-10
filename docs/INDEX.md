@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-install-path-parity-harness | specs | implementing | 13 planned | docs/specs/SPEC-DRAFT-install-path-parity-harness.md |
+| spec-install-path-parity-harness | specs | implementing | 13 done | docs/specs/SPEC-DRAFT-install-path-parity-harness.md |
 
 ## Canonical layer (0)
 
