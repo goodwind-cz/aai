@@ -10,7 +10,7 @@ links:
   requirement: hook-gate-on-node
   rfc: smaller-node-core-and-faster-feedback
   pr:
-    - TBD
+    - 545
   commits:
     - TBD
 ---

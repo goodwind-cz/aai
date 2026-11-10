@@ -7,7 +7,7 @@ capability: hook-gate-on-node
 parent: smaller-node-core-and-faster-feedback
 links:
   pr:
-    - TBD
+    - 545
   commits:
     - TBD
 ---
