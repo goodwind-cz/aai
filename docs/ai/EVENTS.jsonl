@@ -3778,3 +3778,4 @@
 {"v":1,"ts":"2026-11-10T16:27:32Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-hook-gate-on-node","payload":{"commit":"TBD"}}
 {"v":1,"ts":"2026-11-10T17:22:52Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"hook-gate-on-node","payload":{"pr":545,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"43a66c856afb8c669b76c7d5d2a88d944fadc1ae"}}
 {"v":1,"ts":"2026-11-10T18:20:12Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"hook-gate-on-node","payload":{"pr":545,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"8fa6b36a9bfe23afc9fd836105053a6ba8420407"}}
+{"v":1,"ts":"2026-11-10T19:00:30Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-install-path-parity-harness","payload":{"from":"draft","to":"implementing"}}
