@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: e76394663cde43bffc110dd46e135eb34db9f86f4910c811c8ba0eb0e91e2187
+frozen_sha256: b903e9302278f6c7aaff53cc4892e89a02e784fd0d75de3c3933750583a6d7a8
 ceremony_level: 2
 links:
   requirement: install-path-parity-harness
@@ -149,20 +149,25 @@ on every host. CLI:
 - `node install-parity.mjs list --matrix <smoke|default|full> [--json]`
   prints the scenario ids of the tier, one per line (or a JSON array).
 - `node install-parity.mjs run --matrix <tier> [--scenario <id>]...
-  [--twins sh,ps1] [--twin-module <name>=<path>]... [--allowlist <tsv>]
+  [--twins <names>] [--twin-module <name>=<path>]... [--allowlist <tsv>]
   [--bash <path>] [--ps <path>] [--json <file>] [--keep]` runs the
   scenarios, prints one line per scenario (id, seconds, verdict) and one line
   per uncovered divergence, stale row or broken scenario, and writes the
   D-REPORT JSON when `--json` is given.
-- Defaults: `--twins sh,ps1`, the committed allowlist, `--bash bash`,
-  `--ps pwsh`. `--keep` leaves the scratch root and prints its path; without
+- Defaults: `--twins` every registered twin in registry order (so a twin
+  added to `TWINS` runs in both front ends with no edit there), the committed
+  allowlist, `--bash bash`, `--ps pwsh`, and for the scratch base
+  `AAI_PARITY_SCRATCH`, else `/tmp` on darwin (the PowerShell twin is about ten
+  times slower under `$TMPDIR`) and the OS temp directory elsewhere. `--keep` leaves the scratch root and prints its path; without
   it the scratch root is removed on every exit path.
 - Exit codes: 0 every compared pair matches or is covered and no row is
   stale; 1 an uncovered divergence, a stale row or a broken scenario; 2 a
   usage error or an allowlist that does not parse (named row and field); 3 a
   missing tool (node, git, the `--bash` or `--ps` executable), named.
-- Every child process has a 300 s bound (killed on expiry, counted as
-  exit 124 for that step); the driver leaves no process behind.
+- Every child process has a 300 s bound; on expiry the child and every
+  process of its group are killed (a POSIX process group, `taskkill /T` on
+  Windows) and the step counts as exit 124; the driver leaves no process
+  behind.
 
 ### D-SEAM. The twin registry and the third twin
 
@@ -183,13 +188,14 @@ own usage spells it:
 - hooks: the target's own installer, sh `bash .aai/scripts/install-pre-commit-hook.sh [--force] [--uninstall] [--decline-ref-guard]`,
   ps1 `-File .aai/scripts/install-pre-commit-hook.ps1 [-Force] [-Uninstall] [-DeclineRefGuard]`, cwd the target.
 
-`--twins` names registry twins in order; `--twin-module <name>=<path>`
+`--twins` names registry twins in order (absent: every registered twin); `--twin-module <name>=<path>`
 imports a module whose default export is `{ argv(step, ctx) }` and appends
 it under `<name>` (`[a-z0-9-]+`, no clash with a registered name). Every
 pair of twins `(i, j)` with `i < j` in that order is compared, so a third
 twin is compared against both shell twins. Rides 9 to 12 add their Node
 twin as a third `TWINS` entry (for example `node`) and their pairs to the
-allowlist; nothing else in the driver changes. Anchors the mutations rely
+allowlist; nothing else in the driver or in a front end changes, because the
+default `--twins` is the registry. Anchors the mutations rely
 on: the pair loop is written `for (let j = i + 1; j < twins.length; j += 1)`
 and `const REFERENCE_TWIN = 'sh';`.
 
@@ -306,7 +312,7 @@ string; nothing else rewrites a byte or a name.
 |---|---|---|---|---|
 | N1 | AAI_PIN.md sync time | the line `- Synced at (UTC): YYYY-MM-DDTHH:MM:SSZ` | `- Synced at (UTC): <stamp>` | wall clock |
 | N2 | sync-conflicts report time | the line `- Generated at (UTC): YYYY-MM-DDTHH:MM:SSZ` | `- Generated at (UTC): <stamp>` | wall clock |
-| N3 | sync-conflicts report name | `docs/ai/reports/sync-conflicts-YYYYMMDD-HHMMSS.md` whose stamp equals that file's own Generated-at line in UTC, to the second | `sync-conflicts-<stamp-k>.md`, k the ordinal by original name | wall clock; the agreement condition (`const NAME_MUST_MATCH_STAMP = true;`) keeps a time-zone divergence visible |
+| N3 | sync-conflicts report name | `docs/ai/reports/sync-conflicts-YYYYMMDD-HHMMSS.md`, whether or not its stamp equals that file's own Generated-at line in UTC to the second | `sync-conflicts-<stamp-k>.md`, k the ordinal by original name (disagreeing names included) | wall clock; a name whose stamp disagrees with the file's own Generated-at line is renamed by the same ordinal (so the two twins' reports pair and their content is compared) and the disagreement is reported on its own, as a `missing` divergence at the path ending `#name`, when only one of the two sides has it (`const NAME_MUST_MATCH_STAMP = true;` keeps a time-zone divergence visible) |
 | N4 | doctor report name | `docs/ai/reports/doctor-YYYYMMDDTHHMMSSZ-<host>.md` | `doctor-<stamp-k>.md` | wall clock and host name |
 | E1 | git internals | everything under `.git/`, except for hooks scenarios the regular files of `.git/hooks/` not ending `.sample` | excluded | the object store and index are git's output, sample hooks are git's own |
 | E2 | doctor report content | the content of a file N4 renamed (its presence stays compared) | excluded | written by the shared `update-doctor-report.mjs`, not by a twin; holds host and clock; the tree it describes is compared already |
@@ -333,8 +339,13 @@ exactly nine TAB-separated fields:
 7. `tracker`: `accepted` (by design, the reason says why) or a follow-up id
    `fu-...` that `node .aai/scripts/follow-ups.mjs list --status all --json`
    knows.
-8. `match`: `-`, or for kind `lines` a JavaScript regular expression that
-   every differing line on both sides must match.
+8. `match`: `-` for every kind but `lines`; for kind `lines` a JavaScript
+   regular expression that every differing line on both sides must match (the
+   parser refuses `-` there, since it would cover every line of the path). A
+   regular expression led by `=` is paired: it needs a capture group, and the
+   captured values of the lines it covers must be the same on both sides, so
+   the row excuses a difference in the text around a value and never a
+   difference in the value.
 9. `reason`: non-empty free text, no TAB.
 
 A divergence is covered when a row matches its pair, scenario, path, kind
@@ -345,9 +356,11 @@ differing line of a covered divergence counts as having covered it). A `bytes` r
 covers a text file (anti-masking: a text divergence needs `lines` or
 `order`). Staleness is judged only on a whole-tier run (no `--scenario`
 filter; a filtered run prints `stale check: off (scenario filter)`): a row
-is stale when the run executed a scenario it names (any, for `*`), on a host
-it names, for a pair it names, and it covered nothing; rows for scenarios or
-pairs that did not run are not judged. The stale computation is
+is stale, per row and pair, when the run executed a scenario it names (any,
+for `*`), on a host it names, for a pair of the row that ran in it, and the
+row covered nothing for that pair (a dead pair inside a multi-pair row is
+reported, naming the pair); rows for scenarios or pairs that did not run are
+not judged. The stale computation is
 `function staleRows(` ending `return stale;` (a mutation anchor). The parser refuses
 (exit 2) a wrong field count, an empty reason, an unknown kind or host, a
 pair naming a twin that is not registered in this run, a duplicate id, a
@@ -365,8 +378,8 @@ correction in the green log):
 | gitignore-block-order | order | .gitignore | any | fu-parity-gitignore-block-order |
 | gitignore-block-headers | lines | .gitignore | any | fu-parity-gitignore-block-order |
 | session-start-exec-bit | mode | hooks/session-start.sh | posix | fu-parity-ps1-hook-exec-bit |
-| conflict-report-name-local-time | missing | docs/ai/reports/sync-conflicts-* | non-utc | fu-parity-ps1-report-name-local-time |
-| conflict-report-generated-precision | lines | docs/ai/reports/sync-conflicts-* | utc | fu-parity-ps1-timestamp-precision |
+| conflict-report-name-local-time | missing | docs/ai/reports/sync-conflicts-*#name | non-utc | fu-parity-ps1-report-name-local-time |
+| conflict-report-generated-precision | lines | docs/ai/reports/sync-conflicts-* | any | fu-parity-ps1-timestamp-precision |
 
 Every further divergence a real run shows (on any host, including the
 Windows CI legs) gets one row with a reason and a tracker; a twin bug gets a
