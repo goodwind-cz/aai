@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "ref_id": "release-corpus-hermetic",
+  "phase": "post-open reviewer fallback",
+  "pr": 544,
+  "reviewed_content_head": "e7cc1e5247bdc1f63c2f1c5e0fc9047fa4effca3",
+  "role": "Code Review",
+  "actual_models": [
+    "claude-opus-5-5"
+  ],
+  "role_started_utc": "2026-11-09T17:02:56Z",
+  "role_ended_utc": "2026-11-09T17:05:11Z",
+  "harness_duration_ms": 164059,
+  "usage": {
+    "input_tokens": 38,
+    "cache_creation_input_tokens": 88880,
+    "cache_read_input_tokens": 1495625,
+    "output_tokens": 13611,
+    "output_tokens_details": {
+      "thinking_tokens": 3670
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 88880,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1812,
+        "cache_read_input_tokens": 101621,
+        "cache_creation_input_tokens": 204,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 204
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-opus-5-5": {
+      "inputTokens": 38,
+      "outputTokens": 13611,
+      "cacheReadInputTokens": 1495625,
+      "cacheCreationInputTokens": 88880,
+      "webSearchRequests": 0,
+      "costUSD": 1.2825370000000003,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 3670,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 88880,
+      "canonicalModel": "claude-opus-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "raw_result_sha256": "54ca16999f5eb063e249765b03d2abc713e601654b81b8d7f31c539c2f121c37",
+  "note": "Additional post-open run after the original METRICS entry was flushed. Original ledger row stays unchanged; this file preserves the actual harness usage."
+}

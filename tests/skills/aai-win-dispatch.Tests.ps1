@@ -27,9 +27,10 @@
 $script:SkipOnWindows = Test-IsWindowsHostFor -Edition $PSVersionTable.PSEdition -IsWindowsFlag $IsWindows
 
 BeforeAll {
+    # Caller environment captured once so the final context can prove it survived (release-corpus-hermetic TEST-002).
+    $script:CallerAaiTestTimeout = $env:AAI_TEST_TIMEOUT
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     $script:RunDispatcher = Join-Path $RepoRoot '.aai/scripts/aai-run-tests.ps1'
-    $script:ReleaseScript = Join-Path $RepoRoot '.aai/scripts/aai-release.ps1'
     $script:SelfTestScript = Join-Path $RepoRoot '.aai/scripts/aai-win-selftest.ps1'
     $script:DoctorScript = Join-Path $RepoRoot '.aai/scripts/aai-doctor.mjs'
     $script:SkipHelperPath = Join-Path $PSScriptRoot 'lib/pester-host-skip.ps1'
@@ -98,7 +99,13 @@ Describe 'aai-run-tests.ps1' {
             $script:capturedArgs = $null
             Mock Invoke-WslProcess { $script:capturedArgs = $Arguments; return 0 }
             Mock Start-GitBashProcess { $null }
-            $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            $hermeticOrig = $env:AAI_TEST_TIMEOUT
+            Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue  # AAI-HERMETIC-CLEAR
+            try {
+                $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
+            } finally {
+                if ($null -eq $hermeticOrig) { Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue } else { $env:AAI_TEST_TIMEOUT = $hermeticOrig }  # AAI-HERMETIC-RESTORE
+            }
             $rc | Should -Be 0
             $script:capturedArgs | Should -Be @('-e', 'env', 'AAI_TEST_TIMEOUT=3000', '/mnt/c/repo/.aai/scripts/aai-run-tests.sh', 'sh', '-c', 'exit 0')
             Should -Invoke Invoke-WslProcess -Times 1 -Exactly
@@ -921,10 +928,13 @@ Write-Output "GRANDCHILD_SAW=$childSaw"
             $origErr = [Console]::Error
             $sw = [System.IO.StringWriter]::new()
             [Console]::SetError($sw)
+            $hermeticOrig = $env:AAI_TEST_TIMEOUT
+            Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue  # AAI-HERMETIC-CLEAR
             try {
                 $rc = Invoke-Dispatch -Command @('sh', '-c', 'exit 0')
             } finally {
                 [Console]::SetError($origErr)
+                if ($null -eq $hermeticOrig) { Remove-Item Env:AAI_TEST_TIMEOUT -ErrorAction SilentlyContinue } else { $env:AAI_TEST_TIMEOUT = $hermeticOrig }  # AAI-HERMETIC-RESTORE
             }
             $rc | Should -Be 0
             $sw.ToString() | Should -Match '^AAI-BRANCH: WSL \| AAI-TIMEOUT: 3000s \(source=default\)'
@@ -965,191 +975,6 @@ Write-Output "GRANDCHILD_SAW=$childSaw"
             $sw.ToString() | Should -Not -Match 'AAI-BRANCH:'
             $errLines = @($sw.ToString() -split "`r?`n" | Where-Object { $_ -match '^AAI-ENV-ERROR:' })
             $errLines.Count | Should -Be 1
-        }
-    }
-}
-
-Describe 'aai-release.ps1' {
-    # ps1-native-stderr-guard (SPEC-0067-spec-ps1-native-stderr-guard,
-    # TEST-001..004, 006, 007). Dot-sourcing aai-release.ps1 defines
-    # Invoke-NativeChecked WITHOUT performing a release — the
-    # `$MyInvocation.InvocationName -ne '.'` guard around the executable body
-    # (arg-parse through the closing finally) is what makes that safe. The
-    # TEST-006/TEST-007 checks below spawn a CHILD pwsh process rather than
-    # dot-sourcing in-process, because pre-fix (and on any regression) the
-    # unguarded body calls `exit N` on its own preconditions, which would
-    # otherwise kill this entire Pester run rather than just the probe.
-
-    BeforeEach {
-        # Re-dot-source before every test so this suite's own $LASTEXITCODE /
-        # function state never leaks between tests (mirrors the pattern above).
-        . $script:ReleaseScript
-    }
-
-    It 'parses with no syntax errors' {
-        $errors = $null
-        [System.Management.Automation.Language.Parser]::ParseFile(
-            $script:ReleaseScript, [ref]$null, [ref]$errors) | Out-Null
-        $errors | Should -BeNullOrEmpty
-    }
-
-    Context 'TEST-001 (Spec-AC-01): static contract — helper defined via OS-handle-level capture (CHANGE-0134 remediation)' {
-        It 'defines function Invoke-NativeChecked' {
-            $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match 'function\s+Invoke-NativeChecked'
-        }
-
-        It 'captures via Start-Process -RedirectStandardOutput/-RedirectStandardError, never an in-process 2>&1 merge (a local $ErrorActionPreference override was proven NOT to suppress the real Windows PowerShell 5.1 stderr-promotion — PR #248 run 31638479811, TEST-002)' {
-            $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match 'Start-Process\s+-FilePath\s+\$Exe'
-            $content | Should -Match '-RedirectStandardOutput\s+\$outFile'
-            $content | Should -Match '-RedirectStandardError\s+\$errFile'
-        }
-    }
-
-    Context 'TEST-002/TEST-003 (Spec-AC-01): Invoke-NativeChecked behavioral contract' {
-        It 'TEST-002: stub writes stderr AND exits 0 -> returns without throwing' {
-            # NB: assignment must happen OUTSIDE a `{ } | Should -Not -Throw`
-            # scriptblock — that scriptblock is a child scope, so an
-            # assignment inside it never leaks to an outer $result. try/catch
-            # does not introduce a new variable scope, so it does.
-            $result = $null
-            $threw = $false
-            try {
-                $result = Invoke-NativeChecked -Exe 'pwsh' -Arguments @(
-                    '-NoProfile', '-Command',
-                    '[Console]::Error.WriteLine("benign progress text"); exit 0'
-                )
-            } catch {
-                $threw = $true
-            }
-            $threw | Should -Be $false
-            ($result -join "`n") | Should -Match 'benign progress text'
-        }
-
-        It 'TEST-003: stub writes stderr AND exits non-zero -> throws and the message CONTAINS the stderr text' {
-            {
-                Invoke-NativeChecked -Exe 'pwsh' -Arguments @(
-                    '-NoProfile', '-Command',
-                    '[Console]::Error.WriteLine("real failure diagnostic"); exit 1'
-                )
-            } | Should -Throw '*real failure diagnostic*'
-        }
-    }
-
-    Context 'TEST-013 release-one-command required captures' {
-        It 'refuses an empty required SHA or PR URL before binding' {
-            { Select-CapturedValue -Captured @() -Pattern '^[0-9a-f]{40}$' -Name 'release-sha' } | Should -Throw '*REFUSED: empty-native-output*release-sha*'
-            { Select-CapturedValue -Captured @('progress') -Pattern '^https://github\.com/.+/pull/[0-9]+$' -Name 'pr-url' } | Should -Throw '*REFUSED: empty-native-output*pr-url*'
-        }
-        It 'refuses actual empty native stdout before SHA or URL reuse' {
-            $captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', 'exit 0')
-            { Select-CapturedValue -Captured $captured -Pattern '^[0-9a-f]{40}$' -Name 'native-sha' } | Should -Throw '*REFUSED: empty-native-output*native-sha*'
-            { Select-CapturedValue -Captured $captured -Pattern '^https://github\.com/.+/pull/[0-9]+$' -Name 'native-url' } | Should -Throw '*REFUSED: empty-native-output*native-url*'
-        }
-        It 'returns normal native SHA and URL lines with benign stderr' {
-            $captured = Invoke-NativeChecked -Exe 'pwsh' -Arguments @('-NoProfile', '-Command', "[Console]::Error.WriteLine('benign progress'); [Console]::WriteLine('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'); [Console]::WriteLine('https://github.com/test/release/pull/1')")
-            Select-CapturedValue -Captured $captured -Pattern '^[0-9a-f]{40}$' -Name 'native-sha' | Should -Be 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-            Select-CapturedValue -Captured $captured -Pattern '^https://github\.com/.+/pull/[0-9]+$' -Name 'native-url' | Should -Be 'https://github.com/test/release/pull/1'
-        }
-    }
-
-    Context 'TEST-004 (Spec-AC-02): every cut-path native call is routed through the helper; probes untouched' {
-        It 'no bare git -C $Root push/add/commit/tag statement remains' {
-            $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Not -Match '(?m)^\s*git\s+-C\s+\$Root\s+(push|add|commit|tag)\b'
-        }
-
-        It 'no bare gh release create statement remains' {
-            # Unanchored on purpose: a bare call reads as contiguous source text
-            # "gh release create" even mid-line (e.g. inside a try{}); after the
-            # fix the exe/verb/noun become separate quoted Invoke-NativeChecked
-            # array elements, so this contiguous substring no longer appears in
-            # CODE. Write-Host display strings and header comments (e.g. "-
-            # Published: gh release create $Version", "# ... skip push + gh
-            # release create") legitimately still contain that phrase as text,
-            # so those lines are excluded from this check.
-            $offending = Get-Content $script:ReleaseScript | Where-Object {
-                $trimmed = $_.TrimStart()
-                $_ -notmatch 'Write-Host' -and -not $trimmed.StartsWith('#') -and $_ -match 'gh\s+release\s+create'
-            }
-            $offending | Should -BeNullOrEmpty
-        }
-
-        It 'git add/commit are invoked through Invoke-NativeChecked' {
-            $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$wtDir,\s*'add'"
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$wtDir,\s*'commit'"
-        }
-
-        It 'the display git rev-parse --short is invoked through Invoke-NativeChecked' {
-            $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match "Invoke-NativeChecked\s+-Exe\s+'git'\s+-Arguments\s+@\('-C',\s*\`$Root,\s*'rev-parse',\s*'--short',\s*\`$releaseSha\)"
-        }
-
-        It 'remote confirm delegates to shared checked finish before local preparation' {
-            $content = Get-Content -Raw $script:ReleaseScript
-            $content | Should -Match 'if \(\$Confirm -and -not \$NoRemote\)'
-            $content | Should -Match 'Join-Path \$PSScriptRoot ''release-finish.mjs'''
-            $finish = Get-Content -Raw (Join-Path $RepoRoot '.aai/scripts/release-finish.mjs')
-            $finish | Should -Match "'--match-head-commit',record.head"
-        }
-
-    }
-
-    Context 'TEST-006 (Spec-AC-03): dot-source guard — defines the helper WITHOUT running a release' {
-        It 'dot-sourcing in a child process defines Invoke-NativeChecked and does not exit early on release preconditions' {
-            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-release-dotsource-' + [System.IO.Path]::GetRandomFileName())
-            New-Item -ItemType Directory -Path $tmp | Out-Null
-            try {
-                $probeFile = Join-Path $tmp 'probe.ps1'
-                $probeBody = @"
-Set-Location -LiteralPath '$tmp'
-. '$($script:ReleaseScript)'
-if (Get-Command Invoke-NativeChecked -ErrorAction SilentlyContinue) { Write-Output 'HELPER_DEFINED' } else { Write-Output 'HELPER_MISSING' }
-Write-Output 'DOTSOURCE_COMPLETED'
-"@
-                Set-Content -LiteralPath $probeFile -Value $probeBody
-                $out = & pwsh -NoProfile -File $probeFile 2>&1
-                $exitCode = $LASTEXITCODE
-                ($out -join "`n") | Should -Match 'HELPER_DEFINED'
-                ($out -join "`n") | Should -Match 'DOTSOURCE_COMPLETED'
-                $exitCode | Should -Be 0
-            } finally {
-                Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
-            }
-        }
-    }
-
-    Context 'TEST-007 (Spec-AC-03): -File -DryRun regression — the guard does not change normal execution' {
-        It 'pwsh -File aai-release.ps1 -DryRun in a throwaway git fixture exits 0 and prints the plan header' {
-            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('aai-release-dryrun-' + [System.IO.Path]::GetRandomFileName())
-            New-Item -ItemType Directory -Path $tmp | Out-Null
-            try {
-                Push-Location $tmp
-                try {
-                    & git init -q .
-                    & git config user.email 'aai-test@example.com'
-                    & git config user.name 'AAI Test'
-                    $changelog = @"
-# Changelog
-
-## [unreleased] — Added
-- placeholder entry for TEST-007
-"@
-                    Set-Content -LiteralPath (Join-Path $tmp 'CHANGELOG.md') -Value $changelog
-                    & git add -- CHANGELOG.md
-                    & git commit -q -m 'init'
-                    $out = & pwsh -NoProfile -File $script:ReleaseScript -DryRun 2>&1
-                    $exitCode = $LASTEXITCODE
-                } finally {
-                    Pop-Location
-                }
-                $exitCode | Should -Be 0
-                ($out -join "`n") | Should -Match 'aai-release \(plan\)'
-            } finally {
-                Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
-            }
         }
     }
 }
@@ -1422,6 +1247,19 @@ Describe 'aai-win-selftest.ps1 (CHANGE-0135 / spec-doctor-win-selftest)' {
                 $cat14.status | Should -Be 'SKIP'
                 $cat14.detail.spawned | Should -Be $false
             }
+        }
+    }
+}
+
+Describe 'release-corpus-hermetic TEST-002 (Spec-AC-01): caller AAI_TEST_TIMEOUT survives the file' {
+    # Pester v5 runs Describe blocks in file order, so this is the last one.
+    It 'leaves $env:AAI_TEST_TIMEOUT exactly as the caller had it (present value or absent)' {
+        $now = $env:AAI_TEST_TIMEOUT
+        if ($null -eq $script:CallerAaiTestTimeout) {
+            $now | Should -BeNullOrEmpty
+            (Test-Path Env:AAI_TEST_TIMEOUT) | Should -Be $false
+        } else {
+            $now | Should -Be $script:CallerAaiTestTimeout
         }
     }
 }

@@ -2808,6 +2808,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Complete and resume a release
+
+The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
+
+[Product doc](product/release-command-finish.md) · [Spec](specs/SPEC-0233-spec-release-command-finish.md)
+
 ### Reuse of local suite results
 
 A local test run can skip a suite whose result is already known: when a suite passed earlier and nothing it read has changed since, the framework reports it as REUSED, names the run it came from and points at that run's log, instead of executing it again. A reused result is never reported as a new execution, and the full sweep before close, CI, main, nightly and release always execute every suite.
@@ -2837,12 +2843,6 @@ Hermes Agent can discover and select the shared AAI skills in a trusted Git proj
 A pull request that changes a shipped surface must add a new unreleased changelog entry, or say why it has no notes. Shipped surfaces are the AAI layer, GitHub workflows, harness skill trees, root executables, and eight user-facing documentation paths: `README.md`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GEMINI.md`, `SKILLS.md`, `docs/USER_GUIDE.md`, and anything under `docs/product/`. The first six are the root files `aai-sync` installs into a target; the other two are the pages AAI users read on GitHub. Matching is exact, so `docs/README.md`, `sub/README.md` and `docs/product-notes.md` are not shipped. All other docs paths stay exempt, as do tests and evidence-only changes. The release audit (`aai-release --dry-run`) classifies merged pull requests with the same function. An old unchanged entry, an empty scaffold, and a blank reason do not count.
 
 [Product doc](product/release-notes-gate.md) · [Spec](specs/SPEC-0229-spec-release-notes-gate.md)
-
-### Complete and resume a release
-
-The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
-
-[Product doc](product/release-command-finish.md) · [Spec](specs/SPEC-0233-spec-release-command-finish.md)
 
 ### Merge a named pull request and clean up after it
 

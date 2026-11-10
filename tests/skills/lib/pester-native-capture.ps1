@@ -11,9 +11,9 @@
 # instant the child writes ANY stderr, even on a clean exit 0. The test then
 # fails as a caught exception ("RemoteException: <child's stderr text>")
 # instead of exercising its actual assertion. This is the same class of
-# defect `.aai/scripts/aai-release.ps1`'s Invoke-NativeChecked exists to
-# guard against in PRODUCTION code (SPEC-0067) — this file is the TEST-HARNESS
-# equivalent, needed because these tests deliberately spawn a real child pwsh
+# defect that `.aai/scripts/aai-release.ps1` once guarded against in PRODUCTION
+# code with Invoke-NativeChecked (SPEC-0067; the launcher now makes no native
+# call but node) — this file is the TEST-HARNESS equivalent, needed because these tests deliberately spawn a real child pwsh
 # and must read its real stdout/stderr/exit code without going through
 # PowerShell's error-stream/EAP machinery at all.
 #

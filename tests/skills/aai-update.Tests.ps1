@@ -72,10 +72,50 @@ Describe 'aai-update.ps1' {
     }
 
     Context 'canonical-repo guard' {
-        It 'refuses (exit 2) when run inside the canonical AAI repo without -Force' {
-            $r = Invoke-Update -ScriptArgs @('-DryRun')   # cwd = canonical repo
+        # release-corpus-hermetic Spec-AC-04 (TEST-005/TEST-006): the guard compares the
+        # TARGET project's remote.origin.url with -Repo. The old case ran the updater with
+        # cwd = the checkout under test, so it passed only where that checkout's origin was
+        # the canonical URL and failed in an isolation clone (origin = a local path). Each
+        # case now builds its own disposable git target with an explicit origin and invokes
+        # the real updater from it; no mock, and the updater is unchanged.
+        BeforeAll {
+            function New-UpdateTarget {
+                param([string]$Name, [string]$OriginUrl)
+                $dir = Join-Path $TestDrive $Name
+                New-Item -ItemType Directory -Path $dir -Force | Out-Null
+                git -C $dir init -q
+                git -C $dir remote add origin $OriginUrl   # AAI-HERMETIC-ORIGIN
+                return $dir
+            }
+        }
+
+        It 'refuses (exit 2) when the target project origin is the canonical AAI repo, without -Force' {
+            $target = New-UpdateTarget -Name 'canonical-target' -OriginUrl 'https://github.com/goodwind-cz/aai.git'
+            Push-Location $target
+            try {
+                $r = Invoke-Update -ScriptArgs @('-DryRun')
+            } finally {
+                Pop-Location
+            }
             $r.Code | Should -Be 2
             $r.Err  | Should -Match 'REFUSED'
+        }
+
+        It 'does not refuse a non-canonical target, and leaves the caller location and the real remote untouched' {
+            $callerLocation = (Get-Location).Path
+            $realOriginBefore = (git -C $script:RepoRoot config --get remote.origin.url 2>$null)
+            $target = New-UpdateTarget -Name 'other-target' -OriginUrl 'https://github.com/acme/foo.git'
+            Push-Location $target
+            try {
+                $r = Invoke-Update -ScriptArgs @('-DryRun')
+            } finally {
+                Pop-Location  # AAI-HERMETIC-POP
+            }
+            $r.Code | Should -Be 0
+            $r.Err  | Should -Not -Match 'REFUSED'
+            $r.Out  | Should -Match 'dry-run'
+            (Get-Location).Path | Should -Be $callerLocation
+            (git -C $script:RepoRoot config --get remote.origin.url 2>$null) | Should -Be $realOriginBefore
         }
     }
 
