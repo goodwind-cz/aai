@@ -948,7 +948,9 @@ describe('TEST-3520 byte-wise pre-filter', () => {
     for (const t of ['bash', 'cat']) fs.symlinkSync(spawnSync('sh', ['-c', `command -v ${t}`], { encoding: 'utf8' }).stdout.trim(), path.join(nonodeDir, t));
     for (const env of [{ LANG: 'en_US.UTF-8' }, { LC_ALL: 'en_US.UTF-8' }, {}]) {
       const nonode = gate(LAUNCHER, project, 'merge', 'gh pr merge 5', { env: { AAI_LANEX1520_MERGE: '1', ...env }, path: nonodeDir });
-      assert.equal(nonode.stderr, NONODE, 'the lane guard text is the same under every locale');
+      // bash itself warns at startup when the host lacks the named locale; that line is not the launcher's
+      const own = nonode.stderr.split('\n').filter((l) => !/^bash: warning: setlocale: /.test(l)).join('\n');
+      assert.equal(own, NONODE, 'the lane guard text is the same under every locale');
     }
   });
 });
