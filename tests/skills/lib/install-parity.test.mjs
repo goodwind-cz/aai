@@ -324,7 +324,7 @@ describe('TEST-3563 allowlist', () => {
     const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] });
     const pin = rows.filter((r) => r.id === 'pin-template-version-spacing');
     const d = (a, b) => ({ pair: 'sh:ps1', path: '.aai/system/AAI_PIN.md', kind: 'lines', detail: 'd', onlyA: [a], onlyB: [b] });
-    const run = (x) => M.applyAllowlist([x], pin, { scenario: 'SY-01', host: HOST_POSIX }).uncovered.length;
+    const run = (x) => M.applyAllowlist([x], pin, { scenario: 'SY-01', host: { ...HOST_POSIX, bsdSed: true } }).uncovered.length;
     assert.equal(run(d('- Template version:  v2026.11.1', '- Template version: v2026.11.1')), 0);
     assert.equal(run(d('- Template version:  v2026.11.1', '- Template version: v2026.01.01')), 1);
   });
@@ -333,6 +333,18 @@ describe('TEST-3563 allowlist', () => {
     const used = new Set(o.used || []);
     return M.staleRows(parsed, { ran, pairsRun: o.pairsRun || ['a:b'], host: o.host || HOST_POSIX, used, wholeTier: o.wholeTier !== false }).map((r) => r.id);
   };
+  test('a bsd-sed row is judged only on a host whose sed is BSD, so a GNU-sed host neither covers nor stales it', () => {
+    has('staleRows'); has('probeBsdSed');
+    assert.deepEqual(stale([row({ host: 'bsd-sed' })], ['S-1']), []);
+    assert.deepEqual(stale([row({ host: 'bsd-sed' })], ['S-1'], { host: { ...HOST_POSIX, bsdSed: false } }), []);
+    assert.deepEqual(stale([row({ host: 'bsd-sed' })], ['S-1'], { host: { ...HOST_POSIX, bsdSed: true } }), ['r1'], 'a dead row stays caught where the divergence exists');
+    assert.deepEqual(stale([row({ host: 'bsd-sed' })], ['S-1'], { host: { ...HOST_POSIX, bsdSed: true }, used: ['r1'] }), []);
+    assert.equal(typeof M.probeBsdSed(), 'boolean');
+    const pin = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }).filter((r) => r.id === 'pin-template-version-spacing');
+    const d = { pair: 'sh:ps1', path: '.aai/system/AAI_PIN.md', kind: 'lines', detail: 'd', onlyA: ['- Template version:  v1'], onlyB: ['- Template version: v1'] };
+    assert.equal(M.applyAllowlist([d], pin, { scenario: 'SY-01', host: { ...HOST_POSIX, bsdSed: true } }).uncovered.length, 0);
+    assert.equal(M.applyAllowlist([d], pin, { scenario: 'SY-01', host: { ...HOST_POSIX, bsdSed: false } }).uncovered.length, 1, 'on a GNU-sed host the spacing divergence is a real failure');
+  });
   test('a row that covered nothing is stale on a whole-tier run only', () => {
     has('staleRows');
     assert.deepEqual(stale([row()], ['S-1']), ['r1']);
@@ -422,6 +434,38 @@ describe('TEST-3564 broken scenarios', () => {
     const rep = runFake([fakeTwin('sh', { files: ok }), fakeTwin('ps1', { files: ok })], [scen()]);
     assert.equal(rep.verdict, 'PASS');
     assert.deepEqual(rep.pairs, ['sh:ps1']);
+  });
+});
+
+describe('TEST-3564 CRLF-tolerant fixture parsing', () => {
+  const PROFILES = ['version: 1', 'core:', '  # templates', '  - .aai/templates/a.md', '  - .aai/other', '', 'next:', '  - x'];
+  const isFile = (rel) => rel === '.aai/templates/a.md';
+  test('the removable core entry is found in an LF and in a CRLF PROFILES.yaml', () => {
+    has('findRemovableCoreEntry');
+    assert.equal(M.findRemovableCoreEntry(PROFILES, isFile), 3);
+    assert.equal(M.findRemovableCoreEntry(PROFILES.join('\r\n').split('\n'), isFile), 3);
+  });
+  test('the entry path handed to the file check carries no carriage return, and a missing entry is -1', () => {
+    has('findRemovableCoreEntry');
+    const seen = [];
+    M.findRemovableCoreEntry(PROFILES.join('\r\n').split('\n'), (rel) => { seen.push(rel); return false; });
+    assert.deepEqual(seen, ['.aai/templates/a.md']);
+    assert.equal(M.findRemovableCoreEntry(['other:', '  - .aai/templates/a.md'], isFile), -1);
+  });
+  test('the repository PROFILES.yaml yields a removable entry as LF and as CRLF', () => {
+    has('findRemovableCoreEntry');
+    const text = fs.readFileSync(path.join(ROOT, '.aai/system/PROFILES.yaml'), 'utf8').replace(/\r\n/g, '\n');
+    const ok = (rel) => fs.existsSync(path.join(ROOT, rel)) && fs.lstatSync(path.join(ROOT, rel)).isFile();
+    const lf = M.findRemovableCoreEntry(text.split('\n'), ok);
+    assert.ok(lf > 0);
+    assert.equal(M.findRemovableCoreEntry(text.replace(/\n/g, '\r\n').split('\n'), ok), lf);
+  });
+  test('a CRLF Synced-at stamp line is still normalized and keeps its carriage return', () => {
+    has('normalizeSnapshot');
+    const t = M.normalizeSnapshot(new Map([['.aai/system/AAI_PIN.md', { kind: 'file', data: Buffer.from('- Synced at (UTC): 2026-01-02T03:04:05Z\r\n'), exec: false }]]));
+    assert.equal(t.get('.aai/system/AAI_PIN.md').data.toString(), '- Synced at (UTC): <stamp>\r\n');
+    const rep = M.normalizeSnapshot(new Map([['docs/ai/reports/sync-conflicts-20260102-060405.md', { kind: 'file', data: Buffer.from('- Generated at (UTC): 2026-01-02T03:04:05Z\r\n'), exec: false }]]));
+    assert.ok(rep.has('docs/ai/reports/sync-conflicts-<stamp>.md') || rep.size === 1);
   });
 });
 

@@ -741,7 +741,7 @@ _None._
 
 _None._
 
-## Broken references (551)
+## Broken references (552)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -762,6 +762,7 @@ _None._
 | tests/skills/lib/hook-gate.test.mjs | docs/changed.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185419Z-hosta.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185420Z-hostb.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20260102-060405.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-185419.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-190000.md | NOT FOUND |
 | tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-215419.md | NOT FOUND |

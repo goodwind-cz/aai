@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: b903e9302278f6c7aaff53cc4892e89a02e784fd0d75de3c3933750583a6d7a8
+frozen_sha256: 30ea5229c5b3858354c7c2bb6fbfcd32980933ff580cdac101b9d2599b876800
 ceremony_level: 2
 links:
   requirement: install-path-parity-harness
@@ -333,9 +333,11 @@ exactly nine TAB-separated fields:
 4. `path`: a POSIX path in the normalized tree, `*` within one segment,
    `**` across segments; `step<N>` for kind `exit`.
 5. `kind`: one of the six kinds.
-6. `host`: `any`, `posix`, `win32`, `utc` or `non-utc` (the twins' zone:
-   POSIX is always `non-utc` through `PINNED_TZ`; win32 is `utc` when the
-   host's offset is 0).
+6. `host`: `any`, `posix`, `win32`, `utc`, `non-utc` or `bsd-sed` (the twins'
+   zone: POSIX is always `non-utc` through `PINNED_TZ`; win32 is `utc` when
+   the host's offset is 0; `bsd-sed` holds when a probe of the host's `sed`
+   with the expression aai-sync.sh uses shows BSD behavior, which is macOS
+   only: GNU sed on Linux, Git for Windows and WSL strips the space).
 7. `tracker`: `accepted` (by design, the reason says why) or a follow-up id
    `fu-...` that `node .aai/scripts/follow-ups.mjs list --status all --json`
    knows.
@@ -373,7 +375,7 @@ correction in the green log):
 
 | Row id | Kind | Path | Host | Tracker |
 |---|---|---|---|---|
-| pin-template-version-spacing | lines | .aai/system/AAI_PIN.md | any | fu-parity-pin-template-spacing |
+| pin-template-version-spacing | lines | .aai/system/AAI_PIN.md | bsd-sed | fu-parity-pin-template-spacing |
 | pin-synced-at-precision | lines | .aai/system/AAI_PIN.md | any | fu-parity-ps1-timestamp-precision |
 | gitignore-block-order | order | .gitignore | any | fu-parity-gitignore-block-order |
 | gitignore-block-headers | lines | .gitignore | any | fu-parity-gitignore-block-order |
@@ -587,8 +589,8 @@ Windows checkout; Git for Windows paths passed to bash as `C:/...`.
 | TEST-3560 | Spec-AC-01 | inspection | tests/skills/test-aai-install-parity.sh | test_3560_matrix_tiers reads the D-MATRIX table of the spec with id spec-install-path-parity-harness under docs/specs, runs list --matrix for each tier with --json and requires the ids of that tier and the tiers below it, in table order; list --matrix bogus exits 2 | `sed:s/id: 'SY-02', tier: 'default'/id: 'SY-02', tier: 'full'/` on tests/skills/lib/install-parity.mjs | green |
 | TEST-3561 | Spec-AC-02 | unit | tests/skills/test-aai-install-parity.sh | test_3561_compare_kinds runs run_node_tests TEST-3561 on tests/skills/lib/install-parity.test.mjs: synthetic tree pairs give exactly one divergence of each kind with pair, path and detail, an empty directory and a symlink target count, a CRLF-only change is lines, and on POSIX an executable-bit change is mode | `sed:s/const MODE_MEANINGFUL = process.platform !== 'win32';/const MODE_MEANINGFUL = false;/` on tests/skills/lib/install-parity.mjs | green |
 | TEST-3562 | Spec-AC-03 | unit | tests/skills/test-aai-install-parity.sh | test_3562_normalizations runs run_node_tests TEST-3562: the NORMALIZATIONS ids and reasons; N1 and N2 on second and fraction stamps; a timestamp-like string elsewhere unchanged; N3 with an agreeing and a disagreeing name; N4 with two doctor reports; E1 for a hooks and a sync scenario; E2 keeps presence | `sed:s/const NAME_MUST_MATCH_STAMP = true;/const NAME_MUST_MATCH_STAMP = false;/` on tests/skills/lib/install-parity.mjs | green |
-| TEST-3563 | Spec-AC-04 | unit | tests/skills/test-aai-install-parity.sh | test_3563_allowlist runs run_node_tests TEST-3563: each parser refusal exits 2 naming the row and field; covered and uncovered divergences; a lines row whose regex misses one line; a bytes row on a text file; a stale row on a whole-tier run; rows for a scenario or pair not run, for another host, and every row of a scenario-filtered run are not stale | `sed:s/return stale;/return [];/` on tests/skills/lib/install-parity.mjs | green |
-| TEST-3564 | Spec-AC-05 | unit | tests/skills/test-aai-install-parity.sh | test_3564_broken runs run_node_tests TEST-3564: runScenario with injected twins where the reference twin exits 3 on a step that expects 0, where both twins exit 3 alike, and where a probe path is absent, each reported broken with verdict FAIL | `sed:s/if \(!expectMet\(step\.expect, ref\.code\)\) broken\.push\(/if (false) broken.push(/` on tests/skills/lib/install-parity.mjs | green |
+| TEST-3563 | Spec-AC-04 | unit | tests/skills/test-aai-install-parity.sh | test_3563_allowlist runs run_node_tests TEST-3563: each parser refusal exits 2 naming the row and field; covered and uncovered divergences; a lines row whose regex misses one line; a bytes row on a text file; a stale row on a whole-tier run; rows for a scenario or pair not run, for another host (a bsd-sed row is judged only where the host sed is BSD and is a failure again on a GNU-sed host), the committed pin row on a BSD-sed and a GNU-sed host, and every row of a scenario-filtered run are not stale | `sed:s/return stale;/return [];/` on tests/skills/lib/install-parity.mjs | green |
+| TEST-3564 | Spec-AC-05 | unit | tests/skills/test-aai-install-parity.sh | test_3564_broken runs run_node_tests TEST-3564: the F2 core-entry finder on an LF and a CRLF PROFILES.yaml and a CRLF stamp line; runScenario with injected twins where the reference twin exits 3 on a step that expects 0, where both twins exit 3 alike, and where a probe path is absent, each reported broken with verdict FAIL | `sed:s/if \(!expectMet\(step\.expect, ref\.code\)\) broken\.push\(/if (false) broken.push(/` on tests/skills/lib/install-parity.mjs | green |
 | TEST-3565 | Spec-AC-06 | integration | tests/skills/test-aai-install-parity.sh | test_3565_default_matrix needs node, git and pwsh, runs the driver with the suite's matrix (default unless AAI_PARITY_MATRIX says otherwise), twins sh,ps1 and the committed allowlist into $TEST_DIR/run.json, and requires exit 0, verdict PASS, every scenario of the tier in the report with no broken entry, and self pairs present for SY-02, HK-02 and HK-09 | `sed:s/pin-template-version-spacing\t[^\n]*\n//` on tests/skills/lib/install-parity-allowlist.tsv | green |
 | TEST-3566 | Spec-AC-07 | integration | tests/skills/test-aai-install-parity.sh | test_3566_third_twin writes two module twins into $TEST_DIR (mirror delegates to the sh argv, skew does the same and appends one byte to .aai/system/AAI_PIN.md after the step) and a scratch allowlist whose sh:ps1 rows also list ps1:mirror; --scenario SY-01 with mirror exits 0 with pairs sh:mirror and ps1:mirror in the report; with skew exits 1 naming sh:skew and ps1:skew on .aai/system/AAI_PIN.md | `sed:s/for \(let j = i \+ 1; j < twins\.length; j \+= 1\)/for (let j = i + 1; j < Math.min(twins.length, 2); j += 1)/` on tests/skills/lib/install-parity.mjs | green |
 | TEST-3567 | Spec-AC-08 | integration | tests/skills/test-aai-install-parity.sh | test_3567_environment runs an env-recording module twin with AAI_ROLE and AAI_GIT_WRITE set in the caller and requires TZ=Etc/GMT-3, GIT_CONFIG_NOSYSTEM=1, GIT_CONFIG_GLOBAL under the scratch root, TMPDIR under the scratch root and no AAI_ name; then HK-01 with a caller GIT_CONFIG_GLOBAL setting core.hooksPath to an outside directory exits 0 with the three hooks under .git/hooks for both twins and nothing in that directory | `sed:s/const PINNED_TZ = 'Etc\/GMT-3';/const PINNED_TZ = 'UTC';/` on tests/skills/lib/install-parity.mjs | green |

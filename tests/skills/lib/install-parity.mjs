@@ -26,7 +26,7 @@ export const KINDS = ['exit', 'missing', 'bytes', 'lines', 'order', 'mode'];
 export const MODE_MEANINGFUL = process.platform !== 'win32';
 export const REFERENCE_TWIN = 'sh';
 export const NAME_MUST_MATCH_STAMP = true;
-const HOSTS = ['any', 'posix', 'win32', 'utc', 'non-utc'];
+const HOSTS = ['any', 'posix', 'win32', 'utc', 'non-utc', 'bsd-sed'];
 const STEP_TIMEOUT_MS = 300000;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -158,9 +158,17 @@ export function twinEnv(root, base = process.env) {
 
 export function hostInfo() {
   const win = process.platform === 'win32';
-  return { platform: win ? 'win32' : 'posix', utc: win ? new Date().getTimezoneOffset() === 0 : false };
+  return { platform: win ? 'win32' : 'posix', utc: win ? new Date().getTimezoneOffset() === 0 : false, bsdSed: probeBsdSed() };
 }
-const hostMatches = (want, host) => want === 'any' || want === host.platform || (want === 'utc' && host.utc) || (want === 'non-utc' && !host.utc);
+// BSD sed (macOS) reads \s in an ERE as a literal s, so aai-sync.sh's version extraction keeps the space after
+// "Version:"; GNU sed (Linux, Git for Windows, WSL) strips it. The probe runs the same expression the script uses.
+export function probeBsdSed() {
+  try {
+    const r = spawnSync('sed', ['-E', 's/.*Version:\\s*//'], { input: '- Version: v1\n', encoding: 'utf8', timeout: 10000 });
+    return r.status === 0 && r.stdout === ' v1\n';
+  } catch { return false; }
+}
+const hostMatches = (want, host) => want === 'any' || want === host.platform || (want === 'utc' && host.utc) || (want === 'non-utc' && !host.utc) || (want === 'bsd-sed' && host.bsdSed === true);
 
 // ---------------------------------------------------------------------------------------------------------------
 // D-SNAP: snapshot, normalization, comparison.
@@ -485,23 +493,32 @@ function syncWithSh(ctx, srcDir, target, profile) {
   if (r.code !== 0) throw new Error(`fixture sync (${profile}) failed with ${r.code}: ${r.stderr.slice(-400)}`);
 }
 
+// PROFILES.yaml lines come from a split on LF, so a CRLF checkout leaves a trailing CR on every line; each pattern
+// below must treat it as part of the line end.
+const CORE_ENTRY = /^  - (\.aai\/templates\/\S+)\r?$/;
+const entryPath = (line) => CORE_ENTRY.exec(line)[1];
+export function findRemovableCoreEntry(lines, isFile) {
+  const core = lines.findIndex((l) => /^core:\s*$/.test(l));
+  if (core < 0) return -1;
+  for (let i = core + 1; i < lines.length && /^\s*(-|#|$)/.test(lines[i]); i += 1) {
+    const m = CORE_ENTRY.exec(lines[i]);
+    if (m && isFile(m[1])) return i;
+  }
+  return -1;
+}
+
 // F2 OLDER SOURCE.
 function buildOlderSource(ctx) {
   const dir = path.join(ctx.root, 'fx', 'src-older');
   if (fs.existsSync(dir)) return dir;
   copyTree(ctx.src, dir);
   const ver = path.join(dir, 'docs/ai/AAI_VERSION.md');
-  fs.writeFileSync(ver, fs.readFileSync(ver, 'utf8').replace(/^- Version: .*$/m, '- Version: v2026.01.01'));
+  fs.writeFileSync(ver, fs.readFileSync(ver, 'utf8').replace(/^- Version: [^\r\n]*/m, '- Version: v2026.01.01'));
   const prof = path.join(dir, '.aai/system/PROFILES.yaml');
   const lines = fs.readFileSync(prof, 'utf8').split('\n');
-  const core = lines.findIndex((l) => /^core:\s*$/.test(l));
-  let drop = -1;
-  for (let i = core + 1; i < lines.length && /^\s*(-|#|$)/.test(lines[i]); i += 1) {
-    const m = /^  - (\.aai\/templates\/\S+)$/.exec(lines[i]);
-    if (m && fs.existsSync(path.join(dir, m[1])) && fs.lstatSync(path.join(dir, m[1])).isFile()) { drop = i; break; }
-  }
+  const drop = findRemovableCoreEntry(lines, (rel) => { const f = path.join(dir, ...rel.split('/')); return fs.existsSync(f) && fs.lstatSync(f).isFile(); });
   if (drop < 0) throw new Error('F2: no removable core template entry found in PROFILES.yaml');
-  fs.rmSync(path.join(dir, lines[drop].slice(4)));
+  fs.rmSync(path.join(dir, ...entryPath(lines[drop]).split('/')));
   lines.splice(drop, 1);
   fs.writeFileSync(prof, lines.join('\n'));
   fs.appendFileSync(path.join(dir, '.aai/AGENTS.md'), '\n<!-- parity: older source -->\n');
