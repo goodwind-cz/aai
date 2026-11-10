@@ -205,7 +205,7 @@ function azureUpdateStarts(command) {
     SEG_DELIM_RE.lastIndex = from;
     const m = SEG_DELIM_RE.exec(command);
     const end = m ? m.index + 1 : n;
-    const seg = command.slice(from, end);
+    const seg = command.slice(from, m ? m.index : n); // the delimiter ends the status word, it is not part of it
     const h = AZ_HEAD_RE.exec(seg);
     if (h && AZ_STATUS_RE.test(seg.slice(h.index + h[0].length))) out.push(from + h.index + h[1].length);
     if (!m) break;

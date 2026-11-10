@@ -596,6 +596,13 @@ describe('TEST-3505 kept decisions', () => {
     }
     assert.equal(decideIn(project, 'merge', 'node .aai/scripts/platform.mjs merge --pr 42 --expect-head abc', { env: op }).code, 0);
     assert.equal(decideIn(project, 'merge', 'az repos pr update --id=42 --status completed', { env: op }).code, 0);
+    // a delimiter right after `completed` ends the segment, it is not part of the status word (PR #545 review)
+    for (const tail of [';echo done', '&echo done', '&&echo done', '|cat', '\necho done', ';', '&']) {
+      const cmd = `az repos pr update --id 42 --status completed${tail}`;
+      assert.equal(decideIn(project, 'merge', cmd).code, 2, `no marker ${JSON.stringify(cmd)}`);
+      assert.equal(decideIn(project, 'merge', cmd, { env: op }).code, 0, `operator marker, swept PR ${JSON.stringify(cmd)}`);
+      assert.equal(gate(LAUNCHER, project, 'merge', cmd).rc, 2, `launcher ${JSON.stringify(cmd)}`);
+    }
   });
 
   test('DG-10 U+FEFF is not white space: the gate decides as the baseline script did, on every path', () => {
