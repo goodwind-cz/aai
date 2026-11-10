@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hook-gate
-# (docs/specs/SPEC-0283-spec-hook-gate-on-node.md, TEST-3500..3522)
+# (docs/specs/SPEC-0283-spec-hook-gate-on-node.md, TEST-3500..3523)
 #
 # The Claude hook gate decides in one Node module (.aai/scripts/hook-gate.mjs) behind the bash launcher
 # .aai/scripts/claude-hook-gate.sh. Every case works in fresh mktemp fixtures with a stub gh first on PATH;
@@ -219,7 +219,7 @@ test_3508_launcher_shape() {
   printf 'x="$(%s /tmp && pwd)"\n' cd >> "$d/leakroot/.aai/scripts/claude-hook-gate.sh"
   out="$(node "$CD_LEAK" --root "$d/leakroot" --baseline /dev/null 2>&1 || true)"
   [[ "$out" == *"cd-subshell leaks: 1 occurrence(s)"* ]] || log_fail "TEST-3508: positive control: a cd in a substitution was not reported: $out"
-  for want in "2 2" "1 0" "3 0"; do
+  for want in "2 2" "1 2" "3 2"; do
     fake="$d/fake-${want%% *}"
     mkdir -p "$fake/proj"
     cp "$LAUNCHER" "$fake/"
@@ -248,14 +248,16 @@ test_3508_launcher_shape() {
     grep -qF 'merge-policy: evaluator unavailable: node not found' "$d/lane.err" || log_fail "TEST-3508: a broken module ($want) with a lane marker did not print the lane guard text"
     got=0
     CLAUDE_PROJECT_DIR="$fake/proj" bash "$fake/claude-hook-gate.sh" merge < "$d/p.json" > /dev/null 2>&1 || got=$?
-    [[ "$got" == 0 ]] || log_fail "TEST-3508: a broken module ($want) without a lane marker gave launcher exit $got (want 0)"
+    # without a marker: a module that crashed denies on the merge gate (TEST-3523); an empty module is the missing-module path (exit 0)
+    wantrc=2; [[ "$want" == empty:* ]] && wantrc=0
+    [[ "$got" == "$wantrc" ]] || log_fail "TEST-3508: a broken module ($want) without a lane marker gave launcher exit $got (want $wantrc)"
     write_payload "$d/p.json" 'ls'
     got=0
     AAI_LANEX1520_MERGE=1 CLAUDE_PROJECT_DIR="$fake/proj" bash "$fake/claude-hook-gate.sh" merge < "$d/p.json" > /dev/null 2>&1 || got=$?
     [[ "$got" == 0 ]] || log_fail "TEST-3508: a broken module ($want) with a lane marker and a payload that is not merge-shaped gave exit $got (want 0)"
     chmod 644 "$fake/hook-gate.mjs"
   done
-  log_pass "TEST-3508: launcher code lines $n (at most 70), set -u without -e or pipefail, no pipe or text tool, exit 2 maps to 2 and every other exit to 0 (a lane marker plus a merge-shaped payload denies on a broken module)"
+  log_pass "TEST-3508: launcher code lines $n (at most 70), set -u without -e or pipefail, no pipe or text tool, exit 2 maps to 2 and every other exit to 0 except a crash on the merge gate (a lane marker plus a merge-shaped payload denies on a broken module)"
 }
 
 # fn_body <file> <function name>: the text of one bash function (from its header line to the closing brace).
@@ -457,13 +459,18 @@ test_3521_inherited_errexit() {
   log_pass "TEST-3521: an inherited errexit does not skip the lane guard after a module that crashed (DG-02)"
 }
 
+test_3523_crash_deny() {
+  run_node_tests TEST-3523
+  log_pass "TEST-3523: a merge gate whose module crashed (exit other than 0 and 2) denies a payload that could concern a merge, with or without the operator marker; the other gates and the missing-module path fail open"
+}
+
 test_3522_empty_path_entry() {
   run_node_tests TEST-3522
   log_pass "TEST-3522: an empty PATH entry is the current directory when the module looks for gh"
 }
 
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3522)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3523)"
   check_deps
   setup_fixture
   test_3500_seam
@@ -489,6 +496,7 @@ main() {
   test_3520_bytewise_prefilter
   test_3521_inherited_errexit
   test_3522_empty_path_entry
+  test_3523_crash_deny
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

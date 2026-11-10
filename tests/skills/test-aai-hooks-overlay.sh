@@ -345,11 +345,19 @@ test_008_fail_open_errors() {
   chmod +x "$d/bin/node"
   payload_for "git merge x" > "$d/payload.json"
   (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" bash "$PROJECT_ROOT/$ADAPTER" merge < "$d/payload.json" >/dev/null 2>&1); rc=$?
-  [[ "$rc" -eq 0 ]] || { log_info "TEST-008: merge gate with broken node exited $rc (want 0)"; ok=0; }
+  # (SPEC-0283 DG-16, owner decision NB2: a crashed module on the merge gate denies a merge-shaped payload;
+  # every other gate and payload still fails open.)
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-008: merge gate with broken node exited $rc (want 2, the crash deny)"; ok=0; }
+  payload_for "ls" > "$d/payload.json"
+  (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" bash "$PROJECT_ROOT/$ADAPTER" merge < "$d/payload.json" >/dev/null 2>&1); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-008: merge gate with broken node on a payload without a merge trigger exited $rc (want 0)"; ok=0; }
+  payload_for "git commit -m x" > "$d/payload.json"
+  (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" bash "$PROJECT_ROOT/$ADAPTER" commit < "$d/payload.json" >/dev/null 2>&1); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-008: commit gate with broken node exited $rc (want 0)"; ok=0; }
   # Unknown gate argument: 0.
   printf '{}' | (cd "$d" && bash "$PROJECT_ROOT/$ADAPTER" no-such-gate >/dev/null 2>&1); rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-008: unknown gate exited $rc (want 0)"; ok=0; }
-  [[ $ok -eq 1 ]] && log_pass "TEST-008 adapter fail-open: malformed stdin, broken node, unknown gate all exit 0" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-008 adapter fail-open: malformed stdin, broken node (except a merge-shaped payload on the merge gate), unknown gate all exit 0" \
                   || log_fail "TEST-008 fail-open"
 }
 

@@ -19,9 +19,11 @@
 # the model). Every internal failure -- node or the module missing, unreadable
 # stdin, an unknown gate -- exits 0: FAIL-OPEN BY DESIGN (RFC-0010: a broken hook
 # must not brick the session; every mirrored gate still runs at its original
-# call site). ONE exception: with a merge-policy lane marker set in the
+# call site). TWO exceptions: with a merge-policy lane marker set in the
 # environment, a merge-shaped payload that cannot be decided (no node, no
-# module, a module that exits with neither 0 nor 2) is denied -- the lane path may only ever add an allow.
+# module, a module that exits with neither 0 nor 2) is denied -- the lane path may only ever add an allow;
+# and the merge gate, when the module ran and crashed (exit other than 0 and 2), denies a payload
+# holding the merge trigger (owner decision NB2: when in doubt, deny; the other gates fail open).
 #
 # HONESTY NOTE: a guardrail against habit, not a security boundary.
 #
@@ -84,6 +86,23 @@ lane_guard() {
   return 0
 }
 
+# The crash guard (owner decision NB2, "when in doubt, deny"): a merge gate whose module ran
+# and exited with neither 0 nor 2 could not decide, so a payload that could concern a merge
+# (the pre-filter's triggers) is denied, with or without AAI_OPERATOR_MERGE (the sweep check
+# did not run). Reached only after the lane guard; the other gates fail open.
+crash_guard() {
+  [ "$GATE" = merge ] || return 0
+  LC_ALL=C
+  case "$PAYLOAD" in *\\u*) ;; *merge*) ;; *[Cc][Oo][Mm][Pp][Ll][Ee][Tt][Ee][Dd]*) ;; *) return 0 ;; esac
+  {
+    echo "Merge denied: the hook gate could not decide, so it refuses (constitution article 7, operator-only merge: when in doubt, deny)."
+    echo "This is a crash of the gate's decision module (.aai/scripts/hook-gate.mjs exited with status $1, neither 0 nor 2), not a verdict on this command."
+    echo "Fix node or the module and run the command again, or have the OPERATOR run the merge outside the agent."
+    echo "AAI_OPERATOR_MERGE=1 does not help here: the gate cannot run its sweep check."
+  } >&2
+  exit 2
+}
+
 if ! command -v node >/dev/null 2>&1 || [ ! -s "$HERE/hook-gate.mjs" ]; then
   lane_guard
   exit 0
@@ -92,5 +111,5 @@ fi
 node "$HERE/hook-gate.mjs" "$GATE" <<<"$PAYLOAD"
 rc=$?
 [ "$rc" -eq 2 ] && exit 2
-[ "$rc" -eq 0 ] || lane_guard  # a module that crashed: the lane guard, else fail open
+[ "$rc" -eq 0 ] || { lane_guard; crash_guard "$rc"; }  # a module that crashed: the lane guard, then the merge gate denies, else fail open
 exit 0

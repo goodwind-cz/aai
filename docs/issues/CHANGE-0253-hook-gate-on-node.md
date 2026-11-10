@@ -65,7 +65,9 @@ links:
     reads the payload, exits 0 without starting Node when the payload
     cannot concern the gate, keeps the no-Node lane guard, and otherwise
     hands the payload to the module and maps its result (2 blocks,
-    anything else allows: fail-open as today).
+    anything else allows: fail-open as today, except that on the merge gate a
+    module that crashed (an exit other than 0 and 2) on a payload that could
+    concern a merge denies: owner decision NB2, when in doubt deny, DG-16).
   - The Azure merge forms are merge commands for the article 7 deny and
     the sweep check.
   - Every behaviour difference found is decided in the spec and pinned by
@@ -141,7 +143,10 @@ links:
   main checkout must keep working while the ride runs (the ride works in
   its own worktree).
 - The gate stays fail-open on its own errors (a missing Node or module
-  allows), except the lane-path denials that exist today.
+  allows), except the lane-path denials that exist today and, on the merge
+  gate only, a denial when the decision module crashed on a payload that could
+  concern a merge (DG-16; the commit, state-dump and stop-nudge gates still
+  fail open on a crash).
 - Secrets preflight: no local secret is referenced by this scope.
 
 ## Notes

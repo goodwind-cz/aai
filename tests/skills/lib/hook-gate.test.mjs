@@ -485,7 +485,7 @@ describe('TEST-3521 inherited errexit with a crashing module', () => {
       const m = gate(script, project, 'merge', 'gh pr merge 5', { env: { ...lane, ...env } });
       assert.equal(m.rc, 2, `${label}: a lane marker and a crashed module must deny`);
       assert.equal(m.stderr, NONODE, label);
-      assert.equal(gate(script, project, 'merge', 'gh pr merge 5', { env }).rc, 0, `${label}: no marker fails open`);
+      assert.equal(gate(script, project, 'merge', 'gh pr merge 5', { env }).rc, 2, `${label}: no marker: the crash guard denies (TEST-3523)`);
     }
   });
 });
@@ -1029,5 +1029,69 @@ describe('TEST-3522 empty PATH entry', () => {
     // no empty entry: gh is not found, the decision is the allow of both
     const q = `${ghFreeDir('nogh-q')}:${path.dirname(process.execPath)}`;
     assert.equal(gate(LAUNCHER, project, 'merge', 'gh pr merge --squash', { path: q, env: { AAI_OPERATOR_MERGE: '1' } }).rc, 0);
+  });
+});
+
+// NB2 (owner decision on PR 545, "when in doubt, deny"): a merge gate whose module ran and crashed denies.
+const CRASHDENY = (rc) => [
+  'Merge denied: the hook gate could not decide, so it refuses (constitution article 7, operator-only merge: when in doubt, deny).',
+  `This is a crash of the gate's decision module (.aai/scripts/hook-gate.mjs exited with status ${rc}, neither 0 nor 2), not a verdict on this command.`,
+  'Fix node or the module and run the command again, or have the OPERATOR run the merge outside the agent.',
+  'AAI_OPERATOR_MERGE=1 does not help here: the gate cannot run its sweep check.',
+].map((l) => `${l}\n`).join('');
+describe('TEST-3523 merge gate denies when its module crashes', () => {
+  const crashes = [
+    ['exits 1', 'process.exit(1);\n', 1],
+    ['throws', "throw new Error('boom');\n", 1],
+    ['is killed (SIGKILL)', "process.kill(process.pid, 'SIGKILL');\n", 137],
+    ['exits 3', 'process.exit(3);\n', 3],
+  ];
+  const inherited = [
+    ['no inherited option', () => ({})],
+    ['SHELLOPTS=errexit', () => ({ SHELLOPTS: 'errexit' })],
+    ['an ERR trap in BASH_ENV', (fake) => { const f = path.join(fake, 'trapenv'); put(f, "set -eE; trap 'exit 0' ERR\n"); return { BASH_ENV: f }; }],
+  ];
+  test('DG-16 a crashed module on a merge-shaped payload denies with the crash text, with and without the operator marker', () => {
+    for (const [what, body, rc] of crashes) {
+      const project = makeProject('nb2');
+      const fake = scratch('nb2-fake');
+      fs.copyFileSync(LAUNCHER, path.join(fake, 'claude-hook-gate.sh'));
+      put(path.join(fake, 'hook-gate.mjs'), body);
+      const script = path.join(fake, 'claude-hook-gate.sh');
+      for (const [label, mk] of inherited) {
+        const base = mk(fake);
+        for (const [mlabel, extra] of [['no marker', {}], ['AAI_OPERATOR_MERGE=1', { AAI_OPERATOR_MERGE: '1' }]]) {
+          for (const cmd of ['gh pr merge 5', 'git merge feature-x', 'az repos pr update --id 7 --status Completed', 'az repos pr update --id 7 --status COMPLETED']) {
+            const r = gate(script, project, 'merge', cmd, { env: { ...base, ...extra } });
+            assert.equal(r.rc, 2, `${what}, ${label}, ${mlabel}, ${cmd}`);
+            assert.ok(r.stderr.endsWith(CRASHDENY(rc)), `${what}, ${label}, ${mlabel}, ${cmd}: the crash text ends the stderr (node may print its own trace first)`);
+          }
+        }
+      }
+      // an escaped payload (a backslash-u escape could hide the word) is in doubt too
+      assert.equal(gate(script, project, 'merge', 'x', { raw: true }).rc, 0, `${what}: no trigger, no deny`);
+      assert.equal(gate(script, project, 'merge', '{"tool_input":{"command":"gh pr m\\u0065rge 5"}}', { raw: true }).rc, 2, `${what}: an escaped payload denies`);
+    }
+  });
+  test('NB2 a lane marker keeps the lane guard bytes; a payload that cannot concern a merge, and the other gates, fail open', () => {
+    for (const [what, body] of crashes) {
+      const project = makeProject('nb2b');
+      const fake = scratch('nb2b-fake');
+      fs.copyFileSync(LAUNCHER, path.join(fake, 'claude-hook-gate.sh'));
+      put(path.join(fake, 'hook-gate.mjs'), body);
+      const script = path.join(fake, 'claude-hook-gate.sh');
+      const lane = gate(script, project, 'merge', 'gh pr merge 5', { env: { AAI_LANEX_MERGE: '1' } });
+      assert.equal(lane.rc, 2, `${what}: lane marker`);
+      assert.ok(lane.stderr.endsWith(NONODE) && !lane.stderr.includes('could not decide'), `${what}: lane marker keeps the lane guard bytes`);
+      assert.equal(gate(script, project, 'merge', 'ls', {}).rc, 0, `${what}: ls`);
+      assert.equal(gate(script, project, 'merge', 'ls', { env: { AAI_OPERATOR_MERGE: '1' } }).rc, 0, `${what}: ls with the marker`);
+      assert.equal(gate(script, project, 'commit', 'git commit -m x', {}).rc, 0, `${what}: the commit gate fails open`);
+      assert.equal(gate(script, project, 'state-dump', "python -c \"yaml.dump(d, open('docs/ai/STATE.yaml','w'))\"", {}).rc, 0, `${what}: the state-dump gate fails open`);
+      put(path.join(project.dir, 'docs/ai/STATE.yaml'), 'status: in_progress\n');
+      assert.equal(gate(script, project, 'stop-nudge', 'x', {}).rc, 0, `${what}: the stop-nudge gate fails open`);
+      // no module at all: still the lane guard, then exit 0
+      fs.rmSync(path.join(fake, 'hook-gate.mjs'));
+      assert.equal(gate(script, project, 'merge', 'gh pr merge 5', {}).rc, 0, `${what}: a missing module fails open`);
+    }
   });
 });
