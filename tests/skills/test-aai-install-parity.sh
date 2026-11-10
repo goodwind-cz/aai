@@ -124,7 +124,7 @@ ensure_run() {
   local m rc=0
   [[ -f "$TEST_DIR/run.rc" ]] && return 0
   m="$(parity_matrix)" || log_fail "parity_matrix refused the matrix"
-  driver run --matrix "$m" --twins sh,ps1 --json "$TEST_DIR/run.json" > "$TEST_DIR/run.out" 2>&1 || rc=$?
+  driver run --matrix "$m" --json "$TEST_DIR/run.json" > "$TEST_DIR/run.out" 2>&1 || rc=$?
   printf '%s\n' "$rc" > "$TEST_DIR/run.rc"
   printf '%s\n' "$m" > "$TEST_DIR/run.matrix"
 }
@@ -191,7 +191,7 @@ test_3565_default_matrix() {
     if (r.verdict !== "PASS") return "verdict " + r.verdict;
     if (r.uncovered.length || r.stale.length) return "uncovered or stale rows in a PASS report";
     for (const s of r.scenarios) if (s.broken.length) return s.id + " is broken: " + s.broken.join("; ");
-    if (r.twins.join(",") !== "sh,ps1") return "twins " + r.twins.join(",");
+    if (r.twins[0] !== "sh" || !r.twins.includes("ps1")) return "twins " + r.twins.join(",");
     return true;' || log_fail "TEST-3565: the report is not a clean PASS"
   local want got
   want="$(driver list --matrix "$m")" || log_fail "TEST-3565: list --matrix $m failed"
@@ -293,7 +293,7 @@ JS
   # HK-01 under a caller GIT_CONFIG_GLOBAL that sets core.hooksPath to an outside directory
   printf '[core]\n\thooksPath = %s/hooks\n' "$outside" > "$outside/gc"
   rc=0
-  out="$(GIT_CONFIG_GLOBAL="$outside/gc" driver run --matrix smoke --scenario HK-01 --twins sh,ps1 --json "$dir/hk.json" 2>&1)" || rc=$?
+  out="$(GIT_CONFIG_GLOBAL="$outside/gc" driver run --matrix smoke --scenario HK-01 --json "$dir/hk.json" 2>&1)" || rc=$?
   [[ "$rc" == 0 ]] || { printf '%s\n' "$out" >&2; log_fail "TEST-3567: HK-01 under a caller core.hooksPath exited $rc, expected 0"; }
   json_check "$dir/hk.json" '
     const s = r.scenarios[0];
@@ -346,6 +346,25 @@ test_3568_pester() {
   [[ "$n" -ge 4 ]] || log_fail "TEST-3568: only $n Invoke-NativeCaptured uses (the driver, git --exec-path, node and bash probes)"
   # no native call outside the helper: no call operator on a bare command, no Start-Process, no ProcessStartInfo
   if grep -qE -- '^[[:space:]]*&[[:space:]]|Start-Process|ProcessStartInfo' "$f"; then log_fail "TEST-3568: a native call bypasses Invoke-NativeCaptured"; fi
+  # B1: Windows PowerShell 5.1 hands a top-level JSON array down the pipeline as one object. The $want line of the file is run
+  # under pwsh 7 against a ConvertFrom-Json that behaves that way (-NoEnumerate); a double-wrapped list joins as System.Object[].
+  local want_line="" l2
+  while IFS= read -r l2; do case "$l2" in *'$want = '*) want_line="$l2"; break ;; esac; done < "$f"
+  [[ -n "$want_line" ]] || log_fail "TEST-3568: no \$want = line in install-parity.Tests.ps1"
+  local joined
+  joined="$(env -u AAI_ROLE PARITY_WANT_LINE="$want_line" pwsh -NoProfile -NonInteractive -Command '
+    $ErrorActionPreference = "Stop"
+    function ConvertFrom-Json { param([Parameter(ValueFromPipeline = $true)]$InputObject) process { Microsoft.PowerShell.Utility\ConvertFrom-Json -NoEnumerate -InputObject $InputObject } }
+    $l = @{ Out = "[`"SY-01`",`"UP-01`"]" }
+    Invoke-Expression $env:PARITY_WANT_LINE
+    Write-Output ("JOINED=" + ($want -join ","))
+  ' 2>&1)" || log_fail "TEST-3568: the \$want line did not run under pwsh: $joined"
+  [[ "$joined" == *"JOINED=SY-01,UP-01"* ]] || log_fail "TEST-3568: under 5.1 list semantics the \$want line yields [$joined], not SY-01,UP-01"
+  if grep -qE -- '@\(\$[A-Za-z.]+[[:space:]]*\|[[:space:]]*ConvertFrom-Json\)' "$f"; then log_fail "TEST-3568: a bare @(... | ConvertFrom-Json) double-wraps a JSON array under Windows PowerShell 5.1"; fi
+  # NB-B: no twin list is pinned, so a twin added to the driver registry runs here; the scratch base is cleaned in a finally
+  if grep -qF -- "'--twins'" "$f"; then log_fail "TEST-3568: the front end pins --twins"; fi
+  grep -qF -- 'finally' "$f" || log_fail "TEST-3568: the front end has no finally that cleans its scratch"
+  grep -qF -- 'AAI_PARITY_SCRATCH' "$f" || log_fail "TEST-3568: the front end names no scratch base"
   log_pass "TEST-3568: Pester ($line) and the file contract hold"
 }
 

@@ -55,7 +55,18 @@ Describe 'install-parity driver, smoke matrix' {
     if ($script:NodeCode -ne 0) { throw 'node is required for the install-parity driver and was not found or did not run' }
     if (-not (Test-Path -LiteralPath $script:Allowlist)) { throw 'the committed allowlist lib/install-parity-allowlist.tsv is missing' }
     if (-not $script:Bash) { throw 'bash is required for the install-parity driver: no Git for Windows bash was found (the WSL shim in System32 is not used)' }
-    $r = Invoke-NativeCaptured -Exe 'node' -Arguments @($script:Driver, 'run', '--matrix', 'smoke', '--twins', 'sh,ps1', '--bash', $script:Bash, '--ps', $script:Engine, '--json', $script:Report)
+    # The driver defaults to every registered twin (a twin added to its registry runs here with no edit). The scratch base
+    # is this run's own directory, removed in the finally, so an interrupted run leaves nothing under the temp dir.
+    $scratch = Join-Path ([IO.Path]::GetTempPath()) ('aai-parity-pester-' + [guid]::NewGuid().ToString('N').Substring(0, 12))
+    $null = New-Item -ItemType Directory -Path $scratch -Force
+    $prevScratch = $env:AAI_PARITY_SCRATCH
+    try {
+      $env:AAI_PARITY_SCRATCH = $scratch
+      $r = Invoke-NativeCaptured -Exe 'node' -Arguments @($script:Driver, 'run', '--matrix', 'smoke', '--bash', $script:Bash, '--ps', $script:Engine, '--json', $script:Report)
+    } finally {
+      if ($null -eq $prevScratch) { Remove-Item Env:\AAI_PARITY_SCRATCH -ErrorAction SilentlyContinue } else { $env:AAI_PARITY_SCRATCH = $prevScratch }
+      Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue
+    }
     if ($r.Code -ne 0) {
       Write-Host "install-parity driver exit $($r.Code)"
       Write-Host $r.Out
@@ -69,7 +80,8 @@ Describe 'install-parity driver, smoke matrix' {
   It 'compares exactly the scenarios the smoke tier lists' {
     $l = Invoke-NativeCaptured -Exe 'node' -Arguments @($script:Driver, 'list', '--matrix', 'smoke', '--json')
     $l.Code | Should -Be 0
-    $want = @($l.Out | ConvertFrom-Json)
+    # Windows PowerShell 5.1 sends a top-level JSON array down the pipeline as ONE object: flatten it through ForEach-Object.
+    $want = @(($l.Out | ConvertFrom-Json) | ForEach-Object { $_ })
     $rep = Get-Content -LiteralPath $script:Report -Raw | ConvertFrom-Json
     $got = @($rep.scenarios | ForEach-Object { $_.id })
     $want.Count | Should -BeGreaterThan 0
