@@ -12,7 +12,7 @@ _None._
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-hook-gate-on-node | specs | implementing | 15 done | docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md |
+| spec-hook-gate-on-node | specs | implementing | 16 done | docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md |
 
 ## Canonical layer (0)
 
@@ -1323,4 +1323,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-09 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-10 — counts above use this date for overdue checks.

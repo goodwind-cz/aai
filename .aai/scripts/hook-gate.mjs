@@ -16,6 +16,10 @@
 // any internal error, an unknown gate or an unreadable payload exits 0 with
 // nothing written; only a genuine gate verdict exits 2.
 //
+// A command longer than COMMAND_CEILING that could concern a gate is denied before any scan (DG-15): the hook has a
+// time limit, a hook that runs out of it is an allow, and a long command is the one way to make a scan run out of it.
+// The decide() input may carry a `ceiling` of its own; only the tests set it, main() never does.
+//
 // Usage: node hook-gate.mjs <gate>   (payload on stdin; project root from
 // CLAUDE_PROJECT_DIR, fallback `.`). Nothing is written to stdout except the
 // stop-nudge line. Node stdlib only; no relative import.
@@ -32,7 +36,10 @@ const PLATFORM_SCRIPT = 'platform.mjs';
 const SWEEP_DENY_RC = 5;
 const TAIL_COMMIT = 25;
 const TAIL_SWEEP = 5;
-const MAX_LOOKUPS = 16;
+const MAX_TARGETS = 16;
+// DG-15: the longest command, in UTF-16 code units, that a gate scans. A hook that runs out of time is a non-blocking
+// error, that is an allow, so a command above this size that could concern a gate is denied before any scan.
+const COMMAND_CEILING = 262144;
 
 // Whitespace classes. WS goes inside a bracket expression, HS is one
 // whitespace character that never crosses a line (grep matches line by line).
@@ -67,6 +74,7 @@ const PLATFORM_MERGE_RE = rx(`(^|[;&|'"/${WS}])${PLATFORM_SCRIPT.replace(/\./g, 
 const AZ_HEAD_RE = rx(`(^|${SP})az${HS}+repos${HS}+pr${HS}+update${HS}`, 'i');
 const AZ_STATUS_RE = rx(`--status(${HS}+|=)["']?${AZURE_COMPLETED}["']?(${HS}|$)`, 'im');
 const SEG_DELIM_RE = /[;&|\n]/g;
+const NUMBER_RE = Object.fromEntries(['pr', 'id'].map((flag) => [flag, rx(`--${flag}(?:${SPA}+|=)["']?([0-9]+)["']?(?:${SPA}|$)`, 'g')]));
 const STATE_DUMP_RE = /yaml\.dump|safe_dump|dump_all/;
 const IN_PROGRESS_RE = rx(`^${HS}+status:${HS}*in_progress`, 'm');
 
@@ -96,19 +104,52 @@ const STATE_DUMP_LINES = [
 const NUDGE = 'AAI wrap-up nudge: docs/ai/STATE.yaml still has an in_progress work item and no loop tick was logged after the last state change. Consider /aai-wrap-up (capture learnings, close the item) or log the tick via node .aai/scripts/state.mjs log-tick. (Reminder only — never blocks.)';
 
 const lines = (arr) => arr.map((l) => `${l}\n`).join('');
-const stripNl = (s) => String(s ?? '').replace(/\n+$/, '');
+// Linear: the pattern /\n+$/ retried at every newline of a run that is not at the end, so a long run cost k squared.
+const stripNl = (s) => {
+  const t = String(s ?? '');
+  let e = t.length;
+  while (e > 0 && t.charCodeAt(e - 1) === 10) e -= 1;
+  return e === t.length ? t : t.slice(0, e);
+};
 const tailLines = (out, n) => `${`${out}\n`.split('\n').slice(0, -1).slice(-n).join('\n')}\n`;
 const ALLOW = () => ({ code: 0, stderr: '' });
 
-export function parsePayload(text) {
+function parseRaw(text) {
   try {
     const j = JSON.parse(text);
     // bash drops a NUL in the command substitution that read the command, so the module does too.
-    const command = String((j.tool_input && j.tool_input.command) || '').replaceAll('\0', '');
-    return { command: stripNl(command), cwd: String(j.cwd || '') };
+    return { command: String((j.tool_input && j.tool_input.command) || '').replaceAll('\0', ''), cwd: String(j.cwd || '') };
   } catch {
     return { command: '', cwd: '' };
   }
+}
+
+export function parsePayload(text) {
+  const p = parseRaw(text);
+  return { command: stripNl(p.command), cwd: p.cwd };
+}
+
+// Could the command concern the gate? Only linear substring checks, each a necessary condition of the gate's own
+// detection (the words its patterns hold), so a command that fails one is a command the gate allows anyway.
+const MAYBE = {
+  merge: (c) => (c.includes('merge') && (c.includes('git') || c.includes('gh') || c.includes(PLATFORM_SCRIPT))) || (/completed/i.test(c) && /az/i.test(c)),
+  commit: (c) => c.includes('git') && c.includes('commit'),
+  'state-dump': (c) => STATE_DUMP_RE.test(c) && c.includes('STATE.yaml'),
+};
+const DENY_HEAD = { merge: 'Merge denied', commit: 'Commit denied', 'state-dump': 'STATE write denied' };
+
+function ceilingDeny(gate) {
+  return lines([
+    `${DENY_HEAD[gate]}: the command is longer than ${COMMAND_CEILING} characters (${COMMAND_CEILING / 1024} KiB) and may hold a ${gate} the gate cannot check in the time a hook has.`,
+    'Put the long text in a file and run a short command that reads it.',
+  ]);
+}
+
+// The command of a gate payload, the ceiling checked FIRST (DG-15): { deny } above it, else { command, cwd }.
+function readCommand(gate, input) {
+  const p = parseRaw(input.payload);
+  if (p.command.length > (input.ceiling ?? COMMAND_CEILING) && MAYBE[gate](p.command)) return { deny: { code: 2, stderr: ceilingDeny(gate) } };
+  return { command: stripNl(p.command), cwd: p.cwd };
 }
 
 const WS_CHAR_RE = rx(`^${SP}$`);
@@ -180,19 +221,22 @@ function azureNumbers(command) {
   const nums = [];
   const n = command.length;
   // One scan per segment, not per match: the numbers of a segment are listed once and each match takes the first at or after it.
+  // pos only grows within a segment, so a cursor into the list replaces a search from its start.
   const numberAt = (flag, pos, st) => {
     if (pos > st.end) {
       SEG_DELIM_RE.lastIndex = pos;
       const m = SEG_DELIM_RE.exec(command);
       st.end = m ? m.index : n;
-      st.list = [...command.slice(pos, st.end).matchAll(rx(`--${flag}(?:${SPA}+|=)["']?([0-9]+)["']?(?:${SPA}|$)`, 'g'))].map((x) => [x.index + pos, x[1]]);
+      st.list = [...command.slice(pos, st.end).matchAll(NUMBER_RE[flag])].map((x) => [x.index + pos, x[1]]);
+      st.cur = 0;
     }
-    const hit = st.list.find(([i]) => i >= pos);
+    while (st.cur < st.list.length && st.list[st.cur][0] < pos) st.cur += 1;
+    const hit = st.list[st.cur];
     return hit ? hit[1] : '';
   };
-  const stPr = { end: -1, list: [] };
+  const stPr = { end: -1, list: [], cur: 0 };
   for (const m of command.matchAll(rx(PLATFORM_MERGE_RE.source, 'gm'))) nums.push(numberAt('pr', m.index + m[1].length, stPr));
-  const stId = { end: -1, list: [] };
+  const stId = { end: -1, list: [], cur: 0 };
   for (const pos of azureUpdateStarts(command)) nums.push(numberAt('id', pos, stId));
   return nums;
 }
@@ -271,15 +315,27 @@ function sweepExtra(env, withBase) {
 
 // The ONE PR-resolution routine of the merge gate, shared by gate 2b and the
 // lane path. Returns { pr } (empty when capability-absent) or { deny }.
-function mergeTargetPr(seg, cmd, root, deps) {
-  const flagValue = '(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)';
-  let search = seg
-    .replace(rx(`(^|${SPA})${flagValue}${SPA}+"[^"]*"`, 'g'), '')
-    .replace(rx(`(^|${SPA})${flagValue}${SPA}+'[^']*'`, 'g'), '')
-    .replace(rx(`(^|${SPA})${flagValue}${SPA}+${NSPA}+`, 'g'), '');
+const FLAG_VALUE = '(-R|--repo|-b|--body|-F|--body-file|-t|--subject|--match-head-commit)';
+const FLAG_DQ_RE = rx(`(^|${SPA})${FLAG_VALUE}${SPA}+"[^"]*"`, 'g');
+const FLAG_SQ_RE = rx(`(^|${SPA})${FLAG_VALUE}${SPA}+'[^']*'`, 'g');
+const FLAG_BARE_RE = rx(`(^|${SPA})${FLAG_VALUE}${SPA}+${NSPA}+`, 'g');
+const MERGE_HEAD_RE = rx(`^${SPA}*gh${SPA}+pr${SPA}+merge`);
+const OPTION_RE = rx(`(^|${SPA})-[A-Za-z0-9-]+`, 'g');
+const SPA_RUN_RE = rx(`${SPA}+`);
+
+// The merge target of a gh pr merge segment (the first token that is no option or option value), '' when it names none.
+function mergeTarget(seg) {
+  let search = seg.replace(FLAG_DQ_RE, '').replace(FLAG_SQ_RE, '').replace(FLAG_BARE_RE, '');
   search = search.replace(/"([0-9]+)"/g, ' $1 ').replace(/'([0-9]+)'/g, ' $1 ');
-  const target = search.replace(rx(`^${SPA}*gh${SPA}+pr${SPA}+merge`), '').replace(rx(`(^|${SPA})-[A-Za-z0-9-]+`, 'g'), '')
-    .split(rx(`${SPA}+`)).find(Boolean) || '';
+  return search.replace(MERGE_HEAD_RE, '').replace(OPTION_RE, '').split(SPA_RUN_RE).find(Boolean) || '';
+}
+
+function mergeTargetPr(seg, cmd, root, deps) {
+  return resolveTarget(mergeTarget(seg), cmd, root, deps);
+}
+
+// The PR a merge target names: { pr } (empty when capability-absent) or { deny }.
+function resolveTarget(target, cmd, root, deps) {
   const view = (args) => {
     const r = deps.run('gh', args, { cwd: root });
     const out = r.status === 0 ? stripNl(r.stdout) : '';
@@ -317,7 +373,8 @@ function mergeTargetPr(seg, cmd, root, deps) {
 
 function tooManyTargets() {
   return lines([
-    `Merge denied: this command names more than ${MAX_LOOKUPS} distinct merge targets, more than the gate checks in one command.`,
+    `Merge denied: this command names more than ${MAX_TARGETS} distinct merge targets, more than the gate checks in one command.`,
+    "A target is one PR number or name after 'gh pr merge', or one --pr or --id number of an Azure completion; the same target twice counts once.",
     'Run the merges one command at a time.',
   ]);
 }
@@ -404,7 +461,9 @@ function sweepDeny(pr, root, env, deps) {
 }
 
 function mergeGate(input, deps) {
-  const { command: cmd, cwd } = parsePayload(input.payload);
+  const read = readCommand('merge', input);
+  if (read.deny) return read.deny;
+  const { command: cmd, cwd } = read;
   const { env, root } = input;
   if (!cmd || !isMergeCommand(cmd)) return ALLOW();
   const seg = mergeSegment(cmd);
@@ -419,35 +478,44 @@ function mergeGate(input, deps) {
     }
     if (!allowed) return { code: 2, stderr: article7(verdict) };
   }
-  // Every candidate is checked and any deny denies: a decoy segment never shields the real one. Each distinct
-  // target is looked up once, and a command naming more than MAX_LOOKUPS distinct ones is denied (DG-14): a
-  // megabyte of segments must not spawn a process each until the hook times out, which Claude Code reads as an allow.
-  const memo = new Map();
-  let spent = 0;
-  const once = (key, fn) => {
-    if (memo.has(key)) return memo.get(key);
-    if (spent >= MAX_LOOKUPS) return { deny: tooManyTargets() };
-    spent += 1;
-    const v = fn();
-    memo.set(key, v);
-    return v;
+  // Every candidate is checked and any deny denies: a decoy segment never shields the real one. A command is denied
+  // when it names more than MAX_TARGETS DISTINCT merge targets (DG-14): each distinct target costs at most two
+  // process spawns (a gh pr view and a sweep check, each once), and a megabyte of segments must not spawn a process
+  // each until the hook times out, which Claude Code reads as an allow. The same target spelled again is no new one.
+  const counted = new Set();
+  const admit = (key) => {
+    if (!counted.has(key) && counted.size >= MAX_TARGETS) return false;
+    counted.add(key);
+    return true;
+  };
+  const resolved = new Map();
+  const swept = new Map();
+  const sweep = (pr) => {
+    if (!swept.has(pr)) swept.set(pr, sweepDeny(pr, root, env, deps));
+    return swept.get(pr);
   };
   for (const candidate of mergeSegments(cmd)) {
-    const t = once(`c:${candidate}`, () => mergeTargetPr(candidate, cmd, root, deps));
+    const target = mergeTarget(candidate);
+    if (!admit(/^[0-9]+$/.test(target) ? target : `name:${target}`)) return { code: 2, stderr: tooManyTargets() };
+    if (!resolved.has(target)) resolved.set(target, resolveTarget(target, cmd, root, deps));
+    const t = resolved.get(target);
     if (t.deny) return { code: 2, stderr: t.deny };
-    const text = t.pr ? once(`p:${t.pr}`, () => ({ deny: sweepDeny(t.pr, root, env, deps) })).deny : '';
+    const text = t.pr ? sweep(t.pr) : '';
     if (text) return { code: 2, stderr: text };
   }
   for (const pr of new Set(azureNumbers(cmd))) {
     if (!pr && deps.which('node') && deps.exists(`${root}/.aai/scripts/lane-gate.mjs`)) return { code: 2, stderr: unidentifiedPr(cmd) };
-    const text = pr ? once(`p:${pr}`, () => ({ deny: sweepDeny(pr, root, env, deps) })).deny : '';
+    if (pr && !admit(pr)) return { code: 2, stderr: tooManyTargets() };
+    const text = pr ? sweep(pr) : '';
     if (text) return { code: 2, stderr: text };
   }
   return ALLOW();
 }
 
 function commitGate(input, deps) {
-  const { command: cmd } = parsePayload(input.payload);
+  const read = readCommand('commit', input);
+  if (read.deny) return read.deny;
+  const { command: cmd } = read;
   if (!cmd || !gitSubcommand(cmd, 'commit')) return ALLOW();
   const checks = `${input.root}/.aai/scripts/pre-commit-checks.sh`;
   if (!deps.exists(checks)) return ALLOW();
@@ -462,7 +530,9 @@ function commitGate(input, deps) {
 }
 
 function stateDumpGate(input) {
-  const { command: cmd } = parsePayload(input.payload);
+  const read = readCommand('state-dump', input);
+  if (read.deny) return read.deny;
+  const { command: cmd } = read;
   if (!cmd || !STATE_DUMP_RE.test(cmd) || !/STATE\.yaml/.test(cmd)) return ALLOW();
   return { code: 2, stderr: lines(STATE_DUMP_LINES) };
 }

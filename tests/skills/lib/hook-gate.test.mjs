@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 // The module may not exist yet (RED on the baseline): every case must fail on its own assertion.
 const M = await import('../../../.aai/scripts/hook-gate.mjs').catch(() => ({}));
 
@@ -152,9 +152,30 @@ function gate(script, project, name, payload, opts = {}) {
   const env = {
     PATH: opts.path || `${project.bin}:${process.env.PATH}`, HOME: os.tmpdir(), CLAUDE_PROJECT_DIR: project.dir, STUB_DIR: project.stub, ...opts.env,
   };
+  if (opts.bounded) return runBounded(script, name, file, fd, { cwd: opts.cwd || project.dir, env }, opts.bounded);
   const r = spawnSync('bash', [script, name], { cwd: opts.cwd || project.dir, env, stdio: [fd, 'pipe', 'pipe'], encoding: 'utf8', timeout: 120000, maxBuffer: 1 << 26 });
   fs.closeSync(fd);
   return { rc: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
+// A launcher run in its own process group, killed as a group at the bound: the bash and the node under it both go,
+// so a regression that makes the module slow fails the case and leaves no orphan process behind.
+const BOUNDED_RUNNER = `
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const [script, name, file, ms] = process.argv.slice(1);
+const t0 = process.hrtime.bigint();
+const c = spawn('bash', [script, name], { stdio: [fs.openSync(file, 'r'), 'pipe', 'pipe'], detached: true });
+let o = ''; let e = ''; let timedOut = false;
+c.stdout.on('data', (d) => { o += d; }); c.stderr.on('data', (d) => { e += d; });
+const t = setTimeout(() => { timedOut = true; try { process.kill(-c.pid, 'SIGKILL'); } catch { /* gone */ } }, Number(ms));
+c.on('close', (rc) => { clearTimeout(t); process.stdout.write(JSON.stringify({ rc: timedOut ? null : rc, stdout: o, stderr: e, timedOut, ms: Number(process.hrtime.bigint() - t0) / 1e6 })); });
+`;
+function runBounded(script, name, file, fd, { cwd, env }, ms) {
+  const r = spawnSync(process.execPath, ['-e', BOUNDED_RUNNER, script, name, file, String(ms)], { cwd, env, encoding: 'utf8', timeout: ms + 20000, maxBuffer: 1 << 26 });
+  fs.closeSync(fd);
+  if (r.error || r.status !== 0) return { rc: null, stdout: '', stderr: String(r.error || r.stderr), timedOut: true, ms: ms + 20000 };
+  return JSON.parse(r.stdout);
 }
 
 // The in-process deps: the real file system and process spawning, with the stub gh on PATH.
@@ -637,59 +658,231 @@ describe('TEST-3505 kept decisions', () => {
 });
 
 // ---------------------------------------------------------------------------
-// DG-14: every scan on the decision path is linear in the command size. A hook that runs out of time is a
-// non-blocking error, which Claude Code treats as an allow, so a super-linear scan is a bypass of the gate.
-describe('TEST-3515 linear-time scans', () => {
-  const MIB = 1 << 20;
-  const rep = (unit, tail) => unit.repeat(Math.ceil(MIB / unit.length)) + tail;
-  const timed = (project, name, command, opts = {}) => {
-    const t0 = process.hrtime.bigint();
-    const r = gate(LAUNCHER, project, name, command, opts);
-    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
-    return { ...r, ms };
-  };
-  const BUDGET_MS = 2000;
-  test('DG-14 a megabyte of a repeated command shape is decided correctly in under two seconds', () => {
+// DG-14 and DG-15: every scan on the decision path is linear in the command size, and a command above the ceiling is
+// denied before any scan. A hook that runs out of time is a non-blocking error, which Claude Code treats as an allow,
+// so a super-linear scan is a bypass of the gate. Every wall-clock case runs in its own process group that is killed at
+// the bound, so a regression fails the case in seconds and leaves no orphan behind.
+const CEILING = 262144;
+const CEILING_TEXT = /longer than 262144 characters \(256 KiB\)/;
+const BUDGET_MS = 2000;
+const KILL_MS = 12000;
+const timed = (project, name, command, opts = {}) => {
+  const r = gate(LAUNCHER, project, name, command, { ...opts, bounded: KILL_MS });
+  return r;
+};
+const within = (r, label) => {
+  assert.equal(r.timedOut, false, `${label}: no decision within ${KILL_MS} ms (a hook that times out is an allow)`);
+  assert.ok(r.ms < BUDGET_MS, `${label}: took ${r.ms | 0} ms (budget ${BUDGET_MS} ms)`);
+};
+// A command of exactly `len` characters: `head`, `fill` repeated, then `tail`.
+const sized = (head, fill, tail, len) => head + fill.repeat(Math.max(0, Math.floor((len - head.length - tail.length) / fill.length))) + tail;
+// The module alone, ceiling lifted, in a child that is killed at the bound (the ceiling would deny these sizes first).
+const MODULE_RUNNER = `
+import fs from 'node:fs';
+const inp = JSON.parse(fs.readFileSync(0, 'utf8'));
+const m = await import(process.argv[1]);
+const deps = { which: () => true, exists: () => true, readFile: () => '', mtimeMs: () => 0, run: () => ({ status: inp.runStatus, stdout: 'checks said no', stderr: '' }) };
+const t0 = process.hrtime.bigint();
+const d = m.decide(inp.gate, { payload: JSON.stringify({ tool_input: { command: inp.command } }), env: inp.env, root: '/nonexistent', ceiling: Infinity }, deps);
+process.stdout.write(JSON.stringify({ code: d.code, stderr: d.stderr, ms: Number(process.hrtime.bigint() - t0) / 1e6 }));
+`;
+const moduleAlone = (gateName, command, { env = {}, runStatus = 0 } = {}) => {
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', MODULE_RUNNER, pathToFileURL(MODULE).href], {
+    input: JSON.stringify({ gate: gateName, command, env, runStatus }), encoding: 'utf8', timeout: KILL_MS, killSignal: 'SIGKILL', maxBuffer: 1 << 26,
+  });
+  if (r.error || r.status !== 0) return { timedOut: true, code: null, ms: KILL_MS, stderr: '' };
+  return { timedOut: false, ...JSON.parse(r.stdout) };
+};
+
+describe('TEST-3515 linear-time scans through the launcher', () => {
+  const NL = '\n';
+  test('DG-14 a command just under the ceiling, built from one repeated shape, is decided correctly in under two seconds', () => {
     const project = makeProject('linear');
+    const rep = (unit, tail) => sized('', unit, tail, CEILING);
+    // a newline run that is not at the end of the command, before anything else: the first scan on every gate
+    const nl = (head) => sized(head, NL, 'x', CEILING);
+    const op = { env: { AAI_OPERATOR_MERGE: '1' } };
+    const lane = { env: { AAI_LANEX1520_MERGE: '1' } };
+    const m1 = timed(project, 'merge', nl('gh pr merge 5'));
+    within(m1, 'merge, a newline run in the middle');
+    assert.equal(m1.rc, 2); assert.equal(m1.stderr, ARTICLE7);
+    const m2 = timed(project, 'merge', nl('gh pr merge 5'), op);
+    within(m2, 'merge with the operator marker, a newline run in the middle');
+    assert.equal(m2.rc, gate(LAUNCHER, project, 'merge', 'gh pr merge 5\nx', op).rc);
+    const m3 = timed(project, 'merge', nl('gh pr merge 5'), lane);
+    within(m3, 'merge with a lane marker, a newline run in the middle');
+    assert.equal(m3.rc, 2);
+    fs.writeFileSync(path.join(project.dir, '.checks-fail'), '');
+    const c = timed(project, 'commit', nl('git commit -m x'));
+    fs.rmSync(path.join(project.dir, '.checks-fail'));
+    within(c, 'commit, a newline run in the middle');
+    assert.equal(c.rc, 2); assert.match(c.stderr, /^AAI pre-commit gate blocked this commit/);
+    const s = timed(project, 'state-dump', nl('python -c "yaml.dump(d, open(\'docs/ai/STATE.yaml\',\'w\'))"'));
+    within(s, 'state-dump, a newline run in the middle');
+    assert.equal(s.rc, 2); assert.match(s.stderr, /^STATE write denied/);
     const cases = [
-      ['git option run before gh pr merge', 'merge', rep('git -a ', '; gh pr merge 5'), 2, ARTICLE7],
-      ['git option run before git merge', 'merge', rep('git -a ', 'merge x'), 2, ARTICLE7],
-      ['git option run, no merge at all', 'merge', rep('git -a ', '; echo merge'), 0, ''],
-      ['gh words run before gh pr merge', 'merge', rep('gh pr ', 'merge 5'), 2, ARTICLE7],
-      ['az run before an az completion', 'merge', rep('az repos pr update ', '--id 5 --status completed'), 2, ARTICLE7],
-      ['az run with no completion', 'merge', rep('az repos pr update ', 'x merge-free'), 0, ''],
-      ['platform merge run', 'merge', rep('platform.mjs merge  ', '--pr 5'), 2, ARTICLE7],
+      ['git option run before gh pr merge', rep('git -a ', '; gh pr merge 5'), 2, ARTICLE7],
+      ['git option run before git merge', rep('git -a ', 'merge x'), 2, ARTICLE7],
+      ['git option run, no merge at all', rep('git -a ', '; echo merge'), 0, ''],
+      ['gh words run before gh pr merge', rep('gh pr ', 'merge 5'), 2, ARTICLE7],
+      ['az run before an az completion', rep('az repos pr update ', '--id 5 --status completed'), 2, ARTICLE7],
+      ['az run with no completion', rep('az repos pr update ', 'x merge-free'), 0, ''],
+      ['platform merge run', rep('platform.mjs merge  ', '--pr 5'), 2, ARTICLE7],
     ];
-    for (const [label, gateName, command, rc, err] of cases) {
-      const r = timed(project, gateName, command);
-      assert.equal(r.rc, rc, `${label}: exit code (took ${r.ms | 0} ms)`);
+    for (const [label, command, rc, err] of cases) {
+      const r = timed(project, 'merge', command);
+      within(r, label);
+      assert.equal(r.rc, rc, `${label}: exit code`);
       if (rc === 2) assert.equal(r.stderr, err, `${label}: article 7 text`);
-      assert.ok(r.ms < BUDGET_MS, `${label}: took ${r.ms | 0} ms (budget ${BUDGET_MS} ms)`);
     }
     fs.writeFileSync(path.join(project.dir, '.checks-fail'), '');
-    const c = timed(project, 'commit', rep('git -a ', '; git commit -m x'));
+    const g = timed(project, 'commit', rep('git -a ', '; git commit -m x'));
     fs.rmSync(path.join(project.dir, '.checks-fail'));
-    assert.equal(c.rc, 2, `commit after a git option run (took ${c.ms | 0} ms)`);
-    assert.match(c.stderr, /^AAI pre-commit gate blocked this commit/);
-    assert.ok(c.ms < BUDGET_MS, `commit: took ${c.ms | 0} ms (budget ${BUDGET_MS} ms)`);
+    within(g, 'commit after a git option run');
+    assert.equal(g.rc, 2); assert.match(g.stderr, /^AAI pre-commit gate blocked this commit/);
     // the operator-marker and lane paths over the same size: a decision, never a crash that fails open
-    const op = { env: { AAI_OPERATOR_MERGE: '1' } };
     for (const [label, command, one] of [['platform merge segments', rep('platform.mjs merge  ', '--pr 5'), 'platform.mjs merge --pr 5'],
       ['az completions', rep('az repos pr update --status completed\n', '--id 5'), 'az repos pr update --status completed\n--id 5'],
       ['gh merge segments', rep('gh pr merge 5; ', 'echo'), 'gh pr merge 5']]) {
       const r = timed(project, 'merge', command, op);
-      const short = gate(LAUNCHER, project, 'merge', one, op).rc;
-      assert.equal(r.rc, short, `${label} with the operator marker: the decision of its last segment alone (took ${r.ms | 0} ms)`);
-      assert.ok(r.ms < BUDGET_MS, `${label} with the operator marker: took ${r.ms | 0} ms (budget ${BUDGET_MS} ms)`);
+      within(r, `${label} with the operator marker`);
+      assert.equal(r.rc, gate(LAUNCHER, project, 'merge', one, op).rc, `${label} with the operator marker: the decision of its last segment alone`);
     }
-    // more distinct merge targets than the gate checks in one command: denied, never a process per target
+    const l = timed(project, 'merge', rep('A=1 ', 'gh pr merge 5'), lane);
+    within(l, 'lane prefix run');
+    assert.equal(l.rc, 2);
+  });
+});
+
+describe('TEST-3516 linear-time Azure number scan', () => {
+  test('many --pr tokens and many platform merges in one segment are decided in under two seconds', () => {
+    const op = { AAI_OPERATOR_MERGE: '1' };
+    // 300000 numbers, then 105000 merges after the last of them: those name no PR, so the gate refuses to guess (DG-01)
+    const shapes = [
+      ['platform N x M', `node .aai/scripts/platform.mjs merge ${'--pr 5 '.repeat(300000)}${'/platform.mjs merge '.repeat(105000)}`, 2],
+      ['platform same PR repeated', 'platform.mjs merge --pr 5 '.repeat(160000), 0],
+    ];
+    for (const [label, command, code] of shapes) {
+      const r = moduleAlone('merge', command, { env: op });
+      assert.equal(r.timedOut, false, `${label}: no decision within ${KILL_MS} ms`);
+      assert.ok(r.ms < BUDGET_MS, `${label}: took ${r.ms | 0} ms (budget ${BUDGET_MS} ms)`);
+      assert.equal(r.code, code, `${label}: the decision of the rule of DG-01`);
+    }
+  });
+});
+
+describe('TEST-3517 linear-time git command scan', () => {
+  test('a megabyte of git option runs is decided in under two seconds on every gate', () => {
+    const MIB = 1 << 20;
+    const rep = (tail) => 'git -a '.repeat(Math.ceil(MIB / 7)) + tail;
+    for (const [label, gateName, command, opts] of [
+      ['merge after git options', 'merge', rep('; gh pr merge 5'), {}],
+      ['git merge after git options', 'merge', rep('merge x'), {}],
+      ['commit after git options', 'commit', rep('; git commit -m x'), { runStatus: 1 }],
+    ]) {
+      const r = moduleAlone(gateName, command, opts);
+      assert.equal(r.timedOut, false, `${label}: no decision within ${KILL_MS} ms`);
+      assert.ok(r.ms < BUDGET_MS, `${label}: took ${r.ms | 0} ms (budget ${BUDGET_MS} ms)`);
+      assert.equal(r.code, 2, label);
+    }
+  });
+});
+
+describe('TEST-3518 command size ceiling', () => {
+  test('DG-15 a relevant command above 262144 characters is denied by name, one at the ceiling is decided as ever, an irrelevant one is untouched', () => {
+    const project = makeProject('ceiling');
+    const op = { env: { AAI_OPERATOR_MERGE: '1' } };
+    const pad = (head, len) => sized(head, ' ', '', len);
+    // merge: at the ceiling the usual decision, one above the ceiling the ceiling text, marker or not
+    for (const [label, head, opts, usual] of [['no marker', 'gh pr merge 5', {}, ARTICLE7], ['operator marker, PR with a sweep record', 'gh pr merge 42', op, null], ['operator marker, PR without one', 'gh pr merge 5', op, 'swept'],
+      ['az completion', 'az repos pr update --id 5 --status completed', {}, ARTICLE7], ['git merge', 'git merge x', {}, ARTICLE7]]) {
+      const at = timed(project, 'merge', pad(head, CEILING), opts);
+      within(at, `${label} at the ceiling`);
+      assert.doesNotMatch(at.stderr, CEILING_TEXT, `${label} at the ceiling is not a ceiling deny`);
+      if (usual === ARTICLE7) assert.equal(at.stderr, ARTICLE7);
+      if (label.startsWith('operator marker, PR with')) assert.equal(at.rc, 0);
+      const over = timed(project, 'merge', pad(head, CEILING + 1), opts);
+      within(over, `${label} above the ceiling`);
+      assert.equal(over.rc, 2, `${label} above the ceiling`);
+      assert.match(over.stderr, CEILING_TEXT);
+    }
+    // commit
+    fs.writeFileSync(path.join(project.dir, '.checks-fail'), '');
+    assert.match(timed(project, 'commit', pad('git commit -m x', CEILING)).stderr, /^AAI pre-commit gate blocked this commit/);
+    fs.rmSync(path.join(project.dir, '.checks-fail'));
+    assert.equal(timed(project, 'commit', pad('git commit -m x', CEILING)).rc, 0, 'passing checks at the ceiling: allow');
+    const co = timed(project, 'commit', pad('git commit -m x', CEILING + 1));
+    assert.equal(co.rc, 2); assert.match(co.stderr, /^Commit denied/); assert.match(co.stderr, CEILING_TEXT);
+    // state-dump
+    const dump = (len) => pad('python -c "yaml.dump(d, open(\'docs/ai/STATE.yaml\',\'w\'))"', len);
+    assert.match(timed(project, 'state-dump', dump(CEILING)).stderr, /^STATE write denied: docs\/ai\/STATE\.yaml has exactly ONE writer/);
+    const so = timed(project, 'state-dump', dump(CEILING + 1));
+    assert.equal(so.rc, 2); assert.match(so.stderr, CEILING_TEXT);
+    // a huge command that cannot concern a gate is not newly denied
+    const MIB = 1 << 20;
+    for (const [gateName, command] of [['merge', `echo merge ${'x'.repeat(MIB)}`], ['merge', `echo completed ${'x'.repeat(MIB)}`], ['commit', `echo commit ${'x'.repeat(MIB)}`],
+      ['commit', `git status ${'x'.repeat(MIB)}`], ['state-dump', `echo dump ${'x'.repeat(MIB)}`], ['state-dump', `yaml.dump ${'x'.repeat(MIB)}`]]) {
+      const r = timed(project, gateName, command);
+      within(r, `${gateName}: ${command.slice(0, 20)} above the ceiling`);
+      assert.equal(r.rc, 0, `${gateName}: ${command.slice(0, 20)}: not a command of this gate`);
+    }
+    // a huge payload the launcher pre-filter skips: no node process, decided linearly
+    const skip = timed(project, 'merge', 'x'.repeat(8 * MIB));
+    within(skip, 'an 8 MiB payload with no trigger word');
+    assert.equal(skip.rc, 0);
+  });
+  test('the newline payloads of 1 and 2 MiB are denied by name in under two seconds on every gate', () => {
+    const project = makeProject('ceiling-nl');
+    const MIB = 1 << 20;
+    for (const size of [MIB, 2 * MIB]) {
+      const nl = (head) => sized(head, '\n', 'x', size);
+      const cases = [
+        ['merge', 'merge', nl('gh pr merge 5'), {}], ['merge operator marker', 'merge', nl('gh pr merge 5'), { env: { AAI_OPERATOR_MERGE: '1' } }],
+        ['merge lane marker', 'merge', nl('gh pr merge 5'), { env: { AAI_LANEX1520_MERGE: '1' } }], ['commit', 'commit', nl('git commit -m x'), {}],
+        ['state-dump', 'state-dump', nl('yaml.dump(d, open("docs/ai/STATE.yaml","w"))'), {}],
+      ];
+      for (const [label, gateName, command, opts] of cases) {
+        const r = timed(project, gateName, command, opts);
+        within(r, `${label} at ${size >> 20} MiB`);
+        assert.equal(r.rc, 2, `${label} at ${size >> 20} MiB`);
+        assert.match(r.stderr, CEILING_TEXT, label);
+      }
+    }
+  });
+});
+
+describe('TEST-3519 distinct merge targets', () => {
+  const sweepFor = (project, from, to) => {
+    for (let pr = from; pr <= to; pr += 1) {
+      fs.appendFileSync(path.join(project.dir, 'docs/ai/EVENTS.jsonl'), `${JSON.stringify({ v: 1, ts: '2026-01-01T00:00:00.000Z', actor: 't', event: 'pr_sweep', ref: 'hg-ride', payload: { pr, lane: 'heavy', reviewer_bots: 'none', threads_seen: 0, threads_unresolved: 0, outcome: 'internal_substituted' } })}\n`);
+    }
+  };
+  test('the limit of 16 counts distinct merge targets, not segments, spellings or lookups', () => {
+    const project = makeProject('targets');
+    sweepFor(project, 100, 120);
+    const op = { env: { AAI_OPERATOR_MERGE: '1' } };
+    const prs = (n) => Array.from({ length: n }, (_, i) => `gh pr merge ${100 + i}`).join('; ');
+    const TOO_MANY = /Merge denied: this command names more than 16 distinct merge targets/;
+    assert.equal(gate(LAUNCHER, project, 'merge', prs(9), op).rc, 0, 'nine distinct gh PRs, each with a sweep record, are not too many');
+    assert.equal(gate(LAUNCHER, project, 'merge', prs(16), op).rc, 0, 'sixteen distinct gh PRs are the limit');
+    const seventeen = gate(LAUNCHER, project, 'merge', prs(17), op);
+    assert.equal(seventeen.rc, 2); assert.match(seventeen.stderr, TOO_MANY);
+    assert.match(seventeen.stderr, /one PR number or name after 'gh pr merge', or one --pr or --id number of an Azure completion/);
+    const spaced = Array.from({ length: 24 }, (_, i) => `gh pr merge${' '.repeat(i + 1)}42`).join('; ');
+    assert.equal(gate(LAUNCHER, project, 'merge', spaced, op).rc, 0, 'twenty-four spellings of one PR are one target');
+    const azSame = `${prs(8)}; ${Array.from({ length: 8 }, (_, i) => `platform.mjs merge --pr ${100 + i}`).join('; ')}`;
+    assert.equal(gate(LAUNCHER, project, 'merge', azSame, op).rc, 0, 'a gh and an Azure form of the same eight PRs are eight targets');
+    const mixed = `${prs(9)}; ${Array.from({ length: 9 }, (_, i) => `platform.mjs merge --pr ${110 + i}`).join('; ')}`;
+    const m = gate(LAUNCHER, project, 'merge', mixed, op);
+    assert.equal(m.rc, 2, 'eighteen distinct targets over gh and Azure forms'); assert.match(m.stderr, TOO_MANY);
+    // forty distinct targets: denied, never a process per target
     const many = Array.from({ length: 40 }, (_, i) => `platform.mjs merge --pr ${100 + i}`).join('; ');
-    const m = gate(LAUNCHER, project, 'merge', many, op);
-    assert.equal(m.rc, 2, 'forty distinct merge targets in one command are denied');
-    assert.match(m.stderr, /names more than 16 distinct merge targets/);
-    const lane = timed(project, 'merge', rep('A=1 ', 'gh pr merge 5'), { env: { AAI_LANEX1520_MERGE: '1' } });
-    assert.equal(lane.rc, 2, `lane prefix run (took ${lane.ms | 0} ms)`);
-    assert.ok(lane.ms < BUDGET_MS, `lane prefix run: took ${lane.ms | 0} ms (budget ${BUDGET_MS} ms)`);
+    const f = gate(LAUNCHER, project, 'merge', many, op);
+    assert.equal(f.rc, 2, 'forty distinct merge targets in one command are denied');
+    assert.match(f.stderr, TOO_MANY);
+    // the limit only ever denies: a PR whose sweep record is a skip is still denied by the sweep check
+    const unswept = gate(LAUNCHER, project, 'merge', `${prs(3)}; gh pr merge 43`, op);
+    assert.equal(unswept.rc, 2); assert.match(unswept.stderr, /no valid post-open review sweep record for PR 43/);
   });
 });
 
