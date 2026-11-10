@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hook-gate
-# (docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md, TEST-3500..3519)
+# (docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md, TEST-3500..3520)
 #
 # The Claude hook gate decides in one Node module (.aai/scripts/hook-gate.mjs) behind the bash launcher
 # .aai/scripts/claude-hook-gate.sh. Every case works in fresh mktemp fixtures with a stub gh first on PATH;
@@ -447,8 +447,13 @@ test_3519_distinct_targets() {
   log_pass "TEST-3519: the limit of 16 counts distinct merge targets over gh and Azure forms; more are denied, never allowed (DG-14)"
 }
 
+test_3520_bytewise_prefilter() {
+  run_node_tests TEST-3520
+  log_pass "TEST-3520: a 32 MiB merge or irrelevant command under a UTF-8 locale is decided by the launcher inside the bound, and node sees the caller's locale exactly (DG-15)"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3519)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3520)"
   check_deps
   setup_fixture
   test_3500_seam
@@ -471,6 +476,7 @@ main() {
   test_3517_git_scan
   test_3518_ceiling
   test_3519_distinct_targets
+  test_3520_bytewise_prefilter
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

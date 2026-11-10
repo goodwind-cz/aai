@@ -886,6 +886,53 @@ describe('TEST-3519 distinct merge targets', () => {
   });
 });
 
+describe('TEST-3520 byte-wise pre-filter', () => {
+  // The pre-filter and the lane guard match the payload with shell globs; under a UTF-8 locale the macOS bash 3.2 does
+  // that in super-linear time, so a huge merge command outlasted the hook time limit (an allow). The match runs with
+  // LC_ALL=C and the caller's locale is put back before node runs. Where the locale is absent the case is the plain
+  // linear one and passes as well; on a bash that is slow in UTF-8 it is the regression guard.
+  const UTF8_MS = 8000;
+  const big = (head, len) => sized(head, 'echo hello world ', '', len);
+  test('a 32 MiB merge or irrelevant command under a UTF-8 locale is decided by the launcher inside the bound', () => {
+    const project = makeProject('utf8-big');
+    const MIB = 1 << 20;
+    const cases = [
+      ['merge, LANG', 'merge', big('gh pr merge 5 ', 32 * MIB), { LANG: 'en_US.UTF-8' }, 2],
+      ['merge, LC_ALL', 'merge', big('gh pr merge 5 ', 32 * MIB), { LC_ALL: 'en_US.UTF-8' }, 2],
+      ['no trigger word, LANG', 'merge', big('', 32 * MIB), { LANG: 'en_US.UTF-8' }, 0],
+    ];
+    for (const [label, gateName, command, env, rc] of cases) {
+      const r = gate(LAUNCHER, project, gateName, command, { env, bounded: UTF8_MS });
+      assert.equal(r.timedOut, false, `${label}: no decision within ${UTF8_MS} ms (a hook that times out is an allow)`);
+      assert.equal(r.rc, rc, label);
+      if (rc === 2) assert.match(r.stderr, CEILING_TEXT, label);
+    }
+  });
+  test('the node module sees the caller locale exactly, LC_ALL set, empty or unset, and the deny text does not change', () => {
+    const project = makeProject('utf8-env');
+    const dir = scratch('stub-node');
+    const out = path.join(dir, 'env.txt');
+    put(path.join(dir, 'node'), '#!/bin/sh\nenv | sort > "$STUB_OUT"\n', 0o755);
+    put(path.join(project.dir, '.aai/scripts/hook-gate.mjs'), '// stub\n');
+    const seen = (env) => {
+      fs.rmSync(out, { force: true });
+      const r = gate(LAUNCHER, project, 'merge', 'gh pr merge 5', { env: { STUB_OUT: out, ...env }, path: `${dir}:${process.env.PATH}`, cwd: project.dir });
+      assert.equal(r.rc, 0, 'the stub node exits 0');
+      return fs.readFileSync(out, 'utf8').split('\n').filter((l) => /^(LC_|LANG)/.test(l));
+    };
+    assert.deepEqual(seen({ LANG: 'en_US.UTF-8' }), ['LANG=en_US.UTF-8'], 'LC_ALL unset stays unset');
+    assert.deepEqual(seen({ LC_ALL: 'en_US.UTF-8', LANG: 'C' }), ['LANG=C', 'LC_ALL=en_US.UTF-8']);
+    assert.deepEqual(seen({ LC_ALL: '', LC_CTYPE: 'C.UTF-8' }), ['LC_ALL=', 'LC_CTYPE=C.UTF-8'], 'LC_ALL set but empty stays empty');
+    assert.deepEqual(seen({ LC_ALL: 'C' }), ['LC_ALL=C']);
+    const nonodeDir = scratch('nonode-utf8');
+    for (const t of ['bash', 'cat']) fs.symlinkSync(spawnSync('sh', ['-c', `command -v ${t}`], { encoding: 'utf8' }).stdout.trim(), path.join(nonodeDir, t));
+    for (const env of [{ LANG: 'en_US.UTF-8' }, { LC_ALL: 'en_US.UTF-8' }, {}]) {
+      const nonode = gate(LAUNCHER, project, 'merge', 'gh pr merge 5', { env: { AAI_LANEX1520_MERGE: '1', ...env }, path: nonodeDir });
+      assert.equal(nonode.stderr, NONODE, 'the lane guard text is the same under every locale');
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // The launcher pre-filter, restated: a payload it skips must be one the module allows (TEST-3506).
 const TRIGGER = { commit: 'commit', merge: 'merge', 'state-dump': 'dump' };

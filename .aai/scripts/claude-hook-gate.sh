@@ -37,6 +37,12 @@ case "${BASH_SOURCE[0]}" in
   *) HERE="." ;;
 esac
 PAYLOAD="$(cat 2>/dev/null || true)"
+# Every glob match of the payload below runs byte-wise: a UTF-8 locale makes macOS
+# bash 3.2 match a huge payload in superlinear time (the hook timeout is an allow).
+# All trigger words are ASCII, so no decision changes. The caller's LC_ALL is put
+# back, set or unset, before node runs: the module sees the original locale.
+LOCALE_SET="${LC_ALL+x}"; LOCALE_WAS="${LC_ALL-}"
+LC_ALL=C
 
 # Pre-filter, no process started: a payload that cannot concern its gate exits 0
 # here. The triggers are substrings of the raw payload; a backslash-u escape
@@ -58,6 +64,7 @@ esac
 lane_guard() {
   local n
   [ "$GATE" = merge ] || return 0
+  LC_ALL=C
   case "$PAYLOAD" in *merge*) ;; *) return 0 ;; esac
   for n in $(compgen -e 2>/dev/null); do
     [[ $n =~ ^AAI_[A-Z0-9_]+_MERGE$ ]] || continue
@@ -80,6 +87,7 @@ if ! command -v node >/dev/null 2>&1 || [ ! -s "$HERE/hook-gate.mjs" ]; then
   lane_guard
   exit 0
 fi
+if [ -n "$LOCALE_SET" ]; then LC_ALL="$LOCALE_WAS"; else unset LC_ALL; fi
 node "$HERE/hook-gate.mjs" "$GATE" <<<"$PAYLOAD"
 rc=$?
 [ "$rc" -eq 2 ] && exit 2
