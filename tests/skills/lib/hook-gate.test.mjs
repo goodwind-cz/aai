@@ -455,7 +455,17 @@ describe('TEST-3521 inherited errexit with a crashing module', () => {
     put(be, 'set -e\n');
     const script = path.join(fake, 'claude-hook-gate.sh');
     const lane = { AAI_LANEX_MERGE: '1' };
-    const cases = [['no inherited option', {}], ['SHELLOPTS=errexit', { SHELLOPTS: 'errexit' }], ['BASH_ENV with set -e', { BASH_ENV: be }]];
+    const trapEnv = (name, body) => { const f = path.join(fake, name); put(f, body); return f; };
+    const traps = [
+      ['BASH_ENV with an ERR trap exiting 1', { BASH_ENV: trapEnv('trap1', "trap 'exit 1' ERR\n") }],
+      ['BASH_ENV with an ERR trap exiting 0', { BASH_ENV: trapEnv('trap0', "trap 'exit 0' ERR\n") }],
+      ['BASH_ENV with set -eE and an ERR trap', { BASH_ENV: trapEnv('trapeE', "set -eE; trap 'exit 1' ERR\n") }],
+    ];
+    const cases = [['no inherited option', {}], ['SHELLOPTS=errexit', { SHELLOPTS: 'errexit' }], ['BASH_ENV with set -e', { BASH_ENV: be }], ...traps];
+    // an inherited ERR trap fires on the module's own deny (exit 2); the real launcher must still exit 2
+    for (const [label, env] of traps) {
+      assert.equal(gate(LAUNCHER, project, 'merge', 'gh pr merge 5', { env }).rc, 2, `${label}: the module's deny stays a deny`);
+    }
     for (const [label, env] of cases) {
       const m = gate(script, project, 'merge', 'gh pr merge 5', { env: { ...lane, ...env } });
       assert.equal(m.rc, 2, `${label}: a lane marker and a crashed module must deny`);

@@ -29,7 +29,7 @@
 # command at .tool_input.command; $CLAUDE_PROJECT_DIR points at the project root.
 
 set -u  # deliberately NOT -e / pipefail: unexpected failures must fall through to exit 0
-set +e  # and an errexit inherited (SHELLOPTS, BASH_ENV) is switched off, so a crashed module reaches the lane guard
+set +e; trap - ERR  # an inherited errexit or ERR trap (SHELLOPTS, BASH_ENV) is switched off: a deny stays exit 2 and a crashed module reaches the lane guard
 
 GATE="${1:-}"
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
