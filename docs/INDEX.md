@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (634)
+## Done (636)
 
 | ID | Type | Path |
 |---|---|---|
@@ -400,6 +400,7 @@ _None._
 | ISSUE-0108 | issues | docs/issues/ISSUE-0108-suite-select-sigpipe-fix.md |
 | ISSUE-0109 | issues | docs/issues/ISSUE-0109-admit-tests-other-suites.md |
 | ISSUE-0110 | issues | docs/issues/ISSUE-0110-release-fixture-atomic-publication.md |
+| ISSUE-0111 | issues | docs/issues/ISSUE-0111-release-corpus-hermetic.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -695,6 +696,7 @@ _None._
 | SPEC-0277 | specs | docs/specs/SPEC-0277-spec-release-fixture-atomic-publication.md |
 | SPEC-0278 | specs | docs/specs/SPEC-0278-spec-git-hook-bodies-single-source.md |
 | SPEC-0279 | specs | docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md |
+| SPEC-0280 | specs | docs/specs/SPEC-0280-spec-release-corpus-hermetic.md |
 | SPEC-0281 | specs | docs/specs/SPEC-0281-spec-release-on-node.md |
 | SPEC-0282 | specs | docs/specs/SPEC-0282-spec-release-publish-on-node.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
@@ -1319,4 +1321,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-08 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-09 — counts above use this date for overdue checks.
