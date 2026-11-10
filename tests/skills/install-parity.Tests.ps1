@@ -13,6 +13,7 @@ Describe 'install-parity driver, smoke matrix' {
     $script:Driver = Join-Path (Join-Path (Join-Path $script:Root 'tests') 'skills') 'lib/install-parity.mjs'
     $script:Engine = (Get-Process -Id $PID).Path
     $script:IsWin = [IO.Path]::DirectorySeparatorChar -eq '\'
+    $script:Allowlist = Join-Path $PSScriptRoot 'lib/install-parity-allowlist.tsv'
     $script:Report = Join-Path $TestDrive 'parity-report.json'
 
     # Git for Windows' bash: the first existing of the four candidates; the WSL shim under System32 is never used.
@@ -52,6 +53,7 @@ Describe 'install-parity driver, smoke matrix' {
 
   It 'runs the smoke matrix with both twins and every divergence on the allowlist' {
     if ($script:NodeCode -ne 0) { throw 'node is required for the install-parity driver and was not found or did not run' }
+    if (-not (Test-Path -LiteralPath $script:Allowlist)) { throw 'the committed allowlist lib/install-parity-allowlist.tsv is missing' }
     if (-not $script:Bash) { throw 'bash is required for the install-parity driver: no Git for Windows bash was found (the WSL shim in System32 is not used)' }
     $r = Invoke-NativeCaptured -Exe 'node' -Arguments @($script:Driver, 'run', '--matrix', 'smoke', '--twins', 'sh,ps1', '--bash', $script:Bash, '--ps', $script:Engine, '--json', $script:Report)
     if ($r.Code -ne 0) {
