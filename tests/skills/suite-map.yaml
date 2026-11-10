@@ -781,6 +781,38 @@ suites:
       - .aai/scripts/state.mjs
       - .aai/scripts/orchestration-dispatch.mjs
 
+  aai-install-parity:
+    globs:
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-update.sh
+      - .aai/scripts/aai-update.ps1
+      - .aai/scripts/install-pre-commit-hook.sh
+      - .aai/scripts/install-pre-commit-hook.ps1
+      - .aai/templates/git-hooks/**
+      - .aai/scripts/lib/gitignore-block.sh
+      - .aai/scripts/lib/merge-hooks-json.mjs
+      - .aai/scripts/lib/guard-config.mjs
+      - .aai/scripts/lib/docs-audit-core.mjs
+      - .aai/scripts/update-doctor-report.mjs
+      - .aai/system/PROFILES.yaml
+      - .aai/system/RUNTIME_IGNORE.list
+      - .aai/system/COPILOT_SHIM_SHIPPED.list
+      - .aai/templates/update-config.template.yaml
+      - .aai/templates/docs-audit.template.yaml
+      - hooks/**
+      - docs/ai/AAI_VERSION.md
+      - tests/skills/lib/install-parity.mjs
+      - tests/skills/lib/install-parity.test.mjs
+      - tests/skills/lib/install-parity-allowlist.tsv
+      - tests/skills/install-parity.Tests.ps1
+      - tests/skills/lib/pester-native-capture.ps1
+      - tests/skills/lib/nested-suite-lint.mjs
+      - tests/skills/lib/nested-suite-allowlist.tsv
+      - tests/skills/suite-map.yaml
+      - tests/skills/suite-weights.tsv
+      - .github/workflows/ps1-quality.yml
+
   aai-intake:
     globs:
       - .aai/SKILL_INTAKE.prompt.md
