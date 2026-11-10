@@ -1,5 +1,5 @@
 // hook-gate-latency.mjs - latency of the hook gate launcher against the c88cf708 script
-// (docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md D-MEASURE, Spec-AC-08 / TEST-3507).
+// (docs/specs/SPEC-0283-spec-hook-gate-on-node.md D-MEASURE, Spec-AC-08 / TEST-3507).
 //
 // usage: node tests/skills/lib/hook-gate-latency.mjs [--n 40] [--launcher <script>] [--baseline <script>]
 //

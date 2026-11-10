@@ -1,13 +1,15 @@
 ---
 id: hook-gate-on-node
 type: change
-number: null
-status: draft
+number: 253
+status: done
 capability: hook-gate-on-node
 parent: smaller-node-core-and-faster-feedback
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - TBD
 ---
 
 # Move the Claude hook gate's decisions to one Node module behind a bash pre-filter, and gate the Azure merge command

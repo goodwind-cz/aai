@@ -1,16 +1,18 @@
 ---
 id: spec-hook-gate-on-node
 type: spec
-number: null
-status: implementing
-frozen_sha256: e359d0d92c9c71cd86388f28cd76403b4fc42706c9fff7ed9f897acd56b331d4
+number: 283
+status: done
+frozen_sha256: c1d118b353087c0347883975ffeacb03c0856f9727a124709e1bfcd5ba659adb
 mutation_gate: v1
 ceremony_level: 3
 links:
   requirement: hook-gate-on-node
   rfc: smaller-node-core-and-faster-feedback
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - TBD
 ---
 
 # Move the Claude hook gate's decisions to one Node module behind a bash pre-filter, and gate the Azure merge command
@@ -19,7 +21,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Move the Claude hook gate's decisions to one Node module behind a bash pre-filter, and gate the Azure merge command](../issues/CHANGE-DRAFT-hook-gate-on-node.md).
+- Requirement: [Move the Claude hook gate's decisions to one Node module behind a bash pre-filter, and gate the Azure merge command](../issues/CHANGE-0253-hook-gate-on-node.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 7 (owner sign-off: yes, on the plan, 2026-11-05; plan section 4 item 3
@@ -77,8 +79,8 @@ SPEC-FROZEN: true
   tests/skills/lib/cd-subshell-leak-baseline.tsv
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md CHANGELOG.md
   docs/ai/decisions.jsonl
-  docs/issues/CHANGE-DRAFT-hook-gate-on-node.md
-  docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md docs/INDEX.md
+  docs/issues/CHANGE-0253-hook-gate-on-node.md
+  docs/specs/SPEC-0283-spec-hook-gate-on-node.md docs/INDEX.md
   (decisions.jsonl only for the follow-up close record; the allocator
   renames the two DRAFT files at merge).
 - Code review required: true, on the most capable tier (L3: mandatory; a
@@ -403,7 +405,7 @@ most 70 code lines (an upper bound, not a pin).
 
 - Phase 5 row: one sentence after the tenth-slice sentence and before the
   remaining-scripts-plan sentence:
-  `The twelfth slice [moved the Claude hook gate's decisions to Node](../issues/CHANGE-DRAFT-hook-gate-on-node.md): one module decides the four gates behind a bash pre-filter that starts no Node process for a command that cannot concern a gate, the Azure merge command is gated like gh pr merge, and the gate is an L3 protected surface.`
+  `The twelfth slice [moved the Claude hook gate's decisions to Node](../issues/CHANGE-0253-hook-gate-on-node.md): one module decides the four gates behind a bash pre-filter that starts no Node process for a command that cannot concern a gate, the Azure merge command is gated like gh pr merge, and the gate is an L3 protected surface.`
   Status stays `in progress`; frontmatter untouched. The allocator rewrites
   the link at merge; checks match only the suffix `hook-gate-on-node.md`.
   The inventory table is unchanged (the script has no twin and no row).

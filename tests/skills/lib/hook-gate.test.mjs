@@ -1,5 +1,5 @@
 // hook-gate.test.mjs - node:test cases for .aai/scripts/hook-gate.mjs and its launcher .aai/scripts/claude-hook-gate.sh
-// (docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md, TEST-3500 to TEST-3506; one case per drift DG-01..DG-09).
+// (docs/specs/SPEC-0283-spec-hook-gate-on-node.md, TEST-3500 to TEST-3506; one case per drift DG-01..DG-09).
 // Every case works in fresh temp directories: scratch git repositories, a stub gh first on PATH that logs its argv,
 // and payloads written to files and redirected in (no live pipe). No case calls a real gh, az or network.
 // The baseline script is read with `git show c88cf708:.aai/scripts/claude-hook-gate.sh`.

@@ -3770,3 +3770,9 @@
 {"v":1,"ts":"2026-11-09T17:03:39Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":718,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-09T17:10:31Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"release-corpus-hermetic","payload":{"pr":544,"lane":"heavy","reviewer_bots":"unknown","threads_seen":0,"threads_unresolved":0,"outcome":"internal_substituted","head_sha":"02c278c2fd4fb7f8ac0808868d4128f3c9246f34"}}
 {"v":1,"ts":"2026-11-08T15:25:13Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-hook-gate-on-node","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-10T16:27:32Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"hook-gate-on-node","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-10T16:27:32Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"hook-gate-on-node","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-10T16:27:32Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"hook-gate-on-node","payload":{"commit":"TBD"}}
+{"v":1,"ts":"2026-11-10T16:27:32Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-hook-gate-on-node","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-10T16:27:32Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-hook-gate-on-node","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-10T16:27:32Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-hook-gate-on-node","payload":{"commit":"TBD"}}

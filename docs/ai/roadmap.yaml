@@ -149,7 +149,7 @@ pairs:
   - capability: release-on-node
     status: done
   - capability: hook-gate-on-node
-    status: planned
+    status: done
   - capability: install-path-parity-harness
     status: planned
   - capability: bootstrap-on-node

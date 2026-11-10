@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hook-gate
-# (docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md, TEST-3500..3522)
+# (docs/specs/SPEC-0283-spec-hook-gate-on-node.md, TEST-3500..3522)
 #
 # The Claude hook gate decides in one Node module (.aai/scripts/hook-gate.mjs) behind the bash launcher
 # .aai/scripts/claude-hook-gate.sh. Every case works in fresh mktemp fixtures with a stub gh first on PATH;
@@ -407,7 +407,7 @@ test_3513_downstream_install() {
 
 test_3514_lines_and_rfc() {
   local before=341 after mod removed rfc="$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md" row n
-  local sentence="The twelfth slice [moved the Claude hook gate's decisions to Node](../issues/CHANGE-DRAFT-hook-gate-on-node.md): one module decides the four gates behind a bash pre-filter that starts no Node process for a command that cannot concern a gate, the Azure merge command is gated like gh pr merge, and the gate is an L3 protected surface."
+  local sentence="The twelfth slice [moved the Claude hook gate's decisions to Node](../issues/CHANGE-0253-hook-gate-on-node.md): one module decides the four gates behind a bash pre-filter that starts no Node process for a command that cannot concern a gate, the Azure merge command is gated like gh pr merge, and the gate is an L3 protected surface."
   after="$(code_lines "$LAUNCHER" '#')"
   mod="$(code_lines "$MJS" '//')"
   removed=$((before - after))
