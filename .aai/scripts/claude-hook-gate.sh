@@ -87,7 +87,7 @@ if ! command -v node >/dev/null 2>&1 || [ ! -s "$HERE/hook-gate.mjs" ]; then
   lane_guard
   exit 0
 fi
-if [ -n "$LOCALE_SET" ]; then LC_ALL="$LOCALE_WAS"; else unset LC_ALL; fi
+{ if [ -n "$LOCALE_SET" ]; then LC_ALL="$LOCALE_WAS"; else unset LC_ALL; fi; } 2>/dev/null
 node "$HERE/hook-gate.mjs" "$GATE" <<<"$PAYLOAD"
 rc=$?
 [ "$rc" -eq 2 ] && exit 2
