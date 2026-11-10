@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-hook-gate
-# (docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md, TEST-3500..3520)
+# (docs/specs/SPEC-DRAFT-spec-hook-gate-on-node.md, TEST-3500..3522)
 #
 # The Claude hook gate decides in one Node module (.aai/scripts/hook-gate.mjs) behind the bash launcher
 # .aai/scripts/claude-hook-gate.sh. Every case works in fresh mktemp fixtures with a stub gh first on PATH;
@@ -452,8 +452,18 @@ test_3520_bytewise_prefilter() {
   log_pass "TEST-3520: a 32 MiB merge or irrelevant command under a UTF-8 locale is decided by the launcher inside the bound, and node sees the caller's locale exactly (DG-15)"
 }
 
+test_3521_inherited_errexit() {
+  run_node_tests TEST-3521
+  log_pass "TEST-3521: an inherited errexit does not skip the lane guard after a module that crashed (DG-02)"
+}
+
+test_3522_empty_path_entry() {
+  run_node_tests TEST-3522
+  log_pass "TEST-3522: an empty PATH entry is the current directory when the module looks for gh"
+}
+
 main() {
-  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3520)"
+  echo "Testing $TEST_NAME (SPEC $SPEC_ID TEST-3500..3522)"
   check_deps
   setup_fixture
   test_3500_seam
@@ -477,6 +487,8 @@ main() {
   test_3518_ceiling
   test_3519_distinct_targets
   test_3520_bytewise_prefilter
+  test_3521_inherited_errexit
+  test_3522_empty_path_entry
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

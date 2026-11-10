@@ -559,10 +559,9 @@ export function decide(gate, input, deps) {
 function which(name, env) {
   const exts = process.platform === 'win32' ? ['', '.exe', '.cmd', '.bat'] : [''];
   for (const dir of String(env.PATH || '').split(path.delimiter)) {
-    if (!dir) continue;
     for (const e of exts) {
       try {
-        const p = path.join(dir, name + e);
+        const p = path.join(dir || '.', name + e);  // an empty entry is the current directory, as command -v read it
         if (fs.statSync(p).isFile()) { fs.accessSync(p, fs.constants.X_OK); return true; }
       } catch { /* next */ }
     }

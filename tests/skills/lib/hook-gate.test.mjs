@@ -445,6 +445,26 @@ describe('TEST-3504 inherited pipefail', () => {
   });
 });
 
+describe('TEST-3521 inherited errexit with a crashing module', () => {
+  test('NB-A under an inherited errexit a module exiting 1 still reaches the lane guard and denies', () => {
+    const project = makeProject('nba');
+    const fake = scratch('nba-fake');
+    fs.copyFileSync(LAUNCHER, path.join(fake, 'claude-hook-gate.sh'));
+    put(path.join(fake, 'hook-gate.mjs'), 'process.exit(1);\n');
+    const be = path.join(fake, 'bashenv');
+    put(be, 'set -e\n');
+    const script = path.join(fake, 'claude-hook-gate.sh');
+    const lane = { AAI_LANEX_MERGE: '1' };
+    const cases = [['no inherited option', {}], ['SHELLOPTS=errexit', { SHELLOPTS: 'errexit' }], ['BASH_ENV with set -e', { BASH_ENV: be }]];
+    for (const [label, env] of cases) {
+      const m = gate(script, project, 'merge', 'gh pr merge 5', { env: { ...lane, ...env } });
+      assert.equal(m.rc, 2, `${label}: a lane marker and a crashed module must deny`);
+      assert.equal(m.stderr, NONODE, label);
+      assert.equal(gate(script, project, 'merge', 'gh pr merge 5', { env }).rc, 0, `${label}: no marker fails open`);
+    }
+  });
+});
+
 describe('TEST-3505 kept decisions', () => {
   test('DG-03 text that only names a merge command is denied', () => {
     const project = makeProject('dg03');
@@ -960,5 +980,21 @@ describe('TEST-3506 pre-filter superset', () => {
       assert.equal(d.code, 0, `${row.id}: the pre-filter skips it, so the module must allow it`);
     }
     assert.ok(skipped >= 10, `the corpus must hold rows the pre-filter skips (${skipped})`);
+  });
+});
+
+describe('TEST-3522 empty PATH entry', () => {
+  test('NB-B an empty PATH entry is the current directory, as command -v read it', () => {
+    const project = makeProject('nbb');
+    // a gh that only the empty entry reaches, and a lane-gate.mjs that denies with exit 5
+    put(path.join(project.dir, 'gh'), '#!/bin/sh\nexit 1\n', 0o755);
+    put(path.join(project.dir, '.aai/scripts/lane-gate.mjs'), 'process.exit(5);\n');
+    const p = `:/usr/bin:/bin:${path.dirname(process.execPath)}`;
+    const r = gate(LAUNCHER, project, 'merge', 'gh pr merge --squash', { path: p, env: { AAI_OPERATOR_MERGE: '1' } });
+    assert.equal(r.rc, gate(baseline(), project, 'merge', 'gh pr merge --squash', { path: p, env: { AAI_OPERATOR_MERGE: '1' } }).rc, 'the launcher decides as the c88cf708 script');
+    assert.equal(r.rc, 2, 'gh found through the empty entry: the gate-2b check runs and denies');
+    // no empty entry: gh is not found, the decision is the allow of both
+    const q = `/usr/bin:/bin:${path.dirname(process.execPath)}`;
+    assert.equal(gate(LAUNCHER, project, 'merge', 'gh pr merge --squash', { path: q, env: { AAI_OPERATOR_MERGE: '1' } }).rc, 0);
   });
 });
