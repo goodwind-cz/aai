@@ -462,7 +462,7 @@ JSON
 
 # --- TEST-1507 (Spec-AC-04) --------------------------------------------------
 test_1507_guard_paths_superset_of_import_closure() {
-  log_info "TEST-1507: GUARD_PATHS is a superset of the real import closure of merge-policy.mjs + lane-gate.mjs, plus claude-hook-gate.sh and the policy path"
+  log_info "TEST-1507: GUARD_PATHS is a superset of the real import closure of merge-policy.mjs + lane-gate.mjs, plus claude-hook-gate.sh, hook-gate.mjs and the policy path"
   mk
   local probe="$TEST_DIR/closure-probe.mjs"
   cat > "$probe" <<'NODE'
@@ -507,6 +507,7 @@ const closure = new Set([
 closure.add('.aai/scripts/lane-gate.mjs');
 closure.add('.aai/scripts/merge-policy.mjs');
 closure.add('.aai/scripts/claude-hook-gate.sh');
+closure.add('.aai/scripts/hook-gate.mjs');
 closure.add(POLICY_PATH);
 // validation-round1 NB-3: lane-gate.mjs SPAWNS select-suites.mjs
 // (runSelectSuites, a child process -- not an `import`, so the closure walk
@@ -4460,7 +4461,7 @@ JSON
 # branch-implicit form fails HERE, not just when an agent follows it live)
 # and feeds it through the hook's own shape-checking function.
 test_1571_skill_pr_merge_command_passes_hook_shape() {
-  log_info "TEST-1571: SKILL_PR.prompt.md step 6's quoted 'gh pr merge ...' command, with <n> and <headRefOid> substituted, passes claude-hook-gate.sh's lane_check_merge_shape allow-list"
+  log_info "TEST-1571: SKILL_PR.prompt.md step 6's quoted 'gh pr merge ...' command, with <n> and <headRefOid> substituted, passes the hook gate module's checkMergeShape allow-list"
   local skill_pr="$PROJECT_ROOT/.aai/SKILL_PR.prompt.md"
   local line
   # pipe-free: `grep -oE ... | head -n1` is the ratcheted early-closing-
@@ -4485,24 +4486,15 @@ test_1571_skill_pr_merge_command_passes_hook_shape() {
   local merge_seg="${line//<n>/71}"
   merge_seg="${merge_seg//<headRefOid>/$real_head}"
 
-  mk
-  local probe="$TEST_DIR/shape-probe.sh"
-  cat > "$probe" <<'BASH'
-#!/usr/bin/env bash
-set -u
-MERGE_SEG="$1"
-LANE_VERDICT=""
-BASH
-  grep -n '^lane_check_merge_shape()' "$PROJECT_ROOT/.aai/scripts/claude-hook-gate.sh" >/dev/null \
-    || { log_fail "TEST-1571: lane_check_merge_shape not found in claude-hook-gate.sh"; return; }
-  awk '/^lane_check_merge_shape\(\) \{/,/^}/' "$PROJECT_ROOT/.aai/scripts/claude-hook-gate.sh" >> "$probe"
-  printf '\nlane_check_merge_shape\nrc=$?\nif [ "$rc" -ne 0 ]; then echo "REFUSED: $LANE_VERDICT"; fi\nexit $rc\n' >> "$probe"
-  chmod +x "$probe"
-
+  # checkMergeShape of the hook gate module is the allow-list under test.
   local out rc
-  out="$(bash "$probe" "$merge_seg" 2>&1)" && rc=0 || rc=$?
+  out="$(node --input-type=module -e '
+    const m = await import(process.argv[1]);
+    const r = m.checkMergeShape(process.argv[2]);
+    if (!r.ok) { console.log("REFUSED: " + r.verdict); process.exit(1); }
+  ' "file://$PROJECT_ROOT/.aai/scripts/hook-gate.mjs" "$merge_seg" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne 0 ]]; then
-    log_fail "TEST-1571: SKILL_PR's documented command '$merge_seg' was REFUSED by lane_check_merge_shape: $out"
+    log_fail "TEST-1571: SKILL_PR's documented command '$merge_seg' was REFUSED by checkMergeShape: $out"
     return
   fi
 

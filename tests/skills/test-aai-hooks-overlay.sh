@@ -41,6 +41,7 @@ cd "$PROJECT_ROOT"
 
 TEMPLATE=".aai/templates/hooks/settings-hooks.json"
 ADAPTER=".aai/scripts/claude-hook-gate.sh"
+GATE_MODULE=".aai/scripts/hook-gate.mjs"
 BOOTSTRAP=".aai/scripts/aai-bootstrap.sh"
 SKILL_PR=".aai/SKILL_PR.prompt.md"
 
@@ -167,10 +168,10 @@ test_003_script_conformance() {
       log_info "TEST-003: referenced script missing: $f"
       ok=0
     fi
-  done < <(grep -hoE '\.aai/scripts/[A-Za-z0-9._-]+' "$TEMPLATE" "$ADAPTER" | sort -u)
-  grep -qF "pre-commit-checks.sh" "$ADAPTER" \
+  done < <(grep -hoE '\.aai/scripts/[A-Za-z0-9._-]+' "$TEMPLATE" "$ADAPTER" "$GATE_MODULE" | sort -u)
+  grep -qF "pre-commit-checks.sh" "$GATE_MODULE" \
     || { log_info "TEST-003: adapter does not route the commit gate to pre-commit-checks.sh"; ok=0; }
-  grep -qF "state.mjs" "$ADAPTER" \
+  grep -qF "state.mjs" "$GATE_MODULE" \
     || { log_info "TEST-003: adapter state-dump message does not point at state.mjs"; ok=0; }
   [[ $ok -eq 1 ]] && log_pass "TEST-003 all referenced .aai/scripts exist; adapter routes to existing gates" \
                   || log_fail "TEST-003 script conformance"
@@ -344,11 +345,19 @@ test_008_fail_open_errors() {
   chmod +x "$d/bin/node"
   payload_for "git merge x" > "$d/payload.json"
   (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" bash "$PROJECT_ROOT/$ADAPTER" merge < "$d/payload.json" >/dev/null 2>&1); rc=$?
-  [[ "$rc" -eq 0 ]] || { log_info "TEST-008: merge gate with broken node exited $rc (want 0)"; ok=0; }
+  # (SPEC-0283 DG-16, owner decision NB2: a crashed module on the merge gate denies a merge-shaped payload;
+  # every other gate and payload still fails open.)
+  [[ "$rc" -eq 2 ]] || { log_info "TEST-008: merge gate with broken node exited $rc (want 2, the crash deny)"; ok=0; }
+  payload_for "ls" > "$d/payload.json"
+  (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" bash "$PROJECT_ROOT/$ADAPTER" merge < "$d/payload.json" >/dev/null 2>&1); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-008: merge gate with broken node on a payload without a merge trigger exited $rc (want 0)"; ok=0; }
+  payload_for "git commit -m x" > "$d/payload.json"
+  (cd "$d" && CLAUDE_PROJECT_DIR="$d" PATH="$d/bin:$PATH" bash "$PROJECT_ROOT/$ADAPTER" commit < "$d/payload.json" >/dev/null 2>&1); rc=$?
+  [[ "$rc" -eq 0 ]] || { log_info "TEST-008: commit gate with broken node exited $rc (want 0)"; ok=0; }
   # Unknown gate argument: 0.
   printf '{}' | (cd "$d" && bash "$PROJECT_ROOT/$ADAPTER" no-such-gate >/dev/null 2>&1); rc=$?
   [[ "$rc" -eq 0 ]] || { log_info "TEST-008: unknown gate exited $rc (want 0)"; ok=0; }
-  [[ $ok -eq 1 ]] && log_pass "TEST-008 adapter fail-open: malformed stdin, broken node, unknown gate all exit 0" \
+  [[ $ok -eq 1 ]] && log_pass "TEST-008 adapter fail-open: malformed stdin, broken node (except a merge-shaped payload on the merge gate), unknown gate all exit 0" \
                   || log_fail "TEST-008 fail-open"
 }
 
@@ -377,7 +386,7 @@ test_009_stop_nudge() {
   out=$(printf '{}' | (cd "$d" && CLAUDE_PROJECT_DIR="$d" bash "$PROJECT_ROOT/$ADAPTER" stop-nudge 2>/dev/null)); rc=$?
   [[ "$rc" -eq 0 && -z "$out" ]] || { log_info "TEST-009: done-only case rc=$rc out='$out' (want 0, silent)"; ok=0; }
   # The adapter's stop-nudge branch must have no exit-2 path at all.
-  if awk '/^  stop-nudge\)/,/^  ;;/' "$PROJECT_ROOT/$ADAPTER" | qgrep -q "exit 2"; then
+  if awk '/^function stopNudge\(/,/^}/' "$PROJECT_ROOT/$GATE_MODULE" | qgrep -q "code: 2"; then
     log_info "TEST-009: stop-nudge branch contains an exit 2 path"
     ok=0
   fi
@@ -715,9 +724,9 @@ GHSTUB
 
   # The hook must call lane-gate.mjs's --sweep-check mode, never restate its
   # predicate (this file's own "never reimplement a predicate here" rule).
-  grep -qF "lane-gate.mjs" "$ADAPTER" || { log_info "TEST-574: merge gate does not call lane-gate.mjs"; ok=0; }
-  grep -qF -- "--sweep-check" "$ADAPTER" || { log_info "TEST-574: merge gate does not invoke --sweep-check"; ok=0; }
-  grep -qE 'ceremony_level|implementation_strategy' "$ADAPTER" \
+  grep -qF "lane-gate.mjs" "$GATE_MODULE" || { log_info "TEST-574: merge gate does not call lane-gate.mjs"; ok=0; }
+  grep -qF -- "--sweep-check" "$GATE_MODULE" || { log_info "TEST-574: merge gate does not invoke --sweep-check"; ok=0; }
+  grep -qE 'ceremony_level|implementation_strategy' "$GATE_MODULE" \
     && { log_info "TEST-574: the hook appears to restate a lane-gate predicate"; ok=0; }
 
   [[ $ok -eq 1 ]] && log_pass "TEST-574 merge gate calls lane-gate.mjs --sweep-check: denies absent/mismatched records, allows a consistent one, fails open on an unreadable EVENTS.jsonl; the PR number is taken from any positional argument or resolved from the branch, never allowed by default when unresolvable; the read side re-validates the whole record" \

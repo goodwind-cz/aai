@@ -73,6 +73,7 @@ Protected surfaces (L3 canonical defaults; project-owned override/extension:
   .aai/scripts/lib/state-core.mjs
 - allocator: .aai/scripts/allocate-doc-number.mjs
 - guards: .aai/scripts/pre-commit-checks.sh, .aai/scripts/pre-commit-checks.ps1
+- hook gate: .aai/scripts/claude-hook-gate.sh, .aai/scripts/hook-gate.mjs
 - workflow canon: .aai/workflow/WORKFLOW.md, docs/CONSTITUTION.md
 
 A spec whose scope touches a protected surface MUST declare level 3.

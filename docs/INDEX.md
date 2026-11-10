@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (636)
+## Done (638)
 
 | ID | Type | Path |
 |---|---|---|
@@ -311,6 +311,7 @@ _None._
 | CHANGE-0250 | issues | docs/issues/CHANGE-0250-pre-commit-checks-ps1-retire.md |
 | CHANGE-0251 | issues | docs/issues/CHANGE-0251-release-on-node.md |
 | CHANGE-0252 | issues | docs/issues/CHANGE-0252-release-publish-on-node.md |
+| CHANGE-0253 | issues | docs/issues/CHANGE-0253-hook-gate-on-node.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -699,6 +700,7 @@ _None._
 | SPEC-0280 | specs | docs/specs/SPEC-0280-spec-release-corpus-hermetic.md |
 | SPEC-0281 | specs | docs/specs/SPEC-0281-spec-release-on-node.md |
 | SPEC-0282 | specs | docs/specs/SPEC-0282-spec-release-publish-on-node.md |
+| SPEC-0283 | specs | docs/specs/SPEC-0283-spec-hook-gate-on-node.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -737,7 +739,7 @@ _None._
 
 _None._
 
-## Broken references (543)
+## Broken references (545)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -754,6 +756,8 @@ _None._
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/issues/ISSUE-DRAFT-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-0001-spec-foo.md | NOT FOUND |
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
+| tests/skills/lib/hook-gate.test.mjs | docs/base.md | NOT FOUND |
+| tests/skills/lib/hook-gate.test.mjs | docs/changed.md | NOT FOUND |
 | tests/skills/lib/migrate-state-to-local.test.mjs | docs/ai/.session-context.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-variants/V2-PLANNING.md | NOT FOUND |
@@ -1321,4 +1325,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-09 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-10 — counts above use this date for overdue checks.

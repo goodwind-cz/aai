@@ -88,6 +88,8 @@ protected_paths_l3:
   - .aai/scripts/allocate-doc-number.mjs
   - .aai/scripts/pre-commit-checks.sh
   - .aai/scripts/pre-commit-checks.ps1
+  - .aai/scripts/claude-hook-gate.sh
+  - .aai/scripts/hook-gate.mjs
   - .aai/workflow/WORKFLOW.md
   - docs/CONSTITUTION.md
 # CHANGE docs-ai-canon — project-owned ADDITIONS to the vendored inventory of

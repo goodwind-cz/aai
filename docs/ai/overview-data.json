@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-09T17:07:53.133Z",
+  "generatedAt": "2026-11-10T16:27:41.592Z",
   "project": "aai",
   "counts": {
-    "delivered": 351,
+    "delivered": 352,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -235,6 +235,19 @@
   ],
   "delivered": [
     {
+      "ref": "hook-gate-on-node",
+      "title": "Move the Claude hook gate's decisions to one Node module behind a bash pre-filter, and gate the Azure merge command",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0253-hook-gate-on-node.md",
+      "closed_on": "2026-11-10",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0283-spec-hook-gate-on-node.md",
+      "validation": null,
+      "review": null
+    },
+    {
       "ref": "release-corpus-hermetic",
       "title": "Release corpus measurement needs a hermetic test environment",
       "type": "issue",
@@ -245,7 +258,7 @@
       "token_total": null,
       "spec": "docs/specs/SPEC-0280-spec-release-corpus-hermetic.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-release-corpus-hermetic-20261109-r2.md"
+      "review": "docs/ai/reviews/usage-post-open-release-corpus-hermetic.json"
     },
     {
       "ref": "release-on-node",
@@ -4825,6 +4838,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "hook-gate-on-node",
+          "title": "Move the Claude hook gate's decisions to one Node module behind a bash pre-filter, and gate the Azure merge command",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0253-hook-gate-on-node.md",
+          "closed_on": "2026-11-10",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0283-spec-hook-gate-on-node.md",
+          "validation": null,
+          "review": null
+        },
+        {
           "ref": "release-corpus-hermetic",
           "title": "Release corpus measurement needs a hermetic test environment",
           "type": "issue",
@@ -4835,7 +4861,7 @@
           "token_total": null,
           "spec": "docs/specs/SPEC-0280-spec-release-corpus-hermetic.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-release-corpus-hermetic-20261109-r2.md"
+          "review": "docs/ai/reviews/usage-post-open-release-corpus-hermetic.json"
         },
         {
           "ref": "release-on-node",
