@@ -37,6 +37,21 @@ const scratch = (label) => {
   TMP.push(d);
   return d;
 };
+// A PATH directory holding node and every executable of /usr/bin and /bin except gh, so a runner that
+// ships gh in /usr/bin (GitHub-hosted images do) still gets a PATH on which gh is absent.
+const ghFreeDir = (label) => {
+  const d = scratch(label);
+  fs.symlinkSync(process.execPath, path.join(d, 'node'));
+  for (const dir of ['/usr/bin', '/bin']) {
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch { continue; }
+    for (const n of names) {
+      if (n === 'gh' || n === 'node') continue;
+      try { fs.symlinkSync(path.join(dir, n), path.join(d, n)); } catch { /* already linked from the other dir */ }
+    }
+  }
+  return d;
+};
 const git = (cwd, ...args) => {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
@@ -537,9 +552,8 @@ describe('TEST-3505 kept decisions', () => {
     const project = makeProject('dg13');
     const op = { AAI_OPERATOR_MERGE: '1' };
     // a PATH holding node, git and sh but no gh
-    const nogh = scratch('nogh');
-    fs.symlinkSync(process.execPath, path.join(nogh, 'node'));
-    const noGhPath = `${nogh}:/usr/bin:/bin`;
+    const nogh = ghFreeDir('nogh');
+    const noGhPath = nogh;
     const ids = (which, cmd, loc) => (which === 'mod'
       ? decideIn(project, 'merge', cmd, { env: { ...op, PATH: noGhPath } })
       : { code: gate(LAUNCHER, project, 'merge', cmd, { env: { ...op, LC_ALL: loc }, path: noGhPath }).rc });
@@ -1006,7 +1020,7 @@ describe('TEST-3522 empty PATH entry', () => {
     assert.equal(r.rc, gate(baseline(), project, 'merge', 'gh pr merge --squash', { path: p, env: { AAI_OPERATOR_MERGE: '1' } }).rc, 'the launcher decides as the c88cf708 script');
     assert.equal(r.rc, 2, 'gh found through the empty entry: the gate-2b check runs and denies');
     // no empty entry: gh is not found, the decision is the allow of both
-    const q = `/usr/bin:/bin:${path.dirname(process.execPath)}`;
+    const q = `${ghFreeDir('nogh-q')}:${path.dirname(process.execPath)}`;
     assert.equal(gate(LAUNCHER, project, 'merge', 'gh pr merge --squash', { path: q, env: { AAI_OPERATOR_MERGE: '1' } }).rc, 0);
   });
 });
