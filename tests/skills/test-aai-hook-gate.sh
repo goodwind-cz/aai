@@ -407,7 +407,7 @@ test_3513_downstream_install() {
 
 test_3514_lines_and_rfc() {
   local before=341 after mod removed rfc="$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md" row n
-  local sentence="The eleventh slice [moved the Claude hook gate's decisions to Node](../issues/CHANGE-DRAFT-hook-gate-on-node.md): one module decides the four gates behind a bash pre-filter that starts no Node process for a command that cannot concern a gate, the Azure merge command is gated like gh pr merge, and the gate is an L3 protected surface."
+  local sentence="The twelfth slice [moved the Claude hook gate's decisions to Node](../issues/CHANGE-DRAFT-hook-gate-on-node.md): one module decides the four gates behind a bash pre-filter that starts no Node process for a command that cannot concern a gate, the Azure merge command is gated like gh pr merge, and the gate is an L3 protected surface."
   after="$(code_lines "$LAUNCHER" '#')"
   mod="$(code_lines "$MJS" '//')"
   removed=$((before - after))
