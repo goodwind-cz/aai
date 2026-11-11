@@ -328,6 +328,27 @@ describe('TEST-3563 allowlist', () => {
     assert.equal(run(d('- Template version:  v2026.11.1', '- Template version: v2026.11.1')), 0);
     assert.equal(run(d('- Template version:  v2026.11.1', '- Template version: v2026.01.01')), 1);
   });
+  test('the committed Windows rows excuse the path spelling, the CR and the byte order mark and nothing else', () => {
+    has('probePs5');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }).filter((r) => r.id.startsWith('win-'));
+    assert.equal(rows.length, 5);
+    const win = { platform: 'win32', utc: true, ps5: true };
+    const d = (path_, a, b) => ({ pair: 'sh:ps1', path: path_, kind: 'lines', detail: 'd', onlyA: a, onlyB: b });
+    const left = (x, host = win) => M.applyAllowlist([x], rows, { scenario: 'SY-01', host }).uncovered.length;
+    const pin = '.aai/system/AAI_PIN.md';
+    const sh = '- Source path: /c/Users/r/AppData/Local/Temp/p/aai-parity-run-x/fx/src';
+    const ps = '- Source path: C:\\Users\\r\\AppData\\Local\\Temp\\p\\aai-parity-run-x\\fx\\src';
+    assert.equal(left(d(pin, [sh], [ps])), 0);
+    assert.equal(left(d(pin, [sh], ['- Source path: C:\\Users\\r\\elsewhere'])), 1, 'a different directory stays visible');
+    assert.equal(left(d(pin, ['# AAI Pin'], ['\uFEFF# AAI Pin'])), 0);
+    assert.equal(left(d(pin, ['- Profile: core'], ['- Profile: core\r'])), 0);
+    assert.equal(left(d(pin, ['- Profile: core'], ['- Profile: extended\r'])), 1, 'a different value stays visible behind the CR');
+    assert.equal(left(d('.gitignore', ['.aai/', 'x'], ['.aai/\r', 'x\r'])), 0);
+    assert.equal(left(d('.gitignore', ['.aai/'], ['.env\r'])), 1);
+    assert.equal(left(d('.gitignore', ['.aai/'], ['.aai/\r']), HOST_POSIX), 1, 'the rows are judged on a Windows host only');
+    assert.equal(typeof M.probePs5('definitely-not-a-shell'), 'boolean');
+    assert.equal(M.probePs5('definitely-not-a-shell'), false);
+  });
   const stale = (rows, ran, o = {}) => {
     const parsed = parse(rows.join('\n'));
     const used = new Set(o.used || []);

@@ -442,6 +442,25 @@ test_3571_wiring() {
     .aai/scripts/lib/merge-hooks-json.mjs 'hooks/**' tests/skills/lib/install-parity.mjs tests/skills/lib/install-parity-allowlist.tsv; do
     [[ $'\n'"$push"$'\n' == *$'\n'"      - '$e'"$'\n'* ]] || log_fail "TEST-3571: the ps1-quality.yml path lists lack $e"
   done
+  # The Windows parity Pester runs in its own job (own timeout, own elapsed line) under both engines and is excluded from the
+  # full-suite steps that carry the 600 s ceiling, in both Windows jobs.
+  local jobs blk n
+  blk="$(awk '/^  windows-parity:/{s=1;print;next} s && /^  [a-z0-9_-]+:/{s=0} s' "$wf")"
+  [[ -n "$blk" ]] || log_fail "TEST-3571: ps1-quality.yml has no windows-parity job"
+  [[ "$blk" == *'runs-on: windows-latest'* ]] || log_fail "TEST-3571: windows-parity does not run on windows-latest"
+  [[ "$blk" == *'timeout-minutes: 20'* ]] || log_fail "TEST-3571: windows-parity has no job-level timeout"
+  n="$(grep -cF "Run.Path = 'tests/skills/install-parity.Tests.ps1'" <<< "$blk" || true)"
+  [[ "$n" == 2 ]] || log_fail "TEST-3571: windows-parity runs the parity file $n times, expected 2 (Windows PowerShell 5.1 and pwsh 7)"
+  [[ "$blk" == *'shell: powershell'* && "$blk" == *'shell: pwsh'* ]] || log_fail "TEST-3571: windows-parity does not use both shells"
+  n="$(grep -cF 'AAI-PARITY-ELAPSED' <<< "$blk" || true)"
+  [[ "$n" -ge 2 ]] || log_fail "TEST-3571: windows-parity prints AAI-PARITY-ELAPSED $n times, expected one per engine"
+  [[ "$blk" != *"Run.Path = 'tests/skills'"* ]] || log_fail "TEST-3571: windows-parity discovers the whole suite"
+  for jobs in windows-5_1 windows-wsl1; do
+    blk="$(awk -v j="  $jobs:" '$0==j{s=1;next} s && /^  [a-z0-9_-]+:/{s=0} s' "$wf")"
+    n="$(grep -cF "Run.Path = 'tests/skills'" <<< "$blk" || true)"
+    [[ "$n" -ge 1 ]] || log_fail "TEST-3571: $jobs has no full-suite discovery step"
+    [[ "$(grep -cF "Run.ExcludePath = @('*install-parity.Tests.ps1')" <<< "$blk" || true)" == "$n" ]] || log_fail "TEST-3571: a full-suite discovery step of $jobs does not exclude install-parity.Tests.ps1"
+  done
   log_pass "TEST-3571: select-suites, the weights row, the hygiene pins, the lints and the ps1-quality path lists know the new suite"
 }
 

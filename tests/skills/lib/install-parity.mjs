@@ -26,7 +26,7 @@ export const KINDS = ['exit', 'missing', 'bytes', 'lines', 'order', 'mode'];
 export const MODE_MEANINGFUL = process.platform !== 'win32';
 export const REFERENCE_TWIN = 'sh';
 export const NAME_MUST_MATCH_STAMP = true;
-const HOSTS = ['any', 'posix', 'win32', 'utc', 'non-utc', 'bsd-sed'];
+const HOSTS = ['any', 'posix', 'win32', 'utc', 'non-utc', 'bsd-sed', 'ps5'];
 const STEP_TIMEOUT_MS = 300000;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -156,9 +156,17 @@ export function twinEnv(root, base = process.env) {
   return env;
 }
 
-export function hostInfo() {
+export function hostInfo({ ps = null } = {}) {
   const win = process.platform === 'win32';
-  return { platform: win ? 'win32' : 'posix', utc: win ? new Date().getTimezoneOffset() === 0 : false, bsdSed: probeBsdSed() };
+  return { platform: win ? 'win32' : 'posix', utc: win ? new Date().getTimezoneOffset() === 0 : false, bsdSed: probeBsdSed(), ps5: ps ? probePs5(ps) : false };
+}
+// Windows PowerShell 5.1 (a PowerShell older than 6) writes a UTF-8 byte order mark with -Encoding utf8; pwsh 7 does not.
+// The probe asks the engine the driver is given for its own major version.
+export function probePs5(ps) {
+  try {
+    const r = spawnSync(ps, ['-NoProfile', '-NonInteractive', '-Command', '[Console]::Out.Write($PSVersionTable.PSVersion.Major)'], { encoding: 'utf8', timeout: 60000 });
+    return r.status === 0 && Number(String(r.stdout).trim()) < 6;
+  } catch { return false; }
 }
 // BSD sed (macOS) reads \s in an ERE as a literal s, so aai-sync.sh's version extraction keeps the space after
 // "Version:"; GNU sed (Linux, Git for Windows, WSL) strips it. The probe runs the same expression the script uses.
@@ -168,7 +176,7 @@ export function probeBsdSed() {
     return r.status === 0 && r.stdout === ' v1\n';
   } catch { return false; }
 }
-const hostMatches = (want, host) => want === 'any' || want === host.platform || (want === 'utc' && host.utc) || (want === 'non-utc' && !host.utc) || (want === 'bsd-sed' && host.bsdSed === true);
+const hostMatches = (want, host) => want === 'any' || want === host.platform || (want === 'utc' && host.utc) || (want === 'non-utc' && !host.utc) || (want === 'bsd-sed' && host.bsdSed === true) || (want === 'ps5' && host.ps5 === true);
 
 // ---------------------------------------------------------------------------------------------------------------
 // D-SNAP: snapshot, normalization, comparison.
@@ -472,6 +480,15 @@ export function buildSource(ctx) {
   const dir = path.join(ctx.root, 'fx', 'src');
   const ls = run('git', ['ls-files', '-z'], { cwd: REPO_ROOT, env: twinEnv(ctx.root) });
   if (ls.code !== 0) throw new Error(`git ls-files failed: ${ls.stderr}`);
+  // A Windows checkout (core.autocrlf) holds CRLF working-tree copies of files the index stores with LF. The twins read these
+  // files (the pin version, the profile manifest, the ignore list, their own script text), and a CR left in them is a
+  // checkout artifact, not twin behavior, so the scratch source takes the index's line ending for every such file.
+  const eol = run('git', ['ls-files', '--eol', '-z'], { cwd: REPO_ROOT, env: twinEnv(ctx.root) });
+  const toLf = new Set();
+  for (const e of (eol.code === 0 ? eol.stdout : '').split('\0').filter(Boolean)) {
+    const m = /^i\/(\S+)\s+w\/(crlf|mixed)\s+attr\/[^\t]*\t(.+)$/.exec(e);
+    if (m && m[1] === 'lf') toLf.add(m[3]);
+  }
   for (const rel of ls.stdout.split('\0').filter(Boolean)) {
     if (rel.startsWith('tests/')) continue;
     if (rel.startsWith('docs/') && !rel.startsWith('docs/knowledge/') && rel !== 'docs/ai/AAI_VERSION.md') continue;
@@ -480,8 +497,11 @@ export function buildSource(ctx) {
     try { st = fs.lstatSync(from); } catch { continue; }
     if (st.isDirectory()) continue;
     fs.mkdirSync(path.dirname(to), { recursive: true });
-    if (st.isSymbolicLink()) fs.symlinkSync(fs.readlinkSync(from), to); else fs.copyFileSync(from, to);
+    if (st.isSymbolicLink()) fs.symlinkSync(fs.readlinkSync(from), to);
+    else if (toLf.has(rel)) fs.writeFileSync(to, fs.readFileSync(from).toString('latin1').replace(/\r\n/g, '\n'), 'latin1');
+    else fs.copyFileSync(from, to);
   }
+  if (toLf.size) ctx.notes = (ctx.notes || []).concat(`NOTE: the scratch source holds ${toLf.size} checkout file(s) with the index's LF line ending in place of their CRLF working-tree copy`);
   initRepo(ctx, dir);
   commitAll(ctx, dir, 'src');
   ctx.notes = (ctx.notes || []).concat(SOURCE_NOTE);
@@ -598,7 +618,7 @@ function runScenario(scenario, twins, ctx) {
       const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps });
       const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: twinEnv(ctx.root) });
       codes.push(r.code);
-      steps.push({ twin: twin.name, step: i + 1, code: r.code, ...(r.code !== 0 ? { stderr_tail: r.stderr.slice(-300) } : {}) });
+      steps.push({ twin: twin.name, step: i + 1, code: r.code, ...(r.code !== 0 ? { stderr_tail: r.stderr.slice(-1500), stdout_tail: r.stdout.slice(-600) } : {}) });
       if (scenario.steps.length > 1) snaps.push(snapshotNormalized(targetDir, { hooks }));
       if (i < scenario.steps.length - 1 && step.op !== 'hooks') waitNextSecond();
     });
@@ -667,6 +687,9 @@ const USAGE = `usage: install-parity.mjs list --matrix <smoke|default|full> [--j
                           [--allowlist <tsv>] [--bash <path>] [--ps <path>] [--json <file>] [--keep]`;
 class UsageError extends Error {}
 
+// A path with a byte outside printable ASCII prints as its code points, so a mangled name reads the same in every console.
+const showName = (p) => (/^[\x20-\x7e]*$/.test(p) ? p : p.replace(/[^\x20-\x7e]/gu, (c) => `\\u{${c.codePointAt(0).toString(16)}}`));
+
 const toolOk = (file, args) => { const r = run(file, args, { cwd: process.cwd(), env: process.env }); return r.code === 0; };
 
 export async function main(argv) {
@@ -716,7 +739,7 @@ async function dispatch(cmd, rest, err) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(defaultScratchBase(), 'aai-parity-run-')));
   let rep;
   try {
-    rep = runMatrix({ scenarios, twins, rows, matrix: o.matrix, filtered: o.scenario.length > 0, ctx: { root, src: null, bash: o.bash, ps: o.ps, host: hostInfo() } });
+    rep = runMatrix({ scenarios, twins, rows, matrix: o.matrix, filtered: o.scenario.length > 0, ctx: { root, src: null, bash: o.bash, ps: o.ps, host: hostInfo({ ps: twinNames.includes('ps1') ? o.ps : null }) } });
   } finally {
     if (o.keep) process.stdout.write(`scratch root kept: ${root}\n`); else fs.rmSync(root, { recursive: true, force: true });
   }
@@ -725,9 +748,16 @@ async function dispatch(cmd, rest, err) {
     const verdict = s.broken.length ? 'BROKEN' : (s.divergences.some((d) => !d.covered_by) ? 'FAIL' : 'PASS');
     process.stdout.write(`${s.id} ${s.seconds}s ${verdict}\n`);
     for (const b of s.broken) process.stdout.write(`  BROKEN ${s.id}: ${b}\n`);
-    for (const st of s.steps) if (st.stderr_tail && s.broken.length) process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} exit ${st.code}: ${st.stderr_tail.replace(/\s+/g, ' ')}\n`);
+    // A scenario that is not a PASS prints the tails of every step that exited nonzero, so a CI log shows why a twin failed.
+    if (verdict !== 'PASS') {
+      for (const st of s.steps) {
+        if (!st.stderr_tail && !st.stdout_tail) continue;
+        process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} exit ${st.code} stderr tail: ${st.stderr_tail.replace(/\s+/g, ' ')}\n`);
+        process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} exit ${st.code} stdout tail: ${st.stdout_tail.replace(/\s+/g, ' ')}\n`);
+      }
+    }
   }
-  for (const u of rep.uncovered) process.stdout.write(`UNCOVERED ${u.scenario} ${u.pair} ${u.kind} ${u.path}: ${u.detail}\n`);
+  for (const u of rep.uncovered) process.stdout.write(`UNCOVERED ${u.scenario} ${u.pair} ${u.kind} ${showName(u.path)}: ${u.detail}\n`);
   for (const s of rep.stale) process.stdout.write(`STALE ${s.id} (scenario ${s.scenario}, pairs ${s.pairs}, ${s.kind} ${s.path})\n`);
   if (rep.stale_check !== 'on') process.stdout.write(`stale check: ${rep.stale_check}\n`);
   process.stdout.write(`verdict ${rep.verdict} (${rep.total_seconds}s, matrix ${rep.matrix}, pairs ${rep.pairs.join(' ')})\n`);
