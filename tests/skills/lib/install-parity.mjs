@@ -127,7 +127,11 @@ export const TWINS = {
         return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-sync.ps1`, '-TargetRoot', ctx.target, ...(step.profile ? ['-Profile', step.profile] : [])], cwd: ctx.target };
       }
       if (step.op === 'update') {
-        return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-update.ps1`, '-Repo', ctx.src, '-Ref', 'main'], cwd: ctx.target };
+        // Windows PowerShell 5.1 turns any line git writes to stderr into a terminating error when the script runs with
+        // -ErrorAction Stop, and aai-update.ps1 runs git fetch, checkout and pull in the source checkout under it, so the
+        // update ends at its first git line (fu-parity-win-update-5-1-stderr). Git for Windows can send its stderr to
+        // stdout (GIT_REDIRECT_STDERR), which lets the rest of the update be compared; the driver prints a NOTE for it.
+        return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-update.ps1`, '-Repo', ctx.src, '-Ref', 'main'], cwd: ctx.target, ...(ctx.ps5 ? { env: { GIT_REDIRECT_STDERR: '2>&1' } } : {}) };
       }
       return { file: ctx.ps, args: [...psHead(ctx), '.aai/scripts/install-pre-commit-hook.ps1', ...(step.flags || []).map((f) => PS_FLAG[f])], cwd: ctx.target };
     },
@@ -156,9 +160,9 @@ export function twinEnv(root, base = process.env) {
   return env;
 }
 
-export function hostInfo({ ps = null } = {}) {
+export function hostInfo({ ps = null, bash = null } = {}) {
   const win = process.platform === 'win32';
-  return { platform: win ? 'win32' : 'posix', utc: win ? new Date().getTimezoneOffset() === 0 : false, bsdSed: probeBsdSed(), ps5: ps ? probePs5(ps) : false };
+  return { platform: win ? 'win32' : 'posix', utc: win ? new Date().getTimezoneOffset() === 0 : false, bsdSed: probeBsdSed(bash), ps5: ps ? probePs5(ps) : false };
 }
 // Windows PowerShell 5.1 (a PowerShell older than 6) writes a UTF-8 byte order mark with -Encoding utf8; pwsh 7 does not.
 // The probe asks the engine the driver is given for its own major version.
@@ -170,9 +174,13 @@ export function probePs5(ps) {
 }
 // BSD sed (macOS) reads \s in an ERE as a literal s, so aai-sync.sh's version extraction keeps the space after
 // "Version:"; GNU sed (Linux, Git for Windows, WSL) strips it. The probe runs the same expression the script uses.
-export function probeBsdSed() {
+// The sed asked is the one the bash twin runs: with a bash path the probe goes through it, since a Windows PATH may name
+// another sed than the one Git for Windows' bash puts first.
+export function probeBsdSed(bash = null) {
   try {
-    const r = spawnSync('sed', ['-E', 's/.*Version:\\s*//'], { input: '- Version: v1\n', encoding: 'utf8', timeout: 10000 });
+    const r = bash
+      ? spawnSync(bash, ['-c', "sed -E 's/.*Version:\\s*//'"], { input: '- Version: v1\n', encoding: 'utf8', timeout: 30000 })
+      : spawnSync('sed', ['-E', 's/.*Version:\\s*//'], { input: '- Version: v1\n', encoding: 'utf8', timeout: 10000 });
     return r.status === 0 && r.stdout === ' v1\n';
   } catch { return false; }
 }
@@ -604,6 +612,8 @@ export function defaultSetup(scenario, target, ctx) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // The runner.
+const oddRootNames = (dir) => { try { return fs.readdirSync(dir).filter((n) => !/^[\x20-\x7e]*$/.test(n)); } catch { return []; } };
+const birthMs = (p, since) => { try { return Math.round(fs.lstatSync(p).birthtimeMs - since); } catch { return 'unknown'; } };
 function runScenario(scenario, twins, ctx) {
   const t0 = Date.now();
   const targetDir = path.join(ctx.root, scenario.id, scenario.target || 'target');
@@ -615,10 +625,14 @@ function runScenario(scenario, twins, ctx) {
     (ctx.setup || defaultSetup)(scenario, targetDir, ctx, twin.name);
     const codes = []; const snaps = [];
     scenario.steps.forEach((step, i) => {
-      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps });
-      const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: twinEnv(ctx.root) });
+      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, ps5: Boolean(ctx.host && ctx.host.ps5) });
+      const before = oddRootNames(targetDir); const t1 = Date.now();
+      const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: { ...twinEnv(ctx.root), ...(a.env || {}) } });
       codes.push(r.code);
-      steps.push({ twin: twin.name, step: i + 1, code: r.code, ...(r.code !== 0 ? { stderr_tail: r.stderr.slice(-1500), stdout_tail: r.stdout.slice(-600) } : {}) });
+      // Root entries whose name leaves printable ASCII are reported with the step that left them (a mangled name is a harness
+      // or twin fault worth seeing in a CI log), with their birth time against the step window.
+      const odd = oddRootNames(targetDir).filter((n) => !before.includes(n)).map((n) => `${showName(n)} born ${birthMs(path.join(targetDir, n), t1)} ms after the step started (step took ${Date.now() - t1} ms)`);
+      steps.push({ twin: twin.name, step: i + 1, code: r.code, ...(odd.length ? { odd_root_entries: odd } : {}), ...(r.code !== 0 ? { stderr_tail: r.stderr.slice(-1500) } : {}), stdout_tail: r.stdout.slice(-1200) });
       if (scenario.steps.length > 1) snaps.push(snapshotNormalized(targetDir, { hooks }));
       if (i < scenario.steps.length - 1 && step.op !== 'hooks') waitNextSecond();
     });
@@ -674,7 +688,7 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
   report.pairs = [...pairSet.filter((p) => p.split(':')[0] !== p.split(':')[1]), ...pairSet.filter((p) => p.split(':')[0] === p.split(':')[1])];
   report.stale = staleRows(rows, { ran, pairsRun: report.pairs, host, used, usedPairs, pairsByScenario, wholeTier: !filtered }).map((r) => ({ id: r.id, scenario: r.scenario, pairs: r.pair, path: r.path, kind: r.kind }));
   report.stale_check = filtered ? 'off (scenario filter)' : 'on';
-  report.notes = c.notes || [];
+  report.notes = (c.notes || []).concat(host.ps5 && twins.some((t) => t.name === 'ps1') && scenarios.some((x) => x.op === 'update') ? ['NOTE: Windows PowerShell 5.1: the ps1 twin runs the update with GIT_REDIRECT_STDERR=2>&1, because aai-update.ps1 ends at its first git stderr line under 5.1 (fu-parity-win-update-5-1-stderr)'] : []);
   report.total_seconds = Math.round((Date.now() - t0) / 100) / 10;
   if (report.uncovered.length || report.stale.length || report.scenarios.some((s) => s.broken.length)) report.verdict = 'FAIL';
   return report;
@@ -739,7 +753,7 @@ async function dispatch(cmd, rest, err) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(defaultScratchBase(), 'aai-parity-run-')));
   let rep;
   try {
-    rep = runMatrix({ scenarios, twins, rows, matrix: o.matrix, filtered: o.scenario.length > 0, ctx: { root, src: null, bash: o.bash, ps: o.ps, host: hostInfo({ ps: twinNames.includes('ps1') ? o.ps : null }) } });
+    rep = runMatrix({ scenarios, twins, rows, matrix: o.matrix, filtered: o.scenario.length > 0, ctx: { root, src: null, bash: o.bash, ps: o.ps, host: hostInfo({ ps: twinNames.includes('ps1') ? o.ps : null, bash: o.bash }) } });
   } finally {
     if (o.keep) process.stdout.write(`scratch root kept: ${root}\n`); else fs.rmSync(root, { recursive: true, force: true });
   }
@@ -751,9 +765,9 @@ async function dispatch(cmd, rest, err) {
     // A scenario that is not a PASS prints the tails of every step that exited nonzero, so a CI log shows why a twin failed.
     if (verdict !== 'PASS') {
       for (const st of s.steps) {
-        if (!st.stderr_tail && !st.stdout_tail) continue;
-        process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} exit ${st.code} stderr tail: ${st.stderr_tail.replace(/\s+/g, ' ')}\n`);
-        process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} exit ${st.code} stdout tail: ${st.stdout_tail.replace(/\s+/g, ' ')}\n`);
+        for (const o of st.odd_root_entries || []) process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} left an odd root entry ${o}\n`);
+        if (st.stderr_tail) process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} exit ${st.code} stderr tail: ${st.stderr_tail.replace(/\s+/g, ' ')}\n`);
+        if (st.stdout_tail) process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} exit ${st.code} stdout tail: ${st.stdout_tail.replace(/\s+/g, ' ')}\n`);
       }
     }
   }
