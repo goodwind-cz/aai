@@ -1,10 +1,10 @@
 ---
 id: spec-install-path-parity-harness
 type: spec
-number: null
-status: implementing
+number: 284
+status: done
 mutation_gate: v1
-frozen_sha256: e343d2053cf937b86ba8068a974596c9c948f4a367d2ba89285c574b32703fb7
+frozen_sha256: bad3a9aab07832c0e0e67300538f12de21f3e55a417ffa8e9f595dcfeb3eb635
 ceremony_level: 2
 links:
   requirement: install-path-parity-harness
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: [Run both twins of sync, update and the hook installer into scratch targets and diff what they leave behind](../issues/CHANGE-DRAFT-install-path-parity-harness.md).
+- Requirement: [Run both twins of sync, update and the hook installer into scratch targets and diff what they leave behind](../issues/CHANGE-0254-install-path-parity-harness.md).
 - Parent: [RFC-0017](../rfc/RFC-0017-smaller-node-core-and-faster-feedback.md),
   phase 5, and the [remaining-scripts plan](../analysis/node-first-remaining-plan.md)
   ride 8 (owner sign-off: no). Rides 9 to 12 (bootstrap, update, installer
@@ -67,8 +67,8 @@ SPEC-FROZEN: true
   tests/skills/test-aai-hygiene-pack.sh .github/workflows/ps1-quality.yml
   docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md
   docs/ai/decisions.jsonl
-  docs/issues/CHANGE-DRAFT-install-path-parity-harness.md
-  docs/specs/SPEC-DRAFT-install-path-parity-harness.md docs/INDEX.md
+  docs/issues/CHANGE-0254-install-path-parity-harness.md
+  docs/specs/SPEC-0284-spec-install-path-parity-harness.md docs/INDEX.md
   (decisions.jsonl only for the follow-up records of D-FU; the allocator
   renames the two DRAFT files at merge).
 - Code review required: true.
@@ -563,7 +563,7 @@ branch's diff).
 
 Phase 5 row: one sentence after the twelfth-slice sentence and before the
 remaining-scripts-plan sentence:
-`The thirteenth slice [ran both twins of the install path into scratch targets](../issues/CHANGE-DRAFT-install-path-parity-harness.md): a test-only harness compares the trees and exit codes of the bash and PowerShell twins of aai-sync, aai-update and the hook installer, with each known divergence on a reviewed list, and takes the Node twins of the later rides as a third twin.`
+`The thirteenth slice [ran both twins of the install path into scratch targets](../issues/CHANGE-0254-install-path-parity-harness.md): a test-only harness compares the trees and exit codes of the bash and PowerShell twins of aai-sync, aai-update and the hook installer, with each known divergence on a reviewed list, and takes the Node twins of the later rides as a third twin.`
 Status stays `in progress`; frontmatter untouched. The allocator rewrites
 the link at merge; checks match only the suffix
 `install-path-parity-harness.md`. The inventory table is unchanged.

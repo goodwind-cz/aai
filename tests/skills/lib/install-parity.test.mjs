@@ -1,5 +1,5 @@
 // install-parity.test.mjs - node:test cases for tests/skills/lib/install-parity.mjs
-// (docs/specs/SPEC-DRAFT-install-path-parity-harness.md, TEST-3560 to TEST-3570).
+// (docs/specs/SPEC-0284-spec-install-path-parity-harness.md, TEST-3560 to TEST-3570).
 // Pure rules (compare, normalize, allowlist, positive controls, the twin seam) run on synthetic trees and
 // injected fake twins; two cases (TEST-3566, TEST-3567) run the real twins into scratch targets.
 // Every case works in fresh temp directories and leaves none behind.

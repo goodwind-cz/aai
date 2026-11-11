@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-install-parity
-# (docs/specs/SPEC-DRAFT-install-path-parity-harness.md, TEST-3560..3572)
+# (docs/specs/SPEC-0284-spec-install-path-parity-harness.md, TEST-3560..3572)
 #
 # Runs both twins of aai-sync, aai-update and the hook installer into scratch targets (tests/skills/lib/install-parity.mjs)
 # and requires that every divergence between them sits on the reviewed allowlist. The real run happens once per suite
@@ -472,7 +472,7 @@ test_3571_wiring() {
 test_3572_rfc() {
   need_tool TEST-3572 node || return 0
   local rfc="$PROJECT_ROOT/docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md" row n sentence
-  sentence='The thirteenth slice [ran both twins of the install path into scratch targets](../issues/CHANGE-DRAFT-install-path-parity-harness.md): a test-only harness compares the trees and exit codes of the bash and PowerShell twins of aai-sync, aai-update and the hook installer, with each known divergence on a reviewed list, and takes the Node twins of the later rides as a third twin.'
+  sentence='The thirteenth slice [ran both twins of the install path into scratch targets](../issues/CHANGE-0254-install-path-parity-harness.md): a test-only harness compares the trees and exit codes of the bash and PowerShell twins of aai-sync, aai-update and the hook installer, with each known divergence on a reviewed list, and takes the Node twins of the later rides as a third twin.'
   row=""
   while IFS= read -r l; do
     case "$l" in '| 5 |'*) row="$l" ;; esac

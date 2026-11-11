@@ -6,13 +6,12 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-install-path-parity-harness | specs | implementing | 13 done | docs/specs/SPEC-DRAFT-install-path-parity-harness.md |
 
 ## Canonical layer (0)
 
@@ -62,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (638)
+## Done (640)
 
 | ID | Type | Path |
 |---|---|---|
@@ -313,6 +312,7 @@ _None._
 | CHANGE-0251 | issues | docs/issues/CHANGE-0251-release-on-node.md |
 | CHANGE-0252 | issues | docs/issues/CHANGE-0252-release-publish-on-node.md |
 | CHANGE-0253 | issues | docs/issues/CHANGE-0253-hook-gate-on-node.md |
+| CHANGE-0254 | issues | docs/issues/CHANGE-0254-install-path-parity-harness.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -702,17 +702,17 @@ _None._
 | SPEC-0281 | specs | docs/specs/SPEC-0281-spec-release-on-node.md |
 | SPEC-0282 | specs | docs/specs/SPEC-0282-spec-release-publish-on-node.md |
 | SPEC-0283 | specs | docs/specs/SPEC-0283-spec-hook-gate-on-node.md |
+| SPEC-0284 | specs | docs/specs/SPEC-0284-spec-install-path-parity-harness.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (16)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
 | CHANGE-0176 | issues | docs/issues/CHANGE-0176-decision-menu-options-parser.md |
 | CHANGE-0180 | issues | docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md |
 | CHANGE-0192 | issues | docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md |
-| install-path-parity-harness (unnumbered draft) | issues | docs/issues/CHANGE-DRAFT-install-path-parity-harness.md |
 | DEBT-0003 | issues | docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md |
 | DEBT-0004 | issues | docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md |
 | DEBT-0005 | issues | docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md |

@@ -1,8 +1,8 @@
 ---
 id: install-path-parity-harness
 type: change
-number: null
-status: draft
+number: 254
+status: done
 capability: install-path-parity-harness
 parent: smaller-node-core-and-faster-feedback
 links:

@@ -151,7 +151,7 @@ pairs:
   - capability: hook-gate-on-node
     status: done
   - capability: install-path-parity-harness
-    status: planned
+    status: done
   - capability: bootstrap-on-node
     status: planned
   - capability: update-on-node

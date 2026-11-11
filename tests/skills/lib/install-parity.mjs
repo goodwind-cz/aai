@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // install-parity.mjs - run the bash and PowerShell twins of aai-sync, aai-update and the hook installer into
 // scratch targets, diff what each leaves behind, apply the documented normalizations and the reviewed allowlist
-// (docs/specs/SPEC-DRAFT-install-path-parity-harness.md, D-DRIVER .. D-FU). Test-only: nothing under .aai/ or
+// (docs/specs/SPEC-0284-spec-install-path-parity-harness.md, D-DRIVER .. D-FU). Test-only: nothing under .aai/ or
 // hooks/ is changed. Node stdlib only. Importing this module runs nothing; `main` is the CLI.
 import fs from 'node:fs';
 import os from 'node:os';
