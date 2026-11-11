@@ -143,11 +143,7 @@ export const TWINS = {
         return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-sync.ps1`, '-TargetRoot', ctx.target, ...(step.profile ? ['-Profile', step.profile] : [])], cwd: ctx.target };
       }
       if (step.op === 'update') {
-        // Windows PowerShell 5.1 turns any line git writes to stderr into a terminating error when the script runs with
-        // -ErrorAction Stop, and aai-update.ps1 runs git fetch, checkout and pull in the source checkout under it, so the
-        // update ends at its first git line (fu-parity-win-update-5-1-stderr). Git for Windows can send its stderr to
-        // stdout (GIT_REDIRECT_STDERR), which lets the rest of the update be compared; the driver prints a NOTE for it.
-        return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-update.ps1`, '-Repo', ctx.src, '-Ref', 'main'], cwd: ctx.target, ...(ctx.ps5 ? { env: { GIT_REDIRECT_STDERR: '2>&1' } } : {}) };
+        return { file: ctx.ps, args: [...psHead(ctx), `${src}/.aai/scripts/aai-update.ps1`, '-Repo', ctx.src, '-Ref', 'main'], cwd: ctx.target };
       }
       return { file: ctx.ps, args: [...psHead(ctx), '.aai/scripts/install-pre-commit-hook.ps1', ...(step.flags || []).map((f) => PS_FLAG[f])], cwd: ctx.target };
     },
@@ -678,7 +674,7 @@ function runScenario(scenario, twins, ctx) {
     (ctx.setup || defaultSetup)(scenario, targetDir, ctx, twin.name);
     const codes = []; const snaps = [];
     scenario.steps.forEach((step, i) => {
-      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, ps5: Boolean(ctx.host && ctx.host.ps5) });
+      const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps });
       const before = oddRootNames(targetDir); const t1 = Date.now();
       const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: { ...twinEnv(ctx.root), ...(a.env || {}) } });
       if (r.timedOut) throw new InfraTimeout(scenario.id, twin.name, i + 1);
@@ -742,7 +738,7 @@ export function runMatrix({ scenarios, twins, rows = [], ctx, matrix = 'default'
   report.pairs = [...pairSet.filter((p) => p.split(':')[0] !== p.split(':')[1]), ...pairSet.filter((p) => p.split(':')[0] === p.split(':')[1])];
   report.stale = staleRows(rows, { ran, pairsRun: report.pairs, host, used, usedPairs, pairsByScenario, wholeTier: !filtered }).map((r) => ({ id: r.id, scenario: r.scenario, pairs: r.pair, path: r.path, kind: r.kind }));
   report.stale_check = filtered ? 'off (scenario filter)' : 'on';
-  report.notes = (c.notes || []).concat(host.ps5 && twins.some((t) => t.name === 'ps1') && scenarios.some((x) => x.op === 'update') ? ['NOTE: Windows PowerShell 5.1: the ps1 twin runs the update with GIT_REDIRECT_STDERR=2>&1, because aai-update.ps1 ends at its first git stderr line under 5.1 (fu-parity-win-update-5-1-stderr)'] : []);
+  report.notes = c.notes || [];
   report.total_seconds = Math.round((Date.now() - t0) / 100) / 10;
   if (report.uncovered.length || report.stale.length || report.scenarios.some((s) => s.broken.length)) report.verdict = 'FAIL';
   return report;

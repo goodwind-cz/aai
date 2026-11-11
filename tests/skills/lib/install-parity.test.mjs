@@ -659,19 +659,21 @@ describe('TEST-3567 pinned environment', () => {
     assert.ok(env.TMPDIR.startsWith(root));
     assert.deepEqual(Object.keys(env).filter((k) => k.startsWith('AAI_')), []);
   });
-  test('GIT_REDIRECT_STDERR reaches only the ps1 update step, and only on a PowerShell below 6 host', () => {
+  test('TEST-3585: no twin step carries GIT_REDIRECT_STDERR, with ps5 true or false', () => {
     has('runMatrix');
     const base = { src: '/src', target: '/t', bash: 'bash', ps: 'pwsh' };
     const steps = [{ op: 'sync' }, { op: 'update' }, { op: 'hooks', flags: [] }];
-    const envOf = (twin, step, ps5) => (M.TWINS[twin].argv({ ...step, index: 0 }, { ...base, ps5 }).env || {});
-    for (const st of steps) {
-      for (const ps5 of [true, false]) {
-        assert.equal('GIT_REDIRECT_STDERR' in envOf('sh', st, ps5), false, `sh ${st.op} ps5=${ps5}`);
-        const want = st.op === 'update' && ps5;
-        assert.equal('GIT_REDIRECT_STDERR' in envOf('ps1', st, ps5), want, `ps1 ${st.op} ps5=${ps5}`);
+    for (const twin of ['sh', 'ps1']) {
+      for (const st of steps) {
+        for (const ps5 of [true, false]) {
+          const a = M.TWINS[twin].argv({ ...st, index: 0 }, { ...base, ps5 });
+          assert.equal('GIT_REDIRECT_STDERR' in (a.env || {}), false, `${twin} ${st.op} ps5=${ps5}`);
+          assert.equal(JSON.stringify(a).includes('GIT_REDIRECT_STDERR'), false, `${twin} ${st.op} ps5=${ps5} argv`);
+        }
       }
     }
-    assert.equal(envOf('ps1', { op: 'update' }, true).GIT_REDIRECT_STDERR, '2>&1');
+    const src = fs.readFileSync(new URL('./install-parity.mjs', import.meta.url), 'utf8');
+    assert.equal(src.includes('GIT_REDIRECT_STDERR'), false);
   });
   test('HK-01 with a caller core.hooksPath in GIT_CONFIG_GLOBAL still installs into .git/hooks for both twins', () => {
     has('runMatrix');

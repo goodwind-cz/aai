@@ -227,4 +227,106 @@ New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
             }
         }
     }
+
+    Context 'best-effort native calls (update-ps1-git-stderr)' {
+        # Spec-AC-01..04: the updater runs every redirected git/gh call through one
+        # best-effort helper, so a git stderr line or a nonzero exit never ends it.
+        # The updater runs under the HOSTING engine (powershell.exe on the 5.1 leg,
+        # pwsh on the 7 leg) behind a wrapper that turns on the native-command error
+        # preference on 7.3+ (the regression trigger on pwsh).
+        BeforeAll {
+            $script:HostExe = (Get-Process -Id $PID).Path
+            $script:BeWrapper = Join-Path $TestDrive 'be-wrapper.ps1'
+            @'
+param([string]$UpdatePath, [string]$RepoArg)
+if ($PSVersionTable.PSVersion -ge [version]'7.3') { $PSNativeCommandUseErrorActionPreference = $true }
+& $UpdatePath -Repo $RepoArg -Ref main
+exit $LASTEXITCODE
+'@ | Set-Content -LiteralPath $script:BeWrapper
+
+            function New-BeSource {
+                param([string]$Name)
+                $src = Join-Path $TestDrive $Name
+                New-Item -ItemType Directory -Path (Join-Path $src '.aai/scripts') -Force | Out-Null
+                @'
+param([string]$TargetRoot)
+New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
+"BE_SYNC_RAN" | Set-Content -Path (Join-Path $TargetRoot 'BE_SYNC_MARKER')
+'@ | Set-Content -LiteralPath (Join-Path $src '.aai/scripts/aai-sync.ps1')
+                git -C $src init -q -b main
+                git -C $src -c user.email=test@example.com -c user.name=test add -A
+                git -C $src -c user.email=test@example.com -c user.name=test commit -q -m fixture
+                return $src
+            }
+
+            function Invoke-BeUpdate {
+                param([string]$Target, [string]$RepoArg)
+                Push-Location $Target
+                try {
+                    $r = Invoke-NativeCaptured -Exe $script:HostExe -Arguments @('-NoProfile', '-File', $script:BeWrapper, '-UpdatePath', $script:Update, '-RepoArg', $RepoArg)
+                } finally {
+                    Pop-Location
+                }
+                return $r
+            }
+
+            function New-BeGitTarget {
+                param([string]$Name)
+                $dir = Join-Path $TestDrive $Name
+                New-Item -ItemType Directory -Path $dir -Force | Out-Null
+                git -C $dir init -q
+                git -C $dir remote add origin 'https://github.com/acme/foo.git'
+                return $dir
+            }
+        }
+
+        It 'TEST-3580: a local -Repo checkout without origin (fetch and pull fail) still syncs and exits 0' {
+            $src = New-BeSource -Name 'be-src-1'
+            $target = New-BeGitTarget -Name 'be-target-1'
+            $r = Invoke-BeUpdate -Target $target -RepoArg $src
+            $r.Code | Should -Be 0 -Because "stderr: $($r.Err)"
+            (Test-Path (Join-Path $target 'BE_SYNC_MARKER')) | Should -BeTrue
+            $r.Err | Should -Not -Match 'NativeCommandError'
+            $r.Err | Should -Not -Match 'non-zero exit code'
+        }
+
+        It 'TEST-3581: a nonexistent file:// source tries every clone attempt and exits 3, never 1' {
+            $target = New-BeGitTarget -Name 'be-target-2'
+            $missing = [System.Uri]::new((Join-Path $TestDrive 'be-no-such-repo')).AbsoluteUri
+            $r = Invoke-BeUpdate -Target $target -RepoArg $missing
+            $r.Code | Should -Be 3 -Because "stderr: $($r.Err)"
+            $r.Err | Should -Match 'ERROR: could not fetch'
+        }
+
+        It 'TEST-3582: a real file:// fixture repository clones through the cascade and its sync runs' {
+            $src = New-BeSource -Name 'be-src-3'
+            $target = New-BeGitTarget -Name 'be-target-3'
+            $url = [System.Uri]::new($src).AbsoluteUri
+            $r = Invoke-BeUpdate -Target $target -RepoArg $url
+            $r.Code | Should -Be 0 -Because "stderr: $($r.Err)"
+            (Test-Path (Join-Path $target 'BE_SYNC_MARKER')) | Should -BeTrue
+        }
+
+        It 'TEST-3583: a target that is not a git repository passes the guard, syncs, and reports no changes' {
+            $src = New-BeSource -Name 'be-src-4'
+            $target = Join-Path $TestDrive 'be-target-4'
+            New-Item -ItemType Directory -Path $target -Force | Out-Null
+            $r = Invoke-BeUpdate -Target $target -RepoArg $src
+            $r.Code | Should -Be 0 -Because "stderr: $($r.Err)"
+            $r.Err | Should -Not -Match 'REFUSED'
+            (Test-Path (Join-Path $target 'BE_SYNC_MARKER')) | Should -BeTrue
+            $r.Out | Should -Match 'Changed files: none \(already up to date\)'
+        }
+
+        It 'TEST-3584: no line combines a git or gh call with a redirect; the helper carries both tags; the file is ASCII-only' {
+            $lines = @(Get-Content -LiteralPath $script:Update)
+            $raw = @($lines | Where-Object { $_ -notmatch '^\s*#' -and $_ -match '\b(git|gh)\b' -and $_ -match '\*>|2>' })
+            $raw | Should -BeNullOrEmpty
+            @($lines | Where-Object { $_ -match "ErrorActionPreference = 'Continue'.*# AAI-BEST-EFFORT-EAP\s*$" }).Count | Should -Be 1
+            @($lines | Where-Object { $_ -match '# AAI-BEST-EFFORT-RC\s*$' }).Count | Should -Be 1
+            @($lines | Where-Object { $_ -match 'PSNativeCommandUseErrorActionPreference = \$false' }).Count | Should -Be 1
+            $bytes = [System.IO.File]::ReadAllBytes($script:Update)
+            @($bytes | Where-Object { $_ -gt 127 }).Count | Should -Be 0
+        }
+    }
 }

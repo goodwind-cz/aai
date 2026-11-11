@@ -54,8 +54,31 @@ function Get-NormSlug([string]$s) {
   return ""
 }
 
+# Best-effort native call (the bash twin discards the output and ends with `|| true`): runs a git or
+# gh scriptblock with stderr discarded and never terminates, whatever the caller's
+# $ErrorActionPreference or native-command error preference (Windows PowerShell 5.1
+# turns any stderr line into a terminating error under Stop; pwsh 7.3+ does the same
+# for a nonzero exit when $PSNativeCommandUseErrorActionPreference is on). The
+# preferences are scoped to THIS function only, so `& $Sync` keeps its own Stop.
+# Returns the exit code; stdout lines land in $script:BestEffortOut.
+function Invoke-BestEffort([scriptblock]$Command) {
+  $ErrorActionPreference = 'Continue'  # AAI-BEST-EFFORT-EAP
+  $PSNativeCommandUseErrorActionPreference = $false
+  $script:BestEffortOut = @()
+  $global:LASTEXITCODE = $null
+  # No try/catch on purpose: under Continue a missing executable is a statement-level
+  # error that leaves $LASTEXITCODE null (-> 1 below), and a catch here would also mask
+  # the termination that the removed preference lines are there to prevent.
+  $script:BestEffortOut = @(& $Command 2>$null | Where-Object { $_ -ne $null })
+  $code = $global:LASTEXITCODE
+  if ($null -eq $code) { $code = 1 }
+  $global:LASTEXITCODE = 0  # a best-effort failure must not become the caller's exit code
+  return $code  # AAI-BEST-EFFORT-RC
+}
+
 # Canonical-repo guard: refuse to sync the AAI repo into itself.
-$targetOrigin = (git -C $Target config --get remote.origin.url 2>$null)
+$null = Invoke-BestEffort { git -C $Target config --get remote.origin.url }
+$targetOrigin = ($script:BestEffortOut -join "")
 if ((Get-NormSlug $Repo) -and ((Get-NormSlug $targetOrigin) -eq (Get-NormSlug $Repo)) -and (-not $Force)) {
   [Console]::Error.WriteLine("REFUSED: this project ($targetOrigin) looks like the canonical AAI repo.")
   [Console]::Error.WriteLine("  /aai-update syncs AAI INTO a target project; update the canonical repo with normal git.")
@@ -69,9 +92,9 @@ try {
   # Resolve SOURCE: an existing local checkout, or a fresh shallow clone.
   if (Test-Path -PathType Container $Repo) {
     $Src = (Resolve-Path $Repo).Path
-    git -C $Src fetch --depth 1 origin $Ref *> $null
-    git -C $Src checkout $Ref *> $null
-    git -C $Src pull --ff-only origin $Ref *> $null
+    $null = Invoke-BestEffort { git -C $Src fetch --depth 1 origin $Ref }
+    $null = Invoke-BestEffort { git -C $Src checkout $Ref }
+    $null = Invoke-BestEffort { git -C $Src pull --ff-only origin $Ref }
     $SrcDesc = "local checkout $Src"
   } else {
     if ($Repo -match '://' -or $Repo -match '@.+:') { $CloneUrl = $Repo } else { $CloneUrl = "https://github.com/$Repo.git" }
@@ -88,13 +111,13 @@ try {
       # attempts, so the ownership guarantee on the parent is never up for grabs.
       if (Get-Command gh -ErrorAction SilentlyContinue) {
         if (Test-Path $SrcDir) { Remove-Item -Recurse -Force $SrcDir -ErrorAction SilentlyContinue }
-        gh repo clone $Repo $SrcDir -- --branch $Ref --depth 1 *> $null
-        if ($LASTEXITCODE -eq 0) { $cloned = $true }
+        $rc = Invoke-BestEffort { gh repo clone $Repo $SrcDir -- --branch $Ref --depth 1 }
+        if ($rc -eq 0) { $cloned = $true }
       }
       if (-not $cloned) {
         if (Test-Path $SrcDir) { Remove-Item -Recurse -Force $SrcDir -ErrorAction SilentlyContinue }
-        git clone --branch $Ref --depth 1 $CloneUrl $SrcDir *> $null
-        if ($LASTEXITCODE -eq 0) { $cloned = $true }
+        $rc = Invoke-BestEffort { git clone --branch $Ref --depth 1 $CloneUrl $SrcDir }
+        if ($rc -eq 0) { $cloned = $true }
       }
       if (-not $cloned) {
         # Last resort: a truly anonymous clone. On a machine where `gh auth setup-git`
@@ -104,8 +127,8 @@ try {
         # git to fetch anonymously, so the public canonical repo clones with no creds.
         if (Test-Path $SrcDir) { Remove-Item -Recurse -Force $SrcDir -ErrorAction SilentlyContinue }
         $env:GIT_TERMINAL_PROMPT = '0'  # PR#67 review NB-1: never prompt
-        git -c credential.helper= -c http.https://github.com/.extraheader= clone --branch $Ref --depth 1 $CloneUrl $SrcDir *> $null
-        if ($LASTEXITCODE -eq 0) { $cloned = $true }
+        $rc = Invoke-BestEffort { git -c credential.helper= -c http.https://github.com/.extraheader= clone --branch $Ref --depth 1 $CloneUrl $SrcDir }
+        if ($rc -eq 0) { $cloned = $true }
       }
       if (-not $cloned) {
         [Console]::Error.WriteLine("ERROR: could not fetch $Repo@$Ref (auth or network?). Treat as an access issue, not a missing repo.")
@@ -133,7 +156,8 @@ try {
 
   Write-Host ""
   Write-Host "## Post-sync evidence"
-  $changed = @(git -C $Target status --short 2>$null | Where-Object { $_ })
+  $null = Invoke-BestEffort { git -C $Target status --short }
+  $changed = @($script:BestEffortOut | Where-Object { $_ })
   if ($changed.Count -gt 0) {
     Write-Host "- Changed files ($($changed.Count)):"
     $changed | ForEach-Object { Write-Host "  $_" }
