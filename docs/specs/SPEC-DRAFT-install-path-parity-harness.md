@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: a7dbadad8e6df36c1333da59d2b7383395ecda975f047e7fa21056e1ad760098
+frozen_sha256: a95741d6fd07298653e4ac75c24c2b329f6e7659c4b05b9c45d1ea309d585626
 ceremony_level: 2
 links:
   requirement: install-path-parity-harness
@@ -359,7 +359,11 @@ exactly nine TAB-separated fields:
    regular expression led by `=` is paired: it needs a capture group, and the
    captured values of the lines it covers must be the same on both sides, so
    the row excuses a difference in the text around a value and never a
-   difference in the value.
+   difference in the value. A row of kind `missing` with a `fu-...` tracker
+   may instead take `?`: intermittent, it covers a divergence when one is
+   present and is never judged stale (the parser refuses `?` for any other
+   kind or for an `accepted` tracker); `win-sh-odd-root-dirs` uses it because
+   the sh update leaves no odd root directory on some Windows runs.
 9. `reason`: non-empty free text, no TAB.
 
 A divergence is covered when a row matches its pair, scenario, path, kind

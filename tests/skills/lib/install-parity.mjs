@@ -338,7 +338,12 @@ export function parseAllowlist(text, { twins = null } = {}) {
     if (!HOSTS.includes(r.host)) throw new AllowlistError(r.id, 'host', `${r.host} is not one of ${HOSTS.join(', ')}`);
     if (r.tracker !== 'accepted' && !/^fu-\S+$/.test(r.tracker)) throw new AllowlistError(r.id, 'tracker', `${r.tracker} is neither accepted nor a fu- id`);
     if (r.kind === 'lines' && r.match === '-') throw new AllowlistError(r.id, 'match', 'a lines row needs a regular expression (- would cover every line of its path)');
-    if (r.match !== '-') {
+    if (r.match === '?') {
+      // An intermittent row: it covers a divergence when one is present and is never judged stale.
+      if (r.kind !== 'missing') throw new AllowlistError(r.id, 'match', '? (intermittent) is only for kind missing');
+      if (!/^fu-\S+$/.test(r.tracker)) throw new AllowlistError(r.id, 'match', '? (intermittent) needs a fu- tracker that carries the open cause');
+      r.intermittent = true;
+    } else if (r.match !== '-') {
       // A leading = marks a paired row: capture group 1 of every line it covers must be the same multiset on both sides.
       r.paired = r.match.startsWith('=');
       try { r.re = new RegExp(r.paired ? r.match.slice(1) : r.match); } catch (e) { throw new AllowlistError(r.id, 'match', `does not compile: ${e.message}`); }
@@ -390,7 +395,7 @@ function staleRows(rows, { ran, pairsRun, host, used, usedPairs = null, pairsByS
   if (wholeTier) {
     for (const r of rows) {
       const named = r.scenario === '*' ? ran : r.scenario.split(',').filter((s) => ran.includes(s));
-      if (!named.length || !hostMatches(r.host, host)) continue;
+      if (r.intermittent || !named.length || !hostMatches(r.host, host)) continue;
       for (const pair of r.pairList) {
         const pairRan = pairsByScenario ? named.some((s) => (pairsByScenario[s] || []).includes(pair)) : pairsRun.includes(pair);
         const isUsed = usedPairs ? usedPairs.has(`${r.id}|${pair}`) : used.has(r.id);

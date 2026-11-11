@@ -370,6 +370,16 @@ describe('TEST-3563 allowlist', () => {
     const used = new Set(o.used || []);
     return M.staleRows(parsed, { ran, pairsRun: o.pairsRun || ['a:b'], host: o.host || HOST_POSIX, used, wholeTier: o.wholeTier !== false }).map((r) => r.id);
   };
+  test('the win-source-path rows excuse only the two spellings of a scratch fx/src path', () => {
+    has('applyAllowlist');
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }).filter((r) => r.id === 'win-source-path-pin');
+    const win = { platform: 'win32', utc: true, ps5: false };
+    const d = (a, b) => ({ pair: 'sh:ps1', path: '.aai/system/AAI_PIN.md', kind: 'lines', detail: 'd', onlyA: [`- Source path: ${a}`], onlyB: [`- Source path: ${b}\r`] });
+    const go = (a, b) => M.applyAllowlist([d(a, b)], rows, { scenario: 'SY-01', host: win }).uncovered.length;
+    assert.equal(go('/c/Users/x/AppData/Local/Temp/aai-parity-run-ab12/fx/src', 'C:\\Users\\x\\AppData\\Local\\Temp\\aai-parity-run-ab12\\fx\\src'), 0);
+    assert.equal(go('/c/elsewhere/project/fx/src', 'C:\\elsewhere\\project\\fx\\src'), 1, 'a directory outside the scratch root stays visible');
+    assert.equal(go('/c/Users/x/Temp/aai-parity-run-ab12/fx/other', 'C:\\Users\\x\\Temp\\aai-parity-run-ab12\\fx\\src'), 1, 'a different leaf stays visible');
+  });
   test('a bsd-sed row is judged only on a host whose sed is BSD, so a GNU-sed host neither covers nor stales it', () => {
     has('staleRows'); has('probeBsdSed');
     assert.deepEqual(stale([row({ host: 'bsd-sed' })], ['S-1']), []);
@@ -387,6 +397,18 @@ describe('TEST-3563 allowlist', () => {
     assert.deepEqual(stale([row()], ['S-1']), ['r1']);
     assert.deepEqual(stale([row()], ['S-1'], { used: ['r1'] }), []);
     assert.deepEqual(stale([row()], ['S-1'], { wholeTier: false }), []);
+  });
+  test('an intermittent row (match ?) covers when present and is never stale, and the parser refuses it elsewhere', () => {
+    has('staleRows'); has('parseAllowlist');
+    const im = (o = {}) => row({ kind: 'missing', tracker: 'fu-x-y', match: '?', ...o });
+    assert.deepEqual(stale([im()], ['S-1']), [], 'covering nothing is not stale');
+    assert.deepEqual(stale([im()], ['S-1'], { used: ['r1'] }), []);
+    assert.deepEqual(stale([row({ kind: 'missing', tracker: 'fu-x-y', match: '-' })], ['S-1']), ['r1'], 'a plain missing row still goes stale');
+    const ds = [{ pair: 'a:b', path: 'f.txt', kind: 'missing', detail: 'd' }];
+    assert.equal(M.applyAllowlist(ds, parse(im()), { scenario: 'S-1', host: HOST_POSIX }).uncovered.length, 0, 'it still covers');
+    refused(im({ kind: 'lines' }), 'r1', 'match');
+    refused(im({ kind: 'bytes' }), 'r1', 'match');
+    refused(im({ tracker: 'accepted' }), 'r1', 'match');
   });
   test('rows for a scenario, pair or host that did not run are not stale', () => {
     has('staleRows');
@@ -621,6 +643,20 @@ describe('TEST-3567 pinned environment', () => {
     assert.ok(env.GIT_CONFIG_GLOBAL.startsWith(root));
     assert.ok(env.TMPDIR.startsWith(root));
     assert.deepEqual(Object.keys(env).filter((k) => k.startsWith('AAI_')), []);
+  });
+  test('GIT_REDIRECT_STDERR reaches only the ps1 update step, and only on a PowerShell below 6 host', () => {
+    has('runMatrix');
+    const base = { src: '/src', target: '/t', bash: 'bash', ps: 'pwsh' };
+    const steps = [{ op: 'sync' }, { op: 'update' }, { op: 'hooks', flags: [] }];
+    const envOf = (twin, step, ps5) => (M.TWINS[twin].argv({ ...step, index: 0 }, { ...base, ps5 }).env || {});
+    for (const st of steps) {
+      for (const ps5 of [true, false]) {
+        assert.equal('GIT_REDIRECT_STDERR' in envOf('sh', st, ps5), false, `sh ${st.op} ps5=${ps5}`);
+        const want = st.op === 'update' && ps5;
+        assert.equal('GIT_REDIRECT_STDERR' in envOf('ps1', st, ps5), want, `ps1 ${st.op} ps5=${ps5}`);
+      }
+    }
+    assert.equal(envOf('ps1', { op: 'update' }, true).GIT_REDIRECT_STDERR, '2>&1');
   });
   test('HK-01 with a caller core.hooksPath in GIT_CONFIG_GLOBAL still installs into .git/hooks for both twins', () => {
     has('runMatrix');

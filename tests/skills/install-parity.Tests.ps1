@@ -74,6 +74,8 @@ Describe 'install-parity driver, smoke matrix' {
     }
     $r.Code | Should -Be 0
     $rep = Get-Content -LiteralPath $script:Report -Raw | ConvertFrom-Json
+    # Driver notes (for example the Windows PowerShell 5.1 GIT_REDIRECT_STDERR NOTE) belong in every run log, green or not.
+    @($rep.notes) | Where-Object { $_ } | ForEach-Object { Write-Host $_ }
     $rep.verdict | Should -Be 'PASS'
   }
 
