@@ -3792,3 +3792,4 @@
 {"v":1,"ts":"2026-11-11T17:55:09Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":722,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-11T17:55:13Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":722,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-11T18:05:11Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":722,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-11T18:40:46Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"install-path-parity-harness","payload":{"pr":546,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"caea1cfddabd9f94561c39d443b4d44c13a3bbce"}}
