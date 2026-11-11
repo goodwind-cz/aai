@@ -1,10 +1,10 @@
 ---
 id: spec-update-ps1-git-stderr
 type: spec
-number: null
-status: implementing
+number: 285
+status: done
 mutation_gate: v1
-frozen_sha256: 21d9166646dff94c670b2cf4be7632197f79f999ca9b8d9fe8e193ef5a1cc503
+frozen_sha256: 45231f6e09a8cc669e7c380af53a754de4cb1d84ea31976be8a37d8d253fe898
 ceremony_level: 2
 links:
   requirement: update-ps1-git-stderr
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/ISSUE-DRAFT-update-ps1-git-stderr.md
+- Requirement: docs/issues/ISSUE-0112-update-ps1-git-stderr.md
 - Prior art: docs/specs/SPEC-0284-spec-install-path-parity-harness.md. It is done and frozen, and its D-ENV paragraph describes the `GIT_REDIRECT_STDERR=2>&1` workaround that this scope removes. That paragraph stays as the historical record and is not edited here.
 - Technology contract: docs/TECHNOLOGY.md
 
@@ -38,7 +38,7 @@ Registry items closed by this scope: fu-parity-win-update-5-1-stderr. Filed duri
 - Base ref: origin/main at b8c4973a
 - Worktree branch/path: fix/update-ps1-git-stderr at /Users/ales/Projects/aai-worktrees/update-ps1-git-stderr
 - Review required: true
-- Review scope: .aai/scripts/aai-update.ps1; tests/skills/aai-update.Tests.ps1; tests/skills/lib/install-parity.mjs; tests/skills/lib/install-parity.test.mjs; tests/skills/install-parity.Tests.ps1 (comment line only); CHANGELOG.md (one new per-entry heading); docs/issues/ISSUE-DRAFT-update-ps1-git-stderr.md; docs/specs/SPEC-DRAFT-update-ps1-git-stderr.md; the append-only ledger lines this ride writes (docs/ai/decisions.jsonl, docs/ai/EVENTS.jsonl, docs/ai/tests/test-runs.jsonl); diff range origin/main...HEAD.
+- Review scope: .aai/scripts/aai-update.ps1; tests/skills/aai-update.Tests.ps1; tests/skills/lib/install-parity.mjs; tests/skills/lib/install-parity.test.mjs; tests/skills/install-parity.Tests.ps1 (comment line only); CHANGELOG.md (one new per-entry heading); docs/issues/ISSUE-0112-update-ps1-git-stderr.md; docs/specs/SPEC-0285-spec-update-ps1-git-stderr.md; the append-only ledger lines this ride writes (docs/ai/decisions.jsonl, docs/ai/EVENTS.jsonl, docs/ai/tests/test-runs.jsonl); diff range origin/main...HEAD.
 
 The ceremony level is L2, not L1. The script change touches one surface, but three things argue against the lighter lane. The decisive evidence comes only from the Windows CI legs (Windows PowerShell 5.1 cannot run locally). The change also edits the shared install-parity harness that another suite owns. And the default clone path, which every Windows `/aai-update` takes, is part of the same fix. No protected L3 path is touched.
 

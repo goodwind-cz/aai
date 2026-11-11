@@ -3795,3 +3795,8 @@
 {"v":1,"ts":"2026-11-11T18:40:46Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"install-path-parity-harness","payload":{"pr":546,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"caea1cfddabd9f94561c39d443b4d44c13a3bbce"}}
 {"v":1,"ts":"2026-11-11T19:16:35Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-update-ps1-git-stderr","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-11-11T21:12:27Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":724,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-11T22:25:37Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":724,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-11T22:44:06Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"update-ps1-git-stderr","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-11T22:44:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"update-ps1-git-stderr","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-11T22:44:06Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-update-ps1-git-stderr","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-11T22:44:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-update-ps1-git-stderr","payload":{"validation":"pass","code_review":"pass"}}

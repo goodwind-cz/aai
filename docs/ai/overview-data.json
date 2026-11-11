@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-11T17:19:25.765Z",
+  "generatedAt": "2026-11-11T22:44:16.817Z",
   "project": "aai",
   "counts": {
-    "delivered": 353,
+    "delivered": 354,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -244,6 +244,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0284-spec-install-path-parity-harness.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "update-ps1-git-stderr",
+      "title": "aai-update.ps1 dies on git stderr under Windows PowerShell 5.1",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0112-update-ps1-git-stderr.md",
+      "closed_on": "2026-11-11",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0285-spec-update-ps1-git-stderr.md",
       "validation": null,
       "review": null
     },
@@ -4860,6 +4873,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0284-spec-install-path-parity-harness.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "update-ps1-git-stderr",
+          "title": "aai-update.ps1 dies on git stderr under Windows PowerShell 5.1",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0112-update-ps1-git-stderr.md",
+          "closed_on": "2026-11-11",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0285-spec-update-ps1-git-stderr.md",
           "validation": null,
           "review": null
         },

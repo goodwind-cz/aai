@@ -1,8 +1,8 @@
 ---
 id: update-ps1-git-stderr
 type: issue
-number: null
-status: draft
+number: 112
+status: done
 links:
   pr: []
   commits: []
