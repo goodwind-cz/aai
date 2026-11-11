@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: a95741d6fd07298653e4ac75c24c2b329f6e7659c4b05b9c45d1ea309d585626
+frozen_sha256: 9e662a20c5127a8420e134ce27385466ba43bec44baa01c0447942b75e5ea844
 ceremony_level: 2
 links:
   requirement: install-path-parity-harness
@@ -127,7 +127,11 @@ target.
 
 CI budget: `tests/skills/suite-weights.tsv` sums 7460 s over 132 suites in
 4 shards (each leg's job timeout 30 minutes); a new suite enters at the
-documented fallback weight 196. The Windows job of ps1-quality.yml
+documented fallback weight 196. The suite stays at that weight on purpose: the
+weights audit admits a measured row only from five CI run samples, and the
+fallback (the maximum) already starts the suite first in the queue; its wall
+alone is about 120 s. The sweep scheduler has no serial or heavy slot, so
+weights only order the queue and nothing keeps it off other heavy suites. The Windows job of ps1-quality.yml
 (`windows-5_1`) runs the whole `tests/skills` Pester discovery under 5.1 and
 again under pwsh 7, with a 30-minute job bound against a measured maximum of
 20.6 minutes; the `windows-wsl1` job runs it once more under 5.1. The new
@@ -168,10 +172,15 @@ on every host. CLI:
   stale; 1 an uncovered divergence, a stale row or a broken scenario; 2 a
   usage error or an allowlist that does not parse (named row and field); 3 a
   missing tool (node, git, the `--bash` or `--ps` executable), named.
-- Every child process has a 300 s bound; on expiry the child and every
-  process of its group are killed (a POSIX process group, `taskkill /T` on
-  Windows) and the step counts as exit 124; the driver leaves no process
-  behind.
+- Every child process has a bound of 300 s, or `AAI_PARITY_STEP_TIMEOUT`
+  seconds when that variable is a positive number (anything else is a usage
+  error, exit 2; the bash suite sets 900 unless the caller names a value); on
+  expiry the child and every process of its group are killed (a POSIX process
+  group, `taskkill /T` on Windows) and the driver leaves no process behind.
+  A twin step that expires is an infrastructure break, not a parity
+  divergence: the driver prints `INFRA timeout <scenario> <twin> <step>`,
+  makes no divergence or stale judgement for that run, writes no report and
+  exits 4. A step that merely exits 124 by itself is an ordinary exit code.
 
 ### D-SEAM. The twin registry and the third twin
 
@@ -455,7 +464,13 @@ kind, detail, covered_by }] }], uncovered, stale }`; `verdict` is `PASS` or
   mutation anchor)
   and requires exit 0 and `verdict` PASS, printing the driver's stdout and
   stderr on failure; one `It` requires the report's scenario ids to equal
-  `list --matrix smoke --json`.
+  `list --matrix smoke --json`. `AAI_PARITY_PESTER_SCENARIOS` (a comma list
+  of smoke scenario ids) narrows both the driver call (one `--scenario` each)
+  and the expected list to those ids; unset, the whole smoke matrix runs. The
+  bash suite sets it to HK-01 because its default matrix (TEST-3565) has
+  already run both twins over every smoke scenario; the `windows-parity`
+  job and the Linux ps1 gate leave it unset and run the whole smoke matrix
+  through Pester.
 
 ### D-SUITE. The bash suite
 
@@ -500,7 +515,8 @@ branch's diff).
   every other `tests/skills/lib/*` file the suite sources or reads.
 - `tests/skills/suite-weights.tsv`:
   `# sample aai-install-parity fallback unsampled (new suite of install-path-parity-harness; no successful observation)`
-  and `aai-install-parity<TAB>196` (the documented maximum).
+  and `aai-install-parity<TAB>196` (the documented maximum; the scheduler
+  offers no serial or heavy mechanism).
 - `test-aai-hygiene-pack.sh` `test_090_suite_map_pin`: the one literal
   row-count pin moves 132 to 133 (verified at planning: the only `-eq 132`
   in tests/skills is that line). A parallel ride that adds a suite moves it
@@ -589,7 +605,7 @@ no production file changes.
 | Spec-AC-06 | The bash suite runs the default matrix with twins sh and ps1 against the committed allowlist on Linux and macOS and the driver exits 0 with verdict PASS, every default scenario compared with each probe present, and the idempotence pairs compared for SY-02, HK-02 and HK-09. | done | docs/ai/tdd/install-path-parity-harness/green/run-default.out; docs/ai/tdd/install-path-parity-harness/green/suite-partB.txt; docs/ai/tdd/install-path-parity-harness/green/suite-full-matrix.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3565.txt | — | — |
 | Spec-AC-07 | WHEN a module twin that delegates to the sh twin is added with --twin-module, the run SHALL compare it with sh and ps1 and pass with an allowlist whose sh:ps1 rows also list ps1 and that twin; a module twin that appends one byte to AAI_PIN.md SHALL fail naming the pairs sh and ps1 against it on that path. | done | docs/ai/tdd/install-path-parity-harness/green/TEST-3566.txt; docs/ai/tdd/install-path-parity-harness/green/suite-partB.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3566.txt | — | — |
 | Spec-AC-08 | Every twin process sees TZ equal to PINNED_TZ, GIT_CONFIG_NOSYSTEM=1, GIT_CONFIG_GLOBAL naming the scratch file, TMPDIR under the scratch root and no AAI_ variable, shown by an env-recording module twin; HK-01 with a caller GIT_CONFIG_GLOBAL that sets core.hooksPath still installs into .git/hooks for both twins and passes. | done | docs/ai/tdd/install-path-parity-harness/green/TEST-3567.txt; docs/ai/tdd/install-path-parity-harness/green/suite-partB.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3567.txt | — | — |
-| Spec-AC-09 | tests/skills/install-parity.Tests.ps1 run with Invoke-Pester under pwsh 7 passes with at least 2 passed tests, 0 skipped and 0 failed; it runs the smoke matrix with the running engine as --ps, resolves bash through the four D-PESTER candidates on Windows without the System32 shim, routes native calls through Invoke-NativeCaptured and holds no -Skip. | done | docs/ai/tdd/install-path-parity-harness/green/pester-pwsh7.txt; docs/ai/tdd/install-path-parity-harness/green/suite-partB.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3568.txt | — | — |
+| Spec-AC-09 | tests/skills/install-parity.Tests.ps1 run with Invoke-Pester under pwsh 7 passes with at least 2 passed tests, 0 skipped and 0 failed; it runs the smoke matrix with the running engine as --ps (only the scenarios of AAI_PARITY_PESTER_SCENARIOS when that is set), resolves bash through the four D-PESTER candidates on Windows without the System32 shim, routes native calls through Invoke-NativeCaptured and holds no -Skip. | done | docs/ai/tdd/install-path-parity-harness/green/pester-pwsh7.txt; docs/ai/tdd/install-path-parity-harness/green/suite-partB.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3568.txt | — | — |
 | Spec-AC-10 | The suite takes the matrix from AAI_PARITY_MATRIX (default when unset, smoke and full accepted, anything else a named failure); the report carries per-scenario and total seconds; with AAI_PARITY_REFERENCE_HOST=1 the default matrix finishes in at most 150 s and smoke in at most 75 s, and the measured values are recorded. | done | docs/ai/tdd/install-path-parity-harness/green/suite-partB-refhost-default.txt; docs/ai/tdd/install-path-parity-harness/green/timing-smoke-refhost.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3569.txt | — | — |
 | Spec-AC-11 | Every allowlist row has a tracker that is accepted or an id that follows-ups.mjs list --status all --json knows, and every fu tracker's source names the path it was seen on; the seed rows exist with the D-ALLOW ids. | done | docs/ai/tdd/install-path-parity-harness/green/TEST-3570.txt; docs/ai/tdd/install-path-parity-harness/green/suite-partB.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3570.txt | — | — |
 | Spec-AC-12 | Wiring per D-WIRE: select-suites selects aai-install-parity for each of the six twin files, the driver, the allowlist and the Pester file; the weights row is 196 with its fallback line; hygiene test_090 pins 133 and test_129 passes; nested-suite lint, check-cd-subshell-leak, check-test-registration and check-vendored-script-deps exit 0; both ps1-quality.yml path lists are identical and hold the D-WIRE entries and win-fallback test_034 passes. | done | docs/ai/tdd/install-path-parity-harness/green/suite-partB.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3571.txt | — | — |
@@ -614,7 +630,7 @@ under `green/`, and one mutation record per row
 5. Run 5, Spec-AC-12, 13: D-WIRE, D-RFC; then a full-matrix run once
    (`AAI_PARITY_MATRIX=full`) with its rows, recorded in the green log.
 
-Edge cases: a twin that hangs is killed at 300 s and its step reads 124; a
+Edge cases: a twin that hangs is killed at its bound (300 s, or AAI_PARITY_STEP_TIMEOUT) and the run exits 4 with an INFRA timeout line; a
 target path with a space (SY-01, HK-10); two runs of one twin within one
 second (the driver waits for the next second); a CRLF allowlist on a
 Windows checkout; Git for Windows paths passed to bash as `C:/...`.
@@ -631,7 +647,7 @@ Windows checkout; Git for Windows paths passed to bash as `C:/...`.
 | TEST-3565 | Spec-AC-06 | integration | tests/skills/test-aai-install-parity.sh | test_3565_default_matrix needs node, git and pwsh, runs the driver with the suite's matrix (default unless AAI_PARITY_MATRIX says otherwise), twins sh,ps1 and the committed allowlist into $TEST_DIR/run.json, and requires exit 0, verdict PASS, every scenario of the tier in the report with no broken entry, and self pairs present for SY-02, HK-02 and HK-09 | `sed:s/pin-template-version-spacing\t[^\n]*\n//` on tests/skills/lib/install-parity-allowlist.tsv | green |
 | TEST-3566 | Spec-AC-07 | integration | tests/skills/test-aai-install-parity.sh | test_3566_third_twin writes two module twins into $TEST_DIR (mirror delegates to the sh argv, skew does the same and appends one byte to .aai/system/AAI_PIN.md after the step) and a scratch allowlist whose sh:ps1 rows also list ps1:mirror; --scenario SY-01 with mirror exits 0 with pairs sh:mirror and ps1:mirror in the report; with skew exits 1 naming sh:skew and ps1:skew on .aai/system/AAI_PIN.md | `sed:s/for \(let j = i \+ 1; j < twins\.length; j \+= 1\)/for (let j = i + 1; j < Math.min(twins.length, 2); j += 1)/` on tests/skills/lib/install-parity.mjs | green |
 | TEST-3567 | Spec-AC-08 | integration | tests/skills/test-aai-install-parity.sh | test_3567_environment runs an env-recording module twin with AAI_ROLE and AAI_GIT_WRITE set in the caller and requires TZ=Etc/GMT-3, GIT_CONFIG_NOSYSTEM=1, GIT_CONFIG_GLOBAL under the scratch root, TMPDIR under the scratch root and no AAI_ name; then HK-01 with a caller GIT_CONFIG_GLOBAL setting core.hooksPath to an outside directory exits 0 with the three hooks under .git/hooks for both twins and nothing in that directory | `sed:s/const PINNED_TZ = 'Etc\/GMT-3';/const PINNED_TZ = 'UTC';/` on tests/skills/lib/install-parity.mjs | green |
-| TEST-3568 | Spec-AC-09 | integration | tests/skills/test-aai-install-parity.sh | test_3568_pester needs pwsh and Pester 5, runs Invoke-Pester on tests/skills/install-parity.Tests.ps1 under env -u AAI_ROLE and requires at least 2 passed, 0 skipped, 0 failed and 0 failed containers; then inspects the file for the four bash candidates, the System32 exclusion, Invoke-NativeCaptured on every native call and no -Skip | `sed:s/'--matrix', 'smoke'/'--matrix', 'nonesuch'/` on tests/skills/install-parity.Tests.ps1 | green |
+| TEST-3568 | Spec-AC-09 | integration | tests/skills/test-aai-install-parity.sh | test_3568_pester needs pwsh and Pester 5, runs Invoke-Pester on tests/skills/install-parity.Tests.ps1 under env -u AAI_ROLE and requires at least 2 passed, 0 skipped, 0 failed and 0 failed containers; with AAI_PARITY_PESTER_SCENARIOS=HK-01 (the full smoke matrix runs in the Windows and Linux ps1 jobs); then inspects the file for the four bash candidates, the System32 exclusion, Invoke-NativeCaptured on every native call and no -Skip | `sed:s/'--matrix', 'smoke'/'--matrix', 'nonesuch'/` on tests/skills/install-parity.Tests.ps1 | green |
 | TEST-3569 | Spec-AC-10 | integration | tests/skills/test-aai-install-parity.sh | test_3569_tiers_and_timing calls parity_matrix with AAI_PARITY_MATRIX unset (default), smoke, full and bogus (named failure); reads per-scenario and total seconds from $TEST_DIR/run.json (running the smoke matrix when the file is absent); with AAI_PARITY_REFERENCE_HOST=1 requires the D-MATRIX bounds, else prints them | `sed:s/AAI_PARITY_MATRIX:-default/AAI_PARITY_MATRIX:-smoke/` on tests/skills/test-aai-install-parity.sh | green |
 | TEST-3570 | Spec-AC-11 | inspection | tests/skills/test-aai-install-parity.sh | test_3570_trackers parses the committed allowlist with the driver's parser, requires every tracker to be accepted or an id in follow-ups.mjs list --status all --json whose source names the row's path, and requires the seven D-ALLOW seed ids | `sed:s/\tfu-parity-ps1-hook-exec-bit\t/\tfu-parity-nonesuch\t/` on tests/skills/lib/install-parity-allowlist.tsv | green |
 | TEST-3571 | Spec-AC-12 | inspection | tests/skills/test-aai-install-parity.sh | test_3571_wiring pipes the six twin files, the driver, the allowlist and the Pester file to select-suites.mjs --files-from - and requires aai-install-parity each time; requires one weights row at 196 with its fallback line; runs the hygiene-pack test_090 and test_129 selectors and the win-fallback test_034 selector; runs nested-suite-lint with its allowlist, check-cd-subshell-leak, check-test-registration and check-vendored-script-deps (exit 0); requires the push and pull_request path lists of ps1-quality.yml to be identical and to hold every D-WIRE entry | `sed:s/  aai-install-parity:/  aai-install-parity-gone:/` on tests/skills/suite-map.yaml | green |

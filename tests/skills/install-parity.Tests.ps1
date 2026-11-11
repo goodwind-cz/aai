@@ -15,6 +15,11 @@ Describe 'install-parity driver, smoke matrix' {
     $script:IsWin = [IO.Path]::DirectorySeparatorChar -eq '\'
     $script:Allowlist = Join-Path $PSScriptRoot 'lib/install-parity-allowlist.tsv'
     $script:Report = Join-Path $TestDrive 'parity-report.json'
+    # AAI_PARITY_PESTER_SCENARIOS (comma list of smoke scenario ids) narrows the run to those scenarios. The bash suite sets it
+    # so its POSIX case stays cheap (the full smoke matrix already ran there); unset, this file runs the whole smoke matrix,
+    # which is what the Windows parity job and the Linux ps1 gate do.
+    $script:Only = @(($env:AAI_PARITY_PESTER_SCENARIOS -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $script:ScenarioArgs = @(); foreach ($id in $script:Only) { $script:ScenarioArgs += @('--scenario', $id) }
 
     # Git for Windows' bash: the first existing of the four candidates; the WSL shim under System32 is never used.
     function Get-BashCandidates {
@@ -62,7 +67,7 @@ Describe 'install-parity driver, smoke matrix' {
     $prevScratch = $env:AAI_PARITY_SCRATCH
     try {
       $env:AAI_PARITY_SCRATCH = $scratch
-      $r = Invoke-NativeCaptured -Exe 'node' -Arguments @($script:Driver, 'run', '--matrix', 'smoke', '--bash', $script:Bash, '--ps', $script:Engine, '--json', $script:Report)
+      $r = Invoke-NativeCaptured -Exe 'node' -Arguments (@($script:Driver, 'run', '--matrix', 'smoke', '--bash', $script:Bash, '--ps', $script:Engine, '--json', $script:Report) + $script:ScenarioArgs)
     } finally {
       if ($null -eq $prevScratch) { Remove-Item Env:\AAI_PARITY_SCRATCH -ErrorAction SilentlyContinue } else { $env:AAI_PARITY_SCRATCH = $prevScratch }
       Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue
@@ -84,6 +89,7 @@ Describe 'install-parity driver, smoke matrix' {
     $l.Code | Should -Be 0
     # Windows PowerShell 5.1 sends a top-level JSON array down the pipeline as ONE object: flatten it through ForEach-Object.
     $want = @(($l.Out | ConvertFrom-Json) | ForEach-Object { $_ })
+    if ($script:Only.Count -gt 0) { $want = @($want | Where-Object { $script:Only -contains $_ }) }
     $rep = Get-Content -LiteralPath $script:Report -Raw | ConvertFrom-Json
     $got = @($rep.scenarios | ForEach-Object { $_.id })
     $want.Count | Should -BeGreaterThan 0

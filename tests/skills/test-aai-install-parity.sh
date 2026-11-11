@@ -58,6 +58,9 @@ check_deps() {
 }
 
 setup_fixture() {
+  # A sweep loads the host: the driver's 300 s per-step bound is tripled here unless the caller names one. A step that still
+  # outlives it is reported by the driver as an INFRA timeout (exit 4), not as a parity divergence.
+  export AAI_PARITY_STEP_TIMEOUT="${AAI_PARITY_STEP_TIMEOUT:-900}"
   TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-install-parity-suite.XXXXXX")"
   # A fast scratch base for the driver unless the caller names one; removed on exit.
   if [[ -z "${AAI_PARITY_SCRATCH:-}" ]]; then
@@ -308,7 +311,9 @@ test_3568_pester() {
   need_tool TEST-3568 pwsh || return 0
   [[ -f "$PESTER_FILE" ]] || log_fail "TEST-3568: tests/skills/install-parity.Tests.ps1 does not exist"
   local out rc=0 line passed skipped failed containers
-  out="$(env -u AAI_ROLE -u AAI_GIT_WRITE PARITY_PESTER_FILE="$PESTER_FILE" pwsh -NoProfile -NonInteractive -Command '
+  # The default matrix (TEST-3565) already ran both twins over every smoke scenario here, so this case proves the Pester front
+  # end on one cheap scenario (HK-01); the Windows parity job and the Linux ps1 gate run the whole smoke matrix through it.
+  out="$(env -u AAI_ROLE -u AAI_GIT_WRITE AAI_PARITY_PESTER_SCENARIOS="${AAI_PARITY_PESTER_SCENARIOS-HK-01}" PARITY_PESTER_FILE="$PESTER_FILE" pwsh -NoProfile -NonInteractive -Command '
     $ErrorActionPreference = "Stop"
     $m = Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major -ge 5 } | Sort-Object Version -Descending | Select-Object -First 1
     if (-not $m) { Write-Output "NO-PESTER5"; exit 3 }

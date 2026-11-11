@@ -28,6 +28,19 @@ export const REFERENCE_TWIN = 'sh';
 export const NAME_MUST_MATCH_STAMP = true;
 const HOSTS = ['any', 'posix', 'win32', 'utc', 'non-utc', 'bsd-sed', 'ps5'];
 const STEP_TIMEOUT_MS = 300000;
+// AAI_PARITY_STEP_TIMEOUT (seconds) overrides the 300 s per-step bound; a value that is not a positive number is refused.
+export function stepTimeoutMs(env = process.env) {
+  const v = env.AAI_PARITY_STEP_TIMEOUT;
+  if (v === undefined || v === '') return STEP_TIMEOUT_MS;
+  const n = Number(v);
+  if (!/^[0-9]+(\.[0-9]+)?$/.test(String(v).trim()) || !(n > 0)) throw new RangeError(`AAI_PARITY_STEP_TIMEOUT must be a positive number of seconds, got '${v}'`);
+  return Math.round(n * 1000);
+}
+// A step that outlived its bound is an infrastructure break (a loaded host), not a divergence between the twins.
+export class InfraTimeout extends Error {
+  constructor(scenario, twin, step) { super(`INFRA timeout ${scenario} ${twin} ${step}`); this.scenario = scenario; this.twin = twin; this.step = step; }
+}
+export const EXIT_INFRA = 4;
 
 // ---------------------------------------------------------------------------------------------------------------
 // D-NORM: the complete list of normalizations and exclusions. Nothing else rewrites a byte or a name.
@@ -457,12 +470,13 @@ c.on('close', (code, signal) => {
 });
 `;
 
-export function runStep(file, args, { cwd, env, timeoutMs = STEP_TIMEOUT_MS }) {
+export function runStep(file, args, { cwd, env, timeoutMs = stepTimeoutMs() }) {
   const r = spawnSync(process.execPath, ['-e', SUPERVISOR, JSON.stringify([file, ...args]), String(timeoutMs)], { cwd, env, encoding: 'utf8', timeout: timeoutMs + 15000, killSignal: 'SIGKILL', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024 });
   let code = r.status;
   if (r.error) code = r.error.code === 'ETIMEDOUT' ? 124 : (r.error.code === 'ENOENT' ? 127 : 1);
   if (code === null || code === undefined) code = r.signal ? 124 : 1;
-  return { code, stdout: r.stdout || '', stderr: (r.stderr || '') + (r.error ? `\n${r.error.message}` : '') };
+  const timedOut = (r.error && r.error.code === 'ETIMEDOUT') || (code === 124 && /install-parity: step exceeded/.test(r.stderr || ''));
+  return { code, timedOut: Boolean(timedOut), stdout: r.stdout || '', stderr: (r.stderr || '') + (r.error ? `\n${r.error.message}` : '') };
 }
 const run = runStep;
 const sleepMs = (ms) => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
@@ -645,6 +659,7 @@ function runScenario(scenario, twins, ctx) {
       const a = twin.argv({ ...step, index: i }, { src: ctx.src, target: targetDir, bash: ctx.bash, ps: ctx.ps, ps5: Boolean(ctx.host && ctx.host.ps5) });
       const before = oddRootNames(targetDir); const t1 = Date.now();
       const r = run(a.file, a.args, { cwd: a.cwd || targetDir, env: { ...twinEnv(ctx.root), ...(a.env || {}) } });
+      if (r.timedOut) throw new InfraTimeout(scenario.id, twin.name, i + 1);
       codes.push(r.code);
       // Root entries whose name leaves printable ASCII are reported with the step that left them (a mangled name is a harness
       // or twin fault worth seeing in a CI log), with their birth time against the step window.
@@ -737,6 +752,7 @@ export async function main(argv) {
 
 async function dispatch(cmd, rest, err) {
   const o = parseArgsFor(cmd, rest);
+  try { stepTimeoutMs(); } catch (e) { throw new UsageError(e.message); }
   if (!o.matrix || !TIERS.includes(o.matrix)) throw new UsageError(`--matrix must be one of ${TIERS.join(', ')}`);
   if (cmd === 'list') {
     const ids = listMatrix(o.matrix);
@@ -771,6 +787,9 @@ async function dispatch(cmd, rest, err) {
   let rep;
   try {
     rep = runMatrix({ scenarios, twins, rows, matrix: o.matrix, filtered: o.scenario.length > 0, ctx: { root, src: null, bash: o.bash, ps: o.ps, host: hostInfo({ ps: twinNames.includes('ps1') ? o.ps : null, bash: o.bash }) } });
+  } catch (e) {
+    if (e instanceof InfraTimeout) { process.stdout.write(`${e.message}\n`); err('install-parity: a twin step outlived its bound (AAI_PARITY_STEP_TIMEOUT, default 300 s); this is an infrastructure break, not a parity divergence, and no divergence or stale judgement was made'); return EXIT_INFRA; }
+    throw e;
   } finally {
     if (o.keep) process.stdout.write(`scratch root kept: ${root}\n`); else fs.rmSync(root, { recursive: true, force: true });
   }

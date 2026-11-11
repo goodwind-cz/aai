@@ -793,6 +793,38 @@ describe('TEST-3566b registry defaults and process bounds', () => {
   });
 });
 
+describe('TEST-3566b step bound from the environment and timeouts as infrastructure breaks', () => {
+  test('AAI_PARITY_STEP_TIMEOUT overrides the 300 s default in seconds and refuses a non-number', () => {
+    has('stepTimeoutMs');
+    assert.equal(M.stepTimeoutMs({}), 300000);
+    assert.equal(M.stepTimeoutMs({ AAI_PARITY_STEP_TIMEOUT: '' }), 300000);
+    assert.equal(M.stepTimeoutMs({ AAI_PARITY_STEP_TIMEOUT: '900' }), 900000);
+    assert.equal(M.stepTimeoutMs({ AAI_PARITY_STEP_TIMEOUT: '1.5' }), 1500);
+    for (const bad of ['0', '-3', 'abc', '10s']) assert.throws(() => M.stepTimeoutMs({ AAI_PARITY_STEP_TIMEOUT: bad }), /AAI_PARITY_STEP_TIMEOUT/);
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01'], { env: { ...process.env, AAI_PARITY_STEP_TIMEOUT: 'abc' } });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /AAI_PARITY_STEP_TIMEOUT/);
+  });
+  test('a step that outlives the bound is an INFRA timeout naming scenario, twin and step, exit 4, with no divergence or stale judgement', { skip: !posix && 'POSIX process groups' }, () => {
+    const d = scratch('infra');
+    const hang = (name) => {
+      put(d, `${name}.mjs`, `export default { argv(step, ctx) { return { file: process.execPath, args: ['-e', 'setTimeout(function () {}, 60000)'], cwd: ctx.target }; } };\n`);
+    };
+    hang('hang');
+    put(d, 'none.tsv', '# none\n');
+    const r = cli(['run', '--matrix', 'smoke', '--scenario', 'SY-01', '--twins', '', '--twin-module', `hang=${path.join(d, 'hang.mjs')}`, '--allowlist', path.join(d, 'none.tsv')], { env: { ...process.env, AAI_PARITY_STEP_TIMEOUT: '1' } });
+    assert.equal(r.status, 4, r.stdout + r.stderr);
+    assert.match(r.stdout, /^INFRA timeout SY-01 hang 1$/m);
+    assert.doesNotMatch(r.stdout, /UNCOVERED|STALE|verdict/);
+  });
+  test('a step that exits 124 on its own is a plain exit code, not a timeout', () => {
+    has('runStep');
+    const r = M.runStep(process.execPath, ['-e', 'process.exit(124)'], { cwd: ROOT, env: process.env });
+    assert.equal(r.code, 124);
+    assert.equal(r.timedOut, false);
+  });
+});
+
 describe('driver import and CLI', () => {
   test('importing the module runs nothing and a usage error exits 2', () => {
     assert.equal(typeof M.main, 'function');
