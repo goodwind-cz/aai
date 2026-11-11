@@ -66,10 +66,10 @@ function Invoke-BestEffort([scriptblock]$Command) {
   $PSNativeCommandUseErrorActionPreference = $false
   $script:BestEffortOut = @()
   $global:LASTEXITCODE = $null
-  # No try/catch on purpose: under Continue a missing executable is a statement-level
-  # error that leaves $LASTEXITCODE null (-> 1 below), and a catch here would also mask
-  # the termination that the removed preference lines are there to prevent.
-  $script:BestEffortOut = @(& $Command 2>$null | Where-Object { $_ -ne $null })
+  # A missing executable is a statement-terminating CommandNotFoundException that unwinds
+  # the caller's try/finally whatever the preference says, so it is caught by TYPE only
+  # (never a catch-all) and leaves $LASTEXITCODE null (-> 1 below), as the bash twin's `|| true` does.
+  try { $script:BestEffortOut = @(& $Command 2>$null | Where-Object { $_ -ne $null }) } catch [System.Management.Automation.CommandNotFoundException] { $global:LASTEXITCODE = $null }
   $code = $global:LASTEXITCODE
   if ($null -eq $code) { $code = 1 }
   $global:LASTEXITCODE = 0  # a best-effort failure must not become the caller's exit code

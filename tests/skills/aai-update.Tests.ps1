@@ -238,8 +238,10 @@ New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
             $script:HostExe = (Get-Process -Id $PID).Path
             $script:BeWrapper = Join-Path $TestDrive 'be-wrapper.ps1'
             @'
-param([string]$UpdatePath, [string]$RepoArg)
+param([string]$UpdatePath, [string]$RepoArg, [string]$NoGitPath = '', [string]$StaleCode = '')
 if ($PSVersionTable.PSVersion -ge [version]'7.3') { $PSNativeCommandUseErrorActionPreference = $true }
+if ($NoGitPath) { $env:PATH = $NoGitPath }
+if ($StaleCode) { $global:LASTEXITCODE = [int]$StaleCode }
 & $UpdatePath -Repo $RepoArg -Ref main
 exit $LASTEXITCODE
 '@ | Set-Content -LiteralPath $script:BeWrapper
@@ -260,10 +262,17 @@ New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
             }
 
             function Invoke-BeUpdate {
-                param([string]$Target, [string]$RepoArg)
+                param([string]$Target, [string]$RepoArg, [switch]$NoGit, [string]$StaleCode = '')
+                $extra = @()
+                if ($NoGit) {
+                    $empty = Join-Path $TestDrive 'be-empty-path'
+                    New-Item -ItemType Directory -Path $empty -Force | Out-Null
+                    $extra += @('-NoGitPath', $empty)
+                }
+                if ($StaleCode) { $extra += @('-StaleCode', $StaleCode) }
                 Push-Location $Target
                 try {
-                    $r = Invoke-NativeCaptured -Exe $script:HostExe -Arguments @('-NoProfile', '-File', $script:BeWrapper, '-UpdatePath', $script:Update, '-RepoArg', $RepoArg)
+                    $r = Invoke-NativeCaptured -Exe $script:HostExe -Arguments (@('-NoProfile', '-File', $script:BeWrapper, '-UpdatePath', $script:Update, '-RepoArg', $RepoArg) + $extra)
                 } finally {
                     Pop-Location
                 }
@@ -316,6 +325,31 @@ New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
             $r.Err | Should -Not -Match 'REFUSED'
             (Test-Path (Join-Path $target 'BE_SYNC_MARKER')) | Should -BeTrue
             $r.Out | Should -Match 'Changed files: none \(already up to date\)'
+        }
+
+        It 'TEST-3587: with git absent from PATH a local -Repo still syncs and exits 0 (missing executable never terminates)' {
+            $src = New-BeSource -Name 'be-src-5'
+            $target = New-BeGitTarget -Name 'be-target-5'
+            $r = Invoke-BeUpdate -Target $target -RepoArg $src -NoGit
+            $r.Code | Should -Be 0 -Because "stderr: $($r.Err)"
+            (Test-Path (Join-Path $target 'BE_SYNC_MARKER')) | Should -BeTrue
+            $r.Err | Should -Not -Match 'is not recognized'
+        }
+
+        It 'TEST-3588: with git absent from PATH a failing clone exits 3 with the ERROR line, never 1' {
+            $target = New-BeGitTarget -Name 'be-target-6'
+            $missing = [System.Uri]::new((Join-Path $TestDrive 'be-no-such-repo-2')).AbsoluteUri
+            $r = Invoke-BeUpdate -Target $target -RepoArg $missing -NoGit
+            $r.Code | Should -Be 3 -Because "stderr: $($r.Err)"
+            $r.Err | Should -Match 'ERROR: could not fetch'
+        }
+
+        It 'TEST-3589: a stale caller exit code of 0 does not leak into a missing-executable attempt (reset to null before the call)' {
+            $target = New-BeGitTarget -Name 'be-target-7'
+            $missing = [System.Uri]::new((Join-Path $TestDrive 'be-no-such-repo-3')).AbsoluteUri
+            $r = Invoke-BeUpdate -Target $target -RepoArg $missing -NoGit -StaleCode '0'
+            $r.Code | Should -Be 3 -Because "stderr: $($r.Err)"
+            $r.Err | Should -Match 'ERROR: could not fetch'
         }
 
         It 'TEST-3584: no line combines a git or gh call with a redirect; the helper carries both tags; the file is ASCII-only' {
