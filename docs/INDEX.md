@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (638)
+## Done (640)
 
 | ID | Type | Path |
 |---|---|---|
@@ -312,6 +312,7 @@ _None._
 | CHANGE-0251 | issues | docs/issues/CHANGE-0251-release-on-node.md |
 | CHANGE-0252 | issues | docs/issues/CHANGE-0252-release-publish-on-node.md |
 | CHANGE-0253 | issues | docs/issues/CHANGE-0253-hook-gate-on-node.md |
+| CHANGE-0254 | issues | docs/issues/CHANGE-0254-install-path-parity-harness.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -701,6 +702,7 @@ _None._
 | SPEC-0281 | specs | docs/specs/SPEC-0281-spec-release-on-node.md |
 | SPEC-0282 | specs | docs/specs/SPEC-0282-spec-release-publish-on-node.md |
 | SPEC-0283 | specs | docs/specs/SPEC-0283-spec-hook-gate-on-node.md |
+| SPEC-0284 | specs | docs/specs/SPEC-0284-spec-install-path-parity-harness.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -739,7 +741,7 @@ _None._
 
 _None._
 
-## Broken references (545)
+## Broken references (552)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -758,6 +760,13 @@ _None._
 | tests/skills/aai-merge-cleanup.Tests.ps1 | docs/specs/SPEC-DRAFT-spec-foo.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/base.md | NOT FOUND |
 | tests/skills/lib/hook-gate.test.mjs | docs/changed.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185419Z-hosta.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/doctor-20261110T185420Z-hostb.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20260102-060405.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-185419.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-190000.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/ai/reports/sync-conflicts-20261110-215419.md | NOT FOUND |
+| tests/skills/lib/install-parity.test.mjs | docs/other.md | NOT FOUND |
 | tests/skills/lib/migrate-state-to-local.test.mjs | docs/ai/.session-context.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-replay.md | NOT FOUND |
 | tests/skills/lib/prompt-diet-ledger.sh | docs/analysis/altitude-variants/V2-PLANNING.md | NOT FOUND |
@@ -1325,4 +1334,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-10 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-11 — counts above use this date for overdue checks.

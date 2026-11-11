@@ -85,6 +85,14 @@ on:
       - '.aai/scripts/aai-release.mjs'
       - '.aai/scripts/lib/platform-adapter.mjs'
       - '.aai/templates/git-hooks/**'
+      - '.aai/scripts/aai-sync.sh'
+      - '.aai/scripts/aai-update.sh'
+      - '.aai/scripts/install-pre-commit-hook.sh'
+      - '.aai/scripts/lib/gitignore-block.sh'
+      - '.aai/scripts/lib/merge-hooks-json.mjs'
+      - 'hooks/**'
+      - 'tests/skills/lib/install-parity.mjs'
+      - 'tests/skills/lib/install-parity-allowlist.tsv'
       - '.aai/scripts/aai-release.sh'
       - 'tests/skills/test-aai-release.sh'
       - '.aai/SKILL_MERGE.prompt.md'
@@ -117,6 +125,14 @@ on:
       - '.aai/scripts/aai-release.mjs'
       - '.aai/scripts/lib/platform-adapter.mjs'
       - '.aai/templates/git-hooks/**'
+      - '.aai/scripts/aai-sync.sh'
+      - '.aai/scripts/aai-update.sh'
+      - '.aai/scripts/install-pre-commit-hook.sh'
+      - '.aai/scripts/lib/gitignore-block.sh'
+      - '.aai/scripts/lib/merge-hooks-json.mjs'
+      - 'hooks/**'
+      - 'tests/skills/lib/install-parity.mjs'
+      - 'tests/skills/lib/install-parity-allowlist.tsv'
       - '.aai/scripts/aai-release.sh'
       - 'tests/skills/test-aai-release.sh'
       - '.aai/SKILL_MERGE.prompt.md'
@@ -943,6 +959,8 @@ jobs:
           Write-Host "AAI-PESTER-VERSION: powershell $ver"
           $cfg = New-PesterConfiguration
           $cfg.Run.Path = 'tests/skills'
+          # The install-parity driver (~3 min, two shells per case) has its own windows-parity job, own timeout and own elapsed line.
+          $cfg.Run.ExcludePath = @('*install-parity.Tests.ps1')
           $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
           $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -981,6 +999,8 @@ jobs:
           Write-Host "AAI-PESTER-VERSION: pwsh $ver"
           $cfg = New-PesterConfiguration
           $cfg.Run.Path = 'tests/skills'
+          # The install-parity driver (~3 min, two shells per case) has its own windows-parity job, own timeout and own elapsed line.
+          $cfg.Run.ExcludePath = @('*install-parity.Tests.ps1')
           $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
           $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -1007,6 +1027,91 @@ jobs:
           }
           if ($fail -gt 0) { Write-Error "Pester gate failed under pwsh 7 ($fail check(s))"; exit 1 }
           Write-Host "PESTER OK (pwsh 7): $($result.PassedCount) passed, $($result.SkippedCount) skipped, 0 failed, ${elapsed}s"
+
+  windows-parity:
+    name: install-path parity driver (bash twin vs PowerShell twin, both engines)
+    runs-on: windows-latest
+    timeout-minutes: 20   # own bound: the driver runs about 3 min per engine on a hosted runner, far under the 600 s full-suite ceiling it was moved out of
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Cache PowerShell modules (Windows PowerShell 5.1 + pwsh 7 CurrentUser scopes, parity job)"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\Documents\WindowsPowerShell\Modules
+            ~\Documents\PowerShell\Modules
+          key: ps-modules-${{ runner.os }}-pester5-win-v1
+
+      - name: "Install Pester 5 for Windows PowerShell 5.1 (parity job)"
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $existing = Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 } | Select-Object -First 1
+          if (-not $existing) {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+            if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+              Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+            }
+            Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
+          }
+          Import-Module Pester -MinimumVersion 5.0
+          $ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+          if ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under Windows PowerShell 5.1"; exit 1 }
+          Write-Host "Pester $ver ready under Windows PowerShell 5.1"
+
+      - name: "Install Pester 5 for pwsh 7 (parity job)"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $existing = Get-Module Pester -ListAvailable | Where-Object { $_.Version.Major -ge 5 } | Select-Object -First 1
+          if (-not $existing) {
+            Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
+          }
+          Import-Module Pester -MinimumVersion 5.0
+          $ver = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+          if ($ver.Major -lt 5) { Write-Error "Pester major version $ver < 5 under pwsh 7"; exit 1 }
+          Write-Host "Pester $ver ready under pwsh 7"
+
+      - name: "Install-path parity Pester under Windows PowerShell 5.1"
+        shell: powershell   # Windows PowerShell 5.1 (the field environment)
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = "Stop"
+          Import-Module Pester -MinimumVersion 5.0
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tests/skills/install-parity.Tests.ps1'
+          $cfg.Run.PassThru = $true
+          $cfg.Output.Verbosity = 'Detailed'
+          $sw = [System.Diagnostics.Stopwatch]::StartNew()
+          $result = Invoke-Pester -Configuration $cfg
+          $sw.Stop()
+          $elapsed = [Math]::Round($sw.Elapsed.TotalSeconds, 2)
+          Write-Host "AAI-PARITY-ELAPSED: powershell ${elapsed}s"
+          if ($result.TotalCount -lt 2 -or $result.PassedCount -ne $result.TotalCount -or $result.SkippedCount -ne 0 -or $result.FailedContainersCount -gt 0) {
+            Write-Error "install-parity Pester failed under Windows PowerShell 5.1 (total=$($result.TotalCount) passed=$($result.PassedCount) failed=$($result.FailedCount) skipped=$($result.SkippedCount))"; exit 1
+          }
+          Write-Host "PARITY OK (Windows PowerShell 5.1): $($result.PassedCount) passed, ${elapsed}s"
+
+      - name: "Install-path parity Pester under pwsh 7"
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = "Stop"
+          Import-Module Pester -MinimumVersion 5.0
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = 'tests/skills/install-parity.Tests.ps1'
+          $cfg.Run.PassThru = $true
+          $cfg.Output.Verbosity = 'Detailed'
+          $sw = [System.Diagnostics.Stopwatch]::StartNew()
+          $result = Invoke-Pester -Configuration $cfg
+          $sw.Stop()
+          $elapsed = [Math]::Round($sw.Elapsed.TotalSeconds, 2)
+          Write-Host "AAI-PARITY-ELAPSED: pwsh ${elapsed}s"
+          if ($result.TotalCount -lt 2 -or $result.PassedCount -ne $result.TotalCount -or $result.SkippedCount -ne 0 -or $result.FailedContainersCount -gt 0) {
+            Write-Error "install-parity Pester failed under pwsh 7 (total=$($result.TotalCount) passed=$($result.PassedCount) failed=$($result.FailedCount) skipped=$($result.SkippedCount))"; exit 1
+          }
+          Write-Host "PARITY OK (pwsh 7): $($result.PassedCount) passed, ${elapsed}s"
 
   windows-wsl1:
     # CHANGE-0136 Spec-AC-01/Spec-AC-02: the functional-WSL leg. windows-latest
@@ -1203,6 +1308,8 @@ jobs:
           Write-Host "AAI-PESTER-VERSION: powershell (WSL1 leg) $ver"
           $cfg = New-PesterConfiguration
           $cfg.Run.Path = 'tests/skills'
+          # The install-parity driver (~3 min, two shells per case) has its own windows-parity job, own timeout and own elapsed line.
+          $cfg.Run.ExcludePath = @('*install-parity.Tests.ps1')
           $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
           $sw = [System.Diagnostics.Stopwatch]::StartNew()
