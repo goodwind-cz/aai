@@ -209,6 +209,16 @@ describe('TEST-3562 normalizations', () => {
     assert.equal(skew.get('docs/ai/reports/sync-conflicts-<stamp-1>.md').nameSkew, true);
     assert.ok(!agree.get('docs/ai/reports/sync-conflicts-<stamp-1>.md').nameSkew);
   });
+  test('N3 treats a name 0 to 2 s before its Generated-at second as agreeing (two clock reads), not 3 s, not later, not an hour off', () => {
+    const flag = (name, gen) => snapOf({ [`docs/ai/reports/sync-conflicts-${name}.md`]: `- Generated at (UTC): ${gen}\n` }).get('docs/ai/reports/sync-conflicts-<stamp-1>.md').nameSkew === true;
+    assert.equal(flag('20261110-185419', '2026-11-10T18:54:19Z'), false);
+    assert.equal(flag('20261110-185418', '2026-11-10T18:54:19Z'), false);
+    assert.equal(flag('20261110-185417', '2026-11-10T18:54:19Z'), false);
+    assert.equal(flag('20261110-185416', '2026-11-10T18:54:19Z'), true);
+    assert.equal(flag('20261110-185420', '2026-11-10T18:54:19Z'), true);
+    assert.equal(flag('20261110-215419', '2026-11-10T18:54:19Z'), true);
+    assert.equal(flag('20261110-235959', '2026-11-11T00:00:00Z'), false);
+  });
   test('a report name that disagrees with its Generated-at line on one side only stays a visible divergence, apart from the content', () => {
     const g = '- Generated at (UTC): 2026-11-10T18:54:19Z\n';
     const a = snapOf({ 'docs/ai/reports/sync-conflicts-20261110-185419.md': g });

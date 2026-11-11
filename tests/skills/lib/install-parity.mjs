@@ -50,8 +50,8 @@ export const EXIT_INFRA = 4;
 export const NORMALIZATIONS = [
   { id: 'N1', what: 'AAI_PIN.md sync time (second precision only)', reason: 'wall clock' },
   { id: 'N2', what: 'sync-conflicts report Generated-at line (second precision only)', reason: 'wall clock' },
-  { id: 'N3', what: 'sync-conflicts report name stamp (every report renamed by ordinal; a disagreeing name is reported at #name)',
-    reason: 'wall clock; a name that disagrees with the report Generated-at second is still renamed by ordinal and reported at #name' },
+  { id: 'N3', what: 'sync-conflicts report name stamp (every report renamed by ordinal; a name that is not 0 to 2 s before its Generated-at second is reported at #name)',
+    reason: 'wall clock; two clock reads of one moment (name up to 2 s before Generated-at) agree; a name that disagrees with the report Generated-at second is still renamed by ordinal and reported at #name' },
   { id: 'N4', what: 'doctor report name stamp and host', reason: 'wall clock and host name' },
   { id: 'E1', what: 'everything under .git/ except, for hooks scenarios, the regular non-sample files of .git/hooks/',
     reason: 'the object store and index are git output, sample hooks are git own' },
@@ -252,7 +252,12 @@ export function normalizeSnapshot(snap) {
     const mc = /^docs\/ai\/reports\/sync-conflicts-(\d{8}-\d{6})\.md$/.exec(p);
     if (mc && e.kind === 'file') {
       const g = e.data.toString('utf8').split('\n').map((l) => GEN_LINE.exec(l)).find(Boolean);
-      const stamp = g ? `${g[1]}${g[2]}${g[3]}-${g[4]}${g[5]}${g[6]}` : null;
+      const nm = /^(\d{4})(\d\d)(\d\d)-(\d\d)(\d\d)(\d\d)$/.exec(mc[1]);
+      const at = (m) => Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) / 1000;
+      // The sh twin stamps the name and the Generated-at line with two separate clock reads, so a name 0..2 s BEFORE its
+      // own Generated-at is one moment read twice; a later name, a larger gap or an hours offset is a real disagreement.
+      const lag = g && nm ? at(g) - at(nm) : null;
+      const stamp = lag !== null && lag >= 0 && lag <= 2 ? mc[1] : null;
       // A name that disagrees with the report's own Generated-at second is paired by ordinal as well, so the report
       // content is compared; the disagreement itself survives as a flag that compareSnapshots reports (a time-zone
       // divergence stays visible, apart from the content).
