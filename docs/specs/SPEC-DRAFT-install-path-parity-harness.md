@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 30ea5229c5b3858354c7c2bb6fbfcd32980933ff580cdac101b9d2599b876800
+frozen_sha256: a7dbadad8e6df36c1333da59d2b7383395ecda975f047e7fa21056e1ad760098
 ceremony_level: 2
 links:
   requirement: install-path-parity-harness
@@ -394,6 +394,20 @@ correction in the green log):
 | session-start-exec-bit | mode | hooks/session-start.sh | posix | fu-parity-ps1-hook-exec-bit |
 | conflict-report-name-local-time | missing | docs/ai/reports/sync-conflicts-*#name | non-utc | fu-parity-ps1-report-name-local-time |
 | conflict-report-generated-precision | lines | docs/ai/reports/sync-conflicts-* | any | fu-parity-ps1-timestamp-precision |
+
+Windows rows (from the hosted ps1-quality run, recorded in the remediation
+pass): `win-source-path-pin` and `win-source-path-report` (host `win32`; the
+sh twin under Git Bash writes the scratch source path as `/c/...` where ps1
+writes `C:\...`, `fu-parity-win-source-path`); `win-ps1-pin-newline-bom`,
+`win-ps1-report-newline-bom` and `win-ps1-gitignore-newline` (host `win32`,
+paired rows that excuse a trailing CR and, for the first two, a leading byte
+order mark, `fu-parity-win-ps1-crlf-bom`); `win-sh-odd-root-dirs` (scenario
+UP-01, host `win32`, kind `missing`, `fu-parity-win-odd-root-dirs`). A path
+whose first segment leaves printable ASCII is reported at `<odd-root-name>`
+(plus the rest of the path) with the real name, shown as code points, in the
+detail, so one row can name the random wide-character directories the sh
+update leaves on Windows; this is a reporting spelling of a divergence, not a
+rewrite of a snapshot name, and NORMALIZATIONS is unchanged.
 
 Every further divergence a real run shows (on any host, including the
 Windows CI legs) gets one row with a reason and a tracker; a twin bug gets a
