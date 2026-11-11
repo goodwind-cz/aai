@@ -271,6 +271,9 @@ describe('TEST-3563 allowlist', () => {
     refused(row({ kind: 'weird' }), 'r1', 'kind');
     refused(row({ host: 'mars' }), 'r1', 'host');
     refused(row({ pairs: 'a:zzz' }), 'r1', 'pairs');
+    refused(row({ pairs: 'b:a' }), 'r1', 'pairs');
+    refused(row({ pairs: 'a:b,c:a' }), 'r1', 'pairs');
+    assert.equal(parse(row({ pairs: 'a:b,a:a,c:c,a:c' }))[0].id, 'r1');
     refused(`${row()}\n${row()}`, 'r1', 'id');
     refused(row({ tracker: 'nope' }), 'r1', 'tracker');
     refused(row({ match: '(' }), 'r1', 'match');

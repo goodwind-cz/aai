@@ -352,6 +352,11 @@ export function parseAllowlist(text, { twins = null } = {}) {
     for (const pr of r.pairList) {
       if (!/^[a-z0-9-]+:[a-z0-9-]+$/.test(pr)) throw new AllowlistError(r.id, 'pairs', `${pr} is not a:b`);
       if (twins) for (const t of pr.split(':')) if (!twins.includes(t)) throw new AllowlistError(r.id, 'pairs', `${pr} names twin ${t} that is not registered`);
+      if (twins) {
+        // The runner emits a:b only with a registered before b, and a:a for the idempotence pair; any other order can never match.
+        const [a, b] = pr.split(':');
+        if (a !== b && twins.indexOf(a) > twins.indexOf(b)) throw new AllowlistError(r.id, 'pairs', `${pr} is in an order the runner never emits (registry order is ${twins.join(',')}); write ${b}:${a}`);
+      }
     }
     if (r.scenario !== '*' && !r.scenario.split(',').every((s) => /^[A-Za-z0-9-]+$/.test(s))) throw new AllowlistError(r.id, 'scenario', `${r.scenario} is neither * nor a list of ids`);
     if (!r.path) throw new AllowlistError(r.id, 'path', 'empty');
