@@ -330,7 +330,7 @@ describe('TEST-3563 allowlist', () => {
   });
   test('the committed Windows rows excuse the path spelling, the CR and the byte order mark and nothing else', () => {
     has('probePs5');
-    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }).filter((r) => r.id.startsWith('win-'));
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }).filter((r) => r.id.startsWith('win-') && r.id !== 'win-sh-odd-root-dirs');
     assert.equal(rows.length, 5);
     const win = { platform: 'win32', utc: true, ps5: true };
     const d = (path_, a, b) => ({ pair: 'sh:ps1', path: path_, kind: 'lines', detail: 'd', onlyA: a, onlyB: b });
@@ -348,6 +348,22 @@ describe('TEST-3563 allowlist', () => {
     assert.equal(left(d('.gitignore', ['.aai/'], ['.aai/\r']), HOST_POSIX), 1, 'the rows are judged on a Windows host only');
     assert.equal(typeof M.probePs5('definitely-not-a-shell'), 'boolean');
     assert.equal(M.probePs5('definitely-not-a-shell'), false);
+  });
+  test('a root directory with a mangled name is reported at <odd-root-name> and covered by its own Windows row only', () => {
+    const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] });
+    const a = new Map([['翿ৠ', { kind: 'dir' }], ['keep', { kind: 'dir' }]]);
+    const b = new Map([['keep', { kind: 'dir' }]]);
+    const ds = M.compareSnapshots(a, b, 'sh:ps1');
+    assert.equal(ds.length, 1);
+    assert.equal(ds[0].path, '<odd-root-name>');
+    assert.match(ds[0].detail, /\\u\{7fff\}\\u\{9e0\}/);
+    const win = { platform: 'win32', utc: true, ps5: true };
+    assert.equal(M.applyAllowlist(ds, rows, { scenario: 'UP-01', host: win }).uncovered.length, 0);
+    assert.equal(M.applyAllowlist(ds, rows, { scenario: 'SY-01', host: win }).uncovered.length, 1, 'only the update scenario');
+    assert.equal(M.applyAllowlist(ds, rows, { scenario: 'UP-01', host: HOST_POSIX }).uncovered.length, 1, 'only a Windows host');
+    const plain = M.compareSnapshots(new Map([['ai', { kind: 'dir' }]]), new Map(), 'sh:ps1');
+    assert.equal(plain[0].path, 'ai');
+    assert.equal(M.applyAllowlist(plain, rows, { scenario: 'UP-01', host: win }).uncovered.length, 1, 'a readable root name stays visible');
   });
   const stale = (rows, ran, o = {}) => {
     const parsed = parse(rows.join('\n'));

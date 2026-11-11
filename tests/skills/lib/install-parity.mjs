@@ -257,13 +257,18 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex').slice(0, 
 const countLines = (lines) => { const m = new Map(); for (const l of lines) m.set(l, (m.get(l) || 0) + 1); return m; };
 const surplus = (a, b) => { const out = []; for (const [l, n] of a) for (let i = 0; i < n - (b.get(l) || 0); i += 1) out.push(l); return out; };
 
+// A path whose first segment leaves printable ASCII (a name a twin or a tool mangled, random from run to run) is reported at
+// the path <odd-root-name> plus the rest, so one allowlist row can name it; its real name stays in the detail.
+const ODD_FIRST = /^[^/]*[^\x20-\x7e][^/]*(?=\/|$)/;
+const reportPath = (p) => p.replace(ODD_FIRST, '<odd-root-name>');
 export function compareSnapshots(a, b, pair, labels = null) {
   const [A, B] = labels || pair.split(':');
   const out = [];
   for (const p of [...new Set([...a.keys(), ...b.keys()])].sort()) {
     const x = a.get(p); const y = b.get(p);
-    if (!x || !y) { out.push({ pair, path: p, kind: 'missing', detail: `present only in ${x ? A : B} (${(x || y).kind})` }); continue; }
-    if (x.kind !== y.kind) { out.push({ pair, path: p, kind: 'missing', detail: `${A} has a ${x.kind}, ${B} has a ${y.kind}` }); continue; }
+    const at = reportPath(p); const named = at === p ? '' : ` ${showName(p)}`;
+    if (!x || !y) { out.push({ pair, path: at, kind: 'missing', detail: `present only in ${x ? A : B} (${(x || y).kind})${named}` }); continue; }
+    if (x.kind !== y.kind) { out.push({ pair, path: at, kind: 'missing', detail: `${A} has a ${x.kind}, ${B} has a ${y.kind}${named}` }); continue; }
     if (x.kind === 'symlink') {
       if (x.target !== y.target) out.push({ pair, path: p, kind: 'bytes', detail: `symlink target ${A} ${x.target} / ${B} ${y.target}` });
       continue;
@@ -612,6 +617,13 @@ export function defaultSetup(scenario, target, ctx) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // The runner.
+const doctorHead = (dir) => {
+  try {
+    const rd = path.join(dir, 'docs', 'ai', 'reports');
+    const f = fs.readdirSync(rd).filter((n) => /^doctor-.*\.md$/.test(n)).sort().pop();
+    return f ? fs.readFileSync(path.join(rd, f), 'utf8').slice(0, 2500) : '';
+  } catch { return ''; }
+};
 const oddRootNames = (dir) => { try { return fs.readdirSync(dir).filter((n) => !/^[\x20-\x7e]*$/.test(n)); } catch { return []; } };
 const birthMs = (p, since) => { try { return Math.round(fs.lstatSync(p).birthtimeMs - since); } catch { return 'unknown'; } };
 function runScenario(scenario, twins, ctx) {
@@ -632,7 +644,7 @@ function runScenario(scenario, twins, ctx) {
       // Root entries whose name leaves printable ASCII are reported with the step that left them (a mangled name is a harness
       // or twin fault worth seeing in a CI log), with their birth time against the step window.
       const odd = oddRootNames(targetDir).filter((n) => !before.includes(n)).map((n) => `${showName(n)} born ${birthMs(path.join(targetDir, n), t1)} ms after the step started (step took ${Date.now() - t1} ms)`);
-      steps.push({ twin: twin.name, step: i + 1, code: r.code, ...(odd.length ? { odd_root_entries: odd } : {}), ...(r.code !== 0 ? { stderr_tail: r.stderr.slice(-1500) } : {}), stdout_tail: r.stdout.slice(-1200) });
+      steps.push({ twin: twin.name, step: i + 1, code: r.code, ...(odd.length ? { odd_root_entries: odd } : {}), ...(step.op === 'update' ? { doctor_head: doctorHead(targetDir) } : {}), ...(r.code !== 0 ? { stderr_tail: r.stderr.slice(-1500) } : {}), stdout_tail: r.stdout.slice(-1200) });
       if (scenario.steps.length > 1) snaps.push(snapshotNormalized(targetDir, { hooks }));
       if (i < scenario.steps.length - 1 && step.op !== 'hooks') waitNextSecond();
     });
@@ -766,6 +778,7 @@ async function dispatch(cmd, rest, err) {
     if (verdict !== 'PASS') {
       for (const st of s.steps) {
         for (const o of st.odd_root_entries || []) process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} left an odd root entry ${o}\n`);
+        if (st.doctor_head) process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} doctor report head: ${st.doctor_head.replace(/\s+/g, ' ')}\n`);
         if (st.stderr_tail) process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} exit ${st.code} stderr tail: ${st.stderr_tail.replace(/\s+/g, ' ')}\n`);
         if (st.stdout_tail) process.stdout.write(`  ${s.id} ${st.twin} step ${st.step} exit ${st.code} stdout tail: ${st.stdout_tail.replace(/\s+/g, ' ')}\n`);
       }

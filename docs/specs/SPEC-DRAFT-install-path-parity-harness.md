@@ -130,7 +130,11 @@ CI budget: `tests/skills/suite-weights.tsv` sums 7460 s over 132 suites in
 documented fallback weight 196. The Windows job of ps1-quality.yml
 (`windows-5_1`) runs the whole `tests/skills` Pester discovery under 5.1 and
 again under pwsh 7, with a 30-minute job bound against a measured maximum of
-20.6 minutes; the `windows-wsl1` job runs it once more under 5.1. The
+20.6 minutes; the `windows-wsl1` job runs it once more under 5.1. The new
+Pester file takes about three minutes per engine on a hosted runner, which
+put those full-suite steps at 570 to 585 s against their 600 s ceiling, so
+it runs in its own `windows-parity` job instead (D-WIRE) and the full-suite
+steps exclude it. The
 expected Windows skip count is pinned at 4 (`AAI_EXPECTED_WIN_SKIP_COUNT`)
 and `test-ps1-quality.sh` fails a POSIX Pester run that skips anything, so
 the new Pester file never skips.
@@ -245,7 +249,9 @@ H2).
 
 - F1 CURRENT SOURCE `<root>/src`: every tracked path of the checkout
   (`git ls-files -z`, working-tree bytes, so an uncommitted twin is what
-  runs) except `tests/**` and `docs/**` other than `docs/knowledge/**` and
+  runs; a file the index stores with LF that the working tree holds with
+  CRLF, as a Windows checkout with `core.autocrlf` does, is written with its
+  index LF, and a NOTE line names how many) except `tests/**` and `docs/**` other than `docs/knowledge/**` and
   `docs/ai/AAI_VERSION.md`; a NOTE line names the two excluded trees (the
   degrade-with-NOTE convention). Then `git init`, `git symbolic-ref HEAD
   refs/heads/main`, a repository-local `user.email` and `user.name`, one
@@ -280,7 +286,11 @@ shows up on POSIX; Windows ignores `TZ`); `GIT_CONFIG_NOSYSTEM=1` and
 `GIT_CONFIG_GLOBAL=<root>/gitconfig` (an empty file), so neither the
 caller's system nor global git configuration (a global `core.hooksPath`, an
 `init.templateDir`) reaches a twin; `TMPDIR`, `TMP` and `TEMP` set to
-`<root>/tmp`. On win32 the `sh` twin runs under the bash the caller passes
+`<root>/tmp`; the one addition is `GIT_REDIRECT_STDERR=2>&1` for the `ps1`
+twin's update step on a host whose PowerShell is older than 6 (Windows
+PowerShell 5.1 ends `aai-update.ps1` at its first git stderr line, so the rest
+of the update is compared; a NOTE line names it and `fu-parity-win-update-5-1-stderr`
+tracks the defect). On win32 the `sh` twin runs under the bash the caller passes
 with `--bash` (the Pester file resolves Git for Windows' bash, D-PESTER).
 
 ### D-SNAP. Snapshot and comparison
@@ -333,7 +343,9 @@ exactly nine TAB-separated fields:
 4. `path`: a POSIX path in the normalized tree, `*` within one segment,
    `**` across segments; `step<N>` for kind `exit`.
 5. `kind`: one of the six kinds.
-6. `host`: `any`, `posix`, `win32`, `utc`, `non-utc` or `bsd-sed` (the twins'
+6. `host`: `any`, `posix`, `win32`, `utc`, `non-utc`, `bsd-sed` or `ps5`
+   (`ps5` holds when the `--ps` engine reports a major version below 6; the
+   `bsd-sed` probe runs through the `--bash` the sh twin uses) (the twins'
    zone: POSIX is always `non-utc` through `PINNED_TZ`; win32 is `utc` when
    the host's offset is 0; `bsd-sed` holds when a probe of the host's `sed`
    with the expression aai-sync.sh uses shows BSD behavior, which is macOS
@@ -492,8 +504,15 @@ branch's diff).
   `tests/skills/lib/install-parity.mjs` and
   `tests/skills/lib/install-parity-allowlist.tsv`, so the Windows Pester
   legs run when either twin or the harness changes; the derivation pin
-  `test-aai-win-fallback.sh` test_034 stays green. No job, step or env
-  changes; `AAI_EXPECTED_WIN_SKIP_COUNT` stays 4.
+  `test-aai-win-fallback.sh` test_034 stays green. One job and one
+  exclusion change: a `windows-parity` job (own 20-minute bound, Windows
+  PowerShell 5.1 and pwsh 7 steps, each printing `AAI-PARITY-ELAPSED` and
+  failing unless the file passes with 0 skipped) runs
+  `tests/skills/install-parity.Tests.ps1`, and every full-suite discovery
+  step of `windows-5_1` and `windows-wsl1` sets `Run.ExcludePath` to
+  `*install-parity.Tests.ps1`; the Linux gate keeps it. The TotalCount floor
+  111, the skip reconciliation and the TEST-008 seed checks are unchanged,
+  and `AAI_EXPECTED_WIN_SKIP_COUNT` stays 4. TEST-3571 inspects both.
 - `.aai/system/PROFILES.yaml`: unchanged (no new `.aai/**` file). Prompt
   corpus: no `.aai/*.prompt.md` or `.aai/AGENTS.md` change, so no
   prompt-diet ledger entry and no TEST-012 move.
@@ -619,11 +638,13 @@ SPEC-0249's check (TEST-3572).
 Hosted checks (CI, not Test Plan rows; recorded in the validation report
 from the PR's ps1-quality run):
 
-- H1: the `windows-5_1` job's full Pester steps under Windows PowerShell 5.1
-  and pwsh 7 report `install-parity.Tests.ps1` passed, with the expected
-  skip count still 4 and no failed container.
-- H2: the elapsed time of that file under each engine (from the Pester
-  output) and the job's total time, against its 30-minute bound.
+- H1: the `windows-parity` job's two steps (Windows PowerShell 5.1 and pwsh 7)
+  report `install-parity.Tests.ps1` passed, and the full-suite steps of
+  `windows-5_1` and `windows-wsl1` exclude it with the expected skip count
+  still 4, the TotalCount floor 111 and no failed container.
+- H2: the elapsed time of that file under each engine (the
+  `AAI-PARITY-ELAPSED` line) and of the full-suite steps (the
+  `AAI-PESTER-ELAPSED` line), against their bounds.
 
 ## Verification
 
@@ -663,10 +684,10 @@ above.
 ## Residual risks
 
 - Windows time: the smoke tier is not measured on Windows at planning; the
-  `windows-5_1` job runs it twice (5.1 and 7) inside a 30-minute bound with
-  20.6 minutes already measured. If H2 shows the job above 26 minutes, the
-  remediation moves HK-05 and HK-10 out of `smoke` (a tier edit, recorded),
-  never the job bound.
+  `windows-parity` job runs it twice (5.1 and 7) inside its own 20-minute
+  bound (measured at about 200 s per engine), apart from the 600 s full-suite
+  ceiling. If a later run puts it near the bound, the remediation moves HK-05
+  and HK-10 out of `smoke` (a tier edit, recorded), never the job bound.
 - Windows-only divergences (line endings written by `Set-Content` under
   5.1, `fu-ps1-setcontent-rewrites-seed-eol`) are found only by the CI legs;
   each costs a remediation pass with a row and a follow-up.
