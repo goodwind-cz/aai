@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (640)
+## Done (642)
 
 | ID | Type | Path |
 |---|---|---|
@@ -403,6 +403,7 @@ _None._
 | ISSUE-0109 | issues | docs/issues/ISSUE-0109-admit-tests-other-suites.md |
 | ISSUE-0110 | issues | docs/issues/ISSUE-0110-release-fixture-atomic-publication.md |
 | ISSUE-0111 | issues | docs/issues/ISSUE-0111-release-corpus-hermetic.md |
+| ISSUE-0112 | issues | docs/issues/ISSUE-0112-update-ps1-git-stderr.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -703,6 +704,7 @@ _None._
 | SPEC-0282 | specs | docs/specs/SPEC-0282-spec-release-publish-on-node.md |
 | SPEC-0283 | specs | docs/specs/SPEC-0283-spec-hook-gate-on-node.md |
 | SPEC-0284 | specs | docs/specs/SPEC-0284-spec-install-path-parity-harness.md |
+| SPEC-0285 | specs | docs/specs/SPEC-0285-spec-update-ps1-git-stderr.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

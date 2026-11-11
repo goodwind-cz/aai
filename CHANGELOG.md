@@ -30,6 +30,12 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix(update): aai-update.ps1 no longer ends at its first git stderr line on Windows PowerShell 5.1
+
+- On Windows PowerShell 5.1 the updater ran with `$ErrorActionPreference = 'Stop'` and redirected the output of its `git fetch`, `checkout` and `pull` (and of the clone attempts and `git status`) with `*> $null`; 5.1 turns any line a native command writes to stderr into a terminating `NativeCommandError`, so `/aai-update` from a local `-Repo` checkout without an `origin` exited 1 before syncing anything, where the bash twin exited 0. The same happened on pwsh 7.3+ when the caller had `$PSNativeCommandUseErrorActionPreference` on.
+- Every git and gh call of `.aai/scripts/aai-update.ps1` that discards its output now goes through one best-effort helper that scopes `$ErrorActionPreference = 'Continue'` and `$PSNativeCommandUseErrorActionPreference = $false` inside itself, discards stderr and returns the exit code. The clone cascade and the post-sync `git status` decide by exit code; the canonical-repo guard decides on the origin URL it captured, so git stderr cannot change its answer. A non-git target and a failing clone (exit 3 with the `ERROR: could not fetch` line) behave as the bash twin does. With git missing from PATH, a local `-Repo` now syncs and a failing clone exits 3 with the ERROR line, as `aai-update.sh` does, instead of exiting 1.
+- The install-parity harness no longer sets `GIT_REDIRECT_STDERR` for the ps1 update twin on 5.1 hosts and prints no 5.1 NOTE.
+
 ## [unreleased] — refactor(hooks): the Claude hook gate decides in one Node module behind a bash pre-filter, and gates the Azure merge command
 
 - `.aai/scripts/claude-hook-gate.sh` keeps its name, usage and the four gate names (the hooks overlay template is unchanged), but the commit, merge (lane path and gate 2b), state-dump and stop-nudge decisions now run in `.aai/scripts/hook-gate.mjs`; the deny texts are the old script's bytes, and a parity corpus of more than 60 payloads checks exit code and stderr against the previous script.
