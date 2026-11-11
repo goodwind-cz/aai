@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 9e662a20c5127a8420e134ce27385466ba43bec44baa01c0447942b75e5ea844
+frozen_sha256: e343d2053cf937b86ba8068a974596c9c948f4a367d2ba89285c574b32703fb7
 ceremony_level: 2
 links:
   requirement: install-path-parity-harness
@@ -171,7 +171,7 @@ on every host. CLI:
 - Exit codes: 0 every compared pair matches or is covered and no row is
   stale; 1 an uncovered divergence, a stale row or a broken scenario; 2 a
   usage error or an allowlist that does not parse (named row and field); 3 a
-  missing tool (node, git, the `--bash` or `--ps` executable), named.
+  missing tool (node, git, the `--bash` or `--ps` executable), named. 4 an infrastructure break: a twin step or a fixture command outlived its bound (below).
 - Every child process has a bound of 300 s, or `AAI_PARITY_STEP_TIMEOUT`
   seconds when that variable is a positive number (anything else is a usage
   error, exit 2; the bash suite sets 900 unless the caller names a value); on
@@ -181,6 +181,10 @@ on every host. CLI:
   divergence: the driver prints `INFRA timeout <scenario> <twin> <step>`,
   makes no divergence or stale judgement for that run, writes no report and
   exits 4. A step that merely exits 124 by itself is an ordinary exit code.
+  A fixture command (git, the sh sync that builds a scratch target) is bound by
+  the larger of 300 s and that value, so a small value cannot make fixture
+  building flake; one that still expires prints `INFRA timeout fixture <command>`
+  and exits 4 the same way.
 
 ### D-SEAM. The twin registry and the third twin
 
@@ -371,7 +375,7 @@ exactly nine TAB-separated fields:
    difference in the value. A row of kind `missing` with a `fu-...` tracker
    may instead take `?`: intermittent, it covers a divergence when one is
    present and is never judged stale (the parser refuses `?` for any other
-   kind or for an `accepted` tracker); `win-sh-odd-root-dirs` uses it because
+   kind, for an `accepted` tracker, for a path with a wildcard or for host `any`); `win-sh-odd-root-dirs` uses it because
    the sh update leaves no odd root directory on some Windows runs.
 9. `reason`: non-empty free text, no TAB.
 
@@ -459,7 +463,7 @@ kind, detail, covered_by }] }], uncovered, stale }`; `verdict` is `PASS` or
   the `bin\bash.exe` three levels above `git --exec-path`, and a PATH
   `bash.exe` not under `System32` (the WSL shim is never used; the
   `windows-wsl1` leg has WSL installed); elsewhere `bash` from PATH.
-- One `It` runs `node tests/skills/lib/install-parity.mjs run --matrix smoke --twins sh,ps1 --bash <bash> --ps <engine> --json <file>`
+- One `It` runs `node tests/skills/lib/install-parity.mjs run --matrix smoke --bash <bash> --ps <engine> --json <file>`
   (its argument array holds the literal pair `'--matrix', 'smoke'`, a
   mutation anchor)
   and requires exit 0 and `verdict` PASS, printing the driver's stdout and
@@ -599,7 +603,7 @@ no production file changes.
 |---|---|---|---|---|---|
 | Spec-AC-01 | node tests/skills/lib/install-parity.mjs list --matrix smoke, default and full each print exactly the scenario ids of the D-MATRIX table rows of that tier and of the tiers below it (smoke 7, default 15, full 20), read from this spec by its id; an unknown tier exits 2. | done | docs/ai/tdd/install-path-parity-harness/green/TEST-3560.txt; docs/ai/tdd/install-path-parity-harness/green/suite-partB.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3560.txt | — | — |
 | Spec-AC-02 | WHEN compareTrees runs on two synthetic directories, the system SHALL report one divergence of each kind exit, missing, order, lines, bytes and mode (mode only where MODE_MEANINGFUL holds) with its pair, path and detail, count an empty directory and a symlink target as tree content, and report a CRLF-only difference as lines. | done | docs/ai/tdd/install-path-parity-harness/green/TEST-3561.txt; docs/ai/tdd/install-path-parity-harness/green/node-test-all.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3561.txt | — | — |
-| Spec-AC-03 | NORMALIZATIONS holds exactly N1, N2, N3, N4, E1 and E2, each with a non-empty reason; N1 and N2 rewrite only the second-precision line and leave a fraction-digit stamp and every other byte unchanged; N3 renames a report only when its name stamp equals its own Generated-at line in UTC; E1 keeps non-sample .git/hooks files for hooks scenarios only. | done | docs/ai/tdd/install-path-parity-harness/green/TEST-3562.txt; docs/ai/tdd/install-path-parity-harness/green/node-test-all.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3562.txt | — | — |
+| Spec-AC-03 | NORMALIZATIONS holds exactly N1, N2, N3, N4, E1 and E2, each with a non-empty reason; N1 and N2 rewrite only the second-precision line and leave a fraction-digit stamp and every other byte unchanged; N3 renames every sync-conflicts report by ordinal and reports a name that disagrees with its own Generated-at line in UTC at the path ending #name; E1 keeps non-sample .git/hooks files for hooks scenarios only. | done | docs/ai/tdd/install-path-parity-harness/green/TEST-3562.txt; docs/ai/tdd/install-path-parity-harness/green/node-test-all.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3562.txt | — | — |
 | Spec-AC-04 | The allowlist parser exits 2 naming the row for each D-ALLOW refusal; WHEN a run meets a divergence the system SHALL pass it only when rows match pair, scenario, path, kind and host and, for lines, each differing line matches the regex of one of them, never cover a text file with a bytes row, and exit 1 naming each uncovered divergence and, on a whole-tier run, each stale row. | done | docs/ai/tdd/install-path-parity-harness/green/TEST-3563.txt; docs/ai/tdd/install-path-parity-harness/green/node-test-all.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3563.txt | — | — |
 | Spec-AC-05 | WHEN the reference twin's exit misses a step's expectation or a probe path is absent from a twin's tree, the run SHALL exit 1 and name the scenario as broken, also when both twins fail alike. | done | docs/ai/tdd/install-path-parity-harness/green/TEST-3564.txt; docs/ai/tdd/install-path-parity-harness/green/node-test-all.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3564.txt | — | — |
 | Spec-AC-06 | The bash suite runs the default matrix with twins sh and ps1 against the committed allowlist on Linux and macOS and the driver exits 0 with verdict PASS, every default scenario compared with each probe present, and the idempotence pairs compared for SY-02, HK-02 and HK-09. | done | docs/ai/tdd/install-path-parity-harness/green/run-default.out; docs/ai/tdd/install-path-parity-harness/green/suite-partB.txt; docs/ai/tdd/install-path-parity-harness/green/suite-full-matrix.txt; docs/ai/tdd/spec-install-path-parity-harness/mutation-TEST-3565.txt | — | — |

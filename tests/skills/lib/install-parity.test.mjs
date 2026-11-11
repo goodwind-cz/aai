@@ -197,7 +197,7 @@ describe('TEST-3562 normalizations', () => {
     const f = snapOf({ [r]: '- Generated at (UTC): 2026-11-10T18:54:19.1023490Z\n' });
     assert.match(text(f, [...f.keys()].find((k) => k.startsWith('docs/ai/reports/'))), /19\.1023490Z/);
   });
-  test('N3 renames when the name stamp equals the Generated-at second, and not otherwise', () => {
+  test('N3 renames every report by ordinal, flagging a name that disagrees with its Generated-at second', () => {
     const agree = snapOf({
       'docs/ai/reports/sync-conflicts-20261110-185419.md': '- Generated at (UTC): 2026-11-10T18:54:19.1023490Z\n',
       'docs/ai/reports/sync-conflicts-20261110-190000.md': '- Generated at (UTC): 2026-11-10T19:00:00Z\n',
@@ -328,7 +328,7 @@ describe('TEST-3563 allowlist', () => {
     assert.equal(run(d('- Template version:  v2026.11.1', '- Template version: v2026.11.1')), 0);
     assert.equal(run(d('- Template version:  v2026.11.1', '- Template version: v2026.01.01')), 1);
   });
-  test('the committed Windows rows excuse the path spelling, the CR and the byte order mark and nothing else', () => {
+  test('the committed Windows rows excuse the path spelling, the CR and the byte order mark, plus (disclosed in their reasons) a Source path naming another aai-parity directory or present on one side only', () => {
     has('probePs5');
     const rows = M.parseAllowlist(fs.readFileSync(ALLOWLIST, 'utf8'), { twins: ['sh', 'ps1'] }).filter((r) => r.id.startsWith('win-') && r.id !== 'win-sh-odd-root-dirs');
     assert.equal(rows.length, 5);
@@ -400,7 +400,7 @@ describe('TEST-3563 allowlist', () => {
   });
   test('an intermittent row (match ?) covers when present and is never stale, and the parser refuses it elsewhere', () => {
     has('staleRows'); has('parseAllowlist');
-    const im = (o = {}) => row({ kind: 'missing', tracker: 'fu-x-y', match: '?', ...o });
+    const im = (o = {}) => row({ kind: 'missing', tracker: 'fu-x-y', match: '?', host: 'posix', ...o });
     assert.deepEqual(stale([im()], ['S-1']), [], 'covering nothing is not stale');
     assert.deepEqual(stale([im()], ['S-1'], { used: ['r1'] }), []);
     assert.deepEqual(stale([row({ kind: 'missing', tracker: 'fu-x-y', match: '-' })], ['S-1']), ['r1'], 'a plain missing row still goes stale');
@@ -409,6 +409,8 @@ describe('TEST-3563 allowlist', () => {
     refused(im({ kind: 'lines' }), 'r1', 'match');
     refused(im({ kind: 'bytes' }), 'r1', 'match');
     refused(im({ tracker: 'accepted' }), 'r1', 'match');
+    refused(im({ path: 'docs/*', host: 'win32' }), 'r1', 'match');
+    refused(im({ host: 'any' }), 'r1', 'match');
   });
   test('rows for a scenario, pair or host that did not run are not stale', () => {
     has('staleRows');

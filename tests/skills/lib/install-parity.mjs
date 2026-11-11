@@ -37,6 +37,9 @@ export function stepTimeoutMs(env = process.env) {
   return Math.round(n * 1000);
 }
 // A step that outlived its bound is an infrastructure break (a loaded host), not a divergence between the twins.
+export class InfraFixtureTimeout extends Error {
+  constructor(what) { super(`INFRA timeout fixture ${what}`); this.what = what; }
+}
 export class InfraTimeout extends Error {
   constructor(scenario, twin, step) { super(`INFRA timeout ${scenario} ${twin} ${step}`); this.scenario = scenario; this.twin = twin; this.step = step; }
 }
@@ -47,8 +50,8 @@ export const EXIT_INFRA = 4;
 export const NORMALIZATIONS = [
   { id: 'N1', what: 'AAI_PIN.md sync time (second precision only)', reason: 'wall clock' },
   { id: 'N2', what: 'sync-conflicts report Generated-at line (second precision only)', reason: 'wall clock' },
-  { id: 'N3', what: 'sync-conflicts report name stamp, only when it equals the report Generated-at second in UTC',
-    reason: 'wall clock; the agreement condition keeps a time-zone divergence visible' },
+  { id: 'N3', what: 'sync-conflicts report name stamp (every report renamed by ordinal; a disagreeing name is reported at #name)',
+    reason: 'wall clock; a name that disagrees with the report Generated-at second is still renamed by ordinal and reported at #name' },
   { id: 'N4', what: 'doctor report name stamp and host', reason: 'wall clock and host name' },
   { id: 'E1', what: 'everything under .git/ except, for hooks scenarios, the regular non-sample files of .git/hooks/',
     reason: 'the object store and index are git output, sample hooks are git own' },
@@ -352,6 +355,8 @@ export function parseAllowlist(text, { twins = null } = {}) {
     if (r.tracker !== 'accepted' && !/^fu-\S+$/.test(r.tracker)) throw new AllowlistError(r.id, 'tracker', `${r.tracker} is neither accepted nor a fu- id`);
     if (r.kind === 'lines' && r.match === '-') throw new AllowlistError(r.id, 'match', 'a lines row needs a regular expression (- would cover every line of its path)');
     if (r.match === '?') {
+      if (r.path.includes('*')) throw new AllowlistError(r.id, 'match', '? (intermittent) needs a literal path, not a wildcard');
+      if (r.host === 'any') throw new AllowlistError(r.id, 'match', '? (intermittent) needs a named host, not any');
       // An intermittent row: it covers a divergence when one is present and is never judged stale.
       if (r.kind !== 'missing') throw new AllowlistError(r.id, 'match', '? (intermittent) is only for kind missing');
       if (!/^fu-\S+$/.test(r.tracker)) throw new AllowlistError(r.id, 'match', '? (intermittent) needs a fu- tracker that carries the open cause');
@@ -479,6 +484,13 @@ export function runStep(file, args, { cwd, env, timeoutMs = stepTimeoutMs() }) {
   return { code, timedOut: Boolean(timedOut), stdout: r.stdout || '', stderr: (r.stderr || '') + (r.error ? `\n${r.error.message}` : '') };
 }
 const run = runStep;
+// Fixture commands (git, the sh sync that builds a scratch target) are not twin steps: AAI_PARITY_STEP_TIMEOUT may only raise their
+// 300 s floor, so a tiny step bound cannot make fixture building flake; a fixture that still expires is an INFRA break (exit 4).
+const fixtureRun = (file, args, opts) => {
+  const r = runStep(file, args, { ...opts, timeoutMs: Math.max(stepTimeoutMs(), STEP_TIMEOUT_MS) });
+  if (r.timedOut) throw new InfraFixtureTimeout(`${path.basename(file)} ${args.slice(0, 3).join(' ')}`.trim());
+  return r;
+};
 const sleepMs = (ms) => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
 const waitNextSecond = () => sleepMs(1000 - (Date.now() % 1000) + 25);
 
@@ -490,7 +502,7 @@ function prepareRoot(root) {
   if (!fs.existsSync(gc)) fs.writeFileSync(gc, '');
 }
 const gitIn = (ctx, cwd, ...args) => {
-  const r = run('git', args, { cwd, env: twinEnv(ctx.root) });
+  const r = fixtureRun('git', args, { cwd, env: twinEnv(ctx.root) });
   if (r.code !== 0) throw new Error(`git ${args.join(' ')} failed in ${cwd}: ${r.stderr}`);
   return r.stdout;
 };
@@ -510,12 +522,12 @@ const SOURCE_NOTE = 'NOTE: the scratch source leaves out tests/** and docs/** (e
 // F1 CURRENT SOURCE: every tracked path of the checkout (working-tree bytes) except tests/** and most of docs/**.
 export function buildSource(ctx) {
   const dir = path.join(ctx.root, 'fx', 'src');
-  const ls = run('git', ['ls-files', '-z'], { cwd: REPO_ROOT, env: twinEnv(ctx.root) });
+  const ls = fixtureRun('git', ['ls-files', '-z'], { cwd: REPO_ROOT, env: twinEnv(ctx.root) });
   if (ls.code !== 0) throw new Error(`git ls-files failed: ${ls.stderr}`);
   // A Windows checkout (core.autocrlf) holds CRLF working-tree copies of files the index stores with LF. The twins read these
   // files (the pin version, the profile manifest, the ignore list, their own script text), and a CR left in them is a
   // checkout artifact, not twin behavior, so the scratch source takes the index's line ending for every such file.
-  const eol = run('git', ['ls-files', '--eol', '-z'], { cwd: REPO_ROOT, env: twinEnv(ctx.root) });
+  const eol = fixtureRun('git', ['ls-files', '--eol', '-z'], { cwd: REPO_ROOT, env: twinEnv(ctx.root) });
   const toLf = new Set();
   for (const e of (eol.code === 0 ? eol.stdout : '').split('\0').filter(Boolean)) {
     const m = /^i\/(\S+)\s+w\/(crlf|mixed)\s+attr\/[^\t]*\t(.+)$/.exec(e);
@@ -541,7 +553,7 @@ export function buildSource(ctx) {
 }
 
 function syncWithSh(ctx, srcDir, target, profile) {
-  const r = run(ctx.bash, [`${fwd(srcDir)}/.aai/scripts/aai-sync.sh`, fwd(target), '--profile', profile], { cwd: target, env: twinEnv(ctx.root) });
+  const r = fixtureRun(ctx.bash, [`${fwd(srcDir)}/.aai/scripts/aai-sync.sh`, fwd(target), '--profile', profile], { cwd: target, env: twinEnv(ctx.root) });
   if (r.code !== 0) throw new Error(`fixture sync (${profile}) failed with ${r.code}: ${r.stderr.slice(-400)}`);
 }
 
@@ -789,6 +801,7 @@ async function dispatch(cmd, rest, err) {
     rep = runMatrix({ scenarios, twins, rows, matrix: o.matrix, filtered: o.scenario.length > 0, ctx: { root, src: null, bash: o.bash, ps: o.ps, host: hostInfo({ ps: twinNames.includes('ps1') ? o.ps : null, bash: o.bash }) } });
   } catch (e) {
     if (e instanceof InfraTimeout) { process.stdout.write(`${e.message}\n`); err('install-parity: a twin step outlived its bound (AAI_PARITY_STEP_TIMEOUT, default 300 s); this is an infrastructure break, not a parity divergence, and no divergence or stale judgement was made'); return EXIT_INFRA; }
+    if (e instanceof InfraFixtureTimeout) { process.stdout.write(`${e.message}\n`); err('install-parity: a fixture command outlived its bound; this is an infrastructure break, not a parity divergence, and no divergence or stale judgement was made'); return EXIT_INFRA; }
     throw e;
   } finally {
     if (o.keep) process.stdout.write(`scratch root kept: ${root}\n`); else fs.rmSync(root, { recursive: true, force: true });
