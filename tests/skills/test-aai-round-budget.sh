@@ -97,6 +97,16 @@ test_3600_status_counts() {
   log_pass "TEST-3600: status counts the ref's resets, cap 2 plus its extensions, notes a malformed line"
 }
 
+test_3600b_cli_through_symlink() {
+  new_tmp
+  mkdir -p "$TMP_ROOT/real"
+  ln -s "$PROJECT_ROOT/.aai/scripts" "$TMP_ROOT/link" 2>/dev/null || log_skip "symlinks unavailable"
+  local out
+  out="$(node "$TMP_ROOT/link/round-budget.mjs" status --ref RC-1 --events "$TMP_ROOT/absent.jsonl" 2>&1)" || true
+  [[ "$out" == *'rounds: 0/2 '* ]] || log_fail "TEST-3600: the CLI called through a symlink printed nothing useful: $out"
+  log_pass "TEST-3600: round-budget.mjs runs as a CLI through a symlinked scripts directory"
+}
+
 test_3601_reset_appends_round() {
   new_tmp
   local st="$TMP_ROOT/STATE.yaml" ev="$TMP_ROOT/EVENTS.jsonl" rc
@@ -333,6 +343,7 @@ test_3606_fail_needs_backing() {
   mkdir -p "$d/docs/ai/reports"
   echo "FAIL: step bound exceeded" > "$d/docs/ai/reports/check.log"
   echo "run it twice" > "$d/docs/ai/reports/repro.md"
+  echo "outside" > "$TMP_ROOT/repro-outside.md"
   co() { (cd "$d" && node "$CHECK_OUT" --file "$1" --now 2026-01-02T01:00:00Z); }
   for role in Validation "Code Review"; do
     result_block "$TMP_ROOT/b.md" "$role" FAIL -
@@ -348,6 +359,12 @@ test_3606_fail_needs_backing() {
     result_block "$TMP_ROOT/b.md" "$role" FAIL "BLOCKING B1: the bound is exceeded backed-by: check docs/ai/reports/check.log exit 0"
     rc="$(run_rc "$TMP_ROOT/o.log" co "$TMP_ROOT/b.md")"
     [[ "$rc" == 1 ]] && grep -q 'E-FAIL-UNBACKED' "$TMP_ROOT/o.log" || log_fail "TEST-3606: $role check with exit 0 must be rejected"
+    result_block "$TMP_ROOT/b.md" "$role" FAIL "BLOCKING B1: the bound is exceeded backed-by: repro /etc/hosts"
+    rc="$(run_rc "$TMP_ROOT/o.log" co "$TMP_ROOT/b.md")"
+    [[ "$rc" == 1 ]] && grep -q 'E-FAIL-UNBACKED' "$TMP_ROOT/o.log" || log_fail "TEST-3606: $role repro naming an absolute path must be rejected"
+    result_block "$TMP_ROOT/b.md" "$role" FAIL "BLOCKING B1: the bound is exceeded backed-by: repro ../repro-outside.md"
+    rc="$(run_rc "$TMP_ROOT/o.log" co "$TMP_ROOT/b.md")"
+    [[ "$rc" == 1 ]] && grep -q 'E-FAIL-UNBACKED' "$TMP_ROOT/o.log" || log_fail "TEST-3606: $role repro escaping the repo root must be rejected"
     result_block "$TMP_ROOT/b.md" "$role" FAIL "BLOCKING B1: the bound is exceeded backed-by: check docs/ai/reports/check.log exit 1"
     rc="$(run_rc "$TMP_ROOT/o.log" co "$TMP_ROOT/b.md")"
     [[ "$rc" == 0 ]] || log_fail "TEST-3606: $role backed check line must pass, got $rc: $(cat "$TMP_ROOT/o.log")"
@@ -662,6 +679,7 @@ test_3615_changelog() {
 main() {
   check_deps
   test_3600_status_counts
+  test_3600b_cli_through_symlink
   test_3601_reset_appends_round
   test_3602_cap_refuses
   test_3603_extensions

@@ -750,7 +750,11 @@ function isBackedBlocking(entry) {
   const m = BACKED_BLOCKING_RE.exec(String(entry).trim());
   if (!m) return false;
   if (m[1] !== undefined && Number(m[2]) === 0) return false;
-  const file = path.resolve(process.cwd(), m[1] ?? m[3]);
+  const given = m[1] ?? m[3];
+  if (path.isAbsolute(given)) return false;
+  const file = path.resolve(process.cwd(), given);
+  const rel = path.relative(process.cwd(), file);
+  if (rel === '..' || rel.startsWith('..' + path.sep)) return false;
   try { return existsSync(file) && statSync(file).isFile(); } catch { return false; }
 }
 

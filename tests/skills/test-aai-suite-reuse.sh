@@ -859,12 +859,12 @@ test_3186_canon_reconciliation() {
   [[ -n "$para" ]] || log_fail "TEST-3186: SKILL_VERIFY has no Reuse exception: paragraph after the Iron Law"
   [[ "$(awk '/^## Gate function/ {exit} /^Reuse exception:/ {print "y"}' "$verify")" == y ]] \
     || log_fail "TEST-3186: the Reuse exception: paragraph is not directly in the Iron Law section"
-  for term in REUSED 'original run' log 'full sweep before close' CI main nightly release; do
+  for term in REUSED 'original run' log 'one full sweep' CI main nightly release; do
     [[ "$para" == *"$term"* ]] || log_fail "TEST-3186: Reuse exception paragraph lacks '$term'"
   done
   c2="$(awk '/^   c2\) SUITE SCOPE PER ROUND/ {p=1} p && /^   c3\)|^   d\)/ {exit} p {print}' "$val")"
   [[ -n "$c2" ]] || c2="$(sed -n '/c2) SUITE SCOPE PER ROUND/,/TWO ROUNDS MAX/p' "$val")"
-  [[ "$c2" == *REUSED* && "$c2" == *'intermediate round'* ]] || log_fail "TEST-3186: VALIDATION step 5 c2 lacks REUSED and intermediate round"
+  [[ "$c2" == *REUSED* && "$c2" == *'Every round runs the SELECTED'* ]] || log_fail "TEST-3186: VALIDATION step 5 c2 lacks REUSED and the per-round selected-suites sentence"
   log_pass "TEST-3186 (Reuse exception paragraph and VALIDATION c2 sentence)"
 }
 

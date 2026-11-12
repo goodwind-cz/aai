@@ -41,7 +41,7 @@ mk_project() {
   [[ -n "$d" && "$d" = /* ]] || { echo "mk_project: fixture path not absolute: '$d'" >&2; exit 1; }
   rm -rf "$d"
   mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai" "$d/docs/specs" "$d/docs/issues"
-  cp "$PROJECT_ROOT"/.aai/scripts/{ride-select,spec-amend,follow-ups,orchestration-dispatch}.mjs "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/{ride-select,spec-amend,follow-ups,orchestration-dispatch,round-budget,select-suites}.mjs "$d/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   : > "$d/docs/ai/decisions.jsonl"
   cat > "$d/docs/specs/SPEC-0001-fx.md" <<MD
