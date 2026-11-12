@@ -3814,3 +3814,4 @@
 {"v":1,"ts":"2026-11-12T12:08:59Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-factory-round-cap","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-12T12:10:13Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":726,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-12T12:50:55Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"factory-round-cap","payload":{"pr":549,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"21cfcbc3c3dc92df4fc74ab867e1ee1c768dce10"}}
+{"v":1,"ts":"2026-11-12T13:51:58Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-round-cap-hardening","payload":{"from":"draft","to":"implementing"}}
