@@ -508,6 +508,60 @@ test_3641_dispatch_to_report() {
   log_pass "TEST-3641: dispatch effort -> append-run -> flush -> report row; default output unchanged"
 }
 
+# --- TEST-3642 (Spec-AC-08) ---------------------------------------------------
+test_3642_canon_wiring() {
+  local f
+  f="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
+  local t
+  for t in 'harness_effort' 'reasoning_effort' 'effort_override' '--requested-effort' '--effort-applied' '--cache-creation' 'Agent `effort`'; do
+    qgrep -q -F -- "$t" < "$f" || log_fail "TEST-3642: SKILL_LOOP lacks '$t'"
+  done
+  f="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
+  for t in 'cache_creation_input_tokens' '--cache-creation' 'cache_read_input_tokens'; do
+    qgrep -q -F -- "$t" < "$f" || log_fail "TEST-3642: SUBAGENT_PROTOCOL lacks '$t'"
+  done
+  for f in "$PROJECT_ROOT/.aai/ORCHESTRATION_PARALLEL.prompt.md" "$PROJECT_ROOT/.aai/SKILL_SHIP.prompt.md"; do
+    qgrep -q -F -- 'harness_effort' < "$f" || log_fail "TEST-3642: ${f##*/} lacks harness_effort"
+  done
+  local n
+  n="$(wc -l < "$PROJECT_ROOT/.aai/ORCHESTRATION.prompt.md")"
+  [[ "${n// /}" -le 45 ]] || log_fail "TEST-3642: ORCHESTRATION.prompt.md has $n lines (> 45)"
+  log_pass "TEST-3642: canon names the effort knobs, recording flags and cache counts; ORCHESTRATION at ${n// /} lines"
+}
+
+# --- TEST-3643 (Spec-AC-09) ---------------------------------------------------
+test_3643_payload_prefix_stable() {
+  local canon="$PROJECT_ROOT/.aai/scripts/canon.mjs" yaml="$PROJECT_ROOT/.aai/system/CANON.yaml"
+  node -e '
+    const fs = require("fs");
+    const t = fs.readFileSync(process.argv[1], "utf8").split(/\r?\n/);
+    let i = t.findIndex(l => l === "roles:"); const out = [];
+    for (i++; i < t.length; i++) { const m = /^  ([^:#]+):\s*\S/.exec(t[i]); if (!m) break; out.push(m[1].trim()); }
+    process.stdout.write(out.join("\n") + "\n");
+  ' "$yaml" > "$TEST_DIR/roles.txt"
+  local role count=0
+  while IFS= read -r role; do
+    [[ -n "$role" ]] || continue
+    count=$((count + 1))
+    node "$canon" build --role "$role" --ref alpha-ref > "$TEST_DIR/pa.txt" 2> "$TEST_DIR/pa.err" || log_fail "TEST-3643: build $role alpha-ref failed: $(cat "$TEST_DIR/pa.err")"
+    node "$canon" build --role "$role" --ref beta-ref > "$TEST_DIR/pb.txt" 2> "$TEST_DIR/pb.err" || log_fail "TEST-3643: build $role beta-ref failed: $(cat "$TEST_DIR/pb.err")"
+    node -e '
+      const fs = require("fs");
+      const [a, b, role] = [fs.readFileSync(process.argv[1], "utf8"), fs.readFileSync(process.argv[2], "utf8"), process.argv[3]];
+      const mark = "<<<AAI-CANON-SECTION scope";
+      const ia = a.indexOf(mark), ib = b.indexOf(mark);
+      const bad = (m) => { console.error(role + ": " + m); process.exit(1); };
+      if (ia < 0 || ib < 0) bad("no scope marker");
+      if (a.slice(0, ia) !== b.slice(0, ib)) bad("prefix before scope differs between refs");
+      if (a === b) bad("payloads identical: ref not reaching the scope section");
+      const tail = a.slice(ia + mark.length);
+      if (tail.indexOf("<<<AAI-CANON-SECTION") !== -1) bad("a section follows scope");
+    ' "$TEST_DIR/pa.txt" "$TEST_DIR/pb.txt" "$role" || log_fail "TEST-3643: prefix/last-section pin broken for '$role'"
+  done < "$TEST_DIR/roles.txt"
+  [[ "$count" -ge 6 ]] || log_fail "TEST-3643: only $count roles read from CANON.yaml"
+  log_pass "TEST-3643: $count roles share every byte before scope across refs; scope is last"
+}
+
 main() {
   check_deps
   test_3633_shipped_effort_table
@@ -519,6 +573,8 @@ main() {
   test_3639_flush_carries_fields
   test_3640_by_effort_tables
   test_3641_dispatch_to_report
+  test_3642_canon_wiring
+  test_3643_payload_prefix_stable
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
