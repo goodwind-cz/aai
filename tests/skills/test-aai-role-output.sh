@@ -974,7 +974,8 @@ NODE
   sed -e 's|^  role: .*|  role: Code Review|' -e 's|^  status: PASS|  status: FAIL|' \
     "$FIXTURES_DIR/implementation-valid.md" > "$contradictory_review_result"
   replace_fixture_token "$contradictory_review_result" '  blockers: []' \
-    '  blockers: []
+    '  blockers:
+    - "BLOCKING B1: contradictory verdict backed-by: repro tests/fixtures/role-outputs/outcome-evidence.log"
   state_update_commands:
     - node .aai/scripts/state.mjs set-code-review --required true --status pass --scope implementation-diff'
   set +e
@@ -986,7 +987,8 @@ NODE
   sed -e 's|^  role: .*|  role: Validation|' -e 's|^  status: PASS|  status: FAIL|' \
     "$FIXTURES_DIR/implementation-valid.md" > "$contradictory_validation_result"
   replace_fixture_token "$contradictory_validation_result" '  blockers: []' \
-    '  blockers: []
+    '  blockers:
+    - "BLOCKING B1: contradictory verdict backed-by: repro tests/fixtures/role-outputs/outcome-evidence.log"
   state_update_commands:
     - node .aai/scripts/state.mjs set-validation --status pass --ref role-output-contracts'
   set +e

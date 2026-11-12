@@ -51,7 +51,7 @@ subagent_result:
   files_changed:
     - <relative path>
   blockers:
-    - <description of any blocker; empty list if none>
+    - <description of any blocker; empty list if none; a Validation or Code Review FAIL needs "BLOCKING <id>: <text> backed-by: check <path> exit <n>" (n != 0) or "... backed-by: repro <path>", <path> an existing file>
   outcome_report: <required scalar path for role Validation + status PASS only>
   state_update_commands:            # optional (D1): STATE mutator commands returned instead of run
     - <fully-substituted node .aai/scripts/state.mjs ... command, one per item, indented exactly as here>

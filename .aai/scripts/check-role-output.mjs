@@ -36,6 +36,11 @@
 //      allowlisted state.mjs mutation or the exact validation snapshot call.
 //   13. E-DUPLICATE-FIELD — a top-level result key appears more than once;
 //      duplicate YAML keys are rejected instead of silently overwriting data.
+//   14. E-FAIL-UNBACKED   — a Validation or Code Review `FAIL` block holds no
+//      `blockers` entry of the form `BLOCKING <id>: <text> backed-by: check <path> exit <n>`
+//      (n an integer other than 0) or `BLOCKING <id>: <text> backed-by: repro <path>`, with
+//      <path> an existing file relative to the repo root (the cwd). BLOCKED and every other
+//      role are unaffected (SPEC factory-round-cap D-BAR).
 //   4. E-NO-EVIDENCE      — `evidence` has at least one entry with an
 //      INTEGER `exit_code`.
 //   8. E-MALFORMED-LINE — a base-indent block line that is neither a key nor a comment (never silently skipped)
@@ -110,7 +115,7 @@
 //
 // Node stdlib only (Technology contract: zero runtime dependencies).
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { checkOutcomeReport } from './validation-outcome-check.mjs';
@@ -735,6 +740,16 @@ function parseSubagentResultBlock(candidateRawLines) {
   };
 }
 
+const BACKED_BLOCKING_RE = /^BLOCKING [^\s:]+: .+ backed-by: (?:check (\S+) exit (-?\d+)|repro (\S+))$/;
+
+function isBackedBlocking(entry) {
+  const m = BACKED_BLOCKING_RE.exec(String(entry).trim());
+  if (!m) return false;
+  if (m[1] !== undefined && Number(m[2]) === 0) return false;
+  const file = path.resolve(process.cwd(), m[1] ?? m[3]);
+  try { return existsSync(file) && statSync(file).isFile(); } catch { return false; }
+}
+
 function validateResult(parsed, nowMs, scopeBinding = {}) {
   const violations = [];
   const commandWords = (parsed.state_update_commands ?? []).map(parseCommandWords);
@@ -859,6 +874,18 @@ function validateResult(parsed, nowMs, scopeBinding = {}) {
         `started_utc is ${Math.round(aheadSeconds)}s ahead of --now, limit ${FUTURE_TOLERANCE_SECONDS}s`,
       ]);
     }
+  }
+
+  // factory-round-cap D-BAR — a FAIL that cannot name a failing check or a reproduction is an
+  // opinion, not a blocker. Only Validation and Code Review FAIL are held to the bar.
+  const failUnbacked = (role === 'validation' || role === 'code review')
+    && parsed.fields.status === 'FAIL'
+    && !(parsed.blockers ?? []).some(isBackedBlocking);
+  if (failUnbacked) {
+    violations.push([
+      'E-FAIL-UNBACKED',
+      `${parsed.fields.role} FAIL needs a blockers entry "BLOCKING <id>: <text> backed-by: check <path> exit <n>" (n != 0) or "backed-by: repro <path>" naming an existing file`,
+    ]);
   }
 
   // A Validation PASS is not mergeable without the same report contract used

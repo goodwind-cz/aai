@@ -65,6 +65,7 @@ import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/pr
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
+import { roundsUsed, roundCap, standingAExtensions, ROUND_MENU } from './round-budget.mjs';
 import { recheckMode, planCheckStamps, tokenOfRole, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
@@ -117,9 +118,9 @@ const RULES = [
   { id: '9a', when: 'phase in {planning done, preparation} AND strategy == tdd', then: 'dispatch TDD Implementation (.aai/SKILL_TDD.prompt.md)' },
   { id: '9b', when: 'phase in {planning done, preparation} AND strategy == hybrid', then: 'dispatch TDD Implementation (the role reads the spec TEST-xxx ordering)' },
   { id: '9c', when: 'phase in {planning done, preparation} AND strategy in {loop, direct, untested} (direct/untested: spec-implementation-mode-choice non-TDD lanes)', then: 'dispatch Implementation (.aai/IMPLEMENTATION.prompt.md)' },
-  { id: '10', when: 'last_validation.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md); fail + last run already Remediation -> needs_llm possible_missing_remediation_reset' },
+  { id: '10', when: 'last_validation.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md), or at the round cap (round-budget.mjs roundsUsed >= roundCap) no_action review_round_cap with one set-human-input command; fail + last run already Remediation -> needs_llm possible_missing_remediation_reset' },
   { id: '11', when: 'last_validation.status == not_run AND phase in {implementation, validation, remediation, code_review}; ceremony L0/L1 (spec-loop-ceremony-aware-dispatch): lightweight lane adds reason lightweight_lane_declared_scope (lane.validation_depth == declared_scope)', then: 'dispatch Validation (.aai/VALIDATION.prompt.md) with validator_independence' },
-  { id: '12', when: 'code_review.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md)' },
+  { id: '12', when: 'code_review.status == fail', then: 'dispatch Remediation (.aai/REMEDIATION.prompt.md), or at the round cap no_action review_round_cap (as rule 10)' },
   { id: '11s', when: 'validation pass AND isVerdictStale(snapshot) — a standing focus-ref-scoped pass verdict whose stamped tree hash (the last validation_verdict EVENTS line) differs from the CURRENT tree hash; spec-dispatch-state-sweep D2 — placed before rule 13 (else a stale pass reaches Code Review) and before rule 14 (else it reaches the flush)', then: 'dispatch Validation (.aai/VALIDATION.prompt.md) with reason validation_verdict_stale; --confirm absent also adds restamp_requires_confirm (the stamp cannot refresh without it, so the rule keeps re-firing — named, not silent)' },
   { id: '13', when: 'validation pass AND code_review.required AND status not in {pass, waived}; ceremony L3 (RFC-0009): required coerced true, waived -> needs_llm l3_review_waived_requires_operator_checkpoint', then: 'dispatch Code Review (.aai/SKILL_CODE_REVIEW.prompt.md)' },
   { id: '14', when: 'validation pass AND focus ref absent from METRICS.jsonl', then: 'dispatch Metrics Flush (.aai/METRICS_FLUSH.prompt.md); ref present -> no action required' },
@@ -262,6 +263,22 @@ function noAction(rule, snapshot, reasons) {
     reasons,
     retarget: null,
   };
+}
+
+// factory-round-cap D-CAP — at the cap a Remediation dispatch becomes an owner stop.
+function roundCapState(snapshot) {
+  const rb = snapshot.round_budget;
+  return { reached: !!rb && rb.used >= rb.cap, rb };
+}
+
+function roundCapStop(rule, snapshot, rb) {
+  const ref = snapshot.focus.ref_id;
+  const out = noAction(rule, snapshot, rb.standing_a ? ['review_round_cap'] : ['review_round_cap', 'standing_a_available']);
+  const reason = `review-round-cap: ${rb.used}/${rb.cap} rounds used for ${ref}`;
+  out.state_update_commands = [
+    `node .aai/scripts/state.mjs set-human-input --required true --reason "${reason}" --question "${ROUND_MENU}"`,
+  ];
+  return out;
 }
 
 const UNFLUSHABLE_REASON = 'closed_focus_unflushable_no_flushable_metrics';
@@ -576,6 +593,8 @@ function decideRuleTable(snapshot, opts = {}) {
   // case (fail + a Remediation already ran last) is not mechanically provable.
   if (vstatus === 'fail') {
     if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '10');
+    const cap = roundCapState(s);
+    if (cap.reached) return roundCapStop('10', s, cap.rb);
     return dispatchFor('Remediation', s, '10');
   }
   // Rule 11 — implementation exists but validation not run. A recorded `pass`
@@ -594,6 +613,8 @@ function decideRuleTable(snapshot, opts = {}) {
   // Rule 12 — review FAIL -> Remediation (same forensic residue as rule 10).
   if (s.review && s.review.status === 'fail') {
     if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '12');
+    const cap = roundCapState(s);
+    if (cap.reached) return roundCapStop('12', s, cap.rb);
     return dispatchFor('Remediation', s, '12');
   }
   // Rule 11s (spec-dispatch-state-sweep D2) — a standing focus-ref-scoped
@@ -1068,6 +1089,9 @@ export function buildSnapshot(statePath, root) {
   // re-open must supersede an earlier close.
   let lastWorkItemClosedIdx = -1;
   let lastReopenFromDoneIdx = -1;
+  // factory-round-cap D-CAP — the round counter reads the focus ref's round_reset and
+  // round_extension lines from the SAME scan; round-budget.mjs owns the arithmetic.
+  const roundEvents = [];
   const eventsPath = path.resolve(root, 'docs/ai/EVENTS.jsonl');
   if (focusRef && fs.existsSync(eventsPath)) {
     const eventLines = fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/);
@@ -1077,6 +1101,7 @@ export function buildSnapshot(statePath, root) {
       try {
         const e = JSON.parse(t);
         if (!refMatches(e.ref, focusRef)) continue;
+        if (e.event === 'round_reset' || e.event === 'round_extension') roundEvents.push({ ...e, ref: focusRef });
         if (e.event === 'work_item_closed') { closeEventPresent = true; lastWorkItemClosedIdx = evIdx; }
         else if (e.event === 'doc_lifecycle' && e.payload && e.payload.from === 'done') {
           lastReopenFromDoneIdx = evIdx;
@@ -1142,6 +1167,14 @@ export function buildSnapshot(statePath, root) {
     implementer_model: focusRef ? lastImplementerModel(lines, focusRef) : null,
     last_run_role: runs.length ? runs[runs.length - 1].role : null,
   };
+  // factory-round-cap D-CAP — the round counter is NON-ENUMERABLE on the snapshot: decide() reads
+  // it, but state_summary (the snapshot, JSON-stringified) stays byte-identical below the cap.
+  Object.defineProperty(snapshot, 'round_budget', {
+    enumerable: false,
+    value: focusRef
+      ? { used: roundsUsed(roundEvents, focusRef), cap: roundCap(roundEvents, focusRef), standing_a: standingAExtensions(roundEvents, focusRef) > 0 }
+      : null,
+  });
   return { snapshot, problems: [], validationRunAtUtc };
 }
 
