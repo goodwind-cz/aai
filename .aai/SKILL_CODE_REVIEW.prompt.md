@@ -83,6 +83,8 @@ verdict.
 Real defects only (security, correctness, data loss, performance,
 concurrency, error handling), ranked:
 - BLOCKING — must fix before merge. Any BLOCKING finding fails this verdict.
+  It carries `backed-by:` a failing check or a repro file; an unbacked concern
+  is NON-BLOCKING.
 - NON-BLOCKING — should fix; these are the WARNINGs of the H6 policy below
   and carry its disposition duty.
 Every finding cites file:line AND a concrete failure scenario — the input,

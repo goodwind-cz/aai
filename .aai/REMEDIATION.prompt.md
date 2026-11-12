@@ -32,7 +32,8 @@ PROCESS
      rows of the report's ac_walk (each row's citation names the gap)
    - Code Review code_quality verdict fail — remediate BLOCKING findings
      (each carries file:line + failure_scenario); NON-BLOCKING findings
-     carry the H6 disposition duty (fix, decision entry, or follow-up ref)
+     carry the H6 disposition duty (default: `node .aai/scripts/follow-ups.mjs add`,
+     not a fix round)
    - The report's cannot_verify entries are named evidence gaps, not
      defects — close one only when the dispatch explicitly asks for it
    Before fixing ANY defect: apply the root-cause gate in
@@ -53,6 +54,8 @@ PROCESS
       node .aai/scripts/state.mjs reset-block last_validation   # only if last_validation.status was fail
       node .aai/scripts/state.mjs reset-block code_review       # only if code_review.status was fail
    Reset ONLY the block(s) that were `fail` (the trigger recorded in step 1).
+   A fix after a pass is a counted round. Exit 5 (round cap, see `round-budget.mjs
+   status`): stop, do not retry, return the owner menu.
    The CLI enforces this: a `pass`/`waived` block is REFUSED without --force —
    post-PASS WARNING remediation must not clobber a passing verdict. The reset
    (fail → not_run, with a reset marker in notes) routes the next orchestration

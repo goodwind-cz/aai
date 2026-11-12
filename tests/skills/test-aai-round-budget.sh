@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Test: aai-round-budget
-# (docs/specs/SPEC-DRAFT-spec-factory-round-cap.md, TEST-3600..3611 so far;
-# TEST-3612..3613 are added by a later run of the same ride)
+# (docs/specs/SPEC-DRAFT-spec-factory-round-cap.md, TEST-3600..3615;
+# TEST-3612..3615 are the canon, wiring, pin and CHANGELOG rows of the same ride)
 #
 # The counted review round cap: .aai/scripts/round-budget.mjs counts round_reset and
 # round_extension lines in EVENTS, state.mjs reset-block writes one round_reset per
@@ -590,6 +590,75 @@ NODE
   log_pass "TEST-3611: ride 8 replays to 3 automatic resets, an owner menu at R2, one sweep, the forced V6 reset refused"
 }
 
+# need <file> <fixed phrase...>: every phrase must occur in the file.
+need() {
+  local f="$1" t="$2"
+  shift 2
+  local p
+  for p in "$@"; do
+    grep -qF -- "$p" "$PROJECT_ROOT/$f" || log_fail "$t: $f lacks the D-CANON phrase: $p"
+  done
+}
+
+test_3612_canon_prose() {
+  local p="$PROJECT_ROOT"
+  need .aai/VALIDATION.prompt.md TEST-3612 'round-budget.mjs sweep-plan' 'round-budget.mjs status' 'round_extension' 'backed-by' 'follow-ups.mjs add' 'review-round-cap' 'wave-2-roadmap'
+  need .aai/REMEDIATION.prompt.md TEST-3612 'follow-ups.mjs add' 'counted round' 'round-budget.mjs' 'Exit 5'
+  need .aai/SKILL_CODE_REVIEW.prompt.md TEST-3612 'backed-by' 'NON-BLOCKING'
+  need .aai/SKILL_VERIFY.prompt.md TEST-3612 'round-budget.mjs sweep-plan' 'sweep-plan. Blast radius is the selector'
+  need .aai/ORCHESTRATION.prompt.md TEST-3612 'review_round_cap' 'round_extension'
+  need .aai/AGENTS.md TEST-3612 'round-budget.mjs status' 'reset-block'
+  if grep -qF 'Run the whole suite' "$p/.aai/SKILL_VERIFY.prompt.md" || grep -qF 'The full sweep before close' "$p/.aai/SKILL_VERIFY.prompt.md"; then
+    log_fail "TEST-3612: SKILL_VERIFY still carries the old counter or reuse text"
+  fi
+  if grep -qE 'ONE full|does NOT require a full sweep|runs before the close ceremony' "$p/.aai/VALIDATION.prompt.md"; then
+    log_fail "TEST-3612: VALIDATION c2 still demands or describes the old intermediate full sweep"
+  fi
+  log_pass "TEST-3612: the six canon prompts name the counted cap, the backed bar, the follow-up default and the sweep-plan sequence"
+}
+
+test_3613_wiring() {
+  local list sel
+  grep -qxF '  - .aai/scripts/round-budget.mjs' "$PROJECT_ROOT/.aai/system/PROFILES.yaml" || log_fail "TEST-3613: PROFILES core does not list round-budget.mjs"
+  new_tmp
+  list="$TMP_ROOT/files.txt"
+  printf '%s\n' '.aai/scripts/round-budget.mjs' > "$list"
+  sel="$(node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --repo-root "$PROJECT_ROOT" --files-from "$list")" || log_fail "TEST-3613: select-suites failed: $sel"
+  local s
+  for s in aai-round-budget aai-state aai-orchestration-dispatch aai-role-output; do
+    grep -qE "^(SELECTED|CORE) $s( |$)" <<<"$sel" || log_fail "TEST-3613: round-budget.mjs does not select $s: $sel"
+  done
+  [[ "$(grep -c '^aai-round-budget'$'\t' "$SCRIPT_DIR/suite-weights.tsv")" == 1 ]] || log_fail "TEST-3613: suite-weights does not hold exactly one aai-round-budget row"
+  grep -qxF '# sample aai-round-budget fallback unsampled (new suite of factory-round-cap; no successful observation)' "$SCRIPT_DIR/suite-weights.tsv" || log_fail "TEST-3613: suite-weights lacks the aai-round-budget fallback line"
+  log_pass "TEST-3613: round-budget.mjs is core, selects the four suites, and the suite has its weight row"
+}
+
+test_3614_prompt_diet_pins() {
+  local l="$SCRIPT_DIR/lib/prompt-diet-ledger.sh" t rc
+  [[ "$(grep -c ' factory-round-cap ' "$l")" == 1 ]] || log_fail "TEST-3614: the ledger must hold exactly one factory-round-cap entry"
+  new_tmp
+  for t in prompt-diet:test_010_audit_and_reduction prompt-diet:test_012_growth_sum_matches_ledger pr-preflight:test_008 legacy-migrations:test_3398_diet retired-loop-runner:test_3410_diet; do
+    rc=0
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-${t%%:*}.sh" "${t#*:}" > "$TMP_ROOT/${t%%:*}.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || log_fail "TEST-3614: ${t#*:} of ${t%%:*} is red: $(tail -5 "$TMP_ROOT/${t%%:*}.log")"
+  done
+  log_pass "TEST-3614: the ledger entry and the four companion pins agree with the corpus"
+}
+
+test_3615_changelog() {
+  local cl="$PROJECT_ROOT/CHANGELOG.md"
+  [[ "$(grep -c '^## \[unreleased\]$' "$cl")" == 1 ]] || log_fail "TEST-3615: CHANGELOG must keep exactly one bare unreleased scaffold"
+  [[ "$(grep -c '^## \[unreleased\] — .*round cap' "$cl")" == 1 ]] || log_fail "TEST-3615: CHANGELOG must hold exactly one per-entry unreleased heading for the round cap"
+  local body
+  body="$(awk '/^## \[unreleased\] — .*round cap/{f=1;next} f&&/^## /{exit} f' "$cl")"
+  local p
+  for p in 'E-FAIL-UNBACKED' 'E-SWEEP-OWED' 'round-budget.mjs status' 'review-round-cap' '5 resets' '3 sweeps' '1 sweep'; do
+    grep -qF -- "$p" <<<"$body" || log_fail "TEST-3615: the CHANGELOG entry lacks: $p"
+  done
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-release.sh" test_022_live_changelog_scaffold_invariants >/dev/null 2>&1 || log_fail "TEST-3615: release TEST-022 is red"
+  log_pass "TEST-3615: one per-entry unreleased heading below the bare scaffold names the cap, bar, sweep plan and gain"
+}
+
 main() {
   check_deps
   test_3600_status_counts
@@ -604,6 +673,10 @@ main() {
   test_3609_full_sweep_validation
   test_3610_sweep_owed
   test_3611_replay
+  test_3612_canon_prose
+  test_3613_wiring
+  test_3614_prompt_diet_pins
+  test_3615_changelog
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

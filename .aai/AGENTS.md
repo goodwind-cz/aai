@@ -309,7 +309,8 @@ discipline is opt-in downstream).
    the owner decides only product intent or meaningful risk, never a framework
    debugging task or a bare "continue".
 3. **Two review rounds max.** A third finding-bearing round means the ride was
-   cut wrong: split it, do not re-verify it.
+   cut wrong: split it, do not re-verify it. The cap is counted by
+   `round-budget.mjs status` and enforced by dispatch and `reset-block`.
 4. **Rides come from the roadmap, in order.** `docs/ai/roadmap.yaml` orders the
    capabilities (`/aai-roadmap` shows and changes it; `/aai-ship` with no
    argument takes the next item). The maintenance budget is opt-in: only with

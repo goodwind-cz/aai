@@ -186,27 +186,28 @@ PROCESS
       exit-124 convention, epoch-vs-legacy age-guard modes, never a global
       `pkill -f vitest`).
    c2) SUITE SCOPE PER ROUND. The lane above sets a round's DEPTH; this sets
-      how often the full skills sweep is paid. An INTERMEDIATE round — any
-      validation or remediation round before the close ceremony — runs the
-      SELECTED plus CORE suites named by
-      `node .aai/scripts/select-suites.mjs --files-from <changed files>` and
-      does NOT require a full sweep. A suite the framework prints as REUSED
-      counts in an intermediate round and is cited as reused (SKILL_VERIFY
-      reuse exception). ONE full
-      `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh`
-      (Windows) / `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh` (POSIX)
-      runs before the close ceremony and
-      is the sweep the TEST rows cite. State which of the two this round was.
-      TWO ROUNDS MAX (owner decision review-round-cap, 2026-09-05): a third
-      finding-bearing round is a STOP whose only instruction is "split the
-      ride" — never a fourth round. Each round so far found a real escape,
-      which means the scope was cut wrong, not under-verified.
+      how often the full skills sweep is paid. Every round runs the SELECTED
+      plus CORE suites named by
+      `node .aai/scripts/select-suites.mjs --files-from <changed files>`; a
+      suite the framework prints as REUSED is cited as reused (SKILL_VERIFY
+      reuse exception). After a green selected run, `node .aai/scripts/round-budget.mjs sweep-plan --ref <REF-ID>`
+      answers full (run the sweep once with
+      `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`,
+      POSIX; `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh`,
+      Windows; then record it with append-event --event full_sweep), reuse (cite
+      the recorded run id) or not-applicable. A FAIL round pays no sweep.
+      TWO ROUNDS MAX (owner decision review-round-cap, 2026-09-05), counted by
+      `round-budget.mjs status` and enforced by dispatch and `state.mjs
+      reset-block` (exit 5): a third finding-bearing round is a STOP that
+      returns the owner menu — never a fourth round.
       STANDING DECISION (a) (owner decision wave-2-roadmap, 2026-09-12):
       when the extra round's hazard was INTRODUCED BY THE FEATURE UNDER
-      DELIVERY and cannot be split out without shipping it, take ONE
-      additional round without asking, naming the hazard in the round note;
-      a second such extension on the same scope is a STOP that asks.
-      Separable findings keep the two-round cap unchanged.
+      DELIVERY and cannot be split out without shipping it, record ONE
+      `append-event --event round_extension --authority standing-a` without
+      asking, naming the hazard; a second is a STOP that asks.
+      A FAIL needs a BLOCKING finding `backed-by:` a failing check (nonzero
+      exit) or a reproduction file; an unbacked concern is NON-BLOCKING and
+      goes to `follow-ups.mjs add`.
    c3) PROGRESS HEARTBEAT (advisory). At each round boundary run
       `node .aai/scripts/heartbeat.mjs write --ref <REF-ID> --role Validation --message "<this round>"`
       so an observer reads progress without asking the orchestrator. Its

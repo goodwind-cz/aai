@@ -20,7 +20,7 @@ Reuse exception: a suite that `tests/skills/test-framework.sh` prints as REUSED
 had the same files read, env, args, runtime, policy and history as
 an earlier passing run (docs/product/precise-suite-evidence-reuse.md) and counts as fresh for that
 suite. Cite it as reused with the original run id and log, and read the whole log.
-The full sweep before close, CI, main, nightly and release always execute.
+The ride's one full sweep (round-budget.mjs sweep-plan), CI, main, nightly and release always execute.
 
 ## Gate function
 Every completion claim passes through this exact chain, in this order, with
@@ -54,7 +54,7 @@ Stop and correct if you catch yourself thinking any of these:
 | "I only changed docs/comments" | Prove it with `git diff --stat` first. If it touches code, the exemption does not apply. |
 | "The subagent reported success" | A subagent's self-report is a claim, not evidence. Inspect the tree yourself before accepting it. |
 | "The diff looks right, no need to run it" | Reading code is not executing it. Looks-right code fails at runtime constantly. |
-| "I ran part of the suite, the rest can't be affected" | Run the whole suite. Blast radius is a guess until proven. |
+| "I ran part of the suite, the rest can't be affected" | Run the selected plus CORE suites this round names; the full sweep follows sweep-plan. Blast radius is the selector's call, never a guess. |
 | "Exit code was 0, no need to read the output" | Exit 0 with silently-skipped tests is a false green. Read the full output. |
 | "It's a trivial one-line fix" | Trivial fixes break builds too. The gate carries no size exemption. |
 

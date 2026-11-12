@@ -30,6 +30,14 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — feat(review): a ride's re-check loop stops at a counted round cap and the full sweep is paid once
+
+- The two-round cap is now counted, not remembered: `state.mjs reset-block` appends one `round_reset` line per block it changes and exits 5 with a `REFUSED review-round-cap` line and a three-option owner menu when the cap is met; orchestration dispatch rules 10 and 12 stop with `review_round_cap` and one `set-human-input` command instead of sending Remediation. Owner decision (a) is one `append-event --event round_extension --authority standing-a` per ride, an owner extension is one more line; `node .aai/scripts/round-budget.mjs status --ref <ref>` prints rounds, extensions, resets and sweeps from EVENTS.
+- A Validation or Code Review FAIL needs a BLOCKING finding backed by a failing check (nonzero exit) or a reproduction file, otherwise `check-role-output.mjs` rejects it with `E-FAIL-UNBACKED`; an unbacked concern is NON-BLOCKING and goes to `follow-ups.mjs add`.
+- `round-budget.mjs sweep-plan` answers full, reuse or not-applicable for the ride's one full skills sweep; test, docs and other text-only deltas reuse the recorded sweep, and a Validation PASS while a sweep is owed is rejected with `E-SWEEP-OWED`. Downstream projects without `tests/skills/test-framework.sh` get not-applicable with a NOTE.
+- The canon prompts (VALIDATION c2, REMEDIATION, SKILL_CODE_REVIEW, SKILL_VERIFY, AGENTS rule 3) state the same rules and no longer demand an intermediate full sweep or a whole-suite re-run.
+- Measured on the recorded ride 8 round history, replayed through the real CLIs: 5 resets and 3 sweeps (about 165 min) become 3 automatic resets, an owner menu at R2 and 1 sweep (about 55 min).
+
 ## [v2026.11.11] — fix(update): aai-update.ps1 no longer ends at its first git stderr line on Windows PowerShell 5.1
 
 - On Windows PowerShell 5.1 the updater ran with `$ErrorActionPreference = 'Stop'` and redirected the output of its `git fetch`, `checkout` and `pull` (and of the clone attempts and `git status`) with `*> $null`; 5.1 turns any line a native command writes to stderr into a terminating `NativeCommandError`, so `/aai-update` from a local `-Repo` checkout without an `origin` exited 1 before syncing anything, where the bash twin exited 0. The same happened on pwsh 7.3+ when the caller had `$PSNativeCommandUseErrorActionPreference` on.

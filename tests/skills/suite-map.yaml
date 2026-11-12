@@ -995,6 +995,7 @@ suites:
       - .aai/scripts/orchestration-dispatch.mjs
       - .aai/scripts/append-event.mjs
       - .aai/system/MODEL_ROUTING.yaml
+      - .aai/scripts/round-budget.mjs
       - .aai/workflow/WORKFLOW.md
       - .aai/ORCHESTRATION.prompt.md
 
@@ -1227,6 +1228,7 @@ suites:
     globs:
       - .aai/scripts/check-role-output.mjs
       - .aai/scripts/validation-outcome-check.mjs
+      - .aai/scripts/round-budget.mjs
       - .aai/SUBAGENT_CONTRACT.md
       - .aai/SUBAGENT_PROTOCOL.md
 
@@ -1426,6 +1428,7 @@ suites:
   aai-state:
     globs:
       - .aai/scripts/state.mjs
+      - .aai/scripts/round-budget.mjs
       - .aai/IMPLEMENTATION.prompt.md
       - .aai/METRICS_FLUSH.prompt.md
       - .aai/ORCHESTRATION.prompt.md
