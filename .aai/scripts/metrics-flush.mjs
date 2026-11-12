@@ -285,7 +285,7 @@ function parseMetricsEntries(lines) {
       const rawV = mm[2].trim();
       if (key === 'note' && /^[|>]/.test(rawV)) { run.note = ''; continue; }
       const v = scalarOrNull(rawV);
-      run[key] = ['duration_seconds', 'tokens_in', 'tokens_out', 'cost_usd', 'tdd_tests', 'tokens_total'].includes(key) ? asNumber(v) : v;
+      run[key] = ['duration_seconds', 'tokens_in', 'tokens_out', 'cost_usd', 'tdd_tests', 'tokens_total', 'cache_read_tokens', 'cache_creation_tokens'].includes(key) ? asNumber(v) : v;
     }
     entries.push(entry);
     i = end;
@@ -826,6 +826,11 @@ function buildEntry(entry, ctx) {
     // uses above, rather than harness/tokens_total's null-default shape.
     if (typeof r.requested_model === 'string') out.requested_model = r.requested_model;
     if (typeof r.actual_model === 'string') out.actual_model = r.actual_model;
+    // spec-model-effort-routing D-RECORD: the four effort/cache fields, absent stays absent.
+    if (typeof r.requested_effort === 'string') out.requested_effort = r.requested_effort;
+    if (typeof r.effort_applied === 'string') out.effort_applied = r.effort_applied;
+    if (typeof r.cache_read_tokens === 'number') out.cache_read_tokens = r.cache_read_tokens;
+    if (typeof r.cache_creation_tokens === 'number') out.cache_creation_tokens = r.cache_creation_tokens;
     const roleLower = typeof r.role === 'string' ? r.role.toLowerCase() : '';
     const relevantForVerdict = roleLower.includes('validation') || roleLower.includes('review');
     out.verdict = typeof r.verdict === 'string' && r.verdict !== '' ? r.verdict : null;
