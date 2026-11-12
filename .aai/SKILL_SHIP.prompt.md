@@ -81,7 +81,7 @@ RUN
 2. LOOP — follow .aai/SKILL_LOOP.prompt.md (checkpoint_mode=none), applying
    default 2 whenever the loop surfaces the worktree gate. Pass `unattended`
    and `max_prs` through when set. Honor every dispatch's suggested_model
-   (MODEL_ROUTING binding) when the platform supports model selection.
+   and harness_effort (MODEL_ROUTING binding) when the platform supports model selection.
 3. If the loop pauses for a human (HITL block, stagnation, run budget):
    surface the question verbatim and STOP. After the human answers, they
    re-run /aai-ship to resume (state is durable; the loop picks up). Under

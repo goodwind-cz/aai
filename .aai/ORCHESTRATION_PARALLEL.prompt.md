@@ -105,7 +105,7 @@ IMPLEMENTATION STRATEGY AND ISOLATION
 MODEL SELECTION (include in every workstream dispatch when subagent spawning is supported)
 Right-size the model to task complexity — do not default to the most capable
 model for everything. Honor a dispatch's suggested_model when non-null (the
-deterministic binding from .aai/system/MODEL_ROUTING.yaml); else:
+deterministic binding from .aai/system/MODEL_ROUTING.yaml) and its harness_effort the same way; else:
 - Mechanical / isolated tasks (single-file edits, boilerplate, formatting): smaller/faster model
 - Integration work (cross-module changes, wiring, migrations): standard model
 - Architecture, planning, reviews, complex debugging: most capable model available
