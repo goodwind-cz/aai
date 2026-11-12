@@ -111,7 +111,7 @@ YAML
   printf '%s' "$d"
 }
 
-OUT=""; ERR=""; EC=0
+OUT=""; ERR=""; EC=0; CUR_TEST=""
 # run_d <root> <harness|-> [dispatch args...]; env markers scrubbed, the
 # effort variable unset unless EFFORT_VAR is exported by the caller.
 run_d() {
@@ -132,7 +132,7 @@ jassert() {
     const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const fn = new Function("o", "return (" + process.argv[2] + ");");
     if (!fn(o)) { console.error("assert failed: " + process.argv[2] + "\n  got: " + JSON.stringify(o).slice(0, 600)); process.exit(1); }
-  ' "$1" "$2" || log_fail "JSON assertion failed: $2"
+  ' "$1" "$2" || log_fail "${CUR_TEST:-TEST}: JSON assertion failed: $2"
 }
 
 # jeval <json-file> <js-expr> -> prints the value
@@ -150,6 +150,7 @@ run_mjs() {
 
 # --- TEST-3633 (Spec-AC-01) ---------------------------------------------------
 test_3633_shipped_effort_table() {
+  CUR_TEST="TEST-3633"
   log_info "TEST-3633: shipped MODEL_ROUTING.yaml resolves the D-TABLE effort for every TIERS role..."
   local got
   got="$(run_mjs '
@@ -171,6 +172,7 @@ console.log(rows.map(([r, t]) => r + "=" + m.suggestEffort({ verdict: "dispatch"
 
 # --- TEST-3634 (Spec-AC-02) ---------------------------------------------------
 test_3634_closed_vocabulary() {
+  CUR_TEST="TEST-3634"
   log_info "TEST-3634: default resolves null, turbo is ignored with one NOTE, stdout stays JSON..."
   local d; d="$(mk_root t3634)"
   cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
@@ -193,7 +195,7 @@ import { pathToFileURL } from "node:url";
 const m = await import(pathToFileURL(process.argv[2]).href);
 const r = m.loadModelRouting(process.argv[3]);
 const f = (role) => m.suggestEffort({ verdict: "dispatch", role, suggested_tier: "standard" }, r);
-console.log([f("Planning"), f("Code Review"), f("Validation")].join(","));
+console.log([f("Planning"), f("Code Review"), f("Validation")].map(String).join(","));
 ' "$DISPATCH" "$d" 2>/dev/null)"
   [[ "$got" == "null,high,null" ]] || log_fail "TEST-3634: default/high/turbo resolved '$got', expected null,high,null"
   log_pass "TEST-3634: default -> null, high -> high, turbo -> null with one NOTE, stdout valid JSON"
@@ -201,6 +203,7 @@ console.log([f("Planning"), f("Code Review"), f("Validation")].join(","));
 
 # --- TEST-3635 (Spec-AC-03) ---------------------------------------------------
 test_3635_harness_effort() {
+  CUR_TEST="TEST-3635"
   log_info "TEST-3635: harness_effort per harness, null elsewhere, rest of the verdict unchanged..."
   local d h v; d="$(mk_root t3635)"
   cp "$ROUTING" "$d/.aai/system/MODEL_ROUTING.yaml"
@@ -216,7 +219,7 @@ import { pathToFileURL } from "node:url";
 const m = await import(pathToFileURL(process.argv[2]).href);
 const r = m.loadModelRouting(process.argv[3]);
 const f = (h) => m.harnessEffort({ verdict: "dispatch", suggested_effort: m.suggestEffort({ verdict: "dispatch", role: "Remediation", suggested_tier: "standard" }, r) }, r, h);
-console.log(["claude", "codex", "gemini", "cursor", "unknown"].map(f).join(","));
+console.log(["claude", "codex", "gemini", "cursor", "unknown"].map((h) => String(f(h))).join(","));
 ' "$DISPATCH" "$PROJECT_ROOT")"
   [[ "$got" == "medium,medium,high,null,null" ]] || log_fail "TEST-3635: Remediation harness_effort is '$got', expected medium,medium,high,null,null"
   for h in cursor unknown; do
@@ -254,6 +257,7 @@ console.log(["claude", "codex", "gemini", "cursor", "unknown"].map(f).join(","))
 
 # --- TEST-3636 (Spec-AC-03) ---------------------------------------------------
 test_3636_params_headers() {
+  CUR_TEST="TEST-3636"
   log_info "TEST-3636: unsuffixed and out-of-set effort_params headers are noted and ignored; Mode A stays Mode A..."
   local d; d="$(mk_root t3636)"
   cat > "$d/.aai/system/MODEL_ROUTING.yaml" <<'YAML'
@@ -283,6 +287,7 @@ YAML
 
 # --- TEST-3637 (Spec-AC-04) ---------------------------------------------------
 test_3637_effort_override() {
+  CUR_TEST="TEST-3637"
   log_info "TEST-3637: CLAUDE_CODE_EFFORT_LEVEL surfaces as effort_override, name only..."
   local d; d="$(mk_root t3637)"
   cp "$ROUTING" "$d/.aai/system/MODEL_ROUTING.yaml"

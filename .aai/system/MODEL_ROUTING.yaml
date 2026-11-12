@@ -71,7 +71,9 @@
 #   whose only `@<harness>` section(s) are all invalid stays Mode A.
 # - `effort_tiers:` / `effort_roles:` below are NEVER harness-scoped: advisory
 #   reasoning effort is a property of the ROLE, not the vendor, and is read
-#   identically in Mode A and Mode B.
+#   identically in Mode A and Mode B. The separate `effort_params@<harness>:`
+#   sections only translate a level into that harness's token; they never
+#   select Mode B.
 # - VALIDATOR INDEPENDENCE, per harness (D4): when a Mode B Validation
 #   dispatch's routed model would equal the recorded implementer model, the
 #   replacement is scanned INSIDE the detected harness's own map only --
@@ -89,8 +91,7 @@
 # as `suggested_effort` on every dispatch (resolution: effort_roles[role] ??
 # effort_tiers[tier] ?? null). Effort is advisory — the harness, not the
 # factory, owns actual API params — and a separate axis from the model tier
-# (a standard-tier Validation is high-effort; a premium-tier Planning is
-# default). Absent sections/file => suggested_effort null (today's output).
+# (a standard-tier Validation is high-effort). Absent sections/file => suggested_effort null (today's output).
 #
 # NO MID-SESSION FLIP (cache-friendly-dispatch, HARD): NEVER flip a role's
 # effort OR model inside one running session/context. Prompt-cache read pricing
@@ -195,16 +196,47 @@ validation_alternate@gemini: gemini-3-pro-preview
 # Advisory reasoning-effort tier per dispatch (cache-friendly-dispatch).
 # Surfaced as `suggested_effort`; resolution effort_roles[role] ??
 # effort_tiers[tier] ?? null. Same no-inline-comment rule as the model rows.
-# Tier defaults: mechanical work is low-effort; standard/premium default.
+# CLOSED VOCABULARY: low, medium, high. The legacy value `default` is accepted
+# and resolves null ("let the harness decide"); any other value is ignored
+# with one stderr NOTE naming the row.
+# Tier defaults: mechanical work is low effort, standard medium, premium high.
 effort_tiers:
   mechanical: low
-  standard: default
-  premium: default
+  standard: medium
+  premium: high
 
-# Per-role effort overrides (beat the tier default). Verification-class roles
-# reason hard about correctness -> high; Planning/Implementation stay default
-# (premium/standard tier default already resolves them); mechanical roles stay
-# low via the tier default. A role with no row falls through to its tier.
+# Per-role effort overrides (beat the tier default). Verification-class and
+# planning roles reason hard about correctness -> high; the implementing
+# roles -> medium; Metrics Flush -> low. Technology extraction, Bootstrap and
+# Implementation Preparation / Worktree decision resolve low through the
+# mechanical tier default.
 effort_roles:
+  Planning: high
   Validation: high
   Code Review: high
+  Implementation: medium
+  TDD Implementation: medium
+  Remediation: medium
+  Metrics Flush: low
+
+# Harness translation of an effort level into the token that harness's own
+# per-dispatch effort knob takes (`effort_params@<harness>:`, rows
+# `  <level>: <token>`). The LEVEL per role stays harness-independent; only the
+# spelling is per harness. Surfaced as `harness_effort` (null when the harness
+# has no section). Gemini's gemini-3-pro-preview accepts only low and high, so
+# medium rounds UP to high (never lowers effort). No cursor section: cursor
+# runs the user's chosen model and settings.
+effort_params@claude:
+  low: low
+  medium: medium
+  high: high
+
+effort_params@codex:
+  low: low
+  medium: medium
+  high: high
+
+effort_params@gemini:
+  low: low
+  medium: high
+  high: high
