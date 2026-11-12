@@ -749,7 +749,7 @@ _None._
 
 _None._
 
-## Broken references (556)
+## Broken references (558)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1163,6 +1163,8 @@ _None._
 | tests/skills/test-aai-metrics.sh | docs/issues/OTHER-0002.md | NOT FOUND |
 | tests/skills/test-aai-metrics.sh | docs/issues/SPEC-0099-golden.md | NOT FOUND |
 | tests/skills/test-aai-metrics.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
+| tests/skills/test-aai-model-effort.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
+| tests/skills/test-aai-model-effort.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
 | tests/skills/test-aai-mutation-gate.sh | docs/specs/fixture-spec.md | NOT FOUND |
 | tests/skills/test-aai-mutation-gate.sh | docs/specs/mg-t480-does-not-exist.md | NOT FOUND |
 | tests/skills/test-aai-orchestration-dispatch.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |

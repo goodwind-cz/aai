@@ -1733,3 +1733,21 @@ suites:
       - .agents/skills/**
       - .claude/skills/**
       - docs/product/hermes-agent-skill-discovery.md
+
+  aai-model-effort:
+    globs:
+      - tests/skills/test-aai-model-effort.sh
+      - .aai/system/MODEL_ROUTING.yaml
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/scripts/state.mjs
+      - .aai/scripts/metrics-flush.mjs
+      - .aai/scripts/metrics-report.mjs
+      - .aai/scripts/append-event.mjs
+      - .aai/scripts/evidence-digest.mjs
+      - .aai/scripts/canon.mjs
+      - .aai/system/CANON.yaml
+      - .aai/SKILL_LOOP.prompt.md
+      - .aai/ORCHESTRATION_PARALLEL.prompt.md
+      - .aai/SUBAGENT_PROTOCOL.md
+      - .aai/SKILL_SHIP.prompt.md
+      - .aai/VALIDATION.prompt.md
