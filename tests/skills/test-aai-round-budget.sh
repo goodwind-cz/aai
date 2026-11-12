@@ -665,9 +665,11 @@ test_3614_prompt_diet_pins() {
 test_3615_changelog() {
   local cl="$PROJECT_ROOT/CHANGELOG.md"
   [[ "$(grep -c '^## \[unreleased\]$' "$cl")" == 1 ]] || log_fail "TEST-3615: CHANGELOG must keep exactly one bare unreleased scaffold"
-  [[ "$(grep -c '^## \[unreleased\] — .*round cap' "$cl")" == 1 ]] || log_fail "TEST-3615: CHANGELOG must hold exactly one per-entry unreleased heading for the round cap"
+  # Release-tolerant like test-aai-update.sh's CHANGELOG pins: /aai-release (and the CI release dry-run's
+  # rehearsal rollup) moves the unreleased heading into a versioned '## [vN]' section with the same title.
+  [[ "$(grep -cE '^## \[(unreleased|v[0-9][^]]*)\] — .*round cap' "$cl")" == 1 ]] || log_fail "TEST-3615: CHANGELOG must hold exactly one per-entry heading (unreleased or rolled) for the round cap"
   local body
-  body="$(awk '/^## \[unreleased\] — .*round cap/{f=1;next} f&&/^## /{exit} f' "$cl")"
+  body="$(awk '/^## \[(unreleased|v[0-9][^]]*)\] — .*round cap/{f=1;next} f&&/^## /{exit} f' "$cl")"
   local p
   for p in 'E-FAIL-UNBACKED' 'E-SWEEP-OWED' 'round-budget.mjs status' 'review-round-cap' '5 resets' '3 sweeps' '1 sweep'; do
     grep -qF -- "$p" <<<"$body" || log_fail "TEST-3615: the CHANGELOG entry lacks: $p"
