@@ -3826,3 +3826,4 @@
 {"v":1,"ts":"2026-11-12T17:35:20Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-round-cap-hardening","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-12T17:35:57Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":728,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-12T17:36:49Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":728,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-12T17:48:48Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"round-cap-hardening","payload":{"pr":551,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"507827048017f3df306e33445076ffe885a77abc"}}
