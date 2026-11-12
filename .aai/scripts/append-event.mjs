@@ -29,7 +29,7 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { nowIso } from './lib/iso-time.mjs';
-import { readEvents, standingAExtensions } from './round-budget.mjs';
+import { readEvents, standingAExtensions, errCode } from './round-budget.mjs';
 import { PR_SWEEP_OUTCOMES, sweepContradictions, parseSweepCount } from './lib/pr-sweep.mjs';
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
@@ -209,7 +209,12 @@ function main() {
       // visible ledger line. A refusal writes nothing.
       if (args.authority !== 'standing-a' && args.authority !== 'owner') fail('round_extension requires --authority standing-a|owner', 1);
       if (typeof args.reason !== 'string' || args.reason.trim() === '') fail('round_extension requires a non-empty --reason', 1);
-      const standingAUsed = args.authority === 'standing-a' && standingAExtensions(readEvents(EVENTS_PATH).events, args.ref) > 0;
+      let standingAUsed = false;
+      let eventsUnreadable = null;
+      if (args.authority === 'standing-a') {
+        try { standingAUsed = standingAExtensions(readEvents(EVENTS_PATH).events, args.ref) > 0; } catch (err) { eventsUnreadable = err; }
+      }
+      if (eventsUnreadable) fail(`round_extension refused: cannot read ${EVENTS_PATH} (${errCode(eventsUnreadable)}); the standing-a limit cannot be checked`, 1);
       if (standingAUsed) fail(`round_extension refused: STANDING DECISION (a) allows one extension per ride and ${args.ref} already has it; a second is a STOP that asks the owner (use --authority owner)`, 1);
       entry.payload = { authority: args.authority, reason: args.reason };
       break;

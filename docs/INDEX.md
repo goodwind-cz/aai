@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (644)
+## Done (646)
 
 | ID | Type | Path |
 |---|---|---|
@@ -405,6 +405,7 @@ _None._
 | ISSUE-0110 | issues | docs/issues/ISSUE-0110-release-fixture-atomic-publication.md |
 | ISSUE-0111 | issues | docs/issues/ISSUE-0111-release-corpus-hermetic.md |
 | ISSUE-0112 | issues | docs/issues/ISSUE-0112-update-ps1-git-stderr.md |
+| ISSUE-0113 | issues | docs/issues/ISSUE-0113-round-cap-hardening.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -707,6 +708,7 @@ _None._
 | SPEC-0284 | specs | docs/specs/SPEC-0284-spec-install-path-parity-harness.md |
 | SPEC-0285 | specs | docs/specs/SPEC-0285-spec-update-ps1-git-stderr.md |
 | SPEC-0286 | specs | docs/specs/SPEC-0286-spec-factory-round-cap.md |
+| SPEC-0287 | specs | docs/specs/SPEC-0287-spec-round-cap-hardening.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

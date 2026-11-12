@@ -21,9 +21,9 @@ RUN THE TICK
      canonical schema defaults if missing), then re-run the script ONCE.
    - validation_staleness_unknown / review_staleness_unknown: judge staleness
      against the current diff yourself; dispatch Validation / Code Review per step 2.
-   - possible_missing_remediation_reset: apply the missing post-remediation reset
-     (node .aai/scripts/state.mjs reset-block <failed block>, per the
-     remediation-reset rule in .aai/STATE_FALLBACK.md); re-run the script ONCE.
+   - possible_missing_remediation_reset: apply the missing post-remediation reset in
+     one reset-block call for every failed block (state.mjs reset-block <block>
+     [<second>], .aai/STATE_FALLBACK.md); on exit 5 reset nothing else; re-run ONCE.
    - no_focus_ref / focus_ref_not_in_active_work_items / no_rule_matched: infer
      focus from the newest intake/active scope (or report the gap) and re-run.
 5. Update docs/ai/STATE.yaml before stopping — only fields that changed — via

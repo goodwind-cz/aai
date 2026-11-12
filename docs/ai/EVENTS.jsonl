@@ -3814,3 +3814,16 @@
 {"v":1,"ts":"2026-11-12T12:08:59Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-factory-round-cap","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-12T12:10:13Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":726,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-12T12:50:55Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"factory-round-cap","payload":{"pr":549,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"21cfcbc3c3dc92df4fc74ab867e1ee1c768dce10"}}
+{"v":1,"ts":"2026-11-12T13:51:58Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-round-cap-hardening","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-12T15:46:42Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":728,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-12T15:46:48Z","actor":"ales_holubec.net","event":"full_sweep","ref":"round-cap-hardening","payload":{"head":"454a9daa49fd0bfa95e57505cfed4caf59d59f25","rc":1,"run_id":"test-20261112-144803"}}
+{"v":1,"ts":"2026-11-12T15:48:19Z","actor":"ales_holubec.net","event":"round_reset","ref":"round-cap-hardening","payload":{"block":"last_validation","from":"fail","forced":true}}
+{"v":1,"ts":"2026-11-12T17:15:21Z","actor":"ales_holubec.net","event":"full_sweep","ref":"round-cap-hardening","payload":{"head":"2cfabda74285bed926a6caadb82673bc9ac50e09","rc":0,"run_id":"test-20261112-161806"}}
+{"v":1,"ts":"2026-11-12T17:15:23Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":728,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-12T17:35:20Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"round-cap-hardening","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-12T17:35:20Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"round-cap-hardening","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-12T17:35:20Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-round-cap-hardening","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-12T17:35:20Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-round-cap-hardening","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-12T17:35:57Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":728,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-12T17:36:49Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":728,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-12T17:48:48Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"round-cap-hardening","payload":{"pr":551,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"507827048017f3df306e33445076ffe885a77abc"}}

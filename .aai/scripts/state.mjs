@@ -56,7 +56,7 @@
 //              is pushed AFTER the conditional tdd_tests line, so an absent
 //              flag leaves all existing goldens byte-identical)
 //   log-tick --tick N --role <t> --scope <ref> --started <ISO-UTC> [...]   (JSONL append; never touches STATE)
-//   reset-block <last_validation|code_review> [--force]                    (D6 guards)
+//   reset-block <last_validation|code_review> [<block>] [--force]                    (D6 guards)
 //
 // Global flags: --state <path> (default docs/ai/STATE.yaml)
 //               --ticks <path> (default docs/ai/LOOP_TICKS.jsonl)
@@ -262,7 +262,7 @@ const CMD_FLAGS = {
 // 2026-09-13). `reset-block` is the only subcommand with one; everything
 // else operates purely on flags.
 const CMD_POSITIONALS = {
-  'reset-block': ['<block>'],
+  'reset-block': ['<block> [<block>]'],
 };
 
 // dispatch-state-sweep D16: per-flag rendering metadata — `required` (a bare,
@@ -1484,9 +1484,8 @@ function cmdAmendRun(state, flags) {
 // Set by cmdResetBlock once the cap gate passed; main() writes the round_reset line after the STATE write.
 let pendingRound = null;
 
-function cmdResetBlock(state, pos, flags, statePath) {
-  const block = pos[1];
-  if (!block) fail('reset-block: missing block name (last_validation | code_review)');
+// Every named block is checked first (D-JOINT): a refusal on any block refuses the whole call.
+function checkResetBlock(state, block, force) {
   if (!RESETTABLE_BLOCKS.includes(block)) {
     fail(`reset-block: unknown block "${block}" (allowed: ${RESETTABLE_BLOCKS.join(' | ')})`);
   }
@@ -1494,21 +1493,34 @@ function cmdResetBlock(state, pos, flags, statePath) {
   if (!b) fail(`reset-block: STATE has no top-level "${block}" block`);
   const current = readScalar(state.lines, block, 'status');
   if (current === null) fail(`reset-block: "${block}" has no status field to reset`);
-  if (current === 'not_run') {
+  if (current === 'not_run') return { block, current, noop: true };
+  let refusedBlock = null;
+  if ((current === 'pass' || current === 'waived') && !force) {
+    refusedBlock = `reset-block: REFUSED — ${block}.status is "${current}" (not fail); a passing/waived verdict `
+      + 'must not be clobbered by remediation. Use --force only with an explicit human decision.';
+  } else if (current !== 'fail' && !force && !['pass', 'waived'].includes(current)) {
+    refusedBlock = `reset-block: unexpected ${block}.status "${current}" — repair STATE first`;
+  }
+  if (refusedBlock) fail(refusedBlock);
+  return { block, current, noop: false };
+}
+
+function cmdResetBlock(state, pos, flags, statePath) {
+  const names = pos.slice(1);
+  if (names.length === 0) fail('reset-block: missing block name (last_validation | code_review)');
+  if (names.length > 2) fail(`reset-block: at most two block names, got ${names.length}`);
+  if (names.length === 2 && names[0] === names[1]) fail(`reset-block: block "${names[0]}" named twice`);
+  const force = flags.force === true;
+  const checks = names.map(name => checkResetBlock(state, name, force));
+  const changed = checks.filter(c => !c.noop);
+  if (changed.length === 0) {
     // Idempotent no-op: NO file write (D6).
-    console.log(`state: reset-block ${block}: already not_run — no-op (file not rewritten)`);
+    for (const c of checks) console.log(`state: reset-block ${c.block}: already not_run — no-op (file not rewritten)`);
     process.exit(0);
   }
-  const force = flags.force === true;
-  if ((current === 'pass' || current === 'waived') && !force) {
-    fail(`reset-block: REFUSED — ${block}.status is "${current}" (not fail); a passing/waived verdict `
-      + 'must not be clobbered by remediation. Use --force only with an explicit human decision.');
-  }
-  if (current !== 'fail' && !force && !['pass', 'waived'].includes(current)) {
-    fail(`reset-block: unexpected ${block}.status "${current}" — repair STATE first`);
-  }
-  // Round cap (spec-factory-round-cap D-CAP): a reset that would change a block is one counted round.
-  // The gate reads the EVENTS beside the STATE file and refuses BEFORE any edit: no STATE, no EVENTS write.
+  // Round cap (spec-factory-round-cap D-CAP): a reset that would change a block is one counted round; a
+  // joint call is ONE round (D-JOINT). The gate reads the EVENTS beside the STATE file and refuses BEFORE any
+  // edit: no STATE, no EVENTS write.
   const roundRef = readScalar(state.lines, 'current_focus', 'ref_id');
   if (roundRef !== null && roundRef !== 'null') {
     const gate = resetGate(path.join(path.dirname(statePath), 'EVENTS.jsonl'), roundRef);
@@ -1516,10 +1528,15 @@ function cmdResetBlock(state, pos, flags, statePath) {
       console.error(gate.message);
       process.exit(ROUND_CAP_EXIT);
     }
-    pendingRound = { ref: roundRef, payload: { block, from: current, forced: force } };
+    pendingRound = { ref: roundRef, payloads: changed.map(c => ({ block: c.block, from: c.current, forced: force })) };
   } else {
     console.error('state: NOTE reset-block: no current_focus.ref_id; the round cap gate and the round_reset event are skipped');
   }
+  for (const c of changed) applyBlockReset(state, c.block);
+  return changed.map(c => `reset-block: ${c.block} ${c.current} -> not_run (${statePath})`).join('\nstate: ');
+}
+
+function applyBlockReset(state, block) {
   editBlock(state.lines, block, bl => {
     setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
     if (block === 'last_validation') {
@@ -1558,7 +1575,6 @@ function cmdResetBlock(state, pos, flags, statePath) {
     }
     return bl;
   });
-  return `reset-block: ${block} ${current} -> not_run (${statePath})`;
 }
 
 function cmdLogTick(state, flags, ticksPath) {
@@ -1751,7 +1767,7 @@ function main() {
     writeState(statePath, state.lines, state.trailingNewline, state.raw);
     if (pendingRound !== null) {
       try {
-        appendRoundReset(path.join(path.dirname(statePath), 'EVENTS.jsonl'), pendingRound.ref, pendingRound.payload);
+        appendRoundReset(path.join(path.dirname(statePath), 'EVENTS.jsonl'), pendingRound.ref, pendingRound.payloads);
       } catch (err) {
         console.error(`state: WARNING reset-block: the reset is written but its round_reset event was not (${err.message}); the round goes uncounted`);
       }

@@ -54,8 +54,9 @@ PROCESS
       node .aai/scripts/state.mjs reset-block last_validation   # only if last_validation.status was fail
       node .aai/scripts/state.mjs reset-block code_review       # only if code_review.status was fail
    Reset ONLY the block(s) that were `fail` (the trigger recorded in step 1).
+   Both failed: one call, one round: `node .aai/scripts/state.mjs reset-block last_validation code_review`.
    A fix after a pass is a counted round. Exit 5 (round cap, see `round-budget.mjs
-   status`): stop, do not retry, return the owner menu.
+   status`): nothing was reset; stop, do not retry, return its REFUSED line.
    The CLI enforces this: a `pass`/`waived` block is REFUSED without --force —
    post-PASS WARNING remediation must not clobber a passing verdict. The reset
    (fail → not_run, with a reset marker in notes) routes the next orchestration

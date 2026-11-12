@@ -65,7 +65,7 @@ import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/pr
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
-import { roundsUsed, roundCap, standingAExtensions, ROUND_MENU } from './round-budget.mjs';
+import { roundsUsed, roundCap, standingAExtensions, roundMenu } from './round-budget.mjs';
 import { recheckMode, planCheckStamps, tokenOfRole, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
@@ -276,7 +276,7 @@ function roundCapStop(rule, snapshot, rb) {
   const out = noAction(rule, snapshot, rb.standing_a ? ['review_round_cap'] : ['review_round_cap', 'standing_a_available']);
   const reason = `review-round-cap: ${rb.used}/${rb.cap} rounds used for ${ref}`;
   out.state_update_commands = [
-    `node .aai/scripts/state.mjs set-human-input --required true --reason "${reason}" --question "${ROUND_MENU}"`,
+    `node .aai/scripts/state.mjs set-human-input --required true --reason "${reason}" --question "${roundMenu(ref)}"`,
   ];
   return out;
 }
@@ -592,9 +592,9 @@ function decideRuleTable(snapshot, opts = {}) {
   // Rule 10 — validation FAIL -> Remediation; the G3 "missing reset" forensic
   // case (fail + a Remediation already ran last) is not mechanically provable.
   if (vstatus === 'fail') {
-    if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '10');
     const cap = roundCapState(s);
     if (cap.reached) return roundCapStop('10', s, cap.rb);
+    if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '10');
     return dispatchFor('Remediation', s, '10');
   }
   // Rule 11 — implementation exists but validation not run. A recorded `pass`
@@ -612,9 +612,9 @@ function decideRuleTable(snapshot, opts = {}) {
   }
   // Rule 12 — review FAIL -> Remediation (same forensic residue as rule 10).
   if (s.review && s.review.status === 'fail') {
-    if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '12');
     const cap = roundCapState(s);
     if (cap.reached) return roundCapStop('12', s, cap.rb);
+    if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '12');
     return dispatchFor('Remediation', s, '12');
   }
   // Rule 11s (spec-dispatch-state-sweep D2) — a standing focus-ref-scoped

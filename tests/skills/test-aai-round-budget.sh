@@ -2,7 +2,8 @@
 #
 # Test: aai-round-budget
 # (docs/specs/SPEC-0286-spec-factory-round-cap.md, TEST-3600..3615;
-# TEST-3612..3615 are the canon, wiring, pin and CHANGELOG rows of the same ride)
+# TEST-3612..3615 are the canon, wiring, pin and CHANGELOG rows of the same ride;
+# docs/specs/SPEC-0287-spec-round-cap-hardening.md adds TEST-3620..3632)
 #
 # The counted review round cap: .aai/scripts/round-budget.mjs counts round_reset and
 # round_extension lines in EVENTS, state.mjs reset-block writes one round_reset per
@@ -678,6 +679,340 @@ test_3615_changelog() {
   log_pass "TEST-3615: one per-entry unreleased heading below the bare scaffold names the cap, bar, sweep plan and gain"
 }
 
+# ---- round-cap-hardening: D-READ (TEST-3620..3625) ----
+
+# is_root: an EACCES fixture is readable by root, so those cases skip (a soft skip, the suite goes on).
+is_root() { [[ "$(id -u)" == 0 ]]; }
+
+# unreadable_dir_fixture <dir> <ref> <validation status>: STATE with a fail block and an EVENTS.jsonl that is a directory.
+mk_state_dir() {
+  mkdir -p "$1"
+  write_state "$1/STATE.yaml" "$2" "$3"
+}
+
+test_3620_reset_eisdir_refused() {
+  new_tmp
+  local d="$TMP_ROOT/d" st rc before
+  mk_state_dir "$d" RC-1 fail
+  st="$d/STATE.yaml"
+  mkdir "$d/EVENTS.jsonl"
+  before="$(cat "$st")"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3620: reset-block on a directory EVENTS must exit 5, got $rc: $(cat "$TMP_ROOT/r.log")"
+  grep -q 'REFUSED review-round-cap: cannot read .*EVENTS.jsonl (EISDIR); the round count for RC-1 is unknown. Repair the file, then retry.' "$TMP_ROOT/r.log" \
+    || log_fail "TEST-3620: want the REFUSED line naming the path and EISDIR: $(cat "$TMP_ROOT/r.log")"
+  ! grep -q '(1) split the ride' "$TMP_ROOT/r.log" || log_fail "TEST-3620: an unreadable ledger must not offer the owner menu"
+  [[ "$(cat "$st")" == "$before" ]] || log_fail "TEST-3620: STATE changed on a refused reset"
+  [[ -d "$d/EVENTS.jsonl" ]] || log_fail "TEST-3620: the EVENTS directory vanished"
+  # An absent EVENTS still counts 0 rounds and writes one line.
+  rmdir "$d/EVENTS.jsonl"
+  rc="$(run_rc "$TMP_ROOT/r2.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3620: an absent EVENTS must still reset, got $rc: $(cat "$TMP_ROOT/r2.log")"
+  [[ "$(wc -l < "$d/EVENTS.jsonl" | tr -d ' ')" == 1 ]] || log_fail "TEST-3620: an absent EVENTS must gain exactly one line"
+  log_pass "TEST-3620: reset-block on an EVENTS directory exits 5 with the path and EISDIR and writes nothing; an absent EVENTS still counts 0"
+}
+
+test_3621_reset_eacces_refused() {
+  if is_root; then echo "SKIP: TEST-3621: running as root reads a mode 0200 file"; return 0; fi
+  new_tmp
+  local d="$TMP_ROOT/d" st ev rc before
+  mk_state_dir "$d" RC-1 fail
+  st="$d/STATE.yaml"; ev="$d/EVENTS.jsonl"
+  { reset_line RC-1 fail; reset_line RC-1 fail; } > "$ev"
+  chmod 0200 "$ev"
+  before="$(cat "$st")"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  chmod 0600 "$ev"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3621: reset-block on an unreadable EVENTS at the cap must exit 5, got $rc: $(cat "$TMP_ROOT/r.log")"
+  grep -q '(EACCES)' "$TMP_ROOT/r.log" || log_fail "TEST-3621: want EACCES named: $(cat "$TMP_ROOT/r.log")"
+  [[ "$(cat "$st")" == "$before" ]] || log_fail "TEST-3621: STATE changed on a refused reset"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 2 ]] || log_fail "TEST-3621: EVENTS must keep its two lines"
+  log_pass "TEST-3621: reset-block on a mode 0200 EVENTS holding two resets exits 5 naming EACCES and writes nothing"
+}
+
+test_3622_standing_a_unreadable() {
+  if is_root; then echo "SKIP: TEST-3622: running as root reads a mode 0200 file"; return 0; fi
+  new_tmp
+  local d="$TMP_ROOT/r" ev rc
+  mkdir -p "$d/docs/ai"; ev="$d/docs/ai/EVENTS.jsonl"
+  ev_line round_extension RC-1 '{"authority":"standing-a","reason":"hazard"}' > "$ev"
+  chmod 0200 "$ev"
+  rc="$(run_rc "$TMP_ROOT/a.log" in_repo "$d" node "$APPEND_EVENT" --event round_extension --ref RC-1 --authority standing-a --reason again)"
+  [[ "$rc" == 1 ]] || { chmod 0600 "$ev"; log_fail "TEST-3622: standing-a on an unreadable EVENTS must exit 1, got $rc: $(cat "$TMP_ROOT/a.log")"; }
+  grep -q 'round_extension refused: cannot read .*EVENTS.jsonl (EACCES); the standing-a limit cannot be checked' "$TMP_ROOT/a.log" \
+    || { chmod 0600 "$ev"; log_fail "TEST-3622: want the read error named: $(cat "$TMP_ROOT/a.log")"; }
+  chmod 0600 "$ev"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 1 ]] || log_fail "TEST-3622: nothing may be appended"
+  # An owner extension does not read the ledger and still appends.
+  chmod 0200 "$ev"
+  rc="$(run_rc "$TMP_ROOT/o.log" in_repo "$d" node "$APPEND_EVENT" --event round_extension --ref RC-1 --authority owner --reason more)"
+  chmod 0600 "$ev"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3622: an owner extension must be unchanged, got $rc: $(cat "$TMP_ROOT/o.log")"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 2 ]] || log_fail "TEST-3622: the owner extension must append one line"
+  log_pass "TEST-3622: a standing-a round_extension on an unreadable EVENTS exits 1 and appends nothing; owner is unchanged"
+}
+
+test_3623_status_and_sweep_plan_unreadable() {
+  new_tmp
+  local d="$TMP_ROOT/s" out rc
+  mkdir -p "$TMP_ROOT/ev"
+  rc=0; out="$(node "$RB" status --ref RC-1 --events "$TMP_ROOT/ev" 2>"$TMP_ROOT/st.err")" || rc=$?
+  [[ "$rc" == 1 ]] || log_fail "TEST-3623: status on a directory EVENTS must exit 1, got $rc"
+  [[ -z "$out" ]] || log_fail "TEST-3623: status must print no rounds line, got: $out"
+  grep -q 'round-budget: cannot read .* (EISDIR)' "$TMP_ROOT/st.err" || log_fail "TEST-3623: want the read error on stderr: $(cat "$TMP_ROOT/st.err")"
+  mk_sweep_repo "$d" 2 yes
+  rm "$d/docs/ai/EVENTS.jsonl"; mkdir "$d/docs/ai/EVENTS.jsonl"
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP full reason=events-unreadable code=EISDIR" ]] || log_fail "TEST-3623: sweep-plan got '$out'"
+  d="$TMP_ROOT/nofw"; mk_sweep_repo "$d" 2 no
+  rm "$d/docs/ai/EVENTS.jsonl"; mkdir "$d/docs/ai/EVENTS.jsonl"
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP not-applicable reason=no-sweep-command" ]] || log_fail "TEST-3623: not-applicable must win first, got '$out'"
+  log_pass "TEST-3623: status exits 1 on an unreadable ledger; sweep-plan answers events-unreadable after its not-applicable checks"
+}
+
+test_3624_check_role_output_unreadable() {
+  new_tmp
+  local d="$TMP_ROOT/r" rc fx="$PROJECT_ROOT/tests/fixtures/role-outputs"
+  mk_sweep_repo "$d" 2 yes
+  mkdir -p "$d/tests/fixtures"
+  cp -R "$fx" "$d/tests/fixtures/role-outputs"
+  printf '%s\n' '---' 'id: spec-x' 'ceremony_level: 2' '---' > "$d/docs/specs/SPEC-DRAFT-spec-role-output-contracts.md"
+  rm "$d/docs/ai/EVENTS.jsonl"; mkdir "$d/docs/ai/EVENTS.jsonl"
+  rc="$(run_rc "$TMP_ROOT/o.log" in_repo "$d" node "$CHECK_OUT" --file tests/fixtures/role-outputs/validation-valid.md --now 2026-06-01T00:00:00Z --outcome-intake tests/fixtures/role-outputs/outcome-intake.md --outcome-spec tests/fixtures/role-outputs/outcome-spec.md)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3624: a PASS with an unreadable ledger must exit 1, got $rc: $(cat "$TMP_ROOT/o.log")"
+  grep -q 'ROLE-OUTPUT-VIOLATION: E-SWEEP-OWED' "$TMP_ROOT/o.log" || log_fail "TEST-3624: want E-SWEEP-OWED: $(cat "$TMP_ROOT/o.log")"
+  grep -q 'events-unreadable' "$TMP_ROOT/o.log" || log_fail "TEST-3624: want the reason named: $(cat "$TMP_ROOT/o.log")"
+  ! grep -q 'EISDIR: illegal operation\|    at ' "$TMP_ROOT/o.log" || log_fail "TEST-3624: no stack trace: $(cat "$TMP_ROOT/o.log")"
+  log_pass "TEST-3624: check-role-output rejects a Validation PASS over an unreadable ledger with E-SWEEP-OWED events-unreadable"
+}
+
+test_3625_dispatch_unreadable_pinned() {
+  new_tmp
+  local d="$TMP_ROOT/r" rc
+  mk_dispatch_root "$d" fail not_run validation
+  mkdir "$d/docs/ai/EVENTS.jsonl"
+  rc="$(dispatch_rc "$d" "$TMP_ROOT/o.json")"
+  [[ "$rc" != 0 && "$rc" != 4 && "$rc" != 3 ]] || log_fail "TEST-3625: dispatch over an unreadable ledger must fail closed, got $rc"
+  ! grep -q 'Remediation' "$TMP_ROOT/o.json" || log_fail "TEST-3625: dispatch must not name Remediation: $(cat "$TMP_ROOT/o.json")"
+  grep -q 'EISDIR' "$TMP_ROOT/o.json.err" || log_fail "TEST-3625: want the read error on stderr: $(cat "$TMP_ROOT/o.json.err")"
+  log_pass "TEST-3625: dispatch over an unreadable ledger exits nonzero and dispatches nothing"
+}
+
+# write_state2 <file> <ref> <validation status> <review status>: both resettable blocks.
+write_state2() {
+  write_state "$1" "$2" "$3"
+  sed -i.bak '/^updated_at_utc/d' "$1" && rm -f "$1.bak"
+  cat >> "$1" <<YAML
+code_review:
+  required: true
+  status: $4
+  scope_ref_id: $2
+  notes: null
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+}
+
+# block_status <state file> <block>: the block's status scalar.
+block_status() { awk -v b="$2:" '$0==b{f=1;next} f&&/^  status:/{print $2;exit}' "$1"; }
+
+test_3626_joint_reset_one_round() {
+  new_tmp
+  local st="$TMP_ROOT/STATE.yaml" ev="$TMP_ROOT/EVENTS.jsonl" rc out
+  write_state2 "$st" RC-1 fail fail
+  reset_line RC-1 fail > "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation code_review)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3626: joint reset-block exited $rc: $(cat "$TMP_ROOT/r.log")"
+  [[ "$(block_status "$st" last_validation)" == not_run ]] || log_fail "TEST-3626: last_validation not reset"
+  [[ "$(block_status "$st" code_review)" == not_run ]] || log_fail "TEST-3626: code_review not reset"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 3 ]] || log_fail "TEST-3626: want 3 lines (1 prior + 2 new), got: $(cat "$ev")"
+  node -e '
+    const L = require("fs").readFileSync(process.argv[1], "utf8").trim().split("\n").map(x => JSON.parse(x));
+    const a = L[1], b = L[2];
+    const ok = a.event === "round_reset" && b.event === "round_reset"
+      && a.payload.block === "last_validation" && b.payload.block === "code_review"
+      && a.payload.same_round === undefined && b.payload.same_round === true
+      && a.payload.from === "fail" && b.payload.from === "fail";
+    process.exit(ok ? 0 : 1);' "$ev" || log_fail "TEST-3626: line shapes wrong: $(cat "$ev")"
+  out="$(node "$RB" status --ref RC-1 --events "$ev" 2>&1)"
+  grep -q 'rounds: 2/2 ' <<<"$out" || log_fail "TEST-3626: want rounds 2/2, got: $out"
+  grep -q 'validation=2' <<<"$out" || log_fail "TEST-3626: want validation=2, got: $out"
+  grep -q 'code_review=1' <<<"$out" || log_fail "TEST-3626: want code_review=1, got: $out"
+  log_pass "TEST-3626: a two-block reset-block is one STATE write and one round: two lines, the second same_round"
+}
+
+test_3627_joint_reset_refusals() {
+  new_tmp
+  local st="$TMP_ROOT/STATE.yaml" ev="$TMP_ROOT/EVENTS.jsonl" rc case_name
+  # at the cap
+  write_state2 "$st" RC-1 fail fail
+  reset_line RC-1 fail > "$ev"; reset_line RC-1 fail >> "$ev"
+  cp "$st" "$TMP_ROOT/s.before"; cp "$ev" "$TMP_ROOT/e.before"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation code_review)"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3627: at the cap want exit 5, got $rc: $(cat "$TMP_ROOT/r.log")"
+  cmp -s "$st" "$TMP_ROOT/s.before" || log_fail "TEST-3627: STATE changed at the cap"
+  cmp -s "$ev" "$TMP_ROOT/e.before" || log_fail "TEST-3627: EVENTS changed at the cap"
+  # unreadable ledger
+  rm "$ev"; mkdir "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation code_review)"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3627: unreadable ledger want exit 5, got $rc"
+  cmp -s "$st" "$TMP_ROOT/s.before" || log_fail "TEST-3627: STATE changed on an unreadable ledger"
+  rmdir "$ev"
+  # a pass block without force, then repeated and unknown names, then a third name
+  write_state2 "$st" RC-1 fail pass
+  reset_line RC-1 fail > "$ev"
+  cp "$st" "$TMP_ROOT/s.before"; cp "$ev" "$TMP_ROOT/e.before"
+  for case_name in "last_validation code_review" "last_validation last_validation" "last_validation metrics" "last_validation code_review code_review"; do
+    # shellcheck disable=SC2086
+    rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block $case_name)"
+    [[ "$rc" != 0 ]] || log_fail "TEST-3627: reset-block $case_name must be refused"
+    cmp -s "$st" "$TMP_ROOT/s.before" || log_fail "TEST-3627: STATE changed on refused: $case_name"
+    cmp -s "$ev" "$TMP_ROOT/e.before" || log_fail "TEST-3627: EVENTS changed on refused: $case_name"
+  done
+  # one block already not_run: the other resets with one line, no same_round
+  write_state2 "$st" RC-1 not_run fail
+  : > "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation code_review)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3627: not_run plus fail must reset, got $rc: $(cat "$TMP_ROOT/r.log")"
+  [[ "$(block_status "$st" code_review)" == not_run ]] || log_fail "TEST-3627: code_review not reset"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 1 ]] || log_fail "TEST-3627: want one line, got: $(cat "$ev")"
+  ! grep -q same_round "$ev" || log_fail "TEST-3627: a single changed block must not carry same_round"
+  # single-block form unchanged
+  write_state2 "$st" RC-1 fail fail
+  : > "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block code_review)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3627: single-block reset got $rc"
+  [[ "$(block_status "$st" last_validation)" == fail ]] || log_fail "TEST-3627: single-block reset touched the other block"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 1 ]] || log_fail "TEST-3627: single-block reset wants one line"
+  log_pass "TEST-3627: a refused two-block reset leaves STATE and EVENTS byte-identical; a not_run partner and the single-block form behave as before"
+}
+
+# mk_remediated_root <dir> <vstatus> <rstatus> <phase>: a dispatch fixture whose last recorded run is a Remediation.
+mk_remediated_root() {
+  mk_dispatch_root "$1" "$2" "$3" "$4"
+  {
+    echo "metrics:"
+    echo "  work_items:"
+    echo "    CHANGE-0001:"
+    echo "      human_time_minutes:"
+    echo "        intake: null"
+    echo "        reviews: null"
+    echo "      agent_runs:"
+    echo "        - role: Remediation"
+    echo "          model_id: claude-rem-x"
+    echo "          started_utc: 2026-07-01T00:02:00Z"
+    echo "          ended_utc: 2026-07-01T00:03:00Z"
+    echo "          duration_seconds: 60"
+    echo "          tokens_in: null"
+    echo "          tokens_out: null"
+    echo "          cost_usd: null"
+  } >> "$1/docs/ai/STATE.yaml"
+}
+
+test_3628_cap_before_forensic_case() {
+  new_tmp
+  local d rc rule vs rs ph
+  for rule in 10 12; do
+    if [[ "$rule" == 10 ]]; then vs=fail; rs=not_run; ph=validation; else vs=pass; rs=fail; ph=code_review; fi
+    d="$TMP_ROOT/r$rule"
+    mk_remediated_root "$d" "$vs" "$rs" "$ph"
+    reset_line CHANGE-0001 fail > "$d/docs/ai/EVENTS.jsonl"
+    rc="$(dispatch_rc "$d" "$TMP_ROOT/one$rule.json")"
+    [[ "$rc" == 4 ]] || log_fail "TEST-3628: rule $rule below the cap must exit 4, got $rc: $(cat "$TMP_ROOT/one$rule.json")"
+    grep -q 'possible_missing_remediation_reset' "$TMP_ROOT/one$rule.json" || log_fail "TEST-3628: rule $rule below the cap must keep possible_missing_remediation_reset"
+    reset_line CHANGE-0001 fail >> "$d/docs/ai/EVENTS.jsonl"
+    rc="$(dispatch_rc "$d" "$TMP_ROOT/cap$rule.json")"
+    [[ "$rc" == 3 ]] || log_fail "TEST-3628: rule $rule at the cap after a Remediation must exit 3, got $rc: $(cat "$TMP_ROOT/cap$rule.json")"
+    node -e '
+      const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+      const c=o.state_update_commands;
+      const ok=o.verdict==="no_action"&&o.rule===process.argv[2]&&o.reasons.includes("review_round_cap")
+        &&Array.isArray(c)&&c.length===1&&c[0].startsWith("node .aai/scripts/state.mjs set-human-input");
+      process.exit(ok?0:1)' "$TMP_ROOT/cap$rule.json" "$rule" || log_fail "TEST-3628: rule $rule stop shape wrong: $(cat "$TMP_ROOT/cap$rule.json")"
+  done
+  log_pass "TEST-3628: rules 10 and 12 stop at the cap even when the last run is a Remediation; below it the forensic case stays"
+}
+
+# ---- round-cap-hardening: D-MENU2, D-RELAY prose, companions (TEST-3629..3632) ----
+
+# menu_option2 <text>: the runnable command inside option (2) of an owner menu.
+menu_option2() { local o; o="$(sed -n 's/.*(2) one more round: \(.*\) (3) park the ride.*/\1/p' <<<"$1")"; printf '%s\n' "${o%%$'\n'*}"; }
+
+# in_dir <dir> <cmd...>: run a command from another directory in a subshell.
+in_dir() { (cd "$1" && shift && "$@"); }
+
+test_3629_menu_option_runs() {
+  new_tmp
+  local d="$TMP_ROOT/d" st ev out opt1 opt2 cmd rc dd
+  mkdir -p "$d/docs/ai"
+  st="$d/docs/ai/STATE.yaml"; ev="$d/docs/ai/EVENTS.jsonl"
+  write_state "$st" RC-1 fail
+  { reset_line RC-1 fail; reset_line RC-1 fail; } > "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3629: reset-block at the cap exited $rc, want 5: $(cat "$TMP_ROOT/r.log")"
+  opt1="$(menu_option2 "$(cat "$TMP_ROOT/r.log")")"
+  local want='node .aai/scripts/append-event.mjs --event round_extension --ref RC-1 --authority owner --reason <why>'
+  [[ "$opt1" == "$want" ]] || log_fail "TEST-3629: refusal option 2 is not the full command: '$opt1'"
+  # The dispatch stop carries the same command for its own ref.
+  dd="$TMP_ROOT/dd"
+  mk_dispatch_root "$dd" fail not_run validation
+  { reset_line CHANGE-0001 fail; reset_line CHANGE-0001 fail; } > "$dd/docs/ai/EVENTS.jsonl"
+  rc="$(dispatch_rc "$dd" "$TMP_ROOT/disp.json")"
+  [[ "$rc" == 3 ]] || log_fail "TEST-3629: dispatch at the cap exited $rc, want 3: $(cat "$TMP_ROOT/disp.json")"
+  out="$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.state_update_commands[0])' "$TMP_ROOT/disp.json")"
+  opt2="$(menu_option2 "$out")"
+  [[ "$opt2" == "${want/RC-1/CHANGE-0001}" ]] || log_fail "TEST-3629: dispatch option 2 is not the full command: '$opt2'"
+  [[ "$(tr -d -c '"' <<<"$out" | wc -c | tr -d ' ')" == 4 ]] || log_fail "TEST-3629: the menu text adds a double quote to the set-human-input command"
+  # Run the owner command from the refusal with the placeholder replaced; the next reset passes.
+  cmd="${opt1/<why>/owner-approved-one-more-round}"
+  cmd="${cmd/node .aai\/scripts\//node $PROJECT_ROOT/.aai/scripts/}"
+  rc="$(run_rc "$TMP_ROOT/ext.log" in_dir "$d" env -u AAI_ROLE bash -c "$cmd")"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3629: the copied command exited $rc: $(cat "$TMP_ROOT/ext.log")"
+  rc="$(run_rc "$TMP_ROOT/r2.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3629: reset-block after the extension exited $rc: $(cat "$TMP_ROOT/r2.log")"
+  log_pass "TEST-3629: option 2 of the refusal and of the dispatch stop is the full round_extension command and running it lifts the cap"
+}
+
+test_3630_relay_prose() {
+  local r="$PROJECT_ROOT/.aai/REMEDIATION.prompt.md" o="$PROJECT_ROOT/.aai/ORCHESTRATION.prompt.md" s
+  for s in 'reset-block last_validation code_review' 'one call' 'REFUSED'; do
+    grep -qF -- "$s" "$r" || log_fail "TEST-3630: REMEDIATION lacks: $s"
+  done
+  local flat; flat="$(tr '\n' ' ' < "$r")"
+  [[ "$flat" =~ Exit\ 5.*nothing\ was\ reset ]] || log_fail "TEST-3630: REMEDIATION does not say that on exit 5 nothing was reset"
+  for s in 'one reset-block call' 'exit 5'; do
+    grep -qF -- "$s" "$o" || log_fail "TEST-3630: ORCHESTRATION lacks: $s"
+  done
+  [[ "$(wc -l < "$o" | tr -d ' ')" -le 45 ]] || log_fail "TEST-3630: ORCHESTRATION exceeds 45 lines"
+  log_pass "TEST-3630: REMEDIATION and ORCHESTRATION name the one-call two-block reset and the exit 5 stop, ORCHESTRATION within 45 lines"
+}
+
+test_3631_diet_companions() {
+  local l="$SCRIPT_DIR/lib/prompt-diet-ledger.sh" t rc
+  [[ "$(grep -c ' round-cap-hardening ' "$l")" == 1 ]] || log_fail "TEST-3631: the ledger must hold exactly one round-cap-hardening entry"
+  new_tmp
+  for t in prompt-diet:test_010_audit_and_reduction prompt-diet:test_012_growth_sum_matches_ledger pr-preflight:test_008 legacy-migrations:test_3398_diet retired-loop-runner:test_3410_diet; do
+    rc=0
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-${t%%:*}.sh" "${t#*:}" > "$TMP_ROOT/${t#*:}.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || log_fail "TEST-3631: ${t#*:} of ${t%%:*} is red: $(tail -5 "$TMP_ROOT/${t#*:}.log")"
+  done
+  grep -q 'headroom 0/2048' "$TMP_ROOT/test_010_audit_and_reduction.log" || log_fail "TEST-3631: TEST-010 headroom is not 0/2048"
+  log_pass "TEST-3631: the round-cap-hardening ledger entry and the four companion pins agree with the corpus"
+}
+
+test_3632_changelog() {
+  local cl="${AAI_RB_CHANGELOG:-$PROJECT_ROOT/CHANGELOG.md}" body p
+  [[ "$(grep -c '^## \[unreleased\]$' "$cl")" == 1 ]] || log_fail "TEST-3632: CHANGELOG must keep exactly one bare unreleased scaffold"
+  # Release-tolerant: the CI release dry-run rolls the unreleased heading into '## [vYYYY.MM.DD]' with the same title.
+  [[ "$(grep -cE '^## \[(unreleased|v[0-9][^]]*)\] — fix\(review\): .*round-cap hardening' "$cl")" == 1 ]] || log_fail "TEST-3632: CHANGELOG must hold exactly one per-entry heading (unreleased or rolled) for round-cap hardening"
+  body="$(awk '/^## \[(unreleased|v[0-9][^]]*)\] — fix\(review\): .*round-cap hardening/{f=1;next} f&&/^## /{exit} f' "$cl")"
+  for p in 'fail closed' 'one round' 'append-event.mjs --event round_extension'; do
+    grep -qF -- "$p" <<<"$body" || log_fail "TEST-3632: the CHANGELOG entry lacks: $p"
+  done
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-release.sh" test_022_live_changelog_scaffold_invariants >/dev/null 2>&1 || log_fail "TEST-3632: release TEST-022 is red"
+  log_pass "TEST-3632: one per-entry heading (unreleased or rolled) below the bare scaffold names the fail-closed read, the one-round reset and the menu command"
+}
+
 main() {
   check_deps
   test_3600_status_counts
@@ -697,6 +1032,19 @@ main() {
   test_3613_wiring
   test_3614_prompt_diet_pins
   test_3615_changelog
+  test_3620_reset_eisdir_refused
+  test_3621_reset_eacces_refused
+  test_3622_standing_a_unreadable
+  test_3623_status_and_sweep_plan_unreadable
+  test_3624_check_role_output_unreadable
+  test_3625_dispatch_unreadable_pinned
+  test_3626_joint_reset_one_round
+  test_3627_joint_reset_refusals
+  test_3628_cap_before_forensic_case
+  test_3629_menu_option_runs
+  test_3630_relay_prose
+  test_3631_diet_companions
+  test_3632_changelog
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

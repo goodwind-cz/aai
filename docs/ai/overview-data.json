@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-12T12:09:09.382Z",
+  "generatedAt": "2026-11-12T17:35:29.269Z",
   "project": "aai",
   "counts": {
-    "delivered": 355,
+    "delivered": 356,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -244,6 +244,19 @@
       "agent_minutes": null,
       "token_total": null,
       "spec": "docs/specs/SPEC-0286-spec-factory-round-cap.md",
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "round-cap-hardening",
+      "title": "The round cap fails open on an unreadable EVENTS file and half-resets a remediation that fails both checks",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0113-round-cap-hardening.md",
+      "closed_on": "2026-11-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0287-spec-round-cap-hardening.md",
       "validation": null,
       "review": null
     },
@@ -4886,6 +4899,19 @@
           "agent_minutes": null,
           "token_total": null,
           "spec": "docs/specs/SPEC-0286-spec-factory-round-cap.md",
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "round-cap-hardening",
+          "title": "The round cap fails open on an unreadable EVENTS file and half-resets a remediation that fails both checks",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0113-round-cap-hardening.md",
+          "closed_on": "2026-11-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0287-spec-round-cap-hardening.md",
           "validation": null,
           "review": null
         },
