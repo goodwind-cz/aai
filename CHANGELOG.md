@@ -30,7 +30,7 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
-## [unreleased] — feat(review): a ride's re-check loop stops at a counted round cap and the full sweep is paid once
+## [v2026.11.12] — feat(review): a ride's re-check loop stops at a counted round cap and the full sweep is paid once
 
 - The two-round cap is now counted, not remembered: `state.mjs reset-block` appends one `round_reset` line per block it changes and exits 5 with a `REFUSED review-round-cap` line and a three-option owner menu when the cap is met; orchestration dispatch rules 10 and 12 stop with `review_round_cap` and one `set-human-input` command instead of sending Remediation. Owner decision (a) is one `append-event --event round_extension --authority standing-a` per ride, an owner extension is one more line; `node .aai/scripts/round-budget.mjs status --ref <ref>` prints rounds, extensions, resets and sweeps from EVENTS.
 - A Validation or Code Review FAIL needs a BLOCKING finding backed by a failing check (nonzero exit) or a reproduction file, otherwise `check-role-output.mjs` rejects it with `E-FAIL-UNBACKED`; an unbacked concern is NON-BLOCKING and goes to `follow-ups.mjs add`.
