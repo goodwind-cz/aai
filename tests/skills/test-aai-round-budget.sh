@@ -3,7 +3,7 @@
 # Test: aai-round-budget
 # (docs/specs/SPEC-0286-spec-factory-round-cap.md, TEST-3600..3615;
 # TEST-3612..3615 are the canon, wiring, pin and CHANGELOG rows of the same ride;
-# docs/specs/SPEC-DRAFT-spec-round-cap-hardening.md adds TEST-3620..3632)
+# docs/specs/SPEC-0287-spec-round-cap-hardening.md adds TEST-3620..3632)
 #
 # The counted review round cap: .aai/scripts/round-budget.mjs counts round_reset and
 # round_extension lines in EVENTS, state.mjs reset-block writes one round_reset per
