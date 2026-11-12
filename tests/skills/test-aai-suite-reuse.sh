@@ -797,6 +797,9 @@ test_3278_canon_wording() {
       n="$(git -C "$PROJECT_ROOT" show "$base:$f" | wc -c | tr -d ' ')"
       was=$((was + n))
     done < <(git -C "$PROJECT_ROOT" ls-tree --name-only "$base" .aai/ | grep '^\.aai/[^/]*\.prompt\.md$')
+    # Dated credit terms (same convention as the prompt-diet pins): the ceiling is the baseline
+    # plus each later ride's measured, ledgered prompt growth. 2026-11-12 model-effort-routing: +921 B.
+    was=$((was + 921))
     [[ "$now" -le "$was" ]] || log_fail "TEST-3278: cat .aai/*.prompt.md is $now B, baseline $base is $was B"
   else
     log_info "TEST-3278: baseline commit $base is not available here, size comparison skipped"

@@ -222,7 +222,9 @@ effort_roles:
 # Harness translation of an effort level into the token that harness's own
 # per-dispatch effort knob takes (`effort_params@<harness>:`, rows
 # `  <level>: <token>`). The LEVEL per role stays harness-independent; only the
-# spelling is per harness. Surfaced as `harness_effort` (null when the harness
+# spelling is per harness. Verified: Claude Agent `effort`; UNVERIFIED: the Codex
+# spawn parameter name and any Gemini CLI subagent effort knob (the gemini token
+# is the model-level thinking_level). Surfaced as `harness_effort` (null when the harness
 # has no section). Gemini's gemini-3-pro-preview accepts only low and high, so
 # medium rounds UP to high (never lowers effort). No cursor section: cursor
 # runs the user's chosen model and settings.

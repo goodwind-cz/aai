@@ -487,10 +487,11 @@ function enumFlag(flags, name, allowed, cmd, { required = false } = {}) {
   return v;
 }
 
-function intFlag(flags, name, cmd, { required = false } = {}) {
+function intFlag(flags, name, cmd, { required = false, nonNegative = false } = {}) {
   const v = strFlag(flags, name, cmd, { required });
   if (v === undefined) return undefined;
   if (!/^-?\d+$/.test(v)) fail(`${cmd}: --${name} must be an integer (got "${v}")`);
+  if (nonNegative && v.startsWith('-')) fail(`${cmd}: --${name} must not be negative (got "${v}")`);
   return Number(v);
 }
 
@@ -1219,8 +1220,8 @@ function cmdAppendRun(state, flags) {
   const actualModel = strFlag(flags, 'actual-model', 'append-run');
   const requestedEffort = effortFlag(flags, 'requested-effort', 'append-run');
   const effortApplied = enumFlag(flags, 'effort-applied', EFFORT_APPLIED_VALUES, 'append-run');
-  const cacheReadRun = intFlag(flags, 'cache-read', 'append-run');
-  const cacheCreationRun = intFlag(flags, 'cache-creation', 'append-run');
+  const cacheReadRun = intFlag(flags, 'cache-read', 'append-run', { nonNegative: true });
+  const cacheCreationRun = intFlag(flags, 'cache-creation', 'append-run', { nonNegative: true });
 
   // D2/D3: Validation and Code Review REFUSE an absent --verdict — exit 2,
   // BEFORE any write (checked here, ahead of editBlock, so the byte-identity
@@ -1616,8 +1617,8 @@ function cmdLogTick(state, flags, ticksPath) {
   const harness = strFlag(flags, 'harness', 'log-tick');
   const tokensIn = intFlag(flags, 'tokens-in', 'log-tick');
   const tokensOut = intFlag(flags, 'tokens-out', 'log-tick');
-  const cacheRead = intFlag(flags, 'cache-read', 'log-tick');
-  const cacheCreation = intFlag(flags, 'cache-creation', 'log-tick');
+  const cacheRead = intFlag(flags, 'cache-read', 'log-tick', { nonNegative: true });
+  const cacheCreation = intFlag(flags, 'cache-creation', 'log-tick', { nonNegative: true });
   const cost = numFlag(flags, 'cost', 'log-tick');
   const lingering = intFlag(flags, 'lingering-procs', 'log-tick');
   const freeMemory = strFlag(flags, 'free-memory', 'log-tick');

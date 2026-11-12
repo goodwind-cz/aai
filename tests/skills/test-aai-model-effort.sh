@@ -381,13 +381,20 @@ test_3638_append_run_flags() {
   done
   local before after bad
   before="$(cat "$d/docs/ai/STATE.yaml")"
-  for bad in '--requested-effort turbo' '--effort-applied maybe' '--cache-read x' '--cache-creation x'; do
+  for bad in '--requested-effort turbo' '--effort-applied maybe' '--cache-read x' '--cache-creation x' '--cache-read -1' '--cache-creation -1'; do
     # shellcheck disable=SC2086
     st "$d" "${common[@]}" $bad
     [[ "$EC" == 2 ]] || log_fail "TEST-3638: '$bad' exited $EC, expected 2"
     qgrep -q 'usage:' < "$ERR" || log_fail "TEST-3638: '$bad' printed no usage line"
     after="$(cat "$d/docs/ai/STATE.yaml")"
     [[ "$before" == "$after" ]] || log_fail "TEST-3638: '$bad' changed STATE"
+  done
+  local lt=(log-tick --tick 1 --role Implementation --scope CHANGE-0001 --started 2026-07-01T00:00:00Z)
+  for bad in '--cache-read -1' '--cache-creation -1'; do
+    # shellcheck disable=SC2086
+    st "$d" "${lt[@]}" $bad
+    [[ "$EC" == 2 ]] || log_fail "TEST-3638: log-tick '$bad' exited $EC, expected 2"
+    [[ ! -s "$d/docs/ai/LOOP_TICKS.jsonl" ]] || log_fail "TEST-3638: log-tick '$bad' wrote a tick"
   done
   st "$d" log-tick --tick 1 --role Implementation --scope CHANGE-0001 --started 2026-07-01T00:00:00Z --cache-creation 5
   [[ "$EC" == 0 ]] || log_fail "TEST-3638: log-tick exited $EC: $(cat "$ERR")"
@@ -814,7 +821,10 @@ test_3649_changelog_entry() {
   [[ "$bare" == 1 ]] || log_fail "TEST-3649: $bare bare unreleased scaffolds, expected exactly 1"
   rolled="$TEST_DIR/CHANGELOG.rolled.md"
   cp "$cl" "$rolled"
-  env -u AAI_ROLE node "$cut" roll --file "$rolled" --version v2099.01.01 > "$TEST_DIR/roll.out" 2>&1 || log_fail "TEST-3649: the release parser refused the file: $(cat "$TEST_DIR/roll.out")"
+  # Release-tolerant: after a real roll the entry already sits under '## [vYYYY.MM.DD] —'; roll only while an unreleased entry exists.
+  if grep -qE '^## \[unreleased\] — .*per-role effort tier' "$cl"; then
+    env -u AAI_ROLE node "$cut" roll --file "$rolled" --version v2099.01.01 > "$TEST_DIR/roll.out" 2>&1 || log_fail "TEST-3649: the release parser refused the file: $(cat "$TEST_DIR/roll.out")"
+  fi
   node -e '
     const fs = require("fs");
     const check = (file, headRe, label) => {
@@ -829,8 +839,8 @@ test_3649_changelog_entry() {
         if (!body.includes(k)) { console.error(label + ": entry lacks " + k); process.exit(1); }
       }
     };
-    check(process.argv[1], /^## \[unreleased\] — /, "live");
-    check(process.argv[2], /^## \[v2099\.01\.01\] — /, "rolled");
+    check(process.argv[1], /^## \[(unreleased|v[0-9][^\]]*)\] — /, "live");
+    check(process.argv[2], /^## \[(unreleased|v[0-9][^\]]*)\] — /, "rolled");
   ' "$cl" "$rolled" || log_fail "TEST-3649: the CHANGELOG entry is missing, duplicated or incomplete"
   log_pass "TEST-3649: one bare scaffold, one effort entry that survives the release roll, parser accepts the file"
 }

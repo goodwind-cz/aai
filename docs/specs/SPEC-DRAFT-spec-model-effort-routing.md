@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: b8de102aa34051daedf542ce311627df8b574310afc474cdf33c796934704fbe
+frozen_sha256: f32569188b272e76e6c3c3dd7d8485fb8e291e7b15021bb66713f52e3389d932
 ceremony_level: 3
 links:
   requirement: model-effort-routing
@@ -535,3 +535,10 @@ above.
 - R6. Gemini's mapping assumes the harness exposes a thinking-level knob to
   subagents; that is not verified. With no knob the run records
   `not_supported`.
+
+## Amendment 2026-11-12 (validation round 1)
+
+- D-WIRE missed one companion pin: `tests/skills/test-aai-suite-reuse.sh` TEST-3278 caps `cat .aai/*.prompt.md | wc -c` at the size of commit 5e9f1350. It now adds a dated credit term of +921 B for this ride's ledgered prompt growth, so the ceiling stays a real ceiling.
+- Spec-AC-14: TEST-3649 accepts the entry under `## [unreleased] —` or a rolled `## [vYYYY.MM.DD] —` heading and runs the `release-cut roll` rehearsal only while an unreleased entry exists.
+- `--cache-read` and `--cache-creation` reject negative values (exit 2, nothing written).
+- The Codex spawn parameter name and any Gemini subagent effort knob are marked unverified in SKILL_LOOP step 4 and in the MODEL_ROUTING.yaml comment.
