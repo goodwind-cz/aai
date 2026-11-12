@@ -162,6 +162,8 @@ pairs:
     status: planned
   - capability: release-publish-on-node
     status: done
+  - capability: factory-round-cap
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
