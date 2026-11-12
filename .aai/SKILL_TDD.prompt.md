@@ -254,7 +254,9 @@ No completion claim in this phase without the `.aai/SKILL_VERIFY.prompt.md` gate
    cycle: an intermediate round runs SELECTED plus CORE via
    `node .aai/scripts/select-suites.mjs --files-from <changed files>`
    (VALIDATION.prompt.md c2). RECOMMENDED at ceremony_level 2 and 3
-   before any done/complete claim: run once and report the real tally —
+   before any done/complete claim, as the ride's one full sweep only
+   (`round-budget.mjs sweep-plan` says full; a recorded sweep is cited, not
+   rerun; the sweep runs once, at final validation): report the real tally —
    Canonical test invocation in `.aai/AGENTS.md` (Windows:
    `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh`;
    POSIX: `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`).

@@ -194,7 +194,7 @@ PROCESS
       answers full (run the sweep once with
       `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`,
       POSIX; `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh`,
-      Windows; then record it with append-event --event full_sweep), reuse (cite
+      Windows; then record it with append-event --event full_sweep --head <sha> --rc <rc> --run-id <the framework's test-<id>>), reuse (cite
       the recorded run id) or not-applicable. A FAIL round pays no sweep.
       TWO ROUNDS MAX (owner decision review-round-cap, 2026-09-05), counted by
       `round-budget.mjs status` and enforced by dispatch and `state.mjs
