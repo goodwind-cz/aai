@@ -745,7 +745,7 @@ _None._
 
 _None._
 
-## Broken references (552)
+## Broken references (555)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1202,6 +1202,9 @@ _None._
 | tests/skills/test-aai-roadmap.sh | docs/issues/CHANGE-0002-fx.md | NOT FOUND |
 | tests/skills/test-aai-role-output.sh | docs/ai/reports/different.md | NOT FOUND |
 | tests/skills/test-aai-role-output.sh | docs/specs/SPEC-DRAFT-x.md | NOT FOUND |
+| tests/skills/test-aai-round-budget.sh | docs/ai/reports/repro.md | NOT FOUND |
+| tests/skills/test-aai-round-budget.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
+| tests/skills/test-aai-round-budget.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
 | tests/skills/test-aai-secrets-preflight.sh | docs/issues/CHANGE-DRAFT-secrets-preflight-e2e-fixture.md | NOT FOUND |
 | tests/skills/test-aai-share.sh | docs/ai/reports/TEST_REPORT.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-0320-spec-t1375-proven.md | NOT FOUND |
