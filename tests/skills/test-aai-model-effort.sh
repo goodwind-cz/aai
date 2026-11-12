@@ -513,7 +513,7 @@ test_3642_canon_wiring() {
   local f
   f="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
   local t
-  for t in 'harness_effort' 'reasoning_effort' 'effort_override' '--requested-effort' '--effort-applied' '--cache-creation' 'Agent `effort`'; do
+  for t in 'harness_effort' 'reasoning_effort' 'effort_override' '--requested-effort <suggested_effort>' '--effort-applied <param|not_supported|overridden>' '--cache-creation' 'Agent `effort`'; do
     qgrep -q -F -- "$t" < "$f" || log_fail "TEST-3642: SKILL_LOOP lacks '$t'"
   done
   f="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
