@@ -938,6 +938,9 @@ test_3628_cap_before_forensic_case() {
 # menu_option2 <text>: the runnable command inside option (2) of an owner menu.
 menu_option2() { sed -n 's/.*(2) one more round: \(.*\) (3) park the ride.*/\1/p' <<<"$1" | head -n 1; }
 
+# in_dir <dir> <cmd...>: run a command from another directory in a subshell.
+in_dir() { (cd "$1" && shift && "$@"); }
+
 test_3629_menu_option_runs() {
   new_tmp
   local d="$TMP_ROOT/d" st ev out opt1 opt2 cmd rc dd
@@ -959,11 +962,11 @@ test_3629_menu_option_runs() {
   out="$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.state_update_commands[0])' "$TMP_ROOT/disp.json")"
   opt2="$(menu_option2 "$out")"
   [[ "$opt2" == "${want/RC-1/CHANGE-0001}" ]] || log_fail "TEST-3629: dispatch option 2 is not the full command: '$opt2'"
-  [[ "$(tr -cd '"' <<<"$out" | wc -c | tr -d ' ')" == 4 ]] || log_fail "TEST-3629: the menu text adds a double quote to the set-human-input command"
+  [[ "$(tr -d -c '"' <<<"$out" | wc -c | tr -d ' ')" == 4 ]] || log_fail "TEST-3629: the menu text adds a double quote to the set-human-input command"
   # Run the owner command from the refusal with the placeholder replaced; the next reset passes.
   cmd="${opt1/<why>/owner-approved-one-more-round}"
   cmd="${cmd/node .aai\/scripts\//node $PROJECT_ROOT/.aai/scripts/}"
-  rc="$(run_rc "$TMP_ROOT/ext.log" bash -c "cd '$d' && env -u AAI_ROLE $cmd")"
+  rc="$(run_rc "$TMP_ROOT/ext.log" in_dir "$d" env -u AAI_ROLE bash -c "$cmd")"
   [[ "$rc" == 0 ]] || log_fail "TEST-3629: the copied command exited $rc: $(cat "$TMP_ROOT/ext.log")"
   rc="$(run_rc "$TMP_ROOT/r2.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
   [[ "$rc" == 0 ]] || log_fail "TEST-3629: reset-block after the extension exited $rc: $(cat "$TMP_ROOT/r2.log")"
