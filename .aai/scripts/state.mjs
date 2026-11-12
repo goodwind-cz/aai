@@ -129,6 +129,7 @@ import {
 } from './lib/state-engine.mjs';
 // Single JS parser of the docs-audit.yaml guard dials (CHANGE-0009 D8).
 import { readGuardConfig } from './lib/guard-config.mjs';
+import { ROUND_CAP_EXIT, appendRoundReset, resetGate } from './round-budget.mjs';
 // telemetry-fields-not-prose D2/D9: the SAME harness-detection function pair 1
 // shipped — never re-derived here. state.mjs runs as a child of the
 // orchestrating session, so it inherits that session's harness environment.
@@ -1480,6 +1481,9 @@ function cmdAmendRun(state, flags) {
   return `amend-run: ${ref} role=${role} started=${started} tokens_total=${tokensTotal} (usage_basis -> field)`;
 }
 
+// Set by cmdResetBlock once the cap gate passed; main() writes the round_reset line after the STATE write.
+let pendingRound = null;
+
 function cmdResetBlock(state, pos, flags, statePath) {
   const block = pos[1];
   if (!block) fail('reset-block: missing block name (last_validation | code_review)');
@@ -1502,6 +1506,19 @@ function cmdResetBlock(state, pos, flags, statePath) {
   }
   if (current !== 'fail' && !force && !['pass', 'waived'].includes(current)) {
     fail(`reset-block: unexpected ${block}.status "${current}" — repair STATE first`);
+  }
+  // Round cap (spec-factory-round-cap D-CAP): a reset that would change a block is one counted round.
+  // The gate reads the EVENTS beside the STATE file and refuses BEFORE any edit: no STATE, no EVENTS write.
+  const roundRef = readScalar(state.lines, 'current_focus', 'ref_id');
+  if (roundRef !== null && roundRef !== 'null') {
+    const gate = resetGate(path.join(path.dirname(statePath), 'EVENTS.jsonl'), roundRef);
+    if (gate.refused) {
+      console.error(gate.message);
+      process.exit(ROUND_CAP_EXIT);
+    }
+    pendingRound = { ref: roundRef, payload: { block, from: current, forced: force } };
+  } else {
+    console.error('state: NOTE reset-block: no current_focus.ref_id; the round cap gate and the round_reset event are skipped');
   }
   editBlock(state.lines, block, bl => {
     setField(bl, 2, 'status', [scalarLine(2, 'status', 'not_run')]);
@@ -1732,6 +1749,13 @@ function main() {
     const msg = cmdResetBlock(state, pos, flags, statePath);
     bumpUpdatedAt(state.lines);
     writeState(statePath, state.lines, state.trailingNewline, state.raw);
+    if (pendingRound !== null) {
+      try {
+        appendRoundReset(path.join(path.dirname(statePath), 'EVENTS.jsonl'), pendingRound.ref, pendingRound.payload);
+      } catch (err) {
+        console.error(`state: WARNING reset-block: the reset is written but its round_reset event was not (${err.message}); the round goes uncounted`);
+      }
+    }
     console.log(`state: ${msg}`);
     return;
   }

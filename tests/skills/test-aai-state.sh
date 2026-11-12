@@ -105,6 +105,10 @@ capture_now() { NOW_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; }
 st() {
   local s="$1" lg="$2"
   shift 2
+  # The round cap counts reset-block calls per ref in the EVENTS beside the STATE file, and the fixtures here
+  # share TEST_DIR and one ref: empty that ledger first so these cases test the block guards, not the cap
+  # (the cap itself is tested in test-aai-round-budget.sh).
+  if [[ "${1:-}" == reset-block ]]; then rm -f "$(dirname "$s")/EVENTS.jsonl"; fi
   (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" "$@" > "$lg" 2>&1)
 }
 

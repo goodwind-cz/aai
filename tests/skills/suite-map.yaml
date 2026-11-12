@@ -1700,6 +1700,20 @@ suites:
       - tests/skills/lib/recheck.test.mjs
       - tests/skills/lib/recheck-measure.mjs
 
+  aai-round-budget:
+    globs:
+      - .aai/scripts/round-budget.mjs
+      - .aai/scripts/state.mjs
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/scripts/append-event.mjs
+      - .aai/scripts/check-role-output.mjs
+      - .aai/VALIDATION.prompt.md
+      - .aai/REMEDIATION.prompt.md
+      - .aai/SKILL_CODE_REVIEW.prompt.md
+      - .aai/SKILL_VERIFY.prompt.md
+      - .aai/ORCHESTRATION.prompt.md
+      - tests/fixtures/round-history/**
+
   aai-hermes-skills:
     globs:
       - docs/USER_GUIDE.md
