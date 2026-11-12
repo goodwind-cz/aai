@@ -26,8 +26,11 @@ import { parseSuiteMap, matchesGlob } from './select-suites.mjs';
 export const ROUND_CAP_BASE = 2;
 export const ROUND_CAP_EXIT = 5;
 export const REUSE_GLOBS = ['tests/**', 'docs/**', '**/*.md', '.github/**', 'CHANGELOG.md'];
-export const ROUND_MENU = '(1) split the ride: close what is green, file the rest as a new intake (recommended) '
-  + '(2) one more round: append-event round_extension --authority owner (3) park the ride';
+export function roundMenu(ref) {
+  return '(1) split the ride: close what is green, file the rest as a new intake (recommended) '
+    + `(2) one more round: node .aai/scripts/append-event.mjs --event round_extension --ref ${ref} --authority owner --reason <why> `
+    + '(3) park the ride';
+}
 
 // Parse one EVENTS file. Absent file (ENOENT): no events. Any other read error is thrown with its `code`
 // (D-READ: a ledger that exists but cannot be read is not an empty ledger). A line that is not a JSON
@@ -87,7 +90,7 @@ export function resetGate(eventsPath, ref) {
     used,
     cap,
     ref,
-    message: `REFUSED review-round-cap: ${used}/${cap} rounds used for ${ref}. ${ROUND_MENU}`,
+    message: `REFUSED review-round-cap: ${used}/${cap} rounds used for ${ref}. ${roundMenu(ref)}`,
   };
 }
 

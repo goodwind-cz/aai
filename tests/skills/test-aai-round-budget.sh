@@ -933,6 +933,82 @@ test_3628_cap_before_forensic_case() {
   log_pass "TEST-3628: rules 10 and 12 stop at the cap even when the last run is a Remediation; below it the forensic case stays"
 }
 
+# ---- round-cap-hardening: D-MENU2, D-RELAY prose, companions (TEST-3629..3632) ----
+
+# menu_option2 <text>: the runnable command inside option (2) of an owner menu.
+menu_option2() { sed -n 's/.*(2) one more round: \(.*\) (3) park the ride.*/\1/p' <<<"$1" | head -n 1; }
+
+test_3629_menu_option_runs() {
+  new_tmp
+  local d="$TMP_ROOT/d" st ev out opt1 opt2 cmd rc dd
+  mkdir -p "$d/docs/ai"
+  st="$d/docs/ai/STATE.yaml"; ev="$d/docs/ai/EVENTS.jsonl"
+  write_state "$st" RC-1 fail
+  { reset_line RC-1 fail; reset_line RC-1 fail; } > "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3629: reset-block at the cap exited $rc, want 5: $(cat "$TMP_ROOT/r.log")"
+  opt1="$(menu_option2 "$(cat "$TMP_ROOT/r.log")")"
+  local want='node .aai/scripts/append-event.mjs --event round_extension --ref RC-1 --authority owner --reason <why>'
+  [[ "$opt1" == "$want" ]] || log_fail "TEST-3629: refusal option 2 is not the full command: '$opt1'"
+  # The dispatch stop carries the same command for its own ref.
+  dd="$TMP_ROOT/dd"
+  mk_dispatch_root "$dd" fail not_run validation
+  { reset_line CHANGE-0001 fail; reset_line CHANGE-0001 fail; } > "$dd/docs/ai/EVENTS.jsonl"
+  rc="$(dispatch_rc "$dd" "$TMP_ROOT/disp.json")"
+  [[ "$rc" == 3 ]] || log_fail "TEST-3629: dispatch at the cap exited $rc, want 3: $(cat "$TMP_ROOT/disp.json")"
+  out="$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.state_update_commands[0])' "$TMP_ROOT/disp.json")"
+  opt2="$(menu_option2 "$out")"
+  [[ "$opt2" == "${want/RC-1/CHANGE-0001}" ]] || log_fail "TEST-3629: dispatch option 2 is not the full command: '$opt2'"
+  [[ "$(tr -cd '"' <<<"$out" | wc -c | tr -d ' ')" == 4 ]] || log_fail "TEST-3629: the menu text adds a double quote to the set-human-input command"
+  # Run the owner command from the refusal with the placeholder replaced; the next reset passes.
+  cmd="${opt1/<why>/owner-approved-one-more-round}"
+  cmd="${cmd/node .aai\/scripts\//node $PROJECT_ROOT/.aai/scripts/}"
+  rc="$(run_rc "$TMP_ROOT/ext.log" bash -c "cd '$d' && env -u AAI_ROLE $cmd")"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3629: the copied command exited $rc: $(cat "$TMP_ROOT/ext.log")"
+  rc="$(run_rc "$TMP_ROOT/r2.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3629: reset-block after the extension exited $rc: $(cat "$TMP_ROOT/r2.log")"
+  log_pass "TEST-3629: option 2 of the refusal and of the dispatch stop is the full round_extension command and running it lifts the cap"
+}
+
+test_3630_relay_prose() {
+  local r="$PROJECT_ROOT/.aai/REMEDIATION.prompt.md" o="$PROJECT_ROOT/.aai/ORCHESTRATION.prompt.md" s
+  for s in 'reset-block last_validation code_review' 'one call' 'REFUSED'; do
+    grep -qF -- "$s" "$r" || log_fail "TEST-3630: REMEDIATION lacks: $s"
+  done
+  tr '\n' ' ' < "$r" | grep -qE 'Exit 5.*nothing was reset' || log_fail "TEST-3630: REMEDIATION does not say that on exit 5 nothing was reset"
+  for s in 'one reset-block call' 'exit 5'; do
+    grep -qF -- "$s" "$o" || log_fail "TEST-3630: ORCHESTRATION lacks: $s"
+  done
+  [[ "$(wc -l < "$o" | tr -d ' ')" -le 45 ]] || log_fail "TEST-3630: ORCHESTRATION exceeds 45 lines"
+  log_pass "TEST-3630: REMEDIATION and ORCHESTRATION name the one-call two-block reset and the exit 5 stop, ORCHESTRATION within 45 lines"
+}
+
+test_3631_diet_companions() {
+  local l="$SCRIPT_DIR/lib/prompt-diet-ledger.sh" t rc
+  [[ "$(grep -c ' round-cap-hardening ' "$l")" == 1 ]] || log_fail "TEST-3631: the ledger must hold exactly one round-cap-hardening entry"
+  new_tmp
+  for t in prompt-diet:test_010_audit_and_reduction prompt-diet:test_012_growth_sum_matches_ledger pr-preflight:test_008 legacy-migrations:test_3398_diet retired-loop-runner:test_3410_diet; do
+    rc=0
+    env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-${t%%:*}.sh" "${t#*:}" > "$TMP_ROOT/${t#*:}.log" 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || log_fail "TEST-3631: ${t#*:} of ${t%%:*} is red: $(tail -5 "$TMP_ROOT/${t#*:}.log")"
+  done
+  grep -q 'headroom 0/2048' "$TMP_ROOT/test_010_audit_and_reduction.log" || log_fail "TEST-3631: TEST-010 headroom is not 0/2048"
+  log_pass "TEST-3631: the round-cap-hardening ledger entry and the four companion pins agree with the corpus"
+}
+
+test_3632_changelog() {
+  local cl="${AAI_RB_CHANGELOG:-$PROJECT_ROOT/CHANGELOG.md}" body p
+  [[ "$(grep -c '^## \[unreleased\]$' "$cl")" == 1 ]] || log_fail "TEST-3632: CHANGELOG must keep exactly one bare unreleased scaffold"
+  # Release-tolerant: the CI release dry-run rolls the unreleased heading into '## [vYYYY.MM.DD]' with the same title.
+  [[ "$(grep -cE '^## \[(unreleased|v[0-9][^]]*)\] — fix\(review\): .*round-cap hardening' "$cl")" == 1 ]] || log_fail "TEST-3632: CHANGELOG must hold exactly one per-entry heading (unreleased or rolled) for round-cap hardening"
+  body="$(awk '/^## \[(unreleased|v[0-9][^]]*)\] — fix\(review\): .*round-cap hardening/{f=1;next} f&&/^## /{exit} f' "$cl")"
+  for p in 'fail closed' 'one round' 'append-event.mjs --event round_extension'; do
+    grep -qF -- "$p" <<<"$body" || log_fail "TEST-3632: the CHANGELOG entry lacks: $p"
+  done
+  env -u AAI_ROLE -u AAI_GIT_WRITE bash "$SCRIPT_DIR/test-aai-release.sh" test_022_live_changelog_scaffold_invariants >/dev/null 2>&1 || log_fail "TEST-3632: release TEST-022 is red"
+  log_pass "TEST-3632: one per-entry heading (unreleased or rolled) below the bare scaffold names the fail-closed read, the one-round reset and the menu command"
+}
+
 main() {
   check_deps
   test_3600_status_counts
@@ -961,6 +1037,10 @@ main() {
   test_3626_joint_reset_one_round
   test_3627_joint_reset_refusals
   test_3628_cap_before_forensic_case
+  test_3629_menu_option_runs
+  test_3630_relay_prose
+  test_3631_diet_companions
+  test_3632_changelog
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

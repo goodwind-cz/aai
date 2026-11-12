@@ -65,7 +65,7 @@ import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/pr
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
-import { roundsUsed, roundCap, standingAExtensions, ROUND_MENU } from './round-budget.mjs';
+import { roundsUsed, roundCap, standingAExtensions, roundMenu } from './round-budget.mjs';
 import { recheckMode, planCheckStamps, tokenOfRole, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
@@ -276,7 +276,7 @@ function roundCapStop(rule, snapshot, rb) {
   const out = noAction(rule, snapshot, rb.standing_a ? ['review_round_cap'] : ['review_round_cap', 'standing_a_available']);
   const reason = `review-round-cap: ${rb.used}/${rb.cap} rounds used for ${ref}`;
   out.state_update_commands = [
-    `node .aai/scripts/state.mjs set-human-input --required true --reason "${reason}" --question "${ROUND_MENU}"`,
+    `node .aai/scripts/state.mjs set-human-input --required true --reason "${reason}" --question "${roundMenu(ref)}"`,
   ];
   return out;
 }
