@@ -2,7 +2,8 @@
 #
 # Test: aai-round-budget
 # (docs/specs/SPEC-0286-spec-factory-round-cap.md, TEST-3600..3615;
-# TEST-3612..3615 are the canon, wiring, pin and CHANGELOG rows of the same ride)
+# TEST-3612..3615 are the canon, wiring, pin and CHANGELOG rows of the same ride;
+# docs/specs/SPEC-DRAFT-spec-round-cap-hardening.md adds TEST-3620..3632)
 #
 # The counted review round cap: .aai/scripts/round-budget.mjs counts round_reset and
 # round_extension lines in EVENTS, state.mjs reset-block writes one round_reset per
@@ -678,6 +679,126 @@ test_3615_changelog() {
   log_pass "TEST-3615: one per-entry unreleased heading below the bare scaffold names the cap, bar, sweep plan and gain"
 }
 
+# ---- round-cap-hardening: D-READ (TEST-3620..3625) ----
+
+# is_root: an EACCES fixture is readable by root, so those cases skip (a soft skip, the suite goes on).
+is_root() { [[ "$(id -u)" == 0 ]]; }
+
+# unreadable_dir_fixture <dir> <ref> <validation status>: STATE with a fail block and an EVENTS.jsonl that is a directory.
+mk_state_dir() {
+  mkdir -p "$1"
+  write_state "$1/STATE.yaml" "$2" "$3"
+}
+
+test_3620_reset_eisdir_refused() {
+  new_tmp
+  local d="$TMP_ROOT/d" st rc before
+  mk_state_dir "$d" RC-1 fail
+  st="$d/STATE.yaml"
+  mkdir "$d/EVENTS.jsonl"
+  before="$(cat "$st")"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3620: reset-block on a directory EVENTS must exit 5, got $rc: $(cat "$TMP_ROOT/r.log")"
+  grep -q 'REFUSED review-round-cap: cannot read .*EVENTS.jsonl (EISDIR); the round count for RC-1 is unknown. Repair the file, then retry.' "$TMP_ROOT/r.log" \
+    || log_fail "TEST-3620: want the REFUSED line naming the path and EISDIR: $(cat "$TMP_ROOT/r.log")"
+  ! grep -q '(1) split the ride' "$TMP_ROOT/r.log" || log_fail "TEST-3620: an unreadable ledger must not offer the owner menu"
+  [[ "$(cat "$st")" == "$before" ]] || log_fail "TEST-3620: STATE changed on a refused reset"
+  [[ -d "$d/EVENTS.jsonl" ]] || log_fail "TEST-3620: the EVENTS directory vanished"
+  # An absent EVENTS still counts 0 rounds and writes one line.
+  rmdir "$d/EVENTS.jsonl"
+  rc="$(run_rc "$TMP_ROOT/r2.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3620: an absent EVENTS must still reset, got $rc: $(cat "$TMP_ROOT/r2.log")"
+  [[ "$(wc -l < "$d/EVENTS.jsonl" | tr -d ' ')" == 1 ]] || log_fail "TEST-3620: an absent EVENTS must gain exactly one line"
+  log_pass "TEST-3620: reset-block on an EVENTS directory exits 5 with the path and EISDIR and writes nothing; an absent EVENTS still counts 0"
+}
+
+test_3621_reset_eacces_refused() {
+  if is_root; then echo "SKIP: TEST-3621: running as root reads a mode 0200 file"; return 0; fi
+  new_tmp
+  local d="$TMP_ROOT/d" st ev rc before
+  mk_state_dir "$d" RC-1 fail
+  st="$d/STATE.yaml"; ev="$d/EVENTS.jsonl"
+  { reset_line RC-1 fail; reset_line RC-1 fail; } > "$ev"
+  chmod 0200 "$ev"
+  before="$(cat "$st")"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
+  chmod 0600 "$ev"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3621: reset-block on an unreadable EVENTS at the cap must exit 5, got $rc: $(cat "$TMP_ROOT/r.log")"
+  grep -q '(EACCES)' "$TMP_ROOT/r.log" || log_fail "TEST-3621: want EACCES named: $(cat "$TMP_ROOT/r.log")"
+  [[ "$(cat "$st")" == "$before" ]] || log_fail "TEST-3621: STATE changed on a refused reset"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 2 ]] || log_fail "TEST-3621: EVENTS must keep its two lines"
+  log_pass "TEST-3621: reset-block on a mode 0200 EVENTS holding two resets exits 5 naming EACCES and writes nothing"
+}
+
+test_3622_standing_a_unreadable() {
+  if is_root; then echo "SKIP: TEST-3622: running as root reads a mode 0200 file"; return 0; fi
+  new_tmp
+  local d="$TMP_ROOT/r" ev rc
+  mkdir -p "$d/docs/ai"; ev="$d/docs/ai/EVENTS.jsonl"
+  ev_line round_extension RC-1 '{"authority":"standing-a","reason":"hazard"}' > "$ev"
+  chmod 0200 "$ev"
+  rc="$(run_rc "$TMP_ROOT/a.log" in_repo "$d" node "$APPEND_EVENT" --event round_extension --ref RC-1 --authority standing-a --reason again)"
+  [[ "$rc" == 1 ]] || { chmod 0600 "$ev"; log_fail "TEST-3622: standing-a on an unreadable EVENTS must exit 1, got $rc: $(cat "$TMP_ROOT/a.log")"; }
+  grep -q 'round_extension refused: cannot read .*EVENTS.jsonl (EACCES); the standing-a limit cannot be checked' "$TMP_ROOT/a.log" \
+    || { chmod 0600 "$ev"; log_fail "TEST-3622: want the read error named: $(cat "$TMP_ROOT/a.log")"; }
+  chmod 0600 "$ev"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 1 ]] || log_fail "TEST-3622: nothing may be appended"
+  # An owner extension does not read the ledger and still appends.
+  chmod 0200 "$ev"
+  rc="$(run_rc "$TMP_ROOT/o.log" in_repo "$d" node "$APPEND_EVENT" --event round_extension --ref RC-1 --authority owner --reason more)"
+  chmod 0600 "$ev"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3622: an owner extension must be unchanged, got $rc: $(cat "$TMP_ROOT/o.log")"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 2 ]] || log_fail "TEST-3622: the owner extension must append one line"
+  log_pass "TEST-3622: a standing-a round_extension on an unreadable EVENTS exits 1 and appends nothing; owner is unchanged"
+}
+
+test_3623_status_and_sweep_plan_unreadable() {
+  new_tmp
+  local d="$TMP_ROOT/s" out rc
+  mkdir -p "$TMP_ROOT/ev"
+  rc=0; out="$(node "$RB" status --ref RC-1 --events "$TMP_ROOT/ev" 2>"$TMP_ROOT/st.err")" || rc=$?
+  [[ "$rc" == 1 ]] || log_fail "TEST-3623: status on a directory EVENTS must exit 1, got $rc"
+  [[ -z "$out" ]] || log_fail "TEST-3623: status must print no rounds line, got: $out"
+  grep -q 'round-budget: cannot read .* (EISDIR)' "$TMP_ROOT/st.err" || log_fail "TEST-3623: want the read error on stderr: $(cat "$TMP_ROOT/st.err")"
+  mk_sweep_repo "$d" 2 yes
+  rm "$d/docs/ai/EVENTS.jsonl"; mkdir "$d/docs/ai/EVENTS.jsonl"
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP full reason=events-unreadable code=EISDIR" ]] || log_fail "TEST-3623: sweep-plan got '$out'"
+  d="$TMP_ROOT/nofw"; mk_sweep_repo "$d" 2 no
+  rm "$d/docs/ai/EVENTS.jsonl"; mkdir "$d/docs/ai/EVENTS.jsonl"
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP not-applicable reason=no-sweep-command" ]] || log_fail "TEST-3623: not-applicable must win first, got '$out'"
+  log_pass "TEST-3623: status exits 1 on an unreadable ledger; sweep-plan answers events-unreadable after its not-applicable checks"
+}
+
+test_3624_check_role_output_unreadable() {
+  new_tmp
+  local d="$TMP_ROOT/r" rc fx="$PROJECT_ROOT/tests/fixtures/role-outputs"
+  mk_sweep_repo "$d" 2 yes
+  mkdir -p "$d/tests/fixtures"
+  cp -R "$fx" "$d/tests/fixtures/role-outputs"
+  printf '%s\n' '---' 'id: spec-x' 'ceremony_level: 2' '---' > "$d/docs/specs/SPEC-DRAFT-spec-role-output-contracts.md"
+  rm "$d/docs/ai/EVENTS.jsonl"; mkdir "$d/docs/ai/EVENTS.jsonl"
+  rc="$(run_rc "$TMP_ROOT/o.log" in_repo "$d" node "$CHECK_OUT" --file tests/fixtures/role-outputs/validation-valid.md --now 2026-06-01T00:00:00Z --outcome-intake tests/fixtures/role-outputs/outcome-intake.md --outcome-spec tests/fixtures/role-outputs/outcome-spec.md)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3624: a PASS with an unreadable ledger must exit 1, got $rc: $(cat "$TMP_ROOT/o.log")"
+  grep -q 'ROLE-OUTPUT-VIOLATION: E-SWEEP-OWED' "$TMP_ROOT/o.log" || log_fail "TEST-3624: want E-SWEEP-OWED: $(cat "$TMP_ROOT/o.log")"
+  grep -q 'events-unreadable' "$TMP_ROOT/o.log" || log_fail "TEST-3624: want the reason named: $(cat "$TMP_ROOT/o.log")"
+  ! grep -q 'EISDIR: illegal operation\|    at ' "$TMP_ROOT/o.log" || log_fail "TEST-3624: no stack trace: $(cat "$TMP_ROOT/o.log")"
+  log_pass "TEST-3624: check-role-output rejects a Validation PASS over an unreadable ledger with E-SWEEP-OWED events-unreadable"
+}
+
+test_3625_dispatch_unreadable_pinned() {
+  new_tmp
+  local d="$TMP_ROOT/r" rc
+  mk_dispatch_root "$d" fail not_run validation
+  mkdir "$d/docs/ai/EVENTS.jsonl"
+  rc="$(dispatch_rc "$d" "$TMP_ROOT/o.json")"
+  [[ "$rc" != 0 && "$rc" != 4 && "$rc" != 3 ]] || log_fail "TEST-3625: dispatch over an unreadable ledger must fail closed, got $rc"
+  ! grep -q 'Remediation' "$TMP_ROOT/o.json" || log_fail "TEST-3625: dispatch must not name Remediation: $(cat "$TMP_ROOT/o.json")"
+  grep -q 'EISDIR' "$TMP_ROOT/o.json.err" || log_fail "TEST-3625: want the read error on stderr: $(cat "$TMP_ROOT/o.json.err")"
+  log_pass "TEST-3625: dispatch over an unreadable ledger exits nonzero and dispatches nothing"
+}
+
 main() {
   check_deps
   test_3600_status_counts
@@ -697,6 +818,12 @@ main() {
   test_3613_wiring
   test_3614_prompt_diet_pins
   test_3615_changelog
+  test_3620_reset_eisdir_refused
+  test_3621_reset_eacces_refused
+  test_3622_standing_a_unreadable
+  test_3623_status_and_sweep_plan_unreadable
+  test_3624_check_role_output_unreadable
+  test_3625_dispatch_unreadable_pinned
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

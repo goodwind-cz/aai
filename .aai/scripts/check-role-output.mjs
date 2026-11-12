@@ -122,7 +122,7 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { checkOutcomeReport } from './validation-outcome-check.mjs';
-import { readEvents, sweepPlan, sweepLine } from './round-budget.mjs';
+import { readEvents, sweepPlan, sweepLine, errCode } from './round-budget.mjs';
 
 // --- exit discipline (cli-exit-truncates-pipe-sweep) ------------------------
 // INLINED, not imported from ./lib/cli-pipe-guard.mjs: this checker's own
@@ -921,9 +921,14 @@ function validateResult(parsed, nowMs, scopeBinding = {}) {
     // factory-round-cap D-SWEEP — a PASS while the ride's one full sweep is still owed is refused.
     const sweepRoot = process.cwd();
     const sweepRef = String(parsed.fields.scope ?? '');
-    const sweep = sweepPlan(readEvents(path.join(sweepRoot, 'docs/ai/EVENTS.jsonl')).events, sweepRef, sweepRoot);
+    let sweepEvents = [];
+    let eventsError = null;
+    try { sweepEvents = readEvents(path.join(sweepRoot, 'docs/ai/EVENTS.jsonl')).events; } catch (err) { eventsError = err; }
+    const sweep = sweepPlan(sweepEvents, sweepRef, sweepRoot, eventsError);
     const sweepOwed = sweep.kind === 'full';
-    if (sweepOwed) {
+    if (sweepOwed && eventsError) {
+      violations.push(['E-SWEEP-OWED', `Validation PASS while the EVENTS ledger cannot be read (reason=events-unreadable code=${errCode(eventsError)}); the full sweep cannot be proven`]);
+    } else if (sweepOwed) {
       violations.push(['E-SWEEP-OWED', `Validation PASS while the full sweep is owed: ${sweepLine(sweep)}`]);
     } else if (sweep.kind === 'not-applicable') {
       console.error(`NOTE: sweep not applicable (${sweep.reason})`);

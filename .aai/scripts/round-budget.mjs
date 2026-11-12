@@ -13,6 +13,8 @@
 //     file: <root or cwd>/docs/ai/EVENTS.jsonl. A malformed line is skipped with a NOTE on stderr.
 //   node .aai/scripts/round-budget.mjs sweep-plan --ref <ref> [--events <file>] [--root <dir>]
 //     prints exactly one `SWEEP full|reuse|not-applicable ...` line, exit 0 (D-SWEEP).
+//   An EVENTS file that exists but cannot be read: status exits 1; sweep-plan answers
+//   `SWEEP full reason=events-unreadable code=<CODE>` after its not-applicable checks (D-READ).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,11 +29,16 @@ export const REUSE_GLOBS = ['tests/**', 'docs/**', '**/*.md', '.github/**', 'CHA
 export const ROUND_MENU = '(1) split the ride: close what is green, file the rest as a new intake (recommended) '
   + '(2) one more round: append-event round_extension --authority owner (3) park the ride';
 
-// Parse one EVENTS file. Absent file: no events. A line that is not a JSON object is counted, not thrown.
+// Parse one EVENTS file. Absent file (ENOENT): no events. Any other read error is thrown with its `code`
+// (D-READ: a ledger that exists but cannot be read is not an empty ledger). A line that is not a JSON
+// object is counted, not thrown.
 export function readEvents(eventsPath) {
   const out = { events: [], malformed: 0 };
   let raw;
-  try { raw = fs.readFileSync(eventsPath, 'utf8'); } catch { return out; }
+  try { raw = fs.readFileSync(eventsPath, 'utf8'); } catch (err) {
+    if (err.code === 'ENOENT') return out;
+    throw err;
+  }
   for (const line of raw.split('\n')) {
     if (line.trim() === '') continue;
     try {
@@ -42,6 +49,8 @@ export function readEvents(eventsPath) {
   }
   return out;
 }
+
+export const errCode = (err) => (err && err.code) || 'UNKNOWN';
 
 const forRef = (events, ref, name) => events.filter(e => e.event === name && e.ref === ref);
 
@@ -60,7 +69,17 @@ export function standingAExtensions(events, ref) {
 
 // The gate reset-block asks before it changes a block.
 export function resetGate(eventsPath, ref) {
-  const { events } = readEvents(eventsPath);
+  let events;
+  try { ({ events } = readEvents(eventsPath)); } catch (err) {
+    return {
+      refused: true,
+      unreadable: true,
+      used: null,
+      cap: null,
+      ref,
+      message: `REFUSED review-round-cap: cannot read ${eventsPath} (${errCode(err)}); the round count for ${ref} is unknown. Repair the file, then retry.`,
+    };
+  }
   const used = roundsUsed(events, ref);
   const cap = roundCap(events, ref);
   return {
@@ -142,10 +161,11 @@ function suiteMapGlobs(root) {
 }
 
 // D-SWEEP: does the ride owe the full sweep? Returns the one SWEEP line's parts.
-export function sweepPlan(events, ref, root) {
+export function sweepPlan(events, ref, root, eventsError = null) {
   if (!fs.existsSync(path.join(root, 'tests/skills/test-framework.sh'))) return { kind: 'not-applicable', reason: 'no-sweep-command' };
   const level = ceremonyOf(root, ref);
   if (level === '0' || level === '1') return { kind: 'not-applicable', reason: 'lightweight-lane' };
+  if (eventsError) return { kind: 'full', reason: 'events-unreadable', extra: `code=${errCode(eventsError)}` };
   const sweeps = forRef(events, ref, 'full_sweep');
   const newest = sweeps[sweeps.length - 1];
   if (!newest) return { kind: 'full', reason: 'no-sweep' };
@@ -194,10 +214,17 @@ function main(argv) {
   }
   const root = typeof flags.root === 'string' ? path.resolve(flags.root) : process.cwd();
   const eventsPath = typeof flags.events === 'string' ? path.resolve(flags.events) : path.join(root, 'docs/ai/EVENTS.jsonl');
-  const { events, malformed } = readEvents(eventsPath);
+  let events = [];
+  let malformed = 0;
+  let eventsError = null;
+  try { ({ events, malformed } = readEvents(eventsPath)); } catch (err) { eventsError = err; }
+  if (eventsError && cmd === 'status') {
+    console.error(`round-budget: cannot read ${eventsPath} (${errCode(eventsError)})`);
+    return 1;
+  }
   if (malformed > 0) console.error(`NOTE: ignored ${malformed} malformed line(s) in ${eventsPath}`);
   if (cmd === 'sweep-plan') {
-    console.log(sweepLine(sweepPlan(events, flags.ref, root)));
+    console.log(sweepLine(sweepPlan(events, flags.ref, root, eventsError)));
     return 0;
   }
   const s = statusOf(events, flags.ref);
