@@ -562,6 +562,224 @@ test_3643_payload_prefix_stable() {
   log_pass "TEST-3643: $count roles share every byte before scope across refs; scope is last"
 }
 
+# --- evidence digest fixtures (Spec-AC-10..12) --------------------------------
+DIGEST="$PROJECT_ROOT/.aai/scripts/evidence-digest.mjs"
+APPEND_EVENT="$PROJECT_ROOT/.aai/scripts/append-event.mjs"
+
+# mk_digest_root <name> <dirty|fixed> — scratch git repo with one fixture spec.
+mk_digest_root() {
+  local d="$TEST_DIR/$1" ev="docs/ai/tdd/fx/green.log"
+  rm -rf "$d"
+  mkdir -p "$d/docs/specs" "$d/docs/ai/tdd/fx" "$d/tests"
+  printf 'GREEN\n' > "$d/docs/ai/tdd/fx/green.log"
+  if [[ "$2" == "fixed" ]]; then
+    printf '# test_9001\n' > "$d/tests/fx.sh"
+  else
+    ev="docs/ai/tdd/fx/missing.log"
+    printf '# no ids here\n' > "$d/tests/fx.sh"
+  fi
+  cat > "$d/docs/specs/SPEC-0001-fx.md" <<MD
+---
+id: SPEC-0001
+type: spec
+number: 1
+status: draft
+links:
+  pr: []
+---
+
+# Fixture spec
+
+SPEC-FROZEN: true
+
+## Acceptance Criteria Status
+
+| Spec-AC | Description | Status | Evidence | Review-By | Notes |
+|---|---|---|---|---|---|
+| Spec-AC-01 | fixture row | done | $ev | — | n |
+| Spec-AC-02 | second row | $( [[ "$2" == "fixed" ]] && echo done || echo planned ) | — | — | n |
+
+## Test Plan
+
+| Test ID | Spec-AC | Type | File path | Description | Mutation | Status |
+|---|---|---|---|---|---|---|
+| TEST-9001 | Spec-AC-01 | unit | tests/fx.sh | fixture | target \`tests/fx.sh\`; \`sed:s/a/b/\` x | pending |
+MD
+  (cd "$d" && git init -q . && git add -A \
+    && git -c user.email=fx@example.com -c user.name=fx commit -q -m fx) > "$TEST_DIR/git.out" 2>&1 \
+    || log_fail "mk_digest_root: git fixture setup failed: $(cat "$TEST_DIR/git.out")"
+}
+
+# --- TEST-3644 (Spec-AC-10) ---------------------------------------------------
+test_3644_digest_run() {
+  [[ -f "$DIGEST" ]] || log_fail "TEST-3644: evidence-digest.mjs missing"
+  mk_digest_root dg_dirty dirty
+  local rc=0
+  env -u AAI_ROLE node "$DIGEST" run --ref fx --spec docs/specs/SPEC-0001-fx.md --root "$TEST_DIR/dg_dirty" > "$TEST_DIR/dg.out" 2> "$TEST_DIR/dg.err" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-3644: dirty digest exited $rc (must exit 0 whatever it finds): $(cat "$TEST_DIR/dg.err")"
+  grep -qF 'AC Spec-AC-01 status=done evidence_paths=1 missing=1' "$TEST_DIR/dg.out" || log_fail "TEST-3644: AC line for the missing evidence absent: $(cat "$TEST_DIR/dg.out")"
+  grep -qF 'AC Spec-AC-02 status=planned evidence_paths=0 missing=0' "$TEST_DIR/dg.out" || log_fail "TEST-3644: AC line for the dash evidence absent"
+  grep -qF 'TEST TEST-9001 ac=Spec-AC-01 file=tests/fx.sh file_exists=yes id_in_file=no' "$TEST_DIR/dg.out" || log_fail "TEST-3644: TEST line absent: $(cat "$TEST_DIR/dg.out")"
+  grep -qE '^GATE spec-lint rc=[0-9]+$' "$TEST_DIR/dg.out" || log_fail "TEST-3644: GATE spec-lint line absent"
+  grep -qE '^GATE mutation-gate rc=[0-9]+$' "$TEST_DIR/dg.out" || log_fail "TEST-3644: GATE mutation-gate line absent"
+  grep -qE '^GATE docs-audit-gate rc=[0-9]+$' "$TEST_DIR/dg.out" || log_fail "TEST-3644: GATE docs-audit-gate line absent"
+  grep -qE '^SWEEP ' "$TEST_DIR/dg.out" || log_fail "TEST-3644: SWEEP line absent"
+  grep -qE '^DIGEST ref=fx head=[0-9a-f]{40} acs=2 acs_not_done=1 evidence_missing=1 tests_unlocated=1 gates_red=[1-9][0-9]* sweep_owed=0 clean=false$' "$TEST_DIR/dg.out" \
+    || log_fail "TEST-3644: dirty DIGEST line wrong: $(cat "$TEST_DIR/dg.out")"
+  mk_digest_root dg_fixed fixed
+  rc=0
+  env -u AAI_ROLE node "$DIGEST" run --ref fx --spec docs/specs/SPEC-0001-fx.md --root "$TEST_DIR/dg_fixed" > "$TEST_DIR/dg2.out" 2> "$TEST_DIR/dg2.err" || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-3644: fixed digest exited $rc"
+  grep -qE '^DIGEST ref=fx head=[0-9a-f]{40} acs=2 acs_not_done=0 evidence_missing=0 tests_unlocated=0 gates_red=0 sweep_owed=0 clean=true$' "$TEST_DIR/dg2.out" \
+    || log_fail "TEST-3644: fixed DIGEST line wrong: $(cat "$TEST_DIR/dg2.out") $(cat "$TEST_DIR/dg2.err")"
+  rc=0
+  env -u AAI_ROLE node "$DIGEST" run --root "$TEST_DIR/dg_fixed" > /dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 2 ]] || log_fail "TEST-3644: run without --ref must exit 2, got $rc"
+  rc=0
+  env -u AAI_ROLE node "$DIGEST" run --ref fx --spec docs/specs/NOPE.md --root "$TEST_DIR/dg_fixed" > /dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 3 ]] || log_fail "TEST-3644: unreadable spec must exit 3, got $rc"
+  log_pass "TEST-3644: digest prints AC, TEST, GATE, SWEEP and DIGEST lines; clean only when all five counts are 0; exit 0"
+}
+
+# digest_record <root> — run the digest with --record, output into dg.out.
+digest_record() {
+  env -u AAI_ROLE node "$DIGEST" run --ref fx --spec docs/specs/SPEC-0001-fx.md --root "$1" --record > "$TEST_DIR/dgr.out" 2> "$TEST_DIR/dgr.err" \
+    || log_fail "TEST-3645: digest --record exited non-zero: $(cat "$TEST_DIR/dgr.err")"
+}
+
+# --- TEST-3645 (Spec-AC-11) ---------------------------------------------------
+test_3645_digest_record() {
+  [[ -f "$DIGEST" ]] || log_fail "TEST-3645: evidence-digest.mjs missing"
+  local d="$TEST_DIR/dg_rec" head
+  mk_digest_root dg_rec dirty
+  head="$(git -C "$d" rev-parse HEAD)"
+  digest_record "$d"
+  grep -qF 'NOTE evidence_digest off; nothing recorded' "$TEST_DIR/dgr.out" || log_fail "TEST-3645: no-dial NOTE absent: $(cat "$TEST_DIR/dgr.out")"
+  [[ ! -e "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-3645: EVENTS written with no dial key"
+  printf 'evidence_digest: maybe\n' > "$d/docs/ai/docs-audit.yaml"
+  digest_record "$d"
+  grep -qF 'NOTE evidence_digest off; nothing recorded' "$TEST_DIR/dgr.out" || log_fail "TEST-3645: maybe must behave as off"
+  grep -qF '"maybe"' "$TEST_DIR/dgr.out" "$TEST_DIR/dgr.err" || log_fail "TEST-3645: invalid dial value not named in a NOTE"
+  [[ ! -e "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-3645: EVENTS written for dial maybe"
+  printf '# comment\nevidence_digest: shadow\n' > "$d/docs/ai/docs-audit.yaml"
+  digest_record "$d"
+  [[ -f "$d/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-3645: shadow wrote no EVENTS"
+  printf 'evidence_digest: on\n' > "$d/docs/ai/docs-audit.yaml"
+  digest_record "$d"
+  node -e '
+    const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n").filter(Boolean).map(JSON.parse);
+    const head = process.argv[2];
+    if (lines.length !== 2) { console.error("want 2 lines, got " + lines.length); process.exit(1); }
+    for (const e of lines) {
+      if (e.event !== "evidence_digest" || e.ref !== "fx") { console.error("bad event " + JSON.stringify(e)); process.exit(1); }
+      if (e.payload.head !== head || e.payload.clean !== false || !Number.isInteger(e.payload.flags) || e.payload.flags < 1) { console.error("bad payload " + JSON.stringify(e)); process.exit(1); }
+    }
+  ' "$d/docs/ai/EVENTS.jsonl" "$head" || log_fail "TEST-3645: recorded evidence_digest lines are wrong"
+  # append-event refusals: nothing written, exit 1
+  local r="$TEST_DIR/dg_ref" rc bad
+  mkdir -p "$r/docs/ai"
+  for bad in "--head abc --clean true --flags 0" \
+             "--head $head --clean yes --flags 0" \
+             "--head $head --clean true --flags x" \
+             "--head ${head}0 --clean true --flags 0" \
+             "--head $head --clean true --flags -1"; do
+    rc=0
+    # shellcheck disable=SC2086
+    (cd "$r" && env -u AAI_ROLE node "$APPEND_EVENT" --event evidence_digest --ref fx $bad) > "$TEST_DIR/ae.out" 2> "$TEST_DIR/ae.err" || rc=$?
+    [[ "$rc" -eq 1 ]] || log_fail "TEST-3645: append-event '$bad' exited $rc, want 1"
+    [[ ! -e "$r/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-3645: append-event '$bad' wrote a line"
+  done
+  rc=0
+  (cd "$r" && env -u AAI_ROLE node "$APPEND_EVENT" --event evidence_digest --ref fx --head "$head" --clean false --flags 3) > "$TEST_DIR/ae.out" 2> "$TEST_DIR/ae.err" || rc=$?
+  [[ "$rc" -eq 0 && -f "$r/docs/ai/EVENTS.jsonl" ]] || log_fail "TEST-3645: a well-formed evidence_digest was refused: $(cat "$TEST_DIR/ae.err")"
+  log_pass "TEST-3645: --record writes under shadow and on only; off, absent and invalid dials write nothing; append-event refuses malformed fields"
+}
+
+# gen_pairs <dir> <pairs> <refs> [<clean_fail_index>] — EVENTS via the real
+# append-event: <pairs> digests, each followed by a validation check_verdict.
+gen_pairs() {
+  local d="$1" n="$2" refs="$3" cf="${4:-0}" i head ref clean st
+  mkdir -p "$d/docs/ai"
+  for ((i = 1; i <= n; i++)); do
+    head="$(printf '%040x' "$i")"
+    ref="ride-$((i % refs))"
+    clean=true; st=pass
+    if [[ "$i" -eq "$cf" ]]; then st=fail; fi
+    (cd "$d" && env -u AAI_ROLE node "$APPEND_EVENT" --event evidence_digest --ref "$ref" --head "$head" --clean "$clean" --flags 0 \
+      && env -u AAI_ROLE node "$APPEND_EVENT" --event check_verdict --ref "$ref" --role validation --head "$head" --status "$st") > /dev/null 2>> "$TEST_DIR/gen.err" \
+      || log_fail "TEST-3646: fixture append failed: $(cat "$TEST_DIR/gen.err")"
+  done
+}
+
+# score_of <dir> — print the score output of <dir>/docs/ai/EVENTS.jsonl.
+score_of() {
+  env -u AAI_ROLE node "$DIGEST" score --events "$1/docs/ai/EVENTS.jsonl" > "$TEST_DIR/sc.out" 2> "$TEST_DIR/sc.err" \
+    || log_fail "TEST-3646: score exited non-zero: $(cat "$TEST_DIR/sc.err")"
+}
+
+# --- TEST-3646 (Spec-AC-12) ---------------------------------------------------
+test_3646_digest_score() {
+  [[ -f "$DIGEST" ]] || log_fail "TEST-3646: evidence-digest.mjs missing"
+  local d="$TEST_DIR/sc_mix" h1 h2 h3 h4
+  h1="$(printf '%040x' 901)"; h2="$(printf '%040x' 902)"; h3="$(printf '%040x' 903)"; h4="$(printf '%040x' 904)"
+  mkdir -p "$d/docs/ai"
+  (cd "$d" && env -u AAI_ROLE bash -c '
+    ae() { node "$0" "$@"; }
+    ae --event evidence_digest --ref a --head '"$h1"' --clean true --flags 0
+    ae --event evidence_digest --ref a --head '"$h2"' --clean false --flags 2
+    ae --event evidence_digest --ref a --head '"$h3"' --clean false --flags 1
+    ae --event evidence_digest --ref a --head '"$h4"' --clean true --flags 0
+    ae --event check_verdict --ref b --role validation --head '"$h4"' --status fail
+    ae --event check_verdict --ref a --role code_review --head '"$h4"' --status fail
+    ae --event check_verdict --ref a --role validation --head '"$h1"' --status pass
+    ae --event check_verdict --ref a --role validation --head '"$h2"' --status fail
+    ae --event check_verdict --ref a --role validation --head '"$h3"' --status pass
+  ' "$APPEND_EVENT") > /dev/null 2> "$TEST_DIR/gen.err" || log_fail "TEST-3646: mixed fixture failed: $(cat "$TEST_DIR/gen.err")"
+  score_of "$d"
+  grep -qxF 'SCORE pairs=3 rides=1 clean_pass=1 clean_fail=0 flagged_pass=1 flagged_fail=1 unpaired=1' "$TEST_DIR/sc.out" \
+    || log_fail "TEST-3646: mixed SCORE line wrong: $(cat "$TEST_DIR/sc.out")"
+  grep -qxF 'PROMOTION not-eligible reason=min-pairs' "$TEST_DIR/sc.out" || log_fail "TEST-3646: mixed PROMOTION wrong: $(cat "$TEST_DIR/sc.out")"
+  env -u AAI_ROLE node "$DIGEST" score --events "$d/docs/ai/EVENTS.jsonl" --json > "$TEST_DIR/sc.json" 2> /dev/null || log_fail "TEST-3646: score --json failed"
+  node -e 'const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (j.pairs !== 3 || j.promotion !== "not-eligible") process.exit(1)' "$TEST_DIR/sc.json" \
+    || log_fail "TEST-3646: score --json shape wrong: $(cat "$TEST_DIR/sc.json")"
+  : > "$TEST_DIR/gen.err"
+  gen_pairs "$TEST_DIR/sc_ok" 20 5
+  score_of "$TEST_DIR/sc_ok"
+  grep -qxF 'SCORE pairs=20 rides=5 clean_pass=20 clean_fail=0 flagged_pass=0 flagged_fail=0 unpaired=0' "$TEST_DIR/sc.out" || log_fail "TEST-3646: 20-pair SCORE wrong: $(cat "$TEST_DIR/sc.out")"
+  grep -qxF 'PROMOTION eligible reason=ok' "$TEST_DIR/sc.out" || log_fail "TEST-3646: 20 pairs over 5 refs must be eligible: $(cat "$TEST_DIR/sc.out")"
+  gen_pairs "$TEST_DIR/sc_19" 19 5
+  score_of "$TEST_DIR/sc_19"
+  grep -qxF 'PROMOTION not-eligible reason=min-pairs' "$TEST_DIR/sc.out" || log_fail "TEST-3646: 19 pairs must be min-pairs: $(cat "$TEST_DIR/sc.out")"
+  gen_pairs "$TEST_DIR/sc_4r" 20 4
+  score_of "$TEST_DIR/sc_4r"
+  grep -qxF 'PROMOTION not-eligible reason=min-rides' "$TEST_DIR/sc.out" || log_fail "TEST-3646: 4 refs must be min-rides: $(cat "$TEST_DIR/sc.out")"
+  gen_pairs "$TEST_DIR/sc_cf" 20 5 7
+  score_of "$TEST_DIR/sc_cf"
+  grep -qxF 'PROMOTION not-eligible reason=clean-fail' "$TEST_DIR/sc.out" || log_fail "TEST-3646: one clean_fail must block: $(cat "$TEST_DIR/sc.out")"
+  env -u AAI_ROLE node "$DIGEST" score --events "$TEST_DIR/nope/EVENTS.jsonl" > "$TEST_DIR/sc.out" 2> /dev/null || log_fail "TEST-3646: score on an absent EVENTS file must exit 0"
+  grep -qxF 'SCORE pairs=0 rides=0 clean_pass=0 clean_fail=0 flagged_pass=0 flagged_fail=0 unpaired=0' "$TEST_DIR/sc.out" || log_fail "TEST-3646: absent-file SCORE wrong"
+  grep -qxF 'PROMOTION not-eligible reason=min-pairs' "$TEST_DIR/sc.out" || log_fail "TEST-3646: absent-file PROMOTION wrong"
+  log_pass "TEST-3646: score pairs digests with validation verdicts by ref and head; eligible only at 20 pairs, 5 refs, 0 clean_fail"
+}
+
+# --- TEST-3647 (Spec-AC-12) ---------------------------------------------------
+test_3647_validation_rule() {
+  local v="$PROJECT_ROOT/.aai/VALIDATION.prompt.md" y="$PROJECT_ROOT/docs/ai/docs-audit.yaml"
+  grep -qF 'evidence-digest.mjs run' "$v" || log_fail "TEST-3647: VALIDATION does not name evidence-digest.mjs run"
+  grep -qF -- '--record' "$v" || log_fail "TEST-3647: VALIDATION does not name --record"
+  node -e '
+    const t = require("fs").readFileSync(process.argv[1], "utf8");
+    const i = t.indexOf("evidence-digest.mjs run");
+    const w = t.slice(i, i + 900);
+    for (const k of ["`off`", "`shadow`", "`on`", "never replaces", "sweep plan"]) {
+      if (!w.includes(k)) { console.error("rule window lacks " + k); process.exit(1); }
+    }
+  ' "$v" || log_fail "TEST-3647: VALIDATION rule lacks the three dial values or the never-replaces clause"
+  grep -qxF 'evidence_digest: shadow' "$y" || log_fail "TEST-3647: docs/ai/docs-audit.yaml lacks column-0 evidence_digest: shadow"
+  grep -qF "'off'" "$DIGEST" || log_fail "TEST-3647: code default off not visible in evidence-digest.mjs"
+  log_pass "TEST-3647: VALIDATION states the off, shadow and on rules; this repo sets shadow; code default is off"
+}
+
 main() {
   check_deps
   test_3633_shipped_effort_table
@@ -575,6 +793,10 @@ main() {
   test_3641_dispatch_to_report
   test_3642_canon_wiring
   test_3643_payload_prefix_stable
+  test_3644_digest_run
+  test_3645_digest_record
+  test_3646_digest_score
+  test_3647_validation_rule
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
