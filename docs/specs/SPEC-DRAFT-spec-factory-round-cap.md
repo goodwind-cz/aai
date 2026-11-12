@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: ed20e69c80a5157aca4ced9bdf9dfecda7f92a3d347d5ef63d6d639849054743
+frozen_sha256: 78699ae2895c4c680e83c1698fe5807bd866d6111cab7381d094e1d4b11d1c15
 ceremony_level: 3
 links:
   requirement: factory-round-cap
@@ -431,7 +431,7 @@ Edge cases:
 | TEST-3603 | Spec-AC-03 | integration | tests/skills/test-aai-round-budget.sh | append-event round_extension standing-a succeeds once and the refused reset then passes; a second standing-a for the ref exits 1 naming STANDING DECISION (a); an owner extension with an empty reason exits 1 | target `.aai/scripts/append-event.mjs`; `sed:s/if \(standingAUsed\)/if (false)/` allows a second standing-a and the case must fail | pending |
 | TEST-3604 | Spec-AC-04 | integration | tests/skills/test-aai-round-budget.sh | dispatch over a fixture repo with validation fail and two resets exits 3 with review_round_cap and standing_a_available and one set-human-input command; with one reset it dispatches Remediation byte-identical to a no-EVENTS baseline; same for rule 12 | target `.aai/scripts/orchestration-dispatch.mjs`; `sed:s/if \(cap.reached\)/if (false)/` dispatches Remediation past the cap and the case must fail | pending |
 | TEST-3605 | Spec-AC-05 | integration | tests/skills/test-aai-round-budget.sh | the reason from the TEST-3604 command, run through state.mjs set-human-input, classifies as park via unattended-gate classify --trigger review-round-cap; ORCHESTRATION names review_round_cap and round_extension --authority standing-a and stays at or under 45 lines | target `.aai/ORCHESTRATION.prompt.md`; `sed:s/review_round_cap/review_round_capX/g` removes the relay instruction and the case must fail | pending |
-| TEST-3606 | Spec-AC-06 | unit | tests/skills/test-aai-round-budget.sh | check-role-output on Validation FAIL and Code Review FAIL blocks with blockers [] and with an unbacked BLOCKING line exits 1 with E-FAIL-UNBACKED; with a backed check line naming an existing log and exit 1, and with a backed repro line, exits 0; an Implementation FAIL and a Validation BLOCKED are unaffected | target `.aai/scripts/check-role-output.mjs`; `sed:s/if \(failUnbacked\)/if (false)/` accepts an unbacked FAIL and the case must fail | pending |
+| TEST-3606 | Spec-AC-06 | unit | tests/skills/test-aai-round-budget.sh | check-role-output on Validation FAIL and Code Review FAIL blocks with blockers [] and with an unbacked BLOCKING line exits 1 with E-FAIL-UNBACKED; with a backed check line naming an existing log and exit 1, and with a backed repro line, exits 0; an Implementation FAIL and a Validation BLOCKED are unaffected; a repro naming an absolute path or a path outside the repo root is rejected | target `.aai/scripts/check-role-output.mjs`; `sed:s/if \(failUnbacked\)/if (false)/` accepts an unbacked FAIL and the case must fail | pending |
 | TEST-3607 | Spec-AC-07 | integration | tests/skills/test-aai-round-budget.sh | sweep-plan in scratch repos prints not-applicable without test-framework.sh, not-applicable for a ceremony 1 spec, full no-sweep, full not-ancestor, full code-delta naming a .aai/scripts path, reuse for a delta of tests, docs, a workflow file and a ledger line | target `.aai/scripts/round-budget.mjs`; `sed:s/'tests\/\*\*'/'tests-x\/\*\*'/` drops tests from the reuse classes and the case must fail | pending |
 | TEST-3608 | Spec-AC-07 | integration | tests/skills/test-aai-round-budget.sh | the newest full_sweep with rc 1 makes sweep-plan print full red-sweep even for a test-only delta; append-event refuses full_sweep with a short head, a non-integer rc or an empty run id | target `.aai/scripts/round-budget.mjs`; `sed:s/last.rc !== 0/false/` reuses a red sweep and the case must fail | pending |
 | TEST-3609 | Spec-AC-07 | unit | tests/skills/test-aai-round-budget.sh | append-event full_sweep validation alone: each malformed field exits 1 and writes no line | target `.aai/scripts/append-event.mjs`; `sed:s/if \(!fullSweepOk\)/if (false)/` accepts a malformed record and the case must fail | pending |
@@ -505,5 +505,14 @@ above.
   not an identity proof.
 - R5. A hand-run ride that never calls reset-block (for example by editing STATE
   by hand, which canon forbids) is not counted.
+- R7. `state.mjs set-validation --status not_run` and `set-code-review --status
+  not_run` clear a `fail` at the cap without writing a round and without meeting
+  the cap check, and `set-validation pass` directly over a fail is also uncounted.
+  R5 names only hand-editing STATE as an uncounted path; these sanctioned
+  commands are uncounted too. Counting them is a follow-up, not part of this ride.
+- R8. A `full_sweep` record is not tied to a real run. append-event checks the
+  shape of `--head`, `--rc` and `--run-id`, not that `docs/ai/tests/test-runs.jsonl`
+  holds that run, so a fake `--rc 0` line can clear E-SWEEP-OWED. Like R4 it is
+  visible in EVENTS and is not an identity proof.
 - R6. Classing `.github/**` as reusable relies on the selected suites and the
   PR's CI to cover workflow edits.
