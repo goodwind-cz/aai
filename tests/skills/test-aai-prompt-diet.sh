@@ -1032,7 +1032,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 65064 -> 65274: factory-round-cap remediation (+210 B: VALIDATION c2 names the append-event full_sweep flags +60 B, SKILL_TDD step 0 defers the one full sweep to final validation +150 B; credited 1:1).
   # Then 65274 -> 65355: factory-round-cap review fold (+81 B: VALIDATION c2 full append-event commands +77 B, SKILL_TDD step 0 contradiction removed +4 B; credited 1:1).
   # Then 65355 -> 65502: round-cap-hardening (+147 B: REMEDIATION step 4 one-call two-block reset and the exit 5 stop +129 B, ORCHESTRATION step 4 one reset-block call per failed block +18 B; 45 lines kept; credited 1:1).
-  local want_growth=65502
+  # Then 65502 -> 65945: model-effort-routing (+443 B: SKILL_LOOP, ORCHESTRATION_PARALLEL, SKILL_SHIP effort wiring; credited 1:1; AC-13 true-up adds the VALIDATION bytes).
+  local want_growth=65945
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1073,7 +1074,7 @@ test_012_growth_sum_matches_ledger() {
       rh_now=$(( rh_now + $(wc -c < "$PROJECT_ROOT/.aai/$rh_f.prompt.md" | tr -d ' ') ))
     done
     # ride-status-and-resume adds 550 B to SKILL_SHIP under its own ledger entry; excluded so this entry stays its own.
-    rh_now=$(( rh_now - 550 ))
+    rh_now=$(( rh_now - 550 - 19 ))   # model-effort-routing adds 19 B to SKILL_SHIP step 2 under its own entry
     if [[ -z "$rh_entry" ]]; then
       log_info "TEST-012 (ride-state-handoff TEST-013): no ride-state-handoff-to-worktree ledger entry (prompts grew $(( rh_now - rh_then )) B)"
       ok=0
