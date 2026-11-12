@@ -592,9 +592,9 @@ function decideRuleTable(snapshot, opts = {}) {
   // Rule 10 — validation FAIL -> Remediation; the G3 "missing reset" forensic
   // case (fail + a Remediation already ran last) is not mechanically provable.
   if (vstatus === 'fail') {
-    if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '10');
     const cap = roundCapState(s);
     if (cap.reached) return roundCapStop('10', s, cap.rb);
+    if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '10');
     return dispatchFor('Remediation', s, '10');
   }
   // Rule 11 — implementation exists but validation not run. A recorded `pass`
@@ -612,9 +612,9 @@ function decideRuleTable(snapshot, opts = {}) {
   }
   // Rule 12 — review FAIL -> Remediation (same forensic residue as rule 10).
   if (s.review && s.review.status === 'fail') {
-    if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '12');
     const cap = roundCapState(s);
     if (cap.reached) return roundCapStop('12', s, cap.rb);
+    if (s.last_run_role === 'Remediation') return needsLlm(s, ['possible_missing_remediation_reset'], '12');
     return dispatchFor('Remediation', s, '12');
   }
   // Rule 11s (spec-dispatch-state-sweep D2) — a standing focus-ref-scoped

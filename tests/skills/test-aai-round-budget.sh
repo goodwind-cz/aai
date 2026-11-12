@@ -799,6 +799,140 @@ test_3625_dispatch_unreadable_pinned() {
   log_pass "TEST-3625: dispatch over an unreadable ledger exits nonzero and dispatches nothing"
 }
 
+# write_state2 <file> <ref> <validation status> <review status>: both resettable blocks.
+write_state2() {
+  write_state "$1" "$2" "$3"
+  sed -i.bak '/^updated_at_utc/d' "$1" && rm -f "$1.bak"
+  cat >> "$1" <<YAML
+code_review:
+  required: true
+  status: $4
+  scope_ref_id: $2
+  notes: null
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+}
+
+# block_status <state file> <block>: the block's status scalar.
+block_status() { awk -v b="$2:" '$0==b{f=1;next} f&&/^  status:/{print $2;exit}' "$1"; }
+
+test_3626_joint_reset_one_round() {
+  new_tmp
+  local st="$TMP_ROOT/STATE.yaml" ev="$TMP_ROOT/EVENTS.jsonl" rc out
+  write_state2 "$st" RC-1 fail fail
+  reset_line RC-1 fail > "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation code_review)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3626: joint reset-block exited $rc: $(cat "$TMP_ROOT/r.log")"
+  [[ "$(block_status "$st" last_validation)" == not_run ]] || log_fail "TEST-3626: last_validation not reset"
+  [[ "$(block_status "$st" code_review)" == not_run ]] || log_fail "TEST-3626: code_review not reset"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 3 ]] || log_fail "TEST-3626: want 3 lines (1 prior + 2 new), got: $(cat "$ev")"
+  node -e '
+    const L = require("fs").readFileSync(process.argv[1], "utf8").trim().split("\n").map(x => JSON.parse(x));
+    const a = L[1], b = L[2];
+    const ok = a.event === "round_reset" && b.event === "round_reset"
+      && a.payload.block === "last_validation" && b.payload.block === "code_review"
+      && a.payload.same_round === undefined && b.payload.same_round === true
+      && a.payload.from === "fail" && b.payload.from === "fail";
+    process.exit(ok ? 0 : 1);' "$ev" || log_fail "TEST-3626: line shapes wrong: $(cat "$ev")"
+  out="$(node "$RB" status --ref RC-1 --events "$ev" 2>&1)"
+  grep -q 'rounds: 2/2 ' <<<"$out" || log_fail "TEST-3626: want rounds 2/2, got: $out"
+  grep -q 'validation=2' <<<"$out" || log_fail "TEST-3626: want validation=2, got: $out"
+  grep -q 'code_review=1' <<<"$out" || log_fail "TEST-3626: want code_review=1, got: $out"
+  log_pass "TEST-3626: a two-block reset-block is one STATE write and one round: two lines, the second same_round"
+}
+
+test_3627_joint_reset_refusals() {
+  new_tmp
+  local st="$TMP_ROOT/STATE.yaml" ev="$TMP_ROOT/EVENTS.jsonl" rc case_name
+  # at the cap
+  write_state2 "$st" RC-1 fail fail
+  reset_line RC-1 fail > "$ev"; reset_line RC-1 fail >> "$ev"
+  cp "$st" "$TMP_ROOT/s.before"; cp "$ev" "$TMP_ROOT/e.before"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation code_review)"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3627: at the cap want exit 5, got $rc: $(cat "$TMP_ROOT/r.log")"
+  cmp -s "$st" "$TMP_ROOT/s.before" || log_fail "TEST-3627: STATE changed at the cap"
+  cmp -s "$ev" "$TMP_ROOT/e.before" || log_fail "TEST-3627: EVENTS changed at the cap"
+  # unreadable ledger
+  rm "$ev"; mkdir "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation code_review)"
+  [[ "$rc" == 5 ]] || log_fail "TEST-3627: unreadable ledger want exit 5, got $rc"
+  cmp -s "$st" "$TMP_ROOT/s.before" || log_fail "TEST-3627: STATE changed on an unreadable ledger"
+  rmdir "$ev"
+  # a pass block without force, then repeated and unknown names, then a third name
+  write_state2 "$st" RC-1 fail pass
+  reset_line RC-1 fail > "$ev"
+  cp "$st" "$TMP_ROOT/s.before"; cp "$ev" "$TMP_ROOT/e.before"
+  for case_name in "last_validation code_review" "last_validation last_validation" "last_validation metrics" "last_validation code_review code_review"; do
+    # shellcheck disable=SC2086
+    rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block $case_name)"
+    [[ "$rc" != 0 ]] || log_fail "TEST-3627: reset-block $case_name must be refused"
+    cmp -s "$st" "$TMP_ROOT/s.before" || log_fail "TEST-3627: STATE changed on refused: $case_name"
+    cmp -s "$ev" "$TMP_ROOT/e.before" || log_fail "TEST-3627: EVENTS changed on refused: $case_name"
+  done
+  # one block already not_run: the other resets with one line, no same_round
+  write_state2 "$st" RC-1 not_run fail
+  : > "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation code_review)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3627: not_run plus fail must reset, got $rc: $(cat "$TMP_ROOT/r.log")"
+  [[ "$(block_status "$st" code_review)" == not_run ]] || log_fail "TEST-3627: code_review not reset"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 1 ]] || log_fail "TEST-3627: want one line, got: $(cat "$ev")"
+  ! grep -q same_round "$ev" || log_fail "TEST-3627: a single changed block must not carry same_round"
+  # single-block form unchanged
+  write_state2 "$st" RC-1 fail fail
+  : > "$ev"
+  rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block code_review)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3627: single-block reset got $rc"
+  [[ "$(block_status "$st" last_validation)" == fail ]] || log_fail "TEST-3627: single-block reset touched the other block"
+  [[ "$(wc -l < "$ev" | tr -d ' ')" == 1 ]] || log_fail "TEST-3627: single-block reset wants one line"
+  log_pass "TEST-3627: a refused two-block reset leaves STATE and EVENTS byte-identical; a not_run partner and the single-block form behave as before"
+}
+
+# mk_remediated_root <dir> <vstatus> <rstatus> <phase>: a dispatch fixture whose last recorded run is a Remediation.
+mk_remediated_root() {
+  mk_dispatch_root "$1" "$2" "$3" "$4"
+  {
+    echo "metrics:"
+    echo "  work_items:"
+    echo "    CHANGE-0001:"
+    echo "      human_time_minutes:"
+    echo "        intake: null"
+    echo "        reviews: null"
+    echo "      agent_runs:"
+    echo "        - role: Remediation"
+    echo "          model_id: claude-rem-x"
+    echo "          started_utc: 2026-07-01T00:02:00Z"
+    echo "          ended_utc: 2026-07-01T00:03:00Z"
+    echo "          duration_seconds: 60"
+    echo "          tokens_in: null"
+    echo "          tokens_out: null"
+    echo "          cost_usd: null"
+  } >> "$1/docs/ai/STATE.yaml"
+}
+
+test_3628_cap_before_forensic_case() {
+  new_tmp
+  local d rc rule vs rs ph
+  for rule in 10 12; do
+    if [[ "$rule" == 10 ]]; then vs=fail; rs=not_run; ph=validation; else vs=pass; rs=fail; ph=code_review; fi
+    d="$TMP_ROOT/r$rule"
+    mk_remediated_root "$d" "$vs" "$rs" "$ph"
+    reset_line CHANGE-0001 fail > "$d/docs/ai/EVENTS.jsonl"
+    rc="$(dispatch_rc "$d" "$TMP_ROOT/one$rule.json")"
+    [[ "$rc" == 4 ]] || log_fail "TEST-3628: rule $rule below the cap must exit 4, got $rc: $(cat "$TMP_ROOT/one$rule.json")"
+    grep -q 'possible_missing_remediation_reset' "$TMP_ROOT/one$rule.json" || log_fail "TEST-3628: rule $rule below the cap must keep possible_missing_remediation_reset"
+    reset_line CHANGE-0001 fail >> "$d/docs/ai/EVENTS.jsonl"
+    rc="$(dispatch_rc "$d" "$TMP_ROOT/cap$rule.json")"
+    [[ "$rc" == 3 ]] || log_fail "TEST-3628: rule $rule at the cap after a Remediation must exit 3, got $rc: $(cat "$TMP_ROOT/cap$rule.json")"
+    node -e '
+      const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+      const c=o.state_update_commands;
+      const ok=o.verdict==="no_action"&&o.rule===process.argv[2]&&o.reasons.includes("review_round_cap")
+        &&Array.isArray(c)&&c.length===1&&c[0].startsWith("node .aai/scripts/state.mjs set-human-input");
+      process.exit(ok?0:1)' "$TMP_ROOT/cap$rule.json" "$rule" || log_fail "TEST-3628: rule $rule stop shape wrong: $(cat "$TMP_ROOT/cap$rule.json")"
+  done
+  log_pass "TEST-3628: rules 10 and 12 stop at the cap even when the last run is a Remediation; below it the forensic case stays"
+}
+
 main() {
   check_deps
   test_3600_status_counts
@@ -824,6 +958,9 @@ main() {
   test_3623_status_and_sweep_plan_unreadable
   test_3624_check_role_output_unreadable
   test_3625_dispatch_unreadable_pinned
+  test_3626_joint_reset_one_round
+  test_3627_joint_reset_refusals
+  test_3628_cap_before_forensic_case
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

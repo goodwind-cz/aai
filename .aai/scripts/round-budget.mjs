@@ -55,7 +55,7 @@ export const errCode = (err) => (err && err.code) || 'UNKNOWN';
 const forRef = (events, ref, name) => events.filter(e => e.event === name && e.ref === ref);
 
 export function roundsUsed(events, ref) {
-  return forRef(events, ref, 'round_reset').length;
+  return forRef(events, ref, 'round_reset').filter(e => e.payload?.same_round !== true).length;
 }
 
 export function roundCap(events, ref) {
@@ -100,11 +100,17 @@ function actorSlug() {
   }
 }
 
-// Append one round_reset line beside the STATE file's EVENTS. Throws on an I/O error; the caller warns.
-export function appendRoundReset(eventsPath, ref, payload) {
-  const entry = { v: 1, ts: nowIso(), actor: actorSlug(), event: 'round_reset', ref, payload };
+// Append the round_reset lines of ONE reset call beside the STATE file's EVENTS, in one write: one line per
+// payload, in order; every line after the first carries same_round true and is not a counted round (D-JOINT).
+// A single payload object is the one-block form. Throws on an I/O error; the caller warns.
+export function appendRoundReset(eventsPath, ref, payloads) {
+  const list = Array.isArray(payloads) ? payloads : [payloads];
+  const lines = list.map((payload, i) => JSON.stringify({
+    v: 1, ts: nowIso(), actor: actorSlug(), event: 'round_reset', ref,
+    payload: i === 0 ? payload : { ...payload, same_round: true },
+  }) + '\n');
   fs.mkdirSync(path.dirname(eventsPath), { recursive: true });
-  fs.appendFileSync(eventsPath, JSON.stringify(entry) + '\n');
+  fs.appendFileSync(eventsPath, lines.join(''));
 }
 
 export function statusOf(events, ref) {
