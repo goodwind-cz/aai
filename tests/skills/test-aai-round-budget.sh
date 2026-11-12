@@ -936,7 +936,7 @@ test_3628_cap_before_forensic_case() {
 # ---- round-cap-hardening: D-MENU2, D-RELAY prose, companions (TEST-3629..3632) ----
 
 # menu_option2 <text>: the runnable command inside option (2) of an owner menu.
-menu_option2() { sed -n 's/.*(2) one more round: \(.*\) (3) park the ride.*/\1/p' <<<"$1" | head -n 1; }
+menu_option2() { local o; o="$(sed -n 's/.*(2) one more round: \(.*\) (3) park the ride.*/\1/p' <<<"$1")"; printf '%s\n' "${o%%$'\n'*}"; }
 
 # in_dir <dir> <cmd...>: run a command from another directory in a subshell.
 in_dir() { (cd "$1" && shift && "$@"); }
@@ -978,7 +978,8 @@ test_3630_relay_prose() {
   for s in 'reset-block last_validation code_review' 'one call' 'REFUSED'; do
     grep -qF -- "$s" "$r" || log_fail "TEST-3630: REMEDIATION lacks: $s"
   done
-  tr '\n' ' ' < "$r" | grep -qE 'Exit 5.*nothing was reset' || log_fail "TEST-3630: REMEDIATION does not say that on exit 5 nothing was reset"
+  local flat; flat="$(tr '\n' ' ' < "$r")"
+  [[ "$flat" =~ Exit\ 5.*nothing\ was\ reset ]] || log_fail "TEST-3630: REMEDIATION does not say that on exit 5 nothing was reset"
   for s in 'one reset-block call' 'exit 5'; do
     grep -qF -- "$s" "$o" || log_fail "TEST-3630: ORCHESTRATION lacks: $s"
   done
