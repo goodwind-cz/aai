@@ -307,6 +307,207 @@ test_3637_effort_override() {
   log_pass "TEST-3637: override named on claude only, value never printed, null otherwise"
 }
 
+# --- state / flush / report helpers ---------------------------------------------
+STATE_MJS="$PROJECT_ROOT/.aai/scripts/state.mjs"
+FLUSH_MJS="$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs"
+REPORT_MJS="$PROJECT_ROOT/.aai/scripts/metrics-report.mjs"
+
+# st <root> <state.mjs args...> -> OUT/ERR/EC; STATE and ticks live in the root.
+st() {
+  local d="$1"
+  shift
+  OUT="$d/st.out"; ERR="$d/st.err"; EC=0
+  (cd "$PROJECT_ROOT" && env -u AAI_ROLE -u AAI_GIT_WRITE node "$STATE_MJS" --state "$d/docs/ai/STATE.yaml" \
+    --ticks "$d/docs/ai/LOOP_TICKS.jsonl" "$@") > "$OUT" 2> "$ERR" || EC=$?
+}
+
+# flush_d <root> -> runs metrics-flush over the root's STATE into its METRICS.
+flush_d() {
+  local d="$1" fl_ec=0
+  (cd "$PROJECT_ROOT" && env -u AAI_ROLE -u AAI_GIT_WRITE node "$FLUSH_MJS" --state "$d/docs/ai/STATE.yaml" \
+    --metrics "$d/docs/ai/METRICS.jsonl" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
+    --pricing "$PROJECT_ROOT/.aai/system/PRICING.yaml" \
+    --events "$d/docs/ai/EVENTS.jsonl" --now 2026-07-02T00:00:00Z) > "$d/fl.out" 2>&1 || fl_ec=$?
+  [[ "$fl_ec" == 0 ]] || log_fail "${CUR_TEST:-TEST}: flush exited $fl_ec: $(cat "$d/fl.out")"
+}
+
+# jassert_ledger <ledger> <js-expr over o = the single ledger line>
+jassert_ledger() {
+  node -e '
+    const lines = require("fs").readFileSync(process.argv[1], "utf8").split(/\r?\n/).filter(l => l.trim() !== "" && !l.startsWith("#"));
+    if (lines.length !== 1) { console.error("expected one ledger line, got " + lines.length); process.exit(1); }
+    const o = JSON.parse(lines[0]);
+    const fn = new Function("o", "return (" + process.argv[2] + ");");
+    if (!fn(o)) { console.error("assert failed: " + process.argv[2] + "\n  got: " + lines[0].slice(0, 800)); process.exit(1); }
+  ' "$1" "$2" || log_fail "${CUR_TEST:-TEST}: ledger assertion failed"
+}
+
+# rep <ledger> <args...> -> stdout in $TEST_DIR/rep.out; EC set
+rep() {
+  local m="$1"
+  shift
+  EC=0
+  (cd "$PROJECT_ROOT" && node "$REPORT_MJS" --metrics "$m" --pricing "$PROJECT_ROOT/.aai/system/PRICING.yaml" "$@") > "$TEST_DIR/rep.out" 2> "$TEST_DIR/rep.err" || EC=$?
+}
+
+# done_state <root> — turn the fixture STATE into a flushable finished item.
+done_state() {
+  local d="$1"
+  sed -e 's/status: in_progress/status: done/' \
+    -e '/^last_validation:/,/^  ref_id/ s/status: not_run/status: pass/' \
+    -e '/^code_review:/,/^  base_ref/ s/status: not_run/status: pass/' \
+    "$d/docs/ai/STATE.yaml" > "$d/s.yaml"
+  mv "$d/s.yaml" "$d/docs/ai/STATE.yaml"
+  printf '# Fixture item\n' > "$d/docs/issues/CHANGE-0001-fixture.md"
+  : > "$d/docs/ai/METRICS.jsonl"
+}
+
+# --- TEST-3638 (Spec-AC-05) ---------------------------------------------------
+test_3638_append_run_flags() {
+  CUR_TEST="TEST-3638"
+  log_info "TEST-3638: append-run carries the four fields only when passed; bad values exit 2 writing nothing..."
+  local d; d="$(mk_root t3638)"
+  local common=(append-run --ref CHANGE-0001 --role Implementation --model claude-sonnet-5-5 --started 2026-07-01T00:00:00Z --tokens-in 1 --tokens-out 1 --tokens-total 2)
+  st "$d" "${common[@]}"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3638: plain append-run exited $EC: $(cat "$ERR")"
+  if qgrep -q -e 'requested_effort' -e 'effort_applied' -e 'cache_read_tokens' -e 'cache_creation_tokens' < "$d/docs/ai/STATE.yaml"; then
+    log_fail "TEST-3638: a plain append-run wrote an effort or cache field"
+  fi
+  st "$d" "${common[@]}" --requested-effort high --effort-applied param --cache-read 7 --cache-creation 9
+  [[ "$EC" == 0 ]] || log_fail "TEST-3638: append-run with the four flags exited $EC: $(cat "$ERR")"
+  local want
+  for want in 'requested_effort: high' 'effort_applied: param' 'cache_read_tokens: 7' 'cache_creation_tokens: 9'; do
+    qgrep -q -x -F "          $want" < "$d/docs/ai/STATE.yaml" || log_fail "TEST-3638: STATE lacks '$want'"
+  done
+  local before after bad
+  before="$(cat "$d/docs/ai/STATE.yaml")"
+  for bad in '--requested-effort turbo' '--effort-applied maybe' '--cache-read x' '--cache-creation x'; do
+    # shellcheck disable=SC2086
+    st "$d" "${common[@]}" $bad
+    [[ "$EC" == 2 ]] || log_fail "TEST-3638: '$bad' exited $EC, expected 2"
+    qgrep -q 'usage:' < "$ERR" || log_fail "TEST-3638: '$bad' printed no usage line"
+    after="$(cat "$d/docs/ai/STATE.yaml")"
+    [[ "$before" == "$after" ]] || log_fail "TEST-3638: '$bad' changed STATE"
+  done
+  st "$d" log-tick --tick 1 --role Implementation --scope CHANGE-0001 --started 2026-07-01T00:00:00Z --cache-creation 5
+  [[ "$EC" == 0 ]] || log_fail "TEST-3638: log-tick exited $EC: $(cat "$ERR")"
+  qgrep -q '"cache_creation_tokens":5' < "$d/docs/ai/LOOP_TICKS.jsonl" || log_fail "TEST-3638: log-tick did not write cache_creation_tokens 5"
+  st "$d" log-tick --tick 2 --role Implementation --scope CHANGE-0001 --started 2026-07-01T00:00:00Z
+  [[ "$(grep -c cache_creation_tokens "$d/docs/ai/LOOP_TICKS.jsonl" || true)" == 1 ]] || log_fail "TEST-3638: log-tick wrote cache_creation_tokens without the flag"
+  log_pass "TEST-3638: four run fields on flag, none without, exit 2 and STATE untouched on bad values, log-tick cache-creation"
+}
+
+# --- TEST-3639 (Spec-AC-06) ---------------------------------------------------
+test_3639_flush_carries_fields() {
+  CUR_TEST="TEST-3639"
+  log_info "TEST-3639: metrics-flush carries the four fields into METRICS; a run without them carries none..."
+  local d; d="$(mk_root t3639)"
+  done_state "$d"
+  local common=(append-run --ref CHANGE-0001 --model claude-sonnet-5-5 --tokens-in 10 --tokens-out 5 --tokens-total 15)
+  st "$d" "${common[@]}" --role Implementation --started 2026-07-01T00:00:00Z --requested-effort medium --effort-applied overridden --cache-read 70 --cache-creation 90
+  [[ "$EC" == 0 ]] || log_fail "TEST-3639: append-run exited $EC: $(cat "$ERR")"
+  st "$d" "${common[@]}" --role Planning --started 2026-07-01T00:10:00Z
+  [[ "$EC" == 0 ]] || log_fail "TEST-3639: second append-run exited $EC: $(cat "$ERR")"
+  flush_d "$d"
+  jassert_ledger "$d/docs/ai/METRICS.jsonl" '(() => { const a = o.agent_runs; const i = a.find(r => r.role === "Implementation"), p = a.find(r => r.role === "Planning");
+    return i.requested_effort === "medium" && i.effort_applied === "overridden" && i.cache_read_tokens === 70 && i.cache_creation_tokens === 90
+      && !("requested_effort" in p) && !("effort_applied" in p) && !("cache_read_tokens" in p) && !("cache_creation_tokens" in p); })()'
+  log_pass "TEST-3639: four fields flushed (strings and numbers); absent stays absent"
+}
+
+write_effort_ledger() {
+  cat > "$1" <<'JSONL'
+# fixture ledger
+{"date_utc":"2026-07-01","ref_id":"AAA-0001","title":"First","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":1.5,"tokens_total":1000},{"role":"Validation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":null,"tokens_total":400}],"verdict":"PASS"}
+{"date_utc":"2026-07-10","ref_id":"AAA-0002","title":"Second","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation (review round 2)","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":2,"tokens_total":900,"requested_effort":"medium","cache_read_tokens":30,"cache_creation_tokens":10},{"role":"Implementation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":null,"tokens_total":null,"requested_effort":"medium"},{"role":"Validation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":0.5,"tokens_total":500,"requested_effort":"high"}],"verdict":"PASS"}
+JSONL
+}
+
+# --- TEST-3640 (Spec-AC-07) ---------------------------------------------------
+test_3640_by_effort_tables() {
+  CUR_TEST="TEST-3640"
+  log_info "TEST-3640: metrics-report --by-effort and --split print the exact tables..."
+  local d="$TEST_DIR/t3640"; mkdir -p "$d"
+  write_effort_ledger "$d/METRICS.jsonl"
+  rep "$d/METRICS.jsonl" --by-effort
+  [[ "$EC" == 0 ]] || log_fail "TEST-3640: --by-effort exited $EC: $(cat "$TEST_DIR/rep.err")"
+  cat > "$d/want1.md" <<'MD'
+### By role and requested effort
+| role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
+|------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
+| Implementation | medium | 2 | 1 | 900 | 900 | $2.00 | 30 | 10 | 1 |
+| Implementation | unset | 1 | 1 | 1000 | 1000 | $1.50 | 0 | 0 | 0 |
+| Validation | high | 1 | 1 | 500 | 500 | $0.50 | 0 | 0 | 0 |
+| Validation | unset | 1 | 1 | 400 | 400 | n/a | 0 | 0 | 0 |
+MD
+  diff -u "$d/want1.md" "$TEST_DIR/rep.out" > "$d/d1" 2>&1 || log_fail "TEST-3640: --by-effort table differs: $(cat "$d/d1")"
+  rep "$d/METRICS.jsonl" --by-effort --split 2026-07-05
+  [[ "$EC" == 0 ]] || log_fail "TEST-3640: --split exited $EC: $(cat "$TEST_DIR/rep.err")"
+  cat > "$d/want2.md" <<'MD'
+### Before 2026-07-05
+| role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
+|------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
+| Implementation | unset | 1 | 1 | 1000 | 1000 | $1.50 | 0 | 0 | 0 |
+| Validation | unset | 1 | 1 | 400 | 400 | n/a | 0 | 0 | 0 |
+
+### From 2026-07-05
+| role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
+|------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
+| Implementation | medium | 2 | 1 | 900 | 900 | $2.00 | 30 | 10 | 1 |
+| Validation | high | 1 | 1 | 500 | 500 | $0.50 | 0 | 0 | 0 |
+
+### Delta by role
+| role | median tokens_total before | median tokens_total from | change |
+|------|----------------------------|--------------------------|--------|
+| Implementation | 1000 | 900 | -10.0% |
+| Validation | 400 | 500 | +25.0% |
+MD
+  diff -u "$d/want2.md" "$TEST_DIR/rep.out" > "$d/d2" 2>&1 || log_fail "TEST-3640: --split tables differ: $(cat "$d/d2")"
+  rep "$d/METRICS.jsonl" --by-effort --split 2026-07-20
+  qgrep -q -x -F '| Validation | 450 | n/a | n/a |' < "$TEST_DIR/rep.out" || log_fail "TEST-3640: delta lacks the n/a row: $(cat "$TEST_DIR/rep.out")"
+  rep "$d/METRICS.jsonl" --split 2026-07-05
+  [[ "$EC" == 2 ]] || log_fail "TEST-3640: --split without --by-effort exited $EC, expected 2"
+  log_pass "TEST-3640: exact by-effort, Before/From/Delta tables, one-decimal percent, n/a, split-alone refused"
+}
+
+# --- TEST-3641 (Spec-AC-07) ---------------------------------------------------
+test_3641_dispatch_to_report() {
+  CUR_TEST="TEST-3641"
+  log_info "TEST-3641: dispatch effort feeds append-run, flush and the report; default output unchanged..."
+  local d; d="$(mk_root t3641)"
+  cp "$ROUTING" "$d/.aai/system/MODEL_ROUTING.yaml"
+  sed -e '/^last_validation:/,/^  ref_id/ s/status: not_run/status: pass/' "$d/docs/ai/STATE.yaml" > "$d/s0.yaml"
+  mv "$d/s0.yaml" "$d/docs/ai/STATE.yaml"
+  run_d "$d" claude
+  local eff; eff="$(jeval "$OUT" 'o.suggested_effort')"
+  [[ "$eff" == high ]] || log_fail "TEST-3641: dispatch suggested_effort is '$eff', expected high for Validation: $(cat "$OUT")"
+  done_state "$d"
+  st "$d" append-run --ref CHANGE-0001 --role Validation --model claude-sonnet-5-5 --started 2026-07-01T00:00:00Z --tokens-in 10 --tokens-out 5 \
+    --tokens-total 15 --verdict pass --requested-effort "$eff" --effort-applied param
+  [[ "$EC" == 0 ]] || log_fail "TEST-3641: append-run exited $EC: $(cat "$ERR")"
+  flush_d "$d"
+  rep "$d/docs/ai/METRICS.jsonl" --by-effort
+  [[ "$EC" == 0 ]] || log_fail "TEST-3641: --by-effort exited $EC: $(cat "$TEST_DIR/rep.err")"
+  qgrep -q -e '^\| Validation \| high \| 1 \| 1 \| 15 \|' < "$TEST_DIR/rep.out" || log_fail "TEST-3641: no Validation high row: $(cat "$TEST_DIR/rep.out")"
+  # Default output ignores the new fields: byte-identical with them stripped.
+  rep "$d/docs/ai/METRICS.jsonl"
+  cp "$TEST_DIR/rep.out" "$d/default-with.md"
+  if qgrep -q 'requested effort' < "$d/default-with.md"; then log_fail "TEST-3641: default output grew an effort section"; fi
+  node -e '
+    const fs = require("fs");
+    const out = fs.readFileSync(process.argv[1], "utf8").split(/\r?\n/).map(l => {
+      if (l.trim() === "" || l.startsWith("#")) return l;
+      const o = JSON.parse(l);
+      for (const r of o.agent_runs) { delete r.requested_effort; delete r.effort_applied; delete r.cache_read_tokens; delete r.cache_creation_tokens; }
+      return JSON.stringify(o);
+    }).join("\n");
+    fs.writeFileSync(process.argv[2], out);
+  ' "$d/docs/ai/METRICS.jsonl" "$d/stripped.jsonl"
+  rep "$d/stripped.jsonl"
+  cmp -s "$d/default-with.md" "$TEST_DIR/rep.out" || log_fail "TEST-3641: default output changed with the effort fields present"
+  log_pass "TEST-3641: dispatch effort -> append-run -> flush -> report row; default output unchanged"
+}
+
 main() {
   check_deps
   test_3633_shipped_effort_table
@@ -314,6 +515,10 @@ main() {
   test_3635_harness_effort
   test_3636_params_headers
   test_3637_effort_override
+  test_3638_append_run_flags
+  test_3639_flush_carries_fields
+  test_3640_by_effort_tables
+  test_3641_dispatch_to_report
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
