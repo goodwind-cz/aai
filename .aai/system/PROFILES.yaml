@@ -241,6 +241,7 @@ core:
   - .aai/scripts/spec-lint.mjs
   - .aai/scripts/spec-scope-edit.mjs
   - .aai/scripts/round-budget.mjs
+  - .aai/scripts/evidence-digest.mjs
   - .aai/scripts/state.mjs
   - .aai/scripts/suite-reuse.mjs
   - .aai/scripts/lib/checkout-trace.mjs

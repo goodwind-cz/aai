@@ -1032,8 +1032,9 @@ test_012_growth_sum_matches_ledger() {
   # Then 65064 -> 65274: factory-round-cap remediation (+210 B: VALIDATION c2 names the append-event full_sweep flags +60 B, SKILL_TDD step 0 defers the one full sweep to final validation +150 B; credited 1:1).
   # Then 65274 -> 65355: factory-round-cap review fold (+81 B: VALIDATION c2 full append-event commands +77 B, SKILL_TDD step 0 contradiction removed +4 B; credited 1:1).
   # Then 65355 -> 65502: round-cap-hardening (+147 B: REMEDIATION step 4 one-call two-block reset and the exit 5 stop +129 B, ORCHESTRATION step 4 one reset-block call per failed block +18 B; 45 lines kept; credited 1:1).
-  # Then 65502 -> 65945: model-effort-routing (+443 B: SKILL_LOOP, ORCHESTRATION_PARALLEL, SKILL_SHIP effort wiring; credited 1:1; AC-13 true-up adds the VALIDATION bytes).
-  local want_growth=65945
+  # Then 65502 -> 65945: model-effort-routing (+443 B: SKILL_LOOP, ORCHESTRATION_PARALLEL, SKILL_SHIP effort wiring; credited 1:1; AC-13 true-up adds the rest).
+  # Then 65945 -> 66423: model-effort-routing Spec-AC-12 (+478 B: VALIDATION evidence-digest dial rule; credited 1:1).
+  local want_growth=66423
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
