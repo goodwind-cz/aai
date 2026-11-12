@@ -1709,6 +1709,7 @@ suites:
   aai-round-budget:
     globs:
       - .aai/scripts/round-budget.mjs
+      - .aai/scripts/select-suites.mjs
       - .aai/scripts/state.mjs
       - .aai/scripts/orchestration-dispatch.mjs
       - .aai/scripts/append-event.mjs

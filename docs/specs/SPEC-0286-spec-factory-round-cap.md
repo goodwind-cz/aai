@@ -1,10 +1,10 @@
 ---
 id: spec-factory-round-cap
 type: spec
-number: null
-status: implementing
+number: 286
+status: done
 mutation_gate: v1
-frozen_sha256: 78699ae2895c4c680e83c1698fe5807bd866d6111cab7381d094e1d4b11d1c15
+frozen_sha256: 225c9ea4248625dc5d937bcc6f16fc77b4b94b851def893036669693bd84e00b
 ceremony_level: 3
 links:
   requirement: factory-round-cap
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/CHANGE-DRAFT-factory-round-cap.md
+- Requirement: docs/issues/CHANGE-0255-factory-round-cap.md
 - Owner decisions this scope enforces and does not change (docs/ai/decisions.jsonl,
   `hitl_decision`, `owner_signoff: true`): `review-round-cap` (2026-09-05, two
   rounds max), `wave-2-roadmap` STANDING DECISION (a) (one extra round for a
@@ -354,18 +354,18 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN round-budget.mjs status runs over an EVENTS file the system SHALL print rounds used as the count of round_reset lines of the ref and the cap as 2 plus its round_extension lines, ignoring other refs and malformed lines with a NOTE | planned | docs/ai/tdd/factory-round-cap/green-run1.log TEST-3600 | — | D-COUNT, D-STATUS |
-| Spec-AC-02 | WHEN state.mjs reset-block changes a block the system SHALL append one round_reset line beside the STATE file, and WHEN rounds used already meet the cap it SHALL exit 5 with a REFUSED review-round-cap line and the three-option menu, writing neither STATE nor EVENTS; a no-op reset SHALL append nothing and never refuse | planned | docs/ai/tdd/factory-round-cap/green-run1.log TEST-3601 TEST-3602 | — | D-COUNT, D-CAP |
-| Spec-AC-03 | WHEN append-event records a round_extension the system SHALL require an authority of standing-a or owner and a non-empty reason, SHALL refuse a second standing-a extension for the same ref, and reset-block SHALL then accept the reset the cap refused | planned | docs/ai/tdd/factory-round-cap/green-run1.log TEST-3603 | — | D-EXT |
-| Spec-AC-04 | WHEN dispatch rule 10 or 12 would send Remediation with rounds used at the cap the system SHALL exit 3 with reason review_round_cap, add standing_a_available while no standing-a extension exists, and return exactly one set-human-input command whose reason starts review-round-cap; below the cap the output SHALL be unchanged | planned | docs/ai/tdd/factory-round-cap/green-run2.log TEST-3604 | — | D-CAP |
-| Spec-AC-05 | WHEN the dispatch stop is relayed the human-input reason SHALL classify as review-round-cap park in unattended-gate, and ORCHESTRATION step 3 SHALL name review_round_cap, the standing-a command and its re-run once, within the 45-line ceiling | planned | docs/ai/tdd/factory-round-cap/green-run2.log TEST-3605 | — | Seam dispatch to loop to unattended gate |
-| Spec-AC-06 | WHEN check-role-output reads a Validation or Code Review FAIL block whose blockers hold no BLOCKING entry backed by check with a nonzero exit or by repro, each naming an existing file, the system SHALL reject it with E-FAIL-UNBACKED; a backed entry SHALL pass and other roles and BLOCKED SHALL be unaffected | planned | docs/ai/tdd/factory-round-cap/green-run2.log TEST-3606 | — | D-BAR |
-| Spec-AC-07 | WHEN round-budget.mjs sweep-plan runs the system SHALL print exactly one SWEEP line, with not-applicable for an absent test-framework.sh or a lightweight lane, full for no sweep, a red sweep, a non-ancestor head or a path outside the reuse classes, and reuse otherwise; append-event SHALL refuse a full_sweep line with a bad head, rc or run id | planned | docs/ai/tdd/factory-round-cap/green-run3.log TEST-3607 TEST-3608 TEST-3609 | — | D-SWEEP |
-| Spec-AC-08 | WHEN check-role-output reads a Validation PASS block while sweep-plan answers full the system SHALL reject it with E-SWEEP-OWED, SHALL accept it on reuse, and SHALL accept it with a NOTE line on not-applicable | planned | docs/ai/tdd/factory-round-cap/green-run3.log TEST-3610 | — | D-SWEEP |
-| Spec-AC-09 | WHEN the ride 8 round history is replayed through the real CLIs in a scratch repository the system SHALL print the REPLAY line with replay_resets 3, replay_stop R2, the forced V6 reset refused and replay_sweeps 1 against recorded 5 resets and 3 sweeps | planned | docs/ai/tdd/factory-round-cap/green-run3.log TEST-3611 | — | D-REPLAY, the measured gain |
-| Spec-AC-10 | The canon prompts SHALL each name the counted cap, the backed blocking bar, the follow-up default for NON-BLOCKING findings and the sweep-plan sequence as D-CANON lists, SHALL keep both owner-decision citations in VALIDATION c2, and SHALL keep no sentence that demands an intermediate full sweep or a whole-suite re-run | planned | docs/ai/tdd/factory-round-cap/green-run4.log TEST-3612 | — | D-CANON |
-| Spec-AC-11 | The new module SHALL be classified core in PROFILES, mapped by suite-map to the new suite and the three existing ones, and the prompt-diet ledger entry, the TEST-012 pin and the companion pins SHALL agree with the measured corpus delta at headroom 0 | planned | docs/ai/tdd/factory-round-cap/green-run4.log TEST-3613 TEST-3614 | — | D-WIRE |
-| Spec-AC-12 | CHANGELOG.md SHALL gain exactly one per-entry unreleased heading for this change below the kept bare scaffold, naming the cap, the blocking bar, the sweep plan and the measured gain | planned | docs/ai/tdd/factory-round-cap/green-run4.log TEST-3615 | — | Consumer-visible; canon prompts ship downstream; the product doc is /aai-ship step 4, not an AC |
+| Spec-AC-01 | WHEN round-budget.mjs status runs over an EVENTS file the system SHALL print rounds used as the count of round_reset lines of the ref and the cap as 2 plus its round_extension lines, ignoring other refs and malformed lines with a NOTE | done | docs/ai/tdd/factory-round-cap/green-run1.log TEST-3600; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-COUNT, D-STATUS |
+| Spec-AC-02 | WHEN state.mjs reset-block changes a block the system SHALL append one round_reset line beside the STATE file, and WHEN rounds used already meet the cap it SHALL exit 5 with a REFUSED review-round-cap line and the three-option menu, writing neither STATE nor EVENTS; a no-op reset SHALL append nothing and never refuse | done | docs/ai/tdd/factory-round-cap/green-run1.log TEST-3601 TEST-3602; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-COUNT, D-CAP |
+| Spec-AC-03 | WHEN append-event records a round_extension the system SHALL require an authority of standing-a or owner and a non-empty reason, SHALL refuse a second standing-a extension for the same ref, and reset-block SHALL then accept the reset the cap refused | done | docs/ai/tdd/factory-round-cap/green-run1.log TEST-3603; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-EXT |
+| Spec-AC-04 | WHEN dispatch rule 10 or 12 would send Remediation with rounds used at the cap the system SHALL exit 3 with reason review_round_cap, add standing_a_available while no standing-a extension exists, and return exactly one set-human-input command whose reason starts review-round-cap; below the cap the output SHALL be unchanged | done | docs/ai/tdd/factory-round-cap/green-run2.log TEST-3604; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-CAP |
+| Spec-AC-05 | WHEN the dispatch stop is relayed the human-input reason SHALL classify as review-round-cap park in unattended-gate, and ORCHESTRATION step 3 SHALL name review_round_cap, the standing-a command and its re-run once, within the 45-line ceiling | done | docs/ai/tdd/factory-round-cap/green-run2.log TEST-3605; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | Seam dispatch to loop to unattended gate |
+| Spec-AC-06 | WHEN check-role-output reads a Validation or Code Review FAIL block whose blockers hold no BLOCKING entry backed by check with a nonzero exit or by repro, each naming an existing file, the system SHALL reject it with E-FAIL-UNBACKED; a backed entry SHALL pass and other roles and BLOCKED SHALL be unaffected | done | docs/ai/tdd/factory-round-cap/green-run2.log TEST-3606; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-BAR |
+| Spec-AC-07 | WHEN round-budget.mjs sweep-plan runs the system SHALL print exactly one SWEEP line, with not-applicable for an absent test-framework.sh or a lightweight lane, full for no sweep, a red sweep, a non-ancestor head or a path outside the reuse classes, and reuse otherwise; append-event SHALL refuse a full_sweep line with a bad head, rc or run id | done | docs/ai/tdd/factory-round-cap/green-run3.log TEST-3607 TEST-3608 TEST-3609; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-SWEEP |
+| Spec-AC-08 | WHEN check-role-output reads a Validation PASS block while sweep-plan answers full the system SHALL reject it with E-SWEEP-OWED, SHALL accept it on reuse, and SHALL accept it with a NOTE line on not-applicable | done | docs/ai/tdd/factory-round-cap/green-run3.log TEST-3610; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-SWEEP |
+| Spec-AC-09 | WHEN the ride 8 round history is replayed through the real CLIs in a scratch repository the system SHALL print the REPLAY line with replay_resets 3, replay_stop R2, the forced V6 reset refused and replay_sweeps 1 against recorded 5 resets and 3 sweeps | done | docs/ai/tdd/factory-round-cap/green-run3.log TEST-3611; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-REPLAY, the measured gain |
+| Spec-AC-10 | The canon prompts SHALL each name the counted cap, the backed blocking bar, the follow-up default for NON-BLOCKING findings and the sweep-plan sequence as D-CANON lists, SHALL keep both owner-decision citations in VALIDATION c2, and SHALL keep no sentence that demands an intermediate full sweep or a whole-suite re-run | done | docs/ai/tdd/factory-round-cap/green-run4.log TEST-3612; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-CANON |
+| Spec-AC-11 | The new module SHALL be classified core in PROFILES, mapped by suite-map to the new suite and the three existing ones, and the prompt-diet ledger entry, the TEST-012 pin and the companion pins SHALL agree with the measured corpus delta at headroom 0 | done | docs/ai/tdd/factory-round-cap/green-run4.log TEST-3613 TEST-3614; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | D-WIRE |
+| Spec-AC-12 | CHANGELOG.md SHALL gain exactly one per-entry unreleased heading for this change below the kept bare scaffold, naming the cap, the blocking bar, the sweep plan and the measured gain | done | docs/ai/tdd/factory-round-cap/green-run4.log TEST-3615; docs/ai/reports/VALIDATION-20261112T1020Z-factory-round-cap-r2.md (r2 PASS) | — | Consumer-visible; canon prompts ship downstream; the product doc is /aai-ship step 4, not an AC |
 
 ## Implementation plan
 
@@ -516,3 +516,18 @@ above.
   visible in EVENTS and is not an identity proof.
 - R6. Classing `.github/**` as reusable relies on the selected suites and the
   PR's CI to cover workflow edits.
+
+## Amendment 2026-11-12 (review fold, additive)
+
+Code review of the delivered diff found three places where the frozen text
+and the code differ. Nothing below changes behaviour.
+
+- A1. D-COUNT says `round_reset` is written through the same validated writer
+  append-event.mjs uses. The line is written by its own copy in round-budget.mjs
+  (`appendRoundReset`, with a copy of `actorSlug`), which has the same line
+  shape. append-event.mjs does not write it.
+- A2. D-CANON says AGENTS rule 3 is enforced by dispatch and `reset-block`. The
+  rule text names `reset-block` only and omits dispatch (40-line contract).
+- A3. SKILL_TDD.prompt.md and templates/BRIEF_TEMPLATE.md are edited by the
+  ride and belong to the review scope, though the scope list above does not name
+  them.

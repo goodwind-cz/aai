@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test: aai-round-budget
-# (docs/specs/SPEC-DRAFT-spec-factory-round-cap.md, TEST-3600..3615;
+# (docs/specs/SPEC-0286-spec-factory-round-cap.md, TEST-3600..3615;
 # TEST-3612..3615 are the canon, wiring, pin and CHANGELOG rows of the same ride)
 #
 # The counted review round cap: .aai/scripts/round-budget.mjs counts round_reset and

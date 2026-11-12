@@ -194,7 +194,7 @@ PROCESS
       answers full (run the sweep once with
       `bash .aai/scripts/aai-run-tests.sh bash tests/skills/test-framework.sh`,
       POSIX; `powershell -NoProfile -File .aai/scripts/aai-run-tests.ps1 bash tests/skills/test-framework.sh`,
-      Windows; then record it with append-event --event full_sweep --head <sha> --rc <rc> --run-id <the framework's test-<id>>), reuse (cite
+      Windows; then record it with `node .aai/scripts/append-event.mjs --event full_sweep --ref <REF-ID> --head <sha> --rc <rc> --run-id <the framework's test-<id>>`), reuse (cite
       the recorded run id) or not-applicable. A FAIL round pays no sweep.
       TWO ROUNDS MAX (owner decision review-round-cap, 2026-09-05), counted by
       `round-budget.mjs status` and enforced by dispatch and `state.mjs
@@ -203,8 +203,8 @@ PROCESS
       STANDING DECISION (a) (owner decision wave-2-roadmap, 2026-09-12):
       when the extra round's hazard was INTRODUCED BY THE FEATURE UNDER
       DELIVERY and cannot be split out without shipping it, record ONE
-      `append-event --event round_extension --authority standing-a` without
-      asking, naming the hazard; a second is a STOP that asks.
+      `node .aai/scripts/append-event.mjs --event round_extension --ref <REF-ID> --authority standing-a --reason "<hazard>"` without
+      asking; a second is a STOP that asks.
       A FAIL needs a BLOCKING finding `backed-by:` a failing check (nonzero
       exit) or a reproduction file; an unbacked concern is NON-BLOCKING and
       goes to `follow-ups.mjs add`.

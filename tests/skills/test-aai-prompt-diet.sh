@@ -1030,7 +1030,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 64221 -> 64584: factory-round-cap ORCHESTRATION step 3 (+363 B: review_round_cap relay and the standing-a round_extension command; one existing line grown, 45 lines kept; measured at headroom 0, credited 1:1).
   # Then 64584 -> 65064: factory-round-cap D-CANON (+480 B: VALIDATION c2, REMEDIATION, SKILL_CODE_REVIEW, SKILL_VERIFY name the counted cap, the backed bar and the sweep-plan; measured at headroom 0, credited 1:1; AGENTS.md is outside the .aai/*.prompt.md glob and is not part of this sum).
   # Then 65064 -> 65274: factory-round-cap remediation (+210 B: VALIDATION c2 names the append-event full_sweep flags +60 B, SKILL_TDD step 0 defers the one full sweep to final validation +150 B; credited 1:1).
-  local want_growth=65274
+  # Then 65274 -> 65355: factory-round-cap review fold (+81 B: VALIDATION c2 full append-event commands +77 B, SKILL_TDD step 0 contradiction removed +4 B; credited 1:1).
+  local want_growth=65355
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
