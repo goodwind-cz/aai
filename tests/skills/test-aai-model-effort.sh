@@ -520,7 +520,7 @@ test_3642_canon_wiring() {
   local f
   f="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
   local t
-  for t in 'harness_effort' 'reasoning_effort' 'effort_override' '--requested-effort <suggested_effort>' '--effort-applied <param|not_supported|overridden>' '--cache-creation' 'Agent `effort`'; do
+  for t in 'harness_effort' 'reasoning_effort' 'effort_override' '--requested-effort <suggested_effort>' '--effort-applied <param|not_supported|overridden>' '--cache-creation' 'Agent `effort`' '`not_supported` when `harness_effort` is null'; do
     qgrep -q -F -- "$t" < "$f" || log_fail "TEST-3642: SKILL_LOOP lacks '$t'"
   done
   f="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
@@ -573,13 +573,14 @@ test_3643_payload_prefix_stable() {
 DIGEST="$PROJECT_ROOT/.aai/scripts/evidence-digest.mjs"
 APPEND_EVENT="$PROJECT_ROOT/.aai/scripts/append-event.mjs"
 
-# mk_digest_root <name> <dirty|fixed> — scratch git repo with one fixture spec.
+# mk_digest_root <name> <dirty|fixed|midride> [<spec status>] — scratch git repo with one fixture spec;
+# midride = complete evidence but the second AC row still planned (AC-FLIP DEFERRAL).
 mk_digest_root() {
   local d="$TEST_DIR/$1" ev="docs/ai/tdd/fx/green.log"
   rm -rf "$d"
   mkdir -p "$d/docs/specs" "$d/docs/ai/tdd/fx" "$d/tests"
   printf 'GREEN\n' > "$d/docs/ai/tdd/fx/green.log"
-  if [[ "$2" == "fixed" ]]; then
+  if [[ "$2" == "fixed" || "$2" == "midride" ]]; then
     printf '# TEST-9001\n' > "$d/tests/fx.sh"
   else
     ev="docs/ai/tdd/fx/missing.log"
@@ -591,7 +592,7 @@ mk_digest_root() {
 id: SPEC-0001
 type: spec
 number: 1
-status: draft
+status: ${3:-draft}
 links:
   pr: []
 ---
@@ -631,7 +632,7 @@ test_3644_digest_run() {
   grep -qE '^GATE mutation-gate rc=[0-9]+$' "$TEST_DIR/dg.out" || log_fail "TEST-3644: GATE mutation-gate line absent"
   grep -qE '^GATE docs-audit-gate rc=[0-9]+$' "$TEST_DIR/dg.out" || log_fail "TEST-3644: GATE docs-audit-gate line absent"
   grep -qE '^SWEEP ' "$TEST_DIR/dg.out" || log_fail "TEST-3644: SWEEP line absent"
-  grep -qE '^DIGEST ref=fx head=[0-9a-f]{40} acs=2 acs_not_done=1 evidence_missing=1 tests_unlocated=1 gates_red=[1-9][0-9]* sweep_owed=0 clean=false$' "$TEST_DIR/dg.out" \
+  grep -qE '^DIGEST ref=fx head=[0-9a-f]{40} acs=2 acs_not_done=0 evidence_missing=1 tests_unlocated=1 gates_red=0 sweep_owed=0 clean=false$' "$TEST_DIR/dg.out" \
     || log_fail "TEST-3644: dirty DIGEST line wrong: $(cat "$TEST_DIR/dg.out")"
   mk_digest_root dg_fixed fixed
   rc=0
@@ -639,6 +640,20 @@ test_3644_digest_run() {
   [[ "$rc" -eq 0 ]] || log_fail "TEST-3644: fixed digest exited $rc"
   grep -qE '^DIGEST ref=fx head=[0-9a-f]{40} acs=2 acs_not_done=0 evidence_missing=0 tests_unlocated=0 gates_red=0 sweep_owed=0 clean=true$' "$TEST_DIR/dg2.out" \
     || log_fail "TEST-3644: fixed DIGEST line wrong: $(cat "$TEST_DIR/dg2.out") $(cat "$TEST_DIR/dg2.err")"
+  # B1: mid-ride (draft spec, planned row, complete evidence) can be clean; the deferral carve is open-status only.
+  mk_digest_root dg_mid midride
+  env -u AAI_ROLE node "$DIGEST" run --ref fx --spec docs/specs/SPEC-0001-fx.md --root "$TEST_DIR/dg_mid" > "$TEST_DIR/dg3.out" 2> "$TEST_DIR/dg3.err" || log_fail "TEST-3644: midride digest exited non-zero"
+  grep -qE '^GATE docs-audit-gate rc=1$' "$TEST_DIR/dg3.out" || log_fail "TEST-3644: midride fixture must make the raw docs-audit gate fail on the planned row: $(cat "$TEST_DIR/dg3.out")"
+  grep -qE '^DIGEST ref=fx head=[0-9a-f]{40} acs=2 acs_not_done=0 evidence_missing=0 tests_unlocated=0 gates_red=0 sweep_owed=0 clean=true$' "$TEST_DIR/dg3.out" \
+    || log_fail "TEST-3644: mid-ride digest with only planned rows must be clean: $(cat "$TEST_DIR/dg3.out")"
+  mk_digest_root dg_midimpl midride implementing
+  env -u AAI_ROLE node "$DIGEST" run --ref fx --spec docs/specs/SPEC-0001-fx.md --root "$TEST_DIR/dg_midimpl" > "$TEST_DIR/dg3.out" 2>/dev/null
+  # spec-lint objects to this fixture at implementing, so its one red gate is spec-lint; the planned row must not add a second.
+  grep -qE '^GATE spec-lint rc=[1-9]' "$TEST_DIR/dg3.out" && grep -qE 'acs_not_done=0 .*gates_red=1 ' "$TEST_DIR/dg3.out" \
+    || log_fail "TEST-3644: implementing status must carve the planned row too: $(cat "$TEST_DIR/dg3.out")"
+  mk_digest_root dg_midgone midride done
+  env -u AAI_ROLE node "$DIGEST" run --ref fx --spec docs/specs/SPEC-0001-fx.md --root "$TEST_DIR/dg_midgone" > "$TEST_DIR/dg3.out" 2>/dev/null
+  grep -qE 'acs_not_done=1 .*gates_red=[1-9][0-9]* .*clean=false$' "$TEST_DIR/dg3.out" || log_fail "TEST-3644: a done spec's planned row must count (no carve): $(cat "$TEST_DIR/dg3.out")"
   rc=0
   env -u AAI_ROLE node "$DIGEST" run --root "$TEST_DIR/dg_fixed" > /dev/null 2>&1 || rc=$?
   [[ "$rc" -eq 2 ]] || log_fail "TEST-3644: run without --ref must exit 2, got $rc"
@@ -702,17 +717,17 @@ test_3645_digest_record() {
   log_pass "TEST-3645: --record writes under shadow and on only; off, absent and invalid dials write nothing; append-event refuses malformed fields"
 }
 
-# gen_pairs <dir> <pairs> <refs> [<clean_fail_index>] — EVENTS via the real
+# gen_pairs <dir> <pairs> <refs> [<clean_fail_index>] [<clean true|false>] — EVENTS via the real
 # append-event: <pairs> digests, each followed by a validation check_verdict.
 gen_pairs() {
-  local d="$1" n="$2" refs="$3" cf="${4:-0}" i head ref clean st
+  local d="$1" n="$2" refs="$3" cf="${4:-0}" i head ref clean st cl="${5:-true}"
   mkdir -p "$d/docs/ai"
   for ((i = 1; i <= n; i++)); do
     head="$(printf '%040x' "$i")"
     ref="ride-$((i % refs))"
-    clean=true; st=pass
+    clean="$cl"; st=pass
     if [[ "$i" -eq "$cf" ]]; then st=fail; fi
-    (cd "$d" && env -u AAI_ROLE node "$APPEND_EVENT" --event evidence_digest --ref "$ref" --head "$head" --clean "$clean" --flags 0 \
+    (cd "$d" && env -u AAI_ROLE node "$APPEND_EVENT" --event evidence_digest --ref "$ref" --head "$head" --clean "$clean" --flags "$([[ "$clean" == true ]] && echo 0 || echo 3)" \
       && env -u AAI_ROLE node "$APPEND_EVENT" --event check_verdict --ref "$ref" --role validation --head "$head" --status "$st") > /dev/null 2>> "$TEST_DIR/gen.err" \
       || log_fail "TEST-3646: fixture append failed: $(cat "$TEST_DIR/gen.err")"
   done
@@ -763,6 +778,11 @@ test_3646_digest_score() {
   gen_pairs "$TEST_DIR/sc_cf" 20 5 7
   score_of "$TEST_DIR/sc_cf"
   grep -qxF 'PROMOTION not-eligible reason=clean-fail' "$TEST_DIR/sc.out" || log_fail "TEST-3646: one clean_fail must block: $(cat "$TEST_DIR/sc.out")"
+  # B1: 20 flagged-only pairs over 5 refs prove nothing; promotion counts clean pairs.
+  gen_pairs "$TEST_DIR/sc_flag" 20 5 0 false
+  score_of "$TEST_DIR/sc_flag"
+  grep -qxF 'SCORE pairs=20 rides=5 clean_pass=0 clean_fail=0 flagged_pass=20 flagged_fail=0 unpaired=0' "$TEST_DIR/sc.out" || log_fail "TEST-3646: flagged SCORE wrong: $(cat "$TEST_DIR/sc.out")"
+  grep -qxF 'PROMOTION not-eligible reason=min-pairs' "$TEST_DIR/sc.out" || log_fail "TEST-3646: flagged-only pairs must not make promotion eligible: $(cat "$TEST_DIR/sc.out")"
   env -u AAI_ROLE node "$DIGEST" score --events "$TEST_DIR/nope/EVENTS.jsonl" > "$TEST_DIR/sc.out" 2> /dev/null || log_fail "TEST-3646: score on an absent EVENTS file must exit 0"
   grep -qxF 'SCORE pairs=0 rides=0 clean_pass=0 clean_fail=0 flagged_pass=0 flagged_fail=0 unpaired=0' "$TEST_DIR/sc.out" || log_fail "TEST-3646: absent-file SCORE wrong"
   grep -qxF 'PROMOTION not-eligible reason=min-pairs' "$TEST_DIR/sc.out" || log_fail "TEST-3646: absent-file PROMOTION wrong"
@@ -778,7 +798,7 @@ test_3647_validation_rule() {
     const t = require("fs").readFileSync(process.argv[1], "utf8");
     const i = t.indexOf("evidence-digest.mjs run");
     const w = t.slice(i, i + 900);
-    for (const k of ["`off`", "`shadow`", "`on`", "never replaces", "sweep plan"]) {
+    for (const k of ["`off`", "`shadow`", "`on`", "never replaces", "sweep plan", "after the round", "sweep, before the verdict"]) {
       if (!w.includes(k)) { console.error("rule window lacks " + k); process.exit(1); }
     }
   ' "$v" || log_fail "TEST-3647: VALIDATION rule lacks the three dial values or the never-replaces clause"
@@ -820,9 +840,11 @@ test_3649_changelog_entry() {
   bare="$(grep -c '^## \[unreleased\]$' "$cl" || true)"
   [[ "$bare" == 1 ]] || log_fail "TEST-3649: $bare bare unreleased scaffolds, expected exactly 1"
   rolled="$TEST_DIR/CHANGELOG.rolled.md"
+  local ran=0
   cp "$cl" "$rolled"
   # Release-tolerant: after a real roll the entry already sits under '## [vYYYY.MM.DD] —'; roll only while an unreleased entry exists.
   if grep -qE '^## \[unreleased\] — .*per-role effort tier' "$cl"; then
+    ran=1
     env -u AAI_ROLE node "$cut" roll --file "$rolled" --version v2099.01.01 > "$TEST_DIR/roll.out" 2>&1 || log_fail "TEST-3649: the release parser refused the file: $(cat "$TEST_DIR/roll.out")"
   fi
   node -e '
@@ -835,13 +857,14 @@ test_3649_changelog_entry() {
       let end = t.length;
       for (let j = idx[0] + 1; j < t.length; j++) if (/^## \[/.test(t[j])) { end = j; break; }
       const body = t.slice(idx[0], end).join("\n");
-      for (const k of ["harness_effort", "requested_effort", "effort_applied", "cache_read_tokens", "--by-effort", "--split", "evidence-digest.mjs", "shadow", "CLAUDE_CODE_EFFORT_LEVEL"]) {
+      for (const k of ["harness_effort", "requested_effort", "effort_applied", "cache_read_tokens", "--by-effort", "--split", "evidence-digest.mjs", "shadow", "CLAUDE_CODE_EFFORT_LEVEL", "`default` resolves null silently", "`log-tick` gains `--cache-creation`", "20 clean digests"]) {
         if (!body.includes(k)) { console.error(label + ": entry lacks " + k); process.exit(1); }
       }
     };
     check(process.argv[1], /^## \[(unreleased|v[0-9][^\]]*)\] — /, "live");
-    check(process.argv[2], /^## \[(unreleased|v[0-9][^\]]*)\] — /, "rolled");
-  ' "$cl" "$rolled" || log_fail "TEST-3649: the CHANGELOG entry is missing, duplicated or incomplete"
+    // When the rehearsal roll ran, the rolled copy must carry the entry under the version heading.
+    check(process.argv[2], process.argv[3] === "1" ? /^## \[v2099\.01\.01\] — / : /^## \[(unreleased|v[0-9][^\]]*)\] — /, "rolled");
+  ' "$cl" "$rolled" "$ran" || log_fail "TEST-3649: the CHANGELOG entry is missing, duplicated or incomplete"
   log_pass "TEST-3649: one bare scaffold, one effort entry that survives the release roll, parser accepts the file"
 }
 

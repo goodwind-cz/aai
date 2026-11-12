@@ -20,7 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseAcTable, parseLeanAcTable, parseTestPlanTable, parseFrontmatter } from './lib/docs-model.mjs';
+import { parseAcTable, parseLeanAcTable, parseTestPlanTable, parseFrontmatter, normalizeAcStatus, TERMINAL_AC } from './lib/docs-model.mjs';
 import { readEvents } from './round-budget.mjs';
 
 export const PROMOTION_MIN_PAIRS = 20;
@@ -75,6 +75,12 @@ function runSibling(script, args, root) {
   return spawnSync(process.execPath, [file, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env } });
 }
 
+// True when every printed gate reason (a `- ` bullet) is a Rule-1 non-terminal AC row and there is at least one.
+function onlyNonTerminalReasons(out) {
+  const bullets = String(out ?? '').split(/\r?\n/).filter((l) => l.startsWith('- '));
+  return bullets.length > 0 && bullets.every((l) => /^- \S+ is non-terminal \(status "/.test(l));
+}
+
 function git(root, args) {
   const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
   return r.status === 0 ? r.stdout.trim() : '';
@@ -92,6 +98,7 @@ function runDigest(flags) {
   let content;
   try { content = fs.readFileSync(specAbs, 'utf8'); } catch (err) { console.error(`evidence-digest: cannot read spec ${specRel} (${err.code ?? err.message})`); return 3; }
 
+  const open = ['draft', 'implementing'].includes(String(parseFrontmatter(content)?.status ?? '').trim());
   let acRows = parseAcTable(content).rows;
   if (acRows.length === 0) acRows = parseLeanAcTable(content).rows;
   let notDone = 0;
@@ -100,7 +107,10 @@ function runDigest(flags) {
     const status = String(row.Status ?? '').trim().toLowerCase();
     const paths = evidencePaths(row.Evidence);
     const missing = paths.filter((p) => !fs.existsSync(path.join(root, p))).length;
-    if (status !== 'done') notDone += 1;
+    // AC-FLIP DEFERRAL carve (VALIDATION step 8a): while the spec is draft or implementing, a non-terminal
+    // row is not yet-reached work, not a defect. Terminal non-done rows (deferred, blocked, rejected) count.
+    const deferred = open && !TERMINAL_AC.has(normalizeAcStatus(row.Status ?? '').status);
+    if (status !== 'done' && !deferred) notDone += 1;
     evidenceMissing += missing;
     console.log(`AC ${row['Spec-AC']} status=${status} evidence_paths=${paths.length} missing=${missing}`);
   }
@@ -127,7 +137,9 @@ function runDigest(flags) {
     const r = runSibling(script, args, root);
     if (r === null) { console.log(`GATE ${name} rc=absent`); continue; }
     const rc = r.status ?? 1;
-    if (rc !== 0) gatesRed += 1;
+    // Same carve as VALIDATION: an open spec's docs-audit gate failing only on Rule-1 non-terminal rows is not red.
+    const onlyDeferred = name === 'docs-audit-gate' && open && rc === 1 && onlyNonTerminalReasons(r.stdout);
+    if (rc !== 0 && !onlyDeferred) gatesRed += 1;
     console.log(`GATE ${name} rc=${rc}`);
   }
 
@@ -166,7 +178,7 @@ function runDigest(flags) {
 // head cannot inflate the count.
 export function scoreEvents(events) {
   const used = new Set();
-  const s = { pairs: 0, refs: new Set(), clean_pass: 0, clean_fail: 0, flagged_pass: 0, flagged_fail: 0, unpaired: 0 };
+  const s = { pairs: 0, refs: new Set(), clean_pass: 0, clean_fail: 0, flagged_pass: 0, flagged_fail: 0, unpaired: 0, cleanRefs: new Set() };
   events.forEach((e, i) => {
     if (e.event !== 'evidence_digest' || !e.payload) return;
     let at = -1;
@@ -179,13 +191,18 @@ export function scoreEvents(events) {
     used.add(at);
     s.pairs += 1;
     s.refs.add(e.ref);
+    if (e.payload.clean === true) s.cleanRefs.add(e.ref);
     s[`${e.payload.clean === true ? 'clean' : 'flagged'}_${events[at].payload.status === 'pass' ? 'pass' : 'fail'}`] += 1;
   });
   let reason = 'ok';
-  if (s.pairs < PROMOTION_MIN_PAIRS) reason = 'min-pairs';
-  else if (s.refs.size < PROMOTION_MIN_RIDES) reason = 'min-rides';
+  // Only a clean digest tests the false-pass hypothesis, so eligibility counts clean pairs (and the
+  // rides they cover) alone; flagged pairs are reported but never count toward promotion.
+  const cleanPairs = s.clean_pass + s.clean_fail;
+  if (cleanPairs < PROMOTION_MIN_PAIRS) reason = 'min-pairs';
+  else if (s.cleanRefs.size < PROMOTION_MIN_RIDES) reason = 'min-rides';
   else if (s.clean_fail > 0) reason = 'clean-fail';
-  return { ...s, rides: s.refs.size, reason };
+  const { cleanRefs, ...out } = s;
+  return { ...out, rides: s.refs.size, reason };
 }
 
 function runScore(flags) {

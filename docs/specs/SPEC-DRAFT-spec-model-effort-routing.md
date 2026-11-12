@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: f32569188b272e76e6c3c3dd7d8485fb8e291e7b15021bb66713f52e3389d932
+frozen_sha256: 98f596a24b22d6d32e171850fb6f334279d948a79f39ff4a972a31f9ad319678
 ceremony_level: 3
 links:
   requirement: model-effort-routing
@@ -542,3 +542,11 @@ above.
 - Spec-AC-14: TEST-3649 accepts the entry under `## [unreleased] —` or a rolled `## [vYYYY.MM.DD] —` heading and runs the `release-cut roll` rehearsal only while an unreleased entry exists.
 - `--cache-read` and `--cache-creation` reject negative values (exit 2, nothing written).
 - The Codex spawn parameter name and any Gemini subagent effort knob are marked unverified in SKILL_LOOP step 4 and in the MODEL_ROUTING.yaml comment.
+
+## Amendment 2026-11-12 (code review round 1, remediation round 2)
+
+- D-DIGEST: while the spec's frontmatter status is `draft` or `implementing`, a Spec-AC row whose normalized status is non-terminal (not done, deferred, blocked or rejected) is not counted in `acs_not_done`, and a `docs-audit.mjs --gate` exit 1 whose every printed reason is a Rule-1 `is non-terminal (status` line is not counted red. This mirrors VALIDATION's AC-FLIP DEFERRAL carve and nothing looser: a `done` spec counts its planned rows, and evidence_missing, tests_unlocated, spec-lint, mutation-gate and sweep_owed keep their full weight. The TEST-3644 dirty fixture therefore prints `acs_not_done=0` and `gates_red=0` (it is dirty through evidence_missing and tests_unlocated); new fixtures show a draft spec with only planned rows and complete evidence printing `clean=true`, an implementing one carving the planned row, and a done one not carving it.
+- D-SCORE: promotion is eligible only when `clean_pass + clean_fail >= PROMOTION_MIN_PAIRS` (20) and the clean pairs cover at least `PROMOTION_MIN_RIDES` (5) refs, with `clean_fail` 0. Flagged pairs stay in the SCORE counts but never count toward eligibility, so 20 flagged-only pairs print `not-eligible reason=min-pairs` (TEST-3646).
+- VALIDATION shadow rule: run the digest after the round's sweep, before the verdict, so `sweep_owed` is not structurally set on round 1 (TEST-3647).
+- Spec-AC-14 and D-RECORD: the CHANGELOG states that `default` resolves null silently, that `log-tick` gains only `--cache-creation`, and that promotion needs 20 clean digests (TEST-3649 pins the wording and requires the version heading in the rolled copy when the rehearsal roll ran). SKILL_LOOP step 4 records `--effort-applied not_supported` (with `--requested-effort` when `suggested_effort` is non-null) when `harness_effort` is null (TEST-3642).
+- The prompt-diet ledger entry for this ride grows by 100 B (VALIDATION +29, SKILL_LOOP +71), with the TEST-012, TEST-008, TEST-3278 pins moved to match.

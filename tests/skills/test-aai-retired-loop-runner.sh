@@ -275,8 +275,8 @@ test_3410_diet() {
   amount="$(sed -n 's/^JUSTIFIED_ADDITIONS+=( "\(-[0-9][0-9]*\) retire-shell-loop-runner RECLAIMED .*/\1/p' "$ledger")"
   [[ -n "$amount" ]] || log_fail "TEST-3410: the retire-shell-loop-runner ledger entry is not a negative RECLAIMED entry"
   size=$(( $(wc -c < "$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md") + $(wc -c < "$PROJECT_ROOT/.aai/BOOTSTRAP_DIFF.prompt.md") ))
-  want=$((size - 33820))   # +388 B model-effort-routing SKILL_LOOP wiring (was 33432)
-  [[ "$amount" == "$want" ]] || log_fail "TEST-3410: the ledger amount is $amount, expected $want ($size minus 33820)"
+  want=$((size - 33891))   # +388 B then +71 B (digest-clean remediation, null-harness recording) model-effort-routing SKILL_LOOP wiring (was 33432)
+  [[ "$amount" == "$want" ]] || log_fail "TEST-3410: the ledger amount is $amount, expected $want ($size minus 33891)"
   out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" test_010_audit_and_reduction 2>&1)" || rc=$?
   [[ "$rc" == 0 ]] || { printf '%s\n' "$out" | tail -n 15 >&2; log_fail "TEST-3410: test-aai-prompt-diet.sh test_010 exited $rc"; }
   out="$out"$'\n'"$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" test_012_growth_sum_matches_ledger 2>&1)" || rc=$?
