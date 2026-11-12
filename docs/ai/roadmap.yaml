@@ -164,6 +164,8 @@ pairs:
     status: done
   - capability: factory-round-cap
     status: done
+  - capability: model-effort-routing
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser
