@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-11T22:44:16.817Z",
+  "generatedAt": "2026-11-12T12:09:09.382Z",
   "project": "aai",
   "counts": {
-    "delivered": 354,
+    "delivered": 355,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -234,6 +234,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "factory-round-cap",
+      "title": "Change: a ride's re-check loop stops at its round cap and pays the full sweep once",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0255-factory-round-cap.md",
+      "closed_on": "2026-11-12",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0286-spec-factory-round-cap.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "install-path-parity-harness",
       "title": "Run both twins of sync, update and the hook installer into scratch targets and diff what they leave behind",
@@ -4863,6 +4876,19 @@
       "kind": "month",
       "label": "2026-11",
       "items": [
+        {
+          "ref": "factory-round-cap",
+          "title": "Change: a ride's re-check loop stops at its round cap and pays the full sweep once",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0255-factory-round-cap.md",
+          "closed_on": "2026-11-12",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0286-spec-factory-round-cap.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "install-path-parity-harness",
           "title": "Run both twins of sync, update and the hook installer into scratch targets and diff what they leave behind",

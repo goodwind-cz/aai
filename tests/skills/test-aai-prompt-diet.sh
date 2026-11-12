@@ -1027,7 +1027,11 @@ test_012_growth_sum_matches_ledger() {
   # Then 65249 -> 65792: precise-suite-evidence-reuse (+543 B: SKILL_VERIFY Reuse exception paragraph, VALIDATION step 5 c2 sentence; measured against 773557ee, credited 1:1).
   # Then 65792 -> 64288: retire-legacy-migrations (-1504 B: SKILL_CANONICALIZE.prompt.md 1950 -> 446 B retirement notice; measured against 1519b8d0, RECLAIMED 1:1).
   # Then 64288 -> 64221: retire-shell-loop-runner (-67 B: SKILL_LOOP.prompt.md line 4 -28 B and BOOTSTRAP_DIFF.prompt.md line 7 -39 B stop naming the retired shell runner; measured against 8293605d, RECLAIMED 1:1).
-  local want_growth=64221
+  # Then 64221 -> 64584: factory-round-cap ORCHESTRATION step 3 (+363 B: review_round_cap relay and the standing-a round_extension command; one existing line grown, 45 lines kept; measured at headroom 0, credited 1:1).
+  # Then 64584 -> 65064: factory-round-cap D-CANON (+480 B: VALIDATION c2, REMEDIATION, SKILL_CODE_REVIEW, SKILL_VERIFY name the counted cap, the backed bar and the sweep-plan; measured at headroom 0, credited 1:1; AGENTS.md is outside the .aai/*.prompt.md glob and is not part of this sum).
+  # Then 65064 -> 65274: factory-round-cap remediation (+210 B: VALIDATION c2 names the append-event full_sweep flags +60 B, SKILL_TDD step 0 defers the one full sweep to final validation +150 B; credited 1:1).
+  # Then 65274 -> 65355: factory-round-cap review fold (+81 B: VALIDATION c2 full append-event commands +77 B, SKILL_TDD step 0 contradiction removed +4 B; credited 1:1).
+  local want_growth=65355
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0

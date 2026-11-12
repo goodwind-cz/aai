@@ -290,3 +290,5 @@ aai-release-cut	196
 aai-hook-gate	196
 # sample aai-install-parity fallback unsampled (new suite of install-path-parity-harness; no successful observation)
 aai-install-parity	196
+# sample aai-round-budget fallback unsampled (new suite of factory-round-cap; no successful observation)
+aai-round-budget	196

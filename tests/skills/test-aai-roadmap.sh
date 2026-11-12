@@ -778,7 +778,7 @@ mk_dispatch_project() { # <name> <budget:yes|no|advisory>
   [[ -n "$d" && "$d" = /* ]] || log_fail "mk_dispatch_project: fixture path not absolute: '$d'"
   rm -rf "$d"
   mkdir -p "$d/.aai/scripts/lib" "$d/docs/ai" "$d/docs/specs" "$d/docs/issues"
-  cp "$PROJECT_ROOT"/.aai/scripts/{ride-select,spec-amend,follow-ups,orchestration-dispatch}.mjs "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT"/.aai/scripts/{ride-select,spec-amend,follow-ups,orchestration-dispatch,round-budget,select-suites}.mjs "$d/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   : > "$d/docs/ai/decisions.jsonl"
   {

@@ -36,6 +36,14 @@
 //      allowlisted state.mjs mutation or the exact validation snapshot call.
 //   13. E-DUPLICATE-FIELD — a top-level result key appears more than once;
 //      duplicate YAML keys are rejected instead of silently overwriting data.
+//   14. E-FAIL-UNBACKED   — a Validation or Code Review `FAIL` block holds no
+//      `blockers` entry of the form `BLOCKING <id>: <text> backed-by: check <path> exit <n>`
+//      (n an integer other than 0) or `BLOCKING <id>: <text> backed-by: repro <path>`, with
+//      <path> an existing file relative to the repo root (the cwd). BLOCKED and every other
+//      role are unaffected (SPEC factory-round-cap D-BAR).
+//   15. E-SWEEP-OWED      — a Validation `PASS` block while `round-budget.mjs sweep-plan` for the
+//      scope answers `full` (the ride's one full sweep is not yet recorded or is stale). `reuse`
+//      passes; `not-applicable` passes with a NOTE line on stderr, so a clean block stays silent on stdout (SPEC factory-round-cap D-SWEEP).
 //   4. E-NO-EVIDENCE      — `evidence` has at least one entry with an
 //      INTEGER `exit_code`.
 //   8. E-MALFORMED-LINE — a base-indent block line that is neither a key nor a comment (never silently skipped)
@@ -110,10 +118,11 @@
 //
 // Node stdlib only (Technology contract: zero runtime dependencies).
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { checkOutcomeReport } from './validation-outcome-check.mjs';
+import { readEvents, sweepPlan, sweepLine } from './round-budget.mjs';
 
 // --- exit discipline (cli-exit-truncates-pipe-sweep) ------------------------
 // INLINED, not imported from ./lib/cli-pipe-guard.mjs: this checker's own
@@ -735,6 +744,20 @@ function parseSubagentResultBlock(candidateRawLines) {
   };
 }
 
+const BACKED_BLOCKING_RE = /^BLOCKING [^\s:]+: .+ backed-by: (?:check (\S+) exit (-?\d+)|repro (\S+))$/;
+
+function isBackedBlocking(entry) {
+  const m = BACKED_BLOCKING_RE.exec(String(entry).trim());
+  if (!m) return false;
+  if (m[1] !== undefined && Number(m[2]) === 0) return false;
+  const given = m[1] ?? m[3];
+  if (path.isAbsolute(given)) return false;
+  const file = path.resolve(process.cwd(), given);
+  const rel = path.relative(process.cwd(), file);
+  if (rel === '..' || rel.startsWith('..' + path.sep)) return false;
+  try { return existsSync(file) && statSync(file).isFile(); } catch { return false; }
+}
+
 function validateResult(parsed, nowMs, scopeBinding = {}) {
   const violations = [];
   const commandWords = (parsed.state_update_commands ?? []).map(parseCommandWords);
@@ -861,6 +884,18 @@ function validateResult(parsed, nowMs, scopeBinding = {}) {
     }
   }
 
+  // factory-round-cap D-BAR — a FAIL that cannot name a failing check or a reproduction is an
+  // opinion, not a blocker. Only Validation and Code Review FAIL are held to the bar.
+  const failUnbacked = (role === 'validation' || role === 'code review')
+    && parsed.fields.status === 'FAIL'
+    && !(parsed.blockers ?? []).some(isBackedBlocking);
+  if (failUnbacked) {
+    violations.push([
+      'E-FAIL-UNBACKED',
+      `${parsed.fields.role} FAIL needs a blockers entry "BLOCKING <id>: <text> backed-by: check <path> exit <n>" (n != 0) or "backed-by: repro <path>" naming an existing file`,
+    ]);
+  }
+
   // A Validation PASS is not mergeable without the same report contract used
   // by standalone Validation. FAIL/BLOCKED and all other roles retain their
   // existing result-block behavior. The returned command strings remain data;
@@ -882,6 +917,16 @@ function validateResult(parsed, nowMs, scopeBinding = {}) {
       if (!outcome.ok) {
         violations.push(['E-OUTCOME-REPORT', outcome.reasons.join('; ')]);
       }
+    }
+    // factory-round-cap D-SWEEP — a PASS while the ride's one full sweep is still owed is refused.
+    const sweepRoot = process.cwd();
+    const sweepRef = String(parsed.fields.scope ?? '');
+    const sweep = sweepPlan(readEvents(path.join(sweepRoot, 'docs/ai/EVENTS.jsonl')).events, sweepRef, sweepRoot);
+    const sweepOwed = sweep.kind === 'full';
+    if (sweepOwed) {
+      violations.push(['E-SWEEP-OWED', `Validation PASS while the full sweep is owed: ${sweepLine(sweep)}`]);
+    } else if (sweep.kind === 'not-applicable') {
+      console.error(`NOTE: sweep not applicable (${sweep.reason})`);
     }
     const commands = commandWords;
     const scope = String(parsed.fields.scope ?? '');

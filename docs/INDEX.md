@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (642)
+## Done (644)
 
 | ID | Type | Path |
 |---|---|---|
@@ -313,6 +313,7 @@ _None._
 | CHANGE-0252 | issues | docs/issues/CHANGE-0252-release-publish-on-node.md |
 | CHANGE-0253 | issues | docs/issues/CHANGE-0253-hook-gate-on-node.md |
 | CHANGE-0254 | issues | docs/issues/CHANGE-0254-install-path-parity-harness.md |
+| CHANGE-0255 | issues | docs/issues/CHANGE-0255-factory-round-cap.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -705,6 +706,7 @@ _None._
 | SPEC-0283 | specs | docs/specs/SPEC-0283-spec-hook-gate-on-node.md |
 | SPEC-0284 | specs | docs/specs/SPEC-0284-spec-install-path-parity-harness.md |
 | SPEC-0285 | specs | docs/specs/SPEC-0285-spec-update-ps1-git-stderr.md |
+| SPEC-0286 | specs | docs/specs/SPEC-0286-spec-factory-round-cap.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -743,7 +745,7 @@ _None._
 
 _None._
 
-## Broken references (552)
+## Broken references (556)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1200,6 +1202,10 @@ _None._
 | tests/skills/test-aai-roadmap.sh | docs/issues/CHANGE-0002-fx.md | NOT FOUND |
 | tests/skills/test-aai-role-output.sh | docs/ai/reports/different.md | NOT FOUND |
 | tests/skills/test-aai-role-output.sh | docs/specs/SPEC-DRAFT-x.md | NOT FOUND |
+| tests/skills/test-aai-round-budget.sh | docs/a.md | NOT FOUND |
+| tests/skills/test-aai-round-budget.sh | docs/ai/reports/repro.md | NOT FOUND |
+| tests/skills/test-aai-round-budget.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
+| tests/skills/test-aai-round-budget.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
 | tests/skills/test-aai-secrets-preflight.sh | docs/issues/CHANGE-DRAFT-secrets-preflight-e2e-fixture.md | NOT FOUND |
 | tests/skills/test-aai-share.sh | docs/ai/reports/TEST_REPORT.md | NOT FOUND |
 | tests/skills/test-aai-spec-amend.sh | docs/specs/SPEC-0320-spec-t1375-proven.md | NOT FOUND |

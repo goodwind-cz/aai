@@ -308,6 +308,7 @@ suites:
       - .aai/SKILL_PR.prompt.md
       - .aai/scripts/allocate-doc-number.mjs
       - .aai/scripts/append-event.mjs
+      - .aai/scripts/round-budget.mjs
       - .aai/scripts/generate-docs-index.mjs
       - .aai/scripts/pre-commit-checks.sh
       - .aai/templates/RFC_TEMPLATE.md
@@ -376,6 +377,7 @@ suites:
       - .aai/SKILL_WRAP_UP.prompt.md
       - .aai/VALIDATION.prompt.md
       - .aai/scripts/append-event.mjs
+      - .aai/scripts/round-budget.mjs
       - .aai/scripts/generate-docs-index.mjs
       - .aai/scripts/install-pre-commit-hook.ps1
       - .aai/scripts/install-pre-commit-hook.sh
@@ -398,6 +400,7 @@ suites:
       - .aai/SKILL_DOCS_CANON.prompt.md
       - .aai/scripts/docs-canon.mjs
       - .aai/scripts/append-event.mjs
+      - .aai/scripts/round-budget.mjs
       - .aai/scripts/generate-docs-index.mjs
 
   aai-docs-hub:
@@ -995,6 +998,7 @@ suites:
       - .aai/scripts/orchestration-dispatch.mjs
       - .aai/scripts/append-event.mjs
       - .aai/system/MODEL_ROUTING.yaml
+      - .aai/scripts/round-budget.mjs
       - .aai/workflow/WORKFLOW.md
       - .aai/ORCHESTRATION.prompt.md
 
@@ -1227,6 +1231,7 @@ suites:
     globs:
       - .aai/scripts/check-role-output.mjs
       - .aai/scripts/validation-outcome-check.mjs
+      - .aai/scripts/round-budget.mjs
       - .aai/SUBAGENT_CONTRACT.md
       - .aai/SUBAGENT_PROTOCOL.md
 
@@ -1426,6 +1431,7 @@ suites:
   aai-state:
     globs:
       - .aai/scripts/state.mjs
+      - .aai/scripts/round-budget.mjs
       - .aai/IMPLEMENTATION.prompt.md
       - .aai/METRICS_FLUSH.prompt.md
       - .aai/ORCHESTRATION.prompt.md
@@ -1699,6 +1705,21 @@ suites:
       - .aai/scripts/append-event.mjs
       - tests/skills/lib/recheck.test.mjs
       - tests/skills/lib/recheck-measure.mjs
+
+  aai-round-budget:
+    globs:
+      - .aai/scripts/round-budget.mjs
+      - .aai/scripts/select-suites.mjs
+      - .aai/scripts/state.mjs
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/scripts/append-event.mjs
+      - .aai/scripts/check-role-output.mjs
+      - .aai/VALIDATION.prompt.md
+      - .aai/REMEDIATION.prompt.md
+      - .aai/SKILL_CODE_REVIEW.prompt.md
+      - .aai/SKILL_VERIFY.prompt.md
+      - .aai/ORCHESTRATION.prompt.md
+      - tests/fixtures/round-history/**
 
   aai-hermes-skills:
     globs:

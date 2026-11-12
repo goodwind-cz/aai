@@ -13,7 +13,7 @@ RUN THE TICK
    Then run any returned state_update_commands. Then step 5.
    EXCEPTION — check-role-output.mjs --recheck-mode <recheck.mode>: a delta round returning BLOCKED with the only blocker needs_full_recheck (it prints
    RECHECK-ESCALATION) is no human stop: run none of its state_update_commands, set no human_input, re-run step 1 once with AAI_RECHECK_MODE=full, dispatch the full role.
-3. Exit 3 (no_action): report "No action required" + the JSON reasons; STOP. EXCEPTION — reasons advance_phase_to_implementation (rule 9x confirmed the phase by script; no agent needed): run state.mjs set-phase --ref <ref> --phase implementation, then step 1 ONCE.
+3. Exit 3 (no_action): report "No action required" + the JSON reasons; STOP. EXCEPTION — reasons advance_phase_to_implementation (rule 9x confirmed the phase by script; no agent needed): run state.mjs set-phase --ref <ref> --phase implementation, then step 1 ONCE. EXCEPTION — review_round_cap: with standing_a_available and a FAIL report naming a hazard introduced by the feature, run node .aai/scripts/append-event.mjs --event round_extension --ref <ref> --authority standing-a --reason "<hazard>", then step 1 ONCE; else run the returned state_update_commands and STOP (the reason review-round-cap parks unattended rides).
 4. Exit 4 (needs_llm): handle ONLY the named reasons, nothing else:
    - state_file_missing / duplicate_top_level_key / missing_required_block /
      unknown_enum_value / inline_child_conflict: auto-init or repair via

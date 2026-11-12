@@ -105,6 +105,10 @@ capture_now() { NOW_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; }
 st() {
   local s="$1" lg="$2"
   shift 2
+  # The round cap counts reset-block calls per ref in the EVENTS beside the STATE file, and the fixtures here
+  # share TEST_DIR and one ref: empty that ledger first so these cases test the block guards, not the cap
+  # (the cap itself is tested in test-aai-round-budget.sh).
+  if [[ "${1:-}" == reset-block ]]; then rm -f "$(dirname "$s")/EVENTS.jsonl"; fi
   (cd "$PROJECT_ROOT" && node .aai/scripts/state.mjs --state "$s" "$@" > "$lg" 2>&1)
 }
 
@@ -3082,6 +3086,8 @@ test_071_rguard_predicate_which_file() {  # TEST-037 / Spec-AC-12
   local other="$TEST_DIR/t71-other-project"
   mkdir -p "$other/.aai/scripts/lib" "$other/docs/ai"
   cp "$PROJECT_ROOT/.aai/scripts/state.mjs" "$other/.aai/scripts/state.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$other/.aai/scripts/round-budget.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$other/.aai/scripts/select-suites.mjs"
   # state.mjs's real ./lib/*.mjs imports (check-vendored-script-deps.mjs,
   # Amendment 21). st_sub() always runs the REAL $PROJECT_ROOT/.aai/scripts/
   # state.mjs (never this copy) — this vendored copy exists only so $other

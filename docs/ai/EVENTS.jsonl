@@ -3802,3 +3802,15 @@
 {"v":1,"ts":"2026-11-11T22:44:06Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-update-ps1-git-stderr","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-11T22:45:06Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":724,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-11T23:09:48Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"update-ps1-git-stderr","payload":{"pr":547,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"4fc6b9a3fbef6433aa623647b2be15c309b93685"}}
+{"v":1,"ts":"2026-11-12T06:52:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-factory-round-cap","payload":{"from":"draft","to":"implementing"}}
+{"v":1,"ts":"2026-11-12T08:39:06Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":726,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-12T09:51:20Z","actor":"ales_holubec.net","event":"full_sweep","ref":"factory-round-cap","payload":{"head":"5dd11822ebb4f772209c16db2ca8ba61b0088d65","rc":1,"run_id":"test-20261112-084017"}}
+{"v":1,"ts":"2026-11-12T10:28:47Z","actor":"ales_holubec.net","event":"round_reset","ref":"factory-round-cap","payload":{"block":"last_validation","from":"fail","forced":true}}
+{"v":1,"ts":"2026-11-12T11:25:52Z","actor":"ales_holubec.net","event":"full_sweep","ref":"factory-round-cap","payload":{"head":"eec593ce5da4fb6db59990ccdaa8cbbcf3270009","rc":0,"run_id":"test-20261112-102944"}}
+{"v":1,"ts":"2026-11-12T11:25:58Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":726,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-12T12:08:59Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"factory-round-cap","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-12T12:08:59Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"factory-round-cap","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-12T12:08:59Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-factory-round-cap","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-12T12:08:59Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-factory-round-cap","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-12T12:10:13Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":726,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-12T12:50:55Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"factory-round-cap","payload":{"pr":549,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"21cfcbc3c3dc92df4fc74ab867e1ee1c768dce10"}}
