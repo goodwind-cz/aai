@@ -780,6 +780,61 @@ test_3647_validation_rule() {
   log_pass "TEST-3647: VALIDATION states the off, shadow and on rules; this repo sets shadow; code default is off"
 }
 
+# --- TEST-3648 (Spec-AC-13) ---------------------------------------------------
+test_3648_wiring_pins() {
+  local ledger="$PROJECT_ROOT/tests/skills/lib/prompt-diet-ledger.sh" n out rc f
+  node -e '
+    const t = require("fs").readFileSync(process.argv[1], "utf8");
+    const core = t.split(/^core:/m)[1] || "";
+    const sect = core.split(/^[a-z_]+:/m)[0];
+    if (!sect.includes("  - .aai/scripts/evidence-digest.mjs")) process.exit(1);
+  ' "$PROJECT_ROOT/.aai/system/PROFILES.yaml" || log_fail "TEST-3648: evidence-digest.mjs is not under PROFILES core"
+  out="$(printf '%s\n' '.aai/scripts/evidence-digest.mjs' | env -u AAI_ROLE node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from - --repo-root "$PROJECT_ROOT" 2>&1)" || log_fail "TEST-3648: select-suites failed"
+  grep -qF 'SELECTED aai-model-effort reason=.aai/scripts/evidence-digest.mjs' <<< "$out" || log_fail "TEST-3648: evidence-digest.mjs does not select aai-model-effort: $out"
+  grep -qE '^aai-model-effort[[:space:]]+[0-9]+$' "$PROJECT_ROOT/tests/skills/suite-weights.tsv" || log_fail "TEST-3648: suite-weights.tsv has no aai-model-effort row"
+  n="$(grep -c ' model-effort-routing ' "$ledger" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3648: $n ledger lines name model-effort-routing, expected exactly 1"
+  grep -qE '^JUSTIFIED_ADDITIONS\+=\( "[0-9]+ model-effort-routing ' "$ledger" || log_fail "TEST-3648: the model-effort-routing entry is not a positive ledger credit"
+  rc=0; out="$(env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" test_010_audit_and_reduction 2>&1)" || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-3648: prompt-diet TEST-010 exited $rc"
+  [[ "$out" == *'headroom 0/2048'* ]] || log_fail "TEST-3648: TEST-010 headroom is not 0/2048"
+  rc=0; env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/test-aai-prompt-diet.sh" test_012_growth_sum_matches_ledger > /dev/null 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-3648: prompt-diet TEST-012 exited $rc"
+  for f in "test-aai-pr-preflight.sh test_008" "test-aai-legacy-migrations.sh test_3398_diet" "test-aai-retired-loop-runner.sh test_3410_diet"; do
+    rc=0; env -u AAI_ROLE bash "$PROJECT_ROOT/tests/skills/${f%% *}" "${f##* }" > /dev/null 2>&1 || rc=$?
+    [[ "$rc" == 0 ]] || log_fail "TEST-3648: ${f%% *} ${f##* } exited $rc"
+  done
+  log_pass "TEST-3648: PROFILES core, suite-map selection, weights row and the ledger companion pins agree with the model-effort-routing entry"
+}
+
+# --- TEST-3649 (Spec-AC-14) ---------------------------------------------------
+test_3649_changelog_entry() {
+  local cl="$PROJECT_ROOT/CHANGELOG.md" cut="$PROJECT_ROOT/.aai/scripts/release-cut.mjs" rolled bare
+  bare="$(grep -c '^## \[unreleased\]$' "$cl" || true)"
+  [[ "$bare" == 1 ]] || log_fail "TEST-3649: $bare bare unreleased scaffolds, expected exactly 1"
+  rolled="$TEST_DIR/CHANGELOG.rolled.md"
+  cp "$cl" "$rolled"
+  env -u AAI_ROLE node "$cut" roll --file "$rolled" --version v2099.01.01 > "$TEST_DIR/roll.out" 2>&1 || log_fail "TEST-3649: the release parser refused the file: $(cat "$TEST_DIR/roll.out")"
+  node -e '
+    const fs = require("fs");
+    const check = (file, headRe, label) => {
+      const t = fs.readFileSync(file, "utf8").split("\n");
+      const idx = [];
+      t.forEach((l, i) => { if (headRe.test(l) && /per-role effort tier/.test(l)) idx.push(i); });
+      if (idx.length !== 1) { console.error(label + ": " + idx.length + " entries name the per-role effort tier, expected 1"); process.exit(1); }
+      let end = t.length;
+      for (let j = idx[0] + 1; j < t.length; j++) if (/^## \[/.test(t[j])) { end = j; break; }
+      const body = t.slice(idx[0], end).join("\n");
+      for (const k of ["harness_effort", "requested_effort", "effort_applied", "cache_read_tokens", "--by-effort", "--split", "evidence-digest.mjs", "shadow", "CLAUDE_CODE_EFFORT_LEVEL"]) {
+        if (!body.includes(k)) { console.error(label + ": entry lacks " + k); process.exit(1); }
+      }
+    };
+    check(process.argv[1], /^## \[unreleased\] — /, "live");
+    check(process.argv[2], /^## \[v2099\.01\.01\] — /, "rolled");
+  ' "$cl" "$rolled" || log_fail "TEST-3649: the CHANGELOG entry is missing, duplicated or incomplete"
+  log_pass "TEST-3649: one bare scaffold, one effort entry that survives the release roll, parser accepts the file"
+}
+
 main() {
   check_deps
   test_3633_shipped_effort_table
@@ -797,6 +852,8 @@ main() {
   test_3645_digest_record
   test_3646_digest_score
   test_3647_validation_rule
+  test_3648_wiring_pins
+  test_3649_changelog_entry
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
