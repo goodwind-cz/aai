@@ -118,6 +118,8 @@ new_fixture_repo() {
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$dir/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$dir/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$dir/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$dir/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$dir/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/close-work-item.mjs" "$dir/.aai/scripts/"
   # close-work-item.mjs imports checkBranchPin from the sibling branch-guard.mjs
   # (test-framework-sweep) — without it a fixture repo's close-work-item.mjs

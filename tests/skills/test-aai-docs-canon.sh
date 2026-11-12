@@ -77,6 +77,8 @@ setup_fixture() {
   cp "$PROJECT_ROOT/.aai/scripts/docs-canon.mjs" .aai/scripts/
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" .aai/scripts/
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" .aai/scripts/ 2>/dev/null || true
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" .aai/scripts/ 2>/dev/null || true
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" .aai/scripts/ 2>/dev/null || true
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs .aai/scripts/lib/
 
   # Umbrella fixture: 3 files sharing id SPEC-X; one superseded with markers.

@@ -92,8 +92,8 @@ test_3600_status_counts() {
   [[ "$rc" == 0 ]] || log_fail "TEST-3600: status exited $rc: $out"
   grep -q 'rounds: 2/3 extensions: 1 ' <<<"$out" || log_fail "TEST-3600: want rounds 2/3 extensions 1, got: $out"
   grep -q '^NOTE' <<<"$out" || log_fail "TEST-3600: want a NOTE for the malformed line, got: $out"
-  node "$RB" status --ref OTHER --events "$ev" 2>&1 | grep -q 'rounds: 1/3 ' || log_fail "TEST-3600: other ref must count its own line"
-  node "$RB" status --ref RC-1 --events "$TMP_ROOT/absent.jsonl" 2>&1 | grep -q 'rounds: 0/2 ' || log_fail "TEST-3600: absent EVENTS must count 0"
+  [[ "$(node "$RB" status --ref OTHER --events "$ev" 2>&1)" == *'rounds: 1/3 '* ]] || log_fail "TEST-3600: other ref must count its own line"
+  [[ "$(node "$RB" status --ref RC-1 --events "$TMP_ROOT/absent.jsonl" 2>&1)" == *'rounds: 0/2 '* ]] || log_fail "TEST-3600: absent EVENTS must count 0"
   log_pass "TEST-3600: status counts the ref's resets, cap 2 plus its extensions, notes a malformed line"
 }
 
@@ -116,7 +116,7 @@ test_3601_reset_appends_round() {
   write_state "$st" RC-1 pass
   rc="$(run_rc "$TMP_ROOT/r3.log" node "$STATE_CLI" --state "$st" reset-block last_validation --force)"
   [[ "$rc" == 0 ]] || log_fail "TEST-3601: forced reset exited $rc"
-  tail -1 "$ev" | grep -q '"from":"pass","forced":true' || log_fail "TEST-3601: forced reset line wrong: $(tail -1 "$ev")"
+  [[ "$(tail -n 1 "$ev")" == *'"from":"pass","forced":true'* ]] || log_fail "TEST-3601: forced reset line wrong: $(tail -1 "$ev")"
   log_pass "TEST-3601: reset-block appends one round_reset beside the STATE file, a no-op appends none"
 }
 
@@ -153,8 +153,8 @@ test_3603_extensions() {
   ae() { (cd "$TMP_ROOT" && node "$APPEND_EVENT" "$@"); }
   rc="$(run_rc "$TMP_ROOT/a1.log" ae --event round_extension --ref RC-1 --authority standing-a --reason "hazard introduced by the feature")"
   [[ "$rc" == 0 ]] || log_fail "TEST-3603: standing-a extension exited $rc: $(cat "$TMP_ROOT/a1.log")"
-  tail -1 "$ev" | grep -q '"event":"round_extension"' || log_fail "TEST-3603: extension line missing"
-  tail -1 "$ev" | grep -q '"authority":"standing-a"' || log_fail "TEST-3603: authority not recorded"
+  [[ "$(tail -n 1 "$ev")" == *'"event":"round_extension"'* ]] || log_fail "TEST-3603: extension line missing"
+  [[ "$(tail -n 1 "$ev")" == *'"authority":"standing-a"'* ]] || log_fail "TEST-3603: authority not recorded"
   rc="$(run_rc "$TMP_ROOT/r.log" node "$STATE_CLI" --state "$st" reset-block last_validation)"
   [[ "$rc" == 0 ]] || log_fail "TEST-3603: reset after one extension exited $rc: $(cat "$TMP_ROOT/r.log")"
   rc="$(run_rc "$TMP_ROOT/a2.log" ae --event round_extension --ref RC-1 --authority standing-a --reason "again")"
@@ -482,7 +482,7 @@ test_3609_full_sweep_validation() {
   [[ "$(wc -l < "$d/docs/ai/EVENTS.jsonl" | tr -d ' ')" == "$before" ]] || log_fail "TEST-3609: a refused full_sweep wrote a line"
   rc="$(run_rc "$TMP_ROOT/a.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head "$head" --rc 0 --run-id fw-1)"
   [[ "$rc" == 0 ]] || log_fail "TEST-3609: a well-formed record must exit 0, got $rc: $(cat "$TMP_ROOT/a.log")"
-  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -q "\"head\":\"$head\"" || log_fail "TEST-3609: the record must carry the head"
+  [[ "$(tail -n 1 "$d/docs/ai/EVENTS.jsonl")" == *"\"head\":\"$head\""* ]] || log_fail "TEST-3609: the record must carry the head"
   log_pass "TEST-3609: every malformed full_sweep field exits 1 and writes no line"
 }
 

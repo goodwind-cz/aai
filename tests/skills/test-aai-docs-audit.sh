@@ -172,6 +172,8 @@ setup_fixture() {
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" .aai/scripts/
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" .aai/scripts/
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" .aai/scripts/
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" .aai/scripts/
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" .aai/scripts/
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs .aai/scripts/lib/
 
   git add .aai && git commit -qm "chore: vendor audit scripts"
@@ -769,6 +771,8 @@ setup_spec0010_hook_repo() {
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$d/.aai/scripts/"
   vendor_hook_installer "$d" sh
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   printf 'docs/INDEX.audit.md\n' > "$d/.gitignore"
@@ -1957,6 +1961,8 @@ setup_iso_repo() {
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   (cd "$d" && git init -q && git config user.email test@example.com && git config user.name "AAI Test")
   printf '%s' "$d"
@@ -2668,6 +2674,8 @@ setup_spec0011_hook_repo() {
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$d/.aai/scripts/"
   vendor_hook_installer "$d" sh
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   printf 'docs/INDEX.audit.md\n' > "$d/.gitignore"
@@ -3543,6 +3551,8 @@ setup_near_miss_fixture() {
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   # column-set shape (issue 370 / M9), NON-terminal (status: implementing):
   # id column reads "AC", not "Spec-AC", under a non-canonical "## Acceptance
@@ -3708,6 +3718,8 @@ test_582_status_vocabulary_scoped_to_spec_ac_col() {  # TEST-582 / Spec-AC-11 (A
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   # A bare "AC"-id column-set table (M9's own shape) whose Status word
   # ("green") is genuinely OUT of AC_STATUS_ENUM — unlike ISSUE-9001/9003 in
@@ -3832,6 +3844,8 @@ MD
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$nogit/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$nogit/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$nogit/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$nogit/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$nogit/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$nogit/.aai/scripts/lib/"
   cp "$d/docs/issues/ISSUE-9001-tracked.md" "$nogit/docs/issues/"
   rc=0
@@ -6424,6 +6438,8 @@ setup_histmap_repo() {
   mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/specs" "$d/docs/ai"
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   cat > "$d/docs/ai/docs-audit.yaml" <<'YAML'
 legacy_until_date: 2026-06-01
@@ -6791,6 +6807,8 @@ setup_idmention_repo() {
   mkdir -p "$d/.aai/scripts/lib" "$d/docs/issues" "$d/docs/ai"
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   # Deliberately NO legacy_until_date: that key alone gates a SEPARATE
   # add-history git log call (buildFirstCommitDateMap) this arm is not about.
@@ -7377,6 +7395,8 @@ setup_ac24_fixture() {
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   cat > "$d/docs/ai/docs-audit.yaml" <<'YAML'
 legacy_until_date: 2026-01-01
@@ -7483,6 +7503,8 @@ setup_silence_fixture() {
   cp "$PROJECT_ROOT/.aai/scripts/docs-audit.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/generate-docs-index.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT/.aai/scripts/append-event.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$d/.aai/scripts/"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$d/.aai/scripts/"
   cp "$PROJECT_ROOT"/.aai/scripts/lib/*.mjs "$d/.aai/scripts/lib/"
   if [[ "$want" == *plain* ]]; then
     cat > "$d/docs/issues/ISSUE-9210-plain.md" <<'MD'

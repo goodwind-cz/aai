@@ -3086,6 +3086,8 @@ test_071_rguard_predicate_which_file() {  # TEST-037 / Spec-AC-12
   local other="$TEST_DIR/t71-other-project"
   mkdir -p "$other/.aai/scripts/lib" "$other/docs/ai"
   cp "$PROJECT_ROOT/.aai/scripts/state.mjs" "$other/.aai/scripts/state.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/round-budget.mjs" "$other/.aai/scripts/round-budget.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" "$other/.aai/scripts/select-suites.mjs"
   # state.mjs's real ./lib/*.mjs imports (check-vendored-script-deps.mjs,
   # Amendment 21). st_sub() always runs the REAL $PROJECT_ROOT/.aai/scripts/
   # state.mjs (never this copy) — this vendored copy exists only so $other
