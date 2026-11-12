@@ -7,6 +7,7 @@
 //   validation_verdict (role-verification-guards G2),
 //   check_dispatched, check_verdict (spec-cheap-transitions-slice D4),
 //   round_extension (spec-factory-round-cap D-EXT), full_sweep (D-SWEEP),
+//   evidence_digest (spec-model-effort-routing D-DIGEST; written by evidence-digest.mjs run --record),
 //   pr_sweep (Spec-AC-33, CHANGE-0060 step 5d mechanization / GitHub issue 338).
 // Required: --event, --ref. Auto-filled: v=1, ts (ISO UTC), actor (git slug).
 //
@@ -34,7 +35,7 @@ import { PR_SWEEP_OUTCOMES, sweepContradictions, parseSweepCount } from './lib/p
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
-const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict', 'pr_sweep', 'check_dispatched', 'check_verdict', 'round_extension', 'full_sweep']);
+const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict', 'pr_sweep', 'check_dispatched', 'check_verdict', 'round_extension', 'full_sweep', 'evidence_digest']);
 const CHECK_ROLES = new Set(['validation', 'code_review']);
 const HEAD_SHA_RE = /^[0-9a-f]{40}$/;
 // PR_SWEEP_OUTCOMES / sweepContradictions live in lib/pr-sweep.mjs — the SAME
@@ -227,6 +228,16 @@ function main() {
         && typeof args.run_id === 'string' && args.run_id.trim() !== '';
       if (!fullSweepOk) fail('full_sweep requires --head <40-hex sha>, --rc <integer> and a non-empty --run-id', 1);
       entry.payload = { head: args.head, rc: Number(args.rc), run_id: args.run_id };
+      break;
+    }
+    case 'evidence_digest': {
+      // spec-model-effort-routing D-DIGEST — evidence-digest.mjs run --record: --head <40-hex> --clean <true|false>
+      // --flags <non-negative integer>. A malformed record is refused whole and writes nothing.
+      const digestOk = typeof args.head === 'string' && HEAD_SHA_RE.test(args.head)
+        && (args.clean === 'true' || args.clean === 'false')
+        && typeof args.flags === 'string' && /^\d+$/.test(args.flags);
+      if (!digestOk) fail('evidence_digest requires --head <40-hex sha>, --clean true|false and --flags <non-negative integer>', 1);
+      entry.payload = { head: args.head, clean: args.clean === 'true', flags: Number(args.flags) };
       break;
     }
     case 'pr_sweep': {

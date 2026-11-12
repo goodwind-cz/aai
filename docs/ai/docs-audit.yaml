@@ -101,3 +101,10 @@ protected_paths_l3:
 # project's legitimate extra entry. AAI core needs no extras — its whole docs/ai
 # inventory is canonical.
 docs_ai_canon_extra: []
+# spec-model-effort-routing D-DIGEST/D-SCORE — evidence digest dial, consulted ONLY by
+# evidence-digest.mjs run --record. Values: off | shadow | on. off (also key or file absent, or any
+# other value) records nothing. shadow records one evidence_digest EVENTS line per digest and lets no
+# line replace a validation check. on lets a clean AC or GATE line stand for evidence existence and
+# gate exit codes. AAI core runs shadow to measure; the code default stays off. Promotion is the
+# owner's call, citing `evidence-digest.mjs score`.
+evidence_digest: shadow

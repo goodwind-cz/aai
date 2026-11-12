@@ -573,11 +573,12 @@ mk_digest_root() {
   mkdir -p "$d/docs/specs" "$d/docs/ai/tdd/fx" "$d/tests"
   printf 'GREEN\n' > "$d/docs/ai/tdd/fx/green.log"
   if [[ "$2" == "fixed" ]]; then
-    printf '# test_9001\n' > "$d/tests/fx.sh"
+    printf '# TEST-9001\n' > "$d/tests/fx.sh"
   else
     ev="docs/ai/tdd/fx/missing.log"
     printf '# no ids here\n' > "$d/tests/fx.sh"
   fi
+  printf '# TEST-9002\n' > "$d/tests/fx2.sh"
   cat > "$d/docs/specs/SPEC-0001-fx.md" <<MD
 ---
 id: SPEC-0001
@@ -590,20 +591,19 @@ links:
 
 # Fixture spec
 
-SPEC-FROZEN: true
-
 ## Acceptance Criteria Status
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
 | Spec-AC-01 | fixture row | done | $ev | — | n |
-| Spec-AC-02 | second row | $( [[ "$2" == "fixed" ]] && echo done || echo planned ) | — | — | n |
+| Spec-AC-02 | second row | $( [[ "$2" == "fixed" ]] && echo done || echo planned ) | $( [[ "$2" == "fixed" ]] && echo docs/ai/tdd/fx/green.log || echo — ) | — | n |
 
 ## Test Plan
 
 | Test ID | Spec-AC | Type | File path | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
 | TEST-9001 | Spec-AC-01 | unit | tests/fx.sh | fixture | target \`tests/fx.sh\`; \`sed:s/a/b/\` x | pending |
+| TEST-9002 | Spec-AC-02 | unit | tests/fx2.sh | fixture | target \`tests/fx2.sh\`; \`sed:s/a/b/\` x | pending |
 MD
   (cd "$d" && git init -q . && git add -A \
     && git -c user.email=fx@example.com -c user.name=fx commit -q -m fx) > "$TEST_DIR/git.out" 2>&1 \
