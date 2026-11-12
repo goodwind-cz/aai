@@ -32,6 +32,7 @@ CONTRACT_DOC="$PROJECT_ROOT/.aai/SUBAGENT_CONTRACT.md"
 PROTOCOL_DOC="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
 
 TMP_ROOT=""
+CHECK_CWD=""
 
 cleanup() {
   if [[ -n "${KEEP_TEST_DIR:-}" ]]; then
@@ -70,12 +71,20 @@ runcheck() {
   for arg in "$@"; do
     [[ "$arg" == '--outcome-intake' || "$arg" == '--outcome-spec' ]] && { has_binding=1; break; }
   done
+  # factory-round-cap D-SWEEP: a Validation PASS is refused while the repository's full sweep is owed, and
+  # the shipping repository's EVENTS say so for every fixture scope. The checker therefore runs in a scratch
+  # working directory that holds the fixtures and no tests/skills/test-framework.sh (sweep not applicable).
+  if [[ -z "$CHECK_CWD" ]]; then
+    CHECK_CWD="$TMP_ROOT/check-cwd"
+    mkdir -p "$CHECK_CWD/tests/fixtures"
+    cp -R "$FIXTURES_DIR" "$CHECK_CWD/tests/fixtures/role-outputs"
+  fi
   if [[ "$has_binding" -eq 1 ]]; then
-    node "$CHECKER" "$@"
+    (cd "$CHECK_CWD" && node "$CHECKER" "$@")
   else
-    node "$CHECKER" "$@" \
+    (cd "$CHECK_CWD" && node "$CHECKER" "$@" \
       --outcome-intake tests/fixtures/role-outputs/outcome-intake.md \
-      --outcome-spec tests/fixtures/role-outputs/outcome-spec.md
+      --outcome-spec tests/fixtures/role-outputs/outcome-spec.md)
   fi
 }
 
@@ -277,7 +286,7 @@ test_006_zero_dep() {
   local import_lines non_stdlib
   import_lines="$(grep -E "^import .* from ['\"]" "$CHECKER" || true)"
   [[ -n "$import_lines" ]] || log_fail "checker has no import statements to verify (unexpected)"
-  non_stdlib="$(echo "$import_lines" | grep -vE "from ['\"]node:|from ['\"]\./validation-outcome-check\.mjs['\"]" || true)"
+  non_stdlib="$(echo "$import_lines" | grep -vE "from ['\"]node:|from ['\"]\./(validation-outcome-check|round-budget)\.mjs['\"]" || true)"
   [[ -z "$non_stdlib" ]] || log_fail "checker imports an unapproved module: $non_stdlib"
   [[ "$(echo "$import_lines" | grep -c "from './validation-outcome-check.mjs'" || true)" -eq 1 ]] \
     || log_fail "checker must import exactly the shared local outcome checker"

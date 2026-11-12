@@ -1,0 +1,137 @@
+{
+ "ride": "install-path-parity-harness",
+ "source": "SPEC-DRAFT spec-factory-round-cap, Measurements behind the decisions; deltas are git diff --name-only --no-renames between the heads named, copied because the ride commits are not in CI clones",
+ "recorded": {
+  "check_rounds": 9,
+  "resets": 5,
+  "sweeps": 3
+ },
+ "rounds": [
+  {
+   "id": "V1",
+   "role": "validation",
+   "verdict": "PASS",
+   "hazard_introduced_by_feature": false,
+   "head": "8238f289",
+   "delta": []
+  },
+  {
+   "id": "R1",
+   "role": "code_review",
+   "verdict": "FAIL",
+   "hazard_introduced_by_feature": false,
+   "head": "8238f289",
+   "delta": []
+  },
+  {
+   "id": "V2",
+   "role": "validation",
+   "verdict": "FAIL",
+   "hazard_introduced_by_feature": true,
+   "head": "a7817f48",
+   "delta": [
+    ".github/workflows/ps1-quality.yml",
+    "docs/INDEX.md",
+    "docs/ai/decisions.jsonl",
+    "docs/specs/SPEC-DRAFT-install-path-parity-harness.md",
+    "tests/skills/install-parity.Tests.ps1",
+    "tests/skills/lib/install-parity-allowlist.tsv",
+    "tests/skills/lib/install-parity.mjs",
+    "tests/skills/lib/install-parity.test.mjs",
+    "tests/skills/test-aai-install-parity.sh"
+   ]
+  },
+  {
+   "id": "V3",
+   "role": "validation",
+   "verdict": "FAIL",
+   "hazard_introduced_by_feature": true,
+   "head": "8ce8bf2e",
+   "delta": [
+    "docs/ai/EVENTS.jsonl",
+    "docs/ai/decisions.jsonl",
+    "docs/ai/tests/test-runs.jsonl",
+    "docs/specs/SPEC-DRAFT-install-path-parity-harness.md",
+    "tests/skills/install-parity.Tests.ps1",
+    "tests/skills/lib/install-parity-allowlist.tsv",
+    "tests/skills/lib/install-parity.mjs",
+    "tests/skills/lib/install-parity.test.mjs"
+   ]
+  },
+  {
+   "id": "V4",
+   "role": "validation",
+   "verdict": "PASS",
+   "hazard_introduced_by_feature": false,
+   "head": "3cfbdf2d",
+   "delta": [
+    "docs/ai/decisions.jsonl",
+    "docs/specs/SPEC-DRAFT-install-path-parity-harness.md",
+    "tests/skills/install-parity.Tests.ps1",
+    "tests/skills/lib/install-parity.mjs",
+    "tests/skills/lib/install-parity.test.mjs",
+    "tests/skills/test-aai-install-parity.sh"
+   ]
+  },
+  {
+   "id": "R2",
+   "role": "code_review",
+   "verdict": "FAIL",
+   "hazard_introduced_by_feature": false,
+   "head": "3cfbdf2d",
+   "delta": []
+  },
+  {
+   "id": "V5",
+   "role": "validation",
+   "verdict": "PASS",
+   "hazard_introduced_by_feature": false,
+   "head": "07813eb9",
+   "delta": [
+    "docs/ai/decisions.jsonl",
+    "docs/specs/SPEC-DRAFT-install-path-parity-harness.md",
+    "tests/skills/lib/install-parity.mjs",
+    "tests/skills/lib/install-parity.test.mjs"
+   ]
+  },
+  {
+   "id": "R3",
+   "role": "code_review",
+   "verdict": "PASS",
+   "hazard_introduced_by_feature": false,
+   "head": "07813eb9",
+   "delta": []
+  },
+  {
+   "id": "V6",
+   "role": "validation",
+   "verdict": "PASS",
+   "hazard_introduced_by_feature": false,
+   "head": "cd5d99c5",
+   "delta": [
+    "docs/INDEX.md",
+    "docs/ai/EVENTS.jsonl",
+    "docs/ai/decisions.jsonl",
+    "docs/ai/factory-report-data.json",
+    "docs/ai/factory-report.html",
+    "docs/ai/overview-data.json",
+    "docs/ai/overview.html",
+    "docs/ai/reviews/review-20261110T214859Z.md",
+    "docs/ai/reviews/review-20261111-154939.md",
+    "docs/ai/reviews/review-20261111-171448.md",
+    "docs/ai/roadmap.yaml",
+    "docs/ai/tests/test-runs.jsonl",
+    "docs/issues/CHANGE-0254-install-path-parity-harness.md",
+    "docs/issues/CHANGE-DRAFT-install-path-parity-harness.md",
+    "docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md",
+    "docs/skill-catalog-data.json",
+    "docs/specs/SPEC-0284-spec-install-path-parity-harness.md",
+    "docs/specs/SPEC-DRAFT-install-path-parity-harness.md",
+    "tests/skills/lib/install-parity.mjs",
+    "tests/skills/lib/install-parity.test.mjs",
+    "tests/skills/test-aai-install-parity.sh"
+   ]
+  }
+ ],
+ "forced_recheck_round": "V6"
+}

@@ -6,7 +6,7 @@
 //   phase_confirmed, spec_scope_edited (CHANGE-0120),
 //   validation_verdict (role-verification-guards G2),
 //   check_dispatched, check_verdict (spec-cheap-transitions-slice D4),
-//   round_extension (spec-factory-round-cap D-EXT),
+//   round_extension (spec-factory-round-cap D-EXT), full_sweep (D-SWEEP),
 //   pr_sweep (Spec-AC-33, CHANGE-0060 step 5d mechanization / GitHub issue 338).
 // Required: --event, --ref. Auto-filled: v=1, ts (ISO UTC), actor (git slug).
 //
@@ -34,7 +34,7 @@ import { PR_SWEEP_OUTCOMES, sweepContradictions, parseSweepCount } from './lib/p
 
 const EVENTS_PATH = path.join(process.cwd(), 'docs/ai/EVENTS.jsonl');
 const SCHEMA_VERSION = 1;
-const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict', 'pr_sweep', 'check_dispatched', 'check_verdict', 'round_extension']);
+const EVENT_TYPES = new Set(['ac_status', 'ac_evidence', 'defer_extended', 'doc_lifecycle', 'docs_audit', 'work_item_closed', 'code_review_completed', 'phase_confirmed', 'spec_scope_edited', 'validation_verdict', 'pr_sweep', 'check_dispatched', 'check_verdict', 'round_extension', 'full_sweep']);
 const CHECK_ROLES = new Set(['validation', 'code_review']);
 const HEAD_SHA_RE = /^[0-9a-f]{40}$/;
 // PR_SWEEP_OUTCOMES / sweepContradictions live in lib/pr-sweep.mjs — the SAME
@@ -212,6 +212,16 @@ function main() {
       const standingAUsed = args.authority === 'standing-a' && standingAExtensions(readEvents(EVENTS_PATH).events, args.ref) > 0;
       if (standingAUsed) fail(`round_extension refused: STANDING DECISION (a) allows one extension per ride and ${args.ref} already has it; a second is a STOP that asks the owner (use --authority owner)`, 1);
       entry.payload = { authority: args.authority, reason: args.reason };
+      break;
+    }
+    case 'full_sweep': {
+      // spec-factory-round-cap D-SWEEP — the ride's one full sweep: --head <40-hex> --rc <int> --run-id <id>.
+      // A malformed record is refused whole and writes nothing.
+      const fullSweepOk = typeof args.head === 'string' && HEAD_SHA_RE.test(args.head)
+        && typeof args.rc === 'string' && /^-?\d+$/.test(args.rc)
+        && typeof args.run_id === 'string' && args.run_id.trim() !== '';
+      if (!fullSweepOk) fail('full_sweep requires --head <40-hex sha>, --rc <integer> and a non-empty --run-id', 1);
+      entry.payload = { head: args.head, rc: Number(args.rc), run_id: args.run_id };
       break;
     }
     case 'pr_sweep': {

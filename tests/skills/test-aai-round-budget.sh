@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Test: aai-round-budget
-# (docs/specs/SPEC-DRAFT-spec-factory-round-cap.md, TEST-3600..3606 so far;
-# TEST-3607..3613 are added by later runs of the same ride)
+# (docs/specs/SPEC-DRAFT-spec-factory-round-cap.md, TEST-3600..3611 so far;
+# TEST-3612..3613 are added by a later run of the same ride)
 #
 # The counted review round cap: .aai/scripts/round-budget.mjs counts round_reset and
 # round_extension lines in EVENTS, state.mjs reset-block writes one round_reset per
@@ -17,8 +17,9 @@
 set -euo pipefail
 
 TEST_NAME="aai-round-budget"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+case "$SCRIPT_DIR" in /*) ;; *) SCRIPT_DIR="$PWD/$SCRIPT_DIR" ;; esac
+PROJECT_ROOT="$SCRIPT_DIR/../.."
 RB="$PROJECT_ROOT/.aai/scripts/round-budget.mjs"
 STATE_CLI="$PROJECT_ROOT/.aai/scripts/state.mjs"
 APPEND_EVENT="$PROJECT_ROOT/.aai/scripts/append-event.mjs"
@@ -363,6 +364,232 @@ test_3606_fail_needs_backing() {
   log_pass "TEST-3606: a Validation or Code Review FAIL needs a BLOCKING line backed by a failing check or a repro"
 }
 
+# in_repo <dir> <cmd...>: run a command with the scratch repo as its working directory.
+in_repo() { local d="$1"; shift; (cd "$d" && "$@"); }
+
+# mk_sweep_repo <dir> <ceremony|none> <framework yes|no>: a scratch git repo for sweep-plan (ref SW-1).
+mk_sweep_repo() {
+  local d="$1" level="$2" fw="$3"
+  mkdir -p "$d/docs/ai" "$d/docs/specs" "$d/tests/skills" "$d/.aai/scripts" "$d/.github/workflows"
+  if [[ "$level" == none ]]; then
+    printf -- '---\nid: spec-sw-1\n---\n\n# spec\n' > "$d/docs/specs/SPEC-DRAFT-spec-SW-1.md"
+  else
+    printf -- '---\nid: spec-sw-1\nceremony_level: %s\n---\n\n# spec\n' "$level" > "$d/docs/specs/SPEC-DRAFT-spec-SW-1.md"
+  fi
+  [[ "$fw" == yes ]] && echo 'echo framework' > "$d/tests/skills/test-framework.sh"
+  echo 'one' > "$d/.aai/scripts/x.mjs"
+  : > "$d/docs/ai/EVENTS.jsonl"
+  git -C "$d" init -q
+  git -C "$d" config user.email t@example.com
+  git -C "$d" config user.name t
+  git -C "$d" add -A
+  git -C "$d" commit -q -m base
+}
+
+# sw_commit <dir> <path> [content]: change one file and commit it.
+sw_commit() {
+  mkdir -p "$(dirname "$1/$2")"
+  echo "${3:-change}" >> "$1/$2"
+  git -C "$1" add -A
+  git -C "$1" commit -q -m "edit $2"
+}
+
+# sw_record <dir> <head> <rc> <runid>: record a full_sweep through the real append-event.
+sw_record() {
+  in_repo "$1" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head "$2" --rc "$3" --run-id "$4" > /dev/null
+}
+
+sw_plan() { in_repo "$1" node "$RB" sweep-plan --ref SW-1; }
+
+test_3607_sweep_plan() {
+  new_tmp
+  local d out head other
+  d="$TMP_ROOT/nofw"; mk_sweep_repo "$d" 2 no
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP not-applicable reason=no-sweep-command" ]] || log_fail "TEST-3607: no test-framework.sh: got '$out'"
+  d="$TMP_ROOT/l1"; mk_sweep_repo "$d" 1 yes
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP not-applicable reason=lightweight-lane" ]] || log_fail "TEST-3607: ceremony 1: got '$out'"
+  d="$TMP_ROOT/l2"; mk_sweep_repo "$d" 2 yes
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP full reason=no-sweep" ]] || log_fail "TEST-3607: no sweep recorded: got '$out'"
+  # not-ancestor: the sweep head sits on a branch HEAD does not contain.
+  git -C "$d" checkout -q -b side
+  sw_commit "$d" tests/side.sh
+  other="$(git -C "$d" rev-parse HEAD)"
+  git -C "$d" checkout -q -
+  sw_record "$d" "$other" 0 r-side
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP full reason=not-ancestor sha=$other" ]] || log_fail "TEST-3607: non-ancestor head: got '$out'"
+  # A green sweep at HEAD, then a code delta and a reuse delta.
+  d="$TMP_ROOT/l3"; mk_sweep_repo "$d" 2 yes
+  head="$(git -C "$d" rev-parse HEAD)"
+  sw_record "$d" "$head" 0 r1
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP reuse sha=$head run=r1" ]] || log_fail "TEST-3607: sweep at HEAD, empty delta: got '$out'"
+  sw_commit "$d" tests/a.sh
+  sw_commit "$d" docs/a.md
+  sw_commit "$d" .github/workflows/w.yml
+  sw_commit "$d" docs/ai/EVENTS.jsonl '{"v":1}'
+  sw_commit "$d" .aai/PROMPT.prompt.md
+  echo untracked > "$d/tests/untracked.sh"
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP reuse sha=$head run=r1" ]] || log_fail "TEST-3607: tests, docs, workflow, ledger and an untracked test must reuse: got '$out'"
+  sw_commit "$d" .aai/scripts/x.mjs two
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP full reason=code-delta path=.aai/scripts/x.mjs" ]] || log_fail "TEST-3607: a script delta must be full code-delta: got '$out'"
+  [[ "$(sw_plan "$d" | wc -l | tr -d ' ')" == 1 ]] || log_fail "TEST-3607: sweep-plan must print exactly one line"
+  log_pass "TEST-3607: sweep-plan answers not-applicable, full (no-sweep, not-ancestor, code-delta) and reuse"
+}
+
+test_3608_red_sweep_and_record() {
+  new_tmp
+  local d="$TMP_ROOT/r" head out rc
+  mk_sweep_repo "$d" 2 yes
+  head="$(git -C "$d" rev-parse HEAD)"
+  sw_record "$d" "$head" 1 r-red
+  sw_commit "$d" tests/only.sh
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP full reason=red-sweep run=r-red" ]] || log_fail "TEST-3608: a red sweep must stay full even for a test-only delta: got '$out'"
+  sw_record "$d" "$(git -C "$d" rev-parse HEAD)" 0 r-green
+  out="$(sw_plan "$d")"
+  [[ "$out" == "SWEEP reuse sha=$(git -C "$d" rev-parse HEAD) run=r-green" ]] || log_fail "TEST-3608: the newest (green) sweep must win: got '$out'"
+  rc="$(run_rc "$TMP_ROOT/s.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head abc123 --rc 0 --run-id x)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3608: a short head must exit 1, got $rc"
+  rc="$(run_rc "$TMP_ROOT/s.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head "$head" --rc abc --run-id x)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3608: a non-integer rc must exit 1, got $rc"
+  rc="$(run_rc "$TMP_ROOT/s.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head "$head" --rc 0 --run-id "")"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3608: an empty run id must exit 1, got $rc"
+  log_pass "TEST-3608: a red newest sweep stays full; append-event refuses a bad head, rc or run id"
+}
+
+test_3609_full_sweep_validation() {
+  new_tmp
+  local d="$TMP_ROOT/r" head rc before
+  mk_sweep_repo "$d" 2 yes
+  head="$(git -C "$d" rev-parse HEAD)"
+  before="$(wc -l < "$d/docs/ai/EVENTS.jsonl" | tr -d ' ')"
+  rc="$(run_rc "$TMP_ROOT/a.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --rc 0 --run-id x)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3609: missing head must exit 1, got $rc"
+  rc="$(run_rc "$TMP_ROOT/a.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head "${head}0" --rc 0 --run-id x)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3609: a 41-char head must exit 1, got $rc"
+  rc="$(run_rc "$TMP_ROOT/a.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head "$head" --run-id x)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3609: missing rc must exit 1, got $rc"
+  rc="$(run_rc "$TMP_ROOT/a.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head "$head" --rc 1.5 --run-id x)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3609: a fractional rc must exit 1, got $rc"
+  rc="$(run_rc "$TMP_ROOT/a.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head "$head" --rc 0)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3609: missing run id must exit 1, got $rc"
+  [[ "$(wc -l < "$d/docs/ai/EVENTS.jsonl" | tr -d ' ')" == "$before" ]] || log_fail "TEST-3609: a refused full_sweep wrote a line"
+  rc="$(run_rc "$TMP_ROOT/a.log" in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref SW-1 --head "$head" --rc 0 --run-id fw-1)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3609: a well-formed record must exit 0, got $rc: $(cat "$TMP_ROOT/a.log")"
+  tail -1 "$d/docs/ai/EVENTS.jsonl" | grep -q "\"head\":\"$head\"" || log_fail "TEST-3609: the record must carry the head"
+  log_pass "TEST-3609: every malformed full_sweep field exits 1 and writes no line"
+}
+
+test_3610_sweep_owed() {
+  new_tmp
+  local d="$TMP_ROOT/r" rc fx="$PROJECT_ROOT/tests/fixtures/role-outputs" head
+  mk_sweep_repo "$d" 2 no
+  mkdir -p "$d/tests/fixtures"
+  cp -R "$fx" "$d/tests/fixtures/role-outputs"
+  git -C "$d" add -A
+  git -C "$d" commit -q -m fixtures
+  co() { in_repo "$d" node "$CHECK_OUT" --file tests/fixtures/role-outputs/validation-valid.md --now 2026-06-01T00:00:00Z --outcome-intake tests/fixtures/role-outputs/outcome-intake.md --outcome-spec tests/fixtures/role-outputs/outcome-spec.md; }
+  # No test-framework.sh: not applicable, accepted with a NOTE line.
+  rc="$(run_rc "$TMP_ROOT/na.log" co)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3610: not-applicable PASS must exit 0, got $rc: $(cat "$TMP_ROOT/na.log")"
+  grep -q '^NOTE: sweep not applicable (no-sweep-command)' "$TMP_ROOT/na.log" || log_fail "TEST-3610: want a NOTE naming the reason: $(cat "$TMP_ROOT/na.log")"
+  # Add the sweep command: a PASS with no recorded sweep is refused.
+  sw_commit "$d" tests/skills/test-framework.sh
+  printf '%s\n' '---' 'id: spec-x' 'ceremony_level: 2' '---' > "$d/docs/specs/SPEC-DRAFT-spec-role-output-contracts.md"
+  git -C "$d" add -A; git -C "$d" commit -q -m spec
+  rc="$(run_rc "$TMP_ROOT/o.log" co)"
+  [[ "$rc" == 1 ]] || log_fail "TEST-3610: a PASS with the sweep owed must exit 1, got $rc: $(cat "$TMP_ROOT/o.log")"
+  grep -q 'ROLE-OUTPUT-VIOLATION: E-SWEEP-OWED' "$TMP_ROOT/o.log" || log_fail "TEST-3610: want E-SWEEP-OWED: $(cat "$TMP_ROOT/o.log")"
+  # A green sweep at HEAD: accepted.
+  head="$(git -C "$d" rev-parse HEAD)"
+  in_repo "$d" node "$APPEND_EVENT" --event full_sweep --ref role-output-contracts --head "$head" --rc 0 --run-id fw-1 > /dev/null
+  rc="$(run_rc "$TMP_ROOT/g.log" co)"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3610: a PASS after the green sweep must exit 0, got $rc: $(cat "$TMP_ROOT/g.log")"
+  ! grep -q 'E-SWEEP-OWED' "$TMP_ROOT/g.log" || log_fail "TEST-3610: no E-SWEEP-OWED after a sweep"
+  log_pass "TEST-3610: a Validation PASS is refused with E-SWEEP-OWED while the sweep is owed, accepted on reuse and (with a NOTE) not-applicable"
+}
+
+test_3611_replay() {
+  new_tmp
+  local d="$TMP_ROOT/ride" fx="$PROJECT_ROOT/tests/fixtures/round-history/install-path-parity-harness.json" out
+  mk_dispatch_root "$d" pass not_run validation
+  mkdir -p "$d/tests/skills"
+  echo 'echo framework' > "$d/tests/skills/test-framework.sh"
+  git -C "$d" init -q
+  git -C "$d" config user.email t@example.com
+  git -C "$d" config user.name t
+  git -C "$d" add -A
+  git -C "$d" commit -q -m base
+  out="$(RB="$RB" STATE_CLI="$STATE_CLI" APPEND_EVENT="$APPEND_EVENT" DISPATCH="$DISPATCH" PROJECT_ROOT="$PROJECT_ROOT" ROOT="$d" FX="$fx" node - <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const E = process.env;
+const fx = JSON.parse(fs.readFileSync(E.FX, 'utf8'));
+const ref = 'CHANGE-0001';
+const state = path.join(E.ROOT, 'docs/ai/STATE.yaml');
+const run = (script, args, cwd) => spawnSync('node', [script, ...args], { cwd, encoding: 'utf8' });
+const st = (...a) => run(E.STATE_CLI, ['--state', state, ...a], E.PROJECT_ROOT);
+const git = (...a) => spawnSync('git', ['-C', E.ROOT, ...a], { encoding: 'utf8' });
+const need = (r, what) => { if (r.status !== 0) { console.error(`replay: ${what} exited ${r.status}: ${r.stdout}${r.stderr}`); process.exit(1); } return r; };
+const dispatch = () => { const r = run(E.DISPATCH, ['--state', state, '--root', E.ROOT], E.PROJECT_ROOT); return { rc: r.status, o: JSON.parse(r.stdout) }; };
+let resets = 0, sweeps = 0, stop = 'none', extended = false;
+for (const r of fx.rounds) {
+  for (const p of r.delta) {
+    if (p === 'docs/ai/EVENTS.jsonl') continue;
+    const f = path.join(E.ROOT, p);
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.appendFileSync(f, `${r.id}\n`);
+  }
+  git('add', '-A'); git('commit', '-q', '--allow-empty', '-m', `round ${r.id}`);
+  const isVal = r.role === 'validation';
+  const block = isVal ? 'last_validation' : 'code_review';
+  if (r.verdict === 'PASS') {
+    need(isVal ? st('set-validation', '--status', 'pass', '--ref', ref) : st('set-code-review', '--status', 'pass'), `${r.id} pass`);
+    if (isVal) {
+      const plan = need(run(E.RB, ['sweep-plan', '--ref', ref], E.ROOT), 'sweep-plan').stdout.trim();
+      if (plan.startsWith('SWEEP full')) {
+        const head = git('rev-parse', 'HEAD').stdout.trim();
+        need(run(E.APPEND_EVENT, ['--event', 'full_sweep', '--ref', ref, '--head', head, '--rc', '0', '--run-id', `fw-${r.id}`], E.ROOT), 'full_sweep');
+        sweeps += 1;
+      }
+    }
+    continue;
+  }
+  need(isVal ? st('set-validation', '--status', 'fail', '--ref', ref) : st('set-code-review', '--status', 'fail'), `${r.id} fail`);
+  let d = dispatch();
+  if (d.rc === 3 && d.o.reasons.includes('review_round_cap')) {
+    if (r.hazard_introduced_by_feature && d.o.reasons.includes('standing_a_available') && !extended) {
+      need(run(E.APPEND_EVENT, ['--event', 'round_extension', '--ref', ref, '--authority', 'standing-a', '--reason', `${r.id} hazard introduced by the feature`], E.ROOT), 'round_extension');
+      extended = true;
+      d = dispatch();
+    }
+    if (d.rc === 3) { stop = r.id; break; }
+  }
+  if (d.rc !== 0 || d.o.role !== 'Remediation') { console.error(`replay: ${r.id} did not dispatch Remediation: ${JSON.stringify(d.o)}`); process.exit(1); }
+  need(st('reset-block', block), `${r.id} reset-block`);
+  resets += 1;
+}
+// The forced V6 re-check after a recorded pass: refused at the cap.
+need(st('set-validation', '--status', 'pass', '--ref', ref), 'V6 pass');
+const forced = st('reset-block', 'last_validation', '--force');
+const rec = fx.recorded;
+console.log(`REPLAY ride=${fx.ride} recorded_check_rounds=${rec.check_rounds} recorded_resets=${rec.resets} recorded_sweeps=${rec.sweeps} replay_resets=${resets} replay_stop=${stop} replay_sweeps=${sweeps}`);
+console.log(`FORCED_V6 rc=${forced.status}`);
+NODE
+)" || log_fail "TEST-3611: the replay driver failed: $out"
+  printf '%s\n' "$out"
+  grep -qx 'REPLAY ride=install-path-parity-harness recorded_check_rounds=9 recorded_resets=5 recorded_sweeps=3 replay_resets=3 replay_stop=R2 replay_sweeps=1' <<<"$out" || log_fail "TEST-3611: the REPLAY line differs from D-REPLAY: $out"
+  grep -qx 'FORCED_V6 rc=5' <<<"$out" || log_fail "TEST-3611: the forced V6 reset must be refused with exit 5: $out"
+  log_pass "TEST-3611: ride 8 replays to 3 automatic resets, an owner menu at R2, one sweep, the forced V6 reset refused"
+}
+
 main() {
   check_deps
   test_3600_status_counts
@@ -372,6 +599,11 @@ main() {
   test_3604_dispatch_stops_at_cap
   test_3605_stop_relay_parks
   test_3606_fail_needs_backing
+  test_3607_sweep_plan
+  test_3608_red_sweep_and_record
+  test_3609_full_sweep_validation
+  test_3610_sweep_owed
+  test_3611_replay
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

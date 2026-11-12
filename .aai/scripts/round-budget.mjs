@@ -11,15 +11,19 @@
 //     prints `rounds: <used>/<cap> extensions: <n> resets: validation=<v> code_review=<c> forced=<f>
 //     sweeps: <count> green=<g> last_sweep=<sha|none>`, exit 0. Reads only EVENTS. Default EVENTS
 //     file: <root or cwd>/docs/ai/EVENTS.jsonl. A malformed line is skipped with a NOTE on stderr.
+//   node .aai/scripts/round-budget.mjs sweep-plan --ref <ref> [--events <file>] [--root <dir>]
+//     prints exactly one `SWEEP full|reuse|not-applicable ...` line, exit 0 (D-SWEEP).
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { nowIso } from './lib/iso-time.mjs';
+import { parseSuiteMap, matchesGlob } from './select-suites.mjs';
 
 export const ROUND_CAP_BASE = 2;
 export const ROUND_CAP_EXIT = 5;
+export const REUSE_GLOBS = ['tests/**', 'docs/**', '**/*.md', '.github/**', 'CHANGELOG.md'];
 export const ROUND_MENU = '(1) split the ride: close what is green, file the rest as a new intake (recommended) '
   + '(2) one more round: append-event round_extension --authority owner (3) park the ride';
 
@@ -102,6 +106,70 @@ export function statusOf(events, ref) {
   };
 }
 
+const git = (root, args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+
+// The focus spec's ceremony level, read from the spec path STATE names (else the spec whose file name
+// holds the ref). Absent or unreadable: null (not lightweight).
+function ceremonyOf(root, ref) {
+  let specPath = null;
+  try {
+    const st = fs.readFileSync(path.join(root, 'docs/ai/STATE.yaml'), 'utf8');
+    const m = /^\s+spec_path:\s*(\S+)\s*$/m.exec(st);
+    if (m && m[1] !== 'null') specPath = m[1].replace(/^["']|["']$/g, '');
+  } catch { /* no STATE */ }
+  if (!specPath || !fs.existsSync(path.join(root, specPath))) {
+    try {
+      const f = fs.readdirSync(path.join(root, 'docs/specs')).find(n => n.endsWith('.md') && n.includes(ref));
+      specPath = f ? `docs/specs/${f}` : null;
+    } catch { specPath = null; }
+  }
+  if (!specPath) return null;
+  try {
+    const fm = /^---\n([\s\S]*?)\n---/.exec(fs.readFileSync(path.join(root, specPath), 'utf8'));
+    const lv = fm && /^ceremony_level:\s*(\S+)\s*$/m.exec(fm[1]);
+    return lv ? lv[1] : null;
+  } catch { return null; }
+}
+
+function suiteMapGlobs(root) {
+  for (const base of [root, path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..')]) {
+    try {
+      const m = parseSuiteMap(fs.readFileSync(path.join(base, 'tests/skills/suite-map.yaml'), 'utf8'));
+      return [...m.carryGlobs, ...m.inertGlobs];
+    } catch { /* try next */ }
+  }
+  return [];
+}
+
+// D-SWEEP: does the ride owe the full sweep? Returns the one SWEEP line's parts.
+export function sweepPlan(events, ref, root) {
+  if (!fs.existsSync(path.join(root, 'tests/skills/test-framework.sh'))) return { kind: 'not-applicable', reason: 'no-sweep-command' };
+  const level = ceremonyOf(root, ref);
+  if (level === '0' || level === '1') return { kind: 'not-applicable', reason: 'lightweight-lane' };
+  const sweeps = forRef(events, ref, 'full_sweep');
+  const newest = sweeps[sweeps.length - 1];
+  if (!newest) return { kind: 'full', reason: 'no-sweep' };
+  const last = { ...newest.payload };
+  const sha = last.head;
+  const run = last.run_id;
+  if (last.rc !== 0) return { kind: 'full', reason: 'red-sweep', extra: `run=${run}` };
+  try { git(root, ['merge-base', '--is-ancestor', sha, 'HEAD']); } catch { return { kind: 'full', reason: 'not-ancestor', extra: `sha=${sha}` }; }
+  let delta;
+  try {
+    delta = [...git(root, ['diff', '--name-only', '--no-renames', sha]).split('\n'),
+      ...git(root, ['ls-files', '--others', '--exclude-standard']).split('\n')].filter(Boolean);
+  } catch { return { kind: 'full', reason: 'not-ancestor', extra: `sha=${sha}` }; }
+  const globs = [...REUSE_GLOBS, ...suiteMapGlobs(root)];
+  const out = delta.find(f => !globs.some(g => matchesGlob(f, g)));
+  if (out !== undefined) return { kind: 'full', reason: 'code-delta', extra: `path=${out}` };
+  return { kind: 'reuse', sha, run };
+}
+
+export function sweepLine(plan) {
+  if (plan.kind === 'reuse') return `SWEEP reuse sha=${plan.sha} run=${plan.run}`;
+  return `SWEEP ${plan.kind} reason=${plan.reason}${plan.extra ? ` ${plan.extra}` : ''}`;
+}
+
 function parseFlags(argv) {
   const flags = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -115,19 +183,23 @@ function parseFlags(argv) {
 
 function main(argv) {
   const cmd = argv[0];
-  if (cmd !== 'status') {
-    console.error('usage: round-budget.mjs status --ref <ref> [--events <file>] [--root <dir>] [--json]');
+  if (cmd !== 'status' && cmd !== 'sweep-plan') {
+    console.error('usage: round-budget.mjs status|sweep-plan --ref <ref> [--events <file>] [--root <dir>] [--json]');
     return 2;
   }
   const flags = parseFlags(argv.slice(1));
   if (typeof flags.ref !== 'string' || flags.ref === '') {
-    console.error('round-budget: status requires --ref <ref>');
+    console.error(`round-budget: ${cmd} requires --ref <ref>`);
     return 2;
   }
   const root = typeof flags.root === 'string' ? path.resolve(flags.root) : process.cwd();
   const eventsPath = typeof flags.events === 'string' ? path.resolve(flags.events) : path.join(root, 'docs/ai/EVENTS.jsonl');
   const { events, malformed } = readEvents(eventsPath);
   if (malformed > 0) console.error(`NOTE: ignored ${malformed} malformed line(s) in ${eventsPath}`);
+  if (cmd === 'sweep-plan') {
+    console.log(sweepLine(sweepPlan(events, flags.ref, root)));
+    return 0;
+  }
   const s = statusOf(events, flags.ref);
   if (flags.json === true) {
     console.log(JSON.stringify(s));

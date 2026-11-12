@@ -41,6 +41,9 @@
 //      (n an integer other than 0) or `BLOCKING <id>: <text> backed-by: repro <path>`, with
 //      <path> an existing file relative to the repo root (the cwd). BLOCKED and every other
 //      role are unaffected (SPEC factory-round-cap D-BAR).
+//   15. E-SWEEP-OWED      — a Validation `PASS` block while `round-budget.mjs sweep-plan` for the
+//      scope answers `full` (the ride's one full sweep is not yet recorded or is stale). `reuse`
+//      passes; `not-applicable` passes with a NOTE line on stderr, so a clean block stays silent on stdout (SPEC factory-round-cap D-SWEEP).
 //   4. E-NO-EVIDENCE      — `evidence` has at least one entry with an
 //      INTEGER `exit_code`.
 //   8. E-MALFORMED-LINE — a base-indent block line that is neither a key nor a comment (never silently skipped)
@@ -119,6 +122,7 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { checkOutcomeReport } from './validation-outcome-check.mjs';
+import { readEvents, sweepPlan, sweepLine } from './round-budget.mjs';
 
 // --- exit discipline (cli-exit-truncates-pipe-sweep) ------------------------
 // INLINED, not imported from ./lib/cli-pipe-guard.mjs: this checker's own
@@ -909,6 +913,16 @@ function validateResult(parsed, nowMs, scopeBinding = {}) {
       if (!outcome.ok) {
         violations.push(['E-OUTCOME-REPORT', outcome.reasons.join('; ')]);
       }
+    }
+    // factory-round-cap D-SWEEP — a PASS while the ride's one full sweep is still owed is refused.
+    const sweepRoot = process.cwd();
+    const sweepRef = String(parsed.fields.scope ?? '');
+    const sweep = sweepPlan(readEvents(path.join(sweepRoot, 'docs/ai/EVENTS.jsonl')).events, sweepRef, sweepRoot);
+    const sweepOwed = sweep.kind === 'full';
+    if (sweepOwed) {
+      violations.push(['E-SWEEP-OWED', `Validation PASS while the full sweep is owed: ${sweepLine(sweep)}`]);
+    } else if (sweep.kind === 'not-applicable') {
+      console.error(`NOTE: sweep not applicable (${sweep.reason})`);
     }
     const commands = commandWords;
     const scope = String(parsed.fields.scope ?? '');
