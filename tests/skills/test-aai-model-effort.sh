@@ -435,7 +435,7 @@ test_3640_by_effort_tables() {
 ### By role and requested effort
 | role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
 |------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
-| Implementation | medium | 2 | 1 | 900 | 900 | $2.00 | 30 | 10 | 1 |
+| Implementation | medium | 2 | 1 | 900 | 900 | ~$2.00 | 30 | 10 | 1 |
 | Implementation | unset | 1 | 1 | 1000 | 1000 | $1.50 | 0 | 0 | 0 |
 | Validation | high | 1 | 1 | 500 | 500 | $0.50 | 0 | 0 | 0 |
 | Validation | unset | 1 | 1 | 400 | 400 | n/a | 0 | 0 | 0 |
@@ -453,7 +453,7 @@ MD
 ### From 2026-07-05
 | role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
 |------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
-| Implementation | medium | 2 | 1 | 900 | 900 | $2.00 | 30 | 10 | 1 |
+| Implementation | medium | 2 | 1 | 900 | 900 | ~$2.00 | 30 | 10 | 1 |
 | Validation | high | 1 | 1 | 500 | 500 | $0.50 | 0 | 0 | 0 |
 
 ### Delta by role
@@ -488,7 +488,7 @@ test_3641_dispatch_to_report() {
   flush_d "$d"
   rep "$d/docs/ai/METRICS.jsonl" --by-effort
   [[ "$EC" == 0 ]] || log_fail "TEST-3641: --by-effort exited $EC: $(cat "$TEST_DIR/rep.err")"
-  qgrep -q -e '^\| Validation \| high \| 1 \| 1 \| 15 \|' < "$TEST_DIR/rep.out" || log_fail "TEST-3641: no Validation high row: $(cat "$TEST_DIR/rep.out")"
+  qgrep -q -F '| Validation | high | 1 | 1 | 15 |' < "$TEST_DIR/rep.out" || log_fail "TEST-3641: no Validation high row: $(cat "$TEST_DIR/rep.out")"
   # Default output ignores the new fields: byte-identical with them stripped.
   rep "$d/docs/ai/METRICS.jsonl"
   cp "$TEST_DIR/rep.out" "$d/default-with.md"
