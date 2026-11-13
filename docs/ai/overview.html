@@ -28,18 +28,17 @@
 </head>
 <body>
 <h1>aai — Project Overview</h1>
-<p class="meta">Generated 2026-11-13T00:02:45.321Z · regenerate with <code>node .aai/scripts/generate-overview.mjs</code></p>
+<p class="meta">Generated 2026-11-13T15:23:57.142Z · regenerate with <code>node .aai/scripts/generate-overview.mjs</code></p>
 <div class="counts">
-  <div><b>357</b>delivered</div>
-  <div><b>17</b>in progress</div>
+  <div><b>358</b>delivered</div>
+  <div><b>16</b>in progress</div>
   <div><b>1</b>releases</div>
-  <div><b>83812943</b>agent tokens (delivered)</div>
+  <div><b>85300523</b>agent tokens (delivered)</div>
 </div>
 
 
-<section><h2>In progress (17)</h2><ul><li><strong>The dashboard turns a pending decision's options into buttons — reliably in both directions</strong><br><span class="meta">change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0176-decision-menu-options-parser.md">request</a></span></li>
+<section><h2>In progress (16)</h2><ul><li><strong>The dashboard turns a pending decision's options into buttons — reliably in both directions</strong><br><span class="meta">change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0176-decision-menu-options-parser.md">request</a></span></li>
 <li><strong>One agent's branch switch moves another agent's HEAD mid-ceremony</strong><br><span class="meta">change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0180-shared-worktree-moves-another-agents-head.md">request</a></span></li>
-<li><strong>The routing and pricing tables have a keeper, and a consumer's exception has somewhere to live</strong><br><span class="meta">change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md">request</a></span></li>
 <li><strong>CLIs print and then exit, and the arm that proves the one fix works does not hold it, and the arm that proves the one fix works does not hold it</strong><br><span class="meta">techdebt</span><br><span class="links"><a href="../../docs/issues/DEBT-0003-console-log-then-exit-across-41-clis.md">request</a></span></li>
 <li><strong>Guards that compare a file against itself pass for a year on the path nobody takes</strong><br><span class="meta">techdebt</span><br><span class="links"><a href="../../docs/issues/DEBT-0004-guards-vacuously-green-on-an-unexercised-path.md">request</a></span></li>
 <li><strong>The rules that bind agents are prose whose delivery, uniqueness and counts nothing asserts</strong><br><span class="meta">techdebt</span><br><span class="links"><a href="../../docs/issues/DEBT-0005-hazard-canon-delivery-and-duplication.md">request</a></span></li>
@@ -54,8 +53,9 @@
 <li><strong>RFC (Decision Proposal)</strong><br><span class="meta">rfc</span><br><span class="links"><a href="../../docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md">request</a></span></li>
 <li><strong>RFC — Reliable, bounded and resumable downstream PR ceremony</strong><br><span class="meta">rfc</span><br><span class="links"><a href="../../docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md">request</a></span></li>
 <li><strong>RFC: A smaller Node.js core and faster development feedback</strong><br><span class="meta">rfc</span><br><span class="links"><a href="../../docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md">request</a></span></li></ul></section>
-<section><h2>Delivered (357)</h2><h3>Undated</h3><ul><li><strong>Add OpenAI GPT-6 flagship family to PRICING.yaml</strong><br><span class="meta">change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0198-pricing-gpt-6-flagship-family.md">request</a> · <a href="../../docs/specs/SPEC-0198-spec-pricing-gpt-6-flagship-family.md">spec</a></span></li></ul>
-<h3>2026-11</h3><ul><li><strong>Change: every dispatch carries an explicit effort tier the harness can apply, and its token effect is measurable</strong><br><span class="meta">delivered 2026-11-13 · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0256-model-effort-routing.md">request</a> · <a href="../../docs/specs/SPEC-0288-spec-model-effort-routing.md">spec</a></span></li>
+<section><h2>Delivered (358)</h2><h3>Undated</h3><ul><li><strong>Add OpenAI GPT-6 flagship family to PRICING.yaml</strong><br><span class="meta">change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0198-pricing-gpt-6-flagship-family.md">request</a> · <a href="../../docs/specs/SPEC-0198-spec-pricing-gpt-6-flagship-family.md">spec</a></span></li></ul>
+<h3>2026-11</h3><ul><li><strong>The routing and pricing tables have a keeper, and a consumer's exception has somewhere to live</strong><br><span class="meta">delivered 2026-11-13 · 206 min agent time · 1487580 tokens · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0192-routing-tables-have-an-owner-and-a-seam.md">request</a> · <a href="../../docs/specs/SPEC-0289-spec-routing-tables-have-an-owner-and-a-seam.md">spec</a></span></li>
+<li><strong>Change: every dispatch carries an explicit effort tier the harness can apply, and its token effect is measurable</strong><br><span class="meta">delivered 2026-11-13 · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0256-model-effort-routing.md">request</a> · <a href="../../docs/specs/SPEC-0288-spec-model-effort-routing.md">spec</a></span></li>
 <li><strong>Change: a ride's re-check loop stops at its round cap and pays the full sweep once</strong><br><span class="meta">delivered 2026-11-12 · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0255-factory-round-cap.md">request</a> · <a href="../../docs/specs/SPEC-0286-spec-factory-round-cap.md">spec</a></span></li>
 <li><strong>The round cap fails open on an unreadable EVENTS file and half-resets a remediation that fails both checks</strong><br><span class="meta">delivered 2026-11-12 · issue</span><br><span class="links"><a href="../../docs/issues/ISSUE-0113-round-cap-hardening.md">request</a> · <a href="../../docs/specs/SPEC-0287-spec-round-cap-hardening.md">spec</a></span></li>
 <li><strong>Run both twins of sync, update and the hook installer into scratch targets and diff what they leave behind</strong><br><span class="meta">delivered 2026-11-11 · change</span><br><span class="links"><a href="../../docs/issues/CHANGE-0254-install-path-parity-harness.md">request</a> · <a href="../../docs/specs/SPEC-0284-spec-install-path-parity-harness.md">spec</a></span></li>

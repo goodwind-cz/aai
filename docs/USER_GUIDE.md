@@ -2808,6 +2808,18 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### Routing and pricing tables that say how old they are
+
+The two tables that decide which model each factory role runs on (`.aai/system/MODEL_ROUTING.yaml`) and what that run costs (`.aai/system/PRICING.yaml`) now carry a machine-readable freshness stamp, and the doctor reports when either table has gone past its refresh cadence, when a stamp is missing or malformed, or when a table cannot be read. A change to a routed model id or a price without a newer stamp fails the pricing test suite, so stamping is part of changing the table. Keeping the tables current is a central, monthly job in the upstream repository (the ROUTING_REFRESH routine), delivered to projects by `/aai-update`; projects do not maintain the tables themselves. The first refresh (2026-11-13) moved every harness section to the vendors' current model ids and corrected stale prices.
+
+[Product doc](product/routing-table-freshness.md) · [Spec](specs/SPEC-0289-spec-routing-tables-have-an-owner-and-a-seam.md)
+
+### Universal standing routines
+
+Lets an operator turn a vendored, agent-neutral routine template (for example the morning "scryer" digest) into a concrete scheduled-agent installation for any harness, on demand. Previously the morning scryer existed only as a hand-rolled Anthropic-cloud trigger config: not reproducible, not reviewable, not portable off Claude Cloud, and never test-fired at creation. Now the routine is a plain, git-diffable file in the repo, and `/aai-routine` renders it into the exact payload the operator needs to install — a Claude cloud routine spec block, or a crontab line + headless-CLI runner (macOS/Linux) / Windows Scheduled Task (Windows) for Codex, Gemini, or any other CLI agent. Nothing is installed automatically: the skill only prints text for the operator (or the harness's own scheduling skill) to install, and it never runs from bootstrap, sync, or any automatic path.
+
+[Product doc](product/universal-routines.md) · [Spec](specs/SPEC-0115-spec-universal-routines.md)
+
 ### Complete and resume a release
 
 The release command prepares a release PR, waits for required checks, merges its bound head, verifies CI publication, and cleans up safely. Repeating confirmation with the same explicit version resumes unfinished stages. Hosted proof: ps1-quality runs 39016764123, 39020377328 and 39022783097 passed on Windows PowerShell 5.1, Windows pwsh 7 and Linux (20 consecutive native-capture repetitions, no skips); the worktree-identity probe passed on win32.
@@ -2957,12 +2969,6 @@ Independent validation used to re-run the ENTIRE discovered test suite on every 
 Answers what the existing three generators (dashboard, factory-report, overview) cannot: **what is running NOW**, **what it has cost TODAY**, and **how much official plan-quota headroom is left** — with zero LLM tokens, zero network calls, node stdlib only. It reads harness session transcripts (Claude Code, Codex, Gemini CLI) through a per-harness parser registry and renders one self-contained page, `docs/ai/live-status.html`, plus its machine-readable twin `docs/ai/live-status-data.json`. It is strictly OPTIONAL: nothing in the ride path (close-work-item, the autonomous loop, CI) ever invokes it, and it is never coupled to ride ceremony.
 
 [Product doc](product/live-status-dashboard.md) · [Spec](specs/SPEC-0114-spec-live-status-dashboard.md)
-
-### Universal standing routines
-
-Lets an operator turn a vendored, agent-neutral routine template (for example the morning "scryer" digest) into a concrete scheduled-agent installation for any harness, on demand. Previously the morning scryer existed only as a hand-rolled Anthropic-cloud trigger config: not reproducible, not reviewable, not portable off Claude Cloud, and never test-fired at creation. Now the routine is a plain, git-diffable file in the repo, and `/aai-routine` renders it into the exact payload the operator needs to install — a Claude cloud routine spec block, or a crontab line + headless-CLI runner (macOS/Linux) / Windows Scheduled Task (Windows) for Codex, Gemini, or any other CLI agent. Nothing is installed automatically: the skill only prints text for the operator (or the harness's own scheduling skill) to install, and it never runs from bootstrap, sync, or any automatic path.
-
-[Product doc](product/universal-routines.md) · [Spec](specs/SPEC-0115-spec-universal-routines.md)
 
 ### Small changes stop paying the full ceremony price
 
