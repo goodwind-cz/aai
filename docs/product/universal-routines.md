@@ -7,7 +7,7 @@ delivered_by:
   - CHANGE-0128
   - universal-routines
 spec: docs/specs/SPEC-0115-spec-universal-routines.md
-updated: 2026-08-08
+updated: 2026-11-13
 ---
 
 # Universal standing routines
@@ -103,6 +103,26 @@ ledger; absent one, the routine emits in report-only mode and says so loudly.
     (macOS/Linux) or a `Register-ScheduledTask` PowerShell block (Windows),
     always naming both twin filenames (`<name>.sh` / `<name>.ps1`). Every
     emission ends with a `## TEST AT CREATION` block.
+
+## Monthly model-table refresh (ROUTING_REFRESH)
+
+`.aai/routines/ROUTING_REFRESH.routine.md` keeps the two shipped model tables
+(`.aai/system/MODEL_ROUTING.yaml` and `.aai/system/PRICING.yaml`) current. It
+reads PRIMARY vendor sources only, updates both tables together with their
+stamps, runs `table-freshness.mjs routed` and `stamp-guard` plus the pricing
+suites, and opens a pull request. It never merges: its merge-gate section is
+empty, so even a merge-authorised render carries no merge step. In a checkout
+where the tables are not git-tracked (any downstream project) its first step
+stops with no edits. It is an extended-profile file and is never instantiated
+by bootstrap, sync, hooks or the loop; the owner instantiates it once with
+`/aai-routine`, which runs:
+
+```bash
+node .aai/scripts/routine-emit.mjs --routine ROUTING_REFRESH --harness claude --os macos --repo goodwind-cz/aai --schedule "0 6 1 * *" --model claude-opus-5-5 --tz Europe/Prague
+```
+
+Install the printed payload with the harness's scheduling skill, then fire it
+once and confirm it either opened a PR or reported nothing to change.
 
 ## Limits and non-goals
 

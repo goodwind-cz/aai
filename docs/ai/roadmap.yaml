@@ -166,6 +166,8 @@ pairs:
     status: done
   - capability: model-effort-routing
     status: done
+  - capability: routing-tables-have-an-owner-and-a-seam
+    status: active
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

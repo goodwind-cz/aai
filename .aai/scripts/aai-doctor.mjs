@@ -63,6 +63,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { checkTables } from './table-freshness.mjs';
 import { readRefGuardPolicy, resolveRefGuardLaunchers } from './lib/guard-config.mjs';
 
 // --- generic helpers -----------------------------------------------------
@@ -651,6 +652,45 @@ export function catNodeRuntime(version = process.version) {
   return res;
 }
 
+// --- CAT-21 Routing Tables (spec routing-tables-have-an-owner-and-a-seam) ---
+// Warn-only: a lapsed or invalid freshness marker on MODEL_ROUTING.yaml or
+// PRICING.yaml. Never FAIL. Not reported (null) when neither table exists.
+const TABLES_REMEDY = 'the tables are refreshed centrally (ROUTING_REFRESH routine upstream); run /aai-update to pick up the current copy';
+
+export function catRoutingTables(root, env = process.env) {
+  const envH = env.AAI_TABLES_HORIZON_DAYS;
+  let results;
+  let badEnv = null;
+  try {
+    results = checkTables(root, { env });
+  } catch {
+    badEnv = envH;
+    results = checkTables(root, { env: { ...env, AAI_TABLES_HORIZON_DAYS: '' } });
+  }
+  const allAbsent = results.every((r) => r.status === 'ABSENT');
+  if (allAbsent) return null;
+  const shown = results.filter((r) => r.status !== 'ABSENT');
+  const day = (r) => (r.stamp ? r.stamp.slice(0, 10) : 'no date');
+  const bad = shown.filter((r) => r.status === 'LAPSED' || r.status === 'INVALID');
+  const detail = { tables: results.map((r) => ({
+    file: r.file, status: r.status, stamp: r.stamp ?? null, age_days: r.age_days ?? null,
+    horizon_days: r.horizon_days ?? null, reason: r.reason ?? null,
+  })) };
+  let res;
+  if (bad.length === 0 && badEnv === null) {
+    res = cat('CAT-21', 'Routing Tables', 'PASS',
+      shown.map((r) => `${r.file} ${day(r)} age=${r.age_days}d/${r.horizon_days}d`).join('; '));
+  } else {
+    const parts = bad.map((r) => (r.status === 'INVALID'
+      ? `${r.file} INVALID (${r.reason})`
+      : `${r.file} LAPSED (${day(r)}, age=${r.age_days}d > ${r.horizon_days}d)`));
+    if (badEnv !== null) parts.push(`AAI_TABLES_HORIZON_DAYS="${badEnv}" is not a positive integer`);
+    res = cat('CAT-21', 'Routing Tables', 'WARN', `${parts.join('; ')} -- ${TABLES_REMEDY}`);
+  }
+  res.detail = detail;
+  return res;
+}
+
 // The literal the AAI reference-transaction hook body writes to stderr when it
 // refuses (install-pre-commit-hook.sh's AAI_REF_GUARD_MSG here-doc). SEAM-1:
 // one contract across two files — the installer emits it, this probe reads it.
@@ -1107,7 +1147,8 @@ export function runDoctor(root, scriptDir) {
     catGuardWiring(root),
     catMergePolicy(root, scriptDir),
     catNodeRuntime(),
-  ].filter(Boolean); // CAT-19 and CAT-20 return null (not reported) when nothing applies
+    catRoutingTables(root),
+  ].filter(Boolean); // CAT-19, CAT-20 and CAT-21 return null (not reported) when nothing applies
 }
 
 function main() {

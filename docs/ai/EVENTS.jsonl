@@ -3849,3 +3849,4 @@
 {"v":1,"ts":"2026-11-13T00:03:02Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":730,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-13T00:14:27Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"model-effort-routing","payload":{"pr":552,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"fcbe7fa315dec05ee170875e60d59288f6e21bc8"}}
 {"v":1,"ts":"2026-11-13T00:14:42Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"model-effort-routing","payload":{"pr":552,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"880f61fc7ee82127bbee3b56c0b4a574aae29696"}}
+{"v":1,"ts":"2026-11-13T08:54:50Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-routing-tables-have-an-owner-and-a-seam","payload":{"from":"draft","to":"implementing"}}

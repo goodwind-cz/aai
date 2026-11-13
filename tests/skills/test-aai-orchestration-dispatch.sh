@@ -1779,7 +1779,7 @@ YAML
 # --- TEST-020 (Spec-AC-01): shipped Metrics Flush explicit role row ------------
 
 test_020_metrics_flush_explicit_row() {
-  log_info "Test: fixture-root Metrics Flush dispatch against the REAL committed MODEL_ROUTING.yaml resolves claude-haiku-4-5 via the explicit role row now nested under roles@claude: (harness-universal-routing moved it off the top level) (not merely the mechanical tier default) (TEST-020)..."
+  log_info "Test: fixture-root Metrics Flush dispatch against the REAL committed MODEL_ROUTING.yaml resolves claude-haiku-5-5 via the explicit role row now nested under roles@claude: (harness-universal-routing moved it off the top level) (not merely the mechanical tier default) (TEST-020)..."
   local d
   d="$(mk_root t20)"
   write_dstate "$d/docs/ai/STATE.yaml" pass pass implementation in_progress
@@ -1791,14 +1791,14 @@ test_020_metrics_flush_explicit_row() {
   run_dispatch_scrubbed "$d" claude
   [[ "$EC" == 0 ]] || log_fail "TEST-020 fixture must dispatch (got $EC): $(cat "$OUT" "$ERR")"
   jassert "$OUT" 'o.verdict === "dispatch" && o.rule === "14" && o.role === "Metrics Flush"'
-  jassert "$OUT" 'o.suggested_model === "claude-haiku-4-5"'
+  jassert "$OUT" 'o.suggested_model === "claude-haiku-5-5"'
   # Prove it via the explicit row, not just the (coincidentally identical)
   # mechanical tier default: the shipped file must literally carry the row,
   # nested under roles@claude: since Spec-AC-08.
   grep -qE '^roles@claude:[[:space:]]*$' "$d/.aai/system/MODEL_ROUTING.yaml" \
     || log_fail "TEST-020: shipped MODEL_ROUTING.yaml is missing the roles@claude: section header"
-  grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-4-5[[:space:]]*$' "$d/.aai/system/MODEL_ROUTING.yaml" \
-    || log_fail "TEST-020: shipped MODEL_ROUTING.yaml is missing the explicit 'Metrics Flush: claude-haiku-4-5' role row"
+  grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-5-5[[:space:]]*$' "$d/.aai/system/MODEL_ROUTING.yaml" \
+    || log_fail "TEST-020: shipped MODEL_ROUTING.yaml is missing the explicit 'Metrics Flush: claude-haiku-5-5' role row"
   log_pass "Metrics Flush resolves haiku via the explicit shipped roles@claude row (TEST-020)"
 }
 
@@ -1988,10 +1988,10 @@ test_026_docs_lane_key_contract() {
     || log_fail "TEST-026: MODEL_ROUTING.yaml header must document the role@lane key form (an @lightweight example)"
   grep -qiE 'no inline .?#? ?comments|NO inline' "$routing_file" \
     || log_fail "TEST-026: MODEL_ROUTING.yaml header must restate the no-inline-comment rule"
-  grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-4-5[[:space:]]*$' "$routing_file" \
-    || log_fail "TEST-026: MODEL_ROUTING.yaml must carry the explicit 'Metrics Flush: claude-haiku-4-5' role row"
-  grep -qE '^  Validation@lightweight:[[:space:]]*claude-sonnet-5[[:space:]]*$' "$routing_file" \
-    || log_fail "TEST-026: MODEL_ROUTING.yaml must carry the 'Validation@lightweight: claude-sonnet-5' lane row"
+  grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-5-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-026: MODEL_ROUTING.yaml must carry the explicit 'Metrics Flush: claude-haiku-5-5' role row"
+  grep -qE '^  Validation@lightweight:[[:space:]]*claude-sonnet-5-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-026: MODEL_ROUTING.yaml must carry the 'Validation@lightweight: claude-sonnet-5-5' lane row"
   grep -qiE 'lane-scoped|role@lane|ceremony-lane' "$guide_file" \
     || log_fail "TEST-026: docs/USER_GUIDE.md must note ceremony-lane / role@lane routing"
   log_pass "MODEL_ROUTING role@lane contract + user-facing routing note documented (TEST-026)"
@@ -2587,7 +2587,7 @@ test_038_confirm_record_failure_falls_back() {
   # `suggested_model` where a real dispatch needs a real one. Both are pinned
   # here now.
   jassert "$OUT" '"harness" in o && o.harness === "claude"'
-  jassert "$OUT" 'o.suggested_model === "claude-sonnet-5"'
+  jassert "$OUT" 'o.suggested_model === "claude-sonnet-5-5"'
   grep -qi "could not record" "$ERR" \
     || log_fail "the fallback must say WHY on stderr: $(cat "$ERR")"
   [[ ! -s "$d/docs/ai/EVENTS.jsonl" ]] \
@@ -2627,7 +2627,7 @@ test_038_confirm_record_failure_falls_back() {
   [[ "$EC" == 0 ]] || log_fail "NB-1: an unrecordable codex confirm must fall back to a DISPATCH exit 0 (got $EC): $(cat "$OUT" "$ERR")"
   jassert "$OUT" 'o.reasons.indexOf("confirm_record_failed_fallback_dispatch") >= 0'
   jassert "$OUT" '"harness" in o && o.harness === "codex"'
-  jassert "$OUT" 'o.suggested_model === "gpt-5"'
+  jassert "$OUT" 'o.suggested_model === "gpt-6.1-sol"'
   jassert "$OUT" '!/^claude-/.test(o.suggested_model)'
 
   log_pass "an unrecordable --confirm falls back to a real dispatch with a stderr note, carrying harness + suggested_model like any other dispatch (claude AND codex, NB-1); a SKIPPED (idempotent) append does not (CHANGE-0120 TEST-038)"
@@ -4069,18 +4069,18 @@ test_057_shipped_file_contract() {
   [[ "${n:-0}" == 0 ]] || log_fail "TEST-057: shipped MODEL_ROUTING.yaml must contain ZERO occurrences of claude-opus-4-8 (found $n)"
   grep -qE '^tiers@claude:[[:space:]]*$' "$routing_file" \
     || log_fail "TEST-057: shipped file must carry a tiers@claude: section header"
-  grep -qE '^  mechanical:[[:space:]]*claude-haiku-4-5[[:space:]]*$' "$routing_file" \
-    || log_fail "TEST-057: tiers@claude must name claude-haiku-4-5 for mechanical"
-  grep -qE '^  standard:[[:space:]]*claude-sonnet-5[[:space:]]*$' "$routing_file" \
-    || log_fail "TEST-057: tiers@claude must name claude-sonnet-5 for standard"
-  grep -qE '^  premium:[[:space:]]*claude-opus-5[[:space:]]*$' "$routing_file" \
-    || log_fail "TEST-057: tiers@claude must name claude-opus-5 for premium"
+  grep -qE '^  mechanical:[[:space:]]*claude-haiku-5-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-057: tiers@claude must name claude-haiku-5-5 for mechanical"
+  grep -qE '^  standard:[[:space:]]*claude-sonnet-5-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-057: tiers@claude must name claude-sonnet-5-5 for standard"
+  grep -qE '^  premium:[[:space:]]*claude-opus-5-5[[:space:]]*$' "$routing_file" \
+    || log_fail "TEST-057: tiers@claude must name claude-opus-5-5 for premium"
   grep -qE '^roles@claude:[[:space:]]*$' "$routing_file" \
     || log_fail "TEST-057: shipped file must carry a roles@claude: section header"
   local claude_roles_block="$TEST_DIR/t57-roles-claude.txt"
   awk '/^roles@claude:/{f=1;next} /^\S/{f=0} f' "$routing_file" > "$claude_roles_block"
-  grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-4-5[[:space:]]*$' "$claude_roles_block" \
-    || log_fail "TEST-057: the explicit 'Metrics Flush: claude-haiku-4-5' row must survive under roles@claude"
+  grep -qE '^  Metrics Flush:[[:space:]]*claude-haiku-5-5[[:space:]]*$' "$claude_roles_block" \
+    || log_fail "TEST-057: the explicit 'Metrics Flush: claude-haiku-5-5' row must survive under roles@claude"
   log_pass "Shipped-file contract: zero claude-opus-4-8, tiers@claude exact triple, Metrics Flush row survives under roles@claude (TEST-057)"
 }
 

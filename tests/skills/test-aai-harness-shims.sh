@@ -681,7 +681,7 @@ test_3012_pr501_amendments_signed() {
       const it = fuItems.find((i) => i.id === t);
       if (!it || it.status !== "done") problems.push("tracker " + t + " reads " + (it ? it.status : "absent"));
     }
-    const routing = amend.items.filter((i) => i.ref_id === "routing-tables-have-an-owner-and-a-seam");
+    const routing = amend.items.filter((i) => i.ref_id === "routing-tables-have-an-owner-and-a-seam" && /SPEC-0184-/.test(String(i.spec || "")));
     // Untouched by the #501 sign-off: still unsigned, or signed later by an
     // explicit owner classification of that record (2026-11-05 review).
     const ownerSigned = (k) => lines.some((l) => l.type === "spec_amendment_classification" && l.classifies_record === k && l.owner_signoff === true && !/PR #501/.test(String(l.source || "")));

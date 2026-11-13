@@ -35,7 +35,7 @@
 # key-form contract below) in THIS file after each update. A central process
 # that keeps this table current, plus a separate consumer-owned config the
 # update never overwrites, is its own intake
-# (`CHANGE-DRAFT-routing-tables-have-an-owner-and-a-seam`) -- NOT a change to
+# (CHANGE-0192, routing-tables-have-an-owner-and-a-seam) -- NOT a change to
 # this file's overwrite behaviour, which stays exactly as described above.
 #
 # HARNESS-SCOPED KEY FORM (harness-universal-routing D1)
@@ -119,24 +119,36 @@
 # Role rows take NO inline `# comments` — the parser regex drops any row
 # whose value is followed by a comment. Put comments on their own line.
 
+# FRESHNESS MARKER (routing-tables-have-an-owner-and-a-seam): `routing_meta:`
+# mirrors PRICING.yaml's `pricing_meta.last_updated_utc` and
+# `update_policy.cadence_days`. `last_updated_utc` is the instant the routed ids
+# were last checked against primary sources; `cadence_days` is the horizon after
+# which `.aai/scripts/table-freshness.mjs check` (and the doctor's CAT-21)
+# reports the table LAPSED. The routing parser ignores this block (an unknown
+# column-0 key ends the active section); it never changes model or effort
+# resolution. Whoever changes a routed id re-stamps it in the same change.
+routing_meta:
+  last_updated_utc: "2026-11-13T09:15:58Z"
+  cadence_days: 30
+
 # --- claude -------------------------------------------------------------
 
 # Tier defaults (dispatch suggested_tier -> model id).
 tiers@claude:
-  mechanical: claude-haiku-4-5
-  standard: claude-sonnet-5
-  premium: claude-opus-5
+  mechanical: claude-haiku-5-5
+  standard: claude-sonnet-5-5
+  premium: claude-opus-5-5
 
 # Optional per-role overrides (dispatch role name -> model id). A role row
 # beats its tier default. Role names are the dispatch verdict `role` strings,
 # e.g. "Code Review", "TDD Implementation", "Metrics Flush".
 roles@claude:
-  Planning: claude-opus-5
-  Code Review: claude-opus-5
+  Planning: claude-opus-5-5
+  Code Review: claude-opus-5-5
   # Explicit pin, auditable — the mechanical tier default already resolves
   # to this model id today; this row makes the choice visible in the file
   # rather than an implicit tier fallthrough.
-  Metrics Flush: claude-haiku-4-5
+  Metrics Flush: claude-haiku-5-5
   # Lane-scoped: wins over the plain tier default ONLY on a ceremony
   # L0/L1 (lightweight-lane) Validation dispatch. With the CURRENT tier
   # map (standard: claude-sonnet-5) this resolves to the SAME model id a
@@ -145,27 +157,27 @@ roles@claude:
   # (b) establishes the role@lane resolution mechanism so a later change
   # can pin a genuinely distinct lightweight model without touching tier
   # defaults.
-  Validation@lightweight: claude-sonnet-5
+  Validation@lightweight: claude-sonnet-5-5
 
 # Validator-independence backstop: when the routed Validation model would
 # EQUAL the recorded implementer model (same weights = same blind spots),
 # dispatch swaps Validation to this model instead (SUBAGENT_PROTOCOL.md
 # "Spawning a validator" rule, CHANGE-0010 D1).
-validation_alternate@claude: claude-opus-5
+validation_alternate@claude: claude-opus-5-5
 
 # --- codex ----------------------------------------------------------------
 
 tiers@codex:
-  mechanical: gpt-5-mini
-  standard: gpt-5
-  premium: gpt-5.3-codex
+  mechanical: gpt-6.1-terra
+  standard: gpt-6.1-sol
+  premium: gpt-6-sol
 
 roles@codex:
-  Planning: gpt-5.3-codex
-  Code Review: gpt-5.3-codex
-  Metrics Flush: gpt-5-mini
+  Planning: gpt-6-sol
+  Code Review: gpt-6-sol
+  Metrics Flush: gpt-6.1-terra
 
-validation_alternate@codex: gpt-5.3-codex
+validation_alternate@codex: gpt-6-sol
 
 # --- gemini -----------------------------------------------------------------
 
@@ -176,14 +188,14 @@ validation_alternate@codex: gpt-5.3-codex
 tiers@gemini:
   mechanical: gemini-3-flash-preview
   standard: gemini-3-flash-preview
-  premium: gemini-3-pro-preview
+  premium: gemini-3.1-pro-preview
 
 roles@gemini:
-  Planning: gemini-3-pro-preview
-  Code Review: gemini-3-pro-preview
+  Planning: gemini-3.1-pro-preview
+  Code Review: gemini-3.1-pro-preview
   Metrics Flush: gemini-3-flash-preview
 
-validation_alternate@gemini: gemini-3-pro-preview
+validation_alternate@gemini: gemini-3.1-pro-preview
 
 # --- cursor -----------------------------------------------------------------
 # Detected (.aai/scripts/lib/harness.mjs), but ships NO map here: cursor runs

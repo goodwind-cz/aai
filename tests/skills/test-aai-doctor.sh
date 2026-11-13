@@ -113,6 +113,7 @@ install_doctor_copy() {
   # (check-vendored-script-deps.mjs gates a vendored engine missing either).
   cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" "$d/.aai/scripts/lib/guard-config.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/table-freshness.mjs" "$d/.aai/scripts/table-freshness.mjs"
   local helper
   for helper in "$@"; do
     mkdir -p "$d/.aai/scripts/$(dirname "$helper")"
@@ -646,9 +647,10 @@ test_015_json_shape() {
       const die = (m) => { console.error(m); process.exit(1); };
       if (typeof j.root !== "string") die("root missing/wrong type");
       if (typeof j.generatedAt !== "string") die("generatedAt missing/wrong type");
-      if (!Array.isArray(j.categories) || j.categories.length !== 19) die("categories: want array of 19, got " + (j.categories && j.categories.length));
+      if (!Array.isArray(j.categories) || j.categories.length !== 20) die("categories: want array of 20, got " + (j.categories && j.categories.length));
       const wantIds = [];
       for (let i = 1; i <= 19; i++) wantIds.push("CAT-" + String(i).padStart(2, "0"));
+      wantIds.push("CAT-21"); // Routing Tables: this repo ships both tables (CAT-20 is silent on Node >= 22)
       const gotIds = j.categories.map(c => c.id);
       if (JSON.stringify(gotIds) !== JSON.stringify(wantIds)) die("category ids: " + JSON.stringify(gotIds));
       for (const c of j.categories) {
@@ -665,7 +667,7 @@ test_015_json_shape() {
       if (typeof j.issues !== "number") die("issues not a number");
       if (typeof j.exit !== "number") die("exit not a number");
     });
-  ' && log_pass "TEST-015 --json emits the documented shape (19 categories on this repo -- CAT-01..18 plus CAT-19 Merge Policy, now that docs/ai/merge-policy.yaml exists here -- CAT-14/15/16 carry detail)" \
+  ' && log_pass "TEST-015 --json emits the documented shape (20 categories on this repo -- CAT-01..18 plus CAT-19 Merge Policy, now that docs/ai/merge-policy.yaml exists here, plus CAT-21 Routing Tables -- CAT-14/15/16 carry detail)" \
     || log_fail "TEST-015 --json shape"
 }
 
@@ -2827,6 +2829,115 @@ test_3215_test009_amended() {
   log_pass "TEST-3215 test_009 follows the new CAT-09 and the SPEC-0100 amendment record exists"
 }
 
+# --- TEST-3663 / TEST-3664 (Spec-AC-04) — CAT-21 Routing Tables ---------------
+# Stamps are computed relative to the wall clock (the doctor has no --now), so
+# "fresh" is 1 day old against a 30-day cadence and "lapsed" is 400 days old.
+t3663_stamp() { node -e 'process.stdout.write(new Date(Date.now()-Number(process.argv[1])*86400000).toISOString().replace(/\.\d{3}Z$/,"Z"))' "$1"; }
+t3663_tables() { # <fixture> <routing-stamp> <pricing-stamp>
+  mkdir -p "$1/.aai/system"
+  printf 'routing_meta:\n  last_updated_utc: "%s"\n  cadence_days: 30\n' "$2" > "$1/.aai/system/MODEL_ROUTING.yaml"
+  printf 'pricing_meta:\n  last_updated_utc: "%s"\nupdate_policy:\n  cadence_days: 30\n' "$3" > "$1/.aai/system/PRICING.yaml"
+}
+
+test_3663_cat21_routing_tables() {
+  local d out rc fresh old
+  d="$(build_clean_fixture t3663)"
+  fresh="$(t3663_stamp 1)"; old="$(t3663_stamp 400)"
+  # fresh -> PASS naming both files
+  t3663_tables "$d" "$fresh" "$fresh"
+  out="$(env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"; rc=$?
+  if ! dr_line_hit "$out" '^CAT-21 .*PASS.*MODEL_ROUTING\.yaml.*PRICING\.yaml' || [[ "$rc" -ne 0 ]]; then
+    log_info "TEST-3663 fresh: rc=$rc out: $out"; log_fail "TEST-3663 fresh tables do not give CAT-21 PASS naming both files"; return
+  fi
+  # lapsed pricing -> WARN naming file and date, exit 0, --strict exit 1
+  t3663_tables "$d" "$fresh" "$old"
+  out="$(env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"; rc=$?
+  if ! dr_line_hit "$out" "^CAT-21 .*WARN.*PRICING\\.yaml.*${old:0:10}.*ROUTING_REFRESH.*/aai-update" || [[ "$rc" -ne 0 ]]; then
+    log_info "TEST-3663 lapsed: rc=$rc out: $out"; log_fail "TEST-3663 lapsed PRICING does not give CAT-21 WARN (exit 0) with file, date and remedy"; return
+  fi
+  env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" --strict >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 1 ]] || { log_fail "TEST-3663 --strict on a CAT-21 WARN exited $rc (want 1)"; return; }
+  # --json detail.tables
+  out="$(env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" --json 2>&1)"
+  local jr
+  jr="$(printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0, "utf8"));
+    const c = j.categories.find((x) => x.id === "CAT-21");
+    const t = c && c.detail && c.detail.tables;
+    const p = t && t.find((x) => /PRICING/.test(x.file));
+    process.stdout.write(p && p.status === "LAPSED" && p.age_days >= 399 && p.horizon_days === 30 && c.status === "WARN" ? "OK" : "BAD " + JSON.stringify(c));
+  ' 2>&1)"
+  [[ "$jr" == OK ]] || { log_fail "TEST-3663 --json detail.tables: $jr"; return; }
+  # malformed stamp -> WARN with the reason
+  t3663_tables "$d" "$fresh" "2026-13-45T00:00:00Z"
+  out="$(env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"; rc=$?
+  if ! dr_line_hit "$out" '^CAT-21 .*WARN.*PRICING\.yaml.*malformed last_updated_utc'; then
+    log_info "$out"; log_fail "TEST-3663 malformed stamp does not WARN with the reason"; return
+  fi
+  # invalid horizon override -> WARN naming the variable, never FAIL
+  t3663_tables "$d" "$fresh" "$fresh"
+  out="$(AAI_TABLES_HORIZON_DAYS=abc node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"; rc=$?
+  if ! dr_line_hit "$out" '^CAT-21 .*WARN.*AAI_TABLES_HORIZON_DAYS' || [[ "$rc" -ne 0 ]]; then
+    log_info "rc=$rc $out"; log_fail "TEST-3663 invalid AAI_TABLES_HORIZON_DAYS does not WARN naming the variable"; return
+  fi
+  # no tables -> no CAT-21 line
+  rm -rf "$d/.aai/system"
+  out="$(env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"
+  if dr_line_hit "$out" '^CAT-21 '; then
+    log_fail "TEST-3663 a tree with no tables printed a CAT-21 line"; return
+  fi
+  log_pass "TEST-3663 CAT-21 PASS/WARN/--strict/--json/invalid-marker/invalid-horizon/absent behave per spec"
+}
+
+test_3664_clean_fixtures_stay_green() {
+  local d out rc
+  d="$(build_clean_fixture t3664)"
+  out="$(node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"; rc=$?
+  if [[ "$rc" -ne 0 ]] || dr_line_hit "$out" '^CAT-21 '; then
+    log_info "rc=$rc $out"; log_fail "TEST-3664 clean table-less fixture is not green or prints CAT-21"; return
+  fi
+  node "$d/.aai/scripts/aai-doctor.mjs" --strict >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 0 ]] || { log_fail "TEST-3664 --strict on the table-less clean fixture exited $rc"; return; }
+  # the three named clean-fixture cases still pass under the same suite
+  local t
+  for t in test_014_clean_fixture_doctor_clean test_029_exit_matrix test_619_cat17_declined_is_not_an_issue; do
+    out="$(bash "$PROJECT_ROOT/tests/skills/test-aai-doctor.sh" "$t" 2>&1)"; rc=$?
+    if [[ "$rc" -ne 0 ]] || dr_line_hit "$out" '^CAT-21 '; then
+      log_info "$out"; log_fail "TEST-3664 $t is not green (rc=$rc) or output carries CAT-21"; return
+    fi
+  done
+  log_pass "TEST-3664 table-less clean fixtures stay green with no CAT-21 line"
+}
+
+# --- TEST-3673 (Spec-AC-12) — PROFILES placement + core sync delivers CAT-21 ---
+test_3673_profiles_and_core_sync_cat21() {
+  local prof="$PROJECT_ROOT/.aai/system/PROFILES.yaml" t out rc secn
+  secn="$(awk '/^core:/{f=1;next} /^[a-z]/{f=0} f' "$prof")"
+  grep -qxF '  - .aai/scripts/table-freshness.mjs' <<<"$secn" \
+    || { log_fail "TEST-3673 table-freshness.mjs is not listed under core"; return; }
+  secn="$(awk '/^extended:/{f=1;next} /^[a-z]/{f=0} f' "$prof")"
+  grep -qxF '  - .aai/routines/ROUTING_REFRESH.routine.md' <<<"$secn" \
+    || { log_fail "TEST-3673 ROUTING_REFRESH.routine.md is not listed under extended"; return; }
+  t="$(mktemp -d "${TMPDIR:-/tmp}/aai-doctor-3673.XXXXXX")"
+  git -C "$t" init -q || { log_fail "TEST-3673 scratch git init failed"; return; }
+  bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$t" --profile core >/dev/null 2>&1; rc=$?
+  [[ "$rc" -eq 0 ]] || { rm -rf "$t"; log_fail "TEST-3673 core sync exited $rc"; return; }
+  out="$(AAI_TABLES_HORIZON_DAYS=100000 node "$t/.aai/scripts/aai-doctor.mjs" --root "$t" 2>&1)"; rc=$?
+  rm -rf "$t"
+  dr_line_hit "$out" '^CAT-21 .*MODEL_ROUTING\.yaml.*PRICING\.yaml' \
+    || { log_info "rc=$rc $out"; log_fail "TEST-3673 the synced target's doctor prints no CAT-21 line naming both tables"; return; }
+  log_pass "TEST-3673 PROFILES places the freshness script in core and the routine in extended; a core sync gives the target a CAT-21 line"
+}
+
+# --- TEST-3676 (Spec-AC-13) — CAT-21 documented -------------------------------
+test_3676_cat21_documented() {
+  local doc="$PROJECT_ROOT/docs/product/aai-doctor.md"
+  grep -qF 'CAT-21 Routing Tables' "$doc" || { log_fail "TEST-3676 aai-doctor.md does not name CAT-21 Routing Tables"; return; }
+  grep -qF 'AAI_TABLES_HORIZON_DAYS' "$doc" || { log_fail "TEST-3676 aai-doctor.md does not name AAI_TABLES_HORIZON_DAYS"; return; }
+  grep -qF 'WARN-only' "$doc" || { log_fail "TEST-3676 aai-doctor.md does not state the WARN-only posture"; return; }
+  log_pass "TEST-3676 aai-doctor.md documents CAT-21, the horizon override and the WARN-only posture"
+}
+
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
@@ -2903,6 +3014,10 @@ main() {
   test_2307_node_floor_silent_at_floor
   test_3214_cat09_retired_hook
   test_3215_test009_amended
+  test_3663_cat21_routing_tables
+  test_3664_clean_fixtures_stay_green
+  test_3673_profiles_and_core_sync_cat21
+  test_3676_cat21_documented
 
   echo ""
   if [[ $FAILED -eq 0 ]]; then
