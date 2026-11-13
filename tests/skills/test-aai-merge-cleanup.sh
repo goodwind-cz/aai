@@ -1548,7 +1548,30 @@ function rideMerged(ref) {
   mergedCache.set(ref, yes);
   return yes;
 }
-const mergedContract = rows.filter(r => r.amendment_class === "contract" && r.ref_id !== unmergedRef && (r.bucket === "signed" || rideMerged(r.ref_id)));
+// The pinned example ride stayed unmerged from SPEC-0226 (2026-10-12) until
+// PR #553 merged it on 2026-11-13. Once its own doc is done with a PR on
+// origin/main it is an ordinary merged ride: its rows join the merged
+// population (and must be signed), and the unmerged arm below reports n/a
+// instead of asserting a state the ledger can no longer hold. The fixture
+// above (TEST-006 negatives) still proves an unmerged ride is never signed.
+// links.pr may stay empty on a merged ride (CHANGE-0192 did); spec-amend then
+// reads the squash subject of the newest first-parent origin/main commit that
+// touched the doc (squashPrFromBase), so this arm reads the same evidence.
+function squashMerged(ref) {
+  let listed = [];
+  try { listed = execFileSync("git", ["grep", "-l", `id: ${ref}`, "origin/main", "--", "docs"], {encoding:"utf8"}).split("\n").filter(Boolean); }
+  catch (error) { if (!(error.status === 1 && !String(error.stderr || "").trim())) throw error; }
+  return listed.some(entry => {
+    const rel = entry.replace(/^origin\/main:/, "");
+    const fm = parseFrontmatter(execFileSync("git", ["show", entry], {encoding:"utf8"}));
+    if (fm?.id !== ref || fm.status !== "done") return false;
+    const subject = execFileSync("git", ["log", "-1", "--first-parent", "--format=%s", "origin/main", "--", rel], {encoding:"utf8"}).trim();
+    return / \(#[1-9][0-9]*\)$/.test(subject);
+  });
+}
+const exampleMerged = rideMerged(unmergedRef) || squashMerged(unmergedRef);
+const heldOut = r => !exampleMerged && r.ref_id === unmergedRef;
+const mergedContract = rows.filter(r => r.amendment_class === "contract" && !heldOut(r) && (r.bucket === "signed" || rideMerged(r.ref_id)));
 // a90cdce977d5 was recorded after its ride merged, so the
 // merge-time binding (provider-adapter-surfaces-closing-slice D6) leaves it unsigned-tracked.
 const postMergeRecord = "a90cdce977d5";
@@ -1557,7 +1580,7 @@ const postMergeRecord = "a90cdce977d5";
 // is re-filed under the small-pairs ride (which its merge signs). The ledger is
 // append-only, so the original cannot be withdrawn, only exempted here.
 const supersededRecord = "91c688d47ba3";
-const unsignedMerged = rows.filter(r => r.amendment_class === "contract" && r.ref_id !== unmergedRef && r.record_key !== postMergeRecord && r.record_key !== supersededRecord && r.bucket !== "signed" && rideMerged(r.ref_id));
+const unsignedMerged = rows.filter(r => r.amendment_class === "contract" && !heldOut(r) && r.record_key !== postMergeRecord && r.record_key !== supersededRecord && r.bucket !== "signed" && rideMerged(r.ref_id));
 if (unsignedMerged.length > 0) {
   console.log(`FAIL ${unsignedMerged.length} merged contract amendments not signed: ${unsignedMerged.map(u => u.record_key).slice(0, 5).join(", ")}`);
   process.exit(1);
@@ -1571,6 +1594,10 @@ const unmerged = rows.filter(r => r.ref_id === unmergedRef && r.amendment_class 
 // the record itself may (the owner signed both on 2026-11-05).
 const ledgerLines = (process.argv[3] ? fs.readFileSync(process.argv[3], "utf8") : "").split("\n").filter(l => l.startsWith("{")).map(l => JSON.parse(l));
 const ownerSigned = k => ledgerLines.some(l => l.type === "spec_amendment_classification" && l.classifies_record === k && l.owner_signoff === true);
+if (exampleMerged) {
+  console.log(`OK ${mergedContract.length} merged contract records fold to signed, unmerged arm n/a (${unmergedRef} merged)`);
+  process.exit(0);
+}
 if (unmerged.length === 0 || !unmerged.every(r => r.bucket === "unsigned-tracked" || (r.bucket === "signed" && ownerSigned(r.record_key)))) {
   console.log(`FAIL unmerged ref ${unmergedRef} must remain unsigned-tracked unless the owner classifies it`);
   process.exit(1);

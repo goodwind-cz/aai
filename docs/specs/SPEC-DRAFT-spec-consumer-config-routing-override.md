@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: 754d4251ed6acc152f9ac71a24ccbbbb7bef32fa2a25392b2a8470f0ae9712e0
+frozen_sha256: 26d52fa273225c13cffb42040ad1c7a4ad81d08f71ddfa28d97f78fec08d56a3
 ceremony_level: 2
 links:
   requirement: consumer-config-routing-override
@@ -37,8 +37,9 @@ SPEC-FROZEN: true
 
 Registry items closed by this scope: `fu-consumer-routing-seam`. Measured with
 `node .aai/scripts/follow-ups.mjs list` on 2026-11-13: it is open (P2, ref
-routing-tables-have-an-owner-and-a-seam) and names exactly this scope. Related
-items left open on purpose: `fu-routing-pins-structural` and
+routing-tables-have-an-owner-and-a-seam) and names exactly this scope.
+
+Related items left open on purpose: `fu-routing-pins-structural` and
 `fu-routing-owner-cost-binding` (shipped-table concerns this scope does not
 touch), `fu-effort-params-cursor-accepted` (effort_params accepts @unknown; this
 scope refuses @unknown for its own section but does not edit effort_params).
