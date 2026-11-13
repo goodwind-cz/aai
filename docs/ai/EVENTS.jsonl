@@ -3847,3 +3847,4 @@
 {"v":1,"ts":"2026-11-13T00:02:37Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-model-effort-routing","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-13T00:02:37Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-model-effort-routing","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-13T00:03:02Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":730,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-13T00:14:27Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"model-effort-routing","payload":{"pr":552,"lane":"heavy","reviewer_bots":"expected","threads_seen":1,"threads_unresolved":0,"outcome":"swept","head_sha":"fcbe7fa315dec05ee170875e60d59288f6e21bc8"}}
