@@ -114,6 +114,7 @@ install_doctor_copy() {
   cp "$PROJECT_ROOT/.aai/scripts/lib/cli-pipe-guard.mjs" "$d/.aai/scripts/lib/cli-pipe-guard.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" "$d/.aai/scripts/lib/guard-config.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/table-freshness.mjs" "$d/.aai/scripts/table-freshness.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/harness.mjs" "$d/.aai/scripts/lib/harness.mjs"
   local helper
   for helper in "$@"; do
     mkdir -p "$d/.aai/scripts/$(dirname "$helper")"

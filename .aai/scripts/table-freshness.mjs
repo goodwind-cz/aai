@@ -51,6 +51,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { HARNESS_VALUES } from './lib/harness.mjs';
 
 const DAY_MS = 86400000;
 const TABLES = [
@@ -227,7 +228,9 @@ export function stampGuard(root, base, { now = new Date() } = {}) {
   return { results, violation: results.some((r) => r.verdict === 'VIOLATION') };
 }
 
-const HARNESSES = ['claude', 'codex', 'gemini'];
+// The closed harness set (lib/harness.mjs): a section for any of them is
+// checked, so a cursor or unknown route is never silently skipped.
+const HARNESSES = HARNESS_VALUES;
 const TIER_ORDER = ['mechanical', 'standard', 'premium'];
 
 // Routed entries of MODEL_ROUTING.yaml: [{ h, section, key, id }] for the

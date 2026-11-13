@@ -607,6 +607,14 @@ test_routed_check_statuses() {
   out="$(freshness routed --root "$d" --since 2026-11-13)"
   assert_payload_line_matches "$out" '^ORDER claude mechanical standard$' "inverted tier price not ORDER"
   assert_payload_line_matches "$out" '^RC=1$' "ORDER did not exit 1"
+  # Every harness of the closed set is checked (PR #553 Codex P2): a cursor or
+  # unknown section with an unpriced id is reported, never silently skipped.
+  rt_fixture "$d" s1 "2026-11-13T09:00:00Z" 0.1 20
+  printf 'tiers@cursor:\n  standard: cursor-absent\nvalidation_alternate@unknown: unknown-absent\n' >> "$d/.aai/system/MODEL_ROUTING.yaml"
+  out="$(freshness routed --root "$d" --since 2026-11-13)"
+  assert_payload_line_matches "$out" '^MISSING cursor tiers/standard cursor-absent' "cursor section skipped by routed"
+  assert_payload_line_matches "$out" '^MISSING unknown validation_alternate/- unknown-absent' "unknown section skipped by routed"
+  assert_payload_line_matches "$out" '^RC=1$' "a missing cursor route did not exit 1"
   # usage errors
   out="$(freshness routed --root "$d")"
   assert_payload_line_matches "$out" '^RC=2$' "routed without --since did not exit 2"

@@ -3874,3 +3874,4 @@
 {"v":1,"ts":"2026-11-13T15:23:48Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"routing-tables-have-an-owner-and-a-seam","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-13T15:23:48Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-routing-tables-have-an-owner-and-a-seam","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-13T15:23:48Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-routing-tables-have-an-owner-and-a-seam","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-13T15:35:48Z","actor":"ales_holubec.net","event":"round_extension","ref":"routing-tables-have-an-owner-and-a-seam","payload":{"authority":"standing-a","reason":"PR #553 Codex P2: routed check silently skipped cursor/unknown harness sections (guard gap introduced by this feature); fixed with RED-proofed TEST-3667 case"}}
