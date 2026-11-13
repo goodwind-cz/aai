@@ -172,6 +172,10 @@ const BIND_ONS = ['dispatch', 'verdict'];
 // telemetry-fields-not-prose D1/D2: append-run's five new fields. `none` is
 // the recorded-absence value (distinct from the field being entirely absent),
 // valid for every role; Validation/Code Review refuse its OMISSION (D2/D3).
+// spec-model-effort-routing D-RECORD: append-run's requested-effort and
+// effort-applied value sets (emitted only when the flag was passed).
+const EFFORT_LEVELS_RUN = ['low', 'medium', 'high'];
+const EFFORT_APPLIED_VALUES = ['param', 'not_supported', 'overridden'];
 const VERDICT_VALUES = ['pass', 'fail', 'none'];
 const VERDICT_REQUIRED_ROLES = ['Validation', 'Code Review'];
 
@@ -246,11 +250,12 @@ const CMD_FLAGS = {
   'set-tdd-cycle': ['status', 'test_id', 'spec_path', 'test_path', 'red', 'green', 'refactor'],
   'set-human-input': ['required', 'question', 'reason'],
   'append-run': ['ref', 'role', 'model', 'started', 'note', 'tokens_in', 'tokens_out', 'tdd_tests', 'prompt_hash',
-    'harness', 'tokens_total', 'verdict', 'requested_model', 'actual_model'],
+    'harness', 'tokens_total', 'verdict', 'requested_model', 'actual_model',
+    'requested_effort', 'effort_applied', 'cache_read', 'cache_creation'],
   'amend-run': ['ref', 'role', 'started', 'tokens_total'],
   'clear-focus': ['ref'],
   'log-tick': ['tick', 'role', 'scope', 'started', 'type', 'exit_code', 'mode', 'k', 'harness',
-    'tokens_in', 'tokens_out', 'cache_read', 'cost', 'lingering_procs', 'free_memory',
+    'tokens_in', 'tokens_out', 'cache_read', 'cache_creation', 'cost', 'lingering_procs', 'free_memory',
     'focus_before', 'validation_before'],
   'reset-block': ['force'],
   'bind-check': ['on', 'role', 'ref'],
@@ -351,6 +356,10 @@ const CMD_FLAG_META = {
     verdict: { enum: VERDICT_VALUES },
     requested_model: {},
     actual_model: {},
+    requested_effort: { enum: EFFORT_LEVELS_RUN },
+    effort_applied: { enum: EFFORT_APPLIED_VALUES },
+    cache_read: {},
+    cache_creation: {},
   },
   'amend-run': {
     ref: { required: true },
@@ -374,6 +383,7 @@ const CMD_FLAG_META = {
     tokens_in: {},
     tokens_out: {},
     cache_read: {},
+    cache_creation: {},
     cost: {},
     lingering_procs: {},
     free_memory: {},
@@ -477,11 +487,21 @@ function enumFlag(flags, name, allowed, cmd, { required = false } = {}) {
   return v;
 }
 
-function intFlag(flags, name, cmd, { required = false } = {}) {
+function intFlag(flags, name, cmd, { required = false, nonNegative = false } = {}) {
   const v = strFlag(flags, name, cmd, { required });
   if (v === undefined) return undefined;
   if (!/^-?\d+$/.test(v)) fail(`${cmd}: --${name} must be an integer (got "${v}")`);
+  if (nonNegative && v.startsWith('-')) fail(`${cmd}: --${name} must not be negative (got "${v}")`);
   return Number(v);
+}
+
+// spec-model-effort-routing D-RECORD: --requested-effort, closed to the
+// dispatch effort vocabulary; out-of-set exits 2 before any write.
+function effortFlag(flags, name, cmd) {
+  const v = strFlag(flags, name, cmd);
+  if (v === undefined) return undefined;
+  if (!EFFORT_LEVELS_RUN.includes(v)) fail(`${cmd}: invalid --${name} "${v}" (allowed: ${EFFORT_LEVELS_RUN.join(' | ')})`);
+  return v;
 }
 
 function numFlag(flags, name, cmd) {
@@ -1198,6 +1218,10 @@ function cmdAppendRun(state, flags) {
   const verdictFlag = enumFlag(flags, 'verdict', VERDICT_VALUES, 'append-run');
   const requestedModel = strFlag(flags, 'requested-model', 'append-run');
   const actualModel = strFlag(flags, 'actual-model', 'append-run');
+  const requestedEffort = effortFlag(flags, 'requested-effort', 'append-run');
+  const effortApplied = enumFlag(flags, 'effort-applied', EFFORT_APPLIED_VALUES, 'append-run');
+  const cacheReadRun = intFlag(flags, 'cache-read', 'append-run', { nonNegative: true });
+  const cacheCreationRun = intFlag(flags, 'cache-creation', 'append-run', { nonNegative: true });
 
   // D2/D3: Validation and Code Review REFUSE an absent --verdict — exit 2,
   // BEFORE any write (checked here, ahead of editBlock, so the byte-identity
@@ -1257,6 +1281,10 @@ function cmdAppendRun(state, flags) {
   runLines.push(`          verdict: ${verdictValue}`);
   if (requestedModel !== undefined) runLines.push(`          requested_model: ${yq(requestedModel)}`);
   if (actualModel !== undefined) runLines.push(`          actual_model: ${yq(actualModel)}`);
+  if (requestedEffort !== undefined) runLines.push(`          requested_effort: ${requestedEffort}`);
+  if (effortApplied !== undefined) runLines.push(`          effort_applied: ${effortApplied}`);
+  if (cacheReadRun !== undefined) runLines.push(`          cache_read_tokens: ${cacheReadRun}`);
+  if (cacheCreationRun !== undefined) runLines.push(`          cache_creation_tokens: ${cacheCreationRun}`);
   runLines.push(`          usage_basis: ${usageBasis}`);   // D5: always emitted, derived, never hardcoded
 
   editBlock(state.lines, 'metrics', bl => {
@@ -1589,7 +1617,8 @@ function cmdLogTick(state, flags, ticksPath) {
   const harness = strFlag(flags, 'harness', 'log-tick');
   const tokensIn = intFlag(flags, 'tokens-in', 'log-tick');
   const tokensOut = intFlag(flags, 'tokens-out', 'log-tick');
-  const cacheRead = intFlag(flags, 'cache-read', 'log-tick');
+  const cacheRead = intFlag(flags, 'cache-read', 'log-tick', { nonNegative: true });
+  const cacheCreation = intFlag(flags, 'cache-creation', 'log-tick', { nonNegative: true });
   const cost = numFlag(flags, 'cost', 'log-tick');
   const lingering = intFlag(flags, 'lingering-procs', 'log-tick');
   const freeMemory = strFlag(flags, 'free-memory', 'log-tick');
@@ -1627,6 +1656,7 @@ function cmdLogTick(state, flags, ticksPath) {
   if (tokensIn !== undefined) entry.input_tokens = tokensIn;
   if (tokensOut !== undefined) entry.output_tokens = tokensOut;
   if (cacheRead !== undefined) entry.cache_read_tokens = cacheRead;
+  if (cacheCreation !== undefined) entry.cache_creation_tokens = cacheCreation;
   if (cost !== undefined) entry.est_cost_usd = cost;
   if (lingering !== undefined) entry.lingering_procs = lingering;
   if (freeMemory !== undefined) entry.free_memory = freeMemory;

@@ -18,7 +18,10 @@
 // comment-only ledger. Identical input bytes -> identical output bytes.
 //
 // Flags: --metrics <path> (default docs/ai/METRICS.jsonl),
-//        --pricing <path> (default .aai/system/PRICING.yaml).
+//        --pricing <path> (default .aai/system/PRICING.yaml),
+//        --by-effort [--split <YYYY-MM-DD>] (spec-model-effort-routing D-REPORT:
+//        prints ONLY the per-role / requested-effort table, plus Before/From/
+//        Delta tables with --split; without --by-effort the output is unchanged).
 // Exit codes: 0 success (incl. the empty ledger), 2 usage,
 //             1 unreadable/corrupt ledger line (named line number).
 
@@ -37,14 +40,20 @@ function parseArgs(argv) {
   const opts = { metrics: 'docs/ai/METRICS.jsonl', pricing: '.aai/system/PRICING.yaml' };
   for (let i = 2; i < argv.length; i += 1) {
     const tok = argv[i];
-    if (tok === '--metrics' || tok === '--pricing') {
+    if (tok === '--by-effort') {
+      opts.byEffort = true;
+    } else if (tok === '--metrics' || tok === '--pricing' || tok === '--split') {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) fail(`${tok} requires a value`);
       opts[tok.slice(2)] = v;
       i += 1;
     } else {
-      fail(`unknown flag "${tok}" (valid: --metrics --pricing)`);
+      fail(`unknown flag "${tok}" (valid: --metrics --pricing --by-effort --split)`);
     }
+  }
+  if (opts.split !== undefined) {
+    if (!opts.byEffort) fail('--split requires --by-effort');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(opts.split)) fail(`--split must be YYYY-MM-DD (got "${opts.split}")`);
   }
   return opts;
 }
@@ -87,6 +96,67 @@ function undecomposedTokenCell(runs) {
   return any ? String(sum) : 'n/a';
 }
 
+// spec-model-effort-routing D-REPORT: --by-effort. Rows group by role (any
+// " (...)" suffix removed) and requested_effort ('unset' when absent), sorted
+// by role then low < medium < high < unset. Medians are rounded to a whole token.
+const EFFORT_ORDER = ['low', 'medium', 'high', 'unset'];
+const roleBase = r => (typeof r.role === 'string' && r.role !== '' ? r.role.replace(/ \(.*\)$/, '') : 'unknown');
+const effortOf = r => (typeof r.requested_effort === 'string' && r.requested_effort !== '' ? r.requested_effort : 'unset');
+
+function medianOf(nums) {
+  if (nums.length === 0) return null;
+  const a = [...nums].sort((x, y) => x - y);
+  const m = a.length >> 1;
+  return a.length % 2 === 1 ? a[m] : Math.round((a[m - 1] + a[m]) / 2);
+}
+const totalsOf = runs => runs.map(r => r.tokens_total).filter(t => typeof t === 'number');
+const sumNum = (runs, key) => runs.reduce((a, r) => a + (typeof r[key] === 'number' ? r[key] : 0), 0);
+
+function effortTable(title, runs) {
+  const out = [title,
+    '| role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |',
+    '|------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|'];
+  const groups = new Map();
+  for (const r of runs) {
+    const key = `${roleBase(r)}\u0000${effortOf(r)}`;
+    if (!groups.has(key)) groups.set(key, { role: roleBase(r), effort: effortOf(r), runs: [] });
+    groups.get(key).runs.push(r);
+  }
+  const rows = [...groups.values()].sort((a, b) => (a.role < b.role ? -1 : a.role > b.role ? 1 : 0)
+    || EFFORT_ORDER.indexOf(a.effort) - EFFORT_ORDER.indexOf(b.effort));
+  for (const g of rows) {
+    const t = totalsOf(g.runs);
+    const med = medianOf(t);
+    const withCache = g.runs.filter(r => typeof r.cache_read_tokens === 'number' || typeof r.cache_creation_tokens === 'number').length;
+    out.push(`| ${g.role} | ${g.effort} | ${g.runs.length} | ${t.length} | ${t.reduce((a, v) => a + v, 0)} | ${med === null ? 'n/a' : med} | ${costCell(g.runs)} | ${sumNum(g.runs, 'cache_read_tokens')} | ${sumNum(g.runs, 'cache_creation_tokens')} | ${withCache} |`);
+  }
+  return out;
+}
+
+function renderByEffort(entries, split) {
+  const runsOf = es => es.flatMap(e => e._runs);
+  if (split === undefined) return effortTable('### By role and requested effort', runsOf(entries)).join('\n');
+  const before = entries.filter(e => typeof e.date_utc === 'string' && e.date_utc < split);
+  const from = entries.filter(e => !(typeof e.date_utc === 'string' && e.date_utc < split));
+  const out = [...effortTable(`### Before ${split}`, runsOf(before)), '',
+    ...effortTable(`### From ${split}`, runsOf(from)), '',
+    '### Delta by role',
+    '| role | median tokens_total before | median tokens_total from | change |',
+    '|------|----------------------------|--------------------------|--------|'];
+  const roles = new Set([...runsOf(before), ...runsOf(from)].map(roleBase));
+  for (const role of [...roles].sort()) {
+    const b = medianOf(totalsOf(runsOf(before).filter(r => roleBase(r) === role)));
+    const f = medianOf(totalsOf(runsOf(from).filter(r => roleBase(r) === role)));
+    let change = 'n/a';
+    if (b !== null && f !== null && b !== 0) {
+      const pct = 100 * (f - b) / b;
+      change = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+    }
+    out.push(`| ${role} | ${b === null ? 'n/a' : b} | ${f === null ? 'n/a' : f} | ${change} |`);
+  }
+  return out.join('\n');
+}
+
 function main() {
   const opts = parseArgs(process.argv);
   const metricsPath = path.resolve(process.cwd(), opts.metrics);
@@ -124,6 +194,11 @@ function main() {
           typeof r.tokens_out === 'number' ? r.tokens_out : null);
       allRuns.push(r);
     }
+  }
+
+  if (opts.byEffort) {
+    console.log(renderByEffort(entries, opts.split));
+    exit(0);
   }
 
   const out = [];

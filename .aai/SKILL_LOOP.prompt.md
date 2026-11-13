@@ -359,6 +359,7 @@ For each tick (1..max_ticks):
        context. See `.aai/SUBAGENT_PROTOCOL.md` "Spawning a validator in a
        separate agent" for the model-selection rule and the no-isolation
        fallback (residual-risk recording).
+     - Effort: with `harness_effort`, pass it to the harness's effort knob (Claude Code Agent `effort`; Codex `reasoning_effort` and Gemini are unverified) unless `effort_override` is set. On that role's append-run record `--requested-effort <suggested_effort>` when non-null and `--effort-applied <param|not_supported|overridden>` (`not_supported` when `harness_effort` is null). Effort changes only between dispatches, never mid-session.
      - Capture role_ended_utc immediately after completion from system clock.
      - Capture harness-reported usage from the completed role's tool result per SUBAGENT_PROTOCOL.md "Harness-reported usage capture" (decomposed -> tokens-in/out flags; undecomposed total -> merge-append note; nothing -> omit). The `usage_total_tokens=<N>` note is MANDATORY at merge time whenever the harness exposed a total — never optional; skipping it is what left METRICS.jsonl with 0 recorded tokens across 255 runs (token-capture-canary).
      - Dispatch printed `Prompt hash: <hex>`? Pass the full hex (JSON `prompt_hash`) as `--prompt-hash` on this role's append-run (`recheck.fallback.prompt_hash` if canon refused the delta).
@@ -390,7 +391,7 @@ For each tick (1..max_ticks):
          [--exit-code N] [--focus-before <focus_ref_id at tick start>] \
          [--validation-before <validation_status at tick start>] \
          [--mode <single|parallel> --k <K>] [--harness <harness_version>] \
-         [--tokens-in N --tokens-out N --cache-read N --cost X]   # ONLY with real runtime usage \
+         [--tokens-in N --tokens-out N --cache-read N --cache-creation N --cost X]   # ONLY with real runtime usage \
          [--lingering-procs N --free-memory X]                    # test-running ticks (SPEC-0009)
      The helper self-stamps `ended_utc`, computes `duration_seconds` (never
      null), defaults the "after" fields from the current STATE.yaml, validates

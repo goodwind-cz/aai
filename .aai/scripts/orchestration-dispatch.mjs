@@ -87,6 +87,11 @@ const USER_DECISIONS = ['undecided', 'worktree', 'inline', 'waived'];
 const BOOLS = ['true', 'false'];
 const IMPLEMENTER_ROLES = ['Implementation', 'TDD Implementation', 'Remediation'];
 
+// Closed effort vocabulary (spec-model-effort-routing D-VOCAB). `default` (the
+// legacy shipped value) is accepted separately and resolves null.
+const EFFORT_LEVELS = ['low', 'medium', 'high'];
+function isEffortLevel(v) { return EFFORT_LEVELS.includes(v); }
+
 // Tier suggestion mapping (ORCHESTRATION MODEL SELECTION, D3).
 const TIERS = {
   'Planning': 'premium',
@@ -1264,6 +1269,8 @@ export function loadModelRouting(root) {
   if (!fs.existsSync(p)) return null;
   const routing = {
     tiers: {}, roles: {}, effort_tiers: {}, effort_roles: {}, validation_alternate: null,
+    // effort_params@<harness> level -> token maps (D-PARAM); never selects Mode B.
+    effort_params: Object.create(null),
     // Object.create(null): a header typo like `tiers@constructor:` or
     // `tiers@toString:` must never resolve to an INHERITED Object.prototype
     // member (a function) instead of a fresh per-harness map — that was the
@@ -1282,6 +1289,7 @@ export function loadModelRouting(root) {
   };
   let section = null;        // 'tiers' | 'roles' | 'effort_tiers' | 'effort_roles' | null
   let sectionHarness = null; // non-null only while the active section is harness-scoped
+  let paramsHarness = null;  // non-null only inside an effort_params@<harness> section
   // Every `@<suffix>` header seen during the parse, valid or not (harness-
   // universal-routing follow-up fu-routing-malformed-suffix-silent): swept
   // AFTER the loop below so a typo'd suffix is rejected with one NOTE per
@@ -1337,6 +1345,22 @@ export function loadModelRouting(root) {
       sectionHarness = null;
       continue;
     }
+    // spec-model-effort-routing D-PARAM: `effort_params@<harness>:` translates
+    // a level into the harness's own token. An unsuffixed header or a suffix
+    // outside the closed harness set is ignored with ONE NOTE; rows under it
+    // are discarded (section left null).
+    if ((m = line.match(/^effort_params(?:@([A-Za-z0-9_-]+))?:\s*$/))) {
+      const effortParamsHarnessOk = m[1] !== undefined && HARNESS_VALUES.includes(m[1]);
+      sectionHarness = null;
+      if (!effortParamsHarnessOk) {
+        console.error(`orchestration-dispatch: NOTE — MODEL_ROUTING.yaml section "${line.trim()}" ignored — effort_params needs an @<harness> suffix from ${HARNESS_VALUES.join(', ')}`);
+        section = null; paramsHarness = null;
+      } else {
+        section = 'effort_params'; paramsHarness = m[1];
+        if (!routing.effort_params[paramsHarness]) routing.effort_params[paramsHarness] = Object.create(null);
+      }
+      continue;
+    }
     if ((m = line.match(/^validation_alternate(?:@([A-Za-z0-9_-]+))?:\s*(\S+)\s*$/))) {
       const val = m[2] === 'null' ? null : m[2];
       if (m[1]) {
@@ -1348,6 +1372,22 @@ export function loadModelRouting(root) {
     }
     if (/^\S/.test(line)) { section = null; sectionHarness = null; continue; }
     const kv = line.match(/^ {2}(\S[^:#]*):\s*(\S+)\s*$/);
+    if (kv && section === 'effort_params') {
+      const lvl = kv[1].trim();
+      if (isEffortLevel(lvl)) routing.effort_params[paramsHarness][lvl] = kv[2];
+      else console.error(`orchestration-dispatch: NOTE — MODEL_ROUTING.yaml effort_params row "${lvl}: ${kv[2]}" ignored — level is not one of ${EFFORT_LEVELS.join(', ')}`);
+      continue;
+    }
+    if (kv && (section === 'effort_tiers' || section === 'effort_roles')) {
+      const k = kv[1].trim(), v = kv[2];
+      if (!isEffortLevel(v)) {
+        // `default` is the legacy "harness decides" value: store null (an own
+        // row that stops the role -> tier fallthrough). Anything else is ignored.
+        if (v === 'default') routing[section][k] = null;
+        else console.error(`orchestration-dispatch: NOTE — MODEL_ROUTING.yaml ${section} row "${k}: ${v}" ignored — value is not one of ${EFFORT_LEVELS.join(', ')} (or default)`);
+      } else routing[section][k] = v;
+      continue;
+    }
     if (kv && section) {
       if (sectionHarness) harnessMap(sectionHarness)[section][kv[1].trim()] = kv[2];
       else routing[section][kv[1].trim()] = kv[2];
@@ -1498,9 +1538,27 @@ export function suggestModel(out, routing) {
 // harness caches on it (see MODEL_ROUTING.yaml header pin).
 export function suggestEffort(out, routing) {
   if (!routing || out.verdict !== 'dispatch') return null;
-  return (out.role && routing.effort_roles[out.role])
-    ?? (out.suggested_tier ? routing.effort_tiers[out.suggested_tier] : null)
-    ?? null;
+  // An own row holding null (a `default` value) stops the fallthrough.
+  if (out.role && Object.hasOwn(routing.effort_roles, out.role)) return routing.effort_roles[out.role];
+  return (out.suggested_tier ? routing.effort_tiers[out.suggested_tier] : null) ?? null;
+}
+
+// harness_effort (D-PARAM): the level mapped through the detected harness's
+// effort_params section; null when the level is unset or the harness has no
+// section (cursor, unknown, absent file, Mode A file without sections).
+export function harnessEffort(out, routing, harness) {
+  if (!routing || !out.suggested_effort) return null;
+  const map = routing.effort_params[harness];
+  if (!map) return null;
+  return map[out.suggested_effort] ?? null;
+}
+
+// effort_override (D-OVERRIDE): the NAME of the env variable that beats an
+// explicit per-dispatch effort on Claude Code; never its value.
+export function effortOverride(env, harness) {
+  if (harness !== 'claude') return null;
+  const v = env && env.CLAUDE_CODE_EFFORT_LEVEL;
+  return typeof v === 'string' && v !== '' ? 'CLAUDE_CODE_EFFORT_LEVEL' : null;
 }
 
 // recordConfirm (CHANGE-0120) — the ONLY write this script can perform, gated
@@ -1659,7 +1717,9 @@ function humanBlock(out, routing) {
     `Suggested model tier: ${out.suggested_tier ?? '(n/a)'}`,
     `Suggested model id: ${out.suggested_model ?? suggestedModelUnboundReason(out, routing)}`,
     `Suggested effort: ${out.suggested_effort ?? '(unset — no matching effort routing)'}`,
+    `Harness effort: ${out.harness_effort ?? '(unset)'}`,
   ];
+  if (out.effort_override) lines.push(`Effort override: ${out.effort_override} is set; the per-dispatch effort will not apply`);
   if (out.validator_independence) {
     let vi = `Validator independence: implementer_model=${out.validator_independence.implementer_model ?? 'null'} (validator model must differ)`;
     if (out.validator_independence.residual) {
@@ -1842,6 +1902,8 @@ function main() {
     // Advisory reasoning-effort hint (cache-friendly-dispatch), resolved from
     // the SAME routing load; null when the file/field is absent (back-compat).
     out.suggested_effort = suggestEffort(out, routing);
+    out.harness_effort = harnessEffort(out, routing, out.harness);
+    out.effort_override = effortOverride(process.env, out.harness);
     // prompt-hash-telemetry Spec-AC-05: additive-only — only a real dispatch
     // (system_prompt present) gets a prompt_hash; no_action/needs_llm verdicts
     // (no role, no system_prompt) are untouched.

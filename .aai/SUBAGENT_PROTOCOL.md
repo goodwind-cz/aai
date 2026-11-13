@@ -219,7 +219,7 @@ Token usage is captured ONLY from the harness-level result visible to the dispat
 
 - Decomposed shape (`usage.input_tokens`/`usage.output_tokens`/
   `usage.cache_read_input_tokens`, `total_cost_usd`): pass values through the
-  existing flags — `append-run --tokens-in N --tokens-out N`; `log-tick --tokens-in N --tokens-out N [--cache-read N] [--cost X]` (`--cost` only
+  existing flags — `append-run --tokens-in N --tokens-out N`; also `usage.cache_read_input_tokens` and `usage.cache_creation_input_tokens` as `--cache-read N --cache-creation N` on append-run (a total-only result passes neither); `log-tick --tokens-in N --tokens-out N [--cache-read N] [--cache-creation N] [--cost X]` (`--cost` only
   when the runtime itself reports a real cost figure) (D2).
 - Undecomposed total (a single combined count, e.g. the in-session Agent
   tool's completion total, no in/out split): record it VERBATIM in

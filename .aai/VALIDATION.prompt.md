@@ -50,6 +50,11 @@ INVARIANT RULES
 - If code_review.required is true, leave merge/PR readiness to
   `.aai/SKILL_CODE_REVIEW.prompt.md` after validation evidence exists.
 - Run the AC STATUS GATE (below) before producing any PASS verdict.
+- Evidence digest (dial `evidence_digest` in docs/ai/docs-audit.yaml, absent = `off`): run
+  `node .aai/scripts/evidence-digest.mjs run --ref <ref> --record`. The digest never replaces the
+  verdict. `off`: skip it. `shadow`: run it after the round's sweep, before the verdict; cite no line in place of a check.
+  `on`: a clean AC or GATE line may be cited for evidence existence and gate exit codes instead of
+  re-opening each file; behaviour checks, the selected suites and the sweep plan stay your own.
 
 AC STATUS GATE
 Per-Spec-AC tracking gate that prevents silent partial implementations,

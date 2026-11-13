@@ -61,7 +61,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (646)
+## Done (648)
 
 | ID | Type | Path |
 |---|---|---|
@@ -314,6 +314,7 @@ _None._
 | CHANGE-0253 | issues | docs/issues/CHANGE-0253-hook-gate-on-node.md |
 | CHANGE-0254 | issues | docs/issues/CHANGE-0254-install-path-parity-harness.md |
 | CHANGE-0255 | issues | docs/issues/CHANGE-0255-factory-round-cap.md |
+| CHANGE-0256 | issues | docs/issues/CHANGE-0256-model-effort-routing.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -709,6 +710,7 @@ _None._
 | SPEC-0285 | specs | docs/specs/SPEC-0285-spec-update-ps1-git-stderr.md |
 | SPEC-0286 | specs | docs/specs/SPEC-0286-spec-factory-round-cap.md |
 | SPEC-0287 | specs | docs/specs/SPEC-0287-spec-round-cap-hardening.md |
+| SPEC-0288 | specs | docs/specs/SPEC-0288-spec-model-effort-routing.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
@@ -747,7 +749,7 @@ _None._
 
 _None._
 
-## Broken references (556)
+## Broken references (559)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1161,6 +1163,9 @@ _None._
 | tests/skills/test-aai-metrics.sh | docs/issues/OTHER-0002.md | NOT FOUND |
 | tests/skills/test-aai-metrics.sh | docs/issues/SPEC-0099-golden.md | NOT FOUND |
 | tests/skills/test-aai-metrics.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
+| tests/skills/test-aai-model-effort.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
+| tests/skills/test-aai-model-effort.sh | docs/specs/NOPE.md | NOT FOUND |
+| tests/skills/test-aai-model-effort.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
 | tests/skills/test-aai-mutation-gate.sh | docs/specs/fixture-spec.md | NOT FOUND |
 | tests/skills/test-aai-mutation-gate.sh | docs/specs/mg-t480-does-not-exist.md | NOT FOUND |
 | tests/skills/test-aai-orchestration-dispatch.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
@@ -1344,4 +1349,4 @@ _None._
 _None._
 
 ---
-Today (UTC): 2026-11-12 — counts above use this date for overdue checks.
+Today (UTC): 2026-11-13 — counts above use this date for overdue checks.
