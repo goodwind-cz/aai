@@ -151,7 +151,7 @@ roles@claude:
   Metrics Flush: claude-haiku-5-5
   # Lane-scoped: wins over the plain tier default ONLY on a ceremony
   # L0/L1 (lightweight-lane) Validation dispatch. With the CURRENT tier
-  # map (standard: claude-sonnet-5) this resolves to the SAME model id a
+  # map (standard: claude-sonnet-5-5) this resolves to the SAME model id a
   # full-lane Validation already gets — zero behavioral delta today. The
   # row (a) makes the lightweight-lane choice explicit/auditable and
   # (b) establishes the role@lane resolution mechanism so a later change

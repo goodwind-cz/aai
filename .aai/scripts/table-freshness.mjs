@@ -18,7 +18,7 @@
 // then the table's own cadence_days. An override that is not a positive
 // integer is a usage error (exit 2), never silently defaulted.
 //
-//   stamp-guard --base <rev> [--root <dir>]
+//   stamp-guard --base <rev> [--root <dir>] [--now <ISO>]
 //     Compares each table at <rev> (git show) with the working tree. A change
 //     to a routed (MODEL_ROUTING) or priced (PRICING) line must come with a
 //     strictly later last_updated_utc. One line per table: UNCHANGED,
@@ -95,6 +95,17 @@ export function readMarker(text, kind) {
   return { ok: true, stamp, cadence: Number(cadRaw) };
 }
 
+// validateMarker(text, kind, now) -> readMarker result, plus the D-READ
+// future-stamp rule (a stamp more than one day after `now` is invalid). The
+// single validity definition shared by `check` and `stamp-guard`.
+export function validateMarker(text, kind, now = new Date()) {
+  const m = readMarker(text, kind);
+  if (m.ok && m.stamp.getTime() - now.getTime() > DAY_MS) {
+    return { ok: false, reason: 'future last_updated_utc', stamp: m.stamp };
+  }
+  return m;
+}
+
 export function classifyAge(ageDays, horizon) {
   return ageDays > horizon ? 'LAPSED' : 'FRESH';
 }
@@ -114,13 +125,17 @@ export function checkTables(root, { now = new Date(), horizonDays = null, env = 
   for (const t of TABLES) {
     const p = path.resolve(root, t.rel);
     if (!fs.existsSync(p)) { out.push({ file: t.rel, status: 'ABSENT' }); continue; }
-    const marker = readMarker(fs.readFileSync(p, 'utf8'), t.kind);
-    if (!marker.ok) { out.push({ file: t.rel, status: 'INVALID', reason: marker.reason }); continue; }
-    const stampIso = marker.stamp.toISOString().replace('.000Z', 'Z');
-    if (marker.stamp.getTime() - now.getTime() > DAY_MS) {
-      out.push({ file: t.rel, status: 'INVALID', stamp: stampIso, reason: 'future last_updated_utc' });
-      continue;
+    let text;
+    try { text = fs.readFileSync(p, 'utf8'); } catch (e) {
+      out.push({ file: t.rel, status: 'INVALID', reason: `unreadable (${e.code || e.message})` }); continue;
     }
+    const marker = validateMarker(text, t.kind, now);
+    if (!marker.ok) {
+      const r = { file: t.rel, status: 'INVALID', reason: marker.reason };
+      if (marker.stamp) r.stamp = marker.stamp.toISOString().replace('.000Z', 'Z');
+      out.push(r); continue;
+    }
+    const stampIso = marker.stamp.toISOString().replace('.000Z', 'Z');
     const horizon = override !== null ? Number(override) : marker.cadence;
     const ageDays = Math.floor((now.getTime() - marker.stamp.getTime()) / DAY_MS);
     out.push({
@@ -164,14 +179,26 @@ export function pricedLines(text) {
   return out;
 }
 
+// Text of <rel> at <base>, or null when the path is genuinely absent at that
+// revision. Any other git failure throws GitError (the guard fails closed).
+export class GitError extends Error {}
 function gitShow(root, base, rel) {
-  const r = spawnSync('git', ['-C', root, 'show', `${base}:${rel}`], { encoding: 'utf8' });
-  return r.status === 0 ? r.stdout : null;
+  const ls = spawnSync('git', ['-C', root, 'ls-tree', '--name-only', base, '--', rel], { encoding: 'utf8' });
+  if (ls.error || ls.status !== 0) {
+    throw new GitError(`git ls-tree failed for ${base}:${rel}: ${(ls.error && ls.error.message) || ls.stderr.trim()}`);
+  }
+  if (ls.stdout.trim() === '') return null;
+  const r = spawnSync('git', ['-C', root, 'show', `${base}:${rel}`], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (r.error || r.status !== 0) {
+    throw new GitError(`git show failed for ${base}:${rel}: ${(r.error && r.error.message) || r.stderr.trim()}`);
+  }
+  return r.stdout;
 }
 
 // stampGuard(root, base) -> { results: [{ file, verdict, reason }], violation }
-// Throws RangeError when git cannot resolve <base>.
-export function stampGuard(root, base) {
+// Throws RangeError when git cannot resolve <base>, GitError on any other git
+// failure reading a table at <base>. Head and base markers use validateMarker.
+export function stampGuard(root, base, { now = new Date() } = {}) {
   const rv = spawnSync('git', ['-C', root, 'rev-parse', '--verify', '--quiet', `${base}^{commit}`], { encoding: 'utf8' });
   if (rv.status !== 0) throw new RangeError(`base revision does not resolve: ${base}`);
   const results = [];
@@ -183,9 +210,9 @@ export function stampGuard(root, base) {
     const viol = (reason) => results.push({ file: t.rel, verdict: 'VIOLATION', reason });
     if (baseText === null && headText === null) { results.push({ file: t.rel, verdict: 'UNCHANGED' }); continue; }
     if (headText === null) { viol('table deleted; deleting a shipped table is not a refresh'); continue; }
-    const head = readMarker(headText, t.kind);
+    const head = validateMarker(headText, t.kind, now);
     if (!head.ok) { viol(`invalid head marker: ${head.reason}`); continue; }
-    const baseMarker = baseText === null ? { ok: false } : readMarker(baseText, t.kind);
+    const baseMarker = baseText === null ? { ok: false } : validateMarker(baseText, t.kind, now);
     const contentChanged = baseText === null
       || JSON.stringify(lines(baseText)) !== JSON.stringify(lines(headText));
     if (baseMarker.ok && head.stamp.getTime() < baseMarker.stamp.getTime()) {
@@ -294,7 +321,7 @@ export function routedCheck(root, since, allowStale = []) {
 
 function usage(msg) {
   process.stderr.write(`table-freshness: ${msg}\n`);
-  process.stderr.write('usage: table-freshness.mjs check [--root <dir>] [--now <ISO>] [--horizon-days <n>]\n       table-freshness.mjs stamp-guard --base <rev> [--root <dir>]\n       table-freshness.mjs routed --since <YYYY-MM-DD> [--allow-stale <id>[,<id>...]] [--root <dir>]\n');
+  process.stderr.write('usage: table-freshness.mjs check [--root <dir>] [--now <ISO>] [--horizon-days <n>]\n       table-freshness.mjs stamp-guard --base <rev> [--root <dir>] [--now <ISO>]\n       table-freshness.mjs routed --since <YYYY-MM-DD> [--allow-stale <id>[,<id>...]] [--root <dir>]\n');
   exit(2);
 }
 
@@ -332,13 +359,18 @@ function main(argv) {
     exit(results.some((r) => r.status === 'LAPSED' || r.status === 'INVALID') ? 1 : 0);
   }
   if (cmd === 'stamp-guard') {
-    const f = parseFlags(rest, ['--root', '--base']);
+    const f = parseFlags(rest, ['--root', '--base', '--now']);
     if (f['--base'] === undefined) usage('stamp-guard needs --base <rev>');
+    let gnow = new Date();
+    if (f['--now'] !== undefined) {
+      gnow = new Date(f['--now']);
+      if (Number.isNaN(gnow.getTime())) usage(`--now is not a valid date: ${f['--now']}`);
+    }
     const root = f['--root'] ? path.resolve(f['--root'])
       : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
     let g;
-    try { g = stampGuard(root, f['--base']); } catch (e) {
-      if (e instanceof RangeError) usage(e.message);
+    try { g = stampGuard(root, f['--base'], { now: gnow }); } catch (e) {
+      if (e instanceof RangeError || e instanceof GitError) usage(e.message);
       throw e;
     }
     for (const r of g.results) {

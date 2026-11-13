@@ -2880,6 +2880,14 @@ test_3663_cat21_routing_tables() {
   if ! dr_line_hit "$out" '^CAT-21 .*WARN.*AAI_TABLES_HORIZON_DAYS' || [[ "$rc" -ne 0 ]]; then
     log_info "rc=$rc $out"; log_fail "TEST-3663 invalid AAI_TABLES_HORIZON_DAYS does not WARN naming the variable"; return
   fi
+  # unreadable table (a directory) -> WARN naming the file, never a crash
+  t3663_tables "$d" "$fresh" "$fresh"
+  rm -f "$d/.aai/system/PRICING.yaml"; mkdir "$d/.aai/system/PRICING.yaml"
+  out="$(env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"; rc=$?
+  if ! dr_line_hit "$out" '^CAT-21 .*WARN.*PRICING\.yaml.*unreadable' || [[ "$rc" -ne 0 ]]; then
+    log_info "rc=$rc $out"; log_fail "TEST-3663 unreadable table does not WARN naming the file (exit 0)"; return
+  fi
+  rmdir "$d/.aai/system/PRICING.yaml"
   # no tables -> no CAT-21 line
   rm -rf "$d/.aai/system"
   out="$(env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)"

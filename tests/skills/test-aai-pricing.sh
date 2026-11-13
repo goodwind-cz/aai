@@ -408,10 +408,12 @@ guard_fixture() {
   printf 'pricing_meta:\n  last_updated_utc: "%s"\nupdate_policy:\n  cadence_days: 30\nmodels:\n  m1:\n    input_usd_per_m: %s\n    output_usd_per_m: 5\nmodel_aliases:\n  foo: %s\n' "$ps" "$rate" "$alias" > "$d/.aai/system/PRICING.yaml"
 }
 
-# guard <dir> <base-rev>: prints output and RC=<n>.
+# guard <dir> <base-rev> [now-iso]: prints output and RC=<n>.
 guard() {
   local d="$1" base="$2" out rc=0
-  out="$(env -u AAI_ROLE node "$FRESHNESS_SCRIPT" stamp-guard --root "$d" --base "$base" 2>&1)" || rc=$?
+  local -a now_args=()
+  [[ -n "${3:-}" ]] && now_args=(--now "$3")
+  out="$(env -u AAI_ROLE node "$FRESHNESS_SCRIPT" stamp-guard --root "$d" --base "$base" ${now_args[@]+"${now_args[@]}"} 2>&1)" || rc=$?
   printf '%s\nRC=%s\n' "$out" "$rc"
 }
 
@@ -490,6 +492,30 @@ test_stamp_guard_compares_stamped_lines() {
   # unresolvable base
   out="$(guard "$d" nosuchref)"
   assert_payload_line_matches "$out" '^RC=2$' "unresolvable base did not exit 2"
+  # future head stamp (check calls it INVALID): same validity as check, --now pinned
+  guard_fixture "$d" "2027-11-02T00:00:00Z" s1 "$S1" 1 m1
+  out="$(guard "$d" "$base" "$S2")"
+  assert_payload_line_matches "$out" '^VIOLATION \.aai/system/MODEL_ROUTING\.yaml .*future last_updated_utc' "future head stamp not VIOLATION"
+  assert_payload_line_matches "$out" '^RC=1$' "future head stamp did not exit 1"
+  # a stamp exactly one day ahead of --now is still valid (more than one day is not)
+  guard_fixture "$d" "2026-11-03T00:00:00Z" s1 "$S1" 1 m1
+  out="$(guard "$d" "$base" "$S2")"
+  assert_payload_line_matches "$out" '^RC=0$' "stamp one day ahead of --now was refused"
+  # git cannot read the table at the base (blob missing) -> exit 2, never "no table"
+  local g; g="$(mktemp -d "${TMPDIR:-/tmp}/aai-pricing-3665g.XXXXXX")"
+  git -C "$g" init -q
+  git -C "$g" config user.email t@example.invalid
+  git -C "$g" config user.name t
+  guard_fixture "$g" "$S1" s1 "$S1" 1 m1
+  git -C "$g" add -A && git -C "$g" commit -q -m base
+  local gb blob; gb="$(git -C "$g" rev-parse HEAD)"
+  blob="$(git -C "$g" rev-parse "$gb:.aai/system/MODEL_ROUTING.yaml")"
+  rm -f "$g/.git/objects/${blob:0:2}/${blob:2}"
+  guard_fixture "$g" "$S1" s2 "$S1" 1 m1
+  out="$(guard "$g" "$gb")"
+  assert_payload_line_matches "$out" '^RC=2$' "git show failure did not exit 2 (fail-open)"
+  assert_payload_line_matches "$out" 'git show failed' "git show failure message missing"
+  rm -rf "$g"
   rm -rf "$d"
   log_pass "stamp-guard: changed id/price line needs a later stamp; comments and effort sections ignored; bad base exits 2 (TEST-3665)"
 }
@@ -596,20 +622,33 @@ section_block() {
   awk -v s="$2" -v e="$3" '$0 ~ s {on=1} on && $0 ~ e {exit} on {print}' "$1"
 }
 
+# The one declared place for routed ids a refresh could not verify (see
+# ROUTING_REFRESH.routine.md step 2). One comment per id with the reason.
+# Initially empty: every routed id was re-verified on the refresh day.
+TEST_3668_ALLOW_STALE=(
+)
+
 test_refresh_live_tables() {
   CASE_TAG=TEST-3668
-  log_info "Test: shipped tables pass routed --since 2026-11-13 and bind the refreshed ids (TEST-3668)..."
-  local out stamps line stamp
-  out="$(freshness routed --root "$PROJECT_ROOT" --since 2026-11-13)"
+  log_info "Test: shipped tables pass routed --since <routing_meta stamp date> and bind the refreshed ids (TEST-3668)..."
+  local out stamps line stamp since
+  since="$(awk -F'"' '/^  last_updated_utc:/ {print substr($2, 1, 10); exit}' "$ROUTING_FILE")"
+  [[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || log_fail "no routing_meta last_updated_utc date in $ROUTING_FILE"
+  local -a allow_args=()
+  if [[ ${#TEST_3668_ALLOW_STALE[@]} -gt 0 ]]; then
+    allow_args=(--allow-stale "$(IFS=,; printf '%s' "${TEST_3668_ALLOW_STALE[*]}")")
+  fi
+  out="$(freshness routed --root "$PROJECT_ROOT" --since "$since" ${allow_args[@]+"${allow_args[@]}"})"
   echo "$out"
-  assert_payload_line_matches "$out" '^RC=0$' "shipped tables fail routed --since 2026-11-13"
+  assert_payload_line_matches "$out" '^RC=0$' "shipped tables fail routed --since the routing_meta stamp date"
   assert_payload_line_matches "$out" '^OK claude ' "no claude row checked (vacuous)"
   assert_payload_line_matches "$out" '^OK codex ' "no codex row checked (vacuous)"
   assert_payload_line_matches "$out" '^OK gemini ' "no gemini row checked (vacuous)"
   local bad
-  for bad in MISSING UNPRICED ORDER ALLOW-UNUSED STALE ALLOWED; do
+  for bad in MISSING UNPRICED ORDER ALLOW-UNUSED STALE; do
     [[ "$out" != *$'\n'"$bad "* && "$out" != "$bad "* ]] || log_fail "routed printed a $bad line on the shipped tables"
   done
+  [[ ${#TEST_3668_ALLOW_STALE[@]} -gt 0 ]] || [[ "$out" != *$'\n'"ALLOWED "* ]] || log_fail "routed printed an ALLOWED line with an empty allow-stale list"
   # both stamps on or after the refresh day
   stamps="$(FRESH_H=100000 freshness check --root "$PROJECT_ROOT")"
   assert_payload_line_matches "$stamps" '^RC=0$' "check over the shipped tables failed"
@@ -642,7 +681,7 @@ test_refresh_live_tables() {
     '  Planning: gemini-3.1-pro-preview' '  Code Review: gemini-3.1-pro-preview' '  Metrics Flush: gemini-3-flash-preview' 'validation_alternate@gemini: gemini-3.1-pro-preview'; do
     [[ $'\n'"$ge"$'\n' == *$'\n'"$want"$'\n'* ]] || log_fail "gemini section lacks the row '$want'"
   done
-  log_pass "shipped tables pass routed --since 2026-11-13, stamps current, claude/codex/gemini bind the refreshed ids (TEST-3668)"
+  log_pass "shipped tables pass routed --since the routing_meta stamp date, stamps current, claude/codex/gemini bind the refreshed ids (TEST-3668)"
 }
 
 test_refresh_dispatch_seam() {

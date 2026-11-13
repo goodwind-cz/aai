@@ -663,7 +663,11 @@ export function catRoutingTables(root, env = process.env) {
   let badEnv = null;
   try {
     results = checkTables(root, { env });
-  } catch {
+  } catch (e) {
+    if (!(e instanceof RangeError)) {
+      return cat('CAT-21', 'Routing Tables',
+        'WARN', `routing tables could not be checked (${e && e.message}) -- ${TABLES_REMEDY}`);
+    }
     badEnv = envH;
     results = checkTables(root, { env: { ...env, AAI_TABLES_HORIZON_DAYS: '' } });
   }

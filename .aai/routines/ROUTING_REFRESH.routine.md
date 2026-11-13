@@ -58,14 +58,17 @@ Update MODEL_ROUTING.yaml and PRICING.yaml in the same change: rates,
 was re-verified but is unchanged still moves its `last_verified_utc` and the
 stamps. Keep tier semantics and full model ids; never promote a fable-class
 model without an owner decision. Anything you cannot verify from a primary
-source stays UNCHANGED: add it to the live test's `--allow-stale` list with a
-reason and list it in the PR body.
+source stays UNCHANGED (and keeps its old `last_verified_utc`): add its id to
+the `TEST_3668_ALLOW_STALE` array at the top of the TEST-3668 block in
+`tests/skills/test-aai-pricing.sh` (one comment per id with the reason; the
+test derives `--since` from the `routing_meta` stamp date) and list it in the
+PR body.
 
 ## Step 3 — Verify
 
 Run, from the repository root:
 
-- `node .aai/scripts/table-freshness.mjs routed --since <today>`
+- `node .aai/scripts/table-freshness.mjs routed --since <today> [--allow-stale <ids from TEST_3668_ALLOW_STALE>]`
 - `node .aai/scripts/table-freshness.mjs stamp-guard --base origin/main`
 - the aai-pricing and aai-orchestration-dispatch suites through
   `bash .aai/scripts/aai-run-tests.sh bash tests/skills/<suite>.sh`
