@@ -66,7 +66,8 @@ import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
 import { roundsUsed, roundCap, standingAExtensions, roundMenu } from './round-budget.mjs';
-import { loadProjectConfig, overrideFor, projectConfigNotes, PROJECT_CONFIG_REL } from './lib/project-config.mjs';
+import { loadProjectConfig, overrideFor, projectConfigNotes, describeOverride, isPricedModel, PROJECT_CONFIG_REL } from './lib/project-config.mjs';
+import { loadPricing } from './lib/pricing.mjs';
 import { recheckMode, planCheckStamps, tokenOfRole, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
@@ -1914,6 +1915,10 @@ function main() {
       console.error(`orchestration-dispatch: NOTE — ${PROJECT_CONFIG_REL} ${line}`);
     }
     const applied = overrideFor(projectConfig.overrides, out.harness ?? 'unknown', out.role);
+    // An unpriced override is still applied; the cost gap is made visible (D-PRICE).
+    if (applied !== null && !isPricedModel(loadPricing(path.join(root, '.aai', 'system', 'PRICING.yaml')), applied)) {
+      console.error(`orchestration-dispatch: NOTE — ${PROJECT_CONFIG_REL} ${describeOverride({ harness: out.harness, role: out.role, model: applied })} is unpriced: metrics cannot cost the run`);
+    }
     out.suggested_model = suggestModel(out, routing, projectConfig.overrides);
     // Advisory reasoning-effort hint (cache-friendly-dispatch), resolved from
     // the SAME routing load; null when the file/field is absent (back-compat).

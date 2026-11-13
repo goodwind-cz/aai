@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { HARNESS_VALUES } from './harness.mjs';
+import { runCostUsd } from './pricing.mjs';
 
 export const PROJECT_CONFIG_REL = 'docs/ai/project-config.yaml';
 
@@ -130,4 +131,30 @@ export function projectConfigNotes(cfg) {
     lines.push('file is malformed: no override from it is applied');
   }
   return lines;
+}
+
+// describeOverride({ harness, role, model }) -> "<harness>/<role> -> <model>";
+// the one spelling shared by the dispatch NOTE and the doctor CAT-22 line.
+export function describeOverride(o) {
+  return o.harness + '/' + o.role + ' -> ' + o.model;
+}
+
+// isPricedModel(pricing, model) -> true when lib/pricing.mjs can cost the id
+// (exact, bracket-suffixed or longest-prefix), the resolver metrics-flush uses.
+export function isPricedModel(pricing, model) {
+  if (runCostUsd(pricing, model, 1, 1) === null) return false;
+  return true;
+}
+
+// unpricedOverrides(overrides, pricing) -> [{ harness, role, model }] for every
+// active override whose model id cannot be costed.
+export function unpricedOverrides(overrides, pricing) {
+  const out = [];
+  for (const harness of Object.keys(overrides)) {
+    for (const role of Object.keys(overrides[harness])) {
+      const model = overrides[harness][role];
+      if (!isPricedModel(pricing, model)) out.push({ harness, role, model });
+    }
+  }
+  return out;
 }
