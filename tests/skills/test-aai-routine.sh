@@ -1119,6 +1119,65 @@ test_037_shallow_health_pins() {
     || log_fail "TEST-037 shallow-honesty health step"
 }
 
+# --- TEST-3671 — ROUTING_REFRESH renders for four harnesses, never merges ---
+# Spec routing-tables-have-an-owner-and-a-seam Spec-AC-10. The template path is
+# overridable (AAI_ROUTING_REFRESH_TEMPLATE) the same way TEMPLATE is.
+ROUTING_REFRESH_TEMPLATE="${AAI_ROUTING_REFRESH_TEMPLATE:-$PROJECT_ROOT/.aai/routines/ROUTING_REFRESH.routine.md}"
+test_3671_routing_refresh_renders() {
+  log_info "TEST-3671: ROUTING_REFRESH renders for 4 harnesses + authorised merge render, never merges..."
+  local ok=1 h dec rendered
+  dec="$TMP_ROOT/routing-refresh-decisions.jsonl"
+  printf '%s\n' '{"type":"routine_authorization","ref":"rr-ref","by":"human","grants":["merge"]}' > "$dec"
+  if [[ ! -f "$ROUTING_REFRESH_TEMPLATE" ]]; then
+    log_fail "TEST-3671 template missing: $ROUTING_REFRESH_TEMPLATE"; return
+  fi
+  for h in claude codex gemini generic merge; do
+    if [[ "$h" == "merge" ]]; then
+      run_emit --routine ROUTING_REFRESH --harness claude --os macos --repo owner/repo \
+        --schedule "0 6 1 * *" --model claude-opus-5-5 --tz Europe/Prague --merge --ref rr-ref --decisions "$dec"
+    else
+      run_emit --routine ROUTING_REFRESH --harness "$h" --os macos --repo owner/repo \
+        --schedule "0 6 1 * *" --model claude-opus-5-5 --tz Europe/Prague
+    fi
+    rendered="$OUT"
+    [[ "$RC" -eq 0 ]] || { log_info "TEST-3671 $h: exit $RC: $ERR"; ok=0; continue; }
+    grep -qF '{{' <<<"$rendered" && { log_info "TEST-3671 $h: unresolved placeholder"; ok=0; }
+    local needle
+    for needle in "git ls-files --error-unmatch" "https://platform.claude.com/docs/en/about-claude/pricing" "https://developers.openai.com/api/docs/pricing" "https://aistudio.google.com/docs/pricing" \
+                  "PRIMARY" "table-freshness.mjs routed" "table-freshness.mjs stamp-guard" "gh pr create" "NEVER merge"; do
+      grep -qF -- "$needle" <<<"$rendered" || { log_info "TEST-3671 $h: missing '$needle'"; ok=0; }
+    done
+    grep -qE 'gh pr merge|merge_pull_request' <<<"$rendered" && { log_info "TEST-3671 $h: render carries a merge command"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-3671 ROUTING_REFRESH renders, carries the contract, never merges" || log_fail "TEST-3671 ROUTING_REFRESH render contract"
+}
+
+# --- TEST-3672 — ROUTING_REFRESH is unwired; owner command documented -------
+test_3672_routing_refresh_unwired_documented() {
+  log_info "TEST-3672: no automatic surface names ROUTING_REFRESH; universal-routines.md carries the owner command..."
+  local ok=1 f doc
+  doc="$PROJECT_ROOT/docs/product/universal-routines.md"
+  local surfaces=(
+    "$PROJECT_ROOT/.aai/BOOTSTRAP.prompt.md"
+    "$PROJECT_ROOT/.aai/SKILL_BOOTSTRAP.prompt.md"
+    "$PROJECT_ROOT/.aai/SKILL_UPDATE.prompt.md"
+    "$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
+    "$PROJECT_ROOT/.aai/ORCHESTRATION.prompt.md"
+    "$PROJECT_ROOT/.aai/scripts/aai-sync.sh"
+    "$PROJECT_ROOT/.aai/scripts/aai-sync.ps1"
+  )
+  for f in "${surfaces[@]}"; do
+    [[ -f "$f" ]] || { log_info "TEST-3672: surface $f not found"; ok=0; continue; }
+    grep -q "ROUTING_REFRESH" "$f" && { log_info "TEST-3672: $f names ROUTING_REFRESH"; ok=0; }
+  done
+  if [[ -d "$PROJECT_ROOT/.aai/templates/git-hooks" ]]; then
+    grep -rq "ROUTING_REFRESH" "$PROJECT_ROOT/.aai/templates/git-hooks" && { log_info "TEST-3672: a git hook names ROUTING_REFRESH"; ok=0; }
+  fi
+  grep -qF -- '--routine ROUTING_REFRESH' "$doc" || { log_info "TEST-3672: owner command missing"; ok=0; }
+  grep -qF -- '"0 6 1 * *"' "$doc" || { log_info "TEST-3672: monthly schedule missing"; ok=0; }
+  [[ $ok -eq 1 ]] && log_pass "TEST-3672 ROUTING_REFRESH unwired, owner command documented" || log_fail "TEST-3672 unwired/documented"
+}
+
 ALL_TESTS=(
   test_001_contract_elements
   test_002_placeholder_closure
@@ -1154,6 +1213,8 @@ ALL_TESTS=(
   test_035_tool_ladder_placement
   test_036_report_only_variant_isolation
   test_037_shallow_health_pins
+  test_3671_routing_refresh_renders
+  test_3672_routing_refresh_unwired_documented
 )
 
 main() {
@@ -1167,7 +1228,7 @@ main() {
     for sel in "$@"; do
       fn=""
       for cand in "${ALL_TESTS[@]}"; do
-        [[ "$cand" == *"_${sel}_"* || "$cand" == "test_${sel}"* ]] && fn="$cand"
+        [[ "$cand" == *"_${sel}_"* || "$cand" == "test_${sel}"* || "$cand" == "$sel" ]] && fn="$cand"
       done
       if [[ -n "$fn" ]]; then
         "$fn"

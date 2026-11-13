@@ -426,6 +426,7 @@ suites:
       - tests/skills/lib/vendor-hook-installer.sh
       - .aai/templates/git-hooks/**
       - .aai/scripts/aai-doctor.mjs
+      - .aai/scripts/table-freshness.mjs
       - .aai/scripts/live-spool.*
       - .aai/SKILL_DOCTOR.prompt.md
       - .aai/scripts/aai-win-selftest.ps1
@@ -1068,6 +1069,8 @@ suites:
   aai-pricing:
     globs:
       - .aai/system/PRICING.yaml
+      - .aai/system/MODEL_ROUTING.yaml
+      - .aai/scripts/table-freshness.mjs
 
   aai-product-docs:
     globs:

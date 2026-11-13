@@ -85,6 +85,7 @@ core:
   - .aai/roles/ROLES.md
   - .aai/scripts/aai-bootstrap.sh
   - .aai/scripts/aai-doctor.mjs
+  - .aai/scripts/table-freshness.mjs
   - .aai/scripts/aai-reap-tests.mjs
   - .aai/scripts/aai-reap-tests.ps1
   - .aai/scripts/aai-reap-tests.sh
@@ -323,6 +324,7 @@ extended:
   - .aai/SKILL_VALIDATE_REPORT.prompt.md
   - .aai/SKILL_WRAP_UP.prompt.md
   - .aai/feedback.yaml
+  - .aai/routines/ROUTING_REFRESH.routine.md
   - .aai/routines/SCRYER.routine.md
   - .aai/scripts/PSScriptAnalyzerSettings.psd1
   - .aai/scripts/aai-canonicalize.ps1

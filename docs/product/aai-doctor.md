@@ -112,6 +112,17 @@ advisory: it never becomes FAIL, and no AAI script refuses to run on an old
 Node. On Node 22 or newer, or when the version cannot be parsed, CAT-20 is
 not reported at all, so category counts are unchanged.
 
+**CAT-21 Routing Tables** reports whether the two shipped model tables
+(`.aai/system/MODEL_ROUTING.yaml` and `.aai/system/PRICING.yaml`) have lapsed:
+each carries a `last_updated_utc` freshness marker and a cadence, and a table
+whose stamp is older than its horizon (or whose marker is missing or invalid)
+prints one `CAT-21 WARN` line naming the table. The horizon defaults to each
+table's own `cadence_days`; `AAI_TABLES_HORIZON_DAYS` overrides it for one run
+(a value that is not a positive integer is itself a WARN). CAT-21 is WARN-only:
+it never becomes FAIL, and with a fresh stamp it prints a PASS line naming both
+tables. When neither table exists nothing is reported. The remedy is `/aai-update`:
+the tables are refreshed centrally, not in a consumer project.
+
 ## Data model
 
 None persisted. Every category is computed fresh on each invocation from
@@ -133,6 +144,8 @@ disk.
   by `aai-doctor.mjs`; it is not a standalone user-facing command, though it
   can be run directly (`pwsh -File .aai/scripts/aai-win-selftest.ps1`) for
   manual inspection — it prints the same JSON document to stdout.
+- CAT-21 is additive and WARN-only; it reads `.aai/scripts/table-freshness.mjs`
+  (`check`) and honours `AAI_TABLES_HORIZON_DAYS`.
 - CAT-20 is additive and reported only below the floor; its floor and
   baseline are the exported constants `NODE_FLOOR_MAJOR` (22) and
   `NODE_BASELINE_MAJOR` (24) in `aai-doctor.mjs`, which a test keeps equal
