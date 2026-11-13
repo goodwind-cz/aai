@@ -426,6 +426,7 @@ suites:
       - tests/skills/lib/vendor-hook-installer.sh
       - .aai/templates/git-hooks/**
       - .aai/scripts/aai-doctor.mjs
+      - .aai/scripts/lib/project-config.mjs
       - .aai/scripts/table-freshness.mjs
       - .aai/scripts/live-spool.*
       - .aai/SKILL_DOCTOR.prompt.md
@@ -1736,6 +1737,21 @@ suites:
       - .agents/skills/**
       - .claude/skills/**
       - docs/product/hermes-agent-skill-discovery.md
+
+  aai-project-config:
+    globs:
+      - tests/skills/test-aai-project-config.sh
+      - .aai/scripts/lib/project-config.mjs
+      - .aai/scripts/orchestration-dispatch.mjs
+      - .aai/scripts/aai-doctor.mjs
+      - .aai/system/MODEL_ROUTING.yaml
+      - .aai/system/DOCS_AI_CANON.list
+      - .aai/system/PROFILES.yaml
+      - .aai/scripts/aai-sync.sh
+      - .aai/scripts/aai-sync.ps1
+      - .aai/scripts/aai-update.sh
+      - .aai/scripts/aai-update.ps1
+      - docs/product/consumer-config.md
 
   aai-model-effort:
     globs:

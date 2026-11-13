@@ -206,6 +206,7 @@ core:
   - .aai/scripts/lib/tree-hash.mjs
   - .aai/scripts/lib/pricing.mjs
   - .aai/scripts/lib/product-doc.mjs
+  - .aai/scripts/lib/project-config.mjs
   - .aai/scripts/lib/prompt-hash.mjs
   # core: append-event.mjs (core, pr_sweep write side) and lane-gate.mjs
   # (core, --sweep-check read side) both import this — same precedent as

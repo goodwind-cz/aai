@@ -66,6 +66,7 @@ import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
 import { roundsUsed, roundCap, standingAExtensions, roundMenu } from './round-budget.mjs';
+import { loadProjectConfig, overrideFor, projectConfigNotes, PROJECT_CONFIG_REL } from './lib/project-config.mjs';
 import { recheckMode, planCheckStamps, tokenOfRole, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
@@ -1467,8 +1468,12 @@ const TIER_ORDER = ['mechanical', 'standard', 'premium'];
 // in place (the residual-token arm below) — safe because it has exactly one
 // call site and the mutated object is the same one printed as the verdict,
 // but worth flagging since the signature alone does not say so.
-export function suggestModel(out, routing) {
-  if (!routing || out.verdict !== 'dispatch') return null;
+export function suggestModel(out, routing, overrides = null) {
+  if (out.verdict !== 'dispatch') return null;
+  // Consumer override (docs/ai/project-config.yaml, spec-consumer-config-routing-override):
+  // role-level, for the detected harness only; null when no override applies.
+  const override = overrides ? overrideFor(overrides, out.harness ?? 'unknown', out.role) : null;
+  if (!routing) return override;
   const laneSelected = out.lane && out.lane.selected;
   const laneKey = out.role && laneSelected ? `${out.role}@${laneSelected}` : null;
 
@@ -1480,9 +1485,10 @@ export function suggestModel(out, routing) {
   // removes (a Codex loop handed a Claude id).
   if (routing.mode === 'B') {
     const harness = out.harness ?? 'unknown';
-    const hmap = routing.harnesses[harness];
+    const hmap = routing.harnesses[harness]
+      ?? (override ? { tiers: {}, roles: {}, validation_alternate: null } : null);
     if (!hmap) return null;
-    let model = resolveModelFromMap(hmap, out.role, laneKey, out.suggested_tier);
+    let model = override ?? resolveModelFromMap(hmap, out.role, laneKey, out.suggested_tier);
     // D4 — validator independence resolves INSIDE the detected harness's own
     // map: scan tiers@H at or above the routed tier, then
     // validation_alternate@H, else keep the model and record the residual.
@@ -1512,7 +1518,8 @@ export function suggestModel(out, routing) {
 
   // Mode A — byte-identical to the pre-harness-routing resolution
   // (Spec-AC-06): the detected harness is never consulted.
-  let model = (laneKey && routing.roles[laneKey])
+  let model = override
+    ?? (laneKey && routing.roles[laneKey])
     ?? (out.role && routing.roles[out.role])
     ?? (out.suggested_tier ? routing.tiers[out.suggested_tier] : null)
     ?? null;
@@ -1898,12 +1905,22 @@ function main() {
       );
     }
     routing = loadModelRouting(root);
-    out.suggested_model = suggestModel(out, routing);
+    // Consumer override file: read only for a real dispatch (no stderr noise on
+    // no_action / needs_llm ticks); malformed means NO override at all.
+    const projectConfig = out.verdict === 'dispatch'
+      ? loadProjectConfig(root)
+      : { status: 'absent', overrides: Object.create(null), notes: [], errors: [] };
+    for (const line of projectConfigNotes(projectConfig)) {
+      console.error(`orchestration-dispatch: NOTE — ${PROJECT_CONFIG_REL} ${line}`);
+    }
+    const applied = overrideFor(projectConfig.overrides, out.harness ?? 'unknown', out.role);
+    out.suggested_model = suggestModel(out, routing, projectConfig.overrides);
     // Advisory reasoning-effort hint (cache-friendly-dispatch), resolved from
     // the SAME routing load; null when the file/field is absent (back-compat).
     out.suggested_effort = suggestEffort(out, routing);
     out.harness_effort = harnessEffort(out, routing, out.harness);
     out.effort_override = effortOverride(process.env, out.harness);
+    if (applied !== null) out.model_override = { file: PROJECT_CONFIG_REL, harness: out.harness, role: out.role, model: applied };
     // prompt-hash-telemetry Spec-AC-05: additive-only — only a real dispatch
     // (system_prompt present) gets a prompt_hash; no_action/needs_llm verdicts
     // (no role, no system_prompt) are untouched.
@@ -1932,4 +1949,4 @@ function realOrResolve(p) {
 const isMain = process.argv[1] && realOrResolve(process.argv[1]) === realOrResolve(fileURLToPath(import.meta.url));
 if (isMain) runMain(() => main());
 
-export { RULES };
+export { RULES, TIERS };
