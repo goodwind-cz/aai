@@ -18,7 +18,7 @@ _None._
 
 _None._
 
-## Product (40)
+## Product (41)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -31,6 +31,7 @@ _None._
 | auto-update-config | auto-update-config | 1 | docs/product/auto-update-config.md |
 | ci-test-impact-selection | ci-test-impact-selection | 4 | docs/product/ci-test-impact-selection.md |
 | configurable-merge-policy-lanes | configurable-merge-policy-lanes | 1 | docs/product/configurable-merge-policy-lanes.md |
+| consumer-config | consumer-config | 1 | docs/product/consumer-config.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 6 | docs/product/directed-merge-and-post-merge-cleanup.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
@@ -753,7 +754,7 @@ _None._
 
 _None._
 
-## Broken references (559)
+## Broken references (561)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1203,6 +1204,8 @@ _None._
 | tests/skills/test-aai-product-docs.sh | docs/product/token-capture-canary.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/token-economics-end-to-end.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/widget-export.md | NOT FOUND |
+| tests/skills/test-aai-project-config.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
+| tests/skills/test-aai-project-config.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
 | tests/skills/test-aai-prompt-diet.sh | docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md | NOT FOUND |
 | tests/skills/test-aai-release-notes.sh | docs/specs/x.md | NOT FOUND |
 | tests/skills/test-aai-release.sh | docs/change.md | NOT FOUND |

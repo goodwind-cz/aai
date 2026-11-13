@@ -123,6 +123,18 @@ it never becomes FAIL, and with a fresh stamp it prints a PASS line naming both
 tables. When neither table exists nothing is reported. The remedy is `/aai-update`:
 the tables are refreshed centrally, not in a consumer project.
 
+**CAT-22 Project Config** reports the consumer-owned
+`docs/ai/project-config.yaml` (never written by sync or update). When the file
+is absent nothing is reported. A well-formed file prints one `CAT-22 PASS`
+line naming each active `routing_override@<harness>` row (for example
+`claude/Code Review -> claude-sonnet-5-5`). A malformed file, an ignored
+section (no harness suffix or a harness outside claude, codex, gemini and
+cursor) or an override whose model id is not priced in `PRICING.yaml` prints a
+`CAT-22 WARN` line with the reason; a malformed file means no override is
+applied. CAT-22 is WARN-only and never becomes FAIL; `--json` carries
+`detail: { file, status, overrides, ignored, errors }`. See
+`docs/product/consumer-config.md`.
+
 ## Data model
 
 None persisted. Every category is computed fresh on each invocation from
@@ -144,6 +156,9 @@ disk.
   by `aai-doctor.mjs`; it is not a standalone user-facing command, though it
   can be run directly (`pwsh -File .aai/scripts/aai-win-selftest.ps1`) for
   manual inspection — it prints the same JSON document to stdout.
+- CAT-22 Project Config is additive, WARN-only and reported only when
+  `docs/ai/project-config.yaml` exists; it reads
+  `.aai/scripts/lib/project-config.mjs` and `.aai/system/PRICING.yaml`.
 - CAT-21 is additive and WARN-only; it reads `.aai/scripts/table-freshness.mjs`
   (`check`) and honours `AAI_TABLES_HORIZON_DAYS`.
 - CAT-20 is additive and reported only below the floor; its floor and

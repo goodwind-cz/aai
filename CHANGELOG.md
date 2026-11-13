@@ -30,6 +30,18 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — feat(config): a project-owned consumer config keeps a routing exception that /aai-update never overwrites
+
+- New file `docs/ai/project-config.yaml`, owned by the consuming project and outside `.aai/`, so no sync or update writes, seeds or deletes it. Its first tenant is a per-harness routing override: a section `routing_override@<harness>:` with rows `  <Role>: <model-id>` for the harnesses claude, codex, gemini and cursor. `orchestration-dispatch.mjs` applies a matching row on top of the shipped `MODEL_ROUTING.yaml` for the running harness only and reports it in an additive `model_override` key; effort is not overridable and a project without the file sees byte-identical dispatch output.
+- A malformed file is applied all-or-nothing (nothing), a harness-less or out-of-set section is ignored with one stderr NOTE, and an override whose model id is not priced in `PRICING.yaml` is applied with a NOTE that metrics cannot cost the run.
+- Doctor: new `CAT-22 Project Config` category, WARN-only, silent when the file is absent; it names every active override and every ignored section or error.
+- The UPGRADING note in `MODEL_ROUTING.yaml` no longer tells consumers to re-apply edits after an update. Example:
+
+```yaml
+routing_override@claude:
+  Code Review: claude-sonnet-5-5
+```
+
 ## [v2026.11.13] — feat(routing): routing-table freshness has an owner, CAT-21 reports a lapsed table, a stamp guard blocks a silent edit and the Claude routing bindings are refreshed
 
 - Freshness marker: `.aai/system/MODEL_ROUTING.yaml` and `.aai/system/PRICING.yaml` each carry a `last_updated_utc` stamp and a cadence. `node .aai/scripts/table-freshness.mjs check` prints FRESH, LAPSED or INVALID per table; `AAI_TABLES_HORIZON_DAYS` overrides the horizon for one run.

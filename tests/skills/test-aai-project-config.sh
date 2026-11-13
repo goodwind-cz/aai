@@ -2,9 +2,8 @@
 #
 # Test: aai-project-config — the consumer-owned docs/ai/project-config.yaml and
 # its routing_override@<harness> section (spec-consumer-config-routing-override).
-# TEST-3681..3694 (except 3680, 3695) here (parser library + dispatch wiring);
-# the remaining TEST ids (3680, 3695) join with
-# their Spec-ACs, each as one test_NNNN_* function wired into main() below.
+# TEST-3680..3695 here (parser library, dispatch wiring, twin parity, docs),
+# each as one test_NNNN_* function wired into main() below.
 # Fixtures are scratch temp-dir repos; nothing real is touched. bash 3.2
 # compatible.
 #
@@ -591,7 +590,7 @@ test_3690_upgrading_note() {
   local base out ec=0
   base="$(git -C "$PROJECT_ROOT" merge-base HEAD origin/main 2>/dev/null)" || base=""
   [[ -n "$base" ]] || log_fail "TEST-3690: cannot compute the merge-base of HEAD and origin/main (fail closed)"
-  out="$(cd "$PROJECT_ROOT" && node "$FRESHNESS" stamp-guard --base "$base" 2>&1)" || ec=$?
+  out="$(node "$FRESHNESS" stamp-guard --base "$base" --root "$PROJECT_ROOT" 2>&1)" || ec=$?
   [[ "$ec" == 0 ]] || log_fail "TEST-3690: stamp-guard exited $ec: $out"
   grep -qF 'UNCHANGED .aai/system/MODEL_ROUTING.yaml' <<<"$out" || log_fail "TEST-3690: stamp-guard did not report MODEL_ROUTING UNCHANGED: $out"
   log_pass "TEST-3690: UPGRADING note names the consumer config, no re-apply, citations kept, stamp-guard UNCHANGED"
@@ -676,7 +675,9 @@ YAML
       const c = JSON.parse(s).categories.find((x) => x.id === "CAT-22");
       if (!c || !JSON.stringify(c.detail.overrides).includes("\"role\":\"Planning\"") || !JSON.stringify(c.detail.overrides).includes("\"harness\":\"claude\"")) { console.error(JSON.stringify(c)); process.exit(1); }
     });' || log_fail "TEST-3692: the target's doctor has no CAT-22 naming claude/Planning"
-  (cd "$t" && node .aai/scripts/docs-audit.mjs --quick --no-event > audit.log 2>&1) || log_fail "TEST-3692: the target's docs-audit failed: $(cat "$t/audit.log")"
+  ec=0
+  (cd "$t" && node .aai/scripts/docs-audit.mjs --quick --no-event > audit.log 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3692: the target's docs-audit failed (rc $ec): $(tail -n 5 "$t/audit.log")"
   if grep -qF 'project-config.yaml' "$t/audit.log"; then log_fail "TEST-3692: the target's docs-audit flags project-config.yaml: $(cat "$t/audit.log")"; fi
   ec=0; git -C "$t" check-ignore -q docs/ai/project-config.yaml || ec=$?
   [[ "$ec" == 1 ]] || log_fail "TEST-3692: git check-ignore exited $ec for docs/ai/project-config.yaml (want 1: not ignored)"
@@ -700,6 +701,104 @@ test_3693_registration() {
   log_pass "TEST-3693: PROFILES core, canon line and select-suites reach aai-project-config"
 }
 
+# --- TEST-3680 (Spec-AC-01) — both install twins leave the table fresh and the consumer file alone ---
+# Drives tests/skills/lib/install-parity.mjs exports with this suite's own scenarios (D-PARITY); nothing of
+# SPEC-0284's matrix is touched. Judged on two paths only; other twin divergences are SPEC-0284's business.
+test_3680_twin_parity() {
+  CUR_TEST="TEST-3680"
+  log_info "TEST-3680: sh and ps1 twins of update and sync keep the consumer file and refresh the table..."
+  local drv="$TEST_DIR/t3680-driver.mjs" root="$TEST_DIR/t3680-root" out ec=0 have_ps=0
+  if command -v pwsh >/dev/null 2>&1; then have_ps=1; else echo "SKIP: TEST-3680 ps1 half skipped, pwsh not found"; fi
+  rm -rf "$root"; mkdir -p "$root"
+  cat > "$drv" <<'MJS'
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import * as P from '__PARITY__';
+
+const [root, haveps] = process.argv.slice(2);
+const TABLE = '.aai/system/MODEL_ROUTING.yaml';
+const CONSUMER = 'docs/ai/project-config.yaml';
+const planted = Buffer.from('\xEF\xBB\xBFrouting_override@claude:\r\n  Code Review: claude-haiku-5-5\r\n', 'latin1');
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex').slice(0, 12);
+const step = (op) => ({ op, profile: null, flags: [], expect: '0' });
+const scenarios = [
+  { id: 'CC-UP', tier: 'full', op: 'update', setup: 'older-core', steps: [step('update')], probes: ['.aai/system/AAI_PIN.md'] },
+  { id: 'CC-SY', tier: 'full', op: 'sync', setup: 'base', steps: [step('sync')], probes: ['.aai/system/AAI_PIN.md'] },
+];
+const names = haveps === '1' ? ['sh', 'ps1'] : ['sh'];
+const twins = names.map((n) => P.TWINS[n]);
+fs.mkdirSync(path.join(root, 'tmp'), { recursive: true });
+fs.writeFileSync(path.join(root, 'gitconfig'), '');
+const ctx = { root, bash: 'bash', ps: 'pwsh', host: P.hostInfo({ ps: haveps === '1' ? 'pwsh' : null, bash: 'bash' }) };
+ctx.src = P.buildSource(ctx);
+const srcTable = fs.readFileSync(path.join(ctx.src, TABLE));
+ctx.setup = (scenario, target, c, twinName) => {
+  P.defaultSetup(scenario, target, c, twinName);
+  const f = path.join(target, TABLE);
+  let t = fs.readFileSync(f, 'utf8');
+  const at = t.indexOf('roles@claude:');
+  const re = /^  Code Review: \S+/m;
+  const head = t.slice(0, at); const tail = t.slice(at).replace(re, '  Code Review: claude-haiku-5-5');
+  t = head + tail;
+  if (Buffer.from(t).equals(srcTable)) throw new Error('planted table equals the source table; the customization did not apply');
+  fs.writeFileSync(f, t);
+  fs.mkdirSync(path.join(target, 'docs/ai'), { recursive: true });
+  fs.writeFileSync(path.join(target, CONSUMER), planted);
+};
+const rep = P.runMatrix({ scenarios, twins, rows: [], ctx, matrix: 'full', filtered: true });
+let bad = 0;
+const fail = (m) => { console.log(`FAILCHECK ${m}`); bad += 1; };
+for (const sc of rep.scenarios) {
+  for (const st of sc.steps) {
+    console.log(`EXIT ${sc.id} ${st.twin} ${st.code}`);
+    if (st.code !== 0) fail(`${sc.id} ${st.twin} step exited ${st.code}: ${(st.stderr_tail || '').slice(-300)}`);
+  }
+  for (const b of sc.broken) fail(`${sc.id} broken: ${b}`);
+  for (const n of names) {
+    const dir = path.join(root, sc.id, `out-${n}`);
+    const tb = fs.readFileSync(path.join(dir, TABLE)); const cb = fs.readFileSync(path.join(dir, CONSUMER));
+    console.log(`TABLE ${sc.id} ${n} ${tb.equals(srcTable) ? 'replaced-equal-source' : 'DIFFERS'} sha ${sha(tb)} source ${sha(srcTable)}`);
+    console.log(`CONSUMER ${sc.id} ${n} ${cb.equals(planted) ? 'unchanged' : 'CHANGED'} sha ${sha(cb)} planted ${sha(planted)}`);
+    if (!tb.equals(srcTable)) fail(`${sc.id} ${n}: ${TABLE} is not byte-equal to the source table`);
+    if (!cb.equals(planted)) fail(`${sc.id} ${n}: ${CONSUMER} is not byte-equal to the planted bytes`);
+  }
+  const mine = sc.divergences.filter((d) => d.path === TABLE || d.path === CONSUMER);
+  console.log(`DIVERGENCES ${sc.id} on the two paths: ${mine.length} (all paths: ${sc.divergences.length})`);
+  for (const d of mine) fail(`${sc.id} twins diverge on ${d.path}: ${d.kind} ${d.detail}`);
+}
+process.exit(bad ? 1 : 0);
+MJS
+  sed -i.bak "s#__PARITY__#$PROJECT_ROOT/tests/skills/lib/install-parity.mjs#" "$drv"
+  out="$(env -u AAI_ROLE -u AAI_GIT_WRITE node "$drv" "$root" "$have_ps" 2>&1)" || ec=$?
+  printf '%s\n' "$out" | while IFS= read -r l; do case "$l" in EXIT*|TABLE*|CONSUMER*|DIVERGENCES*|FAILCHECK*) echo "  $l";; esac; done
+  [[ "$ec" == 0 ]] || log_fail "TEST-3680: twin run failed (rc=$ec): $(printf '%s\n' "$out" | tail -n 15)"
+  grep -qF 'EXIT CC-UP sh 0' <<<"$out" || log_fail "TEST-3680: no sh exit line for CC-UP"
+  if [[ "$have_ps" == 1 ]]; then grep -qF 'TABLE CC-SY ps1 replaced-equal-source' <<<"$out" || log_fail "TEST-3680: ps1 half did not report CC-SY"; fi
+  log_pass "TEST-3680: update and sync twins exit 0, table byte-equal to source, consumer file byte-equal, no twin divergence"
+}
+
+# --- TEST-3695 (Spec-AC-12) — CHANGELOG entry and product docs ------------------
+test_3695_docs() {
+  CUR_TEST="TEST-3695"
+  log_info "TEST-3695: CHANGELOG entry, consumer-config product doc, CAT-22 in the doctor doc..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md" pd="$PROJECT_ROOT/docs/product/consumer-config.md" dd="$PROJECT_ROOT/docs/product/aai-doctor.md" n body f
+  n="$(awk '/^## \[(unreleased|v[0-9.]+)\] — /{ if (tolower($0) ~ /consumer config|project-config/) c++ } END{print c+0}' "$cl")"
+  [[ "$n" == 1 ]] || log_fail "TEST-3695: CHANGELOG holds $n headings naming the consumer config, expected exactly 1"
+  body="$(awk '/^## \[(unreleased|v[0-9.]+)\] — /{ on = (tolower($0) ~ /consumer config|project-config/) ; next } on' "$cl")"
+  for f in 'docs/ai/project-config.yaml' 'routing_override' 'CAT-22'; do
+    grep -qF -- "$f" <<<"$body" || log_fail "TEST-3695: the CHANGELOG entry body does not name $f"
+  done
+  [[ -f "$pd" ]] || log_fail "TEST-3695: docs/product/consumer-config.md does not exist"
+  grep -qxF 'capability: consumer-config' "$pd" || log_fail "TEST-3695: consumer-config.md lacks the line 'capability: consumer-config'"
+  for f in 'docs/ai/project-config.yaml' 'routing_override@' 'claude' 'codex' 'gemini' 'cursor' 'all-or-nothing' 'unpriced' 'CAT-22' 'model_override'; do
+    grep -qF -- "$f" "$pd" || log_fail "TEST-3695: consumer-config.md does not mention $f"
+  done
+  grep -qiE 'no sync or update (script )?writes|never writes|does not write' "$pd" || log_fail "TEST-3695: consumer-config.md does not say that no sync or update writes the file"
+  grep -qF 'CAT-22 Project Config' "$dd" || log_fail "TEST-3695: aai-doctor.md does not document CAT-22 Project Config"
+  log_pass "TEST-3695: CHANGELOG entry, consumer-config product doc and CAT-22 doctor doc present"
+}
+
 main() {
   check_deps
   test_3681_resolution_matrix
@@ -715,6 +814,8 @@ main() {
   test_3692_core_sync_seam
   test_3693_registration
   test_3694_role_set_pinned
+  test_3680_twin_parity
+  test_3695_docs
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
