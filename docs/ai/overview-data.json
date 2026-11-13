@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-12T17:35:29.269Z",
+  "generatedAt": "2026-11-13T00:02:45.321Z",
   "project": "aai",
   "counts": {
-    "delivered": 356,
+    "delivered": 357,
     "in_progress": 17,
     "releases": 1,
     "tokens_total": 83812943
@@ -234,6 +234,19 @@
     }
   ],
   "delivered": [
+    {
+      "ref": "model-effort-routing",
+      "title": "Change: every dispatch carries an explicit effort tier the harness can apply, and its token effect is measurable",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0256-model-effort-routing.md",
+      "closed_on": "2026-11-13",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-0288-spec-model-effort-routing.md",
+      "validation": null,
+      "review": null
+    },
     {
       "ref": "factory-round-cap",
       "title": "Change: a ride's re-check loop stops at its round cap and pays the full sweep once",
@@ -4889,6 +4902,19 @@
       "kind": "month",
       "label": "2026-11",
       "items": [
+        {
+          "ref": "model-effort-routing",
+          "title": "Change: every dispatch carries an explicit effort tier the harness can apply, and its token effect is measurable",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0256-model-effort-routing.md",
+          "closed_on": "2026-11-13",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": "docs/specs/SPEC-0288-spec-model-effort-routing.md",
+          "validation": null,
+          "review": null
+        },
         {
           "ref": "factory-round-cap",
           "title": "Change: a ride's re-check loop stops at its round cap and pays the full sweep once",
