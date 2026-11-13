@@ -2,8 +2,8 @@
 #
 # Test: aai-project-config — the consumer-owned docs/ai/project-config.yaml and
 # its routing_override@<harness> section (spec-consumer-config-routing-override).
-# TEST-3681..3688, 3691, 3694 here (parser library + dispatch wiring);
-# the remaining TEST ids (3680, 3689, 3690, 3692, 3693, 3695) join with
+# TEST-3681..3694 (except 3680, 3695) here (parser library + dispatch wiring);
+# the remaining TEST ids (3680, 3695) join with
 # their Spec-ACs, each as one test_NNNN_* function wired into main() below.
 # Fixtures are scratch temp-dir repos; nothing real is touched. bash 3.2
 # compatible.
@@ -356,6 +356,32 @@ YAML
   printf '%s' "$d"
 }
 
+# mk_role_root <name> <role> — a scratch root whose STATE makes the dispatcher
+# choose <role> (rule in brackets): Planning [5: spec file missing], Code
+# Review [13], Implementation [9c], TDD Implementation [9a], Remediation [10],
+# Validation [11], Technology extraction [3], Bootstrap [4], Implementation
+# Preparation / Worktree decision [8], Metrics Flush [14]. Echoes the dir.
+mk_role_root() {
+  local d st; d="$(mk_root "$1")"; st="$d/docs/ai/STATE.yaml"
+  case "$2" in
+    "Code Review") ;;
+    "Validation") d="$(mk_val_root "$1")"; st="$d/docs/ai/STATE.yaml" ;;
+    "Metrics Flush") sed -i.bak -e '/^code_review:/,/^last_validation:/ s/^  status: not_run$/  status: pass/' "$st" ;;
+    "Remediation") sed -i.bak -e '/^last_validation:/,/^human_input:/ s/^  status: pass$/  status: fail/' "$st" ;;
+    "Technology extraction") rm -f "$d/docs/TECHNOLOGY.md" ;;
+    "Bootstrap") rm -f "$d/.aai/workflow/WORKFLOW.md" ;;
+    "Planning") rm -f "$d/docs/specs/SPEC-0001-fx.md" ;;
+    "Implementation Preparation / Worktree decision")
+      sed -i.bak -e 's/^  recommendation: optional$/  recommendation: required/' -e 's/^  user_decision: inline$/  user_decision: undecided/' "$st" ;;
+    "TDD Implementation") sed -i.bak -e 's/^    phase: implementation$/    phase: preparation/' "$st" ;;
+    "Implementation")
+      sed -i.bak -e 's/^    phase: implementation$/    phase: preparation/' -e 's/^  selected: tdd$/  selected: loop/' "$st" ;;
+    *) log_fail "mk_role_root: unknown role $2" ;;
+  esac
+  rm -f "$st.bak"
+  printf '%s' "$d"
+}
+
 # --- TEST-3683 (Spec-AC-03) ---------------------------------------------------
 test_3683_override_beats_lightweight_row() {
   CUR_TEST="TEST-3683"
@@ -497,13 +523,17 @@ console.log(c === null ? "null" : "number");
 test_3691_effort_unaffected() {
   CUR_TEST="TEST-3691"
   log_info "TEST-3691: an override never moves suggested_effort / harness_effort / table freshness..."
-  local h role dd
-  # Real dispatches: Code Review (rule 13) and Validation (rule 11) fixtures.
-  for role in "Code Review" Validation; do
+  local h role dd slug
+  # Real dispatches: every one of the ten TIERS roles, each from the fixture
+  # STATE shape that makes the dispatcher choose it, on all four harnesses.
+  for role in "Planning" "Code Review" "Implementation" "TDD Implementation" "Remediation" "Validation" \
+    "Technology extraction" "Bootstrap" "Implementation Preparation / Worktree decision" "Metrics Flush"; do
     for h in claude codex gemini cursor; do
-      if [[ "$role" == Validation ]]; then dd="$(mk_val_root "t3691-v-$h")"; else dd="$(mk_root "t3691-c-$h")"; fi
+      slug="${role//[^A-Za-z]/_}"
+      dd="$(mk_role_root "t3691-${slug}-$h" "$role")"
       run_d "$dd" "$h"
       [[ "$EC" == 0 ]] || log_fail "TEST-3691: $role/$h control exited $EC: $(cat "$ERR")"
+      jassert "$OUT" "o.verdict === \"dispatch\" && o.role === \"$role\""
       cp "$OUT" "$dd/base.json"
       printf 'routing_override@%s:\n  %s: acme-effort-probe-1\n' "$h" "$role" > "$dd/docs/ai/project-config.yaml"
       run_d "$dd" "$h"
@@ -545,7 +575,129 @@ console.log("pairs=" + n);
   node "$FRESHNESS" check --root "$fd" --now 2026-11-14T00:00:00Z > "$fd/fresh-b.txt" 2>&1 || true
   [[ -s "$fd/fresh-a.txt" ]] || log_fail "TEST-3691: table-freshness printed nothing"
   cmp -s "$fd/fresh-a.txt" "$fd/fresh-b.txt" || log_fail "TEST-3691: table-freshness output changed with the file present"
-  log_pass "TEST-3691: effort identical for 8 real dispatches and $got; table-freshness output identical"
+  log_pass "TEST-3691: effort identical for 40 real dispatches (10 roles x 4 harnesses) and $got; table-freshness output identical"
+}
+
+# --- TEST-3690 (Spec-AC-09) ---------------------------------------------------
+test_3690_upgrading_note() {
+  CUR_TEST="TEST-3690"
+  log_info "TEST-3690: UPGRADING comment points at the consumer config; stamp-guard unchanged..."
+  [[ "$(/usr/bin/grep -ci 're-apply' "$ROUTING" || true)" == 0 ]] || log_fail "TEST-3690: MODEL_ROUTING.yaml still says re-apply"
+  /usr/bin/grep -qF 'docs/ai/project-config.yaml' "$ROUTING" || log_fail "TEST-3690: UPGRADING note does not name docs/ai/project-config.yaml"
+  /usr/bin/grep -qF 'routing_override' "$ROUTING" || log_fail "TEST-3690: UPGRADING note does not name routing_override"
+  /usr/bin/grep -qF 'CHANGE-0192' "$ROUTING" || log_fail "TEST-3690: UPGRADING note lost CHANGE-0192"
+  /usr/bin/grep -qF 'spec-update-installs-ref-guard-undisclosed Amendment 2' "$ROUTING" || log_fail "TEST-3690: UPGRADING note lost the Amendment 2 citation"
+  [[ "$(/usr/bin/grep -c 'CHANGE-DRAFT' "$ROUTING" || true)" == 0 ]] || log_fail "TEST-3690: MODEL_ROUTING.yaml names a CHANGE-DRAFT id"
+  local base out ec=0
+  base="$(git -C "$PROJECT_ROOT" merge-base HEAD origin/main 2>/dev/null)" || base=""
+  [[ -n "$base" ]] || log_fail "TEST-3690: cannot compute the merge-base of HEAD and origin/main (fail closed)"
+  out="$(cd "$PROJECT_ROOT" && node "$FRESHNESS" stamp-guard --base "$base" 2>&1)" || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3690: stamp-guard exited $ec: $out"
+  grep -qF 'UNCHANGED .aai/system/MODEL_ROUTING.yaml' <<<"$out" || log_fail "TEST-3690: stamp-guard did not report MODEL_ROUTING UNCHANGED: $out"
+  log_pass "TEST-3690: UPGRADING note names the consumer config, no re-apply, citations kept, stamp-guard UNCHANGED"
+}
+
+# --- TEST-3692 (Spec-AC-11) — core sync seam -----------------------------------
+test_3692_core_sync_seam() {
+  CUR_TEST="TEST-3692"
+  log_info "TEST-3692: a core sync leaves the consumer file alone and its readers work in the target..."
+  local t ec=0 out
+  t="$TEST_DIR/t3692"; rm -rf "$t"; mkdir -p "$t"
+  git -C "$t" init -q || log_fail "TEST-3692: scratch git init failed"
+  bash "$PROJECT_ROOT/.aai/scripts/aai-sync.sh" "$t" --profile core >/dev/null 2>&1 || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3692: core sync exited $ec"
+  [[ ! -e "$t/docs/ai/project-config.yaml" ]] || log_fail "TEST-3692: sync seeded docs/ai/project-config.yaml"
+  [[ -f "$t/.aai/scripts/lib/project-config.mjs" ]] || log_fail "TEST-3692: sync did not deliver lib/project-config.mjs"
+  mkdir -p "$t/docs/ai" "$t/docs/specs" "$t/.aai/workflow"
+  [[ -f "$t/.aai/workflow/WORKFLOW.md" ]] || echo "# Workflow fixture" > "$t/.aai/workflow/WORKFLOW.md"
+  [[ -f "$t/docs/TECHNOLOGY.md" ]] || echo "# Technology fixture" > "$t/docs/TECHNOLOGY.md"
+  cat > "$t/docs/ai/STATE.yaml" <<'YAML'
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0001
+  primary_path: docs/issues/CHANGE-0001-fixture.md
+active_work_items:
+  - ref_id: CHANGE-0001
+    status: in_progress
+    phase: planning
+    primary_path: docs/issues/CHANGE-0001-fixture.md
+    spec_path: null
+implementation_strategy:
+  selected: undecided
+  source: null
+  rationale: null
+worktree:
+  recommendation: optional
+  user_decision: undecided
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: true
+  status: not_run
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths: []
+  notes: null
+last_validation:
+  status: not_run
+  run_at_utc: 2026-07-01T00:00:00Z
+  ref_id: CHANGE-0001
+  evidence_paths: []
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+updated_at_utc: 2026-07-01T00:00:00Z
+YAML
+  printf 'routing_override@claude:\n  Planning: claude-sonnet-5-5\n' > "$t/docs/ai/project-config.yaml"
+  DISPATCH_BIN="$t/.aai/scripts/orchestration-dispatch.mjs"
+  run_d "$t" claude
+  [[ "$EC" == 0 ]] || { DISPATCH_BIN=""; log_fail "TEST-3692: the target's own dispatch (claude) exited $EC: $(cat "$ERR")"; }
+  jassert "$OUT" 'o.role === "Planning" && o.model_override && o.model_override.model === "claude-sonnet-5-5" && o.suggested_model === "claude-sonnet-5-5"'
+  run_d "$t" codex
+  DISPATCH_BIN=""
+  [[ "$EC" == 0 ]] || log_fail "TEST-3692: the target's own dispatch (codex) exited $EC: $(cat "$ERR")"
+  jassert "$OUT" 'o.role === "Planning" && !("model_override" in o)'
+  out="$(node "$t/.aai/scripts/aai-doctor.mjs" --root "$t" --json 2>&1)" || true
+  echo "$out" | node -e '
+    let s = ""; process.stdin.on("data", (c) => s += c);
+    process.stdin.on("end", () => {
+      const c = JSON.parse(s).categories.find((x) => x.id === "CAT-22");
+      if (!c || !JSON.stringify(c.detail.overrides).includes("\"role\":\"Planning\"") || !JSON.stringify(c.detail.overrides).includes("\"harness\":\"claude\"")) { console.error(JSON.stringify(c)); process.exit(1); }
+    });' || log_fail "TEST-3692: the target's doctor has no CAT-22 naming claude/Planning"
+  (cd "$t" && node .aai/scripts/docs-audit.mjs --quick --no-event > audit.log 2>&1) || log_fail "TEST-3692: the target's docs-audit failed: $(cat "$t/audit.log")"
+  if grep -qF 'project-config.yaml' "$t/audit.log"; then log_fail "TEST-3692: the target's docs-audit flags project-config.yaml: $(cat "$t/audit.log")"; fi
+  ec=0; git -C "$t" check-ignore -q docs/ai/project-config.yaml || ec=$?
+  [[ "$ec" == 1 ]] || log_fail "TEST-3692: git check-ignore exited $ec for docs/ai/project-config.yaml (want 1: not ignored)"
+  log_pass "TEST-3692: core sync seeds nothing; the target's dispatch, doctor and docs-audit honour the file; it is not git-ignored"
+}
+
+# --- TEST-3693 (Spec-AC-11) — registration -------------------------------------
+test_3693_registration() {
+  CUR_TEST="TEST-3693"
+  log_info "TEST-3693: PROFILES core entry, canon line, select-suites reach..."
+  local prof="$PROJECT_ROOT/.aai/system/PROFILES.yaml" secn f out
+  secn="$(awk '/^core:/{f=1;next} /^[a-z]/{f=0} f' "$prof")"
+  grep -qxF '  - .aai/scripts/lib/project-config.mjs' <<<"$secn" || log_fail "TEST-3693: PROFILES core block does not list lib/project-config.mjs"
+  grep -qxF 'project-config.yaml' "$PROJECT_ROOT/.aai/system/DOCS_AI_CANON.list" || log_fail "TEST-3693: DOCS_AI_CANON.list lacks the exact line project-config.yaml"
+  f="$TEST_DIR/t3693-files.txt"
+  for p in .aai/scripts/aai-sync.ps1 docs/product/consumer-config.md; do
+    printf '%s\n' "$p" > "$f"
+    out="$(node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from "$f" --repo-root "$PROJECT_ROOT" 2>&1)" || true
+    grep -qE '^SELECTED aai-project-config ' <<<"$out" || log_fail "TEST-3693: select-suites for only $p does not select aai-project-config: $out"
+  done
+  log_pass "TEST-3693: PROFILES core, canon line and select-suites reach aai-project-config"
 }
 
 main() {
@@ -559,6 +711,9 @@ main() {
   test_3687_malformed_all_or_nothing
   test_3688_unpriced_applied_and_noted
   test_3691_effort_unaffected
+  test_3690_upgrading_note
+  test_3692_core_sync_seam
+  test_3693_registration
   test_3694_role_set_pinned
   echo ""
   log_pass "All $TEST_NAME tests passed"

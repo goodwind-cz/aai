@@ -64,6 +64,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { checkTables } from './table-freshness.mjs';
+import { loadProjectConfig, describeOverride, unpricedOverrides, PROJECT_CONFIG_REL } from './lib/project-config.mjs';
+import { loadPricing } from './lib/pricing.mjs';
 import { readRefGuardPolicy, resolveRefGuardLaunchers } from './lib/guard-config.mjs';
 
 // --- generic helpers -----------------------------------------------------
@@ -695,6 +697,46 @@ export function catRoutingTables(root, env = process.env) {
   return res;
 }
 
+// --- CAT-22 Project Config (spec consumer-config-routing-override) ---------
+// Warn-only report of the consumer-owned docs/ai/project-config.yaml. Null
+// (not reported) when the file is absent. Never FAIL.
+export function catProjectConfig(root) {
+  const cfg = loadProjectConfig(root);
+  if (cfg.status === 'absent') return null;
+  const detail = { file: cfg.file, status: cfg.status, overrides: [], ignored: [], errors: cfg.errors };
+  let res;
+  if (cfg.status === 'malformed') {
+    res = cat('CAT-22', 'Project Config', 'WARN',
+      `${PROJECT_CONFIG_REL} is malformed: no override applied (${cfg.errors.join('; ')})`);
+    detail.ignored = cfg.notes;
+    res.detail = detail;
+    return res;
+  }
+  const pricing = loadPricing(path.join(root, '.aai', 'system', 'PRICING.yaml'));
+  const unpriced = unpricedOverrides(cfg.overrides, pricing);
+  const isUnpriced = (o) => unpriced.some((u) => u.harness === o.harness && u.role === o.role);
+  const list = [];
+  for (const harness of Object.keys(cfg.overrides)) {
+    for (const role of Object.keys(cfg.overrides[harness])) {
+      const o = { harness, role, model: cfg.overrides[harness][role] };
+      list.push({ ...o, priced: !isUnpriced(o) });
+    }
+  }
+  detail.overrides = list;
+  detail.ignored = cfg.notes;
+  const named = list.length ? list.map(describeOverride).join('; ') : 'no routing overrides';
+  if (cfg.notes.length === 0 && unpriced.length === 0) {
+    res = cat('CAT-22', 'Project Config', 'PASS', `${PROJECT_CONFIG_REL}: ${named}`);
+  } else {
+    const parts = [named];
+    for (const n of cfg.notes) parts.push(n);
+    for (const u of unpriced) parts.push(`${describeOverride(u)} is unpriced: metrics cannot cost the run`);
+    res = cat('CAT-22', 'Project Config', 'WARN', `${PROJECT_CONFIG_REL}: ${parts.join('; ')}`);
+  }
+  res.detail = detail;
+  return res;
+}
+
 // The literal the AAI reference-transaction hook body writes to stderr when it
 // refuses (install-pre-commit-hook.sh's AAI_REF_GUARD_MSG here-doc). SEAM-1:
 // one contract across two files — the installer emits it, this probe reads it.
@@ -1152,7 +1194,8 @@ export function runDoctor(root, scriptDir) {
     catMergePolicy(root, scriptDir),
     catNodeRuntime(),
     catRoutingTables(root),
-  ].filter(Boolean); // CAT-19, CAT-20 and CAT-21 return null (not reported) when nothing applies
+    catProjectConfig(root),
+  ].filter(Boolean); // CAT-19, CAT-20, CAT-21 and CAT-22 return null (not reported) when nothing applies
 }
 
 function main() {
