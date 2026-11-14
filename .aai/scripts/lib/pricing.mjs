@@ -26,14 +26,17 @@ function unq(s) {
 export function parsePricing(raw) {
   const aliases = {};
   const models = {};
+  const sources = Object.create(null);
   const costBlend = { input_share: null };
   let section = null;
   let current = null;
+  let currentSource = null;
   for (const line of String(raw).split(/\r?\n/)) {
     if (/^\S/.test(line)) {
       const m = line.match(/^([A-Za-z_][\w-]*):/);
       section = m ? m[1] : null;
       current = null;
+      currentSource = null;
       continue;
     }
     if (line.trim() === '' || line.trim().startsWith('#')) continue;
@@ -44,7 +47,7 @@ export function parsePricing(raw) {
       let m = line.match(/^ {2}([^\s:]+):\s*$/);
       if (m) {
         current = unq(m[1]);
-        models[current] = { input: null, output: null };
+        models[current] = { input: null, output: null, source_ref: null };
         continue;
       }
       if (!current) continue;
@@ -53,6 +56,20 @@ export function parsePricing(raw) {
       const v = unq(m[2].replace(/\s+#.*$/, ''));
       if (m[1] === 'input_usd_per_m') models[current].input = v === 'null' ? null : Number(v);
       if (m[1] === 'output_usd_per_m') models[current].output = v === 'null' ? null : Number(v);
+      if (m[1] === 'source_ref') models[current].source_ref = v === 'null' || v === '' ? null : v;
+    } else if (section === 'sources') {
+      let m = line.match(/^ {2}([^\s:]+):\s*$/);
+      if (m) {
+        currentSource = unq(m[1]);
+        sources[currentSource] = { provider: null };
+        continue;
+      }
+      if (!currentSource) continue;
+      m = line.match(/^ {4}provider:\s*(.*)$/);
+      if (m) {
+        const v = unq(m[1].replace(/\s+#.*$/, ''));
+        sources[currentSource].provider = v === 'null' || v === '' ? null : v;
+      }
     } else if (section === 'cost_blend') {
       const m = line.match(/^ {2}(\w+):\s*(.*)$/);
       if (m && m[1] === 'input_share') {
@@ -61,14 +78,14 @@ export function parsePricing(raw) {
       }
     }
   }
-  return { aliases, models, costBlend };
+  return { aliases, models, sources, costBlend };
 }
 
 export function loadPricing(pricingPath) {
   try {
     return parsePricing(fs.readFileSync(pricingPath, 'utf8'));
   } catch {
-    return { aliases: {}, models: {}, costBlend: { input_share: null } };
+    return { aliases: {}, models: {}, sources: Object.create(null), costBlend: { input_share: null } };
   }
 }
 
@@ -87,14 +104,71 @@ export function resolveModelKey(pricing, runtimeId) {
   return 'unknown';                                                          // rule 5
 }
 
+function hasRates(entry) {
+  return !!entry && entry.input !== null && entry.output !== null
+    && Number.isFinite(entry.input) && Number.isFinite(entry.output);
+}
+
+// attachProjectPrices(pricing, prices) -> a copy of pricing carrying the
+// consumer's project prices as `project` (D-PREC; the shipped table still wins).
+export function attachProjectPrices(pricing, prices) {
+  return { ...pricing, project: prices };
+}
+
+// resolveProjectKey(prices, id) -> key | null: strip ONE trailing bracket
+// suffix, then exact key, then the longest key that is a prefix of the id.
+// No alias step (aliases belong to the shipped table).
+export function resolveProjectKey(prices, id) {
+  const bare = String(id ?? '').trim().replace(/\[[^\]]*\]$/, '');
+  if (Object.prototype.hasOwnProperty.call(prices, bare)) return bare;
+  let best = null;
+  for (const key of Object.keys(prices)) {
+    if (bare.startsWith(key) && (best === null || key.length > best.length)) best = key;
+  }
+  return best;
+}
+
+// rateEntry: the shipped row when it carries both rates, else the project row.
+function rateEntry(pricing, modelId) {
+  const shipped = pricing.models[resolveModelKey(pricing, modelId)];
+  if (hasRates(shipped)) return shipped;
+  const project = pricing.project ? pricing.project : null;
+  if (project === null) return null;
+  const key = resolveProjectKey(project, modelId);
+  return key === null ? null : project[key];
+}
+
+// priceSource(pricing, modelId) -> 'shipped' | 'project' | null, same order.
+export function priceSource(pricing, modelId) {
+  if (hasRates(pricing.models[resolveModelKey(pricing, modelId)])) return 'shipped';
+  const project = pricing.project ? pricing.project : null;
+  if (project === null) return null;
+  const key = resolveProjectKey(project, modelId);
+  return key !== null && hasRates(project[key]) ? 'project' : null;
+}
+
+// modelProvider(pricing, modelId) -> provider string | null: the shipped row's
+// source provider, else the project row's provider.
+export function modelProvider(pricing, modelId) {
+  const key = resolveModelKey(pricing, modelId);
+  if (key !== 'unknown') {
+    const ref = pricing.models[key].source_ref;
+    const src = pricing.sources && ref ? pricing.sources[ref] : null;
+    return src ? src.provider : null;
+  }
+  const project = pricing.project ? pricing.project : null;
+  if (project === null) return null;
+  const pk = resolveProjectKey(project, modelId);
+  return pk === null ? null : (project[pk].provider ?? null);
+}
+
 // runCostUsd(pricing, modelId, tokensIn, tokensOut) -> number | null.
 // Cost exists ONLY when both token counts are integers AND the resolved entry
 // carries both rates — anything else is null, never estimated.
 export function runCostUsd(pricing, modelId, tokensIn, tokensOut) {
   if (typeof tokensIn !== 'number' || typeof tokensOut !== 'number') return null;
-  const entry = pricing.models[resolveModelKey(pricing, modelId)];
-  if (!entry || entry.input === null || entry.output === null
-    || !Number.isFinite(entry.input) || !Number.isFinite(entry.output)) return null;
+  const entry = rateEntry(pricing, modelId);
+  if (!hasRates(entry)) return null;
   return (tokensIn * entry.input + tokensOut * entry.output) / 1_000_000;
 }
 
@@ -111,9 +185,8 @@ export function runCostUsd(pricing, modelId, tokensIn, tokensOut) {
 // unpriced model must never fabricate a number.
 export function blendedCostUsd(pricing, modelId, total) {
   if (typeof total !== 'number' || !Number.isFinite(total)) return null;
-  const entry = pricing.models[resolveModelKey(pricing, modelId)];
-  if (!entry || entry.input === null || entry.output === null
-    || !Number.isFinite(entry.input) || !Number.isFinite(entry.output)) return null;
+  const entry = rateEntry(pricing, modelId);
+  if (!hasRates(entry)) return null;
   const share = (pricing.costBlend && typeof pricing.costBlend.input_share === 'number'
     && Number.isFinite(pricing.costBlend.input_share)) ? pricing.costBlend.input_share : 0.5;
   const cost = (total * (share * entry.input + (1 - share) * entry.output)) / 1_000_000;

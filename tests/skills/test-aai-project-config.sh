@@ -2,7 +2,7 @@
 #
 # Test: aai-project-config — the consumer-owned docs/ai/project-config.yaml and
 # its routing_override@<harness> section (spec-consumer-config-routing-override).
-# TEST-3680..3695 here (parser library, dispatch wiring, twin parity, docs),
+# TEST-3680..3700 here (parser library, dispatch wiring, twin parity, docs),
 # each as one test_NNNN_* function wired into main() below.
 # Fixtures are scratch temp-dir repos; nothing real is touched. bash 3.2
 # compatible.
@@ -835,6 +835,304 @@ test_3695_docs() {
   log_pass "TEST-3695: CHANGELOG entry, consumer-config product doc and CAT-22 doctor doc present"
 }
 
+# --- project pricing section (Spec-AC-13, Spec-AC-14, amended Spec-AC-07) -----
+# price_block [extra field lines] — a valid pricing entry for acme-model-1.
+PRICE_URL="https://acme.example/pricing"
+price_block() {
+  printf 'pricing:\n  acme-model-1:\n    input_usd_per_m: 2.00\n    output_usd_per_m: 8.00\n    source_url: %s\n    last_verified_utc: "2026-11-14T06:00:00Z"\n%b' "$PRICE_URL" "${1:-}"
+}
+OVR_ACME='routing_override@claude:\n  Code Review: acme-model-1\n'
+
+# price_mal_case <label> <expected reason text> <errors> <file content (printf %b)>
+price_mal_case() {
+  local label="$1" want="$2" nerr="$3" content="$4"
+  local d; d="$(mk_root "t3696-$label")"
+  printf '%b' "$content" > "$d/docs/ai/project-config.yaml"
+  run_d "$d" claude
+  [[ "$EC" == 0 ]] || log_fail "TEST-3696[$label]: dispatch exited $EC: $(cat "$ERR")"
+  jassert "$OUT" "o.suggested_model === \"$(shipped_model "$d" claude "Code Review")\" && !(\"model_override\" in o)"
+  [[ "$(count_lines "$want" "$ERR")" == 1 ]] || log_fail "TEST-3696[$label]: stderr lacks exactly one '$want': $(cat "$ERR")"
+  [[ "$(count_lines 'no override from it is applied' "$ERR")" == 1 ]] || log_fail "TEST-3696[$label]: stderr lacks the no-override NOTE: $(cat "$ERR")"
+  [[ "$(count_lines 'NOTE' "$ERR")" == $((nerr + 1)) ]] || log_fail "TEST-3696[$label]: expected $((nerr + 1)) NOTE lines: $(cat "$ERR")"
+  local got
+  got="$(run_mjs '
+import { pathToFileURL } from "node:url";
+const lib = await import(pathToFileURL(process.argv[2]).href);
+const p = await import(pathToFileURL(process.argv[3]).href);
+const pr = lib.loadCostPricing(process.argv[4], process.argv[4] + "/.aai/system/PRICING.yaml");
+console.log(String(p.priceSource(pr, "acme-model-1")) + ":" + ("project" in pr));
+' "$LIB" "$PROJECT_ROOT/.aai/scripts/lib/pricing.mjs" "$d")"
+  [[ "$got" == "null:false" ]] || log_fail "TEST-3696[$label]: loadCostPricing attached a project price ($got)"
+}
+
+# --- TEST-3696 (Spec-AC-13) ---------------------------------------------------
+test_3696_pricing_section_parse() {
+  CUR_TEST="TEST-3696"
+  log_info "TEST-3696: pricing section parses; malformed pricing or null casing voids everything..."
+  local got
+  got="$(run_mjs '
+import { pathToFileURL } from "node:url";
+const lib = await import(pathToFileURL(process.argv[2]).href);
+const fail = (m) => { console.error(m); process.exit(1); };
+const txt = "routing_override@claude:\n  Code Review: acme-model-1\npricing:\n  acme-model-1:\n    input_usd_per_m: 2.00\n    output_usd_per_m: 8\n    source_url: https://acme.example/pricing\n    last_verified_utc: \"2026-11-14T06:00:00Z\"\n  \"acme-model-2\":\n    input_usd_per_m: \"1.5\"\n    output_usd_per_m: 3\n    source_url: https://acme.example/p2\n    last_verified_utc: 2026-11-13T06:00:00Z\n    provider: acme\n    unverified_utc: 2026-11-14T00:00:00Z\n";
+const r = lib.parseProjectConfig(txt);
+if (!r.ok) fail("valid file refused: " + JSON.stringify(r.errors));
+const a = r.prices["acme-model-1"], b = r.prices["acme-model-2"];
+if (a.input !== 2 || a.output !== 8 || a.source_url !== "https://acme.example/pricing" || a.last_verified_utc !== "2026-11-14T06:00:00Z" || a.provider !== null || a.unverified_utc !== null || a.line !== 4) fail("entry 1: " + JSON.stringify(a));
+if (b.input !== 1.5 || b.output !== 3 || b.provider !== "acme" || b.unverified_utc !== "2026-11-14T00:00:00Z") fail("entry 2: " + JSON.stringify(b));
+if (Object.getPrototypeOf(r.prices) !== null) fail("prices is not null-prototype");
+if (r.overrides.claude["Code Review"] !== "acme-model-1") fail("override lost next to pricing");
+const e = lib.parseProjectConfig("pricing:\n");
+if (!e.ok || Object.keys(e.prices).length !== 0) fail("empty pricing section");
+console.log("ok");
+' "$LIB")" || log_fail "TEST-3696: $got"
+  local ok="$OVR_ACME"
+  local pb; pb="$(price_block)"
+  local pbn="${pb//$'\n'/\\n}\\n"
+  local n_miss='pricing:\n  acme-model-1:\n    output_usd_per_m: 8\n    source_url: https://acme.example/pricing\n    last_verified_utc: "2026-11-14T06:00:00Z"\n'
+  price_mal_case missing-rate   'line 4: model "acme-model-1" is missing field input_usd_per_m' 1 "${ok}${n_miss}"
+  price_mal_case unknown-field  'line 9: unknown field "colour"'         1 "${ok}${pbn}    colour: blue\n"
+  price_mal_case repeated-field 'line 9: duplicate field "input_usd_per_m"' 1 "${ok}${pbn}    input_usd_per_m: 3\n"
+  price_mal_case negative-rate  'invalid rate "-2"'                      1 "${ok}${pbn//2.00/-2}"
+  price_mal_case null-rate      'invalid rate "null"'                    1 "${ok}${pbn//8.00/null}"
+  price_mal_case comment-rate   'invalid rate "2.00 # list"'             1 "${ok}${pbn//2.00/2.00 # list}"
+  price_mal_case http-url       'invalid source_url "http://acme.example/pricing"' 1 "${ok}${pbn//https:/http:}"
+  price_mal_case bad-timestamp  'line 8: invalid timestamp' 1 "${ok}${pbn//2026-11-14T06/2026-13-40T06}"
+  price_mal_case upper-provider 'invalid provider "Acme"'                1 "${ok}${pbn}    provider: Acme\n"
+  price_mal_case field-first    'line 4: field outside a model'          1 "${ok}pricing:\n    input_usd_per_m: 2\n${pbn#pricing:\\n}"
+  price_mal_case duplicate-key  'duplicate model "acme-model-1"'         1 "${ok}${pbn}${pbn#pricing:\\n}"
+  price_mal_case key-NULL       'invalid model id "NULL"'                1 "${ok}${pbn//acme-model-1:/NULL:}"
+  price_mal_case key-unknown    'invalid model id "Unknown"'             1 "${ok}${pbn//acme-model-1:/Unknown:}"
+  price_mal_case key-bracketed  'invalid model id "acme-model-1[1m]"'    1 "${ok}${pbn//acme-model-1:/acme-model-1[1m]:}"
+  price_mal_case three-space    'line 9: malformed row'                  1 "${ok}${pbn}   provider: acme\n"
+  price_mal_case header-suffix  'unknown section "pricing@codex:"'       1 "${ok}pricing@codex:\n  acme-model-1:\n    input_usd_per_m: 2\n"
+  price_mal_case second-header  'repeated section "pricing:"'            1 "${ok}${pbn}pricing:\n"
+  price_mal_case null-routing-U 'invalid model id "NULL"'                1 "${pbn}routing_override@claude:\n  Code Review: NULL\n"
+  price_mal_case null-routing-C 'invalid model id "Null"'                1 "${pbn}routing_override@claude:\n  Code Review: Null\n"
+  log_pass "TEST-3696: valid section parses; 19 malformed fixtures (15 field cases, 2 headers, NULL and Null routing) void override and prices with one NOTE per error"
+}
+
+# --- TEST-3697 (Spec-AC-14) ---------------------------------------------------
+test_3697_lib_fallback_precedence() {
+  CUR_TEST="TEST-3697"
+  log_info "TEST-3697: shipped wins, project fills the rest, malformed attaches nothing..."
+  local d="$TEST_DIR/t3697"
+  mkdir -p "$d/docs/ai" "$d/.aai/system"
+  cat > "$d/.aai/system/PRICING.yaml" <<'YAML'
+sources:
+  acme-pricing:
+    provider: acme
+models:
+  acme-shipped-1:
+    input_usd_per_m: 1
+    output_usd_per_m: 2
+    source_ref: acme-pricing
+  acme-nullrate-1:
+    input_usd_per_m: null
+    output_usd_per_m: null
+    source_ref: acme-pricing
+  unknown:
+    input_usd_per_m: null
+    output_usd_per_m: null
+YAML
+  # A real shipped priced id, derived from the shipped table (never literal).
+  local real
+  real="$(run_mjs '
+import { pathToFileURL } from "node:url";
+const p = await import(pathToFileURL(process.argv[2]).href);
+const pr = p.loadPricing(process.argv[3]);
+const k = Object.keys(pr.models).find((x) => x !== "unknown" && pr.models[x].input !== null && pr.models[x].output !== null);
+process.stdout.write(k || "");
+' "$PROJECT_ROOT/.aai/scripts/lib/pricing.mjs" "$PRICING")"
+  [[ -n "$real" ]] || log_fail "TEST-3697: shipped PRICING.yaml has no priced row"
+  local blk='  %s:\n    input_usd_per_m: %s\n    output_usd_per_m: %s\n    source_url: https://acme.example/p\n    last_verified_utc: "2026-11-14T06:00:00Z"\n'
+  {
+    printf 'pricing:\n'
+    printf "$blk" acme-shipped-1 50 60
+    printf "$blk" acme-model-1 2 8
+    printf "$blk" acme-nullrate-1 3 12
+    printf "$blk" "$real" 99 99
+  } > "$d/docs/ai/project-config.yaml"
+  got="$(run_mjs '
+import fs from "node:fs";
+import { pathToFileURL } from "node:url";
+const lib = await import(pathToFileURL(process.argv[2]).href);
+const p = await import(pathToFileURL(process.argv[3]).href);
+const [root, real] = process.argv.slice(4);
+const fail = (m) => { console.error(m); process.exit(1); };
+const pf = root + "/.aai/system/PRICING.yaml";
+const pr = lib.loadCostPricing(root, pf);
+const shippedOnly = p.loadPricing(pf);
+const M = 1000000;
+const cost = (id) => p.runCostUsd(pr, id, M, M);
+if (cost("acme-shipped-1") !== 3) fail("shipped did not win for acme-shipped-1: " + cost("acme-shipped-1"));
+const realShipped = p.runCostUsd(p.loadPricing(process.argv[6]), real, M, M);
+const realPr = lib.loadCostPricing(root, process.argv[6]);
+if (p.runCostUsd(realPr, real, M, M) !== realShipped || realShipped === 198) fail("shipped did not win for the real id " + real);
+for (const id of ["acme-model-1", "acme-model-1[1m]", "acme-model-1-2026"]) if (cost(id) !== 10) fail(id + " cost " + cost(id));
+if (cost("acme-nullrate-1") !== 15) fail("null-priced shipped row not filled: " + cost("acme-nullrate-1"));
+for (const id of ["acme-model-1", "acme-model-1[1m]", "acme-model-1-2026"]) {
+  const b = p.blendedCostUsd(pr, id, M);
+  if (!b || b.cost !== 5) fail("blended " + id + ": " + JSON.stringify(b));
+}
+if (p.blendedCostUsd(pr, "acme-shipped-1", M).cost !== 1.5) fail("blended shipped");
+if (p.runCostUsd(pr, "acme-other-9", M, M) !== null || p.runCostUsd(pr, "acme-model-1", "x", M) !== null) fail("unpriced must stay null");
+const src = ["acme-shipped-1", "acme-model-1", "acme-nullrate-1", "acme-other-9"].map((id) => String(p.priceSource(pr, id)));
+if (src.join() !== "shipped,project,project,null") fail("priceSource " + src.join());
+if (p.priceSource(shippedOnly, "acme-model-1") !== null) fail("shipped-only must not price acme-model-1");
+if (p.modelProvider(pr, "acme-shipped-1") !== "acme" || p.modelProvider(pr, "acme-other-9") !== null) fail("modelProvider");
+// A malformed file attaches nothing.
+fs.appendFileSync(root + "/docs/ai/project-config.yaml", "bogus_section:\n");
+const bad = lib.loadCostPricing(root, pf);
+if ("project" in bad || p.runCostUsd(bad, "acme-model-1", M, M) !== null || p.priceSource(bad, "acme-nullrate-1") !== null) fail("malformed file attached prices");
+console.log("ok");
+' "$LIB" "$PROJECT_ROOT/.aai/scripts/lib/pricing.mjs" "$d" "$real" "$PRICING")" || log_fail "TEST-3697: $got"
+  log_pass "TEST-3697: shipped wins (synthetic and real ids), project prices fill unknown, null-priced, bracketed and prefix ids; malformed attaches nothing"
+}
+
+# --- TEST-3698 (Spec-AC-14) ---------------------------------------------------
+# mk_flush_root <name> — scratch root with a done work item whose one run
+# recorded tokens on acme-model-1, plus the shipped PRICING.yaml.
+mk_flush_root() {
+  local d="$TEST_DIR/$1"
+  rm -rf "$d"
+  mkdir -p "$d/docs/ai" "$d/docs/specs" "$d/docs/issues" "$d/docs/ai/reviews" "$d/docs/ai/reports"
+  cp "$PRICING" "$d/PRICING.yaml"
+  printf '# Golden\n\nBody.\n' > "$d/docs/issues/CHANGE-0001-golden.md"
+  cat > "$d/docs/ai/STATE.yaml" <<'YAML'
+project_status: active
+current_focus:
+  type: intake_change
+  ref_id: CHANGE-0001
+  primary_path: docs/issues/CHANGE-0001-golden.md
+active_work_items:
+  - ref_id: CHANGE-0001
+    status: done
+    phase: validation
+    primary_path: docs/issues/CHANGE-0001-golden.md
+    spec_path: docs/specs/SPEC-0001-fx.md
+implementation_strategy:
+  selected: tdd
+  source: docs/specs/SPEC-0001-fx.md
+  rationale: null
+worktree:
+  recommendation: optional
+  user_decision: inline
+  base_ref: main
+  branch: null
+  path: null
+  inline_review_scope: null
+  rationale: null
+code_review:
+  required: true
+  status: pass
+  scope: null
+  base_ref: main
+  head_ref: null
+  pr: null
+  report_paths:
+  - docs/ai/reviews/review-fixture.md
+  notes: null
+last_validation:
+  status: pass
+  run_at_utc: 2026-07-15T11:00:00Z
+  ref_id: CHANGE-0001
+  evidence_paths:
+  - docs/ai/reports/validation-fixture.md
+  notes: null
+human_input:
+  required: false
+  question: null
+locks:
+  implementation: true
+tdd_cycle:
+  status: IDLE
+  test_id: null
+metrics:
+  work_items:
+    CHANGE-0001:
+      human_time_minutes:
+        intake: null
+        reviews: null
+      agent_runs:
+        - role: Implementation
+          model_id: acme-model-1
+          started_utc: 2026-07-15T10:00:00Z
+          ended_utc: 2026-07-15T10:10:00Z
+          duration_seconds: 600
+          tokens_in: 1000000
+          tokens_out: 500000
+          cost_usd: null
+updated_at_utc: 2026-07-15T11:30:00Z
+YAML
+  printf '%s' "$d"
+}
+
+test_3698_metrics_flush_seam() {
+  CUR_TEST="TEST-3698"
+  log_info "TEST-3698: real metrics-flush costs a project-priced run; null without the file..."
+  local variant d cost basis
+  for variant in with without; do
+    d="$(mk_flush_root "t3698-$variant")"
+    if [[ "$variant" == with ]]; then
+      price_block > "$d/docs/ai/project-config.yaml"
+    fi
+    EC=0
+    (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/metrics-flush.mjs" --state "$d/docs/ai/STATE.yaml" \
+      --metrics "$d/docs/ai/METRICS.jsonl" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" --pricing "$d/PRICING.yaml" \
+      --events "$d/docs/ai/EVENTS.jsonl" --now 2026-07-15T12:00:00Z > "$d/flush.log" 2>&1) || EC=$?
+    [[ "$EC" == 0 ]] || log_fail "TEST-3698[$variant]: flush exited $EC: $(cat "$d/flush.log")"
+    [[ -s "$d/docs/ai/METRICS.jsonl" ]] || log_fail "TEST-3698[$variant]: no ledger row written: $(cat "$d/flush.log")"
+    cost="$(node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").split("\n").filter((x)=>x&&!x.startsWith("#")).pop();const r=JSON.parse(l).agent_runs[0];process.stdout.write(String(r.cost_usd)+"|"+String(r.cost_basis))' "$d/docs/ai/METRICS.jsonl")"
+    if [[ "$variant" == with ]]; then
+      # 1,000,000 in x 2.00 + 500,000 out x 8.00, per million = 6
+      [[ "$cost" == "6|decomposed" ]] || log_fail "TEST-3698: with the file the run cost is '$cost', want 6|decomposed"
+    else
+      [[ "$cost" == "null|none" ]] || log_fail "TEST-3698: without the file the run cost is '$cost', want null|none"
+    fi
+  done
+  log_pass "TEST-3698: flush wrote cost_usd 6 (decomposed) with the pricing section and null without it"
+}
+
+# --- TEST-3699 (Spec-AC-14) ---------------------------------------------------
+test_3699_metrics_report_seam() {
+  CUR_TEST="TEST-3699"
+  log_info "TEST-3699: real metrics-report fills a null ledger cost from the project price..."
+  local variant d
+  for variant in with without; do
+    d="$TEST_DIR/t3699-$variant"
+    rm -rf "$d"; mkdir -p "$d/docs/ai"
+    cp "$PRICING" "$d/PRICING.yaml"
+    printf '%s\n' '{"date_utc":"2026-07-15","ref_id":"CHANGE-0001","title":"Fixture","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"acme-model-1","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:10:00Z","duration_seconds":600,"tokens_in":1000000,"tokens_out":500000,"cost_usd":null,"cost_basis":"none","harness":null,"tokens_total":null,"verdict":null,"verdict_basis":"none"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":600,"total_cost_usd":null,"cost_basis":"none"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"note","verdict_after_last_implementer":true},"verdict_basis":"global-block","verdict":"PASS"}' > "$d/docs/ai/METRICS.jsonl"
+    if [[ "$variant" == with ]]; then price_block > "$d/docs/ai/project-config.yaml"; fi
+    EC=0
+    (cd "$d" && node "$PROJECT_ROOT/.aai/scripts/metrics-report.mjs" --metrics docs/ai/METRICS.jsonl --pricing PRICING.yaml > "$d/report.txt" 2>&1) || EC=$?
+    [[ "$EC" == 0 ]] || log_fail "TEST-3699[$variant]: report exited $EC: $(cat "$d/report.txt")"
+  done
+  [[ "$(count_lines '$6.00' "$TEST_DIR/t3699-with/report.txt")" -ge 1 ]] || log_fail "TEST-3699: with the file the report shows no 6.00 cost: $(cat "$TEST_DIR/t3699-with/report.txt")"
+  [[ "$(count_lines '$6.00' "$TEST_DIR/t3699-without/report.txt")" == 0 ]] || log_fail "TEST-3699: without the file the report shows a cost: $(cat "$TEST_DIR/t3699-without/report.txt")"
+  log_pass "TEST-3699: report total is the project arithmetic with the file and shows no cost without it"
+}
+
+# --- TEST-3700 (amended Spec-AC-07) -------------------------------------------
+test_3700_notes_after_final_model() {
+  CUR_TEST="TEST-3700"
+  log_info "TEST-3700: no unpriced NOTE for a project-priced id or a backstop-swapped override..."
+  local d; d="$(mk_root t3700-priced)"
+  { printf 'routing_override@claude:\n  Code Review: acme-model-1\n'; price_block; } > "$d/docs/ai/project-config.yaml"
+  run_d "$d" claude
+  [[ "$EC" == 0 ]] || log_fail "TEST-3700: dispatch exited $EC: $(cat "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "acme-model-1" && o.model_override.model === "acme-model-1"'
+  [[ ! -s "$ERR" ]] || log_fail "TEST-3700: a project-priced override printed stderr: $(cat "$ERR")"
+  d="$(mk_val_root t3700-swap acme-model-1)"
+  printf 'routing_override@claude:\n  Validation: acme-model-1\n' > "$d/docs/ai/project-config.yaml"
+  run_d "$d" claude
+  [[ "$EC" == 0 ]] || log_fail "TEST-3700: swap dispatch exited $EC: $(cat "$ERR")"
+  jassert "$OUT" 'o.role === "Validation" && o.model_override.model === "acme-model-1" && o.suggested_model !== "acme-model-1"'
+  [[ "$(count_lines 'unpriced' "$ERR")" == 0 ]] || log_fail "TEST-3700: the swapped override was NOTEd unpriced: $(cat "$ERR")"
+  log_pass "TEST-3700: project-priced override silent; a backstop-swapped unpriced override is not NOTEd and keeps model_override"
+}
+
 main() {
   check_deps
   test_3681_resolution_matrix
@@ -852,6 +1150,11 @@ main() {
   test_3694_role_set_pinned
   test_3680_twin_parity
   test_3695_docs
+  test_3696_pricing_section_parse
+  test_3697_lib_fallback_precedence
+  test_3698_metrics_flush_seam
+  test_3699_metrics_report_seam
+  test_3700_notes_after_final_model
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
