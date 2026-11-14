@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-14T01:58:12.036Z",
+  "generatedAt": "2026-11-14T12:20:00.247Z",
   "project": "aai",
   "counts": {
     "delivered": 359,
@@ -232,7 +232,7 @@
       "token_total": 1672472,
       "spec": "docs/specs/SPEC-0290-spec-consumer-config-routing-override.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-consumer-config-routing-override-r4-20261114T090024Z.md"
     },
     {
       "ref": "routing-tables-have-an-owner-and-a-seam",
@@ -4926,7 +4926,7 @@
           "token_total": 1672472,
           "spec": "docs/specs/SPEC-0290-spec-consumer-config-routing-override.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-consumer-config-routing-override-r4-20261114T090024Z.md"
         },
         {
           "ref": "routing-tables-have-an-owner-and-a-seam",

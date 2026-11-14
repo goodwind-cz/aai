@@ -4,7 +4,7 @@ type: change
 number: 257
 capability: consumer-config
 user_visible: true
-status: implementing
+status: done
 links:
   pr: []
   commits: []

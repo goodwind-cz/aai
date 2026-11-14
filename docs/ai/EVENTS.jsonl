@@ -3911,3 +3911,10 @@
 {"v":1,"ts":"2026-11-14T08:55:11Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"consumer-config-routing-override","payload":{"status":"pass","hash":"08a3598516a302f95ba13930cdd8a34e85b6802819946c96b2c5375cb78d236f"}}
 {"v":1,"ts":"2026-11-14T09:03:25Z","actor":"ales_holubec.net","event":"round_reset","ref":"consumer-config-routing-override","payload":{"block":"code_review","from":"fail","forced":false}}
 {"v":1,"ts":"2026-11-14T11:18:52Z","actor":"ales_holubec.net","event":"round_extension","ref":"consumer-config-routing-override","payload":{"authority":"owner","reason":"owner 2026-11-14: one more round for CR4-1/CR4-2 + NB4-2 + NB4-1(a)"}}
+{"v":1,"ts":"2026-11-14T11:35:23Z","actor":"ales_holubec.net","event":"round_reset","ref":"consumer-config-routing-override","payload":{"block":"last_validation","from":"pass","forced":true}}
+{"v":1,"ts":"2026-11-14T11:49:58Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"consumer-config-routing-override","payload":{"head":"6ab59f0be1a76d99de1d90a4d350e44100a6fbc9","clean":false,"flags":1}}
+{"v":1,"ts":"2026-11-14T12:09:55Z","actor":"ales_holubec.net","event":"check_verdict","ref":"consumer-config-routing-override","payload":{"role":"validation","head":"5905b3e9ad302070bc3180f9026ca3169e92b2cd","status":"pass","security_relevant":true}}
+{"v":1,"ts":"2026-11-14T12:09:56Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"consumer-config-routing-override","payload":{"role":"validation","head":"6ab59f0be1a76d99de1d90a4d350e44100a6fbc9","seen":"run_at:2026-11-14T12:09:55Z"}}
+{"v":1,"ts":"2026-11-14T12:09:56Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"consumer-config-routing-override","payload":{"status":"pass","hash":"b890d1b806cb9f513f9bcc334871b219b4e46364ccd41d87227f3b29ea268462"}}
+{"v":1,"ts":"2026-11-14T12:19:51Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"consumer-config-routing-override","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-14T12:19:51Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-consumer-config-routing-override","payload":{"from":"implementing","to":"done"}}
