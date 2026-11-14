@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-14T19:52:30.903Z",
+  "generatedAt": "2026-11-14T21:24:27.829Z",
   "project": "aai",
   "counts": {
     "delivered": 359,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 86909834
+    "tokens_total": 87440886
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -228,11 +228,11 @@
       "status": "done",
       "path": "docs/issues/ISSUE-0114-flush-drops-reopened-runs.md",
       "closed_on": "2026-11-14",
-      "agent_minutes": 130,
-      "token_total": 1609311,
+      "agent_minutes": 193,
+      "token_total": 2140363,
       "spec": "docs/specs/SPEC-0291-spec-flush-drops-reopened-runs.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-flush-drops-reopened-runs-20261114T191328Z.md"
+      "review": "docs/ai/reviews/review-flush-drops-reopened-runs-20261114T195051Z.md"
     },
     {
       "ref": "routing-tables-have-an-owner-and-a-seam",
@@ -4922,11 +4922,11 @@
           "status": "done",
           "path": "docs/issues/ISSUE-0114-flush-drops-reopened-runs.md",
           "closed_on": "2026-11-14",
-          "agent_minutes": 130,
-          "token_total": 1609311,
+          "agent_minutes": 193,
+          "token_total": 2140363,
           "spec": "docs/specs/SPEC-0291-spec-flush-drops-reopened-runs.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-flush-drops-reopened-runs-20261114T191328Z.md"
+          "review": "docs/ai/reviews/review-flush-drops-reopened-runs-20261114T195051Z.md"
         },
         {
           "ref": "routing-tables-have-an-owner-and-a-seam",
