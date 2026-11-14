@@ -131,7 +131,8 @@ import {
   setEngineFailPrefix, findBlock, editBlock, setField, scalarLine, textFieldLines,
   nullFieldIfPresent, readScalar, unquoteScalar, indentOf, writeState, bumpUpdatedAt, yq,
 } from './lib/state-engine.mjs';
-import { loadPricing, runCostUsd, blendedCostUsd } from './lib/pricing.mjs';
+import { runCostUsd, blendedCostUsd } from './lib/pricing.mjs';
+import { loadCostPricing } from './lib/project-config.mjs';
 import { USAGE_NOTE_RE } from './lib/usage-note.mjs';
 // ONE grammar, every consumer (operator-waiver-unblocks-pr, bot review
 // PR #303 F-2): a validation waiver lives in STATE `last_validation.notes`,
@@ -1624,7 +1625,7 @@ function main() {
   const dateUtc = nowIsoStr.slice(0, 10);
   const root = repoRootOf(statePath);
   const stateDir = path.dirname(statePath);
-  const pricing = loadPricing(pricingPath);
+  const pricing = loadCostPricing(root, pricingPath);
   const inLedger = ledgerRefs(metricsPath);
   const reviewsFromTicks = ticksReviewMinutes(ticksPath);
   // D1/D2: the closed-event set is read ONLY under --sweep (never opened on

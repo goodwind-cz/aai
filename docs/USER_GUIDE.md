@@ -2808,6 +2808,12 @@ read its gate warning) to see which section is missing.
 
 ## Delivered features (generated)
 
+### A project-owned config that keeps a routing exception across updates
+
+`/aai-update` replaces the shipped model routing table (`.aai/system/MODEL_ROUTING.yaml`) on every update, by design. A project that needs a different model for one role on one harness now puts that exception in `docs/ai/project-config.yaml`, a file that belongs to the project and that no sync or update writes, seeds or deletes. The orchestration dispatch applies the exception on top of the shipped table for the running harness only, and `/aai-doctor` reports it as CAT-22 Project Config. A project without the file sees no change at all.
+
+[Product doc](product/consumer-config.md) · [Spec](specs/SPEC-0290-spec-consumer-config-routing-override.md)
+
 ### Routing and pricing tables that say how old they are
 
 The two tables that decide which model each factory role runs on (`.aai/system/MODEL_ROUTING.yaml`) and what that run costs (`.aai/system/PRICING.yaml`) now carry a machine-readable freshness stamp, and the doctor reports when either table has gone past its refresh cadence, when a stamp is missing or malformed, or when a table cannot be read. A change to a routed model id or a price without a newer stamp fails the pricing test suite, so stamping is part of changing the table. Keeping the tables current is a central, monthly job in the upstream repository (the ROUTING_REFRESH routine), delivered to projects by `/aai-update`; projects do not maintain the tables themselves. The first refresh (2026-11-13) moved every harness section to the vendors' current model ids and corrected stale prices.

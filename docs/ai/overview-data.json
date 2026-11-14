@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-13T15:23:57.142Z",
+  "generatedAt": "2026-11-14T12:20:00.247Z",
   "project": "aai",
   "counts": {
-    "delivered": 358,
+    "delivered": 359,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 85300523
+    "tokens_total": 86972995
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -222,6 +222,19 @@
   ],
   "delivered": [
     {
+      "ref": "consumer-config-routing-override",
+      "title": "A consumer's routing exception lives in a project-owned config the update never touches",
+      "type": "change",
+      "status": "done",
+      "path": "docs/issues/CHANGE-0257-consumer-config-routing-override.md",
+      "closed_on": "2026-11-14",
+      "agent_minutes": 236,
+      "token_total": 1672472,
+      "spec": "docs/specs/SPEC-0290-spec-consumer-config-routing-override.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-consumer-config-routing-override-r4-20261114T090024Z.md"
+    },
+    {
       "ref": "routing-tables-have-an-owner-and-a-seam",
       "title": "The routing and pricing tables have a keeper, and a consumer's exception has somewhere to live",
       "type": "change",
@@ -232,7 +245,7 @@
       "token_total": 1487580,
       "spec": "docs/specs/SPEC-0289-spec-routing-tables-have-an-owner-and-a-seam.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-routing-tables-have-an-owner-and-a-seam-20261113T152018Z.md"
     },
     {
       "ref": "model-effort-routing",
@@ -4903,6 +4916,19 @@
       "label": "2026-11",
       "items": [
         {
+          "ref": "consumer-config-routing-override",
+          "title": "A consumer's routing exception lives in a project-owned config the update never touches",
+          "type": "change",
+          "status": "done",
+          "path": "docs/issues/CHANGE-0257-consumer-config-routing-override.md",
+          "closed_on": "2026-11-14",
+          "agent_minutes": 236,
+          "token_total": 1672472,
+          "spec": "docs/specs/SPEC-0290-spec-consumer-config-routing-override.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-consumer-config-routing-override-r4-20261114T090024Z.md"
+        },
+        {
           "ref": "routing-tables-have-an-owner-and-a-seam",
           "title": "The routing and pricing tables have a keeper, and a consumer's exception has somewhere to live",
           "type": "change",
@@ -4913,7 +4939,7 @@
           "token_total": 1487580,
           "spec": "docs/specs/SPEC-0289-spec-routing-tables-have-an-owner-and-a-seam.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-routing-tables-have-an-owner-and-a-seam-20261113T152018Z.md"
         },
         {
           "ref": "model-effort-routing",

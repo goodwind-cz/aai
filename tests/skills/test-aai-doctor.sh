@@ -115,6 +115,10 @@ install_doctor_copy() {
   cp "$PROJECT_ROOT/.aai/scripts/lib/guard-config.mjs" "$d/.aai/scripts/lib/guard-config.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/table-freshness.mjs" "$d/.aai/scripts/table-freshness.mjs"
   cp "$PROJECT_ROOT/.aai/scripts/lib/harness.mjs" "$d/.aai/scripts/lib/harness.mjs"
+  # CAT-22 (spec-consumer-config-routing-override): project-config.mjs and its
+  # pricing import are hard dependencies of every doctor copy.
+  cp "$PROJECT_ROOT/.aai/scripts/lib/project-config.mjs" "$d/.aai/scripts/lib/project-config.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/lib/pricing.mjs" "$d/.aai/scripts/lib/pricing.mjs"
   local helper
   for helper in "$@"; do
     mkdir -p "$d/.aai/scripts/$(dirname "$helper")"
@@ -2918,6 +2922,155 @@ test_3664_clean_fixtures_stay_green() {
   log_pass "TEST-3664 table-less clean fixtures stay green with no CAT-21 line"
 }
 
+# --- TEST-3689 (Spec-AC-08) — CAT-22 Project Config ---------------------------
+t3689_cfg() { # <fixture> <file body>
+  mkdir -p "$1/docs/ai" "$1/.aai/system"
+  cp "$PROJECT_ROOT/.aai/system/PRICING.yaml" "$1/.aai/system/PRICING.yaml"
+  printf '%s' "$2" > "$1/docs/ai/project-config.yaml"
+}
+
+test_3689_cat22_project_config() {
+  local d out rc=0
+  # two valid priced overrides -> one PASS line naming both, detail.overrides of 2
+  d="$(build_clean_fixture t3689a)"
+  t3689_cfg "$d" $'routing_override@claude:\n  Code Review: claude-sonnet-5-5\nrouting_override@codex:\n  Planning: gpt-6.1-sol\n'
+  out="$(node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)" || rc=$?
+  if ! dr_line_hit "$out" '^CAT-22 .*PASS.*claude/Code Review -> claude-sonnet-5-5.*codex/Planning -> gpt-6.1-sol'; then
+    log_info "rc=$rc $out"; log_fail "TEST-3689 two overrides do not give one CAT-22 PASS line naming both"; return
+  fi
+  out="$(node "$d/.aai/scripts/aai-doctor.mjs" --json 2>&1)" || true
+  echo "$out" | node -e '
+    let s = ""; process.stdin.on("data", (c) => s += c);
+    process.stdin.on("end", () => {
+      const c = JSON.parse(s).categories.find((x) => x.id === "CAT-22");
+      if (!c || !c.detail || !Array.isArray(c.detail.overrides) || c.detail.overrides.length !== 2) { console.error("detail.overrides: " + JSON.stringify(c)); process.exit(1); }
+      const o = c.detail.overrides[0];
+      if (!o.harness || !o.role || !o.model || o.priced !== true) { console.error("override shape: " + JSON.stringify(o)); process.exit(1); }
+    });' || { log_fail "TEST-3689 --json detail.overrides is not an array of 2 override objects"; return; }
+  # comments only -> PASS no routing overrides
+  d="$(build_clean_fixture t3689b)"
+  t3689_cfg "$d" $'# nothing yet\n'
+  out="$(node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)" || true
+  dr_line_hit "$out" '^CAT-22 .*PASS.*no routing overrides' || { log_info "$out"; log_fail "TEST-3689 comments-only file is not CAT-22 PASS no routing overrides"; return; }
+  # malformed -> WARN naming no override applied + the reason, exit 0, --strict exit 1
+  d="$(build_clean_fixture t3689c)"
+  t3689_cfg "$d" $'routing_override@claude:\n  Nonesuch Role: claude-sonnet-5-5\n'
+  rc=0; out="$(node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)" || rc=$?
+  dr_line_hit "$out" '^CAT-22 .*WARN.*no override applied.*unknown role "Nonesuch Role"' || { log_info "$out"; log_fail "TEST-3689 malformed file does not give CAT-22 WARN naming no override applied and the reason"; return; }
+  [[ "$rc" -eq 0 ]] || { log_fail "TEST-3689 malformed WARN exited $rc without --strict (want 0)"; return; }
+  rc=0; node "$d/.aai/scripts/aai-doctor.mjs" --strict >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 1 ]] || { log_fail "TEST-3689 malformed WARN --strict exited $rc (want 1)"; return; }
+  # ignored header -> WARN naming it, the valid override stays listed
+  d="$(build_clean_fixture t3689d)"
+  t3689_cfg "$d" $'routing_override:\n  Planning: claude-sonnet-5-5\nrouting_override@claude:\n  Code Review: claude-sonnet-5-5\n'
+  out="$(node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)" || true
+  dr_line_hit "$out" '^CAT-22 .*WARN.*claude/Code Review -> claude-sonnet-5-5.*ignored section "routing_override:"' || { log_info "$out"; log_fail "TEST-3689 ignored header does not give CAT-22 WARN naming it"; return; }
+  # unpriced id -> WARN naming it
+  d="$(build_clean_fixture t3689e)"
+  t3689_cfg "$d" $'routing_override@claude:\n  Code Review: acme-unpriced-9\n'
+  rc=0; out="$(node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)" || rc=$?
+  dr_line_hit "$out" '^CAT-22 .*WARN.*claude/Code Review -> acme-unpriced-9.*unpriced' || { log_info "$out"; log_fail "TEST-3689 unpriced override does not give CAT-22 WARN naming it"; return; }
+  [[ "$rc" -eq 0 ]] || { log_fail "TEST-3689 unpriced WARN exited $rc (want 0)"; return; }
+  # no file -> no CAT-22 line, clean fixture stays green
+  d="$(build_clean_fixture t3689f)"
+  rc=0; out="$(node "$d/.aai/scripts/aai-doctor.mjs" 2>&1)" || rc=$?
+  if [[ "$rc" -ne 0 ]] || dr_line_hit "$out" '^CAT-22 '; then
+    log_info "rc=$rc $out"; log_fail "TEST-3689 a tree without the file is not green or prints CAT-22"; return
+  fi
+  log_pass "TEST-3689 CAT-22 PASS/WARN/--strict/--json/ignored/unpriced/absent behave per spec"
+}
+
+# --- TEST-3701 (Spec-AC-15) — CAT-22 project price freshness ------------------
+# t3701_ts <days-ago> — an ISO-Z timestamp that many days before now.
+t3701_ts() { node -e 'console.log(new Date(Date.now() - Number(process.argv[1]) * 864e5).toISOString().replace(/\.\d+Z$/, "Z"))' "$1"; }
+# t3701_cfg <fixture> <override-model> <price-model> <verified-ts> [extra field lines]
+t3701_cfg() {
+  local body
+  body="$(printf 'routing_override@claude:\n  Code Review: %s\npricing:\n  %s:\n    input_usd_per_m: 2.00\n    output_usd_per_m: 8.00\n    source_url: https://acme.example/pricing\n    last_verified_utc: "%s"\n%b' "$2" "$3" "$4" "${5:-}")"
+  t3689_cfg "$1" "$body"$'\n'
+}
+# t3701_run <fixture> [doctor args] — prints the output then RC=<n>.
+t3701_run() {
+  local d="$1" out rc=0; shift
+  out="$(env -u AAI_TABLES_HORIZON_DAYS ${T3701_H:+AAI_TABLES_HORIZON_DAYS=$T3701_H} node "$d/.aai/scripts/aai-doctor.mjs" "$@" 2>&1)" || rc=$?
+  printf '%s\nRC=%s\n' "$out" "$rc"
+}
+
+test_3701_cat22_project_price_freshness() {
+  local d out old fresh three
+  old="2020-01-01T00:00:00Z"; fresh="$(t3701_ts 1)"; three="$(t3701_ts 3)"
+  # stale price: WARN naming id, date, age over the horizon; rc 0, --strict rc 1
+  d="$(build_clean_fixture t3701a)"
+  t3701_cfg "$d" acme-model-1 acme-model-1 "$old"
+  out="$(t3701_run "$d")"
+  dr_line_hit "$out" '^CAT-22 .*WARN.*acme-model-1 verified 2020-01-01 age=[0-9]+d > 30d' || { log_info "$out"; log_fail "TEST-3701 stale price is not a CAT-22 WARN naming id, date and age over 30d"; return; }
+  dr_line_hit "$out" '^RC=0$' || { log_info "$out"; log_fail "TEST-3701 stale WARN did not exit 0 without --strict"; return; }
+  out="$(t3701_run "$d" --strict)"
+  dr_line_hit "$out" '^RC=1$' || { log_info "$out"; log_fail "TEST-3701 stale WARN did not exit 1 with --strict"; return; }
+  # fresh price: no freshness WARN, override named priced by project
+  d="$(build_clean_fixture t3701b)"
+  t3701_cfg "$d" acme-model-1 acme-model-1 "$fresh"
+  out="$(t3701_run "$d")"
+  dr_line_hit "$out" '^CAT-22 .*PASS.*claude/Code Review -> acme-model-1 priced by project' || { log_info "$out"; log_fail "TEST-3701 fresh price is not CAT-22 PASS naming priced by project"; return; }
+  if dr_line_hit "$out" '^CAT-22 .*age='; then log_info "$out"; log_fail "TEST-3701 fresh price gave a freshness WARN"; return; fi
+  # horizon override: a three-day-old price is stale under AAI_TABLES_HORIZON_DAYS=1
+  d="$(build_clean_fixture t3701c)"
+  t3701_cfg "$d" acme-model-1 acme-model-1 "$three"
+  out="$(T3701_H=1 t3701_run "$d")"
+  dr_line_hit "$out" '^CAT-22 .*WARN.*acme-model-1 verified .* age=3d > 1d' || { log_info "$out"; log_fail "TEST-3701 AAI_TABLES_HORIZON_DAYS=1 did not make a three-day-old price stale"; return; }
+  # shadowed: the shipped table also prices the id -> named, PASS, not priced by project
+  d="$(build_clean_fixture t3701d)"
+  t3701_cfg "$d" claude-sonnet-5-5 claude-sonnet-5-5 "$fresh"
+  out="$(t3701_run "$d")"
+  dr_line_hit "$out" '^CAT-22 .*PASS.*claude-sonnet-5-5 shadowed by shipped PRICING' || { log_info "$out"; log_fail "TEST-3701 a shadowed project row is not named with a CAT-22 PASS"; return; }
+  if dr_line_hit "$out" '^CAT-22 .*priced by project'; then log_info "$out"; log_fail "TEST-3701 a shadowed row was named priced by project"; return; fi
+  # unverified_utc is named without changing PASS to WARN
+  d="$(build_clean_fixture t3701e)"
+  t3701_cfg "$d" acme-model-1 acme-model-1 "$fresh" "    unverified_utc: \"$three\"\n"
+  out="$(t3701_run "$d")"
+  dr_line_hit "$out" "^CAT-22 .*PASS.*acme-model-1 unverified since ${three%%T*}" || { log_info "$out"; log_fail "TEST-3701 unverified_utc is not named on a CAT-22 PASS line"; return; }
+  # unreadable cadence: the freshness cannot be judged
+  d="$(build_clean_fixture t3701f)"
+  t3701_cfg "$d" acme-model-1 acme-model-1 "$fresh"
+  sed '/cadence_days/d' "$d/.aai/system/PRICING.yaml" > "$d/p.tmp" && mv "$d/p.tmp" "$d/.aai/system/PRICING.yaml"
+  out="$(t3701_run "$d")"
+  dr_line_hit "$out" '^CAT-22 .*WARN.*project price freshness cannot be judged \(PRICING\.yaml cadence unreadable\)' || { log_info "$out"; log_fail "TEST-3701 unreadable cadence gave no cannot-be-judged WARN"; return; }
+  # prices and no overrides: PASS naming the ids
+  d="$(build_clean_fixture t3701g)"
+  t3689_cfg "$d" "$(printf 'pricing:\n  acme-model-1:\n    input_usd_per_m: 2\n    output_usd_per_m: 8\n    source_url: https://acme.example/pricing\n    last_verified_utc: "%s"\n' "$fresh")"$'\n'
+  out="$(t3701_run "$d")"
+  dr_line_hit "$out" '^CAT-22 .*PASS.*no routing overrides; project prices: acme-model-1' || { log_info "$out"; log_fail "TEST-3701 a prices-only file is not PASS naming the project prices"; return; }
+  # --json detail
+  d="$(build_clean_fixture t3701h)"
+  t3701_cfg "$d" acme-model-1 acme-model-1 "$old"
+  out="$(env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" --json 2>&1)" || true
+  printf '%s' "$out" | node -e '
+    let s = ""; process.stdin.on("data", (c) => s += c);
+    process.stdin.on("end", () => {
+      const c = JSON.parse(s).categories.find((x) => x.id === "CAT-22");
+      const dt = c && c.detail;
+      const bad = (m) => { console.error(m + ": " + JSON.stringify(dt)); process.exit(1); };
+      if (!dt || dt.horizon_days !== 30) bad("horizon_days");
+      if (!Array.isArray(dt.prices) || dt.prices.length !== 1) bad("prices");
+      const p = dt.prices[0];
+      if (p.model !== "acme-model-1" || p.stale !== true || p.shadowed !== false || !(p.age_days > 30) || p.last_verified_utc !== "2020-01-01T00:00:00Z" || p.unverified_utc !== null || p.provider !== null || !p.source_url) bad("price row");
+      const o = dt.overrides[0];
+      if (o.price_source !== "project" || o.vendor !== null || o.cross_vendor !== false || o.priced !== true) bad("override");
+    });' || { log_fail "TEST-3701 --json detail lacks prices, horizon_days or per-override price_source, vendor and cross_vendor"; return; }
+  d="$(build_clean_fixture t3701i)"
+  t3689_cfg "$d" $'routing_override@claude:\n  Code Review: claude-sonnet-5-5\n  Planning: acme-unpriced-9\n'
+  out="$(node "$d/.aai/scripts/aai-doctor.mjs" --json 2>&1)" || true
+  printf '%s' "$out" | node -e '
+    let s = ""; process.stdin.on("data", (c) => s += c);
+    process.stdin.on("end", () => {
+      const o = JSON.parse(s).categories.find((x) => x.id === "CAT-22").detail.overrides;
+      const a = o.find((x) => x.role === "Code Review"), b = o.find((x) => x.role === "Planning");
+      if (a.price_source !== "shipped" || a.vendor !== "anthropic" || a.cross_vendor !== false) { console.error(JSON.stringify(a)); process.exit(1); }
+      if (b.price_source !== null || b.priced !== false || b.vendor !== null) { console.error(JSON.stringify(b)); process.exit(1); }
+    });' || { log_fail "TEST-3701 --json price_source is not shipped/null for a shipped and an unpriced override"; return; }
+  log_pass "TEST-3701 CAT-22 reports project price freshness, shadowed and unverified rows, cadence-unreadable and --json detail"
+}
+
 # --- TEST-3673 (Spec-AC-12) — PROFILES placement + core sync delivers CAT-21 ---
 test_3673_profiles_and_core_sync_cat21() {
   local prof="$PROJECT_ROOT/.aai/system/PROFILES.yaml" t out rc secn
@@ -3025,6 +3178,8 @@ main() {
   test_3215_test009_amended
   test_3663_cat21_routing_tables
   test_3664_clean_fixtures_stay_green
+  test_3689_cat22_project_config
+  test_3701_cat22_project_price_freshness
   test_3673_profiles_and_core_sync_cat21
   test_3676_cat21_documented
 

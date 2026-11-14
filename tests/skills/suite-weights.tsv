@@ -294,3 +294,5 @@ aai-install-parity	196
 aai-round-budget	196
 # sample aai-model-effort fallback unsampled (new suite of model-effort-routing; no successful observation)
 aai-model-effort	196
+# sample aai-project-config fallback unsampled (new suite of consumer-config-routing-override; no successful observation)
+aai-project-config	196

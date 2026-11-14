@@ -30,6 +30,21 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — feat(config): a project-owned consumer config keeps a routing exception that /aai-update never overwrites (CHANGE-0257 / SPEC-0290)
+
+- New file `docs/ai/project-config.yaml`, owned by the consuming project and outside `.aai/`, so no sync or update writes, seeds or deletes it. Its first tenant is a per-harness routing override: a section `routing_override@<harness>:` with rows `  <Role>: <model-id>` for the harnesses claude, codex, gemini and cursor. `orchestration-dispatch.mjs` applies a matching row on top of the shipped `MODEL_ROUTING.yaml` for the running harness only and reports it in an additive `model_override` key; effort is not overridable and a project without the file sees byte-identical dispatch output.
+- A malformed file is applied all-or-nothing (nothing), a harness-less or out-of-set section is ignored with one stderr NOTE, and an override whose model id is not priced in `PRICING.yaml` is applied with a NOTE that metrics cannot cost the run.
+- Doctor: new `CAT-22 Project Config` category, WARN-only, silent when the file is absent; it names every active override and every ignored section or error.
+- Project prices: the same file takes a `pricing:` section, one entry per model id with `input_usd_per_m`, `output_usd_per_m`, `source_url`, `last_verified_utc` and optional `provider` and `unverified_utc`. Every cost reader (metrics-flush, metrics-report, the dispatch unpriced NOTE, doctor CAT-22) uses it with one lookup order: shipped exact id, project exact id, shipped longest prefix, project longest prefix. The shipped `PRICING.yaml` wins an exact id, so a project price never changes the cost of a model the shipped table prices exactly, but an exact project price (for example `gpt-5-nano`) beats a shipped prefix row (`gpt-5`). CAT-22 adds a project price freshness WARN (age over the `PRICING.yaml` cadence, or `AAI_TABLES_HORIZON_DAYS`), names shadowed (shipped exact match only) and unverified rows, and `--json` carries `detail.prices` and per-override `price_source`.
+- Cross-vendor overrides: an override naming a model of another vendor than the running harness (for example a Claude model on codex) is applied with exactly one dispatch NOTE and named `cross-vendor` by CAT-22; same-vendor, cursor and unknown-vendor overrides print no such NOTE. A validator-independence backstop swap no longer prints an unpriced NOTE for the replaced override, and the id `null` is read case-insensitively.
+- Routine: `ROUTING_REFRESH` now refreshes the whole `PRICING.yaml` upstream (every row re-verified or marked `unverified_utc`, every provider under `sources:` covered, gated by the new read-only `table-freshness.mjs priced --since <date>`), and gains a downstream mode: in a project whose `.aai/` is not tracked (a fresh clone with no `.aai/` on disk first installs the AAI core for the run, uncommitted) it prices only the override ids the shipped table lacks, edits only the `pricing:` section of `docs/ai/project-config.yaml` and opens a pull request on `chore/project-prices-<YYYY-MM>`; it never merges and never edits `.aai/` beyond that uncommitted install.
+- The UPGRADING note in `MODEL_ROUTING.yaml` no longer tells consumers to re-apply edits after an update. Example:
+
+```yaml
+routing_override@claude:
+  Code Review: claude-sonnet-5-5
+```
+
 ## [v2026.11.13] — feat(routing): routing-table freshness has an owner, CAT-21 reports a lapsed table, a stamp guard blocks a silent edit and the Claude routing bindings are refreshed
 
 - Freshness marker: `.aai/system/MODEL_ROUTING.yaml` and `.aai/system/PRICING.yaml` each carry a `last_updated_utc` stamp and a cadence. `node .aai/scripts/table-freshness.mjs check` prints FRESH, LAPSED or INVALID per table; `AAI_TABLES_HORIZON_DAYS` overrides the horizon for one run.

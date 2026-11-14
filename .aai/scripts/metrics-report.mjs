@@ -27,7 +27,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadPricing, runCostUsd } from './lib/pricing.mjs';
+import { runCostUsd } from './lib/pricing.mjs';
+import { loadCostPricing } from './lib/project-config.mjs';
 import { extractUsageTotal } from './lib/usage-note.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 
@@ -165,7 +166,7 @@ function main() {
     console.log('No metrics recorded yet.');
     exit(0);
   }
-  const pricing = loadPricing(pricingPath);
+  const pricing = loadCostPricing(process.cwd(), pricingPath);
   const entries = [];
   const rawLines = fs.readFileSync(metricsPath, 'utf8').split(/\r?\n/);
   for (let i = 0; i < rawLines.length; i += 1) {
