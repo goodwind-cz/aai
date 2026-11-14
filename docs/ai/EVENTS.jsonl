@@ -3899,3 +3899,4 @@
 {"v":1,"ts":"2026-11-14T01:58:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"consumer-config-routing-override","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-14T01:58:03Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-consumer-config-routing-override","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-14T01:58:03Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-consumer-config-routing-override","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-14T02:30:42Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"consumer-config-routing-override","payload":{"pr":555,"lane":"heavy","reviewer_bots":"expected","threads_seen":3,"threads_unresolved":0,"outcome":"swept","head_sha":"07b499746d8d6baf109c5c07342debb24d8b052c"}}
