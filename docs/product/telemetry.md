@@ -175,9 +175,10 @@ one capability:
   earlier carries a `reconstructed` key (`source` and `reason`); a normal flush
   never writes it.
 - Readers fold a ride's lines into one ride: the factory report, the metrics
-  report (Per Work Item, Totals, Per-Strategy Reliability), the dashboard's
-  work-item count and the golden-flow token median group all summary lines of
-  a `ref_id` through `foldRideSegments` in `.aai/scripts/lib/metrics-flush-record.mjs`.
+  report (Per Work Item, Totals, Per-Strategy Reliability) and the golden-flow
+  token median group all summary lines of a `ref_id` through
+  `foldRideSegments` in `.aai/scripts/lib/metrics-flush-record.mjs`; the
+  dashboard's work-item count counts distinct `ref_id` values directly.
   The folded ride has the runs in ledger order, summed agent time, tokens and
   cost (null when any segment's cost is null), the largest human time of any
   segment (never the sum), summed reliability counts, the latest date and
