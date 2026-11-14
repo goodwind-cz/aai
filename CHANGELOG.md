@@ -30,7 +30,7 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
-## [unreleased] — feat(config): a project-owned consumer config keeps a routing exception that /aai-update never overwrites
+## [unreleased] — feat(config): a project-owned consumer config keeps a routing exception that /aai-update never overwrites (CHANGE-0257 / SPEC-0290)
 
 - New file `docs/ai/project-config.yaml`, owned by the consuming project and outside `.aai/`, so no sync or update writes, seeds or deletes it. Its first tenant is a per-harness routing override: a section `routing_override@<harness>:` with rows `  <Role>: <model-id>` for the harnesses claude, codex, gemini and cursor. `orchestration-dispatch.mjs` applies a matching row on top of the shipped `MODEL_ROUTING.yaml` for the running harness only and reports it in an additive `model_override` key; effort is not overridable and a project without the file sees byte-identical dispatch output.
 - A malformed file is applied all-or-nothing (nothing), a harness-less or out-of-set section is ignored with one stderr NOTE, and an override whose model id is not priced in `PRICING.yaml` is applied with a NOTE that metrics cannot cost the run.

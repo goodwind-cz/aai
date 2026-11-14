@@ -5,7 +5,7 @@ capability: consumer-config
 status: current
 delivered_by:
   - consumer-config-routing-override
-spec: docs/specs/SPEC-DRAFT-spec-consumer-config-routing-override.md
+spec: docs/specs/SPEC-0290-spec-consumer-config-routing-override.md
 updated: 2026-11-13
 ---
 
@@ -81,6 +81,6 @@ to the shipped table.
 
 ## Links
 
-- Request: docs/issues/CHANGE-DRAFT-consumer-config-routing-override.md
-- Spec: docs/specs/SPEC-DRAFT-spec-consumer-config-routing-override.md
+- Request: docs/issues/CHANGE-0257-consumer-config-routing-override.md
+- Spec: docs/specs/SPEC-0290-spec-consumer-config-routing-override.md
 - Validation evidence: None yet; recorded by the validation run of this scope.
