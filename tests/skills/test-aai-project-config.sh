@@ -154,6 +154,21 @@ run_mjs() {
 # count_lines <fixed-string> <file> — grep -c without dying under pipefail on 0.
 count_lines() { grep -cF -- "$1" "$2" || true; }
 
+# shipped_model <root> <harness> <role> [lane] [implementer] — the id the
+# fixture's OWN copied MODEL_ROUTING.yaml resolves with no override. Tests
+# compare against this, never a literal routed id, so a stamp-clean routing
+# refresh cannot turn this suite red (review CR-2).
+shipped_model() {
+  run_mjs '
+import { pathToFileURL } from "node:url";
+const m = await import(pathToFileURL(process.argv[2]).href);
+const [root, harness, role, lane, impl] = process.argv.slice(3);
+const out = { verdict: "dispatch", role, harness, suggested_tier: m.TIERS[role], lane: lane ? { selected: lane } : null,
+  validator_independence: impl ? { implementer_model: impl, must_differ: true } : null };
+process.stdout.write(String(m.suggestModel(out, m.loadModelRouting(root))));
+' "$DISPATCH" "$@"
+}
+
 # --- TEST-3681 (Spec-AC-02) ---------------------------------------------------
 test_3681_resolution_matrix() {
   CUR_TEST="TEST-3681"
@@ -211,11 +226,13 @@ test_3682_dispatch_applies_override() {
   run_d "$d" claude
   [[ "$EC" == 0 ]] || log_fail "TEST-3682: dispatch exited $EC: $(cat "$ERR")"
   jassert "$OUT" 'o.role === "Code Review" && o.suggested_model === "claude-sonnet-5-5" && o.model_override.file === "docs/ai/project-config.yaml" && o.model_override.harness === "claude" && o.model_override.role === "Code Review" && o.model_override.model === "claude-sonnet-5-5"'
+  local cx; cx="$(shipped_model "$d" codex "Code Review")"
+  [[ -n "$cx" && "$cx" != null ]] || log_fail "TEST-3682: the fixture table resolves no codex Code Review id"
   run_d "$d" codex
   [[ "$EC" == 0 ]] || log_fail "TEST-3682: codex dispatch exited $EC: $(cat "$ERR")"
-  jassert "$OUT" 'o.role === "Code Review" && o.suggested_model === "gpt-6-sol" && !("model_override" in o)'
+  jassert "$OUT" "o.role === \"Code Review\" && o.suggested_model === \"$cx\" && !(\"model_override\" in o)"
   [[ ! -s "$ERR" ]] || log_fail "TEST-3682: a valid file printed stderr: $(cat "$ERR")"
-  log_pass "TEST-3682: claude gets claude-sonnet-5-5 plus model_override; codex keeps gpt-6-sol and no key"
+  log_pass "TEST-3682: claude gets claude-sonnet-5-5 plus model_override; codex keeps its shipped $cx and no key"
 }
 
 # --- TEST-3685 (Spec-AC-04) ---------------------------------------------------
@@ -264,7 +281,7 @@ const routing = m.loadModelRouting(process.argv[4]);
 const mk = (harness, role) => ({ verdict: "dispatch", role, harness, suggested_tier: m.TIERS[role], lane: null, validator_independence: null });
 console.log(cfg.status + ":" + m.suggestModel(mk("claude", "Planning"), routing, cfg.overrides) + ":" + m.suggestModel(mk("codex", "Planning"), routing, cfg.overrides));
 ' "$DISPATCH" "$LIB" "$d")"
-  [[ "$got" == "ok:claude-sonnet-5-5:gpt-6-sol" ]] || log_fail "TEST-3685: valid section next to ignored ones resolved '$got'"
+  [[ "$got" == "ok:claude-sonnet-5-5:$(shipped_model "$d" codex Planning)" ]] || log_fail "TEST-3685: valid section next to ignored ones resolved '$got'"
   log_pass "TEST-3685: five ignored headers noted once each, none applied, the valid claude Planning row applies"
 }
 
@@ -276,7 +293,7 @@ mal_case() {
   printf '%b' "$content" > "$d/docs/ai/project-config.yaml"
   run_d "$d" claude
   [[ "$EC" == 0 ]] || log_fail "TEST-3687[$label]: dispatch exited $EC: $(cat "$ERR")"
-  jassert "$OUT" 'o.suggested_model === "claude-opus-5-5" && !("model_override" in o)'
+  jassert "$OUT" "o.suggested_model === \"$(shipped_model "$d" claude "Code Review")\" && !(\"model_override\" in o)"
   [[ "$(count_lines "$want" "$ERR")" == 1 ]] || log_fail "TEST-3687[$label]: stderr lacks exactly one '$want': $(cat "$ERR")"
   [[ "$(count_lines 'no override from it is applied' "$ERR")" == 1 ]] || log_fail "TEST-3687[$label]: stderr lacks the no-override NOTE: $(cat "$ERR")"
   [[ "$(count_lines 'NOTE' "$ERR")" == 2 ]] || log_fail "TEST-3687[$label]: expected 2 NOTE lines: $(cat "$ERR")"
@@ -304,7 +321,7 @@ test_3687_malformed_all_or_nothing() {
   mkdir -p "$u/docs/ai/project-config.yaml"
   run_d "$u" claude
   [[ "$EC" == 0 ]] || log_fail "TEST-3687[unreadable]: dispatch exited $EC: $(cat "$ERR")"
-  jassert "$OUT" 'o.suggested_model === "claude-opus-5-5" && !("model_override" in o)'
+  jassert "$OUT" "o.suggested_model === \"$(shipped_model "$u" claude "Code Review")\" && !(\"model_override\" in o)"
   [[ "$(count_lines 'unreadable (EISDIR)' "$ERR")" == 1 ]] || log_fail "TEST-3687[unreadable]: stderr lacks the unreadable NOTE: $(cat "$ERR")"
   [[ "$(count_lines 'no override from it is applied' "$ERR")" == 1 ]] || log_fail "TEST-3687[unreadable]: stderr lacks the no-override NOTE: $(cat "$ERR")"
   local d; d="$(mk_root t3687-positive)"
@@ -397,12 +414,14 @@ test_3683_override_beats_lightweight_row() {
   local d; d="$(mk_val_root t3683 claude-opus-5-5)"
   run_d "$d" claude
   [[ "$EC" == 0 ]] || log_fail "TEST-3683: control dispatch exited $EC: $(cat "$ERR")"
-  jassert "$OUT" 'o.role === "Validation" && o.lane.selected === "lightweight" && o.suggested_model === "claude-sonnet-5-5" && !("model_override" in o)'
+  local lw; lw="$(shipped_model "$d" claude Validation lightweight claude-opus-5-5)"
+  [[ "$lw" != claude-haiku-5-5 ]] || log_fail "TEST-3683: the fixture lane row already resolves the override id; the case would prove nothing"
+  jassert "$OUT" "o.role === \"Validation\" && o.lane.selected === \"lightweight\" && o.suggested_model === \"$lw\" && !(\"model_override\" in o)"
   printf 'routing_override@claude:\n  Validation: claude-haiku-5-5\n' > "$d/docs/ai/project-config.yaml"
   run_d "$d" claude
   [[ "$EC" == 0 ]] || log_fail "TEST-3683: dispatch exited $EC: $(cat "$ERR")"
   jassert "$OUT" 'o.role === "Validation" && o.lane.selected === "lightweight" && o.suggested_model === "claude-haiku-5-5" && o.model_override.model === "claude-haiku-5-5" && o.model_override.role === "Validation"'
-  log_pass "TEST-3683: lightweight-lane Validation resolves the override (claude-haiku-5-5), not the lane row (claude-sonnet-5-5)"
+  log_pass "TEST-3683: lightweight-lane Validation resolves the override (claude-haiku-5-5), not the lane row ($lw)"
 }
 
 # --- TEST-3684 (Spec-AC-03) ---------------------------------------------------
@@ -429,9 +448,12 @@ const mk = (harness, impl) => ({ verdict: "dispatch", role: "Validation", harnes
 const ov = lib.parseProjectConfig("routing_override@claude:\n  Validation: claude-haiku-5-5\nrouting_override@cursor:\n  Validation: cursor-x\nrouting_override@codex:\n  Validation: gpt-6.1-sol\n").overrides;
 const fail = (msg) => { console.error(msg); process.exit(1); };
 // Mode B, claude: override == implementer -> replaced from the claude tiers at or above standard.
+const ct = shipped.harnesses.claude.tiers;
+const want = ["standard", "premium"].map((t) => ct[t]).find((x) => x && x !== "claude-haiku-5-5");
+if (!want) fail("the fixture claude tiers offer no replacement; the case would prove nothing");
 let o = mk("claude", "claude-haiku-5-5");
 let r = m.suggestModel(o, shipped, ov);
-if (r !== "claude-sonnet-5-5" || o.validator_independence.residual) fail("claude backstop: " + r);
+if (r !== want || o.validator_independence.residual) fail("claude backstop: " + r + " want " + want);
 // Mode B, cursor: override == implementer, no cursor map -> kept, residual recorded.
 o = mk("cursor", "cursor-x");
 r = m.suggestModel(o, shipped, ov);
@@ -451,7 +473,7 @@ console.log("ok");
   printf 'routing_override@claude:\n  Validation: claude-haiku-5-5\n' > "$d/docs/ai/project-config.yaml"
   run_d "$d" claude
   [[ "$EC" == 0 ]] || log_fail "TEST-3684: dispatch exited $EC: $(cat "$ERR")"
-  jassert "$OUT" 'o.role === "Validation" && o.model_override.model === "claude-haiku-5-5" && o.suggested_model === "claude-sonnet-5-5" && o.suggested_model !== o.model_override.model'
+  jassert "$OUT" 'o.role === "Validation" && o.model_override.model === "claude-haiku-5-5" && typeof o.suggested_model === "string" && o.suggested_model !== o.model_override.model'
   log_pass "TEST-3684: backstop replaces an implementer-equal override (Mode A and B), residual on an empty map; model_override keeps the consumer value"
 }
 
@@ -589,7 +611,7 @@ console.log("pairs=" + n);
 # --- TEST-3690 (Spec-AC-09) ---------------------------------------------------
 test_3690_upgrading_note() {
   CUR_TEST="TEST-3690"
-  log_info "TEST-3690: UPGRADING comment points at the consumer config; stamp-guard unchanged..."
+  log_info "TEST-3690: UPGRADING comment points at the consumer config; stamp-guard passes..."
   [[ "$(/usr/bin/grep -ci 're-apply' "$ROUTING" || true)" == 0 ]] || log_fail "TEST-3690: MODEL_ROUTING.yaml still says re-apply"
   /usr/bin/grep -qF 'docs/ai/project-config.yaml' "$ROUTING" || log_fail "TEST-3690: UPGRADING note does not name docs/ai/project-config.yaml"
   /usr/bin/grep -qF 'routing_override' "$ROUTING" || log_fail "TEST-3690: UPGRADING note does not name routing_override"
@@ -752,7 +774,9 @@ ctx.setup = (scenario, target, c, twinName) => {
   const at = t.indexOf('roles@claude:');
   const re = /^  Code Review: \S+/m;
   const head = t.slice(0, at); const tail = t.slice(at).replace(re, '  Code Review: claude-haiku-5-5');
-  t = head + tail;
+  // The trailing comment keeps the table customized even when a routing
+  // refresh makes the shipped Code Review row equal the replacement id.
+  t = head + tail + '# consumer edit planted by TEST-3680\n';
   if (Buffer.from(t).equals(srcTable)) throw new Error('planted table equals the source table; the customization did not apply');
   fs.writeFileSync(f, t);
   fs.mkdirSync(path.join(target, 'docs/ai'), { recursive: true });
