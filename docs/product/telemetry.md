@@ -168,7 +168,10 @@ one capability:
   (the number of summary lines the ride had before, plus 1, so the first
   continuation is 2). First-flush lines never carry it. Each line's totals,
   cost and reliability cover only the runs on that line; a reader that sums
-  per ref gets the ride total. A line written by hand to recover runs lost
+  agent runs, tokens, duration and cost per ref gets the ride total. Human
+  time is the exception: a continuation line can repeat review minutes that
+  the earlier line already counted, so do not sum `human_time_minutes` across
+  a ride's lines. A line written by hand to recover runs lost
   earlier carries a `reconstructed` key (`source` and `reason`); a normal flush
   never writes it.
 - PR gate: `validation-waiver.mjs` counts one passing archive line per
