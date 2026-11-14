@@ -37,6 +37,15 @@ and open one pull request. Step 0 decides the mode.
    - It fails and `.aai/system/PRICING.yaml` exists in the working tree (a
      vendored install whose `.aai/` is gitignored): DOWNSTREAM mode — steps D1
      to D7 below, never Steps 1 to 5.
+   - It fails, `.aai/system/PRICING.yaml` is absent, and `.gitignore` has a
+     line that is exactly `.aai/` (the marker the AAI installer commits into
+     every consumer, so a fresh clone still carries it): this is an AAI
+     consumer whose `.aai/` was never cloned. Install the AAI core for this run
+     only with `curl -fsSL https://raw.githubusercontent.com/goodwind-cz/aai/main/install.sh | bash`
+     (run from the repository root), then continue in DOWNSTREAM mode. The
+     installed files stay uncommitted: step D6 commits only
+     `docs/ai/project-config.yaml`. If the install fails, report it and STOP
+     with no edits, no branch and no PR.
    - Otherwise report `no AAI install` and STOP with no edits, no branch and
      no PR.
 2. Probe the tools this routine needs: `git --version`, `node --version`,
@@ -124,8 +133,10 @@ Only in downstream mode. The shipped tables are never touched; this mode
 writes one section of one file the project owns.
 
 - D1. Run `node .aai/scripts/aai-doctor.mjs --json` and read the `CAT-22`
-  entry of its `categories`. No `CAT-22` entry (no file) or an empty
-  `detail.overrides` and no stale `detail.prices` row: report
+  entry of its `categories`. No `CAT-22` entry (no file), or an empty
+  work list (no override with a null `price_source`, no stale
+  `detail.prices` row and no shadowed `detail.prices` row; a shadowed row
+  alone still proceeds so it is deleted): report
   `no overrides to price` and STOP — a successful run, no branch, no PR. A
   `detail.status` of `malformed`: report its `detail.errors` and STOP; never
   edit a malformed file.

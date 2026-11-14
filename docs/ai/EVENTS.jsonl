@@ -3903,3 +3903,5 @@
 {"v":1,"ts":"2026-11-14T06:16:45Z","actor":"ales_holubec.net","event":"round_extension","ref":"consumer-config-routing-override","payload":{"authority":"owner","reason":"owner 2026-11-14: extend #555 with full-PRICING refresh, override-model pricing, project-config prices, cross-vendor override allowed"}}
 {"v":1,"ts":"2026-11-14T06:16:56Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"consumer-config-routing-override","payload":{"from":"done","to":"implementing"}}
 {"v":1,"ts":"2026-11-14T06:16:56Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-consumer-config-routing-override","payload":{"from":"done","to":"implementing"}}
+{"v":1,"ts":"2026-11-14T07:45:41Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"consumer-config-routing-override","payload":{"head":"dd072e1ed59a9abbdf8701720a23430025d86ae6","clean":false,"flags":1}}
+{"v":1,"ts":"2026-11-14T07:59:46Z","actor":"ales_holubec.net","event":"round_reset","ref":"consumer-config-routing-override","payload":{"block":"last_validation","from":"fail","forced":false}}

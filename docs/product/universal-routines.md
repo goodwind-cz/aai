@@ -120,8 +120,15 @@ model ids that project overrides and the shipped table does not price (plus
 stale project prices), edits only the `pricing:` section of
 `docs/ai/project-config.yaml`, re-checks through the doctor, commits only that
 file on `chore/project-prices-<YYYY-MM>` and opens a pull request; it never
-touches `.aai/`. With neither a tracked table nor an installed
-`PRICING.yaml` it reports no AAI install and stops. It never merges: its
+touches `.aai/`. A fresh clone of a consuming project has no
+`.aai/` on disk (the installer gitignores it), so when `PRICING.yaml` is
+absent but `.gitignore` carries the installer's exact `.aai/` line, the
+routine first installs the AAI core for that run with the one-line installer
+and then continues in downstream mode; the installed files are never
+committed (only `docs/ai/project-config.yaml` is). A shadowed project price
+alone is enough work: it is deleted even when nothing is unpriced or stale.
+With no tracked table, no installed `PRICING.yaml` and no installer
+`.gitignore` marker it reports no AAI install and stops. It never merges: its
 merge-gate section is empty, so even a merge-authorised render carries no merge
 step. It is an extended-profile file and is never instantiated by bootstrap,
 sync, hooks or the loop; the owner instantiates it once with `/aai-routine`,

@@ -1192,6 +1192,12 @@ test_3705_routing_refresh_downstream() {
                   'Never edit anything under `.aai/`' 'no AAI install' 'no overrides to price'; do
       grep -qF -- "$needle" <<<"$rendered" || { log_info "TEST-3705 $h: missing '$needle'"; ok=0; }
     done
+    # clone-shaped consumer (gitignored .aai/, no .aai on disk): Step 0 must route it to install-then-downstream, not STOP
+    for needle in 'exactly `.aai/`' 'install.sh | bash' 'then continue in DOWNSTREAM mode' 'commits only' 'a shadowed row'; do
+      grep -qF -- "$needle" <<<"$rendered" || { log_info "TEST-3705 $h: clone-shaped consumer branch missing '$needle'"; ok=0; }
+    done
+    local pre_install="${rendered%%install.sh | bash*}" pre_stop="${rendered%%report \`no AAI install\`*}"
+    [[ ${#pre_install} -lt ${#pre_stop} ]] || { log_info "TEST-3705 $h: the install branch does not precede the no-AAI-install STOP"; ok=0; }
     grep -qF 'tables are refreshed upstream' <<<"$rendered" && { log_info "TEST-3705 $h: the old STOP line is still present"; ok=0; }
     grep -qE 'gh pr merge|merge_pull_request' <<<"$rendered" && { log_info "TEST-3705 $h: render carries a merge command"; ok=0; }
   done
