@@ -74,10 +74,13 @@ claude section above; each applies only on its own harness.
   `output_usd_per_m`, `source_url` and `last_verified_utc` (all required) and
   optional `provider` and `unverified_utc`. It follows the same all-or-nothing
   rule as the routing rows.
-- Precedence: the shipped table wins. A model id the shipped `PRICING.yaml`
-  already prices is costed from it and the project entry is ignored (CAT-22
-  names it shadowed); the project entry is only a fallback for ids the shipped
-  table lacks.
+- Precedence: an exact id match in the shipped table wins. A model id the
+  shipped `PRICING.yaml` prices exactly (after the bracket-suffix strip and the
+  alias map) is costed from it and the project entry is ignored (CAT-22 names it
+  shadowed). Otherwise an exact project entry is used, even when a shipped
+  prefix row would also match the id (a project `gpt-5-nano` price beats the
+  shipped `gpt-5` prefix row), and it is not shadowed. Last come the shipped
+  longest-prefix match and the project longest-prefix match.
 - Freshness: a project price older than the `PRICING.yaml` cadence (or
   `AAI_TABLES_HORIZON_DAYS`) makes CAT-22 print a freshness WARN naming the id,
   its date and its age; it never fails the run.

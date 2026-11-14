@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { HARNESS_VALUES } from './harness.mjs';
-import { runCostUsd, loadPricing, attachProjectPrices, priceSource, modelProvider } from './pricing.mjs';
+import { runCostUsd, loadPricing, attachProjectPrices, shippedExactPriced, modelProvider } from './pricing.mjs';
 
 export const PROJECT_CONFIG_REL = 'docs/ai/project-config.yaml';
 
@@ -280,7 +280,8 @@ const DAY_MS = 86400000;
 
 // projectPriceRows(cfg, pricing, { now, horizonDays }) -> one row per project
 // price (D-FRESH). `pricing` is the SHIPPED pricing alone, so `shadowed` means
-// the shipped table already prices the id and the project row is never used.
+// the shipped table prices the id by an exact (aliased) match and the project row
+// is never used; an exact project row beating a shipped PREFIX match is used.
 export function projectPriceRows(cfg, pricing, { now = new Date(), horizonDays = null } = {}) {
   const rows = [];
   for (const model of Object.keys(cfg.prices || {})) {
@@ -294,7 +295,7 @@ export function projectPriceRows(cfg, pricing, { now = new Date(), horizonDays =
       unverified_utc: p.unverified_utc ?? null,
       age_days: ageDays,
       stale: horizonDays !== null && ageDays > horizonDays,
-      shadowed: priceSource(pricing, model) === 'shipped',
+      shadowed: shippedExactPriced(pricing, model),
     });
   }
   return rows;

@@ -689,12 +689,15 @@ console.log(p.runCostUsd(pr, "marked-row", 1000000, 1000000));
   assert_payload_line_matches "$out" '^CHANGED-STAMPED \.aai/system/PRICING\.yaml$' "re-stamped mark not CHANGED-STAMPED"
   assert_payload_line_matches "$out" '^RC=0$' "re-stamped mark did not exit 0"
   rm -rf "$d"
-  # the shipped header documents the field and the guard is UNCHANGED for PRICING
+  # the shipped header documents the field and the guard passes (no VIOLATION) for PRICING
   grep -E '^#.*unverified_utc' "$PRICING_FILE" >/dev/null || log_fail "shipped PRICING.yaml has no comment naming unverified_utc"
   local live rc=0
   live="$(live_guard origin/main)" || rc=$?
   [[ "$rc" == 0 ]] || log_fail "live stamp-guard failed (rc=$rc): $live"
-  assert_payload_line_matches "$live" '^UNCHANGED \.aai/system/PRICING\.yaml$' "stamp-guard against the merge-base is not UNCHANGED for PRICING"
+  # The gate, not this ride's fact: a later correctly re-stamped pricing refresh
+  # prints CHANGED-STAMPED and must stay green (review CR4-1; as TEST-3690).
+  if grep -qF 'VIOLATION .aai/system/PRICING.yaml' <<<"$live"; then log_fail "stamp-guard reported a PRICING violation: $live"; fi
+  assert_payload_line_matches "$live" '^(UNCHANGED|RESTAMPED|CHANGED-STAMPED) \.aai/system/PRICING\.yaml$' "stamp-guard printed no verdict line for PRICING"
   log_pass "priced check classifies OK/UNVERIFIED/STALE/INVALID; a mark needs a re-stamp; the shipped header documents unverified_utc (TEST-3703)"
 }
 

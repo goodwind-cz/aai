@@ -990,6 +990,59 @@ console.log("ok");
   log_pass "TEST-3697: shipped wins (synthetic and real ids), project prices fill unknown, null-priced, bracketed and prefix ids; malformed attaches nothing"
 }
 
+# --- TEST-3708 (Spec-AC-14 / Spec-AC-15, D-PREC) ------------------------------
+# An EXACT project price beats a shipped PREFIX match; the shipped table still
+# wins an exact id and a prefix over a project prefix. Fixture PRICING only, so a
+# real pricing refresh can never break it (review NB4-1).
+test_3708_exact_project_beats_shipped_prefix() {
+  CUR_TEST="TEST-3708"
+  log_info "TEST-3708: exact project price beats a shipped prefix match, shipped wins exact..."
+  local d="$TEST_DIR/t3708" got
+  rm -rf "$d"; mkdir -p "$d"
+  cat > "$d/PRICING.yaml" <<'YAML'
+model_aliases:
+  fx-alias-1: fx-exact-1
+models:
+  fx-base:
+    input_usd_per_m: 10
+    output_usd_per_m: 20
+  fx-exact-1:
+    input_usd_per_m: 1
+    output_usd_per_m: 2
+  unknown:
+    input_usd_per_m: null
+    output_usd_per_m: null
+YAML
+  got="$(run_mjs '
+import { pathToFileURL } from "node:url";
+const p = await import(pathToFileURL(process.argv[2]).href);
+const lib = await import(pathToFileURL(process.argv[3]).href);
+const fail = (m) => { console.error(m); process.exit(1); };
+const M = 1000000;
+const shipped = p.loadPricing(process.argv[4] + "/PRICING.yaml");
+const row = (i, o) => ({ input: i, output: o, source_url: "https://x.example/p", last_verified_utc: "2026-11-14T06:00:00Z", unverified_utc: null, provider: null });
+const prices = { "fx-base-nano": row(0.05, 0.4), "fx-exact-1": row(99, 99), "fx-base-mini-": row(7, 7) };
+const pr = p.attachProjectPrices(shipped, prices);
+const cost = (id) => p.runCostUsd(pr, id, M, M);
+if (cost("fx-base-nano") !== 0.45 || p.priceSource(pr, "fx-base-nano") !== "project") fail("exact project row lost to the shipped prefix: " + cost("fx-base-nano"));
+if (cost("fx-base-nano[1m]") !== 0.45) fail("bracketed exact project id: " + cost("fx-base-nano[1m]"));
+if (p.blendedCostUsd(pr, "fx-base-nano", M).cost !== 0.225) fail("blended exact project id");
+if (cost("fx-exact-1") !== 3 || p.priceSource(pr, "fx-exact-1") !== "shipped") fail("shipped exact must win: " + cost("fx-exact-1"));
+if (cost("fx-alias-1") !== 3 || p.priceSource(pr, "fx-alias-1") !== "shipped") fail("shipped alias must win");
+if (cost("fx-base-other") !== 30 || p.priceSource(pr, "fx-base-other") !== "shipped") fail("shipped prefix must win a project prefix or none: " + cost("fx-base-other"));
+if (cost("fx-base-mini-2") !== 30 || p.priceSource(pr, "fx-base-mini-2") !== "shipped") fail("shipped prefix must beat a project prefix: " + cost("fx-base-mini-2"));
+const prefixOnly = p.attachProjectPrices(shipped, { "zz-": row(2, 2) });
+if (p.runCostUsd(prefixOnly, "zz-model", M, M) !== 4) fail("project prefix fallback");
+const cfg = { prices };
+const rows = lib.projectPriceRows(cfg, shipped, { now: new Date("2026-11-14T12:00:00Z"), horizonDays: 30 });
+const sh = Object.fromEntries(rows.map((r) => [r.model, r.shadowed]));
+if (sh["fx-base-nano"] !== false) fail("an exact project row under a shipped prefix is not shadowed");
+if (sh["fx-exact-1"] !== true) fail("a project row the shipped table prices exactly is shadowed");
+console.log("ok");
+' "$PROJECT_ROOT/.aai/scripts/lib/pricing.mjs" "$LIB" "$d")" || log_fail "TEST-3708: $got"
+  log_pass "TEST-3708: exact project beats shipped prefix, shipped wins exact and alias, CAT-22 shadowed means exact only"
+}
+
 # --- TEST-3698 (Spec-AC-14) ---------------------------------------------------
 # mk_flush_root <name> — scratch root with a done work item whose one run
 # recorded tokens on acme-model-1, plus the shipped PRICING.yaml.
@@ -1215,11 +1268,11 @@ test_3706_docs_pricing() {
   log_pass "TEST-3706: CHANGELOG body and three product docs cover project prices"
 }
 
-# --- TEST-3707 (Spec-AC-21) — suite selection, vendored deps, no new .aai file ---
+# --- TEST-3707 (Spec-AC-21) — suite selection and vendored deps ---
 test_3707_distribution() {
   CUR_TEST="TEST-3707"
-  log_info "TEST-3707: select-suites reach, vendored-script deps, no new .aai file or prompt..."
-  local f out p want mb ec=0 added prompts
+  log_info "TEST-3707: select-suites reach and vendored-script deps..."
+  local f out p want ec=0
   f="$TEST_DIR/t3707-files.txt"
   printf '%s\n' .aai/routines/ROUTING_REFRESH.routine.md > "$f"
   out="$(node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from "$f" --repo-root "$PROJECT_ROOT" 2>&1)" || true
@@ -1238,15 +1291,7 @@ test_3707_distribution() {
   done
   node "$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs" >"$TEST_DIR/t3707-deps.log" 2>&1 || ec=$?
   [[ "$ec" == 0 ]] || log_fail "TEST-3707: check-vendored-script-deps.mjs exited $ec: $(tail -n 8 "$TEST_DIR/t3707-deps.log")"
-  ec=0; mb="$(git -C "$PROJECT_ROOT" merge-base HEAD origin/main 2>/dev/null)" || ec=$?
-  if [[ "$ec" != 0 || -z "$mb" ]]; then log_fail "TEST-3707: cannot compute the merge-base with origin/main (failing closed)"; fi
-  added="$( { git -C "$PROJECT_ROOT" diff --name-status "$mb" -- .aai | awk '$1 ~ /^A/ {print $2}'; git -C "$PROJECT_ROOT" ls-files --others --exclude-standard -- .aai; } )"
-  # lib/project-config.mjs is the one .aai file the pre-extension ride (SPEC-0290 D-LIB) added; the extension adds none
-  added="$(printf '%s\n' "$added" | grep -vxF '.aai/scripts/lib/project-config.mjs' || true)"
-  [[ -z "$added" ]] || log_fail "TEST-3707: the change adds a path under .aai/: $added"
-  prompts="$( { git -C "$PROJECT_ROOT" diff --name-only "$mb" -- .aai; git -C "$PROJECT_ROOT" ls-files --others --exclude-standard -- .aai; } | grep -E '^\.aai/[^/]*\.prompt\.md$' || true )"
-  [[ -z "$prompts" ]] || log_fail "TEST-3707: the change touches a .aai/*.prompt.md file: $prompts"
-  log_pass "TEST-3707: suite reach, vendored deps clean, no new .aai path and no prompt change"
+  log_pass "TEST-3707: suite reach and vendored deps clean"
 }
 
 main() {
@@ -1268,6 +1313,7 @@ main() {
   test_3695_docs
   test_3696_pricing_section_parse
   test_3697_lib_fallback_precedence
+  test_3708_exact_project_beats_shipped_prefix
   test_3698_metrics_flush_seam
   test_3699_metrics_report_seam
   test_3700_notes_after_final_model

@@ -3910,3 +3910,4 @@
 {"v":1,"ts":"2026-11-14T08:55:11Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"consumer-config-routing-override","payload":{"role":"validation","head":"5905b3e9ad302070bc3180f9026ca3169e92b2cd","seen":"run_at:2026-11-14T08:55:10Z"}}
 {"v":1,"ts":"2026-11-14T08:55:11Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"consumer-config-routing-override","payload":{"status":"pass","hash":"08a3598516a302f95ba13930cdd8a34e85b6802819946c96b2c5375cb78d236f"}}
 {"v":1,"ts":"2026-11-14T09:03:25Z","actor":"ales_holubec.net","event":"round_reset","ref":"consumer-config-routing-override","payload":{"block":"code_review","from":"fail","forced":false}}
+{"v":1,"ts":"2026-11-14T11:18:52Z","actor":"ales_holubec.net","event":"round_extension","ref":"consumer-config-routing-override","payload":{"authority":"owner","reason":"owner 2026-11-14: one more round for CR4-1/CR4-2 + NB4-2 + NB4-1(a)"}}

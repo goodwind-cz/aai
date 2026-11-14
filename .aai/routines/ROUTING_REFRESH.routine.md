@@ -153,9 +153,13 @@ writes one section of one file the project owns.
   `unverified_utc` = the run stamp and is otherwise kept; with no entry nothing
   is written and the id is listed as unpriced in the PR (never an invented
   number).
-- D4. Delete every shadowed entry. Edit only the `pricing:` section of
+- D4. Delete every shadowed entry (`shadowed` means the shipped table prices
+  that exact id; an exact project row under a shipped prefix match is used, is
+  not shadowed and is kept). Edit only the `pricing:` section of
   `docs/ai/project-config.yaml`: never a `routing_override` row, never
-  anything under `.aai/`, never another file, no CHANGELOG.
+  anything under `.aai/` (the Step 0 install of the AAI core is the one
+  exception: allowed for this run and never committed), never another file, no
+  CHANGELOG.
 - D5. Re-run `node .aai/scripts/aai-doctor.mjs --json`: CAT-22 must not be
   `malformed` and every verified id must show `price_source` `project` on its
   override. Otherwise discard the routine's own edit on its branch and STOP
@@ -177,5 +181,5 @@ writes one section of one file the project owns.
   suites, CHANGELOG.md, and one new branch. Never edit anything else, never
   push to main, never close or comment on issues.
 - Downstream write scope is exactly: the `pricing:` section of
-  `docs/ai/project-config.yaml`, and one new branch. Never edit anything under `.aai/`, never edit another file or another section of that file, never push
+  `docs/ai/project-config.yaml`, and one new branch. Never edit anything under `.aai/` (the Step 0 install of the AAI core for the run is allowed and is never committed), never edit another file or another section of that file, never push
   to main, never close or comment on issues.

@@ -110,7 +110,7 @@ function hasRates(entry) {
 }
 
 // attachProjectPrices(pricing, prices) -> a copy of pricing carrying the
-// consumer's project prices as `project` (D-PREC; the shipped table still wins).
+// consumer's project prices as `project` (D-PREC; see resolvePrice).
 export function attachProjectPrices(pricing, prices) {
   return { ...pricing, project: prices };
 }
@@ -119,8 +119,18 @@ export function attachProjectPrices(pricing, prices) {
 // suffix, then exact key, then the longest key that is a prefix of the id.
 // No alias step (aliases belong to the shipped table).
 export function resolveProjectKey(prices, id) {
-  const bare = String(id ?? '').trim().replace(/\[[^\]]*\]$/, '');
-  if (Object.prototype.hasOwnProperty.call(prices, bare)) return bare;
+  return projectExactKey(prices, id) ?? projectPrefixKey(prices, id);
+}
+
+function projectBare(id) {
+  return String(id ?? '').trim().replace(/\[[^\]]*\]$/, '');
+}
+function projectExactKey(prices, id) {
+  const bare = projectBare(id);
+  return Object.prototype.hasOwnProperty.call(prices, bare) ? bare : null;
+}
+function projectPrefixKey(prices, id) {
+  const bare = projectBare(id);
   let best = null;
   for (const key of Object.keys(prices)) {
     if (bare.startsWith(key) && (best === null || key.length > best.length)) best = key;
@@ -128,29 +138,72 @@ export function resolveProjectKey(prices, id) {
   return best;
 }
 
-// rateEntry: the shipped row when it carries both rates, else the project row.
-function rateEntry(pricing, modelId) {
-  const shipped = pricing.models[resolveModelKey(pricing, modelId)];
-  if (hasRates(shipped)) return shipped;
+// shipped exact key: bracket strip + alias + exact models key (null if none).
+function shippedExactKey(pricing, runtimeId) {
+  const { aliases, models } = pricing;
+  let id = String(runtimeId ?? '').trim().replace(/\[[^\]]*\]$/, '');
+  if (Object.prototype.hasOwnProperty.call(aliases, id)) id = aliases[id];
+  return { id, key: Object.prototype.hasOwnProperty.call(models, id) ? id : null };
+}
+function shippedPrefixKey(pricing, id) {
+  let best = null;
+  for (const key of Object.keys(pricing.models)) {
+    if (key !== 'unknown' && id.startsWith(key) && (best === null || key.length > best.length)) best = key;
+  }
+  return best;
+}
+
+// resolvePrice(pricing, modelId) -> { source: 'shipped'|'project', key, entry } | null
+// D-PREC lookup order: shipped exact, project exact, shipped longest-prefix,
+// project longest-prefix, unknown (null). An EXACT project price therefore
+// beats a shipped PREFIX match, and the shipped table still wins an exact id.
+// A shipped exact row that carries no rates is skipped (and, as before, stops
+// the shipped prefix step); only rows carrying both rates are returned.
+export function resolvePrice(pricing, modelId) {
   const project = pricing.project ? pricing.project : null;
-  if (project === null) return null;
-  const key = resolveProjectKey(project, modelId);
-  return key === null ? null : project[key];
+  const { id, key: exact } = shippedExactKey(pricing, modelId);
+  if (exact !== null && hasRates(pricing.models[exact])) return { source: 'shipped', key: exact, entry: pricing.models[exact] };
+  if (project !== null) {
+    const pk = projectExactKey(project, modelId);
+    if (pk !== null && hasRates(project[pk])) return { source: 'project', key: pk, entry: project[pk] };
+  }
+  if (exact === null) {
+    const sk = shippedPrefixKey(pricing, id);
+    if (sk !== null && hasRates(pricing.models[sk])) return { source: 'shipped', key: sk, entry: pricing.models[sk] };
+  }
+  if (project !== null) {
+    const pk = projectPrefixKey(project, modelId);
+    if (pk !== null && hasRates(project[pk])) return { source: 'project', key: pk, entry: project[pk] };
+  }
+  return null;
+}
+
+function rateEntry(pricing, modelId) {
+  const r = resolvePrice(pricing, modelId);
+  return r === null ? null : r.entry;
 }
 
 // priceSource(pricing, modelId) -> 'shipped' | 'project' | null, same order.
 export function priceSource(pricing, modelId) {
-  if (hasRates(pricing.models[resolveModelKey(pricing, modelId)])) return 'shipped';
-  const project = pricing.project ? pricing.project : null;
-  if (project === null) return null;
-  const key = resolveProjectKey(project, modelId);
-  return key !== null && hasRates(project[key]) ? 'project' : null;
+  const r = resolvePrice(pricing, modelId);
+  return r === null ? null : r.source;
 }
 
-// modelProvider(pricing, modelId) -> provider string | null: the shipped row's
-// source provider, else the project row's provider.
+// shippedExactPriced(pricing, modelId) -> true when the shipped table prices the
+// id by an exact (bracket-stripped, aliased) match: the only case where a
+// project row is shadowed (D-PREC).
+export function shippedExactPriced(pricing, modelId) {
+  const { key } = shippedExactKey(pricing, modelId);
+  return key !== null && hasRates(pricing.models[key]);
+}
+
+// modelProvider(pricing, modelId) -> provider string | null: the provider of
+// the row that prices the id (resolvePrice); for an id nothing prices, the
+// shipped row's source provider, else null.
 export function modelProvider(pricing, modelId) {
-  const key = resolveModelKey(pricing, modelId);
+  const r = resolvePrice(pricing, modelId);
+  if (r !== null && r.source === 'project') return r.entry.provider ?? null;
+  const key = r !== null ? r.key : resolveModelKey(pricing, modelId);
   if (key !== 'unknown') {
     const ref = pricing.models[key].source_ref;
     const src = pricing.sources && ref ? pricing.sources[ref] : null;
