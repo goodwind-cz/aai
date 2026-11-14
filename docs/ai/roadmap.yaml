@@ -168,6 +168,8 @@ pairs:
     status: done
   - capability: routing-tables-have-an-owner-and-a-seam
     status: done
+  - capability: consumer-config-routing-override
+    status: done
 wave_2:
   - standardized-backlog-drain
   - decision-menu-options-parser

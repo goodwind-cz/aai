@@ -30,13 +30,13 @@
 # byte-identical behaviour (Spec-AC-06) ONLY UNTIL the next update replaces
 # the file -- Mode A back-compat is a property of the CODE reading an
 # old-shaped file, not a guarantee that the file itself survives an update.
-# To keep a customization (a tier pin, a role override, a cost cap) across
-# updates, re-apply it as one or more `@<harness>` sections (Mode B, see the
-# key-form contract below) in THIS file after each update. A central process
-# that keeps this table current, plus a separate consumer-owned config the
-# update never overwrites, is its own intake
-# (CHANGE-0192, routing-tables-have-an-owner-and-a-seam) -- NOT a change to
-# this file's overwrite behaviour, which stays exactly as described above.
+# An exception (a role pinned to another model on one harness) does not
+# belong in this file: put it in the project-owned
+# `docs/ai/project-config.yaml` as a `routing_override@<harness>:` section
+# (docs/product/consumer-config.md). No sync or update writes that file, so
+# the exception survives every update, while this table stays current
+# centrally (CHANGE-0192, routing-tables-have-an-owner-and-a-seam). Editing
+# this file is not a supported way to keep a customization.
 #
 # HARNESS-SCOPED KEY FORM (harness-universal-routing D1)
 # - `tiers:` / `roles:` / `validation_alternate:` may each carry an

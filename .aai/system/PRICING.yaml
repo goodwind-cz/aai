@@ -3,6 +3,12 @@
 # Keep backwards compatibility for calculators reading:
 #   models.<model_id>.input_usd_per_m
 #   models.<model_id>.output_usd_per_m
+# Optional row field unverified_utc: "<run stamp>" — the monthly refresh at that
+# stamp tried and could not verify the row from a primary source; its rates and
+# last_verified_utc stay as they were and the rates still cost. A later
+# successful verification removes the field. Marking a row is a priced-line
+# change, so table-freshness.mjs stamp-guard requires pricing_meta.last_updated_utc
+# to move with it; table-freshness.mjs priced --since <date> reports every row.
 
 schema_version: 2
 
