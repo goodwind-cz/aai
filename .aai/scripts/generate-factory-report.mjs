@@ -48,7 +48,7 @@ import { loadRegistry } from './follow-ups.mjs';
 // never hide inside the operator total.
 import { scanWaivers, normalizeWaiverRecord } from './validation-waiver.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
-import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
+import { isMetricsFlushRecord, foldRideSegments } from './lib/metrics-flush-record.mjs';
 
 const ROOT = process.cwd();
 
@@ -235,7 +235,10 @@ function buildModel(args) {
   const membership = releaseMembership(args.releasesDir);
 
   const notes = [];
-  const rides = metrics.filter(isMetricsFlushRecord);
+  // Spec-AC-07 (SPEC-0291): a reopened ride leaves several summary lines for one
+  // ref (flush_segment continuation / reconstructed lines); every per-ride row,
+  // count and rate below is per ref, so fold them into one ride first.
+  const rides = foldRideSegments(metrics.filter(isMetricsFlushRecord));
   const empty = rides.length === 0;
 
   // --- deliveries + close dates (EVENTS). "Delivered" is the honest

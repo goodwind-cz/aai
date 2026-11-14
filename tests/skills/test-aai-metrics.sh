@@ -4444,6 +4444,30 @@ test_3727_changelog_and_product_doc_describe_the_continuation() {
   log_pass "CHANGELOG has one fix heading and telemetry.md describes the continuation line (TEST-3727)"
 }
 
+test_3731_report_folds_a_reopened_ride_into_one_row() {
+  log_info "Test: metrics-report presents a two-segment ref and a lone segment-2 ref as ONE row each with summed totals (TEST-3731, Spec-AC-07)..."
+  local d="$TEST_DIR/t3731"; mkdir -p "$d"
+  cat > "$d/PRICING.yaml" <<'PRICING'
+version: 1
+models: {}
+PRICING
+  cat > "$d/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-11-10","ref_id":"REOPEN-A","title":"Reopened","human_time_minutes":{"intake":10,"reviews":5},"agent_runs":[{"role":"Planning","model_id":"m","duration_seconds":60,"cost_usd":1.5,"note":"usage_total_tokens=1000"}],"totals":{"human_time_minutes":15,"agent_duration_seconds":60,"total_cost_usd":1.5,"cost_basis":"decomposed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"field"},"verdict":"PASS"}
+{"date_utc":"2026-11-12","ref_id":"LONE-SEG2","title":"Reconstructed","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Planning","model_id":"m","duration_seconds":30,"cost_usd":0.25}],"totals":{"human_time_minutes":0,"agent_duration_seconds":30,"total_cost_usd":0.25,"cost_basis":"decomposed"},"strategy":"tdd","verdict":"PASS","flush_segment":2}
+{"date_utc":"2026-11-12","ref_id":"REOPEN-A","title":"Reopened","human_time_minutes":{"intake":10,"reviews":5},"agent_runs":[{"role":"Code Review","model_id":"m","duration_seconds":40,"cost_usd":0.5,"note":"usage_total_tokens=700"}],"totals":{"human_time_minutes":15,"agent_duration_seconds":40,"total_cost_usd":0.5,"cost_basis":"decomposed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":1,"remediation_runs":0,"first_pass_clean":false,"basis":"field"},"verdict":"PASS","flush_segment":2}
+JSONL
+  local out; out="$( (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS.jsonl" --pricing "$d/PRICING.yaml") 2>&1 )" || log_fail "TEST-3731: report must exit 0: $out"
+  local rows; rows="$(printf '%s\n' "$out" | /usr/bin/grep -c '^| REOPEN-A |' || true)"
+  [[ "$rows" == "1" ]] || log_fail "TEST-3731: REOPEN-A must have exactly one Per Work Item row, got $rows: $out"
+  printf '%s\n' "$out" | /usr/bin/grep -qF '| REOPEN-A | Reopened | 15 | 100 | $2.00 | decomposed | 1700 |' \
+    || log_fail "TEST-3731: REOPEN-A row must carry human 15 (max, not 30), agent 100 s, cost \$2.00 and 1700 tokens: $out"
+  printf '%s\n' "$out" | /usr/bin/grep -qF -- '- Human time: 15 min' || log_fail "TEST-3731: totals must not double the repeated human time: $out"
+  printf '%s\n' "$out" | /usr/bin/grep -qF -- '- Features delivered (PASS): 2' || log_fail "TEST-3731: two refs delivered (not three lines): $out"
+  printf '%s\n' "$out" | /usr/bin/grep -qF '| tdd | 2 | 0/1 (0%) | 0.0 | 1.0 | 0.0 | field |' \
+    || log_fail "TEST-3731: per-strategy items must count refs (2) with the merged reliability: $out"
+  log_pass "metrics-report folds a reopened ride into one row (summed agent time/cost/tokens, human time not doubled) (TEST-3731)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -4548,6 +4572,7 @@ main() {
   test_3723_crash_resume_equals_clean_flush
   test_3726_incident_runs_are_reconstructed_in_the_ledger
   test_3727_changelog_and_product_doc_describe_the_continuation
+  test_3731_report_folds_a_reopened_ride_into_one_row
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

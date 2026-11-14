@@ -19,3 +19,103 @@ export function isMetricsFlushRecord(record) {
       || (record.totals !== null && typeof record.totals === 'object')
       || Object.hasOwn(record, 'verdict'));
 }
+
+// spec-flush-drops-reopened-runs Spec-AC-07: a reopened ride leaves SEVERAL
+// summary lines for one ref in METRICS.jsonl (the first flush, then one
+// continuation line per later flush marked `flush_segment: n`, or a
+// reconstructed segment-2 line whose segment 1 lives elsewhere). Every reader
+// that presents per-ride or per-ref data folds those lines into ONE ride
+// through this single helper, so "one ledger line = one ride" is never
+// assumed again.
+//
+// foldRideSegments(records) -> array in ledger order. Non-summary records
+// (worktree lifecycle events, anything isMetricsFlushRecord refuses) pass
+// through untouched. A ref with exactly one summary line is returned as the
+// SAME object (byte-identical downstream output for every single-line ref).
+// A ref with several lines is replaced, at the position of its LAST line, by
+// one merged record:
+//   - agent_runs: concatenated in ledger order
+//   - totals.agent_duration_seconds / total_cost_usd: summed (cost is null if
+//     any segment's cost is null, like buildEntry's anyNullCost);
+//     totals.cost_basis: the one shared basis, else 'mixed'
+//   - human time (human_time_minutes.intake/reviews and totals.human_time_minutes):
+//     the MAX across segments, never the sum — a continuation line can repeat
+//     the ride's human time (follow-up fu-continuation-rerecords-human-time)
+//   - reliability: validation_fails / review_fails / remediation_runs summed,
+//     first_pass_clean false if any segment false, else true only when every
+//     segment says true, else null; basis the shared value else 'mixed';
+//     verdict_after_last_implementer from the latest segment
+//   - date_utc: the latest; title: the first non-empty one
+//   - verdict, verdict_basis, strategy and every other field: the latest
+//     segment's (validation_waiver: the latest segment that carries one)
+//   - flush_segment: the highest; flush_lines: how many lines were folded
+const num = (v) => typeof v === 'number' && Number.isFinite(v);
+const maxOrNull = (vals) => { const n = vals.filter(num); return n.length ? Math.max(...n) : null; };
+
+function mergeSegments(segs) {
+  const last = segs[segs.length - 1];
+  const merged = { ...last };
+  let latestDate = last.date_utc;
+  for (const s of segs) {
+    if (metricsFlushDateToTs(s.date_utc) >= metricsFlushDateToTs(latestDate)) latestDate = s.date_utc;
+  }
+  merged.date_utc = latestDate;
+  const title = segs.map((s) => s.title).find((t) => typeof t === 'string' && t !== '');
+  if (title !== undefined) merged.title = title;
+  if (segs.some((s) => s.human_time_minutes && typeof s.human_time_minutes === 'object')) {
+    const h = segs.map((s) => (s.human_time_minutes && typeof s.human_time_minutes === 'object' ? s.human_time_minutes : {}));
+    merged.human_time_minutes = { intake: maxOrNull(h.map((x) => x.intake)), reviews: maxOrNull(h.map((x) => x.reviews)) };
+  }
+  const runsOf = (s) => (Array.isArray(s.agent_runs) ? s.agent_runs : []);
+  if (segs.some((s) => Array.isArray(s.agent_runs))) merged.agent_runs = segs.flatMap(runsOf);
+  if (segs.some((s) => s.totals && typeof s.totals === 'object')) {
+    const t = segs.map((s) => (s.totals && typeof s.totals === 'object' ? s.totals : {}));
+    const secs = segs.map((s, i) => (num(t[i].agent_duration_seconds) ? t[i].agent_duration_seconds
+      : runsOf(s).reduce((a, r) => a + (num(r.duration_seconds) ? r.duration_seconds : 0), 0)));
+    const bases = new Set(t.map((x) => x.cost_basis).filter((b) => typeof b === 'string'));
+    merged.totals = {
+      ...(last.totals && typeof last.totals === 'object' ? last.totals : {}),
+      human_time_minutes: maxOrNull(t.map((x) => x.human_time_minutes)) ?? 0,
+      agent_duration_seconds: secs.reduce((a, v) => a + v, 0),
+      total_cost_usd: t.every((x) => num(x.total_cost_usd)) ? t.reduce((a, x) => a + x.total_cost_usd, 0) : null,
+    };
+    if (bases.size > 0) merged.totals.cost_basis = bases.size === 1 ? [...bases][0] : 'mixed';
+  }
+  const rels = segs.map((s) => (s.reliability && typeof s.reliability === 'object' && !Array.isArray(s.reliability) ? s.reliability : null));
+  if (rels.some((r) => r !== null)) {
+    const present = rels.filter((r) => r !== null);
+    const sum = (k) => (present.some((r) => num(r[k])) ? present.reduce((a, r) => a + (num(r[k]) ? r[k] : 0), 0) : undefined);
+    const flags = present.map((r) => r.first_pass_clean);
+    const bases = new Set(present.map((r) => r.basis).filter((b) => typeof b === 'string'));
+    const rel = { ...present[present.length - 1] };
+    for (const k of ['validation_fails', 'review_fails', 'remediation_runs']) { const v = sum(k); if (v !== undefined) rel[k] = v; }
+    if (flags.some((f) => typeof f === 'boolean')) {
+      rel.first_pass_clean = flags.some((f) => f === false) ? false : (flags.every((f) => f === true) ? true : null);
+    }
+    if (bases.size > 0) rel.basis = bases.size === 1 ? [...bases][0] : 'mixed';
+    merged.reliability = rel;
+  }
+  const waiver = [...segs].reverse().find((s) => s.validation_waiver !== undefined && s.validation_waiver !== null);
+  if (waiver !== undefined) merged.validation_waiver = waiver.validation_waiver;
+  const segNums = segs.map((s) => (Number.isInteger(s.flush_segment) && s.flush_segment >= 1 ? s.flush_segment : 1));
+  merged.flush_segment = Math.max(...segNums);
+  merged.flush_lines = segs.length;
+  return merged;
+}
+
+export function foldRideSegments(records) {
+  const byRef = new Map();
+  for (const r of records) {
+    if (!isMetricsFlushRecord(r)) continue;
+    if (!byRef.has(r.ref_id)) byRef.set(r.ref_id, []);
+    byRef.get(r.ref_id).push(r);
+  }
+  const out = [];
+  for (const r of records) {
+    if (!isMetricsFlushRecord(r)) { out.push(r); continue; }
+    const segs = byRef.get(r.ref_id);
+    if (segs.length === 1) { out.push(r); continue; }
+    if (segs[segs.length - 1] === r) out.push(mergeSegments(segs));
+  }
+  return out;
+}

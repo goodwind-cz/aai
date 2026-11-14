@@ -174,6 +174,18 @@ one capability:
   a ride's lines. A line written by hand to recover runs lost
   earlier carries a `reconstructed` key (`source` and `reason`); a normal flush
   never writes it.
+- Readers fold a ride's lines into one ride: the factory report, the metrics
+  report (Per Work Item, Totals, Per-Strategy Reliability), the dashboard's
+  work-item count and the golden-flow token median group all summary lines of
+  a `ref_id` through `foldRideSegments` in `.aai/scripts/lib/metrics-flush-record.mjs`.
+  The folded ride has the runs in ledger order, summed agent time, tokens and
+  cost (null when any segment's cost is null), the largest human time of any
+  segment (never the sum), summed reliability counts, the latest date and
+  verdict and the first title. A ref with one line renders as before, and a
+  lone continuation line (its first segment is not in the ledger) is one ride.
+  The overview's per-ref effort and token sums already add every line of a
+  ref; the run-level tables (per model, per role, prompt versions,
+  `--by-effort`) count runs and need no folding.
 - PR gate: `validation-waiver.mjs` counts one passing archive line per
   `flush_segment` (an absent field counts as 1). Two same-day pass lines for
   the archived ride with different segments are accepted; two with the same

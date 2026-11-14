@@ -1405,7 +1405,13 @@ JSONL
     for (const l of lines) {
       let row; try { row = JSON.parse(l); } catch { continue; }
       if (!row || !row.ref_id) continue;
-      totalsByRef[row.ref_id] = row.totals && typeof row.totals.agent_duration_seconds === "number" ? row.totals.agent_duration_seconds : undefined;
+      // TEST-3730: a reopened ride has several summary lines (flush_segment);
+      // the report folds them into ONE ride, so the expectation sums the
+      // per-line totals of a ref instead of letting the last line win.
+      if (row.event !== undefined) continue;
+      const t = row.totals && typeof row.totals.agent_duration_seconds === "number" ? row.totals.agent_duration_seconds : undefined;
+      if (t === undefined) { if (!(row.ref_id in totalsByRef)) totalsByRef[row.ref_id] = undefined; continue; }
+      totalsByRef[row.ref_id] = (totalsByRef[row.ref_id] ?? 0) + t;
     }
     const errors = [];
     let checked = 0;
@@ -1426,7 +1432,7 @@ JSONL
     if (errors.length) { console.log("FAIL:" + errors.join(" | ")); process.exit(1); }
     console.log(`OK:${checked}`);
   ' "$RDJ" "$PROJECT_ROOT/docs/ai/METRICS.jsonl")" && rc=0 || rc=$?
-  [[ "$rc" == 0 && "$result" == OK:* ]] || log_fail "real-ledger agent_seconds vs totals.agent_duration_seconds mismatch: $result"
+  [[ "$rc" == 0 && "$result" == OK:* ]] || log_fail "TEST-3730: real-ledger agent_seconds vs per-ref summed totals.agent_duration_seconds mismatch: $result"
   log_pass "agent_seconds equals totals.agent_duration_seconds on the REAL docs/ai/METRICS.jsonl ledger, $result rides checked (TEST-031 real-ledger arm, D2)"
 
   # real-ledger SHADOW-MODEL arm (round-3 validation F1/F2, extended for F3-F6):
@@ -1481,6 +1487,22 @@ JSONL
             || (row.totals && typeof row.totals === "object") || Object.hasOwn(row, "verdict"));
         if (hasSummaryShape) rides.push(row);
       }
+      // TEST-3730: independent per-ref aggregation (a reopened ride has one
+      // summary line per flush segment; the report presents ONE ride per ref).
+      // Expectation: runs concatenated, date_utc the latest, reliability
+      // remediation_runs summed — expressed here, never imported from the helper.
+      const rideByRef = new Map();
+      for (const row of rides) {
+        const prev = rideByRef.get(row.ref_id);
+        if (!prev) { rideByRef.set(row.ref_id, { ...row, agent_runs: [...(row.agent_runs ?? [])], reliability: row.reliability ? { ...row.reliability } : null }); continue; }
+        prev.agent_runs.push(...(row.agent_runs ?? []));
+        if (row.date_utc > prev.date_utc) prev.date_utc = row.date_utc;
+        if (row.reliability && typeof row.reliability.remediation_runs === "number") {
+          if (!prev.reliability) prev.reliability = { ...row.reliability };
+          else prev.reliability.remediation_runs = (typeof prev.reliability.remediation_runs === "number" ? prev.reliability.remediation_runs : 0) + row.reliability.remediation_runs;
+        }
+      }
+      rides.length = 0; rides.push(...rideByRef.values());
       const shadow = [];
       let expectedMissingDur = 0;
       for (const rrow of rides) {
@@ -1576,7 +1598,7 @@ JSONL
       console.log(`OK:${checked}:${tieGroups}:${expectedDisagreeNotes.length}:${expectedOverlap}`);
     })().catch((e) => { console.log(`FAIL:threw ${e && e.stack ? e.stack : e}`); process.exitCode = 1; });
   ' "$RDJ" "$PROJECT_ROOT/docs/ai/METRICS.jsonl" "$PROJECT_ROOT/.aai/scripts/lib/usage-note.mjs")" && rc=0 || rc=$?
-  [[ "$rc" == 0 && "$result" == OK:* ]] || log_fail "real-ledger shadow-model mismatch (independently re-derived roles/tokens/remediation/order/notes): $result"
+  [[ "$rc" == 0 && "$result" == OK:* ]] || log_fail "TEST-3730: real-ledger shadow-model mismatch (independently re-derived, per-ref aggregated roles/tokens/remediation/order/notes): $result"
   log_pass "shadow-model: every scope_cost field (roles, tokens_total, runs_marked, date_utc, remediation_runs/tokens/share_pct), the full D10 sort order (tie-break included) and the (scope_cost) note set (disagreement + strict-> divergence) independently re-derived from the real docs/ai/METRICS.jsonl ledger and matched exactly — $result (TEST-031 real-ledger shadow-model arm, closes round-3 F1/F2/F3/F4/F5/F6)"
 }
 
@@ -1966,6 +1988,78 @@ JSONL
   log_pass "worktree lifecycle telemetry is excluded and the final summary is counted once (TEST-043)"
 }
 
+# --- TEST-3728/3729: a reopened ride is ONE ride (SPEC-0291 Spec-AC-07) -----
+# A reopened ref leaves several summary lines (continuation lines marked
+# flush_segment, or a reconstructed segment-2 line whose segment 1 lives on
+# another branch). The report must present each ref ONCE, with the segments'
+# runs and totals aggregated.
+test_3728_reopened_ride_is_one_ride() {
+  log_info "Test: two-segment ref, lone segment-2 ref and a single-line ref each give ONE ride row with summed totals (TEST-3728)..."
+  local d; d="$(mk_repo t3728)"
+  cat > "$d/docs/ai/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-11-10","ref_id":"REOPEN-A","title":"Reopened ride","human_time_minutes":{"intake":10,"reviews":5},"agent_runs":[{"role":"Planning","started_utc":"2026-11-10T08:00:00Z","ended_utc":"2026-11-10T08:01:00Z","duration_seconds":60,"note":"usage_total_tokens=1000","cost_usd":1.5},{"role":"TDD Implementation","started_utc":"2026-11-10T08:02:00Z","ended_utc":"2026-11-10T08:02:40Z","duration_seconds":40,"note":"usage_total_tokens=500","cost_usd":0.5}],"totals":{"human_time_minutes":15,"agent_duration_seconds":100,"total_cost_usd":2,"cost_basis":"total-blended"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"field"},"verdict":"PASS"}
+{"date_utc":"2026-11-12","ref_id":"LONE-SEG2","title":"Reconstructed","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Planning","started_utc":"2026-11-12T08:00:00Z","ended_utc":"2026-11-12T08:00:30Z","duration_seconds":30,"note":"usage_total_tokens=300","cost_usd":0.25}],"totals":{"human_time_minutes":0,"agent_duration_seconds":30,"total_cost_usd":0.25,"cost_basis":"total-blended"},"strategy":"tdd","verdict":"PASS","flush_segment":2}
+{"date_utc":"2026-11-11","ref_id":"SINGLE-C","title":"One line","agent_runs":[{"role":"Planning","duration_seconds":20,"note":"usage_total_tokens=100"}],"totals":{"agent_duration_seconds":20},"verdict":"PASS"}
+{"date_utc":"2026-11-12","ref_id":"REOPEN-A","title":"Reopened ride","human_time_minutes":{"intake":10,"reviews":5},"agent_runs":[{"role":"Code Review","started_utc":"2026-11-12T09:00:00Z","ended_utc":"2026-11-12T09:00:50Z","duration_seconds":50,"note":"usage_total_tokens=700","cost_usd":0.75}],"totals":{"human_time_minutes":15,"agent_duration_seconds":50,"total_cost_usd":0.75,"cost_basis":"total-blended"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":1,"remediation_runs":0,"first_pass_clean":false,"basis":"field"},"verdict":"PASS","flush_segment":2}
+JSONL
+  run_report "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3728: must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local result rc
+  result="$(node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const e = [];
+    if (m.counts.rides !== 3) e.push(`counts.rides ${m.counts.rides} != 3`);
+    const rows = m.scope_cost.scopes.filter((s) => s.ref === "REOPEN-A");
+    if (rows.length !== 1) e.push(`REOPEN-A rows ${rows.length} != 1`);
+    else {
+      const r = rows[0];
+      if (r.runs_total !== 3) e.push(`runs_total ${r.runs_total} != 3`);
+      if (r.agent_seconds !== 150) e.push(`agent_seconds ${r.agent_seconds} != 150`);
+      if (r.tokens_total !== 2200) e.push(`tokens_total ${r.tokens_total} != 2200`);
+      if (r.date_utc !== "2026-11-12") e.push(`date_utc ${r.date_utc} != latest 2026-11-12`);
+      if (r.elapsed_wall_seconds !== 176450) e.push(`elapsed ${r.elapsed_wall_seconds} != ${176450}`);
+    }
+    const lone = m.scope_cost.scopes.filter((s) => s.ref === "LONE-SEG2");
+    if (lone.length !== 1 || lone[0].runs_total !== 1 || lone[0].agent_seconds !== 30) e.push(`LONE-SEG2 ${JSON.stringify(lone)}`);
+    const rowsTotal = m.scope_cost.scopes.length;
+    if (rowsTotal !== 3) e.push(`scope_cost rows ${rowsTotal} != 3`);
+    const vmix = Object.values(m.quality.verdict_mix ?? {}).reduce((a, v) => a + v, 0);
+    if (m.quality && m.quality.verdict_mix && vmix !== 3) e.push(`verdict_mix total ${vmix} != 3`);
+    if (e.length) { console.log(e.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "$DJ")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "TEST-3728: a reopened ride must be one ride row with summed totals: $result"
+  log_pass "a two-segment ref, a lone segment-2 ref and a single-line ref each render ONE ride with summed runs, agent time, tokens and the latest date (TEST-3728)"
+
+  log_info "Test: foldRideSegments totals, human-time max, null cost, reliability and single-line identity (TEST-3729)..."
+  result="$(node --input-type=module -e '
+    const { foldRideSegments } = await import(process.argv[1]);
+    const mk = (o) => ({ date_utc: "2026-11-10", ref_id: "R", title: "t", ...o });
+    const a = mk({ human_time_minutes: { intake: 10, reviews: 5 }, agent_runs: [{ role: "Planning", duration_seconds: 5 }], totals: { human_time_minutes: 15, agent_duration_seconds: 5, total_cost_usd: 1, cost_basis: "decomposed" }, reliability: { validation_fails: 1, review_fails: 0, remediation_runs: 1, first_pass_clean: false, basis: "field" }, verdict: "PASS" });
+    const b = mk({ date_utc: "2026-11-11", title: "later", human_time_minutes: { intake: 10, reviews: 5 }, agent_runs: [{ role: "Code Review", duration_seconds: 7 }], totals: { human_time_minutes: 15, agent_duration_seconds: 7, total_cost_usd: null, cost_basis: "none" }, reliability: { validation_fails: 0, review_fails: 2, remediation_runs: 0, first_pass_clean: true, basis: "note" }, verdict: "FAIL", flush_segment: 2 });
+    const ev = { event: "worktree_create", date_utc: "2026-11-10", ref_id: "R" };
+    const single = mk({ ref_id: "S", agent_runs: [] });
+    const out = foldRideSegments([a, ev, single, b]);
+    const e = [];
+    if (out.length !== 3) e.push(`length ${out.length} != 3`);
+    if (out[0] !== ev || out[1] !== single) e.push("lifecycle record and single-line ref must pass through as the same objects");
+    const m = out[2];
+    if (m.agent_runs.length !== 2 || m.agent_runs[0].role !== "Planning") e.push("runs not concatenated in ledger order");
+    if (m.totals.agent_duration_seconds !== 12) e.push(`seconds ${m.totals.agent_duration_seconds}`);
+    if (m.totals.total_cost_usd !== null) e.push(`cost must be null when one segment is null, got ${m.totals.total_cost_usd}`);
+    if (m.totals.human_time_minutes !== 15 || m.human_time_minutes.intake !== 10 || m.human_time_minutes.reviews !== 5) e.push(`human time summed instead of max: ${JSON.stringify(m.human_time_minutes)} ${m.totals.human_time_minutes}`);
+    if (m.totals.cost_basis !== "mixed") e.push(`cost_basis ${m.totals.cost_basis}`);
+    if (m.reliability.validation_fails !== 1 || m.reliability.review_fails !== 2 || m.reliability.remediation_runs !== 1 || m.reliability.first_pass_clean !== false || m.reliability.basis !== "mixed") e.push(`reliability ${JSON.stringify(m.reliability)}`);
+    if (m.date_utc !== "2026-11-11" || m.title !== "t" || m.verdict !== "FAIL" || m.flush_segment !== 2) e.push(`scalars ${m.date_utc} ${m.title} ${m.verdict} ${m.flush_segment}`);
+    if (e.length) { console.log(e.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "file://$PROJECT_ROOT/.aai/scripts/lib/metrics-flush-record.mjs")" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "TEST-3729: foldRideSegments merge semantics: $result"
+  log_pass "foldRideSegments sums seconds, nulls cost on a null segment, takes max human time, merges reliability, keeps single lines and lifecycle records as-is (TEST-3729)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027; followup-registry TEST-028..029; scope-cost TEST-031..037,039)"
   echo "  + followups-cli-hardening TEST-040; operator-waiver-unblocks-pr TEST-041"
@@ -2011,6 +2105,7 @@ main() {
   test_039_scope_cost_product_doc_pins
   test_042_verdict_provenance
   test_043_lifecycle_record_excluded
+  test_3728_reopened_ride_is_one_ride
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
