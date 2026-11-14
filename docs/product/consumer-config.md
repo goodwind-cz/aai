@@ -83,4 +83,4 @@ to the shipped table.
 
 - Request: docs/issues/CHANGE-0257-consumer-config-routing-override.md
 - Spec: docs/specs/SPEC-0290-spec-consumer-config-routing-override.md
-- Validation evidence: None yet; recorded by the validation run of this scope.
+- Validation evidence: docs/ai/reports/VALIDATION-20261114T0123Z-consumer-config-routing-override.md (round 3 PASS; local evidence, gitignored)
