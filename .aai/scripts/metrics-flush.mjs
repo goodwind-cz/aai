@@ -37,9 +37,14 @@
 //     atomic tmp+rename with the concurrency recheck, then ephemeral cleanup.
 //     Ledger-before-reset: a crash between ledger append and STATE commit
 //     leaves STATE original;
-//   - IDEMPOTENT RESUME: a ref already IN the ledger but still present in
-//     STATE metrics.work_items is an interrupted flush -> cleanup-only pass
-//     (no second append, no duplicate ledger line);
+//   - IDEMPOTENT RESUME (run-level): a ref already IN the ledger whose STATE
+//     metrics entry holds ONLY runs the ledger already holds (identity role,
+//     model_id, started_utc, ended_utc, counted as a multiset) is an
+//     interrupted flush -> cleanup-only pass (no second append, no duplicate
+//     ledger line). Runs the ledger lacks (a reopened ride) are fresh: they
+//     pass the same gates and land as ONE new continuation line holding just
+//     those runs, marked `flush_segment: <n>`; if a gate refuses, they stay in
+//     STATE untouched (SKIP names them);
 //   - full reset (prompt 5d, STATE_FALLBACK.md flush-reset defaults) when NO
 //     active work remains; partial-flush reset (5d2, SPEC-0013 H5) resets the
 //     verdict blocks with FLUSH-provenance notes (never reset-block's
@@ -329,17 +334,55 @@ function refMatches(vref, ref) {
 // --- ledger / ticks / doc probes ----------------------------------------------------
 
 function ledgerRefs(metricsPath) {
-  const refs = new Set();
-  if (!fs.existsSync(metricsPath)) return refs;
+  return new Set(ledgerRunCounts(metricsPath).keys());
+}
+
+// Run identity (flush-drops-reopened-runs D1): the tuple buildEntry writes for a
+// run, projected the same way for a STATE run and for the ledger run written
+// from it, so the two always compare equal.
+function runIdentity(r) {
+  return JSON.stringify([
+    r?.role,
+    r?.model_id ?? 'unknown',
+    typeof r?.started_utc === 'string' ? r.started_utc : null,
+    typeof r?.ended_utc === 'string' ? r.ended_utc : null,
+  ]);
+}
+
+// Per ref with a summary line: how many summary lines it has and a multiset of
+// the run identities those lines hold. Keyed on the exact ref_id.
+function ledgerRunCounts(metricsPath) {
+  const byRef = new Map();
+  if (!fs.existsSync(metricsPath)) return byRef;
   for (const line of fs.readFileSync(metricsPath, 'utf8').split(/\r?\n/)) {
     const t = line.trim();
     if (t === '' || t.startsWith('#')) continue;
     try {
       const o = JSON.parse(t);
-      if (isMetricsFlushRecord(o)) refs.add(o.ref_id);
+      if (!isMetricsFlushRecord(o)) continue;
+      let rec = byRef.get(o.ref_id);
+      if (!rec) { rec = { lines: 0, counts: new Map() }; byRef.set(o.ref_id, rec); }
+      rec.lines += 1;
+      for (const r of Array.isArray(o.agent_runs) ? o.agent_runs : []) {
+        const k = runIdentity(r);
+        rec.counts.set(k, (rec.counts.get(k) ?? 0) + 1);
+      }
     } catch { /* best-effort matching probe */ }
   }
-  return refs;
+  return byRef;
+}
+
+// The STATE runs the ledger does not hold yet: each run uses up one count of
+// its identity (a copy of the multiset), every other run is fresh. Order kept.
+function freshRuns(runs, counts) {
+  const left = new Map(counts);
+  const fresh = [];
+  for (const r of runs) {
+    const k = runIdentity(r);
+    const n = left.get(k) ?? 0;
+    if (n > 0) left.set(k, n - 1); else fresh.push(r);
+  }
+  return fresh;
 }
 
 // metrics-flush-strands-completed-refs (--sweep, D1/D2): the set of refs with
@@ -876,6 +919,9 @@ function buildEntry(entry, ctx) {
     verdict_basis: verdictBasis,
     verdict: 'PASS',
   };
+  // flush-drops-reopened-runs D3: only a continuation line carries the marker,
+  // so every first-flush line stays byte-identical.
+  if (entry.segment !== undefined) ledgerEntry.flush_segment = entry.segment;
   // The waiver this ride was closed under, made DURABLE (bot review PR #303
   // F-2). Attached only when the record NAMES this ref, so a waiver issued for
   // another scope can never be attributed here — the same scope binding the
@@ -1625,7 +1671,7 @@ function main() {
   const root = repoRootOf(statePath);
   const stateDir = path.dirname(statePath);
   const pricing = loadPricing(pricingPath);
-  const inLedger = ledgerRefs(metricsPath);
+  const inLedger = ledgerRunCounts(metricsPath);
   const reviewsFromTicks = ticksReviewMinutes(ticksPath);
   // D1/D2: the closed-event set is read ONLY under --sweep (never opened on
   // the default path, keeping the "flush never touches EVENTS" invariant
@@ -1785,32 +1831,43 @@ function main() {
       verdictBasisByRef[ref] = verdictBasis;
     }
 
-    if (inLedger.has(ref)) { toResume.push(entry); continue; }   // interrupted flush
+    // A ref with a ledger line is an interrupted flush only when the ledger
+    // holds every STATE run; runs it lacks (a reopened ride) flush as a
+    // continuation line holding just those runs (flush-drops-reopened-runs D1/D2).
+    const prior = inLedger.get(ref) ?? null;
+    let work = entry;
+    let keptNote = '';
+    if (prior !== null) {
+      const fresh = freshRuns(entry.runs, prior.counts);
+      if (fresh.length === 0) { toResume.push(entry); continue; }   // interrupted flush
+      work = { ...entry, runs: fresh, segment: prior.lines + 1 };
+      keptNote = `${fresh.length} agent_runs not in METRICS.jsonl kept in STATE (continuation of an earlier flush) — `;
+    }
 
-    if (defaultReason === null) { toFlush.push(entry); continue; }
+    if (defaultReason === null) { toFlush.push(work); continue; }
 
     // D1 sweep gate (STRICT / fail-closed) — an ADDITIONAL OR path, only when
     // --sweep is set; never removes/weakens what the default gate would flush.
     if (opts.sweep) {
       if (entry.runs.length === 0) {
-        skipped[ref] = 'no agent_runs recorded in STATE metrics';
+        skipped[ref] = keptNote + 'no agent_runs recorded in STATE metrics';
         continue;
       }
       if (!closed.has(ref)) {
-        skipped[ref] = 'no durable work_item_closed event in EVENTS.jsonl — fail-closed';
+        skipped[ref] = keptNote + 'no durable work_item_closed event in EVENTS.jsonl — fail-closed';
         continue;
       }
       const status = statusByRef.get(ref);
       if (status !== 'done') {
-        skipped[ref] = `active_work_items status is "${status ?? 'null'}" (needs done for --sweep; in-flight items are never swept) — fail-closed`;
+        skipped[ref] = `${keptNote}active_work_items status is "${status ?? 'null'}" (needs done for --sweep; in-flight items are never swept) — fail-closed`;
         continue;
       }
-      toFlush.push(entry);
+      toFlush.push(work);
       sweptRefs.push(ref);
       continue;
     }
 
-    skipped[ref] = defaultReason;
+    skipped[ref] = keptNote + defaultReason;
   }
 
   // Build ledger entries + warnings in memory FIRST.
@@ -1870,7 +1927,7 @@ function main() {
       // `code_review` where required). Every OTHER route into this reset
       // substitutes something weaker: `--sweep` takes a durable
       // `work_item_closed` event plus `status: done` in place of the PASS, and
-      // the RESUME branch takes the mere PRESENCE of a ledger line — which can
+      // the RESUME branch takes the ledger already holding every STATE run — which can
       // be a swept line, or a line from any earlier same-day flush. Both are
       // sound for RETIRING stranded metrics and neither is a basis for opening
       // the PR gate: minting a record there hands a ride that never validated
@@ -1974,6 +2031,9 @@ function main() {
   for (const b of built) {
     const basis = b.ledgerEntry.verdict_basis;
     if (basis !== null) console.log(`  verdict_basis: ${b.ledgerEntry.ref_id} -> ${basis}`);
+  }
+  for (const b of built) {
+    if (b.ledgerEntry.flush_segment !== undefined) console.log(`  continuation: ${b.ledgerEntry.ref_id} flush_segment ${b.ledgerEntry.flush_segment} (${b.ledgerEntry.agent_runs.length} runs not in the ledger before this flush)`);
   }
   for (const w of eventNoteWarnings) console.log(w);
   for (const b of built) for (const w of b.warnings) console.log(w);

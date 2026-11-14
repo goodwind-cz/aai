@@ -800,7 +800,7 @@ ARCHIVE_SENTINEL_TOKEN="[AAI-VALIDATION-ARCHIVED"
 #                              (empty = the default gate only, as before)
 #   MK_RESUME                — puts the ref in the ledger BEFORE the measured
 #                              flush, so metrics-flush takes its RESUME branch
-#                              (`inLedger.has(ref)`) instead of either gate:
+#                              (every STATE run is already in the ledger) instead of either gate:
 #                                crash   — a first flush killed after the ledger
 #                                          append (AAI_FLUSH_INJECT_CRASH, the
 #                                          real fault hook TEST-107 uses); the
@@ -927,7 +927,7 @@ YAML
   # branch. Both routes are real: `crash` is the fault hook TEST-107 already
   # exercises; `cheat` is a same-day ledger line that simply already exists.
   if [[ "$resume" == cheat ]]; then
-    printf '{"date_utc":"%s","ref_id":"%s","title":"pre-existing same-day line","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":0},"strategy":"tdd","reliability":null,"verdict":"PASS"}\n' \
+    printf '{"date_utc":"%s","ref_id":"%s","title":"pre-existing same-day line","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"claude-sonnet-5","started_utc":"2026-08-30T07:00:00Z","ended_utc":"2026-08-30T07:10:00Z"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":0},"strategy":"tdd","reliability":null,"verdict":"PASS"}\n' \
       "$FLUSH_DAY" "$ARCHIVED_REF" >> "$d/docs/ai/METRICS.jsonl"
   fi
   if [[ "$resume" == crash ]]; then
@@ -1493,9 +1493,59 @@ YAML
   log_pass "TEST-18 the ledger lookup binds to the record's ref, not the scope: a sibling's PASS refuses, the record-holder's own PASS opens"
 }
 
+# --- TEST-19 -----------------------------------------------------------------
+# Spec-AC-04 (spec-flush-drops-reopened-runs D5). A ride flushed, reopened with a
+# new run and a fresh validation pass, and flushed again the SAME UTC day leaves
+# two same-day PASS lines for one ref (flush_segment 1 and 2). That is one ride
+# flushed twice, not two rides, so the gate must still open. A byte copy of the
+# segment-2 line IS ambiguous (two lines, one segment) and must still refuse.
+test_19_reopen_same_day_flush_opens() {
+  log_info "TEST-19: two same-day PASS lines with distinct flush_segment values open the gate; equal segments refuse..."
+  local d sp m
+  d="$(mk_flushed arch_reopen)" || log_fail "TEST-19: fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  m="$d/docs/ai/METRICS.jsonl"
+  (cd "$PROJECT_ROOT" \
+    && node .aai/scripts/state.mjs set-focus --type intake_issue --ref "$ARCHIVED_REF" --path "docs/issues/${ARCHIVED_REF}.md" --state "$sp" \
+    && node .aai/scripts/state.mjs append-run --ref "$ARCHIVED_REF" --role Validation --model claude-sonnet-5 --started 2026-08-30T09:20:00Z --verdict pass --tokens-in 10 --tokens-out 10 --state "$sp" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
+    && node .aai/scripts/state.mjs set-validation --status pass --ref "$ARCHIVED_REF" --state "$sp") > "$d/reopen.log" 2>&1 \
+    || log_fail "TEST-19 premise: the reopen CLIs must succeed: $(cat "$d/reopen.log")"
+  local fec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
+    --state "$sp" --metrics "$m" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" --pricing "$d/PRICING.yaml" \
+    --events "$d/docs/ai/EVENTS.jsonl" --now "2026-08-30T10:00:00Z" > "$d/flush2.log" 2>&1) || fec=$?
+  [[ "$fec" == 0 ]] || log_fail "TEST-19 premise: the second flush must exit 0 (got $fec): $(cat "$d/flush2.log")"
+  grep -qF "Partial-flush reset applied" "$d/flush2.log" \
+    || log_fail "TEST-19 premise: the second flush must reset partially: $(cat "$d/flush2.log")"
+  local segs
+  segs="$(node -e '
+    const fs = require("fs");
+    const L = fs.readFileSync(process.argv[1], "utf8").split("\n").filter((x) => x.startsWith("{")).map((x) => JSON.parse(x));
+    console.log(L.filter((e) => e.ref_id === process.argv[2] && e.verdict === "PASS" && e.date_utc === process.argv[3]).map((e) => e.flush_segment === undefined ? 1 : e.flush_segment).join(","));
+  ' "$m" "$ARCHIVED_REF" "$FLUSH_DAY")"
+  [[ "$segs" == "1,2" ]] \
+    || log_fail "TEST-19 premise: two same-day PASS lines with segments 1 and 2 expected, got '$segs': $(cat "$m")"
+  grep -qF "at=2026-08-30T10:00:00Z" "$sp" \
+    || log_fail "TEST-19 premise: the archive record must carry the second flush instant"
+
+  run_gate "$sp"
+  expect_rc 0 "TEST-19 reopen, same-day second flush"
+  assert_payload_contains "$GATE_OUT" "reason=validation_archived_pass" \
+    "TEST-19: a same-day reopen that ends in a partial reset must still open on its archived PASS" || return 1
+
+  # CONTROL: a byte copy of the segment-2 line is two lines with ONE segment.
+  grep '^{' "$m" | tail -n 1 >> "$m"
+  run_gate "$sp"
+  expect_rc 1 "TEST-19 control (duplicated segment-2 line)"
+  assert_payload_contains "$GATE_OUT" "reason=archive_ledger_ambiguous" \
+    "TEST-19 control: two PASS lines with the same flush_segment must still refuse as ambiguous" || return 1
+  rm -rf "$d"
+  log_pass "TEST-19 distinct flush segments open the gate; a duplicated segment still refuses"
+}
+
 # --- runner ------------------------------------------------------------------
 
-ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver 17_swept_ref_is_never_archived 18_ledger_corroborates_the_record_not_the_scope"
+ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver 17_swept_ref_is_never_archived 18_ledger_corroborates_the_record_not_the_scope 19_reopen_same_day_flush_opens"
 
 main() {
   local requested="${1:-}"

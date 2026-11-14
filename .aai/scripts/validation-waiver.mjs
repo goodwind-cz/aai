@@ -101,8 +101,10 @@
 //      inheritance, and it buys nothing on its own — binding 3 still demands
 //      a real ledger PASS for that scope on that day, which is strictly more
 //      than the single hand-written record the waiver lane has always taken.
-//   3. LEDGER PROOF — exactly one `verdict: PASS` entry in METRICS.jsonl for
-//      that scope on `at`'s own day. The record is a CLAIM; the ledger entry
+//   3. LEDGER PROOF — exactly one `verdict: PASS` entry per flush segment in
+//      METRICS.jsonl for that scope on `at`'s own day (a reopened ride
+//      flushed twice that day has segments 1 and 2; two lines sharing a
+//      segment are ambiguous). The record is a CLAIM; the ledger entry
 //      corroborates it. The trust does NOT rest on the ledger line alone:
 //      `metrics-flush --sweep` writes `verdict: PASS` lines for stranded
 //      rides that never validated, and its RESUME branch completes a reset
@@ -324,7 +326,7 @@ export function parseArchive(text) {
   return { present: true, ok: true, error: null, records };
 }
 
-// readArchiveLedger(metricsPath) -> the {ref_id, verdict, date_utc} triples
+// readArchiveLedger(metricsPath) -> the {ref_id, verdict, date_utc, flush_segment}
 // docs/ai/METRICS.jsonl carries, or null when there is no readable ledger.
 // Comment and blank lines are skipped as the flush itself skips them, and a
 // line that is not parseable JSON is SKIPPED rather than fatal: a dropped
@@ -343,6 +345,9 @@ export function readArchiveLedger(metricsPath) {
       ref_id: typeof e.ref_id === 'string' ? e.ref_id : null,
       verdict: typeof e.verdict === 'string' ? e.verdict : null,
       date_utc: typeof e.date_utc === 'string' ? e.date_utc : null,
+      // A continuation line (metrics-flush, a reopened ride) carries
+      // `flush_segment` >= 2; every other line is segment 1.
+      flush_segment: Number.isInteger(e.flush_segment) && e.flush_segment >= 1 ? e.flush_segment : 1,
     });
   }
   return out;
@@ -495,7 +500,10 @@ function evaluateArchive(notes, scopeRef, runAtUtc, ledger) {
     (e) => e.verdict === 'PASS' && e.date_utc === day && refMatchesScope(e.ref_id, rec.ref),
   );
   if (hits.length === 0) return { open: false, reason: 'archive_no_ledger_pass', archive_ref: rec.ref };
-  if (hits.length > 1) return { open: false, reason: 'archive_ledger_ambiguous', archive_ref: rec.ref };
+  // One PASS per flush segment: a same-day reopen legitimately leaves segment 1
+  // and segment 2 for one ride. Two hits sharing a segment are still ambiguous.
+  const segs = hits.map((e) => e.flush_segment);
+  if (new Set(segs).size !== segs.length) return { open: false, reason: 'archive_ledger_ambiguous', archive_ref: rec.ref };
   return { open: true, reason: 'validation_archived_pass', archive: { ref: rec.ref, at: rec.at } };
 }
 

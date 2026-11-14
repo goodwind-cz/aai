@@ -30,6 +30,13 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: a flush after a reopen keeps the new runs instead of dropping them
+
+- Flush: `metrics-flush.mjs` used to treat any ride that already had a line in `docs/ai/METRICS.jsonl` as an interrupted flush, so runs recorded after a reopen were deleted from STATE without ever reaching the ledger. It now compares runs: a ride whose STATE runs are all in the ledger is still only cleaned up, and new runs go through the normal gates and are appended as one continuation line (`flush_segment` 2 or higher) that holds only those runs. If the gates refuse them, nothing is appended, STATE keeps the runs and the output prints a `SKIP` line that names how many runs were kept and why.
+- PR gate: `validation-waiver.mjs` counts one passing archive line per `flush_segment`, so a ride flushed, reopened and flushed again on the same day still opens; two same-day pass lines with the same segment still refuse as `archive_ledger_ambiguous`.
+- Ledger: the 11 runs of `consumer-config-routing-override` lost to this defect are restored as one appended line marked `reconstructed`. Earlier lines are unchanged.
+- Docs: `docs/product/telemetry.md` describes the run-level resume, the continuation line, the SKIP and the PR-gate rule.
+
 ## [v2026.11.13] — feat(routing): routing-table freshness has an owner, CAT-21 reports a lapsed table, a stamp guard blocks a silent edit and the Claude routing bindings are refreshed
 
 - Freshness marker: `.aai/system/MODEL_ROUTING.yaml` and `.aai/system/PRICING.yaml` each carry a `last_updated_utc` stamp and a cadence. `node .aai/scripts/table-freshness.mjs check` prints FRESH, LAPSED or INVALID per table; `AAI_TABLES_HORIZON_DAYS` overrides the horizon for one run.
