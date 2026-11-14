@@ -187,11 +187,16 @@ function normalizeLedgerEntry(entry) {
 
 function normalizeEntries(entries) {
   const operations = [];
-  let workItemCount = 0;
+  // Spec-AC-07 (SPEC-0291): a work item is a ref, not a ledger line — a
+  // reopened ride's continuation lines are the SAME work item. Their runs
+  // still each become an operation (those are per-run, so they sum as-is).
+  const workItemRefs = new Set();
+  let unkeyedWorkItems = 0;
 
   for (const entry of entries) {
     if (entry && Array.isArray(entry.agent_runs)) {
-      workItemCount += 1;
+      if (typeof entry.ref_id === 'string' && entry.ref_id !== '') workItemRefs.add(entry.ref_id);
+      else unkeyedWorkItems += 1;
       operations.push(...normalizeLedgerEntry(entry));
       continue;
     }
@@ -202,7 +207,7 @@ function normalizeEntries(entries) {
 
   return {
     operations,
-    workItemCount
+    workItemCount: workItemRefs.size + unkeyedWorkItems
   };
 }
 

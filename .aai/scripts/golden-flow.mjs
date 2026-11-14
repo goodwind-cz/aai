@@ -65,6 +65,7 @@ import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { extractUsageTotal } from './lib/usage-note.mjs';
 import { withAppendLock } from './lib/append-lock.mjs';
+import { foldRideSegments } from './lib/metrics-flush-record.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SELF_ROOT = path.resolve(SELF_DIR, '..', '..');
@@ -330,11 +331,16 @@ export function tokensMedianLast10(ledgerPath) {
   let text;
   try { text = fs.readFileSync(ledgerPath, 'utf8'); } catch { return null; }
   const totals = [];
+  const records = [];
   for (const line of text.split('\n')) {
     if (!line.trim() || line.startsWith('#')) continue;
     let r;
     try { r = JSON.parse(line); } catch { continue; }
-    if (!Array.isArray(r.agent_runs)) continue;
+    if (r && Array.isArray(r.agent_runs)) records.push(r);
+  }
+  // SPEC-0291 Spec-AC-07: a reopened ride has one ledger line per flush
+  // segment; the median is over rides, so fold them into one first.
+  for (const r of foldRideSegments(records)) {
     let sum = 0, marked = false;
     for (const run of r.agent_runs) {
       // The canonical both-sides-delimited grammar, on the NOTE field only —

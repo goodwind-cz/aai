@@ -456,6 +456,24 @@ test_013_embed_structural_pin() {  # CHANGE-0141 TEST-004 (Spec-AC-02)
   log_pass "TEST-013 structural pin: chain order backslash-first/<-last, five function-form substitutions, real-ledger embed round-trips"
 }
 
+test_3732_reopened_ride_counts_once() {  # TEST-3732 (Spec-AC-07)
+  log_info "Test: a two-segment ref and a lone segment-2 ref count as 2 work items, run tokens still summed (TEST-3732)..."
+  local d="$TEST_DIR/t3732"
+  mkdir -p "$d"
+  : > "$d/METRICS.jsonl"
+  write_ledger_entry "$d/METRICS.jsonl" "2026-11-10" "REOPEN-A" '[{"role":"Planning","started_utc":"2026-11-10T10:00:00Z","note":"usage_total_tokens=1000"}]'
+  write_ledger_entry "$d/METRICS.jsonl" "2026-11-12" "LONE-SEG2" '[{"role":"Planning","started_utc":"2026-11-12T10:00:00Z","note":"usage_total_tokens=300"}]'
+  write_ledger_entry "$d/METRICS.jsonl" "2026-11-12" "REOPEN-A" '[{"role":"Code Review","started_utc":"2026-11-12T11:00:00Z","note":"usage_total_tokens=700"}]'
+  run_generator "$d/METRICS.jsonl" "$d/dashboard.html" --data-only
+  [[ "$EC" == 0 ]] || log_fail "TEST-3732: generator must exit 0 (got $EC): $(cat "$OUT")"
+  local got
+  got="$(json_probe "$d/dashboard-data.json" 'd.summary.workItems')"
+  [[ "$got" == "2" ]] || log_fail "TEST-3732: summary.workItems must count refs (2), got $got"
+  got="$(json_probe "$d/dashboard-data.json" 'd.summary.totalTokens')"
+  [[ "$got" == "2000" ]] || log_fail "TEST-3732: summary.totalTokens must sum every segment's runs (2000), got $got"
+  log_pass "TEST-3732: dashboard counts a reopened ride once and still sums every segment's tokens"
+}
+
 main() {
   echo "=== Test: $TEST_NAME ==="
   check_deps
@@ -472,6 +490,7 @@ main() {
     test_011_product_doc_real
     test_012_hostile_payload_embed
     test_013_embed_structural_pin
+    test_3732_reopened_ride_counts_once
   fi
   echo "=== All $TEST_NAME tests passed ==="
 }

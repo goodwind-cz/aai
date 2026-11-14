@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-14T12:20:00.247Z",
+  "generatedAt": "2026-11-14T21:53:48.810Z",
   "project": "aai",
   "counts": {
-    "delivered": 359,
+    "delivered": 360,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 86972995
+    "tokens_total": 90912508
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -228,11 +228,24 @@
       "status": "done",
       "path": "docs/issues/CHANGE-0257-consumer-config-routing-override.md",
       "closed_on": "2026-11-14",
-      "agent_minutes": 236,
-      "token_total": 1672472,
+      "agent_minutes": 444,
+      "token_total": 3471622,
       "spec": "docs/specs/SPEC-0290-spec-consumer-config-routing-override.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-consumer-config-routing-override-r4-20261114T090024Z.md"
+      "review": "docs/ai/reviews/review-consumer-config-routing-override-r5-20261114T121708Z.md"
+    },
+    {
+      "ref": "flush-drops-reopened-runs",
+      "title": "A flush after a reopen deletes the extension rounds' agent runs instead of writing them to METRICS",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0114-flush-drops-reopened-runs.md",
+      "closed_on": "2026-11-14",
+      "agent_minutes": 193,
+      "token_total": 2140363,
+      "spec": "docs/specs/SPEC-0291-spec-flush-drops-reopened-runs.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-flush-drops-reopened-runs-20261114T211600Z.md"
     },
     {
       "ref": "routing-tables-have-an-owner-and-a-seam",
@@ -4922,11 +4935,24 @@
           "status": "done",
           "path": "docs/issues/CHANGE-0257-consumer-config-routing-override.md",
           "closed_on": "2026-11-14",
-          "agent_minutes": 236,
-          "token_total": 1672472,
+          "agent_minutes": 444,
+          "token_total": 3471622,
           "spec": "docs/specs/SPEC-0290-spec-consumer-config-routing-override.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-consumer-config-routing-override-r4-20261114T090024Z.md"
+          "review": "docs/ai/reviews/review-consumer-config-routing-override-r5-20261114T121708Z.md"
+        },
+        {
+          "ref": "flush-drops-reopened-runs",
+          "title": "A flush after a reopen deletes the extension rounds' agent runs instead of writing them to METRICS",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0114-flush-drops-reopened-runs.md",
+          "closed_on": "2026-11-14",
+          "agent_minutes": 193,
+          "token_total": 2140363,
+          "spec": "docs/specs/SPEC-0291-spec-flush-drops-reopened-runs.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-flush-drops-reopened-runs-20261114T211600Z.md"
         },
         {
           "ref": "routing-tables-have-an-owner-and-a-seam",
