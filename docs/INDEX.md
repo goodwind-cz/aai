@@ -6,12 +6,14 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (4)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
+| CHANGE-0257 | issues | implementing | — | docs/issues/CHANGE-0257-consumer-config-routing-override.md |
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| SPEC-0290 | specs | implementing | 2 implementing, 10 done, 9 planned | docs/specs/SPEC-0290-spec-consumer-config-routing-override.md |
 
 ## Canonical layer (0)
 
@@ -63,7 +65,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (652)
+## Done (650)
 
 | ID | Type | Path |
 |---|---|---|
@@ -318,7 +320,6 @@ _None._
 | CHANGE-0254 | issues | docs/issues/CHANGE-0254-install-path-parity-harness.md |
 | CHANGE-0255 | issues | docs/issues/CHANGE-0255-factory-round-cap.md |
 | CHANGE-0256 | issues | docs/issues/CHANGE-0256-model-effort-routing.md |
-| CHANGE-0257 | issues | docs/issues/CHANGE-0257-consumer-config-routing-override.md |
 | DEBT-0001 | issues | docs/issues/DEBT-0001-index-deferred-gap-and-done-with-live-decisions.md |
 | DEBT-0002 | issues | docs/issues/DEBT-0002-prompt-diet-byte-budget-true-up.md |
 | DEBT-0008 | issues | docs/issues/DEBT-0008-ci-test-selection-narrowing-and-sharding.md |
@@ -716,7 +717,6 @@ _None._
 | SPEC-0287 | specs | docs/specs/SPEC-0287-spec-round-cap-hardening.md |
 | SPEC-0288 | specs | docs/specs/SPEC-0288-spec-model-effort-routing.md |
 | SPEC-0289 | specs | docs/specs/SPEC-0289-spec-routing-tables-have-an-owner-and-a-seam.md |
-| SPEC-0290 | specs | docs/specs/SPEC-0290-spec-consumer-config-routing-override.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

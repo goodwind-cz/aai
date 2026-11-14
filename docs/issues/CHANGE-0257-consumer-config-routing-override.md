@@ -4,7 +4,7 @@ type: change
 number: 257
 capability: consumer-config
 user_visible: true
-status: done
+status: implementing
 links:
   pr: []
   commits: []
@@ -139,3 +139,51 @@ links:
 - Closes follow-up `fu-consumer-routing-seam` at ride end.
 - Autopilot defaults (/aai-ship): human_time_minutes null; implementation mode
   left to Planning.
+
+## Owner extension 2026-11-14
+
+Before PR #555 merged, the owner extended the scope (round_extension, authority
+owner, recorded in docs/ai/EVENTS.jsonl 2026-11-14T06:16:45Z): "K tomu pr 555
+... Musí to aktualizovat pricing ale i cizí modely" (it must also keep pricing
+up to date, including for third-party models). He chose all four additions:
+
+1. The monthly `.aai/routines/ROUTING_REFRESH.routine.md` refreshes the whole
+   `.aai/system/PRICING.yaml`, not just the routed ids. A row it cannot verify
+   is marked unverified with the date, never silently kept.
+2. In a consumer checkout the routine runs a downstream mode: it researches
+   prices only for the project's override model ids that the shipped PRICING
+   lacks, writes them into the consumer-owned project config and opens a PR in
+   that project. Upstream mode is otherwise unchanged.
+3. The project config carries its own prices, which metrics costing, the
+   dispatch's unpriced NOTE and the doctor use when the shipped PRICING lacks
+   the id.
+4. An override naming a model from another vendor than the section's harness
+   is applied, never blocked, and made visible.
+
+### Additional acceptance criteria
+
+- AC-010: the monthly routine's upstream mode covers every `models:` row of
+  PRICING.yaml except `unknown`: each ends a run either re-verified from a
+  primary source or marked unverified with the run date (rates kept); a
+  deterministic check refuses a refreshed table that leaves a row neither
+  verified nor marked since the run date.
+- AC-011: in a consumer checkout (the tables are not tracked there) the routine
+  does not stop: it prices only the override model ids that no shipped PRICING
+  row prices, writes the verified rates into the project config's pricing
+  section, opens one pull request in that project, and never edits `.aai/`.
+- AC-012: `docs/ai/project-config.yaml` may carry a pricing section with, per
+  model id, input and output USD per 1M tokens, a source URL and a
+  last-verified timestamp. metrics-flush, metrics-report, the dispatch's
+  unpriced NOTE and doctor CAT-22 cost an id from it when the shipped
+  PRICING.yaml cannot; when both can, the shipped table wins. A malformed
+  pricing section makes the whole file malformed (no override, no project
+  price applied).
+- AC-013: doctor CAT-22 warns when a project price is older than the shipped
+  PRICING cadence (`update_policy.cadence_days`).
+- AC-014: an override whose model belongs to a different vendor than the
+  section's harness is applied, never blocked, with one dispatch stderr NOTE
+  and a mention on the CAT-22 line.
+- AC-015: the product doc shows the pricing section and codex and gemini
+  override examples; the update-ownership proof (both sync and both update
+  twins) runs over a consumer file that carries a pricing section; the
+  CHANGELOG entry describes the extension.
