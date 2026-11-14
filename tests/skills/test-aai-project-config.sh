@@ -2,7 +2,7 @@
 #
 # Test: aai-project-config — the consumer-owned docs/ai/project-config.yaml and
 # its routing_override@<harness> section (spec-consumer-config-routing-override).
-# TEST-3680..3700 here (parser library, dispatch wiring, twin parity, docs),
+# TEST-3680..3702 here (parser library, dispatch wiring, twin parity, docs),
 # each as one test_NNNN_* function wired into main() below.
 # Fixtures are scratch temp-dir repos; nothing real is touched. bash 3.2
 # compatible.
@@ -1133,6 +1133,69 @@ test_3700_notes_after_final_model() {
   log_pass "TEST-3700: project-priced override silent; a backstop-swapped unpriced override is not NOTEd and keeps model_override"
 }
 
+# --- TEST-3702 (Spec-AC-16) ---------------------------------------------------
+# cv_case <label> <harness> <override-model> <file-extra> -> runs a Code Review
+# dispatch under <harness> with routing_override@<harness> set to the model.
+cv_case() {
+  local label="$1" h="$2" model="$3" extra="${4:-}"
+  local d; d="$(mk_root "t3702-$label")"
+  { printf 'routing_override@%s:\n  Code Review: %s\n' "$h" "$model"; printf '%b' "$extra"; } > "$d/docs/ai/project-config.yaml"
+  run_d "$d" "$h"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3702[$label]: dispatch exited $EC: $(cat "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "'"$model"'" && o.model_override.model === "'"$model"'"'
+  CV_ROOT="$d"
+}
+
+test_3702_cross_vendor_override() {
+  CUR_TEST="TEST-3702"
+  log_info "TEST-3702: a cross-vendor override is applied with exactly one NOTE and named by the doctor..."
+  cv_case codex codex claude-sonnet-5-5
+  [[ "$(count_lines 'is cross-vendor' "$ERR")" == 1 ]] || log_fail "TEST-3702: expected exactly one cross-vendor NOTE: $(cat "$ERR")"
+  [[ "$(count_lines 'NOTE' "$ERR")" == 1 ]] || log_fail "TEST-3702: expected exactly one NOTE line: $(cat "$ERR")"
+  [[ "$(count_lines 'codex/Code Review -> claude-sonnet-5-5 is cross-vendor: a anthropic model on the codex harness (openai); applied' "$ERR")" == 1 ]] \
+    || log_fail "TEST-3702: NOTE text is not the D-VENDOR line: $(cat "$ERR")"
+  local h
+  for h in claude cursor; do
+    cv_case "same-$h" "$h" claude-sonnet-5-5
+    [[ "$(count_lines 'cross-vendor' "$ERR")" == 0 ]] || log_fail "TEST-3702: $h printed a cross-vendor NOTE: $(cat "$ERR")"
+  done
+  cv_case unknown codex acme-model-1
+  [[ "$(count_lines 'cross-vendor' "$ERR")" == 0 ]] || log_fail "TEST-3702: an id no table knows printed a vendor NOTE: $(cat "$ERR")"
+  [[ "$(count_lines 'unpriced' "$ERR")" == 1 && "$(count_lines 'NOTE' "$ERR")" == 1 ]] || log_fail "TEST-3702: unknown id must print only the unpriced NOTE: $(cat "$ERR")"
+  cv_case projvendor codex acme-model-1 "$(price_block '    provider: anthropic\n')\n"
+  [[ "$(count_lines 'acme-model-1 is cross-vendor: a anthropic model on the codex harness (openai)' "$ERR")" == 1 ]] || log_fail "TEST-3702: a project-priced anthropic id on codex printed no cross-vendor NOTE: $(cat "$ERR")"
+  [[ "$(count_lines 'unpriced' "$ERR")" == 0 && "$(count_lines 'NOTE' "$ERR")" == 1 ]] || log_fail "TEST-3702: project-priced id must print only the vendor NOTE: $(cat "$ERR")"
+  # the doctor over the same file: PASS naming the cross-vendor override
+  cv_case doctor codex claude-sonnet-5-5
+  local d="$CV_ROOT" doc line
+  mkdir -p "$d/.aai/scripts/lib"
+  cp "$PROJECT_ROOT/.aai/scripts/aai-doctor.mjs" "$d/.aai/scripts/aai-doctor.mjs"
+  cp "$PROJECT_ROOT/.aai/scripts/table-freshness.mjs" "$d/.aai/scripts/table-freshness.mjs"
+  local f
+  for f in cli-pipe-guard guard-config harness project-config pricing; do
+    cp "$PROJECT_ROOT/.aai/scripts/lib/$f.mjs" "$d/.aai/scripts/lib/$f.mjs"
+  done
+  doc="$(env -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" --json 2>/dev/null)" || true
+  line="$(printf '%s' "$doc" | node -e '
+    let s = ""; process.stdin.on("data", (c) => s += c);
+    process.stdin.on("end", () => { const c = JSON.parse(s).categories.find((x) => x.id === "CAT-22"); console.log(c.status + "|" + c.reason + "|" + c.detail.overrides[0].cross_vendor); });')"
+  [[ "$line" == PASS\|*"(cross-vendor: anthropic on codex)"*\|true ]] || log_fail "TEST-3702: doctor CAT-22 is not PASS naming the cross-vendor override: $line"
+  # HARNESS_VENDOR keys and values pinned
+  local pin
+  pin="$(run_mjs '
+import { pathToFileURL } from "node:url";
+const lib = await import(pathToFileURL(process.argv[2]).href);
+const p = await import(pathToFileURL(process.argv[3]).href);
+const keys = Object.keys(lib.HARNESS_VENDOR).sort().join(",");
+const want = [...lib.OVERRIDE_HARNESSES].sort().join(",");
+const providers = new Set(Object.values(p.loadPricing(process.argv[4]).sources).map((x) => x.provider));
+const bad = Object.values(lib.HARNESS_VENDOR).filter((v) => v !== null && !providers.has(v));
+console.log(keys === want && bad.length === 0 && lib.HARNESS_VENDOR.cursor === null ? "ok" : "bad " + keys + " " + bad.join(","));
+' "$LIB" "$PROJECT_ROOT/.aai/scripts/lib/pricing.mjs" "$PRICING")"
+  [[ "$pin" == ok ]] || log_fail "TEST-3702: HARNESS_VENDOR is not pinned to OVERRIDE_HARNESSES and the shipped providers ($pin)"
+  log_pass "TEST-3702: cross-vendor override applied with one NOTE, silent for same-vendor, cursor and unknown vendors, named by CAT-22"
+}
+
 main() {
   check_deps
   test_3681_resolution_matrix
@@ -1155,6 +1218,7 @@ main() {
   test_3698_metrics_flush_seam
   test_3699_metrics_report_seam
   test_3700_notes_after_final_model
+  test_3702_cross_vendor_override
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

@@ -66,7 +66,7 @@ import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
 import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
 import { roundsUsed, roundCap, standingAExtensions, roundMenu } from './round-budget.mjs';
-import { loadProjectConfig, overrideFor, projectConfigNotes, describeOverride, isPricedModel, loadCostPricing, PROJECT_CONFIG_REL } from './lib/project-config.mjs';
+import { loadProjectConfig, overrideFor, projectConfigNotes, describeOverride, isPricedModel, loadCostPricing, overrideVendor, PROJECT_CONFIG_REL } from './lib/project-config.mjs';
 import { recheckMode, planCheckStamps, tokenOfRole, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
 
 // --- closed sets (mirror state.mjs / check-state semantics) --------------------
@@ -1921,6 +1921,10 @@ function main() {
       const costPricing = loadCostPricing(root, path.join(root, '.aai', 'system', 'PRICING.yaml'), projectConfig);
       if (!isPricedModel(costPricing, applied)) {
         console.error(`orchestration-dispatch: NOTE — ${PROJECT_CONFIG_REL} ${describeOverride({ harness: out.harness, role: out.role, model: applied })} is unpriced: metrics cannot cost the run`);
+      }
+      const ov = overrideVendor(costPricing, out.harness ?? 'unknown', applied);
+      if (ov.crossVendor) {
+        console.error(`orchestration-dispatch: NOTE — ${PROJECT_CONFIG_REL} ${describeOverride({ harness: out.harness, role: out.role, model: applied })} is cross-vendor: a ${ov.vendor} model on the ${out.harness} harness (${ov.harnessVendor}); applied`);
       }
     }
     // Advisory reasoning-effort hint (cache-friendly-dispatch), resolved from

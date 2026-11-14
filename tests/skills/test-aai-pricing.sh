@@ -624,6 +624,80 @@ test_routed_check_statuses() {
   log_pass "routed reports OK/STALE/UNPRICED/MISSING/ORDER/ALLOWED/ALLOW-UNUSED with the right exit codes (TEST-3667)"
 }
 
+# --- priced check and unverified_utc (Spec-AC-17) ----------------------------
+# pc_fixture <dir> <extra rows (printf %b)> — PRICING with the unknown row and a
+# row verified on 2026-11-13 (ok-row) plus the extra rows.
+pc_fixture() {
+  mkdir -p "$1/.aai/system"
+  printf 'pricing_meta:\n  last_updated_utc: "2026-11-13T00:00:00Z"\nupdate_policy:\n  cadence_days: 30\nmodels:\n  unknown:\n    input_usd_per_m: null\n    output_usd_per_m: null\n  ok-row:\n    input_usd_per_m: 1\n    output_usd_per_m: 2\n    source_ref: src\n    last_verified_utc: "2026-11-13T09:00:00Z"\n%b' "$2" > "$1/.aai/system/PRICING.yaml"
+}
+
+test_priced_check_and_unverified() {
+  CASE_TAG=TEST-3703
+  log_info "Test: table-freshness priced OK/UNVERIFIED/STALE/INVALID and unverified_utc vs stamp-guard (TEST-3703)..."
+  local d out
+  d="$(mktemp -d "${TMPDIR:-/tmp}/aai-pricing-3703.XXXXXX")"
+  local MARKED='  marked-row:\n    input_usd_per_m: 3\n    output_usd_per_m: 9\n    source_ref: src\n    last_verified_utc: "2026-10-01T09:00:00Z"\n    unverified_utc: "2026-11-13T09:00:00Z"\n'
+  local STALE='  stale-row:\n    input_usd_per_m: 1\n    output_usd_per_m: 1\n    source_ref: src\n    last_verified_utc: "2026-10-01T09:00:00Z"\n'
+  local GARBAGE='  garbage-row:\n    input_usd_per_m: 1\n    output_usd_per_m: 1\n    source_ref: src\n    last_verified_utc: "2026-10-01T09:00:00Z"\n    unverified_utc: "not-a-date"\n'
+  pc_fixture "$d" "$MARKED$STALE$GARBAGE"
+  out="$(freshness priced --root "$d" --since 2026-11-13)"
+  echo "$out"
+  assert_payload_line_matches "$out" '^OK ok-row 2026-11-13T09:00:00Z$' "verified row not OK"
+  assert_payload_line_matches "$out" '^UNVERIFIED marked-row 2026-11-13T09:00:00Z last=2026-10-01T09:00:00Z$' "marked row not UNVERIFIED"
+  assert_payload_line_matches "$out" '^STALE stale-row 2026-10-01T09:00:00Z$' "row with neither not STALE"
+  assert_payload_line_matches "$out" '^INVALID garbage-row unverified_utc$' "unparseable unverified_utc not INVALID"
+  [[ "$out" != *unknown* ]] || log_fail "priced printed a line for the unknown row"
+  assert_payload_line_matches "$out" '^RC=1$' "STALE and INVALID did not exit 1"
+  pc_fixture "$d" "$MARKED"
+  out="$(freshness priced --root "$d" --since 2026-11-13)"
+  assert_payload_line_matches "$out" '^UNVERIFIED marked-row ' "marked row lost with the others removed"
+  assert_payload_line_matches "$out" '^RC=0$' "OK and UNVERIFIED rows did not exit 0"
+  out="$(freshness priced --root "$d")"
+  assert_payload_line_matches "$out" '^RC=2$' "priced without --since did not exit 2"
+  out="$(freshness priced --root "$d" --since 13-11-2026)"
+  assert_payload_line_matches "$out" '^RC=2$' "priced with a malformed --since did not exit 2"
+  rm -f "$d/.aai/system/PRICING.yaml"
+  out="$(freshness priced --root "$d" --since 2026-11-13)"
+  assert_payload_line_matches "$out" '^INVALID \.aai/system/PRICING\.yaml file is absent$' "absent PRICING not INVALID"
+  assert_payload_line_matches "$out" '^RC=1$' "absent PRICING did not exit 1"
+  # runCostUsd costs a marked row at its kept rates
+  pc_fixture "$d" "$MARKED"
+  local cost
+  cost="$(node --input-type=module -e '
+import { pathToFileURL } from "node:url";
+import fs from "node:fs";
+const p = await import(pathToFileURL(process.argv[1]).href);
+const pr = p.parsePricing(fs.readFileSync(process.argv[2], "utf8"));
+console.log(p.runCostUsd(pr, "marked-row", 1000000, 1000000));
+' "$PROJECT_ROOT/.aai/scripts/lib/pricing.mjs" "$d/.aai/system/PRICING.yaml")"
+  [[ "$cost" == 12 ]] || log_fail "a marked row did not cost at its kept rates (got $cost, want 12)"
+  # marking a row is a priced-line change: stamp-guard needs a re-stamp
+  rm -rf "$d"; d="$(mktemp -d "${TMPDIR:-/tmp}/aai-pricing-3703.XXXXXX")"
+  git -C "$d" init -q
+  git -C "$d" config user.email t@example.invalid
+  git -C "$d" config user.name t
+  pc_fixture "$d" "$STALE"
+  git -C "$d" add -A && git -C "$d" commit -q -m base
+  local base; base="$(git -C "$d" rev-parse HEAD)"
+  pc_fixture "$d" "${STALE}    unverified_utc: \"2026-11-13T09:00:00Z\"\n"
+  out="$(guard "$d" "$base")"
+  assert_payload_line_matches "$out" '^VIOLATION \.aai/system/PRICING\.yaml ' "unverified_utc added without a re-stamp not VIOLATION"
+  assert_payload_line_matches "$out" '^RC=1$' "unstamped mark did not exit 1"
+  sed -i.bak 's/last_updated_utc: "2026-11-13T00:00:00Z"/last_updated_utc: "2026-11-14T00:00:00Z"/' "$d/.aai/system/PRICING.yaml"
+  out="$(guard "$d" "$base")"
+  assert_payload_line_matches "$out" '^CHANGED-STAMPED \.aai/system/PRICING\.yaml$' "re-stamped mark not CHANGED-STAMPED"
+  assert_payload_line_matches "$out" '^RC=0$' "re-stamped mark did not exit 0"
+  rm -rf "$d"
+  # the shipped header documents the field and the guard is UNCHANGED for PRICING
+  grep -E '^#.*unverified_utc' "$PRICING_FILE" >/dev/null || log_fail "shipped PRICING.yaml has no comment naming unverified_utc"
+  local live rc=0
+  live="$(live_guard origin/main)" || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "live stamp-guard failed (rc=$rc): $live"
+  assert_payload_line_matches "$live" '^UNCHANGED \.aai/system/PRICING\.yaml$' "stamp-guard against the merge-base is not UNCHANGED for PRICING"
+  log_pass "priced check classifies OK/UNVERIFIED/STALE/INVALID; a mark needs a re-stamp; the shipped header documents unverified_utc (TEST-3703)"
+}
+
 # --- first refresh (Spec-AC-08 / Spec-AC-09) ----------------------------------
 # block <file> <start-regex> <end-regex>: the section between two divider lines.
 section_block() {
@@ -778,6 +852,7 @@ main() {
   test_stamp_guard_compares_stamped_lines
   test_live_stamp_guard_and_selector
   test_routed_check_statuses
+  test_priced_check_and_unverified
   test_refresh_live_tables
   test_refresh_dispatch_seam
   test_refresh_pins

@@ -64,8 +64,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { checkTables } from './table-freshness.mjs';
-import { loadProjectConfig, describeOverride, unpricedOverrides, PROJECT_CONFIG_REL } from './lib/project-config.mjs';
-import { loadPricing } from './lib/pricing.mjs';
+import { loadProjectConfig, loadCostPricing, describeOverride, unpricedOverrides, overrideVendor, projectPriceRows, PROJECT_CONFIG_REL } from './lib/project-config.mjs';
+import { loadPricing, priceSource } from './lib/pricing.mjs';
 import { readRefGuardPolicy, resolveRefGuardLaunchers } from './lib/guard-config.mjs';
 
 // --- generic helpers -----------------------------------------------------
@@ -700,10 +700,23 @@ export function catRoutingTables(root, env = process.env) {
 // --- CAT-22 Project Config (spec consumer-config-routing-override) ---------
 // Warn-only report of the consumer-owned docs/ai/project-config.yaml. Null
 // (not reported) when the file is absent. Never FAIL.
-export function catProjectConfig(root) {
+const PRICING_REL = '.aai/system/PRICING.yaml';
+
+// Horizon for project price age (D-FRESH): AAI_TABLES_HORIZON_DAYS when a
+// positive integer, else the cadence of the shipped PRICING.yaml, else null.
+function priceHorizon(root, env) {
+  const h = env.AAI_TABLES_HORIZON_DAYS;
+  if (h !== undefined && /^[1-9]\d*$/.test(h)) return Number(h);
+  let results;
+  try { results = checkTables(root, { env: { ...env, AAI_TABLES_HORIZON_DAYS: '' } }); } catch { return null; }
+  const p = results.find((r) => r.file === PRICING_REL);
+  return p && typeof p.horizon_days === 'number' ? p.horizon_days : null;
+}
+
+export function catProjectConfig(root, env = process.env, now = new Date()) {
   const cfg = loadProjectConfig(root);
   if (cfg.status === 'absent') return null;
-  const detail = { file: cfg.file, status: cfg.status, overrides: [], ignored: [], errors: cfg.errors };
+  const detail = { file: cfg.file, status: cfg.status, overrides: [], prices: [], horizon_days: null, ignored: [], errors: cfg.errors };
   let res;
   if (cfg.status === 'malformed') {
     res = cat('CAT-22', 'Project Config', 'WARN',
@@ -712,25 +725,49 @@ export function catProjectConfig(root) {
     res.detail = detail;
     return res;
   }
-  const pricing = loadPricing(path.join(root, '.aai', 'system', 'PRICING.yaml'));
-  const unpriced = unpricedOverrides(cfg.overrides, pricing);
+  const pricingPath = path.join(root, '.aai', 'system', 'PRICING.yaml');
+  const shipped = loadPricing(pricingPath);
+  const costPricing = loadCostPricing(root, pricingPath, cfg);
+  const unpriced = unpricedOverrides(cfg.overrides, costPricing);
   const isUnpriced = (o) => unpriced.some((u) => u.harness === o.harness && u.role === o.role);
+  const horizon = priceHorizon(root, env);
+  const rows = projectPriceRows(cfg, shipped, { now, horizonDays: horizon });
   const list = [];
   for (const harness of Object.keys(cfg.overrides)) {
     for (const role of Object.keys(cfg.overrides[harness])) {
-      const o = { harness, role, model: cfg.overrides[harness][role] };
-      list.push({ ...o, priced: !isUnpriced(o) });
+      const model = cfg.overrides[harness][role];
+      const ov = overrideVendor(costPricing, harness, model);
+      list.push({
+        harness, role, model, priced: !isUnpriced({ harness, role }),
+        price_source: priceSource(costPricing, model), vendor: ov.vendor, cross_vendor: ov.crossVendor,
+      });
     }
   }
   detail.overrides = list;
+  detail.prices = rows;
+  detail.horizon_days = horizon;
   detail.ignored = cfg.notes;
-  const named = list.length ? list.map(describeOverride).join('; ') : 'no routing overrides';
-  if (cfg.notes.length === 0 && unpriced.length === 0) {
+  const day = (ts) => ts.slice(0, 10);
+  const describe = (o) => describeOverride(o)
+    + (o.price_source === 'project' ? ' priced by project' : '')
+    + (o.cross_vendor ? ` (cross-vendor: ${o.vendor} on ${o.harness})` : '');
+  const stale = rows.filter((r) => r.stale);
+  const cannotJudge = horizon === null && rows.length > 0;
+  const extras = [
+    ...rows.filter((r) => r.shadowed).map((r) => `${r.model} shadowed by shipped PRICING`),
+    ...rows.filter((r) => r.unverified_utc !== null).map((r) => `${r.model} unverified since ${day(r.unverified_utc)}`),
+  ];
+  let named = list.length ? list.map(describe).join('; ') : 'no routing overrides';
+  if (!list.length && rows.length) named += `; project prices: ${rows.map((r) => r.model).join(', ')}`;
+  if (extras.length) named += `; ${extras.join('; ')}`;
+  if (cfg.notes.length === 0 && unpriced.length === 0 && stale.length === 0 && !cannotJudge) {
     res = cat('CAT-22', 'Project Config', 'PASS', `${PROJECT_CONFIG_REL}: ${named}`);
   } else {
     const parts = [named];
     for (const n of cfg.notes) parts.push(n);
     for (const u of unpriced) parts.push(`${describeOverride(u)} is unpriced: metrics cannot cost the run`);
+    for (const r of stale) parts.push(`${r.model} verified ${day(r.last_verified_utc)} age=${r.age_days}d > ${horizon}d`);
+    if (cannotJudge) parts.push('project price freshness cannot be judged (PRICING.yaml cadence unreadable)');
     res = cat('CAT-22', 'Project Config', 'WARN', `${PROJECT_CONFIG_REL}: ${parts.join('; ')}`);
   }
   res.detail = detail;

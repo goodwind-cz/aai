@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { HARNESS_VALUES } from './harness.mjs';
-import { runCostUsd, loadPricing, attachProjectPrices } from './pricing.mjs';
+import { runCostUsd, loadPricing, attachProjectPrices, priceSource, modelProvider } from './pricing.mjs';
 
 export const PROJECT_CONFIG_REL = 'docs/ai/project-config.yaml';
 
@@ -33,6 +33,16 @@ export const OVERRIDE_ROLES = Object.freeze([
   'Implementation Preparation / Worktree decision',
   'Metrics Flush',
 ]);
+
+// Vendor behind each harness (D-VENDOR). cursor hosts several vendors' models,
+// so nothing on it is cross-vendor. Keys equal OVERRIDE_HARNESSES; every
+// non-null value is a `provider:` of the shipped PRICING sources (TEST-3702).
+export const HARNESS_VENDOR = Object.freeze({
+  claude: 'anthropic',
+  codex: 'openai',
+  gemini: 'google',
+  cursor: null,
+});
 
 export const PRICING_HEADER = 'pricing:';
 const PRICE_FIELDS = Object.freeze(['input_usd_per_m', 'output_usd_per_m', 'source_url', 'last_verified_utc', 'provider', 'unverified_utc']);
@@ -254,4 +264,38 @@ export function unpricedOverrides(overrides, pricing) {
     }
   }
   return out;
+}
+
+// overrideVendor(pricing, harness, model) -> { vendor, harnessVendor, crossVendor }
+// `pricing` is the cost pricing (shipped table plus project prices). A vendor
+// neither table knows is null, and null is never cross-vendor (D-VENDOR).
+export function overrideVendor(pricing, harness, model) {
+  const hv = Object.prototype.hasOwnProperty.call(HARNESS_VENDOR, harness) ? HARNESS_VENDOR[harness] : null;
+  const mv = modelProvider(pricing, model);
+  const crossVendor = hv !== null && mv !== null && mv !== hv;
+  return { vendor: mv, harnessVendor: hv, crossVendor };
+}
+
+const DAY_MS = 86400000;
+
+// projectPriceRows(cfg, pricing, { now, horizonDays }) -> one row per project
+// price (D-FRESH). `pricing` is the SHIPPED pricing alone, so `shadowed` means
+// the shipped table already prices the id and the project row is never used.
+export function projectPriceRows(cfg, pricing, { now = new Date(), horizonDays = null } = {}) {
+  const rows = [];
+  for (const model of Object.keys(cfg.prices || {})) {
+    const p = cfg.prices[model];
+    const ageDays = Math.floor((now.getTime() - Date.parse(p.last_verified_utc)) / DAY_MS);
+    rows.push({
+      model,
+      provider: p.provider ?? null,
+      source_url: p.source_url,
+      last_verified_utc: p.last_verified_utc,
+      unverified_utc: p.unverified_utc ?? null,
+      age_days: ageDays,
+      stale: horizonDays !== null && ageDays > horizonDays,
+      shadowed: priceSource(pricing, model) === 'shipped',
+    });
+  }
+  return rows;
 }
