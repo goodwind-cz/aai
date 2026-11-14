@@ -754,7 +754,7 @@ _None._
 
 _None._
 
-## Broken references (561)
+## Broken references (564)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1204,7 +1204,10 @@ _None._
 | tests/skills/test-aai-product-docs.sh | docs/product/token-capture-canary.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/token-economics-end-to-end.md | NOT FOUND |
 | tests/skills/test-aai-product-docs.sh | docs/product/widget-export.md | NOT FOUND |
+| tests/skills/test-aai-project-config.sh | docs/ai/reports/validation-fixture.md | NOT FOUND |
+| tests/skills/test-aai-project-config.sh | docs/ai/reviews/review-fixture.md | NOT FOUND |
 | tests/skills/test-aai-project-config.sh | docs/issues/CHANGE-0001-fixture.md | NOT FOUND |
+| tests/skills/test-aai-project-config.sh | docs/issues/CHANGE-0001-golden.md | NOT FOUND |
 | tests/skills/test-aai-project-config.sh | docs/specs/SPEC-0001-fx.md | NOT FOUND |
 | tests/skills/test-aai-prompt-diet.sh | docs/issues/CHANGE-DRAFT-prompt-diet-e2e-dry-run.md | NOT FOUND |
 | tests/skills/test-aai-release-notes.sh | docs/specs/x.md | NOT FOUND |

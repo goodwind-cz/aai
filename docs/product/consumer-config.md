@@ -6,7 +6,7 @@ status: current
 delivered_by:
   - consumer-config-routing-override
 spec: docs/specs/SPEC-0290-spec-consumer-config-routing-override.md
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 
 # A project-owned config that keeps a routing exception across updates
@@ -36,6 +36,27 @@ The next dispatch under Claude suggests that model for Code Review and adds a
 overrides, ignored sections and any error. Remove the file or the row to go back
 to the shipped table.
 
+The same file can price the models you route to. The `pricing:` section gives
+metrics a rate for a model id the shipped `PRICING.yaml` does not list, so a
+runner or a cross-vendor override is costed instead of reported as unpriced:
+
+```yaml
+routing_override@codex:
+  Code Review: acme-model-1
+routing_override@gemini:
+  Planning: acme-model-2
+pricing:
+  acme-model-1:
+    input_usd_per_m: 2.00
+    output_usd_per_m: 8.00
+    source_url: https://acme.example/pricing
+    last_verified_utc: "2026-11-14T06:00:00Z"
+    provider: anthropic
+```
+
+`routing_override@codex:` and `routing_override@gemini:` work exactly like the
+claude section above; each applies only on its own harness.
+
 ## Data model
 
 - File: `docs/ai/project-config.yaml`, outside `.aai/`, tracked by the project.
@@ -49,6 +70,22 @@ to the shipped table.
   file is applied and the doctor says why.
 - The unpriced rule: a model id that `PRICING.yaml` cannot cost is still applied,
   with a NOTE that metrics cannot cost the run.
+- Section `pricing:`: one entry per model id, with `input_usd_per_m`,
+  `output_usd_per_m`, `source_url` and `last_verified_utc` (all required) and
+  optional `provider` and `unverified_utc`. It follows the same all-or-nothing
+  rule as the routing rows.
+- Precedence: the shipped table wins. A model id the shipped `PRICING.yaml`
+  already prices is costed from it and the project entry is ignored (CAT-22
+  names it shadowed); the project entry is only a fallback for ids the shipped
+  table lacks.
+- Freshness: a project price older than the `PRICING.yaml` cadence (or
+  `AAI_TABLES_HORIZON_DAYS`) makes CAT-22 print a freshness WARN naming the id,
+  its date and its age; it never fails the run.
+- Cross-vendor rule: an override whose model belongs to another vendor than the
+  running harness is still applied, with one dispatch NOTE and a cross-vendor
+  mention in CAT-22. Same-vendor overrides, cursor and models of unknown vendor
+  print no such NOTE; add `provider:` to a project price to make the check
+  apply to it.
 - Effort is not overridable: `suggested_effort` and `harness_effort` are the
   shipped values with or without the file.
 - Absence means no change: dispatch output is byte-identical without the file.
@@ -60,6 +97,11 @@ to the shipped table.
   sets `suggested_model` to that model; the validator-independence backstop
   still runs after the override. Notes go to stderr as
   `orchestration-dispatch: NOTE — docs/ai/project-config.yaml ...`.
+- Routine: in a project whose `.aai/` is not tracked, the owner-instantiated
+  `ROUTING_REFRESH` routine runs in downstream mode: it reads CAT-22 from
+  `aai-doctor.mjs --json`, prices only override ids the shipped table lacks, edits
+  only the `pricing:` section and opens a pull request; see
+  `docs/product/universal-routines.md`.
 - Doctor: category `CAT-22 Project Config` (WARN-only, absent file not
   reported); see `docs/product/aai-doctor.md`.
 - Ownership: no sync or update writes `docs/ai/project-config.yaml` (bash or

@@ -106,16 +106,27 @@ ledger; absent one, the routine emits in report-only mode and says so loudly.
 
 ## Monthly model-table refresh (ROUTING_REFRESH)
 
-`.aai/routines/ROUTING_REFRESH.routine.md` keeps the two shipped model tables
-(`.aai/system/MODEL_ROUTING.yaml` and `.aai/system/PRICING.yaml`) current. It
-reads PRIMARY vendor sources only, updates both tables together with their
-stamps, runs `table-freshness.mjs routed` and `stamp-guard` plus the pricing
-suites, and opens a pull request. It never merges: its merge-gate section is
-empty, so even a merge-authorised render carries no merge step. In a checkout
-where the tables are not git-tracked (any downstream project) its first step
-stops with no edits. It is an extended-profile file and is never instantiated
-by bootstrap, sync, hooks or the loop; the owner instantiates it once with
-`/aai-routine`, which runs:
+`.aai/routines/ROUTING_REFRESH.routine.md` keeps model prices current. Its first
+step decides the mode. In upstream mode (the checkout tracks the two shipped
+tables and `tests/skills/test-aai-pricing.sh`) it keeps
+`.aai/system/MODEL_ROUTING.yaml` and the whole `.aai/system/PRICING.yaml`
+current: it reads PRIMARY vendor sources only, covers every provider listed
+under `sources:`, ends every priced row either re-verified or marked
+`unverified_utc`, moves both stamps, gates the run on
+`table-freshness.mjs priced` (plus `routed` and `stamp-guard` and the pricing
+suites) and opens a pull request. In downstream mode (a vendored install whose
+`.aai/` is not tracked) it runs `aai-doctor.mjs --json`, researches only the
+model ids that project overrides and the shipped table does not price (plus
+stale project prices), edits only the `pricing:` section of
+`docs/ai/project-config.yaml`, re-checks through the doctor, commits only that
+file on `chore/project-prices-<YYYY-MM>` and opens a pull request; it never
+touches `.aai/`. With neither a tracked table nor an installed
+`PRICING.yaml` it reports no AAI install and stops. It never merges: its
+merge-gate section is empty, so even a merge-authorised render carries no merge
+step. It is an extended-profile file and is never instantiated by bootstrap,
+sync, hooks or the loop; the owner instantiates it once with `/aai-routine`,
+which runs the command below (a consuming project uses the same command with
+its own `--repo`):
 
 ```bash
 node .aai/scripts/routine-emit.mjs --routine ROUTING_REFRESH --harness claude --os macos --repo goodwind-cz/aai --schedule "0 6 1 * *" --model claude-opus-5-5 --tz Europe/Prague

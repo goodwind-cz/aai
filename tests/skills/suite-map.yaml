@@ -1072,6 +1072,8 @@ suites:
       - .aai/system/PRICING.yaml
       - .aai/system/MODEL_ROUTING.yaml
       - .aai/scripts/table-freshness.mjs
+      - .aai/scripts/lib/pricing.mjs
+      - .aai/routines/ROUTING_REFRESH.routine.md
 
   aai-product-docs:
     globs:
@@ -1254,6 +1256,7 @@ suites:
   aai-routine:
     globs:
       - .aai/routines/SCRYER.routine.md
+      - .aai/routines/ROUTING_REFRESH.routine.md
       - .aai/scripts/routine-emit.mjs
       - .aai/SKILL_ROUTINE.prompt.md
       - .claude/skills/aai-routine/**
@@ -1752,6 +1755,12 @@ suites:
       - .aai/scripts/aai-update.sh
       - .aai/scripts/aai-update.ps1
       - docs/product/consumer-config.md
+      - .aai/scripts/lib/pricing.mjs
+      - .aai/scripts/metrics-flush.mjs
+      - .aai/scripts/metrics-report.mjs
+      - .aai/scripts/table-freshness.mjs
+      - .aai/system/PRICING.yaml
+      - .aai/routines/ROUTING_REFRESH.routine.md
 
   aai-model-effort:
     globs:

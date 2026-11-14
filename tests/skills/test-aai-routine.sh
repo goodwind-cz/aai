@@ -1152,6 +1152,107 @@ test_3671_routing_refresh_renders() {
   [[ $ok -eq 1 ]] && log_pass "TEST-3671 ROUTING_REFRESH renders, carries the contract, never merges" || log_fail "TEST-3671 ROUTING_REFRESH render contract"
 }
 
+# --- TEST-3704 — ROUTING_REFRESH upstream mode refreshes the WHOLE PRICING table ---
+# Spec consumer-config-routing-override Spec-AC-18 (D-FULL). The provider list
+# is read from the shipped PRICING.yaml sources: block at test time.
+test_3704_routing_refresh_full_table() {
+  log_info "TEST-3704: ROUTING_REFRESH covers every PRICING row and every sources: provider, gated by table-freshness priced..."
+  local ok=1 h rendered needle prov provs
+  provs="$(awk '/^sources:/{f=1;next} /^[a-z_]+:/{f=0} f && /^    provider:/{print $2}' "$PROJECT_ROOT/.aai/system/PRICING.yaml" | sort -u)"
+  [[ -n "$provs" ]] || { log_fail "TEST-3704: no provider found under sources: of the shipped PRICING.yaml"; return; }
+  for h in claude codex gemini generic; do
+    run_emit --routine ROUTING_REFRESH --harness "$h" --os macos --repo owner/repo \
+      --schedule "0 6 1 * *" --model claude-opus-5-5 --tz Europe/Prague
+    rendered="$OUT"
+    [[ "$RC" -eq 0 ]] || { log_info "TEST-3704 $h: exit $RC: $ERR"; ok=0; continue; }
+    for needle in 'every `models:` row' 'unverified_utc' 'table-freshness.mjs priced' 'TEST_3668_ALLOW_STALE' 're-stamp' 'both tables' 'Cursor docs'; do
+      grep -qF -- "$needle" <<<"$rendered" || { log_info "TEST-3704 $h: missing '$needle'"; ok=0; }
+    done
+    for prov in $provs; do
+      grep -qF -- "\`$prov\`" <<<"$rendered" || { log_info "TEST-3704 $h: provider $prov of PRICING sources: is not named"; ok=0; }
+    done
+    grep -qE 'gh pr merge|merge_pull_request' <<<"$rendered" && { log_info "TEST-3704 $h: render carries a merge command"; ok=0; }
+  done
+  [[ $ok -eq 1 ]] && log_pass "TEST-3704 ROUTING_REFRESH refreshes the whole PRICING table and gates on table-freshness priced" || log_fail "TEST-3704 full-table refresh contract"
+}
+
+# --- TEST-3705 — ROUTING_REFRESH downstream mode + the doctor JSON it reads ---
+# Spec-AC-19 (D-DOWN). Synthetic acme-* ids; the fixture consumer is a scratch
+# dir holding a vendored doctor, never a project-config.yaml in this repository.
+test_3705_routing_refresh_downstream() {
+  log_info "TEST-3705: ROUTING_REFRESH downstream mode text and the CAT-22 fields it reads..."
+  local ok=1 h rendered needle d out s
+  for h in claude codex; do
+    run_emit --routine ROUTING_REFRESH --harness "$h" --os macos --repo owner/repo \
+      --schedule "0 6 1 * *" --model claude-opus-5-5 --tz Europe/Prague
+    rendered="$OUT"
+    [[ "$RC" -eq 0 ]] || { log_info "TEST-3705 $h: exit $RC: $ERR"; ok=0; continue; }
+    for needle in 'tests/skills/test-aai-pricing.sh' '.aai/system/PRICING.yaml' 'aai-doctor.mjs --json' 'CAT-22' 'price_source' 'stale' 'shadowed' \
+                  'detail.overrides' 'detail.prices' 'docs/ai/project-config.yaml' 'pricing:' 'chore/project-prices-' 'gh pr create' 'NEVER merge' \
+                  'Never edit anything under `.aai/`' 'no AAI install' 'no overrides to price'; do
+      grep -qF -- "$needle" <<<"$rendered" || { log_info "TEST-3705 $h: missing '$needle'"; ok=0; }
+    done
+    grep -qF 'tables are refreshed upstream' <<<"$rendered" && { log_info "TEST-3705 $h: the old STOP line is still present"; ok=0; }
+    grep -qE 'gh pr merge|merge_pull_request' <<<"$rendered" && { log_info "TEST-3705 $h: render carries a merge command"; ok=0; }
+  done
+  # seam: the real doctor over a fixture consumer emits the fields the routine reads
+  d="$TMP_ROOT/t3705-consumer"
+  rm -rf "$d"; mkdir -p "$d/.aai/scripts/lib" "$d/.aai/system" "$d/docs/ai"
+  for s in aai-doctor.mjs table-freshness.mjs lib/cli-pipe-guard.mjs lib/guard-config.mjs lib/harness.mjs lib/project-config.mjs lib/pricing.mjs; do
+    cp "$PROJECT_ROOT/.aai/scripts/$s" "$d/.aai/scripts/$s"
+  done
+  cat > "$d/.aai/system/PRICING.yaml" <<'YML'
+schema_version: 2
+pricing_meta:
+  currency: USD
+  last_updated_utc: "2026-11-01T00:00:00Z"
+update_policy:
+  cadence_days: 30
+models:
+  acme-shipped-1:
+    input_usd_per_m: 1.00
+    output_usd_per_m: 4.00
+    source_ref: anthropic-pricing
+    last_verified_utc: "2026-11-01T00:00:00Z"
+  unknown:
+    input_usd_per_m: null
+    output_usd_per_m: null
+YML
+  cat > "$d/docs/ai/project-config.yaml" <<'YML'
+routing_override@claude:
+  Code Review: acme-unpriced-9
+pricing:
+  acme-stale-2:
+    input_usd_per_m: 2.00
+    output_usd_per_m: 8.00
+    source_url: https://acme.example/pricing
+    last_verified_utc: "2020-01-01T00:00:00Z"
+  acme-shipped-1:
+    input_usd_per_m: 9.00
+    output_usd_per_m: 9.00
+    source_url: https://acme.example/pricing
+    last_verified_utc: "2026-11-01T00:00:00Z"
+YML
+  out="$(env -u AAI_ROLE -u AAI_TABLES_HORIZON_DAYS node "$d/.aai/scripts/aai-doctor.mjs" --json 2>/dev/null)" || true
+  if ! printf '%s' "$out" | node -e '
+    let s = ""; process.stdin.on("data", (c) => s += c);
+    process.stdin.on("end", () => {
+      const c = JSON.parse(s).categories.find((x) => x.id === "CAT-22");
+      const dt = c && c.detail;
+      const bad = (m) => { console.error(m + ": " + JSON.stringify(dt)); process.exit(1); };
+      if (!dt || dt.status === "malformed" || !Array.isArray(dt.overrides) || !Array.isArray(dt.prices)) bad("shape");
+      const o = dt.overrides.find((x) => x.model === "acme-unpriced-9");
+      if (!o || o.price_source !== null) bad("override price_source");
+      const st = dt.prices.find((x) => x.model === "acme-stale-2");
+      if (!st || st.stale !== true || st.shadowed !== false) bad("stale row");
+      const sh = dt.prices.find((x) => x.model === "acme-shipped-1");
+      if (!sh || sh.shadowed !== true) bad("shadowed row");
+    });' 2>"$TMP_ROOT/t3705.err"; then
+    log_info "TEST-3705 seam: $(cat "$TMP_ROOT/t3705.err")"; ok=0
+  fi
+  [[ $ok -eq 1 ]] && log_pass "TEST-3705 ROUTING_REFRESH downstream mode carries its contract and the doctor emits the fields it reads" || log_fail "TEST-3705 downstream mode contract"
+}
+
 # --- TEST-3672 — ROUTING_REFRESH is unwired; owner command documented -------
 test_3672_routing_refresh_unwired_documented() {
   log_info "TEST-3672: no automatic surface names ROUTING_REFRESH; universal-routines.md carries the owner command..."
@@ -1215,6 +1316,8 @@ ALL_TESTS=(
   test_037_shallow_health_pins
   test_3671_routing_refresh_renders
   test_3672_routing_refresh_unwired_documented
+  test_3704_routing_refresh_full_table
+  test_3705_routing_refresh_downstream
 )
 
 main() {

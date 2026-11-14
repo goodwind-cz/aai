@@ -131,8 +131,16 @@ line naming each active `routing_override@<harness>` row (for example
 section (no harness suffix or a harness outside claude, codex, gemini and
 cursor) or an override whose model id is not priced in `PRICING.yaml` prints a
 `CAT-22 WARN` line with the reason; a malformed file means no override is
-applied. CAT-22 is WARN-only and never becomes FAIL; `--json` carries
-`detail: { file, status, overrides, ignored, errors }`. See
+applied. CAT-22 also reports the project's `pricing:` section: a project price
+older than the `PRICING.yaml` cadence (or `AAI_TABLES_HORIZON_DAYS`) prints the
+project price freshness WARN (`<id> verified <date> age=<n>d > <h>d`), a project
+price the shipped table also prices is named shadowed, a row carrying
+`unverified_utc` is named unverified, and an override to a model of another
+vendor than the running harness is named cross-vendor. CAT-22 is WARN-only and
+never becomes FAIL; `--json` carries
+`detail: { file, status, overrides, prices, horizon_days, ignored, errors }`,
+where each override has `price_source` (`shipped`, `project` or null), `vendor`
+and `cross_vendor`, and each price has `stale` and `shadowed`. See
 `docs/product/consumer-config.md`.
 
 ## Data model

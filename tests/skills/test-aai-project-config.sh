@@ -2,7 +2,7 @@
 #
 # Test: aai-project-config — the consumer-owned docs/ai/project-config.yaml and
 # its routing_override@<harness> section (spec-consumer-config-routing-override).
-# TEST-3680..3702 here (parser library, dispatch wiring, twin parity, docs),
+# TEST-3680..3707 here (parser library, dispatch wiring, twin parity, docs),
 # each as one test_NNNN_* function wired into main() below.
 # Fixtures are scratch temp-dir repos; nothing real is touched. bash 3.2
 # compatible.
@@ -753,7 +753,7 @@ import * as P from '__PARITY__';
 const [root, haveps] = process.argv.slice(2);
 const TABLE = '.aai/system/MODEL_ROUTING.yaml';
 const CONSUMER = 'docs/ai/project-config.yaml';
-const planted = Buffer.from('\xEF\xBB\xBFrouting_override@claude:\r\n  Code Review: claude-haiku-5-5\r\n', 'latin1');
+const planted = Buffer.from('\xEF\xBB\xBFrouting_override@claude:\r\n  Code Review: claude-haiku-5-5\r\npricing:\r\n  acme-model-1:\r\n    input_usd_per_m: 2.00\r\n    output_usd_per_m: 8.00\r\n    source_url: https://acme.example/pricing\r\n    last_verified_utc: "2026-11-14T06:00:00Z"\r\n', 'latin1');
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex').slice(0, 12);
 const step = (op) => ({ op, profile: null, flags: [], expect: '0' });
 const scenarios = [
@@ -1196,6 +1196,59 @@ console.log(keys === want && bad.length === 0 && lib.HARNESS_VENDOR.cursor === n
   log_pass "TEST-3702: cross-vendor override applied with one NOTE, silent for same-vendor, cursor and unknown vendors, named by CAT-22"
 }
 
+# --- TEST-3706 (Spec-AC-20) — CHANGELOG body and product docs for project prices --
+test_3706_docs_pricing() {
+  CUR_TEST="TEST-3706"
+  log_info "TEST-3706: CHANGELOG body, consumer-config, universal-routines and doctor docs cover project prices..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md" pd="$PROJECT_ROOT/docs/product/consumer-config.md" ur="$PROJECT_ROOT/docs/product/universal-routines.md" dd="$PROJECT_ROOT/docs/product/aai-doctor.md" body f
+  body="$(awk '/^## \[(unreleased|v[0-9.]+)\] — /{ on = (tolower($0) ~ /consumer config|project-config/) ; next } on' "$cl")"
+  for f in 'pricing:' 'cross-vendor' 'ROUTING_REFRESH' 'table-freshness.mjs priced'; do
+    grep -qF -- "$f" <<<"$body" || log_fail "TEST-3706: the CHANGELOG entry body does not name $f"
+  done
+  for f in 'pricing:' 'routing_override@codex:' 'routing_override@gemini:' 'shipped' 'cross-vendor' 'freshness WARN'; do
+    grep -qF -- "$f" "$pd" || log_fail "TEST-3706: consumer-config.md does not mention $f"
+  done
+  grep -qiE 'shipped (table|PRICING\.yaml)? ?wins' "$pd" || log_fail "TEST-3706: consumer-config.md does not say the shipped price wins"
+  grep -qF 'downstream mode' "$ur" || log_fail "TEST-3706: universal-routines.md does not describe downstream mode"
+  grep -qF 'docs/ai/project-config.yaml' "$ur" || log_fail "TEST-3706: universal-routines.md does not name docs/ai/project-config.yaml"
+  grep -qF 'project price freshness WARN' "$dd" || log_fail "TEST-3706: aai-doctor.md does not name the project price freshness WARN"
+  log_pass "TEST-3706: CHANGELOG body and three product docs cover project prices"
+}
+
+# --- TEST-3707 (Spec-AC-21) — suite selection, vendored deps, no new .aai file ---
+test_3707_distribution() {
+  CUR_TEST="TEST-3707"
+  log_info "TEST-3707: select-suites reach, vendored-script deps, no new .aai file or prompt..."
+  local f out p want mb ec=0 added prompts
+  f="$TEST_DIR/t3707-files.txt"
+  printf '%s\n' .aai/routines/ROUTING_REFRESH.routine.md > "$f"
+  out="$(node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from "$f" --repo-root "$PROJECT_ROOT" 2>&1)" || true
+  for want in aai-routine aai-pricing; do
+    grep -qE "^SELECTED $want " <<<"$out" || log_fail "TEST-3707: select-suites for only ROUTING_REFRESH.routine.md does not select $want: $out"
+  done
+  for p in .aai/scripts/lib/pricing.mjs .aai/scripts/metrics-flush.mjs .aai/scripts/metrics-report.mjs; do
+    printf '%s\n' "$p" > "$f"
+    out="$(node "$PROJECT_ROOT/.aai/scripts/select-suites.mjs" --files-from "$f" --repo-root "$PROJECT_ROOT" 2>&1)" || true
+    # a lib/** path escalates to FULL_RUN reason=shared-lib (select-suites fail-open), which runs this suite too
+    if [[ "$p" == .aai/scripts/lib/* ]]; then
+      grep -qE '^(SELECTED aai-project-config |FULL_RUN reason=shared-lib )' <<<"$out" || log_fail "TEST-3707: select-suites for only $p neither selects aai-project-config nor runs everything: $out"
+    else
+      grep -qE '^SELECTED aai-project-config ' <<<"$out" || log_fail "TEST-3707: select-suites for only $p does not select aai-project-config: $out"
+    fi
+  done
+  node "$PROJECT_ROOT/.aai/scripts/check-vendored-script-deps.mjs" >"$TEST_DIR/t3707-deps.log" 2>&1 || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3707: check-vendored-script-deps.mjs exited $ec: $(tail -n 8 "$TEST_DIR/t3707-deps.log")"
+  ec=0; mb="$(git -C "$PROJECT_ROOT" merge-base HEAD origin/main 2>/dev/null)" || ec=$?
+  if [[ "$ec" != 0 || -z "$mb" ]]; then log_fail "TEST-3707: cannot compute the merge-base with origin/main (failing closed)"; fi
+  added="$( { git -C "$PROJECT_ROOT" diff --name-status "$mb" -- .aai | awk '$1 ~ /^A/ {print $2}'; git -C "$PROJECT_ROOT" ls-files --others --exclude-standard -- .aai; } )"
+  # lib/project-config.mjs is the one .aai file the pre-extension ride (SPEC-0290 D-LIB) added; the extension adds none
+  added="$(printf '%s\n' "$added" | grep -vxF '.aai/scripts/lib/project-config.mjs' || true)"
+  [[ -z "$added" ]] || log_fail "TEST-3707: the change adds a path under .aai/: $added"
+  prompts="$( { git -C "$PROJECT_ROOT" diff --name-only "$mb" -- .aai; git -C "$PROJECT_ROOT" ls-files --others --exclude-standard -- .aai; } | grep -E '^\.aai/[^/]*\.prompt\.md$' || true )"
+  [[ -z "$prompts" ]] || log_fail "TEST-3707: the change touches a .aai/*.prompt.md file: $prompts"
+  log_pass "TEST-3707: suite reach, vendored deps clean, no new .aai path and no prompt change"
+}
+
 main() {
   check_deps
   test_3681_resolution_matrix
@@ -1219,6 +1272,8 @@ main() {
   test_3699_metrics_report_seam
   test_3700_notes_after_final_model
   test_3702_cross_vendor_override
+  test_3706_docs_pricing
+  test_3707_distribution
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
