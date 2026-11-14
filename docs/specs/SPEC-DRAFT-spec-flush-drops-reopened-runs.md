@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: c2fdd7247116af721f123073478200bf24ef1e21e4518dec32a1bc50769aedaa
+frozen_sha256: 7b9a1e1b10008c0dd46f53dae3d5c5fe809834847c58da9649164e265d2232d4
 ceremony_level: 2
 links:
   requirement: flush-drops-reopened-runs
@@ -380,7 +380,7 @@ Edge cases:
 | TEST-3724 | Spec-AC-03 | integration | tests/skills/test-aai-pr-waiver.sh | TEST-17 arms c, d and e with the D7 cheat fixture (the same-day line now holds the STATE run): each still takes the RESUME branch, appends nothing and reaches the gate with the same verdict as before | target `.aai/scripts/metrics-flush.mjs`; `sed:s/const fresh = freshRuns\(entry.runs, prior.counts\);/const fresh = entry.runs;/` makes the cheat arm append a line and its premise must fail | green |
 | TEST-3725 | Spec-AC-04 | integration | tests/skills/test-aai-pr-waiver.sh | real flush of ARCH-1 with HOLD_REF in progress, then state.mjs append-run and set-validation pass for ARCH-1, then a real flush one hour later on the same day; asserts two same-day PASS lines with segments 1 and 2, the archive record at the second flush instant, and validation-waiver.mjs --state exits 0 with validation_archived_pass; a control appends a byte copy of the segment-2 line and the gate refuses archive_ledger_ambiguous | target `.aai/scripts/validation-waiver.mjs`; `sed:s/if \(new Set\(segs\).size !== segs.length\)/if (hits.length > 1)/` restores the old count and the case must fail | green |
 | TEST-3726 | Spec-AC-05 | integration | tests/skills/test-aai-metrics.sh | reads the real docs/ai/METRICS.jsonl: exactly one line for consumer-config-routing-override carries reconstructed with non-empty source and reason; its eleven runs match the D8 table field by field in order, tokens_in and tokens_out are null, tokens_total sums to 1799150, flush_segment is 2; and none of its run identities appears in another line for the ref | target `docs/ai/METRICS.jsonl`; `sed:s/"tokens_total":80793/"tokens_total":80794/` breaks the R06 row and the sum and the case must fail | green |
-| TEST-3727 | Spec-AC-06 | unit | tests/skills/test-aai-metrics.sh | CHANGELOG.md holds exactly one heading matching an unreleased or vYYYY.MM.DD bracket, an em dash and fix: naming the reopened-ride flush; docs/product/telemetry.md mentions flush_segment and that refused runs are kept in STATE | target `CHANGELOG.md`; `sed:s/^## \[unreleased\] — fix: a flush after a reopen/## [unreleased] — fix: x/` removes the named heading and the case must fail | green |
+| TEST-3727 | Spec-AC-06 | unit | tests/skills/test-aai-metrics.sh | CHANGELOG.md holds exactly one heading matching an unreleased or vYYYY.MM.DD bracket, an em dash and fix: naming the reopened-ride flush; docs/product/telemetry.md mentions flush_segment and that refused runs are kept in STATE | target `CHANGELOG.md`; `sed:s/## \[unreleased\] — fix: a flush after a reopen/## [unreleased] — fix: x/` removes the named heading and the case must fail | green |
 
 Seams crossed (each by a real producer and a real reader):
 - `state.mjs append-run` / `set-validation` (producer) to `metrics-flush.mjs`

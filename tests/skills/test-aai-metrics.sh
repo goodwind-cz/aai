@@ -4245,20 +4245,20 @@ test_3720_reopen_flush_writes_continuation() {
   write_flush_state "$S" single
   write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
   run_flush "$d"
-  [[ "$EC" == 0 ]] || log_fail "first flush must exit 0 (got $EC): $(cat "$OUT")"
-  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "first flush must write one line"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3720: first flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "TEST-3720: first flush must write one line"
   grep -v '^#' "$d/docs/ai/METRICS.jsonl" | sed -n 1p > "$d/line1.before"
   (cd "$PROJECT_ROOT" \
     && node .aai/scripts/state.mjs set-focus --type intake_change --ref CHANGE-0001 --path docs/issues/CHANGE-0001-golden.md --state "$S" \
     && node .aai/scripts/state.mjs append-run --ref CHANGE-0001 --role Validation --model claude-sonnet-5 --started 2026-07-15T11:40:00Z --verdict pass --tokens-in 10 --tokens-out 10 --state "$S" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
     && node .aai/scripts/state.mjs set-validation --status pass --ref CHANGE-0001 --state "$S") > "$d/reopen.log" 2>&1 \
-    || log_fail "reopen CLIs must succeed: $(cat "$d/reopen.log")"
+    || log_fail "TEST-3720: reopen CLIs must succeed: $(cat "$d/reopen.log")"
   NOW_PIN="2030-01-01T00:00:00Z" run_flush "$d"
-  [[ "$EC" == 0 ]] || log_fail "second flush must exit 0 (got $EC): $(cat "$OUT")"
-  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "second flush must append exactly one continuation line (ledger has $(ledger_lines "$d")): $(cat "$OUT")"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3720: second flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3720: second flush must append exactly one continuation line (ledger has $(ledger_lines "$d")): $(cat "$OUT")"
   grep -v '^#' "$d/docs/ai/METRICS.jsonl" | sed -n 1p > "$d/line1.after"
-  cmp -s "$d/line1.before" "$d/line1.after" || log_fail "line 1 bytes must be unchanged"
-  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "continuation line shape is wrong"
+  cmp -s "$d/line1.before" "$d/line1.after" || log_fail "TEST-3720: line 1 bytes must be unchanged"
+  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "TEST-3720: continuation line shape is wrong"
 const fs = require('fs');
 const L = fs.readFileSync(process.argv[2], 'utf8').split('\n').filter(l => l.startsWith('{')).map(l => JSON.parse(l));
 if (L.length !== 2) process.exit(1);
@@ -4267,11 +4267,11 @@ if (L[1].flush_segment !== 2) { console.error('line 2 flush_segment must be 2');
 const r = L[1].agent_runs;
 if (r.length !== 1 || r[0].role !== 'Validation' || r[0].started_utc !== '2026-07-15T11:40:00Z') { console.error('line 2 runs must be exactly the new run'); process.exit(1); }
 NODE
-  grep -qE '^ {4}CHANGE-0001:' "$S" && log_fail "STATE must hold no metrics entry for the ref"
-  grep -qF "Flushed: CHANGE-0001" "$OUT" || log_fail "stdout must carry the Flushed line: $(cat "$OUT")"
+  grep -qE '^ {4}CHANGE-0001:' "$S" && log_fail "TEST-3720: STATE must hold no metrics entry for the ref"
+  grep -qF "Flushed: CHANGE-0001" "$OUT" || log_fail "TEST-3720: stdout must carry the Flushed line: $(cat "$OUT")"
   grep -qF "continuation: CHANGE-0001 flush_segment 2 (1 runs not in the ledger before this flush)" "$OUT" \
-    || log_fail "stdout must carry the continuation line: $(cat "$OUT")"
-  [[ "$(grep -c '^RESUME' "$OUT" || true)" == 0 ]] || log_fail "no RESUME line for a continuation: $(cat "$OUT")"
+    || log_fail "TEST-3720: stdout must carry the continuation line: $(cat "$OUT")"
+  [[ "$(grep -c '^RESUME' "$OUT" || true)" == 0 ]] || log_fail "TEST-3720: no RESUME line for a continuation: $(cat "$OUT")"
   log_pass "A reopened ref flushes as a segment-2 continuation holding only the new run (TEST-3720)"
 }
 
@@ -4281,18 +4281,18 @@ test_3721_continuation_holds_only_fresh_runs() {
   # (a) four ledgered runs + one new run -> only the new one.
   d="$(mk_flushed_then_reopened t3721a)"
   run_flush "$d" --dry-run
-  [[ "$EC" == 0 ]] || log_fail "(a) dry-run must exit 0 (got $EC): $(cat "$OUT")"
-  node - "$OUT" <<'NODE' || log_fail "(a) dry-run must list the ref under flush, not resume, with flush_segment"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3721: (a) dry-run must exit 0 (got $EC): $(cat "$OUT")"
+  node - "$OUT" <<'NODE' || log_fail "TEST-3721: (a) dry-run must list the ref under flush, not resume, with flush_segment"
 const raw = require('fs').readFileSync(process.argv[2], 'utf8');
 const o = JSON.parse(raw.slice(raw.indexOf('{')));
 if (o.flush[0] !== 'CHANGE-0001' || o.resume.length !== 0) process.exit(1);
 if (o.entries[0].flush_segment !== 2 || o.entries[0].agent_runs.length !== 1) process.exit(1);
 NODE
   run_flush "$d"
-  [[ "$EC" == 0 ]] || log_fail "(a) flush must exit 0 (got $EC): $(cat "$OUT")"
-  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "(a) one continuation line expected"
-  [[ "$(grep -c '"flush_segment":2' "$d/docs/ai/METRICS.jsonl" || true)" == 1 ]] || log_fail "(a) segment 2 line expected"
-  [[ "$(grep -c '"role":"Planning"' "$d/docs/ai/METRICS.jsonl" || true)" == 1 ]] || log_fail "(a) already-ledgered runs must not be re-appended"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3721: (a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3721: (a) one continuation line expected"
+  [[ "$(grep -c '"flush_segment":2' "$d/docs/ai/METRICS.jsonl" || true)" == 1 ]] || log_fail "TEST-3721: (a) segment 2 line expected"
+  [[ "$(grep -c '"role":"Planning"' "$d/docs/ai/METRICS.jsonl" || true)" == 1 ]] || log_fail "TEST-3721: (a) already-ledgered runs must not be re-appended"
 
   # (b) one run held twice in STATE, once in the ledger -> one copy continues.
   d="$(mk_repo t3721b)"
@@ -4302,9 +4302,9 @@ NODE
   write_flush_state "$d/docs/ai/STATE.yaml" single
   add_state_run "$d/docs/ai/STATE.yaml" Planning "claude-opus-4-8[1m]" 2026-07-15T10:00:00Z 2026-07-15T10:02:00Z
   run_flush "$d"
-  [[ "$EC" == 0 ]] || log_fail "(b) flush must exit 0 (got $EC): $(cat "$OUT")"
-  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "(b) one continuation line expected: $(cat "$OUT")"
-  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "(b) continuation must hold exactly one copy of the duplicated run"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3721: (b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3721: (b) one continuation line expected: $(cat "$OUT")"
+  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "TEST-3721: (b) continuation must hold exactly one copy of the duplicated run"
 const L = require('fs').readFileSync(process.argv[2], 'utf8').split('\n').filter(l => l.startsWith('{')).map(l => JSON.parse(l));
 if (L[1].agent_runs.length !== 1 || L[1].agent_runs[0].role !== 'Planning' || L[1].flush_segment !== 2) process.exit(1);
 NODE
@@ -4314,9 +4314,9 @@ NODE
   write_flush_state "$d/docs/ai/STATE.yaml" single
   printf '%s\n' '{"date_utc":"2026-07-04T10:04:21Z","ref_id":"CHANGE-0001","title":"Historical final summary","agent_runs":[],"totals":{},"verdict":"PASS"}' >> "$d/docs/ai/METRICS.jsonl"
   run_flush "$d"
-  [[ "$EC" == 0 ]] || log_fail "(c) flush must exit 0 (got $EC): $(cat "$OUT")"
-  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "(c) the four runs must flush as a continuation: $(cat "$OUT")"
-  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "(c) continuation must hold the four STATE runs as segment 2"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3721: (c) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3721: (c) the four runs must flush as a continuation: $(cat "$OUT")"
+  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "TEST-3721: (c) continuation must hold the four STATE runs as segment 2"
 const L = require('fs').readFileSync(process.argv[2], 'utf8').split('\n').filter(l => l.startsWith('{')).map(l => JSON.parse(l));
 if (L[1].agent_runs.length !== 4 || L[1].flush_segment !== 2) process.exit(1);
 NODE
@@ -4327,13 +4327,13 @@ test_3722_refused_continuation_stays_in_state() {
   log_info "Test: a continuation the gates refuse appends nothing and leaves STATE byte-identical (TEST-3722, Spec-AC-02)..."
   local d
   check_refusal() {  # <label> <dir>
-    [[ "$EC" == 0 ]] || log_fail "$1: must exit 0 (got $EC): $(cat "$OUT")"
-    [[ "$(ledger_lines "$2")" == 1 ]] || log_fail "$1: nothing may be appended"
-    cmp -s "$2/docs/ai/METRICS.jsonl" "$2/ledger.before" || log_fail "$1: ledger must be byte-identical"
-    cmp -s "$2/docs/ai/STATE.yaml" "$2/state.before" || log_fail "$1: STATE must be byte-identical"
+    [[ "$EC" == 0 ]] || log_fail "TEST-3722: $1: must exit 0 (got $EC): $(cat "$OUT")"
+    [[ "$(ledger_lines "$2")" == 1 ]] || log_fail "TEST-3722: $1: nothing may be appended"
+    cmp -s "$2/docs/ai/METRICS.jsonl" "$2/ledger.before" || log_fail "TEST-3722: $1: ledger must be byte-identical"
+    cmp -s "$2/docs/ai/STATE.yaml" "$2/state.before" || log_fail "TEST-3722: $1: STATE must be byte-identical"
     grep -qF "SKIP CHANGE-0001: 1 agent_runs not in METRICS.jsonl kept in STATE (continuation of an earlier flush) — " "$OUT" \
-      || log_fail "$1: SKIP line must name the kept runs and the gate reason: $(cat "$OUT")"
-    [[ "$(grep -c -e 'Partial-flush' -e 'Full reset' "$OUT" || true)" == 0 ]] || log_fail "$1: no reset line expected: $(cat "$OUT")"
+      || log_fail "TEST-3722: $1: SKIP line must name the kept runs and the gate reason: $(cat "$OUT")"
+    [[ "$(grep -c -e 'Partial-flush' -e 'Full reset' "$OUT" || true)" == 0 ]] || log_fail "TEST-3722: $1: no reset line expected: $(cat "$OUT")"
   }
   # (a) validation fail
   d="$(mk_flushed_then_reopened t3722a fail pass)"
@@ -4361,7 +4361,7 @@ test_3723_crash_resume_equals_clean_flush() {
   write_flush_state "$a/docs/ai/STATE.yaml" single
   write_ticks "$a/docs/ai/LOOP_TICKS.jsonl"
   run_flush "$a"
-  [[ "$EC" == 0 ]] || log_fail "clean flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3723: clean flush must exit 0 (got $EC): $(cat "$OUT")"
   b="$(mk_repo t3723crash)"
   write_flush_state "$b/docs/ai/STATE.yaml" single
   write_ticks "$b/docs/ai/LOOP_TICKS.jsonl"
@@ -4370,13 +4370,13 @@ test_3723_crash_resume_equals_clean_flush() {
     --state "$b/docs/ai/STATE.yaml" --metrics "$b/docs/ai/METRICS.jsonl" \
     --ticks "$b/docs/ai/LOOP_TICKS.jsonl" --pricing "$b/PRICING.yaml" \
     --events "$b/docs/ai/EVENTS.jsonl" --now "$NOW_PIN" > "$b/crash.log" 2>&1) || EC=$?
-  [[ "$EC" != 0 ]] || log_fail "injected crash must not exit 0"
+  [[ "$EC" != 0 ]] || log_fail "TEST-3723: injected crash must not exit 0"
   run_flush "$b"
-  [[ "$EC" == 0 ]] || log_fail "resume must exit 0 (got $EC): $(cat "$OUT")"
-  cmp -s "$a/docs/ai/STATE.yaml" "$b/docs/ai/STATE.yaml" || log_fail "resumed STATE must equal the clean flush's STATE"
-  cmp -s "$a/docs/ai/METRICS.jsonl" "$b/docs/ai/METRICS.jsonl" || log_fail "resumed ledger must equal the clean flush's ledger"
-  grep -qF "RESUME CHANGE-0001" "$OUT" || log_fail "resume output must hold RESUME: $(cat "$OUT")"
-  [[ "$(grep -c '^Flushed' "$OUT" || true)" == 0 ]] || log_fail "resume output must hold no Flushed line: $(cat "$OUT")"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3723: resume must exit 0 (got $EC): $(cat "$OUT")"
+  cmp -s "$a/docs/ai/STATE.yaml" "$b/docs/ai/STATE.yaml" || log_fail "TEST-3723: resumed STATE must equal the clean flush's STATE"
+  cmp -s "$a/docs/ai/METRICS.jsonl" "$b/docs/ai/METRICS.jsonl" || log_fail "TEST-3723: resumed ledger must equal the clean flush's ledger"
+  grep -qF "RESUME CHANGE-0001" "$OUT" || log_fail "TEST-3723: resume output must hold RESUME: $(cat "$OUT")"
+  [[ "$(grep -c '^Flushed' "$OUT" || true)" == 0 ]] || log_fail "TEST-3723: resume output must hold no Flushed line: $(cat "$OUT")"
   test_013_legacy_timestamp_summary_is_cleanup_only
   log_pass "Crash resume is byte-identical to a clean flush; historical-timestamp arm stays cleanup-only (TEST-3723)"
 }
@@ -4384,9 +4384,9 @@ test_3723_crash_resume_equals_clean_flush() {
 test_3726_incident_runs_are_reconstructed_in_the_ledger() {
   log_info "Test: the real ledger holds the 11 reconstructed consumer-config-routing-override runs (TEST-3726, Spec-AC-05)..."
   local ledger="$PROJECT_ROOT/docs/ai/METRICS.jsonl"
-  [[ -f "$ledger" ]] || log_fail "docs/ai/METRICS.jsonl missing"
+  [[ -f "$ledger" ]] || log_fail "TEST-3726: docs/ai/METRICS.jsonl missing"
   # The D8 table of spec-flush-drops-reopened-runs: role|model_id|started|ended|duration|tokens_total|prompt_hash|verdict
-  node - "$ledger" <<'NODE' || log_fail "reconstructed ledger line does not match the D8 table"
+  node - "$ledger" <<'NODE' || log_fail "TEST-3726: reconstructed ledger line does not match the D8 table"
 const fs = require('fs');
 const TABLE = [
   ['Planning','claude-opus-5-5','2026-11-14T06:17:03Z','2026-11-14T06:31:04Z',841,234771,undefined,'none'],
@@ -4433,13 +4433,13 @@ NODE
 test_3727_changelog_and_product_doc_describe_the_continuation() {
   log_info "Test: CHANGELOG holds one fix heading for the reopened-ride flush and telemetry.md describes it (TEST-3727, Spec-AC-06)..."
   local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/telemetry.md"
-  [[ -f "$cl" && -f "$doc" ]] || log_fail "CHANGELOG.md or docs/product/telemetry.md missing"
+  [[ -f "$cl" && -f "$doc" ]] || log_fail "TEST-3727: CHANGELOG.md or docs/product/telemetry.md missing"
   local n
   n=$(LC_ALL=C awk '/^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] \xe2\x80\x94 fix: a flush after a reopen/ { c++ } END { print c + 0 }' "$cl")
-  [[ "$n" == "1" ]] || log_fail "CHANGELOG.md has $n headings for the reopened-ride flush fix, expected exactly 1"
+  [[ "$n" == "1" ]] || log_fail "TEST-3727: CHANGELOG.md has $n headings for the reopened-ride flush fix, expected exactly 1"
   local needle
   for needle in "flush_segment" "continuation" "kept in STATE" "reconstructed"; do
-    /usr/bin/grep -qF -- "$needle" "$doc" || log_fail "docs/product/telemetry.md does not mention: $needle"
+    /usr/bin/grep -qF -- "$needle" "$doc" || log_fail "TEST-3727: docs/product/telemetry.md does not mention: $needle"
   done
   log_pass "CHANGELOG has one fix heading and telemetry.md describes the continuation line (TEST-3727)"
 }
