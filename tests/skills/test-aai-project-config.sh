@@ -298,13 +298,22 @@ test_3687_malformed_all_or_nothing() {
   mal_case lane-key          'line 3: unknown role' "${ok}  Validation@lightweight: claude-sonnet-5-5\n"
   mal_case null-model        'line 3: invalid model id' "${ok}  Planning: null\n"
   mal_case hash-model        'line 3: invalid model id' "${ok}  Planning: ab#c\n"
+  # Review NB-2: a path that exists but cannot be read (here a directory) is
+  # malformed and NOTEd, never silently treated as absent.
+  local u; u="$(mk_root t3687-unreadable)"
+  mkdir -p "$u/docs/ai/project-config.yaml"
+  run_d "$u" claude
+  [[ "$EC" == 0 ]] || log_fail "TEST-3687[unreadable]: dispatch exited $EC: $(cat "$ERR")"
+  jassert "$OUT" 'o.suggested_model === "claude-opus-5-5" && !("model_override" in o)'
+  [[ "$(count_lines 'unreadable (EISDIR)' "$ERR")" == 1 ]] || log_fail "TEST-3687[unreadable]: stderr lacks the unreadable NOTE: $(cat "$ERR")"
+  [[ "$(count_lines 'no override from it is applied' "$ERR")" == 1 ]] || log_fail "TEST-3687[unreadable]: stderr lacks the no-override NOTE: $(cat "$ERR")"
   local d; d="$(mk_root t3687-positive)"
   printf '\357\273\277# project-owned\r\nrouting_override@claude:\r\n  # indented comment\r\n  Code Review: "claude-sonnet-5-5"\r\n  Planning: '"'claude-sonnet-5-5'"'\r\n' > "$d/docs/ai/project-config.yaml"
   run_d "$d" claude
   [[ "$EC" == 0 ]] || log_fail "TEST-3687: positive control exited $EC: $(cat "$ERR")"
   jassert "$OUT" 'o.suggested_model === "claude-sonnet-5-5" && o.model_override.model === "claude-sonnet-5-5"'
   [[ ! -s "$ERR" ]] || log_fail "TEST-3687: positive control printed stderr: $(cat "$ERR")"
-  log_pass "TEST-3687: 12 malformed files resolve the shipped id with line-and-reason NOTEs; the BOM+CRLF+quoted file applies"
+  log_pass "TEST-3687: 12 malformed files and an unreadable path resolve the shipped id with NOTEs; the BOM+CRLF+quoted file applies"
 }
 
 # --- TEST-3694 (Spec-AC-06) ---------------------------------------------------
@@ -592,8 +601,11 @@ test_3690_upgrading_note() {
   [[ -n "$base" ]] || log_fail "TEST-3690: cannot compute the merge-base of HEAD and origin/main (fail closed)"
   out="$(node "$FRESHNESS" stamp-guard --base "$base" --root "$PROJECT_ROOT" 2>&1)" || ec=$?
   [[ "$ec" == 0 ]] || log_fail "TEST-3690: stamp-guard exited $ec: $out"
-  grep -qF 'UNCHANGED .aai/system/MODEL_ROUTING.yaml' <<<"$out" || log_fail "TEST-3690: stamp-guard did not report MODEL_ROUTING UNCHANGED: $out"
-  log_pass "TEST-3690: UPGRADING note names the consumer config, no re-apply, citations kept, stamp-guard UNCHANGED"
+  # The gate, not this ride's comment-only fact: a later correctly re-stamped
+  # routing refresh prints CHANGED-STAMPED and must stay green (review CR-1).
+  if grep -qF 'VIOLATION .aai/system/MODEL_ROUTING.yaml' <<<"$out"; then log_fail "TEST-3690: stamp-guard reported a MODEL_ROUTING violation: $out"; fi
+  grep -qE '^(UNCHANGED|RESTAMPED|CHANGED-STAMPED) \.aai/system/MODEL_ROUTING\.yaml$' <<<"$out" || log_fail "TEST-3690: stamp-guard printed no verdict line for MODEL_ROUTING: $out"
+  log_pass "TEST-3690: UPGRADING note names the consumer config, no re-apply, citations kept, stamp-guard passes"
 }
 
 # --- TEST-3692 (Spec-AC-11) — core sync seam -----------------------------------

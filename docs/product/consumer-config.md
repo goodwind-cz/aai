@@ -59,7 +59,7 @@ to the shipped table.
   `model_override: { file, harness, role, model }` only when a row applied, and
   sets `suggested_model` to that model; the validator-independence backstop
   still runs after the override. Notes go to stderr as
-  `orchestration-dispatch: NOTE - docs/ai/project-config.yaml ...`.
+  `orchestration-dispatch: NOTE — docs/ai/project-config.yaml ...`.
 - Doctor: category `CAT-22 Project Config` (WARN-only, absent file not
   reported); see `docs/product/aai-doctor.md`.
 - Ownership: no sync or update writes `docs/ai/project-config.yaml` (bash or
@@ -72,6 +72,12 @@ to the shipped table.
   is configurable here yet.
 - It does not make an unknown or retired model id work; the vendor decides.
 - The file is not created by any command; the project writes it.
+- All or nothing includes unknown sections. A file that carries a section a
+  newer AAI added, read by an older AAI, applies no override at all until that
+  project updates AAI (the dispatch NOTE and the CAT-22 WARN say so). This is
+  deliberate: a mistyped section name must never be silently skipped.
+- A path that exists but cannot be read (a directory, no read permission) is
+  treated as malformed, not as absent: NOTE and WARN, no override applied.
 
 ## Links
 

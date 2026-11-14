@@ -1580,7 +1580,8 @@ const postMergeRecord = "a90cdce977d5";
 // is re-filed under the small-pairs ride (which its merge signs). The ledger is
 // append-only, so the original cannot be withdrawn, only exempted here.
 const supersededRecord = "91c688d47ba3";
-const unsignedMerged = rows.filter(r => r.amendment_class === "contract" && !heldOut(r) && r.record_key !== postMergeRecord && r.record_key !== supersededRecord && r.bucket !== "signed" && rideMerged(r.ref_id));
+const isMergedRide = ref => (exampleMerged && ref === unmergedRef) || rideMerged(ref);
+const unsignedMerged = rows.filter(r => r.amendment_class === "contract" && !heldOut(r) && r.record_key !== postMergeRecord && r.record_key !== supersededRecord && r.bucket !== "signed" && isMergedRide(r.ref_id));
 if (unsignedMerged.length > 0) {
   console.log(`FAIL ${unsignedMerged.length} merged contract amendments not signed: ${unsignedMerged.map(u => u.record_key).slice(0, 5).join(", ")}`);
   process.exit(1);

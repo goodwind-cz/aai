@@ -109,8 +109,14 @@ export function parseProjectConfig(text) {
 export function loadProjectConfig(root) {
   const file = path.join(root, PROJECT_CONFIG_REL);
   let text;
-  try { text = fs.readFileSync(file, 'utf8'); } catch {
-    return { status: 'absent', file: PROJECT_CONFIG_REL, overrides: Object.create(null), notes: [], errors: [] };
+  try { text = fs.readFileSync(file, 'utf8'); } catch (error) {
+    // Only a missing file is absence. Anything else at the path (a directory,
+    // an unreadable file) is a config the consumer meant to have and cannot
+    // be read: malformed, so dispatch NOTEs it and CAT-22 WARNs, never silence.
+    if (error && error.code === 'ENOENT') {
+      return { status: 'absent', file: PROJECT_CONFIG_REL, overrides: Object.create(null), notes: [], errors: [] };
+    }
+    return { status: 'malformed', file: PROJECT_CONFIG_REL, overrides: Object.create(null), notes: [], errors: [`unreadable (${(error && error.code) || 'read error'})`] };
   }
   const r = parseProjectConfig(text);
   return { status: r.ok ? 'ok' : 'malformed', file: PROJECT_CONFIG_REL, overrides: r.overrides, notes: r.notes, errors: r.errors };
