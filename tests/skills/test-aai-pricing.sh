@@ -185,8 +185,10 @@ const catalog = [
   'claude-fable-5-1', 'claude-fable-5-2', 'claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5',
   'gpt-5.6-sol', 'gpt-5.6-terra', 'gemini-3.8-flash', 'grok-4.7',
   'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra',
+  // Priced from the Cursor rate card since the 2026-11-14 refresh (was omitted).
+  'cursor-grok-4.6',
 ];
-const omitted = ['composer-2.5', 'cursor-grok-4.6', 'muse-spark-1.3'];
+const omitted = ['composer-2.5', 'muse-spark-1.3'];
 const pricingText = fs.readFileSync(pricingPath, 'utf8');
 for (const id of catalog) {
   const e = models[id];

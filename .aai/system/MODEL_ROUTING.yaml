@@ -128,7 +128,7 @@
 # column-0 key ends the active section); it never changes model or effort
 # resolution. Whoever changes a routed id re-stamps it in the same change.
 routing_meta:
-  last_updated_utc: "2026-11-13T09:15:58Z"
+  last_updated_utc: "2026-11-14T21:52:16Z"
   cadence_days: 30
 
 # --- claude -------------------------------------------------------------
@@ -185,6 +185,10 @@ validation_alternate@codex: gpt-6-sol
 # PRICING.yaml has two members, not three (disclosed, not papered over with a
 # previous-generation id) — the mechanical-vs-standard distinction survives
 # on the harness-independent effort axis (effort_tiers/effort_roles below).
+# Refresh 2026-11-14: gemini-3-flash-preview is still served (no shutdown
+# date), but Google calls it legacy and names gemini-3.6-flash as its
+# replacement ($0.75/$3.75, $1.50/$7.50 from 2027-01-01). Moving to it is a
+# cost decision left to the owner, as is any Gemini 4 binding.
 tiers@gemini:
   mechanical: gemini-3-flash-preview
   standard: gemini-3-flash-preview

@@ -30,6 +30,30 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — chore: refresh model routing and pricing tables (2026-11)
+
+Every row of `.aai/system/PRICING.yaml` was re-read against the vendors' own
+pricing and deprecation pages on 2026-11-14 and both tables were re-stamped.
+Routed costs change for anyone whose metrics hold these models:
+
+- `o3` corrected from $10/$40 to $2/$8 per 1M tokens (OpenAI pricing page).
+- `cursor-grok-4.6` is now priced at $2/$6 per 1M from Cursor's own rate card
+  (it was unpriced), so Cursor Grok runs are costed.
+- `gpt-5.5` gets its own row at $5/$30; runs of it were costed at the `gpt-5`
+  rate ($1.25/$10) through the longest-prefix match.
+- `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-1.5-pro`,
+  `gemini-3-pro-preview` and `o4-mini` are shut down and no longer on the
+  vendor pricing pages: they keep their last rates and are marked
+  `unverified_utc`.
+- Deprecation and shutdown dates are noted on `gpt-4o`, `gpt-4o-mini`,
+  `gpt-5`, `gpt-5-mini`, `gpt-5.3-codex`, `o3`, `gemini-2.5-pro` and
+  `gemini-2.5-flash`.
+
+No routed model id changed: every bound id on claude, codex and gemini is
+still current. Newer models (Gemini 4, `gemini-3.6-flash`, `gpt-5.6-luna`,
+`deepseek-v4-pro`) are not bound; choosing them is a cost decision for the
+owner.
+
 ## [unreleased] — feat(config): a project-owned consumer config keeps a routing exception that /aai-update never overwrites (CHANGE-0257 / SPEC-0290)
 
 - New file `docs/ai/project-config.yaml`, owned by the consuming project and outside `.aai/`, so no sync or update writes, seeds or deletes it. Its first tenant is a per-harness routing override: a section `routing_override@<harness>:` with rows `  <Role>: <model-id>` for the harnesses claude, codex, gemini and cursor. `orchestration-dispatch.mjs` applies a matching row on top of the shipped `MODEL_ROUTING.yaml` for the running harness only and reports it in an additive `model_override` key; effort is not overridable and a project without the file sees byte-identical dispatch output.
