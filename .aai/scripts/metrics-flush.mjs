@@ -107,6 +107,20 @@
 // --ref <id> naming a ref absent from metrics.work_items is an exit 1 refusal
 // (it used to be an empty exit 0), pointing at --release.
 //
+// --recover-archives [--archive <file-or-dir>]... [--dry-run] (recover-archived-state-runs):
+// the sanctioned way to put role runs that only ARCHIVED STATE copies still hold
+// (docs/ai/archive/**, reports, checkpoints) into METRICS.jsonl. Structurally
+// DISJOINT from the flush loop (handleRecoverArchives, entered right after
+// parseArgs); --state is READ ONLY (focus skip, live runs win), STATE, EVENTS and
+// LOOP_TICKS are never written. Runs are keyed (ref, role, started_utc), the
+// first-sorted copy wins; a run whose ref already holds that role and started_utc
+// in the ledger is held and never written again, so a second run appends nothing.
+// One line per ref goes through buildEntry, then verdict, verdict_basis, strategy
+// and reliability.verdict_after_last_implementer are null (never a PASS) and a
+// `reconstructed` object {source, reason, recovered_utc} closes the line. The
+// current_focus ref is skipped. Exit 0 recovered / nothing / dry-run, 1 --state
+// absent or round-trip guard, 2 usage.
+//
 // Exit codes: 0 flushed / nothing to flush / retired / released (or dry-run plan
 // printed), 1 integrity refusal / post-commit check failure / retire or release
 // refused (would flush, or ref absent) / --ref not a candidate — original
@@ -194,6 +208,8 @@ function parseArgs(argv) {
     retire: null,
     release: null,
     reason: null,
+    recoverArchives: false,
+    archive: [],
     now: process.env.AAI_FLUSH_NOW ?? null,
   };
   const valueFlags = { '--state': 'state', '--metrics': 'metrics', '--ticks': 'ticks', '--pricing': 'pricing', '--events': 'events', '--ref': 'ref', '--retire': 'retire', '--release': 'release', '--reason': 'reason', '--now': 'now' };
@@ -201,6 +217,14 @@ function parseArgs(argv) {
     const tok = argv[i];
     if (tok === '--dry-run') { opts.dryRun = true; continue; }
     if (tok === '--sweep') { opts.sweep = true; continue; }
+    if (tok === '--recover-archives') { opts.recoverArchives = true; continue; }
+    if (tok === '--archive') {
+      const v = argv[i + 1];
+      if (v === undefined || v.startsWith('--')) fail(`${tok} requires a value`);
+      opts.archive.push(v);
+      i += 1;
+      continue;
+    }
     if (tok in valueFlags) {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) fail(`${tok} requires a value`);
@@ -208,7 +232,13 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
-    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --retire --release --reason --now)`);
+    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --retire --release --reason --recover-archives --archive --now)`);
+  }
+  if (opts.archive.length > 0 && !opts.recoverArchives) {
+    fail('--archive is only valid with --recover-archives');
+  }
+  if (opts.recoverArchives && (opts.ref !== null || opts.sweep || opts.retire !== null || opts.release !== null)) {
+    fail('--recover-archives is mutually exclusive with --ref, --sweep, --retire and --release (it selects nothing by ref)');
   }
   if (opts.release !== null && opts.retire !== null) {
     fail('--release and --retire are mutually exclusive (release: closed work item with no flushable telemetry; retire: a metrics entry that is not a work item)');
@@ -1644,8 +1674,238 @@ function rGuardForensicWarnings(flushedRefs, strategySel, strategySrc, eventsPat
 
 // --- main -----------------------------------------------------------------------------------
 
+// --- --recover-archives (recover-archived-state-runs D2-D5) --------------------------
+// Role runs that only an ARCHIVED STATE copy still holds are appended to METRICS.jsonl
+// as one historical line per ref, built by the unchanged buildEntry and marked
+// `reconstructed`. The verdict fields are null: a recovered line is never a PASS.
+
+const RECOVERY_VERDICT = null;
+const RECOVERY_REASON = 'role runs held only by archived STATE copies; recovered by metrics-flush --recover-archives (recover-archived-state-runs); verdict unknown';
+const RECOVER_FIELDS = ['model_id', 'ended_utc', 'duration_seconds', 'tokens_in', 'tokens_out', 'tokens_total', 'cost_usd', 'note', 'verdict', 'prompt_hash', 'harness', 'requested_model', 'actual_model', 'requested_effort', 'effort_applied', 'cache_read_tokens', 'cache_creation_tokens', 'tdd_tests'];
+
+const roleStartKey = (ref, run) => JSON.stringify([ref, run.role ?? null, run.started_utc]);
+
+// Every STATE copy under the named paths, sorted by absolute path, each read once.
+// Directories are walked without following symbolic links.
+function archiveCopies(paths) {
+  const found = new Set();
+  const walk = (dir) => {
+    for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, d.name);
+      if (d.isDirectory()) walk(p);
+      else if (d.isFile() && d.name.startsWith('STATE') && d.name.includes('.yaml')) found.add(p);
+    }
+  };
+  for (const p of paths) {
+    if (fs.statSync(p).isDirectory()) walk(p); else found.add(p);
+  }
+  return [...found].sort();
+}
+
+// Exact ref_id summary lines of the ledger: the (ref, role, started_utc) keys
+// they hold (deliberately weaker than runIdentity) and how many lines each ref has.
+function ledgerRoleStarts(metricsPath) {
+  const held = new Set();
+  const lines = new Map();
+  if (!fs.existsSync(metricsPath)) return { held, lines };
+  for (const line of fs.readFileSync(metricsPath, 'utf8').split(/\r?\n/)) {
+    const t = line.trim();
+    if (t === '' || t.startsWith('#')) continue;
+    try {
+      const o = JSON.parse(t);
+      if (!isMetricsFlushRecord(o)) continue;
+      lines.set(o.ref_id, (lines.get(o.ref_id) ?? 0) + 1);
+      for (const r of Array.isArray(o.agent_runs) ? o.agent_runs : []) {
+        if (typeof r?.started_utc === 'string') held.add(roleStartKey(o.ref_id, r));
+      }
+    } catch { /* best-effort matching probe */ }
+  }
+  return { held, lines };
+}
+
+function sourceLabel(p) {
+  const posix = p.split(path.sep).join('/');
+  const idx = ['/docs/ai/', '/.git/aai/'].map((m) => posix.indexOf(m)).filter((i) => i >= 0);
+  if (idx.length > 0) return posix.slice(Math.min(...idx) + 1);
+  return path.relative(process.cwd(), p).split(path.sep).join('/');
+}
+
+function liveRun(live, ref, run) {
+  const e = live.find((x) => x.ref === ref);
+  return e ? e.runs.find((r) => r.role === run.role && r.started_utc === run.started_utc) : undefined;
+}
+
+function printRecoveryPlan(plan) {
+  console.log(JSON.stringify(plan, null, 2));
+}
+
+function handleRecoverArchives(opts) {
+  const cwd = process.cwd();
+  const statePath = path.resolve(cwd, opts.state);
+  const metricsPath = path.resolve(cwd, opts.metrics);
+  const pricingPath = path.resolve(cwd, opts.pricing);
+  const named = opts.archive.length > 0 ? opts.archive : ['docs/ai/archive'];
+  const roots = [];
+  for (const a of named) {
+    const abs = path.resolve(cwd, a);
+    if (!fs.existsSync(abs)) {
+      if (opts.archive.length === 0) continue; // absent default directory: no copies
+      fail(`--archive path not found: ${abs}`);
+    }
+    roots.push(abs);
+  }
+  if (!fs.existsSync(statePath)) fail(`STATE file not found: ${statePath} (needed read-only to tell which ride is in flight)`, 1);
+  const stateLines = splitLines(fs.readFileSync(statePath, 'utf8')).lines;
+  const focusRef = scalarOrNull(readScalar(stateLines, 'current_focus', 'ref_id'));
+  const live = parseMetricsEntries(stateLines).entries;
+
+  const nowMs = opts.now ? Date.parse(opts.now) : Date.now();
+  const nowIso = new Date(nowMs).toISOString().replace(/\.\d+Z$/, 'Z');
+  const pricing = loadCostPricing(cwd, pricingPath);
+  const notes = [];
+  const copies = archiveCopies(roots);
+
+  // D2 archive side: one run per (ref, role, started_utc), the first-sorted copy wins.
+  const byKey = new Map();
+  const readCopies = [];
+  for (const file of copies) {
+    let lines;
+    try { lines = splitLines(fs.readFileSync(file, 'utf8')).lines; } catch (err) {
+      notes.push(`NOTE ${file}: copy could not be read (${err.code ?? err.message}); skipped`);
+      continue;
+    }
+    const { entries } = parseMetricsEntries(lines);
+    readCopies.push({ file, lines, entries });
+    for (const e of entries) {
+      for (const run of e.runs) {
+        if (typeof run.started_utc !== 'string') {
+          notes.push(`NOTE ${e.ref} ${run.role ?? 'null'}: run without started_utc in ${file} not recovered`);
+          continue;
+        }
+        const key = roleStartKey(e.ref, run);
+        const cand = { ref: e.ref, run, file };
+        if (byKey.has(key)) { noteConflict(byKey.get(key), cand); continue; }
+        byKey.set(key, { ...cand, diff: new Set(), files: new Set([file]) });
+      }
+    }
+  }
+  for (const w of byKey.values()) {
+    if (w.diff.size > 0) {
+      notes.push(`NOTE ${w.ref} ${w.run.role} ${w.run.started_utc}: archive copies disagree on ${RECOVER_FIELDS.filter((f) => w.diff.has(f)).join(', ')}; kept ${w.file}`);
+    }
+  }
+
+  // D2 ledger side: a run is held when the ref's summary lines hold its role and started_utc.
+  const { held, lines: lineCount } = ledgerRoleStarts(metricsPath);
+  const perRef = new Map();
+  let notHeld = 0;
+  for (const w of byKey.values()) {
+    const { ref, run } = w;
+    if (held.has(roleStartKey(ref, run))) continue;
+    notHeld += 1;
+    if (!perRef.has(ref)) perRef.set(ref, []);
+    perRef.get(ref).push(w);
+  }
+  const runsHeld = byKey.size - notHeld;
+
+  const SKIP_FOCUS = `current focus of ${opts.state} (in flight; its runs reach the ledger through its own flush)`;
+  const skipped = {};
+  const built = [];
+  const liveLines = [];
+  let runsRecovered = 0;
+  let tokensTotal = 0;
+  for (const ref of [...perRef.keys()].sort()) {
+    if (ref === focusRef) { skipped[ref] = SKIP_FOCUS; continue; }
+    const items = perRef.get(ref);
+    const runs = items.map((w) => {
+      const { run } = w;
+      const src = liveRun(live, ref, run) ?? run;
+      return src;
+    });
+    const order = runs.map((r, i) => ({ r, i })).sort((a, b) => (a.r.started_utc < b.r.started_utc ? -1 : a.r.started_utc > b.r.started_utc ? 1
+      : (String(a.r.role) < String(b.r.role) ? -1 : String(a.r.role) > String(b.r.role) ? 1 : a.i - b.i))).map((x) => x.r);
+    const numOf = (field) => {
+      for (const c of readCopies) {
+        const e = c.entries.find((x) => x.ref === ref);
+        if (e && typeof e[field] === 'number') return e[field];
+      }
+      return null;
+    };
+    let title = null;
+    for (const c of readCopies) {
+      const doc = workItemDocPath(c.lines, ref);
+      const t = doc ? titleFor(cwd, doc) : null;
+      if (t !== null) { title = t; break; }
+    }
+    const instants = order.map((r) => (typeof r.ended_utc === 'string' ? r.ended_utc : r.started_utc)).sort();
+    const prior = { lines: lineCount.get(ref) ?? 0 };
+    const sources = [...new Set(items.flatMap((w) => [...w.files]).map(sourceLabel))].sort();
+    const { ledgerEntry } = buildEntry({
+      ref, runs: order, intake: numOf('intake'), reviews: numOf('reviews'),
+      segment: prior.lines > 0 ? prior.lines + 1 : undefined,
+    }, {
+      pricing, nowMs, dateUtc: instants[instants.length - 1].slice(0, 10), reviewsFromTicks: null,
+      title, strategy: null, waiver: null, verdictBasis: null, eventsPath: null, vRef: null, vRunAt: null,
+    });
+    ledgerEntry.strategy = null;
+    ledgerEntry.verdict_basis = null;
+    ledgerEntry.verdict = RECOVERY_VERDICT;
+    ledgerEntry.reliability.verdict_after_last_implementer = null;
+    ledgerEntry.reconstructed = { source: sources.join(';'), reason: RECOVERY_REASON, recovered_utc: nowIso };
+    const roundTrip = JSON.stringify(JSON.parse(JSON.stringify(ledgerEntry)));
+    if (roundTrip !== JSON.stringify(ledgerEntry)) fail(`internal guard: recovery entry for ${ref} is not JSON-round-trip stable — refusing to append`, 1);
+    built.push(ledgerEntry);
+    runsRecovered += order.length;
+    for (const r of ledgerEntry.agent_runs) if (typeof r.tokens_total === 'number') tokensTotal += r.tokens_total;
+    const liveHeld = live.find((x) => x.ref === ref);
+    const liveCount = liveHeld ? order.filter((r) => liveHeld.runs.includes(r)).length : 0;
+    if (liveCount > 0) liveLines.push(`  live: ${ref} ${liveCount} runs also in ${opts.state}; a later flush treats them as held`);
+  }
+  built.sort((a, b) => (a.date_utc < b.date_utc ? -1 : a.date_utc > b.date_utc ? 1 : (a.ref_id < b.ref_id ? -1 : a.ref_id > b.ref_id ? 1 : 0)));
+  const skipLines = Object.entries(skipped).map(([r, why]) => `SKIP ${r}: ${why}`);
+  const continuation = built.filter((e) => e.flush_segment !== undefined).length;
+  const summary = {
+    copies: copies.length, runs_distinct: byKey.size, runs_held: runsHeld, runs_recovered: runsRecovered,
+    refs: built.length, continuation, tokens_total: tokensTotal, skipped: skipLines.length,
+  };
+  const plan = { mode: 'recover-archives', ...summary, notes: [...notes, ...skipLines], entries: built };
+  if (opts.dryRun) { printRecoveryPlan(plan); exit(0); }
+
+  if (built.length > 0) {
+    fs.mkdirSync(path.dirname(metricsPath), { recursive: true });
+    let lead = '';
+    if (fs.existsSync(metricsPath)) {
+      const buf = fs.readFileSync(metricsPath);
+      if (buf.length > 0 && buf[buf.length - 1] !== 0x0a) lead = '\n';
+    }
+    fs.appendFileSync(metricsPath, lead + built.map((e) => JSON.stringify(e) + '\n').join(''));
+  }
+  for (const n of notes) console.log(n);
+  for (const s of skipLines) console.log(s);
+  for (const e of built) {
+    const live1 = liveLines.find((l) => l.startsWith(`  live: ${e.ref_id} `));
+    console.log(`Recovered: ${e.ref_id} -> ${path.relative(cwd, metricsPath)} (${e.agent_runs.length} runs${e.flush_segment !== undefined ? `, flush_segment ${e.flush_segment}` : ''})`);
+    if (live1) console.log(live1);
+  }
+  console.log(`RECOVER SUMMARY copies=${summary.copies} runs=${summary.runs_distinct} held=${summary.runs_held} recovered=${summary.runs_recovered} refs=${summary.refs} continuation=${summary.continuation} skipped=${summary.skipped} tokens_total=${summary.tokens_total}`);
+  exit(0);
+}
+
+function noteConflict(winner, cand) {
+  for (const f of RECOVER_FIELDS) {
+    if (JSON.stringify(winner.run[f]) !== JSON.stringify(cand.run[f])) winner.diff.add(f);
+  }
+  winner.files.add(cand.file);
+}
+
 function main() {
   const opts = parseArgs(process.argv);
+  // --recover-archives: structurally disjoint, entered before the STATE read of
+  // the flush path (like --retire/--release), so no-flag behavior is unchanged.
+  if (opts.recoverArchives) {
+    handleRecoverArchives(opts);
+    return; // unreached — handleRecoverArchives always exit()s.
+  }
   const statePath = path.resolve(process.cwd(), opts.state);
   const metricsPath = path.resolve(process.cwd(), opts.metrics);
   const ticksPath = path.resolve(process.cwd(), opts.ticks);

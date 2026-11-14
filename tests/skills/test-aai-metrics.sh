@@ -4471,6 +4471,297 @@ JSONL
   log_pass "metrics-report folds a reopened ride into one row (summed agent time/cost/tokens, human time not doubled) (TEST-3731)"
 }
 
+# --- recover-archived-state-runs (TEST-3734..3739, Spec-AC-01..04) --------------------
+
+RECOVER_REASON='role runs held only by archived STATE copies; recovered by metrics-flush --recover-archives (recover-archived-state-runs); verdict unknown'
+
+# rc_open <file> — the head of an archived STATE copy; rc_ref/rc_run append to it.
+rc_open() { printf 'project_status: active\nmetrics:\n  work_items:\n' > "$1"; }
+rc_ref() {  # <file> <ref> [intake]
+  printf '    %s:\n      human_time_minutes:\n        intake: %s\n        reviews: null\n      agent_runs:\n' "$2" "${3:-null}" >> "$1"
+}
+rc_run() {  # <file> <role> <model> <start|-> <end> <dur> <tin> <tout> [note]
+  local f="$1"; shift
+  printf '        - role: %s\n          model_id: %s\n' "$1" "$2" >> "$f"
+  [[ "$3" == "-" ]] || printf '          started_utc: %s\n' "$3" >> "$f"
+  printf '          ended_utc: %s\n          duration_seconds: %s\n          tokens_in: %s\n          tokens_out: %s\n          cost_usd: null\n' "$4" "$5" "$6" "$7" >> "$f"
+  [[ -z "${8:-}" ]] || printf '          note: %s\n' "$8" >> "$f"
+}
+rc_min_state() {  # <file> <focus ref | null>
+  printf 'project_status: active\ncurrent_focus:\n  type: none\n  ref_id: %s\nmetrics:\n  work_items: {}\nupdated_at_utc: 2026-07-15T11:30:00Z\n' "$2" > "$1"
+}
+
+# run_recover <root> [flags...] — cwd is the fixture repo; output in $OUT, exit in $EC.
+run_recover() {
+  local d="$1"; shift
+  OUT="$d/recover-out.log"
+  EC=0
+  (cd "$d" && node "$FLUSH" --recover-archives --pricing "$d/PRICING.yaml" --now "$NOW_PIN" "$@" > "$OUT" 2>&1) || EC=$?
+}
+
+# mk_recover_fixture <name> — two archive copies holding ARCH-A (2 runs) and
+# ARCH-B (2 runs); the ledger already holds one ARCH-B run (model unknown, a
+# re-stamped ended_utc). Echoes the repo dir.
+mk_recover_fixture() {
+  local d a b
+  d="$(mk_repo "$1")"
+  a="$d/docs/ai/archive/merge-cleanup/STATE-x.yaml"
+  b="$d/docs/ai/archive/worktrees/STATE.yaml.final"
+  mkdir -p "$(dirname "$a")" "$(dirname "$b")"
+  rc_open "$a"
+  rc_ref "$a" ARCH-A 7
+  rc_run "$a" Planning claude-sonnet-5 2026-07-01T10:00:00Z 2026-07-01T10:05:00Z 300 1000 100
+  rc_ref "$a" ARCH-B
+  rc_run "$a" Planning claude-sonnet-5 2026-07-02T09:00:00Z 2026-07-02T09:10:00Z 600 2000 200
+  rc_open "$b"
+  rc_ref "$b" ARCH-A
+  rc_run "$b" Validation claude-sonnet-5 2026-07-01T23:50:00Z 2026-07-02T00:10:00Z 1200 3000 300
+  rc_ref "$b" ARCH-B
+  rc_run "$b" Implementation claude-sonnet-5 2026-07-02T23:55:00Z 2026-07-03T00:20:00Z 1500 4000 400
+  printf '%s\n' '{"date_utc":"2026-07-02","ref_id":"ARCH-B","title":"B ledger","agent_runs":[{"role":"Planning","model_id":"unknown","started_utc":"2026-07-02T09:00:00Z","ended_utc":"2026-07-02T09:11:00Z"}],"verdict":"PASS"}' >> "$d/docs/ai/METRICS.jsonl"
+  rc_min_state "$d/docs/ai/STATE.yaml" null
+  printf '{"v":1,"event":"x"}\n' > "$d/docs/ai/EVENTS.jsonl"
+  printf '%s' "$d"
+}
+
+recover_new_lines() {  # <root> <before-file> — the ledger lines appended since <before-file>
+  local n
+  n="$(wc -c < "$2" | tr -d ' ')"
+  tail -c "+$((n + 1))" "$1/docs/ai/METRICS.jsonl"
+}
+
+test_3734_recovery_appends_one_line_per_ref() {
+  log_info "Test: --recover-archives appends one reconstructed line per ref, prefix intact, STATE and EVENTS untouched (TEST-3734, Spec-AC-01)..."
+  local d n
+  d="$(mk_recover_fixture t3734)"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.before"
+  run_recover "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3734: recovery must exit 0 (got $EC): $(cat "$OUT")"
+  n="$(wc -c < "$d/ledger.before" | tr -d ' ')"
+  head -c "$n" "$d/docs/ai/METRICS.jsonl" > "$d/ledger.prefix"
+  cmp -s "$d/ledger.before" "$d/ledger.prefix" || log_fail "TEST-3734: earlier ledger bytes must stay a byte-exact prefix"
+  cmp -s "$d/state.before" "$d/docs/ai/STATE.yaml" || log_fail "TEST-3734: STATE must be byte-identical"
+  cmp -s "$d/events.before" "$d/docs/ai/EVENTS.jsonl" || log_fail "TEST-3734: EVENTS must be byte-identical"
+  recover_new_lines "$d" "$d/ledger.before" > "$d/new.jsonl"
+  node - "$d/new.jsonl" "$NOW_PIN" "$RECOVER_REASON" <<'NODE' || log_fail "TEST-3734: recovered line shape is wrong"
+const fs = require('fs');
+const [file, now, reason] = process.argv.slice(2);
+const L = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+const fail = (m) => { console.error(m); process.exit(1); };
+if (L.length !== 2) fail('two appended lines expected, got ' + L.length);
+if (L[0].ref_id !== 'ARCH-A' || L[1].ref_id !== 'ARCH-B') fail('order must be date then ref: ' + L.map((x) => x.ref_id));
+for (const e of L) {
+  if (e.verdict !== null || e.verdict_basis !== null || e.strategy !== null) fail('verdict/verdict_basis/strategy must be null');
+  if (e.reliability.verdict_after_last_implementer !== null) fail('verdict_after_last_implementer must be null');
+  const keys = Object.keys(e);
+  if (keys[keys.length - 1] !== 'reconstructed') fail('reconstructed must be the last key');
+  if (e.reconstructed.reason !== reason || e.reconstructed.recovered_utc !== now) fail('reconstructed reason/recovered_utc');
+  if ('validation_waiver' in e) fail('no validation_waiver');
+}
+const want = 'docs/ai/archive/merge-cleanup/STATE-x.yaml;docs/ai/archive/worktrees/STATE.yaml.final';
+if (L[0].reconstructed.source !== want) fail('ARCH-A source: ' + L[0].reconstructed.source);
+if (L[1].reconstructed.source !== 'docs/ai/archive/worktrees/STATE.yaml.final') fail('ARCH-B source: ' + L[1].reconstructed.source);
+if (L[0].agent_runs.map((r) => r.role).join() !== 'Planning,Validation') fail('ARCH-A runs');
+if (L[1].agent_runs.map((r) => r.role).join() !== 'Implementation') fail('ARCH-B must hold only the not-held run');
+if (L[0].human_time_minutes.intake !== 7) fail('intake from the copy');
+NODE
+  # A normal flush of the same runs writes the same agent_runs and totals.
+  local f="$TEST_DIR/t3734f" g
+  f="$(mk_repo t3734f)"
+  write_flush_state "$f/docs/ai/STATE.yaml" single
+  g="$(mk_repo t3734g)"
+  mkdir -p "$g/docs/ai/archive"
+  cp "$f/docs/ai/STATE.yaml" "$g/docs/ai/archive/STATE.yaml"
+  run_flush "$f"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3734: control flush must exit 0 (got $EC): $(cat "$OUT")"
+  rc_min_state "$g/docs/ai/STATE.yaml" null
+  run_recover "$g"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3734: control recovery must exit 0 (got $EC): $(cat "$OUT")"
+  node - "$f/docs/ai/METRICS.jsonl" "$g/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "TEST-3734: recovered agent_runs/totals must deep-equal a normal flush of the same runs"
+const fs = require('fs');
+const rd = (p) => fs.readFileSync(p, 'utf8').split('\n').filter((l) => l.startsWith('{')).map((l) => JSON.parse(l));
+const a = rd(process.argv[2]); const b = rd(process.argv[3]);
+if (a.length !== 1 || b.length !== 1) process.exit(1);
+if (JSON.stringify(a[0].agent_runs) !== JSON.stringify(b[0].agent_runs)) { console.error('agent_runs differ'); process.exit(1); }
+if (JSON.stringify(a[0].totals) !== JSON.stringify(b[0].totals)) { console.error('totals differ'); process.exit(1); }
+NODE
+  log_pass "Recovery appends one reconstructed line per ref and matches a normal flush (TEST-3734)"
+}
+
+test_3735_continuation_segment_and_date() {
+  log_info "Test: recovery line segment numbering and date_utc (TEST-3735, Spec-AC-01)..."
+  local d
+  d="$(mk_recover_fixture t3735)"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  run_recover "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3735: recovery must exit 0 (got $EC): $(cat "$OUT")"
+  recover_new_lines "$d" "$d/ledger.before" > "$d/new.jsonl"
+  node - "$d/new.jsonl" <<'NODE' || log_fail "TEST-3735: flush_segment/date_utc are wrong"
+const fs = require('fs');
+const L = fs.readFileSync(process.argv[2], 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+const fail = (m) => { console.error(m); process.exit(1); };
+if ('flush_segment' in L[0]) fail('ARCH-A has no ledger line: no flush_segment');
+if (L[1].flush_segment !== 2) fail('ARCH-B flush_segment must be 2, got ' + L[1].flush_segment);
+if (L[1].agent_runs.length !== 1) fail('ARCH-B must hold only the not-held run');
+if (L[0].date_utc !== '2026-07-02') fail('ARCH-A date_utc ' + L[0].date_utc);
+if (L[1].date_utc !== '2026-07-03') fail('ARCH-B date_utc ' + L[1].date_utc);
+const keys = Object.keys(L[1]);
+if (keys[keys.indexOf('verdict') + 1] !== 'flush_segment') fail('flush_segment sits right after verdict');
+NODE
+  grep -qF "Recovered: ARCH-B -> docs/ai/METRICS.jsonl (1 runs, flush_segment 2)" "$OUT" || log_fail "TEST-3735: Recovered line for the continuation: $(cat "$OUT")"
+  grep -qF "Recovered: ARCH-A -> docs/ai/METRICS.jsonl (2 runs)" "$OUT" || log_fail "TEST-3735: Recovered line for ARCH-A: $(cat "$OUT")"
+  log_pass "Recovery numbers the continuation and dates the line by its latest run (TEST-3735)"
+}
+
+test_3736_held_runs_and_unkeyed_runs_are_not_written() {
+  log_info "Test: a run held by role and started_utc is not rewritten; a run without started_utc is NOTEd (TEST-3736, Spec-AC-02)..."
+  local d c
+  d="$(mk_repo t3736)"
+  c="$d/docs/ai/archive/STATE.yaml"
+  mkdir -p "$d/docs/ai/archive"
+  rc_open "$c"
+  rc_ref "$c" ARCH-C
+  rc_run "$c" Planning claude-sonnet-5 2026-07-05T10:00:00Z 2026-07-05T10:05:00Z 300 10 10
+  rc_run "$c" Implementation claude-sonnet-5 2026-07-05T11:00:00Z 2026-07-05T11:05:00Z 300 10 10
+  rc_run "$c" Brainstorm claude-sonnet-5 - 2026-07-05T12:05:00Z 300 10 10
+  printf '%s\n' '{"date_utc":"2026-07-05","ref_id":"ARCH-C","title":"C","agent_runs":[{"role":"Planning","model_id":"unknown","started_utc":"2026-07-05T10:00:00Z","ended_utc":"2026-07-05T10:09:00Z"}],"verdict":"PASS"}' >> "$d/docs/ai/METRICS.jsonl"
+  rc_min_state "$d/docs/ai/STATE.yaml" null
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  run_recover "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3736: recovery must exit 0 (got $EC): $(cat "$OUT")"
+  recover_new_lines "$d" "$d/ledger.before" > "$d/new.jsonl"
+  node - "$d/new.jsonl" <<'NODE' || log_fail "TEST-3736: only the un-held keyed run may be written"
+const L = require('fs').readFileSync(process.argv[2], 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+if (L.length !== 1) { console.error('one line expected'); process.exit(1); }
+const roles = L[0].agent_runs.map((r) => r.role).join();
+if (roles !== 'Implementation') { console.error('runs written: ' + roles); process.exit(1); }
+if (L[0].flush_segment !== 2) { console.error('continuation expected'); process.exit(1); }
+NODE
+  c="$(cd "$d" && pwd -P)/docs/ai/archive/STATE.yaml"
+  grep -qF "NOTE ARCH-C Brainstorm: run without started_utc in $c not recovered" "$OUT" || log_fail "TEST-3736: NOTE for the run without started_utc: $(cat "$OUT")"
+  log_pass "Held runs and runs without started_utc are not written (TEST-3736)"
+}
+
+test_3737_conflicting_copies_write_once_with_a_note() {
+  log_info "Test: one run in two copies is written once from the first-sorted copy with one NOTE (TEST-3737, Spec-AC-02)..."
+  local d a b
+  d="$(mk_repo t3737)"
+  a="$d/docs/ai/archive/STATE-1.yaml"
+  b="$d/docs/ai/archive/STATE-2.yaml"
+  mkdir -p "$d/docs/ai/archive"
+  rc_open "$a"; rc_ref "$a" ARCH-D
+  rc_run "$a" Planning claude-sonnet-5 2026-07-06T10:00:00Z 2026-07-06T10:05:00Z 300 10 10 "first copy"
+  rc_open "$b"; rc_ref "$b" ARCH-D
+  rc_run "$b" Planning claude-sonnet-5 2026-07-06T10:00:00Z 2026-07-06T10:05:00Z 300 10 10 "second copy; usage_capture=none"
+  rc_min_state "$d/docs/ai/STATE.yaml" null
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  run_recover "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3737: recovery must exit 0 (got $EC): $(cat "$OUT")"
+  recover_new_lines "$d" "$d/ledger.before" > "$d/new.jsonl"
+  node - "$d/new.jsonl" <<'NODE' || log_fail "TEST-3737: the run must be written once with the first copy's note"
+const L = require('fs').readFileSync(process.argv[2], 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+if (L.length !== 1 || L[0].agent_runs.length !== 1) { console.error('one line with one run expected'); process.exit(1); }
+if (L[0].agent_runs[0].note !== 'first copy') { console.error('note: ' + L[0].agent_runs[0].note); process.exit(1); }
+if (L[0].reconstructed.source !== 'docs/ai/archive/STATE-1.yaml;docs/ai/archive/STATE-2.yaml') { console.error('source: ' + L[0].reconstructed.source); process.exit(1); }
+NODE
+  a="$(cd "$d" && pwd -P)/docs/ai/archive/STATE-1.yaml"
+  grep -qxF "NOTE ARCH-D Planning 2026-07-06T10:00:00Z: archive copies disagree on note; kept $a" "$OUT" || log_fail "TEST-3737: NOTE line naming ref, role, started_utc, note and the kept path: $(cat "$OUT")"
+  [[ "$(grep -c '^NOTE ' "$OUT" || true)" == 1 ]] || log_fail "TEST-3737: exactly one NOTE expected: $(cat "$OUT")"
+  log_pass "A run in two copies is written once from the first-sorted copy with one NOTE (TEST-3737)"
+}
+
+test_3738_dry_run_and_idempotent_second_run() {
+  log_info "Test: --dry-run writes nothing and plans exactly what the real run appends; a second run appends nothing (TEST-3738, Spec-AC-03)..."
+  local d
+  d="$(mk_recover_fixture t3738)"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  cp "$d/docs/ai/EVENTS.jsonl" "$d/events.before"
+  run_recover "$d" --dry-run
+  [[ "$EC" == 0 ]] || log_fail "TEST-3738: dry-run must exit 0 (got $EC): $(cat "$OUT")"
+  cmp -s "$d/ledger.before" "$d/docs/ai/METRICS.jsonl" || log_fail "TEST-3738: dry-run must not write the ledger"
+  cmp -s "$d/state.before" "$d/docs/ai/STATE.yaml" || log_fail "TEST-3738: dry-run must not write STATE"
+  cmp -s "$d/events.before" "$d/docs/ai/EVENTS.jsonl" || log_fail "TEST-3738: dry-run must not write EVENTS"
+  cp "$OUT" "$d/plan.json"
+  run_recover "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3738: real run must exit 0 (got $EC): $(cat "$OUT")"
+  recover_new_lines "$d" "$d/ledger.before" > "$d/new.jsonl"
+  node - "$d/plan.json" "$d/new.jsonl" <<'NODE' || log_fail "TEST-3738: plan entries must deep-equal the appended lines"
+const fs = require('fs');
+const plan = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const L = fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+const fail = (m) => { console.error(m); process.exit(1); };
+if (plan.mode !== 'recover-archives') fail('mode');
+if (JSON.stringify(plan.entries) !== JSON.stringify(L)) fail('entries differ from the appended lines');
+const want = { copies: 2, runs_distinct: 4, runs_held: 1, runs_recovered: 3, refs: 2, continuation: 1, skipped: 0 };
+for (const [k, v] of Object.entries(want)) if (plan[k] !== v) fail(k + ' = ' + plan[k] + ', want ' + v);
+if (plan.tokens_total !== 0) fail('tokens_total (no tokens_total recorded) ' + plan.tokens_total);
+if (!Array.isArray(plan.notes)) fail('notes');
+NODE
+  grep -qF "RECOVER SUMMARY copies=2 runs=4 held=1 recovered=3 refs=2 continuation=1 skipped=0 tokens_total=0" "$OUT" || log_fail "TEST-3738: summary line: $(cat "$OUT")"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.mid"
+  run_recover "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3738: second run must exit 0 (got $EC): $(cat "$OUT")"
+  cmp -s "$d/ledger.mid" "$d/docs/ai/METRICS.jsonl" || log_fail "TEST-3738: second run must append nothing"
+  grep -qF "recovered=0" "$OUT" || log_fail "TEST-3738: second run summary must say recovered=0: $(cat "$OUT")"
+  log_pass "Dry-run plans the real run and a second run is a no-op (TEST-3738)"
+}
+
+test_3739_focus_walk_defaults_and_usage_refusals() {
+  log_info "Test: focus skipped, directory walk, default archive, usage refusals, absent --state (TEST-3739, Spec-AC-04)..."
+  local d nested
+  d="$(mk_repo t3739)"
+  nested="$d/docs/ai/archive/deep/er"
+  mkdir -p "$nested"
+  rc_open "$d/docs/ai/archive/STATE.yaml"
+  rc_ref "$d/docs/ai/archive/STATE.yaml" ARCH-F
+  rc_run "$d/docs/ai/archive/STATE.yaml" Planning claude-sonnet-5 2026-07-07T10:00:00Z 2026-07-07T10:05:00Z 300 10 10
+  rc_open "$nested/STATE.yaml.bak"
+  rc_ref "$nested/STATE.yaml.bak" ARCH-G
+  rc_run "$nested/STATE.yaml.bak" Planning claude-sonnet-5 2026-07-07T11:00:00Z 2026-07-07T11:05:00Z 300 10 10
+  rc_open "$d/docs/ai/archive/notes.yaml"
+  rc_ref "$d/docs/ai/archive/notes.yaml" ARCH-H
+  rc_run "$d/docs/ai/archive/notes.yaml" Planning claude-sonnet-5 2026-07-07T12:00:00Z 2026-07-07T12:05:00Z 300 10 10
+  rc_min_state "$d/docs/ai/STATE.yaml" ARCH-F
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  run_recover "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3739: recovery must exit 0 (got $EC): $(cat "$OUT")"
+  recover_new_lines "$d" "$d/ledger.before" > "$d/new.jsonl"
+  [[ "$(grep -c . "$d/new.jsonl" || true)" == 1 ]] || log_fail "TEST-3739: exactly one line (ARCH-G) expected: $(cat "$d/new.jsonl")"
+  grep -qF '"ref_id":"ARCH-G"' "$d/new.jsonl" || log_fail "TEST-3739: ARCH-G in the nested dir must be recovered"
+  if grep -qF 'ARCH-F"' "$d/new.jsonl"; then log_fail "TEST-3739: the focus ref must get no line"; fi
+  if grep -qF 'ARCH-H' "$d/new.jsonl"; then log_fail "TEST-3739: a non-STATE yaml must be ignored"; fi
+  grep -qF "SKIP ARCH-F: current focus of docs/ai/STATE.yaml (in flight; its runs reach the ledger through its own flush)" "$OUT" \
+    || log_fail "TEST-3739: SKIP line for the focus ref: $(cat "$OUT")"
+  grep -qF "skipped=1" "$OUT" || log_fail "TEST-3739: summary must say skipped=1: $(cat "$OUT")"
+  # a file named directly is read whatever its name
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  run_recover "$d" --archive "$d/docs/ai/archive/notes.yaml"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3739: named file must exit 0 (got $EC): $(cat "$OUT")"
+  grep -qF '"ref_id":"ARCH-H"' "$d/docs/ai/METRICS.jsonl" || log_fail "TEST-3739: a file named by --archive is read whatever its name"
+
+  # usage refusals (exit 2) and the absent --state (exit 1) leave the ledger alone
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  local rc
+  refuse() {  # <expected rc> <label> <args...>
+    local want="$1" label="$2"; shift 2
+    rc=0
+    (cd "$d" && node "$FLUSH" --pricing "$d/PRICING.yaml" --now "$NOW_PIN" "$@" > "$d/refuse.log" 2>&1) || rc=$?
+    [[ "$rc" == "$want" ]] || log_fail "TEST-3739: $label must exit $want (got $rc): $(cat "$d/refuse.log")"
+    cmp -s "$d/ledger.before" "$d/docs/ai/METRICS.jsonl" || log_fail "TEST-3739: $label must leave the ledger unchanged"
+  }
+  refuse 2 "--archive without --recover-archives" --archive "$d/docs/ai/archive"
+  refuse 2 "--recover-archives with --ref" --recover-archives --ref ARCH-F
+  refuse 2 "--recover-archives with --sweep" --recover-archives --sweep
+  refuse 2 "--recover-archives with --retire" --recover-archives --retire ARCH-F
+  refuse 2 "--recover-archives with --release" --recover-archives --release ARCH-F
+  refuse 2 "a missing --archive path" --recover-archives --archive "$d/no-such-dir"
+  refuse 1 "an absent --state" --recover-archives --state "$d/docs/ai/no-such-state.yaml"
+  log_pass "Focus skipped, directory walked, defaults applied and refusals exit as specified (TEST-3739)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -4576,6 +4867,12 @@ main() {
   test_3726_incident_runs_are_reconstructed_in_the_ledger
   test_3727_changelog_and_product_doc_describe_the_continuation
   test_3731_report_folds_a_reopened_ride_into_one_row
+  test_3734_recovery_appends_one_line_per_ref
+  test_3735_continuation_segment_and_date
+  test_3736_held_runs_and_unkeyed_runs_are_not_written
+  test_3737_conflicting_copies_write_once_with_a_note
+  test_3738_dry_run_and_idempotent_second_run
+  test_3739_focus_walk_defaults_and_usage_refusals
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

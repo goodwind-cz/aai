@@ -3939,3 +3939,4 @@
 {"v":1,"ts":"2026-11-14T19:22:40Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-flush-drops-reopened-runs","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-14T19:49:30Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":734,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-14T21:02:34Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"flush-drops-reopened-runs","payload":{"head":"62907009897a4e5bd0870a0b211f8ae53b136f06","clean":false,"flags":2}}
+{"v":1,"ts":"2026-11-14T23:31:48Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-recover-archived-state-runs","payload":{"from":"draft","to":"implementing"}}
