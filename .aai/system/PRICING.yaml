@@ -16,14 +16,15 @@ pricing_meta:
   currency: USD
   token_unit: per_1m_tokens
   default_effective_region: global
-  last_updated_utc: "2026-11-13T09:15:58Z"
-  # CHANGE-0197 catalog families with no public list price (verified 2026-09-29):
-  # composer-2.5 — https://cursor.com/docs — no per-token USD/1M API list for Composer 2.5.
-  # cursor-grok-4.6 — https://docs.x.ai/docs/models — Grok 4.7 Fast is Cursor/Grok Build only; no API list for runtime id cursor-grok-4.6.
-  # muse-spark-1.3 — https://docs.cursor.com/models (checked 2026-09-29) — no public USD/1M input/output list price for Muse Spark 1.3 runtime ids; Cursor publishes model names only, not a token rate card on that page.
+  last_updated_utc: "2026-11-14T21:52:16Z"
+  # CHANGE-0197 catalog families with no public list price (verified 2026-09-29; re-checked 2026-11-14):
+  # composer-2.5 — https://cursor.com/docs/models-and-pricing — 2026-11-14: Cursor now lists Composer 2.5 at $0.50/$2.50 per 1M (Fast $3/$15); still no models key because no run of it is in METRICS.jsonl history.
+  # cursor-grok-4.6 — https://cursor.com/docs/models-and-pricing — 2026-11-14: Cursor now lists Grok 4.6 at $2/$6 per 1M, so the row below is priced (it was null-priced until this refresh).
+  # muse-spark-1.3 — https://docs.cursor.com/models (checked 2026-09-29; 2026-11-14 the page no longer lists Muse Spark, only Muse Wonder, with no token rate) — no public USD/1M input/output list price for Muse Spark 1.3 runtime ids.
   # CHANGE-0198 (verified 2026-09-30): gpt-6.1-astra — https://developers.openai.com/api/docs/pricing — no separate model row; only gpt-6-astra and gpt-6.1-sol appear on the flagship table (do not invent a gpt-6.1-astra key).
   # Owner 2026-09-29: gpt-6.1-sol added below (OpenAI flagship); MODEL_ROUTING.yaml unchanged in this change.
   # First refresh 2026-11-13 (routing-tables-have-an-owner-and-a-seam): rates and ids re-read on the vendor pages in sources: below; claude-opus-5-5 5/25 -> 4/20, claude-sonnet-5(-5) 3/15 -> 2/10; added claude-haiku-5-5, claude-fable-5-2 (priced only), gpt-6.1-terra, gemini-3.1-pro-preview.
+  # Refresh 2026-11-14 (owner-directed, pre-release): every row re-read; o3 10/40 -> 2/8; cursor-grok-4.6 null -> 2/6 (Cursor rate card); added gpt-5.5 (in METRICS history, was mis-costed at gpt-5 rates by longest prefix); marked unverified (no longer on the vendor pricing page, shut down): gemini-2.0-flash, gemini-2.0-flash-lite, gemini-1.5-pro, gemini-3-pro-preview, o4-mini.
 
 update_policy:
   cadence_days: 30
@@ -78,11 +79,11 @@ sources:
   openai-pricing:
     provider: openai
     url: "https://developers.openai.com/api/docs/pricing"
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   openai-deprecations:
     provider: openai
     url: "https://developers.openai.com/api/docs/deprecations"
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   openai-codex-release:
     provider: openai
     url: "https://openai.com/index/introducing-upgrades-to-codex/"
@@ -90,27 +91,31 @@ sources:
   anthropic-pricing:
     provider: anthropic
     url: "https://platform.claude.com/docs/en/about-claude/pricing"
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   anthropic-models:
     provider: anthropic
     url: "https://platform.claude.com/docs/en/about-claude/models/overview"
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   google-ai-pricing:
     provider: google
     url: "https://aistudio.google.com/docs/pricing"
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   google-deprecations:
     provider: google
     url: "https://aistudio.google.com/docs/deprecations"
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   deepseek-pricing:
     provider: deepseek
     url: "https://api-docs.deepseek.com/quick_start/pricing"
-    last_verified_utc: "2026-09-29T23:25:19Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   xai-pricing:
     provider: xai
     url: "https://docs.x.ai/docs/models"
-    last_verified_utc: "2026-09-29T23:25:19Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
+  cursor-pricing:
+    provider: cursor
+    url: "https://cursor.com/docs/models-and-pricing"
+    last_verified_utc: "2026-11-14T21:52:16Z"
 
 # Normalize runtime model IDs to canonical pricing keys (lookup_rules step 2).
 model_aliases:
@@ -132,19 +137,19 @@ models:
     input_usd_per_m: 8.00
     output_usd_per_m: 40.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Fable 5.2 standard list price; priced only, NOT bound to any routing tier (above premium; page recommends it for demanding long-horizon work only; owner cost decision)."
   claude-fable-5-1:
     input_usd_per_m: 10.00
     output_usd_per_m: 50.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Fable 5.1 standard list price; prompt-cache tiers on source page."
   claude-fable-5:
     input_usd_per_m: 10.00
     output_usd_per_m: 50.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   # Recorded in METRICS.jsonl from 2026-08-13 (the session model switched to
   # Opus 5 mid-block). Rates read off the published model-pricing table, not
   # inferred from the 4.8 row they happen to match.
@@ -152,69 +157,69 @@ models:
     input_usd_per_m: 4.00
     output_usd_per_m: 20.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Opus 5.5 standard list price; prompt-cache tiers on source page."
   claude-opus-5:
     input_usd_per_m: 5.00
     output_usd_per_m: 25.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   claude-opus-4-8:
     input_usd_per_m: 5.00
     output_usd_per_m: 25.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   claude-opus-4-7:
     input_usd_per_m: 5.00
     output_usd_per_m: 25.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   claude-opus-4-6:
     input_usd_per_m: 5.00
     output_usd_per_m: 25.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   claude-sonnet-5-5:
     input_usd_per_m: 2.00
     output_usd_per_m: 10.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Sonnet 5.5 standard list price; prompt-cache tiers on source page."
   claude-sonnet-5:
     input_usd_per_m: 2.00
     output_usd_per_m: 10.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Legacy Sonnet 5 list price on source page; the planned rise to 3/15 will not occur (pricing page footnote)."
   claude-sonnet-4-6:
     input_usd_per_m: 3.00
     output_usd_per_m: 15.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   claude-sonnet-4-5:
     input_usd_per_m: 3.00
     output_usd_per_m: 15.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
   claude-haiku-5-5:
     input_usd_per_m: 0.10
     output_usd_per_m: 0.50
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Haiku 5.5 list price for prompts up to 100k tokens; 0.50/2.50 above 100k tokens."
   claude-haiku-4-5:
     input_usd_per_m: 1.00
     output_usd_per_m: 5.00
     source_ref: anthropic-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
 
   # DeepSeek
   deepseek-v4-flash:
     input_usd_per_m: 0.30
     output_usd_per_m: 1.20
     source_ref: deepseek-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
-    notes: "Legacy id deepseek-v4-flash maps to deepseek-flash on vendor page. Standard list uses peak cache-miss USD/1M (input $0.30, output $1.20); off-peak is half. Peak hours defined on source page."
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Legacy id deepseek-v4-flash is retired and served by DeepSeek-V4.1-Flash-1017 under model name deepseek-flash, billed at the Flash price. Standard list uses peak cache-miss USD/1M (input $0.30, output $1.20); off-peak is half. Peak hours defined on source page."
 
   # Google Gemini
   gemini-2.0-flash:
@@ -222,150 +227,166 @@ models:
     output_usd_per_m: 0.40
     source_ref: google-ai-pricing
     last_verified_utc: "2026-09-29T23:25:19Z"
+    unverified_utc: "2026-11-14T21:52:16Z"
   gemini-2.0-flash-lite:
     input_usd_per_m: 0.075
     output_usd_per_m: 0.30
     source_ref: google-ai-pricing
     last_verified_utc: "2026-09-29T23:25:19Z"
+    unverified_utc: "2026-11-14T21:52:16Z"
   gemini-1.5-pro:
     input_usd_per_m: 1.25
     output_usd_per_m: 5.00
     source_ref: google-ai-pricing
     last_verified_utc: "2026-09-29T23:25:19Z"
+    unverified_utc: "2026-11-14T21:52:16Z"
   gemini-2.5-pro:
     input_usd_per_m: 1.25
     output_usd_per_m: 10.00
     source_ref: google-ai-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
-    notes: "Standard pricing for <=200k token context. >200k tier exists on source page."
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Standard pricing for <=200k token context; >200k tier on source page. DEPRECATED: from 2026-12-01 API requests route to gemini-3.8-flash and bill at its rates (google-deprecations)."
   gemini-2.5-flash:
     input_usd_per_m: 0.30
     output_usd_per_m: 2.50
     source_ref: google-ai-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
-    notes: "Standard mode list price."
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Standard mode list price. DEPRECATED: from 2026-12-01 API requests route to gemini-3.5-flash-lite and bill at its rates (google-deprecations)."
   gemini-3.1-pro-preview:
     input_usd_per_m: 2.00
     output_usd_per_m: 12.00
     source_ref: google-ai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Replacement of gemini-3-pro-preview; pricing for <=200k token context. >200k tier exists on source page."
   gemini-3-pro-preview:
     input_usd_per_m: 2.00
     output_usd_per_m: 12.00
     source_ref: google-ai-pricing
     last_verified_utc: "2026-11-13T09:15:58Z"
+    unverified_utc: "2026-11-14T21:52:16Z"
     notes: "SHUT DOWN 2026-03-09 (replacement gemini-3.1-pro-preview per deprecations page); kept because METRICS history may reference it. Preview pricing for <=200k token context."
   gemini-3-flash-preview:
     input_usd_per_m: 0.50
     output_usd_per_m: 3.00
     source_ref: google-ai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
-    notes: "Preview pricing; verify before production cost accounting."
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Preview pricing (text/image/video input). Pricing page calls it the legacy Flash model; google-deprecations names gemini-3.6-flash as its recommended replacement with no shutdown date announced."
   gemini-3.8-flash:
     input_usd_per_m: 0.75
     output_usd_per_m: 3.75
     source_ref: google-ai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Gemini 3.8 Flash Standard paid tier through 2026-12-31 ($0.75/$3.75); $1.50/$7.50 from 2027-01-01 per source page."
 
   # Cursor runtime id recorded in METRICS.jsonl (docs-index-broken-refs-scope,
-  # 2026-10-20): no public USD/1M list price (see the CHANGE-0197 note above),
-  # so it is null-priced per on_unknown_model; longest-prefix resolves the
-  # recorded cursor-grok-4.6-high to this key instead of `unknown`.
+  # 2026-10-20): null-priced until the 2026-11-14 refresh found Cursor's own
+  # rate card (cursor-pricing source); longest-prefix resolves the recorded
+  # cursor-grok-4.6-high to this key instead of `unknown`.
   cursor-grok-4.6:
-    input_usd_per_m: null
-    output_usd_per_m: null
-    source_ref: xai-pricing
-    last_verified_utc: "2026-10-21T00:00:00Z"
-    notes: "Cursor/Grok Build runtime id; no API list price published."
+    input_usd_per_m: 2.00
+    output_usd_per_m: 6.00
+    source_ref: cursor-pricing
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Cursor model rate for Grok 4.6 (standard, not Fast) on the Cursor models-and-pricing page, per 1M tokens; Fast is $4/$12. Runtime ids such as cursor-grok-4.6-high resolve here by longest prefix."
 
   grok-4.7:
     input_usd_per_m: 2.00
     output_usd_per_m: 6.00
     source_ref: xai-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
-    notes: "Standard tier for prompt under 200k tokens ($2/$6). At or above 200k prompt tokens the whole request bills at $4/$12."
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Standard tier ($2/$6); requests over the 200K context window bill at higher rates per the model page (Cursor lists Grok 4.7 500k at $4/$12)."
 
   # OpenAI / Codex
   gpt-4o:
     input_usd_per_m: 2.50
     output_usd_per_m: 10.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Deprecated: gpt-4o-2024-08-06/-11-20 shut down 2027-01-14, recommended replacement gpt-6-luna (openai-deprecations)."
   gpt-4o-mini:
     input_usd_per_m: 0.15
     output_usd_per_m: 0.60
     source_ref: openai-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Deprecated: shut down 2027-01-14, recommended replacement gpt-6-luna (openai-deprecations)."
   gpt-5:
     input_usd_per_m: 1.25
     output_usd_per_m: 10.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Deprecated: shut down 2026-12-11, recommended replacement gpt-6.1-sol (openai-deprecations)."
   gpt-5-mini:
     input_usd_per_m: 0.25
     output_usd_per_m: 2.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Deprecated: shut down 2026-12-11, recommended replacement gpt-6.1-terra (openai-deprecations)."
   gpt-5.6-sol:
     input_usd_per_m: 4.00
     output_usd_per_m: 20.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Cyber/flagship short-context standard list on OpenAI pricing page; long-context tier doubles input on source page."
   gpt-5.6-terra:
     input_usd_per_m: 2.00
     output_usd_per_m: 12.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Standard tier up to 272K input tokens ($2/$12); above 272K input the full request uses 2x input and 1.5x output on source page."
   gpt-6-astra:
     input_usd_per_m: 10.00
     output_usd_per_m: 50.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Flagship standard short-context list; cached input $1/1M and cache writes $12.50/1M on source page; long-context tier ($20/$75 input/output) on same page."
   gpt-6-luna:
     input_usd_per_m: 0.10
     output_usd_per_m: 0.50
     source_ref: openai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Flagship standard short-context list; cached input $0.01/1M and cache writes $0.125/1M on source page; long-context tier on same page."
   gpt-6-sol:
     input_usd_per_m: 2.00
     output_usd_per_m: 10.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "GPT-6 sol (non-6.1) flagship standard short-context list; cached input $0.20/1M and cache writes $2.50/1M on source page; long-context tier on same page."
   gpt-6.1-sol:
     input_usd_per_m: 2.00
     output_usd_per_m: 10.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "ChatGPT 6.1 sol / gpt-6.1-sol flagship standard short-context list; cached input $0.10/1M and cache writes $2.50/1M on source page; long-context tier on same page."
   gpt-6.1-terra:
     input_usd_per_m: 1.00
     output_usd_per_m: 5.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "gpt-6.1-terra standard list price; needs Codex CLI >= 0.159.0."
+  gpt-5.5:
+    input_usd_per_m: 5.00
+    output_usd_per_m: 30.00
+    source_ref: openai-pricing
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Short-context (<272K) standard list on OpenAI pricing page; recorded in METRICS.jsonl history, so keyed here instead of resolving to gpt-5 by longest prefix."
   gpt-5.3-codex:
     input_usd_per_m: 1.75
     output_usd_per_m: 14.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-11-13T09:15:58Z"
-    notes: "Specialized Codex row on OpenAI pricing page (standard tier)."
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Specialized Codex row on OpenAI pricing page (standard tier). Deprecated: shut down 2027-04-01, recommended replacement gpt-6-sol (openai-deprecations)."
   o3:
-    input_usd_per_m: 10.00
-    output_usd_per_m: 40.00
+    input_usd_per_m: 2.00
+    output_usd_per_m: 8.00
     source_ref: openai-pricing
-    last_verified_utc: "2026-09-29T23:25:19Z"
+    last_verified_utc: "2026-11-14T21:52:16Z"
+    notes: "Deprecated: shut down 2026-12-11, recommended replacement gpt-6.1-sol (openai-deprecations). Rate corrected 2026-11-14 from 10/40 to the page's 2/8."
   o4-mini:
     input_usd_per_m: 1.10
     output_usd_per_m: 4.40
     source_ref: openai-pricing
     last_verified_utc: "2026-09-29T23:25:19Z"
+    unverified_utc: "2026-11-14T21:52:16Z"
 
   # Unknown / fallback
   unknown:
