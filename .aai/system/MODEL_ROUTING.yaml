@@ -128,7 +128,7 @@
 # column-0 key ends the active section); it never changes model or effort
 # resolution. Whoever changes a routed id re-stamps it in the same change.
 routing_meta:
-  last_updated_utc: "2026-11-14T21:52:16Z"
+  last_updated_utc: "2026-11-14T22:14:29Z"
   cadence_days: 30
 
 # --- claude -------------------------------------------------------------
@@ -167,39 +167,46 @@ validation_alternate@claude: claude-opus-5-5
 
 # --- codex ----------------------------------------------------------------
 
+# Owner binding 2026-11-14: mechanical gpt-6.1-terra -> gpt-5.6-luna
+# ($0.20/$1.20 vs $1.00/$5.00; served, no shutdown date on openai-deprecations).
 tiers@codex:
-  mechanical: gpt-6.1-terra
+  mechanical: gpt-5.6-luna
   standard: gpt-6.1-sol
   premium: gpt-6-sol
 
 roles@codex:
   Planning: gpt-6-sol
   Code Review: gpt-6-sol
-  Metrics Flush: gpt-6.1-terra
+  Metrics Flush: gpt-5.6-luna
 
 validation_alternate@codex: gpt-6-sol
 
 # --- gemini -----------------------------------------------------------------
 
-# Mechanical and standard bind the SAME id: the current Gemini 3 lineup in
-# PRICING.yaml has two members, not three (disclosed, not papered over with a
-# previous-generation id) — the mechanical-vs-standard distinction survives
-# on the harness-independent effort axis (effort_tiers/effort_roles below).
-# Refresh 2026-11-14: gemini-3-flash-preview is still served (no shutdown
-# date), but Google calls it legacy and names gemini-3.6-flash as its
-# replacement ($0.75/$3.75, $1.50/$7.50 from 2027-01-01). Moving to it is a
-# cost decision left to the owner, as is any Gemini 4 binding.
+# Mechanical and standard bind the SAME id (gemini-3.6-flash): the Gemini
+# lineup bound here has one Flash member and one reasoning flagship — the
+# mechanical-vs-standard distinction survives on the harness-independent
+# effort axis (effort_tiers/effort_roles below).
+# Owner binding 2026-11-14: gemini-3-flash-preview -> gemini-3.6-flash (the
+# replacement google-deprecations names for it; stable; $0.75/$3.75 through
+# 2026-12-31, $1.50/$7.50 from 2027-01-01) and gemini-3.1-pro-preview ->
+# gemini-4-carbon (GA 2026-11-10; Google's "most capable reasoning model";
+# $2/$10 through 2026-11-30, $4/$20 from 2026-12-01). gemini-4-argon (the
+# efficient frontier variant, same price) and gemini-4-hydrogen (everyday
+# speed variant, $1.50/$7.50) are priced in PRICING.yaml as swap candidates.
+# Validator independence holds: validation_alternate (gemini-4-carbon)
+# differs from the standard-tier id a Validation routes to.
 tiers@gemini:
-  mechanical: gemini-3-flash-preview
-  standard: gemini-3-flash-preview
-  premium: gemini-3.1-pro-preview
+  mechanical: gemini-3.6-flash
+  standard: gemini-3.6-flash
+  premium: gemini-4-carbon
 
 roles@gemini:
-  Planning: gemini-3.1-pro-preview
-  Code Review: gemini-3.1-pro-preview
-  Metrics Flush: gemini-3-flash-preview
+  Planning: gemini-4-carbon
+  Code Review: gemini-4-carbon
+  Metrics Flush: gemini-3.6-flash
 
-validation_alternate@gemini: gemini-3.1-pro-preview
+validation_alternate@gemini: gemini-4-carbon
 
 # --- cursor -----------------------------------------------------------------
 # Detected (.aai/scripts/lib/harness.mjs), but ships NO map here: cursor runs

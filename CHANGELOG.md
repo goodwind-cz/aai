@@ -30,6 +30,31 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — chore(routing): bind gemini-3.6-flash, gemini-4-carbon and gpt-5.6-luna (owner decision 2026-11-14)
+
+Routed models change on two harnesses, so a dispatch on them suggests a
+different model and its runs cost differently:
+
+- Gemini mechanical, standard and Metrics Flush: `gemini-3-flash-preview` ->
+  `gemini-3.6-flash` (the replacement Google names; $0.75/$3.75 per 1M through
+  2026-12-31, $1.50/$7.50 from 2027-01-01).
+- Gemini premium, Planning, Code Review and the validator alternate:
+  `gemini-3.1-pro-preview` -> `gemini-4-carbon` (GA; $2/$10 per 1M through
+  2026-11-30, $4/$20 from 2026-12-01). `gemini-4-argon` and
+  `gemini-4-hydrogen` are priced but not bound.
+- Codex mechanical and Metrics Flush: `gpt-6.1-terra` -> `gpt-5.6-luna`
+  ($0.20/$1.20 per 1M, was $1/$5).
+- `composer-2.5` ($0.50/$2.50) and `muse-spark-1.3` ($1.25/$4.25) are now
+  priced from Cursor's rate card; the xAI source moved to
+  `docs.x.ai/developers/models`.
+- The ROUTING_REFRESH routine now states its rules for shut-down models,
+  named-successor moves (a pricier successor of a still-served model is
+  flagged for the owner, not moved), newly published prices, metrics ids
+  costed through a shorter prefix, current source URLs and its CHANGELOG title.
+
+A project that pinned another model keeps it through `routing_override@<harness>:`
+in `docs/ai/project-config.yaml`.
+
 ## [unreleased] — chore: refresh model routing and pricing tables (2026-11)
 
 Every row of `.aai/system/PRICING.yaml` was re-read against the vendors' own

@@ -23,7 +23,11 @@ so stamping is part of changing the table. Keeping the tables current is a
 central, monthly job in the upstream repository (the ROUTING_REFRESH routine),
 delivered to projects by `/aai-update`; projects do not maintain the tables
 themselves. The first refresh (2026-11-13) moved every harness section to the
-vendors' current model ids and corrected stale prices.
+vendors' current model ids and corrected stale prices. On 2026-11-14 the owner
+bound three newer models: Gemini mechanical/standard `gemini-3.6-flash`
+(the replacement Google names for `gemini-3-flash-preview`), Gemini premium,
+Planning, Code Review and the validator alternate `gemini-4-carbon`, and
+Codex mechanical and Metrics Flush `gpt-5.6-luna`.
 
 ## How to use it
 
@@ -73,7 +77,12 @@ vendors' current model ids and corrected stale prices.
   Values come from a monthly read of vendor pages.
 - A refresh moves a bound id only to the vendor's named successor; binding a
   model of a different price class (for example a more expensive premium tier)
-  is an owner decision.
+  is an owner decision. When the bound model is still served and its named
+  successor costs more, the refresh keeps the binding and flags the successor
+  in the pull request for the owner.
+- A shut-down model keeps its price row (past runs are still costed by it);
+  the refresh marks it unverified and may note the shutdown date, but never
+  changes its rates or deletes it.
 - A consumer-owned override file that `/aai-update` never overwrites is not
   part of this capability yet; it is a planned follow-up.
 - The scheduled trigger for the routine is not created automatically.
