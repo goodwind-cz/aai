@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "git diff origin/main...HEAD (head da0df9ad, branch fix/flush-drops-reopened-runs); paths per STATE code_review.scope"
-  spec: docs/specs/SPEC-DRAFT-spec-flush-drops-reopened-runs.md
+  spec: docs/specs/SPEC-0291-spec-flush-drops-reopened-runs.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -49,7 +49,7 @@ security_relevant: false
   `code_review.scope` path list was reviewed. Companion telemetry in the diff (docs/INDEX.md,
   EVENTS.jsonl +6, decisions.jsonl +1, tests/test-runs.jsonl +1) is additions only. `git ls-files -ci`
   is empty.
-- Spec: docs/specs/SPEC-DRAFT-spec-flush-drops-reopened-runs.md (frozen, ceremony 2).
+- Spec: docs/specs/SPEC-0291-spec-flush-drops-reopened-runs.md (frozen, ceremony 2).
 - Dispatch prompt: the "Focus" list names areas to examine and states that they are not
   conclusions. No severity was pre-rated and no area was excluded, so this is not recorded as
   coaching. The full scope was reviewed.

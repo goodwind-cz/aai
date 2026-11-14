@@ -1,10 +1,10 @@
 ---
 id: spec-flush-drops-reopened-runs
 type: spec
-number: null
-status: implementing
+number: 291
+status: done
 mutation_gate: v1
-frozen_sha256: 7b9a1e1b10008c0dd46f53dae3d5c5fe809834847c58da9649164e265d2232d4
+frozen_sha256: 1412baf916e957af091f90c148a6799ce620f9d1a1e0feefccb4a9e8feee6ba9
 ceremony_level: 2
 links:
   requirement: flush-drops-reopened-runs
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/ISSUE-DRAFT-flush-drops-reopened-runs.md
+- Requirement: docs/issues/ISSUE-0114-flush-drops-reopened-runs.md
 - Prior scopes this one changes (closed, not edited):
   - SPEC-0068 (metrics-flush --sweep): its crash-resume rule ("a ref already in
     the ledger and still in STATE is an interrupted flush") is narrowed by D1.
@@ -60,8 +60,8 @@ SPEC-FROZEN: true
   .aai/scripts/validation-waiver.mjs; tests/skills/test-aai-metrics.sh;
   tests/skills/test-aai-pr-waiver.sh; docs/ai/METRICS.jsonl (the one appended
   line only); docs/product/telemetry.md; CHANGELOG.md;
-  docs/issues/ISSUE-DRAFT-flush-drops-reopened-runs.md;
-  docs/specs/SPEC-DRAFT-spec-flush-drops-reopened-runs.md.
+  docs/issues/ISSUE-0114-flush-drops-reopened-runs.md;
+  docs/specs/SPEC-0291-spec-flush-drops-reopened-runs.md.
 
 ## Ceremony
 
@@ -314,12 +314,12 @@ None.
 
 | Spec-AC | Description | Status | Evidence | Review-By | Notes |
 |---|---|---|---|---|---|
-| Spec-AC-01 | WHEN a ref already has a summary line in METRICS.jsonl and its STATE metrics entry holds agent_runs that no ledger line of that ref holds (run identity role, model_id or unknown, started_utc, ended_utc, counted as a multiset) and the default gate admits the ref, metrics-flush SHALL exit 0, append exactly one new summary line whose agent_runs are exactly the fresh runs in STATE order and which carries flush_segment equal to the prior line count plus 1, leave every earlier ledger byte unchanged, remove the ref from STATE metrics, print a Flushed line and a continuation line for the ref and print no RESUME line for it; --dry-run SHALL list the ref under flush and not under resume | planned | — | — | D1, D2 outcome 2, D3, D4 |
-| Spec-AC-02 | WHEN fresh runs exist for a ref that has a ledger line and neither the default gate nor, under --sweep, the sweep gate admits it, metrics-flush SHALL exit 0, append nothing, leave STATE byte-identical (no metrics removal, no partial or full reset) and print a SKIP line for the ref that names the number of runs not in METRICS.jsonl and the gate reason | planned | — | — | D2 outcome 3 |
-| Spec-AC-03 | WHEN every STATE run of a ref is already held by that ref's ledger lines, metrics-flush SHALL take the existing cleanup-only resume, and a crash-after-ledger resume SHALL leave the same STATE bytes, ledger bytes and Flushed-free RESUME output as a flush that never crashed; the existing resume tests (metrics TEST-013 crash resume, TEST-107, the historical-timestamp arm with its D7 fixture, pr-waiver TEST-17 c d e with the D7 fixture) SHALL pass with no golden edited | planned | — | — | D2 outcome 1, D7 |
-| Spec-AC-04 | WHEN a ride is flushed, reopened, given a new run and a validation pass, and flushed again on the same UTC day with a partial reset, validation-waiver.mjs --state SHALL exit 0 with reason validation_archived_pass; two same-day PASS lines for the archived ref with the same flush_segment value (absent counts as 1) SHALL still refuse with archive_ledger_ambiguous | planned | — | — | D5; seam flush to PR gate |
-| Spec-AC-05 | docs/ai/METRICS.jsonl SHALL end with exactly one appended line for consumer-config-routing-override whose agent_runs equal the D8 table in order on role, model_id, started_utc, ended_utc, duration_seconds, tokens_total, prompt_hash and verdict, with tokens_in and tokens_out null, tokens_total summing to 1799150, flush_segment 2 and a reconstructed object with non-empty source and reason; every byte before it SHALL equal origin/main's file, and the line without reconstructed SHALL deep-equal the line the fixed flush wrote in the scratch reconstruction | planned | — | — | D8; HAZ-LEDGER |
-| Spec-AC-06 | docs/product/telemetry.md SHALL describe the continuation line, flush_segment and the SKIP that keeps refused runs in STATE, and CHANGELOG.md SHALL hold exactly one per-entry heading for this fix in the form unreleased or a rolled vYYYY.MM.DD, followed by an em dash and fix | planned | — | — | Consumer-visible; ships downstream through aai-sync |
+| Spec-AC-01 | WHEN a ref already has a summary line in METRICS.jsonl and its STATE metrics entry holds agent_runs that no ledger line of that ref holds (run identity role, model_id or unknown, started_utc, ended_utc, counted as a multiset) and the default gate admits the ref, metrics-flush SHALL exit 0, append exactly one new summary line whose agent_runs are exactly the fresh runs in STATE order and which carries flush_segment equal to the prior line count plus 1, leave every earlier ledger byte unchanged, remove the ref from STATE metrics, print a Flushed line and a continuation line for the ref and print no RESUME line for it; --dry-run SHALL list the ref under flush and not under resume | done | TEST-3720 and TEST-3721 PASS, mutations killed; docs/ai/reports/VALIDATION-20261114T1839Z-flush-drops-reopened-runs.md | — | D1, D2 outcome 2, D3, D4 |
+| Spec-AC-02 | WHEN fresh runs exist for a ref that has a ledger line and neither the default gate nor, under --sweep, the sweep gate admits it, metrics-flush SHALL exit 0, append nothing, leave STATE byte-identical (no metrics removal, no partial or full reset) and print a SKIP line for the ref that names the number of runs not in METRICS.jsonl and the gate reason | done | TEST-3722 PASS, mutation killed; docs/ai/reports/VALIDATION-20261114T1839Z-flush-drops-reopened-runs.md | — | D2 outcome 3 |
+| Spec-AC-03 | WHEN every STATE run of a ref is already held by that ref's ledger lines, metrics-flush SHALL take the existing cleanup-only resume, and a crash-after-ledger resume SHALL leave the same STATE bytes, ledger bytes and Flushed-free RESUME output as a flush that never crashed; the existing resume tests (metrics TEST-013 crash resume, TEST-107, the historical-timestamp arm with its D7 fixture, pr-waiver TEST-17 c d e with the D7 fixture) SHALL pass with no golden edited | done | TEST-3723, TEST-3724, TEST-013, TEST-107 PASS, mutations killed; docs/ai/reports/VALIDATION-20261114T1839Z-flush-drops-reopened-runs.md | — | D2 outcome 1, D7 |
+| Spec-AC-04 | WHEN a ride is flushed, reopened, given a new run and a validation pass, and flushed again on the same UTC day with a partial reset, validation-waiver.mjs --state SHALL exit 0 with reason validation_archived_pass; two same-day PASS lines for the archived ref with the same flush_segment value (absent counts as 1) SHALL still refuse with archive_ledger_ambiguous | done | pr-waiver TEST-3725 (arm 19) PASS, mutation killed; docs/ai/reports/VALIDATION-20261114T1839Z-flush-drops-reopened-runs.md | — | D5; seam flush to PR gate |
+| Spec-AC-05 | docs/ai/METRICS.jsonl SHALL end with exactly one appended line for consumer-config-routing-override whose agent_runs equal the D8 table in order on role, model_id, started_utc, ended_utc, duration_seconds, tokens_total, prompt_hash and verdict, with tokens_in and tokens_out null, tokens_total summing to 1799150, flush_segment 2 and a reconstructed object with non-empty source and reason; every byte before it SHALL equal origin/main's file, and the line without reconstructed SHALL deep-equal the line the fixed flush wrote in the scratch reconstruction | done | TEST-3726 PASS; ledger prefix byte-identical; transcript all-match; title check exit 0; docs/ai/reports/VALIDATION-20261114T1839Z-flush-drops-reopened-runs.md | — | D8; HAZ-LEDGER |
+| Spec-AC-06 | docs/product/telemetry.md SHALL describe the continuation line, flush_segment and the SKIP that keeps refused runs in STATE, and CHANGELOG.md SHALL hold exactly one per-entry heading for this fix in the form unreleased or a rolled vYYYY.MM.DD, followed by an em dash and fix | done | TEST-3727 PASS; docs-audit strict CLEAN; docs/ai/reports/VALIDATION-20261114T1917Z-flush-drops-reopened-runs.md | — | Consumer-visible; ships downstream through aai-sync |
 
 ## Implementation plan
 
