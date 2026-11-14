@@ -44,6 +44,18 @@
 //     source_ref and last_verified_utc on or after <date>. Exit 0 only when
 //     every line is OK or ALLOWED, 1 otherwise, 2 on usage error.
 //
+//   priced --since <YYYY-MM-DD> [--root <dir>]
+//     Walks every PRICING.yaml `models:` row except `unknown`, in file order:
+//       OK <id> <last_verified>              last_verified_utc on or after <date>
+//       UNVERIFIED <id> <unverified> last=<last_verified>
+//                                            else unverified_utc on or after <date>
+//       STALE <id> <last_verified>           neither
+//       INVALID <id> <field>                 present but unparseable timestamp
+//     An absent PRICING.yaml prints `INVALID .aai/system/PRICING.yaml file is
+//     absent`. Exit 0 when no STALE and no INVALID line, 1 otherwise, 2 on usage
+//     error. A row marked `unverified_utc` is a priced-line change: stamp-guard
+//     requires the re-stamp like any other.
+//
 // Marker reading (D-READ) is line-based, no YAML library. Node stdlib only.
 
 import fs from 'node:fs';
@@ -255,7 +267,7 @@ export function routedEntries(text) {
   return out;
 }
 
-// Exact `models:` rows of PRICING.yaml: { id: { input, output, source_ref, last_verified } }.
+// Exact `models:` rows of PRICING.yaml: { id: { input, output, source_ref, last_verified, unverified } }.
 export function pricingRows(text) {
   const models = {};
   let inModels = false;
@@ -265,7 +277,7 @@ export function pricingRows(text) {
     if (/^\S/.test(l)) { inModels = /^models:\s*$/.test(l); cur = null; continue; }
     if (!inModels) continue;
     let m = /^ {2}([^\s:]+):\s*$/.exec(l);
-    if (m) { cur = m[1].replace(/^"(.*)"$/, '$1'); models[cur] = { input: null, output: null, source_ref: null, last_verified: null }; continue; }
+    if (m) { cur = m[1].replace(/^"(.*)"$/, '$1'); models[cur] = { input: null, output: null, source_ref: null, last_verified: null, unverified: null }; continue; }
     m = /^ {4}(\w+):\s*(.*)$/.exec(l);
     if (!m || !cur) continue;
     const v = val(m[2]);
@@ -273,6 +285,7 @@ export function pricingRows(text) {
     if (m[1] === 'output_usd_per_m') models[cur].output = v === null ? null : Number(v);
     if (m[1] === 'source_ref') models[cur].source_ref = v;
     if (m[1] === 'last_verified_utc') models[cur].last_verified = v;
+    if (m[1] === 'unverified_utc') models[cur].unverified = v;
   }
   return models;
 }
@@ -322,9 +335,31 @@ export function routedCheck(root, since, allowStale = []) {
   return { lines, ok };
 }
 
+// pricedCheck(root, since) -> { lines: [string], ok: boolean } (D-FULL)
+export function pricedCheck(root, since) {
+  const pricingPath = path.resolve(root, TABLES[1].rel);
+  if (!fs.existsSync(pricingPath)) return { lines: [`INVALID ${TABLES[1].rel} file is absent`], ok: false };
+  const models = pricingRows(fs.readFileSync(pricingPath, 'utf8'));
+  const sinceMs = new Date(`${since}T00:00:00Z`).getTime();
+  const lines = [];
+  let ok = true;
+  for (const [id, e] of Object.entries(models)) {
+    if (id === 'unknown') continue;
+    const v = e.last_verified === null ? null : Date.parse(e.last_verified);
+    const u = e.unverified === null ? null : Date.parse(e.unverified);
+    if (v !== null && Number.isNaN(v)) { lines.push(`INVALID ${id} last_verified_utc`); ok = false; continue; }
+    if (u !== null && Number.isNaN(u)) { lines.push(`INVALID ${id} unverified_utc`); ok = false; continue; }
+    const marked = u !== null && u >= sinceMs;
+    if (v !== null && v >= sinceMs) lines.push(`OK ${id} ${e.last_verified}`);
+    else if (marked) lines.push(`UNVERIFIED ${id} ${e.unverified} last=${e.last_verified}`);
+    else { lines.push(`STALE ${id} ${e.last_verified}`); ok = false; }
+  }
+  return { lines, ok };
+}
+
 function usage(msg) {
   process.stderr.write(`table-freshness: ${msg}\n`);
-  process.stderr.write('usage: table-freshness.mjs check [--root <dir>] [--now <ISO>] [--horizon-days <n>]\n       table-freshness.mjs stamp-guard --base <rev> [--root <dir>] [--now <ISO>]\n       table-freshness.mjs routed --since <YYYY-MM-DD> [--allow-stale <id>[,<id>...]] [--root <dir>]\n');
+  process.stderr.write('usage: table-freshness.mjs check [--root <dir>] [--now <ISO>] [--horizon-days <n>]\n       table-freshness.mjs stamp-guard --base <rev> [--root <dir>] [--now <ISO>]\n       table-freshness.mjs routed --since <YYYY-MM-DD> [--allow-stale <id>[,<id>...]] [--root <dir>]\n       table-freshness.mjs priced --since <YYYY-MM-DD> [--root <dir>]\n');
   exit(2);
 }
 
@@ -394,6 +429,19 @@ function main(argv) {
     const allow = f['--allow-stale'] === undefined ? []
       : f['--allow-stale'].split(',').map((x) => x.trim()).filter(Boolean);
     const r = routedCheck(root, f['--since'], allow);
+    for (const line of r.lines) console.log(line);
+    exit(r.ok ? 0 : 1);
+  }
+  if (cmd === 'priced') {
+    const f = parseFlags(rest, ['--root', '--since']);
+    if (f['--since'] === undefined) usage('priced needs --since <YYYY-MM-DD>');
+    const sd = /^\d{4}-\d{2}-\d{2}$/.test(f['--since']) ? new Date(`${f['--since']}T00:00:00Z`) : null;
+    if (!sd || Number.isNaN(sd.getTime()) || sd.toISOString().slice(0, 10) !== f['--since']) {
+      usage(`--since must be a valid YYYY-MM-DD date, got: ${f['--since']}`);
+    }
+    const root = f['--root'] ? path.resolve(f['--root'])
+      : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+    const r = pricedCheck(root, f['--since']);
     for (const line of r.lines) console.log(line);
     exit(r.ok ? 0 : 1);
   }

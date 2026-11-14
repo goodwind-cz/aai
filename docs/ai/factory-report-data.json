@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-14T21:24:37.092Z",
+  "generatedAt": "2026-11-14T21:53:43.923Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
     "rides": 209,
-    "delivered": 658,
+    "delivered": 660,
     "active_weeks": 20,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (658 closes vs 209 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 658,
-    "delivered_per_week_avg": 32.9,
+    "note": "\"delivered\" counts every work_item_closed event (660 closes vs 209 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 660,
+    "delivered_per_week_avg": 33,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -34,7 +34,7 @@
       "2026-W43": 36,
       "2026-W44": 23,
       "2026-W45": 28,
-      "2026-W46": 18
+      "2026-W46": 20
     },
     "delivered_groups": [
       {
@@ -681,7 +681,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 50,
+        "count": 52,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -731,6 +731,8 @@
           "spec-model-effort-routing",
           "routing-tables-have-an-owner-and-a-seam",
           "spec-routing-tables-have-an-owner-and-a-seam",
+          "consumer-config-routing-override",
+          "spec-consumer-config-routing-override",
           "flush-drops-reopened-runs",
           "spec-flush-drops-reopened-runs"
         ]
@@ -3363,6 +3365,14 @@
           "lead_time_seconds": null
         },
         {
+          "ref": "consumer-config-routing-override",
+          "lead_time_seconds": 16497
+        },
+        {
+          "ref": "spec-consumer-config-routing-override",
+          "lead_time_seconds": null
+        },
+        {
           "ref": "flush-drops-reopened-runs",
           "lead_time_seconds": 7870
         },
@@ -3371,23 +3381,23 @@
           "lead_time_seconds": null
         }
       ],
-      "median_seconds": 6569,
-      "mean_seconds": 89317.5,
-      "measured": 204,
-      "unmeasurable": 454
+      "median_seconds": 6725,
+      "mean_seconds": 88962.3,
+      "measured": 205,
+      "unmeasurable": 455
     }
   },
   "speed": {
     "ride_busy_seconds": {
       "median": 3810,
-      "mean": 9888,
+      "mean": 9956.4,
       "measured": 207
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 455124,
-        "tokens": 25684795
+        "duration_seconds": 458657,
+        "tokens": 26143882
       },
       {
         "role": "Implementation",
@@ -3396,23 +3406,23 @@
       },
       {
         "role": "Code Review",
-        "duration_seconds": 224329,
-        "tokens": 14266221
+        "duration_seconds": 227832,
+        "tokens": 14729625
       },
       {
         "role": "Remediation",
-        "duration_seconds": 381482,
+        "duration_seconds": 383882,
         "tokens": 14700463
       },
       {
         "role": "Validation",
-        "duration_seconds": 723739,
-        "tokens": 21075004
+        "duration_seconds": 727568,
+        "tokens": 21560176
       },
       {
         "role": "Planning",
-        "duration_seconds": 146706,
-        "tokens": 13142379
+        "duration_seconds": 147583,
+        "tokens": 13407188
       },
       {
         "role": "Other",
@@ -4458,8 +4468,8 @@
       },
       {
         "ref": "consumer-config-routing-override",
-        "busy_seconds": 12478,
-        "remediation_runs": 2
+        "busy_seconds": 26620,
+        "remediation_runs": 4
       },
       {
         "ref": "flush-drops-reopened-runs",
@@ -4475,14 +4485,14 @@
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
       "median": 562630,
-      "mean": 880497.2,
+      "mean": 896578.7,
       "measured": 104
     },
-    "tokens_total": 91571709,
+    "tokens_total": 93244181,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 25684795
+        "tokens": 26143882
       },
       {
         "role": "Implementation",
@@ -4490,7 +4500,7 @@
       },
       {
         "role": "Code Review",
-        "tokens": 14266221
+        "tokens": 14729625
       },
       {
         "role": "Remediation",
@@ -4498,11 +4508,11 @@
       },
       {
         "role": "Validation",
-        "tokens": 21075004
+        "tokens": 21560176
       },
       {
         "role": "Planning",
-        "tokens": 13142379
+        "tokens": 13407188
       },
       {
         "role": "Other",
@@ -4510,9 +4520,9 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 555,
-      "total_runs": 1448,
-      "pct": 38,
+      "runs_with_marker": 566,
+      "total_runs": 1461,
+      "pct": 39,
       "by_week": [
         {
           "week": "2026-W27",
@@ -4630,9 +4640,9 @@
         },
         {
           "week": "2026-W46",
-          "runs_with_marker": 34,
-          "total_runs": 60,
-          "pct": 57
+          "runs_with_marker": 45,
+          "total_runs": 73,
+          "pct": 62
         }
       ]
     },
@@ -4640,12 +4650,12 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 236,
-          "runs_marked": 110,
+          "runs_total": 240,
+          "runs_marked": 114,
           "runs_sentinel": 4,
           "runs_unmarked": 122,
-          "tokens_total": 25684795,
-          "median_tokens_per_run": 212974,
+          "tokens_total": 26143882,
+          "median_tokens_per_run": 208060,
           "share_pct": 28
         },
         {
@@ -4660,42 +4670,42 @@
         },
         {
           "role": "Code Review",
-          "runs_total": 290,
-          "runs_marked": 124,
+          "runs_total": 293,
+          "runs_marked": 127,
           "runs_sentinel": 18,
           "runs_unmarked": 148,
-          "tokens_total": 14266221,
-          "median_tokens_per_run": 115014,
+          "tokens_total": 14729625,
+          "median_tokens_per_run": 118152,
           "share_pct": 16
         },
         {
           "role": "Remediation",
-          "runs_total": 253,
+          "runs_total": 255,
           "runs_marked": 83,
           "runs_sentinel": 22,
-          "runs_unmarked": 148,
+          "runs_unmarked": 150,
           "tokens_total": 14700463,
           "median_tokens_per_run": 159884,
           "share_pct": 16
         },
         {
           "role": "Validation",
-          "runs_total": 392,
-          "runs_marked": 145,
+          "runs_total": 395,
+          "runs_marked": 148,
           "runs_sentinel": 33,
           "runs_unmarked": 214,
-          "tokens_total": 21075004,
-          "median_tokens_per_run": 142080,
+          "tokens_total": 21560176,
+          "median_tokens_per_run": 142282,
           "share_pct": 23
         },
         {
           "role": "Planning",
-          "runs_total": 176,
-          "runs_marked": 83,
+          "runs_total": 177,
+          "runs_marked": 84,
           "runs_sentinel": 7,
           "runs_unmarked": 86,
-          "tokens_total": 13142379,
-          "median_tokens_per_run": 154564,
+          "tokens_total": 13407188,
+          "median_tokens_per_run": 156970,
           "share_pct": 14
         },
         {
@@ -5475,8 +5485,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 10,
-              "median_tokens": 131396
+              "runs_marked": 14,
+              "median_tokens": 125772
             },
             {
               "role": "Implementation",
@@ -5485,8 +5495,8 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 6,
-              "median_tokens": 162820
+              "runs_marked": 9,
+              "median_tokens": 149840
             },
             {
               "role": "Remediation",
@@ -5495,13 +5505,13 @@
             },
             {
               "role": "Validation",
-              "runs_marked": 10,
-              "median_tokens": 188633
+              "runs_marked": 13,
+              "median_tokens": 186882
             },
             {
               "role": "Planning",
-              "runs_marked": 3,
-              "median_tokens": 239719
+              "runs_marked": 4,
+              "median_tokens": 252264
             },
             {
               "role": "Other",
@@ -5523,9 +5533,9 @@
     "remediation_distribution": {
       "0": 95,
       "1": 30,
-      "2": 25,
+      "2": 24,
       "3": 11,
-      "4": 9,
+      "4": 10,
       "5": 7,
       "6": 2,
       "7": 1,
@@ -6594,7 +6604,7 @@
       {
         "ref": "consumer-config-routing-override",
         "verdict_source": "field",
-        "cost_basis": "total-blended"
+        "cost_basis": "mixed"
       },
       {
         "ref": "flush-drops-reopened-runs",
@@ -6759,16 +6769,16 @@
     },
     {
       "week": "2026-W46",
-      "delivered": 18,
-      "median_lead_time_seconds": 23960,
-      "busy_seconds": 141584,
-      "tokens": 5427093,
+      "delivered": 20,
+      "median_lead_time_seconds": 20229,
+      "busy_seconds": 155726,
+      "tokens": 7099565,
       "first_pass_rate": 0
     }
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 337,
+    "open_count": 343,
     "oldest_age_days": 85,
     "items": [
       {
@@ -6815,7 +6825,7 @@
         "id": "fu-pindirfast-gitdir-untested",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "branch-guard.mjs:319 -- the GIT_DIR deference in pinDirFast (added for validation round-2 NB-1) has no test a mutation reddens.",
         "status": "open"
       },
@@ -6823,7 +6833,7 @@
         "id": "fu-prompt-diet-fixture-real-root-race",
         "ref": "test-framework-sweep",
         "severity": "P2",
-        "age_days": 61,
+        "age_days": 62,
         "what": "a real-tree write hazard, observed under the validator's own concurrency: one regression run of test-aai-docs-audit.sh exited 1 with TEST-005 crashing on ENOENT for docs/issues/prompt-diet-e2e-dry-run. Mechanism: when suites are invoked BARE (outside the framework's per-suite isolation), tests/skills/test-aai-prompt-diet.sh creates and deletes that file in the REAL project root (:34 E2E_DRAFT, created in test_004, removed by rm -f and an EXIT trap), and a concurrent real-tree corpus walk by docs-audit opened it between enumeration and read.",
         "status": "open"
       },
@@ -6831,7 +6841,7 @@
         "id": "fu-ps1-quality-outside-sweep-glob",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "tests/skills/test-framework.sh:948 -- Spec-AC-08's own new guard (test-ps1-quality.sh's timeout-default parity check) lives in a suite the local evidence chain never runs. discover_tests()'s full-run branch is find $SCRIPT_DIR -name 'test-aai-*.sh'; tests/skills/test-ps1-quality.sh has no 'aai-' prefix, so it is not one of the 93 sweep suites and has no suite-map.yaml row, so select-suites.mjs cannot select it either.",
         "status": "open"
       },
@@ -6839,7 +6849,7 @@
         "id": "fu-seed-partial-verdict-unasserted",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "tests/skills/test-framework.sh:557 -- Spec-AC-18's 'partly seeded, never seeded' verdict for the step-2 enumeration case is asserted by nothing. TEST-433(b) (test-aai-suite-isolation.sh:2564) greps only for the log_warn TEXT; the iso_seed_fail call at :558 that turns the observation into the PARTIAL verdict is unasserted.",
         "status": "open"
       },
@@ -6847,7 +6857,7 @@
         "id": "fu-watchdog-3000-exceeds-ci-timeout",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": ".github/workflows/skill-suite.yml:161 -- raising the wrapper's default AAI_TEST_TIMEOUT from 300s to 3000s puts the inner watchdog ABOVE both CI job ceilings (skills-selected timeout-minutes: 15 = 900s at :123, skills-full timeout-minutes: 30 = 1800s at :161). 24 suites invoke aai-run-tests.sh inside their own fixtures.",
         "status": "open"
       },
@@ -7735,7 +7745,7 @@
         "id": "fu-ceremony-postpush-ac-circular",
         "ref": "spec-close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 43,
+        "age_days": 44,
         "what": "a ride whose AC can only be proven by its own CI run cannot complete the close ceremony: close-before-push-guard refuses the push until the item is closed, close-work-item refuses to close while any AC is non-terminal, and the CI run that would make it terminal requires the push",
         "status": "open"
       },
@@ -8023,7 +8033,7 @@
         "id": "fu-apply-unclassified-filter-untested",
         "ref": "merge-direction-signs-amendments",
         "severity": "P3",
-        "age_days": 34,
+        "age_days": 35,
         "what": "merge-cleanup apply's sign-amendments step skips unclassified contract records but no test or mutation pins that filter (TEST-025 covers only sign-merged)",
         "status": "open"
       },
@@ -8031,7 +8041,7 @@
         "id": "fu-merge-preflight-checks-not-started",
         "ref": "merge-direction-signs-amendments",
         "severity": "P3",
-        "age_days": 34,
+        "age_days": 35,
         "what": "merge-cleanup preflight reports a required check that never started (no steps, billing or spending-limit annotation) as checks_failing; it should refuse as checks_not_started with a remedy (fix billing, re-run the jobs)",
         "status": "open"
       },
@@ -8127,7 +8137,7 @@
         "id": "fu-release-marker-per-ref",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 33,
+        "age_days": 34,
         "what": "one release-pending marker serves all refs; releasing another ref overwrites a pending resume record and that ref's event is lost",
         "status": "open"
       },
@@ -8135,7 +8145,7 @@
         "id": "fu-release-pending-reporter",
         "ref": "done-work-item-stays-in-current-focus",
         "severity": "P3",
-        "age_days": 33,
+        "age_days": 34,
         "what": "nothing reports a pending release marker (dispatch, check-state, doctor); the missing event is written only if the same --release is re-run",
         "status": "open"
       },
@@ -8519,7 +8529,7 @@
         "id": "fu-bind-check-role-posture-mismatch",
         "ref": "recheck-verdict-binding",
         "severity": "P3",
-        "age_days": 20,
+        "age_days": 21,
         "what": "bind-check refuses any non-empty AAI_ROLE, but the SUBAGENT_PROTOCOL ENV row lets the orchestrator keep AAI_ROLE set to a non-subagent value, so such an orchestrator never binds and every re-check round is full with first_round and no diagnostic",
         "status": "open"
       },
@@ -8527,7 +8537,7 @@
         "id": "fu-recheck-state-tracked-premise",
         "ref": "recheck-verdict-binding",
         "severity": "P3",
-        "age_days": 20,
+        "age_days": 21,
         "what": "nothing checks that docs/ai/STATE.yaml is gitignored where the binding is read; aai-sync.sh only warns when a downstream install still tracks it",
         "status": "open"
       },
@@ -8599,7 +8609,7 @@
         "id": "fu-implied-sign-grafts-replace-refs",
         "ref": "implied-signing-without-links-pr",
         "severity": "P3",
-        "age_days": 19,
+        "age_days": 20,
         "what": "squashPrFromBase reads a forged subject through local .git/info/grafts, git replace --graft or a replaced doc commit, so a direct-push ride can read signed",
         "status": "open"
       },
@@ -8839,7 +8849,7 @@
         "id": "fu-test021c-fifo-open-eintr",
         "ref": "precise-suite-evidence-reuse",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "tests/skills/test-aai-follow-ups.sh:1387 TEST-021c: opening the test's own fifo can be interrupted under sweep load (4: Bad file descriptor, rc 1); retry the open or check it opened before asserting the exit code",
         "status": "open"
       },
@@ -9071,7 +9081,7 @@
         "id": "fu-pcc-ride-scoped-pins",
         "ref": "pre-commit-checks-ps1-retire",
         "severity": "P3",
-        "age_days": 6,
+        "age_days": 7,
         "what": "test-aai-pre-commit-checks.sh:220 and :495 pin pre-commit-checks.sh to a 7/7 diff vs 3e6b52d5 and exactly 323/239 lines; the next legitimate edit of the script fails both like a regression",
         "status": "open"
       },
@@ -9372,14 +9382,6 @@
         "status": "open"
       },
       {
-        "id": "fu-consumer-routing-seam",
-        "ref": "routing-tables-have-an-owner-and-a-seam",
-        "severity": "P2",
-        "age_days": 1,
-        "what": "Consumer-owned routing config seam that /aai-update never overwrites (CHANGE-0192 AC-002, AC-003 harness-scoped override, AC-004 UPGRADING note)",
-        "status": "open"
-      },
-      {
         "id": "fu-routing-owner-cost-binding",
         "ref": "routing-tables-have-an-owner-and-a-seam",
         "severity": "P3",
@@ -9388,19 +9390,67 @@
         "status": "open"
       },
       {
-        "id": "fu-pricing-unverified-rows",
-        "ref": "routing-tables-have-an-owner-and-a-seam",
-        "severity": "P3",
-        "age_days": 1,
-        "what": "Re-verify PRICING rows the 2026-11-13 refresh did not touch: o3 (vendor page 2/8 vs file 10/40), deepseek, xai, gemini-2.x/1.5, gpt-4o*, gpt-5.6-*, claude-fable-5",
-        "status": "open"
-      },
-      {
         "id": "fu-routing-pins-structural",
         "ref": "routing-tables-have-an-owner-and-a-seam",
         "severity": "P3",
         "age_days": 1,
         "what": "Dispatch suite pins literal shipped model ids (TEST-020/026/057); derive them from the shipped table so monthly refreshes do not edit tests",
+        "status": "open"
+      },
+      {
+        "id": "fu-test026-unmerged-example-arm-vacant",
+        "ref": "consumer-config-routing-override",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "TEST-026 live-ledger unmerged-example arm is n/a since PR #553 merged its pinned ride; pin a new unmerged example or retire the arm",
+        "status": "open"
+      },
+      {
+        "id": "fu-pc-tests-synthetic-override-ids",
+        "ref": "consumer-config-routing-override",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "test-aai-project-config uses real model ids as override inputs; TEST-3683 fails if Validation@lightweight is pinned to claude-haiku-5-5 and TEST-3682's mutation goes vacuous if shipped claude Code Review becomes claude-sonnet-5-5",
+        "status": "open"
+      },
+      {
+        "id": "fu-project-config-dangling-symlink",
+        "ref": "consumer-config-routing-override",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "a dangling symlink at docs/ai/project-config.yaml reads as ENOENT and is treated as absent with no NOTE",
+        "status": "open"
+      },
+      {
+        "id": "fu-spec-amend-restamp-cause-bare-slug",
+        "ref": "consumer-config-routing-override",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "spec-amend restamp reports UNVERIFIED cause when the spec's links.requirement is a bare slug, although the drift is the allocator rename",
+        "status": "open"
+      },
+      {
+        "id": "fu-model-provider-keeps-shipped-vendor",
+        "ref": "consumer-config-routing-override",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "modelProvider returns a provider-less project row's null instead of the shipped vendor, so a cross-vendor override priced by the project loses its NOTE and CAT-22 label",
+        "status": "open"
+      },
+      {
+        "id": "fu-routine-d2-stale-exact-under-prefix",
+        "ref": "consumer-config-routing-override",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "ROUTING_REFRESH D2 picks stale rows 'the shipped table still does not price', which no longer matches a doctor field after the exact-beats-prefix rule",
+        "status": "open"
+      },
+      {
+        "id": "fu-doctor-doc-shadowed-exact-wording",
+        "ref": "consumer-config-routing-override",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "docs/product/aai-doctor.md and the lib/project-config.mjs header still describe shadowed as any shipped price, not a shipped exact/alias match",
         "status": "open"
       },
       {
@@ -9465,6 +9515,14 @@
         "severity": "P3",
         "age_days": 0,
         "what": "foldRideSegments keeps only the latest segment's validation_waiver, so a ride with an operator waiver on one segment and an agent waiver on another reports operator 0",
+        "status": "open"
+      },
+      {
+        "id": "fu-test-3726-mutation-pins-live-ledger",
+        "ref": "flush-drops-reopened-runs",
+        "severity": "P3",
+        "age_days": 0,
+        "what": "the TEST-3726 mutation record targets the live docs/ai/METRICS.jsonl, so every ledger append makes mutation-gate report it STALE until a replay",
         "status": "open"
       }
     ]
@@ -9904,6 +9962,40 @@
         "remediation_runs": 3,
         "remediation_tokens": null,
         "remediation_share_pct": null
+      },
+      {
+        "ref": "consumer-config-routing-override",
+        "date_utc": "2026-11-14",
+        "runs_total": 24,
+        "elapsed_wall_seconds": 53750,
+        "agent_seconds": 26620,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 7
+          },
+          {
+            "role": "Code Review",
+            "runs": 5
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 6
+          },
+          {
+            "role": "Planning",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 22,
+        "tokens_total": 3471622,
+        "remediation_runs": 4,
+        "remediation_tokens": 195652,
+        "remediation_share_pct": 6
       },
       {
         "ref": "role-verification-guards",
@@ -10436,40 +10528,6 @@
         "remediation_runs": 2,
         "remediation_tokens": 526544,
         "remediation_share_pct": 29
-      },
-      {
-        "ref": "consumer-config-routing-override",
-        "date_utc": "2026-11-14",
-        "runs_total": 11,
-        "elapsed_wall_seconds": 21713,
-        "agent_seconds": 12478,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 3
-          },
-          {
-            "role": "Code Review",
-            "runs": 2
-          },
-          {
-            "role": "Remediation",
-            "runs": 2
-          },
-          {
-            "role": "Validation",
-            "runs": 3
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 11,
-        "tokens_total": 1799150,
-        "remediation_runs": 2,
-        "remediation_tokens": 195652,
-        "remediation_share_pct": 11
       },
       {
         "ref": "RFC-0006",
