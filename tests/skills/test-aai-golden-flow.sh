@@ -1183,6 +1183,21 @@ HOLDER
   log_pass "TEST-417 (Spec-AC-10) 12 concurrent appends produced 13 whole parseable records with the pre-existing bytes an exact prefix, and a held lock was reported rather than bypassed"
 }
 
+# --- TEST-3733 (SPEC-0291 Spec-AC-07): a reopened ride is one ride in the median
+test_3733_median_folds_a_reopened_ride() {
+  log_info "TEST-3733: tokens_median_last10 counts a two-segment ref once, with its segments' tokens summed..."
+  local out="$TEST_DIR/t3733-out" record="$TEST_DIR/t3733-record.jsonl"
+  local ledger="$TEST_DIR/t3733-metrics.jsonl"
+  printf '{"date_utc":"2026-11-10","ref_id":"ride-a","agent_runs":[{"role":"Implementation","note":"usage_total_tokens=100"}],"verdict":"PASS"}\n' > "$ledger"
+  printf '{"date_utc":"2026-11-11","ref_id":"ride-b","agent_runs":[{"role":"Implementation","note":"usage_total_tokens=1000"}],"verdict":"PASS"}\n' >> "$ledger"
+  printf '{"date_utc":"2026-11-12","ref_id":"ride-a","agent_runs":[{"role":"Code Review","note":"usage_total_tokens=300"}],"verdict":"PASS","flush_segment":2}\n' >> "$ledger"
+  flow_env_run "$out" "$record" --metrics "$ledger"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-3733: expected exit 0, got $CODE: $OUT"
+  [[ "$(json_field "$record" 'r.tokens_median_last10')" == "700" ]] \
+    || log_fail "TEST-3733: two rides (ride-a 100+300 summed, ride-b 1000) give median 700, not the per-line median: $(tail -1 "$record")"
+  log_pass "TEST-3733 tokens_median_last10 folds a reopened ride's segments into one ride (median 700)"
+}
+
 main() {
   echo "Testing $TEST_NAME (simple-and-friendly-to-use / SPEC-0172-spec-simple-and-friendly-to-use)"
   check_deps
@@ -1208,6 +1223,7 @@ main() {
   test_006_record_reads_gate_and_skill_pr_wiring
   test_007_record_append_only_and_diff
   test_417_locked_concurrent_appends
+  test_3733_median_folds_a_reopened_ride
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

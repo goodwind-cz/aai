@@ -800,7 +800,7 @@ ARCHIVE_SENTINEL_TOKEN="[AAI-VALIDATION-ARCHIVED"
 #                              (empty = the default gate only, as before)
 #   MK_RESUME                — puts the ref in the ledger BEFORE the measured
 #                              flush, so metrics-flush takes its RESUME branch
-#                              (`inLedger.has(ref)`) instead of either gate:
+#                              (every STATE run is already in the ledger) instead of either gate:
 #                                crash   — a first flush killed after the ledger
 #                                          append (AAI_FLUSH_INJECT_CRASH, the
 #                                          real fault hook TEST-107 uses); the
@@ -927,7 +927,7 @@ YAML
   # branch. Both routes are real: `crash` is the fault hook TEST-107 already
   # exercises; `cheat` is a same-day ledger line that simply already exists.
   if [[ "$resume" == cheat ]]; then
-    printf '{"date_utc":"%s","ref_id":"%s","title":"pre-existing same-day line","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":0},"strategy":"tdd","reliability":null,"verdict":"PASS"}\n' \
+    printf '{"date_utc":"%s","ref_id":"%s","title":"pre-existing same-day line","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"claude-sonnet-5","started_utc":"2026-08-30T07:00:00Z","ended_utc":"2026-08-30T07:10:00Z"}],"totals":{"human_time_minutes":0,"agent_duration_seconds":0,"total_cost_usd":0},"strategy":"tdd","reliability":null,"verdict":"PASS"}\n' \
       "$FLUSH_DAY" "$ARCHIVED_REF" >> "$d/docs/ai/METRICS.jsonl"
   fi
   if [[ "$resume" == crash ]]; then
@@ -1275,6 +1275,8 @@ test_16_archive_never_blocks_a_waiver() {
 #  (e) control — a crash-resume of a ride that DOES satisfy the default gate
 #      must STILL archive. A fix that never archived on resume fails (e), and
 #      would break SPEC-0068's designed crash-recovery path.
+# Spec-AC-03 / TEST-3724 (spec-flush-drops-reopened-runs): arms (c), (d) and (e) below are the Test Plan row TEST-3724;
+# their failure messages name that id so mutation-run.mjs can attribute a RED to it.
 test_17_swept_ref_is_never_archived() {
   log_info "TEST-17: neither the sweep gate nor the resume branch mints an archive record..."
   local d sp
@@ -1353,28 +1355,28 @@ test_17_swept_ref_is_never_archived() {
   # re-flush. Nothing validated at any point, so the verdict must be the one
   # base gives.
   d="$(MK_VSTATUS=not_run MK_VREF=null MK_REVIEW_REQUIRED=true MK_SWEPT=$SWEPT_REF MK_RESUME=crash \
-        mk_flushed swept_resume)" || log_fail "TEST-17(c): fixture build failed"
+        mk_flushed swept_resume)" || log_fail "TEST-3724 TEST-17(c): fixture build failed"
   sp="$d/docs/ai/STATE.yaml"
 
   # PREMISE: the measured flush really took the RESUME branch and really
   # appended nothing — the arm must not pass because the flush did no work.
   grep -qF "RESUME $ARCHIVED_REF" "$d/flush.log" \
-    || log_fail "TEST-17(c) premise: the measured flush must RESUME $ARCHIVED_REF: $(cat "$d/flush.log")"
+    || log_fail "TEST-3724 TEST-17(c) premise: the measured flush must RESUME $ARCHIVED_REF: $(cat "$d/flush.log")"
   ! grep -qF "Flushed:" "$d/flush.log" \
-    || log_fail "TEST-17(c) premise: a resume is cleanup-only — it must append no ledger line: $(cat "$d/flush.log")"
+    || log_fail "TEST-3724 TEST-17(c) premise: a resume is cleanup-only — it must append no ledger line: $(cat "$d/flush.log")"
   [[ "$(grep -cv -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" || true)" == 2 ]] \
-    || log_fail "TEST-17(c) premise: the pre-crash sweep's two ledger lines must survive un-duplicated: $(cat "$d/docs/ai/METRICS.jsonl")"
+    || log_fail "TEST-3724 TEST-17(c) premise: the pre-crash sweep's two ledger lines must survive un-duplicated: $(cat "$d/docs/ai/METRICS.jsonl")"
   assert_payload_contains "$(cat "$sp")" "reset after flush of" \
-    "TEST-17(c): the partial-reset prose must be untouched — only the record is withheld" || return 1
+    "TEST-3724 TEST-17(c): the partial-reset prose must be untouched — only the record is withheld" || return 1
   assert_payload_not_contains "$(cat "$sp")" "$ARCHIVE_SENTINEL_TOKEN" \
-    "TEST-17(c): a ref RESUMED into the ledger without satisfying the default gate must mint NO archive record" || return 1
+    "TEST-3724 TEST-17(c): a ref RESUMED into the ledger without satisfying the default gate must mint NO archive record" || return 1
 
   run_gate "$sp"
-  expect_rc 1 "TEST-17(c) resumed swept ref, nothing validated"
+  expect_rc 1 "TEST-3724 TEST-17(c) resumed swept ref, nothing validated"
   assert_payload_contains "$GATE_OUT" "reason=validation_not_run_no_waiver" \
-    "TEST-17(c): a resumed swept ride must reach the PR gate with exactly the verdict it had before the flush" || return 1
+    "TEST-3724 TEST-17(c): a resumed swept ride must reach the PR gate with exactly the verdict it had before the flush" || return 1
   assert_payload_not_contains "$GATE_OUT" "validation_archived_pass" \
-    "TEST-17(c): the archive lane must never open for a ride that never validated, resumed or not" || return 1
+    "TEST-3724 TEST-17(c): the archive lane must never open for a ride that never validated, resumed or not" || return 1
 
   # (d) THE RESUME LANE WITHOUT A SWEEP AND WITHOUT A CRASH. A same-day PASS
   # line for the focus ref already sits in METRICS.jsonl while STATE still
@@ -1382,38 +1384,38 @@ test_17_swept_ref_is_never_archived() {
   # passed anywhere in this arm, which is what proves the defect is the RESUME
   # branch itself and not a sweep-only carve-out.
   d="$(MK_VSTATUS=not_run MK_VREF=null MK_REVIEW_REQUIRED=true MK_RESUME=cheat \
-        mk_flushed plain_resume)" || log_fail "TEST-17(d): fixture build failed"
+        mk_flushed plain_resume)" || log_fail "TEST-3724 TEST-17(d): fixture build failed"
   sp="$d/docs/ai/STATE.yaml"
 
   grep -qF "RESUME $ARCHIVED_REF" "$d/flush.log" \
-    || log_fail "TEST-17(d) premise: the flush must RESUME $ARCHIVED_REF: $(cat "$d/flush.log")"
+    || log_fail "TEST-3724 TEST-17(d) premise: the flush must RESUME $ARCHIVED_REF: $(cat "$d/flush.log")"
   [[ ! -e "$d/crash.log" ]] \
-    || log_fail "TEST-17(d) premise: this arm must involve no crashed flush at all"
+    || log_fail "TEST-3724 TEST-17(d) premise: this arm must involve no crashed flush at all"
   [[ "$(grep -cv -e '^#' -e '^$' "$d/docs/ai/METRICS.jsonl" || true)" == 1 ]] \
-    || log_fail "TEST-17(d) premise: exactly the pre-existing line, no duplicate: $(cat "$d/docs/ai/METRICS.jsonl")"
+    || log_fail "TEST-3724 TEST-17(d) premise: exactly the pre-existing line, no duplicate: $(cat "$d/docs/ai/METRICS.jsonl")"
   assert_payload_not_contains "$(cat "$sp")" "$ARCHIVE_SENTINEL_TOKEN" \
-    "TEST-17(d): a plain flush that only RESUMES a ledger line must mint no archive record" || return 1
+    "TEST-3724 TEST-17(d): a plain flush that only RESUMES a ledger line must mint no archive record" || return 1
 
   run_gate "$sp"
-  expect_rc 1 "TEST-17(d) resumed ref, no sweep, no crash, nothing validated"
+  expect_rc 1 "TEST-3724 TEST-17(d) resumed ref, no sweep, no crash, nothing validated"
   assert_payload_contains "$GATE_OUT" "reason=validation_not_run_no_waiver" \
-    "TEST-17(d): a pre-existing ledger line must not become a PR-gate opening" || return 1
+    "TEST-3724 TEST-17(d): a pre-existing ledger line must not become a PR-gate opening" || return 1
 
   # (e) SECOND NON-VACUITY CONTROL. The resume lane is not the defect — an
   # UNVALIDATED resume is. A ride that genuinely satisfies the default gate and
   # is resumed after a crash MUST still archive, or the fix would have been
   # "never archive on resume", which breaks the very crash-recovery path
   # SPEC-0068 designed.
-  d="$(MK_RESUME=crash mk_flushed validated_resume)" || log_fail "TEST-17(e): fixture build failed"
+  d="$(MK_RESUME=crash mk_flushed validated_resume)" || log_fail "TEST-3724 TEST-17(e): fixture build failed"
   sp="$d/docs/ai/STATE.yaml"
   grep -qF "RESUME $ARCHIVED_REF" "$d/flush.log" \
-    || log_fail "TEST-17(e) premise: the measured flush must RESUME $ARCHIVED_REF: $(cat "$d/flush.log")"
+    || log_fail "TEST-3724 TEST-17(e) premise: the measured flush must RESUME $ARCHIVED_REF: $(cat "$d/flush.log")"
   assert_payload_contains "$(cat "$sp")" "$ARCHIVE_SENTINEL_TOKEN v1 ref=$ARCHIVED_REF at=$FLUSH_NOW" \
-    "TEST-17(e): a resumed ref that DOES satisfy the default gate must still be archived" || return 1
+    "TEST-3724 TEST-17(e): a resumed ref that DOES satisfy the default gate must still be archived" || return 1
   run_gate "$sp"
-  expect_rc 0 "TEST-17(e) resumed ref that genuinely validated"
+  expect_rc 0 "TEST-3724 TEST-17(e) resumed ref that genuinely validated"
   assert_payload_contains "$GATE_OUT" "reason=validation_archived_pass" \
-    "TEST-17(e): the archive lane must still open for a genuinely-validated resumed ride" || return 1
+    "TEST-3724 TEST-17(e): the archive lane must still open for a genuinely-validated resumed ride" || return 1
 
   log_pass "TEST-17 neither the sweep gate nor the resume branch mints an opening; refs that satisfy the DEFAULT gate still archive"
 }
@@ -1493,12 +1495,64 @@ YAML
   log_pass "TEST-18 the ledger lookup binds to the record's ref, not the scope: a sibling's PASS refuses, the record-holder's own PASS opens"
 }
 
+# --- TEST-19 -----------------------------------------------------------------
+# Spec-AC-04 (spec-flush-drops-reopened-runs D5). A ride flushed, reopened with a
+# new run and a fresh validation pass, and flushed again the SAME UTC day leaves
+# two same-day PASS lines for one ref (flush_segment 1 and 2). That is one ride
+# flushed twice, not two rides, so the gate must still open. A byte copy of the
+# segment-2 line IS ambiguous (two lines, one segment) and must still refuse.
+# Test Plan row TEST-3725 (spec-flush-drops-reopened-runs); its failure messages name that id for mutation-run.mjs.
+test_19_reopen_same_day_flush_opens() {
+  log_info "TEST-3725 TEST-19: two same-day PASS lines with distinct flush_segment values open the gate; equal segments refuse..."
+  local d sp m
+  d="$(mk_flushed arch_reopen)" || log_fail "TEST-3725 TEST-19: fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  m="$d/docs/ai/METRICS.jsonl"
+  (cd "$PROJECT_ROOT" \
+    && node .aai/scripts/state.mjs set-focus --type intake_issue --ref "$ARCHIVED_REF" --path "docs/issues/${ARCHIVED_REF}.md" --state "$sp" \
+    && node .aai/scripts/state.mjs append-run --ref "$ARCHIVED_REF" --role Validation --model claude-sonnet-5 --started 2026-08-30T09:20:00Z --verdict pass --tokens-in 10 --tokens-out 10 --state "$sp" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
+    && node .aai/scripts/state.mjs set-validation --status pass --ref "$ARCHIVED_REF" --state "$sp") > "$d/reopen.log" 2>&1 \
+    || log_fail "TEST-3725 TEST-19 premise: the reopen CLIs must succeed: $(cat "$d/reopen.log")"
+  local fec=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-flush.mjs \
+    --state "$sp" --metrics "$m" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" --pricing "$d/PRICING.yaml" \
+    --events "$d/docs/ai/EVENTS.jsonl" --now "2026-08-30T10:00:00Z" > "$d/flush2.log" 2>&1) || fec=$?
+  [[ "$fec" == 0 ]] || log_fail "TEST-3725 TEST-19 premise: the second flush must exit 0 (got $fec): $(cat "$d/flush2.log")"
+  grep -qF "Partial-flush reset applied" "$d/flush2.log" \
+    || log_fail "TEST-3725 TEST-19 premise: the second flush must reset partially: $(cat "$d/flush2.log")"
+  local segs
+  segs="$(node -e '
+    const fs = require("fs");
+    const L = fs.readFileSync(process.argv[1], "utf8").split("\n").filter((x) => x.startsWith("{")).map((x) => JSON.parse(x));
+    console.log(L.filter((e) => e.ref_id === process.argv[2] && e.verdict === "PASS" && e.date_utc === process.argv[3]).map((e) => e.flush_segment === undefined ? 1 : e.flush_segment).join(","));
+  ' "$m" "$ARCHIVED_REF" "$FLUSH_DAY")"
+  [[ "$segs" == "1,2" ]] \
+    || log_fail "TEST-3725 TEST-19 premise: two same-day PASS lines with segments 1 and 2 expected, got '$segs': $(cat "$m")"
+  grep -qF "at=2026-08-30T10:00:00Z" "$sp" \
+    || log_fail "TEST-3725 TEST-19 premise: the archive record must carry the second flush instant"
+
+  run_gate "$sp"
+  expect_rc 0 "TEST-3725 TEST-19 reopen, same-day second flush"
+  assert_payload_contains "$GATE_OUT" "reason=validation_archived_pass" \
+    "TEST-3725 TEST-19: a same-day reopen that ends in a partial reset must still open on its archived PASS" || return 1
+
+  # CONTROL: a byte copy of the segment-2 line is two lines with ONE segment.
+  grep '^{' "$m" | tail -n 1 >> "$m"
+  run_gate "$sp"
+  expect_rc 1 "TEST-3725 TEST-19 control (duplicated segment-2 line)"
+  assert_payload_contains "$GATE_OUT" "reason=archive_ledger_ambiguous" \
+    "TEST-3725 TEST-19 control: two PASS lines with the same flush_segment must still refuse as ambiguous" || return 1
+  rm -rf "$d"
+  log_pass "TEST-3725 TEST-19 distinct flush segments open the gate; a duplicated segment still refuses"
+}
+
 # --- runner ------------------------------------------------------------------
 
-ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver 17_swept_ref_is_never_archived 18_ledger_corroborates_the_record_not_the_scope"
+ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver 17_swept_ref_is_never_archived 18_ledger_corroborates_the_record_not_the_scope 19_reopen_same_day_flush_opens"
 
 main() {
   local requested="${1:-}"
+  requested="${requested#test_}"   # mutation-run.mjs passes the function name (test_17_...), the arm list holds 17_...
   check_deps
   setup_fixture
   local selected="" t

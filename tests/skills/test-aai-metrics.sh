@@ -945,7 +945,7 @@ test_013_legacy_timestamp_summary_is_cleanup_only() {
   local d
   d="$(mk_repo t13-legacy-timestamp)"
   write_flush_state "$d/docs/ai/STATE.yaml" single
-  printf '%s\n' '{"date_utc":"2026-07-04T10:04:21Z","ref_id":"CHANGE-0001","title":"Historical final summary","agent_runs":[],"totals":{},"verdict":"PASS"}' >> "$d/docs/ai/METRICS.jsonl"
+  printf '%s\n' '{"date_utc":"2026-07-04T10:04:21Z","ref_id":"CHANGE-0001","title":"Historical final summary","agent_runs":[{"role":"Planning","model_id":"claude-opus-4-8[1m]","started_utc":"2026-07-15T10:00:00Z","ended_utc":"2026-07-15T10:02:00Z"},{"role":"Implementation","model_id":"sonnet-latest","started_utc":"2026-07-15T10:02:00Z","ended_utc":"2026-07-15T10:12:00Z"},{"role":"Validation","model_id":"claude-sonnet-5-20260101","started_utc":"2026-07-15T10:12:00Z","ended_utc":"2026-07-15T10:13:40Z"},{"role":"Code Review","model_id":"mystery-9000","started_utc":"2026-07-15T10:13:40Z","ended_utc":"2026-07-15T10:14:40Z"}],"totals":{},"verdict":"PASS"}' >> "$d/docs/ai/METRICS.jsonl"
   run_flush "$d"
   [[ "$EC" == 0 ]] || log_fail "historical summary resume must exit 0 (got $EC): $(cat "$OUT")"
   [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "historical summary must not be duplicated"
@@ -4203,6 +4203,274 @@ test_1398_release_records_absence() {  # TEST-1398 (Spec-AC-08)
   log_pass "Absence is recorded, never fabricated as zeroes (TEST-1398)"
 }
 
+# --- flush-drops-reopened-runs: a reopened ref flushes as a continuation -------
+# (spec-flush-drops-reopened-runs D1-D4, D7; TEST-3720..3723)
+
+# add_state_run <state-file> <role> <model_id> <started> <ended> — append one
+# agent_run to the CHANGE-0001 fixture (the last run precedes updated_at_utc).
+add_state_run() {
+  node - "$1" "$2" "$3" "$4" "$5" <<'NODE'
+const fs = require('fs');
+const [f, role, model, st, en] = process.argv.slice(2);
+const raw = fs.readFileSync(f, 'utf8');
+const run = `        - role: ${role}\n          model_id: ${model}\n          started_utc: ${st}\n`
+  + `          ended_utc: ${en}\n          duration_seconds: 60\n          tokens_in: 5\n          tokens_out: 5\n          cost_usd: null\n`;
+const marker = '\n\nupdated_at_utc:';
+const i = raw.lastIndexOf(marker);
+if (i < 0) process.exit(1);
+fs.writeFileSync(f, raw.slice(0, i + 1) + run + raw.slice(i + 1));
+NODE
+}
+
+# mk_flushed_then_reopened <name> [vstatus] [rstatus] — flush the golden fixture
+# once (ledger line 1 holds its four runs), then rewrite STATE to the same four
+# runs plus one new run that no ledger line holds. Echoes the repo dir.
+mk_flushed_then_reopened() {
+  local d
+  d="$(mk_repo "$1")"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "fixture first flush must exit 0 (got $EC): $(cat "$OUT")"
+  write_flush_state "$d/docs/ai/STATE.yaml" single "${2:-pass}" "${3:-pass}"
+  add_state_run "$d/docs/ai/STATE.yaml" Validation claude-sonnet-5 2026-07-15T11:40:00Z 2026-07-15T11:41:00Z
+  printf '%s' "$d"
+}
+
+test_3720_reopen_flush_writes_continuation() {
+  log_info "Test: flush -> set-focus -> append-run -> set-validation -> flush appends a continuation line, never RESUME (TEST-3720, Spec-AC-01)..."
+  local d S
+  d="$(mk_repo t3720)"
+  S="$d/docs/ai/STATE.yaml"
+  write_flush_state "$S" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3720: first flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 1 ]] || log_fail "TEST-3720: first flush must write one line"
+  grep -v '^#' "$d/docs/ai/METRICS.jsonl" | sed -n 1p > "$d/line1.before"
+  (cd "$PROJECT_ROOT" \
+    && node .aai/scripts/state.mjs set-focus --type intake_change --ref CHANGE-0001 --path docs/issues/CHANGE-0001-golden.md --state "$S" \
+    && node .aai/scripts/state.mjs append-run --ref CHANGE-0001 --role Validation --model claude-sonnet-5 --started 2026-07-15T11:40:00Z --verdict pass --tokens-in 10 --tokens-out 10 --state "$S" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
+    && node .aai/scripts/state.mjs set-validation --status pass --ref CHANGE-0001 --state "$S") > "$d/reopen.log" 2>&1 \
+    || log_fail "TEST-3720: reopen CLIs must succeed: $(cat "$d/reopen.log")"
+  NOW_PIN="2030-01-01T00:00:00Z" run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3720: second flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3720: second flush must append exactly one continuation line (ledger has $(ledger_lines "$d")): $(cat "$OUT")"
+  grep -v '^#' "$d/docs/ai/METRICS.jsonl" | sed -n 1p > "$d/line1.after"
+  cmp -s "$d/line1.before" "$d/line1.after" || log_fail "TEST-3720: line 1 bytes must be unchanged"
+  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "TEST-3720: continuation line shape is wrong"
+const fs = require('fs');
+const L = fs.readFileSync(process.argv[2], 'utf8').split('\n').filter(l => l.startsWith('{')).map(l => JSON.parse(l));
+if (L.length !== 2) process.exit(1);
+if ('flush_segment' in L[0]) { console.error('line 1 must carry no flush_segment'); process.exit(1); }
+if (L[1].flush_segment !== 2) { console.error('line 2 flush_segment must be 2'); process.exit(1); }
+const r = L[1].agent_runs;
+if (r.length !== 1 || r[0].role !== 'Validation' || r[0].started_utc !== '2026-07-15T11:40:00Z') { console.error('line 2 runs must be exactly the new run'); process.exit(1); }
+NODE
+  grep -qE '^ {4}CHANGE-0001:' "$S" && log_fail "TEST-3720: STATE must hold no metrics entry for the ref"
+  grep -qF "Flushed: CHANGE-0001" "$OUT" || log_fail "TEST-3720: stdout must carry the Flushed line: $(cat "$OUT")"
+  grep -qF "continuation: CHANGE-0001 flush_segment 2 (1 runs not in the ledger before this flush)" "$OUT" \
+    || log_fail "TEST-3720: stdout must carry the continuation line: $(cat "$OUT")"
+  [[ "$(grep -c '^RESUME' "$OUT" || true)" == 0 ]] || log_fail "TEST-3720: no RESUME line for a continuation: $(cat "$OUT")"
+  log_pass "A reopened ref flushes as a segment-2 continuation holding only the new run (TEST-3720)"
+}
+
+test_3721_continuation_holds_only_fresh_runs() {
+  log_info "Test: continuation holds exactly the runs the ledger lacks, counted as a multiset (TEST-3721, Spec-AC-01)..."
+  local d
+  # (a) four ledgered runs + one new run -> only the new one.
+  d="$(mk_flushed_then_reopened t3721a)"
+  run_flush "$d" --dry-run
+  [[ "$EC" == 0 ]] || log_fail "TEST-3721: (a) dry-run must exit 0 (got $EC): $(cat "$OUT")"
+  node - "$OUT" <<'NODE' || log_fail "TEST-3721: (a) dry-run must list the ref under flush, not resume, with flush_segment"
+const raw = require('fs').readFileSync(process.argv[2], 'utf8');
+const o = JSON.parse(raw.slice(raw.indexOf('{')));
+if (o.flush[0] !== 'CHANGE-0001' || o.resume.length !== 0) process.exit(1);
+if (o.entries[0].flush_segment !== 2 || o.entries[0].agent_runs.length !== 1) process.exit(1);
+NODE
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3721: (a) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3721: (a) one continuation line expected"
+  [[ "$(grep -c '"flush_segment":2' "$d/docs/ai/METRICS.jsonl" || true)" == 1 ]] || log_fail "TEST-3721: (a) segment 2 line expected"
+  [[ "$(grep -c '"role":"Planning"' "$d/docs/ai/METRICS.jsonl" || true)" == 1 ]] || log_fail "TEST-3721: (a) already-ledgered runs must not be re-appended"
+
+  # (b) one run held twice in STATE, once in the ledger -> one copy continues.
+  d="$(mk_repo t3721b)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$d"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  add_state_run "$d/docs/ai/STATE.yaml" Planning "claude-opus-4-8[1m]" 2026-07-15T10:00:00Z 2026-07-15T10:02:00Z
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3721: (b) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3721: (b) one continuation line expected: $(cat "$OUT")"
+  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "TEST-3721: (b) continuation must hold exactly one copy of the duplicated run"
+const L = require('fs').readFileSync(process.argv[2], 'utf8').split('\n').filter(l => l.startsWith('{')).map(l => JSON.parse(l));
+if (L[1].agent_runs.length !== 1 || L[1].agent_runs[0].role !== 'Planning' || L[1].flush_segment !== 2) process.exit(1);
+NODE
+
+  # (c) historical summary with no runs + four STATE runs -> all four, segment 2.
+  d="$(mk_repo t3721c)"
+  write_flush_state "$d/docs/ai/STATE.yaml" single
+  printf '%s\n' '{"date_utc":"2026-07-04T10:04:21Z","ref_id":"CHANGE-0001","title":"Historical final summary","agent_runs":[],"totals":{},"verdict":"PASS"}' >> "$d/docs/ai/METRICS.jsonl"
+  run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3721: (c) flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3721: (c) the four runs must flush as a continuation: $(cat "$OUT")"
+  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "TEST-3721: (c) continuation must hold the four STATE runs as segment 2"
+const L = require('fs').readFileSync(process.argv[2], 'utf8').split('\n').filter(l => l.startsWith('{')).map(l => JSON.parse(l));
+if (L[1].agent_runs.length !== 4 || L[1].flush_segment !== 2) process.exit(1);
+NODE
+  log_pass "Continuation holds only fresh runs: multiset, duplicate copy, legacy empty summary (TEST-3721)"
+}
+
+test_3722_refused_continuation_stays_in_state() {
+  log_info "Test: a continuation the gates refuse appends nothing and leaves STATE byte-identical (TEST-3722, Spec-AC-02)..."
+  local d
+  check_refusal() {  # <label> <dir>
+    [[ "$EC" == 0 ]] || log_fail "TEST-3722: $1: must exit 0 (got $EC): $(cat "$OUT")"
+    [[ "$(ledger_lines "$2")" == 1 ]] || log_fail "TEST-3722: $1: nothing may be appended"
+    cmp -s "$2/docs/ai/METRICS.jsonl" "$2/ledger.before" || log_fail "TEST-3722: $1: ledger must be byte-identical"
+    cmp -s "$2/docs/ai/STATE.yaml" "$2/state.before" || log_fail "TEST-3722: $1: STATE must be byte-identical"
+    grep -qF "SKIP CHANGE-0001: 1 agent_runs not in METRICS.jsonl kept in STATE (continuation of an earlier flush) — " "$OUT" \
+      || log_fail "TEST-3722: $1: SKIP line must name the kept runs and the gate reason: $(cat "$OUT")"
+    [[ "$(grep -c -e 'Partial-flush' -e 'Full reset' "$OUT" || true)" == 0 ]] || log_fail "TEST-3722: $1: no reset line expected: $(cat "$OUT")"
+  }
+  # (a) validation fail
+  d="$(mk_flushed_then_reopened t3722a fail pass)"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"; cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  run_flush "$d"
+  check_refusal "(a) validation fail" "$d"
+  # (b) validation pass, code review required and not_run
+  d="$(mk_flushed_then_reopened t3722b pass not_run)"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"; cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  run_flush "$d"
+  check_refusal "(b) review not_run" "$d"
+  # (c) --sweep with the item not done
+  d="$(mk_flushed_then_reopened t3722c fail pass)"
+  sed 's/status: done/status: in_progress/' "$d/docs/ai/STATE.yaml" > "$d/state.tmp" && mv "$d/state.tmp" "$d/docs/ai/STATE.yaml"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"; cp "$d/docs/ai/STATE.yaml" "$d/state.before"
+  run_flush "$d" --sweep
+  check_refusal "(c) sweep, item not done" "$d"
+  log_pass "Refused continuations leave ledger and STATE byte-identical with a naming SKIP (TEST-3722)"
+}
+
+test_3723_crash_resume_equals_clean_flush() {
+  log_info "Test: a crash-after-ledger resume leaves the same bytes as a clean flush (TEST-3723, Spec-AC-03)..."
+  local a b
+  a="$(mk_repo t3723clean)"
+  write_flush_state "$a/docs/ai/STATE.yaml" single
+  write_ticks "$a/docs/ai/LOOP_TICKS.jsonl"
+  run_flush "$a"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3723: clean flush must exit 0 (got $EC): $(cat "$OUT")"
+  b="$(mk_repo t3723crash)"
+  write_flush_state "$b/docs/ai/STATE.yaml" single
+  write_ticks "$b/docs/ai/LOOP_TICKS.jsonl"
+  EC=0
+  (cd "$PROJECT_ROOT" && AAI_FLUSH_INJECT_CRASH=after-ledger node .aai/scripts/metrics-flush.mjs \
+    --state "$b/docs/ai/STATE.yaml" --metrics "$b/docs/ai/METRICS.jsonl" \
+    --ticks "$b/docs/ai/LOOP_TICKS.jsonl" --pricing "$b/PRICING.yaml" \
+    --events "$b/docs/ai/EVENTS.jsonl" --now "$NOW_PIN" > "$b/crash.log" 2>&1) || EC=$?
+  [[ "$EC" != 0 ]] || log_fail "TEST-3723: injected crash must not exit 0"
+  run_flush "$b"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3723: resume must exit 0 (got $EC): $(cat "$OUT")"
+  cmp -s "$a/docs/ai/STATE.yaml" "$b/docs/ai/STATE.yaml" || log_fail "TEST-3723: resumed STATE must equal the clean flush's STATE"
+  cmp -s "$a/docs/ai/METRICS.jsonl" "$b/docs/ai/METRICS.jsonl" || log_fail "TEST-3723: resumed ledger must equal the clean flush's ledger"
+  grep -qF "RESUME CHANGE-0001" "$OUT" || log_fail "TEST-3723: resume output must hold RESUME: $(cat "$OUT")"
+  [[ "$(grep -c '^Flushed' "$OUT" || true)" == 0 ]] || log_fail "TEST-3723: resume output must hold no Flushed line: $(cat "$OUT")"
+  test_013_legacy_timestamp_summary_is_cleanup_only
+  log_pass "Crash resume is byte-identical to a clean flush; historical-timestamp arm stays cleanup-only (TEST-3723)"
+}
+
+test_3726_incident_runs_are_reconstructed_in_the_ledger() {
+  log_info "Test: the real ledger holds the 11 reconstructed consumer-config-routing-override runs (TEST-3726, Spec-AC-05)..."
+  local ledger="$PROJECT_ROOT/docs/ai/METRICS.jsonl"
+  [[ -f "$ledger" ]] || log_fail "TEST-3726: docs/ai/METRICS.jsonl missing"
+  # The D8 table of spec-flush-drops-reopened-runs: role|model_id|started|ended|duration|tokens_total|prompt_hash|verdict
+  node - "$ledger" <<'NODE' || log_fail "TEST-3726: reconstructed ledger line does not match the D8 table"
+const fs = require('fs');
+const TABLE = [
+  ['Planning','claude-opus-5-5','2026-11-14T06:17:03Z','2026-11-14T06:31:04Z',841,234771,undefined,'none'],
+  ['TDD Implementation','claude-sonnet-5-5','2026-11-14T06:31:10Z','2026-11-14T06:41:39Z',629,132381,'052efe031096','none'],
+  ['TDD Implementation','claude-sonnet-5-5','2026-11-14T06:41:43Z','2026-11-14T06:51:24Z',581,152959,'052efe031096','none'],
+  ['TDD Implementation','claude-sonnet-5-5','2026-11-14T06:51:28Z','2026-11-14T07:06:41Z',913,153887,'052efe031096','none'],
+  ['Validation','claude-opus-5-5','2026-11-14T07:24:33Z','2026-11-14T07:59:46Z',2113,244815,'6267e8d79157','fail'],
+  ['Remediation','claude-sonnet-5-5','2026-11-14T07:59:46Z','2026-11-14T08:23:07Z',1401,80793,'ec58355ece5e','none'],
+  ['Validation','claude-opus-5-5','2026-11-14T08:23:13Z','2026-11-14T08:55:10Z',1917,155399,'6267e8d79157','pass'],
+  ['Code Review','claude-opus-5-5','2026-11-14T08:55:12Z','2026-11-14T09:03:25Z',493,195619,'8e6aae0d5197','fail'],
+  ['Remediation','claude-sonnet-5-5','2026-11-14T11:18:52Z','2026-11-14T11:35:10Z',978,114859,'ec58355ece5e','none'],
+  ['Validation','claude-opus-5-5','2026-11-14T11:35:23Z','2026-11-14T12:09:55Z',2072,186882,'6267e8d79157','pass'],
+  ['Code Review','claude-opus-5-5','2026-11-14T12:09:56Z','2026-11-14T12:18:56Z',540,146785,'8e6aae0d5197','pass'],
+];
+const REF = 'consumer-config-routing-override';
+const lines = fs.readFileSync(process.argv[2], 'utf8').split('\n').filter((l) => l.startsWith('{')).map((l) => JSON.parse(l));
+const mine = lines.filter((e) => e.ref_id === REF);
+const rec = mine.filter((e) => e.reconstructed !== undefined);
+const fail = (m) => { console.error(m); process.exit(1); };
+if (rec.length !== 1) fail('exactly one reconstructed line expected, got ' + rec.length);
+const e = rec[0];
+if (!e.reconstructed || typeof e.reconstructed.source !== 'string' || e.reconstructed.source === '' || typeof e.reconstructed.reason !== 'string' || e.reconstructed.reason === '') fail('reconstructed needs non-empty source and reason');
+if (e.flush_segment !== 2) fail('flush_segment must be 2');
+if (e.agent_runs.length !== TABLE.length) fail('run count ' + e.agent_runs.length);
+let sum = 0;
+TABLE.forEach((t, i) => {
+  const r = e.agent_runs[i];
+  const got = [r.role, r.model_id, r.started_utc, r.ended_utc, r.duration_seconds, r.tokens_total, r.prompt_hash, r.verdict];
+  if (JSON.stringify(got) !== JSON.stringify(t)) fail('row ' + (i + 1) + ' differs: ' + JSON.stringify(got));
+  if (r.tokens_in !== null || r.tokens_out !== null) fail('row ' + (i + 1) + ' tokens_in/out must be null');
+  sum += r.tokens_total;
+});
+if (sum !== 1799150) fail('tokens_total sum ' + sum);
+const id = (r) => [r.role, r.model_id, r.started_utc, r.ended_utc].join('|');
+const mineIds = new Set(e.agent_runs.map(id));
+for (const o of mine) {
+  if (o === e) continue;
+  for (const r of o.agent_runs) if (mineIds.has(id(r))) fail('run also held by another line: ' + id(r));
+}
+NODE
+  log_pass "The reconstructed line matches the D8 table and holds runs no other line holds (TEST-3726)"
+}
+
+test_3727_changelog_and_product_doc_describe_the_continuation() {
+  log_info "Test: CHANGELOG holds one fix heading for the reopened-ride flush and telemetry.md describes it (TEST-3727, Spec-AC-06)..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/telemetry.md"
+  [[ -f "$cl" && -f "$doc" ]] || log_fail "TEST-3727: CHANGELOG.md or docs/product/telemetry.md missing"
+  local n
+  n=$(LC_ALL=C awk '/^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] \xe2\x80\x94 fix: a flush after a reopen/ { c++ } END { print c + 0 }' "$cl")
+  [[ "$n" == "1" ]] || log_fail "TEST-3727: CHANGELOG.md has $n headings for the reopened-ride flush fix, expected exactly 1"
+  local needle
+  for needle in "flush_segment" "continuation" "kept in STATE" "reconstructed"; do
+    /usr/bin/grep -qF -- "$needle" "$doc" || log_fail "TEST-3727: docs/product/telemetry.md does not mention: $needle"
+  done
+  log_pass "CHANGELOG has one fix heading and telemetry.md describes the continuation line (TEST-3727)"
+}
+
+test_3731_report_folds_a_reopened_ride_into_one_row() {
+  log_info "Test: metrics-report presents a two-segment ref and a lone segment-2 ref as ONE row each with summed totals (TEST-3731, Spec-AC-07)..."
+  local d="$TEST_DIR/t3731"; mkdir -p "$d"
+  cat > "$d/PRICING.yaml" <<'PRICING'
+version: 1
+models: {}
+PRICING
+  cat > "$d/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-11-10","ref_id":"REOPEN-A","title":"Reopened","human_time_minutes":{"intake":10,"reviews":5},"agent_runs":[{"role":"Planning","model_id":"m","duration_seconds":60,"cost_usd":1.5,"note":"usage_total_tokens=1000"}],"totals":{"human_time_minutes":15,"agent_duration_seconds":60,"total_cost_usd":1.5,"cost_basis":"decomposed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"field"},"verdict":"PASS"}
+{"date_utc":"2026-11-12","ref_id":"LONE-SEG2","title":"Reconstructed","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Planning","model_id":"m","duration_seconds":30,"cost_usd":0.25}],"totals":{"human_time_minutes":0,"agent_duration_seconds":30,"total_cost_usd":0.25,"cost_basis":"decomposed"},"strategy":"tdd","verdict":"PASS","flush_segment":2}
+{"date_utc":"2026-11-12","ref_id":"REOPEN-A","title":"Reopened","human_time_minutes":{"intake":10,"reviews":5},"agent_runs":[{"role":"Code Review","model_id":"m","duration_seconds":40,"cost_usd":0.5,"note":"usage_total_tokens=700"}],"totals":{"human_time_minutes":15,"agent_duration_seconds":40,"total_cost_usd":0.5,"cost_basis":"decomposed"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":1,"remediation_runs":0,"first_pass_clean":false,"basis":"field"},"verdict":"PASS","flush_segment":2}
+JSONL
+  local rep="$d/report-3731.md" rc=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/metrics-report.mjs --metrics "$d/METRICS.jsonl" --pricing "$d/PRICING.yaml") > "$rep" 2>&1 || rc=$?
+  local out; out="$(cat "$rep")"
+  [[ "$rc" == 0 ]] || log_fail "TEST-3731: report must exit 0 (rc $rc): $out"
+  local rows; rows="$(/usr/bin/grep -c '^| REOPEN-A |' "$rep" || true)"
+  [[ "$rows" == "1" ]] || log_fail "TEST-3731: REOPEN-A must have exactly one Per Work Item row, got $rows: $out"
+  /usr/bin/grep -qF '| REOPEN-A | Reopened | 15 | 100 | $2.00 | decomposed | 1700 |' "$rep" \
+    || log_fail "TEST-3731: REOPEN-A row must carry human 15 (max, not 30), agent 100 s, cost \$2.00 and 1700 tokens: $out"
+  /usr/bin/grep -qF -- '- Human time: 15 min' "$rep" || log_fail "TEST-3731: totals must not double the repeated human time: $out"
+  /usr/bin/grep -qF -- '- Features delivered (PASS): 2' "$rep" || log_fail "TEST-3731: two refs delivered (not three lines): $out"
+  /usr/bin/grep -qF '| tdd | 2 | 0/1 (0%) | 0.0 | 1.0 | 0.0 | field |' "$rep" \
+    || log_fail "TEST-3731: per-strategy items must count refs (2) with the merged reliability: $out"
+  log_pass "metrics-report folds a reopened ride into one row (summed agent time/cost/tokens, human time not doubled) (TEST-3731)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -4301,6 +4569,13 @@ main() {
   test_1755_release_marker_is_ignored_downstream
   test_1743_release_refuses_reopened_close
   test_1745_release_flag_conflicts
+  test_3720_reopen_flush_writes_continuation
+  test_3721_continuation_holds_only_fresh_runs
+  test_3722_refused_continuation_stays_in_state
+  test_3723_crash_resume_equals_clean_flush
+  test_3726_incident_runs_are_reconstructed_in_the_ledger
+  test_3727_changelog_and_product_doc_describe_the_continuation
+  test_3731_report_folds_a_reopened_ride_into_one_row
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

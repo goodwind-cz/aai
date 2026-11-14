@@ -99,6 +99,19 @@ one capability:
   `work_item_closed` event, the close was superseded by a reopen, the work
   item is not done, the row carries runs, or a fail verdict names the ref or
   is not owned by any ref. With `--ref` or `--sweep` it is a usage error.
+- A flush is idempotent per run, not per ride. `metrics-flush.mjs` compares
+  each run in STATE (role, model id, start and end time, counted as a
+  multiset) with the runs already held by that ride's lines in
+  `METRICS.jsonl`. If every run is already there, it is an interrupted flush
+  and only the STATE cleanup is resumed (`RESUME <ref>`). If a reopened ride
+  has new runs, they go through the same flush gates as a first flush and land
+  as one new continuation line holding only those runs; earlier ledger lines
+  are never rewritten, and the output prints the usual `Flushed:` line plus a
+  `continuation: <ref> flush_segment <n>` line. When the gates refuse the new
+  runs, nothing is appended and STATE is left untouched: the output prints
+  `SKIP <ref>: <k> agent_runs not in METRICS.jsonl kept in STATE`, followed by
+  the gate reason, so the runs stay in STATE until a later flush is admitted.
+  `--dry-run` lists such a ride under `flush`, not under `resume`.
 - `metrics-flush.mjs --ref <ref>` on a ref that is not a flush candidate now
   exits 1 naming the reason (and `--release` where it applies) instead of an
   empty-success `flush: []`.
@@ -150,6 +163,34 @@ one capability:
   `metrics.work_items[<ref>].validation` (STATE) and each ledger line's
   `verdict_basis` (`per-ref-field | global-block | event`) name which source
   admitted the ride past the flush gate.
+- Continuation lines: a ride flushed again after a reopen gets a second
+  summary line with the same `ref_id` and one extra field, `flush_segment`
+  (the number of summary lines the ride had before, plus 1, so the first
+  continuation is 2). First-flush lines never carry it. Each line's totals,
+  cost and reliability cover only the runs on that line; a reader that sums
+  agent runs, tokens, duration and cost per ref gets the ride total. Human
+  time is the exception: a continuation line can repeat review minutes that
+  the earlier line already counted, so do not sum `human_time_minutes` across
+  a ride's lines. A line written by hand to recover runs lost
+  earlier carries a `reconstructed` key (`source` and `reason`); a normal flush
+  never writes it.
+- Readers fold a ride's lines into one ride: the factory report, the metrics
+  report (Per Work Item, Totals, Per-Strategy Reliability) and the golden-flow
+  token median group all summary lines of a `ref_id` through
+  `foldRideSegments` in `.aai/scripts/lib/metrics-flush-record.mjs`; the
+  dashboard's work-item count counts distinct `ref_id` values directly.
+  The folded ride has the runs in ledger order, summed agent time, tokens and
+  cost (null when any segment's cost is null), the largest human time of any
+  segment (never the sum), summed reliability counts, the latest date and
+  verdict and the first title. A ref with one line renders as before, and a
+  lone continuation line (its first segment is not in the ledger) is one ride.
+  The overview's per-ref effort and token sums already add every line of a
+  ref; the run-level tables (per model, per role, prompt versions,
+  `--by-effort`) count runs and need no folding.
+- PR gate: `validation-waiver.mjs` counts one passing archive line per
+  `flush_segment` (an absent field counts as 1). Two same-day pass lines for
+  the archived ride with different segments are accepted; two with the same
+  segment still refuse as `archive_ledger_ambiguous`.
 - Codex runs carry no new fields: `codex-usage.mjs` emits the existing
   `--tokens-in/--tokens-out/--tokens-total/--harness codex` flags, and the
   provenance (source, thread, time window, attribution `thread`, `interval`

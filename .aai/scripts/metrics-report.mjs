@@ -31,6 +31,7 @@ import { runCostUsd } from './lib/pricing.mjs';
 import { loadCostPricing } from './lib/project-config.mjs';
 import { extractUsageTotal } from './lib/usage-note.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
+import { foldRideSegments } from './lib/metrics-flush-record.mjs';
 
 function fail(msg, code = 2) {
   console.error(`metrics-report: ${msg}`);
@@ -167,18 +168,18 @@ function main() {
     exit(0);
   }
   const pricing = loadCostPricing(process.cwd(), pricingPath);
-  const entries = [];
+  const parsedEntries = [];
   const rawLines = fs.readFileSync(metricsPath, 'utf8').split(/\r?\n/);
   for (let i = 0; i < rawLines.length; i += 1) {
     const t = rawLines[i].trim();
     if (t === '' || t.startsWith('#')) continue;
     try {
-      entries.push(JSON.parse(t));
+      parsedEntries.push(JSON.parse(t));
     } catch {
       fail(`unreadable ledger line ${i + 1} in ${opts.metrics} — fix or remove it (append-only ledger, one JSON object per line)`, 1);
     }
   }
-  if (entries.length === 0) {
+  if (parsedEntries.length === 0) {
     console.log('No metrics recorded yet.');
     exit(0);
   }
@@ -186,7 +187,7 @@ function main() {
   // Resolve each run's effective cost ONCE (ledger value, else pricing fill
   // when both tokens are known) — shared by every section below.
   const allRuns = [];
-  for (const e of entries) {
+  for (const e of parsedEntries) {
     e._runs = Array.isArray(e.agent_runs) ? e.agent_runs : [];
     for (const r of e._runs) {
       r._cost = typeof r.cost_usd === 'number'
@@ -197,10 +198,15 @@ function main() {
     }
   }
 
+  // --by-effort groups RUNS (by role, effort and the line's own date), not
+  // rides, so it reads the unfolded lines; every per-work-item table below is
+  // per ref and reads the folded rides (Spec-AC-07, SPEC-0291).
   if (opts.byEffort) {
-    console.log(renderByEffort(entries, opts.split));
+    console.log(renderByEffort(parsedEntries, opts.split));
     exit(0);
   }
+  const entries = foldRideSegments(parsedEntries);
+  for (const e of entries) e._runs = Array.isArray(e.agent_runs) ? e.agent_runs : [];
 
   const out = [];
   out.push('## AAI Metrics Summary');

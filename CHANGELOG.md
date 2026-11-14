@@ -55,6 +55,14 @@ different model and its runs cost differently:
 A project that pinned another model keeps it through `routing_override@<harness>:`
 in `docs/ai/project-config.yaml`.
 
+## [unreleased] — fix: a flush after a reopen keeps the new runs instead of dropping them
+
+- Flush: `metrics-flush.mjs` used to treat any ride that already had a line in `docs/ai/METRICS.jsonl` as an interrupted flush, so runs recorded after a reopen were deleted from STATE without ever reaching the ledger. It now compares runs: a ride whose STATE runs are all in the ledger is still only cleaned up, and new runs go through the normal gates and are appended as one continuation line (`flush_segment` 2 or higher) that holds only those runs. If the gates refuse them, nothing is appended, STATE keeps the runs and the output prints a `SKIP` line that names how many runs were kept and why.
+- PR gate: `validation-waiver.mjs` counts one passing archive line per `flush_segment`, so a ride flushed, reopened and flushed again on the same day still opens; two same-day pass lines with the same segment still refuse as `archive_ledger_ambiguous`.
+- Ledger: the 11 runs of `consumer-config-routing-override` lost to this defect are restored as one appended line marked `reconstructed`. Earlier lines are unchanged.
+- Readers: the factory report, `metrics-report.mjs`, the dashboard work-item count and the golden-flow token median now show a reopened ride (several summary lines for one ref, a continuation or a reconstructed line) as one ride, with agent time, tokens and cost summed and human time taken once. A ref with one line renders as before.
+- Docs: `docs/product/telemetry.md` describes the run-level resume, the continuation line, the SKIP and the PR-gate rule.
+
 ## [unreleased] — chore: refresh model routing and pricing tables (2026-11)
 
 Every row of `.aai/system/PRICING.yaml` was re-read against the vendors' own
