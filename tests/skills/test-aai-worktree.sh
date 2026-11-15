@@ -353,12 +353,43 @@ test_verify_cleanup() {
   log_pass "Cleanup verified"
 }
 
+# spec-archive-ledger-check TEST-3757 (Spec-AC-07): the Cleanup Worktree step 2
+# block archives STATE and writes the runs the main METRICS lacks. The block is
+# extracted from the prompt and run with its placeholders filled.
+test_3757_cleanup_block_writes_missing_runs() {
+  log_info "TEST-3757: Cleanup Worktree step 2 block writes the archived copy's missing runs..."
+  local root prompt base main wt block
+  root="${SCRIPT_DIR%/tests/skills}"
+  prompt="$root/.aai/SKILL_WORKTREE.prompt.md"
+  base="$(mktemp -d)"
+  main="$base/main"; wt="$base/wt"
+  mkdir -p "$main/docs/ai" "$wt/docs/ai"
+  printf '%s\n' '{"date_utc":"2026-10-10","ref_id":"bar","title":"bar","agent_runs":[{"role":"Planning","model_id":"m","started_utc":"2026-10-10T10:00:00Z","ended_utc":"2026-10-10T10:05:00Z"}],"verdict":"PASS"}' > "$main/docs/ai/METRICS.jsonl"
+  printf 'project_status: active\ncurrent_focus:\n  type: intake_issue\n  ref_id: bar\nmetrics:\n  work_items:\n    bar:\n      agent_runs:\n        - role: Planning\n          model_id: m\n          started_utc: 2026-10-10T10:00:00Z\n          ended_utc: 2026-10-10T10:05:00Z\n        - role: Validation\n          model_id: m\n          started_utc: 2026-10-11T10:00:00Z\n          ended_utc: 2026-10-11T10:30:00Z\n' > "$wt/docs/ai/STATE.yaml"
+  block="$(awk '/^### Command: Cleanup Worktree/ { s = 1 } s && /^2\. \*\*Save Final State\*\*/ { b = 1; next } b && /^   ```bash/ { c = 1; next } c && /^   ```/ { exit } c { print }' "$prompt")"
+  [[ -n "$block" ]] || { rm -rf "$base"; log_fail "FAIL TEST-3757: step 2 bash block not found in the Cleanup Worktree section"; }
+  assert_payload_contains "$block" "--include-focus" || { rm -rf "$base"; log_fail "FAIL TEST-3757: the step 2 block does not name --include-focus"; }
+  block="${block//\[worktree-path\]/$wt}"
+  block="${block//\[task-name\]/bar}"
+  block="${block//\[timestamp\]/20261111}"
+  block="${block//node .aai\/scripts\//node $root/.aai/scripts/}"
+  ( cd "$main" && bash -c "set -e; $block" ) > "$base/out.log" 2>&1 || { cat "$base/out.log" >&2; rm -rf "$base"; log_fail "FAIL TEST-3757: the step 2 block failed"; }
+  [[ -f "$main/docs/ai/archive/worktrees/STATE-bar-20261111.yaml" ]] || { rm -rf "$base"; log_fail "FAIL TEST-3757: the STATE copy was not archived"; }
+  local got
+  got="$(node -e 'let n=0,p=0;for(const l of require("fs").readFileSync(process.argv[1],"utf8").split("\n")){if(!l.startsWith("{"))continue;const o=JSON.parse(l);for(const r of o.agent_runs||[]){if(r.role==="Validation")n++;if(r.role==="Planning")p++}}console.log(n+":"+p)' "$main/docs/ai/METRICS.jsonl")"
+  rm -rf "$base"
+  [[ "$got" == "1:1" ]] || log_fail "FAIL TEST-3757: want the missing Validation run once and the held Planning run once in METRICS, got $got"
+  log_pass "TEST-3757: the cleanup block archives STATE and writes its missing runs"
+}
+
 # Main test execution
 main() {
   echo "Testing: $TEST_NAME"
   echo "===================="
 
   check_deps
+  # positional selector: run one test (mutation-run, TDD evidence)
+  if [[ $# -ge 1 ]]; then setup_test_env; "$1"; echo ""; echo "All tests passed!"; exit 0; fi
   setup_test_env
 
   # Run tests
@@ -370,6 +401,7 @@ main() {
   test_registry_update
   test_cleanup_worktree
   test_verify_cleanup
+  test_3757_cleanup_block_writes_missing_runs
 
   echo ""
   echo "All tests passed!"

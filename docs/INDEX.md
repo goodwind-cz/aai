@@ -63,7 +63,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (656)
+## Done (658)
 
 | ID | Type | Path |
 |---|---|---|
@@ -413,6 +413,7 @@ _None._
 | ISSUE-0113 | issues | docs/issues/ISSUE-0113-round-cap-hardening.md |
 | ISSUE-0114 | issues | docs/issues/ISSUE-0114-flush-drops-reopened-runs.md |
 | ISSUE-0115 | issues | docs/issues/ISSUE-0115-recover-archived-state-runs.md |
+| ISSUE-0116 | issues | docs/issues/ISSUE-0116-archive-ledger-check.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -721,6 +722,7 @@ _None._
 | SPEC-0290 | specs | docs/specs/SPEC-0290-spec-consumer-config-routing-override.md |
 | SPEC-0291 | specs | docs/specs/SPEC-0291-spec-flush-drops-reopened-runs.md |
 | SPEC-0292 | specs | docs/specs/SPEC-0292-spec-recover-archived-state-runs.md |
+| SPEC-0293 | specs | docs/specs/SPEC-0293-spec-archive-ledger-check.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 

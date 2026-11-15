@@ -286,10 +286,12 @@ Remove a completed or abandoned worktree. A merged ride: `/aai-merge <n>`
 
 2. **Save Final State**
    ```bash
-   # Archive STATE.yaml
+   # Archive STATE.yaml, then write the runs it holds that METRICS lacks
+   # (merged branch: pull main first, or the runs it flushed are written twice)
    mkdir -p docs/ai/archive/worktrees
-   cp [worktree-path]/docs/ai/STATE.yaml \
-      docs/ai/archive/worktrees/STATE-[task-name]-[timestamp].yaml
+   a=docs/ai/archive/worktrees/STATE-[task-name]-[timestamp].yaml
+   cp [worktree-path]/docs/ai/STATE.yaml "$a"
+   node .aai/scripts/metrics-flush.mjs --recover-archives --include-focus --state "$a" --archive "$a"
    ```
 
 3. **Remove Worktree**
@@ -366,7 +368,7 @@ Branch-to-path naming is the sibling-path convention in Setup Worktree step 3.
 unmerged branch, so let git do the checking. What git does NOT protect:
 
 - **Archive `STATE.yaml` BEFORE `git worktree remove`** (Cleanup step 2 before
-  step 3). Doing it in the other order destroyed unrecoverable metrics
-  (`docs/knowledge/LEARNED.md` 2026-07-16/17); nothing enforces the ordering.
+  step 3), with its `metrics-flush.mjs` line. Doing it in the other order destroyed
+  unrecoverable metrics (`docs/knowledge/LEARNED.md` 2026-07-16/17); nothing enforces the ordering.
 - Never pass `--force` to `git worktree remove` or `-D` to `git branch` without
   an explicit user confirmation naming what will be lost.

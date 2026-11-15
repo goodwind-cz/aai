@@ -4410,6 +4410,179 @@ test_2924_amended_prior_arms() {
 }
 
 # ---------------------------------------------------------------------------
+# spec-archive-ledger-check: TEST-3753..3756 (archive-runtime writes the archived copy's missing runs)
+
+MC_FOO_LINE='{"date_utc":"2026-10-10","ref_id":"foo","title":"foo","agent_runs":[{"role":"Planning","model_id":"claude-sonnet-5","started_utc":"2026-10-10T10:00:00Z","ended_utc":"2026-10-10T10:05:00Z"}],"verdict":"PASS"}'
+
+# ride_state_runs <late: 0|1>: the ride worktree STATE (focus foo) holding the flushed Planning run and, with 1, a later Code Review run.
+ride_state_runs() {
+  local s="$RIDE/docs/ai/STATE.yaml"
+  printf 'project_status: active\ncurrent_focus:\n  type: intake_issue\n  ref_id: foo\nmetrics:\n  work_items:\n    foo:\n      human_time_minutes:\n        intake: null\n        reviews: null\n      agent_runs:\n' > "$s"
+  printf '        - role: Planning\n          model_id: claude-sonnet-5\n          started_utc: 2026-10-10T10:00:00Z\n          ended_utc: 2026-10-10T10:05:00Z\n          duration_seconds: 300\n          tokens_in: null\n          tokens_out: null\n          cost_usd: null\n' >> "$s"
+  if [[ "$1" == 1 ]]; then
+    printf '        - role: Code Review\n          model_id: claude-sonnet-5\n          started_utc: 2026-10-11T09:00:00Z\n          ended_utc: 2026-10-11T09:20:00Z\n          duration_seconds: 1200\n          tokens_in: null\n          tokens_out: null\n          cost_usd: null\n' >> "$s"
+  fi
+}
+
+# metrics_world <name> <late>: METRICS tracked from the baseline, the PR adds foo's flush line, the ride STATE holds its runs.
+metrics_seed() {
+  printf '%s\n' '{"date_utc":"2026-10-01","ref_id":"other-item","title":"Other","agent_runs":[],"verdict":"PASS"}' > "$ORIGIN/docs/ai/METRICS.jsonl"
+  run git -C "$ORIGIN" add docs/ai/METRICS.jsonl
+}
+metrics_ride() {
+  printf '%s\n' "$MC_FOO_LINE" >> "$RIDE/docs/ai/METRICS.jsonl"
+  run git -C "$RIDE" add docs/ai/METRICS.jsonl
+}
+metrics_world() {
+  BASELINE_SEED=metrics_seed RIDE_SEED=metrics_ride build_world "$1"
+  ride_state_runs "$2"
+}
+
+# runs_of <metrics file> <role> <started>: how many agent_runs of foo with that role and start the ledger holds.
+runs_of() {
+  node -e 'const [f,role,st]=process.argv.slice(1);let n=0;for(const l of require("fs").readFileSync(f,"utf8").split("\n")){if(!l.startsWith("{"))continue;const o=JSON.parse(l);if(o.ref_id!=="foo")continue;for(const r of o.agent_runs||[])if(r.role===role&&r.started_utc===st)n++}console.log(n)' "$1" "$2" "$3"
+}
+
+test_3753_archive_runtime_writes_missing_runs() {
+  local arch rep pre line
+  metrics_world t3753 1
+  arch="$ORIGIN/docs/ai/archive/merge-cleanup/pr-$PR"
+  pre="$W/state.pre"; run cp "$RIDE/docs/ai/STATE.yaml" "$pre"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3753 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  rep="$ENG_OUT"
+  [[ "$(step_status "$rep" archive-runtime)" == done ]] || fail TEST-3753 "archive-runtime reported $(step_status "$rep" archive-runtime)"
+  want TEST-3753 "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-runtime").detail')" '1 run(s) recovered'
+  [[ ! -e "$RIDE" ]] || fail TEST-3753 'the ride worktree is still there'
+  cmp "$pre" "$arch/worktree/docs/ai/STATE.yaml" || fail TEST-3753 'the archived copy differs from the pre-run worktree STATE'
+  [[ "$(runs_of "$ORIGIN/docs/ai/METRICS.jsonl" 'Code Review' 2026-10-11T09:00:00Z)" == 1 ]] || fail TEST-3753 "the late run is not exactly once in the main METRICS: $(cat "$ORIGIN/docs/ai/METRICS.jsonl")"
+  [[ "$(runs_of "$ORIGIN/docs/ai/METRICS.jsonl" Planning 2026-10-10T10:00:00Z)" == 1 ]] || fail TEST-3753 'the flushed run is not exactly once in the main METRICS'
+  line="$(tail -n 1 "$ORIGIN/docs/ai/METRICS.jsonl")"
+  [[ "$(json_get "$line" 'j.ref_id+":"+j.flush_segment+":"+(j.verdict===null)+":"+j.reconstructed.source')" == "foo:2:true:docs/ai/archive/merge-cleanup/pr-$PR/worktree/docs/ai/STATE.yaml" ]] || fail TEST-3753 "the recovered line is wrong: $line"
+  echo 'PASS: TEST-3753 archive-runtime writes the missing run and the tail reaches the main ledger'
+}
+
+test_3754_flushed_state_changes_nothing() {
+  local rep blob
+  metrics_world t3754 0
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3754 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  rep="$ENG_OUT"
+  [[ "$(json_get "$rep" 'j.steps.find(s=>s.id==="archive-runtime").status+":"+j.steps.find(s=>s.id==="archive-runtime").detail')" == 'done:1 archived' ]] || fail TEST-3754 "archive-runtime: $(json_get "$rep" 'JSON.stringify(j.steps.find(s=>s.id==="archive-runtime"))')"
+  blob="$W/metrics.mc"
+  git -C "$ORIGIN" cat-file blob "$MC:docs/ai/METRICS.jsonl" > "$blob" || fail TEST-3754 'cannot read the merge commit METRICS blob'
+  cmp "$blob" "$ORIGIN/docs/ai/METRICS.jsonl" || fail TEST-3754 'the main METRICS differs from the merge commit blob'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3754 "second apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status "$ENG_OUT" archive-runtime)" == noop ]] || fail TEST-3754 "second archive-runtime reported $(step_status "$ENG_OUT" archive-runtime)"
+  cmp "$blob" "$ORIGIN/docs/ai/METRICS.jsonl" || fail TEST-3754 'the second apply changed the main METRICS'
+  # an interrupted cleanup: the worktree kept, the archive already made, a re-run reports already_archived
+  metrics_world t3754b 0
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_STOP_AFTER=archive-runtime run_engine apply --pr "$PR" --pid 4242
+  [[ "$ENG_RC" -eq 4 ]] || fail TEST-3754 "stop-after arm exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3754 "resumed apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="archive-runtime").status+":"+j.steps.find(s=>s.id==="archive-runtime").detail')" == 'noop:already_archived' ]] || fail TEST-3754 "resumed archive-runtime: $(json_get "$ENG_OUT" 'JSON.stringify(j.steps.find(s=>s.id==="archive-runtime"))')"
+  echo 'PASS: TEST-3754 a flushed STATE changes no ledger and a re-run is a no-op'
+}
+
+test_3755_plan_names_the_recovery_read_only() {
+  local before
+  metrics_world t3755 1
+  before="$(world_digest)"
+  run_engine plan --pr "$PR" --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3755 "plan exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(world_digest)" == "$before" ]] || fail TEST-3755 'plan changed the world'
+  [[ ! -e "$ORIGIN/docs/ai/archive" ]] || fail TEST-3755 'plan created an archive'
+  want TEST-3755 "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="archive-runtime").targets')" 'recover 1 run(s) of foo -> worktree:docs/ai/METRICS.jsonl'
+  # negative control: a flushed STATE plans no recovery
+  metrics_world t3755b 0
+  run_engine plan --pr "$PR" --json
+  unwanted TEST-3755 "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="archive-runtime").targets')" 'recover '
+  echo 'PASS: TEST-3755 plan names the recovery and writes nothing'
+}
+
+test_3756_unwritable_ledger_kept_with_command() {
+  local rep rest
+  build_world t3756
+  ride_state_runs 1
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3756 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  rep="$ENG_OUT"
+  [[ "$(step_status "$rep" archive-runtime)" == retained ]] || fail TEST-3756 "archive-runtime reported $(step_status "$rep" archive-runtime)"
+  rest="$(json_get "$rep" 'j.remaining.join("\n")')"
+  want TEST-3756 "$rest" 'ledger_runs_unchecked'
+  local a="docs/ai/archive/merge-cleanup/pr-$PR/worktree/docs/ai/STATE.yaml"
+  want TEST-3756 "$rest" "node .aai/scripts/metrics-flush.mjs --recover-archives --include-focus --state $a --archive $a"
+  [[ -f "$ORIGIN/$a" ]] || fail TEST-3756 'the archive copy is missing'
+  [[ ! -e "$ORIGIN/docs/ai/METRICS.jsonl" ]] || fail TEST-3756 'the kept step wrote a ledger'
+  # the printed command, run from the main checkout, writes the runs
+  ( cd "$ORIGIN" && node "$ROOT/.aai/scripts/metrics-flush.mjs" --recover-archives --include-focus --state "$a" --archive "$a" >"$W/cmd.out" 2>&1 ) || fail TEST-3756 "the printed command failed: $(cat "$W/cmd.out")"
+  [[ "$(runs_of "$ORIGIN/docs/ai/METRICS.jsonl" 'Code Review' 2026-10-11T09:00:00Z)" == 1 ]] || fail TEST-3756 "the printed command did not write the late run: $(cat "$W/cmd.out")"
+  [[ "$(runs_of "$ORIGIN/docs/ai/METRICS.jsonl" Planning 2026-10-10T10:00:00Z)" == 1 ]] || fail TEST-3756 'the printed command did not write the first run'
+  echo 'PASS: TEST-3756 an unwritable ledger keeps the step and prints the command that writes the runs'
+}
+
+test_3759_interrupted_cleanup_writes_once() {
+  metrics_world t3759 1
+  # the first apply writes the late run, moves the tail to main and resets the worktree ledger, then a late write stops it before the removal
+  AAI_MERGE_CLEANUP_TEST_SEAMS=1 AAI_MERGE_CLEANUP_TOUCH_AT='before-remove-verify:docs/ai/EVENTS.jsonl' run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -ne 0 ]] || fail TEST-3759 'the touch seam did not stop the first apply (positive control)'
+  [[ -e "$RIDE" ]] || fail TEST-3759 'the worktree was removed although the run stopped (positive control)'
+  [[ "$(runs_of "$ORIGIN/docs/ai/METRICS.jsonl" 'Code Review' 2026-10-11T09:00:00Z)" == 1 ]] || fail TEST-3759 'after the first apply the late run is not exactly once in the main METRICS'
+  git -C "$RIDE" checkout -q -- docs/ai/EVENTS.jsonl || fail TEST-3759 'cannot undo the late touch'
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3759 "the resumed apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-3759 "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="archive-runtime").detail')" 'recovered'
+  [[ "$(runs_of "$ORIGIN/docs/ai/METRICS.jsonl" 'Code Review' 2026-10-11T09:00:00Z)" == 1 ]] || fail TEST-3759 "the resumed apply wrote the late run again: $(cat "$ORIGIN/docs/ai/METRICS.jsonl")"
+  echo 'PASS: TEST-3759 an interrupted cleanup writes a recovered run once'
+}
+
+test_3760_run_in_main_ledger_not_rewritten() {
+  metrics_world t3760 0
+  # ref bar reached the main ledger after the ride branched; the ride STATE still carries bar's run
+  printf '%s\n' '{"date_utc":"2026-10-09","ref_id":"bar","title":"bar","agent_runs":[{"role":"Planning","model_id":"claude-sonnet-5","started_utc":"2026-10-09T08:00:00Z","ended_utc":"2026-10-09T08:05:00Z"}],"verdict":"PASS"}' >> "$ORIGIN/docs/ai/METRICS.jsonl"
+  printf '    bar:\n      agent_runs:\n        - role: Planning\n          model_id: claude-sonnet-5\n          started_utc: 2026-10-09T08:00:00Z\n          ended_utc: 2026-10-09T08:05:00Z\n' >> "$RIDE/docs/ai/STATE.yaml"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3760 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  unwanted TEST-3760 "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="archive-runtime").detail')" 'recovered'
+  local n
+  n="$(node -e 'let n=0;for(const l of require("fs").readFileSync(process.argv[1],"utf8").split("\n")){if(!l.startsWith("{"))continue;const o=JSON.parse(l);if(o.ref_id==="bar")for(const r of o.agent_runs||[])if(r.started_utc==="2026-10-09T08:00:00Z")n++}console.log(n)' "$ORIGIN/docs/ai/METRICS.jsonl")"
+  [[ "$n" == 1 ]] || fail TEST-3760 "bar's run is $n times in the main METRICS, want 1"
+  echo 'PASS: TEST-3760 a run the main ledger holds is not written again'
+}
+
+test_3761_run_merged_on_base_not_yet_pulled() {
+  metrics_world t3761 0
+  # bar's PR merged on origin/main before ours and the main checkout has not pulled it; the ride STATE carries bar's run
+  local BARLINE='{"date_utc":"2026-10-09","ref_id":"bar","title":"bar","agent_runs":[{"role":"Planning","model_id":"claude-sonnet-5","started_utc":"2026-10-09T08:00:00Z","ended_utc":"2026-10-09T08:05:00Z"}],"verdict":"PASS"}'
+  printf '    bar:\n      agent_runs:\n        - role: Planning\n          model_id: claude-sonnet-5\n          started_utc: 2026-10-09T08:00:00Z\n          ended_utc: 2026-10-09T08:05:00Z\n' >> "$RIDE/docs/ai/STATE.yaml"
+  local main0 cl="$W/cl" b mc2 n
+  main0="$(git -C "$BARE" rev-parse "$MC^")" || fail SETUP 'main0'
+  run git clone -q "$BARE" "$cl"
+  run git -C "$cl" config user.name 'AAI Fixture'
+  run git -C "$cl" config user.email 'fixture@example.invalid'
+  run git -C "$cl" checkout -q "$main0"
+  printf '%s\n' "$BARLINE" >> "$cl/docs/ai/METRICS.jsonl"
+  run git -C "$cl" commit -qam 'bar (#432)'
+  b="$(git -C "$cl" rev-parse HEAD)" || fail SETUP 'bar commit'
+  run git -C "$cl" read-tree "$MC^{tree}"
+  run git -C "$cl" checkout -q -- .
+  { git -C "$BARE" show "$main0:docs/ai/METRICS.jsonl"; printf '%s\n' "$BARLINE" "$MC_FOO_LINE"; } > "$cl/docs/ai/METRICS.jsonl"
+  run git -C "$cl" add -A
+  mc2="$(git -C "$cl" commit-tree "$(git -C "$cl" write-tree)" -p "$b" -m "foo (#$PR)")" || fail SETUP 'merge commit'
+  run git -C "$cl" push -q -f origin "$mc2:refs/heads/main"
+  MC="$mc2"; write_pr_json MERGED "$MC"
+  run_engine apply --pr "$PR" --pid 4242 --json
+  [[ "$ENG_RC" -eq 0 ]] || fail TEST-3761 "apply exited $ENG_RC (out: $ENG_OUT $ENG_ERR)"
+  [[ "$(step_status "$ENG_OUT" sync-base)" == done ]] || fail TEST-3761 "sync-base reported $(step_status "$ENG_OUT" sync-base) (positive control)"
+  unwanted TEST-3761 "$(json_get "$ENG_OUT" 'j.steps.find(s=>s.id==="archive-runtime").detail')" 'recovered'
+  n="$(node -e 'let n=0;for(const l of require("fs").readFileSync(process.argv[1],"utf8").split("\n")){if(!l.startsWith("{"))continue;const o=JSON.parse(l);if(o.ref_id==="bar")for(const r of o.agent_runs||[])if(r.started_utc==="2026-10-09T08:00:00Z")n++}console.log(n)' "$ORIGIN/docs/ai/METRICS.jsonl")"
+  [[ "$n" == 1 ]] || fail TEST-3761 "bar's run is $n times in the main METRICS, want 1"
+  echo 'PASS: TEST-3761 a run merged on the base but not yet pulled is not written again'
+}
+
+# ---------------------------------------------------------------------------
 case "$SELECTED" in
   '') test_005_apply_readback_gate;
      test_008_base_sync_preserves_work; test_009_base_sync_refusals; test_010_worktree_and_branch_cleanup; test_011_worktree_refusals
@@ -4434,7 +4607,9 @@ case "$SELECTED" in
      test_068_generic_refuses_with_manual; test_070_azure_preflight_ready_and_refusals; test_072_azure_apply_cleanup
      test_073_platform_mismatch_refuses_before_any_read; test_074_github_recorded_and_legacy_unchanged
      test_075_reconcile_origin_step
-     test_2901_outcome_table_complete; test_2902_outcome_lines_from_real_runs; test_2903_pr485_parent_child_roadmap; test_2904_unrepresented_roadmap_decides; test_2905_absent_links_pr_proven_by_merge_commit; test_2906_conflicting_or_old_identity_not_proven; test_2907_superseded_draft_archived; test_2908_divergent_draft_menu; test_2909_unproven_drafts_untouched; test_2910_generated_projection_taken; test_2911_decide_channel; test_2912_router_resumes_in_one_interaction; test_2914_worktree_protections_kept; test_2915_sync_protections_kept; test_2916_preflight_gates_hold; test_2917_archive_verification_and_no_new_primitive; test_2918_next_attempt; test_2919_retry_chain_terminates; test_2920_interrupted_recovery_converges; test_2921_plain_summary; test_2922_skill_and_engine_agree; test_2923_governance; test_2924_amended_prior_arms; test_2925_preflight_retry_is_bounded; test_2926_unactionable_clash_choices_not_offered; test_2927_locally_deleted_files_sync_cleanly; test_2928_recovery_waits_for_protection_check; test_2929_null_identity_never_matches; test_2930_symlink_overlap_never_written_through ;;
+     test_2901_outcome_table_complete; test_2902_outcome_lines_from_real_runs; test_2903_pr485_parent_child_roadmap; test_2904_unrepresented_roadmap_decides; test_2905_absent_links_pr_proven_by_merge_commit; test_2906_conflicting_or_old_identity_not_proven; test_2907_superseded_draft_archived; test_2908_divergent_draft_menu; test_2909_unproven_drafts_untouched; test_2910_generated_projection_taken; test_2911_decide_channel; test_2912_router_resumes_in_one_interaction; test_2914_worktree_protections_kept; test_2915_sync_protections_kept; test_2916_preflight_gates_hold; test_2917_archive_verification_and_no_new_primitive; test_2918_next_attempt; test_2919_retry_chain_terminates; test_2920_interrupted_recovery_converges; test_2921_plain_summary; test_2922_skill_and_engine_agree; test_2923_governance; test_2924_amended_prior_arms; test_2925_preflight_retry_is_bounded; test_2926_unactionable_clash_choices_not_offered; test_2927_locally_deleted_files_sync_cleanly; test_2928_recovery_waits_for_protection_check; test_2929_null_identity_never_matches; test_2930_symlink_overlap_never_written_through
+     test_3753_archive_runtime_writes_missing_runs; test_3754_flushed_state_changes_nothing; test_3755_plan_names_the_recovery_read_only; test_3756_unwritable_ledger_kept_with_command
+     test_3759_interrupted_cleanup_writes_once; test_3760_run_in_main_ledger_not_rewritten; test_3761_run_merged_on_base_not_yet_pulled ;;
   TEST-059|test_059_lane_gate_passes_without_pr_sweep) test_059_lane_gate_passes_without_pr_sweep ;;
   TEST-060|test_060_skill_pr_prompt_free_of_pr_sweep) test_060_skill_pr_prompt_free_of_pr_sweep ;;
   TEST-061|test_061_prompt_diet_passes) test_061_prompt_diet_passes ;;
@@ -4525,5 +4700,12 @@ case "$SELECTED" in
   TEST-2928|test_2928_recovery_waits_for_protection_check) test_2928_recovery_waits_for_protection_check ;;
   TEST-2929|test_2929_null_identity_never_matches) test_2929_null_identity_never_matches ;;
   TEST-2930|test_2930_symlink_overlap_never_written_through) test_2930_symlink_overlap_never_written_through ;;
+  TEST-3753|test_3753_archive_runtime_writes_missing_runs) test_3753_archive_runtime_writes_missing_runs ;;
+  TEST-3754|test_3754_flushed_state_changes_nothing) test_3754_flushed_state_changes_nothing ;;
+  TEST-3755|test_3755_plan_names_the_recovery_read_only) test_3755_plan_names_the_recovery_read_only ;;
+  TEST-3756|test_3756_unwritable_ledger_kept_with_command) test_3756_unwritable_ledger_kept_with_command ;;
+  TEST-3759|test_3759_interrupted_cleanup_writes_once) test_3759_interrupted_cleanup_writes_once ;;
+  TEST-3760|test_3760_run_in_main_ledger_not_rewritten) test_3760_run_in_main_ledger_not_rewritten ;;
+  TEST-3761|test_3761_run_merged_on_base_not_yet_pulled) test_3761_run_merged_on_base_not_yet_pulled ;;
   *) fail SELECTOR "unknown test $SELECTED" ;;
 esac

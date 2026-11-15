@@ -4934,6 +4934,106 @@ test_3750_changelog_and_product_doc_describe_the_recovery() {
   log_pass "CHANGELOG has one fix heading and telemetry.md describes the recovery (TEST-3750)"
 }
 
+# --- archive-ledger-check (TEST-3751..3752, TEST-3758, Spec-AC-01, -02, -08) ----------
+
+# mk_ending_fixture <name> — a ride STATE focused on ENDF with two runs; the
+# ledger holds a line for ENDF with the first run. Echoes the repo dir.
+mk_ending_fixture() {
+  local d s
+  d="$(mk_repo "$1")"
+  s="$d/docs/ai/STATE.yaml"
+  printf 'project_status: active\ncurrent_focus:\n  type: intake_issue\n  ref_id: ENDF\nmetrics:\n  work_items:\n' > "$s"
+  rc_ref "$s" ENDF
+  rc_run "$s" Planning claude-sonnet-5 2026-07-01T10:00:00Z 2026-07-01T10:05:00Z 300 1000 100
+  rc_run "$s" "Code Review" claude-sonnet-5 2026-07-02T10:00:00Z 2026-07-02T10:10:00Z 600 2000 200
+  printf '%s\n' '{"date_utc":"2026-07-01","ref_id":"ENDF","title":"ENDF ledger","agent_runs":[{"role":"Planning","model_id":"claude-sonnet-5","started_utc":"2026-07-01T10:00:00Z","ended_utc":"2026-07-01T10:05:00Z"}],"verdict":"PASS"}' >> "$d/docs/ai/METRICS.jsonl"
+  printf '%s' "$d"
+}
+
+test_3751_include_focus_recovers_the_ending_ride() {
+  log_info "Test: --include-focus recovers the --state focus ride from its own STATE; without it nothing is written (TEST-3751, Spec-AC-01)..."
+  local d s
+  d="$(mk_ending_fixture t3751)"
+  s="$d/docs/ai/STATE.yaml"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  cp "$s" "$d/state.before"
+  # negative control: today's behaviour, the --state file is excluded and nothing is written
+  run_recover "$d" --state "$s" --archive "$s"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3751: control run must exit 0 (got $EC): $(cat "$OUT")"
+  cmp -s "$d/ledger.before" "$d/docs/ai/METRICS.jsonl" || log_fail "TEST-3751: without --include-focus nothing may be appended"
+  grep -qF "is the --state file, not an archived copy; excluded" "$OUT" || log_fail "TEST-3751: control run must print the exclusion NOTE: $(cat "$OUT")"
+  # usage: the flag only exists with --recover-archives
+  EC=0
+  (cd "$d" && node "$FLUSH" --include-focus --pricing "$d/PRICING.yaml" > "$d/usage.log" 2>&1) || EC=$?
+  [[ "$EC" == 2 ]] || log_fail "TEST-3751: --include-focus without --recover-archives must exit 2 (got $EC): $(cat "$d/usage.log")"
+  cmp -s "$d/ledger.before" "$d/docs/ai/METRICS.jsonl" || log_fail "TEST-3751: the usage refusal must leave the ledger unchanged"
+  run_recover "$d" --include-focus --state "$s" --archive "$s"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3751: --include-focus must exit 0 (got $EC): $(cat "$OUT")"
+  if grep -qF "SKIP ENDF" "$OUT"; then log_fail "TEST-3751: the ending ride must not be skipped: $(cat "$OUT")"; fi
+  cmp -s "$d/state.before" "$s" || log_fail "TEST-3751: STATE must be byte-identical"
+  recover_new_lines "$d" "$d/ledger.before" > "$d/new.jsonl"
+  node - "$d/new.jsonl" "$RECOVER_REASON" <<'NODE' || log_fail "TEST-3751: recovered line shape is wrong: $(cat "$d/new.jsonl")"
+const fs = require('fs');
+const [file, reason] = process.argv.slice(2);
+const L = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+const fail = (m) => { console.error(m); process.exit(1); };
+if (L.length !== 1) fail('one appended line expected, got ' + L.length);
+const e = L[0];
+if (e.ref_id !== 'ENDF') fail('ref ' + e.ref_id);
+if (e.agent_runs.map((r) => r.role).join() !== 'Code Review') fail('only the missing run: ' + e.agent_runs.map((r) => r.role));
+if (e.flush_segment !== 2) fail('flush_segment ' + e.flush_segment);
+if (e.verdict !== null) fail('verdict must be null');
+const keys = Object.keys(e);
+if (keys[keys.length - 1] !== 'reconstructed' || e.reconstructed.reason !== reason) fail('reconstructed last with the fixed reason');
+NODE
+  log_pass "--include-focus recovers the ending ride's missing run; without it nothing is written (TEST-3751)"
+}
+
+test_3752_include_focus_dry_run_and_second_run() {
+  log_info "Test: --include-focus dry run is read-only and plans the real line; a second run appends nothing (TEST-3752, Spec-AC-02)..."
+  local d s
+  d="$(mk_ending_fixture t3752)"
+  s="$d/docs/ai/STATE.yaml"
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
+  cp "$s" "$d/state.before"
+  run_recover "$d" --include-focus --state "$s" --archive "$s" --dry-run
+  [[ "$EC" == 0 ]] || log_fail "TEST-3752: dry run must exit 0 (got $EC): $(cat "$OUT")"
+  cmp -s "$d/ledger.before" "$d/docs/ai/METRICS.jsonl" || log_fail "TEST-3752: dry run must not write the ledger"
+  cmp -s "$d/state.before" "$s" || log_fail "TEST-3752: dry run must not write STATE"
+  cp "$OUT" "$d/plan.json"
+  run_recover "$d" --include-focus --state "$s" --archive "$s"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3752: real run must exit 0 (got $EC): $(cat "$OUT")"
+  recover_new_lines "$d" "$d/ledger.before" > "$d/new.jsonl"
+  node - "$d/plan.json" "$d/new.jsonl" <<'NODE' || log_fail "TEST-3752: plan entries must deep-equal the appended line"
+const fs = require('fs');
+const plan = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const L = fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+const fail = (m) => { console.error(m); process.exit(1); };
+if (L.length !== 1) fail('one line expected, got ' + L.length);
+if (JSON.stringify(plan.entries) !== JSON.stringify(L)) fail('entries differ from the appended line');
+const want = { copies: 1, runs_distinct: 2, runs_held: 1, runs_recovered: 1, refs: 1, continuation: 1, skipped: 0 };
+for (const [k, v] of Object.entries(want)) if (plan[k] !== v) fail(k + ' = ' + plan[k] + ', want ' + v);
+NODE
+  cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.mid"
+  run_recover "$d" --include-focus --state "$s" --archive "$s"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3752: second run must exit 0 (got $EC): $(cat "$OUT")"
+  cmp -s "$d/ledger.mid" "$d/docs/ai/METRICS.jsonl" || log_fail "TEST-3752: second run must append nothing"
+  grep -qF "recovered=0" "$OUT" || log_fail "TEST-3752: second run summary must say recovered=0: $(cat "$OUT")"
+  log_pass "--include-focus dry run is read-only and exact; a second run is a no-op (TEST-3752)"
+}
+
+test_3758_changelog_and_product_doc_describe_the_archive_step() {
+  log_info "Test: CHANGELOG holds one fix heading for the archive step and telemetry.md describes it (TEST-3758, Spec-AC-08)..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/telemetry.md" n needle
+  [[ -f "$cl" && -f "$doc" ]] || log_fail "TEST-3758: CHANGELOG.md or docs/product/telemetry.md missing"
+  n=$(LC_ALL=C awk '/^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] \xe2\x80\x94 fix: archiving a ride.s STATE copy/ { c++ } END { print c + 0 }' "$cl")
+  [[ "$n" == "1" ]] || log_fail "TEST-3758: CHANGELOG.md has $n headings for the archive-step fix, expected exactly 1"
+  for needle in "--include-focus" "merge-cleanup" "ledger_runs_unchecked"; do
+    /usr/bin/grep -qF -- "$needle" "$doc" || log_fail "TEST-3758: docs/product/telemetry.md does not mention: $needle"
+  done
+  log_pass "CHANGELOG has one fix heading and telemetry.md describes the archive step (TEST-3758)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -5048,6 +5148,9 @@ main() {
   test_3740_recovery_then_flush_then_pr_gate
   test_3749_real_ledger_holds_the_recovered_lines
   test_3750_changelog_and_product_doc_describe_the_recovery
+  test_3751_include_focus_recovers_the_ending_ride
+  test_3752_include_focus_dry_run_and_second_run
+  test_3758_changelog_and_product_doc_describe_the_archive_step
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

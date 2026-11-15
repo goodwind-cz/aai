@@ -24,7 +24,7 @@
 // ONLY when AAI_MERGE_CLEANUP_TEST_SEAMS=1 is also set; in production they are
 // inert, so a stray variable can neither replace gh nor stop a run.
 //
-// Steps: superseded-draft archive, runtime archive, base sync, reconcile-origin, ride worktree removal, branch
+// Steps: superseded-draft archive, runtime archive (its runs missing from the ride ledger written to it), base sync, reconcile-origin, ride worktree removal, branch
 // delete (the origin branch only by a lease against the merged head), report. Each archives before it removes and
 // journals its completion, so a re-run resumes. A protected object (dirty worktree, diverged main, moved branch,
 // live lock) is kept as it is, its step is recorded retained and the other steps run; only a gate reason or a
@@ -39,6 +39,7 @@ import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { status as lockStatus, release as lockRelease } from './lib/session-lock.mjs';
 import { parseFrontmatter } from './lib/docs-model.mjs';
+import { recoverStateCopy } from './lib/metrics-flush-record.mjs';
 import { createAdapter, resolvePlatform, githubRepoSlug } from './lib/platform-adapter.mjs';
 import {
   classify, outcomeLine, nextAttempt, choiceFor, parseDecide, compareDraft, representedChanges, summaryLines, keptLine,
@@ -862,12 +863,11 @@ function branchTip(ctx) {
 function archiveRuntime(ctx) {
   const wt = findRideWorktree(ctx);
   if (!wt) return { status: 'noop', detail: 'no_worktree' };
-  const statePath = path.join(wt.path, STATE_REL);
-  if (!fs.existsSync(statePath)) return { status: 'noop', detail: 'no_state' };
-  const root = archiveRoot(ctx.origin, ctx.opts.pr);
-  const a = archiveFile(ctx, { src: statePath, destBase: path.join(root, 'worktree', STATE_REL), original: `worktree:${STATE_REL}`, reason: 'runtime_archive', step: 'archive-runtime' });
-  if (!a.fresh) return { status: 'noop', detail: 'already_archived' };
-  return { status: 'done', detail: '1 archived' };
+  const statePath = path.join(wt.path, STATE_REL); if (!fs.existsSync(statePath)) return { status: 'noop', detail: 'no_state' };
+  const a = archiveFile(ctx, { src: statePath, destBase: path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'worktree', STATE_REL), original: `worktree:${STATE_REL}`, reason: 'runtime_archive', step: 'archive-runtime' });
+  const g = recoverStateCopy({ scriptDir: SCRIPT_DIR, root: wt.path, copy: path.join(ctx.origin, a.rel), rel: a.rel, writable: wt.head === ctx.head, origin: ctx.origin, base: ctx.base });
+  if (g.keep) return keepStep(ctx, 'archive-runtime', 'ledger_runs_unchecked', g.keep);
+  return !a.fresh && !g.recovered ? { status: 'noop', detail: 'already_archived' } : { status: 'done', detail: `${a.fresh ? '1 archived' : 'already_archived'}${g.recovered ? `; ${g.recovered} run(s) recovered to worktree:docs/ai/METRICS.jsonl` : ''}` };
 }
 
 // ---- D4: ignored content inside submodules ---------------------------------
@@ -1279,10 +1279,10 @@ const PLANNERS = {
     ...ctx.drafts.divergent.map((d) => `ask about ${d.path} (differs from ${d.counterpart})`),
   ],
   'archive-runtime': (ctx) => {
-    const wt = findRideWorktree(ctx); if (!wt) return [];
-    const root = archiveRoot(ctx.origin, ctx.opts.pr);
-    const statePath = path.join(wt.path, STATE_REL);
-    return fs.existsSync(statePath) ? [`worktree:${STATE_REL} -> ${posix(path.relative(ctx.origin, path.join(root, 'worktree', STATE_REL)))}`] : [];
+    const wt = findRideWorktree(ctx); const statePath = wt && path.join(wt.path, STATE_REL); if (!wt || !fs.existsSync(statePath)) return [];
+    const rel = posix(path.relative(ctx.origin, path.join(archiveRoot(ctx.origin, ctx.opts.pr), 'worktree', STATE_REL)));
+    const g = recoverStateCopy({ scriptDir: SCRIPT_DIR, root: wt.path, copy: statePath, rel, writable: wt.head === ctx.head, dryRun: true, origin: ctx.origin, base: ctx.base });
+    return [`worktree:${STATE_REL} -> ${rel}`, ...(g.keep ? [`keep (ledger_runs_unchecked ${g.keep})`] : g.would ? [`recover ${g.would} run(s) of ${g.refs.join(', ')} -> worktree:docs/ai/METRICS.jsonl`] : [])];
   },
   'sync-base': (ctx) => {
     const plan = planSync(ctx);

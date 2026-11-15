@@ -120,6 +120,13 @@
 // `reconstructed` object {source, reason, recovered_utc} closes the line. The
 // current_focus ref is skipped. Exit 0 recovered / nothing / dry-run, 1 --state
 // absent or round-trip guard, 2 usage.
+// --include-focus (archive-ledger-check): the ride of --state has ended and its STATE
+// is being archived (merge-cleanup archive-runtime, the worktree cleanup), so its
+// focus ref is NOT skipped and --archive may name the --state file itself.
+// --held-in <file> (repeatable, archive-ledger-check): another ledger whose runs also
+// count as held (the main checkout's, when --metrics is a ride worktree's), so a run
+// either ledger already holds is never written; a continuation segment counts the
+// larger of the ledgers' line counts.
 //
 // Exit codes: 0 flushed / nothing to flush / retired / released (or dry-run plan
 // printed), 1 integrity refusal / post-commit check failure / retire or release
@@ -209,7 +216,9 @@ function parseArgs(argv) {
     release: null,
     reason: null,
     recoverArchives: false,
+    includeFocus: false,
     archive: [],
+    heldIn: [],
     now: process.env.AAI_FLUSH_NOW ?? null,
   };
   const valueFlags = { '--state': 'state', '--metrics': 'metrics', '--ticks': 'ticks', '--pricing': 'pricing', '--events': 'events', '--ref': 'ref', '--retire': 'retire', '--release': 'release', '--reason': 'reason', '--now': 'now' };
@@ -218,10 +227,11 @@ function parseArgs(argv) {
     if (tok === '--dry-run') { opts.dryRun = true; continue; }
     if (tok === '--sweep') { opts.sweep = true; continue; }
     if (tok === '--recover-archives') { opts.recoverArchives = true; continue; }
-    if (tok === '--archive') {
+    if (tok === '--include-focus') { opts.includeFocus = true; continue; }
+    if (tok === '--archive' || tok === '--held-in') {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) fail(`${tok} requires a value`);
-      opts.archive.push(v);
+      opts[tok === '--archive' ? 'archive' : 'heldIn'].push(v);
       i += 1;
       continue;
     }
@@ -232,10 +242,13 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
-    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --retire --release --reason --recover-archives --archive --now)`);
+    fail(`unknown flag "${tok}" (valid: --state --metrics --ticks --pricing --events --ref --dry-run --sweep --retire --release --reason --recover-archives --archive --include-focus --held-in --now)`);
   }
   if (opts.archive.length > 0 && !opts.recoverArchives) {
     fail('--archive is only valid with --recover-archives');
+  }
+  if ((opts.includeFocus || opts.heldIn.length > 0) && !opts.recoverArchives) {
+    fail('--include-focus and --held-in are only valid with --recover-archives');
   }
   if (opts.recoverArchives && (opts.ref !== null || opts.sweep || opts.retire !== null || opts.release !== null)) {
     fail('--recover-archives is mutually exclusive with --ref, --sweep, --retire and --release (it selects nothing by ref)');
@@ -1689,7 +1702,7 @@ const roleStartKey = (ref, run) => JSON.stringify([ref, run.role ?? null, run.st
 
 // Every STATE copy under the named paths, sorted by absolute path, each read once.
 // Directories are walked without following symbolic links.
-function archiveCopies(paths, stateReal) {
+function archiveCopies(paths, stateReal, includeFocus) {
   const found = new Set();
   const excluded = [];
   const walk = (dir) => {
@@ -1706,7 +1719,7 @@ function archiveCopies(paths, stateReal) {
   for (const p of [...found].sort()) {
     let real = p;
     try { real = fs.realpathSync(p); } catch { /* unreadable: the read step notes it */ }
-    if (real === stateReal) excluded.push(p); else kept.push(p);
+    if (real === stateReal && !includeFocus) excluded.push(p); else kept.push(p);
   }
   return { copies: kept, excluded };
 }
@@ -1774,7 +1787,7 @@ function handleRecoverArchives(opts) {
   const notes = [];
   let stateReal = statePath;
   try { stateReal = fs.realpathSync(statePath); } catch { /* checked above */ }
-  const { copies, excluded } = archiveCopies(roots, stateReal);
+  const { copies, excluded } = archiveCopies(roots, stateReal, opts.includeFocus);
   for (const p of excluded) notes.push(`NOTE ${p}: is the --state file, not an archived copy; excluded`);
 
   // D2 archive side: one run per (ref, role, started_utc), the first-sorted copy wins.
@@ -1809,6 +1822,11 @@ function handleRecoverArchives(opts) {
 
   // D2 ledger side: a run is held when the ref's summary lines hold its role and started_utc.
   const { held, lines: lineCount } = ledgerRoleStarts(metricsPath);
+  for (const extra of opts.heldIn) {
+    const more = ledgerRoleStarts(path.resolve(cwd, extra));
+    for (const k of more.held) held.add(k);
+    for (const [ref, n] of more.lines) lineCount.set(ref, Math.max(lineCount.get(ref) ?? 0, n));
+  }
   const perRef = new Map();
   let notHeld = 0;
   for (const w of byKey.values()) {
@@ -1827,7 +1845,7 @@ function handleRecoverArchives(opts) {
   let runsRecovered = 0;
   let tokensTotal = 0;
   for (const ref of [...perRef.keys()].sort()) {
-    if (ref === focusRef) { skipped[ref] = SKIP_FOCUS; continue; }
+    if (ref === focusRef && !opts.includeFocus) { skipped[ref] = SKIP_FOCUS; continue; }
     const items = perRef.get(ref);
     const runs = items.map((w) => {
       const { run } = w;
