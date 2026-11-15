@@ -194,6 +194,23 @@ one capability:
   the docs audit do not count it as one. Git history cannot recover a
   deleted STATE, because STATE is gitignored and never committed; only the
   archive copies can.
+- The archive steps write what they archive. When `merge-cleanup.mjs`
+  (`/aai-merge`) archives a merged ride worktree's STATE (step
+  `archive-runtime`), it runs the same recovery over that archived copy with
+  `--include-focus` (the ride has ended, so its own focus ref is not skipped)
+  against the worktree's `docs/ai/METRICS.jsonl`, with `--held-in` naming
+  the main checkout's ledger and the base branch's ledger it is about to
+  sync to. Runs already in any of them are left alone, so a resumed cleanup or
+  a run another merged PR already flushed is not written twice; the others are appended there as a recovery line and moved
+  to the main checkout's ledger with the ride's other appended ledger lines,
+  where they stay uncommitted until a later change commits them. `plan`
+  names the runs it would write and writes nothing. If the worktree is not at
+  the merged head or has no ledger, or the check fails, the step is kept
+  (`ledger_runs_unchecked`) and prints the exact command to run from the main
+  checkout; the archive copy holds the runs meanwhile. The manual worktree
+  cleanup in `SKILL_WORKTREE` runs that command right after its `cp` (pull a
+  merged branch's main first, or its flushed runs are written twice):
+  `node .aai/scripts/metrics-flush.mjs --recover-archives --include-focus --state <copy> --archive <copy>`.
 - Readers fold a ride's lines into one ride: the factory report, the metrics
   report (Per Work Item, Totals, Per-Strategy Reliability) and the golden-flow
   token median group all summary lines of a `ref_id` through

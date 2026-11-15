@@ -1,3 +1,8 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
 // A worktree lifecycle event may share METRICS.jsonl with archived ride
 // summaries. Older final summaries used a full UTC timestamp; current ones
 // use a date. Both forms prove delivery when accompanied by summary fields.
@@ -143,4 +148,54 @@ export function foldRideSegments(records) {
     if (baseSegment(segs) === r) out.push(mergeSegments(segs));
   }
   return out;
+}
+
+// archive-ledger-check D2/D3: the role runs of `copy`, a STATE copy of the ride checkout
+// `root` whose ride has ended, checked against root's docs/ai/METRICS.jsonl by the ONE
+// recovery path (metrics-flush --recover-archives --include-focus in `scriptDir`, run as a
+// child, cwd root): a dry run counts the runs the ledger lacks; when `writable` (and the
+// ledger file exists) and not `dryRun`, the real run appends them. Returns
+// { would, refs, recovered, keep }: keep is null when nothing is left behind, else what is
+// missing or failed plus the command a person runs from the main checkout (`rel` is the
+// archived copy's path there). With `origin` (the main checkout) its working ledger and,
+// with `base`, the ledger at refs/remotes/origin/<base> (where the base sync lands, written
+// to a temporary file) are passed as --held-in, so a run any of them holds is never written.
+export function recoverStateCopy({ scriptDir, root, copy, rel, writable, dryRun = false, origin = null, base = null }) {
+  const metrics = path.join(root, 'docs', 'ai', 'METRICS.jsonl');
+  const held = [];
+  let tmp = null;
+  if (origin) {
+    held.push(path.join(origin, 'docs', 'ai', 'METRICS.jsonl'));
+    const blob = base ? spawnSync('git', ['-C', origin, 'show', `refs/remotes/origin/${base}:docs/ai/METRICS.jsonl`], { encoding: 'utf8', maxBuffer: 1 << 30 }) : null;
+    tmp = path.join(os.tmpdir(), `aai-held-ledger-${process.pid}-${Date.now()}.jsonl`);
+    if (blob && blob.status === 0 && blob.stdout) { fs.writeFileSync(tmp, blob.stdout); held.push(tmp); }
+  }
+  try {
+    return recoverWith({ scriptDir, root, copy, rel, writable, dryRun, metrics, held });
+  } finally {
+    if (tmp) fs.rmSync(tmp, { force: true });
+  }
+}
+
+function recoverWith({ scriptDir, root, copy, rel, writable, dryRun, metrics, held }) {
+  const fallback = `node .aai/scripts/metrics-flush.mjs --recover-archives --include-focus --state ${rel} --archive ${rel}`;
+  const args = [path.join(scriptDir, 'metrics-flush.mjs'), '--recover-archives', '--include-focus', '--archive', copy,
+    '--state', path.join(root, 'docs', 'ai', 'STATE.yaml'), '--metrics', metrics, '--pricing', path.join(scriptDir, '..', 'system', 'PRICING.yaml'), ...held.flatMap((f) => ['--held-in', f])];
+  const cwd = root;
+  writable = writable && fs.existsSync(metrics);
+  const run = (extra) => spawnSync(process.execPath, [...args, ...extra], { cwd, encoding: 'utf8' });
+  const why = (r) => (r.error?.message ?? `${r.stderr ?? ''}${r.stdout ?? ''}`.trim().split('\n')[0]) || `exit ${r.status}`;
+  const keep = (text) => `${text}; run from the main checkout: ${fallback}`;
+  const probe = run(['--dry-run']);
+  let plan = null;
+  try { plan = probe.status === 0 ? JSON.parse(probe.stdout) : null; } catch { /* reported below */ }
+  if (!plan) return { would: 0, refs: [], recovered: 0, keep: keep(`ledger check failed (${why(probe)})`) };
+  const refs = [...new Set(plan.entries.map((e) => e.ref_id))].sort();
+  const would = plan.runs_recovered;
+  const write = writable && would > 0;
+  if (!write || dryRun) return { would, refs, recovered: 0, keep: would > 0 && !writable ? keep(`${would} run(s) of ${refs.join(', ')} not in the ride ledger`) : null };
+  const r = run([]);
+  const m = /^RECOVER SUMMARY .* recovered=(\d+) /m.exec(r.stdout ?? '');
+  if (r.status !== 0 || !m) return { would, refs, recovered: 0, keep: keep(`ledger write failed (${why(r)})`) };
+  return { would, refs, recovered: Number(m[1]), keep: null };
 }

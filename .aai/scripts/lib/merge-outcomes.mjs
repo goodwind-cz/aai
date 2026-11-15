@@ -77,6 +77,7 @@ export const OUTCOME_TABLE = {
   remote_has_dependents: kept('delete-branch'),
   remote_delete_rejected: kept('delete-branch'),
   reconcile_refused: kept('reconcile-origin'),
+  ledger_runs_unchecked: kept('archive-runtime'),
   reconcile_origin_failed: retry('decide'),
   sync_not_done: kept('reconcile-origin'),
   ledger_tails_wait_for_sync: kept('remove-worktree'),
@@ -114,7 +115,7 @@ const QUESTIONS = {
 // What a kept step leaves as it is, by the step that kept it.
 export const STEP_OBJECT = {
   'sync-base': 'the main checkout', 'reconcile-origin': 'the origin STATE', 'remove-worktree': 'the worktree, its branch and its files',
-  'delete-branch': 'the branch', 'archive-drafts': 'the draft',
+  'delete-branch': 'the branch', 'archive-drafts': 'the draft', 'archive-runtime': 'the archived STATE copy, its runs not yet in a ledger,',
 };
 
 export const outcomeId = (reason, subject, evidence = []) => {

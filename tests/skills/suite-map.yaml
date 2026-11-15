@@ -972,6 +972,7 @@ suites:
   aai-metrics:
     globs:
       - .aai/scripts/metrics-flush.mjs
+      - .aai/scripts/lib/metrics-flush-record.mjs
       - .aai/scripts/metrics-report.mjs
       - .aai/METRICS_FLUSH.prompt.md
       - .aai/METRICS_REPORT.prompt.md
@@ -1572,6 +1573,7 @@ suites:
   aai-worktree:
     globs:
       - .aai/SKILL_WORKTREE.prompt.md
+      - .aai/scripts/metrics-flush.mjs
       - .aai/scripts/ride-handoff.mjs
       - .claude/skills/aai-worktree/**
       - .codex/skills/aai-worktree/**
@@ -1581,6 +1583,8 @@ suites:
     globs:
       - .aai/scripts/merge-cleanup.mjs
       - .aai/scripts/lib/merge-outcomes.mjs
+      - .aai/scripts/metrics-flush.mjs
+      - .aai/scripts/lib/metrics-flush-record.mjs
       - .aai/scripts/ride-handoff.mjs
       - .aai/scripts/platform.mjs
       - .aai/scripts/lib/platform-adapter.mjs

@@ -1035,7 +1035,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 65502 -> 65945: model-effort-routing (+443 B: SKILL_LOOP, ORCHESTRATION_PARALLEL, SKILL_SHIP effort wiring; credited 1:1; AC-13 true-up adds the rest).
   # Then 65945 -> 66423: model-effort-routing Spec-AC-12 (+478 B: VALIDATION evidence-digest dial rule; credited 1:1).
   # Then 66423 -> 66523: model-effort-routing digest-clean remediation (+100 B: VALIDATION +29, SKILL_LOOP +71; credited 1:1).
-  local want_growth=66523
+  # Then 66523 -> 66791: archive-ledger-check (+268 B: SKILL_WORKTREE Cleanup step 2 metrics-flush --recover-archives --include-focus line, its pull-main-first comment and the Safety bullet naming it; credited 1:1).
+  local want_growth=66791
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -1077,6 +1078,7 @@ test_012_growth_sum_matches_ledger() {
     done
     # ride-status-and-resume adds 550 B to SKILL_SHIP under its own ledger entry; excluded so this entry stays its own.
     rh_now=$(( rh_now - 550 - 19 ))   # model-effort-routing adds 19 B to SKILL_SHIP step 2 under its own entry
+    rh_now=$(( rh_now - 268 ))   # archive-ledger-check adds 268 B to SKILL_WORKTREE Cleanup under its own entry
     if [[ -z "$rh_entry" ]]; then
       log_info "TEST-012 (ride-state-handoff TEST-013): no ride-state-handoff-to-worktree ledger entry (prompts grew $(( rh_now - rh_then )) B)"
       ok=0

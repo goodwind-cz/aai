@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-15T04:38:58.725Z",
+  "generatedAt": "2026-11-15T19:53:45.565Z",
   "project": "aai",
   "counts": {
-    "delivered": 361,
+    "delivered": 362,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 186230676
+    "tokens_total": 187194602
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -232,7 +232,20 @@
       "token_total": 1762069,
       "spec": "docs/specs/SPEC-0292-spec-recover-archived-state-runs.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-recover-archived-state-runs-20261115T0318Z.md"
+      "review": "docs/ai/reviews/review-recover-archived-state-runs-20261115T0427Z.md"
+    },
+    {
+      "ref": "archive-ledger-check",
+      "title": "Archiving a ride's STATE copy does not check that its role runs reached METRICS",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0116-archive-ledger-check.md",
+      "closed_on": "2026-11-15",
+      "agent_minutes": 139,
+      "token_total": 963926,
+      "spec": "docs/specs/SPEC-0293-spec-archive-ledger-check.md",
+      "validation": null,
+      "review": null
     },
     {
       "ref": "consumer-config-routing-override",
@@ -4952,7 +4965,20 @@
           "token_total": 1762069,
           "spec": "docs/specs/SPEC-0292-spec-recover-archived-state-runs.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-recover-archived-state-runs-20261115T0318Z.md"
+          "review": "docs/ai/reviews/review-recover-archived-state-runs-20261115T0427Z.md"
+        },
+        {
+          "ref": "archive-ledger-check",
+          "title": "Archiving a ride's STATE copy does not check that its role runs reached METRICS",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0116-archive-ledger-check.md",
+          "closed_on": "2026-11-15",
+          "agent_minutes": 139,
+          "token_total": 963926,
+          "spec": "docs/specs/SPEC-0293-spec-archive-ledger-check.md",
+          "validation": null,
+          "review": null
         },
         {
           "ref": "consumer-config-routing-override",

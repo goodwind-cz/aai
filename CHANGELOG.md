@@ -30,6 +30,10 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: archiving a ride's STATE copy writes the role runs the ledger lacks
+
+`/aai-merge` cleanup (`merge-cleanup.mjs`, step `archive-runtime`) no longer archives a ride worktree's STATE without checking its role runs: it runs `metrics-flush.mjs --recover-archives --include-focus` over the archived copy, writes the runs the ride's `docs/ai/METRICS.jsonl` lacks (for example review or CI-fix rounds recorded after the flush) as a recovery line, and the cleanup carries that line to the main checkout's ledger, uncommitted, like the ride's other appended ledger lines. Runs already in the ride's ledger, the main checkout's or the base branch's (`--held-in`, also new) are left alone, `plan` writes nothing, and a second run changes nothing. When it cannot write (the worktree is not at the merged head, it has no ledger, or the check fails) the step is kept as `ledger_runs_unchecked` and prints the exact command to run. `--include-focus` is new: it stops the recovery from skipping the `--state` focus ref when that ride has ended. The manual worktree cleanup in `SKILL_WORKTREE` runs the same command after it copies STATE.
+
 ## [unreleased] — fix: role runs held only by archived STATE copies are written to the ledger
 
 `metrics-flush.mjs --recover-archives` reads archived copies of STATE (handoff and merge-cleanup archives, report copies, checkpoints) and appends one line per ref for the role runs the ledger never received. Each line is marked `reconstructed` with its sources and a reason, carries no verdict and is never read as a PASS, a delivery or a flush by the PR gate, the dispatcher, the docs audit or the readers. A run already in the ledger is not written again; a run that is also in the live STATE is written from its live fields and a later flush treats it as held; the ref in focus is skipped and a second run appends nothing. This repository's ledger gained 65 lines (280 runs) recovered this way; earlier lines are unchanged. `docs/product/telemetry.md` describes the command and the line shape.
