@@ -14,7 +14,7 @@ import {
   detectNearMissAcTable, parseRequirementsSection,
 } from './docs-model.mjs';
 import { guardConfigPresent } from './guard-config.mjs';
-import { isMetricsFlushRecord, metricsFlushDateToTs } from './metrics-flush-record.mjs';
+import { isMetricsFlushRecord, isRecoveryRecord, metricsFlushDateToTs } from './metrics-flush-record.mjs';
 
 // CONFIG_PATH stays here (audit-core owns its scan root); the PRESENCE probe
 // that flips enforced vs report-only mode is the SHARED one from
@@ -797,6 +797,8 @@ export function readMetricsFlushes(root) {
     try {
       const rec = JSON.parse(t);
       if (!isMetricsFlushRecord(rec)) continue;
+      // recover-archived-state-runs: runs written late by --recover-archives are not delivery evidence.
+      if (isRecoveryRecord(rec)) continue;
       const rid = String(rec.ref_id);
       const date = (rec.date_utc != null) ? String(rec.date_utc) : null;
       const prev = flushes.has(rid) ? flushes.get(rid) : null;

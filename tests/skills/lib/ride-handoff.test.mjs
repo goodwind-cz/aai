@@ -598,6 +598,30 @@ test('TEST-010 reconcile refuses unledgered runs and no-ops without a trace', ()
   assert.match(again.stdout, /^NOOP no_trace ride-demo/m);
 });
 
+// --- recover-archived-state-runs (TEST-3748, Spec-AC-11) ----------------------------
+
+test('TEST-3748 reconcile refuses runs only an archive copy holds, then reconciles after --recover-archives', () => {
+  const w = world({ ledger: 'empty', drafts: 'none', worktree: false });
+  const s0 = sha(w.oState);
+  const refused = reconcile(w, ['--dry-run']);
+  assert.equal(refused.status, 1, `${refused.stdout}${refused.stderr}`);
+  assert.match(refused.stdout, /^REFUSE origin_runs_not_in_ledger\b/m);
+  // an archived copy of the same runs, and a live STATE whose focus is ANOTHER ref
+  const archive = path.join(w.root, 'archive');
+  write(path.join(archive, 'handoffs', 'STATE.yaml.final'), ORIGIN_STATE);
+  const live = path.join(w.root, 'live-state.yaml');
+  write(live, 'project_status: active\ncurrent_focus:\n  type: intake_change\n  ref_id: foreign-alpha\nmetrics:\n  work_items: {}\nupdated_at_utc: 2026-10-22T17:00:00Z\n');
+  const ledger = path.join(w.origin, 'docs/ai/METRICS.jsonl');
+  const rec = run(process.execPath, [FLUSH, '--recover-archives', '--archive', archive, '--state', live, '--metrics', ledger, '--now', '2026-11-15T12:00:00Z'], w.origin);
+  assert.equal(rec.status, 0, `recovery: ${rec.stdout}${rec.stderr}`);
+  assert.match(rec.stdout, /^Recovered: ride-demo /m);
+  assert.equal(count(read(ledger), `"ref_id":"${R}"`), 1, 'one recovery line for the ride');
+  const healed = reconcile(w, ['--dry-run']);
+  assert.equal(healed.status, 0, `${healed.stdout}${healed.stderr}`);
+  assert.match(healed.stdout, /^RECONCILED ride-demo \(dry-run\) cleared=2\b/m);
+  assert.equal(sha(w.oState), s0, 'origin STATE untouched by the dry runs and the recovery');
+});
+
 // --- remediation regressions (code review NB-1..NB-3) -------------------------------
 
 test('TEST-010 reconcile fails closed on a run item whose first key is not role', () => {

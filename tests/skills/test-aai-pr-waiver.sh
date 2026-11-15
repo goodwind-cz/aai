@@ -1546,9 +1546,58 @@ test_19_reopen_same_day_flush_opens() {
   log_pass "TEST-3725 TEST-19 distinct flush segments open the gate; a duplicated segment still refuses"
 }
 
+# --- TEST-3741 (recover-archived-state-runs, Spec-AC-06) ---------------------
+# validation-waiver.mjs stays unchanged: a recovery line (verdict null,
+# `reconstructed` last) is not a PASS hit, so it neither opens the archive lane
+# on its own nor makes a real same-day PASS ambiguous.
+make_recovery_line() {  # <real-ledger-line-file> -> stdout: the same ride as a D4 recovery line
+  node - "$1" <<'NODE'
+const fs = require('fs');
+const e = JSON.parse(fs.readFileSync(process.argv[2], 'utf8').split('\n').find((l) => l.startsWith('{')));
+const { verdict, verdict_basis, strategy, ...rest } = e;
+const r = { ...rest, strategy: null, verdict_basis: null, verdict: null };
+r.reliability = { ...(e.reliability || {}), verdict_after_last_implementer: null };
+r.flush_segment = 2;
+r.reconstructed = { source: 'docs/ai/archive/x/STATE.yaml', reason: 'role runs held only by archived STATE copies; recovered by metrics-flush --recover-archives (recover-archived-state-runs); verdict unknown', recovered_utc: e.date_utc + 'T12:00:00Z' };
+process.stdout.write(JSON.stringify(r) + '\n');
+NODE
+}
+
+test_20_recovery_line_is_not_a_pass() {
+  log_info "TEST-3741: a same-day recovery line is not a PASS hit for the archive lane..."
+  local d sp m
+  # (a) the only same-day line is a recovery line -> refused by name.
+  d="$(mk_flushed arch_recovery_only)" || log_fail "TEST-3741 (a): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  m="$d/docs/ai/METRICS.jsonl"
+  make_recovery_line "$m" > "$d/recovery.line" || log_fail "TEST-3741 (a): could not derive the recovery line"
+  grep -qF '"verdict":null' "$d/recovery.line" || log_fail "TEST-3741 (a) premise: the recovery line must carry verdict null: $(cat "$d/recovery.line")"
+  printf '# ledger comment header\n' > "$m"
+  cat "$d/recovery.line" >> "$m"
+  run_gate "$sp"
+  expect_rc 1 "TEST-3741 (a) recovery line only"
+  assert_payload_contains "$GATE_OUT" "VALIDATION-GATE blocked reason=archive_no_ledger_pass" \
+    "TEST-3741 (a): a ledger holding only a same-day recovery line must refuse archive_no_ledger_pass" || return 1
+
+  # (b) one real PASS line plus a same-day recovery line -> opens, never ambiguous.
+  d="$(mk_flushed arch_recovery_plus_pass)" || log_fail "TEST-3741 (b): fixture build failed"
+  sp="$d/docs/ai/STATE.yaml"
+  m="$d/docs/ai/METRICS.jsonl"
+  make_recovery_line "$m" > "$d/recovery.line" || log_fail "TEST-3741 (b): could not derive the recovery line"
+  cat "$d/recovery.line" >> "$m"
+  run_gate "$sp"
+  expect_rc 0 "TEST-3741 (b) PASS line plus recovery line"
+  assert_payload_contains "$GATE_OUT" "reason=validation_archived_pass" \
+    "TEST-3741 (b): one real PASS plus a same-day recovery line must open on validation_archived_pass" || return 1
+  assert_payload_not_contains "$GATE_OUT" "archive_ledger_ambiguous" \
+    "TEST-3741 (b): the recovery line must never make the gate ambiguous" || return 1
+  rm -rf "$d"
+  log_pass "TEST-3741 a recovery line is never a PASS hit: alone it refuses, beside a real PASS it opens unambiguously"
+}
+
 # --- runner ------------------------------------------------------------------
 
-ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver 17_swept_ref_is_never_archived 18_ledger_corroborates_the_record_not_the_scope 19_reopen_same_day_flush_opens"
+ALL_TESTS="01_bare_not_run_blocks 02_operator_waiver_opens 03_empty_reason_refused 04_self_waived_marked_distinctly 05_two_records_block_ambiguous 06_waiver_does_not_leak_across_refs 07_v1_record_refused_by_name 08_waiver_survives_flush_into_report 09_unflushed_waiver_is_loud_not_lost 10_absent_vs_corrupt_state 11_archived_pass_opens 12_archive_needs_ledger_pass 13_archive_goes_stale_on_restamp 14_archive_ref_binding 15_archive_grammar_fail_closed 16_archive_never_blocks_a_waiver 17_swept_ref_is_never_archived 18_ledger_corroborates_the_record_not_the_scope 19_reopen_same_day_flush_opens 20_recovery_line_is_not_a_pass"
 
 main() {
   local requested="${1:-}"

@@ -64,7 +64,7 @@ import { findBlock, readScalar, indentOf, unquoteScalar, agentRunsFor, lastImple
 import { computeEffectivePromptHash, componentHashes, shortHash } from './lib/prompt-hash.mjs';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { detectHarness, HARNESS_VALUES } from './lib/harness.mjs';
-import { isMetricsFlushRecord } from './lib/metrics-flush-record.mjs';
+import { isMetricsFlushRecord, isRecoveryRecord } from './lib/metrics-flush-record.mjs';
 import { roundsUsed, roundCap, standingAExtensions, roundMenu } from './round-budget.mjs';
 import { loadProjectConfig, overrideFor, projectConfigNotes, describeOverride, isPricedModel, loadCostPricing, overrideVendor, PROJECT_CONFIG_REL } from './lib/project-config.mjs';
 import { recheckMode, planCheckStamps, tokenOfRole, RECHECK_ROLES, RECHECK_PROMPT } from './lib/recheck.mjs';
@@ -1066,7 +1066,7 @@ export function buildSnapshot(statePath, root) {
       if (t === '' || t.startsWith('#')) continue;
       try {
         const record = JSON.parse(t);
-        if (isMetricsFlushRecord(record) && record.ref_id === focusRef) { flushed = true; break; }
+        if (isMetricsFlushRecord(record) && !isRecoveryRecord(record) && record.ref_id === focusRef) { flushed = true; break; }
       } catch { /* unparseable ledger line: best-effort probe, skip */ }
     }
   }

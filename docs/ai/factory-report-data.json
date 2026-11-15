@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-11-14T21:53:43.923Z",
+  "generatedAt": "2026-11-15T03:28:31.853Z",
   "project": "goodwind-cz/aai",
   "empty": false,
   "empty_reason": null,
   "counts": {
-    "rides": 209,
-    "delivered": 660,
+    "rides": 253,
+    "delivered": 662,
     "active_weeks": 20,
     "releases": 0,
     "review_events": 27
   },
   "throughput": {
-    "note": "\"delivered\" counts every work_item_closed event (660 closes vs 209 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
-    "delivered_total": 660,
-    "delivered_per_week_avg": 33,
+    "note": "\"delivered\" counts every work_item_closed event (662 closes vs 253 recorded metric rides) — this includes administrative and non-feature doc closes, not only full agent rides",
+    "delivered_total": 662,
+    "delivered_per_week_avg": 33.1,
     "delivered_by_week": {
       "2026-W27": 7,
       "2026-W28": 2,
@@ -34,7 +34,7 @@
       "2026-W43": 36,
       "2026-W44": 23,
       "2026-W45": 28,
-      "2026-W46": 20
+      "2026-W46": 22
     },
     "delivered_groups": [
       {
@@ -681,7 +681,7 @@
         "key": "month:2026-11",
         "kind": "month",
         "label": "2026-11",
-        "count": 52,
+        "count": 54,
         "refs": [
           "node-first-small-pairs",
           "spec-node-first-small-pairs",
@@ -734,7 +734,9 @@
           "consumer-config-routing-override",
           "spec-consumer-config-routing-override",
           "flush-drops-reopened-runs",
-          "spec-flush-drops-reopened-runs"
+          "spec-flush-drops-reopened-runs",
+          "recover-archived-state-runs",
+          "spec-recover-archived-state-runs"
         ]
       }
     ],
@@ -898,7 +900,7 @@
         },
         {
           "ref": "spec-delta-stage-1",
-          "lead_time_seconds": null
+          "lead_time_seconds": 23254
         },
         {
           "ref": "spec-layer-profiles",
@@ -938,31 +940,31 @@
         },
         {
           "ref": "work-item-brief",
-          "lead_time_seconds": null
+          "lead_time_seconds": 36966
         },
         {
           "ref": "systematic-debugging",
-          "lead_time_seconds": null
+          "lead_time_seconds": 36881
         },
         {
           "ref": "constitution",
-          "lead_time_seconds": null
+          "lead_time_seconds": 35227
         },
         {
           "ref": "advisory-skills",
-          "lead_time_seconds": null
+          "lead_time_seconds": 24613
         },
         {
           "ref": "truth-scoring",
-          "lead_time_seconds": null
+          "lead_time_seconds": 24496
         },
         {
           "ref": "spec-lint",
-          "lead_time_seconds": null
+          "lead_time_seconds": 24532
         },
         {
           "ref": "layer-profiles",
-          "lead_time_seconds": null
+          "lead_time_seconds": 24403
         },
         {
           "ref": "l1-close-gate",
@@ -986,11 +988,11 @@
         },
         {
           "ref": "scale-adaptive-ceremony",
-          "lead_time_seconds": null
+          "lead_time_seconds": 28775
         },
         {
           "ref": "hook-enforced-gates",
-          "lead_time_seconds": null
+          "lead_time_seconds": 29528
         },
         {
           "ref": "delta-spec-lifecycle",
@@ -1478,7 +1480,7 @@
         },
         {
           "ref": "reaper-test-018-etime-shape-guard",
-          "lead_time_seconds": null
+          "lead_time_seconds": 128
         },
         {
           "ref": "spec-reaper-test-018-etime-shape-guard",
@@ -1686,7 +1688,7 @@
         },
         {
           "ref": "session-journal-contract",
-          "lead_time_seconds": null
+          "lead_time_seconds": 1262
         },
         {
           "ref": "validate-report-contract",
@@ -1734,11 +1736,11 @@
         },
         {
           "ref": "core-prompt-diet",
-          "lead_time_seconds": null
+          "lead_time_seconds": 3161
         },
         {
           "ref": "auto-update-config",
-          "lead_time_seconds": null
+          "lead_time_seconds": 5238
         },
         {
           "ref": "spec-auto-update-config",
@@ -1750,11 +1752,11 @@
         },
         {
           "ref": "update-sync-atomic-lock",
-          "lead_time_seconds": null
+          "lead_time_seconds": 9435
         },
         {
           "ref": "seed-update-config",
-          "lead_time_seconds": null
+          "lead_time_seconds": 1802
         },
         {
           "ref": "contract-headroom",
@@ -2050,7 +2052,7 @@
         },
         {
           "ref": "spec-vagueness-gate",
-          "lead_time_seconds": null
+          "lead_time_seconds": 6758
         },
         {
           "ref": "close-regenerate-order",
@@ -2098,7 +2100,7 @@
         },
         {
           "ref": "deslop-corpus-honesty",
-          "lead_time_seconds": null
+          "lead_time_seconds": 71393
         },
         {
           "ref": "spec-deslop-corpus-honesty",
@@ -2106,7 +2108,7 @@
         },
         {
           "ref": "suites-must-not-touch-the-shipping-repo",
-          "lead_time_seconds": null
+          "lead_time_seconds": 33440
         },
         {
           "ref": "spec-suites-must-not-touch-the-shipping-repo",
@@ -2114,7 +2116,7 @@
         },
         {
           "ref": "suites-run-in-a-disposable-worktree",
-          "lead_time_seconds": null
+          "lead_time_seconds": 19958
         },
         {
           "ref": "spec-suites-run-in-a-disposable-worktree",
@@ -2122,7 +2124,7 @@
         },
         {
           "ref": "cli-output-survives-a-pipe",
-          "lead_time_seconds": null
+          "lead_time_seconds": 24913
         },
         {
           "ref": "spec-cli-output-survives-a-pipe",
@@ -2130,7 +2132,7 @@
         },
         {
           "ref": "intake-numbers-some-doc-types-immediately",
-          "lead_time_seconds": null
+          "lead_time_seconds": 8423
         },
         {
           "ref": "spec-intake-numbers-some-doc-types-immediately",
@@ -2138,7 +2140,7 @@
         },
         {
           "ref": "index-arm-diffs-whole-file-for-a-path-claim",
-          "lead_time_seconds": null
+          "lead_time_seconds": 5286
         },
         {
           "ref": "spec-index-arm-diffs-whole-file-for-a-path-claim",
@@ -2146,7 +2148,7 @@
         },
         {
           "ref": "docs-history-is-one-git-call-per-doc",
-          "lead_time_seconds": null
+          "lead_time_seconds": 4106
         },
         {
           "ref": "spec-docs-history-is-one-git-call-per-doc",
@@ -2154,7 +2156,7 @@
         },
         {
           "ref": "assertions-must-not-die-on-their-own-payload",
-          "lead_time_seconds": null
+          "lead_time_seconds": 12582
         },
         {
           "ref": "spec-assertions-must-not-die-on-their-own-payload",
@@ -2162,7 +2164,7 @@
         },
         {
           "ref": "a-run-must-say-whether-isolation-armed",
-          "lead_time_seconds": null
+          "lead_time_seconds": 8635
         },
         {
           "ref": "spec-a-run-must-say-whether-isolation-armed",
@@ -2170,7 +2172,7 @@
         },
         {
           "ref": "a-half-seeded-checkout-says-it-is-isolated",
-          "lead_time_seconds": null
+          "lead_time_seconds": 39100
         },
         {
           "ref": "spec-a-half-seeded-checkout-says-it-is-isolated",
@@ -2178,7 +2180,7 @@
         },
         {
           "ref": "drain-the-tripwire-known-offender-list",
-          "lead_time_seconds": null
+          "lead_time_seconds": 43336
         },
         {
           "ref": "spec-drain-the-tripwire-known-offender-list",
@@ -2186,7 +2188,7 @@
         },
         {
           "ref": "the-subagent-contract-omits-the-hazards",
-          "lead_time_seconds": null
+          "lead_time_seconds": 15522
         },
         {
           "ref": "spec-the-subagent-contract-omits-the-hazards",
@@ -2194,7 +2196,7 @@
         },
         {
           "ref": "the-tripwire-is-permanent-not-transitional",
-          "lead_time_seconds": null
+          "lead_time_seconds": 5797
         },
         {
           "ref": "spec-the-tripwire-is-permanent-not-transitional",
@@ -2318,7 +2320,7 @@
         },
         {
           "ref": "release-protected-branch-fallback",
-          "lead_time_seconds": null
+          "lead_time_seconds": 9330
         },
         {
           "ref": "spec-release-protected-branch-fallback",
@@ -2326,7 +2328,7 @@
         },
         {
           "ref": "ac-table-premature-flip-recurs",
-          "lead_time_seconds": null
+          "lead_time_seconds": 18567
         },
         {
           "ref": "spec-ac-table-premature-flip-recurs",
@@ -2334,7 +2336,7 @@
         },
         {
           "ref": "metrics-flush-invalidates-pr-precondition",
-          "lead_time_seconds": null
+          "lead_time_seconds": 21498
         },
         {
           "ref": "spec-metrics-flush-invalidates-pr-precondition",
@@ -2342,7 +2344,7 @@
         },
         {
           "ref": "role-progress-heartbeat",
-          "lead_time_seconds": null
+          "lead_time_seconds": 36379
         },
         {
           "ref": "spec-role-progress-heartbeat",
@@ -2350,7 +2352,7 @@
         },
         {
           "ref": "unsigned-spec-amendment-has-no-outflow",
-          "lead_time_seconds": null
+          "lead_time_seconds": 38243
         },
         {
           "ref": "spec-unsigned-spec-amendment-has-no-outflow",
@@ -2406,7 +2408,7 @@
         },
         {
           "ref": "simple-and-friendly-to-use",
-          "lead_time_seconds": null
+          "lead_time_seconds": 43781
         },
         {
           "ref": "spec-simple-and-friendly-to-use",
@@ -2730,7 +2732,7 @@
         },
         {
           "ref": "worktree-lacks-vendored-aai-layer-downstream",
-          "lead_time_seconds": 23926
+          "lead_time_seconds": 25501
         },
         {
           "ref": "spec-worktree-lacks-vendored-aai-layer-downstream",
@@ -2738,7 +2740,7 @@
         },
         {
           "ref": "pr-capability-preflight",
-          "lead_time_seconds": 28654
+          "lead_time_seconds": 32205
         },
         {
           "ref": "spec-pr-capability-preflight",
@@ -2890,7 +2892,7 @@
         },
         {
           "ref": "release-notes-gate",
-          "lead_time_seconds": null
+          "lead_time_seconds": 4681
         },
         {
           "ref": "spec-release-notes-gate",
@@ -2922,7 +2924,7 @@
         },
         {
           "ref": "release-command-finish",
-          "lead_time_seconds": null
+          "lead_time_seconds": 273732
         },
         {
           "ref": "spec-release-command-finish",
@@ -3246,7 +3248,7 @@
         },
         {
           "ref": "retire-shell-loop-runner",
-          "lead_time_seconds": null
+          "lead_time_seconds": 19661
         },
         {
           "ref": "spec-retire-shell-loop-runner",
@@ -3254,7 +3256,7 @@
         },
         {
           "ref": "cloudflare-share-on-node",
-          "lead_time_seconds": null
+          "lead_time_seconds": 43258
         },
         {
           "ref": "spec-cloudflare-share-on-node",
@@ -3262,7 +3264,7 @@
         },
         {
           "ref": "release-fixture-atomic-publication",
-          "lead_time_seconds": null
+          "lead_time_seconds": 32469
         },
         {
           "ref": "spec-release-fixture-atomic-publication",
@@ -3379,50 +3381,58 @@
         {
           "ref": "spec-flush-drops-reopened-runs",
           "lead_time_seconds": null
+        },
+        {
+          "ref": "recover-archived-state-runs",
+          "lead_time_seconds": null
+        },
+        {
+          "ref": "spec-recover-archived-state-runs",
+          "lead_time_seconds": null
         }
       ],
-      "median_seconds": 6725,
-      "mean_seconds": 88962.3,
-      "measured": 205,
-      "unmeasurable": 455
+      "median_seconds": 7926,
+      "mean_seconds": 78833.1,
+      "measured": 246,
+      "unmeasurable": 416
     }
   },
   "speed": {
     "ride_busy_seconds": {
-      "median": 3810,
-      "mean": 9956.4,
-      "measured": 207
+      "median": 4148,
+      "mean": 10641.3,
+      "measured": 251
     },
     "role_split": [
       {
         "role": "TDD Implementation",
-        "duration_seconds": 458657,
-        "tokens": 26143882
+        "duration_seconds": 474959,
+        "tokens": 52470987
       },
       {
         "role": "Implementation",
-        "duration_seconds": 99521,
-        "tokens": 2702847
+        "duration_seconds": 260788,
+        "tokens": 7507266
       },
       {
         "role": "Code Review",
-        "duration_seconds": 227832,
-        "tokens": 14729625
+        "duration_seconds": 263839,
+        "tokens": 22596397
       },
       {
         "role": "Remediation",
-        "duration_seconds": 383882,
-        "tokens": 14700463
+        "duration_seconds": 524060,
+        "tokens": 19548540
       },
       {
         "role": "Validation",
-        "duration_seconds": 727568,
-        "tokens": 21560176
+        "duration_seconds": 936365,
+        "tokens": 69854157
       },
       {
         "role": "Planning",
-        "duration_seconds": 147583,
-        "tokens": 13407188
+        "duration_seconds": 195037,
+        "tokens": 15227524
       },
       {
         "role": "Other",
@@ -4118,18 +4128,18 @@
       },
       {
         "ref": "telemetry-fields-not-prose",
-        "busy_seconds": 22792,
-        "remediation_runs": 5
+        "busy_seconds": 25330,
+        "remediation_runs": 6
       },
       {
         "ref": "dispatch-state-sweep",
-        "busy_seconds": 34976,
-        "remediation_runs": 4
+        "busy_seconds": 37613,
+        "remediation_runs": 5
       },
       {
         "ref": "test-framework-sweep",
-        "busy_seconds": 65069,
-        "remediation_runs": 5
+        "busy_seconds": 95514,
+        "remediation_runs": 8
       },
       {
         "ref": "original-request-outcome-backcheck",
@@ -4183,17 +4193,17 @@
       },
       {
         "ref": "roadmap-maintenance-budget-advisory",
-        "busy_seconds": 32895,
-        "remediation_runs": 1
+        "busy_seconds": 39650,
+        "remediation_runs": 2
       },
       {
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
-        "busy_seconds": 19008,
+        "busy_seconds": 19455,
         "remediation_runs": 4
       },
       {
         "ref": "pr-capability-preflight",
-        "busy_seconds": 21450,
+        "busy_seconds": 21886,
         "remediation_runs": 2
       },
       {
@@ -4233,23 +4243,23 @@
       },
       {
         "ref": "directed-merge-and-post-merge-cleanup",
-        "busy_seconds": 12966,
-        "remediation_runs": 2
+        "busy_seconds": 13837,
+        "remediation_runs": 3
       },
       {
         "ref": "classify-same-ts-pair",
-        "busy_seconds": 2023,
-        "remediation_runs": 0
-      },
-      {
-        "ref": "merge-direction-signs-amendments",
-        "busy_seconds": 10815,
+        "busy_seconds": 4526,
         "remediation_runs": 2
       },
       {
-        "ref": "merge-cleanup-submodule-worktree",
-        "busy_seconds": 7517,
+        "ref": "merge-direction-signs-amendments",
+        "busy_seconds": 11912,
         "remediation_runs": 3
+      },
+      {
+        "ref": "merge-cleanup-submodule-worktree",
+        "busy_seconds": 9205,
+        "remediation_runs": 4
       },
       {
         "ref": "done-work-item-stays-in-current-focus",
@@ -4263,18 +4273,18 @@
       },
       {
         "ref": "release-checks-registration-grace",
-        "busy_seconds": 2061,
+        "busy_seconds": 3745,
         "remediation_runs": 0
       },
       {
         "ref": "release-changelog-eol",
-        "busy_seconds": 5569,
-        "remediation_runs": 1
+        "busy_seconds": 6964,
+        "remediation_runs": 2
       },
       {
         "ref": "release-one-shot-finish",
-        "busy_seconds": 2843,
-        "remediation_runs": 0
+        "busy_seconds": 4927,
+        "remediation_runs": 1
       },
       {
         "ref": "docs-index-broken-refs-scope",
@@ -4293,13 +4303,13 @@
       },
       {
         "ref": "selected-ci-scheduling-foundation",
-        "busy_seconds": 6086,
-        "remediation_runs": 1
+        "busy_seconds": 9662,
+        "remediation_runs": 3
       },
       {
         "ref": "selected-ci-conditional-sharding",
-        "busy_seconds": 7312,
-        "remediation_runs": 0
+        "busy_seconds": 10388,
+        "remediation_runs": 2
       },
       {
         "ref": "docs-audit-node-test-pilot",
@@ -4308,7 +4318,7 @@
       },
       {
         "ref": "ci-body-only-rechecks",
-        "busy_seconds": 5535,
+        "busy_seconds": 8360,
         "remediation_runs": 1
       },
       {
@@ -4358,8 +4368,8 @@
       },
       {
         "ref": "merge-cleanup-resolves-framework-friction",
-        "busy_seconds": 17935,
-        "remediation_runs": 2
+        "busy_seconds": 19834,
+        "remediation_runs": 3
       },
       {
         "ref": "provider-adapter-registry-slice",
@@ -4378,7 +4388,7 @@
       },
       {
         "ref": "codex-usage-missing-from-run-budgets",
-        "busy_seconds": 11832,
+        "busy_seconds": 12305,
         "remediation_runs": 2
       },
       {
@@ -4428,8 +4438,8 @@
       },
       {
         "ref": "reuse-for-docs-reading-suites",
-        "busy_seconds": 21903,
-        "remediation_runs": 4
+        "busy_seconds": 23956,
+        "remediation_runs": 7
       },
       {
         "ref": "suite-select-sigpipe-fix",
@@ -4443,8 +4453,8 @@
       },
       {
         "ref": "reuse-split-corpus-cases",
-        "busy_seconds": 16679,
-        "remediation_runs": 1
+        "busy_seconds": 19310,
+        "remediation_runs": 2
       },
       {
         "ref": "admit-tests-other-suites",
@@ -4453,7 +4463,7 @@
       },
       {
         "ref": "retire-legacy-migrations",
-        "busy_seconds": 18495,
+        "busy_seconds": 20415,
         "remediation_runs": 3
       },
       {
@@ -4475,6 +4485,226 @@
         "ref": "flush-drops-reopened-runs",
         "busy_seconds": 11594,
         "remediation_runs": 2
+      },
+      {
+        "ref": "advisory-skills",
+        "busy_seconds": 1561,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "constitution",
+        "busy_seconds": 1174,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "hook-enforced-gates",
+        "busy_seconds": 2171,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "layer-profiles",
+        "busy_seconds": 4622,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "pr-67-post-merge-review",
+        "busy_seconds": 686,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "scale-adaptive-ceremony",
+        "busy_seconds": 1846,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "spec-delta-stage-1",
+        "busy_seconds": 1666,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "spec-lint",
+        "busy_seconds": 1598,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "systematic-debugging",
+        "busy_seconds": 1356,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "truth-scoring",
+        "busy_seconds": 1246,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "work-item-brief",
+        "busy_seconds": 994,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "reaper-test-018-etime-shape-guard",
+        "busy_seconds": 0,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "core-prompt-diet",
+        "busy_seconds": 3380,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "session-journal-contract",
+        "busy_seconds": 1200,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "auto-update-config",
+        "busy_seconds": 6967,
+        "remediation_runs": 3
+      },
+      {
+        "ref": "seed-update-config",
+        "busy_seconds": 1898,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "update-sync-atomic-lock",
+        "busy_seconds": 14963,
+        "remediation_runs": 4
+      },
+      {
+        "ref": "spec-vagueness-gate",
+        "busy_seconds": 2002,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "deslop-corpus-honesty",
+        "busy_seconds": 76646,
+        "remediation_runs": 9
+      },
+      {
+        "ref": "suites-must-not-touch-the-shipping-repo",
+        "busy_seconds": 35489,
+        "remediation_runs": 4
+      },
+      {
+        "ref": "suites-run-in-a-disposable-worktree",
+        "busy_seconds": 19203,
+        "remediation_runs": 3
+      },
+      {
+        "ref": "assertions-must-not-die-on-their-own-payload",
+        "busy_seconds": 3431,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "cli-output-survives-a-pipe",
+        "busy_seconds": 6651,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "docs-history-is-one-git-call-per-doc",
+        "busy_seconds": 3153,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "index-arm-diffs-whole-file-for-a-path-claim",
+        "busy_seconds": 3898,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "intake-numbers-some-doc-types-immediately",
+        "busy_seconds": 10816,
+        "remediation_runs": 3
+      },
+      {
+        "ref": "a-half-seeded-checkout-says-it-is-isolated",
+        "busy_seconds": 5952,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "a-run-must-say-whether-isolation-armed",
+        "busy_seconds": 7728,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "drain-the-tripwire-known-offender-list",
+        "busy_seconds": 31417,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "the-subagent-contract-omits-the-hazards",
+        "busy_seconds": 7144,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "busy_seconds": 4148,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "ac-table-premature-flip-recurs",
+        "busy_seconds": 14564,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "metrics-flush-invalidates-pr-precondition",
+        "busy_seconds": 20731,
+        "remediation_runs": 2
+      },
+      {
+        "ref": "release-protected-branch-fallback",
+        "busy_seconds": 8760,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "role-progress-heartbeat",
+        "busy_seconds": 35552,
+        "remediation_runs": 2
+      },
+      {
+        "ref": "unsigned-spec-amendment-has-no-outflow",
+        "busy_seconds": 36215,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "simple-and-friendly-to-use",
+        "busy_seconds": 628,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "release-one-command-no-findings",
+        "busy_seconds": 89276,
+        "remediation_runs": 1
+      },
+      {
+        "ref": "release-notes-gate",
+        "busy_seconds": 6673,
+        "remediation_runs": 3
+      },
+      {
+        "ref": "release-command-finish",
+        "busy_seconds": 30307,
+        "remediation_runs": 3
+      },
+      {
+        "ref": "release-passes-first-time",
+        "busy_seconds": 17443,
+        "remediation_runs": 3
+      },
+      {
+        "ref": "cloudflare-share-on-node",
+        "busy_seconds": 1074,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "retire-shell-loop-runner",
+        "busy_seconds": 1413,
+        "remediation_runs": 0
+      },
+      {
+        "ref": "release-fixture-atomic-publication",
+        "busy_seconds": 9330,
+        "remediation_runs": 0
       }
     ],
     "note": "busy_seconds is summed agent duration (agent busy time), NOT calendar wall-clock"
@@ -4484,35 +4714,35 @@
     "usd": null,
     "usd_note": "no USD figure is derivable — tokens_in/out are null across the ledger and the usage marker is an undecomposed total with no in/out split to price",
     "tokens_per_ride": {
-      "median": 562630,
-      "mean": 896578.7,
-      "measured": 104
+      "median": 565542,
+      "mean": 1451200.6,
+      "measured": 129
     },
-    "tokens_total": 93244181,
+    "tokens_total": 187204871,
     "by_role": [
       {
         "role": "TDD Implementation",
-        "tokens": 26143882
+        "tokens": 52470987
       },
       {
         "role": "Implementation",
-        "tokens": 2702847
+        "tokens": 7507266
       },
       {
         "role": "Code Review",
-        "tokens": 14729625
+        "tokens": 22596397
       },
       {
         "role": "Remediation",
-        "tokens": 14700463
+        "tokens": 19548540
       },
       {
         "role": "Validation",
-        "tokens": 21560176
+        "tokens": 69854157
       },
       {
         "role": "Planning",
-        "tokens": 13407188
+        "tokens": 15227524
       },
       {
         "role": "Other",
@@ -4520,9 +4750,9 @@
       }
     ],
     "capture_coverage": {
-      "runs_with_marker": 566,
-      "total_runs": 1461,
-      "pct": 39,
+      "runs_with_marker": 700,
+      "total_runs": 1741,
+      "pct": 40,
       "by_week": [
         {
           "week": "2026-W27",
@@ -4539,19 +4769,19 @@
         {
           "week": "2026-W29",
           "runs_with_marker": 88,
-          "total_runs": 175,
-          "pct": 50
+          "total_runs": 211,
+          "pct": 42
         },
         {
           "week": "2026-W30",
           "runs_with_marker": 47,
-          "total_runs": 112,
-          "pct": 42
+          "total_runs": 114,
+          "pct": 41
         },
         {
           "week": "2026-W31",
-          "runs_with_marker": 54,
-          "total_runs": 72,
+          "runs_with_marker": 72,
+          "total_runs": 96,
           "pct": 75
         },
         {
@@ -4562,15 +4792,15 @@
         },
         {
           "week": "2026-W33",
-          "runs_with_marker": 91,
-          "total_runs": 91,
+          "runs_with_marker": 93,
+          "total_runs": 93,
           "pct": 100
         },
         {
           "week": "2026-W34",
-          "runs_with_marker": 29,
-          "total_runs": 31,
-          "pct": 94
+          "runs_with_marker": 99,
+          "total_runs": 102,
+          "pct": 97
         },
         {
           "week": "2026-W35",
@@ -4580,21 +4810,21 @@
         },
         {
           "week": "2026-W36",
-          "runs_with_marker": 8,
-          "total_runs": 8,
+          "runs_with_marker": 41,
+          "total_runs": 41,
           "pct": 100
         },
         {
           "week": "2026-W37",
           "runs_with_marker": 32,
-          "total_runs": 46,
-          "pct": 70
+          "total_runs": 48,
+          "pct": 67
         },
         {
           "week": "2026-W38",
           "runs_with_marker": 12,
-          "total_runs": 37,
-          "pct": 32
+          "total_runs": 48,
+          "pct": 25
         },
         {
           "week": "2026-W39",
@@ -4610,33 +4840,33 @@
         },
         {
           "week": "2026-W41",
-          "runs_with_marker": 13,
-          "total_runs": 252,
-          "pct": 5
+          "runs_with_marker": 16,
+          "total_runs": 271,
+          "pct": 6
         },
         {
           "week": "2026-W42",
           "runs_with_marker": 13,
-          "total_runs": 28,
-          "pct": 46
+          "total_runs": 63,
+          "pct": 21
         },
         {
           "week": "2026-W43",
           "runs_with_marker": 0,
-          "total_runs": 170,
+          "total_runs": 187,
           "pct": 0
         },
         {
           "week": "2026-W44",
-          "runs_with_marker": 44,
-          "total_runs": 100,
-          "pct": 44
+          "runs_with_marker": 46,
+          "total_runs": 112,
+          "pct": 41
         },
         {
           "week": "2026-W45",
-          "runs_with_marker": 0,
-          "total_runs": 69,
-          "pct": 0
+          "runs_with_marker": 6,
+          "total_runs": 85,
+          "pct": 7
         },
         {
           "week": "2026-W46",
@@ -4650,70 +4880,70 @@
       "roles": [
         {
           "role": "TDD Implementation",
-          "runs_total": 240,
-          "runs_marked": 114,
+          "runs_total": 248,
+          "runs_marked": 118,
           "runs_sentinel": 4,
-          "runs_unmarked": 122,
-          "tokens_total": 26143882,
-          "median_tokens_per_run": 208060,
+          "runs_unmarked": 126,
+          "tokens_total": 52470987,
+          "median_tokens_per_run": 212974,
           "share_pct": 28
         },
         {
           "role": "Implementation",
-          "runs_total": 77,
-          "runs_marked": 10,
-          "runs_sentinel": 17,
-          "runs_unmarked": 50,
-          "tokens_total": 2702847,
-          "median_tokens_per_run": 240268,
-          "share_pct": 3
+          "runs_total": 112,
+          "runs_marked": 30,
+          "runs_sentinel": 21,
+          "runs_unmarked": 61,
+          "tokens_total": 7507266,
+          "median_tokens_per_run": 227676,
+          "share_pct": 4
         },
         {
           "role": "Code Review",
-          "runs_total": 293,
-          "runs_marked": 127,
-          "runs_sentinel": 18,
-          "runs_unmarked": 148,
-          "tokens_total": 14729625,
-          "median_tokens_per_run": 118152,
-          "share_pct": 16
+          "runs_total": 348,
+          "runs_marked": 152,
+          "runs_sentinel": 25,
+          "runs_unmarked": 171,
+          "tokens_total": 22596397,
+          "median_tokens_per_run": 121973,
+          "share_pct": 12
         },
         {
           "role": "Remediation",
-          "runs_total": 255,
-          "runs_marked": 83,
-          "runs_sentinel": 22,
-          "runs_unmarked": 150,
-          "tokens_total": 14700463,
-          "median_tokens_per_run": 159884,
-          "share_pct": 16
+          "runs_total": 321,
+          "runs_marked": 114,
+          "runs_sentinel": 34,
+          "runs_unmarked": 173,
+          "tokens_total": 19548540,
+          "median_tokens_per_run": 159496,
+          "share_pct": 10
         },
         {
           "role": "Validation",
-          "runs_total": 395,
-          "runs_marked": 148,
-          "runs_sentinel": 33,
-          "runs_unmarked": 214,
-          "tokens_total": 21560176,
-          "median_tokens_per_run": 142282,
-          "share_pct": 23
+          "runs_total": 492,
+          "runs_marked": 195,
+          "runs_sentinel": 47,
+          "runs_unmarked": 250,
+          "tokens_total": 69854157,
+          "median_tokens_per_run": 145728,
+          "share_pct": 37
         },
         {
           "role": "Planning",
-          "runs_total": 177,
-          "runs_marked": 84,
-          "runs_sentinel": 7,
-          "runs_unmarked": 86,
-          "tokens_total": 13407188,
-          "median_tokens_per_run": 156970,
-          "share_pct": 14
+          "runs_total": 195,
+          "runs_marked": 91,
+          "runs_sentinel": 9,
+          "runs_unmarked": 95,
+          "tokens_total": 15227524,
+          "median_tokens_per_run": 159376,
+          "share_pct": 8
         },
         {
           "role": "Other",
-          "runs_total": 24,
+          "runs_total": 25,
           "runs_marked": 0,
           "runs_sentinel": 7,
-          "runs_unmarked": 17,
+          "runs_unmarked": 18,
           "tokens_total": null,
           "median_tokens_per_run": null,
           "share_pct": null
@@ -4890,22 +5120,22 @@
             },
             {
               "role": "Implementation",
-              "runs_marked": 1,
-              "median_tokens": 226054
+              "runs_marked": 5,
+              "median_tokens": 184694
             },
             {
               "role": "Code Review",
-              "runs_marked": 20,
-              "median_tokens": 71689
+              "runs_marked": 25,
+              "median_tokens": 74829
             },
             {
               "role": "Remediation",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 3,
+              "median_tokens": 154252
             },
             {
               "role": "Validation",
-              "runs_marked": 13,
+              "runs_marked": 19,
               "median_tokens": 88842
             },
             {
@@ -4965,8 +5195,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 14,
-              "median_tokens": 256429
+              "runs_marked": 15,
+              "median_tokens": 255490
             },
             {
               "role": "Implementation",
@@ -4990,8 +5220,8 @@
             },
             {
               "role": "Planning",
-              "runs_marked": 15,
-              "median_tokens": 160524
+              "runs_marked": 16,
+              "median_tokens": 159950
             },
             {
               "role": "Other",
@@ -5010,28 +5240,28 @@
             },
             {
               "role": "Implementation",
-              "runs_marked": 3,
-              "median_tokens": 352998
+              "runs_marked": 16,
+              "median_tokens": 262125
             },
             {
               "role": "Code Review",
-              "runs_marked": 4,
-              "median_tokens": 163192
+              "runs_marked": 13,
+              "median_tokens": 155982
             },
             {
               "role": "Remediation",
-              "runs_marked": 9,
-              "median_tokens": 251104
+              "runs_marked": 29,
+              "median_tokens": 163132
             },
             {
               "role": "Validation",
-              "runs_marked": 10,
-              "median_tokens": 175378
+              "runs_marked": 37,
+              "median_tokens": 166355
             },
             {
               "role": "Planning",
-              "runs_marked": 3,
-              "median_tokens": 193125
+              "runs_marked": 4,
+              "median_tokens": 195488
             },
             {
               "role": "Other",
@@ -5085,33 +5315,33 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 1,
-              "median_tokens": 429895
+              "runs_marked": 3,
+              "median_tokens": 244272
             },
             {
               "role": "Implementation",
-              "runs_marked": 1,
-              "median_tokens": 251239
+              "runs_marked": 4,
+              "median_tokens": 253578
             },
             {
               "role": "Code Review",
-              "runs_marked": 3,
-              "median_tokens": 155545
+              "runs_marked": 8,
+              "median_tokens": 156920
             },
             {
               "role": "Remediation",
-              "runs_marked": 1,
-              "median_tokens": 151571
+              "runs_marked": 8,
+              "median_tokens": 158356
             },
             {
               "role": "Validation",
-              "runs_marked": 2,
-              "median_tokens": 151946
+              "runs_marked": 14,
+              "median_tokens": 162306
             },
             {
               "role": "Planning",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 4,
+              "median_tokens": 155716
             },
             {
               "role": "Other",
@@ -5295,18 +5525,18 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 3,
-              "median_tokens": 103773
+              "runs_marked": 4,
+              "median_tokens": 97759
             },
             {
               "role": "Remediation",
-              "runs_marked": 2,
-              "median_tokens": 96184
+              "runs_marked": 3,
+              "median_tokens": 98369
             },
             {
               "role": "Validation",
-              "runs_marked": 4,
-              "median_tokens": 140556
+              "runs_marked": 5,
+              "median_tokens": 143256
             },
             {
               "role": "Planning",
@@ -5415,8 +5645,8 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 8,
-              "median_tokens": 131534
+              "runs_marked": 10,
+              "median_tokens": 126499
             },
             {
               "role": "Remediation",
@@ -5445,8 +5675,8 @@
           "roles": [
             {
               "role": "TDD Implementation",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 1,
+              "median_tokens": 25603410
             },
             {
               "role": "Implementation",
@@ -5455,8 +5685,8 @@
             },
             {
               "role": "Code Review",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 3,
+              "median_tokens": 1140885
             },
             {
               "role": "Remediation",
@@ -5465,13 +5695,13 @@
             },
             {
               "role": "Validation",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 1,
+              "median_tokens": 41114526
             },
             {
               "role": "Planning",
-              "runs_marked": 0,
-              "median_tokens": null
+              "runs_marked": 1,
+              "median_tokens": 802015
             },
             {
               "role": "Other",
@@ -5525,21 +5755,22 @@
   },
   "quality": {
     "first_pass_clean": {
-      "clean": 94,
-      "flagged": 183,
-      "rate_pct": 51
+      "clean": 118,
+      "flagged": 227,
+      "rate_pct": 52
     },
     "na_reliability": 26,
     "remediation_distribution": {
-      "0": 95,
-      "1": 30,
-      "2": 24,
-      "3": 11,
-      "4": 10,
-      "5": 7,
-      "6": 2,
-      "7": 1,
-      "8": 2,
+      "0": 120,
+      "1": 32,
+      "2": 28,
+      "3": 20,
+      "4": 11,
+      "5": 6,
+      "6": 3,
+      "7": 2,
+      "8": 3,
+      "9": 1,
       "15": 1,
       "n/a": 26
     },
@@ -5547,7 +5778,7 @@
     "avg_review_fails": 0.2,
     "verdict_mix": {
       "PASS": 196,
-      "null": 13
+      "null": 57
     },
     "review_events": 27,
     "review_verdict_note": "per-review pass/fail lives only in prose run notes and is not mechanically derived; only ride verdict + code_review_completed count are shown"
@@ -5561,10 +5792,10 @@
     "note": "a waived ride ran NO validation — the status stayed not_run and a named actor took the risk; self-waived (agent) rides are counted apart because a gate an agent clears for itself is not a gate. A ride carrying BOTH an agent and an operator record counts in BOTH buckets, so operator + agent may exceed total"
   },
   "verdict_provenance": {
-    "field_derived": 71,
-    "marker_derived": 2,
-    "mixed": 0,
-    "no_basis": 136,
+    "field_derived": 74,
+    "marker_derived": 36,
+    "mixed": 2,
+    "no_basis": 141,
     "rides": [
       {
         "ref": "DEBT-0001",
@@ -6323,12 +6554,12 @@
       },
       {
         "ref": "worktree-lacks-vendored-aai-layer-downstream",
-        "verdict_source": "field",
+        "verdict_source": "mixed",
         "cost_basis": "none"
       },
       {
         "ref": "pr-capability-preflight",
-        "verdict_source": "field",
+        "verdict_source": "mixed",
         "cost_basis": "none"
       },
       {
@@ -6610,6 +6841,226 @@
         "ref": "flush-drops-reopened-runs",
         "verdict_source": "field",
         "cost_basis": "total-blended"
+      },
+      {
+        "ref": "advisory-skills",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "constitution",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "hook-enforced-gates",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "layer-profiles",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "pr-67-post-merge-review",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "scale-adaptive-ceremony",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "spec-delta-stage-1",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "spec-lint",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "systematic-debugging",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "truth-scoring",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "work-item-brief",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "reaper-test-018-etime-shape-guard",
+        "verdict_source": "note",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "core-prompt-diet",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "session-journal-contract",
+        "verdict_source": "none",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "auto-update-config",
+        "verdict_source": "note",
+        "cost_basis": "mixed"
+      },
+      {
+        "ref": "seed-update-config",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "update-sync-atomic-lock",
+        "verdict_source": "note",
+        "cost_basis": "mixed"
+      },
+      {
+        "ref": "spec-vagueness-gate",
+        "verdict_source": "none",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "deslop-corpus-honesty",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "suites-must-not-touch-the-shipping-repo",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "suites-run-in-a-disposable-worktree",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "assertions-must-not-die-on-their-own-payload",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "cli-output-survives-a-pipe",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "docs-history-is-one-git-call-per-doc",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "index-arm-diffs-whole-file-for-a-path-claim",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "intake-numbers-some-doc-types-immediately",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "a-half-seeded-checkout-says-it-is-isolated",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "a-run-must-say-whether-isolation-armed",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "drain-the-tripwire-known-offender-list",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "the-subagent-contract-omits-the-hazards",
+        "verdict_source": "note",
+        "cost_basis": "mixed"
+      },
+      {
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "ac-table-premature-flip-recurs",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "metrics-flush-invalidates-pr-precondition",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "release-protected-branch-fallback",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "role-progress-heartbeat",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "unsigned-spec-amendment-has-no-outflow",
+        "verdict_source": "note",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "simple-and-friendly-to-use",
+        "verdict_source": "none",
+        "cost_basis": "total-blended"
+      },
+      {
+        "ref": "release-one-command-no-findings",
+        "verdict_source": "field",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "release-notes-gate",
+        "verdict_source": "field",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "release-command-finish",
+        "verdict_source": "field",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "release-passes-first-time",
+        "verdict_source": "field",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "cloudflare-share-on-node",
+        "verdict_source": "none",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "retire-shell-loop-runner",
+        "verdict_source": "none",
+        "cost_basis": "none"
+      },
+      {
+        "ref": "release-fixture-atomic-publication",
+        "verdict_source": "field",
+        "cost_basis": "decomposed"
       }
     ],
     "note": "verdict_source names which basis (field|note|mixed) produced this ride's reliability counts; a ride predating this scope carries no_basis. cost_basis names which basis produced total_cost_usd (decomposed|total-blended|mixed); never fabricated for a ride with neither."
@@ -6634,15 +7085,15 @@
     {
       "week": "2026-W29",
       "delivered": 135,
-      "median_lead_time_seconds": 3591,
-      "busy_seconds": 104715,
+      "median_lead_time_seconds": 4702,
+      "busy_seconds": 123635,
       "tokens": 10290448,
-      "first_pass_rate": 81
+      "first_pass_rate": 86
     },
     {
       "week": "2026-W30",
       "delivered": 64,
-      "median_lead_time_seconds": 3738,
+      "median_lead_time_seconds": 3587,
       "busy_seconds": 73965,
       "tokens": 5963280,
       "first_pass_rate": 86
@@ -6650,10 +7101,10 @@
     {
       "week": "2026-W31",
       "delivered": 72,
-      "median_lead_time_seconds": 1812,
-      "busy_seconds": 61498,
-      "tokens": 7019478,
-      "first_pass_rate": 100
+      "median_lead_time_seconds": 1873,
+      "busy_seconds": 89906,
+      "tokens": 9347740,
+      "first_pass_rate": 93
     },
     {
       "week": "2026-W32",
@@ -6666,18 +7117,18 @@
     {
       "week": "2026-W33",
       "delivered": 33,
-      "median_lead_time_seconds": 5265,
-      "busy_seconds": 138848,
-      "tokens": 16919316,
-      "first_pass_rate": 69
+      "median_lead_time_seconds": 5773,
+      "busy_seconds": 140850,
+      "tokens": 17323907,
+      "first_pass_rate": 71
     },
     {
       "week": "2026-W34",
       "delivered": 33,
-      "median_lead_time_seconds": 31385,
-      "busy_seconds": 57272,
-      "tokens": 6246229,
-      "first_pass_rate": 0
+      "median_lead_time_seconds": 17740,
+      "busy_seconds": 272948,
+      "tokens": 18612444,
+      "first_pass_rate": 50
     },
     {
       "week": "2026-W35",
@@ -6690,16 +7141,16 @@
     {
       "week": "2026-W36",
       "delivered": 31,
-      "median_lead_time_seconds": 14691,
-      "busy_seconds": 12523,
-      "tokens": 1590347,
-      "first_pass_rate": 50
+      "median_lead_time_seconds": 18567,
+      "busy_seconds": 128973,
+      "tokens": 7522311,
+      "first_pass_rate": 25
     },
     {
       "week": "2026-W37",
       "delivered": 15,
-      "median_lead_time_seconds": 24337,
-      "busy_seconds": 73594,
+      "median_lead_time_seconds": 34059,
+      "busy_seconds": 76132,
       "tokens": 6970907,
       "first_pass_rate": 33
     },
@@ -6707,7 +7158,7 @@
       "week": "2026-W38",
       "delivered": 12,
       "median_lead_time_seconds": 71396,
-      "busy_seconds": 100045,
+      "busy_seconds": 133127,
       "tokens": 4679152,
       "first_pass_rate": 0
     },
@@ -6731,45 +7182,45 @@
       "week": "2026-W41",
       "delivered": 36,
       "median_lead_time_seconds": 13687,
-      "busy_seconds": 509728,
-      "tokens": 1740270,
-      "first_pass_rate": 16
+      "busy_seconds": 523525,
+      "tokens": 2090957,
+      "first_pass_rate": 11
     },
     {
       "week": "2026-W42",
       "delivered": 24,
-      "median_lead_time_seconds": 4283,
-      "busy_seconds": 21219,
+      "median_lead_time_seconds": 4681,
+      "busy_seconds": 152638,
       "tokens": 1920338,
-      "first_pass_rate": 50
+      "first_pass_rate": 14
     },
     {
       "week": "2026-W43",
       "delivered": 36,
       "median_lead_time_seconds": 9198,
-      "busy_seconds": 263142,
+      "busy_seconds": 274518,
       "tokens": null,
-      "first_pass_rate": 21
+      "first_pass_rate": 16
     },
     {
       "week": "2026-W44",
       "delivered": 23,
       "median_lead_time_seconds": 15962,
-      "busy_seconds": 140217,
-      "tokens": 5949199,
+      "busy_seconds": 158133,
+      "tokens": 6135619,
       "first_pass_rate": 0
     },
     {
       "week": "2026-W45",
       "delivered": 28,
-      "median_lead_time_seconds": 15541,
-      "busy_seconds": 121548,
-      "tokens": null,
-      "first_pass_rate": 0
+      "median_lead_time_seconds": 16186,
+      "busy_seconds": 139969,
+      "tokens": 72392551,
+      "first_pass_rate": 20
     },
     {
       "week": "2026-W46",
-      "delivered": 20,
+      "delivered": 22,
       "median_lead_time_seconds": 20229,
       "busy_seconds": 155726,
       "tokens": 7099565,
@@ -6778,7 +7229,7 @@
   ],
   "follow_ups": {
     "source": "docs/ai/decisions.jsonl",
-    "open_count": 343,
+    "open_count": 342,
     "oldest_age_days": 85,
     "items": [
       {
@@ -6865,7 +7316,7 @@
         "id": "fu-clearfocus-announces-unwritten-phase",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "clear-focus REPLACES an existing phase:/status: line on the focused work item but never INSERTS a missing one, and prints 'work item phase=closed status=done' unconditionally even when the item carries no phase key at all (or there is no focused item).",
         "status": "open"
       },
@@ -6873,7 +7324,7 @@
         "id": "fu-dispatch-text-detector-self-ref-fp",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "check-dispatch-text.mjs's PRE_RATING_PHRASE_RE is a bare substring match with no exclusion for quoting, negation, or work-ordering prose, so it fires on the very D11 rule it enforces and on legitimate orchestration text.",
         "status": "open"
       },
@@ -6881,7 +7332,7 @@
         "id": "fu-verdict-coverage-same-second-true",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "metrics-flush.mjs's verdictAfterLastImplementer uses >= where Spec-AC-19 says 'later than', and no test pins the boundary; D7's second-precision coarsening widens the same-second window this decides wrongly.",
         "status": "open"
       },
@@ -6889,7 +7340,7 @@
         "id": "fu-ledger-shrink-arm-unpinned",
         "ref": "dispatch-state-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "tests/skills/test-aai-learned-routing.sh's TEST-008 does not pin the SHRINK arm of D15 — a ledger whose worktree content is SHORTER than the committed blob.",
         "status": "open"
       },
@@ -6897,7 +7348,7 @@
         "id": "fu-test454-4c-arm-uses-guard-proxy",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "TEST-454's step-4c arm exercises the exported checkBranchPin function rather than close-work-item.mjs's real CLI, disclosed in its own comment as a STATE.yaml-fixture limitation. Validation round 5 proved the real CLI passes too (rc 0, --dry-run needs no live active_work_items entry), showing the fixture limitation is surmountable.",
         "status": "open"
       },
@@ -6905,7 +7356,7 @@
         "id": "fu-tripwire-attributes-concurrent-writes",
         "ref": "test-framework-sweep",
         "severity": "P3",
-        "age_days": 61,
+        "age_days": 62,
         "what": "repo-tripwire attributes a shipping-tree write to the suite it is currently running, even when the writer is a DIFFERENT concurrent process (validation round 5: \"AAI-TRIPWIRE FAIL: test-aai-doc-numbering changed the shipping repository\" was actually the orchestrator's own concurrent full sweep, not doc-numbering).",
         "status": "open"
       },
@@ -6977,7 +7428,7 @@
         "id": "fu-sed-replacement-dollar-trap",
         "ref": "mutation-gate-for-tests",
         "severity": "P3",
-        "age_days": 60,
+        "age_days": 61,
         "what": "applySedExpr (mutation-run.mjs:324) still uses the STRING form of String.replace, the same js-replace-dollar-quote-corrupts trap NB3-r3 already fixed 210 lines below it in rotateExisting",
         "status": "open"
       },
@@ -6985,7 +7436,7 @@
         "id": "fu-writerecord-rotates-before-patch-copy",
         "ref": "mutation-gate-for-tests",
         "severity": "P2",
-        "age_days": 60,
+        "age_days": 61,
         "what": "mutation-run.mjs writeRecord() rotates the live record and patch aside BEFORE storePatchCopy() reads the caller's --patch path, so regenerating a patch-based record via its own live patch path (re-running the same command) throws ENOENT and destroys the live record",
         "status": "open"
       },
@@ -7041,7 +7492,7 @@
         "id": "fu-mutation-sed-drops-multiline-flag",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 57,
+        "age_days": 58,
         "what": "mutation-run.mjs applySedExpr honours only the g flag, so a per-line anchored expression (^number: null$) anchors to the whole file and can never redden",
         "status": "open"
       },
@@ -7049,7 +7500,7 @@
         "id": "fu-suite-fail-text-blocks-attribution",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 57,
+        "age_days": 58,
         "what": "a suite whose log_fail wrapper prints no literal FAIL text (test-aai-intake.sh) cannot have a redden attributed by mutation-run, however correct the mutation",
         "status": "open"
       },
@@ -7057,7 +7508,7 @@
         "id": "fu-docs-audit-suite-has-no-selector",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 57,
+        "age_days": 58,
         "what": "tests/skills/test-aai-docs-audit.sh runs every arm on every invocation, so any mutation targeting a shared file crashes an earlier arm and comes back INCONCLUSIVE",
         "status": "open"
       },
@@ -7161,7 +7612,7 @@
         "id": "fu-issue-0040-closed-as-data-no-event",
         "ref": "close-ceremony-sweep",
         "severity": "P3",
-        "age_days": 56,
+        "age_days": 57,
         "what": "ISSUE-0040 reads probable-false-done: it was closed as data by Spec-AC-10 with PR 382's real commit, but no ac_evidence event references it, so the drift report flags it",
         "status": "open"
       },
@@ -7169,7 +7620,7 @@
         "id": "fu-reconcile-mention-vs-disclosure",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 56,
+        "age_days": 57,
         "what": "close-reconcile's id-mention-unpaired arm fires on an id a delivered doc names to disclose that it is owned ELSEWHERE, not claimed; six such items on this ride's own merge",
         "status": "open"
       },
@@ -7177,7 +7628,7 @@
         "id": "fu-issue-0042-half-delivered",
         "ref": "close-ceremony-sweep",
         "severity": "P2",
-        "age_days": 56,
+        "age_days": 57,
         "what": "ISSUE-0042 is half delivered: SPEC-0182 Spec-AC-21 shipped the template number: null half, but its Verification also requires allocate-doc-number.mjs to accept --type research and --type hotfix, which TYPE_MAP still lacks",
         "status": "open"
       },
@@ -7665,7 +8116,7 @@
         "id": "fu-set-strategy-ref-shape",
         "ref": "strategy-unscoped-from-current-focus",
         "severity": "P2",
-        "age_days": 46,
+        "age_days": 47,
         "what": "set-strategy --ref is not shape-validated; empty --ref with unset focus writes ref_id empty and Planning retarget then treats the intake stamp as stale",
         "status": "open"
       },
@@ -7689,7 +8140,7 @@
         "id": "fu-ride-select-absent-intake-mismatch",
         "ref": "downstream-rides-ask-no-governance-questions",
         "severity": "P3",
-        "age_days": 44,
+        "age_days": 45,
         "what": "pin the gate's --intake id-mismatch usage check under an ABSENT roadmap: add one arm to test_1206_usage_checks_before_absent (no roadmap + mismatched --intake must exit 2), shown RED by moving the check below the absent-roadmap branch",
         "status": "open"
       },
@@ -7857,7 +8308,7 @@
         "id": "fu-merge-policy-decision-ref-frac-ts",
         "ref": "configurable-merge-policy-lanes",
         "severity": "P3",
-        "age_days": 40,
+        "age_days": 41,
         "what": "DECISION_REF_RE accepts whole-second timestamps only; a hitl_decision stamped with fractional seconds cannot be bound by a lane",
         "status": "open"
       },
@@ -7929,7 +8380,7 @@
         "id": "fu-tracked-ignored-rev-cat-file-batch",
         "ref": "post-validation-pushes-reuse-test-results",
         "severity": "P3",
-        "age_days": 36,
+        "age_days": 37,
         "what": "tracked-ignored.mjs --rev spawns one git cat-file per .gitignore (2000 files: 13.8 s vs 0.08 s)",
         "status": "open"
       },
@@ -8049,7 +8500,7 @@
         "id": "fu-merge-cleanup-large-ignored-archive",
         "ref": "merge-cleanup-submodule-worktree",
         "severity": "P3",
-        "age_days": 34,
+        "age_days": 35,
         "what": "merge-cleanup archiveFile reads each ignored submodule file whole: a file over 2 GiB crashes apply with exit 1 on every re-run; a submodule path with a newline breaks the one-line REFUSE/cleanup blocked output",
         "status": "open"
       },
@@ -8057,7 +8508,7 @@
         "id": "fu-merge-submodule-fetched-tag-unpushed",
         "ref": "merge-cleanup-submodule-worktree",
         "severity": "P3",
-        "age_days": 34,
+        "age_days": 35,
         "what": "the submodule unpushed proof (--branches --tags --not --remotes) counts a tag fetched from the remote that points at a commit on no remote branch as unpushed, so cleanup refuses a safe worktree",
         "status": "open"
       },
@@ -8065,7 +8516,7 @@
         "id": "fu-merge-submodule-notes-and-tag-chains",
         "ref": "merge-cleanup-submodule-worktree",
         "severity": "P3",
-        "age_days": 34,
+        "age_days": 35,
         "what": "the submodule proof and tag archive miss refs/notes and other custom refs, an annotated tag whose target is another tag with a deleted ref (inner object lost), and tags on a local-only blob or tree; --force deletes that data",
         "status": "open"
       },
@@ -8073,7 +8524,7 @@
         "id": "fu-merge-submodule-tag-archive-naming",
         "ref": "merge-cleanup-submodule-worktree",
         "severity": "P3",
-        "age_days": 34,
+        "age_days": 35,
         "what": "the tag archive manifest uses a synthetic worktree:<sub>/.aai-submodule-tags/ original that collides with an ignored file of that name (tags land at tags.txt.1 while the restore text names tags.txt); the tag-listing failure path is untested and exits 4 in plan",
         "status": "open"
       },
@@ -8337,7 +8788,7 @@
         "id": "fu-release-policy-pending-reason",
         "ref": "release-one-shot-finish",
         "severity": "P3",
-        "age_days": 27,
+        "age_days": 28,
         "what": "PENDING: merge-policy cannot tell a checks lag from a block needing a person (missing approval, CODEOWNERS, unresolved conversations) — gh prints the same text",
         "status": "open"
       },
@@ -8345,7 +8796,7 @@
         "id": "fu-release-ruleset-paging-test",
         "ref": "release-one-shot-finish",
         "severity": "P3",
-        "age_days": 27,
+        "age_days": 28,
         "what": "TEST-086 fixture has 36 rules, so at the engine's per_page=100 it is a single page and the multi-page flatten never runs (a first-page-only mutant like data=data[0] stays green); make the filler >=105 rules. Also document that the rulesets read needs gh >= 2.48 (--slurp) in the product doc / SKILL_RELEASE, and fix the spec's Mutation targets sentence to include TEST-086",
         "status": "open"
       },
@@ -8465,7 +8916,7 @@
         "id": "fu-triage-crashed-audit-reads-clean",
         "ref": "node-first-second-slice",
         "severity": "P3",
-        "age_days": 21,
+        "age_days": 22,
         "what": "triage reads a docs-audit that exited non-zero without a verdict line as CLEAN (D-11), so --check exits 0 over a crashed audit",
         "status": "open"
       },
@@ -8473,7 +8924,7 @@
         "id": "fu-triage-marker-outside-verdict-line",
         "ref": "node-first-second-slice",
         "severity": "P3",
-        "age_days": 21,
+        "age_days": 22,
         "what": "triage counts NEEDS-TRIAGE anywhere in the docs-audit output as an issue (D-10), also outside the verdict line; a non-git folder also reads Working tree: clean (D-12)",
         "status": "open"
       },
@@ -8545,7 +8996,7 @@
         "id": "fu-sticky-no-reverse-carry",
         "ref": "recheck-verdict-binding",
         "severity": "P3",
-        "age_days": 20,
+        "age_days": 21,
         "what": "nothing carries a check_sticky entry from a worktree STATE back to the origin STATE",
         "status": "open"
       },
@@ -8553,7 +9004,7 @@
         "id": "fu-recheck-tests-regen-shipping-overview",
         "ref": "recheck-verdict-binding",
         "severity": "P3",
-        "age_days": 20,
+        "age_days": 21,
         "what": "running node --test tests/skills/lib/recheck.test.mjs or test-aai-recheck.sh directly rewrites the tracked docs/ai/overview-data.json and overview.html of the tree it runs in (metrics-flush fixtures trigger its overview refresh from the shipping tree)",
         "status": "open"
       },
@@ -8561,7 +9012,7 @@
         "id": "fu-sticky-inline-header-blocks-bind",
         "ref": "recheck-verdict-binding",
         "severity": "P3",
-        "age_days": 20,
+        "age_days": 21,
         "what": "a hand-edited inline check_sticky: [] header makes every bind-check in that STATE file refuse (the dispatch tick swallows it), so that STATE runs full for every ref until fixed by hand",
         "status": "open"
       },
@@ -8569,7 +9020,7 @@
         "id": "fu-dispatch-bind-check-failure-silent",
         "ref": "recheck-verdict-binding",
         "severity": "P3",
-        "age_days": 20,
+        "age_days": 21,
         "what": "orchestration-dispatch.mjs:1594 swallows a non-zero bind-check (AAI_ROLE set, inline check_sticky header, concurrent STATE change); the tick goes on with a missing or stale binding and every later re-check runs full with no NOTE",
         "status": "open"
       },
@@ -8617,7 +9068,7 @@
         "id": "fu-release-recut-ancestry-cause-name",
         "ref": "release-same-version-recovery",
         "severity": "P3",
-        "age_days": 18,
+        "age_days": 19,
         "what": "recutRelease reports any failing git merge-base --is-ancestor as base-rewritten, including a missing object",
         "status": "open"
       },
@@ -8625,7 +9076,7 @@
         "id": "fu-release-preflight-scrubbed-env",
         "ref": "release-same-version-recovery",
         "severity": "P2",
-        "age_days": 18,
+        "age_days": 19,
         "what": "the release preflight runs repository tests from a linked worktree of the real repo with the operator full environment, including gh credentials",
         "status": "open"
       },
@@ -8633,7 +9084,7 @@
         "id": "fu-release-unjournaled-recut-merged-old",
         "ref": "release-same-version-recovery",
         "severity": "P3",
-        "age_days": 18,
+        "age_days": 19,
         "what": "a crash after a re-cut push but before its journal write, while GitHub merges the old head, publishes correctly but leaves cleanup refusing cleanup-head-moved; the release branch needs a manual delete",
         "status": "open"
       },
@@ -8641,7 +9092,7 @@
         "id": "fu-codex-usage-noresp-copy-sum",
         "ref": "codex-usage-missing-from-run-budgets",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "lib/codex-rollout.mjs:270 sums differing sessions/ and archived_sessions/ copies of one thread when records lack response_id (degraded, but total doubles: 112 became 222, budget exit 3 at 200)",
         "status": "open"
       },
@@ -8649,7 +9100,7 @@
         "id": "fu-codex-usage-root-thread-label",
         "ref": "codex-usage-missing-from-run-budgets",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "lib/codex-rollout.mjs:335 with --descendants and a root thread without usage events, the provenance note names the first child as codex_thread instead of the root",
         "status": "open"
       },
@@ -8657,7 +9108,7 @@
         "id": "fu-codex-attr-parallel-overlap",
         "ref": "codex-usage-missing-from-run-budgets",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "attribute (spec D8) counts a sibling's child in both runs when two roles run in parallel with overlapping windows (probe 1100 and 1000, labelled interval)",
         "status": "open"
       },
@@ -8665,7 +9116,7 @@
         "id": "fu-codex-thread-id-unverified",
         "ref": "codex-usage-missing-from-run-budgets",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "no evidence that the Codex host exports CODEX_THREAD_ID; without it --thread auto is unresolved and the budget always reports NOT enforced (probe on this machine: unresolved)",
         "status": "open"
       },
@@ -8673,7 +9124,7 @@
         "id": "fu-codex-usage-meta-index-once",
         "ref": "codex-usage-missing-from-run-budgets",
         "severity": "P3",
-        "age_days": 16,
+        "age_days": 17,
         "what": "every codex-usage budget call re-scans the session_meta header of every rollout file once per thread (lib/codex-rollout.mjs:221)",
         "status": "open"
       },
@@ -8681,7 +9132,7 @@
         "id": "fu-codex-idle-descendant-false-park",
         "ref": "codex-usage-missing-from-run-budgets",
         "severity": "P2",
-        "age_days": 16,
+        "age_days": 17,
         "what": "a meta-only Codex descendant (just spawned, aborted spawn, or idle child stamped before --since) makes observe --descendants unavailable, so an unattended ride parks falsely and a never-writing child leaves the run budget NOT enforced for the whole run",
         "status": "open"
       },
@@ -8689,7 +9140,7 @@
         "id": "fu-merge-time-ignores-doc-rename",
         "ref": "provider-adapter-surfaces-closing-slice",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "spec-amend.mjs:475 reads the ride merge time from the doc's current path without following renames; a done doc moved after merge takes the move commit time",
         "status": "open"
       },
@@ -8697,7 +9148,7 @@
         "id": "fu-catalog-lowercase-row-orphan",
         "ref": "provider-adapter-surfaces-closing-slice",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "lib/skills-catalog.mjs:19,62 treats any lowercase first cell in the Quick Reference section as a skill row; a non-skill row reads as orphan and --write deletes it",
         "status": "open"
       },
@@ -8705,7 +9156,7 @@
         "id": "fu-test-3137-pre-arm-overlay",
         "ref": "provider-adapter-surfaces-closing-slice",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "TEST-3137 pre=signed arm passes via the fixture's owner overlay, not the fold; only TEST-3138 (c) proves the fold signs a pre-merge record",
         "status": "open"
       },
@@ -8713,7 +9164,7 @@
         "id": "fu-test-3141-noop-control",
         "ref": "provider-adapter-surfaces-closing-slice",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "TEST-3141 'second follow-up closed still fails' control re-runs the open ledger (test-aai-harness-shims.sh:763-764) and checks nothing",
         "status": "open"
       },
@@ -8721,7 +9172,7 @@
         "id": "fu-catalog-silent-exclusion",
         "ref": "provider-adapter-surfaces-closing-slice",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "lib/skills-catalog.mjs:38,65 silently excludes a universal wrapper whose command misses the strict regex or whose prompt file was renamed (before: exit 2); downstream a bootstrap wrapper citing a node command gets a row",
         "status": "open"
       },
@@ -8729,7 +9180,7 @@
         "id": "fu-catalog-cwd-escape-check",
         "ref": "provider-adapter-surfaces-closing-slice",
         "severity": "P3",
-        "age_days": 14,
+        "age_days": 15,
         "what": "lib/skills-catalog.mjs:28 loadCatalog checks escapesRoot against process.cwd() instead of --root; harmless (absolute and .. checks decide) but misleading",
         "status": "open"
       },
@@ -8857,7 +9308,7 @@
         "id": "fu-reuse-distro-exported-functions",
         "ref": "precise-suite-evidence-reuse",
         "severity": "P3",
-        "age_days": 12,
+        "age_days": 13,
         "what": "RHEL/Fedora login shells and Lmod export BASH_FUNC_which%%/module%%, so reuse is silently always off there (fails closed); say so in the product doc Limits and print a visible reuse-off reason",
         "status": "open"
       },
@@ -8953,7 +9404,7 @@
         "id": "fu-tdd-red-accepts-rc127",
         "ref": "reuse-split-corpus-cases",
         "severity": "P3",
-        "age_days": 10,
+        "age_days": 11,
         "what": "tdd-evidence-check accepts an rc-127 No such file log labelled product_red",
         "status": "open"
       },
@@ -9185,7 +9636,7 @@
         "id": "fu-parity-ps1-report-backticks",
         "ref": "install-path-parity-harness",
         "severity": "P3",
-        "age_days": 3,
+        "age_days": 4,
         "what": "aai-sync.ps1 writes the sync-conflicts report next-steps lines without the backticks aai-sync.sh writes around git diff -- <path> and docs/ai/project-overrides/",
         "status": "open"
       },
@@ -9281,7 +9732,7 @@
         "id": "fu-update-test-3589-isolation",
         "ref": "update-ps1-git-stderr",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "TEST-3589 cannot be told apart from TEST-3588: the guard helper call resets $LASTEXITCODE before any clone attempt",
         "status": "open"
       },
@@ -9289,7 +9740,7 @@
         "id": "fu-update-missing-git-msg",
         "ref": "update-ps1-git-stderr",
         "severity": "P3",
-        "age_days": 2,
+        "age_days": 3,
         "what": "with git missing, the clone path of aai-update.ps1 and aai-update.sh prints \"auth or network?\" though the cause is a missing git",
         "status": "open"
       },
@@ -9361,7 +9812,7 @@
         "id": "fu-test-flush-regens-overview",
         "ref": "model-effort-routing",
         "severity": "P3",
-        "age_days": 1,
+        "age_days": 2,
         "what": "test-aai-model-effort.sh:327 flush_d runs metrics-flush from the repo root and regenerates docs/ai/overview.* when the suite is run directly (the sweep isolates it)",
         "status": "open"
       },
@@ -9369,7 +9820,7 @@
         "id": "fu-effort-gain-remeasure",
         "ref": "model-effort-routing",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "after release, remeasure token/cost per role with metrics-report --by-effort --split over post-release rides against the 87.4M tokens / 391.67 USD baseline (Validation 47%)",
         "status": "open"
       },
@@ -9377,7 +9828,7 @@
         "id": "fu-effort-direct-append-telemetry",
         "ref": "model-effort-routing",
         "severity": "P2",
-        "age_days": 1,
+        "age_days": 2,
         "what": "direct-execution fallback roles self-append with the canonical ROLE_COMMON command, which carries no --requested-effort/--effort-applied, so those runs stay unset in metrics-report --by-effort",
         "status": "open"
       },
@@ -9401,7 +9852,7 @@
         "id": "fu-test026-unmerged-example-arm-vacant",
         "ref": "consumer-config-routing-override",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "TEST-026 live-ledger unmerged-example arm is n/a since PR #553 merged its pinned ride; pin a new unmerged example or retire the arm",
         "status": "open"
       },
@@ -9409,7 +9860,7 @@
         "id": "fu-pc-tests-synthetic-override-ids",
         "ref": "consumer-config-routing-override",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "test-aai-project-config uses real model ids as override inputs; TEST-3683 fails if Validation@lightweight is pinned to claude-haiku-5-5 and TEST-3682's mutation goes vacuous if shipped claude Code Review becomes claude-sonnet-5-5",
         "status": "open"
       },
@@ -9417,7 +9868,7 @@
         "id": "fu-project-config-dangling-symlink",
         "ref": "consumer-config-routing-override",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "a dangling symlink at docs/ai/project-config.yaml reads as ENOENT and is treated as absent with no NOTE",
         "status": "open"
       },
@@ -9425,7 +9876,7 @@
         "id": "fu-spec-amend-restamp-cause-bare-slug",
         "ref": "consumer-config-routing-override",
         "severity": "P3",
-        "age_days": 0,
+        "age_days": 1,
         "what": "spec-amend restamp reports UNVERIFIED cause when the spec's links.requirement is a bare slug, although the drift is the allocator rename",
         "status": "open"
       },
@@ -9470,14 +9921,6 @@
         "status": "open"
       },
       {
-        "id": "fu-archived-state-runs-not-in-ledger",
-        "ref": "flush-drops-reopened-runs",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "133 runs in archived STATE copies never reached METRICS.jsonl (corpus dry-run in validation round 1)",
-        "status": "open"
-      },
-      {
         "id": "fu-unattended-007-age-days-race",
         "ref": "flush-drops-reopened-runs",
         "severity": "P3",
@@ -9491,14 +9934,6 @@
         "severity": "P2",
         "age_days": 0,
         "what": "test-aai-merge-cleanup TEST-026 reads live docs/ai/decisions.jsonl and fails on origin/main since PR #553 merged",
-        "status": "open"
-      },
-      {
-        "id": "fu-amend-spec-flush-drops-reopened-runs",
-        "ref": "flush-drops-reopened-runs",
-        "severity": "P2",
-        "age_days": 0,
-        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-flush-drops-reopened-runs: restamp of an UNVERIFIED cause: this frozen spec’s content drifted from its anchor in a shape the allocator’s DRAFT-to-numbered rewrite does not explain",
         "status": "open"
       },
       {
@@ -9523,6 +9958,14 @@
         "severity": "P3",
         "age_days": 0,
         "what": "the TEST-3726 mutation record targets the live docs/ai/METRICS.jsonl, so every ledger append makes mutation-gate report it STALE until a replay",
+        "status": "open"
+      },
+      {
+        "id": "fu-amend-recover-archived-state-runs",
+        "ref": "recover-archived-state-runs",
+        "severity": "P2",
+        "age_days": 0,
+        "what": "owner sign-off owed on the post-freeze amendment(s) to spec-recover-archived-state-runs: Spec-AC-12/TEST-3749 identify this ride's recovery lines by the D4 reconstructed.reason marker, pin the pre-ride prefix by byte length 866116 and sha256 of METRICS.jsonl at 5bbc129e, no git call; counts are those the D8 dry-run reports",
         "status": "open"
       }
     ]
@@ -9560,6 +10003,36 @@
         "runs_marked": 0,
         "tokens_total": null,
         "remediation_runs": 7,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "release-command-finish",
+        "date_utc": "2026-10-17",
+        "runs_total": 9,
+        "elapsed_wall_seconds": 287822,
+        "agent_seconds": 30307,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 3
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 3,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -9666,6 +10139,70 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "test-framework-sweep",
+        "date_utc": "2026-09-14",
+        "runs_total": 32,
+        "elapsed_wall_seconds": 92790,
+        "agent_seconds": 95514,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 10
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 8
+          },
+          {
+            "role": "Validation",
+            "runs": 12
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 12,
+        "tokens_total": 4679152,
+        "remediation_runs": 8,
+        "remediation_tokens": 667981,
+        "remediation_share_pct": 14
+      },
+      {
+        "ref": "release-one-command-no-findings",
+        "date_utc": "2026-10-13",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 90150,
+        "agent_seconds": 89276,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 1,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "deslop-scope-and-unrequested-engine",
         "date_utc": "2026-08-16",
         "runs_total": 18,
@@ -9768,38 +10305,38 @@
         "remediation_share_pct": 40
       },
       {
-        "ref": "test-framework-sweep",
-        "date_utc": "2026-09-14",
-        "runs_total": 23,
-        "elapsed_wall_seconds": 66540,
-        "agent_seconds": 65069,
+        "ref": "deslop-corpus-honesty",
+        "date_utc": "2026-08-19",
+        "runs_total": 22,
+        "elapsed_wall_seconds": 70904,
+        "agent_seconds": 76646,
         "roles": [
           {
-            "role": "TDD Implementation",
-            "runs": 10
-          },
-          {
-            "role": "Code Review",
+            "role": "Implementation",
             "runs": 1
           },
           {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
             "role": "Remediation",
-            "runs": 5
+            "runs": 9
           },
           {
             "role": "Validation",
-            "runs": 6
+            "runs": 9
           },
           {
             "role": "Planning",
             "runs": 1
           }
         ],
-        "runs_marked": 12,
-        "tokens_total": 4679152,
-        "remediation_runs": 5,
-        "remediation_tokens": 667981,
-        "remediation_share_pct": 14
+        "runs_marked": 22,
+        "tokens_total": 3717892,
+        "remediation_runs": 9,
+        "remediation_tokens": 1392013,
+        "remediation_share_pct": 37
       },
       {
         "ref": "harness-surfaces-drift-unguarded",
@@ -9930,6 +10467,40 @@
         "remediation_share_pct": 33
       },
       {
+        "ref": "roadmap-maintenance-budget-advisory",
+        "date_utc": "2026-10-06",
+        "runs_total": 13,
+        "elapsed_wall_seconds": 57913,
+        "agent_seconds": 39650,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 5
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 4
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "docs-index-broken-refs-scope",
         "date_utc": "2026-10-20",
         "runs_total": 10,
@@ -10032,11 +10603,33 @@
         "remediation_share_pct": 35
       },
       {
+        "ref": "drain-the-tripwire-known-offender-list",
+        "date_utc": "2026-08-23",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 42209,
+        "agent_seconds": 31417,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 369612,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "dispatch-state-sweep",
         "date_utc": "2026-09-14",
-        "runs_total": 14,
-        "elapsed_wall_seconds": 35579,
-        "agent_seconds": 34976,
+        "runs_total": 16,
+        "elapsed_wall_seconds": 41991,
+        "agent_seconds": 37613,
         "roles": [
           {
             "role": "TDD Implementation",
@@ -10048,11 +10641,11 @@
           },
           {
             "role": "Remediation",
-            "runs": 4
+            "runs": 5
           },
           {
             "role": "Validation",
-            "runs": 5
+            "runs": 6
           },
           {
             "role": "Planning",
@@ -10061,9 +10654,175 @@
         ],
         "runs_marked": 0,
         "tokens_total": null,
-        "remediation_runs": 4,
+        "remediation_runs": 5,
         "remediation_tokens": null,
         "remediation_share_pct": null
+      },
+      {
+        "ref": "unsigned-spec-amendment-has-no-outflow",
+        "date_utc": "2026-09-03",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 38165,
+        "agent_seconds": 36215,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 6,
+        "tokens_total": 1149857,
+        "remediation_runs": 1,
+        "remediation_tokens": 199094,
+        "remediation_share_pct": 17
+      },
+      {
+        "ref": "role-progress-heartbeat",
+        "date_utc": "2026-09-03",
+        "runs_total": 9,
+        "elapsed_wall_seconds": 36294,
+        "agent_seconds": 35552,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 9,
+        "tokens_total": 1525044,
+        "remediation_runs": 2,
+        "remediation_tokens": 302461,
+        "remediation_share_pct": 20
+      },
+      {
+        "ref": "release-notes-gate",
+        "date_utc": "2026-10-14",
+        "runs_total": 13,
+        "elapsed_wall_seconds": 34991,
+        "agent_seconds": 6673,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 4
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          },
+          {
+            "role": "Other",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 3,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "release-fixture-atomic-publication",
+        "date_utc": "2026-11-07",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 34857,
+        "agent_seconds": 9330,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 6,
+        "tokens_total": 72392551,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "suites-must-not-touch-the-shipping-repo",
+        "date_utc": "2026-08-19",
+        "runs_total": 11,
+        "elapsed_wall_seconds": 33101,
+        "agent_seconds": 35489,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          }
+        ],
+        "runs_marked": 11,
+        "tokens_total": 2167470,
+        "remediation_runs": 4,
+        "remediation_tokens": 677233,
+        "remediation_share_pct": 31
       },
       {
         "ref": "amendment-signature-asks-the-owner-too-often",
@@ -10100,15 +10859,15 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "roadmap-maintenance-budget-advisory",
-        "date_utc": "2026-10-05",
-        "runs_total": 10,
-        "elapsed_wall_seconds": 32555,
-        "agent_seconds": 32895,
+        "ref": "reuse-for-docs-reading-suites",
+        "date_utc": "2026-11-02",
+        "runs_total": 18,
+        "elapsed_wall_seconds": 32138,
+        "agent_seconds": 23956,
         "roles": [
           {
             "role": "TDD Implementation",
-            "runs": 5
+            "runs": 4
           },
           {
             "role": "Code Review",
@@ -10116,20 +10875,16 @@
           },
           {
             "role": "Remediation",
-            "runs": 1
+            "runs": 7
           },
           {
             "role": "Validation",
-            "runs": 2
-          },
-          {
-            "role": "Planning",
-            "runs": 1
+            "runs": 6
           }
         ],
         "runs_marked": 0,
         "tokens_total": null,
-        "remediation_runs": 1,
+        "remediation_runs": 7,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -10168,6 +10923,150 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "retire-legacy-migrations",
+        "date_utc": "2026-11-05",
+        "runs_total": 17,
+        "elapsed_wall_seconds": 27549,
+        "agent_seconds": 20415,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 6
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 5
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 3,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "telemetry-fields-not-prose",
+        "date_utc": "2026-09-13",
+        "runs_total": 17,
+        "elapsed_wall_seconds": 27027,
+        "agent_seconds": 25330,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 6
+          },
+          {
+            "role": "Validation",
+            "runs": 7
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 1,
+        "tokens_total": 236190,
+        "remediation_runs": 6,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "pr-capability-preflight",
+        "date_utc": "2026-10-07",
+        "runs_total": 11,
+        "elapsed_wall_seconds": 25883,
+        "agent_seconds": 21886,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 2
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 4
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "worktree-lacks-vendored-aai-layer-downstream",
+        "date_utc": "2026-10-06",
+        "runs_total": 15,
+        "elapsed_wall_seconds": 25313,
+        "agent_seconds": 19455,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 5
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          },
+          {
+            "role": "Other",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 4,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "close-regenerate-order",
         "date_utc": "2026-08-14",
         "runs_total": 4,
@@ -10196,6 +11095,36 @@
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
+      },
+      {
+        "ref": "cli-output-survives-a-pipe",
+        "date_utc": "2026-08-21",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 24532,
+        "agent_seconds": 6651,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 5,
+        "tokens_total": 828021,
+        "remediation_runs": 1,
+        "remediation_tokens": 115293,
+        "remediation_share_pct": 14
       },
       {
         "ref": "node-first-small-pairs",
@@ -10296,44 +11225,6 @@
         "remediation_share_pct": 7
       },
       {
-        "ref": "worktree-lacks-vendored-aai-layer-downstream",
-        "date_utc": "2026-10-06",
-        "runs_total": 14,
-        "elapsed_wall_seconds": 23738,
-        "agent_seconds": 19008,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 1
-          },
-          {
-            "role": "Implementation",
-            "runs": 1
-          },
-          {
-            "role": "Code Review",
-            "runs": 2
-          },
-          {
-            "role": "Remediation",
-            "runs": 4
-          },
-          {
-            "role": "Validation",
-            "runs": 5
-          },
-          {
-            "role": "Other",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 4,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
-      },
-      {
         "ref": "provider-adapter-surfaces-closing-slice",
         "date_utc": "2026-10-30",
         "runs_total": 10,
@@ -10366,100 +11257,6 @@
         "remediation_runs": 2,
         "remediation_tokens": 174147,
         "remediation_share_pct": 13
-      },
-      {
-        "ref": "reuse-for-docs-reading-suites",
-        "date_utc": "2026-11-02",
-        "runs_total": 13,
-        "elapsed_wall_seconds": 23120,
-        "agent_seconds": 21903,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 4
-          },
-          {
-            "role": "Code Review",
-            "runs": 1
-          },
-          {
-            "role": "Remediation",
-            "runs": 4
-          },
-          {
-            "role": "Validation",
-            "runs": 4
-          }
-        ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 4,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
-      },
-      {
-        "ref": "pr-capability-preflight",
-        "date_utc": "2026-10-07",
-        "runs_total": 10,
-        "elapsed_wall_seconds": 22332,
-        "agent_seconds": 21450,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 2
-          },
-          {
-            "role": "Code Review",
-            "runs": 2
-          },
-          {
-            "role": "Remediation",
-            "runs": 2
-          },
-          {
-            "role": "Validation",
-            "runs": 4
-          }
-        ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 2,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
-      },
-      {
-        "ref": "telemetry-fields-not-prose",
-        "date_utc": "2026-09-13",
-        "runs_total": 15,
-        "elapsed_wall_seconds": 22286,
-        "agent_seconds": 22792,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 1
-          },
-          {
-            "role": "Code Review",
-            "runs": 2
-          },
-          {
-            "role": "Remediation",
-            "runs": 5
-          },
-          {
-            "role": "Validation",
-            "runs": 6
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 1,
-        "tokens_total": 236190,
-        "remediation_runs": 5,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
       },
       {
         "ref": "cheap-transitions-slice",
@@ -10528,6 +11325,108 @@
         "remediation_runs": 2,
         "remediation_tokens": 526544,
         "remediation_share_pct": 29
+      },
+      {
+        "ref": "reuse-split-corpus-cases",
+        "date_utc": "2026-11-04",
+        "runs_total": 11,
+        "elapsed_wall_seconds": 21557,
+        "agent_seconds": 19310,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 3
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "metrics-flush-invalidates-pr-precondition",
+        "date_utc": "2026-09-02",
+        "runs_total": 8,
+        "elapsed_wall_seconds": 21425,
+        "agent_seconds": 20731,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 8,
+        "tokens_total": 1469348,
+        "remediation_runs": 2,
+        "remediation_tokens": 356106,
+        "remediation_share_pct": 24
+      },
+      {
+        "ref": "merge-cleanup-resolves-framework-friction",
+        "date_utc": "2026-10-25",
+        "runs_total": 13,
+        "elapsed_wall_seconds": 21105,
+        "agent_seconds": 19834,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 5
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 3,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
       },
       {
         "ref": "RFC-0006",
@@ -10632,6 +11531,36 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "suites-run-in-a-disposable-worktree",
+        "date_utc": "2026-08-20",
+        "runs_total": 8,
+        "elapsed_wall_seconds": 19587,
+        "agent_seconds": 19203,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 8,
+        "tokens_total": 1332663,
+        "remediation_runs": 3,
+        "remediation_tokens": 416442,
+        "remediation_share_pct": 31
+      },
+      {
         "ref": "post-validation-pushes-reuse-test-results",
         "date_utc": "2026-10-08",
         "runs_total": 14,
@@ -10734,11 +11663,11 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "merge-cleanup-resolves-framework-friction",
-        "date_utc": "2026-10-25",
-        "runs_total": 11,
-        "elapsed_wall_seconds": 17875,
-        "agent_seconds": 17935,
+        "ref": "release-passes-first-time",
+        "date_utc": "2026-10-27",
+        "runs_total": 10,
+        "elapsed_wall_seconds": 17884,
+        "agent_seconds": 17443,
         "roles": [
           {
             "role": "TDD Implementation",
@@ -10746,11 +11675,11 @@
           },
           {
             "role": "Code Review",
-            "runs": 3
+            "runs": 1
           },
           {
             "role": "Remediation",
-            "runs": 2
+            "runs": 3
           },
           {
             "role": "Validation",
@@ -10763,7 +11692,7 @@
         ],
         "runs_marked": 0,
         "tokens_total": null,
-        "remediation_runs": 2,
+        "remediation_runs": 3,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -10896,40 +11825,6 @@
         "remediation_share_pct": 9
       },
       {
-        "ref": "retire-legacy-migrations",
-        "date_utc": "2026-11-05",
-        "runs_total": 16,
-        "elapsed_wall_seconds": 16616,
-        "agent_seconds": 18495,
-        "roles": [
-          {
-            "role": "Implementation",
-            "runs": 6
-          },
-          {
-            "role": "Code Review",
-            "runs": 2
-          },
-          {
-            "role": "Remediation",
-            "runs": 3
-          },
-          {
-            "role": "Validation",
-            "runs": 4
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 3,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
-      },
-      {
         "ref": "harness-universal-routing",
         "date_utc": "2026-09-13",
         "runs_total": 8,
@@ -10964,6 +11859,40 @@
         "remediation_share_pct": 25
       },
       {
+        "ref": "directed-merge-and-post-merge-cleanup",
+        "date_utc": "2026-10-10",
+        "runs_total": 16,
+        "elapsed_wall_seconds": 15932,
+        "agent_seconds": 13837,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 5
+          },
+          {
+            "role": "Code Review",
+            "runs": 4
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 3,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "prompt-diet-itemized-growth-ledger",
         "date_utc": "2026-07-18",
         "runs_total": 5,
@@ -10990,40 +11919,6 @@
         "runs_marked": 4,
         "tokens_total": 375192,
         "remediation_runs": 0,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
-      },
-      {
-        "ref": "reuse-split-corpus-cases",
-        "date_utc": "2026-11-04",
-        "runs_total": 9,
-        "elapsed_wall_seconds": 15422,
-        "agent_seconds": 16679,
-        "roles": [
-          {
-            "role": "Implementation",
-            "runs": 3
-          },
-          {
-            "role": "Code Review",
-            "runs": 2
-          },
-          {
-            "role": "Remediation",
-            "runs": 1
-          },
-          {
-            "role": "Validation",
-            "runs": 2
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 1,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -11094,6 +11989,66 @@
         "remediation_runs": 2,
         "remediation_tokens": null,
         "remediation_share_pct": null
+      },
+      {
+        "ref": "ac-table-premature-flip-recurs",
+        "date_utc": "2026-09-02",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 15021,
+        "agent_seconds": 14564,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 4,
+        "tokens_total": 751020,
+        "remediation_runs": 1,
+        "remediation_tokens": 169454,
+        "remediation_share_pct": 23
+      },
+      {
+        "ref": "codex-usage-missing-from-run-budgets",
+        "date_utc": "2026-10-28",
+        "runs_total": 14,
+        "elapsed_wall_seconds": 14865,
+        "agent_seconds": 12305,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 3
+          },
+          {
+            "role": "Code Review",
+            "runs": 4
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 4
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 14,
+        "tokens_total": 1804823,
+        "remediation_runs": 2,
+        "remediation_tokens": 147205,
+        "remediation_share_pct": 8
       },
       {
         "ref": "node-first-third-slice",
@@ -11194,36 +12149,24 @@
         "remediation_share_pct": 47
       },
       {
-        "ref": "directed-merge-and-post-merge-cleanup",
-        "date_utc": "2026-10-10",
-        "runs_total": 14,
-        "elapsed_wall_seconds": 13589,
-        "agent_seconds": 12966,
+        "ref": "the-subagent-contract-omits-the-hazards",
+        "date_utc": "2026-08-23",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 13612,
+        "agent_seconds": 7144,
         "roles": [
           {
-            "role": "TDD Implementation",
-            "runs": 5
-          },
-          {
-            "role": "Code Review",
-            "runs": 3
-          },
-          {
-            "role": "Remediation",
-            "runs": 2
+            "role": "Implementation",
+            "runs": 1
           },
           {
             "role": "Validation",
-            "runs": 3
-          },
-          {
-            "role": "Planning",
-            "runs": 1
+            "runs": 2
           }
         ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 2,
+        "runs_marked": 2,
+        "tokens_total": 368297,
+        "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -11256,6 +12199,36 @@
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
+      },
+      {
+        "ref": "intake-numbers-some-doc-types-immediately",
+        "date_utc": "2026-08-21",
+        "runs_total": 7,
+        "elapsed_wall_seconds": 12962,
+        "agent_seconds": 10816,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 7,
+        "tokens_total": 1266068,
+        "remediation_runs": 3,
+        "remediation_tokens": 510458,
+        "remediation_share_pct": 40
       },
       {
         "ref": "docs-audit-suite-speed",
@@ -11420,40 +12393,6 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "codex-usage-missing-from-run-budgets",
-        "date_utc": "2026-10-28",
-        "runs_total": 12,
-        "elapsed_wall_seconds": 12160,
-        "agent_seconds": 11832,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 3
-          },
-          {
-            "role": "Code Review",
-            "runs": 2
-          },
-          {
-            "role": "Remediation",
-            "runs": 2
-          },
-          {
-            "role": "Validation",
-            "runs": 4
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 12,
-        "tokens_total": 1618403,
-        "remediation_runs": 2,
-        "remediation_tokens": 147205,
-        "remediation_share_pct": 9
-      },
-      {
         "ref": "a-check-cannot-tell-silence-from-a-verdict",
         "date_utc": "2026-10-01",
         "runs_total": 7,
@@ -11480,6 +12419,40 @@
         "runs_marked": 0,
         "tokens_total": null,
         "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "selected-ci-conditional-sharding",
+        "date_utc": "2026-10-21",
+        "runs_total": 10,
+        "elapsed_wall_seconds": 11863,
+        "agent_seconds": 10388,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 2
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -11548,6 +12521,36 @@
         "remediation_share_pct": 9
       },
       {
+        "ref": "update-sync-atomic-lock",
+        "date_utc": "2026-07-29",
+        "runs_total": 8,
+        "elapsed_wall_seconds": 11746,
+        "agent_seconds": 14963,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 5,
+        "tokens_total": 695751,
+        "remediation_runs": 4,
+        "remediation_tokens": 147547,
+        "remediation_share_pct": 21
+      },
+      {
         "ref": "release-same-version-recovery",
         "date_utc": "2026-10-26",
         "runs_total": 7,
@@ -11608,6 +12611,40 @@
         "runs_marked": 4,
         "tokens_total": 862979,
         "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "selected-ci-scheduling-foundation",
+        "date_utc": "2026-10-21",
+        "runs_total": 14,
+        "elapsed_wall_seconds": 11379,
+        "agent_seconds": 9662,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 6
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 3,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -11710,6 +12747,40 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "merge-direction-signs-amendments",
+        "date_utc": "2026-10-10",
+        "runs_total": 15,
+        "elapsed_wall_seconds": 10261,
+        "agent_seconds": 11912,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 3
+          },
+          {
+            "role": "Code Review",
+            "runs": 4
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 4
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 3,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "doctor-win-selftest",
         "date_utc": "2026-08-13",
         "runs_total": 9,
@@ -11778,6 +12849,36 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "release-protected-branch-fallback",
+        "date_utc": "2026-09-02",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 9213,
+        "agent_seconds": 8760,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Remediation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 5,
+        "tokens_total": 860396,
+        "remediation_runs": 1,
+        "remediation_tokens": 135044,
+        "remediation_share_pct": 16
+      },
+      {
         "ref": "single-writer-canon-contradiction",
         "date_utc": "2026-08-24",
         "runs_total": 8,
@@ -11812,23 +12913,23 @@
         "remediation_share_pct": 26
       },
       {
-        "ref": "merge-direction-signs-amendments",
-        "date_utc": "2026-10-10",
-        "runs_total": 12,
-        "elapsed_wall_seconds": 8738,
-        "agent_seconds": 10815,
+        "ref": "ci-body-only-rechecks",
+        "date_utc": "2026-10-21",
+        "runs_total": 8,
+        "elapsed_wall_seconds": 9016,
+        "agent_seconds": 8360,
         "roles": [
           {
-            "role": "TDD Implementation",
-            "runs": 3
+            "role": "Implementation",
+            "runs": 1
           },
           {
             "role": "Code Review",
-            "runs": 3
+            "runs": 2
           },
           {
             "role": "Remediation",
-            "runs": 2
+            "runs": 1
           },
           {
             "role": "Validation",
@@ -11841,7 +12942,7 @@
         ],
         "runs_marked": 0,
         "tokens_total": null,
-        "remediation_runs": 2,
+        "remediation_runs": 1,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -11910,6 +13011,40 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "merge-cleanup-submodule-worktree",
+        "date_utc": "2026-10-11",
+        "runs_total": 16,
+        "elapsed_wall_seconds": 8231,
+        "agent_seconds": 9205,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 2
+          },
+          {
+            "role": "Code Review",
+            "runs": 4
+          },
+          {
+            "role": "Remediation",
+            "runs": 4
+          },
+          {
+            "role": "Validation",
+            "runs": 5
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 15,
+        "tokens_total": 1891275,
+        "remediation_runs": 4,
+        "remediation_tokens": 302185,
+        "remediation_share_pct": 16
+      },
+      {
         "ref": "ride-state-handoff-to-worktree",
         "date_utc": "2026-10-22",
         "runs_total": 6,
@@ -11944,31 +13079,23 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "selected-ci-conditional-sharding",
-        "date_utc": "2026-10-21",
-        "runs_total": 5,
-        "elapsed_wall_seconds": 7636,
-        "agent_seconds": 7312,
+        "ref": "a-run-must-say-whether-isolation-armed",
+        "date_utc": "2026-08-22",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 7770,
+        "agent_seconds": 7728,
         "roles": [
           {
             "role": "Implementation",
-            "runs": 2
-          },
-          {
-            "role": "Code Review",
             "runs": 1
           },
           {
             "role": "Validation",
             "runs": 1
-          },
-          {
-            "role": "Planning",
-            "runs": 1
           }
         ],
-        "runs_marked": 0,
-        "tokens_total": null,
+        "runs_marked": 2,
+        "tokens_total": 424271,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -12002,6 +13129,40 @@
         "remediation_runs": 2,
         "remediation_tokens": null,
         "remediation_share_pct": null
+      },
+      {
+        "ref": "auto-update-config",
+        "date_utc": "2026-07-29",
+        "runs_total": 9,
+        "elapsed_wall_seconds": 7212,
+        "agent_seconds": 6967,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Remediation",
+            "runs": 3
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 7,
+        "tokens_total": 881890,
+        "remediation_runs": 3,
+        "remediation_tokens": 317114,
+        "remediation_share_pct": 36
       },
       {
         "ref": "universal-routines",
@@ -12124,6 +13285,40 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "release-changelog-eol",
+        "date_utc": "2026-10-17",
+        "runs_total": 10,
+        "elapsed_wall_seconds": 6812,
+        "agent_seconds": 6964,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "slim-standing-role-context",
         "date_utc": "2026-10-22",
         "runs_total": 7,
@@ -12171,40 +13366,6 @@
           {
             "role": "Code Review",
             "runs": 2
-          },
-          {
-            "role": "Remediation",
-            "runs": 1
-          },
-          {
-            "role": "Validation",
-            "runs": 2
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 1,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
-      },
-      {
-        "ref": "selected-ci-scheduling-foundation",
-        "date_utc": "2026-10-21",
-        "runs_total": 6,
-        "elapsed_wall_seconds": 6426,
-        "agent_seconds": 6086,
-        "roles": [
-          {
-            "role": "Implementation",
-            "runs": 1
-          },
-          {
-            "role": "Code Review",
-            "runs": 1
           },
           {
             "role": "Remediation",
@@ -12288,40 +13449,6 @@
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
-      },
-      {
-        "ref": "merge-cleanup-submodule-worktree",
-        "date_utc": "2026-10-11",
-        "runs_total": 13,
-        "elapsed_wall_seconds": 6232,
-        "agent_seconds": 7517,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 2
-          },
-          {
-            "role": "Code Review",
-            "runs": 3
-          },
-          {
-            "role": "Remediation",
-            "runs": 3
-          },
-          {
-            "role": "Validation",
-            "runs": 4
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 12,
-        "tokens_total": 1540588,
-        "remediation_runs": 3,
-        "remediation_tokens": 192367,
-        "remediation_share_pct": 12
       },
       {
         "ref": "CHANGE-0009",
@@ -12422,6 +13549,28 @@
         "remediation_share_pct": 17
       },
       {
+        "ref": "a-half-seeded-checkout-says-it-is-isolated",
+        "date_utc": "2026-08-22",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 5996,
+        "agent_seconds": 5952,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 473258,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "hitl-decision-propagation",
         "date_utc": "2026-07-21",
         "runs_total": 4,
@@ -12452,19 +13601,19 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "ci-body-only-rechecks",
-        "date_utc": "2026-10-21",
-        "runs_total": 6,
-        "elapsed_wall_seconds": 5732,
-        "agent_seconds": 5535,
+        "ref": "release-one-shot-finish",
+        "date_utc": "2026-10-17",
+        "runs_total": 7,
+        "elapsed_wall_seconds": 5783,
+        "agent_seconds": 4927,
         "roles": [
           {
-            "role": "Implementation",
+            "role": "TDD Implementation",
             "runs": 1
           },
           {
             "role": "Code Review",
-            "runs": 1
+            "runs": 2
           },
           {
             "role": "Remediation",
@@ -12712,6 +13861,36 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "release-checks-registration-grace",
+        "date_utc": "2026-10-17",
+        "runs_total": 6,
+        "elapsed_wall_seconds": 5085,
+        "agent_seconds": 3745,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "docs-audit-node-test-pilot",
         "date_utc": "2026-10-21",
         "runs_total": 4,
@@ -12738,6 +13917,40 @@
         "runs_marked": 0,
         "tokens_total": null,
         "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "classify-same-ts-pair",
+        "date_utc": "2026-10-10",
+        "runs_total": 12,
+        "elapsed_wall_seconds": 4944,
+        "agent_seconds": 4526,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 3
+          },
+          {
+            "role": "Code Review",
+            "runs": 3
+          },
+          {
+            "role": "Remediation",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 3
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 2,
         "remediation_tokens": null,
         "remediation_share_pct": null
       },
@@ -13002,40 +14215,6 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "release-changelog-eol",
-        "date_utc": "2026-10-17",
-        "runs_total": 7,
-        "elapsed_wall_seconds": 4200,
-        "agent_seconds": 5569,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 1
-          },
-          {
-            "role": "Code Review",
-            "runs": 2
-          },
-          {
-            "role": "Remediation",
-            "runs": 1
-          },
-          {
-            "role": "Validation",
-            "runs": 2
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 1,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
-      },
-      {
         "ref": "issues-skill",
         "date_utc": "2026-07-28",
         "runs_total": 3,
@@ -13117,6 +14296,80 @@
         ],
         "runs_marked": 4,
         "tokens_total": 464257,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "layer-profiles",
+        "date_utc": "2026-07-16",
+        "runs_total": 5,
+        "elapsed_wall_seconds": 3963,
+        "agent_seconds": 4622,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 2
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "the-tripwire-is-permanent-not-transitional",
+        "date_utc": "2026-08-23",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 3941,
+        "agent_seconds": 4148,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 2
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 345550,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "index-arm-diffs-whole-file-for-a-path-claim",
+        "date_utc": "2026-08-21",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 3939,
+        "agent_seconds": 3898,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 366285,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -13434,6 +14687,28 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "assertions-must-not-die-on-their-own-payload",
+        "date_utc": "2026-08-21",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 3476,
+        "agent_seconds": 3431,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 401967,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "doctor-honesty-batch",
         "date_utc": "2026-08-13",
         "runs_total": 4,
@@ -13489,6 +14764,28 @@
         ],
         "runs_marked": 4,
         "tokens_total": 546404,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "docs-history-is-one-git-call-per-doc",
+        "date_utc": "2026-08-21",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 3195,
+        "agent_seconds": 3153,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 304861,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -13662,6 +14959,58 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "scale-adaptive-ceremony",
+        "date_utc": "2026-07-16",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 3022,
+        "agent_seconds": 1846,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "hook-enforced-gates",
+        "date_utc": "2026-07-16",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 3021,
+        "agent_seconds": 2171,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "ci-node-24-baseline",
         "date_utc": "2026-10-23",
         "runs_total": 5,
@@ -13782,6 +15131,36 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "spec-lint",
+        "date_utc": "2026-07-16",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2942,
+        "agent_seconds": 1598,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "RFC-0005",
         "date_utc": "2026-07-15",
         "runs_total": 6,
@@ -13841,6 +15220,32 @@
         ],
         "runs_marked": 4,
         "tokens_total": 569074,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "core-prompt-diet",
+        "date_utc": "2026-07-28",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 2898,
+        "agent_seconds": 3380,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 437750,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -14128,36 +15533,6 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "release-one-shot-finish",
-        "date_utc": "2026-10-17",
-        "runs_total": 4,
-        "elapsed_wall_seconds": 2610,
-        "agent_seconds": 2843,
-        "roles": [
-          {
-            "role": "TDD Implementation",
-            "runs": 1
-          },
-          {
-            "role": "Code Review",
-            "runs": 1
-          },
-          {
-            "role": "Validation",
-            "runs": 1
-          },
-          {
-            "role": "Planning",
-            "runs": 1
-          }
-        ],
-        "runs_marked": 0,
-        "tokens_total": null,
-        "remediation_runs": 0,
-        "remediation_tokens": null,
-        "remediation_share_pct": null
-      },
-      {
         "ref": "friction-capture-default-on",
         "date_utc": "2026-07-26",
         "runs_total": 5,
@@ -14224,6 +15599,36 @@
         "remediation_runs": 1,
         "remediation_tokens": 104406,
         "remediation_share_pct": 17
+      },
+      {
+        "ref": "truth-scoring",
+        "date_utc": "2026-07-16",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 2499,
+        "agent_seconds": 1246,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
       },
       {
         "ref": "test-infra-reds-and-ci-gate",
@@ -14474,6 +15879,28 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "spec-vagueness-gate",
+        "date_utc": "2026-08-14",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 2246,
+        "agent_seconds": 2002,
+        "roles": [
+          {
+            "role": "TDD Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 2,
+        "tokens_total": 404591,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "test-canon-drift-detection",
         "date_utc": "2026-07-24",
         "runs_total": 4,
@@ -14525,6 +15952,32 @@
         ],
         "runs_marked": 0,
         "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "seed-update-config",
+        "date_utc": "2026-07-29",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 2216,
+        "agent_seconds": 1898,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 3,
+        "tokens_total": 312871,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -14610,6 +16063,32 @@
           },
           {
             "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "spec-delta-stage-1",
+        "date_utc": "2026-07-16",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 2175,
+        "agent_seconds": 1666,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
             "runs": 1
           }
         ],
@@ -14856,15 +16335,15 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "classify-same-ts-pair",
-        "date_utc": "2026-10-10",
-        "runs_total": 6,
-        "elapsed_wall_seconds": 1971,
-        "agent_seconds": 2023,
+        "ref": "advisory-skills",
+        "date_utc": "2026-07-16",
+        "runs_total": 4,
+        "elapsed_wall_seconds": 1936,
+        "agent_seconds": 1561,
         "roles": [
           {
-            "role": "TDD Implementation",
-            "runs": 3
+            "role": "Implementation",
+            "runs": 1
           },
           {
             "role": "Code Review",
@@ -15002,11 +16481,11 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "verification-before-completion",
+        "ref": "constitution",
         "date_utc": "2026-07-16",
-        "runs_total": 4,
-        "elapsed_wall_seconds": 1776,
-        "agent_seconds": 1365,
+        "runs_total": 3,
+        "elapsed_wall_seconds": 1804,
+        "agent_seconds": 1174,
         "roles": [
           {
             "role": "Implementation",
@@ -15019,10 +16498,6 @@
           {
             "role": "Validation",
             "runs": 1
-          },
-          {
-            "role": "Planning",
-            "runs": 1
           }
         ],
         "runs_marked": 0,
@@ -15032,14 +16507,14 @@
         "remediation_share_pct": null
       },
       {
-        "ref": "release-checks-registration-grace",
-        "date_utc": "2026-10-17",
+        "ref": "verification-before-completion",
+        "date_utc": "2026-07-16",
         "runs_total": 4,
-        "elapsed_wall_seconds": 1728,
-        "agent_seconds": 2061,
+        "elapsed_wall_seconds": 1776,
+        "agent_seconds": 1365,
         "roles": [
           {
-            "role": "TDD Implementation",
+            "role": "Implementation",
             "runs": 1
           },
           {
@@ -15312,11 +16787,63 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "work-item-brief",
+        "date_utc": "2026-07-16",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 1489,
+        "agent_seconds": 994,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "single-dual-verdict-review",
         "date_utc": "2026-07-16",
         "runs_total": 3,
         "elapsed_wall_seconds": 1487,
         "agent_seconds": 1318,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          },
+          {
+            "role": "Validation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "systematic-debugging",
+        "date_utc": "2026-07-16",
+        "runs_total": 3,
+        "elapsed_wall_seconds": 1461,
+        "agent_seconds": 1356,
         "roles": [
           {
             "role": "Implementation",
@@ -15359,6 +16886,24 @@
         ],
         "runs_marked": 2,
         "tokens_total": 306896,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "retire-shell-loop-runner",
+        "date_utc": "2026-11-06",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 1413,
+        "agent_seconds": 1413,
+        "roles": [
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -15425,6 +16970,24 @@
       },
       {
         "ref": "follow-ups-docs",
+        "date_utc": "2026-07-28",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 1200,
+        "agent_seconds": 1200,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "session-journal-contract",
         "date_utc": "2026-07-28",
         "runs_total": 1,
         "elapsed_wall_seconds": 1200,
@@ -15521,6 +17084,24 @@
         ],
         "runs_marked": 1,
         "tokens_total": 41346,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "cloudflare-share-on-node",
+        "date_utc": "2026-11-06",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 1074,
+        "agent_seconds": 1074,
+        "roles": [
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -15766,6 +17347,24 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "pr-67-post-merge-review",
+        "date_utc": "2026-07-16",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 686,
+        "agent_seconds": 686,
+        "roles": [
+          {
+            "role": "Code Review",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "unattended-rides-human-gate-at-merge",
         "date_utc": "2026-09-11",
         "runs_total": 1,
@@ -15779,6 +17378,24 @@
         ],
         "runs_marked": 1,
         "tokens_total": 181295,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
+        "ref": "simple-and-friendly-to-use",
+        "date_utc": "2026-09-06",
+        "runs_total": 1,
+        "elapsed_wall_seconds": 628,
+        "agent_seconds": 628,
+        "roles": [
+          {
+            "role": "Planning",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 1,
+        "tokens_total": 176299,
         "remediation_runs": 0,
         "remediation_tokens": null,
         "remediation_share_pct": null
@@ -15842,6 +17459,28 @@
         "remediation_share_pct": null
       },
       {
+        "ref": "reaper-test-018-etime-shape-guard",
+        "date_utc": "2026-07-25",
+        "runs_total": 2,
+        "elapsed_wall_seconds": 14,
+        "agent_seconds": 0,
+        "roles": [
+          {
+            "role": "Implementation",
+            "runs": 1
+          },
+          {
+            "role": "Code Review",
+            "runs": 1
+          }
+        ],
+        "runs_marked": 0,
+        "tokens_total": null,
+        "remediation_runs": 0,
+        "remediation_tokens": null,
+        "remediation_share_pct": null
+      },
+      {
         "ref": "friction-feedback-discovery",
         "date_utc": "2026-07-25",
         "runs_total": 1,
@@ -15889,11 +17528,11 @@
   },
   "notes": [
     "NOTE 10 ref(s) closed more than once; latest close counted (re-delivery after reopen supersedes the earlier close; delivered_total stays distinct refs)",
-    "NOTE 24 agent_run(s) had a role that matched no canonical role — bucketed as Other",
+    "NOTE 25 agent_run(s) had a role that matched no canonical role — bucketed as Other",
     "NOTE 26 ride(s) predate the reliability block — excluded from quality rates (shown as n/a, never zero)",
-    "NOTE 105 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
-    "NOTE 7 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
-    "NOTE 52 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
+    "NOTE 124 ride(s) carry no usage_total_tokens marker — token cost shown as n/a (never imputed, never USD)",
+    "NOTE 8 agent_run(s) carry no duration_seconds — Agent time (summed) is a partial sum on those scopes (scope_cost)",
+    "NOTE 51 scope(s) have Agent time (summed) exceeding Elapsed (wall clock) — roles ran concurrently (scope_cost)",
     "NOTE 1 id-less follow_up entry folded under a derived id (fu-<ref_id-slug>-<yyyymmddThhmm>) — the original line is never rewritten"
   ]
 }

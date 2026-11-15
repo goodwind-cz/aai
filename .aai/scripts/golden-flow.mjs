@@ -65,7 +65,7 @@ import { fileURLToPath } from 'node:url';
 import { exit, runMain } from './lib/cli-pipe-guard.mjs';
 import { extractUsageTotal } from './lib/usage-note.mjs';
 import { withAppendLock } from './lib/append-lock.mjs';
-import { foldRideSegments } from './lib/metrics-flush-record.mjs';
+import { foldRideSegments, isRecoveryRecord } from './lib/metrics-flush-record.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SELF_ROOT = path.resolve(SELF_DIR, '..', '..');
@@ -340,7 +340,10 @@ export function tokensMedianLast10(ledgerPath) {
   }
   // SPEC-0291 Spec-AC-07: a reopened ride has one ledger line per flush
   // segment; the median is over rides, so fold them into one first.
+  // recover-archived-state-runs: a ride whose every line is a recovery line was
+  // appended now but happened long ago; it must not displace a recent real ride.
   for (const r of foldRideSegments(records)) {
+    if (isRecoveryRecord(r)) continue;
     let sum = 0, marked = false;
     for (const run of r.agent_runs) {
       // The canonical both-sides-delimited grammar, on the NOTE field only —

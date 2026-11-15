@@ -235,6 +235,11 @@ build_fixture_sources() {
     || log_fail "fixture build: src-old must be copied BEFORE git init, but it carries a .git directory"
 
   git -C "$FIX_SRC" init -q -b main
+  # Auto maintenance is off for both source repos: their fixture commits can tip
+  # git's loose-object heuristic and detach a `git maintenance run --auto`
+  # (geometric repack) that outlives the commit and races the EXIT-trap
+  # `rm -rf "$TMP_ROOT"` (same class as the maintenance.lock race above).
+  git -C "$FIX_SRC" config maintenance.auto false
   git -C "$FIX_SRC" config user.email "test@example.invalid"
   git -C "$FIX_SRC" config user.name "AAI Test"
   git -C "$FIX_SRC" remote add origin "https://example.invalid/goodwind-cz/aai.git"
@@ -254,6 +259,7 @@ build_fixture_sources() {
   git -C "$PROJECT_ROOT" show "${profile_intro}^:.aai/scripts/aai-sync.sh" > "$FIX_SRC_OLD/.aai/scripts/aai-sync.sh" \
     || log_fail "cannot extract pre-profile aai-sync.sh at ${profile_intro}^ (shallow clone missing history?)"
   git -C "$FIX_SRC_OLD" init -q -b main
+  git -C "$FIX_SRC_OLD" config maintenance.auto false
   git -C "$FIX_SRC_OLD" config user.email "test@example.invalid"
   git -C "$FIX_SRC_OLD" config user.name "AAI Test"
   git -C "$FIX_SRC_OLD" remote add origin "https://example.invalid/goodwind-cz/aai.git"

@@ -65,6 +65,7 @@ test_007_refusals_and_guard() { node_cases TEST-007; }
 test_008_crash_and_resume() { node_cases TEST-008; }
 test_009_reconcile() { node_cases TEST-009; }
 test_010_reconcile_refusals() { node_cases TEST-010; }
+test_3748_reconcile_after_recovery() { node_cases TEST-3748; }
 
 # TEST-012 / Spec-AC-12: the canon names the handoff, and never a whole-STATE copy.
 test_012_prompt_wiring() {
@@ -144,6 +145,7 @@ main() {
   test_008_crash_and_resume
   test_009_reconcile
   test_010_reconcile_refusals
+  test_3748_reconcile_after_recovery
   test_012_prompt_wiring
   test_014_scope_companions
   echo ""

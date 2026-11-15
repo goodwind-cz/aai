@@ -9031,6 +9031,58 @@ test_2304_content_suite_fails_on_planted_orphan() {  # TEST-2304 / Spec-AC-03
   log_pass "content suite exits 1 with a FAIL line naming Orphans on a planted frontmatter-less document (TEST-2304)"
 }
 
+# --- recover-archived-state-runs (TEST-3742, Spec-AC-07) ---------------------
+# A recovery line (metrics-flush --recover-archives: verdict null, `reconstructed`
+# object) says an old ride's runs were written late; it is not delivery
+# evidence. The #556 reconstructed PASS line (a real ride segment) still is.
+test_3742_recovery_line_is_not_delivery_evidence() {
+  log_info "Test: a METRICS recovery line is not delivery evidence; a reconstructed PASS line still is (TEST-3742)..."
+  # Selectable on its own (mutation-run passes only the function name): own a
+  # scratch root when the suite's setup_fixture did not run.
+  local own_root=""
+  if [[ -z "${TEST_DIR:-}" ]]; then
+    TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-3742.XXXXXX")"
+    own_root="$TEST_DIR"
+  fi
+  local d; d="$(setup_fo_repo fo-recovery-line)"
+  local n
+  for n in 5850:recovery 5851:control; do
+    cat > "$d/docs/issues/CHANGE-${n%%:*}-${n##*:}.md" <<MD
+---
+id: CHANGE-${n%%:*}
+type: change
+status: draft
+links:
+  pr: []
+---
+# Intake whose only METRICS record is a ${n##*:} line
+MD
+  done
+  (cd "$d" && git add docs/issues && git commit -qm "docs: intake CHANGE-5850 CHANGE-5851")
+  mkdir -p "$d/docs/ai"
+  local reason='role runs held only by archived STATE copies; recovered by metrics-flush --recover-archives (recover-archived-state-runs); verdict unknown'
+  cat > "$d/docs/ai/METRICS.jsonl" <<JSONL
+# AAI Metrics Ledger
+{"date_utc":"2026-07-20","ref_id":"CHANGE-5850","title":"recovered","agent_runs":[],"strategy":null,"verdict_basis":null,"verdict":null,"reconstructed":{"source":"docs/ai/archive/x/STATE.yaml","reason":"$reason","recovered_utc":"2026-11-15T00:00:00Z"}}
+{"date_utc":"2026-07-20","ref_id":"CHANGE-5851","title":"reconstructed segment","agent_runs":[],"strategy":"tdd","verdict":"PASS","flush_segment":2,"reconstructed":{"source":"docs/ai/archive/y/STATE.yaml","reason":"incident reconstruction"}}
+JSONL
+  local rc=0
+  (cd "$d" && node .aai/scripts/docs-audit.mjs --no-event > audit.log 2>&1) || rc=$?
+  [[ "$rc" -eq 0 ]] || log_fail "TEST-3742: docs-audit must complete (rc=$rc): $(tail -5 "$d/audit.log")"
+  assert_fo_control_flagged "$d/audit.log"
+  extract_section_h3 "$d/audit.log" "### Drift report" > "$d/drift-sec.txt"
+  # control: the reconstructed PASS line keeps counting as delivery evidence.
+  grep -F "CHANGE-5851" "$d/drift-sec.txt" | qgrep -qF "flush record" \
+    || log_fail "TEST-3742: a reconstructed PASS line must still give the work-item flush record reason"
+  # the recovery line gives no reason and no false-open verdict on that ground.
+  if grep -qF "CHANGE-5850" "$d/drift-sec.txt"; then
+    log_fail "TEST-3742: a METRICS recovery line must NOT give delivery evidence (CHANGE-5850 flagged): $(grep -F CHANGE-5850 "$d/drift-sec.txt")"
+  fi
+  rm -rf "$d"
+  if [[ -n "$own_root" ]]; then rm -rf "$own_root"; TEST_DIR=""; fi
+  log_pass "A recovery line is not delivery evidence; a reconstructed PASS line still is (TEST-3742)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -9162,6 +9214,10 @@ main() {
   test_change0028_arm_c_work_item_closed_flags
   test_change0028_userguide_mentions_work_item_closed
   test_fometrics_flush_arm
+  # TEST-3742: invoked with a trailing comment on purpose - TEST-2307 pins the
+  # bare-name main list to the baseline commit, so a bare new name would read as
+  # an unbaselined case; check-test-registration.mjs still sees the live call.
+  test_3742_recovery_line_is_not_delivery_evidence  # recover-archived-state-runs
   test_fometrics_supersession
   test_fometrics_supersession_delivery_arms
   setup_dupid_fixture

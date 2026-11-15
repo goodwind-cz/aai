@@ -174,6 +174,26 @@ one capability:
   a ride's lines. A line written by hand to recover runs lost
   earlier carries a `reconstructed` key (`source` and `reason`); a normal flush
   never writes it.
+- Recovery of archived runs: `metrics-flush.mjs --recover-archives --archive <dir>
+  [--archive <dir>...] --state <STATE.yaml> [--metrics <file>] [--dry-run]`
+  writes the role runs that only archived copies of STATE still hold (a
+  `docs/ai/archive/` handoff or merge-cleanup copy, a report copy, a
+  `.git/aai/checkpoints` snapshot) and that never reached the ledger. It
+  appends one line per ref, built by the same code as a normal flush, with
+  `verdict`, `verdict_basis` and `strategy` null and a `reconstructed` object
+  (`source` naming the copies, a fixed `reason` ending in `verdict unknown`,
+  and `recovered_utc`). A ref that already has a line gets a continuation line
+  with `flush_segment`. A run is identified by its role plus `started_utc`
+  within the ref; a run already in the ledger line of its ref is never
+  written again, and a run in the live `--state` wins over its archived
+  copy, so a later normal flush treats it as held. The ref that is the live
+  `current_focus` is skipped, because its flush will write it. The command
+  never writes STATE or EVENTS, `--dry-run` prints the plan as JSON, and a
+  second run appends nothing. A recovery line is never a PASS: it is not a
+  delivery record, not a flushed record, and the PR gate, the dispatcher and
+  the docs audit do not count it as one. Git history cannot recover a
+  deleted STATE, because STATE is gitignored and never committed; only the
+  archive copies can.
 - Readers fold a ride's lines into one ride: the factory report, the metrics
   report (Per Work Item, Totals, Per-Strategy Reliability) and the golden-flow
   token median group all summary lines of a `ref_id` through

@@ -30,6 +30,10 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: role runs held only by archived STATE copies are written to the ledger
+
+`metrics-flush.mjs --recover-archives` reads archived copies of STATE (handoff and merge-cleanup archives, report copies, checkpoints) and appends one line per ref for the role runs the ledger never received. Each line is marked `reconstructed` with its sources and a reason, carries no verdict and is never read as a PASS, a delivery or a flush by the PR gate, the dispatcher, the docs audit or the readers. A run already in the ledger is not written again; a run that is also in the live STATE is written from its live fields and a later flush treats it as held; the ref in focus is skipped and a second run appends nothing. This repository's ledger gained 65 lines (280 runs) recovered this way; earlier lines are unchanged. `docs/product/telemetry.md` describes the command and the line shape.
+
 ## [unreleased] — chore(routing): bind gemini-3.6-flash, gemini-4-carbon and gpt-5.6-luna (owner decision 2026-11-14)
 
 Routed models change on two harnesses, so a dispatch on them suggests a
