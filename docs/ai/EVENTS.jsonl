@@ -3948,3 +3948,4 @@
 {"v":1,"ts":"2026-11-15T01:40:06Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"recover-archived-state-runs","payload":{"head":"9b5966c00e2af337175a20ed11fa135dbb5dc301","clean":true,"flags":0}}
 {"v":1,"ts":"2026-11-15T01:41:39Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"recover-archived-state-runs","payload":{"role":"code_review","head":"9b5966c00e2af337175a20ed11fa135dbb5dc301","seen":"reports:0"}}
 {"v":1,"ts":"2026-11-15T01:41:40Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"recover-archived-state-runs","payload":{"status":"pass","hash":"e12c8d46fb596797a4e0242a41714d0a5401f955b89003140b56b395a3061cef"}}
+{"v":1,"ts":"2026-11-15T02:47:58Z","actor":"ales_holubec.net","event":"full_sweep","ref":"recover-archived-state-runs","payload":{"head":"6cf68b177dfc082a5be3ed15d48789de433cf754","rc":1,"run_id":"test-20261115-022736"}}
