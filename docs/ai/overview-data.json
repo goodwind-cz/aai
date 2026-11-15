@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-15T03:28:47.779Z",
+  "generatedAt": "2026-11-15T04:38:58.725Z",
   "project": "aai",
   "counts": {
     "delivered": 361,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 186122406
+    "tokens_total": 186230676
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -228,11 +228,11 @@
       "status": "done",
       "path": "docs/issues/ISSUE-0115-recover-archived-state-runs.md",
       "closed_on": "2026-11-15",
-      "agent_minutes": 240,
-      "token_total": 1653799,
+      "agent_minutes": 298,
+      "token_total": 1762069,
       "spec": "docs/specs/SPEC-0292-spec-recover-archived-state-runs.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-recover-archived-state-runs-20261115T0142Z.md"
+      "review": "docs/ai/reviews/review-recover-archived-state-runs-20261115T0318Z.md"
     },
     {
       "ref": "consumer-config-routing-override",
@@ -4948,11 +4948,11 @@
           "status": "done",
           "path": "docs/issues/ISSUE-0115-recover-archived-state-runs.md",
           "closed_on": "2026-11-15",
-          "agent_minutes": 240,
-          "token_total": 1653799,
+          "agent_minutes": 298,
+          "token_total": 1762069,
           "spec": "docs/specs/SPEC-0292-spec-recover-archived-state-runs.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-recover-archived-state-runs-20261115T0142Z.md"
+          "review": "docs/ai/reviews/review-recover-archived-state-runs-20261115T0318Z.md"
         },
         {
           "ref": "consumer-config-routing-override",
