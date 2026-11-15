@@ -3963,3 +3963,4 @@
 {"v":1,"ts":"2026-11-15T03:28:15Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-recover-archived-state-runs","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-15T04:28:35Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":739,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-15T04:28:37Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":739,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
+{"v":1,"ts":"2026-11-15T04:40:46Z","actor":"ales_holubec.net","event":"pr_sweep","ref":"recover-archived-state-runs","payload":{"pr":559,"lane":"heavy","reviewer_bots":"unknown","threads_seen":2,"threads_unresolved":0,"outcome":"internal_substituted","head_sha":"cccd6eff4fca5be108391f1ec3230d4f8ec8cfe8"}}
