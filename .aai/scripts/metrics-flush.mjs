@@ -493,7 +493,9 @@ function closeSupersededByReopen(eventsPath, ref) {
 // corroboration check below (eventContradictedByNewerFail) — it is NOT an
 // admission signal by itself.
 function latestValidationEvent(eventsPath, ref, warnings) {
-  if (!fs.existsSync(eventsPath)) return null;
+  // --recover-archives builds its lines with no EVENTS source (eventsPath null);
+  // Node 24 warns DEP0187 on fs.existsSync(null), so a non-string is no source.
+  if (typeof eventsPath !== 'string' || !fs.existsSync(eventsPath)) return null;
   let latest = null;
   for (const line of fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/)) {
     const t = line.trim();
