@@ -187,8 +187,12 @@ const catalog = [
   'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.1-terra',
   // Priced from the Cursor rate card since the 2026-11-14 refresh (was omitted).
   'cursor-grok-4.6',
+  // Owner bindings 2026-11-14: newly bound gemini/codex ids, the priced gemini-4
+  // swap candidates, and the two Cursor families that gained a published rate.
+  'gemini-3.6-flash', 'gemini-4-carbon', 'gemini-4-argon', 'gemini-4-hydrogen', 'gpt-5.6-luna',
+  'composer-2.5', 'muse-spark-1.3',
 ];
-const omitted = ['composer-2.5', 'muse-spark-1.3'];
+const omitted = [];
 const pricingText = fs.readFileSync(pricingPath, 'utf8');
 for (const id of catalog) {
   const e = models[id];
@@ -759,13 +763,13 @@ test_refresh_live_tables() {
   # codex and gemini binding per the refresh decision
   local cx ge
   cx="$(section_block "$ROUTING_FILE" '^# --- codex ---' '^# --- gemini ---')"
-  for want in '  mechanical: gpt-6.1-terra' '  standard: gpt-6.1-sol' '  premium: gpt-6-sol' \
-    '  Planning: gpt-6-sol' '  Code Review: gpt-6-sol' '  Metrics Flush: gpt-6.1-terra' 'validation_alternate@codex: gpt-6-sol'; do
+  for want in '  mechanical: gpt-5.6-luna' '  standard: gpt-6.1-sol' '  premium: gpt-6-sol' \
+    '  Planning: gpt-6-sol' '  Code Review: gpt-6-sol' '  Metrics Flush: gpt-5.6-luna' 'validation_alternate@codex: gpt-6-sol'; do
     [[ $'\n'"$cx"$'\n' == *$'\n'"$want"$'\n'* ]] || log_fail "codex section lacks the row '$want'"
   done
   ge="$(section_block "$ROUTING_FILE" '^# --- gemini ---' '^# --- cursor ---')"
-  for want in '  mechanical: gemini-3-flash-preview' '  standard: gemini-3-flash-preview' '  premium: gemini-3.1-pro-preview' \
-    '  Planning: gemini-3.1-pro-preview' '  Code Review: gemini-3.1-pro-preview' '  Metrics Flush: gemini-3-flash-preview' 'validation_alternate@gemini: gemini-3.1-pro-preview'; do
+  for want in '  mechanical: gemini-3.6-flash' '  standard: gemini-3.6-flash' '  premium: gemini-4-carbon' \
+    '  Planning: gemini-4-carbon' '  Code Review: gemini-4-carbon' '  Metrics Flush: gemini-3.6-flash' 'validation_alternate@gemini: gemini-4-carbon'; do
     [[ $'\n'"$ge"$'\n' == *$'\n'"$want"$'\n'* ]] || log_fail "gemini section lacks the row '$want'"
   done
   log_pass "shipped tables pass routed --since the routing_meta stamp date, stamps current, claude/codex/gemini bind the refreshed ids (TEST-3668)"

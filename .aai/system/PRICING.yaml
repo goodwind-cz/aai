@@ -16,15 +16,16 @@ pricing_meta:
   currency: USD
   token_unit: per_1m_tokens
   default_effective_region: global
-  last_updated_utc: "2026-11-14T21:52:16Z"
+  last_updated_utc: "2026-11-14T22:14:29Z"
   # CHANGE-0197 catalog families with no public list price (verified 2026-09-29; re-checked 2026-11-14):
-  # composer-2.5 — https://cursor.com/docs/models-and-pricing — 2026-11-14: Cursor now lists Composer 2.5 at $0.50/$2.50 per 1M (Fast $3/$15); still no models key because no run of it is in METRICS.jsonl history.
+  # composer-2.5 — https://cursor.com/docs/models-and-pricing — 2026-11-14 (bind PR): priced below at the Cursor rate card's $0.50/$2.50 per 1M (Fast $3/$15); no longer omitted.
   # cursor-grok-4.6 — https://cursor.com/docs/models-and-pricing — 2026-11-14: Cursor now lists Grok 4.6 at $2/$6 per 1M, so the row below is priced (it was null-priced until this refresh).
-  # muse-spark-1.3 — https://docs.cursor.com/models (checked 2026-09-29; 2026-11-14 the page no longer lists Muse Spark, only Muse Wonder, with no token rate) — no public USD/1M input/output list price for Muse Spark 1.3 runtime ids.
+  # muse-spark-1.3 — https://cursor.com/docs/models-and-pricing — 2026-11-14 (bind PR): the Cursor rate card lists Muse Spark 1.3 at $1.25/$4.25 per 1M, so it is priced below; no longer omitted.
   # CHANGE-0198 (verified 2026-09-30): gpt-6.1-astra — https://developers.openai.com/api/docs/pricing — no separate model row; only gpt-6-astra and gpt-6.1-sol appear on the flagship table (do not invent a gpt-6.1-astra key).
   # Owner 2026-09-29: gpt-6.1-sol added below (OpenAI flagship); MODEL_ROUTING.yaml unchanged in this change.
   # First refresh 2026-11-13 (routing-tables-have-an-owner-and-a-seam): rates and ids re-read on the vendor pages in sources: below; claude-opus-5-5 5/25 -> 4/20, claude-sonnet-5(-5) 3/15 -> 2/10; added claude-haiku-5-5, claude-fable-5-2 (priced only), gpt-6.1-terra, gemini-3.1-pro-preview.
   # Refresh 2026-11-14 (owner-directed, pre-release): every row re-read; o3 10/40 -> 2/8; cursor-grok-4.6 null -> 2/6 (Cursor rate card); added gpt-5.5 (in METRICS history, was mis-costed at gpt-5 rates by longest prefix); marked unverified (no longer on the vendor pricing page, shut down): gemini-2.0-flash, gemini-2.0-flash-lite, gemini-1.5-pro, gemini-3-pro-preview, o4-mini.
+  # Owner bindings 2026-11-14 (chore/routing-bind-2026-11): added gemini-3.6-flash, gemini-4-carbon (bound), gemini-4-argon, gemini-4-hydrogen (priced swap candidates), gpt-5.6-luna (bound), composer-2.5, muse-spark-1.3 (Cursor rate card); xai-pricing URL moved to docs.x.ai/developers/models.
 
 update_policy:
   cadence_days: 30
@@ -79,11 +80,11 @@ sources:
   openai-pricing:
     provider: openai
     url: "https://developers.openai.com/api/docs/pricing"
-    last_verified_utc: "2026-11-14T21:52:16Z"
+    last_verified_utc: "2026-11-14T22:14:29Z"
   openai-deprecations:
     provider: openai
     url: "https://developers.openai.com/api/docs/deprecations"
-    last_verified_utc: "2026-11-14T21:52:16Z"
+    last_verified_utc: "2026-11-14T22:14:29Z"
   openai-codex-release:
     provider: openai
     url: "https://openai.com/index/introducing-upgrades-to-codex/"
@@ -99,23 +100,23 @@ sources:
   google-ai-pricing:
     provider: google
     url: "https://aistudio.google.com/docs/pricing"
-    last_verified_utc: "2026-11-14T21:52:16Z"
+    last_verified_utc: "2026-11-14T22:14:29Z"
   google-deprecations:
     provider: google
     url: "https://aistudio.google.com/docs/deprecations"
-    last_verified_utc: "2026-11-14T21:52:16Z"
+    last_verified_utc: "2026-11-14T22:14:29Z"
   deepseek-pricing:
     provider: deepseek
     url: "https://api-docs.deepseek.com/quick_start/pricing"
     last_verified_utc: "2026-11-14T21:52:16Z"
   xai-pricing:
     provider: xai
-    url: "https://docs.x.ai/docs/models"
-    last_verified_utc: "2026-11-14T21:52:16Z"
+    url: "https://docs.x.ai/developers/models"
+    last_verified_utc: "2026-11-14T22:14:29Z"
   cursor-pricing:
     provider: cursor
     url: "https://cursor.com/docs/models-and-pricing"
-    last_verified_utc: "2026-11-14T21:52:16Z"
+    last_verified_utc: "2026-11-14T22:14:29Z"
 
 # Normalize runtime model IDs to canonical pricing keys (lookup_rules step 2).
 model_aliases:
@@ -271,6 +272,30 @@ models:
     source_ref: google-ai-pricing
     last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Preview pricing (text/image/video input). Pricing page calls it the legacy Flash model; google-deprecations names gemini-3.6-flash as its recommended replacement with no shutdown date announced."
+  gemini-3.6-flash:
+    input_usd_per_m: 0.75
+    output_usd_per_m: 3.75
+    source_ref: google-ai-pricing
+    last_verified_utc: "2026-11-14T22:14:29Z"
+    notes: "Stable; Standard paid tier $0.75/$3.75 through 2026-12-31, SCHEDULED $1.50/$7.50 from 2027-01-01 (google-ai-pricing). google-deprecations names it the replacement for gemini-3-flash-preview; no shutdown date."
+  gemini-4-carbon:
+    input_usd_per_m: 2.00
+    output_usd_per_m: 10.00
+    source_ref: google-ai-pricing
+    last_verified_utc: "2026-11-14T22:14:29Z"
+    notes: "GA 2026-11-10, Google's most capable Gemini 4 reasoning model. Standard paid tier $2/$10 through 2026-11-30, SCHEDULED $4/$20 from 2026-12-01 (google-ai-pricing). No shutdown date (google-deprecations)."
+  gemini-4-argon:
+    input_usd_per_m: 2.00
+    output_usd_per_m: 10.00
+    source_ref: google-ai-pricing
+    last_verified_utc: "2026-11-14T22:14:29Z"
+    notes: "GA 2026-10-13, efficient Gemini 4 frontier reasoning model (faster, lower token spend per turn than carbon). Priced only, not bound. $2/$10 through 2026-11-30, SCHEDULED $4/$20 from 2026-12-01 (google-ai-pricing)."
+  gemini-4-hydrogen:
+    input_usd_per_m: 1.50
+    output_usd_per_m: 7.50
+    source_ref: google-ai-pricing
+    last_verified_utc: "2026-11-14T22:14:29Z"
+    notes: "GA 2026-11-12, speed/efficiency Gemini 4 variant for everyday coding and agentic work. Priced only, not bound. No scheduled change listed (google-ai-pricing)."
   gemini-3.8-flash:
     input_usd_per_m: 0.75
     output_usd_per_m: 3.75
@@ -288,6 +313,19 @@ models:
     source_ref: cursor-pricing
     last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Cursor model rate for Grok 4.6 (standard, not Fast) on the Cursor models-and-pricing page, per 1M tokens; Fast is $4/$12. Runtime ids such as cursor-grok-4.6-high resolve here by longest prefix."
+
+  composer-2.5:
+    input_usd_per_m: 0.50
+    output_usd_per_m: 2.50
+    source_ref: cursor-pricing
+    last_verified_utc: "2026-11-14T22:14:29Z"
+    notes: "Cursor's own model rate on the Cursor models-and-pricing page (standard, not Fast; Fast is $3/$15), per 1M tokens; applies to usage beyond the weekly pool."
+  muse-spark-1.3:
+    input_usd_per_m: 1.25
+    output_usd_per_m: 4.25
+    source_ref: cursor-pricing
+    last_verified_utc: "2026-11-14T22:14:29Z"
+    notes: "Cursor rate card for Muse Spark 1.3 (Meta), per 1M tokens; cached input $0.15, no long-context surcharge."
 
   grok-4.7:
     input_usd_per_m: 2.00
@@ -333,6 +371,12 @@ models:
     source_ref: openai-pricing
     last_verified_utc: "2026-11-14T21:52:16Z"
     notes: "Standard tier up to 272K input tokens ($2/$12); above 272K input the full request uses 2x input and 1.5x output on source page."
+  gpt-5.6-luna:
+    input_usd_per_m: 0.20
+    output_usd_per_m: 1.20
+    source_ref: openai-pricing
+    last_verified_utc: "2026-11-14T22:14:29Z"
+    notes: "Standard short-context (<272K input) list; cached input $0.02; long-context tier $0.40/$1.80 on source page. Not on openai-deprecations (only named there as a replacement)."
   gpt-6-astra:
     input_usd_per_m: 10.00
     output_usd_per_m: 50.00

@@ -68,8 +68,11 @@ Read current model ids and list prices from PRIMARY vendor sources only: the
 `sources:` URLs in PRICING.yaml and the vendors' own model-list pages. Every
 provider listed under `sources:` is in scope, not only the three routed
 vendors: `anthropic`, `openai`, `google`, `deepseek` and `xai` today (read the
-list from the file, do not trust this sentence), plus the Cursor docs
-(`https://cursor.com/docs`) for the `cursor` rows. The vendor pricing pages are
+list from the file, do not trust this sentence), plus the Cursor rate card
+(`https://cursor.com/docs/models-and-pricing`) for the `cursor` rows. The xAI
+model and price page is `https://docs.x.ai/developers/models`. A `sources:`
+URL that moved is updated to the vendor's current page in the same change,
+and a retired page is never cited. The vendor pricing pages are
 `https://platform.claude.com/docs/en/about-claude/pricing`,
 `https://developers.openai.com/api/docs/pricing` and
 `https://aistudio.google.com/docs/pricing`; the other providers' pages are the
@@ -89,6 +92,29 @@ exactly one state:
 - marked: the refresh could not verify the row from a primary source, so set
   `unverified_utc` = the run stamp and change nothing else (rates and
   `last_verified_utc` stay, the rates still cost).
+
+Special cases, each decided by the rule here, never ad hoc:
+
+- Shut-down model (gone from the pricing page, or past its shutdown date on
+  the vendor's deprecations page): KEEP the row — METRICS history is still
+  costed by it. Mark it (`unverified_utc` = the run stamp), leave the rates
+  and `last_verified_utc` unchanged, and you MAY edit its `notes` to state the
+  shutdown date and the deprecations-page source. Never delete it.
+- Bound id with a successor: move a routed id ONLY to the replacement the
+  vendor itself names (deprecations page or pricing page), never to a model
+  you judge better. When the bound id is still served and the named successor
+  costs more, do NOT move it: keep the binding and flag it in the PR body for
+  the owner (old id, successor, both prices, source URL). A bound id that is
+  shut down moves to its named successor.
+- Null-priced row (or a CHANGE-0197 "omitted" catalog family) that now has a
+  published list price: price it from the primary page, and in the same
+  change move the id from the `omitted` list into the `catalog` list of
+  Assert 7 in `tests/skills/test-aai-pricing.sh`.
+- Metrics-history check: list every model id in `docs/ai/METRICS.jsonl` that
+  the resolver costs through a SHORTER longest-prefix row of a different model
+  (example: `gpt-5.5` costed at the `gpt-5` row) and add an exact row for it.
+  A prefix match that only strips an effort or bracket suffix
+  (`gpt-6-astra high` -> `gpt-6-astra`) is correct and needs no row.
 
 The re-stamp rule: a mark is a priced-line change, so both tables' stamps
 (`last_updated_utc`) move to the run stamp in the same change, whether or not
@@ -116,10 +142,13 @@ Update the literal id and rate pins those suites hold in the same change.
 ## Step 4 — UPSTREAM: changelog and pull request
 
 Add one `## [unreleased] — chore: refresh model routing and pricing tables (<YYYY-MM>)`
-heading to CHANGELOG.md. Push branch `chore/routing-refresh-<YYYY-MM>` and
+heading to CHANGELOG.md. The title must NOT contain the phrase
+`routing-table freshness`: the pricing suite (TEST-3675) expects exactly one
+CHANGELOG heading with it, the one that introduced the seam. Push branch `chore/routing-refresh-<YYYY-MM>` and
 open a pull request with `gh pr create` (GitHub MCP `create_pull_request` when
 `gh` is unavailable). The PR body lists what changed, what was verified with
-which URL, and what stayed unverified (every marked row). NEVER merge —
+which URL, what stayed unverified (every marked row), and every successor
+flagged for the owner (Step 2). NEVER merge —
 merging is an operator action, whatever the merge-allowed flag says.
 
 ## Step 5 — Run report
