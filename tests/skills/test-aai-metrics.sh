@@ -4852,6 +4852,70 @@ NODE
   log_pass "A recovered live ride flushes only its new run as PASS segment 2 and opens the PR gate; with no new run it takes RESUME (TEST-3740)"
 }
 
+test_3749_real_ledger_holds_the_recovered_lines() {
+  log_info "Test: docs/ai/METRICS.jsonl keeps the pre-ride prefix and holds the recovered lines at the dry-run counts (TEST-3749, Spec-AC-12)..."
+  local ledger="$PROJECT_ROOT/docs/ai/METRICS.jsonl"
+  [[ -f "$ledger" ]] || log_fail "TEST-3749: docs/ai/METRICS.jsonl missing"
+  node - "$ledger" <<'NODE' || log_fail "TEST-3749: the real ledger does not match the pinned D8 recovery"
+const fs = require('fs');
+const crypto = require('crypto');
+const PREFIX_BYTES = 866116;
+const PREFIX_SHA = '5ef04d1fe299fd1d6d8a2e1678a9c60c675650a2deb1460eeb83e0004e311d41';
+const REASON = 'role runs held only by archived STATE copies; recovered by metrics-flush --recover-archives (recover-archived-state-runs); verdict unknown';
+const PIN = { lines: 65, runs: 280, tokens: 79080170, seg2: 21, none: 44 };
+const fail = (m) => { console.error(m); process.exit(1); };
+const buf = fs.readFileSync(process.argv[2]);
+if (buf.length < PREFIX_BYTES) fail('ledger shorter than the pre-ride prefix');
+const sha = crypto.createHash('sha256').update(buf.subarray(0, PREFIX_BYTES)).digest('hex');
+if (sha !== PREFIX_SHA) fail('the first ' + PREFIX_BYTES + ' bytes changed: sha256 ' + sha);
+const lines = [];
+let off = 0;
+for (const raw of buf.toString('utf8').split('\n')) {
+  const len = Buffer.byteLength(raw) + 1;
+  if (raw.startsWith('{')) lines.push({ off, e: JSON.parse(raw) });
+  off += len;
+}
+const rec = lines.filter((l) => l.e.reconstructed && l.e.reconstructed.reason === REASON);
+for (const l of rec) {
+  if (l.off < PREFIX_BYTES) fail('a recovery line starts inside the pre-ride prefix: ' + l.e.ref_id);
+  if (l.e.verdict !== null || l.e.verdict_basis !== null || l.e.strategy !== null) fail('recovery line is not verdict-free: ' + l.e.ref_id);
+}
+if (rec.length !== PIN.lines) fail('recovery lines ' + rec.length + ' != ' + PIN.lines);
+let runs = 0, tokens = 0, seg2 = 0, none = 0;
+for (const l of rec) {
+  runs += l.e.agent_runs.length;
+  for (const r of l.e.agent_runs) tokens += r.tokens_total || 0;
+  if (l.e.flush_segment === 2) seg2++; else if (l.e.flush_segment === undefined) none++;
+}
+if (runs !== PIN.runs) fail('runs ' + runs + ' != ' + PIN.runs);
+if (tokens !== PIN.tokens) fail('tokens_total ' + tokens + ' != ' + PIN.tokens);
+if (seg2 !== PIN.seg2 || none !== PIN.none) fail('segment split ' + seg2 + '/' + none + ' != ' + PIN.seg2 + '/' + PIN.none);
+const held = new Set();
+for (const l of lines) {
+  if (rec.includes(l)) continue;
+  for (const r of l.e.agent_runs || []) held.add(l.e.ref_id + '\u0000' + r.role + '\u0000' + r.started_utc);
+}
+for (const l of rec) for (const r of l.e.agent_runs) {
+  if (held.has(l.e.ref_id + '\u0000' + r.role + '\u0000' + r.started_utc)) fail('recovered run already held: ' + l.e.ref_id + ' ' + r.role + ' ' + r.started_utc);
+}
+NODE
+  log_pass "the ledger keeps its pre-ride prefix and holds 65 recovered lines / 280 runs, none duplicated (TEST-3749)"
+}
+
+test_3750_changelog_and_product_doc_describe_the_recovery() {
+  log_info "Test: CHANGELOG holds one fix heading for the archived-runs recovery and telemetry.md describes it (TEST-3750, Spec-AC-13)..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/telemetry.md"
+  [[ -f "$cl" && -f "$doc" ]] || log_fail "TEST-3750: CHANGELOG.md or docs/product/telemetry.md missing"
+  local n
+  n=$(LC_ALL=C awk '/^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] \xe2\x80\x94 fix: role runs held only by archived STATE copies/ { c++ } END { print c + 0 }' "$cl")
+  [[ "$n" == "1" ]] || log_fail "TEST-3750: CHANGELOG.md has $n headings for the archived-runs recovery fix, expected exactly 1"
+  local needle
+  for needle in "--recover-archives" "never a PASS" "started_utc" "reconstructed"; do
+    /usr/bin/grep -qF -- "$needle" "$doc" || log_fail "TEST-3750: docs/product/telemetry.md does not mention: $needle"
+  done
+  log_pass "CHANGELOG has one fix heading and telemetry.md describes the recovery (TEST-3750)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -4964,6 +5028,8 @@ main() {
   test_3738_dry_run_and_idempotent_second_run
   test_3739_focus_walk_defaults_and_usage_refusals
   test_3740_recovery_then_flush_then_pr_gate
+  test_3749_real_ledger_holds_the_recovered_lines
+  test_3750_changelog_and_product_doc_describe_the_recovery
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

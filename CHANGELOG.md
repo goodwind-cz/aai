@@ -30,6 +30,10 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: role runs held only by archived STATE copies are written to the ledger
+
+`metrics-flush.mjs --recover-archives` reads archived copies of STATE (handoff and merge-cleanup archives, report copies, checkpoints) and appends one line per ref for the role runs the ledger never received. Each line is marked `reconstructed` with its sources and a reason, carries no verdict and is never read as a PASS, a delivery or a flush by the PR gate, the dispatcher, the docs audit or the readers. A run already in the ledger or in the live STATE is not written again, the ref in focus is skipped and a second run appends nothing. This repository's ledger gained 65 lines (280 runs) recovered this way; earlier lines are unchanged. `docs/product/telemetry.md` describes the command and the line shape.
+
 ## [unreleased] — fix: a flush after a reopen keeps the new runs instead of dropping them
 
 - Flush: `metrics-flush.mjs` used to treat any ride that already had a line in `docs/ai/METRICS.jsonl` as an interrupted flush, so runs recorded after a reopen were deleted from STATE without ever reaching the ledger. It now compares runs: a ride whose STATE runs are all in the ledger is still only cleaned up, and new runs go through the normal gates and are appended as one continuation line (`flush_segment` 2 or higher) that holds only those runs. If the gates refuse them, nothing is appended, STATE keeps the runs and the output prints a `SKIP` line that names how many runs were kept and why.
