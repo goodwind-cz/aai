@@ -1036,7 +1036,8 @@ test_012_growth_sum_matches_ledger() {
   # Then 65945 -> 66423: model-effort-routing Spec-AC-12 (+478 B: VALIDATION evidence-digest dial rule; credited 1:1).
   # Then 66423 -> 66523: model-effort-routing digest-clean remediation (+100 B: VALIDATION +29, SKILL_LOOP +71; credited 1:1).
   # Then 66523 -> 66791: archive-ledger-check (+268 B: SKILL_WORKTREE Cleanup step 2 metrics-flush --recover-archives --include-focus line, its pull-main-first comment and the Safety bullet naming it; credited 1:1).
-  local want_growth=66791
+  # Then 66791 -> 67057: effort-direct-append (+266 B: ROLE_COMMON direct-append --effort-applied direct and --requested-effort, SKILL_LOOP step 4 direct value and its precedence; credited 1:1).
+  local want_growth=67057
   if [[ "$JUSTIFIED_GROWTH_BYTES" -ne "$want_growth" ]]; then
     log_info "TEST-012 (spec TEST-001): JUSTIFIED_GROWTH_BYTES=$JUSTIFIED_GROWTH_BYTES (want $want_growth)"
     ok=0
@@ -2759,6 +2760,7 @@ test_2824_diet_entry_for_binding() {
     if [[ "$n" -ge 1 ]]; then later=$(( later + ${_e%% *} )); fi
   done
   growth=$(( growth - later ))
+  growth=$(( growth + 210 ))   # effort-direct-append credits 210 B of .aai/ROLE_COMMON.md growth, outside this glob
   lead="${entry%% *}"
   if [[ "$growth" -gt 0 ]]; then
     if [[ "$n" -ne 1 ]]; then

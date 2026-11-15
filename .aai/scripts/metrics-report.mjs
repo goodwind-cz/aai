@@ -99,11 +99,16 @@ function undecomposedTokenCell(runs) {
 }
 
 // spec-model-effort-routing D-REPORT: --by-effort. Rows group by role (any
-// " (...)" suffix removed) and requested_effort ('unset' when absent), sorted
-// by role then low < medium < high < unset. Medians are rounded to a whole token.
+// " (...)" suffix removed), requested_effort and effort_applied ('unset' when
+// absent; spec-effort-direct-append D3), sorted by role, then low < medium <
+// high < unset, then APPLIED_ORDER. Medians are rounded to a whole token.
 const EFFORT_ORDER = ['low', 'medium', 'high', 'unset'];
+const APPLIED_ORDER = ['param', 'overridden', 'not_supported', 'direct', 'unset'];
 const roleBase = r => (typeof r.role === 'string' && r.role !== '' ? r.role.replace(/ \(.*\)$/, '') : 'unknown');
 const effortOf = r => (typeof r.requested_effort === 'string' && r.requested_effort !== '' ? r.requested_effort : 'unset');
+const appliedOf = r => (typeof r.effort_applied === 'string' && r.effort_applied !== '' ? r.effort_applied : 'unset');
+const groupKey = r => [roleBase(r), effortOf(r), appliedOf(r)].join('\u0000');
+const orderIn = (list, v) => (list.includes(v) ? list.indexOf(v) : list.length - 1);
 
 function medianOf(nums) {
   if (nums.length === 0) return null;
@@ -116,21 +121,24 @@ const sumNum = (runs, key) => runs.reduce((a, r) => a + (typeof r[key] === 'numb
 
 function effortTable(title, runs) {
   const out = [title,
-    '| role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |',
-    '|------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|'];
+    '| role | effort | applied | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |',
+    '|------|--------|---------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|'];
   const groups = new Map();
   for (const r of runs) {
-    const key = `${roleBase(r)}\u0000${effortOf(r)}`;
-    if (!groups.has(key)) groups.set(key, { role: roleBase(r), effort: effortOf(r), runs: [] });
+    const key = groupKey(r);
+    if (!groups.has(key)) groups.set(key, { role: roleBase(r), effort: effortOf(r), applied: appliedOf(r), runs: [] });
     groups.get(key).runs.push(r);
   }
   const rows = [...groups.values()].sort((a, b) => (a.role < b.role ? -1 : a.role > b.role ? 1 : 0)
-    || EFFORT_ORDER.indexOf(a.effort) - EFFORT_ORDER.indexOf(b.effort));
+    || orderIn(EFFORT_ORDER, a.effort) - orderIn(EFFORT_ORDER, b.effort)
+    || orderIn(APPLIED_ORDER, a.applied) - orderIn(APPLIED_ORDER, b.applied)
+    || (a.effort < b.effort ? -1 : a.effort > b.effort ? 1 : 0)
+    || (a.applied < b.applied ? -1 : a.applied > b.applied ? 1 : 0));
   for (const g of rows) {
     const t = totalsOf(g.runs);
     const med = medianOf(t);
     const withCache = g.runs.filter(r => typeof r.cache_read_tokens === 'number' || typeof r.cache_creation_tokens === 'number').length;
-    out.push(`| ${g.role} | ${g.effort} | ${g.runs.length} | ${t.length} | ${t.reduce((a, v) => a + v, 0)} | ${med === null ? 'n/a' : med} | ${costCell(g.runs)} | ${sumNum(g.runs, 'cache_read_tokens')} | ${sumNum(g.runs, 'cache_creation_tokens')} | ${withCache} |`);
+    out.push(`| ${g.role} | ${g.effort} | ${g.applied} | ${g.runs.length} | ${t.length} | ${t.reduce((a, v) => a + v, 0)} | ${med === null ? 'n/a' : med} | ${costCell(g.runs)} | ${sumNum(g.runs, 'cache_read_tokens')} | ${sumNum(g.runs, 'cache_creation_tokens')} | ${withCache} |`);
   }
   return out;
 }

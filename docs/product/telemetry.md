@@ -163,6 +163,15 @@ one capability:
   `metrics.work_items[<ref>].validation` (STATE) and each ledger line's
   `verdict_basis` (`per-ref-field | global-block | event`) name which source
   admitted the ride past the flush gate.
+- Effort fields on `agent_runs[]` (SPEC-0288, present only when passed):
+  `requested_effort` (`low | medium | high`) and `effort_applied`: `param`
+  (passed through the harness's per-dispatch knob), `not_supported` (no knob,
+  or no harness value), `overridden` (an environment variable won), `direct`
+  (the role ran in the orchestrating session, not as a dispatched subagent).
+  A directly executed role records it through the shared append command in
+  `.aai/ROLE_COMMON.md` (`--effort-applied direct`, plus
+  `--requested-effort` when the dispatch named one). Runs recorded before the
+  feature carry neither field and are never rewritten.
 - Continuation lines: a ride flushed again after a reopen gets a second
   summary line with the same `ref_id` and one extra field, `flush_segment`
   (the number of summary lines the ride had before, plus 1, so the first
@@ -244,6 +253,10 @@ one capability:
 - `state.mjs log-tick` / `append-run --prompt-hash` — stderr WARNING on
   duration-0 / missing harness; `--prompt-hash` validated (bad value exits 2,
   writes nothing).
+- `metrics-report.mjs --by-effort [--split <date>]` — one row per role,
+  requested effort and applied value; the `applied` column reads `unset`
+  for a run without `effort_applied`, so history (`unset | unset`) never
+  shares a row with a `direct` or `not_supported` run.
 - `metrics-report.mjs` / overview — TOKENS ONLY for undecomposed totals,
   never a fabricated USD figure; overview regeneration at close is
   best-effort (a generator failure never changes the close exit code).

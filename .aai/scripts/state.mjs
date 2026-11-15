@@ -174,8 +174,10 @@ const BIND_ONS = ['dispatch', 'verdict'];
 // valid for every role; Validation/Code Review refuse its OMISSION (D2/D3).
 // spec-model-effort-routing D-RECORD: append-run's requested-effort and
 // effort-applied value sets (emitted only when the flag was passed).
+// spec-effort-direct-append D1: `direct` = the role ran in the orchestrating
+// session (no dispatch, no per-dispatch effort knob).
 const EFFORT_LEVELS_RUN = ['low', 'medium', 'high'];
-const EFFORT_APPLIED_VALUES = ['param', 'not_supported', 'overridden'];
+const EFFORT_APPLIED_VALUES = ['param', 'not_supported', 'overridden', 'direct'];
 const VERDICT_VALUES = ['pass', 'fail', 'none'];
 const VERDICT_REQUIRED_ROLES = ['Validation', 'Code Review'];
 
