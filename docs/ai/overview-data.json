@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-15T19:53:45.565Z",
+  "generatedAt": "2026-11-15T22:19:05.322Z",
   "project": "aai",
   "counts": {
-    "delivered": 362,
+    "delivered": 363,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 187194602
+    "tokens_total": 187570936
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -244,6 +244,19 @@
       "agent_minutes": 139,
       "token_total": 963926,
       "spec": "docs/specs/SPEC-0293-spec-archive-ledger-check.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-archive-ledger-check-20261115T193057Z.md"
+    },
+    {
+      "ref": "effort-direct-append",
+      "title": "Directly executed role runs record no effort, so the effort report cannot tell them from old history",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0117-effort-direct-append.md",
+      "closed_on": "2026-11-15",
+      "agent_minutes": 67,
+      "token_total": 376334,
+      "spec": "docs/specs/SPEC-0294-spec-effort-direct-append.md",
       "validation": null,
       "review": null
     },
@@ -4977,6 +4990,19 @@
           "agent_minutes": 139,
           "token_total": 963926,
           "spec": "docs/specs/SPEC-0293-spec-archive-ledger-check.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-archive-ledger-check-20261115T193057Z.md"
+        },
+        {
+          "ref": "effort-direct-append",
+          "title": "Directly executed role runs record no effort, so the effort report cannot tell them from old history",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0117-effort-direct-append.md",
+          "closed_on": "2026-11-15",
+          "agent_minutes": 67,
+          "token_total": 376334,
+          "spec": "docs/specs/SPEC-0294-spec-effort-direct-append.md",
           "validation": null,
           "review": null
         },
