@@ -4,7 +4,7 @@ type: spec
 number: null
 status: implementing
 mutation_gate: v1
-frozen_sha256: a73e33197669979634f10ddefe3528e5d3040edc5fac2c7707a052650b4eeb99
+frozen_sha256: f53446c90e396a721a8a0a1cf527fe6d17c830d1a594ed7bd716d4e521814b13
 ceremony_level: 2
 links:
   requirement: recover-archived-state-runs
@@ -514,7 +514,11 @@ above.
 
 `fu-archived-state-runs-not-in-ledger` (P2): closed by Spec-AC-01..05 (the
 command) and Spec-AC-12 (the recovery on this repository's ledger). Checked
-`node .aai/scripts/follow-ups.mjs list` (342 open). Adjacent and NOT closed:
+`node .aai/scripts/follow-ups.mjs list` (342 open).
+
+## Adjacent registry items (not closed)
+
+Not closed by this scope, named for the reader only:
 `fu-dispatch-flushed-probe-ref-keyed` (rule 14 stays ref-keyed for real
 lines; recovery lines are excluded, which neither fixes nor worsens it),
 `fu-continuation-rerecords-human-time` (D4 takes human time from the copy; the
@@ -522,7 +526,8 @@ fold's maximum already bounds it), `fu-recheck-tests-regen-shipping-overview`
 and `fu-test-flush-regens-overview` (the recovery branch does not regenerate
 the overview).
 
-Suggested follow-ups (not filed by Planning):
+## Suggested follow-ups (not filed by Planning)
+
 - suggested: `fu-archive-step-skips-ledger-check` (merge-cleanup
   archiveRuntime and SKILL_WORKTREE cleanup archive STATE without checking
   that its runs reached METRICS).

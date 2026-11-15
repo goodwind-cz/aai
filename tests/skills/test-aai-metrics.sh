@@ -72,6 +72,10 @@ setup_fixture() {
 # --- fixture builders ---------------------------------------------------------
 
 # mk_repo <name> — isolated repo root with the real docs/ai layout. Echoes dir.
+# Physical path of a directory (what `pwd -P` prints) without a cd inside a
+# command substitution (cd-subshell-leak ratchet).
+realpath_of() { node -e 'process.stdout.write(require("fs").realpathSync(process.argv[1]))' "$1"; }
+
 mk_repo() {
   local d="$TEST_DIR/$1"
   rm -rf "$d"
@@ -4639,7 +4643,7 @@ const roles = L[0].agent_runs.map((r) => r.role).join();
 if (roles !== 'Implementation') { console.error('runs written: ' + roles); process.exit(1); }
 if (L[0].flush_segment !== 2) { console.error('continuation expected'); process.exit(1); }
 NODE
-  c="$(cd "$d" && pwd -P)/docs/ai/archive/STATE.yaml"
+  c="$(realpath_of "$d")/docs/ai/archive/STATE.yaml"
   grep -qF "NOTE ARCH-C Brainstorm: run without started_utc in $c not recovered" "$OUT" || log_fail "TEST-3736: NOTE for the run without started_utc: $(cat "$OUT")"
   log_pass "Held runs and runs without started_utc are not written (TEST-3736)"
 }
@@ -4666,7 +4670,7 @@ if (L.length !== 1 || L[0].agent_runs.length !== 1) { console.error('one line wi
 if (L[0].agent_runs[0].note !== 'first copy') { console.error('note: ' + L[0].agent_runs[0].note); process.exit(1); }
 if (L[0].reconstructed.source !== 'docs/ai/archive/STATE-1.yaml;docs/ai/archive/STATE-2.yaml') { console.error('source: ' + L[0].reconstructed.source); process.exit(1); }
 NODE
-  a="$(cd "$d" && pwd -P)/docs/ai/archive/STATE-1.yaml"
+  a="$(realpath_of "$d")/docs/ai/archive/STATE-1.yaml"
   grep -qxF "NOTE ARCH-D Planning 2026-07-06T10:00:00Z: archive copies disagree on note; kept $a" "$OUT" || log_fail "TEST-3737: NOTE line naming ref, role, started_utc, note and the kept path: $(cat "$OUT")"
   [[ "$(grep -c '^NOTE ' "$OUT" || true)" == 1 ]] || log_fail "TEST-3737: exactly one NOTE expected: $(cat "$OUT")"
   log_pass "A run in two copies is written once from the first-sorted copy with one NOTE (TEST-3737)"
@@ -4759,7 +4763,7 @@ test_3739_focus_walk_defaults_and_usage_refusals() {
   refuse 2 "--recover-archives with --release" --recover-archives --release ARCH-F
   refuse 2 "a missing --archive path" --recover-archives --archive "$d/no-such-dir"
   refuse 1 "an absent --state" --recover-archives --state "$d/docs/ai/no-such-state.yaml"
-  log_pass "Focus skipped, directory walked, defaults applied and refusals exit as specified (TEST-3739)"
+  log_pass "Focus ref left out, directory walked, defaults applied and refusals exit as specified (TEST-3739)"
 }
 
 # --- recover-archived-state-runs: recovery -> normal flush -> PR gate (TEST-3740, Spec-AC-05)
