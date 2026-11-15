@@ -3943,3 +3943,8 @@
 {"v":1,"ts":"2026-11-15T00:21:04Z","actor":"ales_holubec.net","event":"docs_audit","ref":"docs-audit/full","payload":{"total":739,"orphans":0,"drifted":0,"stale":0,"false_open":0,"mode":"enforced"}}
 {"v":1,"ts":"2026-11-15T00:53:10Z","actor":"ales_holubec.net","event":"full_sweep","ref":"recover-archived-state-runs","payload":{"head":"253af27503c3b4e77824510b2f462b23eae67d8e","rc":1,"run_id":"test-20261115-003033"}}
 {"v":1,"ts":"2026-11-15T00:53:10Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"recover-archived-state-runs","payload":{"head":"253af27503c3b4e77824510b2f462b23eae67d8e","clean":false,"flags":1}}
+{"v":1,"ts":"2026-11-15T01:08:03Z","actor":"ales_holubec.net","event":"round_reset","ref":"recover-archived-state-runs","payload":{"block":"last_validation","from":"fail","forced":false}}
+{"v":1,"ts":"2026-11-15T01:40:06Z","actor":"ales_holubec.net","event":"full_sweep","ref":"recover-archived-state-runs","payload":{"head":"9b5966c00e2af337175a20ed11fa135dbb5dc301","rc":0,"run_id":"test-20261115-012305"}}
+{"v":1,"ts":"2026-11-15T01:40:06Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"recover-archived-state-runs","payload":{"head":"9b5966c00e2af337175a20ed11fa135dbb5dc301","clean":true,"flags":0}}
+{"v":1,"ts":"2026-11-15T01:41:39Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"recover-archived-state-runs","payload":{"role":"code_review","head":"9b5966c00e2af337175a20ed11fa135dbb5dc301","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-15T01:41:40Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"recover-archived-state-runs","payload":{"status":"pass","hash":"e12c8d46fb596797a4e0242a41714d0a5401f955b89003140b56b395a3061cef"}}
