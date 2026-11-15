@@ -6,13 +6,12 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (3)
+## Active (implementing) (2)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
-| spec-recover-archived-state-runs | specs | implementing | 13 planned | docs/specs/SPEC-DRAFT-recover-archived-state-runs.md |
 
 ## Canonical layer (0)
 
@@ -64,7 +63,7 @@ _None._
 | validation-cost-calibration | validation-cost-calibration | 2 | docs/product/validation-cost-calibration.md |
 | windows-test-wrapper | windows-test-wrapper | 7 | docs/product/windows-test-wrapper.md |
 
-## Done (654)
+## Done (656)
 
 | ID | Type | Path |
 |---|---|---|
@@ -413,6 +412,7 @@ _None._
 | ISSUE-0112 | issues | docs/issues/ISSUE-0112-update-ps1-git-stderr.md |
 | ISSUE-0113 | issues | docs/issues/ISSUE-0113-round-cap-hardening.md |
 | ISSUE-0114 | issues | docs/issues/ISSUE-0114-flush-drops-reopened-runs.md |
+| ISSUE-0115 | issues | docs/issues/ISSUE-0115-recover-archived-state-runs.md |
 | RFC-0001 | rfc | docs/rfc/RFC-0001-ac-tracking-and-multi-dev-state.md |
 | RFC-0002 | rfc | docs/rfc/RFC-0002-docs-hygiene-and-drift-audit.md |
 | RFC-0003 | rfc | docs/rfc/RFC-0003-docs-canonicalization-skill.md |
@@ -720,10 +720,11 @@ _None._
 | SPEC-0289 | specs | docs/specs/SPEC-0289-spec-routing-tables-have-an-owner-and-a-seam.md |
 | SPEC-0290 | specs | docs/specs/SPEC-0290-spec-consumer-config-routing-override.md |
 | SPEC-0291 | specs | docs/specs/SPEC-0291-spec-flush-drops-reopened-runs.md |
+| SPEC-0292 | specs | docs/specs/SPEC-0292-spec-recover-archived-state-runs.md |
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (15)
+## Drafts (14)
 
 | ID | Type | Path |
 |---|---|---|
@@ -740,7 +741,6 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
-| recover-archived-state-runs (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-recover-archived-state-runs.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)

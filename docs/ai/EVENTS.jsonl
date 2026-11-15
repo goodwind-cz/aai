@@ -3954,3 +3954,10 @@
 {"v":1,"ts":"2026-11-15T03:15:21Z","actor":"ales_holubec.net","event":"evidence_digest","ref":"recover-archived-state-runs","payload":{"head":"a46c12b4dd16567967d06e9e4caac053b539eb9a","clean":true,"flags":0}}
 {"v":1,"ts":"2026-11-15T03:17:01Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"recover-archived-state-runs","payload":{"role":"validation","head":"a46c12b4dd16567967d06e9e4caac053b539eb9a","seen":"run_at:2026-11-15T03:17:00Z"}}
 {"v":1,"ts":"2026-11-15T03:17:01Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"recover-archived-state-runs","payload":{"status":"pass","hash":"fb24a9500ddea0cde1884a85def4bb0c9c6c39bd48bb34e8095989fc28cba992"}}
+{"v":1,"ts":"2026-11-15T03:17:48Z","actor":"ales_holubec.net","event":"check_verdict","ref":"recover-archived-state-runs","payload":{"role":"validation","head":"a46c12b4dd16567967d06e9e4caac053b539eb9a","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-11-15T03:17:48Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"recover-archived-state-runs","payload":{"role":"validation","head":"7a8e39c3e8eda6b3e9f45fc9fc7c6a456297bde0","seen":"run_at:2026-11-15T03:17:48Z"}}
+{"v":1,"ts":"2026-11-15T03:17:49Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"recover-archived-state-runs","payload":{"status":"pass","hash":"721effaf3193b93feca749bb4adea1e5b45cd42478c9cdf3bb90a423aa48c2ec"}}
+{"v":1,"ts":"2026-11-15T03:28:15Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"recover-archived-state-runs","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-15T03:28:15Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"recover-archived-state-runs","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-15T03:28:15Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-recover-archived-state-runs","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-15T03:28:15Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-recover-archived-state-runs","payload":{"validation":"pass","code_review":"pass"}}

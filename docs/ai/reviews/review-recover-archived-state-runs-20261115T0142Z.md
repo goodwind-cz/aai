@@ -8,7 +8,7 @@ code_review.scope: .aai/scripts/metrics-flush.mjs, lib/metrics-flush-record.mjs,
 lib/docs-audit-core.mjs, orchestration-dispatch.mjs, golden-flow.mjs, the touched
 tests/skills/*.sh suites, tests/skills/lib/ride-handoff.test.mjs, docs/ai/METRICS.jsonl
 (appended lines), docs/product/telemetry.md, CHANGELOG.md, the intake and the spec.
-Spec: docs/specs/SPEC-DRAFT-recover-archived-state-runs.md (SPEC-FROZEN).
+Spec: docs/specs/SPEC-0292-spec-recover-archived-state-runs.md (SPEC-FROZEN).
 
 security_relevant: false
 
@@ -19,7 +19,7 @@ severity or exclude any area. The full scope was reviewed anyway.
 ```yaml
 review:
   scope: "5bbc129e...ecac2cf9 (paths of STATE code_review.scope)"
-  spec: docs/specs/SPEC-DRAFT-recover-archived-state-runs.md
+  spec: docs/specs/SPEC-0292-spec-recover-archived-state-runs.md
   spec_compliance:
     verdict: pass
     ac_walk:
