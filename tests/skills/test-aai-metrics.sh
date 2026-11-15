@@ -4746,6 +4746,19 @@ test_3739_focus_walk_defaults_and_usage_refusals() {
   [[ "$EC" == 0 ]] || log_fail "TEST-3739: named file must exit 0 (got $EC): $(cat "$OUT")"
   grep -qF '"ref_id":"ARCH-H"' "$d/docs/ai/METRICS.jsonl" || log_fail "TEST-3739: a file named by --archive is read whatever its name"
 
+  # the live --state file is never an archived copy, even when --archive covers its directory
+  local e
+  e="$(mk_repo t3739live)"
+  rc_open "$e/docs/ai/STATE.yaml"
+  rc_ref "$e/docs/ai/STATE.yaml" ARCH-L
+  rc_run "$e/docs/ai/STATE.yaml" Planning claude-sonnet-5 2026-07-08T10:00:00Z 2026-07-08T10:05:00Z 300 10 10
+  printf 'current_focus:\n  type: none\n  ref_id: ARCH-F\nupdated_at_utc: 2026-07-15T11:30:00Z\n' >> "$e/docs/ai/STATE.yaml"
+  cp "$e/docs/ai/METRICS.jsonl" "$e/ledger.before"
+  run_recover "$e" --archive "$e/docs/ai"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3739: --archive on the STATE directory must exit 0 (got $EC): $(cat "$OUT")"
+  if grep -qF 'ARCH-L' "$e/docs/ai/METRICS.jsonl"; then log_fail "TEST-3739: the live --state file must not be recovered as an archived copy: $(cat "$OUT")"; fi
+  grep -qF "is the --state file" "$OUT" || log_fail "TEST-3739: a NOTE line must name the excluded --state file: $(cat "$OUT")"
+
   # usage refusals (exit 2) and the absent --state (exit 1) leave the ledger alone
   cp "$d/docs/ai/METRICS.jsonl" "$d/ledger.before"
   local rc
@@ -4879,7 +4892,8 @@ for (const raw of buf.toString('utf8').split('\n')) {
   if (raw.startsWith('{')) lines.push({ off, e: JSON.parse(raw) });
   off += len;
 }
-const rec = lines.filter((l) => l.e.reconstructed && l.e.reconstructed.reason === REASON);
+const RECOVERED_UTC = '2026-11-15T00:09:46Z';
+const rec = lines.filter((l) => l.e.reconstructed && l.e.reconstructed.reason === REASON && l.e.reconstructed.recovered_utc === RECOVERED_UTC);
 for (const l of rec) {
   if (l.off < PREFIX_BYTES) fail('a recovery line starts inside the pre-ride prefix: ' + l.e.ref_id);
   if (l.e.verdict !== null || l.e.verdict_basis !== null || l.e.strategy !== null) fail('recovery line is not verdict-free: ' + l.e.ref_id);

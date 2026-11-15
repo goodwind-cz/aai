@@ -1687,8 +1687,9 @@ const roleStartKey = (ref, run) => JSON.stringify([ref, run.role ?? null, run.st
 
 // Every STATE copy under the named paths, sorted by absolute path, each read once.
 // Directories are walked without following symbolic links.
-function archiveCopies(paths) {
+function archiveCopies(paths, stateReal) {
   const found = new Set();
+  const excluded = [];
   const walk = (dir) => {
     for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, d.name);
@@ -1699,7 +1700,13 @@ function archiveCopies(paths) {
   for (const p of paths) {
     if (fs.statSync(p).isDirectory()) walk(p); else found.add(p);
   }
-  return [...found].sort();
+  const kept = [];
+  for (const p of [...found].sort()) {
+    let real = p;
+    try { real = fs.realpathSync(p); } catch { /* unreadable: the read step notes it */ }
+    if (real === stateReal) excluded.push(p); else kept.push(p);
+  }
+  return { copies: kept, excluded };
 }
 
 // Exact ref_id summary lines of the ledger: the (ref, role, started_utc) keys
@@ -1763,7 +1770,10 @@ function handleRecoverArchives(opts) {
   const nowIso = new Date(nowMs).toISOString().replace(/\.\d+Z$/, 'Z');
   const pricing = loadCostPricing(cwd, pricingPath);
   const notes = [];
-  const copies = archiveCopies(roots);
+  let stateReal = statePath;
+  try { stateReal = fs.realpathSync(statePath); } catch { /* checked above */ }
+  const { copies, excluded } = archiveCopies(roots, stateReal);
+  for (const p of excluded) notes.push(`NOTE ${p}: is the --state file, not an archived copy; excluded`);
 
   // D2 archive side: one run per (ref, role, started_utc), the first-sorted copy wins.
   const byKey = new Map();
