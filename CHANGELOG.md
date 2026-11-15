@@ -34,6 +34,31 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 `metrics-flush.mjs --recover-archives` reads archived copies of STATE (handoff and merge-cleanup archives, report copies, checkpoints) and appends one line per ref for the role runs the ledger never received. Each line is marked `reconstructed` with its sources and a reason, carries no verdict and is never read as a PASS, a delivery or a flush by the PR gate, the dispatcher, the docs audit or the readers. A run already in the ledger is not written again; a run that is also in the live STATE is written from its live fields and a later flush treats it as held; the ref in focus is skipped and a second run appends nothing. This repository's ledger gained 65 lines (280 runs) recovered this way; earlier lines are unchanged. `docs/product/telemetry.md` describes the command and the line shape.
 
+## [unreleased] — chore(routing): bind gemini-3.6-flash, gemini-4-carbon and gpt-5.6-luna (owner decision 2026-11-14)
+
+Routed models change on two harnesses, so a dispatch on them suggests a
+different model and its runs cost differently:
+
+- Gemini mechanical, standard and Metrics Flush: `gemini-3-flash-preview` ->
+  `gemini-3.6-flash` (the replacement Google names; $0.75/$3.75 per 1M through
+  2026-12-31, $1.50/$7.50 from 2027-01-01).
+- Gemini premium, Planning, Code Review and the validator alternate:
+  `gemini-3.1-pro-preview` -> `gemini-4-carbon` (GA; $2/$10 per 1M through
+  2026-11-30, $4/$20 from 2026-12-01). `gemini-4-argon` and
+  `gemini-4-hydrogen` are priced but not bound.
+- Codex mechanical and Metrics Flush: `gpt-6.1-terra` -> `gpt-5.6-luna`
+  ($0.20/$1.20 per 1M, was $1/$5).
+- `composer-2.5` ($0.50/$2.50) and `muse-spark-1.3` ($1.25/$4.25) are now
+  priced from Cursor's rate card; the xAI source moved to
+  `docs.x.ai/developers/models`.
+- The ROUTING_REFRESH routine now states its rules for shut-down models,
+  named-successor moves (a pricier successor of a still-served model is
+  flagged for the owner, not moved), newly published prices, metrics ids
+  costed through a shorter prefix, current source URLs and its CHANGELOG title.
+
+A project that pinned another model keeps it through `routing_override@<harness>:`
+in `docs/ai/project-config.yaml`.
+
 ## [unreleased] — fix: a flush after a reopen keeps the new runs instead of dropping them
 
 - Flush: `metrics-flush.mjs` used to treat any ride that already had a line in `docs/ai/METRICS.jsonl` as an interrupted flush, so runs recorded after a reopen were deleted from STATE without ever reaching the ledger. It now compares runs: a ride whose STATE runs are all in the ledger is still only cleaned up, and new runs go through the normal gates and are appended as one continuation line (`flush_segment` 2 or higher) that holds only those runs. If the gates refuse them, nothing is appended, STATE keeps the runs and the output prints a `SKIP` line that names how many runs were kept and why.

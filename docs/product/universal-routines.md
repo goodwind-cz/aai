@@ -114,7 +114,14 @@ current: it reads PRIMARY vendor sources only, covers every provider listed
 under `sources:`, ends every priced row either re-verified or marked
 `unverified_utc`, moves both stamps, gates the run on
 `table-freshness.mjs priced` (plus `routed` and `stamp-guard` and the pricing
-suites) and opens a pull request. In downstream mode (a vendored install whose
+suites) and opens a pull request. Its rules settle the recurring cases: a
+shut-down model keeps its row (marked, rates unchanged, shutdown date in the
+notes); a bound id moves only to the vendor's named successor, and a pricier
+successor of a still-served model is flagged for the owner instead of moved; a
+row that gains a published price is priced and leaves the pricing suite's
+omitted list; ids in the metrics history costed through a shorter prefix of a
+different model get an exact row; and its CHANGELOG title never repeats the
+phrase the pricing suite reserves for the seam's own entry. In downstream mode (a vendored install whose
 `.aai/` is not tracked) it runs `aai-doctor.mjs --json`, researches only the
 model ids that project overrides and the shipped table does not price (plus
 stale project prices), edits only the `pricing:` section of

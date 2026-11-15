@@ -1165,8 +1165,21 @@ test_3704_routing_refresh_full_table() {
       --schedule "0 6 1 * *" --model claude-opus-5-5 --tz Europe/Prague
     rendered="$OUT"
     [[ "$RC" -eq 0 ]] || { log_info "TEST-3704 $h: exit $RC: $ERR"; ok=0; continue; }
-    for needle in 'every `models:` row' 'unverified_utc' 'table-freshness.mjs priced' 'TEST_3668_ALLOW_STALE' 're-stamp' 'both tables' 'Cursor docs'; do
+    for needle in 'every `models:` row' 'unverified_utc' 'table-freshness.mjs priced' 'TEST_3668_ALLOW_STALE' 're-stamp' 'both tables' 'Cursor rate card'; do
       grep -qF -- "$needle" <<<"$rendered" || { log_info "TEST-3704 $h: missing '$needle'"; ok=0; }
+    done
+    # First-run feedback 2026-11-14: current source URLs, shut-down rows kept,
+    # named-successor-only moves with a pricier successor flagged, newly
+    # published prices leave the omitted pin, history prefix check, and the
+    # CHANGELOG title rule.
+    for needle in 'https://cursor.com/docs/models-and-pricing' 'https://docs.x.ai/developers/models' \
+      'Shut-down model' 'KEEP the row' 'shutdown date' 'the replacement the' 'costs more, do NOT move it' \
+      'flag it in the PR body' 'published list price' '`omitted` list' 'Metrics-history check' \
+      'SHORTER longest-prefix' 'must NOT contain the phrase' '`routing-table freshness`'; do
+      grep -qF -- "$needle" <<<"$rendered" || { log_info "TEST-3704 $h: missing '$needle'"; ok=0; }
+    done
+    for stale in 'docs.cursor.com' 'docs.x.ai/docs/models'; do
+      grep -qF -- "$stale" <<<"$rendered" && { log_info "TEST-3704 $h: cites retired URL '$stale'"; ok=0; }
     done
     for prov in $provs; do
       grep -qF -- "\`$prov\`" <<<"$rendered" || { log_info "TEST-3704 $h: provider $prov of PRICING sources: is not named"; ok=0; }
