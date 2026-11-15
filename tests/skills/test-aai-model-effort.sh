@@ -440,28 +440,28 @@ test_3640_by_effort_tables() {
   [[ "$EC" == 0 ]] || log_fail "TEST-3640: --by-effort exited $EC: $(cat "$TEST_DIR/rep.err")"
   cat > "$d/want1.md" <<'MD'
 ### By role and requested effort
-| role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
-|------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
-| Implementation | medium | 2 | 1 | 900 | 900 | ~$2.00 | 30 | 10 | 1 |
-| Implementation | unset | 1 | 1 | 1000 | 1000 | $1.50 | 0 | 0 | 0 |
-| Validation | high | 1 | 1 | 500 | 500 | $0.50 | 0 | 0 | 0 |
-| Validation | unset | 1 | 1 | 400 | 400 | n/a | 0 | 0 | 0 |
+| role | effort | applied | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
+|------|--------|---------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
+| Implementation | medium | unset | 2 | 1 | 900 | 900 | ~$2.00 | 30 | 10 | 1 |
+| Implementation | unset | unset | 1 | 1 | 1000 | 1000 | $1.50 | 0 | 0 | 0 |
+| Validation | high | unset | 1 | 1 | 500 | 500 | $0.50 | 0 | 0 | 0 |
+| Validation | unset | unset | 1 | 1 | 400 | 400 | n/a | 0 | 0 | 0 |
 MD
   diff -u "$d/want1.md" "$TEST_DIR/rep.out" > "$d/d1" 2>&1 || log_fail "TEST-3640: --by-effort table differs: $(cat "$d/d1")"
   rep "$d/METRICS.jsonl" --by-effort --split 2026-07-05
   [[ "$EC" == 0 ]] || log_fail "TEST-3640: --split exited $EC: $(cat "$TEST_DIR/rep.err")"
   cat > "$d/want2.md" <<'MD'
 ### Before 2026-07-05
-| role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
-|------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
-| Implementation | unset | 1 | 1 | 1000 | 1000 | $1.50 | 0 | 0 | 0 |
-| Validation | unset | 1 | 1 | 400 | 400 | n/a | 0 | 0 | 0 |
+| role | effort | applied | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
+|------|--------|---------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
+| Implementation | unset | unset | 1 | 1 | 1000 | 1000 | $1.50 | 0 | 0 | 0 |
+| Validation | unset | unset | 1 | 1 | 400 | 400 | n/a | 0 | 0 | 0 |
 
 ### From 2026-07-05
-| role | effort | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
-|------|--------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
-| Implementation | medium | 2 | 1 | 900 | 900 | ~$2.00 | 30 | 10 | 1 |
-| Validation | high | 1 | 1 | 500 | 500 | $0.50 | 0 | 0 | 0 |
+| role | effort | applied | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
+|------|--------|---------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
+| Implementation | medium | unset | 2 | 1 | 900 | 900 | ~$2.00 | 30 | 10 | 1 |
+| Validation | high | unset | 1 | 1 | 500 | 500 | $0.50 | 0 | 0 | 0 |
 
 ### Delta by role
 | role | median tokens_total before | median tokens_total from | change |
@@ -495,7 +495,7 @@ test_3641_dispatch_to_report() {
   flush_d "$d"
   rep "$d/docs/ai/METRICS.jsonl" --by-effort
   [[ "$EC" == 0 ]] || log_fail "TEST-3641: --by-effort exited $EC: $(cat "$TEST_DIR/rep.err")"
-  qgrep -q -F '| Validation | high | 1 | 1 | 15 |' < "$TEST_DIR/rep.out" || log_fail "TEST-3641: no Validation high row: $(cat "$TEST_DIR/rep.out")"
+  qgrep -q -F '| Validation | high | param | 1 | 1 | 15 |' < "$TEST_DIR/rep.out" || log_fail "TEST-3641: no Validation high row: $(cat "$TEST_DIR/rep.out")"
   # Default output ignores the new fields: byte-identical with them stripped.
   rep "$d/docs/ai/METRICS.jsonl"
   cp "$TEST_DIR/rep.out" "$d/default-with.md"
@@ -520,7 +520,7 @@ test_3642_canon_wiring() {
   local f
   f="$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md"
   local t
-  for t in 'harness_effort' 'reasoning_effort' 'effort_override' '--requested-effort <suggested_effort>' '--effort-applied <param|not_supported|overridden>' '--cache-creation' 'Agent `effort`' '`not_supported` when `harness_effort` is null'; do
+  for t in 'harness_effort' 'reasoning_effort' 'effort_override' '--requested-effort <suggested_effort>' '--effort-applied <param|not_supported|overridden|direct>' '--cache-creation' 'Agent `effort`' '`not_supported` when `harness_effort` is null'; do
     qgrep -q -F -- "$t" < "$f" || log_fail "TEST-3642: SKILL_LOOP lacks '$t'"
   done
   f="$PROJECT_ROOT/.aai/SUBAGENT_PROTOCOL.md"
@@ -868,6 +868,127 @@ test_3649_changelog_entry() {
   log_pass "TEST-3649: one bare scaffold, one effort entry that survives the release roll, parser accepts the file"
 }
 
+# --- TEST-3790 (spec-effort-direct-append Spec-AC-01) ------------------------
+test_3790_direct_value() {
+  CUR_TEST="TEST-3790"
+  log_info "TEST-3790: append-run takes --effort-applied direct, with and without a requested effort; flush carries it..."
+  local d; d="$(mk_root t3790)"
+  done_state "$d"
+  local common=(append-run --ref CHANGE-0001 --model claude-sonnet-5-5 --tokens-in 10 --tokens-out 5 --tokens-total 15)
+  st "$d" "${common[@]}" --role Implementation --started 2026-07-01T00:00:00Z --effort-applied direct --requested-effort high
+  [[ "$EC" == 0 ]] || log_fail "TEST-3790: append-run with direct and high exited $EC: $(cat "$ERR")"
+  st "$d" "${common[@]}" --role Planning --started 2026-07-01T00:10:00Z --effort-applied direct
+  [[ "$EC" == 0 ]] || log_fail "TEST-3790: append-run with direct alone exited $EC: $(cat "$ERR")"
+  local before after
+  before="$(cat "$d/docs/ai/STATE.yaml")"
+  st "$d" "${common[@]}" --role Planning --started 2026-07-01T00:20:00Z --effort-applied maybe
+  [[ "$EC" == 2 ]] || log_fail "TEST-3790: --effort-applied maybe exited $EC, expected 2"
+  after="$(cat "$d/docs/ai/STATE.yaml")"
+  [[ "$before" == "$after" ]] || log_fail "TEST-3790: an out-of-set value changed STATE"
+  flush_d "$d"
+  jassert_ledger "$d/docs/ai/METRICS.jsonl" '(() => { const a = o.agent_runs; const i = a.find(r => r.role === "Implementation"), p = a.find(r => r.role === "Planning");
+    return a.length === 2 && i.effort_applied === "direct" && i.requested_effort === "high"
+      && p.effort_applied === "direct" && !("requested_effort" in p); })()'
+  log_pass "TEST-3790: direct recorded with and without a requested effort, flushed; out-of-set still refused"
+}
+
+# --- TEST-3791 (spec-effort-direct-append Spec-AC-02) ------------------------
+test_3791_applied_column() {
+  CUR_TEST="TEST-3791"
+  log_info "TEST-3791: --by-effort keeps direct, not_supported and param runs apart from history..."
+  local d="$TEST_DIR/t3791"; mkdir -p "$d"
+  cat > "$d/METRICS.jsonl" <<'JSONL'
+{"date_utc":"2026-07-01","ref_id":"AAA-0001","title":"History","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Implementation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":1.5,"tokens_total":1000},{"role":"Validation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":null,"tokens_total":400}],"verdict":"PASS"}
+{"date_utc":"2026-07-10","ref_id":"AAA-0002","title":"After","human_time_minutes":{"intake":null,"reviews":null},"agent_runs":[{"role":"Validation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":0.5,"tokens_total":500,"requested_effort":"high","effort_applied":"param"},{"role":"Validation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":null,"tokens_total":300,"requested_effort":"high","effort_applied":"not_supported"},{"role":"Validation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":null,"tokens_total":200,"requested_effort":"high","effort_applied":"direct"},{"role":"Validation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":null,"tokens_total":100,"effort_applied":"direct"},{"role":"Implementation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":null,"tokens_total":900,"effort_applied":"not_supported"},{"role":"Implementation","model_id":"claude-sonnet-5-5","tokens_in":null,"tokens_out":null,"cost_usd":null,"tokens_total":700,"requested_effort":"medium","effort_applied":"overridden"}],"verdict":"PASS"}
+JSONL
+  rep "$d/METRICS.jsonl" --by-effort
+  [[ "$EC" == 0 ]] || log_fail "TEST-3791: --by-effort exited $EC: $(cat "$TEST_DIR/rep.err")"
+  cat > "$d/want1.md" <<'MD'
+### By role and requested effort
+| role | effort | applied | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |
+|------|--------|---------|------|------------------------|------------------|---------------------|--------------|----------------|--------------------|-----------------|
+| Implementation | medium | overridden | 1 | 1 | 700 | 700 | n/a | 0 | 0 | 0 |
+| Implementation | unset | not_supported | 1 | 1 | 900 | 900 | n/a | 0 | 0 | 0 |
+| Implementation | unset | unset | 1 | 1 | 1000 | 1000 | $1.50 | 0 | 0 | 0 |
+| Validation | high | param | 1 | 1 | 500 | 500 | $0.50 | 0 | 0 | 0 |
+| Validation | high | not_supported | 1 | 1 | 300 | 300 | n/a | 0 | 0 | 0 |
+| Validation | high | direct | 1 | 1 | 200 | 200 | n/a | 0 | 0 | 0 |
+| Validation | unset | direct | 1 | 1 | 100 | 100 | n/a | 0 | 0 | 0 |
+| Validation | unset | unset | 1 | 1 | 400 | 400 | n/a | 0 | 0 | 0 |
+MD
+  diff -u "$d/want1.md" "$TEST_DIR/rep.out" > "$d/d1" 2>&1 || log_fail "TEST-3791: --by-effort table differs: $(cat "$d/d1")"
+  rep "$d/METRICS.jsonl" --by-effort --split 2026-07-05
+  [[ "$EC" == 0 ]] || log_fail "TEST-3791: --split exited $EC: $(cat "$TEST_DIR/rep.err")"
+  qgrep -q -x -F '| Validation | unset | unset | 1 | 1 | 400 | 400 | n/a | 0 | 0 | 0 |' < "$TEST_DIR/rep.out" || log_fail "TEST-3791: Before lacks the history row: $(cat "$TEST_DIR/rep.out")"
+  qgrep -q -x -F '| Validation | unset | direct | 1 | 1 | 100 | 100 | n/a | 0 | 0 | 0 |' < "$TEST_DIR/rep.out" || log_fail "TEST-3791: From lacks the direct row: $(cat "$TEST_DIR/rep.out")"
+  [[ "$(grep -c -x -F '| role | effort | applied | runs | runs with tokens_total | sum tokens_total | median tokens_total | sum cost USD | sum cache_read | sum cache_creation | runs with cache |' "$TEST_DIR/rep.out" || true)" == 2 ]] \
+    || log_fail "TEST-3791: --split lacks the applied column in Before and From: $(cat "$TEST_DIR/rep.out")"
+  # Negative control: a ledger with no effort fields prints applied unset only.
+  head -n 1 "$d/METRICS.jsonl" > "$d/history.jsonl"
+  rep "$d/history.jsonl" --by-effort
+  [[ "$EC" == 0 ]] || log_fail "TEST-3791: history-only --by-effort exited $EC"
+  local rows
+  rows="$(grep -c '^| [A-Z]' "$TEST_DIR/rep.out" || true)"
+  [[ "$rows" == 2 && "$(grep -c '^| [A-Z][a-z]* | unset | unset |' "$TEST_DIR/rep.out" || true)" == 2 ]] \
+    || log_fail "TEST-3791: history-only ledger printed a row with an applied value: $(cat "$TEST_DIR/rep.out")"
+  log_pass "TEST-3791: applied column; direct, not_supported, overridden and param rows apart from unset history"
+}
+
+# --- TEST-3792 (spec-effort-direct-append Spec-AC-03) ------------------------
+test_3792_role_common_direct_append() {
+  CUR_TEST="TEST-3792"
+  log_info "TEST-3792: the ROLE_COMMON direct-append command, run as written, records direct and the requested effort..."
+  local d; d="$(mk_root t3792)"
+  done_state "$d"
+  node -e '
+    const t = require("fs").readFileSync(process.argv[1], "utf8").split(/\r?\n/);
+    const i = t.findIndex(l => l.startsWith("  node .aai/scripts/state.mjs append-run "));
+    if (i < 0) { console.error("no append-run command in ROLE_COMMON.md"); process.exit(1); }
+    let cmd = "", j = i;
+    for (;; j++) { const l = t[j]; cmd += " " + l.replace(/\\$/, ""); if (!/\\$/.test(l)) break; }
+    cmd = cmd.replace("node .aai/scripts/state.mjs", "")
+      .replace("<REF-ID>", "CHANGE-0001").replace("<ThisRole>", "Remediation")
+      .replace("<your model identifier>", "claude-sonnet-5-5").replace("<started_utc>", "2026-07-01T00:00:00Z")
+      .replace("<pass|fail|none>", "none")
+      .replace(/\[(--requested-effort) <[^>]*>\]/, "$1 high")
+      .replace(/\[[^\]]*\]/g, "");
+    if (/[<>\[\]]/.test(cmd)) { console.error("unfilled placeholder in: " + cmd); process.exit(1); }
+    process.stdout.write(cmd.trim().split(/\s+/).join("\n") + "\n");
+  ' "$PROJECT_ROOT/.aai/ROLE_COMMON.md" > "$d/cmd.txt" || log_fail "TEST-3792: could not extract the ROLE_COMMON command"
+  local args=() a
+  while IFS= read -r a; do args+=("$a"); done < "$d/cmd.txt"
+  st "$d" "${args[@]}"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3792: the ROLE_COMMON command exited $EC: $(cat "$ERR")"
+  flush_d "$d"
+  jassert_ledger "$d/docs/ai/METRICS.jsonl" '(() => { const r = o.agent_runs.find(x => x.role === "Remediation");
+    return !!r && r.effort_applied === "direct" && r.requested_effort === "high"; })()'
+  rep "$d/docs/ai/METRICS.jsonl" --by-effort
+  qgrep -q -F '| Remediation | high | direct | 1 |' < "$TEST_DIR/rep.out" || log_fail "TEST-3792: no Remediation high direct row: $(cat "$TEST_DIR/rep.out")"
+  qgrep -q -F -- '--effort-applied <param|not_supported|overridden|direct>' < "$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md" \
+    || log_fail "TEST-3792: SKILL_LOOP step 4 does not name direct"
+  qgrep -q -F -- '`direct` when the role ran in this session, else `not_supported` when `harness_effort` is null' < "$PROJECT_ROOT/.aai/SKILL_LOOP.prompt.md" \
+    || log_fail "TEST-3792: SKILL_LOOP step 4 does not give direct precedence over not_supported"
+  log_pass "TEST-3792: canon command -> state.mjs -> flush -> report row Remediation high direct; SKILL_LOOP names direct"
+}
+
+# --- TEST-3793 (spec-effort-direct-append Spec-AC-04) ------------------------
+test_3793_docs_entry() {
+  CUR_TEST="TEST-3793"
+  local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/telemetry.md" n
+  n="$(grep -c -E '^## \[(unreleased|v[0-9][^]]*)\] — fix: a directly executed role records how its effort was applied' "$cl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3793: $n CHANGELOG headings for this fix, expected 1"
+  node -e '
+    const t = require("fs").readFileSync(process.argv[1], "utf8").split("\n");
+    const i = t.findIndex(l => /— fix: a directly executed role records how its effort was applied/.test(l));
+    let e = t.length; for (let j = i + 1; j < t.length; j++) if (/^## \[/.test(t[j])) { e = j; break; }
+    const body = t.slice(i, e).join("\n");
+    for (const k of ["--effort-applied direct", "applied", "--by-effort", "unset"]) if (!body.includes(k)) { console.error("entry lacks " + k); process.exit(1); }
+  ' "$cl" || log_fail "TEST-3793: the CHANGELOG entry is incomplete"
+  qgrep -q -F -- '--effort-applied direct' < "$doc" || log_fail "TEST-3793: telemetry.md does not name --effort-applied direct"
+  qgrep -q -F -- '`applied` column' < "$doc" || log_fail "TEST-3793: telemetry.md does not name the applied column"
+  log_pass "TEST-3793: one CHANGELOG entry and the product doc name direct and the applied column"
+}
+
 main() {
   check_deps
   test_3633_shipped_effort_table
@@ -887,6 +1008,10 @@ main() {
   test_3647_validation_rule
   test_3648_wiring_pins
   test_3649_changelog_entry
+  test_3790_direct_value
+  test_3791_applied_column
+  test_3792_role_common_direct_append
+  test_3793_docs_entry
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

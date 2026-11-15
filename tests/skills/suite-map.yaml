@@ -1769,6 +1769,8 @@ suites:
   aai-model-effort:
     globs:
       - tests/skills/test-aai-model-effort.sh
+      - .aai/ROLE_COMMON.md
+      - docs/product/telemetry.md
       - .aai/system/MODEL_ROUTING.yaml
       - .aai/scripts/orchestration-dispatch.mjs
       - .aai/scripts/state.mjs

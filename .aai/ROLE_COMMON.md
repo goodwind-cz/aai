@@ -15,8 +15,10 @@ immediately before this role's first step begins.
 PRIMARY PATH — after completing, append your agent run via the transactional CLI:
   node .aai/scripts/state.mjs append-run --ref <REF-ID> --role <ThisRole> \
     --model <your model identifier> --started <started_utc> \
-    --verdict <pass|fail|none> \
+    --verdict <pass|fail|none> --effort-applied direct \
+    [--requested-effort <the dispatch's suggested_effort>] \
     [--note "<summary>"] [--tokens-in N --tokens-out N]
+`direct`: the role ran in this session, not as a dispatched subagent; pass `--requested-effort` when the dispatch named one.
 `--verdict` is REQUIRED (exit 2 without it) when `<ThisRole>` is `Validation`
 or `"Code Review"`; every other role passes `none` unless it has an actual
 pass/fail verdict of its own.
