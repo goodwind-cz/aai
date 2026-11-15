@@ -2060,6 +2060,85 @@ JSONL
   log_pass "foldRideSegments sums seconds, nulls cost on a null segment, takes max human time, merges reliability, keeps single lines and lifecycle records as-is (TEST-3729)"
 }
 
+# --- recover-archived-state-runs: a recovery line never overwrites a ride ----
+# (TEST-3744/3745, Spec-AC-09). A recovery line (metrics-flush --recover-archives:
+# verdict null, `reconstructed` object) holds runs written late. The fold must
+# keep the delivered ride's verdict, position and reliability; an all-recovery
+# ride keeps its own (null) verdict at its own position.
+RECOVERY_REASON='role runs held only by archived STATE copies; recovered by metrics-flush --recover-archives (recover-archived-state-runs); verdict unknown'
+
+# write_recovery_fold_ledger <file> — PASS-RIDE (a PASS line, later a recovery
+# line), SINGLE-C, ALL-REC (two recovery lines) in ledger order.
+write_recovery_fold_ledger() {
+  cat > "$1" <<JSONL
+{"date_utc":"2026-11-10","ref_id":"PASS-RIDE","title":"Delivered ride","agent_runs":[{"role":"Planning","duration_seconds":60,"note":"usage_total_tokens=1000","cost_usd":1}],"totals":{"human_time_minutes":0,"agent_duration_seconds":60,"total_cost_usd":1,"cost_basis":"total-blended"},"strategy":"tdd","reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"field","verdict_after_last_implementer":"PASS"},"verdict_basis":"state","verdict":"PASS"}
+{"date_utc":"2026-11-11","ref_id":"SINGLE-C","title":"One line","agent_runs":[{"role":"Planning","duration_seconds":20,"note":"usage_total_tokens=100"}],"totals":{"agent_duration_seconds":20},"verdict":"PASS"}
+{"date_utc":"2026-08-01","ref_id":"ALL-REC","title":"Recovered only","agent_runs":[{"role":"Planning","duration_seconds":30,"note":"usage_total_tokens=300","cost_usd":0.25}],"totals":{"human_time_minutes":0,"agent_duration_seconds":30,"total_cost_usd":0.25,"cost_basis":"total-blended"},"strategy":null,"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"field","verdict_after_last_implementer":null},"verdict_basis":null,"verdict":null,"reconstructed":{"source":"docs/ai/archive/a/STATE.yaml","reason":"$RECOVERY_REASON","recovered_utc":"2026-11-15T00:00:00Z"}}
+{"date_utc":"2026-08-02","ref_id":"ALL-REC","title":"Recovered only","flush_segment":2,"agent_runs":[{"role":"Validation","duration_seconds":40,"note":"usage_total_tokens=400","cost_usd":0.5}],"totals":{"human_time_minutes":0,"agent_duration_seconds":40,"total_cost_usd":0.5,"cost_basis":"total-blended"},"strategy":null,"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"field","verdict_after_last_implementer":null},"verdict_basis":null,"verdict":null,"reconstructed":{"source":"docs/ai/archive/b/STATE.yaml","reason":"$RECOVERY_REASON","recovered_utc":"2026-11-15T00:00:00Z"}}
+{"date_utc":"2026-08-03","ref_id":"PASS-RIDE","title":"Delivered ride","flush_segment":2,"agent_runs":[{"role":"Code Review","duration_seconds":50,"note":"usage_total_tokens=700","cost_usd":0.75}],"totals":{"human_time_minutes":0,"agent_duration_seconds":50,"total_cost_usd":0.75,"cost_basis":"total-blended"},"strategy":null,"reliability":{"validation_fails":0,"review_fails":0,"remediation_runs":0,"first_pass_clean":true,"basis":"field","verdict_after_last_implementer":null},"verdict_basis":null,"verdict":null,"reconstructed":{"source":"docs/ai/archive/c/STATE.yaml","reason":"$RECOVERY_REASON","recovered_utc":"2026-11-15T00:00:00Z"}}
+JSONL
+}
+
+test_3744_fold_keeps_the_delivered_segment_over_a_recovery_line() {
+  log_info "Test: foldRideSegments takes the latest non-recovery segment as the base; all-recovery refs and single lines are unchanged (TEST-3744)..."
+  local d; d="$(mk_repo t3744)"
+  write_recovery_fold_ledger "$d/docs/ai/METRICS.jsonl"
+  local result rc
+  result="$(node --input-type=module -e '
+    import fs from "node:fs";
+    const { foldRideSegments, isRecoveryRecord } = await import(process.argv[1]);
+    const recs = fs.readFileSync(process.argv[2], "utf8").split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l));
+    const e = [];
+    if (typeof isRecoveryRecord !== "function") { console.log("isRecoveryRecord is not exported"); process.exit(1); }
+    if (isRecoveryRecord(recs[0]) || !isRecoveryRecord(recs[2]) || !isRecoveryRecord(recs[4])) e.push("isRecoveryRecord classification");
+    const out = foldRideSegments(recs);
+    if (out.length !== 3) e.push(`length ${out.length} != 3`);
+    const [p, s, a] = out;
+    if (!p || p.ref_id !== "PASS-RIDE") e.push(`PASS-RIDE must stay at its first-line position, got ${out.map((x) => x.ref_id)}`);
+    if (s !== recs[1]) e.push("single-line ref must be the same object");
+    if (!a || a.ref_id !== "ALL-REC") e.push(`ALL-REC must sit after SINGLE-C (its own last position), got ${out.map((x) => x.ref_id)}`);
+    if (p) {
+      if (p.verdict !== "PASS" || p.verdict_basis !== "state" || p.strategy !== "tdd") e.push(`PASS-RIDE verdict/basis/strategy ${p.verdict}/${p.verdict_basis}/${p.strategy}`);
+      if (p.reliability.verdict_after_last_implementer !== "PASS") e.push(`verdict_after_last_implementer ${p.reliability.verdict_after_last_implementer}`);
+      if (Object.hasOwn(p, "reconstructed")) e.push("the merged PASS ride must not carry the recovery marker");
+      if (p.agent_runs.length !== 2 || p.agent_runs[0].role !== "Planning" || p.agent_runs[1].role !== "Code Review") e.push("runs must be concatenated in ledger order");
+      if (p.totals.agent_duration_seconds !== 110) e.push(`seconds ${p.totals.agent_duration_seconds} != 110`);
+      if (p.date_utc !== "2026-11-10") e.push(`date_utc ${p.date_utc} != latest 2026-11-10`);
+      if (p.flush_segment !== 2 || p.flush_lines !== 2) e.push(`flush_segment/lines ${p.flush_segment}/${p.flush_lines}`);
+    }
+    if (a) {
+      if (a.verdict !== null || a.reliability.verdict_after_last_implementer !== null || !Object.hasOwn(a, "reconstructed")) e.push("all-recovery ref must keep verdict null and its marker");
+      if (a.agent_runs.length !== 2) e.push(`ALL-REC runs ${a.agent_runs.length} != 2`);
+    }
+    if (e.length) { console.log(e.join(" | ")); process.exit(1); }
+    console.log("OK");
+  ' "file://$PROJECT_ROOT/.aai/scripts/lib/metrics-flush-record.mjs" "$d/docs/ai/METRICS.jsonl" 2>&1)" && rc=0 || rc=$?
+  [[ "$rc" == 0 && "$result" == "OK" ]] || log_fail "TEST-3744: fold must keep the PASS segment as base: $result"
+  log_pass "foldRideSegments keeps the delivered segment's verdict, reliability and position over a later recovery line; all-recovery and single-line refs are unchanged (TEST-3744)"
+}
+
+test_3745_reports_count_the_delivered_ride_as_pass() {
+  log_info "Test: factory-report verdict_mix and metrics-report Features delivered count the PASS ride, not the all-recovery ride (TEST-3745)..."
+  [[ -f "$METRICS_REPORT" ]] || log_skip "metrics-report.mjs absent"
+  local d; d="$(mk_repo t3745)"
+  write_recovery_fold_ledger "$d/docs/ai/METRICS.jsonl"
+  # keep two refs: the PASS ride (with its later recovery line) and the all-recovery ride
+  grep -v '"ref_id":"SINGLE-C"' "$d/docs/ai/METRICS.jsonl" > "$d/ledger.two"
+  cp "$d/ledger.two" "$d/docs/ai/METRICS.jsonl"
+  write_pricing "$d/PRICING.yaml"
+  run_report "$d" --data-only
+  [[ "$EC" == 0 ]] || log_fail "TEST-3745: factory report must exit 0: $(cat "$OUT")"
+  DJ="$d/docs/ai/factory-report-data.json"
+  local mix
+  mix="$(node_get "$DJ" 'JSON.stringify(Object.entries(m.quality.verdict_mix).sort())')"
+  [[ "$mix" == '[["PASS",1],["null",1]]' ]] || log_fail "TEST-3745: verdict_mix must be PASS 1 and null 1, got $mix"
+  local rep="$d/metrics-report.md" rc=0
+  (cd "$PROJECT_ROOT" && node "$METRICS_REPORT" --metrics "$d/docs/ai/METRICS.jsonl" --pricing "$d/PRICING.yaml") > "$rep" 2>&1 || rc=$?
+  [[ "$rc" == 0 ]] || log_fail "TEST-3745: metrics-report must exit 0: $(cat "$rep")"
+  grep -qF -- '- Features delivered (PASS): 1' "$rep" || log_fail "TEST-3745: Features delivered must count the PASS ride only: $(cat "$rep")"
+  log_pass "factory-report verdict_mix is PASS 1 / null 1 and metrics-report counts one delivered feature when a recovery line follows the PASS (TEST-3745)"
+}
+
 main() {
   echo "Testing $TEST_NAME (SPEC spec-factory-performance-report TEST-001..014, +017..019; telemetry-completeness TEST-020..021; role-token-trend TEST-022..027; followup-registry TEST-028..029; scope-cost TEST-031..037,039)"
   echo "  + followups-cli-hardening TEST-040; operator-waiver-unblocks-pr TEST-041"
@@ -2106,6 +2185,8 @@ main() {
   test_042_verdict_provenance
   test_043_lifecycle_record_excluded
   test_3728_reopened_ride_is_one_ride
+  test_3744_fold_keeps_the_delivered_segment_over_a_recovery_line
+  test_3745_reports_count_the_delivered_ride_as_pass
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

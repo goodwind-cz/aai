@@ -28,11 +28,20 @@ export function isMetricsFlushRecord(record) {
 // through this single helper, so "one ledger line = one ride" is never
 // assumed again.
 //
+// A "recovery line" (recover-archived-state-runs: metrics-flush
+// --recover-archives) is a summary line whose `reconstructed` is a non-null
+// object and whose verdict is not "PASS". It holds role runs that reached the
+// ledger long after the ride ended and carries no verdict of its own, so no
+// gate reads it as a PASS, a delivery or a flush (isRecoveryRecord). A
+// reconstructed line with verdict PASS (SPEC-0291's incident segment) is a real
+// ride segment and is NOT a recovery line.
+//
 // foldRideSegments(records) -> array in ledger order. Non-summary records
 // (worktree lifecycle events, anything isMetricsFlushRecord refuses) pass
 // through untouched. A ref with exactly one summary line is returned as the
 // SAME object (byte-identical downstream output for every single-line ref).
-// A ref with several lines is replaced, at the position of its LAST line, by
+// A ref with several lines is replaced, at the position of its BASE segment
+// (the latest segment that is not a recovery line, else the last segment), by
 // one merged record:
 //   - agent_runs: concatenated in ledger order
 //   - totals.agent_duration_seconds / total_cost_usd: summed (cost is null if
@@ -44,18 +53,34 @@ export function isMetricsFlushRecord(record) {
 //   - reliability: validation_fails / review_fails / remediation_runs summed,
 //     first_pass_clean false if any segment false, else true only when every
 //     segment says true, else null; basis the shared value else 'mixed';
-//     verdict_after_last_implementer from the latest segment
+//     verdict_after_last_implementer from the base segment
 //   - date_utc: the latest; title: the first non-empty one
-//   - verdict, verdict_basis, strategy and every other field: the latest
-//     segment's (validation_waiver: the latest segment that carries one)
+//   - verdict, verdict_basis, strategy and every other field: the base
+//     segment's (validation_waiver: the latest non-recovery segment that
+//     carries one). With no recovery line the base is the last segment, so
+//     every pre-recovery output is unchanged
 //   - flush_segment: the highest; flush_lines: how many lines were folded
+export function isRecoveryRecord(record) {
+  return isMetricsFlushRecord(record)
+    && record.reconstructed !== null && typeof record.reconstructed === 'object' && !Array.isArray(record.reconstructed)
+    && record.verdict !== 'PASS';
+}
+
+// The segment a folded ride takes its verdict, position and non-summed fields
+// from: the latest that is not a recovery line, else the last (an all-recovery
+// ride keeps its own, null, verdict).
+function baseSegment(segs) {
+  for (let i = segs.length - 1; i >= 0; i--) if (!isRecoveryRecord(segs[i])) return segs[i];
+  return segs[segs.length - 1];
+}
+
 const num = (v) => typeof v === 'number' && Number.isFinite(v);
 const maxOrNull = (vals) => { const n = vals.filter(num); return n.length ? Math.max(...n) : null; };
 
 function mergeSegments(segs) {
-  const last = segs[segs.length - 1];
-  const merged = { ...last };
-  let latestDate = last.date_utc;
+  const base = baseSegment(segs);
+  const merged = { ...base };
+  let latestDate = base.date_utc;
   for (const s of segs) {
     if (metricsFlushDateToTs(s.date_utc) >= metricsFlushDateToTs(latestDate)) latestDate = s.date_utc;
   }
@@ -74,7 +99,7 @@ function mergeSegments(segs) {
       : runsOf(s).reduce((a, r) => a + (num(r.duration_seconds) ? r.duration_seconds : 0), 0)));
     const bases = new Set(t.map((x) => x.cost_basis).filter((b) => typeof b === 'string'));
     merged.totals = {
-      ...(last.totals && typeof last.totals === 'object' ? last.totals : {}),
+      ...(base.totals && typeof base.totals === 'object' ? base.totals : {}),
       human_time_minutes: maxOrNull(t.map((x) => x.human_time_minutes)) ?? 0,
       agent_duration_seconds: secs.reduce((a, v) => a + v, 0),
       total_cost_usd: t.every((x) => num(x.total_cost_usd)) ? t.reduce((a, x) => a + x.total_cost_usd, 0) : null,
@@ -87,7 +112,7 @@ function mergeSegments(segs) {
     const sum = (k) => (present.some((r) => num(r[k])) ? present.reduce((a, r) => a + (num(r[k]) ? r[k] : 0), 0) : undefined);
     const flags = present.map((r) => r.first_pass_clean);
     const bases = new Set(present.map((r) => r.basis).filter((b) => typeof b === 'string'));
-    const rel = { ...present[present.length - 1] };
+    const rel = { ...(rels[segs.indexOf(base)] ?? present[present.length - 1]) };
     for (const k of ['validation_fails', 'review_fails', 'remediation_runs']) { const v = sum(k); if (v !== undefined) rel[k] = v; }
     if (flags.some((f) => typeof f === 'boolean')) {
       rel.first_pass_clean = flags.some((f) => f === false) ? false : (flags.every((f) => f === true) ? true : null);
@@ -95,7 +120,7 @@ function mergeSegments(segs) {
     if (bases.size > 0) rel.basis = bases.size === 1 ? [...bases][0] : 'mixed';
     merged.reliability = rel;
   }
-  const waiver = [...segs].reverse().find((s) => s.validation_waiver !== undefined && s.validation_waiver !== null);
+  const waiver = [...segs].reverse().find((s) => !isRecoveryRecord(s) && s.validation_waiver !== undefined && s.validation_waiver !== null);
   if (waiver !== undefined) merged.validation_waiver = waiver.validation_waiver;
   const segNums = segs.map((s) => (Number.isInteger(s.flush_segment) && s.flush_segment >= 1 ? s.flush_segment : 1));
   merged.flush_segment = Math.max(...segNums);
@@ -115,7 +140,7 @@ export function foldRideSegments(records) {
     if (!isMetricsFlushRecord(r)) { out.push(r); continue; }
     const segs = byRef.get(r.ref_id);
     if (segs.length === 1) { out.push(r); continue; }
-    if (segs[segs.length - 1] === r) out.push(mergeSegments(segs));
+    if (baseSegment(segs) === r) out.push(mergeSegments(segs));
   }
   return out;
 }

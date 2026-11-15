@@ -4762,6 +4762,96 @@ test_3739_focus_walk_defaults_and_usage_refusals() {
   log_pass "Focus skipped, directory walked, defaults applied and refusals exit as specified (TEST-3739)"
 }
 
+# --- recover-archived-state-runs: recovery -> normal flush -> PR gate (TEST-3740, Spec-AC-05)
+
+# mk_recovered_live_ride <name> — the golden CHANGE-0001 ride sits in the live
+# STATE (not focused) and in one archive copy whose Planning ended_utc differs;
+# --recover-archives runs over it. Echoes the repo dir; the recovery output is
+# in <dir>/recover-out.log (run_recover's file; $OUT does not survive the
+# command substitution).
+mk_recovered_live_ride() {
+  local d S A
+  d="$(mk_repo "$1")"
+  S="$d/docs/ai/STATE.yaml"
+  write_flush_state "$S" two   # a second open item keeps the flush a PARTIAL reset, the path that mints the archive record
+  write_ticks "$d/docs/ai/LOOP_TICKS.jsonl"
+  A="$d/docs/ai/archive/merge-cleanup/STATE-x.yaml"
+  mkdir -p "$(dirname "$A")"
+  node - "$S" "$A" <<'NODE'
+const fs = require('fs');
+const [live, arch] = process.argv.slice(2);
+const raw = fs.readFileSync(live, 'utf8');
+const was = '          ended_utc: 2026-07-15T10:02:00Z\n';
+if (!raw.includes(was)) process.exit(1);
+fs.writeFileSync(arch, raw.replace(was, '          ended_utc: 2026-07-15T10:03:00Z\n'));
+const focus = 'current_focus:\n  type: intake_change\n  ref_id: CHANGE-0001\n  primary_path: docs/issues/CHANGE-0001-golden.md\n';
+if (!raw.includes(focus)) process.exit(1);
+fs.writeFileSync(live, raw.replace(focus, 'current_focus:\n  type: none\n  ref_id: null\n  primary_path: null\n'));
+NODE
+  write_golden_doc "$d"
+  run_recover "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3740: recovery must exit 0 (got $EC): $(cat "$OUT")"
+  printf '%s' "$d"
+}
+
+test_3740_recovery_then_flush_then_pr_gate() {
+  log_info "Test: recovery -> state.mjs reopen -> normal flush -> validation-waiver, with the real CLIs (TEST-3740, Spec-AC-05)..."
+  local d S gate
+  d="$(mk_recovered_live_ride t3740)"
+  S="$d/docs/ai/STATE.yaml"
+  OUT="$d/recover-out.log"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3740: recovery must write one line per ref, CHANGE-0001 and CHANGE-0002 (ledger has $(ledger_lines "$d"))"
+  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "TEST-3740: the recovered line must carry the LIVE run fields, not the archive's ended_utc"
+const fs = require('fs');
+const L = fs.readFileSync(process.argv[2], 'utf8').split('\n').filter((l) => l.startsWith('{')).map((l) => JSON.parse(l));
+const c1 = L.filter((e) => e.ref_id === 'CHANGE-0001');
+if (c1.length !== 1 || c1[0].agent_runs.length !== 4) { console.error('one CHANGE-0001 line of four runs expected'); process.exit(1); }
+const planning = c1[0].agent_runs.find((r) => r.role === 'Planning');
+if (planning.ended_utc !== '2026-07-15T10:02:00Z') { console.error('Planning ended_utc ' + planning.ended_utc + ' (archive copy says 10:03:00Z)'); process.exit(1); }
+NODE
+  grep -qF "live: CHANGE-0001 4 runs also in" "$OUT" || log_fail "TEST-3740: recovery output must announce the live runs: $(cat "$OUT")"
+
+  # The ride is reopened: focus, one new run, a validation pass, then a normal flush.
+  (cd "$PROJECT_ROOT" \
+    && node .aai/scripts/state.mjs set-focus --type intake_change --ref CHANGE-0001 --path docs/issues/CHANGE-0001-golden.md --state "$S" \
+    && node .aai/scripts/state.mjs append-run --ref CHANGE-0001 --role Validation --model claude-sonnet-5 --started 2026-07-15T11:40:00Z --verdict pass --tokens-in 10 --tokens-out 10 --state "$S" --ticks "$d/docs/ai/LOOP_TICKS.jsonl" \
+    && node .aai/scripts/state.mjs set-validation --status pass --ref CHANGE-0001 --state "$S") > "$d/reopen.log" 2>&1 \
+    || log_fail "TEST-3740: the reopen CLIs must succeed: $(cat "$d/reopen.log")"
+  NOW_PIN="2030-01-01T00:00:00Z" run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3740: the normal flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 3 ]] || log_fail "TEST-3740: the flush must append exactly one line (ledger has $(ledger_lines "$d")): $(cat "$OUT")"
+  node - "$d/docs/ai/METRICS.jsonl" <<'NODE' || log_fail "TEST-3740: the appended line must be the PASS continuation holding only the new run"
+const fs = require('fs');
+const L = fs.readFileSync(process.argv[2], 'utf8').split('\n').filter((l) => l.startsWith('{')).map((l) => JSON.parse(l));
+const e = L[2];
+if (e.ref_id !== 'CHANGE-0001') { console.error('the new line must be CHANGE-0001'); process.exit(1); }
+if (e.verdict !== 'PASS') { console.error('verdict ' + e.verdict); process.exit(1); }
+if (e.flush_segment !== 2) { console.error('flush_segment ' + e.flush_segment); process.exit(1); }
+if (e.agent_runs.length !== 1 || e.agent_runs[0].role !== 'Validation' || e.agent_runs[0].started_utc !== '2026-07-15T11:40:00Z') {
+  console.error('agent_runs must be exactly the new run: ' + JSON.stringify(e.agent_runs.map((r) => [r.role, r.started_utc]))); process.exit(1);
+}
+if ('reconstructed' in e) { console.error('the PASS line is not a recovery line'); process.exit(1); }
+NODE
+  gate="$d/gate.log"
+  local grc=0
+  (cd "$PROJECT_ROOT" && node .aai/scripts/validation-waiver.mjs --state "$S") > "$gate" 2>&1 || grc=$?
+  [[ "$grc" == 0 ]] || log_fail "TEST-3740: the PR gate must open (rc $grc): $(cat "$gate")"
+  grep -qF "reason=validation_archived_pass" "$gate" || log_fail "TEST-3740: the gate must open on validation_archived_pass: $(cat "$gate")"
+
+  # No new run: the same reopen flush is the cleanup-only RESUME and appends nothing.
+  d="$(mk_recovered_live_ride t3740r)"
+  S="$d/docs/ai/STATE.yaml"
+  (cd "$PROJECT_ROOT" \
+    && node .aai/scripts/state.mjs set-focus --type intake_change --ref CHANGE-0001 --path docs/issues/CHANGE-0001-golden.md --state "$S" \
+    && node .aai/scripts/state.mjs set-validation --status pass --ref CHANGE-0001 --state "$S") > "$d/reopen.log" 2>&1 \
+    || log_fail "TEST-3740: the no-new-run reopen CLIs must succeed: $(cat "$d/reopen.log")"
+  NOW_PIN="2030-01-01T00:00:00Z" run_flush "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3740: the no-new-run flush must exit 0 (got $EC): $(cat "$OUT")"
+  [[ "$(ledger_lines "$d")" == 2 ]] || log_fail "TEST-3740: with no new run the flush must append nothing (ledger has $(ledger_lines "$d")): $(cat "$OUT")"
+  grep -q '^RESUME' "$OUT" || log_fail "TEST-3740: the no-new-run flush must take the RESUME cleanup lane: $(cat "$OUT")"
+  log_pass "A recovered live ride flushes only its new run as PASS segment 2 and opens the PR gate; with no new run it takes RESUME (TEST-3740)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-006..014 + truth-scoring TEST-017/018 + SPEC-0054 TEST-001..005 + --sweep TEST-101..109 + --retire TEST-001..008 + token-capture-canary spec TEST-001..003 + token-economics-end-to-end TEST-001..004,011)"
   check_deps
@@ -4873,6 +4963,7 @@ main() {
   test_3737_conflicting_copies_write_once_with_a_note
   test_3738_dry_run_and_idempotent_second_run
   test_3739_focus_walk_defaults_and_usage_refusals
+  test_3740_recovery_then_flush_then_pr_gate
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

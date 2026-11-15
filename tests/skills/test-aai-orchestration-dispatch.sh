@@ -5006,6 +5006,27 @@ test_1744_reopened_close_is_not_closed() {  # TEST-1744 (Spec-AC-16)
   log_pass "A reopen-superseded close never reaches the closed-but-unflushed arm (TEST-1744)"
 }
 
+# --- recover-archived-state-runs (TEST-3743, Spec-AC-08) ---------------------
+# A recovery line is runs written late (verdict null, `reconstructed` object),
+# not the ride's final flush: rule 14 must still dispatch Metrics Flush.
+test_3743_recovery_line_is_not_a_flush() {
+  log_info "Test: rule 14 ignores a metrics-flush recovery line; a PASS line still means already flushed (TEST-3743)..."
+  local d
+  d="$(mk_root t3743)"
+  write_dstate "$d/docs/ai/STATE.yaml" pass pass implementation in_progress
+  printf '# ledger comment\n' > "$d/docs/ai/METRICS.jsonl"
+  printf '%s\n' '{"date_utc":"2026-07-01","ref_id":"CHANGE-0001","title":"recovered","agent_runs":[],"strategy":null,"verdict_basis":null,"verdict":null,"reconstructed":{"source":"docs/ai/archive/x/STATE.yaml","reason":"role runs held only by archived STATE copies; recovered by metrics-flush --recover-archives (recover-archived-state-runs); verdict unknown","recovered_utc":"2026-11-15T00:00:00Z"}}' >> "$d/docs/ai/METRICS.jsonl"
+  run_dispatch "$d"
+  [[ "$EC" == 0 ]] || log_fail "TEST-3743: a recovery line only must still dispatch Metrics Flush (got $EC): $(cat "$OUT" "$ERR")"
+  jassert "$OUT" 'o.rule === "14" && o.role === "Metrics Flush" && o.state_summary.flushed === false'
+  # control: a real PASS line for the focus ref still reads as flushed.
+  printf '%s\n' '{"date_utc":"2026-07-02","ref_id":"CHANGE-0001","title":"real","agent_runs":[],"verdict":"PASS"}' >> "$d/docs/ai/METRICS.jsonl"
+  run_dispatch "$d"
+  [[ "$EC" == 3 ]] || log_fail "TEST-3743: a PASS line must still give no_action already flushed (got $EC): $(cat "$OUT")"
+  jassert "$OUT" 'o.verdict === "no_action" && o.rule === "14"'
+  log_pass "A recovery line is never read as flushed; a PASS line still is (TEST-3743)"
+}
+
 main() {
   echo "Testing $TEST_NAME (CHANGE-0009 TEST-001..005 + spec-dispatch-new-intake-after-completed-scope TEST-006..012 + dispatch-4a-fail-verdict-precedence TEST-013..018 + cheap-model-in-practice TEST-019..026 + harness-universal-routing TEST-048..058/060 (TEST-059 lives in test-aai-layer-profiles.sh); TEST-025 is a no-new-code regression note -- see Evidence Contract: run this suite plus test-aai-ceremony-levels.sh together)"
   check_deps
@@ -5083,6 +5104,7 @@ main() {
   test_1748_path_qualified_close_remedy_seam
   test_1746_item_absent_remedy_succeeds_seam
   test_1744_reopened_close_is_not_closed
+  test_3743_recovery_line_is_not_a_flush
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }

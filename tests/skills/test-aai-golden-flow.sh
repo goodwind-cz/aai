@@ -1198,6 +1198,44 @@ test_3733_median_folds_a_reopened_ride() {
   log_pass "TEST-3733 tokens_median_last10 folds a reopened ride's segments into one ride (median 700)"
 }
 
+# --- recover-archived-state-runs (TEST-3746/3747, Spec-AC-10) -----------------
+# write_recovery_median_ledger <file> — eleven PASS rides (usage 100..1100 in
+# ledger order), then a recovery line for ride 1 (5000) and an all-recovery
+# ride (5000). A recovery line is `verdict` null with a `reconstructed` object.
+write_recovery_median_ledger() {
+  local f="$1" i
+  : > "$f"
+  for i in 1 2 3 4 5 6 7 8 9 10 11; do
+    printf '{"date_utc":"2026-10-%02d","ref_id":"med-%d","agent_runs":[{"role":"Implementation","note":"usage_total_tokens=%d"}],"verdict":"PASS"}\n' "$i" "$i" "$((i * 100))" >> "$f"
+  done
+  printf '{"date_utc":"2026-11-15","ref_id":"med-1","flush_segment":2,"agent_runs":[{"role":"Planning","note":"usage_total_tokens=5000"}],"verdict":null,"reconstructed":{"source":"docs/ai/archive/a/STATE.yaml","reason":"role runs held only by archived STATE copies; recovered by metrics-flush --recover-archives (recover-archived-state-runs); verdict unknown","recovered_utc":"2026-11-15T00:00:00Z"}}\n' >> "$f"
+  printf '{"date_utc":"2026-11-15","ref_id":"med-old","agent_runs":[{"role":"Planning","note":"usage_total_tokens=5000"}],"verdict":null,"reconstructed":{"source":"docs/ai/archive/b/STATE.yaml","reason":"role runs held only by archived STATE copies; recovered by metrics-flush --recover-archives (recover-archived-state-runs); verdict unknown","recovered_utc":"2026-11-15T00:00:00Z"}}\n' >> "$f"
+}
+
+test_3746_median_skips_all_recovery_rides() {
+  log_info "TEST-3746: tokens_median_last10 leaves an all-recovery ride out of the last ten..."
+  local out="$TEST_DIR/t3746-out" record="$TEST_DIR/t3746-record.jsonl" ledger="$TEST_DIR/t3746-metrics.jsonl"
+  write_recovery_median_ledger "$ledger"
+  flow_env_run "$out" "$record" --metrics "$ledger"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-3746: expected exit 0, got $CODE: $OUT"
+  [[ "$(json_field "$record" 'r.tokens_median_last10')" == "650" ]] \
+    || log_fail "TEST-3746: the median over rides 2..11 is 650 (the all-recovery ride must not displace a real ride): $(tail -1 "$record")"
+  log_pass "TEST-3746 tokens_median_last10 skips an all-recovery ride (median 650)"
+}
+
+test_3747_median_keeps_a_ride_at_its_base_position() {
+  log_info "TEST-3747: a ride with a later recovery line keeps its first-line position in the median..."
+  local out="$TEST_DIR/t3747-out" record="$TEST_DIR/t3747-record.jsonl" ledger="$TEST_DIR/t3747-metrics.jsonl"
+  write_recovery_median_ledger "$ledger"
+  flow_env_run "$out" "$record" --metrics "$ledger"
+  [[ "$CODE" -eq 0 ]] || log_fail "TEST-3747: expected exit 0, got $CODE: $OUT"
+  local got; got="$(json_field "$record" 'r.tokens_median_last10')"
+  [[ "$got" != "750" ]] \
+    || log_fail "TEST-3747: ride 1 was moved to its recovery line's position (the median it takes there is 750): $(tail -1 "$record")"
+  [[ "$got" == "650" ]] || log_fail "TEST-3747: ride 1 stays first, so the median is 650, got $got: $(tail -1 "$record")"
+  log_pass "TEST-3747 a ride with a later recovery line keeps its first-line position (median 650, not 750)"
+}
+
 main() {
   echo "Testing $TEST_NAME (simple-and-friendly-to-use / SPEC-0172-spec-simple-and-friendly-to-use)"
   check_deps
@@ -1224,6 +1262,8 @@ main() {
   test_007_record_append_only_and_diff
   test_417_locked_concurrent_appends
   test_3733_median_folds_a_reopened_ride
+  test_3746_median_skips_all_recovery_rides
+  test_3747_median_keeps_a_ride_at_its_base_position
   echo ""
   log_pass "All $TEST_NAME tests passed"
 }
