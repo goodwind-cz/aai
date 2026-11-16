@@ -17,7 +17,7 @@ _None._
 
 _None._
 
-## Product (41)
+## Product (42)
 
 | ID | Capability | Delivered by | Path |
 |---|---|---|---|
@@ -33,6 +33,7 @@ _None._
 | consumer-config | consumer-config | 1 | docs/product/consumer-config.md |
 | dev-progress-hub | dev-progress-hub | 1 | docs/product/dev-progress-hub.md |
 | directed-merge-and-post-merge-cleanup | directed-merge-and-post-merge-cleanup | 6 | docs/product/directed-merge-and-post-merge-cleanup.md |
+| docs-close-gate | docs-close-gate | 1 | docs/product/docs-close-gate.md |
 | docs-hub-generator | docs-hub-generator | 1 | docs/product/docs-hub-generator.md |
 | downstream-autopilot | downstream-autopilot | 1 | docs/product/downstream-autopilot.md |
 | factory-performance-report | factory-performance-report | 4 | docs/product/factory-performance-report.md |
@@ -764,7 +765,7 @@ _None._
 
 _None._
 
-## Broken references (564)
+## Broken references (570)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -1020,6 +1021,9 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-203-stale-open.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-301-fresh.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-302-bad-type.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5812-flip.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5813-flip.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-5814-flip.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-9001-tracked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/ISSUE-999-untracked.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/issues/x.md | NOT FOUND |
@@ -1040,6 +1044,7 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/opendecision/SPEC-9100-open-decision.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/opendecision/SPEC-9101-informational.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/opendecision/SPEC-9102-plural-open-decisions.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/releases/REL-5815-plan.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/rollout/RFC-0030-umbrella.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/rollout/RFC-0040-draft-umbrella.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/rollout/SPEC-0033-child-3.md | NOT FOUND |
@@ -1063,6 +1068,8 @@ _None._
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-301-reviewby-literals.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-302-actor-method.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-303-bare-actor.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5801-slug-link.md | NOT FOUND |
+| tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5811-by-path.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5850-inflight-tdd-only.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5860-mixed-hash.md | NOT FOUND |
 | tests/skills/test-aai-docs-audit.sh | docs/specs/SPEC-5861-mixed-pr.md | NOT FOUND |

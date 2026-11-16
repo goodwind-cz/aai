@@ -9083,6 +9083,418 @@ JSONL
   log_pass "A recovery line is not delivery evidence; a reconstructed PASS line still is (TEST-3742)"
 }
 
+# --- issue-gate-via-spec (spec-issue-gate-via-spec): an intake doc with no AC
+# table of its own gates through its linked spec(s) ---------------------------
+# Every case below is selectable on its own (mutation-run passes only the
+# function name): igs_own_root gives it a scratch TEST_DIR when the suite's
+# setup_fixture did not run.
+
+igs_own_root() {
+  if [[ -z "${TEST_DIR:-}" ]]; then
+    TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aai-docs-audit-igs.XXXXXX")"
+    IGS_OWN_ROOT="$TEST_DIR"
+  fi
+}
+igs_release_root() {
+  if [[ -n "${IGS_OWN_ROOT:-}" ]]; then rm -rf "$IGS_OWN_ROOT"; TEST_DIR=""; IGS_OWN_ROOT=""; fi
+}
+
+# igs_intake <file> <id> <type> [links.spec value]: an intake doc with NO AC table.
+igs_intake() {
+  local f="$1" id="$2" type="$3" spec="${4:-}"
+  {
+    printf -- '---\nid: %s\ntype: %s\nstatus: done\nlinks:\n' "$id" "$type"
+    [[ -n "$spec" ]] && printf '  spec: %s\n' "$spec"
+    printf '  pr: []\n---\n# Intake %s with no AC table of its own\n' "$id"
+  } > "$f"
+}
+
+# igs_spec <file> <id> <row status> <link key> <link value>: a spec whose one
+# AC row has the given status (done rows carry Evidence).
+igs_spec() {
+  local f="$1" id="$2" st="$3" key="$4" val="$5" ev="a1b2c3d"
+  [[ "$st" == done ]] || ev="—"
+  cat > "$f" <<MD
+---
+id: $id
+type: spec
+status: done
+links:
+  $key: $val
+  pr: []
+---
+# Spec $id
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status | Evidence | Review-By | Notes |
+|------------|-------------|--------|----------|-----------|-------|
+| Spec-AC-01 | first       | $st    | $ev      | TDD       | —     |
+MD
+}
+
+igs_gate() {  # igs_gate <repo> <log> <args...> -> echoes the exit code
+  local d="$1" log="$2" ec=0
+  shift 2
+  (cd "$d" && node .aai/scripts/docs-audit.mjs "$@" > "$log" 2>&1) || ec=$?
+  printf '%s' "$ec"
+}
+
+test_3801_intake_gates_via_linked_spec() {  # TEST-3801 / Spec-AC-01
+  log_info "Test: an issue doc with no AC table passes through its reconciled linked spec, by slug and by display id (TEST-3801)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3801)"
+  mkdir -p "$d/docs/issues"
+  igs_intake "$d/docs/issues/ISSUE-5801-slug-link.md" issue-5801 issue
+  igs_spec "$d/docs/specs/SPEC-5801-slug-link.md" spec-5801 done requirement issue-5801
+  igs_intake "$d/docs/issues/ISSUE-5802-display-link.md" issue-5802 issue
+  igs_spec "$d/docs/specs/SPEC-5802-display-link.md" spec-5802 done requirement ISSUE-5802
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate ISSUE-5801)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3801: --gate ISSUE-5801 must pass via its linked spec (got $ec): $(cat "$d/g1.log")"
+  grep -F "GATE PASS via linked spec(s)" "$d/g1.log" | qgrep -qF "SPEC-5801 (docs/specs/SPEC-5801-slug-link.md)" \
+    || log_fail "TEST-3801: the PASS line must name SPEC-5801 and its path: $(cat "$d/g1.log")"
+  ec="$(igs_gate "$d" "$d/g2.log" --gate ISSUE-5802)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3801: --gate ISSUE-5802 must pass via a spec linking its display id (got $ec): $(cat "$d/g2.log")"
+  grep -F "GATE PASS via linked spec(s)" "$d/g2.log" | qgrep -qF "SPEC-5802" \
+    || log_fail "TEST-3801: the PASS line must name SPEC-5802: $(cat "$d/g2.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "An intake doc with no table passes through its linked spec, by slug and by display id (TEST-3801)"
+}
+
+test_3802_failing_linked_spec_decides() {  # TEST-3802 / Spec-AC-02
+  log_info "Test: one failing linked spec fails the intake doc and is named (TEST-3802)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3802)"
+  mkdir -p "$d/docs/issues"
+  igs_intake "$d/docs/issues/ISSUE-5803-two-specs.md" issue-5803 issue
+  igs_spec "$d/docs/specs/SPEC-5803-reconciled.md" spec-5803 done requirement issue-5803
+  igs_spec "$d/docs/specs/SPEC-5804-open-row.md" spec-5804 implementing requirement issue-5803
+  local ec
+  ec="$(igs_gate "$d" "$d/g.log" --gate ISSUE-5803)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3802: a failing linked spec must fail the intake doc (got $ec): $(cat "$d/g.log")"
+  grep -qF -- "- SPEC-5804: Spec-AC-01 is non-terminal" "$d/g.log" \
+    || log_fail "TEST-3802: the reason must be prefixed with the failing spec and name its row: $(cat "$d/g.log")"
+  grep -F "Decided by linked spec(s):" "$d/g.log" > "$d/decided.txt" \
+    || log_fail "TEST-3802: a Decided by line is required: $(cat "$d/g.log")"
+  grep -qF "SPEC-5804 fail" "$d/decided.txt" || log_fail "TEST-3802: Decided by must name SPEC-5804 fail: $(cat "$d/decided.txt")"
+  grep -qF "SPEC-5803 pass" "$d/decided.txt" || log_fail "TEST-3802: Decided by must name SPEC-5803 pass: $(cat "$d/decided.txt")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "A failing linked spec fails the intake doc and is named with its row (TEST-3802)"
+}
+
+test_3803_intake_without_table_or_spec_fails() {  # TEST-3803 / Spec-AC-03
+  log_info "Test: an intake doc with neither table nor linked spec fails naming both; bad links.spec fails (TEST-3803)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3803)"
+  mkdir -p "$d/docs/issues"
+  igs_intake "$d/docs/issues/ISSUE-5805-alone.md" issue-5805 issue
+  igs_intake "$d/docs/issues/ISSUE-5806-dangling.md" issue-5806 issue spec-missing
+  igs_intake "$d/docs/issues/ISSUE-5807-not-a-spec.md" issue-5807 issue CHANGE-5807
+  igs_intake "$d/docs/issues/CHANGE-5807-a-change.md" change-5807 change
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate ISSUE-5805)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3803: an unlinked intake doc with no table must fail (got $ec): $(cat "$d/g1.log")"
+  grep -qF "missing AC Status table" "$d/g1.log" || log_fail "TEST-3803: must keep the missing AC Status table reason: $(cat "$d/g1.log")"
+  grep -F -- "- no linked spec" "$d/g1.log" | qgrep -qF '"issue-5805"' \
+    || log_fail "TEST-3803: must give a no linked spec reason naming issue-5805: $(cat "$d/g1.log")"
+  ec="$(igs_gate "$d" "$d/g2.log" --gate ISSUE-5806)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3803: a dangling links.spec must fail (got $ec): $(cat "$d/g2.log")"
+  grep -qF '"spec-missing"' "$d/g2.log" || log_fail "TEST-3803: must name the dangling id spec-missing: $(cat "$d/g2.log")"
+  ec="$(igs_gate "$d" "$d/g3.log" --gate ISSUE-5807)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3803: a links.spec naming a change doc must fail (got $ec): $(cat "$d/g3.log")"
+  grep -F '"CHANGE-5807"' "$d/g3.log" | qgrep -qF "not a spec" \
+    || log_fail "TEST-3803: must name CHANGE-5807 as not a spec: $(cat "$d/g3.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "No table and no linked spec fails naming both; a bad links.spec fails by name (TEST-3803)"
+}
+
+test_3804_specs_and_own_tables_unchanged() {  # TEST-3804 / Spec-AC-04
+  log_info "Test: a spec never delegates; a doc with its own table is gated on it (TEST-3804)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3804)"
+  mkdir -p "$d/docs/issues"
+  cat > "$d/docs/specs/SPEC-5808-no-table.md" <<'MD'
+---
+id: spec-5808
+type: spec
+status: done
+links:
+  pr: []
+---
+# Spec with no AC table
+MD
+  igs_spec "$d/docs/specs/SPEC-5809-umbrella-child.md" spec-5809 done rfc spec-5808
+  cat > "$d/docs/issues/CHANGE-5810-own-table.md" <<'MD'
+---
+id: change-5810
+type: change
+status: done
+links:
+  pr: []
+---
+# Change with its own AC table
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | first       | implementing | —        | —         | —     |
+MD
+  igs_spec "$d/docs/specs/SPEC-5810-reconciled.md" spec-5810 done requirement change-5810
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate SPEC-5808)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3804: a spec with no table must still fail (got $ec): $(cat "$d/g1.log")"
+  grep -qF "missing AC Status table" "$d/g1.log" || log_fail "TEST-3804: must name the missing table: $(cat "$d/g1.log")"
+  if grep -qF "via linked spec" "$d/g1.log"; then log_fail "TEST-3804: a spec must never gate via a linked spec: $(cat "$d/g1.log")"; fi
+  ec="$(igs_gate "$d" "$d/g2.log" --gate CHANGE-5810)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3804: a change with its own open row must fail on it (got $ec): $(cat "$d/g2.log")"
+  grep -qF -- "- Spec-AC-01 is non-terminal" "$d/g2.log" || log_fail "TEST-3804: must name its own row: $(cat "$d/g2.log")"
+  if grep -qF "Decided by" "$d/g2.log"; then log_fail "TEST-3804: an own table must not defer to a spec: $(cat "$d/g2.log")"; fi
+  rm -rf "$d"
+  igs_release_root
+  log_pass "Specs never delegate and an own table governs (TEST-3804)"
+}
+
+test_3805_gate_file_copy_resolves_identity() {  # TEST-3805 / Spec-AC-05
+  log_info "Test: --gate-file on a copy outside docs/ finds a spec linking the display id (TEST-3805)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3805)"
+  mkdir -p "$d/docs/issues" "$d/staged"
+  igs_intake "$d/docs/issues/ISSUE-5811-copied.md" issue-5811 issue
+  igs_spec "$d/docs/specs/SPEC-5811-display.md" spec-5811 done requirement ISSUE-5811
+  cp "$d/docs/issues/ISSUE-5811-copied.md" "$d/staged/blob.tmp"
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate-file staged/blob.tmp)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3805: --gate-file on the copy must pass via SPEC-5811 (got $ec): $(cat "$d/g1.log")"
+  grep -F "GATE PASS via linked spec(s)" "$d/g1.log" | qgrep -qF "SPEC-5811" \
+    || log_fail "TEST-3805: the PASS line must name SPEC-5811: $(cat "$d/g1.log")"
+  rm -f "$d/docs/specs/SPEC-5811-display.md"
+  ec="$(igs_gate "$d" "$d/g2.log" --gate-file staged/blob.tmp)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3805: without the spec the copy must fail (got $ec): $(cat "$d/g2.log")"
+  grep -qF -- "- no linked spec" "$d/g2.log" || log_fail "TEST-3805: must give the no linked spec reason: $(cat "$d/g2.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "--gate-file on a staged copy resolves the doc's display id (TEST-3805)"
+}
+
+test_3806_hook_gates_intake_done_flip() {  # TEST-3806 / Spec-AC-06
+  log_info "Test: the pre-commit hook gates a docs/issues done-flip: enforce aborts, report-only warns, a linked spec clears it (TEST-3806)..."
+  igs_own_root
+  local d; d="$(setup_spec0011_hook_repo igs-3806)"
+  mkdir -p "$d/docs/issues"
+  local n
+  for n in 5812 5814 5813; do
+    igs_intake "$d/docs/issues/ISSUE-$n-flip.md" "issue-$n" issue
+    sed -i.bak 's/^status: done/status: draft/' "$d/docs/issues/ISSUE-$n-flip.md" && rm -f "$d/docs/issues/ISSUE-$n-flip.md.bak"
+  done
+  igs_spec "$d/docs/specs/SPEC-5813-linked.md" spec-5813 done requirement issue-5813
+  (cd "$d" && git add docs && git commit -qm "docs: baseline draft intakes" >/dev/null) || log_fail "TEST-3806: baseline commit failed"
+  local ec=0
+  printf 'close_gate: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  sed -i.bak 's/^status: draft/status: done/' "$d/docs/issues/ISSUE-5812-flip.md" && rm -f "$d/docs/issues/ISSUE-5812-flip.md.bak"
+  (cd "$d" && git add docs/issues/ISSUE-5812-flip.md docs/ai/docs-audit.yaml)
+  (cd "$d" && git commit -qm "docs: flip ISSUE-5812 (enforce)" > enforce.out 2>&1) || ec=$?
+  [[ "$ec" != 0 ]] || log_fail "TEST-3806: enforce must abort the done-flip of an issue with no table and no spec: $(cat "$d/enforce.out")"
+  grep -qF "close-gate: issue-5812 fails the close gate" "$d/enforce.out" \
+    || log_fail "TEST-3806: the abort must name issue-5812 as failing the close gate: $(cat "$d/enforce.out")"
+  (cd "$d" && git reset -q && git checkout -q -- docs/issues/ISSUE-5812-flip.md)
+  printf 'close_gate: report-only\n' > "$d/docs/ai/docs-audit.yaml"
+  sed -i.bak 's/^status: draft/status: done/' "$d/docs/issues/ISSUE-5814-flip.md" && rm -f "$d/docs/issues/ISSUE-5814-flip.md.bak"
+  (cd "$d" && git add docs/issues/ISSUE-5814-flip.md docs/ai/docs-audit.yaml)
+  ec=0
+  (cd "$d" && git commit -qm "docs: flip ISSUE-5814 (report-only)" > report.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3806: report-only must let the flip commit (got $ec): $(cat "$d/report.out")"
+  grep -F "close-gate" "$d/report.out" | qgrep -qF "issue-5814" \
+    || log_fail "TEST-3806: report-only must print a close-gate warning naming issue-5814: $(cat "$d/report.out")"
+  printf 'close_gate: enforce\n' > "$d/docs/ai/docs-audit.yaml"
+  sed -i.bak 's/^status: draft/status: done/' "$d/docs/issues/ISSUE-5813-flip.md" && rm -f "$d/docs/issues/ISSUE-5813-flip.md.bak"
+  (cd "$d" && git add docs/issues/ISSUE-5813-flip.md docs/ai/docs-audit.yaml)
+  ec=0
+  (cd "$d" && git commit -qm "docs: flip ISSUE-5813 (enforce, linked spec)" > linked.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3806: enforce must let a flip with a reconciled linked spec commit (got $ec): $(cat "$d/linked.out")"
+  # docs/releases/ stays ungated (D4 as amended): a release plan has no AC
+  # table and no spec links to it, so under enforce its done-flip commits.
+  mkdir -p "$d/docs/releases"
+  igs_intake "$d/docs/releases/REL-5815-plan.md" rel-5815 release
+  (cd "$d" && git add docs/releases/REL-5815-plan.md docs/ai/docs-audit.yaml)
+  ec=0
+  (cd "$d" && git commit -qm "docs: release plan done (enforce)" > release.out 2>&1) || ec=$?
+  [[ "$ec" == 0 ]] || log_fail "TEST-3806: enforce must not gate a docs/releases/ done-flip (got $ec): $(cat "$d/release.out")"
+  if grep -qF "rel-5815" "$d/release.out"; then log_fail "TEST-3806: the hook must not gate docs/releases/: $(cat "$d/release.out")"; fi
+  rm -rf "$d"
+  igs_release_root
+  log_pass "The hook gates intake done-flips like --gate (TEST-3806)"
+}
+
+test_3807_real_issue_docs_gate_via_specs() {  # TEST-3807 / Spec-AC-07
+  log_info "Test: the real ISSUE-0115..0118 pass the gate through SPEC-0292..0295 (TEST-3807)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3807)"
+  mkdir -p "$d/docs/issues"
+  local i s f
+  for i in 0115 0116 0117 0118; do
+    for f in "$PROJECT_ROOT"/docs/issues/ISSUE-"$i"-*.md; do cp "$f" "$d/docs/issues/"; done
+  done
+  for s in 0292 0293 0294 0295; do
+    for f in "$PROJECT_ROOT"/docs/specs/SPEC-"$s"-*.md; do cp "$f" "$d/docs/specs/"; done
+  done
+  local pairs="0115:0292 0116:0293 0117:0294 0118:0295" p ec
+  for p in $pairs; do
+    ec="$(igs_gate "$d" "$d/g-${p%%:*}.log" --gate "ISSUE-${p%%:*}")"
+    [[ "$ec" == 0 ]] || log_fail "TEST-3807: --gate ISSUE-${p%%:*} must pass (got $ec): $(cat "$d/g-${p%%:*}.log")"
+    grep -F "GATE PASS via linked spec(s)" "$d/g-${p%%:*}.log" | qgrep -qF "SPEC-${p##*:} (" \
+      || log_fail "TEST-3807: ISSUE-${p%%:*} must pass via SPEC-${p##*:}: $(cat "$d/g-${p%%:*}.log")"
+  done
+  rm -rf "$d"
+  igs_release_root
+  log_pass "ISSUE-0115..0118 pass through SPEC-0292..0295 (TEST-3807)"
+}
+
+test_3809_unfinished_rollout_keeps_reason() {  # TEST-3809 / Spec-AC-09
+  log_info "Test: an umbrella RFC whose Rollout Status lists an unfinished phase fails even when its linked spec passes (TEST-3809)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3809)"
+  mkdir -p "$d/docs/rfc"
+  local ph
+  for ph in planned done; do
+    cat > "$d/docs/rfc/RFC-58$([[ $ph == planned ]] && echo 09 || echo 10)-umbrella.md" <<MD
+---
+id: rfc-58$([[ $ph == planned ]] && echo 09 || echo 10)
+type: rfc
+status: implementing
+links:
+  pr: []
+---
+# Umbrella RFC
+
+## Rollout Status
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 1     | first | done   |
+| 2     | later | $ph    |
+MD
+  done
+  igs_spec "$d/docs/specs/SPEC-5809-phase-one.md" spec-5809 done rfc rfc-5809
+  igs_spec "$d/docs/specs/SPEC-5810-phase-one.md" spec-5810 done rfc rfc-5810
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate RFC-5809)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3809: an RFC with an unfinished rollout phase must fail (got $ec): $(cat "$d/g1.log")"
+  grep -qF -- "- Rollout Status declares an unfinished phase" "$d/g1.log" \
+    || log_fail "TEST-3809: must name the unfinished Rollout Status: $(cat "$d/g1.log")"
+  grep -F "Decided by linked spec(s):" "$d/g1.log" | qgrep -qF "SPEC-5809 pass" \
+    || log_fail "TEST-3809: the linked spec must still be reported as passing: $(cat "$d/g1.log")"
+  ec="$(igs_gate "$d" "$d/g2.log" --gate RFC-5810)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3809: control: every phase done must pass via SPEC-5810 (got $ec): $(cat "$d/g2.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "An unfinished Rollout Status keeps the umbrella open (TEST-3809)"
+}
+
+test_3810_path_link_lean_and_own_reasons() {  # TEST-3810 / Spec-AC-10
+  log_info "Test: a path-valued links.spec resolves; a lean ceremony intake delegates; its own reasons still count (TEST-3810)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3810)"
+  mkdir -p "$d/docs/issues"
+  igs_spec "$d/docs/specs/SPEC-5811-by-path.md" spec-5811 done rfc null
+  igs_intake "$d/docs/issues/CHANGE-5811-path-link.md" change-5811 change docs/specs/SPEC-5811-by-path.md
+  local lv
+  for lv in just nojust; do
+    {
+      printf -- '---\nid: change-%s\ntype: change\nstatus: done\nceremony_level: 1\nlinks:\n  pr: []\n---\n# Lean change %s\n\n' "$lv" "$lv"
+      [[ "$lv" == just ]] && printf 'Ceremony justification: single-surface fixture.\n'
+      printf 'No AC table here.\n'
+    } > "$d/docs/issues/CHANGE-58$([[ $lv == just ]] && echo 12 || echo 13)-lean.md"
+  done
+  igs_spec "$d/docs/specs/SPEC-5812-lean.md" spec-5812 done requirement change-just
+  igs_spec "$d/docs/specs/SPEC-5813-lean.md" spec-5813 done requirement change-nojust
+  local ec
+  ec="$(igs_gate "$d" "$d/g1.log" --gate CHANGE-5811)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3810: a links.spec repo path must resolve to SPEC-5811 (got $ec): $(cat "$d/g1.log")"
+  grep -F "GATE PASS via linked spec(s)" "$d/g1.log" | qgrep -qF "SPEC-5811" \
+    || log_fail "TEST-3810: the PASS line must name SPEC-5811: $(cat "$d/g1.log")"
+  ec="$(igs_gate "$d" "$d/g2.log" --gate CHANGE-5812)"
+  [[ "$ec" == 0 ]] || log_fail "TEST-3810: a ceremony 1 intake with no lean table must pass via SPEC-5812 (got $ec): $(cat "$d/g2.log")"
+  ec="$(igs_gate "$d" "$d/g3.log" --gate CHANGE-5813)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3810: the intake's own missing justification must still fail it (got $ec): $(cat "$d/g3.log")"
+  grep -qF "Ceremony justification" "$d/g3.log" || log_fail "TEST-3810: must name the justification line: $(cat "$d/g3.log")"
+  grep -F "Decided by linked spec(s):" "$d/g3.log" | qgrep -qF "SPEC-5813 pass" \
+    || log_fail "TEST-3810: the linked spec must be reported as passing: $(cat "$d/g3.log")"
+  rm -rf "$d"
+  igs_release_root
+  log_pass "Path links resolve, lean intakes delegate, own reasons still count (TEST-3810)"
+}
+
+test_3811_unparseable_own_table_never_delegates() {  # TEST-3811 / Spec-AC-11
+  log_info "Test: a doc whose own AC table declares rows the parser drops keeps failing and never delegates (TEST-3811)..."
+  igs_own_root
+  local d; d="$(setup_iso_repo igs-3811)"
+  mkdir -p "$d/docs/issues"
+  cat > "$d/docs/issues/CHANGE-5816-pipe-row.md" <<'MD'
+---
+id: change-5816
+type: change
+status: done
+links:
+  pr: []
+---
+# Change whose own table row breaks on a pipe
+
+## Acceptance Criteria Status
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | a \| pipe   | implementing | —        | —         | —     |
+MD
+  cat > "$d/docs/issues/CHANGE-5817-lean-pipe-row.md" <<'MD'
+---
+id: change-5817
+type: change
+status: done
+ceremony_level: 1
+links:
+  pr: []
+---
+# Lean change whose own table row breaks on a pipe
+
+Ceremony justification: single-surface fixture.
+
+## Acceptance Criteria
+
+| Spec-AC    | Description | Status       |
+|------------|-------------|--------------|
+| Spec-AC-01 | a \| pipe   | implementing |
+MD
+  igs_spec "$d/docs/specs/SPEC-5816-reconciled.md" spec-5816 done requirement change-5816
+  igs_spec "$d/docs/specs/SPEC-5817-reconciled.md" spec-5817 done requirement change-5817
+  local id ec
+  for id in 5816 5817; do
+    ec="$(igs_gate "$d" "$d/g-$id.log" --gate "CHANGE-$id")"
+    [[ "$ec" == 1 ]] || log_fail "TEST-3811: CHANGE-$id has its own (unparseable) table and must fail on it (got $ec): $(cat "$d/g-$id.log")"
+    if grep -qF "via linked spec" "$d/g-$id.log" || grep -qF "Decided by" "$d/g-$id.log"; then
+      log_fail "TEST-3811: CHANGE-$id must never delegate to its linked spec: $(cat "$d/g-$id.log")"
+    fi
+  done
+  rm -rf "$d"
+  igs_release_root
+  log_pass "An own table with unparseable rows keeps failing and never delegates (TEST-3811)"
+}
+
+test_3808_changelog_and_product_doc() {  # TEST-3808 / Spec-AC-08
+  log_info "Test: CHANGELOG heading and product doc for the close gate change (TEST-3808)..."
+  local cl="$PROJECT_ROOT/CHANGELOG.md" doc="$PROJECT_ROOT/docs/product/docs-close-gate.md" n
+  n="$(grep -cE "^## \[(unreleased|v[0-9]{4}\.[0-9]{2}\.[0-9]{2})\] — fix: the docs close gate reads an intake doc's verdict from its linked spec" "$cl" || true)"
+  [[ "$n" == 1 ]] || log_fail "TEST-3808: CHANGELOG.md holds $n headings for the close gate fix, want exactly 1"
+  [[ -f "$doc" ]] || log_fail "TEST-3808: docs/product/docs-close-gate.md is missing"
+  grep -qF "linked spec" "$doc" || log_fail "TEST-3808: the product doc must say an intake doc gates through its linked spec"
+  grep -qF "docs/issues/" "$doc" || log_fail "TEST-3808: the product doc must say the hook gates done-flips under docs/issues/"
+  log_pass "CHANGELOG heading and product doc present (TEST-3808)"
+}
+
 main() {
   if [[ $# -gt 0 ]]; then
     "$1"
@@ -9161,6 +9573,21 @@ main() {
   test_spec0011_hook_gates_staged_not_worktree
   test_spec0011_work_item_closed_requires_fields
   test_spec0011_review_artifact_boundary
+  # issue-gate-via-spec: invoked with a trailing comment like TEST-3742 above -
+  # TEST-2307 pins the bare-name main list to its baseline commit. TEST-3807 and
+  # TEST-3808 read real-tree files; suite-map.yaml lists the issue, spec and
+  # product doc files under the aai-docs-audit input closure.
+  test_3801_intake_gates_via_linked_spec  # issue-gate-via-spec
+  test_3802_failing_linked_spec_decides  # issue-gate-via-spec
+  test_3803_intake_without_table_or_spec_fails  # issue-gate-via-spec
+  test_3804_specs_and_own_tables_unchanged  # issue-gate-via-spec
+  test_3805_gate_file_copy_resolves_identity  # issue-gate-via-spec
+  test_3806_hook_gates_intake_done_flip  # issue-gate-via-spec
+  test_3807_real_issue_docs_gate_via_specs  # issue-gate-via-spec
+  test_3808_changelog_and_product_doc  # issue-gate-via-spec
+  test_3809_unfinished_rollout_keeps_reason  # issue-gate-via-spec
+  test_3810_path_link_lean_and_own_reasons  # issue-gate-via-spec
+  test_3811_unparseable_own_table_never_delegates  # issue-gate-via-spec
   test_536_unparseable_ac_table_shape
   test_582_status_vocabulary_scoped_to_spec_ac_col
   test_538_duplicate_ac_id_multiplicity
