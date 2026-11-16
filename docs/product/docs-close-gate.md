@@ -5,7 +5,7 @@ capability: docs-close-gate
 status: current
 delivered_by:
   - issue-gate-via-spec
-spec: docs/specs/SPEC-DRAFT-issue-gate-via-spec.md
+spec: docs/specs/SPEC-0297-spec-issue-gate-via-spec.md
 updated: 2026-11-16
 ---
 
@@ -71,12 +71,14 @@ fields; these are the links intake and planning already write.
   not gate them.
 - A gated file with no frontmatter `id` can only be linked through its own
   `links.spec`.
-- The hook reads the linked spec from the working tree; the spec's own
-  staged copy is gated separately in the same commit.
+- The hook reads the linked spec from the working tree, not from the
+  index. When the spec is also flipped to done in the same commit, its staged
+  copy is gated too; when it is not part of the commit, an unstaged edit to
+  the spec can decide the intake doc's verdict.
 - `close-work-item.mjs` does not run the close gate itself.
 
 ## Links
 
-- Request: docs/issues/ISSUE-DRAFT-issue-gate-via-spec.md
-- Spec: docs/specs/SPEC-DRAFT-issue-gate-via-spec.md
+- Request: docs/issues/ISSUE-0120-issue-gate-via-spec.md
+- Spec: docs/specs/SPEC-0297-spec-issue-gate-via-spec.md
 - Validation evidence (local, gitignored): docs/ai/validation/VALIDATION-issue-gate-via-spec-r4.md (final round)
