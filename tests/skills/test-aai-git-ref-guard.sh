@@ -532,7 +532,14 @@ test_307_clone_seam() {
 # (ASCII header dash, one "Installed by" line, the NOTE (CHANGE-0009 D8)
 # comment) -- an intentional, in-scope change, not drift. New hash measured
 # with this file's own fixture (a fresh install, sha_cmd over the hook).
-PRECOMMIT_SHA256_BASELINE="1655c68e61cc30100aca520c108c8cf63507d334082bbb80e79a77936456151e"
+#
+# Re-pinned by issue-gate-via-spec (D4): the AAI:INDEX-AUTOGEN close-gate
+# block now gates staged done-flips under docs/issues, docs/rfc and
+# docs/requirements as well as docs/specs (the filter line, the variable
+# name and two comments changed) -- an intentional, in-scope change, not
+# drift. New hash measured by the full sweep's own run of this test at
+# a4678ac7 (the "got" value of TEST-308).
+PRECOMMIT_SHA256_BASELINE="491da116539944bd4c0e14356bbc0d2498c6299c4400bb7af01722e10307ae07"
 
 test_308_installer_contract() {
   local ok=1
