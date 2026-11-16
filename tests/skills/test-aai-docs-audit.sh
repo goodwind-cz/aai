@@ -9560,20 +9560,45 @@ links:
 |------------|-------------|---------|
 | Spec-AC-01 | example     | planned |
 MD
+  # D: suffixed Status heading (parseAcTable reads it), every row unparseable.
+  cat > "$d/docs/issues/CHANGE-5822-suffixed-heading.md" <<'MD'
+---
+id: change-5822
+type: change
+status: done
+links:
+  pr: []
+---
+# Own table under a suffixed Status heading
+
+## Acceptance Criteria Status (legacy)
+
+| Spec-AC    | Description | Status       | Evidence | Review-By | Notes |
+|------------|-------------|--------------|----------|-----------|-------|
+| Spec-AC-01 | a \| pipe   | implementing | —        | —         | —     |
+MD
+  # Control: a Spec-AC row quoted inside a fenced block under the AC heading
+  # is an example, not the doc's own row (D1 skips fences).
+  {
+    printf -- '---\nid: change-5823\ntype: change\nstatus: done\nlinks:\n  pr: []\n---\n# Change quoting a row in a fence\n\n## Acceptance Criteria\n\n'
+    printf '%s\n' '```text' '| Spec-AC-01 | example | planned |' '```'
+  } > "$d/docs/issues/CHANGE-5823-fenced-example.md"
   local id
-  for id in 5818 5819 5820 5821; do
+  for id in 5818 5819 5820 5821 5822 5823; do
     igs_spec "$d/docs/specs/SPEC-$id-reconciled.md" "spec-$id" done requirement "change-$id"
   done
   local ec
-  for id in 5818 5819 5820; do
+  for id in 5818 5819 5820 5822; do
     ec="$(igs_gate "$d" "$d/g-$id.log" --gate "CHANGE-$id")"
     [[ "$ec" == 1 ]] || log_fail "TEST-3812: CHANGE-$id declares its own Spec-AC row and must fail on it (got $ec): $(cat "$d/g-$id.log")"
     if grep -qF "via linked spec" "$d/g-$id.log" || grep -qF "Decided by" "$d/g-$id.log"; then
       log_fail "TEST-3812: CHANGE-$id must never delegate to its linked spec: $(cat "$d/g-$id.log")"
     fi
   done
-  ec="$(igs_gate "$d" "$d/g-5821.log" --gate CHANGE-5821)"
-  [[ "$ec" == 0 ]] || log_fail "TEST-3812: control: an example table under another heading must not block delegation (got $ec): $(cat "$d/g-5821.log")"
+  for id in 5821 5823; do
+    ec="$(igs_gate "$d" "$d/g-$id.log" --gate "CHANGE-$id")"
+    [[ "$ec" == 0 ]] || log_fail "TEST-3812: control: CHANGE-$id shows only an example row (another heading, or a fence) and must pass via its spec (got $ec): $(cat "$d/g-$id.log")"
+  done
   rm -rf "$d"
   igs_release_root
   log_pass "Unrecognised own Spec-AC tables never delegate; an example table elsewhere does not count (TEST-3812)"

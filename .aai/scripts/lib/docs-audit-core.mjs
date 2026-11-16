@@ -1845,18 +1845,20 @@ export function duplicateDocIdsFor(docs) {
 // apply byte-identical gate logic to whatever content they were handed.
 // issue-gate-via-spec D1 (amended after review round 3) — does the doc
 // declare an AC row of its OWN? True when any `| Spec-AC-NN` table row sits
-// under a `## Acceptance Criteria` or `## Acceptance Criteria Status` heading,
-// whatever that table's header columns are and whether or not the parsers
-// accept its shape (an unparseable or near-miss own table is still the doc's
-// own). Fenced code blocks are skipped, and only those two headings count, so
-// an example table elsewhere in the body does not.
+// under a `## Acceptance Criteria` heading or a `## Acceptance Criteria
+// Status` heading (with any suffix, as parseAcTable reads it), whatever that
+// table's header columns are and whether or not the parsers accept its shape
+// (an unparseable or near-miss own table is still the doc's own). The section
+// runs to the next `## ` heading, as in the parsers. Fenced code blocks are
+// skipped, and only those headings count, so an example table elsewhere in
+// the body does not.
 function declaresOwnAcRows(content) {
   let inSection = false;
   let inFence = false;
   for (const line of String(content ?? '').split(/\r?\n/)) {
     if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; continue; }
     if (inFence) continue;
-    if (/^#{1,2}\s/.test(line)) { inSection = /^##\s+Acceptance Criteria(?:\s+Status)?\s*$/i.test(line); continue; }
+    if (/^##\s/.test(line)) { inSection = /^##\s+Acceptance Criteria(?:\s*$|\s+Status\b)/i.test(line); continue; }
     if (inSection && /^\s*\|\s*Spec-AC-\d+\b/.test(line)) return true;
   }
   return false;

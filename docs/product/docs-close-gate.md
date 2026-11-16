@@ -62,8 +62,9 @@ fields; these are the links intake and planning already write.
 - A spec never gates through another spec; a doc that carries its own AC
   table is gated on that table only. A table counts as its own as soon as a
   `Spec-AC-NN` row sits under an `## Acceptance Criteria` or
-  `## Acceptance Criteria Status` heading, even when that table is
-  malformed.
+  `## Acceptance Criteria Status` heading (the latter with any suffix), even
+  when that table is malformed; a row inside a fenced code block is an
+  example and does not count.
 - An umbrella RFC or PRD whose own `## Rollout Status` still lists an
   unfinished phase does not pass because the specs written so far pass.
 - Release plans (`docs/releases/`) carry no acceptance table; the hook does
