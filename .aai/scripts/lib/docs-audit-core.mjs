@@ -1694,6 +1694,17 @@ export function hasUnfinishedRolloutPhases(content) {
   return false;
 }
 
+// Does a doc link back to a parent? True when its frontmatter links.rfc or
+// links.requirement (scalar or list) names any of parentRefs — the parent's
+// slug id and/or its numbered display id (children link by either). The ONE
+// reverse-link test: closeoutCandidatesFor, parentProgressFor and the close
+// gate's linked-spec lookup (gateViaLinkedSpecs, issue-gate-via-spec D2) all
+// call it, so the reports and the gate cannot disagree on what "linked" means.
+export function linksBackTo(fm, parentRefs) {
+  const reverse = [...asList(fm?.links?.rfc), ...asList(fm?.links?.requirement)];
+  return reverse.some((r) => parentRefs.includes(r));
+}
+
 // Resolve non-terminal rfc/prd parents whose every linked spec is done.
 // Returns [{ id, rel, type, status, specs: [doneSpecId...], suggestedStep }].
 // Linked-spec resolution = forward asList(links.spec) UNION reverse links
@@ -1721,8 +1732,7 @@ export function closeoutCandidatesFor(docs) {
     const specIds = new Set(asList(parent.fm?.links?.spec));
     for (const d of docs) {
       if (docType(d) !== 'spec' || !d.id) continue;
-      const reverse = [...asList(d.fm?.links?.rfc), ...asList(d.fm?.links?.requirement)];
-      if (reverse.some((r) => parentRefs.includes(r))) specIds.add(d.id);
+      if (linksBackTo(d.fm, parentRefs)) specIds.add(d.id);
     }
     if (specIds.size === 0) continue;
     const resolved = [...specIds].map(sid => byId.get(sid));
@@ -1777,8 +1787,7 @@ export function parentProgressFor(docs) {
     // (by slug OR display id).
     for (const d of docs) {
       if (d === parent) continue;
-      const reverse = [...asList(d.fm?.links?.rfc), ...asList(d.fm?.links?.requirement)];
-      if (reverse.some((r) => parentRefs.includes(r))) children.add(d);
+      if (linksBackTo(d.fm, parentRefs)) children.add(d);
     }
     if (children.size === 0) continue;
     const arr = [...children];
@@ -1834,9 +1843,37 @@ export function duplicateDocIdsFor(docs) {
 // resolution). Reused by both gateDoc (resolve-by-id, worktree file) and gateFile
 // (an explicit file path — e.g. a materialized STAGED blob) so the two entry points
 // apply byte-identical gate logic to whatever content they were handed.
+// issue-gate-via-spec D1 (amended after review round 3) — does the doc
+// declare an AC row of its OWN? True when any `| Spec-AC-NN` table row sits
+// under a `## Acceptance Criteria` heading or a `## Acceptance Criteria
+// Status` heading (with any suffix, as parseAcTable reads it), whatever that
+// table's header columns are and whether or not the parsers accept its shape
+// (an unparseable or near-miss own table is still the doc's own). The section
+// runs to the next `## ` heading, as in the parsers. Fenced code blocks are
+// skipped, and only those headings count, so an example table elsewhere in
+// the body does not.
+function declaresOwnAcRows(content) {
+  let inSection = false;
+  let inFence = false;
+  for (const line of String(content ?? '').split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(line)) { inFence = !inFence; continue; }
+    if (inFence) continue;
+    if (/^##\s/.test(line)) { inSection = /^##\s+Acceptance Criteria(?:\s*$|\s+Status\b)/i.test(line); continue; }
+    if (inSection && /^\s*\|\s*Spec-AC-\d+\b/.test(line)) return true;
+  }
+  return false;
+}
+
 function gateContent(content, extraMethods) {
   const ac = parseAcTable(content);
   const reasons = [];
+  // issue-gate-via-spec D1 — the missing-table reason, when this doc carries
+  // no AC table of its own (null otherwise). gateDoc/gateFile read it to send
+  // a non-spec doc to its linked spec(s) instead. A table that DECLARES
+  // Spec-AC rows the parser could not read (a raw or escaped pipe, a cell
+  // count off) is still the doc's own table: it keeps the missing-table
+  // failure and never delegates (D1 as amended after review round 2).
+  let missingTable = null;
   // RFC-0009 / spec-scale-adaptive-ceremony — ceremony-level close checks.
   // The enum lives in SPEC frontmatter (a governed docs surface), so its
   // validation belongs HERE, not in check-state (which validates only
@@ -1890,6 +1927,7 @@ function gateContent(content, extraMethods) {
   if (!isLeanCeremonyLevel(clRaw)) {
     // Legacy path — absent/null/garbage/2/3: unchanged behavior.
     if (!ac.hasGate || ac.rows.length === 0) {
+      if (!declaresOwnAcRows(content)) missingTable = 'missing AC Status table';
       reasons.push('missing AC Status table');
     } else {
       reconcileCanonical();
@@ -1904,7 +1942,9 @@ function gateContent(content, extraMethods) {
   } else {
     const lean = parseLeanAcTable(content);
     if (!lean.hasLean || lean.rows.length === 0) {
-      reasons.push(`missing AC table (ceremony_level ${clRaw} lean shape: a "## Acceptance Criteria" table with Spec-AC + Status columns)`);
+      const leanMissing = `missing AC table (ceremony_level ${clRaw} lean shape: a "## Acceptance Criteria" table with Spec-AC + Status columns)`;
+      if (!declaresOwnAcRows(content)) missingTable = leanMissing;
+      reasons.push(leanMissing);
     } else {
       for (const id of unparseableAcIds(lean)) {
         reasons.push(`${id} is declared in the AC table but its row did not parse (its cell count does not match the header — check for a raw or escaped "|" in a cell, or a missing cell)`);
@@ -1912,7 +1952,7 @@ function gateContent(content, extraMethods) {
       checkRows(lean.rows, false);
     }
   }
-  return { ok: reasons.length === 0, reasons };
+  return { ok: reasons.length === 0, reasons, missingTable };
 }
 
 // CHANGE-0012 D2 — two-pass resolution over the scanned docs (DRAFT basenames
@@ -1931,7 +1971,11 @@ function gateContent(content, extraMethods) {
 // moving the other is precisely the class of drift this scope exists to stop.
 // Returns { found, entry, config } or { found:false, reasons } with gateDoc's
 // original, byte-identical reason strings.
-function resolveDocById(root, docId) {
+//
+// The scan and the two-pass match are split out (scanGateEntries, matchDocId)
+// so the close gate's linked-spec lookup resolves a `links.spec` id with the
+// very same two passes (issue-gate-via-spec D2) — one resolver, not two.
+function scanGateEntries(root) {
   const config = loadConfig(root);
   const files = scanAuditDocs(root, { scanExclude: config?.scan_exclude ?? [] });
   const categoryPrefixes = config?.category_prefixes ?? DEFAULT_CATEGORY_PREFIXES;
@@ -1939,14 +1983,24 @@ function resolveDocById(root, docId) {
     const content = fs.readFileSync(path.join(root, f.rel), 'utf8');
     const fm = parseFrontmatter(content);
     const ids = extractDocIds(path.basename(f.rel), categoryPrefixes) ?? { primary: f.fileId };
-    return { rel: f.rel, content, fmId: fm?.id ?? null, fileIds: [ids.primary, f.fileId] };
+    return { rel: f.rel, content, fm, fmId: fm?.id ?? null, fileIds: [ids.primary, f.fileId] };
   });
+  return { config, entries };
+}
+
+function matchDocId(entries, docId) {
   let pass = 'frontmatter-id';
   let matches = entries.filter(e => e.fmId === docId);
   if (matches.length === 0) {
     pass = 'display-id';
     matches = entries.filter(e => e.fileIds.includes(docId));
   }
+  return { pass, matches };
+}
+
+function resolveDocById(root, docId) {
+  const { config, entries } = scanGateEntries(root);
+  const { pass, matches } = matchDocId(entries, docId);
   if (matches.length === 0) {
     return { found: false, reasons: [`no scanned doc resolves to id "${docId}"`] };
   }
@@ -1959,15 +2013,95 @@ function resolveDocById(root, docId) {
       ],
     };
   }
-  return { found: true, entry: matches[0], config };
+  return { found: true, entry: matches[0], config, entries };
+}
+
+const docTypeOf = (fm) => String(fm?.type ?? '').toLowerCase();
+
+// issue-gate-via-spec D1 (PR #564 Codex P2) — may this doc gate through its
+// linked specs? Only a doc whose frontmatter type is a KNOWN non-spec type
+// and whose file is not a SPEC- display id. A spec with a missing or
+// misspelled type, and any doc whose type is missing or unknown, fail closed
+// on their own (missing) table instead of delegating.
+function gatesThroughLinkedSpecs(fm, rel) {
+  const type = docTypeOf(fm);
+  if (type === 'spec') return false;
+  if (!DOC_TYPE_ENUM.has(type)) return false;
+  return !/^SPEC-/.test(path.basename(String(rel ?? '')));
+}
+
+// issue-gate-via-spec D2/D3 — gate a non-spec doc that carries no AC table of
+// its own through the spec(s) linked to it: forward `links.spec` ids (each
+// resolved by matchDocId; one that resolves to no doc, to several, or to a
+// non-spec is a reason of its own) UNION every scanned spec that linksBackTo
+// the doc by slug or display id. Every linked spec is gated with the
+// unchanged spec gate and its reasons are prefixed with its display id. The
+// doc's own reasons other than the missing table (e.g. an invalid
+// ceremony_level) still count. No linked spec at all keeps the missing-table
+// failure and names what would link one.
+// D5: a doc whose own `## Rollout Status` still declares an unfinished phase
+// (an umbrella RFC/PRD with not-yet-spec'd phases) keeps a reason of its own —
+// "every linked spec passes" is the same false close signal
+// closeoutCandidatesFor already refuses for that parent.
+// parent: { fm, fmId, fileIds, content }; own: gateContent(parent content).
+// Returns { ok, reasons, via: [{ id, rel, ok }] }.
+function gateViaLinkedSpecs(entries, parent, own, extraMethods) {
+  const parentRefs = [...new Set([parent.fmId, ...parent.fileIds].filter(Boolean))];
+  const kept = own.reasons.filter((r) => r !== own.missingTable);
+  if (hasUnfinishedRolloutPhases(parent.content)) {
+    kept.push('Rollout Status declares an unfinished phase: linked specs cannot close a doc whose own roadmap still lists open work');
+  }
+  const linkProblems = [];
+  const linked = new Map();   // rel -> entry: a spec linked both ways is gated once
+  for (const sid of asList(parent.fm?.links?.spec)) {
+    // D2 (amended): a links.spec written as the spec's repo path names that
+    // doc directly; anything else goes through the two-pass id resolver.
+    const byPath = entries.filter((e) => e.rel === String(sid).replace(/^\.\//, ''));
+    const { matches } = byPath.length ? { matches: byPath } : matchDocId(entries, String(sid));
+    if (matches.length !== 1) {
+      linkProblems.push(`links.spec "${sid}" resolves to ${matches.length} scanned docs, not exactly one`);
+    } else if (docTypeOf(matches[0].fm) !== 'spec') {
+      linkProblems.push(`links.spec "${sid}" names ${matches[0].rel}, which is not a spec`);
+    } else {
+      linked.set(matches[0].rel, matches[0]);
+    }
+  }
+  for (const e of entries) {
+    if (docTypeOf(e.fm) === 'spec' && linksBackTo(e.fm, parentRefs)) linked.set(e.rel, e);
+  }
+  if (linked.size === 0) {
+    const names = parentRefs.length ? parentRefs.map((r) => `"${r}"`).join(' or ') : 'this doc (it has no frontmatter id)';
+    return {
+      ok: false,
+      via: [],
+      reasons: [
+        ...own.reasons,
+        ...linkProblems,
+        `no linked spec: this doc has no AC table of its own and no spec is linked to it — add the table here, set links.spec on this doc, or set links.requirement (or links.rfc) to ${names} on the spec that carries its acceptance table`,
+      ],
+    };
+  }
+  const via = [];
+  const specReasons = [];
+  for (const spec of [...linked.values()].sort((a, b) => a.rel.localeCompare(b.rel))) {
+    const sid = spec.fileIds.find(Boolean) ?? spec.fmId ?? spec.rel;
+    const sres = gateContent(spec.content, extraMethods);
+    via.push({ id: sid, rel: spec.rel, ok: sres.ok });
+    for (const r of sres.reasons) specReasons.push(`${sid}: ${r}`);
+  }
+  const reasons = [...kept, ...linkProblems, ...specReasons];
+  return { ok: reasons.length === 0, reasons, via };
 }
 
 export function gateDoc(root, docId) {
   const res = resolveDocById(root, docId);
   if (!res.found) return { found: false, ok: false, reasons: res.reasons };
   const extraMethods = res.config?.review_by_methods ?? [];
-  const { ok, reasons } = gateContent(res.entry.content, extraMethods);
-  return { found: true, ok, reasons };
+  const own = gateContent(res.entry.content, extraMethods);
+  if (own.missingTable && gatesThroughLinkedSpecs(res.entry.fm, res.entry.rel)) {
+    return { found: true, ...gateViaLinkedSpecs(res.entries, res.entry, own, extraMethods) };
+  }
+  return { found: true, ok: own.ok, reasons: own.reasons };
 }
 
 // spec-ac-table-premature-flip-recurs D2/D3 — the PRE-HANDOFF guard: does this
@@ -2024,8 +2158,23 @@ export function gateFile(root, filePath) {
   const abs = path.isAbsolute(filePath) ? filePath : path.join(root, filePath);
   if (!fs.existsSync(abs)) return { found: false, ok: false, reasons: [`file not found: "${filePath}"`] };
   const content = fs.readFileSync(abs, 'utf8');
-  const { ok, reasons } = gateContent(content, extraMethods);
-  return { found: true, ok, reasons };
+  const own = gateContent(content, extraMethods);
+  const fm = parseFrontmatter(content);
+  if (own.missingTable && gatesThroughLinkedSpecs(fm, filePath)) {
+    // issue-gate-via-spec D4 — the file may be a temporary copy (the hook's
+    // staged blob), so its identity is its frontmatter id, plus the display
+    // id of the ONE scanned doc carrying that same id (a spec may link back by
+    // either). Linked specs are read from the working tree.
+    const { entries } = scanGateEntries(root);
+    const fmId = fm?.id ?? null;
+    const self = fmId ? entries.filter((e) => e.fmId === fmId) : [];
+    const parent = { fm, fmId, fileIds: self.length === 1 ? self[0].fileIds : [], content };
+    if (self.length === 1 && !gatesThroughLinkedSpecs(fm, self[0].rel)) {
+      return { found: true, ok: own.ok, reasons: own.reasons };
+    }
+    return { found: true, ...gateViaLinkedSpecs(entries, parent, own, extraMethods) };
+  }
+  return { found: true, ok: own.ok, reasons: own.reasons };
 }
 
 // SPEC-0013 H1 — lint the content of an EXPLICIT file path (not resolved by id),
