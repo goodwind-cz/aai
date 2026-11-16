@@ -1289,7 +1289,15 @@ test_3835() {
   [[ "$RC" -eq 4 ]] || log_fail "TEST-3835: an unresolvable --pre-commit-head exited $RC, expected 4; stderr: $ERR"
   run_guard "$repo" --verify-pin --pre-commit-head "$pre"
   [[ "$RC" -eq 4 ]] || log_fail "TEST-3835: --pre-commit-head without --sync-ready (here with --verify-pin) exited $RC, expected 4; stderr: $ERR"
-  log_pass "TEST-3835: unadvanced HEAD exit 10, advanced HEAD exit 0, no flag exit 0, unresolvable sha exit 4, --pre-commit-head outside --sync-ready exit 4"
+  printf 'c\n' > "$repo/c.txt"
+  run_out "$repo" git add c.txt
+  local mode
+  for mode in --pin --verify-pin --suggest; do
+    run_guard "$repo" --sync-ready "$mode"
+    [[ "$RC" -eq 4 ]] || log_fail "TEST-3835: --sync-ready $mode with a staged c.txt exited $RC, expected 4 (the readiness check must never be bypassed); stderr: $ERR"
+  done
+  run_out "$repo" git reset -q c.txt
+  log_pass "TEST-3835: unadvanced HEAD exit 10, advanced HEAD exit 0, no flag exit 0, unresolvable sha exit 4, --pre-commit-head outside --sync-ready exit 4, --sync-ready with --pin/--verify-pin/--suggest exit 4"
 }
 
 test_3836() {

@@ -679,6 +679,10 @@ function main() {
     console.error('branch-guard: --pre-commit-head is only valid with --sync-ready');
     exit(4);
   }
+  if (opts.syncReady && (opts.pin || opts.verifyPin || opts.suggest)) {
+    console.error('branch-guard: --sync-ready cannot be combined with --pin, --verify-pin or --suggest');
+    exit(4);
+  }
   if (opts.pin || opts.verifyPin) {
     const pinProbe = workTreeProbe(cwd);
     if (!pinProbe.inside) {
