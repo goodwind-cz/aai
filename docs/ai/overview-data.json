@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-11-16T19:40:13.657Z",
+  "generatedAt": "2026-11-16T22:03:43.872Z",
   "project": "aai",
   "counts": {
     "delivered": 365,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 190598384
   },
@@ -36,6 +36,19 @@
       "spec": null,
       "validation": null,
       "review": null
+    },
+    {
+      "ref": "delegated-requester-approval",
+      "title": "A lane can accept a chat-relayed requester approval from a delegated bot login",
+      "type": "change",
+      "status": "draft",
+      "path": "docs/issues/CHANGE-DRAFT-delegated-requester-approval.md",
+      "closed_on": null,
+      "agent_minutes": 90,
+      "token_total": null,
+      "spec": "docs/specs/SPEC-DRAFT-delegated-requester-approval.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-delegated-requester-approval-20261116T213239Z.md"
     },
     {
       "ref": "console-log-then-exit-across-41-clis",
@@ -245,7 +258,7 @@
       "token_total": 1288073,
       "spec": "docs/specs/SPEC-0297-spec-issue-gate-via-spec.md",
       "validation": null,
-      "review": null
+      "review": "docs/ai/reviews/review-issue-gate-via-spec-r4-20261116T194000Z.md"
     },
     {
       "ref": "recover-archived-state-runs",
@@ -5017,7 +5030,7 @@
           "token_total": 1288073,
           "spec": "docs/specs/SPEC-0297-spec-issue-gate-via-spec.md",
           "validation": null,
-          "review": null
+          "review": "docs/ai/reviews/review-issue-gate-via-spec-r4-20261116T194000Z.md"
         },
         {
           "ref": "recover-archived-state-runs",
