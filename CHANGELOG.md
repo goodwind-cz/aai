@@ -30,6 +30,12 @@ entry or a `no-notes: <reason>` line. Other docs paths stay exempt, as do
 
 ## [unreleased]
 
+## [unreleased] — fix: the doc-number allocator accepts research and hotfix, and runs through a symlinked checkout
+
+`allocate-doc-number.mjs --type research` and `--type hotfix` no longer exit 2 as unknown types: research drafts number as `RES-NNNN` under `docs/specs/` and hotfix drafts as `ISSUE-NNNN` under `docs/issues/`, matching the type table in `.aai/INTAKE_COMMON.md`.
+
+Run through a symlinked checkout, the allocator used to exit 0 and print nothing; it now resolves its own path and behaves as it does through the real path.
+
 ## [unreleased] — fix: an unreadable base ledger or temp file keeps the archive step, and the outcome check reads docs/ai/STATE.yaml (metrics-integrity-fixes)
 
 `merge-cleanup.mjs` (step `archive-runtime`) now tells a base-branch ledger that is absent (nothing held, the recovery runs) from one that exists but cannot be read (a removed object, a git failure): an unreadable base ledger keeps the step as `ledger_runs_unchecked` with the exact command to run from the main checkout and writes nothing, so a run already merged on the base is not written twice. An unwritable temporary copy no longer throws out of the recovery; it keeps the step the same way. `validation-outcome-check.mjs` binds scope sources (`--intake`, `--spec`) from `docs/ai/STATE.yaml`, the path every other script reads, instead of `.aai/STATE.yaml`, so a valid standing PASS is no longer refused for unbound sources. Test-only: TEST-026 in the merge-cleanup suite proves the spec-amend fold over its own fixture repository and ledger instead of this repository's live ledger and `origin/main`. Touches `.aai/scripts/lib/metrics-flush-record.mjs` and `.aai/scripts/validation-outcome-check.mjs`, both of which ship downstream.

@@ -6,12 +6,13 @@ Source: docs/{issues,rfc,specs,requirements,releases,canonical,product}/**/*.md
 
 _None._
 
-## Active (implementing) (2)
+## Active (implementing) (3)
 
 | ID | Type | Status | Progress | Path |
 |---|---|---|---|---|
 | RFC-0012 | rfc | implementing | — | docs/rfc/RFC-0012-aai-self-improvement-feedback-loop.md |
 | RFC-0017 | rfc | implementing | — | docs/rfc/RFC-0017-smaller-node-core-and-faster-feedback.md |
+| spec-allocator-research-hotfix-types | specs | implementing | 4 done | docs/specs/SPEC-DRAFT-spec-allocator-research-hotfix-types.md |
 
 ## Canonical layer (0)
 
@@ -730,7 +731,7 @@ _None._
 | PRD-0001 | requirements | docs/requirements/PRD-0001-simple-and-friendly-to-use.md |
 | REL-0001 | releases | docs/releases/REL-0001-v2026-07-04.md |
 
-## Drafts (14)
+## Drafts (15)
 
 | ID | Type | Path |
 |---|---|---|
@@ -747,6 +748,7 @@ _None._
 | ISSUE-0043 | issues | docs/issues/ISSUE-0043-tripwire-ratchet-arms-without-coverage.md |
 | ISSUE-0044 | issues | docs/issues/ISSUE-0044-tripwire-reporting-and-run-dir-residuals.md |
 | ISSUE-0091 | issues | docs/issues/ISSUE-0091-merged-worktrees-linger-after-close.md |
+| allocator-research-hotfix-types (unnumbered draft) | issues | docs/issues/ISSUE-DRAFT-allocator-research-hotfix-types.md |
 | RFC-0016 | rfc | docs/rfc/RFC-0016-downstream-pr-ceremony-reliability.md |
 
 ## Deferred (whole-doc) (0)
@@ -764,7 +766,7 @@ _None._
 
 _None._
 
-## Broken references (564)
+## Broken references (568)
 
 | Source | Reference | Status |
 |---|---|---|
@@ -935,6 +937,8 @@ _None._
 | tests/skills/test-aai-doc-number-reservation.sh | docs/rfc/RFC-DRAFT-widen-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/issues/CHANGE-0099-readonly-projection.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/issues/CHANGE-DRAFT-my-topic.md | NOT FOUND |
+| tests/skills/test-aai-doc-numbering.sh | docs/issues/ISSUE-DRAFT-patch.md | NOT FOUND |
+| tests/skills/test-aai-doc-numbering.sh | docs/issues/ISSUE-DRAFT-probe.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/requirements/PRD-0001-imposter.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/requirements/PRD-DRAFT-first-ever.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/requirements/PRD-DRAFT-next-feature.md | NOT FOUND |
@@ -960,6 +964,8 @@ _None._
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-topic-b.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-unreachable-topic.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/rfc/RFC-DRAFT-untracked-draft.md | NOT FOUND |
+| tests/skills/test-aai-doc-numbering.sh | docs/specs/RES-DRAFT-probe.md | NOT FOUND |
+| tests/skills/test-aai-doc-numbering.sh | docs/specs/RES-DRAFT-spike.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/specs/SPEC-DRAFT-degrade-absent.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/specs/SPEC-DRAFT-exit-contract.md | NOT FOUND |
 | tests/skills/test-aai-doc-numbering.sh | docs/specs/SPEC-DRAFT-my-topic.md | NOT FOUND |
