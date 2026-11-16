@@ -2018,6 +2018,18 @@ function resolveDocById(root, docId) {
 
 const docTypeOf = (fm) => String(fm?.type ?? '').toLowerCase();
 
+// issue-gate-via-spec D1 (PR #564 Codex P2) — may this doc gate through its
+// linked specs? Only a doc whose frontmatter type is a KNOWN non-spec type
+// and whose file is not a SPEC- display id. A spec with a missing or
+// misspelled type, and any doc whose type is missing or unknown, fail closed
+// on their own (missing) table instead of delegating.
+function gatesThroughLinkedSpecs(fm, rel) {
+  const type = docTypeOf(fm);
+  if (type === 'spec') return false;
+  if (!DOC_TYPE_ENUM.has(type)) return false;
+  return !/^SPEC-/.test(path.basename(String(rel ?? '')));
+}
+
 // issue-gate-via-spec D2/D3 — gate a non-spec doc that carries no AC table of
 // its own through the spec(s) linked to it: forward `links.spec` ids (each
 // resolved by matchDocId; one that resolves to no doc, to several, or to a
@@ -2086,7 +2098,7 @@ export function gateDoc(root, docId) {
   if (!res.found) return { found: false, ok: false, reasons: res.reasons };
   const extraMethods = res.config?.review_by_methods ?? [];
   const own = gateContent(res.entry.content, extraMethods);
-  if (own.missingTable && docTypeOf(res.entry.fm) !== 'spec') {
+  if (own.missingTable && gatesThroughLinkedSpecs(res.entry.fm, res.entry.rel)) {
     return { found: true, ...gateViaLinkedSpecs(res.entries, res.entry, own, extraMethods) };
   }
   return { found: true, ok: own.ok, reasons: own.reasons };
@@ -2148,7 +2160,7 @@ export function gateFile(root, filePath) {
   const content = fs.readFileSync(abs, 'utf8');
   const own = gateContent(content, extraMethods);
   const fm = parseFrontmatter(content);
-  if (own.missingTable && docTypeOf(fm) !== 'spec') {
+  if (own.missingTable && gatesThroughLinkedSpecs(fm, filePath)) {
     // issue-gate-via-spec D4 — the file may be a temporary copy (the hook's
     // staged blob), so its identity is its frontmatter id, plus the display
     // id of the ONE scanned doc carrying that same id (a spec may link back by
@@ -2157,6 +2169,9 @@ export function gateFile(root, filePath) {
     const fmId = fm?.id ?? null;
     const self = fmId ? entries.filter((e) => e.fmId === fmId) : [];
     const parent = { fm, fmId, fileIds: self.length === 1 ? self[0].fileIds : [], content };
+    if (self.length === 1 && !gatesThroughLinkedSpecs(fm, self[0].rel)) {
+      return { found: true, ok: own.ok, reasons: own.reasons };
+    }
     return { found: true, ...gateViaLinkedSpecs(entries, parent, own, extraMethods) };
   }
   return { found: true, ok: own.ok, reasons: own.reasons };

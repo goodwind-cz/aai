@@ -4,7 +4,7 @@ type: spec
 number: 297
 status: done
 mutation_gate: v1
-frozen_sha256: 28df68c4d3f246b509cad030a24d55d4e571d4fb158813455d99b11f482eb1b9
+frozen_sha256: ad7132c28a7bcae3a006516f33b13575b8ae1bf14f207018e27285291f37cc75
 ceremony_level: 2
 links:
   requirement: issue-gate-via-spec
@@ -78,7 +78,10 @@ changes (the AGENTS.md rule "before flipping a governed doc to done, run
 A doc gates through its linked specs when both hold:
 
 1. its frontmatter `type` is not `spec` (case-insensitive; an absent type is
-   not `spec`), and
+   not `spec`), and (amended after PR #564 Codex review) is a known doc type
+   other than `spec`, and its file is not a `SPEC-` display id: a spec whose
+   type is missing or misspelled, and any doc whose type is missing or
+   unknown, fail closed on their own missing table, and
 2. it carries no AC table of its own: the existing gate would report
    `missing AC Status table` (or, at ceremony 0/1, the lean
    `missing AC table (...)` reason).
@@ -255,10 +258,10 @@ Seams:
 
 | Test ID | Spec-AC | Type | File path (expected) | Description | Mutation | Status |
 |---|---|---|---|---|---|---|
-| TEST-3801 | Spec-AC-01 | integration | tests/skills/test-aai-docs-audit.sh | iso repo with ISSUE-5801 (no table, id issue-5801) and SPEC-5801 (reconciled, links.requirement issue-5801): --gate ISSUE-5801 exit 0, PASS via line names SPEC-5801 and its path; second pair linked by display id ISSUE-5802 passes the same way | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/if \(own\.missingTable && docTypeOf\(res\.entry\.fm\) !== 'spec'\)/if (false)/` stops the delegation and the case must fail | green |
+| TEST-3801 | Spec-AC-01 | integration | tests/skills/test-aai-docs-audit.sh | iso repo with ISSUE-5801 (no table, id issue-5801) and SPEC-5801 (reconciled, links.requirement issue-5801): --gate ISSUE-5801 exit 0, PASS via line names SPEC-5801 and its path; second pair linked by display id ISSUE-5802 passes the same way | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/if \(own\.missingTable && gatesThroughLinkedSpecs\(res\.entry\.fm, res\.entry\.rel\)\)/if (false)/` stops the delegation (cell re-targeted after PR #564 review) and the case must fail | green |
 | TEST-3802 | Spec-AC-02 | integration | tests/skills/test-aai-docs-audit.sh | ISSUE-5803 linked by two specs, SPEC-5803 reconciled and SPEC-5804 with an implementing row: exit 1, reason line SPEC-5804: Spec-AC-01 is non-terminal, Decided by line names SPEC-5804 fail and SPEC-5803 pass | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/for \(const r of sres\.reasons\)/for (const r of [])/` drops the spec reasons, the gate passes and the case must fail | green |
 | TEST-3803 | Spec-AC-03 | integration | tests/skills/test-aai-docs-audit.sh | ISSUE-5805 with no table and no link: exit 1, missing AC Status table and no linked spec naming issue-5805; ISSUE-5806 with links.spec spec-missing: exit 1 naming spec-missing; ISSUE-5807 with links.spec naming CHANGE-5807: exit 1 naming it and not a spec | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/if \(linked\.size === 0\) \{/if (linked.size < 0) {/` lets the unlinked doc through and the case must fail | green |
-| TEST-3804 | Spec-AC-04 | integration | tests/skills/test-aai-docs-audit.sh | SPEC-5808 with no table named by reconciled SPEC-5809 links.rfc: exit 1, missing AC Status table, no via line; CHANGE-5810 with its own implementing row and a reconciled spec linking to it: exit 1 naming the row, no Decided by line | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/own\.missingTable && docTypeOf\(res\.entry\.fm\) !== 'spec'/own.missingTable/` lets the spec delegate and the case must fail | green |
+| TEST-3804 | Spec-AC-04 | integration | tests/skills/test-aai-docs-audit.sh | SPEC-5808 with no table named by reconciled SPEC-5809 links.rfc: exit 1, missing AC Status table, no via line; CHANGE-5810 with its own implementing row and a reconciled spec linking to it: exit 1 naming the row, no Decided by line | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/function gatesThroughLinkedSpecs\(fm, rel\) \{/function gatesThroughLinkedSpecs(fm, rel) { return true;/` lets the spec delegate (cell re-targeted after PR #564 review; the test also covers a SPEC- file with a missing or misspelled type and a typeless intake doc) and the case must fail | green |
 | TEST-3805 | Spec-AC-05 | integration | tests/skills/test-aai-docs-audit.sh | copy of ISSUE-5811 (id issue-5811) placed outside docs/; SPEC-5811 links.requirement ISSUE-5811: --gate-file on the copy exit 0 with the via line; spec link removed: exit 1, no linked spec | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/fileIds: self\.length === 1 \? self\[0\]\.fileIds : \[\]/fileIds: []/` drops the display id and the case must fail | green |
 | TEST-3806 | Spec-AC-06 | integration | tests/skills/test-aai-docs-audit.sh | hook repo: ISSUE-5812 (no table, no spec) staged draft to done under enforce: commit aborts naming issue-5812; under report-only: commits with a close-gate warning; ISSUE-5813 with reconciled SPEC-5813 linking back flipped under enforce: commit succeeds; REL-5815 under docs/releases/ flipped under enforce commits ungated (amendment after review round 2) | target `.aai/templates/git-hooks/pre-commit-index.sh`; `sed:s/grep -E '\^docs\/\(issues/grep -E '^docs\/(xissues/` stops gating docs/issues and the case must fail | green |
 | TEST-3807 | Spec-AC-07 | integration | tests/skills/test-aai-docs-audit.sh | copy the real ISSUE-0115 to ISSUE-0118 and SPEC-0292 to SPEC-0295 into an iso repo; --gate ISSUE-0115 to ISSUE-0118 each exit 0 with the via line naming SPEC-0292 to SPEC-0295 | target `.aai/scripts/lib/docs-audit-core.mjs`; `sed:s/if \(docTypeOf\(e\.fm\) === 'spec' && linksBackTo\(e\.fm, parentRefs\)\)/if (false)/` stops the reverse lookup and the case must fail | green |

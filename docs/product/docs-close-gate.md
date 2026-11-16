@@ -59,6 +59,9 @@ fields; these are the links intake and planning already write.
 
 ## Limits and non-goals
 
+- Only a doc with a known non-spec `type` delegates: a spec (including a
+  `SPEC-` file whose `type` is missing or misspelled) and a doc whose `type`
+  is missing or unknown are checked on their own table only.
 - A spec never gates through another spec; a doc that carries its own AC
   table is gated on that table only. A table counts as its own as soon as a
   `Spec-AC-NN` row sits under an `## Acceptance Criteria` or

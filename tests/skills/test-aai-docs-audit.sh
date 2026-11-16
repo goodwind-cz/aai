@@ -9254,6 +9254,30 @@ MD
   [[ "$ec" == 1 ]] || log_fail "TEST-3804: a change with its own open row must fail on it (got $ec): $(cat "$d/g2.log")"
   grep -qF -- "- Spec-AC-01 is non-terminal" "$d/g2.log" || log_fail "TEST-3804: must name its own row: $(cat "$d/g2.log")"
   if grep -qF "Decided by" "$d/g2.log"; then log_fail "TEST-3804: an own table must not defer to a spec: $(cat "$d/g2.log")"; fi
+  # PR #564 Codex P2: a spec whose frontmatter type is missing or misspelled
+  # is still a spec (SPEC- display id) and never delegates; a doc whose type
+  # is missing or unknown fails closed instead of delegating.
+  local t
+  for t in none sepc; do
+    {
+      printf -- '---\nid: spec-5826-%s\n' "$t"
+      [[ "$t" == none ]] || printf 'type: %s\n' "$t"
+      printf 'status: done\nlinks:\n  pr: []\n---\n# Spec without a usable type\n'
+    } > "$d/docs/specs/SPEC-58$([[ $t == none ]] && echo 26 || echo 27)-typeless.md"
+  done
+  igs_spec "$d/docs/specs/SPEC-5828-child.md" spec-5828 done rfc SPEC-5826
+  igs_spec "$d/docs/specs/SPEC-5829-child.md" spec-5829 done rfc SPEC-5827
+  for t in 5826 5827; do
+    ec="$(igs_gate "$d" "$d/g-$t.log" --gate "SPEC-$t")"
+    [[ "$ec" == 1 ]] || log_fail "TEST-3804: SPEC-$t (type missing or misspelled) must not pass via a linked spec (got $ec): $(cat "$d/g-$t.log")"
+    if grep -qF "via linked spec" "$d/g-$t.log"; then log_fail "TEST-3804: SPEC-$t must never delegate: $(cat "$d/g-$t.log")"; fi
+  done
+  {
+    printf -- '---\nid: issue-5830\nstatus: done\nlinks:\n  pr: []\n---\n# Intake without a type\n'
+  } > "$d/docs/issues/ISSUE-5830-typeless.md"
+  igs_spec "$d/docs/specs/SPEC-5830-linked.md" spec-5830 done requirement issue-5830
+  ec="$(igs_gate "$d" "$d/g-5830.log" --gate ISSUE-5830)"
+  [[ "$ec" == 1 ]] || log_fail "TEST-3804: a doc with no frontmatter type must fail closed, not delegate (got $ec): $(cat "$d/g-5830.log")"
   rm -rf "$d"
   igs_release_root
   log_pass "Specs never delegate and an own table governs (TEST-3804)"
