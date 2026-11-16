@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-11-16T01:41:30.005Z",
+  "generatedAt": "2026-11-16T09:06:37.985Z",
   "project": "aai",
   "counts": {
     "delivered": 364,
-    "in_progress": 16,
+    "in_progress": 17,
     "releases": 1,
     "tokens_total": 189310311
   },
@@ -181,6 +181,19 @@
       "review": null
     },
     {
+      "ref": "allocator-research-hotfix-types",
+      "title": "The doc-number allocator refuses two intake types and goes silent through a symlinked checkout",
+      "type": "issue",
+      "status": "draft",
+      "path": "docs/issues/ISSUE-DRAFT-allocator-research-hotfix-types.md",
+      "closed_on": null,
+      "agent_minutes": 41,
+      "token_total": 647738,
+      "spec": "docs/specs/SPEC-DRAFT-spec-allocator-research-hotfix-types.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-allocator-research-hotfix-types-r1-20261116T090424Z.md"
+    },
+    {
       "ref": "aai-self-improvement-feedback-loop",
       "title": "RFC (Decision Proposal)",
       "type": "rfc",
@@ -232,7 +245,7 @@
       "token_total": 1739375,
       "spec": "docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md",
       "validation": null,
-      "review": "docs/ai/reviews/review-metrics-integrity-fixes-r1-20261115T224845Z.md"
+      "review": "docs/ai/reviews/review-metrics-integrity-fixes-r2-20261116T013606Z.md"
     },
     {
       "ref": "recover-archived-state-runs",
@@ -4991,7 +5004,7 @@
           "token_total": 1739375,
           "spec": "docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md",
           "validation": null,
-          "review": "docs/ai/reviews/review-metrics-integrity-fixes-r1-20261115T224845Z.md"
+          "review": "docs/ai/reviews/review-metrics-integrity-fixes-r2-20261116T013606Z.md"
         },
         {
           "ref": "recover-archived-state-runs",
