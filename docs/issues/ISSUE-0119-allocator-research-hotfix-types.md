@@ -1,11 +1,13 @@
 ---
 id: allocator-research-hotfix-types
 type: issue
-number: null
-status: draft
+number: 119
+status: done
 links:
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 01f6d32c
 ---
 
 # The doc-number allocator refuses two intake types and goes silent through a symlinked checkout

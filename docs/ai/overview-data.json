@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-16T09:06:37.985Z",
+  "generatedAt": "2026-11-16T09:26:05.944Z",
   "project": "aai",
   "counts": {
-    "delivered": 364,
-    "in_progress": 17,
+    "delivered": 366,
+    "in_progress": 15,
     "releases": 1,
-    "tokens_total": 189310311
+    "tokens_total": 189958049
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -129,19 +129,6 @@
       "review": null
     },
     {
-      "ref": "intake-doc-identity-table-and-its-pins",
-      "title": "The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
-      "closed_on": null,
-      "agent_minutes": null,
-      "token_total": null,
-      "spec": null,
-      "validation": null,
-      "review": null
-    },
-    {
       "ref": "tripwire-ratchet-arms-without-coverage",
       "title": "The drained offender table left an arm with no legal repair, a spec that contradicts its own code, and a green that proves nothing",
       "type": "issue",
@@ -179,19 +166,6 @@
       "spec": null,
       "validation": null,
       "review": null
-    },
-    {
-      "ref": "allocator-research-hotfix-types",
-      "title": "The doc-number allocator refuses two intake types and goes silent through a symlinked checkout",
-      "type": "issue",
-      "status": "draft",
-      "path": "docs/issues/ISSUE-DRAFT-allocator-research-hotfix-types.md",
-      "closed_on": null,
-      "agent_minutes": 41,
-      "token_total": 647738,
-      "spec": "docs/specs/SPEC-DRAFT-spec-allocator-research-hotfix-types.md",
-      "validation": null,
-      "review": "docs/ai/reviews/review-allocator-research-hotfix-types-r1-20261116T090424Z.md"
     },
     {
       "ref": "aai-self-improvement-feedback-loop",
@@ -246,6 +220,19 @@
       "spec": "docs/specs/SPEC-0295-spec-metrics-integrity-fixes.md",
       "validation": null,
       "review": "docs/ai/reviews/review-metrics-integrity-fixes-r2-20261116T013606Z.md"
+    },
+    {
+      "ref": "allocator-research-hotfix-types",
+      "title": "The doc-number allocator refuses two intake types and goes silent through a symlinked checkout",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0119-allocator-research-hotfix-types.md",
+      "closed_on": "2026-11-16",
+      "agent_minutes": 41,
+      "token_total": 647738,
+      "spec": "docs/specs/SPEC-0296-spec-allocator-research-hotfix-types.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-allocator-research-hotfix-types-r1-20261116T090424Z.md"
     },
     {
       "ref": "recover-archived-state-runs",
@@ -1761,6 +1748,19 @@
       "type": "issue",
       "status": "done",
       "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
+      "closed_on": "2026-09-18",
+      "agent_minutes": null,
+      "token_total": null,
+      "spec": null,
+      "validation": null,
+      "review": null
+    },
+    {
+      "ref": "intake-doc-identity-table-and-its-pins",
+      "title": "The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
       "closed_on": "2026-09-18",
       "agent_minutes": null,
       "token_total": null,
@@ -5007,6 +5007,19 @@
           "review": "docs/ai/reviews/review-metrics-integrity-fixes-r2-20261116T013606Z.md"
         },
         {
+          "ref": "allocator-research-hotfix-types",
+          "title": "The doc-number allocator refuses two intake types and goes silent through a symlinked checkout",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0119-allocator-research-hotfix-types.md",
+          "closed_on": "2026-11-16",
+          "agent_minutes": 41,
+          "token_total": 647738,
+          "spec": "docs/specs/SPEC-0296-spec-allocator-research-hotfix-types.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-allocator-research-hotfix-types-r1-20261116T090424Z.md"
+        },
+        {
           "ref": "recover-archived-state-runs",
           "title": "Role runs that live only in archived STATE copies never reach METRICS, and nothing can recover them",
           "type": "issue",
@@ -6534,6 +6547,19 @@
           "type": "issue",
           "status": "done",
           "path": "docs/issues/ISSUE-0040-focus-and-validation-state-go-stale-silently.md",
+          "closed_on": "2026-09-18",
+          "agent_minutes": null,
+          "token_total": null,
+          "spec": null,
+          "validation": null,
+          "review": null
+        },
+        {
+          "ref": "intake-doc-identity-table-and-its-pins",
+          "title": "The intake identity table is authoritative for more types than the tools support, and its pins read the wrong thing",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md",
           "closed_on": "2026-09-18",
           "agent_minutes": null,
           "token_total": null,

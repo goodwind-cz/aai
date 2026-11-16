@@ -4050,3 +4050,11 @@
 {"v":1,"ts":"2026-11-16T09:00:06Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"allocator-research-hotfix-types","payload":{"role":"code_review","head":"9ac8a6611b24b1d09f220355df5d80ec4a4a0ed9","seen":"reports:0"}}
 {"v":1,"ts":"2026-11-16T09:00:06Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"allocator-research-hotfix-types","payload":{"status":"pass","hash":"ebac7874b36ed9e71ea8936011693fcb59684eddb8ca313766e7ecc64f6c929a"}}
 {"v":1,"ts":"2026-11-16T09:06:24Z","actor":"ales_holubec.net","event":"check_verdict","ref":"allocator-research-hotfix-types","payload":{"role":"code_review","head":"9ac8a6611b24b1d09f220355df5d80ec4a4a0ed9","status":"pass","security_relevant":false}}
+{"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"allocator-research-hotfix-types","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"allocator-research-hotfix-types","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"allocator-research-hotfix-types","payload":{"commit":"01f6d32c"}}
+{"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-allocator-research-hotfix-types","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-allocator-research-hotfix-types","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"spec-allocator-research-hotfix-types","payload":{"commit":"01f6d32c"}}
+{"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"intake-doc-identity-table-and-its-pins","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-16T09:25:57Z","actor":"ales_holubec.net","event":"ac_evidence","ref":"intake-doc-identity-table-and-its-pins","payload":{"commit":"01f6d32c"}}

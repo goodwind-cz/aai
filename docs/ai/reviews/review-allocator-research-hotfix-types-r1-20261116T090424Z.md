@@ -3,7 +3,7 @@
 ```yaml
 review:
   scope: "origin/main...HEAD (base c1034b24, head 9ac8a661) in /Users/ales/Projects/aai-worktrees/allocator-research-hotfix-types, branch fix/allocator-research-hotfix-types"
-  spec: docs/specs/SPEC-DRAFT-spec-allocator-research-hotfix-types.md
+  spec: docs/specs/SPEC-0296-spec-allocator-research-hotfix-types.md
   spec_compliance:
     verdict: pass
     ac_walk:
@@ -40,7 +40,7 @@ security_relevant: false
 - Scope: `git diff origin/main...HEAD`, base c1034b24 (= merge-base), head 9ac8a661,
   2 commits. `git status --porcelain` in the worktree shows only the dispatch-time
   `docs/ai/EVENTS.jsonl` append, outside the reviewed diff.
-- Spec: docs/specs/SPEC-DRAFT-spec-allocator-research-hotfix-types.md (frozen, L3).
+- Spec: docs/specs/SPEC-0296-spec-allocator-research-hotfix-types.md (frozen, L3).
 - Files in the diff: `.aai/scripts/allocate-doc-number.mjs` (+4/-3),
   `tests/skills/test-aai-doc-numbering.sh` (+147), `tests/skills/test-aai-intake.sh`
   (+14/-3), `tests/skills/test-aai-doctor.sh` (+2/-8), `CHANGELOG.md` (+6), the intake

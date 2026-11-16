@@ -1,16 +1,18 @@
 ---
 id: spec-allocator-research-hotfix-types
 type: spec
-number: null
-status: implementing
+number: 296
+status: done
 mutation_gate: v1
-frozen_sha256: 8321497ab0dc45fe30f8a6bca8b89ea6dfcc46c67662668e1bea8ca6dc6235fa
+frozen_sha256: a97d6c0e0fac9176d0dee9afab4b711cd5de64615fdad8631e1e823e8f985c4c
 ceremony_level: 3
 links:
   requirement: allocator-research-hotfix-types
   rfc: null
-  pr: []
-  commits: []
+  pr:
+    - TBD
+  commits:
+    - 01f6d32c
 ---
 
 # The allocator knows all eight intake types and runs the same through a symlinked checkout
@@ -19,7 +21,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/ISSUE-DRAFT-allocator-research-hotfix-types.md
+- Requirement: docs/issues/ISSUE-0119-allocator-research-hotfix-types.md
 - Carried and closed in the same close transaction:
   docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md (its last
   open Verification bullet is the TYPE_MAP gap).
@@ -56,7 +58,7 @@ SPEC-FROZEN: true
 - Review scope (explicit paths): .aai/scripts/allocate-doc-number.mjs;
   tests/skills/test-aai-doc-numbering.sh; tests/skills/test-aai-intake.sh;
   tests/skills/test-aai-doctor.sh; CHANGELOG.md;
-  docs/issues/ISSUE-DRAFT-allocator-research-hotfix-types.md;
+  docs/issues/ISSUE-0119-allocator-research-hotfix-types.md;
   docs/issues/ISSUE-0042-intake-doc-identity-table-and-its-pins.md; this
   spec.
 
@@ -244,8 +246,8 @@ members (`fu-intake-templates-lack-number-key`,
 `fu-intake-common-fallback-numbers-doc`, `fu-intake-table-parser-asymmetry`,
 `fu-intake-dir-pin-is-set-not-opening`, `fu-ledger-backticks-ran-as-command`,
 `fu-ledger-no-backtick-claim-is-absolute`, `fu-report-ids-exceed-registry-cap`)
-are already closed done and `fu-intake-dir-unanchored-research-hotfix` is
-dropped.
+are already closed done, and the unanchored-directory member was dropped by
+test-framework-sweep.
 
 ## Residual risks
 
