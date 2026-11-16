@@ -4072,3 +4072,12 @@
 {"v":1,"ts":"2026-11-16T20:24:10Z","actor":"ales_holubec.net","event":"full_sweep","ref":"issue-gate-via-spec","payload":{"head":"0113695be9e6742e7e9a350196cbbb03230c3057","rc":0,"run_id":"test-20261116-200417"}}
 {"v":1,"ts":"2026-11-16T20:19:38Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-ceremony-friction-fixes","payload":{"from":"draft","to":"implementing"}}
 {"v":1,"ts":"2026-11-16T20:59:49Z","actor":"ales_holubec.net","event":"full_sweep","ref":"pr-ceremony-friction-fixes","payload":{"head":"2ca48983bca6683aa9f0c629de51f123ea6d0875","rc":1,"run_id":"test-20261116-203806"}}
+{"v":1,"ts":"2026-11-16T21:36:30Z","actor":"ales_holubec.net","event":"full_sweep","ref":"pr-ceremony-friction-fixes","payload":{"head":"acc37e75753bf301196aa1e6641294daab88b8ef","rc":0,"run_id":"test-20261116-211411"}}
+{"v":1,"ts":"2026-11-16T21:48:30Z","actor":"ales_holubec.net","event":"check_dispatched","ref":"pr-ceremony-friction-fixes","payload":{"role":"code_review","head":"acc37e75753bf301196aa1e6641294daab88b8ef","seen":"reports:0"}}
+{"v":1,"ts":"2026-11-16T21:48:30Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"pr-ceremony-friction-fixes","payload":{"status":"pass","hash":"7a6fd43db26029647dc47c566651b7fc5875d4e439e608433f8aad20b3fcd257"}}
+{"v":1,"ts":"2026-11-16T21:48:39Z","actor":"ales_holubec.net","event":"check_verdict","ref":"pr-ceremony-friction-fixes","payload":{"role":"code_review","head":"acc37e75753bf301196aa1e6641294daab88b8ef","status":"pass","security_relevant":true}}
+{"v":1,"ts":"2026-11-16T21:48:39Z","actor":"ales_holubec.net","event":"validation_verdict","ref":"pr-ceremony-friction-fixes","payload":{"status":"pass","hash":"7a6fd43db26029647dc47c566651b7fc5875d4e439e608433f8aad20b3fcd257"}}
+{"v":1,"ts":"2026-11-16T21:50:23Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"pr-ceremony-friction-fixes","payload":{"from":"draft","to":"done"}}
+{"v":1,"ts":"2026-11-16T21:50:23Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"pr-ceremony-friction-fixes","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-16T21:50:23Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-pr-ceremony-friction-fixes","payload":{"from":"implementing","to":"done"}}
+{"v":1,"ts":"2026-11-16T21:50:23Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-pr-ceremony-friction-fixes","payload":{"validation":"pass","code_review":"pass"}}

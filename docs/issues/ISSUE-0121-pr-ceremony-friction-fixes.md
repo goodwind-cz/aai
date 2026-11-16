@@ -1,8 +1,8 @@
 ---
 id: pr-ceremony-friction-fixes
 type: issue
-number: null
-status: draft
+number: 121
+status: done
 links:
   pr: []
   commits: []

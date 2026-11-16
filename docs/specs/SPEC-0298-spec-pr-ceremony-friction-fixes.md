@@ -1,10 +1,10 @@
 ---
 id: spec-pr-ceremony-friction-fixes
 type: spec
-number: null
-status: implementing
+number: 298
+status: done
 mutation_gate: v1
-frozen_sha256: 5bb1e4af75bb4b628aa36c4976e7ef750c5059a9bc2bbe75a378bf52132583ba
+frozen_sha256: a8bb7a831e337c0e92b2a782a776c7ba80fc3de908dfe32fc39307d6b24b8b8d
 ceremony_level: 3
 links:
   requirement: pr-ceremony-friction-fixes
@@ -19,7 +19,7 @@ SPEC-FROZEN: true
 
 ## Links
 
-- Requirement: docs/issues/ISSUE-DRAFT-pr-ceremony-friction-fixes.md
+- Requirement: docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md
   (GitHub issues #565 and #566, downstream friction reports).
 - Prior scopes this one builds on (closed, not edited):
   docs/specs/SPEC-0279-spec-pre-commit-checks-ps1-retire.md (the bash checks

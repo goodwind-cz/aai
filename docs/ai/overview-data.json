@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-11-16T19:40:13.657Z",
+  "generatedAt": "2026-11-16T21:50:33.454Z",
   "project": "aai",
   "counts": {
-    "delivered": 365,
+    "delivered": 366,
     "in_progress": 16,
     "releases": 1,
-    "tokens_total": 190598384
+    "tokens_total": 190853353
   },
   "waiting_on_you": null,
   "current_focus": null,
@@ -244,6 +244,19 @@
       "agent_minutes": 225,
       "token_total": 1288073,
       "spec": "docs/specs/SPEC-0297-spec-issue-gate-via-spec.md",
+      "validation": null,
+      "review": "docs/ai/reviews/review-issue-gate-via-spec-r4-20261116T194000Z.md"
+    },
+    {
+      "ref": "pr-ceremony-friction-fixes",
+      "title": "PR ceremony friction: evidence names trip the secrets check, and the base sync runs on an uncommitted tree",
+      "type": "issue",
+      "status": "done",
+      "path": "docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md",
+      "closed_on": "2026-11-16",
+      "agent_minutes": 103,
+      "token_total": 254969,
+      "spec": "docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md",
       "validation": null,
       "review": null
     },
@@ -5016,6 +5029,19 @@
           "agent_minutes": 225,
           "token_total": 1288073,
           "spec": "docs/specs/SPEC-0297-spec-issue-gate-via-spec.md",
+          "validation": null,
+          "review": "docs/ai/reviews/review-issue-gate-via-spec-r4-20261116T194000Z.md"
+        },
+        {
+          "ref": "pr-ceremony-friction-fixes",
+          "title": "PR ceremony friction: evidence names trip the secrets check, and the base sync runs on an uncommitted tree",
+          "type": "issue",
+          "status": "done",
+          "path": "docs/issues/ISSUE-0121-pr-ceremony-friction-fixes.md",
+          "closed_on": "2026-11-16",
+          "agent_minutes": 103,
+          "token_total": 254969,
+          "spec": "docs/specs/SPEC-0298-spec-pr-ceremony-friction-fixes.md",
           "validation": null,
           "review": null
         },
