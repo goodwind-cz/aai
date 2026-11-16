@@ -4069,3 +4069,4 @@
 {"v":1,"ts":"2026-11-16T19:40:04Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"issue-gate-via-spec","payload":{"validation":"pass","code_review":"pass"}}
 {"v":1,"ts":"2026-11-16T19:40:04Z","actor":"ales_holubec.net","event":"doc_lifecycle","ref":"spec-issue-gate-via-spec","payload":{"from":"implementing","to":"done"}}
 {"v":1,"ts":"2026-11-16T19:40:04Z","actor":"ales_holubec.net","event":"work_item_closed","ref":"spec-issue-gate-via-spec","payload":{"validation":"pass","code_review":"pass"}}
+{"v":1,"ts":"2026-11-16T20:24:10Z","actor":"ales_holubec.net","event":"full_sweep","ref":"issue-gate-via-spec","payload":{"head":"0113695be9e6742e7e9a350196cbbb03230c3057","rc":0,"run_id":"test-20261116-200417"}}
