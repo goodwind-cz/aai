@@ -10,7 +10,7 @@ links:
   requirement: issue-gate-via-spec
   rfc: null
   pr:
-    - TBD
+    - 564
   commits: []
 ---
 
